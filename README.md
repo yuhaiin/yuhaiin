@@ -1,5 +1,5 @@
 # SSR_Subscription_analysis
-**SSRSub.py:** 解析经base64多层加密的订阅链接 python3版 读取速度更快  
+**SSRSub.py:** 解析经base64多层加密的订阅链接 可进行ping测试 python3版 读取速度更快  
 **SSRSub:** 解析经base64多层加密的订阅链接  
 **SSRConfig.sh:** 利用jq解析json文件  
 ssr_libev  
