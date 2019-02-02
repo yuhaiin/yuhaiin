@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import base64
 import requests
-import datetime
 import os
 url = "" #订阅链接
 list = []
@@ -10,13 +9,14 @@ SSR_path = "python3 ~/program/shadowsocksr-python/shadowsocks/local.py"
 
 def base64d(a):
     a=a.replace('_','/').replace('-','+')
-    if len(a)%4==0 :
+    len_temp=len(a)%4
+    if len_temp==0:
         return base64.b64decode(a)
-    elif len(a)%4==1:
+    elif len_temp==1:
         return base64.b64decode(a+"=")
-    elif len(a)%4==2:
+    elif len_temp==2:
         return base64.b64decode(a+"==")
-    elif len(a)%4==3:
+    elif len_temp==3:
         return base64.b64decode(a+"===")
 
 def update():
@@ -32,9 +32,6 @@ def update():
     main()
     return;
 
-
-print(datetime.datetime.now())
-
 def init():
     for line in base64d(open(os.path.expanduser(config_path）,"r").read()).split():
         list.append(base64d(line.decode("utf-8").replace('ssr://','')).decode('utf-8').replace('/?obfsparam=',':').replace('&protoparam=',':').replace('&remarks=',':').replace('&group=',':'))
@@ -47,14 +44,31 @@ def list_list():
         print(str(i)+':'+base64d(temp[-2]).decode('utf-8'))
     return;
 
-print(datetime.datetime.now())
-
 def input_select():
-    global select
-    select = input()
-    if int(select)==8888:
-        update()
+    try:
+        global select
+        select = input("\n\
+enter digital to select server star\n\
+enter 'update' to update your config\n\
+enter 'exit' to exit\n\
+enter 'ping' to start ping test\n\
+>>")
+        if select=='update':
+            update()
+            exit()
+        elif select=='exit':
+            exit()
+        elif select=='ping':
+            ping_test()
+            exit()
+    except ValueError:
+        print("please enter digital")
+        main()
         exit()
+    except EOFError:
+        exit("")
+    except KeyboardInterrupt:
+        exit("")
 
 def start():
     temp=list[int(select)-1].split(':')
@@ -86,20 +100,45 @@ def start():
                 protocol,protoparam,obfsparam))
 
 
+def ping_test():
+    try:
+        select=input("enter digital to ping test>>")
+        temp=list[int(select)-1].split(':')
+        if len(temp)==17:
+            server=temp[0]+':'+temp[1]+':'+temp[2]+':'+temp[3]+':'+temp[4]+':'+temp[5]+':'+temp[6]+':'+temp[7]
+        elif len(temp)==10:
+            server=temp[0]
+
+        if select=='exit':
+            main()
+            exit()
+
+        os.system("ping -c 3 %s" % (server))
+        ping_test()
+        
+    except EOFError:
+        main()
+        return;
+    except KeyboardInterrupt:
+        main()
+        return;
+
+
+ 
+
 def main():
+    list.clear()
     try:
         init()
     except FileNotFoundError:
         print("please update config.")
     list_list()
+    input_select()
     try:
-        input_select()
+        start()
     except ValueError:
         print("please enter number")
-        list.clear()
         main()
-        return;
-    start()
 
 if __name__ == '__main__':
     main()
