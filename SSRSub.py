@@ -21,9 +21,9 @@ def base64d(a):
 
 def update():
     try:
-        fo = open(os.path.expanduser(config_path）,"w")
+        fo = open(os.path.expanduser(config_path),"w")
     except FileNotFoundError:
-        os.makedirs(os.path.expanduser(config_path）.replace('/config.txt',''))
+        os.makedirs(os.path.expanduser(config_path).replace('/config.txt',''))
         update()
         return;
     fo.write(requests.get(url).text)
@@ -33,7 +33,7 @@ def update():
     return;
 
 def init():
-    for line in base64d(open(os.path.expanduser(config_path）,"r").read()).split():
+    for line in base64d(open(os.path.expanduser(config_path),"r").read()).split():
         list.append(base64d(line.decode("utf-8").replace('ssr://','')).decode('utf-8').replace('/?obfsparam=',':').replace('&protoparam=',':').replace('&remarks=',':').replace('&group=',':'))
         #print(base64d(line.decode("utf-8").replace('ssr://','')).decode('utf-8').replace('/?obfsparam=',':').replace('&protoparam=',':').replace('&remarks=',':').replace('&group=',':'))
 def list_list():
