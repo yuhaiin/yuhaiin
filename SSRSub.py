@@ -5,19 +5,10 @@ import os
 url = "" #订阅链接
 list = []
 config_path = "~/.cache/SSRSub/config.txt"
-SSR_path = "python3 ~/program/shadowsocksr-python/shadowsocks/local.py"
+SSR_path = "python3 ~/program/shadowsocksr-python/shadowsocks/local.py --connect-verbose-info --workers 8 --fast-open"
 
 def base64d(a):
-    a=a.replace('_','/').replace('-','+')
-    len_temp=len(a)%4
-    if len_temp==0:
-        return base64.b64decode(a)
-    elif len_temp==1:
-        return base64.b64decode(a+"=")
-    elif len_temp==2:
-        return base64.b64decode(a+"==")
-    elif len_temp==3:
-        return base64.b64decode(a+"===")
+    return base64.urlsafe_b64decode(a+"="*(len(a)%4))
 
 def update():
     try:
