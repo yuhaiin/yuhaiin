@@ -5,7 +5,7 @@ import os
 url = "" #订阅链接
 list = []
 config_path = "~/.cache/SSRSub/config.txt"
-SSR_path = "python3 ~/program/shadowsocksr-python/shadowsocks/local.py --connect-verbose-info --workers 8 --fast-open"
+SSR_path = "python3 ~/program/shadowsocksr-python/shadowsocks/local.py --connect-verbose-info --workers 8 --fast-open --pid-file=/home/asutorufa/.cache/SSRSub/shadowsocksr.pid --log-file=/dev/null"
 
 def base64d(a):
     return base64.urlsafe_b64decode(a+"="*(len(a)%4))
@@ -41,6 +41,7 @@ def input_select():
         select = input("\n\
 enter digital to select server star\n\
 enter 'update' to update your config\n\
+enter 'stop' to stop demon\n\
 enter 'exit' to exit\n\
 enter 'ping' to start ping test\n\
 >>")
@@ -52,6 +53,8 @@ enter 'ping' to start ping test\n\
         elif select=='ping':
             ping_test()
             exit()
+        elif select=='stop':
+            os.system("cat %s | xargs kill" % (os.path.expanduser(config_path).replace('config.txt','shadowsocksr.pid')))
     except ValueError:
         print("please enter digital")
         main()
@@ -87,7 +90,7 @@ def start():
     print(protoparam)
 
     os.system("%s -l 1080 -s %s -p %s -k %s -m %s -o %s -O %s -G %s -g \
-                %s" % (SSR_path,server,server_port,password,method,obfs,\
+                %s -d start" % (SSR_path,server,server_port,password,method,obfs,\
                 protocol,protoparam,obfsparam))
 
 
