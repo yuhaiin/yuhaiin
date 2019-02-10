@@ -5,7 +5,7 @@ import os
 url = "" #订阅链接
 list = []
 config_path = "~/.cache/SSRSub/config.txt"
-SSR_path = "python3 ~/program/shadowsocksr-python/shadowsocks/local.py --connect-verbose-info --workers 8 --fast-open --pid-file=/home/asutorufa/.cache/SSRSub/shadowsocksr.pid --log-file=/dev/null"
+SSR_path = "python3 ~/program/shadowsocksr-python/shadowsocks/local.py --connect-verbose-info --workers 8 --fast-open --pid-file=/home/asutorufa/.cache/SSRSub/shadowsocksr.pid --log-file=/dev/null -l 1080 -s %s -p %s -k %s -m %s -o %s -O %s -G %s -g %s -d start"
 
 def base64d(a):
     return base64.urlsafe_b64decode(a+"="*(len(a)%4))
@@ -89,8 +89,7 @@ def start():
     print(obfsparam)
     print(protoparam)
 
-    os.system("%s -l 1080 -s %s -p %s -k %s -m %s -o %s -O %s -G %s -g \
-                %s -d start" % (SSR_path,server,server_port,password,method,obfs,\
+    os.system(SSR_path % (server,server_port,password,method,obfs,\
                 protocol,protoparam,obfsparam))
 
 
