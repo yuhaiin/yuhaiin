@@ -1,5 +1,22 @@
 # SSR_Subscription_analysis
-**SSRSub.go:** go语言版 可生成可执行文件 无需安装一堆软件库 更轻便 还未完成  
+**SSRSub.go:** go语言版 可生成可执行文件 无需安装一堆软件库 更轻便 基本完成  
+```
+go版配置文件格式
+python_path /usr/bin/python3
+ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
+config_path config.txt
+config_url #程序内更新
+local_port 1080
+local_address 127.0.0.1
+ssr_config 
+connect-verbose-info
+workers 8
+fast-open
+deamon
+pid-file /home/asutorufa/.cache/SSRSub/shadowsocksr.pid
+log-file /dev/null
+```
+
 **SSRSub.py:** 解析经base64多层加密的订阅链接 可进行ping测试 python3版 读取速度更快  
 **SSRSub:** 解析经base64多层加密的订阅链接  
 **SSRConfig_json:** 利用jq解析json文件  
