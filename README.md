@@ -1,7 +1,7 @@
 # SSR_Subscription_analysis
 **SSRSub.go:** go语言版 可生成可执行文件 无需安装一堆软件库 更轻便 基本完成  
 ```
-go版配置文件格式
+go版配置文件格式(目前与执行文件放在同一个目录)
 python_path /usr/bin/python3
 ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
 config_path config.txt
