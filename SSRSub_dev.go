@@ -35,7 +35,7 @@ func ssr_config_init()ssr_config{
 func read_config()ssr_config{
     ssr_config := ssr_config_init()
     //var log_file,pid_file,fast_open,workers,connect_verbose_info,ssr_path,python_path,config_path,config_url string
-    config_temp,err := ioutil.ReadFile("ssr_config.conf")
+    config_temp,err := ioutil.ReadFile(ssr_config_path)
     if err != nil {
         fmt.Println(err)
     }
@@ -143,7 +143,7 @@ func ssr__server_config(){
     remarks := base64d(config_split[len(config_split)-2])
     //return server,server_port,protocol,method,obfs,password,obfsparam,protoparam,remarks
     //return ssr_config{server:server,server_port:server_port,protocol:protocol,method:method,obfs:obfs,password:password,obfsparam:obfsparam,protoparam:protoparam,remarks:remarks}
-    config_temp,err := ioutil.ReadFile("ssr_config.conf")
+    config_temp,err := ioutil.ReadFile(ssr_config_path)
     if err != nil {
         fmt.Println(err)
     }
