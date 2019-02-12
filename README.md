@@ -1,6 +1,11 @@
 # SSR_Subscription_analysis
 **SSRSub.go:** go语言版 可生成可执行文件 无需安装一堆软件库 更轻便 基本完成  
 ```
+已知问题:
+1.配置文件的读取路径有问题
+2.执行文件未分bash和cmd 且执行文件路径有问题
+3.输入错误未设置处理程序
+
 go版配置文件格式(目前与执行文件放在同一个目录)
 python_path /usr/bin/python3
 ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
