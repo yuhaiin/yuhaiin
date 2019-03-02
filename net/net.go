@@ -13,8 +13,9 @@ func socks5_dial(){
 		return
 	}
 
-	//发送socks5验证信息
-	//socks版本 连接方式 验证方式
+
+//发送socks5验证信息
+//socks版本 连接方式 验证方式
 	_,err = conn.Write([]byte{5,1,0})
 	var b [1024]byte
 	status,err := conn.Read(b[:])
@@ -24,7 +25,6 @@ func socks5_dial(){
 	}
 	fmt.Println(b)
 	fmt.Println(status)
-	fmt.Println("\n")
 
 
 /*
@@ -33,8 +33,7 @@ socks_version link_style none ipv4/ipv6/domain address port
 socks5协议
 socks版本 连接方式 保留字节 域名/ipv4/ipv6 域名 端口
 */
-
-	domain := "www.google.com"
+	domain := "google.com"
 	before := []byte{5,1,0,3,byte(len(domain))}
 	de := []byte(domain)
 	port := []byte{0x1,0xbb}
@@ -58,6 +57,9 @@ socks版本 连接方式 保留字节 域名/ipv4/ipv6 域名 端口
 	fmt.Println(status_2)
 	fmt.Println(c)
 
+
+//进行数据请求
+	temp := time.Now()
 	_,err = conn.Write([]byte("HEAD / HTTP/1.0\r\n\r\n"))
 	if err!=nil{
 		fmt.Println(err)
@@ -67,16 +69,14 @@ socks版本 连接方式 保留字节 域名/ipv4/ipv6 域名 端口
 	status_3,err := conn.Read(d[:])
 	fmt.Println(status_3)
 	fmt.Println(d)
+	deply := time.Since(temp)
+	fmt.Println(deply)
+	
+	
 	conn.Close()
 }
 
 
 func main(){
-
-temp := time.Now()
-
 socks5_dial()
-
-deply := time.Since(temp)
-fmt.Println(deply)
 }
