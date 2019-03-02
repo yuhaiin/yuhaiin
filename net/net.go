@@ -29,13 +29,15 @@ func socks5_dial(){
 
 /*
 socks5 protocol
-socks_version link_style none ipv4/ipv6/deamin address port
+socks_version link_style none ipv4/ipv6/domain address port
 socks5协议
 socks版本 连接方式 保留字节 域名/ipv4/ipv6 域名 端口
 */
-	before := []byte{5,1,0,3,11}
-	de := []byte("youtube.com")
-	port := []byte{byte(8),byte(0)}
+
+	domain := "www.google.com"
+	before := []byte{5,1,0,3,byte(len(domain))}
+	de := []byte(domain)
+	port := []byte{0x1,0xbb}
 	head_temp := append(before,de...)
 	head := append(head_temp,port...)
 
@@ -55,8 +57,19 @@ socks版本 连接方式 保留字节 域名/ipv4/ipv6 域名 端口
 	}
 	fmt.Println(status_2)
 	fmt.Println(c)
+
+	_,err = conn.Write([]byte("HEAD / HTTP/1.0\r\n\r\n"))
+	if err!=nil{
+		fmt.Println(err)
+		return
+	}
+	var d [1024]byte
+	status_3,err := conn.Read(d[:])
+	fmt.Println(status_3)
+	fmt.Println(d)
 	conn.Close()
 }
+
 
 func main(){
 
