@@ -18,6 +18,9 @@ func main(){
 	db.Exec("DELETE FROM SSR_info")
 
 
+    //删除表
+	db.Exec("DROP TABLE IF EXISTS SSR_info;")
+	
 	 //创建表 
 	sql_table := `
 	CREATE TABLE IF NOT EXISTS SSR_info(
