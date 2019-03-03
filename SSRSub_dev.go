@@ -143,6 +143,22 @@ func update_config_db(){
     //删除表
     db.Exec("DROP TABLE IF EXISTS SSR_info;")
 
+    //创建表
+     sql_table := `
+    CREATE TABLE IF NOT EXISTS SSR_info(
+        remarks TEXT,
+        server TEXT,
+        server_port TEXT,
+        protocol TEXT,
+        method TEXT,
+        obfs TEXT,
+        password TEXT,
+        obfsparam TEXT,
+        protoparam TEXT
+    );
+    `
+    db.Exec(sql_table)
+    
     config_middle_temp := str_replace(string(read_ssr_config()))
     //list_list(config_middle_temp)
     for _,config_temp := range config_middle_temp{
@@ -163,23 +179,9 @@ func update_config_db(){
         remarks := base64d(config_split[len(config_split)-2])
         //fmt.Println(num,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
 
-        //创建表
-        sql_table := `
-        CREATE TABLE IF NOT EXISTS SSR_info(
-            remarks TEXT,
-            server TEXT,
-            server_port TEXT,
-            protocol TEXT,
-            method TEXT,
-            obfs TEXT,
-            password TEXT,
-            obfsparam TEXT,
-            protoparam TEXT
-        );
-        `
-        db.Exec(sql_table)
 
-        //插入
+
+        //向表中插入数据
         stmt,_ := db.Prepare("INSERT INTO SSR_info(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?)")
         res,_ := stmt.Exec(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
         id,_ := res.LastInsertId()
