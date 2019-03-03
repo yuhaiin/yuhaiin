@@ -116,7 +116,7 @@ func read_ssr_config()string{
 }
 
 
-//更新订阅(sqlite数据库)
+//更新订阅
 func update_config(){
     res,_ := http.Get(read_config().config_url)
     body,err := ioutil.ReadAll(res.Body)
@@ -129,6 +129,7 @@ func update_config(){
 }
 
 
+//更新订阅(sqlite数据库)
 func update_config_db(){
 
 
