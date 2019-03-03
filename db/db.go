@@ -38,5 +38,13 @@ func main(){
 	res,_ := stmt.Exec("x","x","x","x","x","x","x","x")
 	id,_ := res.LastInsertId()
 
+	//查找
+	rows, err := db.Query("SELECT * FROM SSR_info WHERE server = 'x'")
+	var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
+	for rows.Next(){
+		err = rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
+		fmt.Println(server_port)
+	}
+
 	fmt.Println(id)
 }
