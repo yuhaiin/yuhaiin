@@ -12,6 +12,8 @@ import "bytes"
 import "regexp"
 import "time"
 import "runtime"
+import "database/sql"
+import _ "github.com/mattn/go-sqlite3"
 //import "log"
 //import "strconv"
 
@@ -114,7 +116,7 @@ func read_ssr_config()string{
 }
 
 
-//更新订阅
+//更新订阅(sqlite数据库)
 func update_config(){
     res,_ := http.Get(read_config().config_url)
     body,err := ioutil.ReadAll(res.Body)
@@ -124,6 +126,65 @@ func update_config(){
         return
     }
     ioutil.WriteFile(read_config().config_path,[]byte(body),0644)
+}
+
+
+func update_config_db(){
+
+
+    //访问数据库
+    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+
+    //删除表
+    db.Exec("DROP TABLE IF EXISTS SSR_info;")
+
+    config_middle_temp := str_replace(string(read_ssr_config()))
+    //list_list(config_middle_temp)
+    for _,config_temp := range config_middle_temp{
+        config_split := strings.Split(config_temp,":")
+        var server string
+        if len(config_split) == 17 {
+            server = config_split[0]+":"+config_split[1]+":"+config_split[2]+":"+config_split[3]+":"+config_split[4]+":"+config_split[5]+":"+config_split[6]+":"+config_split[7]
+        } else if len(config_split) == 10 {
+            server = config_split[0]
+        }
+        server_port := config_split[len(config_split)-9]
+        protocol := config_split[len(config_split)-8]
+        method := config_split[len(config_split)-7]
+        obfs := config_split[len(config_split)-6]
+        password := base64d(config_split[len(config_split)-5])
+        obfsparam := base64d(config_split[len(config_split)-4])
+        protoparam := base64d(config_split[len(config_split)-3])
+        remarks := base64d(config_split[len(config_split)-2])
+        //fmt.Println(num,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+
+        //创建表
+        sql_table := `
+        CREATE TABLE IF NOT EXISTS SSR_info(
+            remarks TEXT,
+            server TEXT,
+            server_port TEXT,
+            protocol TEXT,
+            method TEXT,
+            obfs TEXT,
+            password TEXT,
+            obfsparam TEXT,
+            protoparam TEXT
+        );
+        `
+        db.Exec(sql_table)
+
+        //插入
+        stmt,_ := db.Prepare("INSERT INTO SSR_info(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?)")
+        res,_ := stmt.Exec(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+        id,_ := res.LastInsertId()
+
+        fmt.Println(id)
+    }
 }
 
 
@@ -305,5 +366,6 @@ func menu(){
 }
 
 func main(){
+    //update_config_db()
     menu()
 }
