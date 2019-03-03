@@ -6,20 +6,27 @@ import "net/http"
 import "io/ioutil"
 import "strings"
 import "bufio"
+import "os"
 import "os/exec"
 import "bytes"
 import "regexp"
+import "time"
+import "runtime"
 //import "log"
 //import "strconv"
 
 //var config_middle_temp[] string
-var ssr_config_path = "ssr_config.conf"
+
+var ssr_config_path string
 type ssr_config struct {
     python_path,config_path,log_file,pid_file,fast_open,workers string
     connect_verbose_info,ssr_path,server,server_port,protocol,method string
     obfs,password,obfsparam,protoparam,local_port,local_address,remarks,config_url,deamon string
+    acl string
 }
 
+
+//对base64进行长度补全(4的倍数)
 func base64d(str string)string{
     for i:=0;i<=len(str)%4;i++{
         str+="="
@@ -29,9 +36,15 @@ func base64d(str string)string{
 }
 
 func ssr_config_init()ssr_config{
-    return ssr_config{"","","","","","","","","","","","","","","","","","","","",""}
+    if runtime.GOOS=="linux"{
+        ssr_config_path = os.Getenv("HOME")+"/.config/SSRSub/ssr_config.conf"
+    }
+    
+    return ssr_config{"","","","","","","","","","","","","","","","","","","","","",""}
 }
 
+
+//读取配置文件
 func read_config()ssr_config{
     ssr_config := ssr_config_init()
     //var log_file,pid_file,fast_open,workers,connect_verbose_info,ssr_path,python_path,config_path,config_url string
@@ -63,7 +76,6 @@ func read_config()ssr_config{
             ssr_config.obfsparam = "-g "+ssr_server_config[6]+" "
             ssr_config.protoparam = "-G "+ssr_server_config[7]+" "
             ssr_config.remarks = ssr_server_config[8]+" "
-            //fmt.Println(ssr_server_config)
         }else if config_temp2[0] == "connect-verbose-info"{
             ssr_config.connect_verbose_info = "--connect-verbose-info "
         }else if config_temp2[0] == "workers"{
@@ -78,6 +90,8 @@ func read_config()ssr_config{
             ssr_config.local_address = "-b "+config_temp2[1]+" "
         }else if config_temp2[0] == "local_port"{
             ssr_config.local_port = "-l "+config_temp2[1]+" "
+        }else if config_temp2[0] == "acl"{
+            ssr_config.acl = "--acl "+config_temp2[1]+" "
         }else if config_temp2[0] == "deamon"{
             ssr_config.deamon = "-d start"
         }
@@ -89,6 +103,8 @@ func read_config()ssr_config{
     //}
 }
 
+
+//读取订阅链接文件(后面改成数据库)
 func read_ssr_config()string{
     config_temp,err := ioutil.ReadFile(read_config().config_path)
     if err != nil {
@@ -97,12 +113,21 @@ func read_ssr_config()string{
     return string(config_temp)
 }
 
+
+//更新订阅
 func update_config(){
     res,_ := http.Get(read_config().config_url)
-    body,_ := ioutil.ReadAll(res.Body)
+    body,err := ioutil.ReadAll(res.Body)
+    if err!=nil{
+        fmt.Println(err)
+        fmt.Println("可能出错原因,请检查能否成功访问订阅连接.")
+        return
+    }
     ioutil.WriteFile(read_config().config_path,[]byte(body),0644)
 }
 
+
+//方便进行分割对字符串进行替换
 func str_replace(str string)[]string{
     var config[] string
     scanner := bufio.NewScanner(strings.NewReader(strings.Replace(base64d(str),"ssr://","",-1)))
@@ -126,7 +151,15 @@ func list_list(config_array []string){
 func ssr__server_config(){
     config_middle_temp := str_replace(string(read_ssr_config()))
     list_list(config_middle_temp)
-    config_split := strings.Split(config_middle_temp[menu_select()-1],":")
+    var config_split []string
+    select_temp := menu_select()-1
+    if (select_temp>0&&select_temp<len(config_middle_temp)){
+        config_split = strings.Split(config_middle_temp[select_temp],":")
+    }else{
+        fmt.Println("\nenter error,please enter correct number.")
+        ssr__server_config()
+        return
+    }
     var server string
     if len(config_split) == 17 {
         server = config_split[0]+":"+config_split[1]+":"+config_split[2]+":"+config_split[3]+":"+config_split[4]+":"+config_split[5]+":"+config_split[6]+":"+config_split[7]
@@ -188,11 +221,14 @@ func ssr_start(){
     local_port+ssr_config.log_file+ssr_config.pid_file+ssr_config.fast_open+ssr_config.
     workers+ssr_config.connect_verbose_info+ssr_config.server+ssr_config.
     server_port+ssr_config.protocol+ssr_config.method+ssr_config.
-    obfs+ssr_config.password+ssr_config.obfsparam+ssr_config.protoparam+ssr_config.deamon
+    obfs+ssr_config.password+ssr_config.obfsparam+ssr_config.protoparam+ssr_config.acl+ssr_config.deamon
 
     fmt.Println(cmd_temp)
 
-    cmd := exec.Command("/bin/sh", "-c",cmd_temp)
+    var cmd *exec.Cmd
+    if runtime.GOOS == "linux"{
+        cmd = exec.Command("/bin/sh", "-c",cmd_temp)
+    }
     var out bytes.Buffer
     var stderr bytes.Buffer
     cmd.Stdout = &out
@@ -206,9 +242,19 @@ func ssr_start(){
     //fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam) 
 }
 
+func get_deply(){
+    temp := time.Now()
+    http.Get("http://www.google.com/generate_204")
+    deply := time.Since(temp)
+    fmt.Println(deply)
+}
+
 func ssr_stop(){
     cmd_temp := "cat "+strings.Split(read_config().pid_file," ")[1]+" | xargs kill"
-    cmd := exec.Command("/bin/sh", "-c",cmd_temp)
+    var cmd *exec.Cmd
+    if runtime.GOOS == "linux"{
+        cmd = exec.Command("/bin/sh", "-c",cmd_temp)
+    }
     var out bytes.Buffer
     var stderr bytes.Buffer
     cmd.Stdout = &out
@@ -228,8 +274,9 @@ func menu_select()int{
 }
 
 func menu(){
+    fmt.Println(runtime.GOOS+" "+runtime.GOARCH)
     fmt.Println("当前使用节点: "+read_config().remarks)
-    fmt.Println("1.开启ssr\n2.update config\n3.更换节点\n4.结束ssr后台")
+    fmt.Println("1.开启ssr\n2.update config\n3.更换节点\n4.get获取延迟\n5.结束ssr后台")
     select_temp := menu_select()
 
     if select_temp==1{
@@ -243,7 +290,15 @@ func menu(){
         menu()
         return
     }else if select_temp==4{
+        get_deply()
+        menu()
+        return
+    }else if select_temp==5{
         ssr_stop()
+        menu()
+        return
+    }else{
+        fmt.Println("\nenter error,please enter correct number.")
         menu()
         return
     }
