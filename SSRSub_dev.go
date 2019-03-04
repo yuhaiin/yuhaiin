@@ -15,6 +15,7 @@ import (
     "runtime"
     "database/sql"
     _ "github.com/mattn/go-sqlite3"
+	"path/filepath"
 //    "log"
 //    "strconv"
 )
@@ -442,6 +443,13 @@ func menu(){
 }
 
 func menu_db(){
+    //获取当前可执行文件目录
+    file, _ := exec.LookPath(os.Args[0])
+    path2, _ := filepath.Abs(file)
+    fmt.Println(path2)
+    rst := filepath.Dir(path2)
+    fmt.Println(rst)
+
     path := os.Getenv("HOME")+"/.config/SSRSub"
 
     //判断目录是否存在 不存在则创建
@@ -451,6 +459,10 @@ func menu_db(){
             fmt.Println(err)
         }
     }
+    
+    fmt.Println("当前配置文件目录:"+path)
+    fmt.Println("当前可执行文件目录:"+rst)
+
     db,err := sql.Open("sqlite3",path+"/SSR_config.db")
     defer db.Close()
     if err!=nil{
@@ -466,7 +478,7 @@ func menu_db(){
 
 
 func main(){
-    ssr__server_config_db()
+    //ssr__server_config_db()
     //menu()
-    //menu_db()
+    menu_db()
 }
