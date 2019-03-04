@@ -15,7 +15,7 @@ import "runtime"
 import "database/sql"
 import _ "github.com/mattn/go-sqlite3"
 //import "log"
-import "strconv"
+//import "strconv"
 
 //var config_middle_temp[] string
 
@@ -27,6 +27,20 @@ type ssr_config struct {
     acl string
 }
 
+
+//判断目录是否存在返回布尔类型
+func path_exists(path string)bool{
+    _,err := os.Stat(path)
+    if err!=nil{
+        if os.IsExist(err){
+            return true
+        }else{
+            return false
+        }
+    }else{
+        return true
+    }
+}
 
 //对base64进行长度补全(4的倍数)
 func base64d(str string)string{
@@ -289,10 +303,10 @@ func ssr__server_config_db(){
         return
     }
 
-    rows, err := db.Query("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = '"+strconv.Itoa(select_temp)+"'")
-    var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
+    rows, err := db.Query("SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?",select_temp)
+    var remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
 	for rows.Next(){
-		err = rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
+		err = rows.Scan(&remarks,&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
 	}
 
     //删除表
@@ -302,6 +316,7 @@ func ssr__server_config_db(){
     //创建表
     sql_table := `
     CREATE TABLE IF NOT EXISTS SSR_present_node(
+        remarks TEXT,
 		server TEXT,
 		server_port TEXT,
 		protocol TEXT,
@@ -315,8 +330,8 @@ func ssr__server_config_db(){
 
     
     //插入
-	stmt,_ := db.Prepare("INSERT INTO SSR_present_node(server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?)")
-    res,_ := stmt.Exec(server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+	stmt,_ := db.Prepare("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?)")
+    res,_ := stmt.Exec(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
     id,_ := res.LastInsertId()
     fmt.Println(id)
 
@@ -434,9 +449,29 @@ func menu(){
     }
 }
 
+func menu_db(){
+    path := os.Getenv("HOME")+"/.config/SSRSub"
+
+    //判断目录是否存在 不存在则创建
+    if !path_exists(path){
+        err := os.Mkdir(path, os.ModePerm)
+        if err!=nil{
+            fmt.Println(err)
+        }
+    }
+    db,err := sql.Open("sqlite3",path+"/SSR_config.db")
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+    rows,err := db.Query("SELECT remarks FROM SSR_present_node;")
+    var remarks string
+    rows.Next()
+    rows.Scan(&remarks)
+    fmt.Println("当前使用节点:",remarks)
+}
 func main(){
-    //update_config_db()
-    //list_list_db()
-    ssr__server_config_db()
+    //ssr__server_config_db()
     //menu()
+    menu_db()
 }
