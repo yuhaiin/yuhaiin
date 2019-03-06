@@ -76,7 +76,7 @@ func Ssr_server_node_init(sql_db_path string){
     //关闭数据库
     defer db.Close()
 	//创建表
-	sql_table := `"CREATE TABLE IF NOT EXISTS SSR_present_node(
+	sql_table := `CREATE TABLE IF NOT EXISTS SSR_present_node(
         remarks TEXT,
         server TEXT,
         server_port TEXT,
@@ -85,7 +85,7 @@ func Ssr_server_node_init(sql_db_path string){
         obfs TEXT,
         password TEXT,
         obfsparam TEXT,
-		protoparam TEXT);"`
+		protoparam TEXT);`
 	db.Exec(sql_table)
 	//初始化插入空字符
 	db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values('none','none','none','none','none','none','none','none','none')")
