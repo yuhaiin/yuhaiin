@@ -17,7 +17,7 @@ import (
     _ "github.com/mattn/go-sqlite3"
 	"path/filepath"
 //    "log"
-//    "strconv"
+    "strconv"
 )
 
 var ssr_config_path string
@@ -59,7 +59,6 @@ func ssr_config_init()ssr_config{
     
     return ssr_config{"","","","","","","","","","","","","","","","","","","","","",""}
 }
-
 
 //读取配置文件
 func read_config()ssr_config{
@@ -130,6 +129,88 @@ func read_ssr_config()string{
     return string(config_temp)
 }
 
+
+//读取订阅链接
+func get_subscription_link()[]string{
+    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
+    if err!=nil{
+        fmt.Println(err)
+    }
+    rows,err := db.Query("SELECT link FROM subscription_link;")
+    if err != nil{
+        fmt.Println(err)
+    }
+
+    var subscription_link[] string
+    for rows.Next(){
+        var link string
+        rows.Scan(&link)
+        subscription_link = append(subscription_link,link)
+    }
+    return subscription_link
+}
+
+//更换订阅连接(数据库)
+func subscription_link_change(subscription_link string){
+    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+
+    //关闭数据库
+    defer db.Close()
+
+    //删除表
+    //db.Exec("DROP TABLE subscription_link IF EXISTS")
+
+    //创建表
+    db.Exec("CREATE TABLE IF NOT EXISTS subscription_link(link TEXT);")
+    
+    //更新订阅连接
+    db.Exec("UPDATE subscription_link SET link=?",subscription_link)
+
+}
+
+//添加订阅链接
+func subscription_link_add(subscription_link string){
+    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+    db.Exec("INSERT INTO subscription_link(link)values(?)",subscription_link)
+}
+
+//删除订阅链接(数据库)
+func subscription_link_delete(){
+    var subscription_link[] string
+    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+    defer db.Close()
+    rows,err := db.Query("SELECT link FROM subscription_link")
+
+    var link string
+    for rows.Next(){
+        err = rows.Scan(&link)
+        subscription_link = append(subscription_link,link)
+    }
+    //fmt.Println(subscription_link)
+    for num,link_temp := range subscription_link{
+        fmt.Println(strconv.Itoa(num+1)+"."+link_temp)
+    }
+    select_delete := menu_select()
+    if select_delete>=1&&select_delete<=len(subscription_link){
+        db.Exec("DELETE FROM subscription_link WHERE link = ?",subscription_link[select_delete-1])
+    }else{
+        fmt.Println("enter error,please retry.")
+        subscription_link_delete()
+        return
+    }
+}
 
 //更新订阅
 func update_config(){
@@ -480,5 +561,8 @@ func menu_db(){
 func main(){
     //ssr__server_config_db()
     //menu()
-    menu_db()
+    //menu_db()
+    subscription_link_add("aa")
+    //fmt.Println(get_subscription_link())
+    subscription_link_delete()
 }
