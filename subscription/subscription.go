@@ -35,7 +35,7 @@ func Get_subscription_link(sql_db_path string)[]string{
 }
 
 //初始化订阅连接数据库
-func Subscription_link_init(subscription_link string,sql_db_path string){
+func Subscription_link_init(sql_db_path string){
     db,err := sql.Open("sqlite3",sql_db_path)
     if err!=nil{
         fmt.Println(err)
@@ -48,7 +48,7 @@ func Subscription_link_init(subscription_link string,sql_db_path string){
 }
 
 //添加订阅链接
-func Subscription_link_add(subscription_link string,sql_db_path string){
+func Subscription_link_add(subscription_link,sql_db_path string){
     db,err := sql.Open("sqlite3",sql_db_path)
     if err!=nil{
         fmt.Println(err)
@@ -128,6 +128,8 @@ func Update_config_db(str_2 []string,sql_db_path string){
         return
     }
 
+    defer db.Close()
+
     //删除表
     db.Exec("DROP TABLE IF EXISTS SSR_info;")
 
@@ -171,10 +173,10 @@ func Update_config_db(str_2 []string,sql_db_path string){
 
 
         //向表中插入数据
-        stmt,_ := db.Prepare("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)")
-        res,_ := stmt.Exec(num+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-        id,_ := res.LastInsertId()
-
-        fmt.Println(id)
+        db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)",num+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+        //stmt,_ := db.Prepare("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)")
+        //res,_ := stmt.Exec(num+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+        //id,_ := res.LastInsertId()
+        //fmt.Println(id)
     }
 }
