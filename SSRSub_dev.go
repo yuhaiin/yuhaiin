@@ -19,7 +19,8 @@ import (
 //    "log"
     //"strconv"
 
-    "./subscription"
+//    "./subscription"
+    "./init"
 )
 
 var ssr_config_path string
@@ -361,11 +362,13 @@ func menu_db(){
 
 
 func main(){
-    path := os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db"
+    config_path := os.Getenv("HOME")+"/桌面/.config/SSRSub"
+    path := os.Getenv("HOME")+"/桌面/.config/SSRSub/SSR_config.db"
     //ssr__server_config_db()
     //menu()
     //menu_db()
-    subscription.Subscription_link_add("aa",path)
+    //subscription.Subscription_link_add("aa",path)
     //fmt.Println(get_subscription_link())
-    subscription.Subscription_link_delete(path)
+    //subscription.Subscription_link_delete(path)
+    ssr_init.Init(config_path,path)
 }
