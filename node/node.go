@@ -31,7 +31,7 @@ func List_list_db(sql_db_path string){
 
 //更换节点(数据库)
 func Ssr_server_node_change(sql_db_path string){
-    list_list_db(sql_db_path)
+    List_list_db(sql_db_path)
     db,err := sql.Open("sqlit3",sql_db_path)
     if err!=nil{
         fmt.Println(err)
@@ -60,8 +60,33 @@ func Ssr_server_node_change(sql_db_path string){
         db.Exec("UPDATE SSR_present_node SET remarks=?,server=?,server_port=?,protocol=?,method=?,obfs=?,password=?,obfsparam=?,protoparam=?",remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
     }else{
         fmt.Println("enter error,please retry.")
-        ssr__server_config_db(sql_db_path)
+        Ssr_server_node_change(sql_db_path)
         return
     }
 
+}
+
+func Ssr_server_node_init(sql_db_path string){
+
+    db,err := sql.Open("sqlite3",sql_db_path)
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+    //关闭数据库
+    defer db.Close()
+	//创建表
+	sql_table := `"CREATE TABLE IF NOT EXISTS SSR_present_node(
+        remarks TEXT,
+        server TEXT,
+        server_port TEXT,
+        protocol TEXT,
+        method TEXT,
+        obfs TEXT,
+        password TEXT,
+        obfsparam TEXT,
+		protoparam TEXT);"`
+	db.Exec(sql_table)
+	//初始化插入空字符
+	db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values('none','none','none','none','none','none','none','none','none')")
 }
