@@ -17,7 +17,9 @@ import (
     _ "github.com/mattn/go-sqlite3"
 	"path/filepath"
 //    "log"
-    "strconv"
+    //"strconv"
+
+    "./subscription"
 )
 
 var ssr_config_path string
@@ -129,89 +131,6 @@ func read_ssr_config()string{
     return string(config_temp)
 }
 
-
-//读取订阅链接
-func get_subscription_link()[]string{
-    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
-    if err!=nil{
-        fmt.Println(err)
-    }
-    rows,err := db.Query("SELECT link FROM subscription_link;")
-    if err != nil{
-        fmt.Println(err)
-    }
-
-    var subscription_link[] string
-    for rows.Next(){
-        var link string
-        rows.Scan(&link)
-        subscription_link = append(subscription_link,link)
-    }
-    return subscription_link
-}
-
-//更换订阅连接(数据库)
-func subscription_link_change(subscription_link string){
-    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
-    if err!=nil{
-        fmt.Println(err)
-        return
-    }
-
-    //关闭数据库
-    defer db.Close()
-
-    //删除表
-    //db.Exec("DROP TABLE subscription_link IF EXISTS")
-
-    //创建表
-    db.Exec("CREATE TABLE IF NOT EXISTS subscription_link(link TEXT);")
-    
-    //更新订阅连接
-    db.Exec("UPDATE subscription_link SET link=?",subscription_link)
-
-}
-
-//添加订阅链接
-func subscription_link_add(subscription_link string){
-    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
-    if err!=nil{
-        fmt.Println(err)
-        return
-    }
-    db.Exec("INSERT INTO subscription_link(link)values(?)",subscription_link)
-}
-
-//删除订阅链接(数据库)
-func subscription_link_delete(){
-    var subscription_link[] string
-    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
-    if err!=nil{
-        fmt.Println(err)
-        return
-    }
-    defer db.Close()
-    rows,err := db.Query("SELECT link FROM subscription_link")
-
-    var link string
-    for rows.Next(){
-        err = rows.Scan(&link)
-        subscription_link = append(subscription_link,link)
-    }
-    //fmt.Println(subscription_link)
-    for num,link_temp := range subscription_link{
-        fmt.Println(strconv.Itoa(num+1)+"."+link_temp)
-    }
-    select_delete := menu_select()
-    if select_delete>=1&&select_delete<=len(subscription_link){
-        db.Exec("DELETE FROM subscription_link WHERE link = ?",subscription_link[select_delete-1])
-    }else{
-        fmt.Println("enter error,please retry.")
-        subscription_link_delete()
-        return
-    }
-}
-
 //更新订阅
 func update_config(){
     res,_ := http.Get(read_config().config_url)
@@ -224,68 +143,6 @@ func update_config(){
     ioutil.WriteFile(read_config().config_path,[]byte(body),0644)
 }
 
-
-//更新订阅(sqlite数据库)
-func update_config_db(){
-
-
-    //访问数据库
-    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
-    if err!=nil{
-        fmt.Println(err)
-        return
-    }
-
-    //删除表
-    db.Exec("DROP TABLE IF EXISTS SSR_info;")
-
-    //创建表
-     sql_table := `
-    CREATE TABLE IF NOT EXISTS SSR_info(
-        id TEXT,
-        remarks TEXT,
-        server TEXT,
-        server_port TEXT,
-        protocol TEXT,
-        method TEXT,
-        obfs TEXT,
-        password TEXT,
-        obfsparam TEXT,
-        protoparam TEXT
-    );
-    `
-    db.Exec(sql_table)
-    
-    config_middle_temp := str_replace(string(read_ssr_config()))
-    //list_list(config_middle_temp)
-    for num,config_temp := range config_middle_temp{
-        config_split := strings.Split(config_temp,":")
-        var server string
-        if len(config_split) == 17 {
-            server = config_split[0]+":"+config_split[1]+":"+config_split[2]+":"+config_split[3]+":"+config_split[4]+":"+config_split[5]+":"+config_split[6]+":"+config_split[7]
-        } else if len(config_split) == 10 {
-            server = config_split[0]
-        }
-        server_port := config_split[len(config_split)-9]
-        protocol := config_split[len(config_split)-8]
-        method := config_split[len(config_split)-7]
-        obfs := config_split[len(config_split)-6]
-        password := base64d(config_split[len(config_split)-5])
-        obfsparam := base64d(config_split[len(config_split)-4])
-        protoparam := base64d(config_split[len(config_split)-3])
-        remarks := base64d(config_split[len(config_split)-2])
-        //fmt.Println(num,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-
-
-
-        //向表中插入数据
-        stmt,_ := db.Prepare("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)")
-        res,_ := stmt.Exec(num+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-        id,_ := res.LastInsertId()
-
-        fmt.Println(id)
-    }
-}
 
 
 //方便进行分割对字符串进行替换
@@ -309,25 +166,6 @@ func list_list(config_array []string){
     }
 }
 
-//打印数据库中的配置文件
-func list_list_db(){
-    //访问数据库
-    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
-    if err!=nil{
-        fmt.Println(err)
-        return
-    }
-
-    //查找
-	rows, err := db.Query("SELECT id,remarks FROM SSR_info")
-    //var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
-    var remarks,id string
-	for rows.Next(){
-		//err = rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
-        err = rows.Scan(&id,&remarks)
-        fmt.Println(id+"."+remarks)
-	}
-}
 
 //更换节点
 func ssr__server_config(){
@@ -375,42 +213,6 @@ func ssr__server_config(){
     }
 }
 
-//更换节点(数据库)
-func ssr__server_config_db(){
-    list_list_db()
-    db,err := sql.Open("sqlite3",os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db")
-    if err!=nil{
-        fmt.Println(err)
-        return
-    }
-
-
-    //获取服务器条数
-    var num int
-    query,err := db.Prepare("select count(1) from SSR_info") 
-    query.QueryRow().Scan(&num)
-    fmt.Println(num)
-
-    select_temp := menu_select()
-
-    if select_temp>0&&select_temp<=num{
-        rows, err := db.Query("SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?",select_temp)
-        if err!=nil{
-            fmt.Println(err)
-            return
-        }
-        var remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
-	    for rows.Next(){rows.Scan(&remarks,&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)}
-
-        //更新表
-        db.Exec("UPDATE SSR_present_node SET remarks=?,server=?,server_port=?,protocol=?,method=?,obfs=?,password=?,obfsparam=?,protoparam=?",remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-    }else{
-        fmt.Println("enter error,please retry.")
-        ssr__server_config_db()
-        return
-    }
-
-}
 
 func ssr_start(){
     ssr_config := read_config()
@@ -559,10 +361,11 @@ func menu_db(){
 
 
 func main(){
+    path := os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db"
     //ssr__server_config_db()
     //menu()
     //menu_db()
-    subscription_link_add("aa")
+    subscription.Subscription_link_add("aa",path)
     //fmt.Println(get_subscription_link())
-    subscription_link_delete()
+    subscription.Subscription_link_delete(path)
 }
