@@ -2,9 +2,9 @@ package init
 
 import(
 	"os"
-	"os/exec"
+//	"os/exec"
 	"fmt"
-	"path/filepath"
+//	"path/filepath"
 //	"database/sql"
 
 	"../subscription"
@@ -27,13 +27,6 @@ func path_exists(path string)bool{
 }
 
 func Init(config_path,sql_db_path string){
-    //获取当前可执行文件目录
-    file, _ := exec.LookPath(os.Args[0])
-    path2, _ := filepath.Abs(file)
-    fmt.Println(path2)
-    rst := filepath.Dir(path2)
-    fmt.Println(rst)
-
     //判断目录是否存在 不存在则创建
     if !path_exists(config_path){
         err := os.Mkdir(config_path, os.ModePerm)
@@ -44,6 +37,7 @@ func Init(config_path,sql_db_path string){
 	
 	if !path_exists(sql_db_path){
 		subscription.Subscription_link_init(sql_db_path)
+		subscription.Init_config_db(sql_db_path)
 		node.Ssr_server_node_init(sql_db_path)
 	}
 }

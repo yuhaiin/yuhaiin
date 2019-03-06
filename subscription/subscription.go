@@ -89,8 +89,8 @@ func Subscription_link_delete(sql_db_path string){
     }
 }
 
-//更新订阅
-func Http_get_subscription(url string)string{
+
+func http_get_subscription(url string)string{
     res,_ := http.Get(url)
     body,err := ioutil.ReadAll(res.Body)
     if err!=nil{
@@ -100,7 +100,6 @@ func Http_get_subscription(url string)string{
     return string(body)
     //ioutil.WriteFile(read_config().config_path,[]byte(body),0644)
 }
-
 
 //方便进行分割对字符串进行替换
 func str_replace(str string)[]string{
@@ -116,10 +115,13 @@ func str_replace(str string)[]string{
     return config
 }
 
+//添加所有订阅的所有节点(sqlite数据库)
+func Add_config_db(sql_db_path string){
 
-//更新订阅(sqlite数据库)
-func Update_config_db(str_2 []string,sql_db_path string){
-
+    var str_2 []string
+    for _,subscription_link_temp := range Get_subscription_link(sql_db_path){
+        str_2 = append(str_2,str_replace(http_get_subscription(subscription_link_temp))...)
+    }
 
     //访问数据库
     db,err := sql.Open("sqlite3",sql_db_path)
@@ -130,28 +132,7 @@ func Update_config_db(str_2 []string,sql_db_path string){
 
     defer db.Close()
 
-    //删除表
-    db.Exec("DROP TABLE IF EXISTS SSR_info;")
 
-    //创建表
-     sql_table := `
-    CREATE TABLE IF NOT EXISTS SSR_info(
-        id TEXT,
-        remarks TEXT,
-        server TEXT,
-        server_port TEXT,
-        protocol TEXT,
-        method TEXT,
-        obfs TEXT,
-        password TEXT,
-        obfsparam TEXT,
-        protoparam TEXT
-    );
-    `
-    db.Exec(sql_table)
-    
-    //config_middle_temp := str_replace(string(read_ssr_config()))
-    //list_list(config_middle_temp)
     for num,config_temp := range str_2{
         config_split := strings.Split(config_temp,":")
         var server string
@@ -179,4 +160,50 @@ func Update_config_db(str_2 []string,sql_db_path string){
         //id,_ := res.LastInsertId()
         //fmt.Println(id)
     }
+}
+
+
+//删除所有的节点
+func Delete_config_db(sql_db_path string){
+    //访问数据库
+    db,err := sql.Open("sqlite3",sql_db_path)
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+
+    defer db.Close()
+
+    //删除表
+    db.Exec("DROP TABLE IF EXISTS SSR_info;")
+}
+
+//初始化节点列表
+func Init_config_db(sql_db_path string){
+
+    //访问数据库
+    db,err := sql.Open("sqlite3",sql_db_path)
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+    defer db.Close()
+
+    //创建表
+     sql_table := `
+    CREATE TABLE IF NOT EXISTS SSR_info(
+        id TEXT,
+        remarks TEXT,
+        server TEXT,
+        server_port TEXT,
+        protocol TEXT,
+        method TEXT,
+        obfs TEXT,
+        password TEXT,
+        obfsparam TEXT,
+        protoparam TEXT
+    );
+    `
+    db.Exec(sql_table)
+
 }
