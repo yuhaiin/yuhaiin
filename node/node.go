@@ -3,7 +3,8 @@ package node
 
 import(
 	"fmt"
-	"database/sql"
+    "database/sql"
+    "sync"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -66,7 +67,7 @@ func Ssr_server_node_change(sql_db_path string){
 
 }
 
-func Ssr_server_node_init(sql_db_path string){
+func Ssr_server_node_init(sql_db_path string,wg *sync.WaitGroup){
 
     db,err := sql.Open("sqlite3",sql_db_path)
     if err!=nil{
@@ -89,4 +90,7 @@ func Ssr_server_node_init(sql_db_path string){
 	db.Exec(sql_table)
 	//初始化插入空字符
 	db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values('none','none','none','none','none','none','none','none','none')")
+
+
+    wg.Done()
 }

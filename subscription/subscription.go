@@ -9,6 +9,7 @@ import (
     "io/ioutil"
     "strings"
     "bufio"
+    "sync"
     "../base64d"
 )
 
@@ -35,7 +36,7 @@ func Get_subscription_link(sql_db_path string)[]string{
 }
 
 //初始化订阅连接数据库
-func Subscription_link_init(sql_db_path string){
+func Subscription_link_init(sql_db_path string,wg *sync.WaitGroup){
     db,err := sql.Open("sqlite3",sql_db_path)
     if err!=nil{
         fmt.Println(err)
@@ -45,6 +46,8 @@ func Subscription_link_init(sql_db_path string){
     defer db.Close()
     //创建表
     db.Exec("CREATE TABLE IF NOT EXISTS subscription_link(link TEXT);")
+
+    wg.Done()
 }
 
 //添加订阅链接
@@ -115,26 +118,14 @@ func str_replace(str string)[]string{
     return config
 }
 
-//添加所有订阅的所有节点(sqlite数据库)
-func Add_config_db(sql_db_path string){
 
-    var str_2 []string
-    for _,subscription_link_temp := range Get_subscription_link(sql_db_path){
-        str_2 = append(str_2,str_replace(http_get_subscription(subscription_link_temp))...)
-    }
-
-    //访问数据库
-    db,err := sql.Open("sqlite3",sql_db_path)
-    if err!=nil{
-        fmt.Println(err)
-        return
-    }
-
-    defer db.Close()
+func str_bas64d(str []string,n int,db *sql.DB,wg *sync.WaitGroup){
+    defer wg.Done()
 
 
-    for num,config_temp := range str_2{
-        config_split := strings.Split(config_temp,":")
+    for i:= 0;i<len(str);i++{
+        n++
+        config_split := strings.Split(str[i],":")
         var server string
         if len(config_split) == 17 {
             server = config_split[0]+":"+config_split[1]+":"+config_split[2]+":"+config_split[3]+":"+config_split[4]+":"+config_split[5]+":"+config_split[6]+":"+config_split[7]
@@ -154,12 +145,35 @@ func Add_config_db(sql_db_path string){
 
 
         //向表中插入数据
-        db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)",num+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-        //stmt,_ := db.Prepare("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)")
-        //res,_ := stmt.Exec(num+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-        //id,_ := res.LastInsertId()
-        //fmt.Println(id)
+        db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)",n,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
     }
+
+}
+
+//添加所有订阅的所有节点(sqlite数据库)
+func Add_config_db(sql_db_path string){
+
+    //访问数据库
+    db,err := sql.Open("sqlite3",sql_db_path)
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+
+    defer db.Close()
+
+    var wg sync.WaitGroup
+    var str_2 []string
+    for _,subscription_link_temp := range Get_subscription_link(sql_db_path){
+        str_2 = append(str_2,str_replace(http_get_subscription(subscription_link_temp))...)
+    }
+
+    wg.Add(1)
+    go str_bas64d(str_2[0:len(str_2)/2],0,db,&wg)
+    wg.Add(1)
+    go str_bas64d(str_2[len(str_2)/2:len(str_2)],len(str_2)/2,db,&wg)
+    //此处不使用的defer,防止数据库关闭后再进行Wait()
+    wg.Wait()
 }
 
 
@@ -179,7 +193,7 @@ func Delete_config_db(sql_db_path string){
 }
 
 //初始化节点列表
-func Init_config_db(sql_db_path string){
+func Init_config_db(sql_db_path string,wg *sync.WaitGroup){
 
     //访问数据库
     db,err := sql.Open("sqlite3",sql_db_path)
@@ -205,5 +219,7 @@ func Init_config_db(sql_db_path string){
     );
     `
     db.Exec(sql_table)
+
+    wg.Done()
 
 }
