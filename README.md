@@ -1,5 +1,5 @@
 # SSR_Subscription_analysis
-**SSRSub.go:** go语言版 可生成可执行文件 无需安装一堆软件库 更轻便 基本完成  
+**SSRSub.go:** go语言版 [农民日语版说明](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md)可生成可执行文件 无需安装一堆软件库 更轻便 基本完成  
   
 已知问题:  
 - [x]  配置文件的读取路径有问题  
