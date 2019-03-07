@@ -37,8 +37,8 @@ func Init(config_path,sql_db_path string){
 	}
 	
 	if !path_exists(sql_db_path){
-        //设置最大三个线程
-        runtime.GOMAXPROCS(3)
+        	//设置最大三个线程
+        	runtime.GOMAXPROCS(3)
 		go subscription.Subscription_link_init(sql_db_path)
 		go subscription.Init_config_db(sql_db_path)
 		node.Ssr_server_node_init(sql_db_path)
