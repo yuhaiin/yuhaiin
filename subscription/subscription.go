@@ -123,6 +123,7 @@ func str_bas64d(str []string,n int,db *sql.DB,wg *sync.WaitGroup){
     defer wg.Done()
 
 
+    
     for i:= 0;i<len(str);i++{
         n++
         config_split := strings.Split(str[i],":")
@@ -220,6 +221,8 @@ func Init_config_db(sql_db_path string,wg *sync.WaitGroup){
     `
     db.Exec(sql_table)
 
-    wg.Done()
+    //向表中插入none值
+    db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(none,none,none,none,none,none,none,none,none,none)")
 
+    wg.Done()
 }

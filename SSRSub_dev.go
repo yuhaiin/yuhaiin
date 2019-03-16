@@ -11,16 +11,17 @@ import (
     "os/exec"
     "bytes"
     "regexp"
-    "time"
+//    "time"
     "runtime"
     "database/sql"
     _ "github.com/mattn/go-sqlite3"
-	"path/filepath"
+  //  "sync"
 //    "log"
     //"strconv"
 
 //    "./subscription"
-    "./init"
+   "./init"
+   "./node"
 )
 
 var ssr_config_path string
@@ -122,6 +123,65 @@ func read_config()ssr_config{
     //}
 }
 
+//读取配置文件
+func read_config_db(db_path string)ssr_config{
+    ssr_config := ssr_config_init()
+    //var log_file,pid_file,fast_open,workers,connect_verbose_info,ssr_path,python_path,config_path,config_url string
+    config_temp,err := ioutil.ReadFile(ssr_config_path)
+    if err != nil {
+        fmt.Println(err)
+    }
+    lines := strings.Split(string(config_temp),"\n")
+    re3,_ := regexp.Compile("#.*$")
+    for _,config_temp2 := range lines{
+        config_temp2 = re3.ReplaceAllString(config_temp2,"")
+        config_temp2 := strings.Split(config_temp2," ")
+        if config_temp2[0] == "python_path"{
+            ssr_config.python_path = config_temp2[1]+" "
+        } else if config_temp2[0] == "ssr_path"{
+            ssr_config.ssr_path = config_temp2[1]+" "
+        }else if config_temp2[0] == "config_path"{
+            ssr_config.config_path = config_temp2[1]
+        }else if config_temp2[0] == "connect-verbose-info"{
+            ssr_config.connect_verbose_info = "--connect-verbose-info "
+        }else if config_temp2[0] == "workers"{
+            ssr_config.workers = "--workers "+config_temp2[1]+" "
+        }else if config_temp2[0] == "fast-open"{
+            ssr_config.fast_open = "--fast-open "
+        }else if config_temp2[0] == "pid-file"{
+            ssr_config.pid_file = "--pid-file "+config_temp2[1]+" "
+        }else if config_temp2[0] == "log-file"{
+            ssr_config.log_file = "--log-file "+config_temp2[1]+" "
+        }else if config_temp2[0] == "local_address"{
+            ssr_config.local_address = "-b "+config_temp2[1]+" "
+        }else if config_temp2[0] == "local_port"{
+            ssr_config.local_port = "-l "+config_temp2[1]+" "
+        }else if config_temp2[0] == "acl"{
+            ssr_config.acl = "--acl "+config_temp2[1]+" "
+        }else if config_temp2[0] == "deamon"{
+            ssr_config.deamon = "-d start"
+        }
+    }
+
+    db,err := sql.Open("sqlite3",db_path)
+    if err!=nil{
+        fmt.Println(err)
+    }
+    defer db.Close()
+    var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
+    rows,err := db.Query("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_present_node")
+    for rows.Next(){rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)}
+    ssr_config.server = "-s "+server+" "
+    ssr_config.server_port = "-p " +server_port+" "
+    ssr_config.protocol = "-O "+protocol+" "
+    ssr_config.method = "-m "+method+" "
+    ssr_config.obfs = "-o "+obfs+" "
+    ssr_config.password = "-k "+password+" "
+    ssr_config.obfsparam = "-g "+obfsparam+" "
+    ssr_config.protoparam = "-G "+protoparam+" "
+    fmt.Println(ssr_config)
+    return ssr_config
+}
 
 //读取订阅链接文件(后面改成数据库)
 func read_ssr_config()string{
@@ -264,12 +324,33 @@ func ssr_start(){
     //fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam) 
 }
 
-func get_deply(){
-    temp := time.Now()
-    http.Get("http://www.google.com/generate_204")
-    deply := time.Since(temp)
-    fmt.Println(deply)
+func ssr_start_db(db_path string){
+    ssr_config := read_config_db(db_path)
+    cmd_temp := ssr_config.python_path+ssr_config.ssr_path+ssr_config.local_address+ssr_config.
+    local_port+ssr_config.log_file+ssr_config.pid_file+ssr_config.fast_open+ssr_config.
+    workers+ssr_config.connect_verbose_info+ssr_config.server+ssr_config.
+    server_port+ssr_config.protocol+ssr_config.method+ssr_config.
+    obfs+ssr_config.password+ssr_config.obfsparam+ssr_config.protoparam+ssr_config.acl+ssr_config.deamon
+
+    fmt.Println(cmd_temp)
+
+    var cmd *exec.Cmd
+    if runtime.GOOS == "linux"{
+        cmd = exec.Command("/bin/sh", "-c",cmd_temp)
+    }
+    var out bytes.Buffer
+    var stderr bytes.Buffer
+    cmd.Stdout = &out
+    cmd.Stderr = &stderr
+    err := cmd.Run()
+    if err != nil {
+        fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+        return
+    }
+    fmt.Println("Result: " + out.String())
+    //fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam) 
 }
+
 
 func ssr_stop(){
     cmd_temp := "cat "+strings.Split(read_config().pid_file," ")[1]+" | xargs kill"
@@ -312,7 +393,6 @@ func menu(){
         menu()
         return
     }else if select_temp==4{
-        get_deply()
         menu()
         return
     }else if select_temp==5{
@@ -326,49 +406,57 @@ func menu(){
     }
 }
 
-func menu_db(){
-    //获取当前可执行文件目录
-    file, _ := exec.LookPath(os.Args[0])
-    path2, _ := filepath.Abs(file)
-    fmt.Println(path2)
-    rst := filepath.Dir(path2)
-    fmt.Println(rst)
 
-    path := os.Getenv("HOME")+"/.config/SSRSub"
+func menu_db(path,db_path string){
 
-    //判断目录是否存在 不存在则创建
-    if !path_exists(path){
-        err := os.Mkdir(path, os.ModePerm)
-        if err!=nil{
-            fmt.Println(err)
-        }
-    }
+
     
-    fmt.Println("当前配置文件目录:"+path)
-    fmt.Println("当前可执行文件目录:"+rst)
+    ssr_init.Menu_init(path)
+    node.Get_now_node(db_path)//此段有问题
 
-    db,err := sql.Open("sqlite3",path+"/SSR_config.db")
-    defer db.Close()
-    if err!=nil{
-        fmt.Println(err)
-        return
+    fmt.Println("1.开启ssr\n2.update config\n3.更换节点\n4.get获取延迟\n5.结束ssr后台")
+
+
+
+    var select_temp string
+    fmt.Scanln(&select_temp)
+
+    switch select_temp{
+    case "1":
+        ssr_start_db(db_path)
+    case "2":
+    case "3":
+        node.Ssr_server_node_change(db_path)
+    case "4":
+    case "5":
     }
-    rows,err := db.Query("SELECT remarks FROM SSR_present_node;")
-    var remarks string
-    rows.Next()
-    rows.Scan(&remarks)
-    fmt.Println("当前使用节点:",remarks)
+
 }
 
+func test(db_path string){
 
+    node.Ssr_server_node_change(db_path)
+}
 func main(){
     config_path := os.Getenv("HOME")+"/桌面/.config/SSRSub"
     path := os.Getenv("HOME")+"/桌面/.config/SSRSub/SSR_config.db"
     //ssr__server_config_db()
-    menu()
-    //menu_db()
-    //subscription.Subscription_link_add("aa",path)
+    //menu()
+    //node.Ssr_server_node_change(path)
+    menu_db(config_path,path)
+    //subscription.Subscription_link_add("https://anydoor.me/link/zeGO2rxhKagZIqIc?mu=1",path)
     //fmt.Println(get_subscription_link())
     //subscription.Subscription_link_delete(path)
+
+
+    //subscription.Add_config_db(path)
+
+
     //ssr_init.Init(config_path,path)
+    /*
+    node.List_list_db(path)
+    subscription.Delete_config_db(path)
+    fmt.Println(subscription.Get_subscription_link(path))
+    */
+    //ssr_start_db(path)
 }
