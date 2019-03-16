@@ -59,9 +59,9 @@ func Menu_init(path string){
         //获取当前可执行文件目录
         file, _ := exec.LookPath(os.Args[0])
         path2, _ := filepath.Abs(file)
-        fmt.Println(path2)
+        //fmt.Println(path2)
         rst := filepath.Dir(path2)
-        fmt.Println(rst)
+        //fmt.Println(rst)
     
         //判断目录是否存在 不存在则创建
         if !path_exists(path){
