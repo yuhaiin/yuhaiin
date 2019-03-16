@@ -2,7 +2,7 @@ package ssr_init
 
 import(
 	"os"
-//	"os/exec"
+	"os/exec"
     "fmt"
 //    "runtime"
     "sync"
@@ -11,6 +11,7 @@ import(
 
 	"../subscription"
 	"../node"
+    "path/filepath"
 )
 
 
@@ -52,4 +53,24 @@ func Init(config_path,sql_db_path string){
 
 
     }
+}
+
+func Menu_init(path string){
+        //获取当前可执行文件目录
+        file, _ := exec.LookPath(os.Args[0])
+        path2, _ := filepath.Abs(file)
+        fmt.Println(path2)
+        rst := filepath.Dir(path2)
+        fmt.Println(rst)
+    
+        //判断目录是否存在 不存在则创建
+        if !path_exists(path){
+            err := os.Mkdir(path, os.ModePerm)
+            if err!=nil{
+                fmt.Println(err)
+            }
+        }
+    
+        fmt.Println("当前配置文件目录:"+path)
+        fmt.Println("当前可执行文件目录:"+rst)
 }
