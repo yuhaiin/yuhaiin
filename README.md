@@ -34,7 +34,5 @@ deamon
 pid-file /home/asutorufa/.cache/SSRSub/shadowsocksr.pid
 log-file /dev/null
 ```
-
-[其他版本](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
-
 ![](https://raw.githubusercontent.com/Asutorufa/SSRSubscriptionDecode/master/Screenshot_20190322_162414.png)
+[其他版本](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
