@@ -22,16 +22,15 @@ go版配置文件格式(目前与执行文件放在同一个目录)
 python_path /usr/bin/python3
 ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
 config_path config.txt
-config_url #程序内更新
 local_port 1080
 local_address 127.0.0.1
-ssr_config 
 connect-verbose-info
 workers 8
 fast-open
 deamon
 pid-file /home/xxx/.cache/SSRSub/shadowsocksr.pid
 log-file /dev/null
+acl /media/xxx/D/code/ACL/aacl-none.acl
 ```
 ![](https://raw.githubusercontent.com/Asutorufa/SSRSubscriptionDecode/master/Screenshot_20190322_162414.png)
 [其他版本](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
