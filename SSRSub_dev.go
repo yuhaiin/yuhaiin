@@ -204,7 +204,7 @@ func main(){
     //menu()
     //node.Ssr_server_node_change(path)
     menu_db(config_path,path)
-    //subscription.Subscription_link_add("https",path)
+    //subscription.Subscription_link_add("",path)
     //fmt.Println(get_subscription_link())
     //subscription.Subscription_link_delete(path)
 
