@@ -53,7 +53,7 @@ func Ssr_server_node_change(sql_db_path string){
 	fmt.Scanln(&select_temp)
 
     if select_temp>0&&select_temp<=num{
-        
+        /*旧版更新 个人感觉太罗嗦
         rows, err := db.Query("SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?",select_temp)
         if err!=nil{
             fmt.Println(err)
@@ -64,10 +64,11 @@ func Ssr_server_node_change(sql_db_path string){
         fmt.Println(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
         //更新表
         db.Exec("UPDATE SSR_present_node SET remarks = ?,server = ?,server_port = ?,protocol = ?,method = ?,obfs = ?,password = ?,obfsparam = ?,protoparam = ?",remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-        
-        //db.Exec("UPDATE SSR_present_node SET remarks = SSR_info.remarks,server = SSR_info.server,server_port = SSR_info.server_port,protocol = SSR_info.protocol,method = SSR_info.method,obfs = SSR_info.obfs,password = SSR_info.password,obfsparam = SSR_info.obfsparam,protoparam = SSR_info.protoparam FROM SSR_info WHERE SSR_info.id = ?",select_temp)
-        //db.Exec("INSERT OR REPLACE INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam) SELECT SSR_info.server,server_port = SSR_info.server_port,protocol = SSR_info.protocol,method = SSR_info.method,obfs = SSR_info.obfs,password = SSR_info.password,obfsparam = SSR_info.obfsparam,protoparam = SSR_info.protoparam FROM SSR_info, SSR_present_node WHERE SSR_info.id = ?;",select_temp)
-    }else{
+      */
+        db.Exec("DELETE FROM SSR_present_node")
+        db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam) SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?",select_temp)
+    
+        }else{
         fmt.Println("enter error,please retry.")
         Ssr_server_node_change(sql_db_path)
         return
