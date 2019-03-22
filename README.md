@@ -30,7 +30,7 @@ connect-verbose-info
 workers 8
 fast-open
 deamon
-pid-file /home/asutorufa/.cache/SSRSub/shadowsocksr.pid
+pid-file /home/xxx/.cache/SSRSub/shadowsocksr.pid
 log-file /dev/null
 ```
 ![](https://raw.githubusercontent.com/Asutorufa/SSRSubscriptionDecode/master/Screenshot_20190322_162414.png)
