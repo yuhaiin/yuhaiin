@@ -19,6 +19,7 @@ import (
 //    "log"
     //"strconv"
 
+    "./net"
     "./subscription"
     "./init"
     "./node"
@@ -26,10 +27,19 @@ import (
 
 var ssr_config_path string
 type ssr_config struct {
-    python_path,config_path,log_file,pid_file,fast_open,workers string
-    connect_verbose_info,ssr_path,server,server_port,protocol,method string
-    obfs,password,obfsparam,protoparam,local_port,local_address,remarks,config_url,deamon string
-    acl string
+    pid_file,log_file,workers string
+    python_path,config_path,ssr_path,acl string
+    server,server_port,protocol,method,obfs,password,obfsparam,protoparam,local_port,local_address,remarks string
+    connect_verbose_info,deamon,fast_open string
+}
+
+func ssr_config_init(config_path string)ssr_config{
+    pid_file := " --pid-file "+config_path+"/shadowsocksr.pid"
+    log_file := " --log-file "+"/dev/null"
+    workers := " --workers "+"1 "
+    python_path := "/usr/bin/python3 "
+    ssr_config_path = "/home/asutorufa/.config/SSRSub/ssr_config.conf"
+    return ssr_config{pid_file,log_file,workers,python_path,"","","","","","","","","","","","","","","","",""}
 }
 
 
@@ -47,17 +57,10 @@ func path_exists(path string)bool{
     }
 }
 
-func ssr_config_init()ssr_config{
-    if runtime.GOOS=="linux"{
-        ssr_config_path = os.Getenv("HOME")+"/.config/SSRSub/ssr_config.conf"
-    }
-    
-    return ssr_config{"","","","","","","","","","","","","","","","","","","","","",""}
-}
 
 //读取配置文件
-func read_config_db(db_path string)ssr_config{
-    ssr_config := ssr_config_init()
+func read_config_db(config_path,db_path string)ssr_config{
+    ssr_config := ssr_config_init(config_path)
     //var log_file,pid_file,fast_open,workers,connect_verbose_info,ssr_path,python_path,config_path,config_url string
     config_temp,err := ioutil.ReadFile(ssr_config_path)
     if err != nil {
@@ -111,13 +114,13 @@ func read_config_db(db_path string)ssr_config{
     ssr_config.password = "-k "+password+" "
     ssr_config.obfsparam = "-g "+obfsparam+" "
     ssr_config.protoparam = "-G "+protoparam+" "
-    fmt.Println(ssr_config)
+    //fmt.Println(ssr_config)
     return ssr_config
 }
 
 
-func ssr_start_db(db_path string){
-    ssr_config := read_config_db(db_path)
+func ssr_start_db(config_path,db_path string){
+    ssr_config := read_config_db(config_path,db_path)
     cmd_temp := ssr_config.python_path+ssr_config.ssr_path+ssr_config.local_address+ssr_config.
     local_port+ssr_config.log_file+ssr_config.pid_file+ssr_config.fast_open+ssr_config.
     workers+ssr_config.connect_verbose_info+ssr_config.server+ssr_config.
@@ -163,6 +166,13 @@ func ssr_stop(){
 }
 */
 
+func ssr_stop(config_path string){
+    if(path_exists(config_path)){
+
+    }
+}
+
+
 func menu_db(path,db_path string){
     //获取当前配置文件路径和可执行文件路径
     ssr_init.Menu_init(path)
@@ -178,7 +188,7 @@ func menu_db(path,db_path string){
 
     switch select_temp{
     case "1":
-        ssr_start_db(db_path)
+        ssr_start_db(path,db_path)
     case "2":
         node.Ssr_server_node_change(db_path)
     case "3":
@@ -191,7 +201,9 @@ func menu_db(path,db_path string){
     case "5":
         subscription.Subscription_link_delete(db_path)
     case "6":
+        socks5.Delay_test(strings.Split(read_config_db(path,db_path).local_address," ")[1],strings.Split(read_config_db(path,db_path).local_port," ")[1])
     case "7":
+
     }
 
 }
@@ -200,23 +212,5 @@ func menu_db(path,db_path string){
 func main(){
     config_path := os.Getenv("HOME")+"/.config/SSRSub"
     path := os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db"
-    //ssr__server_config_db()
-    //menu()
-    //node.Ssr_server_node_change(path)
     menu_db(config_path,path)
-    //subscription.Subscription_link_add("",path)
-    //fmt.Println(get_subscription_link())
-    //subscription.Subscription_link_delete(path)
-
-
-    //subscription.Add_config_db(path)
-
-
-    //ssr_init.Init(config_path,path)
-    /*
-    node.List_list_db(path)
-    subscription.Delete_config_db(path)
-    fmt.Println(subscription.Get_subscription_link(path))
-    */
-    //ssr_start_db(path)
 }
