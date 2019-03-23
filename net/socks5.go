@@ -60,8 +60,10 @@ func Delay_test(local_server,local_port string){
 
 
 	//进行数据请求
+	re := "Get / HTTP/2.0\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nAccept-Language: ja,zh-CN;q=0.5\r\nAccept-Encoding: gzip, deflate, br\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nCache-Control: max-age=0\r\nTE: Trailers\r\n"
+	_,err = conn.Write([]byte(re))
 
-	_,err = conn.Write([]byte("GET /generate_204/ HTTP/2.0\r\n"))
+	//_,err = conn.Write([]byte("GET /generate_204/ HTTP/2.0\r\n"))
 	//_,err = conn.Write([]byte("GET / HTTP/2.0\r\nHost: www.google.com\r\nConnection: close\r\nUser-Agent: Mozilla/5.0\r\nAccept-Language: cn\r\n"))
 	if err!=nil{
 		fmt.Println(err)
