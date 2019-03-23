@@ -2,21 +2,21 @@ package main
 
 import (
     "fmt"
-//    "encoding/base64"
-//    "net/http"
+    //"encoding/base64"
+    //"net/http"
     "io/ioutil"
     "strings"
-//    "bufio"
+    //"bufio"
     "os"
     "os/exec"
     "bytes"
     "regexp"
-//    "time"
+    //"time"
     "runtime"
     "database/sql"
     _ "github.com/mattn/go-sqlite3"
-  //  "sync"
-//    "log"
+    //"sync"
+    //"log"
     //"strconv"
 
     "./net"
@@ -201,7 +201,8 @@ func menu_db(path,db_path string){
     case "5":
         subscription.Subscription_link_delete(db_path)
     case "6":
-        socks5.Delay_test(strings.Split(read_config_db(path,db_path).local_address," ")[1],strings.Split(read_config_db(path,db_path).local_port," ")[1])
+        delay_test_temp := read_config_db(path,db_path)
+        socks5.Delay_test(strings.Split(delay_test_temp.local_address," ")[1],strings.Split(delay_test_temp.local_port," ")[1])
     case "7":
 
     }
