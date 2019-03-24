@@ -5,7 +5,8 @@ import(
 	"fmt"
     "database/sql"
     "sync"
-	_ "github.com/mattn/go-sqlite3"
+    _ "github.com/mattn/go-sqlite3"
+    //"time"
 )
 
 
@@ -64,10 +65,14 @@ func Ssr_server_node_change(sql_db_path string){
         fmt.Println(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
         //更新表
         db.Exec("UPDATE SSR_present_node SET remarks = ?,server = ?,server_port = ?,protocol = ?,method = ?,obfs = ?,password = ?,obfsparam = ?,protoparam = ?",remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-      */
+        */
+        //temp := time.Now()
+        db.Exec("BEGIN TRANSACTION;")
         db.Exec("DELETE FROM SSR_present_node")
         db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam) SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?",select_temp)
-    
+        db.Exec("COMMIT;")
+        //deply := time.Since(temp)
+        //fmt.Println(deply)
         }else{
         fmt.Println("enter error,please retry.")
         Ssr_server_node_change(sql_db_path)
