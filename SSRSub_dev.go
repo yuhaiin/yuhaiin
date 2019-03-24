@@ -192,6 +192,7 @@ func menu_db(path,db_path string){
     case "2":
         node.Ssr_server_node_change(db_path)
     case "3":
+        subscription.Delete_config_db(db_path)
         subscription.Add_config_db(db_path)
     case "4":
         fmt.Print("请输入要添加的订阅链接(一条):")

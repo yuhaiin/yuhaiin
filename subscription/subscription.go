@@ -163,6 +163,8 @@ func Add_config_db(sql_db_path string){
 
     defer db.Close()
 
+    //db.Exec("BEGIN TRANSACTION;")
+
     var wg sync.WaitGroup
     var str_2 []string
     for _,subscription_link_temp := range Get_subscription_link(sql_db_path){
@@ -175,6 +177,7 @@ func Add_config_db(sql_db_path string){
     go str_bas64d(str_2[len(str_2)/2:len(str_2)],len(str_2)/2,db,&wg)
     //此处不使用的defer,防止数据库关闭后再进行Wait()
     wg.Wait()
+    //db.Exec("COMMIT;")
 }
 
 
@@ -189,8 +192,9 @@ func Delete_config_db(sql_db_path string){
 
     defer db.Close()
 
-    //删除表
-    db.Exec("DROP TABLE IF EXISTS SSR_info;")
+    //清空表
+    db.Exec("DELETE FROM SSR_info;")
+    //db.Exec("DROP TABLE IF EXISTS SSR_info;")
 }
 
 //初始化节点列表
@@ -204,6 +208,7 @@ func Init_config_db(sql_db_path string,wg *sync.WaitGroup){
     }
     defer db.Close()
 
+    db.Exec("BEGIN TRANSACTION;")
     //创建表
      sql_table := `
     CREATE TABLE IF NOT EXISTS SSR_info(
@@ -224,5 +229,6 @@ func Init_config_db(sql_db_path string,wg *sync.WaitGroup){
     //向表中插入none值
     db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(none,none,none,none,none,none,none,none,none,none)")
 
+    db.Exec("COMMIT;")
     wg.Done()
 }
