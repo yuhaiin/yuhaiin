@@ -191,21 +191,26 @@ func menu_db(path,db_path string){
         ssr_start_db(path,db_path)
     case "2":
         node.Ssr_server_node_change(db_path)
+        menu_db(path,db_path)
     case "3":
         subscription.Delete_config_db(db_path)
         subscription.Add_config_db(db_path)
+        menu_db(path,db_path)
     case "4":
         fmt.Print("请输入要添加的订阅链接(一条):")
         var link_temp string
         fmt.Scanln(&link_temp)
         subscription.Subscription_link_add(link_temp,db_path)
+        menu_db(path,db_path)
     case "5":
         subscription.Subscription_link_delete(db_path)
+        menu_db(path,db_path)
     case "6":
         delay_test_temp := read_config_db(path,db_path)
         socks5.Delay_test(strings.Split(delay_test_temp.local_address," ")[1],strings.Split(delay_test_temp.local_port," ")[1])
+        menu_db(path,db_path)
     case "7":
-
+        menu_db(path,db_path)
     }
 
 }
