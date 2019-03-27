@@ -34,8 +34,8 @@ type ssr_config struct {
 }
 
 func ssr_config_init(config_path string)ssr_config{
-    pid_file := " --pid-file "+config_path+"/shadowsocksr.pid"
-    log_file := " --log-file "+"/dev/null"
+    pid_file := " --pid-file "+config_path+"/shadowsocksr.pid "
+    log_file := " --log-file "+"/dev/null "
     workers := " --workers "+"1 "
     python_path := "/usr/bin/python3 "
     ssr_config_path = "/home/asutorufa/.config/SSRSub/ssr_config.conf"
@@ -146,9 +146,9 @@ func ssr_start_db(config_path,db_path string){
     //fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam) 
 }
 
-/*
-func ssr_stop(){
-    cmd_temp := "cat "+strings.Split(read_config_db().pid_file," ")[1]+" | xargs kill"
+
+func ssr_stop(path,db_path string){
+    cmd_temp := "cat "+strings.Split(read_config_db(path,db_path).pid_file," ")[2]+" | xargs kill"
     var cmd *exec.Cmd
     if runtime.GOOS == "linux"{
         cmd = exec.Command("/bin/sh", "-c",cmd_temp)
@@ -164,18 +164,20 @@ func ssr_stop(){
     }
     fmt.Println("Result: " + out.String())
 }
-*/
 
+/*
 func ssr_stop(config_path string){
     if(path_exists(config_path)){
 
     }
 }
-
+*/
 
 func menu_db(path,db_path string){
     //获取当前配置文件路径和可执行文件路径
     ssr_init.Menu_init(path)
+    //初始化
+    ssr_init.Init(path,db_path)
     //获取当前节点
     node.Get_now_node(db_path)
 
@@ -210,6 +212,7 @@ func menu_db(path,db_path string){
         socks5.Delay_test(strings.Split(delay_test_temp.local_address," ")[1],strings.Split(delay_test_temp.local_port," ")[1])
         menu_db(path,db_path)
     case "7":
+        ssr_stop(path,db_path)
         menu_db(path,db_path)
     }
 

@@ -90,7 +90,9 @@ func Ssr_server_node_init(sql_db_path string,wg *sync.WaitGroup){
     }
     //关闭数据库
     defer db.Close()
-	//创建表
+    
+    //创建表
+    db.Exec("BEGIN TRANSACTION;")
 	sql_table := `CREATE TABLE IF NOT EXISTS SSR_present_node(
         remarks TEXT,
         server TEXT,
@@ -104,7 +106,7 @@ func Ssr_server_node_init(sql_db_path string,wg *sync.WaitGroup){
 	db.Exec(sql_table)
 	//初始化插入空字符
 	db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values('none','none','none','none','none','none','none','none','none')")
-
+    db.Exec("COMMIT;")
 
     wg.Done()
 }
