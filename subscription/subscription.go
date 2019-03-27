@@ -194,7 +194,6 @@ func Delete_config_db(sql_db_path string){
 
     //清空表
     db.Exec("DELETE FROM SSR_info;")
-    //db.Exec("DROP TABLE IF EXISTS SSR_info;")
 }
 
 //初始化节点列表
