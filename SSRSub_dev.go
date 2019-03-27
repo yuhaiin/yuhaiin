@@ -34,9 +34,9 @@ type ssr_config struct {
 }
 
 func ssr_config_init(config_path string)ssr_config{
-    pid_file := " --pid-file "+config_path+"/shadowsocksr.pid "
-    log_file := " --log-file "+"/dev/null "
-    workers := " --workers "+"1 "
+    pid_file := "--pid-file "+config_path+"/shadowsocksr.pid "
+    log_file := "--log-file "+"/dev/null "
+    workers := "--workers "+"1 "
     python_path := "/usr/bin/python3 "
     ssr_config_path = os.Getenv("HOME")+"/.config/SSRSub/ssr_config.conf"
     return ssr_config{pid_file,log_file,workers,python_path,"","","","","","","","","","","","","","","","",""}
@@ -148,7 +148,7 @@ func ssr_start_db(config_path,db_path string){
 
 
 func ssr_stop(path,db_path string){
-    cmd_temp := "cat "+strings.Split(read_config_db(path,db_path).pid_file," ")[2]+" | xargs kill"
+    cmd_temp := "cat "+strings.Split(read_config_db(path,db_path).pid_file," ")[1]+" | xargs kill"
     var cmd *exec.Cmd
     if runtime.GOOS == "linux"{
         cmd = exec.Command("/bin/sh", "-c",cmd_temp)

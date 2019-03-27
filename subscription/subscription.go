@@ -94,7 +94,11 @@ func Subscription_link_delete(sql_db_path string){
 
 
 func http_get_subscription(url string)string{
-    res,_ := http.Get(url)
+    res,err := http.Get(url)
+    if err!=nil{
+        fmt.Println(err)
+        fmt.Println("如果没有添加订阅链接 建议先添加订阅链接")
+    }
     body,err := ioutil.ReadAll(res.Body)
     if err!=nil{
         fmt.Println(err)
