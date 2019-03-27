@@ -23,7 +23,6 @@ Todo:
 go版配置文件格式(目前与执行文件放在同一个目录)
 python_path /usr/bin/python3
 ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
-config_path config.txt
 local_port 1080
 local_address 127.0.0.1
 connect-verbose-info
