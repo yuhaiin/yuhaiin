@@ -80,7 +80,7 @@ func Menu_init(path string){
 func Auto_create_config(path string){
     config_path := path + "/ssr_config.conf"
     ssr_path := "ssr_path /home/asutorufa/program/shadowsocksr-python/shadowsocks/local.py #ssr路径\n"
-    pid_file := "pid-file "+os.Getenv("HOME")+"/.cache/SSRSub/shadowsocksr.pid\n"
+    pid_file := "pid-file "+os.Getenv("HOME")+"/.config/SSRSub/shadowsocksr.pid\n"
     log_file := "log-file /dev/null\n"
     fast_open := "fast-open\n"
     deamon := "deamon\n"
