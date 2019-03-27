@@ -38,7 +38,7 @@ func ssr_config_init(config_path string)ssr_config{
     log_file := " --log-file "+"/dev/null "
     workers := " --workers "+"1 "
     python_path := "/usr/bin/python3 "
-    ssr_config_path = "/home/asutorufa/.config/SSRSub/ssr_config.conf"
+    ssr_config_path = os.Getenv("HOME")+"/.config/SSRSub/ssr_config.conf"
     return ssr_config{pid_file,log_file,workers,python_path,"","","","","","","","","","","","","","","","",""}
 }
 
