@@ -22,7 +22,7 @@ func List_list_db(sql_db_path string){
     defer db.Close()
 
     //查找
-	rows, err := db.Query("SELECT id,remarks FROM SSR_info")
+	rows, err := db.Query("SELECT id,remarks FROM SSR_info ORDER BY id ASC;")
     //var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
     var remarks,id string
 	for rows.Next(){

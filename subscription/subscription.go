@@ -221,7 +221,7 @@ func Init_config_db(sql_db_path string,wg *sync.WaitGroup){
     //创建表
      sql_table := `
     CREATE TABLE IF NOT EXISTS SSR_info(
-        id TEXT,
+        id INTERGER,
         remarks TEXT,
         server TEXT,
         server_port TEXT,

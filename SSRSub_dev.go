@@ -226,7 +226,7 @@ func menu_db(path,db_path string){
 
 
 func main(){
-    config_path := os.Getenv("HOME")+"/.config/SSRSub"
-    path := os.Getenv("HOME")+"/.config/SSRSub/SSR_config.db"
+    config_path := os.Getenv("HOME")+"/桌面/.config/SSRSub"
+    path := os.Getenv("HOME")+"/桌面/.config/SSRSub/SSR_config.db"
     menu_db(config_path,path)
 }
