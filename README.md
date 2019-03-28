@@ -24,7 +24,7 @@ Todo:
 - [ ] 加入`-h`参数对各种操作进行简短的说明(特别是配置文件的修改)
 - [ ] runtime error错误处理
 ```
-go版配置文件格式(目前与执行文件放在同一个目录)
+go版配置文件格式,第一次运行自动生成
 python_path /usr/bin/python3
 ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
 local_port 1080
