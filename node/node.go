@@ -5,6 +5,7 @@ import(
 	"fmt"
     "database/sql"
     "sync"
+    "log"
     _ "github.com/mattn/go-sqlite3"
     //"time"
 )
@@ -42,7 +43,13 @@ func Ssr_server_node_change(sql_db_path string){
     }
     defer db.Close()
 
-    
+    //判断数据库是否为空
+    err = db.QueryRow("SELECT remarks FROM SSR_info;").Scan(err)
+    if err == sql.ErrNoRows {
+        log.Println("节点列表为空,请先更新订阅\n")
+        return
+     }
+
     //获取服务器条数
     var num int
     query,err := db.Prepare("select count(1) from SSR_info")
