@@ -87,9 +87,12 @@ func Subscription_link_delete(sql_db_path string){
     for num,link_temp := range subscription_link{
         fmt.Println(strconv.Itoa(num+1)+"."+link_temp)
     }
+    fmt.Print("\n输入0返回菜单>>>")
     var select_delete int
-    fmt.Scanln(&select_delete)
-    if select_delete>=1&&select_delete<=len(subscription_link){
+    fmt.Scanln(&select_delete)    
+    if select_delete == 0{
+        return
+    }else if select_delete>=1&&select_delete<=len(subscription_link){
         db.Exec("DELETE FROM subscription_link WHERE link = ?",subscription_link[select_delete-1])
     }else{
         fmt.Println("enter error,please retry.")
