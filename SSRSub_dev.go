@@ -181,7 +181,7 @@ func menu_db(path,db_path string){
     //获取当前节点
     node.Get_now_node(db_path)
 
-    fmt.Print("1.开启ssr\n2.更换节点\n3.更新所有订阅\n4.添加订阅链接\n5.删除订阅链接\n6.获取延迟\n7.结束ssr后台\n>>>")
+    fmt.Print("1.开启ssr\n2.更换节点\n3.更新所有订阅\n4.添加订阅链接\n5.删除订阅链接\n6.获取延迟\n7.结束ssr后台\n8.结束此程序(ssr后台运行)\n>>>")
 
 
 
@@ -191,6 +191,7 @@ func menu_db(path,db_path string){
     switch select_temp{
     case "1":
         ssr_start_db(path,db_path)
+        menu_db(path,db_path)
     case "2":
         node.Ssr_server_node_change(db_path)
         menu_db(path,db_path)
@@ -213,6 +214,11 @@ func menu_db(path,db_path string){
         menu_db(path,db_path)
     case "7":
         ssr_stop(path,db_path)
+        menu_db(path,db_path)
+    case "8":
+        os.Exit(0)
+    default:
+        fmt.Println("输入错误\n")
         menu_db(path,db_path)
     }
 

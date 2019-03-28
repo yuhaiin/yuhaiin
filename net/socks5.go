@@ -4,13 +4,15 @@
 	 "net"
 	 "fmt"
 	 "time"
+	 "log"
  )
 
 
 func Delay_test(local_server,local_port string){
 	conn,err := net.Dial("tcp",local_server+":"+local_port)
 	if err != nil{
-		fmt.Println(err)
+		log.Println("请先连接ssr再进行测试")
+		log.Println(err)
 		return
 	}
 
