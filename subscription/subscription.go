@@ -10,6 +10,7 @@ import (
     "strings"
     "bufio"
     "sync"
+    "log"
     "../base64d"
 )
 
@@ -71,6 +72,11 @@ func Subscription_link_delete(sql_db_path string){
     }
     defer db.Close()
 
+    err = db.QueryRow("SELECT link FROM subscription_link").Scan(err)
+    if err == sql.ErrNoRows {
+        log.Println("没有已经添加的订阅链接\n")
+        return
+     }
     rows,err := db.Query("SELECT link FROM subscription_link")
     var link string
     for rows.Next(){
