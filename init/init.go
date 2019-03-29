@@ -17,7 +17,7 @@ import(
 
 
 //判断目录是否存在返回布尔类型
-func path_exists(path string)bool{
+func Path_exists(path string)bool{
     _,err := os.Stat(path)
     if err!=nil{
         if os.IsExist(err){
@@ -32,14 +32,14 @@ func path_exists(path string)bool{
 
 func Init(config_path,sql_db_path string){
     //判断目录是否存在 不存在则创建
-    if !path_exists(config_path){
+    if !Path_exists(config_path){
         err := os.MkdirAll(config_path, os.ModePerm)
         if err!=nil{
             fmt.Println(err)
         }
 	}
 	
-	if !path_exists(sql_db_path){
+	if !Path_exists(sql_db_path){
         var wg sync.WaitGroup
 
         wg.Add(1)
@@ -66,13 +66,15 @@ func Menu_init(path string){
         //fmt.Println(rst)
     
         //判断目录是否存在 不存在则创建
-        if !path_exists(path){
+        //Init中已有,此处删除
+        /*
+        if !Path_exists(path){
             err := os.Mkdir(path, os.ModePerm)
             if err!=nil{
                 fmt.Println(err)
             }
         }
-    
+        */
         fmt.Println("当前配置文件目录:"+path)
         fmt.Println("当前可执行文件目录:"+rst)
 }
