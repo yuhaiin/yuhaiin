@@ -14,6 +14,7 @@ import (
     //"time"
     "runtime"
     "database/sql"
+    "log"
     _ "github.com/mattn/go-sqlite3"
     //"sync"
     //"log"
@@ -43,23 +44,21 @@ func ssr_config_init(config_path string)ssr_config{
 }
 
 
-//判断目录是否存在返回布尔类型
-func path_exists(path string)bool{
-    _,err := os.Stat(path)
-    if err!=nil{
-        if os.IsExist(err){
-            return true
-        }else{
-            return false
-        }
-    }else{
-        return true
-    }
-}
-
-
 //读取配置文件
 func read_config_db(config_path,db_path string)ssr_config{
+    db,err := sql.Open("sqlite3",db_path)
+    if err!=nil{
+        fmt.Println(err)
+    }
+    defer db.Close()
+
+    var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
+    err = db.QueryRow("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_present_node").Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
+    if err == sql.ErrNoRows {
+        log.Println("请先选择一个节点,目前没有已选择节点\n")
+        return ssr_config{}
+     }
+
     ssr_config := ssr_config_init(config_path)
     //var log_file,pid_file,fast_open,workers,connect_verbose_info,ssr_path,python_path,config_path,config_url string
     config_temp,err := ioutil.ReadFile(ssr_config_path)
@@ -98,22 +97,26 @@ func read_config_db(config_path,db_path string)ssr_config{
         }
     }
 
-    db,err := sql.Open("sqlite3",db_path)
-    if err!=nil{
-        fmt.Println(err)
-    }
-    defer db.Close()
-    var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
+    /*
     rows,err := db.Query("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_present_node")
     for rows.Next(){rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)}
+    */
     ssr_config.server = "-s "+server+" "
     ssr_config.server_port = "-p " +server_port+" "
-    ssr_config.protocol = "-O "+protocol+" "
+    if protocol!=""{
+        ssr_config.protocol = "-O "+protocol+" "
+    }
     ssr_config.method = "-m "+method+" "
-    ssr_config.obfs = "-o "+obfs+" "
+    if obfs!=""{
+        ssr_config.obfs = "-o "+obfs+" "
+    }
     ssr_config.password = "-k "+password+" "
-    ssr_config.obfsparam = "-g "+obfsparam+" "
-    ssr_config.protoparam = "-G "+protoparam+" "
+    if obfsparam!=""{
+        ssr_config.obfsparam = "-g "+obfsparam+" "
+    }
+    if protoparam!=""{
+        ssr_config.protoparam = "-G "+protoparam+" "
+    }
     //fmt.Println(ssr_config)
     return ssr_config
 }
@@ -174,10 +177,10 @@ func ssr_stop(config_path string){
 */
 
 func menu_db(path,db_path string){
-    //获取当前配置文件路径和可执行文件路径
-    ssr_init.Menu_init(path)
     //初始化
     ssr_init.Init(path,db_path)
+    //获取当前配置文件路径和可执行文件路径
+    ssr_init.Menu_init(path)
     //获取当前节点
     node.Get_now_node(db_path)
 
