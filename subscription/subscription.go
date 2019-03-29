@@ -11,6 +11,7 @@ import (
     "bufio"
     "sync"
     "log"
+    //"time"
     "../base64d"
 )
 
@@ -132,13 +133,8 @@ func str_replace(str string)[]string{
 }
 
 
-func str_bas64d(str []string,n int,db *sql.DB,wg *sync.WaitGroup){
-    defer wg.Done()
-
-
-    
+func str_bas64d(str []string,db *sql.DB){
     for i:= 0;i<len(str);i++{
-        n++
         config_split := strings.Split(str[i],":")
         var server string
         if len(config_split) == 17 {
@@ -159,11 +155,10 @@ func str_bas64d(str []string,n int,db *sql.DB,wg *sync.WaitGroup){
 
 
         //向表中插入数据
-        db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)",n,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+        db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)",i+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
     }
 
 }
-
 //添加所有订阅的所有节点(sqlite数据库)
 func Add_config_db(sql_db_path string){
 
@@ -176,21 +171,19 @@ func Add_config_db(sql_db_path string){
 
     defer db.Close()
 
-    //db.Exec("BEGIN TRANSACTION;")
-
-    var wg sync.WaitGroup
     var str_2 []string
     for _,subscription_link_temp := range Get_subscription_link(sql_db_path){
         str_2 = append(str_2,str_replace(http_get_subscription(subscription_link_temp))...)
     }
 
-    wg.Add(1)
-    go str_bas64d(str_2[0:len(str_2)/2],0,db,&wg)
-    wg.Add(1)
-    go str_bas64d(str_2[len(str_2)/2:len(str_2)],len(str_2)/2,db,&wg)
-    //此处不使用的defer,防止数据库关闭后再进行Wait()
-    wg.Wait()
-    //db.Exec("COMMIT;")
+    //temp := time.Now()
+
+    db.Exec("BEGIN TRANSACTION;")
+    str_bas64d(str_2,db)
+    db.Exec("COMMIT;")
+
+    //deply := time.Since(temp)
+    //fmt.Println(deply)
 }
 
 
