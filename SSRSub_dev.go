@@ -45,7 +45,7 @@ func ssr_config_init(config_path string)ssr_config{
 
 
 //读取配置文件
-func read_config_db(config_path,db_path string)ssr_config{
+func read_config_db(config_path,db_path string)(ssr_config,error){
     db,err := sql.Open("sqlite3",db_path)
     if err!=nil{
         fmt.Println(err)
@@ -56,8 +56,8 @@ func read_config_db(config_path,db_path string)ssr_config{
     err = db.QueryRow("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_present_node").Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
     if err == sql.ErrNoRows {
         log.Println("请先选择一个节点,目前没有已选择节点\n")
-        return ssr_config{}
-     }
+        return ssr_config{},err
+    }
 
     ssr_config := ssr_config_init(config_path)
     //var log_file,pid_file,fast_open,workers,connect_verbose_info,ssr_path,python_path,config_path,config_url string
@@ -118,12 +118,18 @@ func read_config_db(config_path,db_path string)ssr_config{
         ssr_config.protoparam = "-G "+protoparam+" "
     }
     //fmt.Println(ssr_config)
-    return ssr_config
+    return ssr_config,nil
 }
 
 
 func ssr_start_db(config_path,db_path string){
-    ssr_config := read_config_db(config_path,db_path)
+    ssr_config,err := read_config_db(config_path,db_path)
+    if err !=nil{
+        log.Println("读取配置文件出错")
+        log.Println(err)
+        return
+    }
+    
     cmd_temp := ssr_config.python_path+ssr_config.ssr_path+ssr_config.local_address+ssr_config.
     local_port+ssr_config.log_file+ssr_config.pid_file+ssr_config.fast_open+ssr_config.
     workers+ssr_config.connect_verbose_info+ssr_config.server+ssr_config.
@@ -140,7 +146,7 @@ func ssr_start_db(config_path,db_path string){
     var stderr bytes.Buffer
     cmd.Stdout = &out
     cmd.Stderr = &stderr
-    err := cmd.Run()
+    err = cmd.Run()
     if err != nil {
         fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
         return
@@ -151,7 +157,13 @@ func ssr_start_db(config_path,db_path string){
 
 
 func ssr_stop(path,db_path string){
-    cmd_temp := "cat "+strings.Split(read_config_db(path,db_path).pid_file," ")[1]+" | xargs kill"
+    config_temp,err := read_config_db(path,db_path)
+    if err !=nil{
+        log.Println("读取配置文件出错")
+        log.Println(err)
+        return
+    }
+    cmd_temp := "cat "+strings.Split(config_temp.pid_file," ")[1]+" | xargs kill"
     var cmd *exec.Cmd
     if runtime.GOOS == "linux"{
         cmd = exec.Command("/bin/sh", "-c",cmd_temp)
@@ -160,7 +172,7 @@ func ssr_stop(path,db_path string){
     var stderr bytes.Buffer
     cmd.Stdout = &out
     cmd.Stderr = &stderr
-    err := cmd.Run()
+    err = cmd.Run()
     if err != nil {
         fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
         return
@@ -212,7 +224,13 @@ func menu_db(path,db_path string){
         subscription.Subscription_link_delete(db_path)
         menu_db(path,db_path)
     case "6":
-        delay_test_temp := read_config_db(path,db_path)
+        delay_test_temp,err := read_config_db(path,db_path)
+        if err!=nil{
+            log.Println("读取配置文件出错")
+            log.Println(err)
+            menu_db(path,db_path)
+            break
+        }
         socks5.Delay_test(strings.Split(delay_test_temp.local_address," ")[1],strings.Split(delay_test_temp.local_port," ")[1])
         menu_db(path,db_path)
     case "7":
