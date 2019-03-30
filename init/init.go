@@ -11,7 +11,6 @@ import(
     "io/ioutil"
 
 	"../subscription"
-	"../node"
     "path/filepath"
 )
 
@@ -47,7 +46,7 @@ func Init(config_path,sql_db_path string){
         wg.Add(1)
         go subscription.Init_config_db(sql_db_path,&wg)
         wg.Add(1)
-        go node.Ssr_server_node_init(sql_db_path,&wg)
+        go subscription.Ssr_server_node_init(sql_db_path,&wg)
         Auto_create_config(config_path)
 
 

@@ -232,7 +232,7 @@ func Init_config_db(sql_db_path string,wg *sync.WaitGroup){
     db.Exec(sql_table)
 
     //向表中插入none值
-    db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(none,none,none,none,none,none,none,none,none,none)")
+    //db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(none,none,none,none,none,none,none,none,none,none)")
 
     db.Exec("COMMIT;")
     wg.Done()
