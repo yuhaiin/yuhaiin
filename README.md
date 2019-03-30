@@ -35,7 +35,7 @@ connect-verbose-info #使用ssr_libev请关闭此项
 workers 8 #使用ssr_libev请关闭此项
 fast-open
 deamon #使用ssr_libev请关闭此项
-pid-file /home/xxx/.cache/SSRSub/shadowsocksr.pid #使用ssr_libev请关闭此项
+pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid #使用ssr_libev请关闭此项
 log-file /dev/null #使用ssr_libev请关闭此项
 acl /media/xxx/D/code/ACL/aacl-none.acl #使用ssr_python请关闭此项
 ```
