@@ -26,7 +26,7 @@ Todo:
 - [ ] runtime error错误处理
 - [x] (已放弃)使用go自带事务语句(自测sqlite使用了自带的事务语句与没有使用所用时间相同所以放弃使用go自带事务语句)
 ```
-go版配置文件格式,第一次运行自动生成
+#go版配置文件格式,第一次运行自动生成 #可以注释语句
 python_path /usr/bin/python3 #使用ssr_libev请关闭此项
 ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
 local_port 1080
