@@ -28,7 +28,7 @@ Todo:
 ```
 #go版配置文件格式,第一次运行自动生成 #可以注释语句
 python_path /usr/bin/python3 #使用ssr_libev请关闭此项
-ssr_path /home/xxx/program/shadowsocksr-python/shadowsocks/local.py
+ssr_path /shadowsocksr-python/shadowsocks/local.py
 local_port 1080
 local_address 127.0.0.1
 connect-verbose-info #使用ssr_libev请关闭此项
@@ -37,7 +37,7 @@ fast-open
 deamon #使用ssr_libev请关闭此项
 pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid #使用ssr_libev请关闭此项
 log-file /dev/null #使用ssr_libev请关闭此项
-acl /media/xxx/D/code/ACL/aacl-none.acl #使用ssr_python请关闭此项
+acl aacl-none.acl #使用ssr_python请关闭此项
 ```
 ![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubv0.1alpha.png)
 [其他版本](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
