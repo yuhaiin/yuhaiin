@@ -39,5 +39,5 @@ pid-file /home/xxx/.cache/SSRSub/shadowsocksr.pid #使用ssr_libev请关闭此�
 log-file /dev/null #使用ssr_libev请关闭此项
 acl /media/xxx/D/code/ACL/aacl-none.acl #使用ssr_python请关闭此项
 ```
-![](https://raw.githubusercontent.com/Asutorufa/SSRSubscriptionDecode/master/Screenshot_20190322_162414.png)
+![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubv0.1alpha.png)
 [其他版本](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
