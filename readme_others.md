@@ -1,4 +1,4 @@
- 
+# 如果你想使用这些版本,请先切换分支
 **SSRSub.py:** 解析经base64多层加密的订阅链接 可进行ping测试 python3版 读取速度更快  
 **SSRSub:** 解析经base64多层加密的订阅链接  
 **SSRConfig_json:** 利用jq解析json文件  
