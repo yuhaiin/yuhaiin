@@ -1,7 +1,7 @@
 <!--**SSRSub.go:** go语言版 ([农民日语版说明](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md)) 可生成可执行文件 无需安装一堆软件库 更轻便 基本完成-->
 # SsrMicroClient  
 ![](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)
-![](https://img.shields.io/badge/language-golang-red.svg)
+![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)
 ![](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)  
 已知问题:  
 - [x]  配置文件的读取路径有问题  
