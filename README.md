@@ -1,9 +1,9 @@
 <!--**SSRSub.go:** go语言版 ([农民日语版说明](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md)) 可生成可执行文件 无需安装一堆软件库 更轻便 基本完成-->
 # SsrMicroClient  
 [![](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
-[![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
+[![](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
 [![codebeat badge](https://codebeat.co/badges/2cd0e124-3207-4453-8bd1-7bfc50ad68c9)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
-![](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)  
+![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
 已知问题:  
 - [x]  配置文件的读取路径有问题  
 - [ ] 执行文件未分bash和cmd 且执行文件路径有问题  
