@@ -2,6 +2,7 @@
 # SsrMicroClient  
 ![](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)
 ![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)
+[![codebeat badge](https://codebeat.co/badges/2cd0e124-3207-4453-8bd1-7bfc50ad68c9)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
 ![](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)  
 已知问题:  
 - [x]  配置文件的读取路径有问题  
