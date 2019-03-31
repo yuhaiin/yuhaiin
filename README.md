@@ -42,5 +42,5 @@ pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid #使用ssr_libev请关闭此�
 log-file /dev/null #使用ssr_libev请关闭此项
 acl aacl-none.acl #使用ssr_python请关闭此项
 ```
-[农民日语版说明](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md)  [其他语言版本说明](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
+[农民日语版说明](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md)  [其他程序语言版本](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
 ![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubv0.1alpha.png)
