@@ -9,10 +9,12 @@
 	 "regexp"
 	 _ "github.com/mattn/go-sqlite3"
  )
+
+ /*
 type Node struct{
 	Server,Server_port,Protocol,Method,Obfs,Password,Obfsparam,Protoparam string
 }
-
+*/
 type Argument struct{
     Pid_file,Log_file,Workers string
     Python_path,Config_path,Ssr_path,Acl string
@@ -21,18 +23,12 @@ type Argument struct{
 }
 
 type Ssr_config struct {
-    Node Node
+    Node map[string]string
     Argument Argument
-    /*
-    Server,Server_port,Protocol,Method,Obfs,Password,Obfsparam,Protoparam,Local_port,Local_address string
-    Pid_file,Log_file,Workers string
-    Python_path,Config_path,Ssr_path,Acl string
-    //,remarks string
-    Connect_verbose_info,Deamon,Fast_open string
-    */
 }
 
 
+/*
 func Read_config_db(db_path string)(Node,error){
     node := Node{}
     db,err := sql.Open("sqlite3",db_path)
@@ -64,6 +60,48 @@ func Read_config_db(db_path string)(Node,error){
     }
     if node.Protoparam!=""{
         node.Protoparam = "-G "+node.Protoparam+" "
+    }
+
+	return node,nil
+}
+*/
+
+
+func Read_config_db(db_path string)(map[string]string,error){
+    node := map[string]string{}
+    //node := Node{}
+    db,err := sql.Open("sqlite3",db_path)
+    if err!=nil{
+        fmt.Println(err)
+        return node,err
+    }
+    defer db.Close()
+
+    var Server,Server_port,Protocol,Method,Obfs,Password,Obfsparam,Protoparam string
+    err = db.QueryRow("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_present_node").
+    //Scan(node["Server"],node["Server_port"],node["Protocol"],node["Method"],node["Obfs"],node["Password"],node["Obfsparam"],node["Protoparam"])
+    Scan(&Server,&Server_port,&Protocol,&Method,&Obfs,&Password,&Obfsparam,&Protoparam)
+
+    if err == sql.ErrNoRows {
+        log.Println("请先选择一个节点,目前没有已选择节点\n")
+		return node,err
+    }
+
+    node["Server"] = "-s "+Server+" "
+    node["Server_port"] = "-p " +Server_port+" "
+    if Protocol!=""{
+        node["Protocol"] = "-O "+Protocol+" "
+    }
+    node["Method"] = "-m "+Method+" "
+    if Obfs!=""{
+        node["Obfs"] = "-o "+Obfs+" "
+    }
+    node["Password"] = "-k "+Password+" "
+    if Obfsparam!=""{
+        node["Obfsparam"] = "-g "+Obfsparam+" "
+    }
+    if Protoparam!=""{
+        node["Protoparam"] = "-G "+Protoparam+" "
     }
 
 	return node,nil
@@ -109,12 +147,5 @@ func Read_config_file(config_path string)Argument{
 func Read_config(config_path,db_path string)Ssr_config{
     node,_ := Read_config_db(db_path)
     argument := Read_config_file(config_path)
-    /*
-    
-        node.Server,node.Server_port,node.Protocol,node.Method,node.Obfs,node.Password,node.Obfsparam,node.Protoparam,argument.Local_port,argument.Local_address,
-        argument.Pid_file,argument.Log_file,argument.Workers,
-        argument.Python_path,argument.Config_path,argument.Ssr_path,argument.Acl,
-        argument.Connect_verbose_info,argument.Deamon,argument.Fast_open}
-    */
     return Ssr_config{node,argument}
 }
