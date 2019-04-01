@@ -129,11 +129,16 @@ func read_config_db(config_path,db_path string)(ssr_config,error){
 func ssr_start_db(config_path,db_path string){
     ssr_config := config.Read_config(config_path,db_path)
     
-    cmd_temp := ssr_config.Python_path+ssr_config.Ssr_path+ssr_config.
-    Local_address+ssr_config.Local_port+ssr_config.
-    Log_file+ssr_config.Pid_file+ssr_config.Fast_open+ssr_config.Workers+ssr_config.Connect_verbose_info+ssr_config.
-    Server+ssr_config.Server_port+ssr_config.Protocol+ssr_config.Method+ssr_config.Obfs+ssr_config.Password+ssr_config.Obfsparam+ssr_config.Protoparam+ssr_config.
-    Acl+ssr_config.Deamon
+    cmd_temp := ssr_config.Argument.Python_path+ssr_config.Argument.Ssr_path+ssr_config.Argument.
+    Local_address+ssr_config.Argument.Local_port+ssr_config.Argument.
+    Log_file+ssr_config.Argument.Pid_file+ssr_config.Argument.Fast_open+ssr_config.Argument.
+    Workers+ssr_config.Argument.Connect_verbose_info+ssr_config.Node.
+
+    Server+ssr_config.Node.Server_port+ssr_config.Node.Protocol+ssr_config.Node.
+    Method+ssr_config.Node.Obfs+ssr_config.Node.Password+ssr_config.Node.
+    Obfsparam+ssr_config.Node.Protoparam+ssr_config.Argument.
+    
+    Acl+ssr_config.Argument.Deamon
 
     fmt.Println(cmd_temp)
 

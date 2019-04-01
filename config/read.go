@@ -21,11 +21,15 @@ type Argument struct{
 }
 
 type Ssr_config struct {
+    Node Node
+    Argument Argument
+    /*
     Server,Server_port,Protocol,Method,Obfs,Password,Obfsparam,Protoparam,Local_port,Local_address string
     Pid_file,Log_file,Workers string
     Python_path,Config_path,Ssr_path,Acl string
     //,remarks string
     Connect_verbose_info,Deamon,Fast_open string
+    */
 }
 
 
@@ -44,7 +48,7 @@ func Read_config_db(db_path string)(Node,error){
         log.Println("请先选择一个节点,目前没有已选择节点\n")
 		return node,err
     }
-    
+
     node.Server = "-s "+node.Server+" "
     node.Server_port = "-p " +node.Server_port+" "
     if node.Protocol!=""{
@@ -105,9 +109,12 @@ func Read_config_file(config_path string)Argument{
 func Read_config(config_path,db_path string)Ssr_config{
     node,_ := Read_config_db(db_path)
     argument := Read_config_file(config_path)
-    return Ssr_config{
+    /*
+    
         node.Server,node.Server_port,node.Protocol,node.Method,node.Obfs,node.Password,node.Obfsparam,node.Protoparam,argument.Local_port,argument.Local_address,
         argument.Pid_file,argument.Log_file,argument.Workers,
         argument.Python_path,argument.Config_path,argument.Ssr_path,argument.Acl,
         argument.Connect_verbose_info,argument.Deamon,argument.Fast_open}
+    */
+    return Ssr_config{node,argument}
 }
