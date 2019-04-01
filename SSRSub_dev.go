@@ -1,20 +1,21 @@
 package main
 
+
 import (
     "fmt"
     //"encoding/base64"
     //"net/http"
-    "io/ioutil"
+    //"io/ioutil"
     "strings"
     //"bufio"
     "os"
     "os/exec"
     "bytes"
-    "regexp"
+    //"regexp"
     //"time"
     "runtime"
-    "database/sql"
-    "log"
+    //"database/sql"
+    //"log"
     _ "github.com/mattn/go-sqlite3"
     //"sync"
     //"log"
@@ -23,8 +24,10 @@ import (
     "./net"
     "./subscription"
     "./init"
+    "./config"
 )
 
+/*
 var ssr_config_path string
 type ssr_config struct {
     pid_file,log_file,workers string
@@ -100,6 +103,7 @@ func read_config_db(config_path,db_path string)(ssr_config,error){
     rows,err := db.Query("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_present_node")
     for rows.Next(){rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)}
     */
+    /*
     ssr_config.server = "-s "+server+" "
     ssr_config.server_port = "-p " +server_port+" "
     if protocol!=""{
@@ -119,21 +123,17 @@ func read_config_db(config_path,db_path string)(ssr_config,error){
     //fmt.Println(ssr_config)
     return ssr_config,nil
 }
+*/
 
 
 func ssr_start_db(config_path,db_path string){
-    ssr_config,err := read_config_db(config_path,db_path)
-    if err !=nil{
-        log.Println("读取配置文件出错")
-        log.Println(err)
-        return
-    }
+    ssr_config := config.Read_config(config_path,db_path)
     
-    cmd_temp := ssr_config.python_path+ssr_config.ssr_path+ssr_config.local_address+ssr_config.
-    local_port+ssr_config.log_file+ssr_config.pid_file+ssr_config.fast_open+ssr_config.
-    workers+ssr_config.connect_verbose_info+ssr_config.server+ssr_config.
-    server_port+ssr_config.protocol+ssr_config.method+ssr_config.
-    obfs+ssr_config.password+ssr_config.obfsparam+ssr_config.protoparam+ssr_config.acl+ssr_config.deamon
+    cmd_temp := ssr_config.Python_path+ssr_config.Ssr_path+ssr_config.
+    Local_address+ssr_config.Local_port+ssr_config.
+    Log_file+ssr_config.Pid_file+ssr_config.Fast_open+ssr_config.Workers+ssr_config.Connect_verbose_info+ssr_config.
+    Server+ssr_config.Server_port+ssr_config.Protocol+ssr_config.Method+ssr_config.Obfs+ssr_config.Password+ssr_config.Obfsparam+ssr_config.Protoparam+ssr_config.
+    Acl+ssr_config.Deamon
 
     fmt.Println(cmd_temp)
 
@@ -145,7 +145,7 @@ func ssr_start_db(config_path,db_path string){
     var stderr bytes.Buffer
     cmd.Stdout = &out
     cmd.Stderr = &stderr
-    err = cmd.Run()
+    err := cmd.Run()
     if err != nil {
         fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
         return
@@ -155,14 +155,16 @@ func ssr_start_db(config_path,db_path string){
 }
 
 
-func ssr_stop(path,db_path string){
-    config_temp,err := read_config_db(path,db_path)
+func ssr_stop(path string){
+    config_temp := config.Read_config_file(path)
+    /*
     if err !=nil{
         log.Println("读取配置文件出错")
         log.Println(err)
         return
     }
-    cmd_temp := "cat "+strings.Split(config_temp.pid_file," ")[1]+" | xargs kill"
+    */
+    cmd_temp := "cat "+strings.Split(config_temp.Pid_file," ")[1]+" | xargs kill"
     var cmd *exec.Cmd
     if runtime.GOOS == "linux"{
         cmd = exec.Command("/bin/sh", "-c",cmd_temp)
@@ -171,7 +173,7 @@ func ssr_stop(path,db_path string){
     var stderr bytes.Buffer
     cmd.Stdout = &out
     cmd.Stderr = &stderr
-    err = cmd.Run()
+    err := cmd.Run()
     if err != nil {
         fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
         return
@@ -179,13 +181,6 @@ func ssr_stop(path,db_path string){
     fmt.Println("Result: " + out.String())
 }
 
-/*
-func ssr_stop(config_path string){
-    if(path_exists(config_path)){
-
-    }
-}
-*/
 
 func menu_db(path,db_path string){
     //初始化
@@ -223,17 +218,19 @@ func menu_db(path,db_path string){
         subscription.Subscription_link_delete(db_path)
         menu_db(path,db_path)
     case "6":
-        delay_test_temp,err := read_config_db(path,db_path)
+        delay_test_temp := config.Read_config_file(path)
+        /*
         if err!=nil{
             log.Println("读取配置文件出错")
             log.Println(err)
             menu_db(path,db_path)
             break
         }
-        socks5.Delay_test(strings.Split(delay_test_temp.local_address," ")[1],strings.Split(delay_test_temp.local_port," ")[1])
+        */
+        socks5.Delay_test(strings.Split(delay_test_temp.Local_address," ")[1],strings.Split(delay_test_temp.Local_port," ")[1])
         menu_db(path,db_path)
     case "7":
-        ssr_stop(path,db_path)
+        ssr_stop(path)
         menu_db(path,db_path)
     case "8":
         os.Exit(0)
