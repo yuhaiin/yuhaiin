@@ -132,12 +132,11 @@ func ssr_start_db(config_path,db_path string){
     cmd_temp := ssr_config.Argument.Python_path+ssr_config.Argument.Ssr_path+ssr_config.Argument.
     Local_address+ssr_config.Argument.Local_port+ssr_config.Argument.
     Log_file+ssr_config.Argument.Pid_file+ssr_config.Argument.Fast_open+ssr_config.Argument.
-    Workers+ssr_config.Argument.Connect_verbose_info+ssr_config.Node.
+    Workers+ssr_config.Argument.Connect_verbose_info+ssr_config.
+    Node["Server"]+ssr_config.Node["Server_port"]+ssr_config.Node["Protocol"]+ssr_config.
+    Node["Method"]+ssr_config.Node["Obfs"]+ssr_config.Node["Password"]+ssr_config.
+    Node["Obfsparam"]+ssr_config.Node["Protoparam"]+ssr_config.Argument.
 
-    Server+ssr_config.Node.Server_port+ssr_config.Node.Protocol+ssr_config.Node.
-    Method+ssr_config.Node.Obfs+ssr_config.Node.Password+ssr_config.Node.
-    Obfsparam+ssr_config.Node.Protoparam+ssr_config.Argument.
-    
     Acl+ssr_config.Argument.Deamon
 
     fmt.Println(cmd_temp)
