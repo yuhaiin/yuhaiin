@@ -129,15 +129,14 @@ func read_config_db(config_path,db_path string)(ssr_config,error){
 func ssr_start_db(config_path,db_path string){
     ssr_config := config.Read_config(config_path,db_path)
     
-    cmd_temp := ssr_config.Argument.Python_path+ssr_config.Argument.Ssr_path+ssr_config.Argument.
-    Local_address+ssr_config.Argument.Local_port+ssr_config.Argument.
-    Log_file+ssr_config.Argument.Pid_file+ssr_config.Argument.Fast_open+ssr_config.Argument.
-    Workers+ssr_config.Argument.Connect_verbose_info+ssr_config.
+    cmd_temp := ssr_config.Argument["Python_path"]+ssr_config.Argument["Ssr_path"]+ssr_config.
+    Argument["Local_address"]+ssr_config.Argument["Local_port"]+ssr_config.
+    Argument["Log_file"]+ssr_config.Argument["Pid_file"]+ssr_config.Argument["Fast_open"]+ssr_config.
+    Argument["Workers"]+ssr_config.Argument["Connect_verbose_info"]+ssr_config.
     Node["Server"]+ssr_config.Node["Server_port"]+ssr_config.Node["Protocol"]+ssr_config.
     Node["Method"]+ssr_config.Node["Obfs"]+ssr_config.Node["Password"]+ssr_config.
-    Node["Obfsparam"]+ssr_config.Node["Protoparam"]+ssr_config.Argument.
-
-    Acl+ssr_config.Argument.Deamon
+    Node["Obfsparam"]+ssr_config.Node["Protoparam"]+ssr_config.
+    Argument["Acl"]+ssr_config.Argument["Deamon"]
 
     fmt.Println(cmd_temp)
 
@@ -168,7 +167,7 @@ func ssr_stop(path string){
         return
     }
     */
-    cmd_temp := "cat "+strings.Split(config_temp.Pid_file," ")[1]+" | xargs kill"
+    cmd_temp := "cat "+strings.Split(config_temp["Pid_file"]," ")[1]+" | xargs kill"
     var cmd *exec.Cmd
     if runtime.GOOS == "linux"{
         cmd = exec.Command("/bin/sh", "-c",cmd_temp)
@@ -231,7 +230,7 @@ func menu_db(path,db_path string){
             break
         }
         */
-        socks5.Delay_test(strings.Split(delay_test_temp.Local_address," ")[1],strings.Split(delay_test_temp.Local_port," ")[1])
+        socks5.Delay_test(strings.Split(delay_test_temp["Local_address"]," ")[1],strings.Split(delay_test_temp["Local_port"]," ")[1])
         menu_db(path,db_path)
     case "7":
         ssr_stop(path)
