@@ -22,13 +22,14 @@ Todo:
 - [x] 更换节点的SQLite语句合并为一句
 - [x] (已放弃)使用go自带事务语句(自测sqlite使用了自带的事务语句与没有使用所用时间相同所以放弃使用go自带事务语句)
 - [x] 使用接口(重写read_config,防止性能浪费)(没有使用接口,但是重写了函数)
+- [x] 使用Sscanf格式化输入替换掉str_replace(由于Sscanf必须要有空格才能分隔,所以使用正则表达式) <!--https://golang.org/pkg/fmt/-->
 - [ ] 使用原生go语言版ssr(准备使用sun8911879/shadowsocksR,初学golang写不出ssr来...)  
 - [ ] 分流  
 - [ ] 实现http代理  
 - [ ] 第一次运行自动创建桌面快捷方式,自动移动/复制程序到相应位置
 - [ ] 初次生成配置文件时,进行自定义输入操作,防止某些人不会修改
 - [ ] 加入`-h`参数对各种操作进行简短的说明(特别是配置文件的修改)
-- [ ] 使用Sscanf格式化输入替换掉str_replace <!--https://golang.org/pkg/fmt/-->
+- [ ] 兼容ss链接
 ```
 #go版配置文件格式,第一次运行自动生成 #可以注释语句
 python_path /usr/bin/python3 #使用ssr_libev请关闭此项
