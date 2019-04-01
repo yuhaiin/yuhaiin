@@ -23,7 +23,7 @@ Todo:
 - [x] (已放弃)使用go自带事务语句(自测sqlite使用了自带的事务语句与没有使用所用时间相同所以放弃使用go自带事务语句)
 - [x] 使用接口(重写read_config,防止性能浪费)(没有使用接口,但是重写了函数)
 - [x] 使用Sscanf格式化输入替换掉str_replace(由于Sscanf必须要有空格才能分隔,所以使用正则表达式) <!--https://golang.org/pkg/fmt/-->
-- [ ] 使用原生go语言版ssr或ssr_libev共享库(自己生成)(准备使用sun8911879/shadowsocksR,初学golang写不出ssr来...)  
+- [ ] 使用原生go语言版ssr(sun8911879/shadowsocksR)或ssr_libev共享库(自己生成)
 - [ ] 分流  
 - [ ] 实现http代理  
 - [ ] 第一次运行自动创建桌面快捷方式,自动移动/复制程序到相应位置
