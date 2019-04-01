@@ -8,9 +8,10 @@ import (
     "net/http"
     "io/ioutil"
     "strings"
-    "bufio"
+    //"bufio"
     "sync"
     "log"
+    "regexp"
     //"time"
     "../base64d"
 )
@@ -118,38 +119,26 @@ func http_get_subscription(url string)string{
     //ioutil.WriteFile(read_config().config_path,[]byte(body),0644)
 }
 
-//方便进行分割对字符串进行替换
-func str_replace(str string)[]string{
-    var config[] string
-    scanner := bufio.NewScanner(strings.NewReader(strings.Replace(base64d.Base64d(str),"ssr://","",-1)))
-    for scanner.Scan() {
-    str_temp := strings.Replace(base64d.Base64d(scanner.Text()),"/?obfsparam=",":",-1)
-    str_temp = strings.Replace(str_temp,"&protoparam=",":",-1)
-    str_temp = strings.Replace(str_temp,"&remarks=",":",-1)
-    str_temp = strings.Replace(str_temp,"&group=",":",-1)
-    config = append(config,str_temp)
-    }
-    return config
-}
-
 
 func str_bas64d(str []string,db *sql.DB){
-    for i:= 0;i<len(str);i++{
-        config_split := strings.Split(str[i],":")
-        var server string
-        if len(config_split) == 17 {
-            server = config_split[0]+":"+config_split[1]+":"+config_split[2]+":"+config_split[3]+":"+config_split[4]+":"+config_split[5]+":"+config_split[6]+":"+config_split[7]
-        } else if len(config_split) == 10 {
-            server = config_split[0]
+	re_first,_ := regexp.Compile("ssr*://(.*)")
+    re,_ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)&obfsparam=(.*)&protoparam=(.*)&remarks=(.*)&group=(.*)")
+    for i,str := range str{
+        if str == ""{
+            continue
         }
-        server_port := config_split[len(config_split)-9]
-        protocol := config_split[len(config_split)-8]
-        method := config_split[len(config_split)-7]
-        obfs := config_split[len(config_split)-6]
-        password := base64d.Base64d(config_split[len(config_split)-5])
-        obfsparam := base64d.Base64d(config_split[len(config_split)-4])
-        protoparam := base64d.Base64d(config_split[len(config_split)-3])
-        remarks := base64d.Base64d(config_split[len(config_split)-2])
+        
+        config_split := re.FindAllStringSubmatch(strings.Replace(base64d.Base64d(re_first.FindAllStringSubmatch(str, -1)[0][1]),"/?","&",-1), -1)[0]
+
+        server := config_split[1]
+        server_port := config_split[2]
+        protocol := config_split[3]
+        method := config_split[4]
+        obfs := config_split[5]
+        password := base64d.Base64d(config_split[6])
+        obfsparam := base64d.Base64d(config_split[7])
+        protoparam := base64d.Base64d(config_split[8])
+        remarks := base64d.Base64d(config_split[9])
         //fmt.Println(num,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
 
 
@@ -159,6 +148,7 @@ func str_bas64d(str []string,db *sql.DB){
     }
 
 }
+
 //添加所有订阅的所有节点(sqlite数据库)
 func Add_config_db(sql_db_path string){
 
@@ -171,21 +161,21 @@ func Add_config_db(sql_db_path string){
 
     defer db.Close()
 
-    var str_2 []string
+    var str_2 string
     for _,subscription_link_temp := range Get_subscription_link(sql_db_path){
-        str_2 = append(str_2,str_replace(http_get_subscription(subscription_link_temp))...)
+        //str_2 = append(str_2,base64d.Base64d(http_get_subscription(subscription_link_temp))...)
+        str_2 += base64d.Base64d(http_get_subscription(subscription_link_temp))
     }
 
     //temp := time.Now()
 
     db.Exec("BEGIN TRANSACTION;")
-    str_bas64d(str_2,db)
+    str_bas64d(strings.Split(str_2,"\n"),db)
     db.Exec("COMMIT;")
 
     //deply := time.Since(temp)
     //fmt.Println(deply)
 }
-
 
 //删除所有的节点
 func Delete_config_db(sql_db_path string){
@@ -237,3 +227,86 @@ func Init_config_db(sql_db_path string,wg *sync.WaitGroup){
     db.Exec("COMMIT;")
     wg.Done()
 }
+
+
+
+
+
+
+
+
+/*
+//方便进行分割对字符串进行替换
+func str_replace(str string)[]string{
+    var config[] string
+    scanner := bufio.NewScanner(strings.NewReader(strings.Replace(base64d.Base64d(str),"ssr://","",-1)))
+    for scanner.Scan() {
+    str_temp := strings.Replace(base64d.Base64d(scanner.Text()),"/?obfsparam=",":",-1)
+    str_temp = strings.Replace(str_temp,"&protoparam=",":",-1)
+    str_temp = strings.Replace(str_temp,"&remarks=",":",-1)
+    str_temp = strings.Replace(str_temp,"&group=",":",-1)
+    config = append(config,str_temp)
+    }
+    return config
+}
+
+
+func str_bas64d(str []string,db *sql.DB){
+    for i:= 0;i<len(str);i++{
+        config_split := strings.Split(str[i],":")
+        var server string
+        if len(config_split) == 17 {
+            server = config_split[0]+":"+config_split[1]+":"+config_split[2]+":"+config_split[3]+":"+config_split[4]+":"+config_split[5]+":"+config_split[6]+":"+config_split[7]
+        } else if len(config_split) == 10 {
+            server = config_split[0]
+        }
+        server_port := config_split[len(config_split)-9]
+        protocol := config_split[len(config_split)-8]
+        method := config_split[len(config_split)-7]
+        obfs := config_split[len(config_split)-6]
+        password := base64d.Base64d(config_split[len(config_split)-5])
+        obfsparam := base64d.Base64d(config_split[len(config_split)-4])
+        protoparam := base64d.Base64d(config_split[len(config_split)-3])
+        remarks := base64d.Base64d(config_split[len(config_split)-2])
+        //fmt.Println(num,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+
+
+
+        //向表中插入数据
+        db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)",i+1,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
+    }
+
+}
+*/
+
+
+
+/*
+//添加所有订阅的所有节点(sqlite数据库)
+func Add_config_db(sql_db_path string){
+
+    //访问数据库
+    db,err := sql.Open("sqlite3",sql_db_path)
+    if err!=nil{
+        fmt.Println(err)
+        return
+    }
+
+    defer db.Close()
+
+    var str_2 []string
+    for _,subscription_link_temp := range Get_subscription_link(sql_db_path){
+        str_2 = append(str_2,str_replace(http_get_subscription(subscription_link_temp))...)
+    }
+
+    //temp := time.Now()
+
+    db.Exec("BEGIN TRANSACTION;")
+    str_bas64d(str_2,db)
+    db.Exec("COMMIT;")
+
+    //deply := time.Since(temp)
+    //fmt.Println(deply)
+}
+
+*/
