@@ -9,8 +9,8 @@ issue:
 - [ ] not test path exist or not(now everything is normal).
 
 Todo:
-- [ ] use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.
-      write a half http proxy find sun8911879/shadowsocksR not support auto_chain*...oof.
+- [ ] use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
+      write a half http proxy find sun8911879/shadowsocksR not support auto_chain*...oof.  
 - [ ] add bypass.
 - [ ] http proxy.
 - [ ] create shortcut at first run,auto move or copy file to config path.
