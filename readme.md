@@ -12,13 +12,14 @@ Todo:
 - [ ] use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
       write a half of http proxy find sun8911879/shadowsocksR is not support auth_chain*...oof.  
 - [ ] add bypass.
-- [ ] http proxy.
+- [ ] support http proxy.
 - [ ] create shortcut at first run,auto move or copy file to config path.
-- [ ] auto create config file add enter function.
-- [ ] add `-h` argument to show help text.
+- [ ] add enter function while creating config file.
+- [ ] add `-h` argument to show help.
 - [ ] ssr link compatible. 
 
 ```
+#config path at ~/.config/SSRSub
 #config file,first run auto create,# to note
 python_path /usr/bin/python3 #if use ssr_libev plese note this
 ssr_path /shadowsocksr-python/shadowsocks/local.py
