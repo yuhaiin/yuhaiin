@@ -5,7 +5,7 @@ import (
     "fmt"
     //"encoding/base64"
     //"net/http"
-    //"io/ioutil"
+    "io/ioutil"
     "strings"
     //"bufio"
     "os"
@@ -14,12 +14,12 @@ import (
     //"regexp"
     //"time"
     "runtime"
+    "syscall"
     //"database/sql"
-    //"log"
+    "log"
     _ "github.com/mattn/go-sqlite3"
     //"sync"
-    //"log"
-    //"strconv"
+    "strconv"
 
     "./net"
     "./subscription"
@@ -61,29 +61,47 @@ func ssr_start_db(config_path,db_path string){
 
 
 func ssr_stop(path string){
+    pid,exist := process_get(path)
+    if  exist == true {
+        cmd_temp := "kill "+pid
+        var cmd *exec.Cmd
+        if runtime.GOOS == "linux"{
+            cmd = exec.Command("/bin/sh", "-c",cmd_temp)
+        }
+        var out bytes.Buffer
+        var stderr bytes.Buffer
+        cmd.Stdout = &out
+        cmd.Stderr = &stderr
+        err := cmd.Run()
+        if err != nil {
+            fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+            return
+        }
+        fmt.Println("Result: " + out.String())
+    } else {
+        log.Println("\n")
+        log.Printf("cant find the process: %s",pid)
+        log.Println("please start ssr first.\n")
+        return
+    }
+}
+
+
+func process_get(path string)(pid string,isexist bool){
     config_temp := config.Read_config_file(path)
-    /*
-    if err !=nil{
-        log.Println("读取配置文件出错")
+    pid_temp,err := ioutil.ReadFile(strings.Split(config_temp["Pid_file"]," ")[1])
+    if err != nil{
         log.Println(err)
+        log.Println("cant fild the file,please run ssr start.")
         return
     }
-    */
-    cmd_temp := "cat "+strings.Split(config_temp["Pid_file"]," ")[1]+" | xargs kill"
-    var cmd *exec.Cmd
-    if runtime.GOOS == "linux"{
-        cmd = exec.Command("/bin/sh", "-c",cmd_temp)
+    pid = string(pid_temp)
+    pid_int,_ :=strconv.Atoi(pid)
+    if  err := syscall.Kill(pid_int, 0); err == nil {
+        return pid,true
+    } else {
+        return "",false
     }
-    var out bytes.Buffer
-    var stderr bytes.Buffer
-    cmd.Stdout = &out
-    cmd.Stderr = &stderr
-    err := cmd.Run()
-    if err != nil {
-        fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
-        return
-    }
-    fmt.Println("Result: " + out.String())
 }
 
 
@@ -107,7 +125,14 @@ func menu_db(path,db_path string){
         ssr_start_db(path,db_path)
         menu_db(path,db_path)
     case "2":
+        _,exist := process_get(path)
+        if exist == true {
+            ssr_stop(path)
+            subscription.Ssr_server_node_change(db_path)
+            ssr_start_db(path,db_path)
+        } else {
         subscription.Ssr_server_node_change(db_path)
+        }
         menu_db(path,db_path)
     case "3":
         subscription.Delete_config_db(db_path)
