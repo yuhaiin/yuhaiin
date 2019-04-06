@@ -5,8 +5,8 @@
 ![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
 
 How to use:
-- [ ] if you use linux amd64 or linux arm you can download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases).
-- [ ] if you use darwin or other linux.
+- if you use linux amd64 or linux arm you can download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases).
+- if you use darwin or other linux.
 ```
 git clone https://github.com/Asutorufa/SsrMicroClient.git
 go get -u github.com/mattn/go-sqlite3
@@ -14,7 +14,7 @@ cd SsrMicroClient
 go build SSRSub_dev.go
 ./SSRSub_dev
 ```
-- [ ] i think it can't run at windows,you can test it.
+- i think it can't run at windows,you can test it.
 
 issue:
 - [ ] now only can run in bash,cmd is not test.
