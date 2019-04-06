@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	//"encoding/base64"
-	//"net/http"
-	//"bufio"
-	//"regexp"
-	//"time"
+	// "encoding/base64"
+	// "net/http"
+	// "bufio"
+	// "regexp"
+	// "time"
 	// "database/sql"
 	// "log"
 	// "strconv"
@@ -19,11 +19,11 @@ import (
 	// "bytes"
 	// "io/ioutil"
 	// _ "github.com/mattn/go-sqlite3"
-	//"sync"
+	// "sync"
 
 	"./config"
 	ssr_init "./init"
-	socks5 "./net"
+	GetDelay "./net"
 	ssr_process "./process"
 	"./subscription"
 )
@@ -65,15 +65,7 @@ func menu_db(path, db_path string) {
 			subscription.Subscription_link_delete(db_path)
 		case "6":
 			delay_test_temp := config.Read_config_file(path)
-			/*
-			   if err!=nil{
-			   log.Println("读取配置文件出错")
-			   log.Println(err)
-			   menu_db(path,db_path)
-			   break
-			   }
-			*/
-			socks5.Delay_test(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
+			GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
 		case "7":
 			ssr_process.Stop(path)
 		case "8":
