@@ -24,7 +24,7 @@ Todo:
                          if (perror == EINPROGRESS) {
                                     ^~
 ``` 
-- [ ] add bypass.
+- [x] (give up)add bypass(↑↑↑ i cant run ssr in golang ↑↑↑)
 - [ ] support http proxy.
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add enter function while creating config file.
