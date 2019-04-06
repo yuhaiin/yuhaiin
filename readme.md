@@ -16,12 +16,38 @@ go build SSRSub_dev.go
 ```
 - if you use linux amd64 or linux arm you can download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases).
 - i think it can't run at windows,you can test it.
+- config file  
+  it will auto create at first run,path at `~/.config/SSRSub`.
 
+```
+#config path at ~/.config/SSRSub
+#config file,first run auto create,# to note
+#python_path /usr/bin/python3
+#ssr_path /shadowsocksr-python/shadowsocks/local.py
+#local_port 1080
+#local_address 127.0.0.1
+#connect-verbose-info
+workers 8
+fast-open
+deamon
+#pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid
+#log-file /dev/null
+```
+![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubv0.1alpha.png)
 <!--
 issue:
 - [ ] now only can run in bash,cmd is not test.
 - [ ] not test path exist or not(now everything is normal).
 -->
+[日本語](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md) [中文](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_cn.md) [other progrmammer language vision](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md)   
+
+# Thanks
+[Golang](https://golang.org)  
+[mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)  
+[breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
+[akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
+
+# Others
 Todo:
 - [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
       write a half of [http proxy](https://github.com/Asutorufa/SsrMicroClient/blob/OtherLanguage/Old/SSR_http_client/client.go) find sun8911879/shadowsocksR is not support auth_chain*...oof.  
@@ -45,19 +71,4 @@ Todo:
 - [ ] add `-h` argument to show help.
 - [ ] ssr link compatible. 
 
-```
-#config path at ~/.config/SSRSub
-#config file,first run auto create,# to note
-#python_path /usr/bin/python3
-#ssr_path /shadowsocksr-python/shadowsocks/local.py
-#local_port 1080
-#local_address 127.0.0.1
-connect-verbose-info
-workers 8
-fast-open
-deamon
-#pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid
-#log-file /dev/null
-```
-[日本語](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md) [中文](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_cn.md) [other progrmammer language vision](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md) 
-![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubv0.1alpha.png)
+
