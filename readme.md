@@ -4,6 +4,9 @@
 [![codebeat badge](https://codebeat.co/badges/2cd0e124-3207-4453-8bd1-7bfc50ad68c9)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
 ![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
 
+issue:
+- process android is not linux.
+- sh should use which to get.
 How to use:
 - build
 
