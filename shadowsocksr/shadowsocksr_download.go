@@ -11,7 +11,6 @@ import (
 
 func get_ssr(path string) {
 	file := path + "/shadowsocksr.zip" //源文件路径
-	os.Remove(file)                    //删除文件test.txt
 	url := "https://github.com/asutorufg/shadowsocksr/archive/asutorufg.zip"
 	fmt.Println("Downloading shadowsocksr.zip")
 	res, err := http.Get(url)
@@ -71,7 +70,7 @@ func Get_ssr_python(path string) {
 	get_ssr(path)
 	unzip_ssr(path)
 
-	err := os.Remove(path + "/shadowsocksr.zip") //删除文件test.txt
+	err := os.Remove(path + "/shadowsocksr.zip")
 	if err != nil {
 		//如果删除失败则输出 file remove Error!
 		log.Println("file remove Error!")
