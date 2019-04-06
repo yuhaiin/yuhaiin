@@ -30,6 +30,7 @@ Todo:
 - [ ] add enter function while creating config file.
 - [ ] add `-h` argument to show help.
 - [ ] ssr link compatible. 
+- [ ] auto downlad ssr_python at first run
 
 ```
 #config path at ~/.config/SSRSub
