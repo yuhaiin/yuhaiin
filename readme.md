@@ -9,8 +9,21 @@ issue:
 - [ ] not test path exist or not(now everything is normal).
 
 Todo:
-- [ ] use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
+- [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
       write a half of http proxy find sun8911879/shadowsocksR is not support auth_chain*...oof.  
+      when i use ssr_libev i cant run it in the golang that has so many error,i fix something but more and more error appear. 
+```
+      # command-line-arguments
+    /tmp/go-build379176400/b001/_x002.o：在函数‘main’中：
+    ./local.c:1478: `main'被多次定义
+    # command-line-arguments
+    .........
+    .........
+    .........
+    ./local.c:438:36: warning: comparison between pointer and       integer
+                         if (perror == EINPROGRESS) {
+                                    ^~
+``` 
 - [ ] add bypass.
 - [ ] support http proxy.
 - [ ] create shortcut at first run,auto move or copy file to config path.
