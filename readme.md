@@ -6,7 +6,7 @@
 
 issue:
 - process android is not linux.
-- sh should use which to get.
+- sh should use which to get.  
 How to use:
 - build
 
