@@ -112,63 +112,53 @@ func menu_db(path,db_path string){
     ssr_init.Menu_init(path)
     //获取当前节点
     subscription.Get_now_node(db_path)
+    for{
+        fmt.Print("1.开启ssr\n2.更换节点/查看所有节点\n3.更新所有订阅\n4.添加订阅链接\n5.删除订阅链接\n6.获取延迟\n7.结束ssr后台\n8.结束此程序(ssr后台运行)\n>>>")
 
-    fmt.Print("1.开启ssr\n2.更换节点/查看所有节点\n3.更新所有订阅\n4.添加订阅链接\n5.删除订阅链接\n6.获取延迟\n7.结束ssr后台\n8.结束此程序(ssr后台运行)\n>>>")
+        var select_temp string
+        fmt.Scanln(&select_temp)
 
-
-
-    var select_temp string
-    fmt.Scanln(&select_temp)
-
-    switch select_temp{
-    case "1":
-        ssr_start_db(path,db_path)
-        menu_db(path,db_path)
-    case "2":
-        _,exist := process_get(path)
-        if exist == true {
-            ssr_stop(path)
-            subscription.Ssr_server_node_change(db_path)
-            ssr_start_db(path,db_path)
-        } else {
-        subscription.Ssr_server_node_change(db_path)
+        switch select_temp{
+            case "1":
+                ssr_start_db(path,db_path)
+            case "2":
+                _,exist := process_get(path)
+                if exist == true {
+                    ssr_stop(path)
+                    subscription.Ssr_server_node_change(db_path)
+                    ssr_start_db(path,db_path)
+                    } else {
+                        subscription.Ssr_server_node_change(db_path)
+                    }
+            case "3":
+                subscription.Delete_config_db(db_path)
+                subscription.Add_config_db(db_path)
+            case "4":
+                fmt.Print("请输入要添加的订阅链接(一条):")
+                var link_temp string
+                fmt.Scanln(&link_temp)
+                subscription.Subscription_link_add(link_temp,db_path)
+            case "5":
+                subscription.Subscription_link_delete(db_path)
+            case "6":
+                delay_test_temp := config.Read_config_file(path)
+             /*
+                if err!=nil{
+                log.Println("读取配置文件出错")
+                log.Println(err)
+                menu_db(path,db_path)
+                break
+                }
+            */
+                socks5.Delay_test(strings.Split(delay_test_temp["Local_address"]," ")[1],strings.Split(delay_test_temp["Local_port"]," ")[1])
+            case "7":
+                ssr_stop(path)
+            case "8":
+                os.Exit(0)
+            default:
+                fmt.Println("输入错误\n")
         }
-        menu_db(path,db_path)
-    case "3":
-        subscription.Delete_config_db(db_path)
-        subscription.Add_config_db(db_path)
-        menu_db(path,db_path)
-    case "4":
-        fmt.Print("请输入要添加的订阅链接(一条):")
-        var link_temp string
-        fmt.Scanln(&link_temp)
-        subscription.Subscription_link_add(link_temp,db_path)
-        menu_db(path,db_path)
-    case "5":
-        subscription.Subscription_link_delete(db_path)
-        menu_db(path,db_path)
-    case "6":
-        delay_test_temp := config.Read_config_file(path)
-        /*
-        if err!=nil{
-            log.Println("读取配置文件出错")
-            log.Println(err)
-            menu_db(path,db_path)
-            break
-        }
-        */
-        socks5.Delay_test(strings.Split(delay_test_temp["Local_address"]," ")[1],strings.Split(delay_test_temp["Local_port"]," ")[1])
-        menu_db(path,db_path)
-    case "7":
-        ssr_stop(path)
-        menu_db(path,db_path)
-    case "8":
-        os.Exit(0)
-    default:
-        fmt.Println("输入错误\n")
-        menu_db(path,db_path)
     }
-
 }
 
 
