@@ -21,13 +21,13 @@ func Delay_test(local_server,local_port string){
 	//socks版本 连接方式 验证方式
 	_,err = conn.Write([]byte{5,1,0})
 	var b [2]byte
-	status,err := conn.Read(b[:])
+	_,err = conn.Read(b[:])
 	if err!=nil{
 		fmt.Println(err)
 		return
 	}
 	fmt.Println(b)
-	fmt.Println(status)
+	// fmt.Println(status)
 
 
 	/*
@@ -43,7 +43,7 @@ func Delay_test(local_server,local_port string){
 	head_temp := append(before,de...)
 	head := append(head_temp,port...)
 
-	fmt.Println(head)
+	// fmt.Println(head)
 
 	_,err = conn.Write(head)
 	if err!=nil{
@@ -52,17 +52,17 @@ func Delay_test(local_server,local_port string){
 	}
 
 	var c [10]byte
-	status_2,err := conn.Read(c[:])
+	_,err = conn.Read(c[:])
 	if err!=nil{
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(status_2)
+	// fmt.Println(status_2)
 	fmt.Println(c)
 
 
 	//进行数据请求
-	re := "Get / HTTP/2.0\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nAccept-Language: ja,zh-CN;q=0.5\r\nAccept-Encoding: gzip, deflate, br\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nCache-Control: max-age=0\r\nTE: Trailers\r\n"
+	re := "Get / HTTP/2.0\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nAccept-Language: ja,zh-CN;q=0.5\r\nAccept-Encoding: gzip, deflate, br\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nCache-Control: max-age=0\r\nTE: Trailers\r\n" 
 	_,err = conn.Write([]byte(re))
 
 	//_,err = conn.Write([]byte("GET /generate_204/ HTTP/2.0\r\n"))
@@ -75,12 +75,15 @@ func Delay_test(local_server,local_port string){
 
 	temp := time.Now()
 
-	status_3,err := conn.Read(d[:])
+	_,err = conn.Read(d[:])
+	if err!=nil{
+		fmt.Println(err)
+		return
+	}
 
 	deply := time.Since(temp)
 	fmt.Println(deply)
 
-	fmt.Println(status_3)
 	fmt.Println(string(d[:]))
 
 	conn.Close()
