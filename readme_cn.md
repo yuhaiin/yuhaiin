@@ -24,8 +24,8 @@ Todo:
 - [x] 使用接口(重写read_config,防止性能浪费)(没有使用接口,但是重写了函数)
 - [x] 使用Sscanf格式化输入替换掉str_replace(由于Sscanf必须要有空格才能分隔,所以使用正则表达式) <!--https://golang.org/pkg/fmt/-->
 - [x] (放弃)使用原生go语言版ssr(sun8911879/shadowsocksR)或ssr_libev共享库(自己生成)  
-     写http代理写了一半,发现sun8911879/shadowsocksR不支持auth_chain*....大坑
-     ssr_libev用golang调用bug太多
+     写http代理写了一半,发现sun8911879/shadowsocksR不支持auth_chain*....大坑  
+     ssr_libev用golang调用bug太多  
 - [x] (放弃)分流(因为上面)  
 - [ ] 实现http代理  
 - [ ] 第一次运行自动创建桌面快捷方式,自动移动/复制程序到相应位置
