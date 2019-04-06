@@ -10,8 +10,8 @@ issue:
 
 Todo:
 - [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
-      write a half of http proxy find sun8911879/shadowsocksR is not support auth_chain*...oof.  
-      when i use ssr_libev i cant run it in the golang that has so many error,i fix something but more and more error appear. 
+      write a half of [http proxy](https://github.com/Asutorufa/SsrMicroClient/blob/OtherLanguage/Old/SSR_http_client/client.go) find sun8911879/shadowsocksR is not support auth_chain*...oof.  
+      when i use ssr_libev i cant run it in the golang that has so many error,i fix a little but more and more error appear. 
 ```
       # command-line-arguments
     /tmp/go-build379176400/b001/_x002.o：在函数‘main’中：
