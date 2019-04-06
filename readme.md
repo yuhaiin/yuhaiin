@@ -4,6 +4,18 @@
 [![codebeat badge](https://codebeat.co/badges/2cd0e124-3207-4453-8bd1-7bfc50ad68c9)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
 ![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
 
+How to use:
+- [ ] if you use linux amd64 or linux arm you can download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases).
+- [ ] if you use darwin or other linux.
+```
+git clone https://github.com/Asutorufa/SsrMicroClient.git
+go get -u github.com/mattn/go-sqlite3
+cd SsrMicroClient
+go build SSRSub_dev.go
+./SSRSub_dev
+```
+- [ ] i think it can't run at windows,you can test it.
+
 issue:
 - [ ] now only can run in bash,cmd is not test.
 - [ ] not test path exist or not(now everything is normal).
@@ -25,7 +37,6 @@ Todo:
                                     ^~
 ``` 
 - [x] (give up)add bypass(↑↑↑ i cant run ssr in golang ↑↑↑)
-- [X] auto downlad ssr_python at first run
 - [ ] support http proxy.
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add enter function while creating config file.
