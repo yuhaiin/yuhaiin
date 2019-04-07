@@ -32,7 +32,19 @@ func Start(config_path, db_path string) {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 	} else {
-		cmd = exec.Command("/bin/sh", "-c", cmd_temp)
+		/*
+					get_sh_cmd := exec.Command("which", "sh")
+					var out bytes.Buffer
+					get_sh_cmd.Stdout = &out
+					err := get_sh_cmd.Run()
+					if err != nil {
+						log.Fatal(err)
+						log.Fatal("get sh error.")
+						return
+			        }
+			        cmd = exec.Command(out.String(), "-c", cmd_temp)
+		*/
+		cmd = exec.Command("sh", "-c", cmd_temp)
 	}
 	var out bytes.Buffer
 	var stderr bytes.Buffer
@@ -54,7 +66,7 @@ func Stop(path string) {
 		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
 		} else {
-			cmd = exec.Command("/bin/sh", "-c", cmd_temp)
+			cmd = exec.Command("sh", "-c", cmd_temp)
 		}
 		var out bytes.Buffer
 		var stderr bytes.Buffer
