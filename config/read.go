@@ -59,7 +59,7 @@ func Read_config_db(db_path string) (map[string]string, error) {
 	return node, nil
 }
 
-func get_python_path() string {
+func Get_python_path() string {
 	var out bytes.Buffer
 	if runtime.GOOS == "windows" {
 		cmd := exec.Command("cmd", "/c", "where python")
@@ -70,6 +70,8 @@ func get_python_path() string {
 			log.Fatal(err)
 			return ""
 		}
+		return strings.Replace(out.String(), "\r\n", "", -1)
+		// return strings.Split(out.String(), ".exe")[0] + ".exe"
 	} else {
 		cmd := exec.Command("sh", "-c", "which python3")
 		cmd.Stdin = strings.NewReader("some input")
@@ -83,11 +85,12 @@ func get_python_path() string {
 				return ""
 			}
 		}
+		return strings.Replace(out.String(), "\n", "", -1)
 		// fmt.Printf("in all caps: %q", out.String())
 		// fmt.Println(out.String())
 	}
-	return out.String()
 }
+
 func Read_config_file(config_path string) map[string]string {
 	argument := map[string]string{}
 
@@ -96,8 +99,13 @@ func Read_config_file(config_path string) map[string]string {
 		fmt.Println(err)
 	}
 
+	in_line := "\n"
+	if runtime.GOOS == "windows" {
+		in_line = "\r\n"
+	}
+
 	re, _ := regexp.Compile("#.*$")
-	for _, config_temp2 := range strings.Split(string(config_temp), "\n") {
+	for _, config_temp2 := range strings.Split(string(config_temp), in_line) {
 		config_temp2 := strings.Split(re.ReplaceAllString(config_temp2, ""), " ")
 		switch config_temp2[0] {
 		case "python_path":
@@ -138,20 +146,20 @@ func Read_config_file(config_path string) map[string]string {
 	// }
 
 	if argument["Python_path"] == "" {
-		argument["Python_path"] = strings.Replace(get_python_path(), "\n", " ", -1)
-
+		argument["Python_path"] = Get_python_path() + " "
 	}
 	if argument["Ssr_path"] == "" {
-		argument["Ssr_path"] = config_path + "/shadowsocksr/shadowsocks/local.py "
-
+		if runtime.GOOS == "windows" {
+			argument["Ssr_path"] = config_path + `\shadowsocksr\shadowsocks/local.py `
+		} else {
+			argument["Ssr_path"] = config_path + "/shadowsocksr/shadowsocks/local.py "
+		}
 	}
 	if argument["Local_address"] == "" {
 		argument["Local_address"] = "-b 127.0.0.1 "
-
 	}
 	if argument["Local_port"] == "" {
 		argument["Local_port"] = "-l 1080 "
-
 	}
 	return argument
 }

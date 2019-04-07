@@ -9,43 +9,33 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"../config"
 	// _ "github.com/mattn/go-sqlite3"
 )
 
-func Start(config_path, db_path string) {
-	ssr_config := config.Read_config(config_path, db_path)
+type ssr_start struct {
+	cmd_temp string
+}
 
-	cmd_temp := ssr_config.Argument["Python_path"] + ssr_config.Argument["Ssr_path"] + ssr_config.
+func (*ssr_start) get_string(config_path, db_path string) (string, string, string) {
+	ssr_config := config.Read_config(config_path, db_path)
+	return ssr_config.Argument["Python_path"] + ssr_config.Argument["Ssr_path"] + ssr_config.
 		Argument["Local_address"] + ssr_config.Argument["Local_port"] + ssr_config.
 		Argument["Log_file"] + ssr_config.Argument["Pid_file"] + ssr_config.Argument["Fast_open"] + ssr_config.
 		Argument["Workers"] + ssr_config.Argument["Connect_verbose_info"] + ssr_config.
 		Node["Server"] + ssr_config.Node["Server_port"] + ssr_config.Node["Protocol"] + ssr_config.
 		Node["Method"] + ssr_config.Node["Obfs"] + ssr_config.Node["Password"] + ssr_config.
 		Node["Obfsparam"] + ssr_config.Node["Protoparam"] + ssr_config.
-		Argument["Acl"] + ssr_config.Argument["Deamon"]
+		Argument["Acl"] + ssr_config.Argument["Deamon"], ssr_config.Argument["Local_port"], ssr_config.Argument["Pid_file"]
+}
 
-	fmt.Println(cmd_temp)
-
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/c", cmd_temp)
-	} else {
-		/*
-					get_sh_cmd := exec.Command("which", "sh")
-					var out bytes.Buffer
-					get_sh_cmd.Stdout = &out
-					err := get_sh_cmd.Run()
-					if err != nil {
-						log.Fatal(err)
-						log.Fatal("get sh error.")
-						return
-			        }
-			        cmd = exec.Command(out.String(), "-c", cmd_temp)
-		*/
-		cmd = exec.Command("sh", "-c", cmd_temp)
-	}
+func (*ssr_start) windows(path, cmd_temp, Local_port, pid_path string) {
+	vbs_deamon := "CreateObject(\"Wscript.Shell\").run \"cmd /c " + cmd_temp + "\",0"
+	vbs_path := path + "\\SSRSub_deamon.vbs"
+	ioutil.WriteFile(vbs_path, []byte(vbs_deamon), 0644)
+	cmd := exec.Command("cmd", "/c", vbs_path)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -56,6 +46,53 @@ func Start(config_path, db_path string) {
 		return
 	}
 	fmt.Printf("Result: %s\n", out.String())
+
+	time.Sleep(time.Duration(500) * time.Millisecond)
+	cmd = exec.Command("cmd", "/c", "netstat -ano | findstr "+strings.Split(Local_port, " ")[1])
+	cmd.Stdout = &out
+	cmd.Run()
+	re, _ := regexp.Compile(" {2,}")
+	pid_ := strings.Split(re.ReplaceAllString(out.String(), " "), " ")
+	pid := pid_[len(pid_)-1]
+	ioutil.WriteFile(strings.Split(pid_path, " ")[1], []byte(pid), 0644)
+}
+
+func (*ssr_start) other_os(cmd_temp string) {
+	/*
+				get_sh_cmd := exec.Command("which", "sh")
+				var out bytes.Buffer
+				get_sh_cmd.Stdout = &out
+				err := get_sh_cmd.Run()
+				if err != nil {
+					log.Fatal(err)
+					log.Fatal("get sh error.")
+					return
+		        }
+		        cmd = exec.Command(out.String(), "-c", cmd_temp)
+	*/
+	cmd := exec.Command("sh", "-c", cmd_temp)
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		fmt.Printf(fmt.Sprint(err) + ": " + stderr.String())
+		return
+	}
+	fmt.Printf("Result: %s\n", out.String())
+}
+
+func Start(config_path, db_path string) {
+	var ssr_start ssr_start
+	cmd_temp, Local_port, pid_path := ssr_start.get_string(config_path, db_path)
+	fmt.Println(cmd_temp)
+	if runtime.GOOS == "windows" {
+		ssr_start.windows(config_path, cmd_temp, Local_port, pid_path)
+	} else {
+		ssr_start.other_os(cmd_temp)
+	}
 	//fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam)
 }
 
@@ -65,7 +102,8 @@ func Stop(path string) {
 		var cmd_temp string
 		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
-			cmd_temp = "taskkill /PID " + pid
+			cmd_temp = "taskkill /PID " + pid + " /F"
+			fmt.Println(cmd_temp)
 			cmd = exec.Command("cmd", "/c", cmd_temp)
 		} else {
 			cmd_temp = "kill " + pid
@@ -97,13 +135,13 @@ func Get(path string) (pid string, isexist bool) {
 		log.Println("cant fild the file,please run ssr start.")
 		return
 	}
-	pid = string(pid_temp)
+	pid = strings.Replace(string(pid_temp), "\r\n", "", -1)
 	var cmd *exec.Cmd
 	var out bytes.Buffer
 
 	//检测windows进程
 	if runtime.GOOS == "windows" {
-		cmd := exec.Command("cmd", "/c", "tasklist | findstr "+pid)
+		cmd := exec.Command("cmd", "/c", "netstat -ano | findstr "+strings.Split(config.Read_config_file(path)["Local_port"], " ")[1])
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		err := cmd.Run()
@@ -111,7 +149,8 @@ func Get(path string) (pid string, isexist bool) {
 			fmt.Println("task not found", err, out.String())
 		}
 		re, _ := regexp.Compile(" {2,}")
-		pid_not_eq := strings.Split(re.ReplaceAllString(out.String(), " "), " ")[1]
+		pid_not_eq_ := strings.Split(re.ReplaceAllString(out.String(), " "), " ")
+		pid_not_eq := strings.Replace(pid_not_eq_[len(pid_not_eq_)-1], "\r\n", "", -1)
 		if pid_not_eq == pid {
 			return pid, true
 		} else {
