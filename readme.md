@@ -15,9 +15,9 @@ go build SSRSub_dev.go
 ./SSRSub_dev
 ```
 - if you use linux amd64 or linux arm you can download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases).
-- i think it can't run at windows,you can test it.
+- if you use windows,you need to read [how to install libsodium to windows](https://github.com/Asutorufa/SsrMicroClient/blob/master/windows_use_ssr_python.md).
 - config file  
-  it will auto create at first run,path at `~/.config/SSRSub`.
+  it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub.
 
 ```
 #config path at ~/.config/SSRSub
