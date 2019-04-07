@@ -6,10 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os/exec"
+	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
-	"syscall"
 
 	"../config"
 	// _ "github.com/mattn/go-sqlite3"
@@ -31,6 +30,7 @@ func Start(config_path, db_path string) {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/c", cmd_temp)
 	} else {
 		/*
 					get_sh_cmd := exec.Command("which", "sh")
@@ -62,10 +62,13 @@ func Start(config_path, db_path string) {
 func Stop(path string) {
 	pid, exist := Get(path)
 	if exist == true {
-		cmd_temp := "kill " + pid
+		var cmd_temp string
 		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
+			cmd_temp = "taskkill /PID " + pid
+			cmd = exec.Command("cmd", "/c", cmd_temp)
 		} else {
+			cmd_temp = "kill " + pid
 			cmd = exec.Command("sh", "-c", cmd_temp)
 		}
 		var out bytes.Buffer
@@ -74,10 +77,10 @@ func Stop(path string) {
 		cmd.Stderr = &stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Printf(fmt.Sprint(err) + ": " + stderr.String())
+			log.Printf(fmt.Sprint(err) + ": " + stderr.String())
 			return
 		}
-		fmt.Printf("Result: %s", out.String())
+		fmt.Printf("Result: %s\n", out.String())
 	} else {
 		log.Println("\n")
 		log.Printf("cant find the process: %s", pid)
@@ -95,8 +98,33 @@ func Get(path string) (pid string, isexist bool) {
 		return
 	}
 	pid = string(pid_temp)
-	pid_int, _ := strconv.Atoi(pid)
-	if err := syscall.Kill(pid_int, 0); err == nil {
+	var cmd *exec.Cmd
+	var out bytes.Buffer
+
+	//检测windows进程
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command("cmd", "/c", "tasklist | findstr "+pid)
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			fmt.Println("task not found", err, out.String())
+		}
+		re, _ := regexp.Compile(" {2,}")
+		pid_not_eq := strings.Split(re.ReplaceAllString(out.String(), " "), " ")[1]
+		if pid_not_eq == pid {
+			return pid, true
+		} else {
+			return "", false
+		}
+
+		//检测类unix进程
+	} else {
+		cmd = exec.Command("sh", "-c", "ls /proc | grep  -w ^"+pid)
+	}
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if out.String() != "" {
 		return pid, true
 	} else {
 		return "", false
