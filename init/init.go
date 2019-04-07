@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 
 	//"runtime"
 	"sync"
@@ -13,6 +14,7 @@ import (
 
 	"path/filepath"
 
+	"../config"
 	SsrDownload "../shadowsocksr"
 	"../subscription"
 )
@@ -72,18 +74,30 @@ func Menu_init(path string) {
 }
 
 func Auto_create_config(path string) {
+	in_line := "\n"
+	deamon := "deamon" + in_line
 	config_path := path + "/ssr_config.conf"
-	ssr_path := "#" + path + "/shadowsocksr/shadowsocks/local.py #ssr路径\n"
-	pid_file := "pid-file " + os.Getenv("HOME") + "/.config/SSRSub/shadowsocksr.pid\n"
-	log_file := "log-file /dev/null\n"
-	fast_open := "fast-open\n"
-	deamon := "deamon\n"
-	workers := "workers 8\n"
-	local_address := "#local_address 127.0.0.1\n"
-	local_port := "#local_port 1080\n"
-	connect_verbose_info := "#connect-verbose-info\n"
-	acl := "#acl " + os.Getenv("HOME") + "/.config/SSRSub/aacl-none.acl"
-	python_path := "#python_path /usr/bin/python3 #python路径\n"
+	ssr_path := "#" + path + "/shadowsocksr/shadowsocks/local.py #ssr路径" + in_line
+	pid_file := "pid-file " + path + "/shadowsocksr.pid" + in_line
+	log_file := "log-file /dev/null" + in_line
+	fast_open := "fast-open" + in_line
+	workers := "workers 8" + in_line
+	local_address := "#local_address 127.0.0.1" + in_line
+	local_port := "#local_port 1080" + in_line
+	connect_verbose_info := "#connect-verbose-info" + in_line
+	// acl := "#acl " + path + "/aacl-none.acl" + in_line
+	acl := ""
+	python_path := "#python_path " + config.Get_python_path() + "#python路径" + in_line
+
+	if runtime.GOOS == "windows" {
+		in_line = "\r\n"
+		deamon = "#deamon" + in_line
+		config_path = path + `\ssr_config.conf`
+		ssr_path = "#" + path + "\\shadowsocksr\\shadowsocks\\local.py #ssr路径" + in_line
+		pid_file = ""
+		log_file = ""
+	}
+
 	config_conf := python_path + ssr_path + pid_file + log_file + fast_open + deamon + workers + local_address + local_port + connect_verbose_info + acl
 	fmt.Println(config_conf)
 	ioutil.WriteFile(config_path, []byte(config_conf), 0644)

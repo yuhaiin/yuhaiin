@@ -78,12 +78,13 @@ func menu_db(path, db_path string) {
 }
 
 func main() {
-	var config_path string
+	var config_path, sql_path string
 	if runtime.GOOS == "windows" {
-		config_path = os.Getenv("USERPROFILE") + "/Documents/SSRSub"
+		config_path = os.Getenv("USERPROFILE") + "\\Documents\\SSRSub"
+		sql_path = config_path + "\\SSR_config.db"
 	} else {
 		config_path = os.Getenv("HOME") + "/.config/SSRSub"
+		sql_path = config_path + "/SSR_config.db"
 	}
-	sql_path := config_path + "/SSR_config.db"
 	menu_db(config_path, sql_path)
 }
