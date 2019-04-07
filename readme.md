@@ -5,6 +5,8 @@
 ![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
 
 How to use:
+- download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases) binary file.if not have your platform ,please build it by yourself.
+- if you use windows,you need to read [how to install libsodium to windows](https://github.com/Asutorufa/SsrMicroClient/blob/master/windows_use_ssr_python.md).
 - build
 
 ```
@@ -14,8 +16,6 @@ cd SsrMicroClient
 go build SSRSub_dev.go
 ./SSRSub_dev
 ```
-- if you use linux amd64 or linux arm you can download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases).
-- if you use windows,you need to read [how to install libsodium to windows](https://github.com/Asutorufa/SsrMicroClient/blob/master/windows_use_ssr_python.md).
 - because the ssr_python deamon not support windows,so i use vgs to make ssr run in deamon and wirte pid to file,but the windows cmd a little slow to get process pid,so i set a 500ms wait to get pid.
 - config file  
   it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub.
