@@ -1,11 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -56,16 +59,37 @@ func Read_config_db(db_path string) (map[string]string, error) {
 	return node, nil
 }
 
+func get_python_path() string {
+	var out bytes.Buffer
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command("cmd", "/c", "where python")
+		cmd.Stdin = strings.NewReader("some input")
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			log.Fatal(err)
+			return ""
+		}
+	} else {
+		cmd := exec.Command("sh", "-c", "which python3")
+		cmd.Stdin = strings.NewReader("some input")
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			cmd = exec.Command("sh", "-c", "which python")
+			cmd.Stdout = &out
+			err = cmd.Run()
+			if err != nil {
+				return ""
+			}
+		}
+		// fmt.Printf("in all caps: %q", out.String())
+		// fmt.Println(out.String())
+	}
+	return out.String()
+}
 func Read_config_file(config_path string) map[string]string {
 	argument := map[string]string{}
-	argument["Pid_file"] = "--pid-file " + config_path + "/shadowsocksr.pid "
-	argument["Log_file"] = "--log-file " + "/dev/null "
-	argument["Workers"] = "--workers " + "1 "
-	argument["Python_path"] = "/usr/bin/python3 "
-	argument["Ssr_path"] = config_path + "/shadowsocksr/shadowsocks/local.py "
-	argument["Local_address"] = "-b 127.0.0.1 "
-	argument["Local_port"] = "-l 1080 "
-	//argument.ssr_config_path = os.Getenv("HOME")+"/.config/SSRSub/ssr_config.conf"
 
 	config_temp, err := ioutil.ReadFile(config_path + "/ssr_config.conf")
 	if err != nil {
@@ -101,6 +125,33 @@ func Read_config_file(config_path string) map[string]string {
 		case "deamon":
 			argument["Deamon"] = "-d start"
 		}
+	}
+	if argument["Pid_file"] == "" {
+		argument["Pid_file"] = "--pid-file " + config_path + "/shadowsocksr.pid "
+	}
+	if argument["Log_file"] == "" {
+		argument["Log_file"] = "--log-file " + "/dev/null "
+	}
+
+	// if argument["Workers"] == "" {
+	// 	argument["Workers"] = "--workers " + "1 "
+	// }
+
+	if argument["Python_path"] == "" {
+		argument["Python_path"] = strings.Replace(get_python_path(), "\n", " ", -1)
+
+	}
+	if argument["Ssr_path"] == "" {
+		argument["Ssr_path"] = config_path + "/shadowsocksr/shadowsocks/local.py "
+
+	}
+	if argument["Local_address"] == "" {
+		argument["Local_address"] = "-b 127.0.0.1 "
+
+	}
+	if argument["Local_port"] == "" {
+		argument["Local_port"] = "-l 1080 "
+
 	}
 	return argument
 }

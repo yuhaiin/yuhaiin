@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	// "encoding/base64"
@@ -77,7 +78,12 @@ func menu_db(path, db_path string) {
 }
 
 func main() {
-	config_path := os.Getenv("HOME") + "/.config/SSRSub"
+	var config_path string
+	if runtime.GOOS == "windows" {
+		config_path = os.Getenv("USERPROFILE") + "/Documents/SSRSub"
+	} else {
+		config_path = os.Getenv("HOME") + "/.config/SSRSub"
+	}
 	sql_path := config_path + "/SSR_config.db"
 	menu_db(config_path, sql_path)
 }
