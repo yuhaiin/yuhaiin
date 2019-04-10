@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 
 	// "encoding/base64"
 	// "net/http"
@@ -22,7 +21,6 @@ import (
 	// _ "github.com/mattn/go-sqlite3"
 	// "sync"
 
-	"./config"
 	ssr_init "./init"
 	GetDelay "./net"
 	ssr_process "./process"
@@ -65,8 +63,9 @@ func menu_db(path, db_path string) {
 		case "5":
 			subscription.Subscription_link_delete(db_path)
 		case "6":
-			delay_test_temp := config.Read_config_file(path)
-			GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
+			//delay_test_temp := config.Read_config_file(path)
+			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
+			GetDelay.Get_tcp_delay(db_path)
 		case "7":
 			ssr_process.Stop(path)
 		case "8":
