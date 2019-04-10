@@ -31,6 +31,26 @@ func Tcp_delay(adress, port string) (time.Duration, error) {
 	return delay, nil
 }
 
+func get_tcp_delay_average(server, server_port string) time.Duration {
+	var delay [3]time.Duration
+	var err error
+	for i := 0; i < 3; i++ {
+		delay[i], err = Tcp_delay(server, server_port)
+		if err != nil {
+			// log.Println("tcp connect error")
+			// log.Println(err)
+			continue
+		}
+	}
+	/*
+		if err != nil {
+
+			//return -1, err
+		}*/
+
+	//delay, err := tcp_delay(server, server_port)
+	return (delay[0] + delay[1] + delay[2]) / 3
+}
 func Get_tcp_delay(sql_path string) {
 
 	subscription.List_list_db(sql_path)
@@ -60,25 +80,8 @@ func Get_tcp_delay(sql_path string) {
 				log.Println(err)
 				return
 			}
-			var delay [3]time.Duration
-
 			fmt.Print(remarks + "delay(3 times): ")
-			for i := 0; i < 3; i++ {
-				delay[i], err = Tcp_delay(server, server_port)
-				if err != nil {
-					// log.Println("tcp connect error")
-					// log.Println(err)
-					continue
-				}
-			}
-			/*
-				if err != nil {
-
-					//return -1, err
-				}*/
-
-			//delay, err := tcp_delay(server, server_port)
-			fmt.Println("average:", (delay[0]+delay[1]+delay[2])/3)
+			fmt.Println("average:", get_tcp_delay_average(server, server_port))
 		} else {
 			fmt.Println("enter error,please retry.")
 			continue
