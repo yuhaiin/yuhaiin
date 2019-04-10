@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"../config"
+	GetDelay "../net"
 	// _ "github.com/mattn/go-sqlite3"
 )
 
@@ -19,16 +20,17 @@ type ssr_start struct {
 	cmd_temp string
 }
 
-func (*ssr_start) get_string(config_path, db_path string) (string, string, string) {
+func (*ssr_start) get_string(config_path, db_path string) (string, string, string, []string) {
 	ssr_config := config.Read_config(config_path, db_path)
 	return ssr_config.Argument["Python_path"] + ssr_config.Argument["Ssr_path"] + ssr_config.
-		Argument["Local_address"] + ssr_config.Argument["Local_port"] + ssr_config.
-		Argument["Log_file"] + ssr_config.Argument["Pid_file"] + ssr_config.Argument["Fast_open"] + ssr_config.
-		Argument["Workers"] + ssr_config.Argument["Connect_verbose_info"] + ssr_config.
-		Node["Server"] + ssr_config.Node["Server_port"] + ssr_config.Node["Protocol"] + ssr_config.
-		Node["Method"] + ssr_config.Node["Obfs"] + ssr_config.Node["Password"] + ssr_config.
-		Node["Obfsparam"] + ssr_config.Node["Protoparam"] + ssr_config.
-		Argument["Acl"] + ssr_config.Argument["Deamon"], ssr_config.Argument["Local_port"], ssr_config.Argument["Pid_file"]
+			Argument["Local_address"] + ssr_config.Argument["Local_port"] + ssr_config.
+			Argument["Log_file"] + ssr_config.Argument["Pid_file"] + ssr_config.Argument["Fast_open"] + ssr_config.
+			Argument["Workers"] + ssr_config.Argument["Connect_verbose_info"] + ssr_config.
+			Node["Server"] + ssr_config.Node["Server_port"] + ssr_config.Node["Protocol"] + ssr_config.
+			Node["Method"] + ssr_config.Node["Obfs"] + ssr_config.Node["Password"] + ssr_config.
+			Node["Obfsparam"] + ssr_config.Node["Protoparam"] + ssr_config.
+			Argument["Acl"] + ssr_config.Argument["Deamon"], ssr_config.
+			Argument["Local_port"], ssr_config.Argument["Pid_file"], []string{ssr_config.Node["Server"], ssr_config.Node["Server_port"]}
 }
 
 func (*ssr_start) windows(path, cmd_temp, Local_port, pid_path string) {
@@ -86,14 +88,21 @@ func (*ssr_start) other_os(cmd_temp string) {
 
 func Start(config_path, db_path string) {
 	var ssr_start ssr_start
-	cmd_temp, Local_port, pid_path := ssr_start.get_string(config_path, db_path)
+	cmd_temp, Local_port, pid_path, server := ssr_start.get_string(config_path, db_path)
 	fmt.Println(cmd_temp)
 	if runtime.GOOS == "windows" {
 		ssr_start.windows(config_path, cmd_temp, Local_port, pid_path)
 	} else {
 		ssr_start.other_os(cmd_temp)
 	}
-	//fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam)
+	// fmt.Println(server)
+	delay, err := GetDelay.Tcp_delay(strings.Split(server[0], " ")[1], strings.Split(server[1], " ")[1])
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	fmt.Println("当前节点延迟:", delay)
+	// fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam)
 }
 
 func Stop(path string) {
@@ -120,9 +129,9 @@ func Stop(path string) {
 		}
 		fmt.Printf("Result: %s\n", out.String())
 	} else {
-		log.Println("\n")
+		log.Printf("\n")
 		log.Printf("cant find the process: %s", pid)
-		log.Println("please start ssr first.\n")
+		log.Printf("please start ssr first.\n")
 		return
 	}
 }

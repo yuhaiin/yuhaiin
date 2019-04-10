@@ -13,7 +13,7 @@ import (
 )
 
 func Tcp_delay(adress, port string) (time.Duration, error) {
-	fmt.Println("tcp connecting")
+	//fmt.Print("tcp connecting")
 	time_ := time.Now()
 	conn, err := net.DialTimeout("tcp", adress+":"+port, 2*time.Second)
 	if err != nil {
@@ -27,6 +27,7 @@ func Tcp_delay(adress, port string) (time.Duration, error) {
 	}
 	defer conn.Close()
 	delay := time.Since(time_)
+	fmt.Print(delay, " ")
 	return delay, nil
 }
 
@@ -61,6 +62,7 @@ func Get_tcp_delay(sql_path string) {
 			}
 			var delay [3]time.Duration
 
+			fmt.Print(remarks + "delay(3 times): ")
 			for i := 0; i < 3; i++ {
 				delay[i], err = Tcp_delay(server, server_port)
 				if err != nil {
@@ -76,7 +78,7 @@ func Get_tcp_delay(sql_path string) {
 				}*/
 
 			//delay, err := tcp_delay(server, server_port)
-			fmt.Println(remarks, "delay(3 times):", delay, "average:", (delay[0]+delay[1]+delay[2])/3)
+			fmt.Println("average:", (delay[0]+delay[1]+delay[2])/3)
 		} else {
 			fmt.Println("enter error,please retry.")
 			continue
