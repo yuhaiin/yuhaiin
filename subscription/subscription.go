@@ -93,8 +93,7 @@ func Subscription_link_delete(sql_db_path string) {
 	}
 	fmt.Print("\n输入0返回菜单>>>")
 	var select_delete int
-	fmt.Scanln(&select_delete)
-	if select_delete == 0 {
+	if fmt.Scanln(&select_delete); select_delete == 0 {
 		return
 	} else if select_delete >= 1 && select_delete <= len(subscription_link) {
 		db.Exec("DELETE FROM subscription_link WHERE link = ?", subscription_link[select_delete-1])

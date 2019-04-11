@@ -55,10 +55,12 @@ func Ssr_server_node_change(sql_db_path string) int {
 
 	fmt.Print("\n输入0返回菜单,输入列表前的数字更换节点>>>")
 	var select_temp int
-	if fmt.Scanln(&select_temp); select_temp == 0 {
+	fmt.Scanln(&select_temp)
+	// if select_temp == 0 {
+	switch {
+	case select_temp == 0:
 		return 0
-	}
-	if select_temp > 0 && select_temp <= num {
+	case select_temp > 0 && select_temp <= num:
 		/*旧版更新 个人感觉太罗嗦
 		        rows, err := db.Query("SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?",select_temp)
 		        if err!=nil{
@@ -78,7 +80,7 @@ func Ssr_server_node_change(sql_db_path string) int {
 		db.Exec("COMMIT;")
 		//deply := time.Since(temp)
 		//fmt.Println(deply)
-	} else {
+	default:
 		fmt.Println("enter error,please retry.")
 		Ssr_server_node_change(sql_db_path)
 		return 0
