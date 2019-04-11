@@ -45,13 +45,14 @@ func menu_db(path, db_path string) {
 			ssr_process.Start(path, db_path)
 		case "2":
 			_, exist := ssr_process.Get(path)
-			if exist == true {
+			select_ := subscription.Ssr_server_node_change(db_path)
+			if exist == true && select_ != 0 {
 				ssr_process.Stop(path)
-				subscription.Ssr_server_node_change(db_path)
 				ssr_process.Start(path, db_path)
-			} else {
-				subscription.Ssr_server_node_change(db_path)
 			}
+			// } else {
+			// 	subscription.Ssr_server_node_change(db_path)
+			// }
 		case "3":
 			subscription.Delete_config_db(db_path)
 			subscription.Add_config_db(db_path)
