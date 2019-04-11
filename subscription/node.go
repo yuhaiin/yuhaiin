@@ -32,20 +32,19 @@ func List_list_db(sql_db_path string) {
 }
 
 //更换节点(数据库)
-func Ssr_server_node_change(sql_db_path string) {
+func Ssr_server_node_change(sql_db_path string) int {
 	List_list_db(sql_db_path)
 	db, err := sql.Open("sqlite3", sql_db_path)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return 0
 	}
 	defer db.Close()
 
 	//判断数据库是否为空
-	err = db.QueryRow("SELECT remarks FROM SSR_info;").Scan(err)
-	if err == sql.ErrNoRows {
+	if err = db.QueryRow("SELECT remarks FROM SSR_info;").Scan(err); err == sql.ErrNoRows {
 		log.Println("节点列表为空,请先更新订阅\n")
-		return
+		return 0
 	}
 
 	//获取服务器条数
@@ -56,10 +55,10 @@ func Ssr_server_node_change(sql_db_path string) {
 
 	fmt.Print("\n输入0返回菜单,输入列表前的数字更换节点>>>")
 	var select_temp int
-	fmt.Scanln(&select_temp)
-	if select_temp == 0 {
-		return
-	} else if select_temp > 0 && select_temp <= num {
+	if fmt.Scanln(&select_temp); select_temp == 0 {
+		return 0
+	}
+	if select_temp > 0 && select_temp <= num {
 		/*旧版更新 个人感觉太罗嗦
 		        rows, err := db.Query("SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?",select_temp)
 		        if err!=nil{
@@ -82,8 +81,9 @@ func Ssr_server_node_change(sql_db_path string) {
 	} else {
 		fmt.Println("enter error,please retry.")
 		Ssr_server_node_change(sql_db_path)
-		return
+		return 0
 	}
+	return select_temp
 
 }
 
@@ -125,8 +125,7 @@ func Get_now_node(sql_db_path string) {
 	}
 	defer db.Close()
 	var remarks string
-	err = db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks)
-	if err == sql.ErrNoRows {
+	if err = db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks); err == sql.ErrNoRows {
 		log.Println("节点列表为空,请先更新订阅\n")
 	}
 	/*
