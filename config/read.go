@@ -91,8 +91,29 @@ func Get_python_path() string {
 	}
 }
 
-func Read_config_file(config_path string) map[string]string {
+func conifg_file_init(config_path string) map[string]string {
 	argument := map[string]string{}
+	argument["Pid_file"] = "--pid-file " + config_path + "/shadowsocksr.pid "
+	argument["Log_file"] = "--log-file " + "/dev/null "
+
+	// if argument["Workers"] == "" {
+	// 	argument["Workers"] = "--workers " + "1 "
+	// }
+
+	argument["Python_path"] = Get_python_path() + " "
+	if runtime.GOOS == "windows" {
+		argument["Ssr_path"] = config_path + `\shadowsocksr\shadowsocks/local.py `
+	} else {
+		argument["Ssr_path"] = config_path + "/shadowsocksr/shadowsocks/local.py "
+	}
+	argument["Local_address"] = "-b 127.0.0.1 "
+	argument["Local_port"] = "-l 1080 "
+	return argument
+}
+
+func Read_config_file(config_path string) map[string]string {
+	// argument := map[string]string{}
+	argument := conifg_file_init(config_path)
 
 	config_temp, err := ioutil.ReadFile(config_path + "/ssr_config.conf")
 	if err != nil {
@@ -134,33 +155,35 @@ func Read_config_file(config_path string) map[string]string {
 			argument["Deamon"] = "-d start"
 		}
 	}
-	if argument["Pid_file"] == "" {
-		argument["Pid_file"] = "--pid-file " + config_path + "/shadowsocksr.pid "
-	}
-	if argument["Log_file"] == "" {
-		argument["Log_file"] = "--log-file " + "/dev/null "
-	}
-
-	// if argument["Workers"] == "" {
-	// 	argument["Workers"] = "--workers " + "1 "
-	// }
-
-	if argument["Python_path"] == "" {
-		argument["Python_path"] = Get_python_path() + " "
-	}
-	if argument["Ssr_path"] == "" {
-		if runtime.GOOS == "windows" {
-			argument["Ssr_path"] = config_path + `\shadowsocksr\shadowsocks/local.py `
-		} else {
-			argument["Ssr_path"] = config_path + "/shadowsocksr/shadowsocks/local.py "
+	/*
+		if argument["Pid_file"] == "" {
+			argument["Pid_file"] = "--pid-file " + config_path + "/shadowsocksr.pid "
 		}
-	}
-	if argument["Local_address"] == "" {
-		argument["Local_address"] = "-b 127.0.0.1 "
-	}
-	if argument["Local_port"] == "" {
-		argument["Local_port"] = "-l 1080 "
-	}
+		if argument["Log_file"] == "" {
+			argument["Log_file"] = "--log-file " + "/dev/null "
+		}
+
+		// if argument["Workers"] == "" {
+		// 	argument["Workers"] = "--workers " + "1 "
+		// }
+
+		if argument["Python_path"] == "" {
+			argument["Python_path"] = Get_python_path() + " "
+		}
+		if argument["Ssr_path"] == "" {
+			if runtime.GOOS == "windows" {
+				argument["Ssr_path"] = config_path + `\shadowsocksr\shadowsocks/local.py `
+			} else {
+				argument["Ssr_path"] = config_path + "/shadowsocksr/shadowsocks/local.py "
+			}
+		}
+		if argument["Local_address"] == "" {
+			argument["Local_address"] = "-b 127.0.0.1 "
+		}
+		if argument["Local_port"] == "" {
+			argument["Local_port"] = "-l 1080 "
+		}
+	*/
 	return argument
 }
 
