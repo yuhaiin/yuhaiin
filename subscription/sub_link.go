@@ -45,15 +45,12 @@ func Subscription_link_add(subscription_link, sql_path string) {
 }
 
 //删除订阅链接(数据库)
-func Subscription_link_delete(sql_db_path string) {
+func Subscription_link_delete(sql_path string) {
 	var subscription_link []string
-	db, err := sql.Open("sqlite3", sql_db_path)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	db := Get_db(sql_path)
 	defer db.Close()
 
+	var err error
 	err = db.QueryRow("SELECT link FROM subscription_link").Scan(err)
 	if err == sql.ErrNoRows {
 		log.Println("没有已经添加的订阅链接\n")
@@ -81,7 +78,7 @@ func Subscription_link_delete(sql_db_path string) {
 		db.Exec("DELETE FROM subscription_link WHERE link = ?", subscription_link[select_delete-1])
 	default:
 		fmt.Println("enter error,please retry.")
-		Subscription_link_delete(sql_db_path)
+		Subscription_link_delete(sql_path)
 		return
 	}
 }
