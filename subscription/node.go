@@ -5,23 +5,21 @@ import (
 	"fmt"
 	"log"
 	"sync"
-
-	_ "github.com/mattn/go-sqlite3"
+	// _ "github.com/mattn/go-sqlite3"
 	//"time"
 )
 
 //打印数据库中的配置文件
-func List_list_db(sql_db_path string) {
+func List_list_db(sql_path string) {
 	//访问数据库
-	db, err := sql.Open("sqlite3", sql_db_path)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	db := Get_db(sql_path)
 	defer db.Close()
 
 	//查找
 	rows, err := db.Query("SELECT id,remarks FROM SSR_info ORDER BY id ASC;")
+	if err != nil {
+		log.Println(err)
+	}
 	//var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
 	var remarks, id string
 	for rows.Next() {
@@ -32,16 +30,13 @@ func List_list_db(sql_db_path string) {
 }
 
 //更换节点(数据库)
-func Ssr_server_node_change(sql_db_path string) int {
-	List_list_db(sql_db_path)
-	db, err := sql.Open("sqlite3", sql_db_path)
-	if err != nil {
-		fmt.Println(err)
-		return 0
-	}
+func Ssr_server_node_change(sql_path string) int {
+	List_list_db(sql_path)
+	db := Get_db(sql_path)
 	defer db.Close()
 
 	//判断数据库是否为空
+	var err error
 	if err = db.QueryRow("SELECT remarks FROM SSR_info;").Scan(err); err == sql.ErrNoRows {
 		log.Println("节点列表为空,请先更新订阅\n")
 		return 0
@@ -82,20 +77,16 @@ func Ssr_server_node_change(sql_db_path string) int {
 		//fmt.Println(deply)
 	default:
 		fmt.Println("enter error,please retry.")
-		Ssr_server_node_change(sql_db_path)
+		Ssr_server_node_change(sql_path)
 		return 0
 	}
 	return select_temp
 
 }
 
-func Ssr_server_node_init(sql_db_path string, wg *sync.WaitGroup) {
+func Ssr_server_node_init(sql_path string, wg *sync.WaitGroup) {
 
-	db, err := sql.Open("sqlite3", sql_db_path)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	db := Get_db(sql_path)
 	//关闭数据库
 	defer db.Close()
 
@@ -119,15 +110,11 @@ func Ssr_server_node_init(sql_db_path string, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func Get_now_node(sql_db_path string) {
-	db, err := sql.Open("sqlite3", sql_db_path)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+func Get_now_node(sql_path string) {
+	db := Get_db(sql_path)
 	defer db.Close()
 	var remarks string
-	if err = db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks); err == sql.ErrNoRows {
+	if err := db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks); err == sql.ErrNoRows {
 		log.Println("节点列表为空,请先更新订阅\n")
 	}
 	/*
