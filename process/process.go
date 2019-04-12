@@ -149,7 +149,8 @@ func Get(path string) (pid string, isexist bool) {
 	var out bytes.Buffer
 
 	//检测windows进程
-	if runtime.GOOS == "windows" {
+	switch {
+	case runtime.GOOS == "windows":
 		cmd := exec.Command("cmd", "/c", "netstat -ano | findstr "+strings.Split(config.Read_config_file(path)["Local_port"], " ")[1])
 		var out bytes.Buffer
 		cmd.Stdout = &out
@@ -160,14 +161,15 @@ func Get(path string) (pid string, isexist bool) {
 		re, _ := regexp.Compile(" {2,}")
 		pid_not_eq_ := strings.Split(re.ReplaceAllString(out.String(), " "), " ")
 		pid_not_eq := strings.Replace(pid_not_eq_[len(pid_not_eq_)-1], "\r\n", "", -1)
-		if pid_not_eq == pid {
+		switch {
+		case pid_not_eq == pid:
 			return pid, true
-		} else {
+		default:
 			return "", false
 		}
 
 		//检测类unix进程
-	} else {
+	default:
 		cmd = exec.Command("sh", "-c", "ls /proc | grep  -w ^"+pid)
 	}
 	cmd.Stdout = &out

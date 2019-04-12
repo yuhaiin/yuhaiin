@@ -1,7 +1,6 @@
 package GetDelay
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"net"
@@ -9,7 +8,7 @@ import (
 	"time"
 
 	"../subscription"
-	_ "github.com/mattn/go-sqlite3"
+	// _ "github.com/mattn/go-sqlite3"
 )
 
 func Tcp_delay(adress, port string) (time.Duration, error) {
@@ -42,23 +41,12 @@ func get_tcp_delay_average(server, server_port string) time.Duration {
 			continue
 		}
 	}
-	/*
-		if err != nil {
-
-			//return -1, err
-		}*/
-
-	//delay, err := tcp_delay(server, server_port)
 	return (delay[0] + delay[1] + delay[2]) / 3
 }
-func Get_tcp_delay(sql_path string) {
 
+func Get_tcp_delay(sql_path string) {
 	subscription.List_list_db(sql_path)
-	db, err := sql.Open("sqlite3", sql_path)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	db := subscription.Get_db(sql_path)
 	defer db.Close()
 
 	//获取服务器条数
@@ -70,9 +58,10 @@ func Get_tcp_delay(sql_path string) {
 	for {
 		fmt.Print("select one node to test delay >>> ")
 		fmt.Scanln(&select_)
-		if select_ == 0 {
+		switch {
+		case select_ == 0:
 			return
-		} else if select_ > 0 && select_ <= num {
+		case select_ > 0 && select_ <= num:
 			var remarks, server, server_port string
 			err = db.QueryRow("SELECT remarks,server,server_port FROM SSR_info where id = "+strconv.Itoa(select_)).Scan(&remarks, &server, &server_port)
 			if err != nil {
@@ -82,7 +71,7 @@ func Get_tcp_delay(sql_path string) {
 			}
 			fmt.Print(remarks + "delay(3 times): ")
 			fmt.Println("average:", get_tcp_delay_average(server, server_port))
-		} else {
+		default:
 			fmt.Println("enter error,please retry.")
 			continue
 		}
