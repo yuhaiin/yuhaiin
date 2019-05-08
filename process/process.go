@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"../config"
-	GetDelay "../net"
+	getdelay "../net"
 	// _ "github.com/mattn/go-sqlite3"
 )
 
@@ -29,7 +29,7 @@ func (*ssr_start) get_string(config_path, db_path string) (string, string, strin
 			Node["Server"] + ssr_config.Node["Server_port"] + ssr_config.Node["Protocol"] + ssr_config.
 			Node["Method"] + ssr_config.Node["Obfs"] + ssr_config.Node["Password"] + ssr_config.
 			Node["Obfsparam"] + ssr_config.Node["Protoparam"] + ssr_config.
-			Argument["Acl"] + ssr_config.Argument["Deamon"], ssr_config.
+			Argument["Acl"] + ssr_config.Argument["Timeout"] + ssr_config.Argument["Deamon"], ssr_config.
 			Argument["Local_port"], ssr_config.Argument["Pid_file"], []string{ssr_config.Node["Server"], ssr_config.Node["Server_port"]}
 }
 
@@ -96,7 +96,7 @@ func Start(config_path, db_path string) {
 		ssr_start.other_os(cmd_temp)
 	}
 	// fmt.Println(server)
-	delay, err := GetDelay.Tcp_delay(strings.Split(server[0], " ")[1], strings.Split(server[1], " ")[1])
+	delay, err := getdelay.Tcp_delay(strings.Split(server[0], " ")[1], strings.Split(server[1], " ")[1])
 	if err != nil {
 		log.Println(err)
 		return
@@ -141,7 +141,7 @@ func Get(path string) (pid string, isexist bool) {
 	pid_temp, err := ioutil.ReadFile(strings.Split(config_temp["Pid_file"], " ")[1])
 	if err != nil {
 		log.Println(err)
-		log.Println("cant fild the file,please run ssr start.")
+		log.Println("cant find the file,please run ssr start.")
 		return
 	}
 	pid = strings.Replace(string(pid_temp), "\r\n", "", -1)
