@@ -74,15 +74,9 @@ func Add_config_db(sql_path string) {
 		//str_2 = append(str_2,base64d.Base64d(http_get_subscription(subscription_link_temp))...)
 		str_2 += base64d.Base64d(http_get_subscription(subscription_link_temp))
 	}
-
-	//temp := time.Now()
-
 	db.Exec("BEGIN TRANSACTION;")
 	str_bas64d(strings.Split(str_2, "\n"), db)
 	db.Exec("COMMIT;")
-
-	//deply := time.Since(temp)
-	//fmt.Println(deply)
 }
 
 //初始化节点列表

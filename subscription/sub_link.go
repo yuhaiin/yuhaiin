@@ -53,7 +53,7 @@ func Subscription_link_delete(sql_path string) {
 	var err error
 	err = db.QueryRow("SELECT link FROM subscription_link").Scan(err)
 	if err == sql.ErrNoRows {
-		log.Println("没有已经添加的订阅链接\n")
+		log.Println("没有已经添加的订阅链接")
 		return
 	}
 	rows, err := db.Query("SELECT link FROM subscription_link")

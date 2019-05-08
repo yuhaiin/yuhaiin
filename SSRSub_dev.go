@@ -22,7 +22,7 @@ import (
 	// "sync"
 
 	ssr_init "./init"
-	GetDelay "./net"
+	getdelay "./net"
 	ssr_process "./process"
 	"./subscription"
 )
@@ -66,7 +66,7 @@ func menu_db(path, db_path string) {
 		case "6":
 			//delay_test_temp := config.Read_config_file(path)
 			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
-			GetDelay.Get_tcp_delay(db_path)
+			getdelay.Get_tcp_delay(db_path)
 		case "7":
 			ssr_process.Stop(path)
 		case "8":
