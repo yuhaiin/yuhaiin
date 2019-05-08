@@ -38,7 +38,7 @@ func Ssr_server_node_change(sql_path string) int {
 	//判断数据库是否为空
 	var err error
 	if err = db.QueryRow("SELECT remarks FROM SSR_info;").Scan(err); err == sql.ErrNoRows {
-		log.Println("节点列表为空,请先更新订阅\n")
+		log.Println("节点列表为空,请先更新订阅")
 		return 0
 	}
 
@@ -73,8 +73,6 @@ func Ssr_server_node_change(sql_path string) int {
 		db.Exec("DELETE FROM SSR_present_node")
 		db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam) SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?", select_temp)
 		db.Exec("COMMIT;")
-		//deply := time.Since(temp)
-		//fmt.Println(deply)
 	default:
 		fmt.Println("enter error,please retry.")
 		Ssr_server_node_change(sql_path)
@@ -115,7 +113,7 @@ func Get_now_node(sql_path string) {
 	defer db.Close()
 	var remarks string
 	if err := db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks); err == sql.ErrNoRows {
-		log.Println("节点列表为空,请先更新订阅\n")
+		log.Println("节点列表为空,请先更新订阅")
 	}
 	/*
 			rows, err := db.Query("SELECT remarks FROM SSR_present_node;")

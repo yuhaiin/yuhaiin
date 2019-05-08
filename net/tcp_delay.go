@@ -1,4 +1,4 @@
-package GetDelay
+package getdelay
 
 import (
 	"fmt"
@@ -11,10 +11,10 @@ import (
 	// _ "github.com/mattn/go-sqlite3"
 )
 
-func Tcp_delay(adress, port string) (time.Duration, error) {
+func Tcp_delay(address, port string) (time.Duration, error) {
 	//fmt.Print("tcp connecting")
 	time_ := time.Now()
-	conn, err := net.DialTimeout("tcp", adress+":"+port, 2*time.Second)
+	conn, err := net.DialTimeout("tcp", address+":"+port, 2*time.Second)
 	if err != nil {
 		if time.Since(time_) > 2*time.Second {
 			log.Println("tcp timeout,tcp connect time over 2s")
