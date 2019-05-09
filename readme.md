@@ -49,7 +49,7 @@ issue:
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 
 # already know issue
-ssr python vision at mac may be not support,please test by yourself.
+ssr python version at mac may be not support,please test by yourself.
 
 # Others
 Todo:
@@ -80,3 +80,4 @@ fixed issue:
 - process android is not linux.
 - sh should use which to get.  
 - support windows.
+- can setting timeout.
