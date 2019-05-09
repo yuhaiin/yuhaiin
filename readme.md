@@ -48,6 +48,9 @@ issue:
 [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 
+# already know issue
+ssr python vision at mac may be not support,please test by yourself.
+
 # Others
 Todo:
 - [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
@@ -66,11 +69,11 @@ Todo:
                                     ^~
 ``` 
 - [x] (give up)add bypass(↑↑↑ i cant run ssr in golang ↑↑↑)
+- [x] ss link compatible. 
+- [ ] need more ss link template.
 - [ ] support http proxy.
 - [ ] create shortcut at first run,auto move or copy file to config path.
-- [ ] add enter function while creating config file.
 - [ ] add `-h` argument to show help.
-- [ ] ssr link compatible. 
 
 
 fixed issue:
