@@ -20,17 +20,34 @@ type ssr_start struct {
 	cmd_temp string
 }
 
-func (*ssr_start) get_string(config_path, db_path string) (string, string, string, []string) {
-	ssr_config := config.Read_config(config_path, db_path)
-	return ssr_config.Argument["Python_path"] + ssr_config.Argument["Ssr_path"] + ssr_config.
-			Argument["Local_address"] + ssr_config.Argument["Local_port"] + ssr_config.
-			Argument["Log_file"] + ssr_config.Argument["Pid_file"] + ssr_config.Argument["Fast_open"] + ssr_config.
-			Argument["Workers"] + ssr_config.Argument["Connect_verbose_info"] + ssr_config.
-			Node["Server"] + ssr_config.Node["Server_port"] + ssr_config.Node["Protocol"] + ssr_config.
-			Node["Method"] + ssr_config.Node["Obfs"] + ssr_config.Node["Password"] + ssr_config.
-			Node["Obfsparam"] + ssr_config.Node["Protoparam"] + ssr_config.
-			Argument["Acl"] + ssr_config.Argument["Timeout"] + ssr_config.Argument["Deamon"], ssr_config.
-			Argument["Local_port"], ssr_config.Argument["Pid_file"], []string{ssr_config.Node["Server"], ssr_config.Node["Server_port"]}
+func (*ssr_start) get_string(configPath, dbPath string) (string, string, string, []string) {
+	ssrConfig := config.Read_config(configPath, dbPath)
+
+	// Generate shadowsocksr start cmd
+	var argument string
+	nodeArgument := []string{"Server", "Server_port", "Protocol", "Method", "Obfs", "Password", "Obfsparam", "Protoparam"}
+	argumentArgument := []string{"Python_path", "Ssr_path", "Local_address", "Local_port", "Log_file", "Pid_file", "Fast_open", "Workers", "Connect_verbose_info", "Acl", "Timeout", "Deamon"}
+	for _, ssrArgument := range argumentArgument {
+		argument += ssrConfig.Argument[ssrArgument]
+		if ssrArgument == "Connect_verbose_info" {
+			for _, nodeArgument := range nodeArgument {
+				argument += ssrConfig.Node[nodeArgument]
+			}
+		}
+	}
+
+	return argument, ssrConfig.Argument["Local_port"], ssrConfig.Argument["Pid_file"], []string{ssrConfig.Node["Server"], ssrConfig.Node["Server_port"]}
+	/*
+		return ssr_config.Argument["Python_path"] + ssr_config.Argument["Ssr_path"] + ssr_config.
+				Argument["Local_address"] + ssr_config.Argument["Local_port"] + ssr_config.
+				Argument["Log_file"] + ssr_config.Argument["Pid_file"] + ssr_config.Argument["Fast_open"] + ssr_config.
+				Argument["Workers"] + ssr_config.Argument["Connect_verbose_info"] + ssr_config.
+				Node["Server"] + ssr_config.Node["Server_port"] + ssr_config.Node["Protocol"] + ssr_config.
+				Node["Method"] + ssr_config.Node["Obfs"] + ssr_config.Node["Password"] + ssr_config.
+				Node["Obfsparam"] + ssr_config.Node["Protoparam"] + ssr_config.
+				Argument["Acl"] + ssr_config.Argument["Timeout"] + ssr_config.Argument["Deamon"], ssr_config.
+				Argument["Local_port"], ssr_config.Argument["Pid_file"], []string{ssr_config.Node["Server"], ssr_config.Node["Server_port"]}
+	*/
 }
 
 func (*ssr_start) windows(path, cmd_temp, Local_port, pid_path string) {
