@@ -54,6 +54,7 @@ func ssrRe(str string) (map[string]string, error) {
 	return node, nil
 }
 
+// GetNode 获取节点信息
 func GetNode(link string) (map[string]string, error) {
 	re, _ := regexp.Compile("(.*)://(.*)")
 	ssOrSsr := re.FindAllStringSubmatch(link, -1)
