@@ -1,7 +1,7 @@
 # SsrMicroClient  
 [![](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
 [![](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
-[![codebeat badge](https://codebeat.co/badges/2cd0e124-3207-4453-8bd1-7bfc50ad68c9)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
+[![codebeat badge](https://codebeat.co/badges/ce94a347-64b1-4ee3-9b18-b95858e1c6b4)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
 ![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
 
 How to use:
