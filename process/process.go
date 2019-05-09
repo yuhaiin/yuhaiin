@@ -166,10 +166,11 @@ func Get(path string) (pid string, isexist bool) {
 	var cmd *exec.Cmd
 	var out bytes.Buffer
 
-	//检测windows进程
+	// 检测windows进程
 	switch {
 	case runtime.GOOS == "windows":
-		cmd := exec.Command("cmd", "/c", "netstat -ano | findstr "+strings.Split(config.Read_config_file(path)["Local_port"], " ")[1])
+		cmd := exec.Command("cmd", "/c", "netstat -ano | findstr "+strings.Split(config_temp["Local_port"], " ")[1])
+		// cmd := exec.Command("cmd", "/c", "netstat -ano | findstr "+strings.Split(config.Read_config_file(path)["Local_port"], " ")[1])
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		err := cmd.Run()
@@ -186,10 +187,11 @@ func Get(path string) (pid string, isexist bool) {
 			return "", false
 		}
 
-		//检测类unix进程
+		// 检测类unix进程
 	default:
 		cmd = exec.Command("sh", "-c", "ls /proc | grep  -w ^"+pid)
 	}
+
 	cmd.Stdout = &out
 	err = cmd.Run()
 	if out.String() != "" {
