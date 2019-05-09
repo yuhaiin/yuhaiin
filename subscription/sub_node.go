@@ -7,14 +7,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
-	// _ "github.com/mattn/go-sqlite3"
-
-	//"bufio"
-
 	"sync"
 
-	//"time"
 	"../base64d"
 )
 
