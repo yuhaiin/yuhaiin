@@ -20,7 +20,7 @@ type ssr_start struct {
 	cmd_temp string
 }
 
-func (*ssr_start) get_string(configPath, dbPath string) (string, string, string, []string) {
+func (*ssr_start) get_string(configPath, dbPath string) (string, config.Ssr_config) {
 	ssrConfig := config.Read_config(configPath, dbPath)
 
 	// Generate shadowsocksr start cmd
@@ -36,7 +36,7 @@ func (*ssr_start) get_string(configPath, dbPath string) (string, string, string,
 		}
 	}
 
-	return argument, ssrConfig.Argument["Local_port"], ssrConfig.Argument["Pid_file"], []string{ssrConfig.Node["Server"], ssrConfig.Node["Server_port"]}
+	return argument, ssrConfig
 	/*
 		return ssr_config.Argument["Python_path"] + ssr_config.Argument["Ssr_path"] + ssr_config.
 				Argument["Local_address"] + ssr_config.Argument["Local_port"] + ssr_config.
@@ -105,15 +105,16 @@ func (*ssr_start) other_os(cmd_temp string) {
 
 func Start(config_path, db_path string) {
 	var ssr_start ssr_start
-	cmd_temp, Local_port, pid_path, server := ssr_start.get_string(config_path, db_path)
+	// cmd_temp, Local_port, pid_path, server := ssr_start.get_string(config_path, db_path)
+	cmd_temp, ssrConfig := ssr_start.get_string(config_path, db_path)
 	fmt.Println(cmd_temp)
 	if runtime.GOOS == "windows" {
-		ssr_start.windows(config_path, cmd_temp, Local_port, pid_path)
+		ssr_start.windows(config_path, cmd_temp, ssrConfig.Argument["Local_port"], ssrConfig.Argument["Pid_file"])
 	} else {
 		ssr_start.other_os(cmd_temp)
 	}
 	// fmt.Println(server)
-	delay, err := getdelay.Tcp_delay(strings.Split(server[0], " ")[1], strings.Split(server[1], " ")[1])
+	delay, err := getdelay.Tcp_delay(strings.Split(ssrConfig.Node["Server"], " ")[1], strings.Split(ssrConfig.Node["Server_port"], " ")[1])
 	if err != nil {
 		log.Println(err)
 		return
