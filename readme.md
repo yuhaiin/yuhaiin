@@ -13,13 +13,13 @@ How to use:
 git clone https://github.com/Asutorufa/SsrMicroClient.git
 go get -u github.com/mattn/go-sqlite3
 cd SsrMicroClient
-go build SSRSub_dev.go
-./SSRSub_dev
+go build SSRSub.go
+./SSRSub
 ```
 - because the ssr_python deamon not support windows,so i use vgs to make ssr run in deamon and wirte pid to file,but the windows cmd a little slow to get process pid,so i set a 500ms wait to get pid.
 - config file  
   it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub.
-
+<!--
 ```
 #config path at ~/.config/SSRSub
 #config file,first run auto create,# to note
@@ -34,6 +34,7 @@ deamon
 #pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid
 #log-file /dev/null
 ```
+-->
 ![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubv0.1alpha.png)
 <!--
 issue:
