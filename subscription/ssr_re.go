@@ -1,10 +1,10 @@
-package main
+package subscription
 
 import (
 	"fmt"
 	"regexp"
 
-	"../../base64d"
+	"../base64d"
 )
 
 type err struct {
@@ -76,8 +76,8 @@ func GetNode(link string) (map[string]string, error) {
 }
 
 func main() {
-	ss := "ss://YWVzLTI1Ni1jZmI6NmFLZDVvR3A2THFyQDEuMS4xLjE6NTM"
-	ssr := "ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy"
+	ss := "ssr://YWVzLTI1Ni1jZmI6NmFLZDVvR3A2THFyQDEuMS4xLjE6NTM"
+	ssr := "ss://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy"
 	fmt.Println(GetNode(ss))
 	fmt.Println(GetNode(ssr))
 }
