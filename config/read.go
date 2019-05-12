@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"../subscription"
-	// _ "github.com/mattn/go-sqlite3"
 )
 
 type Ssr_config struct {
@@ -93,8 +92,12 @@ func Read_config_file(config_path string) map[string]string {
 		switch config_temp2[0] {
 		case "python_path":
 			argument["Python_path"] = config_temp2[1] + " "
+		case "-python_path":
+			argument["Python_path"] = ""
 		case "ssr_path":
 			argument["Ssr_path"] = config_temp2[1] + " "
+		case "-ssr_path":
+			argument["Ssr_path"] = ""
 		case "config_path":
 			argument["Config_path"] = config_temp2[1]
 		case "connect-verbose-info":
@@ -105,8 +108,12 @@ func Read_config_file(config_path string) map[string]string {
 			argument["Fast_open"] = "--fast-open "
 		case "pid-file":
 			argument["Pid_file"] = "--pid-file " + config_temp2[1] + " "
+		case "-pid-file":
+			argument["Pid_file"] = ""
 		case "log-file":
 			argument["Log_file"] = "--log-file " + config_temp2[1] + " "
+		case "-log-file":
+			argument["Log_file"] = ""
 		case "local_address":
 			argument["Local_address"] = "-b " + config_temp2[1] + " "
 		case "local_port":

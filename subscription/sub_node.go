@@ -89,33 +89,3 @@ func Init_config_db(sql_path string, wg *sync.WaitGroup) {
 	db.Exec("COMMIT;")
 	wg.Done()
 }
-
-/*
-
-func str_bas64d(str []string, db *sql.DB) {
-	re_first, _ := regexp.Compile("ssr*://(.*)")
-	re, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)&obfsparam=(.*)&protoparam=(.*)&remarks=(.*)&group=(.*)")
-	for i, str := range str {
-		if str == "" {
-			continue
-		}
-
-		config_split := re.FindAllStringSubmatch(strings.Replace(base64d.Base64d(re_first.FindAllStringSubmatch(str, -1)[0][1]), "/?", "&", -1), -1)[0]
-
-		server := config_split[1]
-		server_port := config_split[2]
-		protocol := config_split[3]
-		method := config_split[4]
-		obfs := config_split[5]
-		password := base64d.Base64d(config_split[6])
-		obfsparam := base64d.Base64d(config_split[7])
-		protoparam := base64d.Base64d(config_split[8])
-		remarks := base64d.Base64d(config_split[9])
-		//fmt.Println(num,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
-
-		//向表中插入数据
-		db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)", i+1, remarks, server, server_port, protocol, method, obfs, password, obfsparam, protoparam)
-	}
-
-}
-*/
