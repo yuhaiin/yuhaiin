@@ -51,9 +51,13 @@ func Init(config_path, sql_db_path string) {
 		go subscription.Init_config_db(sql_db_path, &wg)
 		wg.Add(1)
 		go subscription.Ssr_server_node_init(sql_db_path, &wg)
-		Auto_create_config(config_path)
+		// Auto_create_config(config_path)
 
 		wg.Wait()
+	}
+
+	if !Path_exists(config_path + "/ssr_config.conf") {
+		Auto_create_config(config_path)
 	}
 
 	if !Path_exists(config_path + "/shadowsocksr") {
@@ -75,9 +79,13 @@ func Menu_init(path string) {
 
 func Auto_create_config(path string) {
 	inLine := "\n"
+	if runtime.GOOS == "windows" {
+		inLine = "\r\n"
+	}
+
 	deamon := "deamon" + inLine
 	configPath := path + "/ssr_config.conf"
-	ssrPath := "#" + path + "/shadowsocksr/shadowsocks/local.py #ssr路径" + inLine
+	ssrPath := "#ssr_path" + path + "/shadowsocksr/shadowsocks/local.py #ssr路径" + inLine
 	pidFile := "pid-file " + path + "/shadowsocksr.pid" + inLine
 	logFile := "log-file /dev/null" + inLine
 	fastOpen := "fast-open" + inLine
@@ -90,10 +98,9 @@ func Auto_create_config(path string) {
 	pythonPath := "#python_path " + config.Get_python_path() + "#python路径" + inLine
 
 	if runtime.GOOS == "windows" {
-		inLine = "\r\n"
 		deamon = "#deamon" + inLine
 		configPath = path + `\ssr_config.conf`
-		ssrPath = "#" + path + "\\shadowsocksr\\shadowsocks\\local.py #ssr路径" + inLine
+		ssrPath = "#ssr_path" + path + "\\shadowsocksr\\shadowsocks\\local.py #ssr路径" + inLine
 		pidFile = ""
 		logFile = ""
 	}

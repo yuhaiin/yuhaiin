@@ -102,7 +102,7 @@ func Ssr_server_node_init(sql_path string, wg *sync.WaitGroup) {
 		protoparam TEXT);`
 	db.Exec(sql_table)
 	//初始化插入空字符
-	db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values('none','none','none','none','none','none','none','none','none')")
+	//db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values('none','none','none','none','none','none','none','none','none')")
 	db.Exec("COMMIT;")
 
 	wg.Done()
