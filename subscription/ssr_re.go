@@ -3,6 +3,7 @@ package subscription
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"../base64d"
 )
@@ -33,9 +34,31 @@ func ssRe(str string) (map[string]string, error) {
 }
 
 func ssrRe(str string) (map[string]string, error) {
-	ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)/?obfsparam=(.*)&protoparam=(.*)&remarks=(.*)&group=(.*)")
+	// ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)/?obfsparam=(.*)&protoparam=(.*)&remarks=(.*)&group=(.*)")
+	ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)(.*)")
+	ssrRe_, _ := regexp.Compile(".*/\\?(.*)")
 	node := map[string]string{}
 	ssr := ssrRe.FindAllStringSubmatch(base64d.Base64d(str), -1)
+	ssr_ := ssrRe_.FindAllStringSubmatch(base64d.Base64d(str), -1)
+
+	//删除第一个元素
+	if len(ssr_) > 0 {
+		ssr__ := strings.Split(ssr_[0][1], "&")
+		for _, ssr := range ssr__ {
+			ssr_ := strings.Split(ssr, "=")
+			switch ssr_[0] {
+			case "obfsparam":
+				node["obfsparam"] = base64d.Base64d(ssr_[1])
+			case "protoparam":
+				node["protoparam"] = base64d.Base64d(ssr_[1])
+			case "remarks":
+				node["remarks"] = base64d.Base64d(ssr_[1])
+			case "group":
+				node["group"] = base64d.Base64d(ssr_[1])
+			}
+		}
+	}
+	// fmt.Println(node)
 	if len(ssr) != 0 {
 		node["template"] = "ssr"
 		node["server"] = ssr[0][1]
@@ -44,9 +67,9 @@ func ssrRe(str string) (map[string]string, error) {
 		node["method"] = ssr[0][4]
 		node["obfs"] = ssr[0][5]
 		node["password"] = base64d.Base64d(ssr[0][6])
-		node["obfsparam"] = base64d.Base64d(ssr[0][7])
-		node["protoparam"] = base64d.Base64d(ssr[0][8])
-		node["remarks"] = base64d.Base64d(ssr[0][9])
+		// node["obfsparam"] = base64d.Base64d(ssr[0][7])
+		// node["protoparam"] = base64d.Base64d(ssr[0][8])
+		// node["remarks"] = base64d.Base64d(ssr[0][9])
 	} else {
 		// log.Println("this link is not ssr link!", base64d.Base64d(str))
 		return map[string]string{}, err{base64d.Base64d(str) + " --> this link is not ssr link!"}
@@ -54,7 +77,6 @@ func ssrRe(str string) (map[string]string, error) {
 	return node, nil
 }
 
-// GetNode 获取节点信息
 func GetNode(link string) (map[string]string, error) {
 	re, _ := regexp.Compile("(.*)://(.*)")
 	ssOrSsr := re.FindAllStringSubmatch(link, -1)
@@ -77,8 +99,12 @@ func GetNode(link string) (map[string]string, error) {
 }
 
 func main() {
-	ss := "ssr://YWVzLTI1Ni1jZmI6NmFLZDVvR3A2THFyQDEuMS4xLjE6NTM"
-	ssr := "ss://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy"
+	ss := "ss://YWVzLTI1Ni1jZmI6NmFLZDVvR3A2THFyQDEuMS4xLjE6NTM"
+	ssr := "ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy"
+	ssr_ := "ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTpjR0Z6YzNkdmNtUQ0K"
+	ssr__ := "ssr://MTk0LjEyNC4zNC4yMDg6OTk2Om9yaWdpbjpyYzQ6cGxhaW46Ykc1amJpNXZjbWNnWVRVLz9vYmZzcGFyYW09bm9uZQ"
 	fmt.Println(GetNode(ss))
 	fmt.Println(GetNode(ssr))
+	fmt.Println(GetNode(ssr__))
+	fmt.Println(GetNode(ssr_))
 }
