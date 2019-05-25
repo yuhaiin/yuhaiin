@@ -1,9 +1,6 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
-	"log"
 	"os"
 
 	getdelay "../net"
@@ -18,6 +15,11 @@ var sqlPath = configPath + "/SSR_config.db"
 
 func main() {
 	router := gin.Default()
+
+	// file, _ := exec.LookPath(os.Args[0])
+	// path2, _ := filepath.Abs(file)
+	// rst := filepath.Dir(path2)
+
 	router.LoadHTMLGlob("./**/**")
 	router.GET("/", func(c *gin.Context) {
 		_, ssrStatus := ssr_process.Get(configPath)
@@ -25,9 +27,13 @@ func main() {
 			"now_node":       subscription.GetNowNode(sqlPath),
 			"ssr_status":     ssrStatus,
 			"title":          "SSRSub",
-			"server_remarks": List_list_db(),
+			"server_remarks": subscription.GetAllNodeRemarksAndID(sqlPath),
 			"home":           true,
 		})
+	})
+
+	router.GET("/test", func(c *gin.Context) {
+		c.String(200, "tests")
 	})
 
 	router.POST("/submit", func(c *gin.Context) {
@@ -38,7 +44,7 @@ func main() {
 			ssr_process.Stop(configPath)
 			ssr_process.Start(configPath, sqlPath)
 		}
-		node := getOneNodeAll(id)
+		node := subscription.GetOneNodeAll(id, sqlPath)
 		delay, _ := getdelay.Tcp_delay(node["server"], node["server_port"])
 		c.HTML(200, "sidebar.html", gin.H{
 			"id":          node["id"],
@@ -66,51 +72,4 @@ func main() {
 	})
 
 	router.Run(":8081")
-}
-
-func getOneNodeAll(id string) map[string]string {
-	db, err := sql.Open("sqlite3", sqlPath)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer db.Close()
-	var id_, remarks, server, server_port, protocol, method, obfs, password, obfsparam, protoparam string
-	db.QueryRow("SELECT id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info where id = ?", id).Scan(&id_, &remarks, &server, &server_port, &protocol, &method, &obfs, &password, &obfsparam, &protoparam)
-	return map[string]string{
-		"id":          id_,
-		"remarks":     remarks,
-		"server":      server,
-		"server_port": server_port,
-		"protocol":    protocol,
-		"method":      method,
-		"obfs":        obfs,
-		"password":    password,
-		"obfsparam":   obfsparam,
-		"protoparam":  protoparam,
-	}
-}
-func List_list_db() [][]string {
-	//访问数据库
-	db, err := sql.Open("sqlite3", sqlPath)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer db.Close()
-
-	//查找
-	rows, err := db.Query("SELECT id,remarks FROM SSR_info ORDER BY id ASC;")
-	if err != nil {
-		log.Println(err)
-	}
-	remarks_ := [][]string{}
-	//var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
-	var remarks, id string
-	for rows.Next() {
-		//err = rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
-		err = rows.Scan(&id, &remarks)
-		// fmt.Println(id + "." + remarks)
-		remarks_ = append(remarks_, []string{id, remarks})
-	}
-	// fmt.Println(remarks_)
-	return remarks_
 }
