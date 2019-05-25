@@ -53,6 +53,8 @@ issue:
 ssr python version at mac may be not support,please test by yourself.
 
 # Others
+Make a simple gui([Now Dev](https://github.com/Asutorufa/SsrMicroClient/tree/dev)):
+![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/dev/img/gui_dev.png)  
 Todo:
 - [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
       write a half of [http proxy](https://github.com/Asutorufa/SsrMicroClient/blob/OtherLanguage/Old/SSR_http_client/client.go) find sun8911879/shadowsocksR is not support auth_chain*...oof.  
