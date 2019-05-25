@@ -1,0 +1,43 @@
+{{define "home"}}
+<style>
+    td {
+        text-align: center;
+    }
+
+    .table-title {
+        text-align: left;
+        color: white;
+        background-color: black
+    }
+
+    .button {
+        border-radius: 12px;
+        box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+        background-color: white;
+        border: 0ch;
+        height: 100%;
+        width: 30%
+    }
+
+</style>
+
+<form name="form" action="/submit" method="POST">
+    <pre>
+    +-------------+
+    | Now  Status | {{if .ssr_status}}<font color="green">running</font>{{else}}<font color="red">stopped</font>{{end}}
+    +-------------+
+    +-------------+
+    |  Now  Node  | {{.now_node}}
+    +-------------+
+    +-------------+
+    | Change Node | <select class="button" name="server">{{range $n := .server_remarks}}<option value={{index $n 0}}>{{index $n 1}}</option>{{end}}</select>
+    +-------------+
+
+    <input class="button" type="submit" value="change&restart"/>
+    </pre>
+    <!-- 
+    更换节点
+    <select class="button" name="server">{{range $n := .server_remarks}}<option value={{index $n 0}}>{{index $n 1}}
+        </option>{{end}}</select> -->
+</form>
+{{end}}

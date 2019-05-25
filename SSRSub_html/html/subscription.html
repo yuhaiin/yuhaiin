@@ -1,0 +1,17 @@
+{{define "subscription"}}
+<!-- <style>
+    .checkbox {
+        display: block;
+        border: 0ch;
+        background-color: pink
+    }
+
+</style> -->
+<pre>
+    +-----------------------------------------------------------+{{range $i := .link}}
+    | <input class="checkbox" type="checkbox" value="{{$i}}" /> | {{$i}}          
+    +-----------------------------------------------------------+{{end}}
+    |        {{.delay}}
+    +-----------------------------------------------------------+
+</pre>
+{{end}}

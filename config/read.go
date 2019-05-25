@@ -21,6 +21,7 @@ func Read_config_db(db_path string) (map[string]string, error) {
 	node := map[string]string{}
 	//node := Node{}
 	db := subscription.Get_db(db_path)
+
 	defer db.Close()
 
 	var Server, Server_port, Protocol, Method, Obfs, Password, Obfsparam, Protoparam string

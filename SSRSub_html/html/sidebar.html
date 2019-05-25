@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        .sidebar {
+            border-radius: 10px;
+            box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+            position: absolute;
+            width: 10%;
+            height: 90%;
+            left: 1%;
+        }
+
+        .menu-title {
+            position: relative;
+            height: 10%;
+            width: 100%;
+            text-align: center;
+        }
+
+        .menu {
+            position: relative;
+        }
+
+        .sidebar-item {
+            /* 垂直居中 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+
+            position: absolute;
+            text-align: center;
+            /* background-color: wheat; */
+            height: 10%;
+            width: 100%;
+            margin: auto;
+            /* 去掉下划线 */
+            text-decoration: none;
+
+            /* 自动换行 */
+            word-wrap: break-word;
+        }
+
+        .sidebar-item1 {
+            background-image: image("https: //img.icons8.com/ios/100/000000/home-page.png");
+            top: 10%;
+        }
+
+        .sidebar-item-link {
+            top: 25%;
+        }
+
+        .content-parent {
+            position: absolute;
+            left: 13%;
+            width: 80%;
+            height: 90%;
+            border-radius: 10px;
+            box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+
+        }
+
+        .content-title {
+            position: relative;
+            width: 100%;
+            height: 10%;
+        }
+
+        .content {
+            position: relative;
+            width: 75%;
+            height: 90%;
+        }
+
+        img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        ul,
+        li {
+            padding: 0;
+            margin: 0;
+            list-style: none;
+            text-align: center;
+            overflow: hidden;
+            /* 自动换行 */
+            /* word-wrap: break-word; */
+            overflow: hidden;
+            /* 文字隐藏后添加省略号 */
+            text-overflow: ellipsis;
+        }
+
+        li {
+            padding-top: 5px;
+            padding-bottom: 5px;
+        }
+
+        li:hover {
+            background-color: antiquewhite
+        }
+
+        a {
+            text-decoration: none;
+            display: block;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="menu-title">
+            <h1 style="overflow: hidden;text-overflow: ellipsis;">SSRSub</h1>
+        </div>
+        <hr />
+        <ul class="menu">
+            <li><a href="/">home</a></li>
+            <li><a href="/link">subscriptions</a></li>
+        </ul>
+    </div>
+    <div class="content-parent">
+        <div class="content-title">
+            {{if .home}}
+            <h1 style="text-align:center;overflow: hidden;text-overflow: ellipsis;">home</h1>
+            {{else if .server_bool}}
+            <h1 style="text-align:center;overflow: hidden;text-overflow: ellipsis;">server</h1>
+            {{else if .subscription}}
+            <h1 style="text-align:center;overflow: hidden;text-overflow: ellipsis;">subscription</h1>
+            {{end}}
+        </div>
+        <hr />
+        <div class="content">
+            {{if .home}}
+            {{template "home" .}}
+            {{else if .server_bool}}
+            {{template "server" .}}
+            {{else if .subscription}}
+            {{template "subscription" .}}
+            {{end}}
+        </div>
+    </div>
+</body>
+
+</html>

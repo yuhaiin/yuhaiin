@@ -4,38 +4,72 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"net/http"
+	"os"
 
+	getdelay "../net"
+	ssr_process "../process"
+	"../subscription"
 	"github.com/gin-gonic/gin"
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var configPath = os.Getenv("HOME") + "/.config/SSRSub"
+var sqlPath = configPath + "/SSR_config.db"
+
 func main() {
 	router := gin.Default()
-	router.LoadHTMLGlob("./**")
+	router.LoadHTMLGlob("./**/**")
 	router.GET("/", func(c *gin.Context) {
-		c.Header("Content-Type", "text/html; charset=utf-8")
-		c.HTML(http.StatusOK, "index.html", gin.H{
+		_, ssrStatus := ssr_process.Get(configPath)
+		c.HTML(200, "sidebar.html", gin.H{
+			"now_node":       subscription.GetNowNode(sqlPath),
+			"ssr_status":     ssrStatus,
 			"title":          "SSRSub",
 			"server_remarks": List_list_db(),
+			"home":           true,
 		})
 	})
 
 	router.POST("/submit", func(c *gin.Context) {
 		id, _ := c.GetPostForm("server")
+		subscription.SsrSQLChangeNode(id, sqlPath)
+		_, ssrStatus := ssr_process.Get(configPath)
+		if ssrStatus == true {
+			ssr_process.Stop(configPath)
+			ssr_process.Start(configPath, sqlPath)
+		}
 		node := getOneNodeAll(id)
-		c.HTML(200, "server.html", gin.H{
-			"id":      node["id"],
-			"remarks": node["remarks"],
-			"server":  node["server"],
+		delay, _ := getdelay.Tcp_delay(node["server"], node["server_port"])
+		c.HTML(200, "sidebar.html", gin.H{
+			"id":          node["id"],
+			"remarks":     node["remarks"],
+			"server":      node["server"],
+			"server_port": node["server_port"],
+			"protocol":    node["protocol"],
+			"method":      node["method"],
+			"obfs":        node["obfs"],
+			"password":    node["password"],
+			"obfsparam":   node["obfsparam"],
+			"protoparam":  node["protoparam"],
+			"delay":       delay,
+			"server_bool": true,
 		})
 		// c.String(200, getOneNodeAll(id)["remarks"])
 	})
+
+	router.GET("/link", func(c *gin.Context) {
+		link := subscription.Get_subscription_link(sqlPath)
+		c.HTML(200, "sidebar.html", gin.H{
+			"subscription": true,
+			"link":         link,
+		})
+	})
+
 	router.Run(":8081")
 }
 
 func getOneNodeAll(id string) map[string]string {
-	db, err := sql.Open("sqlite3", "/home/asutorufa/.config/SSRSub/SSR_config.db")
+	db, err := sql.Open("sqlite3", sqlPath)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -57,7 +91,7 @@ func getOneNodeAll(id string) map[string]string {
 }
 func List_list_db() [][]string {
 	//访问数据库
-	db, err := sql.Open("sqlite3", "/home/asutorufa/.config/SSRSub/SSR_config.db")
+	db, err := sql.Open("sqlite3", sqlPath)
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	// _ "github.com/mattn/go-sqlite3"
 	//"time"
@@ -69,10 +70,14 @@ func Ssr_server_node_change(sql_path string) int {
 		        db.Exec("UPDATE SSR_present_node SET remarks = ?,server = ?,server_port = ?,protocol = ?,method = ?,obfs = ?,password = ?,obfsparam = ?,protoparam = ?",remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
 		*/
 		//temp := time.Now()
-		db.Exec("BEGIN TRANSACTION;")
-		db.Exec("DELETE FROM SSR_present_node")
-		db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam) SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?", select_temp)
-		db.Exec("COMMIT;")
+
+		/*
+			db.Exec("BEGIN TRANSACTION;")
+			db.Exec("DELETE FROM SSR_present_node")
+			db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam) SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?", select_temp)
+			db.Exec("COMMIT;")
+		*/
+		SsrSQLChangeNode(strconv.Itoa(select_temp), sql_path)
 	default:
 		fmt.Println("enter error,please retry.")
 		Ssr_server_node_change(sql_path)
@@ -80,6 +85,16 @@ func Ssr_server_node_change(sql_path string) int {
 	}
 	return select_temp
 
+}
+
+// SsrSQLChangeNode change now node
+func SsrSQLChangeNode(id, sqlPath string) {
+	db := Get_db(sqlPath)
+	defer db.Close()
+	db.Exec("BEGIN TRANSACTION;")
+	db.Exec("DELETE FROM SSR_present_node")
+	db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam) SELECT remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info WHERE id = ?", id)
+	db.Exec("COMMIT;")
 }
 
 func Ssr_server_node_init(sql_path string, wg *sync.WaitGroup) {
@@ -108,12 +123,13 @@ func Ssr_server_node_init(sql_path string, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func Get_now_node(sql_path string) {
+func GetNowNode(sql_path string) string {
 	db := Get_db(sql_path)
 	defer db.Close()
 	var remarks string
 	if err := db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks); err == sql.ErrNoRows {
 		log.Println("节点列表为空,请先更新订阅")
+		return ""
 	}
 	/*
 			rows, err := db.Query("SELECT remarks FROM SSR_present_node;")
@@ -122,5 +138,22 @@ func Get_now_node(sql_path string) {
 				rows.Scan(&remarks)
 		    }
 	*/
-	fmt.Println("当前使用节点:", remarks)
+	return remarks
+}
+
+func Get_now_node(sql_path string) {
+	// db := Get_db(sql_path)
+	// defer db.Close()
+	// var remarks string
+	// if err := db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks); err == sql.ErrNoRows {
+	// 	log.Println("节点列表为空,请先更新订阅")
+	// }
+	// /*
+	// 		rows, err := db.Query("SELECT remarks FROM SSR_present_node;")
+	// 		var remarks string
+	// 		for rows.Next() {
+	// 			rows.Scan(&remarks)
+	// 	    }
+	// */
+	fmt.Println("当前使用节点:", GetNowNode(sql_path))
 }

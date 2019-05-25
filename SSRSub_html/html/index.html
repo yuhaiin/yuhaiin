@@ -1,0 +1,58 @@
+{{define "index.html"}}
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{{.title}}</title>
+    <style>
+        td {
+            text-align: center;
+        }
+
+        .button {
+            border-radius: 12px;
+            box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+            background-color: white;
+            border: 0ch;
+            height: 100%;
+            width: 100%
+        }
+
+    </style>
+</head>
+
+<body>
+    <table border="2">
+        <form name="form" action="/submit" method="POST">
+            <tr>
+                <td>
+                    <select class="button" name="server">
+                        {{range $n := .server_remarks}}<option value={{index $n 0}}>{{index $n 1}}</option>{{end}}
+                    </select>
+                </td>
+                <td style="padding: 0%">
+                    <input class="button" type="submit" />
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    现在的状态
+                </td>
+                <td>
+                    {{if .ssr_status}}
+                    <font color="green">running</font>
+                    {{else}}
+                    <font color="red">stopped</font>
+                    {{end}}
+                </td>
+            </tr>
+            <tr>
+                <td>当前节点</td>
+                <td>{{.now_node}}</td>
+            </tr>
+        </form>
+    </table>
+</body>
+
+</html>
+{{end}}
