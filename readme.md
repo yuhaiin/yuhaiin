@@ -35,7 +35,7 @@ deamon
 #log-file /dev/null
 ```
 -->
-![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubv0.1alpha.png)
+![](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.2beta.png)
 <!--
 issue:
 - [ ] now only can run in bash,cmd is not test.
