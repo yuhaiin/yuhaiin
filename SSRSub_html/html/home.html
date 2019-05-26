@@ -16,14 +16,76 @@
         background-color: white;
         border: 0ch;
         height: 100%;
-        width: 30%
+        width: 40%
+    }
+
+    .NodeForm {
+        position: relative;
+        box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+        width: 40%;
+        height: 60%;
+        left: 10%;
+        top: 10%
+    }
+
+    .NodeInformation {
+        position: absolute;
+        box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+        width: 50%;
+        height: 60%;
+        left: 60%;
+        top: 10%
+    }
+
+    pre {
+        overflow: hidden;
+        /* 文字隐藏后添加省略号 */
+        text-overflow: ellipsis;
     }
 
 </style>
 
+<script>
+    function getInformation() {
+        // document.getElementById("js_test").innerHTML = "js_test"
+        var selectInf = document.getElementsByName("server").item(0)
+        var id = selectInf.options[selectInf.selectedIndex].value
+        var request = new XMLHttpRequest()
+        request.open("get", "/information?id=" + id, true)
+        request.send()
+        // while (request.status != 4) {
+        // console.log(request.status)
+        // }
+        request.onreadystatechange = function () {
+            console.log(request.readyState)
+            if (request.readyState === 4) {
+                console.log(request.responseText)
+                var json = JSON.parse(request.responseText)
+                document.getElementById("Node_Information").innerHTML = `
+    +-------------+
+    |id           |-> `+ json.id + ` 
+    |remarks      |-> `+ json.remarks + ` 
+    |server       |-> `+ json.server + `
+    |server_port  |-> `+ json.server_port + `
+    |protocol     |-> `+ json.protocol + `
+    |method       |-> `+ json.method + `
+    |obfs         |-> `+ json.obfs + `
+    |password     |-> `+ json.password + `
+    |obfsparam    |-> `+ json.obfsparam + `
+    |protoparam   |-> `+ json.protocol + `
+    +-------------+
+    +-------------+
+    |delay        |-> <font color="green">`+ json.delay + ` ms</font>
+    +-------------+`
+            }
+        }
+    }
+</script>
+<div class="NodeForm">
+    <form name="form" action="/submit" method="POST">
+        <pre>
 
-<form name="form" action="/submit" method="POST">
-    <pre>
+
     +-------------+
     | Now  Status | {{if .ssr_status}}<font color="green">running</font>{{else}}<font color="red">stopped</font>{{end}}
     +-------------+
@@ -34,11 +96,46 @@
     | Change Node | <select class="button" name="server">{{range $n := .server_remarks}}<option value={{index $n 0}}>{{index $n 1}}</option>{{end}}</select>
     +-------------+
 
-    <input class="button" type="submit" value="change&restart"/>
+
+   <input class="button" type="submit" value="change&restart"/>    <input type="button" class="button" value="node information" onclick="getInformation()" />
+
     </pre>
-    <!--
+        <!--
     更换节点
     <select class="button" name="server">{{range $n := .server_remarks}}<option value={{index $n 0}}>{{index $n 1}}
         </option>{{end}}</select> -->
+</div>
+<div class="NodeInformation">
+    <pre id="Node_Information">
+
+    +-------------+
+    |id           |-> 
+    |remarks      |-> 
+    |server       |-> 
+    |server_port  |-> 
+    |protocol     |-> 
+    |method       |-> 
+    |obfs         |-> 
+    |password     |-> 
+    |obfsparam    |-> 
+    |protoparam   |-> 
+    +-------------+
+    +-------------+
+    |delay        |->
+    +-------------+
+    </pre>
+    <!-- <p id="Node_id"></p>
+    <p id="Node_remarks"></p>
+    <p id="Node_server"></p>
+    <p id="Node_server_port"></p>
+    <p id="Node_protocol"></p>
+    <p id="Node_method"></p>
+    <p id="Node_obfs"></p>
+    <p id="Node_password"></p>
+    <p id="Node_obfsparam"></p>
+    <p id="Node_protoparam"></p>
+    <p class="js_test"></p> -->
+</div>
+
 </form>
 {{end}}
