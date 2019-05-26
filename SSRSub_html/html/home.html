@@ -47,6 +47,13 @@
 
 <script>
     function getInformation() {
+        document.getElementById("Node_Information").innerHTML = `
+                
+                
+                
+                
+                
+           getting Node Information and Node delay`
         // document.getElementById("js_test").innerHTML = "js_test"
         var selectInf = document.getElementsByName("server").item(0)
         var id = selectInf.options[selectInf.selectedIndex].value
@@ -60,23 +67,25 @@
             console.log(request.readyState)
             if (request.readyState === 4) {
                 console.log(request.responseText)
-                var json = JSON.parse(request.responseText)
-                document.getElementById("Node_Information").innerHTML = `
-    +-------------+
-    |id           |-> `+ json.id + ` 
-    |remarks      |-> `+ json.remarks + ` 
-    |server       |-> `+ json.server + `
-    |server_port  |-> `+ json.server_port + `
-    |protocol     |-> `+ json.protocol + `
-    |method       |-> `+ json.method + `
-    |obfs         |-> `+ json.obfs + `
-    |password     |-> `+ json.password + `
-    |obfsparam    |-> `+ json.obfsparam + `
-    |protoparam   |-> `+ json.protocol + `
-    +-------------+
-    +-------------+
-    |delay        |-> <font color="green">`+ json.delay + ` ms</font>
-    +-------------+`
+                document.getElementById("Node_Information").innerHTML = request.responseText
+
+                //             var json = JSON.parse(request.responseText)
+                //             document.getElementById("Node_Information").innerHTML = `
+                // +-------------+
+                // |id           |-> `+ json.id + ` 
+                // |remarks      |-> `+ json.remarks + ` 
+                // |server       |-> `+ json.server + `
+                // |server_port  |-> `+ json.server_port + `
+                // |protocol     |-> `+ json.protocol + `
+                // |method       |-> `+ json.method + `
+                // |obfs         |-> `+ json.obfs + `
+                // |password     |-> `+ json.password + `
+                // |obfsparam    |-> `+ json.obfsparam + `
+                // |protoparam   |-> `+ json.protocol + `
+                // +-------------+
+                // +-------------+
+                // |delay        |-> <font color="green">`+ json.delay + ` ms</font>
+                // +-------------+`
             }
         }
     }
