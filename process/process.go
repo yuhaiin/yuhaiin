@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"../config"
@@ -122,29 +125,34 @@ func Start(config_path, db_path string) {
 	// fmt.Println(ssr_config.python_path,ssr_config.config_path,ssr_config.log_file,ssr_config.pid_file,ssr_config.fast_open,ssr_config.workers,ssr_config.connect_verbose_info,ssr_config.ssr_path,ssr_config.server,ssr_config.server_port,ssr_config.protocol,ssr_config.method,ssr_config.obfs,ssr_config.password,ssr_config.obfsparam,ssr_config.protoparam)
 }
 
+// Stop stop ssr process
 func Stop(path string) {
 	pid, exist := Get(path)
 	if exist == true {
-		var cmd_temp string
-		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
-			cmd_temp = "taskkill /PID " + pid + " /F"
-			fmt.Println(cmd_temp)
-			cmd = exec.Command("cmd", "/c", cmd_temp)
+			// cmdTemp := "taskkill /PID " + pid + " /F"
+			// fmt.Println(cmdTemp)
+			// cmd := exec.Command("cmd", "/c", cmdTemp)
+			exec.Command("taskkill", "/PID", pid, "/F").Run()
+
+			// var out bytes.Buffer
+			// var stderr bytes.Buffer
+			// cmd.Stdout = &out
+			// cmd.Stderr = &stderr
+			// cmd.Run()
+			// if err != nil {
+			// 	log.Printf(fmt.Sprint(err) + ": " + stderr.String())
+			// 	return
+			// }
+			// fmt.Printf("Result: %s\n", out.String())
 		} else {
-			cmd_temp = "kill " + pid
-			cmd = exec.Command("sh", "-c", cmd_temp)
+			// cmd_temp = "kill " + pid
+			// cmd = exec.Command("sh", "-c", cmd_temp)
+			pidI, _ := strconv.Atoi(pid)
+			syscall.Kill(pidI, syscall.SIGKILL)
 		}
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-		err := cmd.Run()
-		if err != nil {
-			log.Printf(fmt.Sprint(err) + ": " + stderr.String())
-			return
-		}
-		fmt.Printf("Result: %s\n", out.String())
+
+		fmt.Println("Process pid=" + pid + " killed!")
 	} else {
 		log.Printf("\n")
 		log.Printf("cant find the process: %s", pid)
@@ -153,6 +161,36 @@ func Stop(path string) {
 	}
 }
 
+// Get Get run status
+func Get(path string) (pid string, isexist bool) {
+	configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
+	pidTemp, err := ioutil.ReadFile(configTemp)
+	if err != nil {
+		log.Println(err)
+		log.Println("cant find the file,please run ssr start.")
+		return
+	}
+	pid = strings.Replace(string(pidTemp), "\r\n", "", -1)
+	pidI, _ := strconv.Atoi(pid)
+
+	// 检测windows进程
+	switch {
+	case runtime.GOOS == "windows":
+		if _, err := os.FindProcess(pidI); err != nil {
+			return "", false
+		}
+		return pid, true
+
+	// 检测类unix进程
+	default:
+		if err := syscall.Kill(pidI, 0); err != nil {
+			return "", false
+		}
+		return pid, true
+	}
+}
+
+/*
 func Get(path string) (pid string, isexist bool) {
 	config_temp := config.Read_config_file(path)
 	pid_temp, err := ioutil.ReadFile(strings.Split(config_temp["Pid_file"], " ")[1])
@@ -199,3 +237,4 @@ func Get(path string) (pid string, isexist bool) {
 		return "", false
 	}
 }
+*/
