@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+
 	// _ "github.com/mattn/go-sqlite3"
 )
 
@@ -21,17 +22,17 @@ func GetAllNodeRemarksAndID(sqlPath string) [][]string {
 	if err != nil {
 		log.Println(err)
 	}
-	remarks_ := [][]string{}
+	remarksB := [][]string{}
 	//var server,server_port,protocol,method,obfs,password,obfsparam,protoparam string
 	var remarks, id string
 	for rows.Next() {
 		//err = rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
 		err = rows.Scan(&id, &remarks)
 		// fmt.Println(id + "." + remarks)
-		remarks_ = append(remarks_, []string{id, remarks})
+		remarksB = append(remarksB, []string{id, remarks})
 	}
 	// fmt.Println(remarks_)
-	return remarks_
+	return remarksB
 }
 
 // SsrSQLChangeNode change now node
@@ -56,6 +57,36 @@ func GetNowNode(sqlPath string) string {
 	return remarks
 }
 
+// GetNowNodeAll Get now node all information
+func GetNowNodeAll(sqlPath string) (map[string]string, error) {
+	node := map[string]string{}
+	db, err := sql.Open("sqlite3", sqlPath)
+	if err != nil {
+		log.Println(err)
+	}
+	defer db.Close()
+
+	var Server, ServerPort, Protocol, Method, Obfs, Password, Obfsparam, Protoparam string
+	err = db.QueryRow("SELECT server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_present_node").
+		//Scan(node["Server"],node["Server_port"],node["Protocol"],node["Method"],node["Obfs"],node["Password"],node["Obfsparam"],node["Protoparam"])
+		Scan(&Server, &ServerPort, &Protocol, &Method, &Obfs, &Password, &Obfsparam, &Protoparam)
+
+	if err == sql.ErrNoRows {
+		log.Println("请先选择一个节点,目前没有已选择节点")
+		return node, err
+	}
+	node["Server"] = Server
+	node["Server_port"] = ServerPort
+	node["Protocol"] = Protocol
+	node["Method"] = Method
+	node["Obfs"] = Obfs
+	node["Password"] = Password
+	node["Obfsparam"] = Obfsparam
+	node["Protoparam"] = Protoparam
+
+	return node, nil
+}
+
 // GetOneNodeAll like name
 func GetOneNodeAll(id, sqlPath string) map[string]string {
 	db, err := sql.Open("sqlite3", sqlPath)
@@ -63,13 +94,13 @@ func GetOneNodeAll(id, sqlPath string) map[string]string {
 		fmt.Println(err)
 	}
 	defer db.Close()
-	var id_, remarks, server, server_port, protocol, method, obfs, password, obfsparam, protoparam string
-	db.QueryRow("SELECT id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info where id = ?", id).Scan(&id_, &remarks, &server, &server_port, &protocol, &method, &obfs, &password, &obfsparam, &protoparam)
+	var idB, remarks, server, serverPort, protocol, method, obfs, password, obfsparam, protoparam string
+	db.QueryRow("SELECT id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam FROM SSR_info where id = ?", id).Scan(&idB, &remarks, &server, &serverPort, &protocol, &method, &obfs, &password, &obfsparam, &protoparam)
 	return map[string]string{
-		"id":          id_,
+		"id":          idB,
 		"remarks":     remarks,
 		"server":      server,
-		"server_port": server_port,
+		"server_port": serverPort,
 		"protocol":    protocol,
 		"method":      method,
 		"obfs":        obfs,

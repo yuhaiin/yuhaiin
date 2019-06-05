@@ -3,8 +3,7 @@ package subscription
 import (
 	"database/sql"
 	"fmt"
-
-	_ "github.com/mattn/go-sqlite3"
+	// _ "github.com/mattn/go-sqlite3"
 )
 
 func Get_db(sql_path string) *sql.DB {

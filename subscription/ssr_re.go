@@ -36,25 +36,25 @@ func ssRe(str string) (map[string]string, error) {
 func ssrRe(str string) (map[string]string, error) {
 	// ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)/?obfsparam=(.*)&protoparam=(.*)&remarks=(.*)&group=(.*)")
 	ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)(.*)")
-	ssrRe_, _ := regexp.Compile(".*/\\?(.*)")
+	ssrReB, _ := regexp.Compile(".*/\\?(.*)")
 	node := map[string]string{}
 	ssr := ssrRe.FindAllStringSubmatch(base64d.Base64d(str), -1)
-	ssr_ := ssrRe_.FindAllStringSubmatch(base64d.Base64d(str), -1)
+	ssrB := ssrReB.FindAllStringSubmatch(base64d.Base64d(str), -1)
 
 	//删除第一个元素
-	if len(ssr_) > 0 {
-		ssr__ := strings.Split(ssr_[0][1], "&")
-		for _, ssr := range ssr__ {
-			ssr_ := strings.Split(ssr, "=")
-			switch ssr_[0] {
+	if len(ssrB) > 0 {
+		ssrC := strings.Split(ssrB[0][1], "&")
+		for _, ssr := range ssrC {
+			ssrA := strings.Split(ssr, "=")
+			switch ssrA[0] {
 			case "obfsparam":
-				node["obfsparam"] = base64d.Base64d(ssr_[1])
+				node["obfsparam"] = base64d.Base64d(ssrA[1])
 			case "protoparam":
-				node["protoparam"] = base64d.Base64d(ssr_[1])
+				node["protoparam"] = base64d.Base64d(ssrA[1])
 			case "remarks":
-				node["remarks"] = base64d.Base64d(ssr_[1])
+				node["remarks"] = base64d.Base64d(ssrA[1])
 			case "group":
-				node["group"] = base64d.Base64d(ssr_[1])
+				node["group"] = base64d.Base64d(ssrA[1])
 			}
 		}
 	}
@@ -77,6 +77,7 @@ func ssrRe(str string) (map[string]string, error) {
 	return node, nil
 }
 
+// GetNode get decode node
 func GetNode(link string) (map[string]string, error) {
 	re, _ := regexp.Compile("(.*)://(.*)")
 	ssOrSsr := re.FindAllStringSubmatch(link, -1)
@@ -96,15 +97,4 @@ func GetNode(link string) (map[string]string, error) {
 		node = ssr
 	}
 	return node, nil
-}
-
-func main() {
-	ss := "ss://YWVzLTI1Ni1jZmI6NmFLZDVvR3A2THFyQDEuMS4xLjE6NTM"
-	ssr := "ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy"
-	ssr_ := "ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTpjR0Z6YzNkdmNtUQ0K"
-	ssr__ := "ssr://MTk0LjEyNC4zNC4yMDg6OTk2Om9yaWdpbjpyYzQ6cGxhaW46Ykc1amJpNXZjbWNnWVRVLz9vYmZzcGFyYW09bm9uZQ"
-	fmt.Println(GetNode(ss))
-	fmt.Println(GetNode(ssr))
-	fmt.Println(GetNode(ssr__))
-	fmt.Println(GetNode(ssr_))
 }

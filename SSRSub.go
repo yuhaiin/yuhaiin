@@ -9,6 +9,7 @@ import (
 	getdelay "./net"
 	ssr_process "./process"
 	"./subscription"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func menu_db(path, db_path string) {
