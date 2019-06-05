@@ -17,10 +17,13 @@ type Ssr_config struct {
 	Argument map[string]string
 }
 
+
+
 func Read_config_db(db_path string) (map[string]string, error) {
 	node := map[string]string{}
 	//node := Node{}
 	db := subscription.Get_db(db_path)
+
 	defer db.Close()
 
 	var Server, Server_port, Protocol, Method, Obfs, Password, Obfsparam, Protoparam string
@@ -130,8 +133,8 @@ func Read_config_file(config_path string) map[string]string {
 }
 
 //读取配置文件
-func Read_config(config_path, db_path string) Ssr_config {
-	node, _ := Read_config_db(db_path)
-	argument := Read_config_file(config_path)
+func Read_config(configPath, sqlPath string) Ssr_config {
+	node, _ := Read_config_db(sqlPath)
+	argument := Read_config_file(configPath)
 	return Ssr_config{node, argument}
 }

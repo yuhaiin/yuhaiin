@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-type py_path struct{}
+type pyPath struct{}
 
-func (*py_path) windows() string {
+func (*pyPath) windows() string {
 	var out bytes.Buffer
 	cmd := exec.Command("cmd", "/c", "where python")
 	cmd.Stdin = strings.NewReader("some input")
@@ -23,7 +23,7 @@ func (*py_path) windows() string {
 	return strings.Replace(out.String(), "\r\n", "", -1)
 }
 
-func (*py_path) others() string {
+func (*pyPath) others() string {
 	var out bytes.Buffer
 	cmd := exec.Command("sh", "-c", "which python3")
 	cmd.Stdin = strings.NewReader("some input")
@@ -41,11 +41,11 @@ func (*py_path) others() string {
 }
 
 func Get_python_path() string {
-	var py_path py_path
+	var pyPath pyPath
 	switch {
 	case runtime.GOOS == "windows":
-		return py_path.windows()
+		return pyPath.windows()
 	default:
-		return py_path.others()
+		return pyPath.others()
 	}
 }
