@@ -17,8 +17,6 @@ type Ssr_config struct {
 	Argument map[string]string
 }
 
-
-
 func Read_config_db(db_path string) (map[string]string, error) {
 	node := map[string]string{}
 	//node := Node{}
@@ -127,6 +125,75 @@ func Read_config_file(config_path string) map[string]string {
 			argument["Timeout"] = "-t " + config_temp2[1] + " "
 		case "deamon":
 			argument["Deamon"] = "-d start"
+		}
+	}
+	return argument
+}
+
+// GetConfig <-- like this
+func GetConfig(configPath, sqlPath string) map[string]string {
+	argument := map[string]string{}
+	argument["pidFile"] = configPath + "/shadowsocksr.pid"
+	argument["logFile"] = "/dev/null"
+	argument["pythonPath"] = Get_python_path()
+
+	// if argument["Workers"] == "" {
+	// 	argument["Workers"] = "--workers " + "1 "
+	// }
+
+	inLine := "\n"
+	if runtime.GOOS == "windows" {
+		argument["ssrPath"] = configPath + `\shadowsocksr\shadowsocks/local.py`
+		inLine = "\r\n"
+	} else {
+		argument["ssrPath"] = configPath + "/shadowsocksr/shadowsocks/local.py"
+	}
+	argument["localAddress"] = "127.0.0.1"
+	argument["localPort"] = "1080"
+
+	configTemp, err := ioutil.ReadFile(configPath + "/ssr_config.conf")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	re, _ := regexp.Compile("#.*$")
+	for _, configTemp2 := range strings.Split(string(configTemp), inLine) {
+		configTemp2 := strings.Split(re.ReplaceAllString(configTemp2, ""), " ")
+		switch configTemp2[0] {
+		case "python_path":
+			argument["pythonPath"] = configTemp2[1]
+		case "-python_path":
+			argument["pythonPath"] = ""
+		case "ssr_path":
+			argument["ssrPath"] = configTemp2[1]
+		case "-ssr_path":
+			argument["ssrPath"] = ""
+		case "config_path":
+			argument["configPath"] = configTemp2[1]
+		case "connect-verbose-info":
+			argument["connectVerboseInfo"] = "--connect-verbose-info"
+		case "workers":
+			argument["workers"] = configTemp2[1]
+		case "fast-open":
+			argument["fastOpen"] = "fast-open"
+		case "pid-file":
+			argument["pidFile"] = configTemp2[1]
+		case "-pid-file":
+			argument["pidFile"] = ""
+		case "log-file":
+			argument["logFile"] = configTemp2[1]
+		case "-log-file":
+			argument["logFile"] = ""
+		case "local_address":
+			argument["localAddress"] = configTemp2[1]
+		case "local_port":
+			argument["localPort"] = configTemp2[1]
+		case "acl":
+			argument["acl"] = configTemp2[1]
+		case "timeout":
+			argument["timeout"] = configTemp2[1]
+		case "deamon":
+			argument["deamon"] = "-d start"
 		}
 	}
 	return argument
