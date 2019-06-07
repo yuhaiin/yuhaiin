@@ -18,21 +18,22 @@ import (
 
 // Start start ssr
 func Start(configPath, sqlPath string) {
-
-	pid, status := Get(configPath)
-	if status == true {
-		log.Println("already have run at " + pid)
-		return
-	}
+	// pid, status := Get(configPath)
+	// if status == true {
+	// 	log.Println("already have run at " + pid)
+	// 	return
+	// }
 	argument := config.GetConfigArgument()
-	config := config.GetConfig(configPath, sqlPath)
+	config := config.GetConfig(configPath)
 	node, _ := subscription.GetNowNodeAll(sqlPath)
 	nodeArgument := []string{"server", "serverPort", "protocol", "method", "obfs", "password", "obfsparam", "protoparam"}
 	argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
 	argumentSingle := []string{"fastOpen", "connectVerboseInfo"}
 
 	cmdArray := []string{}
-	cmdArray = append(cmdArray, config["ssrPath"])
+	if config["ssrPath"] != "" {
+		cmdArray = append(cmdArray, config["ssrPath"])
+	}
 	for _, nodeA := range nodeArgument {
 		if node[nodeA] != "" {
 			cmdArray = append(cmdArray, argument[nodeA], node[nodeA])
@@ -52,7 +53,7 @@ func Start(configPath, sqlPath string) {
 	// if runtime.GOOS != "windows" {
 	// 	cmdArray = append(cmdArray, "-d", "start")
 	// }
-	fmt.Println(cmdArray)
+	// fmt.Println(cmdArray)
 	cmd := exec.Command(config["pythonPath"], cmdArray...)
 	cmd.Start()
 	// cmd.Process.Release()
@@ -63,6 +64,12 @@ func Start(configPath, sqlPath string) {
 
 // StartByArgument to run ssr  deamon at golang use argument
 func StartByArgument(configPath, sqlPath string) {
+	pid, status := Get(configPath)
+	if status == true {
+		log.Println("already have run at " + pid)
+		return
+	}
+
 	dir2, _ := filepath.Abs(os.Args[0])
 	log.Println(dir2)
 	first, err := os.StartProcess(dir2, []string{dir2, "-d"}, &os.ProcAttr{
@@ -77,7 +84,7 @@ func StartByArgument(configPath, sqlPath string) {
 	log.Println(first.Pid)
 	first.Wait()
 
-	pid, status := Get(configPath)
+	pid, status = Get(configPath)
 	if status == true {
 		log.Println("start ssr at deamon(pid=" + pid + ") successful!")
 	} else {
@@ -136,9 +143,9 @@ func Stop(path string) {
 }
 
 // Get Get run status
-func Get(path string) (pid string, isexist bool) {
-	configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
-	pidTemp, err := ioutil.ReadFile(configTemp)
+func Get(configPath string) (pid string, isexist bool) {
+	// configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
+	pidTemp, err := ioutil.ReadFile(config.GetConfig(configPath)["pidFile"])
 	if err != nil {
 		log.Println(err)
 		log.Println("cant find the file,please run ssr start.")
