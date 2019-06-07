@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"runtime"
 
 	ssr_init "./init"
 	getdelay "./net"
@@ -66,14 +65,7 @@ func menu(configPath, sqlPath string) {
 }
 
 func main() {
-	var configPath, sqlPath string
-	if runtime.GOOS == "windows" {
-		configPath = os.Getenv("USERPROFILE") + "\\Documents\\SSRSub"
-		sqlPath = configPath + "\\SSR_config.db"
-	} else {
-		configPath = os.Getenv("HOME") + "/.config/SSRSub"
-		sqlPath = configPath + "/SSR_config.db"
-	}
+	configPath, sqlPath := ssr_init.GetConfigAndSQLPath()
 
 	deamon := flag.Bool("d", false, "d")
 	flag.Parse()
