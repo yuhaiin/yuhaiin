@@ -11,17 +11,17 @@ import (
 )
 
 // List_list_db like name
-func List_list_db(sql_path string) {
-	IDAndRemarks := GetAllNodeRemarksAndID(sql_path)
+func List_list_db(sqlPath string) {
+	IDAndRemarks := GetAllNodeRemarksAndID(sqlPath)
 	for _, IDAndRemarks_ := range IDAndRemarks {
 		fmt.Println(IDAndRemarks_[0] + "." + IDAndRemarks_[1])
 	}
 }
 
 // Ssr_server_node_change 更换节点(数据库)
-func Ssr_server_node_change(sql_path string) int {
-	List_list_db(sql_path)
-	db := Get_db(sql_path)
+func Ssr_server_node_change(sqlPath string) int {
+	List_list_db(sqlPath)
+	db := Get_db(sqlPath)
 	defer db.Close()
 
 	//判断数据库是否为空
@@ -58,18 +58,18 @@ func Ssr_server_node_change(sql_path string) int {
 		        db.Exec("UPDATE SSR_present_node SET remarks = ?,server = ?,server_port = ?,protocol = ?,method = ?,obfs = ?,password = ?,obfsparam = ?,protoparam = ?",remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)
 		*/
 
-		SsrSQLChangeNode(strconv.Itoa(select_temp), sql_path)
+		SsrSQLChangeNode(strconv.Itoa(select_temp), sqlPath)
 	default:
 		fmt.Println("enter error,please retry.")
-		Ssr_server_node_change(sql_path)
+		Ssr_server_node_change(sqlPath)
 		return 0
 	}
 	return select_temp
 
 }
 
-func Ssr_server_node_init(sql_path string, wg *sync.WaitGroup) {
-	db := Get_db(sql_path)
+func Ssr_server_node_init(sqlPath string, wg *sync.WaitGroup) {
+	db := Get_db(sqlPath)
 	//关闭数据库
 	defer db.Close()
 
@@ -91,10 +91,6 @@ func Ssr_server_node_init(sql_path string, wg *sync.WaitGroup) {
 	db.Exec("COMMIT;")
 
 	wg.Done()
-}
-
-func Get_now_node(sql_path string) {
-	fmt.Println("当前使用节点:", GetNowNode(sql_path))
 }
 
 /*
