@@ -3,7 +3,6 @@ package ssr_init
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 
 	//"runtime"
@@ -57,7 +56,7 @@ func Init(config_path, sql_db_path string) {
 	}
 
 	if !Path_exists(config_path + "/ssr_config.conf") {
-		Auto_create_config(config_path)
+		autoCreateConfig(config_path)
 	}
 
 	if !Path_exists(config_path + "/shadowsocksr") {
@@ -65,28 +64,29 @@ func Init(config_path, sql_db_path string) {
 	}
 }
 
-func Menu_init(path string) {
-	//获取当前可执行文件目录
-	file, _ := exec.LookPath(os.Args[0])
-	path2, _ := filepath.Abs(file)
-	//fmt.Println(path2)
-	rst := filepath.Dir(path2)
+// MenuInit <-- will no use
+func MenuInit(path string) {
+	// //获取当前可执行文件目录
+	// file, _ := exec.LookPath(os.Args[0])
+	// path2, _ := filepath.Abs(file)
+	// rst := filepath.Dir(path2)
+	rst, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	//fmt.Println(rst)
 
 	fmt.Println("当前配置文件目录:" + path)
 	fmt.Println("当前可执行文件目录:" + rst)
 }
 
-func Auto_create_config(path string) {
+func autoCreateConfig(configPath string) {
 	inLine := "\n"
 	if runtime.GOOS == "windows" {
 		inLine = "\r\n"
 	}
 
 	deamon := "deamon" + inLine
-	configPath := path + "/ssr_config.conf"
-	ssrPath := "#ssr_path" + path + "/shadowsocksr/shadowsocks/local.py #ssr路径" + inLine
-	pidFile := "pid-file " + path + "/shadowsocksr.pid" + inLine
+	configFile := configPath + "/ssr_config.conf"
+	ssrPath := "#ssr_path" + configPath + "/shadowsocksr/shadowsocks/local.py #ssr路径" + inLine
+	pidFile := "pid-file " + configPath + "/shadowsocksr.pid" + inLine
 	logFile := "log-file /dev/null" + inLine
 	fastOpen := "fast-open" + inLine
 	workers := "workers 8" + inLine
@@ -99,13 +99,13 @@ func Auto_create_config(path string) {
 
 	if runtime.GOOS == "windows" {
 		deamon = "#deamon" + inLine
-		configPath = path + `\ssr_config.conf`
-		ssrPath = "#ssr_path" + path + "\\shadowsocksr\\shadowsocks\\local.py #ssr路径" + inLine
+		configFile = configPath + `\ssr_config.conf`
+		ssrPath = "#ssr_path" + configPath + "\\shadowsocksr\\shadowsocks\\local.py #ssr路径" + inLine
 		pidFile = ""
 		logFile = ""
 	}
 
 	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + deamon + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl
 	fmt.Println(configConf)
-	ioutil.WriteFile(configPath, []byte(configConf), 0644)
+	ioutil.WriteFile(configFile, []byte(configConf), 0644)
 }
