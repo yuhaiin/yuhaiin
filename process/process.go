@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -48,17 +49,40 @@ func Start(configPath, sqlPath string) {
 			cmdArray = append(cmdArray, argument[argumentS])
 		}
 	}
-	if runtime.GOOS != "windows" {
-		cmdArray = append(cmdArray, "-d", "start")
-	}
+	// if runtime.GOOS != "windows" {
+	// 	cmdArray = append(cmdArray, "-d", "start")
+	// }
 	fmt.Println(cmdArray)
 	cmd := exec.Command(config["pythonPath"], cmdArray...)
 	cmd.Start()
-	cmd.Wait()
 	// cmd.Process.Release()
 	// cmd.Process.Signal(syscall.SIGUSR1)
 	// fmt.Println(cmd.Process.Pid, config["pidFile"])
-	// ioutil.WriteFile(config["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+	ioutil.WriteFile(config["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+}
+
+// StartByArgument to run ssr  deamon at golang use argument
+func StartByArgument(configPath, sqlPath string) {
+	dir2, _ := filepath.Abs(os.Args[0])
+	log.Println(dir2)
+	first, err := os.StartProcess(dir2, []string{dir2, "-d"}, &os.ProcAttr{
+		Sys: &syscall.SysProcAttr{
+			Setsid: true,
+		},
+	})
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	log.Println(first.Pid)
+	first.Wait()
+
+	pid, status := Get(configPath)
+	if status == true {
+		log.Println("start ssr at deamon(pid=" + pid + ") successful!")
+	} else {
+		log.Println("run ssr failed!")
+	}
 }
 
 // Stop stop ssr process
@@ -69,7 +93,11 @@ func Stop(path string) {
 			// cmdTemp := "taskkill /PID " + pid + " /F"
 			// fmt.Println(cmdTemp)
 			// cmd := exec.Command("cmd", "/c", cmdTemp)
-			exec.Command("taskkill", "/PID", pid, "/F").Run()
+			err := exec.Command("taskkill", "/PID", pid, "/F").Run()
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
 			// var out bytes.Buffer
 			// var stderr bytes.Buffer
@@ -84,9 +112,17 @@ func Stop(path string) {
 		} else {
 			// cmd_temp = "kill " + pid
 			// cmd = exec.Command("sh", "-c", cmd_temp)
-			pidI, _ := strconv.Atoi(pid)
+			pidI, err := strconv.Atoi(pid)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 			// syscall.Kill(pidI, syscall.SIGQUIT)
-			syscall.Kill(pidI, syscall.SIGKILL)
+			err = syscall.Kill(pidI, syscall.SIGKILL)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 			// syscall.Kill(pidI, syscall.SIGCHLD)
 		}
 
