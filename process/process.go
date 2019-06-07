@@ -1,16 +1,9 @@
 package ssr_process
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strconv"
-	"strings"
-	"syscall"
 
 	"../config"
 	"../subscription"
@@ -60,115 +53,6 @@ func Start(configPath, sqlPath string) {
 	// cmd.Process.Signal(syscall.SIGUSR1)
 	// fmt.Println(cmd.Process.Pid, config["pidFile"])
 	ioutil.WriteFile(config["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
-}
-
-// StartByArgument to run ssr  deamon at golang use argument
-func StartByArgument(configPath, sqlPath string) {
-	pid, status := Get(configPath)
-	if status == true {
-		log.Println("already have run at " + pid)
-		return
-	}
-
-	dir2, _ := filepath.Abs(os.Args[0])
-	log.Println(dir2)
-	first, err := os.StartProcess(dir2, []string{dir2, "-d"}, &os.ProcAttr{
-		Sys: &syscall.SysProcAttr{
-			Setsid: true,
-		},
-	})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Println(first.Pid)
-	first.Wait()
-
-	pid, status = Get(configPath)
-	if status == true {
-		log.Println("start ssr at deamon(pid=" + pid + ") successful!")
-	} else {
-		log.Println("run ssr failed!")
-	}
-}
-
-// Stop stop ssr process
-func Stop(path string) {
-	pid, exist := Get(path)
-	if exist == true {
-		if runtime.GOOS == "windows" {
-			// cmdTemp := "taskkill /PID " + pid + " /F"
-			// fmt.Println(cmdTemp)
-			// cmd := exec.Command("cmd", "/c", cmdTemp)
-			err := exec.Command("taskkill", "/PID", pid, "/F").Run()
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			// var out bytes.Buffer
-			// var stderr bytes.Buffer
-			// cmd.Stdout = &out
-			// cmd.Stderr = &stderr
-			// cmd.Run()
-			// if err != nil {
-			// 	log.Printf(fmt.Sprint(err) + ": " + stderr.String())
-			// 	return
-			// }
-			// fmt.Printf("Result: %s\n", out.String())
-		} else {
-			// cmd_temp = "kill " + pid
-			// cmd = exec.Command("sh", "-c", cmd_temp)
-			pidI, err := strconv.Atoi(pid)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			// syscall.Kill(pidI, syscall.SIGQUIT)
-			err = syscall.Kill(pidI, syscall.SIGKILL)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			// syscall.Kill(pidI, syscall.SIGCHLD)
-		}
-
-		fmt.Println("Process pid=" + pid + " killed!")
-	} else {
-		log.Printf("\n")
-		log.Printf("cant find the process: %s", pid)
-		log.Printf("please start ssr first.\n")
-		return
-	}
-}
-
-// Get Get run status
-func Get(configPath string) (pid string, isexist bool) {
-	// configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
-	pidTemp, err := ioutil.ReadFile(config.GetConfig(configPath)["pidFile"])
-	if err != nil {
-		log.Println(err)
-		log.Println("cant find the file,please run ssr start.")
-		return
-	}
-	pid = strings.Replace(string(pidTemp), "\r\n", "", -1)
-	pidI, _ := strconv.Atoi(pid)
-
-	// 检测windows进程
-	switch {
-	case runtime.GOOS == "windows":
-		if _, err := os.FindProcess(pidI); err != nil {
-			return "", false
-		}
-		return pid, true
-
-	// 检测类unix进程
-	default:
-		if err := syscall.Kill(pidI, 0); err != nil {
-			return "", false
-		}
-		return pid, true
-	}
 }
 
 // ----------------------------------old get status-------------------------------------------
