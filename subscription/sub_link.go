@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"sync"
 )
 
 //读取订阅链接(数据库)
@@ -27,14 +26,12 @@ func Get_subscription_link(sql_path string) []string {
 }
 
 //初始化订阅连接数据库
-func Subscription_link_init(sql_path string, wg *sync.WaitGroup) {
+func Subscription_link_init(sql_path string) {
 	db := Get_db(sql_path)
 	//关闭数据库
 	defer db.Close()
 	//创建表
 	db.Exec("CREATE TABLE IF NOT EXISTS subscription_link(link TEXT);")
-
-	wg.Done()
 }
 
 //添加订阅链接

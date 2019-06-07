@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"sync"
 	// _ "github.com/mattn/go-sqlite3"
 	//"time"
 )
@@ -68,7 +67,7 @@ func Ssr_server_node_change(sqlPath string) int {
 
 }
 
-func Ssr_server_node_init(sqlPath string, wg *sync.WaitGroup) {
+func Ssr_server_node_init(sqlPath string) {
 	db := Get_db(sqlPath)
 	//关闭数据库
 	defer db.Close()
@@ -89,8 +88,6 @@ func Ssr_server_node_init(sqlPath string, wg *sync.WaitGroup) {
 	//初始化插入空字符
 	//db.Exec("INSERT INTO SSR_present_node(remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values('none','none','none','none','none','none','none','none','none')")
 	db.Exec("COMMIT;")
-
-	wg.Done()
 }
 
 /*
