@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 
 	"../base64d"
 )
@@ -61,7 +60,7 @@ func Add_config_db(sql_path string) {
 }
 
 //初始化节点列表
-func Init_config_db(sql_path string, wg *sync.WaitGroup) {
+func Init_config_db(sql_path string) {
 
 	//访问数据库
 	db := Get_db(sql_path)
@@ -87,5 +86,4 @@ func Init_config_db(sql_path string, wg *sync.WaitGroup) {
 	//db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(none,none,none,none,none,none,none,none,none,none)")
 
 	db.Exec("COMMIT;")
-	wg.Done()
 }
