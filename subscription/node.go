@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	// _ "github.com/mattn/go-sqlite3"
 )
 
 // GetAllNodeRemarksAndID  like name
@@ -73,24 +72,24 @@ func GetNowNodeAll(sqlPath string) (map[string]string, error) {
 	}
 	defer db.Close()
 
-	var Server, ServerPort, Protocol, Method, Obfs, Password, Obfsparam, Protoparam string
+	var server, serverPort, protocol, method, obfs, password, obfsparam, protoparam string
 	err = db.QueryRow("SELECT server,server_port,protocol,method,obfs,password,"+
 		"obfsparam,protoparam FROM SSR_present_node").
 		//Scan(node["Server"],node["Server_port"],node["Protocol"],node["Method"],node["Obfs"],node["Password"],node["Obfsparam"],node["Protoparam"])
-		Scan(&Server, &ServerPort, &Protocol, &Method, &Obfs, &Password, &Obfsparam, &Protoparam)
+		Scan(&server, &serverPort, &protocol, &method, &obfs, &password, &obfsparam, &protoparam)
 
 	if err == sql.ErrNoRows {
 		log.Println("请先选择一个节点,目前没有已选择节点")
 		return node, err
 	}
-	node["server"] = Server
-	node["serverPort"] = ServerPort
-	node["protocol"] = Protocol
-	node["method"] = Method
-	node["obfs"] = Obfs
-	node["password"] = Password
-	node["obfsparam"] = Obfsparam
-	node["protoparam"] = Protoparam
+	node["server"] = server
+	node["serverPort"] = serverPort
+	node["protocol"] = protocol
+	node["method"] = method
+	node["obfs"] = obfs
+	node["password"] = password
+	node["obfsparam"] = obfsparam
+	node["protoparam"] = protoparam
 
 	return node, nil
 }
