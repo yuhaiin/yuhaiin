@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -15,7 +16,7 @@ import (
 func GetConfig(configPath string) map[string]string {
 	argument := map[string]string{}
 	argument["pidFile"] = configPath + "/shadowsocksr.pid"
-	argument["logFile"] = "/dev/null"
+	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
 
 	// if argument["Workers"] == "" {

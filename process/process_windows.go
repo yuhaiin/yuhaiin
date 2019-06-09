@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"../config"
@@ -65,8 +64,7 @@ func Stop(path string) {
 }
 
 // Get Get run status
-func Get(configPath string) (pid string, isexist bool) {
-	// configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
+func Get(configPath string) (pid string, isExist bool) {
 	pidTemp, err := ioutil.ReadFile(config.GetConfig(configPath)["pidFile"])
 	if err != nil {
 		log.Println(err)
@@ -75,7 +73,7 @@ func Get(configPath string) (pid string, isexist bool) {
 	}
 	pid = strings.Replace(string(pidTemp), "\r\n", "", -1)
 
-	// 检测windows进程
+	// check windows ssr background status
 	cmd := exec.Command("cmd", "/c", `wmic process get processid | findstr `+pid)
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -85,7 +83,7 @@ func Get(configPath string) (pid string, isexist bool) {
 		return "", false
 	}
 	return pid, true
-	// FindProcess have bug that all success
+	// FindProcess have bug that all success same with linux
 	// if _, err := os.FindProcess(pidI); err != nil {
 	// 	return "", false
 	// }
@@ -100,8 +98,13 @@ func StartByArgument(configPath, sqlPath string) {
 		return
 	}
 
-	dir2, _ := filepath.Abs(os.Args[0])
-	log.Println(dir2)
+	// dir2, _ := filepath.Abs(os.Args[0])
+	// log.Println(dir2)
+	executablePath, err := os.Executable()
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	// first, err := os.StartProcess(dir2, []string{dir2, "-d"}, &os.ProcAttr{})
 	// if err != nil {
 	// 	log.Println(err)
@@ -110,7 +113,7 @@ func StartByArgument(configPath, sqlPath string) {
 	// log.Println(first.Pid)
 	// first.Wait()
 
-	cmd := exec.Command(dir2, "-d")
+	cmd := exec.Command(executablePath, "-d")
 	cmd.Run()
 	log.Println(cmd.Process.Pid)
 	// time.Sleep(time.Duration(500) * time.Millisecond)

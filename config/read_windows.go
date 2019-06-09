@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -16,7 +17,7 @@ import (
 func GetConfig(configPath string) map[string]string {
 	argument := map[string]string{}
 	argument["pidFile"] = configPath + "/shadowsocksr.pid"
-	argument["logFile"] = "/dev/null"
+	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
 	argument["ssrPath"] = configPath + `\shadowsocksr\shadowsocks/local.py`
 

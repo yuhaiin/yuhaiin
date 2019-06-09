@@ -2,14 +2,13 @@ package ssr_init
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	//"runtime"
 
 	//"path/filepath"
 	//"database/sql"
-
-	"path/filepath"
 
 	SsrDownload "../shadowsocksr"
 	"../subscription"
@@ -61,9 +60,13 @@ func MenuInit(path string) {
 	// file, _ := exec.LookPath(os.Args[0])
 	// path2, _ := filepath.Abs(file)
 	// rst := filepath.Dir(path2)
-	rst, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	// rst, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	executablePath, err := os.Executable()
+	if err != nil {
+		log.Println(err)
+	}
 	//fmt.Println(rst)
 
 	fmt.Println("当前配置文件目录:" + path)
-	fmt.Println("当前可执行文件目录:" + rst)
+	fmt.Println("当前可执行文件:" + executablePath)
 }

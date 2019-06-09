@@ -5,6 +5,7 @@ package ssr_init
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 
 	"../config"
@@ -16,7 +17,7 @@ func autoCreateConfig(configPath string) {
 	configFile := configPath + "/ssr_config.conf"
 	ssrPath := "#ssr_path" + configPath + "/shadowsocksr/shadowsocks/local.py #ssr路径" + inLine
 	pidFile := "pid-file " + configPath + "/shadowsocksr.pid" + inLine
-	logFile := "log-file /dev/null" + inLine
+	logFile := "log-file " + os.DevNull + inLine
 	fastOpen := "fast-open" + inLine
 	workers := "workers 8" + inLine
 	localAddress := "#local_address 127.0.0.1" + inLine
@@ -33,5 +34,9 @@ func autoCreateConfig(configPath string) {
 
 // GetConfigAndSQLPath <-- get the config path
 func GetConfigAndSQLPath() (configPath string, sqlPath string) {
-	return os.Getenv("HOME") + "/.config/SSRSub", os.Getenv("HOME") + "/.config/SSRSub" + "/SSR_config.db"
+	HOME, err := os.UserHomeDir()
+	if err != nil {
+		log.Println(err)
+	}
+	return HOME + "/.config/SSRSub", HOME + "/.config/SSRSub" + "/SSR_config.db"
 }
