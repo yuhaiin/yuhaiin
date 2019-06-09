@@ -31,7 +31,7 @@ func menu(configPath, sqlPath string) {
 			ssr_process.StartByArgument(configPath, sqlPath)
 		case "2":
 			_, exist := ssr_process.Get(configPath)
-			selectB := subscription.Ssr_server_node_change(sqlPath)
+			selectB := subscription.ChangeNowNode(sqlPath)
 			if exist == true && selectB != 0 {
 				ssr_process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
@@ -41,19 +41,19 @@ func menu(configPath, sqlPath string) {
 			// 	subscription.Ssr_server_node_change(db_path)
 			// }
 		case "3":
-			subscription.Delete_config_db(sqlPath)
-			subscription.Add_config_db(sqlPath)
+			subscription.DeleteAllNode(sqlPath)
+			subscription.AddAllNodeFromLink(sqlPath)
 		case "4":
 			fmt.Print("请输入要添加的订阅链接(一条):")
 			var linkTemp string
 			fmt.Scanln(&linkTemp)
-			subscription.Subscription_link_add(linkTemp, sqlPath)
+			subscription.AddLink(linkTemp, sqlPath)
 		case "5":
-			subscription.Subscription_link_delete(sqlPath)
+			subscription.LinkDelete(sqlPath)
 		case "6":
 			//delay_test_temp := config.Read_config_file(path)
 			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
-			getdelay.Get_tcp_delay(sqlPath)
+			getdelay.GetTCPDelay(sqlPath)
 		case "7":
 			ssr_process.Stop(configPath)
 		case "8":

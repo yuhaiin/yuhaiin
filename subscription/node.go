@@ -36,7 +36,10 @@ func GetAllNodeRemarksAndID(sqlPath string) [][]string {
 
 // SsrSQLChangeNode change now node
 func SsrSQLChangeNode(id, sqlPath string) {
-	db := Get_db(sqlPath)
+	db, err := sql.Open("sqlite3", sqlPath)
+	if err != nil {
+		fmt.Println(err)
+	}
 	defer db.Close()
 	db.Exec("BEGIN TRANSACTION;")
 	db.Exec("DELETE FROM SSR_present_node")
@@ -48,7 +51,10 @@ func SsrSQLChangeNode(id, sqlPath string) {
 
 // GetNowNode like name
 func GetNowNode(sqlPath string) string {
-	db := Get_db(sqlPath)
+	db, err := sql.Open("sqlite3", sqlPath)
+	if err != nil {
+		fmt.Println(err)
+	}
 	defer db.Close()
 	var remarks string
 	if err := db.QueryRow("SELECT remarks FROM SSR_present_node;").Scan(&remarks); err == sql.ErrNoRows {
@@ -112,5 +118,13 @@ func GetOneNodeAll(id, sqlPath string) map[string]string {
 		"password":    password,
 		"obfsparam":   obfsparam,
 		"protoparam":  protoparam,
+	}
+}
+
+// ShowAllNodeIDAndRemarks like name
+func ShowAllNodeIDAndRemarks(sqlPath string) {
+	IDAndRemarks := GetAllNodeRemarksAndID(sqlPath)
+	for _, IDAndRemarksB := range IDAndRemarks {
+		fmt.Println(IDAndRemarksB[0] + "." + IDAndRemarksB[1])
 	}
 }
