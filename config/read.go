@@ -34,7 +34,7 @@ func argumentMatch(argument map[string]string, configTemp2 []string) {
 		argument["acl"] = configTemp2[1]
 	case "timeout":
 		argument["timeout"] = configTemp2[1]
-	case "deamon":
-		argument["deamon"] = "-d start"
+		// case "daemon":
+		// 	argument["daemon"] = "-d start"
 	}
 }
