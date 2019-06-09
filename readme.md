@@ -21,7 +21,7 @@ go build SSRSub.go
 ./SSRSub
 ```
 
-- because the ssr_python deamon not support windows,so i use vgs to make ssr run in deamon and wirte pid to file,but the windows cmd a little slow to get process pid,so i set a 500ms wait to get pid.
+- because the ssr_python daemon not support windows,so i use vgs to make ssr run in daemon and write pid to file,but the windows cmd a little slow to get process pid,so i set a 500ms wait to get pid.
 - config file  
   it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub.
 
@@ -36,7 +36,7 @@ go build SSRSub.go
 #connect-verbose-info
 workers 8
 fast-open
-deamon
+daemon
 #pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid
 #log-file /dev/null
 ```

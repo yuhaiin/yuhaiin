@@ -13,7 +13,7 @@ import (
 
 func autoCreateConfig(configPath string) {
 	inLine := "\n"
-	deamon := "deamon" + inLine
+	// deamon := "deamon" + inLine
 	configFile := configPath + "/ssr_config.conf"
 	ssrPath := "#ssr_path" + configPath + "/shadowsocksr/shadowsocks/local.py #ssr路径" + inLine
 	pidFile := "pid-file " + configPath + "/shadowsocksr.pid" + inLine
@@ -27,7 +27,7 @@ func autoCreateConfig(configPath string) {
 	acl := ""
 	pythonPath := "#python_path " + config.GetPythonPath() + "#python路径" + inLine
 
-	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + deamon + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl
+	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl
 	fmt.Println(configConf)
 	ioutil.WriteFile(configFile, []byte(configConf), 0644)
 }
