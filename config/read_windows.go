@@ -16,15 +16,15 @@ import (
 // GetConfig <-- like this
 func GetConfig(configPath string) map[string]string {
 	argument := map[string]string{}
-	argument["pidFile"] = configPath + "/shadowsocksr.pid"
+	argument["pidFile"] = configPath + `\shadowsocksr.pid`
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
-	argument["ssrPath"] = configPath + `\shadowsocksr\shadowsocks/local.py`
+	argument["ssrPath"] = configPath + `\shadowsocksr\shadowsocks\local.py`
 
 	argument["localAddress"] = "127.0.0.1"
 	argument["localPort"] = "1080"
 
-	configTemp, err := ioutil.ReadFile(configPath + "/ssr_config.conf")
+	configTemp, err := ioutil.ReadFile(configPath + `\ssr_config.conf`)
 	if err != nil {
 		fmt.Println(err)
 	}
