@@ -67,9 +67,9 @@ func menu(configPath, sqlPath string) {
 func main() {
 	configPath, sqlPath := ssr_init.GetConfigAndSQLPath()
 
-	deamon := flag.Bool("d", false, "d")
+	daemon := flag.Bool("d", false, "d")
 	flag.Parse()
-	if *deamon == true {
+	if *daemon == true {
 		ssr_process.Start(configPath, sqlPath)
 	} else {
 		menu(configPath, sqlPath)

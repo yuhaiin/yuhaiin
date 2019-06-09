@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -45,7 +44,7 @@ func Stop(path string) {
 }
 
 // Get Get run status
-func Get(configPath string) (pid string, isexist bool) {
+func Get(configPath string) (pid string, isExist bool) {
 	// configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
 	pidTemp, err := ioutil.ReadFile(config.GetConfig(configPath)["pidFile"])
 	if err != nil {
@@ -71,9 +70,15 @@ func StartByArgument(configPath, sqlPath string) {
 		return
 	}
 
-	dir2, _ := filepath.Abs(os.Args[0])
-	log.Println(dir2)
-	first, err := os.StartProcess(dir2, []string{dir2, "-d"}, &os.ProcAttr{
+	// dir2, _ := filepath.Abs(os.Args[0])
+
+	executablePath, err := os.Executable()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	// log.Println(executablePath)
+	first, err := os.StartProcess(executablePath, []string{executablePath, "-d"}, &os.ProcAttr{
 		Sys: &syscall.SysProcAttr{
 			Setsid: true,
 		},
