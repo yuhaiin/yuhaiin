@@ -20,12 +20,10 @@ func PathExists(path string) bool {
 	if err != nil {
 		if os.IsExist(err) {
 			return true
-		} else {
-			return false
 		}
-	} else {
-		return true
+		return false
 	}
+	return true
 }
 
 // Init  <-- init
