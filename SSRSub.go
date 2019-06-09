@@ -59,7 +59,7 @@ func menu(configPath, sqlPath string) {
 		case "8":
 			os.Exit(0)
 		default:
-			fmt.Println("输入错误\n")
+			fmt.Println("输入错误")
 		}
 	}
 }
