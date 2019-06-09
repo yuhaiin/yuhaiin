@@ -14,8 +14,8 @@ import (
 	"../subscription"
 )
 
-// Path_exists 判断目录是否存在返回布尔类型
-func Path_exists(path string) bool {
+// PathExists 判断目录是否存在返回布尔类型
+func PathExists(path string) bool {
 	_, err := os.Stat(path)
 	if err != nil {
 		if os.IsExist(err) {
@@ -31,25 +31,25 @@ func Path_exists(path string) bool {
 // Init  <-- init
 func Init(configPath, sqlPath string) {
 	//判断目录是否存在 不存在则创建
-	if !Path_exists(configPath) {
+	if !PathExists(configPath) {
 		err := os.MkdirAll(configPath, os.ModePerm)
 		if err != nil {
 			fmt.Println(err)
 		}
 	}
 
-	if !Path_exists(sqlPath) {
-		go subscription.Subscription_link_init(sqlPath)
-		go subscription.Init_config_db(sqlPath)
-		go subscription.Ssr_server_node_init(sqlPath)
+	if !PathExists(sqlPath) {
+		subscription.LinkInit(sqlPath)
+		subscription.NodeInit(sqlPath)
+		subscription.NowNodeInit(sqlPath)
 		// Auto_create_config(config_path)
 	}
 
-	if !Path_exists(configPath + "/ssr_config.conf") {
+	if !PathExists(configPath + "/ssr_config.conf") {
 		autoCreateConfig(configPath)
 	}
 
-	if !Path_exists(configPath + "/shadowsocksr") {
+	if !PathExists(configPath + "/shadowsocksr") {
 		SsrDownload.Get_ssr_python(configPath)
 	}
 }

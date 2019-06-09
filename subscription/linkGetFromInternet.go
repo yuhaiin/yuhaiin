@@ -11,7 +11,7 @@ import (
 	"../base64d"
 )
 
-func http_get_subscription(url string) string {
+func getOneLinkBodyByHTTP(url string) string {
 	res, err := http.Get(url)
 	if err != nil {
 		fmt.Println(err)
@@ -41,49 +41,23 @@ func strBase64d(str []string, db *sql.DB) {
 	}
 }
 
-//添加所有订阅的所有节点(sqlite数据库)
-func Add_config_db(sql_path string) {
+// AddAllNodeFromLink 添加所有订阅的所有节点(sqlite数据库)
+func AddAllNodeFromLink(sqlPath string) {
 
 	//访问数据库
-	db := Get_db(sql_path)
+	db, err := sql.Open("sqlite3", sqlPath)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	defer db.Close()
 
-	var str_2 string
-	for _, subscription_link_temp := range Get_subscription_link(sql_path) {
+	var strB string
+	for _, linkTemp := range GetLink(sqlPath) {
 		//str_2 = append(str_2,base64d.Base64d(http_get_subscription(subscription_link_temp))...)
-		str_2 += base64d.Base64d(http_get_subscription(subscription_link_temp))
+		strB += base64d.Base64d(getOneLinkBodyByHTTP(linkTemp))
 	}
 	db.Exec("BEGIN TRANSACTION;")
-	strBase64d(strings.Split(str_2, "\n"), db)
-	db.Exec("COMMIT;")
-}
-
-//初始化节点列表
-func Init_config_db(sql_path string) {
-
-	//访问数据库
-	db := Get_db(sql_path)
-	defer db.Close()
-
-	db.Exec("BEGIN TRANSACTION;")
-	//创建表
-	db.Exec(`
-	CREATE TABLE IF NOT EXISTS SSR_info(
-        id INTERGER,
-        remarks TEXT,
-        server TEXT,
-        server_port TEXT,
-        protocol TEXT,
-        method TEXT,
-        obfs TEXT,
-        password TEXT,
-        obfsparam TEXT,
-        protoparam TEXT);
-	`)
-
-	//向表中插入none值
-	//db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(none,none,none,none,none,none,none,none,none,none)")
-
+	strBase64d(strings.Split(strB, "\n"), db)
 	db.Exec("COMMIT;")
 }
