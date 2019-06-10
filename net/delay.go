@@ -20,8 +20,12 @@ func (*delay) creat_dial(local_server, local_port string) net.Conn {
 }
 
 func (*delay) socks5_first_verify(conn net.Conn) error {
-	//发送socks5验证信息
-	//socks版本 连接方式 验证方式
+	// +------------------------------+
+	// |	   发送socks5验证信息        |
+	// +------------------------------+
+	// | socks版本 | 连接方式 | 验证方式 |
+	// +------------------------------+
+
 	_, err := conn.Write([]byte{5, 1, 0})
 	var b [2]byte
 	_, err = conn.Read(b[:])
@@ -34,10 +38,16 @@ func (*delay) socks5_first_verify(conn net.Conn) error {
 }
 
 func (*delay) socks5_second_verify(conn net.Conn) error {
-	// socks5 protocol
-	// socks_version link_style none ipv4/ipv6/domain address port
-	// socks5协议
-	// socks版本 连接方式 保留字节 域名/ipv4/ipv6 域名 端口
+	// +-----------------------------------------------------------------------+
+	// |					      socks5 protocol                              |
+	// +-----------------------------------------------------------------------+
+	// | socks_version | link_style | none | ipv4/ipv6/domain | address | port |
+	// +-----------------------------------------------------------------------+
+	// +-----------------------------------------------------------+
+	// |					   socks5协议                           |
+	// +-----------------------------------------------------------+
+	// | socks版本 | 连接方式 | 保留字节 | 域名/ipv4/ipv6 | 域名 | 端口 |
+	// +-----------------------------------------------------------+
 
 	domain := "www.google.com"
 	before := []byte{5, 1, 0, 3, byte(len(domain))}
