@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 
+	config "./config"
 	ssr_init "./init"
 	getdelay "./net"
 	ssr_process "./process"
@@ -13,14 +15,21 @@ import (
 )
 
 func menu(configPath, sqlPath string) {
+	languageString := config.GetFunctionString()
 	//初始化
 	ssr_init.Init(configPath, sqlPath)
 	//获取当前配置文件路径和可执行文件路径
-	ssr_init.MenuInit(configPath)
+	executablePath, err := os.Executable()
+	if err != nil {
+		log.Println(err)
+	}
+
+	fmt.Println(languageString["configPath"] + configPath)
+	fmt.Println(languageString["executablePath"] + executablePath)
 	//获取当前节点
-	fmt.Println("当前使用节点:", subscription.GetNowNode(sqlPath))
+	fmt.Println(languageString["nowNode"], subscription.GetNowNode(sqlPath))
 	for {
-		fmt.Print("1.开启ssr\n2.更换节点/查看所有节点\n3.更新所有订阅\n4.添加订阅链接\n5.删除订阅链接\n6.获取延迟\n7.结束ssr后台\n8.结束此程序(ssr后台运行)\n>>>")
+		fmt.Print(languageString["menu"])
 
 		var selectTemp string
 		fmt.Scanln(&selectTemp)
@@ -44,7 +53,7 @@ func menu(configPath, sqlPath string) {
 			subscription.DeleteAllNode(sqlPath)
 			subscription.AddAllNodeFromLink(sqlPath)
 		case "4":
-			fmt.Print("请输入要添加的订阅链接(一条):")
+			fmt.Print(">>> ")
 			var linkTemp string
 			fmt.Scanln(&linkTemp)
 			subscription.AddLink(linkTemp, sqlPath)
@@ -59,7 +68,7 @@ func menu(configPath, sqlPath string) {
 		case "8":
 			os.Exit(0)
 		default:
-			fmt.Println("输入错误")
+			fmt.Println(languageString["enterError"])
 		}
 	}
 }

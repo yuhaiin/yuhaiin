@@ -17,29 +17,34 @@ func Start(configPath, sqlPath string) {
 	// 	return
 	// }
 	argument := config.GetConfigArgument()
-	config := config.GetConfig(configPath)
-	node, _ := subscription.GetNowNodeAll(sqlPath)
-	nodeArgument := []string{"server", "serverPort", "protocol", "method", "obfs", "password", "obfsparam", "protoparam"}
-	argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
+	nodeAndConfig, _ := subscription.GetNowNodeAll(sqlPath)
+	for v, config := range config.GetConfig(configPath) {
+		nodeAndConfig[v] = config
+	}
+	nodeAndConfigArgument := []string{"server", "serverPort", "protocol", "method",
+		"obfs", "password", "obfsparam", "protoparam", "localAddress",
+		"localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
+	// argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
 	argumentSingle := []string{"fastOpen", "connectVerboseInfo"}
 
 	cmdArray := []string{}
-	if config["ssrPath"] != "" {
-		cmdArray = append(cmdArray, config["ssrPath"])
+	if nodeAndConfig["ssrPath"] != "" {
+		cmdArray = append(cmdArray, nodeAndConfig["ssrPath"])
 	}
-	for _, nodeA := range nodeArgument {
-		if node[nodeA] != "" {
-			cmdArray = append(cmdArray, argument[nodeA], node[nodeA])
+	for _, nodeA := range nodeAndConfigArgument {
+		if nodeAndConfig[nodeA] != "" {
+			cmdArray = append(cmdArray, argument[nodeA], nodeAndConfig[nodeA])
 		}
 	}
-	for _, argumentA := range argumentArgument {
-		if config[argumentA] != "" {
-			cmdArray = append(cmdArray, argument[argumentA], config[argumentA])
-		}
-	}
+	/*
+		for _, argumentA := range argumentArgument {
+			if config[argumentA] != "" {
+				cmdArray = append(cmdArray, argument[argumentA], config[argumentA])
+			}
+		}*/
 
 	for _, argumentS := range argumentSingle {
-		if config[argumentS] != "" {
+		if nodeAndConfig[argumentS] != "" {
 			cmdArray = append(cmdArray, argument[argumentS])
 		}
 	}
@@ -47,12 +52,12 @@ func Start(configPath, sqlPath string) {
 	// 	cmdArray = append(cmdArray, "-d", "start")
 	// }
 	// fmt.Println(cmdArray)
-	cmd := exec.Command(config["pythonPath"], cmdArray...)
+	cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
 	cmd.Start()
 	// cmd.Process.Release()
 	// cmd.Process.Signal(syscall.SIGUSR1)
 	// fmt.Println(cmd.Process.Pid, config["pidFile"])
-	ioutil.WriteFile(config["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+	ioutil.WriteFile(nodeAndConfig["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
 }
 
 // ----------------------------------old get status-------------------------------------------
