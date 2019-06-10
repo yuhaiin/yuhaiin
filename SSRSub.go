@@ -9,7 +9,7 @@ import (
 	config "./config"
 	ssr_init "./init"
 	getdelay "./net"
-	ssr_process "./process"
+	process "./process"
 	"./subscription"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -37,14 +37,14 @@ func menu(configPath, sqlPath string) {
 		switch selectTemp {
 		case "1":
 			// ssr_process.Start(path, db_path)
-			ssr_process.StartByArgument(configPath, sqlPath)
+			process.StartByArgument(configPath, sqlPath)
 		case "2":
-			_, exist := ssr_process.Get(configPath)
+			_, exist := process.Get(configPath)
 			selectB := subscription.ChangeNowNode(sqlPath)
 			if exist == true && selectB != 0 {
-				ssr_process.Stop(configPath)
+				process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
-				ssr_process.StartByArgument(configPath, sqlPath)
+				process.StartByArgument(configPath, sqlPath)
 			}
 			// } else {
 			// 	subscription.Ssr_server_node_change(db_path)
@@ -53,10 +53,12 @@ func menu(configPath, sqlPath string) {
 			subscription.DeleteAllNode(sqlPath)
 			subscription.AddAllNodeFromLink(sqlPath)
 		case "4":
-			fmt.Print(">>> ")
+			fmt.Print(config.GetFunctionString()["returnMenu"] + ">>> ")
 			var linkTemp string
 			fmt.Scanln(&linkTemp)
-			subscription.AddLink(linkTemp, sqlPath)
+			if linkTemp != "0" && linkTemp != "" {
+				subscription.AddLink(linkTemp, sqlPath)
+			}
 		case "5":
 			subscription.LinkDelete(sqlPath)
 		case "6":
@@ -64,8 +66,8 @@ func menu(configPath, sqlPath string) {
 			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
 			getdelay.GetTCPDelay(sqlPath)
 		case "7":
-			ssr_process.Stop(configPath)
-		case "8":
+			process.Stop(configPath)
+		case "8", "":
 			os.Exit(0)
 		default:
 			fmt.Println(languageString["enterError"])
@@ -79,7 +81,7 @@ func main() {
 	daemon := flag.Bool("d", false, "d")
 	flag.Parse()
 	if *daemon == true {
-		ssr_process.Start(configPath, sqlPath)
+		process.Start(configPath, sqlPath)
 	} else {
 		menu(configPath, sqlPath)
 	}

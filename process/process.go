@@ -1,4 +1,4 @@
-package ssr_process
+package process
 
 import (
 	"io/ioutil"

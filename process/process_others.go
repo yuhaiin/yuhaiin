@@ -1,6 +1,6 @@
 // +build !windows
 
-package ssr_process
+package process
 
 import (
 	"fmt"

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"../config"
 	"../subscription"
-	// _ "github.com/mattn/go-sqlite3"
 )
 
 // TCPDelay get once delay by tcp
@@ -62,7 +62,7 @@ func GetTCPDelay(sqlPath string) {
 
 	var SelectNum int
 	for {
-		fmt.Print("select one node to test delay >>> ")
+		fmt.Print(config.GetFunctionString()["returnMenu"])
 		fmt.Scanln(&SelectNum)
 		switch {
 		case SelectNum == 0:
@@ -78,7 +78,7 @@ func GetTCPDelay(sqlPath string) {
 			fmt.Print(remarks + "delay(3 times): ")
 			fmt.Println("average:", getTCPDelayAverage(server, serverPort))
 		default:
-			fmt.Println("enter error,please retry.")
+			fmt.Println(config.GetFunctionString()["enterError"])
 			continue
 		}
 	}

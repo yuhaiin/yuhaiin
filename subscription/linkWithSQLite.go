@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+
+	"../config"
 )
 
 // GetLink 读取订阅链接(数据库)
@@ -49,7 +51,7 @@ func LinkDelete(sqlPath string) {
 
 	err = db.QueryRow("SELECT link FROM subscription_link").Scan(err)
 	if err == sql.ErrNoRows {
-		log.Println("没有已经添加的订阅链接")
+		log.Println("there is no link to delete!")
 		return
 	}
 	rows, err := db.Query("SELECT link FROM subscription_link")
@@ -62,7 +64,7 @@ func LinkDelete(sqlPath string) {
 	for num, linkTemp := range links {
 		fmt.Println(strconv.Itoa(num+1) + "." + linkTemp)
 	}
-	fmt.Print("\n输入0返回菜单>>>")
+	fmt.Print(config.GetFunctionString()["returnMenu"] + ">>>")
 
 	var selectDelete int
 	fmt.Scanln(&selectDelete)
