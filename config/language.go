@@ -15,6 +15,7 @@ func GetFunctionString() map[string]string {
 			"configPath":     "配置文件目录: ",
 			"executablePath": "可执行文件目录: ",
 			"enterError":     "输入错误!",
+			"returnMenu":     "输入0返回菜单",
 		}
 	}
 	return map[string]string{
@@ -22,6 +23,7 @@ func GetFunctionString() map[string]string {
 		"nowNode":        "now node: ",
 		"configPath":     "config path: ",
 		"executablePath": "executable file path: ",
-		"enterError":     "enter error",
+		"enterError":     "enter error!",
+		"returnMenu":     "enter 0 return to menu",
 	}
 }

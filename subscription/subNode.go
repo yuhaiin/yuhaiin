@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+
+	"../config"
 )
 
 // ChangeNowNode 更换节点(数据库)
@@ -28,7 +30,7 @@ func ChangeNowNode(sqlPath string) int {
 	query.QueryRow().Scan(&num)
 	//fmt.Println(num)
 
-	fmt.Print("\n输入0返回菜单,输入列表前的数字更换节点>>>")
+	fmt.Print(config.GetFunctionString()["returnMenu"] + ">>> ")
 	var selectTemp int
 	fmt.Scanln(&selectTemp)
 	// if select_temp == 0 {
