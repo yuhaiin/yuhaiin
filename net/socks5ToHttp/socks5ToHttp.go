@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -451,17 +450,19 @@ func httpHandleClientRequest(client net.Conn) {
 		if strings.Contains(change1, "Proxy-Connection:") {
 			change1 = strings.ReplaceAll(change1, "Proxy-Connection:", "Connection:")
 		}
-		re, _ := regexp.Compile("GET http://.*/ HTTP/1.1")
-		change2 := re.ReplaceAllString(change1, "GET / HTTP/1.1")
+		// re, _ := regexp.Compile("GET http://.*/ HTTP/1.1")
+		// change2 := re.ReplaceAllString(change1, "GET / HTTP/1.1")
+		change2 := strings.ReplaceAll(change1, "http://"+address, "")
 		// change2 := strings.ReplaceAll(change1, "GET http://222.195.242.240:8080/ HTTP/1.1", "GET / HTTP/1.1")
 		c := []byte(change2)
 		// log.Println(string(c))
 		socks5.Write(c[:])
 	} else if method == "POST" {
-		re, _ := regexp.Compile("POST http://.*/ HTTP/1.1")
-		c := re.ReplaceAll(b[:], []byte("POST / HTTP/1.1"))
-		log.Println(string(c[:]))
-		socks5.Write(c[:])
+		// re, _ := regexp.Compile("POST http://.*/ HTTP/1.1")
+		// c := re.ReplaceAll(b[:], []byte("POST / HTTP/1.1"))
+		c := strings.ReplaceAll(string(b[:]), "http://"+address, "")
+		log.Println(c)
+		socks5.Write([]byte(c))
 	} else {
 		socks5.Write(b[:n])
 		log.Println("未使用connect隧道,转发!")
