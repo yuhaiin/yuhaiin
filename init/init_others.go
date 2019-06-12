@@ -5,7 +5,6 @@ package ssr_init
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 
 	"../config"
@@ -34,9 +33,5 @@ func autoCreateConfig(configPath string) {
 
 // GetConfigAndSQLPath <-- get the config path
 func GetConfigAndSQLPath() (configPath string, sqlPath string) {
-	HOME, err := os.UserHomeDir()
-	if err != nil {
-		log.Println(err)
-	}
-	return HOME + "/.config/SSRSub", HOME + "/.config/SSRSub" + "/SSR_config.db"
+	return os.Getenv("HOME") + "/.config/SSRSub", os.Getenv("HOME") + "/.config/SSRSub/SSR_config.db"
 }
