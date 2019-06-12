@@ -33,5 +33,5 @@ func autoCreateConfig(configPath string) {
 
 // GetConfigAndSQLPath <-- get the config path
 func GetConfigAndSQLPath() (configPath string, sqlPath string) {
-	return os.Getenv("USERPROFILE") + "\\Documents\\SSRSub", os.Getenv("USERPROFILE") + "\\Documents\\SSRSub" + "\\SSR_config.db"
+	return os.Getenv("USERPROFILE") + "\\Documents\\SSRSub", os.Getenv("USERPROFILE") + "\\Documents\\SSRSub\\SSR_config.db"
 }

@@ -15,8 +15,8 @@ import (
 )
 
 // Stop stop ssr process
-func Stop(path string) {
-	pid, exist := Get(path)
+func Stop(configPath string) {
+	pid, exist := Get(configPath)
 	if exist == true {
 
 		// cmd_temp = "kill " + pid

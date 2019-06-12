@@ -21,9 +21,11 @@ func Start(configPath, sqlPath string) {
 	for v, config := range config.GetConfig(configPath) {
 		nodeAndConfig[v] = config
 	}
+	// now not use
+	// logFile , PidFile
 	nodeAndConfigArgument := []string{"server", "serverPort", "protocol", "method",
 		"obfs", "password", "obfsparam", "protoparam", "localAddress",
-		"localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
+		"localPort", "workers", "acl", "timeout"}
 	// argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
 	argumentSingle := []string{"fastOpen", "connectVerboseInfo"}
 
