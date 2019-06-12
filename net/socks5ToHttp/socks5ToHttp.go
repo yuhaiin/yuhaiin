@@ -222,10 +222,6 @@ func socks5SecondVerify(conn net.Conn, address string) error {
 	// address.  The second reply occurs only after the anticipated incoming
 	// connection succeeds or fails.
 
-	// Leech, et al                Standards Track                     [Page 6]
-
-	// RFC 1928                SOCKS Protocol Version 5              March 1996
-
 	// In the second reply, the BND.PORT and BND.ADDR fields contain the
 	// address and port number of the connecting host.
 
