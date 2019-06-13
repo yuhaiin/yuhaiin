@@ -2,6 +2,7 @@ package process
 
 import (
 	"io/ioutil"
+	"log"
 	"os/exec"
 	"strconv"
 
@@ -50,6 +51,7 @@ func Start(configPath, sqlPath string) {
 			cmdArray = append(cmdArray, argument[argumentS])
 		}
 	}
+	log.Println(cmdArray)
 	// if runtime.GOOS != "windows" {
 	// 	cmdArray = append(cmdArray, "-d", "start")
 	// }
