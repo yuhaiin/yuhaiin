@@ -85,10 +85,10 @@ Todo:
 ```
 
 - [x] (give up)add bypass(↑↑↑ i cant run ssr in golang ↑↑↑)
-- [x] ss link compatible.
+- [x] ss link compatible.  
   - [ ] need more ss link template.
-- [x] support http proxy.
-        -already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.
+- [x] support http proxy.  
+  - already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add `-h` argument to show help.
 
