@@ -11,19 +11,22 @@ import (
 	"strings"
 )
 
-type delay struct{}
+type socks5client struct {
+	conn net.Conn
+}
 
-func creatDial(server, port string) net.Conn {
-	conn, err := net.Dial("tcp", server+":"+port)
+func (socks5client *socks5client) creatDial(server, port string) (net.Conn, error) {
+	var err error
+	socks5client.conn, err = net.Dial("tcp", server+":"+port)
 	if err != nil {
 		log.Println("请先连接ssr再进行测试")
 		log.Println(err)
-		return conn
+		return socks5client.conn, err
 	}
-	return conn
+	return socks5client.conn, nil
 }
 
-func socks5FirstVerify(conn net.Conn) error {
+func (socks5client *socks5client) socks5FirstVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// The client connects to the server, and sends a version
 	// identifier/method selection message:
@@ -79,19 +82,21 @@ func socks5FirstVerify(conn net.Conn) error {
 	// 0xFF 无可接受的方法
 
 	sendData := []byte{0x05, 0x01, 0x00}
-	log.Println(sendData)
-	_, err := conn.Write(sendData)
+	_, err := socks5client.conn.Write(sendData)
 	var getData [3]byte
-	_, err = conn.Read(getData[:])
+	_, err = socks5client.conn.Read(getData[:])
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	log.Println(getData)
+	if getData[0] != 0x05 || getData[1] == 0xFF {
+		return nil
+	}
+	log.Println(sendData, "<-->", getData)
 	return nil
 }
 
-func socks5SecondVerify(conn net.Conn, address string) error {
+func (socks5client *socks5client) socks5SecondVerify(address string) error {
 	// https://tools.ietf.org/html/rfc1928
 	// 	Once the method-dependent subnegotiation has completed, the client
 	// 	sends the request details.  If the negotiated method includes
@@ -332,25 +337,30 @@ func socks5SecondVerify(conn net.Conn, address string) error {
 	sendData = []byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))}
 	sendData = append(sendData, serverB...)
 	sendData = append(sendData, byte(portI>>8), byte(portI&255))
-	// }
-	log.Println(sendData)
-	_, err = conn.Write(sendData)
+	// }]
+	_, err = socks5client.conn.Write(sendData)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
 
-	var getData [11]byte
-	_, err = conn.Read(getData[:])
+	var getData [1024]byte
+	_, err = socks5client.conn.Read(getData[:])
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	log.Println(getData)
+	if getData[0] != 0x05 && getData[1] != 0x00 {
+		return nil
+	}
+	log.Println(sendData, "<-->", getData[0], getData[1])
 	return nil
 }
 
-func http(server, port string) {
+//
+//-----------------------------------------------------------------------------
+//
+func http(server, port, socks5Server, socks5Port string) error {
 	// var test delay
 	// err = test.socks5_second_verify(socks5)
 	// if err != nil {
@@ -361,28 +371,28 @@ func http(server, port string) {
 	l, err := net.Listen("tcp", server+":"+port)
 	if err != nil {
 		log.Panic(err)
+		return err
 	}
-
 	for {
 		client, err := l.Accept()
 		if err != nil {
 			log.Panic(err)
+			return err
 		}
-
-		go httpHandleClientRequest(client)
+		go httpHandleClientRequest(client, socks5Server, socks5Port)
 	}
-
 }
 
-func httpHandleClientRequest(client net.Conn) {
+func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 	fmt.Println("connect")
 	if client == nil {
 		return
 	}
 	defer client.Close()
 
-	var b [2048]byte
+	var b [3072]byte
 	n, err := client.Read(b[:])
+	log.Println("请求长度:", n)
 	if err != nil {
 		log.Println(err)
 		return
@@ -390,11 +400,18 @@ func httpHandleClientRequest(client net.Conn) {
 	// log.Println(string(b[:]))
 	// log.Println([]byte("Proxy-Connection"))
 	var method, host, address string
-	indexByte := bytes.IndexByte(b[:], '\n')
-	if indexByte >= 2048 && indexByte < 0 {
-		log.Println("越界错误")
+	// log.Println(b)
+	var indexByte int
+	if bytes.Contains(b[:], []byte("\n")) {
+		indexByte = bytes.IndexByte(b[:], '\n')
+	} else {
+		log.Println("请求不完整")
 		return
 	}
+	// if indexByte >= 3072 && indexByte < 0 {
+	// 	log.Println("越界错误")
+	// 	return
+	// }
 	_, err = fmt.Sscanf(string(b[:indexByte]), "%s%s", &method, &host)
 	if err != nil {
 		log.Println(err)
@@ -428,15 +445,24 @@ func httpHandleClientRequest(client net.Conn) {
 		}
 	}
 
-	log.Println(host, address, method)
-	//获得了请求的host和port，就开始拨号吧
-	socks5 := creatDial("127.0.0.1", "1080")
+	// log.Println(address, method)
+	var socks5client socks5client
+	socks5, err := socks5client.creatDial(socks5Server, socks5Port)
 	defer socks5.Close()
-	err = socks5FirstVerify(socks5)
 	if err != nil {
 		log.Println(err)
+		return
 	}
-	socks5SecondVerify(socks5, address)
+	err = socks5client.socks5FirstVerify()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	err = socks5client.socks5SecondVerify(address)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	// server, err := net.Dial("tcp", address)
 	// if err != nil {
 	// 	log.Println(err)
@@ -446,26 +472,46 @@ func httpHandleClientRequest(client net.Conn) {
 		// fmt.Fprintf(client, "HTTP/1.1 200 Connection established\r\n\r\n")
 		client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	} else if method == "GET" {
-		change1 := string(b[:])
-		if strings.Contains(change1, "Proxy-Connection:") {
-			change1 = strings.ReplaceAll(change1, "Proxy-Connection:", "Connection:")
+		log.Println(address, hostPortURL.Host)
+		newBefore := bytes.ReplaceAll(b[:n], []byte("http://"+address), []byte(""))
+		newBefore = bytes.ReplaceAll(newBefore[:], []byte("http://"+hostPortURL.Host), []byte(""))
+		var new []byte
+		if bytes.Contains(newBefore[:], []byte("Proxy-Connection:")) {
+			new = bytes.ReplaceAll(newBefore[:], []byte("Proxy-Connection:"), []byte("Connection:"))
+		} else {
+			new = newBefore
 		}
-		// re, _ := regexp.Compile("GET http://.*/ HTTP/1.1")
-		// change2 := re.ReplaceAllString(change1, "GET / HTTP/1.1")
-		change2 := strings.ReplaceAll(change1, "http://"+address, "")
-		// change2 := strings.ReplaceAll(change1, "GET http://222.195.242.240:8080/ HTTP/1.1", "GET / HTTP/1.1")
-		c := []byte(change2)
-		// log.Println(string(c))
-		socks5.Write(c[:])
+		// 	// change2 := strings.ReplaceAll(change1, "GET http://222.195.242.240:8080/ HTTP/1.1", "GET / HTTP/1.1")
+		log.Println(string(new[:]))
+		socks5.Write(new[:])
 	} else if method == "POST" {
 		// re, _ := regexp.Compile("POST http://.*/ HTTP/1.1")
 		// c := re.ReplaceAll(b[:], []byte("POST / HTTP/1.1"))
-		c := strings.ReplaceAll(string(b[:]), "http://"+address, "")
-		log.Println(c)
-		socks5.Write([]byte(c))
+		// c := strings.ReplaceAll(string(b[:]), "http://"+address, "")
+
+		newBefore := bytes.ReplaceAll(b[:n], []byte("http://"+address), []byte(""))
+		var new []byte
+		if bytes.Contains(newBefore[:], []byte("Proxy-Connection:")) {
+			new = bytes.ReplaceAll(newBefore[:], []byte("Proxy-Connection:"), []byte("Connection:"))
+		} else {
+			new = newBefore
+		}
+		// } else {
+		// 	new = b[:]
+		// }
+		log.Println(string(new), len(new))
+		socks5.Write(new[:len(new)/2])
+		socks5.Write(new[len(new)/2:])
 	} else {
-		socks5.Write(b[:n])
+		var new []byte
+		if bytes.Contains(b[:n], []byte("Proxy-Connection:")) {
+			new = bytes.ReplaceAll(b[:n], []byte("Proxy-Connection:"), []byte("Connection:"))
+		} else {
+			new = b[:n]
+		}
 		log.Println("未使用connect隧道,转发!")
+		log.Println(string(new))
+		socks5.Write(new)
 	}
 
 	go io.Copy(socks5, client)
@@ -495,7 +541,7 @@ func main() {
 	// 	log.Println(err)
 	// }
 	// conn.Close()
-	http("", "8081")
+	http("", "8081", "", "1080")
 
 	// test := 443
 	// fmt.Println(test >> 8)
@@ -522,11 +568,11 @@ func main() {
 	// sendData = append(sendData, byte(portI>>8), byte(portI&255))
 	// log.Println(sendData)
 
-	al, err := url.Parse("//127.0.0.1:80")
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println(al.Host)
+	// al, err := url.Parse("//127.0.0.1:80")
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+	// log.Println(al.Host)
 
 	// bug:
 	// 	2019/06/12 22:31:22 parse 104.200.153.211.prod.hosts.ooklaserver.net:80: first path segment in URL cannot contain colon
