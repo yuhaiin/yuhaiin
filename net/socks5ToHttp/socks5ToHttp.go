@@ -18,32 +18,41 @@ func (e errErr) Error() string {
 	return fmt.Sprintf(e.err)
 }
 
+// Socks5ToHTTP like name
+type Socks5ToHTTP struct {
+	HTTPListener             net.Listener
+	HTTPConn                 net.Conn
+	HTTPServer, HTTPPort     string
+	Socks5Server, Socks5Port string
+}
+
 // HTTPProxy http proxy
 // server http listen server,port http listen port
 // sock5Server socks5 server ip,socks5Port socks5 server port
-func HTTPProxy(server, port, socks5Server, socks5Port string) error {
+func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	l, err := net.Listen("tcp", server+":"+port)
+	var err error
+	socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
 	if err != nil {
 		return err
 	}
 	for {
-		client, err := l.Accept()
+		socks5ToHttp.HTTPConn, err = socks5ToHttp.HTTPListener.Accept()
 		if err != nil {
 			return err
 		}
-		go httpHandleClientRequest(client, socks5Server, socks5Port)
+		go socks5ToHttp.httpHandleClientRequest()
 	}
 }
 
-func httpHandleClientRequest(HTTPConn net.Conn, socks5Server, socks5Port string) {
-	if HTTPConn == nil {
+func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest() {
+	if socks5ToHttp.HTTPConn == nil {
 		return
 	}
-	defer HTTPConn.Close()
+	defer socks5ToHttp.HTTPConn.Close()
 
 	var requestData [3072]byte
-	requestDataSize, err := HTTPConn.Read(requestData[:])
+	requestDataSize, err := socks5ToHttp.HTTPConn.Read(requestData[:])
 	if err != nil {
 		log.Println("请求长度:", requestDataSize, err)
 		return
@@ -97,8 +106,13 @@ func httpHandleClientRequest(HTTPConn net.Conn, socks5Server, socks5Port string)
 		}
 	}
 	// log.Println(address, method)
-	var socks5client Socks5client
-	socks5Conn, err := socks5client.socks5Verify(socks5Server, socks5Port, address)
+	// var socks5client Socks5Client
+	socks5client := &Socks5Client{
+		Server:  socks5ToHttp.Socks5Server,
+		Port:    socks5ToHttp.Socks5Port,
+		Address: address,
+	}
+	socks5Conn, err := socks5client.socks5Verify()
 	if err != nil {
 		log.Println(err)
 		return
@@ -130,17 +144,18 @@ func httpHandleClientRequest(HTTPConn net.Conn, socks5Server, socks5Port string)
 	// 	log.Println(err)
 	// 	return
 	// }
-	httpMethodAnalyze(method, address, hostPortURL, requestData[:], requestDataSize, socks5Conn, HTTPConn)
+	socks5ToHttp.httpMethodAnalyze(method, address, hostPortURL, requestData[:],
+		requestDataSize, socks5Conn)
 
-	go io.Copy(socks5Conn, HTTPConn)
-	io.Copy(HTTPConn, socks5Conn)
+	go io.Copy(socks5Conn, socks5ToHttp.HTTPConn)
+	io.Copy(socks5ToHttp.HTTPConn, socks5Conn)
 }
 
-func httpMethodAnalyze(method, address string, hostPortURL *url.URL,
-	requestData []byte, requestDataSize int, socks5Conn, HTTPConn net.Conn) {
+func (socks5ToHttp *Socks5ToHTTP) httpMethodAnalyze(method, address string, hostPortURL *url.URL,
+	requestData []byte, requestDataSize int, socks5Conn net.Conn) {
 	if method == "CONNECT" {
 		// fmt.Fprintf(client, "HTTP/1.1 200 Connection established\r\n\r\n")
-		HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+		socks5ToHttp.HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	} else if method == "GET" {
 		log.Println(address, hostPortURL.Host)
 		newBefore := bytes.ReplaceAll(requestData[:requestDataSize], []byte("http://"+address), []byte(""))
