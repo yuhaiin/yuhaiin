@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+type errErr struct {
+	err string
+}
+
+func (e errErr) Error() string {
+	return fmt.Sprintf(e.err)
+}
+
 type socks5client struct {
 	conn net.Conn
 }
@@ -86,13 +94,14 @@ func (socks5client *socks5client) socks5FirstVerify() error {
 	var getData [3]byte
 	_, err = socks5client.conn.Read(getData[:])
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] == 0xFF {
-		return nil
+		return errErr{"socks5 first handshake failed!"}
 	}
-	log.Println(sendData, "<-->", getData)
+	// log.Println(sendData, "<-->", getData)
+	log.Println("socks5 first handshake successful!")
 	return nil
 }
 
@@ -300,7 +309,7 @@ func (socks5client *socks5client) socks5SecondVerify(address string) error {
 	serverB := []byte(serverAndPort[0])
 	portI, err := strconv.Atoi(serverAndPort[1])
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return err
 	}
 	var sendData []byte
@@ -334,26 +343,27 @@ func (socks5client *socks5client) socks5SecondVerify(address string) error {
 		} else {
 	*/
 	// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
-	sendData = []byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))}
-	sendData = append(sendData, serverB...)
-	sendData = append(sendData, byte(portI>>8), byte(portI&255))
+
+	sendData = append(append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))},
+		serverB...), byte(portI>>8), byte(portI&255))
 	// }]
 	_, err = socks5client.conn.Write(sendData)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return err
 	}
 
 	var getData [1024]byte
 	_, err = socks5client.conn.Read(getData[:])
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return err
 	}
 	if getData[0] != 0x05 && getData[1] != 0x00 {
-		return nil
+		return errErr{"socks5 second handshake failed!"}
 	}
-	log.Println(sendData, "<-->", getData[0], getData[1])
+	// log.Println(sendData, "<-->", getData[0], getData[1])
+	log.Println("socks5 second handshake successful!")
 	return nil
 }
 
@@ -370,13 +380,11 @@ func http(server, port, socks5Server, socks5Port string) error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	l, err := net.Listen("tcp", server+":"+port)
 	if err != nil {
-		log.Panic(err)
 		return err
 	}
 	for {
 		client, err := l.Accept()
 		if err != nil {
-			log.Panic(err)
 			return err
 		}
 		go httpHandleClientRequest(client, socks5Server, socks5Port)
@@ -384,7 +392,6 @@ func http(server, port, socks5Server, socks5Port string) error {
 }
 
 func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
-	fmt.Println("connect")
 	if client == nil {
 		return
 	}
@@ -412,6 +419,7 @@ func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 	// 	log.Println("越界错误")
 	// 	return
 	// }
+	log.Println(string(b[:indexByte]))
 	_, err = fmt.Sscanf(string(b[:indexByte]), "%s%s", &method, &host)
 	if err != nil {
 		log.Println(err)
@@ -420,8 +428,7 @@ func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 
 	var hostPortURL *url.URL
 	if strings.Contains(host, "http://") || strings.Contains(host, "https://") {
-		hostPortURL, err = url.Parse(host)
-		if err != nil {
+		if hostPortURL, err = url.Parse(host); err != nil {
 			log.Println(err)
 			log.Println(string(b[:]))
 			return
@@ -453,13 +460,13 @@ func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 		log.Println(err)
 		return
 	}
-	err = socks5client.socks5FirstVerify()
-	if err != nil {
+
+	if err = socks5client.socks5FirstVerify(); err != nil {
 		log.Println(err)
 		return
 	}
-	err = socks5client.socks5SecondVerify(address)
-	if err != nil {
+
+	if err = socks5client.socks5SecondVerify(address); err != nil {
 		log.Println(err)
 		return
 	}
@@ -541,7 +548,10 @@ func main() {
 	// 	log.Println(err)
 	// }
 	// conn.Close()
-	http("", "8081", "", "1080")
+
+	if err := http("", "8081", "", "1080"); err != nil {
+		log.Println(err)
+	}
 
 	// test := 443
 	// fmt.Println(test >> 8)
@@ -567,17 +577,6 @@ func main() {
 	// sendData = append(sendData, serverB...)
 	// sendData = append(sendData, byte(portI>>8), byte(portI&255))
 	// log.Println(sendData)
-
-	// al, err := url.Parse("//127.0.0.1:80")
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// log.Println(al.Host)
-
-	// bug:
-	// 	2019/06/12 22:31:22 parse 104.200.153.211.prod.hosts.ooklaserver.net:80: first path segment in URL cannot contain colon
-	// 	2019/06/12 22:31:22 <nil>
-
 }
 
 //
