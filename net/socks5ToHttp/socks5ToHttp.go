@@ -21,7 +21,6 @@ func (e errErr) Error() string {
 // Socks5ToHTTP like name
 type Socks5ToHTTP struct {
 	HTTPListener             net.Listener
-	HTTPConn                 net.Conn
 	HTTPServer, HTTPPort     string
 	Socks5Server, Socks5Port string
 }
@@ -37,22 +36,22 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 		return err
 	}
 	for {
-		socks5ToHttp.HTTPConn, err = socks5ToHttp.HTTPListener.Accept()
+		HTTPConn, err := socks5ToHttp.HTTPListener.Accept()
 		if err != nil {
 			return err
 		}
-		go socks5ToHttp.httpHandleClientRequest()
+		go socks5ToHttp.httpHandleClientRequest(HTTPConn)
 	}
 }
 
-func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest() {
-	if socks5ToHttp.HTTPConn == nil {
+func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) {
+	if HTTPConn == nil {
 		return
 	}
-	defer socks5ToHttp.HTTPConn.Close()
+	defer HTTPConn.Close()
 
 	var requestData [3072]byte
-	requestDataSize, err := socks5ToHttp.HTTPConn.Read(requestData[:])
+	requestDataSize, err := HTTPConn.Read(requestData[:])
 	if err != nil {
 		log.Println("请求长度:", requestDataSize, err)
 		return
@@ -145,17 +144,17 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest() {
 	// 	return
 	// }
 	socks5ToHttp.httpMethodAnalyze(method, address, hostPortURL, requestData[:],
-		requestDataSize, socks5Conn)
+		requestDataSize, socks5Conn, HTTPConn)
 
-	go io.Copy(socks5Conn, socks5ToHttp.HTTPConn)
-	io.Copy(socks5ToHttp.HTTPConn, socks5Conn)
+	go io.Copy(socks5Conn, HTTPConn)
+	io.Copy(HTTPConn, socks5Conn)
 }
 
 func (socks5ToHttp *Socks5ToHTTP) httpMethodAnalyze(method, address string, hostPortURL *url.URL,
-	requestData []byte, requestDataSize int, socks5Conn net.Conn) {
+	requestData []byte, requestDataSize int, socks5Conn, HTTPConn net.Conn) {
 	if method == "CONNECT" {
 		// fmt.Fprintf(client, "HTTP/1.1 200 Connection established\r\n\r\n")
-		socks5ToHttp.HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+		HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	} else if method == "GET" {
 		log.Println(address, hostPortURL.Host)
 		newBefore := bytes.ReplaceAll(requestData[:requestDataSize], []byte("http://"+address), []byte(""))
