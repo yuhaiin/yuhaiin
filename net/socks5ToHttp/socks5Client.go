@@ -3,6 +3,7 @@ package socks5ToHttp
 import (
 	"log"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -333,40 +334,26 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 		return err
 	}
 	var sendData []byte
-	/*
-		_, err = url.Parse(address)
-		if err != nil {
-			serverBB := strings.Split(serverAndPort[0], ".")
-			serverBBA, err := strconv.Atoi(serverBB[0])
-			if err != nil {
-				fmt.Println(err)
-				return err
-			}
-			serverBBB, err := strconv.Atoi(serverBB[1])
-			if err != nil {
-				fmt.Println(err)
-				return err
-			}
-			serverBBC, err := strconv.Atoi(serverBB[2])
-			if err != nil {
-				fmt.Println(err)
-				return err
-			}
-			serverBBD, err := strconv.Atoi(serverBB[3])
-			if err != nil {
-				fmt.Println(err)
-				return err
-			}
-			sendData = []byte{0x5, 0x01, 0x00, 0x01, byte(serverBBA),
-				byte(serverBBB), byte(serverBBC), byte(serverBBD),
-				byte(portI >> 8), byte(portI & 255)}
-		} else {
-	*/
-	// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
+	reE, _ := regexp.Compile("(?i)[a-z]{1,}")
+	reIPv4, _ := regexp.Compile("^([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3})$")
 
-	sendData = append(append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))},
-		serverB...), byte(portI>>8), byte(portI&255))
-	// }]
+	if !reE.Match(serverB) {
+		if reIPv4.Match(serverB) {
+			serverIPv4 := reIPv4.FindAllStringSubmatch(string(serverB), -1)
+			IPv4A, _ := strconv.Atoi(serverIPv4[0][1])
+			IPv4B, _ := strconv.Atoi(serverIPv4[0][2])
+			IPv4C, _ := strconv.Atoi(serverIPv4[0][3])
+			IPv4D, _ := strconv.Atoi(serverIPv4[0][4])
+			sendData = []byte{0x5, 0x01, 0x00, 0x01, byte(IPv4A),
+				byte(IPv4B), byte(IPv4C), byte(IPv4D), byte(portI >> 8), byte(portI & 255)}
+		}
+		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
+	} else {
+		sendData = append(
+			append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))}, serverB...),
+			byte(portI>>8), byte(portI&255))
+	}
+
 	_, err = socks5client.Conn.Write(sendData)
 	if err != nil {
 		log.Println(err)
