@@ -7,20 +7,24 @@ import (
 	"strings"
 )
 
-type Socks5client struct {
-	conn net.Conn
+// Socks5Client socks5 client
+type Socks5Client struct {
+	Conn               net.Conn
+	Username, Password string
+	Server, Port       string
+	Address            string
 }
 
-func (socks5client *Socks5client) creatDial(server, port string) (net.Conn, error) {
+func (socks5client *Socks5Client) creatDial() (net.Conn, error) {
 	var err error
-	socks5client.conn, err = net.Dial("tcp", server+":"+port)
+	socks5client.Conn, err = net.Dial("tcp", socks5client.Server+":"+socks5client.Port)
 	if err != nil {
-		return socks5client.conn, err
+		return socks5client.Conn, err
 	}
-	return socks5client.conn, nil
+	return socks5client.Conn, nil
 }
 
-func (socks5client *Socks5client) socks5FirstVerify() error {
+func (socks5client *Socks5Client) socks5FirstVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// The client connects to the server, and sends a version
 	// identifier/method selection message:
@@ -59,7 +63,6 @@ func (socks5client *Socks5client) socks5FirstVerify() error {
 	// The client and server then enter a method-specific sub-negotiation.
 
 	//
-	//
 	// +------------------------------+
 	// |	   发送socks5验证信息        |
 	// +------------------------------+
@@ -76,9 +79,9 @@ func (socks5client *Socks5client) socks5FirstVerify() error {
 	// 0xFF 无可接受的方法
 
 	sendData := []byte{0x05, 0x01, 0x00}
-	_, err := socks5client.conn.Write(sendData)
+	_, err := socks5client.Conn.Write(sendData)
 	var getData [3]byte
-	_, err = socks5client.conn.Read(getData[:])
+	_, err = socks5client.Conn.Read(getData[:])
 	if err != nil {
 		log.Println(err)
 		return err
@@ -86,12 +89,43 @@ func (socks5client *Socks5client) socks5FirstVerify() error {
 	if getData[0] != 0x05 || getData[1] == 0xFF {
 		return errErr{"socks5 first handshake failed!"}
 	}
+	// 	SOCKS5 用户名密码认证方式
+	// 在客户端、服务端协商使用用户名密码认证后，客户端发出用户名密码，格式为（以字节为单位）：
+	// +------------+-----------+------+---------+-----+
+	// | 鉴定协议版本 | 用户名长度	| 用户名 | 密码长度	| 密码 |
+	// +------------+-----------+------+---------+------+
+	// |      1	 |    1      |  动态 |    1    | 动态 |
+	// +------------+-----------+------+---------+------+
+	// 鉴定协议版本当前为 0x01.
+
+	// 服务器鉴定后发出如下回应：
+	// +----------+-------+
+	// |鉴定协议版本|鉴定状态|
+	// +----------+-------+
+	// |    1     |   1   |
+	// +----------+-------+
+	// 其中鉴定状态 0x00 表示成功，0x01 表示失败。
+	if getData[1] == 0x02 {
+		sendData := append(
+			append(
+				append(
+					[]byte{0x01, byte(len(socks5client.Username))},
+					[]byte(socks5client.Username)...),
+				byte(len(socks5client.Password))),
+			[]byte(socks5client.Password)...)
+		socks5client.Conn.Write(sendData)
+		var getData [3]byte
+		_, err = socks5client.Conn.Read(getData[:])
+		if getData[1] == 0x01 {
+			return errErr{"username or password not correct,socks5 handshake failed!"}
+		}
+	}
 	// log.Println(sendData, "<-->", getData)
 	log.Println("socks5 first handshake successful!")
 	return nil
 }
 
-func (socks5client *Socks5client) socks5SecondVerify(address string) error {
+func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// 	Once the method-dependent subnegotiation has completed, the client
 	// 	sends the request details.  If the negotiated method includes
@@ -291,7 +325,7 @@ func (socks5client *Socks5client) socks5SecondVerify(address string) error {
 	// head_temp := append(before, de...)
 	// sendData := append(head_temp, port...)
 
-	serverAndPort := strings.Split(address, ":")
+	serverAndPort := strings.Split(socks5client.Address, ":")
 	serverB := []byte(serverAndPort[0])
 	portI, err := strconv.Atoi(serverAndPort[1])
 	if err != nil {
@@ -333,14 +367,14 @@ func (socks5client *Socks5client) socks5SecondVerify(address string) error {
 	sendData = append(append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))},
 		serverB...), byte(portI>>8), byte(portI&255))
 	// }]
-	_, err = socks5client.conn.Write(sendData)
+	_, err = socks5client.Conn.Write(sendData)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
 
 	var getData [1024]byte
-	_, err = socks5client.conn.Read(getData[:])
+	_, err = socks5client.Conn.Read(getData[:])
 	if err != nil {
 		log.Println(err)
 		return err
@@ -353,31 +387,27 @@ func (socks5client *Socks5client) socks5SecondVerify(address string) error {
 	return nil
 }
 
-func (socks5client *Socks5client) socks5ThirdVerify() error {
-	return nil
-}
-
 // socks5Verify address
-func (socks5client *Socks5client) socks5Verify(server, port, address string) (net.Conn, error) {
+func (socks5client *Socks5Client) socks5Verify() (net.Conn, error) {
 	// var socks5client socks5client
 	var err error
-	socks5client.conn, err = socks5client.creatDial(server, port)
+	socks5client.Conn, err = socks5client.creatDial()
 	for err != nil {
 		log.Println("socks5 creat dial failed,10 seconds after retry.")
 		log.Println(err)
-		return socks5client.conn, err
+		return socks5client.Conn, err
 		// time.Sleep(10 * time.Second) // 10秒休む
 		// socks5, err = socks5client.creatDial(socks5Server, socks5Port)
 	}
 
 	if err = socks5client.socks5FirstVerify(); err != nil {
 		log.Println(err)
-		return socks5client.conn, err
+		return socks5client.Conn, err
 	}
 
-	if err = socks5client.socks5SecondVerify(address); err != nil {
+	if err = socks5client.socks5SecondVerify(); err != nil {
 		log.Println(err)
-		return socks5client.conn, err
+		return socks5client.Conn, err
 	}
-	return socks5client.conn, nil
+	return socks5client.Conn, nil
 }
