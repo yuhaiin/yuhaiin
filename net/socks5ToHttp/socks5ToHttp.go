@@ -1,4 +1,4 @@
-package main
+package socks5ToHttp
 
 import (
 	"bytes"
@@ -27,8 +27,6 @@ func (socks5client *socks5client) creatDial(server, port string) (net.Conn, erro
 	var err error
 	socks5client.conn, err = net.Dial("tcp", server+":"+port)
 	if err != nil {
-		log.Println("请先连接ssr再进行测试")
-		log.Println(err)
 		return socks5client.conn, err
 	}
 	return socks5client.conn, nil
@@ -370,7 +368,7 @@ func (socks5client *socks5client) socks5SecondVerify(address string) error {
 //
 //-----------------------------------------------------------------------------
 //
-func http(server, port, socks5Server, socks5Port string) error {
+func Http(server, port, socks5Server, socks5Port string) error {
 	// var test delay
 	// err = test.socks5_second_verify(socks5)
 	// if err != nil {
@@ -399,11 +397,11 @@ func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 
 	var b [3072]byte
 	n, err := client.Read(b[:])
-	log.Println("请求长度:", n)
 	if err != nil {
-		log.Println(err)
+		log.Println("请求长度:", n, err)
 		return
 	}
+	log.Println("请求长度:", n)
 	// log.Println(string(b[:]))
 	// log.Println([]byte("Proxy-Connection"))
 	var method, host, address string
@@ -455,11 +453,14 @@ func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 	// log.Println(address, method)
 	var socks5client socks5client
 	socks5, err := socks5client.creatDial(socks5Server, socks5Port)
-	defer socks5.Close()
-	if err != nil {
+	for err != nil {
+		log.Println("socks5 creat dial failed,10 seconds after retry.")
 		log.Println(err)
 		return
+		// time.Sleep(10 * time.Second) // 10秒休む
+		// socks5, err = socks5client.creatDial(socks5Server, socks5Port)
 	}
+	defer socks5.Close()
 
 	if err = socks5client.socks5FirstVerify(); err != nil {
 		log.Println(err)
@@ -489,7 +490,7 @@ func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 			new = newBefore
 		}
 		// 	// change2 := strings.ReplaceAll(change1, "GET http://222.195.242.240:8080/ HTTP/1.1", "GET / HTTP/1.1")
-		log.Println(string(new[:]))
+		// log.Println(string(new[:]))
 		socks5.Write(new[:])
 	} else if method == "POST" {
 		// re, _ := regexp.Compile("POST http://.*/ HTTP/1.1")
@@ -532,52 +533,52 @@ func httpHandleClientRequest(client net.Conn, socks5Server, socks5Port string) {
 	// }
 }
 
-func main() {
-	// var test delay
-	// conn := test.creat_dial("127.0.0.1", "1080")
-	// err := test.socks5_first_verify(conn)
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// err = test.socks5_second_verify(conn)
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// err = test.socks5_send_and_read(conn)
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// conn.Close()
+// func main() {
+// var test delay
+// conn := test.creat_dial("127.0.0.1", "1080")
+// err := test.socks5_first_verify(conn)
+// if err != nil {
+// 	log.Println(err)
+// }
+// err = test.socks5_second_verify(conn)
+// if err != nil {
+// 	log.Println(err)
+// }
+// err = test.socks5_send_and_read(conn)
+// if err != nil {
+// 	log.Println(err)
+// }
+// conn.Close()
 
-	if err := http("", "8081", "", "1080"); err != nil {
-		log.Println(err)
-	}
+// if err := Http("", "8081", "", "1080"); err != nil {
+// 	log.Println(err)
+// }
 
-	// test := 443
-	// fmt.Println(test >> 8)
-	// fmt.Println(test & 255)
+// test := 443
+// fmt.Println(test >> 8)
+// fmt.Println(test & 255)
 
-	// server := "google.com:443"
+// server := "google.com:443"
 
-	/* 判断是域名还是ip
-	s, err := url.Parse(server)
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println(s)
-	*/
-	// port := "443"
-	// serverB := []byte(server)
-	// portI, err := strconv.Atoi(port)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// // sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
-	// sendData := []byte{0x5, 0x01, 0x00, 0x03, byte(len(server))}
-	// sendData = append(sendData, serverB...)
-	// sendData = append(sendData, byte(portI>>8), byte(portI&255))
-	// log.Println(sendData)
+/* 判断是域名还是ip
+s, err := url.Parse(server)
+if err != nil {
+	log.Println(err)
 }
+log.Println(s)
+*/
+// port := "443"
+// serverB := []byte(server)
+// portI, err := strconv.Atoi(port)
+// if err != nil {
+// 	fmt.Println(err)
+// }
+// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
+// sendData := []byte{0x5, 0x01, 0x00, 0x03, byte(len(server))}
+// sendData = append(sendData, serverB...)
+// sendData = append(sendData, byte(portI>>8), byte(portI&255))
+// log.Println(sendData)
+// }
 
 //
 //
