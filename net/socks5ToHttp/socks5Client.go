@@ -1,7 +1,6 @@
 package socks5ToHttp
 
 import (
-	"log"
 	"net"
 	"net/url"
 	"strconv"
@@ -124,7 +123,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 		}
 	}
 	// log.Println(sendData, "<-->", getData)
-	log.Println("socks5 first handshake successful!")
+	// log.Println("socks5 first handshake successful!")
 	return nil
 }
 
@@ -379,7 +378,7 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 		return errErr{"socks5 second handshake failed!"}
 	}
 	// log.Println(sendData, "<-->", getData[0], getData[1])
-	log.Println("socks5 second handshake successful!")
+	// log.Println("socks5 second handshake successful!")
 	return nil
 }
 

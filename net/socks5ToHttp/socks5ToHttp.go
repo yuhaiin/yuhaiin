@@ -51,7 +51,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) {
 	}
 	defer HTTPConn.Close()
 
-	var requestData [3072]byte
+	var requestData [1024 * 4]byte
 	requestDataSize, err := HTTPConn.Read(requestData[:])
 	if err != nil {
 		log.Println("请求长度:", requestDataSize, err)
@@ -116,25 +116,29 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) {
 	}
 	defer socks5Conn.Close()
 
-	// if err = socks5client.socks5FirstVerify(); err != nil {
-	// 	log.Println(err)
-	// 	return
-	// }
-
-	// if err = socks5client.socks5SecondVerify(address); err != nil {
-	// 	log.Println(err)
-	// 	return
-	// }
-
-	// var b [1024]byte
-	// _, err := client.Read(b[:])
-	// if err != nil {
-	// 	log.Println(err)
-	// 	return
-	// }
 	socks5ToHttp.httpMethodAnalyze(method, address, hostPortURL, requestData[:],
 		requestDataSize, socks5Conn, HTTPConn)
 
+	// go func() {
+	// 	for {
+	// 		var socks5Data [1024 * 2]byte
+	// 		n, err := socks5Conn.Read(socks5Data[:])
+	// 		if err != nil {
+	// 			return
+	// 		}
+	// 		HTTPConn.Write(socks5Data[:n])
+	// 	}
+	// }()
+	// func() {
+	// 	for {
+	// 		var socks5Data [1024 * 2]byte
+	// 		n, err := HTTPConn.Read(socks5Data[:])
+	// 		if err != nil {
+	// 			return
+	// 		}
+	// 		socks5Conn.Write(socks5Data[:n])
+	// 	}
+	// }()
 	go io.Copy(socks5Conn, HTTPConn)
 	io.Copy(HTTPConn, socks5Conn)
 }
@@ -142,7 +146,6 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) {
 func (socks5ToHttp *Socks5ToHTTP) httpMethodAnalyze(method, address string, hostPortURL *url.URL,
 	requestData []byte, requestDataSize int, socks5Conn, HTTPConn net.Conn) {
 	if method == "CONNECT" {
-		// fmt.Fprintf(client, "HTTP/1.1 200 Connection established\r\n\r\n")
 		HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	} else if method == "GET" {
 		log.Println(address, hostPortURL.Host)
@@ -154,26 +157,26 @@ func (socks5ToHttp *Socks5ToHTTP) httpMethodAnalyze(method, address string, host
 		} else {
 			new = newBefore
 		}
-		// 	// change2 := strings.ReplaceAll(change1, "GET http://222.195.242.240:8080/ HTTP/1.1", "GET / HTTP/1.1")
-		// log.Println(string(new[:]))
-		socks5Conn.Write(new[:])
+		if _, err := socks5Conn.Write(new[:]); err != nil {
+			log.Println(err)
+			return
+		}
 	} else if method == "POST" {
-		// re, _ := regexp.Compile("POST http://.*/ HTTP/1.1")
-		// c := re.ReplaceAll(b[:], []byte("POST / HTTP/1.1"))
-		// c := strings.ReplaceAll(string(b[:]), "http://"+address, "")
 
 		newBefore := bytes.ReplaceAll(requestData[:requestDataSize], []byte("http://"+address), []byte(""))
+		newBefore = bytes.ReplaceAll(newBefore[:], []byte("http://"+hostPortURL.Host), []byte(""))
+		// re, _ := regexp.Compile("User-Agent: .*\r\n")
+		// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
 		var new []byte
 		if bytes.Contains(newBefore[:], []byte("Proxy-Connection:")) {
 			new = bytes.ReplaceAll(newBefore[:], []byte("Proxy-Connection:"), []byte("Connection:"))
 		} else {
 			new = newBefore
 		}
-		// } else {
-		// 	new = b[:]
-		// }
-		log.Println(string(new), len(new))
-		socks5Conn.Write(new[:])
+		if _, err := socks5Conn.Write(new[:]); err != nil {
+			log.Println(err)
+			return
+		}
 	} else {
 		var new []byte
 		if bytes.Contains(requestData[:requestDataSize], []byte("Proxy-Connection:")) {
@@ -181,9 +184,10 @@ func (socks5ToHttp *Socks5ToHTTP) httpMethodAnalyze(method, address string, host
 		} else {
 			new = requestData[:requestDataSize]
 		}
-		log.Println("未使用connect隧道,转发!")
-		log.Println(string(new))
-		socks5Conn.Write(new)
+		if _, err := socks5Conn.Write(new[:]); err != nil {
+			log.Println(err)
+			return
+		}
 	}
 }
 
