@@ -3,11 +3,15 @@ package socks5ToHttp
 import (
 	"log"
 	"net"
+	"net/url"
 	"strconv"
-	"strings"
 )
 
 // Socks5Client socks5 client
+// Conn will auto create
+// if you socks5 need username and password please init it
+// Server and Port is socks5 server's ip/domain and port
+// Address need port,for example:www.google.com:443,1.1.1.1:443,[::1]:8080 <-- ipv6 need []
 type Socks5Client struct {
 	Conn               net.Conn
 	Username, Password string
@@ -325,9 +329,15 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// head_temp := append(before, de...)
 	// sendData := append(head_temp, port...)
 
-	serverAndPort := strings.Split(socks5client.Address, ":")
-	serverB := serverAndPort[0]
-	portI, err := strconv.Atoi(serverAndPort[1])
+	// serverAndPort := strings.Split(socks5client.Address, ":")
+	// serverB := serverAndPort[0]
+	// portI, err := strconv.Atoi(serverAndPort[1])
+	address, err := url.Parse("//" + socks5client.Address)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	serverPort, err := strconv.Atoi(address.Port())
 	if err != nil {
 		log.Println(err)
 		return err
@@ -336,24 +346,26 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// reE, _ := regexp.Compile("(?i)[a-z]{1,}")
 	// reIPv4, _ := regexp.Compile("^([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3})$")
 
-	if serverIP := net.ParseIP(serverB); serverIP != nil {
+	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
 		if serverIP.To4() != nil {
 			serverIPv4 := serverIP.To4()
 			sendData = []byte{0x5, 0x01, 0x00, 0x01, serverIPv4[0],
 				serverIPv4[1], serverIPv4[2], serverIPv4[3],
-				byte(portI >> 8), byte(portI & 255)}
+				byte(serverPort >> 8), byte(serverPort & 255)}
 		} else {
 			serverIPv6 := serverIP.To16()
 			sendData = append(
 				append(
 					[]byte{0x5, 0x01, 0x00, 0x01}, serverIPv6...),
-				byte(portI>>8), byte(portI&255))
+				byte(serverPort>>8), byte(serverPort&255))
 		}
 		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
 	} else {
 		sendData = append(
-			append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))}, []byte(serverB)...),
-			byte(portI>>8), byte(portI&255))
+			append(
+				[]byte{0x5, 0x01, 0x00, 0x03, byte(len(address.Hostname()))},
+				[]byte(address.Hostname())...), byte(serverPort>>8),
+			byte(serverPort&255))
 	}
 
 	_, err = socks5client.Conn.Write(sendData)
