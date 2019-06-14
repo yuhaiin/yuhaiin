@@ -356,7 +356,7 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 			serverIPv6 := serverIP.To16()
 			sendData = append(
 				append(
-					[]byte{0x5, 0x01, 0x00, 0x01}, serverIPv6...),
+					[]byte{0x5, 0x01, 0x00, 0x04}, serverIPv6...),
 				byte(serverPort>>8), byte(serverPort&255))
 		}
 		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
@@ -388,17 +388,16 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	return nil
 }
 
-// socks5Verify address
-func (socks5client *Socks5Client) socks5Verify() (net.Conn, error) {
+// NewSocks5Client <--
+func (socks5client *Socks5Client) NewSocks5Client() (net.Conn, error) {
 	// var socks5client socks5client
 	var err error
 	socks5client.Conn, err = socks5client.creatDial()
 	for err != nil {
-		log.Println("socks5 creat dial failed,10 seconds after retry.")
+		log.Println("socks5 creat dial failed.")
 		log.Println(err)
 		return socks5client.Conn, err
 		// time.Sleep(10 * time.Second) // 10秒休む
-		// socks5, err = socks5client.creatDial(socks5Server, socks5Port)
 	}
 
 	if err = socks5client.socks5FirstVerify(); err != nil {

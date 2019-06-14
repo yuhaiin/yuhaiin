@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"runtime"
 	"strings"
 )
 
@@ -56,7 +57,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) {
 		log.Println("请求长度:", requestDataSize, err)
 		return
 	}
-	log.Println("请求长度:", requestDataSize)
+	log.Println("请求长度:", requestDataSize, "线程数:", runtime.NumGoroutine())
 	// log.Println(string(b[:]))
 	// log.Println([]byte("Proxy-Connection"))
 	var method, host, address string
@@ -105,27 +106,15 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) {
 		}
 	}
 	// log.Println(address, method)
-	// var socks5client Socks5Client
-	socks5client := &Socks5Client{
+	socks5Conn, err := (&Socks5Client{
 		Server:  socks5ToHttp.Socks5Server,
 		Port:    socks5ToHttp.Socks5Port,
-		Address: address,
-	}
-	socks5Conn, err := socks5client.socks5Verify()
+		Address: address}).NewSocks5Client()
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer socks5Conn.Close()
-	// socks5, err := socks5client.creatDial(socks5Server, socks5Port)
-	// for err != nil {
-	// 	log.Println("socks5 creat dial failed,10 seconds after retry.")
-	// 	log.Println(err)
-	// 	return
-	// 	// time.Sleep(10 * time.Second) // 10秒休む
-	// 	// socks5, err = socks5client.creatDial(socks5Server, socks5Port)
-	// }
-	// defer socks5.Close()
 
 	// if err = socks5client.socks5FirstVerify(); err != nil {
 	// 	log.Println(err)
@@ -184,8 +173,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpMethodAnalyze(method, address string, host
 		// 	new = b[:]
 		// }
 		log.Println(string(new), len(new))
-		socks5Conn.Write(new[:len(new)/2])
-		socks5Conn.Write(new[len(new)/2:])
+		socks5Conn.Write(new[:])
 	} else {
 		var new []byte
 		if bytes.Contains(requestData[:requestDataSize], []byte("Proxy-Connection:")) {
