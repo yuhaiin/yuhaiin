@@ -3,7 +3,6 @@ package socks5ToHttp
 import (
 	"log"
 	"net"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -327,30 +326,33 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// sendData := append(head_temp, port...)
 
 	serverAndPort := strings.Split(socks5client.Address, ":")
-	serverB := []byte(serverAndPort[0])
+	serverB := serverAndPort[0]
 	portI, err := strconv.Atoi(serverAndPort[1])
 	if err != nil {
 		log.Println(err)
 		return err
 	}
 	var sendData []byte
-	reE, _ := regexp.Compile("(?i)[a-z]{1,}")
-	reIPv4, _ := regexp.Compile("^([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3})$")
+	// reE, _ := regexp.Compile("(?i)[a-z]{1,}")
+	// reIPv4, _ := regexp.Compile("^([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3})$")
 
-	if !reE.Match(serverB) {
-		if reIPv4.Match(serverB) {
-			serverIPv4 := reIPv4.FindAllStringSubmatch(string(serverB), -1)
-			IPv4A, _ := strconv.Atoi(serverIPv4[0][1])
-			IPv4B, _ := strconv.Atoi(serverIPv4[0][2])
-			IPv4C, _ := strconv.Atoi(serverIPv4[0][3])
-			IPv4D, _ := strconv.Atoi(serverIPv4[0][4])
-			sendData = []byte{0x5, 0x01, 0x00, 0x01, byte(IPv4A),
-				byte(IPv4B), byte(IPv4C), byte(IPv4D), byte(portI >> 8), byte(portI & 255)}
+	if serverIP := net.ParseIP(serverB); serverIP != nil {
+		if serverIP.To4() != nil {
+			serverIPv4 := serverIP.To4()
+			sendData = []byte{0x5, 0x01, 0x00, 0x01, serverIPv4[0],
+				serverIPv4[1], serverIPv4[2], serverIPv4[3],
+				byte(portI >> 8), byte(portI & 255)}
+		} else {
+			serverIPv6 := serverIP.To16()
+			sendData = append(
+				append(
+					[]byte{0x5, 0x01, 0x00, 0x01}, serverIPv6...),
+				byte(portI>>8), byte(portI&255))
 		}
 		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
 	} else {
 		sendData = append(
-			append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))}, serverB...),
+			append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(serverB))}, []byte(serverB)...),
 			byte(portI>>8), byte(portI&255))
 	}
 
