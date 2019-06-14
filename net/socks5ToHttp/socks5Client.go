@@ -87,7 +87,6 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 	var getData [3]byte
 	_, err = socks5client.Conn.Read(getData[:])
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] == 0xFF {
@@ -334,12 +333,10 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// portI, err := strconv.Atoi(serverAndPort[1])
 	address, err := url.Parse("//" + socks5client.Address)
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 	serverPort, err := strconv.Atoi(address.Port())
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 	var sendData []byte
@@ -370,14 +367,12 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 
 	_, err = socks5client.Conn.Write(sendData)
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
 	var getData [1024]byte
 	_, err = socks5client.Conn.Read(getData[:])
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 	if getData[0] != 0x05 && getData[1] != 0x00 {
@@ -394,19 +389,15 @@ func (socks5client *Socks5Client) NewSocks5Client() (net.Conn, error) {
 	var err error
 	socks5client.Conn, err = socks5client.creatDial()
 	for err != nil {
-		log.Println("socks5 creat dial failed.")
-		log.Println(err)
 		return socks5client.Conn, err
 		// time.Sleep(10 * time.Second) // 10秒休む
 	}
 
 	if err = socks5client.socks5FirstVerify(); err != nil {
-		log.Println(err)
 		return socks5client.Conn, err
 	}
 
 	if err = socks5client.socks5SecondVerify(); err != nil {
-		log.Println(err)
 		return socks5client.Conn, err
 	}
 	return socks5client.Conn, nil
