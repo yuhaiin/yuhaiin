@@ -69,6 +69,8 @@ func menu(configPath, sqlPath string) {
 			process.Stop(configPath)
 		case "8", "":
 			os.Exit(0)
+		case "9":
+			getdelay.StartHTTPByArgumentB()
 		default:
 			fmt.Println(languageString["enterError"])
 		}
@@ -79,9 +81,16 @@ func main() {
 	configPath, sqlPath := ssr_init.GetConfigAndSQLPath()
 
 	daemon := flag.Bool("d", false, "d")
+	http := flag.Bool("http", false, "http")
+
+	httpB := flag.Bool("httpB", false, "httpB")
 	flag.Parse()
 	if *daemon == true {
 		process.Start(configPath, sqlPath)
+	} else if *http == true {
+		getdelay.StartHTTP(configPath)
+	} else if *httpB == true {
+		getdelay.StartHTTPByArgument()
 	} else {
 		menu(configPath, sqlPath)
 	}
