@@ -321,17 +321,6 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// 0x04 IPv6地址，16个字节长度。
 	// DST.ADDR 目的地址
 	// DST.PORT 网络字节序表示的目的端口
-
-	// domain := "www.google.com"
-	// before := []byte{5, 1, 0, 3, byte(len(server))}
-	// de := []byte(domain)
-	// port := []byte{0x01, 0xbb}
-	// head_temp := append(before, de...)
-	// sendData := append(head_temp, port...)
-
-	// serverAndPort := strings.Split(socks5client.Address, ":")
-	// serverB := serverAndPort[0]
-	// portI, err := strconv.Atoi(serverAndPort[1])
 	address, err := url.Parse("//" + socks5client.Address)
 	if err != nil {
 		return err
@@ -341,20 +330,15 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 		return err
 	}
 	var sendData []byte
-	// reE, _ := regexp.Compile("(?i)[a-z]{1,}")
-	// reIPv4, _ := regexp.Compile("^([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3})$")
-
 	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
-		if serverIP.To4() != nil {
-			serverIPv4 := serverIP.To4()
+		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
 			sendData = []byte{0x5, 0x01, 0x00, 0x01, serverIPv4[0],
 				serverIPv4[1], serverIPv4[2], serverIPv4[3],
 				byte(serverPort >> 8), byte(serverPort & 255)}
 		} else {
-			serverIPv6 := serverIP.To16()
 			sendData = append(
 				append(
-					[]byte{0x5, 0x01, 0x00, 0x04}, serverIPv6...),
+					[]byte{0x5, 0x01, 0x00, 0x04}, serverIP.To16()...),
 				byte(serverPort>>8), byte(serverPort&255))
 		}
 		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
@@ -366,17 +350,15 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 			byte(serverPort&255))
 	}
 
-	_, err = socks5client.Conn.Write(sendData)
-	if err != nil {
+	if _, err = socks5client.Conn.Write(sendData); err != nil {
 		return err
 	}
 
-	var getData [1024]byte
-	_, err = socks5client.Conn.Read(getData[:])
-	if err != nil {
+	getData := make([]byte, 1024)
+	if _, err = socks5client.Conn.Read(getData[:]); err != nil {
 		return err
 	}
-	if getData[0] != 0x05 && getData[1] != 0x00 {
+	if getData[0] != 0x05 || getData[1] != 0x00 {
 		return errErr{"socks5 second handshake failed!"}
 	}
 	// log.Println(sendData, "<-->", getData[0], getData[1])
