@@ -18,7 +18,7 @@ func (e err) Error() string {
 
 func ssRe(str string) (map[string]string, error) {
 	ssRe, _ := regexp.Compile("(.*):(.*)@(.*):([0-9]*)")
-	node := map[string]string{}
+	node := make(map[string]string)
 	ss := ssRe.FindAllStringSubmatch(base64d.Base64d(str), -1)
 	if len(ss) != 0 {
 		node["template"] = "ss"
@@ -37,7 +37,7 @@ func ssrRe(str string) (map[string]string, error) {
 	// ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)/?obfsparam=(.*)&protoparam=(.*)&remarks=(.*)&group=(.*)")
 	ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)(.*)")
 	ssrReB, _ := regexp.Compile(".*/\\?(.*)")
-	node := map[string]string{}
+	node := make(map[string]string)
 	ssr := ssrRe.FindAllStringSubmatch(base64d.Base64d(str), -1)
 	ssrB := ssrReB.FindAllStringSubmatch(base64d.Base64d(str), -1)
 
@@ -81,7 +81,7 @@ func ssrRe(str string) (map[string]string, error) {
 func GetNode(link string) (map[string]string, error) {
 	re, _ := regexp.Compile("(.*)://(.*)")
 	ssOrSsr := re.FindAllStringSubmatch(link, -1)
-	var node map[string]string
+	node := make(map[string]string)
 	switch ssOrSsr[0][1] {
 	case "ss":
 		ss, err := ssRe(ssOrSsr[0][2])
