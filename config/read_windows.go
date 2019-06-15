@@ -15,7 +15,7 @@ import (
 
 // GetConfig <-- like this
 func GetConfig(configPath string) map[string]string {
-	argument := map[string]string{}
+	argument := make(map[string]string)
 	argument["pidFile"] = configPath + `\shadowsocksr.pid`
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
