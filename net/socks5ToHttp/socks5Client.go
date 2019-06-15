@@ -12,10 +12,12 @@ import (
 // Server and Port is socks5 server's ip/domain and port
 // Address need port,for example:www.google.com:443,1.1.1.1:443,[::1]:8080 <-- ipv6 need []
 type Socks5Client struct {
-	Conn               net.Conn
-	Username, Password string
-	Server, Port       string
-	Address            string
+	Conn     net.Conn
+	Username string
+	Password string
+	Server   string
+	Port     string
+	Address  string
 }
 
 func (socks5client *Socks5Client) creatDial() (net.Conn, error) {
@@ -83,7 +85,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 
 	sendData := []byte{0x05, 0x01, 0x00}
 	_, err := socks5client.Conn.Write(sendData)
-	var getData [3]byte
+	getData := make([]byte, 3)
 	_, err = socks5client.Conn.Read(getData[:])
 	if err != nil {
 		return err
@@ -116,7 +118,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 				byte(len(socks5client.Password))),
 			[]byte(socks5client.Password)...)
 		socks5client.Conn.Write(sendData)
-		var getData [3]byte
+		getData := make([]byte, 3)
 		_, err = socks5client.Conn.Read(getData[:])
 		if getData[1] == 0x01 {
 			return errErr{"username or password not correct,socks5 handshake failed!"}
