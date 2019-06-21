@@ -168,28 +168,28 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		}
 	}
 
-	go func() {
-		for {
-			socks5Data := make([]byte, 1024*2)
-			n, err := socks5Conn.Read(socks5Data[:])
-			if err != nil {
-				return
-			}
-			HTTPConn.Write(socks5Data[:n])
-		}
-	}()
-	func() {
-		for {
-			socks5Data := make([]byte, 1024*2)
-			n, err := HTTPConn.Read(socks5Data[:])
-			if err != nil {
-				return
-			}
-			socks5Conn.Write(socks5Data[:n])
-		}
-	}()
-	// go io.Copy(socks5Conn, HTTPConn)
-	// io.Copy(HTTPConn, socks5Conn)
+	// go func() {
+	// 	for {
+	// 		socks5Data := make([]byte, 1024*2)
+	// 		n, err := socks5Conn.Read(socks5Data[:])
+	// 		if err != nil {
+	// 			return
+	// 		}
+	// 		HTTPConn.Write(socks5Data[:n])
+	// 	}
+	// }()
+	// func() {
+	// 	for {
+	// 		socks5Data := make([]byte, 1024*2)
+	// 		n, err := HTTPConn.Read(socks5Data[:])
+	// 		if err != nil {
+	// 			return
+	// 		}
+	// 		socks5Conn.Write(socks5Data[:n])
+	// 	}
+	// }()
+	go io.Copy(socks5Conn, HTTPConn)
+	io.Copy(HTTPConn, socks5Conn)
 	return nil
 }
 
