@@ -4,9 +4,9 @@
 
 [![license](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
 [![releases](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
-[![codebeat badge](https://codebeat.co/badges/ce94a347-64b1-4ee3-9b18-b95858e1c6b4)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/SsrMicroClient)](https://goreportcard.com/report/github.com/Asutorufa/SsrMicroClient)
 ![languages](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
-
+<!-- [![codebeat badge](https://codebeat.co/badges/ce94a347-64b1-4ee3-9b18-b95858e1c6b4)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master) -->
 How to use:
 
 - download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases) binary file.if not have your platform ,please build it by yourself.
