@@ -85,6 +85,9 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 
 	sendData := []byte{0x05, 0x01, 0x00}
 	_, err := socks5client.Conn.Write(sendData)
+	if err != nil {
+		return err
+	}
 	getData := make([]byte, 3)
 	_, err = socks5client.Conn.Read(getData[:])
 	if err != nil {
@@ -120,6 +123,9 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 		socks5client.Conn.Write(sendData)
 		getData := make([]byte, 3)
 		_, err = socks5client.Conn.Read(getData[:])
+		if err != nil {
+			return err
+		}
 		if getData[1] == 0x01 {
 			return errErr{"username or password not correct,socks5 handshake failed!"}
 		}

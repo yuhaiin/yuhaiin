@@ -26,6 +26,9 @@ func GetAllNodeRemarksAndID(sqlPath string) [][]string {
 	for rows.Next() {
 		//err = rows.Scan(&server,&server_port,&protocol,&method,&obfs,&password,&obfsparam,&protoparam)
 		err = rows.Scan(&id, &remarks)
+		if err != nil {
+			return [][]string{}
+		}
 		// fmt.Println(id + "." + remarks)
 		remarksB = append(remarksB, []string{id, remarks})
 	}

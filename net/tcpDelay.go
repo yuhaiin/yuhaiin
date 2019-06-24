@@ -52,12 +52,16 @@ func GetTCPDelay(sqlPath string) {
 	db, err := sql.Open("sqlite3", sqlPath)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	defer db.Close()
 
 	//获取服务器条数
 	var num int
 	query, err := db.Prepare("select count(*) from SSR_info")
+	if err != nil {
+		return
+	}
 	query.QueryRow().Scan(&num)
 
 	var SelectNum int
