@@ -7,7 +7,7 @@ import (
 
 // GetFunctionString like name
 func GetFunctionString() map[string]string {
-	SystemLanguage := strings.Split(os.Getenv("LANG"), "_")[0]
+	SystemLanguage := strings.Split(os.Getenv("LANGUAGE"), "_")[0]
 	if SystemLanguage == "zh" {
 		return map[string]string{
 			"menu":           "1.开启ssr\n2.更换节点/查看所有节点\n3.更新所有订阅\n4.添加订阅链接\n5.删除订阅链接\n6.获取延迟\n7.结束ssr后台\n8.结束此程序(ssr后台运行)\n9.开启http代理(address:127.0.0.1:8081)\n>>> ",
