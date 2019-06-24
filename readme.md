@@ -41,7 +41,7 @@ daemon
 #log-file /dev/null
 ```
 -->
-![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.2beta.png)
+![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.3beta.png)
 <!--
 issue:
 - [ ] now only can run in bash,cmd is not test.
