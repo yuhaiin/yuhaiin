@@ -55,9 +55,15 @@ func LinkDelete(sqlPath string) {
 		return
 	}
 	rows, err := db.Query("SELECT link FROM subscription_link")
+	if err != nil {
+		return
+	}
 	var link string
 	for rows.Next() {
 		err = rows.Scan(&link)
+		if err != nil {
+			return
+		}
 		links = append(links, link)
 	}
 	//fmt.Println(subscription_link)

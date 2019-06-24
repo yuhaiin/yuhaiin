@@ -27,6 +27,9 @@ func ChangeNowNode(sqlPath string) int {
 	//获取服务器条数
 	var num int
 	query, err := db.Prepare("select count(1) from SSR_info")
+	if err != nil {
+		return 0
+	}
 	query.QueryRow().Scan(&num)
 	//fmt.Println(num)
 
