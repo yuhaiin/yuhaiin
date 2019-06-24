@@ -3,6 +3,7 @@ package socks5ToHttp
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/url"
