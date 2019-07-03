@@ -25,8 +25,9 @@ func autoCreateConfig(configPath string) {
 	ssrPath := "#ssr_path" + configPath + "\\shadowsocksr\\shadowsocks\\local.py #ssr路径" + inLine
 	pidFile := ""
 	logFile := ""
+	httpProxy := "#httpProxy 127.0.0.1:8188"
 
-	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + deamon + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl
+	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + deamon + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl + httpProxy
 	fmt.Println(configConf)
 	ioutil.WriteFile(configFile, []byte(configConf), 0644)
 }

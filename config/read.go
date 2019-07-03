@@ -34,6 +34,8 @@ func argumentMatch(argument map[string]string, configTemp2 []string) {
 		argument["acl"] = configTemp2[1]
 	case "timeout":
 		argument["timeout"] = configTemp2[1]
+	case "httpProxy":
+		argument["httpProxy"] = configTemp2[1]
 		// case "daemon":
 		// 	argument["daemon"] = "-d start"
 	}
