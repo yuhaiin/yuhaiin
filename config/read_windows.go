@@ -20,6 +20,7 @@ func GetConfig(configPath string) map[string]string {
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
 	argument["ssrPath"] = configPath + `\shadowsocksr\shadowsocks\local.py`
+	argument["httpProxy"] = "127.0.0.1:8188"
 
 	argument["localAddress"] = "127.0.0.1"
 	argument["localPort"] = "1080"

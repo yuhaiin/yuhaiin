@@ -25,8 +25,9 @@ func autoCreateConfig(configPath string) {
 	timeOut := "#timeout 1000" + inLine
 	acl := ""
 	pythonPath := "#python_path " + config.GetPythonPath() + "#python路径" + inLine
+	httpProxy := "#httpProxy 127.0.0.1:8188"
 
-	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl
+	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl + httpProxy
 	fmt.Println(configConf)
 	ioutil.WriteFile(configFile, []byte(configConf), 0644)
 }

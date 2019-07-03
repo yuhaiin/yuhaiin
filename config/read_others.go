@@ -18,6 +18,7 @@ func GetConfig(configPath string) map[string]string {
 	argument["pidFile"] = configPath + "/shadowsocksr.pid"
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
+	argument["httpProxy"] = "127.0.0.1:8188"
 
 	// if argument["Workers"] == "" {
 	// 	argument["Workers"] = "--workers " + "1 "
