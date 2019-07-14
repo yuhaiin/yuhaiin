@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"../config/configJson"
 	SsrDownload "../shadowsocksr"
 	"../subscription"
 )
@@ -43,6 +44,12 @@ func Init(configPath, sqlPath string) {
 
 	if !PathExists(configPath + "/shadowsocksr") {
 		SsrDownload.Get_ssr_python(configPath)
+	}
+
+	if !PathExists(configPath + "/node.json") {
+		if configJSON.InitJSON(configPath) != nil {
+			return
+		}
 	}
 }
 

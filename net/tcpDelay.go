@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"../config"
+	"../config/configJson"
 	"../subscription"
 )
 
@@ -85,5 +86,20 @@ func GetTCPDelay(sqlPath string) {
 			fmt.Println(config.GetFunctionString()["enterError"])
 			continue
 		}
+	}
+}
+
+// GetTCPDelayJSON get delay by tcp
+func GetTCPDelayJSON(configPath string) {
+	for {
+		node, err := configJSON.SelectNode(configPath)
+		if err != nil {
+			return
+		}
+		if node.Server == "" {
+			break
+		}
+		fmt.Print(node.Remarks + "delay(3 times): ")
+		fmt.Println("average:", getTCPDelayAverage(node.Server, node.ServerPort))
 	}
 }

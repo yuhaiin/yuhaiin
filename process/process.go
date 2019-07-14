@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"../config"
-	"../subscription"
+	"../config/configJson"
 )
 
 // Start start ssr
@@ -18,7 +18,8 @@ func Start(configPath, sqlPath string) {
 	// 	return
 	// }
 	argument := config.GetConfigArgument()
-	nodeAndConfig, _ := subscription.GetNowNodeAll(sqlPath)
+	// nodeAndConfig, _ := subscription.GetNowNodeAll(sqlPath)
+	nodeAndConfig, _ := configJSON.GetNowNode(configPath)
 	for v, config := range config.GetConfig(configPath) {
 		nodeAndConfig[v] = config
 	}

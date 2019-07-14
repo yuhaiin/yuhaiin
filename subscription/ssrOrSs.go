@@ -81,6 +81,9 @@ func ssrRe(str string) (map[string]string, error) {
 func GetNode(link string) (map[string]string, error) {
 	re, _ := regexp.Compile("(.*)://(.*)")
 	ssOrSsr := re.FindAllStringSubmatch(link, -1)
+	if len(ssOrSsr) == 0 {
+		return map[string]string{}, nil
+	}
 	node := make(map[string]string)
 	switch ssOrSsr[0][1] {
 	case "ss":
