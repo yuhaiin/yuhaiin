@@ -7,10 +7,10 @@ import (
 	"os"
 
 	config "./config"
+	"./config/configJson"
 	ssr_init "./init"
 	getdelay "./net"
 	process "./process"
-	"./subscription"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -27,7 +27,12 @@ func menu(configPath, sqlPath string) {
 	fmt.Println(languageString["configPath"] + configPath)
 	fmt.Println(languageString["executablePath"] + executablePath)
 	//获取当前节点
-	fmt.Println(languageString["nowNode"], subscription.GetNowNode(sqlPath))
+	nowNode, err := configJSON.GetNowNode(configPath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	fmt.Println(languageString["nowNode"], nowNode["remarks"])
 	for {
 		fmt.Print(languageString["menu"])
 
@@ -40,8 +45,9 @@ func menu(configPath, sqlPath string) {
 			process.StartByArgument(configPath, sqlPath)
 		case "2":
 			_, exist := process.Get(configPath)
-			selectB := subscription.ChangeNowNode(sqlPath)
-			if exist == true && selectB != 0 {
+			// selectB := subscription.ChangeNowNode(sqlPath)
+			configJSON.ChangeNowNode(configPath)
+			if exist == true {
 				process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
 				process.StartByArgument(configPath, sqlPath)
@@ -50,21 +56,28 @@ func menu(configPath, sqlPath string) {
 			// 	subscription.Ssr_server_node_change(db_path)
 			// }
 		case "3":
-			subscription.DeleteAllNode(sqlPath)
-			subscription.AddAllNodeFromLink(sqlPath)
+			// subscription.DeleteAllNode(sqlPath)
+			// subscription.AddAllNodeFromLink(sqlPath)
+			if configJSON.SsrJSON(configPath) != nil {
+				return
+			}
+
 		case "4":
 			fmt.Print(config.GetFunctionString()["returnMenu"] + ">>> ")
-			var linkTemp string
-			fmt.Scanln(&linkTemp)
-			if linkTemp != "0" && linkTemp != "" {
-				subscription.AddLink(linkTemp, sqlPath)
-			}
+			// var linkTemp string
+			// fmt.Scanln(&linkTemp)
+			// if linkTemp != "0" && linkTemp != "" {
+			// subscription.AddLink(linkTemp, sqlPath)
+			configJSON.AddLinkJSON(configPath)
+			// }
 		case "5":
-			subscription.LinkDelete(sqlPath)
+			// subscription.LinkDelete(sqlPath)
+			configJSON.RemoveLinkJSON(configPath)
 		case "6":
 			//delay_test_temp := config.Read_config_file(path)
 			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
-			getdelay.GetTCPDelay(sqlPath)
+			// getdelay.GetTCPDelay(sqlPath)
+			getdelay.GetTCPDelayJSON(configPath)
 		case "7":
 			process.Stop(configPath)
 		case "8", "":
