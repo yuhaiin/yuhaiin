@@ -63,12 +63,7 @@ func Get(configPath string) (pid string, isExist bool) {
 }
 
 // StartByArgument to run ssr  deamon at golang use argument
-func StartByArgument(configPath, sqlPath string) {
-	pid, status := Get(configPath)
-	if status == true {
-		log.Println("already have run at " + pid)
-		return
-	}
+func StartByArgument(configPath, functionName string) {
 
 	// dir2, _ := filepath.Abs(os.Args[0])
 
@@ -78,22 +73,44 @@ func StartByArgument(configPath, sqlPath string) {
 		return
 	}
 	// log.Println(executablePath)
-	first, err := os.StartProcess(executablePath, []string{executablePath, "-d"}, &os.ProcAttr{
-		Sys: &syscall.SysProcAttr{
-			Setsid: true,
-		},
-	})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Println(first.Pid)
-	first.Wait()
+	switch functionName {
+	case "ssr":
+		pid, status := Get(configPath)
+		if status == true {
+			log.Println("already have run at " + pid)
+			return
+		}
+		first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "ssr"}, &os.ProcAttr{
+			Sys: &syscall.SysProcAttr{
+				Setsid: true,
+			},
+		})
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println(first.Pid)
+		first.Wait()
 
-	pid, status = Get(configPath)
-	if status == true {
-		log.Println("start ssr at deamon(pid=" + pid + ") successful!")
-	} else {
-		log.Println("run ssr failed!")
+		pid, status = Get(configPath)
+		if status == true {
+			log.Println("start ssr at deamon(pid=" + pid + ") successful!")
+		} else {
+			log.Println("run ssr failed!")
+		}
+	case "http":
+		argument := config.GetConfig(configPath)
+		fmt.Println("http proxy address:" + argument["httpProxy"])
+		first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "httpB"}, &os.ProcAttr{
+			Sys: &syscall.SysProcAttr{
+				Setsid: true,
+			},
+		})
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println(first.Pid)
+		first.Wait()
 	}
 }
