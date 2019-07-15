@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"../config"
 )
@@ -128,9 +129,12 @@ func StartByArgument(configPath, functionName string) {
 		argument := config.GetConfig(configPath)
 		fmt.Println("http proxy address:" + argument["httpProxy"])
 		cmd := exec.Command(executablePath, "-sd", "httpB")
-		cmd.Run()
+		// cmd.Run()
+		cmd.Start()
 		log.Println(cmd.Process.Pid)
-		// time.Sleep(time.Duration(500) * time.Millisecond)
+		time.Sleep(time.Duration(500) * time.Millisecond)
+		cmd.Process.Kill()
+		cmd.Wait()
 	}
 
 }
