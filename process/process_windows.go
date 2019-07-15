@@ -91,12 +91,7 @@ func Get(configPath string) (pid string, isExist bool) {
 }
 
 // StartByArgument to run ssr  deamon at golang use argument
-func StartByArgument(configPath, sqlPath string) {
-	pid, status := Get(configPath)
-	if status == true {
-		log.Println("already have run at " + pid)
-		return
-	}
+func StartByArgument(configPath, functionName string) {
 
 	// dir2, _ := filepath.Abs(os.Args[0])
 	// log.Println(dir2)
@@ -112,15 +107,30 @@ func StartByArgument(configPath, sqlPath string) {
 	// }
 	// log.Println(first.Pid)
 	// first.Wait()
-
-	cmd := exec.Command(executablePath, "-d")
-	cmd.Run()
-	log.Println(cmd.Process.Pid)
-	// time.Sleep(time.Duration(500) * time.Millisecond)
-	pid, status = Get(configPath)
-	if status == true {
-		log.Println("start ssr at deamon(pid=" + pid + ") successful!")
-	} else {
-		log.Println("run ssr failed!")
+	switch functionName {
+	case "ssr":
+		pid, status := Get(configPath)
+		if status == true {
+			log.Println("already have run at " + pid)
+			return
+		}
+		cmd := exec.Command(executablePath, "-d", "ssr")
+		cmd.Run()
+		log.Println(cmd.Process.Pid)
+		// time.Sleep(time.Duration(500) * time.Millisecond)
+		pid, status = Get(configPath)
+		if status == true {
+			log.Println("start ssr at deamon(pid=" + pid + ") successful!")
+		} else {
+			log.Println("run ssr failed!")
+		}
+	case "http":
+		argument := config.GetConfig(configPath)
+		fmt.Println("http proxy address:" + argument["httpProxy"])
+		cmd := exec.Command(executablePath, "-sd", "httpB")
+		cmd.Run()
+		log.Println(cmd.Process.Pid)
+		// time.Sleep(time.Duration(500) * time.Millisecond)
 	}
+
 }

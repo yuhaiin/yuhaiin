@@ -42,7 +42,7 @@ func menu(configPath, sqlPath string) {
 		switch selectTemp {
 		case "1":
 			// ssr_process.Start(path, db_path)
-			process.StartByArgument(configPath, sqlPath)
+			process.StartByArgument(configPath, "ssr")
 		case "2":
 			_, exist := process.Get(configPath)
 			// selectB := subscription.ChangeNowNode(sqlPath)
@@ -50,7 +50,7 @@ func menu(configPath, sqlPath string) {
 			if exist == true {
 				process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
-				process.StartByArgument(configPath, sqlPath)
+				process.StartByArgument(configPath, "ssr")
 			}
 			// } else {
 			// 	subscription.Ssr_server_node_change(db_path)
@@ -83,7 +83,7 @@ func menu(configPath, sqlPath string) {
 		case "8", "":
 			os.Exit(0)
 		case "9":
-			getdelay.StartHTTPByArgumentB()
+			process.StartByArgument(configPath, "http")
 		default:
 			fmt.Println(languageString["enterError"])
 		}
@@ -93,17 +93,21 @@ func menu(configPath, sqlPath string) {
 func main() {
 	configPath, sqlPath := ssr_init.GetConfigAndSQLPath()
 
-	daemon := flag.Bool("d", false, "d")
-	http := flag.Bool("http", false, "http")
-
-	httpB := flag.Bool("httpB", false, "httpB")
+	daemon := flag.String("d", "", "d")
+	subDaemon := flag.String("sd", "", "sd")
 	flag.Parse()
-	if *daemon == true {
-		process.Start(configPath, sqlPath)
-	} else if *http == true {
-		getdelay.StartHTTP(configPath)
-	} else if *httpB == true {
-		getdelay.StartHTTPByArgument()
+
+	if *daemon != "" {
+		process.Start(configPath, *daemon)
+	}
+	if *subDaemon != "" {
+		if *subDaemon == "ssr" {
+			process.Start(configPath, sqlPath)
+		} else if *subDaemon == "http" {
+			getdelay.StartHTTP(configPath)
+		} else if *subDaemon == "httpB" {
+			getdelay.StartHTTPByArgument()
+		}
 	} else {
 		menu(configPath, sqlPath)
 	}

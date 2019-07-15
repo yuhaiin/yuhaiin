@@ -26,7 +26,6 @@ func StartHTTP(configPath string) {
 	httpProxy := strings.Split(argument["httpProxy"], ":")
 	socks5ToHTTP.HTTPServer = httpProxy[0]
 	socks5ToHTTP.HTTPPort = httpProxy[1]
-
 	if err := socks5ToHTTP.HTTPProxy(); err != nil {
 		log.Println(err)
 	}
@@ -40,7 +39,7 @@ func StartHTTPByArgument() {
 		return
 	}
 	// log.Println(executablePath)
-	first, err := os.StartProcess(executablePath, []string{executablePath, "-http"}, &os.ProcAttr{
+	first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "http"}, &os.ProcAttr{
 		Sys: &syscall.SysProcAttr{
 			Setsid: true,
 		},
@@ -54,22 +53,22 @@ func StartHTTPByArgument() {
 }
 
 // StartHTTPByArgumentB <--
-func StartHTTPByArgumentB() {
-	executablePath, err := os.Executable()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	// log.Println(executablePath)
-	first, err := os.StartProcess(executablePath, []string{executablePath, "-httpB"}, &os.ProcAttr{
-		Sys: &syscall.SysProcAttr{
-			Setsid: true,
-		},
-	})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Println(first.Pid)
-	first.Wait()
-}
+// func StartHTTPByArgumentB() {
+// 	executablePath, err := os.Executable()
+// 	if err != nil {
+// 		log.Println(err)
+// 		return
+// 	}
+// 	// log.Println(executablePath)
+// 	first, err := os.StartProcess(executablePath, []string{executablePath, "-d", "httpB"}, &os.ProcAttr{
+// 		Sys: &syscall.SysProcAttr{
+// 			Setsid: true,
+// 		},
+// 	})
+// 	if err != nil {
+// 		log.Println(err)
+// 		return
+// 	}
+// 	log.Println(first.Pid)
+// 	first.Wait()
+// }
