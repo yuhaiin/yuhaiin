@@ -2,9 +2,7 @@ package getdelay
 
 import (
 	"log"
-	"os"
 	"strings"
-	"syscall"
 
 	"../config"
 	"./socks5ToHttp"
@@ -29,27 +27,6 @@ func StartHTTP(configPath string) {
 	if err := socks5ToHTTP.HTTPProxy(); err != nil {
 		log.Println(err)
 	}
-}
-
-// StartHTTPByArgument <--
-func StartHTTPByArgument() {
-	executablePath, err := os.Executable()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	// log.Println(executablePath)
-	first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "http"}, &os.ProcAttr{
-		Sys: &syscall.SysProcAttr{
-			Setsid: true,
-		},
-	})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Println(first.Pid)
-	// first.Wait()
 }
 
 // StartHTTPByArgumentB <--
