@@ -6,7 +6,6 @@ import (
 
 	"../config/configJson"
 	SsrDownload "../shadowsocksr"
-	"../subscription"
 )
 
 // PathExists 判断目录是否存在返回布尔类型
@@ -31,12 +30,12 @@ func Init(configPath, sqlPath string) {
 		}
 	}
 
-	if !PathExists(sqlPath) {
-		subscription.LinkInit(sqlPath)
-		subscription.NodeInit(sqlPath)
-		subscription.NowNodeInit(sqlPath)
-		// Auto_create_config(config_path)
-	}
+	// if !PathExists(sqlPath) {
+	// 	subscription.LinkInit(sqlPath)
+	// 	subscription.NodeInit(sqlPath)
+	// 	subscription.NowNodeInit(sqlPath)
+	// 	// Auto_create_config(config_path)
+	// }
 
 	if !PathExists(configPath + "/ssr_config.conf") {
 		autoCreateConfig(configPath)

@@ -11,7 +11,7 @@ import (
 	ssr_init "./init"
 	getdelay "./net"
 	process "./process"
-	_ "github.com/mattn/go-sqlite3"
+	// _ "github.com/mattn/go-sqlite3"
 )
 
 func menu(configPath, sqlPath string) {

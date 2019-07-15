@@ -6,9 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
-
-	"../base64d"
 )
 
 func getOneLinkBodyByHTTP(url string) string {
@@ -39,25 +36,4 @@ func strBase64d(str []string, db *sql.DB) {
 		}
 		db.Exec("INSERT INTO SSR_info(id,remarks,server,server_port,protocol,method,obfs,password,obfsparam,protoparam)values(?,?,?,?,?,?,?,?,?,?)", i+1, node["remarks"], node["server"], node["serverPort"], node["protocol"], node["method"], node["obfs"], node["password"], node["obfsparam"], node["protoparam"])
 	}
-}
-
-// AddAllNodeFromLink 添加所有订阅的所有节点(sqlite数据库)
-func AddAllNodeFromLink(sqlPath string) {
-
-	//访问数据库
-	db, err := sql.Open("sqlite3", sqlPath)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	defer db.Close()
-
-	var strB string
-	for _, linkTemp := range GetLink(sqlPath) {
-		//str_2 = append(str_2,base64d.Base64d(http_get_subscription(subscription_link_temp))...)
-		strB += base64d.Base64d(getOneLinkBodyByHTTP(linkTemp))
-	}
-	db.Exec("BEGIN TRANSACTION;")
-	strBase64d(strings.Split(strB, "\n"), db)
-	db.Exec("COMMIT;")
 }
