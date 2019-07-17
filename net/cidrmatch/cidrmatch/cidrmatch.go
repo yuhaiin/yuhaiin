@@ -123,7 +123,11 @@ func (cidrmatch *CidrMatch) ipGetKey(ip string) string {
 }
 
 func (cidrmatch *CidrMatch) MatchWithMap(ip string) bool {
-	for _, s := range cidrmatch.cidrMap[cidrmatch.ipGetKey(ip)] {
+	mapIP := cidrmatch.cidrMap[cidrmatch.ipGetKey(ip)]
+	if len(mapIP) == 0 {
+		return false
+	}
+	for _, s := range mapIP {
 		if s.Contains(net.ParseIP(ip)) {
 			return true
 		}
