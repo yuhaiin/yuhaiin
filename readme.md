@@ -52,7 +52,7 @@ issue:
 ## Thanks
 
 [Golang](https://golang.org)  
-[mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)  
+[mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)(now change to json)  
 [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 
