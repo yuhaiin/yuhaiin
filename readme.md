@@ -70,7 +70,7 @@ Todo:
       write a half of [http proxy](https://github.com/Asutorufa/SsrMicroClient/blob/OtherLanguage/Old/SSR_http_client/client.go) find sun8911879/shadowsocksR is not support auth_chain*...oof.  
       when i use ssr_libev i cant run it in the golang that has so many error,i fix a little but more and more error appear.
 
-```error
+<!-- ```error
       # command-line-arguments
     /tmp/go-build379176400/b001/_x002.o：在函数‘main’中：
     ./local.c:1478: `main'被多次定义
@@ -81,9 +81,10 @@ Todo:
     ./local.c:438:36: warning: comparison between pointer and       integer
                          if (perror == EINPROGRESS) {
                                     ^~
-```
+``` -->
 
-- [x] (give up)add bypass(↑↑↑ i cant run ssr in golang ↑↑↑)
+- [x] add bypass
+  - add bypass by socks5 to socks5 and socks5 to http.I need more information about iptables redirection and ss-redir.
 - [x] ss link compatible.  
   - [ ] need more ss link template.
 - [x] support http proxy.  
