@@ -7,7 +7,7 @@ import (
 	"os"
 
 	config "./config"
-	"./config/configJson"
+	configJSON "./config/configJson"
 	ssr_init "./init"
 	getdelay "./net"
 	process "./process"

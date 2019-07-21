@@ -317,9 +317,9 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// +-----------------------------------------------------------+
 	// 	VER是SOCKS版本，这里应该是0x05；
 	// CMD是SOCK的命令码
-	// 0x01表示CONNECT请求
-	// 0x02表示BIND请求
-	// 0x03表示UDP转发
+	// 	0x01表示CONNECT请求
+	// 	0x02表示BIND请求
+	// 	0x03表示UDP转发
 	// RSV 0x00，保留
 	// ATYP DST.ADDR类型
 	// 0x01 IPv4地址，DST.ADDR部分4字节长度
@@ -389,5 +389,22 @@ func (socks5client *Socks5Client) NewSocks5Client() (net.Conn, error) {
 	if err = socks5client.socks5SecondVerify(); err != nil {
 		return socks5client.Conn, err
 	}
+	return socks5client.Conn, nil
+}
+
+// NewSocks5ClientOnlyFirstVerify <--
+func (socks5client *Socks5Client) NewSocks5ClientOnlyFirstVerify() (net.Conn, error) {
+	// var socks5client socks5client
+	var err error
+	socks5client.Conn, err = socks5client.creatDial()
+	for err != nil {
+		return socks5client.Conn, err
+		// time.Sleep(10 * time.Second) // 10秒休む
+	}
+
+	if err = socks5client.socks5FirstVerify(); err != nil {
+		return socks5client.Conn, err
+	}
+
 	return socks5client.Conn, nil
 }
