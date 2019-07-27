@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"../config"
-	"./socks5ToHttp"
+	"./cidrmatch/socks5ToHttp"
 	// "../socks5ToHttp"
 )
 
@@ -17,6 +17,7 @@ func StartHTTP(configPath string) {
 		HTTPPort:     "",
 		Socks5Server: argument["localAddress"],
 		Socks5Port:   argument["localPort"],
+		ByPass:       false,
 	}
 	if argument["localPort"] == "" {
 		socks5ToHTTP.Socks5Port = "1080"

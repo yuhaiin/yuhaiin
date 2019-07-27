@@ -29,6 +29,7 @@ type Socks5ToHTTP struct {
 	HTTPPort     string
 	Socks5Server string
 	Socks5Port   string
+	ByPass       bool
 	cidrmatch    *cidrmatch.CidrMatch
 	CidrFile     string
 }
@@ -39,9 +40,11 @@ type Socks5ToHTTP struct {
 func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	var err error
-	socks5ToHttp.cidrmatch, err = cidrmatch.NewCidrMatchWithMap(socks5ToHttp.CidrFile)
-	if err != nil {
-		return err
+	if socks5ToHttp.ByPass == true {
+		socks5ToHttp.cidrmatch, err = cidrmatch.NewCidrMatchWithMap(socks5ToHttp.CidrFile)
+		if err != nil {
+			return err
+		}
 	}
 	socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
 	if err != nil {
@@ -117,20 +120,8 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	// 	log.Println(address)
 	// }
 
-	ip, err := net.LookupHost(hostPortURL.Hostname())
-	if err != nil {
-		return err
-	}
-	var isMatched bool
-	if len(ip) == 0 {
-		isMatched = false
-	} else {
-		isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip[0])
-	}
-	log.Println("isMatched", isMatched)
-
 	var socks5Conn net.Conn
-	if socks5ToHttp.ToHTTP == true && isMatched == false {
+	if socks5ToHttp.ByPass == false {
 		socks5Conn, err = (&Socks5Client{
 			Server:  socks5ToHttp.Socks5Server,
 			Port:    socks5ToHttp.Socks5Port,
@@ -140,10 +131,33 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			return err
 		}
 	} else {
-		socks5Conn, err = net.Dial("tcp", address)
+		ip, err := net.LookupHost(hostPortURL.Hostname())
 		if err != nil {
-			log.Println(err)
 			return err
+		}
+		var isMatched bool
+		if len(ip) == 0 {
+			isMatched = false
+		} else {
+			isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip[0])
+		}
+		log.Println("isMatched", isMatched)
+
+		if socks5ToHttp.ToHTTP == true && isMatched == false {
+			socks5Conn, err = (&Socks5Client{
+				Server:  socks5ToHttp.Socks5Server,
+				Port:    socks5ToHttp.Socks5Port,
+				Address: address}).NewSocks5Client()
+			if err != nil {
+				log.Println(err)
+				return err
+			}
+		} else {
+			socks5Conn, err = net.Dial("tcp", address)
+			if err != nil {
+				log.Println(err)
+				return err
+			}
 		}
 	}
 	defer socks5Conn.Close()
