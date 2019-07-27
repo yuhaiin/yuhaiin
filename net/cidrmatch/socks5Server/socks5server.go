@@ -67,7 +67,7 @@ func (socks5Server *ServerSocks5) Socks5() error {
 func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 
 	var b [1024]byte
-	n, err := client.Read(b[:])
+	_, err := client.Read(b[:])
 	if err != nil {
 		log.Println(err)
 		return
@@ -78,7 +78,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 		if b[1] == 0x01 {
 			// 对用户名密码进行判断
 			if b[2] == 0x02 {
-				n, err = client.Read(b[:])
+				_, err = client.Read(b[:])
 				if err != nil {
 					log.Println(err)
 					return
@@ -94,7 +94,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 			}
 		}
 
-		n, err = client.Read(b[:])
+		n, err := client.Read(b[:])
 		if err != nil {
 			log.Println(err)
 			return
@@ -326,8 +326,8 @@ func dns() {
 	// (2）DNS正文段
 	// 在DNS报文中，其正文段封装在图7-42所示的DNS报文头内。DNS有四类正文段：查询段、应答段、授权段和附加段。
 
-	id := make([]byte, 16)
-	id = []byte("test")
+	// id := make([]byte, 16)
+	id := []byte("test")
 	qr := byte(0x00)
 	qopcode := []byte{0x00, 0x00, 0x00, 0x00}
 	aa := byte(0x00)
