@@ -120,17 +120,17 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 				if socks5Server.ToHTTP == true {
 					var isMatched bool
 					if hostTemplate != "ip" {
-						ip, err := net.LookupHost(host)
-						if err != nil {
-							log.Println(err)
+						// ip, err := net.LookupHost(host)
+						ip, isSuccess := DNSv4("119.29.29.29:53", host)
+						if isSuccess == false {
 							// return
 							isMatched = false
 						} else {
-							if len(ip) == 0 {
-								isMatched = false
-							} else {
-								isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
-							}
+							// if len(ip) == 0 {
+							// 	isMatched = false
+							// } else {
+							isMatched = socks5Server.cidrmatch.MatchWithMap(ip)
+							// }
 						}
 					} else {
 						isMatched = socks5Server.cidrmatch.MatchWithMap(host)
@@ -145,17 +145,17 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 				} else if socks5Server.ToShadowsocksr == true {
 					var isMatched bool
 					if hostTemplate != "ip" {
-						ip, err := net.LookupHost(host)
-						if err != nil {
-							log.Println(err)
+						// ip, err := net.LookupHost(host)
+						ip, isSuccess := DNSv4("119.29.29.29:53", host)
+						if isSuccess == false {
 							// return
 							isMatched = false
 						} else {
-							if len(ip) == 0 {
-								isMatched = false
-							} else {
-								isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
-							}
+							// if len(ip) == 0 {
+							// 	isMatched = false
+							// } else {
+							isMatched = socks5Server.cidrmatch.MatchWithMap(ip)
+							// }
 						}
 					} else {
 						isMatched = socks5Server.cidrmatch.MatchWithMap(host)
@@ -288,9 +288,10 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 	io.Copy(socks5Conn, client)
 }
 
-func dns() {
+// DNSv4 <-- dns for ipv4
+func DNSv4(DNSServer, domain string) (domainIP string, success bool) {
 	// +------------------------------+
-	// |             id               |
+	// |             id               |  16bit
 	// +------------------------------+
 	// |qr|opcpde|aa|tc|rd|ra|z|rcode |
 	// +------------------------------+
@@ -302,12 +303,15 @@ func dns() {
 	// +------------------------------+
 	// |          arcount             |
 	// +------------------------------+
+
 	// • ID：这是由生成DNS查询的程序指定的16位的标志符。该标志符也被随后的应答报文所用，申请者利用这个标志将应答和原来的请求对应起来。
+
 	// • QR：该字段占1位，用以指明DNS报文是请求（0）还是应答（1）。
 	// • OPCODE：该字段占4位，用于指定查询的类型。值为0表示标准查询，值为1表示逆向查询，值为2表示查询服务器状态，值为3保留，值为4表示通知，值为5表示更新报文，值6～15的留为新增操作用。
 	// • AA：该字段占1位，仅当应答时才设置。值为1，即意味着正应答的域名服务器是所查询域名的管理机构或者说是被授权的域名服务器。
 	// • TC：该字段占1位，代表截断标志。如果报文长度比传输通道所允许的长而被分段，该位被设为1。
 	// • RD：该字段占1位，是可选项，表示要求递归与否。如果为1，即意味 DNS解释器要求DNS服务器使用递归查询。
+
 	// • RA：该字段占1位，代表正在应答的域名服务器可以执行递归查询，该字段与查询段无关。
 	// • Z：该字段占3位，保留字段，其值在查询和应答时必须为0。
 	// • RCODE：该字段占4位，该字段仅在DNS应答时才设置。用以指明是否发生了错误。
@@ -319,6 +323,7 @@ func dns() {
 	// 4：没有实现。DNS服务器不支持这种DNS请求报文。
 	// 5：拒绝，由于安全或策略上的设置问题，DNS名字服务器拒绝处理请求。
 	// 6 ～15 ：留为后用。
+
 	// • QDCOUNT：该字段占16位，指明DNS查询段中的查询问题的数量。
 	// • ANCOUNT：该字段占16位，指明DNS应答段中返回的资源记录的数量，在查询段中该值为0。
 	// • NSCOUNT：该字段占16位，指明DNS应答段中所包括的授权域名服务器的资源记录的数量，在查询段中该值为0。
@@ -327,40 +332,80 @@ func dns() {
 	// 在DNS报文中，其正文段封装在图7-42所示的DNS报文头内。DNS有四类正文段：查询段、应答段、授权段和附加段。
 
 	// id := make([]byte, 16)
-	id := []byte("test")
-	qr := byte(0x00)
-	qopcode := []byte{0x00, 0x00, 0x00, 0x00}
-	aa := byte(0x00)
-	tc := byte(0x00)
-	rd := byte(0x01)
-	ra := byte(0x00)
-	z := []byte{0x00, 0x00, 0x00}
-	rcode := []byte{0x00, 0x00, 0x00, 0x00}
-	qdcount := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}
-	ancount := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	nscount := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	arcount := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	domain := "www.baidu.com"
+	// id := []byte{0x01, 0x02}
+	// id = []byte("test")
+	// qr_opcode_aa_tc_rd := byte(0x01)
+	// qopcode := []byte{0x00, 0x00, 0x00, 0x00}
+	// aa := byte(0x00)
+	// tc := byte(0x00)
+	// rd := byte(0x01)
+	// ra_z_rcode := byte(0x00)
+	// z := []byte{0x00, 0x00, 0x00}
+	// rcode := []byte{0x00, 0x00, 0x00, 0x00}
+	// qdcount := []byte{0x00, 0x01}
+	// ancount := []byte{0x00, 0x00}
+	// nscount := []byte{0x00, 0x00}
+	// arcount := []byte{0x00, 0x00}
+	header := []byte{0x01, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	// domain := "youtube.com"
 	domainSplit := strings.Split(domain, ".")
-	var domainSet string
+	var domainSet []byte
 	for _, domain := range domainSplit {
-		domainSet += strconv.Itoa(len(domain)) + domain
+		domainSet = append(domainSet, byte(len(domain)))
+		domainSet = append(domainSet, []byte(domain)...)
 	}
 	domainSets := []byte(domainSet)
-	qtype := []byte("A")
-	qclass := []byte("inet")
+	qtype := []byte{0x00, 0x01}
+	qclass := []byte{0x00, 0x01}
 
-	all := append(id, qr)
-	all = append(all, qopcode...)
-	all = append(all, aa, tc, rd, ra)
-	all = append(all, z...)
-	all = append(all, rcode...)
-	all = append(all, qdcount...)
-	all = append(all, ancount...)
-	all = append(all, nscount...)
-	all = append(all, arcount...)
-	all = append(all, domainSets...)
+	// all := append(id, qr_opcode_aa_tc_rd)
+	// // all = append(all, qopcode...)
+	// // all = append(all, aa, tc, rd, ra)
+	// all = append(all, ra_z_rcode)
+	// // all = append(all, rcode...)
+	// all = append(all, qdcount...)
+	// all = append(all, ancount...)
+	// all = append(all, nscount...)
+	// all = append(all, arcount...)
+	all := append(header, domainSets...)
+	// all = append(all, domainSets...)
+	all = append(all, 0x00)
 	all = append(all, qtype...)
 	all = append(all, qclass...)
-	log.Println(string(all))
+	// service := "223.5.5.5:53"
+	// udpAddr, err := net.ResolveUDPAddr("udp", service)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
+	// conn, err := net.DialUDP("udp", nil, udpAddr)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
+
+	conn, err := net.Dial("udp", DNSServer)
+	if err != nil {
+		log.Println(err)
+		return "", false
+	}
+	defer conn.Close()
+
+	// log.Println(all, len(all))
+
+	var b [1024]byte
+	conn.Write(all)
+	// log.Println("write")
+	// var b [1024]byte
+	n, _ := conn.Read(b[:])
+	// log.Println("header", b[0:12], "qr+opcode+aa+tc+rd:", b[2:3], "ra+z+rcode:", b[3], "rcode:", b[3]&1, "....", b[3]&2, b[3]&4, b[3]&8)
+	if b[3]&1 != 0 {
+		// log.Println("no such name")
+		return "", false
+	}
+	// log.Println(b[bytes.Index(b[:n], []byte{192, 12})+2+2+2+4 : n])
+	// ip := b[bytes.Index(b[:n], []byte{192, 12})+2+2+2+4 : n]
+	// log.Println("ip:", strconv.Itoa(int(ip[2]))+"."+strconv.Itoa(int(ip[3]))+"."+strconv.Itoa(int(ip[4]))+"."+strconv.Itoa(int(ip[5])))
+	// log.Println(strconv.Itoa(int(b[n-4])) + "." + strconv.Itoa(int(b[n-3])) + "." + strconv.Itoa(int(b[n-2])) + "." + strconv.Itoa(int(b[n-1])))
+	return strconv.Itoa(int(b[n-4])) + "." + strconv.Itoa(int(b[n-3])) + "." + strconv.Itoa(int(b[n-2])) + "." + strconv.Itoa(int(b[n-1])), true
 }
