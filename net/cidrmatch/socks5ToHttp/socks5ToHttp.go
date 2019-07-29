@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"../cidrmatch"
+	"../dns"
 )
 
 type errErr struct {
@@ -131,15 +132,20 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			return err
 		}
 	} else {
-		ip, err := net.LookupHost(hostPortURL.Hostname())
-		if err != nil {
-			return err
-		}
+		// ip, err := net.LookupHost(hostPortURL.Hostname())
+		// if err != nil {
+		// 	return err
+		// }
+
 		var isMatched bool
-		if len(ip) == 0 {
-			isMatched = false
+		ip, isSuccess := dns.DNSv4("119.29.29.29:53", hostPortURL.Hostname())
+		if isSuccess == true {
+			isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip)
+			// }
+			// if len(ip) == 0 {
+			// 	isMatched = false
 		} else {
-			isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip[0])
+			isMatched = false
 		}
 		log.Println("isMatched", isMatched)
 
