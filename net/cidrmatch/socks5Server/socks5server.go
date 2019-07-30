@@ -1,13 +1,10 @@
 package socks5server
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net"
-	"runtime"
 	"strconv"
-	"sync"
 
 	"../cidrmatch"
 	"../dns"
@@ -33,14 +30,16 @@ type ServerSocks5 struct {
 	cidrmatch          *cidrmatch.CidrMatch
 	CidrFile           string
 	DNSServer          string
-	// dns                map[string]bool
-	dns sync.Map
+	dnscache           dns.DnsCache
 }
 
 // Socks5 <--
 func (socks5Server *ServerSocks5) Socks5() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	// socks5Server.dns = map[string]bool{}
+	socks5Server.dnscache = dns.DnsCache{
+		DNSServer: socks5Server.DNSServer,
+	}
 	var err error
 	socks5Server.cidrmatch, err = cidrmatch.NewCidrMatchWithMap(socks5Server.CidrFile)
 	if err != nil {
@@ -124,38 +123,39 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 		case 0x01:
 			switch socks5Server.Bypass {
 			case true:
-				var isMatched bool
+				// var isMatched bool
 
-				if _, exist := socks5Server.dns.Load(host); exist == false {
-					if hostTemplate != "ip" {
-						// ip, err := net.LookupHost(host)
-						ip, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
-						if isSuccess == true {
-							isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
-						} else {
-							isMatched = false
-						}
-					} else {
-						isMatched = socks5Server.cidrmatch.MatchWithMap(host)
-					}
-					// if len(socks5Server.dns) > 10000 {
-					// 	i := 0
-					// 	for key := range socks5Server.dns {
-					// 		delete(socks5Server.dns, key)
-					// 		i++
-					// 		if i > 0 {
-					// 			break
-					// 		}
-					// 	}
-					// }
-					socks5Server.dns.Store(host, isMatched)
-					fmt.Println(runtime.NumGoroutine(), "connect:"+net.JoinHostPort(host, port), isMatched)
-				} else {
-					isMatchedTemp, _ := socks5Server.dns.Load(host)
-					isMatched = isMatchedTemp.(bool)
-					fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+net.JoinHostPort(host, port), isMatched)
-				}
+				// if _, exist := socks5Server.dns.Load(host); exist == false {
+				// 	if hostTemplate != "ip" {
+				// 		// ip, err := net.LookupHost(host)
+				// 		ip, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
+				// 		if isSuccess == true {
+				// 			isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
+				// 		} else {
+				// 			isMatched = false
+				// 		}
+				// 	} else {
+				// 		isMatched = socks5Server.cidrmatch.MatchWithMap(host)
+				// 	}
+				// 	// if len(socks5Server.dns) > 10000 {
+				// 	// 	i := 0
+				// 	// 	for key := range socks5Server.dns {
+				// 	// 		delete(socks5Server.dns, key)
+				// 	// 		i++
+				// 	// 		if i > 0 {
+				// 	// 			break
+				// 	// 		}
+				// 	// 	}
+				// 	// }
+				// 	socks5Server.dns.Store(host, isMatched)
+				// 	fmt.Println(runtime.NumGoroutine(), "connect:"+net.JoinHostPort(host, port), isMatched)
+				// } else {
+				// 	isMatchedTemp, _ := socks5Server.dns.Load(host)
+				// 	isMatched = isMatchedTemp.(bool)
+				// 	fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+net.JoinHostPort(host, port), isMatched)
+				// }
 
+				isMatched := socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithMap)
 				switch isMatched {
 				case false:
 					if socks5Server.ToHTTP == true {

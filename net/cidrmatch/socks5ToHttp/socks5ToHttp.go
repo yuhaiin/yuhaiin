@@ -7,9 +7,7 @@ import (
 	"log"
 	"net"
 	"net/url"
-	"runtime"
 	"strings"
-	"sync"
 
 	"../cidrmatch"
 	"../dns"
@@ -36,7 +34,8 @@ type Socks5ToHTTP struct {
 	CidrFile     string
 	DNSServer    string
 	// dns          map[string]bool
-	dns sync.Map
+	// dns      sync.Map
+	dnscache dns.DnsCache
 }
 
 // HTTPProxy http proxy
@@ -45,6 +44,9 @@ type Socks5ToHTTP struct {
 func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	// socks5ToHttp.dns = map[string]bool{}
+	socks5ToHttp.dnscache = dns.DnsCache{
+		DNSServer: socks5ToHttp.DNSServer,
+	}
 	var err error
 	if socks5ToHttp.ByPass == true {
 		socks5ToHttp.cidrmatch, err = cidrmatch.NewCidrMatchWithMap(socks5ToHttp.CidrFile)
@@ -128,36 +130,40 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			return err
 		}
 	case true:
-		var isMatched bool
-
-		if _, exist := socks5ToHttp.dns.Load(host); exist == false {
-			ip, isSuccess := dns.DNSv4(socks5ToHttp.DNSServer, hostPortURL.Hostname())
-			if isSuccess == true {
-				isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip[0])
-			} else {
-				isMatched = false
-			}
-
-			// if socks5ToHttp.dns. > 10000 {
-			// 	i := 0
-			// 	for key := range socks5ToHttp.dns {
-			// 		delete(socks5ToHttp.dns, key)
-			// 		i++
-			// 		if i > 0 {
-			// 			break
-			// 		}
-			// 	}
-			// }
-			// socks5ToHttp.dns[hostPortURL.Hostname()] = isMatched
-			socks5ToHttp.dns.Store(host, isMatched)
-			fmt.Println(runtime.NumGoroutine(), string(requestData[:indexByte-9]), isMatched)
-		} else {
-			// isMatched = socks5ToHttp.dns[hostPortURL.Hostname()]
-			isMatchedTmp, _ := socks5ToHttp.dns.Load(host)
-			isMatched = isMatchedTmp.(bool)
-			fmt.Println(runtime.NumGoroutine(), "use cache", string(requestData[:indexByte-9]), isMatched)
+		var hostTemplate string
+		if net.ParseIP(hostPortURL.Hostname()) != nil {
+			hostTemplate = "ip"
 		}
+		// var isMatched bool
+		// if _, exist := socks5ToHttp.dns.Load(host); exist == false {
+		// 	ip, isSuccess := dns.DNSv4(socks5ToHttp.DNSServer, hostPortURL.Hostname())
+		// 	if isSuccess == true {
+		// 		isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip[0])
+		// 	} else {
+		// 		isMatched = false
+		// 	}
 
+		// 	// if socks5ToHttp.dns. > 10000 {
+		// 	// 	i := 0
+		// 	// 	for key := range socks5ToHttp.dns {
+		// 	// 		delete(socks5ToHttp.dns, key)
+		// 	// 		i++
+		// 	// 		if i > 0 {
+		// 	// 			break
+		// 	// 		}
+		// 	// 	}
+		// 	// }
+		// 	// socks5ToHttp.dns[hostPortURL.Hostname()] = isMatched
+		// 	socks5ToHttp.dns.Store(host, isMatched)
+		// 	fmt.Println(runtime.NumGoroutine(), string(requestData[:indexByte-9]), isMatched)
+		// } else {
+		// 	// isMatched = socks5ToHttp.dns[hostPortURL.Hostname()]
+		// 	isMatchedTmp, _ := socks5ToHttp.dns.Load(host)
+		// 	isMatched = isMatchedTmp.(bool)
+		// 	fmt.Println(runtime.NumGoroutine(), "use cache", string(requestData[:indexByte-9]), isMatched)
+		// }
+
+		isMatched := socks5ToHttp.dnscache.Match(hostPortURL.Hostname(), hostTemplate, socks5ToHttp.cidrmatch.MatchWithMap)
 		if socks5ToHttp.ToHTTP == true && isMatched == false {
 			Conn, err = (&Socks5Client{
 				Server:  socks5ToHttp.Socks5Server,
