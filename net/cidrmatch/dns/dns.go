@@ -159,6 +159,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// log.Println("ip:", strconv.Itoa(int(ip[2]))+"."+strconv.Itoa(int(ip[3]))+"."+strconv.Itoa(int(ip[4]))+"."+strconv.Itoa(int(ip[5])))
 	// log.Println(strconv.Itoa(int(b[n-4])) + "." + strconv.Itoa(int(b[n-3])) + "." + strconv.Itoa(int(b[n-2])) + "." + strconv.Itoa(int(b[n-1])))
 	if len(dns) != 0 {
+		// log.Println(domain, dns)
 		return dns, true
 	}
 	return dns, false
