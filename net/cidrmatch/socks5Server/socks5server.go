@@ -1,6 +1,7 @@
 package socks5server
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -30,6 +31,7 @@ type ServerSocks5 struct {
 	Bypass             bool
 	cidrmatch          *cidrmatch.CidrMatch
 	CidrFile           string
+	DNSServer          string
 }
 
 // Socks5 <--
@@ -54,7 +56,7 @@ func (socks5Server *ServerSocks5) Socks5() error {
 		}
 
 		go func() {
-			log.Println(runtime.NumGoroutine())
+			// log.Println(runtime.NumGoroutine())
 			if client == nil {
 				return
 			}
@@ -114,61 +116,39 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 		}
 		port = strconv.Itoa(int(b[n-2])<<8 | int(b[n-1]))
 
-		if b[1] == 0x01 {
-			log.Println("connect 请求 " + net.JoinHostPort(host, port))
-			if socks5Server.Bypass == true {
-				if socks5Server.ToHTTP == true {
-					var isMatched bool
-					if hostTemplate != "ip" {
-						// ip, err := net.LookupHost(host)
-						ip, isSuccess := dns.DNSv4("119.29.29.29:53", host)
-						if isSuccess == false {
-							// return
-							isMatched = false
-						} else {
-							// if len(ip) == 0 {
-							// 	isMatched = false
-							// } else {
-							isMatched = socks5Server.cidrmatch.MatchWithMap(ip)
-							// }
-						}
+		switch b[1] {
+		case 0x01:
+			switch socks5Server.Bypass {
+			case true:
+				var isMatched bool
+				if hostTemplate != "ip" {
+					// ip, err := net.LookupHost(host)
+					ip, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
+					if isSuccess == true {
+						isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
 					} else {
-						isMatched = socks5Server.cidrmatch.MatchWithMap(host)
+						isMatched = false
 					}
+				} else {
+					isMatched = socks5Server.cidrmatch.MatchWithMap(host)
+				}
+				fmt.Println(runtime.NumGoroutine(), "connect:"+net.JoinHostPort(host, port), isMatched)
 
-					log.Println("isMatched", isMatched)
-					if isMatched == false {
+				switch isMatched {
+				case false:
+					if socks5Server.ToHTTP == true {
 						socks5Server.toHTTP(client, host, port)
-					} else {
-						socks5Server.toTCP(client, net.JoinHostPort(host, port))
-					}
-				} else if socks5Server.ToShadowsocksr == true {
-					var isMatched bool
-					if hostTemplate != "ip" {
-						// ip, err := net.LookupHost(host)
-						ip, isSuccess := dns.DNSv4("119.29.29.29:53", host)
-						if isSuccess == false {
-							// return
-							isMatched = false
-						} else {
-							// if len(ip) == 0 {
-							// 	isMatched = false
-							// } else {
-							isMatched = socks5Server.cidrmatch.MatchWithMap(ip)
-							// }
-						}
-					} else {
-						isMatched = socks5Server.cidrmatch.MatchWithMap(host)
-					}
-
-					log.Println("isMatched", isMatched)
-					if isMatched == false {
+					} else if socks5Server.ToShadowsocksr == true {
 						socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
 					} else {
 						socks5Server.toTCP(client, net.JoinHostPort(host, port))
 					}
+
+				case true:
+					socks5Server.toTCP(client, net.JoinHostPort(host, port))
 				}
-			} else {
+
+			case false:
 				if socks5Server.ToHTTP == true {
 					socks5Server.toHTTP(client, host, port)
 				} else if socks5Server.ToShadowsocksr == true {
@@ -177,17 +157,15 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 					socks5Server.toTCP(client, net.JoinHostPort(host, port))
 				}
 			}
-		} else if b[1] == 0x02 {
+
+		case 0x02:
 			log.Println("bind 请求 " + net.JoinHostPort(host, port))
-		} else if b[1] == 0x03 {
+
+		case 0x03:
 			log.Println("udp 请求 " + net.JoinHostPort(host, port))
 			socks5Server.udp(client, net.JoinHostPort(host, port))
 		}
-	} else {
-		// do something
-		return
 	}
-
 }
 
 func (socks5Server *ServerSocks5) connect() {
@@ -273,6 +251,8 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 		Address: host}).NewSocks5ClientOnlyFirstVerify()
 	if err != nil {
 		log.Println(err)
+		socks5Server.toTCP(client, host)
+		return
 	}
 
 	defer socks5Conn.Close()
