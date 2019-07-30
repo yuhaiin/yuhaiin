@@ -175,20 +175,19 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 }
 
 // Match <--
-func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string) bool) bool {
-	var isMatched bool
-
+func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string) bool) (isMatched bool) {
+	var isMatch bool
 	if _, exist := dnscache.dns.Load(host); exist == false {
 		if hostTemplate != "ip" {
 			// ip, err := net.LookupHost(host)
 			ip, isSuccess := DNSv4(dnscache.DNSServer, host)
 			if isSuccess == true {
-				isMatched = cidrmatch(ip[0])
+				isMatch = cidrmatch(ip[0])
 			} else {
-				isMatched = false
+				isMatch = false
 			}
 		} else {
-			isMatched = cidrmatch(host)
+			isMatch = cidrmatch(host)
 		}
 		// if len(socks5Server.dns) > 10000 {
 		// 	i := 0
@@ -201,13 +200,13 @@ func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string
 		// 	}
 		// }
 		dnscache.dns.Store(host, isMatched)
-		fmt.Println(runtime.NumGoroutine(), "connect:"+host, isMatched)
+		fmt.Println(runtime.NumGoroutine(), host, isMatched)
 	} else {
-		isMatchedTemp, _ := dnscache.dns.Load(host)
-		isMatched = isMatchedTemp.(bool)
-		fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+host, isMatched)
+		isMatchTemp, _ := dnscache.dns.Load(host)
+		isMatch = isMatchTemp.(bool)
+		fmt.Println(runtime.NumGoroutine(), "use cache", host, isMatched)
 	}
-	return isMatched
+	return isMatch
 }
 
 // -------------------------------old---------------------

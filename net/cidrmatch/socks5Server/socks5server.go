@@ -155,8 +155,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 				// 	fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+net.JoinHostPort(host, port), isMatched)
 				// }
 
-				isMatched := socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithMap)
-				switch isMatched {
+				switch socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithMap) {
 				case false:
 					if socks5Server.ToHTTP == true {
 						socks5Server.toHTTP(client, host, port)
@@ -165,7 +164,6 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 					} else {
 						socks5Server.toTCP(client, net.JoinHostPort(host, port))
 					}
-
 				case true:
 					socks5Server.toTCP(client, net.JoinHostPort(host, port))
 				}
