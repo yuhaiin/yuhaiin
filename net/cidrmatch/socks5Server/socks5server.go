@@ -32,11 +32,13 @@ type ServerSocks5 struct {
 	cidrmatch          *cidrmatch.CidrMatch
 	CidrFile           string
 	DNSServer          string
+	dns                map[string]bool
 }
 
 // Socks5 <--
 func (socks5Server *ServerSocks5) Socks5() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
+	socks5Server.dns = map[string]bool{}
 	var err error
 	socks5Server.cidrmatch, err = cidrmatch.NewCidrMatchWithMap(socks5Server.CidrFile)
 	if err != nil {
@@ -121,18 +123,35 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 			switch socks5Server.Bypass {
 			case true:
 				var isMatched bool
-				if hostTemplate != "ip" {
-					// ip, err := net.LookupHost(host)
-					ip, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
-					if isSuccess == true {
-						isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
+
+				if _, exist := socks5Server.dns[host]; exist == false {
+					if hostTemplate != "ip" {
+						// ip, err := net.LookupHost(host)
+						ip, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
+						if isSuccess == true {
+							isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
+						} else {
+							isMatched = false
+						}
 					} else {
-						isMatched = false
+						isMatched = socks5Server.cidrmatch.MatchWithMap(host)
 					}
+					if len(socks5Server.dns) > 10000 {
+						i := 0
+						for key := range socks5Server.dns {
+							delete(socks5Server.dns, key)
+							i++
+							if i > 0 {
+								break
+							}
+						}
+					}
+					socks5Server.dns[host] = isMatched
+					fmt.Println(runtime.NumGoroutine(), "connect:"+net.JoinHostPort(host, port), isMatched)
 				} else {
-					isMatched = socks5Server.cidrmatch.MatchWithMap(host)
+					fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+net.JoinHostPort(host, port), isMatched)
+					isMatched = socks5Server.dns[host]
 				}
-				fmt.Println(runtime.NumGoroutine(), "connect:"+net.JoinHostPort(host, port), isMatched)
 
 				switch isMatched {
 				case false:
