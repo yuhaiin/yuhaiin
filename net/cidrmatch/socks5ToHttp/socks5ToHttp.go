@@ -33,6 +33,7 @@ type Socks5ToHTTP struct {
 	ByPass       bool
 	cidrmatch    *cidrmatch.CidrMatch
 	CidrFile     string
+	DNSServer    string
 }
 
 // HTTPProxy http proxy
@@ -61,7 +62,7 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 				return
 			}
 			defer HTTPConn.Close()
-			log.Println("线程数:", runtime.NumGoroutine())
+			// log.Println("线程数:", runtime.NumGoroutine())
 			err := socks5ToHttp.httpHandleClientRequest(HTTPConn)
 			if err != nil {
 				log.Println(err)
@@ -86,7 +87,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	}
 
 	var method, host, address string
-	log.Println(string(requestData[:indexByte]))
+	// log.Println(string(requestData[:indexByte]))
 	if _, err = fmt.Sscanf(string(requestData[:indexByte]), "%s%s", &method, &host); err != nil {
 		return err
 	}
@@ -111,46 +112,29 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			address = hostPortURL.Host
 		}
 	}
-	// addressB, err := url.Parse("//" + address)
-	// if err != nil {
-	// 	return err
-	// }
-	// ip, err := net.LookupHost(hostPortURL.Hostname())
-	// if err == nil && ip[0] != "0.0.0.0" {
-	// 	address = ip[0] + ":" + addressB.Port()
-	// 	log.Println(address)
-	// }
 
-	var socks5Conn net.Conn
-	if socks5ToHttp.ByPass == false {
-		socks5Conn, err = (&Socks5Client{
+	var Conn net.Conn
+	switch socks5ToHttp.ByPass {
+	case false:
+		Conn, err = (&Socks5Client{
 			Server:  socks5ToHttp.Socks5Server,
 			Port:    socks5ToHttp.Socks5Port,
 			Address: address}).NewSocks5Client()
 		if err != nil {
-			log.Println(err)
 			return err
 		}
-	} else {
-		// ip, err := net.LookupHost(hostPortURL.Hostname())
-		// if err != nil {
-		// 	return err
-		// }
-
+	case true:
 		var isMatched bool
-		ip, isSuccess := dns.DNSv4("119.29.29.29:53", hostPortURL.Hostname())
+		ip, isSuccess := dns.DNSv4(socks5ToHttp.DNSServer, hostPortURL.Hostname())
 		if isSuccess == true {
-			isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip)
-			// }
-			// if len(ip) == 0 {
-			// 	isMatched = false
+			isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip[0])
 		} else {
 			isMatched = false
 		}
-		log.Println("isMatched", isMatched)
+		log.Println(runtime.NumGoroutine(), string(requestData[:indexByte]), isMatched)
 
 		if socks5ToHttp.ToHTTP == true && isMatched == false {
-			socks5Conn, err = (&Socks5Client{
+			Conn, err = (&Socks5Client{
 				Server:  socks5ToHttp.Socks5Server,
 				Port:    socks5ToHttp.Socks5Port,
 				Address: address}).NewSocks5Client()
@@ -159,14 +143,13 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 				return err
 			}
 		} else {
-			socks5Conn, err = net.Dial("tcp", address)
+			Conn, err = net.Dial("tcp", address)
 			if err != nil {
-				log.Println(err)
 				return err
 			}
 		}
 	}
-	defer socks5Conn.Close()
+	defer Conn.Close()
 
 	switch {
 	case method == "CONNECT":
@@ -184,7 +167,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		if bytes.Contains(new[:], []byte("Proxy-Connection:")) {
 			new = bytes.ReplaceAll(new[:], []byte("Proxy-Connection:"), []byte("Connection:"))
 		}
-		if _, err := socks5Conn.Write(new[:]); err != nil {
+		if _, err := Conn.Write(new[:]); err != nil {
 			return err
 		}
 	// case method == "POST":
@@ -204,97 +187,12 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	// 		return err
 	// 	}
 	default:
-		// var new []byte
-		// if bytes.Contains(requestData[:requestDataSize], []byte("Proxy-Connection:")) {
-		// 	new = bytes.ReplaceAll(requestData[:requestDataSize], []byte("Proxy-Connection:"), []byte("Connection:"))
-		// } else {
-		// 	new = requestData[:requestDataSize]
-		// }
-		// if _, err := socks5Conn.Write(new[:]); err != nil {
-		// 	return err
-		// }
-		// log.Println(string(new))
-		if _, err := socks5Conn.Write(requestData[:requestDataSize]); err != nil {
+		if _, err := Conn.Write(requestData[:requestDataSize]); err != nil {
 			return err
 		}
 	}
 
-	// go func() {
-	// 	for {
-	// 		socks5Data := make([]byte, 1024*2)
-	// 		n, err := socks5Conn.Read(socks5Data[:])
-	// 		if err != nil {
-	// 			return
-	// 		}
-	// 		HTTPConn.Write(socks5Data[:n])
-	// 	}
-	// }()
-	// func() {
-	// 	for {
-	// 		socks5Data := make([]byte, 1024*2)
-	// 		n, err := HTTPConn.Read(socks5Data[:])
-	// 		if err != nil {
-	// 			return
-	// 		}
-	// 		socks5Conn.Write(socks5Data[:n])
-	// 	}
-	// }()
-	go io.Copy(socks5Conn, HTTPConn)
-	io.Copy(HTTPConn, socks5Conn)
+	go io.Copy(Conn, HTTPConn)
+	io.Copy(HTTPConn, Conn)
 	return nil
 }
-
-// func (socks5ToHttp *Socks5ToHTTP) httpMethodAnalyze(method, address string, hostPortURL *url.URL,
-// 	requestData []byte, requestDataSize int, socks5Conn, HTTPConn net.Conn) error {
-// 	switch {
-// 	case method == "CONNECT":
-// 		HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
-// 	case method == "GET" || method == "POST":
-// 		new := requestData[:requestDataSize]
-// 		if bytes.Contains(new[:], []byte("http://"+address)) {
-// 			new = bytes.ReplaceAll(new[:], []byte("http://"+address), []byte(""))
-// 		} else if bytes.Contains(new[:], []byte("http://"+hostPortURL.Host)) {
-// 			new = bytes.ReplaceAll(new[:], []byte("http://"+hostPortURL.Host), []byte(""))
-// 		}
-// 		// re, _ := regexp.Compile("User-Agent: .*\r\n")
-// 		// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
-// 		// var new []byte
-// 		if bytes.Contains(new[:], []byte("Proxy-Connection:")) {
-// 			new = bytes.ReplaceAll(new[:], []byte("Proxy-Connection:"), []byte("Connection:"))
-// 		}
-// 		if _, err := socks5Conn.Write(new[:]); err != nil {
-// 			return err
-// 		}
-// 	// case method == "POST":
-// 	// 	new := requestData[:requestDataSize]
-// 	// 	if bytes.Contains(new[:], []byte("http://"+address)) {
-// 	// 		new = bytes.ReplaceAll(new[:], []byte("http://"+address), []byte(""))
-// 	// 	} else if bytes.Contains(new[:], []byte("http://"+hostPortURL.Host)) {
-// 	// 		new = bytes.ReplaceAll(new[:], []byte("http://"+hostPortURL.Host), []byte(""))
-// 	// 	}
-// 	// 	// re, _ := regexp.Compile("User-Agent: .*\r\n")
-// 	// 	// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
-// 	// 	// var new []byte
-// 	// 	if bytes.Contains(new[:], []byte("Proxy-Connection:")) {
-// 	// 		new = bytes.ReplaceAll(new[:], []byte("Proxy-Connection:"), []byte("Connection:"))
-// 	// 	}
-// 	// 	if _, err := socks5Conn.Write(new[:]); err != nil {
-// 	// 		return err
-// 	// 	}
-// 	default:
-// 		// var new []byte
-// 		// if bytes.Contains(requestData[:requestDataSize], []byte("Proxy-Connection:")) {
-// 		// 	new = bytes.ReplaceAll(requestData[:requestDataSize], []byte("Proxy-Connection:"), []byte("Connection:"))
-// 		// } else {
-// 		// 	new = requestData[:requestDataSize]
-// 		// }
-// 		// if _, err := socks5Conn.Write(new[:]); err != nil {
-// 		// 	return err
-// 		// }
-// 		// log.Println(string(new))
-// 		if _, err := socks5Conn.Write(requestData[:requestDataSize]); err != nil {
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }
