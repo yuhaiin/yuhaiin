@@ -2,11 +2,20 @@ package dns
 
 import (
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// DnsCache <-- use map save history
+type DnsCache struct {
+	dns       sync.Map
+	DNSServer string
+}
 
 // DNSv4 <-- dns for ipv4
 func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
@@ -102,22 +111,22 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// log.Println("QDCOUNT:", b[4], b[5], "ANCOUNT:", b[6], b[7], "NSCOUNT:", b[8], b[9], "ARCOUNT:", b[10], b[11])
 	anCount := int(b[6])<<8 + int(b[7])
 
-	b_header := b[12:n]
+	bHeader := b[12:n]
 	// bf, index := 1, int(b_header[0])+1
-	index := int(b_header[0]) + 1
+	index := int(bHeader[0]) + 1
 	for {
 		// log.Println("bf", bf, "index", index, string(b_header[bf:index]))
-		if b_header[index] == 0 {
+		if bHeader[index] == 0 {
 			break
 		}
 		// bf = index
-		index = index + int(b_header[index]) + 1
+		index = index + int(bHeader[index]) + 1
 	}
 	// index = index + 1
 	// // log.Println("type", b_header[index:index+2])
 	// // log.Println("class", b_header[index+2:index+4])
 	// index = index + 4
-	answer := b_header[index+5:]
+	answer := bHeader[index+5:]
 	answerIndex := 0
 	dns := []string{}
 	for i := 0; i < anCount; i++ {
@@ -163,6 +172,42 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 		return dns, true
 	}
 	return dns, false
+}
+
+// Match <--
+func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string) bool) bool {
+	var isMatched bool
+
+	if _, exist := dnscache.dns.Load(host); exist == false {
+		if hostTemplate != "ip" {
+			// ip, err := net.LookupHost(host)
+			ip, isSuccess := DNSv4(dnscache.DNSServer, host)
+			if isSuccess == true {
+				isMatched = cidrmatch(ip[0])
+			} else {
+				isMatched = false
+			}
+		} else {
+			isMatched = cidrmatch(host)
+		}
+		// if len(socks5Server.dns) > 10000 {
+		// 	i := 0
+		// 	for key := range socks5Server.dns {
+		// 		delete(socks5Server.dns, key)
+		// 		i++
+		// 		if i > 0 {
+		// 			break
+		// 		}
+		// 	}
+		// }
+		dnscache.dns.Store(host, isMatched)
+		fmt.Println(runtime.NumGoroutine(), "connect:"+host, isMatched)
+	} else {
+		isMatchedTemp, _ := dnscache.dns.Load(host)
+		isMatched = isMatchedTemp.(bool)
+		fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+host, isMatched)
+	}
+	return isMatched
 }
 
 // -------------------------------old---------------------
