@@ -151,13 +151,17 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 
 		}
 	}
+
 	// log.Println(dns)
 
 	// log.Println(b[bytes.Index(b[:n], []byte{192, 12})+2+2+2+4 : n])
 	// ip := b[bytes.Index(b[:n], []byte{192, 12})+2+2+2+4 : n]
 	// log.Println("ip:", strconv.Itoa(int(ip[2]))+"."+strconv.Itoa(int(ip[3]))+"."+strconv.Itoa(int(ip[4]))+"."+strconv.Itoa(int(ip[5])))
 	// log.Println(strconv.Itoa(int(b[n-4])) + "." + strconv.Itoa(int(b[n-3])) + "." + strconv.Itoa(int(b[n-2])) + "." + strconv.Itoa(int(b[n-1])))
-	return dns, true
+	if len(dns) != 0 {
+		return dns, true
+	}
+	return dns, false
 }
 
 // -------------------------------old---------------------
