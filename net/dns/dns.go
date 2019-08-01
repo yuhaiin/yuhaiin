@@ -168,10 +168,10 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// log.Println("ip:", strconv.Itoa(int(ip[2]))+"."+strconv.Itoa(int(ip[3]))+"."+strconv.Itoa(int(ip[4]))+"."+strconv.Itoa(int(ip[5])))
 	// log.Println(strconv.Itoa(int(b[n-4])) + "." + strconv.Itoa(int(b[n-3])) + "." + strconv.Itoa(int(b[n-2])) + "." + strconv.Itoa(int(b[n-1])))
 	if len(dns) != 0 {
-		microlog.Debug(domain, dns)
+		// microlog.Debug(domain, dns)
 		return dns, true
 	}
-	microlog.Debug(domain, dns)
+	// microlog.Debug(domain, dns)
 	return dns, false
 }
 
@@ -182,9 +182,10 @@ func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string
 		if hostTemplate != "ip" {
 			// ip, err := net.LookupHost(host)
 			ip, isSuccess := DNSv4(dnscache.DNSServer, host)
-			microlog.Debug(host, ip, isSuccess)
+			// microlog.Debug(host, ip, isSuccess)
 			if isSuccess == true {
 				isMatch = cidrmatch(ip[0])
+				// microlog.Debug(isMatch, ip[0])
 			} else {
 				isMatch = false
 			}
@@ -202,13 +203,13 @@ func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string
 		// 	}
 		// }
 		dnscache.dns.Store(host, isMatched)
-		// fmt.Println(runtime.NumGoroutine(), host, isMatched)
-		microlog.Debug(runtime.NumGoroutine(), host, isMatched)
+		// fmt.Println(runtime.NumGoroutine(), host, isMatch)
+		microlog.Debug(runtime.NumGoroutine(), host, isMatch)
 	} else {
 		isMatchTemp, _ := dnscache.dns.Load(host)
 		isMatch = isMatchTemp.(bool)
-		// fmt.Println(runtime.NumGoroutine(), "use cache", host, isMatched)
-		microlog.Debug(runtime.NumGoroutine(), "use cache", host, isMatched)
+		// fmt.Println(runtime.NumGoroutine(), "use cache", host, isMatch)
+		microlog.Debug(runtime.NumGoroutine(), "use cache", host, isMatch)
 	}
 	return isMatch
 }
