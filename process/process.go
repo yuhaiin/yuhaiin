@@ -2,12 +2,12 @@ package process
 
 import (
 	"io/ioutil"
-	"log"
 	"os/exec"
 	"strconv"
 
 	"../config"
-	"../config/configJson"
+	configJSON "../config/configJson"
+	microlog "../log"
 )
 
 // Start start ssr
@@ -52,12 +52,13 @@ func Start(configPath, sqlPath string) {
 			cmdArray = append(cmdArray, argument[argumentS])
 		}
 	}
-	log.Println(cmdArray)
+	// log.Println(cmdArray)
 	// if runtime.GOOS != "windows" {
 	// 	cmdArray = append(cmdArray, "-d", "start")
 	// }
 	// fmt.Println(cmdArray)
 	cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
+	microlog.Debug(nodeAndConfig["pythonPath"], cmdArray)
 	cmd.Start()
 	// cmd.Process.Release()
 	// cmd.Process.Signal(syscall.SIGUSR1)
