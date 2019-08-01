@@ -135,6 +135,15 @@ func StartByArgument(configPath, functionName string) {
 		time.Sleep(time.Duration(500) * time.Millisecond)
 		cmd.Process.Kill()
 		cmd.Wait()
+	case "httpBp":
+		argument := config.GetConfig(configPath)
+		fmt.Println("http proxy address:" + argument["httpProxy"])
+		cmd := exec.Command(executablePath, "-sd", "httpBBp")
+		// cmd.Run()
+		cmd.Start()
+		log.Println(cmd.Process.Pid)
+		time.Sleep(time.Duration(500) * time.Millisecond)
+		cmd.Process.Kill()
+		cmd.Wait()
 	}
-
 }

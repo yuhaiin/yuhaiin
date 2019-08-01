@@ -84,6 +84,8 @@ func menu(configPath, sqlPath string) {
 			os.Exit(0)
 		case "9":
 			process.StartByArgument(configPath, "http")
+		case "9b":
+			process.StartByArgument(configPath, "httpBp")
 		default:
 			fmt.Println(languageString["enterError"])
 		}
