@@ -63,6 +63,7 @@ func NewCidrMatchWithMap(fileName string) (*CidrMatch, error) {
 	cidrmatch.masksize = cidrmatch.getMaskSize(fileName)
 	microlog.Debug("masksize", cidrmatch.masksize)
 	cidrmatch.cidrMap = cidrmatch.getCidrMap(fileName)
+	microlog.Debug("cidrMapLen", cidrmatch.cidrMap)
 	return cidrmatch, nil
 }
 
