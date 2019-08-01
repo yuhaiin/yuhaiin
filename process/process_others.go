@@ -112,5 +112,20 @@ func StartByArgument(configPath, functionName string) {
 		}
 		log.Println(first.Pid)
 		first.Wait()
+
+	case "httpBp":
+		argument := config.GetConfig(configPath)
+		fmt.Println("http proxy address:" + argument["httpProxy"])
+		first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "httpBBp"}, &os.ProcAttr{
+			Sys: &syscall.SysProcAttr{
+				Setsid: true,
+			},
+		})
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println(first.Pid)
+		first.Wait()
 	}
 }
