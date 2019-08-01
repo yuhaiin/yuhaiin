@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 
+	microlog "../../log"
 	"../cidrmatch"
 	"../dns"
 	"../socks5ToHttp"
@@ -179,10 +180,12 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 			}
 
 		case 0x02:
-			log.Println("bind 请求 " + net.JoinHostPort(host, port))
+			// log.Println("bind 请求 " + net.JoinHostPort(host, port))
+			microlog.Debug("bind 请求 " + net.JoinHostPort(host, port))
 
 		case 0x03:
-			log.Println("udp 请求 " + net.JoinHostPort(host, port))
+			// log.Println("udp 请求 " + net.JoinHostPort(host, port))
+			microlog.Debug("udp 请求 " + net.JoinHostPort(host, port))
 			socks5Server.udp(client, net.JoinHostPort(host, port))
 		}
 	}

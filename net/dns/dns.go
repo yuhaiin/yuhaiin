@@ -2,13 +2,14 @@ package dns
 
 import (
 	"encoding/hex"
-	"fmt"
 	"log"
 	"net"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+
+	microlog "../../log"
 )
 
 // DnsCache <-- use map save history
@@ -200,11 +201,13 @@ func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string
 		// 	}
 		// }
 		dnscache.dns.Store(host, isMatched)
-		fmt.Println(runtime.NumGoroutine(), host, isMatched)
+		// fmt.Println(runtime.NumGoroutine(), host, isMatched)
+		microlog.Debug(runtime.NumGoroutine(), host, isMatched)
 	} else {
 		isMatchTemp, _ := dnscache.dns.Load(host)
 		isMatch = isMatchTemp.(bool)
-		fmt.Println(runtime.NumGoroutine(), "use cache", host, isMatched)
+		// fmt.Println(runtime.NumGoroutine(), "use cache", host, isMatched)
+		microlog.Debug(runtime.NumGoroutine(), "use cache", host, isMatched)
 	}
 	return isMatch
 }
