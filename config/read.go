@@ -36,6 +36,8 @@ func argumentMatch(argument map[string]string, configTemp2 []string) {
 		argument["timeout"] = configTemp2[1]
 	case "httpProxy":
 		argument["httpProxy"] = configTemp2[1]
+	case "cidrFile":
+		argument["cidrFile"] = configTemp2[1]
 		// case "daemon":
 		// 	argument["daemon"] = "-d start"
 	}

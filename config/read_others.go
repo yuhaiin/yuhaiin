@@ -16,6 +16,7 @@ import (
 func GetConfig(configPath string) map[string]string {
 	argument := map[string]string{}
 	argument["pidFile"] = configPath + "/shadowsocksr.pid"
+	argument["cidrFile"] = configPath + "/cidrBypass.conf"
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
 	argument["httpProxy"] = "127.0.0.1:8188"
