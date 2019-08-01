@@ -6,6 +6,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	microlog "../../log"
 )
 
 // CidrMatch <--
@@ -56,8 +58,10 @@ func NewCidrMatch(fileName string) (*CidrMatch, error) {
 
 // NewCidrMatchWithCidranger <--
 func NewCidrMatchWithMap(fileName string) (*CidrMatch, error) {
+	microlog.Debug("cidrfilename", fileName)
 	cidrmatch := new(CidrMatch)
 	cidrmatch.masksize = cidrmatch.getMaskSize(fileName)
+	microlog.Debug("masksize", cidrmatch.masksize)
 	cidrmatch.cidrMap = cidrmatch.getCidrMap(fileName)
 	return cidrmatch, nil
 }
