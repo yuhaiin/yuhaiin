@@ -182,6 +182,7 @@ func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string
 		if hostTemplate != "ip" {
 			// ip, err := net.LookupHost(host)
 			ip, isSuccess := DNSv4(dnscache.DNSServer, host)
+			microlog.Debug(host, ip, isSuccess)
 			if isSuccess == true {
 				isMatch = cidrmatch(ip[0])
 			} else {
