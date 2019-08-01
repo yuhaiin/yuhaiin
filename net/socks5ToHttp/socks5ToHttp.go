@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/url"
 	"strings"
 
+	microlog "../../log"
 	"../cidrmatch"
 	"../dns"
 )
@@ -71,7 +71,8 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			// log.Println("线程数:", runtime.NumGoroutine())
 			err := socks5ToHttp.httpHandleClientRequest(HTTPConn)
 			if err != nil {
-				log.Println(err)
+				// log.Println(err)
+				microlog.Debug(err)
 				return
 			}
 		}()
@@ -170,7 +171,8 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 				Port:    socks5ToHttp.Socks5Port,
 				Address: address}).NewSocks5Client()
 			if err != nil {
-				log.Println(err)
+				// log.Println(err)
+				microlog.Debug(err)
 				return err
 			}
 		} else {

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"../config"
-	"./cidrmatch/socks5ToHttp"
+	"./socks5ToHttp"
 	// "../socks5ToHttp"
 )
 

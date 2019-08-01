@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	socks5server "./socks5Server"
-	// "./socks5ToHttp"
+	socks5server "../../socks5Server"
+	// "../../socks5ToHttp"
 )
 
 func main() {
