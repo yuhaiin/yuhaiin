@@ -105,8 +105,12 @@ func main() {
 			process.Start(configPath, sqlPath)
 		} else if *subDaemon == "http" {
 			getdelay.StartHTTP(configPath)
+		} else if *subDaemon == "httpBp" {
+			getdelay.StartHTTPBypass(configPath)
 		} else if *subDaemon == "httpB" {
 			getdelay.StartHTTPByArgument()
+		} else if *subDaemon == "httpBBp" {
+			getdelay.StartHTTPByArgumentBypass()
 		}
 	} else {
 		menu(configPath, sqlPath)
