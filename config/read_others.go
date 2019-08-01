@@ -20,6 +20,7 @@ func GetConfig(configPath string) map[string]string {
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = GetPythonPath()
 	argument["httpProxy"] = "127.0.0.1:8188"
+	argument["dnsServer"] = "119.29.29.29:53"
 
 	// if argument["Workers"] == "" {
 	// 	argument["Workers"] = "--workers " + "1 "

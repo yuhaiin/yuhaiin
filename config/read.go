@@ -38,6 +38,8 @@ func argumentMatch(argument map[string]string, configTemp2 []string) {
 		argument["httpProxy"] = configTemp2[1]
 	case "cidrFile":
 		argument["cidrFile"] = configTemp2[1]
+	case "dnsServer":
+		argument["dnsServer"] = configTemp2[1]
 		// case "daemon":
 		// 	argument["daemon"] = "-d start"
 	}
