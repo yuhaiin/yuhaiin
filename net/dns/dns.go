@@ -2,7 +2,6 @@ package dns
 
 import (
 	"encoding/hex"
-	"log"
 	"net"
 	"runtime"
 	"strconv"
@@ -86,7 +85,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 
 	conn, err := net.Dial("udp", DNSServer)
 	if err != nil {
-		log.Println(err)
+		microlog.Debug(err)
 		return []string{}, false
 	}
 	defer conn.Close()
@@ -149,7 +148,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 			} else if int16(answer[answerIndex])<<8+int16(answer[answerIndex+1]) == 6 {
 				answerIndex += 2
 				hexDNS := hex.EncodeToString(answer[answerIndex : answerIndex+16])
-				log.Println(hexDNS[0:4] + ":" + hexDNS[4:8] + ":" + hexDNS[8:12] + ":" + hexDNS[12:16] +
+				microlog.Debug(hexDNS[0:4] + ":" + hexDNS[4:8] + ":" + hexDNS[8:12] + ":" + hexDNS[12:16] +
 					":" + hexDNS[16:20] + ":" + hexDNS[20:24] + ":" + hexDNS[24:28] + ":" + hexDNS[28:32])
 				dns = append(dns, hexDNS[0:4]+":"+hexDNS[4:8]+":"+hexDNS[8:12]+":"+hexDNS[12:16]+
 					":"+hexDNS[16:20]+":"+hexDNS[20:24]+":"+hexDNS[24:28]+":"+hexDNS[28:32])
@@ -169,9 +168,10 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// log.Println("ip:", strconv.Itoa(int(ip[2]))+"."+strconv.Itoa(int(ip[3]))+"."+strconv.Itoa(int(ip[4]))+"."+strconv.Itoa(int(ip[5])))
 	// log.Println(strconv.Itoa(int(b[n-4])) + "." + strconv.Itoa(int(b[n-3])) + "." + strconv.Itoa(int(b[n-2])) + "." + strconv.Itoa(int(b[n-1])))
 	if len(dns) != 0 {
-		// log.Println(domain, dns)
+		microlog.Debug(domain, dns)
 		return dns, true
 	}
+	microlog.Debug(domain, dns)
 	return dns, false
 }
 

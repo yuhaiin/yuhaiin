@@ -35,6 +35,7 @@ func StartHTTP(configPath string) {
 func StartHTTPBypass(configPath string) {
 	argument := config.GetConfig(configPath)
 	socks5ToHTTP := &socks5ToHttp.Socks5ToHTTP{
+		ToHTTP:       true,
 		HTTPServer:   "",
 		HTTPPort:     "",
 		Socks5Server: argument["localAddress"],
@@ -42,8 +43,8 @@ func StartHTTPBypass(configPath string) {
 		ByPass:       true,
 		CidrFile:     argument["cidrFile"],
 		DNSServer:    argument["dnsServer"],
-		ToHTTP:       true,
 	}
+
 	if argument["localPort"] == "" {
 		socks5ToHTTP.Socks5Port = "1080"
 	}
