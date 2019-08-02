@@ -202,7 +202,7 @@ func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string
 		// 		}
 		// 	}
 		// }
-		dnscache.dns.Store(host, isMatched)
+		dnscache.dns.Store(host, isMatch)
 		// fmt.Println(runtime.NumGoroutine(), host, isMatch)
 		microlog.Debug(runtime.NumGoroutine(), host, isMatch)
 	} else {
