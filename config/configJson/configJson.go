@@ -74,7 +74,9 @@ func enCodeJSON(configPath string, pa *ConfigSample) error {
 	if err != nil {
 		return err
 	}
-	if err := json.NewEncoder(file).Encode(&pa); err != nil {
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "    ")
+	if err := enc.Encode(&pa); err != nil {
 		return err
 	}
 	return nil

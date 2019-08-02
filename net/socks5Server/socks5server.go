@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"time"
 
 	microlog "../../log"
 	"../cidrmatch"
@@ -58,6 +59,7 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			// log.Panic(err)
 			// return err
 			microlog.Debug(err)
+			time.Sleep(time.Second * 1)
 			continue
 		}
 		defer client.Close()
