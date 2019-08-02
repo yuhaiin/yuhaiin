@@ -62,13 +62,13 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			time.Sleep(time.Second * 1)
 			continue
 		}
-		defer client.Close()
 
 		go func() {
 			// log.Println(runtime.NumGoroutine())
 			if client == nil {
 				return
 			}
+			defer client.Close()
 			socks5Server.handleClientRequest(client)
 		}()
 	}
@@ -84,7 +84,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 	}
 
 	if b[0] == 0x05 { //只处理Socks5协议
-		client.Write([]byte{0x05, 0x00})
+		_, _ = client.Write([]byte{0x05, 0x00})
 		if b[1] == 0x01 {
 			// 对用户名密码进行判断
 			if b[2] == 0x02 {
@@ -96,9 +96,9 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 				username := b[2 : 2+b[1]]
 				password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
 				if socks5Server.Username == string(username) && socks5Server.Password == string(password) {
-					client.Write([]byte{0x01, 0x00})
+					_, _ = client.Write([]byte{0x01, 0x00})
 				} else {
-					client.Write([]byte{0x01, 0x01})
+					_, _ = client.Write([]byte{0x01, 0x01})
 					return
 				}
 			}
@@ -207,7 +207,7 @@ func (socks5Server *ServerSocks5) udp(client net.Conn, domain string) {
 		return
 	}
 	defer server.Close()
-	client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
 	//进行转发
 	// httpConnect := make([]byte, 1024)
 	// n, _ := client.Read(httpConnect[:])
@@ -225,7 +225,7 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain string) {
 		return
 	}
 	defer server.Close()
-	client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
 	//进行转发
 	// httpConnect := make([]byte, 1024)
 	// n, _ := client.Read(httpConnect[:])
@@ -236,16 +236,16 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain string) {
 }
 
 func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
-	client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
 	server, err := net.Dial("tcp", socks5Server.HTTPServer+":"+socks5Server.HTTPPort)
 	if err != nil {
 		log.Println(err)
 	}
 	defer server.Close()
 	// if port == "443" {
-	server.Write([]byte("CONNECT " + host + ":" + port + " HTTP/1.1\r\n\r\n"))
+	_, _ = server.Write([]byte("CONNECT " + host + ":" + port + " HTTP/1.1\r\n\r\n"))
 	httpConnect := make([]byte, 1024)
-	server.Read(httpConnect[:])
+	_, _ = server.Read(httpConnect[:])
 	log.Println(string(httpConnect))
 	// }
 	// n, _ := client.Read(httpConnect[:])
@@ -261,7 +261,7 @@ func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
 		log.Println(err)
 	}
 	defer server.Close()
-	client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
 	// 转发
 	// httpConnect := make([]byte, 1024)
 	// n, _ := client.Read(httpConnect[:])
@@ -283,7 +283,7 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 	}
 
 	defer socks5Conn.Close()
-	socks5Conn.Write(b)
+	_, _ = socks5Conn.Write(b)
 	// client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
 	// 转发
 	// httpConnect := make([]byte, 1024)

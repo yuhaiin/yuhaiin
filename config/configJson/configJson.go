@@ -118,8 +118,8 @@ func addLinkJSON(link, configPath string) error {
 // AddLinkJSON for other package to add link
 func AddLinkJSON(configPath string) error {
 	var link string
-	fmt.Scanln(&link)
-	addLinkJSON(link, configPath)
+	_, _ = fmt.Scanln(&link)
+	_ = addLinkJSON(link, configPath)
 	return nil
 }
 
@@ -234,7 +234,7 @@ selectgroup:
 		num++
 	}
 	var selectGroup int
-	fmt.Scanln(&selectGroup)
+	_, _ = fmt.Scanln(&selectGroup)
 	if selectGroup < 0 || selectGroup > num-1 {
 		fmt.Println("select error")
 		goto selectgroup
@@ -250,7 +250,7 @@ selectgroup:
 			num++
 		}
 		var selectNode int
-		fmt.Scanln(&selectNode)
+		_, _ = fmt.Scanln(&selectNode)
 		if selectNode < 0 || selectNode > num-1 {
 			fmt.Println("select error")
 			goto selectnode
@@ -301,7 +301,7 @@ func GetNowNode(configPath string) (map[string]string, error) {
 	return node, nil
 }
 
-func main() {
+func _() {
 
 	// ssrJSON("/media/asutorufa/D/code/golang/SsrMicroClient/config/test/configJson")
 
@@ -323,7 +323,7 @@ func main() {
 
 	// ssrJSON(path)
 
-	ChangeNowNode(path)
+	_ = ChangeNowNode(path)
 
 }
 

@@ -56,7 +56,7 @@ func unzip_ssr(path string) {
 			continue
 		}
 		io.Copy(NewFile, r)
-		NewFile.Close()
+		_ = NewFile.Close()
 	}
 
 	err = os.Rename(path+unzip_name, path+"/shadowsocksr")

@@ -75,7 +75,7 @@ func NewTrieTree() *TrieTree {
 		root: &node{},
 	}
 }
-func main() {
+func _() {
 	trieTree := NewTrieTree()
 	trieTree.Insert("101")
 	trieTree.Insert("001")

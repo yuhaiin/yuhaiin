@@ -21,7 +21,7 @@ func PathExists(path string) bool {
 }
 
 // Init  <-- init
-func Init(configPath, sqlPath string) {
+func Init(configPath string) {
 	//判断目录是否存在 不存在则创建
 	if !PathExists(configPath) {
 		err := os.MkdirAll(configPath, os.ModePerm)

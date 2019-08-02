@@ -67,11 +67,11 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			time.Sleep(time.Second * 1)
 			continue
 		}
-		defer HTTPConn.Close()
 		go func() {
 			if HTTPConn == nil {
 				return
 			}
+			defer HTTPConn.Close()
 			// log.Println("线程数:", runtime.NumGoroutine())
 			err := socks5ToHttp.httpHandleClientRequest(HTTPConn)
 			if err != nil {
@@ -191,7 +191,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 
 	switch {
 	case method == "CONNECT":
-		HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+		_, _ = HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	case method == "GET" || method == "POST":
 		new := requestData[:requestDataSize]
 		if bytes.Contains(new[:], []byte("http://"+address)) {
@@ -231,6 +231,6 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	}
 
 	go io.Copy(Conn, HTTPConn)
-	io.Copy(HTTPConn, Conn)
+	_, _ = io.Copy(HTTPConn, Conn)
 	return nil
 }
