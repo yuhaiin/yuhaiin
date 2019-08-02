@@ -42,7 +42,7 @@ func (socks5Server *ServerSocks5) Socks5() error {
 		DNSServer: socks5Server.DNSServer,
 	}
 	var err error
-	socks5Server.cidrmatch, err = cidrmatch.NewCidrMatchWithMap(socks5Server.CidrFile)
+	socks5Server.cidrmatch, err = cidrmatch.NewCidrMatchWithTrie(socks5Server.CidrFile)
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 				// 	fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+net.JoinHostPort(host, port), isMatched)
 				// }
 
-				switch socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithMap) {
+				switch socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithTrie) {
 				case false:
 					if socks5Server.ToHTTP == true {
 						socks5Server.toHTTP(client, host, port)

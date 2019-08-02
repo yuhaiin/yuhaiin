@@ -8,136 +8,62 @@ import (
 	"strings"
 
 	microlog "../../log"
+	"../trie"
 )
 
 // CidrMatch <--
 type CidrMatch struct {
 	masksize int
+	cidrTrie *trie.TrieTree
 	cidrMap  map[string][]*net.IPNet
 	cidrS    []*net.IPNet
 }
 
-func (cidrmatch *CidrMatch) MatchString(ip string) bool {
-	ss := net.ParseIP(ip)
-	for _, n := range cidrmatch.cidrS {
-		// log.Println(s, n)
-		if n.Contains(ss) {
-			return true
-		}
-	}
-	return false
-}
-
-func (cidrmatch *CidrMatch) Match(ip net.IP) bool {
-	for _, n := range cidrmatch.cidrS {
-		// log.Println(s, n)
-		if n.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-// NewCidrMatch <--
-func NewCidrMatch(fileName string) (*CidrMatch, error) {
-	cidrmatch := new(CidrMatch)
-	configTemp, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		log.Println(err)
-		return cidrmatch, err
-	}
-	for _, n := range strings.Split(string(configTemp), "\n") {
-		_, cidr, err := net.ParseCIDR(n)
-		if err != nil {
-			continue
-		}
-		cidrmatch.cidrS = append(cidrmatch.cidrS, cidr)
-	}
-	return cidrmatch, nil
-}
-
-// NewCidrMatchWithCidranger <--
-func NewCidrMatchWithMap(fileName string) (*CidrMatch, error) {
+// NewCidrMatchWithTrie <--
+func NewCidrMatchWithTrie(fileName string) (*CidrMatch, error) {
 	microlog.Debug("cidrfilename", fileName)
 	cidrmatch := new(CidrMatch)
-	cidrmatch.masksize = cidrmatch.getMaskSize(fileName)
-	microlog.Debug("masksize", cidrmatch.masksize)
-	cidrmatch.cidrMap = cidrmatch.getCidrMap(fileName)
-	microlog.Debug("cidrMapLen", cidrmatch.cidrMap)
+	cidrmatch.cidrTrie = trie.NewTrieTree()
+	cidrmatch.insertCidrTrie(fileName)
 	return cidrmatch, nil
 }
 
-func (cidrmatch *CidrMatch) getMaskSize(fileName string) int {
+func (cidrmatch *CidrMatch) insertCidrTrie(fileName string) {
 	configTemp, _ := ioutil.ReadFile(fileName)
-	match := map[int]bool{}
-	// ip := "255.1.1.1/24"
 	for _, cidr := range strings.Split(string(configTemp), "\n") {
-		_, cidr2, err := net.ParseCIDR(cidr)
-		if err != nil {
-			continue
-		}
-		masksize, _ := cidr2.Mask.Size()
-		if !match[masksize] {
-			match[masksize] = true
-		}
-	}
-	// log.Println(match)
-	masksize := 32
-	for key := range match {
-		if key < masksize {
-			masksize = key
-		}
-	}
-	return masksize
-}
-
-func (cidrmatch *CidrMatch) getCidrMap(fileName string) map[string][]*net.IPNet {
-	configTemp, _ := ioutil.ReadFile(fileName)
-	match := map[string][]*net.IPNet{}
-	for _, cidr := range strings.Split(string(configTemp), "\n") {
-		_, cidr2, err := net.ParseCIDR(cidr)
-		if err != nil {
-			continue
-		}
+		ipAndMask := strings.Split(cidr, "/")
 		/* 十进制转化为二进制 */
 		c := ""
-		if cidr2.IP.To4() != nil {
-			c = ipAddrToInt(cidr2.IP.String())
+		if net.ParseIP(ipAndMask[0]) != nil {
+			if net.ParseIP(ipAndMask[0]).To4() != nil {
+				c = ipAddrToInt(ipAndMask[0])
+			} else {
+				c = ipv6AddrToInt(toIpv6(ipAndMask[0]))
+			}
 		} else {
-			c = ipv6AddrToInt(toIpv6(cidr2.IP.String()))
+			continue
 		}
+		masksize, err := strconv.Atoi(ipAndMask[1])
+		if err != nil {
+			continue
+		}
+		cidrmatch.cidrTrie.Insert(c[:masksize])
 		// fmt.Println("c:", c)
 		/* 二进制转化为十进制 */
 		// d, err := strconv.ParseInt(c, 2, 64)
 		// fmt.Println("d:", d, err)
-		prefix := c[:cidrmatch.masksize]
-		match[prefix] = append(match[prefix], cidr2)
 	}
-	return match
 }
 
-func (cidrmatch *CidrMatch) ipGetKey(ip string) string {
-	/* 十进制转化为二进制 */
+func (cidrmatch *CidrMatch) MatchWithTrie(ip string) bool {
 	ipTmp := net.ParseIP(ip)
+	ipBinary := ""
 	if ipTmp.To4() != nil {
-		return ipAddrToInt(ip)[:cidrmatch.masksize]
+		ipBinary = ipAddrToInt(ip)
 	} else if ipTmp.To16() != nil {
-		return ipv6AddrToInt(toIpv6(ip))[:cidrmatch.masksize]
+		ipBinary = ipv6AddrToInt(toIpv6(ip))
 	}
-	return ""
-}
-
-func (cidrmatch *CidrMatch) MatchWithMap(ip string) bool {
-	mapIP := cidrmatch.cidrMap[cidrmatch.ipGetKey(ip)]
-	if len(mapIP) == 0 {
-		return false
-	}
-	for _, s := range mapIP {
-		if s.Contains(net.ParseIP(ip)) {
-			return true
-		}
-	}
-	return false
+	return cidrmatch.cidrTrie.Search(ipBinary)
 }
 
 func ipAddrToInt(ipAddr string) string {

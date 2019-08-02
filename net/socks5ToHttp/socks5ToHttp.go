@@ -49,7 +49,7 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 	}
 	var err error
 	if socks5ToHttp.ByPass == true {
-		socks5ToHttp.cidrmatch, err = cidrmatch.NewCidrMatchWithMap(socks5ToHttp.CidrFile)
+		socks5ToHttp.cidrmatch, err = cidrmatch.NewCidrMatchWithTrie(socks5ToHttp.CidrFile)
 		if err != nil {
 			return err
 		}
@@ -164,7 +164,8 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		// 	fmt.Println(runtime.NumGoroutine(), "use cache", string(requestData[:indexByte-9]), isMatched)
 		// }
 
-		isMatched := socks5ToHttp.dnscache.Match(hostPortURL.Hostname(), hostTemplate, socks5ToHttp.cidrmatch.MatchWithMap)
+		isMatched := socks5ToHttp.dnscache.Match(hostPortURL.Hostname(), hostTemplate,
+			socks5ToHttp.cidrmatch.MatchWithTrie)
 		if socks5ToHttp.ToHTTP == true && isMatched == false {
 			Conn, err = (&Socks5Client{
 				Server:  socks5ToHttp.Socks5Server,
