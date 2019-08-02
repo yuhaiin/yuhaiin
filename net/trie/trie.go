@@ -13,17 +13,16 @@ type node struct {
 }
 
 func (trie *TrieTree) Insert(str string) {
-	// rootTest := &node{}
-	// nodeTemp := &node{}
 	nodeTemp := trie.root
-	// log.Println(len(str))
 	for i := 0; i < len(str); i++ {
+		// 1 byte is 49
 		if str[i] == 49 {
 			if nodeTemp.right == nil {
 				nodeTemp.right = new(node)
 			}
 			nodeTemp = nodeTemp.right
 		}
+		// 0 byte is 48
 		if str[i] == 48 {
 			if nodeTemp.left == nil {
 				nodeTemp.left = new(node)

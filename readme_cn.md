@@ -3,15 +3,7 @@
 [![](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
 [![](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
 [![codebeat badge](https://codebeat.co/badges/2cd0e124-3207-4453-8bd1-7bfc50ad68c9)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master)
-![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
-已知问题:  
-- [x]  配置文件的读取路径有问题   
-- [x] 数据库为空时未设置说明及跳过(更换query为queryrow)  
-- [x] 对数据库中没有的内容进行空判断
-- [x] 输入错误未设置处理程序  
-- [x] 第一次运行程序要检测目录是否存在,不存在则创建  
-- [ ] 执行文件未分bash和cmd 且执行文件路径有问题  
-- [ ] 防止出错 对配置文件内的目录进行检测(目测现在即使不检测也没问题) 
+![](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)   
 
 Todo:  
 - [x] 使用tcp延迟检测  
@@ -26,12 +18,20 @@ Todo:
 - [x] (放弃)使用原生go语言版ssr(sun8911879/shadowsocksR)或ssr_libev共享库(自己生成)  
      写[http代理](https://github.com/Asutorufa/SsrMicroClient/blob/OtherLanguage/Old/SSR_http_client/client.go)一半,发现sun8911879/shadowsocksR不支持auth_chain*....大坑  
      ssr_libev用golang调用bug太多  
-- [x] (放弃)分流(因为上面)  
-- [ ] 实现http代理  
+- [x] 分流 (在socks5代理层和http代理层实现,使用前缀树)
+- [x] 实现http代理  
 - [ ] 第一次运行自动创建桌面快捷方式,自动移动/复制程序到相应位置
 - [ ] 初次生成配置文件时,进行自定义输入操作,防止某些人不会修改
 - [ ] 加入`-h`参数对各种操作进行简短的说明(特别是配置文件的修改)
-- [ ] 兼容ss链接
+- [x] 兼容ss链接
+- [x] 使用json替代sqlite
+- [x]  配置文件的读取路径有问题   
+- [x] 数据库为空时未设置说明及跳过(更换query为queryrow)  
+- [x] 对数据库中没有的内容进行空判断
+- [x] 输入错误未设置处理程序  
+- [x] 第一次运行程序要检测目录是否存在,不存在则创建  
+- [x] 执行文件未分bash和cmd 且执行文件路径有问题  
+- [x] 防止出错 对配置文件内的目录进行检测(目测现在即使不检测也没问题) 
 ```
 #go版配置文件格式,第一次运行自动生成 #可以注释语句
 python_path /usr/bin/python3 #使用ssr_libev请关闭此项
