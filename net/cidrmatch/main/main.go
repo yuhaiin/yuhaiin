@@ -31,7 +31,7 @@ func main() {
 		ToShadowsocksr: true,
 		Socks5Server:   "127.0.0.1",
 		Socks5Port:     "1080",
-		DNSServer:      "119.29.29.29:53",
+		DNSServer:      "223.5.5.5:53",
 	}
 	if err := socks5S.Socks5(); err != nil {
 		log.Println(err)
