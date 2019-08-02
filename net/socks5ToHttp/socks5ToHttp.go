@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	microlog "../../log"
 	"../cidrmatch"
@@ -63,6 +64,7 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 		if err != nil {
 			// return err
 			microlog.Debug(err)
+			time.Sleep(time.Second * 1)
 			continue
 		}
 		defer HTTPConn.Close()
