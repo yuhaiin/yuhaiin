@@ -120,7 +120,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 					[]byte(socks5client.Username)...),
 				byte(len(socks5client.Password))),
 			[]byte(socks5client.Password)...)
-		socks5client.Conn.Write(sendData)
+		_, _ = socks5client.Conn.Write(sendData)
 		getData := make([]byte, 3)
 		_, err = socks5client.Conn.Read(getData[:])
 		if err != nil {

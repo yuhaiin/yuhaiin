@@ -29,7 +29,7 @@ func autoCreateConfig(configPath string) {
 
 	configConf := pythonPath + ssrPath + pidFile + logFile + fastOpen + timeOut + workers + localAddress + localPort + connectVerboseInfo + acl + httpProxy
 	fmt.Println(configConf)
-	ioutil.WriteFile(configFile, []byte(configConf), 0644)
+	_ = ioutil.WriteFile(configFile, []byte(configConf), 0644)
 }
 
 // GetConfigAndSQLPath <-- get the config path

@@ -141,16 +141,16 @@ func ipv6AddrToInt(ipAddr string) string {
 	var sum1S, sum2S, sum3S, sum4S string
 
 	if b0 == 0 {
-		sum1 += int64(b0) + 1<<16
-		sum1 += int64(b1)
+		sum1 += b0 + 1<<16
+		sum1 += b1
 		sum1S = strconv.FormatInt(sum1, 2)[1:]
 		nowlong := 32 - len(sum1S)
 		for i := 0; i < nowlong; i++ {
 			sum1S = "0" + sum1S
 		}
 	} else {
-		sum1 += int64(b0) << 16
-		sum1 += int64(b1)
+		sum1 += b0 << 16
+		sum1 += b1
 		sum1S = strconv.FormatInt(sum1, 2)
 		log.Println(sum1S)
 		nowlong := 32 - len(sum1S)
@@ -160,16 +160,16 @@ func ipv6AddrToInt(ipAddr string) string {
 	}
 
 	if b0 == 0 {
-		sum2 += int64(b2) + 1<<16
-		sum2 += int64(b3)
+		sum2 += b2 + 1<<16
+		sum2 += b3
 		sum2S = strconv.FormatInt(sum2, 2)[1:]
 		nowlong := 32 - len(sum2S)
 		for i := 0; i < nowlong; i++ {
 			sum2S = "0" + sum2S
 		}
 	} else {
-		sum2 += int64(b2) << 16
-		sum2 += int64(b3)
+		sum2 += b2 << 16
+		sum2 += b3
 		sum2S = strconv.FormatInt(sum2, 2)
 		nowlong := 32 - len(sum2S)
 		for i := 0; i < nowlong; i++ {
@@ -178,16 +178,16 @@ func ipv6AddrToInt(ipAddr string) string {
 	}
 
 	if b0 == 0 {
-		sum3 += int64(b4) + 1<<16
-		sum3 += int64(b5)
+		sum3 += b4 + 1<<16
+		sum3 += b5
 		sum3S = strconv.FormatInt(sum3, 2)[1:]
 		nowlong := 32 - len(sum3S)
 		for i := 0; i < nowlong; i++ {
 			sum3S = "0" + sum3S
 		}
 	} else {
-		sum3 += int64(b4) << 16
-		sum3 += int64(b5)
+		sum3 += b4 << 16
+		sum3 += b5
 		sum3S = strconv.FormatInt(sum3, 2)
 		nowlong := 32 - len(sum3S)
 		for i := 0; i < nowlong; i++ {
@@ -196,16 +196,16 @@ func ipv6AddrToInt(ipAddr string) string {
 	}
 
 	if b0 == 0 {
-		sum4 += int64(b6) + 1<<16
-		sum4 += int64(b7)
+		sum4 += b6 + 1<<16
+		sum4 += b7
 		sum4S = strconv.FormatInt(sum4, 2)[1:]
 		nowlong := 32 - len(sum4S)
 		for i := 0; i < nowlong; i++ {
 			sum4S = "0" + sum4S
 		}
 	} else {
-		sum4 += int64(b6) << 16
-		sum4 += int64(b7)
+		sum4 += b6 << 16
+		sum4 += b7
 		sum4S = strconv.FormatInt(sum4, 2)
 		nowlong := 32 - len(sum4S)
 		for i := 0; i < nowlong; i++ {
@@ -220,7 +220,7 @@ func ipv6AddrToInt(ipAddr string) string {
 	return sum1S + sum2S + sum3S + sum4S
 }
 
-func main() {
+func _() {
 	// cidrMatch, _ := NewCidrMatch("cn_rules.conf")
 	// ip, err := net.LookupIP("www.baidu.com")
 	// if err != nil {

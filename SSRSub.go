@@ -14,10 +14,10 @@ import (
 	// _ "github.com/mattn/go-sqlite3"
 )
 
-func menu(configPath, sqlPath string) {
+func menu(configPath string) {
 	languageString := config.GetFunctionString()
 	//初始化
-	ssr_init.Init(configPath, sqlPath)
+	ssr_init.Init(configPath)
 	//获取当前配置文件路径和可执行文件路径
 	executablePath, err := os.Executable()
 	if err != nil {
@@ -37,7 +37,7 @@ func menu(configPath, sqlPath string) {
 		fmt.Print(languageString["menu"])
 
 		var selectTemp string
-		fmt.Scanln(&selectTemp)
+		_, _ = fmt.Scanln(&selectTemp)
 
 		switch selectTemp {
 		case "1":
@@ -46,7 +46,7 @@ func menu(configPath, sqlPath string) {
 		case "2":
 			_, exist := process.Get(configPath)
 			// selectB := subscription.ChangeNowNode(sqlPath)
-			configJSON.ChangeNowNode(configPath)
+			_ = configJSON.ChangeNowNode(configPath)
 			if exist == true {
 				process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
@@ -68,11 +68,11 @@ func menu(configPath, sqlPath string) {
 			// fmt.Scanln(&linkTemp)
 			// if linkTemp != "0" && linkTemp != "" {
 			// subscription.AddLink(linkTemp, sqlPath)
-			configJSON.AddLinkJSON(configPath)
+			_ = configJSON.AddLinkJSON(configPath)
 			// }
 		case "5":
 			// subscription.LinkDelete(sqlPath)
-			configJSON.RemoveLinkJSON(configPath)
+			_ = configJSON.RemoveLinkJSON(configPath)
 		case "6":
 			//delay_test_temp := config.Read_config_file(path)
 			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
@@ -93,18 +93,18 @@ func menu(configPath, sqlPath string) {
 }
 
 func main() {
-	configPath, sqlPath := ssr_init.GetConfigAndSQLPath()
+	configPath, _ := ssr_init.GetConfigAndSQLPath()
 
 	daemon := flag.String("d", "", "d")
 	subDaemon := flag.String("sd", "", "sd")
 	flag.Parse()
 
 	if *daemon != "" {
-		process.Start(configPath, *daemon)
+		process.Start(configPath)
 	}
 	if *subDaemon != "" {
 		if *subDaemon == "ssr" {
-			process.Start(configPath, sqlPath)
+			process.Start(configPath)
 		} else if *subDaemon == "http" {
 			getdelay.StartHTTP(configPath)
 		} else if *subDaemon == "httpBp" {
@@ -115,6 +115,6 @@ func main() {
 			getdelay.StartHTTPByArgumentBypass()
 		}
 	} else {
-		menu(configPath, sqlPath)
+		menu(configPath)
 	}
 }

@@ -79,7 +79,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// domain []byte(domainSet), 0x00
 	// qType 0x00,0x01
 	// qClass 0x00,0x01
-	domainSetAndQTypeAndQClass := append([]byte(domainSet), 0x00, 0x00, 0x01, 0x00, 0x01)
+	domainSetAndQTypeAndQClass := append(domainSet, 0x00, 0x00, 0x01, 0x00, 0x01)
 
 	all := append(header, domainSetAndQTypeAndQClass...)
 
@@ -93,7 +93,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// log.Println(all, len(all))
 
 	var b [1024]byte
-	conn.Write(all)
+	_, _ = conn.Write(all)
 	// log.Println("write")
 	// var b [1024]byte
 	n, _ := conn.Read(b[:])
@@ -128,7 +128,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// index = index + 4
 	answer := bHeader[index+5:]
 	answerIndex := 0
-	dns := []string{}
+	var dns []string
 	for i := 0; i < anCount; i++ {
 		if answer[answerIndex]&128 == 128 && answer[answerIndex]&64 == 64 {
 			answerIndex += 2

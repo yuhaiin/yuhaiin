@@ -11,7 +11,7 @@ import (
 )
 
 // Start start ssr
-func Start(configPath, sqlPath string) {
+func Start(configPath string) {
 	// pid, status := Get(configPath)
 	// if status == true {
 	// 	log.Println("already have run at " + pid)
@@ -31,7 +31,7 @@ func Start(configPath, sqlPath string) {
 	// argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
 	argumentSingle := []string{"fastOpen", "connectVerboseInfo"}
 
-	cmdArray := []string{}
+	var cmdArray []string
 	if nodeAndConfig["ssrPath"] != "" {
 		cmdArray = append(cmdArray, nodeAndConfig["ssrPath"])
 	}
@@ -59,11 +59,11 @@ func Start(configPath, sqlPath string) {
 	// fmt.Println(cmdArray)
 	cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
 	microlog.Debug(nodeAndConfig["pythonPath"], cmdArray)
-	cmd.Start()
+	_ = cmd.Start()
 	// cmd.Process.Release()
 	// cmd.Process.Signal(syscall.SIGUSR1)
 	// fmt.Println(cmd.Process.Pid, config["pidFile"])
-	ioutil.WriteFile(nodeAndConfig["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+	_ = ioutil.WriteFile(nodeAndConfig["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
 }
 
 // ----------------------------------old get status-------------------------------------------

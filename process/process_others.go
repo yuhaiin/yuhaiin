@@ -90,7 +90,7 @@ func StartByArgument(configPath, functionName string) {
 			return
 		}
 		log.Println(first.Pid)
-		first.Wait()
+		_, _ = first.Wait()
 
 		pid, status = Get(configPath)
 		if status == true {
@@ -111,7 +111,7 @@ func StartByArgument(configPath, functionName string) {
 			return
 		}
 		log.Println(first.Pid)
-		first.Wait()
+		_, _ = first.Wait()
 
 	case "httpBp":
 		argument := config.GetConfig(configPath)
@@ -126,6 +126,6 @@ func StartByArgument(configPath, functionName string) {
 			return
 		}
 		log.Println(first.Pid)
-		first.Wait()
+		_, _ = first.Wait()
 	}
 }
