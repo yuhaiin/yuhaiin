@@ -56,15 +56,17 @@ func (socks5Server *ServerSocks5) Socks5() error {
 		client, err := socks5Server.conn.Accept()
 		if err != nil {
 			// log.Panic(err)
-			return err
+			// return err
+			microlog.Debug(err)
+			continue
 		}
+		defer client.Close()
 
 		go func() {
 			// log.Println(runtime.NumGoroutine())
 			if client == nil {
 				return
 			}
-			defer client.Close()
 			socks5Server.handleClientRequest(client)
 		}()
 	}
