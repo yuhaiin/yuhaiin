@@ -1,18 +1,15 @@
 package socks5ToHttp
 
 import (
-	"bytes"
-	"fmt"
-	"io"
-	"log"
-	"net"
-	"net/url"
-	"strings"
-	"time"
-
 	microlog "../../log"
 	"../cidrmatch"
 	"../dns"
+	"bytes"
+	"fmt"
+	"io"
+	"net"
+	"net/url"
+	"strings"
 )
 
 type errErr struct {
@@ -65,12 +62,12 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 		if err != nil {
 			// return err
 			microlog.Debug(err)
-			time.Sleep(time.Second * 1)
+			//time.Sleep(time.Second * 1)
 			continue
 		}
-		if err := HTTPConn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-			log.Println(err)
-		}
+		//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		//	log.Println(err)
+		//}
 
 		go func() {
 			if HTTPConn == nil {

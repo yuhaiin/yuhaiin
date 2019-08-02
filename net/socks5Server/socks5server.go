@@ -1,16 +1,14 @@
 package socks5server
 
 import (
-	"io"
-	"log"
-	"net"
-	"strconv"
-	"time"
-
 	microlog "../../log"
 	"../cidrmatch"
 	"../dns"
 	"../socks5ToHttp"
+	"io"
+	"log"
+	"net"
+	"strconv"
 )
 
 // ServerSocks5 <--
@@ -59,13 +57,12 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			// log.Panic(err)
 			// return err
 			microlog.Debug(err)
-			time.Sleep(time.Second * 1)
+			//time.Sleep(time.Second * 1)
 			continue
 		}
-		if err := client.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-			log.Println(err)
-		}
-		//client.SetReadDeadline(time.Now().Add(5*time.Second))
+		//if err := client.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		//	log.Println(err)
+		//}
 
 		go func() {
 			// log.Println(runtime.NumGoroutine())
