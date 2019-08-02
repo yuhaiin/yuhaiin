@@ -61,13 +61,15 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 	for {
 		HTTPConn, err := socks5ToHttp.HTTPListener.Accept()
 		if err != nil {
-			return err
+			// return err
+			microlog.Debug(err)
+			continue
 		}
+		defer HTTPConn.Close()
 		go func() {
 			if HTTPConn == nil {
 				return
 			}
-			defer HTTPConn.Close()
 			// log.Println("线程数:", runtime.NumGoroutine())
 			err := socks5ToHttp.httpHandleClientRequest(HTTPConn)
 			if err != nil {

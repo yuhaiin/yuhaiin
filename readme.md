@@ -15,7 +15,6 @@ How to use:
 
 ```shell
 git clone https://github.com/Asutorufa/SsrMicroClient.git
-go get -u github.com/mattn/go-sqlite3
 cd SsrMicroClient
 go build SSRSub.go
 ./SSRSub
