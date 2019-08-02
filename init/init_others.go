@@ -33,6 +33,6 @@ func autoCreateConfig(configPath string) {
 }
 
 // GetConfigAndSQLPath <-- get the config path
-func GetConfigAndSQLPath() (configPath string, sqlPath string) {
-	return os.Getenv("HOME") + "/.config/SSRSub", os.Getenv("HOME") + "/.config/SSRSub/SSR_config.db"
+func GetConfigAndSQLPath() (configPath string) {
+	return os.Getenv("HOME") + "/.config/SSRSub"
 }
