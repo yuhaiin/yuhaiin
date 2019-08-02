@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	socks5server "../../socks5Server"
@@ -8,6 +9,8 @@ import (
 )
 
 func main() {
+	dns := flag.String("dns", "58.132.8.1", "dns")
+	flag.Parse()
 	// httpS := socks5ToHttp.Socks5ToHTTP{
 	// 	ToHTTP:       true,
 	// 	HTTPServer:   "127.0.0.1",
@@ -16,7 +19,7 @@ func main() {
 	// 	Socks5Server: "127.0.0.1",
 	// 	Socks5Port:   "1080",
 	// 	CidrFile:     "/mnt/share/code/golang/cn_rules.conf",
-	// 	DNSServer:    "119.29.29.29:53",
+	// 	DNSServer:    *dns,
 	// }
 	// if err := httpS.HTTPProxy(); err != nil {
 	// 	log.Println(err)
@@ -35,7 +38,7 @@ func main() {
 		//208.67.222.220#5353
 		//58.132.8.1 beijing edu DNS server
 		//101.6.6.6 beijing tsinghua dns server
-		DNSServer:      "58.132.8.1:53",
+		DNSServer: *dns,
 	}
 	if err := socks5S.Socks5(); err != nil {
 		log.Println(err)
