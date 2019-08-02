@@ -40,11 +40,6 @@ daemon
 ```
 -->
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.3beta.png)
-<!--
-issue:
-- [ ] now only can run in bash,cmd is not test.
-- [ ] not test path exist or not(now everything is normal).
--->
 
 <!-- [日本語](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md) [中文](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_cn.md) [other progrmammer language vision](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md)    -->
 
@@ -55,14 +50,16 @@ issue:
 [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 
+<!--
 ## already know issue
 
 ssr python version at mac may be not support,please test by yourself.
-
+-->
 ## Others
-
+<!--
 Make a simple gui([Now Dev](https://github.com/Asutorufa/SsrMicroClient/tree/dev)):
-![gui](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/dev/img/gui_dev.png)  
+![gui](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/dev/img/gui_dev.png) 
+--> 
 Todo:
 
 - [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
@@ -90,10 +87,11 @@ Todo:
   - already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add `-h` argument to show help.
-
+<!--
 fixed issue:
 
 - process android is not linux.
 - sh should use which to get.  
 - support windows.
 - can setting timeout.
+-->
