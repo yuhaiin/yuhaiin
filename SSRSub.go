@@ -93,7 +93,7 @@ func menu(configPath string) {
 }
 
 func main() {
-	configPath, _ := ssr_init.GetConfigAndSQLPath()
+	configPath := ssr_init.GetConfigAndSQLPath()
 
 	daemon := flag.String("d", "", "d")
 	subDaemon := flag.String("sd", "", "sd")
