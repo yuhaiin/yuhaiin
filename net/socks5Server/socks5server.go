@@ -62,6 +62,10 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			time.Sleep(time.Second * 1)
 			continue
 		}
+		if err := client.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			log.Println(err)
+		}
+		//client.SetReadDeadline(time.Now().Add(5*time.Second))
 
 		go func() {
 			// log.Println(runtime.NumGoroutine())

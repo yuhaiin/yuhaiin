@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/url"
 	"strings"
@@ -67,6 +68,10 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			time.Sleep(time.Second * 1)
 			continue
 		}
+		if err := HTTPConn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			log.Println(err)
+		}
+
 		go func() {
 			if HTTPConn == nil {
 				return
