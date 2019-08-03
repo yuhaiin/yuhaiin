@@ -39,7 +39,7 @@ daemon
 #log-file /dev/null
 ```
 -->
-gui version(by qt):
+gui version(by qt):  
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/gui_by_qt_dev1.png)  
 no gui version:
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.3beta.png)
