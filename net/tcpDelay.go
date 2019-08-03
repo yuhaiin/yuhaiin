@@ -13,9 +13,9 @@ import (
 func TCPDelay(address, port string) (time.Duration, bool, error) {
 	//fmt.Print("tcp connecting")
 	timeNow := time.Now()
-	conn, err := net.DialTimeout("tcp", address+":"+port, 5*time.Second)
+	conn, err := net.DialTimeout("tcp", address+":"+port, 3*time.Second)
 	if err != nil {
-		if time.Since(timeNow) > 5*time.Second {
+		if time.Since(timeNow) > 3*time.Second {
 			log.Println("tcp timeout,tcp connect time over 5s")
 			return 999 * time.Hour, false, err
 		} else {
