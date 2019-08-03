@@ -39,6 +39,9 @@ daemon
 #log-file /dev/null
 ```
 -->
+gui version(by qt):
+![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/gui_by_qt_dev1.png)  
+no gui version:
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.3beta.png)
 
 <!-- [日本語](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md) [中文](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_cn.md) [other progrmammer language vision](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md)    -->
@@ -46,6 +49,7 @@ daemon
 ## Thanks
 
 [Golang](https://golang.org)  
+[therecipe/qt](github.com/therecipe/qt)  
 [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)(now change to json)  
 [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
