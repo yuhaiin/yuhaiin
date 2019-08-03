@@ -165,6 +165,19 @@ func RemoveLinkJSON(configPath string) error {
 	return nil
 }
 
+// GetLink <--
+func GetLink(configPath string) ([]string, error) {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return []string{}, err
+	}
+	var linkTmp []string
+	for _, link := range pa.Link {
+		linkTmp = append(linkTmp, link)
+	}
+	return linkTmp, nil
+}
+
 // SsrJSON reset all node from link
 func SsrJSON(configPath string) error {
 	// ssrB := []string{"ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy",
@@ -217,6 +230,32 @@ func SsrJSON(configPath string) error {
 		return err
 	}
 	return nil
+}
+
+// GetGroup <--
+func GetGroup(configPath string) ([]string, error) {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return []string{}, err
+	}
+	var groupTmp []string
+	for group := range pa.Node {
+		//fmt.Println(num, group)
+		groupTmp = append(groupTmp, group)
+	}
+	return groupTmp, nil
+}
+
+func GetNode(configPath, group string) ([]string, error) {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return []string{}, err
+	}
+	var nodeTmp []string
+	for nodeRemarks := range pa.Node[group] {
+		nodeTmp = append(nodeTmp, nodeRemarks)
+	}
+	return nodeTmp, nil
 }
 
 // SelectNode <--
@@ -282,6 +321,29 @@ func ChangeNowNode(configPath string) error {
 	return nil
 }
 
+// ChangeNowNode2 <--
+func ChangeNowNode2(configPath, group, remarks string) error {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return err
+	}
+
+	pa.NowNode = pa.Node[group][remarks]
+	if err := enCodeJSON(configPath, pa); err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetOneNode get one node by group and remarks
+func GetOneNode(configPath, group, remarks string) (Node, error) {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return Node{}, err
+	}
+	return pa.Node[group][remarks], nil
+}
+
 // GetNowNode <--
 func GetNowNode(configPath string) (map[string]string, error) {
 	pa, err := decodeJSON(configPath)
@@ -298,6 +360,7 @@ func GetNowNode(configPath string) (map[string]string, error) {
 	node["password"] = pa.NowNode.Password
 	node["obfsparam"] = pa.NowNode.Obfsparam
 	node["protoparam"] = pa.NowNode.Protoparam
+	node["group"] = pa.NowNode.Group
 	return node, nil
 }
 
@@ -326,41 +389,3 @@ func _() {
 	_ = ChangeNowNode(path)
 
 }
-
-// ---------------------------------------------------old------------------------
-// func encodeJSON() {
-// 	ds := []string{"ss", "dd"}
-// 	nodeTest := node{
-// 		ID:         1,
-// 		Server:     "1.1.1.1",
-// 		ServerPort: "1080",
-// 		Protocol:   "auth_",
-// 		Method:     "chacha",
-// 		Obfs:       "obfs",
-// 		Password:   "fff",
-// 		Obfsparam:  "sss",
-// 		Protoparam: "sss",
-// 		Remarks:    "sss",
-// 		Group:      "sss",
-// 	}
-// 	pa := &configSample{
-// 		Group:   map[string]bool{},
-// 		NowNode: nodeTest,
-// 		Link:    ds,
-// 		Node:    map[string]map[string]node{},
-// 	}
-// 	link := "sss"
-// 	pa.Link = append(pa.Link, link)
-// 	// pa.Node[nodeTest.Group] = append(pa.Node[nodeTest.Group], nodeTest)
-// 	pa.Node[nodeTest.Group] = map[string]node{}
-// 	pa.Node[nodeTest.Group][nodeTest.Remarks] = nodeTest
-// 	js, _ := json.MarshalIndent(pa, "", "\t")
-// 	s := &configSample{}
-// 	json.Unmarshal(js, s)
-// 	fmt.Printf("JSON format: %s\n", js)
-// 	log.Println(s)
-
-// 	file, _ := os.Create("/media/asutorufa/D/code/golang/SsrMicroClient/config/test/configJson/a.json")
-// 	enc := json.NewEncoder(file)
-// 	enc.Encode(&pa)
-// }
