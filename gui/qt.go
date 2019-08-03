@@ -36,6 +36,8 @@ func SSRSub(configPath string) {
 			window.Hide()
 		}
 	})
+	icon := gui.NewQIcon5("/mnt/share/code/golang/SsrMicroClient/SSRSub.png")
+	window.SetWindowIcon(icon)
 
 	subWindow := subUI(configPath, window)
 
@@ -43,7 +45,6 @@ func SSRSub(configPath string) {
 	trayIcon.ConnectMessageClicked(func() {
 		log.Println("sss")
 	})
-	icon := gui.NewQIcon5("/mnt/share/code/golang/SsrMicroClient/SSRSub.png")
 	trayIcon.SetIcon(icon)
 	menu := widgets.NewQMenu(window)
 	ssrMicroClientTrayIconMenu := widgets.NewQAction2("SsrMicroClient", window)
@@ -174,7 +175,7 @@ func SSRSub(configPath string) {
 		delay, isSuccess, _ := getdelay.TCPDelay(node.Server, node.ServerPort)
 		delayString := delay.String()
 		if isSuccess == false {
-			delayString = "delay > 5s or cannot connect"
+			delayString = "delay > 3s or server can not connect"
 		}
 		delayLabel2.SetText(delayString)
 	})
