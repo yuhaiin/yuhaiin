@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 )
 
 func SSRSub(configPath string) {
@@ -29,7 +30,7 @@ func SSRSub(configPath string) {
 	}
 	if setting.HttpProxy == true && setting.HttpWithBypass == true {
 		_ = httpBypassCmd.Start()
-		log.Println(httpBypassCmd.ProcessState, httpCmd.ProcessState)
+		log.Println()
 	} else if setting.HttpProxy == true {
 		_ = httpCmd.Start()
 	}
@@ -39,20 +40,21 @@ func SSRSub(configPath string) {
 	window.SetWindowTitle("SsrMicroClient")
 	window.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
-		closeMessageBox := widgets.NewQMessageBox(window)
-		closeMessageBox.SetWindowTitle("close?")
-		closeMessageBox.SetText("which are you want to do?")
-		closeMessageBox.SetStandardButtons(0x00100000 | 0x00004000 | 0x00000400 | 0x00400000)
-		closeMessageBox.Button(0x00004000).SetText("exit(ssr daemon)")
-		closeMessageBox.Button(0x00000400).SetText("exit")
-		closeMessageBox.Button(0x00100000).SetText("run in background")
-		closeMessageBox.SetDefaultButton2(0x00100000)
-		if closeMessageBoxExec := closeMessageBox.Exec(); closeMessageBoxExec == 0x00004000 {
-			os.Exit(0)
-		} else if closeMessageBoxExec == 0x00000400 {
-		} else if closeMessageBoxExec == 0x00100000 {
-			window.Hide()
-		}
+		//closeMessageBox := widgets.NewQMessageBox(window)
+		//closeMessageBox.SetWindowTitle("close?")
+		//closeMessageBox.SetText("which are you want to do?")
+		//closeMessageBox.SetStandardButtons(0x00100000 | 0x00004000 | 0x00000400 | 0x00400000)
+		//closeMessageBox.Button(0x00004000).SetText("exit(ssr daemon)")
+		//closeMessageBox.Button(0x00000400).SetText("exit")
+		//closeMessageBox.Button(0x00100000).SetText("run in background")
+		//closeMessageBox.SetDefaultButton2(0x00100000)
+		//if closeMessageBoxExec := closeMessageBox.Exec(); closeMessageBoxExec == 0x00004000 {
+		//	os.Exit(0)
+		//} else if closeMessageBoxExec == 0x00000400 {
+		//} else if closeMessageBoxExec == 0x00100000 {
+		//	window.Hide()
+		//}
+		window.Hide()
 	})
 	icon := gui.NewQIcon5("/mnt/share/code/golang/SsrMicroClient/SSRSub.png")
 	window.SetWindowIcon(icon)
@@ -94,16 +96,23 @@ func SSRSub(configPath string) {
 	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit}
 	menu.AddActions(actions)
 	trayIcon.SetContextMenu(menu)
-	trayIcon.Show()
-
-	statusLabel := widgets.NewQLabel2("status", window, core.Qt__WindowType(0x00000000))
-	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
 	var status string
 	if pid, run := process.Get(configPath); run == true {
 		status = "<b><font color=green>running (pid: " + pid + ")</font></b>"
 	} else {
 		status = "<b><font color=reb>stopped</font></b>"
 	}
+	trayIcon.SetToolTip(status)
+	trayIcon.ConnectActivated(func(reason widgets.QSystemTrayIcon__ActivationReason) {
+		if window.IsHidden() == false {
+			window.Hide()
+		}
+		window.Show()
+	})
+	trayIcon.Show()
+
+	statusLabel := widgets.NewQLabel2("status", window, core.Qt__WindowType(0x00000000))
+	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
 	statusLabel2 := widgets.NewQLabel2(status, window, core.Qt__WindowType(0x00000000))
 	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10), core.NewQPoint2(560, 40)))
 
@@ -172,6 +181,7 @@ func SSRSub(configPath string) {
 			if exist == true {
 				process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
+				time.Sleep(250 * time.Millisecond)
 				process.StartByArgument(configPath, "ssr")
 			} else {
 				process.StartByArgument(configPath, "ssr")
@@ -292,18 +302,18 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.C
 		log.Println(err)
 	}
 	settingWindow := widgets.NewQMainWindow(parent, 0)
-	settingWindow.SetFixedSize2(500, 300)
+	settingWindow.SetFixedSize2(430, 330)
 	settingWindow.SetWindowTitle("setting")
 
-	httpProxyStat := widgets.NewQLabel(settingWindow, 0)
-	if http.ProcessState != nil {
-		httpProxyStat.SetText("<center><b><font color=green>http proxy now running!</font></b></center>")
-	} else if httpBypass.ProcessState != nil {
-		httpProxyStat.SetText("<center><b><font color=green>http proxy with bypass now running!</font></b></center>")
-	} else {
-		httpProxyStat.SetText("<center><b><font color=reb>http proxy is not running!</font></b></center>")
-	}
-	httpProxyStat.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(490, 30)))
+	//httpProxyStat := widgets.NewQLabel(settingWindow, 0)
+	//if http.ProcessState != nil {
+	//	httpProxyStat.SetText("<center><b><font color=green>http proxy now running!</font></b></center>")
+	//} else if httpBypass.ProcessState != nil {
+	//	httpProxyStat.SetText("<center><b><font color=green>http proxy with bypass now running!</font></b></center>")
+	//} else {
+	//	httpProxyStat.SetText("<center><b><font color=reb>http proxy is not running!</font></b></center>")
+	//}
+	//httpProxyStat.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(490, 30)))
 
 	httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", settingWindow)
 	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)
@@ -352,10 +362,70 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.C
 	BypassFileLineText := widgets.NewQLineEdit(settingWindow)
 	BypassFileLineText.SetText(settingConfig.BypassFile)
 	BypassFileLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 240), core.NewQPoint2(420, 270)))
+
+	applyButton := widgets.NewQPushButton2("apply", settingWindow)
+	applyButton.ConnectClicked(func(bool2 bool) {
+		if httpAddressLineText.Text() != settingConfig.HttpProxyAddressAndPort ||
+			settingConfig.HttpProxy != httpProxyCheckBox.IsChecked() ||
+			settingConfig.HttpWithBypass != httpBypassCheckBox.IsChecked() {
+			settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
+			if settingConfig.HttpProxy == true && settingConfig.HttpWithBypass == true {
+				err = httpBypass.Process.Kill()
+				if err != nil {
+					log.Println(err)
+				}
+				_ = httpBypass.Wait()
+			} else if settingConfig.HttpProxy == true {
+				err = http.Process.Kill()
+				if err != nil {
+					log.Println(err)
+				}
+				_ = http.Wait()
+			}
+			settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
+			settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
+			err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
+			if err != nil {
+				log.Println(err)
+			}
+			if settingConfig.HttpProxy == true && settingConfig.HttpWithBypass == true {
+				httpBypass, _ = getdelay.GetHttpProxyBypassCmd(configPath)
+				_ = httpBypass.Start()
+			} else if settingConfig.HttpProxy == true {
+				http, _ = getdelay.GetHttpProxyCmd(configPath)
+				_ = http.Start()
+			}
+		}
+		settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
+		settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
+		settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
+		settingConfig.LocalAddress = localAddressLineText.Text()
+		settingConfig.LocalPort = localPortLineText.Text()
+		settingConfig.PythonPath = pythonPathLineText.Text()
+		settingConfig.SsrPath = ssrPathLineText.Text()
+		settingConfig.BypassFile = BypassFileLineText.Text()
+		err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
+		if err != nil {
+			log.Println(err)
+		}
+		//else {
+		//	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)
+		//	socks5BypassCheckBox.SetChecked(settingConfig.Socks5WithBypass)
+		//	httpBypassCheckBox.SetChecked(settingConfig.HttpWithBypass)
+		//	localAddressLineText.SetText(settingConfig.LocalAddress)
+		//	localPortLineText.SetText(settingConfig.LocalPort)
+		//	httpAddressLineText.SetText(settingConfig.HttpProxyAddressAndPort)
+		//	pythonPathLineText.SetText(settingConfig.PythonPath)
+		//	ssrPathLineText.SetText(settingConfig.SsrPath)
+		//	BypassFileLineText.SetText(settingConfig.BypassFile)
+		//}
+	})
+	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280), core.NewQPoint2(90, 310)))
 	return settingWindow
 }
 
 func main() {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	configPath := ssr_init.GetConfigAndSQLPath()
 	daemon := flag.String("d", "", "d")
 	subDaemon := flag.String("sd", "", "sd")
