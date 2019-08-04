@@ -39,7 +39,6 @@ func SSRSub(configPath string) {
 			log.Println(err)
 		}
 	}
-	log.Println(httpBypassCmd.Process, httpCmd.Process)
 	window := widgets.NewQMainWindow(nil, 0)
 	//window.SetMinimumSize2(600, 400)
 	window.SetFixedSize2(600, 400)
@@ -69,11 +68,8 @@ func SSRSub(configPath string) {
 	settingWindow := SsrMicroClientSetting(window, httpCmd, httpBypassCmd, configPath)
 
 	trayIcon := widgets.NewQSystemTrayIcon(window)
-	trayIcon.ConnectMessageClicked(func() {
-		log.Println("sss")
-	})
 	trayIcon.SetIcon(icon)
-	menu := widgets.NewQMenu(window)
+	menu := widgets.NewQMenu(nil)
 	ssrMicroClientTrayIconMenu := widgets.NewQAction2("SsrMicroClient", window)
 	ssrMicroClientTrayIconMenu.ConnectTriggered(func(bool2 bool) {
 		if window.IsHidden() == false {
@@ -124,18 +120,21 @@ func SSRSub(configPath string) {
 	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit}
 	menu.AddActions(actions)
 	trayIcon.SetContextMenu(menu)
-	var status string
-	if pid, run := process.Get(configPath); run == true {
-		status = "<b><font color=green>running (pid: " + pid + ")</font></b>"
-	} else {
-		status = "<b><font color=reb>stopped</font></b>"
+	updateStatus := func() string {
+		var status string
+		if pid, run := process.Get(configPath); run == true {
+			status = "<b><font color=green>running (pid: " + pid + ")</font></b>"
+		} else {
+			status = "<b><font color=reb>stopped</font></b>"
+		}
+		return status
 	}
-	trayIcon.SetToolTip(status)
+	trayIcon.SetToolTip(updateStatus())
 	trayIcon.Show()
 
 	statusLabel := widgets.NewQLabel2("status", window, core.Qt__WindowType(0x00000000))
 	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
-	statusLabel2 := widgets.NewQLabel2(status, window, core.Qt__WindowType(0x00000000))
+	statusLabel2 := widgets.NewQLabel2(updateStatus(), window, core.Qt__WindowType(0x00000000))
 	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10), core.NewQPoint2(560, 40)))
 
 	nowNodeLabel := widgets.NewQLabel2("now node", window, core.Qt__WindowType(0x00000000))
@@ -268,7 +267,6 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
 		subWindow.Hide()
-		parent.Hide()
 	})
 
 	subLabel := widgets.NewQLabel2("subscription", subWindow, core.Qt__WindowType(0x00000000))
