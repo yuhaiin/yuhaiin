@@ -29,11 +29,17 @@ func SSRSub(configPath string) {
 		log.Println(err)
 	}
 	if setting.HttpProxy == true && setting.HttpWithBypass == true {
-		_ = httpBypassCmd.Start()
-		log.Println()
+		err = httpBypassCmd.Start()
+		if err != nil {
+			log.Println(err)
+		}
 	} else if setting.HttpProxy == true {
-		_ = httpCmd.Start()
+		err = httpCmd.Start()
+		if err != nil {
+			log.Println(err)
+		}
 	}
+	log.Println(httpBypassCmd.Process, httpCmd.Process)
 	window := widgets.NewQMainWindow(nil, 0)
 	//window.SetMinimumSize2(600, 400)
 	window.SetFixedSize2(600, 400)
@@ -93,10 +99,26 @@ func SSRSub(configPath string) {
 
 	exit := widgets.NewQAction2("exit", window)
 	exit.ConnectTriggered(func(bool2 bool) {
-		_ = httpBypassCmd.Process.Kill()
-		_ = httpBypassCmd.Wait()
-		_ = httpCmd.Process.Kill()
-		_ = httpCmd.Wait()
+		if httpBypassCmd.Process != nil {
+			err = httpBypassCmd.Process.Kill()
+			if err != nil {
+				//	do something
+			}
+			err = httpBypassCmd.Wait()
+			if err != nil {
+				//	do something
+			}
+		}
+		if httpCmd.Process != nil {
+			err = httpCmd.Process.Kill()
+			if err != nil {
+				//	do something
+			}
+			err = httpCmd.Wait()
+			if err != nil {
+				//	do something
+			}
+		}
 		os.Exit(0)
 	})
 	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit}
@@ -109,12 +131,6 @@ func SSRSub(configPath string) {
 		status = "<b><font color=reb>stopped</font></b>"
 	}
 	trayIcon.SetToolTip(status)
-	trayIcon.ConnectActivated(func(reason widgets.QSystemTrayIcon__ActivationReason) {
-		if window.IsHidden() == false {
-			window.Hide()
-		}
-		window.Show()
-	})
 	trayIcon.Show()
 
 	statusLabel := widgets.NewQLabel2("status", window, core.Qt__WindowType(0x00000000))
@@ -252,6 +268,7 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
 		subWindow.Hide()
+		parent.Hide()
 	})
 
 	subLabel := widgets.NewQLabel2("subscription", subWindow, core.Qt__WindowType(0x00000000))
@@ -317,6 +334,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.C
 	settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
 		settingWindow.Hide()
+		parent.Hide()
 	})
 
 	//httpProxyStat := widgets.NewQLabel(settingWindow, 0)
