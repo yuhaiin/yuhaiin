@@ -2,9 +2,11 @@ package getdelay
 
 import (
 	"log"
+	"os"
+	"os/exec"
 	"strings"
 
-	"../config"
+	"../config/config"
 	"./socks5ToHttp"
 	// "../socks5ToHttp"
 )
@@ -31,6 +33,17 @@ func StartHTTP(configPath string) {
 	}
 }
 
+func GetHttpProxyCmd(configPath string) (*exec.Cmd, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		log.Println(err)
+		return &exec.Cmd{}, err
+	}
+	// log.Println(executablePath)
+
+	return exec.Command(executablePath, "-sd", "http"), nil
+}
+
 // StartHTTP <--
 func StartHTTPBypass(configPath string) {
 	argument := config.GetConfig(configPath)
@@ -54,6 +67,17 @@ func StartHTTPBypass(configPath string) {
 	if err := socks5ToHTTP.HTTPProxy(); err != nil {
 		log.Println(err)
 	}
+}
+
+func GetHttpProxyBypassCmd(configPath string) (*exec.Cmd, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		log.Println(err)
+		return &exec.Cmd{}, err
+	}
+	// log.Println(executablePath)
+
+	return exec.Command(executablePath, "-sd", "httpBp"), nil
 }
 
 // StartHTTPByArgumentB <--

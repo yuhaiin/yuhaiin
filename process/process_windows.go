@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"../config"
+	"../config/config"
 )
 
 // Stop stop ssr process

@@ -6,11 +6,11 @@ import (
 	"log"
 	"os"
 
-	"./config"
+	"./config/config"
 	configJSON "./config/configJson"
 	ssr_init "./init"
 	getdelay "./net"
-	process "./process"
+	"./process"
 	// _ "github.com/mattn/go-sqlite3"
 )
 
