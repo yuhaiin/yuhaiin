@@ -123,6 +123,11 @@ func AddLinkJSON(configPath string) error {
 	return nil
 }
 
+// AddLinkJSON2 for other package to add link
+func AddLinkJSON2(link, configPath string) error {
+	return addLinkJSON(link, configPath)
+}
+
 func removeLinkJSON(link, configPath string) error {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
@@ -163,6 +168,11 @@ func RemoveLinkJSON(configPath string) error {
 		return err
 	}
 	return nil
+}
+
+// RemoveLinkJSON remove link for other package
+func RemoveLinkJSON2(link, configPath string) error {
+	return removeLinkJSON(link, configPath)
 }
 
 // GetLink <--

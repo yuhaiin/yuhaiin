@@ -14,7 +14,6 @@ import (
 )
 
 func SSRSub(configPath string) {
-
 	window := widgets.NewQMainWindow(nil, 0)
 	//window.SetMinimumSize2(600, 400)
 	window.SetFixedSize2(600, 400)
@@ -40,6 +39,7 @@ func SSRSub(configPath string) {
 	window.SetWindowIcon(icon)
 
 	subWindow := subUI(configPath, window)
+	settingWindow := SsrMicroClientSetting(window)
 
 	trayIcon := widgets.NewQSystemTrayIcon(window)
 	trayIcon.ConnectMessageClicked(func() {
@@ -61,9 +61,18 @@ func SSRSub(configPath string) {
 		}
 		subWindow.Show()
 	})
+
+	settingTrayIconMenu := widgets.NewQAction2("setting", window)
+	settingTrayIconMenu.ConnectTriggered(func(bool2 bool) {
+		if settingWindow.IsHidden() == false {
+			settingWindow.Close()
+		}
+		settingWindow.Show()
+	})
+
 	exit := widgets.NewQAction2("exit", window)
 	exit.ConnectTriggered(func(bool2 bool) { os.Exit(0) })
-	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, exit}
+	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit}
 	menu.AddActions(actions)
 	trayIcon.SetContextMenu(menu)
 	trayIcon.Show()
@@ -209,25 +218,63 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	subLabel := widgets.NewQLabel2("subscription", subWindow, core.Qt__WindowType(0x00000000))
 	subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10), core.NewQPoint2(130, 40)))
 	subCombobox := widgets.NewQComboBox(subWindow)
-	link, err := configJSON.GetLink(configPath)
-	if err != nil {
-		log.Println(err)
-		return new(widgets.QMainWindow)
+	var link []string
+	subRefresh := func() {
+		subCombobox.Clear()
+		var err error
+		link, err = configJSON.GetLink(configPath)
+		if err != nil {
+			log.Println(err)
+		}
+		subCombobox.AddItems(link)
 	}
-	subCombobox.AddItems(link)
+	subRefresh()
 	subCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 10), core.NewQPoint2(600, 40)))
 
 	deleteButton := widgets.NewQPushButton2("delete", subWindow)
+	deleteButton.ConnectClicked(func(bool2 bool) {
+		linkToDelete := subCombobox.CurrentText()
+		if err := configJSON.RemoveLinkJSON2(linkToDelete, configPath); err != nil {
+			log.Println(err)
+		}
+		subRefresh()
+	})
 	deleteButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 10), core.NewQPoint2(690, 40)))
 
-	plainText := widgets.NewQTextEdit(subWindow)
-	plainText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50), core.NewQPoint2(600, 80)))
+	lineText := widgets.NewQLineEdit(subWindow)
+	lineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50), core.NewQPoint2(600, 80)))
 
 	addButton := widgets.NewQPushButton2("add", subWindow)
+	addButton.ConnectClicked(func(bool2 bool) {
+		linkToAdd := lineText.Text()
+		if linkToAdd == "" {
+			return
+		}
+		for _, linkExisted := range link {
+			if linkExisted == linkToAdd {
+				return
+			}
+		}
+		if err := configJSON.AddLinkJSON2(linkToAdd, configPath); err != nil {
+			log.Println(err)
+			return
+		}
+		subRefresh()
+	})
 	addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50), core.NewQPoint2(690, 80)))
 	//updateButton := widgets.NewQPushButton2("update",subWindow)
 	//updateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(200,450),core.NewQPoint2(370,490)))
 	return subWindow
+}
+
+func SsrMicroClientSetting(parent *widgets.QMainWindow) *widgets.QMainWindow {
+	settingWindow := widgets.NewQMainWindow(parent, 0)
+	settingWindow.SetFixedSize2(700, 300)
+	settingWindow.SetWindowTitle("seeting")
+	httpProxyCheckBox := widgets.NewQCheckBox2("http pyoxy", settingWindow)
+	httpProxyCheckBox.CheckStateSetDefault()
+	//settingWindow.Show()
+	return settingWindow
 }
 
 func main() {
