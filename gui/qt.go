@@ -249,6 +249,10 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	subWindow := widgets.NewQMainWindow(parent, 0)
 	subWindow.SetFixedSize2(700, 300)
 	subWindow.SetWindowTitle("subscription")
+	subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+		event.Ignore()
+		subWindow.Hide()
+	})
 
 	subLabel := widgets.NewQLabel2("subscription", subWindow, core.Qt__WindowType(0x00000000))
 	subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10), core.NewQPoint2(130, 40)))
@@ -310,6 +314,10 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.C
 	settingWindow := widgets.NewQMainWindow(parent, 0)
 	settingWindow.SetFixedSize2(430, 330)
 	settingWindow.SetWindowTitle("setting")
+	settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+		event.Ignore()
+		settingWindow.Hide()
+	})
 
 	//httpProxyStat := widgets.NewQLabel(settingWindow, 0)
 	//if http.ProcessState != nil {
