@@ -64,6 +64,7 @@ func StartHTTPBypass(configPath string) {
 	httpProxy := strings.Split(argument["httpProxy"], ":")
 	socks5ToHTTP.HTTPServer = httpProxy[0]
 	socks5ToHTTP.HTTPPort = httpProxy[1]
+	log.Println(httpProxy)
 	if err := socks5ToHTTP.HTTPProxy(); err != nil {
 		log.Println(err)
 	}

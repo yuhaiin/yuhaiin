@@ -27,7 +27,7 @@ func Start(configPath string) {
 	// logFile , PidFile
 	nodeAndConfigArgument := []string{"server", "serverPort", "protocol", "method",
 		"obfs", "password", "obfsparam", "protoparam", "localAddress",
-		"localPort", "workers", "acl", "timeout"}
+		"localPort", "timeout"}
 	// argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
 	argumentSingle := []string{"fastOpen"}
 

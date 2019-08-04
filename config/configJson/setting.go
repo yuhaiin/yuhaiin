@@ -27,7 +27,7 @@ func SettingInitJSON(configPath string) error {
 	pa := &Setting{
 		PythonPath:              GetPythonPath(),
 		SsrPath:                 configPath + "/shadowsocksr/shadowsocks/local.py",
-		PidFile:                 configPath + "/shadowsocksr.conf",
+		PidFile:                 configPath + "/shadowsocksr.pid",
 		LogFile:                 "",
 		FastOpen:                true,
 		Works:                   "8",
