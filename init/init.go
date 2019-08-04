@@ -37,9 +37,9 @@ func Init(configPath string) {
 	// 	// Auto_create_config(config_path)
 	// }
 
-	if !PathExists(configPath + "/ssr_config.conf") {
-		autoCreateConfig(configPath)
-	}
+	//if !PathExists(configPath + "/ssr_config.conf") {
+	//	autoCreateConfig(configPath)
+	//}
 
 	if !PathExists(configPath + "/shadowsocksr") {
 		SsrDownload.Get_ssr_python(configPath)
@@ -47,6 +47,12 @@ func Init(configPath string) {
 
 	if !PathExists(configPath + "/node.json") {
 		if configJSON.InitJSON(configPath) != nil {
+			return
+		}
+	}
+
+	if !PathExists(configPath + "/SsrMicroConfig.json") {
+		if configJSON.SettingInitJSON(configPath) != nil {
 			return
 		}
 	}

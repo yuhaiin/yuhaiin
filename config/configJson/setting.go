@@ -1,0 +1,73 @@
+package configJSON
+
+import (
+	"encoding/json"
+	"os"
+)
+
+type Setting struct {
+	PythonPath              string `json:"pythonPath"`
+	SsrPath                 string `json:"ssrPath"`
+	PidFile                 string `json:"pidPath"`
+	LogFile                 string `json:"logPath"`
+	FastOpen                bool   `json:"fastOpen"`
+	Works                   string `json:"works"`
+	LocalAddress            string `json:"localAddress"`
+	LocalPort               string `json:"localPort"`
+	TimeOut                 string `json:"timeOut"`
+	HttpProxy               bool   `json:"httpProxy"`
+	HttpWithBypass          bool   `json:"httpWithBypass"`
+	HttpProxyAddressAndPort string `json:"httpProxyAddressAndPort"`
+	BypassFile              string `json:"bypassFile"`
+	Socks5WithBypass        bool   `json:"socks5WithBypass"`
+	DnsServer               string `json:"dnsServer"`
+}
+
+func SettingInitJSON(configPath string) error {
+	pa := &Setting{
+		PythonPath:              GetPythonPath(),
+		SsrPath:                 configPath + "/shadowsocksr/shadowsocks/local.py",
+		PidFile:                 configPath + "/shadowsocksr.conf",
+		LogFile:                 "",
+		FastOpen:                true,
+		Works:                   "8",
+		LocalAddress:            "127.0.0.1",
+		LocalPort:               "1080",
+		TimeOut:                 "1000",
+		HttpProxy:               true,
+		HttpWithBypass:          true,
+		HttpProxyAddressAndPort: "127.0.0.1:8188",
+		BypassFile:              configPath + "/cidrBypass.conf",
+		Socks5WithBypass:        true,
+		DnsServer:               "119.29.29.29:53",
+	}
+	if err := SettingEnCodeJSON(configPath, pa); err != nil {
+		return err
+	}
+	return nil
+}
+
+func SettingDecodeJSON(configPath string) (*Setting, error) {
+	pa := &Setting{}
+	file, err := os.Open(configPath + "/SsrMicroConfig.json")
+	if err != nil {
+		return &Setting{}, err
+	}
+	if json.NewDecoder(file).Decode(&pa) != nil {
+		return &Setting{}, err
+	}
+	return pa, nil
+}
+
+func SettingEnCodeJSON(configPath string, pa *Setting) error {
+	file, err := os.Create(configPath + "/SsrMicroConfig.json")
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "    ")
+	if err := enc.Encode(&pa); err != nil {
+		return err
+	}
+	return nil
+}

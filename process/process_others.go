@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"../config"
+	"../config/config"
 )
 
 // Stop stop ssr process

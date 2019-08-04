@@ -29,13 +29,6 @@ type Node struct {
 	Group      string `json:"group"`
 }
 
-type Path struct {
-	PYTHONPATH string `json:"pythonPath"`
-	SSRPATH    string `json:"ssrPath"`
-	PIDFILE    string `json:"pidFath"`
-	LOGFILE    string `json:"logFath"`
-}
-
 type ConfigSample struct {
 	Group   map[string]bool            `json:"group"`
 	NowNode Node                       `json:"nowNode"`

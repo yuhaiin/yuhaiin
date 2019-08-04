@@ -11,9 +11,28 @@ import (
 	"github.com/therecipe/qt/widgets"
 	"log"
 	"os"
+	"os/exec"
 )
 
 func SSRSub(configPath string) {
+	httpCmd, err := getdelay.GetHttpProxyCmd(configPath)
+	if err != nil {
+		log.Println(err)
+	}
+	httpBypassCmd, err := getdelay.GetHttpProxyBypassCmd(configPath)
+	if err != nil {
+		log.Println(err)
+	}
+	setting, err := configJSON.SettingDecodeJSON(configPath)
+	if err != nil {
+		log.Println(err)
+	}
+	if setting.HttpProxy == true && setting.HttpWithBypass == true {
+		_ = httpBypassCmd.Start()
+		log.Println(httpBypassCmd.ProcessState, httpCmd.ProcessState)
+	} else if setting.HttpProxy == true {
+		_ = httpCmd.Start()
+	}
 	window := widgets.NewQMainWindow(nil, 0)
 	//window.SetMinimumSize2(600, 400)
 	window.SetFixedSize2(600, 400)
@@ -28,10 +47,10 @@ func SSRSub(configPath string) {
 		closeMessageBox.Button(0x00000400).SetText("exit")
 		closeMessageBox.Button(0x00100000).SetText("run in background")
 		closeMessageBox.SetDefaultButton2(0x00100000)
-		if exec := closeMessageBox.Exec(); exec == 0x00004000 {
+		if closeMessageBoxExec := closeMessageBox.Exec(); closeMessageBoxExec == 0x00004000 {
 			os.Exit(0)
-		} else if exec == 0x00000400 {
-		} else if exec == 0x00100000 {
+		} else if closeMessageBoxExec == 0x00000400 {
+		} else if closeMessageBoxExec == 0x00100000 {
 			window.Hide()
 		}
 	})
@@ -39,7 +58,7 @@ func SSRSub(configPath string) {
 	window.SetWindowIcon(icon)
 
 	subWindow := subUI(configPath, window)
-	settingWindow := SsrMicroClientSetting(window)
+	settingWindow := SsrMicroClientSetting(window, httpCmd, httpBypassCmd, configPath)
 
 	trayIcon := widgets.NewQSystemTrayIcon(window)
 	trayIcon.ConnectMessageClicked(func() {
@@ -267,13 +286,72 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	return subWindow
 }
 
-func SsrMicroClientSetting(parent *widgets.QMainWindow) *widgets.QMainWindow {
+func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.Cmd, configPath string) *widgets.QMainWindow {
+	settingConfig, err := configJSON.SettingDecodeJSON(configPath)
+	if err != nil {
+		log.Println(err)
+	}
 	settingWindow := widgets.NewQMainWindow(parent, 0)
-	settingWindow.SetFixedSize2(700, 300)
-	settingWindow.SetWindowTitle("seeting")
-	httpProxyCheckBox := widgets.NewQCheckBox2("http pyoxy", settingWindow)
-	httpProxyCheckBox.CheckStateSetDefault()
-	//settingWindow.Show()
+	settingWindow.SetFixedSize2(500, 300)
+	settingWindow.SetWindowTitle("setting")
+
+	httpProxyStat := widgets.NewQLabel(settingWindow, 0)
+	if http.ProcessState != nil {
+		httpProxyStat.SetText("<center><b><font color=green>http proxy now running!</font></b></center>")
+	} else if httpBypass.ProcessState != nil {
+		httpProxyStat.SetText("<center><b><font color=green>http proxy with bypass now running!</font></b></center>")
+	} else {
+		httpProxyStat.SetText("<center><b><font color=reb>http proxy is not running!</font></b></center>")
+	}
+	httpProxyStat.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(490, 30)))
+
+	httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", settingWindow)
+	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)
+	httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40), core.NewQPoint2(130, 70)))
+
+	socks5BypassCheckBox := widgets.NewQCheckBox2("socks5 bypass", settingWindow)
+	socks5BypassCheckBox.SetChecked(settingConfig.Socks5WithBypass)
+	socks5BypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40), core.NewQPoint2(290, 70)))
+
+	httpBypassCheckBox := widgets.NewQCheckBox2("http bypass", settingWindow)
+	httpBypassCheckBox.SetChecked(settingConfig.HttpWithBypass)
+	httpBypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 40), core.NewQPoint2(450, 70)))
+
+	localAddressLabel := widgets.NewQLabel2("address", settingWindow, 0)
+	localAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80), core.NewQPoint2(80, 110)))
+	localAddressLineText := widgets.NewQLineEdit(settingWindow)
+	localAddressLineText.SetText(settingConfig.LocalAddress)
+	localAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(90, 80), core.NewQPoint2(200, 110)))
+
+	localPortLabel := widgets.NewQLabel2("port", settingWindow, 0)
+	localPortLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 80), core.NewQPoint2(300, 110)))
+	localPortLineText := widgets.NewQLineEdit(settingWindow)
+	localPortLineText.SetText(settingConfig.LocalPort)
+	localPortLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 80), core.NewQPoint2(420, 110)))
+
+	httpAddressLabel := widgets.NewQLabel2("httpHost", settingWindow, 0)
+	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120), core.NewQPoint2(100, 150)))
+	httpAddressLineText := widgets.NewQLineEdit(settingWindow)
+	httpAddressLineText.SetText(settingConfig.HttpProxyAddressAndPort)
+	httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 120), core.NewQPoint2(420, 150)))
+
+	pythonPathLabel := widgets.NewQLabel2("pythonPath", settingWindow, 0)
+	pythonPathLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
+	pythonPathLineText := widgets.NewQLineEdit(settingWindow)
+	pythonPathLineText.SetText(settingConfig.PythonPath)
+	pythonPathLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
+
+	ssrPathLabel := widgets.NewQLabel2("ssrPath", settingWindow, 0)
+	ssrPathLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 200), core.NewQPoint2(100, 230)))
+	ssrPathLineText := widgets.NewQLineEdit(settingWindow)
+	ssrPathLineText.SetText(settingConfig.SsrPath)
+	ssrPathLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 200), core.NewQPoint2(420, 230)))
+
+	BypassFileLabel := widgets.NewQLabel2("ssrPath", settingWindow, 0)
+	BypassFileLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 240), core.NewQPoint2(100, 270)))
+	BypassFileLineText := widgets.NewQLineEdit(settingWindow)
+	BypassFileLineText.SetText(settingConfig.BypassFile)
+	BypassFileLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 240), core.NewQPoint2(420, 270)))
 	return settingWindow
 }
 
