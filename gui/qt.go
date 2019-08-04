@@ -92,7 +92,13 @@ func SSRSub(configPath string) {
 	})
 
 	exit := widgets.NewQAction2("exit", window)
-	exit.ConnectTriggered(func(bool2 bool) { os.Exit(0) })
+	exit.ConnectTriggered(func(bool2 bool) {
+		_ = httpBypassCmd.Process.Kill()
+		_ = httpBypassCmd.Wait()
+		_ = httpCmd.Process.Kill()
+		_ = httpCmd.Wait()
+		os.Exit(0)
+	})
 	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit}
 	menu.AddActions(actions)
 	trayIcon.SetContextMenu(menu)
