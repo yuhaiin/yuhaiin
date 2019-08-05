@@ -136,7 +136,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 						isMatch := socks5Server.cidrmatch.MatchWithTrie(getDns[0])
 						microlog.Debug(runtime.NumGoroutine(), host, isMatch, getDns[0])
 						if isMatch {
-							socks5Server.toTCP(client, net.JoinHostPort(getDns[0], port))
+							socks5Server.toTCP(client, host, net.JoinHostPort(getDns[0], port))
 						} else {
 							socks5Server.toSocks5(client, net.JoinHostPort(getDns[0], port), b[:n])
 						}
@@ -146,8 +146,9 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 					}
 				} else {
 					isMatch := socks5Server.cidrmatch.MatchWithTrie(host)
+					microlog.Debug(runtime.NumGoroutine(), host, isMatch)
 					if isMatch {
-						socks5Server.toTCP(client, net.JoinHostPort(host, port))
+						socks5Server.toTCP(client, host, net.JoinHostPort(host, port))
 					} else {
 						socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
 					}
@@ -171,7 +172,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 				} else if socks5Server.ToShadowsocksr == true {
 					socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
 				} else {
-					socks5Server.toTCP(client, net.JoinHostPort(host, port))
+					socks5Server.toTCP(client, host, net.JoinHostPort(host, port))
 				}
 			}
 
@@ -210,11 +211,16 @@ func (socks5Server *ServerSocks5) udp(client net.Conn, domain string) {
 
 }
 
-func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain string) {
-	server, err := net.Dial("tcp", domain)
+func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
+	var server net.Conn
+	server, err := net.Dial("tcp", ip)
 	if err != nil {
 		log.Println(err)
-		return
+		server, err = net.Dial("tcp", domain)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 	}
 	defer server.Close()
 	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
@@ -270,7 +276,7 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 		Address: host}).NewSocks5ClientOnlyFirstVerify()
 	if err != nil {
 		log.Println(err)
-		socks5Server.toTCP(client, host)
+		socks5Server.toTCP(client, host, host)
 		return
 	}
 
