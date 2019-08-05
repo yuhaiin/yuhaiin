@@ -2,7 +2,6 @@ package dns
 
 import (
 	"encoding/hex"
-	"log"
 	"net"
 	"runtime"
 	"strconv"
@@ -20,11 +19,11 @@ type DnsCache struct {
 
 // DNSv4 <-- dns for ipv4
 func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
-	defer func() { //必须要先声明defer，否则不能捕获到panic异常
-		if err := recover(); err != nil {
-			log.Println(err) //这里的err其实就是panic传入的内容，bug
-		}
-	}()
+	//defer func() { //必须要先声明defer，否则不能捕获到panic异常
+	//	if err := recover(); err != nil {
+	//		log.Println(err) //这里的err其实就是panic传入的内容，bug
+	//	}
+	//}()
 	// +------------------------------+
 	// |             id               |  16bit
 	// +------------------------------+
@@ -73,7 +72,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// ANCOUNT -> 2byte
 	// NSCOUNT -> 2byte
 	// ARCOUNT -> 2byte
-	header := []byte{0x01, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	header := []byte{0x01, 0x02, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 	var domainSet []byte
 	for _, domain := range strings.Split(domain, ".") {
@@ -100,12 +99,23 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 
 	var b [1024]byte
 	_, _ = conn.Write(all)
+
+	//microlog.Debug(all)
+
 	// log.Println("write")
 	// var b [1024]byte
 	n, _ := conn.Read(b[:])
 
-	if b[3]&1 != 0 {
-		// log.Println("no such name")
+	//microlog.Debug(b[:n])
+
+	if b[3]&1 == 1 {
+		microlog.Debug("format error!", b[:n])
+		return []string{}, false
+	} else if b[3]&1 == 3 {
+		microlog.Debug("no such name", b[:n])
+		return []string{}, false
+	} else if b[3]&1 != 0 {
+		microlog.Debug("no such name", b[3]&1, b[3], b[:n])
 		return []string{}, false
 	}
 	// log.Println("header", b[0:12], "qr+opcode+aa+tc+rd:", b[2:3], "ra+z+rcode:", b[3], "rcode:", b[3]&1, "....", b[3]&2, b[3]&4, b[3]&8)
@@ -133,13 +143,24 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	// // log.Println("class", b_header[index+2:index+4])
 	// index = index + 4
 	answer := bHeader[index+5:]
+
+	//microlog.Debug("answer",answer)
+
 	answerIndex := 0
 	var dns []string
 	for i := 0; i < anCount; i++ {
-		if answer[answerIndex]&128 == 128 && answer[answerIndex]&64 == 64 {
+
+		//microlog.Debug(answerIndex)
+
+		if answer[answerIndex]&128 == 128 && answer[answerIndex]&64 == 64 { // 省略域名情况
 			answerIndex += 2
+		} else { // 不省略情况
+			for answer[answerIndex] != 0 {
+				answerIndex += int(answer[answerIndex]) + 1
+			}
+			answerIndex += 1
 		}
-		if int16(answer[answerIndex])<<8+int16(answer[answerIndex+1]) != 0x01 {
+		if int16(answer[answerIndex])<<8+int16(answer[answerIndex+1]) == 0x05 {
 			answerIndex += 8
 			answerIndex += 2 + int(answer[answerIndex])<<8 + int(answer[answerIndex+1])
 		} else {
@@ -151,7 +172,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 					strconv.Itoa(int(answer[answerIndex+2]))+"."+
 					strconv.Itoa(int(answer[answerIndex+3])))
 				answerIndex += 4
-			} else if int16(answer[answerIndex])<<8+int16(answer[answerIndex+1]) == 6 {
+			} else if int16(answer[answerIndex])<<8+int16(answer[answerIndex+1]) == 16 {
 				answerIndex += 2
 				hexDNS := hex.EncodeToString(answer[answerIndex : answerIndex+16])
 				microlog.Debug(hexDNS[0:4] + ":" + hexDNS[4:8] + ":" + hexDNS[8:12] + ":" + hexDNS[12:16] +
