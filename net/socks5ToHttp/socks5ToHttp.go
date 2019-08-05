@@ -210,6 +210,29 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 					return err
 				}
 			}
+		} else {
+			isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(hostPortURL.Hostname())
+			microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, hostPortURL.Hostname())
+			if isMatch {
+				Conn, err = net.Dial("tcp", net.JoinHostPort(hostPortURL.Hostname(), domainPort))
+				if err != nil {
+					Conn, err = net.Dial("tcp", address)
+					if err != nil {
+						log.Println(err)
+						return err
+					}
+				}
+			} else {
+				Conn, err = (&Socks5Client{
+					Server:  socks5ToHttp.Socks5Server,
+					Port:    socks5ToHttp.Socks5Port,
+					Address: net.JoinHostPort(hostPortURL.Hostname(), domainPort)}).NewSocks5Client()
+				if err != nil {
+					// log.Println(err)
+					microlog.Debug(err)
+					return err
+				}
+			}
 		}
 		//	isMatched := socks5ToHttp.dnscache.Match(hostPortURL.Hostname(), hostTemplate,
 		//		socks5ToHttp.cidrmatch.MatchWithTrie)
