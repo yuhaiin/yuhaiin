@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"runtime"
 	"strconv"
 )
 
@@ -36,7 +37,7 @@ type ServerSocks5 struct {
 // Socks5 <--
 func (socks5Server *ServerSocks5) Socks5() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
-	// socks5Server.dns = map[string]bool{}
+	//socks5Server.dns = map[string]bool{}
 	socks5Server.dnscache = dns.DnsCache{
 		DNSServer: socks5Server.DNSServer,
 	}
@@ -129,50 +130,40 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 		case 0x01:
 			switch socks5Server.Bypass {
 			case true:
-				// var isMatched bool
-
-				// if _, exist := socks5Server.dns.Load(host); exist == false {
-				// 	if hostTemplate != "ip" {
-				// 		// ip, err := net.LookupHost(host)
-				// 		ip, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
-				// 		if isSuccess == true {
-				// 			isMatched = socks5Server.cidrmatch.MatchWithMap(ip[0])
-				// 		} else {
-				// 			isMatched = false
-				// 		}
-				// 	} else {
-				// 		isMatched = socks5Server.cidrmatch.MatchWithMap(host)
-				// 	}
-				// 	// if len(socks5Server.dns) > 10000 {
-				// 	// 	i := 0
-				// 	// 	for key := range socks5Server.dns {
-				// 	// 		delete(socks5Server.dns, key)
-				// 	// 		i++
-				// 	// 		if i > 0 {
-				// 	// 			break
-				// 	// 		}
-				// 	// 	}
-				// 	// }
-				// 	socks5Server.dns.Store(host, isMatched)
-				// 	fmt.Println(runtime.NumGoroutine(), "connect:"+net.JoinHostPort(host, port), isMatched)
-				// } else {
-				// 	isMatchedTemp, _ := socks5Server.dns.Load(host)
-				// 	isMatched = isMatchedTemp.(bool)
-				// 	fmt.Println(runtime.NumGoroutine(), "use cache", "connect:"+net.JoinHostPort(host, port), isMatched)
-				// }
-
-				switch socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithTrie) {
-				case false:
-					if socks5Server.ToHTTP == true {
-						socks5Server.toHTTP(client, host, port)
-					} else if socks5Server.ToShadowsocksr == true {
-						socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+				if hostTemplate != "ip" {
+					getDns, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
+					if isSuccess {
+						isMatch := socks5Server.cidrmatch.MatchWithTrie(getDns[0])
+						microlog.Debug(runtime.NumGoroutine(), host, isMatch, getDns[0])
+						if isMatch {
+							socks5Server.toTCP(client, net.JoinHostPort(getDns[0], port))
+						} else {
+							socks5Server.toSocks5(client, net.JoinHostPort(getDns[0], port), b[:n])
+						}
 					} else {
-						socks5Server.toTCP(client, net.JoinHostPort(host, port))
+						microlog.Debug(runtime.NumGoroutine(), host, "dns false")
+						socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
 					}
-				case true:
-					socks5Server.toTCP(client, net.JoinHostPort(host, port))
+				} else {
+					isMatch := socks5Server.cidrmatch.MatchWithTrie(host)
+					if isMatch {
+						socks5Server.toTCP(client, net.JoinHostPort(host, port))
+					} else {
+						socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+					}
 				}
+				//switch socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithTrie) {
+				//case false:
+				//	if socks5Server.ToHTTP == true {
+				//		socks5Server.toHTTP(client, host, port)
+				//	} else if socks5Server.ToShadowsocksr == true {
+				//		socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+				//	} else {
+				//		socks5Server.toTCP(client, net.JoinHostPort(host, port))
+				//	}
+				//case true:
+				//	socks5Server.toTCP(client, net.JoinHostPort(host, port))
+				//}
 
 			case false:
 				if socks5Server.ToHTTP == true {

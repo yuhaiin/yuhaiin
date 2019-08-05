@@ -9,7 +9,8 @@ import (
 )
 
 func main() {
-	dns := flag.String("dns", "58.132.8.1", "dns")
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	dns := flag.String("dns", "127.0.0.1:53", "dns")
 	flag.Parse()
 	// httpS := socks5ToHttp.Socks5ToHTTP{
 	// 	ToHTTP:       true,
