@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/url"
+	"runtime"
 	"strings"
 )
 
@@ -170,24 +172,63 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		// 	fmt.Println(runtime.NumGoroutine(), "use cache", string(requestData[:indexByte-9]), isMatched)
 		// }
 
-		isMatched := socks5ToHttp.dnscache.Match(hostPortURL.Hostname(), hostTemplate,
-			socks5ToHttp.cidrmatch.MatchWithTrie)
-		if socks5ToHttp.ToHTTP == true && isMatched == false {
-			Conn, err = (&Socks5Client{
-				Server:  socks5ToHttp.Socks5Server,
-				Port:    socks5ToHttp.Socks5Port,
-				Address: address}).NewSocks5Client()
-			if err != nil {
-				// log.Println(err)
-				microlog.Debug(err)
-				return err
-			}
-		} else {
-			Conn, err = net.Dial("tcp", address)
-			if err != nil {
-				return err
+		domainPort := strings.Split(address, ":")[1]
+		if hostTemplate != "ip" {
+			getDns, isSuccess := dns.DNSv4(socks5ToHttp.DNSServer, hostPortURL.Hostname())
+			if isSuccess {
+				isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(getDns[0])
+				microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, getDns[0])
+				if isMatch {
+					Conn, err = net.Dial("tcp", net.JoinHostPort(getDns[0], domainPort))
+					if err != nil {
+						Conn, err = net.Dial("tcp", address)
+						if err != nil {
+							log.Println(err)
+							return err
+						}
+					}
+				} else {
+					Conn, err = (&Socks5Client{
+						Server:  socks5ToHttp.Socks5Server,
+						Port:    socks5ToHttp.Socks5Port,
+						Address: net.JoinHostPort(getDns[0], domainPort)}).NewSocks5Client()
+					if err != nil {
+						// log.Println(err)
+						microlog.Debug(err)
+						return err
+					}
+				}
+			} else {
+				microlog.Debug(runtime.NumGoroutine(), host, "dns false")
+				Conn, err = (&Socks5Client{
+					Server:  socks5ToHttp.Socks5Server,
+					Port:    socks5ToHttp.Socks5Port,
+					Address: address}).NewSocks5Client()
+				if err != nil {
+					// log.Println(err)
+					microlog.Debug(err)
+					return err
+				}
 			}
 		}
+		//	isMatched := socks5ToHttp.dnscache.Match(hostPortURL.Hostname(), hostTemplate,
+		//		socks5ToHttp.cidrmatch.MatchWithTrie)
+		//	if socks5ToHttp.ToHTTP == true && isMatched == false {
+		//		Conn, err = (&Socks5Client{
+		//			Server:  socks5ToHttp.Socks5Server,
+		//			Port:    socks5ToHttp.Socks5Port,
+		//			Address: address}).NewSocks5Client()
+		//		if err != nil {
+		//			// log.Println(err)
+		//			microlog.Debug(err)
+		//			return err
+		//		}
+		//	} else {
+		//		Conn, err = net.Dial("tcp", address)
+		//		if err != nil {
+		//			return err
+		//		}
+		//	}
 	}
 	defer Conn.Close()
 
@@ -195,19 +236,19 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	case method == "CONNECT":
 		_, _ = HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	case method == "GET" || method == "POST":
-		new := requestData[:requestDataSize]
-		if bytes.Contains(new[:], []byte("http://"+address)) {
-			new = bytes.ReplaceAll(new[:], []byte("http://"+address), []byte(""))
-		} else if bytes.Contains(new[:], []byte("http://"+hostPortURL.Host)) {
-			new = bytes.ReplaceAll(new[:], []byte("http://"+hostPortURL.Host), []byte(""))
+		newB := requestData[:requestDataSize]
+		if bytes.Contains(newB[:], []byte("http://"+address)) {
+			newB = bytes.ReplaceAll(newB[:], []byte("http://"+address), []byte(""))
+		} else if bytes.Contains(newB[:], []byte("http://"+hostPortURL.Host)) {
+			newB = bytes.ReplaceAll(newB[:], []byte("http://"+hostPortURL.Host), []byte(""))
 		}
 		// re, _ := regexp.Compile("User-Agent: .*\r\n")
 		// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
 		// var new []byte
-		if bytes.Contains(new[:], []byte("Proxy-Connection:")) {
-			new = bytes.ReplaceAll(new[:], []byte("Proxy-Connection:"), []byte("Connection:"))
+		if bytes.Contains(newB[:], []byte("Proxy-Connection:")) {
+			newB = bytes.ReplaceAll(newB[:], []byte("Proxy-Connection:"), []byte("Connection:"))
 		}
-		if _, err := Conn.Write(new[:]); err != nil {
+		if _, err := Conn.Write(newB[:]); err != nil {
 			return err
 		}
 	// case method == "POST":
