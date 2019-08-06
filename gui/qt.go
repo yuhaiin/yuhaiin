@@ -257,12 +257,44 @@ func SSRSub(configPath string) {
 		}
 		subWindow.Show()
 	})
+
+	subUpdateButton := widgets.NewQPushButton2("subscription Update", window)
+	subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260), core.NewQPoint2(560, 290)))
+	subUpdateButton.ConnectClicked(func(bool2 bool) {
+		message := widgets.NewQMessageBox(window)
+		message.SetText("Updating!")
+		message.Show()
+		if err := configJSON.SsrJSON(configPath); err != nil {
+			log.Println(err)
+		}
+		message.Hide()
+		message2 := widgets.NewQMessageBox(window)
+		message2.SetText("Updated!")
+		message2.Show()
+		group, err = configJSON.GetGroup(configPath)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		groupCombobox.Clear()
+		groupCombobox.AddItems(group)
+		groupCombobox.SetCurrentText(nowNode["group"])
+		node, err = configJSON.GetNode(configPath, groupCombobox.CurrentText())
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		nodeCombobox.Clear()
+		nodeCombobox.AddItems(node)
+		nodeCombobox.SetCurrentText(nowNode["remarks"])
+
+	})
 	window.Show()
 }
 
 func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow {
 	subWindow := widgets.NewQMainWindow(parent, 0)
-	subWindow.SetFixedSize2(700, 300)
+	subWindow.SetFixedSize2(700, 100)
 	subWindow.SetWindowTitle("subscription")
 	subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
