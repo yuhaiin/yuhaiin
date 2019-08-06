@@ -267,10 +267,7 @@ func SSRSub(configPath string) {
 		if err := configJSON.SsrJSON(configPath); err != nil {
 			log.Println(err)
 		}
-		message.Hide()
-		message2 := widgets.NewQMessageBox(window)
-		message2.SetText("Updated!")
-		message2.Show()
+		message.SetText("Updated!")
 		group, err = configJSON.GetGroup(configPath)
 		if err != nil {
 			log.Println(err)
