@@ -110,8 +110,35 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	//microlog.Debug(b[:n])
 
 	if b[3]&1 == 1 {
-		microlog.Debug("format error!", b[:n])
-		return []string{}, false
+		header := []byte{0x01, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+		all := append(header, domainSetAndQTypeAndQClass...)
+		conn.Close()
+		conn, err = net.Dial("udp", DNSServer)
+		if err != nil {
+			microlog.Debug(err)
+			return []string{}, false
+		}
+		_, _ = conn.Write(all[:])
+		n, _ = conn.Read(b[:])
+		if b[3]&1 == 1 {
+			microlog.Debug("format error!", b[:n])
+			return []string{}, false
+		} else if b[3]&1 == 2 {
+			microlog.Debug("dns server error")
+			return []string{}, false
+		} else if b[3]&1 == 3 {
+			microlog.Debug("no such name", b[:n])
+			return []string{}, false
+		} else if b[3]&1 == 4 {
+			microlog.Debug("dns server not support this request", b[:n])
+			return []string{}, false
+		} else if b[3]&1 == 5 {
+			microlog.Debug("dns server Refuse", b[:n])
+			return []string{}, false
+		} else if b[3]&1 != 0 {
+			microlog.Debug("other error", b[3]&1, b[3], b[:n])
+			return []string{}, false
+		}
 	} else if b[3]&1 == 2 {
 		microlog.Debug("dns server error")
 		return []string{}, false
