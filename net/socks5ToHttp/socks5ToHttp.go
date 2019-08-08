@@ -65,6 +65,11 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			// return err
 			microlog.Debug(err)
 			//time.Sleep(time.Second * 1)
+			_ = socks5ToHttp.HTTPListener.Close()
+			socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
+			if err != nil {
+				return err
+			}
 			continue
 		}
 		//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
