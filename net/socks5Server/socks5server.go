@@ -58,6 +58,12 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			// log.Panic(err)
 			// return err
 			microlog.Debug(err)
+			_ = socks5Server.conn.Close()
+			socks5Server.conn, err = net.Listen("tcp", socks5Server.Server+":"+socks5Server.Port)
+			if err != nil {
+				// log.Panic(err)
+				return err
+			}
 			//time.Sleep(time.Second * 1)
 			continue
 		}
