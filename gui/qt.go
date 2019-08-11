@@ -24,6 +24,10 @@ func SSRSub(configPath string) {
 	if err != nil {
 		log.Println(err)
 	}
+	socks5BypassCmd, err := getdelay.GetSocks5ProxyBypassCmd(configPath)
+	if err != nil {
+		log.Println(err)
+	}
 	setting, err := configJSON.SettingDecodeJSON(configPath)
 	if err != nil {
 		log.Println(err)
@@ -35,6 +39,12 @@ func SSRSub(configPath string) {
 		}
 	} else if setting.HttpProxy == true {
 		err = httpCmd.Start()
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	if setting.Socks5WithBypass == true {
+		err = socks5BypassCmd.Start()
 		if err != nil {
 			log.Println(err)
 		}
@@ -65,7 +75,7 @@ func SSRSub(configPath string) {
 	window.SetWindowIcon(icon)
 
 	subWindow := subUI(configPath, window)
-	settingWindow := SsrMicroClientSetting(window, httpCmd, httpBypassCmd, configPath)
+	settingWindow := SsrMicroClientSetting(window, httpCmd, httpBypassCmd, socks5BypassCmd, configPath)
 
 	trayIcon := widgets.NewQSystemTrayIcon(window)
 	trayIcon.SetIcon(icon)
@@ -113,6 +123,16 @@ func SSRSub(configPath string) {
 			err = httpCmd.Wait()
 			if err != nil {
 				//	do something
+			}
+		}
+		if socks5BypassCmd.Process != nil {
+			err = socks5BypassCmd.Process.Kill()
+			if err != nil {
+				//
+			}
+			err = socks5BypassCmd.Wait()
+			if err != nil {
+				//
 			}
 		}
 		os.Exit(0)
@@ -350,7 +370,7 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	return subWindow
 }
 
-func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.Cmd, configPath string) *widgets.QMainWindow {
+func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5Bypass *exec.Cmd, configPath string) *widgets.QMainWindow {
 	settingConfig, err := configJSON.SettingDecodeJSON(configPath)
 	if err != nil {
 		log.Println(err)
@@ -398,11 +418,17 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.C
 	localPortLineText.SetText(settingConfig.LocalPort)
 	localPortLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 80), core.NewQPoint2(420, 110)))
 
-	httpAddressLabel := widgets.NewQLabel2("httpHost", settingWindow, 0)
-	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120), core.NewQPoint2(100, 150)))
+	httpAddressLabel := widgets.NewQLabel2("http", settingWindow, 0)
+	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120), core.NewQPoint2(70, 150)))
 	httpAddressLineText := widgets.NewQLineEdit(settingWindow)
 	httpAddressLineText.SetText(settingConfig.HttpProxyAddressAndPort)
-	httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 120), core.NewQPoint2(420, 150)))
+	httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 120), core.NewQPoint2(210, 150)))
+
+	socks5BypassAddressLabel := widgets.NewQLabel2("socks5Bp", settingWindow, 0)
+	socks5BypassAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(220, 120), core.NewQPoint2(290, 150)))
+	socks5BypassLineText := widgets.NewQLineEdit(settingWindow)
+	socks5BypassLineText.SetText(settingConfig.Socks5WithBypassAddressAndPort)
+	socks5BypassLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 120), core.NewQPoint2(420, 150)))
 
 	pythonPathLabel := widgets.NewQLabel2("pythonPath", settingWindow, 0)
 	pythonPathLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
@@ -424,6 +450,19 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.C
 
 	applyButton := widgets.NewQPushButton2("apply", settingWindow)
 	applyButton.ConnectClicked(func(bool2 bool) {
+		settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
+		settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
+		settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
+		settingConfig.LocalAddress = localAddressLineText.Text()
+		settingConfig.LocalPort = localPortLineText.Text()
+		settingConfig.PythonPath = pythonPathLineText.Text()
+		settingConfig.SsrPath = ssrPathLineText.Text()
+		settingConfig.BypassFile = BypassFileLineText.Text()
+		err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
+		if err != nil {
+			log.Println(err)
+		}
+
 		if httpAddressLineText.Text() != settingConfig.HttpProxyAddressAndPort ||
 			settingConfig.HttpProxy != httpProxyCheckBox.IsChecked() ||
 			settingConfig.HttpWithBypass != httpBypassCheckBox.IsChecked() {
@@ -455,17 +494,23 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass *exec.C
 				_ = http.Start()
 			}
 		}
-		settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
-		settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
-		settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
-		settingConfig.LocalAddress = localAddressLineText.Text()
-		settingConfig.LocalPort = localPortLineText.Text()
-		settingConfig.PythonPath = pythonPathLineText.Text()
-		settingConfig.SsrPath = ssrPathLineText.Text()
-		settingConfig.BypassFile = BypassFileLineText.Text()
-		err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
-		if err != nil {
-			log.Println(err)
+		if settingConfig.Socks5WithBypassAddressAndPort != socks5BypassLineText.Text() ||
+			settingConfig.Socks5WithBypass != socks5BypassCheckBox.IsChecked() {
+			settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
+			settingConfig.Socks5WithBypassAddressAndPort = socks5BypassLineText.Text()
+			err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
+			if err != nil {
+				log.Println(err)
+			}
+			if socks5Bypass.Process != nil {
+				err = socks5Bypass.Process.Kill()
+				if err != nil {
+					log.Println(err)
+				}
+				_ = socks5Bypass.Wait()
+			}
+			socks5Bypass, _ = getdelay.GetSocks5ProxyBypassCmd(configPath)
+			_ = socks5Bypass.Start()
 		}
 		//else {
 		//	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)
@@ -502,6 +547,8 @@ func main() {
 			getdelay.StartHTTPBypass(configPath)
 		} else if *subDaemon == "httpB" {
 			getdelay.StartHTTPByArgument()
+		} else if *subDaemon == "socks5Bp" {
+			getdelay.StartSocks5Bypass(configPath)
 		} else if *subDaemon == "httpBBp" {
 			getdelay.StartHTTPByArgumentBypass()
 		}

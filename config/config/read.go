@@ -23,10 +23,10 @@ func GetConfig(configPath string) map[string]string {
 	// if argument["Workers"] == "" {
 	// 	argument["Workers"] = "--workers " + "1 "
 	// }
-
 	argument["ssrPath"] = settingDecodeJSON.SsrPath
 	argument["localAddress"] = settingDecodeJSON.LocalAddress
 	argument["localPort"] = settingDecodeJSON.LocalPort
+	argument["socks5WithBypassAddressAndPort"] = settingDecodeJSON.Socks5WithBypassAddressAndPort
 	if settingDecodeJSON.UdpTrans == true {
 		argument["udpTrans"] = "true"
 	}
