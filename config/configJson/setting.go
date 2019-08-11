@@ -21,6 +21,7 @@ type Setting struct {
 	BypassFile              string `json:"bypassFile"`
 	Socks5WithBypass        bool   `json:"socks5WithBypass"`
 	DnsServer               string `json:"dnsServer"`
+	UdpTrans                bool   `json:"udpTrans"`
 }
 
 func SettingInitJSON(configPath string) error {
@@ -40,6 +41,7 @@ func SettingInitJSON(configPath string) error {
 		BypassFile:              configPath + "/cidrBypass.conf",
 		Socks5WithBypass:        true,
 		DnsServer:               "119.29.29.29:53",
+		UdpTrans:                true,
 	}
 	if err := SettingEnCodeJSON(configPath, pa); err != nil {
 		return err

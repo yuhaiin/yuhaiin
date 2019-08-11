@@ -20,5 +20,6 @@ func GetConfigArgument() map[string]string {
 		"fastOpen": "--fast-open",
 		"acl":      "--acl",
 		"timeout":  "-t",
+		"udpTrans": "-u",
 	}
 }
