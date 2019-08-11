@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"../config/config"
+	"./socks5Server"
 	"./socks5ToHttp"
 	// "../socks5ToHttp"
 )
@@ -70,6 +71,35 @@ func StartHTTPBypass(configPath string) {
 	}
 }
 
+// StartHTTP <--
+func StartSocks5Bypass(configPath string) {
+	argument := config.GetConfig(configPath)
+	socks5S := socks5server.ServerSocks5{
+		Server:         "",
+		Port:           "",
+		Bypass:         true,
+		CidrFile:       argument["cidrFile"],
+		ToShadowsocksr: true,
+		Socks5Server:   argument["localAddress"],
+		Socks5Port:     argument["localPort"],
+		//208.67.222.222#5353
+		//208.67.222.220#5353
+		//58.132.8.1 beijing edu DNS server
+		//101.6.6.6 beijing tsinghua dns server
+		DNSServer: argument["dnsServer"],
+	}
+	if argument["localPort"] == "" {
+		socks5S.Socks5Port = "1080"
+	}
+	socks5BypassProxy := strings.Split(argument["socks5WithBypassAddressAndPort"], ":")
+	socks5S.Server = socks5BypassProxy[0]
+	socks5S.Port = socks5BypassProxy[1]
+	if err := socks5S.Socks5(); err != nil {
+		log.Println(err)
+		return
+	}
+}
+
 func GetHttpProxyBypassCmd(configPath string) (*exec.Cmd, error) {
 	executablePath, err := os.Executable()
 	if err != nil {
@@ -79,6 +109,17 @@ func GetHttpProxyBypassCmd(configPath string) (*exec.Cmd, error) {
 	// log.Println(executablePath)
 
 	return exec.Command(executablePath, "-sd", "httpBp"), nil
+}
+
+func GetSocks5ProxyBypassCmd(configPath string) (*exec.Cmd, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		log.Println(err)
+		return &exec.Cmd{}, err
+	}
+	// log.Println(executablePath)
+
+	return exec.Command(executablePath, "-sd", "socks5Bp"), nil
 }
 
 // StartHTTPByArgumentB <--

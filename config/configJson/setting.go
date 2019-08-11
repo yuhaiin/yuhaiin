@@ -6,42 +6,44 @@ import (
 )
 
 type Setting struct {
-	PythonPath              string `json:"pythonPath"`
-	SsrPath                 string `json:"ssrPath"`
-	PidFile                 string `json:"pidPath"`
-	LogFile                 string `json:"logPath"`
-	FastOpen                bool   `json:"fastOpen"`
-	Works                   string `json:"works"`
-	LocalAddress            string `json:"localAddress"`
-	LocalPort               string `json:"localPort"`
-	TimeOut                 string `json:"timeOut"`
-	HttpProxy               bool   `json:"httpProxy"`
-	HttpWithBypass          bool   `json:"httpWithBypass"`
-	HttpProxyAddressAndPort string `json:"httpProxyAddressAndPort"`
-	BypassFile              string `json:"bypassFile"`
-	Socks5WithBypass        bool   `json:"socks5WithBypass"`
-	DnsServer               string `json:"dnsServer"`
-	UdpTrans                bool   `json:"udpTrans"`
+	PythonPath                     string `json:"pythonPath"`
+	SsrPath                        string `json:"ssrPath"`
+	PidFile                        string `json:"pidPath"`
+	LogFile                        string `json:"logPath"`
+	FastOpen                       bool   `json:"fastOpen"`
+	Works                          string `json:"works"`
+	LocalAddress                   string `json:"localAddress"`
+	LocalPort                      string `json:"localPort"`
+	TimeOut                        string `json:"timeOut"`
+	HttpProxy                      bool   `json:"httpProxy"`
+	HttpWithBypass                 bool   `json:"httpWithBypass"`
+	HttpProxyAddressAndPort        string `json:"httpProxyAddressAndPort"`
+	Socks5WithBypassAddressAndPort string `json:"socks5WithBypassAddressAndPort"`
+	BypassFile                     string `json:"bypassFile"`
+	Socks5WithBypass               bool   `json:"socks5WithBypass"`
+	DnsServer                      string `json:"dnsServer"`
+	UdpTrans                       bool   `json:"udpTrans"`
 }
 
 func SettingInitJSON(configPath string) error {
 	pa := &Setting{
-		PythonPath:              GetPythonPath(),
-		SsrPath:                 configPath + "/shadowsocksr/shadowsocks/local.py",
-		PidFile:                 configPath + "/shadowsocksr.pid",
-		LogFile:                 "",
-		FastOpen:                true,
-		Works:                   "8",
-		LocalAddress:            "127.0.0.1",
-		LocalPort:               "1080",
-		TimeOut:                 "1000",
-		HttpProxy:               true,
-		HttpWithBypass:          true,
-		HttpProxyAddressAndPort: "127.0.0.1:8188",
-		BypassFile:              configPath + "/cidrBypass.conf",
-		Socks5WithBypass:        true,
-		DnsServer:               "119.29.29.29:53",
-		UdpTrans:                true,
+		PythonPath:                     GetPythonPath(),
+		SsrPath:                        configPath + "/shadowsocksr/shadowsocks/local.py",
+		PidFile:                        configPath + "/shadowsocksr.pid",
+		LogFile:                        "",
+		FastOpen:                       true,
+		Works:                          "8",
+		LocalAddress:                   "127.0.0.1",
+		LocalPort:                      "1080",
+		TimeOut:                        "1000",
+		HttpProxy:                      true,
+		HttpWithBypass:                 true,
+		HttpProxyAddressAndPort:        "127.0.0.1:8188",
+		Socks5WithBypassAddressAndPort: "127.0.0.1:1083",
+		BypassFile:                     configPath + "/cidrBypass.conf",
+		Socks5WithBypass:               true,
+		DnsServer:                      "119.29.29.29:53",
+		UdpTrans:                       true,
 	}
 	if err := SettingEnCodeJSON(configPath, pa); err != nil {
 		return err
