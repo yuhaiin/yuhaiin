@@ -27,6 +27,12 @@ func GetConfig(configPath string) map[string]string {
 	argument["ssrPath"] = settingDecodeJSON.SsrPath
 	argument["localAddress"] = settingDecodeJSON.LocalAddress
 	argument["localPort"] = settingDecodeJSON.LocalPort
+	if settingDecodeJSON.UdpTrans == true {
+		argument["udpTrans"] = "true"
+	}
+	if settingDecodeJSON.FastOpen == true {
+		argument["fastOpen"] = "true"
+	}
 
 	return argument
 }

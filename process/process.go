@@ -29,7 +29,7 @@ func Start(configPath string) {
 		"obfs", "password", "obfsparam", "protoparam", "localAddress",
 		"localPort", "timeout"}
 	// argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
-	argumentSingle := []string{"fastOpen"}
+	argumentSingle := []string{"fastOpen", "udpTrans"}
 
 	var cmdArray []string
 	if nodeAndConfig["ssrPath"] != "" {
