@@ -71,7 +71,7 @@ func SSRSub(configPath string) {
 		//}
 		window.Hide()
 	})
-	icon := gui.NewQIcon5("/mnt/share/code/golang/SsrMicroClient/SSRSub.png")
+	icon := gui.NewQIcon5(configPath + "/SsrMicroClient.png")
 	window.SetWindowIcon(icon)
 
 	subWindow := subUI(configPath, window)
