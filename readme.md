@@ -13,11 +13,19 @@ How to use:
 - if you use windows,you need to read [how to install libsodium to windows](https://github.com/Asutorufa/SsrMicroClient/blob/master/windows_use_ssr_python.md).
 - build
 
-```shell
+```shell script
 git clone https://github.com/Asutorufa/SsrMicroClient.git
 cd SsrMicroClient
 go build SSRSub.go
 ./SSRSub
+```
+gui:  
+install [therecipe/qt](https://github.com/therecipe/qt)
+```shell script
+git clone https://github.com/Asutorufa/SsrMicroClient.git
+cd gui
+go build qt.go
+./qt
 ```
 
 - config file  
