@@ -208,6 +208,7 @@ func SSRSub(configPath string) {
 				status = "<b><font color=reb>stopped</font></b>"
 			}
 			statusLabel2.SetText(status)
+			trayIcon.SetToolTip(updateStatus())
 		} else {
 			err := configJSON.ChangeNowNode2(configPath, group, remarks)
 			if err != nil {
@@ -234,6 +235,7 @@ func SSRSub(configPath string) {
 				status = "<b><font color=reb>stopped</font></b>"
 			}
 			statusLabel2.SetText(status)
+			trayIcon.SetToolTip(updateStatus())
 		}
 	})
 	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160), core.NewQPoint2(560, 190)))
