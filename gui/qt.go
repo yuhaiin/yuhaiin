@@ -381,7 +381,6 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 	settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
 		settingWindow.Hide()
-		parent.Hide()
 	})
 
 	//httpProxyStat := widgets.NewQLabel(settingWindow, 0)
@@ -468,17 +467,21 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 			settingConfig.HttpWithBypass != httpBypassCheckBox.IsChecked() {
 			settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
 			if settingConfig.HttpProxy == true && settingConfig.HttpWithBypass == true {
-				err = httpBypass.Process.Kill()
-				if err != nil {
-					log.Println(err)
+				if httpBypass.Process != nil {
+					err = httpBypass.Process.Kill()
+					if err != nil {
+						log.Println(err)
+					}
+					_ = httpBypass.Wait()
 				}
-				_ = httpBypass.Wait()
 			} else if settingConfig.HttpProxy == true {
-				err = http.Process.Kill()
-				if err != nil {
-					log.Println(err)
+				if http.Process != nil {
+					err = http.Process.Kill()
+					if err != nil {
+						log.Println(err)
+					}
+					_ = http.Wait()
 				}
-				_ = http.Wait()
 			}
 			settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
 			settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
