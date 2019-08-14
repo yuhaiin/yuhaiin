@@ -25,8 +25,7 @@ cat common/start.acl common/zlstart.acl cn/cn_site.acl common/lan.acl cn/cn.acl 
     proxy/gfwlist.acl > aacl-none-temp.acl
 cat common/start.acl common/zlstart.acl common/lan.acl cn/cn.acl | \
     grep -v ":" > aacl-none-simple-temp.acl
-cat aacl-temp.acl | sed 's/
-//g' > aacl.acl
+cat aacl-temp.acl | sed 's///g' > aacl.acl
 # 注意这里使用Ctrl+V+M输入^M
 cat aacl-light-temp.acl | sed 's///g' > aacl-light.acl
 cat aacl-none-temp.acl | sed 's///g' > aacl-none.acl
