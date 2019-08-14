@@ -28,12 +28,9 @@ cat common/start.acl common/zlstart.acl common/lan.acl cn/cn.acl | \
 cat aacl-temp.acl | sed 's/
 //g' > aacl.acl
 # 注意这里使用Ctrl+V+M输入^M
-cat aacl-light-temp.acl | sed 's/
-//g' > aacl-light.acl
-cat aacl-none-temp.acl | sed 's/
-//g' > aacl-none.acl
-cat aacl-none-simple-temp.acl | sed 's/
-//g' > aacl-none-simple.acl
+cat aacl-light-temp.acl | sed 's///g' > aacl-light.acl
+cat aacl-none-temp.acl | sed 's///g' > aacl-none.acl
+cat aacl-none-simple-temp.acl | sed 's///g' > aacl-none-simple.acl
 
 rm aacl-temp.acl aacl-light-temp.acl aacl-none-temp.acl aacl-none-simple-temp.acl
 
