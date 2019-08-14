@@ -8,7 +8,7 @@
 
 
 **中国ip来自 [ipblock](http://www.ipdeny.com/ipblocks/ ),[geoip](http://geolite.maxmind.com/download/geoip/),[apnic(ipv4+ipv6)](http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest)**  
-**注意:广告过滤使用 [StevenBlack/hosts](https://github.com/StevenBlack/hosts),[serverlist](https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext)转化而来,转化方法可在脚本文件中查看,还有部分自己抓包弄得,可以在抓包列表查看(由于neohosts增加了sata协议,已去除相关部分)**  
+**注意:广告过滤使用 [StevenBlack/hosts](https://github.com/StevenBlack/hosts),[serverlist](https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext)转化而来,转化方法可在脚本文件中查看,还有部分自己抓包弄得,可以在抓包列表查看**  
 **bypass proxy网址来自[gfwlist](https://github.com/gfwlist/gfwlist)**
 
 此产品包含MaxMind公司出品的GeoLite数据库，地址为
