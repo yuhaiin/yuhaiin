@@ -25,11 +25,15 @@ cat common/start.acl common/zlstart.acl cn/cn_site.acl common/lan.acl cn/cn.acl 
     proxy/gfwlist.acl > aacl-none-temp.acl
 cat common/start.acl common/zlstart.acl common/lan.acl cn/cn.acl | \
     grep -v ":" > aacl-none-simple-temp.acl
-cat aacl-temp.acl | sed 's///g' > aacl.acl
+cat aacl-temp.acl | sed 's/
+//g' > aacl.acl
 # 注意这里使用Ctrl+V+M输入^M
-cat aacl-light-temp.acl | sed 's///g' > aacl-light.acl
-cat aacl-none-temp.acl | sed 's///g' > aacl-none.acl
-cat aacl-none-simple-temp.acl | sed 's///g' > aacl-none-simple.acl
+cat aacl-light-temp.acl | sed 's/
+//g' > aacl-light.acl
+cat aacl-none-temp.acl | sed 's/
+//g' > aacl-none.acl
+cat aacl-none-simple-temp.acl | sed 's/
+//g' > aacl-none-simple.acl
 
 rm aacl-temp.acl aacl-light-temp.acl aacl-none-temp.acl aacl-none-simple-temp.acl
 
@@ -59,5 +63,5 @@ rm aacl-temp.acl aacl-light-temp.acl aacl-none-temp.acl aacl-none-simple-temp.ac
 #cd ACL
 git add .
 git commit -m "update"
-git push -u origin master
+git push -u origin ACL
 #cd ..
