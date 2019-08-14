@@ -31,6 +31,8 @@ go build qt.go
 - config file  
   it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub.
 
+- [Bypass File](https://github.com/Asutorufa/SsrMicroClient/tree/ACL)
+
 <!--
 ```
 #config path at ~/.config/SSRSub
