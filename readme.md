@@ -1,6 +1,4 @@
-#
-
-## SsrMicroClient
+# SsrMicroClient
 
 [![license](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
 [![releases](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
@@ -69,7 +67,9 @@ no gui version:
 
 ssr python version at mac may be not support,please test by yourself.
 -->
+
 ## Others
+
 <!--
 Make a simple gui([Now Dev](https://github.com/Asutorufa/SsrMicroClient/tree/dev)):
 ![gui](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/dev/img/gui_dev.png) 
