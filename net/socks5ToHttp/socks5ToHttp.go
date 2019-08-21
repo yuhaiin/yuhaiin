@@ -323,7 +323,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		}
 	}
 
-	closeSig := make(chan bool, 0)
+	closeSig := make(chan error, 1)
 	go pipe(Conn, HTTPConn, closeSig)
 	go pipe(HTTPConn, Conn, closeSig)
 	<-closeSig
@@ -334,18 +334,18 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	//return nil
 }
 
-func pipe(src, dst net.Conn, closeSig chan bool) {
+func pipe(src, dst net.Conn, closeSig chan error) {
 	buf := make([]byte, 0xff)
 	for {
 		n, err := src.Read(buf[0:])
 		if err != nil {
-			closeSig <- true
+			closeSig <- err
 			return
 		}
 		b := buf[0:n]
 		_, err = dst.Write(b)
 		if err != nil {
-			closeSig <- true
+			closeSig <- err
 			return
 		}
 	}

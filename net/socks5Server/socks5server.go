@@ -252,11 +252,10 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
 
-	closeSig := make(chan bool, 0)
+	closeSig := make(chan error, 1)
 	go pipe(server, client, closeSig)
 	go pipe(client, server, closeSig)
 	<-closeSig
-	return
 	//go io.Copy(server, client)
 	//io.Copy(client, server)
 }
@@ -304,11 +303,10 @@ func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
 
-	closeSig := make(chan bool, 0)
+	closeSig := make(chan error, 1)
 	go pipe(server, client, closeSig)
 	go pipe(client, server, closeSig)
 	<-closeSig
-	return
 	//go io.Copy(server, client)
 	//io.Copy(client, server)
 }
@@ -326,11 +324,10 @@ func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
 
-	closeSig := make(chan bool, 0)
+	closeSig := make(chan error, 1)
 	go pipe(server, client, closeSig)
 	go pipe(client, server, closeSig)
 	<-closeSig
-	return
 	//go io.Copy(server, client)
 	//io.Copy(client, server)
 }
@@ -356,27 +353,26 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
 
-	closeSig := make(chan bool, 0)
+	closeSig := make(chan error, 1)
 	go pipe(client, socks5Conn, closeSig)
 	go pipe(socks5Conn, client, closeSig)
 	<-closeSig
-	return
 	//go io.Copy(client, socks5Conn)
 	//io.Copy(socks5Conn, client)
 }
 
-func pipe(src, dst net.Conn, closeSig chan bool) {
+func pipe(src, dst net.Conn, closeSig chan error) {
 	buf := make([]byte, 0xff)
 	for {
 		n, err := src.Read(buf[0:])
 		if err != nil {
-			closeSig <- true
+			closeSig <- err
 			return
 		}
 		b := buf[0:n]
 		_, err = dst.Write(b)
 		if err != nil {
-			closeSig <- true
+			closeSig <- err
 			return
 		}
 	}
