@@ -6,7 +6,6 @@ import (
 	"../dns"
 	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/url"
@@ -324,7 +323,30 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		}
 	}
 
-	go io.Copy(Conn, HTTPConn)
-	_, _ = io.Copy(HTTPConn, Conn)
+	closeSig := make(chan bool, 0)
+	go pipe(Conn, HTTPConn, closeSig)
+	go pipe(HTTPConn, Conn, closeSig)
+	<-closeSig
 	return nil
+
+	//go io.Copy(Conn, HTTPConn)
+	//_, _ = io.Copy(HTTPConn, Conn)
+	//return nil
+}
+
+func pipe(src, dst net.Conn, closeSig chan bool) {
+	buf := make([]byte, 0xff)
+	for {
+		n, err := src.Read(buf[0:])
+		if err != nil {
+			closeSig <- true
+			return
+		}
+		b := buf[0:n]
+		_, err = dst.Write(b)
+		if err != nil {
+			closeSig <- true
+			return
+		}
+	}
 }

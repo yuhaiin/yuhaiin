@@ -251,8 +251,14 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 	// n, _ := client.Read(httpConnect[:])
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
-	go io.Copy(server, client)
-	io.Copy(client, server)
+
+	closeSig := make(chan bool, 0)
+	go pipe(server, client, closeSig)
+	go pipe(client, server, closeSig)
+	<-closeSig
+	return
+	//go io.Copy(server, client)
+	//io.Copy(client, server)
 }
 
 //func (socks5Server *ServerSocks5) toTCPWithTimeout(client net.Conn, domain, ip string,raddr *net.TCPAddr) {
@@ -297,8 +303,14 @@ func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
 	// n, _ := client.Read(httpConnect[:])
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
-	go io.Copy(server, client)
-	io.Copy(client, server)
+
+	closeSig := make(chan bool, 0)
+	go pipe(server, client, closeSig)
+	go pipe(client, server, closeSig)
+	<-closeSig
+	return
+	//go io.Copy(server, client)
+	//io.Copy(client, server)
 }
 
 func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
@@ -338,6 +350,28 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
 
-	go io.Copy(client, socks5Conn)
-	io.Copy(socks5Conn, client)
+	closeSig := make(chan bool, 0)
+	go pipe(client, socks5Conn, closeSig)
+	go pipe(socks5Conn, client, closeSig)
+	<-closeSig
+	return
+	//go io.Copy(client, socks5Conn)
+	//io.Copy(socks5Conn, client)
+}
+
+func pipe(src, dst net.Conn, closeSig chan bool) {
+	buf := make([]byte, 0xff)
+	for {
+		n, err := src.Read(buf[0:])
+		if err != nil {
+			closeSig <- true
+			return
+		}
+		b := buf[0:n]
+		_, err = dst.Write(b)
+		if err != nil {
+			closeSig <- true
+			return
+		}
+	}
 }
