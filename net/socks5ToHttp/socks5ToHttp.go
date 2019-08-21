@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type errErr struct {
@@ -26,7 +27,7 @@ func (e errErr) Error() string {
 // Socks5ToHTTP like name
 type Socks5ToHTTP struct {
 	ToHTTP       bool
-	HTTPListener net.Listener
+	HTTPListener *net.TCPListener
 	HTTPServer   string
 	HTTPPort     string
 	Socks5Server string
@@ -68,7 +69,7 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 		return err
 	}
 	for {
-		HTTPConn, err := socks5ToHttp.HTTPListener.Accept()
+		HTTPConn, err := socks5ToHttp.HTTPListener.AcceptTCP()
 		if err != nil {
 			// return err
 			microlog.Debug(err)
@@ -80,6 +81,7 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			//}
 			continue
 		}
+		_ = HTTPConn.SetKeepAlivePeriod(20 * time.Second)
 		//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		//	log.Println(err)
 		//}

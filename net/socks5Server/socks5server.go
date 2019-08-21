@@ -74,7 +74,7 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			continue
 		}
 		//_ = client.SetKeepAlive(false)
-		_ = client.SetKeepAlivePeriod(30 * time.Second)
+		_ = client.SetKeepAlivePeriod(20 * time.Second)
 		//if err := client.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		//	log.Println(err)
 		//}
@@ -90,7 +90,7 @@ func (socks5Server *ServerSocks5) Socks5() error {
 	}
 }
 
-func (socks5Server *ServerSocks5) handleClientRequest(client *net.TCPConn) {
+func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 	var b [1024]byte
 	_, err := client.Read(b[:])
 	if err != nil {
