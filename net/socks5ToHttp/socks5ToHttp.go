@@ -147,9 +147,10 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	switch socks5ToHttp.ByPass {
 	case false:
 		Conn, err = (&Socks5Client{
-			Server:  socks5ToHttp.Socks5Server,
-			Port:    socks5ToHttp.Socks5Port,
-			Address: address}).NewSocks5Client()
+			Server:           socks5ToHttp.Socks5Server,
+			Port:             socks5ToHttp.Socks5Port,
+			KeepAliveTimeout: 15 * time.Second,
+			Address:          address}).NewSocks5Client()
 		if err != nil {
 			return err
 		}
@@ -204,9 +205,10 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 					}
 				} else {
 					Conn, err = (&Socks5Client{
-						Server:  socks5ToHttp.Socks5Server,
-						Port:    socks5ToHttp.Socks5Port,
-						Address: net.JoinHostPort(getDns[0], domainPort)}).NewSocks5Client()
+						Server:           socks5ToHttp.Socks5Server,
+						Port:             socks5ToHttp.Socks5Port,
+						KeepAliveTimeout: 15 * time.Second,
+						Address:          net.JoinHostPort(getDns[0], domainPort)}).NewSocks5Client()
 					if err != nil {
 						// log.Println(err)
 						microlog.Debug(err)
@@ -216,9 +218,10 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			} else {
 				microlog.Debug(runtime.NumGoroutine(), host, "dns false")
 				Conn, err = (&Socks5Client{
-					Server:  socks5ToHttp.Socks5Server,
-					Port:    socks5ToHttp.Socks5Port,
-					Address: address}).NewSocks5Client()
+					Server:           socks5ToHttp.Socks5Server,
+					Port:             socks5ToHttp.Socks5Port,
+					KeepAliveTimeout: 15 * time.Second,
+					Address:          address}).NewSocks5Client()
 				if err != nil {
 					// log.Println(err)
 					microlog.Debug(err)
@@ -240,9 +243,10 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 				}
 			} else {
 				Conn, err = (&Socks5Client{
-					Server:  socks5ToHttp.Socks5Server,
-					Port:    socks5ToHttp.Socks5Port,
-					Address: net.JoinHostPort(hostPortURL.Hostname(), domainPort)}).NewSocks5Client()
+					Server:           socks5ToHttp.Socks5Server,
+					Port:             socks5ToHttp.Socks5Port,
+					KeepAliveTimeout: 15 * time.Second,
+					Address:          net.JoinHostPort(hostPortURL.Hostname(), domainPort)}).NewSocks5Client()
 				if err != nil {
 					// log.Println(err)
 					microlog.Debug(err)

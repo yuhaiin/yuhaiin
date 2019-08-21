@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // Socks5Client socks5 client
@@ -11,18 +12,26 @@ import (
 // if you socks5 need username and password please init it
 // Server and Port is socks5 server's ip/domain and port
 // Address need port,for example:www.google.com:443,1.1.1.1:443,[::1]:8080 <-- ipv6 need []
+// KeepAliveTimeout 0: disable timeout , other: enable
 type Socks5Client struct {
-	Conn     net.Conn
-	Username string
-	Password string
-	Server   string
-	Port     string
-	Address  string
+	Conn             net.Conn
+	Username         string
+	Password         string
+	Server           string
+	Port             string
+	Address          string
+	KeepAliveTimeout time.Duration
 }
 
 func (socks5client *Socks5Client) creatDial() (net.Conn, error) {
 	var err error
-	socks5client.Conn, err = net.Dial("tcp", socks5client.Server+":"+socks5client.Port)
+	var dialer net.Dialer
+	if socks5client.KeepAliveTimeout != 0 {
+		dialer = net.Dialer{KeepAlive: socks5client.KeepAliveTimeout}
+	} else {
+		dialer = net.Dialer{}
+	}
+	socks5client.Conn, err = dialer.Dial("tcp", socks5client.Server+":"+socks5client.Port)
 	if err != nil {
 		return socks5client.Conn, err
 	}

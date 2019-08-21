@@ -306,9 +306,10 @@ func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
 
 func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byte) {
 	socks5Conn, err := (&socks5ToHttp.Socks5Client{
-		Server:  socks5Server.Socks5Server,
-		Port:    socks5Server.Socks5Port,
-		Address: host}).NewSocks5ClientOnlyFirstVerify()
+		Server:           socks5Server.Socks5Server,
+		Port:             socks5Server.Socks5Port,
+		KeepAliveTimeout: 15 * time.Second,
+		Address:          host}).NewSocks5ClientOnlyFirstVerify()
 	if err != nil {
 		log.Println(err)
 		socks5Server.toTCP(client, host, host)
