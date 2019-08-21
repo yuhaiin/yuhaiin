@@ -229,9 +229,10 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(hostPortURL.Hostname())
 			microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, hostPortURL.Hostname())
 			if isMatch {
-				Conn, err = net.Dial("tcp", net.JoinHostPort(hostPortURL.Hostname(), domainPort))
+				dialer := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
+				Conn, err = dialer.Dial("tcp", net.JoinHostPort(hostPortURL.Hostname(), domainPort))
 				if err != nil {
-					Conn, err = net.Dial("tcp", address)
+					Conn, err = dialer.Dial("tcp", address)
 					if err != nil {
 						log.Println(err)
 						return err

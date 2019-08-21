@@ -226,10 +226,11 @@ func (socks5Server *ServerSocks5) udp(client net.Conn, domain string) {
 
 func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 	var server net.Conn
-	server, err := net.Dial("tcp", ip)
+	dialer := net.Dialer{KeepAlive: 15 * time.Second, Timeout: 10 * time.Second}
+	server, err := dialer.Dial("tcp", ip)
 	if err != nil {
 		log.Println(err)
-		server, err = net.Dial("tcp", domain)
+		server, err = dialer.Dial("tcp", domain)
 		if err != nil {
 			log.Println(err)
 			return
@@ -246,9 +247,30 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 	io.Copy(client, server)
 }
 
+//func (socks5Server *ServerSocks5) toTCPWithTimeout(client net.Conn, domain, ip string,raddr *net.TCPAddr) {
+//	var server *net.TCPConn
+//	server, err := net.DialTCP("tcp",nil,raddr)
+//	if err != nil {
+//		log.Println(err)
+//		socks5Server.toTCP(client, domain,ip)
+//		return
+//	}
+//	_ = server.SetKeepAlivePeriod(15*time.Second)
+//	defer server.Close()
+//	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
+//	//进行转发
+//	// httpConnect := make([]byte, 1024)
+//	// n, _ := client.Read(httpConnect[:])
+//	// log.Println(string(httpConnect))
+//	// server.Write(httpConnect[:n])
+//	go io.Copy(server, client)
+//	io.Copy(client, server)
+//}
+
 func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
 	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
-	server, err := net.Dial("tcp", socks5Server.HTTPServer+":"+socks5Server.HTTPPort)
+	dialer := net.Dialer{KeepAlive: 15 * time.Second, Timeout: 10 * time.Second}
+	server, err := dialer.Dial("tcp", socks5Server.HTTPServer+":"+socks5Server.HTTPPort)
 	if err != nil {
 		log.Println(err)
 	}
