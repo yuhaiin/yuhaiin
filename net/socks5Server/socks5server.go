@@ -33,6 +33,7 @@ type ServerSocks5 struct {
 	CidrFile           string
 	DNSServer          string
 	dnscache           dns.DnsCache
+	KeepAliveTimeout   time.Duration
 }
 
 // Socks5 <--
@@ -74,7 +75,9 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			continue
 		}
 		//_ = client.SetKeepAlive(false)
-		_ = client.SetKeepAlivePeriod(14 * time.Second)
+		if socks5Server.KeepAliveTimeout != 0 {
+			_ = client.SetKeepAlivePeriod(socks5Server.KeepAliveTimeout)
+		}
 		//if err := client.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		//	log.Println(err)
 		//}
@@ -226,7 +229,12 @@ func (socks5Server *ServerSocks5) udp(client net.Conn, domain string) {
 
 func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 	var server net.Conn
-	dialer := net.Dialer{KeepAlive: 15 * time.Second, Timeout: 10 * time.Second}
+	var dialer net.Dialer
+	if socks5Server.KeepAliveTimeout != 0 {
+		dialer = net.Dialer{KeepAlive: socks5Server.KeepAliveTimeout, Timeout: 10 * time.Second}
+	} else {
+		dialer = net.Dialer{Timeout: 10 * time.Second}
+	}
 	server, err := dialer.Dial("tcp", ip)
 	if err != nil {
 		log.Println(err)
@@ -269,7 +277,12 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 
 func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
 	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
-	dialer := net.Dialer{KeepAlive: 15 * time.Second, Timeout: 10 * time.Second}
+	var dialer net.Dialer
+	if socks5Server.KeepAliveTimeout != 0 {
+		dialer = net.Dialer{KeepAlive: socks5Server.KeepAliveTimeout, Timeout: 10 * time.Second}
+	} else {
+		dialer = net.Dialer{Timeout: 10 * time.Second}
+	}
 	server, err := dialer.Dial("tcp", socks5Server.HTTPServer+":"+socks5Server.HTTPPort)
 	if err != nil {
 		log.Println(err)
@@ -308,7 +321,7 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 	socks5Conn, err := (&socks5ToHttp.Socks5Client{
 		Server:           socks5Server.Socks5Server,
 		Port:             socks5Server.Socks5Port,
-		KeepAliveTimeout: 15 * time.Second,
+		KeepAliveTimeout: socks5Server.KeepAliveTimeout,
 		Address:          host}).NewSocks5ClientOnlyFirstVerify()
 	if err != nil {
 		log.Println(err)

@@ -38,7 +38,8 @@ type Socks5ToHTTP struct {
 	DNSServer    string
 	// dns          map[string]bool
 	// dns      sync.Map
-	dnscache dns.DnsCache
+	dnscache         dns.DnsCache
+	KeepAliveTimeout time.Duration
 }
 
 // HTTPProxy http proxy
@@ -81,7 +82,9 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			//}
 			continue
 		}
-		_ = HTTPConn.SetKeepAlivePeriod(14 * time.Second)
+		if socks5ToHttp.KeepAliveTimeout != 0 {
+			_ = HTTPConn.SetKeepAlivePeriod(socks5ToHttp.KeepAliveTimeout)
+		}
 		//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		//	log.Println(err)
 		//}
@@ -149,7 +152,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		Conn, err = (&Socks5Client{
 			Server:           socks5ToHttp.Socks5Server,
 			Port:             socks5ToHttp.Socks5Port,
-			KeepAliveTimeout: 15 * time.Second,
+			KeepAliveTimeout: socks5ToHttp.KeepAliveTimeout,
 			Address:          address}).NewSocks5Client()
 		if err != nil {
 			return err
@@ -207,7 +210,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 					Conn, err = (&Socks5Client{
 						Server:           socks5ToHttp.Socks5Server,
 						Port:             socks5ToHttp.Socks5Port,
-						KeepAliveTimeout: 15 * time.Second,
+						KeepAliveTimeout: socks5ToHttp.KeepAliveTimeout,
 						Address:          net.JoinHostPort(getDns[0], domainPort)}).NewSocks5Client()
 					if err != nil {
 						// log.Println(err)
@@ -220,7 +223,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 				Conn, err = (&Socks5Client{
 					Server:           socks5ToHttp.Socks5Server,
 					Port:             socks5ToHttp.Socks5Port,
-					KeepAliveTimeout: 15 * time.Second,
+					KeepAliveTimeout: socks5ToHttp.KeepAliveTimeout,
 					Address:          address}).NewSocks5Client()
 				if err != nil {
 					// log.Println(err)
@@ -232,7 +235,12 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(hostPortURL.Hostname())
 			microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, hostPortURL.Hostname())
 			if isMatch {
-				dialer := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
+				var dialer net.Dialer
+				if socks5ToHttp.KeepAliveTimeout != 0 {
+					dialer = net.Dialer{Timeout: socks5ToHttp.KeepAliveTimeout, KeepAlive: 15 * time.Second}
+				} else {
+					dialer = net.Dialer{KeepAlive: 15 * time.Second}
+				}
 				Conn, err = dialer.Dial("tcp", net.JoinHostPort(hostPortURL.Hostname(), domainPort))
 				if err != nil {
 					Conn, err = dialer.Dial("tcp", address)
@@ -245,7 +253,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 				Conn, err = (&Socks5Client{
 					Server:           socks5ToHttp.Socks5Server,
 					Port:             socks5ToHttp.Socks5Port,
-					KeepAliveTimeout: 15 * time.Second,
+					KeepAliveTimeout: socks5ToHttp.KeepAliveTimeout,
 					Address:          net.JoinHostPort(hostPortURL.Hostname(), domainPort)}).NewSocks5Client()
 				if err != nil {
 					// log.Println(err)

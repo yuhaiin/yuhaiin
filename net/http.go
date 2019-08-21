@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"../config/config"
 	"./socks5Server"
@@ -49,14 +50,15 @@ func GetHttpProxyCmd(configPath string) (*exec.Cmd, error) {
 func StartHTTPBypass(configPath string) {
 	argument := config.GetConfig(configPath)
 	socks5ToHTTP := &socks5ToHttp.Socks5ToHTTP{
-		ToHTTP:       true,
-		HTTPServer:   "",
-		HTTPPort:     "",
-		Socks5Server: argument["localAddress"],
-		Socks5Port:   argument["localPort"],
-		ByPass:       true,
-		CidrFile:     argument["cidrFile"],
-		DNSServer:    argument["dnsServer"],
+		ToHTTP:           true,
+		HTTPServer:       "",
+		HTTPPort:         "",
+		Socks5Server:     argument["localAddress"],
+		Socks5Port:       argument["localPort"],
+		ByPass:           true,
+		CidrFile:         argument["cidrFile"],
+		DNSServer:        argument["dnsServer"],
+		KeepAliveTimeout: 15 * time.Second,
 	}
 
 	if argument["localPort"] == "" {
@@ -86,7 +88,8 @@ func StartSocks5Bypass(configPath string) {
 		//208.67.222.220#5353
 		//58.132.8.1 beijing edu DNS server
 		//101.6.6.6 beijing tsinghua dns server
-		DNSServer: argument["dnsServer"],
+		DNSServer:        argument["dnsServer"],
+		KeepAliveTimeout: 15 * time.Second,
 	}
 	if argument["localPort"] == "" {
 		socks5S.Socks5Port = "1080"
