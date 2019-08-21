@@ -81,7 +81,7 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			//}
 			continue
 		}
-		_ = HTTPConn.SetKeepAlivePeriod(20 * time.Second)
+		_ = HTTPConn.SetKeepAlivePeriod(14 * time.Second)
 		//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		//	log.Println(err)
 		//}
