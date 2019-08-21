@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/url"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -55,7 +56,14 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			return err
 		}
 	}
-	socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
+
+	socks5ToHttpServerIp := net.ParseIP(socks5ToHttp.HTTPServer)
+	socks5ToHttpServerPort, err := strconv.Atoi(socks5ToHttp.HTTPPort)
+	if err != nil {
+		// log.Panic(err)
+		return err
+	}
+	socks5ToHttp.HTTPListener, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ToHttpServerIp, Port: socks5ToHttpServerPort})
 	if err != nil {
 		return err
 	}
@@ -65,11 +73,11 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			// return err
 			microlog.Debug(err)
 			//time.Sleep(time.Second * 1)
-			_ = socks5ToHttp.HTTPListener.Close()
-			socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
-			if err != nil {
-				return err
-			}
+			//_ = socks5ToHttp.HTTPListener.Close()
+			//socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
+			//if err != nil {
+			//	return err
+			//}
 			continue
 		}
 		//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {

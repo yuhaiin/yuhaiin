@@ -17,8 +17,10 @@ cd SsrMicroClient
 go build SSRSub.go
 ./SSRSub
 ```
+
 gui:  
 install [therecipe/qt](https://github.com/therecipe/qt)
+
 ```shell script
 git clone https://github.com/Asutorufa/SsrMicroClient.git
 cd gui
@@ -73,7 +75,7 @@ ssr python version at mac may be not support,please test by yourself.
 <!--
 Make a simple gui([Now Dev](https://github.com/Asutorufa/SsrMicroClient/tree/dev)):
 ![gui](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/dev/img/gui_dev.png) 
---> 
+-->
 Todo:
 
 - [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
@@ -101,6 +103,7 @@ Todo:
   - already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add `-h` argument to show help.
+
 <!--
 fixed issue:
 

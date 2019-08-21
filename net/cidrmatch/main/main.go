@@ -31,7 +31,7 @@ func main() {
 		Server:         "127.0.0.1",
 		Port:           "1083",
 		Bypass:         true,
-		CidrFile:       "/mnt/share/code/golang/cn_rules.conf",
+		CidrFile:       "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
 		ToShadowsocksr: true,
 		Socks5Server:   "127.0.0.1",
 		Socks5Port:     "1080",

@@ -10,13 +10,14 @@ import (
 	"net"
 	"runtime"
 	"strconv"
+	"time"
 )
 
 // ServerSocks5 <--
 type ServerSocks5 struct {
 	Server             string
 	Port               string
-	conn               net.Listener
+	conn               *net.TCPListener
 	ToHTTP             bool
 	HTTPServer         string
 	HTTPPort           string
@@ -46,27 +47,34 @@ func (socks5Server *ServerSocks5) Socks5() error {
 	if err != nil {
 		return err
 	}
-	socks5Server.conn, err = net.Listen("tcp", socks5Server.Server+":"+socks5Server.Port)
+	socks5ServerIp := net.ParseIP(socks5Server.Server)
+	socks5ServerPort, err := strconv.Atoi(socks5Server.Port)
 	if err != nil {
 		// log.Panic(err)
 		return err
 	}
-
+	socks5Server.conn, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ServerIp, Port: socks5ServerPort})
+	if err != nil {
+		// log.Panic(err)
+		return err
+	}
 	for {
-		client, err := socks5Server.conn.Accept()
+		client, err := socks5Server.conn.AcceptTCP()
 		if err != nil {
 			// log.Panic(err)
 			// return err
 			microlog.Debug(err)
 			_ = socks5Server.conn.Close()
-			socks5Server.conn, err = net.Listen("tcp", socks5Server.Server+":"+socks5Server.Port)
-			if err != nil {
-				// log.Panic(err)
-				return err
-			}
+			//socks5Server.conn, err = net.Listen("tcp", socks5Server.Server+":"+socks5Server.Port)
+			//if err != nil {
+			// log.Panic(err)
+			//return err
+			//}
 			//time.Sleep(time.Second * 1)
 			continue
 		}
+		//_ = client.SetKeepAlive(false)
+		_ = client.SetKeepAlivePeriod(30 * time.Second)
 		//if err := client.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		//	log.Println(err)
 		//}
@@ -82,8 +90,7 @@ func (socks5Server *ServerSocks5) Socks5() error {
 	}
 }
 
-func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
-
+func (socks5Server *ServerSocks5) handleClientRequest(client *net.TCPConn) {
 	var b [1024]byte
 	_, err := client.Read(b[:])
 	if err != nil {
