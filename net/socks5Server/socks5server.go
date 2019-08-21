@@ -325,8 +325,14 @@ func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
 	// n, _ := client.Read(httpConnect[:])
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
-	go io.Copy(server, client)
-	io.Copy(client, server)
+
+	closeSig := make(chan bool, 0)
+	go pipe(server, client, closeSig)
+	go pipe(client, server, closeSig)
+	<-closeSig
+	return
+	//go io.Copy(server, client)
+	//io.Copy(client, server)
 }
 
 func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byte) {
