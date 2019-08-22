@@ -5,7 +5,6 @@ import (
 	"../cidrmatch"
 	"../dns"
 	"../socks5ToHttp"
-	"io"
 	"log"
 	"net"
 	"runtime"
@@ -216,14 +215,12 @@ func (socks5Server *ServerSocks5) udp(client net.Conn, domain string) {
 		return
 	}
 	defer server.Close()
-	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
-	//进行转发
-	// httpConnect := make([]byte, 1024)
-	// n, _ := client.Read(httpConnect[:])
-	// log.Println(string(httpConnect))
-	// server.Write(httpConnect[:n])
-	go io.Copy(server, client)
-	io.Copy(client, server)
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //respond to connect successful
+
+	// forward
+	forward(server, client)
+	//go io.Copy(server, client)
+	//io.Copy(client, server)
 
 }
 
@@ -245,43 +242,15 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 		}
 	}
 	defer server.Close()
-	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
-	//进行转发
-	// httpConnect := make([]byte, 1024)
-	// n, _ := client.Read(httpConnect[:])
-	// log.Println(string(httpConnect))
-	// server.Write(httpConnect[:n])
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //respond to connect successful
 
-	closeSig := make(chan error, 1)
-	go pipe(server, client, closeSig)
-	go pipe(client, server, closeSig)
-	<-closeSig
-	//go io.Copy(server, client)
-	//io.Copy(client, server)
+	// forward
+	forward(server, client)
+	//microlog.Debug("close")
 }
 
-//func (socks5Server *ServerSocks5) toTCPWithTimeout(client net.Conn, domain, ip string,raddr *net.TCPAddr) {
-//	var server *net.TCPConn
-//	server, err := net.DialTCP("tcp",nil,raddr)
-//	if err != nil {
-//		log.Println(err)
-//		socks5Server.toTCP(client, domain,ip)
-//		return
-//	}
-//	_ = server.SetKeepAlivePeriod(15*time.Second)
-//	defer server.Close()
-//	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
-//	//进行转发
-//	// httpConnect := make([]byte, 1024)
-//	// n, _ := client.Read(httpConnect[:])
-//	// log.Println(string(httpConnect))
-//	// server.Write(httpConnect[:n])
-//	go io.Copy(server, client)
-//	io.Copy(client, server)
-//}
-
 func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
-	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //respond to connect successful
 	var dialer net.Dialer
 	if socks5Server.KeepAliveTimeout != 0 {
 		dialer = net.Dialer{KeepAlive: socks5Server.KeepAliveTimeout, Timeout: 10 * time.Second}
@@ -303,12 +272,8 @@ func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
 	// log.Println(string(httpConnect))
 	// server.Write(httpConnect[:n])
 
-	closeSig := make(chan error, 1)
-	go pipe(server, client, closeSig)
-	go pipe(client, server, closeSig)
-	<-closeSig
-	//go io.Copy(server, client)
-	//io.Copy(client, server)
+	// forward
+	forward(server, client)
 }
 
 func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
@@ -317,19 +282,10 @@ func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
 		log.Println(err)
 	}
 	defer server.Close()
-	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
-	// 转发
-	// httpConnect := make([]byte, 1024)
-	// n, _ := client.Read(httpConnect[:])
-	// log.Println(string(httpConnect))
-	// server.Write(httpConnect[:n])
+	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //respond to connect successful
 
-	closeSig := make(chan error, 1)
-	go pipe(server, client, closeSig)
-	go pipe(client, server, closeSig)
-	<-closeSig
-	//go io.Copy(server, client)
-	//io.Copy(client, server)
+	// forward
+	forward(server, client)
 }
 
 func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byte) {
@@ -346,31 +302,29 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 
 	defer socks5Conn.Close()
 	_, _ = socks5Conn.Write(b)
-	// client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
-	// 转发
-	// httpConnect := make([]byte, 1024)
-	// n, _ := client.Read(httpConnect[:])
-	// log.Println(string(httpConnect))
-	// server.Write(httpConnect[:n])
 
-	closeSig := make(chan error, 1)
-	go pipe(client, socks5Conn, closeSig)
-	go pipe(socks5Conn, client, closeSig)
-	<-closeSig
-	//go io.Copy(client, socks5Conn)
-	//io.Copy(socks5Conn, client)
+	// forward
+	forward(client, socks5Conn)
+	//microlog.Debug("close")
+}
+
+func forward(src, dst net.Conn) {
+	srcToDstCloseSig, dstToSrcCloseSig := make(chan error, 1), make(chan error, 1)
+	go pipe(src, dst, srcToDstCloseSig)
+	go pipe(dst, src, dstToSrcCloseSig)
+	<-srcToDstCloseSig
+	<-dstToSrcCloseSig
 }
 
 func pipe(src, dst net.Conn, closeSig chan error) {
-	buf := make([]byte, 0xff)
+	buf := make([]byte, 0x400*32)
 	for {
 		n, err := src.Read(buf[0:])
 		if err != nil {
 			closeSig <- err
 			return
 		}
-		b := buf[0:n]
-		_, err = dst.Write(b)
+		_, err = dst.Write(buf[0:n])
 		if err != nil {
 			closeSig <- err
 			return
