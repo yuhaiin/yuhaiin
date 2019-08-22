@@ -16,15 +16,15 @@ import (
 )
 
 func SSRSub(configPath string) {
-	httpCmd, err := getdelay.GetHttpProxyCmd(configPath)
+	httpCmd, err := getdelay.GetHttpProxyCmd()
 	if err != nil {
 		log.Println(err)
 	}
-	httpBypassCmd, err := getdelay.GetHttpProxyBypassCmd(configPath)
+	httpBypassCmd, err := getdelay.GetHttpProxyBypassCmd()
 	if err != nil {
 		log.Println(err)
 	}
-	socks5BypassCmd, err := getdelay.GetSocks5ProxyBypassCmd(configPath)
+	socks5BypassCmd, err := getdelay.GetSocks5ProxyBypassCmd()
 	if err != nil {
 		log.Println(err)
 	}
@@ -492,10 +492,10 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 				log.Println(err)
 			}
 			if settingConfig.HttpProxy == true && settingConfig.HttpWithBypass == true {
-				httpBypass, _ = getdelay.GetHttpProxyBypassCmd(configPath)
+				httpBypass, _ = getdelay.GetHttpProxyBypassCmd()
 				_ = httpBypass.Start()
 			} else if settingConfig.HttpProxy == true {
-				http, _ = getdelay.GetHttpProxyCmd(configPath)
+				http, _ = getdelay.GetHttpProxyCmd()
 				_ = http.Start()
 			}
 		}
@@ -514,7 +514,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 				}
 				_ = socks5Bypass.Wait()
 			}
-			socks5Bypass, _ = getdelay.GetSocks5ProxyBypassCmd(configPath)
+			socks5Bypass, _ = getdelay.GetSocks5ProxyBypassCmd()
 			_ = socks5Bypass.Start()
 		}
 		//else {
