@@ -1,9 +1,10 @@
-package socks5ToHttp
+package httpserver
 
 import (
 	microlog "../../log"
 	"../cidrmatch"
 	"../dns"
+	"../socks5client"
 	"bytes"
 	"fmt"
 	"log"
@@ -149,7 +150,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	}
 
 	getSocks5Conn := func(Server, Port string, KeepAliveTimeout time.Duration, Address string) (net.Conn, error) {
-		return (&Socks5Client{
+		return (&socks5client.Socks5Client{
 			Server:           socks5ToHttp.Socks5Server,
 			Port:             socks5ToHttp.Socks5Port,
 			KeepAliveTimeout: socks5ToHttp.KeepAliveTimeout,

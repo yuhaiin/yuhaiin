@@ -8,15 +8,15 @@ import (
 	"time"
 
 	"../config/config"
+	"./httpserver"
 	"./socks5Server"
-	"./socks5ToHttp"
 	// "../socks5ToHttp"
 )
 
 // StartHTTP <--
 func StartHTTP(configPath string) {
 	argument := config.GetConfig(configPath)
-	socks5ToHTTP := &socks5ToHttp.Socks5ToHTTP{
+	socks5ToHTTP := &httpserver.Socks5ToHTTP{
 		HTTPServer:   "",
 		HTTPPort:     "",
 		Socks5Server: argument["localAddress"],
@@ -49,7 +49,7 @@ func GetHttpProxyCmd() (*exec.Cmd, error) {
 // StartHTTP <--
 func StartHTTPBypass(configPath string) {
 	argument := config.GetConfig(configPath)
-	socks5ToHTTP := &socks5ToHttp.Socks5ToHTTP{
+	socks5ToHTTP := &httpserver.Socks5ToHTTP{
 		ToHTTP:            true,
 		HTTPServer:        "",
 		HTTPPort:          "",

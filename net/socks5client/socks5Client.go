@@ -1,6 +1,7 @@
-package socks5ToHttp
+package socks5client
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -21,6 +22,14 @@ type Socks5Client struct {
 	Port             string
 	Address          string
 	KeepAliveTimeout time.Duration
+}
+
+type errErr struct {
+	err string
+}
+
+func (e errErr) Error() string {
+	return fmt.Sprintf(e.err)
 }
 
 func (socks5client *Socks5Client) creatDial() (net.Conn, error) {

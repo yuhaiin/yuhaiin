@@ -4,7 +4,7 @@ import (
 	microlog "../../log"
 	"../cidrmatch"
 	"../dns"
-	"../socks5ToHttp"
+	"../socks5client"
 	"log"
 	"net"
 	"runtime"
@@ -294,7 +294,7 @@ func (socks5Server *ServerSocks5) toShadowsocksr(client net.Conn) {
 }
 
 func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byte) {
-	socks5Conn, err := (&socks5ToHttp.Socks5Client{
+	socks5Conn, err := (&socks5client.Socks5Client{
 		Server:           socks5Server.Socks5Server,
 		Port:             socks5Server.Socks5Port,
 		KeepAliveTimeout: socks5Server.KeepAliveTimeout,
