@@ -149,7 +149,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 					getDns, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
 					if isSuccess {
 						isMatch := socks5Server.cidrmatch.MatchWithTrie(getDns[0])
-						microlog.Debug(runtime.NumGoroutine(), host, isMatch, getDns[0])
+						microlog.Debug(host, isMatch, getDns[0])
 						if isMatch {
 							socks5Server.toTCP(client, host, net.JoinHostPort(getDns[0], port))
 						} else {
@@ -305,7 +305,6 @@ func (socks5Server *ServerSocks5) toSocks5(client net.Conn, host string, b []byt
 
 	// forward
 	forward(client, socks5Conn)
-	//microlog.Debug("close")
 }
 
 func forward(src, dst net.Conn) {
@@ -314,6 +313,7 @@ func forward(src, dst net.Conn) {
 	go pipe(dst, src, dstToSrcCloseSig)
 	<-srcToDstCloseSig
 	<-dstToSrcCloseSig
+	microlog.Debug(runtime.NumGoroutine(), "close")
 }
 
 func pipe(src, dst net.Conn, closeSig chan error) {
