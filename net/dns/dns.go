@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	microlog "../../log"
 )
@@ -25,6 +26,14 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 			log.Println(err) //这里的err其实就是panic传入的内容，bug
 		}
 	}()
+
+	dialer := net.Dialer{Timeout: 18 * time.Second}
+	conn, err := dialer.Dial("udp", DNSServer)
+	if err != nil {
+		microlog.Debug(err)
+		return []string{}, false
+	}
+	defer conn.Close()
 	// +------------------------------+
 	// |             id               |  16bit
 	// +------------------------------+
@@ -88,13 +97,6 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 	domainSetAndQTypeAndQClass := append(domainSet, 0x00, 0x00, 0x01, 0x00, 0x01)
 
 	all := append(header, domainSetAndQTypeAndQClass...)
-
-	conn, err := net.Dial("udp", DNSServer)
-	if err != nil {
-		microlog.Debug(err)
-		return []string{}, false
-	}
-	defer conn.Close()
 
 	// log.Println(all, len(all))
 
