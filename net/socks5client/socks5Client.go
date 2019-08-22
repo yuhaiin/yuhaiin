@@ -1,11 +1,12 @@
 package socks5client
 
 import (
-	"fmt"
 	"net"
 	"net/url"
 	"strconv"
 	"time"
+
+	"../../log"
 )
 
 // Socks5Client socks5 client
@@ -22,14 +23,6 @@ type Socks5Client struct {
 	Port             string
 	Address          string
 	KeepAliveTimeout time.Duration
-}
-
-type errErr struct {
-	err string
-}
-
-func (e errErr) Error() string {
-	return fmt.Sprintf(e.err)
 }
 
 func (socks5client *Socks5Client) creatDial() (net.Conn, error) {
@@ -112,7 +105,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] == 0xFF {
-		return errErr{"socks5 first handshake failed!"}
+		return microlog.ErrErr{Err: "socks5 first handshake failed!"}
 	}
 	// 	SOCKS5 用户名密码认证方式
 	// 在客户端、服务端协商使用用户名密码认证后，客户端发出用户名密码，格式为（以字节为单位）：
@@ -145,7 +138,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 			return err
 		}
 		if getData[1] == 0x01 {
-			return errErr{"username or password not correct,socks5 handshake failed!"}
+			return microlog.ErrErr{Err: "username or password not correct,socks5 handshake failed!"}
 		}
 	}
 	// log.Println(sendData, "<-->", getData)
@@ -383,7 +376,7 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] != 0x00 {
-		return errErr{"socks5 second handshake failed!"}
+		return microlog.ErrErr{Err: "socks5 second handshake failed!"}
 	}
 	// log.Println(sendData, "<-->", getData[0], getData[1])
 	// log.Println("socks5 second handshake successful!")

@@ -16,14 +16,6 @@ import (
 	"time"
 )
 
-type errErr struct {
-	err string
-}
-
-func (e errErr) Error() string {
-	return fmt.Sprintf(e.err)
-}
-
 // Socks5ToHTTP like name
 type Socks5ToHTTP struct {
 	ToHTTP       bool
@@ -119,7 +111,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	if bytes.Contains(requestData[:], []byte("\n")) {
 		indexByte = bytes.IndexByte(requestData[:], '\n')
 	} else {
-		return errErr{"request not completely!"}
+		return microlog.ErrErr{Err: "request not completely!"}
 	}
 
 	var method, host, address string
