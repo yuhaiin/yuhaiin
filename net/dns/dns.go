@@ -13,7 +13,7 @@ import (
 )
 
 // DnsCache <-- use map save history
-type DnsCache struct {
+type Cache struct {
 	dns       sync.Map
 	DNSServer string
 }
@@ -240,7 +240,7 @@ func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
 }
 
 // Match <--
-func (dnscache *DnsCache) Match(host, hostTemplate string, cidrmatch func(string) bool) (isMatched bool) {
+func (dnscache *Cache) Match(host, hostTemplate string, cidrmatch func(string) bool) (isMatched bool) {
 	var isMatch bool
 	if _, exist := dnscache.dns.Load(host); exist == false {
 		if hostTemplate != "ip" {

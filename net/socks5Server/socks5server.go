@@ -31,7 +31,7 @@ type ServerSocks5 struct {
 	cidrmatch          *cidrmatch.CidrMatch
 	CidrFile           string
 	DNSServer          string
-	dnscache           dns.DnsCache
+	dnscache           dns.Cache
 	KeepAliveTimeout   time.Duration
 	Timeout            time.Duration
 }
@@ -40,7 +40,7 @@ type ServerSocks5 struct {
 func (socks5Server *ServerSocks5) Socks5() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	//socks5Server.dns = map[string]bool{}
-	socks5Server.dnscache = dns.DnsCache{
+	socks5Server.dnscache = dns.Cache{
 		DNSServer: socks5Server.DNSServer,
 	}
 	var err error
