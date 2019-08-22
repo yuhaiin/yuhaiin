@@ -323,10 +323,11 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		}
 	}
 
-	closeSig := make(chan error, 1)
-	go pipe(Conn, HTTPConn, closeSig)
-	go pipe(HTTPConn, Conn, closeSig)
-	<-closeSig
+	ConnToHTTPConnCloseSig, HTTPConnToConnCloseSig := make(chan error, 1), make(chan error, 1)
+	go pipe(Conn, HTTPConn, ConnToHTTPConnCloseSig)
+	go pipe(HTTPConn, Conn, HTTPConnToConnCloseSig)
+	<-ConnToHTTPConnCloseSig
+	<-HTTPConnToConnCloseSig
 	return nil
 
 	//go io.Copy(Conn, HTTPConn)
@@ -335,15 +336,14 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 }
 
 func pipe(src, dst net.Conn, closeSig chan error) {
-	buf := make([]byte, 0xff)
+	buf := make([]byte, 0x400*32)
 	for {
 		n, err := src.Read(buf[0:])
 		if err != nil {
 			closeSig <- err
 			return
 		}
-		b := buf[0:n]
-		_, err = dst.Write(b)
+		_, err = dst.Write(buf[0:n])
 		if err != nil {
 			closeSig <- err
 			return
