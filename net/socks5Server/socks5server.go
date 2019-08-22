@@ -34,6 +34,7 @@ type ServerSocks5 struct {
 	dnscache           dns.Cache
 	KeepAliveTimeout   time.Duration
 	Timeout            time.Duration
+	UseLocalResolveIp  bool
 }
 
 // Socks5 <--
@@ -153,7 +154,11 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 						if isMatch {
 							socks5Server.toTCP(client, host, net.JoinHostPort(getDns[0], port))
 						} else {
-							socks5Server.toSocks5(client, net.JoinHostPort(getDns[0], port), b[:n])
+							if socks5Server.UseLocalResolveIp == true {
+								socks5Server.toSocks5(client, net.JoinHostPort(getDns[0], port), b[:n])
+							} else {
+								socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+							}
 						}
 					} else {
 						microlog.Debug(runtime.NumGoroutine(), host, "dns false")
