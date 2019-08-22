@@ -39,6 +39,7 @@ type Socks5ToHTTP struct {
 	// dns      sync.Map
 	dnscache         dns.DnsCache
 	KeepAliveTimeout time.Duration
+	Timeout          time.Duration
 }
 
 // HTTPProxy http proxy
@@ -236,9 +237,9 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			if isMatch {
 				var dialer net.Dialer
 				if socks5ToHttp.KeepAliveTimeout != 0 {
-					dialer = net.Dialer{Timeout: socks5ToHttp.KeepAliveTimeout, KeepAlive: 15 * time.Second}
+					dialer = net.Dialer{Timeout: socks5ToHttp.Timeout, KeepAlive: socks5ToHttp.KeepAliveTimeout}
 				} else {
-					dialer = net.Dialer{KeepAlive: 15 * time.Second}
+					dialer = net.Dialer{Timeout: socks5ToHttp.Timeout}
 				}
 				Conn, err = dialer.Dial("tcp", net.JoinHostPort(hostPortURL.Hostname(), domainPort))
 				if err != nil {

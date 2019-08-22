@@ -33,6 +33,7 @@ type ServerSocks5 struct {
 	DNSServer          string
 	dnscache           dns.DnsCache
 	KeepAliveTimeout   time.Duration
+	Timeout            time.Duration
 }
 
 // Socks5 <--
@@ -73,7 +74,6 @@ func (socks5Server *ServerSocks5) Socks5() error {
 			//time.Sleep(time.Second * 1)
 			continue
 		}
-		//_ = client.SetKeepAlive(false)
 		if socks5Server.KeepAliveTimeout != 0 {
 			_ = client.SetKeepAlivePeriod(socks5Server.KeepAliveTimeout)
 		}
@@ -228,7 +228,7 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 	var server net.Conn
 	var dialer net.Dialer
 	if socks5Server.KeepAliveTimeout != 0 {
-		dialer = net.Dialer{KeepAlive: socks5Server.KeepAliveTimeout, Timeout: 10 * time.Second}
+		dialer = net.Dialer{KeepAlive: socks5Server.KeepAliveTimeout, Timeout: socks5Server.Timeout}
 	} else {
 		dialer = net.Dialer{Timeout: 10 * time.Second}
 	}
@@ -253,9 +253,9 @@ func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
 	_, _ = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //respond to connect successful
 	var dialer net.Dialer
 	if socks5Server.KeepAliveTimeout != 0 {
-		dialer = net.Dialer{KeepAlive: socks5Server.KeepAliveTimeout, Timeout: 10 * time.Second}
+		dialer = net.Dialer{KeepAlive: socks5Server.KeepAliveTimeout, Timeout: socks5Server.Timeout}
 	} else {
-		dialer = net.Dialer{Timeout: 10 * time.Second}
+		dialer = net.Dialer{Timeout: socks5Server.Timeout}
 	}
 	server, err := dialer.Dial("tcp", socks5Server.HTTPServer+":"+socks5Server.HTTPPort)
 	if err != nil {

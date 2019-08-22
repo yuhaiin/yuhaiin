@@ -43,6 +43,7 @@ func main() {
 		//101.6.6.6 beijing tsinghua dns server
 		DNSServer:        *dns,
 		KeepAliveTimeout: 15 * time.Second,
+		Timeout:          10 * time.Second,
 	}
 	if err := socks5S.Socks5(); err != nil {
 		log.Println(err)

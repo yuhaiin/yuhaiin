@@ -59,6 +59,7 @@ func StartHTTPBypass(configPath string) {
 		CidrFile:         argument["cidrFile"],
 		DNSServer:        argument["dnsServer"],
 		KeepAliveTimeout: 15 * time.Second,
+		Timeout:          10 * time.Second,
 	}
 
 	if argument["localPort"] == "" {
@@ -90,6 +91,7 @@ func StartSocks5Bypass(configPath string) {
 		//101.6.6.6 beijing tsinghua dns server
 		DNSServer:        argument["dnsServer"],
 		KeepAliveTimeout: 15 * time.Second,
+		Timeout:          10 * time.Second,
 	}
 	if argument["localPort"] == "" {
 		socks5S.Socks5Port = "1080"
