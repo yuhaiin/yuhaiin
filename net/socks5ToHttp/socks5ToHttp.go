@@ -37,7 +37,7 @@ type Socks5ToHTTP struct {
 	DNSServer    string
 	// dns          map[string]bool
 	// dns      sync.Map
-	dnscache         dns.DnsCache
+	dnscache         dns.Cache
 	KeepAliveTimeout time.Duration
 	Timeout          time.Duration
 }
@@ -48,7 +48,7 @@ type Socks5ToHTTP struct {
 func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	// socks5ToHttp.dns = map[string]bool{}
-	socks5ToHttp.dnscache = dns.DnsCache{
+	socks5ToHttp.dnscache = dns.Cache{
 		DNSServer: socks5ToHttp.DNSServer,
 	}
 	var err error
