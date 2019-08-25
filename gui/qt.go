@@ -562,11 +562,11 @@ func main() {
 	} else {
 		app := widgets.NewQApplication(len(os.Args), os.Args)
 		app.SetApplicationName("SsrMicroClient")
-		_, isExist := process.GetProcessStatus(configPath + "/SsrMicroClient.pid")
+		pid, isExist := process.GetProcessStatus(configPath + "/SsrMicroClient.pid")
 		if isExist == true {
-			//messageBox := widgets.NewQMessageBox(nil)
-			//messageBox.SetText("process is exist at pid = "+pid)
-			//messageBox.Show()
+			message := widgets.NewQMessageBox(nil)
+			message.SetText("process is exist at pid = " + pid + "!")
+			message.Exec()
 			return
 		} else {
 			_ = ioutil.WriteFile(configPath+"/SsrMicroClient.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
