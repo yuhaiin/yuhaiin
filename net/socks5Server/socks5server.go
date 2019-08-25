@@ -317,7 +317,9 @@ func forward(src, dst net.Conn) {
 	go pipe(src, dst, srcToDstCloseSig)
 	go pipe(dst, src, dstToSrcCloseSig)
 	<-srcToDstCloseSig
+	close(srcToDstCloseSig)
 	<-dstToSrcCloseSig
+	close(dstToSrcCloseSig)
 	microlog.Debug(runtime.NumGoroutine(), "close")
 }
 

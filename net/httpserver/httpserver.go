@@ -324,7 +324,9 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	go pipe(Conn, HTTPConn, ConnToHTTPConnCloseSig)
 	go pipe(HTTPConn, Conn, HTTPConnToConnCloseSig)
 	<-ConnToHTTPConnCloseSig
+	close(ConnToHTTPConnCloseSig)
 	<-HTTPConnToConnCloseSig
+	close(HTTPConnToConnCloseSig)
 	return nil
 
 	//go io.Copy(Conn, HTTPConn)
