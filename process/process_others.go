@@ -62,6 +62,25 @@ func Get(configPath string) (pid string, isExist bool) {
 	return pid, true
 }
 
+// Get Get run status
+func GetProcessStatus(path string) (pid string, isExist bool) {
+	// configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
+	pidTemp, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Println(err)
+		log.Println("cant find the file,please run ssr start.")
+		return
+	}
+	pid = strings.Replace(string(pidTemp), "\r\n", "", -1)
+	pidI, _ := strconv.Atoi(pid)
+
+	// 检测类unix进程
+	if err := syscall.Kill(pidI, 0); err != nil {
+		return "", false
+	}
+	return pid, true
+}
+
 // StartByArgument to run ssr  deamon at golang use argument
 func StartByArgument(configPath, functionName string) {
 

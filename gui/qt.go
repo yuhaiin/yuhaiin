@@ -9,9 +9,11 @@ import (
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 )
 
@@ -559,7 +561,17 @@ func main() {
 		}
 	} else {
 		app := widgets.NewQApplication(len(os.Args), os.Args)
-		SSRSub(configPath)
-		app.Exec()
+		app.SetApplicationName("SsrMicroClient")
+		_, isExist := process.GetProcessStatus(configPath + "/SsrMicroClient.pid")
+		if isExist == true {
+			//messageBox := widgets.NewQMessageBox(nil)
+			//messageBox.SetText("process is exist at pid = "+pid)
+			//messageBox.Show()
+			return
+		} else {
+			_ = ioutil.WriteFile(configPath+"/SsrMicroClient.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
+			SSRSub(configPath)
+			app.Exec()
+		}
 	}
 }

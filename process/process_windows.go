@@ -91,6 +91,33 @@ func Get(configPath string) (pid string, isExist bool) {
 	// return pid, true
 }
 
+// Get Get run status
+func GetProcessStatus(path string) (pid string, isExist bool) {
+	pidTemp, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Println(err)
+		log.Println("cant find the file,please run ssr start.")
+		return
+	}
+	pid = strings.Replace(string(pidTemp), "\r\n", "", -1)
+
+	// check windows ssr background status
+	cmd := exec.Command("cmd", "/c", `wmic process get processid | findstr `+pid)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Run()
+	log.Println(out.Len())
+	if out.Len() == 0 {
+		return "", false
+	}
+	return pid, true
+	// FindProcess have bug that all success same with linux
+	// if _, err := os.FindProcess(pidI); err != nil {
+	// 	return "", false
+	// }
+	// return pid, true
+}
+
 // StartByArgument to run ssr  deamon at golang use argument
 func StartByArgument(configPath, functionName string) {
 
