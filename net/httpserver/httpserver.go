@@ -90,7 +90,6 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 			// log.Println("线程数:", runtime.NumGoroutine())
 			err := socks5ToHttp.httpHandleClientRequest(HTTPConn)
 			if err != nil {
-				// log.Println(err)
 				microlog.Debug(err)
 				return
 			}
@@ -116,6 +115,10 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			tmp := strings.Split(line, ": ")
 			key := tmp[0]
 			value := tmp[1]
+			if key == "Proxy-Connection" {
+				headerArgs["Connection"] = value
+				continue
+			}
 			headerArgs[key] = value
 		}
 	}
