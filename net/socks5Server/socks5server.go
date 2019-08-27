@@ -78,9 +78,6 @@ func (socks5Server *ServerSocks5) Socks5() error {
 		if socks5Server.KeepAliveTimeout != 0 {
 			_ = client.SetKeepAlivePeriod(socks5Server.KeepAliveTimeout)
 		}
-		//if err := client.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		//	log.Println(err)
-		//}
 
 		go func() {
 			// log.Println(runtime.NumGoroutine())

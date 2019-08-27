@@ -5,8 +5,6 @@ import (
 	"../cidrmatch"
 	"../dns"
 	"../socks5client"
-	"bytes"
-	"fmt"
 	"log"
 	"net"
 	"net/url"
@@ -40,7 +38,7 @@ type Socks5ToHTTP struct {
 // server http listen server,port http listen port
 // sock5Server socks5 server ip,socks5Port socks5 server port
 func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
-	// log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	// socks5ToHttp.dns = map[string]bool{}
 	socks5ToHttp.dnscache = dns.Cache{
 		DNSServer: socks5ToHttp.DNSServer,
@@ -106,41 +104,79 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	if err != nil {
 		return err
 	}
-
-	var indexByte int
-	if bytes.Contains(requestData[:], []byte("\n")) {
-		indexByte = bytes.IndexByte(requestData[:], '\n')
-	} else {
-		return microlog.ErrErr{Err: "request not completely!"}
+	header := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")[0]
+	data := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")[1]
+	microlog.Debug(strings.Split(header, "\r\n")[0], len(data))
+	headerRequest := strings.Split(header, "\r\n")[0]
+	requestMethod := strings.Split(headerRequest, " ")[0]
+	headerArgs := make(map[string]string)
+	for index, line := range strings.Split(header, "\r\n") {
+		if index != 0 {
+			//_, _ = fmt.Sscanf(line, "%s%s", &method, &host)
+			tmp := strings.Split(line, ": ")
+			key := tmp[0]
+			value := tmp[1]
+			headerArgs[key] = value
+		}
 	}
+	headerRequest = strings.ReplaceAll(headerRequest, "http://"+headerArgs["Host"], "")
+	for key, value := range headerArgs {
+		headerRequest += "\r\n" + key + ": " + value
+	}
+	headerRequest += "\r\n\r\n" + data
+	//microlog.Debug(headerArgs)
+	//microlog.Debug("requestMethod:",requestMethod)
+	//microlog.Debug("headerRequest ",headerRequest,"headerRequest end")
 
-	var method, host, address string
+	//var indexByte int
+	//if bytes.Contains(requestData[:], []byte("\n")) {
+	//	indexByte = bytes.IndexByte(requestData[:], '\n')
+	//} else {
+	//	return microlog.ErrErr{Err: "request not completely!"}
+	//}
+
+	var host, address string
 	// log.Println(string(requestData[:indexByte]))
-	if _, err = fmt.Sscanf(string(requestData[:indexByte]), "%s%s", &method, &host); err != nil {
+	//if _, err = fmt.Sscanf(string(requestData[:indexByte]), "%s%s", &method, &host); err != nil {
+	//	return err
+	//}
+
+	hostPortURL, err := url.Parse("//" + headerArgs["Host"])
+	if err != nil {
+		microlog.Debug(err)
 		return err
 	}
-
-	var hostPortURL *url.URL
-	if strings.Contains(host, "http://") || strings.Contains(host, "https://") {
-		if hostPortURL, err = url.Parse(host); err != nil {
-			return err
-		}
+	//microlog.Debug("hostAll:",hostPortURL.Port())
+	if hostPortURL.Port() == "" {
+		address = hostPortURL.Hostname() + ":80"
 	} else {
-		if hostPortURL, err = url.Parse("//" + host); err != nil {
-			return err
-		}
+		address = hostPortURL.Host
 	}
+	microlog.Debug("address:", address)
 
-	if hostPortURL.Opaque == "443" { //https访问
-		address = hostPortURL.Scheme + ":443"
-	} else { //http访问
-		if strings.Index(hostPortURL.Host, ":") == -1 { //host不带端口， 默认80
-			address = hostPortURL.Host + ":80"
-		} else {
-			address = hostPortURL.Host
-		}
-	}
+	//var hostPortURL *url.URL
+	//if strings.Contains(host, "http://") || strings.Contains(host, "https://") {
+	//	if hostPortURL, err = url.Parse(host); err != nil {
+	//		return err
+	//	}
+	//} else {
+	//	microlog.Debug("//","//",host)
+	//	if hostPortURL, err = url.Parse("//" + host); err != nil {
+	//		return err
+	//	}
+	//}
 
+	//if hostPortURL.Opaque == "443" { //https访问
+	//	address = hostPortURL.Scheme + ":443"
+	//} else { //http访问
+	//	if strings.Index(hostPortURL.Host, ":") == -1 { //host不带端口， 默认80
+	//		address = hostPortURL.Host + ":80"
+	//	} else {
+	//		address = hostPortURL.Host
+	//	}
+	//}
+
+	//microlog.Debug("address",address)
 	getSocks5Conn := func(Server, Port string, KeepAliveTimeout time.Duration, Address string) (net.Conn, error) {
 		return (&socks5client.Socks5Client{
 			Server:           socks5ToHttp.Socks5Server,
@@ -191,7 +227,15 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		// 	fmt.Println(runtime.NumGoroutine(), "use cache", string(requestData[:indexByte-9]), isMatched)
 		// }
 
-		domainPort := strings.Split(address, ":")[1]
+		var domainPort string
+		if net.ParseIP(hostPortURL.Hostname()) == nil {
+			domainPort = strings.Split(address, ":")[1]
+		} else if net.ParseIP(hostPortURL.Hostname()).To4() != nil {
+			domainPort = strings.Split(address, ":")[1]
+		} else {
+			domainPort = strings.Split(address, "]:")[1]
+		}
+
 		if hostTemplate != "ip" {
 			getDns, isSuccess := dns.DNSv4(socks5ToHttp.DNSServer, hostPortURL.Hostname())
 			if isSuccess {
@@ -231,6 +275,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 				}
 			}
 		} else {
+			//microlog.Debug("Hostname",hostPortURL.Hostname())
 			isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(hostPortURL.Hostname())
 			microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, hostPortURL.Hostname())
 			if isMatch {
@@ -253,7 +298,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 					socks5ToHttp.KeepAliveTimeout, net.JoinHostPort(hostPortURL.Hostname(), domainPort))
 				if err != nil {
 					// log.Println(err)
-					microlog.Debug(err)
+					microlog.Debug("..", hostPortURL.Hostname(), domainPort, "\n", err)
 					return err
 				}
 			}
@@ -280,24 +325,26 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	defer Conn.Close()
 
 	switch {
-	case method == "CONNECT":
+	case requestMethod == "CONNECT":
+		//microlog.Debug(headerRequest)
 		_, _ = HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
-	case method == "GET" || method == "POST":
-		newB := requestData[:requestDataSize]
-		if bytes.Contains(newB[:], []byte("http://"+address)) {
-			newB = bytes.ReplaceAll(newB[:], []byte("http://"+address), []byte(""))
-		} else if bytes.Contains(newB[:], []byte("http://"+hostPortURL.Host)) {
-			newB = bytes.ReplaceAll(newB[:], []byte("http://"+hostPortURL.Host), []byte(""))
-		}
-		// re, _ := regexp.Compile("User-Agent: .*\r\n")
-		// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
-		// var new []byte
-		if bytes.Contains(newB[:], []byte("Proxy-Connection:")) {
-			newB = bytes.ReplaceAll(newB[:], []byte("Proxy-Connection:"), []byte("Connection:"))
-		}
-		if _, err := Conn.Write(newB[:]); err != nil {
-			return err
-		}
+	//case requestMethod == "GET" || method == "POST":
+	//	newB := []byte(headerRequest[:])
+	//if bytes.Contains(newB[:], []byte("http://"+address)) {
+	//	newB = bytes.ReplaceAll(newB[:], []byte("http://"+address), []byte(""))
+	//} else if bytes.Contains(newB[:], []byte("http://"+hostPortURL.Host)) {
+	//	newB = bytes.ReplaceAll(newB[:], []byte("http://"+hostPortURL.Host), []byte(""))
+	//}
+	// re, _ := regexp.Compile("User-Agent: .*\r\n")
+	// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
+	// var new []byte
+	//if bytes.Contains(newB[:], []byte("Proxy-Connection:")) {
+	//	newB = bytes.ReplaceAll(newB[:], []byte("Proxy-Connection:"), []byte("Connection:"))
+	//}
+	////microlog.Debug(string(newB))
+	//if _, err := Conn.Write(newB[:]); err != nil {
+	//	return err
+	//}
 	// case method == "POST":
 	// 	new := requestData[:requestDataSize]
 	// 	if bytes.Contains(new[:], []byte("http://"+address)) {
@@ -315,7 +362,8 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	// 		return err
 	// 	}
 	default:
-		if _, err := Conn.Write(requestData[:requestDataSize]); err != nil {
+		//microlog.Debug(headerRequest)
+		if _, err := Conn.Write([]byte(headerRequest)); err != nil {
 			return err
 		}
 	}
