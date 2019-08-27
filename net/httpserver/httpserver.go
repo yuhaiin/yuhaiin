@@ -131,55 +131,20 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	//microlog.Debug("requestMethod:",requestMethod)
 	//microlog.Debug("headerRequest ",headerRequest,"headerRequest end")
 
-	//var indexByte int
-	//if bytes.Contains(requestData[:], []byte("\n")) {
-	//	indexByte = bytes.IndexByte(requestData[:], '\n')
-	//} else {
-	//	return microlog.ErrErr{Err: "request not completely!"}
-	//}
-
-	var host, address string
-	// log.Println(string(requestData[:indexByte]))
-	//if _, err = fmt.Sscanf(string(requestData[:indexByte]), "%s%s", &method, &host); err != nil {
-	//	return err
-	//}
-
 	hostPortURL, err := url.Parse("//" + headerArgs["Host"])
 	if err != nil {
 		microlog.Debug(err)
 		return err
 	}
 	//microlog.Debug("hostAll:",hostPortURL.Port())
+	var address string
 	if hostPortURL.Port() == "" {
 		address = hostPortURL.Hostname() + ":80"
 	} else {
 		address = hostPortURL.Host
 	}
-	microlog.Debug("address:", address)
+	//microlog.Debug("address:", address)
 
-	//var hostPortURL *url.URL
-	//if strings.Contains(host, "http://") || strings.Contains(host, "https://") {
-	//	if hostPortURL, err = url.Parse(host); err != nil {
-	//		return err
-	//	}
-	//} else {
-	//	microlog.Debug("//","//",host)
-	//	if hostPortURL, err = url.Parse("//" + host); err != nil {
-	//		return err
-	//	}
-	//}
-
-	//if hostPortURL.Opaque == "443" { //https访问
-	//	address = hostPortURL.Scheme + ":443"
-	//} else { //http访问
-	//	if strings.Index(hostPortURL.Host, ":") == -1 { //host不带端口， 默认80
-	//		address = hostPortURL.Host + ":80"
-	//	} else {
-	//		address = hostPortURL.Host
-	//	}
-	//}
-
-	//microlog.Debug("address",address)
 	getSocks5Conn := func(Server, Port string, KeepAliveTimeout time.Duration, Address string) (net.Conn, error) {
 		return (&socks5client.Socks5Client{
 			Server:           socks5ToHttp.Socks5Server,
@@ -201,34 +166,6 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		if net.ParseIP(hostPortURL.Hostname()) != nil {
 			hostTemplate = "ip"
 		}
-		// var isMatched bool
-		// if _, exist := socks5ToHttp.dns.Load(host); exist == false {
-		// 	ip, isSuccess := dns.DNSv4(socks5ToHttp.DNSServer, hostPortURL.Hostname())
-		// 	if isSuccess == true {
-		// 		isMatched = socks5ToHttp.cidrmatch.MatchWithMap(ip[0])
-		// 	} else {
-		// 		isMatched = false
-		// 	}
-
-		// 	// if socks5ToHttp.dns. > 10000 {
-		// 	// 	i := 0
-		// 	// 	for key := range socks5ToHttp.dns {
-		// 	// 		delete(socks5ToHttp.dns, key)
-		// 	// 		i++
-		// 	// 		if i > 0 {
-		// 	// 			break
-		// 	// 		}
-		// 	// 	}
-		// 	// }
-		// 	// socks5ToHttp.dns[hostPortURL.Hostname()] = isMatched
-		// 	socks5ToHttp.dns.Store(host, isMatched)
-		// 	fmt.Println(runtime.NumGoroutine(), string(requestData[:indexByte-9]), isMatched)
-		// } else {
-		// 	// isMatched = socks5ToHttp.dns[hostPortURL.Hostname()]
-		// 	isMatchedTmp, _ := socks5ToHttp.dns.Load(host)
-		// 	isMatched = isMatchedTmp.(bool)
-		// 	fmt.Println(runtime.NumGoroutine(), "use cache", string(requestData[:indexByte-9]), isMatched)
-		// }
 
 		var domainPort string
 		if net.ParseIP(hostPortURL.Hostname()) == nil {
@@ -268,7 +205,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 					}
 				}
 			} else {
-				microlog.Debug(runtime.NumGoroutine(), host, "dns false")
+				microlog.Debug(runtime.NumGoroutine(), address, "dns false")
 				Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
 					socks5ToHttp.KeepAliveTimeout, address)
 				if err != nil {
@@ -306,24 +243,6 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 				}
 			}
 		}
-		//	isMatched := socks5ToHttp.dnscache.Match(hostPortURL.Hostname(), hostTemplate,
-		//		socks5ToHttp.cidrmatch.MatchWithTrie)
-		//	if socks5ToHttp.ToHTTP == true && isMatched == false {
-		//		Conn, err = (&Socks5Client{
-		//			Server:  socks5ToHttp.Socks5Server,
-		//			Port:    socks5ToHttp.Socks5Port,
-		//			Address: address}).NewSocks5Client()
-		//		if err != nil {
-		//			// log.Println(err)
-		//			microlog.Debug(err)
-		//			return err
-		//		}
-		//	} else {
-		//		Conn, err = net.Dial("tcp", address)
-		//		if err != nil {
-		//			return err
-		//		}
-		//	}
 	}
 	defer Conn.Close()
 
@@ -331,39 +250,6 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	case requestMethod == "CONNECT":
 		//microlog.Debug(headerRequest)
 		_, _ = HTTPConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
-	//case requestMethod == "GET" || method == "POST":
-	//	newB := []byte(headerRequest[:])
-	//if bytes.Contains(newB[:], []byte("http://"+address)) {
-	//	newB = bytes.ReplaceAll(newB[:], []byte("http://"+address), []byte(""))
-	//} else if bytes.Contains(newB[:], []byte("http://"+hostPortURL.Host)) {
-	//	newB = bytes.ReplaceAll(newB[:], []byte("http://"+hostPortURL.Host), []byte(""))
-	//}
-	// re, _ := regexp.Compile("User-Agent: .*\r\n")
-	// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
-	// var new []byte
-	//if bytes.Contains(newB[:], []byte("Proxy-Connection:")) {
-	//	newB = bytes.ReplaceAll(newB[:], []byte("Proxy-Connection:"), []byte("Connection:"))
-	//}
-	////microlog.Debug(string(newB))
-	//if _, err := Conn.Write(newB[:]); err != nil {
-	//	return err
-	//}
-	// case method == "POST":
-	// 	new := requestData[:requestDataSize]
-	// 	if bytes.Contains(new[:], []byte("http://"+address)) {
-	// 		new = bytes.ReplaceAll(new[:], []byte("http://"+address), []byte(""))
-	// 	} else if bytes.Contains(new[:], []byte("http://"+hostPortURL.Host)) {
-	// 		new = bytes.ReplaceAll(new[:], []byte("http://"+hostPortURL.Host), []byte(""))
-	// 	}
-	// 	// re, _ := regexp.Compile("User-Agent: .*\r\n")
-	// 	// newBefore = re.ReplaceAll(newBefore, []byte("Expect: 100-continue\r\n"))
-	// 	// var new []byte
-	// 	if bytes.Contains(new[:], []byte("Proxy-Connection:")) {
-	// 		new = bytes.ReplaceAll(new[:], []byte("Proxy-Connection:"), []byte("Connection:"))
-	// 	}
-	// 	if _, err := socks5Conn.Write(new[:]); err != nil {
-	// 		return err
-	// 	}
 	default:
 		//microlog.Debug(headerRequest)
 		if _, err := Conn.Write([]byte(headerRequest)); err != nil {
