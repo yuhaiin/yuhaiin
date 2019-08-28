@@ -56,6 +56,70 @@ no gui version:
 
 <!-- [日本語](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md) [中文](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_cn.md) [other progrmammer language vision](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md)    -->
 
+## for developer
+
+use socks5 proxy at your program
+
+```golang
+import github.com/Asutorufa/SsrMicroClient/net/Socks5Client
+socks5Conn, err := (&socks5client.Socks5Client{
+// <your socks5 server ip/domain>
+ Server:            "x.x.x.x",
+//  <your socks5 server port>
+ Port:              "xxxx",
+//  <keep alive timeout>
+ KeepAliveTimeout:  x * time.Second,
+//  <what domain/ip your want to access across socks5,format like xxx.com:443>
+ Address:           "www.xxx.xxx"}).NewSocks5Client()
+ if err != nil {
+  log.Println(err)
+  return
+}
+```
+
+use DNS
+
+```golang
+import github.com/Asutorufa/SsrMicroClient/net/dns
+// get google's ip from google public dns
+// ipv6 can also get, this function name is not right
+ip,isSuccessful := dns.DNSv4("8.8.8.8:53","www.google.com")
+// if can't get,then return ip is string{},isSuccessful is false
+```
+
+use cidr match
+
+```golang
+// get a new matcher from a cidr file
+import github.com/Asutorufa/SsrMicroClient/net/cidrmatch
+newMatcher,err := cidrmatch.NewCidrMatchWithTrie("path/to/your/cidrfile")
+if err != nil{
+  log.Println(err)
+  return
+}
+
+// match a ip
+isMatch := newMatcher.MatchWithTrie("x.x.x.x")
+
+// insert a new cidr
+ipAndMask := strings.Split("x.x.x.x/x", "/")
+masksize, err := strconv.Atoi(ipAndMask[1])
+if err != nil {
+ return
+}
+// convert ip to binary
+c := ""
+if net.ParseIP(ipAndMask[0]) != nil {
+ if net.ParseIP(ipAndMask[0]).To4() != nil {
+  c = cidrmatch.ipAddrToInt(ipAndMask[0])
+ } else {
+  c = cidrmatch.ipv6AddrToInt(toIpv6(ipAndMask[0]))
+ }
+}
+// insert cidr
+cidrmatch.cidrTrie.Insert(c[:masksize])
+```
+
 ## Thanks
 
 [Golang](https://golang.org)  
