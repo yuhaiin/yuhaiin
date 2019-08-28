@@ -67,6 +67,10 @@ socks5Conn, err := (&socks5client.Socks5Client{
  Server:            "x.x.x.x",
 //  <your socks5 server port>
  Port:              "xxxx",
+// socks5 proxy Username
+ Username:  "xxxxx",
+// socks5 proxy password
+ Password    "xxxxx",
 //  <keep alive timeout>
  KeepAliveTimeout:  x * time.Second,
 //  <what domain/ip your want to access across socks5,format like xxx.com:443>
