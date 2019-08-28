@@ -51,8 +51,11 @@ daemon
 -->
 gui version(by qt):  
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/gui_by_qt_dev1.png)  
-no gui version:
+
+<details>
+<summary>no gui version screenshots</summary>
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.3beta.png)
+</details>
 
 <!-- [日本語](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_jp.md) [中文](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_cn.md) [other progrmammer language vision](https://github.com/Asutorufa/SSRSubscriptionDecode/blob/master/readme_others.md)    -->
 
@@ -144,7 +147,8 @@ ssr python version at mac may be not support,please test by yourself.
 Make a simple gui([Now Dev](https://github.com/Asutorufa/SsrMicroClient/tree/dev)):
 ![gui](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/dev/img/gui_dev.png) 
 -->
-Todo:
+<details>
+<summary>Todo:</summary>
 
 - [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
       write a half of [http proxy](https://github.com/Asutorufa/SsrMicroClient/blob/OtherLanguage/Old/SSR_http_client/client.go) find sun8911879/shadowsocksR is not support auth_chain*...oof.  
@@ -180,3 +184,4 @@ fixed issue:
 - support windows.
 - can setting timeout.
 -->
+</details>
