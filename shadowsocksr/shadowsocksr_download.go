@@ -1,4 +1,4 @@
-package SsrDownload
+package ssrdownload
 
 import (
 	"archive/zip"
