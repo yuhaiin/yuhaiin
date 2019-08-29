@@ -49,8 +49,12 @@ daemon
 #log-file /dev/null
 ```
 -->
-gui version(by qt):  
+<details>
+<summary>gui version screenshots</summary>
+  
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/gui_by_qt_dev1.png)  
+
+</details>
 
 <details>
 <summary>no gui version screenshots</summary>
