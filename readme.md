@@ -73,17 +73,17 @@ use socks5 proxy at your program
 import github.com/Asutorufa/SsrMicroClient/net/Socks5Client
 socks5Conn, err := (&socks5client.Socks5Client{
 // <your socks5 server ip/domain>
- Server:            "x.x.x.x",
+ Server: "x.x.x.x",
 //  <your socks5 server port>
- Port:              "xxxx",
+ Port: "xxxx",
 // socks5 proxy Username
- Username:  "xxxxx",
+ Username: "xxxxx",
 // socks5 proxy password
- Password    "xxxxx",
+ Password: "xxxxx",
 //  <keep alive timeout>
- KeepAliveTimeout:  x * time.Second,
+ KeepAliveTimeout: x * time.Second,
 //  <what domain/ip your want to access across socks5,format like xxx.com:443>
- Address:           "www.xxx.xxx"}).NewSocks5Client()
+ Address: "www.xxx.xxx:xx"}).NewSocks5Client()
  if err != nil {
   log.Println(err)
   return
