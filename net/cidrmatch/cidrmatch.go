@@ -41,6 +41,7 @@ func (cidrMatch *CidrMatch) insertCidrTrie(fileName string) {
 	}
 }
 
+// InsertOneCIDR Insert one CIDR to cidr matcher
 func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
 	ipAndMask := strings.Split(cidr, "/")
 	/* 十进制转化为二进制 */
@@ -63,6 +64,7 @@ func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
 	return nil
 }
 
+// MatchWithTrie match ip with trie
 func (cidrMatch *CidrMatch) MatchWithTrie(ip string) bool {
 	ipTmp := net.ParseIP(ip)
 	ipBinary := ""
@@ -74,6 +76,7 @@ func (cidrMatch *CidrMatch) MatchWithTrie(ip string) bool {
 	return cidrMatch.cidrTrie.Search(ipBinary)
 }
 
+// IpAddrToInt convert ipv4 to binary
 func IpAddrToInt(ipAddr string) string {
 	bits := strings.Split(ipAddr, ".")
 	b0, _ := strconv.Atoi(bits[0])
@@ -93,6 +96,7 @@ func IpAddrToInt(ipAddr string) string {
 	return c
 }
 
+// ToIpv6 convert ipv6 to completely ip
 func ToIpv6(ip string) string {
 	// ip := "2001:b28:f23d:f001::a"
 	// log.Println(strings.Split(ip, "::"))
@@ -135,6 +139,7 @@ func ToIpv6(ip string) string {
 	return ipv6b1
 }
 
+// Ipv6AddrToInt convert ipv6 to binary
 func Ipv6AddrToInt(ipAddr string) string {
 	bits := strings.Split(ipAddr, ":")
 	b0, _ := strconv.ParseInt(bits[0], 16, 64)
