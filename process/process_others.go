@@ -62,7 +62,7 @@ func Get(configPath string) (pid string, isExist bool) {
 	return pid, true
 }
 
-// Get Get run status
+// GetProcessStatus Get run status
 func GetProcessStatus(path string) (pid string, isExist bool) {
 	// configTemp := strings.Split(config.Read_config_file(path)["Pid_file"], " ")[1]
 	pidTemp, err := ioutil.ReadFile(path)

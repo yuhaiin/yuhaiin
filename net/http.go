@@ -46,7 +46,7 @@ func GetHttpProxyCmd() (*exec.Cmd, error) {
 	return exec.Command(executablePath, "-sd", "http"), nil
 }
 
-// StartHTTP <--
+// StartHTTPBypass <--
 func StartHTTPBypass(configPath string) {
 	argument := config.GetConfig(configPath)
 	socks5ToHTTP := &httpserver.Socks5ToHTTP{
@@ -75,7 +75,7 @@ func StartHTTPBypass(configPath string) {
 	}
 }
 
-// StartHTTP <--
+// StartSocks5Bypass <--
 func StartSocks5Bypass(configPath string) {
 	argument := config.GetConfig(configPath)
 	socks5S := socks5server.ServerSocks5{
@@ -107,6 +107,7 @@ func StartSocks5Bypass(configPath string) {
 	}
 }
 
+// GetHttpProxyBypassCmd <--
 func GetHttpProxyBypassCmd() (*exec.Cmd, error) {
 	executablePath, err := os.Executable()
 	if err != nil {
@@ -118,6 +119,7 @@ func GetHttpProxyBypassCmd() (*exec.Cmd, error) {
 	return exec.Command(executablePath, "-sd", "httpBp"), nil
 }
 
+// GetSocks5ProxyBypassCmd <--
 func GetSocks5ProxyBypassCmd() (*exec.Cmd, error) {
 	executablePath, err := os.Executable()
 	if err != nil {

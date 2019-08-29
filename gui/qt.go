@@ -625,14 +625,13 @@ func main() {
 		if isExist == true {
 			messageBox("process is exist at pid = " + pid + "!")
 			return
-		} else {
-			err := ioutil.WriteFile(configPath+"/SsrMicroClient.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
-			if err != nil {
-				messageBox(err.Error())
-			}
-			SSRSub(configPath)
-			app.Exec()
 		}
+		err := ioutil.WriteFile(configPath+"/SsrMicroClient.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
+		if err != nil {
+			messageBox(err.Error())
+		}
+		SSRSub(configPath)
+		app.Exec()
 	}
 }
 

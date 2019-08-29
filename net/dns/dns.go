@@ -13,7 +13,7 @@ import (
 	microlog "../../log"
 )
 
-// DnsCache <-- use map save history
+// Cache <-- use map save history
 type Cache struct {
 	dns       sync.Map
 	DNSServer string

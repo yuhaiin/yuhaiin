@@ -163,7 +163,7 @@ func RemoveLinkJSON(configPath string) error {
 	return nil
 }
 
-// RemoveLinkJSON remove link for other package
+// RemoveLinkJSON2 remove link for other package
 func RemoveLinkJSON2(link, configPath string) error {
 	return removeLinkJSON(link, configPath)
 }

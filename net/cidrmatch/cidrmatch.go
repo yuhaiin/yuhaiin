@@ -41,7 +41,7 @@ func (cidrMatch *CidrMatch) insertCidrTrie(fileName string) {
 	}
 }
 
-// InsertOneCIDR Insert one CIDR to cidr matcher
+// InsetOneCIDR Insert one CIDR to cidr matcher
 func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
 	ipAndMask := strings.Split(cidr, "/")
 	/* 十进制转化为二进制 */
