@@ -21,33 +21,19 @@ type CidrMatch struct {
 
 // NewCidrMatchWithTrie <--
 func NewCidrMatchWithTrie(fileName string) (*CidrMatch, error) {
-	microlog.Debug("cidrfilename", fileName)
-	cidrmatch := new(CidrMatch)
-	cidrmatch.cidrTrie = trie.NewTrieTree()
-	cidrmatch.insertCidrTrie(fileName)
-	return cidrmatch, nil
+	microlog.Debug("cidrFileName", fileName)
+	cidrMatch := new(CidrMatch)
+	cidrMatch.cidrTrie = trie.NewTrieTree()
+	cidrMatch.insertCidrTrie(fileName)
+	return cidrMatch, nil
 }
 
-func (cidrmatch *CidrMatch) insertCidrTrie(fileName string) {
+func (cidrMatch *CidrMatch) insertCidrTrie(fileName string) {
 	configTemp, _ := ioutil.ReadFile(fileName)
 	for _, cidr := range strings.Split(string(configTemp), "\n") {
-		ipAndMask := strings.Split(cidr, "/")
-		/* 十进制转化为二进制 */
-		c := ""
-		if net.ParseIP(ipAndMask[0]) != nil {
-			if net.ParseIP(ipAndMask[0]).To4() != nil {
-				c = IpAddrToInt(ipAndMask[0])
-			} else {
-				c = Ipv6AddrToInt(ToIpv6(ipAndMask[0]))
-			}
-		} else {
+		if err := cidrMatch.InsetOneCIDR(cidr); err != nil {
 			continue
 		}
-		masksize, err := strconv.Atoi(ipAndMask[1])
-		if err != nil {
-			continue
-		}
-		cidrmatch.cidrTrie.Insert(c[:masksize])
 		// fmt.Println("c:", c)
 		/* 二进制转化为十进制 */
 		// d, err := strconv.ParseInt(c, 2, 64)
@@ -55,7 +41,29 @@ func (cidrmatch *CidrMatch) insertCidrTrie(fileName string) {
 	}
 }
 
-func (cidrmatch *CidrMatch) MatchWithTrie(ip string) bool {
+func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
+	ipAndMask := strings.Split(cidr, "/")
+	/* 十进制转化为二进制 */
+	c := ""
+	if net.ParseIP(ipAndMask[0]) != nil {
+		if net.ParseIP(ipAndMask[0]).To4() != nil {
+			c = IpAddrToInt(ipAndMask[0])
+		} else {
+			c = Ipv6AddrToInt(ToIpv6(ipAndMask[0]))
+		}
+	} else {
+		//	do something
+		return microlog.ErrErr{Err: "this cidr don't have ip!"}
+	}
+	maskSize, err := strconv.Atoi(ipAndMask[1])
+	if err != nil {
+		return err
+	}
+	cidrMatch.cidrTrie.Insert(c[:maskSize])
+	return nil
+}
+
+func (cidrMatch *CidrMatch) MatchWithTrie(ip string) bool {
 	ipTmp := net.ParseIP(ip)
 	ipBinary := ""
 	if ipTmp.To4() != nil {
@@ -63,7 +71,7 @@ func (cidrmatch *CidrMatch) MatchWithTrie(ip string) bool {
 	} else if ipTmp.To16() != nil {
 		ipBinary = Ipv6AddrToInt(ToIpv6(ip))
 	}
-	return cidrmatch.cidrTrie.Search(ipBinary)
+	return cidrMatch.cidrTrie.Search(ipBinary)
 }
 
 func IpAddrToInt(ipAddr string) string {

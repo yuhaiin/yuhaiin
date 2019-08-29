@@ -110,22 +110,10 @@ if err != nil{
 isMatch := newMatcher.MatchWithTrie("x.x.x.x")
 
 // insert a new cidr
-ipAndMask := strings.Split("x.x.x.x/x", "/")
-masksize, err := strconv.Atoi(ipAndMask[1])
-if err != nil {
- return
+if err := newMatcher.InsertOneCIDR("x.x.x.x/xx"); err != nil{
+log.Println(err) 
+return
 }
-// convert ip to binary
-c := ""
-if net.ParseIP(ipAndMask[0]) != nil {
- if net.ParseIP(ipAndMask[0]).To4() != nil {
-  c = cidrmatch.IpAddrToInt(ipAndMask[0])
- } else {
-  c = cidrmatch.Ipv6AddrToInt(cidrmatch.ToIpv6(ipAndMask[0]))
- }
-}
-// insert cidr
-cidrmatch.cidrTrie.Insert(c[:masksize])
 ```
 
 ## Thanks

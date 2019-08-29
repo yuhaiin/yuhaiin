@@ -9,9 +9,9 @@ import (
 	microlog "../../log"
 )
 
-func (cidrmatch *CidrMatch) MatchString(ip string) bool {
+func (cidrMatch *CidrMatch) MatchString(ip string) bool {
 	ss := net.ParseIP(ip)
-	for _, n := range cidrmatch.cidrS {
+	for _, n := range cidrMatch.cidrS {
 		// log.Println(s, n)
 		if n.Contains(ss) {
 			return true
@@ -20,8 +20,8 @@ func (cidrmatch *CidrMatch) MatchString(ip string) bool {
 	return false
 }
 
-func (cidrmatch *CidrMatch) Match(ip net.IP) bool {
-	for _, n := range cidrmatch.cidrS {
+func (cidrMatch *CidrMatch) Match(ip net.IP) bool {
+	for _, n := range cidrMatch.cidrS {
 		// log.Println(s, n)
 		if n.Contains(ip) {
 			return true
@@ -59,7 +59,7 @@ func NewCidrMatchWithMap(fileName string) (*CidrMatch, error) {
 	return cidrmatch, nil
 }
 
-func (cidrmatch *CidrMatch) getMaskSize(fileName string) int {
+func (cidrMatch *CidrMatch) getMaskSize(fileName string) int {
 	configTemp, _ := ioutil.ReadFile(fileName)
 	match := map[int]bool{}
 	// ip := "255.1.1.1/24"
@@ -83,7 +83,7 @@ func (cidrmatch *CidrMatch) getMaskSize(fileName string) int {
 	return masksize
 }
 
-func (cidrmatch *CidrMatch) getCidrMap(fileName string) map[string][]*net.IPNet {
+func (cidrMatch *CidrMatch) getCidrMap(fileName string) map[string][]*net.IPNet {
 	configTemp, _ := ioutil.ReadFile(fileName)
 	match := map[string][]*net.IPNet{}
 	for _, cidr := range strings.Split(string(configTemp), "\n") {
@@ -94,33 +94,33 @@ func (cidrmatch *CidrMatch) getCidrMap(fileName string) map[string][]*net.IPNet 
 		/* 十进制转化为二进制 */
 		c := ""
 		if cidr2.IP.To4() != nil {
-			c = ipAddrToInt(cidr2.IP.String())
+			c = IpAddrToInt(cidr2.IP.String())
 		} else {
-			c = ipv6AddrToInt(toIpv6(cidr2.IP.String()))
+			c = Ipv6AddrToInt(ToIpv6(cidr2.IP.String()))
 		}
 		// fmt.Println("c:", c)
 		/* 二进制转化为十进制 */
 		// d, err := strconv.ParseInt(c, 2, 64)
 		// fmt.Println("d:", d, err)
-		prefix := c[:cidrmatch.masksize]
+		prefix := c[:cidrMatch.masksize]
 		match[prefix] = append(match[prefix], cidr2)
 	}
 	return match
 }
 
-func (cidrmatch *CidrMatch) ipGetKey(ip string) string {
+func (cidrMatch *CidrMatch) ipGetKey(ip string) string {
 	/* 十进制转化为二进制 */
 	ipTmp := net.ParseIP(ip)
 	if ipTmp.To4() != nil {
-		return ipAddrToInt(ip)[:cidrmatch.masksize]
+		return IpAddrToInt(ip)[:cidrMatch.masksize]
 	} else if ipTmp.To16() != nil {
-		return ipv6AddrToInt(toIpv6(ip))[:cidrmatch.masksize]
+		return Ipv6AddrToInt(ToIpv6(ip))[:cidrMatch.masksize]
 	}
 	return ""
 }
 
-func (cidrmatch *CidrMatch) MatchWithMap(ip string) bool {
-	mapIP := cidrmatch.cidrMap[cidrmatch.ipGetKey(ip)]
+func (cidrMatch *CidrMatch) MatchWithMap(ip string) bool {
+	mapIP := cidrMatch.cidrMap[cidrMatch.ipGetKey(ip)]
 	if len(mapIP) == 0 {
 		return false
 	}
