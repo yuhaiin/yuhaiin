@@ -144,7 +144,7 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 			switch socks5Server.Bypass {
 			case true:
 				if hostTemplate != "ip" {
-					getDns, isSuccess := dns.DNSv4(socks5Server.DNSServer, host)
+					getDns, isSuccess := dns.DNS(socks5Server.DNSServer, host)
 					if isSuccess {
 						isMatch := socks5Server.cidrmatch.MatchWithTrie(getDns[0])
 						microlog.Debug(host, isMatch, getDns[0])

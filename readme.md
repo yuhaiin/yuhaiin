@@ -90,9 +90,8 @@ use DNS
 
 ```golang
 import github.com/Asutorufa/SsrMicroClient/net/dns
-// get google's ip from google public dns
-// ipv6 can also get, this function name is not right
-ip,isSuccessful := dns.DNSv4("8.8.8.8:53","www.google.com")
+// get google's ip from google public dns, ipv6 can also get
+ip,isSuccessful := dns.DNS("8.8.8.8:53","www.google.com")
 // if can't get,then return ip is string{},isSuccessful is false
 ```
 

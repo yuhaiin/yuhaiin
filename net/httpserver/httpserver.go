@@ -177,7 +177,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		}
 
 		if hostTemplate != "ip" {
-			getDns, isSuccess := dns.DNSv4(socks5ToHttp.DNSServer, hostPortURL.Hostname())
+			getDns, isSuccess := dns.DNS(socks5ToHttp.DNSServer, hostPortURL.Hostname())
 			if isSuccess {
 				isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(getDns[0])
 				microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, getDns[0])

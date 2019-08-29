@@ -19,8 +19,8 @@ type Cache struct {
 	DNSServer string
 }
 
-// DNSv4 <-- dns for ipv4
-func DNSv4(DNSServer, domain string) (DNS []string, success bool) {
+// DNS <-- dns
+func DNS(DNSServer, domain string) (DNS []string, success bool) {
 	defer func() { //必须要先声明defer，否则不能捕获到panic异常
 		if err := recover(); err != nil {
 			log.Println(err) //这里的err其实就是panic传入的内容，bug
@@ -247,7 +247,7 @@ func (dnscache *Cache) Match(host, hostTemplate string, cidrmatch func(string) b
 	if _, exist := dnscache.dns.Load(host); exist == false {
 		if hostTemplate != "ip" {
 			// ip, err := net.LookupHost(host)
-			ip, isSuccess := DNSv4(dnscache.DNSServer, host)
+			ip, isSuccess := DNS(dnscache.DNSServer, host)
 			// microlog.Debug(host, ip, isSuccess)
 			if isSuccess == true {
 				isMatch = cidrmatch(ip[0])
