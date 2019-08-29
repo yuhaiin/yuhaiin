@@ -2,6 +2,7 @@ package trie
 
 import "log"
 
+// TrieTree trie tree
 type TrieTree struct {
 	root *node
 }
@@ -12,6 +13,7 @@ type node struct {
 	right  *node
 }
 
+// Insert insert node to tree
 func (trie *TrieTree) Insert(str string) {
 	nodeTemp := trie.root
 	for i := 0; i < len(str); i++ {
@@ -35,6 +37,7 @@ func (trie *TrieTree) Insert(str string) {
 	}
 }
 
+// Search search from trie tree
 func (trie *TrieTree) Search(str string) bool {
 	nodeTemp := trie.root
 	for i := 0; i < len(str); i++ {
@@ -54,10 +57,12 @@ func (trie *TrieTree) Search(str string) bool {
 	return false
 }
 
+// GetRoot get root node
 func (trie *TrieTree) GetRoot() *node {
 	return trie.root
 }
 
+// PrintTree print this tree
 func (trie *TrieTree) PrintTree(node *node) {
 	if node.left != nil {
 		trie.PrintTree(node.left)
@@ -69,6 +74,7 @@ func (trie *TrieTree) PrintTree(node *node) {
 	}
 }
 
+// NewTrieTree create a new trie tree
 func NewTrieTree() *TrieTree {
 	return &TrieTree{
 		root: &node{},
