@@ -120,9 +120,9 @@ if err != nil {
 c := ""
 if net.ParseIP(ipAndMask[0]) != nil {
  if net.ParseIP(ipAndMask[0]).To4() != nil {
-  c = cidrmatch.ipAddrToInt(ipAndMask[0])
+  c = cidrmatch.IpAddrToInt(ipAndMask[0])
  } else {
-  c = cidrmatch.ipv6AddrToInt(toIpv6(ipAndMask[0]))
+  c = cidrmatch.Ipv6AddrToInt(cidrmatch.ToIpv6(ipAndMask[0]))
  }
 }
 // insert cidr
