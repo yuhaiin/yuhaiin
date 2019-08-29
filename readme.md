@@ -20,7 +20,7 @@ go build SSRSub.go
 ```
 
 gui:  
-install [therecipe/qt](https://github.com/therecipe/qt)
+install [therecipe/qt#Installation](https://github.com/therecipe/qt#installation)
 
 ```shell script
 git clone https://github.com/Asutorufa/SsrMicroClient.git
