@@ -111,8 +111,8 @@ isMatch := newMatcher.MatchWithTrie("x.x.x.x")
 
 // insert a new cidr
 if err := newMatcher.InsertOneCIDR("x.x.x.x/xx"); err != nil{
-log.Println(err) 
-return
+ log.Println(err) 
+ return
 }
 ```
 
