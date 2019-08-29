@@ -89,8 +89,8 @@ func IpAddrToInt(ipAddr string) string {
 	sum += int64(b2) << 8
 	sum += int64(b3)
 	c := strconv.FormatInt(sum, 2)
-	nowlong := 32 - len(c)
-	for i := 0; i < nowlong; i++ {
+	nowLong := 32 - len(c)
+	for i := 0; i < nowLong; i++ {
 		c = "0" + c
 	}
 	return c
@@ -157,8 +157,8 @@ func Ipv6AddrToInt(ipAddr string) string {
 		sum1 += b0 + 1<<16
 		sum1 += b1
 		sum1S = strconv.FormatInt(sum1, 2)[1:]
-		nowlong := 32 - len(sum1S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum1S)
+		for i := 0; i < nowLong; i++ {
 			sum1S = "0" + sum1S
 		}
 	} else {
@@ -166,8 +166,8 @@ func Ipv6AddrToInt(ipAddr string) string {
 		sum1 += b1
 		sum1S = strconv.FormatInt(sum1, 2)
 		log.Println(sum1S)
-		nowlong := 32 - len(sum1S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum1S)
+		for i := 0; i < nowLong; i++ {
 			sum1S = "0" + sum1S
 		}
 	}
@@ -176,16 +176,16 @@ func Ipv6AddrToInt(ipAddr string) string {
 		sum2 += b2 + 1<<16
 		sum2 += b3
 		sum2S = strconv.FormatInt(sum2, 2)[1:]
-		nowlong := 32 - len(sum2S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum2S)
+		for i := 0; i < nowLong; i++ {
 			sum2S = "0" + sum2S
 		}
 	} else {
 		sum2 += b2 << 16
 		sum2 += b3
 		sum2S = strconv.FormatInt(sum2, 2)
-		nowlong := 32 - len(sum2S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum2S)
+		for i := 0; i < nowLong; i++ {
 			sum2S = "0" + sum2S
 		}
 	}
@@ -194,16 +194,16 @@ func Ipv6AddrToInt(ipAddr string) string {
 		sum3 += b4 + 1<<16
 		sum3 += b5
 		sum3S = strconv.FormatInt(sum3, 2)[1:]
-		nowlong := 32 - len(sum3S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum3S)
+		for i := 0; i < nowLong; i++ {
 			sum3S = "0" + sum3S
 		}
 	} else {
 		sum3 += b4 << 16
 		sum3 += b5
 		sum3S = strconv.FormatInt(sum3, 2)
-		nowlong := 32 - len(sum3S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum3S)
+		for i := 0; i < nowLong; i++ {
 			sum3S = "0" + sum3S
 		}
 	}
@@ -212,16 +212,16 @@ func Ipv6AddrToInt(ipAddr string) string {
 		sum4 += b6 + 1<<16
 		sum4 += b7
 		sum4S = strconv.FormatInt(sum4, 2)[1:]
-		nowlong := 32 - len(sum4S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum4S)
+		for i := 0; i < nowLong; i++ {
 			sum4S = "0" + sum4S
 		}
 	} else {
 		sum4 += b6 << 16
 		sum4 += b7
 		sum4S = strconv.FormatInt(sum4, 2)
-		nowlong := 32 - len(sum4S)
-		for i := 0; i < nowlong; i++ {
+		nowLong := 32 - len(sum4S)
+		for i := 0; i < nowLong; i++ {
 			sum4S = "0" + sum4S
 		}
 	}
