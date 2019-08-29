@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+// Setting setting json struct
 type Setting struct {
 	PythonPath                     string `json:"pythonPath"`
 	SsrPath                        string `json:"ssrPath"`
@@ -25,6 +26,7 @@ type Setting struct {
 	UdpTrans                       bool   `json:"udpTrans"`
 }
 
+// SettingInitJSON init setting json file
 func SettingInitJSON(configPath string) error {
 	pa := &Setting{
 		PythonPath:                     GetPythonPath(),
@@ -51,6 +53,7 @@ func SettingInitJSON(configPath string) error {
 	return nil
 }
 
+// SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON(configPath string) (*Setting, error) {
 	pa := &Setting{}
 	file, err := os.Open(configPath + "/SsrMicroConfig.json")
@@ -63,6 +66,7 @@ func SettingDecodeJSON(configPath string) (*Setting, error) {
 	return pa, nil
 }
 
+// SettingEnCodeJSON encode setting struct to json
 func SettingEnCodeJSON(configPath string, pa *Setting) error {
 	file, err := os.Create(configPath + "/SsrMicroConfig.json")
 	if err != nil {
