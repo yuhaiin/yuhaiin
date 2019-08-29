@@ -15,6 +15,7 @@ import (
 
 // 待测试 https://github.com/evanphx/json-patch
 
+// Node node json struct
 type Node struct {
 	ID         int    `json:"id"`
 	Server     string `json:"server"`
@@ -29,6 +30,7 @@ type Node struct {
 	Group      string `json:"group"`
 }
 
+// ConfigSample config sample json struct
 type ConfigSample struct {
 	Group   map[string]bool            `json:"group"`
 	NowNode Node                       `json:"nowNode"`
@@ -249,6 +251,7 @@ func GetGroup(configPath string) ([]string, error) {
 	return groupTmp, nil
 }
 
+// GetNode get nodes by group
 func GetNode(configPath, group string) ([]string, error) {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
