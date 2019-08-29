@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-func get_ssr(path string) {
+func getSsr(path string) {
 	file := path + "/shadowsocksr.zip" //源文件路径
 	url := "https://github.com/asutorufg/shadowsocksr/archive/asutorufg.zip"
 	fmt.Println("Downloading shadowsocksr.zip")
@@ -24,18 +24,18 @@ func get_ssr(path string) {
 	io.Copy(f, res.Body)
 }
 
-func unzip_ssr(path string) {
+func unzipSsr(path string) {
 	// 打开一个zip格式文件
 	r, err := zip.OpenReader(path + "/shadowsocksr.zip")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	var unzip_name string
+	var unzipName string
 	for num, k := range r.Reader.File {
 		if k.FileInfo().IsDir() {
 			if num == 0 {
-				unzip_name = "/" + k.Name
+				unzipName = "/" + k.Name
 			}
 			err := os.MkdirAll(path+"/"+k.Name, 0755)
 			if err != nil {
@@ -59,16 +59,16 @@ func unzip_ssr(path string) {
 		_ = NewFile.Close()
 	}
 
-	err = os.Rename(path+unzip_name, path+"/shadowsocksr")
+	err = os.Rename(path+unzipName, path+"/shadowsocksr")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 }
 
-func Get_ssr_python(path string) {
-	get_ssr(path)
-	unzip_ssr(path)
+func GetSsrPython(path string) {
+	getSsr(path)
+	unzipSsr(path)
 
 	err := os.Remove(path + "/shadowsocksr.zip")
 	if err != nil {

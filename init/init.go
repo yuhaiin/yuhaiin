@@ -1,4 +1,4 @@
-package ssr_init
+package init
 
 import (
 	"fmt"
@@ -42,17 +42,17 @@ func Init(configPath string) {
 	//}
 
 	if !PathExists(configPath + "/shadowsocksr") {
-		SsrDownload.Get_ssr_python(configPath)
+		SsrDownload.GetSsrPython(configPath)
 	}
 
 	if !PathExists(configPath + "/node.json") {
-		if configJSON.InitJSON(configPath) != nil {
+		if configjson.InitJSON(configPath) != nil {
 			return
 		}
 	}
 
 	if !PathExists(configPath + "/SsrMicroConfig.json") {
-		if configJSON.SettingInitJSON(configPath) != nil {
+		if configjson.SettingInitJSON(configPath) != nil {
 			return
 		}
 	}

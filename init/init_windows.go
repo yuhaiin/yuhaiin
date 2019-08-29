@@ -1,6 +1,6 @@
 // +build windows
 
-package ssr_init
+package init
 
 import (
 	"os"

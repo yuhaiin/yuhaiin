@@ -30,7 +30,7 @@ func SSRSub(configPath string) {
 	if err != nil {
 		log.Println(err)
 	}
-	setting, err := configJSON.SettingDecodeJSON(configPath)
+	setting, err := configjson.SettingDecodeJSON(configPath)
 	if err != nil {
 		log.Println(err)
 	}
@@ -170,7 +170,7 @@ func SSRSub(configPath string) {
 
 	nowNodeLabel := widgets.NewQLabel2("now node", window, core.Qt__WindowType(0x00000000))
 	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
-	nowNode, err := configJSON.GetNowNode(configPath)
+	nowNode, err := configjson.GetNowNode(configPath)
 	if err != nil {
 		//log.Println(err)
 		messageBox(err.Error())
@@ -182,7 +182,7 @@ func SSRSub(configPath string) {
 	groupLabel := widgets.NewQLabel2("group", window, core.Qt__WindowType(0x00000000))
 	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110), core.NewQPoint2(130, 140)))
 	groupCombobox := widgets.NewQComboBox(window)
-	group, err := configJSON.GetGroup(configPath)
+	group, err := configjson.GetGroup(configPath)
 	if err != nil {
 		//log.Println(err)
 		messageBox(err.Error())
@@ -197,7 +197,7 @@ func SSRSub(configPath string) {
 	nodeLabel := widgets.NewQLabel2("node", window, core.Qt__WindowType(0x00000000))
 	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160), core.NewQPoint2(130, 190)))
 	nodeCombobox := widgets.NewQComboBox(window)
-	node, err := configJSON.GetNode(configPath, groupCombobox.CurrentText())
+	node, err := configjson.GetNode(configPath, groupCombobox.CurrentText())
 	if err != nil {
 		//log.Println(err)
 		messageBox(err.Error())
@@ -224,12 +224,12 @@ func SSRSub(configPath string) {
 			statusLabel2.SetText(status)
 			trayIcon.SetToolTip(updateStatus())
 		} else {
-			err := configJSON.ChangeNowNode2(configPath, group, remarks)
+			err := configjson.ChangeNowNode2(configPath, group, remarks)
 			if err != nil {
 				messageBox(err.Error())
 				return
 			}
-			nowNode, err = configJSON.GetNowNode(configPath)
+			nowNode, err = configjson.GetNowNode(configPath)
 			if err != nil {
 				//log.Println(err)
 				messageBox(err.Error())
@@ -264,7 +264,7 @@ func SSRSub(configPath string) {
 	delayButton.ConnectClicked(func(bool2 bool) {
 		group := groupCombobox.CurrentText()
 		remarks := nodeCombobox.CurrentText()
-		node, err := configJSON.GetOneNode(configPath, group, remarks)
+		node, err := configjson.GetOneNode(configPath, group, remarks)
 		if err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
@@ -285,7 +285,7 @@ func SSRSub(configPath string) {
 	delayButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
 
 	groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
-		node, err := configJSON.GetNode(configPath, groupCombobox.CurrentText())
+		node, err := configjson.GetNode(configPath, groupCombobox.CurrentText())
 		if err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
@@ -309,12 +309,12 @@ func SSRSub(configPath string) {
 		message := widgets.NewQMessageBox(window)
 		message.SetText("Updating!")
 		message.Show()
-		if err := configJSON.SsrJSON(configPath); err != nil {
+		if err := configjson.SsrJSON(configPath); err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
 		}
 		message.SetText("Updated!")
-		group, err = configJSON.GetGroup(configPath)
+		group, err = configjson.GetGroup(configPath)
 		if err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
@@ -323,7 +323,7 @@ func SSRSub(configPath string) {
 		groupCombobox.Clear()
 		groupCombobox.AddItems(group)
 		groupCombobox.SetCurrentText(nowNode["group"])
-		node, err = configJSON.GetNode(configPath, groupCombobox.CurrentText())
+		node, err = configjson.GetNode(configPath, groupCombobox.CurrentText())
 		if err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
@@ -353,7 +353,7 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	subRefresh := func() {
 		subCombobox.Clear()
 		var err error
-		link, err = configJSON.GetLink(configPath)
+		link, err = configjson.GetLink(configPath)
 		if err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
@@ -366,7 +366,7 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 	deleteButton := widgets.NewQPushButton2("delete", subWindow)
 	deleteButton.ConnectClicked(func(bool2 bool) {
 		linkToDelete := subCombobox.CurrentText()
-		if err := configJSON.RemoveLinkJSON2(linkToDelete, configPath); err != nil {
+		if err := configjson.RemoveLinkJSON2(linkToDelete, configPath); err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
 		}
@@ -388,7 +388,7 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 				return
 			}
 		}
-		if err := configJSON.AddLinkJSON2(linkToAdd, configPath); err != nil {
+		if err := configjson.AddLinkJSON2(linkToAdd, configPath); err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
 			return
@@ -402,7 +402,7 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 }
 
 func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5Bypass *exec.Cmd, configPath string) (*widgets.QMainWindow, error) {
-	settingConfig, err := configJSON.SettingDecodeJSON(configPath)
+	settingConfig, err := configjson.SettingDecodeJSON(configPath)
 	if err != nil {
 		//log.Println(err)
 		messageBox(err.Error())
@@ -490,7 +490,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 		settingConfig.PythonPath = pythonPathLineText.Text()
 		settingConfig.SsrPath = ssrPathLineText.Text()
 		settingConfig.BypassFile = BypassFileLineText.Text()
-		err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
+		err = configjson.SettingEnCodeJSON(configPath, settingConfig)
 		if err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
@@ -527,7 +527,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 			}
 			settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
 			settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
-			err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
+			err = configjson.SettingEnCodeJSON(configPath, settingConfig)
 			if err != nil {
 				//log.Println(err)
 				messageBox(err.Error())
@@ -556,7 +556,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 			settingConfig.Socks5WithBypass != socks5BypassCheckBox.IsChecked() {
 			settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
 			settingConfig.Socks5WithBypassAddressAndPort = socks5BypassLineText.Text()
-			err = configJSON.SettingEnCodeJSON(configPath, settingConfig)
+			err = configjson.SettingEnCodeJSON(configPath, settingConfig)
 			if err != nil {
 				//log.Println(err)
 				messageBox(err.Error())
@@ -596,7 +596,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 
 func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	configPath := ssr_init.GetConfigAndSQLPath()
+	configPath := init.GetConfigAndSQLPath()
 	daemon := flag.String("d", "", "d")
 	subDaemon := flag.String("sd", "", "sd")
 	flag.Parse()

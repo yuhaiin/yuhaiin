@@ -1,6 +1,6 @@
 // +build windows
 
-package configJSON
+package configjson
 
 import (
 	"bytes"

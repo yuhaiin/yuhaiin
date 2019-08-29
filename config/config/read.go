@@ -8,7 +8,7 @@ import (
 
 func GetConfig(configPath string) map[string]string {
 	argument := map[string]string{}
-	settingDecodeJSON, err := configJSON.SettingDecodeJSON(configPath)
+	settingDecodeJSON, err := configjson.SettingDecodeJSON(configPath)
 	if err != nil {
 		log.Println(err)
 		return argument
