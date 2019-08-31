@@ -104,6 +104,15 @@ use cidr match
 
 ```golang
 // get a new matcher from a cidr file
+
+// the file like
+/* 
+   x.x.x.x/xx
+   x.x.x.x/xx
+     ...
+   x.x.x.x/xx
+*/
+
 import github.com/Asutorufa/SsrMicroClient/net/cidrmatch
 newMatcher,err := cidrmatch.NewCidrMatchWithTrie("path/to/your/cidrfile")
 if err != nil{
