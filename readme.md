@@ -20,7 +20,7 @@ go build SSRSub.go
 ```
 
 gui:  
-install [therecipe/qt#Installation](https://github.com/therecipe/qt#installation)
+at first,install [therecipe/qt#Installation](https://github.com/therecipe/qt#installation)
 
 ```shell script
 git clone https://github.com/Asutorufa/SsrMicroClient.git
@@ -95,9 +95,9 @@ use DNS
 
 ```golang
 import github.com/Asutorufa/SsrMicroClient/net/dns
-// get google's ip from google public dns, ipv6 can also get
+// for example,get google's ip from google public dns(ipv6 can also get)
 ip,isSuccessful := dns.DNS("8.8.8.8:53","www.google.com")
-// if can't get,then return ip is string{},isSuccessful is false
+// it will return string{},false when get failed
 ```
 
 use cidr match
