@@ -5,7 +5,7 @@
 |[aacl-none.acl](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/aacl-none.acl)|默认代理<br />[gfwlist](https://github.com/gfwlist/gfwlist)远程解析dns|[ipblocks](http://www.ipdeny.com/ipblocks/)<br/>[geoip](http://geolite.maxmind.com/download/geoip/)<br/>[apnic(ipv4+ipv6)](http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest)|无|右键复制文件名地址|
 |[aacl-none-simple.acl](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/aacl-none-simple.acl)|默认代理<br />|[ipblocks](http://www.ipdeny.com/ipblocks/)<br/>[geoip](http://geolite.maxmind.com/download/geoip/)<br/>[apnic(ipv4)](http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest)|无|右键复制文件名地址|
 |[bypass.acl](https://raw.githubusercontent.com/Asutorufa/ACL/master/bypass.acl)(**几乎不更新,不用**)|默认直连|默认直连|只包含自己抓包的|右键复制文件名地址|
-
+|[ssrMicroClientBypass.conf](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/ssrMicroClientBypass.conf)<br />for [SsrMicroClient](https://github.com/Asutorufa/SsrMicroClient)|<br />|[apnic(ipv4)](http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest)|无|右键复制文件名地址|
 
 **中国ip来自 [ipblock](http://www.ipdeny.com/ipblocks/ ),[geoip](http://geolite.maxmind.com/download/geoip/),[apnic(ipv4+ipv6)](http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest)**  
 **注意:广告过滤使用 [StevenBlack/hosts](https://github.com/StevenBlack/hosts),[serverlist](https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext)转化而来,转化方法可在脚本文件中查看,还有部分自己抓包弄得,可以在抓包列表查看**  
