@@ -2,6 +2,8 @@ package init
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 
 	"../config/configJson"
@@ -55,6 +57,30 @@ func Init(configPath string) {
 		if configjson.SettingInitJSON(configPath) != nil {
 			return
 		}
+	}
+
+	if !PathExists(configPath + "/cidrBypass.conf") {
+		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/ssrMicroClientBypass.conf")
+		if err != nil {
+			panic(err)
+		}
+		f, err := os.Create(configPath + "/cidrBypass.conf")
+		if err != nil {
+			panic(err)
+		}
+		io.Copy(f, res.Body)
+	}
+
+	if !PathExists(configPath + "/SsrMicroClient.png") {
+		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/SsrMicroClient.png")
+		if err != nil {
+			panic(err)
+		}
+		f, err := os.Create(configPath + "/SsrMicroClient.png")
+		if err != nil {
+			panic(err)
+		}
+		io.Copy(f, res.Body)
 	}
 }
 
