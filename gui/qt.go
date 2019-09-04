@@ -596,7 +596,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 
 func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	configPath := init.GetConfigAndSQLPath()
+	configPath := ssrinit.GetConfigAndSQLPath()
 	daemon := flag.String("d", "", "d")
 	subDaemon := flag.String("sd", "", "sd")
 	flag.Parse()
