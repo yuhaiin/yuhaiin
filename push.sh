@@ -25,6 +25,7 @@ cat common/start.acl common/zlstart.acl cn/cn_site.acl common/lan.acl cn/cn.acl 
     proxy/gfwlist.acl > aacl-none-temp.acl
 cat common/start.acl common/zlstart.acl common/lan.acl cn/cn.acl | \
     grep -v ":" > aacl-none-simple-temp.acl
+cat cn/apnic_cn_cidr_ipv4.txt common/lan.acl | sed 's///g' > ssrMicroBypass.conf
 cat aacl-temp.acl | sed 's///g' > aacl.acl
 # 注意这里使用Ctrl+V+M输入^M
 cat aacl-light-temp.acl | sed 's///g' > aacl-light.acl

@@ -8,6 +8,7 @@ cd ..
 #cat apnic.txt  | cut -d '|' -f2,4,5 | grep CN | cut -d '|' -f2,3 | sed "s/|/\//g" | sed "/^[0-9]*\/[0-9]*/d" > apnic_cn.txt
 cat apnic.txt | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > apnic_cn.txt
 cat apnic.txt | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' >> apnic_cn.txt
+cat apnic.txt | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > apnic_cn_cidr_ipv4.txt
 cat cnic.txt geoipCN.txt apnic_cn.txt > cn_temp.acl
 cat cn_temp.acl | sort -u | uniq  | sort  -t "." -k1n,1 -k2n,2 -k3n,3 -k4n,4 > cn.acl
 rm geoipCN.txt GeoIPCountryCSV.zip cnic.txt apnic.txt apnic_cn.txt cn_temp.acl
