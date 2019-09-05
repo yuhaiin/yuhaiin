@@ -1,7 +1,7 @@
 package httpserver
 
 import (
-	microlog "../../log"
+	"../../microlog"
 	"../cidrmatch"
 	"../dns"
 	"../socks5client"
@@ -103,6 +103,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	if err != nil {
 		return err
 	}
+	//microlog.Debug(requestData[:requestDataSize])
 	header := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")[0]
 	data := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")[1]
 	microlog.Debug(strings.Split(header, "\r\n")[0], len(data))

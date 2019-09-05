@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	microlog "../../log"
+	"../../microlog"
 	"../trie"
 )
 
@@ -114,7 +114,8 @@ func ToIpv6(ip string) string {
 	if b1 == 0 {
 		needZero = 8 - len(strings.Split(ipv6b2, ":"))
 	} else {
-		needZero = 8 - len(strings.Split(ipv6b1, ":")) - len(strings.Split(ipv6b2, ":"))
+		needZero = 8 - len(strings.Split(ipv6b1, ":")) -
+			len(strings.Split(ipv6b2, ":"))
 	}
 	// log.Println(ipv6b1, "--", ipv6b2, "--", needZero, len(strings.Split(ipv6b1, ":")), len(strings.Split(ipv6b2, ":")))
 	for i := 0; i < needZero; i++ {

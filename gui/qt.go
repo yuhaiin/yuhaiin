@@ -1,7 +1,7 @@
 package main
 
 import (
-	"../config/configJson"
+	"../config/configjson"
 	"../init"
 	"../net"
 	"../process"
@@ -77,7 +77,8 @@ func SSRSub(configPath string) {
 	window.SetWindowIcon(icon)
 
 	subWindow := subUI(configPath, window)
-	settingWindow, err := SsrMicroClientSetting(window, httpCmd, httpBypassCmd, socks5BypassCmd, configPath)
+	settingWindow, err := SsrMicroClientSetting(window, httpCmd, httpBypassCmd,
+		socks5BypassCmd, configPath)
 	if err != nil {
 		messageBox(err.Error())
 	}
@@ -148,13 +149,15 @@ func SSRSub(configPath string) {
 		}
 		os.Exit(0)
 	})
-	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit}
+	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu,
+		subscriptionTrayIconMenu, settingTrayIconMenu, exit}
 	menu.AddActions(actions)
 	trayIcon.SetContextMenu(menu)
 	updateStatus := func() string {
 		var status string
 		if pid, run := process.Get(configPath); run == true {
-			status = "<b><font color=green>running (pid: " + pid + ")</font></b>"
+			status = "<b><font color=green>running (pid: " +
+				pid + ")</font></b>"
 		} else {
 			status = "<b><font color=reb>stopped</font></b>"
 		}
@@ -163,24 +166,34 @@ func SSRSub(configPath string) {
 	trayIcon.SetToolTip(updateStatus())
 	trayIcon.Show()
 
-	statusLabel := widgets.NewQLabel2("status", window, core.Qt__WindowType(0x00000000))
-	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
-	statusLabel2 := widgets.NewQLabel2(updateStatus(), window, core.Qt__WindowType(0x00000000))
-	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10), core.NewQPoint2(560, 40)))
+	statusLabel := widgets.NewQLabel2("status", window,
+		core.Qt__WindowType(0x00000000))
+	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10),
+		core.NewQPoint2(130, 40)))
+	statusLabel2 := widgets.NewQLabel2(updateStatus(), window,
+		core.Qt__WindowType(0x00000000))
+	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10),
+		core.NewQPoint2(560, 40)))
 
-	nowNodeLabel := widgets.NewQLabel2("now node", window, core.Qt__WindowType(0x00000000))
-	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
+	nowNodeLabel := widgets.NewQLabel2("now node", window,
+		core.Qt__WindowType(0x00000000))
+	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60),
+		core.NewQPoint2(130, 90)))
 	nowNode, err := configjson.GetNowNode(configPath)
 	if err != nil {
 		//log.Println(err)
 		messageBox(err.Error())
 		return
 	}
-	nowNodeLabel2 := widgets.NewQLabel2(nowNode["remarks"]+" - "+nowNode["group"], window, core.Qt__WindowType(0x00000000))
-	nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60), core.NewQPoint2(560, 90)))
+	nowNodeLabel2 := widgets.NewQLabel2(nowNode["remarks"]+" - "+
+		nowNode["group"], window, core.Qt__WindowType(0x00000000))
+	nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60),
+		core.NewQPoint2(560, 90)))
 
-	groupLabel := widgets.NewQLabel2("group", window, core.Qt__WindowType(0x00000000))
-	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110), core.NewQPoint2(130, 140)))
+	groupLabel := widgets.NewQLabel2("group", window,
+		core.Qt__WindowType(0x00000000))
+	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110),
+		core.NewQPoint2(130, 140)))
 	groupCombobox := widgets.NewQComboBox(window)
 	group, err := configjson.GetGroup(configPath)
 	if err != nil {
@@ -190,12 +203,16 @@ func SSRSub(configPath string) {
 	}
 	groupCombobox.AddItems(group)
 	groupCombobox.SetCurrentTextDefault(nowNode["group"])
-	groupCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 110), core.NewQPoint2(450, 140)))
+	groupCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 110),
+		core.NewQPoint2(450, 140)))
 	refreshButton := widgets.NewQPushButton2("refresh", window)
-	refreshButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 110), core.NewQPoint2(560, 140)))
+	refreshButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 110),
+		core.NewQPoint2(560, 140)))
 
-	nodeLabel := widgets.NewQLabel2("node", window, core.Qt__WindowType(0x00000000))
-	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160), core.NewQPoint2(130, 190)))
+	nodeLabel := widgets.NewQLabel2("node", window,
+		core.Qt__WindowType(0x00000000))
+	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160),
+		core.NewQPoint2(130, 190)))
 	nodeCombobox := widgets.NewQComboBox(window)
 	node, err := configjson.GetNode(configPath, groupCombobox.CurrentText())
 	if err != nil {
@@ -205,19 +222,23 @@ func SSRSub(configPath string) {
 	}
 	nodeCombobox.AddItems(node)
 	nodeCombobox.SetCurrentTextDefault(nowNode["remarks"])
-	nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160), core.NewQPoint2(450, 190)))
+	nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160),
+		core.NewQPoint2(450, 190)))
 	startButton := widgets.NewQPushButton2("start", window)
 	startButton.ConnectClicked(func(bool2 bool) {
 		group := groupCombobox.CurrentText()
 		remarks := nodeCombobox.CurrentText()
 		_, exist := process.Get(configPath)
-		if group == nowNode["group"] && remarks == nowNode["remarks"] && exist == true {
+		if group == nowNode["group"] && remarks ==
+			nowNode["remarks"] && exist == true {
 			return
-		} else if group == nowNode["group"] && remarks == nowNode["remarks"] && exist == false {
+		} else if group == nowNode["group"] && remarks ==
+			nowNode["remarks"] && exist == false {
 			process.StartByArgument(configPath, "ssr")
 			var status string
 			if pid, run := process.Get(configPath); run == true {
-				status = "<b><font color=green>running (pid: " + pid + ")</font></b>"
+				status = "<b><font color=green>running (pid: " +
+					pid + ")</font></b>"
 			} else {
 				status = "<b><font color=reb>stopped</font></b>"
 			}
@@ -235,7 +256,8 @@ func SSRSub(configPath string) {
 				messageBox(err.Error())
 				return
 			}
-			nowNodeLabel2.SetText(nowNode["remarks"] + " - " + nowNode["group"])
+			nowNodeLabel2.SetText(nowNode["remarks"] + " - " +
+				nowNode["group"])
 			if exist == true {
 				process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
@@ -246,7 +268,8 @@ func SSRSub(configPath string) {
 			}
 			var status string
 			if pid, run := process.Get(configPath); run == true {
-				status = "<b><font color=green>running (pid: " + pid + ")</font></b>"
+				status = "<b><font color=green>running (pid: " +
+					pid + ")</font></b>"
 			} else {
 				status = "<b><font color=reb>stopped</font></b>"
 			}
@@ -254,12 +277,17 @@ func SSRSub(configPath string) {
 			trayIcon.SetToolTip(updateStatus())
 		}
 	})
-	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160), core.NewQPoint2(560, 190)))
+	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160),
+		core.NewQPoint2(560, 190)))
 
-	delayLabel := widgets.NewQLabel2("delay", window, core.Qt__WindowType(0x00000000))
-	delayLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210), core.NewQPoint2(130, 240)))
-	delayLabel2 := widgets.NewQLabel2("", window, core.Qt__WindowType(0x00000000))
-	delayLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210), core.NewQPoint2(450, 240)))
+	delayLabel := widgets.NewQLabel2("delay", window,
+		core.Qt__WindowType(0x00000000))
+	delayLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210),
+		core.NewQPoint2(130, 240)))
+	delayLabel2 := widgets.NewQLabel2("", window,
+		core.Qt__WindowType(0x00000000))
+	delayLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210),
+		core.NewQPoint2(450, 240)))
 	delayButton := widgets.NewQPushButton2("get delay", window)
 	delayButton.ConnectClicked(func(bool2 bool) {
 		group := groupCombobox.CurrentText()
@@ -270,7 +298,8 @@ func SSRSub(configPath string) {
 			messageBox(err.Error())
 			return
 		}
-		delay, isSuccess, err := getdelay.TCPDelay(node.Server, node.ServerPort)
+		delay, isSuccess, err := getdelay.TCPDelay(node.Server,
+			node.ServerPort)
 		var delayString string
 		if err != nil {
 			messageBox(err.Error())
@@ -282,10 +311,12 @@ func SSRSub(configPath string) {
 		}
 		delayLabel2.SetText(delayString)
 	})
-	delayButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
+	delayButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210),
+		core.NewQPoint2(560, 240)))
 
 	groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
-		node, err := configjson.GetNode(configPath, groupCombobox.CurrentText())
+		node, err := configjson.GetNode(configPath,
+			groupCombobox.CurrentText())
 		if err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
@@ -295,7 +326,8 @@ func SSRSub(configPath string) {
 	})
 
 	subButton := widgets.NewQPushButton2("subscription setting", window)
-	subButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 260), core.NewQPoint2(290, 290)))
+	subButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 260),
+		core.NewQPoint2(290, 290)))
 	subButton.ConnectClicked(func(bool2 bool) {
 		if subWindow.IsHidden() == false {
 			subWindow.Close()
@@ -304,7 +336,8 @@ func SSRSub(configPath string) {
 	})
 
 	subUpdateButton := widgets.NewQPushButton2("subscription Update", window)
-	subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260), core.NewQPoint2(560, 290)))
+	subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260),
+		core.NewQPoint2(560, 290)))
 	subUpdateButton.ConnectClicked(func(bool2 bool) {
 		message := widgets.NewQMessageBox(window)
 		message.SetText("Updating!")
@@ -337,7 +370,8 @@ func SSRSub(configPath string) {
 	window.Show()
 }
 
-func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow {
+func subUI(configPath string,
+	parent *widgets.QMainWindow) *widgets.QMainWindow {
 	subWindow := widgets.NewQMainWindow(parent, 0)
 	subWindow.SetFixedSize2(700, 100)
 	subWindow.SetWindowTitle("subscription")
@@ -346,8 +380,10 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 		subWindow.Hide()
 	})
 
-	subLabel := widgets.NewQLabel2("subscription", subWindow, core.Qt__WindowType(0x00000000))
-	subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10), core.NewQPoint2(130, 40)))
+	subLabel := widgets.NewQLabel2("subscription", subWindow,
+		core.Qt__WindowType(0x00000000))
+	subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10),
+		core.NewQPoint2(130, 40)))
 	subCombobox := widgets.NewQComboBox(subWindow)
 	var link []string
 	subRefresh := func() {
@@ -361,21 +397,25 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 		subCombobox.AddItems(link)
 	}
 	subRefresh()
-	subCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 10), core.NewQPoint2(600, 40)))
+	subCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 10),
+		core.NewQPoint2(600, 40)))
 
 	deleteButton := widgets.NewQPushButton2("delete", subWindow)
 	deleteButton.ConnectClicked(func(bool2 bool) {
 		linkToDelete := subCombobox.CurrentText()
-		if err := configjson.RemoveLinkJSON2(linkToDelete, configPath); err != nil {
+		if err := configjson.RemoveLinkJSON2(linkToDelete,
+			configPath); err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
 		}
 		subRefresh()
 	})
-	deleteButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 10), core.NewQPoint2(690, 40)))
+	deleteButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 10),
+		core.NewQPoint2(690, 40)))
 
 	lineText := widgets.NewQLineEdit(subWindow)
-	lineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50), core.NewQPoint2(600, 80)))
+	lineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50),
+		core.NewQPoint2(600, 80)))
 
 	addButton := widgets.NewQPushButton2("add", subWindow)
 	addButton.ConnectClicked(func(bool2 bool) {
@@ -395,13 +435,15 @@ func subUI(configPath string, parent *widgets.QMainWindow) *widgets.QMainWindow 
 		}
 		subRefresh()
 	})
-	addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50), core.NewQPoint2(690, 80)))
+	addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50),
+		core.NewQPoint2(690, 80)))
 	//updateButton := widgets.NewQPushButton2("update",subWindow)
 	//updateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(200,450),core.NewQPoint2(370,490)))
 	return subWindow
 }
 
-func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5Bypass *exec.Cmd, configPath string) (*widgets.QMainWindow, error) {
+func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
+	socks5Bypass *exec.Cmd, configPath string) (*widgets.QMainWindow, error) {
 	settingConfig, err := configjson.SettingDecodeJSON(configPath)
 	if err != nil {
 		//log.Println(err)
@@ -428,57 +470,76 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 
 	httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", settingWindow)
 	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)
-	httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40), core.NewQPoint2(130, 70)))
+	httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40),
+		core.NewQPoint2(130, 70)))
 
-	socks5BypassCheckBox := widgets.NewQCheckBox2("socks5 bypass", settingWindow)
+	socks5BypassCheckBox := widgets.NewQCheckBox2("socks5 bypass",
+		settingWindow)
 	socks5BypassCheckBox.SetChecked(settingConfig.Socks5WithBypass)
-	socks5BypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40), core.NewQPoint2(290, 70)))
+	socks5BypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40),
+		core.NewQPoint2(290, 70)))
 
 	httpBypassCheckBox := widgets.NewQCheckBox2("http bypass", settingWindow)
 	httpBypassCheckBox.SetChecked(settingConfig.HttpWithBypass)
-	httpBypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 40), core.NewQPoint2(450, 70)))
+	httpBypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 40),
+		core.NewQPoint2(450, 70)))
 
 	localAddressLabel := widgets.NewQLabel2("address", settingWindow, 0)
-	localAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80), core.NewQPoint2(80, 110)))
+	localAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80),
+		core.NewQPoint2(80, 110)))
 	localAddressLineText := widgets.NewQLineEdit(settingWindow)
 	localAddressLineText.SetText(settingConfig.LocalAddress)
-	localAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(90, 80), core.NewQPoint2(200, 110)))
+	localAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(90, 80),
+		core.NewQPoint2(200, 110)))
 
 	localPortLabel := widgets.NewQLabel2("port", settingWindow, 0)
-	localPortLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 80), core.NewQPoint2(300, 110)))
+	localPortLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 80),
+		core.NewQPoint2(300, 110)))
 	localPortLineText := widgets.NewQLineEdit(settingWindow)
 	localPortLineText.SetText(settingConfig.LocalPort)
-	localPortLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 80), core.NewQPoint2(420, 110)))
+	localPortLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 80),
+		core.NewQPoint2(420, 110)))
 
 	httpAddressLabel := widgets.NewQLabel2("http", settingWindow, 0)
-	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120), core.NewQPoint2(70, 150)))
+	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120),
+		core.NewQPoint2(70, 150)))
 	httpAddressLineText := widgets.NewQLineEdit(settingWindow)
 	httpAddressLineText.SetText(settingConfig.HttpProxyAddressAndPort)
-	httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 120), core.NewQPoint2(210, 150)))
+	httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 120),
+		core.NewQPoint2(210, 150)))
 
-	socks5BypassAddressLabel := widgets.NewQLabel2("socks5Bp", settingWindow, 0)
-	socks5BypassAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(220, 120), core.NewQPoint2(290, 150)))
+	socks5BypassAddressLabel := widgets.NewQLabel2("socks5Bp",
+		settingWindow, 0)
+	socks5BypassAddressLabel.SetGeometry(core.
+		NewQRect2(core.NewQPoint2(220, 120), core.NewQPoint2(290, 150)))
 	socks5BypassLineText := widgets.NewQLineEdit(settingWindow)
 	socks5BypassLineText.SetText(settingConfig.Socks5WithBypassAddressAndPort)
-	socks5BypassLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 120), core.NewQPoint2(420, 150)))
+	socks5BypassLineText.SetGeometry(core.NewQRect2(core.
+		NewQPoint2(300, 120), core.NewQPoint2(420, 150)))
 
 	pythonPathLabel := widgets.NewQLabel2("pythonPath", settingWindow, 0)
-	pythonPathLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
+	pythonPathLabel.SetGeometry(core.NewQRect2(core.
+		NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
 	pythonPathLineText := widgets.NewQLineEdit(settingWindow)
 	pythonPathLineText.SetText(settingConfig.PythonPath)
-	pythonPathLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
+	pythonPathLineText.SetGeometry(core.NewQRect2(core.
+		NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
 
 	ssrPathLabel := widgets.NewQLabel2("ssrPath", settingWindow, 0)
-	ssrPathLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 200), core.NewQPoint2(100, 230)))
+	ssrPathLabel.SetGeometry(core.NewQRect2(core.
+		NewQPoint2(10, 200), core.NewQPoint2(100, 230)))
 	ssrPathLineText := widgets.NewQLineEdit(settingWindow)
 	ssrPathLineText.SetText(settingConfig.SsrPath)
-	ssrPathLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 200), core.NewQPoint2(420, 230)))
+	ssrPathLineText.SetGeometry(core.NewQRect2(core.
+		NewQPoint2(110, 200), core.NewQPoint2(420, 230)))
 
 	BypassFileLabel := widgets.NewQLabel2("ssrPath", settingWindow, 0)
-	BypassFileLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 240), core.NewQPoint2(100, 270)))
+	BypassFileLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 240),
+		core.NewQPoint2(100, 270)))
 	BypassFileLineText := widgets.NewQLineEdit(settingWindow)
 	BypassFileLineText.SetText(settingConfig.BypassFile)
-	BypassFileLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 240), core.NewQPoint2(420, 270)))
+	BypassFileLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 240),
+		core.NewQPoint2(420, 270)))
 
 	applyButton := widgets.NewQPushButton2("apply", settingWindow)
 	applyButton.ConnectClicked(func(bool2 bool) {
@@ -496,11 +557,13 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 			messageBox(err.Error())
 		}
 
-		if httpAddressLineText.Text() != settingConfig.HttpProxyAddressAndPort ||
-			settingConfig.HttpProxy != httpProxyCheckBox.IsChecked() ||
-			settingConfig.HttpWithBypass != httpBypassCheckBox.IsChecked() {
+		if httpAddressLineText.Text() !=
+			settingConfig.HttpProxyAddressAndPort || settingConfig.HttpProxy !=
+			httpProxyCheckBox.IsChecked() || settingConfig.HttpWithBypass !=
+			httpBypassCheckBox.IsChecked() {
 			settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
-			if settingConfig.HttpProxy == true && settingConfig.HttpWithBypass == true {
+			if settingConfig.HttpProxy == true &&
+				settingConfig.HttpWithBypass == true {
 				if httpBypass.Process != nil {
 					err = httpBypass.Process.Kill()
 					if err != nil {
@@ -532,7 +595,8 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 				//log.Println(err)
 				messageBox(err.Error())
 			}
-			if settingConfig.HttpProxy == true && settingConfig.HttpWithBypass == true {
+			if settingConfig.HttpProxy == true &&
+				settingConfig.HttpWithBypass == true {
 				httpBypass, err = getdelay.GetHttpProxyBypassCmd()
 				if err != nil {
 					messageBox(err.Error())
@@ -552,10 +616,12 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 				}
 			}
 		}
-		if settingConfig.Socks5WithBypassAddressAndPort != socks5BypassLineText.Text() ||
-			settingConfig.Socks5WithBypass != socks5BypassCheckBox.IsChecked() {
+		if settingConfig.Socks5WithBypassAddressAndPort !=
+			socks5BypassLineText.Text() || settingConfig.Socks5WithBypass !=
+			socks5BypassCheckBox.IsChecked() {
 			settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
-			settingConfig.Socks5WithBypassAddressAndPort = socks5BypassLineText.Text()
+			settingConfig.Socks5WithBypassAddressAndPort =
+				socks5BypassLineText.Text()
 			err = configjson.SettingEnCodeJSON(configPath, settingConfig)
 			if err != nil {
 				//log.Println(err)
@@ -590,7 +656,8 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass, socks5
 		//	BypassFileLineText.SetText(settingConfig.BypassFile)
 		//}
 	})
-	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280), core.NewQPoint2(90, 310)))
+	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280),
+		core.NewQPoint2(90, 310)))
 	return settingWindow, nil
 }
 
@@ -621,12 +688,14 @@ func main() {
 	} else {
 		app := widgets.NewQApplication(len(os.Args), os.Args)
 		app.SetApplicationName("SsrMicroClient")
-		pid, isExist := process.GetProcessStatus(configPath + "/SsrMicroClient.pid")
+		pid, isExist := process.GetProcessStatus(configPath +
+			"/SsrMicroClient.pid")
 		if isExist == true {
 			messageBox("process is exist at pid = " + pid + "!")
 			return
 		}
-		err := ioutil.WriteFile(configPath+"/SsrMicroClient.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
+		err := ioutil.WriteFile(configPath+"/SsrMicroClient.pid",
+			[]byte(strconv.Itoa(os.Getpid())), 0644)
 		if err != nil {
 			messageBox(err.Error())
 		}

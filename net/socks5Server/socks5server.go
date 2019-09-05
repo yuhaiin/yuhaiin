@@ -1,7 +1,7 @@
 package socks5server
 
 import (
-	microlog "../../log"
+	"../../microlog"
 	"../cidrmatch"
 	"../dns"
 	"../socks5client"

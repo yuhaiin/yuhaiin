@@ -7,9 +7,9 @@ import (
 	"os"
 
 	"./config/config"
-	configJSON "./config/configJson"
-	ssr_init "./init"
-	getdelay "./net"
+	"./config/configjson"
+	"./init"
+	"./net"
 	"./process"
 	// _ "github.com/mattn/go-sqlite3"
 )
@@ -17,7 +17,7 @@ import (
 func menu(configPath string) {
 	languageString := config.GetFunctionString()
 	//初始化
-	ssr_init.Init(configPath)
+	ssrinit.Init(configPath)
 	//获取当前配置文件路径和可执行文件路径
 	executablePath, err := os.Executable()
 	if err != nil {
@@ -27,7 +27,7 @@ func menu(configPath string) {
 	fmt.Println(languageString["configPath"] + configPath)
 	fmt.Println(languageString["executablePath"] + executablePath)
 	//获取当前节点
-	nowNode, err := configJSON.GetNowNode(configPath)
+	nowNode, err := configjson.GetNowNode(configPath)
 	if err != nil {
 		log.Println(err)
 		return
@@ -46,7 +46,7 @@ func menu(configPath string) {
 		case "2":
 			_, exist := process.Get(configPath)
 			// selectB := subscription.ChangeNowNode(sqlPath)
-			_ = configJSON.ChangeNowNode(configPath)
+			_ = configjson.ChangeNowNode(configPath)
 			if exist == true {
 				process.Stop(configPath)
 				// ssr_process.Start(path, db_path)
@@ -58,7 +58,7 @@ func menu(configPath string) {
 		case "3":
 			// subscription.DeleteAllNode(sqlPath)
 			// subscription.AddAllNodeFromLink(sqlPath)
-			if configJSON.SsrJSON(configPath) != nil {
+			if configjson.SsrJSON(configPath) != nil {
 				return
 			}
 
@@ -68,11 +68,11 @@ func menu(configPath string) {
 			// fmt.Scanln(&linkTemp)
 			// if linkTemp != "0" && linkTemp != "" {
 			// subscription.AddLink(linkTemp, sqlPath)
-			_ = configJSON.AddLinkJSON(configPath)
+			_ = configjson.AddLinkJSON(configPath)
 			// }
 		case "5":
 			// subscription.LinkDelete(sqlPath)
-			_ = configJSON.RemoveLinkJSON(configPath)
+			_ = configjson.RemoveLinkJSON(configPath)
 		case "6":
 			//delay_test_temp := config.Read_config_file(path)
 			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
@@ -93,7 +93,7 @@ func menu(configPath string) {
 }
 
 func main() {
-	configPath := ssr_init.GetConfigAndSQLPath()
+	configPath := ssrinit.GetConfigAndSQLPath()
 
 	daemon := flag.String("d", "", "d")
 	subDaemon := flag.String("sd", "", "sd")

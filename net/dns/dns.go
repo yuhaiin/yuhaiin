@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	microlog "../../log"
+	"../../microlog"
 )
 
 // Cache <-- use map save history

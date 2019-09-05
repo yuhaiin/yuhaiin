@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"../../log"
+	"../../microlog"
 )
 
 // Socks5Client socks5 client
