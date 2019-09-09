@@ -1,20 +1,20 @@
 package main
 
 import (
-	"../config/configjson"
-	"../init"
-	"../net"
-	"../process"
 	"flag"
-	"github.com/therecipe/qt/core"
-	"github.com/therecipe/qt/gui"
-	"github.com/therecipe/qt/widgets"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"strconv"
+	"syscall"
 	"time"
+
+	"../config/configjson"
+	ssrinit "../init"
+	getdelay "../net"
+	"../process"
+	"github.com/therecipe/qt/core"
+	"github.com/therecipe/qt/gui"
+	"github.com/therecipe/qt/widgets"
 )
 
 func SSRSub(configPath string) {
@@ -688,17 +688,32 @@ func main() {
 	} else {
 		app := widgets.NewQApplication(len(os.Args), os.Args)
 		app.SetApplicationName("SsrMicroClient")
-		pid, isExist := process.GetProcessStatus(configPath +
-			"/SsrMicroClient.pid")
-		if isExist == true {
-			messageBox("process is exist at pid = " + pid + "!")
-			return
-		}
-		err := ioutil.WriteFile(configPath+"/SsrMicroClient.pid",
-			[]byte(strconv.Itoa(os.Getpid())), 0644)
+		lock, err := os.Create(configPath +
+			"/SsrMicroClientRunStatuesLockFile")
 		if err != nil {
 			messageBox(err.Error())
+			return
 		}
+		err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err != nil {
+			messageBox("process is exist!\n" + err.Error())
+			return
+		} else {
+			defer os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
+			defer lock.Close()
+			defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		}
+		// pid, isExist := process.GetProcessStatus(configPath +
+		// 	"/SsrMicroClient.pid")
+		// if isExist == true {
+		//	messageBox("process is exist at pid = " + pid + "!")
+		//	return
+		//}
+		//err := ioutil.WriteFile(configPath+"/SsrMicroClient.pid",
+		//	[]byte(strconv.Itoa(os.Getpid())), 0644)
+		//if err != nil {
+		//	messageBox(err.Error())
+		//}
 		SSRSub(configPath)
 		app.Exec()
 	}

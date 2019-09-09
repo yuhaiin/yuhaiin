@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"../config/config"
-	configJSON "../config/configJson"
-	microlog "../log"
+	"../config/configjson"
+	"../microlog"
 )
 
 // Start start ssr
@@ -19,7 +19,7 @@ func Start(configPath string) {
 	// }
 	argument := config.GetConfigArgument()
 	// nodeAndConfig, _ := subscription.GetNowNodeAll(sqlPath)
-	nodeAndConfig, _ := configJSON.GetNowNode(configPath)
+	nodeAndConfig, _ := configjson.GetNowNode(configPath)
 	for v, config := range config.GetConfig(configPath) {
 		nodeAndConfig[v] = config
 	}

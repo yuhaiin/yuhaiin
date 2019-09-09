@@ -1,7 +1,7 @@
 package config
 
 import (
-	"../configJson"
+	"../configjson"
 	"log"
 	"os"
 )

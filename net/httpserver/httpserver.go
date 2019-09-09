@@ -1,10 +1,6 @@
 package httpserver
 
 import (
-	"../../microlog"
-	"../cidrmatch"
-	"../dns"
-	"../socks5client"
 	"log"
 	"net"
 	"net/url"
@@ -12,6 +8,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"../../microlog"
+	"../cidrmatch"
+	"../dns"
+	"../socks5client"
 )
 
 // Socks5ToHTTP like name
@@ -34,10 +35,7 @@ type Socks5ToHTTP struct {
 	UseLocalResolveIp bool
 }
 
-// HTTPProxy http proxy
-// server http listen server,port http listen port
-// sock5Server socks5 server ip,socks5Port socks5 server port
-func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
+func (socks5ToHttp *Socks5ToHTTP) HTTPProxyInit() error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	// socks5ToHttp.dns = map[string]bool{}
 	socks5ToHttp.dnscache = dns.Cache{
@@ -51,49 +49,67 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
 		}
 	}
 
-	socks5ToHttpServerIp := net.ParseIP(socks5ToHttp.HTTPServer)
-	socks5ToHttpServerPort, err := strconv.Atoi(socks5ToHttp.HTTPPort)
+	socks5ToHTTPServerIP := net.ParseIP(socks5ToHttp.HTTPServer)
+	socks5ToHTTPServerPort, err := strconv.Atoi(socks5ToHttp.HTTPPort)
 	if err != nil {
 		// log.Panic(err)
 		return err
 	}
 	socks5ToHttp.HTTPListener, err = net.ListenTCP("tcp",
-		&net.TCPAddr{IP: socks5ToHttpServerIp, Port: socks5ToHttpServerPort})
+		&net.TCPAddr{IP: socks5ToHTTPServerIP, Port: socks5ToHTTPServerPort})
 	if err != nil {
 		return err
 	}
-	for {
-		HTTPConn, err := socks5ToHttp.HTTPListener.AcceptTCP()
+	return nil
+}
+
+func (socks5ToHttp *Socks5ToHTTP) HTTPProxyAcceptARequest() error {
+	HTTPConn, err := socks5ToHttp.HTTPListener.AcceptTCP()
+	if err != nil {
+		// return err
+		microlog.Debug(err)
+		//time.Sleep(time.Second * 1)
+		//_ = socks5ToHttp.HTTPListener.Close()
+		//socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
+		//if err != nil {
+		//	return err
+		//}
+		return err
+	}
+	if socks5ToHttp.KeepAliveTimeout != 0 {
+		_ = HTTPConn.SetKeepAlivePeriod(socks5ToHttp.KeepAliveTimeout)
+	}
+	//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	//	log.Println(err)
+	//}
+
+	go func() {
+		if HTTPConn == nil {
+			return
+		}
+		defer HTTPConn.Close()
+		// log.Println("线程数:", runtime.NumGoroutine())
+		err := socks5ToHttp.httpHandleClientRequest(HTTPConn)
 		if err != nil {
-			// return err
 			microlog.Debug(err)
-			//time.Sleep(time.Second * 1)
-			//_ = socks5ToHttp.HTTPListener.Close()
-			//socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
-			//if err != nil {
-			//	return err
-			//}
+			return
+		}
+	}()
+	return nil
+}
+
+// HTTPProxy http proxy
+// server http listen server,port http listen port
+// sock5Server socks5 server ip,socks5Port socks5 server port
+func (socks5ToHttp *Socks5ToHTTP) HTTPProxy() error {
+	if err := socks5ToHttp.HTTPProxyInit(); err != nil {
+		return err
+	}
+	for {
+		if err := socks5ToHttp.HTTPProxyAcceptARequest(); err != nil {
+			microlog.Debug(err)
 			continue
 		}
-		if socks5ToHttp.KeepAliveTimeout != 0 {
-			_ = HTTPConn.SetKeepAlivePeriod(socks5ToHttp.KeepAliveTimeout)
-		}
-		//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		//	log.Println(err)
-		//}
-
-		go func() {
-			if HTTPConn == nil {
-				return
-			}
-			defer HTTPConn.Close()
-			// log.Println("线程数:", runtime.NumGoroutine())
-			err := socks5ToHttp.httpHandleClientRequest(HTTPConn)
-			if err != nil {
-				microlog.Debug(err)
-				return
-			}
-		}()
 	}
 }
 

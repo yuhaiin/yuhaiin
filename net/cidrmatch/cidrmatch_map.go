@@ -6,7 +6,7 @@ import (
 	"net"
 	"strings"
 
-	microlog "../../log"
+	"../../microlog"
 )
 
 func (cidrMatch *CidrMatch) MatchString(ip string) bool {

@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	configJSON "../config/configJson"
+	configJSON "../config/configjson"
 )
 
 // TCPDelay get once delay by tcp

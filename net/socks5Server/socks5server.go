@@ -1,15 +1,16 @@
 package socks5server
 
 import (
-	"../../microlog"
-	"../cidrmatch"
-	"../dns"
-	"../socks5client"
 	"log"
 	"net"
 	"runtime"
 	"strconv"
 	"time"
+
+	"../../microlog"
+	"../cidrmatch"
+	"../dns"
+	"../socks5client"
 )
 
 // ServerSocks5 <--
@@ -37,8 +38,7 @@ type ServerSocks5 struct {
 	UseLocalResolveIp  bool
 }
 
-// Socks5 <--
-func (socks5Server *ServerSocks5) Socks5() error {
+func (socks5Server *ServerSocks5) Socks5Init() error {
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	//socks5Server.dns = map[string]bool{}
 	socks5Server.dnscache = dns.Cache{
@@ -49,44 +49,61 @@ func (socks5Server *ServerSocks5) Socks5() error {
 	if err != nil {
 		return err
 	}
-	socks5ServerIp := net.ParseIP(socks5Server.Server)
+	socks5ServerIP := net.ParseIP(socks5Server.Server)
 	socks5ServerPort, err := strconv.Atoi(socks5Server.Port)
 	if err != nil {
 		// log.Panic(err)
 		return err
 	}
-	socks5Server.conn, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ServerIp, Port: socks5ServerPort})
+	socks5Server.conn, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ServerIP, Port: socks5ServerPort})
 	if err != nil {
 		// log.Panic(err)
 		return err
 	}
+	return nil
+}
+
+func (socks5Server *ServerSocks5) Socks5AcceptARequest() error {
+	client, err := socks5Server.conn.AcceptTCP()
+	if err != nil {
+		// log.Panic(err)
+		// return err
+		microlog.Debug(err)
+		// _ = socks5Server.conn.Close()
+		//socks5Server.conn, err = net.Listen("tcp", socks5Server.Server+":"+socks5Server.Port)
+		//if err != nil {
+		// log.Panic(err)
+		//return err
+		//}
+		//time.Sleep(time.Second * 1)
+		return err
+	}
+	if socks5Server.KeepAliveTimeout != 0 {
+		_ = client.SetKeepAlivePeriod(socks5Server.KeepAliveTimeout)
+	}
+
+	go func() {
+		// log.Println(runtime.NumGoroutine())
+		if client == nil {
+			return
+		}
+		defer client.Close()
+		socks5Server.handleClientRequest(client)
+	}()
+	return nil
+}
+
+// Socks5 <--
+func (socks5Server *ServerSocks5) Socks5() error {
+	if err := socks5Server.Socks5Init(); err != nil {
+		return err
+	}
+
 	for {
-		client, err := socks5Server.conn.AcceptTCP()
-		if err != nil {
-			// log.Panic(err)
-			// return err
+		if err := socks5Server.Socks5AcceptARequest(); err != nil {
 			microlog.Debug(err)
-			_ = socks5Server.conn.Close()
-			//socks5Server.conn, err = net.Listen("tcp", socks5Server.Server+":"+socks5Server.Port)
-			//if err != nil {
-			// log.Panic(err)
-			//return err
-			//}
-			//time.Sleep(time.Second * 1)
 			continue
 		}
-		if socks5Server.KeepAliveTimeout != 0 {
-			_ = client.SetKeepAlivePeriod(socks5Server.KeepAliveTimeout)
-		}
-
-		go func() {
-			// log.Println(runtime.NumGoroutine())
-			if client == nil {
-				return
-			}
-			defer client.Close()
-			socks5Server.handleClientRequest(client)
-		}()
 	}
 }
 

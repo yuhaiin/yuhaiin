@@ -8,10 +8,7 @@ import (
 	"../../httpserver"
 )
 
-func main() {
-	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	dns := flag.String("dns", "127.0.0.1:53", "dns")
-	flag.Parse()
+func start(dns *string) {
 	httpS := httpserver.Socks5ToHTTP{
 		ToHTTP:           true,
 		HTTPServer:       "127.0.0.1",
@@ -23,10 +20,18 @@ func main() {
 		DNSServer:        *dns,
 		KeepAliveTimeout: 15 * time.Second,
 	}
-	if err := httpS.HTTPProxy(); err != nil {
-		log.Println(err)
-		return
-	}
+	// if err := httpS.HTTPProxy(); err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
+	_ = httpS.HTTPProxy()
+}
+
+func main() {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	dns := flag.String("dns", "127.0.0.1:53", "dns")
+	flag.Parse()
+	start(dns)
 
 	//socks5S := socks5server.ServerSocks5{
 	//	Server:         "127.0.0.1",

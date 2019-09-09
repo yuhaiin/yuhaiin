@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"../config/configJson"
+	"../config/configjson"
 	SsrDownload "../shadowsocksr"
 )
 
