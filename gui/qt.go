@@ -5,13 +5,13 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"syscall"
 	"time"
 
 	"../config/configjson"
-	ssrinit "../init"
-	getdelay "../net"
+	"../init"
+	"../net"
 	"../process"
+	"../process/lockfile"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -688,20 +688,20 @@ func main() {
 	} else {
 		app := widgets.NewQApplication(len(os.Args), os.Args)
 		app.SetApplicationName("SsrMicroClient")
-		lock, err := os.Create(configPath +
+		lockFile, err := os.Create(configPath +
 			"/SsrMicroClientRunStatuesLockFile")
 		if err != nil {
 			messageBox(err.Error())
 			return
 		}
-		err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		err = lockfile.LockFile(lockFile)
 		if err != nil {
 			messageBox("process is exist!\n" + err.Error())
 			return
 		} else {
+			defer lockFile.Close()
 			defer os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
-			defer lock.Close()
-			defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+			//defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
 		}
 		// pid, isExist := process.GetProcessStatus(configPath +
 		// 	"/SsrMicroClient.pid")

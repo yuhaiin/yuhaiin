@@ -32,31 +32,31 @@ func (cidrMatch *CidrMatch) Match(ip net.IP) bool {
 
 // NewCidrMatch <--
 func NewCidrMatch(fileName string) (*CidrMatch, error) {
-	cidrmatch := new(CidrMatch)
+	cidrMatch := new(CidrMatch)
 	configTemp, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		log.Println(err)
-		return cidrmatch, err
+		return cidrMatch, err
 	}
 	for _, n := range strings.Split(string(configTemp), "\n") {
 		_, cidr, err := net.ParseCIDR(n)
 		if err != nil {
 			continue
 		}
-		cidrmatch.cidrS = append(cidrmatch.cidrS, cidr)
+		cidrMatch.cidrS = append(cidrMatch.cidrS, cidr)
 	}
-	return cidrmatch, nil
+	return cidrMatch, nil
 }
 
 // NewCidrMatchWithMap <--
 func NewCidrMatchWithMap(fileName string) (*CidrMatch, error) {
-	microlog.Debug("cidrfilename", fileName)
-	cidrmatch := new(CidrMatch)
-	cidrmatch.masksize = cidrmatch.getMaskSize(fileName)
-	microlog.Debug("masksize", cidrmatch.masksize)
-	cidrmatch.cidrMap = cidrmatch.getCidrMap(fileName)
-	microlog.Debug("cidrMapLen", cidrmatch.cidrMap)
-	return cidrmatch, nil
+	microlog.Debug("cidrFileName", fileName)
+	cidrMatch := new(CidrMatch)
+	cidrMatch.masksize = cidrMatch.getMaskSize(fileName)
+	microlog.Debug("maskSize", cidrMatch.masksize)
+	cidrMatch.cidrMap = cidrMatch.getCidrMap(fileName)
+	microlog.Debug("cidrMapLen", cidrMatch.cidrMap)
+	return cidrMatch, nil
 }
 
 func (cidrMatch *CidrMatch) getMaskSize(fileName string) int {
@@ -68,19 +68,19 @@ func (cidrMatch *CidrMatch) getMaskSize(fileName string) int {
 		if err != nil {
 			continue
 		}
-		masksize, _ := cidr2.Mask.Size()
-		if !match[masksize] {
-			match[masksize] = true
+		maskSize, _ := cidr2.Mask.Size()
+		if !match[maskSize] {
+			match[maskSize] = true
 		}
 	}
 	// log.Println(match)
-	masksize := 32
+	maskSize := 32
 	for key := range match {
-		if key < masksize {
-			masksize = key
+		if key < maskSize {
+			maskSize = key
 		}
 	}
-	return masksize
+	return maskSize
 }
 
 func (cidrMatch *CidrMatch) getCidrMap(fileName string) map[string][]*net.IPNet {
