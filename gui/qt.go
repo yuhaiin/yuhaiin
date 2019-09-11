@@ -551,8 +551,8 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 		settingConfig.PythonPath = pythonPathLineText.Text()
 		settingConfig.SsrPath = ssrPathLineText.Text()
 		settingConfig.BypassFile = BypassFileLineText.Text()
-		err = configjson.SettingEnCodeJSON(configPath, settingConfig)
-		if err != nil {
+
+		if err = configjson.SettingEnCodeJSON(configPath, settingConfig); err != nil {
 			//log.Println(err)
 			messageBox(err.Error())
 		}
@@ -565,33 +565,30 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 			if settingConfig.HttpProxy == true &&
 				settingConfig.HttpWithBypass == true {
 				if httpBypass.Process != nil {
-					err = httpBypass.Process.Kill()
-					if err != nil {
+					if err = httpBypass.Process.Kill(); err != nil {
 						//log.Println(err)
 						messageBox(err.Error())
 					}
-					err = httpBypass.Wait()
-					if err != nil {
+					if err = httpBypass.Wait(); err != nil {
 						messageBox(err.Error())
 					}
 				}
 			} else if settingConfig.HttpProxy == true {
 				if http.Process != nil {
-					err = http.Process.Kill()
-					if err != nil {
+					if err = http.Process.Kill(); err != nil {
 						//log.Println(err)
 						messageBox(err.Error())
 					}
-					err = http.Wait()
-					if err != nil {
+
+					if err = http.Wait(); err != nil {
 						messageBox(err.Error())
 					}
 				}
 			}
 			settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
 			settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
-			err = configjson.SettingEnCodeJSON(configPath, settingConfig)
-			if err != nil {
+
+			if err = configjson.SettingEnCodeJSON(configPath, settingConfig); err != nil {
 				//log.Println(err)
 				messageBox(err.Error())
 			}
@@ -601,8 +598,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 				if err != nil {
 					messageBox(err.Error())
 				}
-				err = httpBypass.Start()
-				if err != nil {
+				if err = httpBypass.Start(); err != nil {
 					messageBox(err.Error())
 				}
 			} else if settingConfig.HttpProxy == true {
@@ -610,8 +606,8 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 				if err != nil {
 					messageBox(err.Error())
 				}
-				err = http.Start()
-				if err != nil {
+
+				if err = http.Start(); err != nil {
 					messageBox(err.Error())
 				}
 			}
@@ -622,25 +618,24 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 			settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
 			settingConfig.Socks5WithBypassAddressAndPort =
 				socks5BypassLineText.Text()
-			err = configjson.SettingEnCodeJSON(configPath, settingConfig)
-			if err != nil {
+			if err = configjson.SettingEnCodeJSON(configPath, settingConfig); err != nil {
 				//log.Println(err)
 				messageBox(err.Error())
 			}
 			if socks5Bypass.Process != nil {
-				err = socks5Bypass.Process.Kill()
-				if err != nil {
+				if err = socks5Bypass.Process.Kill(); err != nil {
 					//log.Println(err)
 					messageBox(err.Error())
 				}
-				_ = socks5Bypass.Wait()
+				if err = socks5Bypass.Wait(); err != nil {
+					messageBox(err.Error())
+				}
 			}
 			socks5Bypass, err = getdelay.GetSocks5ProxyBypassCmd()
 			if err != nil {
 				messageBox(err.Error())
 			}
-			err = socks5Bypass.Start()
-			if err != nil {
+			if err = socks5Bypass.Start(); err != nil {
 				messageBox(err.Error())
 			}
 		}
@@ -694,8 +689,8 @@ func main() {
 			messageBox(err.Error())
 			return
 		}
-		err = lockfile.LockFile(lockFile)
-		if err != nil {
+
+		if err = lockfile.LockFile(lockFile); err != nil {
 			messageBox("process is exist!\n" + err.Error())
 			return
 		} else {
