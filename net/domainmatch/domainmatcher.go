@@ -2,6 +2,7 @@ package domainmatch
 
 import (
 	"fmt"
+	"io/ioutil"
 	"strings"
 )
 
@@ -31,6 +32,13 @@ func (domainMatcher *DomainMatcher) Insert(domain string) {
 	}
 }
 
+func (domainMatcher *DomainMatcher) insertWithFile(fileName string) {
+	configTemp, _ := ioutil.ReadFile(fileName)
+	for _, s := range strings.Split(string(configTemp), "\n") {
+		domainMatcher.Insert(s)
+	}
+}
+
 func (domainMatcher *DomainMatcher) Search(domain string) bool {
 	tmp := domainMatcher.root
 	splitTmp := strings.Split(domain, ".")
@@ -51,6 +59,15 @@ func NewDomainMatcher() *DomainMatcher {
 		isLast: false,
 		child:  map[string]*node{},
 	}}
+}
+
+func NewDomainMatcherWithFile(filePath string) *DomainMatcher {
+	newMatcher := &DomainMatcher{root: &node{
+		isLast: false,
+		child:  map[string]*node{},
+	}}
+	newMatcher.insertWithFile(filePath)
+	return newMatcher
 }
 
 func _() {
