@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"../../httpserver"
+	"../../socks5Server"
 )
 
 func start(dns *string) {
@@ -31,28 +32,28 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	dns := flag.String("dns", "127.0.0.1:53", "dns")
 	flag.Parse()
-	start(dns)
+	//start(dns)
 
-	//socks5S := socks5server.ServerSocks5{
-	//	Server:         "127.0.0.1",
-	//	Port:           "1083",
-	//	Bypass:         true,
-	//	CidrFile:       "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
-	//	ToShadowsocksr: true,
-	//	Socks5Server:   "127.0.0.1",
-	//	Socks5Port:     "1080",
-	//	//208.67.222.222#5353
-	//	//208.67.222.220#5353
-	//	//58.132.8.1 beijing edu DNS server
-	//	//101.6.6.6 beijing tsinghua dns server
-	//	DNSServer:        *dns,
-	//	KeepAliveTimeout: 15 * time.Second,
-	//	Timeout:          10 * time.Second,
-	//}
-	//if err := socks5S.Socks5(); err != nil {
-	//	log.Println(err)
-	//	return
-	//}
+	socks5S := socks5server.ServerSocks5{
+		Server:         "127.0.0.1",
+		Port:           "1083",
+		Bypass:         true,
+		CidrFile:       "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
+		ToShadowsocksr: true,
+		Socks5Server:   "127.0.0.1",
+		Socks5Port:     "1080",
+		//208.67.222.222#5353
+		//208.67.222.220#5353
+		//58.132.8.1 beijing edu DNS server
+		//101.6.6.6 beijing tsinghua dns server
+		DNSServer:        *dns,
+		KeepAliveTimeout: 15 * time.Second,
+		Timeout:          10 * time.Second,
+	}
+	if err := socks5S.Socks5(); err != nil {
+		log.Println(err)
+		return
+	}
 
 	// newMatch, err := cidrmatch.NewCidrMatchWithTrie("/mnt/share/code/golang/cn_rules.conf")
 	// if err != nil {

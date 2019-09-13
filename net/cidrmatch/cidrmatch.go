@@ -41,7 +41,13 @@ func (cidrMatch *CidrMatch) insertCidrTrie(fileName string) {
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
 func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
+	defer func() { //必须要先声明defer，否则不能捕获到panic异常
+		if err := recover(); err != nil {
+			microlog.Debug(err)
+		}
+	}()
 	ipAndMask := strings.Split(cidr, "/")
+	log.Println(ipAndMask)
 	maskSize, err := strconv.Atoi(ipAndMask[1])
 	if err != nil {
 		return err
