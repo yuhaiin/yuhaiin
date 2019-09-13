@@ -13,7 +13,6 @@ import (
 
 // CidrMatch <--
 type CidrMatch struct {
-	masksize   int
 	v4CidrTrie *trie.TrieTree
 	v6CidrTrie *trie.TrieTree
 	cidrMap    map[string][]*net.IPNet
