@@ -13,17 +13,19 @@ import (
 
 // CidrMatch <--
 type CidrMatch struct {
-	masksize int
-	cidrTrie *trie.TrieTree
-	cidrMap  map[string][]*net.IPNet
-	cidrS    []*net.IPNet
+	masksize   int
+	v4CidrTrie *trie.TrieTree
+	v6CidrTrie *trie.TrieTree
+	cidrMap    map[string][]*net.IPNet
+	cidrS      []*net.IPNet
 }
 
 // NewCidrMatchWithTrie <--
 func NewCidrMatchWithTrie(fileName string) (*CidrMatch, error) {
 	microlog.Debug("cidrFileName", fileName)
 	cidrMatch := new(CidrMatch)
-	cidrMatch.cidrTrie = trie.NewTrieTree()
+	cidrMatch.v4CidrTrie = trie.NewTrieTree()
+	cidrMatch.v6CidrTrie = trie.NewTrieTree()
 	cidrMatch.insertCidrTrie(fileName)
 	return cidrMatch, nil
 }
@@ -34,33 +36,30 @@ func (cidrMatch *CidrMatch) insertCidrTrie(fileName string) {
 		if err := cidrMatch.InsetOneCIDR(cidr); err != nil {
 			continue
 		}
-		// fmt.Println("c:", c)
-		/* 二进制转化为十进制 */
-		// d, err := strconv.ParseInt(c, 2, 64)
-		// fmt.Println("d:", d, err)
 	}
 }
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
 func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
 	ipAndMask := strings.Split(cidr, "/")
+	maskSize, err := strconv.Atoi(ipAndMask[1])
+	if err != nil {
+		return err
+	}
 	/* 十进制转化为二进制 */
 	c := ""
 	if net.ParseIP(ipAndMask[0]) != nil {
 		if net.ParseIP(ipAndMask[0]).To4() != nil {
 			c = IpAddrToInt(ipAndMask[0])
+			cidrMatch.v4CidrTrie.Insert(c[:maskSize])
 		} else {
 			c = Ipv6AddrToInt(ToIpv6(ipAndMask[0]))
+			cidrMatch.v6CidrTrie.Insert(c[:maskSize])
 		}
 	} else {
 		//	do something
 		return microlog.ErrErr{Err: "this cidr don't have ip!"}
 	}
-	maskSize, err := strconv.Atoi(ipAndMask[1])
-	if err != nil {
-		return err
-	}
-	cidrMatch.cidrTrie.Insert(c[:maskSize])
 	return nil
 }
 
@@ -70,10 +69,12 @@ func (cidrMatch *CidrMatch) MatchWithTrie(ip string) bool {
 	ipBinary := ""
 	if ipTmp.To4() != nil {
 		ipBinary = IpAddrToInt(ip)
+		return cidrMatch.v4CidrTrie.Search(ipBinary)
 	} else if ipTmp.To16() != nil {
 		ipBinary = Ipv6AddrToInt(ToIpv6(ip))
+		return cidrMatch.v6CidrTrie.Search(ipBinary)
 	}
-	return cidrMatch.cidrTrie.Search(ipBinary)
+	return false
 }
 
 // IpAddrToInt convert ipv4 to binary
@@ -234,16 +235,16 @@ func Ipv6AddrToInt(ipAddr string) string {
 	return sum1S + sum2S + sum3S + sum4S
 }
 
-func _() {
-	// cidrMatch, _ := NewCidrMatch("cn_rules.conf")
-	// ip, err := net.LookupIP("www.baidu.com")
-	// if err != nil {
-	// 	log.Println(err)
-	// 	return
-	// }
-	// if len(ip) == 0 {
-	// 	log.Println(ip, "no host")
-	// 	return
-	// }
-	// log.Println(cidrMatch.Match(ip[0]))
-}
+//func _() {
+// cidrMatch, _ := NewCidrMatch("cn_rules.conf")
+// ip, err := net.LookupIP("www.baidu.com")
+// if err != nil {
+// 	log.Println(err)
+// 	return
+// }
+// if len(ip) == 0 {
+// 	log.Println(ip, "no host")
+// 	return
+// }
+// log.Println(cidrMatch.Match(ip[0]))
+//}
