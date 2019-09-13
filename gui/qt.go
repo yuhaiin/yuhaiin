@@ -124,13 +124,12 @@ func SSRSub(configPath string) {
 			}
 		}
 		if httpCmd.Process != nil {
-			err = httpCmd.Process.Kill()
-			if err != nil {
+			if err = httpCmd.Process.Kill(); err != nil {
 				//	do something
 				messageBox(err.Error())
 			}
-			err = httpCmd.Wait()
-			if err != nil {
+
+			if err = httpCmd.Wait(); err != nil {
 				//	do something
 				messageBox(err.Error())
 			}
