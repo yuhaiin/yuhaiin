@@ -35,13 +35,15 @@ func main() {
 	//start(dns)
 
 	socks5S := socks5server.ServerSocks5{
-		Server:         "127.0.0.1",
-		Port:           "1083",
-		Bypass:         true,
-		CidrFile:       "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
-		ToShadowsocksr: true,
-		Socks5Server:   "127.0.0.1",
-		Socks5Port:     "1080",
+		Server:           "127.0.0.1",
+		Port:             "1084",
+		Bypass:           true,
+		CidrFile:         "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
+		BypassDomainFile: "/home/asutorufa/.config/SSRSub/domainBypass.conf",
+		DirectProxyFile:  "/home/asutorufa/.config/SSRSub/domainProxy.conf",
+		ToShadowsocksr:   true,
+		Socks5Server:     "127.0.0.1",
+		Socks5Port:       "1080",
 		//208.67.222.222#5353
 		//208.67.222.220#5353
 		//58.132.8.1 beijing edu DNS server

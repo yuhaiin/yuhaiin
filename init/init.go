@@ -71,6 +71,30 @@ func Init(configPath string) {
 		io.Copy(f, res.Body)
 	}
 
+	if !PathExists(configPath + "/domainBypass.conf") {
+		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/ssrMicroClientDomainBypass.conf")
+		if err != nil {
+			panic(err)
+		}
+		f, err := os.Create(configPath + "/domainBypass.conf")
+		if err != nil {
+			panic(err)
+		}
+		io.Copy(f, res.Body)
+	}
+
+	if !PathExists(configPath + "/domainProxy.conf") {
+		//res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/ssrMicroClientBypass.conf")
+		//if err != nil {
+		//	panic(err)
+		//}
+		_, err := os.Create(configPath + "/domainProxy.conf")
+		if err != nil {
+			panic(err)
+		}
+		//io.Copy(f, res.Body)
+	}
+
 	if !PathExists(configPath + "/SsrMicroClient.png") {
 		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/SsrMicroClient.png")
 		if err != nil {

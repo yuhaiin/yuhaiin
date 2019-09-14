@@ -12,21 +12,26 @@ import (
 	"../../microlog"
 	"../cidrmatch"
 	"../dns"
+	"../domainmatch"
 	"../socks5client"
 )
 
 // Socks5ToHTTP like name
 type Socks5ToHTTP struct {
-	ToHTTP       bool
-	HTTPListener *net.TCPListener
-	HTTPServer   string
-	HTTPPort     string
-	Socks5Server string
-	Socks5Port   string
-	ByPass       bool
-	cidrmatch    *cidrmatch.CidrMatch
-	CidrFile     string
-	DNSServer    string
+	ToHTTP            bool
+	HTTPListener      *net.TCPListener
+	HTTPServer        string
+	HTTPPort          string
+	Socks5Server      string
+	Socks5Port        string
+	ByPass            bool
+	cidrmatch         *cidrmatch.CidrMatch
+	CidrFile          string
+	bypassDomainMatch *domainmatch.DomainMatcher
+	BypassDomainFile  string
+	directProxy       *domainmatch.DomainMatcher
+	DirectProxyFile   string
+	DNSServer         string
 	// dns          map[string]bool
 	// dns      sync.Map
 	dnscache          dns.Cache
@@ -47,6 +52,8 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxyInit() error {
 		if err != nil {
 			return err
 		}
+		socks5ToHttp.bypassDomainMatch = domainmatch.NewDomainMatcherWithFile(socks5ToHttp.BypassDomainFile)
+		socks5ToHttp.directProxy = domainmatch.NewDomainMatcherWithFile(socks5ToHttp.DirectProxyFile)
 	}
 
 	socks5ToHTTPServerIP := net.ParseIP(socks5ToHttp.HTTPServer)
@@ -194,41 +201,56 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		}
 
 		if hostTemplate != "ip" {
-			getDns, isSuccess := dns.DNS(socks5ToHttp.DNSServer, hostPortURL.Hostname())
-			if isSuccess {
-				isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(getDns[0])
-				microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, getDns[0])
-				if isMatch {
-					Conn, err = net.Dial("tcp", net.JoinHostPort(getDns[0], domainPort))
-					if err != nil {
-						Conn, err = net.Dial("tcp", address)
+			if socks5ToHttp.bypassDomainMatch.Search(hostPortURL.Hostname()) {
+				Conn, err = net.Dial("tcp", address)
+				if err != nil {
+					log.Println(err)
+					return err
+				}
+			} else if socks5ToHttp.directProxy.Search(hostPortURL.Hostname()) {
+				Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
+					socks5ToHttp.KeepAliveTimeout, address)
+				if err != nil {
+					microlog.Debug(err)
+					return err
+				}
+			} else {
+				getDns, isSuccess := dns.DNS(socks5ToHttp.DNSServer, hostPortURL.Hostname())
+				if isSuccess {
+					isMatch := socks5ToHttp.cidrmatch.MatchWithTrie(getDns[0])
+					microlog.Debug(runtime.NumGoroutine(), hostPortURL.Hostname(), isMatch, getDns[0])
+					if isMatch {
+						Conn, err = net.Dial("tcp", net.JoinHostPort(getDns[0], domainPort))
 						if err != nil {
-							log.Println(err)
+							Conn, err = net.Dial("tcp", address)
+							if err != nil {
+								log.Println(err)
+								return err
+							}
+						}
+					} else {
+						if socks5ToHttp.UseLocalResolveIp == true {
+							Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
+								socks5ToHttp.KeepAliveTimeout, net.JoinHostPort(getDns[0], domainPort))
+						} else {
+							Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
+								socks5ToHttp.KeepAliveTimeout, address)
+						}
+						if err != nil {
+							// log.Println(err)
+							microlog.Debug(err)
 							return err
 						}
 					}
 				} else {
-					if socks5ToHttp.UseLocalResolveIp == true {
-						Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
-							socks5ToHttp.KeepAliveTimeout, net.JoinHostPort(getDns[0], domainPort))
-					} else {
-						Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
-							socks5ToHttp.KeepAliveTimeout, address)
-					}
+					microlog.Debug(runtime.NumGoroutine(), address, "dns false")
+					Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
+						socks5ToHttp.KeepAliveTimeout, address)
 					if err != nil {
 						// log.Println(err)
 						microlog.Debug(err)
 						return err
 					}
-				}
-			} else {
-				microlog.Debug(runtime.NumGoroutine(), address, "dns false")
-				Conn, err = getSocks5Conn(socks5ToHttp.Socks5Server, socks5ToHttp.Socks5Port,
-					socks5ToHttp.KeepAliveTimeout, address)
-				if err != nil {
-					// log.Println(err)
-					microlog.Debug(err)
-					return err
 				}
 			}
 		} else {

@@ -47,7 +47,6 @@ func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
 		}
 	}()
 	ipAndMask := strings.Split(cidr, "/")
-	log.Println(ipAndMask)
 	maskSize, err := strconv.Atoi(ipAndMask[1])
 	if err != nil {
 		return err

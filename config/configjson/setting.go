@@ -21,6 +21,8 @@ type Setting struct {
 	HttpProxyAddressAndPort        string `json:"httpProxyAddressAndPort"`
 	Socks5WithBypassAddressAndPort string `json:"socks5WithBypassAddressAndPort"`
 	BypassFile                     string `json:"bypassFile"`
+	BypassDomainFile               string `json:"bypassDomainFile"`
+	DirectProxyFile                string `json:"directProxyFile"`
 	Socks5WithBypass               bool   `json:"socks5WithBypass"`
 	DnsServer                      string `json:"dnsServer"`
 	UdpTrans                       bool   `json:"udpTrans"`
@@ -43,6 +45,8 @@ func SettingInitJSON(configPath string) error {
 		HttpProxyAddressAndPort:        "127.0.0.1:8188",
 		Socks5WithBypassAddressAndPort: "127.0.0.1:1083",
 		BypassFile:                     configPath + "/cidrBypass.conf",
+		BypassDomainFile:               configPath + "/domainBypass.conf",
+		DirectProxyFile:                configPath + "/domainProxy.conf",
 		Socks5WithBypass:               true,
 		DnsServer:                      "119.29.29.29:53",
 		UdpTrans:                       true,

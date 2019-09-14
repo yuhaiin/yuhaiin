@@ -16,6 +16,8 @@ func GetConfig(configPath string) map[string]string {
 	}
 	argument["pidFile"] = settingDecodeJSON.PidFile
 	argument["cidrFile"] = settingDecodeJSON.BypassFile
+	argument["bypassDomainFile"] = settingDecodeJSON.BypassDomainFile
+	argument["directProxyFile"] = settingDecodeJSON.DirectProxyFile
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = settingDecodeJSON.PythonPath
 	argument["httpProxy"] = settingDecodeJSON.HttpProxyAddressAndPort

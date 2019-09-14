@@ -18,6 +18,9 @@ func (domainMatcher *DomainMatcher) Insert(domain string) {
 	tmp := domainMatcher.root
 	splitTmp := strings.Split(domain, ".")
 	for index, n := range splitTmp {
+		if index == 0 && n == "www" {
+			continue
+		}
 		if _, ok := tmp.child[n]; !ok {
 			tmp.child[n] = &node{
 				isLast: false,
@@ -42,6 +45,9 @@ func (domainMatcher *DomainMatcher) Search(domain string) bool {
 	tmp := domainMatcher.root
 	splitTmp := strings.Split(domain, ".")
 	for index, n := range splitTmp {
+		if index == 0 && n == "www" {
+			continue
+		}
 		if _, ok := tmp.child[n]; !ok {
 			return false
 		}

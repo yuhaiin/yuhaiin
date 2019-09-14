@@ -79,13 +79,15 @@ func StartHTTPBypass(configPath string) {
 func StartSocks5Bypass(configPath string) {
 	argument := config.GetConfig(configPath)
 	socks5S := socks5server.ServerSocks5{
-		Server:         "",
-		Port:           "",
-		Bypass:         true,
-		CidrFile:       argument["cidrFile"],
-		ToShadowsocksr: true,
-		Socks5Server:   argument["localAddress"],
-		Socks5Port:     argument["localPort"],
+		Server:           "",
+		Port:             "",
+		Bypass:           true,
+		CidrFile:         argument["cidrFile"],
+		BypassDomainFile: argument["bypassDomainFile"],
+		DirectProxyFile:  argument["directProxyFile"],
+		ToShadowsocksr:   true,
+		Socks5Server:     argument["localAddress"],
+		Socks5Port:       argument["localPort"],
 		//208.67.222.222#5353
 		//208.67.222.220#5353
 		//58.132.8.1 beijing edu DNS server
