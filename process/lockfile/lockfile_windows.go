@@ -1,3 +1,5 @@
+// +build windows
+
 package lockfile
 
 import (
@@ -17,7 +19,7 @@ func LockFile(file *os.File) error {
 		return err
 	}
 
-	r0, r1, err := syscall.Syscall6(addr, 5, file.Fd(), 0, 0, 0, 1, 0)
+	r0, _, err := syscall.Syscall6(addr, 5, file.Fd(), 0, 0, 0, 1, 0)
 	//fmt.Println(r0, r1, err)
 	if int(r0) != 1 {
 		return err
