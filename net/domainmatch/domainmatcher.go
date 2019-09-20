@@ -43,18 +43,23 @@ func (domainMatcher *DomainMatcher) insertWithFile(fileName string) {
 
 func (domainMatcher *DomainMatcher) Search(domain string) bool {
 	tmp := domainMatcher.root
+	isFirst := true
 	splitTmp := strings.Split(domain, ".")
 	for index, n := range splitTmp {
-		if index == 0 && n == "www" {
-			continue
+		_, ok := tmp.child[n]
+		if isFirst {
+			if !ok {
+				continue
+			}
 		}
-		if _, ok := tmp.child[n]; !ok {
+		if !ok {
 			return false
 		}
 		if index == len(splitTmp)-1 {
 			return tmp.child[n].isLast == true
 		}
 		tmp = tmp.child[n]
+		isFirst = false
 	}
 	return false
 }
