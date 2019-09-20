@@ -168,41 +168,43 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 
 		switch b[1] {
 		case 0x01:
+			toTCP, toSocks5, toHTTP := socks5Server.toTCP, socks5Server.toSocks5, socks5Server.toHTTP
 			switch socks5Server.Bypass {
 			case true:
 				if hostTemplate != "ip" {
+					// at first use domain to search
 					if socks5Server.bypassDomainMatch.Search(host) {
 						microlog.Debug("domain match", host)
-						socks5Server.toTCP(client, host, net.JoinHostPort(host, port))
+						toTCP(client, host, net.JoinHostPort(host, port))
 					} else if socks5Server.directProxy.Search(host) {
 						microlog.Debug("proxy domain match", host)
-						socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+						toSocks5(client, net.JoinHostPort(host, port), b[:n])
 					} else {
-						getDns, isSuccess := dns.DNS(socks5Server.DNSServer, host)
-						if isSuccess {
-							isMatch := socks5Server.cidrmatch.MatchWithTrie(getDns[0])
-							microlog.Debug(host, isMatch, getDns[0])
-							if isMatch {
-								socks5Server.toTCP(client, host, net.JoinHostPort(getDns[0], port))
+						// use DNS get ip to search
+						if getDns, isSuccess := dns.DNS(socks5Server.DNSServer, host); isSuccess {
+							if isMatch := socks5Server.cidrmatch.MatchWithTrie(getDns[0]); isMatch {
+								//microlog.Debug(host, isMatch, getDns[0])
+								toTCP(client, host, net.JoinHostPort(getDns[0], port))
 							} else {
-								if socks5Server.UseLocalResolveIp == true {
-									socks5Server.toSocks5(client, net.JoinHostPort(getDns[0], port), b[:n])
-								} else {
-									socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+								switch socks5Server.UseLocalResolveIp {
+								case true:
+									toSocks5(client, net.JoinHostPort(getDns[0], port), b[:n])
+								case false:
+									toSocks5(client, net.JoinHostPort(host, port), b[:n])
 								}
 							}
 						} else {
 							microlog.Debug(runtime.NumGoroutine(), host, "dns false")
-							socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+							toSocks5(client, net.JoinHostPort(host, port), b[:n])
 						}
 					}
 				} else {
 					isMatch := socks5Server.cidrmatch.MatchWithTrie(host)
 					microlog.Debug(runtime.NumGoroutine(), host, isMatch)
 					if isMatch {
-						socks5Server.toTCP(client, host, net.JoinHostPort(host, port))
+						toTCP(client, host, net.JoinHostPort(host, port))
 					} else {
-						socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+						toSocks5(client, net.JoinHostPort(host, port), b[:n])
 					}
 				}
 				//switch socks5Server.dnscache.Match(host, hostTemplate, socks5Server.cidrmatch.MatchWithTrie) {
@@ -220,11 +222,11 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 
 			case false:
 				if socks5Server.ToHTTP == true {
-					socks5Server.toHTTP(client, host, port)
+					toHTTP(client, host, port)
 				} else if socks5Server.ToShadowsocksr == true {
-					socks5Server.toSocks5(client, net.JoinHostPort(host, port), b[:n])
+					toSocks5(client, net.JoinHostPort(host, port), b[:n])
 				} else {
-					socks5Server.toTCP(client, host, net.JoinHostPort(host, port))
+					toTCP(client, host, net.JoinHostPort(host, port))
 				}
 			}
 
