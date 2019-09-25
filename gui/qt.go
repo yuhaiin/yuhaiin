@@ -720,6 +720,7 @@ func main() {
 			defer lockFile.Close()
 			defer os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
 		}
+		ssrMicroClientGUI.beforeCreateGUI()
 		ssrMicroClientGUI.mainWindow.Show()
 		ssrMicroClientGUI.app.Exec()
 	}
