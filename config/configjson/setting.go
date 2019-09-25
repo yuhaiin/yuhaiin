@@ -49,8 +49,9 @@ func SettingInitJSON(configPath string) error {
 		BypassDomainFile:               configPath + "/domainBypass.conf",
 		DirectProxyFile:                configPath + "/domainProxy.conf",
 		Socks5WithBypass:               true,
-		DnsServer:                      "119.29.29.29:53",
+		DnsServer:                      "8.8.8.8:53",
 		UdpTrans:                       true,
+		AutoStartSsr:                   true,
 	}
 	if err := SettingEnCodeJSON(configPath, pa); err != nil {
 		return err
