@@ -17,7 +17,7 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
-func SSRSub(configPath string) {
+func SSRSub(configPath string, app *widgets.QApplication) {
 	httpCmd, err := getdelay.GetHttpProxyCmd()
 	if err != nil {
 		log.Println(err)
@@ -34,6 +34,44 @@ func SSRSub(configPath string) {
 	if err != nil {
 		log.Println(err)
 	}
+
+	app.ConnectAboutToQuit(func() {
+		if httpBypassCmd.Process != nil {
+			err = httpBypassCmd.Process.Kill()
+			if err != nil {
+				//	do something
+				messageBox(err.Error() + " httpBypassCmd Kill")
+			}
+			_, err = httpBypassCmd.Process.Wait()
+			if err != nil {
+				//	do something
+				messageBox(err.Error() + "httpBypassCmd wait")
+			}
+		}
+		if httpCmd.Process != nil {
+			if err = httpCmd.Process.Kill(); err != nil {
+				//	do something
+				messageBox(err.Error() + " httpCmd kill")
+			}
+
+			if _, err = httpCmd.Process.Wait(); err != nil {
+				//	do something
+				messageBox(err.Error() + " httpCmd wait")
+			}
+		}
+		if socks5BypassCmd.Process != nil {
+			err = socks5BypassCmd.Process.Kill()
+			if err != nil {
+				//
+				messageBox(err.Error() + " socks5BypassCmd Kill")
+			}
+			_, err := socks5BypassCmd.Process.Wait()
+			if err != nil {
+				messageBox(err.Error() + " socks5BypassCmd wait")
+				//
+			}
+		}
+	})
 
 	if setting.HttpProxy == true && setting.HttpWithBypass == true {
 		err = httpBypassCmd.Start()
@@ -98,42 +136,7 @@ func SSRSub(configPath string) {
 
 	exit := widgets.NewQAction2("exit", window)
 	exit.ConnectTriggered(func(bool2 bool) {
-		if httpBypassCmd.Process != nil {
-			err = httpBypassCmd.Process.Kill()
-			if err != nil {
-				//	do something
-				messageBox(err.Error() + " httpBypassCmd Kill")
-			}
-			_, err = httpBypassCmd.Process.Wait()
-			if err != nil {
-				//	do something
-				messageBox(err.Error() + "httpBypassCmd wait")
-			}
-		}
-		if httpCmd.Process != nil {
-			if err = httpCmd.Process.Kill(); err != nil {
-				//	do something
-				messageBox(err.Error() + " httpCmd kill")
-			}
-
-			if _, err = httpCmd.Process.Wait(); err != nil {
-				//	do something
-				messageBox(err.Error() + " httpCmd wait")
-			}
-		}
-		if socks5BypassCmd.Process != nil {
-			err = socks5BypassCmd.Process.Kill()
-			if err != nil {
-				//
-				messageBox(err.Error() + " socks5BypassCmd Kill")
-			}
-			_, err := socks5BypassCmd.Process.Wait()
-			if err != nil {
-				messageBox(err.Error() + " socks5BypassCmd wait")
-				//
-			}
-		}
-		os.Exit(0)
+		app.Quit()
 	})
 	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu,
 		subscriptionTrayIconMenu, settingTrayIconMenu, exit}
@@ -699,6 +702,7 @@ func main() {
 	} else {
 		app := widgets.NewQApplication(len(os.Args), os.Args)
 		app.SetApplicationName("SsrMicroClient")
+		app.SetQuitOnLastWindowClosed(false)
 		lockFile, err := os.Create(configPath +
 			"/SsrMicroClientRunStatuesLockFile")
 		if err != nil {
@@ -712,21 +716,8 @@ func main() {
 		} else {
 			defer lockFile.Close()
 			defer os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
-			//defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
 		}
-		// pid, isExist := process.GetProcessStatus(configPath +
-		// 	"/SsrMicroClient.pid")
-		// if isExist == true {
-		//	messageBox("process is exist at pid = " + pid + "!")
-		//	return
-		//}
-		//err := ioutil.WriteFile(configPath+"/SsrMicroClient.pid",
-		//	[]byte(strconv.Itoa(os.Getpid())), 0644)
-		//if err != nil {
-		//	messageBox(err.Error())
-		//}
-		SSRSub(configPath)
-		app.SetQuitOnLastWindowClosed(false)
+		SSRSub(configPath, app)
 		app.Exec()
 	}
 }
