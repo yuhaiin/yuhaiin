@@ -178,7 +178,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainGUI() {
 			//default:
 			status = "<b><font color=reb>stopped</font></b>"
 			//case "windows":
-			status = "stopped"
+			//status = "stopped"
 			//}
 		}
 		return status
