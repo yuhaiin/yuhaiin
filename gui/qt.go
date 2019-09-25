@@ -90,15 +90,15 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 		}
 	})
 	microClientGUI.mainWindow = widgets.NewQMainWindow(nil, 0)
-	microClientGUI.createMainGUI()
+	microClientGUI.createMainWindow()
 	microClientGUI.subscriptionWindow = widgets.NewQMainWindow(microClientGUI.mainWindow, 0)
-	microClientGUI.createSubWindow()
+	microClientGUI.createSubscriptionWindow()
 	microClientGUI.settingWindow = widgets.NewQMainWindow(microClientGUI.mainWindow, 0)
-	microClientGUI.createSettingGUI()
+	microClientGUI.createSettingWindow()
 	return microClientGUI, nil
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) beforeCreateGUI() {
+func (ssrMicroClientGUI *SsrMicroClientGUI) beforeShow() {
 	if ssrMicroClientGUI.settingConfig.HttpProxy == true && ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
 		err := ssrMicroClientGUI.httpBypassCmd.Start()
 		if err != nil {
@@ -118,7 +118,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) beforeCreateGUI() {
 	}
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) createMainGUI() {
+func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	ssrMicroClientGUI.mainWindow.SetFixedSize2(600, 400)
 	ssrMicroClientGUI.mainWindow.SetWindowTitle("SsrMicroClient")
 	//window.ConnectCloseEvent(func(event *gui.QCloseEvent) {
@@ -395,7 +395,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainGUI() {
 	}
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) createSubWindow() {
+func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 	ssrMicroClientGUI.subscriptionWindow.SetFixedSize2(700, 100)
 	ssrMicroClientGUI.subscriptionWindow.SetWindowTitle("subscription")
 	ssrMicroClientGUI.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
@@ -468,7 +468,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubWindow() {
 	})
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingGUI() {
+func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	ssrMicroClientGUI.settingWindow.SetFixedSize2(430, 330)
 	ssrMicroClientGUI.settingWindow.SetWindowTitle("setting")
 	ssrMicroClientGUI.settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
@@ -720,7 +720,7 @@ func main() {
 			defer lockFile.Close()
 			defer os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
 		}
-		ssrMicroClientGUI.beforeCreateGUI()
+		ssrMicroClientGUI.beforeShow()
 		ssrMicroClientGUI.mainWindow.Show()
 		ssrMicroClientGUI.app.Exec()
 	}
