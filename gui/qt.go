@@ -56,24 +56,10 @@ func SSRSub(configPath string) {
 	//window.SetMinimumSize2(600, 400)
 	window.SetFixedSize2(600, 400)
 	window.SetWindowTitle("SsrMicroClient")
-	window.ConnectCloseEvent(func(event *gui.QCloseEvent) {
-		event.Ignore()
-		//closeMessageBox := widgets.NewQMessageBox(window)
-		//closeMessageBox.SetWindowTitle("close?")
-		//closeMessageBox.SetText("which are you want to do?")
-		//closeMessageBox.SetStandardButtons(0x00100000 | 0x00004000 | 0x00000400 | 0x00400000)
-		//closeMessageBox.Button(0x00004000).SetText("exit(ssr daemon)")
-		//closeMessageBox.Button(0x00000400).SetText("exit")
-		//closeMessageBox.Button(0x00100000).SetText("run in background")
-		//closeMessageBox.SetDefaultButton2(0x00100000)
-		//if closeMessageBoxExec := closeMessageBox.Exec(); closeMessageBoxExec == 0x00004000 {
-		//	os.Exit(0)
-		//} else if closeMessageBoxExec == 0x00000400 {
-		//} else if closeMessageBoxExec == 0x00100000 {
-		//	window.Hide()
-		//}
-		window.Hide()
-	})
+	//window.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+	//	event.Ignore()
+	//	window.Hide()
+	//})
 	icon := gui.NewQIcon5(configPath + "/SsrMicroClient.png")
 	window.SetWindowIcon(icon)
 
@@ -456,6 +442,10 @@ func subUI(configPath string,
 		core.NewQPoint2(690, 80)))
 	//updateButton := widgets.NewQPushButton2("update",subWindow)
 	//updateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(200,450),core.NewQPoint2(370,490)))
+
+	subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+		subWindow.Close()
+	})
 	return subWindow
 }
 
@@ -675,6 +665,10 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 	})
 	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280),
 		core.NewQPoint2(90, 310)))
+
+	settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+		settingWindow.Close()
+	})
 	return settingWindow, nil
 }
 
@@ -732,6 +726,7 @@ func main() {
 		//	messageBox(err.Error())
 		//}
 		SSRSub(configPath)
+		app.SetQuitOnLastWindowClosed(false)
 		app.Exec()
 	}
 }
