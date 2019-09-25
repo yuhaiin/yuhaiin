@@ -34,6 +34,7 @@ func SSRSub(configPath string) {
 	if err != nil {
 		log.Println(err)
 	}
+
 	if setting.HttpProxy == true && setting.HttpWithBypass == true {
 		err = httpBypassCmd.Start()
 		if err != nil {
@@ -115,34 +116,34 @@ func SSRSub(configPath string) {
 			err = httpBypassCmd.Process.Kill()
 			if err != nil {
 				//	do something
-				messageBox(err.Error())
+				messageBox(err.Error() + " httpBypassCmd Kill")
 			}
-			err = httpBypassCmd.Wait()
+			_, err = httpBypassCmd.Process.Wait()
 			if err != nil {
 				//	do something
-				messageBox(err.Error())
+				messageBox(err.Error() + "httpBypassCmd wait")
 			}
 		}
 		if httpCmd.Process != nil {
 			if err = httpCmd.Process.Kill(); err != nil {
 				//	do something
-				messageBox(err.Error())
+				messageBox(err.Error() + " httpCmd kill")
 			}
 
-			if err = httpCmd.Wait(); err != nil {
+			if _, err = httpCmd.Process.Wait(); err != nil {
 				//	do something
-				messageBox(err.Error())
+				messageBox(err.Error() + " httpCmd wait")
 			}
 		}
 		if socks5BypassCmd.Process != nil {
 			err = socks5BypassCmd.Process.Kill()
 			if err != nil {
 				//
-				messageBox(err.Error())
+				messageBox(err.Error() + " socks5BypassCmd Kill")
 			}
-			err = socks5BypassCmd.Wait()
+			_, err := socks5BypassCmd.Process.Wait()
 			if err != nil {
-				messageBox(err.Error())
+				messageBox(err.Error() + " socks5BypassCmd wait")
 				//
 			}
 		}
@@ -155,10 +156,21 @@ func SSRSub(configPath string) {
 	updateStatus := func() string {
 		var status string
 		if pid, run := process.Get(configPath); run == true {
+			//switch runtime.GOOS {
+			//default:
 			status = "<b><font color=green>running (pid: " +
 				pid + ")</font></b>"
+			//case "windows":
+			//	status = "running (pid: " +
+			//		pid + ")"
+			//}
 		} else {
+			//switch runtime.GOOS {
+			//default:
 			status = "<b><font color=reb>stopped</font></b>"
+			//case "windows":
+			status = "stopped"
+			//}
 		}
 		return status
 	}
@@ -366,6 +378,12 @@ func SSRSub(configPath string) {
 		nodeCombobox.SetCurrentText(nowNode["remarks"])
 
 	})
+
+	if setting.AutoStartSsr == true {
+		if _, exist := process.Get(configPath); !exist {
+			startButton.Click()
+		}
+	}
 	window.Show()
 }
 
@@ -466,6 +484,11 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 	//	httpProxyStat.SetText("<center><b><font color=reb>http proxy is not running!</font></b></center>")
 	//}
 	//httpProxyStat.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(490, 30)))
+
+	autoStartSsr := widgets.NewQCheckBox2("auto Start ssr", settingWindow)
+	autoStartSsr.SetChecked(settingConfig.AutoStartSsr)
+	autoStartSsr.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0),
+		core.NewQPoint2(490, 30)))
 
 	httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", settingWindow)
 	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)

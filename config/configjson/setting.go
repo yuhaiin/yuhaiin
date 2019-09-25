@@ -26,6 +26,7 @@ type Setting struct {
 	Socks5WithBypass               bool   `json:"socks5WithBypass"`
 	DnsServer                      string `json:"dnsServer"`
 	UdpTrans                       bool   `json:"udpTrans"`
+	AutoStartSsr                   bool   `json:"autoStartSsr"`
 }
 
 // SettingInitJSON init setting json file
