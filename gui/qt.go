@@ -591,7 +591,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 						//log.Println(err)
 						messageBox(err.Error())
 					}
-					if err = httpBypass.Wait(); err != nil {
+					if _, err = httpBypass.Process.Wait(); err != nil {
 						messageBox(err.Error())
 					}
 				}
@@ -602,7 +602,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 						messageBox(err.Error())
 					}
 
-					if err = http.Wait(); err != nil {
+					if _, err = http.Process.Wait(); err != nil {
 						messageBox(err.Error())
 					}
 				}
@@ -649,7 +649,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 					//log.Println(err)
 					messageBox(err.Error())
 				}
-				if err = socks5Bypass.Wait(); err != nil {
+				if _, err = socks5Bypass.Process.Wait(); err != nil {
 					messageBox(err.Error())
 				}
 			}
