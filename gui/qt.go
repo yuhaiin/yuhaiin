@@ -558,6 +558,7 @@ func SsrMicroClientSetting(parent *widgets.QMainWindow, http, httpBypass,
 
 	applyButton := widgets.NewQPushButton2("apply", settingWindow)
 	applyButton.ConnectClicked(func(bool2 bool) {
+		settingConfig.AutoStartSsr = autoStartSsr.IsChecked()
 		settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
 		settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
 		settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
