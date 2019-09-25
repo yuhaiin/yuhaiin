@@ -12,6 +12,8 @@ How to use:
   Or move the two files of [windowsDepond](https://github.com/Asutorufa/SsrMicroClient/tree/OtherLanguage/Old/windowsDepond) to C:\Windows\SysWOW64.  
 - build
 
+at first,install [therecipe/qt#Installation](https://github.com/therecipe/qt#installation)
+
 ```shell script
 git clone https://github.com/Asutorufa/SsrMicroClient.git
 cd SsrMicroClient
@@ -19,16 +21,14 @@ go build SSRSub.go
 ./SSRSub
 ```
 
-gui:  
-at first,install [therecipe/qt#Installation](https://github.com/therecipe/qt#installation)
+no gui:
 
 ```shell script
 git clone https://github.com/Asutorufa/SsrMicroClient.git
-cd gui
-go build qt.go
-./qt
+cd SsrMicroClient
+go build -tags noGui SSRSub_nogui.go
+./SSRSub
 ```
-
 - config file  
   it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub.
 
