@@ -159,32 +159,33 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			headerArgs[key] = value
 		}
 	}
-	headerRequest = strings.ReplaceAll(headerRequest, "http://"+headerArgs["Host"], "")
-	for key, value := range headerArgs {
-		headerRequest += "\r\n" + key + ": " + value
-	}
-	headerRequest += "\r\n\r\n" + data
+
 	if requestMethod == "CONNECT" {
 		headerArgs["Host"] = headerRequestSplit[1]
 	}
-	//microlog.Debug(headerArgs)
-	//microlog.Debug("requestMethod:",requestMethod)
-	//microlog.Debug("headerRequest ",headerRequest,"headerRequest end")
-	//microlog.Debug(headerArgs)
-
 	hostPortURL, err := url.Parse("//" + headerArgs["Host"])
 	if err != nil {
 		microlog.Debug(err)
 		return err
 	}
-	microlog.Debug("hostAll:", hostPortURL)
 	var address string
 	if hostPortURL.Port() == "" {
 		address = hostPortURL.Hostname() + ":80"
+		headerRequest = strings.ReplaceAll(headerRequest, "http://"+address, "")
 	} else {
 		address = hostPortURL.Host
+		microlog.Debug("address:", address)
 	}
+	headerRequest = strings.ReplaceAll(headerRequest, "http://"+headerArgs["Host"], "")
+	//microlog.Debug(headerArgs)
+	//microlog.Debug("requestMethod:",requestMethod)
+	//microlog.Debug("headerRequest ",headerRequest,"headerRequest end")
 	//microlog.Debug("address:", address)
+
+	for key, value := range headerArgs {
+		headerRequest += "\r\n" + key + ": " + value
+	}
+	headerRequest += "\r\n\r\n" + data
 
 	getSocks5Conn := func(Server, Port string, KeepAliveTimeout time.Duration, Address string) (net.Conn, error) {
 		return (&socks5client.Socks5Client{
