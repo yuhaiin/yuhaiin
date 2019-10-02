@@ -126,12 +126,25 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	if err != nil {
 		return err
 	}
-	//microlog.Debug(requestData[:requestDataSize])
-	header := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")[0]
-	data := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")[1]
-	microlog.Debug(strings.Split(header, "\r\n")[0], len(data))
+	//microlog.Debug("all Data",string(requestData[:requestDataSize]),"end All data",strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n"),"end split Data")
+	headerAndData := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")
+	var header, data string
+	if len(headerAndData) > 0 {
+		header = headerAndData[0]
+	} else {
+		return microlog.ErrErr{Err: "no header"}
+	}
+	if len(headerAndData) > 1 {
+		data = headerAndData[1]
+	} else {
+		log.Println("no data")
+	}
+
+	//microlog.Debug(strings.Split(header, "\r\n")[0], len(data))
 	headerRequest := strings.Split(header, "\r\n")[0]
-	requestMethod := strings.Split(headerRequest, " ")[0]
+	var requestMethod string
+	headerRequestSplit := strings.Split(headerRequest, " ")
+	requestMethod = headerRequestSplit[0]
 	headerArgs := make(map[string]string)
 	for index, line := range strings.Split(header, "\r\n") {
 		if index != 0 {
@@ -151,16 +164,20 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 		headerRequest += "\r\n" + key + ": " + value
 	}
 	headerRequest += "\r\n\r\n" + data
+	if requestMethod == "CONNECT" {
+		headerArgs["Host"] = headerRequestSplit[1]
+	}
 	//microlog.Debug(headerArgs)
 	//microlog.Debug("requestMethod:",requestMethod)
 	//microlog.Debug("headerRequest ",headerRequest,"headerRequest end")
+	//microlog.Debug(headerArgs)
 
 	hostPortURL, err := url.Parse("//" + headerArgs["Host"])
 	if err != nil {
 		microlog.Debug(err)
 		return err
 	}
-	//microlog.Debug("hostAll:",hostPortURL.Port())
+	microlog.Debug("hostAll:", hostPortURL)
 	var address string
 	if hostPortURL.Port() == "" {
 		address = hostPortURL.Hostname() + ":80"
@@ -204,7 +221,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			if socks5ToHttp.bypassDomainMatch.Search(hostPortURL.Hostname()) {
 				Conn, err = net.Dial("tcp", address)
 				if err != nil {
-					log.Println(err)
+					log.Println(address, err)
 					return err
 				}
 			} else if socks5ToHttp.directProxy.Search(hostPortURL.Hostname()) {

@@ -9,10 +9,13 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
 	"../config/config"
+	"../config/configjson"
+	"../microlog"
 )
 
 // Stop stop ssr process
@@ -91,7 +94,7 @@ func Get(configPath string) (pid string, isExist bool) {
 	// return pid, true
 }
 
-// Get Get run status
+// GetProcessStatus Get run status
 func GetProcessStatus(path string) (pid string, isExist bool) {
 	pidTemp, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -142,7 +145,7 @@ func StartByArgument(configPath, functionName string) {
 			log.Println("already have run at " + pid)
 			return
 		}
-		cmd := exec.Command(executablePath, "-d", "ssr")
+		cmd := exec.Command("cmd", "/c", executablePath+" -d ssr")
 		cmd.Run()
 		log.Println(cmd.Process.Pid)
 		// time.Sleep(time.Duration(500) * time.Millisecond)
@@ -173,4 +176,66 @@ func StartByArgument(configPath, functionName string) {
 		cmd.Process.Kill()
 		cmd.Wait()
 	}
+}
+
+// Start start ssr
+func Start(configPath string) {
+	// pid, status := Get(configPath)
+	// if status == true {
+	// 	log.Println("already have run at " + pid)
+	// 	return
+	// }
+	argument := config.GetConfigArgument()
+	// nodeAndConfig, _ := subscription.GetNowNodeAll(sqlPath)
+	nodeAndConfig, _ := configjson.GetNowNode(configPath)
+	for v, config := range config.GetConfig(configPath) {
+		nodeAndConfig[v] = config
+	}
+	// now not use
+	// logFile , PidFile
+	nodeAndConfigArgument := []string{"server", "serverPort", "protocol", "method",
+		"obfs", "password", "obfsparam", "protoparam", "localAddress",
+		"localPort", "timeout"}
+	// argumentArgument := []string{"localAddress", "localPort", "logFile", "pidFile", "workers", "acl", "timeout"}
+	// argumentSingle := []string{"fastOpen", "udpTrans"}
+	argumentSingle := []string{"fastOpen"} //python no udp
+
+	var cmdArray []string
+	if nodeAndConfig["ssrPath"] != "" {
+		cmdArray = append(cmdArray, nodeAndConfig["ssrPath"])
+	}
+	for _, nodeA := range nodeAndConfigArgument {
+		if nodeAndConfig[nodeA] != "" {
+			cmdArray = append(cmdArray, argument[nodeA], nodeAndConfig[nodeA])
+		}
+	}
+	/*
+		for _, argumentA := range argumentArgument {
+			if config[argumentA] != "" {
+				cmdArray = append(cmdArray, argument[argumentA], config[argumentA])
+			}
+		}*/
+
+	for _, argumentS := range argumentSingle {
+		if nodeAndConfig[argumentS] != "" {
+			cmdArray = append(cmdArray, argument[argumentS])
+		}
+	}
+	// log.Println(cmdArray)
+	// if runtime.GOOS != "windows" {
+	// 	cmdArray = append(cmdArray, "-d", "start")
+	// }
+	// fmt.Println(cmdArray)
+	cmdd := nodeAndConfig["pythonPath"]
+	for _, tmp := range cmdArray {
+		cmdd += " " + tmp
+	}
+	// cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
+	cmd := exec.Command("cmd", "/c", cmdd)
+	microlog.Debug(cmdd)
+	_ = cmd.Start()
+	// cmd.Process.Release()
+	// cmd.Process.Signal(syscall.SIGUSR1)
+	// fmt.Println(cmd.Process.Pid, config["pidFile"])
+	_ = ioutil.WriteFile(nodeAndConfig["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
 }
