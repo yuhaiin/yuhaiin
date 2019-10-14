@@ -7,11 +7,11 @@ import (
 	"log"
 	"os"
 
-	"./gui"
-	ssrinit "./init"
-	getdelay "./net"
-	"./process"
-	"./process/lockfile"
+	"SsrMicroClient/gui"
+	"SsrMicroClient/init"
+	"SsrMicroClient/net"
+	"SsrMicroClient/process"
+	"SsrMicroClient/process/lockfile"
 )
 
 func main() {

@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"../../base64d"
-	"../../subscription"
+	"SsrMicroClient/base64d"
+	"SsrMicroClient/subscription"
 )
 
 // 待测试 https://github.com/evanphx/json-patch

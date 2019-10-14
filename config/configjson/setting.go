@@ -23,6 +23,7 @@ type Setting struct {
 	BypassFile                     string `json:"bypassFile"`
 	BypassDomainFile               string `json:"bypassDomainFile"`
 	DirectProxyFile                string `json:"directProxyFile"`
+	DiscordDomainFile              string `json:"discordDomainFile"`
 	Socks5WithBypass               bool   `json:"socks5WithBypass"`
 	DnsServer                      string `json:"dnsServer"`
 	UdpTrans                       bool   `json:"udpTrans"`
@@ -48,6 +49,7 @@ func SettingInitJSON(configPath string) error {
 		BypassFile:                     configPath + "/cidrBypass.conf",
 		BypassDomainFile:               configPath + "/domainBypass.conf",
 		DirectProxyFile:                configPath + "/domainProxy.conf",
+		DiscordDomainFile:              configPath + "/discordFile.conf",
 		Socks5WithBypass:               true,
 		DnsServer:                      "8.8.8.8:53",
 		UdpTrans:                       true,

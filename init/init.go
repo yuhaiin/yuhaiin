@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 
-	"../config/configjson"
-	SsrDownload "../shadowsocksr"
+	"SsrMicroClient/config/configjson"
+	"SsrMicroClient/shadowsocksr"
 )
 
 // PathExists 判断目录是否存在返回布尔类型
@@ -44,7 +44,7 @@ func Init(configPath string) {
 	//}
 
 	if !PathExists(configPath + "/shadowsocksr") {
-		SsrDownload.GetSsrPython(configPath)
+		ssrdownload.GetSsrPython(configPath)
 	}
 
 	if !PathExists(configPath + "/node.json") {
@@ -93,6 +93,13 @@ func Init(configPath string) {
 			panic(err)
 		}
 		//io.Copy(f, res.Body)
+	}
+
+	if !PathExists(configPath + "/discordDomain.conf") {
+		_, err := os.Create(configPath + "/discordDomain.conf")
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if !PathExists(configPath + "/SsrMicroClient.png") {

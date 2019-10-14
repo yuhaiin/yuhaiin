@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"../../microlog"
-	"../trie"
+	"SsrMicroClient/microlog"
+	"SsrMicroClient/net/trie"
 )
 
 // CidrMatch <--

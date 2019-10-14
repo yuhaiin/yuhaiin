@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"../../microlog"
-	"../cidrmatch"
-	"../dns"
-	"../domainmatch"
-	"../socks5client"
+	"SsrMicroClient/microlog"
+	"SsrMicroClient/net/cidrmatch"
+	"SsrMicroClient/net/dns"
+	"SsrMicroClient/net/domainmatch"
+	"SsrMicroClient/net/socks5client"
 )
 
 // ServerSocks5 <--
@@ -36,6 +36,8 @@ type ServerSocks5 struct {
 	BypassDomainFile   string
 	directProxy        *domainmatch.DomainMatcher
 	DirectProxyFile    string
+	discordDomain      *domainmatch.DomainMatcher
+	DiscordDomainFile  string
 	DNSServer          string
 	dnscache           dns.Cache
 	KeepAliveTimeout   time.Duration
@@ -57,6 +59,7 @@ func (socks5Server *ServerSocks5) Socks5Init() error {
 		}
 		socks5Server.bypassDomainMatch = domainmatch.NewDomainMatcherWithFile(socks5Server.BypassDomainFile)
 		socks5Server.directProxy = domainmatch.NewDomainMatcherWithFile(socks5Server.DirectProxyFile)
+		socks5Server.discordDomain = domainmatch.NewDomainMatcherWithFile(socks5Server.DiscordDomainFile)
 	}
 
 	socks5ServerIP := net.ParseIP(socks5Server.Server)
@@ -172,8 +175,12 @@ func (socks5Server *ServerSocks5) handleClientRequest(client net.Conn) {
 			switch socks5Server.Bypass {
 			case true:
 				if hostTemplate != "ip" {
+					microlog.Debug(host)
 					// at first use domain to search
-					if socks5Server.bypassDomainMatch.Search(host) {
+					if socks5Server.discordDomain.Search(host) {
+						microlog.Debug("discord",host)
+						return
+					}else if socks5Server.bypassDomainMatch.Search(host) {
 						microlog.Debug("domain match", host)
 						toTCP(client, host, net.JoinHostPort(host, port))
 					} else if socks5Server.directProxy.Search(host) {

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"../../microlog"
-	"../cidrmatch"
-	"../dns"
-	"../domainmatch"
-	"../socks5client"
+	"SsrMicroClient/microlog"
+	"SsrMicroClient/net/cidrmatch"
+	"SsrMicroClient/net/dns"
+	"SsrMicroClient/net/domainmatch"
+	"SsrMicroClient/net/socks5client"
 )
 
 // Socks5ToHTTP like name

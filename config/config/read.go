@@ -1,7 +1,7 @@
 package config
 
 import (
-	"../configjson"
+	"SsrMicroClient/config/configjson"
 	"log"
 	"os"
 )
@@ -18,6 +18,7 @@ func GetConfig(configPath string) map[string]string {
 	argument["cidrFile"] = settingDecodeJSON.BypassFile
 	argument["bypassDomainFile"] = settingDecodeJSON.BypassDomainFile
 	argument["directProxyFile"] = settingDecodeJSON.DirectProxyFile
+	argument["discordDomainFile"] = settingDecodeJSON.DiscordDomainFile
 	argument["logFile"] = os.DevNull
 	argument["pythonPath"] = settingDecodeJSON.PythonPath
 	argument["httpProxy"] = settingDecodeJSON.HttpProxyAddressAndPort

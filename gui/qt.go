@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"time"
 
-	"../config/configjson"
-	"../net"
-	"../process"
+	"SsrMicroClient/config/configjson"
+	"SsrMicroClient/net"
+	"SsrMicroClient/process"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -22,6 +22,7 @@ type SsrMicroClientGUI struct {
 	httpCmd            *exec.Cmd
 	httpBypassCmd      *exec.Cmd
 	socks5BypassCmd    *exec.Cmd
+	ssrCmd 			   *exec.Cmd
 	configPath         string
 	settingConfig      *configjson.Setting
 }
@@ -34,6 +35,7 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 	if err != nil {
 		return microClientGUI, err
 	}
+	microClientGUI.ssrCmd = process.GetSsrCmd(microClientGUI.configPath)
 	microClientGUI.httpCmd, err = getdelay.GetHttpProxyCmd()
 	if err != nil {
 		return microClientGUI, err

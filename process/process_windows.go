@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"../config/config"
-	"../config/configjson"
-	"../microlog"
+	"SsrMicroClient/config/config"
+	"SsrMicroClient/config/configjson"
+	"SsrMicroClient/microlog"
 )
 
 // Stop stop ssr process

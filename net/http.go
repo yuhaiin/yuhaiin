@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"../config/config"
-	"./httpserver"
-	"./socks5Server"
+	"SsrMicroClient/config/config"
+	"SsrMicroClient/net/httpserver"
+	socks5server "SsrMicroClient/net/socks5Server"
 	// "../socks5ToHttp"
 )
 
@@ -85,6 +85,7 @@ func StartSocks5Bypass(configPath string) {
 		CidrFile:         argument["cidrFile"],
 		BypassDomainFile: argument["bypassDomainFile"],
 		DirectProxyFile:  argument["directProxyFile"],
+		DiscordDomainFile:argument["discordDomainFile"],
 		ToShadowsocksr:   true,
 		Socks5Server:     argument["localAddress"],
 		Socks5Port:       argument["localPort"],

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"syscall"
 
-	"../config/config"
-	"../config/configjson"
-	"../microlog"
+	"SsrMicroClient/config/config"
+	"SsrMicroClient/config/configjson"
+	"SsrMicroClient/microlog"
 )
 
 // Start start ssr
