@@ -232,7 +232,7 @@ func Start(configPath string) {
 	}
 	// cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
 	cmd := exec.Command("cmd", "/c", cmdd)
-	micrologm.Debug(cmdd)
+	microlog.Debug(cmdd)
 	_ = cmd.Start()
 	// cmd.Process.Release()
 	// cmd.Process.Signal(syscall.SIGUSR1)

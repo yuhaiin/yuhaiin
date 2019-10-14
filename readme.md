@@ -20,6 +20,7 @@ cd SsrMicroClient
 go build SSRSub.go
 ./SSRSub
 ```
+or use this:[if-you-just-want-to-compile-an-application](https://github.com/therecipe/qt/wiki/Installation-on-Linux#if-you-just-want-to-compile-an-application)  
 
 no gui:
 
