@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"errors"
 	"log"
 	"net"
 	"net/url"
@@ -132,7 +133,7 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	if len(headerAndData) > 0 {
 		header = headerAndData[0]
 	} else {
-		return microlog.ErrErr{Err: "no header"}
+		return errors.New("no header")
 	}
 	if len(headerAndData) > 1 {
 		data = headerAndData[1]

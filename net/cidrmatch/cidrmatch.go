@@ -1,6 +1,7 @@
 package cidrmatch
 
 import (
+	"errors"
 	"io/ioutil"
 	"log"
 	"net"
@@ -63,7 +64,7 @@ func (cidrMatch *CidrMatch) InsetOneCIDR(cidr string) error {
 		}
 	} else {
 		//	do something
-		return microlog.ErrErr{Err: "this cidr don't have ip!"}
+		return errors.New("this cidr don't have ip")
 	}
 	return nil
 }

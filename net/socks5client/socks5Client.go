@@ -1,12 +1,11 @@
 package socks5client
 
 import (
+	"errors"
 	"net"
 	"net/url"
 	"strconv"
 	"time"
-
-	"SsrMicroClient/microlog"
 )
 
 // Socks5Client socks5 client
@@ -105,7 +104,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] == 0xFF {
-		return microlog.ErrErr{Err: "socks5 first handshake failed!"}
+		return errors.New("socks5 first handshake failed!")
 	}
 	// 	SOCKS5 用户名密码认证方式
 	// 在客户端、服务端协商使用用户名密码认证后，客户端发出用户名密码，格式为（以字节为单位）：
@@ -138,7 +137,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 			return err
 		}
 		if getData[1] == 0x01 {
-			return microlog.ErrErr{Err: "username or password not correct,socks5 handshake failed!"}
+			return errors.New("username or password not correct,socks5 handshake failed!")
 		}
 	}
 	// log.Println(sendData, "<-->", getData)
@@ -376,7 +375,7 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] != 0x00 {
-		return microlog.ErrErr{Err: "socks5 second handshake failed!"}
+		return errors.New("socks5 second handshake failed!")
 	}
 	// log.Println(sendData, "<-->", getData[0], getData[1])
 	// log.Println("socks5 second handshake successful!")
