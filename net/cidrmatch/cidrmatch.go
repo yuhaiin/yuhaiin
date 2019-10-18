@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"SsrMicroClient/microlog"
-	"SsrMicroClient/net/trie"
+	"SsrMicroClient/net/cidrmatch/trie"
 )
 
 // CidrMatch <--
 type CidrMatch struct {
-	masksize   int
+	maskSize   int
 	v4CidrTrie *trie.TrieTree
 	v6CidrTrie *trie.TrieTree
 	cidrMap    map[string][]*net.IPNet
