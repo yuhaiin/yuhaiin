@@ -224,7 +224,8 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 			domainPort = strings.Split(address, "]:")[1]
 		}
 
-		isMatch := socks5ToHttp.matcher.Matcher(hostPortURL.Hostname(), domainPort, hostTemplate == "domain")
+		microlog.Debug(hostPortURL.Hostname())
+		isMatch := socks5ToHttp.matcher.Matcher(hostPortURL.Hostname(), domainPort, !(hostTemplate == "ip"))
 		switch {
 		case isMatch.Discord:
 			return nil

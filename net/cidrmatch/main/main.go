@@ -11,15 +11,18 @@ import (
 
 func start(dns *string) {
 	httpS := httpserver.Socks5ToHTTP{
-		ToHTTP:           true,
-		HTTPServer:       "127.0.0.1",
-		HTTPPort:         "8189",
-		ByPass:           true,
-		Socks5Server:     "127.0.0.1",
-		Socks5Port:       "1080",
-		CidrFile:         "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
-		DNSServer:        *dns,
-		KeepAliveTimeout: 15 * time.Second,
+		ToHTTP:            true,
+		HTTPServer:        "127.0.0.1",
+		HTTPPort:          "8189",
+		ByPass:            true,
+		Socks5Server:      "127.0.0.1",
+		Socks5Port:        "1080",
+		CidrFile:          "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
+		BypassDomainFile:  "/home/asutorufa/.config/SSRSub/domainBypass.conf",
+		DirectProxyFile:   "/home/asutorufa/.config/SSRSub/domainProxy.conf",
+		DiscordDomainFile: "/home/asutorufa/.config/SSRSub/discordDomain.conf",
+		DNSServer:         *dns,
+		KeepAliveTimeout:  15 * time.Second,
 	}
 	// if err := httpS.HTTPProxy(); err != nil {
 	// 	log.Println(err)
@@ -32,19 +35,19 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	dns := flag.String("dns", "127.0.0.1:53", "dns")
 	flag.Parse()
-	//start(dns)
+	start(dns)
 
 	socks5S := socks5server.ServerSocks5{
-		Server:           "127.0.0.1",
-		Port:             "1084",
-		Bypass:           true,
-		CidrFile:         "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
-		BypassDomainFile: "/home/asutorufa/.config/SSRSub/domainBypass.conf",
-		DirectProxyFile:  "/home/asutorufa/.config/SSRSub/domainProxy.conf",
-		DiscordDomainFile:"/home/asutorufa/.config/SSRSub/discordDomain.conf",
-		ToShadowsocksr:   true,
-		Socks5Server:     "127.0.0.1",
-		Socks5Port:       "1080",
+		Server:            "127.0.0.1",
+		Port:              "1084",
+		Bypass:            true,
+		CidrFile:          "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
+		BypassDomainFile:  "/home/asutorufa/.config/SSRSub/domainBypass.conf",
+		DirectProxyFile:   "/home/asutorufa/.config/SSRSub/domainProxy.conf",
+		DiscordDomainFile: "/home/asutorufa/.config/SSRSub/discordDomain.conf",
+		ToShadowsocksr:    true,
+		Socks5Server:      "127.0.0.1",
+		Socks5Port:        "1080",
 		//208.67.222.222#5353
 		//208.67.222.220#5353
 		//58.132.8.1 beijing edu DNS server
