@@ -70,7 +70,6 @@ func (socks5Server *ServerSocks5) Socks5AcceptARequest() error {
 	}
 
 	go func() {
-		// log.Println(runtime.NumGoroutine())
 		if client == nil {
 			return
 		}
@@ -173,7 +172,6 @@ func (socks5Server *ServerSocks5) connect() {
 }
 
 func (socks5Server *ServerSocks5) udp(client net.Conn, domain string) {
-	// log.Println()
 	server, err := net.Dial("udp", domain)
 	if err != nil {
 		log.Println(err)
@@ -184,9 +182,6 @@ func (socks5Server *ServerSocks5) udp(client net.Conn, domain string) {
 
 	// forward
 	forward(server, client)
-	//go io.Copy(server, client)
-	//io.Copy(client, server)
-
 }
 
 func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
@@ -211,7 +206,6 @@ func (socks5Server *ServerSocks5) toTCP(client net.Conn, domain, ip string) {
 
 	// forward
 	forward(server, client)
-	//microlog.Debug("close")
 }
 
 func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
@@ -227,15 +221,10 @@ func (socks5Server *ServerSocks5) toHTTP(client net.Conn, host, port string) {
 		log.Println(err)
 	}
 	defer server.Close()
-	// if port == "443" {
 	_, _ = server.Write([]byte("CONNECT " + host + ":" + port + " HTTP/1.1\r\n\r\n"))
 	httpConnect := make([]byte, 1024)
 	_, _ = server.Read(httpConnect[:])
 	log.Println(string(httpConnect))
-	// }
-	// n, _ := client.Read(httpConnect[:])
-	// log.Println(string(httpConnect))
-	// server.Write(httpConnect[:n])
 
 	// forward
 	forward(server, client)

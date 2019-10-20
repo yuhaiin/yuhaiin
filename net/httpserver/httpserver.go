@@ -46,7 +46,6 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxyInit() error {
 	socks5ToHTTPServerIP := net.ParseIP(socks5ToHttp.HTTPServer)
 	socks5ToHTTPServerPort, err := strconv.Atoi(socks5ToHttp.HTTPPort)
 	if err != nil {
-		// log.Panic(err)
 		return err
 	}
 	socks5ToHttp.HTTPListener, err = net.ListenTCP("tcp",
@@ -60,7 +59,6 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxyInit() error {
 func (socks5ToHttp *Socks5ToHTTP) HTTPProxyAcceptARequest() error {
 	HTTPConn, err := socks5ToHttp.HTTPListener.AcceptTCP()
 	if err != nil {
-		// return err
 		microlog.Debug(err)
 		return err
 	}
@@ -104,27 +102,26 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	if err != nil {
 		return err
 	}
-	//microlog.Debug("all Data",string(requestData[:requestDataSize]),"end All data",strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n"),"end split Data")
+
 	headerAndData := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")
 	var header, data string
 	if len(headerAndData) > 0 {
 		header = headerAndData[0]
+		if len(headerAndData) > 1 {
+			data = headerAndData[1]
+		}
 	} else {
 		return errors.New("no header")
 	}
-	if len(headerAndData) > 1 {
-		data = headerAndData[1]
-	} else {
-		log.Println("no data")
-	}
 
 	//microlog.Debug(strings.Split(header, "\r\n")[0], len(data))
-	headerRequest := strings.Split(header, "\r\n")[0]
+	headerTmp := strings.Split(header, "\r\n")
+	headerRequest := headerTmp[0]
 	var requestMethod string
 	headerRequestSplit := strings.Split(headerRequest, " ")
 	requestMethod = headerRequestSplit[0]
 	headerArgs := make(map[string]string)
-	for index, line := range strings.Split(header, "\r\n") {
+	for index, line := range headerTmp {
 		if index != 0 {
 			//_, _ = fmt.Sscanf(line, "%s%s", &method, &host)
 			tmp := strings.Split(line, ": ")
@@ -237,10 +234,6 @@ func (socks5ToHttp *Socks5ToHTTP) httpHandleClientRequest(HTTPConn net.Conn) err
 	<-HTTPConnToConnCloseSig
 	close(HTTPConnToConnCloseSig)
 	return nil
-
-	//go io.Copy(Conn, HTTPConn)
-	//_, _ = io.Copy(HTTPConn, Conn)
-	//return nil
 }
 
 func pipe(src, dst net.Conn, closeSig chan error) {
