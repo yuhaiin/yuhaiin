@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"SsrMicroClient/microlog"
-	"SsrMicroClient/net/dns"
 	"SsrMicroClient/net/matcher"
 	"SsrMicroClient/net/socks5client"
 )
@@ -29,40 +28,20 @@ type ServerSocks5 struct {
 	Socks5Server       string
 	Socks5Port         string
 	Bypass             bool
-	//cidrmatch          *cidrmatch.CidrMatch
-	CidrFile string
-	//bypassDomainMatch  *domainmatch.DomainMatcher
-	BypassDomainFile string
-	//directProxy        *domainmatch.DomainMatcher
-	DirectProxyFile string
-	//discordDomain      *domainmatch.DomainMatcher
-	DiscordDomainFile string
-	DNSServer         string
-	dnscache          dns.Cache
-	KeepAliveTimeout  time.Duration
-	Timeout           time.Duration
-	UseLocalResolveIp bool
-	matcher           *matcher.Match
+	CidrFile           string
+	BypassDomainFile   string
+	DirectProxyFile    string
+	DiscordDomainFile  string
+	DNSServer          string
+	KeepAliveTimeout   time.Duration
+	Timeout            time.Duration
+	UseLocalResolveIp  bool
+	matcher            *matcher.Match
 }
 
 func (socks5Server *ServerSocks5) Socks5Init() error {
-	// log.SetFlags(log.LstdFlags | log.Lshortfile)
-	//socks5Server.dns = map[string]bool{}
-	socks5Server.dnscache = dns.Cache{
-		DNSServer: socks5Server.DNSServer,
-	}
 
 	var err error
-	//if socks5Server.Bypass {
-	//	socks5Server.cidrmatch, err = cidrmatch.NewCidrMatchWithTrie(socks5Server.CidrFile)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	socks5Server.bypassDomainMatch = domainmatch.NewDomainMatcherWithFile(socks5Server.BypassDomainFile)
-	//	socks5Server.directProxy = domainmatch.NewDomainMatcherWithFile(socks5Server.DirectProxyFile)
-	//	socks5Server.discordDomain = domainmatch.NewDomainMatcherWithFile(socks5Server.DiscordDomainFile)
-	//}
-
 	socks5Server.matcher, err = matcher.NewMatch(socks5Server.DNSServer, socks5Server.CidrFile, socks5Server.BypassDomainFile, socks5Server.DirectProxyFile, socks5Server.DiscordDomainFile)
 	if err != nil {
 		return err
@@ -71,12 +50,10 @@ func (socks5Server *ServerSocks5) Socks5Init() error {
 	socks5ServerIP := net.ParseIP(socks5Server.Server)
 	socks5ServerPort, err := strconv.Atoi(socks5Server.Port)
 	if err != nil {
-		// log.Panic(err)
 		return err
 	}
 	socks5Server.conn, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ServerIP, Port: socks5ServerPort})
 	if err != nil {
-		// log.Panic(err)
 		return err
 	}
 	return nil
@@ -85,16 +62,7 @@ func (socks5Server *ServerSocks5) Socks5Init() error {
 func (socks5Server *ServerSocks5) Socks5AcceptARequest() error {
 	client, err := socks5Server.conn.AcceptTCP()
 	if err != nil {
-		// log.Panic(err)
-		// return err
 		microlog.Debug(err)
-		// _ = socks5Server.conn.Close()
-		//socks5Server.conn, err = net.Listen("tcp", socks5Server.Server+":"+socks5Server.Port)
-		//if err != nil {
-		// log.Panic(err)
-		//return err
-		//}
-		//time.Sleep(time.Second * 1)
 		return err
 	}
 	if socks5Server.KeepAliveTimeout != 0 {

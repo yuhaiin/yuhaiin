@@ -11,30 +11,23 @@ import (
 	"time"
 
 	"SsrMicroClient/microlog"
-	"SsrMicroClient/net/dns"
 	"SsrMicroClient/net/socks5client"
 )
 
 // Socks5ToHTTP like name
 type Socks5ToHTTP struct {
-	ToHTTP       bool
-	HTTPListener *net.TCPListener
-	HTTPServer   string
-	HTTPPort     string
-	Socks5Server string
-	Socks5Port   string
-	ByPass       bool
-	//cidrmatch         *cidrmatch.CidrMatch
-	CidrFile string
-	//bypassDomainMatch *domainmatch.DomainMatcher
-	BypassDomainFile string
-	//directProxy       *domainmatch.DomainMatcher
+	ToHTTP            bool
+	HTTPListener      *net.TCPListener
+	HTTPServer        string
+	HTTPPort          string
+	Socks5Server      string
+	Socks5Port        string
+	ByPass            bool
+	CidrFile          string
+	BypassDomainFile  string
 	DirectProxyFile   string
 	DiscordDomainFile string
 	DNSServer         string
-	// dns          map[string]bool
-	// dns      sync.Map
-	dnscache          dns.Cache
 	KeepAliveTimeout  time.Duration
 	Timeout           time.Duration
 	UseLocalResolveIp bool
@@ -43,20 +36,8 @@ type Socks5ToHTTP struct {
 
 func (socks5ToHttp *Socks5ToHTTP) HTTPProxyInit() error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	// socks5ToHttp.dns = map[string]bool{}
-	socks5ToHttp.dnscache = dns.Cache{
-		DNSServer: socks5ToHttp.DNSServer,
-	}
-	var err error
-	//if socks5ToHttp.ByPass == true {
-	//	socks5ToHttp.cidrmatch, err = cidrmatch.NewCidrMatchWithTrie(socks5ToHttp.CidrFile)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	socks5ToHttp.bypassDomainMatch = domainmatch.NewDomainMatcherWithFile(socks5ToHttp.BypassDomainFile)
-	//	socks5ToHttp.directProxy = domainmatch.NewDomainMatcherWithFile(socks5ToHttp.DirectProxyFile)
-	//}
 
+	var err error
 	socks5ToHttp.matcher, err = matcher.NewMatch(socks5ToHttp.DNSServer, socks5ToHttp.CidrFile, socks5ToHttp.BypassDomainFile, socks5ToHttp.DirectProxyFile, socks5ToHttp.DiscordDomainFile)
 	if err != nil {
 		return err
@@ -81,20 +62,11 @@ func (socks5ToHttp *Socks5ToHTTP) HTTPProxyAcceptARequest() error {
 	if err != nil {
 		// return err
 		microlog.Debug(err)
-		//time.Sleep(time.Second * 1)
-		//_ = socks5ToHttp.HTTPListener.Close()
-		//socks5ToHttp.HTTPListener, err = net.Listen("tcp", socks5ToHttp.HTTPServer+":"+socks5ToHttp.HTTPPort)
-		//if err != nil {
-		//	return err
-		//}
 		return err
 	}
 	if socks5ToHttp.KeepAliveTimeout != 0 {
 		_ = HTTPConn.SetKeepAlivePeriod(socks5ToHttp.KeepAliveTimeout)
 	}
-	//if err := HTTPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-	//	log.Println(err)
-	//}
 
 	go func() {
 		if HTTPConn == nil {
