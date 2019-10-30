@@ -1,6 +1,7 @@
 package configjson
 
 import (
+	"SsrMicroClient/microlog"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -87,7 +88,9 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 	for _, url := range pa.Link {
 		res, err := http.Get(url)
 		if err != nil {
-			return []string{}, err
+			//return []string{}, err
+			microlog.Debug(err)
+			continue
 		}
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {

@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"SsrMicroClient/config/configjson"
-	"SsrMicroClient/net"
+	getdelay "SsrMicroClient/net"
 	"SsrMicroClient/process"
+
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
