@@ -1,7 +1,6 @@
 package configjson
 
 import (
-	"SsrMicroClient/config/config"
 	"SsrMicroClient/microlog"
 	"SsrMicroClient/net/socks5client"
 	"encoding/json"
@@ -90,7 +89,6 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 	for _, url := range pa.Link {
 		res, err := http.Get(url)
 		if err != nil {
-			//return []string{}, err
 			microlog.Debug(err)
 			continue
 		}
@@ -104,11 +102,14 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 }
 
 func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
-	argument := config.GetConfig(configPath)
+	setting, err := SettingDecodeJSON(configPath)
+	if err != nil {
+		return []string{}, err
+	}
 	tr := &http.Transport{
 		DialContext: socks5client.Socks5Client{
-			Server: argument["localAddress"],
-			Port:   argument["localPort"],
+			Server: setting.LocalAddress,
+			Port:   setting.LocalPort,
 		}.NewSocks5ClientForHTTP,
 	}
 	newClient := &http.Client{Transport: tr}
@@ -121,7 +122,6 @@ func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
 	for _, url := range pa.Link {
 		res, err := newClient.Get(url)
 		if err != nil {
-			//return []string{}, err
 			microlog.Debug(err)
 			continue
 		}
