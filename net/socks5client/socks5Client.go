@@ -1,6 +1,7 @@
 package socks5client
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/url"
@@ -417,4 +418,8 @@ func (socks5client *Socks5Client) NewSocks5ClientOnlyFirstVerify() (net.Conn, er
 	}
 
 	return socks5client.Conn, nil
+}
+
+func (socks5client *Socks5Client) NewSocks5ClientForHTTP(ctx context.Context, network, addr string) (net.Conn, error) {
+	return socks5client.NewSocks5Client()
 }

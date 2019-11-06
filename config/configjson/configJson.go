@@ -1,7 +1,9 @@
 package configjson
 
 import (
+	"SsrMicroClient/config/config"
 	"SsrMicroClient/microlog"
+	"SsrMicroClient/net/socks5client"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -87,6 +89,37 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 	var allLink string
 	for _, url := range pa.Link {
 		res, err := http.Get(url)
+		if err != nil {
+			//return []string{}, err
+			microlog.Debug(err)
+			continue
+		}
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return []string{}, err
+		}
+		allLink += base64d.Base64d(string(body))
+	}
+	return strings.Split(allLink, "\n"), nil
+}
+
+func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
+	argument := config.GetConfig(configPath)
+	tr := &http.Transport{
+		DialContext: socks5client.Socks5Client{
+			Server: argument["localAddress"],
+			Port:   argument["localPort"],
+		}.NewSocks5ClientForHTTP,
+	}
+	newClient := &http.Client{Transport: tr}
+
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return []string{}, err
+	}
+	var allLink string
+	for _, url := range pa.Link {
+		res, err := newClient.Get(url)
 		if err != nil {
 			//return []string{}, err
 			microlog.Debug(err)
