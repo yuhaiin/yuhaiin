@@ -101,6 +101,7 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 	return strings.Split(allLink, "\n"), nil
 }
 
+// GetLinkFromIntCrossProxy Get Link From Internet across your own proxy
 func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
 	setting, err := SettingDecodeJSON(configPath)
 	if err != nil {

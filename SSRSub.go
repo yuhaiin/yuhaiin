@@ -73,7 +73,7 @@ func main() {
 			defer os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
 		}
 		ssrMicroClientGUI.BeforeShow()
-		ssrMicroClientGUI.MainWindow.Show()
+		//ssrMicroClientGUI.MainWindow.Show()
 		ssrMicroClientGUI.App.Exec()
 	}
 }
