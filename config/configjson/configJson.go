@@ -2,9 +2,11 @@ package configjson
 
 import (
 	"SsrMicroClient/net/socks5client"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -108,9 +110,13 @@ func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
-	x := socks5client.Socks5Client{Server: setting.LocalAddress, Port: setting.LocalPort}.NewSocks5ClientForHTTP
+
+	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		x := &socks5client.Socks5Client{Server: setting.LocalAddress, Port: setting.LocalPort, Address: addr}
+		return x.NewSocks5Client()
+	}
 	tr := http.Transport{
-		DialContext: x,
+		DialContext: dialContext,
 	}
 	newClient := &http.Client{Transport: &tr}
 
