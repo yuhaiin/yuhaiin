@@ -1,8 +1,6 @@
 package configjson
 
 import (
-	"SsrMicroClient/microlog"
-	"SsrMicroClient/net/socks5client"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,6 +10,8 @@ import (
 	"strings"
 
 	"SsrMicroClient/base64d"
+	"SsrMicroClient/microlog"
+	_ "SsrMicroClient/net/socks5client"
 	"SsrMicroClient/subscription"
 )
 
@@ -102,38 +102,38 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 }
 
 // GetLinkFromIntCrossProxy Get Link From Internet across your own proxy
-func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
-	setting, err := SettingDecodeJSON(configPath)
-	if err != nil {
-		return []string{}, err
-	}
-	tr := &http.Transport{
-		DialContext: socks5client.Socks5Client{
-			Server: setting.LocalAddress,
-			Port:   setting.LocalPort,
-		}.NewSocks5ClientForHTTP,
-	}
-	newClient := &http.Client{Transport: tr}
-
-	pa, err := decodeJSON(configPath)
-	if err != nil {
-		return []string{}, err
-	}
-	var allLink string
-	for _, url := range pa.Link {
-		res, err := newClient.Get(url)
-		if err != nil {
-			microlog.Debug(err)
-			continue
-		}
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return []string{}, err
-		}
-		allLink += base64d.Base64d(string(body))
-	}
-	return strings.Split(allLink, "\n"), nil
-}
+//func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
+//	setting, err := SettingDecodeJSON(configPath)
+//	if err != nil {
+//		return []string{}, err
+//	}
+//	tr := http.Transport{
+//		DialContext: socks5client.Socks5Client{
+//			Server: setting.LocalAddress,
+//			Port:   setting.LocalPort,
+//		}.NewSocks5ClientForHTTP,
+//	}
+//	newClient := &http.Client{Transport: &tr}
+//
+//	pa, err := decodeJSON(configPath)
+//	if err != nil {
+//		return []string{}, err
+//	}
+//	var allLink string
+//	for _, url := range pa.Link {
+//		res, err := newClient.Get(url)
+//		if err != nil {
+//			microlog.Debug(err)
+//			continue
+//		}
+//		body, err := ioutil.ReadAll(res.Body)
+//		if err != nil {
+//			return []string{}, err
+//		}
+//		allLink += base64d.Base64d(string(body))
+//	}
+//	return strings.Split(allLink, "\n"), nil
+//}
 
 func addLinkJSON(link, configPath string) error {
 	pa, err := decodeJSON(configPath)
