@@ -1,7 +1,6 @@
 package configjson
 
 import (
-	"SsrMicroClient/net/socks5client"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,7 +13,7 @@ import (
 
 	"SsrMicroClient/base64d"
 	"SsrMicroClient/microlog"
-	_ "SsrMicroClient/net/socks5client"
+	"SsrMicroClient/net/socks5client"
 	"SsrMicroClient/subscription"
 )
 
@@ -112,7 +111,7 @@ func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
 	}
 
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		x := &socks5client.Socks5Client{Server: setting.LocalAddress, Port: setting.LocalPort, Address: addr}
+		x := &socks5client.Socks5Client{Server: setting.LocalAddress, Port: setting.LocalPort, Address: addr, KeepAliveTimeout: 0}
 		return x.NewSocks5Client()
 	}
 	tr := http.Transport{

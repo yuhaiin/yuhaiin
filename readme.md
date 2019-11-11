@@ -131,6 +131,26 @@ if err := newMatcher.InsertOneCIDR("x.x.x.x/xx"); err != nil{
 }
 ```
 
+use domain matcher
+
+```golang
+import github.com/Asutorufa/SsrMicroClient/net/domainmatch
+newMatcher := domainmatch.NewDomainMatcher()
+// insert a domain
+newMatcher.Insert("www.xxx.com")
+// insert domains from file
+// the file like
+/*
+  www.xxx.com
+  www.xxx.net
+  ...
+  www.xxx.io
+*/
+newMatcher.InsertWithFile("path/to/file")
+// match a domain
+isMatch := newMatcher.Search("www.xxx.com")
+```
+
 ## Thanks
 
 [Golang](https://golang.org)  

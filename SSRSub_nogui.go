@@ -8,11 +8,11 @@ import (
 	"log"
 	"os"
 
-	"./config/config"
-	"./config/configjson"
-	"./init"
-	"./net"
-	"./process"
+	"SsrMicroClient/config/config"
+	"SsrMicroClient/config/configjson"
+	"SsrMicroClient/init"
+	"SsrMicroClient/net"
+	"SsrMicroClient/process"
 	// _ "github.com/mattn/go-sqlite3"
 )
 

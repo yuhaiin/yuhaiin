@@ -34,7 +34,7 @@ func (domainMatcher *DomainMatcher) Insert(domain string) {
 	}
 }
 
-func (domainMatcher *DomainMatcher) insertWithFile(fileName string) {
+func (domainMatcher *DomainMatcher) InsertWithFile(fileName string) {
 	configTemp, _ := ioutil.ReadFile(fileName)
 	for _, s := range strings.Split(string(configTemp), "\n") {
 		domainMatcher.Insert(s)
@@ -76,7 +76,7 @@ func NewDomainMatcherWithFile(filePath string) *DomainMatcher {
 		isLast: false,
 		child:  map[string]*node{},
 	}}
-	newMatcher.insertWithFile(filePath)
+	newMatcher.InsertWithFile(filePath)
 	return newMatcher
 }
 
