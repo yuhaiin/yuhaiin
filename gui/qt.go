@@ -20,6 +20,7 @@ type SsrMicroClientGUI struct {
 	MainWindow         *widgets.QMainWindow
 	subscriptionWindow *widgets.QMainWindow
 	settingWindow      *widgets.QMainWindow
+	Session            *gui.QSessionManager
 	httpCmd            *exec.Cmd
 	httpBypassCmd      *exec.Cmd
 	socks5BypassCmd    *exec.Cmd
@@ -89,6 +90,10 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 			}
 		}
 	})
+
+	microClientGUI.Session = gui.NewQSessionManagerFromPointer(nil)
+	microClientGUI.App.SaveStateRequest(microClientGUI.Session)
+
 	microClientGUI.MainWindow = widgets.NewQMainWindow(nil, 0)
 	microClientGUI.createMainWindow()
 	microClientGUI.subscriptionWindow = widgets.NewQMainWindow(microClientGUI.MainWindow, 0)

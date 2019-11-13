@@ -54,10 +54,16 @@ func main() {
 		if err = lockfile.LockFile(lockFile); err != nil {
 			ssrMicroClientGUI.MessageBox("process is exist!\n" + err.Error())
 			return
-		} else {
-			defer lockFile.Close()
-			defer os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
 		}
+		defer func() {
+			_ = lockFile.Close()
+			_ = os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
+		}()
+
+		if ssrMicroClientGUI.App.IsSessionRestored() {
+			ssrMicroClientGUI.MessageBox("restore is from before")
+		}
+
 		ssrMicroClientGUI.BeforeShow()
 		//ssrMicroClientGUI.MainWindow.Show()
 		ssrMicroClientGUI.App.Exec()
