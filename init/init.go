@@ -32,17 +32,6 @@ func Init(configPath string) {
 		}
 	}
 
-	// if !PathExists(sqlPath) {
-	// 	subscription.LinkInit(sqlPath)
-	// 	subscription.NodeInit(sqlPath)
-	// 	subscription.NowNodeInit(sqlPath)
-	// 	// Auto_create_config(config_path)
-	// }
-
-	//if !PathExists(configPath + "/ssr_config.conf") {
-	//	autoCreateConfig(configPath)
-	//}
-
 	if !PathExists(configPath + "/shadowsocksr") {
 		ssrdownload.GetSsrPython(configPath)
 	}
@@ -68,7 +57,7 @@ func Init(configPath string) {
 		if err != nil {
 			panic(err)
 		}
-		io.Copy(f, res.Body)
+		_, _ = io.Copy(f, res.Body)
 	}
 
 	if !PathExists(configPath + "/domainBypass.conf") {
@@ -80,7 +69,7 @@ func Init(configPath string) {
 		if err != nil {
 			panic(err)
 		}
-		io.Copy(f, res.Body)
+		_, _ = io.Copy(f, res.Body)
 	}
 
 	if !PathExists(configPath + "/domainProxy.conf") {
@@ -111,18 +100,6 @@ func Init(configPath string) {
 		if err != nil {
 			panic(err)
 		}
-		io.Copy(f, res.Body)
+		_, _ = io.Copy(f, res.Body)
 	}
 }
-
-/*
-// MenuInit <-- will no use
-func MenuInit(path string) {
-	// //获取当前可执行文件目录
-	// file, _ := exec.LookPath(os.Args[0])
-	// path2, _ := filepath.Abs(file)
-	// rst := filepath.Dir(path2)
-	// rst, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-}
-*/

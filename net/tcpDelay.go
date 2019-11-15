@@ -11,7 +11,6 @@ import (
 
 // TCPDelay get once delay by tcp
 func TCPDelay(address, port string) (time.Duration, bool, error) {
-	//fmt.Print("tcp connecting")
 	timeNow := time.Now()
 	conn, err := net.DialTimeout("tcp", address+":"+port, 3*time.Second)
 	if err != nil {
@@ -22,9 +21,10 @@ func TCPDelay(address, port string) (time.Duration, bool, error) {
 		log.Println("tcp connect error")
 		return 999 * time.Hour, false, err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 	delay := time.Since(timeNow)
-	//fmt.Print(delay, " ")
 	return delay, true, nil
 }
 
@@ -34,8 +34,6 @@ func getTCPDelayAverage(server, serverPort string) time.Duration {
 	for i := 0; i < 3; i++ {
 		delay[i], _, err = TCPDelay(server, serverPort)
 		if err != nil {
-			// log.Println("tcp connect error")
-			// log.Println(err)
 			continue
 		}
 	}

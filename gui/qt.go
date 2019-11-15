@@ -58,34 +58,28 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 			err = microClientGUI.httpBypassCmd.Process.Kill()
 			if err != nil {
 				//	do something
-				//MessageBox(err.Error() + " httpBypassCmd Kill")
 			}
 			_, err = microClientGUI.httpBypassCmd.Process.Wait()
 			if err != nil {
 				//	do something
-				//MessageBox(err.Error() + "httpBypassCmd wait")
 			}
 		}
 		if microClientGUI.httpCmd.Process != nil {
 			if err = microClientGUI.httpCmd.Process.Kill(); err != nil {
 				//	do something
-				//MessageBox(err.Error() + " httpCmd kill")
 			}
 
 			if _, err = microClientGUI.httpCmd.Process.Wait(); err != nil {
 				//	do something
-				//MessageBox(err.Error() + " httpCmd wait")
 			}
 		}
 		if microClientGUI.socks5BypassCmd.Process != nil {
 			err = microClientGUI.socks5BypassCmd.Process.Kill()
 			if err != nil {
 				//
-				//MessageBox(err.Error() + " socks5BypassCmd Kill")
 			}
 			_, err := microClientGUI.socks5BypassCmd.Process.Wait()
 			if err != nil {
-				//MessageBox(err.Error() + " socks5BypassCmd wait")
 				//
 			}
 		}
@@ -126,10 +120,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) BeforeShow() {
 func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	ssrMicroClientGUI.MainWindow.SetFixedSize2(600, 400)
 	ssrMicroClientGUI.MainWindow.SetWindowTitle("SsrMicroClient")
-	//window.ConnectCloseEvent(func(event *gui.QCloseEvent) {
-	//	event.Ignore()
-	//	window.Hide()
-	//})
 	icon := gui.NewQIcon5(ssrMicroClientGUI.configPath + "/SsrMicroClient.png")
 	ssrMicroClientGUI.MainWindow.SetWindowIcon(icon)
 
@@ -170,21 +160,10 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	updateStatus := func() string {
 		var status string
 		if pid, run := process.Get(ssrMicroClientGUI.configPath); run == true {
-			//switch runtime.GOOS {
-			//default:
 			status = "<b><font color=green>running (pid: " +
 				pid + ")</font></b>"
-			//case "windows":
-			//	status = "running (pid: " +
-			//		pid + ")"
-			//}
 		} else {
-			//switch runtime.GOOS {
-			//default:
 			status = "<b><font color=reb>stopped</font></b>"
-			//case "windows":
-			//status = "stopped"
-			//}
 		}
 		return status
 	}
@@ -206,7 +185,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		core.NewQPoint2(130, 90)))
 	nowNode, err := configjson.GetNowNode(ssrMicroClientGUI.configPath)
 	if err != nil {
-		//log.Println(err)
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
 	}
@@ -222,7 +200,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	groupCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
 	group, err := configjson.GetGroup(ssrMicroClientGUI.configPath)
 	if err != nil {
-		//log.Println(err)
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
 	}
@@ -241,7 +218,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	nodeCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
 	node, err := configjson.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
 	if err != nil {
-		//log.Println(err)
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
 	}
@@ -277,7 +253,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 			}
 			nowNode, err = configjson.GetNowNode(ssrMicroClientGUI.configPath)
 			if err != nil {
-				//log.Println(err)
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
 			}
@@ -285,7 +260,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 				nowNode["group"])
 			if exist == true {
 				process.Stop(ssrMicroClientGUI.configPath)
-				// ssr_process.Start(path, db_path)
 				time.Sleep(250 * time.Millisecond)
 				process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
 			} else {
@@ -319,7 +293,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		remarks := nodeCombobox.CurrentText()
 		node, err := configjson.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
 		if err != nil {
-			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
 		}
@@ -343,7 +316,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		node, err := configjson.GetNode(ssrMicroClientGUI.configPath,
 			groupCombobox.CurrentText())
 		if err != nil {
-			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
 		nodeCombobox.Clear()
@@ -368,13 +340,11 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		message.SetText("Updating!")
 		message.Show()
 		if err := configjson.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
-			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
 		message.SetText("Updated!")
 		group, err = configjson.GetGroup(ssrMicroClientGUI.configPath)
 		if err != nil {
-			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
 		}
@@ -383,7 +353,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		groupCombobox.SetCurrentText(nowNode["group"])
 		node, err = configjson.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
 		if err != nil {
-			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
 		}
@@ -419,7 +388,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 		var err error
 		link, err = configjson.GetLink(ssrMicroClientGUI.configPath)
 		if err != nil {
-			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
 		subCombobox.AddItems(link)
@@ -433,7 +401,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 		linkToDelete := subCombobox.CurrentText()
 		if err := configjson.RemoveLinkJSON2(linkToDelete,
 			ssrMicroClientGUI.configPath); err != nil {
-			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
 		subRefresh()
@@ -465,8 +432,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 	})
 	addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50),
 		core.NewQPoint2(690, 80)))
-	//updateButton := widgets.NewQPushButton2("update",subWindow)
-	//updateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(200,450),core.NewQPoint2(370,490)))
 
 	ssrMicroClientGUI.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		ssrMicroClientGUI.subscriptionWindow.Close()

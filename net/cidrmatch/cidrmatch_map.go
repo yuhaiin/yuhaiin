@@ -12,7 +12,6 @@ import (
 func (cidrMatch *CidrMatch) MatchString(ip string) bool {
 	ss := net.ParseIP(ip)
 	for _, n := range cidrMatch.cidrS {
-		// log.Println(s, n)
 		if n.Contains(ss) {
 			return true
 		}
