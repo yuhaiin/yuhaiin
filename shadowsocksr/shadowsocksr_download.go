@@ -21,7 +21,7 @@ func getSsr(path string) {
 	if err != nil {
 		panic(err)
 	}
-	io.Copy(f, res.Body)
+	_, _ = io.Copy(f, res.Body)
 }
 
 func unzipSsr(path string) {
@@ -55,7 +55,7 @@ func unzipSsr(path string) {
 			fmt.Println(err)
 			continue
 		}
-		io.Copy(NewFile, r)
+		_, _ = io.Copy(NewFile, r)
 		_ = NewFile.Close()
 	}
 

@@ -25,10 +25,9 @@ func Start(configPath string) {
 	// 	return
 	// }
 	argument := config.GetConfigArgument()
-	// nodeAndConfig, _ := subscription.GetNowNodeAll(sqlPath)
 	nodeAndConfig, _ := configjson.GetNowNode(configPath)
-	for v, config := range config.GetConfig(configPath) {
-		nodeAndConfig[v] = config
+	for key, value := range config.GetConfig(configPath) {
+		nodeAndConfig[key] = value
 	}
 	// now not use
 	// logFile , PidFile
@@ -77,9 +76,6 @@ func Start(configPath string) {
 func Stop(configPath string) {
 	pid, exist := Get(configPath)
 	if exist == true {
-
-		// cmd_temp = "kill " + pid
-		// cmd = exec.Command("sh", "-c", cmd_temp)
 		pidI, err := strconv.Atoi(pid)
 		if err != nil {
 			log.Println(err)
@@ -142,9 +138,6 @@ func GetProcessStatus(path string) (pid string, isExist bool) {
 
 // StartByArgument to run ssr  deamon at golang use argument
 func StartByArgument(configPath, functionName string) {
-
-	// dir2, _ := filepath.Abs(os.Args[0])
-
 	executablePath, err := os.Executable()
 	if err != nil {
 		log.Println(err)

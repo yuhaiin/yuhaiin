@@ -11,10 +11,9 @@ import (
 // GetSsrCmd <--
 func GetSsrCmd(configPath string) *exec.Cmd {
 	argument := config.GetConfigArgument()
-	// nodeAndConfig, _ := subscription.GetNowNodeAll(sqlPath)
 	nodeAndConfig, _ := configjson.GetNowNode(configPath)
-	for v, config := range config.GetConfig(configPath) {
-		nodeAndConfig[v] = config
+	for key, value := range config.GetConfig(configPath) {
+		nodeAndConfig[key] = value
 	}
 	// now not use
 	// logFile , PidFile
@@ -38,7 +37,8 @@ func GetSsrCmd(configPath string) *exec.Cmd {
 			if config[argumentA] != "" {
 				cmdArray = append(cmdArray, argument[argumentA], config[argumentA])
 			}
-		}*/
+		}
+	*/
 
 	for _, argumentS := range argumentSingle {
 		if nodeAndConfig[argumentS] != "" {
