@@ -1,4 +1,4 @@
-package getdelay
+package delay
 
 import (
 	"fmt"

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"SsrMicroClient/config/configjson"
-	getdelay "SsrMicroClient/net"
+	"SsrMicroClient/net"
+	"SsrMicroClient/net/delay"
 	"SsrMicroClient/process"
-
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -296,13 +296,13 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
 		}
-		delay, isSuccess, err := getdelay.TCPDelay(node.Server,
+		delayTmp, isSuccess, err := delay.TCPDelay(node.Server,
 			node.ServerPort)
 		var delayString string
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		} else {
-			delayString = delay.String()
+			delayString = delayTmp.String()
 		}
 		if isSuccess == false {
 			delayString = "delay > 3s or server can not connect"

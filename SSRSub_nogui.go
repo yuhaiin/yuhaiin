@@ -3,6 +3,7 @@
 package main
 
 import (
+	"SsrMicroClient/net/delay"
 	"flag"
 	"fmt"
 	"log"
@@ -79,7 +80,7 @@ func menu(configPath string) {
 			//delay_test_temp := config.Read_config_file(path)
 			//GetDelay.Get_delay(strings.Split(delay_test_temp["Local_address"], " ")[1], strings.Split(delay_test_temp["Local_port"], " ")[1])
 			// getdelay.GetTCPDelay(sqlPath)
-			getdelay.GetTCPDelayJSON(configPath)
+			delay.GetTCPDelayJSON(configPath)
 		case "7":
 			process.Stop(configPath)
 		case "8", "":

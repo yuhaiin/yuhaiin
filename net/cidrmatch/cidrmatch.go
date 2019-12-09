@@ -9,14 +9,13 @@ import (
 	"strings"
 
 	"SsrMicroClient/microlog"
-	"SsrMicroClient/net/cidrmatch/trie"
 )
 
 // CidrMatch <--
 type CidrMatch struct {
 	maskSize   int
-	v4CidrTrie *trie.TrieTree
-	v6CidrTrie *trie.TrieTree
+	v4CidrTrie *TrieTree
+	v6CidrTrie *TrieTree
 	cidrMap    map[string][]*net.IPNet
 	cidrS      []*net.IPNet
 }
@@ -25,14 +24,17 @@ type CidrMatch struct {
 func NewCidrMatchWithTrie(fileName string) (*CidrMatch, error) {
 	microlog.Debug("cidrFileName", fileName)
 	cidrMatch := new(CidrMatch)
-	cidrMatch.v4CidrTrie = trie.NewTrieTree()
-	cidrMatch.v6CidrTrie = trie.NewTrieTree()
+	cidrMatch.v4CidrTrie = NewTrieTree()
+	cidrMatch.v6CidrTrie = NewTrieTree()
 	cidrMatch.insertCidrTrie(fileName)
 	return cidrMatch, nil
 }
 
 func (cidrMatch *CidrMatch) insertCidrTrie(fileName string) {
-	configTemp, _ := ioutil.ReadFile(fileName)
+	configTemp, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		log.Println(err)
+	}
 	for _, cidr := range strings.Split(string(configTemp), "\n") {
 		if err := cidrMatch.InsetOneCIDR(cidr); err != nil {
 			continue
@@ -240,17 +242,3 @@ func Ipv6AddrToInt(ipAddr string) string {
 
 	return sum1S + sum2S + sum3S + sum4S
 }
-
-//func _() {
-// cidrMatch, _ := NewCidrMatch("cn_rules.conf")
-// ip, err := net.LookupIP("www.baidu.com")
-// if err != nil {
-// 	log.Println(err)
-// 	return
-// }
-// if len(ip) == 0 {
-// 	log.Println(ip, "no host")
-// 	return
-// }
-// log.Println(cidrMatch.Match(ip[0]))
-//}

@@ -79,11 +79,3 @@ func NewDomainMatcherWithFile(filePath string) *DomainMatcher {
 	newMatcher.InsertWithFile(filePath)
 	return newMatcher
 }
-
-//func _() {
-//	root := NewDomainMatcher()
-//	root.Insert("www.baidu.com")
-//	root.Insert("www.google.com")
-//	fmt.Println(root.Search("www.baidu.com"))
-//	fmt.Println(root.Search("www.baidu.cn"))
-//}
