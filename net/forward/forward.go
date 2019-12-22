@@ -1,7 +1,7 @@
 package getproxyconn
 
 import (
-	"SsrMicroClient/net/proxy/socks5/client"
+	socks5client "SsrMicroClient/net/proxy/socks5/client"
 	"net"
 	"net/url"
 	"time"
