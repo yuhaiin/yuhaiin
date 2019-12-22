@@ -4,6 +4,7 @@ package main
 
 import (
 	"SsrMicroClient/net/delay"
+	"SsrMicroClient/net/test"
 	"flag"
 	"fmt"
 	"log"
@@ -12,7 +13,6 @@ import (
 	"SsrMicroClient/config/config"
 	"SsrMicroClient/config/configjson"
 	"SsrMicroClient/init"
-	"SsrMicroClient/net"
 	"SsrMicroClient/process"
 	// _ "github.com/mattn/go-sqlite3"
 )
@@ -109,13 +109,13 @@ func main() {
 		if *subDaemon == "ssr" {
 			process.Start(configPath)
 		} else if *subDaemon == "http" {
-			getdelay.StartHTTP(configPath)
+			test.StartHTTP(configPath)
 		} else if *subDaemon == "httpBp" {
-			getdelay.StartHTTPBypass(configPath)
+			test.StartHTTPBypass(configPath)
 		} else if *subDaemon == "httpB" {
-			getdelay.StartHTTPByArgument()
+			test.StartHTTPByArgument()
 		} else if *subDaemon == "httpBBp" {
-			getdelay.StartHTTPByArgumentBypass()
+			test.StartHTTPByArgumentBypass()
 		}
 	} else {
 		menu(configPath)

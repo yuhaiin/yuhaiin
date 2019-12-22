@@ -3,14 +3,13 @@
 package main
 
 import (
+	ssrinit "SsrMicroClient/init"
+	"SsrMicroClient/process"
 	"flag"
 	"log"
 	"os"
 
 	"SsrMicroClient/gui"
-	"SsrMicroClient/init"
-	"SsrMicroClient/net"
-	"SsrMicroClient/process"
 	"SsrMicroClient/process/lockfile"
 )
 
@@ -27,17 +26,18 @@ func main() {
 	if *subDaemon != "" {
 		if *subDaemon == "ssr" {
 			process.Start(configPath)
-		} else if *subDaemon == "http" {
-			getdelay.StartHTTP(configPath)
-		} else if *subDaemon == "httpBp" {
-			getdelay.StartHTTPBypass(configPath)
-		} else if *subDaemon == "httpB" {
-			getdelay.StartHTTPByArgument()
-		} else if *subDaemon == "socks5Bp" {
-			getdelay.StartSocks5Bypass(configPath)
-		} else if *subDaemon == "httpBBp" {
-			getdelay.StartHTTPByArgumentBypass()
 		}
+		//else if *subDaemon == "http" {
+		//	test.StartHTTP(configPath)
+		//} else if *subDaemon == "httpBp" {
+		//	test.StartHTTPBypass(configPath)
+		//} else if *subDaemon == "httpB" {
+		//	test.StartHTTPByArgument()
+		//} else if *subDaemon == "socks5Bp" {
+		//	test.StartSocks5Bypass(configPath)
+		//} else if *subDaemon == "httpBBp" {
+		//	test.StartHTTPByArgumentBypass()
+		//}
 	} else {
 		ssrMicroClientGUI, err := gui.NewSsrMicroClientGUI(configPath)
 		if err != nil && ssrMicroClientGUI != nil {

@@ -1,12 +1,13 @@
 package main
 
 import (
-	"flag"
+	"SsrMicroClient/ServerControl"
 	"log"
+	"net/http"
+	"runtime/pprof"
 	"time"
 
 	"SsrMicroClient/net/httpserver"
-	"SsrMicroClient/net/socks5Server"
 )
 
 func start(dns *string) {
@@ -33,33 +34,45 @@ func start(dns *string) {
 
 func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	dns := flag.String("dns", "127.0.0.1:53", "dns")
-	flag.Parse()
-	start(dns)
+	s := ServerControl.ServerControl{}
+	s.ServerStart()
 
-	socks5S := socks5server.ServerSocks5{
-		Server:            "127.0.0.1",
-		Port:              "1084",
-		Bypass:            true,
-		CidrFile:          "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
-		BypassDomainFile:  "/home/asutorufa/.config/SSRSub/domainBypass.conf",
-		DirectProxyFile:   "/home/asutorufa/.config/SSRSub/domainProxy.conf",
-		DiscordDomainFile: "/home/asutorufa/.config/SSRSub/discordDomain.conf",
-		ToShadowsocksr:    true,
-		Socks5Server:      "127.0.0.1",
-		Socks5Port:        "1080",
-		//208.67.222.222#5353
-		//208.67.222.220#5353
-		//58.132.8.1 beijing edu DNS server
-		//101.6.6.6 beijing tsinghua dns server
-		DNSServer:        *dns,
-		KeepAliveTimeout: 15 * time.Second,
-		Timeout:          10 * time.Second,
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-type", "text/plain")
+
+		p := pprof.Lookup("goroutine")
+		p.WriteTo(w, 1)
 	}
-	if err := socks5S.Socks5(); err != nil {
-		log.Println(err)
-		return
-	}
+	http.HandleFunc("/", handler)
+	http.ListenAndServe(":8787", nil)
+
+	//dns := flag.String("dns", "127.0.0.1:53", "dns")
+	//flag.Parse()
+	//start(dns)
+	//
+	//socks5S := socks5server.ServerSocks5{
+	//	Server:            "127.0.0.1",
+	//	Port:              "1084",
+	//	Bypass:            true,
+	//	CidrFile:          "/home/asutorufa/.config/SSRSub/cidrBypass.conf",
+	//	BypassDomainFile:  "/home/asutorufa/.config/SSRSub/domainBypass.conf",
+	//	DirectProxyFile:   "/home/asutorufa/.config/SSRSub/domainProxy.conf",
+	//	DiscordDomainFile: "/home/asutorufa/.config/SSRSub/discordDomain.conf",
+	//	ToShadowsocksr:    true,
+	//	Socks5Server:      "127.0.0.1",
+	//	Socks5Port:        "1080",
+	//	//208.67.222.222#5353
+	//	//208.67.222.220#5353
+	//	//58.132.8.1 beijing edu DNS server
+	//	//101.6.6.6 beijing tsinghua dns server
+	//	DNSServer:        *dns,
+	//	KeepAliveTimeout: 15 * time.Second,
+	//	Timeout:          10 * time.Second,
+	//}
+	//if err := socks5S.Socks5(); err != nil {
+	//	log.Println(err)
+	//	return
+	//}
 
 	// newMatch, err := cidrmatch.NewCidrMatchWithTrie("/mnt/share/code/golang/cn_rules.conf")
 	// if err != nil {

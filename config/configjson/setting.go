@@ -17,17 +17,19 @@ type Setting struct {
 	LocalPort                      string `json:"localPort"`
 	TimeOut                        string `json:"timeOut"`
 	HttpProxy                      bool   `json:"httpProxy"`
-	HttpWithBypass                 bool   `json:"httpWithBypass"`
+	Bypass                         bool   `json:"bypass"`
 	HttpProxyAddressAndPort        string `json:"httpProxyAddressAndPort"`
 	Socks5WithBypassAddressAndPort string `json:"socks5WithBypassAddressAndPort"`
 	BypassFile                     string `json:"bypassFile"`
-	BypassDomainFile               string `json:"bypassDomainFile"`
-	DirectProxyFile                string `json:"directProxyFile"`
-	DiscordDomainFile              string `json:"discordDomainFile"`
-	Socks5WithBypass               bool   `json:"socks5WithBypass"`
 	DnsServer                      string `json:"dnsServer"`
 	UdpTrans                       bool   `json:"udpTrans"`
 	AutoStartSsr                   bool   `json:"autoStartSsr"`
+
+	BypassDomainFile  string `json:"bypassDomainFile"`
+	DirectProxyFile   string `json:"directProxyFile"`
+	DiscordDomainFile string `json:"discordDomainFile"`
+	HttpWithBypass    bool   `json:"httpWithBypass"`
+	Socks5WithBypass  bool   `json:"socks5WithBypass"`
 }
 
 // SettingInitJSON init setting json file
@@ -46,6 +48,7 @@ func SettingInitJSON(configPath string) error {
 		HttpWithBypass:                 true,
 		HttpProxyAddressAndPort:        "127.0.0.1:8188",
 		Socks5WithBypassAddressAndPort: "127.0.0.1:1083",
+		Bypass:                         true,
 		BypassFile:                     configPath + "/cidrBypass.conf",
 		BypassDomainFile:               configPath + "/domainBypass.conf",
 		DirectProxyFile:                configPath + "/domainProxy.conf",

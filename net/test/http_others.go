@@ -1,6 +1,6 @@
 // +build !windows
 
-package getdelay
+package test
 
 import (
 	"log"

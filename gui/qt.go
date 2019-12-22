@@ -1,13 +1,12 @@
 package gui
 
 import (
-	"log"
+	"SsrMicroClient/ServerControl"
 	"os"
 	"os/exec"
 	"time"
 
 	"SsrMicroClient/config/configjson"
-	"SsrMicroClient/net"
 	"SsrMicroClient/net/delay"
 	"SsrMicroClient/process"
 	"github.com/therecipe/qt/core"
@@ -27,6 +26,7 @@ type SsrMicroClientGUI struct {
 	ssrCmd             *exec.Cmd
 	configPath         string
 	settingConfig      *configjson.Setting
+	server             *ServerControl.ServerControl
 }
 
 func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
@@ -38,52 +38,54 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 		return microClientGUI, err
 	}
 	microClientGUI.ssrCmd = process.GetSsrCmd(microClientGUI.configPath)
-	microClientGUI.httpCmd, err = getdelay.GetHttpProxyCmd()
-	if err != nil {
-		return microClientGUI, err
-	}
-	microClientGUI.httpBypassCmd, err = getdelay.GetHttpProxyBypassCmd()
-	if err != nil {
-		return microClientGUI, err
-	}
-	microClientGUI.socks5BypassCmd, err = getdelay.GetSocks5ProxyBypassCmd()
-	if err != nil {
-		return microClientGUI, err
-	}
+	//microClientGUI.httpCmd, err = test.GetHttpProxyCmd()
+	//if err != nil {
+	//	return microClientGUI, err
+	//}
+	//microClientGUI.httpBypassCmd, err = test.GetHttpProxyBypassCmd()
+	//if err != nil {
+	//	return microClientGUI, err
+	//}
+	//microClientGUI.socks5BypassCmd, err = test.GetSocks5ProxyBypassCmd()
+	//if err != nil {
+	//	return microClientGUI, err
+	//}
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
 	microClientGUI.App.SetApplicationName("SsrMicroClient")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
-	microClientGUI.App.ConnectAboutToQuit(func() {
-		if microClientGUI.httpBypassCmd.Process != nil {
-			err = microClientGUI.httpBypassCmd.Process.Kill()
-			if err != nil {
-				//	do something
-			}
-			_, err = microClientGUI.httpBypassCmd.Process.Wait()
-			if err != nil {
-				//	do something
-			}
-		}
-		if microClientGUI.httpCmd.Process != nil {
-			if err = microClientGUI.httpCmd.Process.Kill(); err != nil {
-				//	do something
-			}
+	//microClientGUI.App.ConnectAboutToQuit(func() {
+	//	if microClientGUI.httpBypassCmd.Process != nil {
+	//		err = microClientGUI.httpBypassCmd.Process.Kill()
+	//		if err != nil {
+	//			//	do something
+	//		}
+	//		_, err = microClientGUI.httpBypassCmd.Process.Wait()
+	//		if err != nil {
+	//			//	do something
+	//		}
+	//	}
+	//	if microClientGUI.httpCmd.Process != nil {
+	//		if err = microClientGUI.httpCmd.Process.Kill(); err != nil {
+	//			//	do something
+	//		}
+	//
+	//		if _, err = microClientGUI.httpCmd.Process.Wait(); err != nil {
+	//			//	do something
+	//		}
+	//	}
+	//	if microClientGUI.socks5BypassCmd.Process != nil {
+	//		err = microClientGUI.socks5BypassCmd.Process.Kill()
+	//		if err != nil {
+	//			//
+	//		}
+	//		_, err := microClientGUI.socks5BypassCmd.Process.Wait()
+	//		if err != nil {
+	//			//
+	//		}
+	//	}
+	//})
 
-			if _, err = microClientGUI.httpCmd.Process.Wait(); err != nil {
-				//	do something
-			}
-		}
-		if microClientGUI.socks5BypassCmd.Process != nil {
-			err = microClientGUI.socks5BypassCmd.Process.Kill()
-			if err != nil {
-				//
-			}
-			_, err := microClientGUI.socks5BypassCmd.Process.Wait()
-			if err != nil {
-				//
-			}
-		}
-	})
+	microClientGUI.server = &ServerControl.ServerControl{}
 
 	microClientGUI.Session = gui.NewQSessionManagerFromPointer(nil)
 	microClientGUI.App.SaveStateRequest(microClientGUI.Session)
@@ -98,22 +100,26 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 }
 
 func (ssrMicroClientGUI *SsrMicroClientGUI) BeforeShow() {
-	if ssrMicroClientGUI.settingConfig.HttpProxy == true && ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
-		err := ssrMicroClientGUI.httpBypassCmd.Start()
-		if err != nil {
-			log.Println(err)
-		}
-	} else if ssrMicroClientGUI.settingConfig.HttpProxy == true {
-		err := ssrMicroClientGUI.httpCmd.Start()
-		if err != nil {
-			log.Println(err)
-		}
-	}
-	if ssrMicroClientGUI.settingConfig.Socks5WithBypass == true {
-		err := ssrMicroClientGUI.socks5BypassCmd.Start()
-		if err != nil {
-			log.Println(err)
-		}
+	//if ssrMicroClientGUI.settingConfig.HttpProxy == true && ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
+	//	err := ssrMicroClientGUI.httpBypassCmd.Start()
+	//	if err != nil {
+	//		log.Println(err)
+	//	}
+	//} else if ssrMicroClientGUI.settingConfig.HttpProxy == true {
+	//	err := ssrMicroClientGUI.httpCmd.Start()
+	//	if err != nil {
+	//		log.Println(err)
+	//	}
+	//}
+	//if ssrMicroClientGUI.settingConfig.Socks5WithBypass == true {
+	//	err := ssrMicroClientGUI.socks5BypassCmd.Start()
+	//	if err != nil {
+	//		log.Println(err)
+	//	}
+	//}
+
+	if ssrMicroClientGUI.settingConfig.Bypass == true {
+		ssrMicroClientGUI.server.ServerStart()
 	}
 }
 
@@ -289,25 +295,28 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		core.NewQPoint2(450, 240)))
 	delayButton := widgets.NewQPushButton2("get delay", ssrMicroClientGUI.MainWindow)
 	delayButton.ConnectClicked(func(bool2 bool) {
-		group := groupCombobox.CurrentText()
-		remarks := nodeCombobox.CurrentText()
-		node, err := configjson.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
-		if err != nil {
-			ssrMicroClientGUI.MessageBox(err.Error())
-			return
-		}
-		delayTmp, isSuccess, err := delay.TCPDelay(node.Server,
-			node.ServerPort)
-		var delayString string
-		if err != nil {
-			ssrMicroClientGUI.MessageBox(err.Error())
-		} else {
-			delayString = delayTmp.String()
-		}
-		if isSuccess == false {
-			delayString = "delay > 3s or server can not connect"
-		}
-		delayLabel2.SetText(delayString)
+		go func() {
+			group := groupCombobox.CurrentText()
+			remarks := nodeCombobox.CurrentText()
+			node, err := configjson.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
+			if err != nil {
+				ssrMicroClientGUI.MessageBox(err.Error())
+				return
+			}
+			delayTmp, isSuccess, err := delay.TCPDelay(node.Server,
+				node.ServerPort)
+			var delayString string
+			if err != nil {
+				//ssrMicroClientGUI.MessageBox(err.Error())
+				delayString = err.Error()
+			} else {
+				delayString = delayTmp.String()
+			}
+			if isSuccess == false {
+				delayString = "delay > 3s or server can not connect"
+			}
+			delayLabel2.SetText(delayString)
+		}()
 	})
 	delayButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210),
 		core.NewQPoint2(560, 240)))
@@ -339,9 +348,14 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		message := widgets.NewQMessageBox(ssrMicroClientGUI.MainWindow)
 		message.SetText("Updating!")
 		message.Show()
-		if err := configjson.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
-			ssrMicroClientGUI.MessageBox(err.Error())
-		}
+		ch := make(chan bool)
+		go func() {
+			if err := configjson.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
+				ssrMicroClientGUI.MessageBox(err.Error())
+			}
+			ch <- true
+		}()
+		<-ch
 		message.SetText("Updated!")
 		group, err = configjson.GetGroup(ssrMicroClientGUI.configPath)
 		if err != nil {
@@ -359,7 +373,6 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		nodeCombobox.Clear()
 		nodeCombobox.AddItems(node)
 		nodeCombobox.SetCurrentText(nowNode["remarks"])
-
 	})
 
 	if ssrMicroClientGUI.settingConfig.AutoStartSsr == true {
@@ -452,36 +465,44 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 		core.NewQPoint2(490, 30)))
 
 	httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", ssrMicroClientGUI.settingWindow)
+	httpProxyCheckBox.SetDisabled(true)
 	httpProxyCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.HttpProxy)
 	httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40),
 		core.NewQPoint2(130, 70)))
 
-	socks5BypassCheckBox := widgets.NewQCheckBox2("socks5 bypass",
+	bypassCheckBox := widgets.NewQCheckBox2("bypass",
 		ssrMicroClientGUI.settingWindow)
-	socks5BypassCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.Socks5WithBypass)
-	socks5BypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40),
+	bypassCheckBox.SetDisabled(true)
+	bypassCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.Bypass)
+	bypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40),
 		core.NewQPoint2(290, 70)))
 
-	httpBypassCheckBox := widgets.NewQCheckBox2("http bypass", ssrMicroClientGUI.settingWindow)
-	httpBypassCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.HttpWithBypass)
-	httpBypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 40),
-		core.NewQPoint2(450, 70)))
+	//socks5BypassCheckBox := widgets.NewQCheckBox2("socks5 bypass",
+	//	ssrMicroClientGUI.settingWindow)
+	//socks5BypassCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.Socks5WithBypass)
+	//socks5BypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40),
+	//	core.NewQPoint2(290, 70)))
+	//
+	//httpBypassCheckBox := widgets.NewQCheckBox2("http bypass", ssrMicroClientGUI.settingWindow)
+	//httpBypassCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.HttpWithBypass)
+	//httpBypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 40),
+	//	core.NewQPoint2(450, 70)))
 
-	localAddressLabel := widgets.NewQLabel2("address", ssrMicroClientGUI.settingWindow, 0)
-	localAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80),
-		core.NewQPoint2(80, 110)))
-	localAddressLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
-	localAddressLineText.SetText(ssrMicroClientGUI.settingConfig.LocalAddress)
-	localAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(90, 80),
-		core.NewQPoint2(200, 110)))
-
-	localPortLabel := widgets.NewQLabel2("port", ssrMicroClientGUI.settingWindow, 0)
-	localPortLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 80),
-		core.NewQPoint2(300, 110)))
-	localPortLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
-	localPortLineText.SetText(ssrMicroClientGUI.settingConfig.LocalPort)
-	localPortLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 80),
-		core.NewQPoint2(420, 110)))
+	//localAddressLabel := widgets.NewQLabel2("SSRAddress", ssrMicroClientGUI.settingWindow, 0)
+	//localAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80),
+	//	core.NewQPoint2(80, 110)))
+	//localAddressLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
+	//localAddressLineText.SetText(ssrMicroClientGUI.settingConfig.LocalAddress)
+	//localAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(90, 80),
+	//	core.NewQPoint2(200, 110)))
+	//
+	//localPortLabel := widgets.NewQLabel2("SSRPort", ssrMicroClientGUI.settingWindow, 0)
+	//localPortLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 80),
+	//	core.NewQPoint2(300, 110)))
+	//localPortLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
+	//localPortLineText.SetText(ssrMicroClientGUI.settingConfig.LocalPort)
+	//localPortLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 80),
+	//	core.NewQPoint2(420, 110)))
 
 	httpAddressLabel := widgets.NewQLabel2("http", ssrMicroClientGUI.settingWindow, 0)
 	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120),
@@ -491,7 +512,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 120),
 		core.NewQPoint2(210, 150)))
 
-	socks5BypassAddressLabel := widgets.NewQLabel2("socks5Bp",
+	socks5BypassAddressLabel := widgets.NewQLabel2("socks5",
 		ssrMicroClientGUI.settingWindow, 0)
 	socks5BypassAddressLabel.SetGeometry(core.
 		NewQRect2(core.NewQPoint2(220, 120), core.NewQPoint2(290, 150)))
@@ -516,7 +537,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	ssrPathLineText.SetGeometry(core.NewQRect2(core.
 		NewQPoint2(110, 200), core.NewQPoint2(420, 230)))
 
-	BypassFileLabel := widgets.NewQLabel2("ssrPath", ssrMicroClientGUI.settingWindow, 0)
+	BypassFileLabel := widgets.NewQLabel2("bypassFilePath", ssrMicroClientGUI.settingWindow, 0)
 	BypassFileLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 240),
 		core.NewQPoint2(100, 270)))
 	BypassFileLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
@@ -528,115 +549,118 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	applyButton.ConnectClicked(func(bool2 bool) {
 		ssrMicroClientGUI.settingConfig.AutoStartSsr = autoStartSsr.IsChecked()
 		ssrMicroClientGUI.settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
-		ssrMicroClientGUI.settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
-		ssrMicroClientGUI.settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
-		ssrMicroClientGUI.settingConfig.LocalAddress = localAddressLineText.Text()
-		ssrMicroClientGUI.settingConfig.LocalPort = localPortLineText.Text()
+		ssrMicroClientGUI.settingConfig.Bypass = bypassCheckBox.IsChecked()
+		//ssrMicroClientGUI.settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
+		//ssrMicroClientGUI.settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
+		//ssrMicroClientGUI.settingConfig.LocalAddress = localAddressLineText.Text()
+		//ssrMicroClientGUI.settingConfig.LocalPort = localPortLineText.Text()
 		ssrMicroClientGUI.settingConfig.PythonPath = pythonPathLineText.Text()
 		ssrMicroClientGUI.settingConfig.SsrPath = ssrPathLineText.Text()
 		ssrMicroClientGUI.settingConfig.BypassFile = BypassFileLineText.Text()
+		ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
+		ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort = socks5BypassLineText.Text()
 
 		if err := configjson.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
 			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
-
-		if httpAddressLineText.Text() !=
-			ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort || ssrMicroClientGUI.settingConfig.HttpProxy !=
-			httpProxyCheckBox.IsChecked() || ssrMicroClientGUI.settingConfig.HttpWithBypass !=
-			httpBypassCheckBox.IsChecked() {
-			ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
-			if ssrMicroClientGUI.settingConfig.HttpProxy == true &&
-				ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
-				if ssrMicroClientGUI.httpBypassCmd.Process != nil {
-					if err := ssrMicroClientGUI.httpBypassCmd.Process.Kill(); err != nil {
-						//log.Println(err)
-						ssrMicroClientGUI.MessageBox(err.Error())
-					}
-					if _, err := ssrMicroClientGUI.httpBypassCmd.Process.Wait(); err != nil {
-						ssrMicroClientGUI.MessageBox(err.Error())
-					}
-				}
-			} else if ssrMicroClientGUI.settingConfig.HttpProxy == true {
-				if ssrMicroClientGUI.httpCmd.Process != nil {
-					if err := ssrMicroClientGUI.httpCmd.Process.Kill(); err != nil {
-						//log.Println(err)
-						ssrMicroClientGUI.MessageBox(err.Error())
-					}
-
-					if _, err := ssrMicroClientGUI.httpCmd.Process.Wait(); err != nil {
-						ssrMicroClientGUI.MessageBox(err.Error())
-					}
-				}
-			}
-			ssrMicroClientGUI.settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
-			ssrMicroClientGUI.settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
-
-			if err := configjson.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
-				//log.Println(err)
-				ssrMicroClientGUI.MessageBox(err.Error())
-			}
-			if ssrMicroClientGUI.settingConfig.HttpProxy == true &&
-				ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
-				var err error
-				ssrMicroClientGUI.httpBypassCmd, err = getdelay.GetHttpProxyBypassCmd()
-				if err != nil {
-					ssrMicroClientGUI.MessageBox(err.Error())
-				}
-				if err = ssrMicroClientGUI.httpBypassCmd.Start(); err != nil {
-					ssrMicroClientGUI.MessageBox(err.Error())
-				}
-			} else if ssrMicroClientGUI.settingConfig.HttpProxy == true {
-				var err error
-				ssrMicroClientGUI.httpCmd, err = getdelay.GetHttpProxyCmd()
-				if err != nil {
-					ssrMicroClientGUI.MessageBox(err.Error())
-				}
-
-				if err = ssrMicroClientGUI.httpCmd.Start(); err != nil {
-					ssrMicroClientGUI.MessageBox(err.Error())
-				}
-			}
-		}
-		if ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort !=
-			socks5BypassLineText.Text() || ssrMicroClientGUI.settingConfig.Socks5WithBypass !=
-			socks5BypassCheckBox.IsChecked() {
-			ssrMicroClientGUI.settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
-			ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort =
-				socks5BypassLineText.Text()
-			if err := configjson.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
-				//log.Println(err)
-				ssrMicroClientGUI.MessageBox(err.Error())
-			}
-			if ssrMicroClientGUI.socks5BypassCmd.Process != nil {
-				if err := ssrMicroClientGUI.socks5BypassCmd.Process.Kill(); err != nil {
-					//log.Println(err)
-					ssrMicroClientGUI.MessageBox(err.Error())
-				}
-				if _, err := ssrMicroClientGUI.socks5BypassCmd.Process.Wait(); err != nil {
-					ssrMicroClientGUI.MessageBox(err.Error())
-				}
-			}
-			var err error
-			ssrMicroClientGUI.socks5BypassCmd, err = getdelay.GetSocks5ProxyBypassCmd()
-			if err != nil {
-				ssrMicroClientGUI.MessageBox(err.Error())
-			}
-			if err := ssrMicroClientGUI.socks5BypassCmd.Start(); err != nil {
-				ssrMicroClientGUI.MessageBox(err.Error())
-			}
-		}
-		//else {
-		//	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)
-		//	socks5BypassCheckBox.SetChecked(settingConfig.Socks5WithBypass)
-		//	httpBypassCheckBox.SetChecked(settingConfig.HttpWithBypass)
-		//	localAddressLineText.SetText(settingConfig.LocalAddress)
-		//	localPortLineText.SetText(settingConfig.LocalPort)
-		//	httpAddressLineText.SetText(settingConfig.HttpProxyAddressAndPort)
-		//	pythonPathLineText.SetText(settingConfig.PythonPath)
-		//	ssrPathLineText.SetText(settingConfig.SsrPath)
-		//	BypassFileLineText.SetText(settingConfig.BypassFile)
+		ssrMicroClientGUI.server.ServerRestart()
+		//if httpAddressLineText.Text() !=
+		//	ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort || ssrMicroClientGUI.settingConfig.HttpProxy !=
+		//	httpProxyCheckBox.IsChecked() || ssrMicroClientGUI.settingConfig.HttpWithBypass !=
+		//	httpBypassCheckBox.IsChecked() {
+		//	ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
+		//	if ssrMicroClientGUI.settingConfig.HttpProxy == true &&
+		//		ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
+		//		if ssrMicroClientGUI.httpBypassCmd.Process != nil {
+		//			if err := ssrMicroClientGUI.httpBypassCmd.Process.Kill(); err != nil {
+		//				//log.Println(err)
+		//				ssrMicroClientGUI.MessageBox(err.Error())
+		//			}
+		//			if _, err := ssrMicroClientGUI.httpBypassCmd.Process.Wait(); err != nil {
+		//				ssrMicroClientGUI.MessageBox(err.Error())
+		//			}
+		//		}
+		//	} else if ssrMicroClientGUI.settingConfig.HttpProxy == true {
+		//		if ssrMicroClientGUI.httpCmd.Process != nil {
+		//			if err := ssrMicroClientGUI.httpCmd.Process.Kill(); err != nil {
+		//				//log.Println(err)
+		//				ssrMicroClientGUI.MessageBox(err.Error())
+		//			}
+		//
+		//			if _, err := ssrMicroClientGUI.httpCmd.Process.Wait(); err != nil {
+		//				ssrMicroClientGUI.MessageBox(err.Error())
+		//			}
+		//		}
+		//	}
+		//	ssrMicroClientGUI.settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
+		//	ssrMicroClientGUI.settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
+		//
+		//	if err := configjson.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
+		//		//log.Println(err)
+		//		ssrMicroClientGUI.MessageBox(err.Error())
+		//	}
+		//	if ssrMicroClientGUI.settingConfig.HttpProxy == true &&
+		//		ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
+		//		var err error
+		//		ssrMicroClientGUI.httpBypassCmd, err = test.GetHttpProxyBypassCmd()
+		//		if err != nil {
+		//			ssrMicroClientGUI.MessageBox(err.Error())
+		//		}
+		//		if err = ssrMicroClientGUI.httpBypassCmd.Start(); err != nil {
+		//			ssrMicroClientGUI.MessageBox(err.Error())
+		//		}
+		//	} else if ssrMicroClientGUI.settingConfig.HttpProxy == true {
+		//		var err error
+		//		ssrMicroClientGUI.httpCmd, err = test.GetHttpProxyCmd()
+		//		if err != nil {
+		//			ssrMicroClientGUI.MessageBox(err.Error())
+		//		}
+		//
+		//		if err = ssrMicroClientGUI.httpCmd.Start(); err != nil {
+		//			ssrMicroClientGUI.MessageBox(err.Error())
+		//		}
+		//	}
 		//}
+		//if ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort !=
+		//	socks5BypassLineText.Text() || ssrMicroClientGUI.settingConfig.Socks5WithBypass !=
+		//	socks5BypassCheckBox.IsChecked() {
+		//	ssrMicroClientGUI.settingConfig.Socks5WithBypass = socks5BypassCheckBox.IsChecked()
+		//	ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort =
+		//		socks5BypassLineText.Text()
+		//	if err := configjson.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
+		//		//log.Println(err)
+		//		ssrMicroClientGUI.MessageBox(err.Error())
+		//	}
+		//	if ssrMicroClientGUI.socks5BypassCmd.Process != nil {
+		//		if err := ssrMicroClientGUI.socks5BypassCmd.Process.Kill(); err != nil {
+		//			//log.Println(err)
+		//			ssrMicroClientGUI.MessageBox(err.Error())
+		//		}
+		//		if _, err := ssrMicroClientGUI.socks5BypassCmd.Process.Wait(); err != nil {
+		//			ssrMicroClientGUI.MessageBox(err.Error())
+		//		}
+		//	}
+		//	var err error
+		//	ssrMicroClientGUI.socks5BypassCmd, err = test.GetSocks5ProxyBypassCmd()
+		//	if err != nil {
+		//		ssrMicroClientGUI.MessageBox(err.Error())
+		//	}
+		//	if err := ssrMicroClientGUI.socks5BypassCmd.Start(); err != nil {
+		//		ssrMicroClientGUI.MessageBox(err.Error())
+		//	}
+		//}
+		////else {
+		////	httpProxyCheckBox.SetChecked(settingConfig.HttpProxy)
+		////	socks5BypassCheckBox.SetChecked(settingConfig.Socks5WithBypass)
+		////	httpBypassCheckBox.SetChecked(settingConfig.HttpWithBypass)
+		////	localAddressLineText.SetText(settingConfig.LocalAddress)
+		////	localPortLineText.SetText(settingConfig.LocalPort)
+		////	httpAddressLineText.SetText(settingConfig.HttpProxyAddressAndPort)
+		////	pythonPathLineText.SetText(settingConfig.PythonPath)
+		////	ssrPathLineText.SetText(settingConfig.SsrPath)
+		////	BypassFileLineText.SetText(settingConfig.BypassFile)
+		////}
 	})
 	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280),
 		core.NewQPoint2(90, 310)))

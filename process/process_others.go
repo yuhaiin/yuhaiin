@@ -169,34 +169,34 @@ func StartByArgument(configPath, functionName string) {
 		} else {
 			log.Println("run ssr failed!")
 		}
-	case "http":
-		argument := config.GetConfig(configPath)
-		fmt.Println("http proxy address:" + argument["httpProxy"])
-		first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "httpB"}, &os.ProcAttr{
-			Sys: &syscall.SysProcAttr{
-				Setsid: true,
-			},
-		})
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		log.Println(first.Pid)
-		_, _ = first.Wait()
-
-	case "httpBp":
-		argument := config.GetConfig(configPath)
-		fmt.Println("http proxy address:" + argument["httpProxy"])
-		first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "httpBBp"}, &os.ProcAttr{
-			Sys: &syscall.SysProcAttr{
-				Setsid: true,
-			},
-		})
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		log.Println(first.Pid)
-		_, _ = first.Wait()
+		//case "http":
+		//	argument := config.GetConfig(configPath)
+		//	fmt.Println("http proxy address:" + argument["httpProxy"])
+		//	first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "httpB"}, &os.ProcAttr{
+		//		Sys: &syscall.SysProcAttr{
+		//			Setsid: true,
+		//		},
+		//	})
+		//	if err != nil {
+		//		log.Println(err)
+		//		return
+		//	}
+		//	log.Println(first.Pid)
+		//	_, _ = first.Wait()
+		//
+		//case "httpBp":
+		//	argument := config.GetConfig(configPath)
+		//	fmt.Println("http proxy address:" + argument["httpProxy"])
+		//	first, err := os.StartProcess(executablePath, []string{executablePath, "-sd", "httpBBp"}, &os.ProcAttr{
+		//		Sys: &syscall.SysProcAttr{
+		//			Setsid: true,
+		//		},
+		//	})
+		//	if err != nil {
+		//		log.Println(err)
+		//		return
+		//	}
+		//	log.Println(first.Pid)
+		//	_, _ = first.Wait()
 	}
 }

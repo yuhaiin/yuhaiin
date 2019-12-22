@@ -212,7 +212,7 @@ func DNS(DNSServer, domain string) (DNS []string, success bool) {
 			for answer[answerIndex] != 0 {
 				answerIndex += int(answer[answerIndex]) + 1
 			}
-			answerIndex += 1
+			answerIndex++
 		}
 		if int16(answer[answerIndex])<<8+int16(answer[answerIndex+1]) == 0x05 {
 			answerIndex += 8

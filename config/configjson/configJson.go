@@ -233,6 +233,8 @@ func SsrJSON(configPath string) error {
 	if err != nil {
 		return err
 	}
+	pa.Group = map[string]bool{}
+	pa.Node = map[string]map[string]Node{}
 	allNode, err := GetLinkFromInt(configPath)
 	if err != nil {
 		return err
