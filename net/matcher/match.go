@@ -11,13 +11,13 @@ import (
 	"SsrMicroClient/net/matcher/domainmatch"
 )
 
-type Match2 struct {
+type Match struct {
 	DNSServer   string
 	cidrMatch   *cidrmatch.CidrMatch
 	domainMatch *domainmatch.DomainMatcher
 }
 
-func (newMatch *Match2) InsertOne(str, mark string) error {
+func (newMatch *Match) InsertOne(str, mark string) error {
 	if _, _, err := net.ParseCIDR(str); err == nil {
 		if err = newMatch.cidrMatch.InsetOneCIDR(str, mark); err != nil {
 			return err
@@ -28,20 +28,20 @@ func (newMatch *Match2) InsertOne(str, mark string) error {
 	return nil
 }
 
-func NewMatcher(DNSServer string) *Match2 {
+func NewMatcher(DNSServer string) *Match {
 	cidrMatch := cidrmatch.NewCidrMatch()
 	domainMatch := domainmatch.NewDomainMatcher()
-	return &Match2{
+	return &Match{
 		DNSServer:   DNSServer,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
 	}
 }
 
-func NewMatcherWithFile(DNSServer string, MatcherFile string) (matcher *Match2, err error) {
+func NewMatcherWithFile(DNSServer string, MatcherFile string) (matcher *Match, err error) {
 	cidrMatch := cidrmatch.NewCidrMatch()
 	domainMatch := domainmatch.NewDomainMatcher()
-	matcher = &Match2{
+	matcher = &Match{
 		DNSServer:   DNSServer,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
@@ -64,8 +64,8 @@ func NewMatcherWithFile(DNSServer string, MatcherFile string) (matcher *Match2, 
 	return matcher, nil
 }
 
-func (newMatch *Match2) MatchStr(str string) (target []string, proxy string) {
-	isMatch := false
+func (newMatch *Match) MatchStr(str string) (target []string, proxy string) {
+	var isMatch bool
 	target = []string{}
 	if net.ParseIP(str) != nil {
 		isMatch, proxy = newMatch.cidrMatch.MatchOneIP(str)
