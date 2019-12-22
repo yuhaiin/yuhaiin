@@ -11,7 +11,7 @@ import (
 )
 
 type ForwardTo struct {
-	Matcher *matcher.Match2
+	Matcher *matcher.Match
 	Config  *configjson.ConfigSample
 	Setting *configjson.Setting
 	Log     func(v ...interface{})
