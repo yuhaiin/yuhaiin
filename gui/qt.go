@@ -254,8 +254,10 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		if _, err := ssrMicroClientGUI.ssrCmd.Process.Wait(); err != nil {
 			log.Println(err)
 		}
-		if err := ssrMicroClientGUI.ssrCmd.Process.Release(); err != nil {
-			log.Println(err)
+		if ssrMicroClientGUI.ssrCmd.Process != nil {
+			if err := ssrMicroClientGUI.ssrCmd.Process.Release(); err != nil {
+				log.Println(err)
+			}
 		}
 		statusLabel2.SetText("<b><font color=red>stop</font></b>")
 		trayIcon.SetToolTip("stop")
