@@ -13,7 +13,7 @@ import (
 
 	"SsrMicroClient/base64d"
 	"SsrMicroClient/microlog"
-	"SsrMicroClient/net/socks5client"
+	"SsrMicroClient/net/proxy/socks5/client"
 	"SsrMicroClient/subscription"
 )
 
@@ -111,7 +111,7 @@ func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
 	}
 
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		x := &socks5client.Socks5Client{Server: setting.LocalAddress, Port: setting.LocalPort, Address: addr, KeepAliveTimeout: 0}
+		x := &socks5client.Socks5Client{Server: setting.LocalAddress, Port: setting.LocalPort, Address: addr}
 		return x.NewSocks5Client()
 	}
 	tr := http.Transport{
