@@ -58,17 +58,10 @@ func Start(configPath string) {
 			cmdArray = append(cmdArray, argument[argumentS])
 		}
 	}
-	// log.Println(cmdArray)
-	// if runtime.GOOS != "windows" {
-	// 	cmdArray = append(cmdArray, "-d", "start")
-	// }
-	// fmt.Println(cmdArray)
 	cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
 	microlog.Debug(nodeAndConfig["pythonPath"], cmdArray)
-	_ = cmd.Start()
-	// cmd.Process.Release()
-	// cmd.Process.Signal(syscall.SIGUSR1)
-	// fmt.Println(cmd.Process.Pid, config["pidFile"])
+
+	_ = cmd.Run()
 	_ = ioutil.WriteFile(nodeAndConfig["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
 }
 

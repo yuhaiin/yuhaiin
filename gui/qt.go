@@ -2,16 +2,16 @@ package gui
 
 import (
 	"SsrMicroClient/ServerControl"
-	"os"
-	"os/exec"
-	"time"
-
 	"SsrMicroClient/config/configjson"
 	"SsrMicroClient/net/delay"
 	"SsrMicroClient/process"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
+	"log"
+	"os"
+	"os/exec"
+	"strconv"
 )
 
 type SsrMicroClientGUI struct {
@@ -53,37 +53,49 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
 	microClientGUI.App.SetApplicationName("SsrMicroClient")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
-	//microClientGUI.App.ConnectAboutToQuit(func() {
-	//	if microClientGUI.httpBypassCmd.Process != nil {
-	//		err = microClientGUI.httpBypassCmd.Process.Kill()
-	//		if err != nil {
-	//			//	do something
-	//		}
-	//		_, err = microClientGUI.httpBypassCmd.Process.Wait()
-	//		if err != nil {
-	//			//	do something
-	//		}
-	//	}
-	//	if microClientGUI.httpCmd.Process != nil {
-	//		if err = microClientGUI.httpCmd.Process.Kill(); err != nil {
-	//			//	do something
-	//		}
-	//
-	//		if _, err = microClientGUI.httpCmd.Process.Wait(); err != nil {
-	//			//	do something
-	//		}
-	//	}
-	//	if microClientGUI.socks5BypassCmd.Process != nil {
-	//		err = microClientGUI.socks5BypassCmd.Process.Kill()
-	//		if err != nil {
-	//			//
-	//		}
-	//		_, err := microClientGUI.socks5BypassCmd.Process.Wait()
-	//		if err != nil {
-	//			//
-	//		}
-	//	}
-	//})
+	microClientGUI.App.ConnectAboutToQuit(func() {
+		if microClientGUI.ssrCmd.Process != nil {
+			err = microClientGUI.ssrCmd.Process.Kill()
+			if err != nil {
+				//	do something
+				log.Println(err)
+			}
+			_, err = microClientGUI.ssrCmd.Process.Wait()
+			if err != nil {
+				//	do something
+				log.Println(err)
+			}
+		}
+		//	if microClientGUI.httpBypassCmd.Process != nil {
+		//		err = microClientGUI.httpBypassCmd.Process.Kill()
+		//		if err != nil {
+		//			//	do something
+		//		}
+		//		_, err = microClientGUI.httpBypassCmd.Process.Wait()
+		//		if err != nil {
+		//			//	do something
+		//		}
+		//	}
+		//	if microClientGUI.httpCmd.Process != nil {
+		//		if err = microClientGUI.httpCmd.Process.Kill(); err != nil {
+		//			//	do something
+		//		}
+		//
+		//		if _, err = microClientGUI.httpCmd.Process.Wait(); err != nil {
+		//			//	do something
+		//		}
+		//	}
+		//	if microClientGUI.socks5BypassCmd.Process != nil {
+		//		err = microClientGUI.socks5BypassCmd.Process.Kill()
+		//		if err != nil {
+		//			//
+		//		}
+		//		_, err := microClientGUI.socks5BypassCmd.Process.Wait()
+		//		if err != nil {
+		//			//
+		//		}
+		//	}
+	})
 
 	microClientGUI.server = &ServerControl.ServerControl{}
 
@@ -232,25 +244,42 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160),
 		core.NewQPoint2(450, 190)))
 	startButton := widgets.NewQPushButton2("start", ssrMicroClientGUI.MainWindow)
+
+	start := func() {
+		if err := ssrMicroClientGUI.ssrCmd.Start(); err != nil {
+			log.Println(err)
+		}
+		statusLabel2.SetText("<b><font color=green>running(pid:" + strconv.Itoa(ssrMicroClientGUI.ssrCmd.Process.Pid) + ")</font></b>")
+		trayIcon.SetToolTip("running(pid:" + strconv.Itoa(ssrMicroClientGUI.ssrCmd.Process.Pid) + ")")
+		if _, err := ssrMicroClientGUI.ssrCmd.Process.Wait(); err != nil {
+			log.Println(err)
+		}
+		if err := ssrMicroClientGUI.ssrCmd.Process.Release(); err != nil {
+			log.Println(err)
+		}
+		statusLabel2.SetText("<b><font color=red>stop</font></b>")
+		trayIcon.SetToolTip("stop")
+	}
 	startButton.ConnectClicked(func(bool2 bool) {
 		group := groupCombobox.CurrentText()
 		remarks := nodeCombobox.CurrentText()
-		_, exist := process.Get(ssrMicroClientGUI.configPath)
+		//_, exist := process.Get(ssrMicroClientGUI.configPath)
+		log.Println(ssrMicroClientGUI.ssrCmd.Process, ssrMicroClientGUI.ssrCmd.ProcessState)
+		if ssrMicroClientGUI.ssrCmd.Process == nil {
+			go func() {
+				start()
+			}()
+		}
 		if group == nowNode["group"] && remarks ==
-			nowNode["remarks"] && exist == true {
-			return
-		} else if group == nowNode["group"] && remarks ==
-			nowNode["remarks"] && exist == false {
-			process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
-			var status string
-			if pid, run := process.Get(ssrMicroClientGUI.configPath); run == true {
-				status = "<b><font color=green>running (pid: " +
-					pid + ")</font></b>"
-			} else {
-				status = "<b><font color=reb>stopped</font></b>"
+			nowNode["remarks"] && ssrMicroClientGUI.ssrCmd.Process != nil {
+			log.Println(ssrMicroClientGUI.ssrCmd.Process.Pid)
+			if ssrMicroClientGUI.ssrCmd.Process.Pid == -1 {
+				ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
+				go func() {
+					start()
+				}()
 			}
-			statusLabel2.SetText(status)
-			trayIcon.SetToolTip(updateStatus())
+			return
 		} else {
 			err := configjson.ChangeNowNode2(ssrMicroClientGUI.configPath, group, remarks)
 			if err != nil {
@@ -264,24 +293,34 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 			}
 			nowNodeLabel2.SetText(nowNode["remarks"] + " - " +
 				nowNode["group"])
-			if exist == true {
-				process.Stop(ssrMicroClientGUI.configPath)
-				time.Sleep(250 * time.Millisecond)
-				process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
-			} else {
-				process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
+			if ssrMicroClientGUI.ssrCmd.Process != nil {
+				if err := ssrMicroClientGUI.ssrCmd.Process.Kill(); err != nil {
+					log.Println(err)
+				}
 			}
-			var status string
-			if pid, run := process.Get(ssrMicroClientGUI.configPath); run == true {
-				status = "<b><font color=green>running (pid: " +
-					pid + ")</font></b>"
-			} else {
-				status = "<b><font color=reb>stopped</font></b>"
-			}
-			statusLabel2.SetText(status)
-			trayIcon.SetToolTip(updateStatus())
+			ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
+			go func() {
+				start()
+			}()
+			//if exist == true {
+			//	process.Stop(ssrMicroClientGUI.configPath)
+			//	time.Sleep(250 * time.Millisecond)
+			//	process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
+			//} else {
+			//	process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
+			//}
+			//var status string
+			//if pid, run := process.Get(ssrMicroClientGUI.configPath); run == true {
+			//	status = "<b><font color=green>running (pid: " +
+			//		pid + ")</font></b>"
+			//} else {
+			//	status = "<b><font color=reb>stopped</font></b>"
+			//}
+			//statusLabel2.SetText(status)
+			//trayIcon.SetToolTip(updateStatus())
 		}
 	})
+
 	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160),
 		core.NewQPoint2(560, 190)))
 
