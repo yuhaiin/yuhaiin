@@ -64,6 +64,7 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 				return nil, err
 			}
 		} else {
+			proxy = "default"
 			proxyURI, err = url.Parse("notFound://0.0.0.0:0")
 			if err != nil {
 				return nil, err
