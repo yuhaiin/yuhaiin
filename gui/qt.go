@@ -156,24 +156,14 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		subscriptionTrayIconMenu, settingTrayIconMenu, exit}
 	menu.AddActions(actions)
 	trayIcon.SetContextMenu(menu)
-	updateStatus := func() string {
-		var status string
-		if ssrMicroClientGUI.ssrCmd.Process != nil {
-			if ssrMicroClientGUI.ssrCmd.Process.Pid != -1 {
-				status = "<b><font color=green>running (pid: " + strconv.Itoa(ssrMicroClientGUI.ssrCmd.Process.Pid) + ")</font></b>"
-			}
-		}
-		status = "<b><font color=reb>stopped</font></b>"
-		return status
-	}
-	trayIcon.SetToolTip(updateStatus())
+	trayIcon.SetToolTip("")
 	trayIcon.Show()
 
 	statusLabel := widgets.NewQLabel2("status", ssrMicroClientGUI.MainWindow,
 		core.Qt__WindowType(0x00000000))
 	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10),
 		core.NewQPoint2(130, 40)))
-	statusLabel2 := widgets.NewQLabel2(updateStatus(), ssrMicroClientGUI.MainWindow,
+	statusLabel2 := widgets.NewQLabel2("", ssrMicroClientGUI.MainWindow,
 		core.Qt__WindowType(0x00000000))
 	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10),
 		core.NewQPoint2(560, 40)))
