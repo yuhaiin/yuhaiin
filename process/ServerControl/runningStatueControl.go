@@ -2,7 +2,7 @@ package ServerControl
 
 import (
 	"SsrMicroClient/MatchAndForward"
-	"SsrMicroClient/config/configjson"
+	config3 "SsrMicroClient/config"
 	ssrinit "SsrMicroClient/init"
 	httpserver "SsrMicroClient/net/proxy/http/server"
 	socks5server "SsrMicroClient/net/proxy/socks5/server"
@@ -16,8 +16,8 @@ type ServerControl struct {
 	Socks5         *socks5server.ServerSocks5
 	HttpS          *httpserver.HTTPServer
 	forward        *MatchAndForward.ForwardTo
-	config         *configjson.ConfigSample
-	setting        *configjson.Setting
+	config         *config3.ConfigSample
+	setting        *config3.Setting
 	Log            func(v ...interface{})
 	ConfigJsonPath string
 	RulePath       string
@@ -25,7 +25,7 @@ type ServerControl struct {
 
 func (ServerControl *ServerControl) serverControlInit() {
 	var err error
-	if ServerControl.setting, err = configjson.SettingDecodeJSON(ssrinit.GetConfigAndSQLPath()); err != nil {
+	if ServerControl.setting, err = config3.SettingDecodeJSON(ssrinit.GetConfigAndSQLPath()); err != nil {
 		log.Println(err)
 	}
 	ServerControl.RulePath = ServerControl.setting.BypassFile

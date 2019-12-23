@@ -1,7 +1,6 @@
 package config
 
 import (
-	"SsrMicroClient/config/configjson"
 	"log"
 	"os"
 )
@@ -9,7 +8,7 @@ import (
 // GetConfig convert config to map
 func GetConfig(configPath string) map[string]string {
 	argument := map[string]string{}
-	settingDecodeJSON, err := configjson.SettingDecodeJSON(configPath)
+	settingDecodeJSON, err := SettingDecodeJSON(configPath)
 	if err != nil {
 		log.Println(err)
 		return argument

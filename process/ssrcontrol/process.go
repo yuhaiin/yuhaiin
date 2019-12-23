@@ -1,18 +1,16 @@
-package process
+package ssrcontrol
 
 import (
+	"SsrMicroClient/config"
 	"log"
 	"os/exec"
 	"strings"
-
-	"SsrMicroClient/config/config"
-	"SsrMicroClient/config/configjson"
 )
 
 // GetSsrCmd <--
 func GetSsrCmd(configPath string) *exec.Cmd {
 	argument := config.GetConfigArgument()
-	nodeAndConfig, _ := configjson.GetNowNode(configPath)
+	nodeAndConfig, _ := config.GetNowNode(configPath)
 	for key, value := range config.GetConfig(configPath) {
 		nodeAndConfig[key] = value
 	}

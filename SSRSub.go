@@ -14,43 +14,15 @@ import (
 func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	configPath := ssrinit.GetConfigAndSQLPath()
-	//daemon := flag.String("d", "", "d")
-	//subDaemon := flag.String("sd", "", "sd")
-	//flag.Parse()
+	ssrinit.Init(configPath)
 
-	//if *daemon != "" {
-	//	process.Start(configPath)
-	//}
-	//if *subDaemon != "" {
-	//	if *subDaemon == "ssr" {
-	//		process.Start(configPath)
-	//	}
-	//else if *subDaemon == "http" {
-	//	test.StartHTTP(configPath)
-	//} else if *subDaemon == "httpBp" {
-	//	test.StartHTTPBypass(configPath)
-	//} else if *subDaemon == "httpB" {
-	//	test.StartHTTPByArgument()
-	//} else if *subDaemon == "socks5Bp" {
-	//	test.StartSocks5Bypass(configPath)
-	//} else if *subDaemon == "httpBBp" {
-	//	test.StartHTTPByArgumentBypass()
-	//}
-	//} else {
-	ssrMicroClientGUI, err := gui.NewSsrMicroClientGUI(configPath)
-	if err != nil && ssrMicroClientGUI != nil {
-		ssrMicroClientGUI.MessageBox(err.Error())
-	}
-
-	lockFile, err := os.Create(configPath +
-		"/SsrMicroClientRunStatuesLockFile")
+	lockFile, err := os.Create(configPath + "/SsrMicroClientRunStatuesLockFile")
 	if err != nil {
-		ssrMicroClientGUI.MessageBox(err.Error())
+		log.Println(err)
 		return
 	}
-
 	if err = lockfile.LockFile(lockFile); err != nil {
-		ssrMicroClientGUI.MessageBox("process is exist!\n" + err.Error())
+		log.Println("process is exist!\n" + err.Error())
 		return
 	}
 	defer func() {
@@ -58,12 +30,16 @@ func main() {
 		_ = os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
 	}()
 
-	if ssrMicroClientGUI.App.IsSessionRestored() {
-		ssrMicroClientGUI.MessageBox("restore is from before")
+	ssrMicroClientGUI, err := gui.NewSsrMicroClientGUI(configPath)
+	if err != nil && ssrMicroClientGUI != nil {
+		ssrMicroClientGUI.MessageBox(err.Error())
 	}
+	if ssrMicroClientGUI != nil {
+		if ssrMicroClientGUI.App.IsSessionRestored() {
+			ssrMicroClientGUI.MessageBox("restore is from before")
+		}
 
-	ssrMicroClientGUI.BeforeShow()
-	//ssrMicroClientGUI.MainWindow.Show()
-	ssrMicroClientGUI.App.Exec()
-	//}
+		//ssrMicroClientGUI.MainWindow.Show()
+		ssrMicroClientGUI.App.Exec()
+	}
 }

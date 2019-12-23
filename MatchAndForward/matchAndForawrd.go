@@ -1,7 +1,7 @@
 package MatchAndForward
 
 import (
-	"SsrMicroClient/config/configjson"
+	config2 "SsrMicroClient/config"
 	getproxyconn "SsrMicroClient/net/forward"
 	"SsrMicroClient/net/matcher"
 	"errors"
@@ -12,14 +12,14 @@ import (
 
 type ForwardTo struct {
 	Matcher *matcher.Match
-	Config  *configjson.ConfigSample
-	Setting *configjson.Setting
+	Config  *config2.ConfigSample
+	Setting *config2.Setting
 	Log     func(v ...interface{})
 }
 
 func NewForwardTo(configJsonPath, rulePath string) (forwardTo *ForwardTo, err error) {
 	forwardTo = &ForwardTo{}
-	forwardTo.Setting, err = configjson.SettingDecodeJSON(configJsonPath)
+	forwardTo.Setting, err = config2.SettingDecodeJSON(configJsonPath)
 	if err != nil {
 		return
 	}

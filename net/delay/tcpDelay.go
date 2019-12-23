@@ -1,12 +1,11 @@
 package delay
 
 import (
+	config2 "SsrMicroClient/config"
 	"fmt"
 	"log"
 	"net"
 	"time"
-
-	"SsrMicroClient/config/configjson"
 )
 
 // TCPDelay get once delay by tcp
@@ -43,7 +42,7 @@ func getTCPDelayAverage(server, serverPort string) time.Duration {
 // GetTCPDelayJSON get delay by tcp
 func GetTCPDelayJSON(configPath string) {
 	for {
-		node, err := configjson.SelectNode(configPath)
+		node, err := config2.SelectNode(configPath)
 		if err != nil {
 			return
 		}

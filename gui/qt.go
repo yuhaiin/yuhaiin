@@ -1,10 +1,10 @@
 package gui
 
 import (
-	"SsrMicroClient/ServerControl"
-	"SsrMicroClient/config/configjson"
+	config2 "SsrMicroClient/config"
 	"SsrMicroClient/net/delay"
-	"SsrMicroClient/process"
+	"SsrMicroClient/process/ServerControl"
+	"SsrMicroClient/process/ssrcontrol"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -25,7 +25,7 @@ type SsrMicroClientGUI struct {
 	socks5BypassCmd    *exec.Cmd
 	ssrCmd             *exec.Cmd
 	configPath         string
-	settingConfig      *configjson.Setting
+	settingConfig      *config2.Setting
 	server             *ServerControl.ServerControl
 }
 
@@ -33,11 +33,11 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 	var err error
 	microClientGUI := &SsrMicroClientGUI{}
 	microClientGUI.configPath = configPath
-	microClientGUI.settingConfig, err = configjson.SettingDecodeJSON(microClientGUI.configPath)
+	microClientGUI.settingConfig, err = config2.SettingDecodeJSON(microClientGUI.configPath)
 	if err != nil {
 		return microClientGUI, err
 	}
-	microClientGUI.ssrCmd = process.GetSsrCmd(microClientGUI.configPath)
+	microClientGUI.ssrCmd = ssrcontrol.GetSsrCmd(microClientGUI.configPath)
 	//microClientGUI.httpCmd, err = test.GetHttpProxyCmd()
 	//if err != nil {
 	//	return microClientGUI, err
@@ -108,31 +108,12 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 	microClientGUI.createSubscriptionWindow()
 	microClientGUI.settingWindow = widgets.NewQMainWindow(microClientGUI.MainWindow, 0)
 	microClientGUI.createSettingWindow()
-	return microClientGUI, nil
-}
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) BeforeShow() {
-	//if ssrMicroClientGUI.settingConfig.HttpProxy == true && ssrMicroClientGUI.settingConfig.HttpWithBypass == true {
-	//	err := ssrMicroClientGUI.httpBypassCmd.Start()
-	//	if err != nil {
-	//		log.Println(err)
-	//	}
-	//} else if ssrMicroClientGUI.settingConfig.HttpProxy == true {
-	//	err := ssrMicroClientGUI.httpCmd.Start()
-	//	if err != nil {
-	//		log.Println(err)
-	//	}
-	//}
-	//if ssrMicroClientGUI.settingConfig.Socks5WithBypass == true {
-	//	err := ssrMicroClientGUI.socks5BypassCmd.Start()
-	//	if err != nil {
-	//		log.Println(err)
-	//	}
-	//}
-
-	if ssrMicroClientGUI.settingConfig.Bypass == true {
-		ssrMicroClientGUI.server.ServerStart()
+	if microClientGUI.settingConfig.Bypass == true {
+		microClientGUI.server.ServerStart()
 	}
+
+	return microClientGUI, nil
 }
 
 func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
@@ -177,12 +158,12 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	trayIcon.SetContextMenu(menu)
 	updateStatus := func() string {
 		var status string
-		if pid, run := process.Get(ssrMicroClientGUI.configPath); run == true {
-			status = "<b><font color=green>running (pid: " +
-				pid + ")</font></b>"
-		} else {
-			status = "<b><font color=reb>stopped</font></b>"
+		if ssrMicroClientGUI.ssrCmd.Process != nil {
+			if ssrMicroClientGUI.ssrCmd.Process.Pid != -1 {
+				status = "<b><font color=green>running (pid: " + strconv.Itoa(ssrMicroClientGUI.ssrCmd.Process.Pid) + ")</font></b>"
+			}
 		}
+		status = "<b><font color=reb>stopped</font></b>"
 		return status
 	}
 	trayIcon.SetToolTip(updateStatus())
@@ -201,7 +182,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		core.Qt__WindowType(0x00000000))
 	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60),
 		core.NewQPoint2(130, 90)))
-	nowNode, err := configjson.GetNowNode(ssrMicroClientGUI.configPath)
+	nowNode, err := config2.GetNowNode(ssrMicroClientGUI.configPath)
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
@@ -216,7 +197,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110),
 		core.NewQPoint2(130, 140)))
 	groupCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
-	group, err := configjson.GetGroup(ssrMicroClientGUI.configPath)
+	group, err := config2.GetGroup(ssrMicroClientGUI.configPath)
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
@@ -234,7 +215,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160),
 		core.NewQPoint2(130, 190)))
 	nodeCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
-	node, err := configjson.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
+	node, err := config2.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
@@ -272,12 +253,12 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 				return
 			}
 		} else if group != nowNode["group"] || remarks != nowNode["remarks"] {
-			err := configjson.ChangeNowNode2(ssrMicroClientGUI.configPath, group, remarks)
+			err := config2.ChangeNowNode2(ssrMicroClientGUI.configPath, group, remarks)
 			if err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
 			}
-			nowNode, err = configjson.GetNowNode(ssrMicroClientGUI.configPath)
+			nowNode, err = config2.GetNowNode(ssrMicroClientGUI.configPath)
 			if err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
@@ -309,7 +290,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 			//statusLabel2.SetText(status)
 			//trayIcon.SetToolTip(updateStatus())
 		}
-		ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
+		ssrMicroClientGUI.ssrCmd = ssrcontrol.GetSsrCmd(ssrMicroClientGUI.configPath)
 		go func() {
 			start()
 		}()
@@ -331,7 +312,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		go func() {
 			group := groupCombobox.CurrentText()
 			remarks := nodeCombobox.CurrentText()
-			node, err := configjson.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
+			node, err := config2.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
 			if err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
@@ -355,7 +336,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		core.NewQPoint2(560, 240)))
 
 	groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
-		node, err := configjson.GetNode(ssrMicroClientGUI.configPath,
+		node, err := config2.GetNode(ssrMicroClientGUI.configPath,
 			groupCombobox.CurrentText())
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
@@ -383,14 +364,14 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		message.Show()
 		ch := make(chan bool)
 		go func() {
-			if err := configjson.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
+			if err := config2.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
 			}
 			ch <- true
 		}()
 		<-ch
 		message.SetText("Updated!")
-		group, err = configjson.GetGroup(ssrMicroClientGUI.configPath)
+		group, err = config2.GetGroup(ssrMicroClientGUI.configPath)
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
@@ -398,7 +379,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		groupCombobox.Clear()
 		groupCombobox.AddItems(group)
 		groupCombobox.SetCurrentText(nowNode["group"])
-		node, err = configjson.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
+		node, err = config2.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
@@ -409,9 +390,12 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	})
 
 	if ssrMicroClientGUI.settingConfig.AutoStartSsr == true {
-		if _, exist := process.Get(ssrMicroClientGUI.configPath); !exist {
-			startButton.Click()
+		if ssrMicroClientGUI.ssrCmd.Process != nil {
+			if ssrMicroClientGUI.ssrCmd.Process.Pid != -1 {
+				return
+			}
 		}
+		startButton.Click()
 	}
 }
 
@@ -432,7 +416,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 	subRefresh := func() {
 		subCombobox.Clear()
 		var err error
-		link, err = configjson.GetLink(ssrMicroClientGUI.configPath)
+		link, err = config2.GetLink(ssrMicroClientGUI.configPath)
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
@@ -445,7 +429,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 	deleteButton := widgets.NewQPushButton2("delete", ssrMicroClientGUI.subscriptionWindow)
 	deleteButton.ConnectClicked(func(bool2 bool) {
 		linkToDelete := subCombobox.CurrentText()
-		if err := configjson.RemoveLinkJSON2(linkToDelete,
+		if err := config2.RemoveLinkJSON2(linkToDelete,
 			ssrMicroClientGUI.configPath); err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
@@ -469,7 +453,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 				return
 			}
 		}
-		if err := configjson.AddLinkJSON2(linkToAdd, ssrMicroClientGUI.configPath); err != nil {
+		if err := config2.AddLinkJSON2(linkToAdd, ssrMicroClientGUI.configPath); err != nil {
 			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
@@ -593,7 +577,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 		ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
 		ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort = socks5BypassLineText.Text()
 
-		if err := configjson.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
+		if err := config2.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
 			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}

@@ -1,13 +1,11 @@
 package ssrinit
 
 import (
+	config2 "SsrMicroClient/config"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-
-	"SsrMicroClient/config/configjson"
-	"SsrMicroClient/shadowsocksr"
 )
 
 // PathExists 判断目录是否存在返回布尔类型
@@ -33,17 +31,17 @@ func Init(configPath string) {
 	}
 
 	if !PathExists(configPath + "/shadowsocksr") {
-		ssrdownload.GetSsrPython(configPath)
+		GetSsrPython(configPath)
 	}
 
 	if !PathExists(configPath + "/node.json") {
-		if configjson.InitJSON(configPath) != nil {
+		if config2.InitJSON(configPath) != nil {
 			return
 		}
 	}
 
 	if !PathExists(configPath + "/SsrMicroConfig.json") {
-		if configjson.SettingInitJSON(configPath) != nil {
+		if config2.SettingInitJSON(configPath) != nil {
 			return
 		}
 	}
