@@ -267,22 +267,11 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		remarks := nodeCombobox.CurrentText()
 		//_, exist := process.Get(ssrMicroClientGUI.configPath)
 		log.Println(ssrMicroClientGUI.ssrCmd.Process, ssrMicroClientGUI.ssrCmd.ProcessState)
-		if ssrMicroClientGUI.ssrCmd.Process == nil {
-			go func() {
-				start()
-			}()
-		}
-		if group == nowNode["group"] && remarks ==
-			nowNode["remarks"] && ssrMicroClientGUI.ssrCmd.Process != nil {
-			log.Println(ssrMicroClientGUI.ssrCmd.Process.Pid)
-			if ssrMicroClientGUI.ssrCmd.Process.Pid == -1 {
-				ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
-				go func() {
-					start()
-				}()
+		if group == nowNode["group"] && remarks == nowNode["remarks"] && ssrMicroClientGUI.ssrCmd.Process != nil {
+			if ssrMicroClientGUI.ssrCmd.Process.Pid != -1 {
+				return
 			}
-			return
-		} else {
+		} else if group != nowNode["group"] || remarks != nowNode["remarks"] {
 			err := configjson.ChangeNowNode2(ssrMicroClientGUI.configPath, group, remarks)
 			if err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
@@ -293,17 +282,16 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
 			}
-			nowNodeLabel2.SetText(nowNode["remarks"] + " - " +
-				nowNode["group"])
+			nowNodeLabel2.SetText(nowNode["remarks"] + " - " + nowNode["group"])
 			if ssrMicroClientGUI.ssrCmd.Process != nil {
 				if err := ssrMicroClientGUI.ssrCmd.Process.Kill(); err != nil {
 					log.Println(err)
 				}
 			}
-			ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
-			go func() {
-				start()
-			}()
+			//ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
+			//go func() {
+			//	start()
+			//}()
 			//if exist == true {
 			//	process.Stop(ssrMicroClientGUI.configPath)
 			//	time.Sleep(250 * time.Millisecond)
@@ -321,6 +309,10 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 			//statusLabel2.SetText(status)
 			//trayIcon.SetToolTip(updateStatus())
 		}
+		ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
+		go func() {
+			start()
+		}()
 	})
 
 	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160),
