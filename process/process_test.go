@@ -1,21 +1,22 @@
 package process
 
 import (
-	ssrinit "SsrMicroClient/init"
 	"testing"
-	"time"
 )
 
 func TestStart(t *testing.T) {
-	cmd := GetSsrCmd(ssrinit.GetConfigAndSQLPath())
-	go func() {
-		t.Log(cmd.Args)
-		if err := cmd.Run(); err != nil {
-			t.Log(err)
-		}
-		t.Log("stop")
-	}()
-	time.Sleep(1 * time.Second)
+
+	cmdarray := []string{"aaa", "bbbb", "cccc"}
+	t.Log(cmdarray[0], cmdarray[1:])
+	//cmd := GetSsrCmd(ssrinit.GetConfigAndSQLPath())
+	//go func() {
+	//	t.Log(cmd.Args)
+	//	if err := cmd.Run(); err != nil {
+	//		t.Log(err)
+	//	}
+	//	t.Log("stop")
+	//}()
+	//time.Sleep(1 * time.Second)
 
 	//cmd := exec.Command("sh","-c"," python /home/asutorufa/.config/SSRSub/shadowsocksr/shadowsocks/local.py -s l2127-z5nwo5ve.node.endpoint.top -p 537 -O auth_aes128_md5 -m chacha20-ietf -o http_post -k BH63UA -g 823224308.apple.com -G 4308:0qF3fS -b 127.0.0.1 -l 1083 --fast-open -v")
 	//	stdout, err := cmd.StdoutPipe()

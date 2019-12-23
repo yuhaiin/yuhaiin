@@ -14,7 +14,6 @@ import (
 
 	"SsrMicroClient/config/config"
 	"SsrMicroClient/config/configjson"
-	"SsrMicroClient/microlog"
 )
 
 // Start start ssr
@@ -39,7 +38,7 @@ func Start(configPath string) {
 
 	var cmdArray []string
 	if nodeAndConfig["ssrPath"] != "" {
-		cmdArray = append(cmdArray, nodeAndConfig["ssrPath"])
+		cmdArray = append(cmdArray, strings.Split(nodeAndConfig["ssrPath"], " ")...)
 	}
 	for _, nodeA := range nodeAndConfigArgument {
 		if nodeAndConfig[nodeA] != "" {
@@ -59,7 +58,7 @@ func Start(configPath string) {
 		}
 	}
 	cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
-	microlog.Debug(nodeAndConfig["pythonPath"], cmdArray)
+	log.Println(nodeAndConfig["pythonPath"], cmdArray)
 
 	_ = cmd.Run()
 	_ = ioutil.WriteFile(nodeAndConfig["pidFile"], []byte(strconv.Itoa(cmd.Process.Pid)), 0644)

@@ -554,13 +554,13 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	socks5BypassLineText.SetGeometry(core.NewQRect2(core.
 		NewQPoint2(300, 120), core.NewQPoint2(420, 150)))
 
-	pythonPathLabel := widgets.NewQLabel2("pythonPath", ssrMicroClientGUI.settingWindow, 0)
-	pythonPathLabel.SetGeometry(core.NewQRect2(core.
-		NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
-	pythonPathLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
-	pythonPathLineText.SetText(ssrMicroClientGUI.settingConfig.PythonPath)
-	pythonPathLineText.SetGeometry(core.NewQRect2(core.
-		NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
+	//pythonPathLabel := widgets.NewQLabel2("pythonPath", ssrMicroClientGUI.settingWindow, 0)
+	//pythonPathLabel.SetGeometry(core.NewQRect2(core.
+	//	NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
+	//pythonPathLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
+	//pythonPathLineText.SetText(ssrMicroClientGUI.settingConfig.PythonPath)
+	//pythonPathLineText.SetGeometry(core.NewQRect2(core.
+	//	NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
 
 	ssrPathLabel := widgets.NewQLabel2("ssrPath", ssrMicroClientGUI.settingWindow, 0)
 	ssrPathLabel.SetGeometry(core.NewQRect2(core.
@@ -587,7 +587,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 		//ssrMicroClientGUI.settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
 		//ssrMicroClientGUI.settingConfig.LocalAddress = localAddressLineText.Text()
 		//ssrMicroClientGUI.settingConfig.LocalPort = localPortLineText.Text()
-		ssrMicroClientGUI.settingConfig.PythonPath = pythonPathLineText.Text()
+		//ssrMicroClientGUI.settingConfig.PythonPath = pythonPathLineText.Text()
 		ssrMicroClientGUI.settingConfig.SsrPath = ssrPathLineText.Text()
 		ssrMicroClientGUI.settingConfig.BypassFile = BypassFileLineText.Text()
 		ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()

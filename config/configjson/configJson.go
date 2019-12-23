@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"strings"
 
 	"SsrMicroClient/base64d"
-	"SsrMicroClient/microlog"
 	"SsrMicroClient/net/proxy/socks5/client"
 	"SsrMicroClient/subscription"
 )
@@ -91,7 +91,7 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 	for _, url := range pa.Link {
 		res, err := http.Get(url)
 		if err != nil {
-			microlog.Debug(err)
+			log.Println(err)
 			continue
 		}
 		body, err := ioutil.ReadAll(res.Body)
@@ -127,7 +127,7 @@ func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
 	for _, url := range pa.Link {
 		res, err := newClient.Get(url)
 		if err != nil {
-			microlog.Debug(err)
+			log.Println(err)
 			continue
 		}
 		body, err := ioutil.ReadAll(res.Body)

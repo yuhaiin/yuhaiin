@@ -1,11 +1,12 @@
 package process
 
 import (
+	"log"
 	"os/exec"
+	"strings"
 
 	"SsrMicroClient/config/config"
 	"SsrMicroClient/config/configjson"
-	"SsrMicroClient/microlog"
 )
 
 // GetSsrCmd <--
@@ -24,8 +25,9 @@ func GetSsrCmd(configPath string) *exec.Cmd {
 	argumentSingle := []string{"fastOpen", "udpTrans"}
 
 	var cmdArray []string
+	cmdArray = []string{}
 	if nodeAndConfig["ssrPath"] != "" {
-		cmdArray = append(cmdArray, nodeAndConfig["ssrPath"])
+		cmdArray = append(cmdArray, strings.Split(nodeAndConfig["ssrPath"], " ")...)
 	}
 	for _, nodeA := range nodeAndConfigArgument {
 		if nodeAndConfig[nodeA] != "" {
@@ -45,7 +47,8 @@ func GetSsrCmd(configPath string) *exec.Cmd {
 			cmdArray = append(cmdArray, argument[argumentS])
 		}
 	}
-	cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
-	microlog.Debug(nodeAndConfig["pythonPath"], cmdArray)
+
+	cmd := exec.Command(cmdArray[0], cmdArray[1:]...)
+	log.Println(nodeAndConfig["pythonPath"], cmdArray)
 	return cmd
 }

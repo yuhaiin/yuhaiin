@@ -15,7 +15,6 @@ import (
 
 	"SsrMicroClient/config/config"
 	"SsrMicroClient/config/configjson"
-	"SsrMicroClient/microlog"
 )
 
 // Stop stop ssr process
@@ -231,7 +230,7 @@ func Start(configPath string) {
 	}
 	// cmd := exec.Command(nodeAndConfig["pythonPath"], cmdArray...)
 	cmd := exec.Command("cmd", "/c", cmdd)
-	microlog.Debug(cmdd)
+	log.Println(cmdd)
 	_ = cmd.Start()
 	// cmd.Process.Release()
 	// cmd.Process.Signal(syscall.SIGUSR1)

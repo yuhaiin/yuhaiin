@@ -2,14 +2,13 @@ package dns
 
 import (
 	"encoding/hex"
+	"log"
 	"net"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"SsrMicroClient/microlog"
 )
 
 // Cache <-- use map save history
@@ -22,14 +21,14 @@ type Cache struct {
 func DNS(DNSServer, domain string) (DNS []string, success bool) {
 	defer func() { //必须要先声明defer，否则不能捕获到panic异常
 		if err := recover(); err != nil {
-			microlog.Debug(err)
+			log.Println(err)
 		}
 	}()
 
 	dialer := net.Dialer{Timeout: 18 * time.Second}
 	conn, err := dialer.Dial("udp", DNSServer)
 	if err != nil {
-		microlog.Debug(err)
+		log.Println(err)
 		return []string{}, false
 	}
 	defer conn.Close()
@@ -132,44 +131,44 @@ func DNS(DNSServer, domain string) (DNS []string, success bool) {
 		conn.Close()
 		conn, err = net.Dial("udp", DNSServer)
 		if err != nil {
-			microlog.Debug(err)
+			log.Println(err)
 			return []string{}, false
 		}
 		_, _ = conn.Write(all[:])
 		n, _ = conn.Read(b[:])
 		if b[3]&1 == 1 {
-			microlog.Debug("format error!", b[:n])
+			log.Println("format error!", b[:n])
 			return []string{}, false
 		} else if b[3]&1 == 2 {
-			microlog.Debug("dns server error")
+			log.Println("dns server error")
 			return []string{}, false
 		} else if b[3]&1 == 3 {
-			microlog.Debug("no such name", b[:n])
+			log.Println("no such name", b[:n])
 			return []string{}, false
 		} else if b[3]&1 == 4 {
-			microlog.Debug("dns server not support this request", b[:n])
+			log.Println("dns server not support this request", b[:n])
 			return []string{}, false
 		} else if b[3]&1 == 5 {
-			microlog.Debug("dns server Refuse", b[:n])
+			log.Println("dns server Refuse", b[:n])
 			return []string{}, false
 		} else if b[3]&1 != 0 {
-			microlog.Debug("other error", b[3]&1, b[3], b[:n])
+			log.Println("other error", b[3]&1, b[3], b[:n])
 			return []string{}, false
 		}
 	} else if b[3]&1 == 2 {
-		microlog.Debug("dns server error")
+		log.Println("dns server error")
 		return []string{}, false
 	} else if b[3]&1 == 3 {
-		microlog.Debug("no such name", b[:n])
+		log.Println("no such name", b[:n])
 		return []string{}, false
 	} else if b[3]&1 == 4 {
-		microlog.Debug("dns server not support this request", b[:n])
+		log.Println("dns server not support this request", b[:n])
 		return []string{}, false
 	} else if b[3]&1 == 5 {
-		microlog.Debug("dns server Refuse", b[:n])
+		log.Println("dns server Refuse", b[:n])
 		return []string{}, false
 	} else if b[3]&1 != 0 {
-		microlog.Debug("other error", b[3]&1, b[3], b[:n])
+		log.Println("other error", b[3]&1, b[3], b[:n])
 		return []string{}, false
 	}
 	// log.Println("header", b[0:12], "qr+opcode+aa+tc+rd:", b[2:3], "ra+z+rcode:", b[3], "rcode:", b[3]&1, "....", b[3]&2, b[3]&4, b[3]&8)
@@ -233,7 +232,7 @@ func DNS(DNSServer, domain string) (DNS []string, success bool) {
 				answerIndex += 2
 				hexDNS := hex.
 					EncodeToString(answer[answerIndex : answerIndex+16])
-				microlog.Debug(hexDNS[0:4] + ":" + hexDNS[4:8] + ":" +
+				log.Println(hexDNS[0:4] + ":" + hexDNS[4:8] + ":" +
 					hexDNS[8:12] + ":" + hexDNS[12:16] + ":" +
 					hexDNS[16:20] + ":" + hexDNS[20:24] + ":" +
 					hexDNS[24:28] + ":" + hexDNS[28:32])
@@ -293,12 +292,12 @@ func (dnscache *Cache) Match(host, hostTemplate string,
 		// }
 		dnscache.dns.Store(host, isMatch)
 		// fmt.Println(runtime.NumGoroutine(), host, isMatch)
-		microlog.Debug(runtime.NumGoroutine(), host, isMatch)
+		log.Println(runtime.NumGoroutine(), host, isMatch)
 	} else {
 		isMatchTemp, _ := dnscache.dns.Load(host)
 		isMatch = isMatchTemp.(bool)
 		// fmt.Println(runtime.NumGoroutine(), "use cache", host, isMatch)
-		microlog.Debug(runtime.NumGoroutine(), "use cache", host, isMatch)
+		log.Println(runtime.NumGoroutine(), "use cache", host, isMatch)
 	}
 	return isMatch
 }

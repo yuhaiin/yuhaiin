@@ -15,22 +15,23 @@ func GetConfig(configPath string) map[string]string {
 		return argument
 	}
 	argument["pidFile"] = settingDecodeJSON.PidFile
-	argument["cidrFile"] = settingDecodeJSON.BypassFile
-	argument["bypassDomainFile"] = settingDecodeJSON.BypassDomainFile
-	argument["directProxyFile"] = settingDecodeJSON.DirectProxyFile
-	argument["discordDomainFile"] = settingDecodeJSON.DiscordDomainFile
 	argument["logFile"] = os.DevNull
-	argument["pythonPath"] = settingDecodeJSON.PythonPath
 	argument["httpProxy"] = settingDecodeJSON.HttpProxyAddressAndPort
 	argument["dnsServer"] = settingDecodeJSON.DnsServer
-
-	// if argument["Workers"] == "" {
-	// 	argument["Workers"] = "--workers " + "1 "
-	// }
 	argument["ssrPath"] = settingDecodeJSON.SsrPath
 	argument["localAddress"] = settingDecodeJSON.LocalAddress
 	argument["localPort"] = settingDecodeJSON.LocalPort
 	argument["socks5WithBypassAddressAndPort"] = settingDecodeJSON.Socks5WithBypassAddressAndPort
+	argument["bypassFile"] = settingDecodeJSON.BypassFile
+
+	//argument["cidrFile"] = settingDecodeJSON.BypassFile
+	//argument["bypassDomainFile"] = settingDecodeJSON.BypassDomainFile
+	//argument["directProxyFile"] = settingDecodeJSON.DirectProxyFile
+	//argument["discordDomainFile"] = settingDecodeJSON.DiscordDomainFile
+	//argument["pythonPath"] = settingDecodeJSON.PythonPath
+	// if argument["Workers"] == "" {
+	// 	argument["Workers"] = "--workers " + "1 "
+	// }
 	if settingDecodeJSON.UdpTrans == true {
 		argument["udpTrans"] = "true"
 	}
