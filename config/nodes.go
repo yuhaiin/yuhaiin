@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -291,6 +292,7 @@ func GetGroup(configPath string) ([]string, error) {
 		//fmt.Println(num, group)
 		groupTmp = append(groupTmp, group)
 	}
+	sort.Strings(groupTmp)
 	return groupTmp, nil
 }
 
@@ -304,6 +306,7 @@ func GetNode(configPath, group string) ([]string, error) {
 	for nodeRemarks := range pa.Node[group] {
 		nodeTmp = append(nodeTmp, nodeRemarks)
 	}
+	sort.Strings(nodeTmp)
 	return nodeTmp, nil
 }
 
