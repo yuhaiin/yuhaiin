@@ -3,19 +3,17 @@
 package main
 
 import (
-	"log"
-	"os"
-
 	"SsrMicroClient/gui"
 	"SsrMicroClient/init"
 	"SsrMicroClient/process/lockfile"
+	"log"
+	"os"
 )
 
 func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	configPath := ssrinit.GetConfigAndSQLPath()
 	ssrinit.Init(configPath)
-
 	lockFile, err := os.Create(configPath + "/SsrMicroClientRunStatuesLockFile")
 	if err != nil {
 		log.Println(err)
