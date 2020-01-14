@@ -1,5 +1,8 @@
 # SsrMicroClient
-
+```
+２０世紀 郵便配達員が運ぶのは幸福だから、手紙は人間に幸せ届ける
+２１世紀 インターネットが運ぶのは幸福だから、アクセスできないなら人間に幸せ届けない
+```
 [![license](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
 [![releases](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/SsrMicroClient)](https://goreportcard.com/report/github.com/Asutorufa/SsrMicroClient)
