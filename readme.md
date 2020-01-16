@@ -25,46 +25,15 @@ go build SSRSub.go
 ```
 or use this:[if-you-just-want-to-compile-an-application](https://github.com/therecipe/qt/wiki/Installation-on-Linux#if-you-just-want-to-compile-an-application)  
 
-no gui:
-
-```shell script
-git clone https://github.com/Asutorufa/SsrMicroClient.git
-cd SsrMicroClient
-go build -tags noGui SSRSub_nogui.go
-./SSRSub
-```
 - config file  
   it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub.
 
 - [Bypass File](https://github.com/Asutorufa/SsrMicroClient/tree/ACL)
 
-<!--
-```
-#config path at ~/.config/SSRSub
-#config file,first run auto create,# to note
-#python_path /usr/bin/python3
-#ssr_path /shadowsocksr-python/shadowsocks/local.py
-#local_port 1080
-#local_address 127.0.0.1
-#connect-verbose-info
-workers 8
-fast-open
-daemon
-#pid-file /home/xxx/.config/SSRSub/shadowsocksr.pid
-#log-file /dev/null
-```
--->
 <details>
-<summary>gui version screenshots</summary>
+<summary>screenshots</summary>
   
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/gui_by_qt_dev1.png)  
-
-</details>
-
-<details>
-<summary>no gui version screenshots</summary>
-
-![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/SSRSubV0.2.3beta.png)
 
 </details>
 
@@ -85,8 +54,6 @@ socks5Conn, err := (&socks5client.Socks5Client{
  Username: "xxxxx",
 // socks5 proxy password
  Password: "xxxxx",
-//  <keep alive timeout>
- KeepAliveTimeout: x * time.Second,
 //  <what domain/ip your want to access across socks5,format like xxx.com:443>
  Address: "www.xxx.xxx:xx"}).NewSocks5Client()
  if err != nil {
