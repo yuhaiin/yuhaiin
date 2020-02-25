@@ -1,8 +1,10 @@
 # SsrMicroClient
-```
+
+```shell
 ２０世紀 郵便配達員が運ぶのは幸福だから、手紙は人間に幸せ届ける
 ２１世紀 インターネットが運ぶのは幸福だから、アクセスできないなら人間に幸せ届けない
 ```
+
 [![license](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
 [![releases](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/SsrMicroClient)](https://goreportcard.com/report/github.com/Asutorufa/SsrMicroClient)
@@ -10,9 +12,9 @@
 <!-- [![codebeat badge](https://codebeat.co/badges/ce94a347-64b1-4ee3-9b18-b95858e1c6b4)](https://codebeat.co/projects/github-com-asutorufa-ssrmicroclient-master) -->
 How to use:
 
-- download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases) binary file.if not have your platform ,please build it by yourself.
-- if you use windows,you need to read [how to install libsodium to windows](https://github.com/Asutorufa/SsrMicroClient/blob/master/windows_use_ssr_python.md).  
-  Or move the two files of [windowsDepond](https://github.com/Asutorufa/SsrMicroClient/tree/OtherLanguage/Old/windowsDepond) to C:\Windows\SysWOW64.  
+- download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases) binary file.if have not your platform,please build it yourself.
+- if use Windows,need to read [how to install libsodium to windows](https://github.com/Asutorufa/SsrMicroClient/blob/master/windows_use_ssr_python.md).  
+  Or move the two files [windowsDepond](https://github.com/Asutorufa/SsrMicroClient/tree/OtherLanguage/Old/windowsDepond) to C:\Windows\SysWOW64.  
 - build
 
 at first,install [therecipe/qt#Installation](https://github.com/therecipe/qt#installation)
@@ -96,7 +98,7 @@ isMatch := newMatcher.MatchWithTrie("x.x.x.x")
 
 // insert a new cidr
 if err := newMatcher.InsertOneCIDR("x.x.x.x/xx"); err != nil{
- log.Println(err) 
+ log.Println(err)
  return
 }
 ```
@@ -129,38 +131,10 @@ isMatch := newMatcher.Search("www.xxx.com")
 [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 
-<!--
-## already know issue
-
-ssr python version at mac may be not support,please test by yourself.
--->
-
 ## Others
 
-<!--
-Make a simple gui([Now Dev](https://github.com/Asutorufa/SsrMicroClient/tree/dev)):
-![gui](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/dev/img/gui_dev.png) 
--->
 <details>
 <summary>Todo:</summary>
-
-- [x] (give up)use shadowsocksr write by golang(sun8911879/shadowsocksR),or use ssr_libev share libraries.  
-      write a half of [http proxy](https://github.com/Asutorufa/SsrMicroClient/blob/OtherLanguage/Old/SSR_http_client/client.go) find sun8911879/shadowsocksR is not support auth_chain*...oof.  
-      when i use ssr_libev i cant run it in the golang that has so many error,i fix a little but more and more error appear.
-
-<!-- ```error
-      # command-line-arguments
-    /tmp/go-build379176400/b001/_x002.o：在函数‘main’中：
-    ./local.c:1478: `main'被多次定义
-    # command-line-arguments
-    .........
-    .........
-    .........
-    ./local.c:438:36: warning: comparison between pointer and       integer
-                         if (perror == EINPROGRESS) {
-                                    ^~
-``` -->
-
 - [x] add bypass
   - add bypass by socks5 to socks5 and socks5 to http.I need more information about iptables redirection and ss-redir.
 - [x] ss link compatible.  
@@ -169,13 +143,4 @@ Make a simple gui([Now Dev](https://github.com/Asutorufa/SsrMicroClient/tree/dev
   - already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add `-h` argument to show help.
-
-<!--
-fixed issue:
-
-- process android is not linux.
-- sh should use which to get.  
-- support windows.
-- can setting timeout.
--->
 </details>
