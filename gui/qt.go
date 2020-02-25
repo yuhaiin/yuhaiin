@@ -216,6 +216,8 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		core.NewQPoint2(450, 190)))
 	startButton := widgets.NewQPushButton2("start", ssrMicroClientGUI.MainWindow)
 
+	// wait the last ssr process finished
+	waitChan := make(chan bool, 0)
 	start := func() {
 		if err := ssrMicroClientGUI.ssrCmd.Start(); err != nil {
 			log.Println(err)
@@ -225,13 +227,9 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		if _, err := ssrMicroClientGUI.ssrCmd.Process.Wait(); err != nil {
 			log.Println(err)
 		}
-		if ssrMicroClientGUI.ssrCmd.Process != nil {
-			if err := ssrMicroClientGUI.ssrCmd.Process.Release(); err != nil {
-				log.Println(err)
-			}
-		}
 		statusLabel2.SetText("<b><font color=red>stop</font></b>")
 		trayIcon.SetToolTip("stop")
+		waitChan <- true
 	}
 	startButton.ConnectClicked(func(bool2 bool) {
 		group := groupCombobox.CurrentText()
@@ -258,28 +256,10 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 				if err := ssrMicroClientGUI.ssrCmd.Process.Kill(); err != nil {
 					log.Println(err)
 				}
+				ssrMicroClientGUI.ssrCmd = nil
 			}
-			//ssrMicroClientGUI.ssrCmd = process.GetSsrCmd(ssrMicroClientGUI.configPath)
-			//go func() {
-			//	start()
-			//}()
-			//if exist == true {
-			//	process.Stop(ssrMicroClientGUI.configPath)
-			//	time.Sleep(250 * time.Millisecond)
-			//	process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
-			//} else {
-			//	process.StartByArgument(ssrMicroClientGUI.configPath, "ssr")
-			//}
-			//var status string
-			//if pid, run := process.Get(ssrMicroClientGUI.configPath); run == true {
-			//	status = "<b><font color=green>running (pid: " +
-			//		pid + ")</font></b>"
-			//} else {
-			//	status = "<b><font color=reb>stopped</font></b>"
-			//}
-			//statusLabel2.SetText(status)
-			//trayIcon.SetToolTip(updateStatus())
 		}
+		<-waitChan
 		ssrMicroClientGUI.ssrCmd = ssrcontrol.GetSsrCmd(ssrMicroClientGUI.configPath)
 		go func() {
 			start()
@@ -385,6 +365,9 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 				return
 			}
 		}
+		go func() {
+			waitChan <- true
+		}()
 		startButton.Click()
 	}
 }
