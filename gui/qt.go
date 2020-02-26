@@ -20,13 +20,13 @@ type SsrMicroClientGUI struct {
 	subscriptionWindow *widgets.QMainWindow
 	settingWindow      *widgets.QMainWindow
 	Session            *gui.QSessionManager
-	httpCmd            *exec.Cmd
-	httpBypassCmd      *exec.Cmd
-	socks5BypassCmd    *exec.Cmd
-	ssrCmd             *exec.Cmd
-	configPath         string
-	settingConfig      *config2.Setting
-	server             *ServerControl.ServerControl
+	//httpCmd            *exec.Cmd
+	//httpBypassCmd      *exec.Cmd
+	//socks5BypassCmd    *exec.Cmd
+	ssrCmd        *exec.Cmd
+	configPath    string
+	settingConfig *config2.Setting
+	server        *ServerControl.ServerControl
 }
 
 func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
@@ -218,6 +218,9 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 
 	// wait the last ssr process finished
 	waitChan := make(chan bool, 0)
+	go func() {
+		waitChan <- true
+	}()
 	start := func() {
 		if err := ssrMicroClientGUI.ssrCmd.Start(); err != nil {
 			log.Println(err)
@@ -359,15 +362,22 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		nodeCombobox.SetCurrentText(nowNode["remarks"])
 	})
 
+	settingButton := widgets.NewQPushButton2("Setting", ssrMicroClientGUI.MainWindow)
+	settingButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 300),
+		core.NewQPoint2(290, 330)))
+	settingButton.ConnectClicked(func(bool2 bool) {
+		if ssrMicroClientGUI.settingWindow.IsHidden() == false {
+			ssrMicroClientGUI.settingWindow.Close()
+		}
+		ssrMicroClientGUI.settingWindow.Show()
+	})
+
 	if ssrMicroClientGUI.settingConfig.AutoStartSsr == true {
 		if ssrMicroClientGUI.ssrCmd.Process != nil {
 			if ssrMicroClientGUI.ssrCmd.Process.Pid != -1 {
 				return
 			}
 		}
-		go func() {
-			waitChan <- true
-		}()
 		startButton.Click()
 	}
 }
@@ -511,13 +521,13 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	socks5BypassLineText.SetGeometry(core.NewQRect2(core.
 		NewQPoint2(300, 120), core.NewQPoint2(420, 150)))
 
-	//pythonPathLabel := widgets.NewQLabel2("pythonPath", ssrMicroClientGUI.settingWindow, 0)
-	//pythonPathLabel.SetGeometry(core.NewQRect2(core.
-	//	NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
-	//pythonPathLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
-	//pythonPathLineText.SetText(ssrMicroClientGUI.settingConfig.PythonPath)
-	//pythonPathLineText.SetGeometry(core.NewQRect2(core.
-	//	NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
+	dnsServerLabel := widgets.NewQLabel2("DNS", ssrMicroClientGUI.settingWindow, 0)
+	dnsServerLabel.SetGeometry(core.NewQRect2(core.
+		NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
+	dnsServerLineText := widgets.NewQLineEdit(ssrMicroClientGUI.settingWindow)
+	dnsServerLineText.SetText(ssrMicroClientGUI.settingConfig.DnsServer)
+	dnsServerLineText.SetGeometry(core.NewQRect2(core.
+		NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
 
 	ssrPathLabel := widgets.NewQLabel2("ssrPath", ssrMicroClientGUI.settingWindow, 0)
 	ssrPathLabel.SetGeometry(core.NewQRect2(core.
@@ -537,6 +547,10 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 
 	applyButton := widgets.NewQPushButton2("apply", ssrMicroClientGUI.settingWindow)
 	applyButton.ConnectClicked(func(bool2 bool) {
+		if socks5BypassLineText.Text() == "127.0.0.1:1083" || socks5BypassLineText.Text() == "0.0.0.0:1083" {
+			ssrMicroClientGUI.MessageBox("You cant set the socks5 port to 1083,Please it.")
+			return
+		}
 		ssrMicroClientGUI.settingConfig.AutoStartSsr = autoStartSsr.IsChecked()
 		ssrMicroClientGUI.settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
 		ssrMicroClientGUI.settingConfig.Bypass = bypassCheckBox.IsChecked()
@@ -549,6 +563,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 		ssrMicroClientGUI.settingConfig.BypassFile = BypassFileLineText.Text()
 		ssrMicroClientGUI.settingConfig.HttpProxyAddressAndPort = httpAddressLineText.Text()
 		ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort = socks5BypassLineText.Text()
+		ssrMicroClientGUI.settingConfig.DnsServer = dnsServerLineText.Text()
 
 		if err := config2.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
 			//log.Println(err)

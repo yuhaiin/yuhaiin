@@ -2,6 +2,7 @@ package getproxyconn
 
 import (
 	socks5client "SsrMicroClient/net/proxy/socks5/client"
+	"errors"
 	"net"
 	"net/url"
 	"time"
@@ -15,10 +16,11 @@ func ForwardTo(host string, proxy url.URL) (net.Conn, error) {
 		return toSocks5(host, proxy.Hostname(), proxy.Port())
 	case "https", "http":
 		return toHTTP(host, proxy.Host)
-	default:
-		//return toTCP(host)
-		return toSocks5(host, "127.0.0.1", "1080")
+		//default:
+		//	//return toTCP(host)
+		//	return toSocks5(host, "127.0.0.1", "1080")
 	}
+	return nil, errors.New("no match")
 }
 
 func toSocks5(host string, s5Server, s5Port string) (socks5Conn net.Conn, err error) {

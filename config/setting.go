@@ -39,11 +39,11 @@ func SettingInitJSON(configPath string) error {
 		PythonPath:                     GetPythonPath(),
 		SsrPath:                        GetPythonPath() + " " + configPath + "/shadowsocksr/shadowsocks/local.py",
 		LocalAddress:                   "127.0.0.1",
-		LocalPort:                      "1080",
+		LocalPort:                      "1083",
 		Bypass:                         true,
 		HttpProxy:                      true,
 		HttpProxyAddressAndPort:        "127.0.0.1:8188",
-		Socks5WithBypassAddressAndPort: "127.0.0.1:1083",
+		Socks5WithBypassAddressAndPort: "127.0.0.1:1080",
 
 		TimeOut:           "1000",
 		HttpWithBypass:    true,
