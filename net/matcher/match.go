@@ -87,7 +87,7 @@ func (newMatch *Match) MatchStr(str string) (target []string, proxy string) {
 				}
 				newMatch.dnsCache.Add(str, dnsS)
 			}
-			if isSuccess {
+			if isSuccess && len(dnsS) > 0 {
 				isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
 			}
 			target = append(target, dnsS...)
