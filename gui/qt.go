@@ -514,7 +514,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	applyButton := widgets.NewQPushButton2("apply", ssrMicroClientGUI.settingWindow)
 	applyButton.ConnectClicked(func(bool2 bool) {
 		if socks5BypassLineText.Text() == "127.0.0.1:1083" || socks5BypassLineText.Text() == "0.0.0.0:1083" {
-			ssrMicroClientGUI.MessageBox("You cant set the socks5 port to 1083,Please it.")
+			ssrMicroClientGUI.MessageBox("You cant set the socks5 port to 1083,Please change it.")
 			return
 		}
 		ssrMicroClientGUI.settingConfig.AutoStartSsr = autoStartSsr.IsChecked()
