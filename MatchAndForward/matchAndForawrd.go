@@ -24,6 +24,7 @@ func NewForwardTo(configJsonPath, rulePath string) (forwardTo *ForwardTo, err er
 		return
 	}
 	forwardTo.Matcher, err = matcher.NewMatcherWithFile(forwardTo.Setting.DnsServer, rulePath)
+	forwardTo.Matcher.IsDNSOverHTTPS = forwardTo.Setting.IsDNSOverHTTPS
 	if err != nil {
 		log.Println(err, rulePath)
 	}
@@ -86,7 +87,9 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 			return nil, err
 		}
 	}
-	ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+	if ForwardTo.Setting.IsPrintLog {
+		ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+	}
 	conn, err = getproxyconn.ForwardTo(host, *proxyURI)
 	return
 }

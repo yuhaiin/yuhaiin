@@ -24,12 +24,8 @@ type Setting struct {
 	DnsServer                      string `json:"dnsServer"`
 	UdpTrans                       bool   `json:"udpTrans"`
 	AutoStartSsr                   bool   `json:"autoStartSsr"`
-
-	BypassDomainFile  string `json:"bypassDomainFile"`
-	DirectProxyFile   string `json:"directProxyFile"`
-	DiscordDomainFile string `json:"discordDomainFile"`
-	HttpWithBypass    bool   `json:"httpWithBypass"`
-	Socks5WithBypass  bool   `json:"socks5WithBypass"`
+	IsPrintLog                     bool   `json:"is_print_log"`
+	IsDNSOverHTTPS                 bool   `json:"is_dns_over_https"`
 }
 
 // SettingInitJSON init setting json file
@@ -44,20 +40,17 @@ func SettingInitJSON(configPath string) error {
 		HttpProxy:                      true,
 		HttpProxyAddressAndPort:        "127.0.0.1:8188",
 		Socks5WithBypassAddressAndPort: "127.0.0.1:1080",
+		IsPrintLog:                     false,
 
-		TimeOut:           "1000",
-		HttpWithBypass:    true,
-		BypassFile:        configPath + "/cidrBypass.conf",
-		BypassDomainFile:  configPath + "/domainBypass.conf",
-		DirectProxyFile:   configPath + "/domainProxy.conf",
-		DiscordDomainFile: configPath + "/discordFile.conf",
-		Socks5WithBypass:  true,
-		DnsServer:         "8.8.8.8:53",
-		UdpTrans:          true,
-		PidFile:           configPath + "/shadowsocksr.pid",
-		LogFile:           "",
-		FastOpen:          true,
-		Works:             "8",
+		TimeOut:        "1000",
+		BypassFile:     configPath + "/SsrMicroClient.conf",
+		IsDNSOverHTTPS: true,
+		DnsServer:      "https://cloudflare-dns.com/dns-query",
+		UdpTrans:       true,
+		PidFile:        configPath + "/shadowsocksr.pid",
+		LogFile:        "",
+		FastOpen:       true,
+		Works:          "8",
 	}
 	if err := SettingEnCodeJSON(configPath, pa); err != nil {
 		return err

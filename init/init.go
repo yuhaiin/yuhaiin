@@ -46,47 +46,16 @@ func Init(configPath string) {
 		}
 	}
 
-	if !PathExists(configPath + "/cidrBypass.conf") {
-		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/ssrMicroClientBypass.conf")
+	if !PathExists(configPath + "/SsrMicroClient.conf") {
+		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/SsrMicroClient.conf")
 		if err != nil {
 			panic(err)
 		}
-		f, err := os.Create(configPath + "/cidrBypass.conf")
-		if err != nil {
-			panic(err)
-		}
-		_, _ = io.Copy(f, res.Body)
-	}
-
-	if !PathExists(configPath + "/domainBypass.conf") {
-		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/ssrMicroClientDomainBypass.conf")
-		if err != nil {
-			panic(err)
-		}
-		f, err := os.Create(configPath + "/domainBypass.conf")
+		f, err := os.Create(configPath + "/SsrMicroClient.conf")
 		if err != nil {
 			panic(err)
 		}
 		_, _ = io.Copy(f, res.Body)
-	}
-
-	if !PathExists(configPath + "/domainProxy.conf") {
-		//res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/ssrMicroClientBypass.conf")
-		//if err != nil {
-		//	panic(err)
-		//}
-		_, err := os.Create(configPath + "/domainProxy.conf")
-		if err != nil {
-			panic(err)
-		}
-		//io.Copy(f, res.Body)
-	}
-
-	if !PathExists(configPath + "/discordDomain.conf") {
-		_, err := os.Create(configPath + "/discordDomain.conf")
-		if err != nil {
-			panic(err)
-		}
 	}
 
 	if !PathExists(configPath + "/SsrMicroClient.png") {

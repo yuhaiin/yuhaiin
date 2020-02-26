@@ -12,9 +12,10 @@ import (
 )
 
 type Match struct {
-	DNSServer   string
-	cidrMatch   *cidrmatch.CidrMatch
-	domainMatch *domainmatch.DomainMatcher
+	IsDNSOverHTTPS bool
+	DNSServer      string
+	cidrMatch      *cidrmatch.CidrMatch
+	domainMatch    *domainmatch.DomainMatcher
 }
 
 func (newMatch *Match) InsertOne(str, mark string) error {
@@ -73,9 +74,16 @@ func (newMatch *Match) MatchStr(str string) (target []string, proxy string) {
 	} else {
 		isMatch, proxy = newMatch.domainMatch.Search(str)
 		if !isMatch {
-			if dnsS, isSuccess := dns.DNS(newMatch.DNSServer, str); isSuccess {
-				isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
-				target = append(target, dnsS...)
+			if newMatch.IsDNSOverHTTPS {
+				if dnsS, isSuccess := dns.DNSOverHTTPS(newMatch.DNSServer, str); isSuccess {
+					isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
+					target = append(target, dnsS...)
+				}
+			} else {
+				if dnsS, isSuccess := dns.DNS(newMatch.DNSServer, str); isSuccess {
+					isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
+					target = append(target, dnsS...)
+				}
 			}
 		}
 	}
