@@ -64,6 +64,15 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 			if err != nil {
 				return nil, err
 			}
+		} else if proxy == "proxy" {
+			proxyURI, err = url.Parse("socks5://" + ForwardTo.Setting.LocalAddress + ":" + ForwardTo.Setting.LocalPort)
+			if err != nil {
+				return nil, err
+			}
+			if ForwardTo.Setting.IsPrintLog {
+				ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+			}
+			return getproxyconn.ForwardTo(host, *proxyURI)
 		} else {
 			proxy = "default"
 			proxyURI, err = url.Parse("socks5://" + ForwardTo.Setting.LocalAddress + ":" + ForwardTo.Setting.LocalPort)
@@ -75,7 +84,9 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 			host = net.JoinHostPort(hosts[x], URI.Port())
 			conn, err = getproxyconn.ForwardTo(host, *proxyURI)
 			if err == nil {
-				ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+				if ForwardTo.Setting.IsPrintLog {
+					ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+				}
 				return conn, nil
 			}
 		}
