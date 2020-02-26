@@ -16,6 +16,7 @@ type Match struct {
 	DNSServer      string
 	cidrMatch      *cidrmatch.CidrMatch
 	domainMatch    *domainmatch.DomainMatcher
+	dnsCache       *dns.Cache
 }
 
 func (newMatch *Match) InsertOne(str, mark string) error {
@@ -36,6 +37,7 @@ func NewMatcher(DNSServer string) *Match {
 		DNSServer:   DNSServer,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
+		dnsCache:    dns.NewDnsCache(),
 	}
 }
 
@@ -46,6 +48,7 @@ func NewMatcherWithFile(DNSServer string, MatcherFile string) (matcher *Match, e
 		DNSServer:   DNSServer,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
+		dnsCache:    dns.NewDnsCache(),
 	}
 	configTemp, err := ioutil.ReadFile(MatcherFile)
 	if err != nil {
@@ -74,17 +77,20 @@ func (newMatch *Match) MatchStr(str string) (target []string, proxy string) {
 	} else {
 		isMatch, proxy = newMatch.domainMatch.Search(str)
 		if !isMatch {
-			if newMatch.IsDNSOverHTTPS {
-				if dnsS, isSuccess := dns.DNSOverHTTPS(newMatch.DNSServer, str); isSuccess {
-					isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
-					target = append(target, dnsS...)
+			var dnsS []string
+			var isSuccess bool
+			if dnsS, isSuccess = newMatch.dnsCache.Get(str); !isSuccess {
+				if newMatch.IsDNSOverHTTPS {
+					dnsS, isSuccess = dns.DNSOverHTTPS(newMatch.DNSServer, str)
+				} else {
+					dnsS, isSuccess = dns.DNS(newMatch.DNSServer, str)
 				}
-			} else {
-				if dnsS, isSuccess := dns.DNS(newMatch.DNSServer, str); isSuccess {
-					isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
-					target = append(target, dnsS...)
-				}
+				newMatch.dnsCache.Add(str, dnsS)
 			}
+			if isSuccess {
+				isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
+			}
+			target = append(target, dnsS...)
 		}
 	}
 	target = append(target, str)

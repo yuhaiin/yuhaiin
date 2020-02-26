@@ -4,18 +4,10 @@ import (
 	"encoding/hex"
 	"log"
 	"net"
-	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
-
-// Cache <-- use map save history
-type Cache struct {
-	dns       sync.Map
-	DNSServer string
-}
 
 // DNS <-- dns
 func DNS(DNSServer, domain string) (DNS []string, success bool) {
@@ -260,44 +252,4 @@ func DNS(DNSServer, domain string) (DNS []string, success bool) {
 	}
 	//microlog.Debug(domain, dns)
 	return dns, false
-}
-
-// Match <--
-func (dnscache *Cache) Match(host, hostTemplate string,
-	cidrmatch func(string) bool) (isMatched bool) {
-	var isMatch bool
-	if _, exist := dnscache.dns.Load(host); exist == false {
-		if hostTemplate != "ip" {
-			// ip, err := net.LookupHost(host)
-			ip, isSuccess := DNS(dnscache.DNSServer, host)
-			// microlog.Debug(host, ip, isSuccess)
-			if isSuccess == true {
-				isMatch = cidrmatch(ip[0])
-				// microlog.Debug(isMatch, ip[0])
-			} else {
-				isMatch = false
-			}
-		} else {
-			isMatch = cidrmatch(host)
-		}
-		// if len(socks5Server.dns) > 10000 {
-		// 	i := 0
-		// 	for key := range socks5Server.dns {
-		// 		delete(socks5Server.dns, key)
-		// 		i++
-		// 		if i > 0 {
-		// 			break
-		// 		}
-		// 	}
-		// }
-		dnscache.dns.Store(host, isMatch)
-		// fmt.Println(runtime.NumGoroutine(), host, isMatch)
-		log.Println(runtime.NumGoroutine(), host, isMatch)
-	} else {
-		isMatchTemp, _ := dnscache.dns.Load(host)
-		isMatch = isMatchTemp.(bool)
-		// fmt.Println(runtime.NumGoroutine(), "use cache", host, isMatch)
-		log.Println(runtime.NumGoroutine(), "use cache", host, isMatch)
-	}
-	return isMatch
 }
