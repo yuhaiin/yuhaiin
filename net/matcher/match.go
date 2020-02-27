@@ -6,7 +6,6 @@ import (
 	"net"
 	"strings"
 
-	"SsrMicroClient/net/dns"
 	"SsrMicroClient/net/matcher/cidrmatch"
 	"SsrMicroClient/net/matcher/domainmatch"
 )
@@ -15,7 +14,6 @@ type Match struct {
 	dnsFunc     func(domain string) (DNS []string, success bool)
 	cidrMatch   *cidrmatch.CidrMatch
 	domainMatch *domainmatch.DomainMatcher
-	dnsCache    *dns.Cache
 }
 
 func (newMatch *Match) InsertOne(str, mark string) error {
@@ -36,7 +34,6 @@ func NewMatcher(dnsFunc func(domain string) (DNS []string, success bool)) *Match
 		dnsFunc:     dnsFunc,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
-		dnsCache:    dns.NewDnsCache(),
 	}
 }
 
@@ -47,7 +44,6 @@ func NewMatcherWithFile(dnsFunc func(domain string) (DNS []string, success bool)
 		dnsFunc:     dnsFunc,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
-		dnsCache:    dns.NewDnsCache(),
 	}
 	configTemp, err := ioutil.ReadFile(MatcherFile)
 	if err != nil {
@@ -76,12 +72,7 @@ func (newMatch *Match) MatchStr(str string) (target []string, proxy string) {
 	} else {
 		isMatch, proxy = newMatch.domainMatch.Search(str)
 		if !isMatch {
-			var dnsS []string
-			var isSuccess bool
-			if dnsS, isSuccess = newMatch.dnsCache.Get(str); !isSuccess {
-				dnsS, isSuccess = newMatch.dnsFunc(str)
-				newMatch.dnsCache.Add(str, dnsS)
-			}
+			dnsS, isSuccess := newMatch.dnsFunc(str)
 			if isSuccess && len(dnsS) > 0 {
 				isMatch, proxy = newMatch.cidrMatch.MatchOneIP(dnsS[0])
 			}

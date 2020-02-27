@@ -1,33 +1,43 @@
 package MatchAndForward
 
 import (
-	config2 "SsrMicroClient/config"
-	"SsrMicroClient/net/dns"
-	getproxyconn "SsrMicroClient/net/forward"
-	"SsrMicroClient/net/matcher"
-	socks5client "SsrMicroClient/net/proxy/socks5/client"
 	"context"
 	"errors"
 	"log"
 	"net"
 	"net/url"
+
+	"SsrMicroClient/config"
+	"SsrMicroClient/net/dns"
+	"SsrMicroClient/net/forward"
+	"SsrMicroClient/net/matcher"
+	socks5client "SsrMicroClient/net/proxy/socks5/client"
 )
 
 type ForwardTo struct {
-	Matcher *matcher.Match
-	Config  *config2.ConfigSample
-	Setting *config2.Setting
-	Log     func(v ...interface{})
+	dnsCache *dns.Cache
+	Matcher  *matcher.Match
+	Config   *config.ConfigSample
+	Setting  *config.Setting
+	Log      func(v ...interface{})
 }
 
 func NewForwardTo(configJsonPath, rulePath string) (forwardTo *ForwardTo, err error) {
-	forwardTo = &ForwardTo{}
-	forwardTo.Setting, err = config2.SettingDecodeJSON(configJsonPath)
+	forwardTo = &ForwardTo{dnsCache: dns.NewDnsCache()}
+	forwardTo.Setting, err = config.SettingDecodeJSON(configJsonPath)
 	if err != nil {
 		return
 	}
 
-	var dnsFunc func(domain string) (DNS []string, success bool)
+	forwardTo.Matcher, err = matcher.NewMatcherWithFile(dnsFunc(forwardTo), rulePath)
+	if err != nil {
+		log.Println(err, rulePath)
+	}
+	return
+}
+
+func dnsFunc(forwardTo *ForwardTo) func(domain string) (DNS []string, success bool) {
+	var dnsFuncParent func(domain string) (DNS []string, success bool)
 	switch forwardTo.Setting.IsDNSOverHTTPS {
 	case true:
 		if forwardTo.Setting.DNSAcrossProxy {
@@ -35,24 +45,29 @@ func NewForwardTo(configJsonPath, rulePath string) (forwardTo *ForwardTo, err er
 				x := &socks5client.Socks5Client{Server: forwardTo.Setting.LocalAddress, Port: forwardTo.Setting.LocalPort, Address: addr}
 				return x.NewSocks5Client()
 			}
-			dnsFunc = func(domain string) (DNS []string, success bool) {
+			dnsFuncParent = func(domain string) (DNS []string, success bool) {
 				return dns.DNSOverHTTPS(forwardTo.Setting.DnsServer, domain, proxy)
 			}
 		} else {
-			dnsFunc = func(domain string) (DNS []string, success bool) {
+			dnsFuncParent = func(domain string) (DNS []string, success bool) {
 				return dns.DNSOverHTTPS(forwardTo.Setting.DnsServer, domain, nil)
 			}
 		}
 	case false:
-		dnsFunc = func(domain string) (DNS []string, success bool) {
+		dnsFuncParent = func(domain string) (DNS []string, success bool) {
 			return dns.DNS(forwardTo.Setting.DnsServer, domain)
 		}
 	}
-	forwardTo.Matcher, err = matcher.NewMatcherWithFile(dnsFunc, rulePath)
-	if err != nil {
-		log.Println(err, rulePath)
+	return func(domain string) (DNS []string, success bool) {
+		var dnsS []string
+		var isSuccess bool
+		if dnsS, isSuccess = forwardTo.dnsCache.Get(domain); !isSuccess {
+			dnsS, isSuccess = dnsFuncParent(domain)
+			forwardTo.dnsCache.Add(domain, dnsS)
+			return dnsS, isSuccess
+		}
+		return dnsS, isSuccess
 	}
-	return
 }
 
 func (ForwardTo *ForwardTo) log(v ...interface{}) {
