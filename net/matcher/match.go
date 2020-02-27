@@ -1,7 +1,6 @@
 package matcher
 
 import (
-	"context"
 	"io/ioutil"
 	"log"
 	"net"
@@ -13,13 +12,10 @@ import (
 )
 
 type Match struct {
-	IsDNSOverHTTPS            bool
-	IsDNSOverHTTPSAcrossProxy bool
-	DNSProxy                  func(ctx context.Context, network, addr string) (net.Conn, error)
-	DNSServer                 string
-	cidrMatch                 *cidrmatch.CidrMatch
-	domainMatch               *domainmatch.DomainMatcher
-	dnsCache                  *dns.Cache
+	dnsFunc     func(domain string) (DNS []string, success bool)
+	cidrMatch   *cidrmatch.CidrMatch
+	domainMatch *domainmatch.DomainMatcher
+	dnsCache    *dns.Cache
 }
 
 func (newMatch *Match) InsertOne(str, mark string) error {
@@ -33,22 +29,22 @@ func (newMatch *Match) InsertOne(str, mark string) error {
 	return nil
 }
 
-func NewMatcher(DNSServer string) *Match {
+func NewMatcher(dnsFunc func(domain string) (DNS []string, success bool)) *Match {
 	cidrMatch := cidrmatch.NewCidrMatch()
 	domainMatch := domainmatch.NewDomainMatcher()
 	return &Match{
-		DNSServer:   DNSServer,
+		dnsFunc:     dnsFunc,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
 		dnsCache:    dns.NewDnsCache(),
 	}
 }
 
-func NewMatcherWithFile(DNSServer string, MatcherFile string) (matcher *Match, err error) {
+func NewMatcherWithFile(dnsFunc func(domain string) (DNS []string, success bool), MatcherFile string) (matcher *Match, err error) {
 	cidrMatch := cidrmatch.NewCidrMatch()
 	domainMatch := domainmatch.NewDomainMatcher()
 	matcher = &Match{
-		DNSServer:   DNSServer,
+		dnsFunc:     dnsFunc,
 		cidrMatch:   cidrMatch,
 		domainMatch: domainMatch,
 		dnsCache:    dns.NewDnsCache(),
@@ -83,15 +79,7 @@ func (newMatch *Match) MatchStr(str string) (target []string, proxy string) {
 			var dnsS []string
 			var isSuccess bool
 			if dnsS, isSuccess = newMatch.dnsCache.Get(str); !isSuccess {
-				if newMatch.IsDNSOverHTTPS {
-					if newMatch.IsDNSOverHTTPSAcrossProxy && newMatch.DNSProxy != nil {
-						dnsS, isSuccess = dns.DNSOverHTTPS(newMatch.DNSServer, str, newMatch.DNSProxy)
-					} else {
-						dnsS, isSuccess = dns.DNSOverHTTPS(newMatch.DNSServer, str, nil)
-					}
-				} else {
-					dnsS, isSuccess = dns.DNS(newMatch.DNSServer, str)
-				}
+				dnsS, isSuccess = newMatch.dnsFunc(str)
 				newMatch.dnsCache.Add(str, dnsS)
 			}
 			if isSuccess && len(dnsS) > 0 {

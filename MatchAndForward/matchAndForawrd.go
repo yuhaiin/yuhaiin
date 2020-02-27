@@ -2,6 +2,7 @@ package MatchAndForward
 
 import (
 	config2 "SsrMicroClient/config"
+	"SsrMicroClient/net/dns"
 	getproxyconn "SsrMicroClient/net/forward"
 	"SsrMicroClient/net/matcher"
 	socks5client "SsrMicroClient/net/proxy/socks5/client"
@@ -25,15 +26,29 @@ func NewForwardTo(configJsonPath, rulePath string) (forwardTo *ForwardTo, err er
 	if err != nil {
 		return
 	}
-	forwardTo.Matcher, err = matcher.NewMatcherWithFile(forwardTo.Setting.DnsServer, rulePath)
-	forwardTo.Matcher.IsDNSOverHTTPS = forwardTo.Setting.IsDNSOverHTTPS
-	forwardTo.Matcher.IsDNSOverHTTPSAcrossProxy = forwardTo.Setting.DNSAcrossProxy
-	if forwardTo.Setting.DNSAcrossProxy {
-		forwardTo.Matcher.DNSProxy = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			x := &socks5client.Socks5Client{Server: forwardTo.Setting.LocalAddress, Port: forwardTo.Setting.LocalPort, Address: addr}
-			return x.NewSocks5Client()
+
+	var dnsFunc func(domain string) (DNS []string, success bool)
+	switch forwardTo.Setting.IsDNSOverHTTPS {
+	case true:
+		if forwardTo.Setting.DNSAcrossProxy {
+			proxy := func(ctx context.Context, network, addr string) (net.Conn, error) {
+				x := &socks5client.Socks5Client{Server: forwardTo.Setting.LocalAddress, Port: forwardTo.Setting.LocalPort, Address: addr}
+				return x.NewSocks5Client()
+			}
+			dnsFunc = func(domain string) (DNS []string, success bool) {
+				return dns.DNSOverHTTPS(forwardTo.Setting.DnsServer, domain, proxy)
+			}
+		} else {
+			dnsFunc = func(domain string) (DNS []string, success bool) {
+				return dns.DNSOverHTTPS(forwardTo.Setting.DnsServer, domain, nil)
+			}
+		}
+	case false:
+		dnsFunc = func(domain string) (DNS []string, success bool) {
+			return dns.DNS(forwardTo.Setting.DnsServer, domain)
 		}
 	}
+	forwardTo.Matcher, err = matcher.NewMatcherWithFile(dnsFunc, rulePath)
 	if err != nil {
 		log.Println(err, rulePath)
 	}
