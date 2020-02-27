@@ -28,7 +28,7 @@ func (c *Cache) Get(domain string) ([]string, bool) {
 }
 
 func (c *Cache) Add(domain string, ip []string) {
-	if c.number > 1500 {
+	if c.number > 800 {
 		tmp := 0
 		c.dns.Range(func(key, value interface{}) bool {
 			c.dns.Delete(key)
@@ -46,6 +46,7 @@ func (c *Cache) Add(domain string, ip []string) {
 				return true
 			})
 			c.number = number
+			c.lastUpdateTime = time.Now()
 		}
 	}
 	c.dns.Store(domain, ip)
