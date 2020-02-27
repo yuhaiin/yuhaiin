@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"log"
 	"sync"
 	"time"
 )
@@ -51,5 +52,5 @@ func (c *Cache) Add(domain string, ip []string) {
 	}
 	c.dns.Store(domain, ip)
 	c.number++
-	//log.Println(domain+" Add success,number", c.number)
+	log.Println(domain+" Add success,number", c.number)
 }
