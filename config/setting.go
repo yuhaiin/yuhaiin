@@ -27,6 +27,7 @@ type Setting struct {
 	IsPrintLog                     bool   `json:"is_print_log"`
 	IsDNSOverHTTPS                 bool   `json:"is_dns_over_https"`
 	DNSAcrossProxy                 bool   `json:"dns_across_proxy"`
+	UseLocalDNS                    bool   `json:"use_local_dns"`
 }
 
 // SettingInitJSON init setting json file
@@ -48,6 +49,7 @@ func SettingInitJSON(configPath string) error {
 		IsDNSOverHTTPS: true,
 		DnsServer:      "https://cloudflare-dns.com/dns-query",
 		DNSAcrossProxy: true,
+		UseLocalDNS:    false,
 		UdpTrans:       true,
 		PidFile:        configPath + "/shadowsocksr.pid",
 		LogFile:        "",

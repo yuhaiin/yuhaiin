@@ -119,15 +119,22 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 				return nil, err
 			}
 		}
-		for x := range hosts {
-			host = net.JoinHostPort(hosts[x], URI.Port())
-			conn, err = getproxyconn.ForwardTo(host, *proxyURI)
-			if err == nil {
-				if ForwardTo.Setting.IsPrintLog {
-					ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+		if ForwardTo.Setting.UseLocalDNS {
+			for x := range hosts {
+				host = net.JoinHostPort(hosts[x], URI.Port())
+				conn, err = getproxyconn.ForwardTo(host, *proxyURI)
+				if err == nil {
+					if ForwardTo.Setting.IsPrintLog {
+						ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+					}
+					return conn, nil
 				}
-				return conn, nil
 			}
+		} else {
+			if ForwardTo.Setting.IsPrintLog {
+				ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+			}
+			return getproxyconn.ForwardTo(host, *proxyURI)
 		}
 		return nil, errors.New("make connection:" + net.JoinHostPort(hosts[len(hosts)-1], URI.Port()) + " with proxy:" + proxy + " error")
 	case nil:
