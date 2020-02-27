@@ -14,8 +14,13 @@ type CidrMatch struct {
 	maskSize   int
 	v4CidrTrie *TrieTree
 	v6CidrTrie *TrieTree
-	cidrMap    map[string][]*net.IPNet
-	cidrS      []*net.IPNet
+}
+
+func (cidrMatch *CidrMatch) Release() {
+	cidrMatch.v4CidrTrie.Release()
+	cidrMatch.v6CidrTrie.Release()
+	cidrMatch.v4CidrTrie = nil
+	cidrMatch.v6CidrTrie = nil
 }
 
 // NewCidrMatchWithTrie <--

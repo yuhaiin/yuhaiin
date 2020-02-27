@@ -47,7 +47,7 @@ func Init(configPath string) {
 	}
 
 	if !PathExists(configPath + "/SsrMicroClient.conf") {
-		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/SsrMicroClient.conf")
+		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/SsrMicroClient/SsrMicroClient.conf")
 		if err != nil {
 			panic(err)
 		}

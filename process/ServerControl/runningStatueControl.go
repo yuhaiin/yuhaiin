@@ -16,11 +16,11 @@ type ServerControl struct {
 	Socks5         *socks5server.ServerSocks5
 	HttpS          *httpserver.HTTPServer
 	forward        *MatchAndForward.ForwardTo
-	config         *config3.ConfigSample
 	setting        *config3.Setting
 	Log            func(v ...interface{})
 	ConfigJsonPath string
 	RulePath       string
+	wait           chan bool
 }
 
 func (ServerControl *ServerControl) serverControlInit() {
@@ -34,6 +34,7 @@ func (ServerControl *ServerControl) serverControlInit() {
 		log.Println(err)
 	}
 	ServerControl.forward.Log = ServerControl.Log
+	ServerControl.wait = make(chan bool, 0)
 }
 
 func (ServerControl *ServerControl) ServerStart() {
@@ -58,38 +59,52 @@ func (ServerControl *ServerControl) ServerStart() {
 	go func() {
 		if err := ServerControl.Socks5.Socks5(); err != nil {
 			log.Println(err)
+			return
 		}
 	}()
 
 	go func() {
 		if err := ServerControl.HttpS.HTTPProxy(); err != nil {
 			log.Println(err)
+			return
 		}
+	}()
+	go func() {
+		ServerControl.wait <- true
 	}()
 }
 
 func (ServerControl *ServerControl) ServerStop() (err error) {
+	<-ServerControl.wait
 	if ServerControl.Socks5 != nil {
 		if err = ServerControl.Socks5.Close(); err != nil {
-			return
+			log.Println(err)
 		}
 	}
 	if ServerControl.HttpS != nil {
 		if err = ServerControl.HttpS.Close(); err != nil {
-			return
+			log.Println(err)
 		}
 	}
 	if ServerControl.Socks5 != nil && ServerControl.HttpS != nil {
+		ServerControl.HttpS.HTTPListener = nil
 		ServerControl.HttpS = nil
 		ServerControl.Socks5 = nil
 		return nil
 	}
+	ServerControl.setting = nil
+	ServerControl.RulePath = ""
+	ServerControl.forward.Matcher.Release()
+	ServerControl.forward.Matcher = nil
+	ServerControl.forward.Setting = nil
+	ServerControl.forward = nil
+	close(ServerControl.wait)
 	return errors.New("not Start")
 }
 
 func (ServerControl *ServerControl) ServerRestart() {
 	if err := ServerControl.ServerStop(); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	} else {
 		ServerControl.ServerStart()
 	}

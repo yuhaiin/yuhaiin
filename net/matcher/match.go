@@ -27,6 +27,13 @@ func (newMatch *Match) InsertOne(str, mark string) error {
 	return nil
 }
 
+func (x *Match) Release() {
+	x.cidrMatch.Release()
+	x.cidrMatch = nil
+	x.domainMatch.Release()
+	x.domainMatch = nil
+}
+
 func NewMatcher(dnsFunc func(domain string) (DNS []string, success bool)) *Match {
 	cidrMatch := cidrmatch.NewCidrMatch()
 	domainMatch := domainmatch.NewDomainMatcher()

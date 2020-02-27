@@ -15,6 +15,11 @@ type DomainMatcher struct {
 	root *node
 }
 
+func (domainMatcher *DomainMatcher) Release() {
+	domainMatcher.root.child = nil
+	domainMatcher.root = nil
+}
+
 func (domainMatcher *DomainMatcher) Insert(domain, mark string) {
 	tmp := domainMatcher.root
 	splitTmp := strings.Split(domain, ".")

@@ -92,10 +92,13 @@ func (socks5Server *ServerSocks5) Close() error {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println(err)
+			return
 		}
 	}()
 	socks5Server.cancel()
-	return socks5Server.conn.Close()
+	_ = socks5Server.conn.Close()
+	socks5Server.conn = nil
+	return nil
 }
 
 // Socks5 <--

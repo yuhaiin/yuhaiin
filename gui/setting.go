@@ -2,6 +2,7 @@ package gui
 
 import (
 	config2 "SsrMicroClient/config"
+	"SsrMicroClient/process/ServerControl"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -132,8 +133,13 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
-		ssrMicroClientGUI.server.ServerRestart()
+
+		_ = ssrMicroClientGUI.server.ServerStop()
+		ssrMicroClientGUI.server = nil
+		ssrMicroClientGUI.server = &ServerControl.ServerControl{}
+		ssrMicroClientGUI.server.ServerStart()
 	})
+
 	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280),
 		core.NewQPoint2(90, 310)))
 

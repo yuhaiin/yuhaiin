@@ -14,6 +14,10 @@ type node struct {
 	right  *node
 }
 
+func (trie *TrieTree) Release() {
+	trie.root = nil
+}
+
 // Insert insert node to tree
 func (trie *TrieTree) Insert(str, mark string) {
 	nodeTemp := trie.root
