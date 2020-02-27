@@ -193,12 +193,16 @@ target,flag := mather.MatchStr("www.xxx.xxx")
 
 <details>
 <summary>Todo:</summary>
+
 - [x] add bypass
   - add bypass by socks5 to socks5 and socks5 to http.I need more information about iptables redirection and ss-redir.
 - [x] ss link compatible.  
   - [ ] need more ss link template.
 - [x] support http proxy.  
-  - already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.
+  - [x] fixed,problem is http's keep-alive.~~already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.~~
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add `-h` argument to show help.
+- [x] add DOH.
+- [x] have a GUI.
+
 </details>
