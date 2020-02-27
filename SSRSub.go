@@ -6,21 +6,21 @@ import (
 	"SsrMicroClient/gui"
 	"SsrMicroClient/init"
 	"SsrMicroClient/process/lockfile"
-	"fmt"
+	//"fmt"
 	"log"
-	"net/http"
-	_ "net/http/pprof"
+	//"net/http"
+	//_ "net/http/pprof"
 	"os"
 )
 
 func main() {
-	go func() {
-		// 开启pprof，监听请求
-		ip := "0.0.0.0:6060"
-		if err := http.ListenAndServe(ip, nil); err != nil {
-			fmt.Printf("start pprof failed on %s\n", ip)
-		}
-	}()
+	//go func() {
+	//	// 开启pprof，监听请求
+	//	ip := "0.0.0.0:6060"
+	//	if err := http.ListenAndServe(ip, nil); err != nil {
+	//		fmt.Printf("start pprof failed on %s\n", ip)
+	//	}
+	//}()
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	configPath := ssrinit.GetConfigAndSQLPath()
 	ssrinit.Init(configPath)
