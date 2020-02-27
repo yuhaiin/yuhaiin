@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -92,9 +93,19 @@ type Answer struct {
 	Data    string `json:"data"`
 }
 
-func DNSOverHTTPS(DNSServer, domain string) (DNS []string, success bool) {
+func DNSOverHTTPS(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS []string, success bool) {
 	doh := &DOH{}
-	res, err := http.Get(DNSServer + "?ct=application/dns-json&name=" + domain + "&type=A")
+	var res *http.Response
+	var err error
+	if proxy != nil {
+		tr := http.Transport{
+			DialContext: proxy,
+		}
+		newClient := &http.Client{Transport: &tr}
+		res, err = newClient.Get(DNSServer + "?ct=application/dns-json&name=" + domain + "&type=A")
+	} else {
+		res, err = http.Get(DNSServer + "?ct=application/dns-json&name=" + domain + "&type=A")
+	}
 	if err != nil {
 		return nil, false
 	}

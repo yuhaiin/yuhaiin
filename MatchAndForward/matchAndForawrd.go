@@ -4,6 +4,8 @@ import (
 	config2 "SsrMicroClient/config"
 	getproxyconn "SsrMicroClient/net/forward"
 	"SsrMicroClient/net/matcher"
+	socks5client "SsrMicroClient/net/proxy/socks5/client"
+	"context"
 	"errors"
 	"log"
 	"net"
@@ -25,6 +27,13 @@ func NewForwardTo(configJsonPath, rulePath string) (forwardTo *ForwardTo, err er
 	}
 	forwardTo.Matcher, err = matcher.NewMatcherWithFile(forwardTo.Setting.DnsServer, rulePath)
 	forwardTo.Matcher.IsDNSOverHTTPS = forwardTo.Setting.IsDNSOverHTTPS
+	forwardTo.Matcher.IsDNSOverHTTPSAcrossProxy = forwardTo.Setting.DNSAcrossProxy
+	if forwardTo.Setting.DNSAcrossProxy {
+		forwardTo.Matcher.DNSProxy = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			x := &socks5client.Socks5Client{Server: forwardTo.Setting.LocalAddress, Port: forwardTo.Setting.LocalPort, Address: addr}
+			return x.NewSocks5Client()
+		}
+	}
 	if err != nil {
 		log.Println(err, rulePath)
 	}

@@ -1,6 +1,7 @@
 package matcher
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
 	"net"
@@ -12,11 +13,13 @@ import (
 )
 
 type Match struct {
-	IsDNSOverHTTPS bool
-	DNSServer      string
-	cidrMatch      *cidrmatch.CidrMatch
-	domainMatch    *domainmatch.DomainMatcher
-	dnsCache       *dns.Cache
+	IsDNSOverHTTPS            bool
+	IsDNSOverHTTPSAcrossProxy bool
+	DNSProxy                  func(ctx context.Context, network, addr string) (net.Conn, error)
+	DNSServer                 string
+	cidrMatch                 *cidrmatch.CidrMatch
+	domainMatch               *domainmatch.DomainMatcher
+	dnsCache                  *dns.Cache
 }
 
 func (newMatch *Match) InsertOne(str, mark string) error {
@@ -81,7 +84,11 @@ func (newMatch *Match) MatchStr(str string) (target []string, proxy string) {
 			var isSuccess bool
 			if dnsS, isSuccess = newMatch.dnsCache.Get(str); !isSuccess {
 				if newMatch.IsDNSOverHTTPS {
-					dnsS, isSuccess = dns.DNSOverHTTPS(newMatch.DNSServer, str)
+					if newMatch.IsDNSOverHTTPSAcrossProxy && newMatch.DNSProxy != nil {
+						dnsS, isSuccess = dns.DNSOverHTTPS(newMatch.DNSServer, str, newMatch.DNSProxy)
+					} else {
+						dnsS, isSuccess = dns.DNSOverHTTPS(newMatch.DNSServer, str, nil)
+					}
 				} else {
 					dnsS, isSuccess = dns.DNS(newMatch.DNSServer, str)
 				}

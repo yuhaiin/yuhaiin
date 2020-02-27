@@ -37,9 +37,14 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 	DnsOverHttpsCheckBox := widgets.NewQCheckBox2("Use DNSOverHTTPS",
 		ssrMicroClientGUI.settingWindow)
 	DnsOverHttpsCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.IsDNSOverHTTPS)
-	DnsOverHttpsCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 40),
-		core.NewQPoint2(450, 70)))
+	DnsOverHttpsCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80),
+		core.NewQPoint2(200, 110)))
 
+	DnsOverHttpsProxyCheckBox := widgets.NewQCheckBox2("DNS Over Proxy",
+		ssrMicroClientGUI.settingWindow)
+	DnsOverHttpsProxyCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.DNSAcrossProxy)
+	DnsOverHttpsProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(210, 80),
+		core.NewQPoint2(400, 110)))
 	//httpBypassCheckBox := widgets.NewQCheckBox2("http bypass", ssrMicroClientGUI.settingWindow)
 	//httpBypassCheckBox.SetChecked(ssrMicroClientGUI.settingConfig.HttpWithBypass)
 	//httpBypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(310, 40),
@@ -112,6 +117,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 		ssrMicroClientGUI.settingConfig.HttpProxy = httpProxyCheckBox.IsChecked()
 		ssrMicroClientGUI.settingConfig.Bypass = bypassCheckBox.IsChecked()
 		ssrMicroClientGUI.settingConfig.IsDNSOverHTTPS = DnsOverHttpsCheckBox.IsChecked()
+		ssrMicroClientGUI.settingConfig.DNSAcrossProxy = DnsOverHttpsProxyCheckBox.IsChecked()
 		//ssrMicroClientGUI.settingConfig.HttpWithBypass = httpBypassCheckBox.IsChecked()
 		//ssrMicroClientGUI.settingConfig.LocalAddress = localAddressLineText.Text()
 		//ssrMicroClientGUI.settingConfig.LocalPort = localPortLineText.Text()

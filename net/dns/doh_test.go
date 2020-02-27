@@ -1,18 +1,25 @@
 package dns
 
 import (
+	socks5client "SsrMicroClient/net/proxy/socks5/client"
+	"context"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"testing"
 )
 
 func TestDNSOverHTTPS(t *testing.T) {
-	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com"))
-	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com"))
-	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "cm.bilibili.com"))
-	t.Log(DNSOverHTTPS("https://dns.google/resolve", "dict.hjenglish.com"))
-	t.Log(DNSOverHTTPS("https://dns.google/resolve", "i0.hdslb.com"))
-	t.Log(DNSOverHTTPS("https://cloudflare-dns.com/dns-query", "cm.bilibili.com"))
+	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		x := &socks5client.Socks5Client{Server: "127.0.0.1", Port: "1083", Address: addr}
+		return x.NewSocks5Client()
+	}
+	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
+	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))
+	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "cm.bilibili.com", nil))
+	t.Log(DNSOverHTTPS("https://dns.google/resolve", "dict.hjenglish.com", dialContext))
+	t.Log(DNSOverHTTPS("https://dns.google/resolve", "i0.hdslb.com", dialContext))
+	t.Log(DNSOverHTTPS("https://cloudflare-dns.com/dns-query", "cm.bilibili.com", nil))
 }
 
 func TestC(t *testing.T) {

@@ -26,6 +26,7 @@ type Setting struct {
 	AutoStartSsr                   bool   `json:"autoStartSsr"`
 	IsPrintLog                     bool   `json:"is_print_log"`
 	IsDNSOverHTTPS                 bool   `json:"is_dns_over_https"`
+	DNSAcrossProxy                 bool   `json:"dns_across_proxy"`
 }
 
 // SettingInitJSON init setting json file
@@ -46,6 +47,7 @@ func SettingInitJSON(configPath string) error {
 		BypassFile:     configPath + "/SsrMicroClient.conf",
 		IsDNSOverHTTPS: true,
 		DnsServer:      "https://cloudflare-dns.com/dns-query",
+		DNSAcrossProxy: true,
 		UdpTrans:       true,
 		PidFile:        configPath + "/shadowsocksr.pid",
 		LogFile:        "",
