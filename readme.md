@@ -33,7 +33,7 @@ How to use:
   it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub. -->
 
 - [Bypass File](https://github.com/Asutorufa/SsrMicroClient/tree/ACL)
-- [For Developer](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/for_developer.md)
+- [For Developer](https://github.com/Asutorufa/SsrMicroClient/blob/master/for_developer.md)
 
 <details>
 <summary>Screenshots</summary>
