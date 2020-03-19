@@ -13,8 +13,8 @@ import (
 )
 
 type ServerControl struct {
-	Socks5         *socks5server.ServerSocks5
-	HttpS          *httpserver.HTTPServer
+	Socks5         *socks5server.Server
+	HttpS          *httpserver.Server
 	forward        *MatchAndForward.ForwardFunc
 	setting        *config.Setting
 	Log            func(v ...interface{})
@@ -96,7 +96,7 @@ func (s *ServerControl) ServerStop() (err error) {
 		}
 	}
 	if s.Socks5 != nil && s.HttpS != nil {
-		s.HttpS.HTTPListener = nil
+		s.HttpS.Listener = nil
 		s.HttpS = nil
 		s.Socks5 = nil
 		return nil

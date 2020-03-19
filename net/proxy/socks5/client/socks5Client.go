@@ -7,13 +7,13 @@ import (
 	"strconv"
 )
 
-// Socks5Client socks5 client
+// Client socks5 client
 // Conn will auto create
 // if you socks5 need username and password please init it
 // Server and Port is socks5 server's ip/domain and port
 // Address need port,for example:www.google.com:443,1.1.1.1:443,[::1]:8080 <-- ipv6 need []
 // KeepAliveTimeout 0: disable timeout , other: enable
-type Socks5Client struct {
+type Client struct {
 	Conn     net.Conn
 	Username string
 	Password string
@@ -22,7 +22,7 @@ type Socks5Client struct {
 	Address  string
 }
 
-func (s *Socks5Client) creatDial() (net.Conn, error) {
+func (s *Client) creatDial() (net.Conn, error) {
 	var err error
 	s.Conn, err = net.Dial("tcp", s.Server+":"+s.Port)
 	if err != nil {
@@ -31,7 +31,7 @@ func (s *Socks5Client) creatDial() (net.Conn, error) {
 	return s.Conn, nil
 }
 
-func (s *Socks5Client) socks5FirstVerify() error {
+func (s *Client) socks5FirstVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// The client connects to the server, and sends a version
 	// identifier/method selection message:
@@ -137,7 +137,7 @@ func (s *Socks5Client) socks5FirstVerify() error {
 	return nil
 }
 
-func (s *Socks5Client) socks5SecondVerify() error {
+func (s *Client) socks5SecondVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// 	Once the method-dependent subnegotiation has completed, the client
 	// 	sends the request details.  If the negotiated method includes
@@ -375,7 +375,7 @@ func (s *Socks5Client) socks5SecondVerify() error {
 }
 
 // NewSocks5Client <--
-func (s *Socks5Client) NewSocks5Client() (net.Conn, error) {
+func (s *Client) NewSocks5Client() (net.Conn, error) {
 	// var socks5client socks5client
 	var err error
 	s.Conn, err = s.creatDial()
@@ -395,7 +395,7 @@ func (s *Socks5Client) NewSocks5Client() (net.Conn, error) {
 }
 
 // NewSocks5ClientOnlyFirstVerify <--
-func (s *Socks5Client) NewSocks5ClientOnlyFirstVerify() (net.Conn, error) {
+func (s *Client) NewSocks5ClientOnlyFirstVerify() (net.Conn, error) {
 	// var socks5client socks5client
 	var err error
 	s.Conn, err = s.creatDial()

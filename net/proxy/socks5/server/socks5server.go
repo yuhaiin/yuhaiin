@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// ServerSocks5 <--
-type ServerSocks5 struct {
+// Server <--
+type Server struct {
 	Server      string
 	Port        string
 	Username    string
@@ -28,8 +28,8 @@ type ServerSocks5 struct {
 // username: socks5 server username
 // password: socks5 server password
 // forwardTo: if you want to forward to another server,create a function that return net.Conn and use it,if not use nil
-func NewSocks5Server(server, port, username, password string, forwardFunc func(host string) (net.Conn, error)) (*ServerSocks5, error) {
-	s := &ServerSocks5{
+func NewSocks5Server(server, port, username, password string, forwardFunc func(host string) (net.Conn, error)) (*Server, error) {
+	s := &Server{
 		Server:      server,
 		Port:        port,
 		Username:    username,
@@ -49,7 +49,7 @@ func NewSocks5Server(server, port, username, password string, forwardFunc func(h
 	return s, nil
 }
 
-func (s *ServerSocks5) socks5Init() error {
+func (s *Server) init() error {
 	s.context, s.cancel = context.WithCancel(context.Background())
 	socks5ServerIP := net.ParseIP(s.Server)
 	socks5ServerPort, err := strconv.Atoi(s.Port)
@@ -63,7 +63,7 @@ func (s *ServerSocks5) socks5Init() error {
 	return nil
 }
 
-func (s *ServerSocks5) socks5AcceptARequest() error {
+func (s *Server) socks5AcceptARequest() error {
 	client, err := s.conn.AcceptTCP()
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func (s *ServerSocks5) socks5AcceptARequest() error {
 }
 
 // Close close socks5 listener
-func (s *ServerSocks5) Close() error {
+func (s *Server) Close() error {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println(err)
@@ -102,10 +102,7 @@ func (s *ServerSocks5) Close() error {
 }
 
 // Socks5 <--
-func (s *ServerSocks5) Socks5() error {
-	//if err := socks5Server.socks5Init(); err != nil {
-	//	return err
-	//}
+func (s *Server) Socks5() error {
 	for {
 		select {
 		case <-s.context.Done():
@@ -124,7 +121,7 @@ func (s *ServerSocks5) Socks5() error {
 	}
 }
 
-func (s *ServerSocks5) handleClientRequest(client net.Conn) error {
+func (s *Server) handleClientRequest(client net.Conn) error {
 	var b [1024]byte
 	_, err := client.Read(b[:])
 	if err != nil {

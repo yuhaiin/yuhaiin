@@ -1,4 +1,4 @@
-package matcher
+package match
 
 import (
 	"SsrMicroClient/net/dns"
@@ -10,15 +10,15 @@ func TestNewMatcher(t *testing.T) {
 		return dns.DNS("119.29.29.29:53", domain)
 	}
 	matcher := NewMatcher(dnsFunc)
-	if err := matcher.InsertOne("www.baidu.com", "test_baidu"); err != nil {
+	if err := matcher.Insert("www.baidu.com", "test_baidu"); err != nil {
 		t.Error(err)
 	}
-	if err := matcher.InsertOne("10.2.2.1/18", "test_cidr"); err != nil {
+	if err := matcher.Insert("10.2.2.1/18", "test_cidr"); err != nil {
 		t.Error(err)
 	}
-	t.Log(matcher.MatchStr("10.2.2.1"))
-	t.Log(matcher.MatchStr("www.baidu.com"))
-	t.Log(matcher.MatchStr("www.google.com"))
+	t.Log(matcher.Search("10.2.2.1"))
+	t.Log(matcher.Search("www.baidu.com"))
+	t.Log(matcher.Search("www.google.com"))
 }
 
 func TestNewMatcherWithFile(t *testing.T) {
@@ -29,7 +29,7 @@ func TestNewMatcherWithFile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(matcher.MatchStr("10.2.2.1"))
-	t.Log(matcher.MatchStr("www.baidu.com"))
-	t.Log(matcher.MatchStr("www.google.com"))
+	t.Log(matcher.Search("10.2.2.1"))
+	t.Log(matcher.Search("www.baidu.com"))
+	t.Log(matcher.Search("www.google.com"))
 }

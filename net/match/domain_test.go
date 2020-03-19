@@ -1,4 +1,4 @@
-package domainmatch
+package match
 
 import (
 	"testing"

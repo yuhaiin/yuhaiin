@@ -1,6 +1,7 @@
 package MatchAndForward
 
 import (
+	"SsrMicroClient/net/match"
 	"context"
 	"errors"
 	"log"
@@ -10,13 +11,12 @@ import (
 	"SsrMicroClient/config"
 	"SsrMicroClient/net/dns"
 	"SsrMicroClient/net/forward"
-	"SsrMicroClient/net/matcher"
 	"SsrMicroClient/net/proxy/socks5/client"
 )
 
 type ForwardFunc struct {
 	dnsCache *dns.Cache
-	Matcher  *matcher.Match
+	Matcher  *match.Match
 	Config   *config.ConfigSample
 	Setting  *config.Setting
 	Log      func(v ...interface{})
@@ -29,7 +29,7 @@ func NewForwardFunc(configJsonPath, rulePath string) (forwardFunc *ForwardFunc, 
 		return
 	}
 
-	forwardFunc.Matcher, err = matcher.NewMatcherWithFile(dnsFunc(forwardFunc), rulePath)
+	forwardFunc.Matcher, err = match.NewMatcherWithFile(dnsFunc(forwardFunc), rulePath)
 	if err != nil {
 		log.Println(err, rulePath)
 	}
@@ -42,7 +42,7 @@ func dnsFunc(f *ForwardFunc) func(domain string) (DNS []string, success bool) {
 	case true:
 		if f.Setting.DNSAcrossProxy {
 			proxy := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				x := &socks5client.Socks5Client{Server: f.Setting.LocalAddress, Port: f.Setting.LocalPort, Address: addr}
+				x := &socks5client.Client{Server: f.Setting.LocalAddress, Port: f.Setting.LocalPort, Address: addr}
 				return x.NewSocks5Client()
 			}
 			dnsFuncParent = func(domain string) (DNS []string, success bool) {
@@ -95,7 +95,7 @@ func (f *ForwardFunc) Forward(host string) (conn net.Conn, err error) {
 
 	switch f.Matcher {
 	default:
-		hosts, proxy := f.Matcher.MatchStr(URI.Hostname())
+		hosts, proxy := f.Matcher.Search(URI.Hostname())
 		if proxy == "block" {
 			return nil, errors.New("block domain: " + host)
 		} else if proxy == "direct" {

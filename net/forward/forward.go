@@ -22,7 +22,7 @@ func ForwardTo(host string, proxy url.URL) (net.Conn, error) {
 }
 
 func toSocks5(host string, s5Server, s5Port string) (socks5Conn net.Conn, err error) {
-	return (&socks5client.Socks5Client{
+	return (&socks5client.Client{
 		Server:  s5Server,
 		Port:    s5Port,
 		Address: host}).NewSocks5Client()
