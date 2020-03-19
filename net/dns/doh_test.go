@@ -11,7 +11,7 @@ import (
 
 func TestDNSOverHTTPS(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		x := &socks5client.Socks5Client{Server: "127.0.0.1", Port: "1083", Address: addr}
+		x := &socks5client.Socks5Client{Server: "127.0.0.1", Port: "1080", Address: addr}
 		return x.NewSocks5Client()
 	}
 	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
