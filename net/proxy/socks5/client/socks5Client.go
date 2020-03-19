@@ -22,16 +22,16 @@ type Socks5Client struct {
 	Address  string
 }
 
-func (socks5client *Socks5Client) creatDial() (net.Conn, error) {
+func (s *Socks5Client) creatDial() (net.Conn, error) {
 	var err error
-	socks5client.Conn, err = net.Dial("tcp", socks5client.Server+":"+socks5client.Port)
+	s.Conn, err = net.Dial("tcp", s.Server+":"+s.Port)
 	if err != nil {
-		return socks5client.Conn, err
+		return s.Conn, err
 	}
-	return socks5client.Conn, nil
+	return s.Conn, nil
 }
 
-func (socks5client *Socks5Client) socks5FirstVerify() error {
+func (s *Socks5Client) socks5FirstVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// The client connects to the server, and sends a version
 	// identifier/method selection message:
@@ -86,12 +86,12 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 	// 0xFF 无可接受的方法
 
 	sendData := []byte{0x05, 0x01, 0x00}
-	_, err := socks5client.Conn.Write(sendData)
+	_, err := s.Conn.Write(sendData)
 	if err != nil {
 		return err
 	}
 	getData := make([]byte, 3)
-	_, err = socks5client.Conn.Read(getData[:])
+	_, err = s.Conn.Read(getData[:])
 	if err != nil {
 		return err
 	}
@@ -118,13 +118,13 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 		sendData := append(
 			append(
 				append(
-					[]byte{0x01, byte(len(socks5client.Username))},
-					[]byte(socks5client.Username)...),
-				byte(len(socks5client.Password))),
-			[]byte(socks5client.Password)...)
-		_, _ = socks5client.Conn.Write(sendData)
+					[]byte{0x01, byte(len(s.Username))},
+					[]byte(s.Username)...),
+				byte(len(s.Password))),
+			[]byte(s.Password)...)
+		_, _ = s.Conn.Write(sendData)
 		getData := make([]byte, 3)
-		_, err = socks5client.Conn.Read(getData[:])
+		_, err = s.Conn.Read(getData[:])
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func (socks5client *Socks5Client) socks5FirstVerify() error {
 	return nil
 }
 
-func (socks5client *Socks5Client) socks5SecondVerify() error {
+func (s *Socks5Client) socks5SecondVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// 	Once the method-dependent subnegotiation has completed, the client
 	// 	sends the request details.  If the negotiated method includes
@@ -329,7 +329,7 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 	// 0x04 IPv6地址，16个字节长度。
 	// DST.ADDR 目的地址
 	// DST.PORT 网络字节序表示的目的端口
-	address, err := url.Parse("//" + socks5client.Address)
+	address, err := url.Parse("//" + s.Address)
 	if err != nil {
 		return err
 	}
@@ -358,12 +358,12 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 			byte(serverPort&255))
 	}
 
-	if _, err = socks5client.Conn.Write(sendData); err != nil {
+	if _, err = s.Conn.Write(sendData); err != nil {
 		return err
 	}
 
 	getData := make([]byte, 1024)
-	if _, err = socks5client.Conn.Read(getData[:]); err != nil {
+	if _, err = s.Conn.Read(getData[:]); err != nil {
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] != 0x00 {
@@ -375,38 +375,38 @@ func (socks5client *Socks5Client) socks5SecondVerify() error {
 }
 
 // NewSocks5Client <--
-func (socks5client *Socks5Client) NewSocks5Client() (net.Conn, error) {
+func (s *Socks5Client) NewSocks5Client() (net.Conn, error) {
 	// var socks5client socks5client
 	var err error
-	socks5client.Conn, err = socks5client.creatDial()
+	s.Conn, err = s.creatDial()
 	for err != nil {
-		return socks5client.Conn, err
+		return s.Conn, err
 		// time.Sleep(10 * time.Second) // 10秒休む
 	}
 
-	if err = socks5client.socks5FirstVerify(); err != nil {
-		return socks5client.Conn, err
+	if err = s.socks5FirstVerify(); err != nil {
+		return s.Conn, err
 	}
 
-	if err = socks5client.socks5SecondVerify(); err != nil {
-		return socks5client.Conn, err
+	if err = s.socks5SecondVerify(); err != nil {
+		return s.Conn, err
 	}
-	return socks5client.Conn, nil
+	return s.Conn, nil
 }
 
 // NewSocks5ClientOnlyFirstVerify <--
-func (socks5client *Socks5Client) NewSocks5ClientOnlyFirstVerify() (net.Conn, error) {
+func (s *Socks5Client) NewSocks5ClientOnlyFirstVerify() (net.Conn, error) {
 	// var socks5client socks5client
 	var err error
-	socks5client.Conn, err = socks5client.creatDial()
+	s.Conn, err = s.creatDial()
 	for err != nil {
-		return socks5client.Conn, err
+		return s.Conn, err
 		// time.Sleep(10 * time.Second) // 10秒休む
 	}
 
-	if err = socks5client.socks5FirstVerify(); err != nil {
-		return socks5client.Conn, err
+	if err = s.socks5FirstVerify(); err != nil {
+		return s.Conn, err
 	}
 
-	return socks5client.Conn, nil
+	return s.Conn, nil
 }

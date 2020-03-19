@@ -16,6 +16,9 @@ type DomainMatcher struct {
 }
 
 func (domainMatcher *DomainMatcher) Release() {
+	for s := range domainMatcher.root.child {
+		delete(domainMatcher.root.child, s)
+	}
 	domainMatcher.root.child = nil
 	domainMatcher.root = nil
 }

@@ -2,7 +2,6 @@ package gui
 
 import (
 	config2 "SsrMicroClient/config"
-	"SsrMicroClient/process/ServerControl"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -135,9 +134,8 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 		}
 
 		_ = ssrMicroClientGUI.server.ServerStop()
-		ssrMicroClientGUI.server = nil
-		ssrMicroClientGUI.server = &ServerControl.ServerControl{}
 		ssrMicroClientGUI.server.ServerStart()
+		ssrMicroClientGUI.MessageBox("If Change Bypass file,Please restart software to go into effect.")
 	})
 
 	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280),

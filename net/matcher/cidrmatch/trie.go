@@ -15,6 +15,8 @@ type node struct {
 }
 
 func (trie *TrieTree) Release() {
+	trie.root.left = nil
+	trie.root.right = nil
 	trie.root = nil
 }
 

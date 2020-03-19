@@ -1,11 +1,15 @@
 package matcher
 
 import (
+	"SsrMicroClient/net/dns"
 	"testing"
 )
 
 func TestNewMatcher(t *testing.T) {
-	matcher := NewMatcher("119.29.29.29:53")
+	dnsFunc := func(domain string) ([]string, bool) {
+		return dns.DNS("119.29.29.29:53", domain)
+	}
+	matcher := NewMatcher(dnsFunc)
 	if err := matcher.InsertOne("www.baidu.com", "test_baidu"); err != nil {
 		t.Error(err)
 	}
@@ -18,7 +22,10 @@ func TestNewMatcher(t *testing.T) {
 }
 
 func TestNewMatcherWithFile(t *testing.T) {
-	matcher, err := NewMatcherWithFile("119.29.29.29:53", "../../rule/rule.config")
+	dnsFunc := func(domain string) ([]string, bool) {
+		return dns.DNS("119.29.29.29:53", domain)
+	}
+	matcher, err := NewMatcherWithFile(dnsFunc, "../../rule/rule.config")
 	if err != nil {
 		t.Error(err)
 	}

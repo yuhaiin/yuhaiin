@@ -11,10 +11,10 @@ import (
 	"SsrMicroClient/net/dns"
 	"SsrMicroClient/net/forward"
 	"SsrMicroClient/net/matcher"
-	socks5client "SsrMicroClient/net/proxy/socks5/client"
+	"SsrMicroClient/net/proxy/socks5/client"
 )
 
-type ForwardTo struct {
+type ForwardFunc struct {
 	dnsCache *dns.Cache
 	Matcher  *matcher.Match
 	Config   *config.ConfigSample
@@ -22,63 +22,63 @@ type ForwardTo struct {
 	Log      func(v ...interface{})
 }
 
-func NewForwardTo(configJsonPath, rulePath string) (forwardTo *ForwardTo, err error) {
-	forwardTo = &ForwardTo{dnsCache: dns.NewDnsCache()}
-	forwardTo.Setting, err = config.SettingDecodeJSON(configJsonPath)
+func NewForwardFunc(configJsonPath, rulePath string) (forwardFunc *ForwardFunc, err error) {
+	forwardFunc = &ForwardFunc{dnsCache: dns.NewDnsCache()}
+	forwardFunc.Setting, err = config.SettingDecodeJSON(configJsonPath)
 	if err != nil {
 		return
 	}
 
-	forwardTo.Matcher, err = matcher.NewMatcherWithFile(dnsFunc(forwardTo), rulePath)
+	forwardFunc.Matcher, err = matcher.NewMatcherWithFile(dnsFunc(forwardFunc), rulePath)
 	if err != nil {
 		log.Println(err, rulePath)
 	}
 	return
 }
 
-func dnsFunc(forwardTo *ForwardTo) func(domain string) (DNS []string, success bool) {
+func dnsFunc(f *ForwardFunc) func(domain string) (DNS []string, success bool) {
 	var dnsFuncParent func(domain string) (DNS []string, success bool)
-	switch forwardTo.Setting.IsDNSOverHTTPS {
+	switch f.Setting.IsDNSOverHTTPS {
 	case true:
-		if forwardTo.Setting.DNSAcrossProxy {
+		if f.Setting.DNSAcrossProxy {
 			proxy := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				x := &socks5client.Socks5Client{Server: forwardTo.Setting.LocalAddress, Port: forwardTo.Setting.LocalPort, Address: addr}
+				x := &socks5client.Socks5Client{Server: f.Setting.LocalAddress, Port: f.Setting.LocalPort, Address: addr}
 				return x.NewSocks5Client()
 			}
 			dnsFuncParent = func(domain string) (DNS []string, success bool) {
-				return dns.DNSOverHTTPS(forwardTo.Setting.DnsServer, domain, proxy)
+				return dns.DNSOverHTTPS(f.Setting.DnsServer, domain, proxy)
 			}
 		} else {
 			dnsFuncParent = func(domain string) (DNS []string, success bool) {
-				return dns.DNSOverHTTPS(forwardTo.Setting.DnsServer, domain, nil)
+				return dns.DNSOverHTTPS(f.Setting.DnsServer, domain, nil)
 			}
 		}
 	case false:
 		dnsFuncParent = func(domain string) (DNS []string, success bool) {
-			return dns.DNS(forwardTo.Setting.DnsServer, domain)
+			return dns.DNS(f.Setting.DnsServer, domain)
 		}
 	}
 	return func(domain string) (DNS []string, success bool) {
 		var dnsS []string
 		var isSuccess bool
-		if dnsS, isSuccess = forwardTo.dnsCache.Get(domain); !isSuccess {
+		if dnsS, isSuccess = f.dnsCache.Get(domain); !isSuccess {
 			dnsS, isSuccess = dnsFuncParent(domain)
-			forwardTo.dnsCache.Add(domain, dnsS)
+			f.dnsCache.Add(domain, dnsS)
 			return dnsS, isSuccess
 		}
 		return dnsS, isSuccess
 	}
 }
 
-func (ForwardTo *ForwardTo) log(v ...interface{}) {
-	if ForwardTo.Log != nil {
-		ForwardTo.Log(v)
+func (f *ForwardFunc) log(v ...interface{}) {
+	if f.Log != nil {
+		f.Log(v)
 	} else {
 		log.Println(v...)
 	}
 }
 
-func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
+func (f *ForwardFunc) Forward(host string) (conn net.Conn, err error) {
 	var URI *url.URL
 	var proxyURI *url.URL
 	var proxy string
@@ -93,9 +93,9 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 		}
 	}
 
-	switch ForwardTo.Matcher {
+	switch f.Matcher {
 	default:
-		hosts, proxy := ForwardTo.Matcher.MatchStr(URI.Hostname())
+		hosts, proxy := f.Matcher.MatchStr(URI.Hostname())
 		if proxy == "block" {
 			return nil, errors.New("block domain: " + host)
 		} else if proxy == "direct" {
@@ -104,35 +104,35 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 				return nil, err
 			}
 		} else if proxy == "proxy" {
-			proxyURI, err = url.Parse("socks5://" + ForwardTo.Setting.LocalAddress + ":" + ForwardTo.Setting.LocalPort)
+			proxyURI, err = url.Parse("socks5://" + f.Setting.LocalAddress + ":" + f.Setting.LocalPort)
 			if err != nil {
 				return nil, err
 			}
-			if ForwardTo.Setting.IsPrintLog {
-				ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+			if f.Setting.IsPrintLog {
+				f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
 			}
 			return getproxyconn.ForwardTo(host, *proxyURI)
 		} else {
 			proxy = "default"
-			proxyURI, err = url.Parse("socks5://" + ForwardTo.Setting.LocalAddress + ":" + ForwardTo.Setting.LocalPort)
+			proxyURI, err = url.Parse("socks5://" + f.Setting.LocalAddress + ":" + f.Setting.LocalPort)
 			if err != nil {
 				return nil, err
 			}
 		}
-		if ForwardTo.Setting.UseLocalDNS {
+		if f.Setting.UseLocalDNS {
 			for x := range hosts {
 				host = net.JoinHostPort(hosts[x], URI.Port())
 				conn, err = getproxyconn.ForwardTo(host, *proxyURI)
 				if err == nil {
-					if ForwardTo.Setting.IsPrintLog {
-						ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+					if f.Setting.IsPrintLog {
+						f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
 					}
 					return conn, nil
 				}
 			}
 		} else {
-			if ForwardTo.Setting.IsPrintLog {
-				ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+			if f.Setting.IsPrintLog {
+				f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
 			}
 			return getproxyconn.ForwardTo(host, *proxyURI)
 		}
@@ -144,8 +144,8 @@ func (ForwardTo *ForwardTo) Forward(host string) (conn net.Conn, err error) {
 			return nil, err
 		}
 	}
-	if ForwardTo.Setting.IsPrintLog {
-		ForwardTo.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+	if f.Setting.IsPrintLog {
+		f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
 	}
 	conn, err = getproxyconn.ForwardTo(host, *proxyURI)
 	return

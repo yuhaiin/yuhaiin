@@ -1,7 +1,7 @@
 package gui
 
 import (
-	config2 "SsrMicroClient/config"
+	"SsrMicroClient/config"
 	"SsrMicroClient/process/ServerControl"
 	"SsrMicroClient/process/ssrcontrol"
 	"github.com/therecipe/qt/gui"
@@ -19,7 +19,7 @@ type SsrMicroClientGUI struct {
 	Session            *gui.QSessionManager
 	ssrCmd             *exec.Cmd
 	configPath         string
-	settingConfig      *config2.Setting
+	settingConfig      *config.Setting
 	server             *ServerControl.ServerControl
 }
 
@@ -27,7 +27,7 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 	var err error
 	microClientGUI := &SsrMicroClientGUI{}
 	microClientGUI.configPath = configPath
-	microClientGUI.settingConfig, err = config2.SettingDecodeJSON(microClientGUI.configPath)
+	microClientGUI.settingConfig, err = config.SettingDecodeJSON(microClientGUI.configPath)
 	if err != nil {
 		return microClientGUI, err
 	}
