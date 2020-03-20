@@ -78,7 +78,7 @@ func ssrRe(str string) (map[string]string, error) {
 }
 
 // GetNode get decode node
-func GetNode(link string) (map[string]string, error) {
+func SsrParse(link string) (map[string]string, error) {
 	re, _ := regexp.Compile("(.*)://(.*)")
 	ssOrSsr := re.FindAllStringSubmatch(link, -1)
 	if len(ssOrSsr) == 0 {

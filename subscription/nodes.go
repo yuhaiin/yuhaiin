@@ -1,6 +1,7 @@
-package config
+package subscription
 
 import (
+	"SsrMicroClient/config"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,7 +16,6 @@ import (
 
 	"SsrMicroClient/base64d"
 	"SsrMicroClient/net/proxy/socks5/client"
-	"SsrMicroClient/subscription"
 )
 
 // 待测试 https://github.com/evanphx/json-patch
@@ -106,7 +106,7 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 
 // GetLinkFromIntCrossProxy Get Link From Internet across your own proxy
 func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
-	setting, err := SettingDecodeJSON(configPath)
+	setting, err := config.SettingDecodeJSON(configPath)
 	if err != nil {
 		return []string{}, err
 	}
@@ -241,7 +241,7 @@ func SsrJSON(configPath string) error {
 		return err
 	}
 	for num, oneNode := range allNode {
-		nodeGet, err := subscription.GetNode(oneNode)
+		nodeGet, err := SsrParse(oneNode)
 		if err != nil {
 			return err
 		}
@@ -414,30 +414,4 @@ func GetNowNode(configPath string) (map[string]string, error) {
 	node["protoparam"] = pa.NowNode.Protoparam
 	node["group"] = pa.NowNode.Group
 	return node, nil
-}
-
-func _() {
-
-	// ssrJSON("/media/asutorufa/D/code/golang/SsrMicroClient/config/test/configJson")
-
-	// pa, _ := decodeJSON("/media/asutorufa/D/code/golang/SsrMicroClient/config/test/configJson")
-	// for group := range pa.Group {
-	// 	log.Println(group)
-	// 	for remarks := range pa.Node[group] {
-	// 		log.Println(pa.Node[group][remarks])
-	// 	}
-	// }
-
-	path := "/media/asutorufa/D/code/golang/SsrMicroClient/config/test/configJson"
-	// InitJSON(path)
-	// addLinkJSON("test", path)
-	// addLinkJSON("test2", path)
-	// addLinkJSON("test3", path)
-	// addLinkJSON("test4", path)
-	// RemoveLinkJSON(path)
-
-	// ssrJSON(path)
-
-	_ = ChangeNowNode(path)
-
 }

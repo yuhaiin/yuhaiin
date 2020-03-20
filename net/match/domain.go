@@ -62,7 +62,7 @@ func (d *Domain) Search(domain string) (isMatcher bool, mark string) {
 	return false, ""
 }
 
-func NewDomainMatcher() *Domain {
+func NewDomainMatch() *Domain {
 	return &Domain{root: &domainNode{
 		isLast: false,
 		child:  map[string]*domainNode{},

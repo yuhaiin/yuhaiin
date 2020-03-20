@@ -41,9 +41,6 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 	testIPv6b := "3001:0db8:0000:0000:1234:0000:0000:9abc"
 	b.StartTimer() //重新开始时间
 	for i := 0; i < b.N; i++ {
-		//cidrMatch.MatchOneIP(testIPv4)
-		//cidrMatch.MatchOneIP(testIPv6)
-		//cidrMatch.MatchOneIP(testIPv4b)
 		cidrMatch.Search(testIPv6b)
 	}
 }

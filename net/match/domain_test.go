@@ -5,7 +5,7 @@ import (
 )
 
 func TestDomainMatcher_Search(t *testing.T) {
-	root := NewDomainMatcher()
+	root := NewDomainMatch()
 	root.Insert("www.baidu.com", "test_baidu")
 	root.Insert("www.google.com", "test_google")
 	t.Log(root.Search("www.baidu.com"))
@@ -16,7 +16,7 @@ func TestDomainMatcher_Search(t *testing.T) {
 
 func BenchmarkDomainMatcher_Search(b *testing.B) {
 	b.StopTimer()
-	root := NewDomainMatcher()
+	root := NewDomainMatch()
 	root.Insert("www.baidu.com", "test_baidu")
 	root.Insert("www.baidu.sub.com.cn", "test_baidu")
 	root.Insert("www.google.com", "test_google")

@@ -2,6 +2,7 @@ package MatchAndForward
 
 import (
 	"SsrMicroClient/net/match"
+	"SsrMicroClient/subscription"
 	"context"
 	"errors"
 	"log"
@@ -17,7 +18,7 @@ import (
 type ForwardFunc struct {
 	dnsCache *dns.Cache
 	Matcher  *match.Match
-	Config   *config.ConfigSample
+	Config   *subscription.ConfigSample
 	Setting  *config.Setting
 	Log      func(v ...interface{})
 }
@@ -29,7 +30,7 @@ func NewForwardFunc(configJsonPath, rulePath string) (forwardFunc *ForwardFunc, 
 		return
 	}
 
-	forwardFunc.Matcher, err = match.NewMatcherWithFile(dnsFunc(forwardFunc), rulePath)
+	forwardFunc.Matcher, err = match.NewMatchWithFile(dnsFunc(forwardFunc), rulePath)
 	if err != nil {
 		log.Println(err, rulePath)
 	}
@@ -95,15 +96,16 @@ func (f *ForwardFunc) Forward(host string) (conn net.Conn, err error) {
 
 	switch f.Matcher {
 	default:
-		hosts, proxy := f.Matcher.Search(URI.Hostname())
-		if proxy == "block" {
+		_, proxy := f.Matcher.Search(URI.Hostname())
+		switch proxy {
+		case "block":
 			return nil, errors.New("block domain: " + host)
-		} else if proxy == "direct" {
+		case "direct":
 			proxyURI, err = url.Parse("direct://0.0.0.0:0")
 			if err != nil {
 				return nil, err
 			}
-		} else if proxy == "proxy" {
+		case "proxy":
 			proxyURI, err = url.Parse("socks5://" + f.Setting.LocalAddress + ":" + f.Setting.LocalPort)
 			if err != nil {
 				return nil, err
@@ -112,31 +114,32 @@ func (f *ForwardFunc) Forward(host string) (conn net.Conn, err error) {
 				f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
 			}
 			return getproxyconn.ForwardTo(host, *proxyURI)
-		} else {
+		default:
 			proxy = "default"
 			proxyURI, err = url.Parse("socks5://" + f.Setting.LocalAddress + ":" + f.Setting.LocalPort)
 			if err != nil {
 				return nil, err
 			}
+
 		}
-		if f.Setting.UseLocalDNS {
-			for x := range hosts {
-				host = net.JoinHostPort(hosts[x], URI.Port())
-				conn, err = getproxyconn.ForwardTo(host, *proxyURI)
-				if err == nil {
-					if f.Setting.IsPrintLog {
-						f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
-					}
-					return conn, nil
-				}
-			}
-		} else {
-			if f.Setting.IsPrintLog {
-				f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
-			}
-			return getproxyconn.ForwardTo(host, *proxyURI)
+		//if f.Setting.UseLocalDNS {
+		//	for x := range hosts {
+		//		host = net.JoinHostPort(hosts[x], URI.Port())
+		//		conn, err = getproxyconn.ForwardTo(host, *proxyURI)
+		//		if err == nil {
+		//			if f.Setting.IsPrintLog {
+		//				f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
+		//			}
+		//			return conn, nil
+		//		}
+		//	}
+		//} else {
+		if f.Setting.IsPrintLog {
+			f.log("Mode: " + mode + " | Domain: " + host + " | match to " + proxy)
 		}
-		return nil, errors.New("make connection:" + net.JoinHostPort(hosts[len(hosts)-1], URI.Port()) + " with proxy:" + proxy + " error")
+		return getproxyconn.ForwardTo(host, *proxyURI)
+		//}
+		//return nil, errors.New("make connection:" + net.JoinHostPort(hosts[len(hosts)-1], URI.Port()) + " with proxy:" + proxy + " error")
 	case nil:
 		proxy = "Direct"
 		proxyURI, err = url.Parse("direct://0.0.0.0:0")

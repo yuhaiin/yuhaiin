@@ -2,6 +2,7 @@ package ssrinit
 
 import (
 	config2 "SsrMicroClient/config"
+	"SsrMicroClient/subscription"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,7 +36,7 @@ func Init(configPath string) {
 	}
 
 	if !PathExists(configPath + "/node.json") {
-		if config2.InitJSON(configPath) != nil {
+		if subscription.InitJSON(configPath) != nil {
 			return
 		}
 	}
