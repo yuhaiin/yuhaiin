@@ -1,7 +1,6 @@
 package subscription
 
 import (
-	"SsrMicroClient/base64d"
 	"bytes"
 	"io/ioutil"
 	"log"
@@ -18,7 +17,7 @@ func TestShadowSocks(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	dst, err := base64d.Base64d2(s)
+	dst, err := Base64d2(s)
 	if err != nil {
 		t.Log(err)
 	}

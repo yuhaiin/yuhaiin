@@ -1,7 +1,6 @@
 package subscription
 
 import (
-	"SsrMicroClient/config"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,42 +13,25 @@ import (
 	"strconv"
 	"strings"
 
-	"SsrMicroClient/base64d"
+	"SsrMicroClient/config"
 	"SsrMicroClient/net/proxy/socks5/client"
 )
 
-// 待测试 https://github.com/evanphx/json-patch
-
-// Node node json struct
-type Node struct {
-	ID         int    `json:"id"`
-	Server     string `json:"server"`
-	ServerPort string `json:"serverPort"`
-	Protocol   string `json:"protocol"`
-	Method     string `json:"method"`
-	Obfs       string `json:"obfs"`
-	Password   string `json:"password"`
-	Obfsparam  string `json:"obfsparam"`
-	Protoparam string `json:"protoparam"`
-	Remarks    string `json:"remarks"`
-	Group      string `json:"group"`
-}
-
 // ConfigSample config sample json struct
 type ConfigSample struct {
-	Group   map[string]bool            `json:"group"`
-	NowNode Node                       `json:"nowNode"`
-	Link    []string                   `json:"link"`
-	Node    map[string]map[string]Node `json:"node"`
+	Group   map[string]bool                    `json:"group"`
+	NowNode Shadowsocksr                       `json:"nowNode"`
+	Link    []string                           `json:"link"`
+	Node    map[string]map[string]Shadowsocksr `json:"node"`
 }
 
 // InitJSON init the config json file
 func InitJSON(configPath string) error {
 	pa := &ConfigSample{
 		Group:   map[string]bool{},
-		NowNode: Node{},
+		NowNode: Shadowsocksr{},
 		Link:    []string{},
-		Node:    map[string]map[string]Node{},
+		Node:    map[string]map[string]Shadowsocksr{},
 	}
 	if err := enCodeJSON(configPath, pa); err != nil {
 		return err
@@ -99,7 +81,7 @@ func GetLinkFromInt(configPath string) ([]string, error) {
 		if err != nil {
 			return []string{}, err
 		}
-		allLink += base64d.Base64d(string(body))
+		allLink += Base64d(string(body))
 	}
 	return strings.Split(allLink, "\n"), nil
 }
@@ -135,12 +117,12 @@ func GetLinkFromIntCrossProxy(configPath string) ([]string, error) {
 		if err != nil {
 			return []string{}, err
 		}
-		allLink += base64d.Base64d(string(body))
+		allLink += Base64d(string(body))
 	}
 	return strings.Split(allLink, "\n"), nil
 }
 
-func addLinkJSON(link, configPath string) error {
+func AddLinkJSON(link, configPath string) error {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
 		return err
@@ -152,20 +134,7 @@ func addLinkJSON(link, configPath string) error {
 	return nil
 }
 
-// AddLinkJSON for other package to add link
-func AddLinkJSON(configPath string) error {
-	var link string
-	_, _ = fmt.Scanln(&link)
-	_ = addLinkJSON(link, configPath)
-	return nil
-}
-
-// AddLinkJSON2 for other package to add link
-func AddLinkJSON2(link, configPath string) error {
-	return addLinkJSON(link, configPath)
-}
-
-func removeLinkJSON(link, configPath string) error {
+func RemoveLinkJSON(link, configPath string) error {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
 		return err
@@ -180,36 +149,6 @@ func removeLinkJSON(link, configPath string) error {
 		return err
 	}
 	return nil
-}
-
-// RemoveLinkJSON remove link for other package
-func RemoveLinkJSON(configPath string) error {
-	pa, err := decodeJSON(configPath)
-	if err != nil {
-		return err
-	}
-	var linkSum int
-	var link string
-	for linkSum, link = range pa.Link {
-		fmt.Println(strconv.Itoa(linkSum+1) + "." + link)
-	}
-	var num int
-	if _, err = fmt.Scanln(&num); err != nil {
-		return err
-	}
-
-	if num < 1 || num > linkSum+1 {
-		return nil
-	}
-	if err := removeLinkJSON(pa.Link[num-1], configPath); err != nil {
-		return err
-	}
-	return nil
-}
-
-// RemoveLinkJSON2 remove link for other package
-func RemoveLinkJSON2(link, configPath string) error {
-	return removeLinkJSON(link, configPath)
 }
 
 // GetLink <--
@@ -227,15 +166,12 @@ func GetLink(configPath string) ([]string, error) {
 
 // SsrJSON reset all node from link
 func SsrJSON(configPath string) error {
-	// ssrB := []string{"ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy",
-	// 	"ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz1jMlZqYjI1ayZncm91cD02YUtkNW9HcDZMcXIK",
-	// 	"ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz1jM056YzNOeiZncm91cD1jM056YzNOego"}
 	pa, err := decodeJSON(configPath)
 	if err != nil {
 		return err
 	}
 	pa.Group = map[string]bool{}
-	pa.Node = map[string]map[string]Node{}
+	pa.Node = map[string]map[string]Shadowsocksr{}
 	allNode, err := GetLinkFromInt(configPath)
 	if err != nil {
 		return err
@@ -248,7 +184,7 @@ func SsrJSON(configPath string) error {
 		if len(nodeGet) == 0 {
 			continue
 		}
-		nodeJSON := &Node{
+		nodeJSON := &Shadowsocksr{
 			ID:         num,
 			Server:     nodeGet["server"],
 			ServerPort: nodeGet["serverPort"],
@@ -265,7 +201,7 @@ func SsrJSON(configPath string) error {
 			pa.Group[nodeJSON.Group] = true
 		}
 		if _, ok := pa.Node[nodeJSON.Group]; !ok { //judge map key is exist or not
-			pa.Node[nodeJSON.Group] = map[string]Node{}
+			pa.Node[nodeJSON.Group] = map[string]Shadowsocksr{}
 		}
 		pa.Node[nodeJSON.Group][nodeJSON.Remarks] = *nodeJSON
 	}
@@ -310,11 +246,58 @@ func GetNode(configPath, group string) ([]string, error) {
 	return nodeTmp, nil
 }
 
-// SelectNode <--
-func SelectNode(configPath string) (Node, error) {
+// ChangeNowNode2 <--
+func ChangeNowNode2(configPath, group, remarks string) error {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
-		return Node{}, err
+		return err
+	}
+
+	pa.NowNode = pa.Node[group][remarks]
+	if err := enCodeJSON(configPath, pa); err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetOneNode get one node by group and remarks
+func GetOneNode(configPath, group, remarks string) (Shadowsocksr, error) {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return Shadowsocksr{}, err
+	}
+	return pa.Node[group][remarks], nil
+}
+
+// GetNowNode <--
+func GetNowNode(configPath string) (map[string]string, error) {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return map[string]string{}, err
+	}
+	node := make(map[string]string)
+	node["remarks"] = pa.NowNode.Remarks
+	node["server"] = pa.NowNode.Server
+	node["serverPort"] = pa.NowNode.ServerPort
+	node["protocol"] = pa.NowNode.Protocol
+	node["method"] = pa.NowNode.Method
+	node["obfs"] = pa.NowNode.Obfs
+	node["password"] = pa.NowNode.Password
+	node["obfsparam"] = pa.NowNode.Obfsparam
+	node["protoparam"] = pa.NowNode.Protoparam
+	node["group"] = pa.NowNode.Group
+	return node, nil
+}
+
+/***************************
+				No Use
+*******************************/
+
+// SelectNode <--
+func SelectNode(configPath string) (Shadowsocksr, error) {
+	pa, err := decodeJSON(configPath)
+	if err != nil {
+		return Shadowsocksr{}, err
 	}
 selectgroup:
 	groupTmp := make(map[int]string)
@@ -330,7 +313,7 @@ selectgroup:
 		fmt.Println("select error")
 		goto selectgroup
 	} else if selectGroup == 0 {
-		return Node{}, nil
+		return Shadowsocksr{}, nil
 	} else {
 	selectnode:
 		num = 1
@@ -373,45 +356,35 @@ func ChangeNowNode(configPath string) error {
 	return nil
 }
 
-// ChangeNowNode2 <--
-func ChangeNowNode2(configPath, group, remarks string) error {
+// RemoveLinkJSON remove link for other package
+func RemoveLinkJSON3(configPath string) error {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
 		return err
 	}
+	var linkSum int
+	var link string
+	for linkSum, link = range pa.Link {
+		fmt.Println(strconv.Itoa(linkSum+1) + "." + link)
+	}
+	var num int
+	if _, err = fmt.Scanln(&num); err != nil {
+		return err
+	}
 
-	pa.NowNode = pa.Node[group][remarks]
-	if err := enCodeJSON(configPath, pa); err != nil {
+	if num < 1 || num > linkSum+1 {
+		return nil
+	}
+	if err := RemoveLinkJSON(pa.Link[num-1], configPath); err != nil {
 		return err
 	}
 	return nil
 }
 
-// GetOneNode get one node by group and remarks
-func GetOneNode(configPath, group, remarks string) (Node, error) {
-	pa, err := decodeJSON(configPath)
-	if err != nil {
-		return Node{}, err
-	}
-	return pa.Node[group][remarks], nil
-}
-
-// GetNowNode <--
-func GetNowNode(configPath string) (map[string]string, error) {
-	pa, err := decodeJSON(configPath)
-	if err != nil {
-		return map[string]string{}, err
-	}
-	node := make(map[string]string)
-	node["remarks"] = pa.NowNode.Remarks
-	node["server"] = pa.NowNode.Server
-	node["serverPort"] = pa.NowNode.ServerPort
-	node["protocol"] = pa.NowNode.Protocol
-	node["method"] = pa.NowNode.Method
-	node["obfs"] = pa.NowNode.Obfs
-	node["password"] = pa.NowNode.Password
-	node["obfsparam"] = pa.NowNode.Obfsparam
-	node["protoparam"] = pa.NowNode.Protoparam
-	node["group"] = pa.NowNode.Group
-	return node, nil
+// AddLinkJSON for other package to add link
+func AddLinkJSON3(configPath string) error {
+	var link string
+	_, _ = fmt.Scanln(&link)
+	_ = AddLinkJSON(link, configPath)
+	return nil
 }

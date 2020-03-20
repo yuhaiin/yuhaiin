@@ -38,7 +38,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 	deleteButton := widgets.NewQPushButton2("delete", ssrMicroClientGUI.subscriptionWindow)
 	deleteButton.ConnectClicked(func(bool2 bool) {
 		linkToDelete := subCombobox.CurrentText()
-		if err := subscription.RemoveLinkJSON2(linkToDelete,
+		if err := subscription.RemoveLinkJSON(linkToDelete,
 			ssrMicroClientGUI.configPath); err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
@@ -62,7 +62,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 				return
 			}
 		}
-		if err := subscription.AddLinkJSON2(linkToAdd, ssrMicroClientGUI.configPath); err != nil {
+		if err := subscription.AddLinkJSON(linkToAdd, ssrMicroClientGUI.configPath); err != nil {
 			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return

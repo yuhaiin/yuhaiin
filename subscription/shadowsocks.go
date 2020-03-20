@@ -1,12 +1,11 @@
 package subscription
 
 import (
-	"SsrMicroClient/base64d"
 	"net/url"
 	"strings"
 )
 
-type ShadowSocks struct {
+type Shadowsocks struct {
 	Type     string
 	Server   string
 	Port     string
@@ -17,9 +16,9 @@ type ShadowSocks struct {
 	Name     string
 }
 
-func ShadowSocksParse(str []byte) (*ShadowSocks, error) {
+func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
 	//return base64d.Base64d2(str)
-	s := &ShadowSocks{}
+	s := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
 		return nil, err
@@ -27,9 +26,9 @@ func ShadowSocksParse(str []byte) (*ShadowSocks, error) {
 	s.Type = ssUrl.Scheme
 	s.Server = ssUrl.Hostname()
 	s.Port = ssUrl.Port()
-	s.Method = strings.Split(base64d.Base64d(ssUrl.User.String()), ":")[0]
-	s.Password = strings.Split(base64d.Base64d(ssUrl.User.String()), ":")[1]
-	s.Group = base64d.Base64d(ssUrl.Query()["group"][0])
+	s.Method = strings.Split(Base64d(ssUrl.User.String()), ":")[0]
+	s.Password = strings.Split(Base64d(ssUrl.User.String()), ":")[1]
+	s.Group = Base64d(ssUrl.Query()["group"][0])
 	s.Plugin = ssUrl.Query()["plugin"][0]
 	s.Name = ssUrl.Fragment
 	return s, nil

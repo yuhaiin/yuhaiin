@@ -1,4 +1,4 @@
-package base64d
+package subscription
 
 import (
 	"encoding/base64"
