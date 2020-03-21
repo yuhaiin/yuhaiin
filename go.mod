@@ -11,4 +11,5 @@ require (
 	github.com/therecipe/qt/internal/binding/files/docs/5.12.0 v0.0.0-20191222013247-dc5ba07e9243 // indirect
 	github.com/therecipe/qt/internal/binding/files/docs/5.13.0 v0.0.0-20191222013247-dc5ba07e9243 // indirect
 	gopkg.in/yaml.v2 v2.2.4 // indirect
+	github.com/shadowsocks/go-shadowsocks2 v0.1.0
 )

@@ -6,9 +6,7 @@ import (
 	"github.com/Asutorufa/SsrMicroClient/gui"
 	"github.com/Asutorufa/SsrMicroClient/init"
 	"github.com/Asutorufa/SsrMicroClient/process/lockfile"
-	//"fmt"
 	"log"
-	//"net/http"
 	//_ "net/http/pprof"
 	"os"
 )
@@ -50,5 +48,4 @@ func main() {
 		//ssrMicroClientGUI.MainWindow.Show()
 		ssrMicroClientGUI.App.Exec()
 	}
-
 }
