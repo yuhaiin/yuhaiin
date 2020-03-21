@@ -2,7 +2,6 @@ package subscription
 
 import (
 	"net/url"
-	"strings"
 )
 
 type Shadowsocks struct {
@@ -26,8 +25,8 @@ func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
 	s.Type = ssUrl.Scheme
 	s.Server = ssUrl.Hostname()
 	s.Port = ssUrl.Port()
-	s.Method = strings.Split(Base64d(ssUrl.User.String()), ":")[0]
-	s.Password = strings.Split(Base64d(ssUrl.User.String()), ":")[1]
+	s.Method = ssUrl.User.Username()
+	s.Password, _ = ssUrl.User.Password()
 	s.Group = Base64d(ssUrl.Query()["group"][0])
 	s.Plugin = ssUrl.Query()["plugin"][0]
 	s.Name = ssUrl.Fragment

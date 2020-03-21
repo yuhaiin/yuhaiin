@@ -1,8 +1,6 @@
 package MatchAndForward
 
 import (
-	"SsrMicroClient/net/match"
-	"SsrMicroClient/subscription"
 	"context"
 	"errors"
 	"log"
@@ -12,7 +10,9 @@ import (
 	"SsrMicroClient/config"
 	"SsrMicroClient/net/dns"
 	"SsrMicroClient/net/forward"
+	"SsrMicroClient/net/match"
 	"SsrMicroClient/net/proxy/socks5/client"
+	"SsrMicroClient/subscription"
 )
 
 type ForwardFunc struct {
