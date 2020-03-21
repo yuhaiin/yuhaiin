@@ -6,11 +6,11 @@ import (
 	"log"
 	"net/url"
 
-	"SsrMicroClient/config"
-	"SsrMicroClient/init"
-	"SsrMicroClient/net/proxy/http/server"
-	"SsrMicroClient/net/proxy/socks5/server"
-	"SsrMicroClient/process/MatchAndForward"
+	"github.com/Asutorufa/SsrMicroClient/config"
+	"github.com/Asutorufa/SsrMicroClient/init"
+	"github.com/Asutorufa/SsrMicroClient/net/proxy/http/server"
+	"github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/server"
+	"github.com/Asutorufa/SsrMicroClient/process/MatchAndForward"
 )
 
 type ServerControl struct {

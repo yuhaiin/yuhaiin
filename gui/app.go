@@ -1,9 +1,9 @@
 package gui
 
 import (
-	"SsrMicroClient/config"
-	"SsrMicroClient/process/ServerControl"
-	"SsrMicroClient/process/ssrcontrol"
+	"github.com/Asutorufa/SsrMicroClient/config"
+	"github.com/Asutorufa/SsrMicroClient/process/ServerControl"
+	"github.com/Asutorufa/SsrMicroClient/process/ssrcontrol"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
 	"log"

@@ -1,7 +1,7 @@
 package gui
 
 import (
-	config2 "SsrMicroClient/config"
+	"github.com/Asutorufa/SsrMicroClient/config"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -128,7 +128,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSettingWindow() {
 		ssrMicroClientGUI.settingConfig.Socks5WithBypassAddressAndPort = socks5BypassLineText.Text()
 		ssrMicroClientGUI.settingConfig.DnsServer = dnsServerLineText.Text()
 
-		if err := config2.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
+		if err := config.SettingEnCodeJSON(ssrMicroClientGUI.configPath, ssrMicroClientGUI.settingConfig); err != nil {
 			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}

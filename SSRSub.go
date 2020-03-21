@@ -3,9 +3,9 @@
 package main
 
 import (
-	"SsrMicroClient/gui"
-	"SsrMicroClient/init"
-	"SsrMicroClient/process/lockfile"
+	"github.com/Asutorufa/SsrMicroClient/gui"
+	"github.com/Asutorufa/SsrMicroClient/init"
+	"github.com/Asutorufa/SsrMicroClient/process/lockfile"
 	//"fmt"
 	"log"
 	//"net/http"

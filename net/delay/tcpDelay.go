@@ -1,8 +1,8 @@
 package delay
 
 import (
-	"SsrMicroClient/subscription"
 	"fmt"
+	"github.com/Asutorufa/SsrMicroClient/subscription"
 	"log"
 	"net"
 	"time"

@@ -1,9 +1,9 @@
 package ssrinit
 
 import (
-	config2 "SsrMicroClient/config"
-	"SsrMicroClient/subscription"
 	"fmt"
+	"github.com/Asutorufa/SsrMicroClient/config"
+	"github.com/Asutorufa/SsrMicroClient/subscription"
 	"io"
 	"net/http"
 	"os"
@@ -42,7 +42,7 @@ func Init(configPath string) {
 	}
 
 	if !PathExists(configPath + "/SsrMicroConfig.json") {
-		if config2.SettingInitJSON(configPath) != nil {
+		if config.SettingInitJSON(configPath) != nil {
 			return
 		}
 	}

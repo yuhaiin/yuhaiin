@@ -1,9 +1,9 @@
 package gui
 
 import (
-	"SsrMicroClient/net/delay"
-	"SsrMicroClient/process/ssrcontrol"
-	"SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/net/delay"
+	"github.com/Asutorufa/SsrMicroClient/process/ssrcontrol"
+	"github.com/Asutorufa/SsrMicroClient/subscription"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"

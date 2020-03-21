@@ -1,4 +1,4 @@
-module SsrMicroClient
+module github.com/Asutorufa/SsrMicroClient
 
 go 1.13
 

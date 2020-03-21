@@ -1,8 +1,8 @@
 package ssrcontrol
 
 import (
-	"SsrMicroClient/config"
-	"SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/config"
+	"github.com/Asutorufa/SsrMicroClient/subscription"
 	"log"
 	"os"
 	"os/exec"

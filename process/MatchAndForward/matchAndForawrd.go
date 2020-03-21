@@ -7,12 +7,12 @@ import (
 	"net"
 	"net/url"
 
-	"SsrMicroClient/config"
-	"SsrMicroClient/net/dns"
-	"SsrMicroClient/net/forward"
-	"SsrMicroClient/net/match"
-	"SsrMicroClient/net/proxy/socks5/client"
-	"SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/config"
+	"github.com/Asutorufa/SsrMicroClient/net/dns"
+	"github.com/Asutorufa/SsrMicroClient/net/forward"
+	"github.com/Asutorufa/SsrMicroClient/net/match"
+	"github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/client"
+	"github.com/Asutorufa/SsrMicroClient/subscription"
 )
 
 type ForwardFunc struct {

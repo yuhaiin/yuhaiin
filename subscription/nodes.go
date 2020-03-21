@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"SsrMicroClient/config"
-	"SsrMicroClient/net/proxy/socks5/client"
+	"github.com/Asutorufa/SsrMicroClient/config"
+	"github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/client"
 )
 
 // ConfigSample config sample json struct
