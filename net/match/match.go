@@ -8,9 +8,9 @@ import (
 )
 
 type Match struct {
-	dnsFunc func(domain string) (DNS []string, success bool)
-	cidr    *Cidr
-	domain  *Domain
+	DNS    func(domain string) (DNS []string, success bool)
+	cidr   *Cidr
+	domain *Domain
 }
 
 func (x *Match) Insert(str, mark string) error {
@@ -32,7 +32,7 @@ func (x *Match) Search(str string) (target []string, proxy string) {
 	} else {
 		isMatch, proxy = x.domain.Search(str)
 		if !isMatch {
-			dnsS, isSuccess := x.dnsFunc(str)
+			dnsS, isSuccess := x.DNS(str)
 			if isSuccess && len(dnsS) > 0 {
 				isMatch, proxy = x.cidr.Search(dnsS[0])
 			}
@@ -50,9 +50,9 @@ func NewMatch(dnsFunc func(domain string) (DNS []string, success bool)) *Match {
 	cidrMatch := NewCidrMatch()
 	domainMatch := NewDomainMatch()
 	return &Match{
-		dnsFunc: dnsFunc,
-		cidr:    cidrMatch,
-		domain:  domainMatch,
+		DNS:    dnsFunc,
+		cidr:   cidrMatch,
+		domain: domainMatch,
 	}
 }
 
@@ -60,9 +60,9 @@ func NewMatchWithFile(dnsFunc func(domain string) (DNS []string, success bool), 
 	cidrMatch := NewCidrMatch()
 	domainMatch := NewDomainMatch()
 	matcher = &Match{
-		dnsFunc: dnsFunc,
-		cidr:    cidrMatch,
-		domain:  domainMatch,
+		DNS:    dnsFunc,
+		cidr:   cidrMatch,
+		domain: domainMatch,
 	}
 	configTemp, err := ioutil.ReadFile(MatcherFile)
 	if err != nil {

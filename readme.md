@@ -49,7 +49,7 @@ How to use:
 [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)(now change to json)  
 [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
-[Dreamacro/clash](https://github.com/Dreamacro/clash)
+[Dreamacro/clash](https://github.com/Dreamacro/clash)  
 [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)
 
 ## Others
@@ -67,5 +67,6 @@ How to use:
 - [ ] add `-h` argument to show help.
 - [x] add DOH.
 - [x] have a GUI.
+- [x] add shadowsocks client protocol.
 
 </details>

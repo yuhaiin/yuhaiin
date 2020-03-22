@@ -1,4 +1,4 @@
-package ssrcontrol
+package ServerControl
 
 import (
 	"github.com/Asutorufa/SsrMicroClient/config"
@@ -114,7 +114,7 @@ func GetSsrCmd(configPath string) *exec.Cmd {
 	return cmd
 }
 
-func ssrCmd(s *subscr.Shadowsocksr) (*exec.Cmd, error) {
+func ShadowsocksrCmd(s *subscr.Shadowsocksr) (*exec.Cmd, error) {
 	configs, err := config.SettingDecodeJSON(config.GetConfigAndSQLPath())
 	if err != nil {
 		return nil, err

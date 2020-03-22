@@ -3,7 +3,6 @@ package gui
 import (
 	"github.com/Asutorufa/SsrMicroClient/config"
 	"github.com/Asutorufa/SsrMicroClient/process/ServerControl"
-	"github.com/Asutorufa/SsrMicroClient/process/ssrcontrol"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
 	"log"
@@ -31,7 +30,7 @@ func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
 	if err != nil {
 		return microClientGUI, err
 	}
-	microClientGUI.ssrCmd = ssrcontrol.GetSsrCmd(microClientGUI.configPath)
+	microClientGUI.ssrCmd = ServerControl.GetSsrCmd(microClientGUI.configPath)
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
 	microClientGUI.App.SetApplicationName("SsrMicroClient")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)

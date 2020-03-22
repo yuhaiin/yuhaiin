@@ -1,4 +1,4 @@
-package ssrcontrol
+package ServerControl
 
 import (
 	"testing"

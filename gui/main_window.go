@@ -2,7 +2,7 @@ package gui
 
 import (
 	"github.com/Asutorufa/SsrMicroClient/net/delay"
-	"github.com/Asutorufa/SsrMicroClient/process/ssrcontrol"
+	"github.com/Asutorufa/SsrMicroClient/process/ServerControl"
 	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -150,7 +150,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 			}
 		}
 		<-waitChan
-		ssrMicroClientGUI.ssrCmd = ssrcontrol.GetSsrCmd(ssrMicroClientGUI.configPath)
+		ssrMicroClientGUI.ssrCmd = ServerControl.GetSsrCmd(ssrMicroClientGUI.configPath)
 		go func() {
 			start()
 		}()

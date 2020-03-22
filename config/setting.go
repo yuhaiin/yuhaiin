@@ -5,6 +5,10 @@ import (
 	"os"
 )
 
+var (
+	configPath = GetConfigAndSQLPath() + "/SsrMicroConfig.json"
+)
+
 // Setting setting json struct
 type Setting struct {
 	PythonPath                     string `json:"pythonPath"`
@@ -87,4 +91,17 @@ func SettingEnCodeJSON(configPath string, pa *Setting) error {
 		return err
 	}
 	return nil
+}
+
+// SettingDecodeJSON decode setting json to struct
+func SettingDecodeJSON2() (*Setting, error) {
+	pa := &Setting{}
+	file, err := os.Open(configPath)
+	if err != nil {
+		return &Setting{}, err
+	}
+	if json.NewDecoder(file).Decode(&pa) != nil {
+		return &Setting{}, err
+	}
+	return pa, nil
 }

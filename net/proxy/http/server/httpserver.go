@@ -18,7 +18,7 @@ type Server struct {
 	Listener    *net.TCPListener
 	Server      string
 	Port        string
-	forwardFunc func(host string) (net.Conn, error)
+	ForwardFunc func(host string) (net.Conn, error)
 	context     context.Context
 	cancel      context.CancelFunc
 }
@@ -30,40 +30,11 @@ type Server struct {
 // password: http server password
 // forwardTo: if you want to forward to another server,create a function that return net.Conn and use it,if not use nil
 func NewHTTPServer(server, port, username, password string, forwardFunc func(host string) (net.Conn, error)) (*Server, error) {
-	HTTPServer := &Server{
+	return &Server{
 		Server:      server,
 		Port:        port,
-		forwardFunc: forwardFunc,
-	}
-	var err error
-	HTTPServer.context, HTTPServer.cancel = context.WithCancel(context.Background())
-	socks5ToHTTPServerIP := net.ParseIP(HTTPServer.Server)
-	socks5ToHTTPServerPort, err := strconv.Atoi(HTTPServer.Port)
-	if err != nil {
-		return HTTPServer, err
-	}
-	HTTPServer.Listener, err = net.ListenTCP("tcp",
-		&net.TCPAddr{IP: socks5ToHTTPServerIP, Port: socks5ToHTTPServerPort})
-	if err != nil {
-		return HTTPServer, err
-	}
-	return HTTPServer, nil
-}
-
-func (h *Server) httpProxyInit() error {
-	var err error
-	h.context, h.cancel = context.WithCancel(context.Background())
-	socks5ToHTTPServerIP := net.ParseIP(h.Server)
-	socks5ToHTTPServerPort, err := strconv.Atoi(h.Port)
-	if err != nil {
-		return err
-	}
-	h.Listener, err = net.ListenTCP("tcp",
-		&net.TCPAddr{IP: socks5ToHTTPServerIP, Port: socks5ToHTTPServerPort})
-	if err != nil {
-		return err
-	}
-	return nil
+		ForwardFunc: forwardFunc,
+	}, nil
 }
 
 // Close close http server listener
@@ -103,6 +74,16 @@ func (h *Server) httpProxyAcceptARequest() error {
 // server http listen server,port http listen port
 // sock5Server socks5 server ip,socks5Port socks5 server port
 func (h *Server) HTTPProxy() error {
+	h.context, h.cancel = context.WithCancel(context.Background())
+	socks5ToHTTPServerIP := net.ParseIP(h.Server)
+	socks5ToHTTPServerPort, err := strconv.Atoi(h.Port)
+	if err != nil {
+		return err
+	}
+	h.Listener, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ToHTTPServerIP, Port: socks5ToHTTPServerPort})
+	if err != nil {
+		return err
+	}
 	for {
 		select {
 		case <-h.context.Done():
@@ -133,8 +114,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 	host := req.Host
 	var server net.Conn
 	getOutBound := func() {
-		if h.forwardFunc != nil {
-			if server, err = h.forwardFunc(req.Host); err != nil {
+		if h.ForwardFunc != nil {
+			if server, err = h.ForwardFunc(req.Host); err != nil {
 				log.Println(err)
 			}
 		} else {
@@ -313,8 +294,8 @@ func (h *Server) httpHandleClientRequest2(client net.Conn) error {
 	headerRequest.WriteString("\r\n\r\n" + data.String())
 	//log.Println(headerRequest.String())
 	var server net.Conn
-	if h.forwardFunc != nil {
-		server, err = h.forwardFunc(hostPortURL.Host)
+	if h.ForwardFunc != nil {
+		server, err = h.ForwardFunc(hostPortURL.Host)
 		if err != nil {
 			return err
 		}
