@@ -4,10 +4,15 @@ package config
 
 import (
 	"bytes"
-	"log"
+	"os"
 	"os/exec"
 	"strings"
 )
+
+// GetConfigAndSQLPath <-- get the config path
+func GetConfigAndSQLPath() (configPath string) {
+	return os.Getenv("USERPROFILE") + "\\Documents\\SSRSub"
+}
 
 // GetPythonPath get python path
 func GetPythonPath() string {

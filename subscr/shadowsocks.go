@@ -1,4 +1,4 @@
-package subscription
+package subscr
 
 import (
 	"net/url"
@@ -6,15 +6,15 @@ import (
 )
 
 type Shadowsocks struct {
-	Type      string
-	Server    string
-	Port      string
-	Method    string
-	Password  string
-	Group     string
-	Plugin    string
-	PluginOpt string
-	Name      string
+	Type      float64 `json:"type"`
+	Server    string  `json:"server"`
+	Port      string  `json:"port"`
+	Method    string  `json:"method"`
+	Password  string  `json:"password"`
+	Group     string  `json:"group"`
+	Plugin    string  `json:"plugin"`
+	PluginOpt string  `json:"plugin_opt"`
+	Name      string  `json:"name"`
 }
 
 func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
@@ -23,7 +23,7 @@ func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.Type = ssUrl.Scheme
+	s.Type = shadowsocks
 	s.Server = ssUrl.Hostname()
 	s.Port = ssUrl.Port()
 	s.Method = strings.Split(Base64d(ssUrl.User.String()), ":")[0]

@@ -12,13 +12,13 @@ import (
 	"github.com/Asutorufa/SsrMicroClient/net/forward"
 	"github.com/Asutorufa/SsrMicroClient/net/match"
 	"github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/client"
-	"github.com/Asutorufa/SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/subscr"
 )
 
 type ForwardFunc struct {
 	dnsCache *dns.Cache
 	Matcher  *match.Match
-	Config   *subscription.ConfigSample
+	Config   *subscr.ConfigSample
 	Setting  *config.Setting
 	Log      func(v ...interface{})
 }

@@ -3,7 +3,7 @@ package ssrinit
 import (
 	"fmt"
 	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"io"
 	"net/http"
 	"os"
@@ -35,8 +35,9 @@ func Init(configPath string) {
 		GetSsrPython(configPath)
 	}
 
+	//cycle import,not allow
 	if !PathExists(configPath + "/node.json") {
-		if subscription.InitJSON(configPath) != nil {
+		if subscr.InitJSON(configPath) != nil {
 			return
 		}
 	}

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/Asutorufa/SsrMicroClient/config"
 	"github.com/Asutorufa/SsrMicroClient/gui"
 	"github.com/Asutorufa/SsrMicroClient/init"
 	"github.com/Asutorufa/SsrMicroClient/process/lockfile"
@@ -20,7 +21,7 @@ func main() {
 	//	}
 	//}()
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	configPath := ssrinit.GetConfigAndSQLPath()
+	configPath := config.GetConfigAndSQLPath()
 	ssrinit.Init(configPath)
 	lockFile, err := os.Create(configPath + "/SsrMicroClientRunStatuesLockFile")
 	if err != nil {

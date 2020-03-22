@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/init"
 	"github.com/Asutorufa/SsrMicroClient/net/proxy/http/server"
 	"github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/server"
 	"github.com/Asutorufa/SsrMicroClient/process/MatchAndForward"
@@ -28,7 +27,7 @@ type ServerControl struct {
 func (s *ServerControl) init() {
 	s.RulePath = s.setting.BypassFile
 	var err error
-	s.forward, err = MatchAndForward.NewForwardFunc(ssrinit.GetConfigAndSQLPath(), s.RulePath)
+	s.forward, err = MatchAndForward.NewForwardFunc(config.GetConfigAndSQLPath(), s.RulePath)
 	if err != nil {
 		log.Println(err)
 	}
@@ -37,7 +36,7 @@ func (s *ServerControl) init() {
 
 func (s *ServerControl) restartInit() {
 	var err error
-	if s.setting, err = config.SettingDecodeJSON(ssrinit.GetConfigAndSQLPath()); err != nil {
+	if s.setting, err = config.SettingDecodeJSON(config.GetConfigAndSQLPath()); err != nil {
 		log.Println(err)
 	}
 	s.wait = make(chan bool, 0)

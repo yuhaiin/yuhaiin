@@ -1,4 +1,4 @@
-package subscription
+package subscr
 
 import (
 	"context"
@@ -187,14 +187,14 @@ func SsrJSON(configPath string) error {
 		nodeJSON := &Shadowsocksr{
 			ID:         num,
 			Server:     nodeGet["server"],
-			ServerPort: nodeGet["serverPort"],
+			Port:       nodeGet["serverPort"],
 			Protocol:   nodeGet["protocol"],
 			Method:     nodeGet["method"],
 			Obfs:       nodeGet["obfs"],
 			Password:   nodeGet["password"],
 			Obfsparam:  nodeGet["obfsparam"],
 			Protoparam: nodeGet["protoparam"],
-			Remarks:    nodeGet["remarks"],
+			Name:       nodeGet["remarks"],
 			Group:      nodeGet["group"],
 		}
 		if !pa.Group[nodeJSON.Group] {
@@ -203,7 +203,7 @@ func SsrJSON(configPath string) error {
 		if _, ok := pa.Node[nodeJSON.Group]; !ok { //judge map key is exist or not
 			pa.Node[nodeJSON.Group] = map[string]Shadowsocksr{}
 		}
-		pa.Node[nodeJSON.Group][nodeJSON.Remarks] = *nodeJSON
+		pa.Node[nodeJSON.Group][nodeJSON.Name] = *nodeJSON
 	}
 	// js, err := json.MarshalIndent(pa, "", "\t")
 	// if err != nil {
@@ -246,8 +246,8 @@ func GetNode(configPath, group string) ([]string, error) {
 	return nodeTmp, nil
 }
 
-// ChangeNowNode2 <--
-func ChangeNowNode2(configPath, group, remarks string) error {
+// ChangeNowNode <--
+func ChangeNowNode(configPath, group, remarks string) error {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
 		return err
@@ -276,9 +276,9 @@ func GetNowNode(configPath string) (map[string]string, error) {
 		return map[string]string{}, err
 	}
 	node := make(map[string]string)
-	node["remarks"] = pa.NowNode.Remarks
+	node["remarks"] = pa.NowNode.Name
 	node["server"] = pa.NowNode.Server
-	node["serverPort"] = pa.NowNode.ServerPort
+	node["serverPort"] = pa.NowNode.Port
 	node["protocol"] = pa.NowNode.Protocol
 	node["method"] = pa.NowNode.Method
 	node["obfs"] = pa.NowNode.Obfs
@@ -337,7 +337,7 @@ selectgroup:
 }
 
 // ChangeNowNode <--
-func ChangeNowNode(configPath string) error {
+func ChangeNowNode3(configPath string) error {
 	pa, err := decodeJSON(configPath)
 	if err != nil {
 		return err

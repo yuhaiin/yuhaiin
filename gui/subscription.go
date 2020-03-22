@@ -1,7 +1,7 @@
 package gui
 
 import (
-	"github.com/Asutorufa/SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -25,7 +25,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 	subRefresh := func() {
 		subCombobox.Clear()
 		var err error
-		link, err = subscription.GetLink(ssrMicroClientGUI.configPath)
+		link, err = subscr.GetLink(ssrMicroClientGUI.configPath)
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
@@ -38,7 +38,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 	deleteButton := widgets.NewQPushButton2("delete", ssrMicroClientGUI.subscriptionWindow)
 	deleteButton.ConnectClicked(func(bool2 bool) {
 		linkToDelete := subCombobox.CurrentText()
-		if err := subscription.RemoveLinkJSON(linkToDelete,
+		if err := subscr.RemoveLinkJSON(linkToDelete,
 			ssrMicroClientGUI.configPath); err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
@@ -62,7 +62,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 				return
 			}
 		}
-		if err := subscription.AddLinkJSON(linkToAdd, ssrMicroClientGUI.configPath); err != nil {
+		if err := subscr.AddLinkJSON(linkToAdd, ssrMicroClientGUI.configPath); err != nil {
 			//log.Println(err)
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return

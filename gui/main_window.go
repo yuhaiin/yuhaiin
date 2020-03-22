@@ -3,7 +3,7 @@ package gui
 import (
 	"github.com/Asutorufa/SsrMicroClient/net/delay"
 	"github.com/Asutorufa/SsrMicroClient/process/ssrcontrol"
-	"github.com/Asutorufa/SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -59,7 +59,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		core.Qt__WindowType(0x00000000))
 	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60),
 		core.NewQPoint2(130, 90)))
-	nowNode, err := subscription.GetNowNode(ssrMicroClientGUI.configPath)
+	nowNode, err := subscr.GetNowNode(ssrMicroClientGUI.configPath)
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
@@ -74,7 +74,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110),
 		core.NewQPoint2(130, 140)))
 	groupCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
-	group, err := subscription.GetGroup(ssrMicroClientGUI.configPath)
+	group, err := subscr.GetGroup(ssrMicroClientGUI.configPath)
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
@@ -92,7 +92,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160),
 		core.NewQPoint2(130, 190)))
 	nodeCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
-	node, err := subscription.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
+	node, err := subscr.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
@@ -131,12 +131,12 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 				return
 			}
 		} else if group != nowNode["group"] || remarks != nowNode["remarks"] {
-			err := subscription.ChangeNowNode2(ssrMicroClientGUI.configPath, group, remarks)
+			err := subscr.ChangeNowNode(ssrMicroClientGUI.configPath, group, remarks)
 			if err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
 			}
-			nowNode, err = subscription.GetNowNode(ssrMicroClientGUI.configPath)
+			nowNode, err = subscr.GetNowNode(ssrMicroClientGUI.configPath)
 			if err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
@@ -172,13 +172,13 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		go func() {
 			group := groupCombobox.CurrentText()
 			remarks := nodeCombobox.CurrentText()
-			node, err := subscription.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
+			node, err := subscr.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
 			if err != nil {
 				ssrMicroClientGUI.MessageBox(err.Error())
 				return
 			}
 			delayTmp, isSuccess, err := delay.TCPDelay(node.Server,
-				node.ServerPort)
+				node.Port)
 			var delayString string
 			if err != nil {
 				//ssrMicroClientGUI.MessageBox(err.Error())
@@ -196,7 +196,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		core.NewQPoint2(560, 240)))
 
 	groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
-		node, err := subscription.GetNode(ssrMicroClientGUI.configPath,
+		node, err := subscr.GetNode(ssrMicroClientGUI.configPath,
 			groupCombobox.CurrentText())
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
@@ -219,11 +219,11 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		message := widgets.NewQMessageBox(ssrMicroClientGUI.MainWindow)
 		message.SetText("Updating!")
 		message.Show()
-		if err := subscription.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
+		if err := subscr.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
 		message.SetText("Updated!")
-		group, err = subscription.GetGroup(ssrMicroClientGUI.configPath)
+		group, err = subscr.GetGroup(ssrMicroClientGUI.configPath)
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
@@ -231,7 +231,7 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		groupCombobox.Clear()
 		groupCombobox.AddItems(group)
 		groupCombobox.SetCurrentText(nowNode["group"])
-		node, err = subscription.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
+		node, err = subscr.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return

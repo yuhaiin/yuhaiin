@@ -1,7 +1,10 @@
-package subscription
+package subscr
 
 import (
+	"bytes"
+	"io/ioutil"
 	"log"
+	"os"
 	"testing"
 )
 
@@ -18,6 +21,24 @@ func TestSsrParse2(t *testing.T) {
 		"ssr://MjIyLjIyMi4yMjIuMjIyOjQ0MzphdXRoX2FlczEyOF9tZDU6Y2hhY2hhMjAtaWV0ZjpodHRwX3Bvc3Q6ZEdWemRBby8/b2Jmc3BhcmFtPWRHVnpkQW8mcHJvdG9wYXJhbT1kR1Z6ZEFvJnJlbWFya3M9ZEdWemRBbyZncm91cD1kR1Z6ZEFvCg"}
 
 	for x := range ssr {
-		log.Println(SsrParse2(ssr[x]))
+		log.Println(SsrParse2([]byte(ssr[x])))
+	}
+}
+
+func TestLint(t *testing.T) {
+	f, err := os.Open("/home/asutorufa/Desktop/node_ssr.txt")
+	if err != nil {
+		t.Log(err)
+	}
+	s, err := ioutil.ReadAll(f)
+	if err != nil {
+		t.Log(err)
+	}
+	dst, err := Base64d2(s)
+	if err != nil {
+		t.Log(err)
+	}
+	for _, x := range bytes.Split(dst, []byte("\n")) {
+		log.Println(SsrParse2(x))
 	}
 }

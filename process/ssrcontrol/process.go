@@ -2,7 +2,7 @@ package ssrcontrol
 
 import (
 	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/subscription"
+	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"log"
 	"os"
 	"os/exec"
@@ -12,18 +12,19 @@ import (
 // GetConfigArgument <-- like this
 func GetConfigArgument() map[string]string {
 	return map[string]string{
-		"server":     "-s",
-		"serverPort": "-p",
-		"protocol":   "-O",
-		"method":     "-m",
-		"obfs":       "-o",
-		"password":   "-k",
-		"obfsparam":  "-g",
-		"protoparam": "-G",
-		"pidFile":    "--pid-file",
-		//"logFile":            "--log-file",
+		"server":       "-s",
+		"serverPort":   "-p",
+		"method":       "-m",
+		"password":     "-k",
 		"localAddress": "-b",
 		"localPort":    "-l",
+		"obfs":         "-o",
+		"obfsparam":    "-g",
+		"protocol":     "-O",
+		"protoparam":   "-G",
+
+		"pidFile": "--pid-file",
+		//"logFile":            "--log-file",
 		//"connectVerboseInfo": "--connect-verbose-info",
 		"workers":  "--workers",
 		"fastOpen": "--fast-open",
@@ -72,7 +73,7 @@ func GetConfig(configPath string) map[string]string {
 // GetSsrCmd <--
 func GetSsrCmd(configPath string) *exec.Cmd {
 	argument := GetConfigArgument()
-	nodeAndConfig, _ := subscription.GetNowNode(configPath)
+	nodeAndConfig, _ := subscr.GetNowNode(configPath)
 	for key, value := range GetConfig(configPath) {
 		nodeAndConfig[key] = value
 	}
@@ -111,4 +112,28 @@ func GetSsrCmd(configPath string) *exec.Cmd {
 	cmd := exec.Command(cmdArray[0], cmdArray[1:]...)
 	log.Println(nodeAndConfig["pythonPath"], cmdArray)
 	return cmd
+}
+
+func ssrCmd(s *subscr.Shadowsocksr) (*exec.Cmd, error) {
+	configs, err := config.SettingDecodeJSON(config.GetConfigAndSQLPath())
+	if err != nil {
+		return nil, err
+	}
+	cmd := append([]string{}, strings.Split(configs.SsrPath, " ")...)
+	cmd = append(cmd, "-s", s.Server)
+	cmd = append(cmd, "-p", s.Port)
+	cmd = append(cmd, "-m", s.Method)
+	cmd = append(cmd, "-k", s.Password)
+	cmd = append(cmd, "-b", configs.LocalAddress)
+	cmd = append(cmd, "-l", configs.LocalPort)
+	if s.Obfs != "" {
+		cmd = append(cmd, "-o", s.Obfs)
+		cmd = append(cmd, "-g", s.Obfsparam)
+	}
+	if s.Protocol != "" {
+		cmd = append(cmd, "-O", s.Protocol)
+		cmd = append(cmd, "-G", s.Protoparam)
+	}
+	log.Println(cmd)
+	return exec.Command(cmd[0], cmd[1:]...), nil
 }

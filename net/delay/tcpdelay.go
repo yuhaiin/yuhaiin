@@ -1,8 +1,6 @@
 package delay
 
 import (
-	"fmt"
-	"github.com/Asutorufa/SsrMicroClient/subscription"
 	"log"
 	"net"
 	"time"
@@ -25,31 +23,4 @@ func TCPDelay(address, port string) (time.Duration, bool, error) {
 	}()
 	delay := time.Since(timeNow)
 	return delay, true, nil
-}
-
-func getTCPDelayAverage(server, serverPort string) time.Duration {
-	var delay [3]time.Duration
-	var err error
-	for i := 0; i < 3; i++ {
-		delay[i], _, err = TCPDelay(server, serverPort)
-		if err != nil {
-			continue
-		}
-	}
-	return (delay[0] + delay[1] + delay[2]) / 3
-}
-
-// GetTCPDelayJSON get delay by tcp
-func GetTCPDelayJSON(configPath string) {
-	for {
-		node, err := subscription.SelectNode(configPath)
-		if err != nil {
-			return
-		}
-		if node.Server == "" {
-			break
-		}
-		fmt.Print(node.Remarks + "delay(3 times): ")
-		fmt.Println("average:", getTCPDelayAverage(node.Server, node.ServerPort))
-	}
 }
