@@ -37,16 +37,15 @@ func main() {
 		_ = os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
 	}()
 
-	ssrMicroClientGUI, err := gui.NewSsrMicroClientGUI(configPath)
-	if err != nil && ssrMicroClientGUI != nil {
+	ssrMicroClientGUI, err := gui.NewSsrMicroClientGUI()
+	if err != nil {
+		log.Println(err)
 		ssrMicroClientGUI.MessageBox(err.Error())
 	}
 	if ssrMicroClientGUI != nil {
-		if ssrMicroClientGUI.App.IsSessionRestored() {
-			ssrMicroClientGUI.MessageBox("restore is from before")
-		}
-
 		//ssrMicroClientGUI.MainWindow.Show()
 		ssrMicroClientGUI.App.Exec()
+	} else {
+		log.Println("gui is nil")
 	}
 }

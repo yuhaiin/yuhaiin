@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // Client socks5 client
@@ -24,7 +25,7 @@ type Client struct {
 
 func (s *Client) creatDial() (net.Conn, error) {
 	var err error
-	s.Conn, err = net.Dial("tcp", s.Server+":"+s.Port)
+	s.Conn, err = net.DialTimeout("tcp", s.Server+":"+s.Port, 5*time.Second)
 	if err != nil {
 		return s.Conn, err
 	}

@@ -8,15 +8,17 @@ import (
 	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"log"
 	"net"
+	"os/exec"
 )
 
-type control struct {
+type Control struct {
 	Match    *OutboundMatch
 	OutBound *OutBound
+	ssrCmd   *exec.Cmd
 }
 
-func NewControl() (*control, error) {
-	x := &control{}
+func NewControl() (*Control, error) {
+	x := &Control{}
 	var err error
 	x.Match, err = NewOutboundMatch(nil)
 	if err != nil {
@@ -29,50 +31,64 @@ func NewControl() (*control, error) {
 		return nil, err
 	}
 	x.OutBound.changeForwardConn(x.Match.Forward)
+	x.Start()
 	return x, nil
 }
 
-func (c *control) ChangeNode() error {
-	nNode, err := subscr.GetNowNode2()
+func (c *Control) ReSet() error {
+	if c.ssrCmd != nil {
+		if err := c.ssrCmd.Process.Kill(); err != nil {
+			return err
+		}
+		c.ssrCmd = nil
+	}
+	return nil
+}
+
+func (c *Control) ChangeNode() error {
+	if err := c.ReSet(); err != nil {
+		return err
+	}
+	nNode, err := subscr.GetNowNode()
 	if err != nil {
 		return err
 	}
 	switch nNode.(type) {
-	case subscr.Shadowsocks:
+	case *subscr.Shadowsocks:
 		conn, err := client.NewShadowosocks(
 			nNode.(*subscr.Shadowsocks).Method,
 			nNode.(*subscr.Shadowsocks).Password,
-			nNode.(*subscr.Shadowsocks).Server,
+			net.JoinHostPort(nNode.(*subscr.Shadowsocks).Server, nNode.(*subscr.Shadowsocks).Port),
 			nNode.(*subscr.Shadowsocks).Plugin,
 			nNode.(*subscr.Shadowsocks).PluginOpt)
 		if err != nil {
 			return err
 		}
 		c.Match.ChangeForward(conn.Conn)
-		return nil
-	case subscr.Shadowsocksr:
-		cmd, err := ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
+	case *subscr.Shadowsocksr:
+		c.ssrCmd, err = ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
 		if err != nil {
 			return err
 		}
 		go func() {
-			if err := cmd.Run(); err != nil {
+			if err := c.ssrCmd.Run(); err != nil {
 				log.Println(err)
 			}
 		}()
-		conFig, err := config.SettingDecodeJSON2()
+		conFig, err := config.SettingDecodeJSON()
 		if err != nil {
 			return err
 		}
 		c.Match.ChangeForward(func(host string) (conn net.Conn, err error) {
-			return socks5client.Client{Address: host, Server: conFig.LocalPort, Port: conFig.LocalPort}.NewSocks5Client()
+			cli := socks5client.Client{Address: host, Server: conFig.LocalAddress, Port: conFig.LocalPort}
+			return cli.NewSocks5Client()
 		})
-		return nil
 	default:
 		return errors.New("no support type proxy")
 	}
+	return nil
 }
 
-func (c *control) Start() {
+func (c *Control) Start() {
 	c.OutBound.Start()
 }

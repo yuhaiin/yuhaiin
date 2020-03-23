@@ -1,7 +1,7 @@
 package match
 
 import (
-	"SsrMicroClient/net/dns"
+	"github.com/Asutorufa/SsrMicroClient/net/dns"
 	"testing"
 )
 

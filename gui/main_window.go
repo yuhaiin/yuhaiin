@@ -1,21 +1,23 @@
 package gui
 
 import (
+	"github.com/Asutorufa/SsrMicroClient/config"
 	"github.com/Asutorufa/SsrMicroClient/net/delay"
-	"github.com/Asutorufa/SsrMicroClient/process/ServerControl"
 	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
-	"log"
-	"strconv"
+)
+
+var (
+	iconPath = config.GetConfigAndSQLPath() + "/SsrMicroClient.png"
 )
 
 func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	ssrMicroClientGUI.MainWindow = widgets.NewQMainWindow(nil, 0)
 	ssrMicroClientGUI.MainWindow.SetFixedSize2(600, 400)
 	ssrMicroClientGUI.MainWindow.SetWindowTitle("SsrMicroClient")
-	icon := gui.NewQIcon5(ssrMicroClientGUI.configPath + "/SsrMicroClient.png")
+	icon := gui.NewQIcon5(iconPath)
 	ssrMicroClientGUI.MainWindow.SetWindowIcon(icon)
 
 	trayIcon := widgets.NewQSystemTrayIcon(ssrMicroClientGUI.MainWindow)
@@ -46,114 +48,55 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	trayIcon.SetToolTip("")
 	trayIcon.Show()
 
-	statusLabel := widgets.NewQLabel2("status", ssrMicroClientGUI.MainWindow,
-		core.Qt__WindowType(0x00000000))
-	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10),
-		core.NewQPoint2(130, 40)))
-	statusLabel2 := widgets.NewQLabel2("", ssrMicroClientGUI.MainWindow,
-		core.Qt__WindowType(0x00000000))
-	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10),
-		core.NewQPoint2(560, 40)))
+	statusLabel := widgets.NewQLabel2("status", ssrMicroClientGUI.MainWindow, core.Qt__WindowType(0x00000000))
+	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
+	statusLabel2 := widgets.NewQLabel2("", ssrMicroClientGUI.MainWindow, core.Qt__WindowType(0x00000000))
+	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10), core.NewQPoint2(560, 40)))
 
-	nowNodeLabel := widgets.NewQLabel2("now node", ssrMicroClientGUI.MainWindow,
-		core.Qt__WindowType(0x00000000))
-	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60),
-		core.NewQPoint2(130, 90)))
-	nowNode, err := subscr.GetNowNode(ssrMicroClientGUI.configPath)
-	if err != nil {
-		ssrMicroClientGUI.MessageBox(err.Error())
-		return
-	}
-	nowNodeLabel2 := widgets.NewQLabel2(nowNode["remarks"]+" - "+
-		nowNode["group"], ssrMicroClientGUI.MainWindow, core.Qt__WindowType(0x00000000))
-	nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60),
-		core.NewQPoint2(560, 90)))
+	nowNodeLabel := widgets.NewQLabel2("now node", ssrMicroClientGUI.MainWindow, core.Qt__WindowType(0x00000000))
+	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
+	nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
+	nowNodeLabel2 := widgets.NewQLabel2(nowNodeName+" - "+nowNodeGroup, ssrMicroClientGUI.MainWindow, core.Qt__WindowType(0x00000000))
+	nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60), core.NewQPoint2(560, 90)))
 
-	groupLabel := widgets.NewQLabel2("group", ssrMicroClientGUI.MainWindow,
-		core.Qt__WindowType(0x00000000))
-	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110),
-		core.NewQPoint2(130, 140)))
+	groupLabel := widgets.NewQLabel2("group", ssrMicroClientGUI.MainWindow, core.Qt__WindowType(0x00000000))
+	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110), core.NewQPoint2(130, 140)))
 	groupCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
-	group, err := subscr.GetGroup(ssrMicroClientGUI.configPath)
+	group, err := subscr.GetGroup()
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
 	}
 	groupCombobox.AddItems(group)
-	groupCombobox.SetCurrentTextDefault(nowNode["group"])
-	groupCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 110),
-		core.NewQPoint2(450, 140)))
+	groupCombobox.SetCurrentTextDefault(nowNodeGroup)
+	groupCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 110), core.NewQPoint2(450, 140)))
 	refreshButton := widgets.NewQPushButton2("refresh", ssrMicroClientGUI.MainWindow)
-	refreshButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 110),
-		core.NewQPoint2(560, 140)))
+	refreshButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 110), core.NewQPoint2(560, 140)))
 
-	nodeLabel := widgets.NewQLabel2("node", ssrMicroClientGUI.MainWindow,
-		core.Qt__WindowType(0x00000000))
-	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160),
-		core.NewQPoint2(130, 190)))
+	nodeLabel := widgets.NewQLabel2("node", ssrMicroClientGUI.MainWindow, core.Qt__WindowType(0x00000000))
+	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160), core.NewQPoint2(130, 190)))
 	nodeCombobox := widgets.NewQComboBox(ssrMicroClientGUI.MainWindow)
-	node, err := subscr.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
+	node, err := subscr.GetNode(groupCombobox.CurrentText())
 	if err != nil {
 		ssrMicroClientGUI.MessageBox(err.Error())
 		return
 	}
 	nodeCombobox.AddItems(node)
-	nodeCombobox.SetCurrentTextDefault(nowNode["remarks"])
-	nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160),
-		core.NewQPoint2(450, 190)))
+	nodeCombobox.SetCurrentTextDefault(nowNodeName)
+	nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160), core.NewQPoint2(450, 190)))
 	startButton := widgets.NewQPushButton2("start", ssrMicroClientGUI.MainWindow)
-
-	// wait the last ssr process finished
-	waitChan := make(chan bool, 0)
-	go func() {
-		waitChan <- true
-	}()
-	start := func() {
-		if err := ssrMicroClientGUI.ssrCmd.Start(); err != nil {
-			log.Println(err)
-		}
-		statusLabel2.SetText("<b><font color=green>running(pid:" + strconv.Itoa(ssrMicroClientGUI.ssrCmd.Process.Pid) + ")</font></b>")
-		trayIcon.SetToolTip("running(pid:" + strconv.Itoa(ssrMicroClientGUI.ssrCmd.Process.Pid) + ")")
-		if _, err := ssrMicroClientGUI.ssrCmd.Process.Wait(); err != nil {
-			log.Println(err)
-		}
-		statusLabel2.SetText("<b><font color=red>stop</font></b>")
-		trayIcon.SetToolTip("stop")
-		waitChan <- true
-	}
 	startButton.ConnectClicked(func(bool2 bool) {
+
 		group := groupCombobox.CurrentText()
 		remarks := nodeCombobox.CurrentText()
-		//_, exist := process.Get(ssrMicroClientGUI.configPath)
-		log.Println(ssrMicroClientGUI.ssrCmd.Process, ssrMicroClientGUI.ssrCmd.ProcessState)
-		if group == nowNode["group"] && remarks == nowNode["remarks"] && ssrMicroClientGUI.ssrCmd.Process != nil {
-			if ssrMicroClientGUI.ssrCmd.Process.Pid != -1 {
-				return
-			}
-		} else if group != nowNode["group"] || remarks != nowNode["remarks"] {
-			err := subscr.ChangeNowNode(ssrMicroClientGUI.configPath, group, remarks)
-			if err != nil {
-				ssrMicroClientGUI.MessageBox(err.Error())
-				return
-			}
-			nowNode, err = subscr.GetNowNode(ssrMicroClientGUI.configPath)
-			if err != nil {
-				ssrMicroClientGUI.MessageBox(err.Error())
-				return
-			}
-			nowNodeLabel2.SetText(nowNode["remarks"] + " - " + nowNode["group"])
-			if ssrMicroClientGUI.ssrCmd.Process != nil {
-				if err := ssrMicroClientGUI.ssrCmd.Process.Kill(); err != nil {
-					log.Println(err)
-				}
-				ssrMicroClientGUI.ssrCmd = nil
-			}
+		if err := subscr.ChangeNowNode(group, remarks); err != nil {
+			ssrMicroClientGUI.MessageBox(err.Error())
+			return
 		}
-		<-waitChan
-		ssrMicroClientGUI.ssrCmd = ServerControl.GetSsrCmd(ssrMicroClientGUI.configPath)
-		go func() {
-			start()
-		}()
+		if err := ssrMicroClientGUI.control.ChangeNode(); err != nil {
+			ssrMicroClientGUI.MessageBox(err.Error())
+		}
+		nowNodeLabel2.SetText(remarks + " - " + group)
 	})
 
 	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160),
@@ -172,16 +115,10 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 		go func() {
 			group := groupCombobox.CurrentText()
 			remarks := nodeCombobox.CurrentText()
-			node, err := subscr.GetOneNode(ssrMicroClientGUI.configPath, group, remarks)
-			if err != nil {
-				ssrMicroClientGUI.MessageBox(err.Error())
-				return
-			}
-			delayTmp, isSuccess, err := delay.TCPDelay(node.Server,
-				node.Port)
+			server, port := subscr.GetOneNodeAddress(group, remarks)
+			delayTmp, isSuccess, err := delay.TCPDelay(server, port)
 			var delayString string
 			if err != nil {
-				//ssrMicroClientGUI.MessageBox(err.Error())
 				delayString = err.Error()
 			} else {
 				delayString = delayTmp.String()
@@ -192,68 +129,58 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 			delayLabel2.SetText(delayString)
 		}()
 	})
-	delayButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210),
-		core.NewQPoint2(560, 240)))
+	delayButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
 
 	groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
-		node, err := subscr.GetNode(ssrMicroClientGUI.configPath,
-			groupCombobox.CurrentText())
+		node, err := subscr.GetNode(groupCombobox.CurrentText())
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
+			return
 		}
 		nodeCombobox.Clear()
 		nodeCombobox.AddItems(node)
 	})
 
 	subButton := widgets.NewQPushButton2("subscription setting", ssrMicroClientGUI.MainWindow)
-	subButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 260),
-		core.NewQPoint2(290, 290)))
+	subButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 260), core.NewQPoint2(290, 290)))
 	subButton.ConnectClicked(func(bool2 bool) {
 		ssrMicroClientGUI.openSubscriptionWindow()
 	})
 
 	subUpdateButton := widgets.NewQPushButton2("subscription Update", ssrMicroClientGUI.MainWindow)
-	subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260),
-		core.NewQPoint2(560, 290)))
+	subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260), core.NewQPoint2(560, 290)))
 	subUpdateButton.ConnectClicked(func(bool2 bool) {
 		message := widgets.NewQMessageBox(ssrMicroClientGUI.MainWindow)
 		message.SetText("Updating!")
 		message.Show()
-		if err := subscr.SsrJSON(ssrMicroClientGUI.configPath); err != nil {
+		if err := subscr.GetLinkFromInt(); err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 		}
 		message.SetText("Updated!")
-		group, err = subscr.GetGroup(ssrMicroClientGUI.configPath)
+
+		group, err := subscr.GetGroup()
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
 		}
 		groupCombobox.Clear()
 		groupCombobox.AddItems(group)
-		groupCombobox.SetCurrentText(nowNode["group"])
-		node, err = subscr.GetNode(ssrMicroClientGUI.configPath, groupCombobox.CurrentText())
+		node, err := subscr.GetNode(groupCombobox.CurrentText())
 		if err != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())
 			return
 		}
 		nodeCombobox.Clear()
 		nodeCombobox.AddItems(node)
-		nodeCombobox.SetCurrentText(nowNode["remarks"])
+
+		nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
+		groupCombobox.SetCurrentText(nowNodeGroup)
+		nodeCombobox.SetCurrentText(nowNodeName)
 	})
 
 	settingButton := widgets.NewQPushButton2("Setting", ssrMicroClientGUI.MainWindow)
-	settingButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 300),
-		core.NewQPoint2(290, 330)))
+	settingButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 300), core.NewQPoint2(290, 330)))
 	settingButton.ConnectClicked(func(bool2 bool) {
 		ssrMicroClientGUI.openSettingWindow()
 	})
-
-	if ssrMicroClientGUI.settingConfig.AutoStartSsr == true {
-		if ssrMicroClientGUI.ssrCmd.Process != nil {
-			if ssrMicroClientGUI.ssrCmd.Process.Pid != -1 {
-				return
-			}
-		}
-		startButton.Click()
-	}
 }

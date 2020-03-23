@@ -6,6 +6,7 @@ import (
 	"github.com/Asutorufa/SsrMicroClient/net/dns"
 	"github.com/Asutorufa/SsrMicroClient/net/match"
 	"net"
+	"net/url"
 	"time"
 )
 
@@ -15,7 +16,7 @@ type OutboundMatch struct {
 }
 
 func DNS() (func(domain string) (DNS []string, success bool), error) {
-	conFig, err := config.SettingDecodeJSON2()
+	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +31,7 @@ func DNS() (func(domain string) (DNS []string, success bool), error) {
 }
 
 func NewOutboundMatch(forward func(host string) (conn net.Conn, err error)) (*OutboundMatch, error) {
-	conFig, err := config.SettingDecodeJSON2()
+	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -62,19 +63,30 @@ func (f *OutboundMatch) UpdateDNS() error {
 }
 
 func (f *OutboundMatch) Forward(host string) (conn net.Conn, err error) {
-	ip, bypass := f.Matcher.Search(host)
+	URI, err := url.Parse("//" + host)
+	if err != nil {
+		return nil, err
+	}
+	if URI.Port() == "" {
+		host = net.JoinHostPort(host, "80")
+		if URI, err = url.Parse("//" + host); err != nil {
+			return nil, err
+		}
+	}
+
+	ip, bypass := f.Matcher.Search(URI.Hostname())
 	switch bypass {
 	case "direct":
 		for i := range ip {
-			conn, err := net.DialTimeout("tcp", ip[i], 5*time.Second)
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip[i], URI.Port()), 5*time.Second)
 			if err == nil {
 				return conn, err
 			}
 		}
 	case "block":
 		return nil, errors.New("block domain: " + host)
-	case "proxy":
-		return f.conn(host)
+		//case "proxy":
+		//	return f.conn(host)
 	}
-	return net.DialTimeout("tcp", host, 5*time.Second)
+	return f.conn(host)
 }

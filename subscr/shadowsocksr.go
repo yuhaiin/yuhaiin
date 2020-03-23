@@ -104,7 +104,7 @@ func SsrParse2(link []byte) (*Shadowsocksr, error) {
 		node.Group = Base64d(query.Get("group"))
 		node.Obfsparam = Base64d(query.Get("obfsparam"))
 		node.Protoparam = Base64d(query.Get("protoparam"))
-		node.Name = Base64d(query.Get("remarks"))
+		node.Name = Base64d(query.Get("remarks")) + " - Shadowsocksr"
 	}
 	return node, nil
 }

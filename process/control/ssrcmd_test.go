@@ -54,3 +54,7 @@ func TestStart(t *testing.T) {
 	//	}()
 	//	_ = cmd.Wait()
 }
+
+func TestGetFreePort(t *testing.T) {
+	t.Log(GetFreePort())
+}

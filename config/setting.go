@@ -11,42 +11,42 @@ var (
 
 // Setting setting json struct
 type Setting struct {
-	PythonPath                     string `json:"pythonPath"`
-	SsrPath                        string `json:"ssrPath"`
-	PidFile                        string `json:"pidPath"`
-	LogFile                        string `json:"logPath"`
-	FastOpen                       bool   `json:"fastOpen"`
-	Works                          string `json:"works"`
-	LocalAddress                   string `json:"localAddress"`
-	LocalPort                      string `json:"localPort"`
-	TimeOut                        string `json:"timeOut"`
-	HttpProxy                      bool   `json:"httpProxy"`
-	Bypass                         bool   `json:"bypass"`
-	HttpProxyAddressAndPort        string `json:"httpProxyAddressAndPort"`
-	Socks5WithBypassAddressAndPort string `json:"socks5WithBypassAddressAndPort"`
-	BypassFile                     string `json:"bypassFile"`
-	DnsServer                      string `json:"dnsServer"`
-	UdpTrans                       bool   `json:"udpTrans"`
-	AutoStartSsr                   bool   `json:"autoStartSsr"`
-	IsPrintLog                     bool   `json:"is_print_log"`
-	IsDNSOverHTTPS                 bool   `json:"is_dns_over_https"`
-	DNSAcrossProxy                 bool   `json:"dns_across_proxy"`
-	UseLocalDNS                    bool   `json:"use_local_dns"`
+	PythonPath         string `json:"pythonPath"`
+	SsrPath            string `json:"ssrPath"`
+	PidFile            string `json:"pidPath"`
+	LogFile            string `json:"logPath"`
+	FastOpen           bool   `json:"fastOpen"`
+	Works              string `json:"works"`
+	LocalAddress       string `json:"localAddress"`
+	LocalPort          string `json:"localPort"`
+	TimeOut            string `json:"timeOut"`
+	HttpProxy          bool   `json:"httpProxy"`
+	Bypass             bool   `json:"bypass"`
+	HttpProxyAddress   string `json:"httpProxyAddress"`
+	Socks5ProxyAddress string `json:"socks5ProxyAddress"`
+	BypassFile         string `json:"bypassFile"`
+	DnsServer          string `json:"dnsServer"`
+	UdpTrans           bool   `json:"udpTrans"`
+	AutoStartSsr       bool   `json:"autoStartSsr"`
+	IsPrintLog         bool   `json:"is_print_log"`
+	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
+	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
+	UseLocalDNS        bool   `json:"use_local_dns"`
 }
 
 // SettingInitJSON init setting json file
 func SettingInitJSON(configPath string) error {
 	pa := &Setting{
-		AutoStartSsr:                   true,
-		PythonPath:                     GetPythonPath(),
-		SsrPath:                        GetPythonPath() + " " + configPath + "/shadowsocksr/shadowsocks/local.py",
-		LocalAddress:                   "127.0.0.1",
-		LocalPort:                      "1083",
-		Bypass:                         true,
-		HttpProxy:                      true,
-		HttpProxyAddressAndPort:        "127.0.0.1:8188",
-		Socks5WithBypassAddressAndPort: "127.0.0.1:1080",
-		IsPrintLog:                     false,
+		AutoStartSsr:       true,
+		PythonPath:         GetPythonPath(),
+		SsrPath:            GetPythonPath() + " " + configPath + "/shadowsocksr/shadowsocks/local.py",
+		LocalAddress:       "127.0.0.1",
+		LocalPort:          "1083",
+		Bypass:             true,
+		HttpProxy:          true,
+		HttpProxyAddress:   "127.0.0.1:8188",
+		Socks5ProxyAddress: "127.0.0.1:1080",
+		IsPrintLog:         false,
 
 		TimeOut:        "1000",
 		BypassFile:     configPath + "/SsrMicroClient.conf",
@@ -60,16 +60,16 @@ func SettingInitJSON(configPath string) error {
 		FastOpen:       true,
 		Works:          "8",
 	}
-	if err := SettingEnCodeJSON(configPath, pa); err != nil {
+	if err := SettingEnCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
 }
 
 // SettingDecodeJSON decode setting json to struct
-func SettingDecodeJSON(configPath string) (*Setting, error) {
+func SettingDecodeJSON() (*Setting, error) {
 	pa := &Setting{}
-	file, err := os.Open(configPath + "/SsrMicroConfig.json")
+	file, err := os.Open(configPath)
 	if err != nil {
 		return &Setting{}, err
 	}
@@ -80,8 +80,8 @@ func SettingDecodeJSON(configPath string) (*Setting, error) {
 }
 
 // SettingEnCodeJSON encode setting struct to json
-func SettingEnCodeJSON(configPath string, pa *Setting) error {
-	file, err := os.Create(configPath + "/SsrMicroConfig.json")
+func SettingEnCodeJSON(pa *Setting) error {
+	file, err := os.Create(configPath)
 	if err != nil {
 		return err
 	}
@@ -91,17 +91,4 @@ func SettingEnCodeJSON(configPath string, pa *Setting) error {
 		return err
 	}
 	return nil
-}
-
-// SettingDecodeJSON decode setting json to struct
-func SettingDecodeJSON2() (*Setting, error) {
-	pa := &Setting{}
-	file, err := os.Open(configPath)
-	if err != nil {
-		return &Setting{}, err
-	}
-	if json.NewDecoder(file).Decode(&pa) != nil {
-		return &Setting{}, err
-	}
-	return pa, nil
 }

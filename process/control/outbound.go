@@ -16,11 +16,11 @@ type OutBound struct {
 
 func NewOutBound() (*OutBound, error) {
 	o := &OutBound{}
-	conFig, err := config.SettingDecodeJSON2()
+	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		return nil, err
 	}
-	socks5, err := url.Parse("//" + conFig.Socks5WithBypassAddressAndPort)
+	socks5, err := url.Parse("//" + conFig.Socks5ProxyAddress)
 	if err != nil {
 		log.Println(err)
 	}
@@ -28,7 +28,7 @@ func NewOutBound() (*OutBound, error) {
 		return nil, err
 	}
 
-	http, err := url.Parse("//" + conFig.HttpProxyAddressAndPort)
+	http, err := url.Parse("//" + conFig.HttpProxyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -44,17 +44,17 @@ func (o *OutBound) changeForwardConn(conn func(host string) (net.Conn, error)) {
 }
 
 func (o *OutBound) UpdateListenerAddress() error {
-	conFig, err := config.SettingDecodeJSON2()
+	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		return err
 	}
-	socks5, err := url.Parse("//" + conFig.Socks5WithBypassAddressAndPort)
+	socks5, err := url.Parse("//" + conFig.Socks5ProxyAddress)
 	if err != nil {
 		log.Println(err)
 	}
 	o.Socks5.Server, o.Socks5.Port = socks5.Hostname(), socks5.Port()
 
-	http, err := url.Parse("//" + conFig.HttpProxyAddressAndPort)
+	http, err := url.Parse("//" + conFig.HttpProxyAddress)
 	if err != nil {
 		return err
 	}

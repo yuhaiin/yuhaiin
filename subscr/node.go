@@ -26,20 +26,20 @@ type Node struct {
 }
 
 // InitJSON init the config json file
-func InitJSON2() error {
+func InitJSON() error {
 	pa := &Node{
 		//Group:   map[string]bool{},
 		NowNode: nil,
 		Link:    []string{},
 		Node:    map[string]map[string]interface{}{},
 	}
-	if err := enCodeJSON2(pa); err != nil {
+	if err := enCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
 }
 
-func decodeJSON2() (*Node, error) {
+func decodeJSON() (*Node, error) {
 	pa := &Node{}
 	file, err := os.Open(jsonPath)
 	if err != nil {
@@ -51,7 +51,7 @@ func decodeJSON2() (*Node, error) {
 	return pa, nil
 }
 
-func enCodeJSON2(pa *Node) error {
+func enCodeJSON(pa *Node) error {
 	file, err := os.Create(jsonPath)
 	if err != nil {
 		return err
@@ -65,8 +65,8 @@ func enCodeJSON2(pa *Node) error {
 }
 
 // GetLinkFromInt <--
-func GetLinkFromInt2() error {
-	pa, err := decodeJSON2()
+func GetLinkFromInt() error {
+	pa, err := decodeJSON()
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func GetLinkFromInt2() error {
 				if _, ok := pa.Node[node.Group]; !ok { //judge map key is exist or not
 					pa.Node[node.Group] = map[string]interface{}{}
 				}
-				pa.Node[node.Group][node.Name+" - Shadowsocks"] = node
+				pa.Node[node.Group][node.Name] = node
 			// ShadowsocksR
 			case bytes.HasPrefix(x, []byte("ssr://")):
 				node, err := SsrParse2(x)
@@ -112,33 +112,33 @@ func GetLinkFromInt2() error {
 				if _, ok := pa.Node[node.Group]; !ok { //judge map key is exist or not
 					pa.Node[node.Group] = map[string]interface{}{}
 				}
-				pa.Node[node.Group][node.Name+" - Shadowsocksr"] = node
+				pa.Node[node.Group][node.Name] = node
 			default:
 				log.Println("no support " + string(x))
 				continue
 			}
 		}
 	}
-	if err := enCodeJSON2(pa); err != nil {
+	if err := enCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
 }
 
-func AddLinkJSON2(link string) error {
-	pa, err := decodeJSON2()
+func AddLinkJSON(link string) error {
+	pa, err := decodeJSON()
 	if err != nil {
 		return err
 	}
 	pa.Link = append(pa.Link, link)
-	if err := enCodeJSON2(pa); err != nil {
+	if err := enCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
 }
 
-func RemoveLinkJSON2(link string) error {
-	pa, err := decodeJSON2()
+func RemoveLinkJSON(link string) error {
+	pa, err := decodeJSON()
 	if err != nil {
 		return err
 	}
@@ -148,15 +148,15 @@ func RemoveLinkJSON2(link string) error {
 			break
 		}
 	}
-	if err := enCodeJSON2(pa); err != nil {
+	if err := enCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
 }
 
 // GetLink <--
-func GetLink2() ([]string, error) {
-	pa, err := decodeJSON2()
+func GetLink() ([]string, error) {
+	pa, err := decodeJSON()
 	if err != nil {
 		return []string{}, err
 	}
@@ -168,8 +168,8 @@ func GetLink2() ([]string, error) {
 }
 
 // GetGroup <--
-func GetGroup2() ([]string, error) {
-	pa, err := decodeJSON2()
+func GetGroup() ([]string, error) {
+	pa, err := decodeJSON()
 	if err != nil {
 		return []string{}, err
 	}
@@ -182,8 +182,8 @@ func GetGroup2() ([]string, error) {
 }
 
 // GetNode get nodes by group
-func GetNode2(group string) ([]string, error) {
-	pa, err := decodeJSON2()
+func GetNode(group string) ([]string, error) {
+	pa, err := decodeJSON()
 	if err != nil {
 		return []string{}, err
 	}
@@ -195,15 +195,15 @@ func GetNode2(group string) ([]string, error) {
 	return nodeTmp, nil
 }
 
-// ChangeNowNode2 <--
-func ChangeNowNode2(group, remarks string) error {
-	pa, err := decodeJSON2()
+// ChangeNowNode <--
+func ChangeNowNode(group, remarks string) error {
+	pa, err := decodeJSON()
 	if err != nil {
 		return err
 	}
 
 	pa.NowNode = pa.Node[group][remarks]
-	if err := enCodeJSON2(pa); err != nil {
+	if err := enCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
@@ -243,8 +243,8 @@ func map2struct(s map[string]interface{}) (interface{}, error) {
 }
 
 // GetOneNode get one node by group and remarks
-func GetOneNode2(group, remarks string) (interface{}, error) {
-	pa, err := decodeJSON2()
+func GetOneNode(group, remarks string) (interface{}, error) {
+	pa, err := decodeJSON()
 	if err != nil {
 		return Shadowsocksr{}, err
 	}
@@ -257,10 +257,28 @@ func GetOneNode2(group, remarks string) (interface{}, error) {
 }
 
 // GetNowNode <--
-func GetNowNode2() (interface{}, error) {
-	pa, err := decodeJSON2()
+func GetNowNode() (interface{}, error) {
+	pa, err := decodeJSON()
 	if err != nil {
 		return nil, err
 	}
 	return map2struct(pa.NowNode.(map[string]interface{}))
+}
+
+func GetNowNodeGroupAndName() (name string, group string) {
+	pa, err := decodeJSON()
+	if err != nil {
+		log.Println(err)
+		return "", ""
+	}
+	return pa.NowNode.(map[string]interface{})["name"].(string), pa.NowNode.(map[string]interface{})["group"].(string)
+}
+
+func GetOneNodeAddress(group, name string) (server, port string) {
+	pa, err := decodeJSON()
+	if err != nil {
+		return "", ""
+	}
+	currentNode := pa.Node[group][name].(map[string]interface{})
+	return currentNode["server"].(string), currentNode["port"].(string)
 }

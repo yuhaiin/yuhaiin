@@ -37,7 +37,7 @@ func Init(configPath string) {
 
 	//cycle import,not allow
 	if !PathExists(configPath + "/node.json") {
-		if subscr.InitJSON(configPath) != nil {
+		if subscr.InitJSON() != nil {
 			return
 		}
 	}

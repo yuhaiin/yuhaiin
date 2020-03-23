@@ -4,26 +4,26 @@ import (
 	"testing"
 )
 
-func TestInitJSON2(t *testing.T) {
-	if err := InitJSON2(); err != nil {
+func TestInitJSON(t *testing.T) {
+	if err := InitJSON(); err != nil {
 		t.Error(err)
 	}
 }
 
-func TestAddLinkJSON2(t *testing.T) {
-	if err := AddLinkJSON2("xxx"); err != nil {
+func TestAddLinkJSON(t *testing.T) {
+	if err := AddLinkJSON("xxx"); err != nil {
 		t.Error(err)
 	}
 }
 
-func TestGetLinkFromInt2(t *testing.T) {
-	if err := GetLinkFromInt2(); err != nil {
+func TestGetLinkFromInt(t *testing.T) {
+	if err := GetLinkFromInt(); err != nil {
 		t.Error(err)
 	}
 }
 
-func TestChangeNowNode2(t *testing.T) {
-	pa, err := decodeJSON2()
+func TestChangeNowNode(t *testing.T) {
+	pa, err := decodeJSON()
 	if err != nil {
 		t.Error(err)
 	}
@@ -36,13 +36,13 @@ func TestChangeNowNode2(t *testing.T) {
 		node = x
 		break
 	}
-	if err := ChangeNowNode2(group, node); err != nil {
+	if err := ChangeNowNode(group, node); err != nil {
 		t.Error(err)
 	}
 }
 
-func TestGetOneNode2(t *testing.T) {
-	pa, err := decodeJSON2()
+func TestGetOneNode(t *testing.T) {
+	pa, err := decodeJSON()
 	if err != nil {
 		t.Error(err)
 	}
@@ -55,7 +55,7 @@ func TestGetOneNode2(t *testing.T) {
 		node = x
 		break
 	}
-	x, err := GetOneNode2(group, node)
+	x, err := GetOneNode(group, node)
 	if err != nil {
 		t.Error(err)
 	}
@@ -67,7 +67,7 @@ func TestGetOneNode2(t *testing.T) {
 	}
 }
 func TestGetNowNode(t *testing.T) {
-	pa, err := GetNowNode2()
+	pa, err := GetNowNode()
 	if err != nil {
 		t.Log(err)
 	}
@@ -79,12 +79,12 @@ func TestGetNowNode(t *testing.T) {
 	}
 }
 
-func TestGetGroup2(t *testing.T) {
-	t.Log(GetGroup2())
+func TestGetGroup(t *testing.T) {
+	t.Log(GetGroup())
 }
 
 func TestGetNode2(t *testing.T) {
-	pa, err := decodeJSON2()
+	pa, err := decodeJSON()
 	if err != nil {
 		t.Error(err)
 	}
@@ -93,5 +93,5 @@ func TestGetNode2(t *testing.T) {
 		group = x
 		break
 	}
-	t.Log(GetNode2(group))
+	t.Log(GetNode(group))
 }

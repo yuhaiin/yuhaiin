@@ -1,8 +1,8 @@
 package dns
 
 import (
-	socks5client "SsrMicroClient/net/proxy/socks5/client"
 	"context"
+	"github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/client"
 	"io/ioutil"
 	"net"
 	"net/http"

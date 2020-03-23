@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"log"
 	"net"
 	"net/url"
 	"strings"
@@ -37,8 +38,8 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 			return nil, errors.New("no format plugin options")
 		}
 		obfs := strings.Replace(opts[0], "obfs=", "", -1)
-		param := strings.Replace(opts[1], "obfs=host=", "", -1)
-		urlTmp, err := url.Parse(host)
+		param := strings.Replace(opts[1], "obfs-host=", "", -1)
+		urlTmp, err := url.Parse("//" + host)
 		if err != nil {
 			return nil, err
 		}
@@ -52,6 +53,7 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 		conn = s.cipher.StreamConn(rConn)
 	}
 	if _, err = conn.Write(socks.ParseAddr(host)); err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	return conn, nil

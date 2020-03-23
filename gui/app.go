@@ -1,13 +1,9 @@
 package gui
 
 import (
-	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/process/ServerControl"
-	"github.com/therecipe/qt/gui"
+	"github.com/Asutorufa/SsrMicroClient/process/control"
 	"github.com/therecipe/qt/widgets"
-	"log"
 	"os"
-	"os/exec"
 )
 
 type SsrMicroClientGUI struct {
@@ -15,51 +11,24 @@ type SsrMicroClientGUI struct {
 	MainWindow         *widgets.QMainWindow
 	subscriptionWindow *widgets.QMainWindow
 	settingWindow      *widgets.QMainWindow
-	Session            *gui.QSessionManager
-	ssrCmd             *exec.Cmd
-	configPath         string
-	settingConfig      *config.Setting
-	server             *ServerControl.ServerControl
+	control            *ServerControl.Control
 }
 
-func NewSsrMicroClientGUI(configPath string) (*SsrMicroClientGUI, error) {
+func NewSsrMicroClientGUI() (*SsrMicroClientGUI, error) {
 	var err error
 	microClientGUI := &SsrMicroClientGUI{}
-	microClientGUI.configPath = configPath
-	microClientGUI.settingConfig, err = config.SettingDecodeJSON(microClientGUI.configPath)
-	if err != nil {
-		return microClientGUI, err
-	}
-	microClientGUI.ssrCmd = ServerControl.GetSsrCmd(microClientGUI.configPath)
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
 	microClientGUI.App.SetApplicationName("SsrMicroClient")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
-	microClientGUI.App.ConnectAboutToQuit(func() {
-		if microClientGUI.ssrCmd.Process != nil {
-			err = microClientGUI.ssrCmd.Process.Kill()
-			if err != nil {
-				//	do something
-				log.Println(err)
-			}
-			_, err = microClientGUI.ssrCmd.Process.Wait()
-			if err != nil {
-				//	do something
-				log.Println(err)
-			}
-		}
-	})
-
-	microClientGUI.server = &ServerControl.ServerControl{}
-
-	microClientGUI.Session = gui.NewQSessionManagerFromPointer(nil)
-	microClientGUI.App.SaveStateRequest(microClientGUI.Session)
+	//microClientGUI.App.ConnectAboutToQuit(func() {
+	//})
+	microClientGUI.control, err = ServerControl.NewControl()
+	if err != nil {
+		microClientGUI.MessageBox(err.Error())
+	}
 	microClientGUI.createMainWindow()
 	microClientGUI.createSubscriptionWindow()
 	microClientGUI.createSettingWindow()
-
-	if microClientGUI.settingConfig.Bypass == true {
-		microClientGUI.server.ServerStart()
-	}
 
 	return microClientGUI, nil
 }

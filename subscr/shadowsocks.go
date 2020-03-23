@@ -31,6 +31,6 @@ func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
 	s.Group = Base64d(ssUrl.Query().Get("group"))
 	s.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
 	s.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), s.Plugin+";", "", -1)
-	s.Name = ssUrl.Fragment
+	s.Name = ssUrl.Fragment + " - Shadowsocks"
 	return s, nil
 }
