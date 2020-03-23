@@ -2,10 +2,10 @@ package client
 
 import (
 	"errors"
-	"log"
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/shadowsocks/go-shadowsocks2/core"
 	"github.com/shadowsocks/go-shadowsocks2/socks"
@@ -27,7 +27,7 @@ func NewShadowosocks(cipherName string, password string, server string, plugin, 
 }
 
 func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	rConn, err := net.Dial("tcp", s.server)
+	rConn, err := net.DialTimeout("tcp", s.server, 5*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,6 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 		conn = s.cipher.StreamConn(rConn)
 	}
 	if _, err = conn.Write(socks.ParseAddr(host)); err != nil {
-		log.Println(err)
 		return nil, err
 	}
 	return conn, nil

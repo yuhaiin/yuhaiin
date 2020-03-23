@@ -18,7 +18,7 @@ type Server struct {
 	ForwardFunc func(host string) (net.Conn, error)
 	context     context.Context
 	cancel      context.CancelFunc
-	conn        *net.TCPListener
+	conn        net.Listener
 }
 
 // NewSocks5Server create new socks5 listener
@@ -38,11 +38,11 @@ func NewSocks5Server(server, port, username, password string, forwardFunc func(h
 }
 
 func (s *Server) socks5AcceptARequest() error {
-	client, err := s.conn.AcceptTCP()
+	client, err := s.conn.Accept()
 	if err != nil {
 		return err
 	}
-	if err = client.SetKeepAlivePeriod(5 * time.Second); err != nil {
+	if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
 		return err
 	}
 	go func() {
@@ -62,13 +62,9 @@ func (s *Server) socks5AcceptARequest() error {
 
 // Socks5 <--
 func (s *Server) Socks5() error {
+	var err error
 	s.context, s.cancel = context.WithCancel(context.Background())
-	socks5ServerIP := net.ParseIP(s.Server)
-	socks5ServerPort, err := strconv.Atoi(s.Port)
-	if err != nil {
-		return err
-	}
-	s.conn, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ServerIP, Port: socks5ServerPort})
+	s.conn, err = net.Listen("tcp", net.JoinHostPort(s.Server, s.Port))
 	if err != nil {
 		return err
 	}
@@ -158,7 +154,7 @@ func (s *Server) handleClientRequest(client net.Conn) error {
 					return err
 				}
 			} else {
-				if server, err = net.Dial("tcp", net.JoinHostPort(host, port)); err != nil {
+				if server, err = net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second); err != nil {
 					return err
 				}
 			}

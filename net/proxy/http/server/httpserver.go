@@ -2,22 +2,26 @@ package httpserver
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
+	"time"
 )
 
 // Server http server
 type Server struct {
-	Listener    *net.TCPListener
+	Listener    net.Listener
 	Server      string
 	Port        string
+	Username    string
+	Password    string
 	ForwardFunc func(host string) (net.Conn, error)
 	context     context.Context
 	cancel      context.CancelFunc
@@ -33,6 +37,8 @@ func NewHTTPServer(server, port, username, password string, forwardFunc func(hos
 	return &Server{
 		Server:      server,
 		Port:        port,
+		Username:    username,
+		Password:    password,
 		ForwardFunc: forwardFunc,
 	}, nil
 }
@@ -49,8 +55,11 @@ func (h *Server) Close() error {
 }
 
 func (h *Server) httpProxyAcceptARequest() error {
-	client, err := h.Listener.AcceptTCP()
+	client, err := h.Listener.Accept()
 	if err != nil {
+		return err
+	}
+	if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
 		return err
 	}
 
@@ -75,12 +84,8 @@ func (h *Server) httpProxyAcceptARequest() error {
 // sock5Server socks5 server ip,socks5Port socks5 server port
 func (h *Server) HTTPProxy() error {
 	h.context, h.cancel = context.WithCancel(context.Background())
-	socks5ToHTTPServerIP := net.ParseIP(h.Server)
-	socks5ToHTTPServerPort, err := strconv.Atoi(h.Port)
-	if err != nil {
-		return err
-	}
-	h.Listener, err = net.ListenTCP("tcp", &net.TCPAddr{IP: socks5ToHTTPServerIP, Port: socks5ToHTTPServerPort})
+	var err error
+	h.Listener, err = net.Listen("tcp", net.JoinHostPort(h.Server, h.Port))
 	if err != nil {
 		return err
 	}
@@ -112,47 +117,63 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 		return err
 	}
 	host := req.Host
-	var server net.Conn
-	getOutBound := func() {
-		if h.ForwardFunc != nil {
-			if server, err = h.ForwardFunc(req.Host); err != nil {
-				log.Println(err)
+
+	if h.Username != "" || h.Password != "" {
+		authorization := strings.Split(req.Header.Get("Proxy-Authorization"), " ")
+		if len(authorization) != 2 {
+			_, err = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
+			if err != nil {
+				return err
 			}
-		} else {
-			if server, err = net.Dial("tcp", req.Host); err != nil {
-				log.Println(err)
+			client.Close()
+		}
+		var dst []byte
+		_, err := base64.StdEncoding.Decode(dst, []byte(authorization[1]))
+		if err != nil {
+			return err
+		}
+		uap := bytes.Split(dst, []byte(":"))
+		if len(uap) != 2 {
+			if _, err := client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n")); err != nil {
+				return err
 			}
+			client.Close()
+		}
+		if string(uap[0]) != h.Username || string(uap[1]) != h.Password {
+			if _, err := client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n")); err != nil {
+				return err
+			}
+			client.Close()
 		}
 	}
-	getOutBound()
-	if server == nil {
-		return nil
+
+	var server net.Conn
+	if h.ForwardFunc != nil {
+		if server, err = h.ForwardFunc(req.Host); err != nil {
+			return err
+		}
+	} else {
+		if server, err = net.DialTimeout("tcp", req.Host, 5*time.Second); err != nil {
+			return err
+		}
 	}
+
 	defer func() {
 		_ = server.Close()
 	}()
-	if req.Method == http.MethodConnect {
+	outboundReader := bufio.NewReader(server)
+
+	switch req.Method {
+	case http.MethodConnect:
 		if _, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil {
 			return err
 		}
 		forward(server, client)
-	} else {
+	default:
 		for {
-			outboundReader := bufio.NewReader(server)
 			req.URL.Host = ""
 			req.URL.Scheme = ""
-			//req.Header.Set("Connection", "close")
-			if connection := req.Header.Get("Proxy-Connection"); connection != "" {
-				req.Header.Set("Connection", req.Header.Get("Proxy-Connection"))
-				//req.Header.Set("Keep-Alive", "timeout=4")
-			}
-			req.Header.Del("Proxy-Connection")
-			req.Header.Del("Proxy-Authenticate")
-			req.Header.Del("Proxy-Authorization")
-			//req.Header.Del("TE")
-			//req.Header.Del("Trailers")
-			//req.Header.Del("Transfer-Encoding")
-			//req.Header.Del("Upgrade")
+			req.Header = removeHeader(req.Header)
 			if err := req.Write(server); err != nil {
 				return err
 			}
@@ -161,13 +182,7 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 			if err != nil {
 				return err
 			}
-			resp.Header.Del("Proxy-Connection")
-			resp.Header.Del("Proxy-Authenticate")
-			resp.Header.Del("Proxy-Authorization")
-			//resp.Header.Del("TE")
-			//resp.Header.Del("Trailers")
-			//resp.Header.Del("Transfer-Encoding")
-			//resp.Header.Del("Upgrade")
+			resp.Header = removeHeader(resp.Header)
 			err = resp.Write(client)
 			if err != nil {
 				return err
@@ -176,13 +191,14 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 				resp.Close = true
 				break
 			}
-			if req.Header.Get("Connection") != "Keep-Alive" && req.Header.Get("Connection") != "keep-alive" {
-				break
-			}
+			//if strings.ToLower(req.Header.Get("Connection")) != "keep-alive" {
+			//	break
+			//}
 			req, err = http.ReadRequest(inBoundReader)
 			if err != nil {
 				return err
 			}
+
 			if req.Host != host {
 				break
 			}
@@ -191,6 +207,26 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 	return nil
 }
 
+func removeHeader(h http.Header) http.Header {
+	connections := h.Get("Connection")
+	h.Del("Connection")
+	if len(connections) != 0 {
+		for _, x := range strings.Split(connections, ",") {
+			h.Del(strings.TrimSpace(x))
+		}
+	}
+	if connection := h.Get("Proxy-Connection"); connection != "" {
+		h.Set("Connection", h.Get("Proxy-Connection"))
+	}
+	h.Del("Proxy-Connection")
+	h.Del("Proxy-Authenticate")
+	h.Del("Proxy-Authorization")
+	h.Del("TE")
+	h.Del("Trailers")
+	h.Del("Transfer-Encoding")
+	h.Del("Upgrade")
+	return h
+}
 func forward(server, client net.Conn) {
 	CloseSig := make(chan error, 0)
 	go pipe(server, client, CloseSig)

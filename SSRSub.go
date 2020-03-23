@@ -12,6 +12,10 @@ import (
 	"os"
 )
 
+var (
+	lockFile = config.GetConfigAndSQLPath() + "/SsrMicroClientRunStatuesLockFile"
+)
+
 func main() {
 	//go func() {
 	//	// 开启pprof，监听请求
@@ -23,7 +27,7 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	configPath := config.GetConfigAndSQLPath()
 	ssrinit.Init(configPath)
-	lockFile, err := os.Create(configPath + "/SsrMicroClientRunStatuesLockFile")
+	lockFile, err := os.Create(lockFile)
 	if err != nil {
 		log.Println(err)
 		return
@@ -39,8 +43,11 @@ func main() {
 
 	ssrMicroClientGUI, err := gui.NewSsrMicroClientGUI()
 	if err != nil {
-		log.Println(err)
-		ssrMicroClientGUI.MessageBox(err.Error())
+		if ssrMicroClientGUI != nil {
+			ssrMicroClientGUI.MessageBox(err.Error())
+		} else {
+			log.Println(err)
+		}
 	}
 	if ssrMicroClientGUI != nil {
 		//ssrMicroClientGUI.MainWindow.Show()

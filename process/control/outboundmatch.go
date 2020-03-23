@@ -79,9 +79,10 @@ func (f *OutboundMatch) Forward(host string) (conn net.Conn, err error) {
 	case "direct":
 		for i := range ip {
 			conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip[i], URI.Port()), 5*time.Second)
-			if err == nil {
-				return conn, err
+			if err != nil {
+				continue
 			}
+			return conn, nil
 		}
 	case "block":
 		return nil, errors.New("block domain: " + host)
