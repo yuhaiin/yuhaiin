@@ -59,16 +59,4 @@ func Init(configPath string) {
 		}
 		_, _ = io.Copy(f, res.Body)
 	}
-
-	if !PathExists(configPath + "/SsrMicroClient.png") {
-		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/SsrMicroClient.png")
-		if err != nil {
-			panic(err)
-		}
-		f, err := os.Create(configPath + "/SsrMicroClient.png")
-		if err != nil {
-			panic(err)
-		}
-		_, _ = io.Copy(f, res.Body)
-	}
 }

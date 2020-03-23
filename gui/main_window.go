@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"github.com/Asutorufa/SsrMicroClient/config"
 	"github.com/Asutorufa/SsrMicroClient/net/delay"
 	"github.com/Asutorufa/SsrMicroClient/subscr"
 	"github.com/therecipe/qt/core"
@@ -9,19 +8,17 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
-var (
-	iconPath = config.GetConfigAndSQLPath() + "/SsrMicroClient.png"
-)
-
 func (ssrMicroClientGUI *SsrMicroClientGUI) createMainWindow() {
 	ssrMicroClientGUI.MainWindow = widgets.NewQMainWindow(nil, 0)
 	ssrMicroClientGUI.MainWindow.SetFixedSize2(600, 400)
 	ssrMicroClientGUI.MainWindow.SetWindowTitle("SsrMicroClient")
-	icon := gui.NewQIcon5(iconPath)
-	ssrMicroClientGUI.MainWindow.SetWindowIcon(icon)
+	img := gui.NewQPixmap()
+	img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(icon, len(icon))), "svg", core.Qt__AutoColor)
+	icon2 := gui.NewQIcon2(img)
+	ssrMicroClientGUI.MainWindow.SetWindowIcon(icon2)
 
 	trayIcon := widgets.NewQSystemTrayIcon(ssrMicroClientGUI.MainWindow)
-	trayIcon.SetIcon(icon)
+	trayIcon.SetIcon(icon2)
 	menu := widgets.NewQMenu(nil)
 	ssrMicroClientTrayIconMenu := widgets.NewQAction2("SsrMicroClient", ssrMicroClientGUI.MainWindow)
 	ssrMicroClientTrayIconMenu.ConnectTriggered(func(bool2 bool) {
