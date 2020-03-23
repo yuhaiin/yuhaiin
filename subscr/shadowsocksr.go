@@ -2,72 +2,9 @@ package subscr
 
 import (
 	"errors"
-	"log"
 	"net/url"
-	"regexp"
 	"strings"
 )
-
-func ssrRe(str string) (map[string]string, error) {
-	// ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)/?obfsparam=(.*)&protoparam=(.*)&remarks=(.*)&group=(.*)")
-	ssrRe, _ := regexp.Compile("(.*):([0-9]*):(.*):(.*):(.*):(.*)(.*)")
-	ssrReB, _ := regexp.Compile(".*/\\?(.*)")
-	node := make(map[string]string)
-	ssr := ssrRe.FindAllStringSubmatch(Base64d(str), -1)
-	ssrB := ssrReB.FindAllStringSubmatch(Base64d(str), -1)
-
-	//删除第一个元素
-	if len(ssrB) > 0 {
-		ssrC := strings.Split(ssrB[0][1], "&")
-		for _, ssr := range ssrC {
-			ssrA := strings.Split(ssr, "=")
-			switch ssrA[0] {
-			case "obfsparam":
-				node["obfsparam"] = Base64d(ssrA[1])
-			case "protoparam":
-				node["protoparam"] = Base64d(ssrA[1])
-			case "remarks":
-				node["remarks"] = Base64d(ssrA[1])
-			case "group":
-				node["group"] = Base64d(ssrA[1])
-			}
-		}
-	}
-	// fmt.Println(node)
-	if len(ssr) != 0 {
-		node["template"] = "ssr"
-		node["server"] = ssr[0][1]
-		node["serverPort"] = ssr[0][2]
-		node["protocol"] = ssr[0][3]
-		node["method"] = ssr[0][4]
-		node["obfs"] = ssr[0][5]
-		node["password"] = Base64d(ssr[0][6])
-		// node["obfsparam"] = base64d.Base64d(ssr[0][7])
-		// node["protoparam"] = base64d.Base64d(ssr[0][8])
-		// node["remarks"] = base64d.Base64d(ssr[0][9])
-	} else {
-		// log.Println("this link is not ssr link!", base64d.Base64d(str))
-		return map[string]string{}, errors.New(Base64d(str) + " --> this link is not ssr link!")
-
-	}
-	return node, nil
-}
-
-// GetNode get decode node
-func SsrParse(link string) (map[string]string, error) {
-	re, _ := regexp.Compile("(.*)://(.*)")
-	ssOrSsr := re.FindAllStringSubmatch(link, -1)
-	if len(ssOrSsr) == 0 {
-		return map[string]string{}, nil
-	}
-	log.Println(ssOrSsr[0][2])
-	ssr, err := ssrRe(ssOrSsr[0][2])
-	if err != nil {
-		return map[string]string{}, err
-	}
-	node := ssr
-	return node, nil
-}
 
 // Shadowsocksr node json struct
 type Shadowsocksr struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-type SsrMicroClientGUI struct {
+type SGui struct {
 	App                *widgets.QApplication
 	MainWindow         *widgets.QMainWindow
 	subscriptionWindow *widgets.QMainWindow
@@ -14,9 +14,9 @@ type SsrMicroClientGUI struct {
 	control            *ServerControl.Control
 }
 
-func NewSsrMicroClientGUI() (*SsrMicroClientGUI, error) {
+func NewGui() (*SGui, error) {
 	var err error
-	microClientGUI := &SsrMicroClientGUI{}
+	microClientGUI := &SGui{}
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
 	microClientGUI.App.SetApplicationName("SsrMicroClient")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
@@ -33,32 +33,32 @@ func NewSsrMicroClientGUI() (*SsrMicroClientGUI, error) {
 	return microClientGUI, nil
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) openMainWindow() {
-	if ssrMicroClientGUI.MainWindow.IsHidden() == false {
-		ssrMicroClientGUI.MainWindow.Hide()
+func (sGui *SGui) openMainWindow() {
+	if sGui.MainWindow.IsHidden() == false {
+		sGui.MainWindow.Hide()
 	}
-	ssrMicroClientGUI.MainWindow.Move2((ssrMicroClientGUI.App.Desktop().Width()-ssrMicroClientGUI.MainWindow.Width())/2, (ssrMicroClientGUI.App.Desktop().Height()-ssrMicroClientGUI.MainWindow.Height())/2)
-	ssrMicroClientGUI.MainWindow.Show()
+	sGui.MainWindow.Move2((sGui.App.Desktop().Width()-sGui.MainWindow.Width())/2, (sGui.App.Desktop().Height()-sGui.MainWindow.Height())/2)
+	sGui.MainWindow.Show()
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) openSubscriptionWindow() {
-	if ssrMicroClientGUI.subscriptionWindow.IsHidden() == false {
-		ssrMicroClientGUI.subscriptionWindow.Close()
+func (sGui *SGui) openSubscriptionWindow() {
+	if sGui.subscriptionWindow.IsHidden() == false {
+		sGui.subscriptionWindow.Close()
 	}
 
-	ssrMicroClientGUI.subscriptionWindow.Move2((ssrMicroClientGUI.App.Desktop().Width()-ssrMicroClientGUI.subscriptionWindow.Width())/2, (ssrMicroClientGUI.App.Desktop().Height()-ssrMicroClientGUI.subscriptionWindow.Height())/2)
-	ssrMicroClientGUI.subscriptionWindow.Show()
+	sGui.subscriptionWindow.Move2((sGui.App.Desktop().Width()-sGui.subscriptionWindow.Width())/2, (sGui.App.Desktop().Height()-sGui.subscriptionWindow.Height())/2)
+	sGui.subscriptionWindow.Show()
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) openSettingWindow() {
-	if ssrMicroClientGUI.settingWindow.IsHidden() == false {
-		ssrMicroClientGUI.settingWindow.Close()
+func (sGui *SGui) openSettingWindow() {
+	if sGui.settingWindow.IsHidden() == false {
+		sGui.settingWindow.Close()
 	}
-	ssrMicroClientGUI.settingWindow.Move2((ssrMicroClientGUI.App.Desktop().Width()-ssrMicroClientGUI.settingWindow.Width())/2, (ssrMicroClientGUI.App.Desktop().Height()-ssrMicroClientGUI.settingWindow.Height())/2)
-	ssrMicroClientGUI.settingWindow.Show()
+	sGui.settingWindow.Move2((sGui.App.Desktop().Width()-sGui.settingWindow.Width())/2, (sGui.App.Desktop().Height()-sGui.settingWindow.Height())/2)
+	sGui.settingWindow.Show()
 }
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) MessageBox(text string) {
+func (sGui *SGui) MessageBox(text string) {
 	message := widgets.NewQMessageBox(nil)
 	message.SetText(text)
 	message.Exec()

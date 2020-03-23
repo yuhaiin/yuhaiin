@@ -18,7 +18,7 @@ type shadowsocks struct {
 	pluginOpt string
 }
 
-func NewShadowosocks(cipherName string, password string, server string, plugin, pluginOpt string) (*shadowsocks, error) {
+func NewShadowsocks(cipherName string, password string, server string, plugin, pluginOpt string) (*shadowsocks, error) {
 	cipher, err := core.PickCipher(strings.ToUpper(cipherName), nil, password)
 	if err != nil {
 		return &shadowsocks{}, err
@@ -27,7 +27,7 @@ func NewShadowosocks(cipherName string, password string, server string, plugin, 
 }
 
 func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	rConn, err := net.DialTimeout("tcp", s.server, 5*time.Second)
+	rConn, err := net.DialTimeout("tcp", s.server, 4*time.Second)
 	if err != nil {
 		return nil, err
 	}

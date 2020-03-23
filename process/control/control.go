@@ -55,7 +55,7 @@ func (c *Control) ChangeNode() error {
 	}
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
-		conn, err := client.NewShadowosocks(
+		conn, err := client.NewShadowsocks(
 			nNode.(*subscr.Shadowsocks).Method,
 			nNode.(*subscr.Shadowsocks).Password,
 			net.JoinHostPort(nNode.(*subscr.Shadowsocks).Server, nNode.(*subscr.Shadowsocks).Port),
@@ -80,8 +80,7 @@ func (c *Control) ChangeNode() error {
 			return err
 		}
 		c.Match.ChangeForward(func(host string) (conn net.Conn, err error) {
-			cli := socks5client.Client{Address: host, Server: conFig.LocalAddress, Port: conFig.LocalPort}
-			return cli.NewSocks5Client()
+			return socks5client.NewSocks5Client(conFig.LocalAddress, conFig.LocalPort, "", "", host)
 		})
 	default:
 		return errors.New("no support type proxy")

@@ -23,16 +23,16 @@ type Client struct {
 	Address  string
 }
 
-func (s *Client) creatDial() (net.Conn, error) {
+func (s *Client) creatDial() error {
 	var err error
 	s.Conn, err = net.DialTimeout("tcp", s.Server+":"+s.Port, 5*time.Second)
 	if err != nil {
-		return s.Conn, err
+		return err
 	}
-	return s.Conn, nil
+	return nil
 }
 
-func (s *Client) socks5FirstVerify() error {
+func (s *Client) firstVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// The client connects to the server, and sends a version
 	// identifier/method selection message:
@@ -138,7 +138,7 @@ func (s *Client) socks5FirstVerify() error {
 	return nil
 }
 
-func (s *Client) socks5SecondVerify() error {
+func (s *Client) secondVerify() error {
 	// https://tools.ietf.org/html/rfc1928
 	// 	Once the method-dependent subnegotiation has completed, the client
 	// 	sends the request details.  If the negotiated method includes
@@ -375,39 +375,22 @@ func (s *Client) socks5SecondVerify() error {
 	return nil
 }
 
-// NewSocks5Client <--
-func (s *Client) NewSocks5Client() (net.Conn, error) {
-	// var socks5client socks5client
-	var err error
-	s.Conn, err = s.creatDial()
-	for err != nil {
-		return s.Conn, err
-		// time.Sleep(10 * time.Second) // 10秒休む
+func NewSocks5Client(server, port string, user, password string, address string) (net.Conn, error) {
+	x := &Client{
+		Username: user,
+		Password: password,
+		Server:   server,
+		Port:     port,
+		Address:  address,
 	}
-
-	if err = s.socks5FirstVerify(); err != nil {
-		return s.Conn, err
+	if err := x.creatDial(); err != nil {
+		return nil, err
 	}
-
-	if err = s.socks5SecondVerify(); err != nil {
-		return s.Conn, err
+	if err := x.firstVerify(); err != nil {
+		return nil, err
 	}
-	return s.Conn, nil
-}
-
-// NewSocks5ClientOnlyFirstVerify <--
-func (s *Client) NewSocks5ClientOnlyFirstVerify() (net.Conn, error) {
-	// var socks5client socks5client
-	var err error
-	s.Conn, err = s.creatDial()
-	for err != nil {
-		return s.Conn, err
-		// time.Sleep(10 * time.Second) // 10秒休む
+	if err := x.secondVerify(); err != nil {
+		return nil, err
 	}
-
-	if err = s.socks5FirstVerify(); err != nil {
-		return s.Conn, err
-	}
-
-	return s.Conn, nil
+	return x.Conn, nil
 }

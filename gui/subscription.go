@@ -7,45 +7,45 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
-func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
-	ssrMicroClientGUI.subscriptionWindow = widgets.NewQMainWindow(ssrMicroClientGUI.MainWindow, 0)
-	ssrMicroClientGUI.subscriptionWindow.SetFixedSize2(700, 100)
-	ssrMicroClientGUI.subscriptionWindow.SetWindowTitle("subscription")
-	ssrMicroClientGUI.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+func (sGui *SGui) createSubscriptionWindow() {
+	sGui.subscriptionWindow = widgets.NewQMainWindow(sGui.MainWindow, 0)
+	sGui.subscriptionWindow.SetFixedSize2(700, 100)
+	sGui.subscriptionWindow.SetWindowTitle("subscription")
+	sGui.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
-		ssrMicroClientGUI.subscriptionWindow.Hide()
+		sGui.subscriptionWindow.Hide()
 	})
 
-	subLabel := widgets.NewQLabel2("subscription", ssrMicroClientGUI.subscriptionWindow, core.Qt__WindowType(0x00000000))
+	subLabel := widgets.NewQLabel2("subscription", sGui.subscriptionWindow, core.Qt__WindowType(0x00000000))
 	subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10), core.NewQPoint2(130, 40)))
-	subCombobox := widgets.NewQComboBox(ssrMicroClientGUI.subscriptionWindow)
+	subCombobox := widgets.NewQComboBox(sGui.subscriptionWindow)
 	var link []string
 	subRefresh := func() {
 		subCombobox.Clear()
 		var err error
 		link, err = subscr.GetLink()
 		if err != nil {
-			ssrMicroClientGUI.MessageBox(err.Error())
+			sGui.MessageBox(err.Error())
 		}
 		subCombobox.AddItems(link)
 	}
 	subRefresh()
 	subCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 10), core.NewQPoint2(600, 40)))
 
-	deleteButton := widgets.NewQPushButton2("delete", ssrMicroClientGUI.subscriptionWindow)
+	deleteButton := widgets.NewQPushButton2("delete", sGui.subscriptionWindow)
 	deleteButton.ConnectClicked(func(bool2 bool) {
 		linkToDelete := subCombobox.CurrentText()
 		if err := subscr.RemoveLinkJSON(linkToDelete); err != nil {
-			ssrMicroClientGUI.MessageBox(err.Error())
+			sGui.MessageBox(err.Error())
 		}
 		subRefresh()
 	})
 	deleteButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 10), core.NewQPoint2(690, 40)))
 
-	lineText := widgets.NewQLineEdit(ssrMicroClientGUI.subscriptionWindow)
+	lineText := widgets.NewQLineEdit(sGui.subscriptionWindow)
 	lineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50), core.NewQPoint2(600, 80)))
 
-	addButton := widgets.NewQPushButton2("add", ssrMicroClientGUI.subscriptionWindow)
+	addButton := widgets.NewQPushButton2("add", sGui.subscriptionWindow)
 	addButton.ConnectClicked(func(bool2 bool) {
 		linkToAdd := lineText.Text()
 		if linkToAdd == "" {
@@ -57,14 +57,14 @@ func (ssrMicroClientGUI *SsrMicroClientGUI) createSubscriptionWindow() {
 			}
 		}
 		if err := subscr.AddLinkJSON(linkToAdd); err != nil {
-			ssrMicroClientGUI.MessageBox(err.Error())
+			sGui.MessageBox(err.Error())
 			return
 		}
 		subRefresh()
 	})
 	addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50), core.NewQPoint2(690, 80)))
 
-	ssrMicroClientGUI.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
-		ssrMicroClientGUI.subscriptionWindow.Close()
+	sGui.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+		sGui.subscriptionWindow.Close()
 	})
 }

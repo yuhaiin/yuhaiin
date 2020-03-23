@@ -3,13 +3,14 @@
 package main
 
 import (
+	"log"
+	//_ "net/http/pprof"
+	"os"
+
 	"github.com/Asutorufa/SsrMicroClient/config"
 	"github.com/Asutorufa/SsrMicroClient/gui"
 	"github.com/Asutorufa/SsrMicroClient/init"
 	"github.com/Asutorufa/SsrMicroClient/process/lockfile"
-	"log"
-	//_ "net/http/pprof"
-	"os"
 )
 
 var (
@@ -41,7 +42,7 @@ func main() {
 		_ = os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
 	}()
 
-	ssrMicroClientGUI, err := gui.NewSsrMicroClientGUI()
+	ssrMicroClientGUI, err := gui.NewGui()
 	if err != nil {
 		if ssrMicroClientGUI != nil {
 			ssrMicroClientGUI.MessageBox(err.Error())

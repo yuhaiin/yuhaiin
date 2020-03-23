@@ -189,10 +189,10 @@ func forward(src, dst net.Conn) {
 }
 
 func pipe(src, dst net.Conn, closeSig chan error) {
-	buf := make([]byte, 0x400*32)
+	buf := make([]byte, 0x400*4)
 	for {
 		n, err := src.Read(buf[0:])
-		if n == 0 || err != nil {
+		if err != nil {
 			closeSig <- err
 			return
 		}
