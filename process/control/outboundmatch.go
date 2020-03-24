@@ -78,7 +78,7 @@ func (f *OutboundMatch) Forward(host string) (conn net.Conn, err error) {
 	switch bypass {
 	case "direct":
 		for i := range ip {
-			conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip[i], URI.Port()), 5*time.Second)
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip[i], URI.Port()), 3*time.Second)
 			if err != nil {
 				continue
 			}
@@ -86,8 +86,6 @@ func (f *OutboundMatch) Forward(host string) (conn net.Conn, err error) {
 		}
 	case "block":
 		return nil, errors.New("block domain: " + host)
-		//case "proxy":
-		//	return f.conn(host)
 	}
 	return f.conn(host)
 }

@@ -25,7 +25,7 @@ func (x *Match) Insert(str, mark string) error {
 }
 
 func (x *Match) Search(str string) (target []string, proxy string) {
-	var isMatch bool
+	var isMatch = false
 	target = []string{}
 	if net.ParseIP(str) != nil {
 		isMatch, proxy = x.cidr.Search(str)

@@ -27,7 +27,7 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 }
 
 func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	rConn, err := net.DialTimeout("tcp", s.server, 4*time.Second)
+	rConn, err := net.DialTimeout("tcp", s.server, 5*time.Second)
 	if err != nil {
 		return nil, err
 	}

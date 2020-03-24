@@ -3,28 +3,23 @@ package httpserver
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/base64"
-	"errors"
 	"io"
-	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
 
 // Server http server
 type Server struct {
-	Listener    net.Listener
 	Server      string
 	Port        string
 	Username    string
 	Password    string
 	ForwardFunc func(host string) (net.Conn, error)
-	context     context.Context
-	cancel      context.CancelFunc
+	listener    net.Listener
+	closed      bool
 }
 
 // NewHTTPServer create new HTTP server
@@ -45,17 +40,32 @@ func NewHTTPServer(server, port, username, password string, forwardFunc func(hos
 
 // Close close http server listener
 func (h *Server) Close() error {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Println(err)
+	h.closed = true
+	return h.listener.Close()
+}
+
+// HTTPProxy http proxy
+// server http listen server,port http listen port
+// sock5Server socks5 server ip,socks5Port socks5 server port
+func (h *Server) HTTPProxy() error {
+	var err error
+	h.listener, err = net.Listen("tcp", net.JoinHostPort(h.Server, h.Port))
+	if err != nil {
+		return err
+	}
+	for {
+		if err := h.httpProxyAcceptARequest(); err != nil {
+			if h.closed {
+				break
+			}
+			continue
 		}
-	}()
-	h.cancel()
-	return h.Listener.Close()
+	}
+	return nil
 }
 
 func (h *Server) httpProxyAcceptARequest() error {
-	client, err := h.Listener.Accept()
+	client, err := h.listener.Accept()
 	if err != nil {
 		return err
 	}
@@ -64,47 +74,17 @@ func (h *Server) httpProxyAcceptARequest() error {
 	}
 
 	go func() {
-		if client == nil {
-			return
-		}
 		defer func() {
 			_ = client.Close()
 		}()
 		if err := h.httpHandleClientRequest(client); err != nil {
 			if err != io.EOF && err != io.ErrUnexpectedEOF && err != io.ErrClosedPipe {
-				log.Println(err)
+				//log.Println(err)
+				return
 			}
 		}
 	}()
 	return nil
-}
-
-// HTTPProxy http proxy
-// server http listen server,port http listen port
-// sock5Server socks5 server ip,socks5Port socks5 server port
-func (h *Server) HTTPProxy() error {
-	h.context, h.cancel = context.WithCancel(context.Background())
-	var err error
-	h.Listener, err = net.Listen("tcp", net.JoinHostPort(h.Server, h.Port))
-	if err != nil {
-		return err
-	}
-	for {
-		select {
-		case <-h.context.Done():
-			return nil
-		default:
-			if err := h.httpProxyAcceptARequest(); err != nil {
-				select {
-				case <-h.context.Done():
-					return err
-				default:
-					log.Println(err)
-					continue
-				}
-			}
-		}
-	}
 }
 
 func (h *Server) httpHandleClientRequest(client net.Conn) error {
@@ -116,9 +96,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 	if err != nil {
 		return err
 	}
-	//host := req.Host
 
-	if h.Username != "" || h.Password != "" {
+	if h.Username != "" {
 		authorization := strings.Split(req.Header.Get("Proxy-Authorization"), " ")
 		if len(authorization) != 2 {
 			_, err = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
@@ -127,7 +106,7 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 			}
 			client.Close()
 		}
-		var dst []byte
+		dst := make([]byte, base64.URLEncoding.DecodedLen(len(authorization[1])))
 		_, err := base64.StdEncoding.Decode(dst, []byte(authorization[1]))
 		if err != nil {
 			return err
@@ -161,8 +140,6 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 		_ = server.Close()
 	}()
 
-	outboundReader := bufio.NewReader(server)
-
 	switch req.Method {
 	case http.MethodConnect:
 		if _, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil {
@@ -185,8 +162,10 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 			}
 			response.Header.Set("Proxy-Connection", "close")
 			response.Header.Set("Connection", "close")
-			return errors.New("RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy")
+			return response.Write(client)
+			//return errors.New("RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy")
 		}
+		outboundReader := bufio.NewReader(server)
 		for {
 			keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"
 			if len(req.URL.Host) > 0 {
@@ -248,9 +227,6 @@ func removeHeader(h http.Header) http.Header {
 			h.Del(strings.TrimSpace(x))
 		}
 	}
-	//if connection := h.Get("Proxy-Connection"); connection != "" {
-	//	h.Set("Connection", h.Get("Proxy-Connection"))
-	//}
 	h.Del("Proxy-Connection")
 	h.Del("Proxy-Authenticate")
 	h.Del("Proxy-Authorization")
@@ -283,112 +259,4 @@ func pipe(src, dst net.Conn, closeSig chan error) {
 			return
 		}
 	}
-}
-
-func (h *Server) httpHandleClientRequest2(client net.Conn) error {
-	/*
-		use golang http
-	*/
-	//ss, _ := http.ReadRequest(bufio.NewReader(client))
-	//log.Println("header",ss.Header)
-	//log.Println("method",ss.Method)
-	//if ss.Method == http.MethodConnect{
-	//	if _, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil{
-	//		return err
-	//	}
-	//}
-	//log.Println("form",ss.Form)
-
-	requestData := make([]byte, 1024*4)
-	requestDataSize, err := client.Read(requestData[:])
-	if err != nil {
-		return err
-	}
-	if requestDataSize <= 3 {
-		return nil
-	}
-	headerAndData := strings.Split(string(requestData[:requestDataSize]), "\r\n\r\n")
-	var header, data strings.Builder
-	if len(headerAndData) > 0 {
-		header.WriteString(headerAndData[0])
-		if len(headerAndData) > 1 {
-			data.WriteString(headerAndData[1])
-		}
-	} else {
-		return errors.New("no header")
-	}
-
-	/*
-		parse request header
-	*/
-	headerTmp := strings.Split(header.String(), "\r\n")
-	headerArgs := make(map[string]string)
-	for index, line := range headerTmp {
-		if index != 0 {
-			//_, _ = fmt.Sscanf(line, "%s%s", &method, &host)
-			tmp := strings.Split(line, ": ")
-			key := tmp[0]
-			value := tmp[1]
-			if key == "Proxy-Connection" {
-				headerArgs["Connection"] = value
-				continue
-			}
-			headerArgs[key] = value
-		}
-	}
-
-	headerRequestSplit := strings.Split(headerTmp[0], " ")
-	requestMethod := headerRequestSplit[0]
-	if requestMethod == "CONNECT" {
-		headerArgs["Host"] = headerRequestSplit[1]
-	}
-	/*
-		parse request host and port
-	*/
-	hostPortURL, err := url.Parse("//" + headerArgs["Host"])
-	if err != nil {
-		return err
-	}
-	var headerRequest strings.Builder
-	headerRequest.WriteString(strings.ReplaceAll(headerTmp[0], "http://"+hostPortURL.Host, ""))
-	if hostPortURL.Port() == "" {
-		hostPortURL.Host = hostPortURL.Host + ":80"
-	}
-	//microlog.Debug(headerArgs)
-	//microlog.Debug("requestMethod:",requestMethod)
-	//microlog.Debug("headerRequest ",headerRequest,"headerRequest end")
-	for key, value := range headerArgs {
-		headerRequest.WriteString("\r\n" + key + ": " + value)
-	}
-	headerRequest.WriteString("\r\n\r\n" + data.String())
-	//log.Println(headerRequest.String())
-	var server net.Conn
-	if h.ForwardFunc != nil {
-		server, err = h.ForwardFunc(hostPortURL.Host)
-		if err != nil {
-			return err
-		}
-	} else {
-		server, err = net.Dial("tcp", hostPortURL.Host)
-		if err != nil {
-			return err
-		}
-	}
-	defer func() {
-		_ = server.Close()
-	}()
-
-	switch {
-	case requestMethod == "CONNECT":
-		if _, err = client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil {
-			return err
-		}
-	default:
-		if _, err := server.Write([]byte(headerRequest.String())); err != nil {
-			return err
-		}
-	}
-
-	forward(server, client)
-	return nil
 }
