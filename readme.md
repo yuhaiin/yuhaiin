@@ -41,10 +41,8 @@ How to use:
 
 </details>
 
-## Thanks
-
 <details>
-<summary>Todo:</summary>
+<summary>Thanks:</summary>
 
 [Golang](https://golang.org)  
 [therecipe/qt](https://github.com/therecipe/qt)  
@@ -56,8 +54,6 @@ How to use:
 [miekg/dns](https://github.com/miekg/dns)
 
 </details>
-
-## Others
 
 <details>
 <summary>Todo:</summary>
