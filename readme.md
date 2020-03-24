@@ -1,14 +1,14 @@
-# SsrMicroClient
+# yuhaiin
 
 ```shell
 ２０世紀 郵便配達員が運ぶのは幸福だから、手紙は人間に幸せ届ける
 ２１世紀 インターネットが運ぶのは幸福だから、アクセスできないなら人間に幸せ届けない
 ```
 
-[![license](https://img.shields.io/github/license/asutorufa/ssrmicroclient.svg)](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/LICENSE)
-[![releases](https://img.shields.io/github/release-pre/asutorufa/ssrmicroclient.svg)](https://github.com/Asutorufa/SsrMicroClient/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/SsrMicroClient)](https://goreportcard.com/report/github.com/Asutorufa/SsrMicroClient)
-![languages](https://img.shields.io/github/languages/top/asutorufa/ssrmicroclient.svg)  
+[![GitHub license](https://img.shields.io/github/license/Asutorufa/yuhaiin)](https://github.com/Asutorufa/yuhaiin/blob/master/LICENSE)
+[![releases](https://img.shields.io/github/release-pre/asutorufa/yuhaiin.svg)](https://github.com/Asutorufa/yuhaiin/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/yuhaiin)](https://goreportcard.com/report/github.com/Asutorufa/yuhaiin)
+![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
 How to use:
 
 - download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases) binary or build.
@@ -23,15 +23,11 @@ How to use:
 
     ```shell script
     git clone https://github.com/Asutorufa/SsrMicroClient.git
-    cd SsrMicroClient
+    cd yuhaiin
+    export GO111MODULE=on; go get -v github.com/therecipe/qt && go install -v -tags=no_env github.com/therecipe/qt/cmd/... && go mod vendor && git clone https://github.com/therecipe/env_linux_amd64_513.git vendor/github.com/therecipe/env_linux_amd64_513 && $(go env GOPATH)/bin/qtsetup
     qtdeploy
     ```
-
-  - Or [if-you-just-want-to-compile-an-application](https://github.com/therecipe/qt/wiki/Installation-on-Linux#if-you-just-want-to-compile-an-application)  
-
-<!-- - config file  
-  it will auto create at first run,path at `~/.config/SSRSub`,windows at Documents/SSRSub. -->
-
+    
 - [Bypass File](https://github.com/Asutorufa/SsrMicroClient/tree/ACL)
 - [For Developer](https://github.com/Asutorufa/SsrMicroClient/blob/master/for_developer.md)
 
@@ -51,7 +47,7 @@ How to use:
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 [Dreamacro/clash](https://github.com/Dreamacro/clash)  
 [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
-[miekg/dns]("https://github.com/miekg/dns")
+[miekg/dns](https://github.com/miekg/dns)
 
 ## Others
 
