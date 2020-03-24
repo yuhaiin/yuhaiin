@@ -1,5 +1,3 @@
-# yuhaiin
-
 ```shell
 ２０世紀 郵便配達員が運ぶのは幸福だから、手紙は人間に幸せ届ける
 ２１世紀 インターネットが運ぶのは幸福だから、アクセスできないなら人間に幸せ届けない
@@ -13,32 +11,40 @@ How to use:
 
 - download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases) binary or build.
 
-<!-- - For Windows Users
-  - [how to install libsodium to windows](https://github.com/Asutorufa/SsrMicroClient/blob/master/windows_use_ssr_python.md).  
-  - Or move the two files [windowsDepond](https://github.com/Asutorufa/SsrMicroClient/tree/OtherLanguage/Old/windowsDepond) to C:\Windows\SysWOW64.   -->
-
 - Build
 
-  - At first [therecipe/qt#Installation](https://github.com/therecipe/qt#installation)
-
     ```shell script
-    git clone https://github.com/Asutorufa/SsrMicroClient.git
+    git clone https://github.com/Asutorufa/yuhaiin.git
     cd yuhaiin
-    export GO111MODULE=on; go get -v github.com/therecipe/qt && go install -v -tags=no_env github.com/therecipe/qt/cmd/... && go mod vendor && git clone https://github.com/therecipe/env_linux_amd64_513.git vendor/github.com/therecipe/env_linux_amd64_513 && $(go env GOPATH)/bin/qtsetup
+    export GO111MODULE=on
+    go get -v github.com/therecipe/qt
+    go install -v -tags=no_env github.com/therecipe/qt/cmd/...
+    go mod vendor
+    git clone https://github.com/therecipe/env_linux_amd64_513.git vendor/github.com/therecipe/env_linux_amd64_513
+    $(go env GOPATH)/bin/qtsetup
     qtdeploy
     ```
-    
+  
+- Support Protocol
+    - Shadowsocksr <- need to install a external client(like shadowsocksr-libev)
+    - Shadowsocks
+        - Support Plugin: obfs-http
+    - internal Support: Socks5, HTTP
+- Support Subscription: Shadowsocksr, SSD
 - [Bypass File](https://github.com/Asutorufa/SsrMicroClient/tree/ACL)
-- [For Developer](https://github.com/Asutorufa/SsrMicroClient/blob/master/for_developer.md)
+- [For Developer](https://github.com/Asutorufa/SsrMicroClient/blob/master/for_developer.md) <- outdated
 
 <details>
 <summary>Screenshots</summary>
-  
+
 ![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/gui_by_qt_dev1.png)  
 
 </details>
 
 ## Thanks
+
+<details>
+<summary>Todo:</summary>
 
 [Golang](https://golang.org)  
 [therecipe/qt](https://github.com/therecipe/qt)  
@@ -49,17 +55,17 @@ How to use:
 [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
 [miekg/dns](https://github.com/miekg/dns)
 
+</details>
+
 ## Others
 
 <details>
 <summary>Todo:</summary>
 
 - [x] add bypass
-  - add bypass by socks5 to socks5 and socks5 to http.I need more information about iptables redirection and ss-redir.
 - [x] ss link compatible.  
-  - [ ] need more ss link template.
+  - [x] need more ss link template.
 - [x] support http proxy.  
-  - [x] fixed,problem is http's keep-alive.~~already know bug: telegram cant use,the server repose "request URI to long",I don't know how to fix.~~
 - [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add `-h` argument to show help.
 - [x] add DOH.
