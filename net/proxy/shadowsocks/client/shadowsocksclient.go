@@ -12,10 +12,11 @@ import (
 )
 
 type shadowsocks struct {
-	cipher    core.Cipher
-	server    string
-	plugin    string
-	pluginOpt string
+	cipher     core.Cipher
+	server     string
+	plugin     string
+	pluginOpt  string
+	pluginFunc func(conn net.Conn) net.Conn
 }
 
 func NewShadowsocks(cipherName string, password string, server string, plugin, pluginOpt string) (*shadowsocks, error) {
@@ -23,35 +24,45 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 	if err != nil {
 		return &shadowsocks{}, err
 	}
-	return &shadowsocks{cipher: cipher, server: server, plugin: strings.ToUpper(plugin), pluginOpt: pluginOpt}, nil
-}
-
-func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	rConn, err := net.DialTimeout("tcp", s.server, 5*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	switch s.plugin {
+	s := &shadowsocks{cipher: cipher, server: server, plugin: strings.ToUpper(plugin), pluginOpt: pluginOpt}
+	switch strings.ToUpper(plugin) {
 	case "OBFS-LOCAL":
-		opts := strings.Split(s.pluginOpt, ";")
+		opts := strings.Split(pluginOpt, ";")
 		if len(opts) < 2 {
 			return nil, errors.New("no format plugin options")
 		}
 		obfs := strings.Replace(opts[0], "obfs=", "", -1)
 		param := strings.Replace(opts[1], "obfs-host=", "", -1)
-		urlTmp, err := url.Parse("//" + host)
-		if err != nil {
-			return nil, err
-		}
 		switch obfs {
 		case "http":
-			conn = s.cipher.StreamConn(NewHTTPObfs(rConn, param, urlTmp.Port()))
+			urlTmp, err := url.Parse("//" + server)
+			if err != nil {
+				return nil, err
+			}
+			s.pluginFunc = func(conn net.Conn) net.Conn {
+				return NewHTTPObfs(conn, param, urlTmp.Port())
+			}
 		default:
-			return nil, errors.New("now not support " + obfs)
+			return s, errors.New("not support plugin")
 		}
 	default:
+		s.pluginFunc = nil
+	}
+	return s, nil
+}
+
+func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
+	rConn, err := net.DialTimeout("tcp", s.server, 2*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	_ = rConn.(*net.TCPConn).SetKeepAlive(true)
+	if s.pluginFunc != nil {
+		conn = s.cipher.StreamConn(s.pluginFunc(rConn))
+	} else {
 		conn = s.cipher.StreamConn(rConn)
 	}
+
 	if _, err = conn.Write(socks.ParseAddr(host)); err != nil {
 		return nil, err
 	}

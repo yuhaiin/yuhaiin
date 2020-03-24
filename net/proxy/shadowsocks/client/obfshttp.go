@@ -4,27 +4,17 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/Asutorufa/SsrMicroClient/net/common"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 )
 
 /*
  from https://github.com/Dreamacro/clash/blob/master/component/simple-obfs/http.go
 */
-
-const (
-	// io.Copy default buffer size is 32 KiB
-	// but the maximum packet size of vmess/shadowsocks is about 16 KiB
-	// so define a buffer of 20 KiB to reduce the memory of each TCP relay
-	bufferSize = 20 * 1024
-)
-
-// BufPool provide buffer for relay
-var BufPool = sync.Pool{New: func() interface{} { return make([]byte, bufferSize) }}
 
 // HTTPObfs is shadowsocks http simple-obfs implementation
 type HTTPObfs struct {
@@ -48,15 +38,15 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 	}
 
 	if ho.firstResponse {
-		buf := BufPool.Get().([]byte)
+		buf := common.BuffPool.Get().([]byte)
 		n, err := ho.Conn.Read(buf)
 		if err != nil {
-			BufPool.Put(buf[:cap(buf)])
+			common.BuffPool.Put(buf[:cap(buf)])
 			return 0, err
 		}
 		idx := bytes.Index(buf[:n], []byte("\r\n\r\n"))
 		if idx == -1 {
-			BufPool.Put(buf[:cap(buf)])
+			common.BuffPool.Put(buf[:cap(buf)])
 			return 0, io.EOF
 		}
 		ho.firstResponse = false
@@ -66,7 +56,7 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 			ho.buf = buf[:idx+4+length]
 			ho.offset = idx + 4 + n
 		} else {
-			BufPool.Put(buf[:cap(buf)])
+			common.BuffPool.Put(buf[:cap(buf)])
 		}
 		return n, nil
 	}

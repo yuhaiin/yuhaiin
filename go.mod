@@ -3,6 +3,7 @@ module github.com/Asutorufa/SsrMicroClient
 go 1.13
 
 require (
+	github.com/miekg/dns v1.1.29
 	github.com/shadowsocks/go-shadowsocks2 v0.1.0
 	github.com/therecipe/env_darwin_amd64_513 v0.0.0-20190626001412-d8e92e8db4d0 // indirect
 	github.com/therecipe/env_linux_amd64_513 v0.0.0-20190626000307-e137a3934da6 // indirect

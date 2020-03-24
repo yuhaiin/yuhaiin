@@ -35,14 +35,11 @@ func NewOutboundMatch(forward func(host string) (conn net.Conn, err error)) (*Ou
 	if err != nil {
 		return nil, err
 	}
-	dNS, err := DNS()
+	nMatch, err := match.NewMatchWithFile(nil, conFig.BypassFile)
 	if err != nil {
 		return nil, err
 	}
-	nMatch, err := match.NewMatchWithFile(dNS, conFig.BypassFile)
-	if err != nil {
-		return nil, err
-	}
+	nMatch.DNSStr = conFig.DnsServer
 	return &OutboundMatch{
 		Matcher: nMatch,
 		conn:    forward,
@@ -51,6 +48,15 @@ func NewOutboundMatch(forward func(host string) (conn net.Conn, err error)) (*Ou
 
 func (f *OutboundMatch) ChangeForward(conn func(host string) (conn net.Conn, err error)) {
 	f.conn = conn
+}
+
+func (f *OutboundMatch) UpdateDNSStr() error {
+	conFig, err := config.SettingDecodeJSON()
+	if err != nil {
+		return err
+	}
+	f.Matcher.DNSStr = conFig.DnsServer
+	return nil
 }
 
 func (f *OutboundMatch) UpdateDNS() error {
@@ -74,16 +80,9 @@ func (f *OutboundMatch) Forward(host string) (conn net.Conn, err error) {
 		}
 	}
 
-	ip, bypass := f.Matcher.Search(URI.Hostname())
-	switch bypass {
+	switch f.Matcher.Search2(URI.Hostname()) {
 	case "direct":
-		for i := range ip {
-			conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip[i], URI.Port()), 3*time.Second)
-			if err != nil {
-				continue
-			}
-			return conn, nil
-		}
+		return net.DialTimeout("tcp", host, 3*time.Second)
 	case "block":
 		return nil, errors.New("block domain: " + host)
 	}

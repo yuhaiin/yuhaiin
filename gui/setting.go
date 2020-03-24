@@ -91,7 +91,7 @@ func (sGui *SGui) createSettingWindow() {
 				sGui.MessageBox(err.Error())
 				return
 			}
-			if err := sGui.control.Match.UpdateDNS(); err != nil {
+			if err := sGui.control.Match.UpdateDNSStr(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}

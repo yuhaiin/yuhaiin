@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"github.com/Asutorufa/SsrMicroClient/net/common"
 	"io"
 	"net"
 	"net/http"
@@ -101,38 +102,33 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 		authorization := strings.Split(req.Header.Get("Proxy-Authorization"), " ")
 		if len(authorization) != 2 {
 			_, err = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
-			if err != nil {
-				return err
-			}
-			client.Close()
+			return err
 		}
 		dst := make([]byte, base64.URLEncoding.DecodedLen(len(authorization[1])))
-		_, err := base64.StdEncoding.Decode(dst, []byte(authorization[1]))
+		_, err = base64.StdEncoding.Decode(dst, []byte(authorization[1]))
 		if err != nil {
 			return err
 		}
 		uap := bytes.Split(dst, []byte(":"))
 		if len(uap) != 2 {
-			if _, err := client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n")); err != nil {
-				return err
-			}
-			client.Close()
+			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+			return err
 		}
 		if string(uap[0]) != h.Username || string(uap[1]) != h.Password {
-			if _, err := client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n")); err != nil {
-				return err
-			}
-			client.Close()
+			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+			return err
 		}
 	}
 
 	var server net.Conn
 	if h.ForwardFunc != nil {
 		if server, err = h.ForwardFunc(req.Host); err != nil {
+			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 			return err
 		}
 	} else {
 		if server, err = net.DialTimeout("tcp", req.Host, 5*time.Second); err != nil {
+			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 			return err
 		}
 	}
@@ -145,7 +141,7 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 		if _, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil {
 			return err
 		}
-		forward(server, client)
+		common.Forward(client, server)
 	default:
 		if req.URL.Host == "" {
 			// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
@@ -235,28 +231,4 @@ func removeHeader(h http.Header) http.Header {
 	h.Del("Transfer-Encoding")
 	h.Del("Upgrade")
 	return h
-}
-func forward(server, client net.Conn) {
-	CloseSig := make(chan error, 0)
-	go pipe(server, client, CloseSig)
-	go pipe(client, server, CloseSig)
-	<-CloseSig
-	<-CloseSig
-	close(CloseSig)
-}
-
-func pipe(src, dst net.Conn, closeSig chan error) {
-	buf := make([]byte, 0x400*4)
-	for {
-		n, err := src.Read(buf[0:])
-		if err != nil {
-			closeSig <- err
-			return
-		}
-		_, err = dst.Write(buf[0:n])
-		if err != nil {
-			closeSig <- err
-			return
-		}
-	}
 }

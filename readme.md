@@ -50,7 +50,8 @@ How to use:
 [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 [Dreamacro/clash](https://github.com/Dreamacro/clash)  
-[shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)
+[shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
+[miekg/dns]("https://github.com/miekg/dns")
 
 ## Others
 

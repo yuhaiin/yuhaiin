@@ -2,6 +2,7 @@ package dns
 
 import (
 	"encoding/hex"
+	"github.com/Asutorufa/SsrMicroClient/net/common"
 	"log"
 	"net"
 	"strconv"
@@ -73,7 +74,7 @@ func DNS(DNSServer, domain string) (DNS []string, success bool) {
 		}
 	}()
 
-	conn, err := net.DialTimeout("udp", DNSServer, 5*time.Second)
+	conn, err := net.DialTimeout("udp", DNSServer, 2*time.Second)
 	if err != nil {
 		log.Println(err)
 		return []string{}, false
@@ -116,9 +117,15 @@ func DNS(DNSServer, domain string) (DNS []string, success bool) {
 	/*
 		get Response
 	*/
-	var b [1024]byte
+	var b = common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(b[:cap(b)])
+
+	if err = conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		return nil, false
+	}
 	n, err := conn.Read(b[:])
 	if err != nil {
+		log.Println(err)
 		return nil, false
 	}
 
@@ -129,9 +136,12 @@ func DNS(DNSServer, domain string) (DNS []string, success bool) {
 		//all := append(header, domainSetAndQTypeAndQClass...)
 		all[2] = 0x00
 		conn.Close()
-		conn, err = net.DialTimeout("udp", DNSServer, 5*time.Second)
+		conn, err = net.DialTimeout("udp", DNSServer, 2*time.Second)
 		if err != nil {
 			log.Println(err)
+			return nil, false
+		}
+		if err = conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
 			return nil, false
 		}
 		if _, err = conn.Write(all[:]); err != nil {
