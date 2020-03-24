@@ -2,6 +2,7 @@ package socks5server
 
 import (
 	"errors"
+	"github.com/Asutorufa/SsrMicroClient/net/common"
 	"log"
 	"net"
 	"strconv"
@@ -122,65 +123,41 @@ func (s *Server) handleClientRequest(client net.Conn) error {
 		}
 		port = strconv.Itoa(int(b[n-2])<<8 | int(b[n-1]))
 
-		// response to connect successful
-		if _, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}); err != nil {
-			return err
-		}
-
 		var server net.Conn
 		switch b[1] {
 		case 0x01:
 			if s.ForwardFunc != nil {
 				if server, err = s.ForwardFunc(net.JoinHostPort(host, port)); err != nil {
+					_, err = client.Write([]byte{0x05, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 					return err
 				}
 			} else {
 				if server, err = net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second); err != nil {
+					_, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 					return err
 				}
 			}
 
-		case 0x02:
-			log.Println("bind request " + net.JoinHostPort(host, port))
+		case 0x02: // bind request
 			if server, err = net.Dial("tcp", net.JoinHostPort(host, port)); err != nil {
+				_, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 				return err
 			}
 
-		case 0x03:
-			log.Println("udp request " + net.JoinHostPort(host, port))
+		case 0x03: // udp request
 			if server, err = net.Dial("udp", net.JoinHostPort(host, port)); err != nil {
+				_, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 				return err
 			}
+		}
+		// response to connect successful
+		if _, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}); err != nil {
+			return err
 		}
 		defer func() {
 			_ = server.Close()
 		}()
-		forward(client, server)
+		common.Forward(client, server)
 	}
 	return nil
-}
-
-func forward(src, dst net.Conn) {
-	CloseSig := make(chan error, 0)
-	go pipe(src, dst, CloseSig)
-	go pipe(dst, src, CloseSig)
-	<-CloseSig
-	<-CloseSig
-	close(CloseSig)
-}
-
-func pipe(src, dst net.Conn, closeSig chan error) {
-	buf := make([]byte, 0x400*4)
-	for {
-		n, err := src.Read(buf[0:])
-		if err != nil {
-			closeSig <- err
-			return
-		}
-		_, err = dst.Write(buf[0:n])
-		if err != nil {
-			closeSig <- err
-			return
-		}
-	}
 }
