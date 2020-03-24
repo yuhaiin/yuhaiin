@@ -1,7 +1,6 @@
 package socks5server
 
 import (
-	"context"
 	"errors"
 	"log"
 	"net"
@@ -16,9 +15,8 @@ type Server struct {
 	Username    string
 	Password    string
 	ForwardFunc func(host string) (net.Conn, error)
-	context     context.Context
-	cancel      context.CancelFunc
 	conn        net.Listener
+	closed      bool
 }
 
 // NewSocks5Server create new socks5 listener
@@ -46,9 +44,6 @@ func (s *Server) socks5AcceptARequest() error {
 		return err
 	}
 	go func() {
-		if client == nil {
-			return
-		}
 		defer func() {
 			_ = client.Close()
 		}()
@@ -63,39 +58,25 @@ func (s *Server) socks5AcceptARequest() error {
 // Socks5 <--
 func (s *Server) Socks5() error {
 	var err error
-	s.context, s.cancel = context.WithCancel(context.Background())
 	s.conn, err = net.Listen("tcp", net.JoinHostPort(s.Server, s.Port))
 	if err != nil {
 		return err
 	}
 	for {
-		select {
-		case <-s.context.Done():
-			return nil
-		default:
-			if err := s.socks5AcceptARequest(); err != nil {
-				select {
-				case <-s.context.Done():
-					return err
-				default:
-					log.Println(err)
-					continue
-				}
+		if err := s.socks5AcceptARequest(); err != nil {
+			if s.closed {
+				break
 			}
+			continue
 		}
 	}
+	return nil
 }
 
 // Close close socks5 listener
 func (s *Server) Close() error {
-	defer func() {
-		if err := recover(); err != nil {
-			return
-		}
-	}()
-	s.cancel()
-	_ = s.conn.Close()
-	return nil
+	s.closed = true
+	return s.conn.Close()
 }
 
 func (s *Server) handleClientRequest(client net.Conn) error {
