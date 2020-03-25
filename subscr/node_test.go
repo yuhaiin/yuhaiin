@@ -66,6 +66,7 @@ func TestGetOneNode(t *testing.T) {
 		t.Log(x.(*Shadowsocksr))
 	}
 }
+
 func TestGetNowNode(t *testing.T) {
 	pa, err := GetNowNode()
 	if err != nil {
