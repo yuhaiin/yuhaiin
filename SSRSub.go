@@ -7,10 +7,10 @@ import (
 	//_ "net/http/pprof"
 	"os"
 
-	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/gui"
-	"github.com/Asutorufa/SsrMicroClient/init"
-	"github.com/Asutorufa/SsrMicroClient/process/lockfile"
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/gui"
+	"github.com/Asutorufa/yuhaiin/init"
+	"github.com/Asutorufa/yuhaiin/process/lockfile"
 )
 
 var (

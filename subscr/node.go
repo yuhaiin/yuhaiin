@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/Asutorufa/SsrMicroClient/config"
+	"github.com/Asutorufa/yuhaiin/config"
 	"io/ioutil"
 	"log"
 	"net/http"

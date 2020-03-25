@@ -42,7 +42,7 @@ How to use:
 </details>
 
 <details>
-<summary>Thanks:</summary>
+<summary>Thanks</summary>
 
 [Golang](https://golang.org)  
 [therecipe/qt](https://github.com/therecipe/qt)  
@@ -56,7 +56,7 @@ How to use:
 </details>
 
 <details>
-<summary>Todo:</summary>
+<summary>Todo</summary>
 
 - [x] add bypass
 - [x] ss link compatible.  

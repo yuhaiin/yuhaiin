@@ -2,9 +2,9 @@ package ServerControl
 
 import (
 	"errors"
-	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/net/dns"
-	"github.com/Asutorufa/SsrMicroClient/net/match"
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/dns"
+	"github.com/Asutorufa/yuhaiin/net/match"
 	"net"
 	"net/url"
 	"time"

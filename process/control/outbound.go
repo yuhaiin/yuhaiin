@@ -1,9 +1,9 @@
 package ServerControl
 
 import (
-	"github.com/Asutorufa/SsrMicroClient/config"
-	httpserver "github.com/Asutorufa/SsrMicroClient/net/proxy/http/server"
-	socks5server "github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/proxy/http/server"
+	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/server"
 	"log"
 	"net"
 	"net/url"

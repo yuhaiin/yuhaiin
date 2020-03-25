@@ -2,7 +2,7 @@ package dns
 
 import (
 	"context"
-	"github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 	"io/ioutil"
 	"net"
 	"net/http"

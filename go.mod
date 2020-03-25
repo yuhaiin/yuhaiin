@@ -1,4 +1,4 @@
-module github.com/Asutorufa/SsrMicroClient
+module github.com/Asutorufa/yuhaiin
 
 go 1.13
 

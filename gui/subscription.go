@@ -1,7 +1,7 @@
 package gui
 
 import (
-	"github.com/Asutorufa/SsrMicroClient/subscr"
+	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"

@@ -1,7 +1,7 @@
 package gui
 
 import (
-	"github.com/Asutorufa/SsrMicroClient/process/control"
+	"github.com/Asutorufa/yuhaiin/process/control"
 	"github.com/therecipe/qt/widgets"
 	"os"
 )

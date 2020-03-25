@@ -2,10 +2,10 @@ package ServerControl
 
 import (
 	"errors"
-	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/net/proxy/shadowsocks/client"
-	socks5client "github.com/Asutorufa/SsrMicroClient/net/proxy/socks5/client"
-	"github.com/Asutorufa/SsrMicroClient/subscr"
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/subscr"
 	"log"
 	"net"
 	"os/exec"

@@ -2,8 +2,8 @@ package ssrinit
 
 import (
 	"fmt"
-	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/subscr"
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/subscr"
 	"io"
 	"net/http"
 	"os"

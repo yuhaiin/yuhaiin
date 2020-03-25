@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/Asutorufa/SsrMicroClient/net/common"
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"io"
 	"math/rand"
 	"net"

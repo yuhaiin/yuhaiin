@@ -2,7 +2,7 @@ package socks5server
 
 import (
 	"errors"
-	"github.com/Asutorufa/SsrMicroClient/net/common"
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"log"
 	"net"
 	"strconv"

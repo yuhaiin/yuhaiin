@@ -1,8 +1,8 @@
 package ServerControl
 
 import (
-	"github.com/Asutorufa/SsrMicroClient/config"
-	"github.com/Asutorufa/SsrMicroClient/subscr"
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/subscr"
 	"log"
 	"net"
 	"os/exec"

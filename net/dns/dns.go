@@ -2,7 +2,7 @@ package dns
 
 import (
 	"encoding/hex"
-	"github.com/Asutorufa/SsrMicroClient/net/common"
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"log"
 	"net"
 	"strconv"

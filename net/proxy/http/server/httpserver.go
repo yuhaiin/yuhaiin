@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
-	"github.com/Asutorufa/SsrMicroClient/net/common"
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"io"
 	"net"
 	"net/http"
