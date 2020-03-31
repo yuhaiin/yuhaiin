@@ -33,7 +33,10 @@ How to use:
 - Support Subscription: Shadowsocksr, SSD
 - [Bypass File](https://github.com/Asutorufa/SsrMicroClient/tree/ACL)
 - [For Developer](https://github.com/Asutorufa/SsrMicroClient/blob/master/for_developer.md) <- outdated
-
+- Memory(Just a Reference)
+    - 8472 CIDR + 75296 domain = 50MB.
+    - Bypass + Gui = 70MB.
+    
 <details>
 <summary>Screenshots</summary>
 
@@ -42,16 +45,16 @@ How to use:
 </details>
 
 <details>
-<summary>Thanks</summary>
+<summary>Acknowledgement</summary>
 
-[Golang](https://golang.org)  
-[therecipe/qt](https://github.com/therecipe/qt)  
-[mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)(now change to json)  
-[breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
-[akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
-[Dreamacro/clash](https://github.com/Dreamacro/clash)  
-[shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
-[miekg/dns](https://github.com/miekg/dns)
+- [Golang](https://golang.org)  
+- [therecipe/qt](https://github.com/therecipe/qt)  
+- [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)(now change to json)  
+- [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
+- [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
+- [Dreamacro/clash](https://github.com/Dreamacro/clash)  
+- [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
+- [miekg/dns](https://github.com/miekg/dns)
 
 </details>
 
@@ -62,10 +65,13 @@ How to use:
 - [x] ss link compatible.  
   - [x] need more ss link template.
 - [x] support http proxy.  
-- [ ] create shortcut at first run,auto move or copy file to config path.
 - [ ] add `-h` argument to show help.
 - [x] add DOH.
 - [x] have a GUI.
 - [x] add shadowsocks client protocol.
+- [ ] add TProxy, REDIRECT.
+- [ ] add software disguise.
+- [ ] add shadowsocks v2ray plugin.
+- [ ] widget exchange to qml.
 
 </details>

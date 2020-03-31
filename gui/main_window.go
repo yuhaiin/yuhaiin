@@ -11,7 +11,7 @@ import (
 func (sGui *SGui) createMainWindow() {
 	sGui.MainWindow = widgets.NewQMainWindow(nil, 0)
 	sGui.MainWindow.SetFixedSize2(600, 400)
-	sGui.MainWindow.SetWindowTitle("SsrMicroClient")
+	sGui.MainWindow.SetWindowTitle("yuhaiin")
 	img := gui.NewQPixmap()
 	img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(icon, len(icon))), "svg", core.Qt__AutoColor)
 	icon2 := gui.NewQIcon2(img)

@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	lockFile = config.GetConfigAndSQLPath() + "/SsrMicroClientRunStatuesLockFile"
+	lockFilePath = config.GetConfigAndSQLPath() + "/yuhaiin.lock"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	configPath := config.GetConfigAndSQLPath()
 	ssrinit.Init(configPath)
-	lockFile, err := os.Create(lockFile)
+	lockFile, err := os.Create(lockFilePath)
 	if err != nil {
 		log.Println(err)
 		return
@@ -39,7 +39,7 @@ func main() {
 	}
 	defer func() {
 		_ = lockFile.Close()
-		_ = os.Remove(configPath + "/SsrMicroClientRunStatuesLockFile")
+		_ = os.Remove(lockFilePath)
 	}()
 
 	ssrMicroClientGUI, err := gui.NewGui()
