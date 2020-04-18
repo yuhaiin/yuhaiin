@@ -9,7 +9,7 @@ func TestNewMatcher(t *testing.T) {
 	dnsFunc := func(domain string) ([]string, bool) {
 		return dns.DNS("119.29.29.29:53", domain)
 	}
-	matcher := NewMatch(dnsFunc)
+	matcher, _ := NewMatch(dnsFunc, "")
 	if err := matcher.Insert("www.baidu.com", "test_baidu"); err != nil {
 		t.Error(err)
 	}
@@ -25,7 +25,7 @@ func TestNewMatcherWithFile(t *testing.T) {
 	dnsFunc := func(domain string) ([]string, bool) {
 		return dns.DNS("119.29.29.29:53", domain)
 	}
-	matcher, err := NewMatchWithFile(dnsFunc, "../../rule/rule.config")
+	matcher, err := NewMatch(dnsFunc, "../../rule/rule.config")
 	if err != nil {
 		t.Error(err)
 	}

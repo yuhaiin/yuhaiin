@@ -35,7 +35,7 @@ func NewOutboundMatch(forward func(host string) (conn net.Conn, err error)) (*Ou
 	if err != nil {
 		return nil, err
 	}
-	nMatch, err := match.NewMatchWithFile(nil, conFig.BypassFile)
+	nMatch, err := match.NewMatch(nil, conFig.BypassFile)
 	if err != nil {
 		return nil, err
 	}

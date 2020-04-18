@@ -18,7 +18,7 @@ func NewGui() (*SGui, error) {
 	var err error
 	microClientGUI := &SGui{}
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
-	microClientGUI.App.SetApplicationName("SsrMicroClient")
+	microClientGUI.App.SetApplicationName("yuhaiin")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
 	//microClientGUI.App.ConnectAboutToQuit(func() {
 	//})

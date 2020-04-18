@@ -27,6 +27,9 @@ func (x *Match) Insert(str, mark string) error {
 
 func (x *Match) Search2(str string) (proxy string) {
 	var isMatch = false
+	if proxy, isCache := mCache.Get(str); isCache {
+		return proxy
+	}
 	if net.ParseIP(str) != nil {
 		isMatch, proxy = x.cidr.Search(str)
 	} else {
@@ -41,6 +44,7 @@ func (x *Match) Search2(str string) (proxy string) {
 		}
 	}
 	if isMatch {
+		mCache.Add(str, proxy)
 		return
 	}
 	return "not found"
@@ -68,23 +72,16 @@ func (x *Match) Search(str string) (target []string, proxy string) {
 	return target, "not found"
 }
 
-func NewMatch(dnsFunc func(domain string) (DNS []string, success bool)) *Match {
-	cidrMatch := NewCidrMatch()
-	domainMatch := NewDomainMatch()
-	return &Match{
-		DNS:    dnsFunc,
-		cidr:   cidrMatch,
-		domain: domainMatch,
-	}
-}
-
-func NewMatchWithFile(dnsFunc func(domain string) (DNS []string, success bool), MatcherFile string) (matcher *Match, err error) {
+func NewMatch(dnsFunc func(domain string) (DNS []string, success bool), MatcherFile string) (matcher *Match, err error) {
 	cidrMatch := NewCidrMatch()
 	domainMatch := NewDomainMatch()
 	matcher = &Match{
 		DNS:    dnsFunc,
 		cidr:   cidrMatch,
 		domain: domainMatch,
+	}
+	if MatcherFile == "" {
+		return matcher, nil
 	}
 	configTemp, err := ioutil.ReadFile(MatcherFile)
 	if err != nil {
