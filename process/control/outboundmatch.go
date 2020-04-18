@@ -60,11 +60,18 @@ func (f *OutboundMatch) UpdateDNSStr() error {
 }
 
 func (f *OutboundMatch) UpdateDNS() error {
-	dNS, err := DNS()
+	//dNS, err := DNS()
+	//if err != nil {
+	//	return err
+	//}
+	//f.Matcher.DNS = dNS
+	//return nil
+
+	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		return err
 	}
-	f.Matcher.DNS = dNS
+	f.Matcher.DNSStr = conFig.DnsServer
 	return nil
 }
 

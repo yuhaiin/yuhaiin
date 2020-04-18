@@ -8,7 +8,7 @@ import (
 )
 
 type Match struct {
-	DNS    func(domain string) (DNS []string, success bool)
+	//DNS    func(domain string) (DNS []string, success bool)
 	DNSStr string
 	cidr   *Cidr
 	domain *Domain
@@ -25,28 +25,23 @@ func (x *Match) Insert(str, mark string) error {
 	return nil
 }
 
-func (x *Match) Search(str string) (proxy string) {
+func (x *Match) Search(str string) (des string) {
 	var isMatch = false
-	if proxy, isCache := mCache.Get(str); isCache {
-		return proxy.(string)
+	if des, isCache := mCache.Get(str); isCache {
+		return des.(string)
 	}
 	switch net.ParseIP(str) {
 	case nil:
-		isMatch, proxy = x.domain.Search(str)
-		if !isMatch {
-			if x.DNSStr != "" {
-				dnsS, isSuccess, _ := dns.MDNS(x.DNSStr, str)
-				if isSuccess && len(dnsS) > 0 {
-					isMatch, proxy = x.cidr.Search(dnsS[0].String())
-				}
+		if isMatch, des = x.domain.Search(str); !isMatch && x.DNSStr != "" {
+			if dnsS, isSuccess, _ := dns.MDNS(x.DNSStr, str); isSuccess && len(dnsS) > 0 {
+				isMatch, des = x.cidr.Search(dnsS[0].String())
 			}
 		}
 	default:
-		isMatch, proxy = x.cidr.Search(str)
-
+		isMatch, des = x.cidr.Search(str)
 	}
 	if isMatch {
-		mCache.Add(str, proxy)
+		mCache.Add(str, des)
 		return
 	}
 	return "not found"
@@ -56,7 +51,7 @@ func NewMatch(dnsFunc func(domain string) (DNS []string, success bool), MatcherF
 	cidrMatch := NewCidrMatch()
 	domainMatch := NewDomainMatch()
 	matcher = &Match{
-		DNS:    dnsFunc,
+		//DNS:    dnsFunc,
 		cidr:   cidrMatch,
 		domain: domainMatch,
 	}
@@ -70,11 +65,9 @@ func NewMatch(dnsFunc func(domain string) (DNS []string, success bool), MatcherF
 	for _, s := range strings.Split(string(configTemp), "\n") {
 		div := strings.Split(s, " ")
 		if len(div) < 2 {
-			//log.Println("format error: " + s)
 			continue
 		}
 		if err := matcher.Insert(div[0], div[1]); err != nil {
-			//log.Println(err)
 			continue
 		}
 	}
