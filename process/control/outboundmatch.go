@@ -80,7 +80,7 @@ func (f *OutboundMatch) Forward(host string) (conn net.Conn, err error) {
 		}
 	}
 
-	switch f.Matcher.Search2(URI.Hostname()) {
+	switch f.Matcher.Search(URI.Hostname()) {
 	case "direct":
 		return net.DialTimeout("tcp", host, 3*time.Second)
 	case "block":

@@ -1,4 +1,4 @@
-package dns
+package common
 
 import (
 	"log"
@@ -7,32 +7,31 @@ import (
 )
 
 // Cache <-- use map save history
-type Cache struct {
+type cache struct {
 	number         int
-	dns            sync.Map
+	pool           sync.Map
 	lastUpdateTime time.Time
 }
 
-func NewDnsCache() *Cache {
-	return &Cache{
+func NewCache() *cache {
+	return &cache{
 		number:         0,
 		lastUpdateTime: time.Now(),
 	}
 }
 
-func (c *Cache) Get(domain string) ([]string, bool) {
-	if value, isLoad := c.dns.Load(domain); isLoad {
-		//log.Println(domain + " match success")
-		return value.([]string), true
+func (c *cache) Get(domain string) (interface{}, bool) {
+	if value, isLoad := c.pool.Load(domain); isLoad {
+		return value, true
 	}
 	return nil, false
 }
 
-func (c *Cache) Add(domain string, ip []string) {
+func (c *cache) Add(domain string, mark interface{}) {
 	if c.number > 800 {
 		tmp := 0
-		c.dns.Range(func(key, value interface{}) bool {
-			c.dns.Delete(key)
+		c.pool.Range(func(key, value interface{}) bool {
+			c.pool.Delete(key)
 			if tmp >= 80 {
 				return false
 			}
@@ -42,7 +41,7 @@ func (c *Cache) Add(domain string, ip []string) {
 
 		if time.Since(c.lastUpdateTime) >= time.Hour {
 			number := 0
-			c.dns.Range(func(key, value interface{}) bool {
+			c.pool.Range(func(key, value interface{}) bool {
 				number++
 				return true
 			})
@@ -50,7 +49,7 @@ func (c *Cache) Add(domain string, ip []string) {
 			c.lastUpdateTime = time.Now()
 		}
 	}
-	c.dns.Store(domain, ip)
+	c.pool.Store(domain, mark)
 	c.number++
 	log.Println(domain+" Add success,number", c.number)
 }
