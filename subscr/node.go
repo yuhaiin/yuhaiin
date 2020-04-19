@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	jsonPath     = config.GetConfigAndSQLPath() + "/node.json"
+	jsonPath     = config.Path + "/node.json"
 	shadowsocks  = float64(1)
 	shadowsocksr = float64(2)
 )

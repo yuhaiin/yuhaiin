@@ -9,10 +9,9 @@ import (
 	"strings"
 )
 
-// GetConfigAndSQLPath <-- get the config path
-func GetConfigAndSQLPath() (configPath string) {
-	return os.Getenv("HOME") + "/.config/SSRSub"
-}
+var (
+	Path = os.Getenv("HOME") + "/.config/SSRSub"
+)
 
 // GetPythonPath get python path
 func GetPythonPath() string {

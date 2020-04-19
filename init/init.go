@@ -22,38 +22,38 @@ func PathExists(path string) bool {
 }
 
 // Init  <-- init
-func Init(configPath string) {
+func Init() {
 	//判断目录是否存在 不存在则创建
-	if !PathExists(configPath) {
-		err := os.MkdirAll(configPath, os.ModePerm)
+	if !PathExists(config.Path) {
+		err := os.MkdirAll(config.Path, os.ModePerm)
 		if err != nil {
 			fmt.Println(err)
 		}
 	}
 
-	if !PathExists(configPath + "/shadowsocksr") {
-		GetSsrPython(configPath)
+	if !PathExists(config.Path + "/shadowsocksr") {
+		GetSsrPython(config.Path)
 	}
 
 	//cycle import,not allow
-	if !PathExists(configPath + "/node.json") {
+	if !PathExists(config.Path + "/node.json") {
 		if subscr.InitJSON() != nil {
 			return
 		}
 	}
 
-	if !PathExists(configPath + "/SsrMicroConfig.json") {
-		if config.SettingInitJSON(configPath) != nil {
+	if !PathExists(config.Path + "/SsrMicroConfig.json") {
+		if config.SettingInitJSON(config.Path) != nil {
 			return
 		}
 	}
 
-	if !PathExists(configPath + "/SsrMicroClient.conf") {
+	if !PathExists(config.Path + "/SsrMicroClient.conf") {
 		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/SsrMicroClient/SsrMicroClient.conf")
 		if err != nil {
 			panic(err)
 		}
-		f, err := os.Create(configPath + "/SsrMicroClient.conf")
+		f, err := os.Create(config.Path + "/SsrMicroClient.conf")
 		if err != nil {
 			panic(err)
 		}

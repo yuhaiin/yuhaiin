@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	configPath = GetConfigAndSQLPath() + "/SsrMicroConfig.json"
+	configPath = Path + "/SsrMicroConfig.json"
 )
 
 // Setting setting json struct

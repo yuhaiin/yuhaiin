@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	lockFilePath = config.GetConfigAndSQLPath() + "/yuhaiin.lock"
+	lockFilePath = config.Path + "/yuhaiin.lock"
 )
 
 func main() {
@@ -26,8 +26,7 @@ func main() {
 	//	}
 	//}()
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	configPath := config.GetConfigAndSQLPath()
-	ssrinit.Init(configPath)
+	ssrinit.Init()
 	lockFile, err := os.Create(lockFilePath)
 	if err != nil {
 		log.Println(err)
