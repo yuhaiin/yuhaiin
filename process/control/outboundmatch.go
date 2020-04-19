@@ -15,18 +15,19 @@ type OutboundMatch struct {
 	conn    func(host string) (conn net.Conn, err error)
 }
 
-func DNS() (func(domain string) (DNS []string, success bool), error) {
+func DNS() (func(domain string) (DNS []net.IP, success bool), error) {
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		return nil, err
 	}
 	if conFig.IsDNSOverHTTPS {
-		return func(domain string) (DNS []string, success bool) {
+		return func(domain string) (DNS []net.IP, success bool) {
 			return dns.DNSOverHTTPS(conFig.DnsServer, domain, nil)
 		}, nil
 	}
-	return func(domain string) (DNS []string, success bool) {
-		return dns.DNS(conFig.DnsServer, domain)
+	return func(domain string) (DNS []net.IP, success bool) {
+		DNS, success, _ = dns.MDNS(conFig.DnsServer, domain)
+		return
 	}, nil
 }
 
@@ -39,7 +40,10 @@ func NewOutboundMatch(forward func(host string) (conn net.Conn, err error)) (*Ou
 	if err != nil {
 		return nil, err
 	}
-	nMatch.DNSStr = conFig.DnsServer
+	if nMatch.DNS, err = DNS(); err != nil {
+		return nil, err
+	}
+	//nMatch.DNSStr = conFig.DnsServer
 	return &OutboundMatch{
 		Matcher: nMatch,
 		conn:    forward,
@@ -50,28 +54,21 @@ func (f *OutboundMatch) ChangeForward(conn func(host string) (conn net.Conn, err
 	f.conn = conn
 }
 
-func (f *OutboundMatch) UpdateDNSStr() error {
-	conFig, err := config.SettingDecodeJSON()
-	if err != nil {
-		return err
-	}
-	f.Matcher.DNSStr = conFig.DnsServer
-	return nil
-}
+//func (f *OutboundMatch) UpdateDNSStr() error {
+//	conFig, err := config.SettingDecodeJSON()
+//	if err != nil {
+//		return err
+//	}
+//	f.Matcher.DNSStr = conFig.DnsServer
+//	return nil
+//}
 
 func (f *OutboundMatch) UpdateDNS() error {
-	//dNS, err := DNS()
-	//if err != nil {
-	//	return err
-	//}
-	//f.Matcher.DNS = dNS
-	//return nil
-
-	conFig, err := config.SettingDecodeJSON()
+	dNS, err := DNS()
 	if err != nil {
 		return err
 	}
-	f.Matcher.DNSStr = conFig.DnsServer
+	f.Matcher.DNS = dNS
 	return nil
 }
 

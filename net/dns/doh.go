@@ -93,7 +93,7 @@ type Answer struct {
 	Data    string `json:"data"`
 }
 
-func DNSOverHTTPS(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS []string, success bool) {
+func DNSOverHTTPS(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS []net.IP, success bool) {
 	doh := &DOH{}
 	var res *http.Response
 	var err error
@@ -124,7 +124,7 @@ func DNSOverHTTPS(DNSServer, domain string, proxy func(ctx context.Context, netw
 	}
 	for _, x := range doh.Answer {
 		if net.ParseIP(x.Data) != nil {
-			DNS = append(DNS, x.Data)
+			DNS = append(DNS, net.ParseIP(x.Data))
 		}
 	}
 	success = true

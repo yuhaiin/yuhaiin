@@ -2,12 +2,14 @@ package match
 
 import (
 	"github.com/Asutorufa/yuhaiin/net/dns"
+	"net"
 	"testing"
 )
 
 func TestNewMatcher(t *testing.T) {
-	dnsFunc := func(domain string) ([]string, bool) {
-		return dns.DNS("119.29.29.29:53", domain)
+	dnsFunc := func(domain string) (IP []net.IP, s bool) {
+		IP, s, _ = dns.MDNS("119.29.29.29:53", domain)
+		return
 	}
 	matcher, _ := NewMatch(dnsFunc, "")
 	if err := matcher.Insert("www.baidu.com", "test_baidu"); err != nil {
@@ -22,8 +24,9 @@ func TestNewMatcher(t *testing.T) {
 }
 
 func TestNewMatcherWithFile(t *testing.T) {
-	dnsFunc := func(domain string) ([]string, bool) {
-		return dns.DNS("119.29.29.29:53", domain)
+	dnsFunc := func(domain string) (IP []net.IP, s bool) {
+		IP, s, _ = dns.MDNS("119.29.29.29:53", domain)
+		return
 	}
 	matcher, err := NewMatch(dnsFunc, "../../rule/rule.config")
 	if err != nil {

@@ -20,7 +20,7 @@ func (sGui *SGui) createMainWindow() {
 	trayIcon := widgets.NewQSystemTrayIcon(sGui.MainWindow)
 	trayIcon.SetIcon(icon2)
 	menu := widgets.NewQMenu(nil)
-	ssrMicroClientTrayIconMenu := widgets.NewQAction2("SsrMicroClient", sGui.MainWindow)
+	ssrMicroClientTrayIconMenu := widgets.NewQAction2("yuhaiin", sGui.MainWindow)
 	ssrMicroClientTrayIconMenu.ConnectTriggered(func(bool2 bool) {
 		sGui.openMainWindow()
 	})

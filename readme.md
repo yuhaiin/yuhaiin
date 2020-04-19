@@ -9,7 +9,7 @@
 ![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
 How to use:
 
-- download the [releases](https://github.com/Asutorufa/SsrMicroClient/releases) binary or build.
+- download the [releases](https://github.com/Asutorufa/yuhaiin/releases) binary or build.
 
 - Build
 
@@ -31,16 +31,16 @@ How to use:
         - Support Plugin: obfs-http
     - internal Support: Socks5, HTTP
 - Support Subscription: Shadowsocksr, SSD
-- [Bypass File](https://github.com/Asutorufa/SsrMicroClient/tree/ACL)
-- [For Developer](https://github.com/Asutorufa/SsrMicroClient/blob/master/for_developer.md) <- outdated
+- [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)
+- [For Developer](https://github.com/Asutorufa/yuhaiin/blob/master/for_developer.md) <- outdated
 - Memory(Just a Reference)
-    - 8472 CIDR + 75296 domain = 50MB.
+    - Bypass = 8472 CIDR + 75296 domain = 50MB.
     - Bypass + Gui = 70MB.
     
 <details>
 <summary>Screenshots</summary>
 
-![image](https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/master/img/gui_by_qt_dev1.png)  
+![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_by_qt_dev1.png)  
 
 </details>
 

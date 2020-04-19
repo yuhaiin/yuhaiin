@@ -1,15 +1,14 @@
 package match
 
 import (
-	"github.com/Asutorufa/yuhaiin/net/dns"
 	"io/ioutil"
 	"net"
 	"strings"
 )
 
 type Match struct {
-	//DNS    func(domain string) (DNS []string, success bool)
-	DNSStr string
+	DNS func(domain string) (DNS []net.IP, success bool)
+	//DNSStr string
 	cidr   *Cidr
 	domain *Domain
 }
@@ -32,8 +31,8 @@ func (x *Match) Search(str string) (des string) {
 	}
 	switch net.ParseIP(str) {
 	case nil:
-		if isMatch, des = x.domain.Search(str); !isMatch && x.DNSStr != "" {
-			if dnsS, isSuccess, _ := dns.MDNS(x.DNSStr, str); isSuccess && len(dnsS) > 0 {
+		if isMatch, des = x.domain.Search(str); !isMatch && x.DNS != nil {
+			if dnsS, isSuccess := x.DNS(str); isSuccess && len(dnsS) > 0 {
 				isMatch, des = x.cidr.Search(dnsS[0].String())
 			}
 		}
@@ -47,11 +46,11 @@ func (x *Match) Search(str string) (des string) {
 	return "not found"
 }
 
-func NewMatch(dnsFunc func(domain string) (DNS []string, success bool), MatcherFile string) (matcher *Match, err error) {
+func NewMatch(dnsFunc func(domain string) (DNS []net.IP, success bool), MatcherFile string) (matcher *Match, err error) {
 	cidrMatch := NewCidrMatch()
 	domainMatch := NewDomainMatch()
 	matcher = &Match{
-		//DNS:    dnsFunc,
+		DNS:    dnsFunc,
 		cidr:   cidrMatch,
 		domain: domainMatch,
 	}
