@@ -69,7 +69,7 @@ How to use:
 - [x] add DOH.
 - [x] have a GUI.
 - [x] add shadowsocks client protocol.
-- [ ] add TProxy, REDIRECT.
+- [x] add linux REDIRECT.
 - [ ] add software disguise.
 - [ ] add shadowsocks v2ray plugin.
 - [ ] widget exchange to qml.
