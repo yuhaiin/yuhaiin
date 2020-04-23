@@ -4,13 +4,14 @@ package config
 
 import (
 	"bytes"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
 )
 
 var (
-	path = os.Getenv("HOME") + "/.config/SSRSub"
+	path = os.Getenv("HOME") + "/.config/yuhaiin"
 )
 
 // GetPythonPath get python path

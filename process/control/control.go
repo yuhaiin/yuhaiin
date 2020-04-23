@@ -11,42 +11,29 @@ import (
 	"os/exec"
 )
 
-type Control struct {
-	Match    *OutboundMatch
-	OutBound *OutBound
-	ssrCmd   *exec.Cmd
+var (
+	ssrCmd *exec.Cmd
+)
+
+func init() {
+	if err := ChangeNode(); err != nil {
+		log.Print(err)
+		return
+	}
 }
 
-func NewControl() (*Control, error) {
-	x := &Control{}
-	var err error
-	x.Match, err = NewOutboundMatch(nil)
-	if err != nil {
-		return nil, err
-	}
-	if err := x.ChangeNode(); err != nil {
-		return nil, err
-	}
-	if x.OutBound, err = NewOutBound(); err != nil {
-		return nil, err
-	}
-	x.OutBound.changeForwardConn(x.Match.Forward)
-	x.Start()
-	return x, nil
-}
-
-func (c *Control) ReSet() error {
-	if c.ssrCmd != nil {
-		if err := c.ssrCmd.Process.Kill(); err != nil {
+func ReSet() error {
+	if ssrCmd != nil {
+		if err := ssrCmd.Process.Kill(); err != nil {
 			return err
 		}
-		c.ssrCmd = nil
+		ssrCmd = nil
 	}
 	return nil
 }
 
-func (c *Control) ChangeNode() error {
-	if err := c.ReSet(); err != nil {
+func ChangeNode() error {
+	if err := ReSet(); err != nil {
 		return err
 	}
 	nNode, err := subscr.GetNowNode()
@@ -64,14 +51,14 @@ func (c *Control) ChangeNode() error {
 		if err != nil {
 			return err
 		}
-		c.Match.ChangeForward(conn.Conn)
+		Conn = conn.Conn
 	case *subscr.Shadowsocksr:
-		c.ssrCmd, err = ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
+		ssrCmd, err = ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
 		if err != nil {
 			return err
 		}
 		go func() {
-			if err := c.ssrCmd.Run(); err != nil {
+			if err := ssrCmd.Run(); err != nil {
 				log.Println(err)
 			}
 		}()
@@ -79,15 +66,11 @@ func (c *Control) ChangeNode() error {
 		if err != nil {
 			return err
 		}
-		c.Match.ChangeForward(func(host string) (conn net.Conn, err error) {
+		Conn = func(host string) (conn net.Conn, err error) {
 			return socks5client.NewSocks5Client(conFig.LocalAddress, conFig.LocalPort, "", "", host)
-		})
+		}
 	default:
 		return errors.New("no support type proxy")
 	}
 	return nil
-}
-
-func (c *Control) Start() {
-	c.OutBound.Start()
 }

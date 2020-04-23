@@ -1,7 +1,6 @@
 package common
 
 import (
-	"log"
 	"sync"
 	"time"
 )
@@ -51,5 +50,5 @@ func (c *cache) Add(domain string, mark interface{}) {
 	}
 	c.pool.Store(domain, mark)
 	c.number++
-	log.Println(domain+" Add success,number", c.number)
+	//log.Println(domain+" Add success,number", c.number)
 }

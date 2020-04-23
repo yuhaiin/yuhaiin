@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -14,29 +15,46 @@ import (
 
 // Server http server
 type Server struct {
-	Server      string
-	Port        string
-	Username    string
-	Password    string
-	ForwardFunc func(host string) (net.Conn, error)
-	listener    net.Listener
-	closed      bool
+	Username string
+	Password string
+	listener net.Listener
+	closed   bool
 }
 
 // NewHTTPServer create new HTTP server
-// server: http listener host
+// host: http listener host
 // port: http listener port
 // username: http server username
 // password: http server password
-// forwardTo: if you want to forward to another server,create a function that return net.Conn and use it,if not use nil
-func NewHTTPServer(server, port, username, password string, forwardFunc func(host string) (net.Conn, error)) (*Server, error) {
-	return &Server{
-		Server:      server,
-		Port:        port,
-		Username:    username,
-		Password:    password,
-		ForwardFunc: forwardFunc,
-	}, nil
+func NewHTTPServer(host, port, username, password string) (s *Server, err error) {
+	s = &Server{}
+	s.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		return nil, err
+	}
+	s.Username, s.Password = username, password
+	go func() {
+		if err := s.HTTPProxy(); err != nil {
+			log.Print(err)
+			return
+		}
+	}()
+	return s, nil
+}
+
+func (h *Server) UpdateListenHost(host, port string) (err error) {
+	if h.listener.Addr().String() == net.JoinHostPort(host, port) {
+		return nil
+	}
+	if err = h.listener.Close(); err != nil {
+		return err
+	}
+	h.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
+	return
+}
+
+func (h *Server) GetListenHost() string {
+	return h.listener.Addr().String()
 }
 
 // Close close http server listener
@@ -49,42 +67,30 @@ func (h *Server) Close() error {
 // server http listen server,port http listen port
 // sock5Server socks5 server ip,socks5Port socks5 server port
 func (h *Server) HTTPProxy() error {
-	var err error
-	h.listener, err = net.Listen("tcp", net.JoinHostPort(h.Server, h.Port))
-	if err != nil {
-		return err
-	}
 	for {
-		if err := h.httpProxyAcceptARequest(); err != nil {
+		client, err := h.listener.Accept()
+		if err != nil {
+			return err
+		}
+		if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
 			if h.closed {
 				break
 			}
 			continue
 		}
-	}
-	return nil
-}
 
-func (h *Server) httpProxyAcceptARequest() error {
-	client, err := h.listener.Accept()
-	if err != nil {
-		return err
-	}
-	if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
-		return err
-	}
-
-	go func() {
-		defer func() {
-			_ = client.Close()
-		}()
-		if err := h.httpHandleClientRequest(client); err != nil {
-			if err != io.EOF && err != io.ErrUnexpectedEOF && err != io.ErrClosedPipe {
-				//log.Println(err)
-				return
+		go func() {
+			defer func() {
+				_ = client.Close()
+			}()
+			if err := h.httpHandleClientRequest(client); err != nil {
+				if err != io.EOF && err != io.ErrUnexpectedEOF && err != io.ErrClosedPipe {
+					//log.Println(err)
+					return
+				}
 			}
-		}
-	}()
+		}()
+	}
 	return nil
 }
 
@@ -121,8 +127,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 	}
 
 	var server net.Conn
-	if h.ForwardFunc != nil {
-		if server, err = h.ForwardFunc(req.Host); err != nil {
+	if common.ForwardTarget != nil {
+		if server, err = common.ForwardTarget(req.Host); err != nil {
 			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 			return err
 		}

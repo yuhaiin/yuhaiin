@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	Path = os.Getenv("HOME") + "/.config/SSRSub"
+	Path = os.Getenv("HOME") + "/.config/yuhaiin"
 )
 
 // GetPythonPath get python path

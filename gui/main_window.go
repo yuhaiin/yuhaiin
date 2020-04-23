@@ -2,6 +2,7 @@ package gui
 
 import (
 	"github.com/Asutorufa/yuhaiin/net/delay"
+	ServerControl "github.com/Asutorufa/yuhaiin/process/control"
 	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -90,7 +91,7 @@ func (sGui *SGui) createMainWindow() {
 			sGui.MessageBox(err.Error())
 			return
 		}
-		if err := sGui.control.ChangeNode(); err != nil {
+		if err := ServerControl.ChangeNode(); err != nil {
 			sGui.MessageBox(err.Error())
 		}
 		nowNodeLabel2.SetText(remarks + " - " + group)

@@ -1,26 +1,24 @@
-//+build !windows,!darwin
-
-package server
+package redirserver
 
 import (
 	"net"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/net/proxy/redir/nfutil"
+	"github.com/Asutorufa/yuhaiin/net/proxy/redir/pfutil"
 )
 
 func handleRedir(req net.Conn) error {
 	defer req.Close()
 	_ = req.(*net.TCPConn).SetKeepAlive(true)
-	target, err := nfutil.GetOrigDst(req.(*net.TCPConn), false)
+	target, err := pfutil.NatLookup(req.(*net.TCPConn))
 	if err != nil {
 		return err
 	}
 
 	var rsp net.Conn
-	if ForwardFunc != nil {
-		rsp, err = ForwardFunc(target.String())
+	if common.ForwardTarget != nil {
+		rsp, err = common.ForwardTarget(target.String())
 	} else {
 		rsp, err = net.DialTimeout("tcp", target.String(), 10*time.Second)
 	}

@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	configPath = Path + "/SsrMicroConfig.json"
+	configPath = Path + "/yuhaiinConfig.json"
 )
 
 // Setting setting json struct
@@ -24,6 +24,7 @@ type Setting struct {
 	Bypass             bool   `json:"bypass"`
 	HttpProxyAddress   string `json:"httpProxyAddress"`
 	Socks5ProxyAddress string `json:"socks5ProxyAddress"`
+	RedirProxyAddress  string `json:"redir_proxy_address"`
 	BypassFile         string `json:"bypassFile"`
 	DnsServer          string `json:"dnsServer"`
 	UdpTrans           bool   `json:"udpTrans"`
@@ -46,10 +47,11 @@ func SettingInitJSON(configPath string) error {
 		HttpProxy:          true,
 		HttpProxyAddress:   "127.0.0.1:8188",
 		Socks5ProxyAddress: "127.0.0.1:1080",
+		RedirProxyAddress:  "127.0.0.1:8088",
 		IsPrintLog:         false,
 
 		TimeOut:        "1000",
-		BypassFile:     configPath + "/SsrMicroClient.conf",
+		BypassFile:     configPath + "/yuhaiin.conf",
 		IsDNSOverHTTPS: true,
 		DnsServer:      "https://cloudflare-dns.com/dns-query",
 		DNSAcrossProxy: true,

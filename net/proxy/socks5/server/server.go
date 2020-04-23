@@ -11,13 +11,10 @@ import (
 
 // Server <--
 type Server struct {
-	Server      string
-	Port        string
-	Username    string
-	Password    string
-	ForwardFunc func(host string) (net.Conn, error)
-	conn        net.Listener
-	closed      bool
+	Username string
+	Password string
+	listener net.Listener
+	closed   bool
 }
 
 // NewSocks5Server create new socks5 listener
@@ -25,51 +22,60 @@ type Server struct {
 // port: socks5 listener port
 // username: socks5 server username
 // password: socks5 server password
-// forwardTo: if you want to forward to another server,create a function that return net.Conn and use it,if not use nil
-func NewSocks5Server(server, port, username, password string, forwardFunc func(host string) (net.Conn, error)) (*Server, error) {
-	return &Server{
-		Server:      server,
-		Port:        port,
-		Username:    username,
-		Password:    password,
-		ForwardFunc: forwardFunc,
-	}, nil
-}
-
-func (s *Server) socks5AcceptARequest() error {
-	client, err := s.conn.Accept()
+func NewSocks5Server(host, port, username, password string) (*Server, error) {
+	var err error
+	s := &Server{}
+	s.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
-		return err
-	}
+	s.Username, s.Password = username, password
 	go func() {
-		defer func() {
-			_ = client.Close()
-		}()
-		if err := s.handleClientRequest(client); err != nil {
-			log.Println(err)
+		if err := s.Socks5(); err != nil {
+			log.Print(err)
 			return
 		}
 	}()
-	return nil
+	return s, nil
+}
+
+func (s *Server) UpdateListen(host, port string) (err error) {
+	if s.listener.Addr().String() == net.JoinHostPort(host, port) {
+		return nil
+	}
+	if err = s.listener.Close(); err != nil {
+		return err
+	}
+	s.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
+	return
+}
+
+func (s *Server) GetListenHost() string {
+	return s.listener.Addr().String()
 }
 
 // Socks5 <--
 func (s *Server) Socks5() error {
-	var err error
-	s.conn, err = net.Listen("tcp", net.JoinHostPort(s.Server, s.Port))
-	if err != nil {
-		return err
-	}
 	for {
-		if err := s.socks5AcceptARequest(); err != nil {
+		client, err := s.listener.Accept()
+		if err != nil {
 			if s.closed {
 				break
 			}
 			continue
 		}
+		if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
+			return err
+		}
+		go func() {
+			defer func() {
+				_ = client.Close()
+			}()
+			if err := s.handleClientRequest(client); err != nil {
+				//log.Println(err)
+				return
+			}
+		}()
 	}
 	return nil
 }
@@ -77,7 +83,7 @@ func (s *Server) Socks5() error {
 // Close close socks5 listener
 func (s *Server) Close() error {
 	s.closed = true
-	return s.conn.Close()
+	return s.listener.Close()
 }
 
 func (s *Server) handleClientRequest(client net.Conn) error {
@@ -126,8 +132,8 @@ func (s *Server) handleClientRequest(client net.Conn) error {
 		var server net.Conn
 		switch b[1] {
 		case 0x01:
-			if s.ForwardFunc != nil {
-				if server, err = s.ForwardFunc(net.JoinHostPort(host, port)); err != nil {
+			if common.ForwardTarget != nil {
+				if server, err = common.ForwardTarget(net.JoinHostPort(host, port)); err != nil {
 					_, err = client.Write([]byte{0x05, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 					return err
 				}

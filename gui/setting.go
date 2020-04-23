@@ -2,6 +2,7 @@ package gui
 
 import (
 	"github.com/Asutorufa/yuhaiin/config"
+	ServerControl "github.com/Asutorufa/yuhaiin/process/control"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -22,7 +23,11 @@ func (sGui *SGui) createSettingWindow() {
 	}
 	autoStartSsr := widgets.NewQCheckBox2("auto Start ssr", sGui.settingWindow)
 	autoStartSsr.SetChecked(conFig.AutoStartSsr)
-	autoStartSsr.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(490, 30)))
+	autoStartSsr.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(140, 30)))
+
+	DnsOverHttpsCheckBox := widgets.NewQCheckBox2("Use DNSOverHTTPS", sGui.settingWindow)
+	DnsOverHttpsCheckBox.SetChecked(conFig.IsDNSOverHTTPS)
+	DnsOverHttpsCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(150, 0), core.NewQPoint2(430, 30)))
 
 	httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", sGui.settingWindow)
 	httpProxyCheckBox.SetDisabled(true)
@@ -34,13 +39,15 @@ func (sGui *SGui) createSettingWindow() {
 	bypassCheckBox.SetChecked(conFig.Bypass)
 	bypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40), core.NewQPoint2(220, 70)))
 
-	DnsOverHttpsCheckBox := widgets.NewQCheckBox2("Use DNSOverHTTPS", sGui.settingWindow)
-	DnsOverHttpsCheckBox.SetChecked(conFig.IsDNSOverHTTPS)
-	DnsOverHttpsCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80), core.NewQPoint2(200, 110)))
-
 	DnsOverHttpsProxyCheckBox := widgets.NewQCheckBox2("DNS Over Proxy", sGui.settingWindow)
 	DnsOverHttpsProxyCheckBox.SetChecked(conFig.DNSAcrossProxy)
-	DnsOverHttpsProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(210, 80), core.NewQPoint2(400, 110)))
+	DnsOverHttpsProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 40), core.NewQPoint2(400, 70)))
+
+	redirProxyAddressLabel := widgets.NewQLabel2("redir", sGui.settingWindow, 0)
+	redirProxyAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80), core.NewQPoint2(70, 110)))
+	redirProxyAddressLineText := widgets.NewQLineEdit(sGui.settingWindow)
+	redirProxyAddressLineText.SetText(conFig.RedirProxyAddress)
+	redirProxyAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 80), core.NewQPoint2(210, 110)))
 
 	httpAddressLabel := widgets.NewQLabel2("http", sGui.settingWindow, 0)
 	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120), core.NewQPoint2(70, 150)))
@@ -91,7 +98,7 @@ func (sGui *SGui) createSettingWindow() {
 				sGui.MessageBox(err.Error())
 				return
 			}
-			if err := sGui.control.Match.UpdateDNS(); err != nil {
+			if err := ServerControl.UpdateDNS(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
@@ -102,20 +109,27 @@ func (sGui *SGui) createSettingWindow() {
 				sGui.MessageBox(err.Error())
 				return
 			}
-			if err := sGui.control.ChangeNode(); err != nil {
+			if err := ServerControl.ChangeNode(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
-
 		}
-		if conFig.HttpProxyAddress != httpAddressLineText.Text() || conFig.Socks5ProxyAddress != socks5BypassLineText.Text() {
+
+		if conFig.HttpProxyAddress != httpAddressLineText.Text() ||
+			conFig.Socks5ProxyAddress != socks5BypassLineText.Text() ||
+			conFig.RedirProxyAddress != redirProxyAddressLineText.Text() {
+
 			conFig.HttpProxyAddress = httpAddressLineText.Text()
 			conFig.Socks5ProxyAddress = socks5BypassLineText.Text()
+			conFig.RedirProxyAddress = redirProxyAddressLineText.Text()
 			if err := config.SettingEnCodeJSON(conFig); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
-			sGui.control.OutBound.Restart()
+			if err := ServerControl.UpdateListen(); err != nil {
+				sGui.MessageBox(err.Error())
+				return
+			}
 		}
 		if conFig.BypassFile != BypassFileLineText.Text() {
 			defer sGui.MessageBox("Change Bypass file,Please restart software to go into effect.")

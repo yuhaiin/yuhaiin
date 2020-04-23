@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"github.com/Asutorufa/yuhaiin/process/control"
 	"github.com/therecipe/qt/widgets"
 	"os"
 )
@@ -11,21 +10,15 @@ type SGui struct {
 	MainWindow         *widgets.QMainWindow
 	subscriptionWindow *widgets.QMainWindow
 	settingWindow      *widgets.QMainWindow
-	control            *ServerControl.Control
 }
 
 func NewGui() (*SGui, error) {
-	var err error
 	microClientGUI := &SGui{}
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
 	microClientGUI.App.SetApplicationName("yuhaiin")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
 	//microClientGUI.App.ConnectAboutToQuit(func() {
 	//})
-	microClientGUI.control, err = ServerControl.NewControl()
-	if err != nil {
-		microClientGUI.MessageBox(err.Error())
-	}
 	microClientGUI.createMainWindow()
 	microClientGUI.createSubscriptionWindow()
 	microClientGUI.createSettingWindow()
