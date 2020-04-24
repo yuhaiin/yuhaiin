@@ -91,8 +91,9 @@ func (sGui *SGui) createSettingWindow() {
 		conFig.HttpProxy = httpProxyCheckBox.IsChecked()
 		conFig.Bypass = bypassCheckBox.IsChecked()
 
-		if conFig.IsDNSOverHTTPS != DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != dnsServerLineText.Text() {
+		if conFig.IsDNSOverHTTPS != DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != dnsServerLineText.Text() || conFig.DNSAcrossProxy != DnsOverHttpsProxyCheckBox.IsChecked() {
 			conFig.IsDNSOverHTTPS = DnsOverHttpsCheckBox.IsChecked()
+			conFig.DNSAcrossProxy = DnsOverHttpsProxyCheckBox.IsChecked()
 			conFig.DnsServer = dnsServerLineText.Text()
 			if err := config.SettingEnCodeJSON(conFig); err != nil {
 				sGui.MessageBox(err.Error())

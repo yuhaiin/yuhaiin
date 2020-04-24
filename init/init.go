@@ -42,18 +42,18 @@ func Init() {
 		}
 	}
 
-	if !PathExists(config.Path + "/SsrMicroConfig.json") {
+	if !PathExists(config.Path) {
 		if config.SettingInitJSON(config.Path) != nil {
 			return
 		}
 	}
 
-	if !PathExists(config.Path + "/SsrMicroClient.conf") {
-		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/SsrMicroClient/SsrMicroClient.conf")
+	if !PathExists(config.Path + "/yuhaiin.conf") {
+		res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/yuhaiin/yuhaiin.conf")
 		if err != nil {
 			panic(err)
 		}
-		f, err := os.Create(config.Path + "/SsrMicroClient.conf")
+		f, err := os.Create(config.Path + "/yuhaiin.conf")
 		if err != nil {
 			panic(err)
 		}
