@@ -35,7 +35,7 @@ func (sGui *SGui) createSettingWindow() {
 	httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40), core.NewQPoint2(130, 70)))
 
 	bypassCheckBox := widgets.NewQCheckBox2("bypass", sGui.settingWindow)
-	bypassCheckBox.SetDisabled(true)
+	//bypassCheckBox.SetDisabled(true)
 	bypassCheckBox.SetChecked(conFig.Bypass)
 	bypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40), core.NewQPoint2(220, 70)))
 
@@ -89,7 +89,17 @@ func (sGui *SGui) createSettingWindow() {
 
 		conFig.AutoStartSsr = autoStartSsr.IsChecked()
 		conFig.HttpProxy = httpProxyCheckBox.IsChecked()
-		conFig.Bypass = bypassCheckBox.IsChecked()
+		if conFig.Bypass != bypassCheckBox.IsChecked() {
+			conFig.Bypass = bypassCheckBox.IsChecked()
+			if err := config.SettingEnCodeJSON(conFig); err != nil {
+				sGui.MessageBox(err.Error())
+				return
+			}
+			if err := ServerControl.UpdateMode(); err != nil {
+				sGui.MessageBox(err.Error())
+				return
+			}
+		}
 
 		if conFig.IsDNSOverHTTPS != DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != dnsServerLineText.Text() || conFig.DNSAcrossProxy != DnsOverHttpsProxyCheckBox.IsChecked() {
 			conFig.IsDNSOverHTTPS = DnsOverHttpsCheckBox.IsChecked()

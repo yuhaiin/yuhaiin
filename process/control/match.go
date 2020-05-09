@@ -13,6 +13,13 @@ import (
 )
 
 var (
+	bypass       = 0
+	globalDirect = 1
+	globalProxy  = 2
+)
+
+var (
+	mode    int
 	Matcher *match.Match
 	Conn    func(host string) (conn net.Conn, err error)
 )
@@ -21,6 +28,11 @@ func init() {
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		log.Print(err)
+	}
+	if conFig.Bypass {
+		mode = bypass
+	} else {
+		mode = globalProxy
 	}
 	Matcher, err = match.NewMatch(nil, conFig.BypassFile)
 	if err != nil {
@@ -31,6 +43,19 @@ func init() {
 		return
 	}
 	common.ForwardTarget = Forward
+}
+
+func UpdateMode() error {
+	conFig, err := config.SettingDecodeJSON()
+	if err != nil {
+		return err
+	}
+	if conFig.Bypass {
+		mode = bypass
+	} else {
+		mode = globalProxy
+	}
+	return nil
 }
 
 func UpdateDNS() error {
@@ -58,22 +83,30 @@ func DNS() (func(domain string) (DNS []net.IP, success bool), error) {
 }
 
 func Forward(host string) (conn net.Conn, err error) {
-	URI, err := url.Parse("//" + host)
-	if err != nil {
-		return nil, err
-	}
-	if URI.Port() == "" {
-		host = net.JoinHostPort(host, "80")
-		if URI, err = url.Parse("//" + host); err != nil {
+	if mode == bypass {
+		URI, err := url.Parse("//" + host)
+		if err != nil {
 			return nil, err
 		}
-	}
+		if URI.Port() == "" {
+			host = net.JoinHostPort(host, "80")
+			if URI, err = url.Parse("//" + host); err != nil {
+				return nil, err
+			}
+		}
 
-	switch Matcher.Search(URI.Hostname()) {
-	case "direct":
-		return net.DialTimeout("tcp", host, 3*time.Second)
-	case "block":
-		return nil, errors.New("block domain: " + host)
+		switch Matcher.Search(URI.Hostname()) {
+		case "direct":
+			return net.DialTimeout("tcp", host, 3*time.Second)
+		case "localDNS":
+			if ips, isSuccess := Matcher.DNS(URI.Hostname()); isSuccess {
+				for _, ip := range ips {
+					return Conn(ip.String() + ":" + URI.Port())
+				}
+			}
+		case "block":
+			return nil, errors.New("block domain: " + host)
+		}
 	}
 	return Conn(host)
 }
