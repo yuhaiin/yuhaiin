@@ -39,6 +39,7 @@ func (sGui *SGui) createMainWindow() {
 	exit.ConnectTriggered(func(bool2 bool) {
 		sGui.App.Quit()
 	})
+
 	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu,
 		subscriptionTrayIconMenu, settingTrayIconMenu, exit}
 	menu.AddActions(actions)
@@ -84,7 +85,6 @@ func (sGui *SGui) createMainWindow() {
 	nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160), core.NewQPoint2(450, 190)))
 	startButton := widgets.NewQPushButton2("start", sGui.MainWindow)
 	startButton.ConnectClicked(func(bool2 bool) {
-
 		group := groupCombobox.CurrentText()
 		remarks := nodeCombobox.CurrentText()
 		if err := subscr.ChangeNowNode(group, remarks); err != nil {

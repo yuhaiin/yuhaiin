@@ -63,8 +63,4 @@ func (sGui *SGui) createSubscriptionWindow() {
 		subRefresh()
 	})
 	addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50), core.NewQPoint2(690, 80)))
-
-	sGui.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
-		sGui.subscriptionWindow.Close()
-	})
 }
