@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"fmt"
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/delay"
 	ServerControl "github.com/Asutorufa/yuhaiin/process/control"
@@ -8,7 +9,6 @@ import (
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
-	"strconv"
 	"time"
 )
 
@@ -50,10 +50,10 @@ func (sGui *SGui) createMainWindow() {
 	trayIcon.SetToolTip("")
 	trayIcon.Show()
 
-	statusLabel := widgets.NewQLabel2("status", sGui.MainWindow, core.Qt__WindowType(0x00000000))
-	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
+	//statusLabel := widgets.NewQLabel2("status", sGui.MainWindow, core.Qt__WindowType(0x00000000))
+	//statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
 	statusLabel2 := widgets.NewQLabel2("", sGui.MainWindow, core.Qt__WindowType(0x00000000))
-	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10), core.NewQPoint2(560, 40)))
+	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(560, 40)))
 
 	statusRefreshIsRun := false
 	sGui.MainWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
@@ -62,26 +62,30 @@ func (sGui *SGui) createMainWindow() {
 				return
 			}
 			statusRefreshIsRun = true
+			downloadTmp, downRate := float64(0), float64(0)
+			uploadTmp, uploadRate := float64(0), float64(0)
 			for {
 				if sGui.MainWindow.IsHidden() {
 					break
 				}
-				statusLabel2.SetText("Download: " +
-					strconv.FormatFloat(common.DownloadTotal, 'f', 2, 64) +
-					" MB Update: " + strconv.FormatFloat(common.UploadTotal, 'f', 2, 64) + " MB")
+				downRate = common.DownloadTotal - downloadTmp
+				uploadRate = common.UploadTotal - uploadTmp
+				downloadTmp = common.DownloadTotal
+				uploadTmp = common.UploadTotal
+				statusLabel2.SetText(fmt.Sprintf("Download(%.2f MB): %.2fm/s , Upload(%.2f MB): %.2fm/s", downloadTmp, downRate, uploadTmp, uploadRate))
 				time.Sleep(time.Second)
 			}
 		}()
 		statusRefreshIsRun = false
 	})
 
-	nowNodeLabel := widgets.NewQLabel2("now node", sGui.MainWindow, core.Qt__WindowType(0x00000000))
+	nowNodeLabel := widgets.NewQLabel2("Now Use", sGui.MainWindow, core.Qt__WindowType(0x00000000))
 	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
 	nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
 	nowNodeLabel2 := widgets.NewQLabel2(nowNodeName+" - "+nowNodeGroup, sGui.MainWindow, core.Qt__WindowType(0x00000000))
 	nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60), core.NewQPoint2(560, 90)))
 
-	groupLabel := widgets.NewQLabel2("group", sGui.MainWindow, core.Qt__WindowType(0x00000000))
+	groupLabel := widgets.NewQLabel2("Group", sGui.MainWindow, core.Qt__WindowType(0x00000000))
 	groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110), core.NewQPoint2(130, 140)))
 	groupCombobox := widgets.NewQComboBox(sGui.MainWindow)
 	group, err := subscr.GetGroup()
@@ -92,10 +96,10 @@ func (sGui *SGui) createMainWindow() {
 	groupCombobox.AddItems(group)
 	groupCombobox.SetCurrentTextDefault(nowNodeGroup)
 	groupCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 110), core.NewQPoint2(450, 140)))
-	refreshButton := widgets.NewQPushButton2("refresh", sGui.MainWindow)
-	refreshButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 110), core.NewQPoint2(560, 140)))
+	//refreshButton := widgets.NewQPushButton2("refresh", sGui.MainWindow)
+	//refreshButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 110), core.NewQPoint2(560, 140)))
 
-	nodeLabel := widgets.NewQLabel2("node", sGui.MainWindow, core.Qt__WindowType(0x00000000))
+	nodeLabel := widgets.NewQLabel2("Node", sGui.MainWindow, core.Qt__WindowType(0x00000000))
 	nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160), core.NewQPoint2(130, 190)))
 	nodeCombobox := widgets.NewQComboBox(sGui.MainWindow)
 	node, err := subscr.GetNode(groupCombobox.CurrentText())
@@ -106,7 +110,7 @@ func (sGui *SGui) createMainWindow() {
 	nodeCombobox.AddItems(node)
 	nodeCombobox.SetCurrentTextDefault(nowNodeName)
 	nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160), core.NewQPoint2(450, 190)))
-	startButton := widgets.NewQPushButton2("start", sGui.MainWindow)
+	startButton := widgets.NewQPushButton2("Use", sGui.MainWindow)
 	startButton.ConnectClicked(func(bool2 bool) {
 		group := groupCombobox.CurrentText()
 		remarks := nodeCombobox.CurrentText()
@@ -123,7 +127,7 @@ func (sGui *SGui) createMainWindow() {
 	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160),
 		core.NewQPoint2(560, 190)))
 
-	delayLabel := widgets.NewQLabel2("latency", sGui.MainWindow,
+	delayLabel := widgets.NewQLabel2("Latency", sGui.MainWindow,
 		core.Qt__WindowType(0x00000000))
 	delayLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210),
 		core.NewQPoint2(130, 240)))
@@ -131,7 +135,7 @@ func (sGui *SGui) createMainWindow() {
 		core.Qt__WindowType(0x00000000))
 	delayLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210),
 		core.NewQPoint2(450, 240)))
-	delayButton := widgets.NewQPushButton2("get latency", sGui.MainWindow)
+	delayButton := widgets.NewQPushButton2("Get", sGui.MainWindow)
 	delayButton.ConnectClicked(func(bool2 bool) {
 		go func() {
 			group := groupCombobox.CurrentText()
@@ -162,13 +166,13 @@ func (sGui *SGui) createMainWindow() {
 		nodeCombobox.AddItems(node)
 	})
 
-	subButton := widgets.NewQPushButton2("subscription setting", sGui.MainWindow)
+	subButton := widgets.NewQPushButton2("Subscription Setting", sGui.MainWindow)
 	subButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 260), core.NewQPoint2(290, 290)))
 	subButton.ConnectClicked(func(bool2 bool) {
 		sGui.openSubscriptionWindow()
 	})
 
-	subUpdateButton := widgets.NewQPushButton2("subscription Update", sGui.MainWindow)
+	subUpdateButton := widgets.NewQPushButton2("Subscription Update", sGui.MainWindow)
 	subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260), core.NewQPoint2(560, 290)))
 	subUpdateButton.ConnectClicked(func(bool2 bool) {
 		message := widgets.NewQMessageBox(sGui.MainWindow)

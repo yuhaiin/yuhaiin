@@ -8,21 +8,18 @@ import (
 var (
 	DownloadTotal = 0.0
 	UploadTotal   = 0.0
-	// mode = 0 download mode = 1 upload
-	queue = make(chan struct {
-		mode int
-		num  int
-	}, 100)
+	// int[0] is mode -> mode = 0 download mode = 1 upload
+	queue = make(chan [2]int)
 )
 
 func init() {
 	go func() {
 		for s := range queue {
-			switch s.mode {
+			switch s[0] {
 			case 0:
-				DownloadTotal += float64(s.num) / 1024.0 / 1024.0
+				DownloadTotal += float64(s[1]) / 1024.0 / 1024.0
 			case 1:
-				UploadTotal += float64(s.num) / 1024.0 / 1024.0
+				UploadTotal += float64(s[1]) / 1024.0 / 1024.0
 			}
 		}
 	}()
@@ -30,8 +27,8 @@ func init() {
 
 func Forward(src, dst net.Conn) {
 	CloseSig := CloseSigPool.Get().(chan error)
-	go pipeStatistic(src, dst, CloseSig, 1)
 	go pipeStatistic(dst, src, CloseSig, 0)
+	go pipeStatistic(src, dst, CloseSig, 1)
 	<-CloseSig
 	<-CloseSig
 	CloseSigPool.Put(CloseSig)
@@ -73,13 +70,10 @@ func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int) {
 			return
 		}
 		go func() {
-			queue <- struct {
-				mode int
-				num  int
-			}{mode: mode, num: n}
+			queue <- [2]int{mode, n}
 		}()
 
-		n, err = dst.Write(buf[0:n])
+		_, err = dst.Write(buf[0:n])
 		if err != nil {
 			closeSig <- err
 			BuffPool.Put(buf[:cap(buf)])
@@ -101,10 +95,7 @@ func pipeStatistic2(src, dst net.Conn, closeSig chan error) {
 			_ = dst.SetDeadline(time.Now())
 			return
 		}
-		queue <- struct {
-			mode int
-			num  int
-		}{mode: 1, num: n}
+		queue <- [2]int{1, n}
 
 		_, err = dst.Write(buf[0:n])
 		if err != nil {
