@@ -12,8 +12,8 @@ var (
 
 func Forward(src, dst net.Conn) {
 	CloseSig := CloseSigPool.Get().(chan error)
-	go pipe(src, dst, CloseSig)
-	go pipe(dst, src, CloseSig)
+	go pipeStatistic2(src, dst, CloseSig)
+	go pipeStatistic(dst, src, CloseSig)
 	<-CloseSig
 	<-CloseSig
 	CloseSigPool.Put(CloseSig)

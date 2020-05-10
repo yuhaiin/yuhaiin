@@ -1,12 +1,15 @@
 package gui
 
 import (
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/delay"
 	ServerControl "github.com/Asutorufa/yuhaiin/process/control"
 	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
+	"strconv"
+	"time"
 )
 
 func (sGui *SGui) createMainWindow() {
@@ -51,6 +54,26 @@ func (sGui *SGui) createMainWindow() {
 	statusLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(130, 40)))
 	statusLabel2 := widgets.NewQLabel2("", sGui.MainWindow, core.Qt__WindowType(0x00000000))
 	statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 10), core.NewQPoint2(560, 40)))
+
+	statusRefreshIsRun := false
+	sGui.MainWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
+		go func() {
+			if statusRefreshIsRun {
+				return
+			}
+			statusRefreshIsRun = true
+			for {
+				if sGui.MainWindow.IsHidden() {
+					break
+				}
+				statusLabel2.SetText("Download: " +
+					strconv.FormatFloat(common.DownloadTotal, 'f', 2, 64) +
+					" MB Update: " + strconv.FormatFloat(common.UploadTotal, 'f', 2, 64) + " MB")
+				time.Sleep(time.Second)
+			}
+		}()
+		statusRefreshIsRun = false
+	})
 
 	nowNodeLabel := widgets.NewQLabel2("now node", sGui.MainWindow, core.Qt__WindowType(0x00000000))
 	nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
@@ -100,7 +123,7 @@ func (sGui *SGui) createMainWindow() {
 	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160),
 		core.NewQPoint2(560, 190)))
 
-	delayLabel := widgets.NewQLabel2("delay", sGui.MainWindow,
+	delayLabel := widgets.NewQLabel2("latency", sGui.MainWindow,
 		core.Qt__WindowType(0x00000000))
 	delayLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210),
 		core.NewQPoint2(130, 240)))
@@ -108,7 +131,7 @@ func (sGui *SGui) createMainWindow() {
 		core.Qt__WindowType(0x00000000))
 	delayLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210),
 		core.NewQPoint2(450, 240)))
-	delayButton := widgets.NewQPushButton2("get delay", sGui.MainWindow)
+	delayButton := widgets.NewQPushButton2("get latency", sGui.MainWindow)
 	delayButton.ConnectClicked(func(bool2 bool) {
 		go func() {
 			group := groupCombobox.CurrentText()
