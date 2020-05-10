@@ -62,17 +62,21 @@ func (sGui *SGui) createMainWindow() {
 				return
 			}
 			statusRefreshIsRun = true
-			downloadTmp, downRate := float64(0), float64(0)
-			uploadTmp, uploadRate := float64(0), float64(0)
+			downloadTmp, downRate := 0, 0
+			uploadTmp, uploadRate := 0, 0
 			for {
 				if sGui.MainWindow.IsHidden() {
 					break
 				}
 				downRate = common.DownloadTotal - downloadTmp
-				uploadRate = common.UploadTotal - uploadTmp
 				downloadTmp = common.DownloadTotal
+				uploadRate = common.UploadTotal - uploadTmp
 				uploadTmp = common.UploadTotal
-				statusLabel2.SetText(fmt.Sprintf("Download(%.2f MB): %.2fm/s , Upload(%.2f MB): %.2fm/s", downloadTmp, downRate, uploadTmp, uploadRate))
+				statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s/S , Upload<sub><i>(%s)</i></sub>: %s/S",
+					common.ReducedUnit2(float64(downloadTmp)),
+					common.ReducedUnit2(float64(downRate)),
+					common.ReducedUnit2(float64(uploadTmp)),
+					common.ReducedUnit2(float64(uploadRate))))
 				time.Sleep(time.Second)
 			}
 		}()

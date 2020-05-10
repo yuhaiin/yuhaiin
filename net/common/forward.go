@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	DownloadTotal = 0.0
-	UploadTotal   = 0.0
+	DownloadTotal = 0
+	UploadTotal   = 0
 	// int[0] is mode -> mode = 0 download mode = 1 upload
 	queue = make(chan [2]int)
 )
@@ -17,9 +17,9 @@ func init() {
 		for s := range queue {
 			switch s[0] {
 			case 0:
-				DownloadTotal += float64(s[1]) / 1024.0 / 1024.0
+				DownloadTotal += s[1]
 			case 1:
-				UploadTotal += float64(s[1]) / 1024.0 / 1024.0
+				UploadTotal += s[1]
 			}
 		}
 	}()
