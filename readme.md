@@ -36,6 +36,8 @@ How to use:
 - Memory(Just a Reference)
     - Bypass = 8472 CIDR + 75296 domain = 50MB.
     - Bypass + Gui = 70MB.
+    - Because of the Go GC, Reimport Rule will make the memory big, but this is not memory leak, it has a limit(e.g: above-mentioned example is 180M).
+        - > [Do I need to set a map to nil in order for it to be garbage collected?](https://stackoverflow.com/questions/36747776/do-i-need-to-set-a-map-to-nil-in-order-for-it-to-be-garbage-collected)
     
 <details>
 <summary>Screenshots</summary>

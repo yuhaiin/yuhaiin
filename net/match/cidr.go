@@ -11,8 +11,8 @@ import (
 // Cidr cidr matcher
 type Cidr struct {
 	maskSize   int
-	v4CidrTrie *Trie
-	v6CidrTrie *Trie
+	v4CidrTrie Trie
+	v6CidrTrie Trie
 }
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
@@ -81,12 +81,6 @@ type cidrNode struct {
 	right  *cidrNode
 }
 
-func (t *Trie) Release() {
-	t.root.left = nil
-	t.root.right = nil
-	t.root = nil
-}
-
 // Insert insert node to tree
 func (t *Trie) Insert(str, mark string) {
 	nodeTemp := t.root
@@ -150,8 +144,8 @@ func (t *Trie) PrintTree(node *cidrNode) {
 }
 
 // NewTrieTree create a new trie tree
-func NewTrieTree() *Trie {
-	return &Trie{
+func NewTrieTree() Trie {
+	return Trie{
 		root: &cidrNode{},
 	}
 }

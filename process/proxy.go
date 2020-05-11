@@ -1,4 +1,4 @@
-package ServerControl
+package process
 
 import (
 	"github.com/Asutorufa/yuhaiin/config"

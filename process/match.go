@@ -1,4 +1,4 @@
-package ServerControl
+package process
 
 import (
 	"errors"
@@ -20,7 +20,7 @@ var (
 
 var (
 	mode    int
-	Matcher *match.Match
+	Matcher match.Match
 	Conn    func(host string) (conn net.Conn, err error)
 )
 
@@ -34,7 +34,7 @@ func init() {
 	} else {
 		mode = globalProxy
 	}
-	Matcher, err = match.NewMatch(nil, conFig.BypassFile)
+	Matcher, err = match.NewMatch2(nil, conFig.BypassFile)
 	if err != nil {
 		log.Print(err)
 	}
@@ -60,6 +60,21 @@ func UpdateMode() error {
 
 func UpdateDNS() error {
 	var err error
+	if Matcher.DNS, err = DNS(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func UpdateMatch() error {
+	conFig, err := config.SettingDecodeJSON()
+	if err != nil {
+		return err
+	}
+	Matcher, err = match.NewMatch2(nil, conFig.BypassFile)
+	if err != nil {
+		return err
+	}
 	if Matcher.DNS, err = DNS(); err != nil {
 		return err
 	}

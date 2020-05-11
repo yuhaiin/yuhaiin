@@ -13,6 +13,12 @@ type Match struct {
 	domain *Domain
 }
 
+func (x *Match) Release() {
+	x.cidr.v4CidrTrie.root = nil
+	x.cidr.v6CidrTrie.root = nil
+	x.domain.root = nil
+}
+
 func (x *Match) Insert(str, mark string) error {
 	if _, _, err := net.ParseCIDR(str); err == nil {
 		if err = x.cidr.Insert(str, mark); err != nil {
@@ -50,6 +56,33 @@ func NewMatch(dnsFunc func(domain string) (DNS []net.IP, success bool), MatcherF
 	cidrMatch := NewCidrMatch()
 	domainMatch := NewDomainMatch()
 	matcher = &Match{
+		DNS:    dnsFunc,
+		cidr:   cidrMatch,
+		domain: domainMatch,
+	}
+	if MatcherFile == "" {
+		return matcher, nil
+	}
+	configTemp, err := ioutil.ReadFile(MatcherFile)
+	if err != nil {
+		return
+	}
+	for _, s := range strings.Split(string(configTemp), "\n") {
+		div := strings.Split(s, " ")
+		if len(div) < 2 {
+			continue
+		}
+		if err := matcher.Insert(div[0], div[1]); err != nil {
+			continue
+		}
+	}
+	return matcher, nil
+}
+
+func NewMatch2(dnsFunc func(domain string) (DNS []net.IP, success bool), MatcherFile string) (matcher Match, err error) {
+	cidrMatch := NewCidrMatch()
+	domainMatch := NewDomainMatch()
+	matcher = Match{
 		DNS:    dnsFunc,
 		cidr:   cidrMatch,
 		domain: domainMatch,

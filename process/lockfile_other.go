@@ -1,6 +1,6 @@
 // +build !windows
 
-package lockfile
+package process
 
 import (
 	"os"

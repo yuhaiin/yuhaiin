@@ -2,7 +2,7 @@ package gui
 
 import (
 	"github.com/Asutorufa/yuhaiin/config"
-	ServerControl "github.com/Asutorufa/yuhaiin/process/control"
+	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -67,6 +67,9 @@ func (sGui *SGui) createSettingWindow() {
 	applyButton := widgets.NewQPushButton2("apply", sGui.settingWindow)
 	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280), core.NewQPoint2(90, 310)))
 
+	updateRuleButton := widgets.NewQPushButton2("Reimport Bypass Rule", sGui.settingWindow)
+	updateRuleButton.SetGeometry(core.NewQRect2(core.NewQPoint2(100, 280), core.NewQPoint2(300, 310)))
+
 	// Listen
 	update := func() {
 		conFig, err := config.SettingDecodeJSON()
@@ -128,9 +131,10 @@ func (sGui *SGui) createSettingWindow() {
 			isUpdateListen = true
 		}
 
+		isUpdateMatch := false
 		if conFig.BypassFile != BypassFileLineText.Text() {
-			defer sGui.MessageBox("Change Bypass file,Please restart software to go into effect.")
 			conFig.BypassFile = BypassFileLineText.Text()
+			isUpdateMatch = true
 		}
 
 		if err := config.SettingEnCodeJSON(conFig); err != nil {
@@ -138,38 +142,55 @@ func (sGui *SGui) createSettingWindow() {
 		}
 
 		if isUpdateMode {
-			if err := ServerControl.UpdateMode(); err != nil {
+			if err := process.UpdateMode(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateDNS {
-			if err := ServerControl.UpdateDNS(); err != nil {
+			if err := process.UpdateDNS(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isChangeNode {
-			if err := ServerControl.ChangeNode(); err != nil {
+			if err := process.ChangeNode(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateListen {
-			if err := ServerControl.UpdateListen(); err != nil {
+			if err := process.UpdateListen(); err != nil {
+				sGui.MessageBox(err.Error())
+				return
+			}
+		}
+
+		if isUpdateMatch {
+			if err := process.UpdateMatch(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
 		}
 
 		update()
+
+		sGui.MessageBox("Applied.")
 	}
 
 	// set Listener
 	applyButton.ConnectClicked(applyClick)
+	updateRuleButton.ConnectClicked(func(checked bool) {
+		if err := process.UpdateMatch(); err != nil {
+			sGui.MessageBox(err.Error())
+			return
+		}
+		sGui.MessageBox("Updated.")
+	})
+
 	sGui.settingWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		update()
 	})

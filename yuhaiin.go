@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/Asutorufa/yuhaiin/process"
 	"log"
 	//_ "net/http/pprof"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/gui"
 	"github.com/Asutorufa/yuhaiin/init"
-	"github.com/Asutorufa/yuhaiin/process/lockfile"
 )
 
 var (
@@ -32,7 +32,7 @@ func main() {
 		log.Println(err)
 		return
 	}
-	if err = lockfile.LockFile(lockFile); err != nil {
+	if err = process.LockFile(lockFile); err != nil {
 		log.Println("process is exist!\n" + err.Error())
 		return
 	}

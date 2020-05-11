@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/delay"
-	ServerControl "github.com/Asutorufa/yuhaiin/process/control"
+	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -95,7 +95,7 @@ func (sGui *SGui) createMainWindow() {
 			sGui.MessageBox(err.Error())
 			return
 		}
-		if err := ServerControl.ChangeNode(); err != nil {
+		if err := process.ChangeNode(); err != nil {
 			sGui.MessageBox(err.Error())
 		}
 		nowNodeLabel2.SetText(remarks + " - " + group)
