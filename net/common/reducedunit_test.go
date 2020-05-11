@@ -12,3 +12,11 @@ func TestReducedUnit(t *testing.T) {
 	t.Log(ReducedUnit2(102400009999999))
 	t.Log(ReducedUnit2(102400009999999999))
 }
+
+func BenchmarkReducedUnit(b *testing.B) {
+	b.StopTimer()
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		ReducedUnit2(102400009999999999)
+	}
+}

@@ -17,6 +17,7 @@ func (sGui *SGui) createSettingWindow() {
 		sGui.settingWindow.Hide()
 	})
 
+	// UI
 	autoStartSsr := widgets.NewQCheckBox2("auto Start ssr", sGui.settingWindow)
 	autoStartSsr.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(140, 30)))
 
@@ -66,6 +67,7 @@ func (sGui *SGui) createSettingWindow() {
 	applyButton := widgets.NewQPushButton2("apply", sGui.settingWindow)
 	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280), core.NewQPoint2(90, 310)))
 
+	// Listen
 	update := func() {
 		conFig, err := config.SettingDecodeJSON()
 		if err != nil {
@@ -94,43 +96,28 @@ func (sGui *SGui) createSettingWindow() {
 
 		conFig.AutoStartSsr = autoStartSsr.IsChecked()
 		conFig.HttpProxy = httpProxyCheckBox.IsChecked()
+
+		isUpdateMode := false
 		if conFig.Bypass != bypassCheckBox.IsChecked() {
 			conFig.Bypass = bypassCheckBox.IsChecked()
-			if err := config.SettingEnCodeJSON(conFig); err != nil {
-				sGui.MessageBox(err.Error())
-				return
-			}
-			if err := ServerControl.UpdateMode(); err != nil {
-				sGui.MessageBox(err.Error())
-				return
-			}
+			isUpdateMode = true
 		}
 
+		isUpdateDNS := false
 		if conFig.IsDNSOverHTTPS != DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != dnsServerLineText.Text() || conFig.DNSAcrossProxy != DnsOverHttpsProxyCheckBox.IsChecked() {
 			conFig.IsDNSOverHTTPS = DnsOverHttpsCheckBox.IsChecked()
 			conFig.DNSAcrossProxy = DnsOverHttpsProxyCheckBox.IsChecked()
 			conFig.DnsServer = dnsServerLineText.Text()
-			if err := config.SettingEnCodeJSON(conFig); err != nil {
-				sGui.MessageBox(err.Error())
-				return
-			}
-			if err := ServerControl.UpdateDNS(); err != nil {
-				sGui.MessageBox(err.Error())
-				return
-			}
-		}
-		if conFig.SsrPath != ssrPathLineText.Text() {
-			conFig.SsrPath = ssrPathLineText.Text()
-			if err := config.SettingEnCodeJSON(conFig); err != nil {
-				sGui.MessageBox(err.Error())
-				return
-			}
-			if err := ServerControl.ChangeNode(); err != nil {
-				sGui.MessageBox(err.Error())
-				return
-			}
+			isUpdateDNS = true
 		}
 
+		isChangeNode := false
+		if conFig.SsrPath != ssrPathLineText.Text() {
+			conFig.SsrPath = ssrPathLineText.Text()
+			isChangeNode = true
+		}
+
+		isUpdateListen := false
 		if conFig.HttpProxyAddress != httpAddressLineText.Text() ||
 			conFig.Socks5ProxyAddress != socks5BypassLineText.Text() ||
 			conFig.RedirProxyAddress != redirProxyAddressLineText.Text() {
@@ -138,26 +125,50 @@ func (sGui *SGui) createSettingWindow() {
 			conFig.HttpProxyAddress = httpAddressLineText.Text()
 			conFig.Socks5ProxyAddress = socks5BypassLineText.Text()
 			conFig.RedirProxyAddress = redirProxyAddressLineText.Text()
-			if err := config.SettingEnCodeJSON(conFig); err != nil {
+			isUpdateListen = true
+		}
+
+		if conFig.BypassFile != BypassFileLineText.Text() {
+			defer sGui.MessageBox("Change Bypass file,Please restart software to go into effect.")
+			conFig.BypassFile = BypassFileLineText.Text()
+		}
+
+		if err := config.SettingEnCodeJSON(conFig); err != nil {
+			sGui.MessageBox(err.Error())
+		}
+
+		if isUpdateMode {
+			if err := ServerControl.UpdateMode(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
+		}
+
+		if isUpdateDNS {
+			if err := ServerControl.UpdateDNS(); err != nil {
+				sGui.MessageBox(err.Error())
+				return
+			}
+		}
+
+		if isChangeNode {
+			if err := ServerControl.ChangeNode(); err != nil {
+				sGui.MessageBox(err.Error())
+				return
+			}
+		}
+
+		if isUpdateListen {
 			if err := ServerControl.UpdateListen(); err != nil {
 				sGui.MessageBox(err.Error())
 				return
 			}
 		}
-		if conFig.BypassFile != BypassFileLineText.Text() {
-			defer sGui.MessageBox("Change Bypass file,Please restart software to go into effect.")
-			conFig.BypassFile = BypassFileLineText.Text()
-		}
-		if err := config.SettingEnCodeJSON(conFig); err != nil {
-			sGui.MessageBox(err.Error())
-		}
 
 		update()
 	}
 
+	// set Listener
 	applyButton.ConnectClicked(applyClick)
 	sGui.settingWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		update()
