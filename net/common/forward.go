@@ -8,8 +8,8 @@ import (
 var (
 	DownloadTotal = 0
 	UploadTotal   = 0
-	// int[0] is mode -> mode = 0 download mode = 1 upload
-	queue = make(chan [2]int)
+	// int[0] is mode: mode = 0 -> download , mode = 1 -> upload
+	queue = make(chan [2]int, 10)
 )
 
 func init() {
@@ -21,6 +21,7 @@ func init() {
 			case 1:
 				UploadTotal += s[1]
 			}
+			QueuePool.Put(s)
 		}
 	}()
 }
@@ -69,33 +70,13 @@ func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int) {
 			_ = dst.SetDeadline(time.Now())
 			return
 		}
+
 		go func() {
-			queue <- [2]int{mode, n}
+			x := QueuePool.Get().([2]int)
+			x[0] = mode
+			x[1] = n
+			queue <- x
 		}()
-
-		_, err = dst.Write(buf[0:n])
-		if err != nil {
-			closeSig <- err
-			BuffPool.Put(buf[:cap(buf)])
-			_ = src.SetDeadline(time.Now())
-			_ = dst.SetDeadline(time.Now())
-			return
-		}
-	}
-}
-
-func pipeStatistic2(src, dst net.Conn, closeSig chan error) {
-	buf := BuffPool.Get().([]byte)
-	for {
-		n, err := src.Read(buf[0:])
-		if err != nil {
-			closeSig <- err
-			BuffPool.Put(buf[:cap(buf)])
-			_ = src.SetDeadline(time.Now())
-			_ = dst.SetDeadline(time.Now())
-			return
-		}
-		queue <- [2]int{1, n}
 
 		_, err = dst.Write(buf[0:n])
 		if err != nil {
