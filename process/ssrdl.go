@@ -1,4 +1,4 @@
-package ssrinit
+package process
 
 import (
 	"archive/zip"

@@ -18,15 +18,15 @@ func (sGui *SGui) createSettingWindow() {
 	})
 
 	// UI
-	autoStartSsr := widgets.NewQCheckBox2("auto Start ssr", sGui.settingWindow)
-	autoStartSsr.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(140, 30)))
+	//autoStartSsr := widgets.NewQCheckBox2("auto Start ssr", sGui.settingWindow)
+	//autoStartSsr.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(140, 30)))
 
 	DnsOverHttpsCheckBox := widgets.NewQCheckBox2("Use DNSOverHTTPS", sGui.settingWindow)
 	DnsOverHttpsCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(150, 0), core.NewQPoint2(430, 30)))
 
-	httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", sGui.settingWindow)
-	httpProxyCheckBox.SetDisabled(true)
-	httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40), core.NewQPoint2(130, 70)))
+	//httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", sGui.settingWindow)
+	//httpProxyCheckBox.SetDisabled(true)
+	//httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40), core.NewQPoint2(130, 70)))
 
 	bypassCheckBox := widgets.NewQCheckBox2("bypass", sGui.settingWindow)
 	bypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40), core.NewQPoint2(220, 70)))
@@ -77,9 +77,9 @@ func (sGui *SGui) createSettingWindow() {
 			sGui.MessageBox(err.Error())
 			return
 		}
-		autoStartSsr.SetChecked(conFig.AutoStartSsr)
+		//autoStartSsr.SetChecked(conFig.AutoStartSsr)
 		DnsOverHttpsCheckBox.SetChecked(conFig.IsDNSOverHTTPS)
-		httpProxyCheckBox.SetChecked(conFig.HttpProxy)
+		//httpProxyCheckBox.SetChecked(conFig.HttpProxy)
 		bypassCheckBox.SetChecked(conFig.Bypass)
 		DnsOverHttpsProxyCheckBox.SetChecked(conFig.DNSAcrossProxy)
 		redirProxyAddressLineText.SetText(conFig.RedirProxyAddress)
@@ -97,8 +97,8 @@ func (sGui *SGui) createSettingWindow() {
 			return
 		}
 
-		conFig.AutoStartSsr = autoStartSsr.IsChecked()
-		conFig.HttpProxy = httpProxyCheckBox.IsChecked()
+		//conFig.AutoStartSsr = autoStartSsr.IsChecked()
+		//conFig.HttpProxy = httpProxyCheckBox.IsChecked()
 
 		isUpdateMode := false
 		if conFig.Bypass != bypassCheckBox.IsChecked() {

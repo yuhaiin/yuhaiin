@@ -24,7 +24,7 @@ var (
 	Conn    func(host string) (conn net.Conn, err error)
 )
 
-func init() {
+func matchInit() {
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		log.Print(err)

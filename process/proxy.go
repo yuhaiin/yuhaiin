@@ -15,7 +15,7 @@ var (
 	Redir  *redirserver.Server
 )
 
-func init() {
+func proxyInit() {
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		log.Print(err)

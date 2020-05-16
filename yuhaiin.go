@@ -3,18 +3,11 @@
 package main
 
 import (
-	"github.com/Asutorufa/yuhaiin/process"
 	"log"
 	//_ "net/http/pprof"
-	"os"
 
-	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/gui"
-	"github.com/Asutorufa/yuhaiin/init"
-)
-
-var (
-	lockFilePath = config.Path + "/yuhaiin.lock"
+	"github.com/Asutorufa/yuhaiin/process"
 )
 
 func main() {
@@ -26,33 +19,21 @@ func main() {
 	//	}
 	//}()
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	ssrinit.Init()
-	lockFile, err := os.Create(lockFilePath)
-	if err != nil {
-		log.Println(err)
+
+	if err := process.GetProcessLock(); err != nil {
+		log.Println("Process is already running!\nError Message: " + err.Error())
 		return
 	}
-	if err = process.LockFile(lockFile); err != nil {
-		log.Println("process is exist!\n" + err.Error())
-		return
-	}
-	defer func() {
-		_ = lockFile.Close()
-		_ = os.Remove(lockFilePath)
-	}()
+	defer process.LockFileClose()
 
 	ssrMicroClientGUI, err := gui.NewGui()
 	if err != nil {
-		if ssrMicroClientGUI != nil {
-			ssrMicroClientGUI.MessageBox(err.Error())
-		} else {
-			log.Println(err)
-		}
+		log.Println(err)
 	}
 	if ssrMicroClientGUI != nil {
 		//ssrMicroClientGUI.MainWindow.Show()
 		ssrMicroClientGUI.App.Exec()
 	} else {
-		log.Println("gui is nil")
+		log.Println(err)
 	}
 }

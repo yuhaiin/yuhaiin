@@ -15,7 +15,7 @@ var (
 	ssrCmd *exec.Cmd
 )
 
-func init() {
+func controlInit() {
 	if err := ChangeNode(); err != nil {
 		log.Print(err)
 		return

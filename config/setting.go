@@ -52,9 +52,9 @@ func SettingInitJSON(configPath string) error {
 
 		TimeOut:        "1000",
 		BypassFile:     configPath + "/yuhaiin.conf",
-		IsDNSOverHTTPS: true,
-		DnsServer:      "https://cloudflare-dns.com/dns-query",
-		DNSAcrossProxy: true,
+		IsDNSOverHTTPS: false,
+		DnsServer:      "1.0.0.1:53",
+		DNSAcrossProxy: false,
 		UseLocalDNS:    false,
 		UdpTrans:       true,
 		PidFile:        configPath + "/shadowsocksr.pid",

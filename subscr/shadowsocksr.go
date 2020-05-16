@@ -22,7 +22,7 @@ type Shadowsocksr struct {
 	Group      string  `json:"group"`
 }
 
-func SsrParse2(link []byte) (*Shadowsocksr, error) {
+func SsrParse(link []byte) (*Shadowsocksr, error) {
 	decodeStr := strings.Split(Base64d(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	node := new(Shadowsocksr)
 	node.Type = shadowsocksr

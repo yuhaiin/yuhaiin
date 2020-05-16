@@ -1,4 +1,4 @@
-package ssrinit
+package process
 
 import (
 	"fmt"
@@ -21,8 +21,7 @@ func PathExists(path string) bool {
 	return true
 }
 
-// Init  <-- init
-func Init() {
+func init() {
 	//判断目录是否存在 不存在则创建
 	if !PathExists(config.Path) {
 		err := os.MkdirAll(config.Path, os.ModePerm)
@@ -59,4 +58,10 @@ func Init() {
 		}
 		_, _ = io.Copy(f, res.Body)
 	}
+}
+
+func processInit() {
+	controlInit()
+	proxyInit()
+	matchInit()
 }

@@ -5,13 +5,14 @@ package config
 import (
 	"bytes"
 	"log"
-	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 )
 
 var (
-	path = os.Getenv("HOME") + "/.config/yuhaiin"
+	usr, _ = user.Current()
+	Path   = usr.HomeDir + "/AppData/Roaming/yuhaiin"
 )
 
 // GetPythonPath get python path

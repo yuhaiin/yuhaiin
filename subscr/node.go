@@ -104,7 +104,7 @@ func GetLinkFromInt() error {
 				pa.Node[node.Group][node.Name] = node
 			// ShadowsocksR
 			case bytes.HasPrefix(x, []byte("ssr://")):
-				node, err := SsrParse2(x)
+				node, err := SsrParse(x)
 				if err != nil {
 					log.Println(err)
 					continue
