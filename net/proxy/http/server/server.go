@@ -70,13 +70,13 @@ func (h *Server) HTTPProxy() error {
 	for {
 		client, err := h.listener.Accept()
 		if err != nil {
-			return err
-		}
-		if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
 			if h.closed {
 				break
 			}
 			continue
+		}
+		if err = client.(*net.TCPConn).SetKeepAlive(true); err != nil {
+			return err
 		}
 
 		go func() {
