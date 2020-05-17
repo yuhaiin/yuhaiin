@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"strconv"
-	"time"
 )
 
 // Server <--
@@ -87,7 +86,7 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) handleClientRequest(client net.Conn) error {
-	var b [1024]byte
+	b := common.BuffPool.Get().([]byte)
 	_, err := client.Read(b[:])
 	if err != nil {
 		return err
@@ -132,16 +131,9 @@ func (s *Server) handleClientRequest(client net.Conn) error {
 		var server net.Conn
 		switch b[1] {
 		case 0x01:
-			if common.ForwardTarget != nil {
-				if server, err = common.ForwardTarget(net.JoinHostPort(host, port)); err != nil {
-					_, err = client.Write([]byte{0x05, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-					return err
-				}
-			} else {
-				if server, err = net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second); err != nil {
-					_, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-					return err
-				}
+			if server, err = common.ForwardTarget(net.JoinHostPort(host, port)); err != nil {
+				_, err = client.Write([]byte{0x05, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+				return err
 			}
 
 		case 0x02: // bind request

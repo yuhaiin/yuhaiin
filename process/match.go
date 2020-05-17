@@ -25,18 +25,18 @@ var (
 )
 
 var (
-	mode    int
-	Matcher match.Match
-	Conn    func(host string) (conn net.Conn, err error)
-)
-
-var (
 	others   = 0
 	direct   = 1
 	proxy    = 2
 	localDNS = 3
 	block    = 4
 	modes    = map[string]int{"direct": direct, "proxy": proxy, "block": block, "localdns": localDNS}
+)
+
+var (
+	mode    int
+	Matcher match.Match
+	Conn    func(host string) (conn net.Conn, err error)
 )
 
 func matchInit() {
@@ -133,13 +133,6 @@ func Forward(host string) (conn net.Conn, err error) {
 		if err != nil {
 			return nil, err
 		}
-		if URI.Port() == "" {
-			host = net.JoinHostPort(host, "80")
-			if URI, err = url.Parse("//" + host); err != nil {
-				return nil, err
-			}
-		}
-
 		switch Matcher.Search(URI.Hostname()) {
 		case direct:
 			return net.DialTimeout("tcp", host, 3*time.Second)

@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
 )
 
 // Server http server
@@ -126,18 +125,12 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 		}
 	}
 
-	var server net.Conn
-	if common.ForwardTarget != nil {
-		if server, err = common.ForwardTarget(req.Host); err != nil {
-			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-			return err
-		}
-	} else {
-		if server, err = net.DialTimeout("tcp", req.Host, 5*time.Second); err != nil {
-			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-			return err
-		}
+	server, err := common.ForwardTarget(req.Host)
+	if err != nil {
+		_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		return err
 	}
+
 	defer func() {
 		_ = server.Close()
 	}()

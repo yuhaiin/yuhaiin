@@ -11,12 +11,6 @@ type Match struct {
 	domain *Domain
 }
 
-func (x *Match) Release() {
-	x.cidr.v4CidrTrie.root = nil
-	x.cidr.v6CidrTrie.root = nil
-	x.domain.root = nil
-}
-
 func (x *Match) Insert(str string, mark interface{}) error {
 	if _, _, err := net.ParseCIDR(str); err == nil {
 		if err = x.cidr.Insert(str, mark); err != nil {
