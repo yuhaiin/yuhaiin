@@ -64,7 +64,7 @@ func (s *Server) Socks5() error {
 			}
 			continue
 		}
-		if err := client.(*net.TCPConn).SetKeepAlive(true); err != nil {
+		if err = client.(*net.TCPConn).SetKeepAlive(true); err != nil {
 			return err
 		}
 		go func() {
