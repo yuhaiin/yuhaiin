@@ -1,8 +1,6 @@
 package match
 
 import (
-	"fmt"
-	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/dns"
 	"net"
 	"testing"
@@ -13,7 +11,7 @@ func TestNewMatcher(t *testing.T) {
 		IP, s, _ = dns.MDNS("119.29.29.29:53", domain)
 		return
 	}
-	matcher, _ := NewMatch(dnsFunc, "")
+	matcher := NewMatch(dnsFunc)
 	if err := matcher.Insert("www.baidu.com", "test_baidu"); err != nil {
 		t.Error(err)
 	}
@@ -23,20 +21,4 @@ func TestNewMatcher(t *testing.T) {
 	t.Log(matcher.Search("10.2.2.1"))
 	t.Log(matcher.Search("www.baidu.com"))
 	t.Log(matcher.Search("www.google.com"))
-}
-
-func TestNewMatcherWithFile(t *testing.T) {
-	dnsFunc := func(domain string) (IP []net.IP, s bool) {
-		IP, s, _ = dns.MDNS("119.29.29.29:53", domain)
-		return
-	}
-	matcher, err := NewMatch(dnsFunc, config.Path+"/yuhaiin.conf")
-	if err != nil {
-		t.Error(err)
-	}
-	var str string
-	fmt.Scanln(&str)
-	t.Log(matcher.Search("10.2.2.1"))
-	t.Log(matcher.Search("www.baidu.com"))
-	t.Log(matcher.Search("google.com"))
 }

@@ -6,7 +6,7 @@ import (
 
 type domainNode struct {
 	isLast bool
-	mark   string
+	mark   interface{}
 	child  map[string]*domainNode
 }
 
@@ -14,7 +14,7 @@ type Domain struct {
 	root *domainNode
 }
 
-func (d *Domain) Insert(domain, mark string) {
+func (d *Domain) Insert(domain string, mark interface{}) {
 	tmp := d.root
 	splitTmp := strings.Split(domain, ".")
 	for index, n := range splitTmp {
@@ -35,31 +35,30 @@ func (d *Domain) Insert(domain, mark string) {
 	}
 }
 
-func (d *Domain) Search(domain string) (isMatcher bool, mark string) {
-	tmp := d.root
-	isFirst := true
-	splitTmp := strings.Split(domain, ".")
-	for index, n := range splitTmp {
-		_, ok := tmp.child[n]
-		if isFirst {
+func (d *Domain) Search(domain string) (isMatcher bool, mark interface{}) {
+	root := d.root
+	first, domainDiv := true, strings.Split(domain, ".")
+	for index := range domainDiv {
+		_, ok := root.child[domainDiv[index]]
+		if first {
 			if !ok {
 				continue
 			}
 		}
 		if !ok {
-			return false, ""
+			return false, nil
 		}
-		if index == len(splitTmp)-1 {
-			if tmp.child[n].isLast == true {
-				return true, tmp.child[n].mark
+		if index == len(domainDiv)-1 {
+			if root.child[domainDiv[index]].isLast == true {
+				return true, root.child[domainDiv[index]].mark
 			} else {
-				return false, ""
+				return false, nil
 			}
 		}
-		tmp = tmp.child[n]
-		isFirst = false
+		root = root.child[domainDiv[index]]
+		first = false
 	}
-	return false, ""
+	return false, nil
 }
 
 func NewDomainMatch() *Domain {

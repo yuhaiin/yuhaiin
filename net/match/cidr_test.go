@@ -45,37 +45,44 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 	}
 }
 
-func BenchmarkIpv6AddrToInt(b *testing.B) {
-	b.StopTimer()
-	S := "ffff:fff2:ffff:ffff:ffff:ffff:ffff:ffff"
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		ipv6AddrToInt(S)
-	}
+func TestIpToInt(t *testing.T) {
+	t.Log(ipv4toInt(net.ParseIP("127.0.0.1")))
+	t.Log(ipv4toInt(net.ParseIP("0.0.0.1")))
+	t.Log(ipv4toInt(net.ParseIP("255.255.255.255")))
+	t.Log(ipv6toInt(net.ParseIP("ff::ff")))
+	t.Log(ipv6toInt(net.ParseIP("::ff")))
 }
 
-func BenchmarkToIpv6(b *testing.B) {
-	b.StopTimer()
-	S := "::ffff:fff2:ffff:ffff:ffff"
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Log(toIpv6(S))
-	}
-}
-
-func BenchmarkToIpv62(b *testing.B) {
-	b.StopTimer()
-	S := "::ffff:fff2:ffff:ffff:ffff"
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Log(net.ParseIP(S).To16())
-	}
-}
-
-func BenchmarkIpAddrToInt(b *testing.B) {
-	str := "0.0.255.255"
+// 297 293
+func BenchmarkIpv4toInt(b *testing.B) {
+	str := net.ParseIP("0.0.255.255")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		b.Log(ipAddrToInt(str))
+		ipv4toInt(str)
 	}
+}
+
+// 827 821
+// 729 752
+func BenchmarkIpv6toInt(b *testing.B) {
+	str := net.ParseIP("ffff::ffff")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ipv6toInt(str)
+	}
+}
+
+func TestIpToCidr(t *testing.T) {
+	ip, ipNet, err := net.ParseCIDR("127.0.0.1/28")
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(ip)
+	t.Log(ipNet.Mask.Size())
+	ip, ipNet, err = net.ParseCIDR("ff::ff/64")
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(ip.To4())
+	t.Log(ipNet.Mask.Size())
 }

@@ -1,9 +1,7 @@
 package match
 
 import (
-	"io/ioutil"
 	"net"
-	"strings"
 )
 
 type Match struct {
@@ -19,7 +17,7 @@ func (x *Match) Release() {
 	x.domain.root = nil
 }
 
-func (x *Match) Insert(str, mark string) error {
+func (x *Match) Insert(str string, mark interface{}) error {
 	if _, _, err := net.ParseCIDR(str); err == nil {
 		if err = x.cidr.Insert(str, mark); err != nil {
 			return err
@@ -30,10 +28,10 @@ func (x *Match) Insert(str, mark string) error {
 	return nil
 }
 
-func (x *Match) Search(str string) (des string) {
+func (x *Match) Search(str string) (des interface{}) {
 	var isMatch = false
 	if des, isCache := mCache.Get(str); isCache {
-		return des.(string)
+		return des
 	}
 	switch net.ParseIP(str) {
 	case nil:
@@ -49,37 +47,10 @@ func (x *Match) Search(str string) (des string) {
 		mCache.Add(str, des)
 		return
 	}
-	return "not found"
+	return nil
 }
 
-func NewMatch(dnsFunc func(domain string) (DNS []net.IP, success bool), MatcherFile string) (matcher *Match, err error) {
-	cidrMatch := NewCidrMatch()
-	domainMatch := NewDomainMatch()
-	matcher = &Match{
-		DNS:    dnsFunc,
-		cidr:   cidrMatch,
-		domain: domainMatch,
-	}
-	if MatcherFile == "" {
-		return matcher, nil
-	}
-	configTemp, err := ioutil.ReadFile(MatcherFile)
-	if err != nil {
-		return
-	}
-	for _, s := range strings.Split(string(configTemp), "\n") {
-		div := strings.Split(s, " ")
-		if len(div) < 2 {
-			continue
-		}
-		if err := matcher.Insert(div[0], div[1]); err != nil {
-			continue
-		}
-	}
-	return matcher, nil
-}
-
-func NewMatch2(dnsFunc func(domain string) (DNS []net.IP, success bool), MatcherFile string) (matcher Match, err error) {
+func NewMatch(dnsFunc func(domain string) (DNS []net.IP, success bool)) (matcher Match) {
 	cidrMatch := NewCidrMatch()
 	domainMatch := NewDomainMatch()
 	matcher = Match{
@@ -87,21 +58,5 @@ func NewMatch2(dnsFunc func(domain string) (DNS []net.IP, success bool), Matcher
 		cidr:   cidrMatch,
 		domain: domainMatch,
 	}
-	if MatcherFile == "" {
-		return matcher, nil
-	}
-	configTemp, err := ioutil.ReadFile(MatcherFile)
-	if err != nil {
-		return
-	}
-	for _, s := range strings.Split(string(configTemp), "\n") {
-		div := strings.Split(s, " ")
-		if len(div) < 2 {
-			continue
-		}
-		if err := matcher.Insert(div[0], div[1]); err != nil {
-			continue
-		}
-	}
-	return matcher, nil
+	return matcher
 }

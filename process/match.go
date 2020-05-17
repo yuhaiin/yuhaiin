@@ -1,15 +1,21 @@
 package process
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/dns"
 	"github.com/Asutorufa/yuhaiin/net/match"
-	"log"
-	"net"
-	"net/url"
-	"time"
 )
 
 var (
@@ -24,6 +30,15 @@ var (
 	Conn    func(host string) (conn net.Conn, err error)
 )
 
+var (
+	others   = 0
+	direct   = 1
+	proxy    = 2
+	localDNS = 3
+	block    = 4
+	modes    = map[string]int{"direct": direct, "proxy": proxy, "block": block, "localdns": localDNS}
+)
+
 func matchInit() {
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
@@ -34,15 +49,45 @@ func matchInit() {
 	} else {
 		mode = globalProxy
 	}
-	Matcher, err = match.NewMatch2(nil, conFig.BypassFile)
-	if err != nil {
-		log.Print(err)
-	}
-	if Matcher.DNS, err = DNS(); err != nil {
-		log.Print(err)
-		return
+	if err = UpdateMatch(); err != nil {
+		log.Println(err)
 	}
 	common.ForwardTarget = Forward
+}
+
+func UpdateMatch() error {
+	conFig, err := config.SettingDecodeJSON()
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Open(conFig.BypassFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	Matcher = match.NewMatch(nil)
+	if Matcher.DNS, err = DNS(); err != nil {
+		return err
+	}
+
+	br := bufio.NewReader(f)
+	for {
+		a, _, c := br.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		var domain string
+		var mode string
+		if _, err := fmt.Sscanf(string(a), "%s %s", &domain, &mode); err != nil {
+			continue
+		}
+		if err = Matcher.Insert(domain, modes[strings.ToLower(mode)]); err != nil {
+			continue
+		}
+	}
+	return nil
 }
 
 func UpdateMode() error {
@@ -60,21 +105,6 @@ func UpdateMode() error {
 
 func UpdateDNS() error {
 	var err error
-	if Matcher.DNS, err = DNS(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func UpdateMatch() error {
-	conFig, err := config.SettingDecodeJSON()
-	if err != nil {
-		return err
-	}
-	Matcher, err = match.NewMatch2(nil, conFig.BypassFile)
-	if err != nil {
-		return err
-	}
 	if Matcher.DNS, err = DNS(); err != nil {
 		return err
 	}
@@ -111,15 +141,15 @@ func Forward(host string) (conn net.Conn, err error) {
 		}
 
 		switch Matcher.Search(URI.Hostname()) {
-		case "direct":
+		case direct:
 			return net.DialTimeout("tcp", host, 3*time.Second)
-		case "localDNS":
+		case localDNS:
 			if ips, isSuccess := Matcher.DNS(URI.Hostname()); isSuccess {
 				for _, ip := range ips {
-					return Conn(ip.String() + ":" + URI.Port())
+					return Conn(net.JoinHostPort(ip.String(), URI.Port()))
 				}
 			}
-		case "block":
+		case block:
 			return nil, errors.New("block domain: " + host)
 		}
 	}
