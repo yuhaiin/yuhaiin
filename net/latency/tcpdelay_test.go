@@ -1,4 +1,4 @@
-package delay
+package latency
 
 import (
 	"testing"

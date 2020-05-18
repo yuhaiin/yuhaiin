@@ -3,7 +3,6 @@ package gui
 import (
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/net/delay"
 	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
@@ -104,34 +103,26 @@ func (sGui *SGui) createMainWindow() {
 	startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160),
 		core.NewQPoint2(560, 190)))
 
-	delayLabel := widgets.NewQLabel2("Latency", sGui.MainWindow,
+	latencyLabel := widgets.NewQLabel2("Latency", sGui.MainWindow,
 		core.Qt__WindowType(0x00000000))
-	delayLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210),
+	latencyLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210),
 		core.NewQPoint2(130, 240)))
-	delayLabel2 := widgets.NewQLabel2("", sGui.MainWindow,
+	latencyLabel2 := widgets.NewQLabel2("", sGui.MainWindow,
 		core.Qt__WindowType(0x00000000))
-	delayLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210),
+	latencyLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210),
 		core.NewQPoint2(450, 240)))
-	delayButton := widgets.NewQPushButton2("Get", sGui.MainWindow)
-	delayButton.ConnectClicked(func(bool2 bool) {
+	latencyButton := widgets.NewQPushButton2("Get", sGui.MainWindow)
+	latencyButton.ConnectClicked(func(bool2 bool) {
 		go func() {
-			group := groupCombobox.CurrentText()
-			remarks := nodeCombobox.CurrentText()
-			server, port := subscr.GetOneNodeAddress(group, remarks)
-			delayTmp, isSuccess, err := delay.TCPDelay(server, port)
-			var delayString string
+			lat, err := process.Latency(groupCombobox.CurrentText(), nodeCombobox.CurrentText())
 			if err != nil {
-				delayString = err.Error()
-			} else {
-				delayString = delayTmp.String()
+				latencyLabel2.SetText("connect failed: " + err.Error())
+				return
 			}
-			if isSuccess == false {
-				delayString = "delay > 3s or server can not connect"
-			}
-			delayLabel2.SetText(delayString)
+			latencyLabel2.SetText(lat.String())
 		}()
 	})
-	delayButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
+	latencyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
 
 	groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
 		node, err := subscr.GetNode(groupCombobox.CurrentText())

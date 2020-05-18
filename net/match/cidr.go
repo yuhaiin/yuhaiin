@@ -35,7 +35,7 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 
 	if ipNet.IP.To4() != nil {
 		c.v4CidrTrie.Insert(ipv4toInt(ipNet.IP)[:maskSize], mark)
-	} else if ipNet.IP.To16() != nil {
+	} else {
 		c.v6CidrTrie.Insert(ipv6toInt(ipNet.IP)[:maskSize], mark)
 	}
 	return nil
@@ -104,8 +104,8 @@ func (t *Trie) Insert(str string, mark interface{}) {
 
 // Search search from trie tree
 func (t *Trie) Search(str string) (isMatch bool, mark interface{}) {
-	nodeTemp := t.root
-	for i := 0; i < len(str); i++ {
+	nodeTemp, l := t.root, len(str)
+	for i := 0; i < l; i++ {
 		if str[i] == 49 {
 			nodeTemp = nodeTemp.right
 		}

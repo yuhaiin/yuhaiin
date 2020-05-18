@@ -35,13 +35,17 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 	if err := cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"); err != nil {
 		b.Error(err)
 	}
-	//testIPv4 := "10.2.2.1"
+	testIPv4 := "10.2.2.1"
 	//testIPv4b := "100.2.2.1"
 	//testIPv6 := "2001:0db8:0000:0000:1234:0000:0000:9abc"
 	testIPv6b := "3001:0db8:0000:0000:1234:0000:0000:9abc"
 	b.StartTimer() //重新开始时间
 	for i := 0; i < b.N; i++ {
-		cidrMatch.Search(testIPv6b)
+		if i%2 == 0 {
+			cidrMatch.Search(testIPv4)
+		} else {
+			cidrMatch.Search(testIPv6b)
+		}
 	}
 }
 
