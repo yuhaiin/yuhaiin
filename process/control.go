@@ -23,7 +23,7 @@ func controlInit() {
 }
 
 func ReSet() error {
-	if ssrCmd != nil {
+	if ssrCmd != nil && ssrCmd.Process != nil {
 		if err := ssrCmd.Process.Kill(); err != nil {
 			return err
 		}
