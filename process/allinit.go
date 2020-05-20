@@ -30,10 +30,6 @@ func init() {
 		}
 	}
 
-	if !PathExists(config.Path + "/shadowsocksr") {
-		GetSsrPython(config.Path)
-	}
-
 	//cycle import,not allow
 	if !PathExists(config.Path + "/node.json") {
 		if subscr.InitJSON() != nil {
@@ -41,8 +37,8 @@ func init() {
 		}
 	}
 
-	if !PathExists(config.Path) {
-		if config.SettingInitJSON(config.Path) != nil {
+	if !PathExists(config.ConPath) {
+		if config.SettingInitJSON() != nil {
 			return
 		}
 	}
@@ -58,6 +54,10 @@ func init() {
 		}
 		_, _ = io.Copy(f, res.Body)
 	}
+
+	//if !PathExists(config.Path + "/shadowsocksr") {
+	//	GetSsrPython(config.Path)
+	//}
 }
 
 func processInit() {

@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	configPath = Path + "/yuhaiinConfig.json"
+	pathSeparator = string(os.PathSeparator)
+	ConPath       = Path + pathSeparator + "yuhaiinConfig.json"
 )
 
 // Setting setting json struct
@@ -36,31 +37,32 @@ type Setting struct {
 }
 
 // SettingInitJSON init setting json file
-func SettingInitJSON(configPath string) error {
+func SettingInitJSON() error {
 	pa := &Setting{
 		AutoStartSsr:       true,
-		PythonPath:         GetPythonPath(),
-		SsrPath:            GetPythonPath() + " " + configPath + "/shadowsocksr/shadowsocks/local.py",
-		LocalAddress:       "127.0.0.1",
-		LocalPort:          "1083",
+		BypassFile:         Path + string(os.PathSeparator) + "yuhaiin.conf",
+		DnsServer:          "1.0.0.1:53",
 		Bypass:             true,
 		HttpProxy:          true,
 		HttpProxyAddress:   "127.0.0.1:8188",
 		Socks5ProxyAddress: "127.0.0.1:1080",
 		RedirProxyAddress:  "127.0.0.1:8088",
 		IsPrintLog:         false,
+		IsDNSOverHTTPS:     false,
+		DNSAcrossProxy:     false,
+		SsrPath:            " ",
 
-		TimeOut:        "1000",
-		BypassFile:     configPath + "/yuhaiin.conf",
-		IsDNSOverHTTPS: false,
-		DnsServer:      "1.0.0.1:53",
-		DNSAcrossProxy: false,
-		UseLocalDNS:    false,
-		UdpTrans:       true,
-		PidFile:        configPath + "/shadowsocksr.pid",
-		LogFile:        "",
-		FastOpen:       true,
-		Works:          "8",
+		// not use now
+		PythonPath:   "",
+		LocalAddress: "0.0.0.0",
+		LocalPort:    "0",
+		TimeOut:      "1000",
+		UseLocalDNS:  false,
+		UdpTrans:     true,
+		PidFile:      "",
+		LogFile:      "",
+		FastOpen:     true,
+		Works:        "8",
 	}
 	if err := SettingEnCodeJSON(pa); err != nil {
 		return err
@@ -71,7 +73,7 @@ func SettingInitJSON(configPath string) error {
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON() (*Setting, error) {
 	pa := &Setting{}
-	file, err := os.Open(configPath)
+	file, err := os.Open(ConPath)
 	if err != nil {
 		return &Setting{}, err
 	}
@@ -83,7 +85,7 @@ func SettingDecodeJSON() (*Setting, error) {
 
 // SettingEnCodeJSON encode setting struct to json
 func SettingEnCodeJSON(pa *Setting) error {
-	file, err := os.Create(configPath)
+	file, err := os.Create(ConPath)
 	if err != nil {
 		return err
 	}

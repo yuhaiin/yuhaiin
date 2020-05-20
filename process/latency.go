@@ -25,7 +25,7 @@ func Latency(group, mark string) (time.Duration, error) {
 		testClient := func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return s.Conn(addr)
 		}
-		return latency.TcpLatency(testClient, "http://google.com/generate_204")
+		return latency.TcpLatency(testClient, "https://www.google.com/generate_204")
 	case *subscr.Shadowsocksr:
 		return latency.TCPConnectLatency(n.(*subscr.Shadowsocksr).Server, n.(*subscr.Shadowsocksr).Port)
 

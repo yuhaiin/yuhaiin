@@ -12,7 +12,7 @@ import (
 
 var (
 	usr, _ = user.Current()
-	Path   = usr.HomeDir + "/AppData/Roaming/yuhaiin"
+	Path   = usr.HomeDir + pathSeparator + "AppData" + pathSeparator + "Roaming" + pathSeparator + "yuhaiin"
 )
 
 // GetPythonPath get python path

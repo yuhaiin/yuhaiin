@@ -43,6 +43,7 @@ How to use:
 <summary>Screenshots</summary>
 
 ![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_by_qt_v0.2.11.2.png)  
+![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_windows_v0.2.12.png)  
 
 </details>
 

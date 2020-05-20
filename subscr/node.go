@@ -29,7 +29,7 @@ type Node struct {
 func InitJSON() error {
 	pa := &Node{
 		//Group:   map[string]bool{},
-		NowNode: nil,
+		NowNode: &Shadowsocks{},
 		Link:    []string{},
 		Node:    map[string]map[string]interface{}{},
 	}

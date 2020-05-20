@@ -11,7 +11,7 @@ import (
 
 var (
 	usr, _ = user.Current()
-	Path   = usr.HomeDir + "/.config/yuhaiin"
+	Path   = usr.HomeDir + pathSeparator + ".config" + pathSeparator + "yuhaiin"
 )
 
 // GetPythonPath get python path

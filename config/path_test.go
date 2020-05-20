@@ -5,6 +5,6 @@ import (
 )
 
 func TestGetPythonPath(t *testing.T) {
-	t.Log(configPath)
+	t.Log(ConPath)
 	t.Log(GetPythonPath())
 }
