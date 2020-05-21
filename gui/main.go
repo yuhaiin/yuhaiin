@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/Asutorufa/yuhaiin/subscr"
@@ -16,7 +17,14 @@ func (sGui *SGui) createMainWindow() {
 	sGui.MainWindow.SetFixedSize2(600, 400)
 	sGui.MainWindow.SetWindowTitle("yuhaiin")
 	img := gui.NewQPixmap()
-	img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(icon, len(icon))), "svg", core.Qt__AutoColor)
+
+	conFig, err := config.SettingDecodeJSON()
+	if err != nil || !conFig.BlackIcon {
+		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(iconWhite, len(iconWhite))), "svg", core.Qt__AutoColor)
+
+	} else {
+		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(icon, len(icon))), "svg", core.Qt__AutoColor)
+	}
 	icon2 := gui.NewQIcon2(img)
 	sGui.MainWindow.SetWindowIcon(icon2)
 

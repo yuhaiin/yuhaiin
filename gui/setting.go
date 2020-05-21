@@ -8,190 +8,225 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
-func (sGui *SGui) createSettingWindow() {
-	sGui.settingWindow = widgets.NewQMainWindow(sGui.MainWindow, 0)
-	sGui.settingWindow.SetFixedSize2(430, 330)
-	sGui.settingWindow.SetWindowTitle("setting")
-	sGui.settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+type setting struct {
+	settingWindow *widgets.QMainWindow
+	parent        *widgets.QMainWindow
+
+	BlackIconCheckBox         *widgets.QCheckBox
+	DnsOverHttpsCheckBox      *widgets.QCheckBox
+	bypassCheckBox            *widgets.QCheckBox
+	DnsOverHttpsProxyCheckBox *widgets.QCheckBox
+
+	redirProxyAddressLabel   *widgets.QLabel
+	httpAddressLabel         *widgets.QLabel
+	socks5BypassAddressLabel *widgets.QLabel
+	dnsServerLabel           *widgets.QLabel
+	ssrPathLabel             *widgets.QLabel
+	//BypassFileLabel          *widgets.QLabel
+
+	redirProxyAddressLineText *widgets.QLineEdit
+	httpAddressLineText       *widgets.QLineEdit
+	socks5BypassLineText      *widgets.QLineEdit
+	dnsServerLineText         *widgets.QLineEdit
+	ssrPathLineText           *widgets.QLineEdit
+	BypassFileLineText        *widgets.QLineEdit
+
+	applyButton      *widgets.QPushButton
+	updateRuleButton *widgets.QPushButton
+}
+
+func NewSettingWindow(parent *widgets.QMainWindow) *widgets.QMainWindow {
+	s := setting{}
+	s.parent = parent
+	s.settingWindow = widgets.NewQMainWindow(parent, 0)
+	s.settingWindow.SetFixedSize2(430, 330)
+	s.settingWindow.SetWindowTitle("setting")
+	s.settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
-		sGui.settingWindow.Hide()
+		s.settingWindow.Hide()
 	})
+	s.settingInit()
+	s.setGeometry()
+	s.setListener()
+	s.extends()
 
-	// UI
-	//autoStartSsr := widgets.NewQCheckBox2("auto Start ssr", sGui.settingWindow)
-	//autoStartSsr.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(140, 30)))
+	return s.settingWindow
+}
 
-	DnsOverHttpsCheckBox := widgets.NewQCheckBox2("Use DNSOverHTTPS", sGui.settingWindow)
-	DnsOverHttpsCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(150, 0), core.NewQPoint2(430, 30)))
-
+func (s *setting) settingInit() {
+	s.BlackIconCheckBox = widgets.NewQCheckBox2("Black Icon", s.settingWindow)
+	s.DnsOverHttpsCheckBox = widgets.NewQCheckBox2("DOH", s.settingWindow)
 	//httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", sGui.settingWindow)
-	//httpProxyCheckBox.SetDisabled(true)
+	s.bypassCheckBox = widgets.NewQCheckBox2("BYPASS", s.settingWindow)
+	s.DnsOverHttpsProxyCheckBox = widgets.NewQCheckBox2("PROXY", s.settingWindow)
+	s.redirProxyAddressLabel = widgets.NewQLabel2("REDIR", s.settingWindow, 0)
+	s.redirProxyAddressLineText = widgets.NewQLineEdit(s.settingWindow)
+	s.httpAddressLabel = widgets.NewQLabel2("HTTP", s.settingWindow, 0)
+	s.httpAddressLineText = widgets.NewQLineEdit(s.settingWindow)
+	s.socks5BypassAddressLabel = widgets.NewQLabel2("SOCKS5", s.settingWindow, 0)
+	s.socks5BypassLineText = widgets.NewQLineEdit(s.settingWindow)
+	s.dnsServerLabel = widgets.NewQLabel2("DNS", s.settingWindow, 0)
+	s.dnsServerLineText = widgets.NewQLineEdit(s.settingWindow)
+	s.ssrPathLabel = widgets.NewQLabel2("SSR PATH", s.settingWindow, 0)
+	s.ssrPathLineText = widgets.NewQLineEdit(s.settingWindow)
+	//s.BypassFileLabel = widgets.NewQLabel2("bypassFile", s.settingWindow, 0)
+	s.BypassFileLineText = widgets.NewQLineEdit(s.settingWindow)
+	s.applyButton = widgets.NewQPushButton2("apply", s.settingWindow)
+	s.updateRuleButton = widgets.NewQPushButton2("Reimport Bypass Rule", s.settingWindow)
+}
+
+func (s *setting) setGeometry() {
+	s.BlackIconCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 0), core.NewQPoint2(140, 30)))
 	//httpProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 40), core.NewQPoint2(130, 70)))
+	s.redirProxyAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80), core.NewQPoint2(70, 110)))
+	s.redirProxyAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 80), core.NewQPoint2(210, 110)))
+	s.httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120), core.NewQPoint2(70, 150)))
+	s.httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 120), core.NewQPoint2(210, 150)))
+	s.socks5BypassAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(220, 120), core.NewQPoint2(290, 150)))
+	s.socks5BypassLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 120), core.NewQPoint2(420, 150)))
+	s.dnsServerLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 160), core.NewQPoint2(50, 190)))
+	s.DnsOverHttpsCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(60, 160), core.NewQPoint2(125, 190)))
+	s.DnsOverHttpsProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(135, 160), core.NewQPoint2(220, 190)))
+	s.dnsServerLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 160), core.NewQPoint2(420, 190)))
+	s.ssrPathLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 200), core.NewQPoint2(90, 230)))
+	s.ssrPathLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(100, 200), core.NewQPoint2(420, 230)))
+	s.bypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 240), core.NewQPoint2(105, 270)))
+	//s.BypassFileLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 240), core.NewQPoint2(100, 270)))
+	s.BypassFileLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 240), core.NewQPoint2(420, 270)))
+	s.applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280), core.NewQPoint2(105, 310)))
+	s.updateRuleButton.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 280), core.NewQPoint2(300, 310)))
 
-	bypassCheckBox := widgets.NewQCheckBox2("bypass", sGui.settingWindow)
-	bypassCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(140, 40), core.NewQPoint2(220, 70)))
-
-	DnsOverHttpsProxyCheckBox := widgets.NewQCheckBox2("DNS Over Proxy", sGui.settingWindow)
-	DnsOverHttpsProxyCheckBox.SetGeometry(core.NewQRect2(core.NewQPoint2(230, 40), core.NewQPoint2(400, 70)))
-
-	redirProxyAddressLabel := widgets.NewQLabel2("redir", sGui.settingWindow, 0)
-	redirProxyAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 80), core.NewQPoint2(70, 110)))
-	redirProxyAddressLineText := widgets.NewQLineEdit(sGui.settingWindow)
-	redirProxyAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 80), core.NewQPoint2(210, 110)))
-
-	httpAddressLabel := widgets.NewQLabel2("http", sGui.settingWindow, 0)
-	httpAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 120), core.NewQPoint2(70, 150)))
-	httpAddressLineText := widgets.NewQLineEdit(sGui.settingWindow)
-	httpAddressLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(80, 120), core.NewQPoint2(210, 150)))
-
-	socks5BypassAddressLabel := widgets.NewQLabel2("socks5", sGui.settingWindow, 0)
-	socks5BypassAddressLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(220, 120), core.NewQPoint2(290, 150)))
-	socks5BypassLineText := widgets.NewQLineEdit(sGui.settingWindow)
-	socks5BypassLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 120), core.NewQPoint2(420, 150)))
-
-	dnsServerLabel := widgets.NewQLabel2("DNS", sGui.settingWindow, 0)
-	dnsServerLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 160), core.NewQPoint2(100, 190)))
-	dnsServerLineText := widgets.NewQLineEdit(sGui.settingWindow)
-	dnsServerLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 160), core.NewQPoint2(420, 190)))
-
-	ssrPathLabel := widgets.NewQLabel2("ssrPath", sGui.settingWindow, 0)
-	ssrPathLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 200), core.NewQPoint2(100, 230)))
-	ssrPathLineText := widgets.NewQLineEdit(sGui.settingWindow)
-	ssrPathLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 200), core.NewQPoint2(420, 230)))
-
-	BypassFileLabel := widgets.NewQLabel2("bypassFilePath", sGui.settingWindow, 0)
-	BypassFileLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 240), core.NewQPoint2(100, 270)))
-	BypassFileLineText := widgets.NewQLineEdit(sGui.settingWindow)
-	BypassFileLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(110, 240), core.NewQPoint2(420, 270)))
-
-	applyButton := widgets.NewQPushButton2("apply", sGui.settingWindow)
-	applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280), core.NewQPoint2(90, 310)))
-
-	updateRuleButton := widgets.NewQPushButton2("Reimport Bypass Rule", sGui.settingWindow)
-	updateRuleButton.SetGeometry(core.NewQRect2(core.NewQPoint2(100, 280), core.NewQPoint2(300, 310)))
-
+}
+func (s *setting) setListener() {
 	// Listen
 	update := func() {
 		conFig, err := config.SettingDecodeJSON()
 		if err != nil {
-			sGui.MessageBox(err.Error())
+			s.MessageBox(err.Error())
 			return
 		}
-		//autoStartSsr.SetChecked(conFig.AutoStartSsr)
-		DnsOverHttpsCheckBox.SetChecked(conFig.IsDNSOverHTTPS)
+		s.BlackIconCheckBox.SetChecked(conFig.BlackIcon)
+		s.DnsOverHttpsCheckBox.SetChecked(conFig.IsDNSOverHTTPS)
 		//httpProxyCheckBox.SetChecked(conFig.HttpProxy)
-		bypassCheckBox.SetChecked(conFig.Bypass)
-		DnsOverHttpsProxyCheckBox.SetChecked(conFig.DNSAcrossProxy)
-		redirProxyAddressLineText.SetText(conFig.RedirProxyAddress)
-		httpAddressLineText.SetText(conFig.HttpProxyAddress)
-		socks5BypassLineText.SetText(conFig.Socks5ProxyAddress)
-		dnsServerLineText.SetText(conFig.DnsServer)
-		ssrPathLineText.SetText(conFig.SsrPath)
-		BypassFileLineText.SetText(conFig.BypassFile)
+		s.bypassCheckBox.SetChecked(conFig.Bypass)
+		s.DnsOverHttpsProxyCheckBox.SetChecked(conFig.DNSAcrossProxy)
+		s.redirProxyAddressLineText.SetText(conFig.RedirProxyAddress)
+		s.httpAddressLineText.SetText(conFig.HttpProxyAddress)
+		s.socks5BypassLineText.SetText(conFig.Socks5ProxyAddress)
+		s.dnsServerLineText.SetText(conFig.DnsServer)
+		s.ssrPathLineText.SetText(conFig.SsrPath)
+		s.BypassFileLineText.SetText(conFig.BypassFile)
 	}
 
 	applyClick := func(bool2 bool) {
 		conFig, err := config.SettingDecodeJSON()
 		if err != nil {
-			sGui.MessageBox(err.Error())
+			s.MessageBox(err.Error())
 			return
 		}
 
-		//conFig.AutoStartSsr = autoStartSsr.IsChecked()
+		conFig.BlackIcon = s.BlackIconCheckBox.IsChecked()
+
 		//conFig.HttpProxy = httpProxyCheckBox.IsChecked()
 
 		isUpdateMode := false
-		if conFig.Bypass != bypassCheckBox.IsChecked() {
-			conFig.Bypass = bypassCheckBox.IsChecked()
+		if conFig.Bypass != s.bypassCheckBox.IsChecked() {
+			conFig.Bypass = s.bypassCheckBox.IsChecked()
 			isUpdateMode = true
 		}
 
 		isUpdateDNS := false
-		if conFig.IsDNSOverHTTPS != DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != dnsServerLineText.Text() || conFig.DNSAcrossProxy != DnsOverHttpsProxyCheckBox.IsChecked() {
-			conFig.IsDNSOverHTTPS = DnsOverHttpsCheckBox.IsChecked()
-			conFig.DNSAcrossProxy = DnsOverHttpsProxyCheckBox.IsChecked()
-			conFig.DnsServer = dnsServerLineText.Text()
+		if conFig.IsDNSOverHTTPS != s.DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != s.dnsServerLineText.Text() || conFig.DNSAcrossProxy != s.DnsOverHttpsProxyCheckBox.IsChecked() {
+			conFig.IsDNSOverHTTPS = s.DnsOverHttpsCheckBox.IsChecked()
+			conFig.DNSAcrossProxy = s.DnsOverHttpsProxyCheckBox.IsChecked()
+			conFig.DnsServer = s.dnsServerLineText.Text()
 			isUpdateDNS = true
 		}
 
 		isChangeNode := false
-		if conFig.SsrPath != ssrPathLineText.Text() {
-			conFig.SsrPath = ssrPathLineText.Text()
+		if conFig.SsrPath != s.ssrPathLineText.Text() {
+			conFig.SsrPath = s.ssrPathLineText.Text()
 			isChangeNode = true
 		}
 
 		isUpdateListen := false
-		if conFig.HttpProxyAddress != httpAddressLineText.Text() ||
-			conFig.Socks5ProxyAddress != socks5BypassLineText.Text() ||
-			conFig.RedirProxyAddress != redirProxyAddressLineText.Text() {
+		if conFig.HttpProxyAddress != s.httpAddressLineText.Text() ||
+			conFig.Socks5ProxyAddress != s.socks5BypassLineText.Text() ||
+			conFig.RedirProxyAddress != s.redirProxyAddressLineText.Text() {
 
-			conFig.HttpProxyAddress = httpAddressLineText.Text()
-			conFig.Socks5ProxyAddress = socks5BypassLineText.Text()
-			conFig.RedirProxyAddress = redirProxyAddressLineText.Text()
+			conFig.HttpProxyAddress = s.httpAddressLineText.Text()
+			conFig.Socks5ProxyAddress = s.socks5BypassLineText.Text()
+			conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
 			isUpdateListen = true
 		}
 
 		isUpdateMatch := false
-		if conFig.BypassFile != BypassFileLineText.Text() {
-			conFig.BypassFile = BypassFileLineText.Text()
+		if conFig.BypassFile != s.BypassFileLineText.Text() {
+			conFig.BypassFile = s.BypassFileLineText.Text()
 			isUpdateMatch = true
 		}
 
 		if err := config.SettingEnCodeJSON(conFig); err != nil {
-			sGui.MessageBox(err.Error())
+			s.MessageBox(err.Error())
 		}
 
 		if isUpdateMode {
 			if err := process.UpdateMode(); err != nil {
-				sGui.MessageBox(err.Error())
+				s.MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateDNS {
 			if err := process.UpdateDNS(); err != nil {
-				sGui.MessageBox(err.Error())
+				s.MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isChangeNode {
 			if err := process.ChangeNode(); err != nil {
-				sGui.MessageBox(err.Error())
+				s.MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateListen {
 			if err := process.UpdateListen(); err != nil {
-				sGui.MessageBox(err.Error())
+				s.MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateMatch {
 			if err := process.UpdateMatch(); err != nil {
-				sGui.MessageBox(err.Error())
+				s.MessageBox(err.Error())
 				return
 			}
 		}
 
 		update()
 
-		sGui.MessageBox("Applied.")
+		s.MessageBox("Applied.")
 	}
 
 	// set Listener
-	applyButton.ConnectClicked(applyClick)
-	updateRuleButton.ConnectClicked(func(checked bool) {
+	s.applyButton.ConnectClicked(applyClick)
+	s.updateRuleButton.ConnectClicked(func(checked bool) {
 		if err := process.UpdateMatch(); err != nil {
-			sGui.MessageBox(err.Error())
+			s.MessageBox(err.Error())
 			return
 		}
-		sGui.MessageBox("Updated.")
+		s.MessageBox("Updated.")
 	})
 
-	sGui.settingWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
+	s.settingWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		update()
 	})
+}
+
+func (s *setting) MessageBox(text string) {
+	message := widgets.NewQMessageBox(nil)
+	message.SetText(text)
+	message.Exec()
 }

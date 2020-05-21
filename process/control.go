@@ -57,11 +57,15 @@ func ChangeNode() error {
 		if err != nil {
 			return err
 		}
+		if err := ssrCmd.Start(); err != nil {
+			return err
+		}
 		go func() {
-			if err := ssrCmd.Run(); err != nil {
+			if err := ssrCmd.Wait(); err != nil {
 				log.Println(err)
 			}
 		}()
+
 		conFig, err := config.SettingDecodeJSON()
 		if err != nil {
 			return err

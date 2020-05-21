@@ -34,6 +34,7 @@ type Setting struct {
 	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
 	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
 	UseLocalDNS        bool   `json:"use_local_dns"`
+	BlackIcon          bool   `json:"black_icon"`
 }
 
 // SettingInitJSON init setting json file
@@ -51,6 +52,7 @@ func SettingInitJSON() error {
 		IsDNSOverHTTPS:     false,
 		DNSAcrossProxy:     false,
 		SsrPath:            " ",
+		BlackIcon:          false,
 
 		// not use now
 		PythonPath:   "",

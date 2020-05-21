@@ -45,17 +45,7 @@ func proxyInit() {
 		}
 	}
 
-	if conFig.RedirProxyAddress != "" {
-		redirAddr, err := url.Parse("//" + conFig.RedirProxyAddress)
-		if err != nil {
-			log.Print(err)
-			return
-		}
-		if Redir, err = redirserver.NewRedir(redirAddr.Hostname(), redirAddr.Port()); err != nil {
-			log.Print(err)
-			return
-		}
-	}
+	extendsProxyInit(conFig)
 }
 
 func UpdateListen() (err error) {
@@ -83,15 +73,5 @@ func UpdateListen() (err error) {
 			return err
 		}
 	}
-
-	if Redir.GetHost() != conFig.RedirProxyAddress {
-		redirAddr, err := url.Parse("//" + conFig.RedirProxyAddress)
-		if err != nil {
-			return err
-		}
-		if Redir, err = redirserver.NewRedir(redirAddr.Hostname(), redirAddr.Port()); err != nil {
-			return err
-		}
-	}
-	return nil
+	return extendsUpdateListen(conFig)
 }

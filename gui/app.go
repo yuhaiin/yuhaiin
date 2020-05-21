@@ -21,8 +21,8 @@ func NewGui() (*SGui, error) {
 	//})
 	microClientGUI.createMainWindow()
 	microClientGUI.createSubscriptionWindow()
-	microClientGUI.createSettingWindow()
-
+	//microClientGUI.createSettingWindow()
+	microClientGUI.settingWindow = NewSettingWindow(microClientGUI.MainWindow)
 	return microClientGUI, nil
 }
 
