@@ -3,7 +3,9 @@
 package main
 
 import (
-	"log"
+	"github.com/therecipe/qt/widgets"
+	"os"
+
 	//_ "net/http/pprof"
 
 	"github.com/Asutorufa/yuhaiin/gui"
@@ -18,22 +20,17 @@ func main() {
 	//		fmt.Printf("start pprof failed on %s\n", ip)
 	//	}
 	//}()
-	log.SetFlags(log.Lshortfile | log.LstdFlags)
+
+	//log.SetFlags(log.Lshortfile | log.LstdFlags)
 
 	if err := process.GetProcessLock(); err != nil {
-		log.Println("Process is already running!\nError Message: " + err.Error())
+		widgets.NewQApplication(len(os.Args), os.Args)
+		message := widgets.NewQMessageBox(nil)
+		message.SetText("Process is already running!\nError Message: " + err.Error())
+		message.Exec()
 		return
 	}
 	defer process.LockFileClose()
 
-	ssrMicroClientGUI, err := gui.NewGui()
-	if err != nil {
-		log.Println(err)
-	}
-	if ssrMicroClientGUI != nil {
-		//ssrMicroClientGUI.MainWindow.Show()
-		ssrMicroClientGUI.App.Exec()
-	} else {
-		log.Println(err)
-	}
+	gui.NewGui().App.Exec()
 }

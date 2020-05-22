@@ -7,47 +7,79 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
-func (sGui *SGui) createSubscriptionWindow() {
-	sGui.subscriptionWindow = widgets.NewQMainWindow(sGui.MainWindow, 0)
-	sGui.subscriptionWindow.SetFixedSize2(700, 100)
-	sGui.subscriptionWindow.SetWindowTitle("subscription")
-	sGui.subscriptionWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
+type subscription struct {
+	subWindow    *widgets.QMainWindow
+	subLabel     *widgets.QLabel
+	subCombobox  *widgets.QComboBox
+	deleteButton *widgets.QPushButton
+	lineText     *widgets.QLineEdit
+	addButton    *widgets.QPushButton
+}
+
+func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
+	s := &subscription{}
+	s.subWindow = widgets.NewQMainWindow(parent, core.Qt__Dialog)
+	s.subWindow.SetFixedSize2(700, 100)
+	s.subWindow.SetWindowTitle("subscription")
+	s.subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
-		sGui.subscriptionWindow.Hide()
+		s.subWindow.Hide()
 	})
-
-	subLabel := widgets.NewQLabel2("subscription", sGui.subscriptionWindow, core.Qt__WindowType(0x00000000))
-	subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10), core.NewQPoint2(130, 40)))
-	subCombobox := widgets.NewQComboBox(sGui.subscriptionWindow)
-	var link []string
-	subRefresh := func() {
-		subCombobox.Clear()
-		var err error
-		link, err = subscr.GetLink()
+	s.subWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
+		s.subCombobox.Clear()
+		link, err := subscr.GetLink()
 		if err != nil {
-			sGui.MessageBox(err.Error())
+			s.MessageBox(err.Error())
 		}
-		subCombobox.AddItems(link)
-	}
-	subRefresh()
-	subCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 10), core.NewQPoint2(600, 40)))
-
-	deleteButton := widgets.NewQPushButton2("delete", sGui.subscriptionWindow)
-	deleteButton.ConnectClicked(func(bool2 bool) {
-		linkToDelete := subCombobox.CurrentText()
-		if err := subscr.RemoveLinkJSON(linkToDelete); err != nil {
-			sGui.MessageBox(err.Error())
-		}
-		subRefresh()
+		s.subCombobox.AddItems(link)
 	})
-	deleteButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 10), core.NewQPoint2(690, 40)))
 
-	lineText := widgets.NewQLineEdit(sGui.subscriptionWindow)
-	lineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50), core.NewQPoint2(600, 80)))
+	s.subInit()
+	s.setGeometry()
+	s.setListener()
 
-	addButton := widgets.NewQPushButton2("add", sGui.subscriptionWindow)
-	addButton.ConnectClicked(func(bool2 bool) {
-		linkToAdd := lineText.Text()
+	return s.subWindow
+}
+
+func (s *subscription) subInit() {
+	s.subLabel = widgets.NewQLabel2("subscription", s.subWindow, core.Qt__WindowType(0x00000000))
+	s.subCombobox = widgets.NewQComboBox(s.subWindow)
+	s.deleteButton = widgets.NewQPushButton2("delete", s.subWindow)
+	s.lineText = widgets.NewQLineEdit(s.subWindow)
+	s.addButton = widgets.NewQPushButton2("add", s.subWindow)
+}
+
+func (s *subscription) setGeometry() {
+	s.subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10), core.NewQPoint2(130, 40)))
+	s.subCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 10), core.NewQPoint2(600, 40)))
+	s.deleteButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 10), core.NewQPoint2(690, 40)))
+	s.lineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50), core.NewQPoint2(600, 80)))
+	s.addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50), core.NewQPoint2(690, 80)))
+}
+
+func (s *subscription) setListener() {
+	s.deleteButton.ConnectClicked(func(bool2 bool) {
+		linkToDelete := s.subCombobox.CurrentText()
+		if err := subscr.RemoveLinkJSON(linkToDelete); err != nil {
+			s.MessageBox(err.Error())
+			return
+		}
+		s.subCombobox.Clear()
+		link, err := subscr.GetLink()
+		if err != nil {
+			s.MessageBox(err.Error())
+			return
+		}
+		s.subCombobox.AddItems(link)
+	})
+
+	s.addButton.ConnectClicked(func(bool2 bool) {
+		link, err := subscr.GetLink()
+		if err != nil {
+			s.MessageBox(err.Error())
+			return
+		}
+		linkToAdd := s.lineText.Text()
 		if linkToAdd == "" {
 			return
 		}
@@ -57,10 +89,17 @@ func (sGui *SGui) createSubscriptionWindow() {
 			}
 		}
 		if err := subscr.AddLinkJSON(linkToAdd); err != nil {
-			sGui.MessageBox(err.Error())
+			s.MessageBox(err.Error())
 			return
 		}
-		subRefresh()
+		s.subCombobox.Clear()
+		s.subCombobox.AddItems(link)
+		s.lineText.Clear()
 	})
-	addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50), core.NewQPoint2(690, 80)))
+}
+
+func (s *subscription) MessageBox(text string) {
+	message := widgets.NewQMessageBox(nil)
+	message.SetText(text)
+	message.Exec()
 }

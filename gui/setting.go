@@ -38,7 +38,7 @@ type setting struct {
 func NewSettingWindow(parent *widgets.QMainWindow) *widgets.QMainWindow {
 	s := setting{}
 	s.parent = parent
-	s.settingWindow = widgets.NewQMainWindow(parent, 0)
+	s.settingWindow = widgets.NewQMainWindow(parent, core.Qt__Dialog)
 	s.settingWindow.SetFixedSize2(430, 330)
 	s.settingWindow.SetWindowTitle("setting")
 	s.settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
