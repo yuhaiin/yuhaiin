@@ -6,5 +6,8 @@ import (
 
 func TestGetPythonPath(t *testing.T) {
 	t.Log(ConPath)
-	t.Log(GetPythonPath())
+}
+
+func TestGetEnvPath(t *testing.T) {
+	t.Log(GetEnvPath("go"))
 }

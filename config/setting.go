@@ -3,58 +3,62 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"os/user"
 )
 
 var (
+	usr, _        = user.Current()
 	pathSeparator = string(os.PathSeparator)
 	ConPath       = Path + pathSeparator + "yuhaiinConfig.json"
 )
 
 // Setting setting json struct
 type Setting struct {
-	PythonPath         string `json:"pythonPath"`
-	SsrPath            string `json:"ssrPath"`
-	PidFile            string `json:"pidPath"`
-	LogFile            string `json:"logPath"`
-	FastOpen           bool   `json:"fastOpen"`
-	Works              string `json:"works"`
-	LocalAddress       string `json:"localAddress"`
-	LocalPort          string `json:"localPort"`
-	TimeOut            string `json:"timeOut"`
-	HttpProxy          bool   `json:"httpProxy"`
+	BlackIcon          bool   `json:"black_icon"`
+	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
+	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
+	DnsServer          string `json:"dnsServer"`
 	Bypass             bool   `json:"bypass"`
 	HttpProxyAddress   string `json:"httpProxyAddress"`
 	Socks5ProxyAddress string `json:"socks5ProxyAddress"`
 	RedirProxyAddress  string `json:"redir_proxy_address"`
 	BypassFile         string `json:"bypassFile"`
-	DnsServer          string `json:"dnsServer"`
-	UdpTrans           bool   `json:"udpTrans"`
-	AutoStartSsr       bool   `json:"autoStartSsr"`
-	IsPrintLog         bool   `json:"is_print_log"`
-	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
-	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
-	UseLocalDNS        bool   `json:"use_local_dns"`
-	BlackIcon          bool   `json:"black_icon"`
+	SsrPath            string `json:"ssrPath"`
+	LocalAddress       string `json:"localAddress"`
+	LocalPort          string `json:"localPort"`
+
+	// not use now
+	PythonPath   string `json:"pythonPath"`
+	PidFile      string `json:"pidPath"`
+	LogFile      string `json:"logPath"`
+	FastOpen     bool   `json:"fastOpen"`
+	Works        string `json:"works"`
+	TimeOut      string `json:"timeOut"`
+	HttpProxy    bool   `json:"httpProxy"`
+	UdpTrans     bool   `json:"udpTrans"`
+	AutoStartSsr bool   `json:"autoStartSsr"`
+	IsPrintLog   bool   `json:"is_print_log"`
+	UseLocalDNS  bool   `json:"use_local_dns"`
 }
 
 // SettingInitJSON init setting json file
 func SettingInitJSON() error {
 	pa := &Setting{
-		AutoStartSsr:       true,
-		BypassFile:         Path + string(os.PathSeparator) + "yuhaiin.conf",
+		BypassFile:         Path + pathSeparator + "yuhaiin.conf",
 		DnsServer:          "1.0.0.1:53",
 		Bypass:             true,
-		HttpProxy:          true,
 		HttpProxyAddress:   "127.0.0.1:8188",
 		Socks5ProxyAddress: "127.0.0.1:1080",
 		RedirProxyAddress:  "127.0.0.1:8088",
-		IsPrintLog:         false,
 		IsDNSOverHTTPS:     false,
 		DNSAcrossProxy:     false,
 		SsrPath:            " ",
 		BlackIcon:          false,
 
 		// not use now
+		HttpProxy:    true,
+		AutoStartSsr: true,
+		IsPrintLog:   false,
 		PythonPath:   "",
 		LocalAddress: "0.0.0.0",
 		LocalPort:    "0",

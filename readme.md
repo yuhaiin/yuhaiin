@@ -13,16 +13,26 @@ How to use:
 
 - Build
 
+    linux
     ```shell script
     git clone https://github.com/Asutorufa/yuhaiin.git
     cd yuhaiin
     export GO111MODULE=on
-    go get -v github.com/therecipe/qt
     go install -v -tags=no_env github.com/therecipe/qt/cmd/...
     go mod vendor
     git clone https://github.com/therecipe/env_linux_amd64_513.git vendor/github.com/therecipe/env_linux_amd64_513
-    $(go env GOPATH)/bin/qtsetup
-    qtdeploy
+    $(go env GOPATH)/bin/qtdeploy
+    ```
+    windows
+    
+    ```cmd
+    git clone https://github.com/Asutorufa/yuhaiin.git
+    cd yuhaiin
+    set GO111MODULE=on
+    go install -v -tags=no_env github.com/therecipe/qt/cmd/... 
+    go mod vendor
+    git clone https://github.com/therecipe/env_windows_amd64_513.git vendor/github.com/therecipe/env_windows_amd64_513
+    for /f %v in ('go env GOPATH') do %v\bin\qtdeploy
     ```
   
 - Support Protocol

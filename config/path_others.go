@@ -3,31 +3,27 @@
 package config
 
 import (
-	"bytes"
-	"os/exec"
-	"os/user"
+	"io/ioutil"
+	"os"
 	"strings"
 )
 
 var (
-	usr, _ = user.Current()
-	Path   = usr.HomeDir + pathSeparator + ".config" + pathSeparator + "yuhaiin"
+	Path = usr.HomeDir + pathSeparator + ".config" + pathSeparator + "yuhaiin"
 )
 
-// GetPythonPath get python path
-func GetPythonPath() string {
-	var out bytes.Buffer
-	cmd := exec.Command("sh", "-c", "which python3")
-	cmd.Stdin = strings.NewReader("some input")
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		cmd = exec.Command("sh", "-c", "which python")
-		cmd.Stdout = &out
-		err = cmd.Run()
-		if err != nil {
-			return ""
+func GetEnvPath(binName string) (path string) {
+	for _, p := range strings.Split(os.ExpandEnv("$PATH"), ":") {
+		files, _ := ioutil.ReadDir(p)
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			} else {
+				if file.Name() == binName {
+					return p + pathSeparator + file.Name()
+				}
+			}
 		}
 	}
-	return strings.Replace(out.String(), "\n", "", -1)
+	return ""
 }

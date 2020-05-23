@@ -49,8 +49,7 @@ func (sGui *SGui) trayInit() {
 	settingTrayIconMenu.ConnectTriggered(func(bool2 bool) { sGui.openSettingWindow() })
 	exit := widgets.NewQAction2("Quit Yuhaiin", sGui.App)
 	exit.ConnectTriggered(func(bool2 bool) { sGui.App.Quit() })
-	actions := []*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit}
-	menu.AddActions(actions)
+	menu.AddActions([]*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit})
 
 	trayIcon := widgets.NewQSystemTrayIcon(sGui.App)
 	trayIcon.SetIcon(icon2)
