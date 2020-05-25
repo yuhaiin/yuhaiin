@@ -14,6 +14,7 @@ type SGui struct {
 	mainMenuBar        *widgets.QMenuBar
 	subscriptionWindow *widgets.QMainWindow
 	settingWindow      *widgets.QMainWindow
+	trayIcon           *widgets.QSystemTrayIcon
 }
 
 func NewGui() *SGui {
@@ -21,7 +22,7 @@ func NewGui() *SGui {
 	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
 	microClientGUI.App.SetApplicationName("yuhaiin")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
-	microClientGUI.MainWindow = NewMainWindow(nil)
+	microClientGUI.MainWindow = NewMainWindow(microClientGUI)
 	microClientGUI.subscriptionWindow = NewSubscription(microClientGUI.MainWindow)
 	microClientGUI.settingWindow = NewSettingWindow(microClientGUI.MainWindow)
 	microClientGUI.trayInit()
@@ -33,7 +34,6 @@ func (sGui *SGui) trayInit() {
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil || !conFig.BlackIcon {
 		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(iconWhite, len(iconWhite))), "svg", core.Qt__AutoColor)
-
 	} else {
 		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(icon, len(icon))), "svg", core.Qt__AutoColor)
 	}
@@ -41,45 +41,41 @@ func (sGui *SGui) trayInit() {
 	sGui.App.SetWindowIcon(icon2)
 
 	menu := widgets.NewQMenu(nil)
-	ssrMicroClientTrayIconMenu := widgets.NewQAction2("Open Yuhaiin", sGui.App)
-	ssrMicroClientTrayIconMenu.ConnectTriggered(func(bool2 bool) { sGui.openMainWindow() })
-	subscriptionTrayIconMenu := widgets.NewQAction2("Subscribe Setting", sGui.App)
-	subscriptionTrayIconMenu.ConnectTriggered(func(bool2 bool) { sGui.openSubscriptionWindow() })
-	settingTrayIconMenu := widgets.NewQAction2("App Setting", sGui.App)
-	settingTrayIconMenu.ConnectTriggered(func(bool2 bool) { sGui.openSettingWindow() })
+	mainMenu := widgets.NewQAction2("Open Yuhaiin", sGui.App)
+	mainMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.MainWindow) })
+	subMenu := widgets.NewQAction2("Subscribe Setting", sGui.App)
+	subMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.subscriptionWindow) })
+	settingMenu := widgets.NewQAction2("App Setting", sGui.App)
+	settingMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.settingWindow) })
 	exit := widgets.NewQAction2("Quit Yuhaiin", sGui.App)
 	exit.ConnectTriggered(func(bool2 bool) { sGui.App.Quit() })
-	menu.AddActions([]*widgets.QAction{ssrMicroClientTrayIconMenu, subscriptionTrayIconMenu, settingTrayIconMenu, exit})
+	menu.AddActions([]*widgets.QAction{mainMenu, subMenu, settingMenu, exit})
 
-	trayIcon := widgets.NewQSystemTrayIcon(sGui.App)
-	trayIcon.SetIcon(icon2)
-	trayIcon.SetContextMenu(menu)
-	trayIcon.Show()
+	sGui.trayIcon = widgets.NewQSystemTrayIcon(sGui.App)
+	sGui.trayIcon.SetIcon(icon2)
+	sGui.trayIcon.SetContextMenu(menu)
+	sGui.trayIcon.ConnectActivated(func(reason widgets.QSystemTrayIcon__ActivationReason) {
+		switch reason {
+		case widgets.QSystemTrayIcon__Trigger:
+			if sGui.MainWindow.IsHidden() {
+				sGui.openWindow(sGui.MainWindow)
+			} else {
+				sGui.MainWindow.Hide()
+			}
+		}
+	})
+	sGui.trayIcon.Show()
 }
 
-func (sGui *SGui) openMainWindow() {
-	if sGui.MainWindow.IsHidden() == false {
-		sGui.MainWindow.Hide()
+func (sGui *SGui) openWindow(window *widgets.QMainWindow) {
+	if window.IsHidden() {
+		window.Move2((sGui.App.Desktop().Width()-window.Width())/2, (sGui.App.Desktop().Height()-window.Height())/2)
+		window.Show()
 	}
-	sGui.MainWindow.Move2((sGui.App.Desktop().Width()-sGui.MainWindow.Width())/2, (sGui.App.Desktop().Height()-sGui.MainWindow.Height())/2)
-	sGui.MainWindow.Show()
-}
-
-func (sGui *SGui) openSubscriptionWindow() {
-	if sGui.subscriptionWindow.IsHidden() == false {
-		sGui.subscriptionWindow.Close()
+	if window.IsMinimized() {
+		window.ShowNormal()
 	}
-
-	sGui.subscriptionWindow.Move2((sGui.App.Desktop().Width()-sGui.subscriptionWindow.Width())/2, (sGui.App.Desktop().Height()-sGui.subscriptionWindow.Height())/2)
-	sGui.subscriptionWindow.Show()
-}
-
-func (sGui *SGui) openSettingWindow() {
-	if sGui.settingWindow.IsHidden() == false {
-		sGui.settingWindow.Close()
-	}
-	sGui.settingWindow.Move2((sGui.App.Desktop().Width()-sGui.settingWindow.Width())/2, (sGui.App.Desktop().Height()-sGui.settingWindow.Height())/2)
-	sGui.settingWindow.Show()
+	window.ActivateWindow()
 }
 
 func (sGui *SGui) MessageBox(text string) {

@@ -27,13 +27,44 @@ type mainWindow struct {
 	subButton       *widgets.QPushButton
 	subUpdateButton *widgets.QPushButton
 	settingButton   *widgets.QPushButton
+
+	menuBar *widgets.QMenuBar
 }
 
-func NewMainWindow(parent *widgets.QMainWindow) *widgets.QMainWindow {
+func NewMainWindow(sGui *SGui) *widgets.QMainWindow {
 	m := &mainWindow{}
-	m.mainWindow = widgets.NewQMainWindow(nil, 0)
+	m.mainWindow = widgets.NewQMainWindow(nil, core.Qt__Window)
+	m.mainWindow.SetWindowFlag(core.Qt__WindowSystemMenuHint, true)
+	m.mainWindow.SetWindowFlag(core.Qt__WindowMaximizeButtonHint, false)
+	m.mainWindow.SetWindowFlag(core.Qt__WindowMinimizeButtonHint, false)
 	m.mainWindow.SetFixedSize2(600, 400)
 	m.mainWindow.SetWindowTitle("yuhaiin")
+
+	menuBar := widgets.NewQMenuBar(m.mainWindow)
+	menuBar.SetFixedWidth(m.mainWindow.Width())
+	mainMenu := menuBar.AddMenu2("Yuhaiin")
+	settingMenu := mainMenu.AddAction("Settings...")
+	settingMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.settingWindow) })
+	exitMenu := mainMenu.AddAction("Exit")
+	exitMenu.ConnectTriggered(func(checked bool) { sGui.App.Quit() })
+	subMenuGroup := menuBar.AddMenu2("Subscribe")
+	subUpdate := subMenuGroup.AddAction("Update")
+	subUpdate.ConnectTriggered(func(checked bool) { m.subUpdate() })
+	subSetting := subMenuGroup.AddAction("Edit")
+	subSetting.ConnectTriggered(func(checked bool) { sGui.openWindow(sGui.subscriptionWindow) })
+	aboutMenu := menuBar.AddMenu2("About")
+	githubAbout := aboutMenu.AddAction("Github")
+	githubAbout.ConnectTriggered(func(checked bool) {
+		gui.QDesktopServices_OpenUrl(core.NewQUrl3("https://github.com/Asutorufa/yuhaiin", core.QUrl__TolerantMode))
+	})
+	authorAbout := aboutMenu.AddAction("Author: Asutorufa")
+	authorAbout.ConnectTriggered(func(checked bool) {
+		gui.QDesktopServices_OpenUrl(core.NewQUrl3("https://github.com/Asutorufa", core.QUrl__TolerantMode))
+	})
+	aboutMenu.AddSeparator()
+	aboutMenu.AddAction("Version: 0.2.11.4Beta")
+	menuBar.AdjustSize()
+	sGui.MainWindow.SetMenuBar(menuBar)
 
 	m.Init()
 	m.setGeometry()
@@ -55,12 +86,12 @@ func (m *mainWindow) Init() {
 	m.latencyLabel2 = widgets.NewQLabel2("", m.mainWindow, core.Qt__WindowType(0x00000000))
 	m.latencyButton = widgets.NewQPushButton2("Test", m.mainWindow)
 	//m.subButton = widgets.NewQPushButton2("Subscription Setting", m.mainWindow)
-	m.subUpdateButton = widgets.NewQPushButton2("Subscribe Update", m.mainWindow)
+	//m.subUpdateButton = widgets.NewQPushButton2("Subscribe Update", m.mainWindow)
 	//m.settingButton = widgets.NewQPushButton2("Setting", m.mainWindow)
 }
 
 func (m *mainWindow) setGeometry() {
-	m.statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 10), core.NewQPoint2(560, 40)))
+	m.statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(40, m.mainWindow.Height()-50), core.NewQPoint2(560, m.mainWindow.Height())))
 	m.nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
 	m.nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60), core.NewQPoint2(560, 90)))
 	m.groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110), core.NewQPoint2(130, 140)))
@@ -72,8 +103,41 @@ func (m *mainWindow) setGeometry() {
 	m.latencyLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210), core.NewQPoint2(450, 240)))
 	m.latencyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
 	//m.subButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 260), core.NewQPoint2(290, 290)))
-	m.subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260), core.NewQPoint2(560, 290)))
+	//m.subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260), core.NewQPoint2(560, 290)))
 	//m.settingButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 300), core.NewQPoint2(290, 330)))
+}
+
+func (m *mainWindow) refresh() {
+	group, err := subscr.GetGroup()
+	if err != nil {
+		m.MessageBox(err.Error())
+		return
+	}
+	m.groupCombobox.Clear()
+	m.groupCombobox.AddItems(group)
+	node, err := subscr.GetNode(m.groupCombobox.CurrentText())
+	if err != nil {
+		m.MessageBox(err.Error())
+		return
+	}
+	m.nodeCombobox.Clear()
+	m.nodeCombobox.AddItems(node)
+
+	nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
+	m.groupCombobox.SetCurrentText(nowNodeGroup)
+	m.nodeCombobox.SetCurrentText(nowNodeName)
+	m.nowNodeLabel2.SetText(nowNodeName)
+}
+
+func (m *mainWindow) subUpdate() {
+	message := widgets.NewQMessageBox(m.mainWindow)
+	message.SetText("Updating!")
+	message.Show()
+	if err := subscr.GetLinkFromInt(); err != nil {
+		m.MessageBox(err.Error())
+	}
+	message.SetText("Updated!")
+	m.refresh()
 }
 
 func (m *mainWindow) setListener() {
@@ -111,38 +175,7 @@ func (m *mainWindow) setListener() {
 		}()
 	})
 
-	update := func() {
-		group, err := subscr.GetGroup()
-		if err != nil {
-			m.MessageBox(err.Error())
-			return
-		}
-		m.groupCombobox.Clear()
-		m.groupCombobox.AddItems(group)
-		node, err := subscr.GetNode(m.groupCombobox.CurrentText())
-		if err != nil {
-			m.MessageBox(err.Error())
-			return
-		}
-		m.nodeCombobox.Clear()
-		m.nodeCombobox.AddItems(node)
-
-		nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
-		m.groupCombobox.SetCurrentText(nowNodeGroup)
-		m.nodeCombobox.SetCurrentText(nowNodeName)
-		m.nowNodeLabel2.SetText(nowNodeName)
-	}
-
-	m.subUpdateButton.ConnectClicked(func(bool2 bool) {
-		message := widgets.NewQMessageBox(m.mainWindow)
-		message.SetText("Updating!")
-		message.Show()
-		if err := subscr.GetLinkFromInt(); err != nil {
-			m.MessageBox(err.Error())
-		}
-		message.SetText("Updated!")
-		update()
-	})
+	//m.subUpdateButton.ConnectClicked(func(bool2 bool) { m.subUpdate() })
 
 	statusRefreshIsRun := false
 	m.mainWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
@@ -170,7 +203,7 @@ func (m *mainWindow) setListener() {
 			}
 			statusRefreshIsRun = false
 		}()
-		update()
+		m.refresh()
 	})
 }
 

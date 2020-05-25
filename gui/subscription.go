@@ -18,7 +18,9 @@ type subscription struct {
 
 func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
 	s := &subscription{}
-	s.subWindow = widgets.NewQMainWindow(parent, core.Qt__Dialog)
+	s.subWindow = widgets.NewQMainWindow(nil, core.Qt__Window)
+	s.subWindow.SetWindowFlag(core.Qt__WindowMinimizeButtonHint, false)
+	s.subWindow.SetWindowFlag(core.Qt__WindowMaximizeButtonHint, false)
 	s.subWindow.SetFixedSize2(700, 100)
 	s.subWindow.SetWindowTitle("subscription")
 	s.subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
