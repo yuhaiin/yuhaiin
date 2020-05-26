@@ -80,6 +80,10 @@ func TestGetNowNode(t *testing.T) {
 	}
 }
 
+func TestGetNowNodeGroupAndName(t *testing.T) {
+	t.Log(GetNowNodeGroupAndName())
+}
+
 func TestGetGroup(t *testing.T) {
 	t.Log(GetGroup())
 }

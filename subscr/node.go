@@ -202,6 +202,9 @@ func ChangeNowNode(group, remarks string) error {
 		return err
 	}
 
+	if pa.Node[group][remarks] == nil {
+		return errors.New("not exist " + group + " - " + remarks)
+	}
 	pa.NowNode = pa.Node[group][remarks]
 	if err := enCodeJSON(pa); err != nil {
 		return err
@@ -268,7 +271,6 @@ func GetNowNode() (interface{}, error) {
 func GetNowNodeGroupAndName() (name string, group string) {
 	pa, err := decodeJSON()
 	if err != nil {
-		log.Println(err)
 		return "", ""
 	}
 	return pa.NowNode.(map[string]interface{})["name"].(string), pa.NowNode.(map[string]interface{})["group"].(string)

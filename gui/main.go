@@ -64,7 +64,7 @@ func NewMainWindow(sGui *SGui) *widgets.QMainWindow {
 	aboutMenu.AddSeparator()
 	aboutMenu.AddAction("Version: 0.2.11.4Beta")
 	menuBar.AdjustSize()
-	sGui.MainWindow.SetMenuBar(menuBar)
+	m.mainWindow.SetMenuBar(menuBar)
 
 	m.Init()
 	m.setGeometry()
@@ -110,14 +110,14 @@ func (m *mainWindow) setGeometry() {
 func (m *mainWindow) refresh() {
 	group, err := subscr.GetGroup()
 	if err != nil {
-		m.MessageBox(err.Error())
+		MessageBox(err.Error())
 		return
 	}
 	m.groupCombobox.Clear()
 	m.groupCombobox.AddItems(group)
 	node, err := subscr.GetNode(m.groupCombobox.CurrentText())
 	if err != nil {
-		m.MessageBox(err.Error())
+		MessageBox(err.Error())
 		return
 	}
 	m.nodeCombobox.Clear()
@@ -134,7 +134,7 @@ func (m *mainWindow) subUpdate() {
 	message.SetText("Updating!")
 	message.Show()
 	if err := subscr.GetLinkFromInt(); err != nil {
-		m.MessageBox(err.Error())
+		MessageBox(err.Error())
 	}
 	message.SetText("Updated!")
 	m.refresh()
@@ -142,14 +142,17 @@ func (m *mainWindow) subUpdate() {
 
 func (m *mainWindow) setListener() {
 	m.startButton.ConnectClicked(func(bool2 bool) {
+		remarkBak, groupBak := subscr.GetNowNodeGroupAndName()
 		group := m.groupCombobox.CurrentText()
 		remarks := m.nodeCombobox.CurrentText()
 		if err := subscr.ChangeNowNode(group, remarks); err != nil {
-			m.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 		if err := process.ChangeNode(); err != nil {
-			m.MessageBox(err.Error())
+			_ = subscr.ChangeNowNode(groupBak, remarkBak)
+			MessageBox(err.Error())
+			return
 		}
 		m.nowNodeLabel2.SetText(remarks)
 	})
@@ -157,7 +160,7 @@ func (m *mainWindow) setListener() {
 	m.groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
 		node, err := subscr.GetNode(m.groupCombobox.CurrentText())
 		if err != nil {
-			m.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 		m.nodeCombobox.Clear()
@@ -205,10 +208,4 @@ func (m *mainWindow) setListener() {
 		}()
 		m.refresh()
 	})
-}
-
-func (m *mainWindow) MessageBox(text string) {
-	message := widgets.NewQMessageBox(nil)
-	message.SetText(text)
-	message.Exec()
 }

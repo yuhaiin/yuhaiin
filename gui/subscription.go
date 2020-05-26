@@ -31,7 +31,7 @@ func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
 		s.subCombobox.Clear()
 		link, err := subscr.GetLink()
 		if err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 		}
 		s.subCombobox.AddItems(link)
 	})
@@ -63,13 +63,13 @@ func (s *subscription) setListener() {
 	s.deleteButton.ConnectClicked(func(bool2 bool) {
 		linkToDelete := s.subCombobox.CurrentText()
 		if err := subscr.RemoveLinkJSON(linkToDelete); err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 		s.subCombobox.Clear()
 		link, err := subscr.GetLink()
 		if err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 		s.subCombobox.AddItems(link)
@@ -78,7 +78,7 @@ func (s *subscription) setListener() {
 	s.addButton.ConnectClicked(func(bool2 bool) {
 		link, err := subscr.GetLink()
 		if err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 		linkToAdd := s.lineText.Text()
@@ -91,17 +91,11 @@ func (s *subscription) setListener() {
 			}
 		}
 		if err := subscr.AddLinkJSON(linkToAdd); err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 		s.subCombobox.Clear()
 		s.subCombobox.AddItems(link)
 		s.lineText.Clear()
 	})
-}
-
-func (s *subscription) MessageBox(text string) {
-	message := widgets.NewQMessageBox(nil)
-	message.SetText(text)
-	message.Exec()
 }

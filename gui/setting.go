@@ -104,7 +104,7 @@ func (s *setting) setListener() {
 	update := func() {
 		conFig, err := config.SettingDecodeJSON()
 		if err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 		s.BlackIconCheckBox.SetChecked(conFig.BlackIcon)
@@ -123,7 +123,7 @@ func (s *setting) setListener() {
 	applyClick := func(bool2 bool) {
 		conFig, err := config.SettingDecodeJSON()
 		if err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
 
@@ -169,66 +169,60 @@ func (s *setting) setListener() {
 		}
 
 		if err := config.SettingEnCodeJSON(conFig); err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 		}
 
 		if isUpdateMode {
 			if err := process.UpdateMode(); err != nil {
-				s.MessageBox(err.Error())
+				MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateDNS {
 			if err := process.UpdateDNS(); err != nil {
-				s.MessageBox(err.Error())
+				MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isChangeNode {
 			if err := process.ChangeNode(); err != nil {
-				s.MessageBox(err.Error())
+				MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateListen {
 			if err := process.UpdateListen(); err != nil {
-				s.MessageBox(err.Error())
+				MessageBox(err.Error())
 				return
 			}
 		}
 
 		if isUpdateMatch {
 			if err := process.UpdateMatch(); err != nil {
-				s.MessageBox(err.Error())
+				MessageBox(err.Error())
 				return
 			}
 		}
 
 		update()
 
-		s.MessageBox("Applied.")
+		MessageBox("Applied.")
 	}
 
 	// set Listener
 	s.applyButton.ConnectClicked(applyClick)
 	s.updateRuleButton.ConnectClicked(func(checked bool) {
 		if err := process.UpdateMatch(); err != nil {
-			s.MessageBox(err.Error())
+			MessageBox(err.Error())
 			return
 		}
-		s.MessageBox("Updated.")
+		MessageBox("Updated.")
 	})
 
 	s.settingWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		update()
 	})
-}
-
-func (s *setting) MessageBox(text string) {
-	message := widgets.NewQMessageBox(nil)
-	message.SetText(text)
-	message.Exec()
 }

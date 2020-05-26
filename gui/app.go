@@ -40,20 +40,13 @@ func (sGui *SGui) trayInit() {
 	icon2 := gui.NewQIcon2(img)
 	sGui.App.SetWindowIcon(icon2)
 
-	menu := widgets.NewQMenu(nil)
-	mainMenu := widgets.NewQAction2("Open Yuhaiin", sGui.App)
-	mainMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.MainWindow) })
-	subMenu := widgets.NewQAction2("Subscribe Setting", sGui.App)
-	subMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.subscriptionWindow) })
-	settingMenu := widgets.NewQAction2("App Setting", sGui.App)
-	settingMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.settingWindow) })
-	exit := widgets.NewQAction2("Quit Yuhaiin", sGui.App)
-	exit.ConnectTriggered(func(bool2 bool) { sGui.App.Quit() })
-	menu.AddActions([]*widgets.QAction{mainMenu, subMenu, settingMenu, exit})
-
 	sGui.trayIcon = widgets.NewQSystemTrayIcon(sGui.App)
 	sGui.trayIcon.SetIcon(icon2)
-	sGui.trayIcon.SetContextMenu(menu)
+	sGui.trayIcon.SetContextMenu(widgets.NewQMenu(nil))
+	sGui.trayIcon.ContextMenu().AddAction("Open Yuhaiin").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.MainWindow) })
+	sGui.trayIcon.ContextMenu().AddAction("Subscribe Setting").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.subscriptionWindow) })
+	sGui.trayIcon.ContextMenu().AddAction("App Setting").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.settingWindow) })
+	sGui.trayIcon.ContextMenu().AddAction("Quit Yuhaiin").ConnectTriggered(func(bool2 bool) { sGui.App.Quit() })
 	sGui.trayIcon.ConnectActivated(func(reason widgets.QSystemTrayIcon__ActivationReason) {
 		switch reason {
 		case widgets.QSystemTrayIcon__Trigger:
@@ -78,7 +71,7 @@ func (sGui *SGui) openWindow(window *widgets.QMainWindow) {
 	window.ActivateWindow()
 }
 
-func (sGui *SGui) MessageBox(text string) {
+func MessageBox(text string) {
 	message := widgets.NewQMessageBox(nil)
 	message.SetText(text)
 	message.Exec()
