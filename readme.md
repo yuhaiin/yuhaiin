@@ -38,8 +38,9 @@ How to use:
 - Support Protocol
     - Shadowsocksr <- need to install a external client(like shadowsocksr-libev)
     - Shadowsocks
-        - Support Plugin: obfs-http
-    - internal Support: Socks5, HTTP
+        - Support Plugin: Obfs-Http
+        - Support Plugin: v2ray-plugin( not support mux,it's too complicated(:, I need some time to understand )
+    - internal Support: Socks5, HTTP, Linux/Mac Redir
 - Support Subscription: Shadowsocksr, SSD
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)
 - [For Developer](https://github.com/Asutorufa/yuhaiin/blob/master/for_developer.md) <- outdated
@@ -67,7 +68,9 @@ How to use:
 - [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
 - [Dreamacro/clash](https://github.com/Dreamacro/clash)  
 - [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
-- [miekg/dns](https://github.com/miekg/dns)
+- [v2ray-plugin](https://github.com/shadowsocks/v2ray-plugin)  
+- [v2ray](https://v2ray.com/)  
+- [miekg/dns](https://github.com/miekg/dns)  
 
 </details>
 
@@ -83,8 +86,10 @@ How to use:
 - [x] have a GUI.
 - [x] add shadowsocks client protocol.
 - [x] add linux REDIRECT.
-- [ ] add software disguise.
-- [ ] add shadowsocks v2ray plugin.
+- [x] add shadowsocks v2ray plugin.
 - [ ] widget exchange to qml.
+- [ ] new api for android(or others).
+- [ ] change qt gui to use new api.
+- [ ] add software disguise.
 
 </details>

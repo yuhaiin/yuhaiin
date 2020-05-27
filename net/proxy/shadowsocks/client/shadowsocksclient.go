@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"log"
 	"net"
 	"net/url"
 	"strings"
@@ -25,8 +26,8 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 		return &shadowsocks{}, err
 	}
 	s := &shadowsocks{cipher: cipher, server: server, plugin: strings.ToUpper(plugin), pluginOpt: pluginOpt}
-	switch strings.ToUpper(plugin) {
-	case "OBFS-LOCAL":
+	switch strings.ToLower(plugin) {
+	case "obfs-local":
 		opts := strings.Split(pluginOpt, ";")
 		if len(opts) < 2 {
 			return nil, errors.New("no format plugin options")
@@ -44,6 +45,15 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 			}
 		default:
 			return s, errors.New("not support plugin")
+		}
+	case "v2ray":
+		s.pluginFunc = func(conn net.Conn) net.Conn {
+			conn, err := NewV2ray(conn, pluginOpt)
+			if err != nil {
+				log.Println(err)
+				return nil
+			}
+			return conn
 		}
 	default:
 		s.pluginFunc = nil
