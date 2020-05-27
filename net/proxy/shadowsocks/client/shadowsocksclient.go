@@ -1,15 +1,18 @@
 package client
 
 import (
-	"errors"
 	"log"
 	"net"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/shadowsocks/go-shadowsocks2/core"
 	"github.com/shadowsocks/go-shadowsocks2/socks"
+)
+
+var (
+	OBFS  = "obfs-local"
+	V2RAY = "v2ray"
 )
 
 type shadowsocks struct {
@@ -27,26 +30,16 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 	}
 	s := &shadowsocks{cipher: cipher, server: server, plugin: strings.ToUpper(plugin), pluginOpt: pluginOpt}
 	switch strings.ToLower(plugin) {
-	case "obfs-local":
-		opts := strings.Split(pluginOpt, ";")
-		if len(opts) < 2 {
-			return nil, errors.New("no format plugin options")
-		}
-		obfs := strings.Replace(opts[0], "obfs=", "", -1)
-		param := strings.Replace(opts[1], "obfs-host=", "", -1)
-		switch obfs {
-		case "http":
-			urlTmp, err := url.Parse("//" + server)
+	case OBFS:
+		s.pluginFunc = func(conn net.Conn) net.Conn {
+			conn, err := NewObfs(conn, pluginOpt)
 			if err != nil {
-				return nil, err
+				log.Println(err)
+				return nil
 			}
-			s.pluginFunc = func(conn net.Conn) net.Conn {
-				return NewHTTPObfs(conn, param, urlTmp.Port())
-			}
-		default:
-			return s, errors.New("not support plugin")
+			return conn
 		}
-	case "v2ray":
+	case V2RAY:
 		s.pluginFunc = func(conn net.Conn) net.Conn {
 			conn, err := NewV2ray(conn, pluginOpt)
 			if err != nil {

@@ -1,7 +1,6 @@
 package socks5server
 
 import (
-	"errors"
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"log"
 	"net"
@@ -29,12 +28,7 @@ func NewSocks5Server(host, port, username, password string) (*Server, error) {
 		return nil, err
 	}
 	s.Username, s.Password = username, password
-	go func() {
-		if err := s.Socks5(); err != nil {
-			log.Print(err)
-			return
-		}
-	}()
+	go func() { s.Socks5() }()
 	return s, nil
 }
 
@@ -54,7 +48,7 @@ func (s *Server) GetListenHost() string {
 }
 
 // Socks5 <--
-func (s *Server) Socks5() error {
+func (s *Server) Socks5() {
 	for {
 		client, err := s.listener.Accept()
 		if err != nil {
@@ -63,20 +57,12 @@ func (s *Server) Socks5() error {
 			}
 			continue
 		}
-		if err = client.(*net.TCPConn).SetKeepAlive(true); err != nil {
-			return err
-		}
+		_ = client.(*net.TCPConn).SetKeepAlive(true)
 		go func() {
-			defer func() {
-				_ = client.Close()
-			}()
-			if err := s.handleClientRequest(client); err != nil {
-				//log.Println(err)
-				return
-			}
+			defer client.Close()
+			s.handleClientRequest(client)
 		}()
 	}
-	return nil
 }
 
 // Close close socks5 listener
@@ -85,21 +71,25 @@ func (s *Server) Close() error {
 	return s.listener.Close()
 }
 
-func (s *Server) handleClientRequest(client net.Conn) error {
+func (s *Server) handleClientRequest(client net.Conn) {
 	b := common.BuffPool.Get().([]byte)
 	_, err := client.Read(b[:])
 	if err != nil {
-		return err
+		log.Println(err)
+		return
 	}
 
 	if b[0] == 0x05 { //只处理Socks5协议
-		_, _ = client.Write([]byte{0x05, 0x00})
+		if _, err = client.Write([]byte{0x05, 0x00}); err != nil {
+			log.Println(err)
+			return
+		}
 		if b[1] == 0x01 {
 			// 对用户名密码进行判断
 			if b[2] == 0x02 {
-				_, err = client.Read(b[:])
-				if err != nil {
-					return err
+				if _, err = client.Read(b[:]); err != nil {
+					log.Println(err)
+					return
 				}
 				username := b[2 : 2+b[1]]
 				password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
@@ -107,22 +97,24 @@ func (s *Server) handleClientRequest(client net.Conn) error {
 					_, _ = client.Write([]byte{0x01, 0x00})
 				} else {
 					_, _ = client.Write([]byte{0x01, 0x01})
-					return errors.New("username or password not correct")
+					log.Println("username or password not correct")
+					return
 				}
 			}
 		}
 
 		n, err := client.Read(b[:])
 		if err != nil {
-			return err
+			log.Println(err)
+			return
 		}
 
 		var host, port string
 		switch b[3] {
 		case 0x01: //IP V4
 			host = net.IPv4(b[4], b[5], b[6], b[7]).String()
-		case 0x03: //域名
-			host = string(b[5 : n-2]) //b[4]表示域名的长度
+		case 0x03: //domain
+			host = string(b[5 : n-2]) //b[4] domain's length
 		case 0x04: //IP V6
 			host = net.IP{b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15], b[16], b[17], b[18], b[19]}.String()
 		}
@@ -132,30 +124,40 @@ func (s *Server) handleClientRequest(client net.Conn) error {
 		switch b[1] {
 		case 0x01:
 			if server, err = common.ForwardTarget(net.JoinHostPort(host, port)); err != nil {
-				_, err = client.Write([]byte{0x05, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-				return err
+				writeError(client)
+				log.Println(err)
+				return
 			}
 
 		case 0x02: // bind request
 			if server, err = net.Dial("tcp", net.JoinHostPort(host, port)); err != nil {
-				_, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-				return err
+				writeError(client)
+				log.Println(err)
+				return
 			}
 
 		case 0x03: // udp request
 			if server, err = net.Dial("udp", net.JoinHostPort(host, port)); err != nil {
-				_, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-				return err
+				writeError(client)
+				log.Println(err)
+				return
 			}
 		}
+
 		// response to connect successful
 		if _, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}); err != nil {
-			return err
+			log.Println(err)
+			return
 		}
 		defer func() {
 			_ = server.Close()
+			common.BuffPool.Put(b[:cap(b)])
 		}()
+
 		common.Forward(client, server)
 	}
-	return nil
+}
+
+func writeError(conn net.Conn) {
+	_, _ = conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 }

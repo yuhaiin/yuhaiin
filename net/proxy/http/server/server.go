@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -32,12 +31,7 @@ func NewHTTPServer(host, port, username, password string) (s *Server, err error)
 		return nil, err
 	}
 	s.Username, s.Password = username, password
-	go func() {
-		if err := s.HTTPProxy(); err != nil {
-			log.Print(err)
-			return
-		}
-	}()
+	go func() { s.HTTPProxy() }()
 	return s, nil
 }
 
@@ -65,7 +59,7 @@ func (h *Server) Close() error {
 // HTTPProxy http proxy
 // server http listen server,port http listen port
 // sock5Server socks5 server ip,socks5Port socks5 server port
-func (h *Server) HTTPProxy() error {
+func (h *Server) HTTPProxy() {
 	for {
 		client, err := h.listener.Accept()
 		if err != nil {
@@ -74,61 +68,52 @@ func (h *Server) HTTPProxy() error {
 			}
 			continue
 		}
-		if err = client.(*net.TCPConn).SetKeepAlive(true); err != nil {
-			return err
-		}
+		_ = client.(*net.TCPConn).SetKeepAlive(true)
 
 		go func() {
-			defer func() {
-				_ = client.Close()
-			}()
-			if err := h.httpHandleClientRequest(client); err != nil {
-				if err != io.EOF && err != io.ErrUnexpectedEOF && err != io.ErrClosedPipe {
-					//log.Println(err)
-					return
-				}
-			}
+			defer client.Close()
+			h.httpHandleClientRequest(client)
 		}()
 	}
-	return nil
 }
 
-func (h *Server) httpHandleClientRequest(client net.Conn) error {
+func (h *Server) httpHandleClientRequest(client net.Conn) {
 	/*
 		use golang http
 	*/
 	inBoundReader := bufio.NewReader(client)
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
-		return err
+		log.Println(err)
+		return
 	}
 
 	if h.Username != "" {
 		authorization := strings.Split(req.Header.Get("Proxy-Authorization"), " ")
 		if len(authorization) != 2 {
-			_, err = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
-			return err
+			_, _ = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
+			return
 		}
 		dst := make([]byte, base64.URLEncoding.DecodedLen(len(authorization[1])))
-		_, err = base64.StdEncoding.Decode(dst, []byte(authorization[1]))
-		if err != nil {
-			return err
+		if _, err = base64.StdEncoding.Decode(dst, []byte(authorization[1])); err != nil {
+			log.Println(err)
+			return
 		}
 		uap := bytes.Split(dst, []byte(":"))
 		if len(uap) != 2 {
-			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-			return err
+			_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+			return
 		}
 		if string(uap[0]) != h.Username || string(uap[1]) != h.Password {
-			_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-			return err
+			_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+			return
 		}
 	}
 
 	server, err := common.ForwardTarget(req.Host)
 	if err != nil {
-		_, err = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-		return err
+		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		return
 	}
 
 	defer func() {
@@ -138,7 +123,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 	switch req.Method {
 	case http.MethodConnect:
 		if _, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil {
-			return err
+			log.Println(err)
+			return
 		}
 		common.Forward(client, server)
 	default:
@@ -157,7 +143,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 			}
 			response.Header.Set("Proxy-Connection", "close")
 			response.Header.Set("Connection", "close")
-			return response.Write(client)
+			_ = response.Write(client)
+			return
 			//return errors.New("RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy")
 		}
 		outboundReader := bufio.NewReader(server)
@@ -171,7 +158,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 			req.Header.Set("Connection", "close")
 			req.Header = removeHeader(req.Header)
 			if err := req.Write(server); err != nil {
-				return err
+				log.Println(err)
+				return
 			}
 
 			resp, err := http.ReadResponse(outboundReader, req)
@@ -189,7 +177,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 				}
 				resp.Header.Set("Connection", "close")
 				resp.Header.Set("Proxy-Connection", "close")
-				return resp.Write(client)
+				_ = resp.Write(client)
+				return
 			}
 			if keepAlive || resp.ContentLength >= 0 {
 				resp.Header.Set("Proxy-Connection", "keep-alive")
@@ -207,11 +196,11 @@ func (h *Server) httpHandleClientRequest(client net.Conn) error {
 			}
 			req, err = http.ReadRequest(inBoundReader)
 			if err != nil {
-				return err
+				log.Println(err)
+				return
 			}
 		}
 	}
-	return nil
 }
 
 func removeHeader(h http.Header) http.Header {
