@@ -169,12 +169,13 @@ func (m *mainWindow) setListener() {
 
 	m.latencyButton.ConnectClicked(func(bool2 bool) {
 		go func() {
+			t := time.Now()
 			lat, err := process.Latency(m.groupCombobox.CurrentText(), m.nodeCombobox.CurrentText())
 			if err != nil {
-				m.latencyLabel2.SetText("connect failed: " + err.Error())
+				m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  can't connect", t.Hour(), t.Minute(), t.Second()))
 				return
 			}
-			m.latencyLabel2.SetText(lat.String())
+			m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  %s", t.Hour(), t.Minute(), t.Second(), lat.String()))
 		}()
 	})
 

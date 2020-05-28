@@ -34,6 +34,7 @@ func (c *cache) Add(domain string, mark interface{}) {
 			if tmp >= 80 {
 				return false
 			}
+			tmp++
 			return true
 		})
 		c.number -= 80
