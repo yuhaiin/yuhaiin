@@ -23,12 +23,14 @@ func controlInit() {
 }
 
 func ReSet() error {
-	if ssrCmd != nil && ssrCmd.Process != nil {
-		if err := ssrCmd.Process.Kill(); err != nil {
-			return err
-		}
-		ssrCmd = nil
+	if ssrCmd == nil || ssrCmd.Process == nil {
+		return nil
 	}
+
+	if err := ssrCmd.Process.Kill(); err != nil {
+		return err
+	}
+	ssrCmd = nil
 	return nil
 }
 
@@ -36,10 +38,12 @@ func ChangeNode() error {
 	if err := ReSet(); err != nil {
 		return err
 	}
+
 	nNode, err := subscr.GetNowNode()
 	if err != nil {
 		return err
 	}
+
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
 		conn, err := client.NewShadowsocks(

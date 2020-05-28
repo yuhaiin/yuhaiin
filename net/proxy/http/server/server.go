@@ -115,90 +115,87 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		return
 	}
+	defer server.Close()
 
-	defer func() {
-		_ = server.Close()
-	}()
-
-	switch req.Method {
-	case http.MethodConnect:
+	if req.Method == http.MethodConnect {
 		if _, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil {
 			log.Println(err)
 			return
 		}
 		common.Forward(client, server)
-	default:
-		if req.URL.Host == "" {
-			// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
-			response := &http.Response{
-				Status:        "Bad Request",
-				StatusCode:    400,
+		return
+	}
+
+	if req.URL.Host == "" {
+		// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
+		response := &http.Response{
+			Status:        "Bad Request",
+			StatusCode:    400,
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
+			Header:        http.Header(make(map[string][]string)),
+			Body:          nil,
+			ContentLength: 0,
+			Close:         true,
+		}
+		response.Header.Set("Proxy-Connection", "close")
+		response.Header.Set("Connection", "close")
+		_ = response.Write(client)
+		return
+		//return errors.New("RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy")
+	}
+	outboundReader := bufio.NewReader(server)
+	for {
+		keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"
+		if len(req.URL.Host) > 0 {
+			req.Host = req.URL.Host
+		}
+		//req.URL.Host = ""
+		//req.URL.Scheme = ""
+		req.Header.Set("Connection", "close")
+		req.Header = removeHeader(req.Header)
+		if err := req.Write(server); err != nil {
+			log.Println(err)
+			return
+		}
+
+		resp, err := http.ReadResponse(outboundReader, req)
+		if err != nil {
+			resp = &http.Response{
+				Status:        "Service Unavailable",
+				StatusCode:    503,
 				Proto:         "HTTP/1.1",
 				ProtoMajor:    1,
 				ProtoMinor:    1,
-				Header:        http.Header(make(map[string][]string)),
+				Header:        make(map[string][]string),
 				Body:          nil,
 				ContentLength: 0,
 				Close:         true,
 			}
-			response.Header.Set("Proxy-Connection", "close")
-			response.Header.Set("Connection", "close")
-			_ = response.Write(client)
+			resp.Header.Set("Connection", "close")
+			resp.Header.Set("Proxy-Connection", "close")
+			_ = resp.Write(client)
 			return
-			//return errors.New("RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy")
 		}
-		outboundReader := bufio.NewReader(server)
-		for {
-			keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"
-			if len(req.URL.Host) > 0 {
-				req.Host = req.URL.Host
-			}
-			//req.URL.Host = ""
-			//req.URL.Scheme = ""
-			req.Header.Set("Connection", "close")
-			req.Header = removeHeader(req.Header)
-			if err := req.Write(server); err != nil {
-				log.Println(err)
-				return
-			}
-
-			resp, err := http.ReadResponse(outboundReader, req)
-			if err != nil {
-				resp = &http.Response{
-					Status:        "Service Unavailable",
-					StatusCode:    503,
-					Proto:         "HTTP/1.1",
-					ProtoMajor:    1,
-					ProtoMinor:    1,
-					Header:        make(map[string][]string),
-					Body:          nil,
-					ContentLength: 0,
-					Close:         true,
-				}
-				resp.Header.Set("Connection", "close")
-				resp.Header.Set("Proxy-Connection", "close")
-				_ = resp.Write(client)
-				return
-			}
-			if keepAlive || resp.ContentLength >= 0 {
-				resp.Header.Set("Proxy-Connection", "keep-alive")
-				resp.Header.Set("Connection", "keep-alive")
-				resp.Header.Set("Keep-Alive", "timeout=4")
-				resp.Close = false
-			} else {
-				resp.Close = true
-			}
-			resp.Header = removeHeader(resp.Header)
-			err = resp.Write(client)
-			if err != nil || resp.Close {
-				//return err
-				break
-			}
-			req, err = http.ReadRequest(inBoundReader)
-			if err != nil {
-				log.Println(err)
-				return
-			}
+		if keepAlive || resp.ContentLength >= 0 {
+			resp.Header.Set("Proxy-Connection", "keep-alive")
+			resp.Header.Set("Connection", "keep-alive")
+			resp.Header.Set("Keep-Alive", "timeout=4")
+			resp.Close = false
+		} else {
+			resp.Close = true
+		}
+		resp.Header = removeHeader(resp.Header)
+		err = resp.Write(client)
+		if err != nil || resp.Close {
+			//return err
+			break
+		}
+		req, err = http.ReadRequest(inBoundReader)
+		if err != nil {
+			log.Println(err)
+			return
 		}
 	}
 }

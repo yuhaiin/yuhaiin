@@ -40,21 +40,22 @@ func (d *Domain) Search(domain string) (isMatcher bool, mark interface{}) {
 	first, domainDiv := true, strings.Split(domain, ".")
 	for index := range domainDiv {
 		_, ok := root.child[domainDiv[index]]
-		if first {
-			if !ok {
-				continue
-			}
+
+		if first && !ok {
+			continue
 		}
+
 		if !ok {
 			return false, nil
 		}
+
 		if index == len(domainDiv)-1 {
 			if root.child[domainDiv[index]].isLast == true {
 				return true, root.child[domainDiv[index]].mark
-			} else {
-				return false, nil
 			}
+			return false, nil
 		}
+
 		root = root.child[domainDiv[index]]
 		first = false
 	}

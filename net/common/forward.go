@@ -2,14 +2,15 @@ package common
 
 import (
 	"net"
+	"sync/atomic"
 	"time"
 )
 
 var (
-	DownloadTotal = 0
-	UploadTotal   = 0
+	DownloadTotal = int64(0)
+	UploadTotal   = int64(0)
 	// int[0] is mode: mode = 0 -> download , mode = 1 -> upload
-	queue = make(chan [2]int, 10)
+	queue = make(chan [2]int64, 10)
 )
 
 func init() {
@@ -17,9 +18,11 @@ func init() {
 		for s := range queue {
 			switch s[0] {
 			case 0:
-				DownloadTotal += s[1]
+				atomic.AddInt64(&DownloadTotal, s[1])
+				//DownloadTotal += s[1]
 			case 1:
-				UploadTotal += s[1]
+				atomic.AddInt64(&UploadTotal, s[1])
+				//UploadTotal += s[1]
 			}
 			QueuePool.Put(s)
 		}
@@ -58,7 +61,7 @@ func pipe(src, dst net.Conn, closeSig chan error) {
 	}
 }
 
-func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int) {
+func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int64) {
 	var n int
 	var err error
 	buf := BuffPool.Get().([]byte)
@@ -75,9 +78,9 @@ func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int) {
 		}
 
 		go func() {
-			x := QueuePool.Get().([2]int)
+			x := QueuePool.Get().([2]int64)
 			x[0] = mode
-			x[1] = n
+			x[1] = int64(n)
 			queue <- x
 		}()
 

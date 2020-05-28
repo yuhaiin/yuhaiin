@@ -27,7 +27,9 @@ func proxyInit() {
 		if err != nil {
 			log.Println(err)
 		}
-		if Socks5, err = socks5server.NewSocks5Server(socks5Addr.Hostname(), socks5Addr.Port(), "", ""); err != nil {
+
+		Socks5, err = socks5server.NewSocks5Server(socks5Addr.Hostname(), socks5Addr.Port(), "", "")
+		if err != nil {
 			log.Print(err)
 			return
 		}
@@ -39,7 +41,9 @@ func proxyInit() {
 			log.Print(err)
 			return
 		}
-		if HttpS, err = httpserver.NewHTTPServer(httpAddr.Hostname(), httpAddr.Port(), "", ""); err != nil {
+
+		HttpS, err = httpserver.NewHTTPServer(httpAddr.Hostname(), httpAddr.Port(), "", "")
+		if err != nil {
 			log.Print(err)
 			return
 		}
@@ -59,7 +63,9 @@ func UpdateListen() (err error) {
 		if err != nil {
 			return err
 		}
-		if err = Socks5.UpdateListen(socks5Addr.Hostname(), socks5Addr.Port()); err != nil {
+
+		err = Socks5.UpdateListen(socks5Addr.Hostname(), socks5Addr.Port())
+		if err != nil {
 			return err
 		}
 	}
@@ -69,7 +75,9 @@ func UpdateListen() (err error) {
 		if err != nil {
 			return err
 		}
-		if err = HttpS.UpdateListenHost(httpAddr.Hostname(), httpAddr.Port()); err != nil {
+
+		err = HttpS.UpdateListenHost(httpAddr.Hostname(), httpAddr.Port())
+		if err != nil {
 			return err
 		}
 	}

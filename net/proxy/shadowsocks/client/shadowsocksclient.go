@@ -29,6 +29,7 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 		return &shadowsocks{}, err
 	}
 	s := &shadowsocks{cipher: cipher, server: server, plugin: strings.ToUpper(plugin), pluginOpt: pluginOpt}
+
 	switch strings.ToLower(plugin) {
 	case OBFS:
 		s.pluginFunc = func(conn net.Conn) net.Conn {
@@ -51,6 +52,7 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 	default:
 		s.pluginFunc = func(conn net.Conn) net.Conn { return conn }
 	}
+
 	return s, nil
 }
 

@@ -78,71 +78,71 @@ func (s *Server) handleClientRequest(client net.Conn) {
 		return
 	}
 
-	if b[0] == 0x05 { //只处理Socks5协议
-		writeFirstResp(client, 0x00)
-		if b[1] == 0x01 {
-			// 对用户名密码进行判断
-			if b[2] == 0x02 {
-				if _, err = client.Read(b[:]); err != nil {
-					return
-				}
-				username := b[2 : 2+b[1]]
-				password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
-				if s.Username == string(username) && s.Password == string(password) {
-					writeFirstResp(client, 0x00)
-				} else {
-					writeFirstResp(client, 0x01)
-					return
-				}
-			}
-		}
-
-		n, err := client.Read(b[:])
-		if err != nil {
-			return
-		}
-
-		var host, port string
-		switch b[3] {
-		case 0x01: //IP V4
-			host = net.IPv4(b[4], b[5], b[6], b[7]).String()
-		case 0x03: //domain
-			host = string(b[5 : n-2]) //b[4] domain's length
-		case 0x04: //IP V6
-			host = net.IP{b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15], b[16], b[17], b[18], b[19]}.String()
-		}
-		port = strconv.Itoa(int(b[n-2])<<8 | int(b[n-1]))
-
-		var server net.Conn
-		switch b[1] {
-		case 0x01:
-			if server, err = common.ForwardTarget(net.JoinHostPort(host, port)); err != nil {
-				writeSecondResp(client, 0x04)
-				return
-			}
-
-		case 0x03: // udp request
-			if server, err = net.Dial("udp", net.JoinHostPort(host, port)); err != nil {
-				writeSecondResp(client, 0x04)
-				return
-			}
-
-		case 0x02: // bind request
-			fallthrough
-
-		default:
-			writeSecondResp(client, 0x07)
-			return
-		}
-		defer server.Close()
-
-		// response to connect successful
-		writeSecondResp(client, 0x00)
-
-		common.Forward(client, server)
+	if b[0] != 0x05 { //只处理Socks5协议
+		writeFirstResp(client, 0xff)
 		return
 	}
-	writeFirstResp(client, 0xff)
+
+	writeFirstResp(client, 0x00)
+
+	if b[1] == 0x01 && b[2] == 0x02 {
+		// 对用户名密码进行判断
+		if _, err = client.Read(b[:]); err != nil {
+			return
+		}
+		username := b[2 : 2+b[1]]
+		password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
+		if s.Username != string(username) || s.Password != string(password) {
+			writeFirstResp(client, 0x01)
+			return
+		}
+		writeFirstResp(client, 0x00)
+	}
+
+	n, err := client.Read(b[:])
+	if err != nil {
+		return
+	}
+
+	var host, port string
+	switch b[3] {
+	case 0x01: //IP V4
+		host = net.IPv4(b[4], b[5], b[6], b[7]).String()
+	case 0x03: //domain
+		host = string(b[5 : n-2]) //b[4] domain's length
+	case 0x04: //IP V6
+		host = net.IP{b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15], b[16], b[17], b[18], b[19]}.String()
+	}
+	port = strconv.Itoa(int(b[n-2])<<8 | int(b[n-1]))
+
+	var server net.Conn
+	switch b[1] {
+	case 0x01:
+		if server, err = common.ForwardTarget(net.JoinHostPort(host, port)); err != nil {
+			writeSecondResp(client, 0x04)
+			return
+		}
+
+	case 0x03: // udp request
+		if server, err = net.Dial("udp", net.JoinHostPort(host, port)); err != nil {
+			writeSecondResp(client, 0x04)
+			return
+		}
+
+	case 0x02: // bind request
+		fallthrough
+
+	default:
+		writeSecondResp(client, 0x07)
+		return
+	}
+	defer server.Close()
+
+	// response to connect successful
+	writeSecondResp(client, 0x00)
+
+	common.Forward(client, server)
+	return
 }
 
 func writeFirstResp(conn net.Conn, errREP byte) {

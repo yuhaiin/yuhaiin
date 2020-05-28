@@ -4,6 +4,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/dns"
+	"github.com/Asutorufa/yuhaiin/net/match"
 	"io"
 	"log"
 	"net"
@@ -11,11 +15,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/net/dns"
-	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
 var (
@@ -40,16 +39,11 @@ var (
 )
 
 func matchInit() {
-	conFig, err := config.SettingDecodeJSON()
-	if err != nil {
-		log.Print(err)
+	if err := UpdateMode(); err != nil {
+		log.Println(err)
 	}
-	if conFig.Bypass {
-		mode = bypass
-	} else {
-		mode = globalProxy
-	}
-	if err = UpdateMatch(); err != nil {
+
+	if err := UpdateMatch(); err != nil {
 		log.Println(err)
 	}
 	common.ForwardTarget = Forward
@@ -95,11 +89,10 @@ func UpdateMode() error {
 	if err != nil {
 		return err
 	}
-	if conFig.Bypass {
-		mode = bypass
-	} else {
+	if !conFig.Bypass {
 		mode = globalProxy
 	}
+	mode = bypass
 	return nil
 }
 
@@ -116,11 +109,13 @@ func DNS() (func(domain string) (DNS []net.IP, success bool), error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if conFig.IsDNSOverHTTPS {
 		return func(domain string) (DNS []net.IP, success bool) {
 			return dns.DNSOverHTTPS(conFig.DnsServer, domain, nil)
 		}, nil
 	}
+
 	return func(domain string) (DNS []net.IP, success bool) {
 		DNS, success, _ = dns.MDNS(conFig.DnsServer, domain)
 		return
@@ -128,23 +123,30 @@ func DNS() (func(domain string) (DNS []net.IP, success bool), error) {
 }
 
 func Forward(host string) (conn net.Conn, err error) {
-	if mode == bypass {
-		URI, err := url.Parse("//" + host)
-		if err != nil {
-			return nil, err
+	if mode != bypass {
+		return Conn(host)
+	}
+
+	URI, err := url.Parse("//" + host)
+	if err != nil {
+		return nil, err
+	}
+
+	switch Matcher.Search(URI.Hostname()) {
+	case direct:
+		return net.DialTimeout("tcp", host, 3*time.Second)
+
+	case localDNS:
+		ips, isSuccess := Matcher.DNS(URI.Hostname())
+		if !isSuccess {
+			break
 		}
-		switch Matcher.Search(URI.Hostname()) {
-		case direct:
-			return net.DialTimeout("tcp", host, 3*time.Second)
-		case localDNS:
-			if ips, isSuccess := Matcher.DNS(URI.Hostname()); isSuccess {
-				for _, ip := range ips {
-					return Conn(net.JoinHostPort(ip.String(), URI.Port()))
-				}
-			}
-		case block:
-			return nil, errors.New("block domain: " + host)
+		for _, ip := range ips {
+			return Conn(net.JoinHostPort(ip.String(), URI.Port()))
 		}
+
+	case block:
+		return nil, errors.New("block domain: " + host)
 	}
 	return Conn(host)
 }

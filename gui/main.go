@@ -187,17 +187,18 @@ func (m *mainWindow) setListener() {
 			if statusRefreshIsRun {
 				return
 			}
+
 			statusRefreshIsRun = true
-			downloadTmp, downRate := 0, 0
-			uploadTmp, uploadRate := 0, 0
+			downloadTmp, downRate := int64(0), int64(0)
+			uploadTmp, uploadRate := int64(0), int64(0)
+
 			for {
 				if m.mainWindow.IsHidden() {
 					break
 				}
-				downRate = common.DownloadTotal - downloadTmp
-				downloadTmp = common.DownloadTotal
-				uploadRate = common.UploadTotal - uploadTmp
-				uploadTmp = common.UploadTotal
+
+				downRate, downloadTmp = common.DownloadTotal-downloadTmp, common.DownloadTotal
+				uploadRate, uploadTmp = common.UploadTotal-uploadTmp, common.UploadTotal
 				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s/S , Upload<sub><i>(%s)</i></sub>: %s/S",
 					common.ReducedUnit2(float64(downloadTmp)),
 					common.ReducedUnit2(float64(downRate)),

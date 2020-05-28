@@ -42,23 +42,24 @@ func NewV2ray(conn net.Conn, options string) (net.Conn, error) {
 		panic("thou shalt not reach hear")
 	}
 	for _, x := range strings.Split(options, ";") {
-		if strings.Contains(x, "=") {
-			s := strings.Split(x, "=")
-			switch s[0] {
-			case "mode":
-				*mode = s[1]
-			case "path":
-				*path = s[1]
-			case "cert":
-				*cert = s[1]
-			case "certRaw":
-				*certRaw = s[1]
-			case "fastOpen":
-				*fastOpen = true
+		if !strings.Contains(x, "=") {
+			if x == "tls" {
+				*tlsEnabled = true
 			}
+			continue
 		}
-		if x == "tls" {
-			*tlsEnabled = true
+		s := strings.Split(x, "=")
+		switch s[0] {
+		case "mode":
+			*mode = s[1]
+		case "path":
+			*path = s[1]
+		case "cert":
+			*cert = s[1]
+		case "certRaw":
+			*certRaw = s[1]
+		case "fastOpen":
+			*fastOpen = true
 		}
 	}
 

@@ -12,13 +12,10 @@ import (
 // PathExists 判断目录是否存在返回布尔类型
 func PathExists(path string) bool {
 	_, err := os.Stat(path)
-	if err != nil {
-		if os.IsExist(err) {
-			return true
-		}
-		return false
+	if err == nil {
+		return true
 	}
-	return true
+	return os.IsExist(err)
 }
 
 func init() {

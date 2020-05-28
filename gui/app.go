@@ -52,9 +52,9 @@ func (sGui *SGui) trayInit() {
 		case widgets.QSystemTrayIcon__Trigger:
 			if sGui.MainWindow.IsHidden() {
 				sGui.openWindow(sGui.MainWindow)
-			} else {
-				sGui.MainWindow.Hide()
+				break
 			}
+			sGui.MainWindow.Hide()
 		}
 	})
 	sGui.trayIcon.Show()
