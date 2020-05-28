@@ -49,23 +49,18 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 			return conn
 		}
 	default:
-		s.pluginFunc = nil
+		s.pluginFunc = func(conn net.Conn) net.Conn { return conn }
 	}
 	return s, nil
 }
 
 func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	rConn, err := net.DialTimeout("tcp", s.server, 4*time.Second)
-	if err != nil {
+	var rConn net.Conn
+	if rConn, err = net.DialTimeout("tcp", s.server, 5*time.Second); err != nil {
 		return nil, err
 	}
 	_ = rConn.(*net.TCPConn).SetKeepAlive(true)
-	if s.pluginFunc != nil {
-		conn = s.cipher.StreamConn(s.pluginFunc(rConn))
-	} else {
-		conn = s.cipher.StreamConn(rConn)
-	}
-
+	conn = s.cipher.StreamConn(s.pluginFunc(rConn))
 	if _, err = conn.Write(socks.ParseAddr(host)); err != nil {
 		return nil, err
 	}

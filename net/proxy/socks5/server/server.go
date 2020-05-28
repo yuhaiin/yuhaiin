@@ -2,7 +2,6 @@ package socks5server
 
 import (
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"log"
 	"net"
 	"strconv"
 )
@@ -72,32 +71,27 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) handleClientRequest(client net.Conn) {
+	var err error
 	b := common.BuffPool.Get().([]byte)
-	_, err := client.Read(b[:])
-	if err != nil {
-		log.Println(err)
+	defer common.BuffPool.Put(b[:cap(b)])
+	if _, err = client.Read(b[:]); err != nil {
 		return
 	}
 
 	if b[0] == 0x05 { //只处理Socks5协议
-		if _, err = client.Write([]byte{0x05, 0x00}); err != nil {
-			log.Println(err)
-			return
-		}
+		writeFirstResp(client, 0x00)
 		if b[1] == 0x01 {
 			// 对用户名密码进行判断
 			if b[2] == 0x02 {
 				if _, err = client.Read(b[:]); err != nil {
-					log.Println(err)
 					return
 				}
 				username := b[2 : 2+b[1]]
 				password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
 				if s.Username == string(username) && s.Password == string(password) {
-					_, _ = client.Write([]byte{0x01, 0x00})
+					writeFirstResp(client, 0x00)
 				} else {
-					_, _ = client.Write([]byte{0x01, 0x01})
-					log.Println("username or password not correct")
+					writeFirstResp(client, 0x01)
 					return
 				}
 			}
@@ -105,7 +99,6 @@ func (s *Server) handleClientRequest(client net.Conn) {
 
 		n, err := client.Read(b[:])
 		if err != nil {
-			log.Println(err)
 			return
 		}
 
@@ -124,40 +117,38 @@ func (s *Server) handleClientRequest(client net.Conn) {
 		switch b[1] {
 		case 0x01:
 			if server, err = common.ForwardTarget(net.JoinHostPort(host, port)); err != nil {
-				writeError(client)
-				log.Println(err)
-				return
-			}
-
-		case 0x02: // bind request
-			if server, err = net.Dial("tcp", net.JoinHostPort(host, port)); err != nil {
-				writeError(client)
-				log.Println(err)
+				writeSecondResp(client, 0x04)
 				return
 			}
 
 		case 0x03: // udp request
 			if server, err = net.Dial("udp", net.JoinHostPort(host, port)); err != nil {
-				writeError(client)
-				log.Println(err)
+				writeSecondResp(client, 0x04)
 				return
 			}
-		}
 
-		// response to connect successful
-		if _, err = client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}); err != nil {
-			log.Println(err)
+		case 0x02: // bind request
+			fallthrough
+
+		default:
+			writeSecondResp(client, 0x07)
 			return
 		}
-		defer func() {
-			_ = server.Close()
-			common.BuffPool.Put(b[:cap(b)])
-		}()
+		defer server.Close()
+
+		// response to connect successful
+		writeSecondResp(client, 0x00)
 
 		common.Forward(client, server)
+		return
 	}
+	writeFirstResp(client, 0xff)
 }
 
-func writeError(conn net.Conn) {
-	_, _ = conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+func writeFirstResp(conn net.Conn, errREP byte) {
+	_, _ = conn.Write([]byte{0x05, errREP})
+}
+
+func writeSecondResp(conn net.Conn, errREP byte) {
+	_, _ = conn.Write([]byte{0x05, errREP, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 }

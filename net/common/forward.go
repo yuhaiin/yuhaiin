@@ -37,22 +37,21 @@ func Forward(src, dst net.Conn) {
 
 func pipe(src, dst net.Conn, closeSig chan error) {
 	buf := BuffPool.Get().([]byte)
+	defer func() {
+		BuffPool.Put(buf[:cap(buf)])
+		_ = src.SetDeadline(time.Now())
+		_ = dst.SetDeadline(time.Now())
+	}()
 	for {
 		n, err := src.Read(buf[0:])
 		if err != nil {
 			closeSig <- err
-			BuffPool.Put(buf[:cap(buf)])
-			_ = src.SetDeadline(time.Now())
-			_ = dst.SetDeadline(time.Now())
 			return
 		}
 
 		n, err = dst.Write(buf[0:n])
 		if err != nil {
 			closeSig <- err
-			BuffPool.Put(buf[:cap(buf)])
-			_ = src.SetDeadline(time.Now())
-			_ = dst.SetDeadline(time.Now())
 			return
 		}
 
@@ -60,14 +59,18 @@ func pipe(src, dst net.Conn, closeSig chan error) {
 }
 
 func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int) {
+	var n int
+	var err error
 	buf := BuffPool.Get().([]byte)
+	defer func() {
+		closeSig <- err
+		BuffPool.Put(buf[:cap(buf)])
+		_ = src.SetDeadline(time.Now())
+		_ = dst.SetDeadline(time.Now())
+	}()
+
 	for {
-		n, err := src.Read(buf[0:])
-		if err != nil {
-			closeSig <- err
-			BuffPool.Put(buf[:cap(buf)])
-			_ = src.SetDeadline(time.Now())
-			_ = dst.SetDeadline(time.Now())
+		if n, err = src.Read(buf[0:]); err != nil {
 			return
 		}
 
@@ -78,12 +81,7 @@ func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int) {
 			queue <- x
 		}()
 
-		_, err = dst.Write(buf[0:n])
-		if err != nil {
-			closeSig <- err
-			BuffPool.Put(buf[:cap(buf)])
-			_ = src.SetDeadline(time.Now())
-			_ = dst.SetDeadline(time.Now())
+		if _, err = dst.Write(buf[0:n]); err != nil {
 			return
 		}
 	}
