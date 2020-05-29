@@ -89,17 +89,27 @@ func (s *shadowsocks) UDPConn(listener *net.UDPConn, target net.Addr, b []byte) 
 	}
 	pc = s.cipher.PacketConn(pc)
 
-	buf := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(buf[:cap(buf)])
-	n, _, err := pc.ReadFrom(buf)
-	if err != nil {
-		return err
-	}
-	_, err = listener.WriteTo(append([]byte{0, 0, 0}, buf[:n]...), target)
+	_, err = pc.WriteTo(b[3:], addr)
 	if err != nil {
 		return err
 	}
 
-	n, err = pc.WriteTo(b[3:], addr)
-	return err
+	buf := common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(buf[:cap(buf)])
+	go func() {
+		for {
+			_ = pc.SetReadDeadline(time.Now().Add(time.Second * 5))
+			n, _, err := pc.ReadFrom(buf)
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			_, err = listener.WriteTo(append([]byte{0, 0, 0}, buf[:n]...), target)
+			if err != nil {
+				log.Println(err)
+				break
+			}
+		}
+	}()
+	return
 }
