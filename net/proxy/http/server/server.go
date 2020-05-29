@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"github.com/Asutorufa/yuhaiin/net/common"
+	"io"
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -110,8 +112,14 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		}
 	}
 
-	server, err := common.ForwardTarget(req.Host)
+	host := req.Host
+	if req.URL.Port() == "" {
+		host = req.Host + ":80"
+	}
+
+	server, err := common.ForwardTarget(host)
 	if err != nil {
+		log.Println(host, err)
 		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		return
 	}
@@ -126,79 +134,108 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		return
 	}
 
-	if req.URL.Host == "" {
-		// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
-		response := &http.Response{
-			Status:        "Bad Request",
-			StatusCode:    400,
-			Proto:         "HTTP/1.1",
-			ProtoMajor:    1,
-			ProtoMinor:    1,
-			Header:        http.Header(make(map[string][]string)),
-			Body:          nil,
-			ContentLength: 0,
-			Close:         true,
-		}
-		response.Header.Set("Proxy-Connection", "close")
-		response.Header.Set("Connection", "close")
-		_ = response.Write(client)
-		return
-		//return errors.New("RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy")
-	}
-
 	outboundReader := bufio.NewReader(server)
 	for {
-		keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"
+		//log.Println(req.Header)
+		//log.Println(req.Header.Get("Proxy-Connection"), ":", req.Header.Get("Connection"))
+		keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" || strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
 		if len(req.URL.Host) > 0 {
 			req.Host = req.URL.Host
 		}
 		//req.URL.Host = ""
 		//req.URL.Scheme = ""
+		req.RequestURI = ""
 		req.Header.Set("Connection", "close")
 		req.Header = removeHeader(req.Header)
+		//log.Println(req.Header,req.Body)
 		if err := req.Write(server); err != nil {
-			log.Println(err)
-			return
+			break
 		}
 
 		resp, err := http.ReadResponse(outboundReader, req)
 		if err != nil {
-			resp = &http.Response{
-				Status:        "Service Unavailable",
-				StatusCode:    503,
-				Proto:         "HTTP/1.1",
-				ProtoMajor:    1,
-				ProtoMinor:    1,
-				Header:        make(map[string][]string),
-				Body:          nil,
-				ContentLength: 0,
-				Close:         true,
-			}
-			resp.Header.Set("Connection", "close")
-			resp.Header.Set("Proxy-Connection", "close")
-			_ = resp.Write(client)
-			return
+			//log.Println(err)
+			//resp503(client)
+			break
 		}
-		if keepAlive || resp.ContentLength >= 0 {
-			resp.Header.Set("Proxy-Connection", "keep-alive")
-			resp.Header.Set("Connection", "keep-alive")
-			resp.Header.Set("Keep-Alive", "timeout=4")
+		resp.Header = removeHeader(resp.Header)
+		if resp.ContentLength >= 0 {
+			resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
+		} else {
+			resp.Header.Del("Content-Length")
+		}
+
+		te := ""
+		if len(resp.TransferEncoding) > 0 {
+			if len(resp.TransferEncoding) > 1 {
+				//ErrUnsupportedTransferEncoding
+				break
+			}
+			te = resp.TransferEncoding[0]
+		}
+		if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
+			resp.Header.Set("Connection", "Keep-Alive")
+			//resp.Header.Set("Keep-Alive", "timeout=4")
 			resp.Close = false
 		} else {
 			resp.Close = true
 		}
-		resp.Header = removeHeader(resp.Header)
+		//log.Println(resp.Header, resp.Body)
 		err = resp.Write(client)
 		if err != nil || resp.Close {
-			//return err
 			break
 		}
+
+		// from clash, thanks so much, if not have the code, the ReadRequest will error
+		buf := common.BuffPool.Get().([]byte)
+		_, err = io.CopyBuffer(client, resp.Body, buf)
+		common.BuffPool.Put(buf[:cap(buf)])
+		if err != nil && err != io.EOF {
+			break
+		}
+
 		req, err = http.ReadRequest(inBoundReader)
 		if err != nil {
-			log.Println(err)
-			return
+			break
 		}
 	}
+}
+
+// https://github.com/go-httpproxy
+
+func resp503(dst net.Conn) {
+	resp := &http.Response{
+		Status:        "Service Unavailable",
+		StatusCode:    503,
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        make(map[string][]string),
+		Body:          nil,
+		ContentLength: 0,
+		Close:         true,
+	}
+	resp.Header.Set("Connection", "close")
+	resp.Header.Set("Proxy-Connection", "close")
+	_ = resp.Write(dst)
+}
+
+func resp400(dst net.Conn) {
+	// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
+	response := &http.Response{
+		Status:        "Bad Request",
+		StatusCode:    400,
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        http.Header(make(map[string][]string)),
+		Body:          nil,
+		ContentLength: 0,
+		Close:         true,
+	}
+	response.Header.Set("Proxy-Connection", "close")
+	response.Header.Set("Connection", "close")
+	_ = response.Write(dst)
 }
 
 func removeHeader(h http.Header) http.Header {
