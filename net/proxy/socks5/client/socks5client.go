@@ -327,28 +327,33 @@ func (s *Client) secondVerify() error {
 	// 0x04 IPv6地址，16个字节长度。
 	// DST.ADDR 目的地址
 	// DST.PORT 网络字节序表示的目的端口
-	address, err := url.Parse("//" + s.Address)
+	//address, err := url.Parse("//" + s.Address)
+	//if err != nil {
+	//	return err
+	//}
+	//serverPort, err := strconv.Atoi(address.Port())
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//var sendData []byte
+	//if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
+	//	if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
+	//		sendData = []byte{0x5, 0x01, 0x00, 0x01, serverIPv4[0], serverIPv4[1], serverIPv4[2], serverIPv4[3], byte(serverPort >> 8), byte(serverPort & 255)}
+	//	} else {
+	//		sendData = append([]byte{0x5, 0x01, 0x00, 0x04}, serverIP.To16()...)
+	//		sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
+	//	}
+	//	// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
+	//} else {
+	//	sendData = append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(address.Hostname()))}, []byte(address.Hostname())...)
+	//	sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
+	//}
+	addr, err := ParseAddr(s.Address)
 	if err != nil {
 		return err
 	}
-	serverPort, err := strconv.Atoi(address.Port())
-	if err != nil {
-		return err
-	}
-
-	var sendData []byte
-	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
-		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
-			sendData = []byte{0x5, 0x01, 0x00, 0x01, serverIPv4[0], serverIPv4[1], serverIPv4[2], serverIPv4[3], byte(serverPort >> 8), byte(serverPort & 255)}
-		} else {
-			sendData = append([]byte{0x5, 0x01, 0x00, 0x04}, serverIP.To16()...)
-			sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
-		}
-		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
-	} else {
-		sendData = append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(address.Hostname()))}, []byte(address.Hostname())...)
-		sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
-	}
+	sendData := append([]byte{0x5, 0x01, 0x00}, addr...)
 
 	if _, err = s.Conn.Write(sendData); err != nil {
 		return err
@@ -364,6 +369,30 @@ func (s *Client) secondVerify() error {
 	// log.Println(sendData, "<-->", getData[0], getData[1])
 	// log.Println("socks5 second handshake successful!")
 	return nil
+}
+
+func ParseAddr(hostname string) (sendData []byte, err error) {
+	address, err := url.Parse("//" + hostname)
+	if err != nil {
+		return nil, err
+	}
+	serverPort, err := strconv.Atoi(address.Port())
+	if err != nil {
+		return nil, err
+	}
+	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
+		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
+			sendData = []byte{0x01, serverIPv4[0], serverIPv4[1], serverIPv4[2], serverIPv4[3], byte(serverPort >> 8), byte(serverPort & 255)}
+		} else {
+			sendData = append([]byte{0x04}, serverIP.To16()...)
+			sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
+		}
+		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
+	} else {
+		sendData = append([]byte{0x03, byte(len(address.Hostname()))}, []byte(address.Hostname())...)
+		sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
+	}
+	return sendData, nil
 }
 
 func NewSocks5Client(server, port string, user, password string, address string) (net.Conn, error) {

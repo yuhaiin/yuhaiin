@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"log"
 	"net"
 	"strings"
@@ -29,7 +30,6 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 		return &shadowsocks{}, err
 	}
 	s := &shadowsocks{cipher: cipher, server: server, plugin: strings.ToUpper(plugin), pluginOpt: pluginOpt}
-
 	switch strings.ToLower(plugin) {
 	case OBFS:
 		s.pluginFunc = func(conn net.Conn) net.Conn {
@@ -67,4 +67,39 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 		return nil, err
 	}
 	return conn, nil
+}
+
+func (s *shadowsocks) UDPConn(listener *net.UDPConn, target net.Addr, b []byte) (err error) {
+	host, port, err := net.SplitHostPort(s.server)
+	if err != nil {
+		return err
+	}
+	ip, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return err
+	}
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(ip.String(), port))
+	if err != nil {
+		return err
+	}
+
+	pc, err := net.ListenPacket("udp", "")
+	if err != nil {
+		return err
+	}
+	pc = s.cipher.PacketConn(pc)
+
+	buf := common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(buf[:cap(buf)])
+	n, _, err := pc.ReadFrom(buf)
+	if err != nil {
+		return err
+	}
+	_, err = listener.WriteTo(append([]byte{0, 0, 0}, buf[:n]...), target)
+	if err != nil {
+		return err
+	}
+
+	n, err = pc.WriteTo(b[3:], addr)
+	return err
 }

@@ -28,19 +28,19 @@ func (x *Match) Search(str string) (des interface{}) {
 	var isMatch bool
 	if net.ParseIP(str) != nil {
 		isMatch, des = x.cidr.Search(str)
-		goto finally
+		goto _end
 	}
 
 	isMatch, des = x.domain.Search(str)
 	if isMatch || x.DNS == nil {
-		goto finally
+		goto _end
 	}
 
 	if dnsS, isSuccess := x.DNS(str); isSuccess && len(dnsS) > 0 {
 		isMatch, des = x.cidr.Search(dnsS[0].String())
 	}
 
-finally:
+_end:
 	mCache.Add(str, des)
 	return
 }
