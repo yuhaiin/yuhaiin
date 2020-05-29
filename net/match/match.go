@@ -25,36 +25,30 @@ func (x *Match) Search(str string) (des interface{}) {
 		return des
 	}
 
-	var isMatch = false
-	switch net.ParseIP(str) {
-	case nil:
-		isMatch, des = x.domain.Search(str)
-		if isMatch || x.DNS == nil {
-			break
-		}
-
-		dnsS, isSuccess := x.DNS(str)
-		if isSuccess && len(dnsS) > 0 {
-			isMatch, des = x.cidr.Search(dnsS[0].String())
-		}
-	default:
+	var isMatch bool
+	if net.ParseIP(str) != nil {
 		isMatch, des = x.cidr.Search(str)
+		goto finally
 	}
 
-	if !isMatch {
-		return nil
+	isMatch, des = x.domain.Search(str)
+	if isMatch || x.DNS == nil {
+		goto finally
 	}
+
+	if dnsS, isSuccess := x.DNS(str); isSuccess && len(dnsS) > 0 {
+		isMatch, des = x.cidr.Search(dnsS[0].String())
+	}
+
+finally:
 	mCache.Add(str, des)
 	return
 }
 
 func NewMatch(dnsFunc func(domain string) (DNS []net.IP, success bool)) (matcher Match) {
-	cidrMatch := NewCidrMatch()
-	domainMatch := NewDomainMatch()
-	matcher = Match{
+	return Match{
 		DNS:    dnsFunc,
-		cidr:   cidrMatch,
-		domain: domainMatch,
+		cidr:   NewCidrMatch(),
+		domain: NewDomainMatch(),
 	}
-	return matcher
 }

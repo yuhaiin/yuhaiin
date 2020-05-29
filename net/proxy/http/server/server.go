@@ -145,6 +145,7 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		return
 		//return errors.New("RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy")
 	}
+
 	outboundReader := bufio.NewReader(server)
 	for {
 		keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"

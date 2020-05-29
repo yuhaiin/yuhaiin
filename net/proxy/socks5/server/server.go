@@ -74,6 +74,8 @@ func (s *Server) handleClientRequest(client net.Conn) {
 	var err error
 	b := common.BuffPool.Get().([]byte)
 	defer common.BuffPool.Put(b[:cap(b)])
+
+	//socks5 first handshake
 	if _, err = client.Read(b[:]); err != nil {
 		return
 	}
@@ -99,6 +101,7 @@ func (s *Server) handleClientRequest(client net.Conn) {
 		writeFirstResp(client, 0x00)
 	}
 
+	// socks5 second handshake
 	n, err := client.Read(b[:])
 	if err != nil {
 		return
@@ -138,11 +141,10 @@ func (s *Server) handleClientRequest(client net.Conn) {
 	}
 	defer server.Close()
 
-	// response to connect successful
-	writeSecondResp(client, 0x00)
+	writeSecondResp(client, 0x00) // response to connect successful
 
+	// handshake successful
 	common.Forward(client, server)
-	return
 }
 
 func writeFirstResp(conn net.Conn, errREP byte) {

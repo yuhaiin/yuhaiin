@@ -18,67 +18,39 @@ var (
 )
 
 func ReducedUnit(byte float64) (result float64, unit int) {
-	unit = B
-	if byte > 1024 {
-		unit = KB //KB
-	}
-	if byte > 1048576 {
-		unit = MB // MB
-	}
-	if byte > 1073741824 {
-		unit = GB //GB
+	if byte > 1125899906842624 {
+		return byte / 1125899906842624, PB //PB
 	}
 	if byte > 1099511627776 {
-		unit = TB //TB
+		return byte / 1099511627776, TB //TB
 	}
-	if byte > 1125899906842624 {
-		unit = PB //PB
+	if byte > 1073741824 {
+		return byte / 1073741824, GB //GB
 	}
-
-	switch unit {
-	case KB:
-		byte /= 1024
-	case MB:
-		byte /= 1048576
-	case GB:
-		byte /= 1073741824
-	case TB:
-		byte /= 1099511627776
-	case PB:
-		byte /= 1125899906842624
+	if byte > 1048576 {
+		return byte / 1048576, MB //MB
 	}
-	return byte, unit
+	if byte > 1024 {
+		return byte / 1024, KB //KB
+	}
+	return byte, B //B
 }
 
 func ReducedUnit2(byte float64) (result string) {
-	unit := B2
-	if byte > 1024 {
-		unit = KB2 //KB
-	}
-	if byte > 1048576 {
-		unit = MB2 // MB
-	}
-	if byte > 1073741824 {
-		unit = GB2 //GB
+	if byte > 1125899906842624 {
+		return fmt.Sprintf("%.2f%s", byte/1125899906842624, PB2) //PB
 	}
 	if byte > 1099511627776 {
-		unit = TB2 //TB
+		return fmt.Sprintf("%.2f%s", byte/1099511627776, TB2) //TB
 	}
-	if byte > 1125899906842624 {
-		unit = PB2 //PB
+	if byte > 1073741824 {
+		return fmt.Sprintf("%.2f%s", byte/1073741824, GB2) //GB
 	}
-
-	switch unit {
-	case KB2:
-		byte /= 1024
-	case MB2:
-		byte /= 1048576
-	case GB2:
-		byte /= 1073741824
-	case TB2:
-		byte /= 1099511627776
-	case PB2:
-		byte /= 1125899906842624
+	if byte > 1048576 {
+		return fmt.Sprintf("%.2f%s", byte/1048576, MB2) //MB
 	}
-	return fmt.Sprintf("%.2f%s", byte, unit)
+	if byte > 1024 {
+		return fmt.Sprintf("%.2f%s", byte/1024, KB2) //KB
+	}
+	return fmt.Sprintf("%.2f%s", byte, B2) //B
 }

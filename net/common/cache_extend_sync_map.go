@@ -13,6 +13,9 @@ func (c *cacheExtend) Get(domain string) (interface{}, bool) {
 }
 
 func (c *cacheExtend) Add(domain string, mark interface{}) {
+	if mark == nil {
+		return
+	}
 	c.pool.Store(domain, mark)
 
 	if c.pool.Length() < 800 {

@@ -20,5 +20,7 @@ func TestNewMatcher(t *testing.T) {
 	}
 	t.Log(matcher.Search("10.2.2.1"))
 	t.Log(matcher.Search("www.baidu.com"))
+	t.Log(matcher.Search("www.baidu.com"))
+	t.Log(matcher.Search("www.google.com"))
 	t.Log(matcher.Search("www.google.com"))
 }

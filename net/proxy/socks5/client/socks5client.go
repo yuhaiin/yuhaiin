@@ -116,15 +116,12 @@ func (s *Client) firstVerify() error {
 	// +----------+-------+
 	// 其中鉴定状态 0x00 表示成功，0x01 表示失败。
 	if getData[1] == 0x02 {
-		sendData := append(
-			append(
-				append(
-					[]byte{0x01, byte(len(s.Username))},
-					[]byte(s.Username)...),
-				byte(len(s.Password))),
-			[]byte(s.Password)...)
+		sendData = append([]byte{0x01, byte(len(s.Username))}, []byte(s.Username)...)
+		sendData = append(sendData, byte(len(s.Password)))
+		sendData = append(sendData, []byte(s.Password)...)
 		_, _ = s.Conn.Write(sendData)
-		getData := make([]byte, 3)
+
+		//getData := make([]byte, 3)
 		_, err = s.Conn.Read(getData[:])
 		if err != nil {
 			return err
@@ -338,25 +335,19 @@ func (s *Client) secondVerify() error {
 	if err != nil {
 		return err
 	}
+
 	var sendData []byte
 	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
 		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
-			sendData = []byte{0x5, 0x01, 0x00, 0x01, serverIPv4[0],
-				serverIPv4[1], serverIPv4[2], serverIPv4[3],
-				byte(serverPort >> 8), byte(serverPort & 255)}
+			sendData = []byte{0x5, 0x01, 0x00, 0x01, serverIPv4[0], serverIPv4[1], serverIPv4[2], serverIPv4[3], byte(serverPort >> 8), byte(serverPort & 255)}
 		} else {
-			sendData = append(
-				append(
-					[]byte{0x5, 0x01, 0x00, 0x04}, serverIP.To16()...),
-				byte(serverPort>>8), byte(serverPort&255))
+			sendData = append([]byte{0x5, 0x01, 0x00, 0x04}, serverIP.To16()...)
+			sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
 		}
 		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
 	} else {
-		sendData = append(
-			append(
-				[]byte{0x5, 0x01, 0x00, 0x03, byte(len(address.Hostname()))},
-				[]byte(address.Hostname())...), byte(serverPort>>8),
-			byte(serverPort&255))
+		sendData = append([]byte{0x5, 0x01, 0x00, 0x03, byte(len(address.Hostname()))}, []byte(address.Hostname())...)
+		sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
 	}
 
 	if _, err = s.Conn.Write(sendData); err != nil {
