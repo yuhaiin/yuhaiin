@@ -8,6 +8,7 @@ import (
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
+	"sync/atomic"
 	"time"
 )
 
@@ -189,21 +190,21 @@ func (m *mainWindow) setListener() {
 			}
 
 			statusRefreshIsRun = true
-			downloadTmp, downRate := int64(0), int64(0)
-			uploadTmp, uploadRate := int64(0), int64(0)
+			downloadTmp := uint64(0)
+			uploadTmp := uint64(0)
 
 			for {
 				if m.mainWindow.IsHidden() {
 					break
 				}
 
-				downRate, downloadTmp = common.DownloadTotal-downloadTmp, common.DownloadTotal
-				uploadRate, uploadTmp = common.UploadTotal-uploadTmp, common.UploadTotal
 				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s/S , Upload<sub><i>(%s)</i></sub>: %s/S",
-					common.ReducedUnit2(float64(downloadTmp)),
-					common.ReducedUnit2(float64(downRate)),
-					common.ReducedUnit2(float64(uploadTmp)),
-					common.ReducedUnit2(float64(uploadRate))))
+					common.ReducedUnit2(float64(common.DownloadTotal)),
+					common.ReducedUnit2(float64(common.DownloadTotal-downloadTmp)),
+					common.ReducedUnit2(float64(common.UploadTotal)),
+					common.ReducedUnit2(float64(common.UploadTotal-uploadTmp))))
+				atomic.StoreUint64(&downloadTmp, common.DownloadTotal)
+				atomic.StoreUint64(&uploadTmp, common.UploadTotal)
 				time.Sleep(time.Second)
 			}
 			statusRefreshIsRun = false

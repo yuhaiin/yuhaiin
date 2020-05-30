@@ -134,7 +134,7 @@ func Forward(host string) (conn net.Conn, err error) {
 
 	switch Matcher.Search(URI.Hostname()) {
 	case direct:
-		return net.DialTimeout("tcp", host, 3*time.Second)
+		return net.DialTimeout("tcp", host, 5*time.Second)
 
 	case localDNS:
 		ips, isSuccess := Matcher.DNS(URI.Hostname())

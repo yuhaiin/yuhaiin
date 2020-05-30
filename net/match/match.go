@@ -25,19 +25,18 @@ func (x *Match) Search(str string) (des interface{}) {
 		return des
 	}
 
-	var isMatch bool
 	if net.ParseIP(str) != nil {
-		isMatch, des = x.cidr.Search(str)
+		_, des = x.cidr.Search(str)
 		goto _end
 	}
 
-	isMatch, des = x.domain.Search(str)
-	if isMatch || x.DNS == nil {
+	_, des = x.domain.Search(str)
+	if des != nil || x.DNS == nil {
 		goto _end
 	}
 
-	if dnsS, isSuccess := x.DNS(str); isSuccess && len(dnsS) > 0 {
-		isMatch, des = x.cidr.Search(dnsS[0].String())
+	if dnsS, _ := x.DNS(str); len(dnsS) > 0 {
+		_, des = x.cidr.Search(dnsS[0].String())
 	}
 
 _end:

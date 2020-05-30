@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	DownloadTotal = int64(0)
-	UploadTotal   = int64(0)
+	DownloadTotal = uint64(0)
+	UploadTotal   = uint64(0)
 	// int[0] is mode: mode = 0 -> download , mode = 1 -> upload
-	queue = make(chan [2]int64, 10)
+	queue = make(chan [2]uint64, 10)
 )
 
 func init() {
@@ -18,10 +18,10 @@ func init() {
 		for s := range queue {
 			switch s[0] {
 			case 0:
-				atomic.AddInt64(&DownloadTotal, s[1])
+				atomic.AddUint64(&DownloadTotal, s[1])
 				//DownloadTotal += s[1]
 			case 1:
-				atomic.AddInt64(&UploadTotal, s[1])
+				atomic.AddUint64(&UploadTotal, s[1])
 				//UploadTotal += s[1]
 			}
 			QueuePool.Put(s)
@@ -52,7 +52,7 @@ func pipe(src, dst net.Conn, closeSig chan error) {
 			return
 		}
 
-		n, err = dst.Write(buf[0:n])
+		_, err = dst.Write(buf[0:n])
 		if err != nil {
 			closeSig <- err
 			return
@@ -61,7 +61,7 @@ func pipe(src, dst net.Conn, closeSig chan error) {
 	}
 }
 
-func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int64) {
+func pipeStatistic(src, dst net.Conn, closeSig chan error, mode uint64) {
 	var n int
 	var err error
 	buf := BuffPool.Get().([]byte)
@@ -78,9 +78,9 @@ func pipeStatistic(src, dst net.Conn, closeSig chan error, mode int64) {
 		}
 
 		go func() {
-			x := QueuePool.Get().([2]int64)
+			x := QueuePool.Get().([2]uint64)
 			x[0] = mode
-			x[1] = int64(n)
+			x[1] = uint64(n)
 			queue <- x
 		}()
 
