@@ -1,14 +1,203 @@
 package dns
 
 import (
-	"encoding/hex"
+	"errors"
+	"fmt"
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"log"
+	"math/rand"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 )
+
+type reqType [2]byte
+
+var (
+	A     = reqType{0b00000000, 0b00000001} // 1
+	NS    = reqType{0b00000000, 0b00000010} // 2
+	CNAME = reqType{0b00000000, 0b00000101} // 5
+	SOA   = reqType{0b00000000, 0b00000110} // 6
+	WKS   = reqType{0b00000000, 0b00001011} // 11
+	PTR   = reqType{0b00000000, 0b00001100} // 12
+	HINFO = reqType{0b00000000, 0b00001101} // 13
+	MX    = reqType{0b00000000, 0b00001111} // 15
+	AAAA  = reqType{0b00000000, 0b00011100} // 28
+	AXFR  = reqType{0b00000000, 0b11111100} // 252
+	ANY   = reqType{0b00000000, 0b11111111} // 255
+)
+
+// DNS <-- dns
+func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
+	req := creatRequest(domain, A)
+	var b = common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(b[:cap(b)])
+
+	conn, err := net.DialTimeout("udp", DNSServer, 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	if _, err = conn.Write(req); err != nil {
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	n, err := conn.Read(b[:])
+	if err != nil {
+		return nil, err
+	}
+
+	// resolve answer
+	anCount, c, err := resolveHeader(req, b[:n])
+	if err != nil {
+		return nil, err
+	}
+
+	//log.Println()
+	//log.Println("Answer section:")
+
+	//var x string
+	for anCount != 0 {
+		_, c = getName(c, b[:n])
+		//log.Println(x)
+
+		tYPE := reqType{c[0], c[1]}
+		//log.Println("type:", c[0], c[1])
+		c = c[2:] // type
+		//log.Println("class:", c[0], c[1])
+		c = c[2:] // class
+		//log.Println("ttl:", c[0], c[1], c[2], c[3])
+		c = c[4:] // ttl 4byte
+		sum := int(c[0])<<8 + int(c[1])
+		//log.Println("rdlength", sum)
+		c = c[2:] // RDLENGTH  跳过总和，因为总和不包括计算域名的长度 2+int(c[0])<<8+int(c[1])
+
+		switch tYPE {
+		case A:
+			DNS = append(DNS, c[0:4])
+			c = c[4:] // 4 byte ip addr
+		case AAAA:
+			DNS = append(DNS, c[0:16])
+			c = c[16:] // 16 byte ip addr
+		case CNAME:
+			fallthrough
+		case SOA:
+			fallthrough
+		case NS:
+			fallthrough
+		case WKS:
+			fallthrough
+		case PTR:
+			fallthrough
+		case HINFO:
+			fallthrough
+		case MX:
+			fallthrough
+		default:
+			//log.Println("rdata", c[:sum])
+			c = c[sum:] // RDATA
+		}
+		anCount -= 1
+	}
+
+	return DNS, nil
+}
+
+func creatRequest(domain string, reqType reqType) []byte {
+	id := []byte{byte(rand.Intn(255 - 0)), byte(rand.Intn(255 - 0))}                                  // id:
+	qr2rd := byte(0b00000001)                                                                         // qr: 0 opcode: 0000 aa: 0 tc: 0 rd: 1 => bit: 00000001 -> 1
+	ra2rCode := byte(0b00000000)                                                                      // ra: 0 z:000 rcode: 0000 => bit: 00000000 -> 0
+	qdCount := []byte{0b00000000, 0b00000001}                                                         // request number => bit: 00000000 00000001 -> 01
+	anCount2arCount := []byte{0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000} // answer number(no use for req) => bit: 00000000 00000000 00000000 00000000 00000000 00000000 -> 000000
+	req := append(id, qr2rd, ra2rCode, qdCount[0], qdCount[1])
+	req = append(req, anCount2arCount...)
+
+	//var domainSet []byte
+	divDomain := strings.Split(domain, ".")
+	for index := range divDomain {
+		one := append([]byte{byte(len(divDomain[index]))}, []byte(divDomain[index])...)
+		req = append(req, one...)
+	}
+	req = append(req, 0b00000000) // add the 0 for last of domain
+
+	qType := []byte{reqType[0], reqType[1]}  // type: 1 -> A:ipv4 01 | 28 -> AAAA:ipv6  000000 00011100 => 0 0x1c
+	qClass := []byte{0b00000000, 0b00000001} // 1 -> from internet
+	req = append(req, qType...)
+	req = append(req, qClass...)
+	return req
+}
+
+func resolveHeader(req []byte, answer []byte) (anCount int, answerSection []byte, err error) {
+	// resolve answer
+	idA := []byte{answer[0], answer[1]}
+	if idA[0] != req[0] || idA[1] != req[1] { // id: req[0] req[1]
+		// not the answer
+		return 0, nil, errors.New("id not same")
+	}
+	qr2rdA := answer[2]
+
+	if qr2rdA&8 != 0 {
+		// not the answer "the qr is not 1", qr2rdA, qr2rdA&8
+		return 0, nil, errors.New("the qr is not 1")
+	}
+	ra2rCodeA := answer[3]
+	//qdCountA := []byte{b[4], b[5]}  // no use, for request
+	anCountA := []byte{answer[6], answer[7]}
+	//nsCount2arCountA := []byte{b[8], b[9], b[10], b[11]} // no use
+
+	rCode := fmt.Sprintf("%08b", ra2rCodeA)[4:]
+	switch rCode {
+	case "0000":
+		break
+	case "0001":
+		return 0, nil, errors.New("request format error")
+	case "0010":
+		return 0, nil, errors.New("dns server error")
+	case "0011":
+		return 0, nil, errors.New("no such name")
+	case "0100":
+		return 0, nil, errors.New("dns server not support this request")
+	case "0101":
+		return 0, nil, errors.New("dns server Refuse")
+	default:
+		return 0, nil, errors.New("other error")
+	}
+
+	c := answer[12:]
+	anCount = int(anCountA[0])<<8 + int(anCountA[1])
+	//log.Println("anCount", anCount)
+
+	//log.Println()
+	//log.Println("Question section:")
+	//var x string
+	_, c = getName(c, answer)
+	//log.Println(x)
+	c = c[1:] // lastOfDomain: one byte 0
+	//log.Println("qType:", c[:2])
+	c = c[2:]
+	//log.Println("qClass:", c[:2])
+	c = c[2:]
+
+	return anCount, c, nil
+}
+
+func getName(c []byte, all []byte) (name string, x []byte) {
+	for {
+		if c[0]&128 == 128 && c[0]&64 == 64 {
+			l := c[1]
+			c = c[2:]
+			tmp, _ := getName(all[l:], all)
+			name += tmp
+			//log.Println(c, name)
+			break
+		}
+		name += string(c[1:int(c[0])+1]) + "."
+		c = c[int(c[0])+1:]
+		if c[0] == 0 {
+			break
+		}
+	}
+	return name, c
+}
 
 /*
 +------------------------------+
@@ -65,193 +254,3 @@ import (
 (2）DNS正文段
 在DNS报文中，其正文段封装在图7-42所示的DNS报文头内。DNS有四类正文段：查询段、应答段、授权段和附加段。
 */
-
-// DNS <-- dns
-func DNS(DNSServer, domain string) (DNS []string, success bool) {
-	defer func() { //必须要先声明defer，否则不能捕获到panic异常
-		if err := recover(); err != nil {
-			log.Println(err)
-		}
-	}()
-
-	conn, err := net.DialTimeout("udp", DNSServer, 2*time.Second)
-	if err != nil {
-		log.Println(err)
-		return []string{}, false
-	}
-	defer conn.Close()
-
-	/*
-		id -> 2byte
-		qr -> 1bit opcpde -> 4bit aa -> 1bit tc -> 1bit rd -> 1bit  => sum 1byte
-		 ra -> 1bit z -> 3bit rcode -> 4bit => sum 1byte
-		QDCOUNT -> 2byte
-		ANCOUNT -> 2byte
-		NSCOUNT -> 2byte
-		ARCOUNT -> 2byte
-	*/
-	header := []byte{0x01, 0x02, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-
-	var domainSet []byte
-	for _, domain := range strings.Split(domain, ".") {
-		domainSet = append(domainSet, byte(len(domain)))
-		domainSet = append(domainSet, []byte(domain)...)
-	}
-	/*
-	 append domain and qType And QClass
-	 domain []byte(domainSet), 0x00
-	 qType 0x00,0x01
-	 qClass 0x00,0x01
-	*/
-	domainSetAndQTypeAndQClass := append(domainSet, 0x00, 0x00, 0x01, 0x00, 0x01)
-	all := append(header, domainSetAndQTypeAndQClass...)
-
-	/*
-		send Request
-	*/
-	_, err = conn.Write(all)
-	if err != nil {
-		return nil, false
-	}
-
-	/*
-		get Response
-	*/
-	var b = common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b[:cap(b)])
-
-	if err = conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
-		return nil, false
-	}
-	n, err := conn.Read(b[:])
-	if err != nil {
-		log.Println(err)
-		return nil, false
-	}
-
-	rCode := b[3] & 1
-	switch rCode {
-	case 1:
-		//header := []byte{0x01, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,0x00, 0x00, 0x00, 0x00}
-		//all := append(header, domainSetAndQTypeAndQClass...)
-		all[2] = 0x00
-		conn.Close()
-		conn, err = net.DialTimeout("udp", DNSServer, 2*time.Second)
-		if err != nil {
-			log.Println(err)
-			return nil, false
-		}
-		if err = conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
-			return nil, false
-		}
-		if _, err = conn.Write(all[:]); err != nil {
-			return nil, false
-		}
-		if n, err = conn.Read(b[:]); err != nil {
-			return nil, false
-		}
-		rCode = b[3] & 1
-		switch rCode {
-		case 1:
-			log.Println("format error!", b[:n])
-			return nil, false
-		case 2:
-			log.Println("dns server error")
-			return nil, false
-		case 3:
-			log.Println("no such name", b[:n])
-			return nil, false
-		case 4:
-			log.Println("dns server not support this request", b[:n])
-			return nil, false
-		case 5:
-			log.Println("dns server Refuse", b[:n])
-			return nil, false
-		case 0:
-			log.Println("other error", b[3]&1, b[3], b[:n])
-			return nil, false
-		}
-	case 2:
-		log.Println("dns server error")
-		return nil, false
-	case 3:
-		log.Println("no such name", b[:n])
-		return nil, false
-	case 4:
-		log.Println("dns server not support this request", b[:n])
-		return nil, false
-	case 5:
-		log.Println("dns server Refuse", b[:n])
-		return nil, false
-	case 6:
-		log.Println("other error", b[3]&1, b[3], b[:n])
-		return nil, false
-	}
-
-	// • QDCOUNT：该字段占16位，指明DNS查询段中的查询问题的数量。
-	// • ANCOUNT：该字段占16位，指明DNS应答段中返回的资源记录的数量
-	// • NSCOUNT：该字段占16位，指明DNS应答段中所包括的授权域名服务器的资源记录的数量
-	// • ARCOUNT：该字段占16位，指明附加段里所含资源记录的数量
-	// log.Println("header", b[0:12], "qr+opcode+aa+tc+rd:", b[2:3], "ra+z+rcode:", b[3], "rcode:", b[3]&1, "....", b[3]&2, b[3]&4, b[3]&8)
-	// log.Println("QDCOUNT:", b[4], b[5], "ANCOUNT:", b[6], b[7], "NSCOUNT:", b[8], b[9], "ARCOUNT:", b[10], b[11])
-	anCount := int(b[6])<<8 + int(b[7])
-
-	bHeader := b[12:n]
-	index := int(bHeader[0]) + 1
-	for {
-		// log.Println("bf", bf, "index", index, string(b_header[bf:index]))
-		if bHeader[index] == 0 {
-			break
-		}
-		index = index + int(bHeader[index]) + 1
-	}
-	// // log.Println("type", b_header[index:index+2])
-	// // log.Println("class", b_header[index+2:index+4])
-	answer := bHeader[index+5:]
-
-	answerIndex := 0
-	var dns []string
-	for i := 0; i < anCount; i++ {
-		if answer[answerIndex]&128 == 128 && answer[answerIndex]&64 == 64 { // 省略域名情况
-			answerIndex += 2
-		} else { // 不省略情况
-			for answer[answerIndex] != 0 {
-				answerIndex += int(answer[answerIndex]) + 1
-			}
-			answerIndex++
-		}
-		if int16(answer[answerIndex])<<8+int16(answer[answerIndex+1]) == 0x05 {
-			answerIndex += 8
-			answerIndex += 2 + int(answer[answerIndex])<<8 +
-				int(answer[answerIndex+1])
-		} else {
-			answerIndex += 8
-			if int16(answer[answerIndex])<<8+
-				int16(answer[answerIndex+1]) == 4 {
-				answerIndex += 2
-				dns = append(dns, strconv.Itoa(int(answer[answerIndex]))+"."+
-					strconv.Itoa(int(answer[answerIndex+1]))+"."+
-					strconv.Itoa(int(answer[answerIndex+2]))+"."+
-					strconv.Itoa(int(answer[answerIndex+3])))
-				answerIndex += 4
-			} else if int16(answer[answerIndex])<<8+
-				int16(answer[answerIndex+1]) == 16 {
-				answerIndex += 2
-				hexDNS := hex.
-					EncodeToString(answer[answerIndex : answerIndex+16])
-				dns = append(dns, hexDNS[0:4]+":"+hexDNS[4:8]+":"+
-					hexDNS[8:12]+":"+hexDNS[12:16]+":"+hexDNS[16:20]+":"+
-					hexDNS[20:24]+":"+hexDNS[24:28]+":"+hexDNS[28:32])
-
-				answerIndex += 16
-			}
-			// log.Println(answer[answerIndex], answer[answerIndex+1], answer[answerIndex+2], answer[answerIndex+3])
-			// log.Println(strconv.Itoa(int(answer[answerIndex])) + "." + strconv.Itoa(int(answer[answerIndex+1])) + "." + strconv.Itoa(int(answer[answerIndex+2])) + "." + strconv.Itoa(int(answer[answerIndex+3])))
-
-		}
-	}
-	if len(dns) != 0 {
-		return dns, true
-	}
-	return dns, false
-}

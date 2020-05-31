@@ -104,21 +104,20 @@ func UpdateDNS() error {
 	return nil
 }
 
-func DNS() (func(domain string) (DNS []net.IP, success bool), error) {
+func DNS() (func(domain string) (DNS []net.IP, err error), error) {
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		return nil, err
 	}
 
 	if conFig.IsDNSOverHTTPS {
-		return func(domain string) (DNS []net.IP, success bool) {
+		return func(domain string) (DNS []net.IP, err error) {
 			return dns.DNSOverHTTPS(conFig.DnsServer, domain, nil)
 		}, nil
 	}
 
-	return func(domain string) (DNS []net.IP, success bool) {
-		DNS, success, _ = dns.MDNS(conFig.DnsServer, domain)
-		return
+	return func(domain string) (DNS []net.IP, err error) {
+		return dns.DNS(conFig.DnsServer, domain)
 	}, nil
 }
 
@@ -137,8 +136,8 @@ func Forward(host string) (conn net.Conn, err error) {
 		return net.DialTimeout("tcp", host, 5*time.Second)
 
 	case localDNS:
-		ips, isSuccess := Matcher.DNS(URI.Hostname())
-		if !isSuccess {
+		ips, err := Matcher.DNS(URI.Hostname())
+		if err != nil {
 			break
 		}
 		for _, ip := range ips {

@@ -20,13 +20,13 @@ func NewCache() *cache {
 }
 
 func (c *cache) Get(domain string) (interface{}, bool) {
-	if value, isLoad := c.pool.Load(domain); isLoad {
-		return value, true
-	}
-	return nil, false
+	return c.pool.Load(domain)
 }
 
 func (c *cache) Add(domain string, mark interface{}) {
+	if mark == nil {
+		return
+	}
 	if c.number > 800 {
 		tmp := 0
 		c.pool.Range(func(key, value interface{}) bool {

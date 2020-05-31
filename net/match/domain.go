@@ -16,22 +16,22 @@ type Domain struct {
 
 func (d *Domain) Insert(domain string, mark interface{}) {
 	tmp := d.root
-	splitTmp := strings.Split(domain, ".")
-	for index, n := range splitTmp {
-		if index == 0 && n == "www" {
+	domainDiv := strings.Split(domain, ".")
+	for index := range domainDiv {
+		if index == 0 && domainDiv[index] == "www" {
 			continue
 		}
-		if _, ok := tmp.child[n]; !ok {
-			tmp.child[n] = &domainNode{
+		if _, ok := tmp.child[domainDiv[index]]; !ok {
+			tmp.child[domainDiv[index]] = &domainNode{
 				isLast: false,
 				child:  map[string]*domainNode{},
 			}
 		}
-		if index == len(splitTmp)-1 {
-			tmp.child[n].isLast = true
-			tmp.child[n].mark = mark
+		if index == len(domainDiv)-1 {
+			tmp.child[domainDiv[index]].isLast = true
+			tmp.child[domainDiv[index]].mark = mark
 		}
-		tmp = tmp.child[n]
+		tmp = tmp.child[domainDiv[index]]
 	}
 }
 
@@ -39,7 +39,7 @@ func (d *Domain) Search(domain string) (isMatcher bool, mark interface{}) {
 	root := d.root
 	first, domainDiv := true, strings.Split(domain, ".")
 	for index := range domainDiv {
-		_, ok := root.child[domainDiv[index]]
+		_, ok := root.child[domainDiv[index]] // use index to get data quicker than new var
 
 		if first && !ok {
 			continue

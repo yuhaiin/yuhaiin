@@ -5,7 +5,7 @@ import (
 )
 
 type Match struct {
-	DNS func(domain string) (DNS []net.IP, success bool)
+	DNS func(domain string) (DNS []net.IP, err error)
 	//DNSStr string
 	cidr   *Cidr
 	domain *Domain
@@ -21,7 +21,7 @@ func (x *Match) Insert(str string, mark interface{}) error {
 }
 
 func (x *Match) Search(str string) (des interface{}) {
-	if des, isCache := mCache.Get(str); isCache {
+	if des, _ = mCache.Get(str); des != nil {
 		return des
 	}
 
@@ -44,7 +44,7 @@ _end:
 	return
 }
 
-func NewMatch(dnsFunc func(domain string) (DNS []net.IP, success bool)) (matcher Match) {
+func NewMatch(dnsFunc func(domain string) (DNS []net.IP, err error)) (matcher Match) {
 	return Match{
 		DNS:    dnsFunc,
 		cidr:   NewCidrMatch(),

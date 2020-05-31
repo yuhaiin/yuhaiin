@@ -170,7 +170,6 @@ func (s *Server) handleClientRequest(client net.Conn) {
 }
 
 func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
-	//targetAddrRaw := udpPacket[3:]
 	targetAddrRawSize := 1
 	switch raw[0] {
 	case 0x01:
@@ -185,13 +184,13 @@ func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
 	case 0x03:
 		addrLen := int(raw[1])
 		if len(raw) < 1+1+addrLen+2 {
-			//return errShortAddrRaw()
+			// errShortAddrRaw
+			return "", 0, 0, errors.New("error short address raw")
 		}
 		dst = string(raw[1+1 : 1+1+addrLen])
 		targetAddrRawSize += 1 + addrLen
 	default:
-		//s.config.Logger.Printf("udp socks: Failed to get UDP package header: %v", errUnrecognizedAddrType)
-		//return errUnrecognizedAddrType
+		// errUnrecognizedAddrType
 		return "", 0, 0, errors.New("udp socks: Failed to get UDP package header")
 	}
 	port = (int(raw[targetAddrRawSize]) << 8) | int(raw[targetAddrRawSize+1])

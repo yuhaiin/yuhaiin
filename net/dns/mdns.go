@@ -9,7 +9,7 @@ import (
 
 //from https://miek.nl/2014/august/16/go-dns-package/
 
-func MDNS(server, domain string) (ip []net.IP, success bool, err error) {
+func MDNS(server, domain string) (ip []net.IP, err error) {
 	//config, err := mdns.ClientConfigFromFile("/etc/resolv.conf")
 	//if err != nil{
 	//	log.Println(err)
@@ -21,10 +21,10 @@ func MDNS(server, domain string) (ip []net.IP, success bool, err error) {
 	m.RecursionDesired = true
 	r, _, err := c.Exchange(m, server)
 	if r == nil {
-		return nil, false, err
+		return nil, err
 	}
 	if r.Rcode != mdns.RcodeSuccess {
-		return nil, false, errors.New(fmt.Sprintf(" *** invalid answer name %s after MX query for %s\n", domain, domain))
+		return nil, errors.New(fmt.Sprintf(" *** invalid answer name %s after MX query for %s\n", domain, domain))
 	}
 	// Stuff must be in the answer section
 	for _, a := range r.Answer {
@@ -35,5 +35,5 @@ func MDNS(server, domain string) (ip []net.IP, success bool, err error) {
 			ip = append(ip, a.(*mdns.AAAA).AAAA)
 		}
 	}
-	return ip, true, nil
+	return ip, nil
 }

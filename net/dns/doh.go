@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 )
@@ -93,10 +92,9 @@ type Answer struct {
 	Data    string `json:"data"`
 }
 
-func DNSOverHTTPS(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS []net.IP, success bool) {
+func DNSOverHTTPS(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS []net.IP, err error) {
 	doh := &DOH{}
 	var res *http.Response
-	var err error
 	if proxy != nil {
 		tr := http.Transport{
 			DialContext: proxy,
@@ -107,26 +105,23 @@ func DNSOverHTTPS(DNSServer, domain string, proxy func(ctx context.Context, netw
 		res, err = http.Get(DNSServer + "?ct=application/dns-json&name=" + domain + "&type=A")
 	}
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.Println("Read error", err)
-		return nil, false
+		return nil, err
 	}
 	err = json.Unmarshal(body, doh)
 	if err != nil {
-		log.Println(err)
-		return nil, false
+		return nil, err
 	}
 	if doh.Status != 0 {
-		return nil, false
+		return nil, err
 	}
 	for _, x := range doh.Answer {
 		if net.ParseIP(x.Data) != nil {
 			DNS = append(DNS, net.ParseIP(x.Data))
 		}
 	}
-	success = true
-	return
+	return DNS, nil
 }

@@ -74,18 +74,17 @@ func pipeStatistic(src, dst net.Conn, closeSig chan error, mode uint64) {
 
 	for {
 		if n, err = src.Read(buf[0:]); err != nil {
-			return
+			break
 		}
 
 		go func() {
 			x := QueuePool.Get().([2]uint64)
-			x[0] = mode
-			x[1] = uint64(n)
+			x[0], x[1] = mode, uint64(n)
 			queue <- x
 		}()
 
 		if _, err = dst.Write(buf[0:n]); err != nil {
-			return
+			break
 		}
 	}
 }

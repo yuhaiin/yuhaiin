@@ -199,10 +199,10 @@ func (m *mainWindow) setListener() {
 				}
 
 				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s/S , Upload<sub><i>(%s)</i></sub>: %s/S",
-					common.ReducedUnit2(float64(common.DownloadTotal)),
-					common.ReducedUnit2(float64(common.DownloadTotal-downloadTmp)),
-					common.ReducedUnit2(float64(common.UploadTotal)),
-					common.ReducedUnit2(float64(common.UploadTotal-uploadTmp))))
+					common.ReducedUnitStr(float64(common.DownloadTotal)),
+					common.ReducedUnitStr(float64(common.DownloadTotal-downloadTmp)),
+					common.ReducedUnitStr(float64(common.UploadTotal)),
+					common.ReducedUnitStr(float64(common.UploadTotal-uploadTmp))))
 				atomic.StoreUint64(&downloadTmp, common.DownloadTotal)
 				atomic.StoreUint64(&uploadTmp, common.UploadTotal)
 				time.Sleep(time.Second)
