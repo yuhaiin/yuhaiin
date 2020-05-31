@@ -1,38 +1,16 @@
 package dns
 
-import (
-	"context"
-	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"testing"
-)
+import "testing"
 
-func TestDNSOverHTTPS(t *testing.T) {
-	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return socks5client.NewSocks5Client("127.0.0.1", "1080", "", "", addr)
-	}
-	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
-	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))
-	t.Log(DNSOverHTTPS("https://dns.rubyfish.cn/dns-query", "cm.bilibili.com", nil))
-	t.Log(DNSOverHTTPS("https://dns.google/resolve", "dict.hjenglish.com", dialContext))
-	t.Log(DNSOverHTTPS("https://dns.google/resolve", "i0.hdslb.com", dialContext))
-	t.Log(DNSOverHTTPS("https://cloudflare-dns.com/dns-query", "cm.bilibili.com", nil))
-}
-
-func TestC(t *testing.T) {
-	req, _ := http.NewRequest("GET", "https://cloudflare-dns.com/dns-query"+"?dns="+"q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB", nil)
-	req.Header.Set("accept", "application/dns-message")
-	//res, err := http.Get("https://cloudflare-dns.com/dns-query"+"?dns="+base64.URLEncoding.EncodeToString([]byte("cm.bilibili.com")))
-	client := &http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		t.Log(err)
-	}
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		t.Log("Read error", err)
-	}
-	t.Log(string(body))
+func TestDOH2(t *testing.T) {
+	t.Log(DOH("dns.google", "www.twitter.com"))
+	t.Log(DOH("cloudflare-dns.com", "www.twitter.com"))
+	t.Log(DOH("dns.google", "www.facebook.com"))
+	t.Log(DOH("cloudflare-dns.com", "www.facebook.com"))
+	t.Log(DOH("dns.google", "www.v2ex.com"))
+	t.Log(DOH("cloudflare-dns.com", "www.v2ex.com"))
+	t.Log(DOH("dns.google", "www.baidu.com"))
+	t.Log(DOH("cloudflare-dns.com", "www.baidu.com"))
+	t.Log(DOH("dns.google", "www.google.com"))
+	t.Log(DOH("cloudflare-dns.com", "www.google.com"))
 }

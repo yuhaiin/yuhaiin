@@ -112,7 +112,7 @@ func DNS() (func(domain string) (DNS []net.IP, err error), error) {
 
 	if conFig.IsDNSOverHTTPS {
 		return func(domain string) (DNS []net.IP, err error) {
-			return dns.DNSOverHTTPS(conFig.DnsServer, domain, nil)
+			return dns.DOH(conFig.DnsServer, domain)
 		}, nil
 	}
 
@@ -133,9 +133,11 @@ func Forward(host string) (conn net.Conn, err error) {
 
 	switch Matcher.Search(URI.Hostname()) {
 	case direct:
+		//log.Println("direct: ",URI.Hostname())
 		return net.DialTimeout("tcp", host, 5*time.Second)
 
 	case localDNS:
+		//log.Println("localDNS: ",URI.Hostname())
 		ips, err := Matcher.DNS(URI.Hostname())
 		if err != nil {
 			break
@@ -145,7 +147,9 @@ func Forward(host string) (conn net.Conn, err error) {
 		}
 
 	case block:
+		//log.Println("block: ",URI.Hostname())
 		return nil, errors.New("block domain: " + host)
 	}
+	//log.Println("proxy: ",URI.Hostname())
 	return Conn(host)
 }

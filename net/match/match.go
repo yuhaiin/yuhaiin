@@ -13,7 +13,7 @@ type Match struct {
 
 func (x *Match) Insert(str string, mark interface{}) error {
 	if _, _, err := net.ParseCIDR(str); err != nil {
-		x.domain.Insert(str, mark)
+		x.domain.InsertFlip(str, mark)
 		return nil
 	}
 
@@ -30,7 +30,7 @@ func (x *Match) Search(str string) (des interface{}) {
 		goto _end
 	}
 
-	_, des = x.domain.Search(str)
+	_, des = x.domain.SearchFlip(str)
 	if des != nil || x.DNS == nil {
 		goto _end
 	}

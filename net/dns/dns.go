@@ -39,6 +39,16 @@ var (
 // DNS <-- dns
 func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 	req := creatRequest(domain, A)
+
+	b, err := udpDial(req, DNSServer)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolveAnswer(req, b)
+}
+
+func udpDial(req []byte, DNSServer string) (data []byte, err error) {
 	var b = common.BuffPool.Get().([]byte)
 	defer common.BuffPool.Put(b[:cap(b)])
 
@@ -55,78 +65,7 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// resolve answer
-	anCount, c, err := resolveHeader(req, b[:n])
-	if err != nil {
-		return nil, err
-	}
-
-	// answer section
-	//log.Println()
-	//log.Println("Answer section:")
-
-	//var x string
-	for anCount != 0 {
-		_, c = getName(c, b[:n])
-		//log.Println(x)
-
-		tYPE := reqType{c[0], c[1]}
-		//log.Println("type:", c[0], c[1])
-		c = c[2:] // type
-		//log.Println("class:", c[0], c[1])
-		c = c[2:] // class
-		//log.Println("ttl:", c[0], c[1], c[2], c[3])
-		c = c[4:] // ttl 4byte
-		sum := int(c[0])<<8 + int(c[1])
-		//log.Println("rdlength", sum)
-		c = c[2:] // RDLENGTH  跳过总和，因为总和不包括计算域名的长度 2+int(c[0])<<8+int(c[1])
-
-		switch tYPE {
-		case A:
-			DNS = append(DNS, c[0:4])
-			c = c[4:] // 4 byte ip addr
-		case AAAA:
-			DNS = append(DNS, c[0:16])
-			c = c[16:] // 16 byte ip addr
-		case NS:
-			fallthrough
-		case MD:
-			fallthrough
-		case MF:
-			fallthrough
-		case CNAME:
-			fallthrough
-		case SOA:
-			fallthrough
-		case MG:
-			fallthrough
-		case MB:
-			fallthrough
-		case MR:
-			fallthrough
-		case NULL:
-			fallthrough
-		case WKS:
-			fallthrough
-		case PTR:
-			fallthrough
-		case HINFO:
-			fallthrough
-		case MINFO:
-			fallthrough
-		case MX:
-			fallthrough
-		case TXT:
-			fallthrough
-		default:
-			//log.Println("rdata", c[:sum])
-			c = c[sum:] // RDATA
-		}
-		anCount -= 1
-	}
-
-	return DNS, nil
+	return b[:n], nil
 }
 
 func creatRequest(domain string, reqType reqType) []byte {
@@ -198,13 +137,86 @@ func resolveHeader(req []byte, answer []byte) (anCount int, answerSection []byte
 	//var x string
 	_, c = getName(c, answer)
 	//log.Println(x)
-	c = c[1:] // lastOfDomain: one byte 0
+
 	//log.Println("qType:", c[:2])
 	c = c[2:]
 	//log.Println("qClass:", c[:2])
 	c = c[2:]
 
 	return anCount, c, nil
+}
+
+func resolveAnswer(req []byte, b []byte) (DNS []net.IP, err error) {
+	// resolve answer
+	anCount, c, err := resolveHeader(req, b)
+	if err != nil {
+		return nil, err
+	}
+
+	// answer section
+	//log.Println()
+	//log.Println("Answer section:")
+
+	//var x string
+	for anCount != 0 {
+		_, c = getName(c, b)
+		//log.Println(x)
+
+		tYPE := reqType{c[0], c[1]}
+		//log.Println("type:", c[0], c[1])
+		c = c[2:] // type
+		//log.Println("class:", c[0], c[1])
+		c = c[2:] // class
+		//log.Println("ttl:", c[0], c[1], c[2], c[3])
+		c = c[4:] // ttl 4byte
+		sum := int(c[0])<<8 + int(c[1])
+		//log.Println("rdlength", sum)
+		c = c[2:] // RDLENGTH  跳过总和，因为总和不包括计算域名的长度 2+int(c[0])<<8+int(c[1])
+
+		switch tYPE {
+		case A:
+			DNS = append(DNS, c[0:4])
+			c = c[4:] // 4 byte ip addr
+		case AAAA:
+			DNS = append(DNS, c[0:16])
+			c = c[16:] // 16 byte ip addr
+		case NS:
+			fallthrough
+		case MD:
+			fallthrough
+		case MF:
+			fallthrough
+		case CNAME:
+			fallthrough
+		case SOA:
+			fallthrough
+		case MG:
+			fallthrough
+		case MB:
+			fallthrough
+		case MR:
+			fallthrough
+		case NULL:
+			fallthrough
+		case WKS:
+			fallthrough
+		case PTR:
+			fallthrough
+		case HINFO:
+			fallthrough
+		case MINFO:
+			fallthrough
+		case MX:
+			fallthrough
+		case TXT:
+			fallthrough
+		default:
+			//log.Println("rdata", c[:sum])
+			c = c[sum:] // RDATA
+		}
+		anCount -= 1
+	}
+	return
 }
 
 func getName(c []byte, all []byte) (name string, x []byte) {
@@ -220,6 +232,7 @@ func getName(c []byte, all []byte) (name string, x []byte) {
 		name += string(c[1:int(c[0])+1]) + "."
 		c = c[int(c[0])+1:]
 		if c[0] == 0 {
+			c = c[1:] // lastOfDomain: one byte 0
 			break
 		}
 	}
