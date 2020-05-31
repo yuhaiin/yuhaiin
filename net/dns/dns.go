@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/net/common"
@@ -15,15 +16,24 @@ type reqType [2]byte
 var (
 	A     = reqType{0b00000000, 0b00000001} // 1
 	NS    = reqType{0b00000000, 0b00000010} // 2
+	MD    = reqType{0b00000000, 0b00000011} // 3
+	MF    = reqType{0b00000000, 0b00000100} // 3
 	CNAME = reqType{0b00000000, 0b00000101} // 5
 	SOA   = reqType{0b00000000, 0b00000110} // 6
+	MB    = reqType{0b00000000, 0b00000111} // 7
+	MG    = reqType{0b00000000, 0b00001000} // 8
+	MR    = reqType{0b00000000, 0b00001001} // 9
+	NULL  = reqType{0b00000000, 0b00001010} // 10
 	WKS   = reqType{0b00000000, 0b00001011} // 11
 	PTR   = reqType{0b00000000, 0b00001100} // 12
 	HINFO = reqType{0b00000000, 0b00001101} // 13
+	MINFO = reqType{0b00000000, 0b00001110} // 14
 	MX    = reqType{0b00000000, 0b00001111} // 15
-	AAAA  = reqType{0b00000000, 0b00011100} // 28
-	AXFR  = reqType{0b00000000, 0b11111100} // 252
-	ANY   = reqType{0b00000000, 0b11111111} // 255
+	TXT   = reqType{0b00000000, 0b00010000} // 16
+	AAAA  = reqType{0b00000000, 0b00011100} // 28 https://www.ietf.org/rfc/rfc3596.txt
+	// for req
+	AXFR = reqType{0b00000000, 0b11111100} // 252
+	ANY  = reqType{0b00000000, 0b11111111} // 255
 )
 
 // DNS <-- dns
@@ -52,6 +62,7 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 		return nil, err
 	}
 
+	// answer section
 	//log.Println()
 	//log.Println("Answer section:")
 
@@ -78,11 +89,23 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 		case AAAA:
 			DNS = append(DNS, c[0:16])
 			c = c[16:] // 16 byte ip addr
+		case NS:
+			fallthrough
+		case MD:
+			fallthrough
+		case MF:
+			fallthrough
 		case CNAME:
 			fallthrough
 		case SOA:
 			fallthrough
-		case NS:
+		case MG:
+			fallthrough
+		case MB:
+			fallthrough
+		case MR:
+			fallthrough
+		case NULL:
 			fallthrough
 		case WKS:
 			fallthrough
@@ -90,7 +113,11 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 			fallthrough
 		case HINFO:
 			fallthrough
+		case MINFO:
+			fallthrough
 		case MX:
+			fallthrough
+		case TXT:
 			fallthrough
 		default:
 			//log.Println("rdata", c[:sum])
@@ -103,71 +130,71 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 }
 
 func creatRequest(domain string, reqType reqType) []byte {
-	id := []byte{byte(rand.Intn(255 - 0)), byte(rand.Intn(255 - 0))}                                  // id:
-	qr2rd := byte(0b00000001)                                                                         // qr: 0 opcode: 0000 aa: 0 tc: 0 rd: 1 => bit: 00000001 -> 1
-	ra2rCode := byte(0b00000000)                                                                      // ra: 0 z:000 rcode: 0000 => bit: 00000000 -> 0
-	qdCount := []byte{0b00000000, 0b00000001}                                                         // request number => bit: 00000000 00000001 -> 01
-	anCount2arCount := []byte{0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000} // answer number(no use for req) => bit: 00000000 00000000 00000000 00000000 00000000 00000000 -> 000000
-	req := append(id, qr2rd, ra2rCode, qdCount[0], qdCount[1])
-	req = append(req, anCount2arCount...)
+	id := []byte{byte(rand.Intn(255)), byte(rand.Intn(255))} // id:
+	qr := byte(0b0)                                          // qr 0
+	opCode := byte(0b0000)                                   // opcode 0000
+	aa := byte(0b0)                                          // aa 0
+	tc := byte(0b0)                                          // tc 0
+	rd := byte(0b1)                                          // rd 1
+	ra := byte(0b0)                                          // ra 0
+	z := byte(0b000)                                         // z 000
+	rCode := byte(0b0000)                                    // rCode 0000
+	qr2rCode := []byte{qr<<7 + opCode<<3 + aa<<2 + tc<<1 + rd, ra<<7 + z<<4 + rCode}
+	qdCount := []byte{0b00000000, 0b00000001} // request number => bit: 00000000 00000001 -> 01
+	anCount := []byte{0b00000000, 0b00000000} // answer number(no use for req) => bit: 00000000 00000000
+	nsCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
+	arCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
 
-	//var domainSet []byte
-	divDomain := strings.Split(domain, ".")
-	for index := range divDomain {
-		one := append([]byte{byte(len(divDomain[index]))}, []byte(divDomain[index])...)
-		req = append(req, one...)
+	var qName []byte
+	for _, x := range strings.Split(domain, ".") {
+		qName = append(qName, byte(len(x)))
+		qName = append(qName, []byte(x)...)
 	}
-	req = append(req, 0b00000000) // add the 0 for last of domain
+	qName = append(qName, 0b00000000) // add the 0 for last of domain
 
 	qType := []byte{reqType[0], reqType[1]}  // type: 1 -> A:ipv4 01 | 28 -> AAAA:ipv6  000000 00011100 => 0 0x1c
 	qClass := []byte{0b00000000, 0b00000001} // 1 -> from internet
-	req = append(req, qType...)
-	req = append(req, qClass...)
-	return req
+
+	//https://www.cnblogs.com/zsy/p/5935407.html
+	return bytes.Join([][]byte{id, qr2rCode, qdCount, anCount, nsCount, arCount, qName, qType, qClass}, []byte{})
 }
 
 func resolveHeader(req []byte, answer []byte) (anCount int, answerSection []byte, err error) {
 	// resolve answer
-	idA := []byte{answer[0], answer[1]}
-	if idA[0] != req[0] || idA[1] != req[1] { // id: req[0] req[1]
+	if answer[0] != req[0] || answer[1] != req[1] { // compare id
 		// not the answer
 		return 0, nil, errors.New("id not same")
 	}
-	qr2rdA := answer[2]
 
-	if qr2rdA&8 != 0 {
-		// not the answer "the qr is not 1", qr2rdA, qr2rdA&8
-		return 0, nil, errors.New("the qr is not 1")
+	if answer[2]&8 != 0 { // check the QR is 1(Answer)
+		return 0, nil, errors.New("the qr is not 1(Answer)")
 	}
-	ra2rCodeA := answer[3]
-	//qdCountA := []byte{b[4], b[5]}  // no use, for request
-	anCountA := []byte{answer[6], answer[7]}
-	//nsCount2arCountA := []byte{b[8], b[9], b[10], b[11]} // no use
 
-	rCode := fmt.Sprintf("%08b", ra2rCodeA)[4:]
+	rCode := fmt.Sprintf("%08b", answer[3])[4:] // check Response code(rCode)
 	switch rCode {
-	case "0000":
+	case "0000": // no error
 		break
-	case "0001":
+	case "0001": // Format error
 		return 0, nil, errors.New("request format error")
-	case "0010":
-		return 0, nil, errors.New("dns server error")
-	case "0011":
+	case "0010": //Server failure
+		return 0, nil, errors.New("dns Server failure")
+	case "0011": //Name Error
 		return 0, nil, errors.New("no such name")
-	case "0100":
+	case "0100": // Not Implemented
 		return 0, nil, errors.New("dns server not support this request")
-	case "0101":
+	case "0101": //Refused
 		return 0, nil, errors.New("dns server Refuse")
-	default:
+	default: // Reserved for future use.
 		return 0, nil, errors.New("other error")
 	}
 
-	c := answer[12:]
-	anCount = int(anCountA[0])<<8 + int(anCountA[1])
-	//log.Println("anCount", anCount)
+	//qdCountA := []byte{b[4], b[5]}  // no use, for request
+	//anCountA := []byte{answer[6], answer[7]}
+	anCount = int(answer[6])<<8 + int(answer[7])
+	//nsCount2arCountA := []byte{b[8], b[9], b[10], b[11]} // no use
 
-	//log.Println()
-	//log.Println("Question section:")
+	c := answer[12:]
+
 	//var x string
 	_, c = getName(c, answer)
 	//log.Println(x)
@@ -199,58 +226,231 @@ func getName(c []byte, all []byte) (name string, x []byte) {
 	return name, c
 }
 
+// https://www.ietf.org/rfc/rfc1035.txt
 /*
-+------------------------------+
-|             id               |  16bit
-+------------------------------+
-|qr|opcpde|aa|tc|rd|ra|z|rcode |
-+------------------------------+
-|          QDCOUNT             |
-+------------------------------+
-|          ancount             |
-+------------------------------+
-|          nscount             |
-+------------------------------+
-|          arcount             |
-+------------------------------+
+4.1.1. Header section format
 
-• ID：这是由生成DNS查询的程序指定的16位的标志符。
-该标志符也被随后的应答报文所用，
-	申请者利用这个标志将应答和原来的请求对应起来。
+The header contains the following fields:
 
-• QR：该字段占1位，用以指明DNS报文是请求（0）还是应答（1）。
-• OPCODE：该字段占4位，用于指定查询的类型。
-	值为0表示标准查询，值为1表示逆向查询，值为2表示查询服务器状态，
-	值为3保留，值为4表示通知，值为5表示更新报文，值6～15的留为新增操作用。
+                                    1  1  1  1  1  1
+      0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                      ID                       |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    QDCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    ANCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    NSCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    ARCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
-• AA：该字段占1位，仅当应答时才设置。
-	值为1，即意味着正应答的域名服务器是所查询域名的
-	管理机构或者说是被授权的域名服务器。
+where:
 
-• TC：该字段占1位，代表截断标志。
-	如果报文长度比传输通道所允许的长而被分段，该位被设为1。
+ID              A 16 bit identifier assigned by the program that
+                generates any kind of query.  This identifier is copied
+                the corresponding reply and can be used by the requester
+                to match up replies to outstanding queries.
+QR              A one bit field that specifies whether this message is a
+                query (0), or a response (1).
+OPCODE          A four bit field that specifies kind of query in this
+                message.  This value is set by the originator of a query
+                and copied into the response.  The values are:
+                0               a standard query (QUERY)
+                1               an inverse query (IQUERY)
+                2               a server status request (STATUS)
+                3-15            reserved for future use
+AA              Authoritative Answer - this bit is valid in responses,
+                and specifies that the responding name server is an
+                authority for the domain name in question section.
+                Note that the contents of the answer section may have
+                multiple owner names because of aliases.  The AA bit
 
-• RD：该字段占1位，是可选项，表示要求递归与否。
-	如果为1，即意味 DNS解释器要求DNS服务器使用递归查询。
 
-• RA：该字段占1位，代表正在应答的域名服务器可以执行递归查询，
-	该字段与查询段无关。
-• Z：该字段占3位，保留字段，其值在查询和应答时必须为0。
-• RCODE：该字段占4位，该字段仅在DNS应答时才设置。用以指明是否发生了错误。
-允许取值范围及意义如下：
-0：无错误情况，DNS应答表现为无错误。
-1：格式错误，DNS服务器不能解释应答。
-2：严重失败，因为名字服务器上发生了一个错误，DNS服务器不能处理查询。
-3：名字错误，如果DNS应答来自于授权的域名服务器，
-	意味着DNS请求中提到的名字不存在。
-4：没有实现。DNS服务器不支持这种DNS请求报文。
-5：拒绝，由于安全或策略上的设置问题，DNS名字服务器拒绝处理请求。
-6 ～15 ：留为后用。
 
-• QDCOUNT：该字段占16位，指明DNS查询段中的查询问题的数量。
-• ANCOUNT：该字段占16位，指明DNS应答段中返回的资源记录的数量，在查询段中该值为0。
-• NSCOUNT：该字段占16位，指明DNS应答段中所包括的授权域名服务器的资源记录的数量，在查询段中该值为0。
-• ARCOUNT：该字段占16位，指明附加段里所含资源记录的数量，在查询段中该值为0。
-(2）DNS正文段
-在DNS报文中，其正文段封装在图7-42所示的DNS报文头内。DNS有四类正文段：查询段、应答段、授权段和附加段。
+Mockapetris                                                    [Page 26]
+
+RFC 1035        Domain Implementation and Specification    November 1987
+
+
+                corresponds to the name which matches the query name, or
+                the first owner name in the answer section.
+
+TC              TrunCation - specifies that this message was truncated
+                due to length greater than that permitted on the
+                transmission channel.
+RD              Recursion Desired - this bit may be set in a query and
+                is copied into the response.  If RD is set, it directs
+                the name server to pursue the query recursively.
+                Recursive query support is optional.
+RA              Recursion Available - this be is set or cleared in a
+                response, and denotes whether recursive query support is
+                available in the name server.
+Z               Reserved for future use.  Must be zero in all queries
+                and responses.
+RCODE           Response code - this 4 bit field is set as part of
+                responses.  The values have the following
+                interpretation:
+                0               No error condition
+                1               Format error - The name server was
+                                unable to interpret the query.
+                2               Server failure - The name server was
+                                unable to process this query due to a
+                                problem with the name server.
+                3               Name Error - Meaningful only for
+                                responses from an authoritative name
+                                server, this code signifies that the
+                                domain name referenced in the query does
+                                not exist.
+                4               Not Implemented - The name server does
+                                not support the requested kind of query.
+                5               Refused - The name server refuses to
+                                perform the specified operation for
+                                policy reasons.  For example, a name
+                                server may not wish to provide the
+                                information to the particular requester,
+                                or a name server may not wish to perform
+                                a particular operation (e.g., zone
+
+
+Mockapetris                                                    [Page 27]
+
+RFC 1035        Domain Implementation and Specification    November 1987
+
+
+                                transfer) for particular data.
+                6-15            Reserved for future use.
+
+QDCOUNT         an unsigned 16 bit integer specifying the number of
+                entries in the question section.
+ANCOUNT         an unsigned 16 bit integer specifying the number of
+                resource records in the answer section.
+NSCOUNT         an unsigned 16 bit integer specifying the number of name
+                server resource records in the authority records
+                section.
+ARCOUNT         an unsigned 16 bit integer specifying the number of
+                resource records in the additional records section.
+
+
+4.1.2. Question section format
+
+The question section is used to carry the "question" in most queries,
+i.e., the parameters that define what is being asked.  The section
+contains QDCOUNT (usually 1) entries, each of the following format:
+
+                                    1  1  1  1  1  1
+      0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                                               |
+    /                     QNAME                     /
+    /                                               /
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                     QTYPE                     |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                     QCLASS                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+where:
+
+QNAME           a domain name represented as a sequence of labels, where
+                each label consists of a length octet followed by that
+                number of octets.  The domain name terminates with the
+                zero length octet for the null label of the root.  Note
+                that this field may be an odd number of octets; no
+                padding is used.
+QTYPE           a two octet code which specifies the type of the query.
+                The values for this field include all codes valid for a
+                TYPE field, together with some more general codes which
+                can match more than one type of RR.
+
+
+
+Mockapetris                                                    [Page 28]
+
+RFC 1035        Domain Implementation and Specification    November 1987
+
+
+QCLASS          a two octet code that specifies the class of the query.
+                For example, the QCLASS field is IN for the Internet.
+*/
+
+/*
+4.1.3. Resource record format
+
+The answer, authority, and additional sections all share the same
+format: a variable number of resource records, where the number of
+records is specified in the corresponding count field in the header.
+Each resource record has the following format:
+
+                                    1  1  1  1  1  1
+      0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                                               |
+    /                                               /
+    /                      NAME                     /
+    |                                               |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                      TYPE                     |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                     CLASS                     |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                      TTL                      |
+    |                                               |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                   RDLENGTH                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
+    /                     RDATA                     /
+    /                                               /
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+
+where:
+NAME            an owner name, i.e., the name of the node to which this
+                resource record pertains.
+TYPE            two octets containing one of the RR TYPE codes.
+CLASS           two octets containing one of the RR CLASS codes.
+TTL             a 32 bit signed integer that specifies the time interval
+                that the resource record may be cached before the source
+                of the information should again be consulted.  Zero
+                values are interpreted to mean that the RR can only be
+                used for the transaction in progress, and should not be
+                cached.  For example, SOA records are always distributed
+                with a zero TTL to prohibit caching.  Zero values can
+                also be used for extremely volatile data.
+RDLENGTH        an unsigned 16 bit integer that specifies the length in
+                octets of the RDATA field.
+
+Mockapetris                                                    [Page 11]
+
+RFC 1035        Domain Implementation and Specification    November 1987
+
+RDATA           a variable length string of octets that describes the
+                resource.  The format of this information varies
+                according to the TYPE and CLASS of the resource record.
+
+3.2.2. TYPE values
+
+TYPE fields are used in resource records.  Note that these types are a
+subset of QTYPEs.
+
+TYPE            value and meaning
+A               1 a host address
+NS              2 an authoritative name server
+MD              3 a mail destination (Obsolete - use MX)
+MF              4 a mail forwarder (Obsolete - use MX)
+CNAME           5 the canonical name for an alias
+SOA             6 marks the start of a zone of authority
+MB              7 a mailbox domain name (EXPERIMENTAL)
+MG              8 a mail group member (EXPERIMENTAL)
+MR              9 a mail rename domain name (EXPERIMENTAL)
+NULL            10 a null RR (EXPERIMENTAL)
+WKS             11 a well known service description
+PTR             12 a domain name pointer
+HINFO           13 host information
+MINFO           14 mailbox or mail list information
+MX              15 mail exchange
+TXT             16 text strings
 */

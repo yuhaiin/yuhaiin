@@ -27,3 +27,27 @@ func TestDNS3(t *testing.T) {
 	t.Log(0b10000001)
 	t.Log(fmt.Sprintf("%08b", 0b00000011)[4:])
 }
+
+func TestDNS4(t *testing.T) {
+	r := []byte{1}
+	s := "a"
+	copy(r[:], s)
+	t.Log(r)
+}
+
+func TestDNS5(t *testing.T) {
+	qr := byte(1)
+	opCode := byte(0)
+	aa := byte(1)
+	tc := byte(0)
+	rd := byte(1)
+
+	t.Log(fmt.Sprintf("%08b", qr<<7+opCode<<3+aa<<2+tc<<1+rd))
+
+	ra := byte(0)
+	z := byte(0b100)
+	rcode := byte(0b0000)
+	//ra2rCode := []byte{0b00000000} // ra: 0 z:000 rcode: 0000 => bit: 00000000 -> 0
+	//qr2rCode := []byte{qr<<7 + opCode<<2 + aa<<1 + tc, ra<<7 + z<<4 + rcode}
+	t.Log(fmt.Sprintf("%08b", ra<<7+z<<4+rcode))
+}
