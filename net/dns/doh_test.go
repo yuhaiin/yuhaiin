@@ -1,8 +1,10 @@
 package dns
 
-import "testing"
+import (
+	"testing"
+)
 
-func TestDOH2(t *testing.T) {
+func TestDOH(t *testing.T) {
 	t.Log(DOH("dns.google", "www.twitter.com"))
 	t.Log(DOH("cloudflare-dns.com", "www.twitter.com"))
 	t.Log(DOH("dns.google", "www.facebook.com"))

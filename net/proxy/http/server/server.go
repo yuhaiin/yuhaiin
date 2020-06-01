@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/base64"
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"io"
@@ -90,23 +89,13 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		return
 	}
 
-	if h.Username != "" {
-		authorization := strings.Split(req.Header.Get("Proxy-Authorization"), " ")
-		if len(authorization) != 2 {
+	if h.Username != "" || h.Password != "" {
+		user, pass, isHas := parseBasicAuth(req.Header.Get("Proxy-Authorization"))
+		if !isHas {
 			_, _ = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
 			return
 		}
-		dst := make([]byte, base64.URLEncoding.DecodedLen(len(authorization[1])))
-		if _, err = base64.StdEncoding.Decode(dst, []byte(authorization[1])); err != nil {
-			log.Println(err)
-			return
-		}
-		uap := bytes.Split(dst, []byte(":"))
-		if len(uap) != 2 {
-			_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-			return
-		}
-		if string(uap[0]) != h.Username || string(uap[1]) != h.Password {
+		if user != h.Username || pass != h.Password {
 			_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 			return
 		}
@@ -136,26 +125,19 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 
 	outboundReader := bufio.NewReader(server)
 	for {
-		//log.Println(req.Header)
-		//log.Println(req.Header.Get("Proxy-Connection"), ":", req.Header.Get("Connection"))
 		keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" || strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
 		if len(req.URL.Host) > 0 {
 			req.Host = req.URL.Host
 		}
-		//req.URL.Host = ""
-		//req.URL.Scheme = ""
 		req.RequestURI = ""
 		req.Header.Set("Connection", "close")
 		req.Header = removeHeader(req.Header)
-		//log.Println(req.Header,req.Body)
 		if err := req.Write(server); err != nil {
 			break
 		}
 
 		resp, err := http.ReadResponse(outboundReader, req)
 		if err != nil {
-			//log.Println(err)
-			//resp503(client)
 			break
 		}
 		resp.Header = removeHeader(resp.Header)
@@ -180,7 +162,6 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		} else {
 			resp.Close = true
 		}
-		//log.Println(resp.Header, resp.Body)
 		err = resp.Write(client)
 		if err != nil || resp.Close {
 			break
@@ -199,6 +180,26 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 			break
 		}
 	}
+}
+
+// parseBasicAuth parses an HTTP Basic Authentication string.
+// "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
+func parseBasicAuth(auth string) (username, password string, ok bool) {
+	const prefix = "Basic "
+	// Case insensitive prefix match. See Issue 22736.
+	if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
+		return
+	}
+	c, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
+	if err != nil {
+		return
+	}
+	cs := string(c)
+	s := strings.IndexByte(cs, ':')
+	if s < 0 {
+		return
+	}
+	return cs[:s], cs[s+1:], true
 }
 
 // https://github.com/go-httpproxy
