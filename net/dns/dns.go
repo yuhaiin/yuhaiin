@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"math/rand"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
 type reqType [2]byte

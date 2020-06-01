@@ -2,11 +2,12 @@ package socks5server
 
 import (
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"log"
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20

@@ -2,10 +2,11 @@ package socks5server
 
 import (
 	"errors"
-	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 	"net"
 	"strconv"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
+	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
 
 // Server <--

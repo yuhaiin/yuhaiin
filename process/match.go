@@ -4,10 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/net/dns"
-	"github.com/Asutorufa/yuhaiin/net/match"
 	"io"
 	"log"
 	"net"
@@ -15,6 +11,11 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/dns"
+	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
 var (

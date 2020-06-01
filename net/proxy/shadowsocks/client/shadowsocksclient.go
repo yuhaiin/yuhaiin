@@ -1,12 +1,12 @@
 package client
 
 import (
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"log"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 	"github.com/shadowsocks/go-shadowsocks2/socks"
 )

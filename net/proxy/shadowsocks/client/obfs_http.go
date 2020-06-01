@@ -4,18 +4,18 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
 /*
  from https://github.com/Dreamacro/clash/blob/master/component/simple-obfs/http.go
 */
-
 // HTTPObfs is shadowsocks http simple-obfs implementation
 type HTTPObfs struct {
 	net.Conn

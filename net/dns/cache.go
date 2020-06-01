@@ -1,8 +1,9 @@
 package dns
 
 import (
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
 var (

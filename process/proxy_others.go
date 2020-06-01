@@ -3,10 +3,11 @@
 package process
 
 import (
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
 	"log"
 	"net/url"
+
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
 )
 
 func extendsProxyInit(conFig *config.Setting) {

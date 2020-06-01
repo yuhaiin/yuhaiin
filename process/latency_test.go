@@ -1,8 +1,9 @@
 package process
 
 import (
-	"github.com/Asutorufa/yuhaiin/subscr"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
 func TestLatency(t *testing.T) {

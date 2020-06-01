@@ -2,10 +2,11 @@ package latency
 
 import (
 	"context"
-	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
-	"github.com/Asutorufa/yuhaiin/subscr"
 	"net"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
 func TestTcpLatency(t *testing.T) {

@@ -3,14 +3,15 @@ package process
 import (
 	"bufio"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/match"
 	"io"
 	"log"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
 func TestReadline(t *testing.T) {

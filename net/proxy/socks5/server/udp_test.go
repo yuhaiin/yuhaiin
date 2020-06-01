@@ -1,10 +1,11 @@
 package socks5server
 
 import (
-	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 	"net"
 	"testing"
 	"time"
+
+	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
 
 func TestServer_UDP(t *testing.T) {

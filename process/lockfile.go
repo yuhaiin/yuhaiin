@@ -1,8 +1,9 @@
 package process
 
 import (
-	"github.com/Asutorufa/yuhaiin/config"
 	"os"
+
+	"github.com/Asutorufa/yuhaiin/config"
 )
 
 var (

@@ -3,9 +3,10 @@
 package redirserver
 
 import (
+	"net"
+
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/proxy/redir/nfutil"
-	"net"
 )
 
 func handleRedir(req net.Conn) error {

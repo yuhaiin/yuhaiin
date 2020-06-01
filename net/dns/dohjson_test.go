@@ -2,11 +2,12 @@ package dns
 
 import (
 	"context"
-	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"testing"
+
+	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
 
 func TestDNSOverHTTPS(t *testing.T) {

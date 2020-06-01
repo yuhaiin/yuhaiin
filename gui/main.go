@@ -2,14 +2,15 @@ package gui
 
 import (
 	"fmt"
+	"sync/atomic"
+	"time"
+
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
-	"sync/atomic"
-	"time"
 )
 
 type mainWindow struct {

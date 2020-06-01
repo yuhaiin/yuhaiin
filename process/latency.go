@@ -3,11 +3,12 @@ package process
 import (
 	"context"
 	"errors"
+	"net"
+	"time"
+
 	"github.com/Asutorufa/yuhaiin/net/latency"
 	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
 	"github.com/Asutorufa/yuhaiin/subscr"
-	"net"
-	"time"
 )
 
 func Latency(group, mark string) (time.Duration, error) {

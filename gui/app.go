@@ -1,11 +1,12 @@
 package gui
 
 import (
+	"os"
+
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
-	"os"
 )
 
 type SGui struct {

@@ -78,12 +78,10 @@ type DOHJson struct {
 	Answer           []Answer   `json:"Answer"`
 	EdnsClientSubnet string     `json:"edns_client_subnet"`
 }
-
 type Question struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`
 }
-
 type Answer struct {
 	Name    string `json:"name"`
 	Type    int    `json:"type"`

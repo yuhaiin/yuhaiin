@@ -2,13 +2,14 @@ package process
 
 import (
 	"errors"
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
-	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/subscr"
 	"log"
 	"net"
 	"os/exec"
+
+	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
 var (

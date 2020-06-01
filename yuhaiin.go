@@ -3,13 +3,13 @@
 package main
 
 import (
-	"github.com/therecipe/qt/widgets"
 	"os"
 
 	//_ "net/http/pprof"
 
 	"github.com/Asutorufa/yuhaiin/gui"
 	"github.com/Asutorufa/yuhaiin/process"
+	"github.com/therecipe/qt/widgets"
 )
 
 func main() {

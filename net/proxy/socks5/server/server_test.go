@@ -1,9 +1,10 @@
 package socks5server
 
 import (
-	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 	"net"
 	"testing"
+
+	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
 
 func TestResolveAddr(t *testing.T) {

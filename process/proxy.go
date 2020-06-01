@@ -1,12 +1,13 @@
 package process
 
 import (
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/proxy/http/server"
-	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
-	"github.com/Asutorufa/yuhaiin/net/proxy/socks5/server"
 	"log"
 	"net/url"
+
+	"github.com/Asutorufa/yuhaiin/config"
+	httpserver "github.com/Asutorufa/yuhaiin/net/proxy/http/server"
+	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
+	socks5server "github.com/Asutorufa/yuhaiin/net/proxy/socks5/server"
 )
 
 var (
