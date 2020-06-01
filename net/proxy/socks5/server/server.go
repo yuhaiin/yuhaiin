@@ -88,7 +88,7 @@ func (s *Server) Close() error {
 func (s *Server) handleClientRequest(client net.Conn) {
 	var err error
 	b := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b[:cap(b)])
+	defer common.BuffPool.Put(b)
 
 	//socks5 first handshake
 	if _, err = client.Read(b[:]); err != nil {
@@ -126,16 +126,6 @@ func (s *Server) handleClientRequest(client net.Conn) {
 	if err != nil {
 		return
 	}
-	//var host, port string
-	//switch b[3] {
-	//case 0x01: //IP V4
-	//	host = net.IPv4(b[4], b[5], b[6], b[7]).String()
-	//case 0x03: //domain
-	//	host = string(b[5 : n-2]) //b[4] domain's length
-	//case 0x04: //IP V6
-	//	host = net.IP{b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15], b[16], b[17], b[18], b[19]}.String()
-	//}
-	//port = strconv.Itoa(int(b[n-2])<<8 | int(b[n-1]))
 
 	var server net.Conn
 	switch b[1] {

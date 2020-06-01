@@ -15,4 +15,6 @@ func TestDOH(t *testing.T) {
 	t.Log(DOH("cloudflare-dns.com", "www.baidu.com"))
 	t.Log(DOH("dns.google", "www.google.com"))
 	t.Log(DOH("cloudflare-dns.com", "www.google.com"))
+
+	t.Log(DOH("cloudflare-dns.com", "115-235-111-150.dhost.00cdn.com"))
 }

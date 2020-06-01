@@ -28,9 +28,10 @@ var (
 	others   = 0
 	direct   = 1
 	proxy    = 2
-	localDNS = 3
+	IP       = 3
 	block    = 4
-	modes    = map[string]int{"direct": direct, "proxy": proxy, "block": block, "localdns": localDNS}
+	ipDirect = 5
+	modes    = map[string]int{"direct": direct, "proxy": proxy, "block": block, "ip": IP, "ipdirect": ipDirect}
 )
 
 var (
@@ -63,22 +64,25 @@ func UpdateMatch() error {
 	defer f.Close()
 
 	Matcher = match.NewMatch(nil)
-	if Matcher.DNS, err = DNS(); err != nil {
+	Matcher.DNS, err = DNS()
+	if err != nil {
 		return err
 	}
 
+	var domain string
+	var mode string
 	br := bufio.NewReader(f)
 	for {
 		a, _, c := br.ReadLine()
 		if c == io.EOF {
 			break
 		}
-		var domain string
-		var mode string
-		if _, err := fmt.Sscanf(string(a), "%s %s", &domain, &mode); err != nil {
+		_, err = fmt.Sscanf(string(a), "%s %s", &domain, &mode)
+		if err != nil {
 			continue
 		}
-		if err = Matcher.Insert(domain, modes[strings.ToLower(mode)]); err != nil {
+		err = Matcher.Insert(domain, modes[strings.ToLower(mode)])
+		if err != nil {
 			continue
 		}
 	}
@@ -127,30 +131,60 @@ func Forward(host string) (conn net.Conn, err error) {
 		return Conn(host)
 	}
 
-	URI, err := url.Parse("//" + host)
+	var URI *url.URL
+	var md interface{}
+
+	URI, err = url.Parse("//" + host)
 	if err != nil {
-		return nil, err
+		goto _proxy
 	}
 
-	switch Matcher.Search(URI.Hostname()) {
-	case direct:
-		//log.Println("direct: ",URI.Hostname())
-		return net.DialTimeout("tcp", host, 5*time.Second)
+	md = Matcher.Search(URI.Hostname())
 
-	case localDNS:
-		//log.Println("localDNS: ",URI.Hostname())
-		ips, err := Matcher.DNS(URI.Hostname())
-		if err != nil {
-			break
-		}
-		for _, ip := range ips {
-			return Conn(net.JoinHostPort(ip.String(), URI.Port()))
-		}
+	// DIRECT
+	if md == direct {
+		goto _direct
+	}
 
-	case block:
-		//log.Println("block: ",URI.Hostname())
+	// PROXY
+	if md == proxy {
+		goto _proxy
+	}
+
+	// BLOCK
+	if md == block {
 		return nil, errors.New("block domain: " + host)
 	}
-	//log.Println("proxy: ",URI.Hostname())
+
+	{
+		// need to get IP from DNS
+		ip, _ := getIP(URI.Hostname())
+		if ip == nil {
+			goto _proxy
+		}
+		host = net.JoinHostPort(ip.String(), URI.Port())
+
+		// IP DIRECT
+		if md == ipDirect {
+			goto _direct
+		}
+
+		//IP PROXY
+		if md == IP {
+			goto _proxy
+		}
+	}
+
+_proxy:
 	return Conn(host)
+_direct:
+	return net.DialTimeout("tcp", host, 5*time.Second)
+}
+
+func getIP(hostname string) (net.IP, error) {
+	ips, _ := Matcher.DNS(hostname)
+	if len(ips) <= 0 {
+		return nil, errors.New("not find")
+	}
+	return ips[0], nil
 }

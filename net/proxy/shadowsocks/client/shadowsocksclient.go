@@ -95,7 +95,7 @@ func (s *shadowsocks) UDPConn(listener *net.UDPConn, target net.Addr, b []byte) 
 	}
 
 	buf := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(buf[:cap(buf)])
+	defer common.BuffPool.Put(buf)
 	go func() {
 		for {
 			_ = pc.SetReadDeadline(time.Now().Add(time.Second * 5))

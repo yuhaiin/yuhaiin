@@ -382,16 +382,15 @@ func ParseAddr(hostname string) (sendData []byte, err error) {
 	}
 	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
 		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
-			sendData = []byte{0x01, serverIPv4[0], serverIPv4[1], serverIPv4[2], serverIPv4[3], byte(serverPort >> 8), byte(serverPort & 255)}
+			sendData = append([]byte{0x01}, serverIP.To4()...)
 		} else {
 			sendData = append([]byte{0x04}, serverIP.To16()...)
-			sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
 		}
 		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
 	} else {
 		sendData = append([]byte{0x03, byte(len(address.Hostname()))}, []byte(address.Hostname())...)
-		sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
 	}
+	sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
 	return sendData, nil
 }
 

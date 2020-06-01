@@ -41,7 +41,7 @@ func Forward(src, dst net.Conn) {
 func pipe(src, dst net.Conn, closeSig chan error) {
 	buf := BuffPool.Get().([]byte)
 	defer func() {
-		BuffPool.Put(buf[:cap(buf)])
+		BuffPool.Put(buf)
 		_ = src.SetDeadline(time.Now())
 		_ = dst.SetDeadline(time.Now())
 	}()

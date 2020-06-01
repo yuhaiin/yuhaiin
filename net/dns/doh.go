@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
 // https://tools.ietf.org/html/rfc8484
@@ -15,19 +17,22 @@ func DOH(server string, domain string) (DNS []net.IP, err error) {
 		//log.Println("hit cache " + domain)
 		return x.([]net.IP), nil
 	}
-	defer cache.Add(domain, DNS)
 
 	req := creatRequest(domain, A)
 	//log.Println(req)
 
-	b, err := post(req, server)
+	var b = common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(b)
+	b, err = post(req, server)
 	if err != nil {
+		//log.Println(err)
 		return nil, err
 	}
 	//log.Println(b)
 	//log.Println("use dns over https " + domain)
 
 	DNS, err = resolveAnswer(req, b)
+	cache.Add(domain, DNS)
 	return
 }
 

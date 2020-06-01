@@ -74,3 +74,17 @@ func TestMatch(t *testing.T) {
 	t.Log(Matcher.Search("cdn.v2ex.com"))
 	t.Log(Matcher.Search("aod-image-material.cdn.bcebos.com"))
 }
+
+func TestForward(t *testing.T) {
+	x, err := url.Parse("//" + "aaaaa.aaaa")
+	if err != nil {
+		t.Error(err)
+	}
+	log.Println(x.Hostname())
+
+	f := func() []byte { return nil }
+	if f() == nil {
+		log.Println("nil")
+	}
+	log.Println(len(f()))
+}

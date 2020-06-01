@@ -42,7 +42,6 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 	if x, _ := cache.Get(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	defer cache.Add(domain, DNS)
 
 	req := creatRequest(domain, A)
 
@@ -52,12 +51,13 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 	}
 
 	DNS, err = resolveAnswer(req, b)
+	cache.Add(domain, DNS)
 	return
 }
 
 func udpDial(req []byte, DNSServer string) (data []byte, err error) {
 	var b = common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b[:cap(b)])
+	defer common.BuffPool.Put(b)
 
 	conn, err := net.DialTimeout("udp", DNSServer, 5*time.Second)
 	if err != nil {
@@ -187,35 +187,7 @@ func resolveAnswer(req []byte, b []byte) (DNS []net.IP, err error) {
 		case AAAA:
 			DNS = append(DNS, c[0:16])
 			c = c[16:] // 16 byte ip addr
-		case NS:
-			fallthrough
-		case MD:
-			fallthrough
-		case MF:
-			fallthrough
-		case CNAME:
-			fallthrough
-		case SOA:
-			fallthrough
-		case MG:
-			fallthrough
-		case MB:
-			fallthrough
-		case MR:
-			fallthrough
-		case NULL:
-			fallthrough
-		case WKS:
-			fallthrough
-		case PTR:
-			fallthrough
-		case HINFO:
-			fallthrough
-		case MINFO:
-			fallthrough
-		case MX:
-			fallthrough
-		case TXT:
+		case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 			fallthrough
 		default:
 			//log.Println("rdata", c[:sum])

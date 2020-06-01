@@ -3,6 +3,7 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	//_ "net/http/pprof"
@@ -21,7 +22,7 @@ func main() {
 	//	}
 	//}()
 
-	//log.SetFlags(log.Lshortfile | log.LstdFlags)
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
 
 	if err := process.GetProcessLock(); err != nil {
 		widgets.NewQApplication(len(os.Args), os.Args)

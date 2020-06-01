@@ -40,7 +40,7 @@ func (s *Server) UDP(host string, port string) (err error) {
 
 func (s *Server) handleUDP() {
 	b := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b[:cap(b)])
+	defer common.BuffPool.Put(b)
 	for {
 		n, remoteAddr, err := s.udpListener.ReadFromUDP(b)
 		if err != nil {
