@@ -23,6 +23,7 @@ func TestCidrMatch_Inset(t *testing.T) {
 	t.Log(cidrMatch.Search(testIPv6b))
 }
 
+// 668 ns/op
 func BenchmarkCidrMatch_Search(b *testing.B) {
 	b.StopTimer() //调用该函数停止压力测试的时间计数
 

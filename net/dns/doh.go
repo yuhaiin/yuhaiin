@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -12,6 +11,12 @@ import (
 
 // https://tools.ietf.org/html/rfc8484
 func DOH(server string, domain string) (DNS []net.IP, err error) {
+	if x, _ := cache.Get(domain); x != nil {
+		//log.Println("hit cache " + domain)
+		return x.([]net.IP), nil
+	}
+	defer cache.Add(domain, DNS)
+
 	req := creatRequest(domain, A)
 	//log.Println(req)
 
@@ -20,9 +25,10 @@ func DOH(server string, domain string) (DNS []net.IP, err error) {
 		return nil, err
 	}
 	//log.Println(b)
-	log.Println("use dns over https " + domain)
+	//log.Println("use dns over https " + domain)
 
-	return resolveAnswer(req, b)
+	DNS, err = resolveAnswer(req, b)
+	return
 }
 
 func get(dReq []byte, server string) (body []byte, err error) {

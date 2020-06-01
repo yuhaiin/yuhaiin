@@ -38,6 +38,11 @@ var (
 
 // DNS <-- dns
 func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
+	if x, _ := cache.Get(domain); x != nil {
+		return x.([]net.IP), nil
+	}
+	defer cache.Add(domain, DNS)
+
 	req := creatRequest(domain, A)
 
 	b, err := udpDial(req, DNSServer)
@@ -45,7 +50,8 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 		return nil, err
 	}
 
-	return resolveAnswer(req, b)
+	DNS, err = resolveAnswer(req, b)
+	return
 }
 
 func udpDial(req []byte, DNSServer string) (data []byte, err error) {

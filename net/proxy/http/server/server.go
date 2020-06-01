@@ -108,7 +108,7 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 
 	server, err := common.ForwardTarget(host)
 	if err != nil {
-		log.Println(host, err)
+		log.Println(err)
 		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		return
 	}
