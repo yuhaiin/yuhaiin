@@ -70,7 +70,6 @@ How to use:
 - [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
 - [v2ray-plugin](https://github.com/shadowsocks/v2ray-plugin)  
 - [v2ray](https://v2ray.com/)  
-- [miekg/dns](https://github.com/miekg/dns)  
 
 </details>
 
