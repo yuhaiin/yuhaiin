@@ -18,6 +18,7 @@ func DOH(server string, domain string) (DNS []net.IP, err error) {
 		return x.([]net.IP), nil
 	}
 
+	//req := createEDNSReq(domain, A, createEdnsClientSubnet(net.ParseIP("0.0.0.0")))
 	req := creatRequest(domain, A)
 	//log.Println(req)
 
@@ -31,7 +32,12 @@ func DOH(server string, domain string) (DNS []net.IP, err error) {
 	//log.Println(b)
 	//log.Println("use dns over https " + domain)
 
-	DNS, err = resolveAnswer(req, b)
+	// resolve answer
+	h, c, err := resolveHeader(req, b)
+	if err != nil {
+		return nil, err
+	}
+	DNS, _, err = resolveAnswer(c, h.anCount, b)
 	cache.Add(domain, DNS)
 	return
 }

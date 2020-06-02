@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"log"
 	"net"
 )
 
@@ -31,8 +32,8 @@ var (
 )
 
 // https://tools.ietf.org/html/rfc7871
-func createEDNSReq(domain string, subnet string) []byte {
-	normalReq := creatRequest(domain, A)
+func createEDNSReq(domain string, reqType2 reqType, eDNS []byte) []byte {
+	normalReq := creatRequest(domain, reqType2)
 	normalReq[10] = 0b00000000
 	normalReq[11] = 0b00000001
 	name := []byte{0b00000000}
@@ -41,9 +42,11 @@ func createEDNSReq(domain string, subnet string) []byte {
 	extendRcode := []byte{0b00000000}
 	eDNSVersion := []byte{0b00000000}
 	z := []byte{0b00000000, 0b00000000}
-	data := createEdnsClientSubnet(net.ParseIP(subnet))
-	dataLength := getLength(len(subnet))
-	return bytes.Join([][]byte{normalReq, name, typeR, payloadSize, extendRcode, eDNSVersion, z, dataLength[:], data}, []byte{})
+	var dataLength [2]byte
+	if eDNS != nil {
+		dataLength = getLength(len(eDNS))
+	}
+	return bytes.Join([][]byte{normalReq, name, typeR, payloadSize, extendRcode, eDNSVersion, z, dataLength[:], eDNS}, []byte{})
 }
 
 func createEdnsClientSubnet(ip net.IP) []byte {
@@ -66,4 +69,59 @@ func createEdnsClientSubnet(ip net.IP) []byte {
 
 func getLength(length int) [2]byte {
 	return [2]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}
+}
+
+func resolveAdditional(b []byte, arCount int) {
+	for arCount != 0 {
+		arCount--
+		name := b[:1]
+		b = b[1:]
+		typeE := b[:2]
+		b = b[2:]
+		payLoadSize := b[:2]
+		b = b[2:]
+		rCode := b[:1]
+		b = b[1:]
+		version := b[:1]
+		b = b[1:]
+		z := b[:2]
+		b = b[2:]
+		dataLength := int(b[0])<<8 + int(b[1])
+		b = b[2:]
+		if typeE[0] != 0 || typeE[1] != 41 {
+			//optData := b[:dataLength]
+			b = b[dataLength:]
+			continue
+		}
+
+		log.Println(name, typeE, payLoadSize, rCode, version, z)
+
+		optCode := EDNSOPT{b[0], b[1]}
+		b = b[2:]
+		optionLength := int(b[0])<<8 + int(b[1])
+		b = b[2:]
+		switch optCode {
+		case EdnsClientSubnet:
+			family := b[:2]
+			b = b[2:]
+			sourceNetmask := b[:1]
+			log.Println("sourceNetmask", sourceNetmask)
+			b = b[1:]
+			scopeNetmask := b[:1]
+			log.Println("scopeNetmask", scopeNetmask)
+			b = b[1:]
+			if family[0] == 0 && family[1] == 1 {
+				log.Println(b[:4])
+			}
+			if family[0] == 0 && family[1] == 2 {
+				log.Println(b[:16])
+			}
+
+			b = b[optionLength-4:]
+		default:
+			log.Println("opt data:", b[:optionLength])
+			b = b[optionLength:]
+		}
+	}
+
 }

@@ -50,7 +50,12 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 		return nil, err
 	}
 
-	DNS, err = resolveAnswer(req, b)
+	// resolve answer
+	h, c, err := resolveHeader(req, b)
+	if err != nil {
+		return nil, err
+	}
+	DNS, _, err = resolveAnswer(c, h.anCount, b)
 	cache.Add(domain, DNS)
 	return
 }
@@ -105,15 +110,23 @@ func creatRequest(domain string, reqType reqType) []byte {
 	return bytes.Join([][]byte{id, qr2rCode, qdCount, anCount, nsCount, arCount, qName, qType, qClass}, []byte{})
 }
 
-func resolveHeader(req []byte, answer []byte) (anCount int, answerSection []byte, err error) {
+type respHeader struct {
+	qdCount int
+	anCount int
+	nsCount int
+	arCount int
+	name    string
+}
+
+func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection []byte, err error) {
 	// resolve answer
 	if answer[0] != req[0] || answer[1] != req[1] { // compare id
 		// not the answer
-		return 0, nil, errors.New("id not same")
+		return header, nil, errors.New("id not same")
 	}
 
 	if answer[2]&8 != 0 { // check the QR is 1(Answer)
-		return 0, nil, errors.New("the qr is not 1(Answer)")
+		return header, nil, errors.New("the qr is not 1(Answer)")
 	}
 
 	rCode := fmt.Sprintf("%08b", answer[3])[4:] // check Response code(rCode)
@@ -121,28 +134,31 @@ func resolveHeader(req []byte, answer []byte) (anCount int, answerSection []byte
 	case "0000": // no error
 		break
 	case "0001": // Format error
-		return 0, nil, errors.New("request format error")
+		return header, nil, errors.New("request format error")
 	case "0010": //Server failure
-		return 0, nil, errors.New("dns Server failure")
+		return header, nil, errors.New("dns Server failure")
 	case "0011": //Name Error
-		return 0, nil, errors.New("no such name")
+		return header, nil, errors.New("no such name")
 	case "0100": // Not Implemented
-		return 0, nil, errors.New("dns server not support this request")
+		return header, nil, errors.New("dns server not support this request")
 	case "0101": //Refused
-		return 0, nil, errors.New("dns server Refuse")
+		return header, nil, errors.New("dns server Refuse")
 	default: // Reserved for future use.
-		return 0, nil, errors.New("other error")
+		return header, nil, errors.New("other error")
 	}
 
 	//qdCountA := []byte{b[4], b[5]}  // no use, for request
+	header.qdCount = 0
 	//anCountA := []byte{answer[6], answer[7]}
-	anCount = int(answer[6])<<8 + int(answer[7])
+	header.anCount = int(answer[6])<<8 + int(answer[7])
 	//nsCount2arCountA := []byte{b[8], b[9], b[10], b[11]} // no use
+	header.nsCount = int(answer[8])<<8 + int(answer[9])
+	header.arCount = int(answer[10])<<8 + int(answer[11])
 
 	c := answer[12:]
 
 	//var x string
-	_, c = getName(c, answer)
+	header.name, c = getName(c, answer)
 	//log.Println(x)
 
 	//log.Println("qType:", c[:2])
@@ -150,15 +166,10 @@ func resolveHeader(req []byte, answer []byte) (anCount int, answerSection []byte
 	//log.Println("qClass:", c[:2])
 	c = c[2:]
 
-	return anCount, c, nil
+	return header, c, nil
 }
 
-func resolveAnswer(req []byte, b []byte) (DNS []net.IP, err error) {
-	// resolve answer
-	anCount, c, err := resolveHeader(req, b)
-	if err != nil {
-		return nil, err
-	}
+func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, additionalSection []byte, err error) {
 
 	// answer section
 	//log.Println()
@@ -195,7 +206,7 @@ func resolveAnswer(req []byte, b []byte) (DNS []net.IP, err error) {
 		}
 		anCount -= 1
 	}
-	return
+	return DNS, c, nil
 }
 
 func getName(c []byte, all []byte) (name string, x []byte) {
