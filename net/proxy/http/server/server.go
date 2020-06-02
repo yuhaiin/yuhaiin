@@ -26,25 +26,36 @@ type Server struct {
 // port: http listener port
 // username: http server username
 // password: http server password
-func NewHTTPServer(host, port, username, password string) (s *Server, err error) {
-	s = &Server{}
-	s.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
-	if err != nil {
-		return nil, err
+func NewHTTPServer(host, username, password string) (s *Server, err error) {
+	s = &Server{Username: username, Password: password}
+	if host == "" {
+		return s, nil
 	}
-	s.Username, s.Password = username, password
-	go func() { s.HTTPProxy() }()
-	return s, nil
+	err = s.HTTPProxy(host)
+	return
 }
 
-func (h *Server) UpdateListenHost(host, port string) (err error) {
-	if h.listener.Addr().String() == net.JoinHostPort(host, port) {
+func (h *Server) UpdateListenHost(host string) (err error) {
+	if h.closed {
+		if host == "" {
+			return nil
+		}
+		h.closed = false
+		return h.HTTPProxy(host)
+	}
+
+	if host == "" {
+		return h.Close()
+	}
+
+	if h.listener.Addr().String() == host {
 		return nil
 	}
+
 	if err = h.listener.Close(); err != nil {
 		return err
 	}
-	h.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
+	h.listener, err = net.Listen("tcp", host)
 	return
 }
 
@@ -61,22 +72,29 @@ func (h *Server) Close() error {
 // HTTPProxy http proxy
 // server http listen server,port http listen port
 // sock5Server socks5 server ip,socks5Port socks5 server port
-func (h *Server) HTTPProxy() {
-	for {
-		client, err := h.listener.Accept()
-		if err != nil {
-			if h.closed {
-				break
-			}
-			continue
-		}
-		_ = client.(*net.TCPConn).SetKeepAlive(true)
-
-		go func() {
-			defer client.Close()
-			h.httpHandleClientRequest(client)
-		}()
+func (h *Server) HTTPProxy(host string) (err error) {
+	h.listener, err = net.Listen("tcp", host)
+	if err != nil {
+		return
 	}
+	go func() {
+		for {
+			client, err := h.listener.Accept()
+			if err != nil {
+				if h.closed {
+					break
+				}
+				continue
+			}
+			_ = client.(*net.TCPConn).SetKeepAlive(true)
+
+			go func() {
+				defer client.Close()
+				h.httpHandleClientRequest(client)
+			}()
+		}
+	}()
+	return
 }
 
 func (h *Server) httpHandleClientRequest(client net.Conn) {

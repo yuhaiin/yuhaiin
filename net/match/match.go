@@ -2,13 +2,39 @@ package match
 
 import (
 	"net"
+	"net/url"
+
+	"github.com/Asutorufa/yuhaiin/net/dns"
 )
 
 type Match struct {
-	DNS func(domain string) (DNS []net.IP, err error)
+	dns func(domain string) (DNS []net.IP, err error)
 	//DNSStr string
 	cidr   *Cidr
 	domain *Domain
+}
+
+func (x *Match) SetDNS(host string) {
+	urls, err := url.Parse("//" + host)
+	if err != nil {
+		return
+	}
+	if net.ParseIP(urls.Hostname()) != nil {
+		x.dns = func(domain string) (DNS []net.IP, err error) {
+			return dns.DNS(host, domain)
+		}
+	}
+	x.dns = func(domain string) (DNS []net.IP, err error) {
+		return dns.DOH(host, domain)
+	}
+}
+
+func (x *Match) DNS(domain string) (ip []net.IP) {
+	if x.dns == nil {
+		return nil
+	}
+	ip, _ = x.dns(domain)
+	return
 }
 
 func (x *Match) Insert(str string, mark interface{}) error {
@@ -31,11 +57,11 @@ func (x *Match) Search(str string) (des interface{}) {
 	}
 
 	_, des = x.domain.SearchFlip(str)
-	if des != nil || x.DNS == nil {
+	if des != nil || x.dns == nil {
 		goto _end
 	}
 
-	if dnsS, _ := x.DNS(str); len(dnsS) > 0 {
+	if dnsS, _ := x.dns(str); len(dnsS) > 0 {
 		_, des = x.cidr.Search(dnsS[0].String())
 	}
 
@@ -44,10 +70,11 @@ _end:
 	return
 }
 
-func NewMatch(dnsFunc func(domain string) (DNS []net.IP, err error)) (matcher Match) {
-	return Match{
-		DNS:    dnsFunc,
+func NewMatch(dns string) (matcher Match) {
+	m := Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
 	}
+	m.SetDNS(dns)
+	return m
 }

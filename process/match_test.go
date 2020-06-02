@@ -39,10 +39,7 @@ func TestMatch(t *testing.T) {
 	}
 	defer f.Close()
 
-	Matcher = match.NewMatch(nil)
-	if Matcher.DNS, err = DNS(); err != nil {
-		t.Error(err)
-	}
+	Matcher = match.NewMatch(conFig.DnsServer)
 
 	br := bufio.NewReader(f)
 	for {

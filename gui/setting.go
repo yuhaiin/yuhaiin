@@ -137,12 +137,13 @@ func (s *setting) setListener() {
 			isUpdateMode = true
 		}
 
-		isUpdateDNS := false
+		//isUpdateDNS := false
 		if conFig.IsDNSOverHTTPS != s.DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != s.dnsServerLineText.Text() || conFig.DNSAcrossProxy != s.DnsOverHttpsProxyCheckBox.IsChecked() {
 			conFig.IsDNSOverHTTPS = s.DnsOverHttpsCheckBox.IsChecked()
 			conFig.DNSAcrossProxy = s.DnsOverHttpsProxyCheckBox.IsChecked()
 			conFig.DnsServer = s.dnsServerLineText.Text()
-			isUpdateDNS = true
+			//isUpdateDNS = true
+			process.UpdateDNS(s.dnsServerLineText.Text())
 		}
 
 		isChangeNode := false
@@ -174,13 +175,6 @@ func (s *setting) setListener() {
 
 		if isUpdateMode {
 			if err := process.UpdateMode(); err != nil {
-				MessageBox(err.Error())
-				return
-			}
-		}
-
-		if isUpdateDNS {
-			if err := process.UpdateDNS(); err != nil {
 				MessageBox(err.Error())
 				return
 			}

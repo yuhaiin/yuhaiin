@@ -14,7 +14,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/net/dns"
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
@@ -63,11 +62,7 @@ func UpdateMatch() error {
 	}
 	defer f.Close()
 
-	Matcher = match.NewMatch(nil)
-	Matcher.DNS, err = DNS()
-	if err != nil {
-		return err
-	}
+	Matcher = match.NewMatch(conFig.DnsServer)
 
 	var domain string
 	var mode string
@@ -101,29 +96,8 @@ func UpdateMode() error {
 	return nil
 }
 
-func UpdateDNS() error {
-	var err error
-	if Matcher.DNS, err = DNS(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func DNS() (func(domain string) (DNS []net.IP, err error), error) {
-	conFig, err := config.SettingDecodeJSON()
-	if err != nil {
-		return nil, err
-	}
-
-	if conFig.IsDNSOverHTTPS {
-		return func(domain string) (DNS []net.IP, err error) {
-			return dns.DOH(conFig.DnsServer, domain)
-		}, nil
-	}
-
-	return func(domain string) (DNS []net.IP, err error) {
-		return dns.DNS(conFig.DnsServer, domain)
-	}, nil
+func UpdateDNS(host string) {
+	Matcher.SetDNS(host)
 }
 
 // https://myexternalip.com/raw
@@ -183,7 +157,7 @@ _direct:
 }
 
 func getIP(hostname string) (net.IP, error) {
-	ips, _ := Matcher.DNS(hostname)
+	ips := Matcher.DNS(hostname)
 	if len(ips) <= 0 {
 		return nil, errors.New("not find")
 	}

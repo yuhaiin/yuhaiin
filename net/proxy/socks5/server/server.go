@@ -23,30 +23,51 @@ type Server struct {
 // port: socks5 listener port
 // username: socks5 server username
 // password: socks5 server password
-func NewSocks5Server(host, port, username, password string) (s *Server, err error) {
+func NewSocks5Server(host, username, password string) (s *Server, err error) {
 	s = &Server{Username: username, Password: password}
-	err = s.Socks5(host, port)
+	if host == "" {
+		return s, nil
+	}
+	err = s.Socks5(host)
 	if err != nil {
 		return nil, err
 	}
-	err = s.UDP(host, port)
+	err = s.UDP(host)
 	return
 }
 
-func (s *Server) UpdateListen(host, port string) (err error) {
-	if s.listener.Addr().String() == net.JoinHostPort(host, port) {
+func (s *Server) UpdateListen(host string) (err error) {
+	if s.closed {
+		if host == "" {
+			return nil
+		}
+		if err = s.Socks5(host); err != nil {
+			return err
+		}
+		s.closed = false
+		return s.UDP(host)
+	}
+
+	if s.listener.Addr().String() == host {
 		return nil
 	}
+
+	if host == "" {
+		return s.Close()
+	}
+
 	if s.listener != nil {
 		if err = s.listener.Close(); err != nil {
 			return err
 		}
 	}
-	s.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
+
+	s.listener, err = net.Listen("tcp", host)
 	if err != nil {
 		return err
 	}
-	return s.UpdateUDPListenAddr(host, port)
+
+	return s.UpdateUDPListenAddr(host)
 }
 
 func (s *Server) GetListenHost() string {
@@ -54,8 +75,8 @@ func (s *Server) GetListenHost() string {
 }
 
 // Socks5 <--
-func (s *Server) Socks5(host, port string) (err error) {
-	s.listener, err = net.Listen("tcp", net.JoinHostPort(host, port))
+func (s *Server) Socks5(host string) (err error) {
+	s.listener, err = net.Listen("tcp", host)
 	if err != nil {
 		return err
 	}

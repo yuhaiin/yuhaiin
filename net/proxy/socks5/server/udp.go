@@ -15,11 +15,11 @@ var (
 	Proxy func(listener *net.UDPConn, remoteAddr net.Addr, b []byte) (err error)
 )
 
-func (s *Server) UpdateUDPListenAddr(host string, port string) error {
+func (s *Server) UpdateUDPListenAddr(host string) error {
 	if s.udpListener != nil {
 		_ = s.udpListener.Close()
 	}
-	localAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, port))
+	localAddr, err := net.ResolveUDPAddr("udp", host)
 	if err != nil {
 		log.Printf("UDP server address error: %s\n", err.Error())
 		return err
@@ -28,8 +28,8 @@ func (s *Server) UpdateUDPListenAddr(host string, port string) error {
 	return err
 }
 
-func (s *Server) UDP(host string, port string) (err error) {
-	if err = s.UpdateUDPListenAddr(host, port); err != nil {
+func (s *Server) UDP(host string) (err error) {
+	if err = s.UpdateUDPListenAddr(host); err != nil {
 		return err
 	}
 	go func() {
