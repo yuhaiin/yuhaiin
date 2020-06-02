@@ -24,9 +24,11 @@ func (d *Domain) InsertFlip(domain string, mark interface{}) {
 				child:  map[string]*domainNode{},
 			}
 		}
-		if index == 0 {
+
+		if tmp.child[domainDiv[index]].isLast || index == 0 { // check already exist or last
 			tmp.child[domainDiv[index]].isLast = true
 			tmp.child[domainDiv[index]].mark = mark
+			tmp.child[domainDiv[index]].child = make(map[string]*domainNode) // clear child,because this node is last
 		}
 		tmp = tmp.child[domainDiv[index]]
 	}

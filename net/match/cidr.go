@@ -95,9 +95,11 @@ func (t *Trie) Insert(str string, mark interface{}) {
 			}
 			nodeTemp = nodeTemp.left
 		}
-		if i == len(str)-1 {
+		if nodeTemp.isLast || i == len(str)-1 {
 			nodeTemp.isLast = true
 			nodeTemp.mark = mark
+			nodeTemp.left = new(cidrNode)
+			nodeTemp.right = new(cidrNode)
 		}
 	}
 }

@@ -32,6 +32,7 @@ var (
 )
 
 // https://tools.ietf.org/html/rfc7871
+// https://tools.ietf.org/html/rfc2671
 func createEDNSReq(domain string, reqType2 reqType, eDNS []byte) []byte {
 	normalReq := creatRequest(domain, reqType2)
 	normalReq[10] = 0b00000000

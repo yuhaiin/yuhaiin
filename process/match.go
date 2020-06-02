@@ -126,6 +126,7 @@ func DNS() (func(domain string) (DNS []net.IP, err error), error) {
 	}, nil
 }
 
+// https://myexternalip.com/raw
 func Forward(host string) (conn net.Conn, err error) {
 	if mode != bypass {
 		return Conn(host)
