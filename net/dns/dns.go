@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"strings"
@@ -32,6 +33,7 @@ var (
 	MX    = reqType{0b00000000, 0b00001111} // 15
 	TXT   = reqType{0b00000000, 0b00010000} // 16
 	AAAA  = reqType{0b00000000, 0b00011100} // 28 https://www.ietf.org/rfc/rfc3596.txt
+	RRSIG = reqType{0b00000000, 0b00101110} // 46 dnssec
 	// for req
 	AXFR = reqType{0b00000000, 0b11111100} // 252
 	ANY  = reqType{0b00000000, 0b11111111} // 255
@@ -158,7 +160,7 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 	c := answer[12:]
 
 	//var x string
-	header.name, c = getName(c, answer)
+	header.name, _, c = getName(c, answer)
 	//log.Println(x)
 
 	//log.Println("qType:", c[:2])
@@ -177,8 +179,7 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, additionalSec
 
 	//var x string
 	for anCount != 0 {
-		_, c = getName(c, b)
-		//log.Println(x)
+		_, _, c = getName(c, b)
 
 		tYPE := reqType{c[0], c[1]}
 		//log.Println("type:", c[0], c[1])
@@ -198,6 +199,27 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, additionalSec
 		case AAAA:
 			DNS = append(DNS, c[0:16])
 			c = c[16:] // 16 byte ip addr
+		case RRSIG:
+			typeCover := c[:2]
+			c = c[2:]
+			algorithm := c[:1]
+			c = c[1:]
+			label := c[:1]
+			c = c[1:]
+			originalTTL := c[:4]
+			c = c[4:]
+			signExpiration := c[:4]
+			c = c[4:]
+			signInception := c[:4]
+			c = c[4:]
+			keyTag := c[:2]
+			c = c[2:]
+			signName, size, others := getName(c, b)
+			c = others
+			signature := c[:sum-size-18]
+			c = c[sum-size-18:]
+			log.Println(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature)
+			break
 		case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 			fallthrough
 		default:
@@ -209,24 +231,34 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, additionalSec
 	return DNS, c, nil
 }
 
-func getName(c []byte, all []byte) (name string, x []byte) {
+//197 89 214 12 101 99 228 18 35 193
+//203 125 95 150 40 16 5 232 131 137
+//16 202 12 164 150 209 193 2 46 135
+//217 240 225 205 16 250 124 92 71 212
+//78 220 159 198 183 184 243 238 210 36
+//132 132 4 186 173 182 105 67 228 106
+//126 218 25 194
+func getName(c []byte, all []byte) (name string, size int, x []byte) {
 	for {
 		if c[0]&128 == 128 && c[0]&64 == 64 {
 			l := c[1]
 			c = c[2:]
-			tmp, _ := getName(all[l:], all)
+			size += 2
+			tmp, _, _ := getName(all[l:], all)
 			name += tmp
 			//log.Println(c, name)
 			break
 		}
 		name += string(c[1:int(c[0])+1]) + "."
+		size += int(c[0]) + 1
 		c = c[int(c[0])+1:]
 		if c[0] == 0 {
 			c = c[1:] // lastOfDomain: one byte 0
+			size += 1
 			break
 		}
 	}
-	return name, c
+	return name, size, c
 }
 
 // https://www.ietf.org/rfc/rfc1035.txt

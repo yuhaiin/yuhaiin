@@ -31,6 +31,25 @@ var (
 
 )
 
+type eDNSHeader struct {
+	DnsHeader   []byte
+	Name        [1]byte
+	Type        [2]byte
+	PayloadSize [2]byte
+	ExtendRCode [1]byte
+	EDNSVersion [1]byte
+	Z           [2]byte
+	Data        []byte
+}
+
+func createEDNSRequ(header eDNSHeader) []byte {
+	header.DnsHeader[10] = 0b00000000
+	header.DnsHeader[11] = 0b00000001
+	//log.Println(header.DnsHeader)
+	length := getLength(len(header.Data))
+	return bytes.Join([][]byte{header.DnsHeader, header.Name[:], header.Type[:], header.PayloadSize[:], header.ExtendRCode[:], header.EDNSVersion[:], header.Z[:], length[:], header.Data}, []byte{})
+}
+
 // https://tools.ietf.org/html/rfc7871
 // https://tools.ietf.org/html/rfc2671
 func createEDNSReq(domain string, reqType2 reqType, eDNS []byte) []byte {
