@@ -4,13 +4,13 @@ package main
 
 import (
 	"log"
-	"os"
+
+	"github.com/Asutorufa/yuhaiin/config"
 
 	//_ "net/http/pprof"
 
 	"github.com/Asutorufa/yuhaiin/gui"
 	"github.com/Asutorufa/yuhaiin/process"
-	"github.com/therecipe/qt/widgets"
 )
 
 func main() {
@@ -22,13 +22,19 @@ func main() {
 	//	}
 	//}()
 
+	//messageBox := func(text string) {
+	//widgets.NewQApplication(len(os.Args), os.Args)
+	//message := widgets.NewQMessageBox(nil)
+	//message.SetText(text)
+	//message.Exec()
+	//}
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-
+	if err := config.PathInit(); err != nil {
+		gui.MessageBox(err.Error())
+		return
+	}
 	if err := process.GetProcessLock(); err != nil {
-		widgets.NewQApplication(len(os.Args), os.Args)
-		message := widgets.NewQMessageBox(nil)
-		message.SetText("Process is already running!\nError Message: " + err.Error())
-		message.Exec()
+		gui.MessageBox("Process is already running!\nError Message: " + err.Error())
 		return
 	}
 	defer process.LockFileClose()

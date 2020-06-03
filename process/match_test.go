@@ -28,6 +28,12 @@ func TestDNS(t *testing.T) {
 }
 
 func TestMatch(t *testing.T) {
+
+	type modeStruct struct {
+		Type  todo
+		other string
+	}
+
 	conFig, err := config.SettingDecodeJSON()
 	if err != nil {
 		t.Error(err)
@@ -56,7 +62,8 @@ func TestMatch(t *testing.T) {
 		//if strings.Contains(domain,"163.com"){
 		//	log.Println(domain,mode)
 		//}
-		if err = Matcher.Insert(domain, modes[strings.ToLower(mode)]); err != nil {
+
+		if err = Matcher.Insert(domain, modeStruct{Type: modes[strings.ToLower(mode)], other: "DIRECTDOH://dns.alidns.com"}); err != nil {
 			log.Println(err)
 			continue
 		}
@@ -70,6 +77,7 @@ func TestMatch(t *testing.T) {
 	t.Log(Matcher.Search("api.github.com"))
 	t.Log(Matcher.Search("cdn.v2ex.com"))
 	t.Log(Matcher.Search("aod-image-material.cdn.bcebos.com"))
+	select {}
 }
 
 func TestForward(t *testing.T) {
@@ -84,4 +92,17 @@ func TestForward(t *testing.T) {
 		log.Println("nil")
 	}
 	log.Println(len(f()))
+}
+
+func TestForward2(t *testing.T) {
+	c, err := url.Parse("DIRECTDOH://dns.alidns.com")
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(c.Scheme, c.Host)
+	c, err = url.Parse("DIRECT://")
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(c.Scheme, c.Host)
 }

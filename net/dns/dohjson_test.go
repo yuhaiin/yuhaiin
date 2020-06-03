@@ -12,7 +12,7 @@ import (
 
 func TestDNSOverHTTPS(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return socks5client.NewSocks5Client("127.0.0.1", "1080", "", "", addr)
+		return socks5client.NewSocks5Client("127.0.0.1:1080", "", "", addr)
 	}
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))

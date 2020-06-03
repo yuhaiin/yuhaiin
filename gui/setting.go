@@ -131,11 +131,7 @@ func (s *setting) setListener() {
 
 		//conFig.HttpProxy = httpProxyCheckBox.IsChecked()
 
-		isUpdateMode := false
-		if conFig.Bypass != s.bypassCheckBox.IsChecked() {
-			conFig.Bypass = s.bypassCheckBox.IsChecked()
-			isUpdateMode = true
-		}
+		conFig.Bypass = s.bypassCheckBox.IsChecked()
 
 		//isUpdateDNS := false
 		if conFig.IsDNSOverHTTPS != s.DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != s.dnsServerLineText.Text() || conFig.DNSAcrossProxy != s.DnsOverHttpsProxyCheckBox.IsChecked() {
@@ -146,11 +142,7 @@ func (s *setting) setListener() {
 			process.UpdateDNS(s.dnsServerLineText.Text())
 		}
 
-		isChangeNode := false
-		if conFig.SsrPath != s.ssrPathLineText.Text() {
-			conFig.SsrPath = s.ssrPathLineText.Text()
-			isChangeNode = true
-		}
+		conFig.SsrPath = s.ssrPathLineText.Text()
 
 		isUpdateListen := false
 		if conFig.HttpProxyAddress != s.httpAddressLineText.Text() ||
@@ -173,18 +165,11 @@ func (s *setting) setListener() {
 			MessageBox(err.Error())
 		}
 
-		if isUpdateMode {
-			if err := process.UpdateMode(); err != nil {
-				MessageBox(err.Error())
-				return
-			}
-		}
-
-		if isChangeNode {
-			if err := process.ChangeNode(); err != nil {
-				MessageBox(err.Error())
-				return
-			}
+		process.UpdateConFig()
+		//process.UpdateMode()
+		if err := process.ChangeNode(); err != nil {
+			MessageBox(err.Error())
+			return
 		}
 
 		if isUpdateListen {

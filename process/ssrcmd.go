@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
@@ -48,26 +47,19 @@ func GetFreePort() (string, error) {
 	return strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
 }
 
-func ShadowsocksrCmd(s *subscr.Shadowsocksr) (*exec.Cmd, error) {
-	configs, err := config.SettingDecodeJSON()
+func ShadowsocksrCmd(s *subscr.Shadowsocksr) (ssrCmd *exec.Cmd, localHost string, err error) {
+	LocalPort, err := GetFreePort()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	configs.LocalAddress = "127.0.0.1"
-	configs.LocalPort, err = GetFreePort()
-	if err != nil {
-		return nil, err
-	}
-	if err := config.SettingEnCodeJSON(configs); err != nil {
-		return nil, err
-	}
-	cmd := append([]string{}, strings.Split(configs.SsrPath, " ")...)
+
+	cmd := append([]string{}, strings.Split(conFig.SsrPath, " ")...)
 	cmd = append(cmd, "-s", s.Server)
 	cmd = append(cmd, "-p", s.Port)
 	cmd = append(cmd, "-m", s.Method)
 	cmd = append(cmd, "-k", s.Password)
-	cmd = append(cmd, "-b", configs.LocalAddress)
-	cmd = append(cmd, "-l", configs.LocalPort)
+	cmd = append(cmd, "-b", "127.0.0.1")
+	cmd = append(cmd, "-l", LocalPort)
 	if s.Obfs != "" {
 		cmd = append(cmd, "-o", s.Obfs)
 		cmd = append(cmd, "-g", s.Obfsparam)
@@ -77,5 +69,5 @@ func ShadowsocksrCmd(s *subscr.Shadowsocksr) (*exec.Cmd, error) {
 		cmd = append(cmd, "-G", s.Protoparam)
 	}
 	log.Println(cmd)
-	return exec.Command(cmd[0], cmd[1:]...), nil
+	return exec.Command(cmd[0], cmd[1:]...), net.JoinHostPort("127.0.0.1", LocalPort), nil
 }

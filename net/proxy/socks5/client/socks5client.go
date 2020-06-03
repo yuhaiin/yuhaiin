@@ -16,16 +16,17 @@ import (
 // KeepAliveTimeout 0: disable timeout , other: enable
 type Client struct {
 	Conn     net.Conn
+	Host     string
 	Username string
 	Password string
-	Server   string
-	Port     string
-	Address  string
+	//Server   string
+	//Port     string
+	Address string
 }
 
 func (s *Client) creatDial() error {
 	var err error
-	s.Conn, err = net.DialTimeout("tcp", s.Server+":"+s.Port, 5*time.Second)
+	s.Conn, err = net.DialTimeout("tcp", s.Host, 5*time.Second)
 	if err != nil {
 		return err
 	}
@@ -394,12 +395,11 @@ func ParseAddr(hostname string) (sendData []byte, err error) {
 	return sendData, nil
 }
 
-func NewSocks5Client(server, port string, user, password string, address string) (net.Conn, error) {
+func NewSocks5Client(host string, user, password string, address string) (net.Conn, error) {
 	x := &Client{
 		Username: user,
+		Host:     host,
 		Password: password,
-		Server:   server,
-		Port:     port,
 		Address:  address,
 	}
 	if err := x.creatDial(); err != nil {

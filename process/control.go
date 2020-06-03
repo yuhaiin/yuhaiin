@@ -6,7 +6,6 @@ import (
 	"net"
 	"os/exec"
 
-	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/subscr"
@@ -15,13 +14,6 @@ import (
 var (
 	ssrCmd *exec.Cmd
 )
-
-func controlInit() {
-	if err := ChangeNode(); err != nil {
-		log.Print(err)
-		return
-	}
-}
 
 func ReSet() error {
 	if ssrCmd == nil || ssrCmd.Process == nil {
@@ -47,6 +39,10 @@ func ChangeNode() error {
 
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
+		ip, err := getIP(nNode.(*subscr.Shadowsocks).Server)
+		if err == nil {
+			nNode.(*subscr.Shadowsocks).Server = ip.String()
+		}
 		conn, err := client.NewShadowsocks(
 			nNode.(*subscr.Shadowsocks).Method,
 			nNode.(*subscr.Shadowsocks).Password,
@@ -58,7 +54,7 @@ func ChangeNode() error {
 		}
 		Conn = conn.Conn
 	case *subscr.Shadowsocksr:
-		ssrCmd, err = ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
+		ssrCmd, localHost, err := ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
 		if err != nil {
 			return err
 		}
@@ -71,12 +67,8 @@ func ChangeNode() error {
 			}
 		}()
 
-		conFig, err := config.SettingDecodeJSON()
-		if err != nil {
-			return err
-		}
 		Conn = func(host string) (conn net.Conn, err error) {
-			return socks5client.NewSocks5Client(conFig.LocalAddress, conFig.LocalPort, "", "", host)
+			return socks5client.NewSocks5Client(localHost, "", "", host)
 		}
 	default:
 		return errors.New("no support type proxy")

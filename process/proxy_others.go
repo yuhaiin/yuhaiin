@@ -7,9 +7,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
 )
 
-func extendsProxyInit(conFig *config.Setting) {
+var (
 	Redir, _ = redirserver.NewRedir(conFig.RedirProxyAddress)
-}
+)
 
 func extendsUpdateListen(conFig *config.Setting) error {
 	return Redir.UpdateListen(conFig.RedirProxyAddress)

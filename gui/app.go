@@ -9,6 +9,11 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
+var (
+	App        = widgets.NewQApplication(len(os.Args), os.Args)
+	messageBox = widgets.NewQMessageBox(nil)
+)
+
 type SGui struct {
 	App                *widgets.QApplication
 	MainWindow         *widgets.QMainWindow
@@ -18,15 +23,19 @@ type SGui struct {
 	trayIcon           *widgets.QSystemTrayIcon
 }
 
+func init() {
+}
+
 func NewGui() *SGui {
 	microClientGUI := &SGui{}
-	microClientGUI.App = widgets.NewQApplication(len(os.Args), os.Args)
+	microClientGUI.App = App
 	microClientGUI.App.SetApplicationName("yuhaiin")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
 	microClientGUI.MainWindow = NewMainWindow(microClientGUI)
 	microClientGUI.subscriptionWindow = NewSubscription(microClientGUI.MainWindow)
 	microClientGUI.settingWindow = NewSettingWindow(microClientGUI.MainWindow)
 	microClientGUI.trayInit()
+
 	return microClientGUI
 }
 
@@ -73,7 +82,6 @@ func (sGui *SGui) openWindow(window *widgets.QMainWindow) {
 }
 
 func MessageBox(text string) {
-	message := widgets.NewQMessageBox(nil)
-	message.SetText(text)
-	message.Exec()
+	messageBox.SetText(text)
+	messageBox.Exec()
 }

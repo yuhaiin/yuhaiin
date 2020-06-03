@@ -5,15 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
@@ -23,46 +20,34 @@ var (
 	globalProxy  = 2
 )
 
-var (
-	others   = 0
-	direct   = 1
-	proxy    = 2
-	IP       = 3
-	block    = 4
-	ipDirect = 5
-	modes    = map[string]int{"direct": direct, "proxy": proxy, "block": block, "ip": IP, "ipdirect": ipDirect}
-)
+type todo int
 
 var (
-	mode    int
-	Matcher match.Match
-	Conn    func(host string) (conn net.Conn, err error)
+	others   todo = 0
+	direct   todo = 1
+	proxy    todo = 2
+	IP       todo = 3
+	block    todo = 4
+	ipDirect todo = 5
+	modes         = map[string]todo{"direct": direct, "proxy": proxy, "block": block, "ip": IP, "ipdirect": ipDirect}
 )
 
-func matchInit() {
-	if err := UpdateMode(); err != nil {
-		log.Println(err)
-	}
-
-	if err := UpdateMatch(); err != nil {
-		log.Println(err)
-	}
-	common.ForwardTarget = Forward
+type insertData struct {
+	Type  todo
+	other string
 }
 
-func UpdateMatch() error {
-	conFig, err := config.SettingDecodeJSON()
-	if err != nil {
-		return err
-	}
+var (
+	Matcher = match.NewMatch(conFig.DnsServer)
+	Conn    = func(host string) (conn net.Conn, err error) { return net.DialTimeout("tcp", host, time.Second*7) }
+)
 
+func UpdateMatch() error {
 	f, err := os.Open(conFig.BypassFile)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
-	Matcher = match.NewMatch(conFig.DnsServer)
 
 	var domain string
 	var mode string
@@ -84,25 +69,13 @@ func UpdateMatch() error {
 	return nil
 }
 
-func UpdateMode() error {
-	conFig, err := config.SettingDecodeJSON()
-	if err != nil {
-		return err
-	}
-	if !conFig.Bypass {
-		mode = globalProxy
-	}
-	mode = bypass
-	return nil
-}
-
 func UpdateDNS(host string) {
 	Matcher.SetDNS(host)
 }
 
 // https://myexternalip.com/raw
 func Forward(host string) (conn net.Conn, err error) {
-	if mode != bypass {
+	if !conFig.Bypass {
 		return Conn(host)
 	}
 

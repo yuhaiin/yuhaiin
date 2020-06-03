@@ -19,8 +19,7 @@ func GetProcessLock() error {
 	if err := LockFile(lockFile); err != nil {
 		return err
 	}
-	processInit()
-	return nil
+	return processInit()
 }
 
 func LockFileClose() error {
