@@ -20,8 +20,10 @@ func DOH(server string, domain string) (DNS []net.IP, err error) {
 
 	//req := createEDNSReq(domain, A, createEdnsClientSubnet(net.ParseIP("0.0.0.0")))
 	req := creatRequest(domain, A)
-	//log.Println(req)
+	// log.Println(req)
 
+	//no := time.Now()
+	//fmt.Println("post start")
 	var b = common.BuffPool.Get().([]byte)
 	defer common.BuffPool.Put(b)
 	b, err = post(req, server)
@@ -29,6 +31,7 @@ func DOH(server string, domain string) (DNS []net.IP, err error) {
 		//log.Println(err)
 		return nil, err
 	}
+	//fmt.Println("post end", time.Since(no))
 	//log.Println(b)
 	//log.Println("use dns over https " + domain)
 

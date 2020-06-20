@@ -22,15 +22,18 @@ func (s *Server) UpdateUDPListenAddr(host string) error {
 	localAddr, err := net.ResolveUDPAddr("udp", host)
 	if err != nil {
 		log.Printf("UDP server address error: %s\n", err.Error())
-		return err
+		return fmt.Errorf("UpdateUDPListenAddr:ResolveUDPAddr -> %v", err)
 	}
 	s.udpListener, err = net.ListenUDP("udp", localAddr)
+	if err != nil {
+		return fmt.Errorf("UpdateUDPListenAddr:ListenUDP -> %v", err)
+	}
 	return err
 }
 
 func (s *Server) UDP(host string) (err error) {
 	if err = s.UpdateUDPListenAddr(host); err != nil {
-		return err
+		return fmt.Errorf("UDP:UpdateListenerAddr -> %v", err)
 	}
 	go func() {
 		s.handleUDP()

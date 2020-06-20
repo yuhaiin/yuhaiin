@@ -2,6 +2,7 @@ package socks5client
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -90,15 +91,15 @@ func (s *Client) firstVerify() error {
 	sendData := []byte{0x05, 0x01, 0x00}
 	_, err := s.Conn.Write(sendData)
 	if err != nil {
-		return err
+		return fmt.Errorf("firstVerify:sendData -> %v", err)
 	}
 	getData := make([]byte, 3)
 	_, err = s.Conn.Read(getData[:])
 	if err != nil {
-		return err
+		return fmt.Errorf("firstVerify:Read -> %v", err)
 	}
 	if getData[0] != 0x05 || getData[1] == 0xFF {
-		return errors.New("socks5 first handshake failed")
+		return fmt.Errorf("firstVerify:checkVersion -> %v", errors.New("socks5 first handshake failed"))
 	}
 	// 	SOCKS5 用户名密码认证方式
 	// 在客户端、服务端协商使用用户名密码认证后，客户端发出用户名密码，格式为（以字节为单位）：
@@ -125,10 +126,10 @@ func (s *Client) firstVerify() error {
 		//getData := make([]byte, 3)
 		_, err = s.Conn.Read(getData[:])
 		if err != nil {
-			return err
+			return fmt.Errorf("firstVerify:Read2 -> %v", err)
 		}
 		if getData[1] == 0x01 {
-			return errors.New("username or password not correct,socks5 handshake failed")
+			return fmt.Errorf("firstVerify -> %v", errors.New("username or password not correct,socks5 handshake failed"))
 		}
 	}
 	// log.Println(sendData, "<-->", getData)
@@ -352,7 +353,7 @@ func (s *Client) secondVerify() error {
 	//}
 	addr, err := ParseAddr(s.Address)
 	if err != nil {
-		return err
+		return fmt.Errorf("secondVerify:ParseAddr -> %v", err)
 	}
 	sendData := append([]byte{0x5, 0x01, 0x00}, addr...)
 

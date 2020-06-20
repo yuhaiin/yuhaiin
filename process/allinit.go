@@ -23,5 +23,6 @@ func processInit() error {
 	//if err := UpdateListen(); err != nil {
 	//	return err
 	//}
-	return ChangeNode()
+	_ = ChangeNode()
+	return nil
 }

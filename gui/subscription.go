@@ -19,9 +19,6 @@ type subscription struct {
 func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
 	s := &subscription{}
 	s.subWindow = widgets.NewQMainWindow(nil, core.Qt__Window)
-	s.subWindow.SetWindowFlag(core.Qt__WindowMinimizeButtonHint, false)
-	s.subWindow.SetWindowFlag(core.Qt__WindowMaximizeButtonHint, false)
-	s.subWindow.SetFixedSize2(700, 100)
 	s.subWindow.SetWindowTitle("subscription")
 	s.subWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
@@ -37,7 +34,8 @@ func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
 	})
 
 	s.subInit()
-	s.setGeometry()
+	s.setLayout()
+	//s.setGeometry()
 	s.setListener()
 
 	return s.subWindow
@@ -49,6 +47,19 @@ func (s *subscription) subInit() {
 	s.deleteButton = widgets.NewQPushButton2("delete", s.subWindow)
 	s.lineText = widgets.NewQLineEdit(s.subWindow)
 	s.addButton = widgets.NewQPushButton2("add", s.subWindow)
+}
+
+func (s *subscription) setLayout() {
+	windowLayout := widgets.NewQGridLayout2()
+	windowLayout.AddWidget2(s.subLabel, 0, 0, 0)
+	windowLayout.AddWidget2(s.subCombobox, 0, 1, 0)
+	windowLayout.AddWidget2(s.deleteButton, 0, 2, 0)
+	windowLayout.AddWidget3(s.lineText, 1, 0, 1, 2, 0)
+	windowLayout.AddWidget2(s.addButton, 1, 2, 0)
+
+	centralWidget := widgets.NewQWidget(s.subWindow, 0)
+	centralWidget.SetLayout(windowLayout)
+	s.subWindow.SetCentralWidget(centralWidget)
 }
 
 func (s *subscription) setGeometry() {

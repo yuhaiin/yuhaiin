@@ -10,9 +10,9 @@ import (
 
 func TestServer_UDP(t *testing.T) {
 	s := &Server{}
-	t.Log(s.Socks5("127.0.0.1", "1080"))
+	t.Log(s.Socks5("127.0.0.1:1080"))
 	time.Sleep(time.Second)
-	if err := s.UDP("127.0.0.1", "1080"); err != nil {
+	if err := s.UDP("127.0.0.1:1080"); err != nil {
 		t.Error(err)
 	}
 	time.Sleep(time.Second)

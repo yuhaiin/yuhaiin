@@ -22,12 +22,6 @@ func main() {
 	//	}
 	//}()
 
-	//messageBox := func(text string) {
-	//widgets.NewQApplication(len(os.Args), os.Args)
-	//message := widgets.NewQMessageBox(nil)
-	//message.SetText(text)
-	//message.Exec()
-	//}
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	if err := config.PathInit(); err != nil {
 		gui.MessageBox(err.Error())

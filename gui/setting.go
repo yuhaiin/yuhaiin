@@ -39,16 +39,14 @@ func NewSettingWindow(parent *widgets.QMainWindow) *widgets.QMainWindow {
 	s := setting{}
 	s.parent = parent
 	s.settingWindow = widgets.NewQMainWindow(nil, core.Qt__Window)
-	s.settingWindow.SetWindowFlag(core.Qt__WindowMinimizeButtonHint, false)
-	s.settingWindow.SetWindowFlag(core.Qt__WindowMaximizeButtonHint, false)
-	s.settingWindow.SetFixedSize2(430, 330)
 	s.settingWindow.SetWindowTitle("setting")
 	s.settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
 		s.settingWindow.Hide()
 	})
 	s.settingInit()
-	s.setGeometry()
+	s.setLayout()
+	//s.setGeometry()
 	s.setListener()
 	s.extends()
 
@@ -67,7 +65,7 @@ func (s *setting) settingInit() {
 	s.httpAddressLineText = widgets.NewQLineEdit(s.settingWindow)
 	s.socks5BypassAddressLabel = widgets.NewQLabel2("SOCKS5", s.settingWindow, 0)
 	s.socks5BypassLineText = widgets.NewQLineEdit(s.settingWindow)
-	s.dnsServerLabel = widgets.NewQLabel2("DNS", s.settingWindow, 0)
+	//s.dnsServerLabel = widgets.NewQLabel2("DNS", s.settingWindow, 0)
 	s.dnsServerLineText = widgets.NewQLineEdit(s.settingWindow)
 	s.ssrPathLabel = widgets.NewQLabel2("SSR PATH", s.settingWindow, 0)
 	s.ssrPathLineText = widgets.NewQLineEdit(s.settingWindow)
@@ -75,6 +73,50 @@ func (s *setting) settingInit() {
 	s.BypassFileLineText = widgets.NewQLineEdit(s.settingWindow)
 	s.applyButton = widgets.NewQPushButton2("apply", s.settingWindow)
 	s.updateRuleButton = widgets.NewQPushButton2("Reimport Bypass Rule", s.settingWindow)
+}
+
+func (s *setting) setLayout() {
+	localProxyGroup := widgets.NewQGroupBox2("PROXY", nil)
+	localProxyLayout := widgets.NewQGridLayout2()
+	localProxyLayout.AddWidget2(s.httpAddressLabel, 0, 0, 0)
+	localProxyLayout.AddWidget2(s.httpAddressLineText, 0, 1, 0)
+	localProxyLayout.AddWidget2(s.socks5BypassAddressLabel, 1, 0, 0)
+	localProxyLayout.AddWidget2(s.socks5BypassLineText, 1, 1, 0)
+	localProxyLayout.AddWidget2(s.redirProxyAddressLabel, 2, 0, 0)
+	localProxyLayout.AddWidget2(s.redirProxyAddressLineText, 2, 1, 0)
+	localProxyGroup.SetLayout(localProxyLayout)
+
+	dnsGroup := widgets.NewQGroupBox2("DNS", nil)
+	dnsLayout := widgets.NewQGridLayout2()
+	dnsLayout.AddWidget2(s.DnsOverHttpsCheckBox, 0, 0, 0)
+	dnsLayout.AddWidget2(s.DnsOverHttpsProxyCheckBox, 0, 1, 0)
+	dnsLayout.AddWidget3(s.dnsServerLineText, 1, 0, 1, 2, 0)
+	dnsGroup.SetLayout(dnsLayout)
+
+	bypassGroup := widgets.NewQGroupBox2("BYPASS", nil)
+	bypassLayout := widgets.NewQGridLayout2()
+	bypassLayout.AddWidget2(s.bypassCheckBox, 0, 0, 0)
+	bypassLayout.AddWidget2(s.BypassFileLineText, 1, 0, 0)
+	bypassGroup.SetLayout(bypassLayout)
+
+	othersGroup := widgets.NewQGroupBox2("OTHERS", nil)
+	othersLayout := widgets.NewQGridLayout2()
+	othersLayout.AddWidget3(s.BlackIconCheckBox, 0, 0, 1, 2, 0)
+	othersLayout.AddWidget2(s.ssrPathLabel, 1, 0, 0)
+	othersLayout.AddWidget2(s.ssrPathLineText, 1, 1, 0)
+	othersGroup.SetLayout(othersLayout)
+
+	windowLayout := widgets.NewQGridLayout2()
+	windowLayout.AddWidget2(localProxyGroup, 0, 0, 0)
+	windowLayout.AddWidget2(dnsGroup, 0, 1, 0)
+	windowLayout.AddWidget2(bypassGroup, 1, 0, 0)
+	windowLayout.AddWidget2(othersGroup, 1, 1, 0)
+	windowLayout.AddWidget2(s.applyButton, 2, 0, 0)
+	windowLayout.AddWidget2(s.updateRuleButton, 3, 0, 0)
+
+	centralWidget := widgets.NewQWidget(s.settingWindow, 0)
+	centralWidget.SetLayout(windowLayout)
+	s.settingWindow.SetCentralWidget(centralWidget)
 }
 
 func (s *setting) setGeometry() {

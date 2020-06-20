@@ -39,10 +39,10 @@ func ChangeNode() error {
 
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
-		ip, err := getIP(nNode.(*subscr.Shadowsocks).Server)
-		if err == nil {
-			nNode.(*subscr.Shadowsocks).Server = ip.String()
-		}
+		// ip, err := getIP(nNode.(*subscr.Shadowsocks).Server)
+		// if err == nil {
+		// 	nNode.(*subscr.Shadowsocks).Server = ip.String()
+		// }
 		conn, err := client.NewShadowsocks(
 			nNode.(*subscr.Shadowsocks).Method,
 			nNode.(*subscr.Shadowsocks).Password,

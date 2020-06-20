@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -214,8 +215,19 @@ func ChangeNowNode(group, remarks string) error {
 }
 
 func map2struct(s map[string]interface{}) (interface{}, error) {
-	noeType := s["type"].(float64)
-	switch noeType {
+	if s == nil {
+		return nil, fmt.Errorf("map2struct -> %v", errors.New("argument is nil"))
+	}
+
+	var nodeType float64
+	switch s["type"].(type) {
+	case float64:
+		nodeType = s["type"].(float64)
+	default:
+		return nil, fmt.Errorf("map2struct:type -> %v", errors.New("type is not float64"))
+	}
+
+	switch nodeType {
 	case shadowsocks:
 		node := new(Shadowsocks)
 		node.Type = shadowsocks
@@ -250,12 +262,17 @@ func map2struct(s map[string]interface{}) (interface{}, error) {
 func GetOneNode(group, remarks string) (interface{}, error) {
 	pa, err := decodeJSON()
 	if err != nil {
-		return Shadowsocksr{}, err
+		return nil, fmt.Errorf("GetOneNode:decodeJSON -> %v", err)
+	}
+
+	if pa.Node[group][remarks] == nil {
+		return nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
 	}
 	currentNode := pa.Node[group][remarks].(map[string]interface{})
+
 	node, err := map2struct(currentNode)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("GetOneNode:map2struct -> %v", err)
 	}
 	return node, nil
 }
@@ -280,6 +297,9 @@ func GetNowNodeGroupAndName() (name string, group string) {
 func GetOneNodeAddress(group, name string) (server, port string) {
 	pa, err := decodeJSON()
 	if err != nil {
+		return "", ""
+	}
+	if pa.Node[group][name] == nil {
 		return "", ""
 	}
 	currentNode := pa.Node[group][name].(map[string]interface{})

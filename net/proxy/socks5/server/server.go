@@ -2,6 +2,7 @@ package socks5server
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -30,9 +31,12 @@ func NewSocks5Server(host, username, password string) (s *Server, err error) {
 	}
 	err = s.Socks5(host)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewSocks5Server:SOCKS5 -> %v", err)
 	}
 	err = s.UDP(host)
+	if err != nil {
+		return nil, fmt.Errorf("NewSocks5Server:UDP -> %v", err)
+	}
 	return
 }
 
@@ -42,10 +46,13 @@ func (s *Server) UpdateListen(host string) (err error) {
 			return nil
 		}
 		if err = s.Socks5(host); err != nil {
-			return err
+			return fmt.Errorf("UpdateListen:Socks5 -> %v", err)
 		}
 		s.closed = false
-		return s.UDP(host)
+		if err = s.UDP(host); err != nil {
+			return fmt.Errorf("UpdateListen:UDP -> %v", err)
+		}
+		return
 	}
 
 	if s.listener.Addr().String() == host {
@@ -58,13 +65,13 @@ func (s *Server) UpdateListen(host string) (err error) {
 
 	if s.listener != nil {
 		if err = s.listener.Close(); err != nil {
-			return err
+			return fmt.Errorf("UpdateListen:listener.Close -> %v", err)
 		}
 	}
 
 	s.listener, err = net.Listen("tcp", host)
 	if err != nil {
-		return err
+		return fmt.Errorf("UpdateListen:Listen -> %v", err)
 	}
 
 	return s.UpdateUDPListenAddr(host)
@@ -78,7 +85,7 @@ func (s *Server) GetListenHost() string {
 func (s *Server) Socks5(host string) (err error) {
 	s.listener, err = net.Listen("tcp", host)
 	if err != nil {
-		return err
+		return fmt.Errorf("Socks5:Listen -> %v", err)
 	}
 	go func() {
 		for {

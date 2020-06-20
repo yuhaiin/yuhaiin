@@ -37,9 +37,6 @@ func NewMainWindow(sGui *SGui) *widgets.QMainWindow {
 	m := &mainWindow{}
 	m.mainWindow = widgets.NewQMainWindow(nil, core.Qt__Window)
 	m.mainWindow.SetWindowFlag(core.Qt__WindowSystemMenuHint, true)
-	m.mainWindow.SetWindowFlag(core.Qt__WindowMaximizeButtonHint, false)
-	m.mainWindow.SetWindowFlag(core.Qt__WindowMinimizeButtonHint, false)
-	m.mainWindow.SetFixedSize2(600, 400)
 	m.mainWindow.SetWindowTitle("yuhaiin")
 
 	menuBar := widgets.NewQMenuBar(m.mainWindow)
@@ -69,7 +66,8 @@ func NewMainWindow(sGui *SGui) *widgets.QMainWindow {
 	m.mainWindow.SetMenuBar(menuBar)
 
 	m.Init()
-	m.setGeometry()
+	m.setLayout()
+	//m.setGeometry()
 	m.setListener()
 
 	return m.mainWindow
@@ -87,9 +85,25 @@ func (m *mainWindow) Init() {
 	m.latencyLabel = widgets.NewQLabel2("Latency", m.mainWindow, core.Qt__WindowType(0x00000000))
 	m.latencyLabel2 = widgets.NewQLabel2("", m.mainWindow, core.Qt__WindowType(0x00000000))
 	m.latencyButton = widgets.NewQPushButton2("Test", m.mainWindow)
-	//m.subButton = widgets.NewQPushButton2("Subscription Setting", m.mainWindow)
-	//m.subUpdateButton = widgets.NewQPushButton2("Subscribe Update", m.mainWindow)
-	//m.settingButton = widgets.NewQPushButton2("Setting", m.mainWindow)
+}
+
+func (m *mainWindow) setLayout() {
+	windowLayout := widgets.NewQGridLayout2()
+	windowLayout.AddWidget3(m.statusLabel2, 0, 0, 1, 3, 0)
+	windowLayout.AddWidget2(m.nowNodeLabel, 1, 0, 0)
+	windowLayout.AddWidget2(m.nowNodeLabel2, 1, 1, 0)
+	windowLayout.AddWidget2(m.groupLabel, 2, 0, 0)
+	windowLayout.AddWidget2(m.groupCombobox, 2, 1, 0)
+	windowLayout.AddWidget2(m.nodeLabel, 3, 0, 0)
+	windowLayout.AddWidget2(m.nodeCombobox, 3, 1, 0)
+	windowLayout.AddWidget2(m.startButton, 3, 2, 0)
+	windowLayout.AddWidget2(m.latencyLabel, 4, 0, 0)
+	windowLayout.AddWidget2(m.latencyLabel2, 4, 1, 0)
+	windowLayout.AddWidget2(m.latencyButton, 4, 2, 0)
+
+	centralWidget := widgets.NewQWidget(m.mainWindow, 0)
+	centralWidget.SetLayout(windowLayout)
+	m.mainWindow.SetCentralWidget(centralWidget)
 }
 
 func (m *mainWindow) setGeometry() {
@@ -104,9 +118,6 @@ func (m *mainWindow) setGeometry() {
 	m.latencyLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210), core.NewQPoint2(130, 240)))
 	m.latencyLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210), core.NewQPoint2(450, 240)))
 	m.latencyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
-	//m.subButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 260), core.NewQPoint2(290, 290)))
-	//m.subUpdateButton.SetGeometry(core.NewQRect2(core.NewQPoint2(300, 260), core.NewQPoint2(560, 290)))
-	//m.settingButton.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 300), core.NewQPoint2(290, 330)))
 }
 
 func (m *mainWindow) refresh() {
