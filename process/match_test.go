@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -105,4 +106,10 @@ func TestForward2(t *testing.T) {
 		t.Error(err)
 	}
 	t.Log(c.Scheme, c.Host)
+}
+
+func TestUpdateDNSSubNet(t *testing.T) {
+	x, _ := url.Parse("//" + "dns.nextdns.io/e28bb3")
+	t.Log(x.Hostname(), x.Host, x.Path)
+	t.Log(net.ParseIP(x.Hostname()))
 }

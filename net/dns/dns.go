@@ -171,7 +171,7 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 	return header, c, nil
 }
 
-func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, additionalSection []byte, err error) {
+func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, err error) {
 
 	// answer section
 	//log.Println()
@@ -229,6 +229,20 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, additionalSec
 		anCount -= 1
 	}
 	return DNS, c, nil
+}
+
+func resolveAuthoritative(c []byte, nsCount int, b []byte) (left []byte) {
+	for nsCount != 0 {
+		nsCount--
+		_, _, c = getName(c, b)
+		c = c[2:] // type
+		c = c[2:] // class
+		c = c[4:] // ttl
+		dataLenght := int(c[0])<<8 + int(c[1])
+		c = c[2:] // data length
+		c = c[dataLenght:]
+	}
+	return c
 }
 
 //197 89 214 12 101 99 228 18 35 193

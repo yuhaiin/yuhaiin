@@ -18,6 +18,7 @@ type Setting struct {
 	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
 	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
 	DnsServer          string `json:"dnsServer"`
+	DnsSubNet          string `json:"dns_sub_net"`
 	Bypass             bool   `json:"bypass"`
 	HttpProxyAddress   string `json:"httpProxyAddress"`
 	Socks5ProxyAddress string `json:"socks5ProxyAddress"`
@@ -46,6 +47,7 @@ func SettingInitJSON() error {
 	pa := &Setting{
 		BypassFile:         Path + pathSeparator + "yuhaiin.conf",
 		DnsServer:          "1.0.0.1:53",
+		DnsSubNet:          "0.0.0.0",
 		Bypass:             true,
 		HttpProxyAddress:   "127.0.0.1:8188",
 		Socks5ProxyAddress: "127.0.0.1:1080",

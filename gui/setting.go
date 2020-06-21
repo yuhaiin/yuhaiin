@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"net"
+
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/therecipe/qt/core"
@@ -23,6 +25,7 @@ type setting struct {
 	dnsServerLabel           *widgets.QLabel
 	ssrPathLabel             *widgets.QLabel
 	//BypassFileLabel          *widgets.QLabel
+	dnsSubNetLabel *widgets.QLabel
 
 	redirProxyAddressLineText *widgets.QLineEdit
 	httpAddressLineText       *widgets.QLineEdit
@@ -30,6 +33,7 @@ type setting struct {
 	dnsServerLineText         *widgets.QLineEdit
 	ssrPathLineText           *widgets.QLineEdit
 	BypassFileLineText        *widgets.QLineEdit
+	dnsSubNetLineText         *widgets.QLineEdit
 
 	applyButton      *widgets.QPushButton
 	updateRuleButton *widgets.QPushButton
@@ -65,7 +69,7 @@ func (s *setting) settingInit() {
 	s.httpAddressLineText = widgets.NewQLineEdit(s.settingWindow)
 	s.socks5BypassAddressLabel = widgets.NewQLabel2("SOCKS5", s.settingWindow, 0)
 	s.socks5BypassLineText = widgets.NewQLineEdit(s.settingWindow)
-	//s.dnsServerLabel = widgets.NewQLabel2("DNS", s.settingWindow, 0)
+	s.dnsServerLabel = widgets.NewQLabel2("DNS", s.settingWindow, 0)
 	s.dnsServerLineText = widgets.NewQLineEdit(s.settingWindow)
 	s.ssrPathLabel = widgets.NewQLabel2("SSR PATH", s.settingWindow, 0)
 	s.ssrPathLineText = widgets.NewQLineEdit(s.settingWindow)
@@ -73,6 +77,8 @@ func (s *setting) settingInit() {
 	s.BypassFileLineText = widgets.NewQLineEdit(s.settingWindow)
 	s.applyButton = widgets.NewQPushButton2("apply", s.settingWindow)
 	s.updateRuleButton = widgets.NewQPushButton2("Reimport Bypass Rule", s.settingWindow)
+	s.dnsSubNetLabel = widgets.NewQLabel2("SUBNET", nil, 0)
+	s.dnsSubNetLineText = widgets.NewQLineEdit(nil)
 }
 
 func (s *setting) setLayout() {
@@ -90,7 +96,10 @@ func (s *setting) setLayout() {
 	dnsLayout := widgets.NewQGridLayout2()
 	dnsLayout.AddWidget2(s.DnsOverHttpsCheckBox, 0, 0, 0)
 	dnsLayout.AddWidget2(s.DnsOverHttpsProxyCheckBox, 0, 1, 0)
-	dnsLayout.AddWidget3(s.dnsServerLineText, 1, 0, 1, 2, 0)
+	dnsLayout.AddWidget2(s.dnsServerLabel, 1, 0, 0)
+	dnsLayout.AddWidget2(s.dnsServerLineText, 1, 1, 0)
+	dnsLayout.AddWidget2(s.dnsSubNetLabel, 2, 0, 0)
+	dnsLayout.AddWidget2(s.dnsSubNetLineText, 2, 1, 0)
 	dnsGroup.SetLayout(dnsLayout)
 
 	bypassGroup := widgets.NewQGroupBox2("BYPASS", nil)
@@ -160,6 +169,7 @@ func (s *setting) setListener() {
 		s.dnsServerLineText.SetText(conFig.DnsServer)
 		s.ssrPathLineText.SetText(conFig.SsrPath)
 		s.BypassFileLineText.SetText(conFig.BypassFile)
+		s.dnsSubNetLineText.SetText(conFig.DnsSubNet)
 	}
 
 	applyClick := func(bool2 bool) {
@@ -182,6 +192,11 @@ func (s *setting) setListener() {
 			conFig.DnsServer = s.dnsServerLineText.Text()
 			//isUpdateDNS = true
 			process.UpdateDNS(s.dnsServerLineText.Text())
+		}
+
+		if conFig.DnsSubNet != s.dnsSubNetLineText.Text() {
+			conFig.DnsSubNet = s.dnsSubNetLineText.Text()
+			process.UpdateDNSSubNet(net.ParseIP(s.dnsSubNetLineText.Text()))
 		}
 
 		conFig.SsrPath = s.ssrPathLineText.Text()

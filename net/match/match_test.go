@@ -1,16 +1,14 @@
 package match
 
 import (
-	"github.com/Asutorufa/yuhaiin/net/dns"
-	"net"
 	"testing"
 )
 
 func TestNewMatcher(t *testing.T) {
-	dnsFunc := func(domain string) (IP []net.IP, s error) {
-		return dns.DNS("119.29.29.29:53", domain)
-	}
-	matcher := NewMatch(dnsFunc)
+	//dnsFunc := func(domain string) (IP []net.IP, s error) {
+	//	return dns.DNS("119.29.29.29:53", domain)
+	//}
+	matcher := NewMatch("1.0.0.1")
 	if err := matcher.Insert("baidu.com", "test_baidu"); err != nil {
 		t.Error(err)
 	}

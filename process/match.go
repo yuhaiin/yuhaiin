@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/net/dns"
+
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
@@ -71,6 +73,13 @@ func UpdateMatch() error {
 
 func UpdateDNS(host string) {
 	Matcher.SetDNS(host)
+}
+
+func UpdateDNSSubNet(ip net.IP) {
+	if ip == nil {
+		return
+	}
+	dns.Subnet = net.ParseIP("0.0.0.0")
 }
 
 // https://myexternalip.com/raw

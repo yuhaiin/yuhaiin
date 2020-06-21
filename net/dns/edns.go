@@ -94,28 +94,30 @@ func getLength(length int) [2]byte {
 func resolveAdditional(b []byte, arCount int) {
 	for arCount != 0 {
 		arCount--
-		name := b[:1]
+		//name := b[:1]
 		b = b[1:]
 		typeE := b[:2]
 		b = b[2:]
-		payLoadSize := b[:2]
+		//payLoadSize := b[:2]
 		b = b[2:]
-		rCode := b[:1]
+		//rCode := b[:1]
 		b = b[1:]
-		version := b[:1]
+		//version := b[:1]
 		b = b[1:]
-		z := b[:2]
+		//z := b[:2]
 		b = b[2:]
 		dataLength := int(b[0])<<8 + int(b[1])
 		b = b[2:]
+		//log.Println(name, typeE, payLoadSize, rCode, version, z, dataLength)
 		if typeE[0] != 0 || typeE[1] != 41 {
 			//optData := b[:dataLength]
 			b = b[dataLength:]
 			continue
 		}
 
-		log.Println(name, typeE, payLoadSize, rCode, version, z)
-
+		if dataLength == 0 {
+			return
+		}
 		optCode := EDNSOPT{b[0], b[1]}
 		b = b[2:]
 		optionLength := int(b[0])<<8 + int(b[1])
