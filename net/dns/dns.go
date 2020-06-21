@@ -39,15 +39,22 @@ var (
 	ANY  = reqType{0b00000000, 0b11111111} // 255
 )
 
-// DNS <-- dns
+var (
+	Subnet = net.ParseIP("0.0.0.0")
+)
+
+// DNS Normal DNS(use udp,and no encrypt)
 func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
+	return dnsCommon(domain, func(data []byte) ([]byte, error) { return udpDial(data, DNSServer) })
+}
+
+func dnsCommon(domain string, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
 	if x, _ := cache.Get(domain); x != nil {
 		return x.([]net.IP), nil
 	}
+	req := createEDNSReq(domain, A, createEdnsClientSubnet(Subnet))
 
-	req := creatRequest(domain, A)
-
-	b, err := udpDial(req, DNSServer)
+	b, err := reqF(req)
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +64,12 @@ func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
 	if err != nil {
 		return nil, err
 	}
-	DNS, _, err = resolveAnswer(c, h.anCount, b)
-	cache.Add(domain, DNS)
+	DNS, c, err = resolveAnswer(c, h.anCount, b)
+	if len(DNS) > 0 {
+		cache.Add(domain, DNS)
+	}
+	c = resolveAuthoritative(c, h.nsCount, b)
+	resolveAdditional(c, h.arCount) // EDNS
 	return
 }
 
@@ -190,7 +201,7 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 		c = c[4:] // ttl 4byte
 		sum := int(c[0])<<8 + int(c[1])
 		//log.Println("rdlength", sum)
-		c = c[2:] // RDLENGTH  跳过总和，因为总和不包括计算域名的长度 2+int(c[0])<<8+int(c[1])
+		c = c[2:] // RDLENGTH  jump sum 2+int(c[0])<<8+int(c[1])
 
 		switch tYPE {
 		case A:
@@ -238,20 +249,13 @@ func resolveAuthoritative(c []byte, nsCount int, b []byte) (left []byte) {
 		c = c[2:] // type
 		c = c[2:] // class
 		c = c[4:] // ttl
-		dataLenght := int(c[0])<<8 + int(c[1])
+		dataLength := int(c[0])<<8 + int(c[1])
 		c = c[2:] // data length
-		c = c[dataLenght:]
+		c = c[dataLength:]
 	}
 	return c
 }
 
-//197 89 214 12 101 99 228 18 35 193
-//203 125 95 150 40 16 5 232 131 137
-//16 202 12 164 150 209 193 2 46 135
-//217 240 225 205 16 250 124 92 71 212
-//78 220 159 198 183 184 243 238 210 36
-//132 132 4 186 173 182 105 67 228 106
-//126 218 25 194
 func getName(c []byte, all []byte) (name string, size int, x []byte) {
 	for {
 		if c[0]&128 == 128 && c[0]&64 == 64 {

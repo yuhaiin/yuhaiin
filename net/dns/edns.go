@@ -2,7 +2,6 @@ package dns
 
 import (
 	"bytes"
-	"log"
 	"net"
 )
 
@@ -124,24 +123,25 @@ func resolveAdditional(b []byte, arCount int) {
 		b = b[2:]
 		switch optCode {
 		case EdnsClientSubnet:
-			family := b[:2]
+			//family := b[:2]
 			b = b[2:]
-			sourceNetmask := b[:1]
-			log.Println("sourceNetmask", sourceNetmask)
+			//sourceNetmask := b[:1]
+			//log.Println("sourceNetmask", sourceNetmask)
 			b = b[1:]
-			scopeNetmask := b[:1]
-			log.Println("scopeNetmask", scopeNetmask)
+			//scopeNetmask := b[:1]
+			//log.Println("scopeNetmask", scopeNetmask)
 			b = b[1:]
-			if family[0] == 0 && family[1] == 1 {
-				log.Println(b[:4])
-			}
-			if family[0] == 0 && family[1] == 2 {
-				log.Println(b[:16])
-			}
+			// Subnet IP
+			//if family[0] == 0 && family[1] == 1 {
+			//	log.Println(b[:4])
+			//}
+			//if family[0] == 0 && family[1] == 2 {
+			//	log.Println(b[:16])
+			//}
 
 			b = b[optionLength-4:]
 		default:
-			log.Println("opt data:", b[:optionLength])
+			//log.Println("opt data:", b[:optionLength])
 			b = b[optionLength:]
 		}
 	}
