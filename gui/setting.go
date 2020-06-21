@@ -148,10 +148,15 @@ func (s *setting) setGeometry() {
 	s.updateRuleButton.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 280), core.NewQPoint2(300, 310)))
 }
 
+var (
+	conFig *config.Setting
+)
+
 func (s *setting) setListener() {
 	// Listen
 	update := func() {
-		conFig, err := config.SettingDecodeJSON()
+		var err error
+		conFig, err = config.SettingDecodeJSON()
 		if err != nil {
 			MessageBox(err.Error())
 			return
@@ -171,26 +176,23 @@ func (s *setting) setListener() {
 	}
 
 	applyClick := func(bool2 bool) {
-		conFig, err := config.SettingDecodeJSON()
-		if err != nil {
-			MessageBox(err.Error())
-			return
-		}
-
 		conFig.BlackIcon = s.BlackIconCheckBox.IsChecked()
 		//conFig.HttpProxy = httpProxyCheckBox.IsChecked()
 		conFig.Bypass = s.bypassCheckBox.IsChecked()
 		conFig.IsDNSOverHTTPS = s.DnsOverHttpsCheckBox.IsChecked()
 		conFig.DNSAcrossProxy = s.DnsOverHttpsProxyCheckBox.IsChecked()
 		conFig.DnsServer = s.dnsServerLineText.Text()
+		conFig.DnsSubNet = s.dnsSubNetLineText.Text()
 		conFig.SsrPath = s.ssrPathLineText.Text()
 		conFig.HttpProxyAddress = s.httpAddressLineText.Text()
 		conFig.Socks5ProxyAddress = s.socks5BypassLineText.Text()
 		conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
 		conFig.BypassFile = s.BypassFileLineText.Text()
 
+		wait := make(chan bool, 1)
 		go func() {
 			process.SetConFig(conFig)
+			wait <- true
 		}()
 
 		if err := config.SettingEnCodeJSON(conFig); err != nil {
@@ -198,6 +200,8 @@ func (s *setting) setListener() {
 		}
 
 		update()
+		<-wait
+		close(wait)
 		MessageBox("Applied.")
 	}
 

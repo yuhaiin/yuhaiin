@@ -9,7 +9,7 @@
 ![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
 How to use:
 
-- download the [releases](https://github.com/Asutorufa/yuhaiin/releases) binary or build.
+- download [releases](https://github.com/Asutorufa/yuhaiin/releases) or build.
 
 - Build
 
@@ -41,6 +41,7 @@ How to use:
         - Support Plugin: Obfs-Http
         - Support Plugin: v2ray-plugin( not support mux,it's too complicated(:, I need some time to understand )
     - internal Support: Socks5, HTTP, Linux/Mac Redir
+    - DNS: Normal DNS,EDNS,DNSSEC,DNS over HTTPS 
 - Support Subscription: Shadowsocksr, SSD
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)
 - [For Developer](https://github.com/Asutorufa/yuhaiin/blob/master/for_developer.md) <- outdated
@@ -49,14 +50,11 @@ How to use:
     - Bypass + Gui = 70MB.
     - Because of the Go GC, Reimport Rule will make the memory big, but this is not memory leak, it has a limit(e.g: above-mentioned example is 180M).
         - > [Do I need to set a map to nil in order for it to be garbage collected?](https://stackoverflow.com/questions/36747776/do-i-need-to-set-a-map-to-nil-in-order-for-it-to-be-garbage-collected)
-    
-<details>
-<summary>Screenshots</summary>
 
-![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_by_qt_v0.2.11.3.png)  
-![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_windows_v0.2.11.3.png)  
 
-</details>
+![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_by_qt_v0.2.11.4.png)  
+![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_windows_v0.2.11.4.png)  
+
 
 <details>
 <summary>Acknowledgement</summary>
@@ -86,9 +84,9 @@ How to use:
 - [x] add shadowsocks client protocol.
 - [x] add linux REDIRECT.
 - [x] add shadowsocks v2ray plugin.
-- [ ] widget exchange to qml.
+- [x] ~~widget exchange to qml.~~(now already change to gridLayout)
+- [x] ~~change qt gui to use new api.~~
 - [ ] new api for android(or others).
-- [ ] change qt gui to use new api.
-- [ ] add software disguise.
+- [ ] add disguise.
 
 </details>
