@@ -46,7 +46,7 @@ func TestMatch(t *testing.T) {
 	}
 	defer f.Close()
 
-	Matcher = match.NewMatch(conFig.DnsServer)
+	Matcher = match.NewMatch(conFig.DnsServer, conFig.IsDNSOverHTTPS)
 
 	br := bufio.NewReader(f)
 	for {
@@ -112,4 +112,9 @@ func TestUpdateDNSSubNet(t *testing.T) {
 	x, _ := url.Parse("//" + "dns.nextdns.io/e28bb3")
 	t.Log(x.Hostname(), x.Host, x.Path)
 	t.Log(net.ParseIP(x.Hostname()))
+}
+
+func TestUpdateDNS(t *testing.T) {
+	s, _ := config.SettingDecodeJSON()
+	SetConFig(s)
 }

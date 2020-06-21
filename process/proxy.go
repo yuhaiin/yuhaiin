@@ -1,7 +1,8 @@
 package process
 
 import (
-	"github.com/Asutorufa/yuhaiin/config"
+	"log"
+
 	httpserver "github.com/Asutorufa/yuhaiin/net/proxy/http/server"
 	socks5server "github.com/Asutorufa/yuhaiin/net/proxy/socks5/server"
 )
@@ -12,13 +13,14 @@ var (
 )
 
 func UpdateListen() (err error) {
-	conFig, err := config.SettingDecodeJSON()
+	err = Socks5.UpdateListen(conFig.Socks5ProxyAddress)
 	if err != nil {
-		return err
+		log.Println(err)
 	}
-
-	_ = Socks5.UpdateListen(conFig.Socks5ProxyAddress)
-	_ = HttpS.UpdateListenHost(conFig.HttpProxyAddress)
+	err = HttpS.UpdateListenHost(conFig.HttpProxyAddress)
+	if err != nil {
+		log.Println(err)
+	}
 
 	return extendsUpdateListen(conFig)
 }

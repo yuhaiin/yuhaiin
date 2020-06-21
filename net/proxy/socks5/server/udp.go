@@ -50,7 +50,8 @@ func (s *Server) handleUDP() {
 			if s.closed {
 				break
 			}
-			fmt.Printf("error during read: %s", err)
+			//fmt.Printf("error during read: %s", err)
+			continue
 		}
 
 		if Proxy == nil {
@@ -69,8 +70,13 @@ func (s *Server) handleUDP() {
 func normalHandleUDP(listener *net.UDPConn, remoteAddr net.Addr, b []byte) (err error) {
 	//RSV := b[:2]
 	//FRAG := b[2:3]
-
+	if len(b) <= 0 {
+		return fmt.Errorf("normalHandleUDP() -> b byte array is empty")
+	}
 	host, port, addrSize, err := ResolveAddr(b[3:])
+	if err != nil {
+		return err
+	}
 	if net.ParseIP(host) == nil {
 		addr, err := net.ResolveIPAddr("ip", host)
 		if err != nil {

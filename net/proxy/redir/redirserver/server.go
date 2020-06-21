@@ -40,6 +40,7 @@ func (r *Server) UpdateListen(host string) (err error) {
 		return nil
 	}
 	if err = r.listener.Close(); err != nil {
+		log.Println(err)
 		return err
 	}
 	r.listener, err = net.Listen("tcp", host)
@@ -58,7 +59,10 @@ func (r *Server) Redir(host string) (err error) {
 		for {
 			req, err := r.listener.Accept()
 			if err != nil {
-				log.Print(err)
+				if r.closed {
+					break
+				}
+				//log.Print(err)
 				continue
 			}
 			go handleRedir(req)

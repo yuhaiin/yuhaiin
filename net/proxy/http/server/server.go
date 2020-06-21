@@ -36,6 +36,7 @@ func NewHTTPServer(host, username, password string) (s *Server, err error) {
 }
 
 func (h *Server) UpdateListenHost(host string) (err error) {
+	//log.Println(host)
 	if h.closed {
 		if host == "" {
 			return nil
@@ -84,6 +85,7 @@ func (h *Server) HTTPProxy(host string) (err error) {
 				if h.closed {
 					break
 				}
+				//log.Println(err)
 				continue
 			}
 			_ = client.(*net.TCPConn).SetKeepAlive(true)

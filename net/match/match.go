@@ -14,7 +14,7 @@ type Match struct {
 	domain *Domain
 }
 
-func (x *Match) SetDNS(host string) {
+func (x *Match) SetDNS(host string, doh bool) {
 	urls, err := url.Parse("//" + host)
 	if err != nil {
 		return
@@ -70,11 +70,11 @@ _end:
 	return
 }
 
-func NewMatch(dns string) (matcher Match) {
+func NewMatch(dns string, doh bool) (matcher Match) {
 	m := Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
 	}
-	m.SetDNS(dns)
+	m.SetDNS(dns, doh)
 	return m
 }

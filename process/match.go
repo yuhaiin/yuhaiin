@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/net/dns"
-
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
@@ -40,7 +39,7 @@ type insertData struct {
 }
 
 var (
-	Matcher = match.NewMatch(conFig.DnsServer)
+	Matcher = match.NewMatch(conFig.DnsServer, conFig.IsDNSOverHTTPS)
 	Conn    = func(host string) (conn net.Conn, err error) { return net.DialTimeout("tcp", host, time.Second*7) }
 )
 
@@ -71,15 +70,16 @@ func UpdateMatch() error {
 	return nil
 }
 
-func UpdateDNS(host string) {
-	Matcher.SetDNS(host)
+func UpdateDNS(server string, doh bool) {
+	Matcher.SetDNS(server, doh)
 }
 
 func UpdateDNSSubNet(ip net.IP) {
 	if ip == nil {
+		dns.Subnet = net.ParseIP("0.0.0.0")
 		return
 	}
-	dns.Subnet = net.ParseIP("0.0.0.0")
+	dns.Subnet = ip
 }
 
 // https://myexternalip.com/raw

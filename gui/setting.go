@@ -1,8 +1,6 @@
 package gui
 
 import (
-	"net"
-
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/therecipe/qt/core"
@@ -148,8 +146,8 @@ func (s *setting) setGeometry() {
 	s.BypassFileLineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 240), core.NewQPoint2(420, 270)))
 	s.applyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 280), core.NewQPoint2(105, 310)))
 	s.updateRuleButton.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 280), core.NewQPoint2(300, 310)))
-
 }
+
 func (s *setting) setListener() {
 	// Listen
 	update := func() {
@@ -180,71 +178,26 @@ func (s *setting) setListener() {
 		}
 
 		conFig.BlackIcon = s.BlackIconCheckBox.IsChecked()
-
 		//conFig.HttpProxy = httpProxyCheckBox.IsChecked()
-
 		conFig.Bypass = s.bypassCheckBox.IsChecked()
-
-		//isUpdateDNS := false
-		if conFig.IsDNSOverHTTPS != s.DnsOverHttpsCheckBox.IsChecked() || conFig.DnsServer != s.dnsServerLineText.Text() || conFig.DNSAcrossProxy != s.DnsOverHttpsProxyCheckBox.IsChecked() {
-			conFig.IsDNSOverHTTPS = s.DnsOverHttpsCheckBox.IsChecked()
-			conFig.DNSAcrossProxy = s.DnsOverHttpsProxyCheckBox.IsChecked()
-			conFig.DnsServer = s.dnsServerLineText.Text()
-			//isUpdateDNS = true
-			process.UpdateDNS(s.dnsServerLineText.Text())
-		}
-
-		if conFig.DnsSubNet != s.dnsSubNetLineText.Text() {
-			conFig.DnsSubNet = s.dnsSubNetLineText.Text()
-			process.UpdateDNSSubNet(net.ParseIP(s.dnsSubNetLineText.Text()))
-		}
-
+		conFig.IsDNSOverHTTPS = s.DnsOverHttpsCheckBox.IsChecked()
+		conFig.DNSAcrossProxy = s.DnsOverHttpsProxyCheckBox.IsChecked()
+		conFig.DnsServer = s.dnsServerLineText.Text()
 		conFig.SsrPath = s.ssrPathLineText.Text()
+		conFig.HttpProxyAddress = s.httpAddressLineText.Text()
+		conFig.Socks5ProxyAddress = s.socks5BypassLineText.Text()
+		conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
+		conFig.BypassFile = s.BypassFileLineText.Text()
 
-		isUpdateListen := false
-		if conFig.HttpProxyAddress != s.httpAddressLineText.Text() ||
-			conFig.Socks5ProxyAddress != s.socks5BypassLineText.Text() ||
-			conFig.RedirProxyAddress != s.redirProxyAddressLineText.Text() {
-
-			conFig.HttpProxyAddress = s.httpAddressLineText.Text()
-			conFig.Socks5ProxyAddress = s.socks5BypassLineText.Text()
-			conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
-			isUpdateListen = true
-		}
-
-		isUpdateMatch := false
-		if conFig.BypassFile != s.BypassFileLineText.Text() {
-			conFig.BypassFile = s.BypassFileLineText.Text()
-			isUpdateMatch = true
-		}
+		go func() {
+			process.SetConFig(conFig)
+		}()
 
 		if err := config.SettingEnCodeJSON(conFig); err != nil {
 			MessageBox(err.Error())
 		}
 
-		process.UpdateConFig()
-		//process.UpdateMode()
-		if err := process.ChangeNode(); err != nil {
-			MessageBox(err.Error())
-			return
-		}
-
-		if isUpdateListen {
-			if err := process.UpdateListen(); err != nil {
-				MessageBox(err.Error())
-				return
-			}
-		}
-
-		if isUpdateMatch {
-			if err := process.UpdateMatch(); err != nil {
-				MessageBox(err.Error())
-				return
-			}
-		}
-
 		update()
-
 		MessageBox("Applied.")
 	}
 

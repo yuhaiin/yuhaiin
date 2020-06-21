@@ -189,6 +189,9 @@ func (s *Server) handleClientRequest(client net.Conn) {
 }
 
 func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
+	if len(raw) <= 0 {
+		return "", 0, 0, fmt.Errorf("ResolveAddr() -> raw byte array is empty")
+	}
 	targetAddrRawSize := 1
 	switch raw[0] {
 	case 0x01:
