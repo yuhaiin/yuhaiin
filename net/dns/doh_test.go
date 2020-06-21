@@ -22,7 +22,7 @@ func TestDOH(t *testing.T) {
 	//t.Log(DOH("dns.google", "yahoo.co.jp"))
 
 	t.Log(DOH("cloudflare-dns.com", "test-ipv6.nextdns.io"))
-	t.Log(DOH("dns.nextdns.io/e28bb3", "google.com"))
+	//t.Log(DOH("dns.nextdns.io", "google.com"))
 
 	// t.Log(DOH("cloudflare-dns.com", "115-235-111-150.dhost.00cdn.com"))
 }

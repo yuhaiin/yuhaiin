@@ -116,7 +116,7 @@ func resolveAdditional(b []byte, arCount int) {
 		}
 
 		if dataLength == 0 {
-			return
+			continue
 		}
 		optCode := EDNSOPT{b[0], b[1]}
 		b = b[2:]
