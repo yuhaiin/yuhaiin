@@ -21,6 +21,7 @@ func getSsr(path string) {
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 	_, _ = io.Copy(f, res.Body)
 }
 
@@ -31,6 +32,7 @@ func unzipSsr(path string) {
 		fmt.Println(err)
 		return
 	}
+	defer r.Close()
 	var unzipName string
 	for num, k := range r.Reader.File {
 		if k.FileInfo().IsDir() {
@@ -49,7 +51,6 @@ func unzipSsr(path string) {
 			continue
 		}
 		fmt.Println("unzip: ", k.Name)
-		defer r.Close()
 		NewFile, err := os.Create(path + "/" + k.Name)
 		if err != nil {
 			fmt.Println(err)
@@ -72,9 +73,6 @@ func GetSsrPython(path string) {
 
 	err := os.Remove(path + "/shadowsocksr.zip")
 	if err != nil {
-		//如果删除失败则输出 file remove Error!
-		log.Println("file remove Error!")
-		//输出错误详细信息
-		log.Println(err)
+		log.Fatalf("GetSsrPython -> %v", err)
 	}
 }

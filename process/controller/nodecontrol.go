@@ -1,4 +1,4 @@
-package process
+package controller
 
 import (
 	"errors"
@@ -12,18 +12,18 @@ import (
 )
 
 var (
-	ssrCmd *exec.Cmd
+	SsrCmd *exec.Cmd
 )
 
 func ReSet() error {
-	if ssrCmd == nil || ssrCmd.Process == nil {
+	if SsrCmd == nil || SsrCmd.Process == nil {
 		return nil
 	}
 
-	if err := ssrCmd.Process.Kill(); err != nil {
+	if err := SsrCmd.Process.Kill(); err != nil {
 		return err
 	}
-	ssrCmd = nil
+	SsrCmd = nil
 	return nil
 }
 
@@ -52,7 +52,7 @@ func ChangeNode() error {
 		if err != nil {
 			return err
 		}
-		Conn = conn.Conn
+		Proxy = conn.Conn
 	case *subscr.Shadowsocksr:
 		ssrCmd, localHost, err := ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
 		if err != nil {
@@ -67,7 +67,7 @@ func ChangeNode() error {
 			}
 		}()
 
-		Conn = func(host string) (conn net.Conn, err error) {
+		Proxy = func(host string) (conn net.Conn, err error) {
 			return socks5client.NewSocks5Client(localHost, "", "", host)
 		}
 	default:

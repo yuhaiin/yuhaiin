@@ -2,38 +2,35 @@ package match
 
 import (
 	"net"
-	"net/url"
 
 	"github.com/Asutorufa/yuhaiin/net/dns"
 )
 
 type Match struct {
-	dns func(domain string) (DNS []net.IP, err error)
+	DNS dns.DNS
 	//DNSStr string
 	cidr   *Cidr
 	domain *Domain
 }
 
-func (x *Match) SetDNS(host string, doh bool) {
-	urls, err := url.Parse("//" + host)
-	if err != nil {
-		return
-	}
-	if net.ParseIP(urls.Hostname()) != nil {
-		x.dns = func(domain string) (DNS []net.IP, err error) {
-			return dns.DNS(host, domain)
-		}
-	}
-	x.dns = func(domain string) (DNS []net.IP, err error) {
-		return dns.DOH(host, domain)
-	}
+type Des struct {
+	Des interface{}
+	DNS []net.IP
 }
 
-func (x *Match) DNS(domain string) (ip []net.IP) {
-	if x.dns == nil {
+func (x *Match) SetDNS(host string, doh bool) {
+	if doh {
+		x.DNS = dns.NewDOH(host)
+		return
+	}
+	x.DNS = dns.NewNormalDNS(host)
+}
+
+func (x *Match) GetIP(domain string) (ip []net.IP) {
+	if x.DNS == nil {
 		return nil
 	}
-	ip, _ = x.dns(domain)
+	ip, _ = x.DNS.Search(domain)
 	return
 }
 
@@ -46,35 +43,36 @@ func (x *Match) Insert(str string, mark interface{}) error {
 	return x.cidr.Insert(str, mark)
 }
 
-func (x *Match) Search(str string) (des interface{}) {
-	if des, _ = mCache.Get(str); des != nil {
-		return des
+func (x *Match) Search(str string) Des {
+	d := Des{}
+	if des, _ := mCache.Get(str); des != nil {
+		return des.(Des)
 	}
 
 	if net.ParseIP(str) != nil {
-		_, des = x.cidr.Search(str)
+		_, d.Des = x.cidr.Search(str)
 		goto _end
 	}
 
-	_, des = x.domain.SearchFlip(str)
-	if des != nil || x.dns == nil {
+	_, d.Des = x.domain.SearchFlip(str)
+	if d.Des != nil || x.DNS == nil {
 		goto _end
 	}
 
-	if dnsS, _ := x.dns(str); len(dnsS) > 0 {
-		_, des = x.cidr.Search(dnsS[0].String())
+	if dnsS, _ := x.DNS.Search(str); len(dnsS) > 0 {
+		d.DNS = dnsS
+		_, d.Des = x.cidr.Search(dnsS[0].String())
 	}
 
 _end:
-	mCache.Add(str, des)
-	return
+	mCache.Add(str, d)
+	return d
 }
 
-func NewMatch(dns string, doh bool) (matcher Match) {
-	m := Match{
+func NewMatch() (matcher *Match) {
+	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
 	}
-	m.SetDNS(dns, doh)
 	return m
 }

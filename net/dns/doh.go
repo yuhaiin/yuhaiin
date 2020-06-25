@@ -12,13 +12,36 @@ import (
 	"time"
 )
 
-// DOH DNS over HTTPS
-// https://tools.ietf.org/html/rfc8484
-func DOH(server string, domain string) (DNS []net.IP, err error) {
-	return dnsCommon(domain, func(data []byte) ([]byte, error) { return post(data, server) })
+type DOH struct {
+	Server string
+	Subnet net.IP
 }
 
-func get(dReq []byte, server string) (body []byte, err error) {
+func NewDOH(host string) DNS {
+	return &DOH{
+		Server: host,
+		Subnet: net.ParseIP("0.0.0.0"),
+	}
+}
+
+// DOH DNS over HTTPS
+// https://tools.ietf.org/html/rfc8484
+func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
+	return dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data, d.Server) })
+}
+
+func (d *DOH) SetSubnet(ip net.IP) {
+	if ip == nil {
+		d.Subnet = net.ParseIP("0.0.0.0")
+	}
+	d.Subnet = ip
+}
+
+func (d *DOH) SetServer(host string) {
+	d.Server = host
+}
+
+func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
 	query := strings.Replace(base64.URLEncoding.EncodeToString(dReq), "=", "", -1)
 	urls := "https://" + server + "/dns-query?dns=" + query
 	res, err := http.Get(urls)
@@ -34,7 +57,7 @@ func get(dReq []byte, server string) (body []byte, err error) {
 }
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
-func post(dReq []byte, server string) (body []byte, err error) {
+func (d *DOH) post(dReq []byte, server string) (body []byte, err error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, "", bytes.NewReader(dReq))
 	if err != nil {

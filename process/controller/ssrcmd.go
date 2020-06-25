@@ -1,4 +1,4 @@
-package process
+package controller
 
 import (
 	"log"
@@ -30,6 +30,10 @@ import (
 //"timeout":  "-t",
 //"udpTrans": "-u",
 
+var (
+	SSRPath string
+)
+
 func GetFreePort() (string, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
@@ -53,7 +57,7 @@ func ShadowsocksrCmd(s *subscr.Shadowsocksr) (ssrCmd *exec.Cmd, localHost string
 		return nil, "", err
 	}
 
-	cmd := append([]string{}, strings.Split(conFig.SsrPath, " ")...)
+	cmd := append([]string{}, strings.Split(SSRPath, " ")...)
 	cmd = append(cmd, "-s", s.Server)
 	cmd = append(cmd, "-p", s.Port)
 	cmd = append(cmd, "-m", s.Method)

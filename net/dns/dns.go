@@ -39,20 +39,39 @@ var (
 	ANY  = reqType{0b00000000, 0b11111111} // 255
 )
 
-var (
-	Subnet = net.ParseIP("0.0.0.0")
-)
-
-// DNS Normal DNS(use udp,and no encrypt)
-func DNS(DNSServer, domain string) (DNS []net.IP, err error) {
-	return dnsCommon(domain, func(data []byte) ([]byte, error) { return udpDial(data, DNSServer) })
+type NormalDNS struct {
+	Server string
+	Subnet net.IP
 }
 
-func dnsCommon(domain string, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
+func NewNormalDNS(host string) DNS {
+	return &NormalDNS{
+		Server: host,
+		Subnet: net.ParseIP("0.0.0.0"),
+	}
+}
+
+// DNS Normal DNS(use udp,and no encrypt)
+func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
+	return dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server) })
+}
+
+func (n *NormalDNS) SetSubnet(ip net.IP) {
+	if ip == nil {
+		n.Subnet = net.ParseIP("0.0.0.0")
+	}
+	n.Subnet = ip
+}
+
+func (n *NormalDNS) SetServer(host string) {
+	n.Server = host
+}
+
+func dnsCommon(domain string, subnet net.IP, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
 	if x, _ := cache.Get(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	req := createEDNSReq(domain, A, createEdnsClientSubnet(Subnet))
+	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
 
 	b, err := reqF(req)
 	if err != nil {

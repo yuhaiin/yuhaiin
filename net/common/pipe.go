@@ -1,6 +1,7 @@
 package common
 
 import (
+	"io"
 	"net"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,14 @@ func Forward(src, dst net.Conn) {
 	CloseSigPool.Put(CloseSig)
 }
 
+func SingleForward(src io.Reader, dst io.Writer) (err error) {
+	CloseSig := CloseSigPool.Get().(chan error)
+	go pipeStatistic2(src, dst, CloseSig, 0)
+	err = <-CloseSig
+	CloseSigPool.Put(CloseSig)
+	return
+}
+
 func pipe(src, dst net.Conn, closeSig chan error) {
 	buf := BuffPool.Get().([]byte)
 	defer func() {
@@ -70,6 +79,32 @@ func pipeStatistic(src, dst net.Conn, closeSig chan error, mode uint64) {
 		BuffPool.Put(buf[:cap(buf)])
 		_ = src.SetDeadline(time.Now())
 		_ = dst.SetDeadline(time.Now())
+	}()
+
+	for {
+		if n, err = src.Read(buf[0:]); err != nil {
+			break
+		}
+
+		go func() {
+			x := QueuePool.Get().([2]uint64)
+			x[0], x[1] = mode, uint64(n)
+			queue <- x
+		}()
+
+		if _, err = dst.Write(buf[0:n]); err != nil {
+			break
+		}
+	}
+}
+
+func pipeStatistic2(src io.Reader, dst io.Writer, closeSig chan error, mode uint64) {
+	var n int
+	var err error
+	buf := BuffPool.Get().([]byte)
+	defer func() {
+		closeSig <- err
+		BuffPool.Put(buf[:cap(buf)])
 	}()
 
 	for {

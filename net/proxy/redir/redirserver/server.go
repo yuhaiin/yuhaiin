@@ -3,6 +3,8 @@ package redirserver
 import (
 	"log"
 	"net"
+
+	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
 )
 
 type Server struct {
@@ -10,11 +12,11 @@ type Server struct {
 	closed   bool
 }
 
-func NewRedir(host string) (s *Server, err error) {
+func NewRedir(host string) (interfaces.Server, error) {
 	if host == "" {
 		return &Server{}, nil
 	}
-	s = &Server{}
+	s := &Server{}
 	return s, s.Redir(host)
 }
 

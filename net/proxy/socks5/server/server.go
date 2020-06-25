@@ -6,6 +6,8 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
+
 	"github.com/Asutorufa/yuhaiin/net/common"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
@@ -24,12 +26,12 @@ type Server struct {
 // port: socks5 listener port
 // username: socks5 server username
 // password: socks5 server password
-func NewSocks5Server(host, username, password string) (s *Server, err error) {
-	s = &Server{Username: username, Password: password}
+func NewSocks5Server(host, username, password string) (interfaces.Server, error) {
+	s := &Server{Username: username, Password: password}
 	if host == "" {
 		return s, nil
 	}
-	err = s.Socks5(host)
+	err := s.Socks5(host)
 	if err != nil {
 		return nil, fmt.Errorf("NewSocks5Server:SOCKS5 -> %v", err)
 	}
@@ -37,7 +39,7 @@ func NewSocks5Server(host, username, password string) (s *Server, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("NewSocks5Server:UDP -> %v", err)
 	}
-	return
+	return s, nil
 }
 
 func (s *Server) UpdateListen(host string) (err error) {

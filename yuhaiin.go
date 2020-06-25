@@ -5,12 +5,13 @@ package main
 import (
 	"log"
 
+	process2 "github.com/Asutorufa/yuhaiin/process/process"
+
 	"github.com/Asutorufa/yuhaiin/config"
 
 	//_ "net/http/pprof"
 
 	"github.com/Asutorufa/yuhaiin/gui"
-	"github.com/Asutorufa/yuhaiin/process"
 )
 
 func main() {
@@ -27,11 +28,11 @@ func main() {
 		gui.MessageBox(err.Error())
 		return
 	}
-	if err := process.GetProcessLock(); err != nil {
+	if err := process2.GetProcessLock(); err != nil {
 		gui.MessageBox("Process is already running!\nError Message: " + err.Error())
 		return
 	}
-	defer process.LockFileClose()
+	defer process2.LockFileClose()
 
 	gui.NewGui().App.Exec()
 }

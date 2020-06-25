@@ -5,8 +5,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	process2 "github.com/Asutorufa/yuhaiin/process/process"
+
+	"github.com/Asutorufa/yuhaiin/process/controller"
+
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -162,7 +165,7 @@ func (m *mainWindow) setListener() {
 			MessageBox(err.Error())
 			return
 		}
-		if err := process.ChangeNode(); err != nil {
+		if err := controller.ChangeNode(); err != nil {
 			_ = subscr.ChangeNowNode(groupBak, remarkBak)
 			MessageBox(err.Error())
 			return
@@ -183,7 +186,7 @@ func (m *mainWindow) setListener() {
 	m.latencyButton.ConnectClicked(func(bool2 bool) {
 		go func() {
 			t := time.Now()
-			lat, err := process.Latency(m.groupCombobox.CurrentText(), m.nodeCombobox.CurrentText())
+			lat, err := process2.Latency(m.groupCombobox.CurrentText(), m.nodeCombobox.CurrentText())
 			if err != nil {
 				m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  can't connect", t.Hour(), t.Minute(), t.Second()))
 				return

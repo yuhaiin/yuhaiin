@@ -1,7 +1,10 @@
 package process
 
 //http://www.hoverlees.com/blog/?p=1465#more-1465
-import "syscall"
+import (
+	"syscall"
+	"unsafe"
+)
 
 var modwininet = syscall.NewLazyDLL("wininet.dll")
 var InternetSetOptionA = modwininet.NewProc("InternetSetOptionA")
@@ -34,17 +37,10 @@ type (
 
 type INTERNET_PER_CONN_OPTION_LISTA struct {
 	dwsize        DWORD
-	pszConnection uintptr
+	pszConnection *uint16
 	dwOptionCount DWORD
 	dwOptionError DWORD
-	pOptions      struct {
-		dwOption DWORD
-		value    struct {
-			dwValue  DWORD
-			pszValue uintptr
-			ftValue  uintptr
-		}
-	}
+	pOptions      []LPINTERNET_PER_CONN_OPTIONA
 }
 
 //typedef struct {
@@ -59,11 +55,25 @@ type LPINTERNET_PER_CONN_OPTIONA struct {
 	dwOption DWORD
 	value    struct {
 		dwValue  DWORD
-		pszValue uintptr
-		ftValue  uintptr
+		pszValue *uint16
+		ftValue  FILETIME
 	}
 }
 
+//typedef struct _FILETIME {
+//DWORD dwLowDateTime;
+//DWORD dwHighDateTime;
+//} FILETIME, *PFILETIME, *LPFILETIME;
+
+type FILETIME struct {
+	dwLowDateTime  DWORD
+	dwHighDateTime DWORD
+}
+
 func setSysProxy() {
+	//syscall.StringToUTF16Ptr()
+	list := INTERNET_PER_CONN_OPTION_LISTA{}
+	list.dwsize = (DWORD)(unsafe.Sizeof(list))
+	list.pszConnection = nil
 }
 func unsetSysProxy() {}

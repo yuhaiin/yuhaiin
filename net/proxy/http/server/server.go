@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
+
 	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
@@ -26,16 +28,16 @@ type Server struct {
 // port: http listener port
 // username: http server username
 // password: http server password
-func NewHTTPServer(host, username, password string) (s *Server, err error) {
-	s = &Server{Username: username, Password: password}
+func NewHTTPServer(host, username, password string) (interfaces.Server, error) {
+	s := &Server{Username: username, Password: password}
 	if host == "" {
 		return s, nil
 	}
-	err = s.HTTPProxy(host)
-	return
+	err := s.HTTPProxy(host)
+	return s, err
 }
 
-func (h *Server) UpdateListenHost(host string) (err error) {
+func (h *Server) UpdateListen(host string) (err error) {
 	//log.Println(host)
 	if h.closed {
 		if host == "" {
@@ -190,9 +192,10 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		}
 
 		// from clash, thanks so much, if not have the code, the ReadRequest will error
-		buf := common.BuffPool.Get().([]byte)
-		_, err = io.CopyBuffer(client, resp.Body, buf)
-		common.BuffPool.Put(buf[:cap(buf)])
+		//buf := common.BuffPool.Get().([]byte)
+		//_, err = io.CopyBuffer(client, resp.Body, buf)
+		//common.BuffPool.Put(buf[:cap(buf)])
+		err = common.SingleForward(resp.Body, client)
 		if err != nil && err != io.EOF {
 			break
 		}

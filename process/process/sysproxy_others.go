@@ -10,8 +10,8 @@ import (
 )
 
 func SetSysProxy() {
-	httpUrl, _ := url.Parse("//" + conFig.HttpProxyAddress)
-	socks5Url, _ := url.Parse("//" + conFig.Socks5ProxyAddress)
+	httpUrl, _ := url.Parse("//" + ConFig.HttpProxyAddress)
+	socks5Url, _ := url.Parse("//" + ConFig.Socks5ProxyAddress)
 	// GNOME
 	//  gsettings set org.gnome.system.proxy mode 'manual'
 	_ = exec.Command("gsettings", "set", "org.gnome.system.proxy", "mode", "manual").Run()

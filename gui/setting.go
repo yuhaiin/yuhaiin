@@ -2,7 +2,7 @@ package gui
 
 import (
 	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/process"
+	"github.com/Asutorufa/yuhaiin/process/process"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -189,26 +189,24 @@ func (s *setting) setListener() {
 		conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
 		conFig.BypassFile = s.BypassFileLineText.Text()
 
-		wait := make(chan bool, 1)
-		go func() {
-			process.SetConFig(conFig)
-			wait <- true
-		}()
+		err := process.SetConFig(conFig)
+		if err != nil {
+			MessageBox(err.Error())
+			return
+		}
 
 		if err := config.SettingEnCodeJSON(conFig); err != nil {
 			MessageBox(err.Error())
 		}
 
 		update()
-		<-wait
-		close(wait)
 		MessageBox("Applied.")
 	}
 
 	// set Listener
 	s.applyButton.ConnectClicked(applyClick)
 	s.updateRuleButton.ConnectClicked(func(checked bool) {
-		if err := process.UpdateMatch(); err != nil {
+		if err := process.MatchCon.UpdateMatch(); err != nil {
 			MessageBox(err.Error())
 			return
 		}
