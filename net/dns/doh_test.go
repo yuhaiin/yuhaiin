@@ -5,8 +5,16 @@ import (
 )
 
 func TestDOH(t *testing.T) {
-	d := NewDOH("cloudflare-dns.com")
-	t.Log(d.Search("www.google.com"))
+	//d := NewDOH("cloudflare-dns.com")
+	//d := NewDOH("public.dns.iij.jp")
+	//d := NewDOH("dns.google")
+	d := NewDOH("dns.nextdns.io/e28bb3")
+	//_, s, _ := net.ParseCIDR("45.32.51.197/31")
+	//d.SetSubnet(s)
+	t.Log(d.Search("i2.hdslb.com"))
+	t.Log(d.Search("www.baidu.com"))
+	t.Log(d.Search("baidu.com"))
+	t.Log(d.Search("ss1.bdstatic.com"))
 	//t.Log(DOH("dns.google", "www.twitter.com"))
 	// t.Log(DOH("cloudflare-dns.com", "www.twitter.com"))
 	// t.Log(DOH("dns.google", "www.facebook.com"))

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/net/common"
+
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
@@ -55,19 +57,20 @@ func NewMatchController(bypassFile string) *MatchController {
 	m.bypassFile = bypassFile
 	m.Matcher = match.NewMatch()
 	_ = m.UpdateMatch()
+	common.ForwardTarget = m.Forward
 	return m
 }
 
-func (m *MatchController) EnableDNSProxy() {
-	m.dNSProxy = true
-	m.Matcher.DNS.SetProxy(m.proxy)
-}
-
-func (m *MatchController) DisEnableDNSProxy() {
-	m.dNSProxy = false
-	m.Matcher.DNS.SetProxy(func(addr string) (net.Conn, error) {
-		return net.DialTimeout("tcp", addr, 5*time.Second)
-	})
+func (m *MatchController) EnableDNSProxy(enable bool) {
+	if enable {
+		m.dNSProxy = true
+		m.Matcher.DNS.SetProxy(m.proxy)
+	} else {
+		m.dNSProxy = false
+		m.Matcher.DNS.SetProxy(func(addr string) (net.Conn, error) {
+			return net.DialTimeout("tcp", addr, 5*time.Second)
+		})
+	}
 }
 
 func (m *MatchController) EnableBYPASS(enable bool) {
@@ -77,7 +80,7 @@ func (m *MatchController) EnableBYPASS(enable bool) {
 func (m *MatchController) SetProxy(proxy func(host string) (net.Conn, error)) {
 	m.proxy = proxy
 	if m.dNSProxy {
-		m.EnableDNSProxy()
+		m.EnableDNSProxy(true)
 	}
 }
 

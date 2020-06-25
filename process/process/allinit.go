@@ -6,8 +6,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/process/controller"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
-
 	"github.com/Asutorufa/yuhaiin/config"
 )
 
@@ -17,16 +15,17 @@ var (
 	MatchCon       *controller.MatchController
 )
 
-func UpdateConFig() {
-	ConFig, _ = config.SettingDecodeJSON()
-}
+func SetConFig(config *config.Setting, first bool) (erra error) {
+	if first {
+		MatchCon = controller.NewMatchController(config.BypassFile)
+		LocalListenCon = controller.NewLocalListenController()
+	}
 
-func SetConFig(config *config.Setting) (erra error) {
-	if ConFig.DnsServer != config.DnsServer || ConFig.IsDNSOverHTTPS != config.IsDNSOverHTTPS {
+	if ConFig.DnsServer != config.DnsServer || ConFig.IsDNSOverHTTPS != config.IsDNSOverHTTPS || first {
 		MatchCon.SetDNS(config.DnsServer, config.IsDNSOverHTTPS)
 	}
 
-	if ConFig.DnsSubNet != config.DnsSubNet {
+	if ConFig.DnsSubNet != config.DnsSubNet || first {
 		_, subnet, err := net.ParseCIDR(config.DnsSubNet)
 		if err != nil {
 			if net.ParseIP(config.DnsSubNet).To4() != nil {
@@ -40,46 +39,48 @@ func SetConFig(config *config.Setting) (erra error) {
 		MatchCon.SetDNSSubNet(subnet)
 	}
 
-	if ConFig.DNSAcrossProxy != config.DNSAcrossProxy {
-		if config.DNSAcrossProxy {
-			MatchCon.EnableDNSProxy()
-		} else {
-			MatchCon.DisEnableDNSProxy()
-		}
+	if ConFig.DNSAcrossProxy != config.DNSAcrossProxy || first {
+		MatchCon.EnableDNSProxy(config.DNSAcrossProxy)
 	}
 
-	if ConFig.BypassFile != config.BypassFile {
+	if ConFig.Bypass != config.Bypass || first {
+		MatchCon.EnableBYPASS(config.Bypass)
+	}
+
+	if ConFig.BypassFile != config.BypassFile || first {
 		err := MatchCon.SetBypass(config.BypassFile)
 		if err != nil {
 			erra = fmt.Errorf("%v\nUpdateMatchErr -> %v", erra, err)
 		}
 	}
 
-	if ConFig.HttpProxyAddress != config.HttpProxyAddress {
+	if (ConFig.SsrPath != config.SsrPath && SsrCmd != nil) || first {
+		controller.SSRPath = config.SsrPath
+		err := ChangeNode()
+		if err != nil {
+			if !first {
+				erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
+			}
+		}
+	}
+
+	if ConFig.HttpProxyAddress != config.HttpProxyAddress || first {
 		err := LocalListenCon.SetHTTPHost(config.HttpProxyAddress)
 		if err != nil {
 			erra = fmt.Errorf("UpdateHTTPListenErr -> %v", err)
 		}
 	}
-	if ConFig.Socks5ProxyAddress != config.Socks5ProxyAddress {
+	if ConFig.Socks5ProxyAddress != config.Socks5ProxyAddress || first {
 		err := LocalListenCon.SetSocks5Host(config.Socks5ProxyAddress)
 		if err != nil {
 			erra = fmt.Errorf("UpdateSOCKS5ListenErr -> %v", err)
 		}
 	}
 
-	if ConFig.RedirProxyAddress != config.RedirProxyAddress {
+	if ConFig.RedirProxyAddress != config.RedirProxyAddress || first {
 		err := LocalListenCon.SetRedirHost(config.RedirProxyAddress)
 		if err != nil {
 			erra = fmt.Errorf("UpdateRedirListenErr -> %v", err)
-		}
-	}
-
-	if ConFig.SsrPath != config.SsrPath && SsrCmd != nil {
-		controller.SSRPath = config.SsrPath
-		err := ChangeNode()
-		if err != nil {
-			erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
 		}
 	}
 
@@ -90,44 +91,6 @@ func SetConFig(config *config.Setting) (erra error) {
 }
 
 func ProcessInit() (erra error) {
-	if ConFig == nil {
-		ConFig, _ = config.SettingDecodeJSON()
-	}
-
-	MatchCon = controller.NewMatchController(ConFig.BypassFile)
-	MatchCon.SetDNS(ConFig.DnsServer, ConFig.IsDNSOverHTTPS)
-	_, subnet, err := net.ParseCIDR(ConFig.DnsSubNet)
-	if err != nil {
-		if net.ParseIP(ConFig.DnsSubNet).To4() != nil {
-			_, subnet, _ = net.ParseCIDR(ConFig.DnsSubNet + "/32")
-		} else if net.ParseIP(ConFig.DnsSubNet).To16() != nil {
-			_, subnet, _ = net.ParseCIDR(ConFig.DnsSubNet + "/128")
-		}
-	}
-	MatchCon.SetDNSSubNet(subnet)
-	MatchCon.EnableBYPASS(ConFig.Bypass)
-	common.ForwardTarget = MatchCon.Forward
-	if ConFig.DNSAcrossProxy {
-		MatchCon.EnableDNSProxy()
-	}
-	controller.SSRPath = ConFig.SsrPath
-
-	_ = ChangeNode()
-
-	LocalListenCon = controller.NewLocalListenController()
-	err = LocalListenCon.SetHTTPHost(ConFig.HttpProxyAddress)
-	if err != nil {
-		erra = fmt.Errorf("UpdateHTTPListenErr -> %v", err)
-	}
-	err = LocalListenCon.SetSocks5Host(ConFig.Socks5ProxyAddress)
-	if err != nil {
-		erra = fmt.Errorf("UpdateSOCKS5ListenErr -> %v", err)
-	}
-
-	err = LocalListenCon.SetRedirHost(ConFig.RedirProxyAddress)
-	if err != nil {
-		erra = fmt.Errorf("UpdateRedirListenErr -> %v", err)
-	}
-
-	return
+	ConFig, _ = config.SettingDecodeJSON()
+	return SetConFig(ConFig, true)
 }

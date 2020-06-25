@@ -74,6 +74,7 @@ func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
 // https://www.cnblogs.com/mafeng/p/7068837.html
 func (d *DOH) post(dReq []byte, server string) (body []byte, err error) {
 	tr := &http.Transport{
+		//Proxy: http.ProxyFromEnvironment,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return d.Proxy(addr)
 		}}

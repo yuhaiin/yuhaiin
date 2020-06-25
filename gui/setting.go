@@ -189,7 +189,7 @@ func (s *setting) setListener() {
 		conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
 		conFig.BypassFile = s.BypassFileLineText.Text()
 
-		err := process.SetConFig(conFig)
+		err := process.SetConFig(conFig, false)
 		if err != nil {
 			MessageBox(err.Error())
 			return
