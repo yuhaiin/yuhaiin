@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -15,12 +16,16 @@ import (
 type DOH struct {
 	Server string
 	Subnet net.IP
+	Proxy  func(domain string) (net.Conn, error)
 }
 
 func NewDOH(host string) DNS {
 	return &DOH{
 		Server: host,
 		Subnet: net.ParseIP("0.0.0.0"),
+		Proxy: func(domain string) (net.Conn, error) {
+			return net.DialTimeout("tcp", domain, 5*time.Second)
+		},
 	}
 }
 
@@ -33,12 +38,21 @@ func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
 func (d *DOH) SetSubnet(ip net.IP) {
 	if ip == nil {
 		d.Subnet = net.ParseIP("0.0.0.0")
+		return
 	}
 	d.Subnet = ip
 }
 
+func (d *DOH) GetSubnet() net.IP {
+	return d.Subnet
+}
+
 func (d *DOH) SetServer(host string) {
 	d.Server = host
+}
+
+func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {
+	d.Proxy = proxy
 }
 
 func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
@@ -58,7 +72,11 @@ func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
 func (d *DOH) post(dReq []byte, server string) (body []byte, err error) {
-	client := &http.Client{Timeout: 5 * time.Second}
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return d.Proxy(addr)
+		}}
+	client := &http.Client{Transport: tr, Timeout: 5 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, "", bytes.NewReader(dReq))
 	if err != nil {
 		return nil, fmt.Errorf("DOH:post() newReq -> %v", err)

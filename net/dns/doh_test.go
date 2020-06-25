@@ -5,6 +5,8 @@ import (
 )
 
 func TestDOH(t *testing.T) {
+	d := NewDOH("cloudflare-dns.com")
+	t.Log(d.Search("www.google.com"))
 	//t.Log(DOH("dns.google", "www.twitter.com"))
 	// t.Log(DOH("cloudflare-dns.com", "www.twitter.com"))
 	// t.Log(DOH("dns.google", "www.facebook.com"))
@@ -17,9 +19,9 @@ func TestDOH(t *testing.T) {
 	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
 	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
 	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
-	t.Log(DOH("cloudflare-dns.com", "www.google.com"))
-	t.Log(DOH("dns.google", "www.archlinux.org"))
-	t.Log(DOH("dns.google", "yahoo.co.jp"))
+	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
+	//t.Log(DOH("dns.google", "www.archlinux.org"))
+	//t.Log(DOH("dns.google", "yahoo.co.jp"))
 
 	//t.Log(DOH("cloudflare-dns.com", "test-ipv6.nextdns.io"))
 	//t.Log(DOH("dns.nextdns.io", "google.com"))

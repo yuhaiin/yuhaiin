@@ -7,8 +7,6 @@ import (
 
 	process2 "github.com/Asutorufa/yuhaiin/process/process"
 
-	"github.com/Asutorufa/yuhaiin/process/controller"
-
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/subscr"
 	"github.com/therecipe/qt/core"
@@ -165,7 +163,7 @@ func (m *mainWindow) setListener() {
 			MessageBox(err.Error())
 			return
 		}
-		if err := controller.ChangeNode(); err != nil {
+		if err := process2.ChangeNode(); err != nil {
 			_ = subscr.ChangeNowNode(groupBak, remarkBak)
 			MessageBox(err.Error())
 			return

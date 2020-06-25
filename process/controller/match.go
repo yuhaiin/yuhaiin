@@ -37,26 +37,48 @@ type insertData struct {
 	other string
 }
 
-var (
-	Proxy = func(host string) (conn net.Conn, err error) { return net.DialTimeout("tcp", host, time.Second*7) }
-)
+//var (
+//	Proxy = func(host string) (conn net.Conn, err error) { return net.DialTimeout("tcp", host, time.Second*7) }
+//)
 
 type MatchController struct {
-	isBypass   bool
+	bypass     bool
+	dNSProxy   bool
 	bypassFile string
 	Matcher    *match.Match
+	proxy      func(host string) (conn net.Conn, err error)
 }
 
 func NewMatchController(bypassFile string) *MatchController {
 	m := &MatchController{}
+	m.proxy = func(host string) (conn net.Conn, err error) { return net.DialTimeout("tcp", host, 5*time.Second) }
 	m.bypassFile = bypassFile
 	m.Matcher = match.NewMatch()
 	_ = m.UpdateMatch()
 	return m
 }
 
+func (m *MatchController) EnableDNSProxy() {
+	m.dNSProxy = true
+	m.Matcher.DNS.SetProxy(m.proxy)
+}
+
+func (m *MatchController) DisEnableDNSProxy() {
+	m.dNSProxy = false
+	m.Matcher.DNS.SetProxy(func(addr string) (net.Conn, error) {
+		return net.DialTimeout("tcp", addr, 5*time.Second)
+	})
+}
+
 func (m *MatchController) EnableBYPASS(enable bool) {
-	m.isBypass = enable
+	m.bypass = enable
+}
+
+func (m *MatchController) SetProxy(proxy func(host string) (net.Conn, error)) {
+	m.proxy = proxy
+	if m.dNSProxy {
+		m.EnableDNSProxy()
+	}
 }
 
 func (m *MatchController) UpdateMatch() error {
@@ -104,8 +126,8 @@ func (m *MatchController) SetDNSSubNet(ip net.IP) {
 
 // https://myexternalip.com/raw
 func (m *MatchController) Forward(host string) (conn net.Conn, err error) {
-	if !m.isBypass {
-		return Proxy(host)
+	if !m.bypass {
+		return m.proxy(host)
 	}
 
 	var URI *url.URL
@@ -142,6 +164,7 @@ func (m *MatchController) Forward(host string) (conn net.Conn, err error) {
 
 		switch md.Des {
 		case ipDirect:
+			//log.Println(tmp, "IPDIRECT", host)
 			goto _direct
 		case IP:
 			goto _proxy
@@ -149,7 +172,7 @@ func (m *MatchController) Forward(host string) (conn net.Conn, err error) {
 	}
 
 _proxy:
-	return Proxy(host)
+	return m.proxy(host)
 _direct:
 	return net.DialTimeout("tcp", host, 5*time.Second)
 }

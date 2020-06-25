@@ -19,11 +19,16 @@ type Des struct {
 }
 
 func (x *Match) SetDNS(host string, doh bool) {
+	var subnet net.IP
+	if x.DNS != nil {
+		subnet = x.DNS.GetSubnet()
+	}
 	if doh {
 		x.DNS = dns.NewDOH(host)
-		return
+	} else {
+		x.DNS = dns.NewNormalDNS(host)
 	}
-	x.DNS = dns.NewNormalDNS(host)
+	x.DNS.SetSubnet(subnet)
 }
 
 func (x *Match) GetIP(domain string) (ip []net.IP) {

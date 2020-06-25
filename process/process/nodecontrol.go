@@ -1,10 +1,12 @@
-package controller
+package process
 
 import (
 	"errors"
 	"log"
 	"net"
 	"os/exec"
+
+	"github.com/Asutorufa/yuhaiin/process/controller"
 
 	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
@@ -52,9 +54,9 @@ func ChangeNode() error {
 		if err != nil {
 			return err
 		}
-		Proxy = conn.Conn
+		MatchCon.SetProxy(conn.Conn)
 	case *subscr.Shadowsocksr:
-		ssrCmd, localHost, err := ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
+		ssrCmd, localHost, err := controller.ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
 		if err != nil {
 			return err
 		}
@@ -67,9 +69,9 @@ func ChangeNode() error {
 			}
 		}()
 
-		Proxy = func(host string) (conn net.Conn, err error) {
+		MatchCon.SetProxy(func(host string) (conn net.Conn, err error) {
 			return socks5client.NewSocks5Client(localHost, "", "", host)
-		}
+		})
 	default:
 		return errors.New("no support type proxy")
 	}

@@ -30,6 +30,14 @@ func SetConFig(config *config.Setting) (erra error) {
 		MatchCon.SetDNSSubNet(net.ParseIP(config.DnsSubNet))
 	}
 
+	if ConFig.DNSAcrossProxy != config.DNSAcrossProxy {
+		if config.DNSAcrossProxy {
+			MatchCon.EnableDNSProxy()
+		} else {
+			MatchCon.DisEnableDNSProxy()
+		}
+	}
+
 	if ConFig.BypassFile != config.BypassFile {
 		err := MatchCon.SetBypass(config.BypassFile)
 		if err != nil {
@@ -57,9 +65,9 @@ func SetConFig(config *config.Setting) (erra error) {
 		}
 	}
 
-	if ConFig.SsrPath != config.SsrPath && controller.SsrCmd != nil {
+	if ConFig.SsrPath != config.SsrPath && SsrCmd != nil {
 		controller.SSRPath = config.SsrPath
-		err := controller.ChangeNode()
+		err := ChangeNode()
 		if err != nil {
 			erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
 		}
@@ -81,10 +89,12 @@ func ProcessInit() (erra error) {
 	MatchCon.SetDNSSubNet(net.ParseIP(ConFig.DnsSubNet))
 	MatchCon.EnableBYPASS(ConFig.Bypass)
 	common.ForwardTarget = MatchCon.Forward
-
+	if ConFig.DNSAcrossProxy {
+		MatchCon.EnableDNSProxy()
+	}
 	controller.SSRPath = ConFig.SsrPath
 
-	_ = controller.ChangeNode()
+	_ = ChangeNode()
 
 	LocalListenCon = controller.NewLocalListenController()
 	err := LocalListenCon.SetHTTPHost(ConFig.HttpProxyAddress)

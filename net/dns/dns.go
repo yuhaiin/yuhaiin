@@ -59,13 +59,20 @@ func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
 func (n *NormalDNS) SetSubnet(ip net.IP) {
 	if ip == nil {
 		n.Subnet = net.ParseIP("0.0.0.0")
+		return
 	}
 	n.Subnet = ip
+}
+
+func (n *NormalDNS) GetSubnet() net.IP {
+	return n.Subnet
 }
 
 func (n *NormalDNS) SetServer(host string) {
 	n.Server = host
 }
+
+func (n *NormalDNS) SetProxy(proxy func(addr string) (net.Conn, error)) {}
 
 func dnsCommon(domain string, subnet net.IP, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
 	if x, _ := cache.Get(domain); x != nil {
