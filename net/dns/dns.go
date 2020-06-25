@@ -41,13 +41,14 @@ var (
 
 type NormalDNS struct {
 	Server string
-	Subnet net.IP
+	Subnet *net.IPNet
 }
 
 func NewNormalDNS(host string) DNS {
+	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
 	return &NormalDNS{
 		Server: host,
-		Subnet: net.ParseIP("0.0.0.0"),
+		Subnet: subnet,
 	}
 }
 
@@ -56,15 +57,15 @@ func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
 	return dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server) })
 }
 
-func (n *NormalDNS) SetSubnet(ip net.IP) {
+func (n *NormalDNS) SetSubnet(ip *net.IPNet) {
 	if ip == nil {
-		n.Subnet = net.ParseIP("0.0.0.0")
+		_, n.Subnet, _ = net.ParseCIDR("0.0.0.0/0")
 		return
 	}
 	n.Subnet = ip
 }
 
-func (n *NormalDNS) GetSubnet() net.IP {
+func (n *NormalDNS) GetSubnet() *net.IPNet {
 	return n.Subnet
 }
 
@@ -74,7 +75,7 @@ func (n *NormalDNS) SetServer(host string) {
 
 func (n *NormalDNS) SetProxy(proxy func(addr string) (net.Conn, error)) {}
 
-func dnsCommon(domain string, subnet net.IP, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
+func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
 	if x, _ := cache.Get(domain); x != nil {
 		return x.([]net.IP), nil
 	}

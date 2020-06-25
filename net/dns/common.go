@@ -5,7 +5,7 @@ import "net"
 type DNS interface {
 	SetProxy(proxy func(addr string) (net.Conn, error))
 	SetServer(host string)
-	SetSubnet(subnet net.IP)
-	GetSubnet() net.IP
+	SetSubnet(subnet *net.IPNet)
+	GetSubnet() *net.IPNet
 	Search(domain string) ([]net.IP, error)
 }

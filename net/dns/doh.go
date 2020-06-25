@@ -15,14 +15,15 @@ import (
 
 type DOH struct {
 	Server string
-	Subnet net.IP
+	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
 }
 
 func NewDOH(host string) DNS {
+	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
 	return &DOH{
 		Server: host,
-		Subnet: net.ParseIP("0.0.0.0"),
+		Subnet: subnet,
 		Proxy: func(domain string) (net.Conn, error) {
 			return net.DialTimeout("tcp", domain, 5*time.Second)
 		},
@@ -35,15 +36,15 @@ func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
 	return dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data, d.Server) })
 }
 
-func (d *DOH) SetSubnet(ip net.IP) {
+func (d *DOH) SetSubnet(ip *net.IPNet) {
 	if ip == nil {
-		d.Subnet = net.ParseIP("0.0.0.0")
+		_, d.Subnet, _ = net.ParseCIDR("0.0.0.0/0")
 		return
 	}
 	d.Subnet = ip
 }
 
-func (d *DOH) GetSubnet() net.IP {
+func (d *DOH) GetSubnet() *net.IPNet {
 	return d.Subnet
 }
 

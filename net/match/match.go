@@ -19,7 +19,7 @@ type Des struct {
 }
 
 func (x *Match) SetDNS(host string, doh bool) {
-	var subnet net.IP
+	var subnet *net.IPNet
 	if x.DNS != nil {
 		subnet = x.DNS.GetSubnet()
 	}

@@ -68,15 +68,16 @@ func createEDNSReq(domain string, reqType2 reqType, eDNS []byte) []byte {
 	return bytes.Join([][]byte{normalReq, name, typeR, payloadSize, extendRcode, eDNSVersion, z, dataLength[:], eDNS}, []byte{})
 }
 
-func createEdnsClientSubnet(ip net.IP) []byte {
+func createEdnsClientSubnet(ip *net.IPNet) []byte {
 	optionCode := []byte{EdnsClientSubnet[0], EdnsClientSubnet[1]}
-
+	mask, _ := ip.Mask.Size()
 	family := []byte{0b00000000, 0b00000001} // 1:Ipv4 2:IPv6 https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
-	sourceNetmask := []byte{0b00100000}      // 32
+	sourceNetmask := []byte{byte(mask)}      // 32
 	scopeNetmask := []byte{0b00000000}       //0 In queries, it MUST be set to 0.
-	subnet := ip.To4()                       //depending family
+	subnet := ip.IP.To4()
+	//depending family
 	if subnet == nil {
-		subnet = ip.To16()
+		subnet = ip.IP.To16()
 		family = []byte{0b00000000, 0b00000010}
 	}
 	optionData := bytes.Join([][]byte{family, sourceNetmask, scopeNetmask, subnet}, []byte{})

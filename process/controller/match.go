@@ -117,7 +117,7 @@ func (m *MatchController) SetDNS(server string, doh bool) {
 	m.Matcher.SetDNS(server, doh)
 }
 
-func (m *MatchController) SetDNSSubNet(ip net.IP) {
+func (m *MatchController) SetDNSSubNet(ip *net.IPNet) {
 	if m.Matcher.DNS == nil {
 		return
 	}
@@ -165,6 +165,7 @@ func (m *MatchController) Forward(host string) (conn net.Conn, err error) {
 		switch md.Des {
 		case ipDirect:
 			//log.Println(tmp, "IPDIRECT", host)
+			//log.Println(m.Matcher.DNS.GetSubnet().IP, m.Matcher.DNS.GetSubnet().Mask)
 			goto _direct
 		case IP:
 			goto _proxy

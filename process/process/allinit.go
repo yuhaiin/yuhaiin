@@ -27,7 +27,17 @@ func SetConFig(config *config.Setting) (erra error) {
 	}
 
 	if ConFig.DnsSubNet != config.DnsSubNet {
-		MatchCon.SetDNSSubNet(net.ParseIP(config.DnsSubNet))
+		_, subnet, err := net.ParseCIDR(config.DnsSubNet)
+		if err != nil {
+			if net.ParseIP(config.DnsSubNet).To4() != nil {
+				_, subnet, _ = net.ParseCIDR(config.DnsSubNet + "/32")
+			}
+
+			if net.ParseIP(config.DnsSubNet).To16() != nil {
+				_, subnet, _ = net.ParseCIDR(config.DnsSubNet + "/128")
+			}
+		}
+		MatchCon.SetDNSSubNet(subnet)
 	}
 
 	if ConFig.DNSAcrossProxy != config.DNSAcrossProxy {
@@ -86,7 +96,15 @@ func ProcessInit() (erra error) {
 
 	MatchCon = controller.NewMatchController(ConFig.BypassFile)
 	MatchCon.SetDNS(ConFig.DnsServer, ConFig.IsDNSOverHTTPS)
-	MatchCon.SetDNSSubNet(net.ParseIP(ConFig.DnsSubNet))
+	_, subnet, err := net.ParseCIDR(ConFig.DnsSubNet)
+	if err != nil {
+		if net.ParseIP(ConFig.DnsSubNet).To4() != nil {
+			_, subnet, _ = net.ParseCIDR(ConFig.DnsSubNet + "/32")
+		} else if net.ParseIP(ConFig.DnsSubNet).To16() != nil {
+			_, subnet, _ = net.ParseCIDR(ConFig.DnsSubNet + "/128")
+		}
+	}
+	MatchCon.SetDNSSubNet(subnet)
 	MatchCon.EnableBYPASS(ConFig.Bypass)
 	common.ForwardTarget = MatchCon.Forward
 	if ConFig.DNSAcrossProxy {
@@ -97,7 +115,7 @@ func ProcessInit() (erra error) {
 	_ = ChangeNode()
 
 	LocalListenCon = controller.NewLocalListenController()
-	err := LocalListenCon.SetHTTPHost(ConFig.HttpProxyAddress)
+	err = LocalListenCon.SetHTTPHost(ConFig.HttpProxyAddress)
 	if err != nil {
 		erra = fmt.Errorf("UpdateHTTPListenErr -> %v", err)
 	}

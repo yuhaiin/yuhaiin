@@ -46,15 +46,15 @@ type Setting struct {
 func SettingInitJSON() error {
 	pa := &Setting{
 		BypassFile:         Path + pathSeparator + "yuhaiin.conf",
-		DnsServer:          "1.0.0.1:53",
-		DnsSubNet:          "0.0.0.0",
+		DnsServer:          "cloudflare-dns.com",
+		DnsSubNet:          "0.0.0.0/32",
 		Bypass:             true,
 		HttpProxyAddress:   "127.0.0.1:8188",
 		Socks5ProxyAddress: "127.0.0.1:1080",
 		RedirProxyAddress:  "127.0.0.1:8088",
-		IsDNSOverHTTPS:     false,
+		IsDNSOverHTTPS:     true,
 		DNSAcrossProxy:     false,
-		SsrPath:            " ",
+		SsrPath:            "",
 		BlackIcon:          false,
 
 		// not use now
