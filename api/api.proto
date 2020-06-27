@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+service api {
+  rpc SetConfig(config)returns(google.protobuf.Empty){}
+  rpc GetGroup(google.protobuf.Empty)returns(allGroupOrNode){}
+  rpc GetNode(google.protobuf.StringValue)returns(allGroupOrNode){}
+  rpc GetNowGroupAndName(google.protobuf.Empty)returns(NowNodeGroupAndNode){}
+  rpc ChangeNowNode(NowNodeGroupAndNode)returns(google.protobuf.Empty){};
+  rpc Latency(NowNodeGroupAndNode)returns(google.protobuf.StringValue){};
+}
+
+//    BlackIcon          bool   `json:"black_icon"`
+//    IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
+//    DNSAcrossProxy     bool   `json:"dns_across_proxy"`
+//DnsServer          string `json:"dnsServer"`
+//    DnsSubNet          string `json:"dns_sub_net"`
+//    Bypass             bool   `json:"bypass"`
+//    HttpProxyAddress   string `json:"httpProxyAddress"`
+//    Socks5ProxyAddress string `json:"socks5ProxyAddress"`
+//    RedirProxyAddress  string `json:"redir_proxy_address"`
+//    BypassFile         string `json:"bypassFile"`
+//    SsrPath            string `json:"ssrPath"`
+//    LocalAddress       string `json:"localAddress"`
+//    LocalPort          string `json:"localPort"`
+//
+//// not use now
+//    PythonPath   string `json:"pythonPath"`
+//    PidFile      string `json:"pidPath"`
+//    LogFile      string `json:"logPath"`
+//    FastOpen     bool   `json:"fastOpen"`
+//    Works        string `json:"works"`
+//    TimeOut      string `json:"timeOut"`
+//    HttpProxy    bool   `json:"httpProxy"`
+//    UdpTrans     bool   `json:"udpTrans"`
+//    AutoStartSsr bool   `json:"autoStartSsr"`
+//    IsPrintLog   bool   `json:"is_print_log"`
+//    UseLocalDNS  bool   `json:"use_local_dns"`
+message config{
+  bool BlackIcon = 1;
+  bool DOH = 2;
+  bool DNSProxy = 3;
+  string DNS = 4;
+  string DNSSubNet = 5;
+  bool Bypass = 6;
+  string BypassFile = 7;
+  string HTTP = 8;
+  string SOCKS5 = 9;
+  string REDIR = 10;
+  string SSRPath = 11;
+}
+
+message allGroupOrNode {
+  int32 status = 1;
+  repeated string name = 2;
+}
+
+message NowNodeGroupAndNode{
+  int32 status = 1;
+  string group = 2;
+  string node = 3;
+}

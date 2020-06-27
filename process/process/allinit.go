@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/subscr"
+
 	"github.com/Asutorufa/yuhaiin/process/controller"
 
 	"github.com/Asutorufa/yuhaiin/config"
@@ -13,6 +15,7 @@ var (
 	ConFig         *config.Setting
 	LocalListenCon *controller.LocalListen
 	MatchCon       *controller.MatchController
+	Nodes          *subscr.Node
 )
 
 func SetConFig(config *config.Setting, first bool) (erra error) {
@@ -91,6 +94,39 @@ func SetConFig(config *config.Setting, first bool) (erra error) {
 }
 
 func ProcessInit() (erra error) {
+	var err error
+	Nodes, err = subscr.GetNodesJSON()
+	if err != nil {
+		erra = fmt.Errorf("%v\nGetNodes -> %v", erra, err)
+	}
 	ConFig, _ = config.SettingDecodeJSON()
-	return SetConFig(ConFig, true)
+	err = SetConFig(ConFig, true)
+	if err != nil {
+		erra = fmt.Errorf("%v\nSetConfig() -> %v", erra, err)
+	}
+	return
+}
+
+func ChangeNNode(group string, node string) (erra error) {
+	err := subscr.ChangeNowNode(group, node)
+	if err != nil {
+		erra = fmt.Errorf("%v\nChangeNowNode -> %v", erra, err)
+	}
+	err = ChangeNode()
+	if err != nil {
+		erra = fmt.Errorf("%v\nChangeNode -> %v", erra, err)
+	}
+	return
+}
+
+func GetNNodeAndNGroup() (node string, group string) {
+	return subscr.GetNowNodeGroupAndName()
+}
+
+func GetNodes(group string) ([]string, error) {
+	return subscr.GetNode(group)
+}
+
+func GetGroups() ([]string, error) {
+	return subscr.GetGroup()
 }

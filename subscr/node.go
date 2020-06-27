@@ -53,6 +53,10 @@ func decodeJSON() (*Node, error) {
 	return pa, nil
 }
 
+func GetNodesJSON() (*Node, error) {
+	return decodeJSON()
+}
+
 func enCodeJSON(pa *Node) error {
 	file, err := os.Create(jsonPath)
 	if err != nil {
@@ -64,6 +68,10 @@ func enCodeJSON(pa *Node) error {
 		return err
 	}
 	return nil
+}
+
+func SaveNode(pa *Node) error {
+	return enCodeJSON(pa)
 }
 
 // GetLinkFromInt <--
@@ -256,6 +264,10 @@ func map2struct(s map[string]interface{}) (interface{}, error) {
 		return node, nil
 	}
 	return nil, errors.New("not support type")
+}
+
+func ParseNode(s map[string]interface{}) (interface{}, error) {
+	return map2struct(s)
 }
 
 // GetOneNode get one node by group and remarks
