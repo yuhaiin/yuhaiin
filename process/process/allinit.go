@@ -100,7 +100,7 @@ func SetConFig(conf *config.Setting, first bool) (erra error) {
 
 func ProcessInit() (erra error) {
 	var err error
-	Nodes, err = subscr.GetNodesJSON()
+	err = RefreshNodes()
 	if err != nil {
 		erra = fmt.Errorf("%v\nGetNodes -> %v", erra, err)
 	}
@@ -112,30 +112,6 @@ func ProcessInit() (erra error) {
 	return
 }
 
-func ChangeNNode(group string, node string) (erra error) {
-	err := subscr.ChangeNowNode(group, node)
-	if err != nil {
-		erra = fmt.Errorf("%v\nChangeNowNode -> %v", erra, err)
-	}
-	err = ChangeNode()
-	if err != nil {
-		erra = fmt.Errorf("%v\nChangeNode -> %v", erra, err)
-	}
-	return
-}
-
-func GetNNodeAndNGroup() (node string, group string) {
-	return subscr.GetNowNodeGroupAndName()
-}
-
-func GetNodes(group string) ([]string, error) {
-	return subscr.GetNode(group)
-}
-
-func GetGroups() ([]string, error) {
-	return subscr.GetGroup()
-}
-
 func GetConfig() (*config.Setting, error) {
-	return config.SettingDecodeJSON()
+	return ConFig, nil
 }

@@ -37,7 +37,7 @@ func ChangeNode() error {
 		return err
 	}
 
-	nNode, err := subscr.GetNowNode()
+	nNode, err := GetNowNode()
 	if err != nil {
 		return err
 	}

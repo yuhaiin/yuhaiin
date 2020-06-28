@@ -12,7 +12,7 @@ import (
 )
 
 func Latency(group, mark string) (time.Duration, error) {
-	n, err := subscr.GetOneNode(group, mark)
+	n, err := GetOneNode(group, mark)
 	if err != nil {
 		return 0, err
 	}
