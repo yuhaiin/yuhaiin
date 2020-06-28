@@ -35,7 +35,7 @@ func main() {
 	var clientHost string
 	flag.StringVar(&clientHost, "host", "127.0.0.1:50051", "kernel rpc host")
 
-	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	log.SetFlags(log.Llongfile | log.LstdFlags)
 	file, err := exec.LookPath(os.Args[0])
 	if err != nil {
 		log.Println(err)

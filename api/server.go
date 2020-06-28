@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/common"
@@ -15,8 +17,21 @@ type Server struct {
 	UnimplementedApiServer
 }
 
+var (
+	message   chan string
+	messageOn bool
+)
+
 func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return &empty.Empty{}, process.GetProcessLock()
+}
+
+func (s *Server) ClientOn(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	if !messageOn {
+		return &empty.Empty{}, errors.New("no client")
+	}
+	message <- "on"
+	return &empty.Empty{}, nil
 }
 
 func (s *Server) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
@@ -96,4 +111,27 @@ func (s *Server) GetAllDownAndUP(context.Context, *empty.Empty) (*DownAndUP, err
 
 func (s *Server) ReducedUnit(_ context.Context, req *wrappers.DoubleValue) (*wrappers.StringValue, error) {
 	return &wrappers.StringValue{Value: common.ReducedUnitStr(req.Value)}, nil
+}
+
+func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
+	if messageOn {
+		return errors.New("already exist one client")
+	}
+	message = make(chan string, 1)
+	messageOn = true
+	ctx := srv.Context()
+
+	for {
+		select {
+		case m := <-message:
+			err := srv.Send(&wrappers.StringValue{Value: m})
+			if err != nil {
+				log.Println(err)
+			}
+		case <-ctx.Done():
+			close(message)
+			messageOn = false
+			return ctx.Err()
+		}
+	}
 }

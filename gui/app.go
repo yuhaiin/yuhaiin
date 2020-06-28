@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"context"
+	"io"
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/api"
@@ -34,8 +36,26 @@ func NewGui(client api.ApiClient) *SGui {
 	microClientGUI.subscriptionWindow = NewSubscription(microClientGUI.MainWindow)
 	microClientGUI.settingWindow = NewSettingWindow(microClientGUI.MainWindow)
 	microClientGUI.trayInit()
-
+	_ = microClientGUI.clientInit()
 	return microClientGUI
+}
+
+func (sGui *SGui) clientInit() error {
+	c, err := apiC.SingleInstance(context.Background())
+	if err != nil {
+		return err
+	}
+	for {
+		_, err := c.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		sGui.openWindow(sGui.MainWindow)
+	}
+	return nil
 }
 
 func (sGui *SGui) trayInit() {

@@ -12,6 +12,7 @@ import "config/config.proto";
 
 service api {
   rpc ProcessInit(google.protobuf.Empty)returns(google.protobuf.Empty){}
+  rpc ClientOn(google.protobuf.Empty)returns(google.protobuf.Empty){}
   rpc ProcessExit(google.protobuf.Empty)returns(google.protobuf.Empty){}
 
   rpc GetConfig(google.protobuf.Empty)returns(yuhaiin.config.Setting){}
@@ -31,6 +32,8 @@ service api {
   rpc Latency(NowNodeGroupAndNode)returns(google.protobuf.StringValue){}
   rpc GetAllDownAndUP(google.protobuf.Empty)returns(DownAndUP){}
   rpc ReducedUnit(google.protobuf.DoubleValue)returns(google.protobuf.StringValue){}
+
+  rpc SingleInstance(stream google.protobuf.StringValue)returns(stream google.protobuf.StringValue){}
 }
 
 message allGroupOrNode {

@@ -121,7 +121,6 @@ func (m *mainWindow) setGeometry() {
 }
 
 func (m *mainWindow) refresh() {
-	//group, err := subscr.GetGroup()
 	group, err := apiC.GetGroup(apiCtx(), &empty.Empty{})
 	if err != nil {
 		MessageBox(err.Error())
@@ -142,10 +141,10 @@ func (m *mainWindow) refresh() {
 		MessageBox(err.Error())
 		return
 	}
-	nowNodeName, nowNodeGroup := nowNodeAndGroup.Node, nowNodeAndGroup.Group
-	m.groupCombobox.SetCurrentText(nowNodeGroup)
-	m.nodeCombobox.SetCurrentText(nowNodeName)
-	m.nowNodeLabel2.SetText(nowNodeName)
+
+	m.groupCombobox.SetCurrentText(nowNodeAndGroup.Group)
+	m.nodeCombobox.SetCurrentText(nowNodeAndGroup.Node)
+	m.nowNodeLabel2.SetText(nowNodeAndGroup.Node)
 }
 
 func (m *mainWindow) subUpdate() {
