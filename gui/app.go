@@ -42,9 +42,6 @@ func (sGui *SGui) trayInit() {
 	img := gui.NewQPixmap()
 	var err error
 	conFig, err = apiC.GetConfig(apiCtx(), &empty.Empty{})
-	//log.Println("trayInit", conFig)
-	//conFig, err := config.SettingDecodeJSON()
-	//config, err := apiC.GetConfig(apiCtx, nil)
 	if err != nil || !conFig.BlackIcon {
 		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(iconWhite, len(iconWhite))), "svg", core.Qt__AutoColor)
 	} else {

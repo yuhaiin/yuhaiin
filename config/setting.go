@@ -93,35 +93,47 @@ func SettingDecodeJSON() (*Setting, error) {
 }
 
 func trans(i *Setting) *settingI {
-	x := &settingI{}
-	x.BlackIcon = i.BlackIcon
-	x.SsrPath = i.SsrPath
-	x.RedirProxyAddress = i.RedirProxyAddress
-	x.Socks5ProxyAddress = i.Socks5ProxyAddress
-	x.HttpProxyAddress = i.HttpProxyAddress
-	x.Bypass = i.Bypass
-	x.BypassFile = i.BypassFile
-	x.DnsServer = i.DnsServer
-	x.DnsSubNet = i.DnsSubNet
-	x.DNSAcrossProxy = i.DNSAcrossProxy
-	x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
-	return x
+	return iTrans(i).(*settingI)
 }
 
 func reTrans(i *settingI) *Setting {
-	x := &Setting{}
-	x.BlackIcon = i.BlackIcon
-	x.SsrPath = i.SsrPath
-	x.RedirProxyAddress = i.RedirProxyAddress
-	x.Socks5ProxyAddress = i.Socks5ProxyAddress
-	x.HttpProxyAddress = i.HttpProxyAddress
-	x.Bypass = i.Bypass
-	x.BypassFile = i.BypassFile
-	x.DnsServer = i.DnsServer
-	x.DnsSubNet = i.DnsSubNet
-	x.DNSAcrossProxy = i.DNSAcrossProxy
-	x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
-	return x
+	return iTrans(i).(*Setting)
+}
+
+func iTrans(ii interface{}) interface{} {
+	switch ii.(type) {
+	case *settingI:
+		x := &Setting{}
+		i := ii.(*settingI)
+		x.BlackIcon = i.BlackIcon
+		x.SsrPath = i.SsrPath
+		x.RedirProxyAddress = i.RedirProxyAddress
+		x.Socks5ProxyAddress = i.Socks5ProxyAddress
+		x.HttpProxyAddress = i.HttpProxyAddress
+		x.Bypass = i.Bypass
+		x.BypassFile = i.BypassFile
+		x.DnsServer = i.DnsServer
+		x.DnsSubNet = i.DnsSubNet
+		x.DNSAcrossProxy = i.DNSAcrossProxy
+		x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
+		return x
+	case *Setting:
+		x := &settingI{}
+		i := ii.(*Setting)
+		x.BlackIcon = i.BlackIcon
+		x.SsrPath = i.SsrPath
+		x.RedirProxyAddress = i.RedirProxyAddress
+		x.Socks5ProxyAddress = i.Socks5ProxyAddress
+		x.HttpProxyAddress = i.HttpProxyAddress
+		x.Bypass = i.Bypass
+		x.BypassFile = i.BypassFile
+		x.DnsServer = i.DnsServer
+		x.DnsSubNet = i.DnsSubNet
+		x.DNSAcrossProxy = i.DNSAcrossProxy
+		x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
+		return x
+	}
+	return nil
 }
 
 // SettingEnCodeJSON encode setting struct to json

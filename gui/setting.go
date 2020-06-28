@@ -157,11 +157,6 @@ func (s *setting) setListener() {
 	// Listen
 	update := func() {
 		var err error
-		//conFig, err = config.SettingDecodeJSON()
-		//if err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
 		conFig, err = apiC.GetConfig(apiCtx(), &empty.Empty{})
 		if err != nil {
 			MessageBox(err.Error())
@@ -195,17 +190,6 @@ func (s *setting) setListener() {
 		conFig.Socks5ProxyAddress = s.socks5BypassLineText.Text()
 		conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
 		conFig.BypassFile = s.BypassFileLineText.Text()
-
-		//err := process.SetConFig(conFig, false)
-		//if err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
-		//
-		//if err := config.SettingEnCodeJSON(conFig); err != nil {
-		//	MessageBox(err.Error())
-		//}
-		//log.Println(conFig)
 		_, err := apiC.SetConfig(apiCtx(), conFig)
 		if err != nil {
 			MessageBox(err.Error())
@@ -217,10 +201,6 @@ func (s *setting) setListener() {
 	// set Listener
 	s.applyButton.ConnectClicked(applyClick)
 	s.updateRuleButton.ConnectClicked(func(checked bool) {
-		//if err := process.MatchCon.UpdateMatch(); err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
 		_, err := apiC.ReimportRule(apiCtx(), &empty.Empty{})
 		if err != nil {
 			MessageBox(err.Error())

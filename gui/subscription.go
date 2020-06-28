@@ -27,10 +27,6 @@ func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
 	})
 	s.subWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		s.subCombobox.Clear()
-		//link, err := subscr.GetLink()
-		//if err != nil {
-		//	MessageBox(err.Error())
-		//}
 		links, err := apiC.GetSubLinks(apiCtx(), &empty.Empty{})
 		if err != nil {
 			MessageBox(err.Error())
@@ -78,31 +74,16 @@ func (s *subscription) setGeometry() {
 
 func (s *subscription) setListener() {
 	s.deleteButton.ConnectClicked(func(bool2 bool) {
-		//linkToDelete := s.subCombobox.CurrentText()
-		//if err := subscr.RemoveLinkJSON(linkToDelete); err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
 		links, err := apiC.DeleteSubLink(apiCtx(), &wrappers.StringValue{Value: s.subCombobox.CurrentText()})
 		if err != nil {
 			MessageBox(err.Error())
 			return
 		}
 		s.subCombobox.Clear()
-		//link, err := subscr.GetLink()
-		//if err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
 		s.subCombobox.AddItems(links.Value)
 	})
 
 	s.addButton.ConnectClicked(func(bool2 bool) {
-		//link, err := subscr.GetLink()
-		//if err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
 		links, err := apiC.GetSubLinks(apiCtx(), &empty.Empty{})
 		if err != nil {
 			MessageBox(err.Error())

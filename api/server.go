@@ -16,9 +16,6 @@ type Server struct {
 }
 
 func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if err := config.PathInit(); err != nil {
-		return &empty.Empty{}, err
-	}
 	return &empty.Empty{}, process.GetProcessLock()
 }
 

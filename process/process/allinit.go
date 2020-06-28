@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/subscr"
-
-	"github.com/Asutorufa/yuhaiin/process/controller"
-
 	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/process/controller"
+	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
 var (
@@ -99,7 +97,10 @@ func SetConFig(conf *config.Setting, first bool) (erra error) {
 }
 
 func ProcessInit() (erra error) {
-	var err error
+	err := config.PathInit()
+	if err != nil {
+		erra = fmt.Errorf("%v\nProcessInit():PathInit -> %v", erra, err)
+	}
 	err = RefreshNodes()
 	if err != nil {
 		erra = fmt.Errorf("%v\nGetNodes -> %v", erra, err)

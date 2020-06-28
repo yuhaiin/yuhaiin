@@ -129,7 +129,6 @@ func (m *mainWindow) refresh() {
 	}
 	m.groupCombobox.Clear()
 	m.groupCombobox.AddItems(group.Value)
-	//node, err := subscr.GetNode(m.groupCombobox.CurrentText())
 	node, err := apiC.GetNode(apiCtx(), &wrappers.StringValue{Value: m.groupCombobox.CurrentText()})
 	if err != nil {
 		MessageBox(err.Error())
@@ -138,7 +137,6 @@ func (m *mainWindow) refresh() {
 	m.nodeCombobox.Clear()
 	m.nodeCombobox.AddItems(node.Value)
 
-	//nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
 	nowNodeAndGroup, err := apiC.GetNowGroupAndName(apiCtx(), &empty.Empty{})
 	if err != nil {
 		MessageBox(err.Error())
@@ -154,9 +152,6 @@ func (m *mainWindow) subUpdate() {
 	message := widgets.NewQMessageBox(m.mainWindow)
 	message.SetText("Updating!")
 	message.Show()
-	//if err := subscr.GetLinkFromInt(); err != nil {
-	//	MessageBox(err.Error())
-	//}
 	if _, err := apiC.UpdateSub(apiCtx(), &empty.Empty{}); err != nil {
 		MessageBox(err.Error())
 	}
@@ -166,24 +161,8 @@ func (m *mainWindow) subUpdate() {
 
 func (m *mainWindow) setListener() {
 	m.startButton.ConnectClicked(func(bool2 bool) {
-		//remarkBak, groupBak := subscr.GetNowNodeGroupAndName()
-		//tmp,err := apiC.GetNowGroupAndName(apiCtx,&empty.Empty{})
-		//if err != nil{
-		//	MessageBox(err.Error())
-		//	return
-		//}
-		//remarkBak,groupBak := tmp.Node,tmp.Group
 		group := m.groupCombobox.CurrentText()
 		remarks := m.nodeCombobox.CurrentText()
-		//if err := subscr.ChangeNowNode(group, remarks); err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
-		//if err := process2.ChangeNode(); err != nil {
-		//	_ = subscr.ChangeNowNode(groupBak, remarkBak)
-		//	MessageBox(err.Error())
-		//	return
-		//}
 		_, err := apiC.ChangeNowNode(apiCtx(), &api.NowNodeGroupAndNode{Group: group, Node: remarks})
 		if err != nil {
 			MessageBox(err.Error())
@@ -193,11 +172,6 @@ func (m *mainWindow) setListener() {
 	})
 
 	m.groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
-		//node, err := subscr.GetNode(m.groupCombobox.CurrentText())
-		//if err != nil {
-		//	MessageBox(err.Error())
-		//	return
-		//}
 		node, err := apiC.GetNode(apiCtx(), &wrappers.StringValue{Value: m.groupCombobox.CurrentText()})
 		if err != nil {
 			MessageBox(err.Error())
@@ -210,7 +184,6 @@ func (m *mainWindow) setListener() {
 	m.latencyButton.ConnectClicked(func(bool2 bool) {
 		go func() {
 			t := time.Now()
-			//lat, err := process2.Latency(m.groupCombobox.CurrentText(), m.nodeCombobox.CurrentText())
 			lat, err := apiC.Latency(apiCtx(), &api.NowNodeGroupAndNode{Group: m.groupCombobox.CurrentText(), Node: m.nodeCombobox.CurrentText()})
 			if err != nil {
 				m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  can't connect", t.Hour(), t.Minute(), t.Second()))
@@ -219,8 +192,6 @@ func (m *mainWindow) setListener() {
 			m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  %s", t.Hour(), t.Minute(), t.Second(), lat.Value))
 		}()
 	})
-
-	//m.subUpdateButton.ConnectClicked(func(bool2 bool) { m.subUpdate() })
 
 	statusRefreshIsRun := false
 	m.mainWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
