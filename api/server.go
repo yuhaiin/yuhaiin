@@ -3,72 +3,104 @@ package api
 import (
 	context "context"
 
+	"github.com/Asutorufa/yuhaiin/subscr"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/golang/protobuf/ptypes/wrappers"
 
 	"github.com/Asutorufa/yuhaiin/process/process"
 
-	config2 "github.com/Asutorufa/yuhaiin/config"
+	config "github.com/Asutorufa/yuhaiin/config"
 
 	"github.com/golang/protobuf/ptypes/empty"
 )
 
-type server struct {
+type Server struct {
 	UnimplementedApiServer
 }
 
-//message config{
-//bool BlackIcon = 1;
-//bool DOH = 2;
-//bool DNSProxy = 3;
-//string DNS = 4;
-//string DNSSubNet = 5;
-//bool Bypass = 6;
-//string BypassFile = 7;
-//string HTTP = 8;
-//string SOCKS5 = 9;
-//string REDIR = 10;
-//string SSRPath = 11;
-//}
-func (s *server) SetConfig(ctx context.Context, req *Config) (*empty.Empty, error) {
-	config := &config2.Setting{}
-	config.BlackIcon = req.BlackIcon
-	config.IsDNSOverHTTPS = req.DOH
-	config.DNSAcrossProxy = req.DNSProxy
-	config.DnsServer = req.DNS
-	config.DnsSubNet = req.DNSSubNet
-	config.Bypass = req.Bypass
-	config.BypassFile = req.BypassFile
-	config.HttpProxyAddress = req.HTTP
-	config.Socks5ProxyAddress = req.SOCKS5
-	config.RedirProxyAddress = req.REDIR
-	config.SsrPath = req.SSRPath
-	err := process.SetConFig(config, false)
-	return nil, err
+func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
+	if err := config.PathInit(); err != nil {
+		return &empty.Empty{}, err
+	}
+	return &empty.Empty{}, process.GetProcessLock()
 }
 
-func (s *server) GetGroup(ctx context.Context, req *empty.Empty) (*AllGroupOrNode, error) {
+func (s *Server) ProcessExit(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, process.LockFileClose()
+}
+
+func (s *Server) GetConfig(ctx context.Context, req *empty.Empty) (*config.Setting, error) {
+	return process.GetConfig()
+}
+
+func (s *Server) SetConfig(ctx context.Context, req *config.Setting) (*empty.Empty, error) {
+	return &empty.Empty{}, process.SetConFig(req, false)
+}
+
+func (s *Server) ReimportRule(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, process.MatchCon.UpdateMatch()
+}
+
+func (s *Server) GetGroup(ctx context.Context, req *empty.Empty) (*AllGroupOrNode, error) {
 	groups, err := process.GetGroups()
-	return &AllGroupOrNode{Name: groups}, err
+	return &AllGroupOrNode{Value: groups}, err
 }
 
-func (s *server) GetNode(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
+func (s *Server) GetNode(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
 	nodes, err := process.GetNodes(req.Value)
-	return &AllGroupOrNode{Name: nodes}, err
+	return &AllGroupOrNode{Value: nodes}, err
 }
 
-func (s *server) GetNowGroupAndName(ctx context.Context, req *empty.Empty) (*NowNodeGroupAndNode, error) {
+func (s *Server) GetNowGroupAndName(ctx context.Context, req *empty.Empty) (*NowNodeGroupAndNode, error) {
 	node, group := process.GetNNodeAndNGroup()
 	return &NowNodeGroupAndNode{Node: node, Group: group}, nil
 }
 
-func (s *server) ChangeNowNode(ctx context.Context, req *NowNodeGroupAndNode) (*empty.Empty, error) {
-	return nil, process.ChangeNNode(req.Group, req.Node)
+func (s *Server) ChangeNowNode(ctx context.Context, req *NowNodeGroupAndNode) (*empty.Empty, error) {
+	return &empty.Empty{}, process.ChangeNNode(req.Group, req.Node)
 }
 
-func (s *server) Latency(ctx context.Context, req *NowNodeGroupAndNode) (*wrappers.StringValue, error) {
+func (s *Server) UpdateSub(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, subscr.GetLinkFromInt()
+}
+
+func (s *Server) GetSubLinks(ctx context.Context, req *empty.Empty) (*AllGroupOrNode, error) {
+	links, err := subscr.GetLink()
+	return &AllGroupOrNode{Value: links}, err
+}
+
+func (s *Server) AddSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
+	err := subscr.AddLinkJSON(req.Value)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetSubLinks(ctx, &empty.Empty{})
+}
+
+func (s *Server) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
+	err := subscr.RemoveLinkJSON(req.Value)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetSubLinks(ctx, &empty.Empty{})
+}
+
+func (s *Server) Latency(ctx context.Context, req *NowNodeGroupAndNode) (*wrappers.StringValue, error) {
 	latency, err := process.Latency(req.Group, req.Node)
 	if err != nil {
 		return nil, err
 	}
 	return &wrappers.StringValue{Value: latency.String()}, err
+}
+
+func (s *Server) GetAllDownAndUP(ctx context.Context, req *empty.Empty) (*DownAndUP, error) {
+	dau := &DownAndUP{}
+	dau.Download = common.DownloadTotal
+	dau.Upload = common.UploadTotal
+	return dau, nil
+}
+
+func (s *Server) ReducedUnit(ctx context.Context, req *wrappers.DoubleValue) (*wrappers.StringValue, error) {
+	return &wrappers.StringValue{Value: common.ReducedUnitStr(req.Value)}, nil
 }

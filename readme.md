@@ -86,7 +86,7 @@ How to use:
 - [x] add shadowsocks v2ray plugin.
 - [x] ~~widget exchange to qml.~~(now already change to gridLayout)
 - [x] ~~change qt gui to use new api.~~
-- [ ] new api for android(or others).
+- [X] new api for android(or others). <- use grpc.
 - [ ] add disguise.
 
 </details>

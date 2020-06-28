@@ -1,13 +1,20 @@
-// +build !noGui
+// +build !api
 
 package main
 
 import (
+	"context"
+	"flag"
 	"log"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
 
-	process2 "github.com/Asutorufa/yuhaiin/process/process"
-
-	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/api"
+	"github.com/Asutorufa/yuhaiin/process/controller"
+	"github.com/golang/protobuf/ptypes/empty"
+	"google.golang.org/grpc"
 
 	//_ "net/http/pprof"
 
@@ -23,16 +30,69 @@ func main() {
 	//	}
 	//}()
 
+	var extKernel bool
+	flag.BoolVar(&extKernel, "nokernel", false, "not run kernel")
+	var clientHost string
+	flag.StringVar(&clientHost, "host", "127.0.0.1:50051", "kernel rpc host")
+
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	if err := config.PathInit(); err != nil {
+	file, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	path, err := filepath.Abs(file)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	var kernel string
+	flag.StringVar(&kernel, "kernel", filepath.Dir(path)+"/kernel", "kernel file")
+	flag.Parse()
+
+	if !extKernel {
+		port, err := controller.GetFreePort()
+		if err != nil {
+			gui.MessageBox(err.Error())
+			return
+		}
+		clientHost = net.JoinHostPort("127.0.0.1", port)
+
+		cmd := exec.Command(kernel, "-host", clientHost)
+		log.Println(cmd.String())
+		err = cmd.Start()
+		if err != nil {
+			gui.MessageBox(err.Error())
+			return
+		}
+		defer cmd.Process.Kill()
+		go func() {
+			err = cmd.Wait()
+			if err != nil {
+				log.Println(err)
+			}
+			os.Exit(1)
+		}()
+	}
+	conn, err := grpc.Dial(clientHost, grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Println(err)
 		gui.MessageBox(err.Error())
 		return
 	}
-	if err := process2.GetProcessLock(); err != nil {
-		gui.MessageBox("Process is already running!\nError Message: " + err.Error())
+	defer conn.Close()
+	c := api.NewApiClient(conn)
+	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
+	if err != nil {
+		log.Println(err)
+		gui.MessageBox(err.Error())
 		return
 	}
-	defer process2.LockFileClose()
-
-	gui.NewGui().App.Exec()
+	defer func() {
+		_, err := c.ProcessExit(context.Background(), &empty.Empty{})
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+	gui.NewGui(c).App.Exec()
 }

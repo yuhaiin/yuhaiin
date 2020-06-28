@@ -12,8 +12,8 @@ var (
 	ConPath       = Path + pathSeparator + "yuhaiinConfig.json"
 )
 
-// Setting setting json struct
-type Setting struct {
+//Setting setting json struct
+type settingI struct {
 	BlackIcon          bool   `json:"black_icon"`
 	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
 	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
@@ -44,7 +44,7 @@ type Setting struct {
 
 // SettingInitJSON init setting json file
 func SettingInitJSON() error {
-	pa := &Setting{
+	pa := &settingI{
 		BypassFile:         Path + pathSeparator + "yuhaiin.conf",
 		DnsServer:          "cloudflare-dns.com",
 		DnsSubNet:          "0.0.0.0/32",
@@ -57,7 +57,7 @@ func SettingInitJSON() error {
 		SsrPath:            "",
 		BlackIcon:          false,
 
-		// not use now
+		//not use now
 		HttpProxy:    true,
 		AutoStartSsr: true,
 		IsPrintLog:   false,
@@ -72,7 +72,7 @@ func SettingInitJSON() error {
 		FastOpen:     true,
 		Works:        "8",
 	}
-	if err := SettingEnCodeJSON(pa); err != nil {
+	if err := SettingEnCodeJSON(reTrans(pa)); err != nil {
 		return err
 	}
 	return nil
@@ -80,7 +80,7 @@ func SettingInitJSON() error {
 
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON() (*Setting, error) {
-	pa := &Setting{}
+	pa := &settingI{}
 	file, err := os.Open(ConPath)
 	if err != nil {
 		return &Setting{}, err
@@ -88,7 +88,40 @@ func SettingDecodeJSON() (*Setting, error) {
 	if json.NewDecoder(file).Decode(&pa) != nil {
 		return &Setting{}, err
 	}
-	return pa, nil
+
+	return reTrans(pa), nil
+}
+
+func trans(i *Setting) *settingI {
+	x := &settingI{}
+	x.BlackIcon = i.BlackIcon
+	x.SsrPath = i.SsrPath
+	x.RedirProxyAddress = i.RedirProxyAddress
+	x.Socks5ProxyAddress = i.Socks5ProxyAddress
+	x.HttpProxyAddress = i.HttpProxyAddress
+	x.Bypass = i.Bypass
+	x.BypassFile = i.BypassFile
+	x.DnsServer = i.DnsServer
+	x.DnsSubNet = i.DnsSubNet
+	x.DNSAcrossProxy = i.DNSAcrossProxy
+	x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
+	return x
+}
+
+func reTrans(i *settingI) *Setting {
+	x := &Setting{}
+	x.BlackIcon = i.BlackIcon
+	x.SsrPath = i.SsrPath
+	x.RedirProxyAddress = i.RedirProxyAddress
+	x.Socks5ProxyAddress = i.Socks5ProxyAddress
+	x.HttpProxyAddress = i.HttpProxyAddress
+	x.Bypass = i.Bypass
+	x.BypassFile = i.BypassFile
+	x.DnsServer = i.DnsServer
+	x.DnsSubNet = i.DnsSubNet
+	x.DNSAcrossProxy = i.DNSAcrossProxy
+	x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
+	return x
 }
 
 // SettingEnCodeJSON encode setting struct to json
@@ -99,7 +132,7 @@ func SettingEnCodeJSON(pa *Setting) error {
 	}
 	enc := json.NewEncoder(file)
 	enc.SetIndent("", "    ")
-	if err := enc.Encode(&pa); err != nil {
+	if err := enc.Encode(trans(pa)); err != nil {
 		return err
 	}
 	return nil

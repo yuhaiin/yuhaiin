@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/config"
 )
@@ -85,7 +86,8 @@ func GetLinkFromInt() error {
 	pa.Node = map[string]map[string]interface{}{}
 
 	for _, url := range pa.Link {
-		res, err := http.Get(url)
+		client := http.Client{Timeout: time.Second * 10}
+		res, err := client.Get(url)
 		if err != nil {
 			log.Println(err)
 			continue

@@ -2,7 +2,8 @@ package gui
 
 import (
 	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/process/process"
+	"github.com/golang/protobuf/ptypes/empty"
+
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -156,7 +157,12 @@ func (s *setting) setListener() {
 	// Listen
 	update := func() {
 		var err error
-		conFig, err = config.SettingDecodeJSON()
+		//conFig, err = config.SettingDecodeJSON()
+		//if err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		conFig, err = apiC.GetConfig(apiCtx(), &empty.Empty{})
 		if err != nil {
 			MessageBox(err.Error())
 			return
@@ -176,6 +182,7 @@ func (s *setting) setListener() {
 	}
 
 	applyClick := func(bool2 bool) {
+		//log.Println("apply start")
 		conFig.BlackIcon = s.BlackIconCheckBox.IsChecked()
 		//conFig.HttpProxy = httpProxyCheckBox.IsChecked()
 		conFig.Bypass = s.bypassCheckBox.IsChecked()
@@ -189,16 +196,20 @@ func (s *setting) setListener() {
 		conFig.RedirProxyAddress = s.redirProxyAddressLineText.Text()
 		conFig.BypassFile = s.BypassFileLineText.Text()
 
-		err := process.SetConFig(conFig, false)
+		//err := process.SetConFig(conFig, false)
+		//if err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		//
+		//if err := config.SettingEnCodeJSON(conFig); err != nil {
+		//	MessageBox(err.Error())
+		//}
+		//log.Println(conFig)
+		_, err := apiC.SetConfig(apiCtx(), conFig)
 		if err != nil {
 			MessageBox(err.Error())
-			return
 		}
-
-		if err := config.SettingEnCodeJSON(conFig); err != nil {
-			MessageBox(err.Error())
-		}
-
 		update()
 		MessageBox("Applied.")
 	}
@@ -206,7 +217,12 @@ func (s *setting) setListener() {
 	// set Listener
 	s.applyButton.ConnectClicked(applyClick)
 	s.updateRuleButton.ConnectClicked(func(checked bool) {
-		if err := process.MatchCon.UpdateMatch(); err != nil {
+		//if err := process.MatchCon.UpdateMatch(); err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		_, err := apiC.ReimportRule(apiCtx(), &empty.Empty{})
+		if err != nil {
 			MessageBox(err.Error())
 			return
 		}

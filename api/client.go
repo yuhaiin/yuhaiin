@@ -11,7 +11,7 @@ func NewClient(host string) ApiClient {
 	if err != nil {
 		log.Println(err)
 	}
-	defer conn.Close()
+	//defer conn.Close()
 	c := NewApiClient(conn)
 	return c
 }

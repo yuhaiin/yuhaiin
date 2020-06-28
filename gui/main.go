@@ -5,10 +5,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	process2 "github.com/Asutorufa/yuhaiin/process/process"
-
-	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/subscr"
+	"github.com/Asutorufa/yuhaiin/api"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -122,22 +121,30 @@ func (m *mainWindow) setGeometry() {
 }
 
 func (m *mainWindow) refresh() {
-	group, err := subscr.GetGroup()
+	//group, err := subscr.GetGroup()
+	group, err := apiC.GetGroup(apiCtx(), &empty.Empty{})
 	if err != nil {
 		MessageBox(err.Error())
 		return
 	}
 	m.groupCombobox.Clear()
-	m.groupCombobox.AddItems(group)
-	node, err := subscr.GetNode(m.groupCombobox.CurrentText())
+	m.groupCombobox.AddItems(group.Value)
+	//node, err := subscr.GetNode(m.groupCombobox.CurrentText())
+	node, err := apiC.GetNode(apiCtx(), &wrappers.StringValue{Value: m.groupCombobox.CurrentText()})
 	if err != nil {
 		MessageBox(err.Error())
 		return
 	}
 	m.nodeCombobox.Clear()
-	m.nodeCombobox.AddItems(node)
+	m.nodeCombobox.AddItems(node.Value)
 
-	nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
+	//nowNodeName, nowNodeGroup := subscr.GetNowNodeGroupAndName()
+	nowNodeAndGroup, err := apiC.GetNowGroupAndName(apiCtx(), &empty.Empty{})
+	if err != nil {
+		MessageBox(err.Error())
+		return
+	}
+	nowNodeName, nowNodeGroup := nowNodeAndGroup.Node, nowNodeAndGroup.Group
 	m.groupCombobox.SetCurrentText(nowNodeGroup)
 	m.nodeCombobox.SetCurrentText(nowNodeName)
 	m.nowNodeLabel2.SetText(nowNodeName)
@@ -147,7 +154,10 @@ func (m *mainWindow) subUpdate() {
 	message := widgets.NewQMessageBox(m.mainWindow)
 	message.SetText("Updating!")
 	message.Show()
-	if err := subscr.GetLinkFromInt(); err != nil {
+	//if err := subscr.GetLinkFromInt(); err != nil {
+	//	MessageBox(err.Error())
+	//}
+	if _, err := apiC.UpdateSub(apiCtx(), &empty.Empty{}); err != nil {
 		MessageBox(err.Error())
 	}
 	message.SetText("Updated!")
@@ -156,15 +166,26 @@ func (m *mainWindow) subUpdate() {
 
 func (m *mainWindow) setListener() {
 	m.startButton.ConnectClicked(func(bool2 bool) {
-		remarkBak, groupBak := subscr.GetNowNodeGroupAndName()
+		//remarkBak, groupBak := subscr.GetNowNodeGroupAndName()
+		//tmp,err := apiC.GetNowGroupAndName(apiCtx,&empty.Empty{})
+		//if err != nil{
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		//remarkBak,groupBak := tmp.Node,tmp.Group
 		group := m.groupCombobox.CurrentText()
 		remarks := m.nodeCombobox.CurrentText()
-		if err := subscr.ChangeNowNode(group, remarks); err != nil {
-			MessageBox(err.Error())
-			return
-		}
-		if err := process2.ChangeNode(); err != nil {
-			_ = subscr.ChangeNowNode(groupBak, remarkBak)
+		//if err := subscr.ChangeNowNode(group, remarks); err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		//if err := process2.ChangeNode(); err != nil {
+		//	_ = subscr.ChangeNowNode(groupBak, remarkBak)
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		_, err := apiC.ChangeNowNode(apiCtx(), &api.NowNodeGroupAndNode{Group: group, Node: remarks})
+		if err != nil {
 			MessageBox(err.Error())
 			return
 		}
@@ -172,24 +193,30 @@ func (m *mainWindow) setListener() {
 	})
 
 	m.groupCombobox.ConnectCurrentTextChanged(func(string2 string) {
-		node, err := subscr.GetNode(m.groupCombobox.CurrentText())
+		//node, err := subscr.GetNode(m.groupCombobox.CurrentText())
+		//if err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		node, err := apiC.GetNode(apiCtx(), &wrappers.StringValue{Value: m.groupCombobox.CurrentText()})
 		if err != nil {
 			MessageBox(err.Error())
 			return
 		}
 		m.nodeCombobox.Clear()
-		m.nodeCombobox.AddItems(node)
+		m.nodeCombobox.AddItems(node.Value)
 	})
 
 	m.latencyButton.ConnectClicked(func(bool2 bool) {
 		go func() {
 			t := time.Now()
-			lat, err := process2.Latency(m.groupCombobox.CurrentText(), m.nodeCombobox.CurrentText())
+			//lat, err := process2.Latency(m.groupCombobox.CurrentText(), m.nodeCombobox.CurrentText())
+			lat, err := apiC.Latency(apiCtx(), &api.NowNodeGroupAndNode{Group: m.groupCombobox.CurrentText(), Node: m.nodeCombobox.CurrentText()})
 			if err != nil {
 				m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  can't connect", t.Hour(), t.Minute(), t.Second()))
 				return
 			}
-			m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  %s", t.Hour(), t.Minute(), t.Second(), lat.String()))
+			m.latencyLabel2.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  %s", t.Hour(), t.Minute(), t.Second(), lat.Value))
 		}()
 	})
 
@@ -211,13 +238,18 @@ func (m *mainWindow) setListener() {
 					break
 				}
 
+				dAa, err := apiC.GetAllDownAndUP(apiCtx(), &empty.Empty{})
+				if err != nil {
+					MessageBox(err.Error())
+					return
+				}
 				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s/S , Upload<sub><i>(%s)</i></sub>: %s/S",
-					common.ReducedUnitStr(float64(common.DownloadTotal)),
-					common.ReducedUnitStr(float64(common.DownloadTotal-downloadTmp)),
-					common.ReducedUnitStr(float64(common.UploadTotal)),
-					common.ReducedUnitStr(float64(common.UploadTotal-uploadTmp))))
-				atomic.StoreUint64(&downloadTmp, common.DownloadTotal)
-				atomic.StoreUint64(&uploadTmp, common.UploadTotal)
+					ReducedUnitStr(float64(dAa.GetDownload())),
+					ReducedUnitStr(float64(dAa.GetDownload()-downloadTmp)),
+					ReducedUnitStr(float64(dAa.GetUpload())),
+					ReducedUnitStr(float64(dAa.GetUpload()-uploadTmp))))
+				atomic.StoreUint64(&downloadTmp, dAa.GetDownload())
+				atomic.StoreUint64(&uploadTmp, dAa.GetUpload())
 				time.Sleep(time.Second)
 			}
 			statusRefreshIsRun = false

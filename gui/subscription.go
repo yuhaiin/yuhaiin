@@ -1,7 +1,8 @@
 package gui
 
 import (
-	"github.com/Asutorufa/yuhaiin/subscr"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -26,11 +27,16 @@ func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
 	})
 	s.subWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		s.subCombobox.Clear()
-		link, err := subscr.GetLink()
+		//link, err := subscr.GetLink()
+		//if err != nil {
+		//	MessageBox(err.Error())
+		//}
+		links, err := apiC.GetSubLinks(apiCtx(), &empty.Empty{})
 		if err != nil {
 			MessageBox(err.Error())
+			return
 		}
-		s.subCombobox.AddItems(link)
+		s.subCombobox.AddItems(links.Value)
 	})
 
 	s.subInit()
@@ -72,22 +78,32 @@ func (s *subscription) setGeometry() {
 
 func (s *subscription) setListener() {
 	s.deleteButton.ConnectClicked(func(bool2 bool) {
-		linkToDelete := s.subCombobox.CurrentText()
-		if err := subscr.RemoveLinkJSON(linkToDelete); err != nil {
-			MessageBox(err.Error())
-			return
-		}
-		s.subCombobox.Clear()
-		link, err := subscr.GetLink()
+		//linkToDelete := s.subCombobox.CurrentText()
+		//if err := subscr.RemoveLinkJSON(linkToDelete); err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		links, err := apiC.DeleteSubLink(apiCtx(), &wrappers.StringValue{Value: s.subCombobox.CurrentText()})
 		if err != nil {
 			MessageBox(err.Error())
 			return
 		}
-		s.subCombobox.AddItems(link)
+		s.subCombobox.Clear()
+		//link, err := subscr.GetLink()
+		//if err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		s.subCombobox.AddItems(links.Value)
 	})
 
 	s.addButton.ConnectClicked(func(bool2 bool) {
-		link, err := subscr.GetLink()
+		//link, err := subscr.GetLink()
+		//if err != nil {
+		//	MessageBox(err.Error())
+		//	return
+		//}
+		links, err := apiC.GetSubLinks(apiCtx(), &empty.Empty{})
 		if err != nil {
 			MessageBox(err.Error())
 			return
@@ -96,17 +112,19 @@ func (s *subscription) setListener() {
 		if linkToAdd == "" {
 			return
 		}
-		for _, linkExisted := range link {
-			if linkExisted == linkToAdd {
+		for index := range links.Value {
+			if links.Value[index] == linkToAdd {
 				return
 			}
 		}
-		if err := subscr.AddLinkJSON(linkToAdd); err != nil {
+
+		links, err = apiC.AddSubLink(apiCtx(), &wrappers.StringValue{Value: linkToAdd})
+		if err != nil {
 			MessageBox(err.Error())
 			return
 		}
 		s.subCombobox.Clear()
-		s.subCombobox.AddItems(link)
+		s.subCombobox.AddItems(links.Value)
 		s.lineText.Clear()
 	})
 }

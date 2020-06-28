@@ -18,47 +18,47 @@ var (
 	Nodes          *subscr.Node
 )
 
-func SetConFig(config *config.Setting, first bool) (erra error) {
+func SetConFig(conf *config.Setting, first bool) (erra error) {
 	if first {
-		MatchCon = controller.NewMatchController(config.BypassFile)
+		MatchCon = controller.NewMatchController(conf.BypassFile)
 		LocalListenCon = controller.NewLocalListenController()
 	}
 
-	if ConFig.DnsServer != config.DnsServer || ConFig.IsDNSOverHTTPS != config.IsDNSOverHTTPS || first {
-		MatchCon.SetDNS(config.DnsServer, config.IsDNSOverHTTPS)
+	if ConFig.DnsServer != conf.DnsServer || ConFig.IsDNSOverHTTPS != conf.IsDNSOverHTTPS || first {
+		MatchCon.SetDNS(conf.DnsServer, conf.IsDNSOverHTTPS)
 	}
 
-	if ConFig.DnsSubNet != config.DnsSubNet || first {
-		_, subnet, err := net.ParseCIDR(config.DnsSubNet)
+	if ConFig.DnsSubNet != conf.DnsSubNet || first {
+		_, subnet, err := net.ParseCIDR(conf.DnsSubNet)
 		if err != nil {
-			if net.ParseIP(config.DnsSubNet).To4() != nil {
-				_, subnet, _ = net.ParseCIDR(config.DnsSubNet + "/32")
+			if net.ParseIP(conf.DnsSubNet).To4() != nil {
+				_, subnet, _ = net.ParseCIDR(conf.DnsSubNet + "/32")
 			}
 
-			if net.ParseIP(config.DnsSubNet).To16() != nil {
-				_, subnet, _ = net.ParseCIDR(config.DnsSubNet + "/128")
+			if net.ParseIP(conf.DnsSubNet).To16() != nil {
+				_, subnet, _ = net.ParseCIDR(conf.DnsSubNet + "/128")
 			}
 		}
 		MatchCon.SetDNSSubNet(subnet)
 	}
 
-	if ConFig.DNSAcrossProxy != config.DNSAcrossProxy || first {
-		MatchCon.EnableDNSProxy(config.DNSAcrossProxy)
+	if ConFig.DNSAcrossProxy != conf.DNSAcrossProxy || first {
+		MatchCon.EnableDNSProxy(conf.DNSAcrossProxy)
 	}
 
-	if ConFig.Bypass != config.Bypass || first {
-		MatchCon.EnableBYPASS(config.Bypass)
+	if ConFig.Bypass != conf.Bypass || first {
+		MatchCon.EnableBYPASS(conf.Bypass)
 	}
 
-	if ConFig.BypassFile != config.BypassFile || first {
-		err := MatchCon.SetBypass(config.BypassFile)
+	if ConFig.BypassFile != conf.BypassFile || first {
+		err := MatchCon.SetBypass(conf.BypassFile)
 		if err != nil {
 			erra = fmt.Errorf("%v\nUpdateMatchErr -> %v", erra, err)
 		}
 	}
 
-	if (ConFig.SsrPath != config.SsrPath && SsrCmd != nil) || first {
-		controller.SSRPath = config.SsrPath
+	if (ConFig.SsrPath != conf.SsrPath && SsrCmd != nil) || first {
+		controller.SSRPath = conf.SsrPath
 		err := ChangeNode()
 		if err != nil {
 			if !first {
@@ -67,28 +67,33 @@ func SetConFig(config *config.Setting, first bool) (erra error) {
 		}
 	}
 
-	if ConFig.HttpProxyAddress != config.HttpProxyAddress || first {
-		err := LocalListenCon.SetHTTPHost(config.HttpProxyAddress)
+	if ConFig.HttpProxyAddress != conf.HttpProxyAddress || first {
+		err := LocalListenCon.SetHTTPHost(conf.HttpProxyAddress)
 		if err != nil {
 			erra = fmt.Errorf("UpdateHTTPListenErr -> %v", err)
 		}
 	}
-	if ConFig.Socks5ProxyAddress != config.Socks5ProxyAddress || first {
-		err := LocalListenCon.SetSocks5Host(config.Socks5ProxyAddress)
+	if ConFig.Socks5ProxyAddress != conf.Socks5ProxyAddress || first {
+		err := LocalListenCon.SetSocks5Host(conf.Socks5ProxyAddress)
 		if err != nil {
 			erra = fmt.Errorf("UpdateSOCKS5ListenErr -> %v", err)
 		}
 	}
 
-	if ConFig.RedirProxyAddress != config.RedirProxyAddress || first {
-		err := LocalListenCon.SetRedirHost(config.RedirProxyAddress)
+	if ConFig.RedirProxyAddress != conf.RedirProxyAddress || first {
+		err := LocalListenCon.SetRedirHost(conf.RedirProxyAddress)
 		if err != nil {
 			erra = fmt.Errorf("UpdateRedirListenErr -> %v", err)
 		}
 	}
 
 	// others
-	ConFig = config
+	ConFig = conf
+
+	err := config.SettingEnCodeJSON(ConFig)
+	if err != nil {
+		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
+	}
 
 	return
 }
@@ -129,4 +134,8 @@ func GetNodes(group string) ([]string, error) {
 
 func GetGroups() ([]string, error) {
 	return subscr.GetGroup()
+}
+
+func GetConfig() (*config.Setting, error) {
+	return config.SettingDecodeJSON()
 }

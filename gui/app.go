@@ -3,7 +3,8 @@ package gui
 import (
 	"os"
 
-	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/api"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -23,10 +24,8 @@ type SGui struct {
 	trayIcon           *widgets.QSystemTrayIcon
 }
 
-func init() {
-}
-
-func NewGui() *SGui {
+func NewGui(client api.ApiClient) *SGui {
+	apiC = client
 	microClientGUI := &SGui{}
 	microClientGUI.App = App
 	microClientGUI.App.SetApplicationName("yuhaiin")
@@ -41,7 +40,11 @@ func NewGui() *SGui {
 
 func (sGui *SGui) trayInit() {
 	img := gui.NewQPixmap()
-	conFig, err := config.SettingDecodeJSON()
+	var err error
+	conFig, err = apiC.GetConfig(apiCtx(), &empty.Empty{})
+	//log.Println("trayInit", conFig)
+	//conFig, err := config.SettingDecodeJSON()
+	//config, err := apiC.GetConfig(apiCtx, nil)
 	if err != nil || !conFig.BlackIcon {
 		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(iconWhite, len(iconWhite))), "svg", core.Qt__AutoColor)
 	} else {

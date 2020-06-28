@@ -18,10 +18,13 @@ var (
 )
 
 func ReSet() error {
+	log.Println("ReSet")
+	log.Println(SsrCmd)
 	if SsrCmd == nil || SsrCmd.Process == nil {
 		return nil
 	}
-
+	log.Println(SsrCmd.Process)
+	log.Println("kill start")
 	if err := SsrCmd.Process.Kill(); err != nil {
 		return err
 	}
@@ -56,15 +59,16 @@ func ChangeNode() error {
 		}
 		MatchCon.SetProxy(conn.Conn)
 	case *subscr.Shadowsocksr:
-		ssrCmd, localHost, err := controller.ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
+		var localHost string
+		SsrCmd, localHost, err = controller.ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr))
 		if err != nil {
 			return err
 		}
-		if err := ssrCmd.Start(); err != nil {
+		if err := SsrCmd.Start(); err != nil {
 			return err
 		}
 		go func() {
-			if err := ssrCmd.Wait(); err != nil {
+			if err := SsrCmd.Wait(); err != nil {
 				log.Println(err)
 			}
 		}()
