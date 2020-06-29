@@ -22,10 +22,10 @@ func main() {
 	log.Println(host)
 	lis, err := net.Listen("tcp", host)
 	if err != nil {
-		log.Fatalf("%v", err)
+		panic(err)
 	}
 	s := grpc.NewServer()
-	api.RegisterApiServer(s, &api.Server{})
+	api.RegisterApiServer(s, &api.Server{Host: host})
 	if err := s.Serve(lis); err != nil {
 		log.Println(err)
 	}

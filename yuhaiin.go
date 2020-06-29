@@ -133,10 +133,28 @@ func main() {
 	fmt.Println("new api client")
 	c := api.NewApiClient(conn)
 	fmt.Println("process init")
-	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
-	if err != nil {
+	s, err := c.ProcessInit(context.Background(), &empty.Empty{})
+	if s == nil || err != nil {
+		log.Println(s)
 		gui.MessageBox(err.Error())
 		panic(err)
+	}
+	if s.Value != "" {
+		err = conn.Close()
+		if err != nil {
+			panic(err)
+		}
+		conn, err = grpc.Dial(s.Value, grpc.WithInsecure(), grpc.WithBlock())
+		if err != nil {
+			panic(err)
+		}
+		defer conn.Close()
+		c = api.NewApiClient(conn)
+		_, err = c.ClientOn(context.Background(), &empty.Empty{})
+		if err != nil {
+			panic(err)
+		}
+		return
 	}
 	defer func() {
 		_, err := c.ProcessExit(context.Background(), &empty.Empty{})
