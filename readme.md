@@ -72,7 +72,7 @@ How to use:
 </details>
 
 <details>
-<summary>Todo</summary>
+<summary>TODO</summary>
 
 - [x] add bypass
 - [x] ss link compatible.  
@@ -88,5 +88,24 @@ How to use:
 - [x] ~~change qt gui to use new api.~~
 - [X] new api for android(or others). <- use grpc.
 - [ ] add disguise.
+
+```single instance
+          single instance
+  +-----+
+  | gui |
+  +-----+
+    ^
+    | grpc
+    v
++--------+    create     +----------+
+| server | ------------> | lockfile |
++--------+  write host   +----------+
+      ^                         ^
+      | open gui                | check lockfile is locked
+      | and exit new process    |         and
++--------------------+          | get already running grpc server host
+| new gui and server |----------+
++--------------------+
+```
 
 </details>
