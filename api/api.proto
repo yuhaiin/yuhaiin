@@ -6,7 +6,7 @@ option go_package = "github.com/Asutorufa/yuhaiin/api";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
-import "config/config.proto";
+import "api/config.proto";
 
 //protoc -I "./" -I "../" --go_out=plugins=grpc:. --go_opt=paths=source_relative api.proto
 
@@ -15,8 +15,8 @@ service api {
   rpc ClientOn(google.protobuf.Empty)returns(google.protobuf.Empty){}
   rpc ProcessExit(google.protobuf.Empty)returns(google.protobuf.Empty){}
 
-  rpc GetConfig(google.protobuf.Empty)returns(yuhaiin.config.Setting){}
-  rpc SetConfig(yuhaiin.config.Setting)returns(google.protobuf.Empty){}
+  rpc GetConfig(google.protobuf.Empty)returns(yuhaiin.api.Setting){}
+  rpc SetConfig(yuhaiin.api.Setting)returns(google.protobuf.Empty){}
   rpc ReimportRule(google.protobuf.Empty)returns(google.protobuf.Empty){}
 
   rpc GetGroup(google.protobuf.Empty)returns(allGroupOrNode){}

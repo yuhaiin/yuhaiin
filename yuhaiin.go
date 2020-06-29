@@ -3,13 +3,17 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/api"
 	"github.com/Asutorufa/yuhaiin/process/controller"
@@ -21,6 +25,68 @@ import (
 	"github.com/Asutorufa/yuhaiin/gui"
 )
 
+var (
+	extKernel  bool
+	clientHost string
+	kernel     string
+	cmd        *exec.Cmd
+)
+
+func startGrpc() {
+	fmt.Println("start grpc server")
+	port, err := controller.GetFreePort()
+	if err != nil {
+		gui.MessageBox(err.Error())
+		return
+	}
+	clientHost = net.JoinHostPort("127.0.0.1", port)
+
+	cmd = exec.Command(kernel, "-host", clientHost)
+	log.Println(cmd.String())
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Println(err)
+		gui.MessageBox(err.Error())
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Println(err)
+		gui.MessageBox(err.Error())
+	}
+	err = cmd.Start()
+	if err != nil {
+		gui.MessageBox(err.Error())
+		panic(err)
+	}
+	stdoutReader := bufio.NewReader(stdout)
+	stderrReader := bufio.NewReader(stderr)
+	go func() {
+		for {
+			line, err := stdoutReader.ReadString('\n')
+			if err != nil || err == io.EOF {
+				break
+			}
+			fmt.Printf("kernel -> %s", line)
+		}
+	}()
+	go func() {
+		for {
+			line, err := stderrReader.ReadString('\n')
+			if err != nil || err == io.EOF {
+				break
+			}
+			log.Printf("kernel -> %s", line)
+		}
+	}()
+	go func() {
+		err = cmd.Wait()
+		if err != nil {
+			log.Println(err)
+		}
+		panic("kernel stop running")
+	}()
+}
+
 func main() {
 	//go func() {
 	//	// 开启pprof，监听请求
@@ -30,12 +96,11 @@ func main() {
 	//	}
 	//}()
 
-	var extKernel bool
+	log.SetFlags(log.Llongfile)
+
 	flag.BoolVar(&extKernel, "nokernel", false, "not run kernel")
-	var clientHost string
 	flag.StringVar(&clientHost, "host", "127.0.0.1:50051", "kernel rpc host")
 
-	log.SetFlags(log.Llongfile | log.LstdFlags)
 	file, err := exec.LookPath(os.Args[0])
 	if err != nil {
 		log.Println(err)
@@ -46,34 +111,18 @@ func main() {
 		log.Println(err)
 		return
 	}
-	var kernel string
 	flag.StringVar(&kernel, "kernel", filepath.Dir(path)+"/kernel", "kernel file")
+	if runtime.GOOS == "Windows" {
+		flag.StringVar(&kernel, "kernel", filepath.Dir(path)+"\\kernel.exe", "kernel file")
+	}
 	flag.Parse()
 
 	if !extKernel {
-		port, err := controller.GetFreePort()
-		if err != nil {
-			gui.MessageBox(err.Error())
-			return
-		}
-		clientHost = net.JoinHostPort("127.0.0.1", port)
-
-		cmd := exec.Command(kernel, "-host", clientHost)
-		log.Println(cmd.String())
-		err = cmd.Start()
-		if err != nil {
-			gui.MessageBox(err.Error())
-			return
-		}
+		startGrpc()
 		defer cmd.Process.Kill()
-		go func() {
-			err = cmd.Wait()
-			if err != nil {
-				log.Println(err)
-			}
-			os.Exit(1)
-		}()
 	}
+
+	fmt.Printf("grpc dial: %s\n", clientHost)
 	conn, err := grpc.Dial(clientHost, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Println(err)
@@ -81,12 +130,13 @@ func main() {
 		return
 	}
 	defer conn.Close()
+	fmt.Println("new api client")
 	c := api.NewApiClient(conn)
+	fmt.Println("process init")
 	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
 	if err != nil {
-		log.Println(err)
 		gui.MessageBox(err.Error())
-		return
+		panic(err)
 	}
 	defer func() {
 		_, err := c.ProcessExit(context.Background(), &empty.Empty{})
@@ -94,5 +144,6 @@ func main() {
 			log.Println(err)
 		}
 	}()
+	fmt.Println("open ui")
 	gui.NewGui(c).App.Exec()
 }

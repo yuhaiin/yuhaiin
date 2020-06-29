@@ -1,7 +1,7 @@
 package gui
 
 import (
-	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/api"
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/therecipe/qt/core"
@@ -150,7 +150,7 @@ func (s *setting) setGeometry() {
 }
 
 var (
-	conFig *config.Setting
+	conFig *api.Setting
 )
 
 func (s *setting) setListener() {

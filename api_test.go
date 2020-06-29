@@ -10,13 +10,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"google.golang.org/grpc"
-
-	"github.com/golang/protobuf/ptypes/wrappers"
-
-	"github.com/golang/protobuf/ptypes/empty"
-
 	"github.com/Asutorufa/yuhaiin/api"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"google.golang.org/grpc"
 )
 
 func TestApi(t *testing.T) {

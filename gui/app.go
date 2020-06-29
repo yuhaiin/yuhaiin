@@ -36,7 +36,7 @@ func NewGui(client api.ApiClient) *SGui {
 	microClientGUI.subscriptionWindow = NewSubscription(microClientGUI.MainWindow)
 	microClientGUI.settingWindow = NewSettingWindow(microClientGUI.MainWindow)
 	microClientGUI.trayInit()
-	_ = microClientGUI.clientInit()
+	//go func() { _ = microClientGUI.clientInit() }()
 	return microClientGUI
 }
 

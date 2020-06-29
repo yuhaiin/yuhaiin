@@ -19,7 +19,7 @@ var (
 func main() {
 	flag.StringVar(&host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
 	flag.Parse()
-	//log.Println(host)
+	log.Println(host)
 	lis, err := net.Listen("tcp", host)
 	if err != nil {
 		log.Fatalf("%v", err)

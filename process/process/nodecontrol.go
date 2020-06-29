@@ -18,13 +18,9 @@ var (
 )
 
 func ReSet() error {
-	log.Println("ReSet")
-	log.Println(SsrCmd)
 	if SsrCmd == nil || SsrCmd.Process == nil {
 		return nil
 	}
-	log.Println(SsrCmd.Process)
-	log.Println("kill start")
 	if err := SsrCmd.Process.Kill(); err != nil {
 		return err
 	}

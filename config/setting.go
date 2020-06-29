@@ -13,7 +13,7 @@ var (
 )
 
 //Setting setting json struct
-type settingI struct {
+type Setting struct {
 	BlackIcon          bool   `json:"black_icon"`
 	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
 	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
@@ -44,7 +44,7 @@ type settingI struct {
 
 // SettingInitJSON init setting json file
 func SettingInitJSON() error {
-	pa := &settingI{
+	pa := &Setting{
 		BypassFile:         Path + pathSeparator + "yuhaiin.conf",
 		DnsServer:          "cloudflare-dns.com",
 		DnsSubNet:          "0.0.0.0/32",
@@ -72,7 +72,7 @@ func SettingInitJSON() error {
 		FastOpen:     true,
 		Works:        "8",
 	}
-	if err := SettingEnCodeJSON(reTrans(pa)); err != nil {
+	if err := SettingEnCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
@@ -80,7 +80,7 @@ func SettingInitJSON() error {
 
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON() (*Setting, error) {
-	pa := &settingI{}
+	pa := &Setting{}
 	file, err := os.Open(ConPath)
 	if err != nil {
 		return &Setting{}, err
@@ -89,51 +89,7 @@ func SettingDecodeJSON() (*Setting, error) {
 		return &Setting{}, err
 	}
 
-	return reTrans(pa), nil
-}
-
-func trans(i *Setting) *settingI {
-	return iTrans(i).(*settingI)
-}
-
-func reTrans(i *settingI) *Setting {
-	return iTrans(i).(*Setting)
-}
-
-func iTrans(ii interface{}) interface{} {
-	switch ii.(type) {
-	case *settingI:
-		x := &Setting{}
-		i := ii.(*settingI)
-		x.BlackIcon = i.BlackIcon
-		x.SsrPath = i.SsrPath
-		x.RedirProxyAddress = i.RedirProxyAddress
-		x.Socks5ProxyAddress = i.Socks5ProxyAddress
-		x.HttpProxyAddress = i.HttpProxyAddress
-		x.Bypass = i.Bypass
-		x.BypassFile = i.BypassFile
-		x.DnsServer = i.DnsServer
-		x.DnsSubNet = i.DnsSubNet
-		x.DNSAcrossProxy = i.DNSAcrossProxy
-		x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
-		return x
-	case *Setting:
-		x := &settingI{}
-		i := ii.(*Setting)
-		x.BlackIcon = i.BlackIcon
-		x.SsrPath = i.SsrPath
-		x.RedirProxyAddress = i.RedirProxyAddress
-		x.Socks5ProxyAddress = i.Socks5ProxyAddress
-		x.HttpProxyAddress = i.HttpProxyAddress
-		x.Bypass = i.Bypass
-		x.BypassFile = i.BypassFile
-		x.DnsServer = i.DnsServer
-		x.DnsSubNet = i.DnsSubNet
-		x.DNSAcrossProxy = i.DNSAcrossProxy
-		x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
-		return x
-	}
-	return nil
+	return pa, nil
 }
 
 // SettingEnCodeJSON encode setting struct to json
@@ -144,7 +100,7 @@ func SettingEnCodeJSON(pa *Setting) error {
 	}
 	enc := json.NewEncoder(file)
 	enc.SetIndent("", "    ")
-	if err := enc.Encode(trans(pa)); err != nil {
+	if err := enc.Encode(pa); err != nil {
 		return err
 	}
 	return nil
