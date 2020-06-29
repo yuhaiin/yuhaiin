@@ -1,7 +1,9 @@
 package process
 
 import (
+	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/config"
@@ -14,22 +16,24 @@ var (
 
 func GetProcessLock(str string) error {
 	var err error
-	tmp, _ := ReadLockFile()
-	if lockFile, err = os.Create(LockFilePath); err != nil {
-		return err
+	lockFile, err = os.OpenFile(LockFilePath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("GetProcessLock() -> OpenFile() -> %v", err)
 	}
 	if err := LockFile(lockFile); err != nil {
-		_, _ = lockFile.WriteString(tmp)
-		return err
+		return fmt.Errorf("GetProcessLock() -> LockFile() -> %v", err)
 	}
-	_, _ = lockFile.WriteString(str)
+	_, err = lockFile.WriteString(str)
+	if err != nil {
+		log.Printf("GetProcessLock() -> WriteString() -> %v", err)
+	}
 	return ProcessInit()
 }
 
 func ReadLockFile() (string, error) {
 	s, err := ioutil.ReadFile(LockFilePath)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("ReadLockFile() -> ReadFile() -> %v", err)
 	}
 	return string(s), nil
 }

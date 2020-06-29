@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/api"
 	"github.com/Asutorufa/yuhaiin/process/controller"
@@ -133,24 +134,30 @@ func main() {
 	fmt.Println("new api client")
 	c := api.NewApiClient(conn)
 	fmt.Println("process init")
-	s, err := c.ProcessInit(context.Background(), &empty.Empty{})
-	if s == nil || err != nil {
-		log.Println(s)
-		gui.MessageBox(err.Error())
-		panic(err)
-	}
-	if s.Value != "" {
+	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
+	if err != nil {
+		log.Println(err)
+		log.Println("Call the Exist Client")
+		s, err := c.GetRunningHost(context.Background(), &empty.Empty{})
+		if err != nil {
+			panic(err)
+		}
 		err = conn.Close()
 		if err != nil {
 			panic(err)
 		}
+		log.Println(s)
 		conn, err = grpc.Dial(s.Value, grpc.WithInsecure(), grpc.WithBlock())
 		if err != nil {
 			panic(err)
 		}
 		defer conn.Close()
 		c = api.NewApiClient(conn)
-		_, err = c.ClientOn(context.Background(), &empty.Empty{})
+		ctx, err := context.WithTimeout(context.Background(), time.Second*5)
+		if err != nil {
+			panic(err)
+		}
+		_, err = c.ClientOn(ctx, &empty.Empty{})
 		if err != nil {
 			panic(err)
 		}

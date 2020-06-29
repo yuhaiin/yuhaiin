@@ -23,18 +23,16 @@ var (
 	messageOn bool
 )
 
-func (s *Server) ProcessInit(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
-	err := process.GetProcessLock(s.Host)
+func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, process.GetProcessLock(s.Host)
+}
+
+func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
+	host, err := process.ReadLockFile()
 	if err != nil {
-		s, err := process.ReadLockFile()
-		if err != nil {
-			return &wrappers.StringValue{}, err
-		}
-		str := &wrappers.StringValue{Value: s}
-		return str, nil
+		return &wrappers.StringValue{}, err
 	}
-	str := &wrappers.StringValue{Value: ""}
-	return str, nil
+	return &wrappers.StringValue{Value: host}, nil
 }
 
 func (s *Server) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {

@@ -17,6 +17,8 @@ var (
 
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
+	log.SetFlags(log.Llongfile)
+
 	flag.StringVar(&host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
 	flag.Parse()
 	log.Println(host)
