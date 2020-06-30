@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -87,6 +89,21 @@ func (m *MatchController) SetProxy(proxy func(host string) (net.Conn, error)) {
 func (m *MatchController) UpdateMatch() error {
 	f, err := os.Open(m.bypassFile)
 	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(path.Dir(m.bypassFile), os.ModePerm)
+			if err != nil {
+				return fmt.Errorf("UpdateMatch()MkdirAll -> %v", err)
+			}
+			f, err = os.OpenFile(m.bypassFile, os.O_TRUNC|os.O_CREATE|os.O_RDWR, os.ModePerm)
+			if err != nil {
+				return fmt.Errorf("UpdateMatch():OpenFile -> %v", err)
+			}
+			res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/yuhaiin/yuhaiin.conf")
+			if err != nil {
+				return err
+			}
+			_, _ = io.Copy(f, res.Body)
+		}
 		return err
 	}
 	defer f.Close()

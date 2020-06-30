@@ -1,23 +1,9 @@
 syntax = "proto3";
 package yuhaiin.api;
 
-option go_package = "github.com/Asutorufa/yuhaiin/api";
+option go_package = "github.com/Asutorufa/yuhaiin/config";
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative config.proto
 
-
-//	BlackIcon          bool   `json:"black_icon"`
-//	IsDNSOverHTTPS     bool   `json:"is_dns_over_https"`
-//	DNSAcrossProxy     bool   `json:"dns_across_proxy"`
-//	DnsServer          string `json:"dnsServer"`
-//	DnsSubNet          string `json:"dns_sub_net"`
-//	Bypass             bool   `json:"bypass"`
-//	HttpProxyAddress   string `json:"httpProxyAddress"`
-//	Socks5ProxyAddress string `json:"socks5ProxyAddress"`
-//	RedirProxyAddress  string `json:"redir_proxy_address"`
-//	BypassFile         string `json:"bypassFile"`
-//	SsrPath            string `json:"ssrPath"`
-//	LocalAddress       string `json:"localAddress"`
-//	LocalPort          string `json:"localPort"`
 message Setting{
   bool BlackIcon = 1 [json_name="black_icon"];
   bool IsDNSOverHTTPS = 2 [json_name="is_dns_over_https"];

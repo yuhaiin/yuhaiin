@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"sort"
 	"time"
 
@@ -28,26 +29,21 @@ type Node struct {
 	Node    map[string]map[string]interface{} `json:"node"`
 }
 
-// InitJSON init the config json file
-func InitJSON() error {
-	pa := &Node{
-		//Group:   map[string]bool{},
-		NowNode: &Shadowsocks{},
-		Link:    []string{},
-		Node:    map[string]map[string]interface{}{},
-	}
-	if err := enCodeJSON(pa); err != nil {
-		return err
-	}
-	return nil
-}
-
 func decodeJSON() (*Node, error) {
-	pa := &Node{}
 	file, err := os.Open(jsonPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			pa := &Node{
+				//Group:   map[string]bool{},
+				NowNode: &Shadowsocks{},
+				Link:    []string{},
+				Node:    map[string]map[string]interface{}{},
+			}
+			return pa, enCodeJSON(pa)
+		}
 		return nil, err
 	}
+	pa := &Node{}
 	if json.NewDecoder(file).Decode(&pa) != nil {
 		return nil, err
 	}
@@ -59,12 +55,20 @@ func GetNodesJSON() (*Node, error) {
 }
 
 func enCodeJSON(pa *Node) error {
-	file, err := os.Create(jsonPath)
+_retry:
+	file, err := os.OpenFile(jsonPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(path.Dir(jsonPath), os.ModePerm)
+			if err != nil {
+				return fmt.Errorf("node -> enCodeJSON():MkDirAll -> %v", err)
+			}
+			goto _retry
+		}
 		return err
 	}
 	enc := json.NewEncoder(file)
-	enc.SetIndent("", "    ")
+	enc.SetIndent("", "\t")
 	if err := enc.Encode(&pa); err != nil {
 		return err
 	}

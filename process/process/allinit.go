@@ -87,21 +87,17 @@ func SetConFig(conf *config.Setting, first bool) (erra error) {
 
 	// others
 	ConFig = conf
-
-	err := config.SettingEnCodeJSON(ConFig)
-	if err != nil {
-		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
+	if !first {
+		err := config.SettingEnCodeJSON(ConFig)
+		if err != nil {
+			erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
+		}
 	}
-
 	return
 }
 
 func ProcessInit() (erra error) {
-	err := config.PathInit()
-	if err != nil {
-		erra = fmt.Errorf("%v\nProcessInit():PathInit -> %v", erra, err)
-	}
-	err = RefreshNodes()
+	err := RefreshNodes()
 	if err != nil {
 		erra = fmt.Errorf("%v\nGetNodes -> %v", erra, err)
 	}

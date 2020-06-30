@@ -6,7 +6,7 @@ option go_package = "github.com/Asutorufa/yuhaiin/api";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
-import "api/config.proto";
+import "config/config.proto";
 
 //protoc -I "./" -I "../" --go_out=plugins=grpc:. --go_opt=paths=source_relative api.proto
 

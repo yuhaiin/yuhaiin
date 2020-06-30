@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/Asutorufa/yuhaiin/config"
+
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/process/process"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -47,13 +48,13 @@ func (s *Server) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error
 	return &empty.Empty{}, process.LockFileClose()
 }
 
-func (s *Server) GetConfig(context.Context, *empty.Empty) (*Setting, error) {
+func (s *Server) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
 	conf, err := process.GetConfig()
-	return reTrans(conf), err
+	return conf, err
 }
 
-func (s *Server) SetConfig(_ context.Context, req *Setting) (*empty.Empty, error) {
-	return &empty.Empty{}, process.SetConFig(trans(req), false)
+func (s *Server) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty, error) {
+	return &empty.Empty{}, process.SetConFig(req, false)
 }
 
 func (s *Server) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
@@ -144,48 +145,4 @@ func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
 			return ctx.Err()
 		}
 	}
-}
-
-func trans(i *Setting) *config.Setting {
-	return iTrans(i).(*config.Setting)
-}
-
-func reTrans(i *config.Setting) *Setting {
-	return iTrans(i).(*Setting)
-}
-
-func iTrans(ii interface{}) interface{} {
-	switch ii.(type) {
-	case *config.Setting:
-		x := &Setting{}
-		i := ii.(*config.Setting)
-		x.BlackIcon = i.BlackIcon
-		x.SsrPath = i.SsrPath
-		x.RedirProxyAddress = i.RedirProxyAddress
-		x.Socks5ProxyAddress = i.Socks5ProxyAddress
-		x.HttpProxyAddress = i.HttpProxyAddress
-		x.Bypass = i.Bypass
-		x.BypassFile = i.BypassFile
-		x.DnsServer = i.DnsServer
-		x.DnsSubNet = i.DnsSubNet
-		x.DNSAcrossProxy = i.DNSAcrossProxy
-		x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
-		return x
-	case *Setting:
-		x := &config.Setting{}
-		i := ii.(*Setting)
-		x.BlackIcon = i.BlackIcon
-		x.SsrPath = i.SsrPath
-		x.RedirProxyAddress = i.RedirProxyAddress
-		x.Socks5ProxyAddress = i.Socks5ProxyAddress
-		x.HttpProxyAddress = i.HttpProxyAddress
-		x.Bypass = i.Bypass
-		x.BypassFile = i.BypassFile
-		x.DnsServer = i.DnsServer
-		x.DnsSubNet = i.DnsSubNet
-		x.DNSAcrossProxy = i.DNSAcrossProxy
-		x.IsDNSOverHTTPS = i.IsDNSOverHTTPS
-		return x
-	}
-	return nil
 }

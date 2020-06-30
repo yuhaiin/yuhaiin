@@ -153,10 +153,8 @@ func main() {
 		}
 		defer conn.Close()
 		c = api.NewApiClient(conn)
-		ctx, err := context.WithTimeout(context.Background(), time.Second*5)
-		if err != nil {
-			panic(err)
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
 		_, err = c.ClientOn(ctx, &empty.Empty{})
 		if err != nil {
 			panic(err)

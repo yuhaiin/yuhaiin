@@ -4,12 +4,6 @@ import (
 	"testing"
 )
 
-func TestInitJSON(t *testing.T) {
-	if err := InitJSON(); err != nil {
-		t.Error(err)
-	}
-}
-
 func TestAddLinkJSON(t *testing.T) {
 	if err := AddLinkJSON("xxx"); err != nil {
 		t.Error(err)
