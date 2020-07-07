@@ -30,10 +30,6 @@ import (
 //"timeout":  "-t",
 //"udpTrans": "-u",
 
-var (
-	SSRPath string
-)
-
 func GetFreePort() (string, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
@@ -51,13 +47,13 @@ func GetFreePort() (string, error) {
 	return strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
 }
 
-func ShadowsocksrCmd(s *subscr.Shadowsocksr) (ssrCmd *exec.Cmd, localHost string, err error) {
+func ShadowsocksrCmd(s *subscr.Shadowsocksr, ssrPath string) (ssrCmd *exec.Cmd, localHost string, err error) {
 	LocalPort, err := GetFreePort()
 	if err != nil {
 		return nil, "", err
 	}
 
-	cmd := append([]string{}, strings.Split(SSRPath, " ")...)
+	cmd := append([]string{}, strings.Split(ssrPath, " ")...)
 	cmd = append(cmd, "-s", s.Server)
 	cmd = append(cmd, "-p", s.Port)
 	cmd = append(cmd, "-m", s.Method)

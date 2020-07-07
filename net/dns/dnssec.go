@@ -7,7 +7,7 @@ package dns
 func createDNSSEC(domain string, reqType2 reqType) (header eDNSHeader, b []byte) {
 	//eDNSHeader := createEDNSReq(domain,reqType2,[]byte{})
 	header = eDNSHeader{}
-	header.DnsHeader = creatRequest(domain, reqType2)
+	header.DnsHeader = creatRequest(domain, reqType2, true)
 	header.Name[0] = 0b0
 	header.Type = [2]byte{0b00000000, 0b00101001}
 	header.PayloadSize = [2]byte{0b00010000, 0b00000000} //4096

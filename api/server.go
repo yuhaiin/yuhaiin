@@ -7,9 +7,8 @@ import (
 	"log"
 
 	"github.com/Asutorufa/yuhaiin/config"
-
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/process/process"
+	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
 )
@@ -24,8 +23,12 @@ var (
 	messageOn bool
 )
 
-func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *Server) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return &empty.Empty{}, process.GetProcessLock(s.Host)
+}
+
+func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, process.Init()
 }
 
 func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
@@ -54,7 +57,7 @@ func (s *Server) GetConfig(context.Context, *empty.Empty) (*config.Setting, erro
 }
 
 func (s *Server) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty, error) {
-	return &empty.Empty{}, process.SetConFig(req, false)
+	return &empty.Empty{}, process.SetConFig(req)
 }
 
 func (s *Server) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {

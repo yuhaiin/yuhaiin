@@ -27,7 +27,7 @@ func GetProcessLock(str string) error {
 	if err != nil {
 		log.Printf("GetProcessLock() -> WriteString() -> %v", err)
 	}
-	return ProcessInit()
+	return nil
 }
 
 func ReadLockFile() (string, error) {

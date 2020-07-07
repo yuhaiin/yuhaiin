@@ -40,6 +40,7 @@ var (
 )
 
 type NormalDNS struct {
+	DNS
 	Server string
 	Subnet *net.IPNet
 }
@@ -62,6 +63,9 @@ func (n *NormalDNS) SetSubnet(ip *net.IPNet) {
 		_, n.Subnet, _ = net.ParseCIDR("0.0.0.0/0")
 		return
 	}
+	if ip.String() == n.Subnet.String() {
+		return
+	}
 	n.Subnet = ip
 }
 
@@ -71,6 +75,10 @@ func (n *NormalDNS) GetSubnet() *net.IPNet {
 
 func (n *NormalDNS) SetServer(host string) {
 	n.Server = host
+}
+
+func (n *NormalDNS) GetServer() string {
+	return n.Server
 }
 
 func (n *NormalDNS) SetProxy(proxy func(addr string) (net.Conn, error)) {}
@@ -120,34 +128,51 @@ func udpDial(req []byte, DNSServer string) (data []byte, err error) {
 	return b[:n], nil
 }
 
-func creatRequest(domain string, reqType reqType) []byte {
-	id := []byte{byte(rand.Intn(255)), byte(rand.Intn(255))} // id:
-	qr := byte(0b0)                                          // qr 0
-	opCode := byte(0b0000)                                   // opcode 0000
-	aa := byte(0b0)                                          // aa 0
-	tc := byte(0b0)                                          // tc 0
-	rd := byte(0b1)                                          // rd 1
-	ra := byte(0b0)                                          // ra 0
-	z := byte(0b000)                                         // z 000
-	rCode := byte(0b0000)                                    // rCode 0000
-	qr2rCode := []byte{qr<<7 + opCode<<3 + aa<<2 + tc<<1 + rd, ra<<7 + z<<4 + rCode}
-	qdCount := []byte{0b00000000, 0b00000001} // request number => bit: 00000000 00000001 -> 01
-	anCount := []byte{0b00000000, 0b00000000} // answer number(no use for req) => bit: 00000000 00000000
-	nsCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
-	arCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
+func creatRequest(domain string, reqType reqType, arCount bool) []byte {
+	data := bytes.NewBuffer(nil)
+	data.Write([]byte{byte(rand.Intn(255)), byte(rand.Intn(255))}) //id
 
-	var qName []byte
-	for _, x := range strings.Split(domain, ".") {
-		qName = append(qName, byte(len(x)))
-		qName = append(qName, []byte(x)...)
+	//id := []byte{byte(rand.Intn(255)), byte(rand.Intn(255))} // id:
+	//qr := byte(0b0)                                          // qr 0
+	//opCode := byte(0b0000)                                   // opcode 0000
+	//aa := byte(0b0)                                          // aa 0
+	//tc := byte(0b0)                                          // tc 0
+	//rd := byte(0b1)                                          // rd 1
+	//ra := byte(0b0)                                          // ra 0
+	//z := byte(0b000)                                         // z 000
+	//rCode := byte(0b0000)                                    // rCode 0000
+	//qr2rCode := []byte{qr<<7 + opCode<<3 + aa<<2 + tc<<1 + rd, ra<<7 + z<<4 + rCode}
+	data.Write([]byte{0b0<<7 + 0b0000<<3 + 0b0<<2 + 0b0<<1 + 0b1, 0b0<<7 + 0b000<<4 + 0b0000})
+	data.Write([]byte{0b00000000, 0b00000001}) // qdCount
+	data.Write([]byte{0b00000000, 0b00000000}) // anCount
+	data.Write([]byte{0b00000000, 0b00000000}) // nsCount
+	if arCount {                               // arCount
+		data.Write([]byte{0b00000000, 0b00000001})
+	} else {
+		data.Write([]byte{0b00000000, 0b00000000})
 	}
-	qName = append(qName, 0b00000000) // add the 0 for last of domain
+	//qdCount := []byte{0b00000000, 0b00000001} // request number => bit: 00000000 00000001 -> 01
+	//anCount := []byte{0b00000000, 0b00000000} // answer number(no use for req) => bit: 00000000 00000000
+	//nsCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
+	//arCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
 
-	qType := []byte{reqType[0], reqType[1]}  // type: 1 -> A:ipv4 01 | 28 -> AAAA:ipv6  000000 00011100 => 0 0x1c
-	qClass := []byte{0b00000000, 0b00000001} // 1 -> from internet
+	//var qName []byte
+	for _, x := range strings.Split(domain, ".") {
+		data.WriteByte(byte(len(x)))
+		data.WriteString(x)
+		//qName = append(qName, byte(len(x)))
+		//qName = append(qName, []byte(x)...)
+	}
+	data.WriteByte(0b00000000)
+	//qName = append(qName, 0b00000000) // add the 0 for last of domain
 
+	//qType := []byte{reqType[0], reqType[1]}  // type: 1 -> A:ipv4 01 | 28 -> AAAA:ipv6  000000 00011100 => 0 0x1c
+	//qClass := []byte{0b00000000, 0b00000001} // 1 -> from internet
+	data.Write([]byte{reqType[0], reqType[1]})
+	data.Write([]byte{0b00000000, 0b00000001})
 	//https://www.cnblogs.com/zsy/p/5935407.html
-	return bytes.Join([][]byte{id, qr2rCode, qdCount, anCount, nsCount, arCount, qName, qType, qClass}, []byte{})
+	//return bytes.Join([][]byte{id, qr2rCode, qdCount, anCount, nsCount, arCount, qName, qType, qClass}, []byte{})
+	return data.Bytes()
 }
 
 type respHeader struct {

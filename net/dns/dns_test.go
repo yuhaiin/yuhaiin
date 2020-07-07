@@ -20,6 +20,9 @@ func TestDNS(t *testing.T) {
 }
 
 func TestDNS2(t *testing.T) {
+	dns := NewNormalDNS("114.114.114.114:53")
+	t.Log(dns.Search("baidu.com"))
+	t.Log(dns.Search("google.com"))
 	//t.Log(DNS("223.5.5.5:53", "www.google.com"))
 	//t.Log(DNS("114.114.114.114:53", "www.baidu.com"))
 }
@@ -54,7 +57,7 @@ func TestDNS5(t *testing.T) {
 }
 
 func TestDNS6(t *testing.T) {
-	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.example.com", A)))
-	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.google.com", A)))
-	t.Log(base64.URLEncoding.EncodeToString(creatRequest("a.62characterlabel-makes-base64url-distinct-from-standard-base64.example.com", A)))
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.example.com", A, false)))
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.google.com", A, false)))
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("a.62characterlabel-makes-base64url-distinct-from-standard-base64.example.com", A, false)))
 }

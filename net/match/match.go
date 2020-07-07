@@ -11,6 +11,7 @@ type Match struct {
 	//DNSStr string
 	cidr   *Cidr
 	domain *Domain
+	doh    bool
 }
 
 type Des struct {
@@ -21,8 +22,12 @@ type Des struct {
 func (x *Match) SetDNS(host string, doh bool) {
 	var subnet *net.IPNet
 	if x.DNS != nil {
+		if x.DNS.GetServer() == host && x.doh == doh {
+			return
+		}
 		subnet = x.DNS.GetSubnet()
 	}
+	x.doh = doh
 	if doh {
 		x.DNS = dns.NewDOH(host)
 	} else {

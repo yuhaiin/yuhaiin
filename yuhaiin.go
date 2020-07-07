@@ -14,10 +14,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/api"
-	"github.com/Asutorufa/yuhaiin/process/controller"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 
@@ -33,9 +33,26 @@ var (
 	cmd        *exec.Cmd
 )
 
+func getFreePort() (string, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return "", err
+	}
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			log.Println(err)
+		}
+	}()
+	return strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
+}
+
 func startGrpc() {
 	fmt.Println("start grpc server")
-	port, err := controller.GetFreePort()
+	port, err := getFreePort()
 	if err != nil {
 		gui.MessageBox(err.Error())
 		return
@@ -134,7 +151,7 @@ func main() {
 	fmt.Println("new api client")
 	c := api.NewApiClient(conn)
 	fmt.Println("process init")
-	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
+	_, err = c.CreateLockFile(context.Background(), &empty.Empty{})
 	if err != nil {
 		log.Println(err)
 		log.Println("Call the Exist Client")
@@ -160,6 +177,10 @@ func main() {
 			panic(err)
 		}
 		return
+	}
+	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
+	if err != nil {
+		panic(err)
 	}
 	defer func() {
 		_, err := c.ProcessExit(context.Background(), &empty.Empty{})

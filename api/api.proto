@@ -11,6 +11,7 @@ import "config/config.proto";
 //protoc -I "./" -I "../" --go_out=plugins=grpc:. --go_opt=paths=source_relative api.proto
 
 service api {
+  rpc CreateLockFile(google.protobuf.Empty)returns(google.protobuf.Empty){}
   rpc ProcessInit(google.protobuf.Empty)returns(google.protobuf.Empty){}
   rpc GetRunningHost(google.protobuf.Empty)returns(google.protobuf.StringValue){}
   rpc ClientOn(google.protobuf.Empty)returns(google.protobuf.Empty){}

@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"io"
 	"log"
@@ -10,13 +11,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
-
 	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
 )
 
 // Server http server
 type Server struct {
+	interfaces.Server
 	Username string
 	Password string
 	listener net.Listener
@@ -125,12 +126,12 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 	}
 
 	//log.Println("host", req.Host)
-	host := req.Host
+	host := bytes.NewBufferString(req.Host)
 	if req.URL.Port() == "" {
-		host = req.Host + ":80"
+		host.WriteString(":80")
 	}
 
-	server, err := common.ForwardTarget(host)
+	server, err := common.ForwardTarget(host.String())
 	if err != nil {
 		//log.Println(err)
 		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
@@ -139,7 +140,8 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 	defer server.Close()
 
 	if req.Method == http.MethodConnect {
-		if _, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n")); err != nil {
+		_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+		if err != nil {
 			log.Println(err)
 			return
 		}

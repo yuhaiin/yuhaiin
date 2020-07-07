@@ -14,6 +14,7 @@ import (
 
 // Server <--
 type Server struct {
+	interfaces.Server
 	Username    string
 	Password    string
 	listener    net.Listener

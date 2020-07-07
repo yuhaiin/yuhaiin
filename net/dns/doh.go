@@ -14,6 +14,7 @@ import (
 )
 
 type DOH struct {
+	DNS
 	Server string
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
@@ -50,6 +51,10 @@ func (d *DOH) GetSubnet() *net.IPNet {
 
 func (d *DOH) SetServer(host string) {
 	d.Server = host
+}
+
+func (d *DOH) GetServer() string {
+	return d.Server
 }
 
 func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {

@@ -64,6 +64,9 @@ func NewMatchController(bypassFile string) *MatchController {
 }
 
 func (m *MatchController) EnableDNSProxy(enable bool) {
+	if m.dNSProxy == enable {
+		return
+	}
 	if enable {
 		m.dNSProxy = true
 		m.Matcher.DNS.SetProxy(m.proxy)
@@ -129,6 +132,9 @@ func (m *MatchController) UpdateMatch() error {
 }
 
 func (m *MatchController) SetBypass(file string) error {
+	if m.bypassFile == file {
+		return nil
+	}
 	m.bypassFile = file
 	return m.UpdateMatch()
 }

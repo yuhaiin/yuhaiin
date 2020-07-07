@@ -1,6 +1,7 @@
 package socks5client
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -87,9 +88,9 @@ func (s *Client) firstVerify() error {
 	// 0x03 - 0x7F由IANA分配（保留）
 	// 0x80 - 0xFE为私人方法保留
 	// 0xFF 无可接受的方法
-
-	sendData := []byte{0x05, 0x01, 0x00}
-	_, err := s.Conn.Write(sendData)
+	sendData := bytes.NewBuffer([]byte{0x05, 0x01, 0x00})
+	//sendData := []byte{0x05, 0x01, 0x00}
+	_, err := s.Conn.Write(sendData.Bytes())
 	if err != nil {
 		return fmt.Errorf("firstVerify:sendData -> %v", err)
 	}
@@ -118,10 +119,14 @@ func (s *Client) firstVerify() error {
 	// +----------+-------+
 	// 其中鉴定状态 0x00 表示成功，0x01 表示失败。
 	if getData[1] == 0x02 {
-		sendData = append([]byte{0x01, byte(len(s.Username))}, []byte(s.Username)...)
-		sendData = append(sendData, byte(len(s.Password)))
-		sendData = append(sendData, []byte(s.Password)...)
-		_, _ = s.Conn.Write(sendData)
+		sendData.Write([]byte{0x01, byte(len(s.Username))})
+		sendData.WriteString(s.Username)
+		sendData.WriteByte(byte(len(s.Password)))
+		sendData.WriteString(s.Password)
+		//sendData = append([]byte{0x01, byte(len(s.Username))}, []byte(s.Username)...)
+		//sendData = append(sendData, byte(len(s.Password)))
+		//sendData = append(sendData, []byte(s.Password)...)
+		_, _ = s.Conn.Write(sendData.Bytes())
 
 		//getData := make([]byte, 3)
 		_, err = s.Conn.Read(getData[:])
@@ -355,9 +360,11 @@ func (s *Client) secondVerify() error {
 	if err != nil {
 		return fmt.Errorf("secondVerify:ParseAddr -> %v", err)
 	}
-	sendData := append([]byte{0x5, 0x01, 0x00}, addr...)
+	sendData := bytes.NewBuffer([]byte{0x05, 0x01, 0x00})
+	sendData.Write(addr)
+	//sendData := append([]byte{0x5, 0x01, 0x00}, addr...)
 
-	if _, err = s.Conn.Write(sendData); err != nil {
+	if _, err = s.Conn.Write(sendData.Bytes()); err != nil {
 		return err
 	}
 
@@ -373,7 +380,7 @@ func (s *Client) secondVerify() error {
 	return nil
 }
 
-func ParseAddr(hostname string) (sendData []byte, err error) {
+func ParseAddr(hostname string) (data []byte, err error) {
 	address, err := url.Parse("//" + hostname)
 	if err != nil {
 		return nil, err
@@ -382,18 +389,28 @@ func ParseAddr(hostname string) (sendData []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
+	sendData := bytes.NewBuffer(nil)
 	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
 		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
-			sendData = append([]byte{0x01}, serverIP.To4()...)
+			sendData.WriteByte(0x01)
+			sendData.Write(serverIP.To4())
+			//sendData = append([]byte{0x01}, serverIP.To4()...)
 		} else {
-			sendData = append([]byte{0x04}, serverIP.To16()...)
+			sendData.WriteByte(0x04)
+			sendData.Write(serverIP.To16())
+			//sendData = append([]byte{0x04}, serverIP.To16()...)
 		}
 		// sendData := []byte{0x5, 0x01, 0x00, 0x01, 0x7f, 0x00, 0x00, 0x01, 0x04, 0x38}
 	} else {
-		sendData = append([]byte{0x03, byte(len(address.Hostname()))}, []byte(address.Hostname())...)
+		sendData.WriteByte(0x03)
+		sendData.WriteByte(byte(len(address.Hostname())))
+		sendData.WriteString(address.Hostname())
+		//sendData = append([]byte{0x03, byte(len(address.Hostname()))}, []byte(address.Hostname())...)
 	}
-	sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
-	return sendData, nil
+	//sendData = append(sendData, byte(serverPort>>8), byte(serverPort&255))
+	sendData.WriteByte(byte(serverPort >> 8))
+	sendData.WriteByte(byte(serverPort & 255))
+	return sendData.Bytes(), nil
 }
 
 func NewSocks5Client(host string, user, password string, address string) (net.Conn, error) {

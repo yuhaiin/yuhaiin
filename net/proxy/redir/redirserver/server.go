@@ -8,6 +8,7 @@ import (
 )
 
 type Server struct {
+	interfaces.Server
 	listener net.Listener
 	closed   bool
 }
