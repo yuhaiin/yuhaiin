@@ -141,7 +141,9 @@ func main() {
 	}
 
 	fmt.Printf("grpc dial: %s\n", clientHost)
-	conn, err := grpc.Dial(clientHost, grpc.WithInsecure(), grpc.WithBlock())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, clientHost, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Println(err)
 		gui.MessageBox(err.Error())
@@ -150,7 +152,7 @@ func main() {
 	defer conn.Close()
 	fmt.Println("new api client")
 	c := api.NewApiClient(conn)
-	fmt.Println("process init")
+	fmt.Println("create lock file")
 	_, err = c.CreateLockFile(context.Background(), &empty.Empty{})
 	if err != nil {
 		log.Println(err)
@@ -164,20 +166,21 @@ func main() {
 			panic(err)
 		}
 		log.Println(s)
-		conn, err = grpc.Dial(s.Value, grpc.WithInsecure(), grpc.WithBlock())
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		defer cancel()
+		conn, err = grpc.DialContext(ctx, s.Value, grpc.WithInsecure(), grpc.WithBlock())
 		if err != nil {
 			panic(err)
 		}
 		defer conn.Close()
 		c = api.NewApiClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-		_, err = c.ClientOn(ctx, &empty.Empty{})
+		_, err = c.ClientOn(context.Background(), &empty.Empty{})
 		if err != nil {
 			panic(err)
 		}
 		return
 	}
+	fmt.Println("process init")
 	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
 	if err != nil {
 		panic(err)

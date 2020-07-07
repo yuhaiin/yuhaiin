@@ -9,7 +9,7 @@ import (
 )
 
 func TestShadowSocks(t *testing.T) {
-	f, err := os.Open("/home/asutorufa/Desktop/node.txt")
+	f, err := os.Open("node.txt")
 	if err != nil {
 		t.Log(err)
 	}
@@ -17,7 +17,7 @@ func TestShadowSocks(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	dst, err := Base64d2(s)
+	dst, err := Base64DByte(s)
 	if err != nil {
 		t.Log(err)
 	}

@@ -44,7 +44,6 @@ type eDNSHeader struct {
 func createEDNSRequ(header eDNSHeader) []byte {
 	header.DnsHeader[10] = 0b00000000
 	header.DnsHeader[11] = 0b00000001
-	//log.Println(header.DnsHeader)
 	length := getLength(len(header.Data))
 	return bytes.Join([][]byte{header.DnsHeader, header.Name[:], header.Type[:], header.PayloadSize[:], header.ExtendRCode[:], header.EDNSVersion[:], header.Z[:], length[:], header.Data}, []byte{})
 }
@@ -53,32 +52,22 @@ func createEDNSRequ(header eDNSHeader) []byte {
 // https://tools.ietf.org/html/rfc2671
 func createEDNSReq(domain string, reqType2 reqType, eDNS []byte) []byte {
 	data := bytes.NewBuffer(creatRequest(domain, reqType2, true))
-	data.WriteByte(0b00000000)
-	data.Write([]byte{0b00000000, 0b00101001})
-	data.Write([]byte{0b00010000, 0b00000000})
-	data.WriteByte(0b00000000)
-	data.WriteByte(0b00000000)
-	data.Write([]byte{0b00000000, 0b00000000})
-	//name := []byte{0b00000000}
-	//typeR := []byte{0b00000000, 0b00101001}       //41
-	//payloadSize := []byte{0b00010000, 0b00000000} //4096
-	//extendRcode := []byte{0b00000000}
-	//eDNSVersion := []byte{0b00000000}
-	//z := []byte{0b00000000, 0b00000000}
-	data.Write(getLength(len(eDNS)))
-	data.Write(eDNS)
-	//return bytes.Join([][]byte{normalReq, name, typeR, payloadSize, extendRcode, eDNSVersion, z, dataLength[:], eDNS}, []byte{})
+	data.WriteByte(0b00000000)                 // name
+	data.Write([]byte{0b00000000, 0b00101001}) // type 41
+	data.Write([]byte{0b00010000, 0b00000000}) // payloadSize 4096
+	data.WriteByte(0b00000000)                 // extendRcode
+	data.WriteByte(0b00000000)                 // EDNS Version
+	data.Write([]byte{0b00000000, 0b00000000}) // Z
+	data.Write(getLength(len(eDNS)))           // data length
+	data.Write(eDNS)                           // data
 	return data.Bytes()
 }
 
 func createEdnsClientSubnet(ip *net.IPNet) []byte {
 	optionData := bytes.NewBuffer(nil)
 	mask, _ := ip.Mask.Size()
-	//family := []byte{0b00000000, 0b00000001} // 1:Ipv4 2:IPv6 https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
-	//sourceNetmask := []byte{byte(mask)}      // 32
-	//scopeNetmask := []byte{0b00000000}       //0 In queries, it MUST be set to 0.
 	subnet := ip.IP.To4()
-	if subnet == nil {
+	if subnet == nil { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
 		optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
 		subnet = ip.IP.To16()
 	} else {
@@ -86,16 +75,12 @@ func createEdnsClientSubnet(ip *net.IPNet) []byte {
 	}
 	optionData.WriteByte(byte(mask)) // mask
 	optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
-	optionData.Write(subnet)         // subnet
-	//optionData := bytes.Join([][]byte{family, sourceNetmask, scopeNetmask, subnet}, []byte{})
+	optionData.Write(subnet)         // subnet IP
 
-	//optionCode := []byte{EdnsClientSubnet[0], EdnsClientSubnet[1]}
-	//optionLength := getLength(len(optionData))
 	data := bytes.NewBuffer(nil)
 	data.Write([]byte{EdnsClientSubnet[0], EdnsClientSubnet[1]}) // option Code
 	data.Write(getLength(optionData.Len()))                      // option data length
 	data.Write(optionData.Bytes())                               // option data
-	//return bytes.Join([][]byte{optionCode, optionLength, optionData}, []byte{})
 	return data.Bytes()
 }
 
@@ -107,23 +92,18 @@ func resolveAdditional(b []byte, arCount int) {
 	for arCount != 0 {
 		arCount--
 		//name := b[:1]
-		b = b[1:]
+		b = b[1:] // name
 		typeE := b[:2]
-		b = b[2:]
-		//payLoadSize := b[:2]
-		b = b[2:]
-		//rCode := b[:1]
-		b = b[1:]
-		//version := b[:1]
-		b = b[1:]
-		//z := b[:2]
-		b = b[2:]
+		b = b[2:] // type
+		b = b[2:] // payLoadSize
+		b = b[1:] // rCode
+		b = b[1:] // version
+		b = b[2:] // Z
 		dataLength := int(b[0])<<8 + int(b[1])
 		b = b[2:]
-		//log.Println(name, typeE, payLoadSize, rCode, version, z, dataLength)
 		if typeE[0] != 0 || typeE[1] != 41 {
 			//optData := b[:dataLength]
-			b = b[dataLength:]
+			b = b[dataLength:] // optData
 			continue
 		}
 
@@ -136,27 +116,12 @@ func resolveAdditional(b []byte, arCount int) {
 		b = b[2:]
 		switch optCode {
 		case EdnsClientSubnet:
-			//family := b[:2]
-			b = b[2:]
-			//sourceNetmask := b[:1]
-			//log.Println("sourceNetmask", sourceNetmask)
-			b = b[1:]
-			//scopeNetmask := b[:1]
-			//log.Println("scopeNetmask", scopeNetmask)
-			b = b[1:]
-			// Subnet IP
-			//if family[0] == 0 && family[1] == 1 {
-			//	log.Println(b[:4])
-			//}
-			//if family[0] == 0 && family[1] == 2 {
-			//	log.Println(b[:16])
-			//}
-
-			b = b[optionLength-4:]
+			b = b[2:]              // family
+			b = b[1:]              // source Netmask
+			b = b[1:]              // scope Netmask
+			b = b[optionLength-4:] // Subnet IP
 		default:
-			//log.Println("opt data:", b[:optionLength])
-			b = b[optionLength:]
+			b = b[optionLength:] // opt data
 		}
 	}
-
 }

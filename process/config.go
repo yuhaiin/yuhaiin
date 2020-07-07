@@ -56,7 +56,7 @@ func SetConFig(conf *config.Setting) (erra error) {
 		erra = fmt.Errorf("%v\nUpdateMatchErr -> %v", erra, err)
 	}
 
-	if (ConFig.SsrPath != conf.SsrPath && SsrCmd != nil) || first {
+	if (ConFig.SsrPath != conf.SsrPath && ssrRunning) || first {
 		err := ChangeNode()
 		if err != nil && !first {
 			erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)

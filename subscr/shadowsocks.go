@@ -26,9 +26,9 @@ func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
 	s.Type = shadowsocks
 	s.Server = ssUrl.Hostname()
 	s.Port = ssUrl.Port()
-	s.Method = strings.Split(Base64d(ssUrl.User.String()), ":")[0]
-	s.Password = strings.Split(Base64d(ssUrl.User.String()), ":")[1]
-	s.Group = Base64d(ssUrl.Query().Get("group"))
+	s.Method = strings.Split(Base64DStr(ssUrl.User.String()), ":")[0]
+	s.Password = strings.Split(Base64DStr(ssUrl.User.String()), ":")[1]
+	s.Group = Base64DStr(ssUrl.Query().Get("group"))
 	s.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
 	s.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), s.Plugin+";", "", -1)
 	s.Name = "[ss]" + ssUrl.Fragment

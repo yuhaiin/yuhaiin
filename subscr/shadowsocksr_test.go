@@ -28,7 +28,7 @@ func TestLint(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	dst, err := Base64d2(s)
+	dst, err := Base64DByte(s)
 	if err != nil {
 		t.Log(err)
 	}

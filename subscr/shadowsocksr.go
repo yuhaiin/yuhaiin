@@ -23,7 +23,7 @@ type Shadowsocksr struct {
 }
 
 func SsrParse(link []byte) (*Shadowsocksr, error) {
-	decodeStr := strings.Split(Base64d(strings.Replace(string(link), "ssr://", "", -1)), "/?")
+	decodeStr := strings.Split(Base64DStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	node := new(Shadowsocksr)
 	node.Type = shadowsocksr
 	x := strings.Split(decodeStr[0], ":")
@@ -35,13 +35,13 @@ func SsrParse(link []byte) (*Shadowsocksr, error) {
 	node.Protocol = x[2]
 	node.Method = x[3]
 	node.Obfs = x[4]
-	node.Password = Base64d(x[5])
+	node.Password = Base64DStr(x[5])
 	if len(decodeStr) > 1 {
 		query, _ := url.ParseQuery(decodeStr[1])
-		node.Group = Base64d(query.Get("group"))
-		node.Obfsparam = Base64d(query.Get("obfsparam"))
-		node.Protoparam = Base64d(query.Get("protoparam"))
-		node.Name = "[ssr]" + Base64d(query.Get("remarks"))
+		node.Group = Base64DStr(query.Get("group"))
+		node.Obfsparam = Base64DStr(query.Get("obfsparam"))
+		node.Protoparam = Base64DStr(query.Get("protoparam"))
+		node.Name = "[ssr]" + Base64DStr(query.Get("remarks"))
 	}
 	return node, nil
 }

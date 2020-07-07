@@ -100,7 +100,7 @@ func GetLinkFromInt() error {
 		if err != nil {
 			return err
 		}
-		dst, err := Base64d2(body)
+		dst, err := Base64DByte(body)
 		if err != nil {
 			log.Println(err)
 			continue

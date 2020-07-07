@@ -11,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/controller"
 	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
-
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
@@ -144,10 +143,6 @@ func ChangeNode() error {
 
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
-		// ip, err := getIP(nNode.(*subscr.Shadowsocks).Server)
-		// if err == nil {
-		// 	nNode.(*subscr.Shadowsocks).Server = ip.String()
-		// }
 		conn, err := client.NewShadowsocks(
 			nNode.(*subscr.Shadowsocks).Method,
 			nNode.(*subscr.Shadowsocks).Password,

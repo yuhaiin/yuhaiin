@@ -38,7 +38,7 @@ type Vmess struct {
 
 // test vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnVlLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
 func GetVmess(str string) {
-	jsonStr := Base64d(str)
+	jsonStr := Base64DStr(str)
 	fmt.Println(jsonStr)
 	vmess := &Vmess{}
 	if err := json.Unmarshal([]byte(jsonStr), vmess); err != nil {

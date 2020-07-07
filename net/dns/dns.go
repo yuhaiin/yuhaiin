@@ -130,48 +130,27 @@ func udpDial(req []byte, DNSServer string) (data []byte, err error) {
 
 func creatRequest(domain string, reqType reqType, arCount bool) []byte {
 	data := bytes.NewBuffer(nil)
-	data.Write([]byte{byte(rand.Intn(255)), byte(rand.Intn(255))}) //id
-
-	//id := []byte{byte(rand.Intn(255)), byte(rand.Intn(255))} // id:
-	//qr := byte(0b0)                                          // qr 0
-	//opCode := byte(0b0000)                                   // opcode 0000
-	//aa := byte(0b0)                                          // aa 0
-	//tc := byte(0b0)                                          // tc 0
-	//rd := byte(0b1)                                          // rd 1
-	//ra := byte(0b0)                                          // ra 0
-	//z := byte(0b000)                                         // z 000
-	//rCode := byte(0b0000)                                    // rCode 0000
-	//qr2rCode := []byte{qr<<7 + opCode<<3 + aa<<2 + tc<<1 + rd, ra<<7 + z<<4 + rCode}
+	data.Write([]byte{byte(rand.Intn(255)), byte(rand.Intn(255))}) // id
+	// qr 0, opcode 0000, aa 0, tc 0, rd 1 => 1 byte, ra 0, z 000, rCode 0000 => 1 byte
 	data.Write([]byte{0b0<<7 + 0b0000<<3 + 0b0<<2 + 0b0<<1 + 0b1, 0b0<<7 + 0b000<<4 + 0b0000})
-	data.Write([]byte{0b00000000, 0b00000001}) // qdCount
-	data.Write([]byte{0b00000000, 0b00000000}) // anCount
-	data.Write([]byte{0b00000000, 0b00000000}) // nsCount
-	if arCount {                               // arCount
+	data.Write([]byte{0b00000000, 0b00000001}) // qdCount: request number => bit: 00000000 00000001 -> 01
+	data.Write([]byte{0b00000000, 0b00000000}) // anCount: answer number(no use for req) => bit: 00000000 00000000
+	data.Write([]byte{0b00000000, 0b00000000}) // nsCount: authority section 2 bytes
+	if arCount {                               // arCount: additional section 2 bytes
 		data.Write([]byte{0b00000000, 0b00000001})
 	} else {
 		data.Write([]byte{0b00000000, 0b00000000})
 	}
-	//qdCount := []byte{0b00000000, 0b00000001} // request number => bit: 00000000 00000001 -> 01
-	//anCount := []byte{0b00000000, 0b00000000} // answer number(no use for req) => bit: 00000000 00000000
-	//nsCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
-	//arCount := []byte{0b00000000, 0b00000000} //(no use for req) => bit: 00000000 00000000
 
-	//var qName []byte
-	for _, x := range strings.Split(domain, ".") {
+	for _, x := range strings.Split(domain, ".") { // domain: www.example.com => 3www7example3com <- last with 0
 		data.WriteByte(byte(len(x)))
 		data.WriteString(x)
-		//qName = append(qName, byte(len(x)))
-		//qName = append(qName, []byte(x)...)
 	}
-	data.WriteByte(0b00000000)
-	//qName = append(qName, 0b00000000) // add the 0 for last of domain
+	data.WriteByte(0b00000000) // add the 0 for last of domain
 
-	//qType := []byte{reqType[0], reqType[1]}  // type: 1 -> A:ipv4 01 | 28 -> AAAA:ipv6  000000 00011100 => 0 0x1c
-	//qClass := []byte{0b00000000, 0b00000001} // 1 -> from internet
-	data.Write([]byte{reqType[0], reqType[1]})
-	data.Write([]byte{0b00000000, 0b00000001})
+	data.Write([]byte{reqType[0], reqType[1]}) // qType 1 -> A:ipv4 01 | 28 -> AAAA:ipv6  000000 00011100 => 0 0x1c
+	data.Write([]byte{0b00000000, 0b00000001}) // qClass: 1 = from internet
 	//https://www.cnblogs.com/zsy/p/5935407.html
-	//return bytes.Join([][]byte{id, qr2rCode, qdCount, anCount, nsCount, arCount, qName, qType, qClass}, []byte{})
 	return data.Bytes()
 }
 
@@ -212,47 +191,30 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 		return header, nil, errors.New("other error")
 	}
 
-	//qdCountA := []byte{b[4], b[5]}  // no use, for request
-	header.qdCount = 0
-	//anCountA := []byte{answer[6], answer[7]}
-	header.anCount = int(answer[6])<<8 + int(answer[7])
-	//nsCount2arCountA := []byte{b[8], b[9], b[10], b[11]} // no use
-	header.nsCount = int(answer[8])<<8 + int(answer[9])
-	header.arCount = int(answer[10])<<8 + int(answer[11])
+	header.qdCount = 0                                    // request
+	header.anCount = int(answer[6])<<8 + int(answer[7])   // answer Count
+	header.nsCount = int(answer[8])<<8 + int(answer[9])   // authority Count
+	header.arCount = int(answer[10])<<8 + int(answer[11]) // additional Count
 
 	c := answer[12:]
 
-	//var x string
 	header.name, _, c = getName(c, answer)
-	//log.Println(x)
 
-	//log.Println("qType:", c[:2])
-	c = c[2:]
-	//log.Println("qClass:", c[:2])
-	c = c[2:]
+	c = c[2:] // qType
+	c = c[2:] // qClass
 
 	return header, c, nil
 }
 
 func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, err error) {
-
-	// answer section
-	//log.Println()
-	//log.Println("Answer section:")
-
-	//var x string
 	for anCount != 0 {
 		_, _, c = getName(c, b)
 
 		tYPE := reqType{c[0], c[1]}
-		//log.Println("type:", c[0], c[1])
 		c = c[2:] // type
-		//log.Println("class:", c[0], c[1])
 		c = c[2:] // class
-		//log.Println("ttl:", c[0], c[1], c[2], c[3])
 		c = c[4:] // ttl 4byte
 		sum := int(c[0])<<8 + int(c[1])
-		//log.Println("rdlength", sum)
 		c = c[2:] // RDLENGTH  jump sum 2+int(c[0])<<8+int(c[1])
 
 		switch tYPE {
@@ -286,7 +248,6 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 		case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 			fallthrough
 		default:
-			//log.Println("rdata", c[:sum])
 			c = c[sum:] // RDATA
 		}
 		anCount -= 1
