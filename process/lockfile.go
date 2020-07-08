@@ -5,12 +5,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-
-	"github.com/Asutorufa/yuhaiin/config"
 )
 
 var (
-	LockFilePath = config.Path + "/yuhaiin.lock"
+	LockFilePath = os.TempDir() + "/yuhaiin/yuhaiin.lock"
+	hostFile     = os.TempDir() + "/yuhaiin/host.txt"
 	lockFile     *os.File
 )
 
@@ -23,7 +22,9 @@ func GetProcessLock(str string) error {
 	if err := LockFile(lockFile); err != nil {
 		return fmt.Errorf("GetProcessLock() -> LockFile() -> %v", err)
 	}
-	_, err = lockFile.WriteString(str)
+
+	err = ioutil.WriteFile(hostFile, []byte(str), os.ModePerm)
+	// _, err = lockFile.WriteString(str)
 	if err != nil {
 		log.Printf("GetProcessLock() -> WriteString() -> %v", err)
 	}
@@ -31,16 +32,25 @@ func GetProcessLock(str string) error {
 }
 
 func ReadLockFile() (string, error) {
-	s, err := ioutil.ReadFile(LockFilePath)
+	s, err := ioutil.ReadFile(hostFile)
 	if err != nil {
 		return "", fmt.Errorf("ReadLockFile() -> ReadFile() -> %v", err)
 	}
 	return string(s), nil
 }
 
-func LockFileClose() error {
-	if err := lockFile.Close(); err != nil {
-		return err
+func LockFileClose() (erra error) {
+	err := os.Remove(hostFile)
+	if err != nil {
+		fmt.Errorf("%v\nRemove hostFile -> %v", erra, err)
 	}
-	return os.Remove(LockFilePath)
+	err = lockFile.Close()
+	if err != nil {
+		fmt.Errorf("%v\nUnlock File (close file) -> %v", erra, err)
+	}
+	err = os.Remove(LockFilePath)
+	if err != nil {
+		fmt.Errorf("%v\nRemove lockFile -> %v", erra, err)
+	}
+	return
 }

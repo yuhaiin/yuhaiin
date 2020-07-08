@@ -23,7 +23,7 @@ How to use:
     git clone https://github.com/therecipe/env_linux_amd64_513.git vendor/github.com/therecipe/env_linux_amd64_513
     $(go env GOPATH)/bin/qtdeploy
     ```
-    windows
+    windows amd64
     
     ```cmd
     git clone https://github.com/Asutorufa/yuhaiin.git
@@ -44,7 +44,6 @@ How to use:
     - DNS: Normal DNS,EDNS,DNSSEC,DNS over HTTPS 
 - Support Subscription: Shadowsocksr, SSD
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)
-- [For Developer](https://github.com/Asutorufa/yuhaiin/blob/master/for_developer.md) <- outdated
 - Memory(Just a Reference)
     - Bypass = 8472 CIDR + 75296 domain = 50MB.
     - Bypass + Gui = 70MB.
@@ -68,6 +67,8 @@ How to use:
 - [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
 - [v2ray-plugin](https://github.com/shadowsocks/v2ray-plugin)  
 - [v2ray](https://v2ray.com/)  
+- [gRPC](https://grpc.io/)  
+- [protobuf](https://github.com/golang/protobuf)  
 
 </details>
 

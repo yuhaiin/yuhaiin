@@ -142,6 +142,7 @@ func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
 			if err != nil {
 				log.Println(err)
 			}
+			log.Println("call open gui")
 		case <-ctx.Done():
 			close(message)
 			messageOn = false

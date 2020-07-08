@@ -61,7 +61,7 @@ func NewMainWindow(sGui *SGui) *widgets.QMainWindow {
 		gui.QDesktopServices_OpenUrl(core.NewQUrl3("https://github.com/Asutorufa", core.QUrl__TolerantMode))
 	})
 	aboutMenu.AddSeparator()
-	aboutMenu.AddAction("Version: 0.2.11.4Beta")
+	aboutMenu.AddAction("Version: 0.2.11.5.Beta")
 	menuBar.AdjustSize()
 	m.mainWindow.SetMenuBar(menuBar)
 
