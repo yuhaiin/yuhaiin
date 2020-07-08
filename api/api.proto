@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package yuhaiin.api;
+
+option go_package = "github.com/Asutorufa/yuhaiin/api";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+import "config/config.proto";
+
+//protoc -I "./" -I "../" --go_out=plugins=grpc:. --go_opt=paths=source_relative api.proto
+
+service api {
+  rpc CreateLockFile(google.protobuf.Empty)returns(google.protobuf.Empty){}
+  rpc ProcessInit(google.protobuf.Empty)returns(google.protobuf.Empty){}
+  rpc GetRunningHost(google.protobuf.Empty)returns(google.protobuf.StringValue){}
+  rpc ClientOn(google.protobuf.Empty)returns(google.protobuf.Empty){}
+  rpc ProcessExit(google.protobuf.Empty)returns(google.protobuf.Empty){}
+
+  rpc GetConfig(google.protobuf.Empty)returns(yuhaiin.api.Setting){}
+  rpc SetConfig(yuhaiin.api.Setting)returns(google.protobuf.Empty){}
+  rpc ReimportRule(google.protobuf.Empty)returns(google.protobuf.Empty){}
+
+  rpc GetGroup(google.protobuf.Empty)returns(allGroupOrNode){}
+  rpc GetNode(google.protobuf.StringValue)returns(allGroupOrNode){}
+  rpc GetNowGroupAndName(google.protobuf.Empty)returns(NowNodeGroupAndNode){}
+  rpc ChangeNowNode(NowNodeGroupAndNode)returns(google.protobuf.Empty){}
+
+  rpc UpdateSub(google.protobuf.Empty)returns(google.protobuf.Empty){}
+  rpc GetSubLinks(google.protobuf.Empty)returns(allGroupOrNode){}
+  rpc AddSubLink(google.protobuf.StringValue)returns(allGroupOrNode){}
+  rpc DeleteSubLink(google.protobuf.StringValue)returns(allGroupOrNode){}
+
+  rpc Latency(NowNodeGroupAndNode)returns(google.protobuf.StringValue){}
+  rpc GetAllDownAndUP(google.protobuf.Empty)returns(DownAndUP){}
+  rpc ReducedUnit(google.protobuf.DoubleValue)returns(google.protobuf.StringValue){}
+
+  rpc SingleInstance(stream google.protobuf.StringValue)returns(stream google.protobuf.StringValue){}
+}
+
+message allGroupOrNode {
+  repeated string value = 1;
+}
+
+message NowNodeGroupAndNode{
+  string group = 1;
+  string node = 2;
+}
+
+message DownAndUP{
+  uint64 Download = 1;
+  uint64 Upload = 2;
+}
