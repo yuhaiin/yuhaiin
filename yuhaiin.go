@@ -17,13 +17,11 @@ import (
 	"strconv"
 	"time"
 
+	//_ "net/http/pprof"
 	"github.com/Asutorufa/yuhaiin/api"
+	"github.com/Asutorufa/yuhaiin/gui"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
-
-	//_ "net/http/pprof"
-
-	"github.com/Asutorufa/yuhaiin/gui"
 )
 
 var (
@@ -51,31 +49,34 @@ func getFreePort() (string, error) {
 }
 
 func startGrpc() {
-	fmt.Println("start grpc server")
+	fmt.Println("Try start kernel.")
 	port, err := getFreePort()
 	if err != nil {
 		gui.MessageBox(err.Error())
 		return
 	}
 	clientHost = net.JoinHostPort("127.0.0.1", port)
-
+	fmt.Println("gRPC Host:", clientHost)
 	cmd = exec.Command(kernel, "-host", clientHost)
-	log.Println(cmd.String())
+	fmt.Println("Start kernel command:", cmd.String())
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Println(err)
+		log.Println("Get standard output failed:", err)
 		gui.MessageBox(err.Error())
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		log.Println(err)
+		log.Println("Get standard error failed:", err)
 		gui.MessageBox(err.Error())
 	}
+	fmt.Println("Try to running kernel command.")
 	err = cmd.Start()
 	if err != nil {
+		log.Println("Running kernel command failed:", err)
 		gui.MessageBox(err.Error())
 		panic(err)
 	}
+	fmt.Println("Running kernel command successful.")
 	stdoutReader := bufio.NewReader(stdout)
 	stderrReader := bufio.NewReader(stderr)
 	go func() {
@@ -135,62 +136,72 @@ func main() {
 	}
 	flag.Parse()
 
+	fmt.Println("Use external:", extKernel)
+	fmt.Println("Kernel Path:", kernel)
 	if !extKernel {
 		startGrpc()
 		defer cmd.Process.Kill()
 	}
 
-	fmt.Printf("grpc dial: %s\n", clientHost)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
+	fmt.Println("Try to Create gRPC Dial.")
 	conn, err := grpc.DialContext(ctx, clientHost, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Println(err)
+		log.Println("Create gRPC Dial failed:", err)
 		gui.MessageBox(err.Error())
 		return
 	}
+	fmt.Println("Create gRPC Dial successful.")
 	defer conn.Close()
-	fmt.Println("new api client")
+	fmt.Println("Create API Client.")
 	c := api.NewApiClient(conn)
-	fmt.Println("create lock file")
+	fmt.Println("Try to Get lock file state.")
 	_, err = c.CreateLockFile(context.Background(), &empty.Empty{})
 	if err != nil {
 		log.Println(err)
-		log.Println("Call the Exist Client")
+		fmt.Println("Try to Get Already Running kernel gRPC Host.")
 		s, err := c.GetRunningHost(context.Background(), &empty.Empty{})
 		if err != nil {
+			fmt.Println("Get Already Running kernel gRPC Host failed.")
 			panic(err)
 		}
 		err = conn.Close()
 		if err != nil {
 			panic(err)
 		}
-		log.Println(s)
+		fmt.Println("Get Running Host Successful, Host:", s.Value)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 		defer cancel()
+		fmt.Println("Try to Create gRPC Dial.")
 		conn, err = grpc.DialContext(ctx, s.Value, grpc.WithInsecure(), grpc.WithBlock())
 		if err != nil {
+			fmt.Println("Create gRPC Dial failed:", err)
 			panic(err)
 		}
+		fmt.Println("Create gRPC Dial successful.")
 		defer conn.Close()
 		c = api.NewApiClient(conn)
+		fmt.Println("Try to Open GUI.")
 		_, err = c.ClientOn(context.Background(), &empty.Empty{})
 		if err != nil {
+			fmt.Println("Open GUI failed:", err)
 			panic(err)
 		}
+		fmt.Println("Open GUI Successful.")
 		return
 	}
-	fmt.Println("process init")
-	_, err = c.ProcessInit(context.Background(), &empty.Empty{})
-	if err != nil {
-		panic(err)
-	}
+	//fmt.Println("Try process init")
+	//_, err = c.ProcessInit(context.Background(), &empty.Empty{})
+	//if err != nil {
+	//	panic(err)
+	//}
 	defer func() {
 		_, err := c.ProcessExit(context.Background(), &empty.Empty{})
 		if err != nil {
 			log.Println(err)
 		}
 	}()
-	fmt.Println("open ui")
+	fmt.Println("Open GUI.")
 	gui.NewGui(c).App.Exec()
 }

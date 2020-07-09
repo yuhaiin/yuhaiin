@@ -11,7 +11,7 @@ func TcpLatency(dialContext func(ctx context.Context, network, addr string) (net
 	tr := http.Transport{
 		DialContext: dialContext,
 	}
-	newClient := &http.Client{Transport: &tr}
+	newClient := &http.Client{Transport: &tr, Timeout: 3 * time.Second}
 	timeNow := time.Now()
 	_, err := newClient.Get(target)
 	if err != nil {

@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -53,6 +54,7 @@ func (sGui *SGui) clientInit() error {
 		if err != nil {
 			return err
 		}
+		fmt.Println("Open Main Window.")
 		sGui.openWindow(sGui.MainWindow)
 	}
 	return nil
