@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -21,4 +22,8 @@ func TestGetPath(t *testing.T) {
 	t.Log(os.UserHomeDir())
 	t.Log(path.Join("/mnt/ss", "a"))
 	t.Log(filepath.Dir("./"))
+	var s *string
+	s = new(string)
+	*s = "a"
+	log.Println(*s)
 }

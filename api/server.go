@@ -1,10 +1,15 @@
+//+build api
+
 package api
 
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
+	"os"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/common"
@@ -15,20 +20,53 @@ import (
 
 type Server struct {
 	UnimplementedApiServer
-	Host string
 }
 
 var (
-	message   chan string
-	messageOn bool
+	message     chan string
+	messageOn   bool
+	InitSuccess bool
+	Host        string
 )
 
+func init() {
+	flag.StringVar(&Host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
+	flag.Parse()
+	fmt.Println("gRPC Listen Host :", Host)
+	fmt.Println("Try to create lock file.")
+	err := process.GetProcessLock(Host)
+	if err != nil {
+		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
+		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		go func(ctx context.Context) {
+			select {
+			case <-ctx.Done():
+				log.Println("Read Running Host timeout: 5 Seconds, Exit Process!")
+				os.Exit(0)
+			}
+		}(ctx)
+		return
+	}
+	fmt.Println("Create lock file successful.")
+	fmt.Println("Try to initialize Service.")
+	err = process.Init()
+	if err != nil {
+		fmt.Println("Initialize Service failed, Exit Process!")
+		panic(err)
+	}
+	fmt.Println("Initialize Service Successful.")
+	InitSuccess = true
+}
+
 func (s *Server) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, process.GetProcessLock(s.Host)
+	if !InitSuccess {
+		return &empty.Empty{}, errors.New("create lock file false")
+	}
+	return &empty.Empty{}, nil
 }
 
 func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, process.Init()
+	return &empty.Empty{}, nil
 }
 
 func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
@@ -142,7 +180,7 @@ func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
 			if err != nil {
 				log.Println(err)
 			}
-			log.Println("call open gui")
+			fmt.Println("Call Client Open Main Window.")
 		case <-ctx.Done():
 			close(message)
 			messageOn = false
