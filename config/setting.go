@@ -4,17 +4,43 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/user"
+	"os/exec"
 	"path"
+	"path/filepath"
 
 	"github.com/golang/protobuf/jsonpb"
 )
 
 var (
-	usr, _        = user.Current()
-	pathSeparator = string(os.PathSeparator)
-	ConPath       = Path + pathSeparator + "yuhaiinConfig.json"
+	Path    string
+	ConPath string
 )
+
+func init() {
+	var err error
+	Path, err = os.UserConfigDir()
+	if err == nil {
+		Path = path.Join(Path, "yuhaiin")
+		goto _end
+	}
+	{
+		file, err := exec.LookPath(os.Args[0])
+		if err != nil {
+			log.Println(err)
+			Path = "./yuhaiin"
+			goto _end
+		}
+		execPath, err := filepath.Abs(file)
+		if err != nil {
+			log.Println(err)
+			Path = "./yuhaiin"
+			goto _end
+		}
+		Path = path.Join(filepath.Dir(execPath), "config")
+	}
+_end:
+	ConPath = path.Join(Path, "yuhaiinConfig.json")
+}
 
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON() (*Setting, error) {
@@ -22,7 +48,7 @@ func SettingDecodeJSON() (*Setting, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			pa := &Setting{
-				BypassFile:         Path + pathSeparator + "yuhaiin.conf",
+				BypassFile:         path.Join(Path, "yuhaiin.conf"),
 				DnsServer:          "cloudflare-dns.com",
 				DnsSubNet:          "0.0.0.0/32",
 				Bypass:             true,

@@ -5,11 +5,13 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+
+	"github.com/Asutorufa/yuhaiin/config"
 )
 
 var (
-	LockFilePath = os.TempDir() + "/yuhaiin/yuhaiin.lock"
-	hostFile     = os.TempDir() + "/yuhaiin/host.txt"
+	LockFilePath = config.Path + "/yuhaiin.lock"
+	hostFile     = config.Path + "/host.txt"
 	lockFile     *os.File
 )
 
@@ -42,15 +44,15 @@ func ReadLockFile() (string, error) {
 func LockFileClose() (erra error) {
 	err := os.Remove(hostFile)
 	if err != nil {
-		fmt.Errorf("%v\nRemove hostFile -> %v", erra, err)
+		erra = fmt.Errorf("%v\nRemove hostFile -> %v", erra, err)
 	}
 	err = lockFile.Close()
 	if err != nil {
-		fmt.Errorf("%v\nUnlock File (close file) -> %v", erra, err)
+		erra = fmt.Errorf("%v\nUnlock File (close file) -> %v", erra, err)
 	}
 	err = os.Remove(LockFilePath)
 	if err != nil {
-		fmt.Errorf("%v\nRemove lockFile -> %v", erra, err)
+		erra = fmt.Errorf("%v\nRemove lockFile -> %v", erra, err)
 	}
 	return
 }
