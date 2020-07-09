@@ -5,14 +5,11 @@ package config
 import (
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 )
 
-var (
-	Path = usr.HomeDir + pathSeparator + ".config" + pathSeparator + "yuhaiin"
-)
-
-func GetEnvPath(binName string) (path string) {
+func GetEnvPath(binName string) (filePath string) {
 	for _, p := range strings.Split(os.ExpandEnv("$PATH"), ":") {
 		files, _ := ioutil.ReadDir(p)
 		for _, file := range files {
@@ -20,7 +17,7 @@ func GetEnvPath(binName string) (path string) {
 				continue
 			} else {
 				if file.Name() == binName {
-					return p + pathSeparator + file.Name()
+					return path.Join(p, file.Name())
 				}
 			}
 		}
