@@ -79,10 +79,26 @@ _end:
 	return d
 }
 
-func NewMatch() (matcher *Match) {
+type OptionArgument struct {
+	DNS    string
+	DOH    bool
+	Subnet *net.IPNet
+}
+type OptionMatch func(argument *OptionArgument)
+
+func NewMatch(option OptionMatch) (matcher *Match) {
 	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
+	}
+	if option == nil {
+		return m
+	}
+	o := &OptionArgument{}
+	option(o)
+	if o.DNS != "" {
+		m.SetDNS(o.DNS, o.DOH)
+		m.DNS.SetSubnet(o.Subnet)
 	}
 	return m
 }

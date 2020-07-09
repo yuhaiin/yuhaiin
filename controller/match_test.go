@@ -5,9 +5,6 @@ import (
 	"net"
 	"net/url"
 	"testing"
-
-	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
 func TestReadline(t *testing.T) {
@@ -56,10 +53,13 @@ func TestUpdateDNSSubNet(t *testing.T) {
 	t.Log(net.ParseIP(x.Hostname()))
 }
 
-func TestUpdateDNS(t *testing.T) {
-	var (
-		con *config.Setting
-		ma  *match.Match
-	)
-	t.Log(con, con == nil, ma)
+func TestNewMatchCon(t *testing.T) {
+	s := func(option MatchConOption) {
+		o := &OptionMatchCon{}
+		option(o)
+		log.Println(o)
+	}
+	s(func(option *OptionMatchCon) {
+		option.DNS.Server = "114.114.114.114"
+	})
 }

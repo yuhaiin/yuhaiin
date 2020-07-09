@@ -53,14 +53,53 @@ type MatchController struct {
 	proxy      func(host string) (conn net.Conn, err error)
 }
 
-func NewMatchController(bypassFile string) *MatchController {
+type OptionMatchCon struct {
+	DNS struct {
+		Server string
+		DOH    bool
+		Proxy  bool
+		Subnet *net.IPNet
+	}
+	BypassPath string
+	Bypass     bool
+}
+type MatchConOption func(option *OptionMatchCon)
+
+func NewMatchCon(bypassPath string, modOption MatchConOption) (*MatchController, error) {
 	m := &MatchController{}
+	m.Matcher = match.NewMatch(nil)
 	m.proxy = func(host string) (conn net.Conn, err error) { return net.DialTimeout("tcp", host, 5*time.Second) }
-	m.bypassFile = bypassFile
-	m.Matcher = match.NewMatch()
-	_ = m.UpdateMatch()
 	common.ForwardTarget = m.Forward
-	return m
+	err := m.SetBypass(bypassPath)
+	if err != nil {
+		return nil, err
+	}
+	if modOption == nil {
+		return m, nil
+	}
+	option := &OptionMatchCon{}
+	modOption(option)
+	if option.DNS.Server != "" {
+		m.SetDNS(option.DNS.Server, option.DNS.DOH)
+		m.EnableDNSProxy(option.DNS.Proxy)
+		m.SetDNSSubNet(option.DNS.Subnet)
+	}
+	m.bypass = option.Bypass
+	return m, nil
+}
+
+func (m *MatchController) SetAllOption(modeOption MatchConOption) error {
+	if modeOption == nil {
+		return nil
+	}
+	option := &OptionMatchCon{}
+	modeOption(option)
+
+	m.SetDNS(option.DNS.Server, option.DNS.DOH)
+	m.EnableDNSProxy(option.DNS.Proxy)
+	m.SetDNSSubNet(option.DNS.Subnet)
+	err := m.SetBypass(option.BypassPath)
+	return err
 }
 
 func (m *MatchController) EnableDNSProxy(enable bool) {

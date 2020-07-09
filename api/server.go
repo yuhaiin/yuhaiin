@@ -27,6 +27,7 @@ var (
 	messageOn   bool
 	InitSuccess bool
 	Host        string
+	connect     chan bool
 )
 
 func init() {
@@ -37,11 +38,12 @@ func init() {
 	err := process.GetProcessLock(Host)
 	if err != nil {
 		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		go func(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				log.Println("Read Running Host timeout: 5 Seconds, Exit Process!")
+				cancel()
 				os.Exit(0)
 			}
 		}(ctx)
@@ -54,14 +56,29 @@ func init() {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		panic(err)
 	}
-	fmt.Println("Initialize Service Successful.")
+	fmt.Println("Initialize Service Successful, Please Connect in 5 Seconds.")
 	InitSuccess = true
+	connect = make(chan bool, 0)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	go func(ctx context.Context) {
+		select {
+		case <-ctx.Done():
+			log.Println("Connect timeout: 5 Seconds, Exit Process!")
+			cancel()
+			os.Exit(0)
+		case <-connect:
+			fmt.Println("Connect Successful!")
+			cancel()
+			close(connect)
+		}
+	}(ctx)
 }
 
 func (s *Server) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
 	if !InitSuccess {
 		return &empty.Empty{}, errors.New("create lock file false")
 	}
+	connect <- true
 	return &empty.Empty{}, nil
 }
 
