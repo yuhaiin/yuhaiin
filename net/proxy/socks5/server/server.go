@@ -6,15 +6,14 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
-
 	"github.com/Asutorufa/yuhaiin/net/common"
+	proxyI "github.com/Asutorufa/yuhaiin/net/proxy/interface"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
 
 // Server <--
 type Server struct {
-	interfaces.Server
+	proxyI.Server
 	Username    string
 	Password    string
 	listener    net.Listener
@@ -34,7 +33,7 @@ type Option struct {
 // port: socks5 listener port
 // username: socks5 server username
 // password: socks5 server password
-func New(host string, modeOption ...func(*Option)) (interfaces.Server, error) {
+func New(host string, modeOption ...func(*Option)) (proxyI.Server, error) {
 	if host == "" {
 		return nil, errors.New("host empty")
 	}

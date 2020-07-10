@@ -5,11 +5,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
-
-	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
-
 	httpserver "github.com/Asutorufa/yuhaiin/net/proxy/http/server"
+	proxyI "github.com/Asutorufa/yuhaiin/net/proxy/interface"
+	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
 	socks5server "github.com/Asutorufa/yuhaiin/net/proxy/socks5/server"
 )
 
@@ -23,7 +21,8 @@ var (
 )
 
 type LocalListen struct {
-	Server map[sType]interfaces.Server
+	Server map[sType]proxyI.Server
+	hosts  *Hosts
 }
 
 type Hosts struct {
@@ -47,15 +46,15 @@ func NewLocalListenCon(option LocalListenOption) (l *LocalListen, err error) {
 		},
 	}
 	option(hosts)
-
+	l.hosts = hosts
 	if l.Server == nil {
-		l.Server = map[sType]interfaces.Server{}
+		l.Server = map[sType]proxyI.Server{}
 	}
 
 	for index := range arr {
 		l.Server[arr[index]] = l.newS(hosts, arr[index])
 	}
-	l.SetTCPConn(hosts.TCPConn)
+	l.setTCPConn(hosts.TCPConn)
 	return
 }
 
@@ -63,7 +62,11 @@ func (l *LocalListen) SetAHost(option LocalListenOption) (erra error) {
 	if option == nil {
 		return nil
 	}
-	h := &Hosts{}
+	h := &Hosts{
+		Redir:  l.hosts.Redir,
+		HTTP:   l.hosts.HTTP,
+		Socks5: l.hosts.Socks5,
+	}
 	option(h)
 	for index := range arr {
 		if l.Server[arr[index]] == nil {
@@ -74,10 +77,12 @@ func (l *LocalListen) SetAHost(option LocalListenOption) (erra error) {
 			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, arr[index], err)
 		}
 	}
+	l.setTCPConn(h.TCPConn)
+	l.hosts = h
 	return
 }
 
-func (l *LocalListen) SetTCPConn(conn func(string) (net.Conn, error)) {
+func (l *LocalListen) setTCPConn(conn func(string) (net.Conn, error)) {
 	if conn == nil {
 		return
 	}
@@ -89,7 +94,7 @@ func (l *LocalListen) SetTCPConn(conn func(string) (net.Conn, error)) {
 	}
 }
 
-func (l *LocalListen) newS(host *Hosts, sType2 sType) interfaces.Server {
+func (l *LocalListen) newS(host *Hosts, sType2 sType) proxyI.Server {
 	if host == nil {
 		return nil
 	}

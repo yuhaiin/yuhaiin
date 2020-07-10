@@ -171,15 +171,32 @@ func (s *Server) Latency(_ context.Context, req *NowNodeGroupAndNode) (*wrappers
 	return &wrappers.StringValue{Value: latency.String()}, err
 }
 
-func (s *Server) GetAllDownAndUP(context.Context, *empty.Empty) (*DownAndUP, error) {
-	dau := &DownAndUP{}
-	dau.Download = common.DownloadTotal
-	dau.Upload = common.UploadTotal
-	return dau, nil
-}
+func (s *Server) GetRate(_ *empty.Empty, srv Api_GetRateServer) error {
+	fmt.Println("Start Send Flow Message to Client.")
+	da, ua := uint64(0), uint64(0)
+	dr, ur := "0K", "0K"
+	ctx := srv.Context()
+	for {
+		dr, ur = common.ReducedUnitStr(float64(common.DownloadTotal-da))+"/S", common.ReducedUnitStr(float64(common.UploadTotal-ua))+"/S"
+		da, ua = common.DownloadTotal, common.UploadTotal
 
-func (s *Server) ReducedUnit(_ context.Context, req *wrappers.DoubleValue) (*wrappers.StringValue, error) {
-	return &wrappers.StringValue{Value: common.ReducedUnitStr(req.Value)}, nil
+		err := srv.Send(&DaUaDrUr{
+			Download: common.ReducedUnitStr(float64(da)),
+			Upload:   common.ReducedUnitStr(float64(ua)),
+			DownRate: dr,
+			UpRate:   ur,
+		})
+		if err != nil {
+			log.Println(err)
+		}
+		select {
+		case <-ctx.Done():
+			fmt.Println("Client is Hidden, Close Stream.")
+			return ctx.Err()
+		case <-time.After(time.Second):
+			continue
+		}
+	}
 }
 
 func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {

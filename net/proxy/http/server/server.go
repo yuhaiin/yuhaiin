@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
+	proxy "github.com/Asutorufa/yuhaiin/net/proxy/interface"
 )
 
 // Server http server
 type Server struct {
-	interfaces.Server
+	proxy.Server
 	Username string
 	Password string
 	listener net.Listener
@@ -38,7 +38,7 @@ type Option struct {
 // port: http listener port
 // username: http server username
 // password: http server password
-func New(host string, modeOption ...func(*Option)) (interfaces.Server, error) {
+func New(host string, modeOption ...func(*Option)) (proxy.Server, error) {
 	if host == "" {
 		return nil, errors.New("host empty")
 	}

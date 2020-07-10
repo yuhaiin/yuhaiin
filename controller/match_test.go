@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"reflect"
 	"testing"
 )
 
@@ -93,4 +94,49 @@ func TestPrintPointer(t *testing.T) {
 	e := func() {}
 	d = e
 	t.Logf("%p", d)
+}
+
+func TestDeepEqual(t *testing.T) {
+	a := func() {}
+	b := a
+	c := func() {}
+	t.Logf("%p %p %p", a, b, c)
+	t.Log(reflect.DeepEqual(a, b))
+	t.Log(reflect.DeepEqual(a, c))
+	t.Log(&a, &b, &a == &b)
+	t.Log(&a == &c)
+
+	aa := reflect.ValueOf(a)
+	bb := reflect.ValueOf(b)
+	t.Log(aa.Pointer(), bb.Pointer(), aa.Pointer() == bb.Pointer(), &aa)
+}
+
+type aa struct {
+	a string
+}
+
+func (a *aa) test() {}
+
+func TestFuncEqual(t *testing.T) {
+	a := &aa{a: "a"}
+	b := &aa{a: "b"}
+
+	t.Log(reflect.ValueOf(&a.a).Pointer(), reflect.ValueOf(&b.a).Pointer())
+	t.Log(reflect.ValueOf(a.test).Pointer(), reflect.ValueOf(b.test).Pointer(), reflect.ValueOf((*aa).test).Pointer())
+	t.Logf("%p %p", a.test, b.test)
+
+	c := a.test
+	d := b.test
+	e := b.test
+	t.Log(&c, &d, &e)
+
+	f := func(x func()) {
+		t.Log(reflect.DeepEqual(x, a.test))
+		a := x
+		t.Log(reflect.ValueOf(x).Pointer(), &a)
+	}
+	g := a.test
+	t.Log(reflect.ValueOf(a.test).Pointer(), &g)
+	f(a.test)
+
 }

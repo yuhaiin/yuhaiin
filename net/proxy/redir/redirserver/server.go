@@ -7,11 +7,11 @@ import (
 	"log"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
+	proxyI "github.com/Asutorufa/yuhaiin/net/proxy/interface"
 )
 
 type Server struct {
-	interfaces.Server
+	proxyI.Server
 	listener net.Listener
 	closed   bool
 	tcpConn  func(string) (net.Conn, error)
@@ -21,7 +21,7 @@ type Option struct {
 	TcpConn func(string) (net.Conn, error)
 }
 
-func New(host string, modeOption ...func(*Option)) (interfaces.Server, error) {
+func New(host string, modeOption ...func(*Option)) (proxyI.Server, error) {
 	if host == "" {
 		return nil, errors.New("host empty")
 	}

@@ -152,7 +152,9 @@ func ChangeNode() error {
 		if err != nil {
 			return err
 		}
-		MatchCon.SetProxy(conn.Conn)
+		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
+			option.Proxy = conn.Conn
+		})
 	case *subscr.Shadowsocksr:
 		var localHost string
 		SsrCmd, localHost, err = controller.ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr), ConFig.SsrPath)
@@ -170,8 +172,10 @@ func ChangeNode() error {
 			ssrRunning = false
 		}()
 
-		MatchCon.SetProxy(func(host string) (conn net.Conn, err error) {
-			return socks5client.NewSocks5Client(localHost, "", "", host)
+		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
+			option.Proxy = func(host string) (conn net.Conn, err error) {
+				return socks5client.NewSocks5Client(localHost, "", "", host)
+			}
 		})
 	default:
 		return errors.New("no support type proxy")

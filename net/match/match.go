@@ -44,6 +44,13 @@ func (x *Match) GetIP(domain string) (ip []net.IP) {
 	return
 }
 
+func (x *Match) SetDNSProxy(proxy func(string) (net.Conn, error)) {
+	if x.DNS == nil || proxy == nil {
+		return
+	}
+	x.DNS.SetProxy(proxy)
+}
+
 func (x *Match) Insert(str string, mark interface{}) error {
 	if _, _, err := net.ParseCIDR(str); err != nil {
 		x.domain.InsertFlip(str, mark)
@@ -83,6 +90,7 @@ type OptionArgument struct {
 	DNS    string
 	DOH    bool
 	Subnet *net.IPNet
+	Proxy  func(addr string) (net.Conn, error)
 }
 type OptionMatch func(argument *OptionArgument)
 
@@ -98,6 +106,9 @@ func NewMatch(option ...OptionMatch) (matcher *Match) {
 	if o.DNS != "" {
 		m.SetDNS(o.DNS, o.DOH)
 		m.DNS.SetSubnet(o.Subnet)
+	}
+	if o.Proxy != nil {
+		m.DNS.SetProxy(o.Proxy)
 	}
 	return m
 }

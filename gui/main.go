@@ -1,8 +1,10 @@
 package gui
 
 import (
+	"context"
 	"fmt"
-	"sync/atomic"
+	"io"
+	"log"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/api"
@@ -192,37 +194,39 @@ func (m *mainWindow) setListener() {
 		}()
 	})
 
-	statusRefreshIsRun := false
+	flowCtx, cancel := context.WithCancel(context.Background())
+	cancel()
 	m.mainWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		go func() {
-			if statusRefreshIsRun {
+			select {
+			case <-flowCtx.Done():
+				flowCtx, cancel = context.WithCancel(context.Background())
+			default:
 				return
 			}
-
-			statusRefreshIsRun = true
-			downloadTmp := uint64(0)
-			uploadTmp := uint64(0)
-
+			fmt.Println("Call Kernel to Get Flow Message.")
+			client, err := apiC.GetRate(flowCtx, &empty.Empty{})
+			if err != nil {
+				log.Println(err)
+				return
+			}
 			for {
 				if m.mainWindow.IsHidden() {
+					fmt.Println("Window is Hidden, Send Done to Kernel.")
+					cancel()
 					break
 				}
 
-				dAa, err := apiC.GetAllDownAndUP(apiCtx(), &empty.Empty{})
-				if err != nil {
-					MessageBox(err.Error())
-					return
+				all, err := client.Recv()
+				if err == io.EOF {
+					log.Println(err)
+					break
 				}
-				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s/S , Upload<sub><i>(%s)</i></sub>: %s/S",
-					ReducedUnitStr(float64(dAa.GetDownload())),
-					ReducedUnitStr(float64(dAa.GetDownload()-downloadTmp)),
-					ReducedUnitStr(float64(dAa.GetUpload())),
-					ReducedUnitStr(float64(dAa.GetUpload()-uploadTmp))))
-				atomic.StoreUint64(&downloadTmp, dAa.GetDownload())
-				atomic.StoreUint64(&uploadTmp, dAa.GetUpload())
-				time.Sleep(time.Second)
+				if err != nil {
+					continue
+				}
+				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s , Upload<sub><i>(%s)</i></sub>: %s", all.Download, all.DownRate, all.Upload, all.UpRate))
 			}
-			statusRefreshIsRun = false
 		}()
 		m.refresh()
 	})
