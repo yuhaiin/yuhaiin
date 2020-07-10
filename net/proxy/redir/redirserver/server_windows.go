@@ -5,7 +5,7 @@ package redirserver
 import (
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/net/proxy/proxy"
+	proxyI "github.com/Asutorufa/yuhaiin/net/proxy/interface"
 )
 
 type Server struct {
@@ -15,11 +15,11 @@ type Option struct {
 	TcpConn func(string) (net.Conn, error)
 }
 
-func New(host string, modeOption ...func(*Option)) (proxy.Server, error) {
+func New(host string, modeOption ...func(*Option)) (proxyI.Server, error) {
 	return &Server{}, nil
 }
 
-func NewRedir(host string) (proxy.Server, error) {
+func NewRedir(host string) (proxyI.Server, error) {
 	return &Server{}, nil
 }
 
