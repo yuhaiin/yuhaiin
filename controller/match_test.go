@@ -63,3 +63,34 @@ func TestNewMatchCon(t *testing.T) {
 		option.DNS.Server = "114.114.114.114"
 	})
 }
+
+func TestPrintPointer(t *testing.T) {
+	var a *string
+	a = new(string)
+	t.Logf("%p %s", a, *a)
+	*a = "a"
+	t.Logf("%p %s", a, *a)
+	b := "b"
+	a = &b
+	t.Logf("%p %s", a, *a)
+
+	type test struct {
+		name string
+	}
+
+	c := &test{name: "c"}
+	t.Logf("%p %v", c, c)
+	*c = test{name: "cc"}
+	t.Logf("%p %v", c, c)
+	c = &test{name: "ccc"}
+	t.Logf("%p %v", c, c)
+
+	d := func() {}
+	t.Logf("%p", d)
+	d = func() {}
+	t.Logf("%p", d)
+
+	e := func() {}
+	d = e
+	t.Logf("%p", d)
+}

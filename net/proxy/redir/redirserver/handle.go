@@ -9,7 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/net/proxy/redir/nfutil"
 )
 
-func handleRedir(req net.Conn) error {
+func (r *Server) handleRedir(req net.Conn) error {
 	defer req.Close()
 	_ = req.(*net.TCPConn).SetKeepAlive(true)
 	target, err := nfutil.GetOrigDst(req.(*net.TCPConn), false)
@@ -17,7 +17,7 @@ func handleRedir(req net.Conn) error {
 		return err
 	}
 
-	rsp, err := common.ForwardTarget(target.String())
+	rsp, err := r.tcpConn(target.String())
 	if err != nil {
 		return err
 	}

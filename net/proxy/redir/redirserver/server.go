@@ -1,6 +1,9 @@
+//+build !windows
+
 package redirserver
 
 import (
+	"errors"
 	"log"
 	"net"
 
@@ -11,14 +14,33 @@ type Server struct {
 	interfaces.Server
 	listener net.Listener
 	closed   bool
+	tcpConn  func(string) (net.Conn, error)
 }
 
-func NewRedir(host string) (interfaces.Server, error) {
+type Option struct {
+	TcpConn func(string) (net.Conn, error)
+}
+
+func New(host string, modeOption ...func(*Option)) (interfaces.Server, error) {
 	if host == "" {
-		return &Server{}, nil
+		return nil, errors.New("host empty")
 	}
 	s := &Server{}
-	return s, s.Redir(host)
+	o := &Option{
+		TcpConn: func(s string) (net.Conn, error) {
+			return net.Dial("tcp", s)
+		},
+	}
+	for index := range modeOption {
+		if modeOption[index] == nil {
+			continue
+		}
+		modeOption[index](o)
+	}
+
+	s.tcpConn = o.TcpConn
+	err := s.Redir(host)
+	return s, err
 }
 
 func (r *Server) Close() error {
@@ -50,6 +72,13 @@ func (r *Server) UpdateListen(host string) (err error) {
 	return
 }
 
+func (r *Server) SetTCPConn(conn func(string) (net.Conn, error)) {
+	if conn == nil {
+		return
+	}
+	r.tcpConn = conn
+}
+
 func (r *Server) GetHost() string {
 	return r.listener.Addr().String()
 }
@@ -68,7 +97,7 @@ func (r *Server) Redir(host string) (err error) {
 				//log.Print(err)
 				continue
 			}
-			go handleRedir(req)
+			go r.handleRedir(req)
 		}
 	}()
 	return

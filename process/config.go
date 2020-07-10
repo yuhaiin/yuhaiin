@@ -48,7 +48,7 @@ func SetConFig(conf *config.Setting) (erra error) {
 		}
 	}
 
-	err = LocalListenCon.SetAllHost(func(hosts *controller.Hosts) {
+	err = LocalListenCon.SetAHost(func(hosts *controller.Hosts) {
 		hosts.HTTP = conf.HttpProxyAddress
 		hosts.Socks5 = conf.Socks5ProxyAddress
 		hosts.Redir = conf.RedirProxyAddress
@@ -104,6 +104,7 @@ func Init() error {
 		hosts.HTTP = ConFig.HttpProxyAddress
 		hosts.Socks5 = ConFig.Socks5ProxyAddress
 		hosts.Redir = ConFig.RedirProxyAddress
+		hosts.TCPConn = MatchCon.Forward
 	})
 	if err != nil {
 		return fmt.Errorf("new Local Listener Controller -> %v", err)

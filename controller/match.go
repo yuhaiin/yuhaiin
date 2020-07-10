@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
-
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
@@ -65,20 +63,18 @@ type OptionMatchCon struct {
 }
 type MatchConOption func(option *OptionMatchCon)
 
-func NewMatchCon(bypassPath string, modOption MatchConOption) (*MatchController, error) {
+func NewMatchCon(bypassPath string, modOption ...MatchConOption) (*MatchController, error) {
 	m := &MatchController{}
-	m.Matcher = match.NewMatch(nil)
+	m.Matcher = match.NewMatch()
 	m.proxy = func(host string) (conn net.Conn, err error) { return net.DialTimeout("tcp", host, 5*time.Second) }
-	common.ForwardTarget = m.Forward
 	err := m.SetBypass(bypassPath)
 	if err != nil {
 		return nil, err
 	}
-	if modOption == nil {
-		return m, nil
-	}
 	option := &OptionMatchCon{}
-	modOption(option)
+	for index := range modOption {
+		modOption[index](option)
+	}
 	if option.DNS.Server != "" {
 		m.SetDNS(option.DNS.Server, option.DNS.DOH)
 		m.EnableDNSProxy(option.DNS.Proxy)

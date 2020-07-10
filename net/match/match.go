@@ -86,16 +86,15 @@ type OptionArgument struct {
 }
 type OptionMatch func(argument *OptionArgument)
 
-func NewMatch(option OptionMatch) (matcher *Match) {
+func NewMatch(option ...OptionMatch) (matcher *Match) {
 	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
 	}
-	if option == nil {
-		return m
-	}
 	o := &OptionArgument{}
-	option(o)
+	for index := range option {
+		option[index](o)
+	}
 	if o.DNS != "" {
 		m.SetDNS(o.DNS, o.DOH)
 		m.DNS.SetSubnet(o.Subnet)

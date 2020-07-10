@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/proxy/interfaces"
@@ -22,6 +24,13 @@ type Server struct {
 	Password string
 	listener net.Listener
 	closed   bool
+	tcpConn  func(string) (net.Conn, error)
+}
+
+type Option struct {
+	Username string
+	Password string
+	TcpConn  func(string) (net.Conn, error)
 }
 
 // NewHTTPServer create new HTTP server
@@ -29,11 +38,26 @@ type Server struct {
 // port: http listener port
 // username: http server username
 // password: http server password
-func NewHTTPServer(host, username, password string) (interfaces.Server, error) {
-	s := &Server{Username: username, Password: password}
+func New(host string, modeOption ...func(*Option)) (interfaces.Server, error) {
 	if host == "" {
-		return s, nil
+		return nil, errors.New("host empty")
 	}
+	s := &Server{}
+	o := &Option{
+		TcpConn: func(s string) (net.Conn, error) {
+			return net.DialTimeout("tcp", s, 5*time.Second)
+		},
+	}
+	for index := range modeOption {
+		if modeOption[index] == nil {
+			continue
+		}
+		modeOption[index](o)
+	}
+
+	s.Username = o.Username
+	s.Password = o.Password
+	s.tcpConn = o.TcpConn
 	err := s.HTTPProxy(host)
 	return s, err
 }
@@ -61,6 +85,13 @@ func (h *Server) UpdateListen(host string) (err error) {
 	}
 	h.listener, err = net.Listen("tcp", host)
 	return
+}
+
+func (h *Server) SetTCPConn(conn func(string) (net.Conn, error)) {
+	if conn == nil {
+		return
+	}
+	h.tcpConn = conn
 }
 
 func (h *Server) GetListenHost() string {
@@ -131,7 +162,7 @@ func (h *Server) httpHandleClientRequest(client net.Conn) {
 		host.WriteString(":80")
 	}
 
-	server, err := common.ForwardTarget(host.String())
+	server, err := h.tcpConn(host.String())
 	if err != nil {
 		//log.Println(err)
 		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))

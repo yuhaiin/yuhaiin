@@ -20,6 +20,13 @@ type Server struct {
 	listener    net.Listener
 	udpListener *net.UDPConn
 	closed      bool
+	tcpConn     func(string) (net.Conn, error)
+}
+
+type Option struct {
+	Username string
+	Password string
+	TcpConn  func(string) (net.Conn, error)
 }
 
 // NewSocks5Server create new socks5 listener
@@ -27,20 +34,28 @@ type Server struct {
 // port: socks5 listener port
 // username: socks5 server username
 // password: socks5 server password
-func NewSocks5Server(host, username, password string) (interfaces.Server, error) {
-	s := &Server{Username: username, Password: password}
+func New(host string, modeOption ...func(*Option)) (interfaces.Server, error) {
 	if host == "" {
-		return s, nil
+		return nil, errors.New("host empty")
 	}
+	s := &Server{}
+	o := &Option{
+		TcpConn: func(s string) (net.Conn, error) {
+			return net.Dial("tcp", s)
+		},
+	}
+	for index := range modeOption {
+		if modeOption[index] == nil {
+			continue
+		}
+		modeOption[index](o)
+	}
+
+	s.Username = o.Username
+	s.Password = o.Password
+	s.tcpConn = o.TcpConn
 	err := s.Socks5(host)
-	if err != nil {
-		return nil, fmt.Errorf("NewSocks5Server:SOCKS5 -> %v", err)
-	}
-	err = s.UDP(host)
-	if err != nil {
-		return nil, fmt.Errorf("NewSocks5Server:UDP -> %v", err)
-	}
-	return s, nil
+	return s, err
 }
 
 func (s *Server) UpdateListen(host string) (err error) {
@@ -78,6 +93,13 @@ func (s *Server) UpdateListen(host string) (err error) {
 	}
 
 	return s.UpdateUDPListenAddr(host)
+}
+
+func (s *Server) SetTCPConn(conn func(string) (net.Conn, error)) {
+	if conn == nil {
+		return
+	}
+	s.tcpConn = conn
 }
 
 func (s *Server) GetListenHost() string {
@@ -161,7 +183,7 @@ func (s *Server) handleClientRequest(client net.Conn) {
 	var server net.Conn
 	switch b[1] {
 	case 0x01:
-		if server, err = common.ForwardTarget(net.JoinHostPort(host, strconv.Itoa(port))); err != nil {
+		if server, err = s.tcpConn(net.JoinHostPort(host, strconv.Itoa(port))); err != nil {
 			writeSecondResp(client, 0x04, client.LocalAddr().String())
 			return
 		}
