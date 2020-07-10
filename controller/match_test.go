@@ -138,5 +138,22 @@ func TestFuncEqual(t *testing.T) {
 	g := a.test
 	t.Log(reflect.ValueOf(a.test).Pointer(), &g)
 	f(a.test)
+}
 
+func TestStructChange(t *testing.T) {
+	type a struct {
+		aa string
+	}
+	f := func(a *a, str string) {
+		a.aa = str
+	}
+
+	b := &a{aa: "b"}
+	c := b
+	f(c, "c:=b")
+	d := &a{}
+	*d = *b
+	log.Println("d", d)
+	f(d, "*d = *b")
+	log.Println(c, b, d)
 }

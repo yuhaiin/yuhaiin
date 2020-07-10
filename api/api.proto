@@ -46,13 +46,6 @@ message NowNodeGroupAndNode{
   string node = 2;
 }
 
-message DownAndUP{
-  uint64 Download = 1;
-  uint64 Upload = 2;
-  string DownRate = 3;
-  string UpRate = 4;
-}
-
 message DaUaDrUr{
   string Download = 1;
   string Upload = 2;

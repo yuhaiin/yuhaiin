@@ -32,6 +32,8 @@ var (
 
 func init() {
 	flag.StringVar(&Host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
+	//var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	//var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 	flag.Parse()
 	fmt.Println("gRPC Listen Host :", Host)
 	fmt.Println("Try to create lock file.")

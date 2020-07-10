@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"time"
 
@@ -62,23 +63,18 @@ func (l *LocalListen) SetAHost(option LocalListenOption) (erra error) {
 	if option == nil {
 		return nil
 	}
-	h := &Hosts{
-		Redir:  l.hosts.Redir,
-		HTTP:   l.hosts.HTTP,
-		Socks5: l.hosts.Socks5,
-	}
-	option(h)
+	option(l.hosts)
 	for index := range arr {
 		if l.Server[arr[index]] == nil {
+			l.Server[arr[index]] = l.newS(l.hosts, arr[index])
 			continue
 		}
-		err := l.Server[arr[index]].UpdateListen(l.getHost(h, arr[index]))
+		err := l.Server[arr[index]].UpdateListen(l.getHost(l.hosts, arr[index]))
 		if err != nil {
 			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, arr[index], err)
 		}
 	}
-	l.setTCPConn(h.TCPConn)
-	l.hosts = h
+	l.setTCPConn(l.hosts.TCPConn)
 	return
 }
 
@@ -100,13 +96,25 @@ func (l *LocalListen) newS(host *Hosts, sType2 sType) proxyI.Server {
 	}
 	switch sType2 {
 	case hTTP:
-		server, _ := httpserver.New(host.HTTP)
+		server, err := httpserver.New(host.HTTP)
+		if err != nil {
+			log.Printf("httpserver New -> %v", err)
+			return nil
+		}
 		return server
 	case socks5:
-		server, _ := socks5server.New(host.Socks5)
+		server, err := socks5server.New(host.Socks5)
+		if err != nil {
+			log.Printf("socks5server New -> %v", err)
+			return nil
+		}
 		return server
 	case redir:
-		server, _ := redirserver.New(host.Redir)
+		server, err := redirserver.New(host.Redir)
+		if err != nil {
+			log.Printf("redirserver New -> %v", err)
+			return nil
+		}
 		return server
 	}
 	return nil
