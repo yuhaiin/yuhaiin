@@ -175,11 +175,13 @@ func (s *Server) Latency(_ context.Context, req *NowNodeGroupAndNode) (*wrappers
 
 func (s *Server) GetRate(_ *empty.Empty, srv Api_GetRateServer) error {
 	fmt.Println("Start Send Flow Message to Client.")
-	da, ua := uint64(0), uint64(0)
-	dr, ur := "0K", "0K"
+	da, ua := common.DownloadTotal, common.UploadTotal
+	var dr string
+	var ur string
 	ctx := srv.Context()
 	for {
-		dr, ur = common.ReducedUnitStr(float64(common.DownloadTotal-da))+"/S", common.ReducedUnitStr(float64(common.UploadTotal-ua))+"/S"
+		dr = common.ReducedUnitStr(float64(common.DownloadTotal-da)) + "/S"
+		ur = common.ReducedUnitStr(float64(common.UploadTotal-ua)) + "/S"
 		da, ua = common.DownloadTotal, common.UploadTotal
 
 		err := srv.Send(&DaUaDrUr{

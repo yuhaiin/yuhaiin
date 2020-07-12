@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net"
 	"os/exec"
@@ -47,7 +49,7 @@ func GetFreePort() (string, error) {
 	return strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
 }
 
-func ShadowsocksrCmd(s *subscr.Shadowsocksr, ssrPath string) (ssrCmd *exec.Cmd, localHost string, err error) {
+func ShadowsocksrCmd(ctx context.Context, s *subscr.Shadowsocksr, ssrPath string) (ssrCmd *exec.Cmd, localHost string, err error) {
 	LocalPort, err := GetFreePort()
 	if err != nil {
 		return nil, "", err
@@ -68,6 +70,6 @@ func ShadowsocksrCmd(s *subscr.Shadowsocksr, ssrPath string) (ssrCmd *exec.Cmd, 
 		cmd = append(cmd, "-O", s.Protocol)
 		cmd = append(cmd, "-G", s.Protoparam)
 	}
-	log.Println(cmd)
-	return exec.Command(cmd[0], cmd[1:]...), net.JoinHostPort("127.0.0.1", LocalPort), nil
+	fmt.Println(cmd)
+	return exec.CommandContext(ctx, cmd[0], cmd[1:]...), net.JoinHostPort("127.0.0.1", LocalPort), nil
 }

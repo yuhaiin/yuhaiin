@@ -18,6 +18,7 @@ var (
 )
 
 func SetConFig(conf *config.Setting) (erra error) {
+	ConFig = conf
 	// Subnet
 	_, subnet, err := net.ParseCIDR(conf.DnsSubNet)
 	if err != nil {
@@ -41,11 +42,9 @@ func SetConFig(conf *config.Setting) (erra error) {
 		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
 	}
 
-	if ConFig.SsrPath != conf.SsrPath && ssrRunning {
-		err := ChangeNode()
-		if err != nil {
-			erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
-		}
+	err = ChangeNode()
+	if err != nil {
+		erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
 	}
 
 	err = LocalListenCon.SetAHost(
@@ -58,7 +57,6 @@ func SetConFig(conf *config.Setting) (erra error) {
 		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)
 	}
 	// others
-	ConFig = conf
 	err = config.SettingEnCodeJSON(ConFig)
 	if err != nil {
 		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)

@@ -1,11 +1,13 @@
 package process
 
 import (
+	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
 	"net"
-	"os/exec"
 	"sort"
 
 	"github.com/Asutorufa/yuhaiin/controller"
@@ -113,65 +115,69 @@ func DeleteLink(str string) error {
 }
 
 var (
-	SsrCmd     *exec.Cmd
-	ssrRunning = false
+	ssrCtx    context.Context
+	ssrCancel context.CancelFunc
+	nowNode   string
 )
 
-func ReSet() error {
-	if SsrCmd == nil || SsrCmd.Process == nil {
-		return nil
-	}
-	if err := SsrCmd.Process.Kill(); err != nil {
-		return err
-	}
-	SsrCmd = nil
-	return nil
-}
-
 func ChangeNode() error {
-	if ssrRunning {
-		err := ReSet()
-		if err != nil {
-			return err
-		}
-	}
-
 	nNode, err := GetNowNode()
 	if err != nil {
 		return err
 	}
 
+	hashSum, same := checkSame(nNode)
+	if same {
+		return nil
+	}
+
+	if ssrCtx != nil {
+	_check:
+		select {
+		case <-ssrCtx.Done():
+			break
+		default:
+			ssrCancel()
+			goto _check
+		}
+	}
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
+		n := nNode.(*subscr.Shadowsocks)
+		fmt.Println("Start Shadowsocks", hashSum)
 		conn, err := client.NewShadowsocks(
-			nNode.(*subscr.Shadowsocks).Method,
-			nNode.(*subscr.Shadowsocks).Password,
-			net.JoinHostPort(nNode.(*subscr.Shadowsocks).Server, nNode.(*subscr.Shadowsocks).Port),
-			nNode.(*subscr.Shadowsocks).Plugin,
-			nNode.(*subscr.Shadowsocks).PluginOpt)
+			n.Method,
+			n.Password,
+			net.JoinHostPort(n.Server, n.Port),
+			n.Plugin,
+			n.PluginOpt,
+		)
 		if err != nil {
 			return err
 		}
+		nowNode = hashSum
 		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
 			option.Proxy = conn.Conn
 		})
 	case *subscr.Shadowsocksr:
-		var localHost string
-		SsrCmd, localHost, err = controller.ShadowsocksrCmd(nNode.(*subscr.Shadowsocksr), ConFig.SsrPath)
+		fmt.Println("Start Shadowsocksr", hashSum)
+		ssrCtx, ssrCancel = context.WithCancel(context.Background())
+		SsrCmd, localHost, err := controller.ShadowsocksrCmd(ssrCtx, nNode.(*subscr.Shadowsocksr), ConFig.SsrPath)
 		if err != nil {
 			return err
 		}
 		if err := SsrCmd.Start(); err != nil {
 			return err
 		}
-		ssrRunning = true
 		go func() {
-			if err := SsrCmd.Wait(); err != nil {
+			err := SsrCmd.Wait()
+			if err != nil {
 				log.Println(err)
 			}
-			ssrRunning = false
+			fmt.Println("Kill Shadowsocksr running exec Command")
 		}()
 
+		nowNode = hashSum
 		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
 			option.Proxy = func(host string) (conn net.Conn, err error) {
 				return socks5client.NewSocks5Client(localHost, "", "", host)
@@ -181,4 +187,44 @@ func ChangeNode() error {
 		return errors.New("no support type proxy")
 	}
 	return nil
+}
+
+func checkSame(nNode interface{}) (string, bool) {
+	var hashSum string
+	switch nNode.(type) {
+	case *subscr.Shadowsocks:
+		n := nNode.(*subscr.Shadowsocks)
+		hash := md5.New()
+		hash.Write([]byte(n.Server))
+		hash.Write([]byte(n.Port))
+		hash.Write([]byte(n.Password))
+		hash.Write([]byte{byte(n.Type)})
+		hash.Write([]byte(n.Group))
+		hash.Write([]byte(n.Name))
+		hash.Write([]byte(n.Plugin))
+		hash.Write([]byte(n.PluginOpt))
+		hashSum = hex.EncodeToString(hash.Sum(nil))
+		if nowNode == hashSum {
+			return hashSum, true
+		}
+	case *subscr.Shadowsocksr:
+		n := nNode.(*subscr.Shadowsocksr)
+		hash := md5.New()
+		hash.Write([]byte(n.Server))
+		hash.Write([]byte(n.Port))
+		hash.Write([]byte(n.Password))
+		hash.Write([]byte{byte(n.Type)})
+		hash.Write([]byte(n.Group))
+		hash.Write([]byte(n.Name))
+		hash.Write([]byte(n.Obfs))
+		hash.Write([]byte(n.Obfsparam))
+		hash.Write([]byte(n.Protocol))
+		hash.Write([]byte(n.Protoparam))
+		hash.Write([]byte(ConFig.SsrPath))
+		hashSum = hex.EncodeToString(hash.Sum(nil))
+		if nowNode == hashSum {
+			return hashSum, true
+		}
+	}
+	return hashSum, false
 }
