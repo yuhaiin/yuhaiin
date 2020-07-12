@@ -50,15 +50,15 @@ type OptionMatchCon struct {
 }
 type MatchConOption func(option *OptionMatchCon)
 
-func NewMatchCon(bypassPath string, modOption ...MatchConOption) (*MatchController, error) {
+func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, error) {
 	m := &MatchController{}
 	option := &OptionMatchCon{
 		Proxy: func(s string) (net.Conn, error) {
 			return net.DialTimeout("tcp", s, 5*time.Second)
 		},
 	}
-	for index := range modOption {
-		modOption[index](option)
+	for index := range opt {
+		opt[index](option)
 	}
 	m.matcher = match.NewMatch(func(argument *match.OptionArgument) {
 		argument.DNS = option.DNS.Server
@@ -75,8 +75,8 @@ func NewMatchCon(bypassPath string, modOption ...MatchConOption) (*MatchControll
 	return m, nil
 }
 
-func (m *MatchController) SetAllOption(modeOption MatchConOption) error {
-	if modeOption == nil {
+func (m *MatchController) SetAllOption(opt MatchConOption) error {
+	if opt == nil {
 		return nil
 	}
 	option := &OptionMatchCon{
@@ -94,7 +94,7 @@ func (m *MatchController) SetAllOption(modeOption MatchConOption) error {
 		BypassPath: m.bypassFile,
 		Bypass:     m.bypass,
 	}
-	modeOption(option)
+	opt(option)
 
 	m.setDNS(option.DNS.Server, option.DNS.DOH)
 	m.enableDNSProxy(option.DNS.Proxy)
@@ -153,6 +153,7 @@ func (m *MatchController) setProxy(proxy func(host string) (net.Conn, error)) {
 	if proxy == nil {
 		return
 	}
+	fmt.Println("Match Set Proxy", &proxy)
 	m.proxy = proxy
 	m.setDNSProxy(m.dns.Proxy)
 }

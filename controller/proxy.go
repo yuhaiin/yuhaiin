@@ -14,83 +14,134 @@ import (
 
 type sType int
 
+const (
+	hTTP sType = 1 << iota
+	socks5
+	redir
+	udp
+)
+
 var (
-	hTTP   sType = 1
-	socks5 sType = 2
-	redir  sType = 3
-	arrTCP       = []sType{hTTP, socks5, redir}
-	arrUDP       = []sType{socks5}
+	support = []sType{hTTP, socks5, socks5 | udp, redir}
+	ref     = map[sType]func(string) (proxyI.Server, error){
+		hTTP: func(host string) (proxyI.Server, error) {
+			return proxyI.NewTCPServer(host, httpserver.HTTPHandle())
+		},
+		socks5: func(host string) (proxyI.Server, error) {
+			return proxyI.NewTCPServer(host, socks5server.Socks5Handle())
+		},
+		redir: func(host string) (proxyI.Server, error) {
+			return proxyI.NewTCPServer(host, redirserver.RedirHandle())
+		},
+		socks5 | udp: func(s string) (proxyI.Server, error) {
+			return proxyI.NewUDPServer(s, socks5server.Socks5UDPHandle())
+		},
+	}
 )
 
 type LocalListen struct {
-	Server    map[sType]proxyI.Server
-	UDPServer map[sType]proxyI.Server
-	hosts     *Hosts
+	Server map[sType]proxyI.Server
+	hosts  *llOpt
 }
 
-type Hosts struct {
-	Socks5  string
-	HTTP    string
-	Redir   string
-	TCPConn func(string) (net.Conn, error)
+// llOpt Local listener opts
+type llOpt struct {
+	hosts   map[sType]string
+	tcpConn func(string) (net.Conn, error)
 }
 
-type LocalListenOption func(hosts *Hosts)
+// LlOption Local Listener Option
+type LlOption func(hosts *llOpt)
 
-func NewLocalListenCon(option LocalListenOption) (l *LocalListen, err error) {
-	l = &LocalListen{
-		Server:    map[sType]proxyI.Server{},
-		UDPServer: map[sType]proxyI.Server{},
+func WithSocks5(host string) LlOption {
+	return func(hosts *llOpt) {
+		hosts.hosts[socks5] = host
+		hosts.hosts[socks5|udp] = host
 	}
+}
 
-	if option == nil {
-		return l, nil
+func WithRedir(host string) LlOption {
+	return func(hosts *llOpt) {
+		hosts.hosts[redir] = host
 	}
-	hosts := &Hosts{
-		TCPConn: func(s string) (net.Conn, error) {
+}
+
+func WithHTTP(host string) LlOption {
+	return func(hosts *llOpt) {
+		hosts.hosts[hTTP] = host
+	}
+}
+
+func WithTCPConn(f func(string) (net.Conn, error)) LlOption {
+	return func(opt *llOpt) {
+		opt.tcpConn = f
+	}
+}
+
+func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
+	hosts := &llOpt{
+		tcpConn: func(s string) (net.Conn, error) {
 			return net.DialTimeout("tcp", s, 5*time.Second)
 		},
+		hosts: map[sType]string{},
 	}
-	option(hosts)
-	l.hosts = hosts
-
-	for index := range arrTCP {
-		l.Server[arrTCP[index]] = l.newTCP(hosts, arrTCP[index])
-	}
-	for index := range arrUDP {
-		l.UDPServer[arrUDP[index]] = l.newUDP(hosts, arrUDP[index])
+	for index := range opt {
+		if opt[index] == nil {
+			continue
+		}
+		opt[index](hosts)
 	}
 
-	l.setTCPConn(hosts.TCPConn)
+	l = &LocalListen{
+		Server: map[sType]proxyI.Server{},
+		hosts:  hosts,
+	}
+
+	for _, typE := range support {
+		if ref[typE] == nil {
+			log.Printf("can't find %d function\n", typE)
+			continue
+		}
+		l.Server[typE], err = ref[typE](hosts.hosts[typE])
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+	}
+
+	l.setTCPConn(hosts.tcpConn)
 	return
 }
 
-func (l *LocalListen) SetAHost(option LocalListenOption) (erra error) {
-	if option == nil {
+func (l *LocalListen) SetAHost(opt ...LlOption) (erra error) {
+	if opt == nil {
 		return nil
 	}
-	option(l.hosts)
-	for index := range arrTCP {
-		if l.Server[arrTCP[index]] == nil {
-			l.Server[arrTCP[index]] = l.newTCP(l.hosts, arrTCP[index])
-			continue
-		}
-		err := l.Server[arrTCP[index]].UpdateListen(l.getHost(l.hosts, arrTCP[index]))
-		if err != nil {
-			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, arrTCP[index], err)
-		}
-	}
+	var err error
 
-	for index := range arrUDP {
-		if l.UDPServer[arrUDP[index]] == nil {
+	for index := range opt {
+		if opt[index] == nil {
 			continue
 		}
-		err := l.Server[arrUDP[index]].UpdateListen(l.getHost(l.hosts, arrUDP[index]))
+		opt[index](l.hosts)
+	}
+	for _, typE := range support {
+		if l.Server[typE] == nil {
+			if ref[typE] == nil {
+				continue
+			}
+			l.Server[typE], err = ref[typE](l.hosts.hosts[typE])
+			if err != nil {
+				log.Println(err)
+			}
+			continue
+		}
+		err := l.Server[typE].UpdateListen(l.hosts.hosts[typE])
 		if err != nil {
-			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, arrUDP[index], err)
+			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, typE, err)
 		}
 	}
-	l.setTCPConn(l.hosts.TCPConn)
+	l.setTCPConn(l.hosts.tcpConn)
 	return
 }
 
@@ -98,73 +149,14 @@ func (l *LocalListen) setTCPConn(conn func(string) (net.Conn, error)) {
 	if conn == nil {
 		return
 	}
-	for index := range arrTCP {
-		if l.Server[arrTCP[index]] == nil {
+	fmt.Println("Local Listener Set TCP Proxy", &conn)
+	for _, typE := range support {
+		if l.Server[typE] == nil {
 			continue
 		}
-		switch l.Server[arrTCP[index]].(type) {
+		switch l.Server[typE].(type) {
 		case proxyI.TCPServer:
-			l.Server[arrTCP[index]].(proxyI.TCPServer).SetTCPConn(conn)
+			l.Server[typE].(proxyI.TCPServer).SetTCPConn(conn)
 		}
 	}
-}
-
-func (l *LocalListen) newTCP(host *Hosts, sType2 sType) proxyI.Server {
-	if host == nil {
-		return nil
-	}
-	switch sType2 {
-	case hTTP:
-		server, err := proxyI.NewTCPServer(host.HTTP, httpserver.HTTPHandle())
-		if err != nil {
-			log.Printf("httpserver New -> %v", err)
-			return nil
-		}
-		return server
-	case socks5:
-		server, err := proxyI.NewTCPServer(host.Socks5, socks5server.Socks5Handle())
-		if err != nil {
-			log.Printf("socks5server New -> %v", err)
-			return nil
-		}
-		return server
-	case redir:
-		server, err := proxyI.NewTCPServer(host.Redir, redirserver.RedirHandle())
-		if err != nil {
-			log.Printf("redirserver New -> %v", err)
-			return nil
-		}
-		return server
-	}
-	return nil
-}
-
-func (l *LocalListen) newUDP(hosts *Hosts, sType2 sType) proxyI.Server {
-	if hosts == nil {
-		return nil
-	}
-	switch sType2 {
-	case socks5:
-		server, err := proxyI.NewUDPServer(hosts.Socks5, socks5server.Socks5UDPHandle())
-		if err != nil {
-			return nil
-		}
-		return server
-	}
-	return nil
-}
-
-func (l *LocalListen) getHost(option *Hosts, sType2 sType) string {
-	if option == nil {
-		return ""
-	}
-	switch sType2 {
-	case hTTP:
-		return option.HTTP
-	case socks5:
-		return option.Socks5
-	case redir:
-		return option.Redir
-	}
-	return ""
 }

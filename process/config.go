@@ -48,11 +48,11 @@ func SetConFig(conf *config.Setting) (erra error) {
 		}
 	}
 
-	err = LocalListenCon.SetAHost(func(hosts *controller.Hosts) {
-		hosts.HTTP = conf.HttpProxyAddress
-		hosts.Socks5 = conf.Socks5ProxyAddress
-		hosts.Redir = conf.RedirProxyAddress
-	})
+	err = LocalListenCon.SetAHost(
+		controller.WithHTTP(conf.HttpProxyAddress),
+		controller.WithSocks5(conf.Socks5ProxyAddress),
+		controller.WithRedir(conf.RedirProxyAddress),
+	)
 
 	if err != nil {
 		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)
@@ -100,12 +100,12 @@ func Init() error {
 	}
 
 	// initialize Local Servers Controller
-	LocalListenCon, err = controller.NewLocalListenCon(func(hosts *controller.Hosts) {
-		hosts.HTTP = ConFig.HttpProxyAddress
-		hosts.Socks5 = ConFig.Socks5ProxyAddress
-		hosts.Redir = ConFig.RedirProxyAddress
-		hosts.TCPConn = MatchCon.Forward
-	})
+	LocalListenCon, err = controller.NewLocalListenCon(
+		controller.WithHTTP(ConFig.HttpProxyAddress),
+		controller.WithSocks5(ConFig.Socks5ProxyAddress),
+		controller.WithRedir(ConFig.RedirProxyAddress),
+		controller.WithTCPConn(MatchCon.Forward),
+	)
 	if err != nil {
 		return fmt.Errorf("new Local Listener Controller -> %v", err)
 	}
