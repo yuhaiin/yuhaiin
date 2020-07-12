@@ -23,3 +23,21 @@ func (r *Server) handleRedir(req net.Conn) error {
 	common.Forward(req, rsp)
 	return nil
 }
+
+func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
+
+	defer req.Close()
+	_ = req.(*net.TCPConn).SetKeepAlive(true)
+	target, err := pfutil.NatLookup(req.(*net.TCPConn))
+	if err != nil {
+		return err
+	}
+
+	rsp, err := dst(target.String())
+	if err != nil {
+		return err
+	}
+	defer rsp.Close()
+	common.Forward(req, rsp)
+	return nil
+}

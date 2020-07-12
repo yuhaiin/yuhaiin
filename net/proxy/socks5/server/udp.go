@@ -67,6 +67,59 @@ func (s *Server) handleUDP() {
 	}
 }
 
+func Socks5UDPHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte) func(*net.UDPConn, net.Addr, []byte, func(string) (*net.UDPConn, error)) {
+	return func(conn *net.UDPConn, addr net.Addr, bytes []byte, f func(string) (*net.UDPConn, error)) {
+		err := udpHandle(listener, remoteAddr, b, f)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	}
+}
+
+func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(string) (*net.UDPConn, error)) error {
+	if len(b) <= 0 {
+		return fmt.Errorf("normalHandleUDP() -> b byte array is empty")
+	}
+	host, port, addrSize, err := ResolveAddr(b[3:])
+	if err != nil {
+		return err
+	}
+	if net.ParseIP(host) == nil {
+		addr, err := net.ResolveIPAddr("ip", host)
+		if err != nil {
+			return err
+		}
+		host = addr.IP.String()
+	}
+	data := b[3+addrSize:]
+
+	target, err := f(net.JoinHostPort(host, strconv.Itoa(port)))
+	if err != nil {
+		return err
+	}
+
+	_ = target.SetReadDeadline(time.Now().Add(time.Second * 5))
+
+	// write data to target and read the response back
+	if _, err := target.Write(b); err != nil {
+		return err
+	}
+
+	respBuff := common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(respBuff[:cap(respBuff)])
+
+	copy(respBuff[0:3], []byte{0, 0, 0})
+	copy(respBuff[3:3+addrSize], data)
+	n, err := target.Read(respBuff)
+	if err != nil {
+		return err
+	}
+
+	_, err = listener.WriteTo(respBuff[:n], remoteAddr)
+	return err
+}
+
 func normalHandleUDP(listener *net.UDPConn, remoteAddr net.Addr, b []byte) (err error) {
 	//RSV := b[:2]
 	//FRAG := b[2:3]

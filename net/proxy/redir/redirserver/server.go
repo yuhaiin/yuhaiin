@@ -102,3 +102,13 @@ func (r *Server) Redir(host string) (err error) {
 	}()
 	return
 }
+
+func RedirHandle() func(net.Conn, func(string) (net.Conn, error)) {
+	return func(conn net.Conn, f func(string) (net.Conn, error)) {
+		err := handle(conn, f)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	}
+}

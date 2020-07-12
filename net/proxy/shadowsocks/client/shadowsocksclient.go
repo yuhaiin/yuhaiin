@@ -69,6 +69,41 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	return conn, nil
 }
 
+func (s *shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte) error {
+	host, port, err := net.SplitHostPort(s.server)
+	if err != nil {
+		return err
+	}
+	ip, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return err
+	}
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(ip.String(), port))
+	if err != nil {
+		return err
+	}
+
+	pc, err := net.ListenPacket("udp", "")
+	if err != nil {
+		return err
+	}
+	pc = s.cipher.PacketConn(pc)
+	_, err = pc.WriteTo(b[3:], addr)
+	if err != nil {
+		return err
+	}
+
+	respBuff := common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(respBuff[:cap(respBuff)])
+	n, _, err := pc.ReadFrom(respBuff)
+	if err != nil {
+		return err
+	}
+
+	_, err = listener.WriteTo(append([]byte{0, 0, 0}, respBuff[:n]...), remoteAddr)
+	return err
+}
+
 func (s *shadowsocks) UDPConn(listener *net.UDPConn, target net.Addr, b []byte) (err error) {
 	host, port, err := net.SplitHostPort(s.server)
 	if err != nil {

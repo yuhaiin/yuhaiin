@@ -212,6 +212,94 @@ func (s *Server) handleClientRequest(client net.Conn) {
 	common.Forward(client, server)
 }
 
+func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.Conn, error)) {
+	o := &Option{}
+	for index := range modeOption {
+		if modeOption[index] == nil {
+			continue
+		}
+		modeOption[index](o)
+	}
+	return func(conn net.Conn, f func(string) (net.Conn, error)) {
+		handle(o.Username, o.Password, conn, f)
+	}
+}
+
+func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error)) {
+	var err error
+	b := common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(b)
+
+	//socks5 first handshake
+	if _, err = client.Read(b[:]); err != nil {
+		return
+	}
+
+	if b[0] != 0x05 { //只处理Socks5协议
+		writeFirstResp(client, 0xff)
+		return
+	}
+
+	writeFirstResp(client, 0x00)
+
+	if b[1] == 0x01 && b[2] == 0x02 {
+		// 对用户名密码进行判断
+		if _, err = client.Read(b[:]); err != nil {
+			return
+		}
+		username := b[2 : 2+b[1]]
+		password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
+		if user != string(username) || key != string(password) {
+			writeFirstResp(client, 0x01)
+			return
+		}
+		writeFirstResp(client, 0x00)
+	}
+
+	// socks5 second handshake
+	_, err = client.Read(b[:])
+	if err != nil {
+		return
+	}
+
+	host, port, _, err := ResolveAddr(b[3:])
+	if err != nil {
+		return
+	}
+
+	var server net.Conn
+	switch b[1] {
+	case 0x01:
+		if server, err = dst(net.JoinHostPort(host, strconv.Itoa(port))); err != nil {
+			writeSecondResp(client, 0x04, client.LocalAddr().String())
+			return
+		}
+
+	case 0x03: // udp
+		writeSecondResp(client, 0x00, client.LocalAddr().String())
+		for {
+			_, err := client.Read(b[:2])
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				continue
+			}
+			return
+		}
+
+	case 0x02: // bind request
+		fallthrough
+
+	default:
+		writeSecondResp(client, 0x07, client.LocalAddr().String())
+		return
+	}
+	defer server.Close()
+
+	writeSecondResp(client, 0x00, client.LocalAddr().String()) // response to connect successful
+
+	// handshake successful
+	common.Forward(client, server)
+}
+
 func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
 	if len(raw) <= 0 {
 		return "", 0, 0, fmt.Errorf("ResolveAddr() -> raw byte array is empty")
