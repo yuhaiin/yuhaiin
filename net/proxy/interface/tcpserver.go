@@ -8,7 +8,7 @@ import (
 )
 
 // Server <--
-type TCPServer struct {
+type TcpServer struct {
 	Server
 	host    string
 	tcpConn func(string) (net.Conn, error)
@@ -22,7 +22,7 @@ type Option struct {
 }
 
 // NewTCPServer create new TCP listener
-func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, error)), modeOption ...func(*Option)) (Server, error) {
+func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, error)), modeOption ...func(*Option)) (TCPServer, error) {
 	if host == "" {
 		return nil, errors.New("host empty")
 	}
@@ -41,7 +41,7 @@ func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, err
 		modeOption[index](o)
 	}
 
-	s := &TCPServer{
+	s := &TcpServer{
 		host:    host,
 		handle:  handle,
 		tcpConn: o.TcpConn,
@@ -54,7 +54,7 @@ func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, err
 	return s, nil
 }
 
-func (s *TCPServer) UpdateListen(host string) (err error) {
+func (s *TcpServer) UpdateListen(host string) (err error) {
 	if s.ctx == nil {
 		goto _creatServer
 	}
@@ -76,19 +76,19 @@ _creatServer:
 	return s.run(s.ctx)
 }
 
-func (s *TCPServer) SetTCPConn(conn func(string) (net.Conn, error)) {
+func (s *TcpServer) SetTCPConn(conn func(string) (net.Conn, error)) {
 	if conn == nil {
 		return
 	}
 	s.tcpConn = conn
 }
 
-func (s *TCPServer) GetListenHost() string {
+func (s *TcpServer) GetListenHost() string {
 	return s.host
 }
 
 // Socks5 <--
-func (s *TCPServer) run(ctx context.Context) (err error) {
+func (s *TcpServer) run(ctx context.Context) (err error) {
 	fmt.Println("New TCP Server:", s.host)
 	listener, err := net.Listen("tcp", s.host)
 	if err != nil {
@@ -131,11 +131,11 @@ func (s *TCPServer) run(ctx context.Context) (err error) {
 	return
 }
 
-func (s *TCPServer) Close() error {
+func (s *TcpServer) Close() error {
 	s.cancel()
 	return nil
 }
 
-func (s *TCPServer) defaultHandle(conn net.Conn) {
+func (s *TcpServer) defaultHandle(conn net.Conn) {
 	conn.Close()
 }

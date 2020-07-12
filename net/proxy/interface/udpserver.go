@@ -9,7 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
-type UDPServer struct {
+type UdpServer struct {
 	Server
 	host    string
 	handle  func(*net.UDPConn, net.Addr, []byte, func(string) (*net.UDPConn, error))
@@ -18,7 +18,11 @@ type UDPServer struct {
 	cancel  context.CancelFunc
 }
 
-func NewUDPServer(host string, handle func(from *net.UDPConn, remoteAddr net.Addr, data []byte, udpConn func(string) (*net.UDPConn, error))) (Server, error) {
+func (u *UdpServer) SetUDPConn(f func(string) (*net.UDPConn, error)) {
+	u.udpConn = f
+}
+
+func NewUDPServer(host string, handle func(from *net.UDPConn, remoteAddr net.Addr, data []byte, udpConn func(string) (*net.UDPConn, error))) (UDPServer, error) {
 	udpConn := func(host string) (*net.UDPConn, error) {
 		// make a writer and write to dst
 		targetUDPAddr, err := net.ResolveUDPAddr("udp", host)
@@ -31,7 +35,7 @@ func NewUDPServer(host string, handle func(from *net.UDPConn, remoteAddr net.Add
 		}
 		return target, nil
 	}
-	u := &UDPServer{
+	u := &UdpServer{
 		host:    host,
 		handle:  handle,
 		udpConn: udpConn,
@@ -44,7 +48,7 @@ func NewUDPServer(host string, handle func(from *net.UDPConn, remoteAddr net.Add
 	return u, nil
 }
 
-func (u *UDPServer) UpdateListen(host string) error {
+func (u *UdpServer) UpdateListen(host string) error {
 	if u.ctx == nil {
 		goto _creatServer
 	}
@@ -66,20 +70,21 @@ _creatServer:
 	return u.run(u.ctx)
 }
 
-func (u *UDPServer) SetTCPConn(func(string) (net.Conn, error)) {
+func (u *UdpServer) SetTCPConn(func(string) (net.Conn, error)) {
 
 }
 
-func (u *UDPServer) Close() error {
+func (u *UdpServer) Close() error {
 	return nil
 }
 
-func (u *UDPServer) run(ctx context.Context) error {
+func (u *UdpServer) run(ctx context.Context) error {
 	localAddr, err := net.ResolveUDPAddr("udp", u.host)
 	if err != nil {
 		log.Printf("UDP server address error: %s\n", err.Error())
 		return fmt.Errorf("UpdateUDPListenAddr:ResolveUDPAddr -> %v", err)
 	}
+	fmt.Println("New UDP Server:", u.host)
 	listener, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
 		return err

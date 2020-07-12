@@ -3,21 +3,9 @@ package socks5server
 import (
 	"net"
 	"testing"
-	"time"
 
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
-
-func TestServer_UDP(t *testing.T) {
-	s := &Server{}
-	t.Log(s.Socks5("127.0.0.1:1080"))
-	time.Sleep(time.Second)
-	if err := s.UDP("127.0.0.1:1080"); err != nil {
-		t.Error(err)
-	}
-	time.Sleep(time.Second)
-	t.Log("successful")
-}
 
 func TestServer_UDP2(t *testing.T) { // make a writer and write to dst
 	targetUDPAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort("127.0.0.1", "1081"))
