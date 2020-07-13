@@ -33,7 +33,7 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 	if net.ParseIP(host) == nil {
 		addr, err := net.ResolveIPAddr("ip", host)
 		if err != nil {
-			return err
+			return fmt.Errorf("resovle IP Addr -> %v", err)
 		}
 		host = addr.IP.String()
 	}
@@ -41,14 +41,13 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 
 	target, err := f(net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
-		return err
+		return fmt.Errorf("get Target from f -> %v", err)
 	}
 
-	_ = target.SetReadDeadline(time.Now().Add(time.Second * 5))
-
+	_ = target.SetWriteDeadline(time.Now().Add(time.Second * 10))
 	// write data to target and read the response back
 	if _, err := target.Write(b); err != nil {
-		return err
+		return fmt.Errorf("write b to Target -> %v", err)
 	}
 
 	respBuff := common.BuffPool.Get().([]byte)
@@ -56,11 +55,15 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 
 	copy(respBuff[0:3], []byte{0, 0, 0})
 	copy(respBuff[3:3+addrSize], data)
+	_ = target.SetReadDeadline(time.Now().Add(time.Second * 10))
 	n, err := target.Read(respBuff)
 	if err != nil {
-		return err
+		return fmt.Errorf("read From Target -> %v", err)
 	}
 
 	_, err = listener.WriteTo(respBuff[:n], remoteAddr)
-	return err
+	if err != nil {
+		return fmt.Errorf("write to Listener -> %v", err)
+	}
+	return nil
 }

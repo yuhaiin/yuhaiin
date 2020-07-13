@@ -70,6 +70,8 @@ func ShadowsocksrCmd(ctx context.Context, s *subscr.Shadowsocksr, ssrPath string
 		cmd = append(cmd, "-O", s.Protocol)
 		cmd = append(cmd, "-G", s.Protoparam)
 	}
-	fmt.Println(cmd)
+	cmdE := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
+	//cmdE.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	fmt.Println(cmdE.String())
 	return exec.CommandContext(ctx, cmd[0], cmd[1:]...), net.JoinHostPort("127.0.0.1", LocalPort), nil
 }

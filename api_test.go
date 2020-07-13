@@ -12,7 +12,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/api"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/grpc"
 )
 
@@ -26,7 +25,6 @@ func TestApi(t *testing.T) {
 	log.Println(c.ProcessInit(context.Background(), &empty.Empty{}))
 	log.Println(c.GetConfig(context.Background(), &empty.Empty{}))
 	log.Println(c.GetGroup(context.Background(), &empty.Empty{}))
-	log.Println(c.ReducedUnit(context.Background(), &wrappers.DoubleValue{Value: 11111111111111111}))
 }
 
 func TestPath(t *testing.T) {

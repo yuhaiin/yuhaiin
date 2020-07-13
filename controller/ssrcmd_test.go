@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"bufio"
+	"context"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -13,6 +16,8 @@ func TestGetFreePort(t *testing.T) {
 func TestCmd(t *testing.T) {
 	cmd := append([]string{}, "ls", "-a")
 	x := exec.Command(cmd[0], cmd[1:]...)
+	x.Stdout = os.Stdout
+	x.Stderr = os.Stderr
 	if err := x.Start(); err != nil {
 		t.Error(err)
 	}
@@ -23,18 +28,27 @@ func TestCmd(t *testing.T) {
 
 func TestLongCmd(t *testing.T) {
 	cmd := append([]string{}, "python", "-m", "http.server")
-	x := exec.Command(cmd[0], cmd[1:]...)
-	if err := x.Start(); err != nil {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
+	x := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
+	//x.Stdout = os.Stdout
+	x.Stderr = os.Stderr
+
+	stdout, err := x.StdoutPipe()
+	if err != nil {
 		t.Error(err)
-		return
 	}
+	t.Log(x.Start())
+	stdoutReader := bufio.NewReader(stdout)
+
 	go func() {
-		if err := x.Wait(); err != nil {
-			t.Error(err)
+		for {
+			x, err := stdoutReader.ReadString(' ')
+			if err != nil {
+				t.Error(err)
+				break
+			}
+			t.Log(x)
 		}
 	}()
-	time.Sleep(2 * time.Second)
-	if x.Process != nil {
-		x.Process.Kill()
-	}
+	t.Log(x.Wait())
 }

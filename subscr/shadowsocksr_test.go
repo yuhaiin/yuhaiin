@@ -20,7 +20,7 @@ func TestSsrParse2(t *testing.T) {
 }
 
 func TestLint(t *testing.T) {
-	f, err := os.Open("/home/asutorufa/Desktop/node_ssr.txt")
+	f, err := os.Open("/node_ssr.txt")
 	if err != nil {
 		t.Log(err)
 	}

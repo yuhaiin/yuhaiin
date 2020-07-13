@@ -20,23 +20,26 @@ import (
 
 type Server struct {
 	UnimplementedApiServer
+	singleInstanceCtx context.Context
+	message           chan string
 }
 
 var (
-	message     chan string
-	messageOn   bool
-	InitSuccess bool
 	Host        string
-	connect     chan bool
+	initCtx     context.Context
+	lockFileCtx context.Context
+	connectCtx  context.Context
+	connectDone context.CancelFunc
 )
 
 func init() {
 	flag.StringVar(&Host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
-	//var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-	//var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 	flag.Parse()
 	fmt.Println("gRPC Listen Host :", Host)
 	fmt.Println("Try to create lock file.")
+
+	var cancel context.CancelFunc
+	lockFileCtx, cancel = context.WithCancel(context.Background())
 	err := process.GetProcessLock(Host)
 	if err != nil {
 		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
@@ -51,36 +54,61 @@ func init() {
 		}(ctx)
 		return
 	}
+	cancel()
+
 	fmt.Println("Create lock file successful.")
 	fmt.Println("Try to initialize Service.")
+	initCtx, cancel = context.WithCancel(context.Background())
 	err = process.Init()
 	if err != nil {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		panic(err)
 	}
 	fmt.Println("Initialize Service Successful, Please Connect in 5 Seconds.")
-	InitSuccess = true
-	connect = make(chan bool, 0)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	cancel()
+
+	connectCtx, connectDone = context.WithCancel(context.Background())
 	go func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
-			log.Println("Connect timeout: 5 Seconds, Exit Process!")
-			cancel()
-			os.Exit(0)
-		case <-connect:
 			fmt.Println("Connect Successful!")
-			cancel()
-			close(connect)
+		case <-time.After(5 * time.Second):
+			log.Println("Connect timeout: 5 Seconds, Exit Process!")
+			connectDone()
+			os.Exit(0)
 		}
-	}(ctx)
+	}(connectCtx)
 }
 
 func (s *Server) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if !InitSuccess {
+	if lockFileCtx == nil {
 		return &empty.Empty{}, errors.New("create lock file false")
 	}
-	connect <- true
+	select {
+	case <-lockFileCtx.Done():
+		break
+	default:
+		return &empty.Empty{}, errors.New("create lock file false")
+	}
+
+	if initCtx == nil {
+		return &empty.Empty{}, errors.New("init Process Failed")
+	}
+	select {
+	case <-initCtx.Done():
+		break
+	default:
+		return &empty.Empty{}, errors.New("init Process Failed")
+	}
+
+	if connectCtx != nil {
+		select {
+		case <-connectCtx.Done():
+			return &empty.Empty{}, errors.New("already exists one client")
+		default:
+			connectDone()
+		}
+	}
 	return &empty.Empty{}, nil
 }
 
@@ -97,11 +125,16 @@ func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.String
 }
 
 func (s *Server) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if !messageOn {
-		return &empty.Empty{}, errors.New("no client")
+	if s.singleInstanceCtx != nil {
+		select {
+		case <-s.singleInstanceCtx.Done():
+			break
+		default:
+			s.message <- "on"
+			return &empty.Empty{}, nil
+		}
 	}
-	message <- "on"
-	return &empty.Empty{}, nil
+	return &empty.Empty{}, errors.New("no client")
 }
 
 func (s *Server) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
@@ -204,25 +237,28 @@ func (s *Server) GetRate(_ *empty.Empty, srv Api_GetRateServer) error {
 }
 
 func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
-	if messageOn {
-		return errors.New("already exist one client")
+	if s.singleInstanceCtx != nil {
+		select {
+		case <-s.singleInstanceCtx.Done():
+			break
+		default:
+			return errors.New("already exist one client")
+		}
 	}
-	message = make(chan string, 1)
-	messageOn = true
-	ctx := srv.Context()
+	s.message = make(chan string, 1)
+	s.singleInstanceCtx = srv.Context()
 
 	for {
 		select {
-		case m := <-message:
+		case m := <-s.message:
 			err := srv.Send(&wrappers.StringValue{Value: m})
 			if err != nil {
 				log.Println(err)
 			}
-			fmt.Println("Call Client Open Main Window.")
-		case <-ctx.Done():
-			close(message)
-			messageOn = false
-			return ctx.Err()
+			fmt.Println("Call Client Open Window.")
+		case <-s.singleInstanceCtx.Done():
+			close(s.message)
+			return s.singleInstanceCtx.Err()
 		}
 	}
 }
