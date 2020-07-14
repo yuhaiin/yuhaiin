@@ -7,14 +7,15 @@ import (
 	"net"
 )
 
-// Server <--
+// TcpServer tcp server common
 type TcpServer struct {
 	Server
-	host    string
-	tcpConn func(string) (net.Conn, error)
-	ctx     context.Context
-	cancel  context.CancelFunc
-	handle  func(net.Conn, func(string) (net.Conn, error))
+	host     string
+	tcpConn  func(string) (net.Conn, error)
+	ctx      context.Context
+	cancel   context.CancelFunc
+	ctxQueue context.Context
+	handle   func(net.Conn, func(string) (net.Conn, error))
 }
 
 type Option struct {
@@ -58,6 +59,7 @@ func (s *TcpServer) UpdateListen(host string) (err error) {
 	if s.ctx == nil {
 		goto _creatServer
 	}
+
 	select {
 	case <-s.ctx.Done():
 		goto _creatServer
@@ -66,7 +68,14 @@ func (s *TcpServer) UpdateListen(host string) (err error) {
 			return
 		}
 		s.cancel()
+		if s.ctxQueue == nil {
+			break
+		}
+		select {
+		case <-s.ctxQueue.Done():
+		}
 	}
+
 _creatServer:
 	if host == "" {
 		return
@@ -92,18 +101,19 @@ func (s *TcpServer) run(ctx context.Context) (err error) {
 	fmt.Println("New TCP Server:", s.host)
 	listener, err := net.Listen("tcp", s.host)
 	if err != nil {
-		return fmt.Errorf("Socks5:Listen -> %v", err)
+		return fmt.Errorf("TcpServer:run() -> %v", err)
 	}
 	go func(ctx context.Context) {
 		queue := make(chan net.Conn, 10)
-		ctxListen, cancel := context.WithCancel(context.Background())
+		var cancel context.CancelFunc
+		s.ctxQueue, cancel = context.WithCancel(context.Background())
 		go func(ctx context.Context) {
 			for {
 				client, err := listener.Accept()
 				if err != nil {
 					select {
 					case <-ctx.Done():
-						fmt.Println("Close Queue")
+						fmt.Println("Close TCP Queue", s.host)
 						return
 					default:
 						continue
@@ -111,13 +121,13 @@ func (s *TcpServer) run(ctx context.Context) (err error) {
 				}
 				queue <- client
 			}
-		}(ctxListen)
+		}(s.ctxQueue)
 		for {
 			select {
 			case <-ctx.Done():
 				cancel()
 				_ = listener.Close()
-				fmt.Println("Close Server")
+				fmt.Println("Close TCP Server", s.host)
 				return
 			case client := <-queue:
 				go func() {

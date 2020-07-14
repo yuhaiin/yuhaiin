@@ -2,7 +2,6 @@ package socks5server
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"time"
@@ -16,7 +15,7 @@ func Socks5UDPHandle() func(*net.UDPConn, net.Addr, []byte, func(string) (*net.U
 	return func(conn *net.UDPConn, addr net.Addr, bytes []byte, f func(string) (*net.UDPConn, error)) {
 		err := udpHandle(conn, addr, bytes, f)
 		if err != nil {
-			log.Println(err)
+			fmt.Println(err)
 			return
 		}
 	}
@@ -39,27 +38,35 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 	}
 	data := b[3+addrSize:]
 
+	fmt.Println("Try to Get Target")
 	target, err := f(net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return fmt.Errorf("get Target from f -> %v", err)
 	}
-
+	defer target.Close()
+	fmt.Println("Get Target Successful")
+	targetUDPAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(port)))
+	if err != nil {
+		return err
+	}
 	_ = target.SetWriteDeadline(time.Now().Add(time.Second * 10))
 	// write data to target and read the response back
-	if _, err := target.Write(b); err != nil {
+	fmt.Println("UDP write", target.LocalAddr(), "->", targetUDPAddr)
+	if _, err := target.WriteToUDP(data, targetUDPAddr); err != nil {
 		return fmt.Errorf("write b to Target -> %v", err)
 	}
 
 	respBuff := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(respBuff[:cap(respBuff)])
+	defer common.BuffPool.Put(respBuff[:])
 
 	copy(respBuff[0:3], []byte{0, 0, 0})
 	copy(respBuff[3:3+addrSize], data)
 	_ = target.SetReadDeadline(time.Now().Add(time.Second * 10))
-	n, err := target.Read(respBuff)
+	n, addr, err := target.ReadFromUDP(respBuff[3+addrSize:])
 	if err != nil {
 		return fmt.Errorf("read From Target -> %v", err)
 	}
+	fmt.Println("UDP read from", addr.String())
 
 	_, err = listener.WriteTo(respBuff[:n], remoteAddr)
 	if err != nil {

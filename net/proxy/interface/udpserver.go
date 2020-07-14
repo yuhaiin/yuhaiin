@@ -11,11 +11,12 @@ import (
 
 type UdpServer struct {
 	Server
-	host    string
-	handle  func(*net.UDPConn, net.Addr, []byte, func(string) (*net.UDPConn, error))
-	udpConn func(string) (*net.UDPConn, error)
-	ctx     context.Context
-	cancel  context.CancelFunc
+	host     string
+	handle   func(*net.UDPConn, net.Addr, []byte, func(string) (*net.UDPConn, error))
+	udpConn  func(string) (*net.UDPConn, error)
+	ctx      context.Context
+	cancel   context.CancelFunc
+	ctxQueue context.Context
 }
 
 func (u *UdpServer) SetUDPConn(f func(string) (*net.UDPConn, error)) {
@@ -25,11 +26,11 @@ func (u *UdpServer) SetUDPConn(f func(string) (*net.UDPConn, error)) {
 func NewUDPServer(host string, handle func(from *net.UDPConn, remoteAddr net.Addr, data []byte, udpConn func(string) (*net.UDPConn, error))) (UDPServer, error) {
 	udpConn := func(host string) (*net.UDPConn, error) {
 		// make a writer and write to dst
-		targetUDPAddr, err := net.ResolveUDPAddr("udp", host)
-		if err != nil {
-			return nil, err
-		}
-		target, err := net.DialUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0}, targetUDPAddr)
+		//targetUDPAddr, err := net.ResolveUDPAddr("udp", host)
+		//if err != nil {
+		//	return nil, err
+		//}
+		target, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 		if err != nil {
 			return nil, err
 		}
@@ -52,6 +53,7 @@ func (u *UdpServer) UpdateListen(host string) error {
 	if u.ctx == nil {
 		goto _creatServer
 	}
+
 	select {
 	case <-u.ctx.Done():
 		goto _creatServer
@@ -60,7 +62,14 @@ func (u *UdpServer) UpdateListen(host string) error {
 			return nil
 		}
 		u.cancel()
+		if u.ctxQueue == nil {
+			break
+		}
+		select {
+		case <-u.ctxQueue.Done():
+		}
 	}
+
 _creatServer:
 	if host == "" {
 		return nil
@@ -87,14 +96,15 @@ func (u *UdpServer) run(ctx context.Context) error {
 	fmt.Println("New UDP Server:", u.host)
 	listener, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("UdpServer:run() -> %v", err)
 	}
 	go func(ctx context.Context) {
 		queue := make(chan struct {
 			remoteAddr net.Addr
 			b          []byte
 		}, 10)
-		queueCtx, cancel := context.WithCancel(context.Background())
+		var cancel context.CancelFunc
+		u.ctxQueue, cancel = context.WithCancel(context.Background())
 		go func(ctx context.Context) {
 			for {
 				b := common.BuffPool.Get().([]byte)
@@ -102,6 +112,7 @@ func (u *UdpServer) run(ctx context.Context) error {
 				if err != nil {
 					select {
 					case <-ctx.Done():
+						fmt.Println("Close UDP Queue", u.host)
 						return
 					default:
 						continue
@@ -112,12 +123,13 @@ func (u *UdpServer) run(ctx context.Context) error {
 					b          []byte
 				}{remoteAddr: remoteAddr, b: b[:n]}
 			}
-		}(queueCtx)
+		}(u.ctxQueue)
 		for {
 			select {
 			case <-ctx.Done():
 				cancel()
 				listener.Close()
+				fmt.Println("Close UDP Server", u.host)
 				return
 			case data := <-queue:
 				u.handle(listener, data.remoteAddr, data.b, u.udpConn)
