@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -32,54 +33,93 @@ func HTTPHandle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.Co
 	}
 }
 
-func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error)) {
+func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) {
 	/*
 		use golang http
 	*/
-	inBoundReader := bufio.NewReader(client)
+	inBoundReader := bufio.NewReader(src)
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
-		//log.Println(err)
+		if err != io.EOF {
+			log.Println(err)
+		}
 		return
 	}
 
-	if user != "" || key != "" {
-		username, password, isHas := parseBasicAuth(req.Header.Get("Proxy-Authorization"))
-		if !isHas {
-			_, _ = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
-			return
-		}
-		if username != user || password != key {
-			_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-			return
-		}
+	err = verifyUserPass(user, key, src, req)
+	if err != nil {
+		log.Println(err)
+		return
 	}
 
-	//log.Println("host", req.Host)
 	host := bytes.NewBufferString(req.Host)
 	if req.URL.Port() == "" {
 		host.WriteString(":80")
 	}
 
-	server, err := dst(host.String())
+	dstc, err := dst(host.String())
 	if err != nil {
-		//log.Println(err)
-		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		log.Println(err)
+		_, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		return
 	}
-	defer server.Close()
+	defer dstc.Close()
 
 	if req.Method == http.MethodConnect {
-		_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		common.Forward(client, server)
+		connect(src, dstc)
 		return
 	}
 
-	outboundReader := bufio.NewReader(server)
+	normal(src, dstc, req, inBoundReader)
+}
+
+func verifyUserPass(user, key string, client net.Conn, req *http.Request) error {
+	if user == "" || key == "" {
+		return nil
+	}
+	username, password, isHas := parseBasicAuth(req.Header.Get("Proxy-Authorization"))
+	if !isHas {
+		_, _ = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
+		return errors.New("proxy Authentication Required")
+	}
+	if username != user || password != key {
+		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		return errors.New("user or password verify failed")
+	}
+	return nil
+}
+
+// parseBasicAuth parses an HTTP Basic Authentication string.
+// "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
+func parseBasicAuth(auth string) (username, password string, ok bool) {
+	const prefix = "Basic "
+	// Case insensitive prefix match. See Issue 22736.
+	if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
+		return
+	}
+	c, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
+	if err != nil {
+		return
+	}
+	cs := string(c)
+	s := strings.IndexByte(cs, ':')
+	if s < 0 {
+		return
+	}
+	return cs[:s], cs[s+1:], true
+}
+
+func connect(client net.Conn, dst net.Conn) {
+	_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	common.Forward(client, dst)
+}
+
+func normal(src, dst net.Conn, req *http.Request, in *bufio.Reader) {
+	outboundReader := bufio.NewReader(dst)
 	for {
 		keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" || strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
 		if len(req.URL.Host) > 0 {
@@ -88,7 +128,7 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 		req.RequestURI = ""
 		req.Header.Set("Connection", "close")
 		req.Header = removeHeader(req.Header)
-		if err := req.Write(server); err != nil {
+		if err := req.Write(dst); err != nil {
 			break
 		}
 
@@ -118,45 +158,22 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 		} else {
 			resp.Close = true
 		}
-		err = resp.Write(client)
+		err = resp.Write(src)
 		if err != nil || resp.Close {
 			break
 		}
 
 		// from clash, thanks so much, if not have the code, the ReadRequest will error
-		//buf := common.BuffPool.Get().([]byte)
-		//_, err = io.CopyBuffer(client, resp.Body, buf)
-		//common.BuffPool.Put(buf[:cap(buf)])
-		err = common.SingleForward(resp.Body, client)
+		err = common.SingleForward(resp.Body, src)
 		if err != nil && err != io.EOF {
 			break
 		}
 
-		req, err = http.ReadRequest(inBoundReader)
+		req, err = http.ReadRequest(in)
 		if err != nil {
 			break
 		}
 	}
-}
-
-// parseBasicAuth parses an HTTP Basic Authentication string.
-// "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
-func parseBasicAuth(auth string) (username, password string, ok bool) {
-	const prefix = "Basic "
-	// Case insensitive prefix match. See Issue 22736.
-	if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
-		return
-	}
-	c, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
-	if err != nil {
-		return
-	}
-	cs := string(c)
-	s := strings.IndexByte(cs, ':')
-	if s < 0 {
-		return
-	}
-	return cs[:s], cs[s+1:], true
 }
 
 // https://github.com/go-httpproxy

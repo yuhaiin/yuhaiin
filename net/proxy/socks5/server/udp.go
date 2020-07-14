@@ -32,7 +32,7 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 	if net.ParseIP(host) == nil {
 		addr, err := net.ResolveIPAddr("ip", host)
 		if err != nil {
-			return fmt.Errorf("resovle IP Addr -> %v", err)
+			return fmt.Errorf("resolve IP Addr -> %v", err)
 		}
 		host = addr.IP.String()
 	}

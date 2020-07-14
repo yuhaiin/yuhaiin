@@ -54,11 +54,11 @@ func TestJsonPb(t *testing.T) {
 
 func TestCreatDir(t *testing.T) {
 _retry:
-	file, err := os.OpenFile("/mnt/share/Work/code/golang/yuhaiin/config/b/a/a.txt", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	file, err := os.OpenFile("./b/a/a.txt", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		if os.IsNotExist(err) {
-			t.Log(path.Dir("/mnt/share/Work/code/golang/yuhaiin/config/b/a/a.txt"))
-			err = os.MkdirAll(path.Dir("/mnt/share/Work/code/golang/yuhaiin/config/b/a/a.txt"), os.ModePerm)
+			t.Log(path.Dir("./b/a/a.txt"))
+			err = os.MkdirAll(path.Dir("./b/a/a.txt"), os.ModePerm)
 			if err != nil {
 				t.Error(err)
 			}
