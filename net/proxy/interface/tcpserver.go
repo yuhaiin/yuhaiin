@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 )
 
 // TcpServer tcp server common
@@ -32,7 +33,7 @@ func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, err
 	}
 	o := &Option{
 		TcpConn: func(s string) (net.Conn, error) {
-			return net.Dial("tcp", s)
+			return net.DialTimeout("tcp", s, 20*time.Second)
 		},
 	}
 	for index := range modeOption {

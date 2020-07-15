@@ -64,14 +64,6 @@ func (s *subscription) setLayout() {
 	s.subWindow.SetCentralWidget(centralWidget)
 }
 
-func (s *subscription) setGeometry() {
-	s.subLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(10, 10), core.NewQPoint2(130, 40)))
-	s.subCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 10), core.NewQPoint2(600, 40)))
-	s.deleteButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 10), core.NewQPoint2(690, 40)))
-	s.lineText.SetGeometry(core.NewQRect2(core.NewQPoint2(115, 50), core.NewQPoint2(600, 80)))
-	s.addButton.SetGeometry(core.NewQRect2(core.NewQPoint2(610, 50), core.NewQPoint2(690, 80)))
-}
-
 func (s *subscription) setListener() {
 	s.deleteButton.ConnectClicked(func(bool2 bool) {
 		links, err := apiC.DeleteSubLink(apiCtx(), &wrappers.StringValue{Value: s.subCombobox.CurrentText()})

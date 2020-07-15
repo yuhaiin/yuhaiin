@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"log"
 	"net"
 	"net/url"
@@ -156,4 +157,21 @@ func TestStructChange(t *testing.T) {
 	log.Println("d", d)
 	f(d, "*d = *b")
 	log.Println(c, b, d)
+}
+
+func TestResolver(t *testing.T) {
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			t.Log(network, address)
+			return net.Dial("tcp", "114.114.114.114:53")
+		},
+	}
+	t.Log(resolver.LookupIPAddr(context.Background(), "www.baidu.com"))
+}
+
+func TestSpilt(t *testing.T) {
+	log.Println(net.SplitHostPort("www.baidu.com:443"))
+	log.Println(net.SplitHostPort("127.0.0.1:443"))
+	log.Println(net.SplitHostPort("[::]:443"))
 }

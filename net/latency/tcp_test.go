@@ -17,7 +17,7 @@ func TestTcpLatency(t *testing.T) {
 	switch n.(type) {
 	case *subscr.Shadowsocks:
 		x := n.(*subscr.Shadowsocks)
-		s, err := client.NewShadowsocks(x.Method, x.Password, net.JoinHostPort(x.Server, x.Port), x.Plugin, x.PluginOpt)
+		s, err := client.NewShadowsocks(x.Method, x.Password, x.Server, x.Port, x.Plugin, x.PluginOpt)
 		if err != nil {
 			t.Error(err)
 		}

@@ -38,13 +38,11 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 	}
 	data := b[3+addrSize:]
 
-	fmt.Println("Try to Get Target")
 	target, err := f(net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return fmt.Errorf("get Target from f -> %v", err)
 	}
 	defer target.Close()
-	fmt.Println("Get Target Successful")
 	targetUDPAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return err

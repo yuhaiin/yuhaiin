@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
 type DOH struct {
@@ -18,6 +20,7 @@ type DOH struct {
 	Server string
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
+	cache  *common.CacheExtend
 }
 
 func NewDOH(host string) DNS {
@@ -28,13 +31,22 @@ func NewDOH(host string) DNS {
 		Proxy: func(domain string) (net.Conn, error) {
 			return net.DialTimeout("tcp", domain, 5*time.Second)
 		},
+		cache: common.NewCacheExtend(time.Minute * 20),
 	}
 }
 
 // DOH DNS over HTTPS
 // https://tools.ietf.org/html/rfc8484
 func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
-	return dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data, d.Server) })
+	if x, _ := d.cache.Get(domain); x != nil {
+		return x.([]net.IP), nil
+	}
+	DNS, err = dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data, d.Server) })
+	if err != nil || len(DNS) <= 0 {
+		return nil, fmt.Errorf("DNS over HTTPS Search -> %v", err)
+	}
+	d.cache.Add(domain, DNS)
+	return
 }
 
 func (d *DOH) SetSubnet(ip *net.IPNet) {

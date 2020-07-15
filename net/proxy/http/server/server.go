@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -59,9 +60,14 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 
 	dstc, err := dst(host.String())
 	if err != nil {
-		log.Println(err)
-		_, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		fmt.Println(err)
+		//_, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
 		return
+	}
+	switch dstc.(type) {
+	case *net.TCPConn:
+		_ = dstc.(*net.TCPConn).SetKeepAlive(true)
 	}
 	defer dstc.Close()
 

@@ -108,20 +108,6 @@ func (m *mainWindow) setLayout() {
 	m.mainWindow.SetCentralWidget(centralWidget)
 }
 
-func (m *mainWindow) setGeometry() {
-	m.statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(40, m.mainWindow.Height()-50), core.NewQPoint2(560, m.mainWindow.Height())))
-	m.nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
-	m.nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60), core.NewQPoint2(560, 90)))
-	m.groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110), core.NewQPoint2(130, 140)))
-	m.groupCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 110), core.NewQPoint2(450, 140)))
-	m.nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160), core.NewQPoint2(130, 190)))
-	m.nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160), core.NewQPoint2(450, 190)))
-	m.startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160), core.NewQPoint2(560, 190)))
-	m.latencyLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210), core.NewQPoint2(130, 240)))
-	m.latencyLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210), core.NewQPoint2(450, 240)))
-	m.latencyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
-}
-
 func (m *mainWindow) refresh() {
 	group, err := apiC.GetGroup(apiCtx(), &empty.Empty{})
 	if err != nil {

@@ -148,7 +148,7 @@ func ChangeNode() error {
 		conn, err := client.NewShadowsocks(
 			n.Method,
 			n.Password,
-			net.JoinHostPort(n.Server, n.Port),
+			n.Server, n.Port,
 			n.Plugin,
 			n.PluginOpt,
 		)

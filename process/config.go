@@ -37,6 +37,8 @@ func SetConFig(conf *config.Setting) (erra error) {
 		option.DNS.Subnet = subnet
 		option.Bypass = conf.Bypass
 		option.BypassPath = conf.BypassFile
+		option.DirectDNS.Server = ConFig.DirectDNS.Host
+		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
 	})
 	if err != nil {
 		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
@@ -92,6 +94,8 @@ func Init() error {
 		option.DNS.DOH = ConFig.IsDNSOverHTTPS
 		option.DNS.Subnet = subnet
 		option.Bypass = ConFig.Bypass
+		option.DirectDNS.Server = ConFig.DirectDNS.Host
+		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
 	})
 	if err != nil {
 		return fmt.Errorf("new Match Controller -> %v", err)

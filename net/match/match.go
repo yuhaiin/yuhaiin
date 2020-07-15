@@ -14,9 +14,17 @@ type Match struct {
 	doh    bool
 }
 
+type Category int
+
+const (
+	IP Category = 1 << iota
+	DOMAIN
+)
+
 type Des struct {
-	Des interface{}
-	DNS []net.IP
+	Category Category
+	Des      interface{}
+	DNS      []net.IP
 }
 
 func (x *Match) SetDNS(host string, doh bool) {
@@ -52,6 +60,9 @@ func (x *Match) SetDNSProxy(proxy func(string) (net.Conn, error)) {
 }
 
 func (x *Match) Insert(str string, mark interface{}) error {
+	if str == "" {
+		return nil
+	}
 	if _, _, err := net.ParseCIDR(str); err != nil {
 		x.domain.InsertFlip(str, mark)
 		return nil
@@ -61,13 +72,16 @@ func (x *Match) Insert(str string, mark interface{}) error {
 }
 
 func (x *Match) Search(str string) Des {
-	d := Des{}
+	d := Des{
+		Category: DOMAIN,
+	}
 	if des, _ := mCache.Get(str); des != nil {
 		return des.(Des)
 	}
 
 	if net.ParseIP(str) != nil {
 		_, d.Des = x.cidr.Search(str)
+		d.Category = IP
 		goto _end
 	}
 

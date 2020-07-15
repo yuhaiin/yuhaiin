@@ -94,7 +94,7 @@ func startGrpc() {
 			if err != nil || err == io.EOF {
 				break
 			}
-			log.Printf("kernel -> %s", line)
+			fmt.Printf("kernel -> %s", line)
 		}
 	}()
 	go func() {

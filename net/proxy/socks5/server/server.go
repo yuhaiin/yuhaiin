@@ -3,7 +3,6 @@ package socks5server
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 
@@ -71,7 +70,7 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 
 	err = firstHand(client, b[0], b[1], b[2], user, key)
 	if err != nil {
-		//log.Println(err)
+		//fmt.Println(err)
 		return
 	}
 
@@ -88,9 +87,13 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 	server, err := getTarget(host, strconv.Itoa(port), b[1], client, dst)
 	if err != nil {
 		if err != udpErr {
-			log.Println(err)
+			fmt.Println(err)
 		}
 		return
+	}
+	switch server.(type) {
+	case *net.TCPConn:
+		_ = server.(*net.TCPConn).SetKeepAlive(true)
 	}
 	defer server.Close()
 	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
@@ -146,7 +149,7 @@ func getTarget(host, port string, mode byte, client net.Conn, dst func(string) (
 		}
 
 	case udp: // udp
-		var b []byte
+		b := make([]byte, 10)
 		writeSecondResp(client, succeeded, client.LocalAddr().String())
 		for {
 			_, err := client.Read(b[:2])

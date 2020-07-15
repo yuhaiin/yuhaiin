@@ -7,11 +7,12 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/net/dns"
 
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
@@ -25,8 +26,9 @@ const (
 )
 
 type MatchController struct {
-	bypass bool
-	dns    struct {
+	Forward func(string) (net.Conn, error)
+	bypass  bool
+	dns     struct {
 		server string
 		doh    bool
 		Proxy  bool
@@ -35,6 +37,15 @@ type MatchController struct {
 	bypassFile string
 	matcher    *match.Match
 	proxy      func(host string) (conn net.Conn, err error)
+
+	dialer net.Dialer
+	// TODO: direct connect dns
+	directDNS struct {
+		dns    dns.DNS
+		server string
+		doh    bool
+	}
+	//directDNS dns.DNS
 }
 
 type OptionMatchCon struct {
@@ -44,6 +55,10 @@ type OptionMatchCon struct {
 		Proxy  bool
 		Subnet *net.IPNet
 	}
+	DirectDNS struct {
+		Server string
+		DOH    bool
+	}
 	BypassPath string
 	Bypass     bool
 	Proxy      func(string) (net.Conn, error)
@@ -51,7 +66,16 @@ type OptionMatchCon struct {
 type MatchConOption func(option *OptionMatchCon)
 
 func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, error) {
-	m := &MatchController{}
+	m := &MatchController{
+		dialer: net.Dialer{
+			Timeout: 15 * time.Second,
+		},
+		directDNS: struct {
+			dns    dns.DNS
+			server string
+			doh    bool
+		}{dns.NewDOH("223.5.5.5"), "223.5.5.5", true},
+	}
 	option := &OptionMatchCon{
 		Proxy: func(s string) (net.Conn, error) {
 			return net.DialTimeout("tcp", s, 5*time.Second)
@@ -71,7 +95,7 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 	}
 	m.enableDNSProxy(option.DNS.Proxy)
 	m.setProxy(option.Proxy)
-	m.bypass = option.Bypass
+	m.setMode(option.Bypass)
 	return m, nil
 }
 
@@ -91,12 +115,17 @@ func (m *MatchController) SetAllOption(opt MatchConOption) error {
 			Proxy:  m.dns.Proxy,
 			Subnet: m.dns.Subnet,
 		},
+		DirectDNS: struct {
+			Server string
+			DOH    bool
+		}{Server: m.directDNS.server, DOH: m.directDNS.doh},
 		BypassPath: m.bypassFile,
 		Bypass:     m.bypass,
 	}
 	opt(option)
 
 	m.setDNS(option.DNS.Server, option.DNS.DOH)
+	m.setDirectDNS(option.DirectDNS.Server, option.DirectDNS.DOH)
 	m.enableDNSProxy(option.DNS.Proxy)
 	m.setDNSSubNet(option.DNS.Subnet)
 	m.setProxy(option.Proxy)
@@ -110,6 +139,22 @@ func (m *MatchController) enableDNSProxy(enable bool) {
 		return
 	}
 	m.setDNSProxy(enable)
+}
+
+func (m *MatchController) setMode(b bool) {
+	if m.bypass == b {
+		if m.Forward == nil {
+			m.Forward = m.dial
+		}
+		return
+	}
+	m.bypass = b
+	switch b {
+	case false:
+		m.Forward = m.proxy
+	default:
+		m.Forward = m.dial
+	}
 }
 
 func (m *MatchController) setDNSProxy(enable bool) {
@@ -141,6 +186,19 @@ func (m *MatchController) setDNS(server string, doh bool) {
 	m.matcher.SetDNS(server, doh)
 }
 
+func (m *MatchController) setDirectDNS(server string, doh bool) {
+	if m.directDNS.server == server && m.directDNS.doh == doh {
+		return
+	}
+	m.directDNS.server = server
+	m.directDNS.doh = doh
+
+	if doh {
+		m.directDNS.dns = dns.NewDOH(server)
+	} else {
+		m.directDNS.dns = dns.NewNormalDNS(server)
+	}
+}
 func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
 	if m.matcher.DNS == nil || m.dns.Subnet == ip {
 		return
@@ -192,10 +250,10 @@ func (m *MatchController) UpdateMatch() error {
 		if err != nil {
 			continue
 		}
-		err = m.matcher.Insert(domain, m.mode(mode))
-		if err != nil {
-			continue
-		}
+		_ = m.matcher.Insert(domain, m.mode(mode))
+		//if err != nil {
+		//	continue
+		//}
 	}
 	return nil
 }
@@ -218,54 +276,70 @@ func (m *MatchController) mode(str string) int {
 }
 
 // https://myexternalip.com/raw
-func (m *MatchController) Forward(host string) (conn net.Conn, err error) {
-	if !m.bypass {
-		return m.proxy(host)
-	}
-
-	URI, err := url.Parse("//" + host)
+func (m *MatchController) dial(host string) (conn net.Conn, err error) {
+	hostname, port, err := net.SplitHostPort(host)
 	if err != nil {
-		return m.proxy(host)
+		return nil, err
 	}
+	md := m.matcher.Search(hostname)
 
-	return m.forward(m.matcher.Search(URI.Hostname()), URI)
+	switch md.Category {
+	case match.IP:
+		return m.dialIP(host, md.Des)
+	case match.DOMAIN:
+		return m.dialDomain(hostname, port, md.Des)
+	}
+	return m.proxy(host)
 }
 
-func (m *MatchController) forward(md match.Des, URI *url.URL) (net.Conn, error) {
-	switch md.Des {
+// TODO: Match Dial
+func (m *MatchController) dialIP(host string, des interface{}) (net.Conn, error) {
+	switch des {
+	default:
+		goto _proxy
 	case mDirect:
 		goto _direct
-	case mProxy:
-		goto _proxy
 	case mBlock:
-		return nil, errors.New("block domain: " + URI.Host)
-	}
-
-	{
-		// need to get IP from DNS
-		var ip net.IP
-		if len(md.DNS) > 0 {
-			ip = md.DNS[0]
-		} else {
-			ip, _ = m.getIP(URI.Hostname())
-		}
-		if ip == nil {
-			goto _proxy
-		}
-		URI.Host = net.JoinHostPort(ip.String(), URI.Port())
-
-		switch md.Des {
-		case mIP | mDirect:
-			goto _direct
-		case mIP:
-			goto _proxy
-		}
+		return nil, errors.New("block domain: " + host)
 	}
 
 _proxy:
-	return m.proxy(URI.Host)
+	return m.proxy(host)
 _direct:
-	return net.DialTimeout("tcp", URI.Host, 5*time.Second)
+	conn, err := m.dialer.Dial("tcp", host)
+	if err != nil {
+		return nil, fmt.Errorf("match direct -> %v", err)
+	}
+	return conn, err
+}
+
+func (m *MatchController) dialDomain(hostname, port string, des interface{}) (net.Conn, error) {
+
+	switch des {
+	default:
+		goto _proxy
+	case mDirect:
+		goto _direct
+	case mBlock:
+		return nil, errors.New("block domain: " + hostname)
+	}
+
+_proxy:
+	return m.proxy(net.JoinHostPort(hostname, port))
+_direct:
+	ip, err := m.directDNS.dns.Search(hostname)
+	if err != nil {
+		return nil, err
+	}
+	//fmt.Println(hostname, ip)
+	for index := range ip {
+		conn, err := m.dialer.Dial("tcp", net.JoinHostPort(ip[index].String(), port))
+		if err != nil {
+			continue
+		}
+		return conn, nil
+	}
+	return m.dialer.Dial("tcp", net.JoinHostPort(hostname, port))
 }
 
 func (m *MatchController) getIP(hostname string) (net.IP, error) {
