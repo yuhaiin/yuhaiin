@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -81,6 +82,15 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 }
 
 func (s *shadowsocks) getTCPConn() (net.Conn, error) {
+	conn, err := s.tcpDial()
+	if err == nil {
+		return conn, err
+	}
+	s.cache, _ = net.LookupIP(s.server)
+	return s.tcpDial()
+}
+
+func (s *shadowsocks) tcpDial() (net.Conn, error) {
 	for index := range s.cache {
 		conn, err := net.Dial("tcp", net.JoinHostPort(s.cache[index].String(), s.port))
 		if err != nil {
@@ -88,8 +98,7 @@ func (s *shadowsocks) getTCPConn() (net.Conn, error) {
 		}
 		return conn, nil
 	}
-	s.cache, _ = net.LookupIP(s.server)
-	return net.Dial("tcp", net.JoinHostPort(s.server, s.port))
+	return nil, errors.New("shadowsocks dial failed")
 }
 
 func (s *shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte) error {
