@@ -3,6 +3,8 @@ package match
 import (
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/net/common"
+
 	"github.com/Asutorufa/yuhaiin/net/dns"
 )
 
@@ -12,6 +14,7 @@ type Match struct {
 	cidr   *Cidr
 	domain *Domain
 	doh    bool
+	cache  *common.CacheExtend
 }
 
 type Category int
@@ -75,7 +78,7 @@ func (x *Match) Search(str string) Des {
 	d := Des{
 		Category: DOMAIN,
 	}
-	if des, _ := mCache.Get(str); des != nil {
+	if des, _ := x.cache.Get(str); des != nil {
 		return des.(Des)
 	}
 
@@ -96,7 +99,7 @@ func (x *Match) Search(str string) Des {
 	}
 
 _end:
-	mCache.Add(str, d)
+	x.cache.Add(str, d)
 	return d
 }
 
@@ -112,6 +115,7 @@ func NewMatch(option ...OptionMatch) (matcher *Match) {
 	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
+		cache:  common.NewCacheExtend(0),
 	}
 	o := &OptionArgument{}
 	for index := range option {

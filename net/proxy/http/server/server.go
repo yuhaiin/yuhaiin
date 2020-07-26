@@ -62,7 +62,8 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 	if err != nil {
 		fmt.Println(err)
 		//_, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-		_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
+		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
+		_, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
 		return
 	}
 	switch dstc.(type) {
