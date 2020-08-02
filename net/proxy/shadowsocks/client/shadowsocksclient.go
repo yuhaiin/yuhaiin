@@ -1,6 +1,8 @@
 package client
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -19,17 +21,27 @@ var (
 type shadowsocks struct {
 	cipher     core.Cipher
 	server     string
+	port       string
 	plugin     string
 	pluginOpt  string
 	pluginFunc func(conn net.Conn) net.Conn
+
+	cache []net.IP
 }
 
-func NewShadowsocks(cipherName string, password string, server string, plugin, pluginOpt string) (*shadowsocks, error) {
+func NewShadowsocks(cipherName string, password string, server, port string, plugin, pluginOpt string) (*shadowsocks, error) {
 	cipher, err := core.PickCipher(strings.ToUpper(cipherName), nil, password)
 	if err != nil {
-		return &shadowsocks{}, err
+		return nil, err
 	}
-	s := &shadowsocks{cipher: cipher, server: server, plugin: strings.ToUpper(plugin), pluginOpt: pluginOpt}
+	s := &shadowsocks{
+		cipher:    cipher,
+		server:    server,
+		port:      port,
+		plugin:    strings.ToUpper(plugin),
+		pluginOpt: pluginOpt,
+		cache:     []net.IP{},
+	}
 	switch strings.ToLower(plugin) {
 	case OBFS:
 		s.pluginFunc = func(conn net.Conn) net.Conn {
@@ -57,16 +69,71 @@ func NewShadowsocks(cipherName string, password string, server string, plugin, p
 }
 
 func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	var rConn net.Conn
-	if rConn, err = net.DialTimeout("tcp", s.server, 5*time.Second); err != nil {
-		return nil, err
+	conn, err = s.getTCPConn()
+	if err != nil {
+		return nil, fmt.Errorf("shdowsocks(net.Dial) -> %v", err)
 	}
-	_ = rConn.(*net.TCPConn).SetKeepAlive(true)
-	conn = s.cipher.StreamConn(s.pluginFunc(rConn))
+	_ = conn.(*net.TCPConn).SetKeepAlive(true)
+	conn = s.cipher.StreamConn(s.pluginFunc(conn))
 	if _, err = conn.Write(socks.ParseAddr(host)); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("conn.Write -> host: %s, error: %v", host, err)
 	}
 	return conn, nil
+}
+
+func (s *shadowsocks) getTCPConn() (net.Conn, error) {
+	conn, err := s.tcpDial()
+	if err == nil {
+		return conn, err
+	}
+	s.cache, _ = net.LookupIP(s.server)
+	return s.tcpDial()
+}
+
+func (s *shadowsocks) tcpDial() (net.Conn, error) {
+	for index := range s.cache {
+		conn, err := net.Dial("tcp", net.JoinHostPort(s.cache[index].String(), s.port))
+		if err != nil {
+			continue
+		}
+		return conn, nil
+	}
+	return nil, errors.New("shadowsocks dial failed")
+}
+
+func (s *shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte) error {
+	host, port, err := net.SplitHostPort(s.server)
+	if err != nil {
+		return err
+	}
+	ip, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return err
+	}
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(ip.String(), port))
+	if err != nil {
+		return err
+	}
+
+	pc, err := net.ListenPacket("udp", "")
+	if err != nil {
+		return err
+	}
+	pc = s.cipher.PacketConn(pc)
+	_, err = pc.WriteTo(b[3:], addr)
+	if err != nil {
+		return err
+	}
+
+	respBuff := common.BuffPool.Get().([]byte)
+	defer common.BuffPool.Put(respBuff[:cap(respBuff)])
+	n, _, err := pc.ReadFrom(respBuff)
+	if err != nil {
+		return err
+	}
+
+	_, err = listener.WriteTo(append([]byte{0, 0, 0}, respBuff[:n]...), remoteAddr)
+	return err
 }
 
 func (s *shadowsocks) UDPConn(listener *net.UDPConn, target net.Addr, b []byte) (err error) {

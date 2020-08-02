@@ -1,8 +1,10 @@
 package gui
 
 import (
+	"context"
 	"fmt"
-	"sync/atomic"
+	"io"
+	"log"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/api"
@@ -106,20 +108,6 @@ func (m *mainWindow) setLayout() {
 	m.mainWindow.SetCentralWidget(centralWidget)
 }
 
-func (m *mainWindow) setGeometry() {
-	m.statusLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(40, m.mainWindow.Height()-50), core.NewQPoint2(560, m.mainWindow.Height())))
-	m.nowNodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 60), core.NewQPoint2(130, 90)))
-	m.nowNodeLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 60), core.NewQPoint2(560, 90)))
-	m.groupLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 110), core.NewQPoint2(130, 140)))
-	m.groupCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 110), core.NewQPoint2(450, 140)))
-	m.nodeLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 160), core.NewQPoint2(130, 190)))
-	m.nodeCombobox.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 160), core.NewQPoint2(450, 190)))
-	m.startButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 160), core.NewQPoint2(560, 190)))
-	m.latencyLabel.SetGeometry(core.NewQRect2(core.NewQPoint2(40, 210), core.NewQPoint2(130, 240)))
-	m.latencyLabel2.SetGeometry(core.NewQRect2(core.NewQPoint2(130, 210), core.NewQPoint2(450, 240)))
-	m.latencyButton.SetGeometry(core.NewQRect2(core.NewQPoint2(460, 210), core.NewQPoint2(560, 240)))
-}
-
 func (m *mainWindow) refresh() {
 	group, err := apiC.GetGroup(apiCtx(), &empty.Empty{})
 	if err != nil {
@@ -149,11 +137,32 @@ func (m *mainWindow) refresh() {
 
 func (m *mainWindow) subUpdate() {
 	message := widgets.NewQMessageBox(m.mainWindow)
-	message.SetText("Updating!")
-	message.Show()
-	if _, err := apiC.UpdateSub(apiCtx(), &empty.Empty{}); err != nil {
-		MessageBox(err.Error())
+	message.SetText("Please Wait, Updating ......")
+	message.SetStandardButtons(0)
+	message.SetModal(true)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func(cancelFunc context.CancelFunc) {
+		if _, err := apiC.UpdateSub(apiCtx(), &empty.Empty{}); err != nil {
+			MessageBox(err.Error())
+		}
+		cancelFunc()
+	}(cancel)
+
+	for {
+		select {
+		case <-ctx.Done():
+			break
+		default:
+			message.Show()
+			// https://socketloop.com/tutorials/golang-qt-progress-dialog-example
+			core.QCoreApplication_ProcessEvents(core.QEventLoop__AllEvents)
+			continue
+		}
+		break
 	}
+
+	message.SetStandardButtons(widgets.QMessageBox__Ok)
 	message.SetText("Updated!")
 	m.refresh()
 }
@@ -192,37 +201,39 @@ func (m *mainWindow) setListener() {
 		}()
 	})
 
-	statusRefreshIsRun := false
+	flowCtx, cancel := context.WithCancel(context.Background())
+	cancel()
 	m.mainWindow.ConnectShowEvent(func(event *gui.QShowEvent) {
 		go func() {
-			if statusRefreshIsRun {
+			select {
+			case <-flowCtx.Done():
+				flowCtx, cancel = context.WithCancel(context.Background())
+			default:
 				return
 			}
-
-			statusRefreshIsRun = true
-			downloadTmp := uint64(0)
-			uploadTmp := uint64(0)
-
+			fmt.Println("Call Kernel to Get Flow Message.")
+			client, err := apiC.GetRate(flowCtx, &empty.Empty{})
+			if err != nil {
+				log.Println(err)
+				return
+			}
 			for {
 				if m.mainWindow.IsHidden() {
+					fmt.Println("Window is Hidden, Send Done to Kernel.")
+					cancel()
 					break
 				}
 
-				dAa, err := apiC.GetAllDownAndUP(apiCtx(), &empty.Empty{})
-				if err != nil {
-					MessageBox(err.Error())
-					return
+				all, err := client.Recv()
+				if err == io.EOF {
+					log.Println(err)
+					break
 				}
-				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s/S , Upload<sub><i>(%s)</i></sub>: %s/S",
-					ReducedUnitStr(float64(dAa.GetDownload())),
-					ReducedUnitStr(float64(dAa.GetDownload()-downloadTmp)),
-					ReducedUnitStr(float64(dAa.GetUpload())),
-					ReducedUnitStr(float64(dAa.GetUpload()-uploadTmp))))
-				atomic.StoreUint64(&downloadTmp, dAa.GetDownload())
-				atomic.StoreUint64(&uploadTmp, dAa.GetUpload())
-				time.Sleep(time.Second)
+				if err != nil {
+					continue
+				}
+				m.statusLabel2.SetText(fmt.Sprintf("Download<sub><i>(%s)</i></sub>: %s , Upload<sub><i>(%s)</i></sub>: %s", all.Download, all.DownRate, all.Upload, all.UpRate))
 			}
-			statusRefreshIsRun = false
 		}()
 		m.refresh()
 	})

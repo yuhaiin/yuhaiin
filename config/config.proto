@@ -16,4 +16,10 @@ message Setting{
   string RedirProxyAddress = 9 [json_name="redir_proxy_address"];
   string BypassFile = 10 [json_name="bypassFile"];
   string SsrPath = 11 [json_name="ssrPath"];
+  DirectDNS DirectDNS = 12[json_name="direct_dns"];
+}
+
+message DirectDNS{
+  string Host = 1 [json_name="host"];
+  bool DOH = 2 [json_name="doh"];
 }

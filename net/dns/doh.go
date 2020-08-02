@@ -8,9 +8,10 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/net/common"
 )
 
 type DOH struct {
@@ -18,23 +19,37 @@ type DOH struct {
 	Server string
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
+	cache  *common.CacheExtend
+
+	httpClient *http.Client
 }
 
 func NewDOH(host string) DNS {
 	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
-	return &DOH{
+	dns := &DOH{
 		Server: host,
 		Subnet: subnet,
 		Proxy: func(domain string) (net.Conn, error) {
 			return net.DialTimeout("tcp", domain, 5*time.Second)
 		},
+		cache: common.NewCacheExtend(time.Minute * 20),
 	}
+	dns.SetProxy(dns.Proxy)
+	return dns
 }
 
 // DOH DNS over HTTPS
 // https://tools.ietf.org/html/rfc8484
 func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
-	return dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data, d.Server) })
+	if x, _ := d.cache.Get(domain); x != nil {
+		return x.([]net.IP), nil
+	}
+	DNS, err = dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data, d.Server) })
+	if err != nil || len(DNS) <= 0 {
+		return nil, fmt.Errorf("DNS over HTTPS Search -> %v", err)
+	}
+	d.cache.Add(domain, DNS)
+	return
 }
 
 func (d *DOH) SetSubnet(ip *net.IPNet) {
@@ -58,13 +73,31 @@ func (d *DOH) GetServer() string {
 }
 
 func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {
+	if proxy == nil {
+		return
+	}
 	d.Proxy = proxy
+	d.httpClient = &http.Client{
+		Transport: &http.Transport{
+			//Proxy: http.ProxyFromEnvironment,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				switch network {
+				case "tcp":
+					return d.Proxy(addr)
+				default:
+					return net.Dial(network, addr)
+				}
+			},
+			DisableKeepAlives: false,
+		},
+		Timeout: 10 * time.Second,
+	}
 }
 
 func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
 	query := strings.Replace(base64.URLEncoding.EncodeToString(dReq), "=", "", -1)
 	urls := "https://" + server + "/dns-query?dns=" + query
-	res, err := http.Get(urls)
+	res, err := d.httpClient.Get(urls)
 	if err != nil {
 		return nil, err
 	}
@@ -78,28 +111,7 @@ func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
 func (d *DOH) post(dReq []byte, server string) (body []byte, err error) {
-	tr := &http.Transport{
-		//Proxy: http.ProxyFromEnvironment,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return d.Proxy(addr)
-		}}
-	client := &http.Client{Transport: tr, Timeout: 5 * time.Second}
-	req, err := http.NewRequest(http.MethodPost, "", bytes.NewReader(dReq))
-	if err != nil {
-		return nil, fmt.Errorf("DOH:post() newReq -> %v", err)
-	}
-	urls, err := url.Parse("//" + server)
-	if err != nil {
-		return nil, fmt.Errorf("DOH:post() urlParse -> %v", err)
-	}
-	req.URL.Scheme = "https"
-	req.URL.Host = urls.Host
-	req.URL.Path = urls.Path + "/dns-query"
-	req.Header.Set("accept", "application/dns-message")
-	req.Header.Set("content-type", "application/dns-message")
-	req.ContentLength = int64(len(dReq))
-
-	resp, err := client.Do(req)
+	resp, err := d.httpClient.Post(fmt.Sprintf("https://%s/dns-query", d.Server), "application/dns-message", bytes.NewReader(dReq))
 	if err != nil {
 		return nil, fmt.Errorf("DOH:post() req -> %v", err)
 	}

@@ -59,6 +59,10 @@ func SettingDecodeJSON() (*Setting, error) {
 				DNSAcrossProxy:     false,
 				SsrPath:            "",
 				BlackIcon:          false,
+				DirectDNS: &DirectDNS{
+					Host: "223.5.5.5",
+					DOH:  true,
+				},
 			}
 			return pa, SettingEnCodeJSON(pa)
 		}
@@ -69,6 +73,9 @@ func SettingDecodeJSON() (*Setting, error) {
 	err = jsonpb.Unmarshal(file, pa)
 	if err != nil {
 		log.Println(err)
+	}
+	if pa.DirectDNS == nil {
+		pa.DirectDNS = &DirectDNS{}
 	}
 	return pa, nil
 }
