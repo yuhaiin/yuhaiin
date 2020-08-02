@@ -10,7 +10,7 @@ import (
 
 func TestNewV2ray(t *testing.T) {
 
-	s, err := NewShadowsocks("AEAD_CHACHA20_POLY1305", "your-password", "127.0.0.1:8488", "v2ray", "host:baidu.com")
+	s, err := NewShadowsocks("AEAD_CHACHA20_POLY1305", "your-password", "127.0.0.1", "8488", "v2ray", "host:baidu.com")
 	if err != nil {
 		t.Error(err)
 	}

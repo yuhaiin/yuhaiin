@@ -60,7 +60,7 @@ func TestGetOneNode(t *testing.T) {
 		t.Log(x.(*Shadowsocksr))
 	}
 
-	x, err = GetOneNode("", "")
+	_, err = GetOneNode("", "")
 	if err != nil {
 		t.Error(err)
 	}

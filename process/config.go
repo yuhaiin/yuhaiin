@@ -1,5 +1,6 @@
 package process
 
+import "C"
 import (
 	"fmt"
 	"net"
@@ -14,23 +15,10 @@ var (
 	LocalListenCon *controller.LocalListen
 	MatchCon       *controller.MatchController
 	Nodes          *subscr.Node
-	first          = true
 )
 
 func SetConFig(conf *config.Setting) (erra error) {
-	// initialize Match Controller
-	if MatchCon == nil {
-		MatchCon = controller.NewMatchController(conf.BypassFile)
-	}
-
-	// initialize Local Servers Controller
-	if LocalListenCon == nil {
-		LocalListenCon = controller.NewLocalListenController()
-	}
-
-	// DNS
-	MatchCon.SetDNS(conf.DnsServer, conf.IsDNSOverHTTPS)
-
+	ConFig = conf
 	// Subnet
 	_, subnet, err := net.ParseCIDR(conf.DnsSubNet)
 	if err != nil {
@@ -42,67 +30,90 @@ func SetConFig(conf *config.Setting) (erra error) {
 			_, subnet, _ = net.ParseCIDR(conf.DnsSubNet + "/128")
 		}
 	}
-	MatchCon.SetDNSSubNet(subnet)
-
-	// DNS proxy
-	MatchCon.EnableDNSProxy(conf.DNSAcrossProxy)
-
-	// Bypass or Global
-	MatchCon.EnableBYPASS(conf.Bypass)
-
-	// Bypass File Location
-	err = MatchCon.SetBypass(conf.BypassFile)
+	err = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
+		option.DNS.Server = conf.DnsServer
+		option.DNS.Proxy = conf.DNSAcrossProxy
+		option.DNS.DOH = conf.IsDNSOverHTTPS
+		option.DNS.Subnet = subnet
+		option.Bypass = conf.Bypass
+		option.BypassPath = conf.BypassFile
+		option.DirectDNS.Server = ConFig.DirectDNS.Host
+		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
+	})
 	if err != nil {
-		erra = fmt.Errorf("%v\nUpdateMatchErr -> %v", erra, err)
+		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
 	}
 
-	if (ConFig.SsrPath != conf.SsrPath && ssrRunning) || first {
-		err := ChangeNode()
-		if err != nil && !first {
-			erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
-		}
-	}
-
-	// Local HTTP Server Host
-	err = LocalListenCon.SetHTTPHost(conf.HttpProxyAddress)
+	err = ChangeNode()
 	if err != nil {
-		erra = fmt.Errorf("UpdateHTTPListenErr -> %v", err)
+		erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
 	}
 
-	// Local Socks5 Server Host
-	err = LocalListenCon.SetSocks5Host(conf.Socks5ProxyAddress)
+	err = LocalListenCon.SetAHost(
+		controller.WithHTTP(conf.HttpProxyAddress),
+		controller.WithSocks5(conf.Socks5ProxyAddress),
+		controller.WithRedir(conf.RedirProxyAddress),
+	)
+
 	if err != nil {
-		erra = fmt.Errorf("UpdateSOCKS5ListenErr -> %v", err)
+		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)
 	}
-
-	// Linux/Darwin Redir Server Host
-	err = LocalListenCon.SetRedirHost(conf.RedirProxyAddress)
-	if err != nil {
-		erra = fmt.Errorf("UpdateRedirListenErr -> %v", err)
-	}
-
 	// others
-	ConFig = conf
 	err = config.SettingEnCodeJSON(ConFig)
 	if err != nil {
 		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
 	}
-
-	first = false
 	return
 }
 
-func Init() (erra error) {
+func Init() error {
 	err := RefreshNodes()
 	if err != nil {
-		erra = fmt.Errorf("%v\nGetNodes -> %v", erra, err)
+		return fmt.Errorf("RefreshNodes -> %v", err)
 	}
-	ConFig, _ = config.SettingDecodeJSON()
-	err = SetConFig(ConFig)
+
+	ConFig, err = config.SettingDecodeJSON()
 	if err != nil {
-		erra = fmt.Errorf("%v\nSetConfig() -> %v", erra, err)
+		return fmt.Errorf("DecodeJson -> %v", err)
 	}
-	return
+
+	_, subnet, err := net.ParseCIDR(ConFig.DnsSubNet)
+	if err != nil {
+		if net.ParseIP(ConFig.DnsSubNet).To4() != nil {
+			_, subnet, _ = net.ParseCIDR(ConFig.DnsSubNet + "/32")
+		}
+
+		if net.ParseIP(ConFig.DnsSubNet).To16() != nil {
+			_, subnet, _ = net.ParseCIDR(ConFig.DnsSubNet + "/128")
+		}
+	}
+	// initialize Match Controller
+	MatchCon, err = controller.NewMatchCon(ConFig.BypassFile, func(option *controller.OptionMatchCon) {
+		option.DNS.Server = ConFig.DnsServer
+		option.DNS.Proxy = ConFig.DNSAcrossProxy
+		option.DNS.DOH = ConFig.IsDNSOverHTTPS
+		option.DNS.Subnet = subnet
+		option.Bypass = ConFig.Bypass
+		option.DirectDNS.Server = ConFig.DirectDNS.Host
+		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
+	})
+	if err != nil {
+		return fmt.Errorf("new Match Controller -> %v", err)
+	}
+
+	// initialize Local Servers Controller
+	LocalListenCon, err = controller.NewLocalListenCon(
+		controller.WithHTTP(ConFig.HttpProxyAddress),
+		controller.WithSocks5(ConFig.Socks5ProxyAddress),
+		controller.WithRedir(ConFig.RedirProxyAddress),
+		controller.WithTCPConn(MatchCon.Forward),
+	)
+	if err != nil {
+		return fmt.Errorf("new Local Listener Controller -> %v", err)
+	}
+
+	_ = ChangeNode()
+	return nil
 }
 
 func GetConfig() (*config.Setting, error) {

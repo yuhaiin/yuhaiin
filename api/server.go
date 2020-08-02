@@ -20,13 +20,16 @@ import (
 
 type Server struct {
 	UnimplementedApiServer
+	singleInstanceCtx context.Context
+	message           chan string
 }
 
 var (
-	message     chan string
-	messageOn   bool
-	InitSuccess bool
 	Host        string
+	initCtx     context.Context
+	lockFileCtx context.Context
+	connectCtx  context.Context
+	connectDone context.CancelFunc
 )
 
 func init() {
@@ -34,33 +37,77 @@ func init() {
 	flag.Parse()
 	fmt.Println("gRPC Listen Host :", Host)
 	fmt.Println("Try to create lock file.")
+
+	var cancel context.CancelFunc
+	lockFileCtx, cancel = context.WithCancel(context.Background())
 	err := process.GetProcessLock(Host)
 	if err != nil {
 		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		go func(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				log.Println("Read Running Host timeout: 5 Seconds, Exit Process!")
+				cancel()
 				os.Exit(0)
 			}
 		}(ctx)
 		return
 	}
+	cancel()
+
 	fmt.Println("Create lock file successful.")
 	fmt.Println("Try to initialize Service.")
+	initCtx, cancel = context.WithCancel(context.Background())
 	err = process.Init()
 	if err != nil {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		panic(err)
 	}
-	fmt.Println("Initialize Service Successful.")
-	InitSuccess = true
+	fmt.Println("Initialize Service Successful, Please Connect in 5 Seconds.")
+	cancel()
+
+	connectCtx, connectDone = context.WithCancel(context.Background())
+	go func(ctx context.Context) {
+		select {
+		case <-ctx.Done():
+			fmt.Println("Connect Successful!")
+		case <-time.After(5 * time.Second):
+			log.Println("Connect timeout: 5 Seconds, Exit Process!")
+			connectDone()
+			os.Exit(0)
+		}
+	}(connectCtx)
 }
 
 func (s *Server) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if !InitSuccess {
+	if lockFileCtx == nil {
 		return &empty.Empty{}, errors.New("create lock file false")
+	}
+	select {
+	case <-lockFileCtx.Done():
+		break
+	default:
+		return &empty.Empty{}, errors.New("create lock file false")
+	}
+
+	if initCtx == nil {
+		return &empty.Empty{}, errors.New("init Process Failed")
+	}
+	select {
+	case <-initCtx.Done():
+		break
+	default:
+		return &empty.Empty{}, errors.New("init Process Failed")
+	}
+
+	if connectCtx != nil {
+		select {
+		case <-connectCtx.Done():
+			return &empty.Empty{}, errors.New("already exists one client")
+		default:
+			connectDone()
+		}
 	}
 	return &empty.Empty{}, nil
 }
@@ -78,11 +125,16 @@ func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.String
 }
 
 func (s *Server) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if !messageOn {
-		return &empty.Empty{}, errors.New("no client")
+	if s.singleInstanceCtx != nil {
+		select {
+		case <-s.singleInstanceCtx.Done():
+			break
+		default:
+			s.message <- "on"
+			return &empty.Empty{}, nil
+		}
 	}
-	message <- "on"
-	return &empty.Empty{}, nil
+	return &empty.Empty{}, errors.New("no client")
 }
 
 func (s *Server) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
@@ -154,37 +206,59 @@ func (s *Server) Latency(_ context.Context, req *NowNodeGroupAndNode) (*wrappers
 	return &wrappers.StringValue{Value: latency.String()}, err
 }
 
-func (s *Server) GetAllDownAndUP(context.Context, *empty.Empty) (*DownAndUP, error) {
-	dau := &DownAndUP{}
-	dau.Download = common.DownloadTotal
-	dau.Upload = common.UploadTotal
-	return dau, nil
-}
+func (s *Server) GetRate(_ *empty.Empty, srv Api_GetRateServer) error {
+	fmt.Println("Start Send Flow Message to Client.")
+	da, ua := common.DownloadTotal, common.UploadTotal
+	var dr string
+	var ur string
+	ctx := srv.Context()
+	for {
+		dr = common.ReducedUnitStr(float64(common.DownloadTotal-da)) + "/S"
+		ur = common.ReducedUnitStr(float64(common.UploadTotal-ua)) + "/S"
+		da, ua = common.DownloadTotal, common.UploadTotal
 
-func (s *Server) ReducedUnit(_ context.Context, req *wrappers.DoubleValue) (*wrappers.StringValue, error) {
-	return &wrappers.StringValue{Value: common.ReducedUnitStr(req.Value)}, nil
+		err := srv.Send(&DaUaDrUr{
+			Download: common.ReducedUnitStr(float64(da)),
+			Upload:   common.ReducedUnitStr(float64(ua)),
+			DownRate: dr,
+			UpRate:   ur,
+		})
+		if err != nil {
+			log.Println(err)
+		}
+		select {
+		case <-ctx.Done():
+			fmt.Println("Client is Hidden, Close Stream.")
+			return ctx.Err()
+		case <-time.After(time.Second):
+			continue
+		}
+	}
 }
 
 func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
-	if messageOn {
-		return errors.New("already exist one client")
+	if s.singleInstanceCtx != nil {
+		select {
+		case <-s.singleInstanceCtx.Done():
+			break
+		default:
+			return errors.New("already exist one client")
+		}
 	}
-	message = make(chan string, 1)
-	messageOn = true
-	ctx := srv.Context()
+	s.message = make(chan string, 1)
+	s.singleInstanceCtx = srv.Context()
 
 	for {
 		select {
-		case m := <-message:
+		case m := <-s.message:
 			err := srv.Send(&wrappers.StringValue{Value: m})
 			if err != nil {
 				log.Println(err)
 			}
-			fmt.Println("Call Client Open Main Window.")
-		case <-ctx.Done():
-			close(message)
-			messageOn = false
-			return ctx.Err()
+			fmt.Println("Call Client Open Window.")
+		case <-s.singleInstanceCtx.Done():
+			close(s.message)
+			return s.singleInstanceCtx.Err()
 		}
 	}
 }

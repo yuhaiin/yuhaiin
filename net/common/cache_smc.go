@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-type cacheExtend struct {
+type CacheExtend struct {
 	pool    Map
 	timeout time.Duration
 	Get     func(domain string) (interface{}, bool)
@@ -16,8 +16,8 @@ type withTime struct {
 	store time.Time
 }
 
-func NewCacheExtend(timeout time.Duration) *cacheExtend {
-	n := &cacheExtend{}
+func NewCacheExtend(timeout time.Duration) *CacheExtend {
+	n := &CacheExtend{}
 
 	if timeout == 0 {
 		n.Get = n.get
@@ -30,11 +30,11 @@ func NewCacheExtend(timeout time.Duration) *cacheExtend {
 	return n
 }
 
-func (c *cacheExtend) get(domain string) (interface{}, bool) {
+func (c *CacheExtend) get(domain string) (interface{}, bool) {
 	return c.pool.Load(domain)
 }
 
-func (c *cacheExtend) add(domain string, mark interface{}) {
+func (c *CacheExtend) add(domain string, mark interface{}) {
 	if mark == nil {
 		return
 	}
@@ -53,7 +53,7 @@ func (c *cacheExtend) add(domain string, mark interface{}) {
 	})
 }
 
-func (c *cacheExtend) getTimeout(domain string) (interface{}, bool) {
+func (c *CacheExtend) getTimeout(domain string) (interface{}, bool) {
 	data, ok := c.pool.Load(domain)
 	if !ok {
 		return nil, false
@@ -66,7 +66,7 @@ func (c *cacheExtend) getTimeout(domain string) (interface{}, bool) {
 	return data.(withTime).data, true
 }
 
-func (c *cacheExtend) addTimeout(domain string, mark interface{}) {
+func (c *CacheExtend) addTimeout(domain string, mark interface{}) {
 	if mark == nil {
 		return
 	}

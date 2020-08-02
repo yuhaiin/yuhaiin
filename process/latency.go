@@ -19,7 +19,7 @@ func Latency(group, mark string) (time.Duration, error) {
 	switch n.(type) {
 	case *subscr.Shadowsocks:
 		x := n.(*subscr.Shadowsocks)
-		s, err := client.NewShadowsocks(x.Method, x.Password, net.JoinHostPort(x.Server, x.Port), x.Plugin, x.PluginOpt)
+		s, err := client.NewShadowsocks(x.Method, x.Password, x.Server, x.Port, x.Plugin, x.PluginOpt)
 		if err != nil {
 			return 0, err
 		}

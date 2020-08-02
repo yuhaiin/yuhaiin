@@ -43,6 +43,7 @@ type NormalDNS struct {
 	DNS
 	Server string
 	Subnet *net.IPNet
+	cache  *common.CacheExtend
 }
 
 func NewNormalDNS(host string) DNS {
@@ -50,12 +51,21 @@ func NewNormalDNS(host string) DNS {
 	return &NormalDNS{
 		Server: host,
 		Subnet: subnet,
+		cache:  common.NewCacheExtend(time.Minute * 20),
 	}
 }
 
 // DNS Normal DNS(use udp,and no encrypt)
 func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
-	return dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server) })
+	if x, _ := n.cache.Get(domain); x != nil {
+		return x.([]net.IP), nil
+	}
+	DNS, err = dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server) })
+	if err != nil || len(DNS) <= 0 {
+		return nil, fmt.Errorf("normal DNS Search -> %v", err)
+	}
+	n.cache.Add(domain, DNS)
+	return
 }
 
 func (n *NormalDNS) SetSubnet(ip *net.IPNet) {
@@ -84,9 +94,6 @@ func (n *NormalDNS) GetServer() string {
 func (n *NormalDNS) SetProxy(proxy func(addr string) (net.Conn, error)) {}
 
 func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
-	if x, _ := cache.Get(domain); x != nil {
-		return x.([]net.IP), nil
-	}
 	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
 
 	b, err := reqF(req)
@@ -100,9 +107,6 @@ func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body
 		return nil, err
 	}
 	DNS, c, err = resolveAnswer(c, h.anCount, b)
-	if len(DNS) > 0 {
-		cache.Add(domain, DNS)
-	}
 	c = resolveAuthoritative(c, h.nsCount, b)
 	resolveAdditional(c, h.arCount) // EDNS
 	return
