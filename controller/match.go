@@ -238,6 +238,8 @@ func (m *MatchController) UpdateMatch() error {
 	}
 	defer f.Close()
 
+	m.matcher.Clear()
+
 	var domain string
 	var mode string
 	br := bufio.NewReader(f)
@@ -251,9 +253,6 @@ func (m *MatchController) UpdateMatch() error {
 			continue
 		}
 		_ = m.matcher.Insert(domain, m.mode(mode))
-		//if err != nil {
-		//	continue
-		//}
 	}
 	return nil
 }

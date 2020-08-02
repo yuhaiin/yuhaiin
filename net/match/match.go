@@ -103,6 +103,12 @@ _end:
 	return d
 }
 
+func (x *Match) Clear() {
+	x.cidr = NewCidrMatch()
+	x.domain = NewDomainMatch()
+	x.cache = common.NewCacheExtend(0)
+}
+
 type OptionArgument struct {
 	DNS    string
 	DOH    bool

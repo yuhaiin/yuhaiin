@@ -137,11 +137,32 @@ func (m *mainWindow) refresh() {
 
 func (m *mainWindow) subUpdate() {
 	message := widgets.NewQMessageBox(m.mainWindow)
-	message.SetText("Updating!")
-	message.Show()
-	if _, err := apiC.UpdateSub(apiCtx(), &empty.Empty{}); err != nil {
-		MessageBox(err.Error())
+	message.SetText("Please Wait, Updating ......")
+	message.SetStandardButtons(0)
+	message.SetModal(true)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func(cancelFunc context.CancelFunc) {
+		if _, err := apiC.UpdateSub(apiCtx(), &empty.Empty{}); err != nil {
+			MessageBox(err.Error())
+		}
+		cancelFunc()
+	}(cancel)
+
+	for {
+		select {
+		case <-ctx.Done():
+			break
+		default:
+			message.Show()
+			// https://socketloop.com/tutorials/golang-qt-progress-dialog-example
+			core.QCoreApplication_ProcessEvents(core.QEventLoop__AllEvents)
+			continue
+		}
+		break
 	}
+
+	message.SetStandardButtons(widgets.QMessageBox__Ok)
 	message.SetText("Updated!")
 	m.refresh()
 }
