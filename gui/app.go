@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/api"
-	logo1 "github.com/Asutorufa/yuhaiin/gui/icon"
+	cloud512 "github.com/Asutorufa/yuhaiin/gui/icon"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -62,7 +62,7 @@ func (sGui *SGui) clientInit() error {
 
 func (sGui *SGui) trayInit() {
 	img := gui.NewQPixmap()
-	iconData, _ := logo1.Asset("logo1.png")
+	iconData, _ := cloud512.Asset("cloud512.png")
 	img.LoadFromData(iconData, uint(len(iconData)), "png", core.Qt__AutoColor)
 	icon2 := gui.NewQIcon2(img)
 	sGui.App.SetWindowIcon(icon2)
