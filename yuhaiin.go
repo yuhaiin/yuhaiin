@@ -122,9 +122,9 @@ func main() {
 		log.Println(err)
 		return
 	}
-	flag.StringVar(&kernel, "kernel", filepath.Dir(path)+"/kernel", "kernel file")
+	flag.StringVar(&kernel, "kernel", filepath.Dir(path)+"/yuhaiin_kernel", "kernel file")
 	if runtime.GOOS == "Windows" {
-		flag.StringVar(&kernel, "kernel", filepath.Dir(path)+"\\kernel.exe", "kernel file")
+		flag.StringVar(&kernel, "kernel", filepath.Dir(path)+"\\yuhaiin_kernel.exe", "kernel file")
 	}
 	flag.Parse()
 

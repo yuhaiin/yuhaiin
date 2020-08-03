@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/api"
-	"github.com/golang/protobuf/ptypes/empty"
+	logo1 "github.com/Asutorufa/yuhaiin/gui/icon"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -62,13 +62,8 @@ func (sGui *SGui) clientInit() error {
 
 func (sGui *SGui) trayInit() {
 	img := gui.NewQPixmap()
-	var err error
-	conFig, err = apiC.GetConfig(apiCtx(), &empty.Empty{})
-	if err != nil || !conFig.BlackIcon {
-		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(iconWhite, len(iconWhite))), "svg", core.Qt__AutoColor)
-	} else {
-		img.LoadFromData2(core.QByteArray_FromBase64(core.NewQByteArray2(icon, len(icon))), "svg", core.Qt__AutoColor)
-	}
+	iconData, _ := logo1.Asset("logo1.png")
+	img.LoadFromData(iconData, uint(len(iconData)), "png", core.Qt__AutoColor)
 	icon2 := gui.NewQIcon2(img)
 	sGui.App.SetWindowIcon(icon2)
 
