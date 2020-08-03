@@ -49,7 +49,8 @@ How to use:
     - Bypass + Gui = 70MB.
     - Because of the Go GC, Reimport Rule will make the memory big, but this is not memory leak, it has a limit(e.g: above-mentioned example is 180M).
         - > [Do I need to set a map to nil in order for it to be garbage collected?](https://stackoverflow.com/questions/36747776/do-i-need-to-set-a-map-to-nil-in-order-for-it-to-be-garbage-collected)
-
+- icon from プロ生ちゃん.
+- アイコンがプロ生ちゃんから、ご注意ください。
 
 ![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_by_qt_v0.2.11.4.png)  
 ![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_windows_v0.2.11.4.png)  
@@ -69,6 +70,7 @@ How to use:
 - [v2ray](https://v2ray.com/)  
 - [gRPC](https://grpc.io/)  
 - [protobuf](https://github.com/golang/protobuf)  
+- [プロ生ちゃん](https://kei.pronama.jp/)
 
 </details>
 
