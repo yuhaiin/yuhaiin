@@ -1,6 +1,6 @@
 1 VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION 0,2,0,0
+PRODUCTVERSION 0,2,0,0
 FILEOS 0x40004
 FILETYPE 0x1
 {
@@ -10,12 +10,12 @@ FILETYPE 0x1
         {
             VALUE "CompanyName", "Asutorufa"
             VALUE "FileDescription", "A Proxy Client By Golang For Linux/Windows"
-            VALUE "FileVersion", "0.2.11.5.Beta"
+            VALUE "FileVersion", "0.2.12 Beta"
             VALUE "InternalName", "yuhaiin"
-            VALUE "LegalCopyright", "Copyright (c) 2018 Asutorufa."
-            VALUE "OriginalFilename", "yuhaiin.exe"
-            VALUE "ProductName", "yuhaiin"
-            VALUE "ProductVersion", "0.2.11.5.Beta"
+            VALUE "LegalCopyright", "Copyright (c) 2018 Asutorufa"
+            VALUE "OriginalFilename", ""
+            VALUE "ProductName", "Yuhaiin"
+            VALUE "ProductVersion", "0.2.12 Beta"
         }
     }
 
