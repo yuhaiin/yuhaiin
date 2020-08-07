@@ -14,17 +14,17 @@ import (
 )
 
 var (
+	apiC       api.ApiClient
 	App        = widgets.NewQApplication(len(os.Args), os.Args)
 	messageBox = widgets.NewQMessageBox(nil)
 )
 
 type SGui struct {
-	App                *widgets.QApplication
-	MainWindow         *widgets.QMainWindow
-	mainMenuBar        *widgets.QMenuBar
-	subscriptionWindow *widgets.QMainWindow
-	settingWindow      *widgets.QMainWindow
-	trayIcon           *widgets.QSystemTrayIcon
+	App       *widgets.QApplication
+	main      *mainWindow
+	subscribe *subscribe
+	setting   *setting
+	trayIcon  *widgets.QSystemTrayIcon
 }
 
 func NewGui(client api.ApiClient) *SGui {
@@ -33,12 +33,42 @@ func NewGui(client api.ApiClient) *SGui {
 	microClientGUI.App = App
 	microClientGUI.App.SetApplicationName("yuhaiin")
 	microClientGUI.App.SetQuitOnLastWindowClosed(false)
-	microClientGUI.MainWindow = NewMainWindow(microClientGUI)
-	microClientGUI.subscriptionWindow = NewSubscription(microClientGUI.MainWindow)
-	microClientGUI.settingWindow = NewSettingWindow(microClientGUI.MainWindow)
+	microClientGUI.main = NewMain()
+	microClientGUI.subscribe = NewSubscribe()
+	microClientGUI.setting = NewSetting()
+
+	microClientGUI.main.setMenuBar(microClientGUI.menuBar())
 	microClientGUI.trayInit()
 	go func() { _ = microClientGUI.clientInit() }()
 	return microClientGUI
+}
+
+func (sGui *SGui) menuBar() *widgets.QMenuBar {
+	menuBar := widgets.NewQMenuBar(sGui.main.window)
+	menuBar.SetFixedWidth(sGui.main.window.Width())
+	mainMenu := menuBar.AddMenu2("Yuhaiin")
+	settingMenu := mainMenu.AddAction("Settings...")
+	settingMenu.ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.setting.window) })
+	exitMenu := mainMenu.AddAction("Exit")
+	exitMenu.ConnectTriggered(func(checked bool) { sGui.App.Quit() })
+	subMenuGroup := menuBar.AddMenu2("Subscribe")
+	subUpdate := subMenuGroup.AddAction("Update")
+	subUpdate.ConnectTriggered(func(checked bool) { sGui.main.subUpdate() })
+	subSetting := subMenuGroup.AddAction("Edit")
+	subSetting.ConnectTriggered(func(checked bool) { sGui.openWindow(sGui.subscribe.window) })
+	aboutMenu := menuBar.AddMenu2("About")
+	githubAbout := aboutMenu.AddAction("Github")
+	githubAbout.ConnectTriggered(func(checked bool) {
+		gui.QDesktopServices_OpenUrl(core.NewQUrl3("https://github.com/Asutorufa/yuhaiin", core.QUrl__TolerantMode))
+	})
+	authorAbout := aboutMenu.AddAction("Author: Asutorufa")
+	authorAbout.ConnectTriggered(func(checked bool) {
+		gui.QDesktopServices_OpenUrl(core.NewQUrl3("https://github.com/Asutorufa", core.QUrl__TolerantMode))
+	})
+	aboutMenu.AddSeparator()
+	aboutMenu.AddAction("Version: 0.2.12 Beta")
+	menuBar.AdjustSize()
+	return menuBar
 }
 
 func (sGui *SGui) clientInit() error {
@@ -55,7 +85,7 @@ func (sGui *SGui) clientInit() error {
 			return err
 		}
 		fmt.Println("Open Main Window.")
-		sGui.openWindow(sGui.MainWindow)
+		sGui.openWindow(sGui.main.window)
 	}
 	return nil
 }
@@ -64,26 +94,17 @@ func (sGui *SGui) trayInit() {
 	img := gui.NewQPixmap()
 	iconData, _ := cloud512.Asset("cloud512.png")
 	img.LoadFromData(iconData, uint(len(iconData)), "png", core.Qt__AutoColor)
-	icon2 := gui.NewQIcon2(img)
-	sGui.App.SetWindowIcon(icon2)
+	icon := gui.NewQIcon2(img)
+	sGui.App.SetWindowIcon(icon)
 
 	sGui.trayIcon = widgets.NewQSystemTrayIcon(sGui.App)
-	sGui.trayIcon.SetIcon(icon2)
+	sGui.trayIcon.SetIcon(icon)
 	sGui.trayIcon.SetContextMenu(widgets.NewQMenu(nil))
-	sGui.trayIcon.ContextMenu().AddAction("Open Yuhaiin").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.MainWindow) })
-	sGui.trayIcon.ContextMenu().AddAction("Subscribe Setting").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.subscriptionWindow) })
-	sGui.trayIcon.ContextMenu().AddAction("App Setting").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.settingWindow) })
+	sGui.trayIcon.ContextMenu().AddAction("Open Yuhaiin").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.main.window) })
+	sGui.trayIcon.ContextMenu().AddAction("Subscribe Setting").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.subscribe.window) })
+	sGui.trayIcon.ContextMenu().AddAction("App Setting").ConnectTriggered(func(bool2 bool) { sGui.openWindow(sGui.setting.window) })
 	sGui.trayIcon.ContextMenu().AddAction("Quit Yuhaiin").ConnectTriggered(func(bool2 bool) { sGui.App.Quit() })
-	sGui.trayIcon.ConnectActivated(func(reason widgets.QSystemTrayIcon__ActivationReason) {
-		switch reason {
-		case widgets.QSystemTrayIcon__Trigger:
-			if sGui.MainWindow.IsHidden() {
-				sGui.openWindow(sGui.MainWindow)
-				break
-			}
-			sGui.MainWindow.Hide()
-		}
-	})
+	sGui.trayIcon.ConnectActivated(sGui.trayActivateCall)
 	sGui.trayIcon.Show()
 }
 
@@ -101,4 +122,19 @@ func (sGui *SGui) openWindow(window *widgets.QMainWindow) {
 func MessageBox(text string) {
 	messageBox.SetText(text)
 	messageBox.Exec()
+}
+
+func (sGui *SGui) trayActivateCall(reason widgets.QSystemTrayIcon__ActivationReason) {
+	switch reason {
+	case widgets.QSystemTrayIcon__Trigger:
+		if sGui.main.window.IsHidden() {
+			sGui.openWindow(sGui.main.window)
+			break
+		}
+		if !sGui.main.window.IsActiveWindow() {
+			sGui.main.window.ActivateWindow()
+			break
+		}
+		sGui.main.window.Hide()
+	}
 }
