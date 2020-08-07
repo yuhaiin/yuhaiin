@@ -1,7 +1,10 @@
 package gui
 
 import (
+	"context"
+
 	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/gui/sysproxy"
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/therecipe/qt/core"
@@ -13,57 +16,69 @@ type setting struct {
 	settingWindow *widgets.QMainWindow
 	parent        *widgets.QMainWindow
 
-	BlackIconCheckBox         *widgets.QCheckBox
-	DnsOverHttpsCheckBox      *widgets.QCheckBox
-	bypassCheckBox            *widgets.QCheckBox
-	DnsOverHttpsProxyCheckBox *widgets.QCheckBox
-	directDnsIsDOH            *widgets.QCheckBox
-
-	redirProxyAddressLabel   *widgets.QLabel
-	httpAddressLabel         *widgets.QLabel
-	socks5BypassAddressLabel *widgets.QLabel
-	dnsServerLabel           *widgets.QLabel
-	ssrPathLabel             *widgets.QLabel
-	//BypassFileLabel          *widgets.QLabel
-	dnsSubNetLabel     *widgets.QLabel
-	directDnsHostLabel *widgets.QLabel
-
+	// Proxy
+	systemProxy               *widgets.QCheckBox // gui only
+	redirProxyAddressLabel    *widgets.QLabel
+	httpAddressLabel          *widgets.QLabel
+	socks5BypassAddressLabel  *widgets.QLabel
 	redirProxyAddressLineText *widgets.QLineEdit
 	httpAddressLineText       *widgets.QLineEdit
 	socks5BypassLineText      *widgets.QLineEdit
-	dnsServerLineText         *widgets.QLineEdit
-	ssrPathLineText           *widgets.QLineEdit
-	BypassFileLineText        *widgets.QLineEdit
-	dnsSubNetLineText         *widgets.QLineEdit
-	directDnsHost             *widgets.QLineEdit
 
+	// DNS
+	DnsOverHttpsCheckBox      *widgets.QCheckBox
+	DnsOverHttpsProxyCheckBox *widgets.QCheckBox
+	dnsServerLabel            *widgets.QLabel
+	dnsServerLineText         *widgets.QLineEdit
+	dnsSubNetLabel            *widgets.QLabel
+	dnsSubNetLineText         *widgets.QLineEdit
+
+	// BYPASS
+	bypassCheckBox     *widgets.QCheckBox
+	BypassFileLineText *widgets.QLineEdit
+
+	// DIRECT DNS
+	directDnsIsDOH     *widgets.QCheckBox
+	directDnsHostLabel *widgets.QLabel
+	directDnsHost      *widgets.QLineEdit
+
+	// OTHERS
+	ssrPathLabel    *widgets.QLabel
+	ssrPathLineText *widgets.QLineEdit
+
+	// BUTTON
 	applyButton      *widgets.QPushButton
 	updateRuleButton *widgets.QPushButton
 }
 
 func NewSettingWindow(parent *widgets.QMainWindow) *widgets.QMainWindow {
+	conFig, _ = apiC.GetConfig(context.Background(), &empty.Empty{})
 	s := setting{}
 	s.parent = parent
 	s.settingWindow = widgets.NewQMainWindow(nil, core.Qt__Window)
-	s.settingWindow.SetWindowTitle("setting")
+	s.settingWindow.SetWindowTitle("SETTING")
 	s.settingWindow.ConnectCloseEvent(func(event *gui.QCloseEvent) {
 		event.Ignore()
 		s.settingWindow.Hide()
 	})
 	s.settingInit()
 	s.setLayout()
-	//s.setGeometry()
 	s.setListener()
 	s.extends()
+
+	if conFig.BlackIcon {
+		sysproxy.SetSysProxy(conFig.HttpProxyAddress, conFig.Socks5ProxyAddress)
+	}
 
 	return s.settingWindow
 }
 
 func (s *setting) settingInit() {
-	//httpProxyCheckBox := widgets.NewQCheckBox2("http proxy", sGui.settingWindow)
 	s.bypassCheckBox = widgets.NewQCheckBox2("BYPASS", s.settingWindow)
-	//s.BypassFileLabel = widgets.NewQLabel2("bypassFile", s.settingWindow, 0)
 	s.BypassFileLineText = widgets.NewQLineEdit(s.settingWindow)
+
+	s.systemProxy = widgets.NewQCheckBox2("SET SYSTEM PROXY", nil)
+	s.systemProxy.SetChecked(true)
 
 	s.redirProxyAddressLabel = widgets.NewQLabel2("REDIR", s.settingWindow, 0)
 	s.redirProxyAddressLineText = widgets.NewQLineEdit(s.settingWindow)
@@ -83,23 +98,23 @@ func (s *setting) settingInit() {
 	s.directDnsHost = widgets.NewQLineEdit(nil)
 	s.directDnsHostLabel = widgets.NewQLabel2("HOST", nil, 0)
 
-	s.BlackIconCheckBox = widgets.NewQCheckBox2("BLACK ICON", s.settingWindow)
 	s.ssrPathLabel = widgets.NewQLabel2("SSR PATH", s.settingWindow, 0)
 	s.ssrPathLineText = widgets.NewQLineEdit(s.settingWindow)
 
-	s.applyButton = widgets.NewQPushButton2("apply", s.settingWindow)
-	s.updateRuleButton = widgets.NewQPushButton2("Reimport Bypass Rule", nil)
+	s.applyButton = widgets.NewQPushButton2("APPLY", s.settingWindow)
+	s.updateRuleButton = widgets.NewQPushButton2("REIMPORT RULE", nil)
 }
 
 func (s *setting) setLayout() {
 	localProxyGroup := widgets.NewQGroupBox2("PROXY", nil)
 	localProxyLayout := widgets.NewQGridLayout2()
-	localProxyLayout.AddWidget2(s.httpAddressLabel, 0, 0, 0)
-	localProxyLayout.AddWidget2(s.httpAddressLineText, 0, 1, 0)
-	localProxyLayout.AddWidget2(s.socks5BypassAddressLabel, 1, 0, 0)
-	localProxyLayout.AddWidget2(s.socks5BypassLineText, 1, 1, 0)
-	localProxyLayout.AddWidget2(s.redirProxyAddressLabel, 2, 0, 0)
-	localProxyLayout.AddWidget2(s.redirProxyAddressLineText, 2, 1, 0)
+	localProxyLayout.AddWidget3(s.systemProxy, 0, 0, 1, 2, 0)
+	localProxyLayout.AddWidget2(s.httpAddressLabel, 1, 0, 0)
+	localProxyLayout.AddWidget2(s.httpAddressLineText, 1, 1, 0)
+	localProxyLayout.AddWidget2(s.socks5BypassAddressLabel, 2, 0, 0)
+	localProxyLayout.AddWidget2(s.socks5BypassLineText, 2, 1, 0)
+	localProxyLayout.AddWidget2(s.redirProxyAddressLabel, 3, 0, 0)
+	localProxyLayout.AddWidget2(s.redirProxyAddressLineText, 3, 1, 0)
 	localProxyGroup.SetLayout(localProxyLayout)
 
 	dnsGroup := widgets.NewQGroupBox2("DNS", nil)
@@ -127,9 +142,9 @@ func (s *setting) setLayout() {
 
 	othersGroup := widgets.NewQGroupBox2("OTHERS", nil)
 	othersLayout := widgets.NewQGridLayout2()
-	othersLayout.AddWidget3(s.BlackIconCheckBox, 0, 0, 1, 2, 0)
-	othersLayout.AddWidget2(s.ssrPathLabel, 1, 0, 0)
-	othersLayout.AddWidget2(s.ssrPathLineText, 1, 1, 0)
+	//othersLayout.AddWidget3(s.BlackIconCheckBox, 0, 0, 1, 2, 0)
+	othersLayout.AddWidget2(s.ssrPathLabel, 0, 0, 0)
+	othersLayout.AddWidget2(s.ssrPathLineText, 0, 1, 0)
 	othersGroup.SetLayout(othersLayout)
 
 	buttonGroup := widgets.NewQGroupBox(nil)
@@ -164,9 +179,8 @@ func (s *setting) setListener() {
 			MessageBox(err.Error())
 			return
 		}
-		s.BlackIconCheckBox.SetChecked(conFig.BlackIcon)
+		s.systemProxy.SetChecked(conFig.BlackIcon)
 		s.DnsOverHttpsCheckBox.SetChecked(conFig.IsDNSOverHTTPS)
-		//httpProxyCheckBox.SetChecked(conFig.HttpProxy)
 		s.bypassCheckBox.SetChecked(conFig.Bypass)
 		s.DnsOverHttpsProxyCheckBox.SetChecked(conFig.DNSAcrossProxy)
 		s.redirProxyAddressLineText.SetText(conFig.RedirProxyAddress)
@@ -181,9 +195,16 @@ func (s *setting) setListener() {
 	}
 
 	applyClick := func(bool2 bool) {
-		//log.Println("apply start")
-		conFig.BlackIcon = s.BlackIconCheckBox.IsChecked()
-		//conFig.HttpProxy = httpProxyCheckBox.IsChecked()
+		if conFig.BlackIcon != s.systemProxy.IsChecked() ||
+			conFig.HttpProxyAddress != s.httpAddressLineText.Text() ||
+			conFig.Socks5ProxyAddress != s.socks5BypassLineText.Text() {
+			conFig.BlackIcon = s.systemProxy.IsChecked()
+			if conFig.BlackIcon {
+				sysproxy.SetSysProxy(s.httpAddressLineText.Text(), s.socks5BypassLineText.Text())
+			} else {
+				sysproxy.UnsetSysProxy()
+			}
+		}
 		conFig.Bypass = s.bypassCheckBox.IsChecked()
 		conFig.IsDNSOverHTTPS = s.DnsOverHttpsCheckBox.IsChecked()
 		conFig.DNSAcrossProxy = s.DnsOverHttpsProxyCheckBox.IsChecked()

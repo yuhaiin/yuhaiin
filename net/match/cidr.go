@@ -13,6 +13,7 @@ type Cidr struct {
 	maskSize   int
 	v4CidrTrie Trie
 	v6CidrTrie Trie
+	singleTrie Trie
 }
 
 func ipv4toInt(ip net.IP) string {
@@ -20,6 +21,9 @@ func ipv4toInt(ip net.IP) string {
 }
 
 func ipv6toInt(ip net.IP) string {
+	if ip == nil {
+		return ""
+	}
 	// from http://golang.org/pkg/net/#pkg-constants
 	// IPv6len = 16
 	return fmt.Sprintf("%0128b", big.NewInt(0).SetBytes(ip.To16()))
@@ -41,6 +45,23 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 	return nil
 }
 
+func (c *Cidr) singleInsert(cidr string, mark interface{}) error {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return err
+	}
+	maskSize, _ := ipNet.Mask.Size()
+	if len(ipNet.IP) == net.IPv4len {
+		maskSize += 96
+	}
+	c.singleTrie.Insert(ipv6toInt(ipNet.IP)[:maskSize], mark)
+	return nil
+}
+
+func (c *Cidr) singleSearch(ip string) (ok bool, mark interface{}) {
+	return c.singleTrie.Search(ipv6toInt(net.ParseIP(ip)))
+}
+
 // MatchWithTrie match ip with trie
 func (c *Cidr) Search(ip string) (isMatch bool, mark interface{}) {
 	ip2 := net.ParseIP(ip)
@@ -59,6 +80,7 @@ func NewCidrMatch() *Cidr {
 	cidrMatch := new(Cidr)
 	cidrMatch.v4CidrTrie = NewTrieTree()
 	cidrMatch.v6CidrTrie = NewTrieTree()
+	cidrMatch.singleTrie = NewTrieTree()
 	return cidrMatch
 }
 

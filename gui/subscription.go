@@ -44,11 +44,11 @@ func NewSubscription(parent *widgets.QMainWindow) *widgets.QMainWindow {
 }
 
 func (s *subscription) subInit() {
-	s.subLabel = widgets.NewQLabel2("subscription", s.subWindow, core.Qt__WindowType(0x00000000))
+	s.subLabel = widgets.NewQLabel2("SUBSCRIPTION", s.subWindow, core.Qt__WindowType(0x00000000))
 	s.subCombobox = widgets.NewQComboBox(s.subWindow)
-	s.deleteButton = widgets.NewQPushButton2("delete", s.subWindow)
+	s.deleteButton = widgets.NewQPushButton2("DELETE", s.subWindow)
 	s.lineText = widgets.NewQLineEdit(s.subWindow)
-	s.addButton = widgets.NewQPushButton2("add", s.subWindow)
+	s.addButton = widgets.NewQPushButton2("ADD", s.subWindow)
 }
 
 func (s *subscription) setLayout() {
