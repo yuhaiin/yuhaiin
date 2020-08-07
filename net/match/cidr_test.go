@@ -91,3 +91,47 @@ func TestIpToCidr(t *testing.T) {
 	t.Log(ip.To4())
 	t.Log(ipNet.Mask.Size())
 }
+
+func TestTo6(t *testing.T) {
+	// Addresses in this group consist of an 80-bit prefix of zeros,
+	// the next 16 bits are ones, and the remaining,
+	// least-significant 32 bits contain the IPv4 address.
+	// For example,
+	// ::ffff:192.0.2.128 represents the IPv4 address 192.0.2.128.
+	// Another format, called "IPv4-compatible IPv6 address",
+	// is ::192.0.2.128; however, this method is deprecated.
+	t.Log(ipv6toInt(net.ParseIP("127.0.0.1")))
+	t.Log(ipv6toInt(net.ParseIP("::127.0.0.1")))     //deprecated
+	t.Log([]byte(net.ParseIP("::127.0.0.1").To16())) //deprecated
+	t.Log([]byte(net.ParseIP("127.0.0.1").To16()))
+	t.Log(net.ParseIP("::ffff:a:b"))
+	//01111111 00000000 00000000 00000001
+
+	_, ips, err := net.ParseCIDR("127.0.0.1/28")
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(ips.IP.To16())
+	if len(ips.IP) == net.IPv4len {
+		size, _ := ips.Mask.Size()
+		t.Log(size + 96)
+		t.Log(ipv6toInt(ips.IP)[:size+96])
+		t.Log([]byte(ips.IP.Mask(ips.Mask).To16()))
+	}
+}
+
+func TestSingleTrie(t *testing.T) {
+}
+
+// 2102 ns/op,2106 ns/op
+func BenchmarkSingleTrie(b *testing.B) {
+	m := NewCidrMatch()
+	if err := m.singleInsert("127.0.0.1/28", "localhost"); err != nil {
+		b.Error(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.singleSearch("127.0.0.0")
+	}
+}

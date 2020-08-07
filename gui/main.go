@@ -39,7 +39,7 @@ func NewMainWindow(sGui *SGui) *widgets.QMainWindow {
 	m := &mainWindow{}
 	m.mainWindow = widgets.NewQMainWindow(nil, core.Qt__Window)
 	m.mainWindow.SetWindowFlag(core.Qt__WindowSystemMenuHint, true)
-	m.mainWindow.SetWindowTitle("yuhaiin")
+	m.mainWindow.SetWindowTitle("YUHAIIN")
 
 	menuBar := widgets.NewQMenuBar(m.mainWindow)
 	menuBar.SetFixedWidth(m.mainWindow.Width())
@@ -69,7 +69,6 @@ func NewMainWindow(sGui *SGui) *widgets.QMainWindow {
 
 	m.Init()
 	m.setLayout()
-	//m.setGeometry()
 	m.setListener()
 
 	return m.mainWindow
@@ -116,6 +115,15 @@ func (m *mainWindow) refresh() {
 	}
 	m.groupCombobox.Clear()
 	m.groupCombobox.AddItems(group.Value)
+
+	//nodeData := map[string][]*core.QVariant{}
+	//var nodes []*core.QVariant
+	//nodes = append(nodes, core.NewQVariant23(map[string]*core.QVariant{}))
+	//nodeData["group"] = nodes
+	//for key := range nodeData {
+	//	m.groupCombobox.AddItem(key, core.NewQVariant22(nodeData[key]))
+	//}
+
 	node, err := apiC.GetNode(apiCtx(), &wrappers.StringValue{Value: m.groupCombobox.CurrentText()})
 	if err != nil {
 		MessageBox(err.Error())
@@ -187,6 +195,16 @@ func (m *mainWindow) setListener() {
 		}
 		m.nodeCombobox.Clear()
 		m.nodeCombobox.AddItems(node.Value)
+
+		//m.nodeCombobox.Clear()
+		//nodes := m.nodeCombobox.CurrentData(int(core.Qt__UserRole) + 1).ToList()
+		//for _, node := range nodes {
+		//	mapTmp := node.ToMap()
+		//	for key := range mapTmp {
+		//		m.nodeCombobox.AddItem(mapTmp[key].ToString(), core.NewQVariant12(key))
+		//	}
+		//}
+
 	})
 
 	m.latencyButton.ConnectClicked(func(bool2 bool) {
