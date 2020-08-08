@@ -2,10 +2,13 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/url"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -174,4 +177,34 @@ func TestSpilt(t *testing.T) {
 	log.Println(net.SplitHostPort("www.baidu.com:443"))
 	log.Println(net.SplitHostPort("127.0.0.1:443"))
 	log.Println(net.SplitHostPort("[::]:443"))
+}
+
+func TestScanf(t *testing.T) {
+	str := "a b"
+	var a string
+	var b string
+	if strings.HasPrefix(str, "#") {
+		t.Error("comment")
+		return
+	}
+	_, err := fmt.Sscanf("a = b", "%s = %s", &a, &b)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Log(a, b)
+
+	re, err := regexp.Compile("^([^ ]+) +([^ ]+) *$")
+	if err != nil {
+		t.Error(err)
+	}
+
+	c := re.FindStringSubmatch("a bb")
+	t.Log(len(c), c[1], c[2])
+
+	e := re.FindSubmatch([]byte("1.* Ba+2"))
+	t.Log(string(e[1]), string(e[2]))
+
+	d := re.FindAllStringSubmatch("v   aaaaccc", -1)
+	t.Log(len(d), d)
 }

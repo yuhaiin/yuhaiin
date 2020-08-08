@@ -44,7 +44,7 @@ func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
 	if x, _ := d.cache.Get(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	DNS, err = dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data, d.Server) })
+	DNS, err = dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data) })
 	if err != nil || len(DNS) <= 0 {
 		return nil, fmt.Errorf("DNS over HTTPS Search -> %v", err)
 	}
@@ -94,9 +94,9 @@ func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {
 	}
 }
 
-func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
+func (d *DOH) get(dReq []byte) (body []byte, err error) {
 	query := strings.Replace(base64.URLEncoding.EncodeToString(dReq), "=", "", -1)
-	urls := "https://" + server + "/dns-query?dns=" + query
+	urls := "https://" + d.Server + "/dns-query?dns=" + query
 	res, err := d.httpClient.Get(urls)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func (d *DOH) get(dReq []byte, server string) (body []byte, err error) {
 }
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
-func (d *DOH) post(dReq []byte, server string) (body []byte, err error) {
+func (d *DOH) post(dReq []byte) (body []byte, err error) {
 	resp, err := d.httpClient.Post(fmt.Sprintf("https://%s/dns-query", d.Server), "application/dns-message", bytes.NewReader(dReq))
 	if err != nil {
 		return nil, fmt.Errorf("DOH:post() req -> %v", err)

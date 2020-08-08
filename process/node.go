@@ -2,8 +2,6 @@ package process
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -43,8 +41,10 @@ func GetNNodeAndNGroup() (node string, group string) {
 	return Nodes.NowNode.(map[string]interface{})["name"].(string), Nodes.NowNode.(map[string]interface{})["group"].(string)
 }
 
-func GetNowNode() (interface{}, error) {
-	return subscr.ParseNode(Nodes.NowNode.(map[string]interface{}))
+func GetNowNode() (interface{}, string, error) {
+	hash := Nodes.NowNode.(map[string]interface{})["hash"].(string)
+	node, err := subscr.ParseNode(Nodes.NowNode.(map[string]interface{}))
+	return node, hash, err
 }
 
 func GetOneNode(group, nodeN string) (interface{}, error) {
@@ -117,21 +117,17 @@ func DeleteLink(str string) error {
 var (
 	ssrCtx    context.Context
 	ssrCancel context.CancelFunc
+	ssrPath   string
 	nowNode   string
 )
 
 func ChangeNode() error {
-	nNode, err := GetNowNode()
+	nNode, hash, err := GetNowNode()
 	if err != nil {
 		return err
 	}
 
-	hashSum, same := checkSame(nNode)
-	if same {
-		return nil
-	}
-
-	if ssrCtx != nil {
+	if ssrCtx != nil && (hash != nowNode || ssrPath != ConFig.SsrPath) {
 	_check:
 		select {
 		case <-ssrCtx.Done():
@@ -141,10 +137,14 @@ func ChangeNode() error {
 			goto _check
 		}
 	}
+
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
 		n := nNode.(*subscr.Shadowsocks)
-		fmt.Println("Start Shadowsocks", hashSum)
+		if n.Hash == nowNode {
+			return nil
+		}
+		fmt.Println("Start Shadowsocks", n.Hash)
 		conn, err := client.NewShadowsocks(
 			n.Method,
 			n.Password,
@@ -155,12 +155,19 @@ func ChangeNode() error {
 		if err != nil {
 			return err
 		}
-		nowNode = hashSum
+		nowNode = n.Hash
 		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
 			option.Proxy = conn.Conn
 		})
 	case *subscr.Shadowsocksr:
-		fmt.Println("Start Shadowsocksr", hashSum)
+		n := nNode.(*subscr.Shadowsocksr)
+		if n.Hash == nowNode && ConFig.SsrPath == ssrPath {
+			return nil
+		}
+		ssrPath = ConFig.SsrPath
+		nowNode = n.Hash
+
+		fmt.Println("Start Shadowsocksr", n.Hash)
 		ssrCtx, ssrCancel = context.WithCancel(context.Background())
 		SsrCmd, localHost, err := controller.ShadowsocksrCmd(ssrCtx, nNode.(*subscr.Shadowsocksr), ConFig.SsrPath)
 		if err != nil {
@@ -177,7 +184,6 @@ func ChangeNode() error {
 			fmt.Println("Kill Shadowsocksr running exec Command")
 		}()
 
-		nowNode = hashSum
 		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
 			option.Proxy = func(host string) (conn net.Conn, err error) {
 				return socks5client.NewSocks5Client(localHost, "", "", host)
@@ -187,44 +193,4 @@ func ChangeNode() error {
 		return errors.New("no support type proxy")
 	}
 	return nil
-}
-
-func checkSame(nNode interface{}) (string, bool) {
-	var hashSum string
-	switch nNode.(type) {
-	case *subscr.Shadowsocks:
-		n := nNode.(*subscr.Shadowsocks)
-		hash := md5.New()
-		hash.Write([]byte(n.Server))
-		hash.Write([]byte(n.Port))
-		hash.Write([]byte(n.Password))
-		hash.Write([]byte{byte(n.Type)})
-		hash.Write([]byte(n.Group))
-		hash.Write([]byte(n.Name))
-		hash.Write([]byte(n.Plugin))
-		hash.Write([]byte(n.PluginOpt))
-		hashSum = hex.EncodeToString(hash.Sum(nil))
-		if nowNode == hashSum {
-			return hashSum, true
-		}
-	case *subscr.Shadowsocksr:
-		n := nNode.(*subscr.Shadowsocksr)
-		hash := md5.New()
-		hash.Write([]byte(n.Server))
-		hash.Write([]byte(n.Port))
-		hash.Write([]byte(n.Password))
-		hash.Write([]byte{byte(n.Type)})
-		hash.Write([]byte(n.Group))
-		hash.Write([]byte(n.Name))
-		hash.Write([]byte(n.Obfs))
-		hash.Write([]byte(n.Obfsparam))
-		hash.Write([]byte(n.Protocol))
-		hash.Write([]byte(n.Protoparam))
-		hash.Write([]byte(ConFig.SsrPath))
-		hashSum = hex.EncodeToString(hash.Sum(nil))
-		if nowNode == hashSum {
-			return hashSum, true
-		}
-	}
-	return hashSum, false
 }
