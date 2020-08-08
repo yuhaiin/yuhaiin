@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,14 +43,12 @@ type MatchController struct {
 	matcher    *match.Match
 	proxy      func(host string) (conn net.Conn, err error)
 
-	dialer net.Dialer
-	// TODO: direct connect dns
+	dialer    net.Dialer
 	directDNS struct {
 		dns    dns.DNS
 		server string
 		doh    bool
 	}
-	//directDNS dns.DNS
 }
 
 type OptionMatchCon struct {
@@ -258,26 +258,33 @@ func (m *MatchController) UpdateMatch() error {
 			} else {
 				_, _ = io.Copy(f, data)
 			}
+		} else {
+			return err
 		}
-		return err
 	}
 	defer f.Close()
 
 	m.matcher.Clear()
 
-	var domain string
-	var mode string
+	re, _ := regexp.Compile("^([^ ]+) +([^ ]+) *$") // already test that is right regular expression, so don't need to check error
 	br := bufio.NewReader(f)
 	for {
 		a, _, c := br.ReadLine()
 		if c == io.EOF {
 			break
 		}
-		_, err = fmt.Sscanf(string(a), "%s %s", &domain, &mode)
-		if err != nil {
+		if bytes.HasPrefix(a, []byte("#")) {
 			continue
 		}
-		_ = m.matcher.Insert(domain, m.mode(mode))
+		result := re.FindSubmatch(a)
+		if len(result) != 3 {
+			continue
+		}
+		mode := m.mode(string(result[2]))
+		if mode == others {
+			continue
+		}
+		_ = m.matcher.Insert(string(result[1]), mode)
 	}
 	return nil
 }
@@ -295,7 +302,7 @@ func (m *MatchController) mode(str string) int {
 	case "ipdirect":
 		return mIP | mDirect
 	default:
-		return 0
+		return others
 	}
 }
 

@@ -86,11 +86,10 @@ func GetLinkFromInt() error {
 		return err
 	}
 
-	//pa.Group = map[string]bool{}
-	pa.Node = map[string]map[string]interface{}{}
+	nodes := map[string]map[string]interface{}{}
 
 	for _, url := range pa.Link {
-		client := http.Client{Timeout: time.Second * 10}
+		client := http.Client{Timeout: time.Second * 30}
 		res, err := client.Get(url)
 		if err != nil {
 			log.Println(err)
@@ -98,47 +97,57 @@ func GetLinkFromInt() error {
 		}
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			return err
+			log.Println(err)
+			continue
 		}
 		dst, err := Base64DByte(body)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
+
 		for _, x := range bytes.Split(dst, []byte("\n")) {
-			switch {
-			// Shadowsocks
-			case bytes.HasPrefix(x, []byte("ss://")):
-				node, err := ShadowSocksParse(x)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				if _, ok := pa.Node[node.Group]; !ok { //judge map key is exist or not
-					pa.Node[node.Group] = map[string]interface{}{}
-				}
-				pa.Node[node.Group][node.Name] = node
-			// ShadowsocksR
-			case bytes.HasPrefix(x, []byte("ssr://")):
-				node, err := SsrParse(x)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				if _, ok := pa.Node[node.Group]; !ok { //judge map key is exist or not
-					pa.Node[node.Group] = map[string]interface{}{}
-				}
-				pa.Node[node.Group][node.Name] = node
-			default:
-				log.Println("no support " + string(x))
+			node, group, name, err := base64ToNode(x)
+			if err != nil {
+				log.Println(err)
 				continue
 			}
+			if _, ok := nodes[group]; !ok { //judge map key is exist or not
+				nodes[group] = map[string]interface{}{}
+			}
+			nodes[group][name] = node
 		}
 	}
+
+	for key := range nodes {
+		pa.Node[key] = nodes[key]
+	}
+
 	if err := enCodeJSON(pa); err != nil {
 		return err
 	}
 	return nil
+}
+
+func base64ToNode(str []byte) (node interface{}, group, name string, err error) {
+	switch {
+	// Shadowsocks
+	case bytes.HasPrefix(str, []byte("ss://")):
+		node, err := ShadowSocksParse(str)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return node, node.Group, node.Name, nil
+	// ShadowsocksR
+	case bytes.HasPrefix(str, []byte("ssr://")):
+		node, err := SsrParse(str)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return node, node.Group, node.Name, nil
+	default:
+		return nil, "", "", errors.New("no support " + string(str))
+	}
 }
 
 func AddLinkJSON(link string) error {
@@ -253,6 +262,7 @@ func map2struct(s map[string]interface{}) (interface{}, error) {
 		node.PluginOpt = s["plugin_opt"].(string)
 		node.Name = s["name"].(string)
 		node.Group = s["group"].(string)
+		node.Hash = s["hash"].(string)
 		return node, nil
 	case shadowsocksr:
 		node := new(Shadowsocksr)
@@ -267,6 +277,7 @@ func map2struct(s map[string]interface{}) (interface{}, error) {
 		node.Protoparam = s["protoparam"].(string)
 		node.Name = s["name"].(string)
 		node.Group = s["group"].(string)
+		node.Hash = s["hash"].(string)
 		return node, nil
 	}
 	return nil, errors.New("not support type")
