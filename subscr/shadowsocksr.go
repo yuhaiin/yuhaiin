@@ -1,6 +1,8 @@
 package subscr
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"net/url"
 	"strings"
@@ -20,28 +22,43 @@ type Shadowsocksr struct {
 	Protoparam string  `json:"protoparam"`
 	Name       string  `json:"name"`
 	Group      string  `json:"group"`
+	Hash       string  `json:"hash"`
 }
 
 func SsrParse(link []byte) (*Shadowsocksr, error) {
 	decodeStr := strings.Split(Base64DStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
-	node := new(Shadowsocksr)
-	node.Type = shadowsocksr
+	n := new(Shadowsocksr)
+	n.Type = shadowsocksr
 	x := strings.Split(decodeStr[0], ":")
 	if len(x) != 6 {
-		return node, errors.New("link: " + decodeStr[0] + " is not format Shadowsocksr link")
+		return n, errors.New("link: " + decodeStr[0] + " is not format Shadowsocksr link")
 	}
-	node.Server = x[0]
-	node.Port = x[1]
-	node.Protocol = x[2]
-	node.Method = x[3]
-	node.Obfs = x[4]
-	node.Password = Base64DStr(x[5])
+	n.Server = x[0]
+	n.Port = x[1]
+	n.Protocol = x[2]
+	n.Method = x[3]
+	n.Obfs = x[4]
+	n.Password = Base64DStr(x[5])
 	if len(decodeStr) > 1 {
 		query, _ := url.ParseQuery(decodeStr[1])
-		node.Group = Base64DStr(query.Get("group"))
-		node.Obfsparam = Base64DStr(query.Get("obfsparam"))
-		node.Protoparam = Base64DStr(query.Get("protoparam"))
-		node.Name = "[ssr]" + Base64DStr(query.Get("remarks"))
+		n.Group = Base64DStr(query.Get("group"))
+		n.Obfsparam = Base64DStr(query.Get("obfsparam"))
+		n.Protoparam = Base64DStr(query.Get("protoparam"))
+		n.Name = "[ssr]" + Base64DStr(query.Get("remarks"))
 	}
-	return node, nil
+
+	hash := md5.New()
+	hash.Write([]byte(n.Server))
+	hash.Write([]byte(n.Port))
+	hash.Write([]byte(n.Method))
+	hash.Write([]byte(n.Password))
+	hash.Write([]byte{byte(n.Type)})
+	hash.Write([]byte(n.Group))
+	hash.Write([]byte(n.Name))
+	hash.Write([]byte(n.Obfs))
+	hash.Write([]byte(n.Obfsparam))
+	hash.Write([]byte(n.Protocol))
+	hash.Write([]byte(n.Protoparam))
+	n.Hash = hex.EncodeToString(hash.Sum(nil))
+	return n, nil
 }

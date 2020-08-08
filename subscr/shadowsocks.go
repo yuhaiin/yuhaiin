@@ -1,6 +1,8 @@
 package subscr
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"net/url"
 	"strings"
 )
@@ -15,22 +17,35 @@ type Shadowsocks struct {
 	Plugin    string  `json:"plugin"`
 	PluginOpt string  `json:"plugin_opt"`
 	Name      string  `json:"name"`
+	Hash      string  `json:"hash"`
 }
 
 func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
-	s := new(Shadowsocks)
+	n := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
 		return nil, err
 	}
-	s.Type = shadowsocks
-	s.Server = ssUrl.Hostname()
-	s.Port = ssUrl.Port()
-	s.Method = strings.Split(Base64DStr(ssUrl.User.String()), ":")[0]
-	s.Password = strings.Split(Base64DStr(ssUrl.User.String()), ":")[1]
-	s.Group = Base64DStr(ssUrl.Query().Get("group"))
-	s.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
-	s.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), s.Plugin+";", "", -1)
-	s.Name = "[ss]" + ssUrl.Fragment
-	return s, nil
+	n.Type = shadowsocks
+	n.Server = ssUrl.Hostname()
+	n.Port = ssUrl.Port()
+	n.Method = strings.Split(Base64DStr(ssUrl.User.String()), ":")[0]
+	n.Password = strings.Split(Base64DStr(ssUrl.User.String()), ":")[1]
+	n.Group = Base64DStr(ssUrl.Query().Get("group"))
+	n.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
+	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
+	n.Name = "[ss]" + ssUrl.Fragment
+
+	hash := md5.New()
+	hash.Write([]byte(n.Server))
+	hash.Write([]byte(n.Port))
+	hash.Write([]byte(n.Method))
+	hash.Write([]byte(n.Password))
+	hash.Write([]byte{byte(n.Type)})
+	hash.Write([]byte(n.Group))
+	hash.Write([]byte(n.Name))
+	hash.Write([]byte(n.Plugin))
+	hash.Write([]byte(n.PluginOpt))
+	n.Hash = hex.EncodeToString(hash.Sum(nil))
+	return n, nil
 }
