@@ -13,19 +13,19 @@ func TestSettingDecodeJSON(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(s, s.HttpProxyAddress, s.DNSAcrossProxy)
+	t.Log(s, s.HTTPHost, s.DNSProxy)
 
-	err = SettingEnCodeJSON(s)
-	if err != nil {
-		t.Error(err)
-	}
+	//err = SettingEnCodeJSON(s)
+	//if err != nil {
+	//	t.Error(err)
+	//}
 }
 
 func TestJsonPb(t *testing.T) {
 	m := jsonpb.Marshaler{Indent: "\t"}
 	s := &Setting{
-		IsDNSOverHTTPS: true,
-		DnsServer:      "127.0.0.1:1080",
+		DOH:       true,
+		DnsServer: "127.0.0.1:1080",
 	}
 	data, err := m.MarshalToString(s)
 	if err != nil {
@@ -38,7 +38,7 @@ func TestJsonPb(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(s2, s2.HttpProxyAddress)
+	t.Log(s2, s2.HTTPHost)
 
 	s3 := &Setting{}
 	err = jsonpb.UnmarshalString(` {

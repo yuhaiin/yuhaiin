@@ -65,7 +65,7 @@ func NewSetting() *setting {
 	s.updateData()
 
 	if conFig.BlackIcon {
-		sysproxy.SetSysProxy(conFig.HttpProxyAddress, conFig.Socks5ProxyAddress)
+		sysproxy.SetSysProxy(conFig.HTTPHost, conFig.Socks5Host)
 	}
 
 	return s
@@ -183,12 +183,12 @@ func (s *setting) updateData() {
 		return
 	}
 	s.systemProxy.SetChecked(conFig.BlackIcon)
-	s.dohCheckBox.SetChecked(conFig.IsDNSOverHTTPS)
+	s.dohCheckBox.SetChecked(conFig.DOH)
 	s.bypassCheckBox.SetChecked(conFig.Bypass)
-	s.dnsProxyCheckBox.SetChecked(conFig.DNSAcrossProxy)
-	s.redirHostLineText.SetText(conFig.RedirProxyAddress)
-	s.httpHostLineText.SetText(conFig.HttpProxyAddress)
-	s.socks5HostLineText.SetText(conFig.Socks5ProxyAddress)
+	s.dnsProxyCheckBox.SetChecked(conFig.DNSProxy)
+	s.redirHostLineText.SetText(conFig.RedirHost)
+	s.httpHostLineText.SetText(conFig.HTTPHost)
+	s.socks5HostLineText.SetText(conFig.Socks5Host)
 	s.dnsServerLineText.SetText(conFig.DnsServer)
 	s.ssrPathLineText.SetText(conFig.SsrPath)
 	s.bypassLineText.SetText(conFig.BypassFile)
@@ -205,8 +205,8 @@ func (s *setting) setListener() {
 
 func (s *setting) applyCall(_ bool) {
 	if conFig.BlackIcon != s.systemProxy.IsChecked() ||
-		conFig.HttpProxyAddress != s.httpHostLineText.Text() ||
-		conFig.Socks5ProxyAddress != s.socks5HostLineText.Text() {
+		conFig.HTTPHost != s.httpHostLineText.Text() ||
+		conFig.Socks5Host != s.socks5HostLineText.Text() {
 		conFig.BlackIcon = s.systemProxy.IsChecked()
 		if conFig.BlackIcon {
 			sysproxy.SetSysProxy(s.httpHostLineText.Text(), s.socks5HostLineText.Text())
@@ -215,14 +215,14 @@ func (s *setting) applyCall(_ bool) {
 		}
 	}
 	conFig.Bypass = s.bypassCheckBox.IsChecked()
-	conFig.IsDNSOverHTTPS = s.dohCheckBox.IsChecked()
-	conFig.DNSAcrossProxy = s.dnsProxyCheckBox.IsChecked()
+	conFig.DOH = s.dohCheckBox.IsChecked()
+	conFig.DNSProxy = s.dnsProxyCheckBox.IsChecked()
 	conFig.DnsServer = s.dnsServerLineText.Text()
 	conFig.DnsSubNet = s.dnsSubNetLineText.Text()
 	conFig.SsrPath = s.ssrPathLineText.Text()
-	conFig.HttpProxyAddress = s.httpHostLineText.Text()
-	conFig.Socks5ProxyAddress = s.socks5HostLineText.Text()
-	conFig.RedirProxyAddress = s.redirHostLineText.Text()
+	conFig.HTTPHost = s.httpHostLineText.Text()
+	conFig.Socks5Host = s.socks5HostLineText.Text()
+	conFig.RedirHost = s.redirHostLineText.Text()
 	conFig.BypassFile = s.bypassLineText.Text()
 	conFig.DirectDNS.Host = s.directDnsHost.Text()
 	conFig.DirectDNS.DOH = s.directDnsDOH.IsChecked()
