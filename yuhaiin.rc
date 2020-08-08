@@ -9,7 +9,7 @@ FILETYPE 0x1
         BLOCK "040904B0"
         {
             VALUE "CompanyName", "Asutorufa"
-            VALUE "FileDescription", "A Proxy Client By Golang For Linux/Windows"
+            VALUE "FileDescription", "Yuhaiin"
             VALUE "FileVersion", "0.2.12 Beta"
             VALUE "InternalName", "yuhaiin"
             VALUE "LegalCopyright", "Copyright (c) 2018 Asutorufa"

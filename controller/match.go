@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -228,11 +231,33 @@ func (m *MatchController) UpdateMatch() error {
 			if err != nil {
 				return fmt.Errorf("UpdateMatch():OpenFile -> %v", err)
 			}
-			res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/yuhaiin/yuhaiin.conf")
+			goto _local
+
+		_local:
+			var execPath string
+			var data *os.File
+			file, err := exec.LookPath(os.Args[0])
 			if err != nil {
-				return err
+				log.Println(err)
+				goto _net
 			}
-			_, _ = io.Copy(f, res.Body)
+			execPath, err = filepath.Abs(file)
+			if err != nil {
+				log.Println(err)
+				goto _net
+			}
+			data, err = os.Open(path.Join(filepath.Dir(execPath), "static/yuhaiin.conf"))
+		_net:
+			if err != nil {
+				log.Println(err)
+				res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/yuhaiin/yuhaiin.conf")
+				if err != nil {
+					return err
+				}
+				_, _ = io.Copy(f, res.Body)
+			} else {
+				_, _ = io.Copy(f, data)
+			}
 		}
 		return err
 	}
