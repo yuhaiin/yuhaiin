@@ -44,38 +44,33 @@ _end:
 
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON() (*Setting, error) {
+	pa := &Setting{
+		BypassFile: path.Join(Path, "yuhaiin.conf"),
+		DnsServer:  "cloudflare-dns.com",
+		DnsSubNet:  "0.0.0.0/32",
+		Bypass:     true,
+		HTTPHost:   "127.0.0.1:8188",
+		Socks5Host: "127.0.0.1:1080",
+		RedirHost:  "127.0.0.1:8088",
+		DOH:        true,
+		DNSProxy:   false,
+		SsrPath:    "",
+		BlackIcon:  false,
+		DirectDNS: &DirectDNS{
+			Host: "223.5.5.5",
+			DOH:  true,
+		},
+	}
 	file, err := os.Open(ConPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			pa := &Setting{
-				BypassFile:         path.Join(Path, "yuhaiin.conf"),
-				DnsServer:          "cloudflare-dns.com",
-				DnsSubNet:          "0.0.0.0/32",
-				Bypass:             true,
-				HttpProxyAddress:   "127.0.0.1:8188",
-				Socks5ProxyAddress: "127.0.0.1:1080",
-				RedirProxyAddress:  "127.0.0.1:8088",
-				IsDNSOverHTTPS:     true,
-				DNSAcrossProxy:     false,
-				SsrPath:            "",
-				BlackIcon:          false,
-				DirectDNS: &DirectDNS{
-					Host: "223.5.5.5",
-					DOH:  true,
-				},
-			}
 			return pa, SettingEnCodeJSON(pa)
 		}
-		return &Setting{}, err
+		return pa, err
 	}
 	defer file.Close()
-	pa := &Setting{}
-	err = jsonpb.Unmarshal(file, pa)
-	if err != nil {
+	if jsonpb.Unmarshal(file, pa) != nil {
 		log.Println(err)
-	}
-	if pa.DirectDNS == nil {
-		pa.DirectDNS = &DirectDNS{}
 	}
 	return pa, nil
 }

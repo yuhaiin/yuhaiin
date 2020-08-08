@@ -32,8 +32,8 @@ func SetConFig(conf *config.Setting) (erra error) {
 	}
 	err = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
 		option.DNS.Server = conf.DnsServer
-		option.DNS.Proxy = conf.DNSAcrossProxy
-		option.DNS.DOH = conf.IsDNSOverHTTPS
+		option.DNS.Proxy = conf.DNSProxy
+		option.DNS.DOH = conf.DOH
 		option.DNS.Subnet = subnet
 		option.Bypass = conf.Bypass
 		option.BypassPath = conf.BypassFile
@@ -50,9 +50,9 @@ func SetConFig(conf *config.Setting) (erra error) {
 	}
 
 	err = LocalListenCon.SetAHost(
-		controller.WithHTTP(conf.HttpProxyAddress),
-		controller.WithSocks5(conf.Socks5ProxyAddress),
-		controller.WithRedir(conf.RedirProxyAddress),
+		controller.WithHTTP(conf.HTTPHost),
+		controller.WithSocks5(conf.Socks5Host),
+		controller.WithRedir(conf.RedirHost),
 	)
 
 	if err != nil {
@@ -90,8 +90,8 @@ func Init() error {
 	// initialize Match Controller
 	MatchCon, err = controller.NewMatchCon(ConFig.BypassFile, func(option *controller.OptionMatchCon) {
 		option.DNS.Server = ConFig.DnsServer
-		option.DNS.Proxy = ConFig.DNSAcrossProxy
-		option.DNS.DOH = ConFig.IsDNSOverHTTPS
+		option.DNS.Proxy = ConFig.DNSProxy
+		option.DNS.DOH = ConFig.DOH
 		option.DNS.Subnet = subnet
 		option.Bypass = ConFig.Bypass
 		option.DirectDNS.Server = ConFig.DirectDNS.Host
@@ -103,9 +103,9 @@ func Init() error {
 
 	// initialize Local Servers Controller
 	LocalListenCon, err = controller.NewLocalListenCon(
-		controller.WithHTTP(ConFig.HttpProxyAddress),
-		controller.WithSocks5(ConFig.Socks5ProxyAddress),
-		controller.WithRedir(ConFig.RedirProxyAddress),
+		controller.WithHTTP(ConFig.HTTPHost),
+		controller.WithSocks5(ConFig.Socks5Host),
+		controller.WithRedir(ConFig.RedirHost),
 		controller.WithTCPConn(MatchCon.Forward),
 	)
 	if err != nil {

@@ -6,14 +6,14 @@ option go_package = "github.com/Asutorufa/yuhaiin/config";
 
 message Setting{
   bool BlackIcon = 1 [json_name="black_icon"];
-  bool IsDNSOverHTTPS = 2 [json_name="is_dns_over_https"];
-  bool DNSAcrossProxy = 3 [json_name="dns_across_proxy"];
+  bool DOH = 2 [json_name="is_dns_over_https"];
+  bool DNSProxy = 3 [json_name="dns_across_proxy"];
   string DnsServer = 4 [json_name="dnsServer"];
   string DnsSubNet = 5 [json_name="dns_sub_net"];
   bool Bypass =6 [json_name="bypass"];
-  string HttpProxyAddress = 7 [json_name="httpProxyAddress"];
-  string Socks5ProxyAddress = 8 [json_name="socks5ProxyAddress"];
-  string RedirProxyAddress = 9 [json_name="redir_proxy_address"];
+  string HTTPHost = 7 [json_name="httpProxyAddress"];
+  string Socks5Host = 8 [json_name="socks5ProxyAddress"];
+  string RedirHost = 9 [json_name="redir_proxy_address"];
   string BypassFile = 10 [json_name="bypassFile"];
   string SsrPath = 11 [json_name="ssrPath"];
   DirectDNS DirectDNS = 12[json_name="direct_dns"];
