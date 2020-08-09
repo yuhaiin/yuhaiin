@@ -42,10 +42,6 @@ type setting struct {
 	directDnsHostLabel *widgets.QLabel
 	directDnsHost      *widgets.QLineEdit
 
-	// OTHERS
-	ssrPathLabel    *widgets.QLabel
-	ssrPathLineText *widgets.QLineEdit
-
 	// BUTTON
 	applyButton    *widgets.QPushButton
 	reImportButton *widgets.QPushButton
@@ -97,10 +93,6 @@ func (s *setting) create() {
 	s.directDnsHost = widgets.NewQLineEdit(nil)
 	s.directDnsHostLabel = widgets.NewQLabel2("HOST", nil, core.Qt__Widget)
 
-	// OTHERS
-	s.ssrPathLabel = widgets.NewQLabel2("SSR PATH", nil, core.Qt__Widget)
-	s.ssrPathLineText = widgets.NewQLineEdit(nil)
-
 	// BYPASS
 	s.bypassCheckBox = widgets.NewQCheckBox2("BYPASS", nil)
 	s.bypassLineText = widgets.NewQLineEdit(nil)
@@ -145,13 +137,6 @@ func (s *setting) setLayout() {
 	bypassLayout.AddWidget2(s.bypassLineText, 1, 0, 0)
 	bypassGroup.SetLayout(bypassLayout)
 
-	othersGroup := widgets.NewQGroupBox2("OTHERS", nil)
-	othersLayout := widgets.NewQGridLayout2()
-	//othersLayout.AddWidget3(s.BlackIconCheckBox, 0, 0, 1, 2, 0)
-	othersLayout.AddWidget2(s.ssrPathLabel, 0, 0, 0)
-	othersLayout.AddWidget2(s.ssrPathLineText, 0, 1, 0)
-	othersGroup.SetLayout(othersLayout)
-
 	buttonGroup := widgets.NewQGroupBox(nil)
 	buttonLayout := widgets.NewQGridLayout2()
 	buttonLayout.AddWidget2(s.applyButton, 0, 0, 0)
@@ -162,7 +147,6 @@ func (s *setting) setLayout() {
 	windowLayout.AddWidget2(localProxyGroup, 0, 0, 0)
 	windowLayout.AddWidget2(dnsGroup, 0, 1, 0)
 	windowLayout.AddWidget2(bypassGroup, 1, 0, 0)
-	windowLayout.AddWidget2(othersGroup, 2, 1, 0)
 	windowLayout.AddWidget2(directDnsGroup, 1, 1, 0)
 	windowLayout.AddWidget2(buttonGroup, 2, 0, 0)
 
@@ -190,7 +174,6 @@ func (s *setting) updateData() {
 	s.httpHostLineText.SetText(conFig.HTTPHost)
 	s.socks5HostLineText.SetText(conFig.Socks5Host)
 	s.dnsServerLineText.SetText(conFig.DnsServer)
-	s.ssrPathLineText.SetText(conFig.SsrPath)
 	s.bypassLineText.SetText(conFig.BypassFile)
 	s.dnsSubNetLineText.SetText(conFig.DnsSubNet)
 	s.directDnsHost.SetText(conFig.DirectDNS.Host)
@@ -219,7 +202,7 @@ func (s *setting) applyCall(_ bool) {
 	conFig.DNSProxy = s.dnsProxyCheckBox.IsChecked()
 	conFig.DnsServer = s.dnsServerLineText.Text()
 	conFig.DnsSubNet = s.dnsSubNetLineText.Text()
-	conFig.SsrPath = s.ssrPathLineText.Text()
+	//conFig.SsrPath = s.ssrPathLineText.Text()
 	conFig.HTTPHost = s.httpHostLineText.Text()
 	conFig.Socks5Host = s.socks5HostLineText.Text()
 	conFig.RedirHost = s.redirHostLineText.Text()

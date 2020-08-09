@@ -1,16 +1,10 @@
 package process
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"log"
-	"net"
 	"sort"
 
-	"github.com/Asutorufa/yuhaiin/controller"
-	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
-	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
@@ -114,83 +108,14 @@ func DeleteLink(str string) error {
 	return subscr.SaveNode(Nodes)
 }
 
-var (
-	ssrCtx    context.Context
-	ssrCancel context.CancelFunc
-	ssrPath   string
-	nowNode   string
-)
-
 func ChangeNode() error {
-	nNode, hash, err := GetNowNode()
+	nod, hash, err := GetNowNode()
 	if err != nil {
-		return err
+		return fmt.Errorf("GetNowNode() -> %v", err)
 	}
-
-	if ssrCtx != nil && (hash != nowNode || ssrPath != ConFig.SsrPath) {
-	_check:
-		select {
-		case <-ssrCtx.Done():
-			break
-		default:
-			ssrCancel()
-			goto _check
-		}
-	}
-
-	switch nNode.(type) {
-	case *subscr.Shadowsocks:
-		n := nNode.(*subscr.Shadowsocks)
-		if n.Hash == nowNode {
-			return nil
-		}
-		fmt.Println("Start Shadowsocks", n.Hash)
-		conn, err := client.NewShadowsocks(
-			n.Method,
-			n.Password,
-			n.Server, n.Port,
-			n.Plugin,
-			n.PluginOpt,
-		)
-		if err != nil {
-			return err
-		}
-		nowNode = n.Hash
-		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
-			option.Proxy = conn.Conn
-		})
-	case *subscr.Shadowsocksr:
-		n := nNode.(*subscr.Shadowsocksr)
-		if n.Hash == nowNode && ConFig.SsrPath == ssrPath {
-			return nil
-		}
-		ssrPath = ConFig.SsrPath
-		nowNode = n.Hash
-
-		fmt.Println("Start Shadowsocksr", n.Hash)
-		ssrCtx, ssrCancel = context.WithCancel(context.Background())
-		SsrCmd, localHost, err := controller.ShadowsocksrCmd(ssrCtx, nNode.(*subscr.Shadowsocksr), ConFig.SsrPath)
-		if err != nil {
-			return err
-		}
-		if err := SsrCmd.Start(); err != nil {
-			return err
-		}
-		go func() {
-			err := SsrCmd.Wait()
-			if err != nil {
-				log.Println(err)
-			}
-			fmt.Println("Kill Shadowsocksr running exec Command")
-		}()
-
-		_ = MatchCon.SetAllOption(func(option *controller.OptionMatchCon) {
-			option.Proxy = func(host string) (conn net.Conn, err error) {
-				return socks5client.NewSocks5Client(localHost, "", "", host)
-			}
-		})
-	default:
-		return errors.New("no support type proxy")
+	err = MatchCon.ChangeNode(nod, hash)
+	if err != nil {
+		return fmt.Errorf("ChangeNode -> %v", err)
 	}
 	return nil
 }
