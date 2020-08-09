@@ -3,6 +3,7 @@ package process
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 
 	"github.com/Asutorufa/yuhaiin/subscr"
@@ -36,7 +37,16 @@ func GetNNodeAndNGroup() (node string, group string) {
 }
 
 func GetNowNode() (interface{}, string, error) {
-	hash := Nodes.NowNode.(map[string]interface{})["hash"].(string)
+	if Nodes.NowNode == nil{
+		return nil,"",errors.New("NowNode is nil")
+	}
+	var hash string
+	if Nodes.NowNode.(map[string]interface{})["hash"] == nil{
+		log.Println("hash is nil")
+		hash = "empty"
+	}else{
+		hash = Nodes.NowNode.(map[string]interface{})["hash"].(string)
+	}
 	node, err := subscr.ParseNode(Nodes.NowNode.(map[string]interface{}))
 	return node, hash, err
 }
