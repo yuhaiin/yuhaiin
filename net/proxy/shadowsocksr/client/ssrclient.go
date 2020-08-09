@@ -12,11 +12,12 @@ import (
 	"github.com/mzz2017/shadowsocksR/obfs"
 	Protocol "github.com/mzz2017/shadowsocksR/protocol"
 	"github.com/mzz2017/shadowsocksR/ssr"
-	cipher2 "github.com/mzz2017/shadowsocksR/streamCipher"
+	"github.com/mzz2017/shadowsocksR/streamCipher"
 )
 
 type Shadowsocksr struct {
-	addr string
+	host string
+	port string
 
 	encryptMethod   string
 	encryptPassword string
@@ -26,11 +27,14 @@ type Shadowsocksr struct {
 	protocol        string
 	protocolParam   string
 	protocolData    interface{}
+
+	cache []net.IP
 }
 
-func NewShadowsocksrClient(addr, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {
+func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {
 	s := &Shadowsocksr{
-		addr:            addr,
+		host:            host,
+		port:            port,
 		encryptMethod:   method,
 		encryptPassword: password,
 		obfs:            obfs,
@@ -47,12 +51,12 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := net.Dial("tcp", s.addr)
+	c, err := s.getTCPConn()
 	if err != nil {
-		return nil, fmt.Errorf("[ssr] dial to %s error: %s", s.addr, err)
+		return nil, fmt.Errorf("[ssr] dial to %s error: %s", s.host, err)
 	}
 
-	cipher, err := cipher2.NewStreamCipher(s.encryptMethod, s.encryptPassword)
+	cipher, err := streamCipher.NewStreamCipher(s.encryptMethod, s.encryptPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -106,4 +110,24 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 		return nil, err
 	}
 	return ssrconn, nil
+}
+
+func (s *Shadowsocksr) getTCPConn() (net.Conn, error) {
+	conn, err := s.tcpDial()
+	if err == nil {
+		return conn, err
+	}
+	s.cache, _ = net.LookupIP(s.host)
+	return s.tcpDial()
+}
+
+func (s *Shadowsocksr) tcpDial() (net.Conn, error) {
+	for index := range s.cache {
+		conn, err := net.Dial("tcp", net.JoinHostPort(s.cache[index].String(), s.port))
+		if err != nil {
+			continue
+		}
+		return conn, nil
+	}
+	return nil, errors.New("shadowsocks dial failed")
 }

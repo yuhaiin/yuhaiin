@@ -1,7 +1,7 @@
 package subscr
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"net/url"
 	"strings"
@@ -36,7 +36,7 @@ func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
 	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
 	n.Name = "[ss]" + ssUrl.Fragment
 
-	hash := md5.New()
+	hash := sha256.New()
 	hash.Write([]byte(n.Server))
 	hash.Write([]byte(n.Port))
 	hash.Write([]byte(n.Method))
