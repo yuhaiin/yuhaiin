@@ -1,7 +1,7 @@
 package subscr
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"net/url"
@@ -10,7 +10,6 @@ import (
 
 // Shadowsocksr node json struct
 type Shadowsocksr struct {
-	ID         int     `json:"id"`
 	Type       float64 `json:"type"`
 	Server     string  `json:"server"`
 	Port       string  `json:"port"`
@@ -47,7 +46,7 @@ func SsrParse(link []byte) (*Shadowsocksr, error) {
 		n.Name = "[ssr]" + Base64DStr(query.Get("remarks"))
 	}
 
-	hash := md5.New()
+	hash := sha256.New()
 	hash.Write([]byte(n.Server))
 	hash.Write([]byte(n.Port))
 	hash.Write([]byte(n.Method))
