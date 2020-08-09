@@ -262,7 +262,9 @@ func map2struct(s map[string]interface{}) (interface{}, error) {
 		node.PluginOpt = s["plugin_opt"].(string)
 		node.Name = s["name"].(string)
 		node.Group = s["group"].(string)
-		node.Hash = s["hash"].(string)
+		if s["hash"] != nil{
+			node.Hash = s["hash"].(string)
+		}
 		return node, nil
 	case shadowsocksr:
 		node := new(Shadowsocksr)
@@ -277,7 +279,9 @@ func map2struct(s map[string]interface{}) (interface{}, error) {
 		node.Protoparam = s["protoparam"].(string)
 		node.Name = s["name"].(string)
 		node.Group = s["group"].(string)
-		node.Hash = s["hash"].(string)
+		if s["hash"] != nil{
+			node.Hash = s["hash"].(string)
+		}
 		return node, nil
 	}
 	return nil, errors.New("not support type")
