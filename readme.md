@@ -36,7 +36,8 @@ How to use:
     ```
   
 - Support Protocol
-    - Shadowsocksr <- need to install a external client(like shadowsocksr-libev)
+    - Shadowsocksr
+        - Support Protocol see: [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)
     - Shadowsocks
         - Support Plugin: Obfs-Http
         - Support Plugin: v2ray-plugin( not support mux,it's too complicated(:, I need some time to understand )
@@ -64,6 +65,7 @@ How to use:
 - [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)(now change to json)  
 - [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 - [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
+- [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
 - [Dreamacro/clash](https://github.com/Dreamacro/clash)  
 - [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
 - [v2ray-plugin](https://github.com/shadowsocks/v2ray-plugin)  

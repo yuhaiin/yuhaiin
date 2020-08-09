@@ -44,11 +44,6 @@ func SetConFig(conf *config.Setting) (erra error) {
 		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
 	}
 
-	err = ChangeNode()
-	if err != nil {
-		erra = fmt.Errorf("%v\nChangeNodeErr -> %v", erra, err)
-	}
-
 	err = LocalListenCon.SetAHost(
 		controller.WithHTTP(conf.HTTPHost),
 		controller.WithSocks5(conf.Socks5Host),
