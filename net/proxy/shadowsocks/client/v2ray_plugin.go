@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"errors"
-	"flag"
 	"strings"
 
 	"github.com/golang/protobuf/proto"
@@ -17,60 +16,56 @@ import (
 	"v2ray.com/core/transport/internet/websocket"
 )
 
+//var (
+//fastOpen   = flag.Bool("fast-open", false, "Enable TCP fast open.")
+//path       = flag.String("path", "/", "URL path for websocket.")
+//host       = flag.String("host", "cloudfront.com", "Hostname for server.")
+//tlsEnabled = flag.Bool("tls", false, "Enable TLS.")
+//cert       = flag.String("cert", "", "Path to TLS certificate file. Overrides certRaw. Default: ~/.acme.sh/{host}/fullchain.cer")
+//certRaw    = flag.String("certRaw", "", "Raw TLS certificate content. Intended only for Android.")
+//mode       = flag.String("mode", "websocket", "Transport mode: websocket, quic (enforced tls).")
+//mux        = flag.Int("mux", 1, "Concurrent multiplexed connections (websocket client mode only).")
+//)
 // some from https://github.com/shadowsocks/v2ray-plugin/blob/master/main.go
 func NewV2ray(conn net.Conn, options string) (net.Conn, error) {
-	var (
-		fastOpen   = flag.Bool("fast-open", false, "Enable TCP fast open.")
-		path       = flag.String("path", "/", "URL path for websocket.")
-		host       = flag.String("host", "cloudfront.com", "Hostname for server.")
-		tlsEnabled = flag.Bool("tls", false, "Enable TLS.")
-		cert       = flag.String("cert", "", "Path to TLS certificate file. Overrides certRaw. Default: ~/.acme.sh/{host}/fullchain.cer")
-		certRaw    = flag.String("certRaw", "", "Raw TLS certificate content. Intended only for Android.")
-		mode       = flag.String("mode", "websocket", "Transport mode: websocket, quic (enforced tls).")
-		//mux        = flag.Int("mux", 1, "Concurrent multiplexed connections (websocket client mode only).")
-	)
-	readCertificate := func() ([]byte, error) {
-		if *cert != "" {
-			return filesystem.ReadFile(*cert)
-		}
-		if *certRaw != "" {
-			certHead := "-----BEGIN CERTIFICATE-----"
-			certTail := "-----END CERTIFICATE-----"
-			fixedCert := certHead + "\n" + *certRaw + "\n" + certTail
-			return []byte(fixedCert), nil
-		}
-		panic("thou shalt not reach hear")
-	}
+	fastOpen := false
+	path := "/"
+	host := "cloudfront.com"
+	tlsEnabled := false
+	cert := ""
+	certRaw := ""
+	mode := "websocket"
+
 	for _, x := range strings.Split(options, ";") {
 		if !strings.Contains(x, "=") {
 			if x == "tls" {
-				*tlsEnabled = true
+				tlsEnabled = true
 			}
 			continue
 		}
 		s := strings.Split(x, "=")
 		switch s[0] {
 		case "mode":
-			*mode = s[1]
+			mode = s[1]
 		case "path":
-			*path = s[1]
+			path = s[1]
 		case "cert":
-			*cert = s[1]
+			cert = s[1]
 		case "certRaw":
-			*certRaw = s[1]
+			certRaw = s[1]
 		case "fastOpen":
-			*fastOpen = true
+			fastOpen = true
 		}
 	}
 
 	var transportSettings proto.Message
 	//var connectionReuse bool
-	switch *mode {
+	switch mode {
 	case "websocket":
 		transportSettings = &websocket.Config{
-			Path: *path,
+			Path: path,
 			Header: []*websocket.Header{
-				{Key: "Host", Value: *host},
+				{Key: "Host", Value: host},
 			},
 		}
 		//if *mux != 0 {
@@ -80,28 +75,29 @@ func NewV2ray(conn net.Conn, options string) (net.Conn, error) {
 		transportSettings = &quic.Config{
 			Security: &protocol.SecurityConfig{Type: protocol.SecurityType_NONE},
 		}
-		*tlsEnabled = true
+		tlsEnabled = true
 	default:
-		return nil, errors.New("unsupported mode:" + *mode)
+		return nil, errors.New("unsupported mode:" + mode)
 	}
+
 	streamConfig := internet.StreamConfig{
-		ProtocolName: *mode,
+		ProtocolName: mode,
 		TransportSettings: []*internet.TransportConfig{{
-			ProtocolName: *mode,
+			ProtocolName: mode,
 			Settings:     serial.ToTypedMessage(transportSettings),
 		}},
 	}
 
-	if *fastOpen {
+	if fastOpen {
 		streamConfig.SocketSettings = &internet.SocketConfig{Tfo: internet.SocketConfig_Enable}
 	}
 
-	if *tlsEnabled {
-		tlsConfig := tls.Config{ServerName: *host}
-		if *cert != "" || *certRaw != "" {
+	if tlsEnabled {
+		tlsConfig := tls.Config{ServerName: host}
+		if cert != "" || certRaw != "" {
 			certificate := tls.Certificate{Usage: tls.Certificate_AUTHORITY_VERIFY}
 			var err error
-			certificate.Certificate, err = readCertificate()
+			certificate.Certificate, err = readCertificate(cert, certRaw)
 			if err != nil {
 				return nil, errors.New("failed to read cert")
 			}
@@ -120,11 +116,24 @@ func NewV2ray(conn net.Conn, options string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch *mode {
+	switch mode {
 	case "websocket":
 		return websocket.Dial(context.Background(), net.DestinationFromAddr(conn.RemoteAddr()), streamSetting)
 	case "quic":
 		return quic.Dial(context.Background(), net.DestinationFromAddr(conn.RemoteAddr()), streamSetting)
 	}
 	return nil, err
+}
+
+func readCertificate(cert, certRaw string) ([]byte, error) {
+	if cert != "" {
+		return filesystem.ReadFile(cert)
+	}
+	if certRaw != "" {
+		certHead := "-----BEGIN CERTIFICATE-----"
+		certTail := "-----END CERTIFICATE-----"
+		fixedCert := certHead + "\n" + certRaw + "\n" + certTail
+		return []byte(fixedCert), nil
+	}
+	panic("thou shalt not reach hear")
 }

@@ -32,7 +32,7 @@ func Latency(group, mark string) (time.Duration, error) {
 	case *subscr.Shadowsocksr:
 		n := n.(*subscr.Shadowsocksr)
 		conn, err := ssrclient.NewShadowsocksrClient(
-			net.JoinHostPort(n.Server, n.Port),
+			n.Server, n.Port,
 			n.Method,
 			n.Password,
 			n.Obfs,

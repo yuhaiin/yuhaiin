@@ -17,13 +17,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/net/dns"
+	"github.com/Asutorufa/yuhaiin/net/match"
 	ssclient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
 	ssrclient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
 	"github.com/Asutorufa/yuhaiin/subscr"
-
-	"github.com/Asutorufa/yuhaiin/net/dns"
-
-	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
 const (
@@ -54,7 +52,7 @@ type MatchController struct {
 		doh    bool
 	}
 	nodeController struct {
-		node     interface{}
+		//node     interface{}
 		nodeHash string
 	}
 }
@@ -145,13 +143,6 @@ func (m *MatchController) SetAllOption(opt MatchConOption) error {
 	return err
 }
 
-func (m *MatchController) enableDNSProxy(enable bool) {
-	if m.dns.Proxy == enable {
-		return
-	}
-	m.setDNSProxy(enable)
-}
-
 func (m *MatchController) setMode(b bool) {
 	if m.bypass == b {
 		if m.Forward == nil {
@@ -168,54 +159,12 @@ func (m *MatchController) setMode(b bool) {
 	}
 }
 
-func (m *MatchController) setDNSProxy(enable bool) {
-	if enable {
-		m.dns.Proxy = true
-		m.matcher.SetDNSProxy(m.proxy)
-	} else {
-		m.dns.Proxy = false
-		m.matcher.SetDNSProxy(func(addr string) (net.Conn, error) {
-			return net.DialTimeout("tcp", addr, 5*time.Second)
-		})
-	}
-}
-
 func (m *MatchController) setBypass(file string) error {
 	if m.bypassFile == file {
 		return nil
 	}
 	m.bypassFile = file
 	return m.UpdateMatch()
-}
-
-func (m *MatchController) setDNS(server string, doh bool) {
-	if m.dns.server == server && m.dns.doh == doh {
-		return
-	}
-	m.dns.server = server
-	m.dns.doh = doh
-	m.matcher.SetDNS(server, doh)
-}
-
-func (m *MatchController) setDirectDNS(server string, doh bool) {
-	if m.directDNS.server == server && m.directDNS.doh == doh {
-		return
-	}
-	m.directDNS.server = server
-	m.directDNS.doh = doh
-
-	if doh {
-		m.directDNS.dns = dns.NewDOH(server)
-	} else {
-		m.directDNS.dns = dns.NewNormalDNS(server)
-	}
-}
-func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
-	if m.matcher.DNS == nil || m.dns.Subnet == ip {
-		return
-	}
-	m.dns.Subnet = ip
-	m.matcher.DNS.SetSubnet(ip)
 }
 
 func (m *MatchController) setProxy(proxy func(host string) (net.Conn, error)) {
@@ -331,7 +280,6 @@ func (m *MatchController) dial(host string) (conn net.Conn, err error) {
 	return m.proxy(host)
 }
 
-// TODO: Match Dial
 func (m *MatchController) dialIP(host string, des interface{}) (net.Conn, error) {
 	switch des {
 	default:
@@ -389,33 +337,82 @@ func (m *MatchController) getIP(hostname string) (net.IP, error) {
 	return ips[0], nil
 }
 
-func (m *MatchController) ChangeNode(nNode interface{}, hash string) error {
+/*
+ *              DNS
+ */
+func (m *MatchController) setDNS(server string, doh bool) {
+	if m.dns.server == server && m.dns.doh == doh {
+		return
+	}
+	m.dns.server = server
+	m.dns.doh = doh
+	m.matcher.SetDNS(server, doh)
+}
+
+func (m *MatchController) setDNSProxy(enable bool) {
+	if enable {
+		m.dns.Proxy = true
+		m.matcher.SetDNSProxy(m.proxy)
+	} else {
+		m.dns.Proxy = false
+		m.matcher.SetDNSProxy(func(addr string) (net.Conn, error) {
+			return net.DialTimeout("tcp", addr, 5*time.Second)
+		})
+	}
+}
+
+func (m *MatchController) enableDNSProxy(enable bool) {
+	if m.dns.Proxy == enable {
+		return
+	}
+	m.setDNSProxy(enable)
+}
+func (m *MatchController) setDirectDNS(server string, doh bool) {
+	if m.directDNS.server == server && m.directDNS.doh == doh {
+		return
+	}
+	m.directDNS.server = server
+	m.directDNS.doh = doh
+
+	if doh {
+		m.directDNS.dns = dns.NewDOH(server)
+	} else {
+		m.directDNS.dns = dns.NewNormalDNS(server)
+	}
+}
+func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
+	if m.matcher.DNS == nil || m.dns.Subnet == ip {
+		return
+	}
+	m.dns.Subnet = ip
+	m.matcher.DNS.SetSubnet(ip)
+}
+
+/*
+ *     node Control
+ */
+func (m *MatchController) ChangeNode(nNode interface{}, hash string) (err error) {
 	if m.nodeController.nodeHash == hash {
 		return nil
 	}
-	//m.stopSSR()
-	m.nodeController.node = nNode
 	m.nodeController.nodeHash = hash
-
+	var conn func(string) (net.Conn, error)
 	switch nNode.(type) {
 	case *subscr.Shadowsocks:
-		n := nNode.(*subscr.Shadowsocks)
-		conn, err := m.ssConn(n)
+		conn, err = m.ssConn(nNode.(*subscr.Shadowsocks))
 		if err != nil {
 			return err
 		}
-		m.setProxy(conn)
 	case *subscr.Shadowsocksr:
-		n := nNode.(*subscr.Shadowsocksr)
-		conn, err := m.ssrConn(n)
+		conn, err = m.ssrConn(nNode.(*subscr.Shadowsocksr))
 		if err != nil {
 			return err
 		}
-		m.setProxy(conn)
 	default:
 		return errors.New("no support type proxy")
 	}
-	return nil
+	m.setProxy(conn)
+	return
 }
 
 func (m *MatchController) ssConn(n *subscr.Shadowsocks) (func(string) (net.Conn, error), error) {
@@ -436,7 +433,7 @@ func (m *MatchController) ssConn(n *subscr.Shadowsocks) (func(string) (net.Conn,
 func (m *MatchController) ssrConn(n *subscr.Shadowsocksr) (func(string) (net.Conn, error), error) {
 	fmt.Println("Start Shadowsocksr", n.Hash)
 	conn, err := ssrclient.NewShadowsocksrClient(
-		net.JoinHostPort(n.Server, n.Port),
+		n.Server, n.Port,
 		n.Method,
 		n.Password,
 		n.Obfs,
