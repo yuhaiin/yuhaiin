@@ -4,6 +4,8 @@ import (
 	"net"
 	"testing"
 
+	"github.com/shadowsocks/go-shadowsocks2/socks"
+
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
 )
 
@@ -30,4 +32,9 @@ func TestResolveAddr(t *testing.T) {
 		t.Error(err)
 	}
 	t.Log(addr.IP)
+}
+
+func TestParse(t *testing.T) {
+	t.Log(socks.ParseAddr("127.0.0.1:1080"))
+	t.Log(socks5client.ParseAddr("127.0.0.1:1080"))
 }

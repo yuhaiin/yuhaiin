@@ -17,6 +17,10 @@ import (
 	"strings"
 	"time"
 
+	ssclient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	ssrclient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
+	"github.com/Asutorufa/yuhaiin/subscr"
+
 	"github.com/Asutorufa/yuhaiin/net/dns"
 
 	"github.com/Asutorufa/yuhaiin/net/match"
@@ -48,6 +52,10 @@ type MatchController struct {
 		dns    dns.DNS
 		server string
 		doh    bool
+	}
+	nodeController struct {
+		node     interface{}
+		nodeHash string
 	}
 }
 
@@ -379,4 +387,65 @@ func (m *MatchController) getIP(hostname string) (net.IP, error) {
 		return nil, errors.New("not find")
 	}
 	return ips[0], nil
+}
+
+func (m *MatchController) ChangeNode(nNode interface{}, hash string) error {
+	if m.nodeController.nodeHash == hash {
+		return nil
+	}
+	//m.stopSSR()
+	m.nodeController.node = nNode
+	m.nodeController.nodeHash = hash
+
+	switch nNode.(type) {
+	case *subscr.Shadowsocks:
+		n := nNode.(*subscr.Shadowsocks)
+		conn, err := m.ssConn(n)
+		if err != nil {
+			return err
+		}
+		m.setProxy(conn)
+	case *subscr.Shadowsocksr:
+		n := nNode.(*subscr.Shadowsocksr)
+		conn, err := m.ssrConn(n)
+		if err != nil {
+			return err
+		}
+		m.setProxy(conn)
+	default:
+		return errors.New("no support type proxy")
+	}
+	return nil
+}
+
+func (m *MatchController) ssConn(n *subscr.Shadowsocks) (func(string) (net.Conn, error), error) {
+	fmt.Println("Start Shadowsocks", n.Hash)
+	conn, err := ssclient.NewShadowsocks(
+		n.Method,
+		n.Password,
+		n.Server, n.Port,
+		n.Plugin,
+		n.PluginOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return conn.Conn, nil
+}
+
+func (m *MatchController) ssrConn(n *subscr.Shadowsocksr) (func(string) (net.Conn, error), error) {
+	fmt.Println("Start Shadowsocksr", n.Hash)
+	conn, err := ssrclient.NewShadowsocksrClient(
+		net.JoinHostPort(n.Server, n.Port),
+		n.Method,
+		n.Password,
+		n.Obfs,
+		n.Obfsparam,
+		n.Protocol,
+		n.Protoparam,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return conn.Conn, nil
 }
