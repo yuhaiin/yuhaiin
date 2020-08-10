@@ -12,10 +12,16 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"syscall"
 	"time"
+
+	"github.com/therecipe/qt/widgets"
+
+	"github.com/Asutorufa/yuhaiin/gui/sysproxy"
 
 	//_ "net/http/pprof"
 	"github.com/Asutorufa/yuhaiin/api"
@@ -25,10 +31,14 @@ import (
 )
 
 var (
-	extKernel  bool
-	clientHost string
-	kernel     string
-	cmd        *exec.Cmd
+	extKernel      bool
+	clientHost     string
+	kernel         string
+	cmd            *exec.Cmd
+	signChannel    chan os.Signal
+	exitFuncCalled bool
+	qtApp          *widgets.QApplication
+	normalExit     bool
 )
 
 func getFreePort() (string, error) {
@@ -100,13 +110,72 @@ func startGrpc() {
 	go func() {
 		err = cmd.Wait()
 		if err != nil {
-			log.Println(err)
+			log.Println("kernel -> ", err)
 		}
-		panic("kernel stop running")
+		log.Println("kernel stop running")
+		exitFunc()
 	}()
 }
 
+func sigh() {
+	signChannel = make(chan os.Signal)
+	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGILL, syscall.SIGFPE, syscall.SIGKILL)
+	go func() {
+		for s := range signChannel {
+			switch s {
+			case syscall.SIGHUP:
+				log.Println("SIGHUP")
+				exitFunc()
+			case syscall.SIGINT:
+				log.Println("SIGHINT")
+				exitFunc()
+			case syscall.SIGTERM:
+				log.Println("SIGHTERM")
+				exitFunc()
+			case syscall.SIGILL:
+				log.Println("SIGILL")
+				exitFunc()
+			case syscall.SIGFPE:
+				log.Println("SIGFPE")
+				exitFunc()
+			case syscall.SIGKILL:
+				log.Println("SIGKILL")
+				exitFunc()
+			default:
+				fmt.Println("OTHERS SIGN:", s)
+			}
+		}
+	}()
+}
+
+func exitFunc() {
+	if exitFuncCalled {
+		return
+	}
+	fmt.Println("Start Cleaning Process")
+	exitFuncCalled = true
+
+	fmt.Println("Stop kernel")
+	if cmd != nil && cmd.Process != nil {
+		err := cmd.Process.Kill()
+		if err != nil {
+			log.Println(err)
+		}
+	}
+
+	fmt.Println("Unset System Proxy")
+	sysproxy.UnsetSysProxy()
+
+	if !normalExit {
+		fmt.Println("Not Normal Exit, Stop Qt Application")
+		qtApp.Quit()
+	}
+
+	os.Exit(0)
+}
+
 func main() {
+	sigh()
 	log.SetFlags(log.Llongfile)
 
 	flag.BoolVar(&extKernel, "nokernel", false, "not run kernel")
@@ -195,5 +264,9 @@ func main() {
 		}
 	}()
 	fmt.Println("Open GUI.")
-	gui.NewGui(c).App.Exec()
+
+	qtApp = gui.NewGui(c).App
+	qtApp.Exec()
+	normalExit = true
+	exitFunc()
 }

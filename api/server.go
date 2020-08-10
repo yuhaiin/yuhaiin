@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/config"
@@ -30,9 +32,28 @@ var (
 	lockFileCtx context.Context
 	connectCtx  context.Context
 	connectDone context.CancelFunc
+	signChannel chan os.Signal
 )
 
+func sigh() {
+	signChannel = make(chan os.Signal)
+	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGILL, syscall.SIGFPE, syscall.SIGKILL)
+	go func() {
+		for s := range signChannel {
+			switch s {
+			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGILL, syscall.SIGFPE, syscall.SIGKILL:
+				log.Println("kernel exit")
+				os.Exit(0)
+			default:
+				fmt.Println("OTHERS SIGN:", s)
+			}
+		}
+	}()
+}
+
 func init() {
+	sigh()
+
 	flag.StringVar(&Host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
 	flag.Parse()
 	fmt.Println("gRPC Listen Host :", Host)
@@ -258,6 +279,7 @@ func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
 			fmt.Println("Call Client Open Window.")
 		case <-s.singleInstanceCtx.Done():
 			close(s.message)
+			panic("client exit")
 			return s.singleInstanceCtx.Err()
 		}
 	}
