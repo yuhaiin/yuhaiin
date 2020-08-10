@@ -90,7 +90,7 @@ func SetSysProxy(http, _ string) {
 		log.Println(err)
 		return
 	}
-	fmt.Printf("%d.%d", byte(ret), uint8(ret>>8))
+	fmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
 }
 
 func UnsetSysProxy() {
@@ -112,7 +112,7 @@ func UnsetSysProxy() {
 		log.Println(err)
 		return
 	}
-	fmt.Printf("%d.%d", byte(ret), uint8(ret>>8))
+	fmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
 }
 
 /*
