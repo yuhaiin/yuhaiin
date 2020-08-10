@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/Asutorufa/yuhaiin/gui/sysproxy"
-
 	"github.com/Asutorufa/yuhaiin/api"
 	cloud512 "github.com/Asutorufa/yuhaiin/gui/icon"
 	"github.com/therecipe/qt/core"
@@ -39,9 +37,6 @@ func NewGui(client api.ApiClient) *SGui {
 	microClientGUI.subscribe = NewSubscribe()
 	microClientGUI.setting = NewSetting()
 
-	microClientGUI.App.ConnectQuit(func() {
-		sysproxy.UnsetSysProxy()
-	})
 	microClientGUI.main.setMenuBar(microClientGUI.menuBar())
 	microClientGUI.trayInit()
 	go func() { _ = microClientGUI.clientInit() }()
