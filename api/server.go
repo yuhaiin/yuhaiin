@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/controller"
 	"github.com/Asutorufa/yuhaiin/net/common"
-	"github.com/Asutorufa/yuhaiin/process"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
 )
@@ -40,7 +40,7 @@ func init() {
 
 	var cancel context.CancelFunc
 	lockFileCtx, cancel = context.WithCancel(context.Background())
-	err := process.GetProcessLock(Host)
+	err := controller.GetProcessLock(Host)
 	if err != nil {
 		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -59,7 +59,7 @@ func init() {
 	fmt.Println("Create lock file successful.")
 	fmt.Println("Try to initialize Service.")
 	initCtx, cancel = context.WithCancel(context.Background())
-	err = process.Init()
+	err = controller.Init()
 	if err != nil {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		panic(err)
@@ -117,7 +117,7 @@ func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error
 }
 
 func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
-	host, err := process.ReadLockFile()
+	host, err := controller.ReadLockFile()
 	if err != nil {
 		return &wrappers.StringValue{}, err
 	}
@@ -138,52 +138,52 @@ func (s *Server) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
 }
 
 func (s *Server) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, process.LockFileClose()
+	return &empty.Empty{}, controller.LockFileClose()
 }
 
 func (s *Server) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
-	conf, err := process.GetConfig()
+	conf, err := controller.GetConfig()
 	return conf, err
 }
 
 func (s *Server) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty, error) {
-	return &empty.Empty{}, process.SetConFig(req)
+	return &empty.Empty{}, controller.SetConFig(req)
 }
 
 func (s *Server) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, process.MatchCon.UpdateMatch()
+	return &empty.Empty{}, controller.MatchCon.UpdateMatch()
 }
 
 func (s *Server) GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
-	groups, err := process.GetGroups()
+	groups, err := controller.GetGroups()
 	return &AllGroupOrNode{Value: groups}, err
 }
 
 func (s *Server) GetNode(_ context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	nodes, err := process.GetNodes(req.Value)
+	nodes, err := controller.GetNodes(req.Value)
 	return &AllGroupOrNode{Value: nodes}, err
 }
 
 func (s *Server) GetNowGroupAndName(context.Context, *empty.Empty) (*NowNodeGroupAndNode, error) {
-	node, group := process.GetNNodeAndNGroup()
+	node, group := controller.GetNNodeAndNGroup()
 	return &NowNodeGroupAndNode{Node: node, Group: group}, nil
 }
 
 func (s *Server) ChangeNowNode(_ context.Context, req *NowNodeGroupAndNode) (*empty.Empty, error) {
-	return &empty.Empty{}, process.ChangeNNode(req.Group, req.Node)
+	return &empty.Empty{}, controller.ChangeNNode(req.Group, req.Node)
 }
 
 func (s *Server) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, process.UpdateSub()
+	return &empty.Empty{}, controller.UpdateSub()
 }
 
 func (s *Server) GetSubLinks(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
-	links, err := process.GetLinks()
+	links, err := controller.GetLinks()
 	return &AllGroupOrNode{Value: links}, err
 }
 
 func (s *Server) AddSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	err := process.AddLink(req.Value)
+	err := controller.AddLink(req.Value)
 	if err != nil {
 		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
 	}
@@ -191,7 +191,7 @@ func (s *Server) AddSubLink(ctx context.Context, req *wrappers.StringValue) (*Al
 }
 
 func (s *Server) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	err := process.DeleteLink(req.Value)
+	err := controller.DeleteLink(req.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (s *Server) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (
 }
 
 func (s *Server) Latency(_ context.Context, req *NowNodeGroupAndNode) (*wrappers.StringValue, error) {
-	latency, err := process.Latency(req.Group, req.Node)
+	latency, err := controller.Latency(req.Group, req.Node)
 	if err != nil {
 		return nil, err
 	}

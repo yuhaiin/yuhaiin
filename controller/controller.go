@@ -1,14 +1,119 @@
-package process
+package controller
 
 import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"sort"
 
+	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
+var (
+	ConFig         *config.Setting
+	LocalListenCon *LocalListen
+	MatchCon       *MatchController
+	Nodes          *subscr.Node
+)
+
+func Init() error {
+	err := RefreshNodes()
+	if err != nil {
+		return fmt.Errorf("RefreshNodes -> %v", err)
+	}
+
+	ConFig, err = config.SettingDecodeJSON()
+	if err != nil {
+		return fmt.Errorf("DecodeJson -> %v", err)
+	}
+
+	// initialize Match Controller
+	MatchCon, err = NewMatchCon(ConFig.BypassFile, func(option *OptionMatchCon) {
+		option.DNS.Server = ConFig.DnsServer
+		option.DNS.Proxy = ConFig.DNSProxy
+		option.DNS.DOH = ConFig.DOH
+		option.DNS.Subnet = toSubnet(ConFig.DnsSubNet)
+		option.Bypass = ConFig.Bypass
+		option.DirectDNS.Server = ConFig.DirectDNS.Host
+		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
+	})
+	if err != nil {
+		return fmt.Errorf("new Match Controller -> %v", err)
+	}
+
+	// initialize Local Servers Controller
+	LocalListenCon, err = NewLocalListenCon(
+		WithHTTP(ConFig.HTTPHost),
+		WithSocks5(ConFig.Socks5Host),
+		WithRedir(ConFig.RedirHost),
+		WithTCPConn(MatchCon.Forward),
+	)
+	if err != nil {
+		return fmt.Errorf("new Local Listener Controller -> %v", err)
+	}
+
+	_ = ChangeNode()
+	return nil
+}
+
+/*
+ *         CONFIG
+ */
+func SetConFig(conf *config.Setting) (erra error) {
+	ConFig = conf
+	err := MatchCon.SetAllOption(func(option *OptionMatchCon) {
+		option.DNS.Server = conf.DnsServer
+		option.DNS.Proxy = conf.DNSProxy
+		option.DNS.DOH = conf.DOH
+		option.DNS.Subnet = toSubnet(conf.DnsSubNet)
+		option.Bypass = conf.Bypass
+		option.BypassPath = conf.BypassFile
+		option.DirectDNS.Server = ConFig.DirectDNS.Host
+		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
+	})
+	if err != nil {
+		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
+	}
+
+	err = LocalListenCon.SetAHost(
+		WithHTTP(conf.HTTPHost),
+		WithSocks5(conf.Socks5Host),
+		WithRedir(conf.RedirHost),
+	)
+	if err != nil {
+		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)
+	}
+	// others
+	err = config.SettingEnCodeJSON(ConFig)
+	if err != nil {
+		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
+	}
+	return
+}
+
+func toSubnet(s string) *net.IPNet {
+	_, subnet, err := net.ParseCIDR(s)
+	if err != nil {
+		if net.ParseIP(s).To4() != nil {
+			_, subnet, _ = net.ParseCIDR(s + "/32")
+		}
+
+		if net.ParseIP(s).To16() != nil {
+			_, subnet, _ = net.ParseCIDR(s + "/128")
+		}
+	}
+	return subnet
+}
+
+func GetConfig() (*config.Setting, error) {
+	return ConFig, nil
+}
+
+/*
+ *               Node
+ */
 func RefreshNodes() (err error) {
 	Nodes, err = subscr.GetNodesJSON()
 	return
@@ -37,14 +142,14 @@ func GetNNodeAndNGroup() (node string, group string) {
 }
 
 func GetNowNode() (interface{}, string, error) {
-	if Nodes.NowNode == nil{
-		return nil,"",errors.New("NowNode is nil")
+	if Nodes.NowNode == nil {
+		return nil, "", errors.New("NowNode is nil")
 	}
 	var hash string
-	if Nodes.NowNode.(map[string]interface{})["hash"] == nil{
+	if Nodes.NowNode.(map[string]interface{})["hash"] == nil {
 		log.Println("hash is nil")
 		hash = "empty"
-	}else{
+	} else {
 		hash = Nodes.NowNode.(map[string]interface{})["hash"].(string)
 	}
 	node, err := subscr.ParseNode(Nodes.NowNode.(map[string]interface{}))

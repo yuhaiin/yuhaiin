@@ -1,6 +1,6 @@
 // +build windows
 
-package process
+package controller
 
 import (
 	"os"

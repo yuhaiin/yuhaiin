@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/Asutorufa/yuhaiin/gui/sysproxy"
+
 	"github.com/Asutorufa/yuhaiin/api"
 	cloud512 "github.com/Asutorufa/yuhaiin/gui/icon"
 	"github.com/therecipe/qt/core"
@@ -37,6 +39,9 @@ func NewGui(client api.ApiClient) *SGui {
 	microClientGUI.subscribe = NewSubscribe()
 	microClientGUI.setting = NewSetting()
 
+	microClientGUI.App.ConnectQuit(func() {
+		sysproxy.UnsetSysProxy()
+	})
 	microClientGUI.main.setMenuBar(microClientGUI.menuBar())
 	microClientGUI.trayInit()
 	go func() { _ = microClientGUI.clientInit() }()
@@ -119,22 +124,18 @@ func (sGui *SGui) openWindow(window *widgets.QMainWindow) {
 	window.ActivateWindow()
 }
 
-func MessageBox(text string) {
-	messageBox.SetText(text)
-	messageBox.Exec()
-}
-
 func (sGui *SGui) trayActivateCall(reason widgets.QSystemTrayIcon__ActivationReason) {
 	switch reason {
 	case widgets.QSystemTrayIcon__Trigger:
-		if sGui.main.window.IsHidden() {
-			sGui.openWindow(sGui.main.window)
-			break
+		if sGui.main.window.IsActiveWindow() {
+			sGui.main.window.Hide()
+			return
 		}
-		if !sGui.main.window.IsActiveWindow() {
-			sGui.main.window.ActivateWindow()
-			break
-		}
-		sGui.main.window.Hide()
+		sGui.openWindow(sGui.main.window)
 	}
+}
+
+func MessageBox(text string) {
+	messageBox.SetText(text)
+	messageBox.Exec()
 }

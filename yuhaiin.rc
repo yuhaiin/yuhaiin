@@ -1,6 +1,6 @@
 1 VERSIONINFO
-FILEVERSION 0,2,0,0
-PRODUCTVERSION 0,2,0,0
+FILEVERSION 0,2,12,0
+PRODUCTVERSION 0,2,12,0
 FILEOS 0x40004
 FILETYPE 0x1
 {
@@ -10,12 +10,12 @@ FILETYPE 0x1
         {
             VALUE "CompanyName", "Asutorufa"
             VALUE "FileDescription", "Yuhaiin"
-            VALUE "FileVersion", "0.2.12 Beta"
+            VALUE "FileVersion", "0.2.12-Beta"
             VALUE "InternalName", "yuhaiin"
             VALUE "LegalCopyright", "Copyright (c) 2018 Asutorufa"
             VALUE "OriginalFilename", ""
             VALUE "ProductName", "Yuhaiin"
-            VALUE "ProductVersion", "0.2.12 Beta"
+            VALUE "ProductVersion", "0.2.12-Beta"
         }
     }
 

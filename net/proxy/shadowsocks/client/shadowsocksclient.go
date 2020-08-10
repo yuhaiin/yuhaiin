@@ -71,7 +71,7 @@ func NewShadowsocks(cipherName string, password string, server, port string, plu
 func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	conn, err = s.getTCPConn()
 	if err != nil {
-		return nil, fmt.Errorf("shdowsocks(net.Dial) -> %v", err)
+		return nil, fmt.Errorf("[ss] dial to %s -> %v", s.server, err)
 	}
 	_ = conn.(*net.TCPConn).SetKeepAlive(true)
 	conn = s.cipher.StreamConn(s.pluginFunc(conn))

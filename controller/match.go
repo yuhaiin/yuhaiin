@@ -19,8 +19,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/net/dns"
 	"github.com/Asutorufa/yuhaiin/net/match"
-	ssclient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
-	ssrclient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
+	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
@@ -416,8 +416,8 @@ func (m *MatchController) ChangeNode(nNode interface{}, hash string) (err error)
 }
 
 func (m *MatchController) ssConn(n *subscr.Shadowsocks) (func(string) (net.Conn, error), error) {
-	fmt.Println("Start Shadowsocks", n.Hash)
-	conn, err := ssclient.NewShadowsocks(
+	fmt.Println("Start Shadowsocks", n.NHash)
+	conn, err := ssClient.NewShadowsocks(
 		n.Method,
 		n.Password,
 		n.Server, n.Port,
@@ -431,8 +431,8 @@ func (m *MatchController) ssConn(n *subscr.Shadowsocks) (func(string) (net.Conn,
 }
 
 func (m *MatchController) ssrConn(n *subscr.Shadowsocksr) (func(string) (net.Conn, error), error) {
-	fmt.Println("Start Shadowsocksr", n.Hash)
-	conn, err := ssrclient.NewShadowsocksrClient(
+	fmt.Println("Start Shadowsocksr", n.NHash)
+	conn, err := ssrClient.NewShadowsocksrClient(
 		n.Server, n.Port,
 		n.Method,
 		n.Password,

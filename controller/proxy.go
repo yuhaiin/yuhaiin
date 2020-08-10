@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
 	"runtime"
+	"time"
 
 	httpserver "github.com/Asutorufa/yuhaiin/net/proxy/http/server"
 	proxyI "github.com/Asutorufa/yuhaiin/net/proxy/interface"
@@ -32,8 +32,8 @@ var (
 			return proxyI.NewTCPServer(host, socks5server.Socks5Handle())
 		},
 		redir: func(host string) (proxyI.Server, error) {
-			if runtime.GOOS == "windows"{
-				return nil,fmt.Errorf("Redir not support windows")
+			if runtime.GOOS == "windows" {
+				return nil, fmt.Errorf("Redir not support windows")
 			}
 			return proxyI.NewTCPServer(host, redirserver.RedirHandle())
 		},
@@ -114,7 +114,7 @@ func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 	}
 
 	l.setTCPConn(hosts.tcpConn)
-	return l,nil
+	return l, nil
 }
 
 func (l *LocalListen) SetAHost(opt ...LlOption) (erra error) {
