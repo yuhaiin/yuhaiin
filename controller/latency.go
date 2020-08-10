@@ -1,4 +1,4 @@
-package process
+package controller
 
 import (
 	"context"
@@ -6,10 +6,9 @@ import (
 	"net"
 	"time"
 
-	ssrclient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
-
 	"github.com/Asutorufa/yuhaiin/net/latency"
-	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
@@ -22,7 +21,7 @@ func Latency(group, mark string) (time.Duration, error) {
 	switch n.(type) {
 	case *subscr.Shadowsocks:
 		x := n.(*subscr.Shadowsocks)
-		s, err := client.NewShadowsocks(x.Method, x.Password, x.Server, x.Port, x.Plugin, x.PluginOpt)
+		s, err := ssClient.NewShadowsocks(x.Method, x.Password, x.Server, x.Port, x.Plugin, x.PluginOpt)
 		if err != nil {
 			return 0, err
 		}
@@ -31,7 +30,7 @@ func Latency(group, mark string) (time.Duration, error) {
 		}
 	case *subscr.Shadowsocksr:
 		n := n.(*subscr.Shadowsocksr)
-		conn, err := ssrclient.NewShadowsocksrClient(
+		conn, err := ssrClient.NewShadowsocksrClient(
 			n.Server, n.Port,
 			n.Method,
 			n.Password,

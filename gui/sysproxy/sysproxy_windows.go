@@ -13,8 +13,12 @@ import (
 	"unsafe"
 )
 
-func strPtr(s string) uintptr {
-	return uintptr(unsafe.Pointer(syscall.StringBytePtr(s)))
+func strPtr(s string) (uintptr, error) {
+	b, err := syscall.BytePtrFromString(s)
+	if err != nil {
+		return 0, err
+	}
+	return uintptr(unsafe.Pointer(b)), nil
 }
 
 func getExecPath() (string, error) {
@@ -59,10 +63,25 @@ func SetSysProxy(http, _ string) {
 		return
 	}
 	setSysProxy := sysproxy.NewProc("SetSystemProxy")
-	ret, _, e1 := syscall.Syscall(setSysProxy.Addr(), 3, strPtr(urls.Hostname()), strPtr(urls.Port()), strPtr(""))
+	hostPtr, err := strPtr(urls.Hostname())
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	portPtr, err := strPtr(urls.Port())
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	emptyPtr, err := strPtr("")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	ret, _, e1 := syscall.Syscall(setSysProxy.Addr(), 3, hostPtr, portPtr, emptyPtr)
 	if ret == 0 {
 		if e1 != 0 {
-			err = errnoErr(e1)
+			err = error(e1)
 		} else {
 			err = syscall.EINVAL
 		}
@@ -84,7 +103,7 @@ func UnsetSysProxy() {
 	ret, _, e1 := syscall.Syscall(clearSysproxy.Addr(), 0, 0, 0, 0)
 	if ret == 0 {
 		if e1 != 0 {
-			err = errnoErr(e1)
+			err = error(e1)
 		} else {
 			err = syscall.EINVAL
 		}
@@ -97,29 +116,5 @@ func UnsetSysProxy() {
 }
 
 /*
- * from https://github.com/golang/sys/blob/master/windows/zsyscall_windows.go#L1073
+ * check error from https://github.com/golang/sys/blob/master/windows/zsyscall_windows.go#L1073
  */
-// Do the interface allocations only once for common
-// Errno values.
-const (
-	errnoERROR_IO_PENDING = 997
-)
-
-var (
-	errERROR_IO_PENDING error = syscall.Errno(errnoERROR_IO_PENDING)
-)
-
-// errnoErr returns common boxed Errno values, to prevent
-// allocations at runtime.
-func errnoErr(e syscall.Errno) error {
-	switch e {
-	case 0:
-		return nil
-	case errnoERROR_IO_PENDING:
-		return errERROR_IO_PENDING
-	}
-	// TODO: add more here, after collecting data on the common
-	// error values see on Windows. (perhaps when running
-	// all.bat?)
-	return e
-}
