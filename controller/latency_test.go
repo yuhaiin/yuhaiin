@@ -1,4 +1,4 @@
-package process
+package controller
 
 import (
 	"testing"
@@ -13,6 +13,6 @@ func TestLatency(t *testing.T) {
 	}
 	switch x.(type) {
 	case *subscr.Shadowsocks:
-		t.Log(Latency(x.(*subscr.Shadowsocks).Group, x.(*subscr.Shadowsocks).Name))
+		t.Log(Latency(x.(*subscr.Shadowsocks).NGroup, x.(*subscr.Shadowsocks).NName))
 	}
 }

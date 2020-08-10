@@ -53,7 +53,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	}
 	c, err := s.getTCPConn()
 	if err != nil {
-		return nil, fmt.Errorf("[ssr] dial to %s error: %s", s.host, err)
+		return nil, fmt.Errorf("[ssr] dial to %s -> %s", s.host, err)
 	}
 
 	cipher, err := streamCipher.NewStreamCipher(s.encryptMethod, s.encryptPassword)
@@ -129,5 +129,5 @@ func (s *Shadowsocksr) tcpDial() (net.Conn, error) {
 		}
 		return conn, nil
 	}
-	return nil, errors.New("shadowsocks dial failed")
+	return nil, errors.New("shadowsocksr dial failed")
 }

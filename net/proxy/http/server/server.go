@@ -128,59 +128,71 @@ func connect(client net.Conn, dst net.Conn) {
 func normal(src, dst net.Conn, req *http.Request, in *bufio.Reader) {
 	outboundReader := bufio.NewReader(dst)
 	for {
-		keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" || strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
-		if len(req.URL.Host) > 0 {
-			req.Host = req.URL.Host
-		}
-		req.RequestURI = ""
-		req.Header.Set("Connection", "close")
-		req.Header = removeHeader(req.Header)
-		if err := req.Write(dst); err != nil {
+		keepAlive := modifyRequest(req)
+		err := req.Write(dst)
+		if err != nil {
 			break
 		}
-
 		resp, err := http.ReadResponse(outboundReader, req)
 		if err != nil {
 			break
 		}
-		resp.Header = removeHeader(resp.Header)
-		if resp.ContentLength >= 0 {
-			resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
-		} else {
-			resp.Header.Del("Content-Length")
-		}
-
-		te := ""
-		if len(resp.TransferEncoding) > 0 {
-			if len(resp.TransferEncoding) > 1 {
-				//ErrUnsupportedTransferEncoding
-				break
-			}
-			te = resp.TransferEncoding[0]
-		}
-		if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
-			resp.Header.Set("Connection", "Keep-Alive")
-			//resp.Header.Set("Keep-Alive", "timeout=4")
-			resp.Close = false
-		} else {
-			resp.Close = true
+		err = modifyResponse(resp, keepAlive)
+		if err != nil {
+			break
 		}
 		err = resp.Write(src)
 		if err != nil || resp.Close {
 			break
 		}
-
 		// from clash, thanks so much, if not have the code, the ReadRequest will error
 		err = common.SingleForward(resp.Body, src)
 		if err != nil && err != io.EOF {
 			break
 		}
-
 		req, err = http.ReadRequest(in)
 		if err != nil {
 			break
 		}
 	}
+}
+
+func modifyRequest(req *http.Request) (keepAlive bool) {
+	keepAlive = strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
+		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
+	if len(req.URL.Host) > 0 {
+		req.Host = req.URL.Host
+	}
+	req.RequestURI = ""
+	req.Header.Set("Connection", "close")
+	req.Header = removeHeader(req.Header)
+	return
+}
+
+func modifyResponse(resp *http.Response, keepAlive bool) error {
+	resp.Header = removeHeader(resp.Header)
+	if resp.ContentLength >= 0 {
+		resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
+	} else {
+		resp.Header.Del("Content-Length")
+	}
+
+	te := ""
+	if len(resp.TransferEncoding) > 0 {
+		if len(resp.TransferEncoding) > 1 {
+			//ErrUnsupportedTransferEncoding
+			return errors.New("ErrUnsupportedTransferEncoding")
+		}
+		te = resp.TransferEncoding[0]
+	}
+	if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
+		resp.Header.Set("Connection", "Keep-Alive")
+		//resp.Header.Set("Keep-Alive", "timeout=4")
+		resp.Close = false
+	} else {
+		resp.Close = true
+	}
+	return nil
 }
 
 // https://github.com/go-httpproxy
