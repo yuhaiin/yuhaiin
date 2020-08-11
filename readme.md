@@ -9,54 +9,30 @@
 ![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
 How to use:
 
-- download [releases](https://github.com/Asutorufa/yuhaiin/releases) or build.
+- download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
+- Support Protocol  
+    - Shadowsocksr  
+        - Support Protocol see: [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
+    - Shadowsocks  
+        - Support Plugin: Obfs-Http  
+        - Support Plugin: v2ray-plugin( not support mux,it's too complicated(:, I need some time to understand )  
+    - internal Support: Socks5, HTTP, Linux/Mac Redir  
+    - DNS: Normal DNS,EDNS,DNSSEC,DNS over HTTPS   
+- Support Subscription: Shadowsocksr, SSD  
+- Support Auto Set System Proxy for Linux/Windows.  
+- [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
+- Memory(Just a Reference)  
+    - kernel = 10486 CIDR + 127598 domain + DNS/Match cache = 54MB.  
+    - Qt Gui = 20MB.  
+    - Because of the Go GC, Reimport Rule will make the memory big, but this is not memory leak, it has a limit(e.g: above-mentioned example is 180M).  
+        - > [Do I need to set a map to nil in order for it to be garbage collected?](https://stackoverflow.com/questions/36747776/do-i-need-to-set-a-map-to-nil-in-order-for-it-to-be-garbage-collected)  
+- icon from プロ生ちゃん.  
+- アイコンがプロ生ちゃんから、ご注意ください。  
+- [TODO](https://github.com/Asutorufa/yuhaiin/wiki/TODO).  
+- Others Please Check [Wiki](https://github.com/Asutorufa/yuhaiin/wiki).  
 
-- Build
-
-    linux
-    ```shell script
-    git clone https://github.com/Asutorufa/yuhaiin.git
-    cd yuhaiin
-    export GO111MODULE=on
-    go install -v -tags=no_env github.com/therecipe/qt/cmd/...
-    go mod vendor
-    git clone https://github.com/therecipe/env_linux_amd64_513.git vendor/github.com/therecipe/env_linux_amd64_513
-    $(go env GOPATH)/bin/qtdeploy
-    ```
-    windows amd64
-    
-    ```cmd
-    git clone https://github.com/Asutorufa/yuhaiin.git
-    cd yuhaiin
-    set GO111MODULE=on
-    go install -v -tags=no_env github.com/therecipe/qt/cmd/... 
-    go mod vendor
-    git clone https://github.com/therecipe/env_windows_amd64_513.git vendor/github.com/therecipe/env_windows_amd64_513
-    for /f %v in ('go env GOPATH') do %v\bin\qtdeploy
-    ```
-  
-- Support Protocol
-    - Shadowsocksr
-        - Support Protocol see: [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)
-    - Shadowsocks
-        - Support Plugin: Obfs-Http
-        - Support Plugin: v2ray-plugin( not support mux,it's too complicated(:, I need some time to understand )
-    - internal Support: Socks5, HTTP, Linux/Mac Redir
-    - DNS: Normal DNS,EDNS,DNSSEC,DNS over HTTPS 
-- Support Subscription: Shadowsocksr, SSD
-- [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)
-- Memory(Just a Reference)
-    - Bypass = 8472 CIDR + 75296 domain = 50MB.
-    - Bypass + Gui = 70MB.
-    - Because of the Go GC, Reimport Rule will make the memory big, but this is not memory leak, it has a limit(e.g: above-mentioned example is 180M).
-        - > [Do I need to set a map to nil in order for it to be garbage collected?](https://stackoverflow.com/questions/36747776/do-i-need-to-set-a-map-to-nil-in-order-for-it-to-be-garbage-collected)
-- icon from プロ生ちゃん.
-- アイコンがプロ生ちゃんから、ご注意ください。
-- Others Please Check Wiki.
-
-![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_linux.png)  
-![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_windows.png)  
-
+![v0.2.12-beta_linux](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_linux.png)  
+![v0.2.12-beta_windows](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_windows.png)  
 
 <details>
 <summary>Acknowledgement</summary>
@@ -77,22 +53,3 @@ How to use:
 
 </details>
 
-<details>
-<summary>TODO</summary>
-
-- [x] add bypass
-- [x] ss link compatible.  
-  - [x] need more ss link template.
-- [x] support http proxy.  
-- [ ] add `-h` argument to show help.
-- [x] add DOH.
-- [x] have a GUI.
-- [x] add shadowsocks client protocol.
-- [x] add linux REDIRECT.
-- [x] add shadowsocks v2ray plugin.
-- [x] ~~widget exchange to qml.~~(now already change to gridLayout)
-- [x] ~~change qt gui to use new api.~~
-- [X] new api for android(or others). <- use grpc.
-- [ ] add disguise.
-
-</details>
