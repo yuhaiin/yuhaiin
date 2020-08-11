@@ -28,6 +28,7 @@ type Server struct {
 
 var (
 	Host        string
+	killWDC     bool // kill process when grpc disconnect
 	initCtx     context.Context
 	lockFileCtx context.Context
 	connectCtx  context.Context
@@ -37,12 +38,13 @@ var (
 
 func sigh() {
 	signChannel = make(chan os.Signal)
-	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGILL, syscall.SIGFPE, syscall.SIGKILL)
+	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		for s := range signChannel {
 			switch s {
-			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGILL, syscall.SIGFPE, syscall.SIGKILL:
+			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
 				log.Println("kernel exit")
+				_ = controller.LockFileClose()
 				os.Exit(0)
 			default:
 				fmt.Println("OTHERS SIGN:", s)
@@ -55,6 +57,7 @@ func init() {
 	sigh()
 
 	flag.StringVar(&Host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
+	flag.BoolVar(&killWDC, "kwdc", false, "kill process when grpc disconnect")
 	flag.Parse()
 	fmt.Println("gRPC Listen Host :", Host)
 	fmt.Println("Try to create lock file.")
@@ -279,8 +282,14 @@ func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
 			fmt.Println("Call Client Open Window.")
 		case <-s.singleInstanceCtx.Done():
 			close(s.message)
-			panic("client exit")
+			if killWDC {
+				panic("client exit")
+			}
 			return s.singleInstanceCtx.Err()
 		}
 	}
+}
+
+func (s *Server) GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error) {
+	return &wrappers.UInt32Value{Value: uint32(os.Getpid())}, nil
 }

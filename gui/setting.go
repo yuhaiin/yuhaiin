@@ -4,7 +4,6 @@ import (
 	"context"
 	"runtime"
 
-	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/gui/sysproxy"
 	"github.com/golang/protobuf/ptypes/empty"
 
@@ -59,10 +58,6 @@ func NewSetting() *setting {
 	s.setLayout()
 	s.setListener()
 	s.updateData()
-
-	if conFig.BlackIcon {
-		sysproxy.SetSysProxy(conFig.HTTPHost, conFig.Socks5Host)
-	}
 
 	return s
 }
@@ -155,17 +150,8 @@ func (s *setting) setLayout() {
 	s.window.SetCentralWidget(centralWidget)
 }
 
-var (
-	conFig *config.Setting
-)
-
 func (s *setting) updateData() {
-	var err error
-	conFig, err = apiC.GetConfig(context.Background(), &empty.Empty{})
-	if err != nil {
-		MessageBox(err.Error())
-		return
-	}
+	refreshConfig()
 	s.systemProxy.SetChecked(conFig.BlackIcon)
 	s.dohCheckBox.SetChecked(conFig.DOH)
 	s.bypassCheckBox.SetChecked(conFig.Bypass)
