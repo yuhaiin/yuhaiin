@@ -7,7 +7,7 @@ package main
 //go:generate windres.exe -F pe-i386 -o yuhaiin_windows_386.syso yuhaiin.rc
 
 // hide windows cmd window while runnig kernel
-//go:generate go build -ldflags="-H windowsgui -w -s" -tags api -o yuhaiin_kernel.exe
+//go:generate go build -ldflags="-H windowsgui -w -s" -tags api -o deploy/yuhaiin_kernel.exe
 
 // windows debug gui
 //go:generate set QT_DEBUG_CONSOLE=true

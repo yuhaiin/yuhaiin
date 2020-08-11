@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path"
 	"testing"
 
@@ -68,4 +69,21 @@ _retry:
 	}
 	defer file.Close()
 	t.Log(file.WriteString("test"))
+}
+
+func TestCmd(t *testing.T) {
+	process, err := os.FindProcess(11192)
+	if err != nil {
+		t.Log(err)
+	}
+	cmd := exec.Command("", "")
+	cmd.Process = process
+	err = cmd.Wait()
+	if err != nil {
+		t.Error(err)
+	}
+	//err = cmd.Process.Kill()
+	//if err != nil {
+	//	t.Error(err)
+	//}
 }
