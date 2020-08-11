@@ -52,9 +52,10 @@ How to use:
         - > [Do I need to set a map to nil in order for it to be garbage collected?](https://stackoverflow.com/questions/36747776/do-i-need-to-set-a-map-to-nil-in-order-for-it-to-be-garbage-collected)
 - icon from プロ生ちゃん.
 - アイコンがプロ生ちゃんから、ご注意ください。
+- Others Please Check Wiki.
 
-![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_by_qt_v0.2.11.4.png)  
-![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/gui_windows_v0.2.11.4.png)  
+![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_linux.png)  
+![image](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_windows.png)  
 
 
 <details>
@@ -93,24 +94,5 @@ How to use:
 - [x] ~~change qt gui to use new api.~~
 - [X] new api for android(or others). <- use grpc.
 - [ ] add disguise.
-
-```single instance
-          single instance
-  +-----+
-  | gui |
-  +-----+
-    ^
-    | grpc
-    v
-+--------+    create     +----------+
-| server | ------------> | lockfile |
-+--------+  write host   +----------+
-      ^                         ^
-      | open gui                | check lockfile is locked
-      | and exit new process    |         and
-+--------------------+          | get already running grpc server host
-| new gui and server |----------+
-+--------------------+
-```
 
 </details>
