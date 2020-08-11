@@ -6,8 +6,12 @@ import (
 	"io"
 	"os"
 
+	"github.com/Asutorufa/yuhaiin/gui/sysproxy"
+
 	"github.com/Asutorufa/yuhaiin/api"
+	"github.com/Asutorufa/yuhaiin/config"
 	cloud512 "github.com/Asutorufa/yuhaiin/gui/icon"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -17,6 +21,7 @@ var (
 	apiC       api.ApiClient
 	App        = widgets.NewQApplication(len(os.Args), os.Args)
 	messageBox = widgets.NewQMessageBox(nil)
+	conFig     *config.Setting
 )
 
 type SGui struct {
@@ -28,19 +33,30 @@ type SGui struct {
 }
 
 func NewGui(client api.ApiClient) *SGui {
-	apiC = client
-	microClientGUI := &SGui{}
-	microClientGUI.App = App
-	microClientGUI.App.SetApplicationName("yuhaiin")
-	microClientGUI.App.SetQuitOnLastWindowClosed(false)
-	microClientGUI.main = NewMain()
-	microClientGUI.subscribe = NewSubscribe()
-	microClientGUI.setting = NewSetting()
+	if client == nil {
+		return nil
+	}
 
-	microClientGUI.main.setMenuBar(microClientGUI.menuBar())
-	microClientGUI.trayInit()
-	go func() { _ = microClientGUI.clientInit() }()
-	return microClientGUI
+	apiC = client
+	sGui := &SGui{}
+	sGui.App = App
+	sGui.App.SetApplicationName("yuhaiin")
+	sGui.App.SetQuitOnLastWindowClosed(false)
+	sGui.main = NewMain()
+	sGui.subscribe = NewSubscribe()
+	sGui.setting = NewSetting()
+	sGui.main.setMenuBar(sGui.menuBar())
+	sGui.trayInit()
+	sGui.initialize()
+	return sGui
+}
+
+func (sGui *SGui) initialize() {
+	go func() { _ = sGui.clientInit() }()
+	refreshConfig()
+	if conFig.BlackIcon {
+		sysproxy.SetSysProxy(conFig.HTTPHost, conFig.Socks5Host)
+	}
 }
 
 func (sGui *SGui) menuBar() *widgets.QMenuBar {
@@ -130,7 +146,16 @@ func (sGui *SGui) trayActivateCall(reason widgets.QSystemTrayIcon__ActivationRea
 	}
 }
 
+func refreshConfig() {
+	var err error
+	conFig, err = apiC.GetConfig(context.Background(), &empty.Empty{})
+	if err != nil {
+		MessageBox(err.Error())
+		return
+	}
+}
+
 func MessageBox(text string) {
 	messageBox.SetText(text)
-	messageBox.Exec()
+	messageBox.Show()
 }

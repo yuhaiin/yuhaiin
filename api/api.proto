@@ -35,6 +35,7 @@ service api {
   rpc getRate(google.protobuf.Empty)returns(stream DaUaDrUr){}
 
   rpc SingleInstance(stream google.protobuf.StringValue)returns(stream google.protobuf.StringValue){}
+  rpc GetKernelPid(google.protobuf.Empty)returns(google.protobuf.UInt32Value);
 }
 
 message allGroupOrNode {
