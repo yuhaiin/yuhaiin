@@ -24,10 +24,11 @@ type Shadowsocksr struct {
 	Protoparam string `json:"protoparam"`
 }
 
-func SsrParse(link []byte) (*Shadowsocksr, error) {
+func SsrParse(link []byte, origin float64) (*Shadowsocksr, error) {
 	decodeStr := strings.Split(Base64DStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	n := new(Shadowsocksr)
 	n.NType = shadowsocksr
+	n.NOrigin = origin
 	x := strings.Split(decodeStr[0], ":")
 	if len(x) != 6 {
 		return n, errors.New("link: " + decodeStr[0] + " is not format Shadowsocksr link")
@@ -47,11 +48,12 @@ func SsrParse(link []byte) (*Shadowsocksr, error) {
 	}
 
 	hash := sha256.New()
+	hash.Write([]byte{byte(n.NType)})
+	hash.Write([]byte{byte(n.NOrigin)})
 	hash.Write([]byte(n.Server))
 	hash.Write([]byte(n.Port))
 	hash.Write([]byte(n.Method))
 	hash.Write([]byte(n.Password))
-	hash.Write([]byte{byte(n.NType)})
 	hash.Write([]byte(n.NGroup))
 	hash.Write([]byte(n.NName))
 	hash.Write([]byte(n.Obfs))

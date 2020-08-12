@@ -32,3 +32,21 @@ func TestMap(t *testing.T) {
 	mapc(b)
 	t.Log(b["a"])
 }
+
+func TestAllOption(t *testing.T) {
+	nodes := Node{
+		Node: map[string]map[string]interface{}{},
+	}
+	addOneNode(map[string]interface{}{"n_origin": remote}, "testGroup", "testName", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": manual}, "testGroup", "testName2", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": remote}, "testGroup2", "testName", nodes.Node)
+	printNodes(nodes.Node)
+
+	//t.Log("Delete Test")
+	//deleteOneNode("testGroup2", "testName", nodes.Node)
+	//printNodes(nodes.Node)
+
+	t.Log("Delete Remote Test")
+	deleteRemoteNodes(nodes.Node)
+	printNodes(nodes.Node)
+}
