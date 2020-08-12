@@ -4,8 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net"
 	"net/url"
 	"strings"
+
+	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
 )
 
 // Shadowsocksr node json struct
@@ -94,4 +97,22 @@ func map2Shadowsocksr(n map[string]interface{}) (*Shadowsocksr, error) {
 		}
 	}
 	return node, nil
+}
+
+func map2ShadowsocksrConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
+	s, err := map2Shadowsocksr(n)
+	if err != nil {
+		return nil, err
+	}
+	ssr, err := ssrClient.NewShadowsocksrClient(
+		s.Server, s.Port,
+		s.Method,
+		s.Password,
+		s.Obfs, s.Obfsparam,
+		s.Protocol, s.Protoparam,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ssr.Conn, nil
 }
