@@ -132,18 +132,90 @@ func oneLinkGet(url string, nodes map[string]map[string]interface{}) {
 	}
 }
 
+func addOneNode(node interface{}, group, name string, nodes map[string]map[string]interface{}) {
+	if _, ok := nodes[group]; !ok {
+		nodes[group] = map[string]interface{}{}
+	}
+	nodes[group][name] = node
+}
+
+func printNodes(nodes map[string]map[string]interface{}) {
+	for key := range nodes {
+		fmt.Println("Group:", key)
+		for nodeKey := range nodes[key] {
+			fmt.Println("Name:", nodeKey)
+		}
+		fmt.Println("")
+	}
+}
+
+func deleteRemoteNodes(nodes map[string]map[string]interface{}) {
+	for key := range nodes {
+		for nodeKey := range nodes[key] {
+			if checkRemote(nodes[key][nodeKey]) {
+				delete(nodes[key], nodeKey)
+			}
+		}
+		for range nodes[key] {
+			goto _continue
+		}
+		goto _delete
+	_continue:
+		continue
+	_delete:
+		delete(nodes, key)
+	}
+}
+
+func checkRemote(node interface{}) bool {
+	switch node.(type) {
+	case map[string]interface{}:
+	default:
+		return false
+	}
+
+	if _, ok := node.(map[string]interface{})["n_origin"]; !ok {
+		return false
+	}
+
+	switch node.(map[string]interface{})["n_origin"].(type) {
+	case float64:
+	default:
+		return false
+	}
+
+	if node.(map[string]interface{})["n_origin"].(float64) == remote {
+		return true
+	}
+	return false
+}
+
+func deleteOneNode(group, name string, nodes map[string]map[string]interface{}) {
+	if _, ok := nodes[group]; !ok {
+		return
+	}
+	if _, ok := nodes[group][name]; !ok {
+		return
+	}
+	delete(nodes[group], name)
+	for range nodes[group] {
+		return
+	}
+	delete(nodes, group)
+}
+
 func base64ToNode(str []byte) (node interface{}, group, name string, err error) {
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
-		node, err := ShadowSocksParse(str)
+		node, err := ShadowSocksParse(str, remote)
 		if err != nil {
 			return nil, "", "", err
 		}
 		return node, node.NGroup, node.NName, nil
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
-		node, err := SsrParse(str)
+		node, err := SsrParse(str, remote)
 		if err != nil {
 			return nil, "", "", err
 		}

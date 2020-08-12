@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/dns"
+	libDNS "github.com/Asutorufa/yuhaiin/net/dns"
 	"github.com/Asutorufa/yuhaiin/net/match"
 )
 
@@ -29,28 +29,37 @@ const (
 	mBlock
 )
 
-type MatchController struct {
-	Forward func(string) (net.Conn, error)
-	bypass  bool
-	dns     struct {
-		server string
-		doh    bool
-		Proxy  bool
-		Subnet *net.IPNet
-	}
-	bypassFile string
-	matcher    *match.Match
-	proxy      func(host string) (conn net.Conn, err error)
+type bypass struct {
+	enabled bool
+	file    string
+}
 
-	dialer    net.Dialer
-	directDNS struct {
-		dns    dns.DNS
-		server string
-		doh    bool
-	}
-	nodeController struct {
-		nodeHash string
-	}
+type dns struct {
+	server string
+	doh    bool
+	proxy  bool
+	Subnet *net.IPNet
+}
+
+type directDNS struct {
+	dns    libDNS.DNS
+	server string
+	doh    bool
+}
+
+type node struct {
+	hash string
+}
+
+type MatchController struct {
+	bypass
+	dns
+	directDNS
+	node
+	matcher *match.Match
+	Forward func(string) (net.Conn, error)
+	proxy   func(host string) (conn net.Conn, err error)
+	dialer  net.Dialer
 }
 
 type OptionMatchCon struct {
@@ -74,11 +83,7 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 		dialer: net.Dialer{
 			Timeout: 15 * time.Second,
 		},
-		directDNS: struct {
-			dns    dns.DNS
-			server string
-			doh    bool
-		}{dns.NewDOH("223.5.5.5"), "223.5.5.5", true},
+		directDNS: directDNS{libDNS.NewDOH("223.5.5.5"), "223.5.5.5", true},
 	}
 	option := &OptionMatchCon{}
 	for index := range opt {
@@ -111,15 +116,15 @@ func (m *MatchController) SetAllOption(opt MatchConOption) error {
 		}{
 			Server: m.dns.server,
 			DOH:    m.dns.doh,
-			Proxy:  m.dns.Proxy,
+			Proxy:  m.dns.proxy,
 			Subnet: m.dns.Subnet,
 		},
 		DirectDNS: struct {
 			Server string
 			DOH    bool
 		}{Server: m.directDNS.server, DOH: m.directDNS.doh},
-		BypassPath: m.bypassFile,
-		Bypass:     m.bypass,
+		BypassPath: m.bypass.file,
+		Bypass:     m.bypass.enabled,
 	}
 	opt(option)
 
@@ -128,18 +133,18 @@ func (m *MatchController) SetAllOption(opt MatchConOption) error {
 	m.enableDNSProxy(option.DNS.Proxy)
 	m.setDNSSubNet(option.DNS.Subnet)
 	err := m.setBypass(option.BypassPath)
-	m.bypass = option.Bypass
+	m.bypass.enabled = option.Bypass
 	return err
 }
 
 func (m *MatchController) setMode(b bool) {
-	if m.bypass == b {
+	if m.bypass.enabled == b {
 		if m.Forward == nil {
 			m.Forward = m.dial
 		}
 		return
 	}
-	m.bypass = b
+	m.bypass.enabled = b
 	switch b {
 	case false:
 		m.Forward = m.proxy
@@ -149,22 +154,22 @@ func (m *MatchController) setMode(b bool) {
 }
 
 func (m *MatchController) setBypass(file string) error {
-	if m.bypassFile == file {
+	if m.bypass.file == file {
 		return nil
 	}
-	m.bypassFile = file
+	m.bypass.file = file
 	return m.UpdateMatch()
 }
 
 func (m *MatchController) UpdateMatch() error {
-	f, err := os.Open(m.bypassFile)
+	f, err := os.Open(m.bypass.file)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(path.Dir(m.bypassFile), os.ModePerm)
+			err = os.MkdirAll(path.Dir(m.bypass.file), os.ModePerm)
 			if err != nil {
 				return fmt.Errorf("UpdateMatch()MkdirAll -> %v", err)
 			}
-			f, err = os.OpenFile(m.bypassFile, os.O_TRUNC|os.O_CREATE|os.O_RDWR, os.ModePerm)
+			f, err = os.OpenFile(m.bypass.file, os.O_TRUNC|os.O_CREATE|os.O_RDWR, os.ModePerm)
 			if err != nil {
 				return fmt.Errorf("UpdateMatch():OpenFile -> %v", err)
 			}
@@ -331,10 +336,10 @@ func (m *MatchController) setDNS(server string, doh bool) {
 
 func (m *MatchController) setDNSProxy(enable bool) {
 	if enable {
-		m.dns.Proxy = true
+		m.dns.proxy = true
 		m.matcher.SetDNSProxy(m.proxy)
 	} else {
-		m.dns.Proxy = false
+		m.dns.proxy = false
 		m.matcher.SetDNSProxy(func(addr string) (net.Conn, error) {
 			return net.DialTimeout("tcp", addr, 5*time.Second)
 		})
@@ -342,11 +347,12 @@ func (m *MatchController) setDNSProxy(enable bool) {
 }
 
 func (m *MatchController) enableDNSProxy(enable bool) {
-	if m.dns.Proxy == enable {
+	if m.dns.proxy == enable {
 		return
 	}
 	m.setDNSProxy(enable)
 }
+
 func (m *MatchController) setDirectDNS(server string, doh bool) {
 	if m.directDNS.server == server && m.directDNS.doh == doh {
 		return
@@ -355,11 +361,12 @@ func (m *MatchController) setDirectDNS(server string, doh bool) {
 	m.directDNS.doh = doh
 
 	if doh {
-		m.directDNS.dns = dns.NewDOH(server)
+		m.directDNS.dns = libDNS.NewDOH(server)
 	} else {
-		m.directDNS.dns = dns.NewNormalDNS(server)
+		m.directDNS.dns = libDNS.NewNormalDNS(server)
 	}
 }
+
 func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
 	if m.matcher.DNS == nil || m.dns.Subnet == ip {
 		return
@@ -372,13 +379,13 @@ func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
  *     node Control
  */
 func (m *MatchController) ChangeNode(conn func(string) (net.Conn, error), hash string) {
-	if m.nodeController.nodeHash == hash {
+	if m.node.hash == hash {
 		return
 	}
 	if conn == nil {
 		return
 	}
-	m.nodeController.nodeHash = hash
+	m.node.hash = hash
 	m.proxy = conn
-	m.setDNSProxy(m.dns.Proxy)
+	m.setDNSProxy(m.dns.proxy)
 }

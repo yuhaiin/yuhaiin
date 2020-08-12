@@ -21,13 +21,14 @@ type Shadowsocks struct {
 	PluginOpt string `json:"plugin_opt"`
 }
 
-func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
+func ShadowSocksParse(str []byte, origin float64) (*Shadowsocks, error) {
 	n := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
 		return nil, err
 	}
 	n.NType = shadowsocks
+	n.NOrigin = origin
 	n.Server = ssUrl.Hostname()
 	n.Port = ssUrl.Port()
 	n.Method = strings.Split(Base64DStr(ssUrl.User.String()), ":")[0]
@@ -38,11 +39,12 @@ func ShadowSocksParse(str []byte) (*Shadowsocks, error) {
 	n.NName = "[ss]" + ssUrl.Fragment
 
 	hash := sha256.New()
+	hash.Write([]byte{byte(n.NType)})
+	hash.Write([]byte{byte(n.NOrigin)})
 	hash.Write([]byte(n.Server))
 	hash.Write([]byte(n.Port))
 	hash.Write([]byte(n.Method))
 	hash.Write([]byte(n.Password))
-	hash.Write([]byte{byte(n.NType)})
 	hash.Write([]byte(n.NGroup))
 	hash.Write([]byte(n.NName))
 	hash.Write([]byte(n.Plugin))
