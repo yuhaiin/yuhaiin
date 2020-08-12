@@ -40,6 +40,13 @@ func NewGui(client api.ApiClient) *SGui {
 	apiC = client
 	sGui := &SGui{}
 	sGui.App = App
+	sGui.App.ConnectCommitDataRequest(
+		func(manager *gui.QSessionManager) {
+		})
+	sGui.App.ConnectSaveStateRequest(func(manager *gui.QSessionManager) {
+
+	})
+
 	sGui.App.SetApplicationName("yuhaiin")
 	sGui.App.SetQuitOnLastWindowClosed(false)
 	sGui.main = NewMain()

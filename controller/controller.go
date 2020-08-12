@@ -3,7 +3,6 @@ package controller
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"sort"
 
@@ -141,36 +140,39 @@ func GetNNodeAndNGroup() (node string, group string) {
 	return Nodes.NowNode.(map[string]interface{})["name"].(string), Nodes.NowNode.(map[string]interface{})["group"].(string)
 }
 
-func GetNowNode() (interface{}, string, error) {
+func GetNowNodeConn() (func(string) (net.Conn, error), string, error) {
 	if Nodes.NowNode == nil {
 		return nil, "", errors.New("NowNode is nil")
 	}
-	var hash string
-	if Nodes.NowNode.(map[string]interface{})["hash"] == nil {
-		log.Println("hash is nil")
-		hash = "empty"
-	} else {
-		hash = Nodes.NowNode.(map[string]interface{})["hash"].(string)
+	switch Nodes.NowNode.(type) {
+	case map[string]interface{}:
+	default:
+		return nil, "", errors.New("the Type is not map[string]interface{}")
 	}
-	node, err := subscr.ParseNode(Nodes.NowNode.(map[string]interface{}))
-	return node, hash, err
+
+	var hash string
+	switch Nodes.NowNode.(map[string]interface{})["hash"].(type) {
+	case string:
+		hash = Nodes.NowNode.(map[string]interface{})["hash"].(string)
+	default:
+		hash = "empty"
+	}
+	conn, err := subscr.ParseNodeConn(Nodes.NowNode.(map[string]interface{}))
+	return conn, hash, err
 }
 
-func GetOneNode(group, nodeN string) (interface{}, error) {
+func GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), error) {
 	if Nodes.Node[group][nodeN] == nil {
 		return nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
 	}
-	currentNode := Nodes.Node[group][nodeN].(map[string]interface{})
-
-	node, err := subscr.ParseNode(currentNode)
-	if err != nil {
-		return nil, fmt.Errorf("GetOneNode:map2struct -> %v", err)
+	switch Nodes.Node[group][nodeN].(type) {
+	case map[string]interface{}:
+		return subscr.ParseNodeConn(Nodes.Node[group][nodeN].(map[string]interface{}))
 	}
-	return node, nil
+	return nil, errors.New("the type is not map[string]interface{}")
 }
 
 func GetNodes(group string) ([]string, error) {
-
 	var nodeTmp []string
 	for nodeRemarks := range Nodes.Node[group] {
 		nodeTmp = append(nodeTmp, nodeRemarks)
@@ -224,13 +226,10 @@ func DeleteLink(str string) error {
 }
 
 func ChangeNode() error {
-	nod, hash, err := GetNowNode()
+	conn, hash, err := GetNowNodeConn()
 	if err != nil {
 		return fmt.Errorf("GetNowNode() -> %v", err)
 	}
-	err = MatchCon.ChangeNode(nod, hash)
-	if err != nil {
-		return fmt.Errorf("ChangeNode -> %v", err)
-	}
+	MatchCon.ChangeNode(conn, hash)
 	return nil
 }

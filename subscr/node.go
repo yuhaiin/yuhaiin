@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -181,4 +182,26 @@ func GetNowNode() (interface{}, error) {
 		return nil, err
 	}
 	return ParseNode(pa.NowNode.(map[string]interface{}))
+}
+
+func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), error) {
+	if s == nil {
+		return nil, fmt.Errorf("map2struct -> %v", errors.New("argument is nil"))
+	}
+
+	var nodeType float64
+	switch s["type"].(type) {
+	case float64:
+		nodeType = s["type"].(float64)
+	default:
+		return nil, fmt.Errorf("map2struct:type -> %v", errors.New("type is not float64"))
+	}
+
+	switch nodeType {
+	case shadowsocks:
+		return map2ShadowsocksConn(s)
+	case shadowsocksr:
+		return map2ShadowsocksrConn(s)
+	}
+	return nil, errors.New("not support type")
 }
