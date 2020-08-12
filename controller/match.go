@@ -19,9 +19,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/net/dns"
 	"github.com/Asutorufa/yuhaiin/net/match"
-	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
-	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
-	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
 const (
@@ -52,7 +49,6 @@ type MatchController struct {
 		doh    bool
 	}
 	nodeController struct {
-		//node     interface{}
 		nodeHash string
 	}
 }
@@ -70,7 +66,6 @@ type OptionMatchCon struct {
 	}
 	BypassPath string
 	Bypass     bool
-	Proxy      func(string) (net.Conn, error)
 }
 type MatchConOption func(option *OptionMatchCon)
 
@@ -85,11 +80,7 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 			doh    bool
 		}{dns.NewDOH("223.5.5.5"), "223.5.5.5", true},
 	}
-	option := &OptionMatchCon{
-		Proxy: func(s string) (net.Conn, error) {
-			return net.DialTimeout("tcp", s, 5*time.Second)
-		},
-	}
+	option := &OptionMatchCon{}
 	for index := range opt {
 		opt[index](option)
 	}
@@ -103,7 +94,6 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 		return nil, err
 	}
 	m.enableDNSProxy(option.DNS.Proxy)
-	m.setProxy(option.Proxy)
 	m.setMode(option.Bypass)
 	return m, nil
 }
@@ -137,7 +127,6 @@ func (m *MatchController) SetAllOption(opt MatchConOption) error {
 	m.setDirectDNS(option.DirectDNS.Server, option.DirectDNS.DOH)
 	m.enableDNSProxy(option.DNS.Proxy)
 	m.setDNSSubNet(option.DNS.Subnet)
-	m.setProxy(option.Proxy)
 	err := m.setBypass(option.BypassPath)
 	m.bypass = option.Bypass
 	return err
@@ -165,15 +154,6 @@ func (m *MatchController) setBypass(file string) error {
 	}
 	m.bypassFile = file
 	return m.UpdateMatch()
-}
-
-func (m *MatchController) setProxy(proxy func(host string) (net.Conn, error)) {
-	if proxy == nil {
-		return
-	}
-	fmt.Println("Match Set Proxy", &proxy)
-	m.proxy = proxy
-	m.setDNSProxy(m.dns.Proxy)
 }
 
 func (m *MatchController) UpdateMatch() error {
@@ -391,58 +371,14 @@ func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
 /*
  *     node Control
  */
-func (m *MatchController) ChangeNode(nNode interface{}, hash string) (err error) {
+func (m *MatchController) ChangeNode(conn func(string) (net.Conn, error), hash string) {
 	if m.nodeController.nodeHash == hash {
-		return nil
+		return
+	}
+	if conn == nil {
+		return
 	}
 	m.nodeController.nodeHash = hash
-	var conn func(string) (net.Conn, error)
-	switch nNode.(type) {
-	case *subscr.Shadowsocks:
-		conn, err = m.ssConn(nNode.(*subscr.Shadowsocks))
-		if err != nil {
-			return err
-		}
-	case *subscr.Shadowsocksr:
-		conn, err = m.ssrConn(nNode.(*subscr.Shadowsocksr))
-		if err != nil {
-			return err
-		}
-	default:
-		return errors.New("no support type proxy")
-	}
-	m.setProxy(conn)
-	return
-}
-
-func (m *MatchController) ssConn(n *subscr.Shadowsocks) (func(string) (net.Conn, error), error) {
-	fmt.Println("Start Shadowsocks", n.NHash)
-	conn, err := ssClient.NewShadowsocks(
-		n.Method,
-		n.Password,
-		n.Server, n.Port,
-		n.Plugin,
-		n.PluginOpt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return conn.Conn, nil
-}
-
-func (m *MatchController) ssrConn(n *subscr.Shadowsocksr) (func(string) (net.Conn, error), error) {
-	fmt.Println("Start Shadowsocksr", n.NHash)
-	conn, err := ssrClient.NewShadowsocksrClient(
-		n.Server, n.Port,
-		n.Method,
-		n.Password,
-		n.Obfs,
-		n.Obfsparam,
-		n.Protocol,
-		n.Protoparam,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return conn.Conn, nil
+	m.proxy = conn
+	m.setDNSProxy(m.dns.Proxy)
 }

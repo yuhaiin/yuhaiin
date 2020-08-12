@@ -4,8 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net"
 	"net/url"
 	"strings"
+
+	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
 )
 
 type Shadowsocks struct {
@@ -77,4 +80,23 @@ func map2Shadowsocks(n map[string]interface{}) (*Shadowsocks, error) {
 		}
 	}
 	return node, nil
+}
+
+func map2ShadowsocksConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
+	s, err := map2Shadowsocks(n)
+	if err != nil {
+		return nil, err
+	}
+	ss, err := ssClient.NewShadowsocks(
+		s.Method,
+		s.Password,
+		s.Server, s.Port,
+		s.Plugin,
+		s.PluginOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return ss.Conn, nil
 }
