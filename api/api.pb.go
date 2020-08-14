@@ -27,92 +27,6 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-type AllGroupOrNode struct {
-	Value                []string `protobuf:"bytes,1,rep,name=value,proto3" json:"value,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *AllGroupOrNode) Reset()         { *m = AllGroupOrNode{} }
-func (m *AllGroupOrNode) String() string { return proto.CompactTextString(m) }
-func (*AllGroupOrNode) ProtoMessage()    {}
-func (*AllGroupOrNode) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1b40cafcd4234784, []int{0}
-}
-
-func (m *AllGroupOrNode) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AllGroupOrNode.Unmarshal(m, b)
-}
-func (m *AllGroupOrNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AllGroupOrNode.Marshal(b, m, deterministic)
-}
-func (m *AllGroupOrNode) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AllGroupOrNode.Merge(m, src)
-}
-func (m *AllGroupOrNode) XXX_Size() int {
-	return xxx_messageInfo_AllGroupOrNode.Size(m)
-}
-func (m *AllGroupOrNode) XXX_DiscardUnknown() {
-	xxx_messageInfo_AllGroupOrNode.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AllGroupOrNode proto.InternalMessageInfo
-
-func (m *AllGroupOrNode) GetValue() []string {
-	if m != nil {
-		return m.Value
-	}
-	return nil
-}
-
-type NowNodeGroupAndNode struct {
-	Group                string   `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
-	Node                 string   `protobuf:"bytes,2,opt,name=node,proto3" json:"node,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *NowNodeGroupAndNode) Reset()         { *m = NowNodeGroupAndNode{} }
-func (m *NowNodeGroupAndNode) String() string { return proto.CompactTextString(m) }
-func (*NowNodeGroupAndNode) ProtoMessage()    {}
-func (*NowNodeGroupAndNode) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1b40cafcd4234784, []int{1}
-}
-
-func (m *NowNodeGroupAndNode) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_NowNodeGroupAndNode.Unmarshal(m, b)
-}
-func (m *NowNodeGroupAndNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_NowNodeGroupAndNode.Marshal(b, m, deterministic)
-}
-func (m *NowNodeGroupAndNode) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_NowNodeGroupAndNode.Merge(m, src)
-}
-func (m *NowNodeGroupAndNode) XXX_Size() int {
-	return xxx_messageInfo_NowNodeGroupAndNode.Size(m)
-}
-func (m *NowNodeGroupAndNode) XXX_DiscardUnknown() {
-	xxx_messageInfo_NowNodeGroupAndNode.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_NowNodeGroupAndNode proto.InternalMessageInfo
-
-func (m *NowNodeGroupAndNode) GetGroup() string {
-	if m != nil {
-		return m.Group
-	}
-	return ""
-}
-
-func (m *NowNodeGroupAndNode) GetNode() string {
-	if m != nil {
-		return m.Node
-	}
-	return ""
-}
-
 type DaUaDrUr struct {
 	Download             string   `protobuf:"bytes,1,opt,name=Download,proto3" json:"Download,omitempty"`
 	Upload               string   `protobuf:"bytes,2,opt,name=Upload,proto3" json:"Upload,omitempty"`
@@ -127,7 +41,7 @@ func (m *DaUaDrUr) Reset()         { *m = DaUaDrUr{} }
 func (m *DaUaDrUr) String() string { return proto.CompactTextString(m) }
 func (*DaUaDrUr) ProtoMessage()    {}
 func (*DaUaDrUr) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1b40cafcd4234784, []int{2}
+	return fileDescriptor_1b40cafcd4234784, []int{0}
 }
 
 func (m *DaUaDrUr) XXX_Unmarshal(b []byte) error {
@@ -176,10 +90,267 @@ func (m *DaUaDrUr) GetUpRate() string {
 	return ""
 }
 
+type NodeMap struct {
+	Value                map[string]string `protobuf:"bytes,1,rep,name=Value,proto3" json:"Value,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *NodeMap) Reset()         { *m = NodeMap{} }
+func (m *NodeMap) String() string { return proto.CompactTextString(m) }
+func (*NodeMap) ProtoMessage()    {}
+func (*NodeMap) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{1}
+}
+
+func (m *NodeMap) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_NodeMap.Unmarshal(m, b)
+}
+func (m *NodeMap) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_NodeMap.Marshal(b, m, deterministic)
+}
+func (m *NodeMap) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NodeMap.Merge(m, src)
+}
+func (m *NodeMap) XXX_Size() int {
+	return xxx_messageInfo_NodeMap.Size(m)
+}
+func (m *NodeMap) XXX_DiscardUnknown() {
+	xxx_messageInfo_NodeMap.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NodeMap proto.InternalMessageInfo
+
+func (m *NodeMap) GetValue() map[string]string {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+type Nodes struct {
+	Value                map[string]*AllGroupOrNode `protobuf:"bytes,1,rep,name=value,proto3" json:"value,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
+}
+
+func (m *Nodes) Reset()         { *m = Nodes{} }
+func (m *Nodes) String() string { return proto.CompactTextString(m) }
+func (*Nodes) ProtoMessage()    {}
+func (*Nodes) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{2}
+}
+
+func (m *Nodes) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Nodes.Unmarshal(m, b)
+}
+func (m *Nodes) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Nodes.Marshal(b, m, deterministic)
+}
+func (m *Nodes) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Nodes.Merge(m, src)
+}
+func (m *Nodes) XXX_Size() int {
+	return xxx_messageInfo_Nodes.Size(m)
+}
+func (m *Nodes) XXX_DiscardUnknown() {
+	xxx_messageInfo_Nodes.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Nodes proto.InternalMessageInfo
+
+func (m *Nodes) GetValue() map[string]*AllGroupOrNode {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+type AllGroupOrNode struct {
+	Value                []string `protobuf:"bytes,1,rep,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AllGroupOrNode) Reset()         { *m = AllGroupOrNode{} }
+func (m *AllGroupOrNode) String() string { return proto.CompactTextString(m) }
+func (*AllGroupOrNode) ProtoMessage()    {}
+func (*AllGroupOrNode) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{3}
+}
+
+func (m *AllGroupOrNode) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AllGroupOrNode.Unmarshal(m, b)
+}
+func (m *AllGroupOrNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AllGroupOrNode.Marshal(b, m, deterministic)
+}
+func (m *AllGroupOrNode) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AllGroupOrNode.Merge(m, src)
+}
+func (m *AllGroupOrNode) XXX_Size() int {
+	return xxx_messageInfo_AllGroupOrNode.Size(m)
+}
+func (m *AllGroupOrNode) XXX_DiscardUnknown() {
+	xxx_messageInfo_AllGroupOrNode.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AllGroupOrNode proto.InternalMessageInfo
+
+func (m *AllGroupOrNode) GetValue() []string {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+type GroupAndNode struct {
+	Group                string   `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
+	Node                 string   `protobuf:"bytes,2,opt,name=node,proto3" json:"node,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GroupAndNode) Reset()         { *m = GroupAndNode{} }
+func (m *GroupAndNode) String() string { return proto.CompactTextString(m) }
+func (*GroupAndNode) ProtoMessage()    {}
+func (*GroupAndNode) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{4}
+}
+
+func (m *GroupAndNode) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GroupAndNode.Unmarshal(m, b)
+}
+func (m *GroupAndNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GroupAndNode.Marshal(b, m, deterministic)
+}
+func (m *GroupAndNode) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GroupAndNode.Merge(m, src)
+}
+func (m *GroupAndNode) XXX_Size() int {
+	return xxx_messageInfo_GroupAndNode.Size(m)
+}
+func (m *GroupAndNode) XXX_DiscardUnknown() {
+	xxx_messageInfo_GroupAndNode.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GroupAndNode proto.InternalMessageInfo
+
+func (m *GroupAndNode) GetGroup() string {
+	if m != nil {
+		return m.Group
+	}
+	return ""
+}
+
+func (m *GroupAndNode) GetNode() string {
+	if m != nil {
+		return m.Node
+	}
+	return ""
+}
+
+type Link struct {
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Url                  string   `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Link) Reset()         { *m = Link{} }
+func (m *Link) String() string { return proto.CompactTextString(m) }
+func (*Link) ProtoMessage()    {}
+func (*Link) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{5}
+}
+
+func (m *Link) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Link.Unmarshal(m, b)
+}
+func (m *Link) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Link.Marshal(b, m, deterministic)
+}
+func (m *Link) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Link.Merge(m, src)
+}
+func (m *Link) XXX_Size() int {
+	return xxx_messageInfo_Link.Size(m)
+}
+func (m *Link) XXX_DiscardUnknown() {
+	xxx_messageInfo_Link.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Link proto.InternalMessageInfo
+
+func (m *Link) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *Link) GetUrl() string {
+	if m != nil {
+		return m.Url
+	}
+	return ""
+}
+
+type Links struct {
+	Value                map[string]string `protobuf:"bytes,1,rep,name=Value,proto3" json:"Value,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *Links) Reset()         { *m = Links{} }
+func (m *Links) String() string { return proto.CompactTextString(m) }
+func (*Links) ProtoMessage()    {}
+func (*Links) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{6}
+}
+
+func (m *Links) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Links.Unmarshal(m, b)
+}
+func (m *Links) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Links.Marshal(b, m, deterministic)
+}
+func (m *Links) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Links.Merge(m, src)
+}
+func (m *Links) XXX_Size() int {
+	return xxx_messageInfo_Links.Size(m)
+}
+func (m *Links) XXX_DiscardUnknown() {
+	xxx_messageInfo_Links.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Links proto.InternalMessageInfo
+
+func (m *Links) GetValue() map[string]string {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
 func init() {
-	proto.RegisterType((*AllGroupOrNode)(nil), "yuhaiin.api.allGroupOrNode")
-	proto.RegisterType((*NowNodeGroupAndNode)(nil), "yuhaiin.api.NowNodeGroupAndNode")
 	proto.RegisterType((*DaUaDrUr)(nil), "yuhaiin.api.DaUaDrUr")
+	proto.RegisterType((*NodeMap)(nil), "yuhaiin.api.nodeMap")
+	proto.RegisterMapType((map[string]string)(nil), "yuhaiin.api.nodeMap.ValueEntry")
+	proto.RegisterType((*Nodes)(nil), "yuhaiin.api.nodes")
+	proto.RegisterMapType((map[string]*AllGroupOrNode)(nil), "yuhaiin.api.nodes.ValueEntry")
+	proto.RegisterType((*AllGroupOrNode)(nil), "yuhaiin.api.allGroupOrNode")
+	proto.RegisterType((*GroupAndNode)(nil), "yuhaiin.api.GroupAndNode")
+	proto.RegisterType((*Link)(nil), "yuhaiin.api.Link")
+	proto.RegisterType((*Links)(nil), "yuhaiin.api.Links")
+	proto.RegisterMapType((map[string]string)(nil), "yuhaiin.api.Links.ValueEntry")
 }
 
 func init() {
@@ -187,44 +358,57 @@ func init() {
 }
 
 var fileDescriptor_1b40cafcd4234784 = []byte{
-	// 583 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x55, 0xc1, 0x4e, 0xdb, 0x40,
-	0x10, 0x8d, 0x0b, 0x85, 0x30, 0x40, 0x0e, 0x0b, 0x45, 0x51, 0xa8, 0xaa, 0xc8, 0x87, 0x8a, 0x93,
-	0x8d, 0xe0, 0xd8, 0x56, 0x34, 0xc4, 0x60, 0x22, 0x22, 0x40, 0xb6, 0xd2, 0x43, 0x6f, 0x1b, 0x7b,
-	0x30, 0x2b, 0x9c, 0xdd, 0xd5, 0x7a, 0xdd, 0x94, 0x7f, 0xef, 0xa1, 0xf2, 0xda, 0xa1, 0x4d, 0x8b,
-	0x49, 0x1b, 0x4e, 0xc9, 0x9b, 0x99, 0xf7, 0xec, 0x79, 0x3b, 0xb3, 0x86, 0x6d, 0x2a, 0x99, 0x4b,
-	0x25, 0x73, 0xa4, 0x12, 0x5a, 0x90, 0xcd, 0x87, 0xfc, 0x8e, 0x32, 0xc6, 0x1d, 0x2a, 0x59, 0x67,
-	0x3f, 0x11, 0x22, 0x49, 0xd1, 0x35, 0xa9, 0x71, 0x7e, 0xeb, 0xe2, 0x44, 0xea, 0x87, 0xb2, 0xb2,
-	0xf3, 0xee, 0xcf, 0xe4, 0x54, 0x51, 0x29, 0x51, 0x65, 0x55, 0x7e, 0x27, 0x12, 0xfc, 0x96, 0x25,
-	0x6e, 0xf9, 0x53, 0x06, 0xed, 0xf7, 0xd0, 0xa2, 0x69, 0xea, 0x2b, 0x91, 0xcb, 0x6b, 0x75, 0x25,
-	0x62, 0x24, 0xbb, 0xf0, 0xfa, 0x1b, 0x4d, 0x73, 0x6c, 0x5b, 0xdd, 0x95, 0x83, 0x8d, 0xa0, 0x04,
-	0xf6, 0x09, 0xec, 0x5c, 0x89, 0x69, 0x51, 0x60, 0x6a, 0x7b, 0x3c, 0x9e, 0x15, 0x27, 0x05, 0x6e,
-	0x5b, 0x5d, 0xab, 0x28, 0x36, 0x80, 0x10, 0x58, 0xe5, 0x22, 0xc6, 0xf6, 0x2b, 0x13, 0x34, 0xff,
-	0x6d, 0x05, 0x4d, 0x8f, 0x8e, 0xa8, 0xa7, 0x46, 0x8a, 0x74, 0xa0, 0xe9, 0x89, 0x29, 0x4f, 0x05,
-	0x8d, 0x2b, 0xe2, 0x23, 0x26, 0x7b, 0xb0, 0x36, 0x92, 0x26, 0x53, 0xb2, 0x2b, 0x34, 0xe3, 0x04,
-	0x54, 0x63, 0x7b, 0xe5, 0x17, 0xa7, 0xc0, 0x25, 0xc7, 0x64, 0x56, 0x67, 0x9c, 0x02, 0x1d, 0xfd,
-	0x00, 0x58, 0xa1, 0x92, 0x91, 0x53, 0x68, 0xf5, 0x15, 0x52, 0x8d, 0x43, 0x11, 0xdd, 0x9f, 0xb3,
-	0x14, 0xc9, 0x9e, 0x53, 0x9a, 0xe5, 0xcc, 0xcc, 0x72, 0xce, 0x0a, 0x27, 0x3b, 0x35, 0x71, 0xbb,
-	0x41, 0x4e, 0x60, 0xf3, 0x46, 0x89, 0x08, 0xb3, 0x6c, 0xc0, 0x99, 0x5e, 0x42, 0xe0, 0x02, 0x5a,
-	0x3e, 0xea, 0x20, 0xe7, 0x9c, 0xf1, 0xe4, 0x42, 0x64, 0xf5, 0x1a, 0x6f, 0xff, 0x8a, 0x87, 0x5a,
-	0x31, 0x9e, 0x7c, 0x31, 0x27, 0xd1, 0x20, 0x1f, 0xa1, 0xd9, 0x4f, 0x19, 0x72, 0x7d, 0xcd, 0x5f,
-	0xd4, 0xc8, 0xd9, 0xf7, 0xa5, 0x1a, 0xf9, 0x00, 0x1b, 0x3e, 0xea, 0xbe, 0x99, 0xa2, 0x5a, 0xfa,
-	0xae, 0xf3, 0xdb, 0xdc, 0x3a, 0x21, 0x6a, 0xcd, 0x78, 0x52, 0x92, 0xc3, 0x47, 0xf2, 0x93, 0x45,
-	0xcf, 0x3c, 0xf9, 0x33, 0x6c, 0x05, 0xc8, 0x26, 0x52, 0x28, 0x1d, 0xe4, 0x4b, 0x9d, 0x62, 0x0f,
-	0x9a, 0x3e, 0x6a, 0x33, 0xc2, 0xb5, 0xec, 0xfd, 0xb9, 0xb7, 0x9a, 0xdf, 0x0e, 0xbb, 0x41, 0xce,
-	0x61, 0xdd, 0x47, 0x6d, 0xa6, 0xff, 0xd9, 0x83, 0x5a, 0xa4, 0x73, 0x03, 0xc4, 0xe8, 0x4c, 0x1f,
-	0x17, 0x8a, 0x4e, 0xea, 0x5b, 0xea, 0xce, 0x89, 0x3d, 0xb1, 0x8a, 0x76, 0x83, 0x5c, 0xc2, 0x76,
-	0xff, 0x8e, 0xf2, 0x04, 0xab, 0x34, 0x59, 0x48, 0x7a, 0xc6, 0xa9, 0x4f, 0xb0, 0x31, 0x92, 0x31,
-	0xd5, 0x18, 0xe6, 0xe3, 0x25, 0x8c, 0xf6, 0x60, 0xd3, 0x47, 0x1d, 0xe6, 0xe3, 0x21, 0xe3, 0xf7,
-	0xd9, 0xb2, 0x5e, 0x0f, 0x00, 0x7a, 0x71, 0x5c, 0xa9, 0xbc, 0xcc, 0xee, 0x21, 0x6c, 0x7b, 0x98,
-	0xa2, 0xe9, 0xe7, 0xe5, 0x6a, 0x97, 0xb0, 0x3e, 0xa4, 0x1a, 0x79, 0xf4, 0xf0, 0x0f, 0x26, 0x2f,
-	0xde, 0xe7, 0xf5, 0x04, 0x75, 0x79, 0x93, 0xd5, 0xf8, 0xf4, 0x66, 0xee, 0x21, 0xb3, 0x8b, 0xd4,
-	0x6e, 0x1c, 0x5a, 0x24, 0x80, 0x56, 0xc8, 0x78, 0x92, 0xe2, 0x80, 0x67, 0x9a, 0xf2, 0x68, 0xd1,
-	0x58, 0x2e, 0x78, 0x9b, 0x03, 0xeb, 0xd0, 0x22, 0x1e, 0x6c, 0xf9, 0xa8, 0x2f, 0x51, 0x71, 0x4c,
-	0x6f, 0x58, 0xfc, 0x1f, 0x37, 0xd5, 0x68, 0xc0, 0xf5, 0xf1, 0x91, 0xd1, 0x3a, 0xb5, 0xbf, 0x76,
-	0x13, 0xa6, 0xef, 0xf2, 0xb1, 0x13, 0x89, 0x89, 0xdb, 0xcb, 0x72, 0x2d, 0x54, 0x7e, 0x4b, 0xdd,
-	0xaa, 0x95, 0xe2, 0x23, 0x37, 0x5e, 0x33, 0xcc, 0xe3, 0x9f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xee,
-	0x44, 0xf1, 0xc1, 0xf6, 0x06, 0x00, 0x00,
+	// 790 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0xcd, 0x72, 0xe2, 0x46,
+	0x10, 0x2e, 0xad, 0xc1, 0x40, 0x63, 0x53, 0xc9, 0x64, 0xb3, 0xe5, 0xb0, 0xf9, 0x71, 0x71, 0x48,
+	0xf9, 0x90, 0x12, 0x1b, 0x5c, 0x49, 0xbc, 0xce, 0xcf, 0x06, 0x83, 0x97, 0xb8, 0xe2, 0xbf, 0x42,
+	0x85, 0x0f, 0xb9, 0x0d, 0xa8, 0x91, 0xa7, 0x2c, 0x66, 0x54, 0xa3, 0x91, 0x09, 0x79, 0x8d, 0x3c,
+	0x44, 0x5e, 0x26, 0x4f, 0x94, 0x5c, 0x52, 0x9a, 0x91, 0x6c, 0x08, 0x48, 0x0e, 0x64, 0x4f, 0x4c,
+	0x4f, 0x7f, 0xdf, 0x37, 0xdd, 0x3d, 0xad, 0x1e, 0x60, 0x97, 0x06, 0xac, 0x49, 0x03, 0x66, 0x07,
+	0x52, 0x28, 0x41, 0xaa, 0xb3, 0xe8, 0x96, 0x32, 0xc6, 0x6d, 0x1a, 0xb0, 0xfa, 0x4b, 0x4f, 0x08,
+	0xcf, 0xc7, 0xa6, 0x76, 0x0d, 0xa3, 0x71, 0x13, 0x27, 0x81, 0x9a, 0x19, 0x64, 0xfd, 0xd3, 0x7f,
+	0x3b, 0xa7, 0x92, 0x06, 0x01, 0xca, 0x30, 0xf1, 0x7f, 0x30, 0x12, 0x7c, 0xcc, 0xbc, 0xa6, 0xf9,
+	0x31, 0x9b, 0x0d, 0x09, 0xe5, 0x2e, 0x1d, 0xd0, 0xae, 0x1c, 0x48, 0x52, 0x87, 0x72, 0x57, 0x4c,
+	0xb9, 0x2f, 0xa8, 0xbb, 0x67, 0xed, 0x5b, 0x07, 0x95, 0xfe, 0x83, 0x4d, 0x5e, 0xc0, 0xf6, 0x20,
+	0xd0, 0x9e, 0x67, 0xda, 0x93, 0x58, 0x29, 0xa7, 0x4f, 0x15, 0xee, 0x6d, 0x3d, 0x72, 0x62, 0xdb,
+	0x70, 0xb4, 0xa7, 0x90, 0x72, 0x62, 0xab, 0xf1, 0x1b, 0x94, 0xb8, 0x70, 0xf1, 0x82, 0x06, 0xe4,
+	0x2b, 0x28, 0xde, 0x50, 0x3f, 0xc2, 0x3d, 0x6b, 0x7f, 0xeb, 0xa0, 0xda, 0xfa, 0xcc, 0x9e, 0xcb,
+	0xd6, 0x4e, 0x40, 0xb6, 0x46, 0x9c, 0x72, 0x25, 0x67, 0x7d, 0x83, 0xae, 0x1f, 0x01, 0x3c, 0x6e,
+	0x92, 0xf7, 0x60, 0xeb, 0x0e, 0x67, 0x49, 0xc8, 0xf1, 0x92, 0x3c, 0x87, 0xe2, 0xbd, 0x96, 0x35,
+	0xc1, 0x1a, 0xe3, 0xf8, 0xd9, 0x91, 0xd5, 0xf8, 0xdd, 0x82, 0x62, 0xac, 0x1b, 0x92, 0xc3, 0x14,
+	0x63, 0x8e, 0xfe, 0x64, 0xe9, 0xe8, 0x70, 0xe1, 0x60, 0x8d, 0xad, 0x0f, 0x9e, 0x38, 0xf8, 0xcb,
+	0xf9, 0x83, 0xab, 0xad, 0x97, 0x0b, 0xa2, 0xd4, 0xf7, 0x7b, 0x52, 0x44, 0xc1, 0x95, 0xbc, 0x14,
+	0x2e, 0xce, 0x47, 0xf5, 0x39, 0xd4, 0x16, 0x9d, 0x8f, 0x19, 0xc4, 0xd1, 0xa5, 0x19, 0x34, 0x8e,
+	0x60, 0x47, 0x83, 0xda, 0xdc, 0x4d, 0x51, 0x5e, 0x6c, 0x27, 0x21, 0x18, 0x83, 0x10, 0x28, 0xc4,
+	0xf1, 0x27, 0xc9, 0xeb, 0x75, 0xe3, 0x0b, 0x28, 0x9c, 0x33, 0x7e, 0xa7, 0x7d, 0x74, 0x82, 0x09,
+	0x41, 0xaf, 0xe3, 0x34, 0x22, 0xe9, 0x27, 0xf0, 0x78, 0xd9, 0xb8, 0x87, 0x62, 0x8c, 0xd6, 0x45,
+	0xba, 0xc9, 0x2c, 0x92, 0x86, 0xbc, 0xcb, 0xdb, 0x69, 0xfd, 0x51, 0x80, 0x6a, 0x20, 0xc5, 0x08,
+	0xc3, 0xf0, 0x8c, 0x33, 0x45, 0x7e, 0x84, 0x5a, 0x47, 0x22, 0x55, 0x78, 0x2e, 0x46, 0x77, 0x6f,
+	0x99, 0x8f, 0xe4, 0x85, 0x6d, 0xba, 0xdc, 0x4e, 0xbb, 0xdc, 0x3e, 0x8d, 0x3f, 0x81, 0x7a, 0xc6,
+	0x3e, 0xf9, 0x1e, 0xaa, 0xd7, 0x73, 0x82, 0xeb, 0xd2, 0xdf, 0x42, 0xad, 0x87, 0xaa, 0x1f, 0x71,
+	0xce, 0xb8, 0xf7, 0x93, 0x08, 0xb3, 0x15, 0x3e, 0x5e, 0xda, 0x77, 0x94, 0x64, 0xdc, 0xd3, 0x95,
+	0x20, 0xc7, 0x50, 0xee, 0xf8, 0x0c, 0xb9, 0xba, 0xe2, 0xff, 0x23, 0x85, 0xd3, 0x5f, 0x37, 0x48,
+	0xa1, 0x0b, 0x3b, 0x3d, 0x54, 0x3f, 0xa3, 0xe4, 0xe8, 0x5f, 0x33, 0x77, 0x8d, 0x04, 0x06, 0x67,
+	0x5c, 0x1d, 0xb6, 0x4c, 0x02, 0xdf, 0x01, 0x38, 0x4a, 0x04, 0x46, 0x66, 0xed, 0x18, 0xae, 0xa1,
+	0xe6, 0x30, 0xee, 0xf9, 0x78, 0xc6, 0x43, 0x45, 0xf9, 0x08, 0x49, 0x6e, 0xb9, 0xf2, 0x8b, 0x79,
+	0x60, 0xbd, 0xb2, 0x5a, 0x7f, 0x59, 0xb0, 0x6d, 0x06, 0x19, 0x79, 0x0d, 0x95, 0x1e, 0xaa, 0x8e,
+	0x31, 0xb2, 0x22, 0x7b, 0xbe, 0xd0, 0xb9, 0x0e, 0x2a, 0xc5, 0xb8, 0xa6, 0x3a, 0x0f, 0xd4, 0x95,
+	0x90, 0xcc, 0x94, 0x7e, 0x80, 0x9d, 0x3e, 0xb2, 0x49, 0x20, 0xa4, 0xea, 0x47, 0x1b, 0x34, 0xe6,
+	0x31, 0x94, 0x3c, 0x54, 0x66, 0x4e, 0x66, 0x50, 0x3f, 0x5c, 0x08, 0x28, 0x1d, 0xd3, 0xaf, 0xac,
+	0xd6, 0x9f, 0x05, 0x28, 0xe8, 0xef, 0xff, 0x6b, 0x28, 0xf7, 0x50, 0x5d, 0xea, 0x79, 0x96, 0xa5,
+	0x42, 0x96, 0x07, 0x1b, 0x79, 0xa3, 0x79, 0x7a, 0x94, 0x64, 0xf2, 0xf2, 0x66, 0x17, 0xe9, 0x42,
+	0x29, 0x39, 0xf8, 0x89, 0x9b, 0xcc, 0x55, 0xe9, 0x01, 0xd1, 0x2a, 0xd3, 0x87, 0xa1, 0x16, 0x8f,
+	0xa3, 0xac, 0x80, 0x3e, 0x5a, 0x90, 0x5a, 0x98, 0x83, 0x27, 0xb0, 0xdb, 0xb9, 0xa5, 0xdc, 0xc3,
+	0x4b, 0x31, 0xd5, 0x1b, 0xd9, 0xd8, 0xcc, 0x0b, 0xf9, 0x06, 0x4a, 0x6d, 0x37, 0x19, 0xab, 0xab,
+	0x9e, 0xa1, 0x9c, 0x9b, 0x84, 0x0b, 0xe1, 0xb2, 0xf1, 0x6c, 0x03, 0xee, 0x1b, 0x80, 0x2e, 0xfa,
+	0xa8, 0x70, 0xd3, 0xa8, 0x4f, 0xa0, 0x74, 0x4e, 0x15, 0xf2, 0xd1, 0x2c, 0x8f, 0x9d, 0x7b, 0x47,
+	0xad, 0xbf, 0x2d, 0xa8, 0x38, 0xd1, 0x30, 0x1c, 0x49, 0x36, 0x44, 0xf2, 0x2d, 0x54, 0x06, 0x81,
+	0x4b, 0x15, 0x3a, 0xd1, 0x70, 0xed, 0xae, 0x7e, 0x0d, 0xd5, 0x1e, 0x2a, 0x27, 0x1a, 0x9a, 0xe7,
+	0xe3, 0xbf, 0xf5, 0x64, 0xfa, 0xd4, 0x40, 0xdb, 0x75, 0x13, 0x2a, 0x79, 0x7f, 0x09, 0xb1, 0x92,
+	0xd4, 0x86, 0x5d, 0x53, 0xbf, 0x94, 0x97, 0xdf, 0x8d, 0x2b, 0x24, 0x4e, 0x1a, 0xbf, 0xec, 0x7b,
+	0x4c, 0xdd, 0x46, 0x43, 0x7b, 0x24, 0x26, 0xcd, 0x76, 0x18, 0x29, 0x21, 0xa3, 0x31, 0x6d, 0x26,
+	0xc8, 0xf8, 0xaf, 0xd8, 0x70, 0x5b, 0xab, 0x1d, 0xfe, 0x13, 0x00, 0x00, 0xff, 0xff, 0x12, 0xdc,
+	0x83, 0x86, 0x9c, 0x09, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -235,199 +419,414 @@ var _ grpc.ClientConnInterface
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion6
 
-// ApiClient is the client API for Api service.
+// ProcessInitClient is the client API for ProcessInit service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type ApiClient interface {
+type ProcessInitClient interface {
 	CreateLockFile(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	ProcessInit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	GetRunningHost(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.StringValue, error)
 	ClientOn(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	ProcessExit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*config.Setting, error)
-	SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*empty.Empty, error)
-	ReimportRule(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	GetGroup(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error)
-	GetNode(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error)
-	GetNowGroupAndName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*NowNodeGroupAndNode, error)
-	ChangeNowNode(ctx context.Context, in *NowNodeGroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error)
-	UpdateSub(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	GetSubLinks(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error)
-	AddSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error)
-	DeleteSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error)
-	Latency(ctx context.Context, in *NowNodeGroupAndNode, opts ...grpc.CallOption) (*wrappers.StringValue, error)
-	GetRate(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (Api_GetRateClient, error)
-	SingleInstance(ctx context.Context, opts ...grpc.CallOption) (Api_SingleInstanceClient, error)
 	GetKernelPid(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.UInt32Value, error)
+	StopKernel(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	SingleInstance(ctx context.Context, opts ...grpc.CallOption) (ProcessInit_SingleInstanceClient, error)
 }
 
-type apiClient struct {
+type processInitClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewApiClient(cc grpc.ClientConnInterface) ApiClient {
-	return &apiClient{cc}
+func NewProcessInitClient(cc grpc.ClientConnInterface) ProcessInitClient {
+	return &processInitClient{cc}
 }
 
-func (c *apiClient) CreateLockFile(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *processInitClient) CreateLockFile(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/CreateLockFile", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/CreateLockFile", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) ProcessInit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *processInitClient) ProcessInit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/ProcessInit", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/ProcessInit", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) GetRunningHost(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.StringValue, error) {
+func (c *processInitClient) GetRunningHost(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.StringValue, error) {
 	out := new(wrappers.StringValue)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/GetRunningHost", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/GetRunningHost", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) ClientOn(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *processInitClient) ClientOn(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/ClientOn", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/ClientOn", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) ProcessExit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *processInitClient) ProcessExit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/ProcessExit", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/ProcessExit", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*config.Setting, error) {
+func (c *processInitClient) GetKernelPid(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.UInt32Value, error) {
+	out := new(wrappers.UInt32Value)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/GetKernelPid", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *processInitClient) StopKernel(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/StopKernel", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *processInitClient) SingleInstance(ctx context.Context, opts ...grpc.CallOption) (ProcessInit_SingleInstanceClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_ProcessInit_serviceDesc.Streams[0], "/yuhaiin.api.processInit/SingleInstance", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &processInitSingleInstanceClient{stream}
+	return x, nil
+}
+
+type ProcessInit_SingleInstanceClient interface {
+	Send(*wrappers.StringValue) error
+	Recv() (*wrappers.StringValue, error)
+	grpc.ClientStream
+}
+
+type processInitSingleInstanceClient struct {
+	grpc.ClientStream
+}
+
+func (x *processInitSingleInstanceClient) Send(m *wrappers.StringValue) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *processInitSingleInstanceClient) Recv() (*wrappers.StringValue, error) {
+	m := new(wrappers.StringValue)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ProcessInitServer is the server API for ProcessInit service.
+type ProcessInitServer interface {
+	CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error)
+	ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error)
+	GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error)
+	ClientOn(context.Context, *empty.Empty) (*empty.Empty, error)
+	ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error)
+	GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error)
+	StopKernel(context.Context, *empty.Empty) (*empty.Empty, error)
+	SingleInstance(ProcessInit_SingleInstanceServer) error
+}
+
+// UnimplementedProcessInitServer can be embedded to have forward compatible implementations.
+type UnimplementedProcessInitServer struct {
+}
+
+func (*UnimplementedProcessInitServer) CreateLockFile(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateLockFile not implemented")
+}
+func (*UnimplementedProcessInitServer) ProcessInit(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ProcessInit not implemented")
+}
+func (*UnimplementedProcessInitServer) GetRunningHost(ctx context.Context, req *empty.Empty) (*wrappers.StringValue, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRunningHost not implemented")
+}
+func (*UnimplementedProcessInitServer) ClientOn(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClientOn not implemented")
+}
+func (*UnimplementedProcessInitServer) ProcessExit(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ProcessExit not implemented")
+}
+func (*UnimplementedProcessInitServer) GetKernelPid(ctx context.Context, req *empty.Empty) (*wrappers.UInt32Value, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetKernelPid not implemented")
+}
+func (*UnimplementedProcessInitServer) StopKernel(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopKernel not implemented")
+}
+func (*UnimplementedProcessInitServer) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
+	return status.Errorf(codes.Unimplemented, "method SingleInstance not implemented")
+}
+
+func RegisterProcessInitServer(s *grpc.Server, srv ProcessInitServer) {
+	s.RegisterService(&_ProcessInit_serviceDesc, srv)
+}
+
+func _ProcessInit_CreateLockFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessInitServer).CreateLockFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.processInit/CreateLockFile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessInitServer).CreateLockFile(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessInit_ProcessInit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessInitServer).ProcessInit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.processInit/ProcessInit",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessInitServer).ProcessInit(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessInit_GetRunningHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessInitServer).GetRunningHost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.processInit/GetRunningHost",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessInitServer).GetRunningHost(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessInit_ClientOn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessInitServer).ClientOn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.processInit/ClientOn",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessInitServer).ClientOn(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessInit_ProcessExit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessInitServer).ProcessExit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.processInit/ProcessExit",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessInitServer).ProcessExit(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessInit_GetKernelPid_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessInitServer).GetKernelPid(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.processInit/GetKernelPid",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessInitServer).GetKernelPid(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessInit_StopKernel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessInitServer).StopKernel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.processInit/StopKernel",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessInitServer).StopKernel(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessInit_SingleInstance_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ProcessInitServer).SingleInstance(&processInitSingleInstanceServer{stream})
+}
+
+type ProcessInit_SingleInstanceServer interface {
+	Send(*wrappers.StringValue) error
+	Recv() (*wrappers.StringValue, error)
+	grpc.ServerStream
+}
+
+type processInitSingleInstanceServer struct {
+	grpc.ServerStream
+}
+
+func (x *processInitSingleInstanceServer) Send(m *wrappers.StringValue) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *processInitSingleInstanceServer) Recv() (*wrappers.StringValue, error) {
+	m := new(wrappers.StringValue)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+var _ProcessInit_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "yuhaiin.api.processInit",
+	HandlerType: (*ProcessInitServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateLockFile",
+			Handler:    _ProcessInit_CreateLockFile_Handler,
+		},
+		{
+			MethodName: "ProcessInit",
+			Handler:    _ProcessInit_ProcessInit_Handler,
+		},
+		{
+			MethodName: "GetRunningHost",
+			Handler:    _ProcessInit_GetRunningHost_Handler,
+		},
+		{
+			MethodName: "ClientOn",
+			Handler:    _ProcessInit_ClientOn_Handler,
+		},
+		{
+			MethodName: "ProcessExit",
+			Handler:    _ProcessInit_ProcessExit_Handler,
+		},
+		{
+			MethodName: "GetKernelPid",
+			Handler:    _ProcessInit_GetKernelPid_Handler,
+		},
+		{
+			MethodName: "StopKernel",
+			Handler:    _ProcessInit_StopKernel_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SingleInstance",
+			Handler:       _ProcessInit_SingleInstance_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "api/api.proto",
+}
+
+// ConfigClient is the client API for Config service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type ConfigClient interface {
+	GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*config.Setting, error)
+	SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*empty.Empty, error)
+	ReimportRule(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	GetRate(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (Config_GetRateClient, error)
+}
+
+type configClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewConfigClient(cc grpc.ClientConnInterface) ConfigClient {
+	return &configClient{cc}
+}
+
+func (c *configClient) GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*config.Setting, error) {
 	out := new(config.Setting)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/GetConfig", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.config/GetConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *configClient) SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/SetConfig", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.config/SetConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) ReimportRule(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *configClient) ReimportRule(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/ReimportRule", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.config/ReimportRule", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) GetGroup(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
-	out := new(AllGroupOrNode)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/GetGroup", in, out, opts...)
+func (c *configClient) GetRate(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (Config_GetRateClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Config_serviceDesc.Streams[0], "/yuhaiin.api.config/getRate", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *apiClient) GetNode(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
-	out := new(AllGroupOrNode)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/GetNode", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) GetNowGroupAndName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*NowNodeGroupAndNode, error) {
-	out := new(NowNodeGroupAndNode)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/GetNowGroupAndName", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) ChangeNowNode(ctx context.Context, in *NowNodeGroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/ChangeNowNode", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) UpdateSub(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/UpdateSub", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) GetSubLinks(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
-	out := new(AllGroupOrNode)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/GetSubLinks", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) AddSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
-	out := new(AllGroupOrNode)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/AddSubLink", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) DeleteSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
-	out := new(AllGroupOrNode)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/DeleteSubLink", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) Latency(ctx context.Context, in *NowNodeGroupAndNode, opts ...grpc.CallOption) (*wrappers.StringValue, error) {
-	out := new(wrappers.StringValue)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/Latency", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *apiClient) GetRate(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (Api_GetRateClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Api_serviceDesc.Streams[0], "/yuhaiin.api.api/getRate", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &apiGetRateClient{stream}
+	x := &configGetRateClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -437,16 +836,16 @@ func (c *apiClient) GetRate(ctx context.Context, in *empty.Empty, opts ...grpc.C
 	return x, nil
 }
 
-type Api_GetRateClient interface {
+type Config_GetRateClient interface {
 	Recv() (*DaUaDrUr, error)
 	grpc.ClientStream
 }
 
-type apiGetRateClient struct {
+type configGetRateClient struct {
 	grpc.ClientStream
 }
 
-func (x *apiGetRateClient) Recv() (*DaUaDrUr, error) {
+func (x *configGetRateClient) Recv() (*DaUaDrUr, error) {
 	m := new(DaUaDrUr)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -454,599 +853,673 @@ func (x *apiGetRateClient) Recv() (*DaUaDrUr, error) {
 	return m, nil
 }
 
-func (c *apiClient) SingleInstance(ctx context.Context, opts ...grpc.CallOption) (Api_SingleInstanceClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Api_serviceDesc.Streams[1], "/yuhaiin.api.api/SingleInstance", opts...)
-	if err != nil {
+// ConfigServer is the server API for Config service.
+type ConfigServer interface {
+	GetConfig(context.Context, *empty.Empty) (*config.Setting, error)
+	SetConfig(context.Context, *config.Setting) (*empty.Empty, error)
+	ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error)
+	GetRate(*empty.Empty, Config_GetRateServer) error
+}
+
+// UnimplementedConfigServer can be embedded to have forward compatible implementations.
+type UnimplementedConfigServer struct {
+}
+
+func (*UnimplementedConfigServer) GetConfig(ctx context.Context, req *empty.Empty) (*config.Setting, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
+}
+func (*UnimplementedConfigServer) SetConfig(ctx context.Context, req *config.Setting) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetConfig not implemented")
+}
+func (*UnimplementedConfigServer) ReimportRule(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReimportRule not implemented")
+}
+func (*UnimplementedConfigServer) GetRate(req *empty.Empty, srv Config_GetRateServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetRate not implemented")
+}
+
+func RegisterConfigServer(s *grpc.Server, srv ConfigServer) {
+	s.RegisterService(&_Config_serviceDesc, srv)
+}
+
+func _Config_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	x := &apiSingleInstanceClient{stream}
-	return x, nil
+	if interceptor == nil {
+		return srv.(ConfigServer).GetConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.config/GetConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServer).GetConfig(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type Api_SingleInstanceClient interface {
-	Send(*wrappers.StringValue) error
-	Recv() (*wrappers.StringValue, error)
-	grpc.ClientStream
-}
-
-type apiSingleInstanceClient struct {
-	grpc.ClientStream
-}
-
-func (x *apiSingleInstanceClient) Send(m *wrappers.StringValue) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *apiSingleInstanceClient) Recv() (*wrappers.StringValue, error) {
-	m := new(wrappers.StringValue)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
+func _Config_SetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(config.Setting)
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	return m, nil
+	if interceptor == nil {
+		return srv.(ConfigServer).SetConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.config/SetConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServer).SetConfig(ctx, req.(*config.Setting))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-func (c *apiClient) GetKernelPid(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.UInt32Value, error) {
-	out := new(wrappers.UInt32Value)
-	err := c.cc.Invoke(ctx, "/yuhaiin.api.api/GetKernelPid", in, out, opts...)
+func _Config_ReimportRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServer).ReimportRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.config/ReimportRule",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServer).ReimportRule(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Config_GetRate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(empty.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ConfigServer).GetRate(m, &configGetRateServer{stream})
+}
+
+type Config_GetRateServer interface {
+	Send(*DaUaDrUr) error
+	grpc.ServerStream
+}
+
+type configGetRateServer struct {
+	grpc.ServerStream
+}
+
+func (x *configGetRateServer) Send(m *DaUaDrUr) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+var _Config_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "yuhaiin.api.config",
+	HandlerType: (*ConfigServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetConfig",
+			Handler:    _Config_GetConfig_Handler,
+		},
+		{
+			MethodName: "SetConfig",
+			Handler:    _Config_SetConfig_Handler,
+		},
+		{
+			MethodName: "ReimportRule",
+			Handler:    _Config_ReimportRule_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "getRate",
+			Handler:       _Config_GetRate_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "api/api.proto",
+}
+
+// NodeClient is the client API for Node service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type NodeClient interface {
+	GetNodes(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Nodes, error)
+	GetGroup(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error)
+	GetNode(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error)
+	GetNowGroupAndName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GroupAndNode, error)
+	ChangeNowNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error)
+	AddNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error)
+	ModifyNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error)
+	Latency(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*wrappers.StringValue, error)
+}
+
+type nodeClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewNodeClient(cc grpc.ClientConnInterface) NodeClient {
+	return &nodeClient{cc}
+}
+
+func (c *nodeClient) GetNodes(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Nodes, error) {
+	out := new(Nodes)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetNodes", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ApiServer is the server API for Api service.
-type ApiServer interface {
-	CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error)
-	ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error)
-	GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error)
-	ClientOn(context.Context, *empty.Empty) (*empty.Empty, error)
-	ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error)
-	GetConfig(context.Context, *empty.Empty) (*config.Setting, error)
-	SetConfig(context.Context, *config.Setting) (*empty.Empty, error)
-	ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error)
+func (c *nodeClient) GetGroup(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
+	out := new(AllGroupOrNode)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetGroup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) GetNode(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
+	out := new(AllGroupOrNode)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) GetNowGroupAndName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GroupAndNode, error) {
+	out := new(GroupAndNode)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetNowGroupAndName", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) ChangeNowNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/ChangeNowNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) AddNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/AddNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) ModifyNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/ModifyNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) DeleteNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/DeleteNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) Latency(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*wrappers.StringValue, error) {
+	out := new(wrappers.StringValue)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/Latency", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// NodeServer is the server API for Node service.
+type NodeServer interface {
+	GetNodes(context.Context, *empty.Empty) (*Nodes, error)
 	GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error)
 	GetNode(context.Context, *wrappers.StringValue) (*AllGroupOrNode, error)
-	GetNowGroupAndName(context.Context, *empty.Empty) (*NowNodeGroupAndNode, error)
-	ChangeNowNode(context.Context, *NowNodeGroupAndNode) (*empty.Empty, error)
-	UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error)
-	GetSubLinks(context.Context, *empty.Empty) (*AllGroupOrNode, error)
-	AddSubLink(context.Context, *wrappers.StringValue) (*AllGroupOrNode, error)
-	DeleteSubLink(context.Context, *wrappers.StringValue) (*AllGroupOrNode, error)
-	Latency(context.Context, *NowNodeGroupAndNode) (*wrappers.StringValue, error)
-	GetRate(*empty.Empty, Api_GetRateServer) error
-	SingleInstance(Api_SingleInstanceServer) error
-	GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error)
+	GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode, error)
+	ChangeNowNode(context.Context, *GroupAndNode) (*empty.Empty, error)
+	AddNode(context.Context, *NodeMap) (*empty.Empty, error)
+	ModifyNode(context.Context, *NodeMap) (*empty.Empty, error)
+	DeleteNode(context.Context, *GroupAndNode) (*empty.Empty, error)
+	Latency(context.Context, *GroupAndNode) (*wrappers.StringValue, error)
 }
 
-// UnimplementedApiServer can be embedded to have forward compatible implementations.
-type UnimplementedApiServer struct {
+// UnimplementedNodeServer can be embedded to have forward compatible implementations.
+type UnimplementedNodeServer struct {
 }
 
-func (*UnimplementedApiServer) CreateLockFile(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateLockFile not implemented")
+func (*UnimplementedNodeServer) GetNodes(ctx context.Context, req *empty.Empty) (*Nodes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodes not implemented")
 }
-func (*UnimplementedApiServer) ProcessInit(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ProcessInit not implemented")
-}
-func (*UnimplementedApiServer) GetRunningHost(ctx context.Context, req *empty.Empty) (*wrappers.StringValue, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetRunningHost not implemented")
-}
-func (*UnimplementedApiServer) ClientOn(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ClientOn not implemented")
-}
-func (*UnimplementedApiServer) ProcessExit(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ProcessExit not implemented")
-}
-func (*UnimplementedApiServer) GetConfig(ctx context.Context, req *empty.Empty) (*config.Setting, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
-}
-func (*UnimplementedApiServer) SetConfig(ctx context.Context, req *config.Setting) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SetConfig not implemented")
-}
-func (*UnimplementedApiServer) ReimportRule(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReimportRule not implemented")
-}
-func (*UnimplementedApiServer) GetGroup(ctx context.Context, req *empty.Empty) (*AllGroupOrNode, error) {
+func (*UnimplementedNodeServer) GetGroup(ctx context.Context, req *empty.Empty) (*AllGroupOrNode, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroup not implemented")
 }
-func (*UnimplementedApiServer) GetNode(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
+func (*UnimplementedNodeServer) GetNode(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNode not implemented")
 }
-func (*UnimplementedApiServer) GetNowGroupAndName(ctx context.Context, req *empty.Empty) (*NowNodeGroupAndNode, error) {
+func (*UnimplementedNodeServer) GetNowGroupAndName(ctx context.Context, req *empty.Empty) (*GroupAndNode, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNowGroupAndName not implemented")
 }
-func (*UnimplementedApiServer) ChangeNowNode(ctx context.Context, req *NowNodeGroupAndNode) (*empty.Empty, error) {
+func (*UnimplementedNodeServer) ChangeNowNode(ctx context.Context, req *GroupAndNode) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChangeNowNode not implemented")
 }
-func (*UnimplementedApiServer) UpdateSub(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateSub not implemented")
+func (*UnimplementedNodeServer) AddNode(ctx context.Context, req *NodeMap) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddNode not implemented")
 }
-func (*UnimplementedApiServer) GetSubLinks(ctx context.Context, req *empty.Empty) (*AllGroupOrNode, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSubLinks not implemented")
+func (*UnimplementedNodeServer) ModifyNode(ctx context.Context, req *NodeMap) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ModifyNode not implemented")
 }
-func (*UnimplementedApiServer) AddSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddSubLink not implemented")
+func (*UnimplementedNodeServer) DeleteNode(ctx context.Context, req *GroupAndNode) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteNode not implemented")
 }
-func (*UnimplementedApiServer) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteSubLink not implemented")
-}
-func (*UnimplementedApiServer) Latency(ctx context.Context, req *NowNodeGroupAndNode) (*wrappers.StringValue, error) {
+func (*UnimplementedNodeServer) Latency(ctx context.Context, req *GroupAndNode) (*wrappers.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Latency not implemented")
 }
-func (*UnimplementedApiServer) GetRate(req *empty.Empty, srv Api_GetRateServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetRate not implemented")
-}
-func (*UnimplementedApiServer) SingleInstance(srv Api_SingleInstanceServer) error {
-	return status.Errorf(codes.Unimplemented, "method SingleInstance not implemented")
-}
-func (*UnimplementedApiServer) GetKernelPid(ctx context.Context, req *empty.Empty) (*wrappers.UInt32Value, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetKernelPid not implemented")
+
+func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
+	s.RegisterService(&_Node_serviceDesc, srv)
 }
 
-func RegisterApiServer(s *grpc.Server, srv ApiServer) {
-	s.RegisterService(&_Api_serviceDesc, srv)
-}
-
-func _Api_CreateLockFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Node_GetNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).CreateLockFile(ctx, in)
+		return srv.(NodeServer).GetNodes(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/CreateLockFile",
+		FullMethod: "/yuhaiin.api.Node/GetNodes",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).CreateLockFile(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).GetNodes(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_ProcessInit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Node_GetGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).ProcessInit(ctx, in)
+		return srv.(NodeServer).GetGroup(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/ProcessInit",
+		FullMethod: "/yuhaiin.api.Node/GetGroup",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).ProcessInit(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).GetGroup(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_GetRunningHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).GetRunningHost(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/GetRunningHost",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetRunningHost(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_ClientOn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).ClientOn(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/ClientOn",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).ClientOn(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_ProcessExit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).ProcessExit(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/ProcessExit",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).ProcessExit(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).GetConfig(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/GetConfig",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetConfig(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_SetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(config.Setting)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).SetConfig(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/SetConfig",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).SetConfig(ctx, req.(*config.Setting))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_ReimportRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).ReimportRule(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/ReimportRule",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).ReimportRule(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_GetGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).GetGroup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/GetGroup",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetGroup(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_GetNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Node_GetNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(wrappers.StringValue)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).GetNode(ctx, in)
+		return srv.(NodeServer).GetNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/GetNode",
+		FullMethod: "/yuhaiin.api.Node/GetNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetNode(ctx, req.(*wrappers.StringValue))
+		return srv.(NodeServer).GetNode(ctx, req.(*wrappers.StringValue))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_GetNowGroupAndName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Node_GetNowGroupAndName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).GetNowGroupAndName(ctx, in)
+		return srv.(NodeServer).GetNowGroupAndName(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/GetNowGroupAndName",
+		FullMethod: "/yuhaiin.api.Node/GetNowGroupAndName",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetNowGroupAndName(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).GetNowGroupAndName(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_ChangeNowNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(NowNodeGroupAndNode)
+func _Node_ChangeNowNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupAndNode)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).ChangeNowNode(ctx, in)
+		return srv.(NodeServer).ChangeNowNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/ChangeNowNode",
+		FullMethod: "/yuhaiin.api.Node/ChangeNowNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).ChangeNowNode(ctx, req.(*NowNodeGroupAndNode))
+		return srv.(NodeServer).ChangeNowNode(ctx, req.(*GroupAndNode))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_UpdateSub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+func _Node_AddNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeMap)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).UpdateSub(ctx, in)
+		return srv.(NodeServer).AddNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/UpdateSub",
+		FullMethod: "/yuhaiin.api.Node/AddNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).UpdateSub(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).AddNode(ctx, req.(*NodeMap))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_GetSubLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+func _Node_ModifyNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeMap)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).GetSubLinks(ctx, in)
+		return srv.(NodeServer).ModifyNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/GetSubLinks",
+		FullMethod: "/yuhaiin.api.Node/ModifyNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetSubLinks(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).ModifyNode(ctx, req.(*NodeMap))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_AddSubLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrappers.StringValue)
+func _Node_DeleteNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupAndNode)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).AddSubLink(ctx, in)
+		return srv.(NodeServer).DeleteNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/AddSubLink",
+		FullMethod: "/yuhaiin.api.Node/DeleteNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).AddSubLink(ctx, req.(*wrappers.StringValue))
+		return srv.(NodeServer).DeleteNode(ctx, req.(*GroupAndNode))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_DeleteSubLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrappers.StringValue)
+func _Node_Latency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupAndNode)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ApiServer).DeleteSubLink(ctx, in)
+		return srv.(NodeServer).Latency(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/DeleteSubLink",
+		FullMethod: "/yuhaiin.api.Node/Latency",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).DeleteSubLink(ctx, req.(*wrappers.StringValue))
+		return srv.(NodeServer).Latency(ctx, req.(*GroupAndNode))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Api_Latency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(NowNodeGroupAndNode)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).Latency(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/Latency",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).Latency(ctx, req.(*NowNodeGroupAndNode))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Api_GetRate_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(empty.Empty)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(ApiServer).GetRate(m, &apiGetRateServer{stream})
-}
-
-type Api_GetRateServer interface {
-	Send(*DaUaDrUr) error
-	grpc.ServerStream
-}
-
-type apiGetRateServer struct {
-	grpc.ServerStream
-}
-
-func (x *apiGetRateServer) Send(m *DaUaDrUr) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Api_SingleInstance_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ApiServer).SingleInstance(&apiSingleInstanceServer{stream})
-}
-
-type Api_SingleInstanceServer interface {
-	Send(*wrappers.StringValue) error
-	Recv() (*wrappers.StringValue, error)
-	grpc.ServerStream
-}
-
-type apiSingleInstanceServer struct {
-	grpc.ServerStream
-}
-
-func (x *apiSingleInstanceServer) Send(m *wrappers.StringValue) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *apiSingleInstanceServer) Recv() (*wrappers.StringValue, error) {
-	m := new(wrappers.StringValue)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _Api_GetKernelPid_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).GetKernelPid(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.api.api/GetKernelPid",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).GetKernelPid(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _Api_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "yuhaiin.api.api",
-	HandlerType: (*ApiServer)(nil),
+var _Node_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "yuhaiin.api.Node",
+	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateLockFile",
-			Handler:    _Api_CreateLockFile_Handler,
-		},
-		{
-			MethodName: "ProcessInit",
-			Handler:    _Api_ProcessInit_Handler,
-		},
-		{
-			MethodName: "GetRunningHost",
-			Handler:    _Api_GetRunningHost_Handler,
-		},
-		{
-			MethodName: "ClientOn",
-			Handler:    _Api_ClientOn_Handler,
-		},
-		{
-			MethodName: "ProcessExit",
-			Handler:    _Api_ProcessExit_Handler,
-		},
-		{
-			MethodName: "GetConfig",
-			Handler:    _Api_GetConfig_Handler,
-		},
-		{
-			MethodName: "SetConfig",
-			Handler:    _Api_SetConfig_Handler,
-		},
-		{
-			MethodName: "ReimportRule",
-			Handler:    _Api_ReimportRule_Handler,
+			MethodName: "GetNodes",
+			Handler:    _Node_GetNodes_Handler,
 		},
 		{
 			MethodName: "GetGroup",
-			Handler:    _Api_GetGroup_Handler,
+			Handler:    _Node_GetGroup_Handler,
 		},
 		{
 			MethodName: "GetNode",
-			Handler:    _Api_GetNode_Handler,
+			Handler:    _Node_GetNode_Handler,
 		},
 		{
 			MethodName: "GetNowGroupAndName",
-			Handler:    _Api_GetNowGroupAndName_Handler,
+			Handler:    _Node_GetNowGroupAndName_Handler,
 		},
 		{
 			MethodName: "ChangeNowNode",
-			Handler:    _Api_ChangeNowNode_Handler,
+			Handler:    _Node_ChangeNowNode_Handler,
 		},
 		{
-			MethodName: "UpdateSub",
-			Handler:    _Api_UpdateSub_Handler,
+			MethodName: "AddNode",
+			Handler:    _Node_AddNode_Handler,
 		},
 		{
-			MethodName: "GetSubLinks",
-			Handler:    _Api_GetSubLinks_Handler,
+			MethodName: "ModifyNode",
+			Handler:    _Node_ModifyNode_Handler,
 		},
 		{
-			MethodName: "AddSubLink",
-			Handler:    _Api_AddSubLink_Handler,
-		},
-		{
-			MethodName: "DeleteSubLink",
-			Handler:    _Api_DeleteSubLink_Handler,
+			MethodName: "DeleteNode",
+			Handler:    _Node_DeleteNode_Handler,
 		},
 		{
 			MethodName: "Latency",
-			Handler:    _Api_Latency_Handler,
-		},
-		{
-			MethodName: "GetKernelPid",
-			Handler:    _Api_GetKernelPid_Handler,
+			Handler:    _Node_Latency_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/api.proto",
+}
+
+// SubscribeClient is the client API for Subscribe service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type SubscribeClient interface {
+	UpdateSub(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	GetSubLinks(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Links, error)
+	AddSubLink(ctx context.Context, in *Link, opts ...grpc.CallOption) (*Links, error)
+	DeleteSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*Links, error)
+}
+
+type subscribeClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewSubscribeClient(cc grpc.ClientConnInterface) SubscribeClient {
+	return &subscribeClient{cc}
+}
+
+func (c *subscribeClient) UpdateSub(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Subscribe/UpdateSub", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subscribeClient) GetSubLinks(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Links, error) {
+	out := new(Links)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Subscribe/GetSubLinks", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subscribeClient) AddSubLink(ctx context.Context, in *Link, opts ...grpc.CallOption) (*Links, error) {
+	out := new(Links)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Subscribe/AddSubLink", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subscribeClient) DeleteSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*Links, error) {
+	out := new(Links)
+	err := c.cc.Invoke(ctx, "/yuhaiin.api.Subscribe/DeleteSubLink", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// SubscribeServer is the server API for Subscribe service.
+type SubscribeServer interface {
+	UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error)
+	GetSubLinks(context.Context, *empty.Empty) (*Links, error)
+	AddSubLink(context.Context, *Link) (*Links, error)
+	DeleteSubLink(context.Context, *wrappers.StringValue) (*Links, error)
+}
+
+// UnimplementedSubscribeServer can be embedded to have forward compatible implementations.
+type UnimplementedSubscribeServer struct {
+}
+
+func (*UnimplementedSubscribeServer) UpdateSub(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateSub not implemented")
+}
+func (*UnimplementedSubscribeServer) GetSubLinks(ctx context.Context, req *empty.Empty) (*Links, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSubLinks not implemented")
+}
+func (*UnimplementedSubscribeServer) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddSubLink not implemented")
+}
+func (*UnimplementedSubscribeServer) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*Links, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteSubLink not implemented")
+}
+
+func RegisterSubscribeServer(s *grpc.Server, srv SubscribeServer) {
+	s.RegisterService(&_Subscribe_serviceDesc, srv)
+}
+
+func _Subscribe_UpdateSub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubscribeServer).UpdateSub(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.Subscribe/UpdateSub",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubscribeServer).UpdateSub(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Subscribe_GetSubLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubscribeServer).GetSubLinks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.Subscribe/GetSubLinks",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubscribeServer).GetSubLinks(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Subscribe_AddSubLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Link)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubscribeServer).AddSubLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.Subscribe/AddSubLink",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubscribeServer).AddSubLink(ctx, req.(*Link))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Subscribe_DeleteSubLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(wrappers.StringValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubscribeServer).DeleteSubLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.api.Subscribe/DeleteSubLink",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubscribeServer).DeleteSubLink(ctx, req.(*wrappers.StringValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _Subscribe_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "yuhaiin.api.Subscribe",
+	HandlerType: (*SubscribeServer)(nil),
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "getRate",
-			Handler:       _Api_GetRate_Handler,
-			ServerStreams: true,
+			MethodName: "UpdateSub",
+			Handler:    _Subscribe_UpdateSub_Handler,
 		},
 		{
-			StreamName:    "SingleInstance",
-			Handler:       _Api_SingleInstance_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
+			MethodName: "GetSubLinks",
+			Handler:    _Subscribe_GetSubLinks_Handler,
+		},
+		{
+			MethodName: "AddSubLink",
+			Handler:    _Subscribe_AddSubLink_Handler,
+		},
+		{
+			MethodName: "DeleteSubLink",
+			Handler:    _Subscribe_DeleteSubLink_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/api.proto",
 }

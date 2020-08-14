@@ -40,7 +40,7 @@ var (
 	exitFuncCalled bool
 	qtApp          *widgets.QApplication
 
-	apiClient  api.ApiClient
+	apiClient  api.ProcessInitClient
 	clientConn *grpc.ClientConn
 	exitCall   []func()
 
@@ -216,7 +216,7 @@ _reConnectGrpc:
 		_ = clientConn.Close()
 	}()
 	fmt.Println("Create API Client.")
-	apiClient = api.NewApiClient(clientConn)
+	apiClient = api.NewProcessInitClient(clientConn)
 	err = checkLockFile()
 	if err == conn2Re {
 		goto _reConnectGrpc
@@ -230,7 +230,7 @@ _reConnectGrpc:
 
 	fmt.Println("Open GUI.")
 
-	qtApp = gui.NewGui(apiClient).App
+	qtApp = gui.NewGui(clientConn).App
 	qtApp.Exec()
 	defer exitFunc()
 }
@@ -259,36 +259,39 @@ func checkLockFile() (err error) {
 			return err
 		}
 		fmt.Println("Create gRPC Dial successful.")
-		apiClient = api.NewApiClient(clientConn)
+		apiClient = api.NewProcessInitClient(clientConn)
 		fmt.Println("Try to Open GUI.")
 		_, err = apiClient.ClientOn(context.Background(), &empty.Empty{})
 		if err != nil {
 			fmt.Println("Call exists GUI failed:", err)
 			fmt.Println("Try to Stop exists kernel")
-			kernelPid, err := apiClient.GetKernelPid(context.Background(), &empty.Empty{})
+			_, err := apiClient.StopKernel(context.Background(), &empty.Empty{})
 			if err != nil {
-				return err
-			}
-			fmt.Println("Get Kernel Pid ", kernelPid.Value)
-			process, err := os.FindProcess(int(kernelPid.Value))
-			if err != nil {
-				return err
-			}
-			fmt.Println("Kill exists Kernel ", kernelPid.Value)
-			err = process.Kill()
-			if err != nil {
-				return err
-			}
-			err = clientConn.Close()
-			if err != nil {
-				return err
-			}
-			conn2c = true
-			fmt.Println("Kill cmd and ReStart Kernel")
-			if cmd != nil && cmd.Process != nil {
-				err = cmd.Process.Kill()
+				kernelPid, err := apiClient.GetKernelPid(context.Background(), &empty.Empty{})
 				if err != nil {
-					log.Println(err)
+					return err
+				}
+				fmt.Println("Get Kernel Pid ", kernelPid.Value)
+				process, err := os.FindProcess(int(kernelPid.Value))
+				if err != nil {
+					return err
+				}
+				fmt.Println("Kill exists Kernel ", kernelPid.Value)
+				err = process.Kill()
+				if err != nil {
+					return err
+				}
+				err = clientConn.Close()
+				if err != nil {
+					return err
+				}
+				conn2c = true
+				fmt.Println("Kill cmd and ReStart Kernel")
+				if cmd != nil && cmd.Process != nil {
+					err = cmd.Process.Kill()
+					if err != nil {
+						log.Println(err)
+					}
 				}
 			}
 			fmt.Println("Try to ReConnect")

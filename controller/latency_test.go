@@ -3,6 +3,8 @@ package controller
 import (
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
+
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
@@ -12,7 +14,7 @@ func TestLatency(t *testing.T) {
 		t.Error(err)
 	}
 	switch x.(type) {
-	case *subscr.Shadowsocks:
-		t.Log(Latency(x.(*subscr.Shadowsocks).NGroup, x.(*subscr.Shadowsocks).NName))
+	case *shadowsocks.Shadowsocks:
+		t.Log(Latency(x.(*shadowsocks.Shadowsocks).NGroup, x.(*shadowsocks.Shadowsocks).NName))
 	}
 }

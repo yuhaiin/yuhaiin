@@ -1,4 +1,4 @@
-package subscr
+package shadowsocks
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/subscr/common"
 )
 
 func TestShadowSocks(t *testing.T) {
@@ -17,10 +19,10 @@ func TestShadowSocks(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	dst, err := Base64DByte(s)
+	dst, err := common.Base64DByte(s)
 	if err != nil {
 		t.Log(err)
 	}
 	t.Log(string(bytes.Split(dst, []byte{'\n'})[0]))
-	log.Println(ShadowSocksParse(bytes.Split(dst, []byte{'\n'})[0], remote))
+	log.Println(ParseLink(bytes.Split(dst, []byte{'\n'})[0], common.Remote))
 }

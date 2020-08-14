@@ -29,7 +29,10 @@ func main() {
 		panic(err)
 	}
 	s := grpc.NewServer()
-	api.RegisterApiServer(s, &api.Server{})
+	api.RegisterProcessInitServer(s, &api.Process{})
+	api.RegisterConfigServer(s, &api.Config{})
+	api.RegisterNodeServer(s, &api.Node{})
+	api.RegisterSubscribeServer(s, &api.Subscribe{})
 	if err := s.Serve(lis); err != nil {
 		log.Println(err)
 	}
