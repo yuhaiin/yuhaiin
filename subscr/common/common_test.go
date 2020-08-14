@@ -1,4 +1,4 @@
-package subscr
+package common
 
 import "testing"
 

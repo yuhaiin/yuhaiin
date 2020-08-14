@@ -1,11 +1,11 @@
-package subscr
+package common
 
 const (
-	shadowsocks  float64 = 1
-	shadowsocksr float64 = 2
+	Shadowsocks  float64 = 1
+	Shadowsocksr float64 = 2
 
-	remote float64 = 100
-	manual float64 = 101
+	Remote float64 = 100
+	Manual float64 = 101
 )
 
 type NodeMessage struct {
@@ -16,7 +16,7 @@ type NodeMessage struct {
 	NOrigin float64 `json:"n_origin"`
 }
 
-func interface2string(i interface{}) string {
+func Interface2string(i interface{}) string {
 	switch i.(type) {
 	case string:
 		return i.(string)

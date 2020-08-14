@@ -2,6 +2,12 @@ package subscr
 
 import (
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/subscr/common"
+
+	shadowsocksr2 "github.com/Asutorufa/yuhaiin/subscr/shadowsocksr"
+
+	shadowsocks2 "github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
 )
 
 func TestGetLinkFromInt(t *testing.T) {
@@ -16,10 +22,10 @@ func TestGetNowNode(t *testing.T) {
 		t.Log(err)
 	}
 	switch pa.(type) {
-	case *Shadowsocks:
-		t.Log(pa.(*Shadowsocks))
-	case *Shadowsocksr:
-		t.Log(pa.(*Shadowsocksr))
+	case *shadowsocks2.Shadowsocks:
+		t.Log(pa.(*shadowsocks2.Shadowsocks))
+	case *shadowsocksr2.Shadowsocksr:
+		t.Log(pa.(*shadowsocksr2.Shadowsocksr))
 	}
 }
 
@@ -37,9 +43,13 @@ func TestAllOption(t *testing.T) {
 	nodes := Node{
 		Node: map[string]map[string]interface{}{},
 	}
-	addOneNode(map[string]interface{}{"n_origin": remote}, "testGroup", "testName", nodes.Node)
-	addOneNode(map[string]interface{}{"n_origin": manual}, "testGroup", "testName2", nodes.Node)
-	addOneNode(map[string]interface{}{"n_origin": remote}, "testGroup2", "testName", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": common.Remote}, "testGroup", "testName", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": common.Manual}, "testGroup", "testName2", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": common.Remote}, "testGroup2", "testName", nodes.Node)
+	s := &shadowsocks2.Shadowsocks{}
+	s.NOrigin = common.Manual
+	s.NName = "name"
+	addOneNode(&shadowsocks2.Shadowsocks{}, "testGroup3", "testName", nodes.Node)
 	printNodes(nodes.Node)
 
 	//t.Log("Delete Test")
@@ -49,4 +59,8 @@ func TestAllOption(t *testing.T) {
 	t.Log("Delete Remote Test")
 	deleteRemoteNodes(nodes.Node)
 	printNodes(nodes.Node)
+}
+
+func TestDecode(t *testing.T) {
+	t.Log(decodeJSON())
 }

@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 
+	"google.golang.org/grpc"
+
 	"github.com/Asutorufa/yuhaiin/gui/sysproxy"
 
 	"github.com/Asutorufa/yuhaiin/api"
@@ -18,10 +20,13 @@ import (
 )
 
 var (
-	apiC       api.ApiClient
-	App        = widgets.NewQApplication(len(os.Args), os.Args)
-	messageBox = widgets.NewQMessageBox(nil)
-	conFig     *config.Setting
+	grpcProcess api.ProcessInitClient
+	grpcConfig  api.ConfigClient
+	grpcNode    api.NodeClient
+	grpcSub     api.SubscribeClient
+	App         = widgets.NewQApplication(len(os.Args), os.Args)
+	messageBox  = widgets.NewQMessageBox(nil)
+	conFig      *config.Setting
 )
 
 type SGui struct {
@@ -32,12 +37,14 @@ type SGui struct {
 	trayIcon  *widgets.QSystemTrayIcon
 }
 
-func NewGui(client api.ApiClient) *SGui {
-	if client == nil {
+func NewGui(grpcConn grpc.ClientConnInterface) *SGui {
+	if grpcConn == nil {
 		return nil
 	}
-
-	apiC = client
+	grpcProcess = api.NewProcessInitClient(grpcConn)
+	grpcConfig = api.NewConfigClient(grpcConn)
+	grpcNode = api.NewNodeClient(grpcConn)
+	grpcSub = api.NewSubscribeClient(grpcConn)
 	sGui := &SGui{}
 	sGui.App = App
 	sGui.App.ConnectCommitDataRequest(
@@ -95,7 +102,7 @@ func (sGui *SGui) menuBar() *widgets.QMenuBar {
 }
 
 func (sGui *SGui) clientInit() error {
-	c, err := apiC.SingleInstance(context.Background())
+	c, err := grpcProcess.SingleInstance(context.Background())
 	if err != nil {
 		return err
 	}
@@ -155,7 +162,7 @@ func (sGui *SGui) trayActivateCall(reason widgets.QSystemTrayIcon__ActivationRea
 
 func refreshConfig() {
 	var err error
-	conFig, err = apiC.GetConfig(context.Background(), &empty.Empty{})
+	conFig, err = grpcConfig.GetConfig(context.Background(), &empty.Empty{})
 	if err != nil {
 		MessageBox(err.Error())
 		return
@@ -164,5 +171,5 @@ func refreshConfig() {
 
 func MessageBox(text string) {
 	messageBox.SetText(text)
-	messageBox.Show()
+	messageBox.Exec()
 }

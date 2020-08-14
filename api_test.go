@@ -21,10 +21,10 @@ func TestApi(t *testing.T) {
 		t.Error(err)
 	}
 	defer conn.Close()
-	c := api.NewApiClient(conn)
+	c := api.NewProcessInitClient(conn)
 	log.Println(c.ProcessInit(context.Background(), &empty.Empty{}))
-	log.Println(c.GetConfig(context.Background(), &empty.Empty{}))
-	log.Println(c.GetGroup(context.Background(), &empty.Empty{}))
+	//log.Println(c.GetConfig(context.Background(), &empty.Empty{}))
+	//log.Println(c.GetGroup(context.Background(), &empty.Empty{}))
 }
 
 func TestPath(t *testing.T) {

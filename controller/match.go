@@ -84,6 +84,9 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 			Timeout: 15 * time.Second,
 		},
 		directDNS: directDNS{libDNS.NewDOH("223.5.5.5"), "223.5.5.5", true},
+		proxy: func(host string) (conn net.Conn, err error) {
+			return net.DialTimeout("tcp", host, 15*time.Second)
+		},
 	}
 	option := &OptionMatchCon{}
 	for index := range opt {

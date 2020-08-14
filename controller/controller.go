@@ -161,6 +161,20 @@ func GetNowNodeConn() (func(string) (net.Conn, error), string, error) {
 	return conn, hash, err
 }
 
+func GetANodes() map[string][]string {
+	m := map[string][]string{}
+
+	for key := range Nodes.Node {
+		var x []string
+		for node := range Nodes.Node[key] {
+			x = append(x, node)
+		}
+		sort.Strings(x)
+		m[key] = x
+	}
+	return m
+}
+
 func GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), error) {
 	if Nodes.Node[group][nodeN] == nil {
 		return nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
@@ -202,26 +216,40 @@ func UpdateSub() error {
 	return nil
 }
 
-func GetLinks() ([]string, error) {
-	var linkTmp []string
-	for _, link := range Nodes.Link {
-		linkTmp = append(linkTmp, link)
-	}
-	return linkTmp, nil
+func GetLinks() (map[string]string, error) {
+	return Nodes.Links, nil
 }
 
-func AddLink(str string) error {
-	Nodes.Link = append(Nodes.Link, str)
+func AddLink(name, link string) error {
+	//Nodes.Link = append(Nodes.Link, str)
+	Nodes.Links[name] = link
 	return subscr.SaveNode(Nodes)
 }
 
-func DeleteLink(str string) error {
-	for index := range Nodes.Link {
-		if str == Nodes.Link[index] {
-			Nodes.Link = append(Nodes.Link[:index], Nodes.Link[index+1:]...)
-			break
-		}
+func AddNode(node map[string]string) error {
+	err := subscr.AddOneNode(node)
+	if err != nil {
+		return err
 	}
+	return RefreshNodes()
+}
+
+func DeleteNode(group, name string) error {
+	err := subscr.DeleteOneNode(group, name)
+	if err != nil {
+		return err
+	}
+	return RefreshNodes()
+}
+
+func DeleteLink(name string) error {
+	//for index := range Nodes.Link {
+	//	if str == Nodes.Link[index] {
+	//		Nodes.Link = append(Nodes.Link[:index], Nodes.Link[index+1:]...)
+	//		break
+	//	}
+	//}
+	delete(Nodes.Links, name)
 	return subscr.SaveNode(Nodes)
 }
 

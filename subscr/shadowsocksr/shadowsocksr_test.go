@@ -1,4 +1,4 @@
-package subscr
+package shadowsocksr
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/subscr/common"
 )
 
 func TestSsrParse2(t *testing.T) {
@@ -15,7 +17,7 @@ func TestSsrParse2(t *testing.T) {
 		"ssr://MjIyLjIyMi4yMjIuMjIyOjQ0MzphdXRoX2FlczEyOF9tZDU6Y2hhY2hhMjAtaWV0ZjpodHRwX3Bvc3Q6ZEdWemRBby8/b2Jmc3BhcmFtPWRHVnpkQW8mcHJvdG9wYXJhbT1kR1Z6ZEFvJnJlbWFya3M9ZEdWemRBbyZncm91cD1kR1Z6ZEFvCg"}
 
 	for x := range ssr {
-		log.Println(SsrParse([]byte(ssr[x]), remote))
+		log.Println(ParseLink([]byte(ssr[x]), common.Remote))
 	}
 }
 
@@ -28,11 +30,11 @@ func TestLint(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	dst, err := Base64DByte(s)
+	dst, err := common.Base64DByte(s)
 	if err != nil {
 		t.Log(err)
 	}
 	for _, x := range bytes.Split(dst, []byte("\n")) {
-		log.Println(SsrParse(x, remote))
+		log.Println(ParseLink(x, common.Remote))
 	}
 }

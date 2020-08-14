@@ -11,9 +11,13 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/subscr/common"
+	ss "github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
+	ssr "github.com/Asutorufa/yuhaiin/subscr/shadowsocksr"
 )
 
 var (
@@ -21,31 +25,35 @@ var (
 )
 
 type Node struct {
-	//Group   map[string]bool                   `json:"group"`
 	NowNode interface{}                       `json:"nowNode"`
 	Link    []string                          `json:"link"`
+	Links   map[string]string                 `json:"links"`
 	Node    map[string]map[string]interface{} `json:"node"`
 }
 
 func decodeJSON() (*Node, error) {
+	pa := &Node{
+		NowNode: map[string]interface{}{},
+		Link:    []string{},
+		Links:   map[string]string{},
+		Node:    map[string]map[string]interface{}{},
+	}
 	file, err := os.Open(jsonPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			pa := &Node{
-				//Group:   map[string]bool{},
-				NowNode: &Shadowsocks{},
-				Link:    []string{},
-				Node:    map[string]map[string]interface{}{},
-			}
 			return pa, enCodeJSON(pa)
 		}
 		return nil, err
 	}
-	pa := &Node{}
-	if json.NewDecoder(file).Decode(&pa) != nil {
+	err = json.NewDecoder(file).Decode(&pa)
+	if err != nil {
 		return nil, err
 	}
-	return pa, nil
+	for index := range pa.Link {
+		pa.Links[pa.Link[index]] = pa.Link[index]
+	}
+	pa.Link = pa.Link[:0]
+	return pa, enCodeJSON(pa)
 }
 
 func GetNodesJSON() (*Node, error) {
@@ -84,14 +92,8 @@ func GetLinkFromInt() error {
 		return err
 	}
 
-	nodes := map[string]map[string]interface{}{}
-
-	for index := range pa.Link {
-		oneLinkGet(pa.Link[index], nodes)
-	}
-
-	for key := range nodes {
-		pa.Node[key] = nodes[key]
+	for key := range pa.Links {
+		oneLinkGet(pa.Links[key], key, pa.Node)
 	}
 
 	err = enCodeJSON(pa)
@@ -101,7 +103,7 @@ func GetLinkFromInt() error {
 	return nil
 }
 
-func oneLinkGet(url string, nodes map[string]map[string]interface{}) {
+func oneLinkGet(url string, group string, nodes map[string]map[string]interface{}) {
 	client := http.Client{Timeout: time.Second * 30}
 	res, err := client.Get(url)
 	if err != nil {
@@ -113,23 +115,43 @@ func oneLinkGet(url string, nodes map[string]map[string]interface{}) {
 		log.Println(err)
 		return
 	}
-	dst, err := Base64DByte(body)
+	dst, err := common.Base64DByte(body)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-
+	deleteRemoteNodes(nodes, group)
 	for _, x := range bytes.Split(dst, []byte("\n")) {
-		node, group, name, err := base64ToNode(x)
+		node, name, err := base64ToNode(x, group)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		if _, ok := nodes[group]; !ok { //judge map key is exist or not
-			nodes[group] = map[string]interface{}{}
-		}
-		nodes[group][name] = node
+		addOneNode(node, group, name, nodes)
 	}
+}
+
+func AddOneNode(node map[string]string) error {
+	pa, err := decodeJSON()
+	if err != nil {
+		return err
+	}
+	tYPE, err := strconv.ParseFloat(node["type"], 64)
+	if err != nil {
+		return err
+	}
+	newNode := map[string]interface{}{
+		"type": tYPE,
+	}
+	for key := range node {
+		newNode[key] = node[key]
+	}
+	no, err := parseNodeManual(newNode)
+	if err != nil {
+		return err
+	}
+	addOneNode(no, node["name"], node["group"], pa.Node)
+	return enCodeJSON(pa)
 }
 
 func addOneNode(node interface{}, group, name string, nodes map[string]map[string]interface{}) {
@@ -149,22 +171,22 @@ func printNodes(nodes map[string]map[string]interface{}) {
 	}
 }
 
-func deleteRemoteNodes(nodes map[string]map[string]interface{}) {
+func deleteAllRemoteNodes(nodes map[string]map[string]interface{}) {
 	for key := range nodes {
-		for nodeKey := range nodes[key] {
-			if checkRemote(nodes[key][nodeKey]) {
-				delete(nodes[key], nodeKey)
-			}
-		}
-		for range nodes[key] {
-			goto _continue
-		}
-		goto _delete
-	_continue:
-		continue
-	_delete:
-		delete(nodes, key)
+		deleteRemoteNodes(nodes, key)
 	}
+}
+
+func deleteRemoteNodes(nodes map[string]map[string]interface{}, key string) {
+	for nodeKey := range nodes[key] {
+		if checkRemote(nodes[key][nodeKey]) {
+			delete(nodes[key], nodeKey)
+		}
+	}
+	for range nodes[key] {
+		return
+	}
+	delete(nodes, key)
 }
 
 func checkRemote(node interface{}) bool {
@@ -184,10 +206,19 @@ func checkRemote(node interface{}) bool {
 		return false
 	}
 
-	if node.(map[string]interface{})["n_origin"].(float64) == remote {
+	if node.(map[string]interface{})["n_origin"].(float64) == common.Remote {
 		return true
 	}
 	return false
+}
+
+func DeleteOneNode(group, name string) error {
+	pa, err := decodeJSON()
+	if err != nil {
+		return err
+	}
+	deleteOneNode(group, name, pa.Node)
+	return enCodeJSON(pa)
 }
 
 func deleteOneNode(group, name string, nodes map[string]map[string]interface{}) {
@@ -204,45 +235,53 @@ func deleteOneNode(group, name string, nodes map[string]map[string]interface{}) 
 	delete(nodes, group)
 }
 
-func base64ToNode(str []byte) (node interface{}, group, name string, err error) {
+func base64ToNode(str []byte, group string) (node interface{}, name string, err error) {
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
-		node, err := ShadowSocksParse(str, remote)
+		node, err := ss.ParseLink(str, group, common.Remote)
 		if err != nil {
-			return nil, "", "", err
+			return nil, "", err
 		}
-		return node, node.NGroup, node.NName, nil
+		return node, node.NName, nil
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
-		node, err := SsrParse(str, remote)
+		node, err := ssr.ParseLink(str, group, common.Remote)
 		if err != nil {
-			return nil, "", "", err
+			return nil, "", err
 		}
-		return node, node.NGroup, node.NName, nil
+		return node, node.NName, nil
 	default:
-		return nil, "", "", errors.New("no support " + string(str))
+		return nil, "", errors.New("no support " + string(str))
 	}
 }
 
 func ParseNode(s map[string]interface{}) (interface{}, error) {
-	if s == nil {
-		return nil, fmt.Errorf("map2struct -> %v", errors.New("argument is nil"))
-	}
-
-	var nodeType float64
-	switch s["type"].(type) {
-	case float64:
-		nodeType = s["type"].(float64)
-	default:
-		return nil, fmt.Errorf("map2struct:type -> %v", errors.New("type is not float64"))
+	nodeType, err := checkType(s)
+	if err != nil {
+		return nil, err
 	}
 
 	switch nodeType {
-	case shadowsocks:
-		return map2Shadowsocks(s)
-	case shadowsocksr:
-		return map2Shadowsocksr(s)
+	case common.Shadowsocks:
+		return ss.ParseMap(s)
+	case common.Shadowsocksr:
+		return ssr.ParseMap(s)
+	}
+	return nil, errors.New("not support type")
+}
+
+func parseNodeManual(s map[string]interface{}) (interface{}, error) {
+	nodeType, err := checkType(s)
+	if err != nil {
+		return nil, err
+	}
+
+	switch nodeType {
+	case common.Shadowsocks:
+		return ss.ParseMapManual(s)
+	case common.Shadowsocksr:
+		return ssr.ParseMapManual(s)
 	}
 	return nil, errors.New("not support type")
 }
@@ -257,23 +296,29 @@ func GetNowNode() (interface{}, error) {
 }
 
 func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), error) {
-	if s == nil {
-		return nil, fmt.Errorf("map2struct -> %v", errors.New("argument is nil"))
+	nodeType, err := checkType(s)
+	if err != nil {
+		return nil, err
 	}
-
-	var nodeType float64
-	switch s["type"].(type) {
-	case float64:
-		nodeType = s["type"].(float64)
-	default:
-		return nil, fmt.Errorf("map2struct:type -> %v", errors.New("type is not float64"))
-	}
-
 	switch nodeType {
-	case shadowsocks:
-		return map2ShadowsocksConn(s)
-	case shadowsocksr:
-		return map2ShadowsocksrConn(s)
+	case common.Shadowsocks:
+		return ss.ParseConn(s)
+	case common.Shadowsocksr:
+		return ssr.ParseConn(s)
 	}
 	return nil, errors.New("not support type")
+}
+
+func checkType(s map[string]interface{}) (Type float64, err error) {
+	if s == nil {
+		return 0, fmt.Errorf("map2struct -> %v", errors.New("argument is nil"))
+	}
+
+	switch s["type"].(type) {
+	case float64:
+		Type = s["type"].(float64)
+	default:
+		return 0, fmt.Errorf("map2struct:type -> %v", errors.New("type is not float64"))
+	}
+	return
 }
