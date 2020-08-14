@@ -20,12 +20,6 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
-type Server struct {
-	UnimplementedApiServer
-	singleInstanceCtx context.Context
-	message           chan string
-}
-
 var (
 	Host        string
 	killWDC     bool // kill process when grpc disconnect
@@ -104,7 +98,13 @@ func init() {
 	}(connectCtx)
 }
 
-func (s *Server) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
+type Process struct {
+	UnimplementedProcessInitServer
+	singleInstanceCtx context.Context
+	message           chan string
+}
+
+func (s *Process) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
 	if lockFileCtx == nil {
 		return &empty.Empty{}, errors.New("create lock file false")
 	}
@@ -136,11 +136,11 @@ func (s *Server) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, er
 	return &empty.Empty{}, nil
 }
 
-func (s *Server) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *Process) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return &empty.Empty{}, nil
 }
 
-func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
+func (s *Process) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
 	host, err := controller.ReadLockFile()
 	if err != nil {
 		return &wrappers.StringValue{}, err
@@ -148,7 +148,7 @@ func (s *Server) GetRunningHost(context.Context, *empty.Empty) (*wrappers.String
 	return &wrappers.StringValue{Value: host}, nil
 }
 
-func (s *Server) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *Process) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
 	if s.singleInstanceCtx != nil {
 		select {
 		case <-s.singleInstanceCtx.Done():
@@ -161,106 +161,11 @@ func (s *Server) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return &empty.Empty{}, errors.New("no client")
 }
 
-func (s *Server) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *Process) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return &empty.Empty{}, controller.LockFileClose()
 }
 
-func (s *Server) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
-	conf, err := controller.GetConfig()
-	return conf, err
-}
-
-func (s *Server) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.SetConFig(req)
-}
-
-func (s *Server) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.MatchCon.UpdateMatch()
-}
-
-func (s *Server) GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
-	groups, err := controller.GetGroups()
-	return &AllGroupOrNode{Value: groups}, err
-}
-
-func (s *Server) GetNode(_ context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	nodes, err := controller.GetNodes(req.Value)
-	return &AllGroupOrNode{Value: nodes}, err
-}
-
-func (s *Server) GetNowGroupAndName(context.Context, *empty.Empty) (*NowNodeGroupAndNode, error) {
-	node, group := controller.GetNNodeAndNGroup()
-	return &NowNodeGroupAndNode{Node: node, Group: group}, nil
-}
-
-func (s *Server) ChangeNowNode(_ context.Context, req *NowNodeGroupAndNode) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.ChangeNNode(req.Group, req.Node)
-}
-
-func (s *Server) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.UpdateSub()
-}
-
-func (s *Server) GetSubLinks(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
-	links, err := controller.GetLinks()
-	return &AllGroupOrNode{Value: links}, err
-}
-
-func (s *Server) AddSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	err := controller.AddLink(req.Value)
-	if err != nil {
-		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
-	}
-	return s.GetSubLinks(ctx, &empty.Empty{})
-}
-
-func (s *Server) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	err := controller.DeleteLink(req.Value)
-	if err != nil {
-		return nil, err
-	}
-	return s.GetSubLinks(ctx, &empty.Empty{})
-}
-
-func (s *Server) Latency(_ context.Context, req *NowNodeGroupAndNode) (*wrappers.StringValue, error) {
-	latency, err := controller.Latency(req.Group, req.Node)
-	if err != nil {
-		return nil, err
-	}
-	return &wrappers.StringValue{Value: latency.String()}, err
-}
-
-func (s *Server) GetRate(_ *empty.Empty, srv Api_GetRateServer) error {
-	fmt.Println("Start Send Flow Message to Client.")
-	da, ua := common.DownloadTotal, common.UploadTotal
-	var dr string
-	var ur string
-	ctx := srv.Context()
-	for {
-		dr = common.ReducedUnitStr(float64(common.DownloadTotal-da)) + "/S"
-		ur = common.ReducedUnitStr(float64(common.UploadTotal-ua)) + "/S"
-		da, ua = common.DownloadTotal, common.UploadTotal
-
-		err := srv.Send(&DaUaDrUr{
-			Download: common.ReducedUnitStr(float64(da)),
-			Upload:   common.ReducedUnitStr(float64(ua)),
-			DownRate: dr,
-			UpRate:   ur,
-		})
-		if err != nil {
-			log.Println(err)
-		}
-		select {
-		case <-ctx.Done():
-			fmt.Println("Client is Hidden, Close Stream.")
-			return ctx.Err()
-		case <-time.After(time.Second):
-			continue
-		}
-	}
-}
-
-func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
+func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
 	if s.singleInstanceCtx != nil {
 		select {
 		case <-s.singleInstanceCtx.Done():
@@ -290,6 +195,139 @@ func (s *Server) SingleInstance(srv Api_SingleInstanceServer) error {
 	}
 }
 
-func (s *Server) GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error) {
+func (s *Process) GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error) {
 	return &wrappers.UInt32Value{Value: uint32(os.Getpid())}, nil
+}
+
+func (s *Process) StopKernel(context.Context, *empty.Empty) (*empty.Empty, error) {
+	defer os.Exit(0)
+	return &empty.Empty{}, nil
+}
+
+type Config struct {
+	UnimplementedConfigServer
+}
+
+func (c *Config) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
+	conf, err := controller.GetConfig()
+	return conf, err
+}
+
+func (c *Config) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty, error) {
+	return &empty.Empty{}, controller.SetConFig(req)
+}
+
+func (c *Config) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, controller.MatchCon.UpdateMatch()
+}
+
+func (c *Config) GetRate(_ *empty.Empty, srv Config_GetRateServer) error {
+	fmt.Println("Start Send Flow Message to Client.")
+	da, ua := common.DownloadTotal, common.UploadTotal
+	var dr string
+	var ur string
+	ctx := srv.Context()
+	for {
+		dr = common.ReducedUnitStr(float64(common.DownloadTotal-da)) + "/S"
+		ur = common.ReducedUnitStr(float64(common.UploadTotal-ua)) + "/S"
+		da, ua = common.DownloadTotal, common.UploadTotal
+
+		err := srv.Send(&DaUaDrUr{
+			Download: common.ReducedUnitStr(float64(da)),
+			Upload:   common.ReducedUnitStr(float64(ua)),
+			DownRate: dr,
+			UpRate:   ur,
+		})
+		if err != nil {
+			log.Println(err)
+		}
+		select {
+		case <-ctx.Done():
+			fmt.Println("Client is Hidden, Close Stream.")
+			return ctx.Err()
+		case <-time.After(time.Second):
+			continue
+		}
+	}
+}
+
+type Node struct {
+	UnimplementedNodeServer
+}
+
+func (n *Node) GetNodes(context.Context, *empty.Empty) (*Nodes, error) {
+	nodes := &Nodes{Value: map[string]*AllGroupOrNode{}}
+	nods := controller.GetANodes()
+	for key := range nods {
+		nodes.Value[key] = &AllGroupOrNode{Value: nods[key]}
+	}
+	return nodes, nil
+}
+
+func (n *Node) GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
+	groups, err := controller.GetGroups()
+	return &AllGroupOrNode{Value: groups}, err
+}
+
+func (n *Node) GetNode(_ context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
+	nodes, err := controller.GetNodes(req.Value)
+	return &AllGroupOrNode{Value: nodes}, err
+}
+
+func (n *Node) GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode, error) {
+	node, group := controller.GetNNodeAndNGroup()
+	return &GroupAndNode{Node: node, Group: group}, nil
+}
+
+func (n *Node) AddNode(ctx context.Context, req *NodeMap) (*empty.Empty, error) {
+	return &empty.Empty{}, controller.AddNode(req.Value)
+}
+
+func (n *Node) ModifyNode(ctx context.Context, req *NodeMap) (*empty.Empty, error) {
+	return &empty.Empty{}, nil
+}
+
+func (n *Node) DeleteNode(ctx context.Context, req *GroupAndNode) (*empty.Empty, error) {
+	return &empty.Empty{}, controller.DeleteNode(req.Group, req.Node)
+}
+
+func (n *Node) ChangeNowNode(_ context.Context, req *GroupAndNode) (*empty.Empty, error) {
+	return &empty.Empty{}, controller.ChangeNNode(req.Group, req.Node)
+}
+
+func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrappers.StringValue, error) {
+	latency, err := controller.Latency(req.Group, req.Node)
+	if err != nil {
+		return nil, err
+	}
+	return &wrappers.StringValue{Value: latency.String()}, err
+}
+
+type Subscribe struct {
+	UnimplementedSubscribeServer
+}
+
+func (s *Subscribe) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error) {
+	return &empty.Empty{}, controller.UpdateSub()
+}
+
+func (s *Subscribe) GetSubLinks(ctx context.Context, req *empty.Empty) (*Links, error) {
+	links, err := controller.GetLinks()
+	return &Links{Value: links}, err
+}
+
+func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
+	err := controller.AddLink(req.Name, req.Url)
+	if err != nil {
+		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
+	}
+	return s.GetSubLinks(ctx, &empty.Empty{})
+}
+
+func (s *Subscribe) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*Links, error) {
+	err := controller.DeleteLink(req.Value)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetSubLinks(ctx, &empty.Empty{})
 }

@@ -188,14 +188,13 @@ func (s *setting) applyCall(_ bool) {
 	conFig.DNSProxy = s.dnsProxyCheckBox.IsChecked()
 	conFig.DnsServer = s.dnsServerLineText.Text()
 	conFig.DnsSubNet = s.dnsSubNetLineText.Text()
-	//conFig.SsrPath = s.ssrPathLineText.Text()
 	conFig.HTTPHost = s.httpHostLineText.Text()
 	conFig.Socks5Host = s.socks5HostLineText.Text()
 	conFig.RedirHost = s.redirHostLineText.Text()
 	conFig.BypassFile = s.bypassLineText.Text()
 	conFig.DirectDNS.Host = s.directDnsHost.Text()
 	conFig.DirectDNS.DOH = s.directDnsDOH.IsChecked()
-	_, err := apiC.SetConfig(context.Background(), conFig)
+	_, err := grpcConfig.SetConfig(context.Background(), conFig)
 	if err != nil {
 		MessageBox(err.Error())
 	}
@@ -204,7 +203,7 @@ func (s *setting) applyCall(_ bool) {
 }
 
 func (s *setting) reimportCall(_ bool) {
-	_, err := apiC.ReimportRule(context.Background(), &empty.Empty{})
+	_, err := grpcConfig.ReimportRule(context.Background(), &empty.Empty{})
 	if err != nil {
 		MessageBox(err.Error())
 		return

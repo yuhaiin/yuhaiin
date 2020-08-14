@@ -1,4 +1,4 @@
-package subscr
+package shadowsocksr
 
 import (
 	"crypto/sha256"
@@ -8,12 +8,14 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/subscr/common"
+
 	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
 )
 
 // Shadowsocksr node json struct
 type Shadowsocksr struct {
-	NodeMessage
+	common.NodeMessage
 	Server     string `json:"server"`
 	Port       string `json:"port"`
 	Method     string `json:"method"`
@@ -24,10 +26,10 @@ type Shadowsocksr struct {
 	Protoparam string `json:"protoparam"`
 }
 
-func SsrParse(link []byte, origin float64) (*Shadowsocksr, error) {
-	decodeStr := strings.Split(Base64DStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
+func ParseLink(link []byte, group string, origin float64) (*Shadowsocksr, error) {
+	decodeStr := strings.Split(common.Base64DStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	n := new(Shadowsocksr)
-	n.NType = shadowsocksr
+	n.NType = common.Shadowsocksr
 	n.NOrigin = origin
 	x := strings.Split(decodeStr[0], ":")
 	if len(x) != 6 {
@@ -38,13 +40,13 @@ func SsrParse(link []byte, origin float64) (*Shadowsocksr, error) {
 	n.Protocol = x[2]
 	n.Method = x[3]
 	n.Obfs = x[4]
-	n.Password = Base64DStr(x[5])
+	n.Password = common.Base64DStr(x[5])
 	if len(decodeStr) > 1 {
 		query, _ := url.ParseQuery(decodeStr[1])
-		n.NGroup = Base64DStr(query.Get("group"))
-		n.Obfsparam = Base64DStr(query.Get("obfsparam"))
-		n.Protoparam = Base64DStr(query.Get("protoparam"))
-		n.NName = "[ssr]" + Base64DStr(query.Get("remarks"))
+		n.NGroup = group
+		n.Obfsparam = common.Base64DStr(query.Get("obfsparam"))
+		n.Protoparam = common.Base64DStr(query.Get("protoparam"))
+		n.NName = "[ssr]" + common.Base64DStr(query.Get("remarks"))
 	}
 
 	hash := sha256.New()
@@ -64,45 +66,54 @@ func SsrParse(link []byte, origin float64) (*Shadowsocksr, error) {
 	return n, nil
 }
 
-func map2Shadowsocksr(n map[string]interface{}) (*Shadowsocksr, error) {
+func ParseMap(n map[string]interface{}) (*Shadowsocksr, error) {
 	if n == nil {
 		return nil, errors.New("map is nil")
 	}
 
 	node := new(Shadowsocksr)
-	node.NType = shadowsocksr
+	node.NType = common.Shadowsocksr
 
 	for key := range n {
 		switch key {
 		case "server":
-			node.Server = interface2string(n[key])
+			node.Server = common.Interface2string(n[key])
 		case "port":
-			node.Port = interface2string(n[key])
+			node.Port = common.Interface2string(n[key])
 		case "method":
-			node.Method = interface2string(n[key])
+			node.Method = common.Interface2string(n[key])
 		case "password":
-			node.Password = interface2string(n[key])
+			node.Password = common.Interface2string(n[key])
 		case "obfs":
-			node.Obfs = interface2string(n[key])
+			node.Obfs = common.Interface2string(n[key])
 		case "obfsparam":
-			node.Obfsparam = interface2string(n[key])
+			node.Obfsparam = common.Interface2string(n[key])
 		case "protocol":
-			node.Protocol = interface2string(n[key])
+			node.Protocol = common.Interface2string(n[key])
 		case "protoparam":
-			node.Protoparam = interface2string(n[key])
+			node.Protoparam = common.Interface2string(n[key])
 		case "name":
-			node.NName = interface2string(n[key])
+			node.NName = common.Interface2string(n[key])
 		case "group":
-			node.NGroup = interface2string(n[key])
+			node.NGroup = common.Interface2string(n[key])
 		case "hash":
-			node.NHash = interface2string(n[key])
+			node.NHash = common.Interface2string(n[key])
 		}
 	}
 	return node, nil
 }
 
-func map2ShadowsocksrConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
-	s, err := map2Shadowsocksr(n)
+func ParseMapManual(m map[string]interface{}) (*Shadowsocksr, error) {
+	s, err := ParseMap(m)
+	if err != nil {
+		return nil, err
+	}
+	s.NOrigin = common.Manual
+	return s, nil
+}
+
+func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
+	s, err := ParseMap(n)
 	if err != nil {
 		return nil, err
 	}

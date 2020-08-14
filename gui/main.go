@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sort"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/api"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -100,31 +100,21 @@ func (m *mainWindow) setListener() {
 }
 
 func (m *mainWindow) refresh() {
-	group, err := apiC.GetGroup(context.Background(), &empty.Empty{})
+	nodes, err := grpcNode.GetNodes(context.Background(), &empty.Empty{})
 	if err != nil {
 		MessageBox(err.Error())
 		return
 	}
 	m.groupCombobox.Clear()
-	m.groupCombobox.AddItems(group.Value)
-
-	//nodeData := map[string][]*core.QVariant{}
-	//var nodes []*core.QVariant
-	//nodes = append(nodes, core.NewQVariant23(map[string]*core.QVariant{}))
-	//nodeData["group"] = nodes
-	//for key := range nodeData {
-	//	m.groupCombobox.AddItem(key, core.NewQVariant22(nodeData[key]))
-	//}
-
-	node, err := apiC.GetNode(context.Background(), &wrappers.StringValue{Value: m.groupCombobox.CurrentText()})
-	if err != nil {
-		MessageBox(err.Error())
-		return
+	var keys []string
+	for key := range nodes.Value {
+		keys = append(keys, key)
 	}
-	m.nodeCombobox.Clear()
-	m.nodeCombobox.AddItems(node.Value)
-
-	nowNodeAndGroup, err := apiC.GetNowGroupAndName(context.Background(), &empty.Empty{})
+	sort.Strings(keys)
+	for index := range keys {
+		m.groupCombobox.AddItem(keys[index], core.NewQVariant17(nodes.Value[keys[index]].Value))
+	}
+	nowNodeAndGroup, err := grpcNode.GetNowGroupAndName(context.Background(), &empty.Empty{})
 	if err != nil {
 		MessageBox(err.Error())
 		return
@@ -143,7 +133,7 @@ func (m *mainWindow) subUpdate() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func(cancelFunc context.CancelFunc) {
-		if _, err := apiC.UpdateSub(context.Background(), &empty.Empty{}); err != nil {
+		if _, err := grpcSub.UpdateSub(context.Background(), &empty.Empty{}); err != nil {
 			MessageBox(err.Error())
 		}
 		cancelFunc()
@@ -170,7 +160,7 @@ func (m *mainWindow) subUpdate() {
 func (m *mainWindow) startCall(_ bool) {
 	group := m.groupCombobox.CurrentText()
 	remarks := m.nodeCombobox.CurrentText()
-	_, err := apiC.ChangeNowNode(context.Background(), &api.NowNodeGroupAndNode{Group: group, Node: remarks})
+	_, err := grpcNode.ChangeNowNode(context.Background(), &api.GroupAndNode{Group: group, Node: remarks})
 	if err != nil {
 		MessageBox(err.Error())
 		return
@@ -178,29 +168,15 @@ func (m *mainWindow) startCall(_ bool) {
 	m.nowNode.SetText(remarks)
 }
 
-func (m *mainWindow) groupChangeCall(str string) {
-	node, err := apiC.GetNode(context.Background(), &wrappers.StringValue{Value: str})
-	if err != nil {
-		MessageBox(err.Error())
-		return
-	}
+func (m *mainWindow) groupChangeCall(string) {
 	m.nodeCombobox.Clear()
-	m.nodeCombobox.AddItems(node.Value)
-
-	//m.nodeCombobox.Clear()
-	//nodes := m.nodeCombobox.CurrentData(int(core.Qt__UserRole) + 1).ToList()
-	//for _, node := range nodes {
-	//	mapTmp := node.ToMap()
-	//	for key := range mapTmp {
-	//		m.nodeCombobox.AddItem(mapTmp[key].ToString(), core.NewQVariant12(key))
-	//	}
-	//}
+	m.nodeCombobox.AddItems(m.groupCombobox.CurrentData(int(core.Qt__UserRole)).ToStringList())
 }
 
 func (m *mainWindow) latencyCall(_ bool) {
 	go func() {
 		t := time.Now()
-		lat, err := apiC.Latency(context.Background(), &api.NowNodeGroupAndNode{Group: m.groupCombobox.CurrentText(), Node: m.nodeCombobox.CurrentText()})
+		lat, err := grpcNode.Latency(context.Background(), &api.GroupAndNode{Group: m.groupCombobox.CurrentText(), Node: m.nodeCombobox.CurrentText()})
 		if err != nil {
 			m.latency.SetText(fmt.Sprintf("<i>[%02d:%02d:%02d]</i>  timeout: %s", t.Hour(), t.Minute(), t.Second(), m.nodeCombobox.CurrentText()))
 			return
@@ -223,7 +199,7 @@ func (m *mainWindow) showCall(_ *gui.QShowEvent) {
 		}
 	_jumpSelect:
 		fmt.Println("Call Kernel to Get Flow Message.")
-		client, err := apiC.GetRate(m.flowCtx, &empty.Empty{})
+		client, err := grpcConfig.GetRate(m.flowCtx, &empty.Empty{})
 		if err != nil {
 			log.Println(err)
 			return
