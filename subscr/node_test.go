@@ -57,7 +57,7 @@ func TestAllOption(t *testing.T) {
 	//printNodes(nodes.Node)
 
 	t.Log("Delete Remote Test")
-	deleteRemoteNodes(nodes.Node)
+	deleteAllRemoteNodes(nodes.Node)
 	printNodes(nodes.Node)
 }
 
