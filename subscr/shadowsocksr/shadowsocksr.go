@@ -26,11 +26,12 @@ type Shadowsocksr struct {
 	Protoparam string `json:"protoparam"`
 }
 
-func ParseLink(link []byte, group string, origin float64) (*Shadowsocksr, error) {
+func ParseLink(link []byte, group string) (*Shadowsocksr, error) {
 	decodeStr := strings.Split(common.Base64DStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	n := new(Shadowsocksr)
 	n.NType = common.Shadowsocksr
-	n.NOrigin = origin
+	n.NOrigin = common.Remote
+	n.NGroup = group
 	x := strings.Split(decodeStr[0], ":")
 	if len(x) != 6 {
 		return n, errors.New("link: " + decodeStr[0] + " is not format Shadowsocksr link")
@@ -43,12 +44,27 @@ func ParseLink(link []byte, group string, origin float64) (*Shadowsocksr, error)
 	n.Password = common.Base64DStr(x[5])
 	if len(decodeStr) > 1 {
 		query, _ := url.ParseQuery(decodeStr[1])
-		n.NGroup = group
 		n.Obfsparam = common.Base64DStr(query.Get("obfsparam"))
 		n.Protoparam = common.Base64DStr(query.Get("protoparam"))
 		n.NName = "[ssr]" + common.Base64DStr(query.Get("remarks"))
 	}
+	n.NHash = countHash(n)
+	return n, nil
+}
 
+func ParseLinkManual(link []byte, group string) (*Shadowsocksr, error) {
+	s, err := ParseLink(link, group)
+	if err != nil {
+		return nil, err
+	}
+	s.NOrigin = common.Manual
+	return s, nil
+}
+
+func countHash(n *Shadowsocksr) string {
+	if n == nil {
+		return ""
+	}
 	hash := sha256.New()
 	hash.Write([]byte{byte(n.NType)})
 	hash.Write([]byte{byte(n.NOrigin)})
@@ -62,8 +78,7 @@ func ParseLink(link []byte, group string, origin float64) (*Shadowsocksr, error)
 	hash.Write([]byte(n.Obfsparam))
 	hash.Write([]byte(n.Protocol))
 	hash.Write([]byte(n.Protoparam))
-	n.NHash = hex.EncodeToString(hash.Sum(nil))
-	return n, nil
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func ParseMap(n map[string]interface{}) (*Shadowsocksr, error) {
@@ -100,6 +115,9 @@ func ParseMap(n map[string]interface{}) (*Shadowsocksr, error) {
 			node.NHash = common.Interface2string(n[key])
 		}
 	}
+	if node.NHash == "" {
+		node.NHash = countHash(node)
+	}
 	return node, nil
 }
 
@@ -109,6 +127,7 @@ func ParseMapManual(m map[string]interface{}) (*Shadowsocksr, error) {
 		return nil, err
 	}
 	s.NOrigin = common.Manual
+	s.NHash = countHash(s)
 	return s, nil
 }
 

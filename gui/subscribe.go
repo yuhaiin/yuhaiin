@@ -21,6 +21,8 @@ type subscribe struct {
 	deleteButton *widgets.QPushButton
 	nameLabel    *widgets.QLabel
 	nameLineText *widgets.QLineEdit
+	typeLabel    *widgets.QLabel
+	typeCombobox *widgets.QComboBox
 	urlLabel     *widgets.QLabel
 	urlLineText  *widgets.QLineEdit
 	addButton    *widgets.QPushButton
@@ -48,6 +50,8 @@ func (s *subscribe) create() {
 	s.deleteButton = widgets.NewQPushButton2("DELETE", nil)
 	s.nameLabel = widgets.NewQLabel2("Name", nil, core.Qt__Widget)
 	s.nameLineText = widgets.NewQLineEdit(nil)
+	s.typeLabel = widgets.NewQLabel2("Type", nil, core.Qt__Widget)
+	s.typeCombobox = widgets.NewQComboBox(nil)
 	s.urlLabel = widgets.NewQLabel2("Link", nil, core.Qt__Widget)
 	s.urlLineText = widgets.NewQLineEdit(nil)
 	s.addButton = widgets.NewQPushButton2("SAVE", nil)
@@ -62,6 +66,8 @@ func (s *subscribe) setLayout() {
 	windowLayout.AddWidget2(s.nameLineText, 1, 1, 0)
 	windowLayout.AddWidget2(s.urlLabel, 2, 0, 0)
 	windowLayout.AddWidget2(s.urlLineText, 2, 1, 0)
+	windowLayout.AddWidget2(s.typeLabel, 3, 0, 0)
+	windowLayout.AddWidget2(s.typeCombobox, 3, 1, 0)
 	windowLayout.AddWidget2(s.addButton, 3, 2, 0)
 
 	centralWidget := widgets.NewQWidget(s.window, core.Qt__Widget)
@@ -85,7 +91,7 @@ func (s *subscribe) showCall(_ *gui.QShowEvent) {
 	s.sortAndShow(links.Value)
 }
 
-func (s *subscribe) sortAndShow(links map[string]string) {
+func (s *subscribe) sortAndShow(links map[string]*api.Link) {
 	var keys []string
 	for key := range links {
 		keys = append(keys, key)
@@ -93,19 +99,26 @@ func (s *subscribe) sortAndShow(links map[string]string) {
 	sort.Strings(keys)
 	s.subCombobox.Clear()
 	for index := range keys {
-		s.subCombobox.AddItem(keys[index], core.NewQVariant12(links[keys[index]]))
+		s.subCombobox.AddItem(keys[index], core.NewQVariant23(
+			map[string]*core.QVariant{
+				"type": core.NewQVariant12(links[keys[index]].Type),
+				"url":  core.NewQVariant15(links[keys[index]].Url),
+			},
+		),
+		)
 	}
 }
 
 func (s *subscribe) comboboxChangeCall(name string) {
 	s.nameLineText.SetText(name)
-	s.urlLineText.SetText(s.subCombobox.CurrentData(int(core.Qt__UserRole)).ToString())
+	s.urlLineText.SetText(s.subCombobox.CurrentData(int(core.Qt__UserRole)).ToMap()["url"].ToString())
+	s.typeCombobox.SetCurrentText(s.subCombobox.CurrentData(int(core.Qt__UserRole)).ToMap()["type"].ToString())
 }
 
 func (s *subscribe) addCall(_ bool) {
 	name := s.nameLineText.Text()
 	url := s.urlLineText.Text()
-	links, err := grpcSub.AddSubLink(context.Background(), &api.Link{Name: name, Url: url})
+	links, err := grpcSub.AddSubLink(context.Background(), &api.Link{Name: name, Type: s.typeCombobox.CurrentText(), Url: url})
 	if err != nil {
 		MessageBox(err.Error())
 		return

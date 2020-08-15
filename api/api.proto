@@ -77,8 +77,9 @@ service Subscribe {
 message Link {
   string name = 1;
   string url = 2;
+  string type = 3;
 }
 
 message Links{
-  map<string,string> Value = 1;
+  map<string,Link> Value = 1;
 }
