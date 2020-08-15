@@ -216,13 +216,15 @@ func UpdateSub() error {
 	return nil
 }
 
-func GetLinks() (map[string]string, error) {
+func GetLinks() (map[string]subscr.Link, error) {
 	return Nodes.Links, nil
 }
 
-func AddLink(name, link string) error {
-	//Nodes.Link = append(Nodes.Link, str)
-	Nodes.Links[name] = link
+func AddLink(name, tYPE, link string) error {
+	Nodes.Links[name] = subscr.Link{
+		Type: tYPE,
+		Url:  link,
+	}
 	return subscr.SaveNode(Nodes)
 }
 
@@ -243,12 +245,6 @@ func DeleteNode(group, name string) error {
 }
 
 func DeleteLink(name string) error {
-	//for index := range Nodes.Link {
-	//	if str == Nodes.Link[index] {
-	//		Nodes.Link = append(Nodes.Link[:index], Nodes.Link[index+1:]...)
-	//		break
-	//	}
-	//}
 	delete(Nodes.Links, name)
 	return subscr.SaveNode(Nodes)
 }

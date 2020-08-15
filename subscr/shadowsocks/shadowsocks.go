@@ -23,14 +23,14 @@ type Shadowsocks struct {
 	PluginOpt string `json:"plugin_opt"`
 }
 
-func ParseLink(str []byte, group string, origin float64) (*Shadowsocks, error) {
+func ParseLink(str []byte, group string) (*Shadowsocks, error) {
 	n := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
 		return nil, err
 	}
 	n.NType = common.Shadowsocks
-	n.NOrigin = origin
+	n.NOrigin = common.Remote
 	n.Server = ssUrl.Hostname()
 	n.Port = ssUrl.Port()
 	n.Method = strings.Split(common.Base64DStr(ssUrl.User.String()), ":")[0]
@@ -94,6 +94,7 @@ func ParseMapManual(m map[string]interface{}) (*Shadowsocks, error) {
 	s.NOrigin = common.Manual
 	return s, nil
 }
+
 func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
 	s, err := ParseMap(n)
 	if err != nil {
