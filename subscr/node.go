@@ -24,10 +24,15 @@ var (
 	jsonPath = config.Path + "/node.json"
 )
 
+type Link struct {
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}
+
 type Node struct {
 	NowNode interface{}                       `json:"nowNode"`
 	Link    []string                          `json:"link"`
-	Links   map[string]string                 `json:"links"`
+	Links   map[string]Link                   `json:"links"`
 	Node    map[string]map[string]interface{} `json:"node"`
 }
 
@@ -35,7 +40,7 @@ func decodeJSON() (*Node, error) {
 	pa := &Node{
 		NowNode: map[string]interface{}{},
 		Link:    []string{},
-		Links:   map[string]string{},
+		Links:   map[string]Link{},
 		Node:    map[string]map[string]interface{}{},
 	}
 	file, err := os.Open(jsonPath)
@@ -50,7 +55,9 @@ func decodeJSON() (*Node, error) {
 		return nil, err
 	}
 	for index := range pa.Link {
-		pa.Links[pa.Link[index]] = pa.Link[index]
+		pa.Links[pa.Link[index]] = Link{
+			Url: pa.Link[index],
+		}
 	}
 	pa.Link = pa.Link[:0]
 	return pa, enCodeJSON(pa)
@@ -93,7 +100,7 @@ func GetLinkFromInt() error {
 	}
 
 	for key := range pa.Links {
-		oneLinkGet(pa.Links[key], key, pa.Node)
+		oneLinkGet(pa.Links[key].Url, key, pa.Node)
 	}
 
 	err = enCodeJSON(pa)
@@ -239,14 +246,14 @@ func base64ToNode(str []byte, group string) (node interface{}, name string, err 
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
-		node, err := ss.ParseLink(str, group, common.Remote)
+		node, err := ss.ParseLink(str, group)
 		if err != nil {
 			return nil, "", err
 		}
 		return node, node.NName, nil
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
-		node, err := ssr.ParseLink(str, group, common.Remote)
+		node, err := ssr.ParseLink(str, group)
 		if err != nil {
 			return nil, "", err
 		}

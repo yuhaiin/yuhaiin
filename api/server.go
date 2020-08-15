@@ -313,11 +313,22 @@ func (s *Subscribe) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, erro
 
 func (s *Subscribe) GetSubLinks(ctx context.Context, req *empty.Empty) (*Links, error) {
 	links, err := controller.GetLinks()
-	return &Links{Value: links}, err
+	if err != nil {
+		return nil, err
+	}
+	l := &Links{}
+	l.Value = map[string]*Link{}
+	for key := range links {
+		l.Value[key] = &Link{
+			Type: links[key].Type,
+			Url:  links[key].Url,
+		}
+	}
+	return l, nil
 }
 
 func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
-	err := controller.AddLink(req.Name, req.Url)
+	err := controller.AddLink(req.Name, req.Type, req.Url)
 	if err != nil {
 		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
 	}
