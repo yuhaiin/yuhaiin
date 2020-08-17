@@ -6,6 +6,8 @@ import (
 	"net"
 	"sort"
 
+	"github.com/Asutorufa/yuhaiin/subscr/common"
+
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
@@ -137,7 +139,7 @@ func ChangeNNode(group string, node string) (erra error) {
 }
 
 func GetNNodeAndNGroup() (node string, group string) {
-	return Nodes.NowNode.(map[string]interface{})["name"].(string), Nodes.NowNode.(map[string]interface{})["group"].(string)
+	return common.Interface2string(Nodes.NowNode.(map[string]interface{})["name"]), common.Interface2string(Nodes.NowNode.(map[string]interface{})["group"])
 }
 
 func GetNowNodeConn() (func(string) (net.Conn, error), string, error) {
