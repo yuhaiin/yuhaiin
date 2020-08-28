@@ -94,6 +94,12 @@ func (n *NormalDNS) GetServer() string {
 func (n *NormalDNS) SetProxy(proxy func(addr string) (net.Conn, error)) {}
 
 func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
+	//defer func() {
+	//	if r := recover(); r != nil {
+	//		fmt.Printf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
+	//		err = fmt.Errorf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
+	//	}
+	//}()
 	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
 
 	b, err := reqF(req)
@@ -275,6 +281,11 @@ func resolveAuthoritative(c []byte, nsCount int, b []byte) (left []byte) {
 
 func getName(c []byte, all []byte) (name string, size int, x []byte) {
 	for {
+		if c[0] == 0 {
+			c = c[1:] // lastOfDomain: one byte 0
+			size += 1
+			break
+		}
 		if c[0]&128 == 128 && c[0]&64 == 64 {
 			l := c[1]
 			c = c[2:]
@@ -287,11 +298,6 @@ func getName(c []byte, all []byte) (name string, size int, x []byte) {
 		name += string(c[1:int(c[0])+1]) + "."
 		size += int(c[0]) + 1
 		c = c[int(c[0])+1:]
-		if c[0] == 0 {
-			c = c[1:] // lastOfDomain: one byte 0
-			size += 1
-			break
-		}
 	}
 	return name, size, c
 }
