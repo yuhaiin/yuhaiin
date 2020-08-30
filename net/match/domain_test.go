@@ -10,7 +10,7 @@ import (
 func BenchmarkDomainMatcher_Search(b *testing.B) {
 	b.StopTimer()
 	root := NewDomainMatch()
-	root.InsertFlip("www.baidu.com", "test_baidu")
+	root.InsertFlip("*.baidu.com", "test_baidu")
 	root.InsertFlip("www.baidu.sub.com.cn", "test_baidu")
 	root.InsertFlip("www.google.com", "test_google")
 	b.StartTimer()
@@ -29,11 +29,17 @@ func TestDomain_Insert(t *testing.T) {
 
 func TestDomainMatcher_SearchFlip(t *testing.T) {
 	root := NewDomainMatch()
+	root.InsertFlip("*.baidu.com", "sub_baidu_test")
 	root.InsertFlip("www.baidu.com", "test_baidu")
+	root.InsertFlip("last.baidu.*", "test_last_baidu")
+	root.InsertFlip("*.baidu.*", "last_sub_baidu_test")
 	root.InsertFlip("www.google.com", "test_google")
 	root.InsertFlip("music.111.com", "1111")
 	root.InsertFlip("163.com", "163")
 	t.Log(root.SearchFlip("www.baidu.com"))
+	t.Log(root.SearchFlip("last.baidu.com.cn"))
+	t.Log(root.SearchFlip("test.baidu.com"))
+	t.Log(root.SearchFlip("test.test2.baidu.com"))
 	t.Log(root.SearchFlip("www.baidu.cn"))
 	t.Log(root.SearchFlip("www.google.com"))
 	t.Log(root.SearchFlip("www.google.cn"))
