@@ -5,9 +5,10 @@ import (
 )
 
 type domainNode struct {
-	isLast bool
-	mark   interface{}
-	child  map[string]*domainNode
+	last     bool
+	wildcard bool
+	mark     interface{}
+	child    map[string]*domainNode
 }
 
 type Domain struct {
@@ -35,11 +36,17 @@ func (d *Domain) insert(root *domainNode, mark interface{}, domain []string) {
 			}
 		}
 
-		if (index == 1 && domain[0] == "*") || index == 0 {
-			root.child[domain[index]].isLast = true
+		if index == 1 && domain[0] == "*" {
+			root.child[domain[index]].wildcard = true
 			root.child[domain[index]].mark = mark
 			root.child[domain[index]].child = make(map[string]*domainNode) // clear child,because this node is last
 			break
+		}
+
+		if index == 0 {
+			root.child[domain[index]].last = true
+			root.child[domain[index]].mark = mark
+			root.child[domain[index]].child = make(map[string]*domainNode) // clear child,because this node is last
 		}
 
 		root = root.child[domain[index]]
@@ -62,7 +69,7 @@ func (d *Domain) search(root *domainNode, domain []string) (bool, interface{}) {
 		_, ok := root.child[domain[index]] // use index to get data quicker than new var
 		if ok {
 			first = false
-			if root.child[domain[index]].isLast == true {
+			if root.child[domain[index]].wildcard == true || (root.child[domain[index]].last == true && index == 0) {
 				return true, root.child[domain[index]].mark
 			}
 			root = root.child[domain[index]]
@@ -91,12 +98,10 @@ func (d *Domain) search(root *domainNode, domain []string) (bool, interface{}) {
 func NewDomainMatch() *Domain {
 	return &Domain{
 		root: &domainNode{
-			isLast: false,
-			child:  map[string]*domainNode{},
+			child: map[string]*domainNode{},
 		},
 		wildcardRoot: &domainNode{
-			isLast: false,
-			child:  map[string]*domainNode{},
+			child: map[string]*domainNode{},
 		},
 	}
 }
