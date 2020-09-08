@@ -260,7 +260,7 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 		default:
 			c = c[sum:] // RDATA
 		}
-		anCount -= 1
+		anCount--
 	}
 	return DNS, c, nil
 }
@@ -280,6 +280,7 @@ func resolveAuthoritative(c []byte, nsCount int, b []byte) (left []byte) {
 }
 
 func getName(c []byte, all []byte) (name string, size int, x []byte) {
+	s := strings.Builder{}
 	for {
 		if c[0] == 0 {
 			c = c[1:] // lastOfDomain: one byte 0
@@ -291,15 +292,15 @@ func getName(c []byte, all []byte) (name string, size int, x []byte) {
 			c = c[2:]
 			size += 2
 			tmp, _, _ := getName(all[l:], all)
-			name += tmp
-			//log.Println(c, name)
+			s.WriteString(tmp)
 			break
 		}
-		name += string(c[1:int(c[0])+1]) + "."
+		s.Write(c[1 : int(c[0])+1])
+		s.WriteString(".")
 		size += int(c[0]) + 1
 		c = c[int(c[0])+1:]
 	}
-	return name, size, c
+	return s.String(), size, c
 }
 
 // https://www.ietf.org/rfc/rfc1035.txt
