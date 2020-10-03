@@ -33,7 +33,7 @@ var (
 		},
 		redir: func(host string) (proxyI.Server, error) {
 			if runtime.GOOS == "windows" {
-				return nil, fmt.Errorf("Redir not support windows")
+				return nil, fmt.Errorf("redir not support windows")
 			}
 			return proxyI.NewTCPServer(host, redirserver.RedirHandle())
 		},

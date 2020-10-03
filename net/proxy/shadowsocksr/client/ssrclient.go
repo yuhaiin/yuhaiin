@@ -29,6 +29,7 @@ type Shadowsocksr struct {
 	protocolData    interface{}
 
 	cache []net.IP
+	ip    bool
 }
 
 func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {
@@ -41,6 +42,9 @@ func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protoc
 		obfsParam:       obfsParam,
 		protocol:        protocol,
 		protocolParam:   protocolParam,
+
+		cache: []net.IP{},
+		ip:    net.ParseIP(host) != nil,
 	}
 	s.protocolData = new(Protocol.AuthData)
 	return s, nil
@@ -113,6 +117,9 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 }
 
 func (s *Shadowsocksr) getTCPConn() (net.Conn, error) {
+	if s.ip {
+		return net.Dial("tcp", net.JoinHostPort(s.host, s.port))
+	}
 	conn, err := s.tcpDial()
 	if err == nil {
 		return conn, err

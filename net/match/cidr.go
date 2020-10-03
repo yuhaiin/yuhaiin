@@ -17,16 +17,13 @@ type Cidr struct {
 }
 
 func ipv4toInt(ip net.IP) string {
-	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip.To4()))
+	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip)) // there ip is ip.To4()
 }
 
 func ipv6toInt(ip net.IP) string {
-	if ip == nil {
-		return ""
-	}
 	// from http://golang.org/pkg/net/#pkg-constants
 	// IPv6len = 16
-	return fmt.Sprintf("%0128b", big.NewInt(0).SetBytes(ip.To16()))
+	return fmt.Sprintf("%0128b", big.NewInt(0).SetBytes(ip)) // there ip is ip.To16()
 }
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
@@ -36,11 +33,11 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 		return err
 	}
 	maskSize, _ := ipNet.Mask.Size()
-
-	if ipNet.IP.To4() != nil {
-		c.v4CidrTrie.Insert(ipv4toInt(ipNet.IP)[:maskSize], mark)
+	x := ipNet.IP.To4()
+	if x != nil {
+		c.v4CidrTrie.Insert(ipv4toInt(x)[:maskSize], mark)
 	} else {
-		c.v6CidrTrie.Insert(ipv6toInt(ipNet.IP)[:maskSize], mark)
+		c.v6CidrTrie.Insert(ipv6toInt(ipNet.IP.To16())[:maskSize], mark)
 	}
 	return nil
 }
@@ -64,14 +61,15 @@ func (c *Cidr) singleSearch(ip string) (ok bool, mark interface{}) {
 
 // MatchWithTrie match ip with trie
 func (c *Cidr) Search(ip string) (isMatch bool, mark interface{}) {
-	ip2 := net.ParseIP(ip)
-	if ip2 == nil {
+	iP := net.ParseIP(ip)
+	if iP == nil {
 		return false, nil
 	}
-	if ip2.To4() != nil {
-		return c.v4CidrTrie.Search(ipv4toInt(ip2))
+	x := iP.To4()
+	if iP.To4() != nil {
+		return c.v4CidrTrie.Search(ipv4toInt(x))
 	} else {
-		return c.v6CidrTrie.Search(ipv6toInt(ip2))
+		return c.v6CidrTrie.Search(ipv6toInt(iP.To16()))
 	}
 }
 
@@ -102,7 +100,7 @@ type cidrNode struct {
 // Insert insert node to tree
 func (t *Trie) Insert(str string, mark interface{}) {
 	nodeTemp := t.root
-	for i := 0; i < len(str); i++ {
+	for i := range str {
 		// 1 byte is 49
 		if str[i] == 49 {
 			if nodeTemp.right == nil {
@@ -128,8 +126,8 @@ func (t *Trie) Insert(str string, mark interface{}) {
 
 // Search search from trie tree
 func (t *Trie) Search(str string) (isMatch bool, mark interface{}) {
-	nodeTemp, l := t.root, len(str)
-	for i := 0; i < l; i++ {
+	nodeTemp := t.root
+	for i := range str {
 		if str[i] == 49 {
 			nodeTemp = nodeTemp.right
 		}
