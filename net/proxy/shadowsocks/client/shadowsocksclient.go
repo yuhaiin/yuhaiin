@@ -27,6 +27,7 @@ type shadowsocks struct {
 	pluginFunc func(conn net.Conn) net.Conn
 
 	cache []net.IP
+	ip    bool
 }
 
 func NewShadowsocks(cipherName string, password string, server, port string, plugin, pluginOpt string) (*shadowsocks, error) {
@@ -41,6 +42,7 @@ func NewShadowsocks(cipherName string, password string, server, port string, plu
 		plugin:    strings.ToUpper(plugin),
 		pluginOpt: pluginOpt,
 		cache:     []net.IP{},
+		ip:        net.ParseIP(server) != nil,
 	}
 	switch strings.ToLower(plugin) {
 	case OBFS:
@@ -82,6 +84,9 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 }
 
 func (s *shadowsocks) getTCPConn() (net.Conn, error) {
+	if s.ip {
+		return net.Dial("tcp", net.JoinHostPort(s.server, s.port))
+	}
 	conn, err := s.tcpDial()
 	if err == nil {
 		return conn, err

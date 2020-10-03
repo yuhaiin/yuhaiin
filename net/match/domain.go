@@ -53,11 +53,11 @@ func (d *Domain) insert(root *domainNode, mark interface{}, domain []string) {
 	}
 }
 
-func (d *Domain) SearchFlip(domain string) (isMatcher bool, mark interface{}) {
+func (d *Domain) SearchFlip(domain string) (ok bool, mark interface{}) {
 	domainDiv := strings.Split(domain, ".")
-	isMatcher, mark = d.search(d.root, domainDiv)
-	if isMatcher {
-		return isMatcher, mark
+	ok, mark = d.search(d.root, domainDiv)
+	if ok {
+		return ok, mark
 	}
 	return d.search(d.wildcardRoot, domainDiv)
 }
