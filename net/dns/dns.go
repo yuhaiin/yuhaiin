@@ -94,12 +94,12 @@ func (n *NormalDNS) GetServer() string {
 func (n *NormalDNS) SetProxy(proxy func(addr string) (net.Conn, error)) {}
 
 func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
-	//defer func() {
-	//	if r := recover(); r != nil {
-	//		fmt.Printf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
-	//		err = fmt.Errorf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
-	//	}
-	//}()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
+			err = fmt.Errorf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
+		}
+	}()
 	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
 
 	b, err := reqF(req)
