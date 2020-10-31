@@ -12,8 +12,9 @@ func TestDOH(t *testing.T) {
 	//d := NewDOH("223.5.5.5")
 	//_, s, _ := net.ParseCIDR("45.32.51.197/31")
 	//d.SetSubnet(s)
-	t.Log(d.Search("plasma"))
-	//t.Log(d.Search("i2.hdslb.com"))
+	//t.Log(d.Search("plasma"))
+	t.Log(d.Search("dc.services.visualstudio.com")) // -> will error, but not found reason
+	//tLog(d.Search("i2.hdslb.com"))
 	//t.Log(d.Search("www.baidu.com"))
 	//t.Log(d.Search("baidu.com"))
 	//t.Log(d.Search("ss1.bdstatic.com"))
