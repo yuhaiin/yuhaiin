@@ -3,6 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/yuhaiin)](https://goreportcard.com/report/github.com/Asutorufa/yuhaiin)
 ![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
 
+- gui project move to [yuhaiinqt](https://github.com/Asutorufa/yuhaiinqt).  
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Supported Protocol  
     - Shadowsocksr  
