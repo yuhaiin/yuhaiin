@@ -77,6 +77,8 @@ github.com/templexxx/cpu v0.0.1/go.mod h1:w7Tb+7qgcAlIyX4NhLuDKt78AHA5SzPmq0Wj6H
 github.com/templexxx/cpufeat v0.0.0-20180724012125-cef66df7f161/go.mod h1:wM7WEvslTq+iOEAMDLSzhVuOt5BRZ05WirO+b09GHQU=
 github.com/templexxx/xor v0.0.0-20181023030647-4e92f724b73b/go.mod h1:5XA7W9S6mni3h5uvOC75dA3m9CCCaS83lltmc0ukdi4=
 github.com/templexxx/xorsimd v0.4.1/go.mod h1:W+ffZz8jJMH2SXwuKu9WhygqBMbFnp14G2fqEr8qaNo=
+github.com/therecipe/env_linux_amd64_513 v0.0.0-20190626000307-e137a3934da6 h1:i0/LROzMqqMuHJ9gPeH2+So1Icle7zSVRqzXR4Z75hw=
+github.com/therecipe/env_linux_amd64_513 v0.0.0-20190626000307-e137a3934da6/go.mod h1:Cq/lZrZTuGhRckzJgZFONK4WCE67AssWhHYj82U5FFI=
 github.com/therecipe/qt v0.0.0-20200126204426-5074eb6d8c41 h1:yBVcrpbaQYJBdKT2pxTdlL4hBE/eM4UPcyj9YpyvSok=
 github.com/therecipe/qt v0.0.0-20200126204426-5074eb6d8c41/go.mod h1:SUUR2j3aE1z6/g76SdD6NwACEpvCxb3fvG82eKbD6us=
 github.com/therecipe/qt v0.0.0-20200604211348-b56356132618 h1:XAXJY6JjDtSQBjv5hs+/3S859PcHIUXUNMHj9kP0fLY=

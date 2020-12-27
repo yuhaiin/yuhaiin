@@ -1,5 +1,3 @@
-//+build api
-
 package api
 
 import (
