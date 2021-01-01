@@ -8,7 +8,6 @@ import (
 )
 
 func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
-
 	defer req.Close()
 	_ = req.(*net.TCPConn).SetKeepAlive(true)
 	target, err := pfutil.NatLookup(req.(*net.TCPConn))
