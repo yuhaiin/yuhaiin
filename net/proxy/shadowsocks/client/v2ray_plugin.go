@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/golang/protobuf/proto"
@@ -135,5 +136,5 @@ func readCertificate(cert, certRaw string) ([]byte, error) {
 		fixedCert := certHead + "\n" + certRaw + "\n" + certTail
 		return []byte(fixedCert), nil
 	}
-	panic("thou shalt not reach hear")
+	return nil, fmt.Errorf("can't get cert or certRaw")
 }

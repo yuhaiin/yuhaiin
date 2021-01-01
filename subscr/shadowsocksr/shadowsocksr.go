@@ -8,9 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/subscr/common"
-
 	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
+	"github.com/Asutorufa/yuhaiin/subscr/common"
 )
 
 // Shadowsocksr node json struct
@@ -26,6 +25,7 @@ type Shadowsocksr struct {
 	Protoparam string `json:"protoparam"`
 }
 
+// ParseLink parse a base64 encode ssr link
 func ParseLink(link []byte, group string) (*Shadowsocksr, error) {
 	decodeStr := strings.Split(common.Base64DStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	n := new(Shadowsocksr)
@@ -52,6 +52,7 @@ func ParseLink(link []byte, group string) (*Shadowsocksr, error) {
 	return n, nil
 }
 
+// ParseLinkManual parse a manual base64 encode ssr link
 func ParseLinkManual(link []byte, group string) (*Shadowsocksr, error) {
 	s, err := ParseLink(link, group)
 	if err != nil {
@@ -81,6 +82,7 @@ func countHash(n *Shadowsocksr) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
+// ParseMap parse ssr map read from config json
 func ParseMap(n map[string]interface{}) (*Shadowsocksr, error) {
 	if n == nil {
 		return nil, errors.New("map is nil")
@@ -121,6 +123,7 @@ func ParseMap(n map[string]interface{}) (*Shadowsocksr, error) {
 	return node, nil
 }
 
+// ParseMapManual parse a ssr map to manual
 func ParseMapManual(m map[string]interface{}) (*Shadowsocksr, error) {
 	s, err := ParseMap(m)
 	if err != nil {
@@ -131,6 +134,7 @@ func ParseMapManual(m map[string]interface{}) (*Shadowsocksr, error) {
 	return s, nil
 }
 
+// ParseConn parse a ssr map to conn function
 func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
 	s, err := ParseMap(n)
 	if err != nil {
