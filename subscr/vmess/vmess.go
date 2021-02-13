@@ -23,18 +23,18 @@ import (
 //"class":1
 //}
 type Vmess struct {
-	Host       string `json:"host"`
-	Path       string `json:"path"`
+	Host       string `json:"host"` // tls or websocket host
+	Path       string `json:"path"` // tls or websocket path
 	Tls        string `json:"tls"`
 	VerifyCert bool   `json:"verify_cert"`
-	Add        string `json:"add"`
+	Add        string `json:"add"` // address
 	Port       int    `json:"port"`
-	Aid        int    `json:"aid"`
-	Net        string `json:"net"`
-	Type       string `json:"type"`
+	Aid        int    `json:"aid"`  // alter id
+	Net        string `json:"net"`  // tls or ws
+	Type       string `json:"type"` // security type
 	V          string `json:"v"`
-	Ps         string `json:"ps"`
-	Id         string `json:"id"`
+	Ps         string `json:"ps"` // name
+	Id         string `json:"id"` // uuid
 	Class      int    `json:"class"`
 }
 

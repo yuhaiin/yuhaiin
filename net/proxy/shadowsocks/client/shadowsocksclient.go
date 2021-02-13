@@ -26,9 +26,9 @@ type shadowsocks struct {
 	pluginOpt  string
 	pluginFunc func(conn net.Conn) net.Conn
 
-	resolver *net.Resolver
-	cache    []net.IP
-	ip       bool
+	lookUp func(string) ([]net.IP, error)
+	cache  []net.IP
+	ip     bool
 }
 
 func NewShadowsocks(
@@ -49,7 +49,9 @@ func NewShadowsocks(
 		pluginOpt: pluginOpt,
 		cache:     []net.IP{},
 		ip:        net.ParseIP(server) != nil,
-		resolver:  net.DefaultResolver,
+		lookUp: func(s string) ([]net.IP, error) {
+			return common.LookupIP(net.DefaultResolver, s)
+		},
 	}
 	switch strings.ToLower(plugin) {
 	case OBFS:
@@ -98,7 +100,7 @@ func (s *shadowsocks) getTCPConn() (net.Conn, error) {
 	if err == nil {
 		return conn, err
 	}
-	s.cache, _ = common.LookupIP(s.resolver, s.server)
+	s.cache, _ = s.lookUp(s.server)
 	return s.tcpDial()
 }
 
@@ -193,9 +195,9 @@ func (s *shadowsocks) UDPConn(listener *net.UDPConn, target net.Addr, b []byte) 
 	return
 }
 
-func (s *shadowsocks) SetResolver(r *net.Resolver) {
-	if r == nil {
+func (s *shadowsocks) SetResolver(l func(string) ([]net.IP, error)) {
+	if l == nil {
 		return
 	}
-	s.resolver = r
+	s.lookUp = l
 }
