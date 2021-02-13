@@ -29,9 +29,9 @@ type Shadowsocksr struct {
 	protocolParam   string
 	protocolData    interface{}
 
-	cache    []net.IP
-	resolver *net.Resolver
-	ip       bool
+	cache  []net.IP
+	lookUp func(string) ([]net.IP, error)
+	ip     bool
 }
 
 func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {
@@ -45,9 +45,11 @@ func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protoc
 		protocol:        protocol,
 		protocolParam:   protocolParam,
 
-		cache:    []net.IP{},
-		ip:       net.ParseIP(host) != nil,
-		resolver: net.DefaultResolver,
+		cache: []net.IP{},
+		ip:    net.ParseIP(host) != nil,
+		lookUp: func(s string) ([]net.IP, error) {
+			return common.LookupIP(net.DefaultResolver, s)
+		},
 	}
 	s.protocolData = new(Protocol.AuthData)
 	return s, nil
@@ -127,7 +129,7 @@ func (s *Shadowsocksr) getTCPConn() (net.Conn, error) {
 	if err == nil {
 		return conn, err
 	}
-	s.cache, _ = common.LookupIP(s.resolver, s.host)
+	s.cache, _ = s.lookUp(s.host)
 	return s.tcpDial()
 }
 
@@ -142,9 +144,9 @@ func (s *Shadowsocksr) tcpDial() (net.Conn, error) {
 	return nil, errors.New("shadowsocksr dial failed")
 }
 
-func (s *Shadowsocksr) SetResolver(r *net.Resolver) {
-	if r == nil {
+func (s *Shadowsocksr) SetLookup(l func(string) ([]net.IP, error)) {
+	if l == nil {
 		return
 	}
-	s.resolver = r
+	s.lookUp = l
 }
