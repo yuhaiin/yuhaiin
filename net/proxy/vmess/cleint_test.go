@@ -9,8 +9,10 @@ import (
 )
 
 func TestNewVmess(t *testing.T) {
-	v, err := NewVmess("x.v2ray.com", 20004, "e70xxx12-4xxxf-xxxe-axx7-46a1xxxxxxxxf",
-		"none", 2, "ws", "/", "www.xxx.com")
+	v, err := NewVmess(
+		"x.v2ray.com", 20004,
+		"e70xxx12-4xxxf-xxxe-axx7-46a1xxxxxxxxf", "none", 2,
+		"ws", "/", "www.xxx.com", false, "", "")
 	if err != nil {
 		t.Error(err)
 		return
