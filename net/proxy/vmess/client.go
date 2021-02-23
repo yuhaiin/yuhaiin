@@ -2,74 +2,91 @@ package vmess
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
+	"net"
+	"strconv"
+	"time"
 
-	"v2ray.com/core/common/net"
+	gitsrcVmess "github.com/Asutorufa/yuhaiin/net/proxy/vmess/gitsrcvmess"
+	v2rayNet "v2ray.com/core/common/net"
+	"v2ray.com/core/common/platform/filesystem"
 	"v2ray.com/core/common/protocol"
 	"v2ray.com/core/common/serial"
-	libVmess "v2ray.com/core/proxy/vmess"
-	vmessOutbound "v2ray.com/core/proxy/vmess/outbound"
-	"v2ray.com/core/transport"
 	"v2ray.com/core/transport/internet"
-	"v2ray.com/core/transport/internet/websocket"
+	v2Quic "v2ray.com/core/transport/internet/quic"
+	"v2ray.com/core/transport/internet/tls"
+	v2Websocket "v2ray.com/core/transport/internet/websocket"
 )
 
-type vmess struct {
-	handler *vmessOutbound.Handler
+//Vmess vmess client
+type Vmess struct {
+	address  string
+	port     uint32
+	uuid     string
+	security string
+	alterID  uint32
+	websocket
+
+	client *gitsrcVmess.Client
 }
 
-func New(
-	address string,
-	port uint32,
-	uuid string,
-	securityType string,
-	alterID uint32,
-) *vmess {
-	re := []*protocol.ServerEndpoint{
-		{
-			Address: net.NewIPOrDomain(net.ParseAddress(address)),
-			Port:    port,
-			User: []*protocol.User{
-				{
-					Account: serial.ToTypedMessage(
-						&libVmess.Account{
-							Id:      uuid,
-							AlterId: alterID,
-							SecuritySettings: &protocol.SecurityConfig{
-								Type: protocol.SecurityType(protocol.SecurityType_value[strings.ToUpper(securityType)]),
-							},
-						},
-					),
-				},
-			},
-		},
-	}
-	h, err := vmessOutbound.New(context.Background(), &vmessOutbound.Config{
-		Receiver: re,
-	})
+type websocket struct {
+	path string
+	host string
+}
+
+//NewVmess create new Vmess Client
+func NewVmess(address string, port uint32, uuid string, securityType string, alterID uint32, net string,
+	netPath, netHost string) (*Vmess, error) {
+	client, err := gitsrcVmess.NewClient(uuid, securityType, int(alterID))
 	if err != nil {
-		fmt.Println(err)
-		return nil
+		return nil, fmt.Errorf("new vmess client failed: %v", err)
+	}
+	v := &Vmess{
+		address:  address,
+		port:     port,
+		uuid:     uuid,
+		security: securityType,
+		alterID:  alterID,
+		websocket: websocket{
+			path: netPath,
+			host: netHost,
+		},
+		client: client,
 	}
 
-	return &vmess{
-		handler: h,
+	switch net {
+	case "ws":
+		v.websocket = websocket{
+			path: netPath,
+			host: netHost,
+		}
 	}
+	return v, nil
 }
 
-func (v *vmess) Conn() {
-	v.handler.Process(context.Background(), &transport.Link{}, nil)
+//Conn create a connection for host
+func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
+	conn, err = v.getConn()
+	if err != nil {
+		return nil, fmt.Errorf("get conn failed: %v", err)
+	}
+	conn, err = webSocket(conn, v.path, v.host)
+	if err != nil {
+		return nil, fmt.Errorf("websocket create failed: %v", err)
+	}
+	return v.client.NewConn(conn, host)
 }
 
-func webSocket(
-	conn net.Conn,
-	path,
-	host string,
-) (net.Conn, error) {
-	webConfig := &websocket.Config{
+func (v *Vmess) getConn() (net.Conn, error) {
+	return net.DialTimeout("tcp", net.JoinHostPort(v.address, strconv.FormatUint(uint64(v.port), 10)), time.Second*10)
+}
+
+func webSocket(conn net.Conn, path, host string) (net.Conn, error) {
+	webConfig := &v2Websocket.Config{
 		Path: path,
-		Header: []*websocket.Header{
+		Header: []*v2Websocket.Header{
 			{
 				Key:   "Host",
 				Value: host,
@@ -92,5 +109,55 @@ func webSocket(
 	if err != nil {
 		return nil, err
 	}
-	return websocket.Dial(context.Background(), net.DestinationFromAddr(conn.RemoteAddr()), streamSetting)
+	return v2Websocket.Dial(context.Background(), v2rayNet.DestinationFromAddr(conn.RemoteAddr()), streamSetting)
+}
+
+func quic(conn net.Conn, path, host, cert, certRaw string) (net.Conn, error) {
+	transportSettings := &v2Quic.Config{
+		Security: &protocol.SecurityConfig{Type: protocol.SecurityType_NONE},
+	}
+
+	streamConfig := &internet.StreamConfig{
+		ProtocolName: "websocket",
+		TransportSettings: []*internet.TransportConfig{{
+			ProtocolName: "websocket",
+			Settings:     serial.ToTypedMessage(transportSettings),
+		}},
+		SocketSettings: &internet.SocketConfig{
+			Tfo: internet.SocketConfig_Enable,
+		},
+	}
+
+	//quic 必须开启tls
+	tlsConfig := tls.Config{ServerName: host}
+	if cert != "" || certRaw != "" {
+		certificate := tls.Certificate{Usage: tls.Certificate_AUTHORITY_VERIFY}
+		var err error
+		certificate.Certificate, err = readCertificate(cert, certRaw)
+		if err != nil {
+			return nil, errors.New("failed to read cert")
+		}
+		tlsConfig.Certificate = []*tls.Certificate{&certificate}
+	}
+	streamConfig.SecurityType = serial.GetMessageType(&tlsConfig)
+	streamConfig.SecuritySettings = []*serial.TypedMessage{serial.ToTypedMessage(&tlsConfig)}
+
+	streamSetting, err := internet.ToMemoryStreamConfig(streamConfig)
+	if err != nil {
+		return nil, err
+	}
+	return v2Quic.Dial(context.Background(), v2rayNet.DestinationFromAddr(conn.RemoteAddr()), streamSetting)
+}
+
+func readCertificate(cert, certRaw string) ([]byte, error) {
+	if cert != "" {
+		return filesystem.ReadFile(cert)
+	}
+	if certRaw != "" {
+		certHead := "-----BEGIN CERTIFICATE-----"
+		certTail := "-----END CERTIFICATE-----"
+		fixedCert := certHead + "\n" + certRaw + "\n" + certTail
+		return []byte(fixedCert), nil
+	}
+	return nil, fmt.Errorf("can't get cert or certRaw")
 }
