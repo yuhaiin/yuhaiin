@@ -55,12 +55,13 @@ func NewVmess(address string, port uint32, uuid string, securityType string, alt
 		security: securityType,
 		alterID:  alterID,
 		client:   client,
+		net:      net,
 		netConfig: netConfig{
 			tls: tls,
 		},
 	}
 
-	switch net {
+	switch v.net {
 	case "ws":
 		v.path = netPath
 		v.host = netHost
@@ -73,7 +74,7 @@ func NewVmess(address string, port uint32, uuid string, securityType string, alt
 		v.cert = cert
 		v.certRaw = certRaw
 	}
-
+	fmt.Println(v)
 	return v, nil
 }
 
