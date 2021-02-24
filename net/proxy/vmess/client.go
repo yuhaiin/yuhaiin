@@ -111,8 +111,13 @@ func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
 		return nil, fmt.Errorf("vmess new conn failed: %v", err)
 	}
 
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(v.address, strconv.Itoa(int(v.port))))
+	if err != nil {
+		return nil, fmt.Errorf("resolve udp failed: %v", err)
+	}
 	return &vmessPacketConn{
 		Conn: c,
+		addr: addr,
 	}, nil
 }
 
