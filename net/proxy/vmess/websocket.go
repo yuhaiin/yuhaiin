@@ -18,7 +18,7 @@ type websocketConn struct {
 	reader io.Reader
 }
 
-func websocketDial(conn net.Conn, host, path, certPath, keyPath string, tlsEnable bool) (net.Conn, error) {
+func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (net.Conn, error) {
 	x := &websocket.Dialer{
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return conn, nil
@@ -34,8 +34,7 @@ func websocketDial(conn net.Conn, host, path, certPath, keyPath string, tlsEnabl
 		//tls
 		protocol = "wss"
 		x.TLSClientConfig = &tls.Config{
-			ServerName: host,
-			// NextProtos:         []string{"h2", "http/1.1"},
+			ServerName:         host,
 			InsecureSkipVerify: false,
 			ClientSessionCache: tls.NewLRUClientSessionCache(100),
 		}

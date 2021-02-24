@@ -171,7 +171,6 @@ func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error)
 		x.Host,
 		false,
 		"",
-		"",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("new vmess failed: %v", err)
