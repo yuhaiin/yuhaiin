@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/subscr/common"
 	ss "github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/subscr/shadowsocksr"
+	"github.com/Asutorufa/yuhaiin/subscr/vmess"
 )
 
 var (
@@ -258,6 +259,12 @@ func base64ToNode(str []byte, group string) (node interface{}, name string, err 
 			return nil, "", err
 		}
 		return node, node.NName, nil
+	case bytes.HasPrefix(str, []byte("vmess://")):
+		node, err := vmess.ParseLink(str, group)
+		if err != nil {
+			return nil, "", err
+		}
+		return node, node.NName, nil
 	default:
 		return nil, "", errors.New("no support " + string(str))
 	}
@@ -274,6 +281,8 @@ func ParseNode(s map[string]interface{}) (interface{}, error) {
 		return ss.ParseMap(s)
 	case common.Shadowsocksr:
 		return ssr.ParseMap(s)
+	case common.Vmess:
+		return vmess.ParseMap(s)
 	}
 	return nil, errors.New("not support type")
 }
@@ -289,6 +298,7 @@ func parseNodeManual(s map[string]interface{}) (interface{}, error) {
 		return ss.ParseMapManual(s)
 	case common.Shadowsocksr:
 		return ssr.ParseMapManual(s)
+	case common.Vmess:
 	}
 	return nil, errors.New("not support type")
 }
@@ -312,6 +322,8 @@ func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), er
 		return ss.ParseConn(s)
 	case common.Shadowsocksr:
 		return ssr.ParseConn(s)
+	case common.Vmess:
+		return vmess.ParseConn(s)
 	}
 	return nil, errors.New("not support type")
 }
@@ -324,6 +336,13 @@ func checkType(s map[string]interface{}) (Type float64, err error) {
 	switch s["type"].(type) {
 	case float64:
 		Type = s["type"].(float64)
+		return
+	default:
+	}
+
+	switch s["n_type"].(type) {
+	case float64:
+		Type = s["n_type"].(float64)
 	default:
 		return 0, fmt.Errorf("map2struct:type -> %v", errors.New("type is not float64"))
 	}

@@ -254,7 +254,7 @@ func DeleteLink(name string) error {
 func ChangeNode() error {
 	conn, hash, err := GetNowNodeConn()
 	if err != nil {
-		return fmt.Errorf("GetNowNode() -> %v", err)
+		return fmt.Errorf("GetNowNodeConn() -> %v", err)
 	}
 	MatchCon.ChangeNode(conn, hash)
 	return nil
