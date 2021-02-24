@@ -9,7 +9,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 )
 
-func quicDial(conn net.PacketConn, host string, certPath, keyPath string) (*interConn, error) {
+func quicDial(conn net.PacketConn, host string, certPath string) (*interConn, error) {
 	// conn, err := net.ListenUDP("udp")
 	// if err != nil {
 	// return nil, err
@@ -24,18 +24,22 @@ func quicDial(conn net.PacketConn, host string, certPath, keyPath string) (*inte
 	if err != nil {
 		return nil, err
 	}
-	key, err := ioutil.ReadFile(keyPath)
-	if err != nil {
-		return nil, err
-	}
-	certPair, err := tls.X509KeyPair(cert, key)
-	if err != nil {
-		return nil, err
-	}
+	// key, err := ioutil.ReadFile(keyPath)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// certPair, err := tls.X509KeyPair(cert, key)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	tlsConfig := &tls.Config{
-		ServerName:   host,
-		Certificates: []tls.Certificate{certPair},
+		ServerName: host,
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{cert},
+			},
+		},
 	}
 
 	quicConfig := &quic.Config{

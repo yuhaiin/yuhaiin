@@ -40,21 +40,25 @@ func websocketDial(conn net.Conn, host, path, certPath, keyPath string, tlsEnabl
 			ClientSessionCache: tls.NewLRUClientSessionCache(100),
 		}
 
-		if certPath != "" && keyPath != "" {
+		if certPath != "" {
 			cert, err := ioutil.ReadFile(certPath)
 			if err != nil {
 				return nil, err
 			}
-			key, err := ioutil.ReadFile(keyPath)
-			if err != nil {
-				return nil, err
-			}
-			certPair, err := tls.X509KeyPair(cert, key)
-			if err != nil {
-				return nil, err
-			}
+			// key, err := ioutil.ReadFile(keyPath)
+			// if err != nil {
+			// return nil, err
+			// }
+			// certPair, err := tls.X509KeyPair(cert, key)
+			// if err != nil {
+			// return nil, err
+			// }
 
-			x.TLSClientConfig.Certificates = []tls.Certificate{certPair}
+			x.TLSClientConfig.Certificates = []tls.Certificate{
+				{
+					Certificate: [][]byte{cert},
+				},
+			}
 		}
 	}
 
