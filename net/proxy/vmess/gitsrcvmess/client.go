@@ -66,6 +66,8 @@ type Conn struct {
 	net.Conn
 	dataReader io.Reader
 	dataWriter io.Writer
+
+	udp bool
 }
 
 // NewClient .
@@ -91,6 +93,8 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 		c.security = SecurityChacha20Poly1305
 	case "none":
 		c.security = SecurityNone
+	case "auto":
+		fallthrough
 	case "":
 		// NOTE: use basic format when no method specified
 		c.opt = OptBasicFormat
@@ -106,10 +110,9 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 }
 
 // NewConn .
-func (c *Client) NewConn(rc net.Conn, target string) (*Conn, error) {
+func (c *Client) NewConn(rc net.Conn, network, target string) (*Conn, error) {
 	r := rand.Intn(c.count)
-	conn := &Conn{user: c.users[r], opt: c.opt, security: c.security}
-
+	conn := &Conn{user: c.users[r], opt: c.opt, security: c.security, udp: network == "udp"}
 	var err error
 	conn.atyp, conn.addr, conn.port, err = ParseAddr(target)
 	if err != nil {
@@ -174,8 +177,12 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	pSec := byte(paddingLen<<4) | c.security // P(4bit) and Sec(4bit)
 	buf.WriteByte(pSec)
 
-	buf.WriteByte(0)      // reserved
-	buf.WriteByte(CmdTCP) // cmd
+	buf.WriteByte(0) // reserved
+	if c.udp {
+		buf.WriteByte(CmdUDP)
+	} else {
+		buf.WriteByte(CmdTCP) // cmd
+	}
 
 	// target
 	err := binary.Write(buf, binary.BigEndian, uint16(c.port)) // port

@@ -53,11 +53,11 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 			// return nil, err
 			// }
 
-			x.TLSClientConfig.Certificates = []tls.Certificate{
-				{
+			x.TLSClientConfig.Certificates = append(
+				x.TLSClientConfig.Certificates,
+				tls.Certificate{
 					Certificate: [][]byte{cert},
-				},
-			}
+				})
 		}
 	}
 
