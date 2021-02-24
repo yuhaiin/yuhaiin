@@ -33,8 +33,8 @@ func ParseLink(str []byte, group string) (*Shadowsocks, error) {
 	n.NOrigin = common.Remote
 	n.Server = ssUrl.Hostname()
 	n.Port = ssUrl.Port()
-	n.Method = strings.Split(common.Base64DStr(ssUrl.User.String()), ":")[0]
-	n.Password = strings.Split(common.Base64DStr(ssUrl.User.String()), ":")[1]
+	n.Method = strings.Split(common.Base64UrlDStr(ssUrl.User.String()), ":")[0]
+	n.Password = strings.Split(common.Base64UrlDStr(ssUrl.User.String()), ":")[1]
 	n.NGroup = group
 	n.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
 	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
