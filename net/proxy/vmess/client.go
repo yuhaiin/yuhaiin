@@ -87,11 +87,56 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 		return nil, fmt.Errorf("net create failed: %v", err)
 	}
 
-	return v.client.NewConn(conn, host)
+	return v.client.NewConn(conn, "tcp", host)
+}
+
+func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
+	c, err := v.getConn()
+	if err != nil {
+		return nil, fmt.Errorf("get conn failed: %v", err)
+	}
+	switch v.net {
+	case "ws":
+		// conn, err = v.webSocket(conn)
+		c, err = WebsocketDial(c, v.host, v.path, v.cert, v.tls)
+	case "quic":
+		// conn, err = v.quic(conn)
+		c, err = QuicDial("udp", v.address, int(v.port), v.host, v.cert)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("net create failed: %v", err)
+	}
+	c, err = v.client.NewConn(c, "udp", host)
+	if err != nil {
+		return nil, fmt.Errorf("vmess new conn failed: %v", err)
+	}
+
+	return &vmessPacketConn{
+		Conn: c,
+	}, nil
 }
 
 func (v *Vmess) getConn() (net.Conn, error) {
 	return net.DialTimeout("tcp", net.JoinHostPort(v.address, strconv.FormatUint(uint64(v.port), 10)), time.Second*10)
+}
+
+type vmessPacketConn struct {
+	// net.PacketConn
+	net.Conn
+	addr net.Addr
+}
+
+func (v *vmessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	i, err := v.Conn.Read(b)
+	return i, v.addr, err
+}
+
+func (v *vmessPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+	return v.Conn.Write(b)
+}
+
+func (v *vmessPacketConn) Close() error {
+	return v.Conn.Close()
 }
 
 // func (v *Vmess) webSocket(conn net.Conn) (net.Conn, error) {

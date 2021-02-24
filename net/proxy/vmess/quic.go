@@ -2,6 +2,7 @@ package vmess
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"time"
@@ -19,8 +20,20 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 	var err error
 	switch network {
 	case "ip":
+		var ip net.IP
+		ip = net.ParseIP(address)
+		if ip == nil {
+			addrs, err := net.LookupAddr(address)
+			if err != nil || len(addrs) == 0 {
+				return nil, fmt.Errorf("look addr failed: %v", err)
+			}
+			ip = net.ParseIP(addrs[0])
+			if ip == nil {
+				return nil, fmt.Errorf("can't get ip")
+			}
+		}
 		addr = &net.UDPAddr{
-			IP:   net.ParseIP(address),
+			IP:   ip,
 			Port: port,
 		}
 	default:
@@ -30,10 +43,6 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 		}
 	}
 
-	cert, err := ioutil.ReadFile(certPath)
-	if err != nil {
-		return nil, err
-	}
 	// key, err := ioutil.ReadFile(keyPath)
 	// if err != nil {
 	// 	return nil, err
@@ -45,11 +54,16 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 
 	tlsConfig := &tls.Config{
 		ServerName: host,
-		Certificates: []tls.Certificate{
-			{
-				Certificate: [][]byte{cert},
-			},
-		},
+	}
+	if certPath != "" {
+		cert, err := ioutil.ReadFile(certPath)
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConfig.Certificates = append(tlsConfig.Certificates, tls.Certificate{
+			Certificate: [][]byte{cert},
+		})
 	}
 
 	quicConfig := &quic.Config{
