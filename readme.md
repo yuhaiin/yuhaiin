@@ -9,7 +9,8 @@
     - Shadowsocksr  
         - Support Protocol: [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
     - Shadowsocks  
-        - Support Plugin: Obfs-Http, v2ray-plugin(no mux)  
+        - Support Plugin: Obfs-Http, v2ray-plugin[websocket, quic](no mux)  
+    - Vmess(no mux)
     - Socks5, HTTP, Linux/Mac Redir  
     - DNS: Normal DNS,EDNS,DNSSEC,DNS over HTTPS   
 - Supported Subscription: Shadowsocksr, SSD  
@@ -35,6 +36,7 @@
 - [Dreamacro/clash](https://github.com/Dreamacro/clash)  
 - [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
 - [v2ray-plugin](https://github.com/shadowsocks/v2ray-plugin)  
+- [vmess-client](https://github.com/gitsrc/vmess-client)  
 - [v2ray](https://v2ray.com/)  
 - [gRPC](https://grpc.io/)  
 - [protobuf](https://github.com/golang/protobuf)  
