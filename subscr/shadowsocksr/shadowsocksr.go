@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr/client"
+	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/subscr/common"
 )
 
