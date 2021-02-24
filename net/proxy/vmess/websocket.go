@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"time"
@@ -17,7 +18,7 @@ type websocketConn struct {
 	reader io.Reader
 }
 
-func websocketDial(conn net.Conn, host, path string, tlsEnable bool) (net.Conn, error) {
+func websocketDial(conn net.Conn, host, path, certPath, keyPath string, tlsEnable bool) (net.Conn, error) {
 	x := &websocket.Dialer{
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return conn, nil
@@ -37,6 +38,23 @@ func websocketDial(conn net.Conn, host, path string, tlsEnable bool) (net.Conn, 
 			// NextProtos:         []string{"h2", "http/1.1"},
 			InsecureSkipVerify: false,
 			ClientSessionCache: tls.NewLRUClientSessionCache(100),
+		}
+
+		if certPath != "" && keyPath != "" {
+			cert, err := ioutil.ReadFile(certPath)
+			if err != nil {
+				return nil, err
+			}
+			key, err := ioutil.ReadFile(keyPath)
+			if err != nil {
+				return nil, err
+			}
+			certPair, err := tls.X509KeyPair(cert, key)
+			if err != nil {
+				return nil, err
+			}
+
+			x.TLSClientConfig.Certificates = []tls.Certificate{certPair}
 		}
 	}
 
