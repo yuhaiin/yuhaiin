@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/subscr/common"
 
-	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks"
 )
 
 type Shadowsocks struct {

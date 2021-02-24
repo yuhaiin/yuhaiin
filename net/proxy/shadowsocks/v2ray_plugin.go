@@ -1,4 +1,4 @@
-package client
+package shadowsocks
 
 import (
 	"fmt"
