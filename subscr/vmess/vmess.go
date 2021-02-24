@@ -1,13 +1,13 @@
 package vmess
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 
 	libVmess "github.com/Asutorufa/yuhaiin/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/subscr/common"
@@ -29,11 +29,14 @@ import (
 //"class":1
 //}
 
+//Vmess vmess
 type Vmess struct {
 	common.NodeMessage
-	VmessJson
+	JSON
 }
-type VmessJson struct {
+
+//JSON vmess json from remote
+type JSON struct {
 	Host       string `json:"host"` // tls or websocket host
 	Path       string `json:"path"` // tls or websocket path
 	TLS        string `json:"tls"`
@@ -49,33 +52,33 @@ type VmessJson struct {
 	Class      int    `json:"class"`
 }
 
+//ParseLink parse vmess link
 // test vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnVlLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
 func ParseLink(str []byte, group string) (*Vmess, error) {
-	str = bytes.ReplaceAll(str, []byte("vmess://"), []byte{})
-	data, err := common.Base64DByte(str)
-	if err != nil {
-		return nil, fmt.Errorf("base64 decode failed: %v", err)
-	}
-	vmess := &VmessJson{}
-	if err := json.Unmarshal(data, vmess); err != nil {
-		return nil, fmt.Errorf("unmarshal failed: %v", err)
+	s := string(str)
+	s = strings.ReplaceAll(s, "vmess://", "")
+	data := common.Base64DStr(s)
+
+	vmess := &JSON{}
+	if err := json.Unmarshal([]byte(data), vmess); err != nil {
+		return nil, fmt.Errorf("unmarshal failed: %v\nstr: %s\nRaw: %s", err, data, str)
 	}
 
 	n := &Vmess{
 		NodeMessage: common.NodeMessage{
-			NName:   "vmess" + vmess.Ps,
+			NName:   "[vmess]" + vmess.Ps,
 			NGroup:  group,
 			NType:   common.Vmess,
 			NOrigin: common.Remote,
 		},
-		VmessJson: *vmess,
+		JSON: *vmess,
 	}
 	n.NHash = countHash(n, string(data))
 
 	return n, nil
 }
 
-// ParseLinkManual parse a manual base64 encode ssr link
+// ParseLinkManual parse a manual base64 encode vmess link
 func ParseLinkManual(link []byte, group string) (*Vmess, error) {
 	s, err := ParseLink(link, group)
 	if err != nil {
@@ -143,20 +146,19 @@ func countHash(n *Vmess, jsonStr string) string {
 	hash.Write([]byte(n.NName))
 	hash.Write([]byte(n.NGroup))
 	if jsonStr == "" {
-		data, _ := json.Marshal(n.VmessJson)
+		data, _ := json.Marshal(n.JSON)
 		jsonStr = string(data)
 	}
 	hash.Write([]byte(jsonStr))
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
+//ParseConn parse map to net.Conn
 func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
 	x, err := ParseMap(n)
 	if err != nil {
 		return nil, fmt.Errorf("parse vmess map failed: %v", err)
 	}
-
-	fmt.Println(x)
 
 	v, err := libVmess.NewVmess(
 		x.Address,
