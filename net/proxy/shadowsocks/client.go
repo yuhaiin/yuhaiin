@@ -31,12 +31,8 @@ type shadowsocks struct {
 	ip     bool
 }
 
-func NewShadowsocks(
-	cipherName string,
-	password string,
-	server, port string,
-	plugin, pluginOpt string,
-) (*shadowsocks, error) {
+func NewShadowsocks(cipherName string, password string, server, port string,
+	plugin, pluginOpt string) (*shadowsocks, error) {
 	cipher, err := core.PickCipher(strings.ToUpper(cipherName), nil, password)
 	if err != nil {
 		return nil, err
