@@ -88,7 +88,7 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 	switch v.net {
 	case "ws":
 		// conn, err = v.webSocket(conn)
-		conn, err = websocketDial(conn, v.host, v.path, v.tls)
+		conn, err = websocketDial(conn, v.host, v.path, v.cert, v.certRaw, v.tls)
 	case "quic":
 		conn, err = v.quic(conn)
 	}
