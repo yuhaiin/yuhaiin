@@ -10,5 +10,4 @@ require (
 	github.com/v2rayA/shadowsocksR v1.0.2
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	google.golang.org/grpc v1.30.0
-	v2ray.com/core v4.19.1+incompatible
 )

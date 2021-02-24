@@ -9,15 +9,25 @@ import (
 	"github.com/lucas-clemente/quic-go"
 )
 
-func quicDial(conn net.PacketConn, host string, certPath string) (*interConn, error) {
+func QuicDial(network, address string, port int, host string, certPath string) (net.Conn, error) {
 	// conn, err := net.ListenUDP("udp")
 	// if err != nil {
 	// return nil, err
 	// }
 
-	addr, err := net.ResolveUDPAddr("udp", conn.LocalAddr().String())
-	if err != nil {
-		return nil, err
+	var addr *net.UDPAddr
+	var err error
+	switch network {
+	case "ip":
+		addr = &net.UDPAddr{
+			IP:   net.ParseIP(address),
+			Port: port,
+		}
+	default:
+		addr, err = net.ResolveUDPAddr("udp", address)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cert, err := ioutil.ReadFile(certPath)
@@ -47,6 +57,11 @@ func quicDial(conn net.PacketConn, host string, certPath string) (*interConn, er
 		ConnectionIDLength: 12,
 		HandshakeTimeout:   time.Second * 8,
 		MaxIdleTimeout:     time.Second * 30,
+	}
+
+	conn, err := net.DialUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0}, addr)
+	if err != nil {
+		return nil, err
 	}
 
 	session, err := quic.Dial(conn, addr, host, tlsConfig, quicConfig)
