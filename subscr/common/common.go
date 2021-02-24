@@ -3,13 +3,14 @@ package common
 const (
 	Shadowsocks  float64 = 1
 	Shadowsocksr float64 = 2
+	Vmess        float64 = 3
 
 	Remote float64 = 100
 	Manual float64 = 101
 )
 
 type NodeMessage struct {
-	NType   float64 `json:"type"`
+	NType   float64 `json:"n_type"`
 	NHash   string  `json:"hash"`
 	NName   string  `json:"name"`
 	NGroup  string  `json:"group"`
@@ -23,4 +24,20 @@ func Interface2string(i interface{}) string {
 	default:
 		return ""
 	}
+}
+
+func Interface2Float64(i interface{}) float64 {
+	x, ok := i.(float64)
+	if !ok {
+		return 0
+	}
+	return x
+}
+
+func Interface2Bool(i interface{}) bool {
+	x, ok := i.(bool)
+	if !ok {
+		return false
+	}
+	return x
 }
