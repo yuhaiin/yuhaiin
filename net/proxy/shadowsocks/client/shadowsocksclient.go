@@ -65,7 +65,7 @@ func NewShadowsocks(
 		}
 	case V2RAY:
 		s.pluginFunc = func(conn net.Conn) net.Conn {
-			conn, err := NewV2ray(conn, pluginOpt)
+			conn, err := NewV2raySelf(conn, pluginOpt)
 			if err != nil {
 				log.Println(err)
 				return nil
