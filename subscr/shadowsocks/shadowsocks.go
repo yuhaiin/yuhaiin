@@ -61,28 +61,15 @@ func ParseMap(n map[string]interface{}) (*Shadowsocks, error) {
 	}
 	node := new(Shadowsocks)
 	node.NType = common.Shadowsocks
-	for key := range n {
-		switch key {
-		case "server":
-			node.Server = common.Interface2string(n[key])
-		case "port":
-			node.Port = common.Interface2string(n[key])
-		case "method":
-			node.Method = common.Interface2string(n[key])
-		case "password":
-			node.Password = common.Interface2string(n[key])
-		case "plugin":
-			node.Plugin = common.Interface2string(n[key])
-		case "plugin_opt":
-			node.PluginOpt = common.Interface2string(n[key])
-		case "name":
-			node.NName = common.Interface2string(n[key])
-		case "group":
-			node.NGroup = common.Interface2string(n[key])
-		case "hash":
-			node.NHash = common.Interface2string(n[key])
-		}
-	}
+	node.Server = common.I2string(n["server"])
+	node.Port = common.I2string(n["port"])
+	node.Method = common.I2string(n["method"])
+	node.Password = common.I2string(n["password"])
+	node.Plugin = common.I2string(n["plugin"])
+	node.PluginOpt = common.I2string(n["plugin_opt"])
+	node.NName = common.I2string(n["name"])
+	node.NGroup = common.I2string(n["group"])
+	node.NHash = common.I2string(n["hash"])
 	return node, nil
 }
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
 
-	"github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks/client"
+	client "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 

@@ -45,7 +45,7 @@ func NewVmess(
 		return nil, fmt.Errorf("not support [fake type: %s] now", fakeType)
 	}
 
-	client, err := gitsrcVmess.NewClient(uuid, "", int(alterID))
+	client, err := gitsrcVmess.NewClient(uuid, security, int(alterID))
 	if err != nil {
 		return nil, fmt.Errorf("new vmess client failed: %v", err)
 	}

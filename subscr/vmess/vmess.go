@@ -105,43 +105,22 @@ func ParseMap(n map[string]interface{}) (*Vmess, error) {
 
 	node := new(Vmess)
 	node.NType = common.Shadowsocksr
-
-	for key := range n {
-		switch key {
-		case "add":
-			node.Address = common.Interface2string(n[key])
-		case "port":
-			node.Port = uint32(common.Interface2Float64(n[key]))
-		case "type":
-			node.Type = common.Interface2string(n[key])
-		case "id":
-			node.UUID = common.Interface2string(n[key])
-		case "aid":
-			node.AlterID = uint32(common.Interface2Float64(n[key]))
-		case "v":
-			node.V = common.Interface2string(n[key])
-		case "net":
-			node.Net = common.Interface2string(n[key])
-		case "host":
-			node.Host = common.Interface2string(n[key])
-		case "path":
-			node.Path = common.Interface2string(n[key])
-		case "tls":
-			node.TLS = common.Interface2string(n[key])
-		case "verify_cert":
-			node.VerifyCert = common.Interface2Bool(n[key])
-		case "ps":
-			node.Ps = common.Interface2string(n[key])
-		case "class":
-			node.Class = int(common.Interface2Float64(n[key]))
-		case "name":
-			node.NName = common.Interface2string(n[key])
-		case "group":
-			node.NGroup = common.Interface2string(n[key])
-		case "hash":
-			node.NHash = common.Interface2string(n[key])
-		}
-	}
+	node.Address = common.I2string(n["add"])
+	node.Port = uint32(common.I2Float64(n["port"]))
+	node.Type = common.I2string(n["type"])
+	node.UUID = common.I2string(n["id"])
+	node.AlterID = uint32(common.I2Float64(n["aid"]))
+	node.V = common.I2string(n["v"])
+	node.Net = common.I2string(n["net"])
+	node.Host = common.I2string(n["host"])
+	node.Path = common.I2string(n["path"])
+	node.TLS = common.I2string(n["tls"])
+	node.VerifyCert = common.I2Bool(n["verify_cert"])
+	node.Ps = common.I2string(n["ps"])
+	node.Class = int(common.I2Float64(n["class"]))
+	node.NName = common.I2string(n["name"])
+	node.NGroup = common.I2string(n["group"])
+	node.NHash = common.I2string(n["hash"])
 	if node.NHash == "" {
 		node.NHash = countHash(node, "")
 	}

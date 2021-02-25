@@ -90,33 +90,17 @@ func ParseMap(n map[string]interface{}) (*Shadowsocksr, error) {
 
 	node := new(Shadowsocksr)
 	node.NType = common.Shadowsocksr
-
-	for key := range n {
-		switch key {
-		case "server":
-			node.Server = common.Interface2string(n[key])
-		case "port":
-			node.Port = common.Interface2string(n[key])
-		case "method":
-			node.Method = common.Interface2string(n[key])
-		case "password":
-			node.Password = common.Interface2string(n[key])
-		case "obfs":
-			node.Obfs = common.Interface2string(n[key])
-		case "obfsparam":
-			node.Obfsparam = common.Interface2string(n[key])
-		case "protocol":
-			node.Protocol = common.Interface2string(n[key])
-		case "protoparam":
-			node.Protoparam = common.Interface2string(n[key])
-		case "name":
-			node.NName = common.Interface2string(n[key])
-		case "group":
-			node.NGroup = common.Interface2string(n[key])
-		case "hash":
-			node.NHash = common.Interface2string(n[key])
-		}
-	}
+	node.Server = common.I2string(n["server"])
+	node.Port = common.I2string(n["port"])
+	node.Method = common.I2string(n["method"])
+	node.Password = common.I2string(n["password"])
+	node.Obfs = common.I2string(n["obfs"])
+	node.Obfsparam = common.I2string(n["obfsparam"])
+	node.Protocol = common.I2string(n["protocol"])
+	node.Protoparam = common.I2string(n["protoparam"])
+	node.NName = common.I2string(n["name"])
+	node.NGroup = common.I2string(n["group"])
+	node.NHash = common.I2string(n["hash"])
 	if node.NHash == "" {
 		node.NHash = countHash(node)
 	}

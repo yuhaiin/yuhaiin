@@ -17,7 +17,7 @@ type NodeMessage struct {
 	NOrigin float64 `json:"n_origin"`
 }
 
-func Interface2string(i interface{}) string {
+func I2string(i interface{}) string {
 	switch i.(type) {
 	case string:
 		return i.(string)
@@ -26,7 +26,7 @@ func Interface2string(i interface{}) string {
 	}
 }
 
-func Interface2Float64(i interface{}) float64 {
+func I2Float64(i interface{}) float64 {
 	x, ok := i.(float64)
 	if !ok {
 		return 0
@@ -34,7 +34,7 @@ func Interface2Float64(i interface{}) float64 {
 	return x
 }
 
-func Interface2Bool(i interface{}) bool {
+func I2Bool(i interface{}) bool {
 	x, ok := i.(bool)
 	if !ok {
 		return false

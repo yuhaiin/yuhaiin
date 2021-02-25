@@ -139,7 +139,7 @@ func ChangeNNode(group string, node string) (erra error) {
 }
 
 func GetNNodeAndNGroup() (node string, group string) {
-	return common.Interface2string(Nodes.NowNode.(map[string]interface{})["name"]), common.Interface2string(Nodes.NowNode.(map[string]interface{})["group"])
+	return common.I2string(Nodes.NowNode.(map[string]interface{})["name"]), common.I2string(Nodes.NowNode.(map[string]interface{})["group"])
 }
 
 func GetNowNodeConn() (func(string) (net.Conn, error), string, error) {
