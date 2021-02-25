@@ -78,6 +78,11 @@ func (u *UdpServer) Close() error {
 	return nil
 }
 
+type udpQueueData struct {
+	remoteAddr net.Addr
+	b          []byte
+}
+
 func (u *UdpServer) run() error {
 	fmt.Println("New UDP Server:", u.host)
 	listener, err := net.ListenPacket("udp", u.host)
@@ -88,46 +93,46 @@ func (u *UdpServer) run() error {
 	u.closed = make(chan bool)
 
 	go func() {
-		host := u.host
-		queue := make(chan struct {
-			remoteAddr net.Addr
-			b          []byte
-		}, 10)
-		go func() {
-			u.queueClosed = make(chan bool)
-			for {
-				b := common.BuffPool.Get().([]byte)
-				n, remoteAddr, err := listener.ReadFrom(b)
-				if err != nil {
-					select {
-					case <-u.closed:
-						fmt.Println("Close UDP Queue", host)
-						close(u.queueClosed)
-						return
-					default:
-						continue
-					}
-				}
-				queue <- struct {
-					remoteAddr net.Addr
-					b          []byte
-				}{remoteAddr: remoteAddr, b: b[:n]}
-			}
-		}()
-		for {
-			select {
-			case <-u.closed:
-				listener.Close()
-				fmt.Println("Close UDP Server", host)
-				select {
-				case <-u.queueClosed:
-					fmt.Println("queue already closed, exit function")
-				}
-				return
-			case data := <-queue:
-				u.handle(listener, data.remoteAddr, data.b, u.udpConn)
-			}
-		}
+		queue := make(chan udpQueueData, 10)
+		u.startQueue(u.host, listener, queue)
+		u.processQueue(u.host, listener, queue)
 	}()
 	return nil
+}
+
+func (u *UdpServer) startQueue(host string, listener net.PacketConn, queue chan udpQueueData) {
+	go func() {
+		u.queueClosed = make(chan bool)
+		for {
+			b := common.BuffPool.Get().([]byte)
+			n, remoteAddr, err := listener.ReadFrom(b)
+			if err != nil {
+				select {
+				case <-u.closed:
+					fmt.Println("Close UDP Queue", host)
+					close(u.queueClosed)
+					return
+				default:
+					continue
+				}
+			}
+			queue <- udpQueueData{remoteAddr: remoteAddr, b: b[:n]}
+		}
+	}()
+}
+func (u *UdpServer) processQueue(host string, listener net.PacketConn, queue chan udpQueueData) {
+	for {
+		select {
+		case <-u.closed:
+			listener.Close()
+			fmt.Println("Close UDP Server", host)
+			select {
+			case <-u.queueClosed:
+				fmt.Println("queue already closed, exit function")
+			}
+			return
+		case data := <-queue:
+			u.handle(listener, data.remoteAddr, data.b, u.udpConn)
+		}
+	}
 }
