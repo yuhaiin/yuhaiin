@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"fmt"
 	"net"
 
@@ -10,12 +9,11 @@ import (
 
 type UdpServer struct {
 	Server
-	host     string
-	handle   func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error))
-	udpConn  func(string) (net.PacketConn, error)
-	ctx      context.Context
-	cancel   context.CancelFunc
-	ctxQueue context.Context
+	host        string
+	closed      chan bool
+	queueClosed chan bool
+	handle      func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error))
+	udpConn     func(string) (net.PacketConn, error)
 }
 
 func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
@@ -35,8 +33,8 @@ func NewUDPServer(host string, handle func(from net.PacketConn, remoteAddr net.A
 		handle:  handle,
 		udpConn: udpConn,
 	}
-	u.ctx, u.cancel = context.WithCancel(context.Background())
-	err := u.run(u.ctx)
+
+	err := u.run()
 	if err != nil {
 		return nil, err
 	}
@@ -44,33 +42,31 @@ func NewUDPServer(host string, handle func(from net.PacketConn, remoteAddr net.A
 }
 
 func (u *UdpServer) UpdateListen(host string) error {
-	if u.ctx == nil {
-		goto _creatServer
+
+	if u.host == host {
+		return nil
+	}
+	select {
+	case <-u.closed:
+		fmt.Println("UpdateListen already closed")
+	default:
+		fmt.Println("UpdateListen close s.closed")
+		close(u.closed)
 	}
 
 	select {
-	case <-u.ctx.Done():
-		goto _creatServer
-	default:
-		if u.host == host {
-			return nil
-		}
-		u.cancel()
-		if u.ctxQueue == nil {
-			break
-		}
-		select {
-		case <-u.ctxQueue.Done():
-		}
+	case <-u.queueClosed:
+		fmt.Println("UpdateListen queue closed")
 	}
 
-_creatServer:
 	if host == "" {
 		return nil
 	}
+
 	u.host = host
-	u.ctx, u.cancel = context.WithCancel(context.Background())
-	return u.run(u.ctx)
+
+	fmt.Println("UpdateListen create new server")
+	return u.run()
 }
 
 func (u *UdpServer) SetTCPConn(func(string) (net.Conn, error)) {
@@ -78,30 +74,35 @@ func (u *UdpServer) SetTCPConn(func(string) (net.Conn, error)) {
 }
 
 func (u *UdpServer) Close() error {
+	close(u.closed)
 	return nil
 }
 
-func (u *UdpServer) run(ctx context.Context) error {
+func (u *UdpServer) run() error {
 	fmt.Println("New UDP Server:", u.host)
 	listener, err := net.ListenPacket("udp", u.host)
 	if err != nil {
 		return fmt.Errorf("UdpServer:run() -> %v", err)
 	}
-	go func(ctx context.Context) {
+
+	u.closed = make(chan bool)
+
+	go func() {
+		host := u.host
 		queue := make(chan struct {
 			remoteAddr net.Addr
 			b          []byte
 		}, 10)
-		var cancel context.CancelFunc
-		u.ctxQueue, cancel = context.WithCancel(context.Background())
-		go func(ctx context.Context) {
+		go func() {
+			u.queueClosed = make(chan bool)
 			for {
 				b := common.BuffPool.Get().([]byte)
 				n, remoteAddr, err := listener.ReadFrom(b)
 				if err != nil {
 					select {
-					case <-ctx.Done():
-						fmt.Println("Close UDP Queue", u.host)
+					case <-u.closed:
+						fmt.Println("Close UDP Queue", host)
+						close(u.queueClosed)
 						return
 					default:
 						continue
@@ -112,18 +113,21 @@ func (u *UdpServer) run(ctx context.Context) error {
 					b          []byte
 				}{remoteAddr: remoteAddr, b: b[:n]}
 			}
-		}(u.ctxQueue)
+		}()
 		for {
 			select {
-			case <-ctx.Done():
-				cancel()
+			case <-u.closed:
 				listener.Close()
-				fmt.Println("Close UDP Server", u.host)
+				fmt.Println("Close UDP Server", host)
+				select {
+				case <-u.queueClosed:
+					fmt.Println("queue already closed, exit function")
+				}
 				return
 			case data := <-queue:
 				u.handle(listener, data.remoteAddr, data.b, u.udpConn)
 			}
 		}
-	}(ctx)
+	}()
 	return nil
 }
