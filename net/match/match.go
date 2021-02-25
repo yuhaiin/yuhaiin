@@ -3,8 +3,8 @@ package match
 import (
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/dns"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type Match struct {
@@ -13,7 +13,7 @@ type Match struct {
 	cidr   *Cidr
 	domain *Domain
 	doh    bool
-	cache  *common.CacheExtend
+	cache  *utils.CacheExtend
 }
 
 type Category int
@@ -105,7 +105,7 @@ _end:
 func (x *Match) Clear() {
 	x.cidr = NewCidrMatch()
 	x.domain = NewDomainMatch()
-	x.cache = common.NewCacheExtend(0)
+	x.cache = utils.NewCacheExtend(0)
 }
 
 type OptionArgument struct {
@@ -120,7 +120,7 @@ func NewMatch(option ...OptionMatch) (matcher *Match) {
 	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
-		cache:  common.NewCacheExtend(0),
+		cache:  utils.NewCacheExtend(0),
 	}
 	o := &OptionArgument{}
 	for index := range option {

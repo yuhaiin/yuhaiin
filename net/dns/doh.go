@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type DOH struct {
@@ -19,7 +19,7 @@ type DOH struct {
 	Server string
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
-	cache  *common.CacheExtend
+	cache  *utils.CacheExtend
 
 	httpClient *http.Client
 }
@@ -32,7 +32,7 @@ func NewDOH(host string) DNS {
 		Proxy: func(domain string) (net.Conn, error) {
 			return net.DialTimeout("tcp", domain, 5*time.Second)
 		},
-		cache: common.NewCacheExtend(time.Minute * 20),
+		cache: utils.NewCacheExtend(time.Minute * 20),
 	}
 	dns.SetProxy(dns.Proxy)
 	return dns

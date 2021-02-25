@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	ssrClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocksr"
-	"github.com/Asutorufa/yuhaiin/subscr/common"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
 // Shadowsocksr node json struct
 type Shadowsocksr struct {
-	common.NodeMessage
+	utils.NodeMessage
 	Server     string `json:"server"`
 	Port       string `json:"port"`
 	Method     string `json:"method"`
@@ -27,10 +27,10 @@ type Shadowsocksr struct {
 
 // ParseLink parse a base64 encode ssr link
 func ParseLink(link []byte, group string) (*Shadowsocksr, error) {
-	decodeStr := strings.Split(common.Base64UrlDStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
+	decodeStr := strings.Split(utils.Base64UrlDStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	n := new(Shadowsocksr)
-	n.NType = common.Shadowsocksr
-	n.NOrigin = common.Remote
+	n.NType = utils.Shadowsocksr
+	n.NOrigin = utils.Remote
 	n.NGroup = group
 	x := strings.Split(decodeStr[0], ":")
 	if len(x) != 6 {
@@ -41,12 +41,12 @@ func ParseLink(link []byte, group string) (*Shadowsocksr, error) {
 	n.Protocol = x[2]
 	n.Method = x[3]
 	n.Obfs = x[4]
-	n.Password = common.Base64UrlDStr(x[5])
+	n.Password = utils.Base64UrlDStr(x[5])
 	if len(decodeStr) > 1 {
 		query, _ := url.ParseQuery(decodeStr[1])
-		n.Obfsparam = common.Base64UrlDStr(query.Get("obfsparam"))
-		n.Protoparam = common.Base64UrlDStr(query.Get("protoparam"))
-		n.NName = "[ssr]" + common.Base64UrlDStr(query.Get("remarks"))
+		n.Obfsparam = utils.Base64UrlDStr(query.Get("obfsparam"))
+		n.Protoparam = utils.Base64UrlDStr(query.Get("protoparam"))
+		n.NName = "[ssr]" + utils.Base64UrlDStr(query.Get("remarks"))
 	}
 	n.NHash = countHash(n)
 	return n, nil
@@ -58,7 +58,7 @@ func ParseLinkManual(link []byte, group string) (*Shadowsocksr, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = common.Manual
+	s.NOrigin = utils.Manual
 	return s, nil
 }
 
@@ -89,18 +89,18 @@ func ParseMap(n map[string]interface{}) (*Shadowsocksr, error) {
 	}
 
 	node := new(Shadowsocksr)
-	node.NType = common.Shadowsocksr
-	node.Server = common.I2string(n["server"])
-	node.Port = common.I2string(n["port"])
-	node.Method = common.I2string(n["method"])
-	node.Password = common.I2string(n["password"])
-	node.Obfs = common.I2string(n["obfs"])
-	node.Obfsparam = common.I2string(n["obfsparam"])
-	node.Protocol = common.I2string(n["protocol"])
-	node.Protoparam = common.I2string(n["protoparam"])
-	node.NName = common.I2string(n["name"])
-	node.NGroup = common.I2string(n["group"])
-	node.NHash = common.I2string(n["hash"])
+	node.NType = utils.Shadowsocksr
+	node.Server = utils.I2String(n["server"])
+	node.Port = utils.I2String(n["port"])
+	node.Method = utils.I2String(n["method"])
+	node.Password = utils.I2String(n["password"])
+	node.Obfs = utils.I2String(n["obfs"])
+	node.Obfsparam = utils.I2String(n["obfsparam"])
+	node.Protocol = utils.I2String(n["protocol"])
+	node.Protoparam = utils.I2String(n["protoparam"])
+	node.NName = utils.I2String(n["name"])
+	node.NGroup = utils.I2String(n["group"])
+	node.NHash = utils.I2String(n["hash"])
 	if node.NHash == "" {
 		node.NHash = countHash(node)
 	}
@@ -113,7 +113,7 @@ func ParseMapManual(m map[string]interface{}) (*Shadowsocksr, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = common.Manual
+	s.NOrigin = utils.Manual
 	s.NHash = countHash(s)
 	return s, nil
 }

@@ -11,16 +11,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/app"
 	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/controller"
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 var (
-	Host             string
-	killWDC          bool // kill process when grpc disconnect
+	Host    string
+	killWDC bool // kill process when grpc disconnect
+
 	initFinished     chan bool
 	lockFileFinished chan bool
 	connectFinished  chan bool
@@ -35,7 +36,7 @@ func sigh() {
 			switch s {
 			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
 				log.Println("kernel exit")
-				_ = controller.LockFileClose()
+				_ = app.LockFileClose()
 				os.Exit(0)
 			default:
 				fmt.Println("OTHERS SIGN:", s)
@@ -54,7 +55,7 @@ func init() {
 	fmt.Println("Try to create lock file.")
 
 	lockFileFinished = make(chan bool)
-	err := controller.GetProcessLock(Host)
+	err := app.GetProcessLock(Host)
 	if err != nil {
 		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -73,7 +74,7 @@ func init() {
 	fmt.Println("Create lock file successful.")
 	fmt.Println("Try to initialize Service.")
 	initFinished = make(chan bool)
-	err = controller.Init()
+	err = app.Init()
 	if err != nil {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		panic(err)
@@ -137,7 +138,7 @@ func (s *Process) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, erro
 }
 
 func (s *Process) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
-	host, err := controller.ReadLockFile()
+	host, err := app.ReadLockFile()
 	if err != nil {
 		return &wrappers.StringValue{}, err
 	}
@@ -158,7 +159,7 @@ func (s *Process) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) 
 }
 
 func (s *Process) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.LockFileClose()
+	return &empty.Empty{}, app.LockFileClose()
 }
 
 func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
@@ -205,32 +206,32 @@ type Config struct {
 }
 
 func (c *Config) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
-	conf, err := controller.GetConfig()
+	conf, err := app.GetConfig()
 	return conf, err
 }
 
 func (c *Config) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.SetConFig(req)
+	return &empty.Empty{}, app.SetConFig(req)
 }
 
 func (c *Config) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.MatchCon.UpdateMatch()
+	return &empty.Empty{}, app.MatchCon.UpdateMatch()
 }
 
 func (c *Config) GetRate(_ *empty.Empty, srv Config_GetRateServer) error {
 	fmt.Println("Start Send Flow Message to Client.")
-	da, ua := common.DownloadTotal, common.UploadTotal
+	da, ua := utils.DownloadTotal, utils.UploadTotal
 	var dr string
 	var ur string
 	ctx := srv.Context()
 	for {
-		dr = common.ReducedUnitStr(float64(common.DownloadTotal-da)) + "/S"
-		ur = common.ReducedUnitStr(float64(common.UploadTotal-ua)) + "/S"
-		da, ua = common.DownloadTotal, common.UploadTotal
+		dr = utils.ReducedUnitStr(float64(utils.DownloadTotal-da)) + "/S"
+		ur = utils.ReducedUnitStr(float64(utils.UploadTotal-ua)) + "/S"
+		da, ua = utils.DownloadTotal, utils.UploadTotal
 
 		err := srv.Send(&DaUaDrUr{
-			Download: common.ReducedUnitStr(float64(da)),
-			Upload:   common.ReducedUnitStr(float64(ua)),
+			Download: utils.ReducedUnitStr(float64(da)),
+			Upload:   utils.ReducedUnitStr(float64(ua)),
 			DownRate: dr,
 			UpRate:   ur,
 		})
@@ -253,7 +254,7 @@ type Node struct {
 
 func (n *Node) GetNodes(context.Context, *empty.Empty) (*Nodes, error) {
 	nodes := &Nodes{Value: map[string]*AllGroupOrNode{}}
-	nods := controller.GetANodes()
+	nods := app.GetANodes()
 	for key := range nods {
 		nodes.Value[key] = &AllGroupOrNode{Value: nods[key]}
 	}
@@ -261,22 +262,22 @@ func (n *Node) GetNodes(context.Context, *empty.Empty) (*Nodes, error) {
 }
 
 func (n *Node) GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
-	groups, err := controller.GetGroups()
+	groups, err := app.GetGroups()
 	return &AllGroupOrNode{Value: groups}, err
 }
 
 func (n *Node) GetNode(_ context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
-	nodes, err := controller.GetNodes(req.Value)
+	nodes, err := app.GetNodes(req.Value)
 	return &AllGroupOrNode{Value: nodes}, err
 }
 
 func (n *Node) GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode, error) {
-	node, group := controller.GetNNodeAndNGroup()
+	node, group := app.GetNNodeAndNGroup()
 	return &GroupAndNode{Node: node, Group: group}, nil
 }
 
 func (n *Node) AddNode(_ context.Context, req *NodeMap) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.AddNode(req.Value)
+	return &empty.Empty{}, app.AddNode(req.Value)
 }
 
 func (n *Node) ModifyNode(context.Context, *NodeMap) (*empty.Empty, error) {
@@ -284,15 +285,15 @@ func (n *Node) ModifyNode(context.Context, *NodeMap) (*empty.Empty, error) {
 }
 
 func (n *Node) DeleteNode(_ context.Context, req *GroupAndNode) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.DeleteNode(req.Group, req.Node)
+	return &empty.Empty{}, app.DeleteNode(req.Group, req.Node)
 }
 
 func (n *Node) ChangeNowNode(_ context.Context, req *GroupAndNode) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.ChangeNNode(req.Group, req.Node)
+	return &empty.Empty{}, app.ChangeNNode(req.Group, req.Node)
 }
 
 func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrappers.StringValue, error) {
-	latency, err := controller.Latency(req.Group, req.Node)
+	latency, err := app.Latency(req.Group, req.Node)
 	if err != nil {
 		return nil, err
 	}
@@ -304,11 +305,11 @@ type Subscribe struct {
 }
 
 func (s *Subscribe) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, controller.UpdateSub()
+	return &empty.Empty{}, app.UpdateSub()
 }
 
 func (s *Subscribe) GetSubLinks(context.Context, *empty.Empty) (*Links, error) {
-	links, err := controller.GetLinks()
+	links, err := app.GetLinks()
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +325,7 @@ func (s *Subscribe) GetSubLinks(context.Context, *empty.Empty) (*Links, error) {
 }
 
 func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
-	err := controller.AddLink(req.Name, req.Type, req.Url)
+	err := app.AddLink(req.Name, req.Type, req.Url)
 	if err != nil {
 		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
 	}
@@ -332,7 +333,7 @@ func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
 }
 
 func (s *Subscribe) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*Links, error) {
-	err := controller.DeleteLink(req.Value)
+	err := app.DeleteLink(req.Value)
 	if err != nil {
 		return nil, err
 	}

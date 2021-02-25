@@ -5,6 +5,7 @@ option go_package = "github.com/Asutorufa/yuhaiin/config";
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative config.proto
 
 message Setting{
+  //TODO all json lower case
   bool BlackIcon = 1 [json_name="black_icon"];
   bool DOH = 2 [json_name="is_dns_over_https"];
   bool DNSProxy = 3 [json_name="dns_across_proxy"];

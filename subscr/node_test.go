@@ -3,9 +3,8 @@ package subscr
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/subscr/common"
-
 	shadowsocksr2 "github.com/Asutorufa/yuhaiin/subscr/shadowsocksr"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 
 	shadowsocks2 "github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
 )
@@ -43,11 +42,11 @@ func TestAllOption(t *testing.T) {
 	nodes := Node{
 		Node: map[string]map[string]interface{}{},
 	}
-	addOneNode(map[string]interface{}{"n_origin": common.Remote}, "testGroup", "testName", nodes.Node)
-	addOneNode(map[string]interface{}{"n_origin": common.Manual}, "testGroup", "testName2", nodes.Node)
-	addOneNode(map[string]interface{}{"n_origin": common.Remote}, "testGroup2", "testName", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": utils.Remote}, "testGroup", "testName", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": utils.Manual}, "testGroup", "testName2", nodes.Node)
+	addOneNode(map[string]interface{}{"n_origin": utils.Remote}, "testGroup2", "testName", nodes.Node)
 	s := &shadowsocks2.Shadowsocks{}
-	s.NOrigin = common.Manual
+	s.NOrigin = utils.Manual
 	s.NName = "name"
 	addOneNode(&shadowsocks2.Shadowsocks{}, "testGroup3", "testName", nodes.Node)
 	printNodes(nodes.Node)

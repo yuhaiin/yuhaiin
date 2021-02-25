@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
@@ -54,8 +54,8 @@ func udpHandle(listener net.PacketConn, remoteAddr net.Addr, b []byte, f func(st
 		return fmt.Errorf("write b to Target -> %v", err)
 	}
 
-	respBuff := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(respBuff[:])
+	respBuff := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(respBuff[:])
 
 	copy(respBuff[0:3], []byte{0, 0, 0})
 	copy(respBuff[3:3+addrSize], data)

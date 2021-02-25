@@ -1,6 +1,6 @@
 // +build !windows
 
-package controller
+package app
 
 import (
 	"os"

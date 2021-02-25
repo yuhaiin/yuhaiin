@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 	"github.com/shadowsocks/go-shadowsocks2/socks"
 )
@@ -28,7 +28,7 @@ type Shadowsocks struct {
 	pluginOpt  string
 	pluginFunc func(conn net.Conn) net.Conn
 
-	common.ClientUtil
+	utils.ClientUtil
 }
 
 //NewShadowsocks new shadowsocks client
@@ -45,7 +45,7 @@ func NewShadowsocks(cipherName string, password string, server, port string,
 		plugin:    strings.ToUpper(plugin),
 		pluginOpt: pluginOpt,
 
-		ClientUtil: common.NewClientUtil(server, port),
+		ClientUtil: utils.NewClientUtil(server, port),
 	}
 	switch strings.ToLower(plugin) {
 	case OBFS:
@@ -111,8 +111,8 @@ func (s *Shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []
 		return err
 	}
 
-	respBuff := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(respBuff[:cap(respBuff)])
+	respBuff := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(respBuff[:cap(respBuff)])
 	n, _, err := pc.ReadFrom(respBuff)
 	if err != nil {
 		return err
@@ -148,8 +148,8 @@ func (s *Shadowsocks) UDPConn(listener net.PacketConn, target net.Addr, b []byte
 		return err
 	}
 
-	buf := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(buf)
+	buf := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(buf)
 	go func() {
 		for {
 			_ = pc.SetReadDeadline(time.Now().Add(time.Second * 5))

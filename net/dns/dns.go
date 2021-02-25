@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type reqType [2]byte
@@ -43,7 +43,7 @@ type NormalDNS struct {
 	DNS
 	Server string
 	Subnet *net.IPNet
-	cache  *common.CacheExtend
+	cache  *utils.CacheExtend
 }
 
 func NewNormalDNS(host string) DNS {
@@ -51,7 +51,7 @@ func NewNormalDNS(host string) DNS {
 	return &NormalDNS{
 		Server: host,
 		Subnet: subnet,
-		cache:  common.NewCacheExtend(time.Minute * 20),
+		cache:  utils.NewCacheExtend(time.Minute * 20),
 	}
 }
 
@@ -119,8 +119,8 @@ func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body
 }
 
 func udpDial(req []byte, DNSServer string) (data []byte, err error) {
-	var b = common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b)
+	var b = utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(b)
 
 	conn, err := net.DialTimeout("udp", DNSServer, 5*time.Second)
 	if err != nil {

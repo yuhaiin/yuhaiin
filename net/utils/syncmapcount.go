@@ -1,4 +1,4 @@
-package common
+package utils
 
 //from http://xiaorui.cc/archives/4972 <- have a error, use int64 instead of *int64, otherwise the counter is nil
 

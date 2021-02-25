@@ -1,4 +1,4 @@
-package controller
+package app
 
 import (
 	"errors"
@@ -6,10 +6,9 @@ import (
 	"net"
 	"sort"
 
-	"github.com/Asutorufa/yuhaiin/subscr/common"
-
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/subscr"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
 var (
@@ -139,7 +138,7 @@ func ChangeNNode(group string, node string) (erra error) {
 }
 
 func GetNNodeAndNGroup() (node string, group string) {
-	return common.I2string(Nodes.NowNode.(map[string]interface{})["name"]), common.I2string(Nodes.NowNode.(map[string]interface{})["group"])
+	return utils.I2String(Nodes.NowNode.(map[string]interface{})["name"]), utils.I2String(Nodes.NowNode.(map[string]interface{})["group"])
 }
 
 func GetNowNodeConn() (func(string) (net.Conn, error), string, error) {

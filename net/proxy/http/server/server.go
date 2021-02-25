@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type Option struct {
@@ -122,7 +122,7 @@ func connect(client net.Conn, dst net.Conn) {
 		log.Println(err)
 		return
 	}
-	common.Forward(client, dst)
+	utils.Forward(client, dst)
 }
 
 func normal(src, dst net.Conn, req *http.Request, in *bufio.Reader) {
@@ -146,7 +146,7 @@ func normal(src, dst net.Conn, req *http.Request, in *bufio.Reader) {
 			break
 		}
 		// from clash, thanks so much, if not have the code, the ReadRequest will error
-		err = common.SingleForward(resp.Body, src)
+		err = utils.SingleForward(resp.Body, src)
 		if err != nil && err != io.EOF {
 			break
 		}

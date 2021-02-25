@@ -1,4 +1,4 @@
-package controller
+package app
 
 import (
 	"fmt"
@@ -8,8 +8,8 @@ import (
 	"time"
 
 	httpserver "github.com/Asutorufa/yuhaiin/net/proxy/http/server"
-	proxyI "github.com/Asutorufa/yuhaiin/net/proxy/interface"
 	"github.com/Asutorufa/yuhaiin/net/proxy/redir/redirserver"
+	server "github.com/Asutorufa/yuhaiin/net/proxy/server"
 	socks5server "github.com/Asutorufa/yuhaiin/net/proxy/socks5/server"
 )
 
@@ -24,27 +24,27 @@ const (
 
 var (
 	support = []sType{hTTP, socks5, socks5 | udp, redir}
-	ref     = map[sType]func(string) (proxyI.Server, error){
-		hTTP: func(host string) (proxyI.Server, error) {
-			return proxyI.NewTCPServer(host, httpserver.HTTPHandle())
+	ref     = map[sType]func(string) (server.Server, error){
+		hTTP: func(host string) (server.Server, error) {
+			return server.NewTCPServer(host, httpserver.HTTPHandle())
 		},
-		socks5: func(host string) (proxyI.Server, error) {
-			return proxyI.NewTCPServer(host, socks5server.Socks5Handle())
+		socks5: func(host string) (server.Server, error) {
+			return server.NewTCPServer(host, socks5server.Socks5Handle())
 		},
-		redir: func(host string) (proxyI.Server, error) {
+		redir: func(host string) (server.Server, error) {
 			if runtime.GOOS == "windows" {
 				return nil, fmt.Errorf("redir not support windows")
 			}
-			return proxyI.NewTCPServer(host, redirserver.RedirHandle())
+			return server.NewTCPServer(host, redirserver.RedirHandle())
 		},
-		socks5 | udp: func(s string) (proxyI.Server, error) {
-			return proxyI.NewUDPServer(s, socks5server.Socks5UDPHandle())
+		socks5 | udp: func(s string) (server.Server, error) {
+			return server.NewUDPServer(s, socks5server.Socks5UDPHandle())
 		},
 	}
 )
 
 type LocalListen struct {
-	Server map[sType]proxyI.Server
+	Server map[sType]server.Server
 	hosts  *llOpt
 }
 
@@ -97,7 +97,7 @@ func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 	}
 
 	l = &LocalListen{
-		Server: map[sType]proxyI.Server{},
+		Server: map[sType]server.Server{},
 		hosts:  hosts,
 	}
 
@@ -158,9 +158,31 @@ func (l *LocalListen) setTCPConn(conn func(string) (net.Conn, error)) {
 		if l.Server[typE] == nil {
 			continue
 		}
-		switch l.Server[typE].(type) {
-		case proxyI.TCPServer:
-			l.Server[typE].(proxyI.TCPServer).SetTCPConn(conn)
+
+		x, ok := l.Server[typE].(server.TCPServer)
+		if !ok {
+			continue
 		}
+
+		x.SetTCPConn(conn)
+	}
+}
+
+func (l *LocalListen) setUDPConn(c func(string) (net.PacketConn, error)) {
+	if c == nil {
+		return
+	}
+	fmt.Println("Local Listener Set UDP Proxy", &c)
+	for _, typE := range support {
+		if l.Server[typE] == nil {
+			continue
+		}
+
+		x, ok := l.Server[typE].(server.UDPServer)
+		if !ok {
+			continue
+		}
+
+		x.SetUDPConn(c)
 	}
 }

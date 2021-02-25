@@ -8,13 +8,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/subscr/common"
-
 	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
 type Shadowsocks struct {
-	common.NodeMessage
+	utils.NodeMessage
 	Server    string `json:"server"`
 	Port      string `json:"port"`
 	Method    string `json:"method"`
@@ -29,12 +28,12 @@ func ParseLink(str []byte, group string) (*Shadowsocks, error) {
 	if err != nil {
 		return nil, err
 	}
-	n.NType = common.Shadowsocks
-	n.NOrigin = common.Remote
+	n.NType = utils.Shadowsocks
+	n.NOrigin = utils.Remote
 	n.Server = ssUrl.Hostname()
 	n.Port = ssUrl.Port()
-	n.Method = strings.Split(common.Base64UrlDStr(ssUrl.User.String()), ":")[0]
-	n.Password = strings.Split(common.Base64UrlDStr(ssUrl.User.String()), ":")[1]
+	n.Method = strings.Split(utils.Base64UrlDStr(ssUrl.User.String()), ":")[0]
+	n.Password = strings.Split(utils.Base64UrlDStr(ssUrl.User.String()), ":")[1]
 	n.NGroup = group
 	n.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
 	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
@@ -60,16 +59,16 @@ func ParseMap(n map[string]interface{}) (*Shadowsocks, error) {
 		return nil, errors.New("map is nil")
 	}
 	node := new(Shadowsocks)
-	node.NType = common.Shadowsocks
-	node.Server = common.I2string(n["server"])
-	node.Port = common.I2string(n["port"])
-	node.Method = common.I2string(n["method"])
-	node.Password = common.I2string(n["password"])
-	node.Plugin = common.I2string(n["plugin"])
-	node.PluginOpt = common.I2string(n["plugin_opt"])
-	node.NName = common.I2string(n["name"])
-	node.NGroup = common.I2string(n["group"])
-	node.NHash = common.I2string(n["hash"])
+	node.NType = utils.Shadowsocks
+	node.Server = utils.I2String(n["server"])
+	node.Port = utils.I2String(n["port"])
+	node.Method = utils.I2String(n["method"])
+	node.Password = utils.I2String(n["password"])
+	node.Plugin = utils.I2String(n["plugin"])
+	node.PluginOpt = utils.I2String(n["plugin_opt"])
+	node.NName = utils.I2String(n["name"])
+	node.NGroup = utils.I2String(n["group"])
+	node.NHash = utils.I2String(n["hash"])
 	return node, nil
 }
 
@@ -78,7 +77,7 @@ func ParseMapManual(m map[string]interface{}) (*Shadowsocks, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = common.Manual
+	s.NOrigin = utils.Manual
 	return s, nil
 }
 

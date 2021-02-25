@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 	shadowsocksr "github.com/v2rayA/shadowsocksR"
 	"github.com/v2rayA/shadowsocksR/obfs"
 	Protocol "github.com/v2rayA/shadowsocksR/protocol"
@@ -29,7 +29,7 @@ type Shadowsocksr struct {
 	protocolParam   string
 	protocolData    interface{}
 
-	common.ClientUtil
+	utils.ClientUtil
 }
 
 func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {
@@ -43,7 +43,7 @@ func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protoc
 		protocol:        protocol,
 		protocolParam:   protocolParam,
 
-		ClientUtil: common.NewClientUtil(host, port),
+		ClientUtil: utils.NewClientUtil(host, port),
 	}
 	s.protocolData = new(Protocol.AuthData)
 	return s, nil

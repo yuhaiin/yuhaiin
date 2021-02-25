@@ -10,28 +10,12 @@ import (
 	"strings"
 
 	libVmess "github.com/Asutorufa/yuhaiin/net/proxy/vmess"
-	"github.com/Asutorufa/yuhaiin/subscr/common"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
-
-//{
-//"host":"",
-//"path":"",
-//"tls":"",
-//"verify_cert":true,
-//"add":"127.0.0.1",
-//"port":0,
-//"aid":2,
-//"net":"tcp",
-//"type":"none",
-//"v":"2",
-//"ps":"name",
-//"id":"cccc-cccc-dddd-aaa-46a1aaaaaa",
-//"class":1
-//}
 
 //Vmess vmess
 type Vmess struct {
-	common.NodeMessage
+	utils.NodeMessage
 	JSON
 }
 
@@ -62,11 +46,14 @@ type JSON struct {
 }
 
 //ParseLink parse vmess link
-// test vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnVlLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
+// eg: vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnV
+//             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC
+//             IsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY
+//             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
 func ParseLink(str []byte, group string) (*Vmess, error) {
 	s := string(str)
 	s = strings.ReplaceAll(s, "vmess://", "")
-	data := common.Base64DStr(s)
+	data := utils.Base64DStr(s)
 
 	vmess := &JSON{}
 	if err := json.Unmarshal([]byte(data), vmess); err != nil {
@@ -74,11 +61,11 @@ func ParseLink(str []byte, group string) (*Vmess, error) {
 	}
 
 	n := &Vmess{
-		NodeMessage: common.NodeMessage{
+		NodeMessage: utils.NodeMessage{
 			NName:   "[vmess]" + vmess.Ps,
 			NGroup:  group,
-			NType:   common.Vmess,
-			NOrigin: common.Remote,
+			NType:   utils.Vmess,
+			NOrigin: utils.Remote,
 		},
 		JSON: *vmess,
 	}
@@ -93,7 +80,7 @@ func ParseLinkManual(link []byte, group string) (*Vmess, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = common.Manual
+	s.NOrigin = utils.Manual
 	return s, nil
 }
 
@@ -104,23 +91,23 @@ func ParseMap(n map[string]interface{}) (*Vmess, error) {
 	}
 
 	node := new(Vmess)
-	node.NType = common.Shadowsocksr
-	node.Address = common.I2string(n["add"])
-	node.Port = uint32(common.I2Float64(n["port"]))
-	node.Type = common.I2string(n["type"])
-	node.UUID = common.I2string(n["id"])
-	node.AlterID = uint32(common.I2Float64(n["aid"]))
-	node.V = common.I2string(n["v"])
-	node.Net = common.I2string(n["net"])
-	node.Host = common.I2string(n["host"])
-	node.Path = common.I2string(n["path"])
-	node.TLS = common.I2string(n["tls"])
-	node.VerifyCert = common.I2Bool(n["verify_cert"])
-	node.Ps = common.I2string(n["ps"])
-	node.Class = int(common.I2Float64(n["class"]))
-	node.NName = common.I2string(n["name"])
-	node.NGroup = common.I2string(n["group"])
-	node.NHash = common.I2string(n["hash"])
+	node.NType = utils.Shadowsocksr
+	node.Address = utils.I2String(n["add"])
+	node.Port = uint32(utils.I2Float64(n["port"]))
+	node.Type = utils.I2String(n["type"])
+	node.UUID = utils.I2String(n["id"])
+	node.AlterID = uint32(utils.I2Float64(n["aid"]))
+	node.V = utils.I2String(n["v"])
+	node.Net = utils.I2String(n["net"])
+	node.Host = utils.I2String(n["host"])
+	node.Path = utils.I2String(n["path"])
+	node.TLS = utils.I2String(n["tls"])
+	node.VerifyCert = utils.I2Bool(n["verify_cert"])
+	node.Ps = utils.I2String(n["ps"])
+	node.Class = int(utils.I2Float64(n["class"]))
+	node.NName = utils.I2String(n["name"])
+	node.NGroup = utils.I2String(n["group"])
+	node.NHash = utils.I2String(n["hash"])
 	if node.NHash == "" {
 		node.NHash = countHash(node, "")
 	}

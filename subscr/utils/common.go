@@ -1,4 +1,4 @@
-package common
+package utils
 
 const (
 	Shadowsocks  float64 = 1
@@ -17,7 +17,7 @@ type NodeMessage struct {
 	NOrigin float64 `json:"n_origin"`
 }
 
-func I2string(i interface{}) string {
+func I2String(i interface{}) string {
 	switch i.(type) {
 	case string:
 		return i.(string)

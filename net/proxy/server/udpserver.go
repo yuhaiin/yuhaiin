@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type UdpServer struct {
@@ -99,7 +99,7 @@ func (u *UdpServer) startQueue(host string, listener net.PacketConn, queue chan 
 	go func() {
 		u.queueClosed = make(chan bool)
 		for {
-			b := common.BuffPool.Get().([]byte)
+			b := utils.BuffPool.Get().([]byte)
 			n, remoteAddr, err := listener.ReadFrom(b)
 			if err != nil {
 				select {

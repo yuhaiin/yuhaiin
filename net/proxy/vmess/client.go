@@ -5,8 +5,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
 	gitsrcVmess "github.com/Asutorufa/yuhaiin/net/proxy/vmess/gitsrcvmess"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 //Vmess vmess client
@@ -20,7 +20,7 @@ type Vmess struct {
 	net      string
 	netConfig
 
-	common.ClientUtil
+	utils.ClientUtil
 	client *gitsrcVmess.Client
 }
 
@@ -59,7 +59,7 @@ func NewVmess(
 		alterID:    alterID,
 		client:     client,
 		net:        netType,
-		ClientUtil: common.NewClientUtil(address, strconv.FormatUint(uint64(port), 10)),
+		ClientUtil: utils.NewClientUtil(address, strconv.FormatUint(uint64(port), 10)),
 		netConfig: netConfig{
 			tls: tls,
 		},

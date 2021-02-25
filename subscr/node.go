@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/config"
-	"github.com/Asutorufa/yuhaiin/subscr/common"
 	ss "github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/subscr/shadowsocksr"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 	"github.com/Asutorufa/yuhaiin/subscr/vmess"
 )
 
@@ -55,12 +55,15 @@ func decodeJSON() (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	//TODO Deprecated
 	for index := range pa.Link {
 		pa.Links[pa.Link[index]] = Link{
 			Url: pa.Link[index],
 		}
 	}
 	pa.Link = pa.Link[:0]
+
 	return pa, enCodeJSON(pa)
 }
 
@@ -123,7 +126,7 @@ func oneLinkGet(url string, group string, nodes map[string]map[string]interface{
 		log.Println(err)
 		return
 	}
-	dst, err := common.Base64DByte(body)
+	dst, err := utils.Base64DByte(body)
 	if err != nil {
 		log.Println(err)
 		return
@@ -214,7 +217,7 @@ func checkRemote(node interface{}) bool {
 		return false
 	}
 
-	if node.(map[string]interface{})["n_origin"].(float64) == common.Remote {
+	if node.(map[string]interface{})["n_origin"].(float64) == utils.Remote {
 		return true
 	}
 	return false
@@ -277,11 +280,11 @@ func ParseNode(s map[string]interface{}) (interface{}, error) {
 	}
 
 	switch nodeType {
-	case common.Shadowsocks:
+	case utils.Shadowsocks:
 		return ss.ParseMap(s)
-	case common.Shadowsocksr:
+	case utils.Shadowsocksr:
 		return ssr.ParseMap(s)
-	case common.Vmess:
+	case utils.Vmess:
 		return vmess.ParseMap(s)
 	}
 	return nil, errors.New("not support type")
@@ -294,11 +297,11 @@ func parseNodeManual(s map[string]interface{}) (interface{}, error) {
 	}
 
 	switch nodeType {
-	case common.Shadowsocks:
+	case utils.Shadowsocks:
 		return ss.ParseMapManual(s)
-	case common.Shadowsocksr:
+	case utils.Shadowsocksr:
 		return ssr.ParseMapManual(s)
-	case common.Vmess:
+	case utils.Vmess:
 	}
 	return nil, errors.New("not support type")
 }
@@ -318,11 +321,11 @@ func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), er
 		return nil, err
 	}
 	switch nodeType {
-	case common.Shadowsocks:
+	case utils.Shadowsocks:
 		return ss.ParseConn(s)
-	case common.Shadowsocksr:
+	case utils.Shadowsocksr:
 		return ssr.ParseConn(s)
-	case common.Vmess:
+	case utils.Vmess:
 		return vmess.ParseConn(s)
 	}
 	return nil, errors.New("not support type")
@@ -333,6 +336,7 @@ func checkType(s map[string]interface{}) (Type float64, err error) {
 		return 0, fmt.Errorf("map2struct -> %v", errors.New("argument is nil"))
 	}
 
+	//TODO Deprecated
 	switch s["type"].(type) {
 	case float64:
 		Type = s["type"].(float64)
