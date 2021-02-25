@@ -146,7 +146,7 @@ func (s *shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []
 	return err
 }
 
-func (s *shadowsocks) UDPConn(listener *net.UDPConn, target net.Addr, b []byte) (err error) {
+func (s *shadowsocks) UDPConn(listener net.PacketConn, target net.Addr, b []byte) (err error) {
 	host, port, err := net.SplitHostPort(s.server)
 	if err != nil {
 		return err
