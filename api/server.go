@@ -19,13 +19,12 @@ import (
 )
 
 var (
-	Host        string
-	killWDC     bool // kill process when grpc disconnect
-	initCtx     context.Context
-	lockFileCtx context.Context
-	connectCtx  context.Context
-	connectDone context.CancelFunc
-	signChannel chan os.Signal
+	Host             string
+	killWDC          bool // kill process when grpc disconnect
+	initFinished     chan bool
+	lockFileFinished chan bool
+	connectFinished  chan bool
+	signChannel      chan os.Signal
 )
 
 func sigh() {
@@ -54,8 +53,7 @@ func init() {
 	fmt.Println("gRPC Listen Host :", Host)
 	fmt.Println("Try to create lock file.")
 
-	var cancel context.CancelFunc
-	lockFileCtx, cancel = context.WithCancel(context.Background())
+	lockFileFinished = make(chan bool)
 	err := controller.GetProcessLock(Host)
 	if err != nil {
 		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
@@ -70,30 +68,30 @@ func init() {
 		}(ctx)
 		return
 	}
-	cancel()
+	close(lockFileFinished)
 
 	fmt.Println("Create lock file successful.")
 	fmt.Println("Try to initialize Service.")
-	initCtx, cancel = context.WithCancel(context.Background())
+	initFinished = make(chan bool)
 	err = controller.Init()
 	if err != nil {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		panic(err)
 	}
 	fmt.Println("Initialize Service Successful, Please Connect in 5 Seconds.")
-	cancel()
+	close(initFinished)
 
-	connectCtx, connectDone = context.WithCancel(context.Background())
-	go func(ctx context.Context) {
+	connectFinished = make(chan bool)
+	go func() {
 		select {
-		case <-ctx.Done():
+		case <-connectFinished:
 			fmt.Println("Connect Successful!")
 		case <-time.After(5 * time.Second):
 			log.Println("Connect timeout: 5 Seconds, Exit Process!")
-			connectDone()
+			close(connectFinished)
 			os.Exit(0)
 		}
-	}(connectCtx)
+	}()
 }
 
 type Process struct {
@@ -103,32 +101,32 @@ type Process struct {
 }
 
 func (s *Process) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if lockFileCtx == nil {
+	if lockFileFinished == nil {
 		return &empty.Empty{}, errors.New("create lock file false")
 	}
 	select {
-	case <-lockFileCtx.Done():
+	case <-lockFileFinished:
 		break
 	default:
 		return &empty.Empty{}, errors.New("create lock file false")
 	}
 
-	if initCtx == nil {
+	if initFinished == nil {
 		return &empty.Empty{}, errors.New("init Process Failed")
 	}
 	select {
-	case <-initCtx.Done():
+	case <-initFinished:
 		break
 	default:
 		return &empty.Empty{}, errors.New("init Process Failed")
 	}
 
-	if connectCtx != nil {
+	if connectFinished != nil {
 		select {
-		case <-connectCtx.Done():
+		case <-connectFinished:
 			return &empty.Empty{}, errors.New("already exists one client")
 		default:
-			connectDone()
+			close(connectFinished)
 		}
 	}
 	return &empty.Empty{}, nil
@@ -277,15 +275,15 @@ func (n *Node) GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode,
 	return &GroupAndNode{Node: node, Group: group}, nil
 }
 
-func (n *Node) AddNode(ctx context.Context, req *NodeMap) (*empty.Empty, error) {
+func (n *Node) AddNode(_ context.Context, req *NodeMap) (*empty.Empty, error) {
 	return &empty.Empty{}, controller.AddNode(req.Value)
 }
 
-func (n *Node) ModifyNode(ctx context.Context, req *NodeMap) (*empty.Empty, error) {
+func (n *Node) ModifyNode(context.Context, *NodeMap) (*empty.Empty, error) {
 	return &empty.Empty{}, nil
 }
 
-func (n *Node) DeleteNode(ctx context.Context, req *GroupAndNode) (*empty.Empty, error) {
+func (n *Node) DeleteNode(_ context.Context, req *GroupAndNode) (*empty.Empty, error) {
 	return &empty.Empty{}, controller.DeleteNode(req.Group, req.Node)
 }
 
@@ -309,7 +307,7 @@ func (s *Subscribe) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, erro
 	return &empty.Empty{}, controller.UpdateSub()
 }
 
-func (s *Subscribe) GetSubLinks(ctx context.Context, req *empty.Empty) (*Links, error) {
+func (s *Subscribe) GetSubLinks(context.Context, *empty.Empty) (*Links, error) {
 	links, err := controller.GetLinks()
 	if err != nil {
 		return nil, err
