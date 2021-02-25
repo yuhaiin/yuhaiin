@@ -15,6 +15,7 @@ type Vmess struct {
 	port     uint32
 	uuid     string
 	security string
+	fakeType string
 	alterID  uint32
 	net      string
 	netConfig
@@ -32,9 +33,19 @@ type netConfig struct {
 }
 
 //NewVmess create new Vmess Client
-func NewVmess(address string, port uint32, uuid string, securityType string, alterID uint32,
-	netType, netPath, netHost string, tls bool, cert string) (*Vmess, error) {
-	client, err := gitsrcVmess.NewClient(uuid, securityType, int(alterID))
+func NewVmess(
+	address string, port uint32,
+	uuid, security,
+	fakeType string,
+	alterID uint32,
+	netType, netPath, netHost string,
+	tls bool, cert string,
+) (*Vmess, error) {
+	if fakeType != "none" {
+		return nil, fmt.Errorf("not support [fake type: %s] now", fakeType)
+	}
+
+	client, err := gitsrcVmess.NewClient(uuid, "", int(alterID))
 	if err != nil {
 		return nil, fmt.Errorf("new vmess client failed: %v", err)
 	}
@@ -43,7 +54,8 @@ func NewVmess(address string, port uint32, uuid string, securityType string, alt
 		address:    address,
 		port:       port,
 		uuid:       uuid,
-		security:   securityType,
+		security:   security,
+		fakeType:   fakeType,
 		alterID:    alterID,
 		client:     client,
 		net:        netType,
@@ -65,7 +77,7 @@ func NewVmess(address string, port uint32, uuid string, securityType string, alt
 	if v.tls {
 		v.cert = cert
 	}
-	fmt.Println(v)
+	// fmt.Println(v)
 	return v, nil
 }
 

@@ -28,6 +28,7 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 	return ips, nil
 }
 
+//ClientUtil .
 type ClientUtil struct {
 	address string
 	port    string
@@ -37,13 +38,14 @@ type ClientUtil struct {
 	lookUp  func(string) ([]net.IP, error)
 }
 
+//NewClientUtil .
 func NewClientUtil(address, port string) ClientUtil {
 	return ClientUtil{
 		address: address,
 		port:    port,
 		host:    net.JoinHostPort(address, port),
 		ip:      net.ParseIP(address) != nil,
-		cache:   make([]net.IP, 1),
+		cache:   make([]net.IP, 0, 1),
 		lookUp: func(s string) ([]net.IP, error) {
 			return LookupIP(net.DefaultResolver, s)
 		},
@@ -60,6 +62,7 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 	return nil, errors.New("vmess dial failed")
 }
 
+//GetConn .
 func (c *ClientUtil) GetConn() (net.Conn, error) {
 	if c.ip {
 		return net.Dial("tcp", c.host)
@@ -75,6 +78,7 @@ func (c *ClientUtil) GetConn() (net.Conn, error) {
 	return nil, err
 }
 
+//SetLookup set dns lookup
 func (c *ClientUtil) SetLookup(f func(string) ([]net.IP, error)) {
 	if f == nil {
 		log.Println("f is nil")

@@ -37,18 +37,27 @@ type Vmess struct {
 
 //JSON vmess json from remote
 type JSON struct {
-	Host       string `json:"host"` // tls or websocket host
-	Path       string `json:"path"` // tls or websocket path
-	TLS        string `json:"tls"`
-	VerifyCert bool   `json:"verify_cert"`
-	Address    string `json:"add"` // address
-	Port       uint32 `json:"port"`
-	AlterID    uint32 `json:"aid"`  // alter id
-	Net        string `json:"net"`  // tls or ws
-	Type       string `json:"type"` // security type
+	Address string `json:"add"` // address
+	Port    uint32 `json:"port"`
+	UUID    string `json:"id"`   // uuid
+	AlterID uint32 `json:"aid"`  // alter id
+	Ps      string `json:"ps"`   // name
+	Net     string `json:"net"`  // (tcp\kcp\ws\h2\quic)
+	Type    string `json:"type"` // fake type [(none\http\srtp\utp\wechat-video) *tcp or kcp or QUIC]
+	TLS     string `json:"tls"`
+
+	Host string `json:"host"`
+	// 1)http host(cut up with (,) )
+	// 2)ws host
+	// 3)h2 host
+	// 4)QUIC security
+	Path string `json:"path"`
+	// 1)ws path
+	// 2)h2 path
+	// 3)QUIC key/Kcp seed
+
 	V          string `json:"v"`
-	Ps         string `json:"ps"` // name
-	UUID       string `json:"id"` // uuid
+	VerifyCert bool   `json:"verify_cert"`
 	Class      int    `json:"class"`
 }
 
@@ -164,7 +173,8 @@ func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error)
 		x.Address,
 		x.Port,
 		x.UUID,
-		x.TLS,
+		"",
+		x.Type,
 		x.AlterID,
 		x.Net,
 		x.Path,
