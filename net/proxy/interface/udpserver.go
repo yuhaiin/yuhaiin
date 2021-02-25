@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/net/common"
@@ -12,25 +11,20 @@ import (
 type UdpServer struct {
 	Server
 	host     string
-	handle   func(*net.UDPConn, net.Addr, []byte, func(string) (*net.UDPConn, error))
-	udpConn  func(string) (*net.UDPConn, error)
+	handle   func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error))
+	udpConn  func(string) (net.PacketConn, error)
 	ctx      context.Context
 	cancel   context.CancelFunc
 	ctxQueue context.Context
 }
 
-func (u *UdpServer) SetUDPConn(f func(string) (*net.UDPConn, error)) {
+func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
 	u.udpConn = f
 }
 
-func NewUDPServer(host string, handle func(from *net.UDPConn, remoteAddr net.Addr, data []byte, udpConn func(string) (*net.UDPConn, error))) (UDPServer, error) {
-	udpConn := func(host string) (*net.UDPConn, error) {
-		// make a writer and write to dst
-		//targetUDPAddr, err := net.ResolveUDPAddr("udp", host)
-		//if err != nil {
-		//	return nil, err
-		//}
-		target, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+func NewUDPServer(host string, handle func(from net.PacketConn, remoteAddr net.Addr, data []byte, udpConn func(string) (net.PacketConn, error))) (UDPServer, error) {
+	udpConn := func(host string) (net.PacketConn, error) {
+		target, err := net.ListenPacket("udp", "")
 		if err != nil {
 			return nil, err
 		}
@@ -88,13 +82,8 @@ func (u *UdpServer) Close() error {
 }
 
 func (u *UdpServer) run(ctx context.Context) error {
-	localAddr, err := net.ResolveUDPAddr("udp", u.host)
-	if err != nil {
-		log.Printf("UDP server address error: %s\n", err.Error())
-		return fmt.Errorf("UpdateUDPListenAddr:ResolveUDPAddr -> %v", err)
-	}
 	fmt.Println("New UDP Server:", u.host)
-	listener, err := net.ListenUDP("udp", localAddr)
+	listener, err := net.ListenPacket("udp", u.host)
 	if err != nil {
 		return fmt.Errorf("UdpServer:run() -> %v", err)
 	}
@@ -108,7 +97,7 @@ func (u *UdpServer) run(ctx context.Context) error {
 		go func(ctx context.Context) {
 			for {
 				b := common.BuffPool.Get().([]byte)
-				n, remoteAddr, err := listener.ReadFromUDP(b)
+				n, remoteAddr, err := listener.ReadFrom(b)
 				if err != nil {
 					select {
 					case <-ctx.Done():

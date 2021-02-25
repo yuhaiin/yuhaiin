@@ -11,8 +11,8 @@ import (
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
 
-func Socks5UDPHandle() func(*net.UDPConn, net.Addr, []byte, func(string) (*net.UDPConn, error)) {
-	return func(conn *net.UDPConn, addr net.Addr, bytes []byte, f func(string) (*net.UDPConn, error)) {
+func Socks5UDPHandle() func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error)) {
+	return func(conn net.PacketConn, addr net.Addr, bytes []byte, f func(string) (net.PacketConn, error)) {
 		err := udpHandle(conn, addr, bytes, f)
 		if err != nil {
 			fmt.Println(err)
@@ -21,7 +21,7 @@ func Socks5UDPHandle() func(*net.UDPConn, net.Addr, []byte, func(string) (*net.U
 	}
 }
 
-func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(string) (*net.UDPConn, error)) error {
+func udpHandle(listener net.PacketConn, remoteAddr net.Addr, b []byte, f func(string) (net.PacketConn, error)) error {
 	if len(b) <= 0 {
 		return fmt.Errorf("normalHandleUDP() -> b byte array is empty")
 	}
@@ -50,7 +50,7 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 	_ = target.SetWriteDeadline(time.Now().Add(time.Second * 10))
 	// write data to target and read the response back
 	fmt.Println("UDP write", target.LocalAddr(), "->", targetUDPAddr)
-	if _, err := target.WriteToUDP(data, targetUDPAddr); err != nil {
+	if _, err := target.WriteTo(data, targetUDPAddr); err != nil {
 		return fmt.Errorf("write b to Target -> %v", err)
 	}
 
@@ -60,7 +60,7 @@ func udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte, f func(stri
 	copy(respBuff[0:3], []byte{0, 0, 0})
 	copy(respBuff[3:3+addrSize], data)
 	_ = target.SetReadDeadline(time.Now().Add(time.Second * 10))
-	n, addr, err := target.ReadFromUDP(respBuff[3+addrSize:])
+	n, addr, err := target.ReadFrom(respBuff[3+addrSize:])
 	if err != nil {
 		return fmt.Errorf("read From Target -> %v", err)
 	}

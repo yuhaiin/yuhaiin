@@ -79,5 +79,5 @@ func TestNewUDPConn(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	t.Log(addr, y)
+	t.Log(addr, y[:x])
 }
