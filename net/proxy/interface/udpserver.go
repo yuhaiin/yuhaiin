@@ -21,17 +21,12 @@ func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
 }
 
 func NewUDPServer(host string, handle func(from net.PacketConn, remoteAddr net.Addr, data []byte, udpConn func(string) (net.PacketConn, error))) (UDPServer, error) {
-	udpConn := func(host string) (net.PacketConn, error) {
-		target, err := net.ListenPacket("udp", "")
-		if err != nil {
-			return nil, err
-		}
-		return target, nil
-	}
 	u := &UdpServer{
-		host:    host,
-		handle:  handle,
-		udpConn: udpConn,
+		host:   host,
+		handle: handle,
+		udpConn: func(s string) (net.PacketConn, error) {
+			return net.ListenPacket("udp", "")
+		},
 	}
 
 	err := u.run()

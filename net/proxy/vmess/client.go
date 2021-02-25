@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"time"
 
+	"github.com/Asutorufa/yuhaiin/net/common"
 	gitsrcVmess "github.com/Asutorufa/yuhaiin/net/proxy/vmess/gitsrcvmess"
 )
 
@@ -19,6 +19,7 @@ type Vmess struct {
 	net      string
 	netConfig
 
+	common.ClientUtil
 	client *gitsrcVmess.Client
 }
 
@@ -32,20 +33,21 @@ type netConfig struct {
 
 //NewVmess create new Vmess Client
 func NewVmess(address string, port uint32, uuid string, securityType string, alterID uint32,
-	net, netPath, netHost string, tls bool, cert string) (*Vmess, error) {
+	netType, netPath, netHost string, tls bool, cert string) (*Vmess, error) {
 	client, err := gitsrcVmess.NewClient(uuid, securityType, int(alterID))
 	if err != nil {
 		return nil, fmt.Errorf("new vmess client failed: %v", err)
 	}
 
 	v := &Vmess{
-		address:  address,
-		port:     port,
-		uuid:     uuid,
-		security: securityType,
-		alterID:  alterID,
-		client:   client,
-		net:      net,
+		address:    address,
+		port:       port,
+		uuid:       uuid,
+		security:   securityType,
+		alterID:    alterID,
+		client:     client,
+		net:        netType,
+		ClientUtil: common.NewClientUtil(address, strconv.FormatUint(uint64(port), 10)),
 		netConfig: netConfig{
 			tls: tls,
 		},
@@ -62,7 +64,6 @@ func NewVmess(address string, port uint32, uuid string, securityType string, alt
 
 	if v.tls {
 		v.cert = cert
-		// v.certRaw = certRaw
 	}
 	fmt.Println(v)
 	return v, nil
@@ -70,7 +71,7 @@ func NewVmess(address string, port uint32, uuid string, securityType string, alt
 
 //Conn create a connection for host
 func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
-	conn, err = v.getConn()
+	conn, err = v.GetConn()
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %v", err)
 	}
@@ -90,8 +91,9 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 	return v.client.NewConn(conn, "tcp", host)
 }
 
+//UDPConn packet transport connection
 func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
-	c, err := v.getConn()
+	c, err := v.GetConn()
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %v", err)
 	}
@@ -121,12 +123,7 @@ func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
 	}, nil
 }
 
-func (v *Vmess) getConn() (net.Conn, error) {
-	return net.DialTimeout("tcp", net.JoinHostPort(v.address, strconv.FormatUint(uint64(v.port), 10)), time.Second*10)
-}
-
 type vmessPacketConn struct {
-	// net.PacketConn
 	net.Conn
 	addr net.Addr
 }

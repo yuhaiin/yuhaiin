@@ -1,7 +1,6 @@
 package shadowsocks
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -14,11 +13,14 @@ import (
 )
 
 var (
-	OBFS  = "obfs-local"
+	//OBFS plugin
+	OBFS = "obfs-local"
+	//V2RAY websocket and quic plugin
 	V2RAY = "v2ray"
 )
 
-type shadowsocks struct {
+//Shadowsocks shadowsocks
+type Shadowsocks struct {
 	cipher     core.Cipher
 	server     string
 	port       string
@@ -26,28 +28,24 @@ type shadowsocks struct {
 	pluginOpt  string
 	pluginFunc func(conn net.Conn) net.Conn
 
-	lookUp func(string) ([]net.IP, error)
-	cache  []net.IP
-	ip     bool
+	common.ClientUtil
 }
 
+//NewShadowsocks new shadowsocks client
 func NewShadowsocks(cipherName string, password string, server, port string,
-	plugin, pluginOpt string) (*shadowsocks, error) {
+	plugin, pluginOpt string) (*Shadowsocks, error) {
 	cipher, err := core.PickCipher(strings.ToUpper(cipherName), nil, password)
 	if err != nil {
 		return nil, err
 	}
-	s := &shadowsocks{
+	s := &Shadowsocks{
 		cipher:    cipher,
 		server:    server,
 		port:      port,
 		plugin:    strings.ToUpper(plugin),
 		pluginOpt: pluginOpt,
-		cache:     []net.IP{},
-		ip:        net.ParseIP(server) != nil,
-		lookUp: func(s string) ([]net.IP, error) {
-			return common.LookupIP(net.DefaultResolver, s)
-		},
+
+		ClientUtil: common.NewClientUtil(server, port),
 	}
 	switch strings.ToLower(plugin) {
 	case OBFS:
@@ -75,8 +73,9 @@ func NewShadowsocks(cipherName string, password string, server, port string,
 	return s, nil
 }
 
-func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	conn, err = s.getTCPConn()
+//Conn .
+func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
+	conn, err = s.GetConn()
 	if err != nil {
 		return nil, fmt.Errorf("[ss] dial to %s -> %v", s.server, err)
 	}
@@ -88,30 +87,7 @@ func (s *shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	return conn, nil
 }
 
-func (s *shadowsocks) getTCPConn() (net.Conn, error) {
-	if s.ip {
-		return net.Dial("tcp", net.JoinHostPort(s.server, s.port))
-	}
-	conn, err := s.tcpDial()
-	if err == nil {
-		return conn, err
-	}
-	s.cache, _ = s.lookUp(s.server)
-	return s.tcpDial()
-}
-
-func (s *shadowsocks) tcpDial() (net.Conn, error) {
-	for index := range s.cache {
-		conn, err := net.Dial("tcp", net.JoinHostPort(s.cache[index].String(), s.port))
-		if err != nil {
-			continue
-		}
-		return conn, nil
-	}
-	return nil, errors.New("shadowsocks dial failed")
-}
-
-func (s *shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte) error {
+func (s *Shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte) error {
 	host, port, err := net.SplitHostPort(s.server)
 	if err != nil {
 		return err
@@ -146,7 +122,8 @@ func (s *shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []
 	return err
 }
 
-func (s *shadowsocks) UDPConn(listener net.PacketConn, target net.Addr, b []byte) (err error) {
+//UDPConn .
+func (s *Shadowsocks) UDPConn(listener net.PacketConn, target net.Addr, b []byte) (err error) {
 	host, port, err := net.SplitHostPort(s.server)
 	if err != nil {
 		return err
@@ -189,11 +166,4 @@ func (s *shadowsocks) UDPConn(listener net.PacketConn, target net.Addr, b []byte
 		}
 	}()
 	return
-}
-
-func (s *shadowsocks) SetResolver(l func(string) ([]net.IP, error)) {
-	if l == nil {
-		return
-	}
-	s.lookUp = l
 }

@@ -2,6 +2,8 @@ package common
 
 import (
 	"context"
+	"errors"
+	"log"
 	"net"
 	"sync"
 )
@@ -24,4 +26,60 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 		ips[i] = ia.IP
 	}
 	return ips, nil
+}
+
+type ClientUtil struct {
+	address string
+	port    string
+	host    string
+	ip      bool
+	cache   []net.IP
+	lookUp  func(string) ([]net.IP, error)
+}
+
+func NewClientUtil(address, port string) ClientUtil {
+	return ClientUtil{
+		address: address,
+		port:    port,
+		host:    net.JoinHostPort(address, port),
+		ip:      net.ParseIP(address) != nil,
+		cache:   make([]net.IP, 1),
+		lookUp: func(s string) ([]net.IP, error) {
+			return LookupIP(net.DefaultResolver, s)
+		},
+	}
+}
+func (c *ClientUtil) dial() (net.Conn, error) {
+	for ci := range c.cache {
+		conn, err := net.Dial("tcp", net.JoinHostPort(c.cache[ci].String(), c.port))
+		if err != nil {
+			continue
+		}
+		return conn, nil
+	}
+	return nil, errors.New("vmess dial failed")
+}
+
+func (c *ClientUtil) GetConn() (net.Conn, error) {
+	if c.ip {
+		return net.Dial("tcp", c.host)
+	}
+	conn, err := c.dial()
+	if err == nil {
+		return conn, err
+	}
+	c.cache, err = c.lookUp(c.address)
+	if err == nil {
+		return c.dial()
+	}
+	return nil, err
+}
+
+func (c *ClientUtil) SetLookup(f func(string) ([]net.IP, error)) {
+	if f == nil {
+		log.Println("f is nil")
+		return
+	}
+
+	c.lookUp = f
 }
