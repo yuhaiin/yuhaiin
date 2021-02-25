@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -11,12 +10,11 @@ import (
 // TcpServer tcp server common
 type TcpServer struct {
 	Server
-	host     string
-	tcpConn  func(string) (net.Conn, error)
-	ctx      context.Context
-	cancel   context.CancelFunc
-	ctxQueue context.Context
-	handle   func(net.Conn, func(string) (net.Conn, error))
+	host        string
+	closed      chan bool
+	queueClosed chan bool
+	tcpConn     func(string) (net.Conn, error)
+	handle      func(net.Conn, func(string) (net.Conn, error))
 }
 
 type Option struct {
@@ -48,73 +46,74 @@ func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, err
 		handle:  handle,
 		tcpConn: o.TcpConn,
 	}
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-	err := s.run(s.ctx)
+	err := s.run()
 	if err != nil {
 		return nil, fmt.Errorf("server Run -> %v", err)
 	}
 	return s, nil
 }
 
-func (s *TcpServer) UpdateListen(host string) (err error) {
-	if s.ctx == nil {
-		goto _creatServer
+func (t *TcpServer) UpdateListen(host string) (err error) {
+	if t.host == host {
+		return
+	}
+	select {
+	case <-t.closed:
+		fmt.Println("UpdateListen already closed")
+	default:
+		fmt.Println("UpdateListen close s.closed")
+		close(t.closed)
 	}
 
 	select {
-	case <-s.ctx.Done():
-		goto _creatServer
-	default:
-		if s.host == host {
-			return
-		}
-		s.cancel()
-		if s.ctxQueue == nil {
-			break
-		}
-		select {
-		case <-s.ctxQueue.Done():
-		}
+	case <-t.queueClosed:
+		fmt.Println("UpdateListen queue closed")
 	}
 
-_creatServer:
 	if host == "" {
 		return
 	}
-	s.host = host
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-	return s.run(s.ctx)
+
+	t.host = host
+
+	fmt.Println("UpdateListen create new server")
+	return t.run()
 }
 
-func (s *TcpServer) SetTCPConn(conn func(string) (net.Conn, error)) {
+func (t *TcpServer) SetTCPConn(conn func(string) (net.Conn, error)) {
 	if conn == nil {
 		return
 	}
-	s.tcpConn = conn
+	t.tcpConn = conn
 }
 
-func (s *TcpServer) GetListenHost() string {
-	return s.host
+func (t *TcpServer) GetListenHost() string {
+	return t.host
 }
 
 // Socks5 <--
-func (s *TcpServer) run(ctx context.Context) (err error) {
-	fmt.Println("New TCP Server:", s.host)
-	listener, err := net.Listen("tcp", s.host)
+func (t *TcpServer) run() (err error) {
+	fmt.Println("New TCP Server:", t.host)
+	listener, err := net.Listen("tcp", t.host)
 	if err != nil {
 		return fmt.Errorf("TcpServer:run() -> %v", err)
 	}
-	go func(ctx context.Context) {
+
+	t.closed = make(chan bool)
+
+	go func() {
+		host := t.host
 		queue := make(chan net.Conn, 10)
-		var cancel context.CancelFunc
-		s.ctxQueue, cancel = context.WithCancel(context.Background())
-		go func(ctx context.Context) {
+		defer close(queue)
+		go func() {
+			t.queueClosed = make(chan bool)
 			for {
 				client, err := listener.Accept()
 				if err != nil {
 					select {
-					case <-ctx.Done():
-						fmt.Println("Close TCP Queue", s.host)
+					case <-t.closed:
+						fmt.Println("Close TCP Queue", host)
+						close(t.queueClosed)
 						return
 					default:
 						continue
@@ -122,31 +121,36 @@ func (s *TcpServer) run(ctx context.Context) (err error) {
 				}
 				queue <- client
 			}
-		}(s.ctxQueue)
+		}()
 		for {
 			select {
-			case <-ctx.Done():
-				cancel()
+			case <-t.closed:
 				_ = listener.Close()
-				fmt.Println("Close TCP Server", s.host)
+				fmt.Println("Close TCP Server", host)
+				select {
+				case <-t.queueClosed:
+					fmt.Println("client queue already closed, exit function")
+				}
 				return
 			case client := <-queue:
 				go func() {
-					_ = client.(*net.TCPConn).SetKeepAlive(true)
+					if x, ok := client.(*net.TCPConn); ok {
+						x.SetKeepAlive(true)
+					}
 					defer client.Close()
-					s.handle(client, s.tcpConn)
+					t.handle(client, t.tcpConn)
 				}()
 			}
 		}
-	}(ctx)
+	}()
 	return
 }
 
-func (s *TcpServer) Close() error {
-	s.cancel()
+func (t *TcpServer) Close() error {
+	close(t.closed)
 	return nil
 }
 
-func (s *TcpServer) defaultHandle(conn net.Conn) {
+func (t *TcpServer) defaultHandle(conn net.Conn) {
 	conn.Close()
 }
