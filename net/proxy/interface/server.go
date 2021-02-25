@@ -14,5 +14,5 @@ type TCPServer interface {
 
 type UDPServer interface {
 	Server
-	SetUDPConn(func(string) (*net.UDPConn, error))
+	SetUDPConn(func(string) (net.PacketConn, error))
 }
