@@ -315,10 +315,10 @@ func GetNowNode() (interface{}, error) {
 	return ParseNode(pa.NowNode.(map[string]interface{}))
 }
 
-func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), error) {
+func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
 	nodeType, err := checkType(s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	switch nodeType {
 	case utils.Shadowsocks:
@@ -328,7 +328,7 @@ func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), er
 	case utils.Vmess:
 		return vmess.ParseConn(s)
 	}
-	return nil, errors.New("not support type")
+	return nil, nil, errors.New("not support type")
 }
 
 func checkType(s map[string]interface{}) (Type float64, err error) {

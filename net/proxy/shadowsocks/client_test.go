@@ -26,7 +26,12 @@ func TestConn(t *testing.T) {
 	cc := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return s.Conn(addr)
+				switch network {
+				default:
+					return net.Dial(network, addr)
+				case "tcp":
+					return s.Conn(addr)
+				}
 			},
 		},
 	}

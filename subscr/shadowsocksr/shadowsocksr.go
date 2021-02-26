@@ -119,10 +119,10 @@ func ParseMapManual(m map[string]interface{}) (*Shadowsocksr, error) {
 }
 
 // ParseConn parse a ssr map to conn function
-func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
+func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
 	s, err := ParseMap(n)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ssr, err := ssrClient.NewShadowsocksrClient(
 		s.Server, s.Port,
@@ -132,7 +132,7 @@ func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error)
 		s.Protocol, s.Protoparam,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return ssr.Conn, nil
+	return ssr.Conn, ssr.UDPConn, nil
 }

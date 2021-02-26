@@ -49,6 +49,7 @@ func Init() error {
 		WithSocks5(ConFig.Socks5Host),
 		WithRedir(ConFig.RedirHost),
 		WithTCPConn(MatchCon.Forward),
+		WithPacketConn(MatchCon.ForwardPacket),
 	)
 	if err != nil {
 		return fmt.Errorf("new Local Listener Controller -> %v", err)
@@ -141,14 +142,14 @@ func GetNNodeAndNGroup() (node string, group string) {
 	return utils.I2String(Nodes.NowNode.(map[string]interface{})["name"]), utils.I2String(Nodes.NowNode.(map[string]interface{})["group"])
 }
 
-func GetNowNodeConn() (func(string) (net.Conn, error), string, error) {
+func GetNowNodeConn() (func(string) (net.Conn, error), func(string) (net.PacketConn, error), string, error) {
 	if Nodes.NowNode == nil {
-		return nil, "", errors.New("NowNode is nil")
+		return nil, nil, "", errors.New("NowNode is nil")
 	}
 	switch Nodes.NowNode.(type) {
 	case map[string]interface{}:
 	default:
-		return nil, "", errors.New("the Type is not map[string]interface{}")
+		return nil, nil, "", errors.New("the Type is not map[string]interface{}")
 	}
 
 	var hash string
@@ -158,8 +159,8 @@ func GetNowNodeConn() (func(string) (net.Conn, error), string, error) {
 	default:
 		hash = "empty"
 	}
-	conn, err := subscr.ParseNodeConn(Nodes.NowNode.(map[string]interface{}))
-	return conn, hash, err
+	conn, packetConn, err := subscr.ParseNodeConn(Nodes.NowNode.(map[string]interface{}))
+	return conn, packetConn, hash, err
 }
 
 func GetANodes() map[string][]string {
@@ -176,15 +177,15 @@ func GetANodes() map[string][]string {
 	return m
 }
 
-func GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), error) {
+func GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
 	if Nodes.Node[group][nodeN] == nil {
-		return nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
+		return nil, nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
 	}
 	switch Nodes.Node[group][nodeN].(type) {
 	case map[string]interface{}:
 		return subscr.ParseNodeConn(Nodes.Node[group][nodeN].(map[string]interface{}))
 	}
-	return nil, errors.New("the type is not map[string]interface{}")
+	return nil, nil, errors.New("the type is not map[string]interface{}")
 }
 
 func GetNodes(group string) ([]string, error) {
@@ -251,10 +252,10 @@ func DeleteLink(name string) error {
 }
 
 func ChangeNode() error {
-	conn, hash, err := GetNowNodeConn()
+	conn, packetConn, hash, err := GetNowNodeConn()
 	if err != nil {
 		return fmt.Errorf("GetNowNodeConn() -> %v", err)
 	}
-	MatchCon.ChangeNode(conn, hash)
+	MatchCon.ChangeNode(conn, packetConn, hash)
 	return nil
 }

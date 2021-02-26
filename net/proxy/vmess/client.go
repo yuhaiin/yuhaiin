@@ -88,6 +88,10 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 		return nil, fmt.Errorf("get conn failed: %v", err)
 	}
 
+	if x, ok := conn.(*net.TCPConn); ok {
+		x.SetKeepAlive(true)
+	}
+
 	switch v.net {
 	case "ws":
 		// conn, err = v.webSocket(conn)
@@ -109,6 +113,11 @@ func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %v", err)
 	}
+
+	if x, ok := c.(*net.TCPConn); ok {
+		_ = x.SetKeepAlive(true)
+	}
+
 	switch v.net {
 	case "ws":
 		// conn, err = v.webSocket(conn)
@@ -130,27 +139,28 @@ func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
 		return nil, fmt.Errorf("resolve udp failed: %v", err)
 	}
 	return &vmessPacketConn{
-		Conn: c,
+		conn: c,
 		addr: addr,
 	}, nil
 }
 
 type vmessPacketConn struct {
-	net.Conn
+	net.PacketConn
+	conn net.Conn
 	addr net.Addr
 }
 
 func (v *vmessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
-	i, err := v.Conn.Read(b)
+	i, err := v.conn.Read(b)
 	return i, v.addr, err
 }
 
 func (v *vmessPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
-	return v.Conn.Write(b)
+	return v.conn.Write(b)
 }
 
 func (v *vmessPacketConn) Close() error {
-	return v.Conn.Close()
+	return v.conn.Close()
 }
 
 // func (v *Vmess) webSocket(conn net.Conn) (net.Conn, error) {

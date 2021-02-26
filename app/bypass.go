@@ -56,11 +56,12 @@ type MatchController struct {
 	dns
 	directDNS
 	node
-	matcher     *match.Match
-	Forward     func(string) (net.Conn, error)
-	proxy       func(host string) (conn net.Conn, err error)
-	packetProxy func(string) (net.PacketConn, error)
-	dialer      net.Dialer
+	matcher       *match.Match
+	Forward       func(string) (net.Conn, error)
+	ForwardPacket func(string) (net.PacketConn, error)
+	proxy         func(host string) (conn net.Conn, err error)
+	ProxyPacket   func(string) (net.PacketConn, error)
+	dialer        net.Dialer
 }
 
 type OptionMatchCon struct {
@@ -87,6 +88,9 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 		directDNS: directDNS{libDNS.NewDOH("223.5.5.5"), "223.5.5.5", true},
 		proxy: func(host string) (conn net.Conn, err error) {
 			return net.DialTimeout("tcp", host, 15*time.Second)
+		},
+		ProxyPacket: func(s string) (net.PacketConn, error) {
+			return net.ListenPacket("udp", "")
 		},
 	}
 	option := &OptionMatchCon{}
@@ -152,8 +156,10 @@ func (m *MatchController) setMode(b bool) {
 	switch b {
 	case false:
 		m.Forward = m.proxy
+		m.ForwardPacket = m.ProxyPacket
 	default:
 		m.Forward = m.dial
+		m.ForwardPacket = m.dialPacket
 	}
 }
 
@@ -270,6 +276,7 @@ func (m *MatchController) dial(host string) (conn net.Conn, err error) {
 }
 
 func (m *MatchController) dialPacket(host string) (conn net.PacketConn, err error) {
+	fmt.Printf("dial packet: %s\n", host)
 	hostname, port, err := net.SplitHostPort(host)
 	if err != nil {
 		return nil, err
@@ -278,13 +285,11 @@ func (m *MatchController) dialPacket(host string) (conn net.PacketConn, err erro
 
 	switch md.Category {
 	case match.IP:
-		// return m.dialIP(host, md.Des)
 		return m.dialPacketIP(host, md.Des)
 	case match.DOMAIN:
-		// return m.dialDomain(hostname, port, md.Des)
 		return m.dialPacketDomain(hostname, port, md.Des)
 	}
-	return m.packetProxy(host)
+	return m.ProxyPacket(host)
 }
 
 func (m *MatchController) dialIP(host string, des interface{}) (net.Conn, error) {
@@ -319,22 +324,9 @@ func (m *MatchController) dialPacketDomain(hostname, port string, des interface{
 	}
 
 _proxy:
-	return m.packetProxy(net.JoinHostPort(hostname, port))
+	return m.ProxyPacket(net.JoinHostPort(hostname, port))
 _direct:
 	return net.ListenPacket("udp", "")
-	// ip, err := m.directDNS.dns.Search(hostname)
-	// if err != nil {
-	// return nil, err
-	// }
-	//fmt.Println(hostname, ip)
-	// for index := range ip {
-	// conn, err := m.dialer.Dial("tcp", net.JoinHostPort(ip[index].String(), port))
-	// if err != nil {
-	// continue
-	// }
-	// return conn, nil
-	// }
-	// return m.dialer.Dial("tcp", net.JoinHostPort(hostname, port))
 }
 
 func (m *MatchController) dialPacketIP(host string, des interface{}) (net.PacketConn, error) {
@@ -348,10 +340,9 @@ func (m *MatchController) dialPacketIP(host string, des interface{}) (net.Packet
 	}
 
 _proxy:
-	return m.packetProxy(host)
+	return m.ProxyPacket(host)
 _direct:
 	conn, err := net.ListenPacket("udp", "")
-	// conn, err := m.dialer.dialPacket("tcp", host)
 	if err != nil {
 		return nil, fmt.Errorf("match direct -> %v", err)
 	}
@@ -376,7 +367,6 @@ _direct:
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Println(hostname, ip)
 	for index := range ip {
 		conn, err := m.dialer.Dial("tcp", net.JoinHostPort(ip[index].String(), port))
 		if err != nil {
@@ -451,14 +441,26 @@ func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
 /*
  *     node Control
  */
-func (m *MatchController) ChangeNode(conn func(string) (net.Conn, error), hash string) {
+func (m *MatchController) ChangeNode(conn func(string) (net.Conn, error), packetConn func(string) (net.PacketConn, error), hash string) {
 	if m.node.hash == hash {
 		return
 	}
 	if conn == nil {
-		return
+		m.proxy = func(host string) (conn net.Conn, err error) {
+			return net.DialTimeout("tcp", host, 15*time.Second)
+		}
+	} else {
+		m.proxy = conn
 	}
+
+	if packetConn == nil {
+		m.ProxyPacket = func(s string) (net.PacketConn, error) {
+			return net.ListenPacket("udp", "")
+		}
+	} else {
+		m.ProxyPacket = packetConn
+	}
+
 	m.node.hash = hash
-	m.proxy = conn
 	m.setDNSProxy(m.dns.proxy)
 }

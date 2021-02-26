@@ -81,10 +81,10 @@ func ParseMapManual(m map[string]interface{}) (*Shadowsocks, error) {
 	return s, nil
 }
 
-func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
+func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
 	s, err := ParseMap(n)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ss, err := ssClient.NewShadowsocks(
 		s.Method,
@@ -94,8 +94,8 @@ func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error)
 		s.PluginOpt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return ss.Conn, nil
+	return ss.Conn, ss.UDPConn, nil
 }

@@ -83,7 +83,7 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	}
 
 	if x, ok := conn.(*net.TCPConn); ok {
-		x.SetKeepAlive(true)
+		_ = x.SetKeepAlive(true)
 	}
 
 	conn = s.cipher.StreamConn(s.pluginFunc(conn))
@@ -136,15 +136,18 @@ type shadowsockPacketConn struct {
 
 func (v *shadowsockPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, _, err := v.PacketConn.ReadFrom(b)
+	if err != nil {
+		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
+	}
 
 	host, port, addrSize, err := socks5server.ResolveAddr(b[:n])
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.FormatInt(int64(port), 10)))
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, fmt.Errorf("resolve udp address failed: %v", err)
 	}
 
 	copy(b, b[addrSize:])

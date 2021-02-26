@@ -50,8 +50,9 @@ type LocalListen struct {
 
 // llOpt Local listener opts
 type llOpt struct {
-	hosts   map[sType]string
-	tcpConn func(string) (net.Conn, error)
+	hosts      map[sType]string
+	tcpConn    func(string) (net.Conn, error)
+	packetConn func(string) (net.PacketConn, error)
 }
 
 // LlOption Local Listener Option
@@ -82,10 +83,19 @@ func WithTCPConn(f func(string) (net.Conn, error)) LlOption {
 	}
 }
 
+func WithPacketConn(f func(string) (net.PacketConn, error)) LlOption {
+	return func(opt *llOpt) {
+		opt.packetConn = f
+	}
+}
+
 func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 	hosts := &llOpt{
 		tcpConn: func(s string) (net.Conn, error) {
 			return net.DialTimeout("tcp", s, 5*time.Second)
+		},
+		packetConn: func(s string) (net.PacketConn, error) {
+			return net.ListenPacket("udp", "")
 		},
 		hosts: map[sType]string{},
 	}
@@ -114,6 +124,7 @@ func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 	}
 
 	l.setTCPConn(hosts.tcpConn)
+	l.setUDPConn(hosts.packetConn)
 	return l, nil
 }
 

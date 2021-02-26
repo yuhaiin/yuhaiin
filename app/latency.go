@@ -9,7 +9,7 @@ import (
 )
 
 func Latency(group, mark string) (time.Duration, error) {
-	conn, err := GetOneNodeConn(group, mark)
+	conn, _, err := GetOneNodeConn(group, mark)
 	if err != nil {
 		return 0, err
 	}

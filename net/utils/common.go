@@ -33,25 +33,34 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 type ClientUtil struct {
 	address string
 	port    string
-	host    string
-	ip      bool
 	cache   []net.IP
 	lookUp  func(string) ([]net.IP, error)
+	GetConn func() (net.Conn, error)
 }
 
 //NewClientUtil .
 func NewClientUtil(address, port string) ClientUtil {
-	return ClientUtil{
+	c := ClientUtil{
 		address: address,
 		port:    port,
-		host:    net.JoinHostPort(address, port),
-		ip:      net.ParseIP(address) != nil,
-		cache:   make([]net.IP, 0, 1),
-		lookUp: func(s string) ([]net.IP, error) {
-			return LookupIP(net.DefaultResolver, s)
-		},
 	}
+
+	if net.ParseIP(address) != nil {
+		host := net.JoinHostPort(address, port)
+		c.GetConn = func() (net.Conn, error) {
+			return net.Dial("tcp", host)
+		}
+	} else {
+		c.cache = make([]net.IP, 0, 1)
+		c.lookUp = func(s string) ([]net.IP, error) {
+			return LookupIP(net.DefaultResolver, s)
+		}
+		c.GetConn = c.getConn
+	}
+
+	return c
 }
+
 func (c *ClientUtil) dial() (net.Conn, error) {
 	for ci := range c.cache {
 		conn, err := net.Dial("tcp", net.JoinHostPort(c.cache[ci].String(), c.port))
@@ -64,10 +73,7 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 }
 
 //GetConn .
-func (c *ClientUtil) GetConn() (net.Conn, error) {
-	if c.ip {
-		return net.Dial("tcp", c.host)
-	}
+func (c *ClientUtil) getConn() (net.Conn, error) {
 	conn, err := c.dial()
 	if err == nil {
 		return conn, err

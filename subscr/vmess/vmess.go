@@ -129,10 +129,10 @@ func countHash(n *Vmess, jsonStr string) string {
 }
 
 //ParseConn parse map to net.Conn
-func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
+func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
 	x, err := ParseMap(n)
 	if err != nil {
-		return nil, fmt.Errorf("parse vmess map failed: %v", err)
+		return nil, nil, fmt.Errorf("parse vmess map failed: %v", err)
 	}
 
 	v, err := libVmess.NewVmess(
@@ -149,8 +149,8 @@ func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error)
 		"",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("new vmess failed: %v", err)
+		return nil, nil, fmt.Errorf("new vmess failed: %v", err)
 	}
 
-	return v.Conn, nil
+	return v.Conn, v.UDPConn, nil
 }
