@@ -5,9 +5,9 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -19,7 +19,7 @@ type websocketConn struct {
 	reader io.Reader
 }
 
-func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (net.Conn, error) {
+func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable bool) (net.Conn, error) {
 	x := &websocket.Dialer{
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return conn, nil
@@ -35,8 +35,9 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 		//tls
 		protocol = "wss"
 		x.TLSClientConfig = &tls.Config{
-			ServerName:         host,
-			ClientSessionCache: getTLSSessionCache(),
+			ServerName: host,
+			// InsecureSkipVerify: true,
+			ClientSessionCache: tlsSessionCache,
 		}
 
 		if certPath != "" {
@@ -53,11 +54,16 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 			// return nil, err
 			// }
 
-			x.TLSClientConfig.Certificates = append(
-				x.TLSClientConfig.Certificates,
-				tls.Certificate{
+			x.TLSClientConfig.Certificates = []tls.Certificate{
+				{
 					Certificate: [][]byte{cert},
-				})
+				},
+			}
+			// x.TLSClientConfig.Certificates = append(
+			// x.TLSClientConfig.Certificates,
+			// tls.Certificate{
+			// Certificate: [][]byte{cert},
+			// })
 		}
 	}
 
@@ -72,6 +78,7 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 		if resp != nil {
 			reason = resp.Status
 		}
+		log.Println(resp)
 		return nil, errors.New("failed to dial to (" + uri + "): " + reason)
 	}
 
@@ -81,15 +88,7 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 
 }
 
-var tlsSessionOnce sync.Once
-var tlsSessionCache tls.ClientSessionCache
-
-func getTLSSessionCache() tls.ClientSessionCache {
-	tlsSessionOnce.Do(func() {
-		tlsSessionCache = tls.NewLRUClientSessionCache(128)
-	})
-	return tlsSessionCache
-}
+var tlsSessionCache = tls.NewLRUClientSessionCache(128)
 
 func getNormalizedPath(path string) string {
 	if path == "" {

@@ -28,7 +28,7 @@ type Shadowsocks struct {
 	port       string
 	plugin     string
 	pluginOpt  string
-	pluginFunc func(conn net.Conn) net.Conn
+	pluginFunc func(conn net.Conn) (net.Conn, error)
 
 	utils.ClientUtil
 }
@@ -51,25 +51,25 @@ func NewShadowsocks(cipherName string, password string, server, port string,
 	}
 	switch strings.ToLower(plugin) {
 	case OBFS:
-		s.pluginFunc = func(conn net.Conn) net.Conn {
+		s.pluginFunc = func(conn net.Conn) (net.Conn, error) {
 			conn, err := NewObfs(conn, pluginOpt)
 			if err != nil {
 				log.Println(err)
-				return nil
+				return nil, fmt.Errorf("create obfs plugin failed: %v", err)
 			}
-			return conn
+			return conn, nil
 		}
 	case V2RAY:
-		s.pluginFunc = func(conn net.Conn) net.Conn {
+		s.pluginFunc = func(conn net.Conn) (net.Conn, error) {
 			conn, err := NewV2raySelf(conn, pluginOpt)
 			if err != nil {
 				log.Println(err)
-				return nil
+				return nil, fmt.Errorf("create v2ray plugin failed: %v", err)
 			}
-			return conn
+			return conn, nil
 		}
 	default:
-		s.pluginFunc = func(conn net.Conn) net.Conn { return conn }
+		s.pluginFunc = func(conn net.Conn) (net.Conn, error) { return conn, nil }
 	}
 
 	return s, nil
@@ -86,7 +86,11 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 		_ = x.SetKeepAlive(true)
 	}
 
-	conn = s.cipher.StreamConn(s.pluginFunc(conn))
+	conn, err = s.pluginFunc(conn)
+	if err != nil {
+		return nil, fmt.Errorf("plugin exec failed: %v", err)
+	}
+	conn = s.cipher.StreamConn(conn)
 
 	target, err := socks5client.ParseAddr(host)
 	if err != nil {

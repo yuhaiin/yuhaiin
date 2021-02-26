@@ -26,11 +26,10 @@ type Vmess struct {
 }
 
 type netConfig struct {
-	tls     bool
-	path    string
-	host    string
-	cert    string
-	certRaw string
+	tls  bool
+	path string
+	host string
+	cert string
 }
 
 //NewVmess create new Vmess Client

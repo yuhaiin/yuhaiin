@@ -15,8 +15,8 @@ func TestConn(t *testing.T) {
 		"test",
 		"127.0.0.1",
 		"1090",
-		"",
-		"",
+		"v2ray",
+		"tls;cert=/mnt/data/program/go-shadowsocks/ca.crt;host=localhost:1090",
 	)
 	if err != nil {
 		t.Error(err)
