@@ -53,7 +53,8 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 	// }
 
 	tlsConfig := &tls.Config{
-		ServerName: host,
+		ServerName:         host,
+		ClientSessionCache: getTLSSessionCache(),
 	}
 	if certPath != "" {
 		cert, err := ioutil.ReadFile(certPath)

@@ -1,15 +1,17 @@
 package shadowsocks
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
-	"time"
 
+	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
+	socks5server "github.com/Asutorufa/yuhaiin/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/net/utils"
 	"github.com/shadowsocks/go-shadowsocks2/core"
-	"github.com/shadowsocks/go-shadowsocks2/socks"
 )
 
 var (
@@ -79,91 +81,76 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("[ss] dial to %s -> %v", s.server, err)
 	}
-	_ = conn.(*net.TCPConn).SetKeepAlive(true)
+
+	if x, ok := conn.(*net.TCPConn); ok {
+		x.SetKeepAlive(true)
+	}
+
 	conn = s.cipher.StreamConn(s.pluginFunc(conn))
-	if _, err = conn.Write(socks.ParseAddr(host)); err != nil {
+
+	target, err := socks5client.ParseAddr(host)
+	if err != nil {
+		return nil, fmt.Errorf("parse host failed: %v", err)
+	}
+
+	if _, err = conn.Write(target); err != nil {
 		return nil, fmt.Errorf("conn.Write -> host: %s, error: %v", host, err)
 	}
 	return conn, nil
 }
 
-func (s *Shadowsocks) udpHandle(listener *net.UDPConn, remoteAddr net.Addr, b []byte) error {
-	host, port, err := net.SplitHostPort(s.server)
+//UDPConn .
+func (s *Shadowsocks) UDPConn(host string) (net.PacketConn, error) {
+	ip, err := net.ResolveIPAddr("ip", s.server)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("resolve ip failed: %v", err)
 	}
-	ip, err := net.ResolveIPAddr("ip", host)
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(ip.String(), s.port))
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}
-	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(ip.String(), port))
+
+	target, err := socks5client.ParseAddr(host)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("parse host failed: %v", err)
 	}
 
 	pc, err := net.ListenPacket("udp", "")
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("create packet conn failed")
 	}
 	pc = s.cipher.PacketConn(pc)
-	_, err = pc.WriteTo(b[3:], addr)
-	if err != nil {
-		return err
-	}
 
-	respBuff := utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(respBuff[:cap(respBuff)])
-	n, _, err := pc.ReadFrom(respBuff)
-	if err != nil {
-		return err
-	}
-
-	_, err = listener.WriteTo(append([]byte{0, 0, 0}, respBuff[:n]...), remoteAddr)
-	return err
+	return &shadowsockPacketConn{
+		PacketConn: pc,
+		target:     target,
+		add:        addr,
+	}, nil
 }
 
-//UDPConn .
-func (s *Shadowsocks) UDPConn(listener net.PacketConn, target net.Addr, b []byte) (err error) {
-	host, port, err := net.SplitHostPort(s.server)
+type shadowsockPacketConn struct {
+	net.PacketConn
+	target []byte
+	add    net.Addr
+}
+
+func (v *shadowsockPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, _, err := v.PacketConn.ReadFrom(b)
+
+	host, port, addrSize, err := socks5server.ResolveAddr(b[:n])
 	if err != nil {
-		return err
-	}
-	ip, err := net.ResolveIPAddr("ip", host)
-	if err != nil {
-		return err
-	}
-	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(ip.String(), port))
-	if err != nil {
-		return err
+		return 0, nil, err
 	}
 
-	pc, err := net.ListenPacket("udp", "")
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.FormatInt(int64(port), 10)))
 	if err != nil {
-		return err
-	}
-	pc = s.cipher.PacketConn(pc)
-
-	_, err = pc.WriteTo(b[3:], addr)
-	if err != nil {
-		return err
+		return 0, nil, err
 	}
 
-	buf := utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(buf)
-	go func() {
-		for {
-			_ = pc.SetReadDeadline(time.Now().Add(time.Second * 5))
-			n, _, err := pc.ReadFrom(buf)
-			if err != nil {
-				log.Println(err)
-				break
-			}
-			_, err = listener.WriteTo(append([]byte{0, 0, 0}, buf[:n]...), target)
-			if err != nil {
-				log.Println(err)
-				break
-			}
-		}
-	}()
-	return
+	copy(b, b[addrSize:])
+	return n - addrSize, addr, nil
+}
+
+func (v *shadowsockPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+	return v.PacketConn.WriteTo(bytes.Join([][]byte{v.target, b}, []byte{}), v.add)
 }

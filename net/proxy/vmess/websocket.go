@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -35,8 +36,7 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 		protocol = "wss"
 		x.TLSClientConfig = &tls.Config{
 			ServerName:         host,
-			InsecureSkipVerify: false,
-			ClientSessionCache: tls.NewLRUClientSessionCache(100),
+			ClientSessionCache: getTLSSessionCache(),
 		}
 
 		if certPath != "" {
@@ -79,6 +79,16 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 		conn: webSocketConn,
 	}, nil
 
+}
+
+var tlsSessionOnce sync.Once
+var tlsSessionCache tls.ClientSessionCache
+
+func getTLSSessionCache() tls.ClientSessionCache {
+	tlsSessionOnce.Do(func() {
+		tlsSessionCache = tls.NewLRUClientSessionCache(128)
+	})
+	return tlsSessionCache
 }
 
 func getNormalizedPath(path string) string {

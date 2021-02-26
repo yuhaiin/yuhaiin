@@ -56,10 +56,11 @@ type MatchController struct {
 	dns
 	directDNS
 	node
-	matcher *match.Match
-	Forward func(string) (net.Conn, error)
-	proxy   func(host string) (conn net.Conn, err error)
-	dialer  net.Dialer
+	matcher     *match.Match
+	Forward     func(string) (net.Conn, error)
+	proxy       func(host string) (conn net.Conn, err error)
+	packetProxy func(string) (net.PacketConn, error)
+	dialer      net.Dialer
 }
 
 type OptionMatchCon struct {
@@ -268,6 +269,24 @@ func (m *MatchController) dial(host string) (conn net.Conn, err error) {
 	return m.proxy(host)
 }
 
+func (m *MatchController) dialPacket(host string) (conn net.PacketConn, err error) {
+	hostname, port, err := net.SplitHostPort(host)
+	if err != nil {
+		return nil, err
+	}
+	md := m.matcher.Search(hostname)
+
+	switch md.Category {
+	case match.IP:
+		// return m.dialIP(host, md.Des)
+		return m.dialPacketIP(host, md.Des)
+	case match.DOMAIN:
+		// return m.dialDomain(hostname, port, md.Des)
+		return m.dialPacketDomain(hostname, port, md.Des)
+	}
+	return m.packetProxy(host)
+}
+
 func (m *MatchController) dialIP(host string, des interface{}) (net.Conn, error) {
 	switch des {
 	default:
@@ -282,6 +301,57 @@ _proxy:
 	return m.proxy(host)
 _direct:
 	conn, err := m.dialer.Dial("tcp", host)
+	if err != nil {
+		return nil, fmt.Errorf("match direct -> %v", err)
+	}
+	return conn, err
+}
+
+func (m *MatchController) dialPacketDomain(hostname, port string, des interface{}) (net.PacketConn, error) {
+
+	switch des {
+	default:
+		goto _proxy
+	case mDirect:
+		goto _direct
+	case mBlock:
+		return nil, errors.New("block domain: " + hostname)
+	}
+
+_proxy:
+	return m.packetProxy(net.JoinHostPort(hostname, port))
+_direct:
+	return net.ListenPacket("udp", "")
+	// ip, err := m.directDNS.dns.Search(hostname)
+	// if err != nil {
+	// return nil, err
+	// }
+	//fmt.Println(hostname, ip)
+	// for index := range ip {
+	// conn, err := m.dialer.Dial("tcp", net.JoinHostPort(ip[index].String(), port))
+	// if err != nil {
+	// continue
+	// }
+	// return conn, nil
+	// }
+	// return m.dialer.Dial("tcp", net.JoinHostPort(hostname, port))
+}
+
+func (m *MatchController) dialPacketIP(host string, des interface{}) (net.PacketConn, error) {
+	switch des {
+	default:
+		goto _proxy
+	case mDirect:
+		goto _direct
+	case mBlock:
+		return nil, errors.New("block domain: " + host)
+	}
+
+_proxy:
+	return m.packetProxy(host)
+_direct:
+	conn, err := net.ListenPacket("udp", "")
+	// conn, err := m.dialer.dialPacket("tcp", host)
 	if err != nil {
 		return nil, fmt.Errorf("match direct -> %v", err)
 	}
