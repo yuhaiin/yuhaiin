@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	gitsrcVmess "github.com/Asutorufa/yuhaiin/net/proxy/vmess/gitsrcvmess"
 	"github.com/Asutorufa/yuhaiin/net/utils"
@@ -145,7 +146,6 @@ func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
 }
 
 type vmessPacketConn struct {
-	net.PacketConn
 	conn net.Conn
 	addr net.Addr
 }
@@ -161,6 +161,21 @@ func (v *vmessPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
 
 func (v *vmessPacketConn) Close() error {
 	return v.conn.Close()
+}
+
+func (v *vmessPacketConn) LocalAddr() net.Addr {
+	return v.conn.LocalAddr()
+}
+
+func (v *vmessPacketConn) SetDeadline(t time.Time) error {
+	return v.conn.SetDeadline(t)
+}
+
+func (v *vmessPacketConn) SetReadDeadline(t time.Time) error {
+	return v.conn.SetReadDeadline(t)
+}
+func (v *vmessPacketConn) SetWriteDeadline(t time.Time) error {
+	return v.conn.SetWriteDeadline(t)
 }
 
 // func (v *Vmess) webSocket(conn net.Conn) (net.Conn, error) {
