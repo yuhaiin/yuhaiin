@@ -280,22 +280,26 @@ func (m *BypassManager) dialDomain(network, hostname, port string, des interface
 	}
 	return m.proxy(net.JoinHostPort(hostname, port))
 _direct:
-	if network == "udp" {
+	switch network {
+	case "udp":
 		conn, err = net.ListenPacket("udp", "")
-	} else {
+	default:
 		ip, err := m.directDNS.dns.Search(hostname)
-		if err != nil {
-			return nil, err
-		}
-		for index := range ip {
-			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[index].String(), port))
-			if err != nil {
-				continue
+		if err == nil {
+			for i := range ip {
+				conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), port))
+				if err != nil {
+					continue
+				}
 			}
 		}
 		if conn == nil {
 			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(hostname, port))
 		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("get packetConn failed: %v", err)
 	}
 	return
 }
@@ -352,7 +356,10 @@ func (m *BypassManager) setForward(network string) {
 			if err != nil {
 				return nil, err
 			}
-			return conn.(net.PacketConn), err
+			if x, ok := conn.(net.PacketConn); ok {
+				return x, nil
+			}
+			return nil, fmt.Errorf("conn is not net.PacketConn")
 		}
 		return
 	}
@@ -361,7 +368,10 @@ func (m *BypassManager) setForward(network string) {
 		if err != nil {
 			return nil, err
 		}
-		return conn.(net.Conn), err
+		if x, ok := conn.(net.Conn); ok {
+			return x, nil
+		}
+		return nil, fmt.Errorf("conn is not net.Conn")
 	}
 
 }
