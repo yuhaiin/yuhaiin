@@ -59,12 +59,12 @@ func TestUpdateDNSSubNet(t *testing.T) {
 }
 
 func TestNewMatchCon(t *testing.T) {
-	s := func(option MatchConOption) {
-		o := &OptionMatchCon{}
+	s := func(option func(option *OptionBypassManager)) {
+		o := &OptionBypassManager{}
 		option(o)
 		log.Println(o)
 	}
-	s(func(option *OptionMatchCon) {
+	s(func(option *OptionBypassManager) {
 		option.DNS.Server = "114.114.114.114"
 	})
 }

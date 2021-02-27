@@ -14,7 +14,7 @@ import (
 var (
 	ConFig         *config.Setting
 	LocalListenCon *LocalListen
-	MatchCon       *MatchController
+	MatchCon       *BypassManager
 	Nodes          *subscr.Node
 )
 
@@ -30,7 +30,7 @@ func Init() error {
 	}
 
 	// initialize Match Controller
-	MatchCon, err = NewMatchCon(ConFig.BypassFile, func(option *OptionMatchCon) {
+	MatchCon, err = NewBypassManager(ConFig.BypassFile, func(option *OptionBypassManager) {
 		option.DNS.Server = ConFig.DnsServer
 		option.DNS.Proxy = ConFig.DNSProxy
 		option.DNS.DOH = ConFig.DOH
@@ -64,7 +64,7 @@ func Init() error {
  */
 func SetConFig(conf *config.Setting) (erra error) {
 	ConFig = conf
-	err := MatchCon.SetAllOption(func(option *OptionMatchCon) {
+	err := MatchCon.SetAllOption(func(option *OptionBypassManager) {
 		option.DNS.Server = conf.DnsServer
 		option.DNS.Proxy = conf.DNSProxy
 		option.DNS.DOH = conf.DOH
@@ -256,6 +256,6 @@ func ChangeNode() error {
 	if err != nil {
 		return fmt.Errorf("GetNowNodeConn() -> %v", err)
 	}
-	MatchCon.ChangeNode(conn, packetConn, hash)
+	MatchCon.SetProxy(conn, packetConn, hash)
 	return nil
 }

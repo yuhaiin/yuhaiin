@@ -3,16 +3,13 @@ package app
 import (
 	"bufio"
 	"bytes"
+	_ "embed" //embed for bypass file
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"net/http"
 	"os"
-	"os/exec"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -51,7 +48,8 @@ type node struct {
 	hash string
 }
 
-type MatchController struct {
+//BypassManager .
+type BypassManager struct {
 	bypass
 	dns
 	directDNS
@@ -64,7 +62,8 @@ type MatchController struct {
 	dialer        net.Dialer
 }
 
-type OptionMatchCon struct {
+//OptionBypassManager create bypass manager options
+type OptionBypassManager struct {
 	DNS struct {
 		Server string
 		DOH    bool
@@ -78,10 +77,10 @@ type OptionMatchCon struct {
 	BypassPath string
 	Bypass     bool
 }
-type MatchConOption func(option *OptionMatchCon)
 
-func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, error) {
-	m := &MatchController{
+//NewBypassManager .
+func NewBypassManager(bypassPath string, opt ...func(option *OptionBypassManager)) (*BypassManager, error) {
+	m := &BypassManager{
 		dialer: net.Dialer{
 			Timeout: 15 * time.Second,
 		},
@@ -93,7 +92,7 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 			return net.ListenPacket("udp", "")
 		},
 	}
-	option := &OptionMatchCon{}
+	option := &OptionBypassManager{}
 	for index := range opt {
 		opt[index](option)
 	}
@@ -111,11 +110,12 @@ func NewMatchCon(bypassPath string, opt ...MatchConOption) (*MatchController, er
 	return m, nil
 }
 
-func (m *MatchController) SetAllOption(opt MatchConOption) error {
+//SetAllOption set bypass manager config
+func (m *BypassManager) SetAllOption(opt func(option *OptionBypassManager)) error {
 	if opt == nil {
 		return nil
 	}
-	option := &OptionMatchCon{
+	option := &OptionBypassManager{
 		DNS: struct {
 			Server string
 			DOH    bool
@@ -145,74 +145,29 @@ func (m *MatchController) SetAllOption(opt MatchConOption) error {
 	return err
 }
 
-func (m *MatchController) setMode(b bool) {
-	if m.bypass.enabled == b {
-		if m.Forward == nil {
-			m.Forward = m.dial
-		}
-		return
-	}
-	m.bypass.enabled = b
-	switch b {
-	case false:
-		m.Forward = m.proxy
-		m.ForwardPacket = m.ProxyPacket
-	default:
-		m.Forward = m.dial
-		m.ForwardPacket = m.dialPacket
-	}
-}
+//go:embed yuhaiin.conf
+var bypassData []byte
 
-func (m *MatchController) setBypass(file string) error {
-	if m.bypass.file == file {
-		return nil
-	}
-	m.bypass.file = file
-	return m.UpdateMatch()
-}
-
-func (m *MatchController) UpdateMatch() error {
+//RefreshMapping refresh data
+func (m *BypassManager) RefreshMapping() error {
 	f, err := os.Open(m.bypass.file)
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(path.Dir(m.bypass.file), os.ModePerm)
-			if err != nil {
-				return fmt.Errorf("UpdateMatch()MkdirAll -> %v", err)
-			}
-			f, err = os.OpenFile(m.bypass.file, os.O_TRUNC|os.O_CREATE|os.O_RDWR, os.ModePerm)
-			if err != nil {
-				return fmt.Errorf("UpdateMatch():OpenFile -> %v", err)
-			}
-			goto _local
-
-		_local:
-			var execPath string
-			var data *os.File
-			file, err := exec.LookPath(os.Args[0])
-			if err != nil {
-				log.Println(err)
-				goto _net
-			}
-			execPath, err = filepath.Abs(file)
-			if err != nil {
-				log.Println(err)
-				goto _net
-			}
-			data, err = os.Open(path.Join(filepath.Dir(execPath), "static/yuhaiin.conf"))
-		_net:
-			if err != nil {
-				log.Println(err)
-				res, err := http.Get("https://raw.githubusercontent.com/Asutorufa/SsrMicroClient/ACL/yuhaiin/yuhaiin.conf")
-				if err != nil {
-					return err
-				}
-				_, _ = io.Copy(f, res.Body)
-			} else {
-				_, _ = io.Copy(f, data)
-			}
-		} else {
-			return err
+	if err != nil && os.IsNotExist(err) {
+		err = os.MkdirAll(path.Dir(m.bypass.file), os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("UpdateMatch()MkdirAll -> %v", err)
 		}
+		f, err = os.OpenFile(m.bypass.file, os.O_TRUNC|os.O_CREATE|os.O_RDWR, os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("UpdateMatch():OpenFile -> %v", err)
+		}
+
+		_, err = f.Write(bypassData)
+		if err != nil {
+			return fmt.Errorf("write bypass data failed: %v", err)
+		}
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("open bypass file failed: %v", err)
 	}
 	defer f.Close()
 
@@ -241,7 +196,7 @@ func (m *MatchController) UpdateMatch() error {
 	return nil
 }
 
-func (m *MatchController) mode(str string) int {
+func (m *BypassManager) mode(str string) int {
 	switch strings.ToLower(str) {
 	case "direct":
 		return mDirect
@@ -258,126 +213,94 @@ func (m *MatchController) mode(str string) int {
 	}
 }
 
+var modeMapping = map[int]string{
+	mDirect: "direct",
+	mProxy:  "proxy",
+	mBlock:  "block",
+}
+
 // https://myexternalip.com/raw
-func (m *MatchController) dial(host string) (conn net.Conn, err error) {
+func (m *BypassManager) dial(network, host string) (conn interface{}, err error) {
 	hostname, port, err := net.SplitHostPort(host)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
+
 	md := m.matcher.Search(hostname)
+
+	if md.Des == nil {
+		fmt.Printf("[%s] use %s, match default(proxy)\n", host, network)
+	} else {
+		fmt.Printf("[%s] use %s, match %s\n", host, network, modeMapping[md.Des.(int)])
+	}
 
 	switch md.Category {
 	case match.IP:
-		return m.dialIP(host, md.Des)
+		return m.dialIP(network, host, md.Des)
 	case match.DOMAIN:
-		return m.dialDomain(hostname, port, md.Des)
+		return m.dialDomain(network, hostname, port, md.Des)
 	}
 	return m.proxy(host)
 }
 
-func (m *MatchController) dialPacket(host string) (conn net.PacketConn, err error) {
-	fmt.Printf("dial packet: %s\n", host)
-	hostname, port, err := net.SplitHostPort(host)
-	if err != nil {
-		return nil, err
+func (m *BypassManager) dialIP(network, host string, des interface{}) (conn interface{}, err error) {
+	if des == mBlock {
+		return nil, errors.New("block IP: " + host)
 	}
-	md := m.matcher.Search(hostname)
-
-	switch md.Category {
-	case match.IP:
-		return m.dialPacketIP(host, md.Des)
-	case match.DOMAIN:
-		return m.dialPacketDomain(hostname, port, md.Des)
-	}
-	return m.ProxyPacket(host)
-}
-
-func (m *MatchController) dialIP(host string, des interface{}) (net.Conn, error) {
-	switch des {
-	default:
-		goto _proxy
-	case mDirect:
+	if des == mDirect {
 		goto _direct
-	case mBlock:
-		return nil, errors.New("block domain: " + host)
 	}
 
-_proxy:
+	if network == "udp" {
+		return m.ProxyPacket(host)
+	}
 	return m.proxy(host)
 _direct:
-	conn, err := m.dialer.Dial("tcp", host)
+	if network == "udp" {
+		conn, err = net.ListenPacket("udp", "")
+	} else {
+		conn, err = m.dialer.Dial("tcp", host)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("match direct -> %v", err)
 	}
 	return conn, err
 }
 
-func (m *MatchController) dialPacketDomain(hostname, port string, des interface{}) (net.PacketConn, error) {
-
-	switch des {
-	default:
-		goto _proxy
-	case mDirect:
-		goto _direct
-	case mBlock:
+func (m *BypassManager) dialDomain(network, hostname, port string, des interface{}) (conn interface{}, err error) {
+	if des == mBlock {
 		return nil, errors.New("block domain: " + hostname)
 	}
-
-_proxy:
-	return m.ProxyPacket(net.JoinHostPort(hostname, port))
-_direct:
-	return net.ListenPacket("udp", "")
-}
-
-func (m *MatchController) dialPacketIP(host string, des interface{}) (net.PacketConn, error) {
-	switch des {
-	default:
-		goto _proxy
-	case mDirect:
+	if des == mDirect {
 		goto _direct
-	case mBlock:
-		return nil, errors.New("block domain: " + host)
 	}
 
-_proxy:
-	return m.ProxyPacket(host)
-_direct:
-	conn, err := net.ListenPacket("udp", "")
-	if err != nil {
-		return nil, fmt.Errorf("match direct -> %v", err)
+	if network == "udp" {
+		return m.ProxyPacket(net.JoinHostPort(hostname, port))
 	}
-	return conn, err
-}
-
-func (m *MatchController) dialDomain(hostname, port string, des interface{}) (net.Conn, error) {
-
-	switch des {
-	default:
-		goto _proxy
-	case mDirect:
-		goto _direct
-	case mBlock:
-		return nil, errors.New("block domain: " + hostname)
-	}
-
-_proxy:
 	return m.proxy(net.JoinHostPort(hostname, port))
 _direct:
-	ip, err := m.directDNS.dns.Search(hostname)
-	if err != nil {
-		return nil, err
-	}
-	for index := range ip {
-		conn, err := m.dialer.Dial("tcp", net.JoinHostPort(ip[index].String(), port))
+	if network == "udp" {
+		conn, err = net.ListenPacket("udp", "")
+	} else {
+		ip, err := m.directDNS.dns.Search(hostname)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		return conn, nil
+		for index := range ip {
+			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[index].String(), port))
+			if err != nil {
+				continue
+			}
+		}
+		if conn == nil {
+			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(hostname, port))
+		}
 	}
-	return m.dialer.Dial("tcp", net.JoinHostPort(hostname, port))
+	return
 }
 
-func (m *MatchController) getIP(hostname string) (net.IP, error) {
+func (m *BypassManager) getIP(hostname string) (net.IP, error) {
 	ips := m.matcher.GetIP(hostname)
 	if len(ips) <= 0 {
 		return nil, errors.New("not find")
@@ -386,62 +309,15 @@ func (m *MatchController) getIP(hostname string) (net.IP, error) {
 }
 
 /*
- *              DNS
- */
-func (m *MatchController) setDNS(server string, doh bool) {
-	if m.dns.server == server && m.dns.doh == doh {
-		return
-	}
-	m.dns.server = server
-	m.dns.doh = doh
-	m.matcher.SetDNS(server, doh)
-}
-
-func (m *MatchController) setDNSProxy(enable bool) {
-	if enable {
-		m.dns.proxy = true
-		m.matcher.SetDNSProxy(m.proxy)
-	} else {
-		m.dns.proxy = false
-		m.matcher.SetDNSProxy(func(addr string) (net.Conn, error) {
-			return net.DialTimeout("tcp", addr, 5*time.Second)
-		})
-	}
-}
-
-func (m *MatchController) enableDNSProxy(enable bool) {
-	if m.dns.proxy == enable {
-		return
-	}
-	m.setDNSProxy(enable)
-}
-
-func (m *MatchController) setDirectDNS(server string, doh bool) {
-	if m.directDNS.server == server && m.directDNS.doh == doh {
-		return
-	}
-	m.directDNS.server = server
-	m.directDNS.doh = doh
-
-	if doh {
-		m.directDNS.dns = libDNS.NewDOH(server)
-	} else {
-		m.directDNS.dns = libDNS.NewNormalDNS(server)
-	}
-}
-
-func (m *MatchController) setDNSSubNet(ip *net.IPNet) {
-	if m.matcher.DNS == nil || m.dns.Subnet == ip {
-		return
-	}
-	m.dns.Subnet = ip
-	m.matcher.DNS.SetSubnet(ip)
-}
-
-/*
  *     node Control
  */
-func (m *MatchController) ChangeNode(conn func(string) (net.Conn, error), packetConn func(string) (net.PacketConn, error), hash string) {
+
+//SetProxy .
+func (m *BypassManager) SetProxy(
+	conn func(string) (net.Conn, error),
+	packetConn func(string) (net.PacketConn, error),
+	hash string,
+) {
 	if m.node.hash == hash {
 		return
 	}
@@ -463,4 +339,111 @@ func (m *MatchController) ChangeNode(conn func(string) (net.Conn, error), packet
 
 	m.node.hash = hash
 	m.setDNSProxy(m.dns.proxy)
+}
+
+/**
+*  Set
+ */
+
+func (m *BypassManager) setForward(network string) {
+	if network == "udp" {
+		m.ForwardPacket = func(s string) (net.PacketConn, error) {
+			conn, err := m.dial("udp", s)
+			if err != nil {
+				return nil, err
+			}
+			return conn.(net.PacketConn), err
+		}
+		return
+	}
+	m.Forward = func(s string) (net.Conn, error) {
+		conn, err := m.dial("tcp", s)
+		if err != nil {
+			return nil, err
+		}
+		return conn.(net.Conn), err
+	}
+
+}
+func (m *BypassManager) setMode(b bool) {
+	if m.bypass.enabled == b {
+		if m.Forward == nil {
+			m.setForward("tcp")
+		}
+		if m.ForwardPacket == nil {
+			m.setForward("udp")
+		}
+		return
+	}
+
+	m.bypass.enabled = b
+	switch b {
+	case false:
+		m.Forward = m.proxy
+		m.ForwardPacket = m.ProxyPacket
+	default:
+		m.setForward("tcp")
+		m.setForward("udp")
+	}
+}
+
+func (m *BypassManager) setBypass(file string) error {
+	if m.bypass.file == file {
+		return nil
+	}
+	m.bypass.file = file
+	return m.RefreshMapping()
+}
+
+/*
+ *              DNS
+ */
+func (m *BypassManager) setDNS(server string, doh bool) {
+	if m.dns.server == server && m.dns.doh == doh {
+		return
+	}
+	m.dns.server = server
+	m.dns.doh = doh
+	m.matcher.SetDNS(server, doh)
+}
+
+func (m *BypassManager) setDNSProxy(enable bool) {
+	if enable {
+		m.dns.proxy = true
+		m.matcher.SetDNSProxy(m.proxy)
+	} else {
+		m.dns.proxy = false
+		m.matcher.SetDNSProxy(func(addr string) (net.Conn, error) {
+			return net.DialTimeout("tcp", addr, 5*time.Second)
+		})
+	}
+}
+
+func (m *BypassManager) enableDNSProxy(enable bool) {
+	if m.dns.proxy == enable {
+		return
+	}
+	m.setDNSProxy(enable)
+}
+
+func (m *BypassManager) setDirectDNS(server string, doh bool) {
+	if m.directDNS.server == server && m.directDNS.doh == doh {
+		return
+	}
+	m.directDNS.server = server
+	m.directDNS.doh = doh
+
+	if doh {
+		m.directDNS.dns = libDNS.NewDOH(server)
+	} else {
+		m.directDNS.dns = libDNS.NewNormalDNS(server)
+	}
+}
+
+func (m *BypassManager) setDNSSubNet(ip *net.IPNet) {
+	if m.matcher.DNS == nil || m.dns.Subnet == ip {
+		return
+	}
+	m.dns.Subnet = ip
+	m.matcher.DNS.SetSubnet(ip)
 }

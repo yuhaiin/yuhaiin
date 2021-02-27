@@ -10,9 +10,12 @@ import (
 )
 
 var (
-	BuffPool     = sync.Pool{New: func() interface{} { return make([]byte, 32*0x400) }}
+	//BuffPool byte array poll
+	BuffPool = sync.Pool{New: func() interface{} { return make([]byte, 32*0x400) }}
+	//CloseSigPool Close sign pool
 	CloseSigPool = sync.Pool{New: func() interface{} { return make(chan error, 2) }}
-	QueuePool    = sync.Pool{New: func() interface{} { return [2]uint64{} }}
+	//QueuePool pipe data collection data pool
+	QueuePool = sync.Pool{New: func() interface{} { return [2]uint64{} }}
 )
 
 // LookupIP looks up host using the local resolver.
@@ -95,23 +98,37 @@ func (c *ClientUtil) SetLookup(f func(string) ([]net.IP, error)) {
 	c.lookUp = f
 }
 
+//Unit .
 type Unit int
 
 var (
-	B   Unit = 0
-	KB  Unit = 1
-	MB  Unit = 2
-	GB  Unit = 3
-	TB  Unit = 4
-	PB  Unit = 5
-	B2       = "B"
-	KB2      = "KB"
-	MB2      = "MB"
-	GB2      = "GB"
-	TB2      = "TB"
-	PB2      = "PB"
+	//B .
+	B Unit = 0
+	//KB .
+	KB Unit = 1
+	//MB .
+	MB Unit = 2
+	//GB .
+	GB Unit = 3
+	//TB .
+	TB Unit = 4
+	//PB .
+	PB Unit = 5
+	//B2 .
+	B2 = "B"
+	//KB2 .
+	KB2 = "KB"
+	//MB2 .
+	MB2 = "MB"
+	//GB2 .
+	GB2 = "GB"
+	//TB2 .
+	TB2 = "TB"
+	//PB2 .
+	PB2 = "PB"
 )
 
+//ReducedUnit .
 func ReducedUnit(byte float64) (result float64, unit Unit) {
 	if byte > 1125899906842624 {
 		return byte / 1125899906842624, PB //PB
@@ -131,6 +148,7 @@ func ReducedUnit(byte float64) (result float64, unit Unit) {
 	return byte, B //B
 }
 
+//ReducedUnitStr .
 func ReducedUnitStr(byte float64) (result string) {
 	if byte > 1125899906842624 {
 		return fmt.Sprintf("%.2f%s", byte/1125899906842624, PB2) //PB

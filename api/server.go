@@ -215,7 +215,7 @@ func (c *Config) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty
 }
 
 func (c *Config) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, app.MatchCon.UpdateMatch()
+	return &empty.Empty{}, app.MatchCon.RefreshMapping()
 }
 
 func (c *Config) GetRate(_ *empty.Empty, srv Config_GetRateServer) error {

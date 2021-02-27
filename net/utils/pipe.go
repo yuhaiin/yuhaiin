@@ -8,8 +8,10 @@ import (
 )
 
 var (
+	//DownloadTotal download data
 	DownloadTotal = uint64(0)
-	UploadTotal   = uint64(0)
+	//UploadTotal upload data
+	UploadTotal = uint64(0)
 	// int[0] is mode: mode = 0 -> download , mode = 1 -> upload
 	queue = make(chan [2]uint64, 10)
 )
@@ -30,6 +32,7 @@ func init() {
 	}()
 }
 
+//Forward pipe
 func Forward(src, dst net.Conn) {
 	CloseSig := CloseSigPool.Get().(chan error)
 	go pipeStatistic(dst, src, CloseSig, 0)
@@ -39,6 +42,7 @@ func Forward(src, dst net.Conn) {
 	CloseSigPool.Put(CloseSig)
 }
 
+//SingleForward single pipe
 func SingleForward(src io.Reader, dst io.Writer) (err error) {
 	CloseSig := CloseSigPool.Get().(chan error)
 	go pipeStatistic2(src, dst, CloseSig, 0)
