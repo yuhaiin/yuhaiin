@@ -11,12 +11,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
-var (
-	ConFig         *config.Setting
-	LocalListenCon *LocalListen
-	MatchCon       *BypassManager
-	Nodes          *subscr.Node
-)
+var Entrance = struct {
+	Config      *config.Setting
+	LocalListen *LocalListen
+	Bypass      *BypassManager
+	Nodes       *subscr.Node
+}{}
 
 func Init() error {
 	err := RefreshNodes()
@@ -24,32 +24,32 @@ func Init() error {
 		return fmt.Errorf("RefreshNodes -> %v", err)
 	}
 
-	ConFig, err = config.SettingDecodeJSON()
+	Entrance.Config, err = config.SettingDecodeJSON()
 	if err != nil {
 		return fmt.Errorf("DecodeJson -> %v", err)
 	}
 
 	// initialize Match Controller
-	MatchCon, err = NewBypassManager(ConFig.BypassFile, func(option *OptionBypassManager) {
-		option.DNS.Server = ConFig.DnsServer
-		option.DNS.Proxy = ConFig.DNSProxy
-		option.DNS.DOH = ConFig.DOH
-		option.DNS.Subnet = toSubnet(ConFig.DnsSubNet)
-		option.Bypass = ConFig.Bypass
-		option.DirectDNS.Server = ConFig.DirectDNS.Host
-		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
+	Entrance.Bypass, err = NewBypassManager(Entrance.Config.BypassFile, func(option *OptionBypassManager) {
+		option.DNS.Server = Entrance.Config.DnsServer
+		option.DNS.Proxy = Entrance.Config.DNSProxy
+		option.DNS.DOH = Entrance.Config.DOH
+		option.DNS.Subnet = toSubnet(Entrance.Config.DnsSubNet)
+		option.Bypass = Entrance.Config.Bypass
+		option.DirectDNS.Server = Entrance.Config.DirectDNS.Host
+		option.DirectDNS.DOH = Entrance.Config.DirectDNS.DOH
 	})
 	if err != nil {
 		return fmt.Errorf("new Match Controller -> %v", err)
 	}
 
 	// initialize Local Servers Controller
-	LocalListenCon, err = NewLocalListenCon(
-		WithHTTP(ConFig.HTTPHost),
-		WithSocks5(ConFig.Socks5Host),
-		WithRedir(ConFig.RedirHost),
-		WithTCPConn(MatchCon.Forward),
-		WithPacketConn(MatchCon.ForwardPacket),
+	Entrance.LocalListen, err = NewLocalListenCon(
+		WithHTTP(Entrance.Config.HTTPHost),
+		WithSocks5(Entrance.Config.Socks5Host),
+		WithRedir(Entrance.Config.RedirHost),
+		WithTCPConn(Entrance.Bypass.Forward),
+		WithPacketConn(Entrance.Bypass.ForwardPacket),
 	)
 	if err != nil {
 		return fmt.Errorf("new Local Listener Controller -> %v", err)
@@ -63,22 +63,22 @@ func Init() error {
  *         CONFIG
  */
 func SetConFig(conf *config.Setting) (erra error) {
-	ConFig = conf
-	err := MatchCon.SetAllOption(func(option *OptionBypassManager) {
+	Entrance.Config = conf
+	err := Entrance.Bypass.SetAllOption(func(option *OptionBypassManager) {
 		option.DNS.Server = conf.DnsServer
 		option.DNS.Proxy = conf.DNSProxy
 		option.DNS.DOH = conf.DOH
 		option.DNS.Subnet = toSubnet(conf.DnsSubNet)
 		option.Bypass = conf.Bypass
 		option.BypassPath = conf.BypassFile
-		option.DirectDNS.Server = ConFig.DirectDNS.Host
-		option.DirectDNS.DOH = ConFig.DirectDNS.DOH
+		option.DirectDNS.Server = Entrance.Config.DirectDNS.Host
+		option.DirectDNS.DOH = Entrance.Config.DirectDNS.DOH
 	})
 	if err != nil {
 		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
 	}
 
-	err = LocalListenCon.SetAHost(
+	err = Entrance.LocalListen.SetAHost(
 		WithHTTP(conf.HTTPHost),
 		WithSocks5(conf.Socks5Host),
 		WithRedir(conf.RedirHost),
@@ -87,7 +87,7 @@ func SetConFig(conf *config.Setting) (erra error) {
 		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)
 	}
 	// others
-	err = config.SettingEnCodeJSON(ConFig)
+	err = config.SettingEnCodeJSON(Entrance.Config)
 	if err != nil {
 		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
 	}
@@ -109,24 +109,24 @@ func toSubnet(s string) *net.IPNet {
 }
 
 func GetConfig() (*config.Setting, error) {
-	return ConFig, nil
+	return Entrance.Config, nil
 }
 
 /*
  *               Node
  */
 func RefreshNodes() (err error) {
-	Nodes, err = subscr.GetNodesJSON()
+	Entrance.Nodes, err = subscr.GetNodesJSON()
 	return
 }
 
 func ChangeNNode(group string, node string) (erra error) {
-	if Nodes.Node[group][node] == nil {
+	if Entrance.Nodes.Node[group][node] == nil {
 		return errors.New("not exist " + group + " - " + node)
 	}
-	Nodes.NowNode = Nodes.Node[group][node]
+	Entrance.Nodes.NowNode = Entrance.Nodes.Node[group][node]
 
-	err := subscr.SaveNode(Nodes)
+	err := subscr.SaveNode(Entrance.Nodes)
 	if err != nil {
 		erra = fmt.Errorf("%v\nSaveNode() -> %v", erra, err)
 	}
@@ -139,36 +139,38 @@ func ChangeNNode(group string, node string) (erra error) {
 }
 
 func GetNNodeAndNGroup() (node string, group string) {
-	return utils.I2String(Nodes.NowNode.(map[string]interface{})["name"]), utils.I2String(Nodes.NowNode.(map[string]interface{})["group"])
+	return utils.I2String(
+			Entrance.Nodes.NowNode.(map[string]interface{})["name"]),
+		utils.I2String(Entrance.Nodes.NowNode.(map[string]interface{})["group"])
 }
 
 func GetNowNodeConn() (func(string) (net.Conn, error), func(string) (net.PacketConn, error), string, error) {
-	if Nodes.NowNode == nil {
+	if Entrance.Nodes.NowNode == nil {
 		return nil, nil, "", errors.New("NowNode is nil")
 	}
-	switch Nodes.NowNode.(type) {
+	switch Entrance.Nodes.NowNode.(type) {
 	case map[string]interface{}:
 	default:
 		return nil, nil, "", errors.New("the Type is not map[string]interface{}")
 	}
 
 	var hash string
-	switch Nodes.NowNode.(map[string]interface{})["hash"].(type) {
+	switch Entrance.Nodes.NowNode.(map[string]interface{})["hash"].(type) {
 	case string:
-		hash = Nodes.NowNode.(map[string]interface{})["hash"].(string)
+		hash = Entrance.Nodes.NowNode.(map[string]interface{})["hash"].(string)
 	default:
 		hash = "empty"
 	}
-	conn, packetConn, err := subscr.ParseNodeConn(Nodes.NowNode.(map[string]interface{}))
+	conn, packetConn, err := subscr.ParseNodeConn(Entrance.Nodes.NowNode.(map[string]interface{}))
 	return conn, packetConn, hash, err
 }
 
 func GetANodes() map[string][]string {
 	m := map[string][]string{}
 
-	for key := range Nodes.Node {
+	for key := range Entrance.Nodes.Node {
 		var x []string
-		for node := range Nodes.Node[key] {
+		for node := range Entrance.Nodes.Node[key] {
 			x = append(x, node)
 		}
 		sort.Strings(x)
@@ -178,19 +180,19 @@ func GetANodes() map[string][]string {
 }
 
 func GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
-	if Nodes.Node[group][nodeN] == nil {
+	if Entrance.Nodes.Node[group][nodeN] == nil {
 		return nil, nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
 	}
-	switch Nodes.Node[group][nodeN].(type) {
+	switch Entrance.Nodes.Node[group][nodeN].(type) {
 	case map[string]interface{}:
-		return subscr.ParseNodeConn(Nodes.Node[group][nodeN].(map[string]interface{}))
+		return subscr.ParseNodeConn(Entrance.Nodes.Node[group][nodeN].(map[string]interface{}))
 	}
 	return nil, nil, errors.New("the type is not map[string]interface{}")
 }
 
 func GetNodes(group string) ([]string, error) {
 	var nodeTmp []string
-	for nodeRemarks := range Nodes.Node[group] {
+	for nodeRemarks := range Entrance.Nodes.Node[group] {
 		nodeTmp = append(nodeTmp, nodeRemarks)
 	}
 	sort.Strings(nodeTmp)
@@ -199,7 +201,7 @@ func GetNodes(group string) ([]string, error) {
 
 func GetGroups() ([]string, error) {
 	var groupTmp []string
-	for group := range Nodes.Node {
+	for group := range Entrance.Nodes.Node {
 		groupTmp = append(groupTmp, group)
 	}
 	sort.Strings(groupTmp)
@@ -219,15 +221,15 @@ func UpdateSub() error {
 }
 
 func GetLinks() (map[string]subscr.Link, error) {
-	return Nodes.Links, nil
+	return Entrance.Nodes.Links, nil
 }
 
-func AddLink(name, tYPE, link string) error {
-	Nodes.Links[name] = subscr.Link{
-		Type: tYPE,
+func AddLink(name, style, link string) error {
+	Entrance.Nodes.Links[name] = subscr.Link{
+		Type: style,
 		Url:  link,
 	}
-	return subscr.SaveNode(Nodes)
+	return subscr.SaveNode(Entrance.Nodes)
 }
 
 func AddNode(node map[string]string) error {
@@ -247,8 +249,8 @@ func DeleteNode(group, name string) error {
 }
 
 func DeleteLink(name string) error {
-	delete(Nodes.Links, name)
-	return subscr.SaveNode(Nodes)
+	delete(Entrance.Nodes.Links, name)
+	return subscr.SaveNode(Entrance.Nodes)
 }
 
 func ChangeNode() error {
@@ -256,14 +258,14 @@ func ChangeNode() error {
 	if err != nil {
 		return fmt.Errorf("GetNowNodeConn() -> %v", err)
 	}
-	MatchCon.SetProxy(conn, packetConn, hash)
+	Entrance.Bypass.SetProxy(conn, packetConn, hash)
 	return nil
 }
 
 func GetDownload() uint64 {
-	return MatchCon.GetDownload()
+	return Entrance.Bypass.GetDownload()
 }
 
 func GetUpload() uint64 {
-	return MatchCon.GetUpload()
+	return Entrance.Bypass.GetUpload()
 }
