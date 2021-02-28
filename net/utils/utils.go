@@ -14,8 +14,6 @@ var (
 	BuffPool = sync.Pool{New: func() interface{} { return make([]byte, 32*0x400) }}
 	//CloseSigPool Close sign pool
 	CloseSigPool = sync.Pool{New: func() interface{} { return make(chan error, 2) }}
-	//QueuePool pipe data collection data pool
-	QueuePool = sync.Pool{New: func() interface{} { return [2]uint64{} }}
 )
 
 // LookupIP looks up host using the local resolver.

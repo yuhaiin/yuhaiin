@@ -220,14 +220,15 @@ func (c *Config) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, erro
 
 func (c *Config) GetRate(_ *empty.Empty, srv Config_GetRateServer) error {
 	fmt.Println("Start Send Flow Message to Client.")
-	da, ua := utils.DownloadTotal, utils.UploadTotal
+	//TODO deprecated string
+	da, ua := app.GetDownload(), app.GetUpload()
 	var dr string
 	var ur string
 	ctx := srv.Context()
 	for {
-		dr = utils.ReducedUnitStr(float64(utils.DownloadTotal-da)) + "/S"
-		ur = utils.ReducedUnitStr(float64(utils.UploadTotal-ua)) + "/S"
-		da, ua = utils.DownloadTotal, utils.UploadTotal
+		dr = utils.ReducedUnitStr(float64(app.GetDownload()-da)) + "/S"
+		ur = utils.ReducedUnitStr(float64(app.GetUpload()-ua)) + "/S"
+		da, ua = app.GetDownload(), app.GetUpload()
 
 		err := srv.Send(&DaUaDrUr{
 			Download: utils.ReducedUnitStr(float64(da)),

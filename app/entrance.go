@@ -259,3 +259,11 @@ func ChangeNode() error {
 	MatchCon.SetProxy(conn, packetConn, hash)
 	return nil
 }
+
+func GetDownload() uint64 {
+	return MatchCon.GetDownload()
+}
+
+func GetUpload() uint64 {
+	return MatchCon.GetUpload()
+}

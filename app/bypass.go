@@ -12,6 +12,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	libDNS "github.com/Asutorufa/yuhaiin/net/dns"
@@ -54,12 +56,16 @@ type BypassManager struct {
 	dns
 	directDNS
 	node
-	matcher       *match.Match
+
+	matcher *match.Match
+
 	Forward       func(string) (net.Conn, error)
 	ForwardPacket func(string) (net.PacketConn, error)
 	proxy         func(host string) (conn net.Conn, err error)
 	ProxyPacket   func(string) (net.PacketConn, error)
-	dialer        net.Dialer
+
+	dialer      net.Dialer
+	connManager *connManager
 }
 
 //OptionBypassManager create bypass manager options
@@ -91,6 +97,8 @@ func NewBypassManager(bypassPath string, opt ...func(option *OptionBypassManager
 		ProxyPacket: func(s string) (net.PacketConn, error) {
 			return net.ListenPacket("udp", "")
 		},
+
+		connManager: newConnManager(),
 	}
 	option := &OptionBypassManager{}
 	for index := range opt {
@@ -229,18 +237,20 @@ func (m *BypassManager) dial(network, host string) (conn interface{}, err error)
 	md := m.matcher.Search(hostname)
 
 	if md.Des == nil {
-		fmt.Printf("[%s] use %s, match default(proxy)\n", host, network)
+		fmt.Printf("[%s] -> %s, mode: default(proxy)\n", host, network)
 	} else {
-		fmt.Printf("[%s] use %s, match %s\n", host, network, modeMapping[md.Des.(int)])
+		fmt.Printf("[%s] -> %s, mode: %s\n", host, network, modeMapping[md.Des.(int)])
 	}
 
 	switch md.Category {
 	case match.IP:
-		return m.dialIP(network, host, md.Des)
+		conn, err = m.dialIP(network, host, md.Des)
 	case match.DOMAIN:
-		return m.dialDomain(network, hostname, port, md.Des)
+		conn, err = m.dialDomain(network, hostname, port, md.Des)
+	default:
+		conn, err = m.proxy(host)
 	}
-	return m.proxy(host)
+	return conn, err
 }
 
 func (m *BypassManager) dialIP(network, host string, des interface{}) (conn interface{}, err error) {
@@ -369,12 +379,12 @@ func (m *BypassManager) setForward(network string) {
 			return nil, err
 		}
 		if x, ok := conn.(net.Conn); ok {
-			return x, nil
+			return m.connManager.newConn(s, x), nil
 		}
 		return nil, fmt.Errorf("conn is not net.Conn")
 	}
-
 }
+
 func (m *BypassManager) setMode(b bool) {
 	if m.bypass.enabled == b {
 		if m.Forward == nil {
@@ -456,4 +466,148 @@ func (m *BypassManager) setDNSSubNet(ip *net.IPNet) {
 	}
 	m.dns.Subnet = ip
 	m.matcher.DNS.SetSubnet(ip)
+}
+
+func (m *BypassManager) GetDownload() uint64 {
+	return m.connManager.download
+}
+
+func (m *BypassManager) GetUpload() uint64 {
+	return m.connManager.upload
+}
+
+type connManager struct {
+	conns    sync.Map
+	id       uint64
+	download uint64
+	upload   uint64
+
+	queue         chan *statisticConn
+	downloadQueue chan uint64
+	uploadQueue   chan uint64
+}
+
+func newConnManager() *connManager {
+	c := &connManager{
+		id:       0,
+		download: 0,
+		upload:   0,
+
+		queue:         make(chan *statisticConn, 5),
+		downloadQueue: make(chan uint64, 5),
+		uploadQueue:   make(chan uint64, 5),
+	}
+
+	c.startQueue()
+
+	return c
+}
+
+func (c *connManager) startQueue() {
+	go func() {
+		for s := range c.queue {
+			s.id = c.id
+			c.conns.Store(c.id, s)
+			atomic.AddUint64(&c.id, 1)
+		}
+	}()
+
+	go func() {
+		for s := range c.downloadQueue {
+			atomic.AddUint64(&c.download, s)
+		}
+	}()
+
+	go func() {
+		for s := range c.uploadQueue {
+			atomic.AddUint64(&c.upload, s)
+		}
+	}()
+}
+
+func (c *connManager) add(i *statisticConn) {
+	go func() {
+		c.queue <- i
+	}()
+}
+
+func (c *connManager) delete(id uint64) {
+	v, _ := c.conns.LoadAndDelete(id)
+	if x, ok := v.(*statisticConn); ok {
+		fmt.Printf("close id: %d,addr: %s\n", x.id, x.addr)
+	}
+}
+
+func (c *connManager) addDownload(i uint64) {
+	go func() {
+		c.downloadQueue <- i
+	}()
+}
+
+func (c *connManager) addUpload(i uint64) {
+	go func() {
+		c.uploadQueue <- i
+	}()
+}
+
+func (c *connManager) Write(b []byte, w io.Writer) (int, error) {
+	n, err := w.Write(b)
+	c.addUpload(uint64(n))
+	return n, err
+}
+
+func (c *connManager) Read(b []byte, r io.Reader) (int, error) {
+	n, err := r.Read(b)
+	c.addDownload(uint64(n))
+	return n, err
+
+}
+
+func (c *connManager) newConn(addr string, x net.Conn) net.Conn {
+	s := &statisticConn{
+		addr: addr,
+		Conn: x,
+	}
+	s.close = func() error {
+		c.delete(s.id)
+		return s.Conn.Close()
+	}
+
+	s.write = func(b []byte) (int, error) {
+		n, err := s.Conn.Write(b)
+		c.addUpload(uint64(n))
+		return n, err
+	}
+
+	s.read = func(b []byte) (int, error) {
+		n, err := s.Conn.Read(b)
+		c.addDownload(uint64(n))
+		return n, err
+	}
+
+	c.add(s)
+
+	return s
+}
+
+type statisticConn struct {
+	net.Conn
+	close func() error
+	write func([]byte) (int, error)
+	read  func([]byte) (int, error)
+
+	id   uint64
+	addr string
+}
+
+func (s *statisticConn) Close() error {
+	return s.close()
+}
+
+func (s *statisticConn) Write(b []byte) (int, error) {
+	return s.write(b)
+}
+
+func (s *statisticConn) Read(b []byte) (int, error) {
+	return s.read(b)
 }
