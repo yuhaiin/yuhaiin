@@ -33,7 +33,8 @@ var (
 		},
 		redir: func(host string) (server.Server, error) {
 			if runtime.GOOS == "windows" {
-				return nil, fmt.Errorf("redir not support windows")
+				log.Println("redir not support windows")
+				return nil, nil
 			}
 			return server.NewTCPServer(host, redirserver.RedirHandle())
 		},
@@ -99,11 +100,11 @@ func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 		},
 		hosts: map[sType]string{},
 	}
-	for index := range opt {
-		if opt[index] == nil {
+	for i := range opt {
+		if opt[i] == nil {
 			continue
 		}
-		opt[index](hosts)
+		opt[i](hosts)
 	}
 
 	l = &LocalListen{
@@ -111,89 +112,70 @@ func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 		hosts:  hosts,
 	}
 
-	for _, typE := range support {
-		if ref[typE] == nil {
-			log.Printf("can't find %d function\n", typE)
+	for _, style := range support {
+		if ref[style] == nil {
+			log.Printf("can't find %d function\n", style)
 			continue
 		}
-		l.Server[typE], err = ref[typE](hosts.hosts[typE])
+
+		l.Server[style], err = ref[style](hosts.hosts[style])
 		if err != nil {
 			log.Println(err)
-			continue
 		}
 	}
 
-	l.setTCPConn(hosts.tcpConn)
-	l.setUDPConn(hosts.packetConn)
+	l.setConn(hosts.tcpConn, hosts.packetConn)
 	return l, nil
 }
 
 func (l *LocalListen) SetAHost(opt ...LlOption) (erra error) {
-	if opt == nil {
+	if len(opt) == 0 {
 		return nil
 	}
-	var err error
 
-	for index := range opt {
-		if opt[index] == nil {
+	for i := range opt {
+		if opt[i] == nil {
 			continue
 		}
-		opt[index](l.hosts)
+		opt[i](l.hosts)
 	}
-	for _, typE := range support {
-		if l.Server[typE] == nil {
-			if ref[typE] == nil {
-				continue
-			}
-			l.Server[typE], err = ref[typE](l.hosts.hosts[typE])
-			if err != nil {
-				log.Println(err)
-			}
+
+	var err error
+	for _, style := range support {
+		if l.Server[style] == nil && ref[style] == nil {
 			continue
 		}
-		err := l.Server[typE].UpdateListen(l.hosts.hosts[typE])
+
+		if l.Server[style] == nil {
+			l.Server[style], err = ref[style](l.hosts.hosts[style])
+		} else {
+			err = l.Server[style].UpdateListen(l.hosts.hosts[style])
+		}
+
 		if err != nil {
-			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, typE, err)
+			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, style, err)
 		}
 	}
-	l.setTCPConn(l.hosts.tcpConn)
+	l.setConn(l.hosts.tcpConn, l.hosts.packetConn)
 	return
 }
 
-func (l *LocalListen) setTCPConn(conn func(string) (net.Conn, error)) {
-	if conn == nil {
+func (l *LocalListen) setConn(
+	conn func(string) (net.Conn, error),
+	packetConn func(string) (net.PacketConn, error),
+) {
+	if conn == nil || packetConn == nil {
 		return
 	}
+
 	fmt.Println("Local Listener Set TCP Proxy", &conn)
-	for _, typE := range support {
-		if l.Server[typE] == nil {
-			continue
+	for _, style := range support {
+		if x, ok := l.Server[style].(server.TCPServer); ok {
+			x.SetTCPConn(conn)
 		}
 
-		x, ok := l.Server[typE].(server.TCPServer)
-		if !ok {
-			continue
+		if x, ok := l.Server[style].(server.UDPServer); ok {
+			x.SetUDPConn(packetConn)
 		}
-
-		x.SetTCPConn(conn)
-	}
-}
-
-func (l *LocalListen) setUDPConn(c func(string) (net.PacketConn, error)) {
-	if c == nil {
-		return
-	}
-	fmt.Println("Local Listener Set UDP Proxy", &c)
-	for _, typE := range support {
-		if l.Server[typE] == nil {
-			continue
-		}
-
-		x, ok := l.Server[typE].(server.UDPServer)
-		if !ok {
-			continue
-		}
-
-		x.SetUDPConn(c)
 	}
 }

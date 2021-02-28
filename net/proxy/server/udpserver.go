@@ -64,10 +64,6 @@ func (u *UdpServer) UpdateListen(host string) error {
 	return u.run()
 }
 
-func (u *UdpServer) SetTCPConn(func(string) (net.Conn, error)) {
-
-}
-
 func (u *UdpServer) Close() error {
 	close(u.closed)
 	return nil

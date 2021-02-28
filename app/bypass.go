@@ -61,7 +61,7 @@ type BypassManager struct {
 
 	Forward       func(string) (net.Conn, error)
 	ForwardPacket func(string) (net.PacketConn, error)
-	proxy         func(host string) (conn net.Conn, err error)
+	proxy         func(string) (net.Conn, error)
 	ProxyPacket   func(string) (net.PacketConn, error)
 
 	dialer      net.Dialer
@@ -100,21 +100,26 @@ func NewBypassManager(bypassPath string, opt ...func(option *OptionBypassManager
 
 		connManager: newConnManager(),
 	}
+
 	option := &OptionBypassManager{}
-	for index := range opt {
-		opt[index](option)
+	for i := range opt {
+		opt[i](option)
 	}
+
 	m.matcher = match.NewMatch(func(argument *match.OptionArgument) {
 		argument.DNS = option.DNS.Server
 		argument.DOH = option.DNS.DOH
 		argument.Subnet = option.DNS.Subnet
 	})
+
 	err := m.setBypass(bypassPath)
 	if err != nil {
 		return nil, err
 	}
+
 	m.enableDNSProxy(option.DNS.Proxy)
 	m.setMode(option.Bypass)
+
 	return m, nil
 }
 

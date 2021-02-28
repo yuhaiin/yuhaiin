@@ -2,6 +2,8 @@ package app
 
 import (
 	"testing"
+
+	server "github.com/Asutorufa/yuhaiin/net/proxy/server"
 )
 
 func TestRef(t *testing.T) {
@@ -14,5 +16,11 @@ func TestRef(t *testing.T) {
 		t.Log("nil")
 	} else {
 		t.Log("not nil")
+	}
+
+	var x interface{}
+	x = nil
+	if _, ok := x.(server.UDPServer); !ok {
+		t.Log("nil")
 	}
 }
