@@ -24,15 +24,24 @@ func main() {
 		}
 	}()
 
-	lis, err := net.Listen("tcp", api.Host)
+	s := grpc.NewServer()
+
+	p, err := api.NewProcess()
 	if err != nil {
 		panic(err)
 	}
-	s := grpc.NewServer()
-	api.RegisterProcessInitServer(s, &api.Process{})
-	api.RegisterConfigServer(s, &api.Config{})
-	api.RegisterNodeServer(s, &api.Node{})
-	api.RegisterSubscribeServer(s, &api.Subscribe{})
+	api.RegisterProcessInitServer(s, p)
+	config := api.NewConfig()
+	api.RegisterConfigServer(s, config)
+	node := api.NewNode()
+	api.RegisterNodeServer(s, node)
+	sub := api.NewSubscribe()
+	api.RegisterSubscribeServer(s, sub)
+
+	lis, err := net.Listen("tcp", p.Host())
+	if err != nil {
+		panic(err)
+	}
 	if err := s.Serve(lis); err != nil {
 		log.Println(err)
 	}

@@ -3,12 +3,9 @@ package api
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/app"
@@ -18,118 +15,35 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
-var (
-	Host    string
-	killWDC bool // kill process when grpc disconnect
-
-	initFinished     chan bool
-	lockFileFinished chan bool
-	connectFinished  chan bool
-	signChannel      chan os.Signal
-)
-
-func sigh() {
-	signChannel = make(chan os.Signal)
-	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() {
-		for s := range signChannel {
-			switch s {
-			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-				log.Println("kernel exit")
-				_ = app.LockFileClose()
-				os.Exit(0)
-			default:
-				fmt.Println("OTHERS SIGN:", s)
-			}
-		}
-	}()
-}
-
-func init() {
-	sigh()
-
-	flag.StringVar(&Host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
-	flag.BoolVar(&killWDC, "kwdc", false, "kill process when grpc disconnect")
-	flag.Parse()
-	fmt.Println("gRPC Listen Host :", Host)
-	fmt.Println("Try to create lock file.")
-
-	lockFileFinished = make(chan bool)
-	err := app.GetProcessLock(Host)
-	if err != nil {
-		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		go func(ctx context.Context) {
-			select {
-			case <-ctx.Done():
-				log.Println("Read Running Host timeout: 5 Seconds, Exit Process!")
-				cancel()
-				os.Exit(0)
-			}
-		}(ctx)
-		return
-	}
-	close(lockFileFinished)
-
-	fmt.Println("Create lock file successful.")
-	fmt.Println("Try to initialize Service.")
-	initFinished = make(chan bool)
-	err = app.Init()
-	if err != nil {
-		fmt.Println("Initialize Service failed, Exit Process!")
-		panic(err)
-	}
-	fmt.Println("Initialize Service Successful, Please Connect in 5 Seconds.")
-	close(initFinished)
-
-	connectFinished = make(chan bool)
-	go func() {
-		select {
-		case <-connectFinished:
-			fmt.Println("Connect Successful!")
-		case <-time.After(5 * time.Second):
-			log.Println("Connect timeout: 5 Seconds, Exit Process!")
-			close(connectFinished)
-			os.Exit(0)
-		}
-	}()
-}
-
 type Process struct {
 	UnimplementedProcessInitServer
-	singleInstanceCtx context.Context
-	message           chan string
+
+	singleInstance chan bool
+	message        chan string
+	m              *manager
+}
+
+func NewProcess() (*Process, error) {
+	p := &Process{}
+	p.m = newManager()
+	err := p.m.Start()
+	return p, err
+}
+
+func (s *Process) Host() string {
+	return s.m.Host()
 }
 
 func (s *Process) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if lockFileFinished == nil {
-		return &empty.Empty{}, errors.New("create lock file false")
-	}
-	select {
-	case <-lockFileFinished:
-		break
-	default:
+	if !s.m.lockfile() {
 		return &empty.Empty{}, errors.New("create lock file false")
 	}
 
-	if initFinished == nil {
-		return &empty.Empty{}, errors.New("init Process Failed")
-	}
-	select {
-	case <-initFinished:
-		break
-	default:
+	if !s.m.initApp() {
 		return &empty.Empty{}, errors.New("init Process Failed")
 	}
 
-	if connectFinished != nil {
-		select {
-		case <-connectFinished:
-			return &empty.Empty{}, errors.New("already exists one client")
-		default:
-			close(connectFinished)
-		}
-	}
+	s.m.connect()
 	return &empty.Empty{}, nil
 }
 
@@ -146,9 +60,9 @@ func (s *Process) GetRunningHost(context.Context, *empty.Empty) (*wrappers.Strin
 }
 
 func (s *Process) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
-	if s.singleInstanceCtx != nil {
+	if s.singleInstance != nil {
 		select {
-		case <-s.singleInstanceCtx.Done():
+		case <-s.singleInstance:
 			break
 		default:
 			s.message <- "on"
@@ -163,16 +77,18 @@ func (s *Process) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, erro
 }
 
 func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
-	if s.singleInstanceCtx != nil {
+	if s.singleInstance != nil {
 		select {
-		case <-s.singleInstanceCtx.Done():
+		case <-s.singleInstance:
 			break
 		default:
 			return errors.New("already exist one client")
 		}
 	}
+
+	s.singleInstance = make(chan bool)
 	s.message = make(chan string, 1)
-	s.singleInstanceCtx = srv.Context()
+	ctx := srv.Context()
 
 	for {
 		select {
@@ -182,12 +98,13 @@ func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
 				log.Println(err)
 			}
 			fmt.Println("Call Client Open Window.")
-		case <-s.singleInstanceCtx.Done():
+		case <-ctx.Done():
 			close(s.message)
-			if killWDC {
+			close(s.singleInstance)
+			if s.m.killWDC {
 				panic("client exit")
 			}
-			return s.singleInstanceCtx.Err()
+			return ctx.Err()
 		}
 	}
 }
@@ -203,6 +120,10 @@ func (s *Process) StopKernel(context.Context, *empty.Empty) (*empty.Empty, error
 
 type Config struct {
 	UnimplementedConfigServer
+}
+
+func NewConfig() *Config {
+	return &Config{}
 }
 
 func (c *Config) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
@@ -251,6 +172,10 @@ func (c *Config) GetRate(_ *empty.Empty, srv Config_GetRateServer) error {
 
 type Node struct {
 	UnimplementedNodeServer
+}
+
+func NewNode() *Node {
+	return &Node{}
 }
 
 func (n *Node) GetNodes(context.Context, *empty.Empty) (*Nodes, error) {
@@ -303,6 +228,10 @@ func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrappers.StringVa
 
 type Subscribe struct {
 	UnimplementedSubscribeServer
+}
+
+func NewSubscribe() *Subscribe {
+	return &Subscribe{}
 }
 
 func (s *Subscribe) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error) {
