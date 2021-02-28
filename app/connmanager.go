@@ -142,8 +142,8 @@ type idGenerater struct {
 
 func (i *idGenerater) Generate() (id int64) {
 	i.x.Lock()
+	defer i.x.Unlock()
 	id = i.node
 	i.node++
-	i.x.Unlock()
 	return
 }

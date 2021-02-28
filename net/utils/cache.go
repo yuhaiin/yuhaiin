@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"container/list"
 	"sync"
 	"time"
 )
@@ -133,4 +134,59 @@ func (c *cache) Add(domain string, mark interface{}) {
 	c.pool.Store(domain, mark)
 	c.number++
 	//log.Println(domain+" Add success,number", c.number)
+}
+
+type LRU struct {
+	capacity int
+	list     *list.List
+	lock     sync.Mutex
+	mapping  sync.Map
+}
+
+func NewLru(capacity int) *LRU {
+	return &LRU{
+		capacity: capacity,
+		list:     list.New().Init(),
+	}
+}
+
+func (l *LRU) Add(key, value interface{}) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	if l.list.Len() >= l.capacity {
+		if l.capacity == 0 {
+			return
+		}
+		l.mapping.Delete(l.list.Back())
+		l.list.Remove(l.list.Back())
+	}
+	node := l.list.PushFront(value)
+	l.mapping.Store(key, node)
+}
+
+func (l *LRU) Delete(key interface{}) {
+	node, ok := l.mapping.LoadAndDelete(key)
+	if !ok {
+		return
+	}
+
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	l.list.Remove(node.(*list.Element))
+}
+
+func (l *LRU) Load(key interface{}) interface{} {
+	node, ok := l.mapping.Load(key)
+	if !ok {
+		return nil
+	}
+	x, ok := node.(*list.Element)
+	if !ok {
+		return nil
+	}
+
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	l.list.MoveToFront(x)
+	return x.Value
 }

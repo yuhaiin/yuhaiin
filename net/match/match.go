@@ -13,7 +13,7 @@ type Match struct {
 	cidr   *Cidr
 	domain *Domain
 	doh    bool
-	cache  *utils.CacheExtend
+	cache  *utils.LRU
 }
 
 type Category int
@@ -77,7 +77,7 @@ func (x *Match) Search(str string) Des {
 	d := Des{
 		Category: DOMAIN,
 	}
-	if des, _ := x.cache.Get(str); des != nil {
+	if des := x.cache.Load(str); des != nil {
 		return des.(Des)
 	}
 
@@ -105,7 +105,7 @@ _end:
 func (x *Match) Clear() {
 	x.cidr = NewCidrMatch()
 	x.domain = NewDomainMatch()
-	x.cache = utils.NewCacheExtend(0)
+	x.cache = utils.NewLru(150)
 }
 
 type OptionArgument struct {
@@ -120,7 +120,7 @@ func NewMatch(option ...OptionMatch) (matcher *Match) {
 	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
-		cache:  utils.NewCacheExtend(0),
+		cache:  utils.NewLru(150),
 	}
 	o := &OptionArgument{}
 	for index := range option {
