@@ -19,7 +19,7 @@ type DOH struct {
 	Server string
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
-	cache  *utils.CacheExtend
+	cache  *utils.LRU
 
 	httpClient *http.Client
 }
@@ -32,7 +32,7 @@ func NewDOH(host string) DNS {
 		Proxy: func(domain string) (net.Conn, error) {
 			return net.DialTimeout("tcp", domain, 5*time.Second)
 		},
-		cache: utils.NewCacheExtend(time.Minute * 20),
+		cache: utils.NewLru(200),
 	}
 	dns.SetProxy(dns.Proxy)
 	return dns
@@ -41,7 +41,7 @@ func NewDOH(host string) DNS {
 // DOH DNS over HTTPS
 // https://tools.ietf.org/html/rfc8484
 func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
-	if x, _ := d.cache.Get(domain); x != nil {
+	if x := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
 	DNS, err = dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data) })

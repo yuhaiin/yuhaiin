@@ -43,7 +43,7 @@ type NormalDNS struct {
 	DNS
 	Server string
 	Subnet *net.IPNet
-	cache  *utils.CacheExtend
+	cache  *utils.LRU
 }
 
 func NewNormalDNS(host string) DNS {
@@ -51,13 +51,13 @@ func NewNormalDNS(host string) DNS {
 	return &NormalDNS{
 		Server: host,
 		Subnet: subnet,
-		cache:  utils.NewCacheExtend(time.Minute * 20),
+		cache:  utils.NewLru(200),
 	}
 }
 
 // DNS Normal DNS(use udp,and no encrypt)
 func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
-	if x, _ := n.cache.Get(domain); x != nil {
+	if x := n.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
 	DNS, err = dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server) })
