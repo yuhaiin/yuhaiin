@@ -13,6 +13,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
+type DNS interface {
+	SetProxy(proxy func(addr string) (net.Conn, error))
+	SetServer(host string)
+	GetServer() string
+	SetSubnet(subnet *net.IPNet)
+	GetSubnet() *net.IPNet
+	Search(domain string) ([]net.IP, error)
+}
+
 type reqType [2]byte
 
 var (

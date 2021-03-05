@@ -63,8 +63,8 @@ func (c *cache) Add(domain string, mark interface{}) {
 type LRU struct {
 	capacity int
 	list     *list.List
-	lock     sync.Mutex
-	mapping  sync.Map
+	lock     sync.RWMutex
+	mapping  map[interface{}]interface{}
 	timeout  time.Duration
 
 	Add  func(key, value interface{})
@@ -75,6 +75,7 @@ func NewLru(capacity int, timeout time.Duration) *LRU {
 	l := &LRU{
 		capacity: capacity,
 		list:     list.New().Init(),
+		mapping:  make(map[interface{}]interface{}),
 		timeout:  timeout,
 	}
 
@@ -92,66 +93,82 @@ func NewLru(capacity int, timeout time.Duration) *LRU {
 func (l *LRU) add(key, value interface{}) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
+	if r := l.mapping[key]; r != nil {
+		r.(*list.Element).Value = value
+		return
+	}
+
 	if l.list.Len() >= l.capacity {
 		if l.capacity == 0 {
 			return
 		}
-		l.mapping.Delete(l.list.Back())
+		delete(l.mapping, l.list.Back())
 		l.list.Remove(l.list.Back())
 	}
 	node := l.list.PushFront(value)
-	l.mapping.Store(key, node)
+	l.mapping[key] = node
 }
 
 func (l *LRU) addWithTime(key, value interface{}) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
+	if r := l.mapping[key]; r != nil {
+		z := r.(*list.Element).Value.(*withTime)
+		z.data = value
+		z.store = time.Now()
+		return
+	}
+
 	if l.list.Len() >= l.capacity {
 		if l.capacity == 0 {
 			return
 		}
 
-		l.mapping.Delete(l.list.Back())
+		delete(l.mapping, l.list.Back())
 		l.list.Remove(l.list.Back())
 	}
 
-	node := l.list.PushFront(withTime{
+	node := l.list.PushFront(&withTime{
 		data:  value,
 		store: time.Now(),
 	})
 
-	l.mapping.Store(key, node)
+	l.mapping[key] = node
 }
 
 func (l *LRU) Delete(key interface{}) {
-	node, ok := l.mapping.LoadAndDelete(key)
-	if !ok {
-		return
-	}
-
 	l.lock.Lock()
 	defer l.lock.Unlock()
+	node, ok := l.mapping[key]
+	if ok {
+		delete(l.mapping, key)
+	}
 	l.list.Remove(node.(*list.Element))
 }
 
 func (l *LRU) load(key interface{}) interface{} {
-	node, ok := l.mapping.Load(key)
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	node, ok := l.mapping[key]
 	if !ok {
 		return nil
 	}
+
 	x, ok := node.(*list.Element)
 	if !ok {
 		return nil
 	}
 
-	l.lock.Lock()
-	defer l.lock.Unlock()
 	l.list.MoveToFront(x)
 	return x.Value
 }
 
 func (l *LRU) loadWithTime(key interface{}) interface{} {
-	node, ok := l.mapping.Load(key)
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	node, ok := l.mapping[key]
 	if !ok {
 		return nil
 	}
@@ -161,15 +178,13 @@ func (l *LRU) loadWithTime(key interface{}) interface{} {
 		return nil
 	}
 
-	y, ok := x.Value.(withTime)
+	y, ok := x.Value.(*withTime)
 	if !ok {
 		return nil
 	}
 
-	l.lock.Unlock()
-	defer l.lock.Unlock()
 	if time.Since(y.store) >= l.timeout {
-		l.mapping.Delete(key)
+		delete(l.mapping, key)
 		l.list.Remove(x)
 		return nil
 	}

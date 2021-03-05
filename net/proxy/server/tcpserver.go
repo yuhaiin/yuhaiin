@@ -3,18 +3,21 @@ package proxy
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
+	"sync"
 	"time"
 )
 
 // TcpServer tcp server common
 type TcpServer struct {
 	Server
-	host        string
-	closed      chan bool
-	queueClosed chan bool
-	tcpConn     func(string) (net.Conn, error)
-	handle      func(net.Conn, func(string) (net.Conn, error))
+	host string
+	lock sync.Mutex
+
+	listener net.Listener
+	tcpConn  func(string) (net.Conn, error)
+	handle   func(net.Conn, func(string) (net.Conn, error))
 }
 
 type Option struct {
@@ -57,18 +60,10 @@ func (t *TcpServer) UpdateListen(host string) (err error) {
 	if t.host == host {
 		return
 	}
-	select {
-	case <-t.closed:
-		fmt.Println("UpdateListen already closed")
-	default:
-		fmt.Println("UpdateListen close s.closed")
-		close(t.closed)
-	}
+	_ = t.Close()
 
-	select {
-	case <-t.queueClosed:
-		fmt.Println("UpdateListen queue closed")
-	}
+	t.lock.Lock()
+	defer t.lock.Unlock()
 
 	if host == "" {
 		return
@@ -91,71 +86,39 @@ func (t *TcpServer) GetListenHost() string {
 	return t.host
 }
 
-// Socks5 <--
 func (t *TcpServer) run() (err error) {
 	fmt.Println("New TCP Server:", t.host)
-	listener, err := net.Listen("tcp", t.host)
+	t.listener, err = net.Listen("tcp", t.host)
 	if err != nil {
 		return fmt.Errorf("TcpServer:run() -> %v", err)
 	}
 
-	t.closed = make(chan bool)
-
-	go func() {
-		queue := make(chan net.Conn, 10)
-		defer close(queue)
-		t.startQueue(t.host, listener, queue)
-		t.processQueue(t.host, listener, queue)
-	}()
+	go t.process()
 	return
 }
 
-func (t *TcpServer) startQueue(host string, listener net.Listener, queue chan net.Conn) {
-	go func() {
-		t.queueClosed = make(chan bool)
-		for {
-			client, err := listener.Accept()
-			if err != nil {
-				select {
-				case <-t.closed:
-					fmt.Println("Close TCP Queue", host)
-					close(t.queueClosed)
-					return
-				default:
-					continue
-				}
-			}
-			queue <- client
-		}
-	}()
-}
-
-func (t *TcpServer) processQueue(host string, listener net.Listener, queue chan net.Conn) {
+func (t *TcpServer) process() {
+	t.lock.Lock()
+	defer t.lock.Unlock()
 	for {
-		select {
-		case <-t.closed:
-			_ = listener.Close()
-			fmt.Println("Close TCP Server", host)
-			select {
-			case <-t.queueClosed:
-				fmt.Println("client queue already closed, exit function")
+		c, err := t.listener.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				log.Println("checked close")
+				return
 			}
-			return
-		case client := <-queue:
-			go func() {
-				if x, ok := client.(*net.TCPConn); ok {
-					x.SetKeepAlive(true)
-				}
-				defer client.Close()
-				t.handle(client, t.tcpConn)
-			}()
+			log.Println(err)
+			continue
 		}
+		go func() {
+			defer c.Close()
+			t.handle(c, t.tcpConn)
+		}()
 	}
 }
 
 func (t *TcpServer) Close() error {
-	close(t.closed)
-	return nil
+	return t.listener.Close()
 }
 
 func (t *TcpServer) defaultHandle(conn net.Conn) {

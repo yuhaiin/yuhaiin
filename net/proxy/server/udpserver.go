@@ -1,19 +1,22 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type UdpServer struct {
 	Server
-	host        string
-	closed      chan bool
-	queueClosed chan bool
-	handle      func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error))
-	udpConn     func(string) (net.PacketConn, error)
+	host     string
+	lock     sync.Mutex
+	listener net.PacketConn
+	handle   func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error))
+	udpConn  func(string) (net.PacketConn, error)
 }
 
 func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
@@ -41,18 +44,11 @@ func (u *UdpServer) UpdateListen(host string) error {
 	if u.host == host {
 		return nil
 	}
-	select {
-	case <-u.closed:
-		fmt.Println("UpdateListen already closed")
-	default:
-		fmt.Println("UpdateListen close s.closed")
-		close(u.closed)
-	}
 
-	select {
-	case <-u.queueClosed:
-		fmt.Println("UpdateListen queue closed")
-	}
+	_ = u.Close()
+
+	u.lock.Lock()
+	defer u.lock.Unlock()
 
 	if host == "" {
 		return nil
@@ -65,65 +61,35 @@ func (u *UdpServer) UpdateListen(host string) error {
 }
 
 func (u *UdpServer) Close() error {
-	close(u.closed)
-	return nil
+	return u.listener.Close()
 }
 
-type udpQueueData struct {
-	remoteAddr net.Addr
-	b          []byte
-}
-
-func (u *UdpServer) run() error {
+func (u *UdpServer) run() (err error) {
 	fmt.Println("New UDP Server:", u.host)
-	listener, err := net.ListenPacket("udp", u.host)
+	u.listener, err = net.ListenPacket("udp", u.host)
 	if err != nil {
 		return fmt.Errorf("UdpServer:run() -> %v", err)
 	}
 
-	u.closed = make(chan bool)
-
-	go func() {
-		queue := make(chan udpQueueData, 10)
-		u.startQueue(u.host, listener, queue)
-		u.processQueue(u.host, listener, queue)
-	}()
+	go u.process()
 	return nil
 }
 
-func (u *UdpServer) startQueue(host string, listener net.PacketConn, queue chan udpQueueData) {
-	go func() {
-		u.queueClosed = make(chan bool)
-		for {
-			b := utils.BuffPool.Get().([]byte)
-			n, remoteAddr, err := listener.ReadFrom(b)
-			if err != nil {
-				select {
-				case <-u.closed:
-					fmt.Println("Close UDP Queue", host)
-					close(u.queueClosed)
-					return
-				default:
-					continue
-				}
-			}
-			queue <- udpQueueData{remoteAddr: remoteAddr, b: b[:n]}
-		}
-	}()
-}
-func (u *UdpServer) processQueue(host string, listener net.PacketConn, queue chan udpQueueData) {
+func (u *UdpServer) process() {
+	u.lock.Lock()
+	defer u.lock.Unlock()
 	for {
-		select {
-		case <-u.closed:
-			listener.Close()
-			fmt.Println("Close UDP Server", host)
-			select {
-			case <-u.queueClosed:
-				fmt.Println("queue already closed, exit function")
+		b := utils.BuffPool.Get().([]byte)
+		n, remoteAddr, err := u.listener.ReadFrom(b)
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				log.Println("checked close")
+				return
 			}
-			return
-		case data := <-queue:
-			u.handle(listener, data.remoteAddr, data.b, u.udpConn)
+			log.Println(err)
+			continue
 		}
+
+		go u.handle(u.listener, remoteAddr, b[:n], u.udpConn)
 	}
 }

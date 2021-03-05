@@ -10,7 +10,9 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	//s.Close()
+	//select {}
 	s.UpdateListen("127.0.0.1:1082")
-	s.Close()
+	//s.Close()
 	select {}
 }
