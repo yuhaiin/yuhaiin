@@ -105,7 +105,7 @@ _end:
 func (x *Match) Clear() {
 	x.cidr = NewCidrMatch()
 	x.domain = NewDomainMatch()
-	x.cache = utils.NewLru(150)
+	x.cache = utils.NewLru(150, 0)
 }
 
 type OptionArgument struct {
@@ -120,7 +120,7 @@ func NewMatch(option ...OptionMatch) (matcher *Match) {
 	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
-		cache:  utils.NewLru(150),
+		cache:  utils.NewLru(150, 0),
 	}
 	o := &OptionArgument{}
 	for index := range option {

@@ -51,7 +51,7 @@ func NewNormalDNS(host string) DNS {
 	return &NormalDNS{
 		Server: host,
 		Subnet: subnet,
-		cache:  utils.NewLru(200),
+		cache:  utils.NewLru(200, 20*time.Minute),
 	}
 }
 

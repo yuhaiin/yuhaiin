@@ -32,7 +32,7 @@ func NewDOH(host string) DNS {
 		Proxy: func(domain string) (net.Conn, error) {
 			return net.DialTimeout("tcp", domain, 5*time.Second)
 		},
-		cache: utils.NewLru(200),
+		cache: utils.NewLru(200, 20*time.Minute),
 	}
 	dns.SetProxy(dns.Proxy)
 	return dns

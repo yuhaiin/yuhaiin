@@ -2,22 +2,10 @@ package utils
 
 import (
 	"testing"
-	"time"
 )
 
-func TestNewCacheExtend(t *testing.T) {
-	x := NewCacheExtend(time.Second * 5)
-	x.Add("aa", "aa")
-	t.Log(x.Get("aa"))
-	t.Log(x.Get("aa"))
-	t.Log(x.Get("aa"))
-	t.Log(x.Get("aa"))
-	time.Sleep(time.Second * 6)
-	t.Log(x.Get("aa"))
-}
-
 func TestLru(t *testing.T) {
-	l := NewLru(4)
+	l := NewLru(4, 0)
 
 	print := func() {
 		x := l.list.Front()

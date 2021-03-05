@@ -6,85 +6,9 @@ import (
 	"time"
 )
 
-type CacheExtend struct {
-	pool    Map
-	timeout time.Duration
-	Get     func(domain string) (interface{}, bool)
-	Add     func(domain string, mark interface{})
-}
-
 type withTime struct {
 	data  interface{}
 	store time.Time
-}
-
-func NewCacheExtend(timeout time.Duration) *CacheExtend {
-	n := &CacheExtend{}
-
-	if timeout == 0 {
-		n.Get = n.get
-		n.Add = n.add
-		return n
-	}
-	n.timeout = timeout
-	n.Get = n.getTimeout
-	n.Add = n.addTimeout
-	return n
-}
-
-func (c *CacheExtend) get(domain string) (interface{}, bool) {
-	return c.pool.Load(domain)
-}
-
-func (c *CacheExtend) add(domain string, mark interface{}) {
-	if mark == nil {
-		return
-	}
-	c.pool.Store(domain, mark)
-
-	if c.pool.Length() < 800 {
-		return
-	}
-
-	c.pool.Range(func(key, value interface{}) bool {
-		c.pool.Delete(key)
-		if c.pool.Length() <= 700 {
-			return false
-		}
-		return true
-	})
-}
-
-func (c *CacheExtend) getTimeout(domain string) (interface{}, bool) {
-	data, ok := c.pool.Load(domain)
-	if !ok {
-		return nil, false
-	}
-	if time.Since(data.(withTime).store) > c.timeout {
-		c.pool.Delete(domain)
-		return nil, false
-	}
-
-	return data.(withTime).data, true
-}
-
-func (c *CacheExtend) addTimeout(domain string, mark interface{}) {
-	if mark == nil {
-		return
-	}
-	c.pool.Store(domain, withTime{data: mark, store: time.Now()})
-
-	if c.pool.Length() < 800 {
-		return
-	}
-
-	c.pool.Range(func(key, value interface{}) bool {
-		c.pool.Delete(key)
-		if c.pool.Length() <= 700 {
-			return false
-		}
-		return true
-	})
 }
 
 // Cache <-- use map save history
@@ -141,16 +65,31 @@ type LRU struct {
 	list     *list.List
 	lock     sync.Mutex
 	mapping  sync.Map
+	timeout  time.Duration
+
+	Add  func(key, value interface{})
+	Load func(key interface{}) interface{}
 }
 
-func NewLru(capacity int) *LRU {
-	return &LRU{
+func NewLru(capacity int, timeout time.Duration) *LRU {
+	l := &LRU{
 		capacity: capacity,
 		list:     list.New().Init(),
+		timeout:  timeout,
 	}
+
+	if timeout > 0 {
+		l.Add = l.addWithTime
+		l.Load = l.loadWithTime
+	} else {
+		l.Add = l.add
+		l.Load = l.load
+	}
+
+	return l
 }
 
-func (l *LRU) Add(key, value interface{}) {
+func (l *LRU) add(key, value interface{}) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	if l.list.Len() >= l.capacity {
@@ -161,6 +100,26 @@ func (l *LRU) Add(key, value interface{}) {
 		l.list.Remove(l.list.Back())
 	}
 	node := l.list.PushFront(value)
+	l.mapping.Store(key, node)
+}
+
+func (l *LRU) addWithTime(key, value interface{}) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	if l.list.Len() >= l.capacity {
+		if l.capacity == 0 {
+			return
+		}
+
+		l.mapping.Delete(l.list.Back())
+		l.list.Remove(l.list.Back())
+	}
+
+	node := l.list.PushFront(withTime{
+		data:  value,
+		store: time.Now(),
+	})
+
 	l.mapping.Store(key, node)
 }
 
@@ -175,7 +134,7 @@ func (l *LRU) Delete(key interface{}) {
 	l.list.Remove(node.(*list.Element))
 }
 
-func (l *LRU) Load(key interface{}) interface{} {
+func (l *LRU) load(key interface{}) interface{} {
 	node, ok := l.mapping.Load(key)
 	if !ok {
 		return nil
@@ -189,4 +148,32 @@ func (l *LRU) Load(key interface{}) interface{} {
 	defer l.lock.Unlock()
 	l.list.MoveToFront(x)
 	return x.Value
+}
+
+func (l *LRU) loadWithTime(key interface{}) interface{} {
+	node, ok := l.mapping.Load(key)
+	if !ok {
+		return nil
+	}
+
+	x, ok := node.(*list.Element)
+	if !ok {
+		return nil
+	}
+
+	y, ok := x.Value.(withTime)
+	if !ok {
+		return nil
+	}
+
+	l.lock.Unlock()
+	defer l.lock.Unlock()
+	if time.Since(y.store) >= l.timeout {
+		l.mapping.Delete(key)
+		l.list.Remove(x)
+		return nil
+	}
+
+	l.list.MoveToFront(x)
+	return y.data
 }
