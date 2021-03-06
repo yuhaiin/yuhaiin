@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -41,23 +40,23 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
 		if err != io.EOF {
-			log.Println(err)
+			log.Printf("http read request failed: %v\n", err)
 		}
 		return
 	}
 
 	err = verifyUserPass(user, key, src, req)
 	if err != nil {
-		log.Println(err)
+		log.Printf("http verify user pass failed: %v\n", err)
 		return
 	}
 
-	host := bytes.NewBufferString(req.Host)
+	host := req.Host
 	if req.URL.Port() == "" {
-		host.WriteString(":80")
+		host = net.JoinHostPort(host, "80")
 	}
 
-	dstc, err := dst(host.String())
+	dstc, err := dst(host)
 	if err != nil {
 		// fmt.Println(err)
 		_, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
@@ -66,9 +65,9 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
 		return
 	}
-	switch dstc.(type) {
-	case *net.TCPConn:
-		_ = dstc.(*net.TCPConn).SetKeepAlive(true)
+
+	if x, ok := dstc.(*net.TCPConn); ok {
+		x.SetKeepAlive(true)
 	}
 	defer dstc.Close()
 
@@ -77,7 +76,7 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 		return
 	}
 
-	normal(src, dstc, req, inBoundReader)
+	normal(req.Host, src, dstc, req, inBoundReader)
 }
 
 func verifyUserPass(user, key string, client net.Conn, req *http.Request) error {
@@ -122,10 +121,10 @@ func connect(client net.Conn, dst net.Conn) {
 		log.Println(err)
 		return
 	}
-	utils.Forward(client, dst)
+	utils.Forward(dst, client)
 }
 
-func normal(src, dst net.Conn, req *http.Request, in *bufio.Reader) {
+func normal(host string, src, dst net.Conn, req *http.Request, in *bufio.Reader) {
 	outboundReader := bufio.NewReader(dst)
 	for {
 		keepAlive := modifyRequest(req)

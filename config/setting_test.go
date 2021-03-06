@@ -14,7 +14,7 @@ func TestSettingDecodeJSON(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(s, s.HTTPHost, s.DNSProxy)
+	t.Log(s, s.Proxy, s.DNS.Subnet)
 
 	//err = SettingEnCodeJSON(s)
 	//if err != nil {
@@ -24,10 +24,7 @@ func TestSettingDecodeJSON(t *testing.T) {
 
 func TestJsonPb(t *testing.T) {
 	m := jsonpb.Marshaler{Indent: "\t"}
-	s := &Setting{
-		DOH:       true,
-		DnsServer: "127.0.0.1:1080",
-	}
+	s := &Setting{}
 	data, err := m.MarshalToString(s)
 	if err != nil {
 		t.Error(err)
@@ -39,7 +36,7 @@ func TestJsonPb(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(s2, s2.HTTPHost)
+	t.Log(s2, s2.Proxy)
 
 	s3 := &Setting{}
 	err = jsonpb.UnmarshalString(` {

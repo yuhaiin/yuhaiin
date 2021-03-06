@@ -58,6 +58,9 @@ func (u *UdpServer) UpdateListen(host string) error {
 }
 
 func (u *UdpServer) Close() error {
+	if u.listener == nil {
+		return nil
+	}
 	return u.listener.Close()
 }
 

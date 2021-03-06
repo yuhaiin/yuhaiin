@@ -35,14 +35,14 @@ func Init() error {
 	}
 
 	// initialize Match Controller
-	Entrance.Bypass, err = NewBypassManager(Entrance.Config.BypassFile, func(option *OptionBypassManager) {
-		option.DNS.Server = Entrance.Config.DnsServer
-		option.DNS.Proxy = Entrance.Config.DNSProxy
-		option.DNS.DOH = Entrance.Config.DOH
-		option.DNS.Subnet = toSubnet(Entrance.Config.DnsSubNet)
-		option.Bypass = Entrance.Config.Bypass
-		option.DirectDNS.Server = Entrance.Config.DirectDNS.Host
-		option.DirectDNS.DOH = Entrance.Config.DirectDNS.DOH
+	Entrance.Bypass, err = NewBypassManager(Entrance.Config.Bypass.BypassFile, func(option *OptionBypassManager) {
+		option.DNS.Server = Entrance.Config.DNS.Host
+		option.DNS.Proxy = Entrance.Config.DNS.Proxy
+		option.DNS.DOH = Entrance.Config.DNS.DOH
+		option.DNS.Subnet = toSubnet(Entrance.Config.DNS.Subnet)
+		option.Bypass = Entrance.Config.Bypass.Enabled
+		option.DirectDNS.Server = Entrance.Config.LocalDNS.Host
+		option.DirectDNS.DOH = Entrance.Config.LocalDNS.DOH
 	})
 	if err != nil {
 		return fmt.Errorf("new Match Controller -> %v", err)
@@ -50,9 +50,9 @@ func Init() error {
 
 	// initialize Local Servers Controller
 	Entrance.LocalListen, err = NewLocalListenCon(
-		WithHTTP(Entrance.Config.HTTPHost),
-		WithSocks5(Entrance.Config.Socks5Host),
-		WithRedir(Entrance.Config.RedirHost),
+		WithHTTP(Entrance.Config.Proxy.HTTP),
+		WithSocks5(Entrance.Config.Proxy.Socks5),
+		WithRedir(Entrance.Config.Proxy.Redir),
 		WithTCPConn(Entrance.Bypass.Forward),
 		WithPacketConn(Entrance.Bypass.ForwardPacket),
 	)
@@ -70,23 +70,23 @@ func Init() error {
 func SetConFig(conf *config.Setting) (erra error) {
 	Entrance.Config = conf
 	err := Entrance.Bypass.SetAllOption(func(option *OptionBypassManager) {
-		option.DNS.Server = conf.DnsServer
-		option.DNS.Proxy = conf.DNSProxy
-		option.DNS.DOH = conf.DOH
-		option.DNS.Subnet = toSubnet(conf.DnsSubNet)
-		option.Bypass = conf.Bypass
-		option.BypassPath = conf.BypassFile
-		option.DirectDNS.Server = Entrance.Config.DirectDNS.Host
-		option.DirectDNS.DOH = Entrance.Config.DirectDNS.DOH
+		option.DNS.Server = conf.DNS.Host
+		option.DNS.Proxy = conf.DNS.Proxy
+		option.DNS.DOH = conf.DNS.DOH
+		option.DNS.Subnet = toSubnet(conf.DNS.Subnet)
+		option.Bypass = conf.Bypass.Enabled
+		option.BypassPath = conf.Bypass.BypassFile
+		option.DirectDNS.Server = Entrance.Config.LocalDNS.Host
+		option.DirectDNS.DOH = Entrance.Config.LocalDNS.DOH
 	})
 	if err != nil {
 		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
 	}
 
 	err = Entrance.LocalListen.SetAHost(
-		WithHTTP(conf.HTTPHost),
-		WithSocks5(conf.Socks5Host),
-		WithRedir(conf.RedirHost),
+		WithHTTP(conf.Proxy.HTTP),
+		WithSocks5(conf.Proxy.Socks5),
+		WithRedir(conf.Proxy.Redir),
 	)
 	if err != nil {
 		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)

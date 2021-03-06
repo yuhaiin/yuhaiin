@@ -46,18 +46,28 @@ _end:
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON() (*Setting, error) {
 	pa := &Setting{
-		BypassFile: path.Join(Path, "yuhaiin.conf"),
-		DnsServer:  "cloudflare-dns.com",
-		DnsSubNet:  "0.0.0.0/32",
-		Bypass:     true,
-		HTTPHost:   "127.0.0.1:8188",
-		Socks5Host: "127.0.0.1:1080",
-		RedirHost:  "127.0.0.1:8088",
-		DOH:        true,
-		DNSProxy:   false,
-		SsrPath:    "",
-		BlackIcon:  false,
-		DirectDNS: &DirectDNS{
+		SsrPath: "",
+		SystemProxy: &SystemProxy{
+			Enabled: true,
+			HTTP:    true,
+			Socks5:  false,
+		},
+		Bypass: &Bypass{
+			Enabled:    true,
+			BypassFile: path.Join(Path, "yuhaiin.conf"),
+		},
+		Proxy: &Proxy{
+			HTTP:   "127.0.0.1:8188",
+			Socks5: "127.0.0.1:1080",
+			Redir:  "127.0.0.1:8088",
+		},
+		DNS: &DNS{
+			Host:   "cloudflare-dns.com",
+			DOH:    true,
+			Proxy:  false,
+			Subnet: "0.0.0.0/32",
+		},
+		LocalDNS: &DNS{
 			Host: "223.5.5.5",
 			DOH:  true,
 		},
@@ -82,8 +92,9 @@ func SettingEnCodeJSON(pa *Setting) error {
 			if err != nil {
 				return fmt.Errorf("SettingEncodeJson():MkdirAll -> %v", err)
 			}
+		} else {
+			return fmt.Errorf("SettingEncodeJson -> %v", err)
 		}
-		return fmt.Errorf("SettingEncodeJson -> %v", err)
 	}
 	data, err := (&jsonpb.Marshaler{Indent: "\t"}).MarshalToString(pa)
 	if err != nil {

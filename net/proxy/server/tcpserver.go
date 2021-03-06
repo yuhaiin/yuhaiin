@@ -118,6 +118,9 @@ func (t *TcpServer) process() {
 }
 
 func (t *TcpServer) Close() error {
+	if t.listener == nil {
+		return nil
+	}
 	return t.listener.Close()
 }
 

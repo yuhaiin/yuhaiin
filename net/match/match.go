@@ -66,7 +66,7 @@ func (x *Match) Insert(str string, mark interface{}) error {
 		return nil
 	}
 	if _, _, err := net.ParseCIDR(str); err != nil {
-		x.domain.InsertFlip(str, mark)
+		x.domain.Insert(str, mark)
 		return nil
 	}
 
@@ -87,7 +87,7 @@ func (x *Match) Search(str string) Des {
 		goto _end
 	}
 
-	_, d.Des = x.domain.SearchFlip(str)
+	_, d.Des = x.domain.Search(str)
 	if d.Des != nil || x.DNS == nil {
 		goto _end
 	}
