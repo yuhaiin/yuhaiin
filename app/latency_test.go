@@ -1,20 +1,18 @@
 package app
 
 import (
+	"path/filepath"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
-
+	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/subscr"
 )
 
 func TestLatency(t *testing.T) {
-	x, err := subscr.GetNowNode()
+	nodeManager := subscr.NewNodeManager(filepath.Join(config.Path, "node.json"))
+	x, err := nodeManager.GetNowNode()
 	if err != nil {
 		t.Error(err)
 	}
-	switch x.(type) {
-	case *shadowsocks.Shadowsocks:
-		t.Log(Latency(x.(*shadowsocks.Shadowsocks).NGroup, x.(*shadowsocks.Shadowsocks).NName))
-	}
+	t.Log(Latency(x.NGroup, x.NName))
 }

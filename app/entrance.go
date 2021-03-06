@@ -4,19 +4,24 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"path/filepath"
 	"sort"
+
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/subscr"
-	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
 var Entrance = struct {
 	Config      *config.Setting
 	LocalListen *LocalListen
 	Bypass      *BypassManager
-	Nodes       *subscr.Node
-}{}
+	Nodes       *utils.Node
+	nodeManager *subscr.NodeManager
+}{
+	nodeManager: subscr.NewNodeManager(filepath.Join(config.Path, "node.json")),
+}
 
 func Init() error {
 	err := RefreshNodes()
@@ -116,7 +121,7 @@ func GetConfig() (*config.Setting, error) {
  *               Node
  */
 func RefreshNodes() (err error) {
-	Entrance.Nodes, err = subscr.GetNodesJSON()
+	Entrance.Nodes, err = Entrance.nodeManager.GetNodesJSON()
 	return
 }
 
@@ -126,7 +131,7 @@ func ChangeNNode(group string, node string) (erra error) {
 	}
 	Entrance.Nodes.NowNode = Entrance.Nodes.Node[group][node]
 
-	err := subscr.SaveNode(Entrance.Nodes)
+	err := Entrance.nodeManager.SaveNode(Entrance.Nodes)
 	if err != nil {
 		erra = fmt.Errorf("%v\nSaveNode() -> %v", erra, err)
 	}
@@ -139,30 +144,16 @@ func ChangeNNode(group string, node string) (erra error) {
 }
 
 func GetNNodeAndNGroup() (node string, group string) {
-	return utils.I2String(
-			Entrance.Nodes.NowNode.(map[string]interface{})["name"]),
-		utils.I2String(Entrance.Nodes.NowNode.(map[string]interface{})["group"])
+	return Entrance.Nodes.NowNode.NName, Entrance.Nodes.NowNode.NGroup
 }
 
 func GetNowNodeConn() (func(string) (net.Conn, error), func(string) (net.PacketConn, error), string, error) {
 	if Entrance.Nodes.NowNode == nil {
 		return nil, nil, "", errors.New("NowNode is nil")
 	}
-	switch Entrance.Nodes.NowNode.(type) {
-	case map[string]interface{}:
-	default:
-		return nil, nil, "", errors.New("the Type is not map[string]interface{}")
-	}
 
-	var hash string
-	switch Entrance.Nodes.NowNode.(map[string]interface{})["hash"].(type) {
-	case string:
-		hash = Entrance.Nodes.NowNode.(map[string]interface{})["hash"].(string)
-	default:
-		hash = "empty"
-	}
-	conn, packetConn, err := subscr.ParseNodeConn(Entrance.Nodes.NowNode.(map[string]interface{}))
-	return conn, packetConn, hash, err
+	conn, packetConn, err := subscr.ParseNodeConn(Entrance.Nodes.NowNode)
+	return conn, packetConn, Entrance.Nodes.NowNode.NHash, err
 }
 
 func GetANodes() map[string][]string {
@@ -183,11 +174,7 @@ func GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), func(s
 	if Entrance.Nodes.Node[group][nodeN] == nil {
 		return nil, nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
 	}
-	switch Entrance.Nodes.Node[group][nodeN].(type) {
-	case map[string]interface{}:
-		return subscr.ParseNodeConn(Entrance.Nodes.Node[group][nodeN].(map[string]interface{}))
-	}
-	return nil, nil, errors.New("the type is not map[string]interface{}")
+	return subscr.ParseNodeConn(Entrance.Nodes.Node[group][nodeN])
 }
 
 func GetNodes(group string) ([]string, error) {
@@ -209,7 +196,7 @@ func GetGroups() ([]string, error) {
 }
 
 func UpdateSub() error {
-	err := subscr.GetLinkFromInt()
+	err := Entrance.nodeManager.GetLinkFromInt()
 	if err != nil {
 		return fmt.Errorf("UpdateSub() -> %v", err)
 	}
@@ -220,28 +207,28 @@ func UpdateSub() error {
 	return nil
 }
 
-func GetLinks() (map[string]subscr.Link, error) {
+func GetLinks() (map[string]utils.Link, error) {
 	return Entrance.Nodes.Links, nil
 }
 
 func AddLink(name, style, link string) error {
-	Entrance.Nodes.Links[name] = subscr.Link{
+	Entrance.Nodes.Links[name] = utils.Link{
 		Type: style,
 		Url:  link,
 	}
-	return subscr.SaveNode(Entrance.Nodes)
+	return Entrance.nodeManager.SaveNode(Entrance.Nodes)
 }
 
-func AddNode(node map[string]string) error {
-	err := subscr.AddOneNode(node)
-	if err != nil {
-		return err
-	}
-	return RefreshNodes()
-}
+//func AddNode(node map[string]string) error {
+//	err := subscr.AddOneNode(node)
+//	if err != nil {
+//		return err
+//	}
+//	return RefreshNodes()
+//}
 
 func DeleteNode(group, name string) error {
-	err := subscr.DeleteOneNode(group, name)
+	err := Entrance.nodeManager.DeleteOneNode(group, name)
 	if err != nil {
 		return err
 	}
@@ -250,7 +237,7 @@ func DeleteNode(group, name string) error {
 
 func DeleteLink(name string) error {
 	delete(Entrance.Nodes.Links, name)
-	return subscr.SaveNode(Entrance.Nodes)
+	return Entrance.nodeManager.SaveNode(Entrance.Nodes)
 }
 
 func ChangeNode() error {

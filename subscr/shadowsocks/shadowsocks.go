@@ -3,7 +3,8 @@ package shadowsocks
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -22,7 +23,7 @@ type Shadowsocks struct {
 	PluginOpt string `json:"plugin_opt"`
 }
 
-func ParseLink(str []byte, group string) (*Shadowsocks, error) {
+func ParseLink(str []byte, group string) (*utils.Point, error) {
 	n := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
@@ -51,38 +52,21 @@ func ParseLink(str []byte, group string) (*Shadowsocks, error) {
 	hash.Write([]byte(n.Plugin))
 	hash.Write([]byte(n.PluginOpt))
 	n.NHash = hex.EncodeToString(hash.Sum(nil))
-	return n, nil
-}
 
-func ParseMap(n map[string]interface{}) (*Shadowsocks, error) {
-	if n == nil {
-		return nil, errors.New("map is nil")
-	}
-	node := new(Shadowsocks)
-	node.NType = utils.Shadowsocks
-	node.Server = utils.I2String(n["server"])
-	node.Port = utils.I2String(n["port"])
-	node.Method = utils.I2String(n["method"])
-	node.Password = utils.I2String(n["password"])
-	node.Plugin = utils.I2String(n["plugin"])
-	node.PluginOpt = utils.I2String(n["plugin_opt"])
-	node.NName = utils.I2String(n["name"])
-	node.NGroup = utils.I2String(n["group"])
-	node.NHash = utils.I2String(n["hash"])
-	return node, nil
-}
-
-func ParseMapManual(m map[string]interface{}) (*Shadowsocks, error) {
-	s, err := ParseMap(m)
+	data, err := json.Marshal(n)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("shadowsocks marshal failed: %v", err)
 	}
-	s.NOrigin = utils.Manual
-	return s, nil
+	return &utils.Point{
+		NodeMessage: n.NodeMessage,
+		Data:        data,
+	}, nil
 }
 
-func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
-	s, err := ParseMap(n)
+func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+	s := new(Shadowsocks)
+
+	err := json.Unmarshal(n.Data, s)
 	if err != nil {
 		return nil, nil, err
 	}

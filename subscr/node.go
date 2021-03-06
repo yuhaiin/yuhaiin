@@ -11,43 +11,34 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strconv"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/config"
 	ss "github.com/Asutorufa/yuhaiin/subscr/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/subscr/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/subscr/utils"
 	"github.com/Asutorufa/yuhaiin/subscr/vmess"
 )
 
-var (
-	jsonPath = config.Path + "/node.json"
-)
-
-type Link struct {
-	Type string `json:"type"`
-	Url  string `json:"url"`
+type NodeManager struct {
+	configPath string
 }
 
-type Node struct {
-	NowNode interface{}                       `json:"nowNode"`
-	Link    []string                          `json:"link"`
-	Links   map[string]Link                   `json:"links"`
-	Node    map[string]map[string]interface{} `json:"node"`
-}
-
-func decodeJSON() (*Node, error) {
-	pa := &Node{
-		NowNode: map[string]interface{}{},
-		Link:    []string{},
-		Links:   map[string]Link{},
-		Node:    map[string]map[string]interface{}{},
+func NewNodeManager(configPath string) *NodeManager {
+	return &NodeManager{
+		configPath: configPath,
 	}
-	file, err := os.Open(jsonPath)
+}
+
+func (n *NodeManager) decodeJSON() (*utils.Node, error) {
+	pa := &utils.Node{
+		NowNode: &utils.Point{},
+		Links:   make(map[string]utils.Link),
+		Node:    make(map[string]map[string]*utils.Point),
+	}
+	file, err := os.Open(n.configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return pa, enCodeJSON(pa)
+			return pa, n.enCodeJSON(pa)
 		}
 		return nil, err
 	}
@@ -56,27 +47,19 @@ func decodeJSON() (*Node, error) {
 		return nil, err
 	}
 
-	//TODO Deprecated
-	for index := range pa.Link {
-		pa.Links[pa.Link[index]] = Link{
-			Url: pa.Link[index],
-		}
-	}
-	pa.Link = pa.Link[:0]
-
-	return pa, enCodeJSON(pa)
+	return pa, n.enCodeJSON(pa)
 }
 
-func GetNodesJSON() (*Node, error) {
-	return decodeJSON()
+func (n *NodeManager) GetNodesJSON() (*utils.Node, error) {
+	return n.decodeJSON()
 }
 
-func enCodeJSON(pa *Node) error {
+func (n *NodeManager) enCodeJSON(pa *utils.Node) error {
 _retry:
-	file, err := os.OpenFile(jsonPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	file, err := os.OpenFile(n.configPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(path.Dir(jsonPath), os.ModePerm)
+			err = os.MkdirAll(path.Dir(n.configPath), os.ModePerm)
 			if err != nil {
 				return fmt.Errorf("node -> enCodeJSON():MkDirAll -> %v", err)
 			}
@@ -92,29 +75,29 @@ _retry:
 	return nil
 }
 
-func SaveNode(pa *Node) error {
-	return enCodeJSON(pa)
+func (n *NodeManager) SaveNode(pa *utils.Node) error {
+	return n.enCodeJSON(pa)
 }
 
 // GetLinkFromInt
-func GetLinkFromInt() error {
-	pa, err := decodeJSON()
+func (n *NodeManager) GetLinkFromInt() error {
+	pa, err := n.decodeJSON()
 	if err != nil {
 		return err
 	}
 
 	for key := range pa.Links {
-		oneLinkGet(pa.Links[key].Url, key, pa.Node)
+		n.oneLinkGet(pa.Links[key].Url, key, pa.Node)
 	}
 
-	err = enCodeJSON(pa)
+	err = n.enCodeJSON(pa)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func oneLinkGet(url string, group string, nodes map[string]map[string]interface{}) {
+func (n *NodeManager) oneLinkGet(url string, group string, nodes map[string]map[string]*utils.Point) {
 	client := http.Client{Timeout: time.Second * 30}
 	res, err := client.Get(url)
 	if err != nil {
@@ -133,43 +116,20 @@ func oneLinkGet(url string, group string, nodes map[string]map[string]interface{
 	}
 	deleteRemoteNodes(nodes, group)
 	for _, x := range bytes.Split(dst, []byte("\n")) {
-		node, name, err := base64ToNode(x, group)
+		node, err := parseUrl(x, group)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		addOneNode(node, group, name, nodes)
+		addOneNode(node, nodes)
 	}
 }
 
-func AddOneNode(node map[string]string) error {
-	pa, err := decodeJSON()
-	if err != nil {
-		return err
+func addOneNode(p *utils.Point, nodes map[string]map[string]*utils.Point) {
+	if _, ok := nodes[p.NGroup]; !ok {
+		nodes[p.NGroup] = make(map[string]*utils.Point)
 	}
-	tYPE, err := strconv.ParseFloat(node["type"], 64)
-	if err != nil {
-		return err
-	}
-	newNode := map[string]interface{}{
-		"type": tYPE,
-	}
-	for key := range node {
-		newNode[key] = node[key]
-	}
-	no, err := parseNodeManual(newNode)
-	if err != nil {
-		return err
-	}
-	addOneNode(no, node["name"], node["group"], pa.Node)
-	return enCodeJSON(pa)
-}
-
-func addOneNode(node interface{}, group, name string, nodes map[string]map[string]interface{}) {
-	if _, ok := nodes[group]; !ok {
-		nodes[group] = map[string]interface{}{}
-	}
-	nodes[group][name] = node
+	nodes[p.NGroup][p.NName] = p
 }
 
 func printNodes(nodes map[string]map[string]interface{}) {
@@ -182,57 +142,33 @@ func printNodes(nodes map[string]map[string]interface{}) {
 	}
 }
 
-func deleteAllRemoteNodes(nodes map[string]map[string]interface{}) {
+func deleteAllRemoteNodes(nodes map[string]map[string]*utils.Point) {
 	for key := range nodes {
 		deleteRemoteNodes(nodes, key)
 	}
 }
 
-func deleteRemoteNodes(nodes map[string]map[string]interface{}, key string) {
+func deleteRemoteNodes(nodes map[string]map[string]*utils.Point, key string) {
 	for nodeKey := range nodes[key] {
-		if checkRemote(nodes[key][nodeKey]) {
+		if nodes[key][nodeKey].NOrigin == utils.Remote {
 			delete(nodes[key], nodeKey)
 		}
 	}
-	for range nodes[key] {
-		return
+	if len(nodes[key]) == 0 {
+		delete(nodes, key)
 	}
-	delete(nodes, key)
 }
 
-func checkRemote(node interface{}) bool {
-	switch node.(type) {
-	case map[string]interface{}:
-	default:
-		return false
-	}
-
-	if _, ok := node.(map[string]interface{})["n_origin"]; !ok {
-		return false
-	}
-
-	switch node.(map[string]interface{})["n_origin"].(type) {
-	case float64:
-	default:
-		return false
-	}
-
-	if node.(map[string]interface{})["n_origin"].(float64) == utils.Remote {
-		return true
-	}
-	return false
-}
-
-func DeleteOneNode(group, name string) error {
-	pa, err := decodeJSON()
+func (n *NodeManager) DeleteOneNode(group, name string) error {
+	pa, err := n.decodeJSON()
 	if err != nil {
 		return err
 	}
 	deleteOneNode(group, name, pa.Node)
-	return enCodeJSON(pa)
+	return n.enCodeJSON(pa)
 }
 
-func deleteOneNode(group, name string, nodes map[string]map[string]interface{}) {
+func deleteOneNode(group, name string, nodes map[string]map[string]*utils.Point) {
 	if _, ok := nodes[group]; !ok {
 		return
 	}
@@ -240,87 +176,50 @@ func deleteOneNode(group, name string, nodes map[string]map[string]interface{}) 
 		return
 	}
 	delete(nodes[group], name)
-	for range nodes[group] {
-		return
+
+	if len(nodes[group]) == 0 {
+		delete(nodes, group)
 	}
-	delete(nodes, group)
 }
 
-func base64ToNode(str []byte, group string) (node interface{}, name string, err error) {
+func parseUrl(str []byte, group string) (node *utils.Point, err error) {
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
 		node, err := ss.ParseLink(str, group)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return node, node.NName, nil
+		return node, nil
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
 		node, err := ssr.ParseLink(str, group)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return node, node.NName, nil
+		return node, nil
 	case bytes.HasPrefix(str, []byte("vmess://")):
 		node, err := vmess.ParseLink(str, group)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return node, node.NName, nil
+		return node, nil
 	default:
-		return nil, "", errors.New("no support " + string(str))
+		return nil, errors.New("no support " + string(str))
 	}
-}
-
-func ParseNode(s map[string]interface{}) (interface{}, error) {
-	nodeType, err := checkType(s)
-	if err != nil {
-		return nil, err
-	}
-
-	switch nodeType {
-	case utils.Shadowsocks:
-		return ss.ParseMap(s)
-	case utils.Shadowsocksr:
-		return ssr.ParseMap(s)
-	case utils.Vmess:
-		return vmess.ParseMap(s)
-	}
-	return nil, errors.New("not support type")
-}
-
-func parseNodeManual(s map[string]interface{}) (interface{}, error) {
-	nodeType, err := checkType(s)
-	if err != nil {
-		return nil, err
-	}
-
-	switch nodeType {
-	case utils.Shadowsocks:
-		return ss.ParseMapManual(s)
-	case utils.Shadowsocksr:
-		return ssr.ParseMapManual(s)
-	case utils.Vmess:
-	}
-	return nil, errors.New("not support type")
 }
 
 // GetNowNode
-func GetNowNode() (interface{}, error) {
-	pa, err := decodeJSON()
+func (n *NodeManager) GetNowNode() (*utils.Point, error) {
+	pa, err := n.decodeJSON()
 	if err != nil {
 		return nil, err
 	}
-	return ParseNode(pa.NowNode.(map[string]interface{}))
+	return pa.NowNode, nil
 }
 
-func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
-	nodeType, err := checkType(s)
-	if err != nil {
-		return nil, nil, err
-	}
-	switch nodeType {
+func ParseNodeConn(s *utils.Point) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+	switch s.NType {
 	case utils.Shadowsocks:
 		return ss.ParseConn(s)
 	case utils.Shadowsocksr:
@@ -329,26 +228,4 @@ func ParseNodeConn(s map[string]interface{}) (func(string) (net.Conn, error), fu
 		return vmess.ParseConn(s)
 	}
 	return nil, nil, errors.New("not support type")
-}
-
-func checkType(s map[string]interface{}) (Type float64, err error) {
-	if s == nil {
-		return 0, fmt.Errorf("map2struct -> %v", errors.New("argument is nil"))
-	}
-
-	//TODO Deprecated
-	switch s["type"].(type) {
-	case float64:
-		Type = s["type"].(float64)
-		return
-	default:
-	}
-
-	switch s["n_type"].(type) {
-	case float64:
-		Type = s["n_type"].(float64)
-	default:
-		return 0, fmt.Errorf("map2struct:type -> %v", errors.New("type is not float64"))
-	}
-	return
 }

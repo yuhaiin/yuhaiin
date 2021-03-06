@@ -6,8 +6,6 @@ import (
 	"log"
 	"net"
 	"sync"
-
-	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type UdpServer struct {
@@ -15,7 +13,7 @@ type UdpServer struct {
 	host     string
 	lock     sync.Mutex
 	listener net.PacketConn
-	handle   func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error))
+	handle   func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)
 	udpConn  func(string) (net.PacketConn, error)
 }
 
@@ -23,7 +21,7 @@ func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
 	u.udpConn = f
 }
 
-func NewUDPServer(host string, handle func(from net.PacketConn, remoteAddr net.Addr, data []byte, udpConn func(string) (net.PacketConn, error))) (UDPServer, error) {
+func NewUDPServer(host string, handle func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)) (UDPServer, error) {
 	u := &UdpServer{
 		host:   host,
 		handle: handle,
@@ -40,7 +38,6 @@ func NewUDPServer(host string, handle func(from net.PacketConn, remoteAddr net.A
 }
 
 func (u *UdpServer) UpdateListen(host string) error {
-
 	if u.host == host {
 		return nil
 	}
@@ -79,7 +76,7 @@ func (u *UdpServer) process() {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	for {
-		b := utils.BuffPool.Get().([]byte)
+		b := make([]byte, 600)
 		n, remoteAddr, err := u.listener.ReadFrom(b)
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
@@ -90,6 +87,16 @@ func (u *UdpServer) process() {
 			continue
 		}
 
-		go u.handle(u.listener, remoteAddr, b[:n], u.udpConn)
+		go func() {
+			data, err := u.handle(b[:n], u.udpConn)
+			if err != nil {
+				log.Printf("udp handle failed: %v", err)
+				return
+			}
+			_, err = u.listener.WriteTo(data, remoteAddr)
+			if err != nil {
+				log.Printf("udp listener write to client failed: %v", err)
+			}
+		}()
 	}
 }

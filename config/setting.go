@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -61,39 +62,32 @@ func SettingDecodeJSON() (*Setting, error) {
 			DOH:  true,
 		},
 	}
-	file, err := os.Open(ConPath)
+	data, err := ioutil.ReadFile(ConPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return pa, SettingEnCodeJSON(pa)
 		}
-		return pa, err
+		return pa, fmt.Errorf("read config file failed: %v", err)
 	}
-	defer file.Close()
-	if jsonpb.Unmarshal(file, pa) != nil {
-		log.Println(err)
-	}
-	return pa, nil
+	err = jsonpb.UnmarshalString(string(data), pa)
+	return pa, err
 }
 
 // SettingEnCodeJSON encode setting struct to json
 func SettingEnCodeJSON(pa *Setting) error {
-_retry:
-	file, err := os.OpenFile(ConPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	_, err := os.Stat(ConPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(path.Dir(ConPath), os.ModePerm)
 			if err != nil {
 				return fmt.Errorf("SettingEncodeJson():MkdirAll -> %v", err)
 			}
-			goto _retry
 		}
 		return fmt.Errorf("SettingEncodeJson -> %v", err)
 	}
-	defer file.Close()
-	m := jsonpb.Marshaler{Indent: "\t"}
-	err = m.Marshal(file, pa)
+	data, err := (&jsonpb.Marshaler{Indent: "\t"}).MarshalToString(pa)
 	if err != nil {
 		return fmt.Errorf("marshal() -> %v", err)
 	}
-	return err
+	return ioutil.WriteFile(ConPath, []byte(data), os.ModePerm)
 }

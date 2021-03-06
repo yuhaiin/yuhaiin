@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -50,7 +49,7 @@ type JSON struct {
 //             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC
 //             IsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY
 //             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
-func ParseLink(str []byte, group string) (*Vmess, error) {
+func ParseLink(str []byte, group string) (*utils.Point, error) {
 	s := string(str)
 	s = strings.ReplaceAll(s, "vmess://", "")
 	data := utils.Base64DStr(s)
@@ -71,47 +70,24 @@ func ParseLink(str []byte, group string) (*Vmess, error) {
 	}
 	n.NHash = countHash(n, string(data))
 
-	return n, nil
+	dat, err := json.Marshal(n)
+	if err != nil {
+		return nil, fmt.Errorf("vmess marshal failed: %v", err)
+	}
+	return &utils.Point{
+		NodeMessage: n.NodeMessage,
+		Data:        dat,
+	}, nil
 }
 
 // ParseLinkManual parse a manual base64 encode vmess link
-func ParseLinkManual(link []byte, group string) (*Vmess, error) {
+func ParseLinkManual(link []byte, group string) (*utils.Point, error) {
 	s, err := ParseLink(link, group)
 	if err != nil {
 		return nil, err
 	}
 	s.NOrigin = utils.Manual
 	return s, nil
-}
-
-// ParseMap parse vmess map read from config json
-func ParseMap(n map[string]interface{}) (*Vmess, error) {
-	if n == nil {
-		return nil, errors.New("map is nil")
-	}
-
-	node := new(Vmess)
-	node.NType = utils.Shadowsocksr
-	node.Address = utils.I2String(n["add"])
-	node.Port = uint32(utils.I2Float64(n["port"]))
-	node.Type = utils.I2String(n["type"])
-	node.UUID = utils.I2String(n["id"])
-	node.AlterID = uint32(utils.I2Float64(n["aid"]))
-	node.V = utils.I2String(n["v"])
-	node.Net = utils.I2String(n["net"])
-	node.Host = utils.I2String(n["host"])
-	node.Path = utils.I2String(n["path"])
-	node.TLS = utils.I2String(n["tls"])
-	node.VerifyCert = utils.I2Bool(n["verify_cert"])
-	node.Ps = utils.I2String(n["ps"])
-	node.Class = int(utils.I2Float64(n["class"]))
-	node.NName = utils.I2String(n["name"])
-	node.NGroup = utils.I2String(n["group"])
-	node.NHash = utils.I2String(n["hash"])
-	if node.NHash == "" {
-		node.NHash = countHash(node, "")
-	}
-	return node, nil
 }
 
 func countHash(n *Vmess, jsonStr string) string {
@@ -129,8 +105,9 @@ func countHash(n *Vmess, jsonStr string) string {
 }
 
 //ParseConn parse map to net.Conn
-func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
-	x, err := ParseMap(n)
+func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+	x := new(Vmess)
+	err := json.Unmarshal(n.Data, x)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse vmess map failed: %v", err)
 	}

@@ -6,7 +6,8 @@ import (
 )
 
 func TestUDPServer(t *testing.T) {
-	s, err := NewUDPServer("127.0.0.1:1081", func(from net.PacketConn, remoteAddr net.Addr, data []byte, udpConn func(string) (net.PacketConn, error)) {
+	s, err := NewUDPServer("127.0.0.1:1081", func(data []byte, udpConn func(string) (net.PacketConn, error)) ([]byte, error) {
+		return nil, nil
 	})
 	if err != nil {
 		t.Error(err)

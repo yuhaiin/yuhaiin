@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -16,11 +17,15 @@ import (
 
 type DOH struct {
 	DNS
+	utils.ClientUtil
+
 	Server string
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
-	cache  *utils.LRU
 
+	host       string
+	port       string
+	cache      *utils.LRU
 	httpClient *http.Client
 }
 
@@ -29,10 +34,24 @@ func NewDOH(host string) DNS {
 	dns := &DOH{
 		Server: host,
 		Subnet: subnet,
-		Proxy: func(domain string) (net.Conn, error) {
-			return net.DialTimeout("tcp", domain, 5*time.Second)
-		},
-		cache: utils.NewLru(200, 20*time.Minute),
+		cache:  utils.NewLru(200, 20*time.Minute),
+	}
+
+	uri, err := url.Parse("//" + host)
+	if err != nil {
+		dns.host = dns.Server
+		dns.port = "443"
+	} else {
+		dns.host = uri.Hostname()
+		dns.port = uri.Port()
+		if dns.port == "" {
+			dns.port = "443"
+		}
+	}
+	dns.ClientUtil = utils.NewClientUtil(dns.host, dns.port)
+
+	dns.Proxy = func(domain string) (net.Conn, error) {
+		return dns.ClientUtil.GetConn()
 	}
 	dns.SetProxy(dns.Proxy)
 	return dns
@@ -40,24 +59,36 @@ func NewDOH(host string) DNS {
 
 // DOH DNS over HTTPS
 // https://tools.ietf.org/html/rfc8484
-func (d *DOH) Search(domain string) (DNS []net.IP, err error) {
+func (d *DOH) Search(domain string) (ip []net.IP, err error) {
 	if x := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	DNS, err = dnsCommon(domain, d.Subnet, func(data []byte) ([]byte, error) { return d.post(data) })
+	if ip, _ = d.search(domain); ip != nil {
+		d.cache.Add(domain, ip)
+	}
+	return
+}
+
+func (d *DOH) search(domain string) ([]net.IP, error) {
+	DNS, err := dnsCommon(
+		domain,
+		d.Subnet,
+		func(data []byte) ([]byte, error) {
+			return d.post(data)
+		},
+	)
 	if err != nil || len(DNS) <= 0 {
 		return nil, fmt.Errorf("DNS over HTTPS Search -> %v", err)
 	}
-	d.cache.Add(domain, DNS)
-	return
+	return DNS, err
 }
 
 func (d *DOH) SetSubnet(ip *net.IPNet) {
 	if ip == nil {
 		_, d.Subnet, _ = net.ParseCIDR("0.0.0.0/0")
-		return
+	} else {
+		d.Subnet = ip
 	}
-	d.Subnet = ip
 }
 
 func (d *DOH) GetSubnet() *net.IPNet {
@@ -111,14 +142,18 @@ func (d *DOH) get(dReq []byte) (body []byte, err error) {
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
 func (d *DOH) post(dReq []byte) (body []byte, err error) {
-	resp, err := d.httpClient.Post(fmt.Sprintf("https://%s/dns-query", d.Server), "application/dns-message", bytes.NewReader(dReq))
+	resp, err := d.httpClient.Post(
+		fmt.Sprintf("https://%s/dns-query", d.Server),
+		"application/dns-message",
+		bytes.NewReader(dReq),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("DOH:post() req -> %v", err)
+		return nil, fmt.Errorf("doh post failed: %v", err)
 	}
 	defer resp.Body.Close()
 	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("DOH:post() readBody -> %v", err)
+		return nil, fmt.Errorf("doh read body failed: %v", err)
 	}
 	return
 }

@@ -203,7 +203,8 @@ func (n *Node) GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode,
 }
 
 func (n *Node) AddNode(_ context.Context, req *NodeMap) (*empty.Empty, error) {
-	return &empty.Empty{}, app.AddNode(req.Value)
+	// TODO add node
+	return &empty.Empty{}, nil
 }
 
 func (n *Node) ModifyNode(context.Context, *NodeMap) (*empty.Empty, error) {
