@@ -1,4 +1,4 @@
-package utils
+package subscr
 
 const (
 	Shadowsocks  float64 = 1
@@ -10,11 +10,28 @@ const (
 )
 
 type NodeMessage struct {
-	NType   float64 `json:"n_type"`
-	NHash   string  `json:"hash"`
-	NName   string  `json:"name"`
-	NGroup  string  `json:"group"`
-	NOrigin float64 `json:"n_origin"`
+	NType   float64 `json:"yuhaiin_type"`
+	NHash   string  `json:"yuhaiin_hash"`
+	NName   string  `json:"yuhaiin_name"`
+	NGroup  string  `json:"yuhaiin_group"`
+	NOrigin float64 `json:"yuhaiin_origin"`
+}
+
+type Link struct {
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}
+
+type Node struct {
+	NowNode *Point                       `json:"nowNode"`
+	Link    []string                     `json:"link"`
+	Links   map[string]Link              `json:"links"`
+	Node    map[string]map[string]*Point `json:"node"`
+}
+
+type Point struct {
+	NodeMessage
+	Data []byte
 }
 
 func I2String(i interface{}) string {

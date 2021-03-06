@@ -1,8 +1,12 @@
-package utils
+package subscr
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
+)
 
 func TestInt2str(t *testing.T) {
-	t.Log(I2String(nil))
-	t.Log(I2String("a"))
+	t.Log(utils.I2String(nil))
+	t.Log(utils.I2String("a"))
 }
