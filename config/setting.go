@@ -51,6 +51,8 @@ func SettingDecodeJSON() (*Setting, error) {
 			Enabled: true,
 			HTTP:    true,
 			Socks5:  false,
+			// linux system set socks5 will make firfox websocket can't connect
+			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		},
 		Bypass: &Bypass{
 			Enabled:    true,

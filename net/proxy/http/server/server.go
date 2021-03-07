@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/base64"
 	"errors"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -37,17 +36,22 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 		use golang http
 	*/
 	inBoundReader := bufio.NewReader(src)
+
+_start:
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
-		if err != io.EOF {
-			log.Printf("http read request failed: %v\n", err)
-		}
 		return
 	}
+
+	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
+		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
 
 	err = verifyUserPass(user, key, src, req)
 	if err != nil {
 		log.Printf("http verify user pass failed: %v\n", err)
+		if keepAlive {
+			goto _start
+		}
 		return
 	}
 
@@ -59,24 +63,36 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 	dstc, err := dst(host)
 	if err != nil {
 		// fmt.Println(err)
-		_, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		_, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
+		if keepAlive {
+			goto _start
+		}
 		return
 	}
+
+	// if dstc == nil && keepAlive {
+	// fmt.Printf("-----------------------------dstc is nil, goto start-------------------------------")
+	// goto _start
+	// }
 
 	if x, ok := dstc.(*net.TCPConn); ok {
 		x.SetKeepAlive(true)
 	}
-	defer dstc.Close()
 
 	if req.Method == http.MethodConnect {
 		connect(src, dstc)
 		return
 	}
 
-	normal(req.Host, src, dstc, req, inBoundReader)
+	normal(src, dstc, req)
+	if keepAlive {
+		goto _start
+	}
 }
 
 func verifyUserPass(user, key string, client net.Conn, req *http.Request) error {
@@ -124,36 +140,34 @@ func connect(client net.Conn, dst net.Conn) {
 	utils.Forward(dst, client)
 }
 
-func normal(host string, src, dst net.Conn, req *http.Request, in *bufio.Reader) {
-	outboundReader := bufio.NewReader(dst)
-	for {
-		keepAlive := modifyRequest(req)
-		err := req.Write(dst)
-		if err != nil {
-			break
-		}
-		resp, err := http.ReadResponse(outboundReader, req)
-		if err != nil {
-			break
-		}
-		err = modifyResponse(resp, keepAlive)
-		if err != nil {
-			break
-		}
-		err = resp.Write(src)
-		if err != nil || resp.Close {
-			break
-		}
-		// from clash, thanks so much, if not have the code, the ReadRequest will error
-		err = utils.SingleForward(resp.Body, src)
-		if err != nil && err != io.EOF {
-			break
-		}
-		req, err = http.ReadRequest(in)
-		if err != nil {
-			break
-		}
+func normal(src, dst net.Conn, req *http.Request) {
+	defer dst.Close()
+	keepAlive := modifyRequest(req)
+	err := req.Write(dst)
+	if err != nil {
+		// fmt.Printf("req write to src failed: %v\n", err)
+		return
 	}
+
+	resp, err := http.ReadResponse(bufio.NewReader(dst), req)
+	if err != nil {
+		// fmt.Printf("read response failed: %v\n", err)
+		return
+	}
+
+	err = modifyResponse(resp, keepAlive)
+	if err != nil {
+		// log.Printf("modify response failed: %v\n", err)
+		return
+	}
+
+	err = resp.Write(src)
+	if err != nil {
+		// fmt.Printf("resp write to src failed: %v\n", err)
+		return
+	}
+
+	_ = utils.SingleForward(resp.Body, src)
 }
 
 func modifyRequest(req *http.Request) (keepAlive bool) {
@@ -162,8 +176,8 @@ func modifyRequest(req *http.Request) (keepAlive bool) {
 	if len(req.URL.Host) > 0 {
 		req.Host = req.URL.Host
 	}
-	req.RequestURI = ""
-	req.Header.Set("Connection", "close")
+	// req.RequestURI = ""
+	// req.Header.Set("Connection", "close")
 	req.Header = removeHeader(req.Header)
 	return
 }
@@ -179,17 +193,16 @@ func modifyResponse(resp *http.Response, keepAlive bool) error {
 	te := ""
 	if len(resp.TransferEncoding) > 0 {
 		if len(resp.TransferEncoding) > 1 {
-			//ErrUnsupportedTransferEncoding
+			// ErrUnsupportedTransferEncoding
 			return errors.New("ErrUnsupportedTransferEncoding")
 		}
 		te = resp.TransferEncoding[0]
 	}
+	resp.Close = true
 	if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
 		resp.Header.Set("Connection", "Keep-Alive")
 		//resp.Header.Set("Keep-Alive", "timeout=4")
 		resp.Close = false
-	} else {
-		resp.Close = true
 	}
 	return nil
 }
