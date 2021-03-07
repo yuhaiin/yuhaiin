@@ -89,7 +89,8 @@ _start:
 		return
 	}
 
-	normal(src, dstc, req)
+	normal(src, dstc, req, keepAlive)
+
 	if keepAlive {
 		goto _start
 	}
@@ -140,44 +141,38 @@ func connect(client net.Conn, dst net.Conn) {
 	utils.Forward(dst, client)
 }
 
-func normal(src, dst net.Conn, req *http.Request) {
+func normal(src, dst net.Conn, req *http.Request, keepAlive bool) {
 	defer dst.Close()
-	keepAlive := modifyRequest(req)
+	modifyRequest(req)
 	err := req.Write(dst)
 	if err != nil {
-		// fmt.Printf("req write to src failed: %v\n", err)
 		return
 	}
 
 	resp, err := http.ReadResponse(bufio.NewReader(dst), req)
 	if err != nil {
-		// fmt.Printf("read response failed: %v\n", err)
 		return
 	}
 
 	err = modifyResponse(resp, keepAlive)
 	if err != nil {
-		// log.Printf("modify response failed: %v\n", err)
 		return
 	}
 
 	err = resp.Write(src)
 	if err != nil {
-		// fmt.Printf("resp write to src failed: %v\n", err)
 		return
 	}
 
 	_ = utils.SingleForward(resp.Body, src)
 }
 
-func modifyRequest(req *http.Request) (keepAlive bool) {
-	keepAlive = strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
-		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
+func modifyRequest(req *http.Request) {
 	if len(req.URL.Host) > 0 {
 		req.Host = req.URL.Host
 	}
-	// req.RequestURI = ""
-	// req.Header.Set("Connection", "close")
+	req.RequestURI = ""
+	req.Header.Set("Connection", "close")
 	req.Header = removeHeader(req.Header)
 	return
 }
@@ -201,7 +196,7 @@ func modifyResponse(resp *http.Response, keepAlive bool) error {
 	resp.Close = true
 	if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
 		resp.Header.Set("Connection", "Keep-Alive")
-		//resp.Header.Set("Keep-Alive", "timeout=4")
+		resp.Header.Set("Keep-Alive", "timeout=4")
 		resp.Close = false
 	}
 	return nil
