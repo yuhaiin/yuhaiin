@@ -70,8 +70,8 @@ func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
 		return x.([]net.IP), nil
 	}
 	DNS, err = dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server) })
-	if err != nil || len(DNS) <= 0 {
-		return nil, fmt.Errorf("normal DNS Search -> %v", err)
+	if err != nil || len(DNS) == 0 {
+		return nil, fmt.Errorf("normal resolve domain %s failed: %v", domain, err)
 	}
 	n.cache.Add(domain, DNS)
 	return

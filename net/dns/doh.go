@@ -57,13 +57,13 @@ func NewDOH(host string) DNS {
 	return dns
 }
 
-// DOH DNS over HTTPS
+// Search
 // https://tools.ietf.org/html/rfc8484
 func (d *DOH) Search(domain string) (ip []net.IP, err error) {
 	if x := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	if ip, _ = d.search(domain); ip != nil {
+	if ip, err = d.search(domain); len(ip) != 0 {
 		d.cache.Add(domain, ip)
 	}
 	return
@@ -77,10 +77,10 @@ func (d *DOH) search(domain string) ([]net.IP, error) {
 			return d.post(data)
 		},
 	)
-	if err != nil || len(DNS) <= 0 {
-		return nil, fmt.Errorf("DNS over HTTPS Search -> %v", err)
+	if err != nil || len(DNS) == 0 {
+		return nil, fmt.Errorf("DOH resolve domain %s failed: %vs", domain, err)
 	}
-	return DNS, err
+	return DNS, nil
 }
 
 func (d *DOH) SetSubnet(ip *net.IPNet) {

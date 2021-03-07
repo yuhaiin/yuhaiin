@@ -298,21 +298,19 @@ _direct:
 		conn, err = net.ListenPacket("udp", "")
 	default:
 		ip, err := m.directDNS.dns.Search(hostname)
-		if err == nil {
-			for i := range ip {
-				conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), port))
-				if err != nil {
-					continue
-				}
-			}
+		if err != nil {
+			return nil, fmt.Errorf("dns resolve failed: %v", err)
 		}
-		if conn == nil {
-			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(hostname, port))
+		for i := range ip {
+			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), port))
+			if err != nil {
+				continue
+			}
+			return conn, err
 		}
 	}
-
-	if err != nil {
-		return nil, fmt.Errorf("get packetConn failed: %v", err)
+	if conn == nil || err != nil {
+		return nil, fmt.Errorf("get direct conn failed: %v", err)
 	}
 	return
 }

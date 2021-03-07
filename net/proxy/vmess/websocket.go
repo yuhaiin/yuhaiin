@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -26,7 +25,7 @@ func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable 
 		},
 		ReadBufferSize:   4 * 1024,
 		WriteBufferSize:  4 * 1024,
-		HandshakeTimeout: time.Second * 8,
+		HandshakeTimeout: time.Second * 6,
 	}
 
 	protocol := "ws"
@@ -78,7 +77,6 @@ func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable 
 		if resp != nil {
 			reason = resp.Status
 		}
-		log.Println(resp)
 		return nil, errors.New("failed to dial to (" + uri + "): " + reason)
 	}
 
@@ -108,7 +106,7 @@ func (w *websocketConn) Read(b []byte) (int, error) {
 		}
 
 		nBytes, err := reader.Read(b)
-		if errors.Is(err, io.EOF) {
+		if err != nil && errors.Is(err, io.EOF) {
 			w.reader = nil
 			continue
 		}

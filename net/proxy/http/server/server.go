@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/net/utils"
 )
@@ -38,6 +40,7 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 	inBoundReader := bufio.NewReader(src)
 
 _start:
+	src.SetDeadline(time.Now().Add(time.Second * 8))
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
 		return
@@ -62,24 +65,17 @@ _start:
 
 	dstc, err := dst(host)
 	if err != nil {
-		// fmt.Println(err)
+		log.Printf("get remote conn failed: %v\n", err)
 		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
 		_, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
-		if keepAlive {
-			goto _start
-		}
 		return
 	}
 
-	// if dstc == nil && keepAlive {
-	// fmt.Printf("-----------------------------dstc is nil, goto start-------------------------------")
-	// goto _start
-	// }
-
+	dstc.SetDeadline(time.Now().Add(time.Second * 8))
 	if x, ok := dstc.(*net.TCPConn); ok {
 		x.SetKeepAlive(true)
 	}
@@ -89,7 +85,11 @@ _start:
 		return
 	}
 
-	normal(src, dstc, req, keepAlive)
+	err = normal(src, dstc, req, keepAlive)
+	if err != nil {
+		// log.Printf("normal failed: %v\n", err)
+		return
+	}
 
 	if keepAlive {
 		goto _start
@@ -141,30 +141,31 @@ func connect(client net.Conn, dst net.Conn) {
 	utils.Forward(dst, client)
 }
 
-func normal(src, dst net.Conn, req *http.Request, keepAlive bool) {
+func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
 	defer dst.Close()
 	modifyRequest(req)
 	err := req.Write(dst)
 	if err != nil {
-		return
+		return fmt.Errorf("req write failed: %v", err)
 	}
 
 	resp, err := http.ReadResponse(bufio.NewReader(dst), req)
 	if err != nil {
-		return
+		return fmt.Errorf("http read response failed: %v", err)
 	}
 
 	err = modifyResponse(resp, keepAlive)
 	if err != nil {
-		return
+		return fmt.Errorf("modify response failed: %v", err)
 	}
 
 	err = resp.Write(src)
 	if err != nil {
-		return
+		return fmt.Errorf("resp write failed: %v", err)
 	}
+	// _ = utils.SingleForward(resp.Body, src)
 
-	_ = utils.SingleForward(resp.Body, src)
+	return nil
 }
 
 func modifyRequest(req *http.Request) {
