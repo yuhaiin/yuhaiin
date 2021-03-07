@@ -133,6 +133,7 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 }
 
 func connect(client net.Conn, dst net.Conn) {
+	defer dst.Close()
 	_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	if err != nil {
 		log.Println(err)
