@@ -3,31 +3,65 @@ package dns
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net"
 	"time"
 )
 
 type DOT struct {
 	DNS
-	host   string
-	subnet *net.IPNet
+	host         string
+	servername   string
+	subnet       *net.IPNet
+	proxy        func(string) (net.Conn, error)
+	sessionCache tls.ClientSessionCache
 }
 
 func NewDOT(host string) *DOT {
+	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
+	servername, _, _ := net.SplitHostPort(host)
 	return &DOT{
-		host: host,
+		host:         host,
+		subnet:       subnet,
+		servername:   servername,
+		sessionCache: tls.NewLRUClientSessionCache(0),
+		proxy: func(s string) (net.Conn, error) {
+			return net.DialTimeout("tcp", s, time.Second*5)
+		},
 	}
 }
 
+func (d *DOT) SetProxy(f func(string) (net.Conn, error)) {
+	if f == nil {
+		d.proxy = func(s string) (net.Conn, error) {
+			return net.DialTimeout("tcp", s, time.Second*5)
+		}
+	}
+	d.proxy = f
+}
+
+func (d *DOT) SetServer(host string) {
+	if host == "" {
+		log.Println("set dot host is empty, skip")
+		return
+	}
+	d.host = host
+	servername, _, _ := net.SplitHostPort(host)
+	d.servername = servername
+}
+
+func (d *DOT) SetSubnet(subnet *net.IPNet) {
+	d.subnet = subnet
+}
+
 func (d *DOT) Search(domain string) ([]net.IP, error) {
-	conn, err := net.DialTimeout("tcp", d.host, time.Second*5)
+	conn, err := d.proxy(d.host)
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial failed: %v", err)
 	}
-	servername, _, err := net.SplitHostPort(d.host)
 	conn = tls.Client(conn, &tls.Config{
-		ServerName:         servername,
-		ClientSessionCache: tls.NewLRUClientSessionCache(0),
+		ServerName:         d.servername,
+		ClientSessionCache: d.sessionCache,
 	})
 	defer conn.Close()
 	return dnsCommon(domain, d.subnet, func(reqData []byte) (body []byte, err error) {
