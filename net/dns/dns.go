@@ -293,7 +293,7 @@ func getName(c []byte, all []byte) (name string, size int, x []byte) {
 	for {
 		if c[0] == 0 {
 			c = c[1:] // lastOfDomain: one byte 0
-			size += 1
+			size++
 			break
 		}
 		if c[0]&128 == 128 && c[0]&64 == 64 {
