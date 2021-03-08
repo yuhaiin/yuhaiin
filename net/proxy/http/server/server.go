@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/net/utils"
 )
@@ -37,10 +36,10 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 	/*
 		use golang http
 	*/
+	defer src.Close()
 	inBoundReader := bufio.NewReader(src)
 
 _start:
-	src.SetDeadline(time.Now().Add(time.Second * 8))
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
 		return
@@ -75,7 +74,6 @@ _start:
 		return
 	}
 
-	dstc.SetDeadline(time.Now().Add(time.Second * 8))
 	if x, ok := dstc.(*net.TCPConn); ok {
 		x.SetKeepAlive(true)
 	}
@@ -84,6 +82,9 @@ _start:
 		connect(src, dstc)
 		return
 	}
+
+	// src.SetDeadline(time.Now().Add(time.Second * 8))
+	// dstc.SetDeadline(time.Now().Add(time.Second * 8))
 
 	err = normal(src, dstc, req, keepAlive)
 	if err != nil {
