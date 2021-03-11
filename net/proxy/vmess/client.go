@@ -120,10 +120,8 @@ func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
 
 	switch v.net {
 	case "ws":
-		// conn, err = v.webSocket(conn)
 		c, err = WebsocketDial(c, v.host, v.path, v.cert, v.tls)
 	case "quic":
-		// conn, err = v.quic(conn)
 		c, err = QuicDial("udp", v.address, int(v.port), v.host, v.cert)
 	}
 	if err != nil {
@@ -176,97 +174,3 @@ func (v *vmessPacketConn) SetReadDeadline(t time.Time) error {
 func (v *vmessPacketConn) SetWriteDeadline(t time.Time) error {
 	return v.conn.SetWriteDeadline(t)
 }
-
-// func (v *Vmess) webSocket(conn net.Conn) (net.Conn, error) {
-// 	webConfig := &v2Websocket.Config{
-// 		Path: v.path,
-// 		Header: []*v2Websocket.Header{
-// 			{
-// 				Key:   "Host",
-// 				Value: v.host,
-// 			},
-// 		},
-// 	}
-
-// 	streamConfig := &internet.StreamConfig{
-// 		ProtocolName: "websocket",
-// 		TransportSettings: []*internet.TransportConfig{{
-// 			ProtocolName: "websocket",
-// 			Settings:     serial.ToTypedMessage(webConfig),
-// 		}},
-// 		SocketSettings: &internet.SocketConfig{
-// 			Tfo: internet.SocketConfig_Enable,
-// 		},
-// 	}
-
-// 	if v.tls {
-// 		err := v.tlsConfig(streamConfig)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("tls config failed: %v", err)
-// 		}
-// 	}
-
-// 	streamSetting, err := internet.ToMemoryStreamConfig(streamConfig)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return v2Websocket.Dial(context.Background(), v2rayNet.DestinationFromAddr(conn.RemoteAddr()), streamSetting)
-// }
-
-// func (v *Vmess) quic(conn net.Conn) (net.Conn, error) {
-// 	transportSettings := &v2Quic.Config{
-// 		Security: &protocol.SecurityConfig{Type: protocol.SecurityType_NONE},
-// 	}
-
-// 	streamConfig := &internet.StreamConfig{
-// 		ProtocolName: "quic",
-// 		TransportSettings: []*internet.TransportConfig{{
-// 			ProtocolName: "quic",
-// 			Settings:     serial.ToTypedMessage(transportSettings),
-// 		}},
-// 		SocketSettings: &internet.SocketConfig{
-// 			Tfo: internet.SocketConfig_Enable,
-// 		},
-// 	}
-
-// 	//quic 必须开启tls
-// 	err := v.tlsConfig(streamConfig)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("tls config failed: %v", err)
-// 	}
-
-// 	streamSetting, err := internet.ToMemoryStreamConfig(streamConfig)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return v2Quic.Dial(context.Background(), v2rayNet.DestinationFromAddr(conn.RemoteAddr()), streamSetting)
-// }
-
-// func (v *Vmess) tlsConfig(streamConfig *internet.StreamConfig) error {
-// 	tlsConfig := tls.Config{ServerName: v.host}
-// 	if v.cert != "" || v.certRaw != "" {
-// 		certificate := tls.Certificate{Usage: tls.Certificate_AUTHORITY_VERIFY}
-// 		var err error
-// 		certificate.Certificate, err = readCertificate(v.cert, v.certRaw)
-// 		if err != nil {
-// 			return errors.New("failed to read cert")
-// 		}
-// 		tlsConfig.Certificate = []*tls.Certificate{&certificate}
-// 	}
-// 	streamConfig.SecurityType = serial.GetMessageType(&tlsConfig)
-// 	streamConfig.SecuritySettings = []*serial.TypedMessage{serial.ToTypedMessage(&tlsConfig)}
-// 	return nil
-// }
-
-// func readCertificate(cert, certRaw string) ([]byte, error) {
-// 	if cert != "" {
-// 		return filesystem.ReadFile(cert)
-// 	}
-// 	if certRaw != "" {
-// 		certHead := "-----BEGIN CERTIFICATE-----"
-// 		certTail := "-----END CERTIFICATE-----"
-// 		fixedCert := certHead + "\n" + certRaw + "\n" + certTail
-// 		return []byte(fixedCert), nil
-// 	}
-// 	return nil, fmt.Errorf("can't get cert or certRaw")
-// }

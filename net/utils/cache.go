@@ -11,25 +11,28 @@ type withTime struct {
 	store time.Time
 }
 
-// Cache <-- use map save history
-type cache struct {
+// Cache use map save history
+type Cache struct {
 	number         int
 	pool           sync.Map
 	lastUpdateTime time.Time
 }
 
-func NewCache() *cache {
-	return &cache{
+//NewCache create new cache
+func NewCache() *Cache {
+	return &Cache{
 		number:         0,
 		lastUpdateTime: time.Now(),
 	}
 }
 
-func (c *cache) Get(domain string) (interface{}, bool) {
+//Get .
+func (c *Cache) Get(domain string) (interface{}, bool) {
 	return c.pool.Load(domain)
 }
 
-func (c *cache) Add(domain string, mark interface{}) {
+//Add .
+func (c *Cache) Add(domain string, mark interface{}) {
 	if mark == nil {
 		return
 	}
@@ -57,9 +60,9 @@ func (c *cache) Add(domain string, mark interface{}) {
 	}
 	c.pool.Store(domain, mark)
 	c.number++
-	//log.Println(domain+" Add success,number", c.number)
 }
 
+//LRU Least Recently Used
 type LRU struct {
 	capacity int
 	list     *list.List
@@ -67,10 +70,13 @@ type LRU struct {
 	mapping  map[interface{}]interface{}
 	timeout  time.Duration
 
-	Add  func(key, value interface{})
+	//Add add
+	Add func(key, value interface{})
+	//Load load
 	Load func(key interface{}) interface{}
 }
 
+//NewLru create new lru cache
 func NewLru(capacity int, timeout time.Duration) *LRU {
 	l := &LRU{
 		capacity: capacity,
@@ -136,6 +142,7 @@ func (l *LRU) addWithTime(key, value interface{}) {
 	l.mapping[key] = node
 }
 
+//Delete delete a key from cache
 func (l *LRU) Delete(key interface{}) {
 	l.lock.Lock()
 	defer l.lock.Unlock()

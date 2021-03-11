@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -15,6 +16,26 @@ var (
 	//CloseSigPool Close sign pool
 	CloseSigPool = sync.Pool{New: func() interface{} { return make(chan error, 2) }}
 )
+
+//Forward pipe
+func Forward(conn1, conn2 net.Conn) {
+	go func() {
+		buf := BuffPool.Get().([]byte)
+		defer BuffPool.Put(buf)
+		_, _ = io.CopyBuffer(conn2, conn1, buf)
+	}()
+	buf := BuffPool.Get().([]byte)
+	defer BuffPool.Put(buf)
+	_, _ = io.CopyBuffer(conn1, conn2, buf)
+}
+
+//SingleForward single pipe
+func SingleForward(src io.Reader, dst io.Writer) (err error) {
+	buf := BuffPool.Get().([]byte)
+	defer BuffPool.Put(buf)
+	_, err = io.CopyBuffer(dst, src, buf)
+	return
+}
 
 // LookupIP looks up host using the local resolver.
 // It returns a slice of that host's IPv4 and IPv6 addresses.
