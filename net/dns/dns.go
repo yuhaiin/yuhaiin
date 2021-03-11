@@ -110,7 +110,6 @@ func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body
 		}
 	}()
 	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
-
 	b, err := reqF(req)
 	if err != nil {
 		return nil, err
