@@ -73,7 +73,7 @@ func Init() error {
  *         CONFIG
  */
 func SetConFig(conf *config.Setting) (erra error) {
-	if Entrance.Config.Bypass.BypassFile != conf.Bypass.BypassFile || diffDNS(*Entrance.Config.DNS, *conf.DNS) {
+	if Entrance.Config.Bypass.BypassFile != conf.Bypass.BypassFile || diffDNS(Entrance.Config.DNS, conf.DNS) {
 		s, err := NewShunt(
 			conf.Bypass.BypassFile,
 			getDNS(conf.DNS.Host, conf.DNS.DOH, conf.DNS.Subnet).Search,
@@ -84,7 +84,7 @@ func SetConFig(conf *config.Setting) (erra error) {
 		Entrance.Bypass.SetMapper(s.Get)
 	}
 
-	if diffDNS(*Entrance.Config.LocalDNS, *conf.LocalDNS) {
+	if diffDNS(Entrance.Config.LocalDNS, conf.LocalDNS) {
 		Entrance.Bypass.SetLookup(getDNS(conf.LocalDNS.Host, conf.LocalDNS.DOH, "").Search)
 	}
 
@@ -109,7 +109,7 @@ func SetConFig(conf *config.Setting) (erra error) {
 	return
 }
 
-func diffDNS(old, new config.DNS) bool {
+func diffDNS(old, new *config.DNS) bool {
 	if old.Host != new.Host {
 		return true
 	}
