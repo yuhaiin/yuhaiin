@@ -134,27 +134,27 @@ func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (ne
 	return v.Conn, v.UDPConn, nil
 }
 
-type decodeJSON struct {
-	Address    string          `json:"add"`
-	Port       json.RawMessage `json:"port"`
-	UUID       string          `json:"id"`
-	AlterID    json.RawMessage `json:"aid"`
-	Ps         string          `json:"ps"`
-	Net        string          `json:"net"`
-	Type       string          `json:"type"`
-	TLS        string          `json:"tls"`
-	Host       string          `json:"host"`
-	Path       string          `json:"path"`
-	V          string          `json:"v"`
-	VerifyCert bool            `json:"verify_cert"`
-	Class      int             `json:"class"`
-}
-
 func unmarshalJSON(data []byte) (*JSON, error) {
-	s := &decodeJSON{}
+	s := &struct {
+		Address    string          `json:"add"`
+		Port       json.RawMessage `json:"port"`
+		UUID       string          `json:"id"`
+		AlterID    json.RawMessage `json:"aid"`
+		Ps         string          `json:"ps"`
+		Net        string          `json:"net"`
+		Type       string          `json:"type"`
+		TLS        string          `json:"tls"`
+		Host       string          `json:"host"`
+		Path       string          `json:"path"`
+		V          string          `json:"v"`
+		VerifyCert bool            `json:"verify_cert"`
+		Class      int             `json:"class"`
+	}{}
+
 	if err := json.Unmarshal(data, s); err != nil {
 		return nil, fmt.Errorf("unmarshal failed: %v\nstr: %s\n", err, data)
 	}
+
 	return &JSON{
 		Address:    s.Address,
 		Port:       parseUint32(s.Port),

@@ -96,7 +96,7 @@ func (d *Domain) search(root *domainNode, domain []string) (bool, interface{}) {
 	return false, nil
 }
 
-func NewDomainMatch() *Domain {
+func NewDomainMapper() *Domain {
 	return &Domain{
 		root: &domainNode{
 			child: map[string]*domainNode{},

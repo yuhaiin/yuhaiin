@@ -19,12 +19,13 @@ type DOH struct {
 	DNS
 	utils.ClientUtil
 
-	Server string
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
 
-	host       string
-	port       string
+	host string
+	port string
+	url  string
+
 	cache      *utils.LRU
 	httpClient *http.Client
 }
@@ -32,28 +33,15 @@ type DOH struct {
 func NewDOH(host string) DNS {
 	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
 	dns := &DOH{
-		Server: host,
 		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),
 	}
 
-	uri, err := url.Parse("//" + host)
-	if err != nil {
-		dns.host = dns.Server
-		dns.port = "443"
-	} else {
-		dns.host = uri.Hostname()
-		dns.port = uri.Port()
-		if dns.port == "" {
-			dns.port = "443"
-		}
-	}
-	dns.ClientUtil = utils.NewClientUtil(dns.host, dns.port)
+	dns.SetServer(host)
 
-	dns.Proxy = func(domain string) (net.Conn, error) {
+	dns.SetProxy(func(domain string) (net.Conn, error) {
 		return dns.ClientUtil.GetConn()
-	}
-	dns.SetProxy(dns.Proxy)
+	})
 	return dns
 }
 
@@ -96,11 +84,27 @@ func (d *DOH) GetSubnet() *net.IPNet {
 }
 
 func (d *DOH) SetServer(host string) {
-	d.Server = host
+	uri, err := url.Parse("//" + host)
+	if err != nil {
+		d.host = host
+		d.port = "443"
+	} else {
+		d.host = uri.Hostname()
+		d.port = uri.Port()
+		if d.port == "" {
+			d.port = "443"
+		}
+	}
+	d.url = "https://" + host
+	if uri.Path == "" {
+		d.url += "/dns-query"
+	}
+
+	d.ClientUtil = utils.NewClientUtil(d.host, d.port)
 }
 
 func (d *DOH) GetServer() string {
-	return d.Server
+	return d.url
 }
 
 func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {
@@ -127,7 +131,7 @@ func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {
 
 func (d *DOH) get(dReq []byte) (body []byte, err error) {
 	query := strings.Replace(base64.URLEncoding.EncodeToString(dReq), "=", "", -1)
-	urls := "https://" + d.Server + "/dns-query?dns=" + query
+	urls := d.url + "?dns=" + query
 	res, err := d.httpClient.Get(urls)
 	if err != nil {
 		return nil, err
@@ -142,11 +146,7 @@ func (d *DOH) get(dReq []byte) (body []byte, err error) {
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
 func (d *DOH) post(dReq []byte) (body []byte, err error) {
-	resp, err := d.httpClient.Post(
-		fmt.Sprintf("https://%s/dns-query", d.Server),
-		"application/dns-message",
-		bytes.NewReader(dReq),
-	)
+	resp, err := d.httpClient.Post(d.url, "application/dns-message", bytes.NewReader(dReq))
 	if err != nil {
 		return nil, fmt.Errorf("doh post failed: %v", err)
 	}

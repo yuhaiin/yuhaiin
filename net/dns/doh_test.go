@@ -19,6 +19,7 @@ func TestDOH(t *testing.T) {
 	// d := NewDOH("doh.dns.sb")
 	// d := NewDOH("doh.opendns.com")
 	// _, s, _ := net.ParseCIDR("45.32.51.197/31")
+
 	_, s, _ := net.ParseCIDR("114.114.114.114/31")
 	d.SetSubnet(s)
 	//t.Log(d.Search("plasma"))

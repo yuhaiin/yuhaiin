@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path"
@@ -15,20 +17,32 @@ import (
 	"time"
 
 	libDNS "github.com/Asutorufa/yuhaiin/net/dns"
-	"github.com/Asutorufa/yuhaiin/net/match"
+	mapper "github.com/Asutorufa/yuhaiin/net/mapper"
 )
 
 const (
-	others  = 0
-	mDirect = 1 << iota
-	mProxy
-	mIP
-	mBlock
+	others = 0
+	direct = 1 << iota
+	proxy
+	ip
+	block
 )
 
-type bypass struct {
-	enabled bool
-	file    string
+//go:embed yuhaiin.conf
+var bypassData []byte
+
+var modeMapping = map[int]string{
+	direct: "direct",
+	proxy:  "proxy",
+	block:  "block",
+}
+
+var mode = map[string]int{
+	"direct":   direct,
+	"proxy":    proxy,
+	"block":    block,
+	"ip":       ip,
+	"ipdirect": ip | direct,
 }
 
 type dns struct {
@@ -50,12 +64,12 @@ type node struct {
 
 //BypassManager .
 type BypassManager struct {
-	bypass
+	bypass bool
 	dns
 	directDNS
 	node
 
-	matcher *match.Match
+	*shunt
 
 	Forward       func(string) (net.Conn, error)
 	ForwardPacket func(string) (net.PacketConn, error)
@@ -104,18 +118,12 @@ func NewBypassManager(bypassPath string, opt ...func(option *OptionBypassManager
 		opt[i](option)
 	}
 
-	m.matcher = match.NewMatch(func(argument *match.OptionArgument) {
-		argument.DNS = option.DNS.Server
-		argument.DOH = option.DNS.DOH
-		argument.Subnet = option.DNS.Subnet
-	})
-
-	err := m.setBypass(bypassPath)
+	var err error
+	m.shunt, err = NewShunt(bypassPath, getDNS(option.DNS.Server, option.DNS.DOH).Search)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("set bypass failed: %v", err)
 	}
 
-	m.enableDNSProxy(option.DNS.Proxy)
 	m.setMode(option.Bypass)
 
 	return m, nil
@@ -142,92 +150,15 @@ func (m *BypassManager) SetAllOption(opt func(option *OptionBypassManager)) erro
 			Server string
 			DOH    bool
 		}{Server: m.directDNS.server, DOH: m.directDNS.doh},
-		BypassPath: m.bypass.file,
-		Bypass:     m.bypass.enabled,
+		Bypass: m.bypass,
 	}
 	opt(option)
 
 	m.setDNS(option.DNS.Server, option.DNS.DOH)
 	m.setDirectDNS(option.DirectDNS.Server, option.DirectDNS.DOH)
-	m.enableDNSProxy(option.DNS.Proxy)
-	m.setDNSSubNet(option.DNS.Subnet)
-	err := m.setBypass(option.BypassPath)
-	m.bypass.enabled = option.Bypass
-	return err
-}
+	m.setMode(option.Bypass)
 
-//go:embed yuhaiin.conf
-var bypassData []byte
-
-//RefreshMapping refresh data
-func (m *BypassManager) RefreshMapping() error {
-	f, err := os.Open(m.bypass.file)
-	if err != nil && os.IsNotExist(err) {
-		err = os.MkdirAll(path.Dir(m.bypass.file), os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("UpdateMatch()MkdirAll -> %v", err)
-		}
-		f, err = os.OpenFile(m.bypass.file, os.O_TRUNC|os.O_CREATE|os.O_RDWR, os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("UpdateMatch():OpenFile -> %v", err)
-		}
-
-		_, err = f.Write(bypassData)
-		if err != nil {
-			return fmt.Errorf("write bypass data failed: %v", err)
-		}
-	}
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("open bypass file failed: %v", err)
-	}
-	defer f.Close()
-
-	m.matcher.Clear()
-
-	re, _ := regexp.Compile("^([^ ]+) +([^ ]+) *$") // already test that is right regular expression, so don't need to check error
-	br := bufio.NewReader(f)
-	for {
-		a, _, c := br.ReadLine()
-		if c == io.EOF {
-			break
-		}
-		if bytes.HasPrefix(a, []byte("#")) {
-			continue
-		}
-		result := re.FindSubmatch(a)
-		if len(result) != 3 {
-			continue
-		}
-		mode := m.mode(string(result[2]))
-		if mode == others {
-			continue
-		}
-		_ = m.matcher.Insert(string(result[1]), mode)
-	}
-	return nil
-}
-
-func (m *BypassManager) mode(str string) int {
-	switch strings.ToLower(str) {
-	case "direct":
-		return mDirect
-	case "proxy":
-		return mProxy
-	case "block":
-		return mBlock
-	case "ip":
-		return mIP
-	case "ipdirect":
-		return mIP | mDirect
-	default:
-		return others
-	}
-}
-
-var modeMapping = map[int]string{
-	mDirect: "direct",
-	mProxy:  "proxy",
-	mBlock:  "block",
+	return m.shunt.SetFile(option.BypassPath)
 }
 
 // https://myexternalip.com/raw
@@ -237,19 +168,19 @@ func (m *BypassManager) dial(network, host string) (conn interface{}, err error)
 		return nil, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
 
-	md := m.matcher.Search(hostname)
+	mark, markType := m.shunt.Get(hostname)
 
-	if md.Des == nil {
+	if mark == others {
 		fmt.Printf("[%s] -> %s, mode: default(proxy)\n", host, network)
 	} else {
-		fmt.Printf("[%s] -> %s, mode: %s\n", host, network, modeMapping[md.Des.(int)])
+		fmt.Printf("[%s] -> %s, mode: %s\n", host, network, modeMapping[mark])
 	}
 
-	switch md.Category {
-	case match.IP:
-		conn, err = m.dialIP(network, host, md.Des)
-	case match.DOMAIN:
-		conn, err = m.dialDomain(network, hostname, port, md.Des)
+	switch markType {
+	case mapper.IP:
+		conn, err = m.dialIP(network, host, mark)
+	case mapper.DOMAIN:
+		conn, err = m.dialDomain(network, hostname, port, mark)
 	default:
 		conn, err = m.proxy(host)
 	}
@@ -257,10 +188,10 @@ func (m *BypassManager) dial(network, host string) (conn interface{}, err error)
 }
 
 func (m *BypassManager) dialIP(network, host string, des interface{}) (conn interface{}, err error) {
-	if des == mBlock {
+	if des == block {
 		return nil, errors.New("block IP: " + host)
 	}
-	if des == mDirect {
+	if des == direct {
 		goto _direct
 	}
 
@@ -281,10 +212,10 @@ _direct:
 }
 
 func (m *BypassManager) dialDomain(network, hostname, port string, des interface{}) (conn interface{}, err error) {
-	if des == mBlock {
+	if des == block {
 		return nil, errors.New("block domain: " + hostname)
 	}
-	if des == mDirect {
+	if des == direct {
 		goto _direct
 	}
 
@@ -313,14 +244,6 @@ _direct:
 		return nil, fmt.Errorf("get direct conn failed: %v", err)
 	}
 	return
-}
-
-func (m *BypassManager) getIP(hostname string) (net.IP, error) {
-	ips := m.matcher.GetIP(hostname)
-	if len(ips) <= 0 {
-		return nil, errors.New("not find")
-	}
-	return ips[0], nil
 }
 
 /*
@@ -353,7 +276,6 @@ func (m *BypassManager) SetProxy(
 	}
 
 	m.node.hash = hash
-	m.setDNSProxy(m.dns.proxy)
 }
 
 /**
@@ -387,7 +309,7 @@ func (m *BypassManager) setForward(network string) {
 }
 
 func (m *BypassManager) setMode(b bool) {
-	if m.bypass.enabled == b {
+	if m.bypass == b {
 		if m.Forward == nil {
 			m.setForward("tcp")
 		}
@@ -397,7 +319,7 @@ func (m *BypassManager) setMode(b bool) {
 		return
 	}
 
-	m.bypass.enabled = b
+	m.bypass = b
 	switch b {
 	case false:
 		m.Forward = m.proxy
@@ -408,14 +330,6 @@ func (m *BypassManager) setMode(b bool) {
 	}
 }
 
-func (m *BypassManager) setBypass(file string) error {
-	if m.bypass.file == file {
-		return nil
-	}
-	m.bypass.file = file
-	return m.RefreshMapping()
-}
-
 /*
  *              DNS
  */
@@ -423,28 +337,14 @@ func (m *BypassManager) setDNS(server string, doh bool) {
 	if m.dns.server == server && m.dns.doh == doh {
 		return
 	}
-	m.dns.server = server
-	m.dns.doh = doh
-	m.matcher.SetDNS(server, doh)
+	m.shunt.SetLookup(getDNS(m.dns.server, m.dns.doh).Search)
 }
 
-func (m *BypassManager) setDNSProxy(enable bool) {
-	if enable {
-		m.dns.proxy = true
-		m.matcher.SetDNSProxy(m.proxy)
-	} else {
-		m.dns.proxy = false
-		m.matcher.SetDNSProxy(func(addr string) (net.Conn, error) {
-			return net.DialTimeout("tcp", addr, 5*time.Second)
-		})
+func getDNS(host string, doh bool) libDNS.DNS {
+	if doh {
+		return libDNS.NewDNS(host, libDNS.DNSOverHTTPS)
 	}
-}
-
-func (m *BypassManager) enableDNSProxy(enable bool) {
-	if m.dns.proxy == enable {
-		return
-	}
-	m.setDNSProxy(enable)
+	return libDNS.NewDNS(host, libDNS.Normal)
 }
 
 func (m *BypassManager) setDirectDNS(server string, doh bool) {
@@ -461,18 +361,94 @@ func (m *BypassManager) setDirectDNS(server string, doh bool) {
 	}
 }
 
-func (m *BypassManager) setDNSSubNet(ip *net.IPNet) {
-	if m.matcher.DNS == nil || m.dns.Subnet == ip {
-		return
-	}
-	m.dns.Subnet = ip
-	m.matcher.DNS.SetSubnet(ip)
-}
-
 func (m *BypassManager) GetDownload() uint64 {
 	return m.connManager.download
 }
 
 func (m *BypassManager) GetUpload() uint64 {
 	return m.connManager.upload
+}
+
+type shunt struct {
+	file   string
+	mapper *mapper.Mapper
+}
+
+//NewShunt file: bypass file; lookup: domain resolver, can be nil
+func NewShunt(file string, lookup func(string) ([]net.IP, error)) (*shunt, error) {
+	s := &shunt{
+		file:   file,
+		mapper: mapper.NewMapper(lookup),
+	}
+	err := s.RefreshMapping()
+	if err != nil {
+		return nil, fmt.Errorf("refresh mapping failed: %v", err)
+	}
+	return s, nil
+}
+
+func (s *shunt) RefreshMapping() error {
+	log.Println(s.file)
+	_, err := os.Stat(s.file)
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		err = os.MkdirAll(path.Dir(s.file), os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("make dir all failed: %v", err)
+		}
+		err = ioutil.WriteFile(s.file, bypassData, os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("write bypass file failed: %v", err)
+		}
+	}
+
+	f, err := os.Open(s.file)
+	if err != nil {
+		return fmt.Errorf("open bypass file failed: %v", err)
+	}
+	defer f.Close()
+
+	s.mapper.Clear()
+
+	re, _ := regexp.Compile("^([^ ]+) +([^ ]+) *$") // already test that is right regular expression, so don't need to check error
+	br := bufio.NewReader(f)
+	for {
+		a, _, c := br.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		if bytes.HasPrefix(a, []byte("#")) {
+			continue
+		}
+		result := re.FindSubmatch(a)
+		if len(result) != 3 {
+			continue
+		}
+		mode := mode[strings.ToLower(string(result[2]))]
+		if mode == others {
+			continue
+		}
+		_ = s.mapper.Insert(string(result[1]), mode)
+	}
+	return nil
+}
+
+func (s *shunt) SetFile(f string) error {
+	if s.file == f {
+		return nil
+	}
+	s.file = f
+	return s.RefreshMapping()
+}
+
+func (s *shunt) Get(domain string) (int, mapper.Category) {
+	mark, markType := s.mapper.Search(domain)
+	x, ok := mark.(int)
+	if !ok {
+		return others, markType
+	}
+	return x, markType
+}
+
+func (s *shunt) SetLookup(f func(string) ([]net.IP, error)) {
+	s.mapper.SetLookup(f)
 }

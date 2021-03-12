@@ -6,7 +6,7 @@ import (
 )
 
 func TestCidrMatch_Inset(t *testing.T) {
-	cidrMatch := NewCidrMatch()
+	cidrMatch := NewCidrMapper()
 	if err := cidrMatch.Insert("10.2.2.1/18", "testIPv4"); err != nil {
 		t.Error(err)
 	}
@@ -29,7 +29,7 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 
 	//做一些初始化的工作,例如读取文件数据,数据库连接之类的,
 	//这样这些时间不影响我们测试函数本身的性能
-	cidrMatch := NewCidrMatch()
+	cidrMatch := NewCidrMapper()
 	if err := cidrMatch.Insert("10.2.2.1/18", "testIPv4"); err != nil {
 		b.Error(err)
 	}
@@ -125,7 +125,7 @@ func TestSingleTrie(t *testing.T) {
 
 // 2102 ns/op,2106 ns/op
 func BenchmarkSingleTrie(b *testing.B) {
-	m := NewCidrMatch()
+	m := NewCidrMapper()
 	if err := m.singleInsert("127.0.0.1/28", "localhost"); err != nil {
 		b.Error(err)
 	}
