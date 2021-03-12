@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/Asutorufa/yuhaiin/net/dns"
 	"github.com/Asutorufa/yuhaiin/subscr/utils"
 
 	"github.com/Asutorufa/yuhaiin/config"
@@ -34,16 +35,20 @@ func Init() error {
 		return fmt.Errorf("DecodeJson -> %v", err)
 	}
 
+	s, err := NewShunt(
+		Entrance.Config.Bypass.BypassFile,
+		getDNS(Entrance.Config.DNS.Host, Entrance.Config.DNS.DOH, Entrance.Config.DNS.Subnet).Search,
+	)
+	if err != nil {
+		return fmt.Errorf("create shunt failed: %v", err)
+	}
+
 	// initialize Match Controller
-	Entrance.Bypass, err = NewBypassManager(Entrance.Config.Bypass.BypassFile, func(option *OptionBypassManager) {
-		option.DNS.Server = Entrance.Config.DNS.Host
-		option.DNS.Proxy = Entrance.Config.DNS.Proxy
-		option.DNS.DOH = Entrance.Config.DNS.DOH
-		option.DNS.Subnet = toSubnet(Entrance.Config.DNS.Subnet)
-		option.Bypass = Entrance.Config.Bypass.Enabled
-		option.DirectDNS.Server = Entrance.Config.LocalDNS.Host
-		option.DirectDNS.DOH = Entrance.Config.LocalDNS.DOH
-	})
+	Entrance.Bypass, err = NewBypassManager(
+		Entrance.Config.Bypass.Enabled,
+		s.Get,
+		getDNS(Entrance.Config.LocalDNS.Host, Entrance.Config.LocalDNS.DOH, "").Search,
+	)
 	if err != nil {
 		return fmt.Errorf("new Match Controller -> %v", err)
 	}
@@ -68,22 +73,24 @@ func Init() error {
  *         CONFIG
  */
 func SetConFig(conf *config.Setting) (erra error) {
-	Entrance.Config = conf
-	err := Entrance.Bypass.SetAllOption(func(option *OptionBypassManager) {
-		option.DNS.Server = conf.DNS.Host
-		option.DNS.Proxy = conf.DNS.Proxy
-		option.DNS.DOH = conf.DNS.DOH
-		option.DNS.Subnet = toSubnet(conf.DNS.Subnet)
-		option.Bypass = conf.Bypass.Enabled
-		option.BypassPath = conf.Bypass.BypassFile
-		option.DirectDNS.Server = Entrance.Config.LocalDNS.Host
-		option.DirectDNS.DOH = Entrance.Config.LocalDNS.DOH
-	})
-	if err != nil {
-		erra = fmt.Errorf("%v\n Set Match Controller Options -> %v", erra, err)
+	if Entrance.Config.Bypass.BypassFile != conf.Bypass.BypassFile || diffDNS(*Entrance.Config.DNS, *conf.DNS) {
+		s, err := NewShunt(
+			conf.Bypass.BypassFile,
+			getDNS(conf.DNS.Host, conf.DNS.DOH, conf.DNS.Subnet).Search,
+		)
+		if err != nil {
+			return fmt.Errorf("create shunt failed: %v", err)
+		}
+		Entrance.Bypass.SetMapper(s.Get)
 	}
 
-	err = Entrance.LocalListen.SetAHost(
+	if diffDNS(*Entrance.Config.LocalDNS, *conf.LocalDNS) {
+		Entrance.Bypass.SetLookup(getDNS(conf.LocalDNS.Host, conf.LocalDNS.DOH, "").Search)
+	}
+
+	Entrance.Bypass.SetBypass(conf.Bypass.Enabled)
+
+	err := Entrance.LocalListen.SetAHost(
 		WithHTTP(conf.Proxy.HTTP),
 		WithSocks5(conf.Proxy.Socks5),
 		WithRedir(conf.Proxy.Redir),
@@ -91,12 +98,47 @@ func SetConFig(conf *config.Setting) (erra error) {
 	if err != nil {
 		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)
 	}
+
+	Entrance.Config = conf
+
 	// others
 	err = config.SettingEnCodeJSON(Entrance.Config)
 	if err != nil {
 		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
 	}
 	return
+}
+
+func diffDNS(old, new config.DNS) bool {
+	if old.Host != new.Host {
+		return true
+	}
+	if old.DOH != new.DOH {
+		return true
+	}
+	if old.Subnet != new.Subnet {
+		return true
+	}
+	return false
+}
+
+func RefreshMapping() error {
+	s, err := NewShunt(
+		Entrance.Config.Bypass.BypassFile,
+		getDNS(Entrance.Config.DNS.Host, Entrance.Config.DNS.DOH, Entrance.Config.DNS.Subnet).Search,
+	)
+	if err != nil {
+		return fmt.Errorf("create shunt failed: %v", err)
+	}
+	Entrance.Bypass.SetMapper(s.Get)
+	return nil
+}
+
+func getDNS(host string, doh bool, subnet string) dns.DNS {
+	if doh {
+		return dns.NewDNS(host, dns.DNSOverHTTPS, toSubnet(subnet))
+	}
+	return dns.NewDNS(host, dns.Normal, toSubnet(subnet))
 }
 
 func toSubnet(s string) *net.IPNet {

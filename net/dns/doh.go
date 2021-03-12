@@ -30,8 +30,10 @@ type DOH struct {
 	httpClient *http.Client
 }
 
-func NewDOH(host string) DNS {
-	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
+func NewDOH(host string, subnet *net.IPNet) DNS {
+	if subnet == nil {
+		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
+	}
 	dns := &DOH{
 		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),

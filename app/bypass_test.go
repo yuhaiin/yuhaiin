@@ -58,17 +58,6 @@ func TestUpdateDNSSubNet(t *testing.T) {
 	t.Log(net.ParseIP(x.Hostname()))
 }
 
-func TestNewMatchCon(t *testing.T) {
-	s := func(option func(option *OptionBypassManager)) {
-		o := &OptionBypassManager{}
-		option(o)
-		log.Println(o)
-	}
-	s(func(option *OptionBypassManager) {
-		option.DNS.Server = "114.114.114.114"
-	})
-}
-
 func TestPrintPointer(t *testing.T) {
 	var a *string
 	a = new(string)
