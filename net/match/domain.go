@@ -16,16 +16,16 @@ type Domain struct {
 	wildcardRoot *domainNode // for *.example.com, *.example.*
 }
 
-func (d *Domain) InsertFlip(domain string, mark interface{}) {
-	domainDiv := strings.Split(domain, ".")
-	if len(domainDiv) == 0 {
+func (d *Domain) Insert(domain string, mark interface{}) {
+	domains := strings.Split(domain, ".")
+	if len(domains) == 0 {
 		return
 	}
-	if domainDiv[0] == "*" {
-		d.insert(d.wildcardRoot, mark, domainDiv)
+	if domains[0] == "*" {
+		d.insert(d.wildcardRoot, mark, domains)
 		return
 	}
-	d.insert(d.root, mark, domainDiv)
+	d.insert(d.root, mark, domains)
 }
 
 func (d *Domain) insert(root *domainNode, mark interface{}, domain []string) {
@@ -53,26 +53,29 @@ func (d *Domain) insert(root *domainNode, mark interface{}, domain []string) {
 	}
 }
 
-func (d *Domain) SearchFlip(domain string) (ok bool, mark interface{}) {
-	domainDiv := strings.Split(domain, ".")
-	ok, mark = d.search(d.root, domainDiv)
+func (d *Domain) Search(domain string) (ok bool, mark interface{}) {
+	domains := strings.Split(domain, ".")
+	ok, mark = d.search(d.root, domains)
 	if ok {
 		return ok, mark
 	}
-	return d.search(d.wildcardRoot, domainDiv)
+	return d.search(d.wildcardRoot, domains)
 }
 
 func (d *Domain) search(root *domainNode, domain []string) (bool, interface{}) {
 	first, asterisk := true, false
-	for index := len(domain) - 1; index >= 0; index-- {
+	for i := len(domain) - 1; i >= 0; i-- {
 	_retry:
-		_, ok := root.child[domain[index]] // use index to get data quicker than new var
+		_, ok := root.child[domain[i]] // use index to get data quicker than new var
 		if ok {
 			first = false
-			if root.child[domain[index]].wildcard == true || (root.child[domain[index]].last == true && index == 0) {
-				return true, root.child[domain[index]].mark
+			if root.child[domain[i]].wildcard == true {
+				return true, root.child[domain[i]].mark
 			}
-			root = root.child[domain[index]]
+			if root.child[domain[i]].last == true && i == 0 {
+				return true, root.child[domain[i]].mark
+			}
+			root = root.child[domain[i]]
 			continue
 		}
 
@@ -80,16 +83,14 @@ func (d *Domain) search(root *domainNode, domain []string) (bool, interface{}) {
 			break
 		}
 
-		if asterisk {
-			continue
+		if !asterisk {
+			root = root.child["*"]
+			if root == nil {
+				break
+			}
+			asterisk = true
+			goto _retry
 		}
-
-		root = root.child["*"]
-		if root == nil {
-			break
-		}
-		asterisk = true
-		goto _retry
 	}
 
 	return false, nil

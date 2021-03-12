@@ -33,4 +33,6 @@ func TestNewMatcher(t *testing.T) {
 	t.Log(matcher.Search("www.google.com"))
 	t.Log(matcher.Search("test.music.163.com"))
 	t.Log(matcher.Search("guce.advertising.com"))
+	t.Log(matcher.Search("www.twitter.com"))
+	t.Log(matcher.Search("www.facebook.com"))
 }

@@ -34,6 +34,8 @@ func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
 			path = s[1]
 		case "cert":
 			cert = s[1]
+		case "host":
+			host = s[1]
 			// case "certRaw":
 			// certRaw = s[1]
 			// case "fastOpen":

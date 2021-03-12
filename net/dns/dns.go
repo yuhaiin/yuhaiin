@@ -10,8 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
+
+type DNS interface {
+	SetProxy(proxy func(addr string) (net.Conn, error))
+	SetServer(host string)
+	GetServer() string
+	SetSubnet(subnet *net.IPNet)
+	GetSubnet() *net.IPNet
+	Search(domain string) ([]net.IP, error)
+}
 
 type reqType [2]byte
 
@@ -43,7 +52,7 @@ type NormalDNS struct {
 	DNS
 	Server string
 	Subnet *net.IPNet
-	cache  *common.CacheExtend
+	cache  *utils.LRU
 }
 
 func NewNormalDNS(host string) DNS {
@@ -51,18 +60,18 @@ func NewNormalDNS(host string) DNS {
 	return &NormalDNS{
 		Server: host,
 		Subnet: subnet,
-		cache:  common.NewCacheExtend(time.Minute * 20),
+		cache:  utils.NewLru(200, 20*time.Minute),
 	}
 }
 
 // DNS Normal DNS(use udp,and no encrypt)
 func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
-	if x, _ := n.cache.Get(domain); x != nil {
+	if x := n.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
 	DNS, err = dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server) })
-	if err != nil || len(DNS) <= 0 {
-		return nil, fmt.Errorf("normal DNS Search -> %v", err)
+	if err != nil || len(DNS) == 0 {
+		return nil, fmt.Errorf("normal resolve domain %s failed: %v", domain, err)
 	}
 	n.cache.Add(domain, DNS)
 	return
@@ -101,7 +110,6 @@ func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body
 		}
 	}()
 	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
-
 	b, err := reqF(req)
 	if err != nil {
 		return nil, err
@@ -119,8 +127,8 @@ func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body
 }
 
 func udpDial(req []byte, DNSServer string) (data []byte, err error) {
-	var b = common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b)
+	var b = utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(b)
 
 	conn, err := net.DialTimeout("udp", DNSServer, 5*time.Second)
 	if err != nil {
@@ -284,7 +292,7 @@ func getName(c []byte, all []byte) (name string, size int, x []byte) {
 	for {
 		if c[0] == 0 {
 			c = c[1:] // lastOfDomain: one byte 0
-			size += 1
+			size++
 			break
 		}
 		if c[0]&128 == 128 && c[0]&64 == 64 {

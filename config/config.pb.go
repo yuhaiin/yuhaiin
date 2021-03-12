@@ -21,21 +21,16 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type Setting struct {
-	BlackIcon            bool       `protobuf:"varint,1,opt,name=BlackIcon,json=black_icon,proto3" json:"BlackIcon,omitempty"`
-	DOH                  bool       `protobuf:"varint,2,opt,name=DOH,json=is_dns_over_https,proto3" json:"DOH,omitempty"`
-	DNSProxy             bool       `protobuf:"varint,3,opt,name=DNSProxy,json=dns_across_proxy,proto3" json:"DNSProxy,omitempty"`
-	DnsServer            string     `protobuf:"bytes,4,opt,name=DnsServer,json=dnsServer,proto3" json:"DnsServer,omitempty"`
-	DnsSubNet            string     `protobuf:"bytes,5,opt,name=DnsSubNet,json=dns_sub_net,proto3" json:"DnsSubNet,omitempty"`
-	Bypass               bool       `protobuf:"varint,6,opt,name=Bypass,json=bypass,proto3" json:"Bypass,omitempty"`
-	HTTPHost             string     `protobuf:"bytes,7,opt,name=HTTPHost,json=httpProxyAddress,proto3" json:"HTTPHost,omitempty"`
-	Socks5Host           string     `protobuf:"bytes,8,opt,name=Socks5Host,json=socks5ProxyAddress,proto3" json:"Socks5Host,omitempty"`
-	RedirHost            string     `protobuf:"bytes,9,opt,name=RedirHost,json=redir_proxy_address,proto3" json:"RedirHost,omitempty"`
-	BypassFile           string     `protobuf:"bytes,10,opt,name=BypassFile,json=bypassFile,proto3" json:"BypassFile,omitempty"`
-	SsrPath              string     `protobuf:"bytes,11,opt,name=SsrPath,json=ssrPath,proto3" json:"SsrPath,omitempty"`
-	DirectDNS            *DirectDNS `protobuf:"bytes,12,opt,name=DirectDNS,json=direct_dns,proto3" json:"DirectDNS,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
-	XXX_unrecognized     []byte     `json:"-"`
-	XXX_sizecache        int32      `json:"-"`
+	//TODO all json lower case
+	SystemProxy          *SystemProxy `protobuf:"bytes,1,opt,name=SystemProxy,json=system_proxy,proto3" json:"SystemProxy,omitempty"`
+	Bypass               *Bypass      `protobuf:"bytes,2,opt,name=Bypass,json=bypass,proto3" json:"Bypass,omitempty"`
+	Proxy                *Proxy       `protobuf:"bytes,3,opt,name=Proxy,json=proxy,proto3" json:"Proxy,omitempty"`
+	DNS                  *DNS         `protobuf:"bytes,4,opt,name=DNS,json=dns,proto3" json:"DNS,omitempty"`
+	LocalDNS             *DNS         `protobuf:"bytes,5,opt,name=LocalDNS,json=local_dns,proto3" json:"LocalDNS,omitempty"`
+	SsrPath              string       `protobuf:"bytes,11,opt,name=SsrPath,json=ssr_path,proto3" json:"SsrPath,omitempty"` // Deprecated: Do not use.
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
 }
 
 func (m *Setting) Reset()         { *m = Setting{} }
@@ -63,76 +58,42 @@ func (m *Setting) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Setting proto.InternalMessageInfo
 
-func (m *Setting) GetBlackIcon() bool {
+func (m *Setting) GetSystemProxy() *SystemProxy {
 	if m != nil {
-		return m.BlackIcon
+		return m.SystemProxy
 	}
-	return false
+	return nil
 }
 
-func (m *Setting) GetDOH() bool {
-	if m != nil {
-		return m.DOH
-	}
-	return false
-}
-
-func (m *Setting) GetDNSProxy() bool {
-	if m != nil {
-		return m.DNSProxy
-	}
-	return false
-}
-
-func (m *Setting) GetDnsServer() string {
-	if m != nil {
-		return m.DnsServer
-	}
-	return ""
-}
-
-func (m *Setting) GetDnsSubNet() string {
-	if m != nil {
-		return m.DnsSubNet
-	}
-	return ""
-}
-
-func (m *Setting) GetBypass() bool {
+func (m *Setting) GetBypass() *Bypass {
 	if m != nil {
 		return m.Bypass
 	}
-	return false
+	return nil
 }
 
-func (m *Setting) GetHTTPHost() string {
+func (m *Setting) GetProxy() *Proxy {
 	if m != nil {
-		return m.HTTPHost
+		return m.Proxy
 	}
-	return ""
+	return nil
 }
 
-func (m *Setting) GetSocks5Host() string {
+func (m *Setting) GetDNS() *DNS {
 	if m != nil {
-		return m.Socks5Host
+		return m.DNS
 	}
-	return ""
+	return nil
 }
 
-func (m *Setting) GetRedirHost() string {
+func (m *Setting) GetLocalDNS() *DNS {
 	if m != nil {
-		return m.RedirHost
+		return m.LocalDNS
 	}
-	return ""
+	return nil
 }
 
-func (m *Setting) GetBypassFile() string {
-	if m != nil {
-		return m.BypassFile
-	}
-	return ""
-}
-
+// Deprecated: Do not use.
 func (m *Setting) GetSsrPath() string {
 	if m != nil {
 		return m.SsrPath
@@ -140,63 +101,232 @@ func (m *Setting) GetSsrPath() string {
 	return ""
 }
 
-func (m *Setting) GetDirectDNS() *DirectDNS {
-	if m != nil {
-		return m.DirectDNS
-	}
-	return nil
-}
-
-type DirectDNS struct {
-	Host                 string   `protobuf:"bytes,1,opt,name=Host,json=host,proto3" json:"Host,omitempty"`
-	DOH                  bool     `protobuf:"varint,2,opt,name=DOH,json=doh,proto3" json:"DOH,omitempty"`
+type SystemProxy struct {
+	Enabled              bool     `protobuf:"varint,1,opt,name=Enabled,json=enabled,proto3" json:"Enabled,omitempty"`
+	HTTP                 bool     `protobuf:"varint,2,opt,name=HTTP,json=http,proto3" json:"HTTP,omitempty"`
+	Socks5               bool     `protobuf:"varint,3,opt,name=Socks5,json=socks5,proto3" json:"Socks5,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *DirectDNS) Reset()         { *m = DirectDNS{} }
-func (m *DirectDNS) String() string { return proto.CompactTextString(m) }
-func (*DirectDNS) ProtoMessage()    {}
-func (*DirectDNS) Descriptor() ([]byte, []int) {
+func (m *SystemProxy) Reset()         { *m = SystemProxy{} }
+func (m *SystemProxy) String() string { return proto.CompactTextString(m) }
+func (*SystemProxy) ProtoMessage()    {}
+func (*SystemProxy) Descriptor() ([]byte, []int) {
 	return fileDescriptor_cc332a44e926b360, []int{1}
 }
 
-func (m *DirectDNS) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DirectDNS.Unmarshal(m, b)
+func (m *SystemProxy) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SystemProxy.Unmarshal(m, b)
 }
-func (m *DirectDNS) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DirectDNS.Marshal(b, m, deterministic)
+func (m *SystemProxy) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SystemProxy.Marshal(b, m, deterministic)
 }
-func (m *DirectDNS) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DirectDNS.Merge(m, src)
+func (m *SystemProxy) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SystemProxy.Merge(m, src)
 }
-func (m *DirectDNS) XXX_Size() int {
-	return xxx_messageInfo_DirectDNS.Size(m)
+func (m *SystemProxy) XXX_Size() int {
+	return xxx_messageInfo_SystemProxy.Size(m)
 }
-func (m *DirectDNS) XXX_DiscardUnknown() {
-	xxx_messageInfo_DirectDNS.DiscardUnknown(m)
+func (m *SystemProxy) XXX_DiscardUnknown() {
+	xxx_messageInfo_SystemProxy.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DirectDNS proto.InternalMessageInfo
+var xxx_messageInfo_SystemProxy proto.InternalMessageInfo
 
-func (m *DirectDNS) GetHost() string {
+func (m *SystemProxy) GetEnabled() bool {
+	if m != nil {
+		return m.Enabled
+	}
+	return false
+}
+
+func (m *SystemProxy) GetHTTP() bool {
+	if m != nil {
+		return m.HTTP
+	}
+	return false
+}
+
+func (m *SystemProxy) GetSocks5() bool {
+	if m != nil {
+		return m.Socks5
+	}
+	return false
+}
+
+type Bypass struct {
+	Enabled              bool     `protobuf:"varint,1,opt,name=Enabled,json=enabled,proto3" json:"Enabled,omitempty"`
+	BypassFile           string   `protobuf:"bytes,2,opt,name=BypassFile,json=bypass_file,proto3" json:"BypassFile,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Bypass) Reset()         { *m = Bypass{} }
+func (m *Bypass) String() string { return proto.CompactTextString(m) }
+func (*Bypass) ProtoMessage()    {}
+func (*Bypass) Descriptor() ([]byte, []int) {
+	return fileDescriptor_cc332a44e926b360, []int{2}
+}
+
+func (m *Bypass) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Bypass.Unmarshal(m, b)
+}
+func (m *Bypass) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Bypass.Marshal(b, m, deterministic)
+}
+func (m *Bypass) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Bypass.Merge(m, src)
+}
+func (m *Bypass) XXX_Size() int {
+	return xxx_messageInfo_Bypass.Size(m)
+}
+func (m *Bypass) XXX_DiscardUnknown() {
+	xxx_messageInfo_Bypass.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Bypass proto.InternalMessageInfo
+
+func (m *Bypass) GetEnabled() bool {
+	if m != nil {
+		return m.Enabled
+	}
+	return false
+}
+
+func (m *Bypass) GetBypassFile() string {
+	if m != nil {
+		return m.BypassFile
+	}
+	return ""
+}
+
+type DNS struct {
+	Host                 string   `protobuf:"bytes,1,opt,name=Host,json=host,proto3" json:"Host,omitempty"`
+	DOH                  bool     `protobuf:"varint,2,opt,name=DOH,json=doh,proto3" json:"DOH,omitempty"`
+	Proxy                bool     `protobuf:"varint,3,opt,name=Proxy,json=proxy,proto3" json:"Proxy,omitempty"`
+	Subnet               string   `protobuf:"bytes,4,opt,name=subnet,proto3" json:"subnet,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DNS) Reset()         { *m = DNS{} }
+func (m *DNS) String() string { return proto.CompactTextString(m) }
+func (*DNS) ProtoMessage()    {}
+func (*DNS) Descriptor() ([]byte, []int) {
+	return fileDescriptor_cc332a44e926b360, []int{3}
+}
+
+func (m *DNS) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DNS.Unmarshal(m, b)
+}
+func (m *DNS) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DNS.Marshal(b, m, deterministic)
+}
+func (m *DNS) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DNS.Merge(m, src)
+}
+func (m *DNS) XXX_Size() int {
+	return xxx_messageInfo_DNS.Size(m)
+}
+func (m *DNS) XXX_DiscardUnknown() {
+	xxx_messageInfo_DNS.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DNS proto.InternalMessageInfo
+
+func (m *DNS) GetHost() string {
 	if m != nil {
 		return m.Host
 	}
 	return ""
 }
 
-func (m *DirectDNS) GetDOH() bool {
+func (m *DNS) GetDOH() bool {
 	if m != nil {
 		return m.DOH
 	}
 	return false
 }
 
+func (m *DNS) GetProxy() bool {
+	if m != nil {
+		return m.Proxy
+	}
+	return false
+}
+
+func (m *DNS) GetSubnet() string {
+	if m != nil {
+		return m.Subnet
+	}
+	return ""
+}
+
+type Proxy struct {
+	HTTP                 string   `protobuf:"bytes,1,opt,name=HTTP,json=http,proto3" json:"HTTP,omitempty"`
+	Socks5               string   `protobuf:"bytes,2,opt,name=Socks5,json=socks5,proto3" json:"Socks5,omitempty"`
+	Redir                string   `protobuf:"bytes,3,opt,name=Redir,json=redir,proto3" json:"Redir,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Proxy) Reset()         { *m = Proxy{} }
+func (m *Proxy) String() string { return proto.CompactTextString(m) }
+func (*Proxy) ProtoMessage()    {}
+func (*Proxy) Descriptor() ([]byte, []int) {
+	return fileDescriptor_cc332a44e926b360, []int{4}
+}
+
+func (m *Proxy) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Proxy.Unmarshal(m, b)
+}
+func (m *Proxy) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Proxy.Marshal(b, m, deterministic)
+}
+func (m *Proxy) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Proxy.Merge(m, src)
+}
+func (m *Proxy) XXX_Size() int {
+	return xxx_messageInfo_Proxy.Size(m)
+}
+func (m *Proxy) XXX_DiscardUnknown() {
+	xxx_messageInfo_Proxy.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Proxy proto.InternalMessageInfo
+
+func (m *Proxy) GetHTTP() string {
+	if m != nil {
+		return m.HTTP
+	}
+	return ""
+}
+
+func (m *Proxy) GetSocks5() string {
+	if m != nil {
+		return m.Socks5
+	}
+	return ""
+}
+
+func (m *Proxy) GetRedir() string {
+	if m != nil {
+		return m.Redir
+	}
+	return ""
+}
+
 func init() {
 	proto.RegisterType((*Setting)(nil), "yuhaiin.api.Setting")
-	proto.RegisterType((*DirectDNS)(nil), "yuhaiin.api.DirectDNS")
+	proto.RegisterType((*SystemProxy)(nil), "yuhaiin.api.SystemProxy")
+	proto.RegisterType((*Bypass)(nil), "yuhaiin.api.Bypass")
+	proto.RegisterType((*DNS)(nil), "yuhaiin.api.DNS")
+	proto.RegisterType((*Proxy)(nil), "yuhaiin.api.Proxy")
 }
 
 func init() {
@@ -204,29 +334,30 @@ func init() {
 }
 
 var fileDescriptor_cc332a44e926b360 = []byte{
-	// 381 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x5c, 0x92, 0xc1, 0x8e, 0xd3, 0x30,
-	0x10, 0x86, 0x15, 0x5a, 0x92, 0x66, 0xc2, 0xa1, 0x78, 0xa5, 0x95, 0x0f, 0x50, 0x55, 0x45, 0xa0,
-	0x9e, 0x52, 0x01, 0xda, 0x07, 0xd8, 0x2a, 0x42, 0xe5, 0x52, 0xaa, 0x64, 0x4f, 0x5c, 0x22, 0xc7,
-	0xf1, 0x36, 0xd6, 0x2e, 0x76, 0xe4, 0x71, 0x56, 0xf4, 0x89, 0x78, 0x4d, 0xe4, 0x49, 0xa9, 0x2a,
-	0x4e, 0x89, 0xff, 0xff, 0xf3, 0xcc, 0x9f, 0xcc, 0xc0, 0x8d, 0xb4, 0xe6, 0x51, 0x1f, 0x37, 0xe3,
-	0x23, 0xef, 0x9d, 0xf5, 0x96, 0x65, 0xa7, 0xa1, 0x13, 0x5a, 0x9b, 0x5c, 0xf4, 0x7a, 0xf5, 0x67,
-	0x02, 0x49, 0xa5, 0xbc, 0xd7, 0xe6, 0xc8, 0xde, 0x43, 0xba, 0x7d, 0x16, 0xf2, 0xe9, 0xbb, 0xb4,
-	0x86, 0x47, 0xcb, 0x68, 0x3d, 0x2b, 0xa1, 0x09, 0x42, 0xad, 0xa5, 0x35, 0x6c, 0x01, 0x93, 0xe2,
-	0xc7, 0x8e, 0xbf, 0x22, 0xe3, 0xad, 0xc6, 0xba, 0x35, 0x58, 0xdb, 0x17, 0xe5, 0xea, 0xce, 0xfb,
-	0x1e, 0xd9, 0x0a, 0x66, 0xc5, 0xbe, 0x3a, 0x38, 0xfb, 0xfb, 0xc4, 0x27, 0x04, 0xcd, 0x03, 0x21,
-	0xa4, 0xb3, 0x88, 0x75, 0x1f, 0x74, 0xf6, 0x0e, 0xd2, 0xc2, 0x60, 0xa5, 0xdc, 0x8b, 0x72, 0x7c,
-	0xba, 0x8c, 0xd6, 0x69, 0x99, 0xb6, 0xff, 0x04, 0xb6, 0x18, 0xdd, 0xa1, 0xd9, 0x2b, 0xcf, 0x5f,
-	0x93, 0x9b, 0x85, 0x12, 0x38, 0x34, 0xb5, 0x51, 0x9e, 0xdd, 0x42, 0xbc, 0x3d, 0xf5, 0x02, 0x91,
-	0xc7, 0x54, 0x3f, 0x6e, 0xe8, 0x14, 0x3a, 0xef, 0x1e, 0x1e, 0x0e, 0x3b, 0x8b, 0x9e, 0x27, 0x74,
-	0x6d, 0x1e, 0x22, 0x51, 0x94, 0xfb, 0xb6, 0x75, 0x0a, 0x91, 0x7d, 0x02, 0xa8, 0xac, 0x7c, 0xc2,
-	0x3b, 0xa2, 0x66, 0x44, 0x31, 0x24, 0xe5, 0x3f, 0x2e, 0x2d, 0x55, 0xab, 0x1d, 0x61, 0x29, 0x61,
-	0x37, 0x2e, 0x08, 0xe3, 0x17, 0xd4, 0xe2, 0xcc, 0x2d, 0x00, 0xc6, 0x2c, 0xdf, 0xf4, 0xb3, 0xe2,
-	0x40, 0x20, 0x34, 0x17, 0x85, 0x71, 0x48, 0x2a, 0x74, 0x07, 0xe1, 0x3b, 0x9e, 0x91, 0x99, 0xe0,
-	0x78, 0x64, 0x77, 0x90, 0x16, 0xda, 0x29, 0xe9, 0x8b, 0x7d, 0xc5, 0xdf, 0x2c, 0xa3, 0x75, 0xf6,
-	0xe5, 0x36, 0xbf, 0x9a, 0x49, 0x7e, 0x71, 0x4b, 0x68, 0xe9, 0x35, 0xfc, 0xe9, 0xd5, 0xe7, 0xab,
-	0x6b, 0x8c, 0xc1, 0x94, 0x02, 0x46, 0x54, 0x7a, 0xda, 0x59, 0xf4, 0x6c, 0x7e, 0x3d, 0x9f, 0x49,
-	0x6b, 0xbb, 0xed, 0xc7, 0x9f, 0x1f, 0x8e, 0xda, 0x77, 0x43, 0x93, 0x4b, 0xfb, 0x6b, 0x73, 0x8f,
-	0x83, 0xb7, 0x6e, 0x78, 0x14, 0x9b, 0x73, 0xb3, 0xf3, 0x5a, 0x34, 0x31, 0xed, 0xc5, 0xd7, 0xbf,
-	0x01, 0x00, 0x00, 0xff, 0xff, 0x0d, 0xd3, 0x03, 0x23, 0x2e, 0x02, 0x00, 0x00,
+	// 392 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x92, 0x4f, 0x0b, 0xd3, 0x30,
+	0x18, 0xc6, 0xe9, 0xff, 0x36, 0xf5, 0x30, 0x32, 0x19, 0xbd, 0x88, 0xa3, 0x22, 0x0c, 0xc4, 0x0e,
+	0x14, 0x4f, 0x9e, 0x9c, 0x53, 0x26, 0xc8, 0x1c, 0xe9, 0x2e, 0x7a, 0x29, 0x69, 0x9b, 0xad, 0xc1,
+	0xae, 0x29, 0x4d, 0x0a, 0xf6, 0x53, 0xf8, 0x95, 0xa5, 0x6f, 0x3a, 0x59, 0x0f, 0x7a, 0x0a, 0x0f,
+	0xf9, 0xbd, 0xcf, 0xdb, 0xe7, 0x69, 0xd0, 0xb2, 0x10, 0xcd, 0x85, 0x5f, 0xb7, 0xfa, 0x48, 0xda,
+	0x4e, 0x28, 0x81, 0xc3, 0xa1, 0xaf, 0x28, 0xe7, 0x4d, 0x42, 0x5b, 0x1e, 0xff, 0x36, 0x91, 0x97,
+	0x32, 0xa5, 0x78, 0x73, 0xc5, 0xef, 0x51, 0x98, 0x0e, 0x52, 0xb1, 0xdb, 0xa9, 0x13, 0xbf, 0x86,
+	0xc8, 0x58, 0x1b, 0x9b, 0xf0, 0x4d, 0x94, 0x3c, 0xe0, 0xc9, 0xc3, 0x3d, 0x79, 0x22, 0x41, 0x64,
+	0xed, 0xa8, 0xf0, 0x2b, 0xe4, 0xee, 0x86, 0x96, 0x4a, 0x19, 0x99, 0x30, 0xb7, 0x9c, 0xcd, 0xe9,
+	0x2b, 0xe2, 0xe6, 0x70, 0xe2, 0x0d, 0x72, 0xf4, 0x0e, 0x0b, 0x58, 0x3c, 0x63, 0xb5, 0xbb, 0xa3,
+	0x6d, 0x63, 0x64, 0xed, 0x8f, 0x69, 0x64, 0x03, 0xb7, 0x98, 0x71, 0xfb, 0x63, 0x4a, 0xac, 0xb2,
+	0x91, 0xf8, 0x35, 0xf2, 0xbf, 0x8a, 0x82, 0xd6, 0x23, 0xe8, 0xfc, 0x03, 0x0c, 0xea, 0x91, 0xc8,
+	0x46, 0xfc, 0x19, 0xf2, 0x52, 0xd9, 0x9d, 0xa8, 0xaa, 0xa2, 0x70, 0x6d, 0x6c, 0x82, 0x9d, 0x19,
+	0x19, 0xc4, 0x97, 0xb2, 0xcb, 0x5a, 0xaa, 0xaa, 0x38, 0x9d, 0xb5, 0x80, 0x23, 0xe4, 0x7d, 0x6a,
+	0x68, 0x5e, 0xb3, 0x12, 0x0a, 0xf1, 0x89, 0xc7, 0xb4, 0xc4, 0x18, 0xd9, 0x87, 0xf3, 0xf9, 0x04,
+	0x79, 0x7d, 0x62, 0x57, 0x4a, 0xb5, 0x78, 0x85, 0xdc, 0x54, 0x14, 0x3f, 0xe5, 0x3b, 0x48, 0xe6,
+	0x13, 0x57, 0x82, 0x8a, 0x3f, 0xde, 0xdb, 0xf9, 0x8f, 0xdf, 0x73, 0x84, 0x34, 0xf3, 0x99, 0xd7,
+	0x0c, 0x5c, 0x03, 0x12, 0xea, 0xc2, 0xb2, 0x0b, 0xaf, 0x59, 0xfc, 0x1d, 0xba, 0x80, 0xbd, 0x42,
+	0x2a, 0x18, 0x0f, 0x88, 0x5d, 0x09, 0xa9, 0xf0, 0x02, 0x59, 0xfb, 0x6f, 0x87, 0xe9, 0x53, 0xac,
+	0x52, 0x54, 0xf8, 0xe9, 0x63, 0xc5, 0xfe, 0xbd, 0xce, 0x15, 0x72, 0x65, 0x9f, 0x37, 0x4c, 0x41,
+	0xa3, 0x01, 0x99, 0x54, 0xfc, 0x65, 0xa2, 0xff, 0x86, 0xba, 0x9b, 0xcf, 0x43, 0x99, 0xd3, 0x10,
+	0xa8, 0x71, 0x05, 0x61, 0x25, 0xef, 0x60, 0x45, 0x40, 0x9c, 0x6e, 0x14, 0xbb, 0x97, 0x3f, 0x5e,
+	0x5c, 0xb9, 0xaa, 0xfa, 0x3c, 0x29, 0xc4, 0x6d, 0xfb, 0x41, 0xf6, 0x4a, 0x74, 0xfd, 0x85, 0x6e,
+	0xa7, 0x3f, 0x32, 0xbd, 0xc5, 0xdc, 0x85, 0xc7, 0xf8, 0xf6, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff,
+	0x0f, 0x65, 0x6a, 0x85, 0xa3, 0x02, 0x00, 0x00,
 }

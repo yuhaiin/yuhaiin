@@ -3,18 +3,18 @@ package shadowsocks
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/subscr/common"
-
 	ssClient "github.com/Asutorufa/yuhaiin/net/proxy/shadowsocks"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
 type Shadowsocks struct {
-	common.NodeMessage
+	utils.NodeMessage
 	Server    string `json:"server"`
 	Port      string `json:"port"`
 	Method    string `json:"method"`
@@ -23,18 +23,18 @@ type Shadowsocks struct {
 	PluginOpt string `json:"plugin_opt"`
 }
 
-func ParseLink(str []byte, group string) (*Shadowsocks, error) {
+func ParseLink(str []byte, group string) (*utils.Point, error) {
 	n := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
 		return nil, err
 	}
-	n.NType = common.Shadowsocks
-	n.NOrigin = common.Remote
+	n.NType = utils.Shadowsocks
+	n.NOrigin = utils.Remote
 	n.Server = ssUrl.Hostname()
 	n.Port = ssUrl.Port()
-	n.Method = strings.Split(common.Base64UrlDStr(ssUrl.User.String()), ":")[0]
-	n.Password = strings.Split(common.Base64UrlDStr(ssUrl.User.String()), ":")[1]
+	n.Method = strings.Split(utils.Base64UrlDStr(ssUrl.User.String()), ":")[0]
+	n.Password = strings.Split(utils.Base64UrlDStr(ssUrl.User.String()), ":")[1]
 	n.NGroup = group
 	n.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
 	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
@@ -52,53 +52,23 @@ func ParseLink(str []byte, group string) (*Shadowsocks, error) {
 	hash.Write([]byte(n.Plugin))
 	hash.Write([]byte(n.PluginOpt))
 	n.NHash = hex.EncodeToString(hash.Sum(nil))
-	return n, nil
-}
 
-func ParseMap(n map[string]interface{}) (*Shadowsocks, error) {
-	if n == nil {
-		return nil, errors.New("map is nil")
-	}
-	node := new(Shadowsocks)
-	node.NType = common.Shadowsocks
-	for key := range n {
-		switch key {
-		case "server":
-			node.Server = common.Interface2string(n[key])
-		case "port":
-			node.Port = common.Interface2string(n[key])
-		case "method":
-			node.Method = common.Interface2string(n[key])
-		case "password":
-			node.Password = common.Interface2string(n[key])
-		case "plugin":
-			node.Plugin = common.Interface2string(n[key])
-		case "plugin_opt":
-			node.PluginOpt = common.Interface2string(n[key])
-		case "name":
-			node.NName = common.Interface2string(n[key])
-		case "group":
-			node.NGroup = common.Interface2string(n[key])
-		case "hash":
-			node.NHash = common.Interface2string(n[key])
-		}
-	}
-	return node, nil
-}
-
-func ParseMapManual(m map[string]interface{}) (*Shadowsocks, error) {
-	s, err := ParseMap(m)
+	data, err := json.Marshal(n)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("shadowsocks marshal failed: %v", err)
 	}
-	s.NOrigin = common.Manual
-	return s, nil
+	return &utils.Point{
+		NodeMessage: n.NodeMessage,
+		Data:        data,
+	}, nil
 }
 
-func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error) {
-	s, err := ParseMap(n)
+func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+	s := new(Shadowsocks)
+
+	err := json.Unmarshal(n.Data, s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ss, err := ssClient.NewShadowsocks(
 		s.Method,
@@ -108,8 +78,8 @@ func ParseConn(n map[string]interface{}) (func(string) (net.Conn, error), error)
 		s.PluginOpt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return ss.Conn, nil
+	return ss.Conn, ss.UDPConn, nil
 }
