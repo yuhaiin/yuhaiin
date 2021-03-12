@@ -50,7 +50,14 @@ func ParseLink(link []byte, group string) (*utils.Point, error) {
 		n.Protoparam = utils.Base64UrlDStr(query.Get("protoparam"))
 		n.NName = "[ssr]" + utils.Base64UrlDStr(query.Get("remarks"))
 	}
-	n.NHash = countHash(n)
+
+	hash := sha256.New()
+	hash.Write([]byte{byte(n.NType)})
+	hash.Write([]byte{byte(n.NOrigin)})
+	hash.Write([]byte(n.NGroup))
+	hash.Write([]byte(n.NName))
+	hash.Write(link)
+	n.NHash = hex.EncodeToString(hash.Sum(nil))
 
 	data, err := json.Marshal(n)
 	if err != nil {
@@ -70,26 +77,6 @@ func ParseLinkManual(link []byte, group string) (*utils.Point, error) {
 	}
 	s.NOrigin = utils.Manual
 	return s, nil
-}
-
-func countHash(n *Shadowsocksr) string {
-	if n == nil {
-		return ""
-	}
-	hash := sha256.New()
-	hash.Write([]byte{byte(n.NType)})
-	hash.Write([]byte{byte(n.NOrigin)})
-	hash.Write([]byte(n.Server))
-	hash.Write([]byte(n.Port))
-	hash.Write([]byte(n.Method))
-	hash.Write([]byte(n.Password))
-	hash.Write([]byte(n.NGroup))
-	hash.Write([]byte(n.NName))
-	hash.Write([]byte(n.Obfs))
-	hash.Write([]byte(n.Obfsparam))
-	hash.Write([]byte(n.Protocol))
-	hash.Write([]byte(n.Protoparam))
-	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // ParseConn parse a ssr map to conn function

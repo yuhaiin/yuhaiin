@@ -19,7 +19,6 @@ func TestRef(t *testing.T) {
 	}
 
 	var x interface{}
-	x = nil
 	if _, ok := x.(server.UDPServer); !ok {
 		t.Log("nil")
 	}
