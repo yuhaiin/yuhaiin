@@ -13,6 +13,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
+type DNSType int
+
+const (
+	Normal DNSType = 1 << iota
+	DNSOverHTTPS
+	DNSOverTLS
+)
+
 type DNS interface {
 	SetProxy(proxy func(addr string) (net.Conn, error))
 	SetServer(host string)
@@ -20,6 +28,16 @@ type DNS interface {
 	SetSubnet(subnet *net.IPNet)
 	GetSubnet() *net.IPNet
 	Search(domain string) ([]net.IP, error)
+}
+
+func NewDNS(host string, dnsType DNSType) DNS {
+	switch dnsType {
+	case DNSOverHTTPS:
+		return NewDOH(host)
+	case DNSOverTLS:
+		return NewDOT(host)
+	}
+	return NewNormalDNS(host)
 }
 
 type reqType [2]byte
@@ -106,7 +124,7 @@ func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
-			err = fmt.Errorf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
+			err = fmt.Errorf("recovering from panic in resolve DNS(%s) error is: %v", domain, r)
 		}
 	}()
 	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))

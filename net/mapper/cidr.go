@@ -74,12 +74,12 @@ func (c *Cidr) Search(ip string) (isMatch bool, mark interface{}) {
 }
 
 // NewCidrMatchWithTrie <--
-func NewCidrMatch() *Cidr {
-	cidrMatch := new(Cidr)
-	cidrMatch.v4CidrTrie = NewTrieTree()
-	cidrMatch.v6CidrTrie = NewTrieTree()
-	cidrMatch.singleTrie = NewTrieTree()
-	return cidrMatch
+func NewCidrMapper() *Cidr {
+	cidrMapper := new(Cidr)
+	cidrMapper.v4CidrTrie = NewTrieTree()
+	cidrMapper.v6CidrTrie = NewTrieTree()
+	cidrMapper.singleTrie = NewTrieTree()
+	return cidrMapper
 }
 
 /*******************************
