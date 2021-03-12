@@ -20,7 +20,7 @@ func TestDNS(t *testing.T) {
 }
 
 func TestDNS2(t *testing.T) {
-	dns := NewNormalDNS("114.114.114.114:53")
+	dns := NewNormalDNS("114.114.114.114:53", nil)
 	t.Log(dns.Search("baidu.com"))
 	t.Log(dns.Search("google.com"))
 	//t.Log(DNS("223.5.5.5:53", "www.google.com"))

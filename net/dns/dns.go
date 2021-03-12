@@ -30,14 +30,14 @@ type DNS interface {
 	Search(domain string) ([]net.IP, error)
 }
 
-func NewDNS(host string, dnsType DNSType) DNS {
+func NewDNS(host string, dnsType DNSType, subnet *net.IPNet) DNS {
 	switch dnsType {
 	case DNSOverHTTPS:
-		return NewDOH(host)
+		return NewDOH(host, subnet)
 	case DNSOverTLS:
-		return NewDOT(host)
+		return NewDOT(host, subnet)
 	}
-	return NewNormalDNS(host)
+	return NewNormalDNS(host, subnet)
 }
 
 type reqType [2]byte
@@ -73,8 +73,10 @@ type NormalDNS struct {
 	cache  *utils.LRU
 }
 
-func NewNormalDNS(host string) DNS {
-	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
+func NewNormalDNS(host string, subnet *net.IPNet) DNS {
+	if subnet == nil {
+		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
+	}
 	return &NormalDNS{
 		Server: host,
 		Subnet: subnet,

@@ -14,16 +14,9 @@ func TestCtx(t *testing.T) {
 		cancel()
 	}(ctx)
 
-	//_recheck:
 	t.Log("Check")
-	select {
-	case <-ctx.Done():
-		t.Log("finished")
-		//default:
-		//	cancel()
-		//	t.Log("re Check")
-		//	goto _recheck
-	}
+	<-ctx.Done()
+	t.Log("finished")
 }
 
 func TestHash(t *testing.T) {

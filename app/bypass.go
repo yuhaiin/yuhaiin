@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	libDNS "github.com/Asutorufa/yuhaiin/net/dns"
 	mapper "github.com/Asutorufa/yuhaiin/net/mapper"
 )
 
@@ -45,120 +44,59 @@ var mode = map[string]int{
 	"ipdirect": ip | direct,
 }
 
-type dns struct {
-	server string
-	doh    bool
-	proxy  bool
-	Subnet *net.IPNet
-}
-
-type directDNS struct {
-	dns    libDNS.DNS
-	server string
-	doh    bool
-}
-
-type node struct {
-	hash string
-}
-
 //BypassManager .
 type BypassManager struct {
-	bypass bool
-	dns
-	directDNS
-	node
+	bypass   bool
+	nodeHash string
 
-	*shunt
+	lookup func(string) ([]net.IP, error)
+	mapper func(string) (int, mapper.Category)
 
 	Forward       func(string) (net.Conn, error)
 	ForwardPacket func(string) (net.PacketConn, error)
 	proxy         func(string) (net.Conn, error)
-	ProxyPacket   func(string) (net.PacketConn, error)
+	proxyPacket   func(string) (net.PacketConn, error)
 
 	dialer      net.Dialer
 	connManager *connManager
 }
 
-//OptionBypassManager create bypass manager options
-type OptionBypassManager struct {
-	DNS struct {
-		Server string
-		DOH    bool
-		Proxy  bool
-		Subnet *net.IPNet
-	}
-	DirectDNS struct {
-		Server string
-		DOH    bool
-	}
-	BypassPath string
-	Bypass     bool
-}
-
 //NewBypassManager .
-func NewBypassManager(bypassPath string, opt ...func(option *OptionBypassManager)) (*BypassManager, error) {
+func NewBypassManager(bypass bool, mapper func(s string) (int, mapper.Category), lookup func(string) ([]net.IP, error)) (*BypassManager, error) {
+	if mapper == nil {
+		return nil, fmt.Errorf("mapper is nil")
+	}
+
 	m := &BypassManager{
 		dialer: net.Dialer{
 			Timeout: 15 * time.Second,
 		},
-		directDNS: directDNS{libDNS.NewDOH("223.5.5.5"), "223.5.5.5", true},
+		lookup: net.LookupIP,
 		proxy: func(host string) (conn net.Conn, err error) {
 			return net.DialTimeout("tcp", host, 15*time.Second)
 		},
-		ProxyPacket: func(s string) (net.PacketConn, error) {
+		proxyPacket: func(s string) (net.PacketConn, error) {
 			return net.ListenPacket("udp", "")
 		},
-
+		mapper:      mapper,
 		connManager: newConnManager(),
 	}
 
-	option := &OptionBypassManager{}
-	for i := range opt {
-		opt[i](option)
-	}
-
-	var err error
-	m.shunt, err = NewShunt(bypassPath, getDNS(option.DNS.Server, option.DNS.DOH).Search)
-	if err != nil {
-		return nil, fmt.Errorf("set bypass failed: %v", err)
-	}
-
-	m.setMode(option.Bypass)
+	m.SetBypass(bypass)
 
 	return m, nil
 }
 
-//SetAllOption set bypass manager config
-func (m *BypassManager) SetAllOption(opt func(option *OptionBypassManager)) error {
-	if opt == nil {
-		return nil
+func (m *BypassManager) SetLookup(f func(string) ([]net.IP, error)) {
+	if f != nil {
+		m.lookup = f
 	}
-	option := &OptionBypassManager{
-		DNS: struct {
-			Server string
-			DOH    bool
-			Proxy  bool
-			Subnet *net.IPNet
-		}{
-			Server: m.dns.server,
-			DOH:    m.dns.doh,
-			Proxy:  m.dns.proxy,
-			Subnet: m.dns.Subnet,
-		},
-		DirectDNS: struct {
-			Server string
-			DOH    bool
-		}{Server: m.directDNS.server, DOH: m.directDNS.doh},
-		Bypass: m.bypass,
+}
+
+func (m *BypassManager) SetMapper(f func(string) (int, mapper.Category)) {
+	if f != nil {
+		m.mapper = f
 	}
-	opt(option)
-
-	m.setDNS(option.DNS.Server, option.DNS.DOH)
-	m.setDirectDNS(option.DirectDNS.Server, option.DirectDNS.DOH)
-	m.setMode(option.Bypass)
-
-	return m.shunt.SetFile(option.BypassPath)
 }
 
 // https://myexternalip.com/raw
@@ -168,7 +106,7 @@ func (m *BypassManager) dial(network, host string) (conn interface{}, err error)
 		return nil, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
 
-	mark, markType := m.shunt.Get(hostname)
+	mark, markType := m.mapper(hostname)
 
 	if mark == others {
 		fmt.Printf("[%s] -> %s, mode: default(proxy)\n", host, network)
@@ -196,7 +134,7 @@ func (m *BypassManager) dialIP(network, host string, des interface{}) (conn inte
 	}
 
 	if network == "udp" {
-		return m.ProxyPacket(host)
+		return m.proxyPacket(host)
 	}
 	return m.proxy(host)
 _direct:
@@ -220,7 +158,7 @@ func (m *BypassManager) dialDomain(network, hostname, port string, des interface
 	}
 
 	if network == "udp" {
-		return m.ProxyPacket(net.JoinHostPort(hostname, port))
+		return m.proxyPacket(net.JoinHostPort(hostname, port))
 	}
 	return m.proxy(net.JoinHostPort(hostname, port))
 _direct:
@@ -228,7 +166,7 @@ _direct:
 	case "udp":
 		conn, err = net.ListenPacket("udp", "")
 	default:
-		ip, err := m.directDNS.dns.Search(hostname)
+		ip, err := m.lookup(hostname)
 		if err != nil {
 			return nil, fmt.Errorf("dns resolve failed: %v", err)
 		}
@@ -246,17 +184,13 @@ _direct:
 	return
 }
 
-/*
- *     node Control
- */
-
 //SetProxy .
 func (m *BypassManager) SetProxy(
 	conn func(string) (net.Conn, error),
 	packetConn func(string) (net.PacketConn, error),
 	hash string,
 ) {
-	if m.node.hash == hash {
+	if m.nodeHash == hash {
 		return
 	}
 	if conn == nil {
@@ -268,19 +202,15 @@ func (m *BypassManager) SetProxy(
 	}
 
 	if packetConn == nil {
-		m.ProxyPacket = func(s string) (net.PacketConn, error) {
+		m.proxyPacket = func(s string) (net.PacketConn, error) {
 			return net.ListenPacket("udp", "")
 		}
 	} else {
-		m.ProxyPacket = packetConn
+		m.proxyPacket = packetConn
 	}
 
-	m.node.hash = hash
+	m.nodeHash = hash
 }
-
-/**
-*  Set
- */
 
 func (m *BypassManager) setForward(network string) {
 	if network == "udp" {
@@ -308,7 +238,7 @@ func (m *BypassManager) setForward(network string) {
 	}
 }
 
-func (m *BypassManager) setMode(b bool) {
+func (m *BypassManager) SetBypass(b bool) {
 	if m.bypass == b {
 		if m.Forward == nil {
 			m.setForward("tcp")
@@ -323,41 +253,10 @@ func (m *BypassManager) setMode(b bool) {
 	switch b {
 	case false:
 		m.Forward = m.proxy
-		m.ForwardPacket = m.ProxyPacket
+		m.ForwardPacket = m.proxyPacket
 	default:
 		m.setForward("tcp")
 		m.setForward("udp")
-	}
-}
-
-/*
- *              DNS
- */
-func (m *BypassManager) setDNS(server string, doh bool) {
-	if m.dns.server == server && m.dns.doh == doh {
-		return
-	}
-	m.shunt.SetLookup(getDNS(m.dns.server, m.dns.doh).Search)
-}
-
-func getDNS(host string, doh bool) libDNS.DNS {
-	if doh {
-		return libDNS.NewDNS(host, libDNS.DNSOverHTTPS)
-	}
-	return libDNS.NewDNS(host, libDNS.Normal)
-}
-
-func (m *BypassManager) setDirectDNS(server string, doh bool) {
-	if m.directDNS.server == server && m.directDNS.doh == doh {
-		return
-	}
-	m.directDNS.server = server
-	m.directDNS.doh = doh
-
-	if doh {
-		m.directDNS.dns = libDNS.NewDOH(server)
-	} else {
-		m.directDNS.dns = libDNS.NewNormalDNS(server)
 	}
 }
 
@@ -369,14 +268,14 @@ func (m *BypassManager) GetUpload() uint64 {
 	return m.connManager.upload
 }
 
-type shunt struct {
+type Shunt struct {
 	file   string
 	mapper *mapper.Mapper
 }
 
 //NewShunt file: bypass file; lookup: domain resolver, can be nil
-func NewShunt(file string, lookup func(string) ([]net.IP, error)) (*shunt, error) {
-	s := &shunt{
+func NewShunt(file string, lookup func(string) ([]net.IP, error)) (*Shunt, error) {
+	s := &Shunt{
 		file:   file,
 		mapper: mapper.NewMapper(lookup),
 	}
@@ -387,7 +286,7 @@ func NewShunt(file string, lookup func(string) ([]net.IP, error)) (*shunt, error
 	return s, nil
 }
 
-func (s *shunt) RefreshMapping() error {
+func (s *Shunt) RefreshMapping() error {
 	log.Println(s.file)
 	_, err := os.Stat(s.file)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
@@ -432,7 +331,7 @@ func (s *shunt) RefreshMapping() error {
 	return nil
 }
 
-func (s *shunt) SetFile(f string) error {
+func (s *Shunt) SetFile(f string) error {
 	if s.file == f {
 		return nil
 	}
@@ -440,7 +339,7 @@ func (s *shunt) SetFile(f string) error {
 	return s.RefreshMapping()
 }
 
-func (s *shunt) Get(domain string) (int, mapper.Category) {
+func (s *Shunt) Get(domain string) (int, mapper.Category) {
 	mark, markType := s.mapper.Search(domain)
 	x, ok := mark.(int)
 	if !ok {
@@ -449,6 +348,6 @@ func (s *shunt) Get(domain string) (int, mapper.Category) {
 	return x, markType
 }
 
-func (s *shunt) SetLookup(f func(string) ([]net.IP, error)) {
+func (s *Shunt) SetLookup(f func(string) ([]net.IP, error)) {
 	s.mapper.SetLookup(f)
 }
