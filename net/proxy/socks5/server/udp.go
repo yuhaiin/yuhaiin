@@ -6,69 +6,71 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
 
-func Socks5UDPHandle() func(net.PacketConn, net.Addr, []byte, func(string) (net.PacketConn, error)) {
-	return func(conn net.PacketConn, addr net.Addr, bytes []byte, f func(string) (net.PacketConn, error)) {
-		err := udpHandle(conn, addr, bytes, f)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	}
+func Socks5UDPHandle() func([]byte, func(string) (net.PacketConn, error)) ([]byte, error) {
+	return udpHandle
 }
 
-func udpHandle(listener net.PacketConn, remoteAddr net.Addr, b []byte, f func(string) (net.PacketConn, error)) error {
-	if len(b) <= 0 {
-		return fmt.Errorf("normalHandleUDP() -> b byte array is empty")
+func udpHandle(b []byte, f func(string) (net.PacketConn, error)) ([]byte, error) {
+	if len(b) == 0 {
+		return nil, fmt.Errorf("normalHandleUDP() -> b byte array is empty")
 	}
+	/*
+	* progress
+	* 1. listener get client data
+	* 2. get local/proxy packetConn
+	* 3. write client data to local/proxy packetConn
+	* 4. read data from local/proxy packetConn
+	* 5. write data that from remote to client
+	 */
 	host, port, addrSize, err := ResolveAddr(b[3:])
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("resolve socks5 address failed: %v", err)
 	}
+
 	if net.ParseIP(host) == nil {
 		addr, err := net.ResolveIPAddr("ip", host)
 		if err != nil {
-			return fmt.Errorf("resolve IP Addr -> %v", err)
+			return nil, fmt.Errorf("resolve IP Addr failed: %v", err)
 		}
 		host = addr.IP.String()
 	}
 	data := b[3+addrSize:]
 
-	target, err := f(net.JoinHostPort(host, strconv.Itoa(port)))
+	targetPacketConn, err := f(net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
-		return fmt.Errorf("get Target from f -> %v", err)
+		return nil, fmt.Errorf("get packetConn from f failed: %v", err)
 	}
-	defer target.Close()
+	defer targetPacketConn.Close()
+
 	targetUDPAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}
-	_ = target.SetWriteDeadline(time.Now().Add(time.Second * 10))
+	_ = targetPacketConn.SetDeadline(time.Now().Add(time.Second * 10))
+
 	// write data to target and read the response back
-	fmt.Println("UDP write", target.LocalAddr(), "->", targetUDPAddr)
-	if _, err := target.WriteTo(data, targetUDPAddr); err != nil {
-		return fmt.Errorf("write b to Target -> %v", err)
+	fmt.Println("UDP write", targetPacketConn.LocalAddr(), "->", targetUDPAddr)
+	// fmt.Println("write data:", data, "origin:", b)
+	if _, err := targetPacketConn.WriteTo(data, targetUDPAddr); err != nil {
+		return nil, fmt.Errorf("write data to remote packetConn failed: %v", err)
 	}
 
-	respBuff := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(respBuff[:])
+	respBuff := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(respBuff)
+	// copy(respBuff[0:3], []byte{0, 0, 0})
+	copy(respBuff[:3+addrSize], b[:3+addrSize]) // copy addr []byte{0,0,0,addr...}
 
-	copy(respBuff[0:3], []byte{0, 0, 0})
-	copy(respBuff[3:3+addrSize], data)
-	_ = target.SetReadDeadline(time.Now().Add(time.Second * 10))
-	n, addr, err := target.ReadFrom(respBuff[3+addrSize:])
+	n, addr, err := targetPacketConn.ReadFrom(respBuff[3+addrSize:])
 	if err != nil {
-		return fmt.Errorf("read From Target -> %v", err)
+		return nil, fmt.Errorf("read data From remote packetConn failed: %v", err)
 	}
 	fmt.Println("UDP read from", addr.String())
+	// fmt.Println("read data", respBuff[:n])
 
-	_, err = listener.WriteTo(respBuff[:n], remoteAddr)
-	if err != nil {
-		return fmt.Errorf("write to Listener -> %v", err)
-	}
-	return nil
+	return respBuff[:n], nil
 }

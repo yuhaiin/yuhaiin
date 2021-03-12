@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/subscr/common"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
 func TestShadowSocks(t *testing.T) {
@@ -19,7 +19,7 @@ func TestShadowSocks(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	dst, err := common.Base64DByte(s)
+	dst, err := utils.Base64DByte(s)
 	if err != nil {
 		t.Log(err)
 	}

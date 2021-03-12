@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 	shadowsocksr "github.com/v2rayA/shadowsocksR"
 	"github.com/v2rayA/shadowsocksR/obfs"
 	Protocol "github.com/v2rayA/shadowsocksR/protocol"
@@ -29,9 +29,7 @@ type Shadowsocksr struct {
 	protocolParam   string
 	protocolData    interface{}
 
-	cache  []net.IP
-	lookUp func(string) ([]net.IP, error)
-	ip     bool
+	utils.ClientUtil
 }
 
 func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {
@@ -45,11 +43,7 @@ func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protoc
 		protocol:        protocol,
 		protocolParam:   protocolParam,
 
-		cache: []net.IP{},
-		ip:    net.ParseIP(host) != nil,
-		lookUp: func(s string) ([]net.IP, error) {
-			return common.LookupIP(net.DefaultResolver, s)
-		},
+		ClientUtil: utils.NewClientUtil(host, port),
 	}
 	s.protocolData = new(Protocol.AuthData)
 	return s, nil
@@ -60,7 +54,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := s.getTCPConn()
+	c, err := s.GetConn()
 	if err != nil {
 		return nil, fmt.Errorf("[ssr] dial to %s -> %s", s.host, err)
 	}
@@ -121,32 +115,6 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	return ssrconn, nil
 }
 
-func (s *Shadowsocksr) getTCPConn() (net.Conn, error) {
-	if s.ip {
-		return net.Dial("tcp", net.JoinHostPort(s.host, s.port))
-	}
-	conn, err := s.tcpDial()
-	if err == nil {
-		return conn, err
-	}
-	s.cache, _ = s.lookUp(s.host)
-	return s.tcpDial()
-}
-
-func (s *Shadowsocksr) tcpDial() (net.Conn, error) {
-	for index := range s.cache {
-		conn, err := net.Dial("tcp", net.JoinHostPort(s.cache[index].String(), s.port))
-		if err != nil {
-			continue
-		}
-		return conn, nil
-	}
-	return nil, errors.New("shadowsocksr dial failed")
-}
-
-func (s *Shadowsocksr) SetLookup(l func(string) ([]net.IP, error)) {
-	if l == nil {
-		return
-	}
-	s.lookUp = l
+func (s *Shadowsocksr) UDPConn(addr string) (net.PacketConn, error) {
+	return net.ListenPacket("udp", "")
 }

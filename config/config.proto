@@ -5,21 +5,36 @@ option go_package = "github.com/Asutorufa/yuhaiin/config";
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative config.proto
 
 message Setting{
-  bool BlackIcon = 1 [json_name="black_icon"];
-  bool DOH = 2 [json_name="is_dns_over_https"];
-  bool DNSProxy = 3 [json_name="dns_across_proxy"];
-  string DnsServer = 4 [json_name="dnsServer"];
-  string DnsSubNet = 5 [json_name="dns_sub_net"];
-  bool Bypass =6 [json_name="bypass"];
-  string HTTPHost = 7 [json_name="httpProxyAddress"];
-  string Socks5Host = 8 [json_name="socks5ProxyAddress"];
-  string RedirHost = 9 [json_name="redir_proxy_address"];
-  string BypassFile = 10 [json_name="bypassFile"];
-  string SsrPath = 11 [json_name="ssrPath"];
-  DirectDNS DirectDNS = 12[json_name="direct_dns"];
+  //TODO all json lower case
+  SystemProxy SystemProxy = 1 [json_name="system_proxy"];
+  Bypass Bypass = 2 [json_name="bypass"];
+  Proxy Proxy = 3 [json_name="proxy"];
+  DNS DNS = 4 [json_name="dns"];
+  DNS LocalDNS = 5[json_name="local_dns"];
+
+  string SsrPath = 11 [json_name="ssr_path",deprecated=true];
 }
 
-message DirectDNS{
+message SystemProxy {
+  bool Enabled = 1 [json_name="enabled"];
+  bool HTTP = 2 [json_name="http"];
+  bool Socks5 = 3 [json_name="socks5"];
+}
+
+message Bypass{
+  bool Enabled = 1 [json_name="enabled"];
+  string BypassFile = 2 [json_name="bypass_file"];
+}
+
+message DNS{
   string Host = 1 [json_name="host"];
   bool DOH = 2 [json_name="doh"];
+  bool Proxy = 3 [json_name="proxy"];
+  string subnet = 4 [json_name="subnet"];
+}
+
+message Proxy {
+  string HTTP = 1 [json_name="http"];
+  string Socks5 = 2 [json_name="socks5"];
+  string Redir = 3 [json_name="redir"];
 }

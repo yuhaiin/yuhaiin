@@ -2,18 +2,16 @@ package httpserver
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type Option struct {
@@ -38,46 +36,65 @@ func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) 
 	/*
 		use golang http
 	*/
+	defer src.Close()
 	inBoundReader := bufio.NewReader(src)
+
+_start:
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
-		if err != io.EOF {
-			log.Println(err)
+		return
+	}
+
+	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
+		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
+
+	err = verifyUserPass(user, key, src, req)
+	if err != nil {
+		log.Printf("http verify user pass failed: %v\n", err)
+		if keepAlive {
+			goto _start
 		}
 		return
 	}
 
-	err = verifyUserPass(user, key, src, req)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	host := bytes.NewBufferString(req.Host)
+	host := req.Host
 	if req.URL.Port() == "" {
-		host.WriteString(":80")
+		host = net.JoinHostPort(host, "80")
 	}
 
-	dstc, err := dst(host.String())
+	dstc, err := dst(host)
 	if err != nil {
-		fmt.Println(err)
-		//_, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		log.Printf("get remote conn failed: %v\n", err)
+		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		_, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
-		_, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
 		return
 	}
-	switch dstc.(type) {
-	case *net.TCPConn:
-		_ = dstc.(*net.TCPConn).SetKeepAlive(true)
+
+	if x, ok := dstc.(*net.TCPConn); ok {
+		x.SetKeepAlive(true)
 	}
-	defer dstc.Close()
 
 	if req.Method == http.MethodConnect {
 		connect(src, dstc)
 		return
 	}
 
-	normal(src, dstc, req, inBoundReader)
+	// src.SetDeadline(time.Now().Add(time.Second * 8))
+	// dstc.SetDeadline(time.Now().Add(time.Second * 8))
+
+	err = normal(src, dstc, req, keepAlive)
+	if err != nil {
+		// log.Printf("normal failed: %v\n", err)
+		return
+	}
+
+	if keepAlive {
+		goto _start
+	}
 }
 
 func verifyUserPass(user, key string, client net.Conn, req *http.Request) error {
@@ -117,49 +134,43 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 }
 
 func connect(client net.Conn, dst net.Conn) {
+	defer dst.Close()
 	_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	common.Forward(client, dst)
+	utils.Forward(dst, client)
 }
 
-func normal(src, dst net.Conn, req *http.Request, in *bufio.Reader) {
-	outboundReader := bufio.NewReader(dst)
-	for {
-		keepAlive := modifyRequest(req)
-		err := req.Write(dst)
-		if err != nil {
-			break
-		}
-		resp, err := http.ReadResponse(outboundReader, req)
-		if err != nil {
-			break
-		}
-		err = modifyResponse(resp, keepAlive)
-		if err != nil {
-			break
-		}
-		err = resp.Write(src)
-		if err != nil || resp.Close {
-			break
-		}
-		// from clash, thanks so much, if not have the code, the ReadRequest will error
-		err = common.SingleForward(resp.Body, src)
-		if err != nil && err != io.EOF {
-			break
-		}
-		req, err = http.ReadRequest(in)
-		if err != nil {
-			break
-		}
+func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
+	defer dst.Close()
+	modifyRequest(req)
+	err := req.Write(dst)
+	if err != nil {
+		return fmt.Errorf("req write failed: %v", err)
 	}
+
+	resp, err := http.ReadResponse(bufio.NewReader(dst), req)
+	if err != nil {
+		return fmt.Errorf("http read response failed: %v", err)
+	}
+
+	err = modifyResponse(resp, keepAlive)
+	if err != nil {
+		return fmt.Errorf("modify response failed: %v", err)
+	}
+
+	err = resp.Write(src)
+	if err != nil {
+		return fmt.Errorf("resp write failed: %v", err)
+	}
+	// _ = utils.SingleForward(resp.Body, src)
+
+	return nil
 }
 
-func modifyRequest(req *http.Request) (keepAlive bool) {
-	keepAlive = strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
-		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
+func modifyRequest(req *http.Request) {
 	if len(req.URL.Host) > 0 {
 		req.Host = req.URL.Host
 	}
@@ -180,17 +191,16 @@ func modifyResponse(resp *http.Response, keepAlive bool) error {
 	te := ""
 	if len(resp.TransferEncoding) > 0 {
 		if len(resp.TransferEncoding) > 1 {
-			//ErrUnsupportedTransferEncoding
+			// ErrUnsupportedTransferEncoding
 			return errors.New("ErrUnsupportedTransferEncoding")
 		}
 		te = resp.TransferEncoding[0]
 	}
+	resp.Close = true
 	if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
 		resp.Header.Set("Connection", "Keep-Alive")
-		//resp.Header.Set("Keep-Alive", "timeout=4")
+		resp.Header.Set("Keep-Alive", "timeout=4")
 		resp.Close = false
-	} else {
-		resp.Close = true
 	}
 	return nil
 }

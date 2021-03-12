@@ -6,8 +6,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
 	socks5client "github.com/Asutorufa/yuhaiin/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type Option struct {
@@ -59,8 +59,8 @@ func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.
 
 func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error)) {
 	var err error
-	b := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b)
+	b := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(b)
 
 	//socks5 first handshake
 	_, err = client.Read(b[:])
@@ -99,7 +99,7 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
 
 	// hand shake successful
-	common.Forward(client, server)
+	utils.Forward(client, server)
 }
 
 func firstHand(client net.Conn, ver, nMethod, method byte, user, key string) error {
@@ -120,8 +120,8 @@ func firstHand(client net.Conn, ver, nMethod, method byte, user, key string) err
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
-	b := common.BuffPool.Get().([]byte)
-	defer common.BuffPool.Put(b)
+	b := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(b)
 	// get username and password
 	_, err := client.Read(b[:])
 	if err != nil {

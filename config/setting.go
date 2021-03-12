@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -45,55 +46,61 @@ _end:
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON() (*Setting, error) {
 	pa := &Setting{
-		BypassFile: path.Join(Path, "yuhaiin.conf"),
-		DnsServer:  "cloudflare-dns.com",
-		DnsSubNet:  "0.0.0.0/32",
-		Bypass:     true,
-		HTTPHost:   "127.0.0.1:8188",
-		Socks5Host: "127.0.0.1:1080",
-		RedirHost:  "127.0.0.1:8088",
-		DOH:        true,
-		DNSProxy:   false,
-		SsrPath:    "",
-		BlackIcon:  false,
-		DirectDNS: &DirectDNS{
+		SsrPath: "",
+		SystemProxy: &SystemProxy{
+			Enabled: true,
+			HTTP:    true,
+			Socks5:  false,
+			// linux system set socks5 will make firfox websocket can't connect
+			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
+		},
+		Bypass: &Bypass{
+			Enabled:    true,
+			BypassFile: path.Join(Path, "yuhaiin.conf"),
+		},
+		Proxy: &Proxy{
+			HTTP:   "127.0.0.1:8188",
+			Socks5: "127.0.0.1:1080",
+			Redir:  "127.0.0.1:8088",
+		},
+		DNS: &DNS{
+			Host:   "cloudflare-dns.com",
+			DOH:    true,
+			Proxy:  false,
+			Subnet: "0.0.0.0/32",
+		},
+		LocalDNS: &DNS{
 			Host: "223.5.5.5",
 			DOH:  true,
 		},
 	}
-	file, err := os.Open(ConPath)
+	data, err := ioutil.ReadFile(ConPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return pa, SettingEnCodeJSON(pa)
 		}
-		return pa, err
+		return pa, fmt.Errorf("read config file failed: %v", err)
 	}
-	defer file.Close()
-	if jsonpb.Unmarshal(file, pa) != nil {
-		log.Println(err)
-	}
-	return pa, nil
+	err = jsonpb.UnmarshalString(string(data), pa)
+	return pa, err
 }
 
 // SettingEnCodeJSON encode setting struct to json
 func SettingEnCodeJSON(pa *Setting) error {
-_retry:
-	file, err := os.OpenFile(ConPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	_, err := os.Stat(ConPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(path.Dir(ConPath), os.ModePerm)
 			if err != nil {
 				return fmt.Errorf("SettingEncodeJson():MkdirAll -> %v", err)
 			}
-			goto _retry
+		} else {
+			return fmt.Errorf("SettingEncodeJson -> %v", err)
 		}
-		return fmt.Errorf("SettingEncodeJson -> %v", err)
 	}
-	defer file.Close()
-	m := jsonpb.Marshaler{Indent: "\t"}
-	err = m.Marshal(file, pa)
+	data, err := (&jsonpb.Marshaler{Indent: "\t"}).MarshalToString(pa)
 	if err != nil {
 		return fmt.Errorf("marshal() -> %v", err)
 	}
-	return err
+	return ioutil.WriteFile(ConPath, []byte(data), os.ModePerm)
 }

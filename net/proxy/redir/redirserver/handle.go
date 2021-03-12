@@ -5,8 +5,8 @@ package redirserver
 import (
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/proxy/redir/nfutil"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
@@ -26,6 +26,6 @@ func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
 		_ = rsp.(*net.TCPConn).SetKeepAlive(true)
 	}
 	defer rsp.Close()
-	common.Forward(req, rsp)
+	utils.Forward(req, rsp)
 	return nil
 }

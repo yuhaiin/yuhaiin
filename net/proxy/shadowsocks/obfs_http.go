@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 /*
@@ -38,15 +38,15 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 	}
 
 	if ho.firstResponse {
-		buf := common.BuffPool.Get().([]byte)
+		buf := utils.BuffPool.Get().([]byte)
 		n, err := ho.Conn.Read(buf)
 		if err != nil {
-			common.BuffPool.Put(buf[:cap(buf)])
+			utils.BuffPool.Put(buf[:cap(buf)])
 			return 0, err
 		}
 		idx := bytes.Index(buf[:n], []byte("\r\n\r\n"))
 		if idx == -1 {
-			common.BuffPool.Put(buf[:cap(buf)])
+			utils.BuffPool.Put(buf[:cap(buf)])
 			return 0, io.EOF
 		}
 		ho.firstResponse = false
@@ -56,7 +56,7 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 			ho.buf = buf[:idx+4+length]
 			ho.offset = idx + 4 + n
 		} else {
-			common.BuffPool.Put(buf[:cap(buf)])
+			utils.BuffPool.Put(buf[:cap(buf)])
 		}
 		return n, nil
 	}

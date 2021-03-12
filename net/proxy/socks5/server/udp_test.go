@@ -37,12 +37,4 @@ func TestServer_UDP2(t *testing.T) { // make a writer and write to dst
 	//	t.Error(err)
 	//}
 	//t.Log(b)
-
-}
-
-func TestUDP(t *testing.T) {
-	// 103 114 111 117 112 99 108 105 101 110 116 46 113 113 46 99 111 109
-	t.Log(string([]byte{103, 114, 111, 117, 112, 99, 108, 105, 101, 110, 116, 46, 113, 113, 46, 99, 111, 109}))
-	// 114 115 50 46 113 113 46 99 111 109
-	t.Log(string([]byte{114, 115, 50, 46, 113, 113, 46, 99, 111, 109}))
 }

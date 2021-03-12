@@ -18,14 +18,14 @@ type websocketConn struct {
 	reader io.Reader
 }
 
-func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (net.Conn, error) {
+func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable bool) (net.Conn, error) {
 	x := &websocket.Dialer{
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return conn, nil
 		},
 		ReadBufferSize:   4 * 1024,
 		WriteBufferSize:  4 * 1024,
-		HandshakeTimeout: time.Second * 8,
+		HandshakeTimeout: time.Second * 6,
 	}
 
 	protocol := "ws"
@@ -34,9 +34,9 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 		//tls
 		protocol = "wss"
 		x.TLSClientConfig = &tls.Config{
-			ServerName:         host,
-			InsecureSkipVerify: false,
-			ClientSessionCache: tls.NewLRUClientSessionCache(100),
+			ServerName: host,
+			// InsecureSkipVerify: true,
+			ClientSessionCache: tlsSessionCache,
 		}
 
 		if certPath != "" {
@@ -53,11 +53,16 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 			// return nil, err
 			// }
 
-			x.TLSClientConfig.Certificates = append(
-				x.TLSClientConfig.Certificates,
-				tls.Certificate{
+			x.TLSClientConfig.Certificates = []tls.Certificate{
+				{
 					Certificate: [][]byte{cert},
-				})
+				},
+			}
+			// x.TLSClientConfig.Certificates = append(
+			// x.TLSClientConfig.Certificates,
+			// tls.Certificate{
+			// Certificate: [][]byte{cert},
+			// })
 		}
 	}
 
@@ -81,6 +86,8 @@ func WebsocketDial(conn net.Conn, host, path, certPath string, tlsEnable bool) (
 
 }
 
+var tlsSessionCache = tls.NewLRUClientSessionCache(128)
+
 func getNormalizedPath(path string) string {
 	if path == "" {
 		return "/"
@@ -99,7 +106,7 @@ func (w *websocketConn) Read(b []byte) (int, error) {
 		}
 
 		nBytes, err := reader.Read(b)
-		if errors.Is(err, io.EOF) {
+		if err != nil && errors.Is(err, io.EOF) {
 			w.reader = nil
 			continue
 		}

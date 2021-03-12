@@ -3,8 +3,8 @@ package match
 import (
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/net/common"
 	"github.com/Asutorufa/yuhaiin/net/dns"
+	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
 type Match struct {
@@ -13,7 +13,7 @@ type Match struct {
 	cidr   *Cidr
 	domain *Domain
 	doh    bool
-	cache  *common.CacheExtend
+	cache  *utils.LRU
 }
 
 type Category int
@@ -66,7 +66,7 @@ func (x *Match) Insert(str string, mark interface{}) error {
 		return nil
 	}
 	if _, _, err := net.ParseCIDR(str); err != nil {
-		x.domain.InsertFlip(str, mark)
+		x.domain.Insert(str, mark)
 		return nil
 	}
 
@@ -77,7 +77,7 @@ func (x *Match) Search(str string) Des {
 	d := Des{
 		Category: DOMAIN,
 	}
-	if des, _ := x.cache.Get(str); des != nil {
+	if des := x.cache.Load(str); des != nil {
 		return des.(Des)
 	}
 
@@ -87,7 +87,7 @@ func (x *Match) Search(str string) Des {
 		goto _end
 	}
 
-	_, d.Des = x.domain.SearchFlip(str)
+	_, d.Des = x.domain.Search(str)
 	if d.Des != nil || x.DNS == nil {
 		goto _end
 	}
@@ -105,7 +105,7 @@ _end:
 func (x *Match) Clear() {
 	x.cidr = NewCidrMatch()
 	x.domain = NewDomainMatch()
-	x.cache = common.NewCacheExtend(0)
+	x.cache = utils.NewLru(150, 0)
 }
 
 type OptionArgument struct {
@@ -120,7 +120,7 @@ func NewMatch(option ...OptionMatch) (matcher *Match) {
 	m := &Match{
 		cidr:   NewCidrMatch(),
 		domain: NewDomainMatch(),
-		cache:  common.NewCacheExtend(0),
+		cache:  utils.NewLru(150, 0),
 	}
 	o := &OptionArgument{}
 	for index := range option {
