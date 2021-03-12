@@ -17,8 +17,10 @@ type DOT struct {
 	sessionCache tls.ClientSessionCache
 }
 
-func NewDOT(host string) *DOT {
-	_, subnet, _ := net.ParseCIDR("0.0.0.0/0")
+func NewDOT(host string, subnet *net.IPNet) *DOT {
+	if subnet == nil {
+		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
+	}
 	servername, _, _ := net.SplitHostPort(host)
 	return &DOT{
 		host:         host,

@@ -14,7 +14,7 @@ func TestDOH(t *testing.T) {
 	// d := NewDOH("1.0.0.1")
 	//d := NewDOH("223.5.5.5")
 	// d := NewDOH("doh.pub")
-	d := NewDOH("101.6.6.6:8443")
+	d := NewDOH("101.6.6.6:8443", nil)
 	//d := NewDOH("doh.360.cn")
 	// d := NewDOH("doh.dns.sb")
 	// d := NewDOH("doh.opendns.com")
