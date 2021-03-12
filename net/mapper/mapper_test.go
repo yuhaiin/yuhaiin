@@ -10,7 +10,7 @@ func TestNewMatcher(t *testing.T) {
 	//dnsFunc := func(domain string) (IP []net.IP, s error) {
 	//	return dns.DNS("119.29.29.29:53", domain)
 	//}
-	matcher := NewMapper(dns.NewDOH("223.5.5.5").Search)
+	matcher := NewMapper(dns.NewDOH("223.5.5.5", nil).Search)
 	if err := matcher.Insert("*.baidu.com", "test_baidu"); err != nil {
 		t.Error(err)
 	}

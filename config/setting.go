@@ -9,7 +9,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var (
@@ -81,7 +81,7 @@ func SettingDecodeJSON() (*Setting, error) {
 		}
 		return pa, fmt.Errorf("read config file failed: %v", err)
 	}
-	err = jsonpb.UnmarshalString(string(data), pa)
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
 	return pa, err
 }
 
@@ -98,7 +98,7 @@ func SettingEnCodeJSON(pa *Setting) error {
 			return fmt.Errorf("SettingEncodeJson -> %v", err)
 		}
 	}
-	data, err := (&jsonpb.Marshaler{Indent: "\t"}).MarshalToString(pa)
+	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t"}.Marshal(pa)
 	if err != nil {
 		return fmt.Errorf("marshal() -> %v", err)
 	}

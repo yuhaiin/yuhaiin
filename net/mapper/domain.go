@@ -69,10 +69,10 @@ func (d *Domain) search(root *domainNode, domain []string) (bool, interface{}) {
 		_, ok := root.child[domain[i]] // use index to get data quicker than new var
 		if ok {
 			first = false
-			if root.child[domain[i]].wildcard == true {
+			if root.child[domain[i]].wildcard {
 				return true, root.child[domain[i]].mark
 			}
-			if root.child[domain[i]].last == true && i == 0 {
+			if root.child[domain[i]].last && i == 0 {
 				return true, root.child[domain[i]].mark
 			}
 			root = root.child[domain[i]]

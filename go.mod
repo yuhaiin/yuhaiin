@@ -9,5 +9,6 @@ require (
 	github.com/shadowsocks/go-shadowsocks2 v0.1.3
 	github.com/v2rayA/shadowsocksR v1.0.2
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
-	google.golang.org/grpc v1.30.0
+	google.golang.org/grpc v1.36.0
+	google.golang.org/protobuf v1.25.0
 )

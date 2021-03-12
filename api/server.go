@@ -11,8 +11,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/app"
 	"github.com/Asutorufa/yuhaiin/config"
 	"github.com/Asutorufa/yuhaiin/net/utils"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/wrappers"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Process struct {
@@ -34,46 +34,46 @@ func (s *Process) Host() string {
 	return s.m.Host()
 }
 
-func (s *Process) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *Process) CreateLockFile(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	if !s.m.lockfile() {
-		return &empty.Empty{}, errors.New("create lock file false")
+		return &emptypb.Empty{}, errors.New("create lock file false")
 	}
 
 	if !s.m.initApp() {
-		return &empty.Empty{}, errors.New("init Process Failed")
+		return &emptypb.Empty{}, errors.New("init Process Failed")
 	}
 
 	s.m.connect()
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *Process) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, nil
+func (s *Process) ProcessInit(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
 }
 
-func (s *Process) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
+func (s *Process) GetRunningHost(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
 	host, err := app.ReadLockFile()
 	if err != nil {
-		return &wrappers.StringValue{}, err
+		return &wrapperspb.StringValue{}, err
 	}
-	return &wrappers.StringValue{Value: host}, nil
+	return &wrapperspb.StringValue{Value: host}, nil
 }
 
-func (s *Process) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *Process) ClientOn(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	if s.singleInstance != nil {
 		select {
 		case <-s.singleInstance:
 			break
 		default:
 			s.message <- "on"
-			return &empty.Empty{}, nil
+			return &emptypb.Empty{}, nil
 		}
 	}
-	return &empty.Empty{}, errors.New("no client")
+	return &emptypb.Empty{}, errors.New("no client")
 }
 
-func (s *Process) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, app.LockFileClose()
+func (s *Process) ProcessExit(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, app.LockFileClose()
 }
 
 func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
@@ -93,7 +93,7 @@ func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
 	for {
 		select {
 		case m := <-s.message:
-			err := srv.Send(&wrappers.StringValue{Value: m})
+			err := srv.Send(&wrapperspb.StringValue{Value: m})
 			if err != nil {
 				log.Println(err)
 			}
@@ -109,13 +109,13 @@ func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
 	}
 }
 
-func (s *Process) GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error) {
-	return &wrappers.UInt32Value{Value: uint32(os.Getpid())}, nil
+func (s *Process) GetKernelPid(context.Context, *emptypb.Empty) (*wrapperspb.UInt32Value, error) {
+	return &wrapperspb.UInt32Value{Value: uint32(os.Getpid())}, nil
 }
 
-func (s *Process) StopKernel(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (s *Process) StopKernel(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	defer os.Exit(0)
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 type Config struct {
@@ -126,20 +126,20 @@ func NewConfig() *Config {
 	return &Config{}
 }
 
-func (c *Config) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
+func (c *Config) GetConfig(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	conf, err := app.GetConfig()
 	return conf, err
 }
 
-func (c *Config) SetConfig(_ context.Context, req *config.Setting) (*empty.Empty, error) {
-	return &empty.Empty{}, app.SetConFig(req)
+func (c *Config) SetConfig(_ context.Context, req *config.Setting) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, app.SetConFig(req)
 }
 
-func (c *Config) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, app.RefreshMapping()
+func (c *Config) ReimportRule(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, app.RefreshMapping()
 }
 
-func (c *Config) GetRate(_ *empty.Empty, srv Config_GetRateServer) error {
+func (c *Config) GetRate(_ *emptypb.Empty, srv Config_GetRateServer) error {
 	fmt.Println("Start Send Flow Message to Client.")
 	//TODO deprecated string
 	da, ua := app.GetDownload(), app.GetUpload()
@@ -178,7 +178,7 @@ func NewNode() *Node {
 	return &Node{}
 }
 
-func (n *Node) GetNodes(context.Context, *empty.Empty) (*Nodes, error) {
+func (n *Node) GetNodes(context.Context, *emptypb.Empty) (*Nodes, error) {
 	nodes := &Nodes{Value: map[string]*AllGroupOrNode{}}
 	nods := app.GetANodes()
 	for key := range nods {
@@ -187,44 +187,44 @@ func (n *Node) GetNodes(context.Context, *empty.Empty) (*Nodes, error) {
 	return nodes, nil
 }
 
-func (n *Node) GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
+func (n *Node) GetGroup(context.Context, *emptypb.Empty) (*AllGroupOrNode, error) {
 	groups, err := app.GetGroups()
 	return &AllGroupOrNode{Value: groups}, err
 }
 
-func (n *Node) GetNode(_ context.Context, req *wrappers.StringValue) (*AllGroupOrNode, error) {
+func (n *Node) GetNode(_ context.Context, req *wrapperspb.StringValue) (*AllGroupOrNode, error) {
 	nodes, err := app.GetNodes(req.Value)
 	return &AllGroupOrNode{Value: nodes}, err
 }
 
-func (n *Node) GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode, error) {
+func (n *Node) GetNowGroupAndName(context.Context, *emptypb.Empty) (*GroupAndNode, error) {
 	node, group := app.GetNNodeAndNGroup()
 	return &GroupAndNode{Node: node, Group: group}, nil
 }
 
-func (n *Node) AddNode(_ context.Context, req *NodeMap) (*empty.Empty, error) {
+func (n *Node) AddNode(_ context.Context, req *NodeMap) (*emptypb.Empty, error) {
 	// TODO add node
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (n *Node) ModifyNode(context.Context, *NodeMap) (*empty.Empty, error) {
-	return &empty.Empty{}, nil
+func (n *Node) ModifyNode(context.Context, *NodeMap) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
 }
 
-func (n *Node) DeleteNode(_ context.Context, req *GroupAndNode) (*empty.Empty, error) {
-	return &empty.Empty{}, app.DeleteNode(req.Group, req.Node)
+func (n *Node) DeleteNode(_ context.Context, req *GroupAndNode) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, app.DeleteNode(req.Group, req.Node)
 }
 
-func (n *Node) ChangeNowNode(_ context.Context, req *GroupAndNode) (*empty.Empty, error) {
-	return &empty.Empty{}, app.ChangeNNode(req.Group, req.Node)
+func (n *Node) ChangeNowNode(_ context.Context, req *GroupAndNode) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, app.ChangeNNode(req.Group, req.Node)
 }
 
-func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrappers.StringValue, error) {
+func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrapperspb.StringValue, error) {
 	latency, err := app.Latency(req.Group, req.Node)
 	if err != nil {
 		return nil, err
 	}
-	return &wrappers.StringValue{Value: latency.String()}, err
+	return &wrapperspb.StringValue{Value: latency.String()}, err
 }
 
 type Subscribe struct {
@@ -235,11 +235,11 @@ func NewSubscribe() *Subscribe {
 	return &Subscribe{}
 }
 
-func (s *Subscribe) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return &empty.Empty{}, app.UpdateSub()
+func (s *Subscribe) UpdateSub(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, app.UpdateSub()
 }
 
-func (s *Subscribe) GetSubLinks(context.Context, *empty.Empty) (*Links, error) {
+func (s *Subscribe) GetSubLinks(context.Context, *emptypb.Empty) (*Links, error) {
 	links, err := app.GetLinks()
 	if err != nil {
 		return nil, err
@@ -260,13 +260,13 @@ func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
 	if err != nil {
 		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
 	}
-	return s.GetSubLinks(ctx, &empty.Empty{})
+	return s.GetSubLinks(ctx, &emptypb.Empty{})
 }
 
-func (s *Subscribe) DeleteSubLink(ctx context.Context, req *wrappers.StringValue) (*Links, error) {
+func (s *Subscribe) DeleteSubLink(ctx context.Context, req *wrapperspb.StringValue) (*Links, error) {
 	err := app.DeleteLink(req.Value)
 	if err != nil {
 		return nil, err
 	}
-	return s.GetSubLinks(ctx, &empty.Empty{})
+	return s.GetSubLinks(ctx, &emptypb.Empty{})
 }
