@@ -10,7 +10,6 @@ import (
 
 // Cidr cidr matcher
 type Cidr struct {
-	maskSize   int
 	v4CidrTrie Trie
 	v6CidrTrie Trie
 	singleTrie Trie
@@ -137,7 +136,7 @@ func (t *Trie) Search(str string) (isMatch bool, mark interface{}) {
 		if nodeTemp == nil {
 			return false, nil
 		}
-		if nodeTemp.isLast == true {
+		if nodeTemp.isLast {
 			return true, nodeTemp.mark
 		}
 	}
