@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
+	"strconv"
 	"strings"
 
 	libVmess "github.com/Asutorufa/yuhaiin/net/proxy/vmess"
@@ -54,8 +56,8 @@ func ParseLink(str []byte, group string) (*utils.Point, error) {
 	s = strings.ReplaceAll(s, "vmess://", "")
 	data := utils.Base64DStr(s)
 
-	vmess := &JSON{}
-	if err := json.Unmarshal([]byte(data), vmess); err != nil {
+	vmess, err := unmarshalJSON([]byte(data))
+	if err != nil {
 		return nil, fmt.Errorf("unmarshal failed: %v\nstr: %s\nRaw: %s", err, data, str)
 	}
 
@@ -130,4 +132,62 @@ func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (ne
 	}
 
 	return v.Conn, v.UDPConn, nil
+}
+
+type decodeJSON struct {
+	Address    string          `json:"add"`
+	Port       json.RawMessage `json:"port"`
+	UUID       string          `json:"id"`
+	AlterID    json.RawMessage `json:"aid"`
+	Ps         string          `json:"ps"`
+	Net        string          `json:"net"`
+	Type       string          `json:"type"`
+	TLS        string          `json:"tls"`
+	Host       string          `json:"host"`
+	Path       string          `json:"path"`
+	V          string          `json:"v"`
+	VerifyCert bool            `json:"verify_cert"`
+	Class      int             `json:"class"`
+}
+
+func unmarshalJSON(data []byte) (*JSON, error) {
+	s := &decodeJSON{}
+	if err := json.Unmarshal(data, s); err != nil {
+		return nil, fmt.Errorf("unmarshal failed: %v\nstr: %s\n", err, data)
+	}
+	return &JSON{
+		Address:    s.Address,
+		Port:       parseUint32(s.Port),
+		UUID:       s.UUID,
+		AlterID:    parseUint32(s.AlterID),
+		Ps:         s.Ps,
+		Net:        s.Net,
+		Type:       s.Type,
+		TLS:        s.TLS,
+		Host:       s.Host,
+		Path:       s.Path,
+		V:          s.V,
+		VerifyCert: s.VerifyCert,
+		Class:      s.Class,
+	}, nil
+}
+
+func parseUint32(s json.RawMessage) uint32 {
+	var x uint32
+	err := json.Unmarshal(s, &x)
+	if err != nil {
+		var y string
+		err = json.Unmarshal(s, &y)
+		if err != nil {
+			log.Printf("unmarshal port failed: %v", err)
+			return 0
+		}
+		z, err := strconv.ParseUint(y, 10, 32)
+		if err != nil {
+			log.Printf("parse port failed: %v", err)
+			return 0
+		}
+		return uint32(z)
+	}
+	return x
 }
