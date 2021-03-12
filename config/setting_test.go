@@ -6,7 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestSettingDecodeJSON(t *testing.T) {
@@ -23,27 +23,48 @@ func TestSettingDecodeJSON(t *testing.T) {
 }
 
 func TestJsonPb(t *testing.T) {
-	m := jsonpb.Marshaler{Indent: "\t"}
-	s := &Setting{}
-	data, err := m.MarshalToString(s)
+	s := &Setting{
+		SsrPath: "",
+		SystemProxy: &SystemProxy{
+			Enabled: true,
+			HTTP:    true,
+			Socks5:  false,
+		},
+		Bypass: &Bypass{
+			Enabled:    true,
+			BypassFile: path.Join(Path, "yuhaiin.conf"),
+		},
+		Proxy: &Proxy{
+			HTTP:   "127.0.0.1:8188",
+			Socks5: "127.0.0.1:1080",
+			Redir:  "127.0.0.1:8088",
+		},
+		DNS: &DNS{
+			Host:   "cloudflare-dns.com",
+			DOH:    true,
+			Proxy:  false,
+			Subnet: "0.0.0.0/32",
+		},
+		LocalDNS: &DNS{
+			Host: "223.5.5.5",
+			DOH:  true,
+		},
+	}
+	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t"}.Marshal(s)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(data)
+	t.Log(string(data))
 
 	s2 := &Setting{}
-	err = jsonpb.UnmarshalString(data, s2)
+	err = protojson.Unmarshal([]byte(data), s2)
 	if err != nil {
 		t.Error(err)
 	}
 	t.Log(s2, s2.Proxy)
 
 	s3 := &Setting{}
-	err = jsonpb.UnmarshalString(` {
-        	"is_dns_over_https": true,
-			"sss":"sss",
-        	"dnsServer": "127.0.0.1:1080"
-        }`, s3)
+	err = protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}.Unmarshal([]byte(`{"system_proxy":{"enabled":true,"http":true,"unknowTest":""}}`), s3)
 	if err != nil {
 		t.Log(err)
 	}

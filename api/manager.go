@@ -44,7 +44,7 @@ func (m *manager) connect() {
 
 func sigh() {
 	go func() {
-		signChannel := make(chan os.Signal)
+		signChannel := make(chan os.Signal, 5)
 		signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 		for s := range signChannel {
 			switch s {
