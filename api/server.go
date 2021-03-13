@@ -23,9 +23,9 @@ type Process struct {
 	m              *manager
 }
 
-func NewProcess() (*Process, error) {
+func NewProcess(e *app.Entrance) (*Process, error) {
 	p := &Process{}
-	p.m = newManager()
+	p.m = newManager(e)
 	err := p.m.Start()
 	return p, err
 }
@@ -120,36 +120,39 @@ func (s *Process) StopKernel(context.Context, *emptypb.Empty) (*emptypb.Empty, e
 
 type Config struct {
 	UnimplementedConfigServer
+	entrance *app.Entrance
 }
 
-func NewConfig() *Config {
-	return &Config{}
+func NewConfig(e *app.Entrance) *Config {
+	return &Config{
+		entrance: e,
+	}
 }
 
 func (c *Config) GetConfig(context.Context, *emptypb.Empty) (*config.Setting, error) {
-	conf, err := app.GetConfig()
+	conf, err := c.entrance.GetConfig()
 	return conf, err
 }
 
 func (c *Config) SetConfig(_ context.Context, req *config.Setting) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, app.SetConFig(req)
+	return &emptypb.Empty{}, c.entrance.SetConFig(req)
 }
 
 func (c *Config) ReimportRule(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, app.RefreshMapping()
+	return &emptypb.Empty{}, c.entrance.RefreshMapping()
 }
 
 func (c *Config) GetRate(_ *emptypb.Empty, srv Config_GetRateServer) error {
 	fmt.Println("Start Send Flow Message to Client.")
 	//TODO deprecated string
-	da, ua := app.GetDownload(), app.GetUpload()
+	da, ua := c.entrance.GetDownload(), c.entrance.GetUpload()
 	var dr string
 	var ur string
 	ctx := srv.Context()
 	for {
-		dr = utils.ReducedUnitStr(float64(app.GetDownload()-da)) + "/S"
-		ur = utils.ReducedUnitStr(float64(app.GetUpload()-ua)) + "/S"
-		da, ua = app.GetDownload(), app.GetUpload()
+		dr = utils.ReducedUnitStr(float64(c.entrance.GetDownload()-da)) + "/S"
+		ur = utils.ReducedUnitStr(float64(c.entrance.GetUpload()-ua)) + "/S"
+		da, ua = c.entrance.GetDownload(), c.entrance.GetUpload()
 
 		err := srv.Send(&DaUaDrUr{
 			Download: utils.ReducedUnitStr(float64(da)),
@@ -172,15 +175,18 @@ func (c *Config) GetRate(_ *emptypb.Empty, srv Config_GetRateServer) error {
 
 type Node struct {
 	UnimplementedNodeServer
+	entrance *app.Entrance
 }
 
-func NewNode() *Node {
-	return &Node{}
+func NewNode(e *app.Entrance) *Node {
+	return &Node{
+		entrance: e,
+	}
 }
 
 func (n *Node) GetNodes(context.Context, *emptypb.Empty) (*Nodes, error) {
 	nodes := &Nodes{Value: map[string]*AllGroupOrNode{}}
-	nods := app.GetANodes()
+	nods := n.entrance.GetANodes()
 	for key := range nods {
 		nodes.Value[key] = &AllGroupOrNode{Value: nods[key]}
 	}
@@ -188,17 +194,17 @@ func (n *Node) GetNodes(context.Context, *emptypb.Empty) (*Nodes, error) {
 }
 
 func (n *Node) GetGroup(context.Context, *emptypb.Empty) (*AllGroupOrNode, error) {
-	groups, err := app.GetGroups()
+	groups, err := n.entrance.GetGroups()
 	return &AllGroupOrNode{Value: groups}, err
 }
 
 func (n *Node) GetNode(_ context.Context, req *wrapperspb.StringValue) (*AllGroupOrNode, error) {
-	nodes, err := app.GetNodes(req.Value)
+	nodes, err := n.entrance.GetNodes(req.Value)
 	return &AllGroupOrNode{Value: nodes}, err
 }
 
 func (n *Node) GetNowGroupAndName(context.Context, *emptypb.Empty) (*GroupAndNode, error) {
-	node, group := app.GetNNodeAndNGroup()
+	node, group := n.entrance.GetNNodeAndNGroup()
 	return &GroupAndNode{Node: node, Group: group}, nil
 }
 
@@ -212,15 +218,15 @@ func (n *Node) ModifyNode(context.Context, *NodeMap) (*emptypb.Empty, error) {
 }
 
 func (n *Node) DeleteNode(_ context.Context, req *GroupAndNode) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, app.DeleteNode(req.Group, req.Node)
+	return &emptypb.Empty{}, n.entrance.DeleteNode(req.Group, req.Node)
 }
 
 func (n *Node) ChangeNowNode(_ context.Context, req *GroupAndNode) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, app.ChangeNNode(req.Group, req.Node)
+	return &emptypb.Empty{}, n.entrance.ChangeNNode(req.Group, req.Node)
 }
 
 func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrapperspb.StringValue, error) {
-	latency, err := app.Latency(req.Group, req.Node)
+	latency, err := n.entrance.Latency(req.Group, req.Node)
 	if err != nil {
 		return nil, err
 	}
@@ -229,18 +235,21 @@ func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrapperspb.String
 
 type Subscribe struct {
 	UnimplementedSubscribeServer
+	entrance *app.Entrance
 }
 
-func NewSubscribe() *Subscribe {
-	return &Subscribe{}
+func NewSubscribe(e *app.Entrance) *Subscribe {
+	return &Subscribe{
+		entrance: e,
+	}
 }
 
 func (s *Subscribe) UpdateSub(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, app.UpdateSub()
+	return &emptypb.Empty{}, s.entrance.UpdateSub()
 }
 
 func (s *Subscribe) GetSubLinks(context.Context, *emptypb.Empty) (*Links, error) {
-	links, err := app.GetLinks()
+	links, err := s.entrance.GetLinks()
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +265,7 @@ func (s *Subscribe) GetSubLinks(context.Context, *emptypb.Empty) (*Links, error)
 }
 
 func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
-	err := app.AddLink(req.Name, req.Type, req.Url)
+	err := s.entrance.AddLink(req.Name, req.Type, req.Url)
 	if err != nil {
 		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
 	}
@@ -264,7 +273,7 @@ func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
 }
 
 func (s *Subscribe) DeleteSubLink(ctx context.Context, req *wrapperspb.StringValue) (*Links, error) {
-	err := app.DeleteLink(req.Value)
+	err := s.entrance.DeleteLink(req.Value)
 	if err != nil {
 		return nil, err
 	}

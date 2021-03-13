@@ -1,4 +1,4 @@
-package match
+package mapper
 
 import (
 	"encoding/binary"

@@ -16,14 +16,16 @@ type manager struct {
 	host    string
 	killWDC bool // kill process when grpc disconnect
 
-	lock bool
-	init bool
-	conn chan bool
+	lock     bool
+	init     bool
+	conn     chan bool
+	entrance *app.Entrance
 }
 
-func newManager() *manager {
+func newManager(e *app.Entrance) *manager {
 	return &manager{
-		conn: make(chan bool),
+		conn:     make(chan bool),
+		entrance: e,
 	}
 }
 
@@ -82,7 +84,7 @@ func (m *manager) Start() error {
 	fmt.Println("Create lock file successful.")
 	fmt.Println("Try to initialize Service.")
 
-	err = app.Init()
+	err = m.entrance.Start()
 	if err != nil {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		return err

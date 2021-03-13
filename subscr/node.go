@@ -20,13 +20,16 @@ import (
 )
 
 type NodeManager struct {
+	nodes      *utils.Node
 	configPath string
 }
 
-func NewNodeManager(configPath string) *NodeManager {
-	return &NodeManager{
+func NewNodeManager(configPath string) (n *NodeManager, err error) {
+	n = &NodeManager{
 		configPath: configPath,
 	}
+	n.nodes, err = n.decodeJSON()
+	return
 }
 
 func (n *NodeManager) decodeJSON() (*utils.Node, error) {
@@ -50,8 +53,28 @@ func (n *NodeManager) decodeJSON() (*utils.Node, error) {
 	return pa, n.enCodeJSON(pa)
 }
 
-func (n *NodeManager) GetNodesJSON() (*utils.Node, error) {
-	return n.decodeJSON()
+func (n *NodeManager) GetNodes() *utils.Node {
+	return n.nodes
+}
+
+func (n *NodeManager) AddLink(name, style, link string) error {
+	n.nodes.Links[name] = utils.Link{
+		Type: style,
+		Url:  link,
+	}
+	return n.enCodeJSON(n.nodes)
+}
+func (n *NodeManager) DeleteLink(name string) error {
+	delete(n.nodes.Links, name)
+	return n.enCodeJSON(n.nodes)
+}
+
+func (n *NodeManager) ChangeNowNode(name, group string) {
+	if n.nodes.Node[group][name] == nil {
+		log.Println("not exist " + group + " - " + name)
+		return
+	}
+	n.nodes.NowNode = n.nodes.Node[group][name]
 }
 
 func (n *NodeManager) enCodeJSON(pa *utils.Node) error {
@@ -75,26 +98,13 @@ _retry:
 	return nil
 }
 
-func (n *NodeManager) SaveNode(pa *utils.Node) error {
-	return n.enCodeJSON(pa)
-}
-
 // GetLinkFromInt
 func (n *NodeManager) GetLinkFromInt() error {
-	pa, err := n.decodeJSON()
-	if err != nil {
-		return err
+	for key := range n.nodes.Links {
+		n.oneLinkGet(n.nodes.Links[key].Url, key, n.nodes.Node)
 	}
 
-	for key := range pa.Links {
-		n.oneLinkGet(pa.Links[key].Url, key, pa.Node)
-	}
-
-	err = n.enCodeJSON(pa)
-	if err != nil {
-		return err
-	}
-	return nil
+	return n.enCodeJSON(n.nodes)
 }
 
 func (n *NodeManager) oneLinkGet(url string, group string, nodes map[string]map[string]*utils.Point) {
@@ -160,12 +170,8 @@ func deleteRemoteNodes(nodes map[string]map[string]*utils.Point, key string) {
 }
 
 func (n *NodeManager) DeleteOneNode(group, name string) error {
-	pa, err := n.decodeJSON()
-	if err != nil {
-		return err
-	}
-	deleteOneNode(group, name, pa.Node)
-	return n.enCodeJSON(pa)
+	deleteOneNode(group, name, n.nodes.Node)
+	return n.enCodeJSON(n.nodes)
 }
 
 func deleteOneNode(group, name string, nodes map[string]map[string]*utils.Point) {
@@ -210,12 +216,8 @@ func parseUrl(str []byte, group string) (node *utils.Point, err error) {
 }
 
 // GetNowNode
-func (n *NodeManager) GetNowNode() (*utils.Point, error) {
-	pa, err := n.decodeJSON()
-	if err != nil {
-		return nil, err
-	}
-	return pa.NowNode, nil
+func (n *NodeManager) GetNowNode() *utils.Point {
+	return n.nodes.NowNode
 }
 
 func ParseNodeConn(s *utils.Point) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {

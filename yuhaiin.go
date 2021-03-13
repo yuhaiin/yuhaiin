@@ -9,6 +9,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/Asutorufa/yuhaiin/api"
+	"github.com/Asutorufa/yuhaiin/app"
 	"google.golang.org/grpc"
 )
 
@@ -26,16 +27,20 @@ func main() {
 
 	s := grpc.NewServer()
 
-	p, err := api.NewProcess()
+	e, err := app.NewEntrance()
+	if err != nil {
+		panic(err)
+	}
+	p, err := api.NewProcess(e)
 	if err != nil {
 		panic(err)
 	}
 	api.RegisterProcessInitServer(s, p)
-	config := api.NewConfig()
+	config := api.NewConfig(e)
 	api.RegisterConfigServer(s, config)
-	node := api.NewNode()
+	node := api.NewNode(e)
 	api.RegisterNodeServer(s, node)
-	sub := api.NewSubscribe()
+	sub := api.NewSubscribe(e)
 	api.RegisterSubscribeServer(s, sub)
 
 	lis, err := net.Listen("tcp", p.Host())

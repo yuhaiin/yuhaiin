@@ -1,108 +1,108 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"path/filepath"
 	"sort"
-
-	"github.com/Asutorufa/yuhaiin/net/dns"
-	"github.com/Asutorufa/yuhaiin/subscr/utils"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/config"
+	"github.com/Asutorufa/yuhaiin/net/dns"
+	"github.com/Asutorufa/yuhaiin/net/latency"
 	"github.com/Asutorufa/yuhaiin/subscr"
+	"github.com/Asutorufa/yuhaiin/subscr/utils"
 )
 
-var Entrance = struct {
+type Entrance struct {
 	Config      *config.Setting
 	LocalListen *LocalListen
 	Bypass      *BypassManager
-	Nodes       *utils.Node
 	nodeManager *subscr.NodeManager
-}{
-	nodeManager: subscr.NewNodeManager(filepath.Join(config.Path, "node.json")),
 }
 
-func Init() error {
-	err := RefreshNodes()
+func NewEntrance() (e *Entrance, err error) {
+	e = &Entrance{}
+	e.nodeManager, err = subscr.NewNodeManager(filepath.Join(config.Path, "node.json"))
 	if err != nil {
-		return fmt.Errorf("RefreshNodes -> %v", err)
+		return nil, fmt.Errorf("refresh node failed: %v", err)
 	}
 
-	Entrance.Config, err = config.SettingDecodeJSON()
+	e.Config, err = config.SettingDecodeJSON()
 	if err != nil {
-		return fmt.Errorf("DecodeJson -> %v", err)
-	}
-
-	s, err := NewShunt(
-		Entrance.Config.Bypass.BypassFile,
-		getDNS(Entrance.Config.DNS.Host, Entrance.Config.DNS.DOH, Entrance.Config.DNS.Subnet).Search,
-	)
-	if err != nil {
-		return fmt.Errorf("create shunt failed: %v", err)
+		return nil, fmt.Errorf("get config failed: %v", err)
 	}
 
 	// initialize Match Controller
-	Entrance.Bypass, err = NewBypassManager(
-		Entrance.Config.Bypass.Enabled,
-		s.Get,
-		getDNS(Entrance.Config.LocalDNS.Host, Entrance.Config.LocalDNS.DOH, "").Search,
-	)
+	e.Bypass, err = createNewBypassManager(e.Config)
 	if err != nil {
-		return fmt.Errorf("new Match Controller -> %v", err)
+		return nil, fmt.Errorf("create new bypass service failed: %v", err)
 	}
 
-	// initialize Local Servers Controller
-	Entrance.LocalListen, err = NewLocalListenCon(
-		WithHTTP(Entrance.Config.Proxy.HTTP),
-		WithSocks5(Entrance.Config.Proxy.Socks5),
-		WithRedir(Entrance.Config.Proxy.Redir),
-		WithTCPConn(Entrance.Bypass.Forward),
-		WithPacketConn(Entrance.Bypass.ForwardPacket),
-	)
-	if err != nil {
-		return fmt.Errorf("new Local Listener Controller -> %v", err)
-	}
-
-	_ = ChangeNode()
-	return nil
+	return e, nil
 }
 
-/*
- *         CONFIG
- */
-func SetConFig(conf *config.Setting) (erra error) {
-	if Entrance.Config.Bypass.BypassFile != conf.Bypass.BypassFile || diffDNS(Entrance.Config.DNS, conf.DNS) {
-		s, err := NewShunt(
-			conf.Bypass.BypassFile,
-			getDNS(conf.DNS.Host, conf.DNS.DOH, conf.DNS.Subnet).Search,
-		)
+func (e *Entrance) Start() (err error) {
+	// initialize Local Servers Controller
+	e.LocalListen, err = NewLocalListenCon(
+		WithHTTP(e.Config.Proxy.HTTP),
+		WithSocks5(e.Config.Proxy.Socks5),
+		WithRedir(e.Config.Proxy.Redir),
+		WithTCPConn(e.Bypass.Forward),
+		WithPacketConn(e.Bypass.ForwardPacket),
+	)
+	if err != nil {
+		return fmt.Errorf("create local listener failed: %v", err)
+	}
+
+	err = e.ChangeNode()
+	if err != nil {
+		log.Printf("changer node failed: %v\n", err)
+	}
+	return
+}
+
+func createNewBypassManager(c *config.Setting) (*BypassManager, error) {
+	s, err := NewShunt(c.Bypass.BypassFile, getDNS(c.DNS).Search)
+	if err != nil {
+		return nil, fmt.Errorf("create shunt failed: %v", err)
+	}
+
+	// initialize Match Controller
+	return NewBypassManager(c.Bypass.Enabled, s.Get, getDNS(c.DNS).Search)
+}
+
+func (e *Entrance) SetConFig(conf *config.Setting) (erra error) {
+	if e.Config.Bypass.BypassFile != conf.Bypass.BypassFile ||
+		diffDNS(e.Config.DNS, conf.DNS) {
+		s, err := NewShunt(conf.Bypass.BypassFile, getDNS(conf.DNS).Search)
 		if err != nil {
-			return fmt.Errorf("create shunt failed: %v", err)
+			erra = fmt.Errorf("%v\ncreate shunt failed: %v", erra, err)
 		}
-		Entrance.Bypass.SetMapper(s.Get)
+		e.Bypass.SetMapper(s.Get)
 	}
 
-	if diffDNS(Entrance.Config.LocalDNS, conf.LocalDNS) {
-		Entrance.Bypass.SetLookup(getDNS(conf.LocalDNS.Host, conf.LocalDNS.DOH, "").Search)
+	if diffDNS(e.Config.LocalDNS, conf.LocalDNS) {
+		e.Bypass.SetLookup(getDNS(conf.LocalDNS).Search)
 	}
 
-	Entrance.Bypass.SetBypass(conf.Bypass.Enabled)
+	e.Bypass.SetBypass(conf.Bypass.Enabled)
 
-	err := Entrance.LocalListen.SetAHost(
+	err := e.LocalListen.SetAHost(
 		WithHTTP(conf.Proxy.HTTP),
 		WithSocks5(conf.Proxy.Socks5),
 		WithRedir(conf.Proxy.Redir),
 	)
 	if err != nil {
-		erra = fmt.Errorf("%v\n Set Local Listener Controller Options -> %v", erra, err)
+		erra = fmt.Errorf("%v\nlocal listener apply config failed: %v", erra, err)
 	}
 
-	Entrance.Config = conf
+	e.Config = conf
 
-	// others
-	err = config.SettingEnCodeJSON(Entrance.Config)
+	err = config.SettingEnCodeJSON(e.Config)
 	if err != nil {
 		erra = fmt.Errorf("%v\nSaveJSON() -> %v", erra, err)
 	}
@@ -122,23 +122,23 @@ func diffDNS(old, new *config.DNS) bool {
 	return false
 }
 
-func RefreshMapping() error {
+func (e *Entrance) RefreshMapping() error {
 	s, err := NewShunt(
-		Entrance.Config.Bypass.BypassFile,
-		getDNS(Entrance.Config.DNS.Host, Entrance.Config.DNS.DOH, Entrance.Config.DNS.Subnet).Search,
+		e.Config.Bypass.BypassFile,
+		getDNS(e.Config.DNS).Search,
 	)
 	if err != nil {
 		return fmt.Errorf("create shunt failed: %v", err)
 	}
-	Entrance.Bypass.SetMapper(s.Get)
+	e.Bypass.SetMapper(s.Get)
 	return nil
 }
 
-func getDNS(host string, doh bool, subnet string) dns.DNS {
-	if doh {
-		return dns.NewDNS(host, dns.DNSOverHTTPS, toSubnet(subnet))
+func getDNS(dc *config.DNS) dns.DNS {
+	if dc.DOH {
+		return dns.NewDNS(dc.Host, dns.DNSOverHTTPS, toSubnet(dc.Subnet))
 	}
-	return dns.NewDNS(host, dns.Normal, toSubnet(subnet))
+	return dns.NewDNS(dc.Host, dns.Normal, toSubnet(dc.Subnet))
 }
 
 func toSubnet(s string) *net.IPNet {
@@ -155,55 +155,25 @@ func toSubnet(s string) *net.IPNet {
 	return subnet
 }
 
-func GetConfig() (*config.Setting, error) {
-	return Entrance.Config, nil
+func (e *Entrance) GetConfig() (*config.Setting, error) {
+	return e.Config, nil
 }
 
-/*
- *               Node
- */
-func RefreshNodes() (err error) {
-	Entrance.Nodes, err = Entrance.nodeManager.GetNodesJSON()
-	return
+func (e *Entrance) ChangeNNode(group string, node string) (err error) {
+	e.nodeManager.ChangeNowNode(node, group)
+	return e.ChangeNode()
 }
 
-func ChangeNNode(group string, node string) (erra error) {
-	if Entrance.Nodes.Node[group][node] == nil {
-		return errors.New("not exist " + group + " - " + node)
-	}
-	Entrance.Nodes.NowNode = Entrance.Nodes.Node[group][node]
-
-	err := Entrance.nodeManager.SaveNode(Entrance.Nodes)
-	if err != nil {
-		erra = fmt.Errorf("%v\nSaveNode() -> %v", erra, err)
-	}
-
-	err = ChangeNode()
-	if err != nil {
-		erra = fmt.Errorf("%v\nChangeNode -> %v", erra, err)
-	}
-	return
+func (e *Entrance) GetNNodeAndNGroup() (node string, group string) {
+	return e.nodeManager.GetNodes().NowNode.NName, e.nodeManager.GetNodes().NowNode.NGroup
 }
 
-func GetNNodeAndNGroup() (node string, group string) {
-	return Entrance.Nodes.NowNode.NName, Entrance.Nodes.NowNode.NGroup
-}
-
-func GetNowNodeConn() (func(string) (net.Conn, error), func(string) (net.PacketConn, error), string, error) {
-	if Entrance.Nodes.NowNode == nil {
-		return nil, nil, "", errors.New("NowNode is nil")
-	}
-
-	conn, packetConn, err := subscr.ParseNodeConn(Entrance.Nodes.NowNode)
-	return conn, packetConn, Entrance.Nodes.NowNode.NHash, err
-}
-
-func GetANodes() map[string][]string {
+func (e *Entrance) GetANodes() map[string][]string {
 	m := map[string][]string{}
 
-	for key := range Entrance.Nodes.Node {
+	for key := range e.nodeManager.GetNodes().Node {
 		var x []string
-		for node := range Entrance.Nodes.Node[key] {
+		for node := range e.nodeManager.GetNodes().Node[key] {
 			x = append(x, node)
 		}
 		sort.Strings(x)
@@ -212,89 +182,78 @@ func GetANodes() map[string][]string {
 	return m
 }
 
-func GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
-	if Entrance.Nodes.Node[group][nodeN] == nil {
+func (e *Entrance) GetOneNodeConn(group, nodeN string) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+	if e.nodeManager.GetNodes().Node[group][nodeN] == nil {
 		return nil, nil, fmt.Errorf("GetOneNode:pa.Node[group][remarks] -> %v", errors.New("node is not exist"))
 	}
-	return subscr.ParseNodeConn(Entrance.Nodes.Node[group][nodeN])
+	return subscr.ParseNodeConn(e.nodeManager.GetNodes().Node[group][nodeN])
 }
 
-func GetNodes(group string) ([]string, error) {
+func (e *Entrance) GetNodes(group string) ([]string, error) {
 	var nodeTmp []string
-	for nodeRemarks := range Entrance.Nodes.Node[group] {
+	for nodeRemarks := range e.nodeManager.GetNodes().Node[group] {
 		nodeTmp = append(nodeTmp, nodeRemarks)
 	}
 	sort.Strings(nodeTmp)
 	return nodeTmp, nil
 }
 
-func GetGroups() ([]string, error) {
+func (e *Entrance) GetGroups() ([]string, error) {
 	var groupTmp []string
-	for group := range Entrance.Nodes.Node {
+	for group := range e.nodeManager.GetNodes().Node {
 		groupTmp = append(groupTmp, group)
 	}
 	sort.Strings(groupTmp)
 	return groupTmp, nil
 }
 
-func UpdateSub() error {
-	err := Entrance.nodeManager.GetLinkFromInt()
-	if err != nil {
-		return fmt.Errorf("UpdateSub() -> %v", err)
+func (e *Entrance) UpdateSub() error {
+	return e.nodeManager.GetLinkFromInt()
+}
+
+func (e *Entrance) GetLinks() (map[string]utils.Link, error) {
+	return e.nodeManager.GetNodes().Links, nil
+}
+
+func (e *Entrance) AddLink(name, style, link string) error {
+	return e.nodeManager.AddLink(name, style, link)
+}
+
+func (e *Entrance) DeleteNode(group, name string) error {
+	return e.nodeManager.DeleteOneNode(group, name)
+}
+
+func (e *Entrance) DeleteLink(name string) error {
+	return e.nodeManager.DeleteLink(name)
+}
+
+func (e *Entrance) ChangeNode() error {
+	if e.nodeManager.GetNodes().NowNode == nil {
+		return errors.New("NowNode is nil")
 	}
-	err = RefreshNodes()
-	if err != nil {
-		return fmt.Errorf("RefreshNodes() -> %v", err)
-	}
-	return nil
-}
 
-func GetLinks() (map[string]utils.Link, error) {
-	return Entrance.Nodes.Links, nil
-}
-
-func AddLink(name, style, link string) error {
-	Entrance.Nodes.Links[name] = utils.Link{
-		Type: style,
-		Url:  link,
-	}
-	return Entrance.nodeManager.SaveNode(Entrance.Nodes)
-}
-
-//func AddNode(node map[string]string) error {
-//	err := subscr.AddOneNode(node)
-//	if err != nil {
-//		return err
-//	}
-//	return RefreshNodes()
-//}
-
-func DeleteNode(group, name string) error {
-	err := Entrance.nodeManager.DeleteOneNode(group, name)
-	if err != nil {
-		return err
-	}
-	return RefreshNodes()
-}
-
-func DeleteLink(name string) error {
-	delete(Entrance.Nodes.Links, name)
-	return Entrance.nodeManager.SaveNode(Entrance.Nodes)
-}
-
-func ChangeNode() error {
-	conn, packetConn, hash, err := GetNowNodeConn()
+	conn, packetConn, err := subscr.ParseNodeConn(e.nodeManager.GetNodes().NowNode)
 	if err != nil {
 		return fmt.Errorf("GetNowNodeConn() -> %v", err)
 	}
-	Entrance.Bypass.SetProxy(conn, packetConn, hash)
+	e.Bypass.SetProxy(conn, packetConn, e.nodeManager.GetNodes().NowNode.NHash)
 	return nil
 }
 
-func GetDownload() uint64 {
-	return Entrance.Bypass.GetDownload()
+func (e *Entrance) GetDownload() uint64 {
+	return e.Bypass.GetDownload()
 }
 
-func GetUpload() uint64 {
-	return Entrance.Bypass.GetUpload()
+func (e *Entrance) GetUpload() uint64 {
+	return e.Bypass.GetUpload()
+}
+
+func (e *Entrance) Latency(group, mark string) (time.Duration, error) {
+	conn, _, err := e.GetOneNodeConn(group, mark)
+	if err != nil {
+		return 0, err
+	}
+	return latency.TcpLatency(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return conn(addr)
+	}, "https://www.google.com/generate_204")
 }

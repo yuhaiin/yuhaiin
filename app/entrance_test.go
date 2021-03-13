@@ -26,3 +26,13 @@ func TestHash(t *testing.T) {
 	a.Write([]byte("aaaa"))
 	t.Log(hex.EncodeToString(a.Sum(nil)))
 }
+
+func TestLatency(t *testing.T) {
+	e, err := NewEntrance()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	x := e.nodeManager.GetNowNode()
+	t.Log(e.Latency(x.NGroup, x.NName))
+}

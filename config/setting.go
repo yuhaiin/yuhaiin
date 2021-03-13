@@ -88,19 +88,17 @@ func SettingDecodeJSON() (*Setting, error) {
 // SettingEnCodeJSON encode setting struct to json
 func SettingEnCodeJSON(pa *Setting) error {
 	_, err := os.Stat(ConPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(path.Dir(ConPath), os.ModePerm)
-			if err != nil {
-				return fmt.Errorf("SettingEncodeJson():MkdirAll -> %v", err)
-			}
-		} else {
-			return fmt.Errorf("SettingEncodeJson -> %v", err)
+	if err != nil && os.IsNotExist(err) {
+		err = os.MkdirAll(path.Dir(ConPath), os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("make dir failed: %v", err)
 		}
 	}
+
 	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t"}.Marshal(pa)
 	if err != nil {
-		return fmt.Errorf("marshal() -> %v", err)
+		return fmt.Errorf("marshal setting failed: %v", err)
 	}
+
 	return ioutil.WriteFile(ConPath, []byte(data), os.ModePerm)
 }

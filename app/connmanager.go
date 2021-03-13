@@ -15,6 +15,7 @@ type connManager struct {
 	upload        uint64
 	downloadQueue chan uint64
 	uploadQueue   chan uint64
+	close         chan bool
 
 	idSeed *idGenerater
 }
@@ -25,8 +26,9 @@ func newConnManager() *connManager {
 		upload:   0,
 
 		idSeed:        &idGenerater{},
-		downloadQueue: make(chan uint64, 5),
-		uploadQueue:   make(chan uint64, 5),
+		downloadQueue: make(chan uint64, 10),
+		uploadQueue:   make(chan uint64, 10),
+		close:         make(chan bool),
 	}
 
 	c.startQueue()
@@ -36,14 +38,16 @@ func newConnManager() *connManager {
 
 func (c *connManager) startQueue() {
 	go func() {
-		for s := range c.downloadQueue {
-			atomic.AddUint64(&c.download, s)
-		}
-	}()
-
-	go func() {
-		for s := range c.uploadQueue {
-			atomic.AddUint64(&c.upload, s)
+		var x uint64
+		for {
+			select {
+			case x = <-c.downloadQueue:
+				atomic.AddUint64(&c.download, x)
+			case x = <-c.uploadQueue:
+				atomic.AddUint64(&c.upload, x)
+			case <-c.close:
+				return
+			}
 		}
 	}()
 }
@@ -59,53 +63,37 @@ func (c *connManager) delete(id int64) {
 	}
 }
 
-func (c *connManager) addDownload(i uint64) {
-	go func() {
-		c.downloadQueue <- i
-	}()
+func (c *connManager) Close() {
+	close(c.close)
+	close(c.downloadQueue)
+	close(c.uploadQueue)
 }
 
-func (c *connManager) addUpload(i uint64) {
-	go func() {
-		c.uploadQueue <- i
-	}()
-}
-
-func (c *connManager) Write(b []byte, w io.Writer) (int, error) {
+func (c *connManager) write(w io.Writer, b []byte) (int, error) {
 	n, err := w.Write(b)
-	c.addUpload(uint64(n))
+	c.uploadQueue <- uint64(n)
 	return n, err
 }
 
-func (c *connManager) Read(b []byte, r io.Reader) (int, error) {
+func (c *connManager) read(r io.Reader, b []byte) (int, error) {
 	n, err := r.Read(b)
-	c.addDownload(uint64(n))
+	c.downloadQueue <- uint64(n)
 	return n, err
+}
 
+func (c *connManager) dc(cn net.Conn, id int64) error {
+	c.delete(id)
+	return cn.Close()
 }
 
 func (c *connManager) newConn(addr string, x net.Conn) net.Conn {
 	s := &statisticConn{
-		id:   c.idSeed.Generate(),
-		addr: addr,
-		Conn: x,
-	}
-
-	s.close = func() error {
-		c.delete(s.id)
-		return s.Conn.Close()
-	}
-
-	s.write = func(b []byte) (int, error) {
-		n, err := s.Conn.Write(b)
-		c.addUpload(uint64(n))
-		return n, err
-	}
-
-	s.read = func(b []byte) (int, error) {
-		n, err := s.Conn.Read(b)
-		c.addDownload(uint64(n))
-		return n, err
+		id:    c.idSeed.Generate(),
+		addr:  addr,
+		Conn:  x,
+		close: c.dc,
+		write: c.write,
+		read:  c.read,
 	}
 
 	c.add(s)
@@ -115,24 +103,24 @@ func (c *connManager) newConn(addr string, x net.Conn) net.Conn {
 
 type statisticConn struct {
 	net.Conn
-	close func() error
-	write func([]byte) (int, error)
-	read  func([]byte) (int, error)
+	close func(net.Conn, int64) error
+	write func(io.Writer, []byte) (int, error)
+	read  func(io.Reader, []byte) (int, error)
 
 	id   int64
 	addr string
 }
 
 func (s *statisticConn) Close() error {
-	return s.close()
+	return s.close(s.Conn, s.id)
 }
 
-func (s *statisticConn) Write(b []byte) (int, error) {
-	return s.write(b)
+func (s *statisticConn) Write(b []byte) (n int, err error) {
+	return s.write(s.Conn, b)
 }
 
-func (s *statisticConn) Read(b []byte) (int, error) {
-	return s.read(b)
+func (s *statisticConn) Read(b []byte) (n int, err error) {
+	return s.read(s.Conn, b)
 }
 
 type idGenerater struct {

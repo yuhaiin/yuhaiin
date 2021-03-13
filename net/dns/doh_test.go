@@ -9,7 +9,7 @@ func TestDOH(t *testing.T) {
 	// d := NewDOH("cloudflare-dns.com")
 	// d := NewDOH("public.dns.iij.jp")
 	// d := NewDOH("dns.google")
-	// d := NewDOH("dns.nextdns.io/e28bb3")
+	// d := NewDOH("dns.nextdns.io/e28bb3", nil)
 	// d := NewDOH("1.1.1.1")
 	// d := NewDOH("1.0.0.1")
 	//d := NewDOH("223.5.5.5")

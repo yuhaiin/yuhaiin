@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,25 +18,26 @@ var (
 )
 
 func GetProcessLock(str string) error {
-	var err error
-_retry:
+	_, err := os.Stat(path.Dir(str))
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		err = os.MkdirAll(path.Dir(LockFilePath), os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("make dir failed: %v", err)
+		}
+	}
+
 	lockFile, err = os.OpenFile(LockFilePath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(path.Dir(LockFilePath), os.ModePerm)
-			if err != nil {
-				return fmt.Errorf("SettingEncodeJson():MkdirAll -> %v", err)
-			}
-			goto _retry
-		}
-		return fmt.Errorf("GetProcessLock() -> OpenFile() -> %v", err)
+		return fmt.Errorf("open lock file failed: %v", err)
 	}
+
 	if err := LockFile(lockFile); err != nil {
-		return fmt.Errorf("GetProcessLock() -> LockFile() -> %v", err)
+		return fmt.Errorf("lock file failed: %v", err)
 	}
+
 	err = ioutil.WriteFile(hostFile, []byte(str), os.ModePerm)
 	if err != nil {
-		log.Printf("GetProcessLock() -> WriteString() -> %v", err)
+		log.Printf("write host to file failed: %v", err)
 	}
 	return nil
 }
@@ -46,7 +48,7 @@ func ReadLockFile() (string, error) {
 		if os.IsNotExist(err) {
 			return "", nil
 		}
-		return "", fmt.Errorf("ReadLockFile() -> ReadFile() -> %v", err)
+		return "", fmt.Errorf("read lock file failed: %v", err)
 	}
 	return string(s), nil
 }
@@ -54,15 +56,15 @@ func ReadLockFile() (string, error) {
 func LockFileClose() (erra error) {
 	err := os.Remove(hostFile)
 	if err != nil {
-		erra = fmt.Errorf("%v\nRemove hostFile -> %v", erra, err)
+		erra = fmt.Errorf("%v\nremove host file failed: %v", erra, err)
 	}
 	err = lockFile.Close()
 	if err != nil {
-		erra = fmt.Errorf("%v\nUnlock File (close file) -> %v", erra, err)
+		erra = fmt.Errorf("%v\nunlock file failed: %v", erra, err)
 	}
 	err = os.Remove(LockFilePath)
 	if err != nil {
-		erra = fmt.Errorf("%v\nRemove lockFile -> %v", erra, err)
+		erra = fmt.Errorf("%v\nremove lock file failed: %v", erra, err)
 	}
 	return
 }
