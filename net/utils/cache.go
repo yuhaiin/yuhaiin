@@ -66,7 +66,7 @@ func (c *Cache) Add(domain string, mark interface{}) {
 type LRU struct {
 	capacity int
 	list     *list.List
-	lock     sync.RWMutex
+	lock     sync.Mutex
 	mapping  map[interface{}]interface{}
 	timeout  time.Duration
 
@@ -154,9 +154,8 @@ func (l *LRU) Delete(key interface{}) {
 }
 
 func (l *LRU) load(key interface{}) interface{} {
-	l.lock.RLock()
-	defer l.lock.RUnlock()
-
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	node, ok := l.mapping[key]
 	if !ok {
 		return nil
@@ -168,13 +167,13 @@ func (l *LRU) load(key interface{}) interface{} {
 	}
 
 	l.list.MoveToFront(x)
+
 	return x.Value
 }
 
 func (l *LRU) loadWithTime(key interface{}) interface{} {
-	l.lock.RLock()
-	defer l.lock.RUnlock()
-
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	node, ok := l.mapping[key]
 	if !ok {
 		return nil

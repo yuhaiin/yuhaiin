@@ -12,8 +12,9 @@ import (
 // TcpServer tcp server common
 type TcpServer struct {
 	Server
-	host string
-	lock sync.Mutex
+	host     string
+	lock     sync.Mutex
+	connLock sync.RWMutex
 
 	listener net.Listener
 	tcpConn  func(string) (net.Conn, error)
@@ -79,7 +80,15 @@ func (t *TcpServer) SetTCPConn(conn func(string) (net.Conn, error)) {
 	if conn == nil {
 		return
 	}
+	t.connLock.Lock()
+	defer t.connLock.Unlock()
 	t.tcpConn = conn
+}
+
+func (t *TcpServer) getTCPConn() func(string) (net.Conn, error) {
+	t.connLock.RLock()
+	defer t.connLock.RUnlock()
+	return t.tcpConn
 }
 
 func (t *TcpServer) GetListenHost() string {
@@ -112,7 +121,7 @@ func (t *TcpServer) process() {
 		}
 		go func() {
 			defer c.Close()
-			t.handle(c, t.tcpConn)
+			t.handle(c, t.getTCPConn())
 		}()
 	}
 }
@@ -122,8 +131,4 @@ func (t *TcpServer) Close() error {
 		return nil
 	}
 	return t.listener.Close()
-}
-
-func (t *TcpServer) defaultHandle(conn net.Conn) {
-	conn.Close()
 }

@@ -12,27 +12,30 @@ import (
 
 var (
 	//BuffPool byte array poll
-	BuffPool = sync.Pool{New: func() interface{} { return make([]byte, 32*0x400) }}
-	//CloseSigPool Close sign pool
-	CloseSigPool = sync.Pool{New: func() interface{} { return make(chan error, 2) }}
+	BuffPool = sync.Pool{
+		New: func() interface{} {
+			x := make([]byte, 32*0x400)
+			return &x
+		},
+	}
 )
 
 //Forward pipe
 func Forward(conn1, conn2 net.Conn) {
 	go func() {
-		buf := BuffPool.Get().([]byte)
-		defer BuffPool.Put(buf)
+		buf := *BuffPool.Get().(*[]byte)
+		defer BuffPool.Put(&(buf))
 		_, _ = io.CopyBuffer(conn2, conn1, buf)
 	}()
-	buf := BuffPool.Get().([]byte)
-	defer BuffPool.Put(buf)
+	buf := *BuffPool.Get().(*[]byte)
+	defer BuffPool.Put(&(buf))
 	_, _ = io.CopyBuffer(conn1, conn2, buf)
 }
 
 //SingleForward single pipe
 func SingleForward(src io.Reader, dst io.Writer) (err error) {
-	buf := BuffPool.Get().([]byte)
-	defer BuffPool.Put(buf)
+	buf := *BuffPool.Get().(*[]byte)
+	defer BuffPool.Put(&(buf))
 	_, err = io.CopyBuffer(dst, src, buf)
 	return
 }
@@ -58,11 +61,13 @@ type ClientUtil struct {
 	cache   []net.IP
 	lookUp  func(string) ([]net.IP, error)
 	GetConn func() (net.Conn, error)
+
+	lock sync.RWMutex
 }
 
 //NewClientUtil .
-func NewClientUtil(address, port string) ClientUtil {
-	c := ClientUtil{
+func NewClientUtil(address, port string) *ClientUtil {
+	c := &ClientUtil{
 		address: address,
 		port:    port,
 	}
@@ -84,6 +89,8 @@ func NewClientUtil(address, port string) ClientUtil {
 }
 
 func (c *ClientUtil) dial() (net.Conn, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	for ci := range c.cache {
 		conn, err := net.Dial("tcp", net.JoinHostPort(c.cache[ci].String(), c.port))
 		if err != nil {
@@ -100,7 +107,11 @@ func (c *ClientUtil) getConn() (net.Conn, error) {
 	if err == nil {
 		return conn, err
 	}
+
+	c.lock.Lock()
 	c.cache, err = c.lookUp(c.address)
+	c.lock.Unlock()
+
 	if err == nil {
 		return c.dial()
 	}

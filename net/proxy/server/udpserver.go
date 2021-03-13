@@ -12,13 +12,22 @@ type UdpServer struct {
 	Server
 	host     string
 	lock     sync.Mutex
+	connLock sync.RWMutex
 	listener net.PacketConn
 	handle   func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)
 	udpConn  func(string) (net.PacketConn, error)
 }
 
 func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
+	u.connLock.Lock()
+	defer u.connLock.Unlock()
 	u.udpConn = f
+}
+
+func (u *UdpServer) getUDPConn() func(string) (net.PacketConn, error) {
+	u.connLock.RLock()
+	defer u.connLock.RUnlock()
+	return u.udpConn
 }
 
 func NewUDPServer(host string, handle func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)) (UDPServer, error) {
@@ -91,7 +100,7 @@ func (u *UdpServer) process() {
 		}
 
 		go func() {
-			data, err := u.handle(b[:n], u.udpConn)
+			data, err := u.handle(b[:n], u.getUDPConn())
 			if err != nil {
 				log.Printf("udp handle failed: %v", err)
 				return

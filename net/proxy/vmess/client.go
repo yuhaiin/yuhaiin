@@ -21,7 +21,7 @@ type Vmess struct {
 	net      string
 	netConfig
 
-	utils.ClientUtil
+	*utils.ClientUtil
 	client *gitsrcVmess.Client
 }
 

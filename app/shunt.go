@@ -114,7 +114,7 @@ func (s *Shunt) SetFile(f string) error {
 	return s.RefreshMapping()
 }
 
-func (s *Shunt) Get(domain string) (int, mapper.Category) {
+func (s *Shunt) Get(domain string) (int, bool) {
 	mark, markType := s.mapper.Search(domain)
 	x, ok := mark.(int)
 	if !ok {

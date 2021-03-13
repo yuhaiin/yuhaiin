@@ -34,7 +34,9 @@ func NewSocks5Client(host string, user, password string, address string) (net.Co
 	var err error
 	x.conn, err = net.DialTimeout("tcp", x.host, 10*time.Second)
 	if err != nil {
+		return nil, fmt.Errorf("dial failed: %v", err)
 	}
+
 	err = x.firstVerify()
 	if err != nil {
 		return nil, fmt.Errorf("socks5 first handshake error -> %v", err)

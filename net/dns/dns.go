@@ -147,8 +147,8 @@ func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body
 }
 
 func udpDial(req []byte, DNSServer string) (data []byte, err error) {
-	var b = utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(b)
+	var b = *utils.BuffPool.Get().(*[]byte)
+	defer utils.BuffPool.Put(&(b))
 
 	conn, err := net.DialTimeout("udp", DNSServer, 5*time.Second)
 	if err != nil {
@@ -282,7 +282,6 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 			signature := c[:sum-size-18]
 			c = c[sum-size-18:]
 			log.Println(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature)
-			break
 		case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 			fallthrough
 		default:

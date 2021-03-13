@@ -41,7 +41,7 @@ const (
 )
 
 var (
-	udpErr = errors.New("UDP")
+	errUDP = errors.New("UDP")
 )
 
 func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.Conn, error)) {
@@ -59,11 +59,11 @@ func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.
 
 func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error)) {
 	var err error
-	b := utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(b)
+	b := *utils.BuffPool.Get().(*[]byte)
+	defer utils.BuffPool.Put(&(b))
 
 	//socks5 first handshake
-	_, err = client.Read(b[:])
+	_, err = client.Read(b)
 	if err != nil {
 		return
 	}
@@ -86,14 +86,14 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 	}
 	server, err := getTarget(host, strconv.Itoa(port), b[1], client, dst)
 	if err != nil {
-		if err != udpErr {
+		if err != errUDP {
 			fmt.Println(err)
 		}
 		return
 	}
-	switch server.(type) {
+	switch server := server.(type) {
 	case *net.TCPConn:
-		_ = server.(*net.TCPConn).SetKeepAlive(true)
+		_ = server.SetKeepAlive(true)
 	}
 	defer server.Close()
 	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
@@ -120,8 +120,8 @@ func firstHand(client net.Conn, ver, nMethod, method byte, user, key string) err
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
-	b := utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(b)
+	b := *utils.BuffPool.Get().(*[]byte)
+	defer utils.BuffPool.Put(&(b))
 	// get username and password
 	_, err := client.Read(b[:])
 	if err != nil {
@@ -156,7 +156,7 @@ func getTarget(host, port string, mode byte, client net.Conn, dst func(string) (
 			if err, ok := err.(net.Error); ok && err.Timeout() {
 				continue
 			}
-			return nil, udpErr
+			return nil, errUDP
 		}
 
 	case bind: // bind request

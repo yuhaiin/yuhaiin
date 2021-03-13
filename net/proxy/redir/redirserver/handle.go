@@ -21,10 +21,11 @@ func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
 	if err != nil {
 		return err
 	}
-	switch rsp.(type) {
-	case *net.TCPConn:
-		_ = rsp.(*net.TCPConn).SetKeepAlive(true)
+
+	if rsp, ok := rsp.(*net.TCPConn); ok {
+		_ = rsp.SetKeepAlive(true)
 	}
+
 	defer rsp.Close()
 	utils.Forward(req, rsp)
 	return nil

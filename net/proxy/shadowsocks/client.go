@@ -30,7 +30,7 @@ type Shadowsocks struct {
 	pluginOpt  string
 	pluginFunc func(conn net.Conn) (net.Conn, error)
 
-	utils.ClientUtil
+	*utils.ClientUtil
 }
 
 //NewShadowsocks new shadowsocks client

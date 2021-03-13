@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 	"time"
-
-	mapper "github.com/Asutorufa/yuhaiin/net/mapper"
 )
 
 //BypassManager .
@@ -15,7 +13,7 @@ type BypassManager struct {
 	nodeHash string
 
 	lookup func(string) ([]net.IP, error)
-	mapper func(string) (int, mapper.Category)
+	mapper func(string) (mark int, isIP bool)
 
 	Forward       func(string) (net.Conn, error)
 	ForwardPacket func(string) (net.PacketConn, error)
@@ -27,7 +25,7 @@ type BypassManager struct {
 }
 
 //NewBypassManager .
-func NewBypassManager(bypass bool, mapper func(s string) (int, mapper.Category),
+func NewBypassManager(bypass bool, mapper func(s string) (int, bool),
 	lookup func(string) ([]net.IP, error)) (*BypassManager, error) {
 	if mapper == nil {
 		return nil, fmt.Errorf("mapper is nil")
@@ -63,7 +61,7 @@ func (m *BypassManager) SetLookup(f func(string) ([]net.IP, error)) {
 	}
 }
 
-func (m *BypassManager) SetMapper(f func(string) (int, mapper.Category)) {
+func (m *BypassManager) SetMapper(f func(string) (int, bool)) {
 	if f != nil {
 		m.mapper = f
 	}
@@ -85,13 +83,12 @@ func (m *BypassManager) dial(network, host string) (conn interface{}, err error)
 	}
 
 	switch markType {
-	case mapper.IP:
+	case true:
 		conn, err = m.dialIP(network, host, mark)
-	case mapper.DOMAIN:
+	case false:
 		conn, err = m.dialDomain(network, hostname, port, mark)
-	default:
-		conn, err = m.proxy(host)
 	}
+
 	return conn, err
 }
 
@@ -231,9 +228,9 @@ func (m *BypassManager) SetBypass(b bool) {
 }
 
 func (m *BypassManager) GetDownload() uint64 {
-	return m.connManager.download
+	return m.connManager.GetDownload()
 }
 
 func (m *BypassManager) GetUpload() uint64 {
-	return m.connManager.upload
+	return m.connManager.GetUpload()
 }

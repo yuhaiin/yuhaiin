@@ -60,8 +60,8 @@ func udpHandle(b []byte, f func(string) (net.PacketConn, error)) ([]byte, error)
 		return nil, fmt.Errorf("write data to remote packetConn failed: %v", err)
 	}
 
-	respBuff := utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(respBuff)
+	respBuff := *utils.BuffPool.Get().(*[]byte)
+	defer utils.BuffPool.Put(&(respBuff))
 	// copy(respBuff[0:3], []byte{0, 0, 0})
 	copy(respBuff[:3+addrSize], b[:3+addrSize]) // copy addr []byte{0,0,0,addr...}
 

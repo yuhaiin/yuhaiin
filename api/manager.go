@@ -90,14 +90,14 @@ func (m *manager) Start() error {
 		return err
 	}
 	m.init = true
-	fmt.Println("Initialize Service Successful, Please Connect in 5 Seconds.")
+	fmt.Println("Initialize Service Successful, Please Connect in 30 Seconds.")
 
 	go func() {
 		select {
 		case <-m.conn:
 			fmt.Println("Connect Successful!")
-		case <-time.After(5 * time.Second):
-			log.Println("Connect timeout: 5 Seconds, Exit Process!")
+		case <-time.After(30 * time.Second):
+			log.Println("Connect timeout: 30 Seconds, Exit Process!")
 			close(m.conn)
 			os.Exit(0)
 		}

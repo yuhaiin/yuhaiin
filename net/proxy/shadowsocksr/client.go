@@ -29,7 +29,7 @@ type Shadowsocksr struct {
 	protocolParam   string
 	protocolData    interface{}
 
-	utils.ClientUtil
+	*utils.ClientUtil
 }
 
 func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {

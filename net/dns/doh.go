@@ -17,7 +17,7 @@ import (
 
 type DOH struct {
 	DNS
-	utils.ClientUtil
+	*utils.ClientUtil
 
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)

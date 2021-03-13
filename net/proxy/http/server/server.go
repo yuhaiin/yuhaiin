@@ -177,7 +177,6 @@ func modifyRequest(req *http.Request) {
 	req.RequestURI = ""
 	req.Header.Set("Connection", "close")
 	req.Header = removeHeader(req.Header)
-	return
 }
 
 func modifyResponse(resp *http.Response, keepAlive bool) error {

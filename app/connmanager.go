@@ -52,6 +52,14 @@ func (c *connManager) startQueue() {
 	}()
 }
 
+func (c *connManager) GetDownload() uint64 {
+	return atomic.LoadUint64(&c.download)
+}
+
+func (c *connManager) GetUpload() uint64 {
+	return atomic.LoadUint64(&c.upload)
+}
+
 func (c *connManager) add(i *statisticConn) {
 	c.conns.Store(i.id, i)
 }

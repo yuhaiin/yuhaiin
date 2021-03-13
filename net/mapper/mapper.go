@@ -13,18 +13,6 @@ type Mapper struct {
 	cache  *utils.LRU
 }
 
-type Category int
-
-const (
-	IP Category = 1 << iota
-	DOMAIN
-)
-
-type des struct {
-	Category Category
-	Des      interface{}
-}
-
 func (x *Mapper) SetLookup(f func(string) ([]net.IP, error)) {
 	x.lookup = f
 }
@@ -41,17 +29,19 @@ func (x *Mapper) Insert(str string, mark interface{}) error {
 	return x.cidr.Insert(str, mark)
 }
 
-func (x *Mapper) Search(str string) (mark interface{}, uriType Category) {
+func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
 	if de := x.cache.Load(str); de != nil {
-		return de.(des).Des, de.(des).Category
+		if d, ok := de.([2]interface{}); ok {
+			return d[0], d[1] == 1
+		}
 	}
 
 	var res interface{}
-	markType := DOMAIN
+	markType := 0
 
 	if net.ParseIP(str) != nil {
 		_, res = x.cidr.Search(str)
-		markType = IP
+		markType = 1
 		goto _end
 	}
 
@@ -69,8 +59,8 @@ func (x *Mapper) Search(str string) (mark interface{}, uriType Category) {
 	}
 
 _end:
-	x.cache.Add(str, des{Des: res, Category: markType})
-	return res, markType
+	x.cache.Add(str, [2]interface{}{res, markType})
+	return res, markType == 1
 }
 
 func (x *Mapper) Clear() {
