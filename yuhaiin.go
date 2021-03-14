@@ -36,12 +36,9 @@ func main() {
 		panic(err)
 	}
 	api.RegisterProcessInitServer(s, p)
-	config := api.NewConfig(e)
-	api.RegisterConfigServer(s, config)
-	node := api.NewNode(e)
-	api.RegisterNodeServer(s, node)
-	sub := api.NewSubscribe(e)
-	api.RegisterSubscribeServer(s, sub)
+	api.RegisterConfigServer(s, api.NewConfig(e))
+	api.RegisterNodeServer(s, api.NewNode(e))
+	api.RegisterSubscribeServer(s, api.NewSubscribe(e))
 
 	lis, err := net.Listen("tcp", p.Host())
 	if err != nil {

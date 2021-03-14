@@ -72,7 +72,7 @@ func createNewBypassManager(c *config.Setting) (*BypassManager, error) {
 	}
 
 	// initialize Match Controller
-	return NewBypassManager(c.Bypass.Enabled, s.Get, getDNS(c.DNS).Search)
+	return NewBypassManager(c.Bypass.Enabled, s.Get, getDNS(c.LocalDNS).Search)
 }
 
 func (e *Entrance) SetConFig(conf *config.Setting) (erra error) {

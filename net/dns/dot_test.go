@@ -3,7 +3,7 @@ package dns
 import "testing"
 
 func TestDOT(t *testing.T) {
-	d := NewDOT("223.5.5.5:853", nil)
+	d := NewDoT("223.5.5.5:853", nil)
 	t.Log(d.Search("www.google.com"))
 	t.Log(d.Search("www.baidu.com"))
 	// d.SetServer("dot.pub:853") //  not support ENDS, so shit

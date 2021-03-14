@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 var (
@@ -58,11 +59,12 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 type ClientUtil struct {
 	address string
 	port    string
-	cache   []net.IP
+	cache   []string
 	lookUp  func(string) ([]net.IP, error)
 	GetConn func() (net.Conn, error)
 
-	lock sync.RWMutex
+	dialer net.Dialer
+	lock   sync.RWMutex
 }
 
 //NewClientUtil .
@@ -70,15 +72,18 @@ func NewClientUtil(address, port string) *ClientUtil {
 	c := &ClientUtil{
 		address: address,
 		port:    port,
+		dialer: net.Dialer{
+			Timeout: time.Second * 10,
+		},
 	}
 
 	if net.ParseIP(address) != nil {
 		host := net.JoinHostPort(address, port)
 		c.GetConn = func() (net.Conn, error) {
-			return net.Dial("tcp", host)
+			return c.dialer.Dial("tcp", host)
 		}
 	} else {
-		c.cache = make([]net.IP, 0, 1)
+		c.cache = make([]string, 0, 1)
 		c.lookUp = func(s string) ([]net.IP, error) {
 			return LookupIP(net.DefaultResolver, s)
 		}
@@ -92,7 +97,7 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	for ci := range c.cache {
-		conn, err := net.Dial("tcp", net.JoinHostPort(c.cache[ci].String(), c.port))
+		conn, err := c.dialer.Dial("tcp", c.cache[ci])
 		if err != nil {
 			continue
 		}
@@ -108,14 +113,21 @@ func (c *ClientUtil) getConn() (net.Conn, error) {
 		return conn, err
 	}
 
-	c.lock.Lock()
-	c.cache, err = c.lookUp(c.address)
-	c.lock.Unlock()
+	c.RefreshTCPAddr()
+	return c.dial()
+}
 
-	if err == nil {
-		return c.dial()
+func (c *ClientUtil) RefreshTCPAddr() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.cache = make([]string, 0, 1)
+	x, err := c.lookUp(c.address)
+	if err != nil {
+		log.Printf("lookup address %s failed: %v", c.address, err)
 	}
-	return nil, err
+	for i := range x {
+		c.cache = append(c.cache, net.JoinHostPort(x[i].String(), c.port))
+	}
 }
 
 //SetLookup set dns lookup

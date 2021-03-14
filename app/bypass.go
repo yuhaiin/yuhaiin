@@ -36,9 +36,7 @@ func NewBypassManager(bypass bool, mapper func(s string) (int, bool),
 	}
 
 	m := &BypassManager{
-		dialer: net.Dialer{
-			Timeout: 15 * time.Second,
-		},
+		dialer: net.Dialer{Timeout: 11 * time.Second},
 		lookup: lookup,
 		proxy: func(host string) (conn net.Conn, err error) {
 			return net.DialTimeout("tcp", host, 15*time.Second)
@@ -101,19 +99,20 @@ func (m *BypassManager) dialIP(network, host string, des interface{}) (conn inte
 	}
 
 	if network == "udp" {
-		return m.proxyPacket(host)
+		conn, err = m.proxyPacket(host)
+	} else {
+		conn, err = m.proxy(host)
 	}
-	return m.proxy(host)
+	return
+
 _direct:
 	if network == "udp" {
 		conn, err = net.ListenPacket("udp", "")
 	} else {
 		conn, err = m.dialer.Dial("tcp", host)
 	}
-	if err != nil {
-		return nil, fmt.Errorf("match direct -> %v", err)
-	}
-	return conn, err
+
+	return
 }
 
 func (m *BypassManager) dialDomain(network, hostname, port string, des interface{}) (conn interface{}, err error) {
@@ -125,15 +124,19 @@ func (m *BypassManager) dialDomain(network, hostname, port string, des interface
 	}
 
 	if network == "udp" {
-		return m.proxyPacket(net.JoinHostPort(hostname, port))
+		conn, err = m.proxyPacket(net.JoinHostPort(hostname, port))
+	} else {
+		conn, err = m.proxy(net.JoinHostPort(hostname, port))
 	}
-	return m.proxy(net.JoinHostPort(hostname, port))
+	return
+
 _direct:
 	switch network {
 	case "udp":
 		conn, err = net.ListenPacket("udp", "")
 	default:
-		ip, err := m.lookup(hostname)
+		var ip []net.IP
+		ip, err = m.lookup(hostname)
 		if err != nil {
 			return nil, fmt.Errorf("dns resolve failed: %v", err)
 		}
@@ -142,11 +145,8 @@ _direct:
 			if err != nil {
 				continue
 			}
-			return conn, err
+			break
 		}
-	}
-	if conn == nil || err != nil {
-		return nil, fmt.Errorf("get direct conn failed: %v", err)
 	}
 	return
 }
@@ -189,7 +189,7 @@ func (m *BypassManager) setForward(network string) {
 			if x, ok := conn.(net.PacketConn); ok {
 				return x, nil
 			}
-			return nil, fmt.Errorf("conn is not net.PacketConn")
+			return nil, fmt.Errorf("conn [%v] is not net.PacketConn", conn)
 		}
 		return
 	}
@@ -201,7 +201,7 @@ func (m *BypassManager) setForward(network string) {
 		if x, ok := conn.(net.Conn); ok {
 			return m.connManager.newConn(s, x), nil
 		}
-		return nil, fmt.Errorf("conn is not net.Conn")
+		return nil, fmt.Errorf("conn [%v] is not net.Conn", conn)
 	}
 }
 

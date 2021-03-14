@@ -15,7 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/net/utils"
 )
 
-type DOH struct {
+type DoH struct {
 	DNS
 	*utils.ClientUtil
 
@@ -30,11 +30,11 @@ type DOH struct {
 	httpClient *http.Client
 }
 
-func NewDOH(host string, subnet *net.IPNet) DNS {
+func NewDoH(host string, subnet *net.IPNet) DNS {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
-	dns := &DOH{
+	dns := &DoH{
 		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),
 	}
@@ -49,7 +49,7 @@ func NewDOH(host string, subnet *net.IPNet) DNS {
 
 // Search
 // https://tools.ietf.org/html/rfc8484
-func (d *DOH) Search(domain string) (ip []net.IP, err error) {
+func (d *DoH) Search(domain string) (ip []net.IP, err error) {
 	if x := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
@@ -59,7 +59,7 @@ func (d *DOH) Search(domain string) (ip []net.IP, err error) {
 	return
 }
 
-func (d *DOH) search(domain string) ([]net.IP, error) {
+func (d *DoH) search(domain string) ([]net.IP, error) {
 	DNS, err := dnsCommon(
 		domain,
 		d.Subnet,
@@ -68,12 +68,12 @@ func (d *DOH) search(domain string) ([]net.IP, error) {
 		},
 	)
 	if err != nil || len(DNS) == 0 {
-		return nil, fmt.Errorf("DOH resolve domain %s failed: %vs", domain, err)
+		return nil, fmt.Errorf("doh resolve domain %s failed: %v", domain, err)
 	}
 	return DNS, nil
 }
 
-func (d *DOH) SetSubnet(ip *net.IPNet) {
+func (d *DoH) SetSubnet(ip *net.IPNet) {
 	if ip == nil {
 		_, d.Subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	} else {
@@ -81,11 +81,11 @@ func (d *DOH) SetSubnet(ip *net.IPNet) {
 	}
 }
 
-func (d *DOH) GetSubnet() *net.IPNet {
+func (d *DoH) GetSubnet() *net.IPNet {
 	return d.Subnet
 }
 
-func (d *DOH) SetServer(host string) {
+func (d *DoH) SetServer(host string) {
 	uri, err := url.Parse("//" + host)
 	if err != nil {
 		d.host = host
@@ -105,11 +105,11 @@ func (d *DOH) SetServer(host string) {
 	d.ClientUtil = utils.NewClientUtil(d.host, d.port)
 }
 
-func (d *DOH) GetServer() string {
+func (d *DoH) GetServer() string {
 	return d.url
 }
 
-func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {
+func (d *DoH) SetProxy(proxy func(addr string) (net.Conn, error)) {
 	if proxy == nil {
 		return
 	}
@@ -131,7 +131,7 @@ func (d *DOH) SetProxy(proxy func(addr string) (net.Conn, error)) {
 	}
 }
 
-func (d *DOH) get(dReq []byte) (body []byte, err error) {
+func (d *DoH) get(dReq []byte) (body []byte, err error) {
 	query := strings.Replace(base64.URLEncoding.EncodeToString(dReq), "=", "", -1)
 	urls := d.url + "?dns=" + query
 	res, err := d.httpClient.Get(urls)
@@ -147,7 +147,7 @@ func (d *DOH) get(dReq []byte) (body []byte, err error) {
 }
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
-func (d *DOH) post(dReq []byte) (body []byte, err error) {
+func (d *DoH) post(dReq []byte) (body []byte, err error) {
 	resp, err := d.httpClient.Post(d.url, "application/dns-message", bytes.NewReader(dReq))
 	if err != nil {
 		return nil, fmt.Errorf("doh post failed: %v", err)

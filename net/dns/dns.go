@@ -33,9 +33,9 @@ type DNS interface {
 func NewDNS(host string, dnsType DNSType, subnet *net.IPNet) DNS {
 	switch dnsType {
 	case DNSOverHTTPS:
-		return NewDOH(host, subnet)
+		return NewDoH(host, subnet)
 	case DNSOverTLS:
-		return NewDOT(host, subnet)
+		return NewDoT(host, subnet)
 	}
 	return NewNormalDNS(host, subnet)
 }

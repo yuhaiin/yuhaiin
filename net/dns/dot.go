@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type DOT struct {
+type DoT struct {
 	DNS
 	host         string
 	servername   string
@@ -17,12 +17,12 @@ type DOT struct {
 	sessionCache tls.ClientSessionCache
 }
 
-func NewDOT(host string, subnet *net.IPNet) *DOT {
+func NewDoT(host string, subnet *net.IPNet) *DoT {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
 	servername, _, _ := net.SplitHostPort(host)
-	return &DOT{
+	return &DoT{
 		host:         host,
 		subnet:       subnet,
 		servername:   servername,
@@ -33,7 +33,7 @@ func NewDOT(host string, subnet *net.IPNet) *DOT {
 	}
 }
 
-func (d *DOT) SetProxy(f func(string) (net.Conn, error)) {
+func (d *DoT) SetProxy(f func(string) (net.Conn, error)) {
 	if f == nil {
 		d.proxy = func(s string) (net.Conn, error) {
 			return net.DialTimeout("tcp", s, time.Second*5)
@@ -42,7 +42,7 @@ func (d *DOT) SetProxy(f func(string) (net.Conn, error)) {
 	d.proxy = f
 }
 
-func (d *DOT) SetServer(host string) {
+func (d *DoT) SetServer(host string) {
 	if host == "" {
 		log.Println("set dot host is empty, skip")
 		return
@@ -52,11 +52,11 @@ func (d *DOT) SetServer(host string) {
 	d.servername = servername
 }
 
-func (d *DOT) SetSubnet(subnet *net.IPNet) {
+func (d *DoT) SetSubnet(subnet *net.IPNet) {
 	d.subnet = subnet
 }
 
-func (d *DOT) Search(domain string) ([]net.IP, error) {
+func (d *DoT) Search(domain string) ([]net.IP, error) {
 	conn, err := d.proxy(d.host)
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial failed: %v", err)
