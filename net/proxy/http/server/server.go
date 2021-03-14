@@ -83,10 +83,6 @@ _start:
 		return
 	}
 
-	// src.SetDeadline(time.Now().Add(time.Second * 8))
-	// dstc.SetDeadline(time.Now().Add(time.Second * 8))
-
-	fmt.Printf("--------------> http proxy request to %s\n", host)
 	err = normal(src, dstc, req, keepAlive)
 	if err != nil {
 		// log.Printf("normal failed: %v\n", err)

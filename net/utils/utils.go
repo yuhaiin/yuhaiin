@@ -15,7 +15,7 @@ var (
 	//BuffPool byte array poll
 	BuffPool = sync.Pool{
 		New: func() interface{} {
-			x := make([]byte, 32*0x400)
+			x := make([]byte, 16*0x400)
 			return &x
 		},
 	}
@@ -128,16 +128,6 @@ func (c *ClientUtil) RefreshTCPAddr() {
 	for i := range x {
 		c.cache = append(c.cache, net.JoinHostPort(x[i].String(), c.port))
 	}
-}
-
-//SetLookup set dns lookup
-func (c *ClientUtil) SetLookup(f func(string) ([]net.IP, error)) {
-	if f == nil {
-		log.Println("f is nil")
-		return
-	}
-
-	c.lookUp = f
 }
 
 //Unit .

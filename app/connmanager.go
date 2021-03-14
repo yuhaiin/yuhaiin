@@ -9,15 +9,10 @@ import (
 )
 
 type connManager struct {
-	conns sync.Map
-
-	download      uint64
-	upload        uint64
-	downloadQueue chan uint64
-	uploadQueue   chan uint64
-	close         chan bool
-
-	idSeed *idGenerater
+	conns    sync.Map
+	download uint64
+	upload   uint64
+	idSeed   *idGenerater
 }
 
 func newConnManager() *connManager {
@@ -25,31 +20,10 @@ func newConnManager() *connManager {
 		download: 0,
 		upload:   0,
 
-		idSeed:        &idGenerater{},
-		downloadQueue: make(chan uint64, 10),
-		uploadQueue:   make(chan uint64, 10),
-		close:         make(chan bool),
+		idSeed: &idGenerater{},
 	}
 
-	c.startQueue()
-
 	return c
-}
-
-func (c *connManager) startQueue() {
-	go func() {
-		var x uint64
-		for {
-			select {
-			case x = <-c.downloadQueue:
-				atomic.AddUint64(&c.download, x)
-			case x = <-c.uploadQueue:
-				atomic.AddUint64(&c.upload, x)
-			case <-c.close:
-				return
-			}
-		}
-	}()
 }
 
 func (c *connManager) GetDownload() uint64 {
@@ -71,21 +45,15 @@ func (c *connManager) delete(id int64) {
 	}
 }
 
-func (c *connManager) Close() {
-	close(c.close)
-	close(c.downloadQueue)
-	close(c.uploadQueue)
-}
-
 func (c *connManager) write(w io.Writer, b []byte) (int, error) {
 	n, err := w.Write(b)
-	c.uploadQueue <- uint64(n)
+	atomic.AddUint64(&c.upload, uint64(n))
 	return n, err
 }
 
 func (c *connManager) read(r io.Reader, b []byte) (int, error) {
 	n, err := r.Read(b)
-	c.downloadQueue <- uint64(n)
+	atomic.AddUint64(&c.download, uint64(n))
 	return n, err
 }
 
