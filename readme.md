@@ -21,8 +21,8 @@
 - [TODO](https://github.com/Asutorufa/yuhaiin/wiki/TODO).  
 - Others Please Check [Wiki](https://github.com/Asutorufa/yuhaiin/wiki).  
 
-![v0.2.12-beta_linux](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_linux.png)  
-![v0.2.12-beta_windows](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/img/v0.2.12-beta_windows.png)  
+![v0.2.12-beta_linux](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/v0.2.12-beta_linux.png)  
+![v0.2.12-beta_windows](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/v0.2.12-beta_windows.png)  
 
 <details>
 <summary>Acknowledgement</summary>
