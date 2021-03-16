@@ -1,4 +1,4 @@
-package main
+package scripts
 
 // windows exe icon and describe
 // windres from minGW64 https://sourceforge.net/projects/mingw-w64/files/mingw-w64/mingw-w64-release/
