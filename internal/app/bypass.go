@@ -83,10 +83,9 @@ func (m *BypassManager) Forward(host string) (conn net.Conn, err error) {
 		}
 		for i := range ip {
 			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), resp.port))
-			if err != nil {
-				continue
+			if err == nil {
+				break
 			}
-			break
 		}
 	default:
 		conn, err = m.proxy(host)
