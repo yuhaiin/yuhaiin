@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -11,9 +12,13 @@ type Mapper struct {
 	cidr   *Cidr
 	domain *Domain
 	cache  *utils.LRU
+
+	lookupLock sync.RWMutex
 }
 
 func (x *Mapper) SetLookup(f func(string) ([]net.IP, error)) {
+	x.lookupLock.Lock()
+	defer x.lookupLock.Unlock()
 	x.lookup = f
 }
 
@@ -54,9 +59,11 @@ func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
 		goto _end
 	}
 
+	x.lookupLock.RLock()
 	if dns, _ := x.lookup(str); len(dns) > 0 {
 		_, res = x.cidr.Search(dns[0].String())
 	}
+	x.lookupLock.RUnlock()
 
 _end:
 	x.cache.Add(str, [2]interface{}{res, markType})

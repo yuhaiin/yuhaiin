@@ -9,8 +9,7 @@ import (
 
 //BypassManager .
 type BypassManager struct {
-	bypass   bool
-	nodeHash string
+	bypass bool
 
 	lookup func(string) ([]net.IP, error)
 	mapper func(string) (mark int, isIP bool)
@@ -50,22 +49,6 @@ func NewBypassManager(bypass bool, mapper func(s string) (int, bool),
 	return m, nil
 }
 
-func (m *BypassManager) SetLookup(f func(string) ([]net.IP, error)) {
-	if f != nil {
-		m.lookup = f
-	}
-}
-
-func (m *BypassManager) SetMapper(f func(string) (int, bool)) {
-	if f != nil {
-		m.mapper = f
-	}
-}
-
-func (m *BypassManager) SetBypass(b bool) {
-	m.bypass = b
-}
-
 // https://myexternalip.com/raw
 func (m *BypassManager) Forward(host string) (conn net.Conn, err error) {
 	resp, err := m.marry(host)
@@ -99,23 +82,17 @@ func (m *BypassManager) ForwardPacket(host string) (conn net.PacketConn, err err
 	if err != nil {
 		return nil, fmt.Errorf("map failed: %v", err)
 	}
+
 	if resp.mark == direct {
-		conn, err = net.ListenPacket("udp", "")
-	} else {
-		conn, err = m.proxyPacket(host)
+		return net.ListenPacket("udp", "")
 	}
-	return
+
+	return m.proxyPacket(host)
 }
 
 //SetProxy .
-func (m *BypassManager) SetProxy(
-	conn func(string) (net.Conn, error),
-	packetConn func(string) (net.PacketConn, error),
-	hash string,
-) {
-	if m.nodeHash == hash {
-		return
-	}
+func (m *BypassManager) SetProxy(conn func(string) (net.Conn, error),
+	packetConn func(string) (net.PacketConn, error)) {
 	if conn == nil {
 		m.proxy = func(host string) (conn net.Conn, err error) {
 			return net.DialTimeout("tcp", host, 15*time.Second)
@@ -131,8 +108,6 @@ func (m *BypassManager) SetProxy(
 	} else {
 		m.proxyPacket = packetConn
 	}
-
-	m.nodeHash = hash
 }
 
 type getResp struct {

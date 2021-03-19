@@ -14,6 +14,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 )
@@ -46,6 +47,8 @@ var mode = map[string]int{
 type Shunt struct {
 	file   string
 	mapper *mapper.Mapper
+
+	fileLock sync.RWMutex
 }
 
 //NewShunt file: bypass file; lookup: domain resolver, can be nil
@@ -62,6 +65,8 @@ func NewShunt(file string, lookup func(string) ([]net.IP, error)) (*Shunt, error
 }
 
 func (s *Shunt) RefreshMapping() error {
+	s.fileLock.RLock()
+	defer s.fileLock.RUnlock()
 	log.Println(s.file)
 	_, err := os.Stat(s.file)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
@@ -110,7 +115,10 @@ func (s *Shunt) SetFile(f string) error {
 	if s.file == f {
 		return nil
 	}
+	s.fileLock.Lock()
 	s.file = f
+	s.fileLock.Unlock()
+
 	return s.RefreshMapping()
 }
 
