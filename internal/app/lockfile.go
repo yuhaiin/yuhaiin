@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 )
@@ -19,7 +20,7 @@ var (
 
 func GetProcessLock(str string) error {
 	_, err := os.Stat(path.Dir(str))
-	if err != nil && errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) {
 		err = os.MkdirAll(path.Dir(LockFilePath), os.ModePerm)
 		if err != nil {
 			return fmt.Errorf("make dir failed: %v", err)
@@ -31,11 +32,12 @@ func GetProcessLock(str string) error {
 		return fmt.Errorf("open lock file failed: %v", err)
 	}
 
-	if err := LockFile(lockFile); err != nil {
+	err = LockFile(lockFile)
+	if err != nil {
 		return fmt.Errorf("lock file failed: %v", err)
 	}
 
-	err = ioutil.WriteFile(hostFile, []byte(str), os.ModePerm)
+	err = ioutil.WriteFile(hostFile, *(*[]byte)(unsafe.Pointer(&str)), os.ModePerm)
 	if err != nil {
 		log.Printf("write host to file failed: %v", err)
 	}
@@ -50,7 +52,7 @@ func ReadLockFile() (string, error) {
 		}
 		return "", fmt.Errorf("read lock file failed: %v", err)
 	}
-	return string(s), nil
+	return *(*string)(unsafe.Pointer(&s)), nil
 }
 
 func LockFileClose() (erra error) {

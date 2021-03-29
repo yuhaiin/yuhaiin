@@ -55,23 +55,27 @@ func (m *BypassManager) Forward(host string) (conn net.Conn, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("map failed: %v", err)
 	}
-	switch {
-	case resp.mark == direct && resp.isIP:
-		conn, err = m.dialer.Dial("tcp", host)
-	case resp.mark == direct && !resp.isIP:
-		var ip []net.IP
-		ip, err = m.lookup(resp.hostname)
-		if err != nil {
-			return nil, fmt.Errorf("dns resolve failed: %v", err)
-		}
-		for i := range ip {
-			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), resp.port))
-			if err == nil {
-				break
-			}
-		}
-	default:
+
+	if resp.mark != direct {
 		conn, err = m.proxy(host)
+		return m.connManager.newConn(host, conn), err
+	}
+
+	if resp.isIP {
+		conn, err = m.dialer.Dial("tcp", host)
+		return m.connManager.newConn(host, conn), err
+	}
+
+	ip, err := m.lookup(resp.hostname)
+	if err != nil {
+		return nil, fmt.Errorf("dns resolve failed: %v", err)
+	}
+
+	for i := range ip {
+		conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), resp.port))
+		if err == nil {
+			break
+		}
 	}
 
 	return m.connManager.newConn(host, conn), err

@@ -2,7 +2,7 @@ package app
 
 import (
 	"flag"
-	fmt "fmt"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
