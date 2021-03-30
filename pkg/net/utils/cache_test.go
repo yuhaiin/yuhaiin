@@ -30,23 +30,22 @@ func TestLru(t *testing.T) {
 	l.Add("e", "e")
 	print()
 }
-
 func BenchmarkNewLru(b *testing.B) {
 	b.StopTimer()
-	b.StartTimer()
 	l := NewLru(100, 10*time.Minute)
 
 	l.Add("a", "a")
 	l.Add("b", "b")
 	l.Add("c", "c")
 
+	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		if i%3 == 0 {
-			go l.load("a")
+			go l.Load("a")
 		} else if i%3 == 1 {
 			go l.Add("z", "z")
 		} else if i%3 == 2 {
-			go l.load("z")
+			go l.Load("z")
 		} else {
 			go l.Load("c")
 		}

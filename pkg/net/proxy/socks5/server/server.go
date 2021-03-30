@@ -91,11 +91,12 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 		}
 		return
 	}
-	switch server := server.(type) {
-	case *net.TCPConn:
-		_ = server.SetKeepAlive(true)
+
+	if z, ok := server.(*net.TCPConn); ok {
+		_ = z.SetKeepAlive(true)
 	}
 	defer server.Close()
+
 	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
 
 	// hand shake successful

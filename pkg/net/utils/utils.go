@@ -113,11 +113,11 @@ func (c *ClientUtil) getConn() (net.Conn, error) {
 		return conn, err
 	}
 
-	c.RefreshTCPAddr()
+	c.refreshCache()
 	return c.dial()
 }
 
-func (c *ClientUtil) RefreshTCPAddr() {
+func (c *ClientUtil) refreshCache() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.cache = make([]string, 0, 1)

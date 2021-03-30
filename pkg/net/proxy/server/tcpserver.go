@@ -111,7 +111,7 @@ func (t *TcpServer) run() (err error) {
 	return
 }
 
-func (t *TcpServer) process() {
+func (t *TcpServer) process() error {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -120,8 +120,8 @@ func (t *TcpServer) process() {
 		c, err := t.listener.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
-				log.Println("checked close")
-				return
+				log.Printf("checked tcp server closed: %v\n", err)
+				return fmt.Errorf("checked tcp server closed: %v", err)
 			}
 
 			// from https://golang.org/src/net/http/server.go?s=93655:93701#L2977
@@ -136,21 +136,17 @@ func (t *TcpServer) process() {
 					tempDelay = max
 				}
 
-				log.Printf("http: Accept error: %v; retrying in %v\n", err, tempDelay)
+				log.Printf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
-			// if strings.Contains(err.Error(), "too many open files") {
-			// log.Printf("checked too many open files (type: %v), server sleep 2 seconds.\n", reflect.TypeOf(err))
-			// time.Sleep(time.Second * 2)
-			// }
-			log.Println(err)
-			if c != nil {
-				log.Println("checked listener accept is err but conn is not nil, close conn.")
-				c.Close()
-			}
-			continue
+
+			log.Printf("tcp server accept failed: %v\n", err)
+			return fmt.Errorf("tcp server accept failed: %v", err)
 		}
+
+		tempDelay = 0
+
 		go func() {
 			defer c.Close()
 			t.handle(c, t.getTCPConn())
