@@ -149,7 +149,10 @@ func (e *Entrance) GetConfig() (*config.Setting, error) {
 }
 
 func (e *Entrance) ChangeNNode(group string, node string) (err error) {
-	e.nodeManager.ChangeNowNode(node, group)
+	err = e.nodeManager.ChangeNowNode(node, group)
+	if err != nil {
+		return fmt.Errorf("change now node failed: %v", err)
+	}
 	return e.ChangeNode()
 }
 

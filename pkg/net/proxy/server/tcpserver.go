@@ -5,20 +5,23 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"reflect"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // TcpServer tcp server common
 type TcpServer struct {
 	Server
-	host     string
-	lock     sync.Mutex
-	connLock sync.RWMutex
+	host string
+	lock sync.Mutex
 
 	listener net.Listener
-	tcpConn  func(string) (net.Conn, error)
-	handle   func(net.Conn, func(string) (net.Conn, error))
+
+	tcpConn atomic.Value
+	handle  func(net.Conn, func(string) (net.Conn, error))
 }
 
 type Option struct {
@@ -48,8 +51,10 @@ func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, err
 	s := &TcpServer{
 		host:    host,
 		handle:  handle,
-		tcpConn: o.TcpConn,
+		tcpConn: atomic.Value{},
 	}
+	s.tcpConn.Store(o.TcpConn)
+
 	err := s.run()
 	if err != nil {
 		return nil, fmt.Errorf("server Run -> %v", err)
@@ -80,15 +85,17 @@ func (t *TcpServer) SetTCPConn(conn func(string) (net.Conn, error)) {
 	if conn == nil {
 		return
 	}
-	t.connLock.Lock()
-	defer t.connLock.Unlock()
-	t.tcpConn = conn
+	t.tcpConn.Store(conn)
 }
 
 func (t *TcpServer) getTCPConn() func(string) (net.Conn, error) {
-	t.connLock.RLock()
-	defer t.connLock.RUnlock()
-	return t.tcpConn
+	y, ok := t.tcpConn.Load().(func(string) (net.Conn, error))
+	if ok {
+		return y
+	}
+	return func(s string) (net.Conn, error) {
+		return net.Dial("tcp", s)
+	}
 }
 
 func (t *TcpServer) GetListenHost() string {
@@ -116,7 +123,17 @@ func (t *TcpServer) process() {
 				log.Println("checked close")
 				return
 			}
+
+			if strings.Contains(err.Error(), "too many open files") {
+				log.Printf("checked too many open files (type: %v), server sleep 2 seconds.\n", reflect.TypeOf(err))
+				time.Sleep(time.Second * 2)
+			}
 			log.Println(err)
+			if c != nil {
+				log.Println("checked listener accept is err but conn is not nil, close conn.")
+				c.Close()
+			}
+
 			continue
 		}
 		go func() {

@@ -103,7 +103,7 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 		}
 		return conn, nil
 	}
-	return nil, errors.New("vmess dial failed")
+	return nil, errors.New("dial failed")
 }
 
 //GetConn .

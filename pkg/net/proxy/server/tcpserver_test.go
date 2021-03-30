@@ -16,3 +16,16 @@ func TestNew(t *testing.T) {
 	//s.Close()
 	select {}
 }
+
+func TestDefer(t *testing.T) {
+	defer t.Log("main defer")
+	s := make(chan bool)
+	go func() {
+		defer t.Log("defer")
+		t.Log("before defer")
+		s <- false
+	}()
+
+	t.Log("main")
+	<-s
+}

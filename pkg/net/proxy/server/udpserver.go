@@ -6,38 +6,47 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 type UdpServer struct {
 	Server
-	host     string
-	lock     sync.Mutex
-	connLock sync.RWMutex
+	host string
+	lock sync.Mutex
+
 	listener net.PacketConn
 	handle   func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)
-	udpConn  func(string) (net.PacketConn, error)
+	udpConn  atomic.Value
 }
 
 func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
-	u.connLock.Lock()
-	defer u.connLock.Unlock()
-	u.udpConn = f
+	if f == nil {
+		return
+	}
+	u.udpConn.Store(f)
 }
 
 func (u *UdpServer) getUDPConn() func(string) (net.PacketConn, error) {
-	u.connLock.RLock()
-	defer u.connLock.RUnlock()
-	return u.udpConn
+	y, ok := u.udpConn.Load().(func(string) (net.PacketConn, error))
+	if ok {
+		return y
+	}
+	return func(s string) (net.PacketConn, error) {
+		return net.ListenPacket("udp", "")
+	}
 }
 
 func NewUDPServer(host string, handle func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)) (UDPServer, error) {
 	u := &UdpServer{
-		host:   host,
-		handle: handle,
-		udpConn: func(s string) (net.PacketConn, error) {
+		host:    host,
+		handle:  handle,
+		udpConn: atomic.Value{},
+	}
+	u.udpConn.Store(
+		func(s string) (net.PacketConn, error) {
 			return net.ListenPacket("udp", "")
 		},
-	}
+	)
 
 	err := u.run()
 	if err != nil {

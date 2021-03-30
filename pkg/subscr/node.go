@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	ss "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocks"
@@ -22,6 +23,8 @@ import (
 type NodeManager struct {
 	nodes      *utils.Node
 	configPath string
+
+	lock sync.RWMutex
 }
 
 func NewNodeManager(configPath string) (n *NodeManager, err error) {
@@ -38,19 +41,23 @@ func (n *NodeManager) decodeJSON() (*utils.Node, error) {
 		Links:   make(map[string]utils.Link),
 		Node:    make(map[string]map[string]*utils.Point),
 	}
-	file, err := os.Open(n.configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return pa, n.enCodeJSON(pa)
-		}
-		return nil, err
-	}
-	err = json.NewDecoder(file).Decode(&pa)
-	if err != nil {
-		return nil, err
+	_, err := os.Stat(n.configPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return pa, n.enCodeJSON(pa)
 	}
 
-	return pa, n.enCodeJSON(pa)
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+	file, err := os.Open(n.configPath)
+	if err != nil {
+		return nil, fmt.Errorf("open node file failed: %v", err)
+	}
+	defer file.Close()
+	err = json.NewDecoder(file).Decode(&pa)
+	if err != nil {
+		return nil, fmt.Errorf("decode failed: %v", err)
+	}
+	return pa, nil
 }
 
 func (n *NodeManager) GetNodes() *utils.Node {
@@ -64,38 +71,40 @@ func (n *NodeManager) AddLink(name, style, link string) error {
 	}
 	return n.enCodeJSON(n.nodes)
 }
+
 func (n *NodeManager) DeleteLink(name string) error {
 	delete(n.nodes.Links, name)
 	return n.enCodeJSON(n.nodes)
 }
 
-func (n *NodeManager) ChangeNowNode(name, group string) {
+func (n *NodeManager) ChangeNowNode(name, group string) error {
 	if n.nodes.Node[group][name] == nil {
-		log.Println("not exist " + group + " - " + name)
-		return
+		return errors.New("not exist " + group + " - " + name)
 	}
 	n.nodes.NowNode = n.nodes.Node[group][name]
+	return n.enCodeJSON(n.nodes)
 }
 
 func (n *NodeManager) enCodeJSON(pa *utils.Node) error {
-_retry:
+	_, err := os.Stat(path.Dir(n.configPath))
+	if errors.Is(err, os.ErrNotExist) {
+		err = os.MkdirAll(path.Dir(n.configPath), os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("node -> enCodeJSON():MkDirAll -> %v", err)
+		}
+	}
+
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
 	file, err := os.OpenFile(n.configPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(path.Dir(n.configPath), os.ModePerm)
-			if err != nil {
-				return fmt.Errorf("node -> enCodeJSON():MkDirAll -> %v", err)
-			}
-			goto _retry
-		}
-		return err
+		return fmt.Errorf("open node config failed: %v", err)
 	}
+	defer file.Close()
 	enc := json.NewEncoder(file)
 	enc.SetIndent("", "\t")
-	if err := enc.Encode(&pa); err != nil {
-		return err
-	}
-	return nil
+	return enc.Encode(&pa)
 }
 
 // GetLinkFromInt
@@ -140,22 +149,6 @@ func addOneNode(p *utils.Point, nodes map[string]map[string]*utils.Point) {
 		nodes[p.NGroup] = make(map[string]*utils.Point)
 	}
 	nodes[p.NGroup][p.NName] = p
-}
-
-func printNodes(nodes map[string]map[string]interface{}) {
-	for key := range nodes {
-		fmt.Println("Group:", key)
-		for nodeKey := range nodes[key] {
-			fmt.Println("Name:", nodeKey)
-		}
-		fmt.Println("")
-	}
-}
-
-func deleteAllRemoteNodes(nodes map[string]map[string]*utils.Point) {
-	for key := range nodes {
-		deleteRemoteNodes(nodes, key)
-	}
 }
 
 func deleteRemoteNodes(nodes map[string]map[string]*utils.Point, key string) {
