@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"reflect"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -116,6 +114,8 @@ func (t *TcpServer) run() (err error) {
 func (t *TcpServer) process() {
 	t.lock.Lock()
 	defer t.lock.Unlock()
+
+	var tempDelay time.Duration
 	for {
 		c, err := t.listener.Accept()
 		if err != nil {
@@ -124,16 +124,31 @@ func (t *TcpServer) process() {
 				return
 			}
 
-			if strings.Contains(err.Error(), "too many open files") {
-				log.Printf("checked too many open files (type: %v), server sleep 2 seconds.\n", reflect.TypeOf(err))
-				time.Sleep(time.Second * 2)
+			// from https://golang.org/src/net/http/server.go?s=93655:93701#L2977
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				if tempDelay == 0 {
+					tempDelay = 5 * time.Millisecond
+				} else {
+					tempDelay *= 2
+				}
+
+				if max := 1 * time.Second; tempDelay > max {
+					tempDelay = max
+				}
+
+				log.Printf("http: Accept error: %v; retrying in %v\n", err, tempDelay)
+				time.Sleep(tempDelay)
+				continue
 			}
+			// if strings.Contains(err.Error(), "too many open files") {
+			// log.Printf("checked too many open files (type: %v), server sleep 2 seconds.\n", reflect.TypeOf(err))
+			// time.Sleep(time.Second * 2)
+			// }
 			log.Println(err)
 			if c != nil {
 				log.Println("checked listener accept is err but conn is not nil, close conn.")
 				c.Close()
 			}
-
 			continue
 		}
 		go func() {
