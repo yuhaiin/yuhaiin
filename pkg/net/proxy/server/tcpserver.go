@@ -119,11 +119,6 @@ func (t *TcpServer) process() error {
 	for {
 		c, err := t.listener.Accept()
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				log.Printf("checked tcp server closed: %v\n", err)
-				return fmt.Errorf("checked tcp server closed: %v", err)
-			}
-
 			// from https://golang.org/src/net/http/server.go?s=93655:93701#L2977
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				if tempDelay == 0 {
@@ -141,7 +136,11 @@ func (t *TcpServer) process() error {
 				continue
 			}
 
-			log.Printf("tcp server accept failed: %v\n", err)
+			if errors.Is(err, net.ErrClosed) {
+				log.Printf("checked tcp server closed: %v\n", err)
+			} else {
+				log.Printf("tcp server accept failed: %v\n", err)
+			}
 			return fmt.Errorf("tcp server accept failed: %v", err)
 		}
 

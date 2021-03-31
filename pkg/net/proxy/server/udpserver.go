@@ -7,6 +7,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type UdpServer struct {
@@ -93,21 +94,40 @@ func (u *UdpServer) run() (err error) {
 	return nil
 }
 
-func (u *UdpServer) process() {
+func (u *UdpServer) process() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
+	var tempDelay time.Duration
 	for {
 		b := make([]byte, 600)
 		n, remoteAddr, err := u.listener.ReadFrom(b)
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				log.Println("checked close")
-				return
+			// from https://golang.org/src/net/http/server.go?s=93655:93701#L2977
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				if tempDelay == 0 {
+					tempDelay = 5 * time.Millisecond
+				} else {
+					tempDelay *= 2
+				}
+
+				if max := 1 * time.Second; tempDelay > max {
+					tempDelay = max
+				}
+
+				log.Printf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
+				time.Sleep(tempDelay)
+				continue
 			}
-			log.Println(err)
-			continue
+
+			if errors.Is(err, net.ErrClosed) {
+				log.Printf("checked udp server closed: %v\n", err)
+			} else {
+				log.Printf("udp server accept failed: %v\n", err)
+			}
+			return fmt.Errorf("udp server accept failed: %v", err)
 		}
 
+		tempDelay = 0
 		go func() {
 			data, err := u.handle(b[:n], u.getUDPConn())
 			if err != nil {
