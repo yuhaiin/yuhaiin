@@ -59,9 +59,9 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 type ClientUtil struct {
 	address string
 	port    string
+	host    string
 	cache   []string
-	lookUp  func(string) ([]net.IP, error)
-	GetConn func() (net.Conn, error)
+	ip      bool
 
 	dialer net.Dialer
 	lock   sync.RWMutex
@@ -69,28 +69,19 @@ type ClientUtil struct {
 
 //NewClientUtil .
 func NewClientUtil(address, port string) *ClientUtil {
-	c := &ClientUtil{
+	return &ClientUtil{
 		address: address,
 		port:    port,
+		host:    net.JoinHostPort(address, port),
 		dialer: net.Dialer{
 			Timeout: time.Second * 10,
 		},
+		ip: net.ParseIP(address) != nil,
 	}
+}
 
-	if net.ParseIP(address) != nil {
-		host := net.JoinHostPort(address, port)
-		c.GetConn = func() (net.Conn, error) {
-			return c.dialer.Dial("tcp", host)
-		}
-	} else {
-		c.cache = make([]string, 0, 1)
-		c.lookUp = func(s string) ([]net.IP, error) {
-			return LookupIP(net.DefaultResolver, s)
-		}
-		c.GetConn = c.getConn
-	}
-
-	return c
+func (c *ClientUtil) lookUp(s string) ([]net.IP, error) {
+	return LookupIP(net.DefaultResolver, s)
 }
 
 func (c *ClientUtil) dial() (net.Conn, error) {
@@ -107,13 +98,18 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 }
 
 //GetConn .
-func (c *ClientUtil) getConn() (net.Conn, error) {
+func (c *ClientUtil) GetConn() (net.Conn, error) {
+	if c.ip {
+		return c.dialer.Dial("tcp", c.host)
+	}
+
 	conn, err := c.dial()
 	if err == nil {
 		return conn, err
 	}
 
 	c.refreshCache()
+
 	return c.dial()
 }
 
