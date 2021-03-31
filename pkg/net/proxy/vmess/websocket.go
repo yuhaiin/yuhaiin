@@ -2,9 +2,13 @@ package vmess
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -44,25 +48,28 @@ func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable 
 			if err != nil {
 				return nil, err
 			}
-			// key, err := ioutil.ReadFile(keyPath)
-			// if err != nil {
-			// return nil, err
-			// }
-			// certPair, err := tls.X509KeyPair(cert, key)
-			// if err != nil {
-			// return nil, err
-			// }
 
-			x.TLSClientConfig.Certificates = []tls.Certificate{
-				{
-					Certificate: [][]byte{cert},
-				},
+			pool, err := x509.SystemCertPool()
+			if err != nil {
+				return nil, fmt.Errorf("get x509 system cert pool failed: %v", err)
 			}
-			// x.TLSClientConfig.Certificates = append(
-			// x.TLSClientConfig.Certificates,
-			// tls.Certificate{
-			// Certificate: [][]byte{cert},
-			// })
+
+			block, _ := pem.Decode(cert)
+			if block != nil {
+				certA, err := x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					log.Printf("parse certificate failed: %v", err)
+				} else {
+					x.TLSClientConfig.Certificates = append(
+						x.TLSClientConfig.Certificates,
+						tls.Certificate{
+							Certificate: [][]byte{certA.Raw},
+						},
+					)
+					pool.AddCert(certA)
+				}
+			}
+			x.TLSClientConfig.ClientCAs = pool
 		}
 	}
 
