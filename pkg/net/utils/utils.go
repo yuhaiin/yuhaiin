@@ -114,16 +114,19 @@ func (c *ClientUtil) GetConn() (net.Conn, error) {
 }
 
 func (c *ClientUtil) refreshCache() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.cache = make([]string, 0, 1)
 	x, err := c.lookUp(c.address)
 	if err != nil {
 		log.Printf("lookup address %s failed: %v", c.address, err)
 	}
+	cache := make([]string, 0, len(x))
 	for i := range x {
-		c.cache = append(c.cache, net.JoinHostPort(x[i].String(), c.port))
+		cache = append(cache, net.JoinHostPort(x[i].String(), c.port))
 	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.cache = cache
 }
 
 //Unit .

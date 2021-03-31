@@ -101,13 +101,8 @@ func (s *statisticConn) Read(b []byte) (n int, err error) {
 
 type idGenerater struct {
 	node int64
-	x    sync.Mutex
 }
 
 func (i *idGenerater) Generate() (id int64) {
-	i.x.Lock()
-	defer i.x.Unlock()
-	id = i.node
-	i.node++
-	return
+	return atomic.AddInt64(&i.node, 1)
 }
