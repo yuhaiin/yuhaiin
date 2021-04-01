@@ -13,14 +13,16 @@ func TestCidrMatch_Inset(t *testing.T) {
 	if err := cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"); err != nil {
 		t.Error(err)
 	}
+	cidrMatch.v6CidrTrie.Print()
+	cidrMatch.v4CidrTrie.Print()
 	testIPv4 := "10.2.2.1"
 	testIPv4b := "100.2.2.1"
 	testIPv6 := "2001:0db8:0000:0000:1234:0000:0000:9abc"
 	testIPv6b := "3001:0db8:0000:0000:1234:0000:0000:9abc"
-	t.Log(cidrMatch.Search(testIPv4))
-	t.Log(cidrMatch.Search(testIPv6))
-	t.Log(cidrMatch.Search(testIPv4b))
-	t.Log(cidrMatch.Search(testIPv6b))
+	t.Log(cidrMatch.Search(testIPv4))  // true
+	t.Log(cidrMatch.Search(testIPv6))  // true
+	t.Log(cidrMatch.Search(testIPv4b)) // false
+	t.Log(cidrMatch.Search(testIPv6b)) // false
 }
 
 // 668 ns/op
@@ -51,9 +53,13 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 }
 
 func TestIpToInt(t *testing.T) {
+	t.Log([]byte(net.ParseIP("127.0.0.1").To4()))
 	t.Log(ipv4toInt(net.ParseIP("127.0.0.1")))
+	t.Log(ipv4toInt2(net.ParseIP("127.0.0.1").To4()))
 	t.Log(ipv4toInt(net.ParseIP("0.0.0.1")))
+	t.Log(ipv4toInt2(net.ParseIP("0.0.0.1").To4()))
 	t.Log(ipv4toInt(net.ParseIP("255.255.255.255")))
+	t.Log(ipv4toInt2(net.ParseIP("255.255.255.255").To4()))
 	t.Log(ipv6toInt(net.ParseIP("ff::ff")))
 	t.Log(ipv6toInt(net.ParseIP("::ff")))
 }
@@ -101,6 +107,7 @@ func TestTo6(t *testing.T) {
 	// Another format, called "IPv4-compatible IPv6 address",
 	// is ::192.0.2.128; however, this method is deprecated.
 	t.Log(ipv6toInt(net.ParseIP("127.0.0.1")))
+	t.Log(ipv6toInt2(net.ParseIP("127.0.0.1")))
 	t.Log(ipv6toInt(net.ParseIP("::127.0.0.1")))     //deprecated
 	t.Log([]byte(net.ParseIP("::127.0.0.1").To16())) //deprecated
 	t.Log([]byte(net.ParseIP("127.0.0.1").To16()))

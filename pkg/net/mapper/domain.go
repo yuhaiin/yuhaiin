@@ -29,71 +29,63 @@ func (d *Domain) Insert(domain string, mark interface{}) {
 }
 
 func (d *Domain) insert(root *domainNode, mark interface{}, domain []string) {
-	for index := len(domain) - 1; index >= 0; index-- {
-		if _, ok := root.child[domain[index]]; !ok {
-			root.child[domain[index]] = &domainNode{
+	for i := len(domain) - 1; i >= 0; i-- {
+		if _, ok := root.child[domain[i]]; !ok {
+			root.child[domain[i]] = &domainNode{
 				child: map[string]*domainNode{},
 			}
 		}
 
-		if index == 1 && domain[0] == "*" {
-			root.child[domain[index]].wildcard = true
-			root.child[domain[index]].mark = mark
-			root.child[domain[index]].child = make(map[string]*domainNode) // clear child,because this node is last
+		if i == 1 && domain[0] == "*" {
+			root.child[domain[i]].wildcard = true
+			root.child[domain[i]].mark = mark
+			root.child[domain[i]].child = make(map[string]*domainNode) // clear child,because this node is last
 			break
 		}
 
-		if index == 0 {
-			root.child[domain[index]].last = true
-			root.child[domain[index]].mark = mark
-			root.child[domain[index]].child = make(map[string]*domainNode) // clear child,because this node is last
+		if i == 0 {
+			root.child[domain[i]].last = true
+			root.child[domain[i]].mark = mark
+			root.child[domain[i]].child = make(map[string]*domainNode) // clear child,because this node is last
 		}
 
-		root = root.child[domain[index]]
+		root = root.child[domain[i]]
 	}
 }
 
-func (d *Domain) Search(domain string) (ok bool, mark interface{}) {
+func (d *Domain) Search(domain string) (mark interface{}, ok bool) {
 	domains := strings.Split(domain, ".")
-	ok, mark = d.search(d.root, domains)
+	mark, ok = d.search(d.root, domains, true, false, len(domains)-1)
 	if ok {
-		return ok, mark
+		return mark, ok
 	}
-	return d.search(d.wildcardRoot, domains)
+	return d.search(d.wildcardRoot, domains, true, false, len(domains)-1)
 }
 
-func (d *Domain) search(root *domainNode, domain []string) (bool, interface{}) {
-	first, asterisk := true, false
-	for i := len(domain) - 1; i >= 0; i-- {
-	_retry:
-		_, ok := root.child[domain[i]] // use index to get data quicker than new var
-		if ok {
-			first = false
-			if root.child[domain[i]].wildcard {
-				return true, root.child[domain[i]].mark
-			}
-			if root.child[domain[i]].last && i == 0 {
-				return true, root.child[domain[i]].mark
-			}
-			root = root.child[domain[i]]
-			continue
-		}
-
-		if !first {
-			break
-		}
-
-		if !asterisk {
-			root = root.child["*"]
-			if root == nil {
-				break
-			}
-			asterisk = true
-			goto _retry
-		}
+func (d *Domain) search(root *domainNode, domain []string, first, asterisk bool, index int) (interface{}, bool) {
+	if root == nil || index < 0 {
+		return nil, false
 	}
 
-	return false, nil
+	if r, ok := root.child[domain[index]]; ok {
+		if r.wildcard {
+			return r.mark, true
+		}
+		if r.last && index == 0 {
+			return r.mark, true
+		}
+		return d.search(r, domain, false, asterisk, index-1)
+	}
+
+	if !first {
+		return nil, false
+	}
+
+	if !asterisk {
+		return d.search(root.child["*"], domain, first, true, index)
+	}
+
+	return d.search(root, domain, first, asterisk, index-1)
 }
 
 func NewDomainMapper() *Domain {

@@ -45,12 +45,12 @@ func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
 	markType := 0
 
 	if net.ParseIP(str) != nil {
-		_, res = x.cidr.Search(str)
+		res, _ = x.cidr.Search(str)
 		markType = 1
 		goto _end
 	}
 
-	_, res = x.domain.Search(str)
+	res, _ = x.domain.Search(str)
 	if res != nil {
 		goto _end
 	}
@@ -60,8 +60,8 @@ func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
 	}
 
 	x.lookupLock.RLock()
-	if dns, _ := x.lookup(str); len(dns) > 0 {
-		_, res = x.cidr.Search(dns[0].String())
+	if dns, err := x.lookup(str); err == nil {
+		res, _ = x.cidr.Search(dns[0].String())
 	}
 	x.lookupLock.RUnlock()
 

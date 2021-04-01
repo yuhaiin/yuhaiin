@@ -15,8 +15,11 @@ func BenchmarkDomainMatcher_Search(b *testing.B) {
 	root.Insert("www.google.com", "test_google")
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		root.Search("www.baidu.com")
-		//root.Search("www.baidu.sub.com.cn.net")
+		if n%2 == 0 {
+			root.Search("www.baidu.com")
+		} else {
+			root.Search("www.baidu.sub.com.cn.net")
+		}
 	}
 }
 
@@ -36,13 +39,13 @@ func TestDomainMatcher_SearchFlip(t *testing.T) {
 	root.Insert("www.google.com", "test_google")
 	root.Insert("music.111.com", "1111")
 	root.Insert("163.com", "163")
-	t.Log(root.Search("www.baidu.com"))
-	t.Log(root.Search("last.baidu.com.cn"))
-	t.Log(root.Search("test.baidu.com"))
-	t.Log(root.Search("test.test2.baidu.com"))
-	t.Log(root.Search("www.baidu.cn"))
-	t.Log(root.Search("www.google.com"))
-	t.Log(root.Search("www.google.cn"))
-	t.Log(root.Search("music.163.com"))
-	t.Log(root.Search("163.com"))
+	t.Log(root.Search("www.baidu.com"))        // true
+	t.Log(root.Search("last.baidu.com.cn"))    // true
+	t.Log(root.Search("test.baidu.com"))       // true
+	t.Log(root.Search("test.test2.baidu.com")) // true
+	t.Log(root.Search("www.baidu.cn"))         // true
+	t.Log(root.Search("www.google.com"))       // true
+	t.Log(root.Search("www.google.cn"))        // false
+	t.Log(root.Search("music.163.com"))        // false
+	t.Log(root.Search("163.com"))              // true
 }

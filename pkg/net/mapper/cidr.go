@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"container/list"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -16,7 +17,39 @@ type Cidr struct {
 }
 
 func ipv4toInt(ip net.IP) string {
+	fmt.Println([]byte(ip))
 	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip)) // there ip is ip.To4()
+}
+
+var bc = []byte{128, 64, 32, 16, 8, 4, 2, 1}
+
+func ipv4toInt2(ip net.IP) []byte {
+	s := make([]byte, 0, 16)
+	for i := range ip {
+		for i2 := range bc {
+			if ip[i]&bc[i2] != 0 {
+				s = append(s, 1)
+			} else {
+				s = append(s, 0)
+			}
+		}
+	}
+	return s
+}
+
+func ipv6toInt2(ip net.IP) []byte {
+	s := make([]byte, 0, 128)
+
+	for i := range ip {
+		for i2 := range bc {
+			if ip[i]&bc[i2] != 0 {
+				s = append(s, 1)
+			} else {
+				s = append(s, 0)
+			}
+		}
+	}
+	return s
 }
 
 func ipv6toInt(ip net.IP) string {
@@ -34,9 +67,9 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 	maskSize, _ := ipNet.Mask.Size()
 	x := ipNet.IP.To4()
 	if x != nil {
-		c.v4CidrTrie.Insert(ipv4toInt(x)[:maskSize], mark)
+		c.v4CidrTrie.Insert(ipv4toInt2(ipNet.IP.To4())[:maskSize], mark)
 	} else {
-		c.v6CidrTrie.Insert(ipv6toInt(ipNet.IP.To16())[:maskSize], mark)
+		c.v6CidrTrie.Insert(ipv6toInt2(ipNet.IP.To16())[:maskSize], mark)
 	}
 	return nil
 }
@@ -50,25 +83,24 @@ func (c *Cidr) singleInsert(cidr string, mark interface{}) error {
 	if len(ipNet.IP) == net.IPv4len {
 		maskSize += 96
 	}
-	c.singleTrie.Insert(ipv6toInt(ipNet.IP)[:maskSize], mark)
+	c.singleTrie.Insert(ipv6toInt2(ipNet.IP)[:maskSize], mark)
 	return nil
 }
 
-func (c *Cidr) singleSearch(ip string) (ok bool, mark interface{}) {
-	return c.singleTrie.Search(ipv6toInt(net.ParseIP(ip)))
+func (c *Cidr) singleSearch(ip string) (mark interface{}, ok bool) {
+	return c.singleTrie.Search(ipv6toInt2(net.ParseIP(ip)))
 }
 
 // MatchWithTrie match ip with trie
-func (c *Cidr) Search(ip string) (isMatch bool, mark interface{}) {
+func (c *Cidr) Search(ip string) (mark interface{}, ok bool) {
 	iP := net.ParseIP(ip)
 	if iP == nil {
-		return false, nil
+		return nil, false
 	}
-	x := iP.To4()
-	if iP.To4() != nil {
-		return c.v4CidrTrie.Search(ipv4toInt(x))
+	if x := iP.To4(); x != nil {
+		return c.v4CidrTrie.Search(ipv4toInt2(x))
 	} else {
-		return c.v6CidrTrie.Search(ipv6toInt(iP.To16()))
+		return c.v6CidrTrie.Search(ipv6toInt2(iP.To16()))
 	}
 }
 
@@ -97,18 +129,18 @@ type cidrNode struct {
 }
 
 // Insert insert node to tree
-func (t *Trie) Insert(str string, mark interface{}) {
+func (t *Trie) Insert(str []byte, mark interface{}) {
 	nodeTemp := t.root
 	for i := range str {
 		// 1 byte is 49
-		if str[i] == 49 {
+		if str[i] == 1 {
 			if nodeTemp.right == nil {
 				nodeTemp.right = new(cidrNode)
 			}
 			nodeTemp = nodeTemp.right
 		}
 		// 0 byte is 48
-		if str[i] == 48 {
+		if str[i] == 0 {
 			if nodeTemp.left == nil {
 				nodeTemp.left = new(cidrNode)
 			}
@@ -124,23 +156,23 @@ func (t *Trie) Insert(str string, mark interface{}) {
 }
 
 // Search search from trie tree
-func (t *Trie) Search(str string) (isMatch bool, mark interface{}) {
+func (t *Trie) Search(str []byte) (mark interface{}, ok bool) {
 	nodeTemp := t.root
 	for i := range str {
-		if str[i] == 49 {
+		if str[i] == 1 {
 			nodeTemp = nodeTemp.right
 		}
-		if str[i] == 48 {
+		if str[i] == 0 {
 			nodeTemp = nodeTemp.left
 		}
 		if nodeTemp == nil {
-			return false, nil
+			return nil, false
 		}
 		if nodeTemp.isLast {
-			return true, nodeTemp.mark
+			return nodeTemp.mark, true
 		}
 	}
-	return false, nil
+	return nil, false
 }
 
 // GetRoot get root node
@@ -152,12 +184,47 @@ func (t *Trie) GetRoot() *cidrNode {
 func (t *Trie) PrintTree(node *cidrNode) {
 	if node.left != nil {
 		t.PrintTree(node.left)
-		log.Println("0")
+		log.Printf("0 ")
 	}
 	if node.right != nil {
 		t.PrintTree(node.right)
-		log.Println("1")
+		log.Printf("1 ")
 	}
+}
+
+func (t *Trie) Print() {
+	type p struct {
+		c *cidrNode
+		s string
+	}
+	x := list.List{}
+	x.PushBack(&p{
+		c: t.root,
+		s: "",
+	})
+
+	for x.Len() != 0 {
+		y := x.Front()
+		z := y.Value.(*p)
+		fmt.Printf("%v ", z.s)
+		x.Remove(y)
+
+		if z.c.left != nil {
+			x.PushBack(&p{
+				c: z.c.left,
+				s: "0",
+			})
+		}
+
+		if z.c.right != nil {
+			x.PushBack(&p{
+				c: z.c.right,
+				s: "1",
+			})
+		}
+	}
+
+	fmt.Printf("\n")
 }
 
 // NewTrieTree create a new trie tree
