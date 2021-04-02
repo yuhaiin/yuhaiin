@@ -103,8 +103,8 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	return conn, nil
 }
 
-//UDPConn .
-func (s *Shadowsocks) UDPConn(host string) (net.PacketConn, error) {
+//PacketConn .
+func (s *Shadowsocks) PacketConn(host string) (net.PacketConn, error) {
 	ip, err := net.ResolveIPAddr("ip", s.server)
 	if err != nil {
 		return nil, fmt.Errorf("resolve ip failed: %v", err)

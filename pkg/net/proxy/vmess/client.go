@@ -107,8 +107,8 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 	return v.client.NewConn(conn, "tcp", host)
 }
 
-//UDPConn packet transport connection
-func (v *Vmess) UDPConn(host string) (conn net.PacketConn, err error) {
+//PacketConn packet transport connection
+func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
 	c, err := v.GetConn()
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %v", err)

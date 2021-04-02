@@ -115,6 +115,6 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	return ssrconn, nil
 }
 
-func (s *Shadowsocksr) UDPConn(addr string) (net.PacketConn, error) {
+func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 	return net.ListenPacket("udp", "")
 }

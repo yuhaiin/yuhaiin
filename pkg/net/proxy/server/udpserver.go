@@ -84,7 +84,6 @@ func (u *UdpServer) Close() error {
 }
 
 func (u *UdpServer) run() (err error) {
-	fmt.Println("New UDP Server:", u.host)
 	u.listener, err = net.ListenPacket("udp", u.host)
 	if err != nil {
 		return fmt.Errorf("UdpServer:run() -> %v", err)
@@ -97,6 +96,7 @@ func (u *UdpServer) run() (err error) {
 func (u *UdpServer) process() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
+	fmt.Println("New UDP Server:", u.host)
 	var tempDelay time.Duration
 	for {
 		b := make([]byte, 600)

@@ -65,7 +65,7 @@ func TestUDPConn(t *testing.T) {
 		return
 	}
 
-	c, err := s.UDPConn("1.1.1.1:53")
+	c, err := s.PacketConn("1.1.1.1:53")
 	if err != nil {
 		t.Error(err)
 		return

@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -12,17 +11,24 @@ type BypassManager struct {
 	bypass bool
 
 	lookup func(string) ([]net.IP, error)
-	mapper func(string) (mark int, isIP bool)
+	mapper func(string) (mark int, isIP int)
 
 	proxy       func(string) (net.Conn, error)
 	proxyPacket func(string) (net.PacketConn, error)
 
-	dialer      net.Dialer
-	connManager *connManager
+	/*
+	 * type\mark  others direct block
+	 *	IP
+	 * DOMAIN
+	 */
+	connMapper       [2][3]func(string) (net.Conn, error)
+	packetConnMapper [3]func(string) (net.PacketConn, error)
+	dialer           net.Dialer
+	connManager      *connManager
 }
 
 //NewBypassManager .
-func NewBypassManager(bypass bool, mapper func(s string) (int, bool),
+func NewBypassManager(bypass bool, mapper func(s string) (int, int),
 	lookup func(string) ([]net.IP, error)) (*BypassManager, error) {
 	if mapper == nil {
 		return nil, fmt.Errorf("mapper is nil")
@@ -46,52 +52,88 @@ func NewBypassManager(bypass bool, mapper func(s string) (int, bool),
 		bypass:      bypass,
 	}
 
+	m.connMapper = [2][3]func(string) (net.Conn, error){
+		/*
+		 * type\mark  others block direct
+		 *	IP
+		 * DOMAIN
+		 */
+		{ // ip
+			m.proxya,  // other
+			blockConn, // block
+			func(s string) (net.Conn, error) { // direct
+				return m.dialer.Dial("tcp", s)
+			},
+		},
+		{ // domain
+			m.proxya,  // other
+			blockConn, // block
+			func(s string) (net.Conn, error) { // direct
+				hostname, port, err := net.SplitHostPort(s)
+				if err != nil {
+					return nil, fmt.Errorf("split host [%s] failed: %v", s, err)
+				}
+
+				ip, err := m.lookup(hostname)
+				if err != nil {
+					return nil, fmt.Errorf("dns resolve failed: %v", err)
+				}
+
+				var conn net.Conn
+				for i := range ip {
+					conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), port))
+					if err == nil {
+						break
+					}
+				}
+				return conn, err
+			},
+		},
+	}
+
+	m.packetConnMapper = [3]func(string) (net.PacketConn, error){
+		m.proxyPacketa,
+		blockPacket,
+		func(s string) (net.PacketConn, error) {
+			return net.ListenPacket("udp", "")
+		},
+	}
 	return m, nil
+}
+
+func blockConn(s string) (net.Conn, error) {
+	return nil, fmt.Errorf("block: %v", s)
+}
+
+func blockPacket(s string) (net.PacketConn, error) {
+	return nil, fmt.Errorf("block: %v", s)
+}
+
+func (m *BypassManager) proxya(s string) (net.Conn, error) {
+	return m.proxy(s)
+}
+func (m *BypassManager) proxyPacketa(s string) (net.PacketConn, error) {
+	return m.proxyPacket(s)
 }
 
 // https://myexternalip.com/raw
 func (m *BypassManager) Forward(host string) (conn net.Conn, err error) {
-	resp, err := m.marry(host)
+	mark, isIP, err := m.marry(host)
 	if err != nil {
 		return nil, fmt.Errorf("map failed: %v", err)
 	}
 
-	if resp.mark != direct {
-		conn, err = m.proxy(host)
-		return m.connManager.newConn(host, conn), err
-	}
-
-	if resp.isIP {
-		conn, err = m.dialer.Dial("tcp", host)
-		return m.connManager.newConn(host, conn), err
-	}
-
-	ip, err := m.lookup(resp.hostname)
-	if err != nil {
-		return nil, fmt.Errorf("dns resolve failed: %v", err)
-	}
-
-	for i := range ip {
-		conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), resp.port))
-		if err == nil {
-			break
-		}
-	}
-
+	conn, err = m.connMapper[isIP][mark](host)
 	return m.connManager.newConn(host, conn), err
 }
 
 func (m *BypassManager) ForwardPacket(host string) (conn net.PacketConn, err error) {
-	resp, err := m.marry(host)
+	mark, _, err := m.marry(host)
 	if err != nil {
 		return nil, fmt.Errorf("map failed: %v", err)
 	}
 
-	if resp.mark == direct {
-		return net.ListenPacket("udp", "")
-	}
-
-	return m.proxyPacket(host)
+	return m.packetConnMapper[mark](host)
 }
 
 //SetProxy .
@@ -114,34 +156,24 @@ func (m *BypassManager) SetProxy(conn func(string) (net.Conn, error),
 	}
 }
 
-type getResp struct {
-	hostname string
-	port     string
-	mark     int
-	isIP     bool
-}
-
-func (m *BypassManager) marry(host string) (resp getResp, err error) {
-	resp.hostname, resp.port, err = net.SplitHostPort(host)
+func (m *BypassManager) marry(host string) (mark, isIP int, err error) {
+	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return getResp{}, fmt.Errorf("split host [%s] failed: %v", host, err)
+		return 0, 0, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
 
 	if !m.bypass {
-		resp.mark = proxy
-		resp.isIP = net.ParseIP(resp.hostname) != nil
+		mark = proxy
+		if net.ParseIP(hostname) != nil {
+			isIP = ip
+		} else {
+			isIP = domain
+		}
 	} else {
-		resp.mark, resp.isIP = m.mapper(resp.hostname)
+		mark, isIP = m.mapper(hostname)
 	}
 
-	switch resp.mark {
-	case others:
-		fmt.Printf("[%s] ->  mode: default(proxy)\n", host)
-	case block:
-		return getResp{}, errors.New("block " + resp.hostname)
-	default:
-		fmt.Printf("[%s] ->  mode: %s\n", host, modeMapping[resp.mark])
-	}
+	fmt.Printf("[%s] ->  mode: %s\n", host, modeMapping[mark])
 
 	return
 }

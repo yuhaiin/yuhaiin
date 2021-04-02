@@ -76,5 +76,5 @@ func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (ne
 		return nil, nil, err
 	}
 
-	return ss.Conn, ss.UDPConn, nil
+	return ss.Conn, ss.PacketConn, nil
 }

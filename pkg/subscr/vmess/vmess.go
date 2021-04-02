@@ -131,7 +131,7 @@ func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (ne
 		return nil, nil, fmt.Errorf("new vmess failed: %v", err)
 	}
 
-	return v.Conn, v.UDPConn, nil
+	return v.Conn, v.PacketConn, nil
 }
 
 func unmarshalJSON(data []byte) (*JSON, error) {

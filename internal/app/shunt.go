@@ -22,27 +22,28 @@ import (
 
 const (
 	others = 0
-	direct = 1 << iota
-	proxy
-	ip
-	block
+	block  = 1
+	direct = 2
+	proxy  = 3
+
+	ip     = 0
+	domain = 1
 )
 
 //go:embed yuhaiin.conf
 var bypassData []byte
 
 var modeMapping = map[int]string{
+	others: "others(proxy)",
 	direct: "direct",
 	proxy:  "proxy",
 	block:  "block",
 }
 
 var mode = map[string]int{
-	"direct":   direct,
-	"proxy":    proxy,
-	"block":    block,
-	"ip":       ip,
-	"ipdirect": ip | direct,
+	"direct": direct,
+	"proxy":  proxy,
+	"block":  block,
 }
 
 type Shunt struct {
@@ -123,13 +124,24 @@ func (s *Shunt) SetFile(f string) error {
 	return s.RefreshMapping()
 }
 
-func (s *Shunt) Get(domain string) (int, bool) {
+func getType(b bool) int {
+	if b {
+		return ip
+	}
+	return domain
+}
+func (s *Shunt) Get(domain string) (int, int) {
 	mark, markType := s.mapper.Search(domain)
 	x, ok := mark.(int)
 	if !ok {
-		return others, markType
+		return others, getType(markType)
 	}
-	return x, markType
+
+	if x < others || x > direct {
+		x = others
+	}
+
+	return x, getType(markType)
 }
 
 func (s *Shunt) SetLookup(f func(string) ([]net.IP, error)) {
