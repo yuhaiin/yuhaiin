@@ -13,19 +13,24 @@ func TestCidrMatch_Inset(t *testing.T) {
 	if err := cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"); err != nil {
 		t.Error(err)
 	}
+	cidrMatch.Insert("127.0.0.1/8", "testlocal")
+	cidrMatch.Insert("ff::/16", "testV6local")
 	cidrMatch.v6CidrTrie.Print()
 	cidrMatch.v4CidrTrie.Print()
 	testIPv4 := "10.2.2.1"
 	testIPv4b := "100.2.2.1"
 	testIPv6 := "2001:0db8:0000:0000:1234:0000:0000:9abc"
 	testIPv6b := "3001:0db8:0000:0000:1234:0000:0000:9abc"
-	t.Log(cidrMatch.Search(testIPv4))  // true
-	t.Log(cidrMatch.Search(testIPv6))  // true
-	t.Log(cidrMatch.Search(testIPv4b)) // false
-	t.Log(cidrMatch.Search(testIPv6b)) // false
+	t.Log(cidrMatch.Search(testIPv4))    // true
+	t.Log(cidrMatch.Search(testIPv6))    // true
+	t.Log(cidrMatch.Search("127.1.1.1")) // true
+	t.Log(cidrMatch.Search("129.1.1.1")) // false
+	t.Log(cidrMatch.Search("ff:ff::"))   // true
+	t.Log(cidrMatch.Search(testIPv4b))   // false
+	t.Log(cidrMatch.Search(testIPv6b))   // false
 }
 
-// 668 ns/op
+// BenchmarkCidrMatch_Search-4 9119133 130.6 ns/op 16 B/op 1 allocs/op
 func BenchmarkCidrMatch_Search(b *testing.B) {
 	b.StopTimer() //调用该函数停止压力测试的时间计数
 
@@ -79,7 +84,7 @@ func BenchmarkIpv6toInt(b *testing.B) {
 	str := net.ParseIP("ffff::ffff")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ipv6toInt(str)
+		ipv6toInt2(str)
 	}
 }
 
@@ -127,18 +132,21 @@ func TestTo6(t *testing.T) {
 	}
 }
 
-func TestSingleTrie(t *testing.T) {
-}
-
 // 2102 ns/op,2106 ns/op
+// BenchmarkSingleTrie-4 9823910 128.0 ns/op 16 B/op  1 allocs/op
 func BenchmarkSingleTrie(b *testing.B) {
 	m := NewCidrMapper()
 	if err := m.singleInsert("127.0.0.1/28", "localhost"); err != nil {
 		b.Error(err)
 	}
+	m.singleInsert("ff::/56", "")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.singleSearch("127.0.0.0")
+		if i%2 == 0 {
+			m.singleSearch("127.0.0.0")
+		} else {
+			m.singleSearch("ff::")
+		}
 	}
 }

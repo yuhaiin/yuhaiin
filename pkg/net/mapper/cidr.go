@@ -16,47 +16,7 @@ type Cidr struct {
 	singleTrie Trie
 }
 
-func ipv4toInt(ip net.IP) string {
-	fmt.Println([]byte(ip))
-	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip)) // there ip is ip.To4()
-}
-
 var bc = []byte{128, 64, 32, 16, 8, 4, 2, 1}
-
-func ipv4toInt2(ip net.IP) []byte {
-	s := make([]byte, 0, 16)
-	for i := range ip {
-		for i2 := range bc {
-			if ip[i]&bc[i2] != 0 {
-				s = append(s, 1)
-			} else {
-				s = append(s, 0)
-			}
-		}
-	}
-	return s
-}
-
-func ipv6toInt2(ip net.IP) []byte {
-	s := make([]byte, 0, 128)
-
-	for i := range ip {
-		for i2 := range bc {
-			if ip[i]&bc[i2] != 0 {
-				s = append(s, 1)
-			} else {
-				s = append(s, 0)
-			}
-		}
-	}
-	return s
-}
-
-func ipv6toInt(ip net.IP) string {
-	// from http://golang.org/pkg/net/#pkg-constants
-	// IPv6len = 16
-	return fmt.Sprintf("%0128b", big.NewInt(0).SetBytes(ip)) // there ip is ip.To16()
-}
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
 func (c *Cidr) Insert(cidr string, mark interface{}) error {
@@ -67,9 +27,9 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 	maskSize, _ := ipNet.Mask.Size()
 	x := ipNet.IP.To4()
 	if x != nil {
-		c.v4CidrTrie.Insert(ipv4toInt2(ipNet.IP.To4())[:maskSize], mark)
+		c.v4CidrTrie.Insert(x, maskSize, mark)
 	} else {
-		c.v6CidrTrie.Insert(ipv6toInt2(ipNet.IP.To16())[:maskSize], mark)
+		c.v6CidrTrie.Insert(ipNet.IP.To16(), maskSize, mark)
 	}
 	return nil
 }
@@ -83,12 +43,12 @@ func (c *Cidr) singleInsert(cidr string, mark interface{}) error {
 	if len(ipNet.IP) == net.IPv4len {
 		maskSize += 96
 	}
-	c.singleTrie.Insert(ipv6toInt2(ipNet.IP)[:maskSize], mark)
+	c.singleTrie.Insert(ipNet.IP.To16(), maskSize, mark)
 	return nil
 }
 
 func (c *Cidr) singleSearch(ip string) (mark interface{}, ok bool) {
-	return c.singleTrie.Search(ipv6toInt2(net.ParseIP(ip)))
+	return c.singleTrie.Search(net.ParseIP(ip).To16())
 }
 
 // MatchWithTrie match ip with trie
@@ -98,9 +58,9 @@ func (c *Cidr) Search(ip string) (mark interface{}, ok bool) {
 		return nil, false
 	}
 	if x := iP.To4(); x != nil {
-		return c.v4CidrTrie.Search(ipv4toInt2(x))
+		return c.v4CidrTrie.Search(x)
 	} else {
-		return c.v6CidrTrie.Search(ipv6toInt2(iP.To16()))
+		return c.v6CidrTrie.Search(iP.To16())
 	}
 }
 
@@ -129,47 +89,50 @@ type cidrNode struct {
 }
 
 // Insert insert node to tree
-func (t *Trie) Insert(str []byte, mark interface{}) {
+func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 	nodeTemp := t.root
-	for i := range str {
-		// 1 byte is 49
-		if str[i] == 1 {
-			if nodeTemp.right == nil {
-				nodeTemp.right = new(cidrNode)
+	for i := range ip {
+		for i2 := range bc {
+			// fmt.Println(i*8 + i2 + 1)
+			if ip[i]&bc[i2] != 0 {
+				if nodeTemp.right == nil {
+					nodeTemp.right = new(cidrNode)
+				}
+				nodeTemp = nodeTemp.right
+			} else {
+				if nodeTemp.left == nil {
+					nodeTemp.left = new(cidrNode)
+				}
+				nodeTemp = nodeTemp.left
 			}
-			nodeTemp = nodeTemp.right
-		}
-		// 0 byte is 48
-		if str[i] == 0 {
-			if nodeTemp.left == nil {
+
+			if nodeTemp.isLast || i*8+i2+1 == maskSize {
+				nodeTemp.isLast = true
+				nodeTemp.mark = mark
 				nodeTemp.left = new(cidrNode)
+				nodeTemp.right = new(cidrNode)
+				return
 			}
-			nodeTemp = nodeTemp.left
-		}
-		if nodeTemp.isLast || i == len(str)-1 {
-			nodeTemp.isLast = true
-			nodeTemp.mark = mark
-			nodeTemp.left = new(cidrNode)
-			nodeTemp.right = new(cidrNode)
 		}
 	}
 }
 
 // Search search from trie tree
-func (t *Trie) Search(str []byte) (mark interface{}, ok bool) {
+func (t *Trie) Search(ip net.IP) (mark interface{}, ok bool) {
 	nodeTemp := t.root
-	for i := range str {
-		if str[i] == 1 {
-			nodeTemp = nodeTemp.right
-		}
-		if str[i] == 0 {
-			nodeTemp = nodeTemp.left
-		}
-		if nodeTemp == nil {
-			return nil, false
-		}
-		if nodeTemp.isLast {
-			return nodeTemp.mark, true
+	for i := range ip {
+		for i2 := range bc {
+			if ip[i]&bc[i2] != 0 { // bit = 1
+				nodeTemp = nodeTemp.right
+			} else { // bit = 0
+				nodeTemp = nodeTemp.left
+			}
+			if nodeTemp == nil {
+				return nil, false
+			}
+			if nodeTemp.isLast {
+				return nodeTemp.mark, true
+			}
 		}
 	}
 	return nil, false
@@ -232,4 +195,43 @@ func NewTrieTree() Trie {
 	return Trie{
 		root: &cidrNode{},
 	}
+}
+
+func ipv4toInt(ip net.IP) string {
+	fmt.Println([]byte(ip))
+	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip)) // there ip is ip.To4()
+}
+
+func ipv4toInt2(ip net.IP) []byte {
+	s := make([]byte, 0, 32)
+	for i := range ip {
+		for i2 := range bc {
+			if ip[i]&bc[i2] != 0 {
+				s = append(s, 1)
+			} else {
+				s = append(s, 0)
+			}
+		}
+	}
+	return s
+}
+
+func ipv6toInt(ip net.IP) string {
+	// from http://golang.org/pkg/net/#pkg-constants
+	// IPv6len = 16
+	return fmt.Sprintf("%0128b", big.NewInt(0).SetBytes(ip)) // there ip is ip.To16()
+}
+
+func ipv6toInt2(ip net.IP) []byte {
+	s := make([]byte, 0, 128)
+	for i := range ip {
+		for i2 := range bc {
+			if ip[i]&bc[i2] != 0 {
+				s = append(s, 1)
+			} else {
+				s = append(s, 0)
+			}
+		}
+	}
+	return s
 }
