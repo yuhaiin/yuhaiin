@@ -20,7 +20,7 @@ func searchDFS(root *domainNode, domain string, first, asterisk bool, aft int) (
 		return nil, false
 	}
 
-	pre := strings.LastIndex(domain[:aft], ".") + 1
+	pre := strings.LastIndexByte(domain[:aft], '.') + 1
 
 	if r, ok := root.child[domain[pre:aft]]; ok {
 		if r.wildcard {
@@ -43,32 +43,33 @@ func searchDFS(root *domainNode, domain string, first, asterisk bool, aft int) (
 	return searchDFS(root, domain, first, asterisk, pre-1)
 }
 
-func insert(root *domainNode, mark interface{}, domain string) {
+func insert(root *domainNode, domain string, mark interface{}) {
 	aft := len(domain)
 	var pre int
 	for aft >= 0 {
-		pre = strings.LastIndex(domain[:aft], ".") + 1
+		pre = strings.LastIndexByte(domain[:aft], '.') + 1
 
-		if pre == 0 && domain[pre:aft] == "*" {
+		if pre == 0 && domain[0] == '*' {
 			root.wildcard = true
 			root.mark = mark
 			root.child = make(map[string]*domainNode) // clear child,because this node is last
 			break
 		}
 
-		if _, ok := root.child[domain[pre:aft]]; !ok {
+		if root.child[domain[pre:aft]] == nil {
 			root.child[domain[pre:aft]] = &domainNode{
-				child: map[string]*domainNode{},
+				child: make(map[string]*domainNode),
 			}
 		}
 
+		root = root.child[domain[pre:aft]]
+
 		if pre == 0 {
-			root.child[domain[pre:aft]].last = true
-			root.child[domain[pre:aft]].mark = mark
-			root.child[domain[pre:aft]].child = make(map[string]*domainNode) // clear child,because this node is last
+			root.last = true
+			root.mark = mark
+			root.child = make(map[string]*domainNode) // clear child,because this node is last
 		}
 
-		root = root.child[domain[pre:aft]]
 		aft = pre - 1
 	}
 }
@@ -82,17 +83,18 @@ func (d *Domain) Insert(domain string, mark interface{}) {
 	if len(domain) == 0 {
 		return
 	}
+
 	if domain[0] == '*' {
-		insert(d.wildcardRoot, mark, domain)
+		insert(d.wildcardRoot, domain, mark)
 	} else {
-		insert(d.root, mark, domain)
+		insert(d.root, domain, mark)
 	}
 }
 
 func (d *Domain) Search(domain string) (mark interface{}, ok bool) {
 	mark, ok = search(d.root, domain)
 	if ok {
-		return mark, ok
+		return
 	}
 	return search(d.wildcardRoot, domain)
 }

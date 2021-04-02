@@ -22,6 +22,11 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 	if err != nil {
 		return fmt.Errorf("parse cidr [%s] failed: %v", cidr, err)
 	}
+	c.InsertCIDR(ipNet, mark)
+	return nil
+}
+
+func (c *Cidr) InsertCIDR(ipNet *net.IPNet, mark interface{}) {
 	maskSize, _ := ipNet.Mask.Size()
 	x := ipNet.IP.To4()
 	if x != nil {
@@ -29,7 +34,6 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 	} else {
 		c.v6CidrTrie.Insert(ipNet.IP.To16(), maskSize, mark)
 	}
-	return nil
 }
 
 func (c *Cidr) singleInsert(cidr string, mark interface{}) error {
@@ -55,10 +59,14 @@ func (c *Cidr) Search(ip string) (mark interface{}, ok bool) {
 	if iP == nil {
 		return nil, false
 	}
-	if x := iP.To4(); x != nil {
+	return c.SearchIP(iP)
+}
+
+func (c *Cidr) SearchIP(ip net.IP) (mark interface{}, ok bool) {
+	if x := ip.To4(); x != nil {
 		return c.v4CidrTrie.Search(x)
 	} else {
-		return c.v6CidrTrie.Search(iP.To16())
+		return c.v6CidrTrie.Search(ip.To16())
 	}
 }
 
@@ -88,7 +96,6 @@ func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 	r := t
 	for i := range ip {
 		for i2 := range bc {
-			// fmt.Println(i*8 + i2 + 1)
 			if ip[i]&bc[i2] != 0 {
 				if r.right == nil {
 					r.right = new(Trie)

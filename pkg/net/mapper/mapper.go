@@ -22,52 +22,48 @@ func (x *Mapper) SetLookup(f func(string) ([]net.IP, error)) {
 	x.lookup = f
 }
 
-func (x *Mapper) Insert(str string, mark interface{}) error {
+func (x *Mapper) Insert(str string, mark interface{}) {
 	if str == "" {
-		return nil
-	}
-	if _, _, err := net.ParseCIDR(str); err != nil {
-		x.domain.Insert(str, mark)
-		return nil
+		return
 	}
 
-	return x.cidr.Insert(str, mark)
+	_, ipNet, err := net.ParseCIDR(str)
+	if err != nil {
+		x.domain.Insert(str, mark)
+	} else {
+		x.cidr.InsertCIDR(ipNet, mark)
+	}
 }
 
 func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
 	if de, _ := x.cache.Load(str); de != nil {
-		if d, ok := de.([2]interface{}); ok {
-			return d[0], d[1] == 1
-		}
+		d := de.([2]interface{})
+		return d[0], d[1] == true
 	}
 
-	var res interface{}
-	markType := 0
-
-	if net.ParseIP(str) != nil {
-		res, _ = x.cidr.Search(str)
-		markType = 1
+	if ip := net.ParseIP(str); ip != nil {
+		mark, _ = x.cidr.SearchIP(ip)
+		isIP = true
 		goto _end
 	}
 
-	res, _ = x.domain.Search(str)
-	if res != nil {
-		goto _end
-	}
-
-	if x.lookup == nil {
+	mark, _ = x.domain.Search(str)
+	if mark != nil {
 		goto _end
 	}
 
 	x.lookupLock.RLock()
-	if dns, err := x.lookup(str); err == nil {
-		res, _ = x.cidr.Search(dns[0].String())
+	defer x.lookupLock.RUnlock()
+	if x.lookup == nil {
+		goto _end
 	}
-	x.lookupLock.RUnlock()
+	if dns, err := x.lookup(str); err == nil {
+		mark, _ = x.cidr.SearchIP(dns[0])
+	}
 
 _end:
-	x.cache.Add(str, [2]interface{}{res, markType})
-	return res, markType == 1
+	x.cache.Add(str, [2]interface{}{mark, isIP})
+	return mark, isIP
 }
 
 func (x *Mapper) Clear() {

@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 )
@@ -102,11 +103,11 @@ func (s *Shunt) RefreshMapping() error {
 		if len(result) != 3 {
 			continue
 		}
-		mode := mode[strings.ToLower(string(result[2]))]
+		mode := mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))]
 		if mode == others {
 			continue
 		}
-		_ = s.mapper.Insert(string(result[1]), mode)
+		s.mapper.Insert(string(result[1]), mode)
 	}
 	return nil
 }
