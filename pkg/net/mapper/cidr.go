@@ -16,13 +16,11 @@ type Cidr struct {
 	singleTrie Trie
 }
 
-var bc = []byte{128, 64, 32, 16, 8, 4, 2, 1}
-
 // InsetOneCIDR Insert one CIDR to cidr matcher
 func (c *Cidr) Insert(cidr string, mark interface{}) error {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse cidr [%s] failed: %v", cidr, err)
 	}
 	maskSize, _ := ipNet.Mask.Size()
 	x := ipNet.IP.To4()
@@ -37,7 +35,7 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 func (c *Cidr) singleInsert(cidr string, mark interface{}) error {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse cidr [%s] failed: %v", cidr, err)
 	}
 	maskSize, _ := ipNet.Mask.Size()
 	if len(ipNet.IP) == net.IPv4len {
@@ -76,41 +74,38 @@ func NewCidrMapper() *Cidr {
 /*******************************
 	CIDR TRIE
 ********************************/
-// Trie trie tree
 type Trie struct {
-	root *cidrNode
-}
-
-type cidrNode struct {
 	isLast bool
 	mark   interface{}
-	left   *cidrNode
-	right  *cidrNode
+	left   *Trie // 0
+	right  *Trie // 1
 }
+
+var bc = []byte{128, 64, 32, 16, 8, 4, 2, 1}
 
 // Insert insert node to tree
 func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
-	nodeTemp := t.root
+	r := t
 	for i := range ip {
 		for i2 := range bc {
 			// fmt.Println(i*8 + i2 + 1)
 			if ip[i]&bc[i2] != 0 {
-				if nodeTemp.right == nil {
-					nodeTemp.right = new(cidrNode)
+				if r.right == nil {
+					r.right = new(Trie)
 				}
-				nodeTemp = nodeTemp.right
+				r = r.right
 			} else {
-				if nodeTemp.left == nil {
-					nodeTemp.left = new(cidrNode)
+				if r.left == nil {
+					r.left = new(Trie)
 				}
-				nodeTemp = nodeTemp.left
+				r = r.left
 			}
 
-			if nodeTemp.isLast || i*8+i2+1 == maskSize {
-				nodeTemp.isLast = true
-				nodeTemp.mark = mark
-				nodeTemp.left = new(cidrNode)
-				nodeTemp.right = new(cidrNode)
+			if r.isLast || i*8+i2+1 == maskSize {
+				r.isLast = true
+				r.mark = mark
+				r.left = new(Trie)
+				r.right = new(Trie)
 				return
 			}
 		}
@@ -119,32 +114,27 @@ func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 
 // Search search from trie tree
 func (t *Trie) Search(ip net.IP) (mark interface{}, ok bool) {
-	nodeTemp := t.root
+	r := t
 	for i := range ip {
 		for i2 := range bc {
 			if ip[i]&bc[i2] != 0 { // bit = 1
-				nodeTemp = nodeTemp.right
+				r = r.right
 			} else { // bit = 0
-				nodeTemp = nodeTemp.left
+				r = r.left
 			}
-			if nodeTemp == nil {
+			if r == nil {
 				return nil, false
 			}
-			if nodeTemp.isLast {
-				return nodeTemp.mark, true
+			if r.isLast {
+				return r.mark, true
 			}
 		}
 	}
 	return nil, false
 }
 
-// GetRoot get root node
-func (t *Trie) GetRoot() *cidrNode {
-	return t.root
-}
-
 // PrintTree print this tree
-func (t *Trie) PrintTree(node *cidrNode) {
+func (t *Trie) PrintTree(node *Trie) {
 	if node.left != nil {
 		t.PrintTree(node.left)
 		log.Printf("0 ")
@@ -157,12 +147,12 @@ func (t *Trie) PrintTree(node *cidrNode) {
 
 func (t *Trie) Print() {
 	type p struct {
-		c *cidrNode
+		c *Trie
 		s string
 	}
 	x := list.List{}
 	x.PushBack(&p{
-		c: t.root,
+		c: t,
 		s: "",
 	})
 
@@ -192,9 +182,7 @@ func (t *Trie) Print() {
 
 // NewTrieTree create a new trie tree
 func NewTrieTree() Trie {
-	return Trie{
-		root: &cidrNode{},
-	}
+	return Trie{}
 }
 
 func ipv4toInt(ip net.IP) string {

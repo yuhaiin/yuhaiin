@@ -28,6 +28,14 @@ func TestCidrMatch_Inset(t *testing.T) {
 	t.Log(cidrMatch.Search("ff:ff::"))   // true
 	t.Log(cidrMatch.Search(testIPv4b))   // false
 	t.Log(cidrMatch.Search(testIPv6b))   // false
+	t.Log()
+	t.Log(cidrMatch.Search(testIPv4))    // true
+	t.Log(cidrMatch.Search(testIPv6))    // true
+	t.Log(cidrMatch.Search("127.1.1.1")) // true
+	t.Log(cidrMatch.Search("129.1.1.1")) // false
+	t.Log(cidrMatch.Search("ff:ff::"))   // true
+	t.Log(cidrMatch.Search(testIPv4b))   // false
+	t.Log(cidrMatch.Search(testIPv6b))   // false
 }
 
 // BenchmarkCidrMatch_Search-4 9119133 130.6 ns/op 16 B/op 1 allocs/op

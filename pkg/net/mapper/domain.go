@@ -11,70 +11,25 @@ type domainNode struct {
 	child    map[string]*domainNode
 }
 
-type Domain struct {
-	root         *domainNode // for example.com, example.*
-	wildcardRoot *domainNode // for *.example.com, *.example.*
+func search(root *domainNode, domain string) (interface{}, bool) {
+	return searchDFS(root, domain, true, false, len(domain))
 }
 
-func (d *Domain) Insert(domain string, mark interface{}) {
-	domains := strings.Split(domain, ".")
-	if len(domains) == 0 {
-		return
-	}
-	if domains[0] == "*" {
-		d.insert(d.wildcardRoot, mark, domains)
-		return
-	}
-	d.insert(d.root, mark, domains)
-}
-
-func (d *Domain) insert(root *domainNode, mark interface{}, domain []string) {
-	for i := len(domain) - 1; i >= 0; i-- {
-		if _, ok := root.child[domain[i]]; !ok {
-			root.child[domain[i]] = &domainNode{
-				child: map[string]*domainNode{},
-			}
-		}
-
-		if i == 1 && domain[0] == "*" {
-			root.child[domain[i]].wildcard = true
-			root.child[domain[i]].mark = mark
-			root.child[domain[i]].child = make(map[string]*domainNode) // clear child,because this node is last
-			break
-		}
-
-		if i == 0 {
-			root.child[domain[i]].last = true
-			root.child[domain[i]].mark = mark
-			root.child[domain[i]].child = make(map[string]*domainNode) // clear child,because this node is last
-		}
-
-		root = root.child[domain[i]]
-	}
-}
-
-func (d *Domain) Search(domain string) (mark interface{}, ok bool) {
-	domains := strings.Split(domain, ".")
-	mark, ok = d.search(d.root, domains, true, false, len(domains)-1)
-	if ok {
-		return mark, ok
-	}
-	return d.search(d.wildcardRoot, domains, true, false, len(domains)-1)
-}
-
-func (d *Domain) search(root *domainNode, domain []string, first, asterisk bool, index int) (interface{}, bool) {
-	if root == nil || index < 0 {
+func searchDFS(root *domainNode, domain string, first, asterisk bool, aft int) (interface{}, bool) {
+	if root == nil || aft < 0 {
 		return nil, false
 	}
 
-	if r, ok := root.child[domain[index]]; ok {
+	pre := strings.LastIndex(domain[:aft], ".") + 1
+
+	if r, ok := root.child[domain[pre:aft]]; ok {
 		if r.wildcard {
 			return r.mark, true
 		}
-		if r.last && index == 0 {
+		if r.last && pre == 0 {
 			return r.mark, true
 		}
-		return d.search(r, domain, false, asterisk, index-1)
+		return searchDFS(r, domain, false, asterisk, pre-1)
 	}
 
 	if !first {
@@ -82,10 +37,64 @@ func (d *Domain) search(root *domainNode, domain []string, first, asterisk bool,
 	}
 
 	if !asterisk {
-		return d.search(root.child["*"], domain, first, true, index)
+		return searchDFS(root.child["*"], domain, first, true, aft)
 	}
 
-	return d.search(root, domain, first, asterisk, index-1)
+	return searchDFS(root, domain, first, asterisk, pre-1)
+}
+
+func insert(root *domainNode, mark interface{}, domain string) {
+	aft := len(domain)
+	var pre int
+	for aft >= 0 {
+		pre = strings.LastIndex(domain[:aft], ".") + 1
+
+		if pre == 0 && domain[pre:aft] == "*" {
+			root.wildcard = true
+			root.mark = mark
+			root.child = make(map[string]*domainNode) // clear child,because this node is last
+			break
+		}
+
+		if _, ok := root.child[domain[pre:aft]]; !ok {
+			root.child[domain[pre:aft]] = &domainNode{
+				child: map[string]*domainNode{},
+			}
+		}
+
+		if pre == 0 {
+			root.child[domain[pre:aft]].last = true
+			root.child[domain[pre:aft]].mark = mark
+			root.child[domain[pre:aft]].child = make(map[string]*domainNode) // clear child,because this node is last
+		}
+
+		root = root.child[domain[pre:aft]]
+		aft = pre - 1
+	}
+}
+
+type Domain struct {
+	root         *domainNode // for example.com, example.*
+	wildcardRoot *domainNode // for *.example.com, *.example.*
+}
+
+func (d *Domain) Insert(domain string, mark interface{}) {
+	if len(domain) == 0 {
+		return
+	}
+	if domain[0] == '*' {
+		insert(d.wildcardRoot, mark, domain)
+	} else {
+		insert(d.root, mark, domain)
+	}
+}
+
+func (d *Domain) Search(domain string) (mark interface{}, ok bool) {
+	mark, ok = search(d.root, domain)
+	if ok {
+		return mark, ok
+	}
+	return search(d.wildcardRoot, domain)
 }
 
 func NewDomainMapper() *Domain {

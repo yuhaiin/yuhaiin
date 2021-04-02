@@ -73,27 +73,27 @@ func (l *LRU) Delete(key interface{}) {
 	}
 }
 
-func (l *LRU) Load(key interface{}) interface{} {
+func (l *LRU) Load(key interface{}) (interface{}, bool) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	node, ok := l.mapping[key]
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	y, ok := node.Value.(*lruEntry)
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	if l.timeout != 0 && time.Since(y.store) >= l.timeout {
 		delete(l.mapping, key)
 		l.list.Remove(node)
-		return nil
+		return nil, false
 	}
 
 	l.list.MoveToFront(node)
-	return y.data
+	return y.data, true
 }
 
 // Cache use map save history

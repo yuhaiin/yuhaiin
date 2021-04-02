@@ -35,7 +35,7 @@ func (x *Mapper) Insert(str string, mark interface{}) error {
 }
 
 func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
-	if de := x.cache.Load(str); de != nil {
+	if de, _ := x.cache.Load(str); de != nil {
 		if d, ok := de.([2]interface{}); ok {
 			return d[0], d[1] == 1
 		}

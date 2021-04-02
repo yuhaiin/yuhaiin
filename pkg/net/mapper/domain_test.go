@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// 165 ns/op
+// BenchmarkDomainMatcher_Search-4   	18168194	        66.90 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkDomainMatcher_Search(b *testing.B) {
 	b.StopTimer()
 	root := NewDomainMapper()
