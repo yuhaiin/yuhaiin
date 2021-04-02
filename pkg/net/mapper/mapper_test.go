@@ -25,3 +25,18 @@ func TestNewMatcher(t *testing.T) {
 	t.Log(matcher.Search("127.0.0.1"))            // false
 	t.Log(matcher.Search("ff::"))                 // false
 }
+
+func BenchmarkMapper(b *testing.B) {
+	b.StopTimer()
+	matcher := NewMapper(dns.NewDoH("223.5.5.5", nil).Search)
+	matcher.Insert("*.baidu.com", "test_baidu")
+	matcher.Insert("10.2.2.1/18", "test_cidr")
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		if i%2 == 1 {
+			matcher.Search("www.example.baidu.com")
+		} else {
+			matcher.Search("10.2.2.1")
+		}
+	}
+}

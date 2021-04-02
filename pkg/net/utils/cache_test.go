@@ -8,31 +8,18 @@ import (
 func TestLru(t *testing.T) {
 	l := NewLru(4, 0)
 
-	print := func() {
-		x := l.list.Front()
-		y := ""
-		for x != nil {
-			y += x.Value.(string) + " "
-			x = x.Next()
-		}
-		t.Log(y)
-	}
 	l.Add("a", "a")
 	l.Add("b", "b")
 	l.Add("c", "c")
 	t.Log(l.Load("b"))
-	print()
 	t.Log(l.Load("a"))
-	print()
 	t.Log(l.Load("c"))
-	print()
 	l.Add("d", "d")
 	l.Add("e", "e")
-	print()
 }
 func BenchmarkNewLru(b *testing.B) {
 	b.StopTimer()
-	l := NewLru(100, 10*time.Minute)
+	l := NewLru(100, 0*time.Minute)
 
 	l.Add("a", "a")
 	l.Add("b", "b")
@@ -40,14 +27,14 @@ func BenchmarkNewLru(b *testing.B) {
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if i%3 == 0 {
-			go l.Load("a")
-		} else if i%3 == 1 {
-			go l.Add("z", "z")
-		} else if i%3 == 2 {
-			go l.Load("z")
-		} else {
-			go l.Load("c")
-		}
+		// if i%3 == 0 {
+		l.Load("a")
+		// } else if i%3 == 1 {
+		// 	go l.Add("z", "z")
+		// } else if i%3 == 2 {
+		// 	go l.Load("z")
+		// } else {
+		// 	go l.Load("c")
+		// }
 	}
 }

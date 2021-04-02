@@ -25,7 +25,7 @@ type LRU struct {
 func NewLru(capacity int, timeout time.Duration) *LRU {
 	return &LRU{
 		capacity: capacity,
-		list:     list.New().Init(),
+		list:     list.New(),
 		mapping:  make(map[interface{}]*list.Element),
 		timeout:  timeout,
 	}
@@ -43,7 +43,7 @@ func (l *LRU) Add(key, value interface{}) {
 		return
 	}
 
-	if l.list.Len() < l.capacity || l.capacity == 0 {
+	if l.capacity == 0 || l.list.Len() < l.capacity {
 		l.mapping[key] = l.list.PushFront(&lruEntry{
 			key:   key,
 			data:  value,
