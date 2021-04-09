@@ -26,8 +26,10 @@ var Mode = map[string]MODE{
 }
 
 type MapperResp struct {
-	Mark MODE
-	IP   RespType
+	Mark     MODE
+	IP       RespType
+	Hostname string
+	Port     string
 }
 
 type Mapper interface {

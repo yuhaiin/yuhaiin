@@ -80,10 +80,10 @@ func (d *DoT) Search(domain string) ([]net.IP, error) {
 			return nil, fmt.Errorf("read data length from server failed %v", err)
 		}
 		all := make([]byte, int(leg[0])<<8+int(leg[1]))
-		_, err = conn.Read(all)
+		n, err := conn.Read(all)
 		if err != nil {
 			return nil, fmt.Errorf("read data from server failed: %v", err)
 		}
-		return all, err
+		return all[:n], err
 	})
 }

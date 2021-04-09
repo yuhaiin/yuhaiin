@@ -72,8 +72,7 @@ func (e *Entrance) Start() (err error) {
 		WithHTTP(e.config.GetSetting().Proxy.HTTP),
 		WithSocks5(e.config.GetSetting().Proxy.Socks5),
 		WithRedir(e.config.GetSetting().Proxy.Redir),
-		WithTCPConn(e.Bypass.Forward),
-		WithPacketConn(e.Bypass.ForwardPacket),
+		WithProxy(e.Bypass),
 	)
 	if err != nil {
 		return fmt.Errorf("create local listener failed: %v", err)

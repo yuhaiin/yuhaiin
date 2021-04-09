@@ -3,14 +3,13 @@ package app
 import (
 	"fmt"
 	"log"
-	"net"
 	"runtime"
-	"time"
 
 	httpserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/redirserver"
 	server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	socks5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 type sType int
@@ -51,9 +50,8 @@ type LocalListen struct {
 
 // llOpt Local listener opts
 type llOpt struct {
-	hosts      map[sType]string
-	tcpConn    func(string) (net.Conn, error)
-	packetConn func(string) (net.PacketConn, error)
+	hosts map[sType]string
+	proxy utils.Proxy
 }
 
 // LlOption Local Listener Option
@@ -78,26 +76,15 @@ func WithHTTP(host string) LlOption {
 	}
 }
 
-func WithTCPConn(f func(string) (net.Conn, error)) LlOption {
+func WithProxy(p utils.Proxy) LlOption {
 	return func(opt *llOpt) {
-		opt.tcpConn = f
-	}
-}
-
-func WithPacketConn(f func(string) (net.PacketConn, error)) LlOption {
-	return func(opt *llOpt) {
-		opt.packetConn = f
+		opt.proxy = p
 	}
 }
 
 func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 	hosts := &llOpt{
-		tcpConn: func(s string) (net.Conn, error) {
-			return net.DialTimeout("tcp", s, 5*time.Second)
-		},
-		packetConn: func(s string) (net.PacketConn, error) {
-			return net.ListenPacket("udp", "")
-		},
+		proxy: &utils.DefaultProxy{},
 		hosts: map[sType]string{},
 	}
 	for i := range opt {
@@ -124,7 +111,7 @@ func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 		}
 	}
 
-	l.setConn(hosts.tcpConn, hosts.packetConn)
+	l.setConn()
 	return l, nil
 }
 
@@ -156,26 +143,18 @@ func (l *LocalListen) SetAHost(opt ...LlOption) (erra error) {
 			erra = fmt.Errorf("%v\n UpdateListen %d -> %v", erra, style, err)
 		}
 	}
-	l.setConn(l.hosts.tcpConn, l.hosts.packetConn)
+	l.setConn()
 	return
 }
 
-func (l *LocalListen) setConn(
-	conn func(string) (net.Conn, error),
-	packetConn func(string) (net.PacketConn, error),
-) {
-	if conn == nil || packetConn == nil {
-		return
-	}
-
-	fmt.Println("Local Listener Set TCP Proxy", &conn)
+func (l *LocalListen) setConn() {
 	for _, style := range support {
 		if x, ok := l.Server[style].(server.TCPServer); ok {
-			x.SetTCPConn(conn)
+			x.SetTCPConn(l.hosts.proxy.Conn)
 		}
 
 		if x, ok := l.Server[style].(server.UDPServer); ok {
-			x.SetUDPConn(packetConn)
+			x.SetUDPConn(l.hosts.proxy.PacketConn)
 		}
 	}
 }
