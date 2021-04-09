@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"math"
 	"net"
 	"testing"
 )
@@ -155,4 +156,8 @@ func BenchmarkSingleTrie(b *testing.B) {
 			m.singleSearch("ff::")
 		}
 	}
+}
+
+func TestLog(t *testing.T) {
+	t.Log(math.Log2(128))
 }

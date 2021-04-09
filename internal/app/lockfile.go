@@ -8,44 +8,47 @@ import (
 	"os"
 	"path"
 	"unsafe"
-
-	"github.com/Asutorufa/yuhaiin/internal/config"
 )
 
-var (
-	LockFilePath = config.Path + "/yuhaiin.lock"
-	hostFile     = config.Path + "/host.txt"
-	lockFile     *os.File
-)
+type Lock struct {
+	lockfile string
+	lockFile *os.File
+}
 
-func GetProcessLock(str string) error {
-	_, err := os.Stat(path.Dir(str))
+func NewLock(lockfile string) *Lock {
+	return &Lock{
+		lockfile: lockfile,
+	}
+}
+
+func (l *Lock) Lock(payload string) error {
+	_, err := os.Stat(path.Dir(l.lockfile))
 	if errors.Is(err, os.ErrNotExist) {
-		err = os.MkdirAll(path.Dir(LockFilePath), os.ModePerm)
+		err = os.MkdirAll(path.Dir(l.lockfile), os.ModePerm)
 		if err != nil {
 			return fmt.Errorf("make dir failed: %v", err)
 		}
 	}
 
-	lockFile, err = os.OpenFile(LockFilePath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	l.lockFile, err = os.OpenFile(l.lockfile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("open lock file failed: %v", err)
 	}
 
-	err = LockFile(lockFile)
+	err = LockFile(l.lockFile)
 	if err != nil {
 		return fmt.Errorf("lock file failed: %v", err)
 	}
 
-	err = ioutil.WriteFile(hostFile, *(*[]byte)(unsafe.Pointer(&str)), os.ModePerm)
+	err = ioutil.WriteFile(l.lockfile+"_payload", []byte(payload), os.ModePerm)
 	if err != nil {
 		log.Printf("write host to file failed: %v", err)
 	}
 	return nil
 }
 
-func ReadLockFile() (string, error) {
-	s, err := ioutil.ReadFile(hostFile)
+func (l *Lock) Payload() (string, error) {
+	s, err := ioutil.ReadFile(l.lockfile + "_payload")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -55,16 +58,16 @@ func ReadLockFile() (string, error) {
 	return *(*string)(unsafe.Pointer(&s)), nil
 }
 
-func LockFileClose() (erra error) {
-	err := os.Remove(hostFile)
+func (l *Lock) UnLock() (erra error) {
+	err := os.Remove(l.lockfile + "_payload")
 	if err != nil {
 		erra = fmt.Errorf("%v\nremove host file failed: %v", erra, err)
 	}
-	err = lockFile.Close()
+	err = l.lockFile.Close()
 	if err != nil {
 		erra = fmt.Errorf("%v\nunlock file failed: %v", erra, err)
 	}
-	err = os.Remove(LockFilePath)
+	err = os.Remove(l.lockfile)
 	if err != nil {
 		erra = fmt.Errorf("%v\nremove lock file failed: %v", erra, err)
 	}

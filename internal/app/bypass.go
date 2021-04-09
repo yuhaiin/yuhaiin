@@ -54,9 +54,13 @@ func NewBypassManager(bypass bool, mapper func(s string) (int, int),
 
 	m.connMapper = [2][3]func(string) (net.Conn, error){
 		/*
-		 * type\mark  others block direct
-		 *	IP
-		 * DOMAIN
+		 * +---------+------+-----+------+
+		 * |type\mark|others|block|direct|
+		 * +---------+------+-----+------+
+		 * |   IP    |      |     |      |
+		 * +---------+------+-----+------+
+		 * | DOMAIN  |      |     |      |
+		 * +---------+------+-----+------+
 		 */
 		{ // ip
 			m.proxya,  // other
@@ -90,7 +94,13 @@ func NewBypassManager(bypass bool, mapper func(s string) (int, int),
 			},
 		},
 	}
-
+	/*
+	* +----+------+-----+------+
+	* |mark|others|block|direct|
+	* +----+------+-----+------+
+	* |----|      |     |      |
+	* +----+------+-----+------+
+	 */
 	m.packetConnMapper = [3]func(string) (net.PacketConn, error){
 		m.proxyPacketa,
 		blockPacket,

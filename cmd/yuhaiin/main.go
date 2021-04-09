@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/api"
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"google.golang.org/grpc"
 )
 
@@ -25,22 +27,31 @@ func main() {
 		}
 	}()
 
-	m, err := app.NewManager()
-	if err != nil {
-		panic(err)
-	}
-	err = m.Start()
+	var host string
+	var kwdc bool
+	flag.StringVar(&host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
+	flag.BoolVar(&kwdc, "kwdc", false, "kill process when grpc disconnect")
+	flag.Parse()
+	fmt.Println("gRPC Listen Host :", host)
+	fmt.Println("Try to create lock file.")
+
+	m, err := app.NewManager(config.Path)
 	if err != nil {
 		panic(err)
 	}
 
-	lis, err := net.Listen("tcp", m.Host())
+	err = m.Start(host)
+	if err != nil {
+		panic(err)
+	}
+
+	lis, err := net.Listen("tcp", host)
 	if err != nil {
 		panic(err)
 	}
 
 	s := grpc.NewServer(grpc.EmptyServerOption{})
-	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(m))
+	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(m, kwdc))
 	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(m.Entrance()))
 	s.RegisterService(&api.Node_ServiceDesc, api.NewNode(m.Entrance()))
 	s.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(m.Entrance()))

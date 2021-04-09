@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 	"net"
 )
@@ -89,14 +90,12 @@ type Trie struct {
 	right  *Trie // 1
 }
 
-var bc = []byte{128, 64, 32, 16, 8, 4, 2, 1}
-
 // Insert insert node to tree
 func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 	r := t
 	for i := range ip {
-		for i2 := range bc {
-			if ip[i]&bc[i2] != 0 {
+		for b := byte(128); b != 0; b = b >> 1 {
+			if ip[i]&b != 0 {
 				if r.right == nil {
 					r.right = new(Trie)
 				}
@@ -108,7 +107,7 @@ func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 				r = r.left
 			}
 
-			if r.isLast || i*8+i2+1 == maskSize {
+			if r.isLast || i*8+int(math.Log2(float64(128/b)))+1 == maskSize {
 				r.isLast = true
 				r.mark = mark
 				r.left = new(Trie)
@@ -123,8 +122,8 @@ func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 func (t *Trie) Search(ip net.IP) (mark interface{}, ok bool) {
 	r := t
 	for i := range ip {
-		for i2 := range bc {
-			if ip[i]&bc[i2] != 0 { // bit = 1
+		for b := byte(128); b != 0; b = b >> 1 {
+			if ip[i]&b != 0 { // bit = 1
 				r = r.right
 			} else { // bit = 0
 				r = r.left
@@ -200,8 +199,8 @@ func ipv4toInt(ip net.IP) string {
 func ipv4toInt2(ip net.IP) []byte {
 	s := make([]byte, 0, 32)
 	for i := range ip {
-		for i2 := range bc {
-			if ip[i]&bc[i2] != 0 {
+		for b := byte(128); b != 0; b = b >> 1 {
+			if ip[i]&b != 0 {
 				s = append(s, 1)
 			} else {
 				s = append(s, 0)
@@ -220,8 +219,8 @@ func ipv6toInt(ip net.IP) string {
 func ipv6toInt2(ip net.IP) []byte {
 	s := make([]byte, 0, 128)
 	for i := range ip {
-		for i2 := range bc {
-			if ip[i]&bc[i2] != 0 {
+		for b := byte(128); b != 0; b = b >> 1 {
+			if ip[i]&b != 0 {
 				s = append(s, 1)
 			} else {
 				s = append(s, 0)

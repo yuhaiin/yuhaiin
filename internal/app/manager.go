@@ -1,28 +1,27 @@
 package app
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 )
 
 type Manager struct {
-	host    string
-	killWDC bool // kill process when grpc disconnect
-
 	lock     bool
 	init     bool
 	conn     chan bool
 	entrance *Entrance
+	applock  *Lock
 }
 
-func NewManager() (*Manager, error) {
+func NewManager(configPath string) (*Manager, error) {
 	m := &Manager{
-		conn: make(chan bool),
+		conn:    make(chan bool),
+		applock: NewLock(filepath.Join(configPath, "yuhaiin.lock")),
 	}
 	var err error
 	m.entrance, err = NewEntrance()
@@ -37,22 +36,23 @@ func (m *Manager) InitApp() bool {
 	return m.init
 }
 
-func (m *Manager) KillWDC() bool {
-	return m.killWDC
-}
-
 func (m *Manager) Entrance() *Entrance {
 	return m.entrance
 }
 
-func (m *Manager) Host() string {
-	return m.host
+func (m *Manager) ReadHost() (string, error) {
+	return m.applock.Payload()
 }
+
+func (m *Manager) Close() error {
+	return m.applock.UnLock()
+}
+
 func (m *Manager) Connect() {
 	close(m.conn)
 }
 
-func sigh() {
+func (m *Manager) sigh() {
 	go func() {
 		signChannel := make(chan os.Signal, 5)
 		signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -60,7 +60,7 @@ func sigh() {
 			switch s {
 			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
 				log.Println("kernel exit")
-				_ = LockFileClose()
+				_ = m.applock.UnLock()
 				os.Exit(0)
 			default:
 				fmt.Println("OTHERS SIGN:", s)
@@ -69,16 +69,10 @@ func sigh() {
 	}()
 }
 
-func (m *Manager) Start() error {
-	sigh()
+func (m *Manager) Start(host string) error {
+	m.sigh()
 
-	flag.StringVar(&m.host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
-	flag.BoolVar(&m.killWDC, "kwdc", false, "kill process when grpc disconnect")
-	flag.Parse()
-	fmt.Println("gRPC Listen Host :", m.host)
-	fmt.Println("Try to create lock file.")
-
-	err := GetProcessLock(m.host)
+	err := m.applock.Lock(host)
 	if err != nil {
 		fmt.Println("Create lock file failed, Please Get Running Host in 5 Seconds.")
 		go func() {

@@ -18,11 +18,13 @@ type Process struct {
 	singleInstance chan bool
 	message        chan string
 	manager        *app.Manager
+	kwdc           bool
 }
 
-func NewProcess(e *app.Manager) *Process {
+func NewProcess(e *app.Manager, kwdc bool) *Process {
 	return &Process{
 		manager: e,
+		kwdc:    kwdc,
 	}
 }
 
@@ -44,7 +46,7 @@ func (s *Process) ProcessInit(context.Context, *emptypb.Empty) (*emptypb.Empty, 
 }
 
 func (s *Process) GetRunningHost(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
-	host, err := app.ReadLockFile()
+	host, err := s.manager.ReadHost()
 	if err != nil {
 		return &wrapperspb.StringValue{}, err
 	}
@@ -65,7 +67,7 @@ func (s *Process) ClientOn(context.Context, *emptypb.Empty) (*emptypb.Empty, err
 }
 
 func (s *Process) ProcessExit(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, app.LockFileClose()
+	return &emptypb.Empty{}, s.manager.Close()
 }
 
 func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
@@ -93,7 +95,7 @@ func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
 		case <-ctx.Done():
 			close(s.message)
 			close(s.singleInstance)
-			if s.manager.KillWDC() {
+			if s.kwdc {
 				panic("client exit")
 			}
 			return ctx.Err()
