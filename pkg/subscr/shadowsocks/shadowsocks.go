@@ -5,9 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/url"
 	"strings"
+
+	netUtils "github.com/Asutorufa/yuhaiin/pkg/net/utils"
 
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
@@ -58,12 +59,12 @@ func ParseLink(str []byte, group string) (*utils.Point, error) {
 	}, nil
 }
 
-func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+func ParseConn(n *utils.Point) (netUtils.Proxy, error) {
 	s := new(Shadowsocks)
 
 	err := json.Unmarshal(n.Data, s)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	ss, err := ssClient.NewShadowsocks(
 		s.Method,
@@ -73,8 +74,8 @@ func ParseConn(n *utils.Point) (func(string) (net.Conn, error), func(string) (ne
 		s.PluginOpt,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return ss.Conn, ss.PacketConn, nil
+	return ss, nil
 }

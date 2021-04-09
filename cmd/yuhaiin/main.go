@@ -6,14 +6,44 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
 
 	_ "net/http/pprof"
 
 	"github.com/Asutorufa/yuhaiin/internal/api"
 	"github.com/Asutorufa/yuhaiin/internal/app"
-	"github.com/Asutorufa/yuhaiin/internal/config"
 	"google.golang.org/grpc"
 )
+
+var (
+	Path string
+)
+
+func init() {
+	var err error
+	Path, err = os.UserConfigDir()
+	if err == nil {
+		Path = path.Join(Path, "yuhaiin")
+		return
+	}
+
+	file, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		log.Println(err)
+		Path = "./yuhaiin"
+		return
+	}
+	execPath, err := filepath.Abs(file)
+	if err != nil {
+		log.Println(err)
+		Path = "./yuhaiin"
+		return
+	}
+	Path = path.Join(filepath.Dir(execPath), "config")
+}
 
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
@@ -35,7 +65,7 @@ func main() {
 	fmt.Println("gRPC Listen Host :", host)
 	fmt.Println("Try to create lock file.")
 
-	m, err := app.NewManager(config.Path)
+	m, err := app.NewManager(Path)
 	if err != nil {
 		panic(err)
 	}

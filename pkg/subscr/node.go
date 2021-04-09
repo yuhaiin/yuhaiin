@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"path"
 	"sync"
 	"time"
 
+	netUtils "github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	ss "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
@@ -213,7 +213,7 @@ func (n *NodeManager) GetNowNode() *utils.Point {
 	return n.nodes.NowNode
 }
 
-func ParseNodeConn(s *utils.Point) (func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+func ParseNodeConn(s *utils.Point) (netUtils.Proxy, error) {
 	switch s.NType {
 	case utils.Shadowsocks:
 		return ss.ParseConn(s)
@@ -222,5 +222,5 @@ func ParseNodeConn(s *utils.Point) (func(string) (net.Conn, error), func(string)
 	case utils.Vmess:
 		return vmess.ParseConn(s)
 	}
-	return nil, nil, errors.New("not support type")
+	return nil, errors.New("not support type")
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func TestSettingDecodeJSON(t *testing.T) {
-	s, err := SettingDecodeJSON()
+	s, err := SettingDecodeJSON("/tmp/yuhaiin/setting")
 	if err != nil {
 		t.Error(err)
 	}
@@ -32,7 +32,7 @@ func TestJsonPb(t *testing.T) {
 		},
 		Bypass: &Bypass{
 			Enabled:    true,
-			BypassFile: path.Join(Path, "yuhaiin.conf"),
+			BypassFile: path.Join("/tmp/yuhaiin/setting", "yuhaiin.conf"),
 		},
 		Proxy: &Proxy{
 			HTTP:   "127.0.0.1:8188",

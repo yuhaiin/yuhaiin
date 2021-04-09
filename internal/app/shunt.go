@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"path"
@@ -17,36 +16,15 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/internal/app/component"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
-)
-
-const (
-	others = 0
-	block  = 1
-	direct = 2
-	proxy  = 3
-
-	ip     = 0
-	domain = 1
 )
 
 //go:embed yuhaiin.conf
 var bypassData []byte
 
-var modeMapping = map[int]string{
-	others: "others(proxy)",
-	direct: "direct",
-	proxy:  "proxy",
-	block:  "block",
-}
-
-var mode = map[string]int{
-	"direct": direct,
-	"proxy":  proxy,
-	"block":  block,
-}
-
 type Shunt struct {
+	component.Mapper
 	file   string
 	mapper *mapper.Mapper
 
@@ -69,7 +47,7 @@ func NewShunt(file string, lookup func(string) ([]net.IP, error)) (*Shunt, error
 func (s *Shunt) RefreshMapping() error {
 	s.fileLock.RLock()
 	defer s.fileLock.RUnlock()
-	log.Println(s.file)
+	fmt.Println(s.file)
 	_, err := os.Stat(s.file)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
 		err = os.MkdirAll(path.Dir(s.file), os.ModePerm)
@@ -104,8 +82,8 @@ func (s *Shunt) RefreshMapping() error {
 		if len(result) != 3 {
 			continue
 		}
-		mode := mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))]
-		if mode == others {
+		mode := component.Mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))]
+		if mode == component.OTHERS {
 			continue
 		}
 		s.mapper.Insert(string(result[1]), mode)
@@ -124,24 +102,31 @@ func (s *Shunt) SetFile(f string) error {
 	return s.RefreshMapping()
 }
 
-func getType(b bool) int {
+func getType(b bool) component.RespType {
 	if b {
-		return ip
+		return component.IP
 	}
-	return domain
+	return component.DOMAIN
 }
-func (s *Shunt) Get(domain string) (int, int) {
+
+func (s *Shunt) Get(domain string) component.MapperResp {
 	mark, markType := s.mapper.Search(domain)
-	x, ok := mark.(int)
+	x, ok := mark.(component.MODE)
 	if !ok {
-		return others, getType(markType)
+		return component.MapperResp{
+			Mark: component.OTHERS,
+			IP:   getType(markType),
+		}
 	}
 
-	if x < others || x > direct {
-		x = others
+	if component.ModeMapping[x] == "" {
+		x = component.OTHERS
 	}
 
-	return x, getType(markType)
+	return component.MapperResp{
+		Mark: x,
+		IP:   getType(markType),
+	}
 }
 
 func (s *Shunt) SetLookup(f func(string) ([]net.IP, error)) {

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"time"
 
+	netUtils "github.com/Asutorufa/yuhaiin/pkg/net/utils"
+
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
@@ -18,47 +20,58 @@ import (
 )
 
 type Entrance struct {
-	Config      *config.Setting
+	config      *config.Config
 	LocalListen *LocalListen
 	Bypass      *BypassManager
 	nodeManager *subscr.NodeManager
 	shunt       *Shunt
+	dir         string
 
 	nodeHash string
 }
 
-func NewEntrance() (e *Entrance, err error) {
-	e = &Entrance{}
-	e.nodeManager, err = subscr.NewNodeManager(filepath.Join(config.Path, "node.json"))
-	if err != nil {
-		return nil, fmt.Errorf("refresh node failed: %v", err)
+func NewEntrance(dir string) (e *Entrance, err error) {
+	e = &Entrance{
+		dir: dir,
 	}
 
-	e.Config, err = config.SettingDecodeJSON()
+	e.config, err = config.NewConfig(dir)
 	if err != nil {
 		return nil, fmt.Errorf("get config failed: %v", err)
 	}
 
-	e.shunt, err = NewShunt(e.Config.Bypass.BypassFile, getDNS(e.Config.DNS).Search)
+	e.nodeManager, err = subscr.NewNodeManager(filepath.Join(dir, "node.json"))
+	if err != nil {
+		return nil, fmt.Errorf("refresh node failed: %v", err)
+	}
+
+	s := e.config.GetSetting()
+
+	e.shunt, err = NewShunt(s.Bypass.BypassFile, getDNS(s.DNS).Search)
 	if err != nil {
 		return nil, fmt.Errorf("create shunt failed: %v", err)
 	}
 
 	// initialize Match Controller
-	e.Bypass, err = NewBypassManager(e.Config.Bypass.Enabled, e.shunt.Get, getDNS(e.Config.LocalDNS).Search)
+	if !e.config.GetSetting().Bypass.Enabled {
+		e.Bypass, err = NewBypassManager(nil, getDNS(s.LocalDNS).Search)
+	} else {
+		e.Bypass, err = NewBypassManager(e.shunt, getDNS(s.LocalDNS).Search)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create new bypass service failed: %v", err)
 	}
 
+	e.addObserver()
 	return e, nil
 }
 
 func (e *Entrance) Start() (err error) {
 	// initialize Local Servers Controller
 	e.LocalListen, err = NewLocalListenCon(
-		WithHTTP(e.Config.Proxy.HTTP),
-		WithSocks5(e.Config.Proxy.Socks5),
-		WithRedir(e.Config.Proxy.Redir),
+		WithHTTP(e.config.GetSetting().Proxy.HTTP),
+		WithSocks5(e.config.GetSetting().Proxy.Socks5),
+		WithRedir(e.config.GetSetting().Proxy.Redir),
 		WithTCPConn(e.Bypass.Forward),
 		WithPacketConn(e.Bypass.ForwardPacket),
 	)
@@ -73,37 +86,56 @@ func (e *Entrance) Start() (err error) {
 	return
 }
 
-func (e *Entrance) SetConFig(conf *config.Setting) (erra error) {
-	var err error
-	if e.Config.Bypass.BypassFile != conf.Bypass.BypassFile {
-		e.shunt.SetFile(conf.Bypass.BypassFile)
+func (e *Entrance) SetConFig(c *config.Setting) (err error) {
+	err = e.config.Apply(c)
+	if err != nil {
+		return fmt.Errorf("apply config failed: %v", err)
 	}
+	return nil
+}
 
-	if diffDNS(e.Config.DNS, conf.DNS) {
-		e.shunt.SetLookup(getDNS(conf.DNS).Search)
-	}
-
-	if diffDNS(e.Config.LocalDNS, conf.LocalDNS) ||
-		e.Config.Bypass.Enabled != conf.Bypass.Enabled {
-		e.Bypass, err = NewBypassManager(e.Config.Bypass.Enabled, e.shunt.Get, getDNS(e.Config.LocalDNS).Search)
-		if err != nil {
-			erra = fmt.Errorf("%v\nlocal listener apply config failed: %v", erra, err)
+func (e *Entrance) addObserver() {
+	e.config.AddObserver(func(current, old *config.Setting) {
+		if current.Bypass.BypassFile != old.Bypass.BypassFile {
+			err := e.shunt.SetFile(current.Bypass.BypassFile)
+			if err != nil {
+				log.Printf("shunt set file failed: %v", err)
+			}
 		}
-	}
+	})
 
-	err = e.LocalListen.SetAHost(WithHTTP(conf.Proxy.HTTP),
-		WithSocks5(conf.Proxy.Socks5), WithRedir(conf.Proxy.Redir))
-	if err != nil {
-		erra = fmt.Errorf("%v\nlocal listener apply config failed: %v", erra, err)
-	}
+	e.config.AddObserver(func(current, old *config.Setting) {
+		if diffDNS(current.DNS, old.DNS) {
+			e.shunt.SetLookup(getDNS(current.DNS).Search)
+		}
+	})
 
-	e.Config = conf
+	e.config.AddObserver(func(current, old *config.Setting) {
+		if diffDNS(current.LocalDNS, old.LocalDNS) ||
+			current.Bypass.Enabled != old.Bypass.Enabled {
 
-	err = config.SettingEnCodeJSON(e.Config)
-	if err != nil {
-		erra = fmt.Errorf("%v\nsave setting failed: %v", erra, err)
-	}
-	return
+			var err error
+			if !current.Bypass.Enabled {
+				e.Bypass, err = NewBypassManager(nil, getDNS(current.LocalDNS).Search)
+			} else {
+				e.Bypass, err = NewBypassManager(e.shunt, getDNS(current.LocalDNS).Search)
+			}
+			if err != nil {
+				fmt.Printf("local listener apply config failed: %v", err)
+			}
+		}
+	})
+
+	e.config.AddObserver(func(current, _ *config.Setting) {
+		err := e.LocalListen.SetAHost(
+			WithHTTP(current.Proxy.HTTP),
+			WithSocks5(current.Proxy.Socks5),
+			WithRedir(current.Proxy.Redir),
+		)
+		if err != nil {
+			fmt.Printf("local listener apply config failed: %v", err)
+		}
+	})
 }
 
 func diffDNS(old, new *config.DNS) bool {
@@ -145,7 +177,7 @@ func toSubnet(s string) *net.IPNet {
 }
 
 func (e *Entrance) GetConfig() (*config.Setting, error) {
-	return e.Config, nil
+	return e.config.GetSetting(), nil
 }
 
 func (e *Entrance) ChangeNNode(group string, node string) (err error) {
@@ -174,10 +206,9 @@ func (e *Entrance) GetANodes() map[string][]string {
 	return m
 }
 
-func (e *Entrance) GetOneNodeConn(group, nodeN string) (
-	func(string) (net.Conn, error), func(string) (net.PacketConn, error), error) {
+func (e *Entrance) GetOneNodeConn(group, nodeN string) (netUtils.Proxy, error) {
 	if e.nodeManager.GetNodes().Node[group][nodeN] == nil {
-		return nil, nil, fmt.Errorf("node %s of group %s is not exist", nodeN, group)
+		return nil, fmt.Errorf("node %s of group %s is not exist", nodeN, group)
 	}
 	return subscr.ParseNodeConn(e.nodeManager.GetNodes().Node[group][nodeN])
 }
@@ -228,14 +259,14 @@ func (e *Entrance) ChangeNode() error {
 		return nil
 	}
 
-	conn, packetConn, err := subscr.ParseNodeConn(e.nodeManager.GetNodes().NowNode)
+	p, err := subscr.ParseNodeConn(e.nodeManager.GetNodes().NowNode)
 	if err != nil {
 		return fmt.Errorf("now node to conn failed: %v", err)
 	}
 
 	e.nodeHash = e.nodeManager.GetNowNode().NHash
 
-	e.Bypass.SetProxy(conn, packetConn)
+	e.Bypass.SetProxy(p)
 
 	return nil
 }
@@ -249,13 +280,13 @@ func (e *Entrance) GetUpload() uint64 {
 }
 
 func (e *Entrance) Latency(group, mark string) (time.Duration, error) {
-	conn, _, err := e.GetOneNodeConn(group, mark)
+	p, err := e.GetOneNodeConn(group, mark)
 	if err != nil {
 		return 0, err
 	}
 	return latency.TcpLatency(
 		func(_ context.Context, _, addr string) (net.Conn, error) {
-			return conn(addr)
+			return p.Conn(addr)
 		},
 		"https://www.google.com/generate_204",
 	)

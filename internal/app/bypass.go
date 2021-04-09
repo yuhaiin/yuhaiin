@@ -4,17 +4,19 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+
+	"github.com/Asutorufa/yuhaiin/internal/app/component"
 )
 
 //BypassManager .
 type BypassManager struct {
-	bypass bool
-
-	lookup func(string) ([]net.IP, error)
-	mapper func(string) (mark int, isIP int)
-
-	proxy       func(string) (net.Conn, error)
-	proxyPacket func(string) (net.PacketConn, error)
+	lookup      func(string) ([]net.IP, error)
+	mapper      component.Mapper
+	proxy       utils.Proxy
+	dialer      net.Dialer
+	connManager *connManager
 
 	/*
 	 * type\mark  others direct block
@@ -23,33 +25,23 @@ type BypassManager struct {
 	 */
 	connMapper       [2][3]func(string) (net.Conn, error)
 	packetConnMapper [3]func(string) (net.PacketConn, error)
-	dialer           net.Dialer
-	connManager      *connManager
 }
 
 //NewBypassManager .
-func NewBypassManager(bypass bool, mapper func(s string) (int, int),
-	lookup func(string) ([]net.IP, error)) (*BypassManager, error) {
+func NewBypassManager(mapper component.Mapper, lookup func(string) ([]net.IP, error)) (*BypassManager, error) {
 	if mapper == nil {
-		return nil, fmt.Errorf("mapper is nil")
+		fmt.Println("checked mapper is nil, disable bypass.")
 	}
-
 	if lookup == nil {
 		lookup = net.LookupIP
 	}
 
 	m := &BypassManager{
-		dialer: net.Dialer{Timeout: 11 * time.Second},
-		lookup: lookup,
-		proxy: func(host string) (conn net.Conn, err error) {
-			return net.DialTimeout("tcp", host, 15*time.Second)
-		},
-		proxyPacket: func(s string) (net.PacketConn, error) {
-			return net.ListenPacket("udp", "")
-		},
+		dialer:      net.Dialer{Timeout: 11 * time.Second},
+		lookup:      lookup,
+		proxy:       &utils.DefaultProxy{},
 		mapper:      mapper,
 		connManager: newConnManager(),
-		bypass:      bypass,
 	}
 
 	m.connMapper = [2][3]func(string) (net.Conn, error){
@@ -120,13 +112,13 @@ func blockPacket(s string) (net.PacketConn, error) {
 }
 
 func (m *BypassManager) proxya(s string) (net.Conn, error) {
-	return m.proxy(s)
+	return m.proxy.Conn(s)
 }
 func (m *BypassManager) proxyPacketa(s string) (net.PacketConn, error) {
-	return m.proxyPacket(s)
+	return m.proxy.PacketConn(s)
 }
 
-// https://myexternalip.com/raw
+//Forward get net.Conn by host
 func (m *BypassManager) Forward(host string) (conn net.Conn, err error) {
 	mark, isIP, err := m.marry(host)
 	if err != nil {
@@ -147,43 +139,34 @@ func (m *BypassManager) ForwardPacket(host string) (conn net.PacketConn, err err
 }
 
 //SetProxy .
-func (m *BypassManager) SetProxy(conn func(string) (net.Conn, error),
-	packetConn func(string) (net.PacketConn, error)) {
-	if conn == nil {
-		m.proxy = func(host string) (conn net.Conn, err error) {
-			return net.DialTimeout("tcp", host, 15*time.Second)
-		}
+func (m *BypassManager) SetProxy(p utils.Proxy) {
+	if p == nil {
+		m.proxy = &utils.DefaultProxy{}
 	} else {
-		m.proxy = conn
-	}
-
-	if packetConn == nil {
-		m.proxyPacket = func(s string) (net.PacketConn, error) {
-			return net.ListenPacket("udp", "")
-		}
-	} else {
-		m.proxyPacket = packetConn
+		m.proxy = p
 	}
 }
 
-func (m *BypassManager) marry(host string) (mark, isIP int, err error) {
+func (m *BypassManager) marry(host string) (mark component.MODE, isIP component.RespType, err error) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
 		return 0, 0, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
 
-	if !m.bypass {
-		mark = proxy
+	if m.mapper == nil {
+		mark = component.OTHERS
 		if net.ParseIP(hostname) != nil {
-			isIP = ip
+			isIP = component.IP
 		} else {
-			isIP = domain
+			isIP = component.DOMAIN
 		}
 	} else {
-		mark, isIP = m.mapper(hostname)
+		s := m.mapper.Get(hostname)
+		mark = s.Mark
+		isIP = s.IP
 	}
 
-	fmt.Printf("[%s] ->  mode: %s\n", host, modeMapping[mark])
+	fmt.Printf("[%s] ->  mode: %s\n", host, component.ModeMapping[mark])
 
 	return
 }

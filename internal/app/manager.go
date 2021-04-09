@@ -24,7 +24,7 @@ func NewManager(configPath string) (*Manager, error) {
 		applock: NewLock(filepath.Join(configPath, "yuhaiin.lock")),
 	}
 	var err error
-	m.entrance, err = NewEntrance()
+	m.entrance, err = NewEntrance(configPath)
 	return m, err
 }
 

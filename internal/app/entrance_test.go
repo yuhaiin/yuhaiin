@@ -28,7 +28,7 @@ func TestHash(t *testing.T) {
 }
 
 func TestLatency(t *testing.T) {
-	e, err := NewEntrance()
+	e, err := NewEntrance("/tmp/yuhaiin/test")
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
