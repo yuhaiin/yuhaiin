@@ -47,16 +47,16 @@ func NewEntrance(dir string) (e *Entrance, err error) {
 
 	s := e.config.GetSetting()
 
-	e.shunt, err = NewShunt(s.Bypass.BypassFile, getDNS(s.DNS).Search)
+	e.shunt, err = NewShunt(s.Bypass.BypassFile, getDNS(s.DNS).LookupIP)
 	if err != nil {
 		return nil, fmt.Errorf("create shunt failed: %v", err)
 	}
 
 	// initialize Match Controller
 	if !e.config.GetSetting().Bypass.Enabled {
-		e.Bypass, err = NewBypassManager(nil, getDNS(s.LocalDNS).Search)
+		e.Bypass, err = NewBypassManager(nil, getDNS(s.LocalDNS))
 	} else {
-		e.Bypass, err = NewBypassManager(e.shunt, getDNS(s.LocalDNS).Search)
+		e.Bypass, err = NewBypassManager(e.shunt, getDNS(s.LocalDNS))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("create new bypass service failed: %v", err)
@@ -105,7 +105,7 @@ func (e *Entrance) addObserver() {
 
 	e.config.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(current.DNS, old.DNS) {
-			e.shunt.SetLookup(getDNS(current.DNS).Search)
+			e.shunt.SetLookup(getDNS(current.DNS).LookupIP)
 		}
 	})
 
@@ -115,9 +115,9 @@ func (e *Entrance) addObserver() {
 
 			var err error
 			if !current.Bypass.Enabled {
-				e.Bypass, err = NewBypassManager(nil, getDNS(current.LocalDNS).Search)
+				e.Bypass, err = NewBypassManager(nil, getDNS(current.LocalDNS))
 			} else {
-				e.Bypass, err = NewBypassManager(e.shunt, getDNS(current.LocalDNS).Search)
+				e.Bypass, err = NewBypassManager(e.shunt, getDNS(current.LocalDNS))
 			}
 			if err != nil {
 				fmt.Printf("local listener apply config failed: %v", err)

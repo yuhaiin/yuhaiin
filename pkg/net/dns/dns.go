@@ -27,7 +27,7 @@ type DNS interface {
 	GetServer() string
 	SetSubnet(subnet *net.IPNet)
 	GetSubnet() *net.IPNet
-	Search(domain string) ([]net.IP, error)
+	LookupIP(domain string) ([]net.IP, error)
 }
 
 func NewDNS(host string, dnsType DNSType, subnet *net.IPNet) DNS {
@@ -85,7 +85,7 @@ func NewNormalDNS(host string, subnet *net.IPNet) DNS {
 }
 
 // DNS Normal DNS(use udp,and no encrypt)
-func (n *NormalDNS) Search(domain string) (DNS []net.IP, err error) {
+func (n *NormalDNS) LookupIP(domain string) (DNS []net.IP, err error) {
 	if x, _ := n.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}

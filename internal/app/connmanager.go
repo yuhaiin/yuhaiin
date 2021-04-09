@@ -38,10 +38,17 @@ func (c *connManager) add(i *statisticConn) {
 	c.conns.Store(i.id, i)
 }
 
+func (c *connManager) addPacketConn(i *statisticPacketConn) {
+	c.conns.Store(i.id, i)
+}
+
 func (c *connManager) delete(id int64) {
 	v, _ := c.conns.LoadAndDelete(id)
 	if x, ok := v.(*statisticConn); ok {
-		fmt.Printf("close id: %d,addr: %s\n", x.id, x.addr)
+		fmt.Printf("close tcp conn id: %d,addr: %s\n", x.id, x.addr)
+	}
+	if x, ok := v.(*statisticPacketConn); ok {
+		fmt.Printf("close packet conn id: %d,addr: %s\n", x.id, x.addr)
 	}
 }
 
@@ -49,6 +56,18 @@ func (c *connManager) write(w io.Writer, b []byte) (int, error) {
 	n, err := w.Write(b)
 	atomic.AddUint64(&c.upload, uint64(n))
 	return n, err
+}
+
+func (c *connManager) writeTo(w net.PacketConn, b []byte, addr net.Addr) (int, error) {
+	n, err := w.WriteTo(b, addr)
+	atomic.AddUint64(&c.upload, uint64(n))
+	return n, err
+}
+
+func (c *connManager) readFrom(r net.PacketConn, b []byte) (int, net.Addr, error) {
+	n, addr, err := r.ReadFrom(b)
+	atomic.AddUint64(&c.download, uint64(n))
+	return n, addr, err
 }
 
 func (c *connManager) read(r io.Reader, b []byte) (int, error) {
@@ -62,7 +81,15 @@ func (c *connManager) dc(cn net.Conn, id int64) error {
 	return cn.Close()
 }
 
+func (c *connManager) dpc(cn net.PacketConn, id int64) error {
+	c.delete(id)
+	return cn.Close()
+}
+
 func (c *connManager) newConn(addr string, x net.Conn) net.Conn {
+	if x == nil {
+		return nil
+	}
 	s := &statisticConn{
 		id:    c.idSeed.Generate(),
 		addr:  addr,
@@ -73,6 +100,24 @@ func (c *connManager) newConn(addr string, x net.Conn) net.Conn {
 	}
 
 	c.add(s)
+
+	return s
+}
+
+func (c *connManager) newPacketConn(addr string, x net.PacketConn) net.PacketConn {
+	if x == nil {
+		return nil
+	}
+	s := &statisticPacketConn{
+		id:         c.idSeed.Generate(),
+		addr:       addr,
+		PacketConn: x,
+		close:      c.dpc,
+		writeTo:    c.writeTo,
+		readFrom:   c.readFrom,
+	}
+
+	c.addPacketConn(s)
 
 	return s
 }
@@ -97,6 +142,28 @@ func (s *statisticConn) Write(b []byte) (n int, err error) {
 
 func (s *statisticConn) Read(b []byte) (n int, err error) {
 	return s.read(s.Conn, b)
+}
+
+type statisticPacketConn struct {
+	net.PacketConn
+	close    func(net.PacketConn, int64) error
+	writeTo  func(net.PacketConn, []byte, net.Addr) (n int, err error)
+	readFrom func(net.PacketConn, []byte) (n int, addr net.Addr, err error)
+
+	id   int64
+	addr string
+}
+
+func (s *statisticPacketConn) Close() error {
+	return s.close(s.PacketConn, s.id)
+}
+
+func (s *statisticPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	return s.writeTo(s.PacketConn, p, addr)
+}
+
+func (s *statisticPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	return s.readFrom(s.PacketConn, p)
 }
 
 type idGenerater struct {

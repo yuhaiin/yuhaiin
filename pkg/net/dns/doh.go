@@ -49,7 +49,7 @@ func NewDoH(host string, subnet *net.IPNet) DNS {
 
 // Search
 // https://tools.ietf.org/html/rfc8484
-func (d *DoH) Search(domain string) (ip []net.IP, err error) {
+func (d *DoH) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}

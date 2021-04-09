@@ -22,13 +22,13 @@ func TestDOH(t *testing.T) {
 
 	_, s, _ := net.ParseCIDR("114.114.114.114/31")
 	d.SetSubnet(s)
-	//t.Log(d.Search("plasma"))
-	t.Log(d.Search("dc.services.visualstudio.com")) // -> will error, but not found reason
-	t.Log(d.Search("i2.hdslb.com"))
-	t.Log(d.Search("www.baidu.com"))
-	//t.Log(d.Search("baidu.com"))
-	//t.Log(d.Search("ss1.bdstatic.com"))
-	//t.Log(d.Search("dns.nextdns.io"))
+	//t.Log(d.LookupIP("plasma"))
+	t.Log(d.LookupIP("dc.services.visualstudio.com")) // -> will error, but not found reason
+	t.Log(d.LookupIP("i2.hdslb.com"))
+	t.Log(d.LookupIP("www.baidu.com"))
+	//t.Log(d.LookupIP("baidu.com"))
+	//t.Log(d.LookupIP("ss1.bdstatic.com"))
+	//t.Log(d.LookupIP("dns.nextdns.io"))
 	//t.Log(DOH("dns.google", "www.twitter.com"))
 	// t.Log(DOH("cloudflare-dns.com", "www.twitter.com"))
 	// t.Log(DOH("dns.google", "www.facebook.com"))

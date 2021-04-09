@@ -5,14 +5,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-
 	"github.com/Asutorufa/yuhaiin/internal/app/component"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 //BypassManager .
 type BypassManager struct {
-	lookup      func(string) ([]net.IP, error)
+	dns         dns.DNS
 	mapper      component.Mapper
 	proxy       utils.Proxy
 	dialer      net.Dialer
@@ -20,17 +20,16 @@ type BypassManager struct {
 }
 
 //NewBypassManager .
-func NewBypassManager(mapper component.Mapper, lookup func(string) ([]net.IP, error)) (*BypassManager, error) {
+func NewBypassManager(mapper component.Mapper, dns dns.DNS) (*BypassManager, error) {
 	if mapper == nil {
 		fmt.Println("checked mapper is nil, disable bypass.")
 	}
-	if lookup == nil {
-		lookup = net.LookupIP
+	if dns == nil {
+		fmt.Println("checked dns is nil")
 	}
 
 	m := &BypassManager{
 		dialer:      net.Dialer{Timeout: 11 * time.Second},
-		lookup:      lookup,
 		proxy:       &utils.DefaultProxy{},
 		mapper:      mapper,
 		connManager: newConnManager(),
@@ -45,33 +44,32 @@ func (m *BypassManager) Conn(host string) (conn net.Conn, err error) {
 		return nil, fmt.Errorf("map failed: %v", err)
 	}
 
-	if resp.Mark == component.BLOCK {
-		return nil, fmt.Errorf("block: %v", err)
-	}
-
-	if resp.Mark == component.OTHERS {
-		conn, err = m.proxy.Conn(host)
-	}
-
-	if resp.Mark == component.DIRECT {
-		if resp.IP == component.IP {
+	switch resp.Mark {
+	case component.BLOCK:
+		return nil, fmt.Errorf("block: %v", host)
+	case component.DIRECT:
+		if resp.IP == component.IP || m.dns == nil {
 			conn, err = m.dialer.Dial("tcp", host)
+			break
 		}
 
-		if resp.IP == component.DOMAIN {
-			var ip []net.IP
-			ip, err = m.lookup(resp.Hostname)
-			if err != nil {
-				return nil, fmt.Errorf("dns resolve failed: %v", err)
-			}
+		var ip []net.IP
+		ip, err = m.dns.LookupIP(resp.Hostname)
+		if err != nil {
+			return nil, fmt.Errorf("dns resolve failed: %v", err)
+		}
 
-			for i := range ip {
-				conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), resp.Port))
-				if err == nil {
-					break
-				}
+		for i := range ip {
+			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), resp.Port))
+			if err == nil {
+				break
 			}
 		}
+
+	case component.OTHERS:
+		fallthrough
+	default:
+		conn, err = m.proxy.Conn(host)
 	}
 
 	return m.connManager.newConn(host, conn), err
@@ -88,10 +86,12 @@ func (m *BypassManager) PacketConn(host string) (conn net.PacketConn, err error)
 	}
 
 	if resp.Mark == component.OTHERS {
-		return m.proxy.PacketConn(host)
+		conn, err = m.proxy.PacketConn(host)
+	} else {
+		conn, err = net.ListenPacket("udp", "")
 	}
 
-	return net.ListenPacket("udp", "")
+	return m.connManager.newPacketConn(host, conn), err
 }
 
 //SetProxy .

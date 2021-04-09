@@ -56,7 +56,7 @@ func (d *DoT) SetSubnet(subnet *net.IPNet) {
 	d.subnet = subnet
 }
 
-func (d *DoT) Search(domain string) ([]net.IP, error) {
+func (d *DoT) LookupIP(domain string) ([]net.IP, error) {
 	conn, err := d.proxy(d.host)
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial failed: %v", err)
