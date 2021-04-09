@@ -106,24 +106,25 @@ func (m *BypassManager) SetProxy(p utils.Proxy) {
 }
 
 func (m *BypassManager) marry(host string) (c component.MapperResp, err error) {
-	c.Hostname, c.Port, err = net.SplitHostPort(host)
+	hostname, port, err := net.SplitHostPort(host)
 	if err != nil {
 		return c, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
 
 	if m.mapper == nil {
 		c.Mark = component.OTHERS
-		if net.ParseIP(c.Hostname) != nil {
+		if net.ParseIP(hostname) != nil {
 			c.IP = component.IP
 		} else {
 			c.IP = component.DOMAIN
 		}
 	} else {
-		c = m.mapper.Get(c.Hostname)
+		c = m.mapper.Get(hostname)
 	}
 
+	c.Hostname = hostname
+	c.Port = port
 	fmt.Printf("[%s] ->  mode: %s\n", host, component.ModeMapping[c.Mark])
-
 	return
 }
 
