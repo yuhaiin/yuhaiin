@@ -18,13 +18,11 @@ type Process struct {
 	singleInstance chan bool
 	message        chan string
 	manager        *app.Manager
-	kwdc           bool
 }
 
-func NewProcess(e *app.Manager, kwdc bool) *Process {
+func NewProcess(e *app.Manager) *Process {
 	return &Process{
 		manager: e,
-		kwdc:    kwdc,
 	}
 }
 
@@ -95,9 +93,6 @@ func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
 		case <-ctx.Done():
 			close(s.message)
 			close(s.singleInstance)
-			if s.kwdc {
-				panic("client exit")
-			}
 			return ctx.Err()
 		}
 	}

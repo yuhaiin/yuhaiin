@@ -5,8 +5,8 @@ import (
 	"log"
 )
 
-// Base64d 对base64进行长度补全(4的倍数)
-func Base64UrlDStr(str string) string {
+// DecodeUrlBase64 decode url safe base64 string, auto add '=' if not enough
+func DecodeUrlBase64(str string) string {
 	l := len(str)
 	if l%4 != 0 {
 		for i := 0; i < 4-l%4; i++ {
@@ -20,8 +20,8 @@ func Base64UrlDStr(str string) string {
 	return string(deStr)
 }
 
-// Base64d 对base64进行长度补全(4的倍数)
-func Base64DStr(str string) string {
+// DecodeBase64 decode base64 string, auto add '=' if not enough
+func DecodeBase64(str string) string {
 	l := len(str)
 	if l%4 != 0 {
 		for i := 0; i < 4-l%4; i++ {
@@ -35,8 +35,8 @@ func Base64DStr(str string) string {
 	return string(deStr)
 }
 
-// Base64d 对base64进行长度补全(4的倍数)
-func Base64DByte(str []byte) ([]byte, error) {
+// DecodeBytesBase64 decode base64 string, auto add '=' if not enough
+func DecodeBytesBase64(str []byte) ([]byte, error) {
 	l := len(str)
 	if l%4 != 0 {
 		for i := 0; i < 4-l%4; i++ {

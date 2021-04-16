@@ -107,7 +107,7 @@ func (n *NodeManager) enCodeJSON(pa *utils.Node) error {
 	return enc.Encode(&pa)
 }
 
-// GetLinkFromInt
+// GetLinkFromInt update subscribe
 func (n *NodeManager) GetLinkFromInt() error {
 	for key := range n.nodes.Links {
 		n.oneLinkGet(n.nodes.Links[key].Url, key, n.nodes.Node)
@@ -128,7 +128,7 @@ func (n *NodeManager) oneLinkGet(url string, group string, nodes map[string]map[
 		log.Println(err)
 		return
 	}
-	dst, err := utils.Base64DByte(body)
+	dst, err := utils.DecodeBytesBase64(body)
 	if err != nil {
 		log.Println(err)
 		return
@@ -208,7 +208,7 @@ func parseUrl(str []byte, group string) (node *utils.Point, err error) {
 	}
 }
 
-// GetNowNode
+// GetNowNode return current node point
 func (n *NodeManager) GetNowNode() *utils.Point {
 	return n.nodes.NowNode
 }

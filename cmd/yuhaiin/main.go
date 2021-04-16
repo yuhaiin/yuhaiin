@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"time"
 
 	_ "net/http/pprof"
 
@@ -62,6 +63,25 @@ func main() {
 	flag.StringVar(&host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
 	flag.BoolVar(&kwdc, "kwdc", false, "kill process when grpc disconnect")
 	flag.Parse()
+
+	go func() {
+		if !kwdc {
+			return
+		}
+
+		ppid := os.Getppid()
+		ticker := time.NewTicker(time.Second)
+
+		for range ticker.C {
+			if os.Getppid() == ppid {
+				continue
+			}
+
+			log.Println("checked parent already exited, exit myself.")
+			os.Exit(0)
+		}
+	}()
+
 	fmt.Println("gRPC Listen Host :", host)
 	fmt.Println("Try to create lock file.")
 
@@ -81,7 +101,7 @@ func main() {
 	}
 
 	s := grpc.NewServer(grpc.EmptyServerOption{})
-	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(m, kwdc))
+	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(m))
 	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(m.Entrance()))
 	s.RegisterService(&api.Node_ServiceDesc, api.NewNode(m.Entrance()))
 	s.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(m.Entrance()))

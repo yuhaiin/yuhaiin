@@ -41,13 +41,13 @@ func NewDoH(host string, subnet *net.IPNet) DNS {
 
 	dns.SetServer(host)
 
-	dns.SetProxy(func(domain string) (net.Conn, error) {
+	dns.setProxy(func(s string) (net.Conn, error) {
 		return dns.ClientUtil.GetConn()
 	})
 	return dns
 }
 
-// Search
+// LookupIP .
 // https://tools.ietf.org/html/rfc8484
 func (d *DoH) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := d.cache.Load(domain); x != nil {
@@ -86,6 +86,7 @@ func (d *DoH) GetSubnet() *net.IPNet {
 }
 
 func (d *DoH) SetServer(host string) {
+	d.url = "https://" + host
 	uri, err := url.Parse("//" + host)
 	if err != nil {
 		d.host = host
@@ -96,10 +97,9 @@ func (d *DoH) SetServer(host string) {
 		if d.port == "" {
 			d.port = "443"
 		}
-	}
-	d.url = "https://" + host
-	if uri.Path == "" {
-		d.url += "/dns-query"
+		if uri.Path == "" {
+			d.url += "/dns-query"
+		}
 	}
 
 	d.ClientUtil = utils.NewClientUtil(d.host, d.port)
@@ -109,11 +109,15 @@ func (d *DoH) GetServer() string {
 	return d.url
 }
 
-func (d *DoH) SetProxy(proxy func(addr string) (net.Conn, error)) {
+func (d *DoH) SetProxy(proxy utils.Proxy) {
 	if proxy == nil {
 		return
 	}
-	d.Proxy = proxy
+	d.setProxy(proxy.Conn)
+}
+
+func (d *DoH) setProxy(p func(string) (net.Conn, error)) {
+	d.Proxy = p
 	d.httpClient = &http.Client{
 		Transport: &http.Transport{
 			//Proxy: http.ProxyFromEnvironment,

@@ -89,7 +89,7 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 	}
 
 	if x, ok := conn.(*net.TCPConn); ok {
-		x.SetKeepAlive(true)
+		_ = x.SetKeepAlive(true)
 	}
 
 	switch v.net {

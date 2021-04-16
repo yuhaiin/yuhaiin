@@ -12,7 +12,7 @@ func TestDNS7(t *testing.T) {
 	req := createEDNSReq("www.baidu.com", A, createEdnsClientSubnet(subnet))
 	t.Log(req)
 
-	b, err := udpDial(req, "8.8.8.8:53")
+	b, err := udpDial(req, "8.8.8.8:53", nil)
 	if err != nil {
 		t.Error(err)
 	}

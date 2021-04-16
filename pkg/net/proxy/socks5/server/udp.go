@@ -41,13 +41,14 @@ func udpHandle(b []byte, f func(string) (net.PacketConn, error)) ([]byte, error)
 	}
 	data := b[3+addrSize:]
 
-	targetPacketConn, err := f(net.JoinHostPort(host, strconv.Itoa(port)))
+	h := net.JoinHostPort(host, strconv.Itoa(port))
+	targetPacketConn, err := f(h)
 	if err != nil {
 		return nil, fmt.Errorf("get packetConn from f failed: %v", err)
 	}
 	defer targetPacketConn.Close()
 
-	targetUDPAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(port)))
+	targetUDPAddr, err := net.ResolveUDPAddr("udp", h)
 	if err != nil {
 		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}

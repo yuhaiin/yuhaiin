@@ -7,5 +7,5 @@ func TestBase64DStr(t *testing.T) {
 		"LCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcCIsInR" +
 		"5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY2NjYy1kZGR" +
 		"kLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg"
-	t.Log(Base64UrlDStr(str))
+	t.Log(DecodeUrlBase64(str))
 }

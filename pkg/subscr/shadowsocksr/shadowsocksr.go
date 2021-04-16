@@ -30,7 +30,7 @@ type Shadowsocksr struct {
 
 // ParseLink parse a base64 encode ssr link
 func ParseLink(link []byte, group string) (*utils.Point, error) {
-	decodeStr := strings.Split(utils.Base64UrlDStr(strings.Replace(string(link), "ssr://", "", -1)), "/?")
+	decodeStr := strings.Split(utils.DecodeUrlBase64(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 	n := new(Shadowsocksr)
 	n.NType = utils.Shadowsocksr
 	n.NOrigin = utils.Remote
@@ -44,12 +44,12 @@ func ParseLink(link []byte, group string) (*utils.Point, error) {
 	n.Protocol = x[2]
 	n.Method = x[3]
 	n.Obfs = x[4]
-	n.Password = utils.Base64UrlDStr(x[5])
+	n.Password = utils.DecodeUrlBase64(x[5])
 	if len(decodeStr) > 1 {
 		query, _ := url.ParseQuery(decodeStr[1])
-		n.Obfsparam = utils.Base64UrlDStr(query.Get("obfsparam"))
-		n.Protoparam = utils.Base64UrlDStr(query.Get("protoparam"))
-		n.NName = "[ssr]" + utils.Base64UrlDStr(query.Get("remarks"))
+		n.Obfsparam = utils.DecodeUrlBase64(query.Get("obfsparam"))
+		n.Protoparam = utils.DecodeUrlBase64(query.Get("protoparam"))
+		n.NName = "[ssr]" + utils.DecodeUrlBase64(query.Get("remarks"))
 	}
 
 	hash := sha256.New()

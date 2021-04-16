@@ -55,7 +55,7 @@ type JSON struct {
 func ParseLink(str []byte, group string) (*utils.Point, error) {
 	s := string(str)
 	s = strings.ReplaceAll(s, "vmess://", "")
-	data := utils.Base64DStr(s)
+	data := utils.DecodeBase64(s)
 
 	vmess, err := unmarshalJSON([]byte(data))
 	if err != nil {
