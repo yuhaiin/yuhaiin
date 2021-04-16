@@ -19,7 +19,7 @@ func TestShadowSocks(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	dst, err := utils.Base64DByte(s)
+	dst, err := utils.DecodeBytesBase64(s)
 	if err != nil {
 		t.Log(err)
 	}
