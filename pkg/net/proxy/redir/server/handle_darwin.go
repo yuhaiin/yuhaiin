@@ -1,4 +1,4 @@
-package redirserver
+package server
 
 import (
 	"net"

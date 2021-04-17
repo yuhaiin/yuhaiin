@@ -214,3 +214,52 @@ func writeSecondResp(conn net.Conn, errREP byte, addr string) {
 	}
 	_, _ = conn.Write(append([]byte{0x05, errREP, 0x00}, Addr...))
 }
+
+type server struct {
+	tcp proxy.Server
+	udp proxy.Server
+}
+
+func NewServer(host, username, password string) (proxy.Server, error) {
+	tcp, err := proxy.NewTCPServer(host, Socks5Handle(func(o *Option) {
+		o.Password = password
+		o.Username = username
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("create tcp server failed: %v", err)
+	}
+	udp, err := proxy.NewUDPServer(host, udpHandle)
+	if err != nil {
+		return nil, fmt.Errorf("create udp server failed: %v", err)
+	}
+	return &server{tcp: tcp, udp: udp}, nil
+}
+
+func (s *server) SetProxy(p proxy.Proxy) {
+	s.tcp.SetProxy(p)
+	s.udp.SetProxy(p)
+}
+
+func (s *server) SetServer(host string) error {
+	err := s.tcp.SetServer(host)
+	if err != nil {
+		return fmt.Errorf("socks5 tcp server set host failed: %v", err)
+	}
+	err = s.udp.SetServer(host)
+	if err != nil {
+		return fmt.Errorf("socks5 udp server set host failed: %v", err)
+	}
+	return nil
+}
+
+func (s *server) Close() error {
+	err := s.tcp.Close()
+	if err != nil {
+		return fmt.Errorf("socks5 tcp close server failed: %v", err)
+	}
+	err = s.udp.Close()
+	if err != nil {
+		return fmt.Errorf("socks5 udp close server failed: %v", err)
+	}
+	return nil
+}

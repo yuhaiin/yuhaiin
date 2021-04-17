@@ -10,18 +10,17 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
 )
 
 type Entrance struct {
 	config      *config.Config
-	LocalListen *LocalListen
+	LocalListen *Listener
 	Bypass      *BypassManager
 	nodeManager *subscr.NodeManager
 	shunt       *Shunt
@@ -53,7 +52,7 @@ func NewEntrance(dir string) (e *Entrance, err error) {
 	}
 
 	// initialize Match Controller
-	if !e.config.GetSetting().Bypass.Enabled {
+	if !e.config.GetSetting().GetBypass().GetEnabled() {
 		e.Bypass, err = NewBypassManager(nil, getDNS(s.LocalDNS))
 	} else {
 		e.Bypass, err = NewBypassManager(e.shunt, getDNS(s.LocalDNS))
@@ -68,12 +67,7 @@ func NewEntrance(dir string) (e *Entrance, err error) {
 
 func (e *Entrance) Start() (err error) {
 	// initialize Local Servers Controller
-	e.LocalListen, err = NewLocalListenCon(
-		WithHTTP(e.config.GetSetting().Proxy.HTTP),
-		WithSocks5(e.config.GetSetting().Proxy.Socks5),
-		WithRedir(e.config.GetSetting().Proxy.Redir),
-		WithProxy(e.Bypass),
-	)
+	e.LocalListen, err = NewListener(e.config.GetSetting().GetProxy(), e.Bypass)
 	if err != nil {
 		return fmt.Errorf("create local listener failed: %v", err)
 	}
@@ -126,14 +120,7 @@ func (e *Entrance) addObserver() {
 	})
 
 	e.config.AddObserver(func(current, _ *config.Setting) {
-		err := e.LocalListen.SetAHost(
-			WithHTTP(current.Proxy.HTTP),
-			WithSocks5(current.Proxy.Socks5),
-			WithRedir(current.Proxy.Redir),
-		)
-		if err != nil {
-			fmt.Printf("local listener apply config failed: %v", err)
-		}
+		e.LocalListen.SetServer(e.config.GetSetting().GetProxy())
 	})
 }
 

@@ -12,7 +12,7 @@ func TestUDPServer(t *testing.T) {
 	}
 	s.Close()
 	//select {}
-	s.UpdateListen("127.0.0.1:1082")
+	s.SetServer("127.0.0.1:1082")
 	s.Close()
 	select {}
 }

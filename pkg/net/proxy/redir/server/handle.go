@@ -1,6 +1,6 @@
 //+build !windows,!darwin
 
-package redirserver
+package server
 
 import (
 	"net"

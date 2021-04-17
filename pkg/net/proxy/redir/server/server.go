@@ -1,6 +1,6 @@
 //+build !windows
 
-package redirserver
+package server
 
 import (
 	"log"
@@ -17,4 +17,8 @@ func RedirHandle() func(net.Conn, proxy.Proxy) {
 			return
 		}
 	}
+}
+
+func NewServer(host string) (proxy.Server, error) {
+	return proxy.NewTCPServer(host, RedirHandle())
 }

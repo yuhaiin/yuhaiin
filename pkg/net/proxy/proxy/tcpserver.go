@@ -22,9 +22,6 @@ type TCPServer struct {
 
 // NewTCPServer create new TCP listener
 func NewTCPServer(host string, handle func(net.Conn, Proxy)) (Server, error) {
-	if host == "" {
-		return nil, errors.New("host empty")
-	}
 	if handle == nil {
 		return nil, errors.New("handle is must")
 	}
@@ -35,6 +32,10 @@ func NewTCPServer(host string, handle func(net.Conn, Proxy)) (Server, error) {
 		proxy:  atomic.Value{},
 	}
 
+	if host == "" {
+		return s, nil
+	}
+
 	err := s.run()
 	if err != nil {
 		return nil, fmt.Errorf("server Run -> %v", err)
@@ -42,7 +43,7 @@ func NewTCPServer(host string, handle func(net.Conn, Proxy)) (Server, error) {
 	return s, nil
 }
 
-func (t *TCPServer) UpdateListen(host string) (err error) {
+func (t *TCPServer) SetServer(host string) (err error) {
 	if t.host == host {
 		return
 	}
@@ -57,7 +58,7 @@ func (t *TCPServer) UpdateListen(host string) (err error) {
 
 	t.host = host
 
-	fmt.Println("UpdateListen create new server")
+	fmt.Println("SetServer create new server")
 	return t.run()
 }
 

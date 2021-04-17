@@ -38,6 +38,10 @@ func NewUDPServer(host string, handle func([]byte, Proxy) ([]byte, error)) (Serv
 		proxy:  atomic.Value{},
 	}
 
+	if host == "" {
+		return u, nil
+	}
+
 	err := u.run()
 	if err != nil {
 		return nil, err
@@ -45,7 +49,7 @@ func NewUDPServer(host string, handle func([]byte, Proxy) ([]byte, error)) (Serv
 	return u, nil
 }
 
-func (u *UDPServer) UpdateListen(host string) error {
+func (u *UDPServer) SetServer(host string) error {
 	if u.host == host {
 		return nil
 	}
@@ -61,7 +65,7 @@ func (u *UDPServer) UpdateListen(host string) error {
 
 	u.host = host
 
-	fmt.Println("UpdateListen create new server")
+	fmt.Println("SetServer create new server")
 	return u.run()
 }
 

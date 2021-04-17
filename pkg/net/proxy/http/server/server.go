@@ -256,3 +256,10 @@ func removeHeader(h http.Header) http.Header {
 	h.Del("Upgrade")
 	return h
 }
+
+func NewServer(host, username, password string) (proxy.Server, error) {
+	return proxy.NewTCPServer(host, HTTPHandle(func(o *Option) {
+		o.Password = password
+		o.Username = username
+	}))
+}
