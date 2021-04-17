@@ -148,12 +148,6 @@ func (l *LocalListen) SetAHost(opt ...LlOption) (erra error) {
 
 func (l *LocalListen) setConn() {
 	for _, style := range support {
-		if x, ok := l.Server[style].(proxy.TCPServer); ok {
-			x.SetTCPConn(l.hosts.proxy.Conn)
-		}
-
-		if x, ok := l.Server[style].(proxy.UDPServer); ok {
-			x.SetUDPConn(l.hosts.proxy.PacketConn)
-		}
+		l.Server[style].SetProxy(l.hosts.proxy)
 	}
 }

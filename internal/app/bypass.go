@@ -5,17 +5,16 @@ import (
 	"net"
 	"time"
 
-	proxy2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
 	"github.com/Asutorufa/yuhaiin/internal/app/component"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
 //BypassManager .
 type BypassManager struct {
 	dns         dns.DNS
 	mapper      component.Mapper
-	proxy       proxy2.Proxy
+	proxy       proxy.Proxy
 	dialer      net.Dialer
 	connManager *connManager
 }
@@ -31,7 +30,7 @@ func NewBypassManager(mapper component.Mapper, dns dns.DNS) (*BypassManager, err
 
 	m := &BypassManager{
 		dialer:      net.Dialer{Timeout: 11 * time.Second},
-		proxy:       &proxy2.DefaultProxy{},
+		proxy:       &proxy.DefaultProxy{},
 		mapper:      mapper,
 		connManager: newConnManager(),
 	}
@@ -96,9 +95,9 @@ func (m *BypassManager) PacketConn(host string) (conn net.PacketConn, err error)
 }
 
 //SetProxy .
-func (m *BypassManager) SetProxy(p proxy2.Proxy) {
+func (m *BypassManager) SetProxy(p proxy.Proxy) {
 	if p == nil {
-		m.proxy = &proxy2.DefaultProxy{}
+		m.proxy = &proxy.DefaultProxy{}
 	} else {
 		fmt.Printf("set Proxy: %p\n", p)
 		fmt.Printf("conn: %p\n", p.Conn)

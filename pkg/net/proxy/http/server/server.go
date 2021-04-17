@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -19,7 +20,7 @@ type Option struct {
 	Password string
 }
 
-func HTTPHandle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.Conn, error)) {
+func HTTPHandle(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
 	o := &Option{}
 	for index := range modeOption {
 		if modeOption[index] == nil {
@@ -27,12 +28,12 @@ func HTTPHandle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.Co
 		}
 		modeOption[index](o)
 	}
-	return func(conn net.Conn, f func(string) (net.Conn, error)) {
+	return func(conn net.Conn, f proxy.Proxy) {
 		handle(o.Username, o.Password, conn, f)
 	}
 }
 
-func handle(user, key string, src net.Conn, dst func(string) (net.Conn, error)) {
+func handle(user, key string, src net.Conn, f proxy.Proxy) {
 	/*
 		use golang http
 	*/
@@ -62,7 +63,7 @@ _start:
 		host = net.JoinHostPort(host, "80")
 	}
 
-	dstc, err := dst(host)
+	dstc, err := f.Conn(host)
 	if err != nil {
 		log.Printf("get remote conn failed: %v\n", err)
 		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))

@@ -6,7 +6,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	s, err := NewTCPServer("127.0.0.1:1081", func(net.Conn, func(string) (net.Conn, error)) {})
+	s, err := NewTCPServer("127.0.0.1:1081", func(c net.Conn, p Proxy) {})
 	if err != nil {
 		t.Error(err)
 	}

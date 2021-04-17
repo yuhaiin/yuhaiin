@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -44,7 +45,7 @@ var (
 	errUDP = errors.New("UDP")
 )
 
-func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.Conn, error)) {
+func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
 	o := &Option{}
 	for index := range modeOption {
 		if modeOption[index] == nil {
@@ -52,12 +53,12 @@ func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, func(string) (net.
 		}
 		modeOption[index](o)
 	}
-	return func(conn net.Conn, f func(string) (net.Conn, error)) {
+	return func(conn net.Conn, f proxy.Proxy) {
 		handle(o.Username, o.Password, conn, f)
 	}
 }
 
-func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error)) {
+func handle(user, key string, client net.Conn, f proxy.Proxy) {
 	var err error
 	b := *utils.BuffPool.Get().(*[]byte)
 	defer utils.BuffPool.Put(&(b))
@@ -84,7 +85,7 @@ func handle(user, key string, client net.Conn, dst func(string) (net.Conn, error
 	if err != nil {
 		return
 	}
-	server, err := getTarget(host, strconv.Itoa(port), b[1], client, dst)
+	server, err := getTarget(host, strconv.Itoa(port), b[1], client, f)
 	if err != nil {
 		if err != errUDP {
 			fmt.Println(err)
@@ -138,12 +139,12 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return nil
 }
 
-func getTarget(host, port string, mode byte, client net.Conn, dst func(string) (net.Conn, error)) (net.Conn, error) {
+func getTarget(host, port string, mode byte, client net.Conn, f proxy.Proxy) (net.Conn, error) {
 	var server net.Conn
 	var err error
 	switch mode {
 	case connect:
-		server, err = dst(net.JoinHostPort(host, port))
+		server, err = f.Conn(net.JoinHostPort(host, port))
 		if err != nil {
 			writeSecondResp(client, hostUnreachable, client.LocalAddr().String())
 			return nil, err

@@ -10,44 +10,33 @@ import (
 	"time"
 )
 
-type UdpServer struct {
-	Server
+type UDPServer struct {
 	host string
 	lock sync.Mutex
 
 	listener net.PacketConn
-	handle   func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)
-	udpConn  atomic.Value
+	handle   func([]byte, Proxy) ([]byte, error)
+	proxy    atomic.Value
 }
 
-func (u *UdpServer) SetUDPConn(f func(string) (net.PacketConn, error)) {
-	if f == nil {
-		return
-	}
-	u.udpConn.Store(f)
+func (u *UDPServer) SetProxy(f Proxy) {
+	u.proxy.Store(f)
 }
 
-func (u *UdpServer) getUDPConn() func(string) (net.PacketConn, error) {
-	y, ok := u.udpConn.Load().(func(string) (net.PacketConn, error))
+func (u *UDPServer) getProxy() Proxy {
+	y, ok := u.proxy.Load().(Proxy)
 	if ok {
 		return y
 	}
-	return func(s string) (net.PacketConn, error) {
-		return net.ListenPacket("udp", "")
-	}
+	return &DefaultProxy{}
 }
 
-func NewUDPServer(host string, handle func([]byte, func(string) (net.PacketConn, error)) ([]byte, error)) (UDPServer, error) {
-	u := &UdpServer{
-		host:    host,
-		handle:  handle,
-		udpConn: atomic.Value{},
+func NewUDPServer(host string, handle func([]byte, Proxy) ([]byte, error)) (Server, error) {
+	u := &UDPServer{
+		host:   host,
+		handle: handle,
+		proxy:  atomic.Value{},
 	}
-	u.udpConn.Store(
-		func(s string) (net.PacketConn, error) {
-			return net.ListenPacket("udp", "")
-		},
-	)
 
 	err := u.run()
 	if err != nil {
@@ -56,7 +45,7 @@ func NewUDPServer(host string, handle func([]byte, func(string) (net.PacketConn,
 	return u, nil
 }
 
-func (u *UdpServer) UpdateListen(host string) error {
+func (u *UDPServer) UpdateListen(host string) error {
 	if u.host == host {
 		return nil
 	}
@@ -76,14 +65,14 @@ func (u *UdpServer) UpdateListen(host string) error {
 	return u.run()
 }
 
-func (u *UdpServer) Close() error {
+func (u *UDPServer) Close() error {
 	if u.listener == nil {
 		return nil
 	}
 	return u.listener.Close()
 }
 
-func (u *UdpServer) run() (err error) {
+func (u *UDPServer) run() (err error) {
 	u.listener, err = net.ListenPacket("udp", u.host)
 	if err != nil {
 		return fmt.Errorf("UdpServer:run() -> %v", err)
@@ -98,7 +87,7 @@ func (u *UdpServer) run() (err error) {
 	return nil
 }
 
-func (u *UdpServer) process() error {
+func (u *UDPServer) process() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	fmt.Println("New UDP Server:", u.host)
@@ -134,7 +123,7 @@ func (u *UdpServer) process() error {
 
 		tempDelay = 0
 		go func() {
-			data, err := u.handle(b[:n], u.getUDPConn())
+			data, err := u.handle(b[:n], u.getProxy())
 			if err != nil {
 				log.Printf("udp handle failed: %v", err)
 				return

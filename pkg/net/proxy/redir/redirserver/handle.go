@@ -5,11 +5,12 @@ package redirserver
 import (
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/nfutil"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
+func handle(req net.Conn, f proxy.Proxy) error {
 	defer req.Close()
 	_ = req.(*net.TCPConn).SetKeepAlive(true)
 	target, err := nfutil.GetOrigDst(req.(*net.TCPConn), false)
@@ -17,7 +18,7 @@ func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
 		return err
 	}
 
-	rsp, err := dst(target.String())
+	rsp, err := f.Conn(target.String())
 	if err != nil {
 		return err
 	}

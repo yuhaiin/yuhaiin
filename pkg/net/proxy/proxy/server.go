@@ -3,16 +3,12 @@ package proxy
 import "net"
 
 type Server interface {
+	SetProxy(Proxy)
 	UpdateListen(host string) error
 	Close() error
 }
 
-type TCPServer interface {
-	Server
-	SetTCPConn(func(string) (net.Conn, error))
-}
-
-type UDPServer interface {
-	Server
-	SetUDPConn(func(string) (net.PacketConn, error))
+type Handle interface {
+	TCP(net.Conn)
+	UDP(net.PacketConn)
 }

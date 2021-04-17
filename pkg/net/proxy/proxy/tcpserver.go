@@ -10,48 +10,30 @@ import (
 	"time"
 )
 
-// TcpServer tcp server common
-type TcpServer struct {
-	Server
+// TCPServer tcp server common
+type TCPServer struct {
 	host string
 	lock sync.Mutex
 
 	listener net.Listener
-
-	tcpConn atomic.Value
-	handle  func(net.Conn, func(string) (net.Conn, error))
-}
-
-type Option struct {
-	TcpConn func(string) (net.Conn, error)
+	proxy    atomic.Value
+	handle   func(net.Conn, Proxy)
 }
 
 // NewTCPServer create new TCP listener
-func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, error)), modeOption ...func(*Option)) (TCPServer, error) {
+func NewTCPServer(host string, handle func(net.Conn, Proxy)) (Server, error) {
 	if host == "" {
 		return nil, errors.New("host empty")
 	}
 	if handle == nil {
 		return nil, errors.New("handle is must")
 	}
-	o := &Option{
-		TcpConn: func(s string) (net.Conn, error) {
-			return net.DialTimeout("tcp", s, 20*time.Second)
-		},
-	}
-	for index := range modeOption {
-		if modeOption[index] == nil {
-			continue
-		}
-		modeOption[index](o)
-	}
 
-	s := &TcpServer{
-		host:    host,
-		handle:  handle,
-		tcpConn: atomic.Value{},
+	s := &TCPServer{
+		host:   host,
+		handle: handle,
+		proxy:  atomic.Value{},
 	}
-	s.tcpConn.Store(o.TcpConn)
 
 	err := s.run()
 	if err != nil {
@@ -60,7 +42,7 @@ func NewTCPServer(host string, handle func(net.Conn, func(string) (net.Conn, err
 	return s, nil
 }
 
-func (t *TcpServer) UpdateListen(host string) (err error) {
+func (t *TCPServer) UpdateListen(host string) (err error) {
 	if t.host == host {
 		return
 	}
@@ -79,28 +61,23 @@ func (t *TcpServer) UpdateListen(host string) (err error) {
 	return t.run()
 }
 
-func (t *TcpServer) SetTCPConn(conn func(string) (net.Conn, error)) {
-	if conn == nil {
-		return
-	}
-	t.tcpConn.Store(conn)
+func (t *TCPServer) SetProxy(p Proxy) {
+	t.proxy.Store(p)
 }
 
-func (t *TcpServer) getTCPConn() func(string) (net.Conn, error) {
-	y, ok := t.tcpConn.Load().(func(string) (net.Conn, error))
+func (t *TCPServer) getProxy() Proxy {
+	y, ok := t.proxy.Load().(Proxy)
 	if ok {
 		return y
 	}
-	return func(s string) (net.Conn, error) {
-		return net.Dial("tcp", s)
-	}
+	return &DefaultProxy{}
 }
 
-func (t *TcpServer) GetListenHost() string {
+func (t *TCPServer) GetListenHost() string {
 	return t.host
 }
 
-func (t *TcpServer) run() (err error) {
+func (t *TCPServer) run() (err error) {
 	fmt.Println("New TCP Server:", t.host)
 	t.listener, err = net.Listen("tcp", t.host)
 	if err != nil {
@@ -116,7 +93,7 @@ func (t *TcpServer) run() (err error) {
 	return
 }
 
-func (t *TcpServer) process() error {
+func (t *TCPServer) process() error {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -153,12 +130,12 @@ func (t *TcpServer) process() error {
 
 		go func() {
 			defer c.Close()
-			t.handle(c, t.getTCPConn())
+			t.handle(c, t.getProxy())
 		}()
 	}
 }
 
-func (t *TcpServer) Close() error {
+func (t *TCPServer) Close() error {
 	if t.listener == nil {
 		return nil
 	}

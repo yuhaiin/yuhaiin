@@ -19,7 +19,7 @@ func TestRef(t *testing.T) {
 	}
 
 	var x interface{}
-	if _, ok := x.(proxy.UDPServer); !ok {
+	if _, ok := x.(proxy.Server); !ok {
 		t.Log("nil")
 	}
 }
