@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+
 	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	socks5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -35,7 +37,7 @@ type Shadowsocks struct {
 
 //NewShadowsocks new shadowsocks client
 func NewShadowsocks(cipherName string, password string, server, port string,
-	plugin, pluginOpt string) (*Shadowsocks, error) {
+	plugin, pluginOpt string) (proxy.Proxy, error) {
 	cipher, err := core.PickCipher(strings.ToUpper(cipherName), nil, password)
 	if err != nil {
 		return nil, err
@@ -125,20 +127,20 @@ func (s *Shadowsocks) PacketConn(host string) (net.PacketConn, error) {
 	}
 	pc = s.cipher.PacketConn(pc)
 
-	return &shadowsockPacketConn{
+	return &ssPacketConn{
 		PacketConn: pc,
 		target:     target,
 		add:        addr,
 	}, nil
 }
 
-type shadowsockPacketConn struct {
+type ssPacketConn struct {
 	net.PacketConn
 	target []byte
 	add    net.Addr
 }
 
-func (v *shadowsockPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, _, err := v.PacketConn.ReadFrom(b)
 	if err != nil {
 		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
@@ -158,6 +160,6 @@ func (v *shadowsockPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	return n - addrSize, addr, nil
 }
 
-func (v *shadowsockPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+func (v *ssPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
 	return v.PacketConn.WriteTo(bytes.Join([][]byte{v.target, b}, []byte{}), v.add)
 }

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	netUtils "github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
@@ -205,7 +205,7 @@ func (e *Entrance) GetANodes() map[string][]string {
 	return m
 }
 
-func (e *Entrance) GetOneNodeConn(group, nodeN string) (netUtils.Proxy, error) {
+func (e *Entrance) GetOneNodeConn(group, nodeN string) (proxy.Proxy, error) {
 	if e.nodeManager.GetNodes().Node[group][nodeN] == nil {
 		return nil, fmt.Errorf("node %s of group %s is not exist", nodeN, group)
 	}

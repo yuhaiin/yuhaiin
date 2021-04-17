@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -109,7 +111,7 @@ func (d *DoH) GetServer() string {
 	return d.url
 }
 
-func (d *DoH) SetProxy(proxy utils.Proxy) {
+func (d *DoH) SetProxy(proxy proxy.Proxy) {
 	if proxy == nil {
 		return
 	}

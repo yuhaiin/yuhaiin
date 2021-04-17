@@ -2,6 +2,7 @@ package socks5server
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"time"
@@ -19,6 +20,7 @@ func udpHandle(b []byte, f func(string) (net.PacketConn, error)) ([]byte, error)
 	if len(b) == 0 {
 		return nil, fmt.Errorf("normalHandleUDP() -> b byte array is empty")
 	}
+	log.Println(b[:3])
 	/*
 	* progress
 	* 1. listener get client data
@@ -39,7 +41,6 @@ func udpHandle(b []byte, f func(string) (net.PacketConn, error)) ([]byte, error)
 		}
 		host = addr.IP.String()
 	}
-	data := b[3+addrSize:]
 
 	h := net.JoinHostPort(host, strconv.Itoa(port))
 	targetPacketConn, err := f(h)
@@ -57,7 +58,7 @@ func udpHandle(b []byte, f func(string) (net.PacketConn, error)) ([]byte, error)
 	// write data to target and read the response back
 	fmt.Println("UDP write", targetPacketConn.LocalAddr(), "->", targetUDPAddr)
 	// fmt.Println("write data:", data, "origin:", b)
-	if _, err := targetPacketConn.WriteTo(data, targetUDPAddr); err != nil {
+	if _, err := targetPacketConn.WriteTo(b[3+addrSize:], targetUDPAddr); err != nil {
 		return nil, fmt.Errorf("write data to remote packetConn failed: %v", err)
 	}
 
@@ -73,5 +74,5 @@ func udpHandle(b []byte, f func(string) (net.PacketConn, error)) ([]byte, error)
 	fmt.Println("UDP read from", addr.String())
 	// fmt.Println("read data", respBuff[:n])
 
-	return respBuff[:n], nil
+	return respBuff[:n+3+addrSize], nil
 }

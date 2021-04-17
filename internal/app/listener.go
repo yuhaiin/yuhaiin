@@ -6,10 +6,9 @@ import (
 	"runtime"
 
 	httpserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/redirserver"
-	server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	socks5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 type sType int
@@ -23,35 +22,35 @@ const (
 
 var (
 	support = []sType{hTTP, socks5, socks5 | udp, redir}
-	ref     = map[sType]func(string) (server.Server, error){
-		hTTP: func(host string) (server.Server, error) {
-			return server.NewTCPServer(host, httpserver.HTTPHandle())
+	ref     = map[sType]func(string) (proxy.Server, error){
+		hTTP: func(host string) (proxy.Server, error) {
+			return proxy.NewTCPServer(host, httpserver.HTTPHandle())
 		},
-		socks5: func(host string) (server.Server, error) {
-			return server.NewTCPServer(host, socks5server.Socks5Handle())
+		socks5: func(host string) (proxy.Server, error) {
+			return proxy.NewTCPServer(host, socks5server.Socks5Handle())
 		},
-		redir: func(host string) (server.Server, error) {
+		redir: func(host string) (proxy.Server, error) {
 			if runtime.GOOS == "windows" {
 				log.Println("redir not support windows")
 				return nil, nil
 			}
-			return server.NewTCPServer(host, redirserver.RedirHandle())
+			return proxy.NewTCPServer(host, redirserver.RedirHandle())
 		},
-		socks5 | udp: func(s string) (server.Server, error) {
-			return server.NewUDPServer(s, socks5server.Socks5UDPHandle())
+		socks5 | udp: func(s string) (proxy.Server, error) {
+			return proxy.NewUDPServer(s, socks5server.Socks5UDPHandle())
 		},
 	}
 )
 
 type LocalListen struct {
-	Server map[sType]server.Server
+	Server map[sType]proxy.Server
 	hosts  *llOpt
 }
 
 // llOpt Local listener opts
 type llOpt struct {
 	hosts map[sType]string
-	proxy utils.Proxy
+	proxy proxy.Proxy
 }
 
 // LlOption Local Listener Option
@@ -76,7 +75,7 @@ func WithHTTP(host string) LlOption {
 	}
 }
 
-func WithProxy(p utils.Proxy) LlOption {
+func WithProxy(p proxy.Proxy) LlOption {
 	return func(opt *llOpt) {
 		opt.proxy = p
 	}
@@ -84,7 +83,7 @@ func WithProxy(p utils.Proxy) LlOption {
 
 func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 	hosts := &llOpt{
-		proxy: &utils.DefaultProxy{},
+		proxy: &proxy.DefaultProxy{},
 		hosts: map[sType]string{},
 	}
 	for i := range opt {
@@ -95,7 +94,7 @@ func NewLocalListenCon(opt ...LlOption) (l *LocalListen, err error) {
 	}
 
 	l = &LocalListen{
-		Server: map[sType]server.Server{},
+		Server: map[sType]proxy.Server{},
 		hosts:  hosts,
 	}
 
@@ -149,11 +148,11 @@ func (l *LocalListen) SetAHost(opt ...LlOption) (erra error) {
 
 func (l *LocalListen) setConn() {
 	for _, style := range support {
-		if x, ok := l.Server[style].(server.TCPServer); ok {
+		if x, ok := l.Server[style].(proxy.TCPServer); ok {
 			x.SetTCPConn(l.hosts.proxy.Conn)
 		}
 
-		if x, ok := l.Server[style].(server.UDPServer); ok {
+		if x, ok := l.Server[style].(proxy.UDPServer); ok {
 			x.SetUDPConn(l.hosts.proxy.PacketConn)
 		}
 	}

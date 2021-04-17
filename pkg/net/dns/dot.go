@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
 type DoT struct {
@@ -35,7 +35,7 @@ func NewDoT(host string, subnet *net.IPNet) *DoT {
 	}
 }
 
-func (d *DoT) SetProxy(f utils.Proxy) {
+func (d *DoT) SetProxy(f proxy.Proxy) {
 	if f == nil {
 		d.proxy = func(s string) (net.Conn, error) {
 			return net.DialTimeout("tcp", s, time.Second*5)

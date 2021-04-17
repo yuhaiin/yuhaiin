@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	netUtils "github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
 	libVmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
@@ -108,7 +108,7 @@ func countHash(n *Vmess, jsonStr string) string {
 }
 
 //ParseConn parse map to net.Conn
-func ParseConn(n *utils.Point) (netUtils.Proxy, error) {
+func ParseConn(n *utils.Point) (proxy.Proxy, error) {
 	x := new(Vmess)
 	err := json.Unmarshal(n.Data, x)
 	if err != nil {
@@ -153,7 +153,7 @@ func unmarshalJSON(data []byte) (*JSON, error) {
 	}{}
 
 	if err := json.Unmarshal(data, s); err != nil {
-		return nil, fmt.Errorf("unmarshal failed: %v\nstr: %s\n", err, data)
+		return nil, fmt.Errorf("unmarshal failed: %v, str: %s", err, data)
 	}
 
 	return &JSON{

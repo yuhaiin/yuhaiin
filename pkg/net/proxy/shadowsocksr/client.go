@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+
 	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	shadowsocksr "github.com/v2rayA/shadowsocksR"
@@ -32,7 +34,7 @@ type Shadowsocksr struct {
 	*utils.ClientUtil
 }
 
-func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr *Shadowsocksr, err error) {
+func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr proxy.Proxy, err error) {
 	s := &Shadowsocksr{
 		host:            host,
 		port:            port,

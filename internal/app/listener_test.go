@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
 func TestRef(t *testing.T) {
@@ -19,7 +19,7 @@ func TestRef(t *testing.T) {
 	}
 
 	var x interface{}
-	if _, ok := x.(server.UDPServer); !ok {
+	if _, ok := x.(proxy.UDPServer); !ok {
 		t.Log("nil")
 	}
 }

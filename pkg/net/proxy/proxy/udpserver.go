@@ -89,7 +89,12 @@ func (u *UdpServer) run() (err error) {
 		return fmt.Errorf("UdpServer:run() -> %v", err)
 	}
 
-	go u.process()
+	go func() {
+		err := u.process()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	return nil
 }
 

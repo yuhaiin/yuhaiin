@@ -75,7 +75,7 @@ _start:
 	}
 
 	if x, ok := dstc.(*net.TCPConn); ok {
-		x.SetKeepAlive(true)
+		_ = x.SetKeepAlive(true)
 	}
 
 	if req.Method == http.MethodConnect {

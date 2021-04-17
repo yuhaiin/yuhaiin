@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -22,7 +24,7 @@ const (
 )
 
 type DNS interface {
-	SetProxy(proxy utils.Proxy)
+	SetProxy(proxy proxy.Proxy)
 	SetServer(host string)
 	GetServer() string
 	SetSubnet(subnet *net.IPNet)
@@ -94,7 +96,9 @@ func (n *NormalDNS) LookupIP(domain string) (DNS []net.IP, err error) {
 	if x, _ := n.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	DNS, err = dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) { return udpDial(data, n.Server, n.proxy) })
+	DNS, err = dnsCommon(domain, n.Subnet, func(data []byte) ([]byte, error) {
+		return udpDial(data, n.Server, n.proxy)
+	})
 	if err != nil || len(DNS) == 0 {
 		return nil, fmt.Errorf("normal resolve domain %s failed: %v", domain, err)
 	}
@@ -125,7 +129,7 @@ func (n *NormalDNS) GetServer() string {
 	return n.Server
 }
 
-func (n *NormalDNS) SetProxy(p utils.Proxy) {
+func (n *NormalDNS) SetProxy(p proxy.Proxy) {
 	if p == nil {
 		n.proxy = func(s string) (net.PacketConn, error) {
 			return net.ListenPacket("udp", "")
@@ -137,12 +141,12 @@ func (n *NormalDNS) SetProxy(p utils.Proxy) {
 }
 
 func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
-	//defer func() {
-	//	if r := recover(); r != nil {
-	//		fmt.Printf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
-	//		err = fmt.Errorf("recovering from panic in resolve DNS(%s) error is: %v", domain, r)
-	//	}
-	//}()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
+			err = fmt.Errorf("recovering from panic in resolve DNS(%s) error is: %v", domain, r)
+		}
+	}()
 	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
 	b, err := reqF(req)
 	if err != nil {
@@ -186,11 +190,9 @@ func udpDial(req []byte, DNSServer string, proxy func(string) (net.PacketConn, e
 	if err != nil {
 		return nil, err
 	}
+
 	n, _, err := conn.ReadFrom(b[:])
-	if err != nil {
-		return nil, err
-	}
-	return b[:n], nil
+	return b[:n], err
 }
 
 func creatRequest(domain string, reqType reqType, arCount bool) []byte {

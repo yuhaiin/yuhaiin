@@ -107,7 +107,12 @@ func (t *TcpServer) run() (err error) {
 		return fmt.Errorf("TcpServer:run() -> %v", err)
 	}
 
-	go t.process()
+	go func() {
+		err := t.process()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	return
 }
 

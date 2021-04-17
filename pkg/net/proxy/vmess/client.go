@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+
 	gitsrcVmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -40,7 +42,7 @@ func NewVmess(
 	alterID uint32,
 	netType, netPath, netHost string,
 	tls bool, cert string,
-) (*Vmess, error) {
+) (proxy.Proxy, error) {
 	if fakeType != "none" {
 		return nil, fmt.Errorf("not support [fake type: %s] now", fakeType)
 	}

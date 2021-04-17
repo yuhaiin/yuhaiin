@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	netUtils "github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
 	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
@@ -81,7 +81,7 @@ func ParseLinkManual(link []byte, group string) (*utils.Point, error) {
 }
 
 // ParseConn parse a ssr map to conn function
-func ParseConn(n *utils.Point) (netUtils.Proxy, error) {
+func ParseConn(n *utils.Point) (proxy.Proxy, error) {
 	s := new(Shadowsocksr)
 	err := json.Unmarshal(n.Data, s)
 	if err != nil {

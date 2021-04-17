@@ -198,18 +198,3 @@ func ReducedUnitStr(byte float64) (result string) {
 	}
 	return fmt.Sprintf("%.2f%s", byte, B2) //B
 }
-
-type Proxy interface {
-	Conn(string) (net.Conn, error)
-	PacketConn(string) (net.PacketConn, error)
-}
-
-type DefaultProxy struct {
-}
-
-func (d *DefaultProxy) Conn(s string) (net.Conn, error) {
-	return net.DialTimeout("tcp", s, 15*time.Second)
-}
-func (d *DefaultProxy) PacketConn(string) (net.PacketConn, error) {
-	return net.ListenPacket("udp", "")
-}

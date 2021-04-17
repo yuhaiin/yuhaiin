@@ -13,7 +13,8 @@ import (
 	"sync"
 	"time"
 
-	netUtils "github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+
 	ss "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
@@ -213,7 +214,7 @@ func (n *NodeManager) GetNowNode() *utils.Point {
 	return n.nodes.NowNode
 }
 
-func ParseNodeConn(s *utils.Point) (netUtils.Proxy, error) {
+func ParseNodeConn(s *utils.Point) (proxy.Proxy, error) {
 	switch s.NType {
 	case utils.Shadowsocks:
 		return ss.ParseConn(s)

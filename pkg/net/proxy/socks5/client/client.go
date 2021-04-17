@@ -7,55 +7,63 @@ import (
 	"net"
 	"net/url"
 	"strconv"
-	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 // https://tools.ietf.org/html/rfc1928
 // client socks5 client
-// conn will auto create
 // host socks5 server's ip/domain and port
-// address need port,for example:www.google.com:443,1.1.1.1:443,[::1]:8080 <-- ipv6 need []
 type client struct {
-	conn     net.Conn
+	hostname string
+	port     string
 	host     string
 	username string
 	password string
-	address  string
+
+	*utils.ClientUtil
 }
 
-func NewSocks5Client(host string, user, password string, address string) (net.Conn, error) {
+func NewSocks5Client(host, port, user, password string) proxy.Proxy {
 	x := &client{
-		username: user,
-		host:     host,
-		password: password,
-		address:  address,
+		username:   user,
+		hostname:   host,
+		port:       port,
+		host:       net.JoinHostPort(host, port),
+		password:   password,
+		ClientUtil: utils.NewClientUtil(host, port),
 	}
+	return x
+}
 
-	var err error
-	x.conn, err = net.DialTimeout("tcp", x.host, 10*time.Second)
+func (s *client) Conn(host string) (net.Conn, error) {
+	conn, err := s.ClientUtil.GetConn()
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %v", err)
 	}
 
-	err = x.firstVerify()
+	err = s.handshake1(conn)
 	if err != nil {
-		return nil, fmt.Errorf("socks5 first handshake error -> %v", err)
+		return nil, fmt.Errorf("first hand failed: %v", err)
 	}
-	err = x.secondVerify()
+
+	err = s.handshake2(conn, host)
 	if err != nil {
-		return nil, fmt.Errorf("socks5 second handshake error -> %v", err)
+		return nil, fmt.Errorf("second hand failed: %v", err)
 	}
-	return x.conn, nil
+
+	return conn, nil
 }
 
-func (s *client) firstVerify() error {
+func (s *client) handshake1(conn net.Conn) error {
 	sendData := bytes.NewBuffer([]byte{0x05, 0x01, 0x00})
-	_, err := s.conn.Write(sendData.Bytes())
+	_, err := conn.Write(sendData.Bytes())
 	if err != nil {
 		return fmt.Errorf("firstVerify:sendData -> %v", err)
 	}
 	getData := make([]byte, 3)
-	_, err = s.conn.Read(getData[:])
+	_, err = conn.Read(getData[:])
 	if err != nil {
 		return fmt.Errorf("firstVerify:Read -> %v", err)
 	}
@@ -69,9 +77,9 @@ func (s *client) firstVerify() error {
 		sendData.WriteString(s.username)
 		sendData.WriteByte(byte(len(s.password)))
 		sendData.WriteString(s.password)
-		_, _ = s.conn.Write(sendData.Bytes())
+		_, _ = conn.Write(sendData.Bytes())
 
-		_, err = s.conn.Read(getData[:])
+		_, err = conn.Read(getData[:])
 		if err != nil {
 			return fmt.Errorf("firstVerify:Read2 -> %v", err)
 		}
@@ -82,26 +90,83 @@ func (s *client) firstVerify() error {
 	return nil
 }
 
-func (s *client) secondVerify() error {
-	addr, err := ParseAddr(s.address)
+func (s *client) handshake2(conn net.Conn, address string) error {
+	addr, err := ParseAddr(address)
 	if err != nil {
 		return fmt.Errorf("secondVerify:ParseAddr -> %v", err)
 	}
 	sendData := bytes.NewBuffer([]byte{0x05, 0x01, 0x00})
 	sendData.Write(addr)
 
-	if _, err = s.conn.Write(sendData.Bytes()); err != nil {
+	if _, err = conn.Write(sendData.Bytes()); err != nil {
 		return err
 	}
 
 	getData := make([]byte, 1024)
-	if _, err = s.conn.Read(getData[:]); err != nil {
+	if _, err = conn.Read(getData[:]); err != nil {
 		return err
 	}
 	if getData[0] != 0x05 || getData[1] != 0x00 {
 		return errors.New("socks5 second handshake failed")
 	}
 	return nil
+}
+
+func (s *client) PacketConn(host string) (net.PacketConn, error) {
+	addr, err := net.ResolveUDPAddr("udp", s.host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve addr failed: %v", err)
+	}
+
+	return newSocks5PacketConn(host, addr)
+}
+
+type socks5PacketConn struct {
+	net.PacketConn
+	addr   []byte
+	server net.Addr
+}
+
+func newSocks5PacketConn(address string, server net.Addr) (net.PacketConn, error) {
+	addr, err := ParseAddr(address)
+	if err != nil {
+		return nil, fmt.Errorf("parse addr failed: %v", err)
+	}
+
+	conn, err := net.ListenPacket("udp", "")
+	if err != nil {
+		return nil, fmt.Errorf("create packet failed: %v", err)
+	}
+
+	return &socks5PacketConn{
+		server:     server,
+		addr:       addr,
+		PacketConn: conn,
+	}, nil
+
+}
+
+func (s *socks5PacketConn) WriteTo(p []byte, _ net.Addr) (int, error) {
+	return s.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, s.addr, p}, []byte{}), s.server)
+}
+
+func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
+	z := make([]byte, len(p))
+	n, addr, err := s.PacketConn.ReadFrom(z)
+	if err != nil {
+		return 0, addr, fmt.Errorf("read from remote failed: %v", err)
+	}
+
+	prefix := 3 + len(s.addr)
+
+	if n < prefix {
+		return 0, addr, fmt.Errorf("slice out of range, get: %d less %d", n, 3+len(s.addr))
+	}
+
+	copy(p[0:], z[prefix:n])
+
+	// log.Printf("z: %v,\n p: %v\n", z[:], p[:])
+	return n - prefix, addr, nil
 }
 
 func ParseAddr(hostname string) (data []byte, err error) {

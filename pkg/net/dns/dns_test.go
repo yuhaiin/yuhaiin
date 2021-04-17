@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"testing"
+
+	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDNS(t *testing.T) {
@@ -25,6 +27,13 @@ func TestDNS2(t *testing.T) {
 	t.Log(dns.LookupIP("google.com"))
 	//t.Log(DNS("223.5.5.5:53", "www.google.com"))
 	//t.Log(DNS("114.114.114.114:53", "www.baidu.com"))
+}
+
+func TestDNS9(t *testing.T) {
+	dns := NewNormalDNS("1.1.1.1:53", nil)
+	dns.SetProxy(socks5client.NewSocks5Client("127.0.0.1", "1080", "", ""))
+	t.Log(dns.LookupIP("www.baidu.com"))
+	t.Log(dns.LookupIP("google.com")) // without proxy [93.46.8.90] <nil>, with proxy [172.217.27.78] <nil>
 }
 
 func TestDNS3(t *testing.T) {
