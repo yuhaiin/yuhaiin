@@ -13,12 +13,11 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	ss "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/vmess"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type NodeManager struct {
@@ -113,6 +112,9 @@ func (n *NodeManager) enCodeJSON(pa *utils.Node) error {
 
 // GetLinkFromInt update subscribe
 func (n *NodeManager) GetLinkFromInt() error {
+	if n.nodes.Links == nil {
+		n.nodes.Links = make(map[string]*utils.NodeLink)
+	}
 	if n.nodes.Nodes == nil {
 		n.nodes.Nodes = make(map[string]*utils.NodeNode)
 	}
