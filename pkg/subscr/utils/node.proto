@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package yuhaiin.subscr.utils;
+
+option go_package = "github.com/Asutorufa/yuhaiin/subscr/utils";
+
+
+message point{
+    enum proxy_type{
+        proxy_type_reserve = 0;
+        shadowsocks = 1;
+        shadowsocksr = 2;
+        vmess = 3;
+    }
+    proxy_type n_type = 1 [json_name="yuhaiin_type"];
+    string n_hash = 2 [json_name="yuhaiin_hash"];
+    string n_name = 3 [json_name="yuhaiin_name"];
+    string n_group = 4 [json_name="yuhaiin_group"];
+    enum origin{
+        node_origin_reserve = 0;
+        remote = 101;
+        manual = 102;
+    }
+    origin n_origin = 5 [json_name="yuhaiin_origin"];
+    bytes data = 6 [json_name="data"];
+}
+
+message shadowsocks{
+    string server = 1 [json_name="server"];
+    string port = 2 [json_name="port"];
+    string method = 3 [json_name="method"];
+    string password = 4 [json_name="password"];
+    string plugin = 5 [json_name="plugin"];
+    string plugin_opt = 6 [json_name="plugin_opt"];
+}
+
+message shadowsocksr{
+    string server = 1 [json_name="server"];
+    string port = 2 [json_name="port"];
+    string method = 3 [json_name="method"];
+    string password = 4 [json_name="password"];
+    string obfs = 5 [json_name="obfs"];
+    string obfsparam = 6 [json_name="obfsparam"];
+    string protocol = 7 [json_name="protocol"];
+    string protoparam = 8 [json_name="protoparam"];
+}
+
+message vmess{
+    // address
+    string address = 2 [json_name="add"];
+    string port = 3 [json_name="port"];
+    // uuid
+    string uuid = 4 [json_name="id"];
+    // alter id
+    string alter_id = 5 [json_name="aid"];
+    // name
+    string ps = 6 [json_name="ps"];
+    // (tcp\kcp\ws\h2\quic)
+    string net = 7 [json_name="net"];
+    // fake type [(none\http\srtp\utp\wechat-video) *tcp or kcp or QUIC]
+    string type = 8 [json_name="type"];
+    string tls = 9 [json_name="tls"];
+	// 1)http host(cut up with (,) )
+	// 2)ws host
+	// 3)h2 host
+	// 4)QUIC security
+    string host = 10 [json_name="host"];
+    // 1)ws path
+    // 2)h2 path
+    // 3)QUIC key/Kcp seed
+    string path = 11 [json_name="path"];
+    string v = 12 [json_name="v"];
+    bool verify_cert = 13 [json_name="verify_cert"];
+    int64 class = 14 [json_name="class"];
+}
+
+message vmess2{
+    // address
+    string address = 2 [json_name="add"];
+    int32 port = 3 [json_name="port"];
+    // uuid
+    string uuid = 4 [json_name="id"];
+    // alter id
+    int32 alter_id = 5 [json_name="aid"];
+    // name
+    string ps = 6 [json_name="ps"];
+    // (tcp\kcp\ws\h2\quic)
+    string net = 7 [json_name="net"];
+    // fake type [(none\http\srtp\utp\wechat-video) *tcp or kcp or QUIC]
+    string type = 8 [json_name="type"];
+    string tls = 9 [json_name="tls"];
+	// 1)http host(cut up with (,) )
+	// 2)ws host
+	// 3)h2 host
+	// 4)QUIC security
+    string host = 10 [json_name="host"];
+    // 1)ws path
+    // 2)h2 path
+    // 3)QUIC key/Kcp seed
+    string path = 11 [json_name="path"];
+    string v = 12 [json_name="v"];
+    bool verify_cert = 13 [json_name="verify_cert"];
+    int64 class = 14 [json_name="class"];
+}
+
+message node{
+    point now_node = 1 [json_name="now_node"];
+    message link{
+        string type = 1 [json_name="type"];
+        string url = 2 [json_name="url"];
+    }
+    map<string,link> links = 2 [json_name="links"];
+    message node{
+        map<string,point> node = 1 [json_name="node"];
+    }
+    map<string,node> nodes = 3 [json_name="nodes"];
+}

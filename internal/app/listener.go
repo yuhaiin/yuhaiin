@@ -5,10 +5,10 @@ import (
 	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
-	httpserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
+	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	redirserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
-	socks5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	rs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
+	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 )
 
 type Listener struct {
@@ -25,17 +25,17 @@ func NewListener(c *config.Proxy, pro proxy.Proxy) (l *Listener, err error) {
 		hosts: c,
 	}
 
-	l.socks5, err = socks5server.NewServer(l.hosts.Socks5, "", "")
+	l.socks5, err = ss.NewServer(l.hosts.Socks5, "", "")
 	if err != nil {
 		return nil, fmt.Errorf("create socks5 server failed: %v", err)
 	}
-	l.http, err = httpserver.NewServer(l.hosts.HTTP, "", "")
+	l.http, err = hs.NewServer(l.hosts.HTTP, "", "")
 	if err != nil {
 		return nil, fmt.Errorf("create http server failed: %v", err)
 	}
 
 	if runtime.GOOS != "windows" {
-		l.redir, err = redirserver.NewServer(l.hosts.Redir)
+		l.redir, err = rs.NewServer(l.hosts.Redir)
 		if err != nil {
 			return nil, fmt.Errorf("create redir server failed: %v", err)
 		}

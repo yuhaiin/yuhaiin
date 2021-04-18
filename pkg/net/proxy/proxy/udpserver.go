@@ -53,17 +53,16 @@ func (u *UDPServer) SetServer(host string) error {
 	if u.host == host {
 		return nil
 	}
-
 	_ = u.Close()
 
 	u.lock.Lock()
 	defer u.lock.Unlock()
 
+	u.host = host
+
 	if host == "" {
 		return nil
 	}
-
-	u.host = host
 
 	fmt.Println("SetServer create new server")
 	return u.run()

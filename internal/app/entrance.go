@@ -76,7 +76,7 @@ func (e *Entrance) Start() (err error) {
 	if err != nil {
 		log.Printf("changer node failed: %v\n", err)
 	}
-	return
+	return nil
 }
 
 func (e *Entrance) SetConFig(c *config.Setting) (err error) {
@@ -175,15 +175,21 @@ func (e *Entrance) ChangeNNode(group string, node string) (err error) {
 }
 
 func (e *Entrance) GetNNodeAndNGroup() (node string, group string) {
+	if e.nodeManager.GetNodes().NowNode == nil {
+		return "", ""
+	}
 	return e.nodeManager.GetNodes().NowNode.NName, e.nodeManager.GetNodes().NowNode.NGroup
 }
 
 func (e *Entrance) GetANodes() map[string][]string {
 	m := map[string][]string{}
 
-	for key := range e.nodeManager.GetNodes().Node {
+	for key := range e.nodeManager.GetNodes().Nodes {
+		if e.nodeManager.GetNodes().Nodes[key] == nil {
+			continue
+		}
 		var x []string
-		for node := range e.nodeManager.GetNodes().Node[key] {
+		for node := range e.nodeManager.GetNodes().Nodes[key].Node {
 			x = append(x, node)
 		}
 		sort.Strings(x)
@@ -193,15 +199,23 @@ func (e *Entrance) GetANodes() map[string][]string {
 }
 
 func (e *Entrance) GetOneNodeConn(group, nodeN string) (proxy.Proxy, error) {
-	if e.nodeManager.GetNodes().Node[group][nodeN] == nil {
+	if e.nodeManager.GetNodes().Nodes[group] == nil {
 		return nil, fmt.Errorf("node %s of group %s is not exist", nodeN, group)
 	}
-	return subscr.ParseNodeConn(e.nodeManager.GetNodes().Node[group][nodeN])
+	if e.nodeManager.GetNodes().Nodes[group].Node == nil {
+		return nil, fmt.Errorf("node %s of group %s is not exist", nodeN, group)
+
+	}
+	return subscr.ParseNodeConn(e.nodeManager.GetNodes().Nodes[group].Node[nodeN])
 }
 
 func (e *Entrance) GetNodes(group string) ([]string, error) {
+	if e.nodeManager.GetNodes().Nodes[group] == nil {
+		return nil, nil
+	}
+
 	var nodeTmp []string
-	for nodeRemarks := range e.nodeManager.GetNodes().Node[group] {
+	for nodeRemarks := range e.nodeManager.GetNodes().Nodes[group].Node {
 		nodeTmp = append(nodeTmp, nodeRemarks)
 	}
 	sort.Strings(nodeTmp)
@@ -210,7 +224,7 @@ func (e *Entrance) GetNodes(group string) ([]string, error) {
 
 func (e *Entrance) GetGroups() ([]string, error) {
 	var groupTmp []string
-	for group := range e.nodeManager.GetNodes().Node {
+	for group := range e.nodeManager.GetNodes().Nodes {
 		groupTmp = append(groupTmp, group)
 	}
 	sort.Strings(groupTmp)
@@ -221,7 +235,7 @@ func (e *Entrance) UpdateSub() error {
 	return e.nodeManager.GetLinkFromInt()
 }
 
-func (e *Entrance) GetLinks() (map[string]utils.Link, error) {
+func (e *Entrance) GetLinks() (map[string]*utils.NodeLink, error) {
 	return e.nodeManager.GetNodes().Links, nil
 }
 

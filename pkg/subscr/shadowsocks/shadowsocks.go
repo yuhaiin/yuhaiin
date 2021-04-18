@@ -3,66 +3,51 @@ package shadowsocks
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
 )
 
-type Shadowsocks struct {
-	utils.NodeMessage
-	Server    string `json:"server"`
-	Port      string `json:"port"`
-	Method    string `json:"method"`
-	Password  string `json:"password"`
-	Plugin    string `json:"plugin"`
-	PluginOpt string `json:"plugin_opt"`
-}
-
 func ParseLink(str []byte, group string) (*utils.Point, error) {
-	n := new(Shadowsocks)
+	n := new(utils.Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
 		return nil, err
 	}
-	n.NType = utils.Shadowsocks
-	n.NOrigin = utils.Remote
 	n.Server = ssUrl.Hostname()
 	n.Port = ssUrl.Port()
 	n.Method = strings.Split(utils.DecodeUrlBase64(ssUrl.User.String()), ":")[0]
 	n.Password = strings.Split(utils.DecodeUrlBase64(ssUrl.User.String()), ":")[1]
-	n.NGroup = group
 	n.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
 	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
-	n.NName = "[ss]" + ssUrl.Fragment
 
-	hash := sha256.New()
-	hash.Write([]byte{byte(n.NType)})
-	hash.Write([]byte{byte(n.NOrigin)})
-	hash.Write([]byte(n.NGroup))
-	hash.Write([]byte(n.NName))
-	hash.Write(str)
-	n.NHash = hex.EncodeToString(hash.Sum(nil))
-
-	data, err := json.Marshal(n)
+	d, err := protojson.Marshal(n)
 	if err != nil {
-		return nil, fmt.Errorf("shadowsocks marshal failed: %v", err)
+		return nil, fmt.Errorf("marshal to json failed: %v", err)
 	}
-	return &utils.Point{
-		NodeMessage: n.NodeMessage,
-		Data:        data,
-	}, nil
+	p := &utils.Point{
+		NType:   utils.Point_shadowsocks,
+		NOrigin: utils.Point_remote,
+		NGroup:  group,
+		NName:   "[ss]" + ssUrl.Fragment,
+		Data:    d,
+	}
+	z := sha256.Sum256([]byte(p.String()))
+	p.NHash = hex.EncodeToString(z[:])
+
+	return p, nil
 }
 
 func ParseConn(n *utils.Point) (proxy.Proxy, error) {
-	s := new(Shadowsocks)
+	s := new(utils.Shadowsocks)
 
-	err := json.Unmarshal(n.Data, s)
+	err := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(n.Data, s)
 	if err != nil {
 		return nil, err
 	}

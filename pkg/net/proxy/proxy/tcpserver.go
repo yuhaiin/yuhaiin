@@ -12,9 +12,8 @@ import (
 
 // TCPServer tcp server common
 type TCPServer struct {
-	host string
-	lock sync.Mutex
-
+	host     string
+	lock     sync.Mutex
 	listener net.Listener
 	proxy    atomic.Value
 	handle   func(net.Conn, Proxy)
@@ -52,11 +51,11 @@ func (t *TCPServer) SetServer(host string) (err error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
+	t.host = host
+
 	if host == "" {
 		return
 	}
-
-	t.host = host
 
 	fmt.Println("SetServer create new server")
 	return t.run()

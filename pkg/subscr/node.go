@@ -2,7 +2,6 @@ package subscr
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	ss "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/subscr/shadowsocksr"
@@ -39,8 +39,8 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 func (n *NodeManager) decodeJSON() (*utils.Node, error) {
 	pa := &utils.Node{
 		NowNode: &utils.Point{},
-		Links:   make(map[string]utils.Link),
-		Node:    make(map[string]map[string]*utils.Point),
+		Links:   make(map[string]*utils.NodeLink),
+		Nodes:   make(map[string]*utils.NodeNode),
 	}
 	_, err := os.Stat(n.configPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -49,16 +49,12 @@ func (n *NodeManager) decodeJSON() (*utils.Node, error) {
 
 	n.lock.RLock()
 	defer n.lock.RUnlock()
-	file, err := os.Open(n.configPath)
+	data, err := ioutil.ReadFile(n.configPath)
 	if err != nil {
-		return nil, fmt.Errorf("open node file failed: %v", err)
+		return nil, fmt.Errorf("read node file failed: %v", err)
 	}
-	defer file.Close()
-	err = json.NewDecoder(file).Decode(&pa)
-	if err != nil {
-		return nil, fmt.Errorf("decode failed: %v", err)
-	}
-	return pa, nil
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
+	return pa, err
 }
 
 func (n *NodeManager) GetNodes() *utils.Node {
@@ -66,7 +62,7 @@ func (n *NodeManager) GetNodes() *utils.Node {
 }
 
 func (n *NodeManager) AddLink(name, style, link string) error {
-	n.nodes.Links[name] = utils.Link{
+	n.nodes.Links[name] = &utils.NodeLink{
 		Type: style,
 		Url:  link,
 	}
@@ -79,10 +75,14 @@ func (n *NodeManager) DeleteLink(name string) error {
 }
 
 func (n *NodeManager) ChangeNowNode(name, group string) error {
-	if n.nodes.Node[group][name] == nil {
-		return errors.New("not exist " + group + " - " + name)
+	if n.nodes.Nodes[group] == nil {
+		return errors.New("not exist group" + group)
 	}
-	n.nodes.NowNode = n.nodes.Node[group][name]
+	if n.nodes.Nodes[group].Node[name] == nil {
+		return errors.New("not exist node" + name)
+
+	}
+	n.nodes.NowNode = n.nodes.Nodes[group].Node[name]
 	return n.enCodeJSON(n.nodes)
 }
 
@@ -103,21 +103,27 @@ func (n *NodeManager) enCodeJSON(pa *utils.Node) error {
 		return fmt.Errorf("open node config failed: %v", err)
 	}
 	defer file.Close()
-	enc := json.NewEncoder(file)
-	enc.SetIndent("", "\t")
-	return enc.Encode(&pa)
+	data, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(pa)
+	if err != nil {
+		return fmt.Errorf("marshal file failed: %v", err)
+	}
+	_, err = file.Write(data)
+	return err
 }
 
 // GetLinkFromInt update subscribe
 func (n *NodeManager) GetLinkFromInt() error {
+	if n.nodes.Nodes == nil {
+		n.nodes.Nodes = make(map[string]*utils.NodeNode)
+	}
 	for key := range n.nodes.Links {
-		n.oneLinkGet(n.nodes.Links[key].Url, key, n.nodes.Node)
+		n.oneLinkGet(n.nodes.Links[key].Url, key, n.nodes.Nodes)
 	}
 
 	return n.enCodeJSON(n.nodes)
 }
 
-func (n *NodeManager) oneLinkGet(url string, group string, nodes map[string]map[string]*utils.Point) {
+func (n *NodeManager) oneLinkGet(url string, group string, nodes map[string]*utils.NodeNode) {
 	client := http.Client{Timeout: time.Second * 30}
 	res, err := client.Get(url)
 	if err != nil {
@@ -145,39 +151,53 @@ func (n *NodeManager) oneLinkGet(url string, group string, nodes map[string]map[
 	}
 }
 
-func addOneNode(p *utils.Point, nodes map[string]map[string]*utils.Point) {
+func addOneNode(p *utils.Point, nodes map[string]*utils.NodeNode) {
 	if _, ok := nodes[p.NGroup]; !ok {
-		nodes[p.NGroup] = make(map[string]*utils.Point)
-	}
-	nodes[p.NGroup][p.NName] = p
-}
-
-func deleteRemoteNodes(nodes map[string]map[string]*utils.Point, key string) {
-	for nodeKey := range nodes[key] {
-		if nodes[key][nodeKey].NOrigin == utils.Remote {
-			delete(nodes[key], nodeKey)
+		nodes[p.NGroup] = &utils.NodeNode{
+			Node: make(map[string]*utils.Point),
 		}
 	}
-	if len(nodes[key]) == 0 {
+	if nodes[p.NGroup].Node == nil {
+		nodes[p.NGroup].Node = make(map[string]*utils.Point)
+	}
+
+	nodes[p.NGroup].Node[p.NName] = p
+}
+
+func deleteRemoteNodes(nodes map[string]*utils.NodeNode, key string) {
+	if nodes[key] == nil {
+		return
+	}
+	if nodes[key].Node == nil {
+		delete(nodes, key)
+		return
+	}
+
+	for nodeKey := range nodes[key].Node {
+		if nodes[key].Node[nodeKey].NOrigin == utils.Point_remote {
+			delete(nodes, nodeKey)
+		}
+	}
+	if len(nodes[key].Node) == 0 {
 		delete(nodes, key)
 	}
 }
 
 func (n *NodeManager) DeleteOneNode(group, name string) error {
-	deleteOneNode(group, name, n.nodes.Node)
+	deleteOneNode(group, name, n.nodes.Nodes)
 	return n.enCodeJSON(n.nodes)
 }
 
-func deleteOneNode(group, name string, nodes map[string]map[string]*utils.Point) {
-	if _, ok := nodes[group]; !ok {
-		return
+func deleteOneNode(group, name string, nodes map[string]*utils.NodeNode) {
+	if x, ok := nodes[group]; !ok {
+		if _, ok := x.Node[name]; !ok {
+			return
+		}
 	}
-	if _, ok := nodes[group][name]; !ok {
-		return
-	}
-	delete(nodes[group], name)
 
-	if len(nodes[group]) == 0 {
+	delete(nodes[group].Node, name)
+
+	if len(nodes[group].Node) == 0 {
 		delete(nodes, group)
 	}
 }
@@ -215,12 +235,16 @@ func (n *NodeManager) GetNowNode() *utils.Point {
 }
 
 func ParseNodeConn(s *utils.Point) (proxy.Proxy, error) {
+	if s == nil {
+		return nil, errors.New("not support type")
+	}
+
 	switch s.NType {
-	case utils.Shadowsocks:
+	case utils.Point_shadowsocks:
 		return ss.ParseConn(s)
-	case utils.Shadowsocksr:
+	case utils.Point_shadowsocksr:
 		return ssr.ParseConn(s)
-	case utils.Vmess:
+	case utils.Point_vmess:
 		return vmess.ParseConn(s)
 	}
 	return nil, errors.New("not support type")
