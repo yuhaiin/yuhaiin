@@ -215,20 +215,20 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 	}
 
 	switch answer[3] & 0b00001111 { // check Response code(rCode) eg:11110010 & 00001111 = 0010, 11111101 & 00001111 = 1101
-	case 0b0000: // no error
+	case 0b0000: // 0 no error
 		break
-	case 0b0001: // Format error
+	case 0b0001: // 1 Format error
 		return header, nil, errors.New("request format error")
-	case 0b0010: //Server failure
+	case 0b0010: // 2 Server failure
 		return header, nil, errors.New("dns Server failure")
-	case 0b0011: //Name Error
+	case 0b0011: // 3 Name Error
 		return header, nil, errors.New("no such name")
-	case 0b0100: // Not Implemented
+	case 0b0100: // 4 Not Implemented
 		return header, nil, errors.New("dns server not support this request")
-	case 0b0101: //Refused
+	case 0b0101: // 5 Refused
 		return header, nil, errors.New("dns server Refuse")
-	default: // Reserved for future use.
-		return header, nil, fmt.Errorf("other error code: %b", answer[3]&0b00001111)
+	default: // 6-15 Reserved for future use.
+		return header, nil, fmt.Errorf("reserved for future use, code: %b", answer[3]&0b00001111)
 	}
 
 	header.qdCount = 0                                    // request
@@ -247,7 +247,7 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 }
 
 func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, err error) {
-	for anCount != 0 {
+	for i := anCount; i > 0; i-- {
 		_, _, c = getName(c, b)
 
 		tYPE := reqType{c[0], c[1]}
@@ -289,14 +289,12 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 		default:
 			c = c[sum:] // RDATA
 		}
-		anCount--
 	}
 	return DNS, c, nil
 }
 
 func resolveAuthoritative(c []byte, nsCount int, b []byte) (left []byte) {
-	for nsCount != 0 {
-		nsCount--
+	for i := nsCount; i > 0; i-- {
 		_, _, c = getName(c, b)
 		c = c[2:] // type
 		c = c[2:] // class
