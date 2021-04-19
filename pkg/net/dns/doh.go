@@ -183,28 +183,25 @@ func (d *dohResolverDial) Read(data []byte) (int, error) {
 
 func (d *dohResolverDial) WriteTo(data []byte, _ net.Addr) (int, error) {
 	if time.Now().After(d.deadline) {
-		return 0, fmt.Errorf("timeout")
+		return 0, fmt.Errorf("write deadline")
 	}
-
 	resp, err := d.httpClient.Post(d.host, "application/dns-message", bytes.NewReader(data))
 	if err != nil {
 		return 0, fmt.Errorf("post failed: %v", err)
 	}
-	res, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return 0, fmt.Errorf("read resp body failed: %v", err)
-	}
 	defer resp.Body.Close()
-
-	d.buffer.Truncate(0)
-	_, err = d.buffer.Write(res)
+	_, err = d.buffer.ReadFrom(resp.Body)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("read from body failed: %v", err)
 	}
 	return len(data), nil
 }
 
 func (d *dohResolverDial) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
+	if time.Now().After(d.deadline) {
+		return 0, nil, fmt.Errorf("read deadline")
+	}
+
 	n, err = d.buffer.Read(data)
 	return n, nil, err
 }

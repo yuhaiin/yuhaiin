@@ -63,6 +63,9 @@ func TestDNS5(t *testing.T) {
 	//ra2rCode := []byte{0b00000000} // ra: 0 z:000 rcode: 0000 => bit: 00000000 -> 0
 	//qr2rCode := []byte{qr<<7 + opCode<<2 + aa<<1 + tc, ra<<7 + z<<4 + rcode}
 	t.Log(fmt.Sprintf("%08b", ra<<7+z<<4+rcode))
+
+	t.Log(0b11110010&0b1111, 0b0010)
+	t.Log(0b11111100&0b1111, 0b1100)
 }
 
 func TestDNS6(t *testing.T) {

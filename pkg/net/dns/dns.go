@@ -214,22 +214,21 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 		return header, nil, errors.New("the qr is not 1(Answer)")
 	}
 
-	rCode := fmt.Sprintf("%08b", answer[3])[4:] // check Response code(rCode)
-	switch rCode {
-	case "0000": // no error
+	switch answer[3] & 0b00001111 { // check Response code(rCode) eg:11110010 & 00001111 = 0010, 11111101 & 00001111 = 1101
+	case 0b0000: // no error
 		break
-	case "0001": // Format error
+	case 0b0001: // Format error
 		return header, nil, errors.New("request format error")
-	case "0010": //Server failure
+	case 0b0010: //Server failure
 		return header, nil, errors.New("dns Server failure")
-	case "0011": //Name Error
+	case 0b0011: //Name Error
 		return header, nil, errors.New("no such name")
-	case "0100": // Not Implemented
+	case 0b0100: // Not Implemented
 		return header, nil, errors.New("dns server not support this request")
-	case "0101": //Refused
+	case 0b0101: //Refused
 		return header, nil, errors.New("dns server Refuse")
 	default: // Reserved for future use.
-		return header, nil, errors.New("other error")
+		return header, nil, fmt.Errorf("other error code: %b", answer[3]&0b00001111)
 	}
 
 	header.qdCount = 0                                    // request

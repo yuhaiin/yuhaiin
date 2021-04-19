@@ -10,7 +10,6 @@ import (
 )
 
 type DoT struct {
-	DNS
 	host         string
 	servername   string
 	subnet       *net.IPNet
@@ -18,7 +17,7 @@ type DoT struct {
 	sessionCache tls.ClientSessionCache
 }
 
-func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) *DoT {
+func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
