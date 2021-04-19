@@ -165,3 +165,88 @@ func (d *DoH) post(dReq []byte) (body []byte, err error) {
 	}
 	return
 }
+
+func (d *DoH) Resolver() *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			return dohDial(d.url, d.httpClient), nil
+		},
+	}
+}
+
+type dohResolverDial struct {
+	host       string
+	deadline   time.Time
+	buffer     *bytes.Buffer
+	httpClient *http.Client
+}
+
+func dohDial(host string, client *http.Client) net.Conn {
+	return &dohResolverDial{
+		host:       host,
+		buffer:     bytes.NewBuffer(nil),
+		httpClient: client,
+	}
+}
+
+func (d *dohResolverDial) Write(data []byte) (int, error) {
+	return d.WriteTo(data, nil)
+}
+
+func (d *dohResolverDial) Read(data []byte) (int, error) {
+	n, err := d.buffer.Read(data)
+	return n, err
+}
+
+func (d *dohResolverDial) WriteTo(data []byte, _ net.Addr) (int, error) {
+	if time.Now().After(d.deadline) {
+		return 0, fmt.Errorf("timeout")
+	}
+
+	resp, err := d.httpClient.Post(d.host, "application/dns-message", bytes.NewReader(data))
+	if err != nil {
+		return 0, fmt.Errorf("post failed: %v", err)
+	}
+	res, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("read resp body failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	d.buffer.Truncate(0)
+	_, err = d.buffer.Write(res)
+	if err != nil {
+		return 0, err
+	}
+	return len(data), nil
+}
+
+func (d *dohResolverDial) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
+	n, err = d.buffer.Read(data)
+	return n, nil, err
+}
+
+func (d *dohResolverDial) Close() error {
+	return nil
+}
+
+func (d *dohResolverDial) SetDeadline(t time.Time) error {
+	d.deadline = t
+	return nil
+}
+
+func (d *dohResolverDial) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (d *dohResolverDial) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
+func (d *dohResolverDial) LocalAddr() net.Addr {
+	return nil
+}
+func (d *dohResolverDial) RemoteAddr() net.Addr {
+	return nil
+}

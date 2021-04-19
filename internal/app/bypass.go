@@ -16,7 +16,7 @@ type BypassManager struct {
 	mapper      component.Mapper
 	proxy       proxy.Proxy
 	dialer      net.Dialer
-	connManager *connManager
+	connManager *connManager // TODO add to new
 }
 
 //NewBypassManager .
@@ -29,10 +29,11 @@ func NewBypassManager(mapper component.Mapper, dns dns.DNS) (*BypassManager, err
 	}
 
 	m := &BypassManager{
-		dialer:      net.Dialer{Timeout: 11 * time.Second},
+		dialer:      net.Dialer{Timeout: 11 * time.Second, Resolver: dns.Resolver()},
 		proxy:       &proxy.DefaultProxy{},
 		mapper:      mapper,
 		connManager: newConnManager(),
+		dns:         dns,
 	}
 	return m, nil
 }
@@ -44,33 +45,7 @@ func (m *BypassManager) Conn(host string) (conn net.Conn, err error) {
 		return nil, fmt.Errorf("map failed: %v", err)
 	}
 
-	switch resp.Mark {
-	case component.BLOCK:
-		return nil, fmt.Errorf("block: %v", host)
-	case component.DIRECT:
-		if resp.IP == component.IP || m.dns == nil {
-			conn, err = m.dialer.Dial("tcp", host)
-			break
-		}
-
-		var ip []net.IP
-		ip, err = m.dns.LookupIP(resp.Hostname)
-		if err != nil {
-			return nil, fmt.Errorf("dns resolve failed: %v", err)
-		}
-
-		for i := range ip {
-			conn, err = m.dialer.Dial("tcp", net.JoinHostPort(ip[i].String(), resp.Port))
-			if err == nil {
-				break
-			}
-		}
-
-	case component.OTHERS:
-		fallthrough
-	default:
-		conn, err = m.proxy.Conn(host)
-	}
+	conn, err = resp.Conn(host)
 
 	return m.connManager.newConn(host, conn), err
 }
@@ -80,17 +55,7 @@ func (m *BypassManager) PacketConn(host string) (conn net.PacketConn, err error)
 	if err != nil {
 		return nil, fmt.Errorf("map failed: %v", err)
 	}
-
-	if resp.Mark == component.BLOCK {
-		return nil, fmt.Errorf("block: %v", host)
-	}
-
-	if resp.Mark == component.OTHERS {
-		conn, err = m.proxy.PacketConn(host)
-	} else {
-		conn, err = net.ListenPacket("udp", "")
-	}
-
+	conn, err = resp.PacketConn(host)
 	return m.connManager.newPacketConn(host, conn), err
 }
 
@@ -105,26 +70,31 @@ func (m *BypassManager) SetProxy(p proxy.Proxy) {
 	}
 }
 
-func (m *BypassManager) marry(host string) (c component.MapperResp, err error) {
-	hostname, port, err := net.SplitHostPort(host)
+func (m *BypassManager) marry(host string) (p proxy.Proxy, err error) {
+	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return c, fmt.Errorf("split host [%s] failed: %v", host, err)
+		return nil, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
 
-	if m.mapper == nil {
-		c.Mark = component.OTHERS
-		if net.ParseIP(hostname) != nil {
-			c.IP = component.IP
-		} else {
-			c.IP = component.DOMAIN
-		}
-	} else {
-		c = m.mapper.Get(hostname)
+	mark := component.OTHERS
+	if m.mapper != nil {
+		c := m.mapper.Get(hostname)
+		mark = c.Mark
 	}
 
-	c.Hostname = hostname
-	c.Port = port
-	fmt.Printf("[%s] ->  mode: %s\n", host, component.ModeMapping[c.Mark])
+	fmt.Printf("[%s] ->  mode: %s\n", host, component.ModeMapping[mark])
+
+	switch mark {
+	case component.BLOCK:
+		err = fmt.Errorf("block: %v", host)
+	case component.DIRECT:
+		p = &direct{dialer: m.dialer}
+	case component.OTHERS:
+		fallthrough
+	default:
+		p = m.proxy
+	}
+
 	return
 }
 
@@ -134,4 +104,16 @@ func (m *BypassManager) GetDownload() uint64 {
 
 func (m *BypassManager) GetUpload() uint64 {
 	return m.connManager.GetUpload()
+}
+
+type direct struct {
+	dialer net.Dialer
+}
+
+func (d *direct) Conn(s string) (net.Conn, error) {
+	return d.dialer.Dial("tcp", s)
+}
+
+func (d *direct) PacketConn(string) (net.PacketConn, error) {
+	return net.ListenPacket("udp", "")
 }

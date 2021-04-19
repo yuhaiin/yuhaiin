@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -30,6 +31,7 @@ type DNS interface {
 	SetSubnet(subnet *net.IPNet)
 	GetSubnet() *net.IPNet
 	LookupIP(domain string) ([]net.IP, error)
+	Resolver() *net.Resolver
 }
 
 func NewDNS(host string, dnsType DNSType, subnet *net.IPNet) DNS {
@@ -138,6 +140,15 @@ func (n *NormalDNS) SetProxy(p proxy.Proxy) {
 	}
 
 	n.proxy = p.PacketConn
+}
+
+func (n *NormalDNS) Resolver() *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return net.DialTimeout("udp", n.Server, time.Second*6)
+		},
+	}
 }
 
 func dnsCommon(domain string, subnet *net.IPNet, reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {

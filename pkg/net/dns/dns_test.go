@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"testing"
@@ -69,4 +70,12 @@ func TestDNS6(t *testing.T) {
 	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.example.com", A, false)))
 	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.google.com", A, false)))
 	t.Log(base64.URLEncoding.EncodeToString(creatRequest("a.62characterlabel-makes-base64url-distinct-from-standard-base64.example.com", A, false)))
+}
+
+func TestDNSResolver(t *testing.T) {
+	d := NewNormalDNS("114.114.114.114:53", nil)
+	t.Log(d.Resolver().LookupHost(context.Background(), "www.baidu.com"))
+	t.Log(d.Resolver().LookupHost(context.Background(), "www.google.com"))
+	t.Log(d.Resolver().LookupHost(context.Background(), "www.cloudflare.com"))
+	t.Log(d.Resolver().LookupHost(context.Background(), "www.apple.com"))
 }

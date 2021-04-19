@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
@@ -88,4 +89,21 @@ func (d *DoT) LookupIP(domain string) ([]net.IP, error) {
 		}
 		return all[:n], err
 	})
+}
+
+func (d *DoT) Resolver() *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := d.proxy(d.host)
+			if err != nil {
+				return nil, fmt.Errorf("tcp dial failed: %v", err)
+			}
+			conn = tls.Client(conn, &tls.Config{
+				ServerName:         d.servername,
+				ClientSessionCache: d.sessionCache,
+			})
+			return conn, nil
+		},
+	}
 }

@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"net"
 	"testing"
 )
@@ -54,4 +55,16 @@ func TestDOH(t *testing.T) {
 func TestSplit(t *testing.T) {
 	t.Log(net.SplitHostPort("www.google.com"))
 	t.Log(net.SplitHostPort("www.google.com:443"))
+}
+
+func TestResolver(t *testing.T) {
+	// d := NewDoH("223.5.5.5", nil)
+	d := NewDoH("1.1.1.1", nil)
+	_, s, _ := net.ParseCIDR("114.114.114.114/31")
+	d.SetSubnet(s)
+
+	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.baidu.com"))
+	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.google.com"))
+	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.cloudflare.com"))
+	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.apple.com"))
 }

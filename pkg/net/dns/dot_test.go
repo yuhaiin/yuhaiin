@@ -1,6 +1,9 @@
 package dns
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestDOT(t *testing.T) {
 	d := NewDoT("223.5.5.5:853", nil)
@@ -12,4 +15,11 @@ func TestDOT(t *testing.T) {
 	// d.SetServer("dot.360.cn:853")
 	// t.Log(d.LookupIP("www.google.com"))
 	// t.Log(d.LookupIP("www.baidu.com"))
+}
+
+func TestDOTResolver(t *testing.T) {
+	d := NewDoT("223.5.5.5:853", nil)
+	t.Log(d.Resolver().LookupHost(context.Background(), "www.baidu.com"))
+	t.Log(d.Resolver().LookupHost(context.Background(), "www.google.com"))
+	t.Log(d.Resolver().LookupHost(context.Background(), "www.apple.com"))
 }
