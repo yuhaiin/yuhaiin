@@ -23,7 +23,7 @@ func TestDNS(t *testing.T) {
 }
 
 func TestDNS2(t *testing.T) {
-	dns := NewNormalDNS("114.114.114.114:53", nil)
+	dns := NewNormalDNS("114.114.114.114:53", nil, nil)
 	t.Log(dns.LookupIP("baidu.com"))
 	t.Log(dns.LookupIP("google.com"))
 	//t.Log(DNS("223.5.5.5:53", "www.google.com"))
@@ -31,8 +31,7 @@ func TestDNS2(t *testing.T) {
 }
 
 func TestDNS9(t *testing.T) {
-	dns := NewNormalDNS("1.1.1.1:53", nil)
-	dns.SetProxy(socks5client.NewSocks5Client("127.0.0.1", "1080", "", ""))
+	dns := NewNormalDNS("1.1.1.1:53", nil, socks5client.NewSocks5Client("127.0.0.1", "1080", "", ""))
 	t.Log(dns.LookupIP("www.baidu.com"))
 	t.Log(dns.LookupIP("google.com")) // without proxy [93.46.8.90] <nil>, with proxy [172.217.27.78] <nil>
 }
@@ -73,7 +72,7 @@ func TestDNS6(t *testing.T) {
 }
 
 func TestDNSResolver(t *testing.T) {
-	d := NewNormalDNS("114.114.114.114:53", nil)
+	d := NewNormalDNS("114.114.114.114:53", nil, nil)
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.baidu.com"))
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.google.com"))
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.cloudflare.com"))

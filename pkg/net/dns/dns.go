@@ -25,23 +25,18 @@ const (
 )
 
 type DNS interface {
-	SetProxy(proxy proxy.Proxy)
-	SetServer(host string)
-	GetServer() string
-	SetSubnet(subnet *net.IPNet)
-	GetSubnet() *net.IPNet
 	LookupIP(domain string) ([]net.IP, error)
 	Resolver() *net.Resolver
 }
 
-func NewDNS(host string, dnsType DNSType, subnet *net.IPNet) DNS {
+func NewDNS(host string, dnsType DNSType, subnet *net.IPNet, p proxy.Proxy) DNS {
 	switch dnsType {
 	case DNSOverHTTPS:
-		return NewDoH(host, subnet)
+		return NewDoH(host, subnet, p)
 	case DNSOverTLS:
-		return NewDoT(host, subnet)
+		return NewDoT(host, subnet, p)
 	}
-	return NewNormalDNS(host, subnet)
+	return NewNormalDNS(host, subnet, p)
 }
 
 type reqType [2]byte
@@ -79,17 +74,19 @@ type NormalDNS struct {
 	proxy  func(string) (net.PacketConn, error)
 }
 
-func NewNormalDNS(host string, subnet *net.IPNet) DNS {
+func NewNormalDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
+	if p == nil {
+		p = &proxy.DefaultProxy{}
+	}
+
 	return &NormalDNS{
 		Server: host,
 		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),
-		proxy: func(s string) (net.PacketConn, error) {
-			return net.ListenPacket("udp", "")
-		},
+		proxy:  p.PacketConn,
 	}
 }
 
@@ -106,40 +103,6 @@ func (n *NormalDNS) LookupIP(domain string) (DNS []net.IP, err error) {
 	}
 	n.cache.Add(domain, DNS)
 	return
-}
-
-func (n *NormalDNS) SetSubnet(ip *net.IPNet) {
-	if ip == nil {
-		_, n.Subnet, _ = net.ParseCIDR("0.0.0.0/0")
-		return
-	}
-	if ip.String() == n.Subnet.String() {
-		return
-	}
-	n.Subnet = ip
-}
-
-func (n *NormalDNS) GetSubnet() *net.IPNet {
-	return n.Subnet
-}
-
-func (n *NormalDNS) SetServer(host string) {
-	n.Server = host
-}
-
-func (n *NormalDNS) GetServer() string {
-	return n.Server
-}
-
-func (n *NormalDNS) SetProxy(p proxy.Proxy) {
-	if p == nil {
-		n.proxy = func(s string) (net.PacketConn, error) {
-			return net.ListenPacket("udp", "")
-		}
-		return
-	}
-
-	n.proxy = p.PacketConn
 }
 
 func (n *NormalDNS) Resolver() *net.Resolver {

@@ -32,7 +32,7 @@ type DoH struct {
 	httpClient *http.Client
 }
 
-func NewDoH(host string, subnet *net.IPNet) DNS {
+func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
@@ -41,11 +41,16 @@ func NewDoH(host string, subnet *net.IPNet) DNS {
 		cache:  utils.NewLru(200, 20*time.Minute),
 	}
 
-	dns.SetServer(host)
+	dns.setServer(host)
 
-	dns.setProxy(func(s string) (net.Conn, error) {
-		return dns.ClientUtil.GetConn()
-	})
+	if p == nil {
+		dns.setProxy(func(s string) (net.Conn, error) {
+			return dns.ClientUtil.GetConn()
+		})
+	} else {
+		dns.setProxy(p.Conn)
+	}
+
 	return dns
 }
 
@@ -75,19 +80,7 @@ func (d *DoH) search(domain string) ([]net.IP, error) {
 	return DNS, nil
 }
 
-func (d *DoH) SetSubnet(ip *net.IPNet) {
-	if ip == nil {
-		_, d.Subnet, _ = net.ParseCIDR("0.0.0.0/0")
-	} else {
-		d.Subnet = ip
-	}
-}
-
-func (d *DoH) GetSubnet() *net.IPNet {
-	return d.Subnet
-}
-
-func (d *DoH) SetServer(host string) {
+func (d *DoH) setServer(host string) {
 	d.url = "https://" + host
 	uri, err := url.Parse("//" + host)
 	if err != nil {
@@ -105,17 +98,6 @@ func (d *DoH) SetServer(host string) {
 	}
 
 	d.ClientUtil = utils.NewClientUtil(d.host, d.port)
-}
-
-func (d *DoH) GetServer() string {
-	return d.url
-}
-
-func (d *DoH) SetProxy(proxy proxy.Proxy) {
-	if proxy == nil {
-		return
-	}
-	d.setProxy(proxy.Conn)
 }
 
 func (d *DoH) setProxy(p func(string) (net.Conn, error)) {

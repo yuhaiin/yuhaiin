@@ -7,8 +7,9 @@ import (
 )
 
 func TestDOH(t *testing.T) {
+	_, s, _ := net.ParseCIDR("114.114.114.114/31")
 	// d := NewDoH("cloudflare-dns.com", nil)
-	d := NewDoH("public.dns.iij.jp", nil)
+	d := NewDoH("public.dns.iij.jp", s, nil)
 	// d := NewDOH("dns.google")
 	// d := NewDoH("dns.nextdns.io/e28bb3", nil)
 	// d := NewDoH("1.1.1.1", nil)
@@ -21,8 +22,6 @@ func TestDOH(t *testing.T) {
 	// d := NewDoH("doh.opendns.com", nil)
 	// _, s, _ := net.ParseCIDR("45.32.51.197/31")
 
-	_, s, _ := net.ParseCIDR("114.114.114.114/31")
-	d.SetSubnet(s)
 	//t.Log(d.LookupIP("plasma"))
 	t.Log(d.LookupIP("dc.services.visualstudio.com")) // -> will error, but not found reason
 	t.Log(d.LookupIP("i2.hdslb.com"))
@@ -58,10 +57,9 @@ func TestSplit(t *testing.T) {
 }
 
 func TestResolver(t *testing.T) {
-	// d := NewDoH("223.5.5.5", nil)
-	d := NewDoH("1.1.1.1", nil)
 	_, s, _ := net.ParseCIDR("114.114.114.114/31")
-	d.SetSubnet(s)
+	// d := NewDoH("223.5.5.5", nil)
+	d := NewDoH("1.1.1.1", s, nil)
 
 	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.baidu.com"))
 	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.google.com"))

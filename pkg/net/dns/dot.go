@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
@@ -20,9 +18,12 @@ type DoT struct {
 	sessionCache tls.ClientSessionCache
 }
 
-func NewDoT(host string, subnet *net.IPNet) *DoT {
+func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) *DoT {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
+	}
+	if p == nil {
+		p = &proxy.DefaultProxy{}
 	}
 	servername, _, _ := net.SplitHostPort(host)
 	return &DoT{
@@ -30,33 +31,8 @@ func NewDoT(host string, subnet *net.IPNet) *DoT {
 		subnet:       subnet,
 		servername:   servername,
 		sessionCache: tls.NewLRUClientSessionCache(0),
-		proxy: func(s string) (net.Conn, error) {
-			return net.DialTimeout("tcp", s, time.Second*5)
-		},
+		proxy:        p.Conn,
 	}
-}
-
-func (d *DoT) SetProxy(f proxy.Proxy) {
-	if f == nil {
-		d.proxy = func(s string) (net.Conn, error) {
-			return net.DialTimeout("tcp", s, time.Second*5)
-		}
-	}
-	d.proxy = f.Conn
-}
-
-func (d *DoT) SetServer(host string) {
-	if host == "" {
-		log.Println("set dot host is empty, skip")
-		return
-	}
-	d.host = host
-	servername, _, _ := net.SplitHostPort(host)
-	d.servername = servername
-}
-
-func (d *DoT) SetSubnet(subnet *net.IPNet) {
-	d.subnet = subnet
 }
 
 func (d *DoT) LookupIP(domain string) ([]net.IP, error) {

@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewMatcher(t *testing.T) {
-	matcher := NewMapper(dns.NewDoH("223.5.5.5", nil).LookupIP)
+	matcher := NewMapper(dns.NewDoH("223.5.5.5", nil, nil).LookupIP)
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	matcher.Insert("*.163.com", "163")
@@ -28,7 +28,7 @@ func TestNewMatcher(t *testing.T) {
 
 func BenchmarkMapper(b *testing.B) {
 	b.StopTimer()
-	matcher := NewMapper(dns.NewDoH("223.5.5.5", nil).LookupIP)
+	matcher := NewMapper(dns.NewDoH("223.5.5.5", nil, nil).LookupIP)
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	b.StartTimer()
