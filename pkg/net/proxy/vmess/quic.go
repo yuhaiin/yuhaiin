@@ -1,23 +1,23 @@
 package vmess
 
 import (
+	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
 )
 
-func QuicDial(network, address string, port int, host string, certPath string) (net.Conn, error) {
-	// conn, err := net.ListenUDP("udp")
-	// if err != nil {
-	// return nil, err
-	// }
-
+func QuicDial(network, address string, port int, certPath []string) (net.Conn, error) {
 	var addr *net.UDPAddr
 	var err error
+
 	switch network {
 	case "ip":
 		var ip net.IP
@@ -32,10 +32,7 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 				return nil, fmt.Errorf("can't get ip")
 			}
 		}
-		addr = &net.UDPAddr{
-			IP:   ip,
-			Port: port,
-		}
+		addr = &net.UDPAddr{IP: ip, Port: port}
 	default:
 		addr, err = net.ResolveUDPAddr("udp", address)
 		if err != nil {
@@ -43,28 +40,46 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 		}
 	}
 
-	// key, err := ioutil.ReadFile(keyPath)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// certPair, err := tls.X509KeyPair(cert, key)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	tlsConfig := &tls.Config{
-		ServerName:         host,
-		ClientSessionCache: tlsSessionCache,
+	root, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("get system cert pool failed: %v", err)
 	}
-	if certPath != "" {
-		cert, err := ioutil.ReadFile(certPath)
+	tlsConfig := &tls.Config{
+		RootCAs:                root,
+		ServerName:             address,
+		SessionTicketsDisabled: true,
+		NextProtos:             nil,
+		ClientSessionCache:     tlsSessionCache,
+	}
+
+	for i := range certPath {
+		if certPath[i] == "" {
+			continue
+		}
+		cert, err := ioutil.ReadFile(certPath[i])
 		if err != nil {
-			return nil, err
+			log.Println(err)
+			continue
 		}
 
-		tlsConfig.Certificates = append(tlsConfig.Certificates, tls.Certificate{
-			Certificate: [][]byte{cert},
-		})
+		block, _ := pem.Decode(cert)
+		if block == nil {
+			continue
+		}
+
+		certA, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			log.Printf("parse certificate failed: %v", err)
+			continue
+		}
+
+		tlsConfig.Certificates = append(
+			tlsConfig.Certificates,
+			tls.Certificate{
+				Certificate: [][]byte{certA.Raw},
+			},
+		)
+		tlsConfig.RootCAs.AddCert(certA)
 	}
 
 	quicConfig := &quic.Config{
@@ -79,7 +94,7 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 		return nil, err
 	}
 
-	session, err := quic.Dial(conn, addr, host, tlsConfig, quicConfig)
+	session, err := quic.DialContext(context.Background(), conn, addr, "", tlsConfig, quicConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -89,28 +104,13 @@ func QuicDial(network, address string, port int, host string, certPath string) (
 		return nil, err
 	}
 
-	return &interConn{
-		stream: stream,
-	}, nil
+	return &interConn{Stream: stream, local: session.LocalAddr(), remote: session.RemoteAddr()}, nil
 }
 
 type interConn struct {
-	net.Conn
-	stream quic.Stream
+	quic.Stream
 	local  net.Addr
 	remote net.Addr
-}
-
-func (c *interConn) Read(b []byte) (int, error) {
-	return c.stream.Read(b)
-}
-
-func (c *interConn) Write(b []byte) (int, error) {
-	return c.stream.Write(b)
-}
-
-func (c *interConn) Close() error {
-	return c.stream.Close()
 }
 
 func (c *interConn) LocalAddr() net.Addr {
@@ -119,16 +119,4 @@ func (c *interConn) LocalAddr() net.Addr {
 
 func (c *interConn) RemoteAddr() net.Addr {
 	return c.remote
-}
-
-func (c *interConn) SetDeadline(t time.Time) error {
-	return c.stream.SetDeadline(t)
-}
-
-func (c *interConn) SetReadDeadline(t time.Time) error {
-	return c.stream.SetReadDeadline(t)
-}
-
-func (c *interConn) SetWriteDeadline(t time.Time) error {
-	return c.stream.SetWriteDeadline(t)
 }

@@ -104,9 +104,9 @@ func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
 
 	switch v.net {
 	case "ws":
-		conn, err = WebsocketDial(conn, v.host, v.path, v.cert, v.tls)
+		conn, err = WebsocketDial(conn, v.host, v.path, []string{v.cert}, v.tls)
 	case "quic":
-		conn, err = QuicDial("udp", v.address, int(v.port), v.host, v.cert)
+		conn, err = QuicDial("udp", v.address, int(v.port), []string{v.cert})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("net create failed: %v", err)

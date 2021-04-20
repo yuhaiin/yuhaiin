@@ -16,15 +16,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type websocketConn struct {
-	net.Conn
-	conn   *websocket.Conn
-	reader io.Reader
-}
-
-func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable bool) (net.Conn, error) {
+func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnable bool) (net.Conn, error) {
 	x := &websocket.Dialer{
-		NetDial: func(network, addr string) (net.Conn, error) {
+		NetDial: func(string, string) (net.Conn, error) {
 			return conn, nil
 		},
 		ReadBufferSize:   4 * 1024,
@@ -37,47 +31,54 @@ func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable 
 	if tlsEnable {
 		//tls
 		protocol = "wss"
+
+		root, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("get x509 system cert pool failed: %v", err)
+		}
 		x.TLSClientConfig = &tls.Config{
-			ServerName: host,
-			// InsecureSkipVerify: true,
-			ClientSessionCache: tlsSessionCache,
+			ServerName:             host,
+			RootCAs:                root,
+			NextProtos:             []string{"http/1.1"},
+			InsecureSkipVerify:     false,
+			SessionTicketsDisabled: true,
+			ClientSessionCache:     tlsSessionCache,
 		}
 
-		if certPath != "" {
-			cert, err := ioutil.ReadFile(certPath)
+		for i := range certPath {
+			if certPath[i] == "" {
+				continue
+			}
+
+			cert, err := ioutil.ReadFile(certPath[i])
 			if err != nil {
 				return nil, err
 			}
 
-			pool, err := x509.SystemCertPool()
-			if err != nil {
-				return nil, fmt.Errorf("get x509 system cert pool failed: %v", err)
+			block, _ := pem.Decode(cert)
+			if block == nil {
+				continue
 			}
 
-			block, _ := pem.Decode(cert)
-			if block != nil {
-				certA, err := x509.ParseCertificate(block.Bytes)
-				if err != nil {
-					log.Printf("parse certificate failed: %v", err)
-				} else {
-					x.TLSClientConfig.Certificates = append(
-						x.TLSClientConfig.Certificates,
-						tls.Certificate{
-							Certificate: [][]byte{certA.Raw},
-						},
-					)
-					pool.AddCert(certA)
-				}
+			certA, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				log.Printf("parse certificate failed: %v", err)
+				continue
 			}
-			x.TLSClientConfig.ClientCAs = pool
+
+			x.TLSClientConfig.Certificates = append(
+				x.TLSClientConfig.Certificates,
+				tls.Certificate{
+					Certificate: [][]byte{certA.Raw},
+				},
+			)
+			x.TLSClientConfig.RootCAs.AddCert(certA)
 		}
 	}
 
-	uri := protocol + "://" + host + getNormalizedPath(path)
-
 	header := http.Header{}
 	header.Add("Host", host)
-
+	uri := fmt.Sprintf("%s://%s%s", protocol, host, getNormalizedPath(path))
 	webSocketConn, resp, err := x.Dial(uri, header)
 	if err != nil {
 		var reason string
@@ -87,9 +88,7 @@ func WebsocketDial(conn net.Conn, host, path string, certPath string, tlsEnable 
 		return nil, errors.New("failed to dial to (" + uri + "): " + reason)
 	}
 
-	return &websocketConn{
-		conn: webSocketConn,
-	}, nil
+	return &wsConn{Conn: webSocketConn}, nil
 
 }
 
@@ -105,7 +104,12 @@ func getNormalizedPath(path string) string {
 	return path
 }
 
-func (w *websocketConn) Read(b []byte) (int, error) {
+type wsConn struct {
+	*websocket.Conn
+	reader io.Reader
+}
+
+func (w *wsConn) Read(b []byte) (int, error) {
 	for {
 		reader, err := w.getReader()
 		if err != nil {
@@ -121,19 +125,20 @@ func (w *websocketConn) Read(b []byte) (int, error) {
 	}
 }
 
-func (w *websocketConn) Write(b []byte) (int, error) {
-	if err := w.conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
+func (w *wsConn) Write(b []byte) (int, error) {
+	err := w.Conn.WriteMessage(websocket.BinaryMessage, b)
+	if err != nil {
 		return 0, err
 	}
 	return len(b), nil
 }
 
-func (w *websocketConn) getReader() (io.Reader, error) {
+func (w *wsConn) getReader() (io.Reader, error) {
 	if w.reader != nil {
 		return w.reader, nil
 	}
 
-	_, reader, err := w.conn.NextReader()
+	_, reader, err := w.Conn.NextReader()
 	if err != nil {
 		return nil, err
 	}
@@ -141,30 +146,10 @@ func (w *websocketConn) getReader() (io.Reader, error) {
 	return reader, nil
 }
 
-func (w *websocketConn) LocalAddr() net.Addr {
-	return w.conn.LocalAddr()
-}
-
-func (w *websocketConn) RemoteAddr() net.Addr {
-	return w.conn.RemoteAddr()
-}
-
-func (w *websocketConn) SetDeadline(t time.Time) error {
-	err := w.conn.SetReadDeadline(t)
+func (w *wsConn) SetDeadline(t time.Time) error {
+	err := w.Conn.SetReadDeadline(t)
 	if err != nil {
 		return err
 	}
-	return w.conn.SetWriteDeadline(t)
-}
-
-func (w *websocketConn) SetReadDeadLine(t time.Time) error {
-	return w.conn.SetReadDeadline(t)
-}
-
-func (w *websocketConn) SetWriteDeadline(t time.Time) error {
-	return w.conn.SetWriteDeadline(t)
-}
-
-func (w *websocketConn) Close() error {
-	return w.conn.Close()
+	return w.Conn.SetWriteDeadline(t)
 }

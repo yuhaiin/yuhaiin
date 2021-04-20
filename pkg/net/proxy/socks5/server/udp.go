@@ -42,22 +42,23 @@ func udpHandle(b []byte, f proxy.Proxy) ([]byte, error) {
 	}
 
 	h := net.JoinHostPort(host, strconv.Itoa(port))
-	targetPacketConn, err := f.PacketConn(h)
+	conn, err := f.PacketConn(h)
 	if err != nil {
 		return nil, fmt.Errorf("get packetConn from f failed: %v", err)
 	}
-	defer targetPacketConn.Close()
+	defer conn.Close()
 
-	targetUDPAddr, err := net.ResolveUDPAddr("udp", h)
+	target, err := net.ResolveUDPAddr("udp", h)
 	if err != nil {
 		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}
-	_ = targetPacketConn.SetDeadline(time.Now().Add(time.Second * 10))
+	_ = conn.SetDeadline(time.Now().Add(time.Second * 10))
 
 	// write data to target and read the response back
-	fmt.Println("UDP write", targetPacketConn.LocalAddr(), "->", targetUDPAddr)
+	fmt.Println("UDP write", conn.LocalAddr(), "->", target)
 	// fmt.Println("write data:", data, "origin:", b)
-	if _, err := targetPacketConn.WriteTo(b[3+addrSize:], targetUDPAddr); err != nil {
+	_, err = conn.WriteTo(b[3+addrSize:], target)
+	if err != nil {
 		return nil, fmt.Errorf("write data to remote packetConn failed: %v", err)
 	}
 
@@ -66,7 +67,7 @@ func udpHandle(b []byte, f proxy.Proxy) ([]byte, error) {
 	// copy(respBuff[0:3], []byte{0, 0, 0})
 	copy(respBuff[:3+addrSize], b[:3+addrSize]) // copy addr []byte{0,0,0,addr...}
 
-	n, addr, err := targetPacketConn.ReadFrom(respBuff[3+addrSize:])
+	n, addr, err := conn.ReadFrom(respBuff[3+addrSize:])
 	if err != nil {
 		return nil, fmt.Errorf("read data From remote packetConn failed: %v", err)
 	}
