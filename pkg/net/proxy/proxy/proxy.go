@@ -10,8 +10,7 @@ type Proxy interface {
 	PacketConn(string) (net.PacketConn, error)
 }
 
-type DefaultProxy struct {
-}
+type DefaultProxy struct{}
 
 func (d *DefaultProxy) Conn(s string) (net.Conn, error) {
 	return net.DialTimeout("tcp", s, 15*time.Second)

@@ -10,8 +10,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	socks5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	ss5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	ss5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
@@ -94,7 +94,7 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	}
 	conn = s.cipher.StreamConn(conn)
 
-	target, err := socks5client.ParseAddr(host)
+	target, err := ss5client.ParseAddr(host)
 	if err != nil {
 		return nil, fmt.Errorf("parse host failed: %v", err)
 	}
@@ -106,7 +106,7 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 }
 
 //PacketConn .
-func (s *Shadowsocks) PacketConn(host string) (net.PacketConn, error) {
+func (s *Shadowsocks) PacketConn(string) (net.PacketConn, error) {
 	ip, err := net.ResolveIPAddr("ip", s.server)
 	if err != nil {
 		return nil, fmt.Errorf("resolve ip failed: %v", err)
@@ -114,11 +114,6 @@ func (s *Shadowsocks) PacketConn(host string) (net.PacketConn, error) {
 	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(ip.String(), s.port))
 	if err != nil {
 		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
-	}
-
-	target, err := socks5client.ParseAddr(host)
-	if err != nil {
-		return nil, fmt.Errorf("parse host failed: %v", err)
 	}
 
 	pc, err := net.ListenPacket("udp", "")
@@ -129,15 +124,13 @@ func (s *Shadowsocks) PacketConn(host string) (net.PacketConn, error) {
 
 	return &ssPacketConn{
 		PacketConn: pc,
-		target:     target,
 		add:        addr,
 	}, nil
 }
 
 type ssPacketConn struct {
 	net.PacketConn
-	target []byte
-	add    net.Addr
+	add net.Addr
 }
 
 func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
@@ -146,7 +139,7 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
 	}
 
-	host, port, addrSize, err := socks5server.ResolveAddr(b[:n])
+	host, port, addrSize, err := ss5server.ResolveAddr(b[:n])
 	if err != nil {
 		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
 	}
@@ -160,6 +153,10 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	return n - addrSize, addr, nil
 }
 
-func (v *ssPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
-	return v.PacketConn.WriteTo(bytes.Join([][]byte{v.target, b}, []byte{}), v.add)
+func (v *ssPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	target, err := ss5client.ParseAddr(addr.String())
+	if err != nil {
+		return 0, fmt.Errorf("parse target failed: %v", err)
+	}
+	return v.PacketConn.WriteTo(bytes.Join([][]byte{target, b}, []byte{}), v.add)
 }

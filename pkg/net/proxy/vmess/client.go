@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
-	gitsrcVmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
+	gcvmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -24,7 +23,7 @@ type Vmess struct {
 	netConfig
 
 	*utils.ClientUtil
-	client *gitsrcVmess.Client
+	client *gcvmess.Client
 }
 
 type netConfig struct {
@@ -47,7 +46,7 @@ func NewVmess(
 		return nil, fmt.Errorf("not support [fake type: %s] now", fakeType)
 	}
 
-	client, err := gitsrcVmess.NewClient(uuid, security, int(alterID))
+	client, err := gcvmess.NewClient(uuid, security, int(alterID))
 	if err != nil {
 		return nil, fmt.Errorf("new vmess client failed: %v", err)
 	}
@@ -85,7 +84,16 @@ func NewVmess(
 
 //Conn create a connection for host
 func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
-	conn, err = v.GetConn()
+	return v.conn("tcp", host)
+}
+
+//PacketConn packet transport connection
+func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
+	return v.conn("udp", host)
+}
+
+func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
+	conn, err := v.GetConn()
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %v", err)
 	}
@@ -96,83 +104,13 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 
 	switch v.net {
 	case "ws":
-		// conn, err = v.webSocket(conn)
 		conn, err = WebsocketDial(conn, v.host, v.path, v.cert, v.tls)
 	case "quic":
-		// conn, err = v.quic(conn)
 		conn, err = QuicDial("udp", v.address, int(v.port), v.host, v.cert)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("net create failed: %v", err)
 	}
 
-	return v.client.NewConn(conn, "tcp", host)
-}
-
-//PacketConn packet transport connection
-func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
-	c, err := v.GetConn()
-	if err != nil {
-		return nil, fmt.Errorf("get conn failed: %v", err)
-	}
-
-	if x, ok := c.(*net.TCPConn); ok {
-		_ = x.SetKeepAlive(true)
-	}
-
-	switch v.net {
-	case "ws":
-		c, err = WebsocketDial(c, v.host, v.path, v.cert, v.tls)
-	case "quic":
-		c, err = QuicDial("udp", v.address, int(v.port), v.host, v.cert)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("net create failed: %v", err)
-	}
-	c, err = v.client.NewConn(c, "udp", host)
-	if err != nil {
-		return nil, fmt.Errorf("vmess new conn failed: %v", err)
-	}
-
-	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(v.address, strconv.Itoa(int(v.port))))
-	if err != nil {
-		return nil, fmt.Errorf("resolve udp failed: %v", err)
-	}
-	return &vmessPacketConn{
-		conn: c,
-		addr: addr,
-	}, nil
-}
-
-type vmessPacketConn struct {
-	conn net.Conn
-	addr net.Addr
-}
-
-func (v *vmessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
-	i, err := v.conn.Read(b)
-	return i, v.addr, err
-}
-
-func (v *vmessPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
-	return v.conn.Write(b)
-}
-
-func (v *vmessPacketConn) Close() error {
-	return v.conn.Close()
-}
-
-func (v *vmessPacketConn) LocalAddr() net.Addr {
-	return v.conn.LocalAddr()
-}
-
-func (v *vmessPacketConn) SetDeadline(t time.Time) error {
-	return v.conn.SetDeadline(t)
-}
-
-func (v *vmessPacketConn) SetReadDeadline(t time.Time) error {
-	return v.conn.SetReadDeadline(t)
-}
-func (v *vmessPacketConn) SetWriteDeadline(t time.Time) error {
-	return v.conn.SetWriteDeadline(t)
+	return v.client.NewConn(conn, network, host)
 }

@@ -318,3 +318,12 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 
 	return c.dataReader.Read(b)
 }
+
+func (c *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, err := c.Read(b)
+	return n, c.RemoteAddr(), err
+}
+
+func (c *Conn) WriteTo(b []byte, _ net.Addr) (int, error) {
+	return c.Write(b)
+}
