@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -44,9 +43,15 @@ func QuicDial(network, address string, port int, certPath []string) (net.Conn, e
 	if err != nil {
 		return nil, fmt.Errorf("get system cert pool failed: %v", err)
 	}
+
+	ns, _, err := net.SplitHostPort(address)
+	if err != nil {
+		log.Printf("split host and port failed: %v", err)
+		ns = address
+	}
 	tlsConfig := &tls.Config{
 		RootCAs:                root,
-		ServerName:             address,
+		ServerName:             ns,
 		SessionTicketsDisabled: true,
 		NextProtos:             nil,
 		ClientSessionCache:     tlsSessionCache,
@@ -62,24 +67,29 @@ func QuicDial(network, address string, port int, certPath []string) (net.Conn, e
 			continue
 		}
 
-		block, _ := pem.Decode(cert)
-		if block == nil {
-			continue
+		ok := tlsConfig.RootCAs.AppendCertsFromPEM(cert)
+		if !ok {
+			log.Printf("add cert from pem failed.")
 		}
 
-		certA, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			log.Printf("parse certificate failed: %v", err)
-			continue
-		}
+		// block, _ := pem.Decode(cert)
+		// if block == nil {
+		// 	continue
+		// }
 
-		tlsConfig.Certificates = append(
-			tlsConfig.Certificates,
-			tls.Certificate{
-				Certificate: [][]byte{certA.Raw},
-			},
-		)
-		tlsConfig.RootCAs.AddCert(certA)
+		// certA, err := x509.ParseCertificate(block.Bytes)
+		// if err != nil {
+		// 	log.Printf("parse certificate failed: %v", err)
+		// 	continue
+		// }
+
+		// tlsConfig.Certificates = append(
+		// 	tlsConfig.Certificates,
+		// 	tls.Certificate{
+		// 		Certificate: [][]byte{certA.Raw},
+		// 	},
+		// )
+		// tlsConfig.RootCAs.AddCert(certA)
 	}
 
 	quicConfig := &quic.Config{
