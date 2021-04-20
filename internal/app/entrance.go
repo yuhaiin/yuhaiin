@@ -20,11 +20,11 @@ import (
 
 type Entrance struct {
 	config      *config.Config
-	LocalListen *Listener
-	Bypass      *BypassManager
+	localListen *Listener
 	nodeManager *subscr.NodeManager
 	shunt       *Shunt
 	dir         string
+	connManager *connManager
 
 	nodeHash string
 }
@@ -51,30 +51,16 @@ func NewEntrance(dir string) (e *Entrance, err error) {
 		return nil, fmt.Errorf("create shunt failed: %v", err)
 	}
 
-	// initialize Match Controller
-	if !e.config.GetSetting().GetBypass().GetEnabled() {
-		e.Bypass, err = NewBypassManager(nil, getDNS(s.LocalDNS))
-	} else {
-		e.Bypass, err = NewBypassManager(e.shunt, getDNS(s.LocalDNS))
-	}
-	if err != nil {
-		return nil, fmt.Errorf("create new bypass service failed: %v", err)
-	}
-
+	e.connManager = newConnManager(e.getBypass())
 	e.addObserver()
 	return e, nil
 }
 
 func (e *Entrance) Start() (err error) {
 	// initialize Local Servers Controller
-	e.LocalListen, err = NewListener(e.config.GetSetting().GetProxy(), e.Bypass)
+	e.localListen, err = NewListener(e.config.GetSetting().GetProxy(), e.connManager)
 	if err != nil {
 		return fmt.Errorf("create local listener failed: %v", err)
-	}
-
-	err = e.ChangeNode()
-	if err != nil {
-		log.Printf("changer node failed: %v\n", err)
 	}
 	return nil
 }
@@ -106,21 +92,12 @@ func (e *Entrance) addObserver() {
 	e.config.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(current.LocalDNS, old.LocalDNS) ||
 			current.Bypass.Enabled != old.Bypass.Enabled {
-
-			var err error
-			if !current.Bypass.Enabled {
-				e.Bypass, err = NewBypassManager(nil, getDNS(current.LocalDNS))
-			} else {
-				e.Bypass, err = NewBypassManager(e.shunt, getDNS(current.LocalDNS))
-			}
-			if err != nil {
-				fmt.Printf("local listener apply config failed: %v", err)
-			}
+			e.connManager.SetProxy(e.getBypass())
 		}
 	})
 
 	e.config.AddObserver(func(current, _ *config.Setting) {
-		e.LocalListen.SetServer(e.config.GetSetting().GetProxy())
+		e.localListen.SetServer(e.config.GetSetting().GetProxy())
 	})
 }
 
@@ -171,7 +148,7 @@ func (e *Entrance) ChangeNNode(group string, node string) (err error) {
 	if err != nil {
 		return fmt.Errorf("change now node failed: %v", err)
 	}
-	return e.ChangeNode()
+	return e.changeNode()
 }
 
 func (e *Entrance) GetNNodeAndNGroup() (node string, group string) {
@@ -251,32 +228,43 @@ func (e *Entrance) DeleteLink(name string) error {
 	return e.nodeManager.DeleteLink(name)
 }
 
-func (e *Entrance) ChangeNode() error {
-	if e.nodeManager.GetNodes().NowNode == nil {
+func (e *Entrance) changeNode() error {
+	if e.nodeManager.GetNodes().GetNowNode() == nil {
 		return errors.New("NowNode is nil")
 	}
-	if e.nodeHash == e.nodeManager.GetNowNode().NHash {
+	if e.nodeHash == e.nodeManager.GetNowNode().GetNHash() {
 		return nil
 	}
-
-	p, err := subscr.ParseNodeConn(e.nodeManager.GetNodes().NowNode)
-	if err != nil {
-		return fmt.Errorf("now node to conn failed: %v", err)
-	}
-
-	e.nodeHash = e.nodeManager.GetNowNode().NHash
-
-	e.Bypass.SetProxy(p)
-
+	e.nodeHash = e.nodeManager.GetNowNode().GetNHash()
+	e.connManager.SetProxy(e.getBypass())
 	return nil
 }
 
+func (e *Entrance) getNowNode() (p proxy.Proxy) {
+	var err error
+	p, err = subscr.ParseNodeConn(e.nodeManager.GetNodes().GetNowNode())
+	if err != nil {
+		log.Printf("now node to conn failed: %v", err)
+		p = &proxy.DefaultProxy{}
+	}
+
+	return p
+}
+
+func (e *Entrance) getBypass() proxy.Proxy {
+	if !e.config.GetSetting().Bypass.Enabled {
+		return NewBypassManager(nil, getDNS(e.config.GetSetting().GetLocalDNS()), e.getNowNode())
+	} else {
+		return NewBypassManager(e.shunt, getDNS(e.config.GetSetting().GetLocalDNS()), e.getNowNode())
+	}
+}
+
 func (e *Entrance) GetDownload() uint64 {
-	return e.Bypass.GetDownload()
+	return e.connManager.GetDownload()
 }
 
 func (e *Entrance) GetUpload() uint64 {
-	return e.Bypass.GetUpload()
+	return e.connManager.GetUpload()
 }
 
 func (e *Entrance) Latency(group, mark string) (time.Duration, error) {

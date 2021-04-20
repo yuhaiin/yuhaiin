@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
 type connManager struct {
@@ -13,17 +15,31 @@ type connManager struct {
 	download uint64
 	upload   uint64
 	idSeed   *idGenerater
+	proxy    proxy.Proxy
 }
 
-func newConnManager() *connManager {
+func newConnManager(p proxy.Proxy) *connManager {
+	if p == nil {
+		p = &proxy.DefaultProxy{}
+	}
+
 	c := &connManager{
 		download: 0,
 		upload:   0,
 
 		idSeed: &idGenerater{},
+		proxy:  p,
 	}
 
 	return c
+}
+
+func (c *connManager) SetProxy(p proxy.Proxy) {
+	if p == nil {
+		p = &proxy.DefaultProxy{}
+	}
+
+	c.proxy = p
 }
 
 func (c *connManager) GetDownload() uint64 {
@@ -120,6 +136,16 @@ func (c *connManager) newPacketConn(addr string, x net.PacketConn) net.PacketCon
 	c.addPacketConn(s)
 
 	return s
+}
+
+func (c *connManager) Conn(host string) (net.Conn, error) {
+	conn, err := c.proxy.Conn(host)
+	return c.newConn(host, conn), err
+}
+
+func (c *connManager) PacketConn(host string) (net.PacketConn, error) {
+	conn, err := c.proxy.PacketConn(host)
+	return c.newPacketConn(host, conn), err
 }
 
 type statisticConn struct {
