@@ -73,6 +73,17 @@ func (t *TCPServer) getProxy() Proxy {
 	return &DefaultProxy{}
 }
 
+func (t *TCPServer) Conn(host string) (net.Conn, error) {
+	if t.listener.Addr().String() == host {
+		return nil, fmt.Errorf("access host same as listener: %v", t.listener.Addr())
+	}
+	return t.getProxy().Conn(host)
+}
+
+func (t *TCPServer) PacketConn(host string) (net.PacketConn, error) {
+	return t.getProxy().PacketConn(host)
+}
+
 func (t *TCPServer) GetListenHost() string {
 	return t.host
 }
@@ -130,7 +141,7 @@ func (t *TCPServer) process() error {
 
 		go func() {
 			defer c.Close()
-			t.handle(c, t.getProxy())
+			t.handle(c, t)
 		}()
 	}
 }

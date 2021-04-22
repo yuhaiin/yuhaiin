@@ -90,6 +90,17 @@ func (u *UDPServer) run() (err error) {
 	return nil
 }
 
+func (t *UDPServer) Conn(host string) (net.Conn, error) {
+	return t.getProxy().Conn(host)
+}
+
+func (t *UDPServer) PacketConn(host string) (net.PacketConn, error) {
+	if t.listener.LocalAddr().String() == host {
+		return nil, fmt.Errorf("access host same as listener: %v", t.listener.LocalAddr())
+	}
+	return t.getProxy().PacketConn(host)
+}
+
 func (u *UDPServer) process() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
@@ -126,7 +137,7 @@ func (u *UDPServer) process() error {
 
 		tempDelay = 0
 		go func() {
-			data, err := u.handle(b[:n], u.getProxy())
+			data, err := u.handle(b[:n], u)
 			if err != nil {
 				log.Printf("udp handle failed: %v", err)
 				return
