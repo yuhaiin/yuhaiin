@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
@@ -20,7 +19,6 @@ func ParseLink(link []byte, group string) (*utils.Point, error) {
 	decodeStr := strings.Split(utils.DecodeUrlBase64(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 
 	p := &utils.Point{
-		NType:   utils.Point_shadowsocksr,
 		NOrigin: utils.Point_remote,
 		NGroup:  group,
 	}
@@ -42,11 +40,7 @@ func ParseLink(link []byte, group string) (*utils.Point, error) {
 		n.Protoparam = utils.DecodeUrlBase64(query.Get("protoparam"))
 		p.NName = "[ssr]" + utils.DecodeUrlBase64(query.Get("remarks"))
 	}
-	data, err := protojson.Marshal(n)
-	if err != nil {
-		return nil, fmt.Errorf("shadowsocksr marshal failed: %v", err)
-	}
-	p.Data = data
+	p.Node = &utils.Point_Shadowsocksr{Shadowsocksr: n}
 	z := sha256.Sum256([]byte(p.String()))
 	p.NHash = hex.EncodeToString(z[:])
 
@@ -65,10 +59,9 @@ func ParseLinkManual(link []byte, group string) (*utils.Point, error) {
 
 // ParseConn parse a ssr map to conn function
 func ParseConn(n *utils.Point) (proxy.Proxy, error) {
-	s := new(utils.Shadowsocksr)
-	err := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(n.Data, s)
-	if err != nil {
-		return nil, err
+	s := n.GetShadowsocksr()
+	if s == nil {
+		return nil, fmt.Errorf("can't get shadowsocksr message")
 	}
 	ssr, err := ssrClient.NewShadowsocksrClient(
 		s.Server, s.Port,

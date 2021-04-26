@@ -241,13 +241,14 @@ func ParseNodeConn(s *utils.Point) (proxy.Proxy, error) {
 		return nil, errors.New("not support type")
 	}
 
-	switch s.NType {
-	case utils.Point_shadowsocks:
+	switch s.Node.(type) {
+	case *utils.Point_Shadowsocks:
 		return ss.ParseConn(s)
-	case utils.Point_shadowsocksr:
+	case *utils.Point_Shadowsocksr:
 		return ssr.ParseConn(s)
-	case utils.Point_vmess:
+	case *utils.Point_Vmess:
 		return vmess.ParseConn(s)
 	}
+
 	return nil, errors.New("not support type")
 }

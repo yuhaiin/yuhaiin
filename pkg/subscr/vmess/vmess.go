@@ -47,17 +47,11 @@ func ParseLink(str []byte, group string) (*utils.Point, error) {
 
 	}
 
-	d, err := protojson.Marshal(n)
-	if err != nil {
-		return nil, fmt.Errorf("marshal failed: %v", err)
-	}
-
 	p := &utils.Point{
 		NName:   "[vmess]" + n.Ps,
 		NGroup:  group,
-		NType:   utils.Point_vmess,
 		NOrigin: utils.Point_remote,
-		Data:    d,
+		Node:    &utils.Point_Vmess{Vmess: n},
 	}
 	z := sha256.Sum256([]byte(p.String()))
 	p.NHash = hex.EncodeToString(z[:])
@@ -76,10 +70,9 @@ func ParseLinkManual(link []byte, group string) (*utils.Point, error) {
 
 //ParseConn parse map to net.Conn
 func ParseConn(n *utils.Point) (proxy.Proxy, error) {
-	x := new(utils.Vmess)
-	err := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(n.Data, x)
-	if err != nil {
-		return nil, fmt.Errorf("parse vmess map failed: %v", err)
+	x := n.GetVmess()
+	if x == nil {
+		return nil, fmt.Errorf("can't get vmess message")
 	}
 
 	port, err := strconv.Atoi(x.Port)

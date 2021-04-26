@@ -6,23 +6,20 @@ option go_package = "github.com/Asutorufa/yuhaiin/subscr/utils";
 
 
 message point{
-    enum proxy_type{
-        proxy_type_reserve = 0;
-        shadowsocks = 1;
-        shadowsocksr = 2;
-        vmess = 3;
-    }
-    proxy_type n_type = 1 [json_name="yuhaiin_type"];
-    string n_hash = 2 [json_name="yuhaiin_hash"];
-    string n_name = 3 [json_name="yuhaiin_name"];
-    string n_group = 4 [json_name="yuhaiin_group"];
+    string n_hash = 1 [json_name="yuhaiin_hash"];
+    string n_name = 2 [json_name="yuhaiin_name"];
+    string n_group = 3 [json_name="yuhaiin_group"];
     enum origin{
         node_origin_reserve = 0;
         remote = 101;
         manual = 102;
     }
-    origin n_origin = 5 [json_name="yuhaiin_origin"];
-    bytes data = 6 [json_name="data"];
+    origin n_origin = 4 [json_name="yuhaiin_origin"];
+    oneof node{
+        shadowsocks shadowsocks = 5 [json_name="shadowsocks"];
+        shadowsocksr shadowsocksr = 6 [json_name="shadowsocksr"];
+        vmess vmess = 7 [json_name="vmess"];
+    }
 }
 
 message shadowsocks{
