@@ -81,7 +81,7 @@ func NewShadowsocks(cipherName string, password string, server, port string,
 func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	conn, err = s.GetConn()
 	if err != nil {
-		return nil, fmt.Errorf("[ss] dial to %s -> %v", s.server, err)
+		return nil, fmt.Errorf("dial to %s failed: %v", s.server, err)
 	}
 
 	if x, ok := conn.(*net.TCPConn); ok {
@@ -100,7 +100,7 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	}
 
 	if _, err = conn.Write(target); err != nil {
-		return nil, fmt.Errorf("conn.Write -> host: %s, error: %v", host, err)
+		return nil, fmt.Errorf("shadowsocks write target failed: %v", err)
 	}
 	return conn, nil
 }

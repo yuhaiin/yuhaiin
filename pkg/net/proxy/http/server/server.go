@@ -46,15 +46,9 @@ _start:
 		return
 	}
 
-	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
-		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
-
 	err = verifyUserPass(user, key, src, req)
 	if err != nil {
 		log.Printf("http verify user pass failed: %v\n", err)
-		if keepAlive {
-			goto _start
-		}
 		return
 	}
 
@@ -83,6 +77,9 @@ _start:
 		connect(src, dstc)
 		return
 	}
+
+	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
+		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
 
 	err = normal(src, dstc, req, keepAlive)
 	if err != nil {
