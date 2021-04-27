@@ -27,10 +27,11 @@ type Vmess struct {
 }
 
 type netConfig struct {
-	tls  bool
-	path string
-	host string
-	cert string
+	tls                bool
+	insecureSkipVerify bool
+	path               string
+	host               string
+	cert               string
 }
 
 //NewVmess create new Vmess Client
@@ -40,7 +41,7 @@ func NewVmess(
 	fakeType string,
 	alterID uint32,
 	netType, netPath, netHost string,
-	tls bool, cert string,
+	tls bool, insecureSkipVerify bool, cert string,
 ) (proxy.Proxy, error) {
 	if fakeType != "none" {
 		return nil, fmt.Errorf("not support [fake type: %s] now", fakeType)
@@ -62,7 +63,8 @@ func NewVmess(
 		net:        netType,
 		ClientUtil: utils.NewClientUtil(address, strconv.FormatUint(uint64(port), 10)),
 		netConfig: netConfig{
-			tls: tls,
+			tls:                tls,
+			insecureSkipVerify: insecureSkipVerify,
 		},
 	}
 
@@ -104,9 +106,9 @@ func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
 
 	switch v.net {
 	case "ws":
-		conn, err = WebsocketDial(conn, v.host, v.path, []string{v.cert}, v.tls)
+		conn, err = WebsocketDial(conn, v.host, v.path, []string{v.cert}, v.tls, v.insecureSkipVerify)
 	case "quic":
-		conn, err = QuicDial("udp", v.address, int(v.port), []string{v.cert})
+		conn, err = QuicDial("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("net create failed: %v", err)

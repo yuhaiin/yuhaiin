@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	libVmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 //ParseLink parse vmess link
@@ -94,7 +93,8 @@ func ParseConn(n *utils.Point) (proxy.Proxy, error) {
 		x.Net,
 		x.Path,
 		x.Host,
-		false,
+		x.Tls == "tls",
+		!x.VerifyCert,
 		"",
 	)
 	if err != nil {

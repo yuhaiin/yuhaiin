@@ -13,7 +13,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 )
 
-func QuicDial(network, address string, port int, certPath []string) (net.Conn, error) {
+func QuicDial(network, address string, port int, certPath []string, insecureSkipVerify bool) (net.Conn, error) {
 	var addr *net.UDPAddr
 	var err error
 
@@ -54,6 +54,7 @@ func QuicDial(network, address string, port int, certPath []string) (net.Conn, e
 		ServerName:             ns,
 		SessionTicketsDisabled: true,
 		NextProtos:             nil,
+		InsecureSkipVerify:     insecureSkipVerify,
 		ClientSessionCache:     tlsSessionCache,
 	}
 

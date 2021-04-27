@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnable bool) (net.Conn, error) {
+func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnable bool, insecureSkipVerify bool) (net.Conn, error) {
 	x := &websocket.Dialer{
 		NetDial: func(string, string) (net.Conn, error) {
 			return conn, nil
@@ -43,7 +43,7 @@ func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnabl
 			ServerName:             ns,
 			RootCAs:                root,
 			NextProtos:             []string{"http/1.1"},
-			InsecureSkipVerify:     false,
+			InsecureSkipVerify:     insecureSkipVerify,
 			SessionTicketsDisabled: true,
 			ClientSessionCache:     tlsSessionCache,
 		}
