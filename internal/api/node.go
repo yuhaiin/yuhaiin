@@ -8,12 +8,14 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+var _ NodeServer = (*Node)(nil)
+
 type Node struct {
 	UnimplementedNodeServer
 	entrance *app.Entrance
 }
 
-func NewNode(e *app.Entrance) *Node {
+func NewNode(e *app.Entrance) NodeServer {
 	return &Node{
 		entrance: e,
 	}

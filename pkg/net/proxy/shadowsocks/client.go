@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
 	ss5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	ss5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"

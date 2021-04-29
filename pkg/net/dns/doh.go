@@ -17,6 +17,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
+var _ DNS = (*DoH)(nil)
+
 type DoH struct {
 	DNS
 	*utils.ClientUtil
@@ -156,6 +158,9 @@ func (d *DoH) Resolver() *net.Resolver {
 		},
 	}
 }
+
+var _ net.Conn = (*dohResolverDial)(nil)
+var _ net.PacketConn = (*dohResolverDial)(nil)
 
 type dohResolverDial struct {
 	host       string

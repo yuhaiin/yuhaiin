@@ -12,15 +12,16 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+var _ ProcessInitServer = (*Process)(nil)
+
 type Process struct {
 	UnimplementedProcessInitServer
-
 	singleInstance chan bool
 	message        chan string
 	manager        *app.Manager
 }
 
-func NewProcess(e *app.Manager) *Process {
+func NewProcess(e *app.Manager) ProcessInitServer {
 	return &Process{
 		manager: e,
 	}

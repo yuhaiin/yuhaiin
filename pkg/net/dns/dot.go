@@ -9,6 +9,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
+var _ DNS = (*DoT)(nil)
+
 type DoT struct {
 	host         string
 	servername   string

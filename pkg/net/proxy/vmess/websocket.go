@@ -94,6 +94,8 @@ func getNormalizedPath(path string) string {
 	return path
 }
 
+var _ net.Conn = (*wsConn)(nil)
+
 type wsConn struct {
 	*websocket.Conn
 	reader io.Reader

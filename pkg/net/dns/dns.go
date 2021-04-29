@@ -66,6 +66,8 @@ var (
 	ANY  = reqType{0b00000000, 0b11111111} // 255
 )
 
+var _ DNS = (*NormalDNS)(nil)
+
 type NormalDNS struct {
 	DNS
 	Server string

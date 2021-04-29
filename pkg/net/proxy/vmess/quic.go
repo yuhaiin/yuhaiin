@@ -118,6 +118,8 @@ func QuicDial(network, address string, port int, certPath []string, insecureSkip
 	return &interConn{Stream: stream, local: session.LocalAddr(), remote: session.RemoteAddr()}, nil
 }
 
+var _ net.Conn = (*interConn)(nil)
+
 type interConn struct {
 	quic.Stream
 	local  net.Addr

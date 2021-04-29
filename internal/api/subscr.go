@@ -9,12 +9,14 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+var _ SubscribeServer = (*Subscribe)(nil)
+
 type Subscribe struct {
 	UnimplementedSubscribeServer
 	entrance *app.Entrance
 }
 
-func NewSubscribe(e *app.Entrance) *Subscribe {
+func NewSubscribe(e *app.Entrance) SubscribeServer {
 	return &Subscribe{
 		entrance: e,
 	}

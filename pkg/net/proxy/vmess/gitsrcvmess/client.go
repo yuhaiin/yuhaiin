@@ -40,6 +40,9 @@ const (
 	CmdUDP byte = 2
 )
 
+var _ net.Conn = (*Conn)(nil)
+var _ net.PacketConn = (*Conn)(nil)
+
 // Client vmess client
 type Client struct {
 	users    []*User

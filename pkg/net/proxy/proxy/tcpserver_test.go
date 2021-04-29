@@ -5,6 +5,11 @@ import (
 	"testing"
 )
 
+func TestImplementTCPServer(t *testing.T) {
+	var _ Proxy = new(TCPServer)
+	var _ Server = new(TCPServer)
+}
+
 func TestNew(t *testing.T) {
 	s, err := NewTCPServer("127.0.0.1:1081", func(c net.Conn, p Proxy) {})
 	if err != nil {

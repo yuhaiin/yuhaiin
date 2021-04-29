@@ -7,7 +7,15 @@ import (
 	"net"
 	"net/http"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
+
+func TestImplement(t *testing.T) {
+	// make sure implement
+	var _ proxy.Proxy = (*Vmess)(nil)
+
+}
 
 func TestNewVmess(t *testing.T) {
 	v, err := NewVmess(

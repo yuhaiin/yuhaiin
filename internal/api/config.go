@@ -17,7 +17,7 @@ type Config struct {
 	entrance *app.Entrance
 }
 
-func NewConfig(e *app.Entrance) *Config {
+func NewConfig(e *app.Entrance) ConfigServer {
 	return &Config{
 		entrance: e,
 	}
