@@ -12,6 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+var _ ConfigServer = (*Config)(nil)
+
 type Config struct {
 	UnimplementedConfigServer
 	entrance *app.Entrance
