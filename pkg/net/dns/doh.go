@@ -17,9 +17,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-var _ DNS = (*DoH)(nil)
+var _ DNS = (*doh)(nil)
 
-type DoH struct {
+type doh struct {
 	DNS
 	*utils.ClientUtil
 
@@ -38,7 +38,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
-	dns := &DoH{
+	dns := &doh{
 		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),
 	}
@@ -58,7 +58,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 
 // LookupIP .
 // https://tools.ietf.org/html/rfc8484
-func (d *DoH) LookupIP(domain string) (ip []net.IP, err error) {
+func (d *doh) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
@@ -68,7 +68,7 @@ func (d *DoH) LookupIP(domain string) (ip []net.IP, err error) {
 	return
 }
 
-func (d *DoH) search(domain string) ([]net.IP, error) {
+func (d *doh) search(domain string) ([]net.IP, error) {
 	DNS, err := dnsHandle(domain, d.Subnet, d.post)
 	if err != nil || len(DNS) == 0 {
 		return nil, fmt.Errorf("doh resolve domain %s failed: %v", domain, err)
@@ -76,7 +76,7 @@ func (d *DoH) search(domain string) ([]net.IP, error) {
 	return DNS, nil
 }
 
-func (d *DoH) setServer(host string) {
+func (d *doh) setServer(host string) {
 	d.url = "https://" + host
 	uri, err := url.Parse("//" + host)
 	if err != nil {
@@ -96,7 +96,7 @@ func (d *DoH) setServer(host string) {
 	d.ClientUtil = utils.NewClientUtil(d.host, d.port)
 }
 
-func (d *DoH) setProxy(p func(string) (net.Conn, error)) {
+func (d *doh) setProxy(p func(string) (net.Conn, error)) {
 	d.Proxy = p
 	d.httpClient = &http.Client{
 		Transport: &http.Transport{
@@ -115,7 +115,7 @@ func (d *DoH) setProxy(p func(string) (net.Conn, error)) {
 	}
 }
 
-func (d *DoH) get(dReq []byte) (body []byte, err error) {
+func (d *doh) get(dReq []byte) (body []byte, err error) {
 	query := strings.Replace(base64.URLEncoding.EncodeToString(dReq), "=", "", -1)
 	urls := d.url + "?dns=" + query
 	res, err := d.httpClient.Get(urls)
@@ -131,7 +131,7 @@ func (d *DoH) get(dReq []byte) (body []byte, err error) {
 }
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
-func (d *DoH) post(dReq []byte) (body []byte, err error) {
+func (d *doh) post(dReq []byte) (body []byte, err error) {
 	resp, err := d.httpClient.Post(d.url, "application/dns-message", bytes.NewReader(dReq))
 	if err != nil {
 		return nil, fmt.Errorf("doh post failed: %v", err)
@@ -144,7 +144,7 @@ func (d *DoH) post(dReq []byte) (body []byte, err error) {
 	return
 }
 
-func (d *DoH) Resolver() *net.Resolver {
+func (d *doh) Resolver() *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(context.Context, string, string) (net.Conn, error) {

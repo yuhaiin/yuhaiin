@@ -11,6 +11,20 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
+type DNS interface {
+	LookupIP(domain string) ([]net.IP, error)
+	Resolver() *net.Resolver
+}
+
+func dnsHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, error)) ([]net.IP, error) {
+	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
+	b, err := f(req)
+	if err != nil {
+		return nil, err
+	}
+	return Resolve(req, b)
+}
+
 type DNSType int
 
 const (
@@ -18,27 +32,6 @@ const (
 	DNSOverHTTPS
 	DNSOverTLS
 )
-
-type DNS interface {
-	LookupIP(domain string) ([]net.IP, error)
-	Resolver() *net.Resolver
-}
-
-func dnsHandle(domain string, subnet *net.IPNet,
-	reqF func(reqData []byte) (body []byte, err error)) (DNS []net.IP, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("Recovering from panic in resolve DNS(%s) error is: %v \n", domain, r)
-			err = fmt.Errorf("recovering from panic in resolve DNS(%s) error is: %v", domain, r)
-		}
-	}()
-	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
-	b, err := reqF(req)
-	if err != nil {
-		return nil, err
-	}
-	return Resolve(req, b)
-}
 
 func NewDNS(host string, dnsType DNSType, subnet *net.IPNet, p proxy.Proxy) DNS {
 	switch dnsType {
@@ -50,40 +43,39 @@ func NewDNS(host string, dnsType DNSType, subnet *net.IPNet, p proxy.Proxy) DNS 
 	return NewNormalDNS(host, subnet, p)
 }
 
-var _ DNS = (*NormalDNS)(nil)
+var _ DNS = (*dns)(nil)
 
-type NormalDNS struct {
+type dns struct {
 	DNS
 	Server string
 	Subnet *net.IPNet
 	cache  *utils.LRU
-	proxy  func(string) (net.PacketConn, error)
+	proxy  proxy.Proxy
 }
 
 func NewNormalDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
+
 	if p == nil {
 		p = &proxy.DefaultProxy{}
 	}
 
-	return &NormalDNS{
+	return &dns{
 		Server: host,
 		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),
-		proxy:  p.PacketConn,
+		proxy:  p,
 	}
 }
 
 // LookupIP resolve domain return net.IP array
-func (n *NormalDNS) LookupIP(domain string) (DNS []net.IP, err error) {
+func (n *dns) LookupIP(domain string) (DNS []net.IP, err error) {
 	if x, _ := n.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	DNS, err = dnsHandle(domain, n.Subnet, func(data []byte) ([]byte, error) {
-		return udpDial(data, n.Server, n.proxy)
-	})
+	DNS, err = dnsHandle(domain, n.Subnet, n.udp)
 	if err != nil || len(DNS) == 0 {
 		return nil, fmt.Errorf("normal resolve domain %s failed: %v", domain, err)
 	}
@@ -91,7 +83,7 @@ func (n *NormalDNS) LookupIP(domain string) (DNS []net.IP, err error) {
 	return
 }
 
-func (n *NormalDNS) Resolver() *net.Resolver {
+func (n *dns) Resolver() *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -99,21 +91,17 @@ func (n *NormalDNS) Resolver() *net.Resolver {
 		},
 	}
 }
-func udpDial(req []byte, DNSServer string, proxy func(string) (net.PacketConn, error)) (data []byte, err error) {
+
+func (n *dns) udp(req []byte) (data []byte, err error) {
 	var b = *utils.BuffPool.Get().(*[]byte)
 	defer utils.BuffPool.Put(&(b))
 
-	addr, err := net.ResolveUDPAddr("udp", DNSServer)
+	addr, err := net.ResolveUDPAddr("udp", n.Server)
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %v", err)
 	}
 
-	var conn net.PacketConn
-	if proxy != nil {
-		conn, err = proxy(DNSServer)
-	} else {
-		conn, err = net.ListenPacket("udp", "")
-	}
+	conn, err := n.proxy.PacketConn(n.Server)
 	if err != nil {
 		return nil, fmt.Errorf("get packetConn failed: %v", err)
 	}
@@ -126,6 +114,6 @@ func udpDial(req []byte, DNSServer string, proxy func(string) (net.PacketConn, e
 		return nil, err
 	}
 
-	n, _, err := conn.ReadFrom(b[:])
-	return b[:n], err
+	nn, _, err := conn.ReadFrom(b)
+	return b[:nn], err
 }

@@ -9,9 +9,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
-var _ DNS = (*DoT)(nil)
+var _ DNS = (*dot)(nil)
 
-type DoT struct {
+type dot struct {
 	host         string
 	servername   string
 	subnet       *net.IPNet
@@ -27,7 +27,7 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 		p = &proxy.DefaultProxy{}
 	}
 	servername, _, _ := net.SplitHostPort(host)
-	return &DoT{
+	return &dot{
 		host:         host,
 		subnet:       subnet,
 		servername:   servername,
@@ -36,7 +36,7 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	}
 }
 
-func (d *DoT) LookupIP(domain string) ([]net.IP, error) {
+func (d *dot) LookupIP(domain string) ([]net.IP, error) {
 	conn, err := d.proxy(d.host)
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial failed: %v", err)
@@ -68,7 +68,7 @@ func (d *DoT) LookupIP(domain string) ([]net.IP, error) {
 	})
 }
 
-func (d *DoT) Resolver() *net.Resolver {
+func (d *dot) Resolver() *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {

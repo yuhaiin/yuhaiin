@@ -78,13 +78,19 @@ type resolver struct {
 	h       respHeader
 }
 
-func Resolve(req, answer []byte) ([]net.IP, error) {
+func Resolve(req, answer []byte) (resp []net.IP, err error) {
+	defer func() {
+		r := recover()
+		if r != nil {
+			err = fmt.Errorf("recovering from panic resolve: %v", r)
+		}
+	}()
 	r := &resolver{request: req, aswer: answer}
-	err := r.header()
+	err = r.header()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := r.answer()
+	resp, err = r.answer()
 	if err != nil {
 		return nil, err
 	}

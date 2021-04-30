@@ -61,8 +61,8 @@ func TestResolver(t *testing.T) {
 	// d := NewDoH("223.5.5.5", nil)
 	d := NewDoH("1.1.1.1", s, nil)
 
-	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.baidu.com"))
-	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.google.com"))
-	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.cloudflare.com"))
-	t.Log(d.(*DoH).Resolver().LookupHost(context.Background(), "www.apple.com"))
+	t.Log(d.(*doh).Resolver().LookupHost(context.Background(), "www.baidu.com"))
+	t.Log(d.(*doh).Resolver().LookupHost(context.Background(), "www.google.com"))
+	t.Log(d.(*doh).Resolver().LookupHost(context.Background(), "www.cloudflare.com"))
+	t.Log(d.(*doh).Resolver().LookupHost(context.Background(), "www.apple.com"))
 }
