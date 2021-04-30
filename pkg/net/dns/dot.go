@@ -46,7 +46,7 @@ func (d *DoT) LookupIP(domain string) ([]net.IP, error) {
 		ClientSessionCache: d.sessionCache,
 	})
 	defer conn.Close()
-	return dnsCommon(domain, d.subnet, func(reqData []byte) (body []byte, err error) {
+	return dnsHandle(domain, d.subnet, func(reqData []byte) (body []byte, err error) {
 		length := len(reqData) // dns over tcp, prefix two bytes is request data's length
 		reqData = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, reqData...)
 		_, err = conn.Write(reqData)

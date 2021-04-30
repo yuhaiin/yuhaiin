@@ -69,13 +69,7 @@ func (d *DoH) LookupIP(domain string) (ip []net.IP, err error) {
 }
 
 func (d *DoH) search(domain string) ([]net.IP, error) {
-	DNS, err := dnsCommon(
-		domain,
-		d.Subnet,
-		func(data []byte) ([]byte, error) {
-			return d.post(data)
-		},
-	)
+	DNS, err := dnsHandle(domain, d.Subnet, d.post)
 	if err != nil || len(DNS) == 0 {
 		return nil, fmt.Errorf("doh resolve domain %s failed: %v", domain, err)
 	}

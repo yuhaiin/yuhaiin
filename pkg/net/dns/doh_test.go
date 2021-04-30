@@ -7,7 +7,7 @@ import (
 )
 
 func TestDOH(t *testing.T) {
-	_, s, _ := net.ParseCIDR("114.114.114.114/31")
+	_, s, _ := net.ParseCIDR("1.1.1.1/28")
 	// d := NewDoH("cloudflare-dns.com", nil)
 	// d := NewDoH("public.dns.iij.jp", s, nil)
 	// d := NewDOH("dns.google")
@@ -17,15 +17,15 @@ func TestDOH(t *testing.T) {
 	d := NewDoH("223.5.5.5", s, nil)
 	// d := NewDOH("doh.pub")
 	// d := NewDoH("101.6.6.6:8443", nil)
-	//d := NewDOH("doh.360.cn")
+	// d := NewDoH("doh.360.cn", s, nil)
 	// d := NewDOH("doh.dns.sb")
 	// d := NewDoH("doh.opendns.com", nil)
 	// _, s, _ := net.ParseCIDR("45.32.51.197/31")
-
 	//t.Log(d.LookupIP("plasma"))
 	t.Log(d.LookupIP("dc.services.visualstudio.com")) // -> will error, but not found reason
 	t.Log(d.LookupIP("i2.hdslb.com"))
 	t.Log(d.LookupIP("www.baidu.com"))
+	t.Log(d.LookupIP("push.services.mozilla.com"))
 	//t.Log(d.LookupIP("baidu.com"))
 	//t.Log(d.LookupIP("ss1.bdstatic.com"))
 	//t.Log(d.LookupIP("dns.nextdns.io"))
