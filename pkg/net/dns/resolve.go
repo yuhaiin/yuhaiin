@@ -104,7 +104,7 @@ func (r *resolver) header() (err error) {
 		return errors.New("id not same")
 	}
 
-	if r.aswer[2]&8 != 0 { // check the QR is 1(Answer)
+	if r.aswer[2]&128 != 0 { // check the QR is 1(Answer)
 		return errors.New("the qr is not 1(Answer)")
 	}
 
@@ -297,7 +297,7 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 		return header, nil, errors.New("id not same")
 	}
 
-	if answer[2]&8 != 0 { // check the QR is 1(Answer)
+	if answer[2]&128 != 0 { // check the QR is 1(Answer)
 		return header, nil, errors.New("the qr is not 1(Answer)")
 	}
 

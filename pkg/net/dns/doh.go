@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 

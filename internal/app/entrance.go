@@ -120,9 +120,9 @@ func (e *Entrance) RefreshMapping() error {
 
 func getDNS(dc *config.DNS) dns.DNS {
 	if dc.DOH {
-		return dns.NewDNS(dc.Host, dns.DNSOverHTTPS, toSubnet(dc.Subnet), nil)
+		return dns.NewDoH(dc.Host, toSubnet(dc.Subnet), nil)
 	}
-	return dns.NewDNS(dc.Host, dns.Normal, toSubnet(dc.Subnet), nil)
+	return dns.NewDNS(dc.Host, toSubnet(dc.Subnet), nil)
 }
 
 func toSubnet(s string) *net.IPNet {

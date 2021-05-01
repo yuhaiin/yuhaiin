@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -25,24 +24,6 @@ func dnsHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, error))
 	return Resolve(req, b)
 }
 
-type DNSType int
-
-const (
-	Normal DNSType = 1 << iota
-	DNSOverHTTPS
-	DNSOverTLS
-)
-
-func NewDNS(host string, dnsType DNSType, subnet *net.IPNet, p proxy.Proxy) DNS {
-	switch dnsType {
-	case DNSOverHTTPS:
-		return NewDoH(host, subnet, p)
-	case DNSOverTLS:
-		return NewDoT(host, subnet, p)
-	}
-	return NewNormalDNS(host, subnet, p)
-}
-
 var _ DNS = (*dns)(nil)
 
 type dns struct {
@@ -53,7 +34,7 @@ type dns struct {
 	proxy  proxy.Proxy
 }
 
-func NewNormalDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
+func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if subnet == nil {
 		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
 	}
