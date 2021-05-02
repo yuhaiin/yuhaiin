@@ -1,4 +1,4 @@
-package vmess
+package subscr
 
 import (
 	"crypto/sha256"
@@ -9,26 +9,27 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	libVmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
-	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+type vmess struct{}
 
 //ParseLink parse vmess link
 // eg: vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnV
 //             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC
 //             IsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY
 //             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
-func ParseLink(str []byte, group string) (*utils.Point, error) {
-	data := utils.DecodeBase64(strings.ReplaceAll(string(str), "vmess://", ""))
-	n := &utils.Vmess{}
+func (*vmess) ParseLink(str []byte, group string) (*Point, error) {
+	data := DecodeBase64(strings.ReplaceAll(string(str), "vmess://", ""))
+	n := &Vmess{}
 	err := protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}.Unmarshal([]byte(data), n)
 	if err != nil {
-		z := &utils.Vmess2{}
+		z := &Vmess2{}
 		err = protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}.Unmarshal([]byte(data), z)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal failed: %v\nstr: -%s-\nRaw: %s", err, data, str)
 		}
-		n = &utils.Vmess{
+		n = &Vmess{
 			Address:    z.Address,
 			Port:       strconv.Itoa(int(z.Port)),
 			Uuid:       z.Uuid,
@@ -46,11 +47,11 @@ func ParseLink(str []byte, group string) (*utils.Point, error) {
 
 	}
 
-	p := &utils.Point{
+	p := &Point{
 		NName:   "[vmess]" + n.Ps,
 		NGroup:  group,
-		NOrigin: utils.Point_remote,
-		Node:    &utils.Point_Vmess{Vmess: n},
+		NOrigin: Point_remote,
+		Node:    &Point_Vmess{Vmess: n},
 	}
 	z := sha256.Sum256([]byte(p.String()))
 	p.NHash = hex.EncodeToString(z[:])
@@ -58,17 +59,17 @@ func ParseLink(str []byte, group string) (*utils.Point, error) {
 }
 
 // ParseLinkManual parse a manual base64 encode vmess link
-func ParseLinkManual(link []byte, group string) (*utils.Point, error) {
-	s, err := ParseLink(link, group)
+func (v *vmess) ParseLinkManual(link []byte, group string) (*Point, error) {
+	s, err := v.ParseLink(link, group)
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = utils.Point_manual
+	s.NOrigin = Point_manual
 	return s, nil
 }
 
 //ParseConn parse map to net.Conn
-func ParseConn(n *utils.Point) (proxy.Proxy, error) {
+func (*vmess) ParseConn(n *Point) (proxy.Proxy, error) {
 	x := n.GetVmess()
 	if x == nil {
 		return nil, fmt.Errorf("can't get vmess message")

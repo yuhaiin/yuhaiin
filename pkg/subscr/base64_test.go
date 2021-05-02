@@ -1,4 +1,4 @@
-package utils
+package subscr
 
 import "testing"
 
