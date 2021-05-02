@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path"
 	sync "sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"google.golang.org/protobuf/encoding/protojson"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -26,21 +28,23 @@ type NodeManager struct {
 	node       *Node
 	configPath string
 	lock       sync.RWMutex
+	filelock   sync.RWMutex
 }
 
 func NewNodeManager(configPath string) (n *NodeManager, err error) {
-	n = &NodeManager{
-		configPath: configPath,
-	}
-	n.node, err = n.decodeJSON()
-	return
+	n = &NodeManager{configPath: configPath}
+	return n, n.open()
 }
 
 func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*Point, error) {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	return n.node.NowNode, nil
 }
 
 func (n *NodeManager) GetNode(_ context.Context, s *wrapperspb.StringValue) (*Point, error) {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	p, ok := n.node.Nodes[s.Value]
 	if ok {
 		return p, nil
@@ -53,6 +57,9 @@ func (n *NodeManager) AddNode(c context.Context, p *Point) (*emptypb.Empty, erro
 	if err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("delete node failed: %v", err)
 	}
+
+	n.lock.Lock()
+	defer n.lock.Unlock()
 
 	_, ok := n.node.GroupNodesMap[p.GetNGroup()]
 	if !ok {
@@ -69,7 +76,7 @@ func (n *NodeManager) AddNode(c context.Context, p *Point) (*emptypb.Empty, erro
 
 	n.node.Nodes[p.NHash] = p
 
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, n.save()
 }
 
 func (n *NodeManager) GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error) {
@@ -77,13 +84,17 @@ func (n *NodeManager) GetNodes(context.Context, *wrapperspb.StringValue) (*Node,
 }
 
 func (n *NodeManager) AddLink(_ context.Context, l *NodeLink) (*emptypb.Empty, error) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	n.node.Links[l.Name] = l
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, n.save()
 }
 
 func (n *NodeManager) DeleteLink(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	delete(n.node.Links, s.Value)
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, n.save()
 }
 
 func (n *NodeManager) ChangeNowNode(c context.Context, s *wrapperspb.StringValue) (*Point, error) {
@@ -92,33 +103,55 @@ func (n *NodeManager) ChangeNowNode(c context.Context, s *wrapperspb.StringValue
 		return &Point{}, fmt.Errorf("get node failed: %v", err)
 	}
 
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	n.node.NowNode = p
-	return n.node.NowNode, nil
+	return n.node.NowNode, n.save()
 }
 
 func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-
 	if n.node.Links == nil {
 		n.node.Links = make(map[string]*NodeLink)
 	}
 	if n.node.Nodes == nil {
 		n.node.Nodes = make(map[string]*Point)
 	}
-	for key := range n.node.Links {
-		n.oneLinkGet(c, n.node.Links[key])
+
+	wg := sync.WaitGroup{}
+	for _, l := range n.node.Links {
+		wg.Add(1)
+		go func(l *NodeLink) {
+			defer wg.Done()
+			n.oneLinkGet(c, l)
+		}(l)
 	}
 
-	err := n.enCodeJSON(n.node)
+	wg.Wait()
+
+	err := n.save()
 	return &emptypb.Empty{}, err
 }
 
 func (n *NodeManager) oneLinkGet(c context.Context, link *NodeLink) {
-	client := http.Client{Timeout: time.Second * 30}
-	res, err := client.Get(link.Url)
+	client := http.Client{
+		Timeout:   time.Second * 30,
+		Transport: &http.Transport{},
+	}
+	req, err := http.NewRequest("GET", link.Url, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
+
+	req.Header.Set("User-Agent", "yuhaiin")
+
+	res, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer res.Body.Close()
+
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		log.Println(err)
@@ -141,6 +174,8 @@ func (n *NodeManager) oneLinkGet(c context.Context, link *NodeLink) {
 }
 
 func (n *NodeManager) deleteRemoteNodes(group string) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	x, ok := n.node.GroupNodesMap[group]
 	if !ok {
 		return
@@ -201,6 +236,8 @@ func parseUrl(str []byte, group string) (node *Point, err error) {
 }
 
 func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	p, ok := n.node.Nodes[s.Value]
 	if !ok {
 		return &emptypb.Empty{}, nil
@@ -221,7 +258,7 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 	}
 
 	if len(n.node.GroupNodesMap[p.NGroup].Nodes) != 0 {
-		return &emptypb.Empty{}, nil
+		return &emptypb.Empty{}, n.save()
 	}
 
 	delete(n.node.GroupNodesMap, p.NGroup)
@@ -234,13 +271,32 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 		n.node.Groups = append(n.node.Groups[:i-1], n.node.Groups[i+1:]...)
 	}
 
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) Latency(context.Context, *wrapperspb.StringValue) (*wrapperspb.StringValue, error)
+func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
+	p, err := n.GetNode(c, s)
+	if err != nil {
+		return &wrapperspb.StringValue{}, fmt.Errorf("get node failed: %v", err)
+	}
 
-func (n *NodeManager) decodeJSON() (*Node, error) {
-	pa := &Node{
+	px, err := ParseNodeConn(p)
+	if err != nil {
+		return &wrapperspb.StringValue{}, fmt.Errorf("get conn failed: %v", err)
+	}
+
+	t, err := latency.TcpLatency(
+		func(_ context.Context, _, addr string) (net.Conn, error) { return px.Conn(addr) },
+		"https://www.google.com/generate_204",
+	)
+	if err != nil {
+		return &wrapperspb.StringValue{Value: err.Error()}, err
+	}
+	return &wrapperspb.StringValue{Value: t.String()}, err
+}
+
+func (n *NodeManager) open() error {
+	n.node = &Node{
 		NowNode:       &Point{},
 		Links:         make(map[string]*NodeLink),
 		Groups:        make([]string, 0),
@@ -249,20 +305,33 @@ func (n *NodeManager) decodeJSON() (*Node, error) {
 	}
 	_, err := os.Stat(n.configPath)
 	if errors.Is(err, os.ErrNotExist) {
-		return pa, n.enCodeJSON(pa)
+		return n.save()
 	}
 
-	n.lock.RLock()
-	defer n.lock.RUnlock()
+	n.filelock.RLock()
+	defer n.filelock.RUnlock()
 	data, err := ioutil.ReadFile(n.configPath)
 	if err != nil {
-		return nil, fmt.Errorf("read node file failed: %v", err)
+		return fmt.Errorf("read node file failed: %v", err)
 	}
-	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
-	return pa, err
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, n.node)
+
+	if n.node.NowNode == nil {
+		n.node.NowNode = &Point{}
+	}
+	if n.node.Links == nil {
+		n.node.Links = make(map[string]*NodeLink)
+	}
+	if n.node.Groups == nil {
+		n.node.Groups = make([]string, 0)
+		n.node.GroupNodesMap = make(map[string]*NodeNodeArray)
+		n.node.Nodes = make(map[string]*Point)
+	}
+
+	return err
 }
 
-func (n *NodeManager) enCodeJSON(pa *Node) error {
+func (n *NodeManager) save() error {
 	_, err := os.Stat(path.Dir(n.configPath))
 	if errors.Is(err, os.ErrNotExist) {
 		err = os.MkdirAll(path.Dir(n.configPath), os.ModePerm)
@@ -271,15 +340,15 @@ func (n *NodeManager) enCodeJSON(pa *Node) error {
 		}
 	}
 
-	n.lock.Lock()
-	defer n.lock.Unlock()
+	n.filelock.Lock()
+	defer n.filelock.Unlock()
 
 	file, err := os.OpenFile(n.configPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("open node config failed: %v", err)
 	}
 	defer file.Close()
-	data, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(pa)
+	data, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(n.node)
 	if err != nil {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}
@@ -302,4 +371,21 @@ func ParseNodeConn(s *Point) (proxy.Proxy, error) {
 	}
 
 	return nil, errors.New("not support type")
+}
+
+func (n *NodeManager) GetHash(group, node string) (string, error) {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+
+	g, ok := n.node.GroupNodesMap[group]
+	if !ok {
+		return "", fmt.Errorf("group %v is not exist", group)
+	}
+
+	nn, ok := g.NodeHashMap[node]
+	if !ok {
+		return "", fmt.Errorf("node %v is not exist", node)
+	}
+
+	return nn, nil
 }

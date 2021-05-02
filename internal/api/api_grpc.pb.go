@@ -4,13 +4,12 @@ package api
 
 import (
 	context "context"
-
 	config "github.com/Asutorufa/yuhaiin/internal/config"
-	empty "github.com/golang/protobuf/ptypes/empty"
-	wrappers "github.com/golang/protobuf/ptypes/wrappers"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -22,13 +21,13 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ProcessInitClient interface {
-	CreateLockFile(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	ProcessInit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	GetRunningHost(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.StringValue, error)
-	ClientOn(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	ProcessExit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	GetKernelPid(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.UInt32Value, error)
-	StopKernel(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	CreateLockFile(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ProcessInit(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetRunningHost(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
+	ClientOn(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ProcessExit(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetKernelPid(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.UInt32Value, error)
+	StopKernel(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	SingleInstance(ctx context.Context, opts ...grpc.CallOption) (ProcessInit_SingleInstanceClient, error)
 }
 
@@ -40,8 +39,8 @@ func NewProcessInitClient(cc grpc.ClientConnInterface) ProcessInitClient {
 	return &processInitClient{cc}
 }
 
-func (c *processInitClient) CreateLockFile(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *processInitClient) CreateLockFile(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/CreateLockFile", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -49,8 +48,8 @@ func (c *processInitClient) CreateLockFile(ctx context.Context, in *empty.Empty,
 	return out, nil
 }
 
-func (c *processInitClient) ProcessInit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *processInitClient) ProcessInit(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/ProcessInit", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -58,8 +57,8 @@ func (c *processInitClient) ProcessInit(ctx context.Context, in *empty.Empty, op
 	return out, nil
 }
 
-func (c *processInitClient) GetRunningHost(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.StringValue, error) {
-	out := new(wrappers.StringValue)
+func (c *processInitClient) GetRunningHost(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.StringValue, error) {
+	out := new(wrapperspb.StringValue)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/GetRunningHost", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -67,8 +66,8 @@ func (c *processInitClient) GetRunningHost(ctx context.Context, in *empty.Empty,
 	return out, nil
 }
 
-func (c *processInitClient) ClientOn(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *processInitClient) ClientOn(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/ClientOn", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -76,8 +75,8 @@ func (c *processInitClient) ClientOn(ctx context.Context, in *empty.Empty, opts 
 	return out, nil
 }
 
-func (c *processInitClient) ProcessExit(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *processInitClient) ProcessExit(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/ProcessExit", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -85,8 +84,8 @@ func (c *processInitClient) ProcessExit(ctx context.Context, in *empty.Empty, op
 	return out, nil
 }
 
-func (c *processInitClient) GetKernelPid(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*wrappers.UInt32Value, error) {
-	out := new(wrappers.UInt32Value)
+func (c *processInitClient) GetKernelPid(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.UInt32Value, error) {
+	out := new(wrapperspb.UInt32Value)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/GetKernelPid", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -94,8 +93,8 @@ func (c *processInitClient) GetKernelPid(ctx context.Context, in *empty.Empty, o
 	return out, nil
 }
 
-func (c *processInitClient) StopKernel(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *processInitClient) StopKernel(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.processInit/StopKernel", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -113,8 +112,8 @@ func (c *processInitClient) SingleInstance(ctx context.Context, opts ...grpc.Cal
 }
 
 type ProcessInit_SingleInstanceClient interface {
-	Send(*wrappers.StringValue) error
-	Recv() (*wrappers.StringValue, error)
+	Send(*wrapperspb.StringValue) error
+	Recv() (*wrapperspb.StringValue, error)
 	grpc.ClientStream
 }
 
@@ -122,12 +121,12 @@ type processInitSingleInstanceClient struct {
 	grpc.ClientStream
 }
 
-func (x *processInitSingleInstanceClient) Send(m *wrappers.StringValue) error {
+func (x *processInitSingleInstanceClient) Send(m *wrapperspb.StringValue) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *processInitSingleInstanceClient) Recv() (*wrappers.StringValue, error) {
-	m := new(wrappers.StringValue)
+func (x *processInitSingleInstanceClient) Recv() (*wrapperspb.StringValue, error) {
+	m := new(wrapperspb.StringValue)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -138,13 +137,13 @@ func (x *processInitSingleInstanceClient) Recv() (*wrappers.StringValue, error) 
 // All implementations must embed UnimplementedProcessInitServer
 // for forward compatibility
 type ProcessInitServer interface {
-	CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error)
-	ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error)
-	GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error)
-	ClientOn(context.Context, *empty.Empty) (*empty.Empty, error)
-	ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error)
-	GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error)
-	StopKernel(context.Context, *empty.Empty) (*empty.Empty, error)
+	CreateLockFile(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	ProcessInit(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	GetRunningHost(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error)
+	ClientOn(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	ProcessExit(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	GetKernelPid(context.Context, *emptypb.Empty) (*wrapperspb.UInt32Value, error)
+	StopKernel(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	SingleInstance(ProcessInit_SingleInstanceServer) error
 	mustEmbedUnimplementedProcessInitServer()
 }
@@ -153,25 +152,25 @@ type ProcessInitServer interface {
 type UnimplementedProcessInitServer struct {
 }
 
-func (UnimplementedProcessInitServer) CreateLockFile(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (UnimplementedProcessInitServer) CreateLockFile(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateLockFile not implemented")
 }
-func (UnimplementedProcessInitServer) ProcessInit(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (UnimplementedProcessInitServer) ProcessInit(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessInit not implemented")
 }
-func (UnimplementedProcessInitServer) GetRunningHost(context.Context, *empty.Empty) (*wrappers.StringValue, error) {
+func (UnimplementedProcessInitServer) GetRunningHost(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRunningHost not implemented")
 }
-func (UnimplementedProcessInitServer) ClientOn(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (UnimplementedProcessInitServer) ClientOn(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClientOn not implemented")
 }
-func (UnimplementedProcessInitServer) ProcessExit(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (UnimplementedProcessInitServer) ProcessExit(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessExit not implemented")
 }
-func (UnimplementedProcessInitServer) GetKernelPid(context.Context, *empty.Empty) (*wrappers.UInt32Value, error) {
+func (UnimplementedProcessInitServer) GetKernelPid(context.Context, *emptypb.Empty) (*wrapperspb.UInt32Value, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKernelPid not implemented")
 }
-func (UnimplementedProcessInitServer) StopKernel(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (UnimplementedProcessInitServer) StopKernel(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StopKernel not implemented")
 }
 func (UnimplementedProcessInitServer) SingleInstance(ProcessInit_SingleInstanceServer) error {
@@ -191,7 +190,7 @@ func RegisterProcessInitServer(s grpc.ServiceRegistrar, srv ProcessInitServer) {
 }
 
 func _ProcessInit_CreateLockFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -203,13 +202,13 @@ func _ProcessInit_CreateLockFile_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/yuhaiin.api.processInit/CreateLockFile",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessInitServer).CreateLockFile(ctx, req.(*empty.Empty))
+		return srv.(ProcessInitServer).CreateLockFile(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ProcessInit_ProcessInit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -221,13 +220,13 @@ func _ProcessInit_ProcessInit_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: "/yuhaiin.api.processInit/ProcessInit",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessInitServer).ProcessInit(ctx, req.(*empty.Empty))
+		return srv.(ProcessInitServer).ProcessInit(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ProcessInit_GetRunningHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -239,13 +238,13 @@ func _ProcessInit_GetRunningHost_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/yuhaiin.api.processInit/GetRunningHost",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessInitServer).GetRunningHost(ctx, req.(*empty.Empty))
+		return srv.(ProcessInitServer).GetRunningHost(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ProcessInit_ClientOn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -257,13 +256,13 @@ func _ProcessInit_ClientOn_Handler(srv interface{}, ctx context.Context, dec fun
 		FullMethod: "/yuhaiin.api.processInit/ClientOn",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessInitServer).ClientOn(ctx, req.(*empty.Empty))
+		return srv.(ProcessInitServer).ClientOn(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ProcessInit_ProcessExit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -275,13 +274,13 @@ func _ProcessInit_ProcessExit_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: "/yuhaiin.api.processInit/ProcessExit",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessInitServer).ProcessExit(ctx, req.(*empty.Empty))
+		return srv.(ProcessInitServer).ProcessExit(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ProcessInit_GetKernelPid_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -293,13 +292,13 @@ func _ProcessInit_GetKernelPid_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: "/yuhaiin.api.processInit/GetKernelPid",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessInitServer).GetKernelPid(ctx, req.(*empty.Empty))
+		return srv.(ProcessInitServer).GetKernelPid(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ProcessInit_StopKernel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -311,7 +310,7 @@ func _ProcessInit_StopKernel_Handler(srv interface{}, ctx context.Context, dec f
 		FullMethod: "/yuhaiin.api.processInit/StopKernel",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessInitServer).StopKernel(ctx, req.(*empty.Empty))
+		return srv.(ProcessInitServer).StopKernel(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -321,8 +320,8 @@ func _ProcessInit_SingleInstance_Handler(srv interface{}, stream grpc.ServerStre
 }
 
 type ProcessInit_SingleInstanceServer interface {
-	Send(*wrappers.StringValue) error
-	Recv() (*wrappers.StringValue, error)
+	Send(*wrapperspb.StringValue) error
+	Recv() (*wrapperspb.StringValue, error)
 	grpc.ServerStream
 }
 
@@ -330,12 +329,12 @@ type processInitSingleInstanceServer struct {
 	grpc.ServerStream
 }
 
-func (x *processInitSingleInstanceServer) Send(m *wrappers.StringValue) error {
+func (x *processInitSingleInstanceServer) Send(m *wrapperspb.StringValue) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *processInitSingleInstanceServer) Recv() (*wrappers.StringValue, error) {
-	m := new(wrappers.StringValue)
+func (x *processInitSingleInstanceServer) Recv() (*wrapperspb.StringValue, error) {
+	m := new(wrapperspb.StringValue)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -386,17 +385,17 @@ var ProcessInit_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "api/api.proto",
+	Metadata: "internal/api/api.proto",
 }
 
 // ConfigClient is the client API for Config service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConfigClient interface {
-	GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*config.Setting, error)
-	SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*empty.Empty, error)
-	ReimportRule(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	GetRate(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (Config_GetRateClient, error)
+	GetConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*config.Setting, error)
+	SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ReimportRule(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetRate(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Config_GetRateClient, error)
 }
 
 type configClient struct {
@@ -407,7 +406,7 @@ func NewConfigClient(cc grpc.ClientConnInterface) ConfigClient {
 	return &configClient{cc}
 }
 
-func (c *configClient) GetConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*config.Setting, error) {
+func (c *configClient) GetConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*config.Setting, error) {
 	out := new(config.Setting)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.config/GetConfig", in, out, opts...)
 	if err != nil {
@@ -416,8 +415,8 @@ func (c *configClient) GetConfig(ctx context.Context, in *empty.Empty, opts ...g
 	return out, nil
 }
 
-func (c *configClient) SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *configClient) SetConfig(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.config/SetConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -425,8 +424,8 @@ func (c *configClient) SetConfig(ctx context.Context, in *config.Setting, opts .
 	return out, nil
 }
 
-func (c *configClient) ReimportRule(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *configClient) ReimportRule(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.config/ReimportRule", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -434,7 +433,7 @@ func (c *configClient) ReimportRule(ctx context.Context, in *empty.Empty, opts .
 	return out, nil
 }
 
-func (c *configClient) GetRate(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (Config_GetRateClient, error) {
+func (c *configClient) GetRate(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Config_GetRateClient, error) {
 	stream, err := c.cc.NewStream(ctx, &Config_ServiceDesc.Streams[0], "/yuhaiin.api.config/getRate", opts...)
 	if err != nil {
 		return nil, err
@@ -470,10 +469,10 @@ func (x *configGetRateClient) Recv() (*DaUaDrUr, error) {
 // All implementations must embed UnimplementedConfigServer
 // for forward compatibility
 type ConfigServer interface {
-	GetConfig(context.Context, *empty.Empty) (*config.Setting, error)
-	SetConfig(context.Context, *config.Setting) (*empty.Empty, error)
-	ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error)
-	GetRate(*empty.Empty, Config_GetRateServer) error
+	GetConfig(context.Context, *emptypb.Empty) (*config.Setting, error)
+	SetConfig(context.Context, *config.Setting) (*emptypb.Empty, error)
+	ReimportRule(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	GetRate(*emptypb.Empty, Config_GetRateServer) error
 	mustEmbedUnimplementedConfigServer()
 }
 
@@ -481,16 +480,16 @@ type ConfigServer interface {
 type UnimplementedConfigServer struct {
 }
 
-func (UnimplementedConfigServer) GetConfig(context.Context, *empty.Empty) (*config.Setting, error) {
+func (UnimplementedConfigServer) GetConfig(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
 }
-func (UnimplementedConfigServer) SetConfig(context.Context, *config.Setting) (*empty.Empty, error) {
+func (UnimplementedConfigServer) SetConfig(context.Context, *config.Setting) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetConfig not implemented")
 }
-func (UnimplementedConfigServer) ReimportRule(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (UnimplementedConfigServer) ReimportRule(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReimportRule not implemented")
 }
-func (UnimplementedConfigServer) GetRate(*empty.Empty, Config_GetRateServer) error {
+func (UnimplementedConfigServer) GetRate(*emptypb.Empty, Config_GetRateServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetRate not implemented")
 }
 func (UnimplementedConfigServer) mustEmbedUnimplementedConfigServer() {}
@@ -507,7 +506,7 @@ func RegisterConfigServer(s grpc.ServiceRegistrar, srv ConfigServer) {
 }
 
 func _Config_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -519,7 +518,7 @@ func _Config_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(in
 		FullMethod: "/yuhaiin.api.config/GetConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConfigServer).GetConfig(ctx, req.(*empty.Empty))
+		return srv.(ConfigServer).GetConfig(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -543,7 +542,7 @@ func _Config_SetConfig_Handler(srv interface{}, ctx context.Context, dec func(in
 }
 
 func _Config_ReimportRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -555,13 +554,13 @@ func _Config_ReimportRule_Handler(srv interface{}, ctx context.Context, dec func
 		FullMethod: "/yuhaiin.api.config/ReimportRule",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConfigServer).ReimportRule(ctx, req.(*empty.Empty))
+		return srv.(ConfigServer).ReimportRule(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Config_GetRate_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(empty.Empty)
+	m := new(emptypb.Empty)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -608,22 +607,22 @@ var Config_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/api.proto",
+	Metadata: "internal/api/api.proto",
 }
 
 // NodeClient is the client API for Node service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeClient interface {
-	GetNodes(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Nodes, error)
-	GetGroup(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error)
-	GetNode(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error)
-	GetNowGroupAndName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GroupAndNode, error)
-	ChangeNowNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error)
-	AddNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error)
-	ModifyNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error)
-	DeleteNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error)
-	Latency(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*wrappers.StringValue, error)
+	GetNodes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Nodes, error)
+	GetGroup(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error)
+	GetNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error)
+	GetNowGroupAndName(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GroupAndNode, error)
+	ChangeNowNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ModifyNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Latency(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
 }
 
 type nodeClient struct {
@@ -634,7 +633,7 @@ func NewNodeClient(cc grpc.ClientConnInterface) NodeClient {
 	return &nodeClient{cc}
 }
 
-func (c *nodeClient) GetNodes(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Nodes, error) {
+func (c *nodeClient) GetNodes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Nodes, error) {
 	out := new(Nodes)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetNodes", in, out, opts...)
 	if err != nil {
@@ -643,7 +642,7 @@ func (c *nodeClient) GetNodes(ctx context.Context, in *empty.Empty, opts ...grpc
 	return out, nil
 }
 
-func (c *nodeClient) GetGroup(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
+func (c *nodeClient) GetGroup(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
 	out := new(AllGroupOrNode)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetGroup", in, out, opts...)
 	if err != nil {
@@ -652,7 +651,7 @@ func (c *nodeClient) GetGroup(ctx context.Context, in *empty.Empty, opts ...grpc
 	return out, nil
 }
 
-func (c *nodeClient) GetNode(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
+func (c *nodeClient) GetNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*AllGroupOrNode, error) {
 	out := new(AllGroupOrNode)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetNode", in, out, opts...)
 	if err != nil {
@@ -661,7 +660,7 @@ func (c *nodeClient) GetNode(ctx context.Context, in *wrappers.StringValue, opts
 	return out, nil
 }
 
-func (c *nodeClient) GetNowGroupAndName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GroupAndNode, error) {
+func (c *nodeClient) GetNowGroupAndName(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GroupAndNode, error) {
 	out := new(GroupAndNode)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/GetNowGroupAndName", in, out, opts...)
 	if err != nil {
@@ -670,8 +669,8 @@ func (c *nodeClient) GetNowGroupAndName(ctx context.Context, in *empty.Empty, op
 	return out, nil
 }
 
-func (c *nodeClient) ChangeNowNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *nodeClient) ChangeNowNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/ChangeNowNode", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -679,8 +678,8 @@ func (c *nodeClient) ChangeNowNode(ctx context.Context, in *GroupAndNode, opts .
 	return out, nil
 }
 
-func (c *nodeClient) AddNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *nodeClient) AddNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/AddNode", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -688,8 +687,8 @@ func (c *nodeClient) AddNode(ctx context.Context, in *NodeMap, opts ...grpc.Call
 	return out, nil
 }
 
-func (c *nodeClient) ModifyNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *nodeClient) ModifyNode(ctx context.Context, in *NodeMap, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/ModifyNode", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -697,8 +696,8 @@ func (c *nodeClient) ModifyNode(ctx context.Context, in *NodeMap, opts ...grpc.C
 	return out, nil
 }
 
-func (c *nodeClient) DeleteNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *nodeClient) DeleteNode(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/DeleteNode", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -706,8 +705,8 @@ func (c *nodeClient) DeleteNode(ctx context.Context, in *GroupAndNode, opts ...g
 	return out, nil
 }
 
-func (c *nodeClient) Latency(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*wrappers.StringValue, error) {
-	out := new(wrappers.StringValue)
+func (c *nodeClient) Latency(ctx context.Context, in *GroupAndNode, opts ...grpc.CallOption) (*wrapperspb.StringValue, error) {
+	out := new(wrapperspb.StringValue)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Node/Latency", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -719,15 +718,15 @@ func (c *nodeClient) Latency(ctx context.Context, in *GroupAndNode, opts ...grpc
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility
 type NodeServer interface {
-	GetNodes(context.Context, *empty.Empty) (*Nodes, error)
-	GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error)
-	GetNode(context.Context, *wrappers.StringValue) (*AllGroupOrNode, error)
-	GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode, error)
-	ChangeNowNode(context.Context, *GroupAndNode) (*empty.Empty, error)
-	AddNode(context.Context, *NodeMap) (*empty.Empty, error)
-	ModifyNode(context.Context, *NodeMap) (*empty.Empty, error)
-	DeleteNode(context.Context, *GroupAndNode) (*empty.Empty, error)
-	Latency(context.Context, *GroupAndNode) (*wrappers.StringValue, error)
+	GetNodes(context.Context, *emptypb.Empty) (*Nodes, error)
+	GetGroup(context.Context, *emptypb.Empty) (*AllGroupOrNode, error)
+	GetNode(context.Context, *wrapperspb.StringValue) (*AllGroupOrNode, error)
+	GetNowGroupAndName(context.Context, *emptypb.Empty) (*GroupAndNode, error)
+	ChangeNowNode(context.Context, *GroupAndNode) (*emptypb.Empty, error)
+	AddNode(context.Context, *NodeMap) (*emptypb.Empty, error)
+	ModifyNode(context.Context, *NodeMap) (*emptypb.Empty, error)
+	DeleteNode(context.Context, *GroupAndNode) (*emptypb.Empty, error)
+	Latency(context.Context, *GroupAndNode) (*wrapperspb.StringValue, error)
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -735,31 +734,31 @@ type NodeServer interface {
 type UnimplementedNodeServer struct {
 }
 
-func (UnimplementedNodeServer) GetNodes(context.Context, *empty.Empty) (*Nodes, error) {
+func (UnimplementedNodeServer) GetNodes(context.Context, *emptypb.Empty) (*Nodes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodes not implemented")
 }
-func (UnimplementedNodeServer) GetGroup(context.Context, *empty.Empty) (*AllGroupOrNode, error) {
+func (UnimplementedNodeServer) GetGroup(context.Context, *emptypb.Empty) (*AllGroupOrNode, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroup not implemented")
 }
-func (UnimplementedNodeServer) GetNode(context.Context, *wrappers.StringValue) (*AllGroupOrNode, error) {
+func (UnimplementedNodeServer) GetNode(context.Context, *wrapperspb.StringValue) (*AllGroupOrNode, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNode not implemented")
 }
-func (UnimplementedNodeServer) GetNowGroupAndName(context.Context, *empty.Empty) (*GroupAndNode, error) {
+func (UnimplementedNodeServer) GetNowGroupAndName(context.Context, *emptypb.Empty) (*GroupAndNode, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNowGroupAndName not implemented")
 }
-func (UnimplementedNodeServer) ChangeNowNode(context.Context, *GroupAndNode) (*empty.Empty, error) {
+func (UnimplementedNodeServer) ChangeNowNode(context.Context, *GroupAndNode) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChangeNowNode not implemented")
 }
-func (UnimplementedNodeServer) AddNode(context.Context, *NodeMap) (*empty.Empty, error) {
+func (UnimplementedNodeServer) AddNode(context.Context, *NodeMap) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddNode not implemented")
 }
-func (UnimplementedNodeServer) ModifyNode(context.Context, *NodeMap) (*empty.Empty, error) {
+func (UnimplementedNodeServer) ModifyNode(context.Context, *NodeMap) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ModifyNode not implemented")
 }
-func (UnimplementedNodeServer) DeleteNode(context.Context, *GroupAndNode) (*empty.Empty, error) {
+func (UnimplementedNodeServer) DeleteNode(context.Context, *GroupAndNode) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNode not implemented")
 }
-func (UnimplementedNodeServer) Latency(context.Context, *GroupAndNode) (*wrappers.StringValue, error) {
+func (UnimplementedNodeServer) Latency(context.Context, *GroupAndNode) (*wrapperspb.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Latency not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
@@ -776,7 +775,7 @@ func RegisterNodeServer(s grpc.ServiceRegistrar, srv NodeServer) {
 }
 
 func _Node_GetNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -788,13 +787,13 @@ func _Node_GetNodes_Handler(srv interface{}, ctx context.Context, dec func(inter
 		FullMethod: "/yuhaiin.api.Node/GetNodes",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).GetNodes(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).GetNodes(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Node_GetGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -806,13 +805,13 @@ func _Node_GetGroup_Handler(srv interface{}, ctx context.Context, dec func(inter
 		FullMethod: "/yuhaiin.api.Node/GetGroup",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).GetGroup(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).GetGroup(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Node_GetNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrappers.StringValue)
+	in := new(wrapperspb.StringValue)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -824,13 +823,13 @@ func _Node_GetNode_Handler(srv interface{}, ctx context.Context, dec func(interf
 		FullMethod: "/yuhaiin.api.Node/GetNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).GetNode(ctx, req.(*wrappers.StringValue))
+		return srv.(NodeServer).GetNode(ctx, req.(*wrapperspb.StringValue))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Node_GetNowGroupAndName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -842,7 +841,7 @@ func _Node_GetNowGroupAndName_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: "/yuhaiin.api.Node/GetNowGroupAndName",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).GetNowGroupAndName(ctx, req.(*empty.Empty))
+		return srv.(NodeServer).GetNowGroupAndName(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -982,17 +981,17 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/api.proto",
+	Metadata: "internal/api/api.proto",
 }
 
 // SubscribeClient is the client API for Subscribe service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SubscribeClient interface {
-	UpdateSub(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	GetSubLinks(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Links, error)
+	UpdateSub(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetSubLinks(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Links, error)
 	AddSubLink(ctx context.Context, in *Link, opts ...grpc.CallOption) (*Links, error)
-	DeleteSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*Links, error)
+	DeleteSubLink(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Links, error)
 }
 
 type subscribeClient struct {
@@ -1003,8 +1002,8 @@ func NewSubscribeClient(cc grpc.ClientConnInterface) SubscribeClient {
 	return &subscribeClient{cc}
 }
 
-func (c *subscribeClient) UpdateSub(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *subscribeClient) UpdateSub(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Subscribe/UpdateSub", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -1012,7 +1011,7 @@ func (c *subscribeClient) UpdateSub(ctx context.Context, in *empty.Empty, opts .
 	return out, nil
 }
 
-func (c *subscribeClient) GetSubLinks(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*Links, error) {
+func (c *subscribeClient) GetSubLinks(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Links, error) {
 	out := new(Links)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Subscribe/GetSubLinks", in, out, opts...)
 	if err != nil {
@@ -1030,7 +1029,7 @@ func (c *subscribeClient) AddSubLink(ctx context.Context, in *Link, opts ...grpc
 	return out, nil
 }
 
-func (c *subscribeClient) DeleteSubLink(ctx context.Context, in *wrappers.StringValue, opts ...grpc.CallOption) (*Links, error) {
+func (c *subscribeClient) DeleteSubLink(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Links, error) {
 	out := new(Links)
 	err := c.cc.Invoke(ctx, "/yuhaiin.api.Subscribe/DeleteSubLink", in, out, opts...)
 	if err != nil {
@@ -1043,10 +1042,10 @@ func (c *subscribeClient) DeleteSubLink(ctx context.Context, in *wrappers.String
 // All implementations must embed UnimplementedSubscribeServer
 // for forward compatibility
 type SubscribeServer interface {
-	UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error)
-	GetSubLinks(context.Context, *empty.Empty) (*Links, error)
+	UpdateSub(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	GetSubLinks(context.Context, *emptypb.Empty) (*Links, error)
 	AddSubLink(context.Context, *Link) (*Links, error)
-	DeleteSubLink(context.Context, *wrappers.StringValue) (*Links, error)
+	DeleteSubLink(context.Context, *wrapperspb.StringValue) (*Links, error)
 	mustEmbedUnimplementedSubscribeServer()
 }
 
@@ -1054,16 +1053,16 @@ type SubscribeServer interface {
 type UnimplementedSubscribeServer struct {
 }
 
-func (UnimplementedSubscribeServer) UpdateSub(context.Context, *empty.Empty) (*empty.Empty, error) {
+func (UnimplementedSubscribeServer) UpdateSub(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSub not implemented")
 }
-func (UnimplementedSubscribeServer) GetSubLinks(context.Context, *empty.Empty) (*Links, error) {
+func (UnimplementedSubscribeServer) GetSubLinks(context.Context, *emptypb.Empty) (*Links, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSubLinks not implemented")
 }
 func (UnimplementedSubscribeServer) AddSubLink(context.Context, *Link) (*Links, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddSubLink not implemented")
 }
-func (UnimplementedSubscribeServer) DeleteSubLink(context.Context, *wrappers.StringValue) (*Links, error) {
+func (UnimplementedSubscribeServer) DeleteSubLink(context.Context, *wrapperspb.StringValue) (*Links, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSubLink not implemented")
 }
 func (UnimplementedSubscribeServer) mustEmbedUnimplementedSubscribeServer() {}
@@ -1080,7 +1079,7 @@ func RegisterSubscribeServer(s grpc.ServiceRegistrar, srv SubscribeServer) {
 }
 
 func _Subscribe_UpdateSub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1092,13 +1091,13 @@ func _Subscribe_UpdateSub_Handler(srv interface{}, ctx context.Context, dec func
 		FullMethod: "/yuhaiin.api.Subscribe/UpdateSub",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SubscribeServer).UpdateSub(ctx, req.(*empty.Empty))
+		return srv.(SubscribeServer).UpdateSub(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Subscribe_GetSubLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1110,7 +1109,7 @@ func _Subscribe_GetSubLinks_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/yuhaiin.api.Subscribe/GetSubLinks",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SubscribeServer).GetSubLinks(ctx, req.(*empty.Empty))
+		return srv.(SubscribeServer).GetSubLinks(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1134,7 +1133,7 @@ func _Subscribe_AddSubLink_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _Subscribe_DeleteSubLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrappers.StringValue)
+	in := new(wrapperspb.StringValue)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1146,7 +1145,7 @@ func _Subscribe_DeleteSubLink_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: "/yuhaiin.api.Subscribe/DeleteSubLink",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SubscribeServer).DeleteSubLink(ctx, req.(*wrappers.StringValue))
+		return srv.(SubscribeServer).DeleteSubLink(ctx, req.(*wrapperspb.StringValue))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1176,5 +1175,5 @@ var Subscribe_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/api.proto",
+	Metadata: "internal/api/api.proto",
 }
