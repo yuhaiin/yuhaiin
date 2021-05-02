@@ -1,7 +1,7 @@
 syntax = "proto3";
 package yuhaiin.api;
 
-option go_package = "github.com/Asutorufa/yuhaiin/config";
+option go_package = "github.com/Asutorufa/yuhaiin/internal/config";
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative config.proto
 
 message Setting{

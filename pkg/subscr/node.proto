@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package yuhaiin.subscr;
 
-option go_package = "github.com/Asutorufa/yuhaiin/pkg/subscr/utils";
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/subscr";
 
 
 import "google/protobuf/empty.proto";

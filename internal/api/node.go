@@ -63,9 +63,5 @@ func (n *Node) ChangeNowNode(_ context.Context, req *GroupAndNode) (*emptypb.Emp
 }
 
 func (n *Node) Latency(_ context.Context, req *GroupAndNode) (*wrapperspb.StringValue, error) {
-	latency, err := n.entrance.Latency(req.Group, req.Node)
-	if err != nil {
-		return nil, err
-	}
-	return &wrapperspb.StringValue{Value: latency.String()}, err
+	return n.entrance.Latency(req.Group, req.Node)
 }
