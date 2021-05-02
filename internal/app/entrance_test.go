@@ -5,6 +5,8 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"testing"
+
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestCtx(t *testing.T) {
@@ -33,6 +35,6 @@ func TestLatency(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	x := e.nodeManager.GetNowNode()
+	x, err := e.nodeManager.Now(context.TODO(), &emptypb.Empty{})
 	t.Log(e.Latency(x.NGroup, x.NName))
 }

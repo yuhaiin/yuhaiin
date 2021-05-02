@@ -54,7 +54,7 @@ message nodeMap{
   map <string,string> Value = 1;
 }
 
-message nodes {
+message nodes{
   map<string,allGroupOrNode> value = 1;
 }
 
