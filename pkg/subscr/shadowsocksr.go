@@ -1,4 +1,4 @@
-package shadowsocksr
+package subscr
 
 import (
 	"crypto/sha256"
@@ -11,19 +11,20 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
 	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
-	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
 )
 
-// ParseLink parse a base64 encode ssr link
-func ParseLink(link []byte, group string) (*utils.Point, error) {
-	decodeStr := strings.Split(utils.DecodeUrlBase64(strings.Replace(string(link), "ssr://", "", -1)), "/?")
+type shadowsocksr struct{}
 
-	p := &utils.Point{
-		NOrigin: utils.Point_remote,
+// ParseLink parse a base64 encode ssr link
+func (*shadowsocksr) ParseLink(link []byte, group string) (*Point, error) {
+	decodeStr := strings.Split(DecodeUrlBase64(strings.Replace(string(link), "ssr://", "", -1)), "/?")
+
+	p := &Point{
+		NOrigin: Point_remote,
 		NGroup:  group,
 	}
 
-	n := new(utils.Shadowsocksr)
+	n := new(Shadowsocksr)
 	x := strings.Split(decodeStr[0], ":")
 	if len(x) != 6 {
 		return nil, errors.New("link: " + decodeStr[0] + " is not format Shadowsocksr link")
@@ -33,14 +34,14 @@ func ParseLink(link []byte, group string) (*utils.Point, error) {
 	n.Protocol = x[2]
 	n.Method = x[3]
 	n.Obfs = x[4]
-	n.Password = utils.DecodeUrlBase64(x[5])
+	n.Password = DecodeUrlBase64(x[5])
 	if len(decodeStr) > 1 {
 		query, _ := url.ParseQuery(decodeStr[1])
-		n.Obfsparam = utils.DecodeUrlBase64(query.Get("obfsparam"))
-		n.Protoparam = utils.DecodeUrlBase64(query.Get("protoparam"))
-		p.NName = "[ssr]" + utils.DecodeUrlBase64(query.Get("remarks"))
+		n.Obfsparam = DecodeUrlBase64(query.Get("obfsparam"))
+		n.Protoparam = DecodeUrlBase64(query.Get("protoparam"))
+		p.NName = "[ssr]" + DecodeUrlBase64(query.Get("remarks"))
 	}
-	p.Node = &utils.Point_Shadowsocksr{Shadowsocksr: n}
+	p.Node = &Point_Shadowsocksr{Shadowsocksr: n}
 	z := sha256.Sum256([]byte(p.String()))
 	p.NHash = hex.EncodeToString(z[:])
 
@@ -48,17 +49,17 @@ func ParseLink(link []byte, group string) (*utils.Point, error) {
 }
 
 // ParseLinkManual parse a manual base64 encode ssr link
-func ParseLinkManual(link []byte, group string) (*utils.Point, error) {
-	s, err := ParseLink(link, group)
+func (r *shadowsocksr) ParseLinkManual(link []byte, group string) (*Point, error) {
+	s, err := r.ParseLink(link, group)
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = utils.Point_manual
+	s.NOrigin = Point_manual
 	return s, nil
 }
 
 // ParseConn parse a ssr map to conn function
-func ParseConn(n *utils.Point) (proxy.Proxy, error) {
+func (*shadowsocksr) ParseConn(n *Point) (proxy.Proxy, error) {
 	s := n.GetShadowsocksr()
 	if s == nil {
 		return nil, fmt.Errorf("can't get shadowsocksr message")

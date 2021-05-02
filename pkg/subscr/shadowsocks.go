@@ -1,4 +1,4 @@
-package shadowsocks
+package subscr
 
 import (
 	"crypto/sha256"
@@ -10,27 +10,28 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
-	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
 )
 
-func ParseLink(str []byte, group string) (*utils.Point, error) {
-	n := new(utils.Shadowsocks)
+type shadowsocks struct{}
+
+func (*shadowsocks) ParseLink(str []byte, group string) (*Point, error) {
+	n := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
 		return nil, err
 	}
 	n.Server = ssUrl.Hostname()
 	n.Port = ssUrl.Port()
-	n.Method = strings.Split(utils.DecodeUrlBase64(ssUrl.User.String()), ":")[0]
-	n.Password = strings.Split(utils.DecodeUrlBase64(ssUrl.User.String()), ":")[1]
+	n.Method = strings.Split(DecodeUrlBase64(ssUrl.User.String()), ":")[0]
+	n.Password = strings.Split(DecodeUrlBase64(ssUrl.User.String()), ":")[1]
 	n.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
 	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
 
-	p := &utils.Point{
-		NOrigin: utils.Point_remote,
+	p := &Point{
+		NOrigin: Point_remote,
 		NGroup:  group,
 		NName:   "[ss]" + ssUrl.Fragment,
-		Node:    &utils.Point_Shadowsocks{Shadowsocks: n},
+		Node:    &Point_Shadowsocks{Shadowsocks: n},
 	}
 	z := sha256.Sum256([]byte(p.String()))
 	p.NHash = hex.EncodeToString(z[:])
@@ -38,7 +39,7 @@ func ParseLink(str []byte, group string) (*utils.Point, error) {
 	return p, nil
 }
 
-func ParseConn(n *utils.Point) (proxy.Proxy, error) {
+func (*shadowsocks) ParseConn(n *Point) (proxy.Proxy, error) {
 	s := n.GetShadowsocks()
 	if s == nil {
 		return nil, fmt.Errorf("can't get shadowsocks message")
