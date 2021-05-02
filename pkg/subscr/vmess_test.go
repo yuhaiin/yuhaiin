@@ -1,9 +1,8 @@
-package vmess
+package subscr
 
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/subscr/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -29,12 +28,12 @@ func TestGetVmess(t *testing.T) {
 		"0IjowLCJhaWQiOjIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lI" +
 		"iwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY2NjYy1" +
 		"kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg"
-	t.Log(ParseLink([]byte(data), ""))
+	t.Log((&vmess{}).ParseLink([]byte(data), ""))
 }
 
 func TestUnmarshal2(t *testing.T) {
 	str := `{"host":"www.example.com","path":"/test","tls":"","verify_cert":true,"add":"example.com","port":"443","aid":"1","net":"ws","type":"none","v":"2","ps":"example","id":"2f3b2bb9-b2ae-3919-95d4-702ce7c02262","class":0}`
-	x := &utils.Vmess{}
+	x := &Vmess{}
 	err := protojson.Unmarshal([]byte(str), x)
 	if err != nil {
 		t.Error(err)
@@ -42,7 +41,7 @@ func TestUnmarshal2(t *testing.T) {
 	}
 	t.Log(x)
 	str = `{"host":"www.example.com","path":"/test","tls":"","verify_cert":true,"add":"example.com","port":443,"aid":"1","net":"ws","type":"none","v":"2","ps":"example","id":"2f3b2bb9-b2ae-3919-95d4-702ce7c02262","class":0}`
-	z := &utils.Vmess2{}
+	z := &Vmess2{}
 	err = protojson.UnmarshalOptions{}.Unmarshal([]byte(str), z)
 	if err != nil {
 		t.Error(err)

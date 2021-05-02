@@ -1,9 +1,12 @@
 syntax = "proto3";
 
-package yuhaiin.subscr.utils;
+package yuhaiin.subscr;
 
-option go_package = "github.com/Asutorufa/yuhaiin/subscr/utils";
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/subscr/utils";
 
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 
 message point{
     string n_hash = 1 [json_name="yuhaiin_hash"];
@@ -100,15 +103,34 @@ message vmess2{
     int64 class = 14 [json_name="class"];
 }
 
+  
 message node{
     point now_node = 1 [json_name="now_node"];
     message link{
-        string type = 1 [json_name="type"];
-        string url = 2 [json_name="url"];
+        string name = 1 [json_name="name"];
+        string type = 2 [json_name="type"];
+        string url = 3 [json_name="url"];
+    } 
+    map<string,link> links = 2 [json_name="links"]; 
+    repeated string groups = 3 [json_name="groups"];
+    message node_array{
+        string group = 1 [json_name="name"];
+        repeated string nodes = 2 [json_name="nodes"];
+        map<string,string> node_hash_map = 3 [json_name="node_hash_map"];
     }
-    map<string,link> links = 2 [json_name="links"];
-    message node{
-        map<string,point> node = 1 [json_name="node"];
-    }
-    map<string,node> nodes = 3 [json_name="nodes"];
+    map<string,node_array> group_nodes_map = 4 [json_name="group_nodes_map"];
+    map<string,point> nodes = 5 [json_name="nodes"];
+}
+
+service node_manager{
+    rpc now(google.protobuf.Empty)returns(point);
+    rpc get_node(google.protobuf.StringValue)returns(point);
+    rpc add_node(point)returns(google.protobuf.Empty);
+    rpc get_nodes(google.protobuf.StringValue)returns(node);
+    rpc add_link(node.link)returns(google.protobuf.Empty);
+    rpc delete_link(google.protobuf.StringValue)returns(google.protobuf.Empty);
+    rpc change_now_node(google.protobuf.StringValue)returns(point);
+    rpc refresh_subscr(google.protobuf.Empty)returns(google.protobuf.Empty);
+    rpc delete_node(google.protobuf.StringValue)returns(google.protobuf.Empty);
+    rpc latency(google.protobuf.StringValue)returns(google.protobuf.StringValue);
 }
