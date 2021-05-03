@@ -40,7 +40,7 @@ message Proxy {
   string Redir = 3 [json_name="redir"];
 }
 
-service config {
-  rpc get_config(google.protobuf.Empty)returns(Setting);
-  rpc set_config(Setting)returns(google.protobuf.Empty);
+service config_dao {
+  rpc load(google.protobuf.Empty)returns(Setting);
+  rpc save(Setting)returns(google.protobuf.Empty);
 }
