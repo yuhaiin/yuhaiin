@@ -5,8 +5,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"testing"
-
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestCtx(t *testing.T) {
@@ -27,14 +25,4 @@ func TestHash(t *testing.T) {
 	t.Log(hex.EncodeToString(a.Sum(nil)))
 	a.Write([]byte("aaaa"))
 	t.Log(hex.EncodeToString(a.Sum(nil)))
-}
-
-func TestLatency(t *testing.T) {
-	e, err := NewEntrance("/tmp/yuhaiin/test")
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-	x, err := e.nodeManager.Now(context.TODO(), &emptypb.Empty{})
-	t.Log(e.Latency(x.NGroup, x.NName))
 }

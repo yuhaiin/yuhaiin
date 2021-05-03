@@ -11,21 +11,17 @@ import (
 )
 
 type Manager struct {
-	lock     bool
-	init     bool
-	conn     chan bool
-	entrance *Entrance
-	applock  *Lock
+	lock    bool
+	init    bool
+	conn    chan bool
+	applock *Lock
 }
 
-func NewManager(configPath string) (*Manager, error) {
-	m := &Manager{
+func NewManager(configPath string) *Manager {
+	return &Manager{
 		conn:    make(chan bool),
 		applock: NewLock(filepath.Join(configPath, "yuhaiin.lock")),
 	}
-	var err error
-	m.entrance, err = NewEntrance(configPath)
-	return m, err
 }
 
 func (m *Manager) Lockfile() bool {
@@ -34,10 +30,6 @@ func (m *Manager) Lockfile() bool {
 
 func (m *Manager) InitApp() bool {
 	return m.init
-}
-
-func (m *Manager) Entrance() *Entrance {
-	return m.entrance
 }
 
 func (m *Manager) ReadHost() (string, error) {
@@ -69,7 +61,7 @@ func (m *Manager) sigh() {
 	}()
 }
 
-func (m *Manager) Start(host string) error {
+func (m *Manager) Start(host string, errs error) error {
 	m.sigh()
 
 	err := m.applock.Lock(host)
@@ -86,11 +78,11 @@ func (m *Manager) Start(host string) error {
 	fmt.Println("Create lock file successful.")
 	fmt.Println("Try to initialize Service.")
 
-	err = m.entrance.Start()
-	if err != nil {
+	if errs != nil {
 		fmt.Println("Initialize Service failed, Exit Process!")
 		return err
 	}
+
 	m.init = true
 	fmt.Println("Initialize Service Successful, Please Connect in 30 Seconds.")
 

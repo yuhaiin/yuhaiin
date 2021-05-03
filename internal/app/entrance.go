@@ -1,46 +1,32 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
-	"path/filepath"
-	"sort"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/subscr"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Entrance struct {
 	config      *config.Config
 	localListen *Listener
-	nodeManager *subscr.NodeManager
 	shunt       *Shunt
 	dir         string
 	connManager *connManager
-
-	nodeHash string
+	p           proxy.Proxy
 }
 
-func NewEntrance(dir string) (e *Entrance, err error) {
-	e = &Entrance{
-		dir: dir,
-	}
+func NewEntrance(dir string, p proxy.Proxy) (e *Entrance, err error) {
+	e = &Entrance{dir: dir, p: p}
 
 	e.config, err = config.NewConfig(dir)
 	if err != nil {
 		return nil, fmt.Errorf("get config failed: %v", err)
 	}
 
-	e.nodeManager, err = subscr.NewNodeManager(filepath.Join(dir, "node.json"))
-	if err != nil {
-		return nil, fmt.Errorf("refresh node failed: %v", err)
-	}
 	s := e.config.GetSetting()
 
 	e.shunt, err = NewShunt(s.Bypass.BypassFile, getDNS(s.DNS).LookupIP)
@@ -140,152 +126,11 @@ func (e *Entrance) GetConfig() (*config.Setting, error) {
 	return e.config.GetSetting(), nil
 }
 
-func (e *Entrance) ChangeNNode(group string, node string) (err error) {
-	hash, err := e.nodeManager.GetHash(group, node)
-	if err != nil {
-		return fmt.Errorf("get hash failed: %v", err)
-	}
-	log.Println(hash)
-	p, err := e.nodeManager.ChangeNowNode(context.TODO(), &wrapperspb.StringValue{Value: hash})
-	if err != nil {
-		return fmt.Errorf("change now node failed: %v", err)
-	}
-	log.Println(p)
-	return e.changeNode()
-}
-
-func (e *Entrance) GetNNodeAndNGroup() (node string, group string) {
-	p, err := e.nodeManager.Now(context.TODO(), &emptypb.Empty{})
-	if err != nil {
-		return "", ""
-	}
-	return p.NName, p.NGroup
-}
-
-func (e *Entrance) GetANodes() map[string][]string {
-	m := map[string][]string{}
-
-	n, err := e.nodeManager.GetNodes(context.TODO(), &wrapperspb.StringValue{})
-	if err != nil {
-		log.Println(err)
-		return m
-	}
-
-	for k, v := range n.GroupNodesMap {
-		sort.Strings(v.Nodes)
-		m[k] = v.Nodes
-	}
-
-	return m
-}
-
-func (e *Entrance) GetOneNodeConn(group, nodeN string) (proxy.Proxy, error) {
-	hash, err := e.nodeManager.GetHash(group, nodeN)
-	if err != nil {
-		return nil, fmt.Errorf("get hash failed: %v", err)
-	}
-
-	p, err := e.nodeManager.GetNode(context.TODO(), &wrapperspb.StringValue{Value: hash})
-	if err != nil {
-		return nil, fmt.Errorf("get node failed: %v", err)
-	}
-
-	return subscr.ParseNodeConn(p)
-}
-
-func (e *Entrance) GetNodes(group string) ([]string, error) {
-	n, err := e.nodeManager.GetNodes(context.TODO(), &wrapperspb.StringValue{})
-	if err != nil {
-		return nil, fmt.Errorf("get nodes failed: %v", err)
-	}
-
-	g, ok := n.GroupNodesMap[group]
-	if !ok {
-		return nil, fmt.Errorf("group %v is not exist", group)
-	}
-
-	return g.Nodes, nil
-}
-
-func (e *Entrance) GetGroups() ([]string, error) {
-	z, err := e.nodeManager.GetNodes(context.TODO(), &wrapperspb.StringValue{})
-	if err != nil {
-		return nil, fmt.Errorf("get nodes failed: %v", err)
-	}
-	return z.Groups, nil
-}
-
-func (e *Entrance) UpdateSub() error {
-	_, err := e.nodeManager.RefreshSubscr(context.TODO(), &emptypb.Empty{})
-	return err
-}
-
-func (e *Entrance) GetLinks() (map[string]*subscr.NodeLink, error) {
-	z, err := e.nodeManager.GetNodes(context.TODO(), &wrapperspb.StringValue{})
-	if err != nil {
-		return nil, fmt.Errorf("get nodes failed: %v", err)
-	}
-	return z.Links, nil
-}
-
-func (e *Entrance) AddLink(name, style, link string) error {
-	_, err := e.nodeManager.AddLink(
-		context.TODO(),
-		&subscr.NodeLink{
-			Name: name,
-			Url:  link,
-		},
-	)
-	return err
-}
-
-func (e *Entrance) DeleteNode(group, name string) error {
-	hash, err := e.nodeManager.GetHash(group, name)
-	if err != nil {
-		return nil
-	}
-	_, err = e.nodeManager.DeleteNode(context.TODO(), &wrapperspb.StringValue{Value: hash})
-	return err
-}
-
-func (e *Entrance) DeleteLink(name string) error {
-	_, err := e.nodeManager.DeleteLink(context.TODO(), &wrapperspb.StringValue{Value: name})
-	return err
-}
-
-func (e *Entrance) changeNode() error {
-	n, err := e.nodeManager.Now(context.TODO(), &emptypb.Empty{})
-	if err != nil {
-		return fmt.Errorf("get now node failed: %v", err)
-	}
-	if e.nodeHash == n.GetNHash() {
-		return nil
-	}
-	e.nodeHash = n.GetNHash()
-	e.connManager.SetProxy(e.getBypass())
-	return nil
-}
-
-func (e *Entrance) getNowNode() (p proxy.Proxy) {
-	n, err := e.nodeManager.Now(context.TODO(), &emptypb.Empty{})
-	if err != nil {
-		return &proxy.DefaultProxy{}
-	}
-
-	p, err = subscr.ParseNodeConn(n)
-	if err != nil {
-		log.Printf("now node to conn failed: %v", err)
-		p = &proxy.DefaultProxy{}
-	}
-
-	return p
-}
-
 func (e *Entrance) getBypass() proxy.Proxy {
 	if !e.config.GetSetting().Bypass.Enabled {
-		return NewBypassManager(nil, getDNS(e.config.GetSetting().GetLocalDNS()), e.getNowNode())
+		return NewBypassManager(nil, getDNS(e.config.GetSetting().GetLocalDNS()), e.p)
 	} else {
-		return NewBypassManager(e.shunt, getDNS(e.config.GetSetting().GetLocalDNS()), e.getNowNode())
+		return NewBypassManager(e.shunt, getDNS(e.config.GetSetting().GetLocalDNS()), e.p)
 	}
 }
 
@@ -295,12 +140,4 @@ func (e *Entrance) GetDownload() uint64 {
 
 func (e *Entrance) GetUpload() uint64 {
 	return e.connManager.GetUpload()
-}
-
-func (e *Entrance) Latency(group, mark string) (*wrapperspb.StringValue, error) {
-	hash, err := e.nodeManager.GetHash(group, mark)
-	if err != nil {
-		return &wrapperspb.StringValue{Value: err.Error()}, err
-	}
-	return e.nodeManager.Latency(context.TODO(), &wrapperspb.StringValue{Value: hash})
 }

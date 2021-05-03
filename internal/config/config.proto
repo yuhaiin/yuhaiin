@@ -4,6 +4,8 @@ package yuhaiin.api;
 option go_package = "github.com/Asutorufa/yuhaiin/internal/config";
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative config.proto
 
+import "google/protobuf/empty.proto";
+
 message Setting{
   SystemProxy SystemProxy = 1 [json_name="system_proxy"];
   Bypass Bypass = 2 [json_name="bypass"];
@@ -36,4 +38,9 @@ message Proxy {
   string HTTP = 1 [json_name="http"];
   string Socks5 = 2 [json_name="socks5"];
   string Redir = 3 [json_name="redir"];
+}
+
+service config {
+  rpc get_config(google.protobuf.Empty)returns(Setting);
+  rpc set_config(Setting)returns(google.protobuf.Empty);
 }
