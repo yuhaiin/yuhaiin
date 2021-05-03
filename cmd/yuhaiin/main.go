@@ -16,6 +16,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/api"
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"google.golang.org/grpc"
 )
 
@@ -85,12 +86,17 @@ func main() {
 	fmt.Println("gRPC Listen Host :", host)
 	fmt.Println("Try to create lock file.")
 
-	m, err := app.NewManager(Path)
+	nodeManager, err := subscr.NewNodeManager(filepath.Join(Path, "node.json"))
+	if err != nil {
+		panic(err)
+	}
+	entrance, err := app.NewEntrance(Path, nodeManager)
 	if err != nil {
 		panic(err)
 	}
 
-	err = m.Start(host)
+	m := app.NewManager(Path)
+	err = m.Start(host, entrance.Start())
 	if err != nil {
 		panic(err)
 	}
@@ -102,9 +108,9 @@ func main() {
 
 	s := grpc.NewServer(grpc.EmptyServerOption{})
 	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(m))
-	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(m.Entrance()))
-	s.RegisterService(&api.Node_ServiceDesc, api.NewNode(m.Entrance()))
-	s.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(m.Entrance()))
+	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(entrance))
+	s.RegisterService(&api.Node_ServiceDesc, api.NewNode(nodeManager))
+	s.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(nodeManager))
 	err = s.Serve(lis)
 	if err != nil {
 		panic(err)

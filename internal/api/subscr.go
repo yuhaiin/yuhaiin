@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -13,45 +13,51 @@ var _ SubscribeServer = (*Subscribe)(nil)
 
 type Subscribe struct {
 	UnimplementedSubscribeServer
-	entrance *app.Entrance
+	nodeManager subscr.NodeManagerServer
 }
 
-func NewSubscribe(e *app.Entrance) SubscribeServer {
-	return &Subscribe{
-		entrance: e,
-	}
+func NewSubscribe(e subscr.NodeManagerServer) SubscribeServer {
+	return &Subscribe{nodeManager: e}
 }
 
 func (s *Subscribe) UpdateSub(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.entrance.UpdateSub()
+	return s.nodeManager.RefreshSubscr(context.TODO(), &emptypb.Empty{})
 }
 
 func (s *Subscribe) GetSubLinks(context.Context, *emptypb.Empty) (*Links, error) {
-	links, err := s.entrance.GetLinks()
+	z, err := s.nodeManager.GetNodes(context.TODO(), &wrapperspb.StringValue{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get nodes failed: %v", err)
 	}
-	l := &Links{}
-	l.Value = map[string]*Link{}
-	for key := range links {
+
+	l := &Links{Value: make(map[string]*Link)}
+
+	for key := range z.Links {
 		l.Value[key] = &Link{
-			Type: links[key].Type,
-			Url:  links[key].Url,
+			Type: z.Links[key].Type,
+			Url:  z.Links[key].Url,
 		}
 	}
 	return l, nil
 }
 
 func (s *Subscribe) AddSubLink(ctx context.Context, req *Link) (*Links, error) {
-	err := s.entrance.AddLink(req.Name, req.Type, req.Url)
+	_, err := s.nodeManager.AddLink(
+		context.TODO(),
+		&subscr.NodeLink{
+			Name: req.Name,
+			Url:  req.Url,
+			Type: req.Type,
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("api:AddSubLink -> %v", err)
+		return &Links{}, fmt.Errorf("add link failed: %v", err)
 	}
 	return s.GetSubLinks(ctx, &emptypb.Empty{})
 }
 
 func (s *Subscribe) DeleteSubLink(ctx context.Context, req *wrapperspb.StringValue) (*Links, error) {
-	err := s.entrance.DeleteLink(req.Value)
+	_, err := s.nodeManager.DeleteLink(context.TODO(), req)
 	if err != nil {
 		return nil, err
 	}
