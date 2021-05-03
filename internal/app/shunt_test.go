@@ -2,10 +2,12 @@ package app
 
 import (
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/internal/config"
 )
 
 func TestShunt(t *testing.T) {
-	x, err := NewShunt("/tmp/yuhaiin_my.conf", nil)
+	x, err := NewShunt(&config.Config{})
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

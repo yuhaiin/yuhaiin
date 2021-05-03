@@ -6,36 +6,56 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/app/component"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
 //BypassManager .
 type BypassManager struct {
-	dns    dns.DNS
 	mapper component.Mapper
 	proxy  proxy.Proxy
-	dialer net.Dialer
+	dialer *net.Dialer
+	bypass bool
 }
 
 //NewBypassManager .
-func NewBypassManager(mapper component.Mapper, dns dns.DNS, p proxy.Proxy) *BypassManager {
-	if mapper == nil {
-		fmt.Println("checked mapper is nil, disable bypass.")
-	}
-	if dns == nil {
-		fmt.Println("checked dns is nil")
-	}
+func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 	if p == nil {
 		p = &proxy.DefaultProxy{}
 	}
 
-	m := &BypassManager{
-		dialer: net.Dialer{Timeout: 11 * time.Second, Resolver: dns.Resolver()},
-		proxy:  p,
-		mapper: mapper,
-		dns:    dns,
+	shunt, err := NewShunt(conf)
+	if err != nil {
+		fmt.Println("create shunt failed, disable bypass.")
 	}
+
+	m := &BypassManager{proxy: p, mapper: shunt}
+
+	_ = conf.Exec(
+		func(s *config.Setting) error {
+			m.dialer = &net.Dialer{
+				Timeout:  11 * time.Second,
+				Resolver: getDNS(s.LocalDNS).Resolver(),
+			}
+			m.bypass = s.Bypass.Enabled
+			return nil
+		})
+
+	conf.AddObserver(func(current, old *config.Setting) {
+		if diffDNS(old.LocalDNS, current.LocalDNS) {
+			m.dialer = &net.Dialer{
+				Timeout:  11 * time.Second,
+				Resolver: getDNS(current.LocalDNS).Resolver(),
+			}
+		}
+	})
+
+	conf.AddObserver(func(current, old *config.Setting) {
+		if current.Bypass.Enabled != old.Bypass.Enabled {
+			m.bypass = current.Bypass.Enabled
+		}
+	})
+
 	return m
 }
 
@@ -65,7 +85,7 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy, err error) {
 	}
 
 	mark := component.OTHERS
-	if m.mapper != nil {
+	if m.mapper != nil && m.bypass {
 		c := m.mapper.Get(hostname)
 		mark = c.Mark
 	}
@@ -87,7 +107,7 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy, err error) {
 }
 
 type direct struct {
-	dialer net.Dialer
+	dialer *net.Dialer
 }
 
 func (d *direct) Conn(s string) (net.Conn, error) {

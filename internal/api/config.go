@@ -16,26 +16,24 @@ var _ ConfigServer = (*Config)(nil)
 
 type Config struct {
 	UnimplementedConfigServer
-	entrance *app.Entrance
+	c        *config.Config
+	entrance *app.FlowStatis
 }
 
-func NewConfig(e *app.Entrance) ConfigServer {
-	return &Config{
-		entrance: e,
-	}
+func NewConfig(e *config.Config, ee *app.FlowStatis) ConfigServer {
+	return &Config{c: e, entrance: ee}
 }
 
-func (c *Config) GetConfig(context.Context, *emptypb.Empty) (*config.Setting, error) {
-	conf, err := c.entrance.GetConfig()
-	return conf, err
+func (c *Config) GetConfig(cc context.Context, e *emptypb.Empty) (*config.Setting, error) {
+	return c.c.Load(cc, e)
 }
 
-func (c *Config) SetConfig(_ context.Context, req *config.Setting) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, c.entrance.SetConFig(req)
+func (c *Config) SetConfig(cc context.Context, req *config.Setting) (*emptypb.Empty, error) {
+	return c.c.Save(cc, req)
 }
 
 func (c *Config) ReimportRule(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, c.entrance.RefreshMapping()
+	return &emptypb.Empty{}, c.c.ExecCommand("RefreshMapping")
 }
 
 func (c *Config) GetRate(_ *emptypb.Empty, srv Config_GetRateServer) error {
