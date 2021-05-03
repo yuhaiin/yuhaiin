@@ -10,6 +10,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
+var _ proxy.Proxy = (*connManager)(nil)
+
 type connManager struct {
 	conns    sync.Map
 	download uint64
@@ -148,6 +150,8 @@ func (c *connManager) PacketConn(host string) (net.PacketConn, error) {
 	return c.newPacketConn(host, conn), err
 }
 
+var _ net.Conn = (*statisticConn)(nil)
+
 type statisticConn struct {
 	net.Conn
 	close func(net.Conn, int64) error
@@ -169,6 +173,8 @@ func (s *statisticConn) Write(b []byte) (n int, err error) {
 func (s *statisticConn) Read(b []byte) (n int, err error) {
 	return s.read(s.Conn, b)
 }
+
+var _ net.PacketConn = (*statisticPacketConn)(nil)
 
 type statisticPacketConn struct {
 	net.PacketConn

@@ -16,6 +16,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/api"
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"google.golang.org/grpc"
 )
@@ -90,16 +91,21 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	entrance, err := app.NewEntrance(Path, nodeManager)
+
+	config, err := config.NewConfig(Path)
+	if err != nil {
+		panic(err)
+	}
+
+	flowStatis := app.NewFlowStatis(config, nodeManager)
+	// initialize Local Servers Controller
+	_, err = app.NewListener(config, flowStatis)
 	if err != nil {
 		panic(err)
 	}
 
 	m := app.NewManager(Path)
-	err = m.Start(host, entrance.Start())
-	if err != nil {
-		panic(err)
-	}
+	_ = m.Start(host, err)
 
 	lis, err := net.Listen("tcp", host)
 	if err != nil {
@@ -108,9 +114,10 @@ func main() {
 
 	s := grpc.NewServer(grpc.EmptyServerOption{})
 	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(m))
-	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(entrance))
+	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(config, flowStatis))
 	s.RegisterService(&api.Node_ServiceDesc, api.NewNode(nodeManager))
 	s.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(nodeManager))
+	s.RegisterService(&subscr.NodeManager_ServiceDesc, nodeManager)
 	err = s.Serve(lis)
 	if err != nil {
 		panic(err)

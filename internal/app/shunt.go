@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path"
@@ -17,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/internal/app/component"
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 )
 
@@ -32,15 +34,42 @@ type Shunt struct {
 }
 
 //NewShunt file: bypass file; lookup: domain resolver, can be nil
-func NewShunt(file string, lookup func(string) ([]net.IP, error)) (*Shunt, error) {
-	s := &Shunt{
-		file:   file,
-		mapper: mapper.NewMapper(lookup),
-	}
-	err := s.RefreshMapping()
+func NewShunt(conf *config.Config) (*Shunt, error) {
+	s := &Shunt{}
+
+	err := conf.Exec(
+		func(ss *config.Setting) error {
+			s.file = ss.Bypass.BypassFile
+			s.mapper = mapper.NewMapper(getDNS(ss.DNS).LookupIP)
+			err := s.RefreshMapping()
+			if err != nil {
+				return fmt.Errorf("refresh mapping failed: %v", err)
+			}
+			return nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("refresh mapping failed: %v", err)
+		return s, err
 	}
+
+	conf.AddObserver(func(current, old *config.Setting) {
+		if current.Bypass.BypassFile != old.Bypass.BypassFile {
+			err := s.SetFile(current.Bypass.BypassFile)
+			if err != nil {
+				log.Printf("shunt set file failed: %v", err)
+			}
+		}
+	})
+
+	conf.AddObserver(func(current, old *config.Setting) {
+		if diffDNS(current.DNS, old.DNS) {
+			s.SetLookup(getDNS(current.DNS).LookupIP)
+		}
+	})
+
+	conf.AddExecCommand("RefreshMapping", func(*config.Setting) error {
+		return s.RefreshMapping()
+	})
+
 	return s, nil
 }
 

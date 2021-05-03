@@ -15,54 +15,56 @@ type Listener struct {
 	socks5 proxy.Server
 	http   proxy.Server
 	redir  proxy.Server
-	hosts  *config.Proxy
-	proxy  proxy.Proxy
+	proxy.Proxy
 }
 
-func NewListener(c *config.Proxy, pro proxy.Proxy) (l *Listener, err error) {
-	l = &Listener{
-		proxy: pro,
-		hosts: c,
-	}
+func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener, err error) {
+	l = &Listener{Proxy: pro}
 
-	l.socks5, err = ss.NewServer(l.hosts.Socks5, "", "")
-	if err != nil {
-		return nil, fmt.Errorf("create socks5 server failed: %v", err)
-	}
-	l.http, err = hs.NewServer(l.hosts.HTTP, "", "")
-	if err != nil {
-		return nil, fmt.Errorf("create http server failed: %v", err)
-	}
-
-	if runtime.GOOS != "windows" {
-		l.redir, err = rs.NewServer(l.hosts.Redir)
+	err = c.Exec(func(s *config.Setting) error {
+		l.socks5, err = ss.NewServer(s.Proxy.Socks5, "", "")
 		if err != nil {
-			return nil, fmt.Errorf("create redir server failed: %v", err)
+			return fmt.Errorf("create socks5 server failed: %v", err)
 		}
+
+		l.http, err = hs.NewServer(s.Proxy.HTTP, "", "")
+		if err != nil {
+			return fmt.Errorf("create http server failed: %v", err)
+		}
+
+		if runtime.GOOS != "windows" {
+			l.redir, err = rs.NewServer(s.Proxy.Redir)
+			if err != nil {
+				return fmt.Errorf("create redir server failed: %v", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	l.SetProxy(l.proxy)
-	return l, nil
-}
+	c.AddObserver(func(cc, _ *config.Setting) {
+		l.http.SetServer(cc.Proxy.GetHTTP())
+		l.socks5.SetServer(cc.Proxy.GetSocks5())
+		if runtime.GOOS != "windows" {
+			l.redir.SetServer(cc.Proxy.GetRedir())
+		}
+	})
 
-func (l *Listener) SetServer(c *config.Proxy) {
-	l.http.SetServer(l.hosts.GetHTTP())
-	l.socks5.SetServer(l.hosts.GetSocks5())
+	l.socks5.SetProxy(l)
+	l.http.SetProxy(l)
 	if runtime.GOOS != "windows" {
-		l.redir.SetServer(l.hosts.GetRedir())
+		l.redir.SetProxy(l)
 	}
+	return l, nil
 }
 
 func (l *Listener) SetProxy(p proxy.Proxy) {
 	if p == nil {
-		l.proxy = &proxy.DefaultProxy{}
+		l.Proxy = &proxy.DefaultProxy{}
 	} else {
-		l.proxy = p
+		l.Proxy = p
 	}
 
-	l.socks5.SetProxy(l.proxy)
-	l.http.SetProxy(l.proxy)
-	if runtime.GOOS != "windows" {
-		l.redir.SetProxy(l.proxy)
-	}
 }
