@@ -22,6 +22,7 @@ import (
 )
 
 var _ NodeManagerServer = (*NodeManager)(nil)
+var _ proxy.Proxy = (*NodeManager)(nil)
 
 type NodeManager struct {
 	UnimplementedNodeManagerServer
@@ -29,11 +30,24 @@ type NodeManager struct {
 	configPath string
 	lock       sync.RWMutex
 	filelock   sync.RWMutex
+	proxy.Proxy
 }
 
 func NewNodeManager(configPath string) (n *NodeManager, err error) {
 	n = &NodeManager{configPath: configPath}
-	return n, n.open()
+	err = n.load()
+	if err != nil {
+		return n, fmt.Errorf("load config failed: %v", err)
+	}
+
+	p, err := ParseNodeConn(n.node.NowNode)
+	if err != nil {
+		p = &proxy.DefaultProxy{}
+	}
+
+	n.Proxy = p
+
+	return n, nil
 }
 
 func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*Point, error) {
@@ -105,8 +119,19 @@ func (n *NodeManager) ChangeNowNode(c context.Context, s *wrapperspb.StringValue
 
 	n.lock.Lock()
 	defer n.lock.Unlock()
+
+	if n.node.NowNode.NHash == p.NHash {
+		return p, nil
+	}
 	n.node.NowNode = p
-	return n.node.NowNode, n.save()
+
+	err = n.save()
+	if err != nil {
+		return p, fmt.Errorf("save config failed: %v", err)
+	}
+
+	n.Proxy, err = ParseNodeConn(p)
+	return n.node.NowNode, err
 }
 
 func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
@@ -169,7 +194,10 @@ func (n *NodeManager) oneLinkGet(c context.Context, link *NodeLink) {
 			log.Println(err)
 			continue
 		}
-		n.AddNode(c, node)
+		_, err = n.AddNode(c, node)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 
@@ -295,7 +323,7 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 	return &wrapperspb.StringValue{Value: t.String()}, err
 }
 
-func (n *NodeManager) open() error {
+func (n *NodeManager) load() error {
 	n.node = &Node{
 		NowNode:       &Point{},
 		Links:         make(map[string]*NodeLink),
