@@ -224,6 +224,14 @@ func (n *NodeManager) deleteRemoteNodes(group string) {
 
 	if len(left) == 0 {
 		delete(n.node.GroupNodesMap, group)
+		for i, x := range n.node.Groups {
+			if x != group {
+				continue
+			}
+
+			n.node.Groups = append(n.node.Groups[:i], n.node.Groups[i+1:]...)
+			break
+		}
 		return
 	}
 
@@ -279,7 +287,7 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 		}
 
 		n.node.GroupNodesMap[p.NGroup].Nodes = append(
-			n.node.GroupNodesMap[p.NGroup].Nodes[:i-1],
+			n.node.GroupNodesMap[p.NGroup].Nodes[:i],
 			n.node.GroupNodesMap[p.NGroup].Nodes[i+1:]...,
 		)
 		break
@@ -296,7 +304,8 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 			continue
 		}
 
-		n.node.Groups = append(n.node.Groups[:i-1], n.node.Groups[i+1:]...)
+		n.node.Groups = append(n.node.Groups[:i], n.node.Groups[i+1:]...)
+		break
 	}
 
 	return &emptypb.Empty{}, n.save()
