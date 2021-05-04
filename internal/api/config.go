@@ -2,13 +2,10 @@ package api
 
 import (
 	context "context"
-	"fmt"
 	"log"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	config "github.com/Asutorufa/yuhaiin/internal/config"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -16,12 +13,12 @@ var _ ConfigServer = (*Config)(nil)
 
 type Config struct {
 	UnimplementedConfigServer
-	c        *config.Config
-	entrance *app.ConnManager
+	c           *config.Config
+	connManager *app.ConnManager
 }
 
 func NewConfig(e *config.Config, ee *app.ConnManager) ConfigServer {
-	return &Config{c: e, entrance: ee}
+	return &Config{c: e, connManager: ee}
 }
 
 func (c *Config) GetConfig(cc context.Context, e *emptypb.Empty) (*config.Setting, error) {
@@ -37,32 +34,46 @@ func (c *Config) ReimportRule(context.Context, *emptypb.Empty) (*emptypb.Empty, 
 }
 
 func (c *Config) GetRate(_ *emptypb.Empty, srv Config_GetRateServer) error {
-	fmt.Println("Start Send Flow Message to Client.")
-	//TODO deprecated string
-	da, ua := c.entrance.GetDownload(), c.entrance.GetUpload()
-	var dr string
-	var ur string
+	ct, cancel := context.WithCancel(context.Background())
+	r := newRate(ct)
+	go c.connManager.Statistic(&emptypb.Empty{}, r)
 	ctx := srv.Context()
 	for {
-		dr = utils.ReducedUnitStr(float64(c.entrance.GetDownload()-da)) + "/S"
-		ur = utils.ReducedUnitStr(float64(c.entrance.GetUpload()-ua)) + "/S"
-		da, ua = c.entrance.GetDownload(), c.entrance.GetUpload()
-
-		err := srv.Send(&DaUaDrUr{
-			Download: utils.ReducedUnitStr(float64(da)),
-			Upload:   utils.ReducedUnitStr(float64(ua)),
-			DownRate: dr,
-			UpRate:   ur,
-		})
-		if err != nil {
-			log.Println(err)
-		}
 		select {
 		case <-ctx.Done():
-			fmt.Println("Client is Hidden, Close Stream.")
+			cancel()
 			return ctx.Err()
-		case <-time.After(time.Second):
-			continue
+		case s := <-r.data:
+			err := srv.Send(&DaUaDrUr{
+				Download: s.Download,
+				Upload:   s.Upload,
+				DownRate: s.DownloadRate,
+				UpRate:   s.UploadRate,
+			})
+			if err != nil {
+				log.Println(err)
+			}
 		}
 	}
+}
+
+type rate struct {
+	app.Connections_StatisticServer
+	data    chan *app.RateResp
+	context context.Context
+}
+
+func newRate(c context.Context) *rate {
+	return &rate{
+		data:    make(chan *app.RateResp, 3),
+		context: c,
+	}
+}
+func (r *rate) Send(s *app.RateResp) error {
+	r.data <- s
+	return nil
+}
+
+func (r *rate) Context() context.Context {
+	return r.context
 }

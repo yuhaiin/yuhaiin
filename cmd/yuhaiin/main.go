@@ -149,6 +149,7 @@ func main() {
 	s.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(nodeManager)) // TODO Deprecated
 	s.RegisterService(&subscr.NodeManager_ServiceDesc, nodeManager)
 	s.RegisterService(&config.ConfigDao_ServiceDesc, conf)
+	s.RegisterService(&app.Connections_ServiceDesc, flowStatis)
 	err = s.Serve(lis)
 	if err != nil {
 		panic(err)
