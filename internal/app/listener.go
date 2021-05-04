@@ -19,6 +19,9 @@ type Listener struct {
 }
 
 func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener, err error) {
+	if pro == nil {
+		pro = &proxy.DefaultProxy{}
+	}
 	l = &Listener{Proxy: pro}
 
 	err = c.Exec(func(s *config.Setting) error {

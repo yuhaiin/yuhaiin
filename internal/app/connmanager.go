@@ -10,9 +10,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
-var _ proxy.Proxy = (*connManager)(nil)
+var _ proxy.Proxy = (*ConnManager)(nil)
 
-type connManager struct {
+type ConnManager struct {
 	conns    sync.Map
 	download uint64
 	upload   uint64
@@ -20,12 +20,12 @@ type connManager struct {
 	proxy    proxy.Proxy
 }
 
-func newConnManager(p proxy.Proxy) *connManager {
+func NewConnManager(p proxy.Proxy) *ConnManager {
 	if p == nil {
 		p = &proxy.DefaultProxy{}
 	}
 
-	c := &connManager{
+	c := &ConnManager{
 		download: 0,
 		upload:   0,
 
@@ -36,7 +36,7 @@ func newConnManager(p proxy.Proxy) *connManager {
 	return c
 }
 
-func (c *connManager) SetProxy(p proxy.Proxy) {
+func (c *ConnManager) SetProxy(p proxy.Proxy) {
 	if p == nil {
 		p = &proxy.DefaultProxy{}
 	}
@@ -44,23 +44,23 @@ func (c *connManager) SetProxy(p proxy.Proxy) {
 	c.proxy = p
 }
 
-func (c *connManager) GetDownload() uint64 {
+func (c *ConnManager) GetDownload() uint64 {
 	return atomic.LoadUint64(&c.download)
 }
 
-func (c *connManager) GetUpload() uint64 {
+func (c *ConnManager) GetUpload() uint64 {
 	return atomic.LoadUint64(&c.upload)
 }
 
-func (c *connManager) add(i *statisticConn) {
+func (c *ConnManager) add(i *statisticConn) {
 	c.conns.Store(i.id, i)
 }
 
-func (c *connManager) addPacketConn(i *statisticPacketConn) {
+func (c *ConnManager) addPacketConn(i *statisticPacketConn) {
 	c.conns.Store(i.id, i)
 }
 
-func (c *connManager) delete(id int64) {
+func (c *ConnManager) delete(id int64) {
 	v, _ := c.conns.LoadAndDelete(id)
 	if x, ok := v.(*statisticConn); ok {
 		fmt.Printf("close tcp conn id: %d,addr: %s\n", x.id, x.addr)
@@ -70,41 +70,41 @@ func (c *connManager) delete(id int64) {
 	}
 }
 
-func (c *connManager) write(w io.Writer, b []byte) (int, error) {
+func (c *ConnManager) write(w io.Writer, b []byte) (int, error) {
 	n, err := w.Write(b)
 	atomic.AddUint64(&c.upload, uint64(n))
 	return n, err
 }
 
-func (c *connManager) writeTo(w net.PacketConn, b []byte, addr net.Addr) (int, error) {
+func (c *ConnManager) writeTo(w net.PacketConn, b []byte, addr net.Addr) (int, error) {
 	n, err := w.WriteTo(b, addr)
 	atomic.AddUint64(&c.upload, uint64(n))
 	return n, err
 }
 
-func (c *connManager) readFrom(r net.PacketConn, b []byte) (int, net.Addr, error) {
+func (c *ConnManager) readFrom(r net.PacketConn, b []byte) (int, net.Addr, error) {
 	n, addr, err := r.ReadFrom(b)
 	atomic.AddUint64(&c.download, uint64(n))
 	return n, addr, err
 }
 
-func (c *connManager) read(r io.Reader, b []byte) (int, error) {
+func (c *ConnManager) read(r io.Reader, b []byte) (int, error) {
 	n, err := r.Read(b)
 	atomic.AddUint64(&c.download, uint64(n))
 	return n, err
 }
 
-func (c *connManager) dc(cn net.Conn, id int64) error {
+func (c *ConnManager) dc(cn net.Conn, id int64) error {
 	c.delete(id)
 	return cn.Close()
 }
 
-func (c *connManager) dpc(cn net.PacketConn, id int64) error {
+func (c *ConnManager) dpc(cn net.PacketConn, id int64) error {
 	c.delete(id)
 	return cn.Close()
 }
 
-func (c *connManager) newConn(addr string, x net.Conn) net.Conn {
+func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
 	if x == nil {
 		return nil
 	}
@@ -122,7 +122,7 @@ func (c *connManager) newConn(addr string, x net.Conn) net.Conn {
 	return s
 }
 
-func (c *connManager) newPacketConn(addr string, x net.PacketConn) net.PacketConn {
+func (c *ConnManager) newPacketConn(addr string, x net.PacketConn) net.PacketConn {
 	if x == nil {
 		return nil
 	}
@@ -140,12 +140,12 @@ func (c *connManager) newPacketConn(addr string, x net.PacketConn) net.PacketCon
 	return s
 }
 
-func (c *connManager) Conn(host string) (net.Conn, error) {
+func (c *ConnManager) Conn(host string) (net.Conn, error) {
 	conn, err := c.proxy.Conn(host)
 	return c.newConn(host, conn), err
 }
 
-func (c *connManager) PacketConn(host string) (net.PacketConn, error) {
+func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 	conn, err := c.proxy.PacketConn(host)
 	return c.newPacketConn(host, conn), err
 }
