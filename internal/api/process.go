@@ -18,25 +18,19 @@ type Process struct {
 	UnimplementedProcessInitServer
 	singleInstance chan bool
 	message        chan string
-	manager        *app.Manager
+
+	locks *app.Lock
+	host  string
 }
 
-func NewProcess(e *app.Manager) ProcessInitServer {
-	return &Process{
-		manager: e,
-	}
+func NewProcess(lock *app.Lock, host string) ProcessInitServer {
+	return &Process{locks: lock, host: host}
 }
 
 func (s *Process) CreateLockFile(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	if !s.manager.Lockfile() {
+	if s.locks.Lock(s.host) != nil {
 		return &emptypb.Empty{}, errors.New("create lock file false")
 	}
-
-	if !s.manager.InitApp() {
-		return &emptypb.Empty{}, errors.New("init Process Failed")
-	}
-
-	s.manager.Connect()
 	return &emptypb.Empty{}, nil
 }
 
@@ -45,9 +39,9 @@ func (s *Process) ProcessInit(context.Context, *emptypb.Empty) (*emptypb.Empty, 
 }
 
 func (s *Process) GetRunningHost(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
-	host, err := s.manager.ReadHost()
+	host, err := s.locks.Payload()
 	if err != nil {
-		return &wrapperspb.StringValue{}, err
+		return &wrapperspb.StringValue{}, fmt.Errorf("get payload failed: %v", err)
 	}
 	return &wrapperspb.StringValue{Value: host}, nil
 }
@@ -66,7 +60,7 @@ func (s *Process) ClientOn(context.Context, *emptypb.Empty) (*emptypb.Empty, err
 }
 
 func (s *Process) ProcessExit(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.manager.Close()
+	return &emptypb.Empty{}, nil
 }
 
 func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {

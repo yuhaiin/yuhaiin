@@ -17,10 +17,10 @@ var _ ConfigServer = (*Config)(nil)
 type Config struct {
 	UnimplementedConfigServer
 	c        *config.Config
-	entrance *app.FlowStatis
+	entrance *app.ConnManager
 }
 
-func NewConfig(e *config.Config, ee *app.FlowStatis) ConfigServer {
+func NewConfig(e *config.Config, ee *app.ConnManager) ConfigServer {
 	return &Config{c: e, entrance: ee}
 }
 
