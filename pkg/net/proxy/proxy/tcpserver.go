@@ -62,6 +62,9 @@ func (t *TCPServer) SetServer(host string) (err error) {
 }
 
 func (t *TCPServer) SetProxy(p Proxy) {
+	if p == nil {
+		p = &DefaultProxy{}
+	}
 	t.proxy.Store(p)
 }
 

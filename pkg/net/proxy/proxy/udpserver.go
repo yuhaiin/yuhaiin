@@ -20,6 +20,9 @@ type UDPServer struct {
 }
 
 func (u *UDPServer) SetProxy(f Proxy) {
+	if f == nil {
+		f = &DefaultProxy{}
+	}
 	u.proxy.Store(f)
 }
 
