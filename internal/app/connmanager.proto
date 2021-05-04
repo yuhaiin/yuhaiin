@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package yuhaiin.app.connmanager;
+
+option go_package = "github.com/Asutorufa/yuhaiin/internal/app";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+
+service connections{
+  rpc conns(google.protobuf.Empty)returns(conn_resp);
+  rpc close_conn(google.protobuf.Int64Value)returns(google.protobuf.Empty);
+  rpc statistic(google.protobuf.Empty)returns(stream rate_resp);
+}
+
+message rate_resp{
+  string download = 1;
+  string upload = 2;
+  string download_rate = 3;
+  string upload_rate = 4;
+}
+
+message conn_resp {
+    message connection{
+        string addr = 1;
+        int64 id = 2;
+    }
+    repeated connection connections = 1;
+}
