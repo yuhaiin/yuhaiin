@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package yuhaiin.api;
 
-option go_package = "github.com/Asutorufa/yuhaiin/api";
+option go_package = "github.com/Asutorufa/yuhaiin/internal/api";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";

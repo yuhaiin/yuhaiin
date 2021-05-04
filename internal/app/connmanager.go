@@ -1,18 +1,25 @@
 package app
 
 import (
+	context "context"
 	"fmt"
-	"io"
+	"log"
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var _ proxy.Proxy = (*ConnManager)(nil)
+var _ ConnectionsServer = (*ConnManager)(nil)
 
 type ConnManager struct {
+	UnimplementedConnectionsServer
 	conns    sync.Map
 	download uint64
 	upload   uint64
@@ -44,6 +51,69 @@ func (c *ConnManager) SetProxy(p proxy.Proxy) {
 	c.proxy = p
 }
 
+func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) {
+	resp := &ConnResp{}
+	c.conns.Range(func(key, value interface{}) bool {
+		if x, ok := value.(*conn); ok {
+			resp.Connections = append(resp.Connections, &x.ConnRespConnection)
+		}
+
+		if x, ok := value.(*packetConn); ok {
+			resp.Connections = append(resp.Connections, &x.ConnRespConnection)
+		}
+
+		return false
+	})
+
+	return resp, nil
+}
+
+func (c *ConnManager) CloseConn(_ context.Context, x *wrapperspb.Int64Value) (*emptypb.Empty, error) {
+	z, ok := c.conns.Load(x.Value)
+	if !ok {
+		return &emptypb.Empty{}, nil
+	}
+	var err error
+	if x, ok := z.(net.Conn); ok {
+		err = x.Close()
+	}
+
+	if x, ok := z.(net.PacketConn); ok {
+		err = x.Close()
+	}
+
+	return &emptypb.Empty{}, err
+}
+
+func (c *ConnManager) Statistic(_ *emptypb.Empty, srv Connections_StatisticServer) error {
+	fmt.Println("Start Send Flow Message to Client.")
+	da, ua := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
+	doa, uoa := da, ua
+	ctx := srv.Context()
+	for {
+		doa, uoa = da, ua
+		da, ua = atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
+
+		err := srv.Send(&RateResp{
+			Download:     utils.ReducedUnitStr(float64(da)),
+			Upload:       utils.ReducedUnitStr(float64(ua)),
+			DownloadRate: utils.ReducedUnitStr(float64(da-doa)) + "/S",
+			UploadRate:   utils.ReducedUnitStr(float64(ua-uoa)) + "/S",
+		})
+		if err != nil {
+			log.Println(err)
+		}
+
+		select {
+		case <-ctx.Done():
+			fmt.Println("Client is Hidden, Close Stream.")
+			return ctx.Err()
+		case <-time.After(time.Second):
+			continue
+		}
+	}
+}
+
 func (c *ConnManager) GetDownload() uint64 {
 	return atomic.LoadUint64(&c.download)
 }
@@ -52,69 +122,35 @@ func (c *ConnManager) GetUpload() uint64 {
 	return atomic.LoadUint64(&c.upload)
 }
 
-func (c *ConnManager) add(i *statisticConn) {
-	c.conns.Store(i.id, i)
+func (c *ConnManager) add(i *conn) {
+	c.conns.Store(i.Id, i)
 }
 
-func (c *ConnManager) addPacketConn(i *statisticPacketConn) {
-	c.conns.Store(i.id, i)
+func (c *ConnManager) addPacketConn(i *packetConn) {
+	c.conns.Store(i.Id, i)
 }
 
 func (c *ConnManager) delete(id int64) {
 	v, _ := c.conns.LoadAndDelete(id)
-	if x, ok := v.(*statisticConn); ok {
-		fmt.Printf("close tcp conn id: %d,addr: %s\n", x.id, x.addr)
+	if x, ok := v.(*conn); ok {
+		fmt.Printf("close tcp conn id: %d,addr: %s\n", x.Id, x.Addr)
 	}
-	if x, ok := v.(*statisticPacketConn); ok {
-		fmt.Printf("close packet conn id: %d,addr: %s\n", x.id, x.addr)
+	if x, ok := v.(*packetConn); ok {
+		fmt.Printf("close packet conn id: %d,addr: %s\n", x.Id, x.Addr)
 	}
-}
-
-func (c *ConnManager) write(w io.Writer, b []byte) (int, error) {
-	n, err := w.Write(b)
-	atomic.AddUint64(&c.upload, uint64(n))
-	return n, err
-}
-
-func (c *ConnManager) writeTo(w net.PacketConn, b []byte, addr net.Addr) (int, error) {
-	n, err := w.WriteTo(b, addr)
-	atomic.AddUint64(&c.upload, uint64(n))
-	return n, err
-}
-
-func (c *ConnManager) readFrom(r net.PacketConn, b []byte) (int, net.Addr, error) {
-	n, addr, err := r.ReadFrom(b)
-	atomic.AddUint64(&c.download, uint64(n))
-	return n, addr, err
-}
-
-func (c *ConnManager) read(r io.Reader, b []byte) (int, error) {
-	n, err := r.Read(b)
-	atomic.AddUint64(&c.download, uint64(n))
-	return n, err
-}
-
-func (c *ConnManager) dc(cn net.Conn, id int64) error {
-	c.delete(id)
-	return cn.Close()
-}
-
-func (c *ConnManager) dpc(cn net.PacketConn, id int64) error {
-	c.delete(id)
-	return cn.Close()
 }
 
 func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
 	if x == nil {
 		return nil
 	}
-	s := &statisticConn{
-		id:    c.idSeed.Generate(),
-		addr:  addr,
-		Conn:  x,
-		close: c.dc,
-		write: c.write,
-		read:  c.read,
+	s := &conn{
+		ConnRespConnection: ConnRespConnection{
+			Id:   c.idSeed.Generate(),
+			Addr: addr,
+		},
+		Conn: x,
+		cm:   c,
 	}
 
 	c.add(s)
@@ -126,13 +162,13 @@ func (c *ConnManager) newPacketConn(addr string, x net.PacketConn) net.PacketCon
 	if x == nil {
 		return nil
 	}
-	s := &statisticPacketConn{
-		id:         c.idSeed.Generate(),
-		addr:       addr,
+	s := &packetConn{
+		ConnRespConnection: ConnRespConnection{
+			Id:   c.idSeed.Generate(),
+			Addr: addr,
+		},
 		PacketConn: x,
-		close:      c.dpc,
-		writeTo:    c.writeTo,
-		readFrom:   c.readFrom,
+		cm:         c,
 	}
 
 	c.addPacketConn(s)
@@ -150,52 +186,56 @@ func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 	return c.newPacketConn(host, conn), err
 }
 
-var _ net.Conn = (*statisticConn)(nil)
+var _ net.Conn = (*conn)(nil)
 
-type statisticConn struct {
+type conn struct {
 	net.Conn
-	close func(net.Conn, int64) error
-	write func(io.Writer, []byte) (int, error)
-	read  func(io.Reader, []byte) (int, error)
+	cm *ConnManager
 
-	id   int64
-	addr string
+	ConnRespConnection
 }
 
-func (s *statisticConn) Close() error {
-	return s.close(s.Conn, s.id)
+func (s *conn) Close() error {
+	s.cm.delete(s.Id)
+	return s.Conn.Close()
 }
 
-func (s *statisticConn) Write(b []byte) (n int, err error) {
-	return s.write(s.Conn, b)
+func (s *conn) Write(b []byte) (n int, err error) {
+	n, err = s.Conn.Write(b)
+	atomic.AddUint64(&s.cm.upload, uint64(n))
+	return
 }
 
-func (s *statisticConn) Read(b []byte) (n int, err error) {
-	return s.read(s.Conn, b)
+func (s *conn) Read(b []byte) (n int, err error) {
+	n, err = s.Conn.Read(b)
+	atomic.AddUint64(&s.cm.download, uint64(n))
+	return
 }
 
-var _ net.PacketConn = (*statisticPacketConn)(nil)
+var _ net.PacketConn = (*packetConn)(nil)
 
-type statisticPacketConn struct {
+type packetConn struct {
 	net.PacketConn
-	close    func(net.PacketConn, int64) error
-	writeTo  func(net.PacketConn, []byte, net.Addr) (n int, err error)
-	readFrom func(net.PacketConn, []byte) (n int, addr net.Addr, err error)
+	cm *ConnManager
 
-	id   int64
-	addr string
+	ConnRespConnection
 }
 
-func (s *statisticPacketConn) Close() error {
-	return s.close(s.PacketConn, s.id)
+func (s *packetConn) Close() error {
+	s.cm.delete(s.Id)
+	return s.PacketConn.Close()
 }
 
-func (s *statisticPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	return s.writeTo(s.PacketConn, p, addr)
+func (s *packetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	n, err = s.PacketConn.WriteTo(p, addr)
+	atomic.AddUint64(&s.cm.upload, uint64(n))
+	return
 }
 
-func (s *statisticPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	return s.readFrom(s.PacketConn, p)
+func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	n, addr, err = s.PacketConn.ReadFrom(p)
+	atomic.AddUint64(&s.cm.download, uint64(n))
+	return
 }
 
 type idGenerater struct {

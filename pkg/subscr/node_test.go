@@ -2,6 +2,7 @@ package subscr
 
 import (
 	"context"
+	"log"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -93,6 +94,7 @@ func TestDelete(t *testing.T) {
 			continue
 		}
 
+		log.Println(i, a[:i], a[i:])
 		a = append(a[:i], a[i+1:]...)
 		break
 	}
