@@ -84,3 +84,18 @@ func TestNodeManager(t *testing.T) {
 	t.Log(n.Latency(context.TODO(), &wrapperspb.StringValue{Value: hash}))
 	// t.Log(n.node)
 }
+
+func TestDelete(t *testing.T) {
+	a := []string{"a", "b", "c"}
+
+	for i := range a {
+		if a[i] != "b" {
+			continue
+		}
+
+		a = append(a[:i], a[i+1:]...)
+		break
+	}
+
+	t.Log(a)
+}
