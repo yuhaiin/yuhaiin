@@ -35,13 +35,14 @@ func (c *Config) ReimportRule(context.Context, *emptypb.Empty) (*emptypb.Empty, 
 
 func (c *Config) GetRate(_ *emptypb.Empty, srv Config_GetRateServer) error {
 	ct, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	r := newRate(ct)
+	defer close(r.data)
 	go c.connManager.Statistic(&emptypb.Empty{}, r)
 	ctx := srv.Context()
 	for {
 		select {
 		case <-ctx.Done():
-			cancel()
 			return ctx.Err()
 		case s := <-r.data:
 			err := srv.Send(&DaUaDrUr{
