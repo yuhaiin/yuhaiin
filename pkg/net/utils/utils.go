@@ -7,15 +7,15 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"sync"
-	"time"
 )
 
 var (
 	//BuffPool byte array poll
 	BuffPool = sync.Pool{
 		New: func() interface{} {
-			x := make([]byte, 16*0x400)
+			x := make([]byte, 8*0x400)
 			return &x
 		},
 	}
@@ -57,26 +57,20 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 
 //ClientUtil .
 type ClientUtil struct {
-	address string
-	port    string
-	host    string
-	cache   []string
-	ip      bool
-
-	dialer net.Dialer
-	lock   sync.RWMutex
+	address  string
+	port     int
+	host     string
+	tcpCache []*net.TCPAddr
+	lock     sync.RWMutex
 }
 
 //NewClientUtil .
 func NewClientUtil(address, port string) *ClientUtil {
+	p, _ := strconv.Atoi(port)
 	return &ClientUtil{
 		address: address,
-		port:    port,
+		port:    p,
 		host:    net.JoinHostPort(address, port),
-		dialer: net.Dialer{
-			Timeout: time.Second * 10,
-		},
-		ip: net.ParseIP(address) != nil,
 	}
 }
 
@@ -87,8 +81,8 @@ func (c *ClientUtil) lookUp(s string) ([]net.IP, error) {
 func (c *ClientUtil) dial() (net.Conn, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	for ci := range c.cache {
-		conn, err := c.dialer.Dial("tcp", c.cache[ci])
+	for ci := range c.tcpCache {
+		conn, err := net.DialTCP("tcp", &net.TCPAddr{}, c.tcpCache[ci])
 		if err != nil {
 			continue
 		}
@@ -99,10 +93,6 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 
 //GetConn .
 func (c *ClientUtil) GetConn() (net.Conn, error) {
-	if c.ip {
-		return c.dialer.Dial("tcp", c.host)
-	}
-
 	conn, err := c.dial()
 	if err == nil {
 		return conn, err
@@ -114,19 +104,27 @@ func (c *ClientUtil) GetConn() (net.Conn, error) {
 }
 
 func (c *ClientUtil) refreshCache() {
-	x, err := c.lookUp(c.address)
-	if err != nil {
-		log.Printf("lookup address %s failed: %v", c.address, err)
+	var x []net.IP
+	if z := net.ParseIP(c.address); z != nil {
+		x = append(x, z)
+	} else {
+		var err error
+		x, err = c.lookUp(c.address)
+		if err != nil {
+			log.Printf("lookup address %s failed: %v", c.address, err)
+			return
+		}
 	}
-	cache := make([]string, 0, len(x))
+
+	tcpCache := make([]*net.TCPAddr, 0, len(x))
 	for i := range x {
-		cache = append(cache, net.JoinHostPort(x[i].String(), c.port))
+		tcpCache = append(c.tcpCache, &net.TCPAddr{IP: x[i], Port: c.port})
 	}
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.cache = cache
+	c.tcpCache = tcpCache
 }
 
 //Unit .

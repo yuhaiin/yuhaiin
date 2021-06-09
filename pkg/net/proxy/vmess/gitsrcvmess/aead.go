@@ -35,15 +35,14 @@ func (w *aeadWriter) Write(b []byte) (int, error) {
 
 func (w *aeadWriter) ReadFrom(r io.Reader) (n int64, err error) {
 	for {
-		buf := w.buf
-		payloadBuf := buf[lenSize : lenSize+defaultChunkSize-w.Overhead()]
+		payloadBuf := w.buf[lenSize : lenSize+defaultChunkSize-w.Overhead()]
 
 		nr, er := r.Read(payloadBuf)
 		if nr > 0 {
 			n += int64(nr)
-			buf = buf[:lenSize+nr+w.Overhead()]
+			w.buf = w.buf[:lenSize+nr+w.Overhead()]
 			payloadBuf = payloadBuf[:nr]
-			binary.BigEndian.PutUint16(buf[:lenSize], uint16(nr+w.Overhead()))
+			binary.BigEndian.PutUint16(w.buf[:lenSize], uint16(nr+w.Overhead()))
 
 			binary.BigEndian.PutUint16(w.nonce[:2], w.count)
 			copy(w.nonce[2:], w.iv[2:12])
@@ -51,7 +50,7 @@ func (w *aeadWriter) ReadFrom(r io.Reader) (n int64, err error) {
 			w.Seal(payloadBuf[:0], w.nonce, payloadBuf, nil)
 			w.count++
 
-			_, ew := w.Writer.Write(buf)
+			_, ew := w.Writer.Write(w.buf)
 			if ew != nil {
 				err = ew
 				break
