@@ -20,8 +20,8 @@ func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnabl
 		NetDial: func(string, string) (net.Conn, error) {
 			return conn, nil
 		},
-		ReadBufferSize:   4 * 1024,
-		WriteBufferSize:  4 * 1024,
+		ReadBufferSize:   16 * 1024,
+		WriteBufferSize:  16 * 1024,
 		HandshakeTimeout: time.Second * 6,
 	}
 
