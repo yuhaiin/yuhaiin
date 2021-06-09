@@ -32,19 +32,13 @@ func (w *chunkedWriter) Write(b []byte) (int, error) {
 
 func (w *chunkedWriter) ReadFrom(r io.Reader) (n int64, err error) {
 	for {
-		buf := w.buf
-		payloadBuf := buf[lenSize : lenSize+defaultChunkSize]
-
-		nr, er := r.Read(payloadBuf)
+		nr, er := r.Read(w.buf[lenSize : lenSize+defaultChunkSize])
 		if nr > 0 {
 			n += int64(nr)
-			buf = buf[:lenSize+nr]
-			// payloadBuf = payloadBuf[:nr]
-			binary.BigEndian.PutUint16(buf[:lenSize], uint16(nr))
-
-			_, ew := w.Writer.Write(buf)
-			if ew != nil {
-				err = ew
+			binary.BigEndian.PutUint16(w.buf[:lenSize], uint16(nr))
+			_, err = w.Writer.Write(w.buf[:lenSize+nr])
+			if err != nil {
+				// err = ew
 				break
 			}
 		}
