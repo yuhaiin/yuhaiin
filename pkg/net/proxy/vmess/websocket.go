@@ -75,7 +75,7 @@ func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnabl
 		if resp != nil {
 			reason = resp.Status
 		}
-		return nil, errors.New("failed to dial to (" + uri + "): " + reason)
+		return nil, fmt.Errorf("failed to dial to %s, reason: (%s),error: %v", uri, reason, err)
 	}
 
 	return &wsConn{Conn: webSocketConn}, nil
