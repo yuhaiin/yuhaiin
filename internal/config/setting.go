@@ -79,22 +79,22 @@ type Config struct {
 	old       *Setting
 	path      string
 	observers []Observer
-	exec      map[string]WithInit
+	exec      map[string]InitFunc
 
 	lock     sync.RWMutex
 	execlock sync.RWMutex
 }
 
-type WithInit func(*Setting) error
+type InitFunc func(*Setting) error
 type Observer func(current, old *Setting)
 
-func NewConfig(dir string, o ...WithInit) (*Config, error) {
+func NewConfig(dir string, o ...InitFunc) (*Config, error) {
 	c, err := SettingDecodeJSON(dir)
 	if err != nil {
 		return nil, fmt.Errorf("decode setting failed: %v", err)
 	}
 
-	cf := &Config{current: c, old: c, path: dir, exec: make(map[string]WithInit)}
+	cf := &Config{current: c, old: c, path: dir, exec: make(map[string]InitFunc)}
 	err = cf.Exec(o...)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func NewConfig(dir string, o ...WithInit) (*Config, error) {
 	return cf, nil
 }
 
-func (c *Config) Exec(o ...WithInit) error {
+func (c *Config) Exec(o ...InitFunc) error {
 	for i := range o {
 		err := o[i](c.current)
 		if err != nil {
@@ -152,7 +152,7 @@ func (c *Config) AddObserver(o Observer) {
 	c.observers = append(c.observers, o)
 }
 
-func (c *Config) AddExecCommand(key string, o WithInit) error {
+func (c *Config) AddExecCommand(key string, o InitFunc) error {
 	if o == nil {
 		return nil
 	}

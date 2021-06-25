@@ -1,4 +1,4 @@
-package vmess
+package websocket
 
 import (
 	"crypto/tls"

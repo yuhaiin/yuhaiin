@@ -6,8 +6,9 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	gcvmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -106,9 +107,9 @@ func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
 
 	switch v.net {
 	case "ws":
-		conn, err = WebsocketDial(conn, v.host, v.path, []string{v.cert}, v.tls, v.insecureSkipVerify)
+		conn, err = websocket.WebsocketDial(conn, v.host, v.path, []string{v.cert}, v.tls, v.insecureSkipVerify)
 	case "quic":
-		conn, err = QuicDial("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
+		conn, err = quic.QuicDial("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("net create failed: %v", err)

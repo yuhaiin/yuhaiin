@@ -1,4 +1,4 @@
-package vmess
+package quic
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 )
+
+var tlsSessionCache = tls.NewLRUClientSessionCache(128)
 
 func QuicDial(network, address string, port int, certPath []string, insecureSkipVerify bool) (net.Conn, error) {
 	var addr *net.UDPAddr
