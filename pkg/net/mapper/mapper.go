@@ -35,15 +35,13 @@ func (x *Mapper) Insert(str string, mark interface{}) {
 	}
 }
 
-func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
+func (x *Mapper) Search(str string) (mark interface{}) {
 	if de, _ := x.cache.Load(str); de != nil {
-		d := de.([2]interface{})
-		return d[0], d[1] == true
+		return de
 	}
 
 	if ip := net.ParseIP(str); ip != nil {
 		mark, _ = x.cidr.SearchIP(ip)
-		isIP = true
 		goto _end
 	}
 
@@ -62,8 +60,8 @@ func (x *Mapper) Search(str string) (mark interface{}, isIP bool) {
 	}
 
 _end:
-	x.cache.Add(str, [2]interface{}{mark, isIP})
-	return mark, isIP
+	x.cache.Add(str, mark)
+	return mark
 }
 
 func (x *Mapper) Clear() {

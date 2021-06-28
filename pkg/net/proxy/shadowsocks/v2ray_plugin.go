@@ -46,7 +46,7 @@ func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
 
 	switch mode {
 	case "websocket":
-		return websocket.WebsocketDial(conn, host, path, []string{cert}, tlsEnabled, false)
+		return websocket.WebsocketDial(conn, host, path, false, tlsEnabled, []string{cert})
 	case "quic":
 		u, err := url.Parse("//" + conn.RemoteAddr().String())
 		if err != nil {

@@ -24,7 +24,8 @@ type Vmess struct {
 	netConfig
 
 	*utils.ClientUtil
-	client *gcvmess.Client
+	client   *gcvmess.Client
+	wsClient *websocket.Client
 }
 
 type netConfig struct {
@@ -73,6 +74,10 @@ func NewVmess(
 	case "ws":
 		v.path = netPath
 		v.host = netHost
+		v.wsClient, err = websocket.NewClient(v.GetConn, v.host, v.path, v.insecureSkipVerify, v.tls, []string{v.cert})
+		if err != nil {
+			return nil, fmt.Errorf("create new websocket client failed: %v", err)
+		}
 	case "quic":
 		v.tls = true
 		v.host = netHost
@@ -96,18 +101,11 @@ func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
 }
 
 func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
-	conn, err := v.GetConn()
-	if err != nil {
-		return nil, fmt.Errorf("get conn failed: %v", err)
-	}
-
-	if x, ok := conn.(*net.TCPConn); ok {
-		_ = x.SetKeepAlive(true)
-	}
-
+	var conn net.Conn
+	var err error
 	switch v.net {
 	case "ws":
-		conn, err = websocket.WebsocketDial(conn, v.host, v.path, []string{v.cert}, v.tls, v.insecureSkipVerify)
+		conn, err = v.wsClient.NewConn()
 	case "quic":
 		conn, err = quic.QuicDial("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
 	}

@@ -17,7 +17,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/internal/app/component"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
@@ -26,8 +25,21 @@ import (
 //go:embed yuhaiin.conf
 var bypassData []byte
 
+func saveBypassData(filePath string) (err error) {
+	err = os.MkdirAll(path.Dir(filePath), os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("make dir all failed: %w", err)
+	}
+
+	err = ioutil.WriteFile(filePath, bypassData, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("write bypass file failed: %w", err)
+	}
+
+	return
+}
+
 type Shunt struct {
-	component.Mapper
 	file   string
 	mapper *mapper.Mapper
 
@@ -63,7 +75,7 @@ func NewShunt(conf *config.Config) (*Shunt, error) {
 
 	conf.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(current.DNS, old.DNS) {
-			s.SetLookup(getDNS(current.DNS).LookupIP)
+			s.mapper.SetLookup(getDNS(current.DNS).LookupIP)
 		}
 	})
 
@@ -77,22 +89,18 @@ func NewShunt(conf *config.Config) (*Shunt, error) {
 func (s *Shunt) RefreshMapping() error {
 	s.fileLock.RLock()
 	defer s.fileLock.RUnlock()
-	fmt.Println(s.file)
+
 	_, err := os.Stat(s.file)
-	if err != nil && errors.Is(err, os.ErrNotExist) {
-		err = os.MkdirAll(path.Dir(s.file), os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("make dir all failed: %v", err)
-		}
-		err = ioutil.WriteFile(s.file, bypassData, os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("write bypass file failed: %v", err)
-		}
+	if errors.Is(err, os.ErrNotExist) {
+		err = saveBypassData(s.file)
+	}
+	if err != nil {
+		return err
 	}
 
 	f, err := os.Open(s.file)
 	if err != nil {
-		return fmt.Errorf("open bypass file failed: %v", err)
+		return fmt.Errorf("open bypass file failed: %w", err)
 	}
 	defer f.Close()
 
@@ -112,8 +120,8 @@ func (s *Shunt) RefreshMapping() error {
 		if len(result) != 3 {
 			continue
 		}
-		mode := component.Mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))]
-		if mode == component.OTHERS {
+		mode := Mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))]
+		if mode == OTHERS {
 			continue
 		}
 		s.mapper.Insert(string(result[1]), mode)
@@ -132,35 +140,9 @@ func (s *Shunt) SetFile(f string) error {
 	return s.RefreshMapping()
 }
 
-func getType(b bool) component.RespType {
-	if b {
-		return component.IP
-	}
-	return component.DOMAIN
-}
-
-func (s *Shunt) Get(domain string) component.MapperResp {
-	mark, markType := s.mapper.Search(domain)
-	x, ok := mark.(component.MODE)
-	if !ok {
-		return component.MapperResp{
-			Mark: component.OTHERS,
-			IP:   getType(markType),
-		}
-	}
-
-	if component.ModeMapping[x] == "" {
-		x = component.OTHERS
-	}
-
-	return component.MapperResp{
-		Mark: x,
-		IP:   getType(markType),
-	}
-}
-
-func (s *Shunt) SetLookup(f func(string) ([]net.IP, error)) {
-	s.mapper.SetLookup(f)
+func (s *Shunt) Get(domain string) MODE {
+	x, _ := s.mapper.Search(domain).(MODE)
+	return x
 }
 
 func diffDNS(old, new *config.DNS) bool {
