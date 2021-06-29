@@ -45,7 +45,7 @@ var (
 	errUDP = errors.New("UDP")
 )
 
-func Socks5Handle(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
+func handshake(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
 	o := &Option{}
 	for index := range modeOption {
 		if modeOption[index] == nil {
@@ -221,7 +221,7 @@ type server struct {
 }
 
 func NewServer(host, username, password string) (proxy.Server, error) {
-	tcp, err := proxy.NewTCPServer(host, Socks5Handle(func(o *Option) {
+	tcp, err := proxy.NewTCPServer(host, handshake(func(o *Option) {
 		o.Password = password
 		o.Username = username
 	}))

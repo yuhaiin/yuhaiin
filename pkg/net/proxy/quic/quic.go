@@ -13,10 +13,14 @@ import (
 	"github.com/lucas-clemente/quic-go"
 )
 
-var tlsSessionCache = tls.NewLRUClientSessionCache(128)
+type Client struct {
+	addr       *net.UDPAddr
+	tlsConfig  *tls.Config
+	quicConfig *quic.Config
+}
 
-func QuicDial(network, address string, port int, certPath []string, insecureSkipVerify bool) (net.Conn, error) {
-	var addr *net.UDPAddr
+func NewClient(network, address string, port int, certPath []string, insecureSkipVerify bool) (*Client, error) {
+	c := &Client{}
 	var err error
 
 	switch network {
@@ -33,9 +37,9 @@ func QuicDial(network, address string, port int, certPath []string, insecureSkip
 				return nil, fmt.Errorf("can't get ip")
 			}
 		}
-		addr = &net.UDPAddr{IP: ip, Port: port}
+		c.addr = &net.UDPAddr{IP: ip, Port: port}
 	default:
-		addr, err = net.ResolveUDPAddr("udp", address)
+		c.addr, err = net.ResolveUDPAddr("udp", address)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +55,7 @@ func QuicDial(network, address string, port int, certPath []string, insecureSkip
 		log.Printf("split host and port failed: %v", err)
 		ns = address
 	}
-	tlsConfig := &tls.Config{
+	c.tlsConfig = &tls.Config{
 		RootCAs:                root,
 		ServerName:             ns,
 		SessionTicketsDisabled: true,
@@ -70,7 +74,7 @@ func QuicDial(network, address string, port int, certPath []string, insecureSkip
 			continue
 		}
 
-		ok := tlsConfig.RootCAs.AppendCertsFromPEM(cert)
+		ok := c.tlsConfig.RootCAs.AppendCertsFromPEM(cert)
 		if !ok {
 			log.Printf("add cert from pem failed.")
 		}
@@ -95,19 +99,23 @@ func QuicDial(network, address string, port int, certPath []string, insecureSkip
 		// tlsConfig.RootCAs.AddCert(certA)
 	}
 
-	quicConfig := &quic.Config{
+	c.quicConfig = &quic.Config{
 		KeepAlive:          true,
 		ConnectionIDLength: 12,
 		HandshakeTimeout:   time.Second * 8,
 		MaxIdleTimeout:     time.Second * 30,
 	}
 
-	conn, err := net.DialUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0}, addr)
+	return c, nil
+}
+
+func (c *Client) NewConn() (net.Conn, error) {
+	conn, err := net.DialUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0}, c.addr)
 	if err != nil {
 		return nil, err
 	}
 
-	session, err := quic.DialContext(context.Background(), conn, addr, "", tlsConfig, quicConfig)
+	session, err := quic.DialContext(context.Background(), conn, c.addr, "", c.tlsConfig, c.quicConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +127,8 @@ func QuicDial(network, address string, port int, certPath []string, insecureSkip
 
 	return &interConn{Stream: stream, local: session.LocalAddr(), remote: session.RemoteAddr()}, nil
 }
+
+var tlsSessionCache = tls.NewLRUClientSessionCache(128)
 
 var _ net.Conn = (*interConn)(nil)
 

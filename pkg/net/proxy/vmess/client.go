@@ -24,8 +24,8 @@ type Vmess struct {
 	netConfig
 
 	*utils.ClientUtil
-	client   *gcvmess.Client
-	wsClient *websocket.Client
+	client  *gcvmess.Client
+	getConn func() (net.Conn, error)
 }
 
 type netConfig struct {
@@ -74,13 +74,17 @@ func NewVmess(
 	case "ws":
 		v.path = netPath
 		v.host = netHost
-		v.wsClient, err = websocket.NewClient(v.GetConn, v.host, v.path, v.insecureSkipVerify, v.tls, []string{v.cert})
-		if err != nil {
-			return nil, fmt.Errorf("create new websocket client failed: %v", err)
-		}
+		v.getConn = websocket.NewClient(v.GetConn, v.host, v.path, v.insecureSkipVerify, v.tls, []string{v.cert}).NewConn
 	case "quic":
 		v.tls = true
 		v.host = netHost
+		c, err := quic.NewClient("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
+		if err != nil {
+			return nil, fmt.Errorf("create new quic client failed: %v", err)
+		}
+		v.getConn = c.NewConn
+	default:
+		v.getConn = v.GetConn
 	}
 
 	if v.tls {
@@ -101,17 +105,9 @@ func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
 }
 
 func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
-	var conn net.Conn
-	var err error
-	switch v.net {
-	case "ws":
-		conn, err = v.wsClient.NewConn()
-	case "quic":
-		conn, err = quic.QuicDial("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
-	}
+	conn, err := v.getConn()
 	if err != nil {
-		return nil, fmt.Errorf("net create failed: %v", err)
+		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-
 	return v.client.NewConn(conn, network, host)
 }

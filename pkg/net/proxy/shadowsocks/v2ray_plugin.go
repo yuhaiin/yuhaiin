@@ -46,7 +46,7 @@ func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
 
 	switch mode {
 	case "websocket":
-		return websocket.WebsocketDial(conn, host, path, false, tlsEnabled, []string{cert})
+		return websocket.NewClient(func() (net.Conn, error) { return conn, nil }, host, path, false, tlsEnabled, []string{cert}).NewConn()
 	case "quic":
 		u, err := url.Parse("//" + conn.RemoteAddr().String())
 		if err != nil {
@@ -56,7 +56,11 @@ func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return quic.QuicDial(conn.RemoteAddr().Network(), u.Hostname(), port, []string{cert}, false)
+		c, err := quic.NewClient(conn.RemoteAddr().Network(), u.Hostname(), port, []string{cert}, false)
+		if err != nil {
+			return nil, err
+		}
+		return c.NewConn()
 	}
 
 	return nil, fmt.Errorf("unsupported mode")

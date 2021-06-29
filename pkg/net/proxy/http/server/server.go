@@ -20,7 +20,7 @@ type Option struct {
 	Password string
 }
 
-func HTTPHandle(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
+func handshake(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
 	o := &Option{}
 	for index := range modeOption {
 		if modeOption[index] == nil {
@@ -255,7 +255,7 @@ func removeHeader(h http.Header) http.Header {
 }
 
 func NewServer(host, username, password string) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, HTTPHandle(func(o *Option) {
+	return proxy.NewTCPServer(host, handshake(func(o *Option) {
 		o.Password = password
 		o.Username = username
 	}))
