@@ -13,6 +13,8 @@ import (
 	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 )
 
+var DefaultShadowsocksr = &shadowsocksr{}
+
 type shadowsocksr struct{}
 
 // ParseLink parse a base64 encode ssr link
