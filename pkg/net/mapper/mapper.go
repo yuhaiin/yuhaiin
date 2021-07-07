@@ -10,7 +10,7 @@ import (
 type Mapper struct {
 	lookup func(string) ([]net.IP, error)
 	cidr   *Cidr
-	domain *Domain
+	domain *domain
 	cache  *utils.LRU
 
 	lookupLock sync.RWMutex

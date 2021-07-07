@@ -8,13 +8,16 @@ func main() {
 
 	application := tview.NewApplication()
 
-	box := tview.NewList().
-		AddItem("a", "a", 'a', nil).
-		AddItem("b", "b", 'b', nil)
-
 	box2 := tview.NewBox().SetBorder(true).SetTitle("test")
-	box3 := tview.NewBox().SetBorder(true).SetTitle("box3")
+	// box3 := tview.NewBox().SetBorder(true).SetTitle("box3")
+	flex2 := tview.NewPages().
+		AddPage("1", tview.NewBox().SetBorder(true).SetTitle("page-1"), false, true).
+		AddPage("2", tview.NewBox().SetBorder(true).SetTitle("page-2"), false, false)
 
+	box := tview.NewList().ShowSecondaryText(false).
+		AddItem("a", "", 'a', func() { flex2.SwitchToPage("1") }).
+		AddItem("b", "", 'b', func() { flex2.SwitchToPage("2") }).
+		AddItem("quit", "", 'c', func() { application.Stop() })
 	// c, err := grpc.DialContext(context.Background(), "127.0.0.1:37231", grpc.WithBlock(), grpc.WithInsecure())
 	// if err != nil {
 	// 	panic(err)
@@ -45,7 +48,7 @@ func main() {
 
 	flex := tview.NewFlex().
 		AddItem(box, 20, 1, false).
-		AddItem(box3, 0, 1, false).
+		AddItem(flex2, 0, 1, false).
 		AddItem(box2, 20, 1, false)
 
 	if err := application.SetRoot(flex, true).SetFocus(box).Run(); err != nil {
