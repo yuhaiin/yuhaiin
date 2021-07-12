@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -11,8 +12,9 @@ import (
 )
 
 type UDPServer struct {
-	host string
-	lock sync.Mutex
+	host   string
+	lock   sync.Mutex
+	config net.ListenConfig
 
 	listener net.PacketConn
 	handle   func([]byte, Proxy) ([]byte, error)
@@ -34,11 +36,22 @@ func (u *UDPServer) getProxy() Proxy {
 	return &DefaultProxy{}
 }
 
-func NewUDPServer(host string, handle func([]byte, Proxy) ([]byte, error)) (Server, error) {
+func WithListenConfig(n net.ListenConfig) func(u *UDPServer) {
+	return func(u *UDPServer) {
+		u.config = n
+	}
+}
+
+func NewUDPServer(host string, handle func([]byte, Proxy) ([]byte, error), opt ...func(u *UDPServer)) (Server, error) {
 	u := &UDPServer{
 		host:   host,
 		handle: handle,
 		proxy:  atomic.Value{},
+		config: net.ListenConfig{},
+	}
+
+	for i := range opt {
+		opt[i](u)
 	}
 
 	if host == "" {
@@ -79,7 +92,7 @@ func (u *UDPServer) Close() error {
 }
 
 func (u *UDPServer) run() (err error) {
-	u.listener, err = net.ListenPacket("udp", u.host)
+	u.listener, err = u.config.ListenPacket(context.TODO(), "udp", u.host)
 	if err != nil {
 		return fmt.Errorf("UdpServer:run() -> %v", err)
 	}
