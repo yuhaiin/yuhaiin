@@ -30,7 +30,7 @@ func NewClient(conn func() (net.Conn, error), host, path string, insecureSkipVer
 		},
 		ReadBufferSize:   16 * 1024,
 		WriteBufferSize:  16 * 1024,
-		HandshakeTimeout: time.Second * 6,
+		HandshakeTimeout: time.Second * 12,
 	}
 
 	protocol := "ws"
@@ -84,7 +84,10 @@ func NewClient(conn func() (net.Conn, error), host, path string, insecureSkipVer
 
 func (c *Client) NewConn() (net.Conn, error) {
 	con, _, err := c.dialer.Dial(c.uri, c.header)
-	return &wsConn{Conn: con}, err
+	if err != nil {
+		return nil, fmt.Errorf("websocket dial failed: %w", err)
+	}
+	return &wsConn{Conn: con}, nil
 }
 
 var tlsSessionCache = tls.NewLRUClientSessionCache(128)

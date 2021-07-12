@@ -13,6 +13,8 @@ import (
 type Lock struct {
 	lockfile string
 	lockFile *os.File
+
+	locked bool
 }
 
 func NewLock(lockfile string) *Lock {
@@ -22,6 +24,10 @@ func NewLock(lockfile string) *Lock {
 }
 
 func (l *Lock) Lock(payload string) error {
+	if l.locked {
+		return nil
+	}
+
 	_, err := os.Stat(path.Dir(l.lockfile))
 	if errors.Is(err, os.ErrNotExist) {
 		err = os.MkdirAll(path.Dir(l.lockfile), os.ModePerm)
@@ -39,6 +45,8 @@ func (l *Lock) Lock(payload string) error {
 	if err != nil {
 		return fmt.Errorf("lock file failed: %v", err)
 	}
+
+	l.locked = true
 
 	err = ioutil.WriteFile(l.lockfile+"_payload", []byte(payload), os.ModePerm)
 	if err != nil {
@@ -67,6 +75,9 @@ func (l *Lock) UnLock() (erra error) {
 	if err != nil {
 		erra = fmt.Errorf("%v\nunlock file failed: %v", erra, err)
 	}
+
+	l.locked = false
+
 	err = os.Remove(l.lockfile)
 	if err != nil {
 		erra = fmt.Errorf("%v\nremove lock file failed: %v", erra, err)
