@@ -12,10 +12,6 @@ import (
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
 
-func Socks5UDPHandle() func([]byte, proxy.Proxy) ([]byte, error) {
-	return udpHandle
-}
-
 func udpHandle(b []byte, f proxy.Proxy) ([]byte, error) {
 	if len(b) == 0 {
 		return nil, fmt.Errorf("normalHandleUDP() -> b byte array is empty")

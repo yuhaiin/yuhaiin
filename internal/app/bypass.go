@@ -1,22 +1,47 @@
 package app
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/internal/app/component"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
+type MODE int
+
+const (
+	OTHERS MODE = 0
+	BLOCK  MODE = 1
+	DIRECT MODE = 2
+	// PROXY  MODE = 3
+	MAX MODE = 3
+)
+
+var ModeMapping = map[MODE]string{
+	OTHERS: "proxy",
+	DIRECT: "direct",
+	BLOCK:  "block",
+}
+
+var Mode = map[string]MODE{
+	"direct": DIRECT,
+	// "proxy":  PROXY,
+	"block": BLOCK,
+}
+
 //BypassManager .
 type BypassManager struct {
-	mapper component.Mapper
+	mapper func(string) MODE
 	proxy  proxy.Proxy
 	dialer *net.Dialer
 	bypass bool
 }
+
+var ErrBlockAddr = errors.New("BLOCK ADDRESS")
 
 //NewBypassManager .
 func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
@@ -26,10 +51,10 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 
 	shunt, err := NewShunt(conf)
 	if err != nil {
-		fmt.Println("create shunt failed, disable bypass.")
+		log.Printf("create shunt failed: %v, disable bypass.\n", err)
 	}
 
-	m := &BypassManager{proxy: p, mapper: shunt}
+	m := &BypassManager{proxy: p, mapper: shunt.Get}
 
 	_ = conf.Exec(
 		func(s *config.Setting) error {
@@ -44,7 +69,7 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 	conf.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(old.LocalDNS, current.LocalDNS) {
 			m.dialer = &net.Dialer{
-				Timeout:  11 * time.Second,
+				Timeout:  8 * time.Second,
 				Resolver: getDNS(current.LocalDNS).Resolver(),
 			}
 		}
@@ -84,21 +109,18 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy, err error) {
 		return nil, fmt.Errorf("split host [%s] failed: %v", host, err)
 	}
 
-	mark := component.OTHERS
+	mark := OTHERS
 	if m.mapper != nil && m.bypass {
-		c := m.mapper.Get(hostname)
-		mark = c.Mark
+		mark = m.mapper(hostname)
 	}
 
-	fmt.Printf("[%s] ->  mode: %s\n", host, component.ModeMapping[mark])
+	fmt.Printf("[%s] ->  mode: %s\n", host, ModeMapping[mark])
 
 	switch mark {
-	case component.BLOCK:
-		err = fmt.Errorf("block: %v", host)
-	case component.DIRECT:
+	case BLOCK:
+		err = fmt.Errorf("%w: %v", ErrBlockAddr, host)
+	case DIRECT:
 		p = &direct{dialer: m.dialer}
-	case component.OTHERS:
-		fallthrough
 	default:
 		p = m.proxy
 	}

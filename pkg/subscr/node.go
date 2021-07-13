@@ -238,30 +238,24 @@ func (n *NodeManager) deleteRemoteNodes(group string) {
 	n.node.GroupNodesMap[group].Nodes = left
 }
 
-var (
-	ss  = &shadowsocks{}
-	ssr = &shadowsocksr{}
-	vm  = &vmess{}
-)
-
 func parseUrl(str []byte, group string) (node *Point, err error) {
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
-		node, err := ss.ParseLink(str, group)
+		node, err := DefaultShadowsocks.ParseLink(str, group)
 		if err != nil {
 			return nil, err
 		}
 		return node, nil
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
-		node, err := ssr.ParseLink(str, group)
+		node, err := DefaultShadowsocksr.ParseLink(str, group)
 		if err != nil {
 			return nil, err
 		}
 		return node, nil
 	case bytes.HasPrefix(str, []byte("vmess://")):
-		node, err := vm.ParseLink(str, group)
+		node, err := DefaultVmess.ParseLink(str, group)
 		if err != nil {
 			return nil, err
 		}
@@ -400,11 +394,11 @@ func ParseNodeConn(s *Point) (proxy.Proxy, error) {
 
 	switch s.Node.(type) {
 	case *Point_Shadowsocks:
-		return ss.ParseConn(s)
+		return DefaultShadowsocks.ParseConn(s)
 	case *Point_Shadowsocksr:
-		return ssr.ParseConn(s)
+		return DefaultShadowsocksr.ParseConn(s)
 	case *Point_Vmess:
-		return vm.ParseConn(s)
+		return DefaultVmess.ParseConn(s)
 	}
 
 	return nil, errors.New("not support type")

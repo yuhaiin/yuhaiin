@@ -6,8 +6,9 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	gcvmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -23,7 +24,8 @@ type Vmess struct {
 	netConfig
 
 	*utils.ClientUtil
-	client *gcvmess.Client
+	client  *gcvmess.Client
+	getConn func() (net.Conn, error)
 }
 
 type netConfig struct {
@@ -72,9 +74,17 @@ func NewVmess(
 	case "ws":
 		v.path = netPath
 		v.host = netHost
+		v.getConn = websocket.NewClient(v.GetConn, v.host, v.path, v.insecureSkipVerify, v.tls, []string{v.cert}).NewConn
 	case "quic":
 		v.tls = true
 		v.host = netHost
+		c, err := quic.NewClient("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
+		if err != nil {
+			return nil, fmt.Errorf("create new quic client failed: %v", err)
+		}
+		v.getConn = c.NewConn
+	default:
+		v.getConn = v.GetConn
 	}
 
 	if v.tls {
@@ -95,24 +105,9 @@ func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
 }
 
 func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
-	conn, err := v.GetConn()
+	conn, err := v.getConn()
 	if err != nil {
-		return nil, fmt.Errorf("get conn failed: %v", err)
+		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-
-	if x, ok := conn.(*net.TCPConn); ok {
-		_ = x.SetKeepAlive(true)
-	}
-
-	switch v.net {
-	case "ws":
-		conn, err = WebsocketDial(conn, v.host, v.path, []string{v.cert}, v.tls, v.insecureSkipVerify)
-	case "quic":
-		conn, err = QuicDial("udp", v.address, int(v.port), []string{v.cert}, v.insecureSkipVerify)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("net create failed: %v", err)
-	}
-
 	return v.client.NewConn(conn, network, host)
 }

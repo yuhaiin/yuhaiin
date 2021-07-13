@@ -104,8 +104,8 @@ func (r *resolver) header() (err error) {
 		return errors.New("id not same")
 	}
 
-	if r.aswer[2]&128 != 0 { // check the QR is 1(Answer)
-		return errors.New("the qr is not 1(Answer)")
+	if r.aswer[2]&128 == 0 { // check the QR is 1(Answer)
+		return fmt.Errorf("the qr (%d&%d=%d) is not 1(Answer)", r.aswer[2], 128, r.aswer[2]&128)
 	}
 
 	switch r.aswer[3] & 0b00001111 { // check Response code(rCode) eg:11110010 & 00001111 = 0010, 11111101 & 00001111 = 1101
