@@ -57,9 +57,7 @@ func insert(root *domainNode, domain string, mark interface{}) {
 		}
 
 		if root.child[domain[pre:aft]] == nil {
-			root.child[domain[pre:aft]] = &domainNode{
-				child: make(map[string]*domainNode),
-			}
+			root.child[domain[pre:aft]] = &domainNode{child: make(map[string]*domainNode)}
 		}
 
 		root = root.child[domain[pre:aft]]
@@ -74,12 +72,12 @@ func insert(root *domainNode, domain string, mark interface{}) {
 	}
 }
 
-type Domain struct {
+type domain struct {
 	root         *domainNode // for example.com, example.*
 	wildcardRoot *domainNode // for *.example.com, *.example.*
 }
 
-func (d *Domain) Insert(domain string, mark interface{}) {
+func (d *domain) Insert(domain string, mark interface{}) {
 	if len(domain) == 0 {
 		return
 	}
@@ -91,7 +89,7 @@ func (d *Domain) Insert(domain string, mark interface{}) {
 	}
 }
 
-func (d *Domain) Search(domain string) (mark interface{}, ok bool) {
+func (d *domain) Search(domain string) (mark interface{}, ok bool) {
 	mark, ok = search(d.root, domain)
 	if ok {
 		return
@@ -99,13 +97,9 @@ func (d *Domain) Search(domain string) (mark interface{}, ok bool) {
 	return search(d.wildcardRoot, domain)
 }
 
-func NewDomainMapper() *Domain {
-	return &Domain{
-		root: &domainNode{
-			child: map[string]*domainNode{},
-		},
-		wildcardRoot: &domainNode{
-			child: map[string]*domainNode{},
-		},
+func NewDomainMapper() *domain {
+	return &domain{
+		root:         &domainNode{child: map[string]*domainNode{}},
+		wildcardRoot: &domainNode{child: map[string]*domainNode{}},
 	}
 }

@@ -98,6 +98,10 @@ func (c *ClientUtil) GetConn() (net.Conn, error) {
 		return conn, err
 	}
 
+	if x, ok := conn.(*net.TCPConn); ok {
+		_ = x.SetKeepAlive(true)
+	}
+
 	c.refreshCache()
 
 	return c.dial()

@@ -12,6 +12,8 @@ import (
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 )
 
+var DefaultShadowsocks = &shadowsocks{}
+
 type shadowsocks struct{}
 
 func (*shadowsocks) ParseLink(str []byte, group string) (*Point, error) {

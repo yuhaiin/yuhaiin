@@ -14,6 +14,8 @@ import (
 
 type vmess struct{}
 
+var DefaultVmess = &vmess{}
+
 //ParseLink parse vmess link
 // eg: vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnV
 //             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC

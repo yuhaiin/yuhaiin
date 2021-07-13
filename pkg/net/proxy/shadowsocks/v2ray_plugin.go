@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 )
 
 func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
@@ -45,7 +46,7 @@ func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
 
 	switch mode {
 	case "websocket":
-		return vmess.WebsocketDial(conn, host, path, []string{cert}, tlsEnabled, false)
+		return websocket.NewClient(func() (net.Conn, error) { return conn, nil }, host, path, false, tlsEnabled, []string{cert}).NewConn()
 	case "quic":
 		u, err := url.Parse("//" + conn.RemoteAddr().String())
 		if err != nil {
@@ -55,7 +56,11 @@ func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return vmess.QuicDial(conn.RemoteAddr().Network(), u.Hostname(), port, []string{cert}, false)
+		c, err := quic.NewClient(conn.RemoteAddr().Network(), u.Hostname(), port, []string{cert}, false)
+		if err != nil {
+			return nil, err
+		}
+		return c.NewConn()
 	}
 
 	return nil, fmt.Errorf("unsupported mode")

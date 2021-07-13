@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -14,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"net/http"
 	_ "net/http/pprof"
 
 	"github.com/Asutorufa/yuhaiin/internal/api"
@@ -23,11 +23,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var (
-	Path string
-)
-
-func init() {
+func defaultConfigDir() (Path string) {
 	var err error
 	Path, err = os.UserConfigDir()
 	if err == nil {
@@ -48,6 +44,19 @@ func init() {
 		return
 	}
 	Path = path.Join(filepath.Dir(execPath), "config")
+	return
+}
+
+func init() {
+	log.SetFlags(log.Llongfile)
+
+	go func() {
+		// 开启pprof，监听请求
+		err := http.ListenAndServe("0.0.0.0:6060", nil)
+		if err != nil {
+			fmt.Printf("start pprof failed on %s\n", "0.0.0.0:6060")
+		}
+	}()
 
 	go func() {
 		signChannel := make(chan os.Signal, 5)
@@ -66,24 +75,13 @@ func init() {
 
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
-	log.SetFlags(log.Llongfile)
-
-	go func() {
-		// 开启pprof，监听请求
-		err := http.ListenAndServe("0.0.0.0:6060", nil)
-		if err != nil {
-			fmt.Printf("start pprof failed on %s\n", "0.0.0.0:6060")
-		}
-	}()
-
-	var host string
-	var kwdc bool
-	flag.StringVar(&host, "host", "127.0.0.1:50051", "RPC SERVER HOST")
-	flag.BoolVar(&kwdc, "kwdc", false, "kill process when grpc disconnect")
+	host := flag.String("host", "127.0.0.1:50051", "RPC SERVER HOST")
+	configDir := flag.String("cd", defaultConfigDir(), "config dir")
+	kwdc := flag.Bool("kwdc", false, "kill process when grpc disconnect")
 	flag.Parse()
 
 	go func() {
-		if !kwdc {
+		if !*kwdc {
 			return
 		}
 
@@ -100,10 +98,10 @@ func main() {
 		}
 	}()
 
-	fmt.Println("gRPC Listen Host :", host)
-	fmt.Println("Try to create lock file.")
+	fmt.Println("save config at:", *configDir)
+	fmt.Println("gRPC Listen Host:", *host)
 
-	conf, err := config.NewConfig(Path)
+	conf, err := config.NewConfig(*configDir)
 	if err != nil {
 		panic(err)
 	}
@@ -127,7 +125,7 @@ func main() {
 	if err != nil {
 		log.Printf("create new listener failed: %v\n", err)
 	} else {
-		nodeManager, err = subscr.NewNodeManager(filepath.Join(Path, "node.json"))
+		nodeManager, err = subscr.NewNodeManager(filepath.Join(*configDir, "node.json"))
 		if err != nil {
 			panic(err)
 		}
@@ -135,18 +133,20 @@ func main() {
 		l.SetProxy(flowStatis)
 	}
 
-	lock := app.NewLock(filepath.Join(Path, "yuhaiin.lock"))
+	lock := app.NewLock(filepath.Join(*configDir, "yuhaiin.lock"))
 	defer lock.UnLock()
 
-	lis, err := net.Listen("tcp", host)
+	lis, err := net.Listen("tcp", *host)
 	if err != nil {
 		panic(err)
 	}
 	s := grpc.NewServer(grpc.EmptyServerOption{})
-	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(lock, host))
+
 	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(conf, flowStatis))  // TODO Deprecated
 	s.RegisterService(&api.Node_ServiceDesc, api.NewNode(nodeManager))           // TODO Deprecated
 	s.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(nodeManager)) // TODO Deprecated
+
+	s.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(lock, *host))
 	s.RegisterService(&subscr.NodeManager_ServiceDesc, nodeManager)
 	s.RegisterService(&config.ConfigDao_ServiceDesc, conf)
 	s.RegisterService(&app.Connections_ServiceDesc, flowStatis)

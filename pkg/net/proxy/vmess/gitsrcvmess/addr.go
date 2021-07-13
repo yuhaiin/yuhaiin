@@ -1,6 +1,7 @@
 package vmess
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 )
@@ -44,7 +45,7 @@ func ParseAddr(s string) (Atyp, Addr, Port, error) {
 		}
 	} else {
 		if len(host) > 255 {
-			return 0, nil, 0, err
+			return 0, nil, 0, fmt.Errorf("addr length over 255")
 		}
 		addr = make([]byte, 1+len(host))
 		atyp = AtypDomain

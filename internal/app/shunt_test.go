@@ -17,3 +17,14 @@ func TestShunt(t *testing.T) {
 	t.Log(x.Get("www.baidu.com"))
 	t.Log(x.Get("www.google.com"))
 }
+
+func TestMode(t *testing.T) {
+	v := (interface{})(nil)
+
+	v, ok := v.(MODE)
+	if !ok {
+		t.Log("!OK", v)
+	} else {
+		t.Log("OK", v)
+	}
+}

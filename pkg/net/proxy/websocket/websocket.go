@@ -1,4 +1,4 @@
-package vmess
+package websocket
 
 import (
 	"crypto/tls"
@@ -15,14 +15,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnable bool, insecureSkipVerify bool) (net.Conn, error) {
-	x := &websocket.Dialer{
-		NetDial: func(string, string) (net.Conn, error) {
-			return conn, nil
+type Client struct {
+	uri    string
+	header http.Header
+	dialer websocket.Dialer
+}
+
+func NewClient(conn func() (net.Conn, error), host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCertFilePath []string) *Client {
+	c := &Client{}
+
+	c.dialer = websocket.Dialer{
+		NetDial: func(network, addr string) (net.Conn, error) {
+			return conn()
 		},
 		ReadBufferSize:   16 * 1024,
 		WriteBufferSize:  16 * 1024,
-		HandshakeTimeout: time.Second * 6,
+		HandshakeTimeout: time.Second * 12,
 	}
 
 	protocol := "ws"
@@ -31,7 +39,8 @@ func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnabl
 		protocol = "wss"
 		root, err := x509.SystemCertPool()
 		if err != nil {
-			return nil, fmt.Errorf("get x509 system cert pool failed: %v", err)
+			log.Printf("get x509 system cert pool failed: %v, create new cert pool.", err)
+			root = x509.NewCertPool()
 		}
 
 		ns, _, err := net.SplitHostPort(host)
@@ -39,7 +48,7 @@ func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnabl
 			log.Printf("split host and port failed: %v", err)
 			ns = host
 		}
-		x.TLSClientConfig = &tls.Config{
+		c.dialer.TLSClientConfig = &tls.Config{
 			ServerName:             ns,
 			RootCAs:                root,
 			NextProtos:             []string{"http/1.1"},
@@ -48,38 +57,37 @@ func WebsocketDial(conn net.Conn, host, path string, certPath []string, tlsEnabl
 			ClientSessionCache:     tlsSessionCache,
 		}
 
-		for i := range certPath {
-			if certPath[i] == "" {
+		for i := range tlsCaCertFilePath {
+			if tlsCaCertFilePath[i] == "" {
 				continue
 			}
 
-			cert, err := ioutil.ReadFile(certPath[i])
+			cert, err := ioutil.ReadFile(tlsCaCertFilePath[i])
 			if err != nil {
 				log.Printf("read cert failed: %v\n", err)
 				continue
 			}
 
-			ok := x.TLSClientConfig.RootCAs.AppendCertsFromPEM(cert)
+			ok := c.dialer.TLSClientConfig.RootCAs.AppendCertsFromPEM(cert)
 			if !ok {
 				log.Printf("add cert from pem failed.")
 			}
 		}
 	}
 
-	header := http.Header{}
-	header.Add("Host", host)
-	uri := fmt.Sprintf("%s://%s%s", protocol, host, getNormalizedPath(path))
-	webSocketConn, resp, err := x.Dial(uri, header)
+	c.header = http.Header{}
+	c.header.Add("Host", host)
+	c.uri = fmt.Sprintf("%s://%s%s", protocol, host, getNormalizedPath(path))
+
+	return c
+}
+
+func (c *Client) NewConn() (net.Conn, error) {
+	con, _, err := c.dialer.Dial(c.uri, c.header)
 	if err != nil {
-		var reason string
-		if resp != nil {
-			reason = resp.Status
-		}
-		return nil, fmt.Errorf("failed to dial to %s, reason: (%s),error: %v", uri, reason, err)
+		return nil, fmt.Errorf("websocket dial failed: %w", err)
 	}
-
-	return &wsConn{Conn: webSocketConn}, nil
-
+	return &wsConn{Conn: con}, nil
 }
 
 var tlsSessionCache = tls.NewLRUClientSessionCache(128)
