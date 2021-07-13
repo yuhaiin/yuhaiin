@@ -16,9 +16,10 @@ type UDPServer struct {
 	lock   sync.Mutex
 	config net.ListenConfig
 
-	listener net.PacketConn
-	handle   func([]byte, Proxy) ([]byte, error)
-	proxy    atomic.Value
+	listener   net.PacketConn
+	handle     func([]byte, Proxy) ([]byte, error)
+	listenFunc func(net.PacketConn, Proxy) error
+	proxy      atomic.Value
 }
 
 func (u *UDPServer) SetProxy(f Proxy) {
@@ -42,13 +43,26 @@ func WithListenConfig(n net.ListenConfig) func(u *UDPServer) {
 	}
 }
 
-func NewUDPServer(host string, handle func([]byte, Proxy) ([]byte, error), opt ...func(u *UDPServer)) (Server, error) {
+func WithListenFunc(f func(net.PacketConn, Proxy) error) func(u *UDPServer) {
+	return func(u *UDPServer) {
+		u.listenFunc = f
+	}
+}
+
+func WithHandle(f func([]byte, Proxy) ([]byte, error)) func(u *UDPServer) {
+	return func(u *UDPServer) {
+		u.handle = f
+	}
+}
+
+func NewUDPServer(host string, opt ...func(u *UDPServer)) (Server, error) {
 	u := &UDPServer{
 		host:   host,
-		handle: handle,
+		handle: func(b []byte, p Proxy) ([]byte, error) { return nil, fmt.Errorf("handle not defined") },
 		proxy:  atomic.Value{},
 		config: net.ListenConfig{},
 	}
+	u.listenFunc = func(pc net.PacketConn, p Proxy) error { return u.defaultListenFunc(pc) }
 
 	for i := range opt {
 		opt[i](u)
@@ -121,10 +135,14 @@ func (u *UDPServer) process() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	fmt.Println("New UDP Server:", u.host)
+	return u.listenFunc(u.listener, u)
+}
+
+func (u *UDPServer) defaultListenFunc(l net.PacketConn) error {
 	var tempDelay time.Duration
 	for {
 		b := make([]byte, 600)
-		n, remoteAddr, err := u.listener.ReadFrom(b)
+		n, remoteAddr, err := l.ReadFrom(b)
 		if err != nil {
 			// from https://golang.org/src/net/http/server.go?s=93655:93701#L2977
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
@@ -158,7 +176,7 @@ func (u *UDPServer) process() error {
 				log.Printf("udp handle failed: %v", err)
 				return
 			}
-			_, err = u.listener.WriteTo(data, remoteAddr)
+			_, err = l.WriteTo(data, remoteAddr)
 			if err != nil {
 				log.Printf("udp listener write to client failed: %v", err)
 			}
