@@ -255,8 +255,8 @@ func removeHeader(h http.Header) http.Header {
 }
 
 func NewServer(host, username, password string) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, handshake(func(o *Option) {
+	return proxy.NewTCPServer(host, proxy.TCPWithHandle(handshake(func(o *Option) {
 		o.Password = password
 		o.Username = username
-	}))
+	})))
 }

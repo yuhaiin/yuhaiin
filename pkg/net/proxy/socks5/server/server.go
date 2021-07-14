@@ -221,14 +221,19 @@ type server struct {
 }
 
 func NewServer(host, username, password string) (proxy.Server, error) {
-	tcp, err := proxy.NewTCPServer(host, handshake(func(o *Option) {
-		o.Password = password
-		o.Username = username
-	}))
+	tcp, err := proxy.NewTCPServer(
+		host,
+		proxy.TCPWithHandle(
+			handshake(func(o *Option) {
+				o.Password = password
+				o.Username = username
+			}),
+		),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create tcp server failed: %v", err)
 	}
-	udp, err := proxy.NewUDPServer(host, proxy.WithHandle(udpHandle))
+	udp, err := proxy.NewUDPServer(host, proxy.UDPWithHandle(udpHandle))
 	if err != nil {
 		return nil, fmt.Errorf("create udp server failed: %v", err)
 	}
