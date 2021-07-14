@@ -6,6 +6,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
+// modified from https://github.com/LiamHaworth/go-tproxy
+
 func NewServer(h string) (proxy.Server, error) {
 	t, err := newTCPServer(h)
 	if err != nil {
