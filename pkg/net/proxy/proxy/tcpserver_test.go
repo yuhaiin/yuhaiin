@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"net"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ func TestImplementTCPServer(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	s, err := NewTCPServer("127.0.0.1:1081", func(c net.Conn, p Proxy) {})
+	s, err := NewTCPServer("127.0.0.1:1081")
 	if err != nil {
 		t.Error(err)
 	}
