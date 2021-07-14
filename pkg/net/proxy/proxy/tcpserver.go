@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -16,19 +17,33 @@ type TCPServer struct {
 	lock     sync.Mutex
 	listener net.Listener
 	proxy    atomic.Value
+	config   net.ListenConfig
 	handle   func(net.Conn, Proxy)
 }
 
-// NewTCPServer create new TCP listener
-func NewTCPServer(host string, handle func(net.Conn, Proxy)) (Server, error) {
-	if handle == nil {
-		return nil, errors.New("handle is must")
+func TCPWithListenConfig(n net.ListenConfig) func(u *TCPServer) {
+	return func(u *TCPServer) {
+		u.config = n
 	}
+}
 
+func TCPWithHandle(f func(net.Conn, Proxy)) func(u *TCPServer) {
+	return func(u *TCPServer) {
+		u.handle = f
+	}
+}
+
+// NewTCPServer create new TCP listener
+func NewTCPServer(host string, opt ...func(*TCPServer)) (Server, error) {
 	s := &TCPServer{
 		host:   host,
-		handle: handle,
+		handle: func(c net.Conn, p Proxy) { c.Close() },
 		proxy:  atomic.Value{},
+		config: net.ListenConfig{},
+	}
+
+	for i := range opt {
+		opt[i](s)
 	}
 
 	if host == "" {
@@ -93,7 +108,7 @@ func (t *TCPServer) GetListenHost() string {
 
 func (t *TCPServer) run() (err error) {
 	fmt.Println("New TCP Server:", t.host)
-	t.listener, err = net.Listen("tcp", t.host)
+	t.listener, err = t.config.Listen(context.TODO(), "tcp", t.host)
 	if err != nil {
 		return fmt.Errorf("TcpServer:run() -> %v", err)
 	}

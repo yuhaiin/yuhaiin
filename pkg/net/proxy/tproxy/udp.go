@@ -16,11 +16,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
-func NewServer(host, username, password string) (proxy.Server, error) {
-	return proxy.NewUDPServer(host, proxy.WithListenConfig(net.ListenConfig{Control: control}), proxy.WithListenFunc(handleUDP))
+func newUDPServer(host string) (proxy.Server, error) {
+	return proxy.NewUDPServer(host, proxy.UDPWithListenConfig(net.ListenConfig{Control: controlUDP}), proxy.UDPWithListenFunc(handleUDP))
 }
 
-func control(network, address string, c syscall.RawConn) error {
+func controlUDP(network, address string, c syscall.RawConn) error {
 	var fn = func(s uintptr) {
 		err := syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT, 1)
 		if err != nil {

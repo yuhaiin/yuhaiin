@@ -37,19 +37,19 @@ func (u *UDPServer) getProxy() Proxy {
 	return &DefaultProxy{}
 }
 
-func WithListenConfig(n net.ListenConfig) func(u *UDPServer) {
+func UDPWithListenConfig(n net.ListenConfig) func(u *UDPServer) {
 	return func(u *UDPServer) {
 		u.config = n
 	}
 }
 
-func WithListenFunc(f func(net.PacketConn, Proxy) error) func(u *UDPServer) {
+func UDPWithListenFunc(f func(net.PacketConn, Proxy) error) func(u *UDPServer) {
 	return func(u *UDPServer) {
 		u.listenFunc = f
 	}
 }
 
-func WithHandle(f func([]byte, Proxy) ([]byte, error)) func(u *UDPServer) {
+func UDPWithHandle(f func([]byte, Proxy) ([]byte, error)) func(u *UDPServer) {
 	return func(u *UDPServer) {
 		u.handle = f
 	}
