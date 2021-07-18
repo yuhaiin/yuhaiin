@@ -100,10 +100,10 @@ func NewClient(network, address string, port int, certPath []string, insecureSki
 	}
 
 	c.quicConfig = &quic.Config{
-		KeepAlive:          true,
-		ConnectionIDLength: 12,
-		HandshakeTimeout:   time.Second * 8,
-		MaxIdleTimeout:     time.Second * 30,
+		KeepAlive:            true,
+		ConnectionIDLength:   12,
+		HandshakeIdleTimeout: time.Second * 8,
+		MaxIdleTimeout:       time.Second * 30,
 	}
 
 	return c, nil

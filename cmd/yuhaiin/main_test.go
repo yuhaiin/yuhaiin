@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/internal/api"
-	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestApi(t *testing.T) {
@@ -20,7 +20,7 @@ func TestApi(t *testing.T) {
 	}
 	defer conn.Close()
 	c := api.NewProcessInitClient(conn)
-	log.Println(c.ProcessInit(context.Background(), &empty.Empty{}))
+	log.Println(c.ProcessInit(context.Background(), &emptypb.Empty{}))
 	//log.Println(c.GetConfig(context.Background(), &empty.Empty{}))
 	//log.Println(c.GetGroup(context.Background(), &empty.Empty{}))
 }
