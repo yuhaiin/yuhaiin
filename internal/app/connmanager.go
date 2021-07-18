@@ -62,7 +62,7 @@ func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) 
 			resp.Connections = append(resp.Connections, &x.ConnRespConnection)
 		}
 
-		return false
+		return true
 	})
 
 	return resp, nil
@@ -146,8 +146,10 @@ func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
 	}
 	s := &conn{
 		ConnRespConnection: ConnRespConnection{
-			Id:   c.idSeed.Generate(),
-			Addr: addr,
+			Id:     c.idSeed.Generate(),
+			Addr:   addr,
+			Local:  x.LocalAddr().String(),
+			Remote: x.RemoteAddr().String(),
 		},
 		Conn: x,
 		cm:   c,
@@ -164,8 +166,10 @@ func (c *ConnManager) newPacketConn(addr string, x net.PacketConn) net.PacketCon
 	}
 	s := &packetConn{
 		ConnRespConnection: ConnRespConnection{
-			Id:   c.idSeed.Generate(),
-			Addr: addr,
+			Id:     c.idSeed.Generate(),
+			Addr:   addr,
+			Local:  x.LocalAddr().String(),
+			Remote: addr,
 		},
 		PacketConn: x,
 		cm:         c,

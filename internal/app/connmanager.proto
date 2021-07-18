@@ -25,6 +25,8 @@ message conn_resp {
     message connection{
         string addr = 1;
         int64 id = 2;
+        string local = 3;
+        string remote = 4;
     }
     repeated connection connections = 1;
 }

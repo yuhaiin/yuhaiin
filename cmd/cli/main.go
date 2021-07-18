@@ -9,9 +9,12 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -61,7 +64,7 @@ func main() {
 		Long:  "",
 	}
 
-	rootCmd.AddCommand(nodeCmd(y), latencyCmd(y), streamCmd(y), subCmd(y))
+	rootCmd.AddCommand(nodeCmd(y), latencyCmd(y), streamCmd(y), subCmd(y), listCmd(y), configCmd(y), connCmd(y))
 	rootCmd.Execute()
 }
 
@@ -69,6 +72,12 @@ func latencyCmd(y *yhCli) *cobra.Command {
 	latency := &cobra.Command{
 		Use:   "lat",
 		Short: "get node latency",
+		Long: `lat <group index> <node index> OR lat -g <group index> -n <node index>, test node latency of group index and node index
+lat <hash> OR lat -s <hash>, test node latency of node hash`,
+		Example: `lat 0 0
+lat -g 0 -n 0
+lat 5322574f8337b90440650c0d7c4a2427d2194b6cefc916f859e6656f1b0e797d
+lat -s 5322574f8337b90440650c0d7c4a2427d2194b6cefc916f859e6656f1b0e797d`,
 		Run: func(cmd *cobra.Command, args []string) {
 			specifiedGN(cmd, args,
 				func(s string) {
@@ -88,7 +97,8 @@ func latencyCmd(y *yhCli) *cobra.Command {
 
 func streamCmd(y *yhCli) *cobra.Command {
 	streamCmd := &cobra.Command{
-		Use: "data",
+		Use:   "data",
+		Short: "stream data",
 		Run: func(cmd *cobra.Command, args []string) {
 			y.streamData()
 		},
@@ -113,44 +123,67 @@ func subCmd(y *yhCli) *cobra.Command {
 
 	return subCmd
 }
-func nodeCmd(y *yhCli) *cobra.Command {
-	nodeCmd := &cobra.Command{
-		Use: "node",
-	}
 
-	group := &cobra.Command{
-		Use: "group",
+func listCmd(y *yhCli) *cobra.Command {
+	ls := &cobra.Command{
+		Use:   "ls",
+		Short: "list node info",
+		Long: `ls, list all groups
+ls all, list all groups and nodes
+ls now, show now node info
+ls <group index>, list nodes of group index 
+ls <group index> <node index>, show node info of group index and node index`,
+		Example: `ls
+ls all
+ls now
+ls 0
+ls 0 0`,
 		Run: func(cmd *cobra.Command, args []string) {
-			y.group()
-		},
-	}
+			if len(args) == 0 {
+				y.group()
+			}
 
-	nodes := &cobra.Command{
-		Use: "ls",
-		Run: func(cmd *cobra.Command, args []string) {
-			i, _ := cmd.Flags().GetInt("index")
-			if i == -1 {
-				if len(args) <= 0 {
+			if len(args) == 1 && args[0] == "all" {
+				y.listAll()
+				return
+			}
+
+			if len(args) == 1 && args[0] == "now" {
+				y.nowNode()
+				return
+			}
+
+			if len(args) == 1 {
+				i, err := strconv.Atoi(args[0])
+				if err != nil {
+					y.nodeInfo(args[0])
 					return
 				}
 
-				var err error
-				i, err = strconv.Atoi(args[0])
+				y.nodes(i)
+			}
+
+			if len(args) == 2 {
+				i, err := strconv.Atoi(args[0])
 				if err != nil {
 					return
 				}
-			}
+				z, err := strconv.Atoi(args[0])
+				if err != nil {
+					return
+				}
 
-			y.nodes(i)
+				y.nodeInfoWithGroupAndNode(i, z)
+			}
 		},
 	}
-	nodes.Flags().IntP("index", "i", -1, "group index")
 
-	now := &cobra.Command{
-		Use: "now",
-		Run: func(cmd *cobra.Command, args []string) {
-			y.nowNode()
-		},
+	return ls
+}
+
+func nodeCmd(y *yhCli) *cobra.Command {
+	nodeCmd := &cobra.Command{
+		Use: "node",
 	}
 
 	use := &cobra.Command{
@@ -170,27 +203,55 @@ func nodeCmd(y *yhCli) *cobra.Command {
 	use.Flags().IntP("group", "g", -1, "group index")
 	use.Flags().IntP("node", "n", -1, "node index")
 
-	info := &cobra.Command{
-		Use: "info",
-		Run: func(cmd *cobra.Command, args []string) {
-			specifiedGN(cmd, args,
-				func(s string) {
-					y.nodeInfo(s)
-				},
-				func(i1, i2 int) {
-					y.nodeInfoWithGroupAndNode(i1, i2)
-				},
-			)
-
-		},
-	}
-	info.Flags().StringP("hash", "s", "", "hash of node")
-	info.Flags().IntP("group", "g", -1, "group index")
-	info.Flags().IntP("node", "n", -1, "node index")
-
-	nodeCmd.AddCommand(group, nodes, now, use, info)
+	nodeCmd.AddCommand(use)
 
 	return nodeCmd
+}
+
+func configCmd(y *yhCli) *cobra.Command {
+	configCmd := &cobra.Command{
+		Use: "config",
+		Run: func(cmd *cobra.Command, args []string) {
+			y.showConfig()
+		},
+	}
+
+	return configCmd
+}
+
+func connCmd(y *yhCli) *cobra.Command {
+	connCmd := &cobra.Command{
+		Use: "conn",
+	}
+
+	list := &cobra.Command{
+		Use: "ls",
+		Run: func(cmd *cobra.Command, args []string) {
+			y.listConns()
+		},
+	}
+
+	close := &cobra.Command{
+		Use: "close",
+		Run: func(cmd *cobra.Command, args []string) {
+			for i := range args {
+				z, err := strconv.ParseInt(args[i], 10, 64)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+
+				err = y.closeConn(z)
+				if err != nil {
+					log.Println("close conn", z, "failed:", err)
+				}
+			}
+		},
+	}
+
+	connCmd.AddCommand(list, close)
+
+	return connCmd
 }
 
 func specifiedGN(cmd *cobra.Command, args []string, f1 func(string), f2 func(int, int)) {
@@ -227,6 +288,7 @@ type yhCli struct {
 	conn *grpc.ClientConn
 	cm   app.ConnectionsClient
 	sub  subscr.NodeManagerClient
+	cg   config.ConfigDaoClient
 }
 
 func NewCli(host string) (*yhCli, error) {
@@ -237,7 +299,8 @@ func NewCli(host string) (*yhCli, error) {
 
 	cm := app.NewConnectionsClient(conn)
 	sub := subscr.NewNodeManagerClient(conn)
-	return &yhCli{conn: conn, cm: cm, sub: sub}, nil
+	cg := config.NewConfigDaoClient(conn)
+	return &yhCli{conn: conn, cm: cm, sub: sub, cg: cg}, nil
 }
 
 func (y *yhCli) streamData() {
@@ -259,8 +322,26 @@ func (y *yhCli) streamData() {
 			break
 		}
 
-		fmt.Printf("\r%v             ", resp)
+		s := fmt.Sprintf("D(%s):%s U(%s):%s", resp.Download, resp.DownloadRate, resp.Upload, resp.UploadRate)
+
+		fmt.Printf("%s%s\r", s, strings.Repeat(" ", 47-len(s)))
 	}
+}
+
+func (y *yhCli) listAll() error {
+	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	if err != nil {
+		return fmt.Errorf("get node failed: %w", err)
+	}
+	for i := range ns.Groups {
+		fmt.Println(i, ns.Groups[i])
+		for z := range ns.GroupNodesMap[ns.Groups[i]].Nodes {
+			node := ns.GroupNodesMap[ns.Groups[i]].Nodes[z]
+			fmt.Println("\t", z, node, "hash:", ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[node])
+		}
+	}
+
+	return nil
 }
 
 func (y *yhCli) group() error {
@@ -349,7 +430,6 @@ func (y *yhCli) changeNowNode(hash string) error {
 	d, _ := protojson.MarshalOptions{Indent: "\t"}.Marshal(l)
 	fmt.Println(string(d))
 	return nil
-
 }
 
 func (y *yhCli) nowNode() error {
@@ -395,7 +475,52 @@ func (y *yhCli) nodeInfo(hash string) error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 
-	d, _ := protojson.MarshalOptions{Indent: "\t"}.Marshal(node)
+	d, _ := protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Marshal(node)
 	fmt.Println(string(d))
+	return nil
+}
+
+func (y *yhCli) showConfig() error {
+	c, err := y.cg.Load(context.TODO(), &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("load config failed: %w", err)
+	}
+
+	c.ProtoReflect().ProtoMethods()
+	d, _ := protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Marshal(c)
+	fmt.Println(string(d))
+	return nil
+}
+
+func (y *yhCli) listConns() error {
+	c, err := y.cm.Conns(context.TODO(), &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("get conns failed: %w", err)
+	}
+
+	sort.Slice(c.Connections, func(i, j int) bool { return c.Connections[i].Id < c.Connections[j].Id })
+
+	for i := range c.Connections {
+		fmt.Println(c.Connections[i].Id, c.Connections[i].Addr, "|", fmt.Sprintf("%s <-> %s", c.Connections[i].Local, c.Connections[i].Remote))
+	}
+
+	return nil
+}
+
+func (y *yhCli) closeConns(id ...int64) {
+	for i := range id {
+		_, err := y.cm.CloseConn(context.TODO(), &wrapperspb.Int64Value{Value: id[i]})
+		if err != nil {
+			log.Printf("close conn failed: %v\n", err)
+		}
+	}
+}
+
+func (y *yhCli) closeConn(id int64) error {
+	_, err := y.cm.CloseConn(context.TODO(), &wrapperspb.Int64Value{Value: id})
+	if err != nil {
+		return fmt.Errorf("close conn failed: %w", err)
+	}
+
 	return nil
 }
