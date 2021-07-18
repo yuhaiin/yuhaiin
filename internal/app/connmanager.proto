@@ -5,13 +5,16 @@ package yuhaiin.app.connmanager;
 option go_package = "github.com/Asutorufa/yuhaiin/internal/app";
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/wrappers.proto";
 
 
 service connections{
   rpc conns(google.protobuf.Empty)returns(conn_resp);
-  rpc close_conn(google.protobuf.Int64Value)returns(google.protobuf.Empty);
+  rpc close_conn(close_conns_req)returns(google.protobuf.Empty);
   rpc statistic(google.protobuf.Empty)returns(stream rate_resp);
+}
+
+message close_conns_req{
+  repeated int64 conns = 1;
 }
 
 message rate_resp{
