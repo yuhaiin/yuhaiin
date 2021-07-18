@@ -8,7 +8,6 @@ import (
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
-	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -21,7 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConnectionsClient interface {
 	Conns(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ConnResp, error)
-	CloseConn(ctx context.Context, in *wrapperspb.Int64Value, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CloseConn(ctx context.Context, in *CloseConnsReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Statistic(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Connections_StatisticClient, error)
 }
 
@@ -42,7 +41,7 @@ func (c *connectionsClient) Conns(ctx context.Context, in *emptypb.Empty, opts .
 	return out, nil
 }
 
-func (c *connectionsClient) CloseConn(ctx context.Context, in *wrapperspb.Int64Value, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *connectionsClient) CloseConn(ctx context.Context, in *CloseConnsReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.app.connmanager.connections/close_conn", in, out, opts...)
 	if err != nil {
@@ -88,7 +87,7 @@ func (x *connectionsStatisticClient) Recv() (*RateResp, error) {
 // for forward compatibility
 type ConnectionsServer interface {
 	Conns(context.Context, *emptypb.Empty) (*ConnResp, error)
-	CloseConn(context.Context, *wrapperspb.Int64Value) (*emptypb.Empty, error)
+	CloseConn(context.Context, *CloseConnsReq) (*emptypb.Empty, error)
 	Statistic(*emptypb.Empty, Connections_StatisticServer) error
 	mustEmbedUnimplementedConnectionsServer()
 }
@@ -100,7 +99,7 @@ type UnimplementedConnectionsServer struct {
 func (UnimplementedConnectionsServer) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Conns not implemented")
 }
-func (UnimplementedConnectionsServer) CloseConn(context.Context, *wrapperspb.Int64Value) (*emptypb.Empty, error) {
+func (UnimplementedConnectionsServer) CloseConn(context.Context, *CloseConnsReq) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CloseConn not implemented")
 }
 func (UnimplementedConnectionsServer) Statistic(*emptypb.Empty, Connections_StatisticServer) error {
@@ -138,7 +137,7 @@ func _Connections_Conns_Handler(srv interface{}, ctx context.Context, dec func(i
 }
 
 func _Connections_CloseConn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrapperspb.Int64Value)
+	in := new(CloseConnsReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -150,7 +149,7 @@ func _Connections_CloseConn_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/yuhaiin.app.connmanager.connections/close_conn",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConnectionsServer).CloseConn(ctx, req.(*wrapperspb.Int64Value))
+		return srv.(ConnectionsServer).CloseConn(ctx, req.(*CloseConnsReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }

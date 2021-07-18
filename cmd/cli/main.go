@@ -234,6 +234,7 @@ func connCmd(y *yhCli) *cobra.Command {
 	close := &cobra.Command{
 		Use: "close",
 		Run: func(cmd *cobra.Command, args []string) {
+			var ids []int64
 			for i := range args {
 				z, err := strconv.ParseInt(args[i], 10, 64)
 				if err != nil {
@@ -241,11 +242,11 @@ func connCmd(y *yhCli) *cobra.Command {
 					continue
 				}
 
-				err = y.closeConn(z)
-				if err != nil {
-					log.Println("close conn", z, "failed:", err)
-				}
+				ids = append(ids, z)
+
 			}
+
+			y.closeConns(ids...)
 		},
 	}
 
@@ -475,8 +476,7 @@ func (y *yhCli) nodeInfo(hash string) error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 
-	d, _ := protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Marshal(node)
-	fmt.Println(string(d))
+	fmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(node))
 	return nil
 }
 
@@ -486,9 +486,7 @@ func (y *yhCli) showConfig() error {
 		return fmt.Errorf("load config failed: %w", err)
 	}
 
-	c.ProtoReflect().ProtoMethods()
-	d, _ := protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Marshal(c)
-	fmt.Println(string(d))
+	fmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(c))
 	return nil
 }
 
@@ -508,19 +506,5 @@ func (y *yhCli) listConns() error {
 }
 
 func (y *yhCli) closeConns(id ...int64) {
-	for i := range id {
-		_, err := y.cm.CloseConn(context.TODO(), &wrapperspb.Int64Value{Value: id[i]})
-		if err != nil {
-			log.Printf("close conn failed: %v\n", err)
-		}
-	}
-}
-
-func (y *yhCli) closeConn(id int64) error {
-	_, err := y.cm.CloseConn(context.TODO(), &wrapperspb.Int64Value{Value: id})
-	if err != nil {
-		return fmt.Errorf("close conn failed: %w", err)
-	}
-
-	return nil
+	_, _ = y.cm.CloseConn(context.TODO(), &app.CloseConnsReq{Conns: id})
 }

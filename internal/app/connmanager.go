@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
-	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var _ proxy.Proxy = (*ConnManager)(nil)
@@ -68,21 +67,22 @@ func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) 
 	return resp, nil
 }
 
-func (c *ConnManager) CloseConn(_ context.Context, x *wrapperspb.Int64Value) (*emptypb.Empty, error) {
-	z, ok := c.conns.Load(x.Value)
-	if !ok {
-		return &emptypb.Empty{}, nil
-	}
-	var err error
-	if x, ok := z.(net.Conn); ok {
-		err = x.Close()
-	}
+func (c *ConnManager) CloseConn(_ context.Context, x *CloseConnsReq) (*emptypb.Empty, error) {
+	for _, x := range x.Conns {
+		z, ok := c.conns.Load(x)
+		if !ok {
+			return &emptypb.Empty{}, nil
+		}
+		if x, ok := z.(net.Conn); ok {
+			_ = x.Close()
+		}
 
-	if x, ok := z.(net.PacketConn); ok {
-		err = x.Close()
-	}
+		if x, ok := z.(net.PacketConn); ok {
+			_ = x.Close()
+		}
 
-	return &emptypb.Empty{}, err
+	}
+	return &emptypb.Empty{}, nil
 }
 
 func (c *ConnManager) Statistic(_ *emptypb.Empty, srv Connections_StatisticServer) error {
