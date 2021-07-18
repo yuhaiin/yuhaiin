@@ -1,0 +1,7 @@
+lint:
+  rules:
+    no_default: true
+
+    add:
+      - MESSAGE_NAMES_UPPER_CAMEL_CASE
+      - SERVICE_NAMES_UPPER_CAMEL_CASE
