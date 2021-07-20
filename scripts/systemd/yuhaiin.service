@@ -1,0 +1,12 @@
+[Unit]
+Description=yuhaiin
+Requires=
+
+[Service]
+ExecStart=yuhaiin
+Restart=always
+RestartSec=30
+
+[Install]
+Also=
+WantedBy=default.target
