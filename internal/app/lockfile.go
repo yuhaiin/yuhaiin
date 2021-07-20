@@ -17,10 +17,10 @@ type Lock struct {
 	locked bool
 }
 
-func NewLock(lockfile string) *Lock {
-	return &Lock{
-		lockfile: lockfile,
-	}
+func NewLock(lockfile, payload string) (*Lock, error) {
+	l := &Lock{lockfile: lockfile}
+
+	return l, l.Lock(payload)
 }
 
 func (l *Lock) Lock(payload string) error {
