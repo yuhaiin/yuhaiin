@@ -119,8 +119,7 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 
 // NewConn .
 func (c *Client) NewConn(rc net.Conn, network, target string) (*Conn, error) {
-	r := rand.Intn(c.count)
-	conn := &Conn{user: c.users[r], opt: c.opt, security: c.security, udp: network == "udp"}
+	conn := &Conn{user: c.users[rand.Intn(c.count)], opt: c.opt, security: c.security, udp: network == "udp"}
 	var err error
 	conn.atyp, conn.addr, conn.port, err = ParseAddr(target)
 	if err != nil {
@@ -285,21 +284,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	}
 
 	return c.dataWriter.Write(b)
-}
-
-func (c *Conn) LocalAddr() net.Addr {
-	if c.Conn.LocalAddr() != nil {
-		return c.Conn.LocalAddr()
-	}
-
-	return &net.TCPAddr{}
-}
-
-func (c *Conn) RemoteAddr() net.Addr {
-	if c.Conn.RemoteAddr() != nil {
-		return c.Conn.RemoteAddr()
-	}
-	return &net.TCPAddr{IP: net.IP(c.addr)}
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {

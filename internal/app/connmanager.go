@@ -141,9 +141,6 @@ func (c *ConnManager) delete(id int64) {
 }
 
 func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
-	if x == nil {
-		return nil
-	}
 	s := &conn{
 		ConnRespConnection: ConnRespConnection{
 			Id:     c.idSeed.Generate(),
@@ -182,12 +179,18 @@ func (c *ConnManager) newPacketConn(addr string, x net.PacketConn) net.PacketCon
 
 func (c *ConnManager) Conn(host string) (net.Conn, error) {
 	conn, err := c.proxy.Conn(host)
-	return c.newConn(host, conn), err
+	if err != nil {
+		return nil, err
+	}
+	return c.newConn(host, conn), nil
 }
 
 func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 	conn, err := c.proxy.PacketConn(host)
-	return c.newPacketConn(host, conn), err
+	if err != nil {
+		return nil, err
+	}
+	return c.newPacketConn(host, conn), nil
 }
 
 var _ net.Conn = (*conn)(nil)
