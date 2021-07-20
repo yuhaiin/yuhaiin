@@ -133,13 +133,17 @@ func main() {
 		l.SetProxy(flowStatis)
 	}
 
-	lock := app.NewLock(filepath.Join(*configDir, "yuhaiin.lock"))
-	defer lock.UnLock()
-
 	lis, err := net.Listen("tcp", *host)
 	if err != nil {
 		panic(err)
 	}
+
+	lock := app.NewLock(filepath.Join(*configDir, "yuhaiin.lock"))
+	defer lock.UnLock()
+	if err = lock.Lock(*host); err != nil {
+		panic(err)
+	}
+
 	s := grpc.NewServer(grpc.EmptyServerOption{})
 
 	s.RegisterService(&api.Config_ServiceDesc, api.NewConfig(conf, flowStatis))  // TODO Deprecated
