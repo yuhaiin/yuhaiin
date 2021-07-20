@@ -109,5 +109,9 @@ func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	return v.client.NewConn(conn, network, host)
+	rconn, err := v.client.NewConn(conn, network, host)
+	if err != nil {
+		return nil, fmt.Errorf("get vmess conn failed: %w", err)
+	}
+	return rconn, nil
 }
