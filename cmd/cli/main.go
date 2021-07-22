@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
@@ -92,6 +93,21 @@ lat -s 5322574f8337b90440650c0d7c4a2427d2194b6cefc916f859e6656f1b0e797d`,
 	latency.Flags().StringP("hash", "s", "", "hash of node")
 	latency.Flags().IntP("group", "g", -1, "group index")
 	latency.Flags().IntP("node", "n", -1, "node index")
+
+	all := &cobra.Command{
+		Use: "all",
+		Run: func(cmd *cobra.Command, args []string) {
+			i, err := strconv.Atoi(args[0])
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			y.latencyAll(i)
+		},
+	}
+	latency.AddCommand(all)
+
 	return latency
 }
 
@@ -401,6 +417,35 @@ func (y *yhCli) latency(hash string) error {
 	}
 	fmt.Println(l.Value)
 	return nil
+}
+
+func (y *yhCli) latencyAll(i int) {
+	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	if err != nil {
+		log.Printf("get node failed: %v\n", err)
+		return
+	}
+
+	if i >= len(ns.Groups) {
+		return
+	}
+
+	wg := sync.WaitGroup{}
+	for _, z := range ns.GroupNodesMap[ns.Groups[i]].Nodes {
+		wg.Add(1)
+		go func(z string) {
+			defer wg.Done()
+			l, err := y.sub.Latency(context.TODO(), &wrapperspb.StringValue{Value: ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[z]})
+			if err != nil {
+				fmt.Printf("%s: %v\n", z, "timeout")
+				return
+			}
+
+			fmt.Printf("%s: %s | %s\n", z, l.Value, ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[z])
+		}(z)
+	}
+
+	wg.Wait()
 }
 
 func (y *yhCli) changeNowNodeWithGroupAndNode(i, z int) error {

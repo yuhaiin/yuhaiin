@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 )
 
 var (
@@ -82,7 +83,7 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	for ci := range c.tcpCache {
-		conn, err := net.DialTCP("tcp", &net.TCPAddr{}, c.tcpCache[ci])
+		conn, err := net.DialTimeout("tcp", c.tcpCache[ci].String(), time.Second*10)
 		if err != nil {
 			continue
 		}

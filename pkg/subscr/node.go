@@ -40,7 +40,8 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 		return n, fmt.Errorf("load config failed: %v", err)
 	}
 
-	p, err := ParseNodeConn(n.node.NowNode)
+	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
+	p, err := ParseNodeConn(now)
 	if err != nil {
 		p = &proxy.DefaultProxy{}
 	}
@@ -53,6 +54,21 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*Point, error) {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
+
+	if n.node.NowNode == nil {
+		return n.node.NowNode, nil
+	}
+
+	z := n.node.GroupNodesMap[n.node.NowNode.NGroup]
+	if z == nil {
+		return n.node.NowNode, nil
+	}
+
+	hash := z.NodeHashMap[n.node.NowNode.NName]
+	if hash != "" {
+		return n.node.Nodes[hash], nil
+	}
+
 	return n.node.NowNode, nil
 }
 
@@ -142,12 +158,26 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 		n.node.Nodes = make(map[string]*Point)
 	}
 
+	client := &http.Client{
+		Timeout: time.Minute * 2,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				conn, err := n.Conn(addr)
+				if err == nil {
+					return conn, nil
+				}
+
+				return (&net.Dialer{Timeout: time.Second * 30}).DialContext(ctx, network, addr)
+			},
+		},
+	}
+
 	wg := sync.WaitGroup{}
 	for _, l := range n.node.Links {
 		wg.Add(1)
 		go func(l *NodeLink) {
 			defer wg.Done()
-			n.oneLinkGet(c, l)
+			n.oneLinkGet(c, client, l)
 		}(l)
 	}
 
@@ -157,11 +187,7 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 	return &emptypb.Empty{}, err
 }
 
-func (n *NodeManager) oneLinkGet(c context.Context, link *NodeLink) {
-	client := http.Client{
-		Timeout:   time.Second * 30,
-		Transport: &http.Transport{},
-	}
+func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *NodeLink) {
 	req, err := http.NewRequest("GET", link.Url, nil)
 	if err != nil {
 		log.Println(err)
@@ -172,7 +198,7 @@ func (n *NodeManager) oneLinkGet(c context.Context, link *NodeLink) {
 
 	res, err := client.Do(req)
 	if err != nil {
-		log.Println(err)
+		log.Printf("get %s failed: %v\n", link.Name, err)
 		return
 	}
 	defer res.Body.Close()
