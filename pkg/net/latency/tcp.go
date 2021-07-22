@@ -7,13 +7,9 @@ import (
 	"time"
 )
 
-func TcpLatency(dialContext func(ctx context.Context, network, addr string) (net.Conn, error), target string) (time.Duration, error) {
-	tr := http.Transport{
-		DialContext: dialContext,
-	}
-	newClient := &http.Client{Transport: &tr, Timeout: 3 * time.Second}
+func TcpLatency(dialContext func(context.Context, string, string) (net.Conn, error), target string) (time.Duration, error) {
 	timeNow := time.Now()
-	_, err := newClient.Get(target)
+	_, err := (&http.Client{Transport: &http.Transport{DialContext: dialContext}, Timeout: 3 * time.Second}).Get(target)
 	if err != nil {
 		return 0, err
 	}
