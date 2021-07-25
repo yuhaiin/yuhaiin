@@ -1,0 +1,15 @@
+#！/bin/bash
+
+iptables -t nat -N yuhaiin
+
+iptables -t nat -A yuhaiin -m cgroup --path "user.slice/user-1000.slice/user@1000.service/yuhaiin.slice" -j RETURN
+iptables -t nat -A yuhaiin -d 0.0.0.0/8 -j RETURN
+iptables -t nat -A yuhaiin -d 127.0.0.0/8 -j RETURN
+iptables -t nat -A yuhaiin -d 10.0.0.0/8 -j RETURN
+iptables -t nat -A yuhaiin -d 169.254.0.0/16 -j RETURN
+iptables -t nat -A yuhaiin -d 172.16.0.0/12 -j RETURN
+iptables -t nat -A yuhaiin -d 192.168.0.0/16 -j RETURN
+iptables -t nat -A yuhaiin -d 224.0.0.0/4 -j RETURN
+iptables -t nat -A yuhaiin -d 240.0.0.0/4 -j RETURN
+iptables -t nat -A yuhaiin -p tcp -j REDIRECT --to-ports 8088
+iptables -t nat -A OUTPUT -p tcp -j yuhaiin

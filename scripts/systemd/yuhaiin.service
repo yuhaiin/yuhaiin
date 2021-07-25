@@ -8,6 +8,7 @@ Restart=always
 RestartSec=30
 StandardOutput=append:/tmp/yuhaiin/logs/log1.log
 StandardError=append:/tmp/yuhaiin/logs/log2.log
+Slice=yuhaiin.slice
 
 [Install]
 Also=
