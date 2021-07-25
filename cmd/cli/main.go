@@ -220,7 +220,33 @@ func nodeCmd(y *yhCli) *cobra.Command {
 	use.Flags().IntP("group", "g", -1, "group index")
 	use.Flags().IntP("node", "n", -1, "node index")
 
+	set := &cobra.Command{
+		Use: "set",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 2 {
+				y.setNodeConfig(args[0], args[1])
+			}
+			if len(args) == 3 {
+				i, err := strconv.Atoi(args[0])
+				if err != nil {
+					log.Println(err)
+					return
+				}
+				z, err := strconv.Atoi(args[1])
+				if err != nil {
+					log.Println(err)
+					return
+				}
+				err = y.setNodeConfigWithGroupAndNode(i, z, args[2])
+				if err != nil {
+					log.Println(err)
+				}
+			}
+		},
+	}
+
 	nodeCmd.AddCommand(use)
+	nodeCmd.AddCommand(set)
 
 	return nodeCmd
 }
@@ -411,23 +437,32 @@ func (y *yhCli) nodes(i int) error {
 }
 
 func (y *yhCli) latencyWithGroupAndNode(i, z int) error {
+	hash, err := y.getHash(i, z)
+	if err != nil {
+		return fmt.Errorf("get hash failed: %w", err)
+	}
+	return y.latency(hash)
+}
+
+func (y *yhCli) getHash(i, z int) (string, error) {
+
 	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
-		return fmt.Errorf("get node failed: %w", err)
+		return "", fmt.Errorf("get node failed: %w", err)
 	}
 
 	if i >= len(ns.Groups) || i < 0 {
-		return nil
+		return "", fmt.Errorf("group index error")
 	}
 
 	group := ns.Groups[i]
 	if z >= len(ns.GroupNodesMap[group].Nodes) || z < 0 {
-		return nil
+		return "", fmt.Errorf("node index error")
 	}
 
 	node := ns.GroupNodesMap[group].Nodes[z]
-	fmt.Println(group, node)
-	return y.latency(ns.GroupNodesMap[group].NodeHashMap[node])
+
+	return ns.GroupNodesMap[group].NodeHashMap[node], nil
 }
 
 func (y *yhCli) latency(hash string) error {
@@ -516,23 +551,11 @@ func (y *yhCli) updateSub() error {
 }
 
 func (y *yhCli) nodeInfoWithGroupAndNode(i, z int) error {
-	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	hash, err := y.getHash(i, z)
 	if err != nil {
-		return fmt.Errorf("get node failed: %w", err)
+		return fmt.Errorf("get hash failed: %w", err)
 	}
-
-	if i >= len(ns.Groups) {
-		return nil
-	}
-
-	group := ns.Groups[i]
-	if z >= len(ns.GroupNodesMap[group].Nodes) {
-		return nil
-	}
-
-	node := ns.GroupNodesMap[group].Nodes[z]
-
-	return y.nodeInfo(ns.GroupNodesMap[group].NodeHashMap[node])
+	return y.nodeInfo(hash)
 }
 
 func (y *yhCli) nodeInfo(hash string) error {
@@ -542,6 +565,60 @@ func (y *yhCli) nodeInfo(hash string) error {
 	}
 
 	fmt.Println(protojson.MarshalOptions{Indent: "\t", UseProtoNames: true, EmitUnpopulated: true}.Format(node))
+	return nil
+}
+
+func (y *yhCli) setNodeConfigWithGroupAndNode(i, z int, set string) error {
+	hash, err := y.getHash(i, z)
+	if err != nil {
+		return fmt.Errorf("get hash failed: %w", err)
+	}
+	return y.setNodeConfig(hash, set)
+}
+
+func (y *yhCli) setNodeConfig(hash string, setting string) error {
+	node, err := y.sub.GetNode(context.Background(), wrapperspb.String(hash))
+	if err != nil {
+		return fmt.Errorf("get node failed: %w", err)
+	}
+
+	data := protojson.MarshalOptions{Indent: "\t", UseProtoNames: true, EmitUnpopulated: true}.Format(node)
+
+	var s map[string]interface{}
+	err = json.Unmarshal([]byte(data), &s)
+	if err != nil {
+		return fmt.Errorf("unmarshal failed: %w", err)
+	}
+
+	kv := strings.Split(setting, "=")
+	if len(kv) != 2 {
+		return fmt.Errorf("")
+	}
+
+	key := kv[0]
+	value := kv[1]
+
+	parts := strings.Split(key, ".")
+	err = set(s, parts, value)
+	if err != nil {
+		return fmt.Errorf("set value failed: %w", err)
+	}
+
+	jsonStr, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("json marshal failed: %w", err)
+	}
+
+	err = protojson.Unmarshal(jsonStr, node)
+	if err != nil {
+		return fmt.Errorf("protojson unmarshal failed: %w", err)
+	}
+
+	_, err = y.sub.AddNode(context.TODO(), node)
+	if err != nil {
+		return fmt.Errorf("save setting failed: %w", err)
+	}
+
 	return nil
 }
 
