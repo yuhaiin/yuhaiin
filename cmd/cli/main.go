@@ -183,14 +183,19 @@ ls 0 0`,
 			if len(args) == 2 {
 				i, err := strconv.Atoi(args[0])
 				if err != nil {
+					log.Println(err)
 					return
 				}
-				z, err := strconv.Atoi(args[0])
+				z, err := strconv.Atoi(args[1])
 				if err != nil {
+					log.Println(err)
 					return
 				}
 
-				y.nodeInfoWithGroupAndNode(i, z)
+				err = y.nodeInfoWithGroupAndNode(i, z)
+				if err != nil {
+					log.Println(err)
+				}
 			}
 		},
 	}
@@ -456,6 +461,7 @@ func (y *yhCli) getHash(i, z int) (string, error) {
 	}
 
 	group := ns.Groups[i]
+
 	if z >= len(ns.GroupNodesMap[group].Nodes) || z < 0 {
 		return "", fmt.Errorf("node index error")
 	}
@@ -614,11 +620,11 @@ func (y *yhCli) setNodeConfig(hash string, setting string) error {
 		return fmt.Errorf("protojson unmarshal failed: %w", err)
 	}
 
-	_, err = y.sub.AddNode(context.TODO(), node)
+	point, err := y.sub.SaveNode(context.TODO(), node)
 	if err != nil {
 		return fmt.Errorf("save setting failed: %w", err)
 	}
-
+	fmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(point))
 	return nil
 }
 

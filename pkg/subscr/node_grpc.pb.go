@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 type NodeManagerClient interface {
 	Now(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Point, error)
 	GetNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error)
-	AddNode(ctx context.Context, in *Point, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SaveNode(ctx context.Context, in *Point, opts ...grpc.CallOption) (*Point, error)
 	GetNodes(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Node, error)
 	AddLink(ctx context.Context, in *NodeLink, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeleteLink(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -58,9 +58,9 @@ func (c *nodeManagerClient) GetNode(ctx context.Context, in *wrapperspb.StringVa
 	return out, nil
 }
 
-func (c *nodeManagerClient) AddNode(ctx context.Context, in *Point, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/add_node", in, out, opts...)
+func (c *nodeManagerClient) SaveNode(ctx context.Context, in *Point, opts ...grpc.CallOption) (*Point, error) {
+	out := new(Point)
+	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/save_node", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (c *nodeManagerClient) Latency(ctx context.Context, in *wrapperspb.StringVa
 type NodeManagerServer interface {
 	Now(context.Context, *emptypb.Empty) (*Point, error)
 	GetNode(context.Context, *wrapperspb.StringValue) (*Point, error)
-	AddNode(context.Context, *Point) (*emptypb.Empty, error)
+	SaveNode(context.Context, *Point) (*Point, error)
 	GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error)
 	AddLink(context.Context, *NodeLink) (*emptypb.Empty, error)
 	DeleteLink(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
@@ -157,8 +157,8 @@ func (UnimplementedNodeManagerServer) Now(context.Context, *emptypb.Empty) (*Poi
 func (UnimplementedNodeManagerServer) GetNode(context.Context, *wrapperspb.StringValue) (*Point, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNode not implemented")
 }
-func (UnimplementedNodeManagerServer) AddNode(context.Context, *Point) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddNode not implemented")
+func (UnimplementedNodeManagerServer) SaveNode(context.Context, *Point) (*Point, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveNode not implemented")
 }
 func (UnimplementedNodeManagerServer) GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodes not implemented")
@@ -230,20 +230,20 @@ func _NodeManager_GetNode_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeManager_AddNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _NodeManager_SaveNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Point)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeManagerServer).AddNode(ctx, in)
+		return srv.(NodeManagerServer).SaveNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/add_node",
+		FullMethod: "/yuhaiin.subscr.node_manager/save_node",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeManagerServer).AddNode(ctx, req.(*Point))
+		return srv.(NodeManagerServer).SaveNode(ctx, req.(*Point))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -390,8 +390,8 @@ var NodeManager_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeManager_GetNode_Handler,
 		},
 		{
-			MethodName: "add_node",
-			Handler:    _NodeManager_AddNode_Handler,
+			MethodName: "save_node",
+			Handler:    _NodeManager_SaveNode_Handler,
 		},
 		{
 			MethodName: "get_nodes",

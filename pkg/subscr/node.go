@@ -3,6 +3,8 @@ package subscr
 import (
 	"bytes"
 	context "context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -82,15 +84,16 @@ func (n *NodeManager) GetNode(_ context.Context, s *wrapperspb.StringValue) (*Po
 	return nil, fmt.Errorf("can't find node %v", s.Value)
 }
 
-func (n *NodeManager) AddNode(c context.Context, p *Point) (*emptypb.Empty, error) {
+func (n *NodeManager) SaveNode(c context.Context, p *Point) (*Point, error) {
 	_, err := n.DeleteNode(c, &wrapperspb.StringValue{Value: p.NHash})
 	if err != nil {
-		return &emptypb.Empty{}, fmt.Errorf("delete node failed: %v", err)
+		return &Point{}, fmt.Errorf("delete node failed: %v", err)
 	}
 
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
+	refreshHash(p)
 	_, ok := n.node.GroupNodesMap[p.GetNGroup()]
 	if !ok {
 		n.node.Groups = append(n.node.Groups, p.NGroup)
@@ -106,7 +109,13 @@ func (n *NodeManager) AddNode(c context.Context, p *Point) (*emptypb.Empty, erro
 
 	n.node.Nodes[p.NHash] = p
 
-	return &emptypb.Empty{}, n.save()
+	return p, n.save()
+}
+
+func refreshHash(p *Point) {
+	p.NHash = ""
+	z := sha256.Sum256([]byte(p.String()))
+	p.NHash = hex.EncodeToString(z[:])
 }
 
 func (n *NodeManager) GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error) {
@@ -220,7 +229,7 @@ func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *N
 			log.Println(err)
 			continue
 		}
-		_, err = n.AddNode(c, node)
+		_, err = n.SaveNode(c, node)
 		if err != nil {
 			log.Println(err)
 		}
