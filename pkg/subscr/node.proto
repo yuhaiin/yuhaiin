@@ -125,7 +125,7 @@ message node{
 service node_manager{
     rpc now(google.protobuf.Empty)returns(point);
     rpc get_node(google.protobuf.StringValue)returns(point);
-    rpc add_node(point)returns(google.protobuf.Empty);
+    rpc save_node(point)returns(point);
     rpc get_nodes(google.protobuf.StringValue)returns(node);
     rpc add_link(node.link)returns(google.protobuf.Empty);
     rpc delete_link(google.protobuf.StringValue)returns(google.protobuf.Empty);
