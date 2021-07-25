@@ -2,6 +2,7 @@ package subscr
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"testing"
 
@@ -100,4 +101,54 @@ func TestDelete(t *testing.T) {
 	}
 
 	t.Log(a)
+}
+
+func TestMarshalMap(t *testing.T) {
+	s := &Point{
+		NHash:   "n_hash",
+		NName:   "n_name",
+		NGroup:  "n_group",
+		NOrigin: Point_manual,
+		Node: &Point_Shadowsocksr{
+			Shadowsocksr: &Shadowsocksr{
+				Server: "server",
+			},
+		},
+	}
+
+	data, _ := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(s)
+
+	var z map[string]interface{}
+
+	err := json.Unmarshal(data, &z)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(z)
+
+	for k, v := range z {
+		t.Log(k)
+		switch x := v.(type) {
+		case string:
+			t.Log("string", x)
+		case map[string]interface{}:
+			t.Log("map[string]interface{}", x)
+			x["server"] = "server2"
+		}
+	}
+
+	b, err := json.Marshal(z)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(string(b))
+
+	err = protojson.Unmarshal(b, s)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(s)
 }

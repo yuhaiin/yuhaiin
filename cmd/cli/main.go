@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
@@ -53,7 +55,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	y, err := NewCli(string(host))
 	if err != nil {
 		panic(err)
@@ -232,6 +233,23 @@ func configCmd(y *yhCli) *cobra.Command {
 		},
 	}
 
+	set := &cobra.Command{
+		Use: "set",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				log.Println("args length is not 1")
+				return
+			}
+
+			err := y.setConfig(args[0])
+			if err != nil {
+				log.Println("set config failed:", err)
+			}
+		},
+	}
+
+	configCmd.AddCommand(set)
+
 	return configCmd
 }
 
@@ -309,7 +327,9 @@ type yhCli struct {
 }
 
 func NewCli(host string) (*yhCli, error) {
-	conn, err := grpc.Dial(string(host), grpc.WithInsecure(), grpc.WithBlock())
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, string(host), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial failed: %w", err)
 	}
@@ -521,7 +541,7 @@ func (y *yhCli) nodeInfo(hash string) error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 
-	fmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(node))
+	fmt.Println(protojson.MarshalOptions{Indent: "\t", UseProtoNames: true, EmitUnpopulated: true}.Format(node))
 	return nil
 }
 
@@ -532,6 +552,82 @@ func (y *yhCli) showConfig() error {
 	}
 
 	fmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(c))
+	return nil
+}
+
+func (y *yhCli) setConfig(setting string) error {
+	c, err := y.cg.Load(context.TODO(), &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("load config failed: %w", err)
+	}
+
+	data := protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(c)
+
+	var s map[string]interface{}
+	err = json.Unmarshal([]byte(data), &s)
+	if err != nil {
+		return fmt.Errorf("unmarshal failed: %w", err)
+	}
+
+	kv := strings.Split(setting, "=")
+	if len(kv) != 2 {
+		return fmt.Errorf("")
+	}
+
+	key := kv[0]
+	value := kv[1]
+
+	parts := strings.Split(key, ".")
+	err = set(s, parts, value)
+	if err != nil {
+		return fmt.Errorf("set value failed: %w", err)
+	}
+
+	jsonStr, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("json marshal failed: %w", err)
+	}
+
+	err = protojson.Unmarshal(jsonStr, c)
+	if err != nil {
+		return fmt.Errorf("protojson unmarshal failed: %w", err)
+	}
+
+	_, err = y.cg.Save(context.TODO(), c)
+	if err != nil {
+		return fmt.Errorf("save setting failed: %w", err)
+	}
+
+	return y.showConfig()
+}
+
+func set(s map[string]interface{}, k []string, v string) error {
+	l := len(k) - 1
+	for i := 0; i < l; i++ {
+		v, ok := s[k[i]].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("can't find key %v", k[i])
+		}
+
+		s = v
+	}
+
+	var b interface{}
+	var err error
+	switch s[k[l]].(type) {
+	case bool:
+		b, err = strconv.ParseBool(v)
+	case string:
+		b = v
+	case int64:
+		b, err = strconv.ParseInt(v, 0, 64)
+	default:
+		fmt.Println("unknow type", s[k[l]])
+	}
+	if err != nil {
+		return fmt.Errorf("parse value failed: %w", err)
+	}
+	s[k[l]] = b
 	return nil
 }
 
