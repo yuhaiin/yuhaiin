@@ -64,11 +64,13 @@ func creatRequest(domain string, reqType reqType, arCount bool) []byte {
 }
 
 type respHeader struct {
-	qdCount int
-	anCount int
-	nsCount int
-	arCount int
-	name    string
+	qdCount  int
+	anCount  int
+	nsCount  int
+	arCount  int
+	dnsType  reqType
+	isAnswer bool
+	name     string
 }
 
 type resolver struct {
@@ -90,6 +92,9 @@ func Resolve(req, answer []byte) (resp []net.IP, err error) {
 	if err != nil {
 		return nil, err
 	}
+	if !r.h.isAnswer {
+		return nil, fmt.Errorf("the qr (%d&%d=%d) is not 1(Answer)", r.aswer[2], 128, r.aswer[2]&128)
+	}
 	resp, err = r.answer()
 	if err != nil {
 		return nil, err
@@ -104,8 +109,8 @@ func (r *resolver) header() (err error) {
 		return errors.New("id not same")
 	}
 
-	if r.aswer[2]&128 == 0 { // check the QR is 1(Answer)
-		return fmt.Errorf("the qr (%d&%d=%d) is not 1(Answer)", r.aswer[2], 128, r.aswer[2]&128)
+	if r.aswer[2]&128 != 0 { // check the QR is 1(Answer)
+		r.h.isAnswer = true
 	}
 
 	switch r.aswer[3] & 0b00001111 { // check Response code(rCode) eg:11110010 & 00001111 = 0010, 11111101 & 00001111 = 1101
@@ -141,6 +146,7 @@ func (r *resolver) header() (err error) {
 
 	// fmt.Println(r.h)
 
+	r.h.dnsType = reqType{r.aswer[r.i], r.aswer[r.i+1]}
 	r.i += 2 // qType
 	r.i += 2 // qClass
 
