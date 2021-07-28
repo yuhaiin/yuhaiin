@@ -19,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
+	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"google.golang.org/grpc"
 )
 
@@ -102,6 +103,9 @@ func main() {
 		log.Printf("create new listener failed: %v\n", err)
 	}
 
+	runSetSysProxy(conf)
+	defer sysproxy.UnsetSysProxy()
+
 	grpcServer.RegisterService(&api.Config_ServiceDesc, api.NewConfig(conf, flowStatis))  // TODO Deprecated
 	grpcServer.RegisterService(&api.Node_ServiceDesc, api.NewNode(nodeManager))           // TODO Deprecated
 	grpcServer.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(nodeManager)) // TODO Deprecated
@@ -113,6 +117,37 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func runSetSysProxy(conf *config.Config) {
+	setSysProxy := func(s *config.Setting) {
+		if !s.SystemProxy.Enabled {
+			return
+		}
+		var http, socks5 string
+		if s.SystemProxy.HTTP {
+			http = s.Proxy.HTTP
+		}
+		if s.SystemProxy.Socks5 {
+			socks5 = s.Proxy.Socks5
+		}
+		sysproxy.SetSysProxy(http, socks5)
+	}
+
+	conf.Exec(func(s *config.Setting) error {
+		setSysProxy(s)
+		return nil
+	})
+	conf.AddObserver(func(current, old *config.Setting) {
+		if current.SystemProxy.Enabled != old.SystemProxy.Enabled ||
+			current.SystemProxy.HTTP != old.SystemProxy.HTTP ||
+			current.SystemProxy.HTTP != old.SystemProxy.Socks5 ||
+			current.Proxy.HTTP != old.Proxy.HTTP ||
+			current.Proxy.Socks5 != old.Proxy.Socks5 {
+			sysproxy.UnsetSysProxy()
+			setSysProxy(current)
+		}
+	})
 }
 
 func defaultConfigDir() (Path string) {
