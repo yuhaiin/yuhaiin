@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 type UDPServer struct {
@@ -94,7 +96,7 @@ func (u *UDPServer) SetServer(host string) error {
 		return nil
 	}
 
-	fmt.Println("SetServer create new server")
+	logasfmt.Println("SetServer create new server")
 	return u.run()
 }
 
@@ -134,7 +136,7 @@ func (t *UDPServer) PacketConn(host string) (net.PacketConn, error) {
 func (u *UDPServer) process() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
-	fmt.Println("New UDP Server:", u.host)
+	logasfmt.Println("New UDP Server:", u.host)
 	return u.listenFunc(u.listener, u)
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
@@ -114,7 +115,7 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy, err error) {
 		mark = m.mapper(hostname)
 	}
 
-	fmt.Printf("[%s] ->  mode: %s\n", host, ModeMapping[mark])
+	logasfmt.Printf("[%s] ->  mode: %s\n", host, ModeMapping[mark])
 
 	switch mark {
 	case BLOCK:

@@ -3,7 +3,6 @@ package shadowsocks
 import (
 	"errors"
 	"net"
-	"net/url"
 	"strings"
 )
 
@@ -21,11 +20,11 @@ func NewObfs(conn net.Conn, pluginOpt string) (net.Conn, error) {
 	}
 	switch args["obfs"] {
 	case HTTP:
-		urlTmp, err := url.Parse("//" + args["obfs-host"])
+		hostname, port, err := net.SplitHostPort(args["obfs-host"])
 		if err != nil {
 			return nil, err
 		}
-		return NewHTTPObfs(conn, urlTmp.Hostname(), urlTmp.Port()), nil
+		return NewHTTPObfs(conn, hostname, port), nil
 	default:
 		return nil, errors.New("not support plugin")
 	}

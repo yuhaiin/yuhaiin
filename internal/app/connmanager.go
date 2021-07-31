@@ -2,13 +2,13 @@ package app
 
 import (
 	context "context"
-	"fmt"
 	"log"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -86,7 +86,7 @@ func (c *ConnManager) CloseConn(_ context.Context, x *CloseConnsReq) (*emptypb.E
 }
 
 func (c *ConnManager) Statistic(_ *emptypb.Empty, srv Connections_StatisticServer) error {
-	fmt.Println("Start Send Flow Message to Client.")
+	logasfmt.Println("Start Send Flow Message to Client.")
 	da, ua := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
 	doa, uoa := da, ua
 	ctx := srv.Context()
@@ -106,7 +106,7 @@ func (c *ConnManager) Statistic(_ *emptypb.Empty, srv Connections_StatisticServe
 
 		select {
 		case <-ctx.Done():
-			fmt.Println("Client is Hidden, Close Stream.")
+			logasfmt.Println("Client is Hidden, Close Stream.")
 			return ctx.Err()
 		case <-time.After(time.Second):
 			continue
@@ -133,10 +133,10 @@ func (c *ConnManager) addPacketConn(i *packetConn) {
 func (c *ConnManager) delete(id int64) {
 	v, _ := c.conns.LoadAndDelete(id)
 	if x, ok := v.(*conn); ok {
-		fmt.Printf("close tcp conn id: %d,addr: %s\n", x.Id, x.Addr)
+		logasfmt.Printf("close tcp conn id: %d,addr: %s\n", x.Id, x.Addr)
 	}
 	if x, ok := v.(*packetConn); ok {
-		fmt.Printf("close packet conn id: %d,addr: %s\n", x.Id, x.Addr)
+		logasfmt.Printf("close packet conn id: %d,addr: %s\n", x.Id, x.Addr)
 	}
 }
 

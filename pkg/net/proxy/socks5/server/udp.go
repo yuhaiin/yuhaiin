@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -51,7 +52,7 @@ func udpHandle(b []byte, f proxy.Proxy) ([]byte, error) {
 	_ = conn.SetDeadline(time.Now().Add(time.Second * 10))
 
 	// write data to target and read the response back
-	fmt.Println("UDP write", conn.LocalAddr(), "->", target)
+	logasfmt.Println("UDP write", conn.LocalAddr(), "->", target)
 	// fmt.Println("write data:", data, "origin:", b)
 	_, err = conn.WriteTo(b[3+addrSize:], target)
 	if err != nil {
@@ -67,7 +68,7 @@ func udpHandle(b []byte, f proxy.Proxy) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read data From remote packetConn failed: %v", err)
 	}
-	fmt.Println("UDP read from", addr.String())
+	logasfmt.Println("UDP read from", addr.String())
 	// fmt.Println("read data", respBuff[:n])
 
 	return respBuff[:n+3+addrSize], nil

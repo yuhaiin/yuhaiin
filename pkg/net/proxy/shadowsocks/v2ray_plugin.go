@@ -3,7 +3,6 @@ package shadowsocks
 import (
 	"fmt"
 	"net"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -48,15 +47,15 @@ func NewV2raySelf(conn net.Conn, options string) (net.Conn, error) {
 	case "websocket":
 		return websocket.NewClient(func() (net.Conn, error) { return conn, nil }, host, path, false, tlsEnabled, []string{cert}).NewConn()
 	case "quic":
-		u, err := url.Parse("//" + conn.RemoteAddr().String())
+		hostname, porT, err := net.SplitHostPort(conn.RemoteAddr().String())
 		if err != nil {
 			return nil, fmt.Errorf("parse [%s] to url failed: %v", conn.RemoteAddr().String(), err)
 		}
-		port, err := strconv.Atoi(u.Port())
+		port, err := strconv.Atoi(porT)
 		if err != nil {
 			return nil, err
 		}
-		c, err := quic.NewClient(conn.RemoteAddr().Network(), u.Hostname(), port, []string{cert}, false)
+		c, err := quic.NewClient(conn.RemoteAddr().Network(), hostname, port, []string{cert}, false)
 		if err != nil {
 			return nil, err
 		}
