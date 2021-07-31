@@ -33,4 +33,7 @@ func TestAddress(t *testing.T) {
 	urls, _ := url.Parse("//[::]:1080")
 	t.Log(urls.Hostname())
 	t.Log(net.ParseIP("::1").String())
+	t.Log(net.SplitHostPort(":9090"))
+	t.Log(net.SplitHostPort("[]:111"))
+	t.Log(net.SplitHostPort("[ff::ff]:111"))
 }

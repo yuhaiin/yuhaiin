@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
@@ -170,16 +169,16 @@ func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 func ParseAddr(hostname string) (data []byte, err error) {
-	address, err := url.Parse("//" + hostname)
+	hostname, port, err := net.SplitHostPort(hostname)
 	if err != nil {
 		return nil, err
 	}
-	serverPort, err := strconv.Atoi(address.Port())
+	serverPort, err := strconv.Atoi(port)
 	if err != nil {
 		return nil, err
 	}
 	sendData := bytes.NewBuffer(nil)
-	if serverIP := net.ParseIP(address.Hostname()); serverIP != nil {
+	if serverIP := net.ParseIP(hostname); serverIP != nil {
 		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
 			sendData.WriteByte(0x01)
 			sendData.Write(serverIP.To4())
@@ -189,8 +188,8 @@ func ParseAddr(hostname string) (data []byte, err error) {
 		}
 	} else {
 		sendData.WriteByte(0x03)
-		sendData.WriteByte(byte(len(address.Hostname())))
-		sendData.WriteString(address.Hostname())
+		sendData.WriteByte(byte(len(hostname)))
+		sendData.WriteString(hostname)
 	}
 	sendData.WriteByte(byte(serverPort >> 8))
 	sendData.WriteByte(byte(serverPort & 255))
