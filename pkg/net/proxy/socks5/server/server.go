@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -88,7 +89,7 @@ func handle(user, key string, client net.Conn, f proxy.Proxy) {
 	server, err := getTarget(host, strconv.Itoa(port), b[1], client, f)
 	if err != nil {
 		if err != errUDP {
-			fmt.Println(err)
+			logasfmt.Println(err)
 		}
 		return
 	}

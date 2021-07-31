@@ -47,12 +47,12 @@ func getSysProxy() (*syscall.LazyDLL, error) {
 		return nil, errors.New("not support " + runtime.GOARCH)
 	}
 
-	fmt.Println("System Proxy DLL:", dll)
+	logasfmt.Println("System Proxy DLL:", dll)
 	return syscall.NewLazyDLL(dll), nil
 }
 
 func SetSysProxy(http, _ string) {
-	urls, err := url.Parse("//" + http)
+	httpHostname, httpPort, err := net.SplitHostPort(http)
 	if err != nil {
 		log.Println(err)
 		return
@@ -63,12 +63,12 @@ func SetSysProxy(http, _ string) {
 		return
 	}
 	setSysProxy := sysproxy.NewProc("SetSystemProxy")
-	hostPtr, err := strPtr(urls.Hostname())
+	hostPtr, err := strPtr(httpHostname)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	portPtr, err := strPtr(urls.Port())
+	portPtr, err := strPtr(httpPort)
 	if err != nil {
 		log.Println(err)
 		return
@@ -90,7 +90,7 @@ func SetSysProxy(http, _ string) {
 		log.Println(err)
 		return
 	}
-	fmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
+	logasfmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
 }
 
 func UnsetSysProxy() {
@@ -112,7 +112,7 @@ func UnsetSysProxy() {
 		log.Println(err)
 		return
 	}
-	fmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
+	logasfmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
 }
 
 /*

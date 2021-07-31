@@ -8,6 +8,8 @@ import (
 	"math"
 	"math/big"
 	"net"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 // Cidr cidr matcher
@@ -165,7 +167,7 @@ func (t *Trie) Print() {
 	for x.Len() != 0 {
 		y := x.Front()
 		z := y.Value.(*p)
-		fmt.Printf("%v ", z.s)
+		logasfmt.Printf("%v ", z.s)
 		x.Remove(y)
 
 		if z.c.left != nil {
@@ -183,7 +185,7 @@ func (t *Trie) Print() {
 		}
 	}
 
-	fmt.Printf("\n")
+	logasfmt.Printf("\n")
 }
 
 // NewTrieTree create a new trie tree
@@ -192,7 +194,7 @@ func NewTrieTree() Trie {
 }
 
 func ipv4toInt(ip net.IP) string {
-	fmt.Println([]byte(ip))
+	logasfmt.Println([]byte(ip))
 	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip)) // there ip is ip.To4()
 }
 

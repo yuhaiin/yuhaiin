@@ -1,8 +1,9 @@
 package main
 
 import (
+	"errors"
 	"flag"
-	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -18,14 +19,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/api"
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"google.golang.org/grpc"
 )
 
 func init() {
-	log.SetFlags(log.Llongfile)
-
 	go func() {
 		// pprof
 		_ = http.ListenAndServe("0.0.0.0:6060", nil)
@@ -40,7 +40,7 @@ func init() {
 				log.Println("stop server")
 				grpcServer.Stop()
 			default:
-				fmt.Println("OTHERS SIGN:", s)
+				logasfmt.Println("OTHERS SIGN:", s)
 			}
 		}
 	}()
@@ -55,8 +55,22 @@ func main() {
 	kwdc := flag.Bool("kwdc", false, "kill process when grpc disconnect")
 	flag.Parse()
 
-	fmt.Println("save config at:", *configDir)
-	fmt.Println("gRPC Listen Host:", *host)
+	dir := path.Join(*configDir, "log")
+	_, err := os.Stat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		os.MkdirAll(dir, os.ModePerm)
+	}
+
+	out := []io.Writer{os.Stdout}
+	f, err := os.OpenFile(filepath.Join(dir, "yuhaiin.log"), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+	if err == nil {
+		defer f.Close()
+		out = append(out, f)
+	}
+	logasfmt.SetOutput(io.MultiWriter(out...))
+	logasfmt.Println("--------start yuhaiin----------")
+	logasfmt.Println("save config at:", *configDir)
+	logasfmt.Println("gRPC Listen Host:", *host)
 
 	lock, err := app.NewLock(filepath.Join(*configDir, "yuhaiin.lock"), *host)
 	if err != nil {

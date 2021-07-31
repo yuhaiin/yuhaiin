@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -84,7 +85,7 @@ func (s *Process) SingleInstance(srv ProcessInit_SingleInstanceServer) error {
 			if err != nil {
 				log.Println(err)
 			}
-			fmt.Println("Call Client Open Window.")
+			logasfmt.Println("Call Client Open Window.")
 		case <-ctx.Done():
 			close(s.message)
 			close(s.singleInstance)
