@@ -2,15 +2,16 @@ package sysproxy
 
 import (
 	"errors"
-	"fmt"
 	"log"
-	"net/url"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"syscall"
 	"unsafe"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 func strPtr(s string) (uintptr, error) {
