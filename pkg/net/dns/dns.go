@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
@@ -15,8 +16,13 @@ type DNS interface {
 	Resolver() *net.Resolver
 }
 
-func dnsHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, error)) ([]net.IP, error) {
-	req := createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
+func reqAndHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, error)) ([]net.IP, error) {
+	var req []byte
+	if subnet == nil {
+		req = creatRequest(domain, A, false)
+	} else {
+		req = createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
+	}
 	b, err := f(req)
 	if err != nil {
 		return nil, err
@@ -35,12 +41,15 @@ type dns struct {
 }
 
 func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
-	if subnet == nil {
-		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
-	}
-
 	if p == nil {
 		p = &proxy.DefaultProxy{}
+	}
+
+	_, _, err := net.SplitHostPort(host)
+	if e, ok := err.(*net.AddrError); ok {
+		if strings.Contains(e.Err, "missing port in address") {
+			host = net.JoinHostPort(host, "53")
+		}
 	}
 
 	return &dns{
@@ -56,7 +65,7 @@ func (n *dns) LookupIP(domain string) (DNS []net.IP, err error) {
 	if x, _ := n.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	DNS, err = dnsHandle(domain, n.Subnet, n.udp)
+	DNS, err = reqAndHandle(domain, n.Subnet, n.udp)
 	if err != nil || len(DNS) == 0 {
 		return nil, fmt.Errorf("normal resolve domain %s failed: %v", domain, err)
 	}

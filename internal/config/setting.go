@@ -16,11 +16,9 @@ import (
 // SettingDecodeJSON decode setting json to struct
 func SettingDecodeJSON(dir string) (*Setting, error) {
 	pa := &Setting{
-		SsrPath: "",
 		SystemProxy: &SystemProxy{
-			Enabled: true,
-			HTTP:    true,
-			Socks5:  false,
+			HTTP:   true,
+			Socks5: false,
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		},
@@ -33,15 +31,17 @@ func SettingDecodeJSON(dir string) (*Setting, error) {
 			Socks5: "127.0.0.1:1080",
 			Redir:  "127.0.0.1:8088",
 		},
-		DNS: &DNS{
-			Host:   "cloudflare-dns.com",
-			DOH:    true,
-			Proxy:  false,
-			Subnet: "0.0.0.0/32",
-		},
-		LocalDNS: &DNS{
-			Host: "223.5.5.5",
-			DOH:  true,
+		Dns: &DnsSetting{
+			Remote: &DNS{
+				Host:   "cloudflare-dns.com",
+				Type:   DNS_doh,
+				Proxy:  false,
+				Subnet: "0.0.0.0/32",
+			},
+			Local: &DNS{
+				Host: "223.5.5.5",
+				Type: DNS_doh,
+			},
 		},
 	}
 	data, err := ioutil.ReadFile(filepath.Join(dir, "yuhaiinConfig.json"))

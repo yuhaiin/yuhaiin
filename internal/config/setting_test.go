@@ -9,26 +9,11 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func TestSettingDecodeJSON(t *testing.T) {
-	s, err := SettingDecodeJSON("/tmp/yuhaiin/setting")
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(s, s.Proxy, s.DNS.Subnet)
-
-	//err = SettingEnCodeJSON(s)
-	//if err != nil {
-	//	t.Error(err)
-	//}
-}
-
 func TestJsonPb(t *testing.T) {
 	s := &Setting{
-		SsrPath: "",
 		SystemProxy: &SystemProxy{
-			Enabled: true,
-			HTTP:    true,
-			Socks5:  false,
+			HTTP:   true,
+			Socks5: false,
 		},
 		Bypass: &Bypass{
 			Enabled:    true,
@@ -39,15 +24,17 @@ func TestJsonPb(t *testing.T) {
 			Socks5: "127.0.0.1:1080",
 			Redir:  "127.0.0.1:8088",
 		},
-		DNS: &DNS{
-			Host:   "cloudflare-dns.com",
-			DOH:    true,
-			Proxy:  false,
-			Subnet: "0.0.0.0/32",
-		},
-		LocalDNS: &DNS{
-			Host: "223.5.5.5",
-			DOH:  true,
+		Dns: &DnsSetting{
+			Remote: &DNS{
+				Host:   "cloudflare-dns.com",
+				Type:   DNS_doh,
+				Proxy:  false,
+				Subnet: "0.0.0.0/32",
+			},
+			Local: &DNS{
+				Host: "223.5.5.5",
+				Type: DNS_doh,
+			},
 		},
 	}
 	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t"}.Marshal(s)

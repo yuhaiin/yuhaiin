@@ -10,14 +10,15 @@ message Setting{
   SystemProxy SystemProxy = 1 [json_name="system_proxy"];
   Bypass Bypass = 2 [json_name="bypass"];
   Proxy Proxy = 3 [json_name="proxy"];
-  DNS DNS = 4 [json_name="dns"];
-  DNS LocalDNS = 5[json_name="local_dns"];
+  dns_setting dns = 4 [json_name="dns"];
+}
 
-  string SsrPath = 11 [json_name="ssr_path",deprecated=true];
+message dns_setting {
+  DNS remote = 1 [json_name="remote"];
+  DNS local = 2 [json_name="local"];
 }
 
 message SystemProxy {
-  bool Enabled = 1 [json_name="enabled"];
   bool HTTP = 2 [json_name="http"];
   bool Socks5 = 3 [json_name="socks5"];
 }
@@ -29,7 +30,14 @@ message Bypass{
 
 message DNS{
   string Host = 1 [json_name="host"];
-  bool DOH = 2 [json_name="doh"];
+  enum dns_type{
+    reserve = 0;
+    udp = 1;
+    tcp = 2;
+    doh = 3;
+    dot = 4;
+  }
+  dns_type type = 5 [json_name="type"];
   bool Proxy = 3 [json_name="proxy"];
   string subnet = 4 [json_name="subnet"];
 }
