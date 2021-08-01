@@ -18,7 +18,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -393,7 +392,7 @@ func (y *yhCli) streamData() {
 
 		s := fmt.Sprintf("D(%s):%s U(%s):%s", resp.Download, resp.DownloadRate, resp.Upload, resp.UploadRate)
 
-		logasfmt.Printf("%s%s\r", s, strings.Repeat(" ", 47-len(s)))
+		fmt.Printf("%s%s\r", s, strings.Repeat(" ", 47-len(s)))
 	}
 }
 
@@ -403,10 +402,10 @@ func (y *yhCli) listAll() error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 	for i := range ns.Groups {
-		logasfmt.Println(i, ns.Groups[i])
+		fmt.Println(i, ns.Groups[i])
 		for z := range ns.GroupNodesMap[ns.Groups[i]].Nodes {
 			node := ns.GroupNodesMap[ns.Groups[i]].Nodes[z]
-			logasfmt.Println("\t", z, node, "hash:", ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[node])
+			fmt.Println("\t", z, node, "hash:", ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[node])
 		}
 	}
 
@@ -420,7 +419,7 @@ func (y *yhCli) group() error {
 	}
 
 	for i := range ns.Groups {
-		logasfmt.Println(i, ns.Groups[i])
+		fmt.Println(i, ns.Groups[i])
 	}
 	return nil
 }
@@ -437,7 +436,7 @@ func (y *yhCli) nodes(i int) error {
 
 	for z := range ns.GroupNodesMap[ns.Groups[i]].Nodes {
 		node := ns.GroupNodesMap[ns.Groups[i]].Nodes[z]
-		logasfmt.Println(z, node, "hash:", ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[node])
+		fmt.Println(z, node, "hash:", ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[node])
 	}
 	return nil
 }
@@ -477,7 +476,7 @@ func (y *yhCli) latency(hash string) error {
 	if err != nil {
 		return fmt.Errorf("get latency failed: %w", err)
 	}
-	logasfmt.Println(l.Value)
+	fmt.Println(l.Value)
 	return nil
 }
 
@@ -499,11 +498,11 @@ func (y *yhCli) latencyAll(i int) {
 			defer wg.Done()
 			l, err := y.sub.Latency(context.TODO(), &wrapperspb.StringValue{Value: ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[z]})
 			if err != nil {
-				logasfmt.Printf("%s: %v\n", z, "timeout")
+				fmt.Printf("%s: %v\n", z, "timeout")
 				return
 			}
 
-			logasfmt.Printf("%s: %s | %s\n", z, l.Value, ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[z])
+			fmt.Printf("%s: %s | %s\n", z, l.Value, ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[z])
 		}(z)
 	}
 
@@ -536,7 +535,7 @@ func (y *yhCli) changeNowNode(hash string) error {
 		return fmt.Errorf("change now node failed: %w", err)
 	}
 	d, _ := protojson.MarshalOptions{Indent: "\t"}.Marshal(l)
-	logasfmt.Println(string(d))
+	fmt.Println(string(d))
 	return nil
 }
 
@@ -546,9 +545,9 @@ func (y *yhCli) nowNode() error {
 		return fmt.Errorf("get now node failed: %w", err)
 	}
 
-	logasfmt.Println("name ", n.NName)
-	logasfmt.Println("group", n.NGroup)
-	logasfmt.Println("hash ", n.NHash)
+	fmt.Println("name ", n.NName)
+	fmt.Println("group", n.NGroup)
+	fmt.Println("hash ", n.NHash)
 	return nil
 }
 
@@ -571,7 +570,7 @@ func (y *yhCli) nodeInfo(hash string) error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 
-	logasfmt.Println(protojson.MarshalOptions{Indent: "\t", UseProtoNames: true, EmitUnpopulated: true}.Format(node))
+	fmt.Println(protojson.MarshalOptions{Indent: "\t", UseProtoNames: true, EmitUnpopulated: true}.Format(node))
 	return nil
 }
 
@@ -625,7 +624,7 @@ func (y *yhCli) setNodeConfig(hash string, setting string) error {
 	if err != nil {
 		return fmt.Errorf("save setting failed: %w", err)
 	}
-	logasfmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(point))
+	fmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(point))
 	return nil
 }
 
@@ -635,7 +634,7 @@ func (y *yhCli) showConfig() error {
 		return fmt.Errorf("load config failed: %w", err)
 	}
 
-	logasfmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(c))
+	fmt.Println(protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(c))
 	return nil
 }
 
@@ -706,7 +705,7 @@ func set(s map[string]interface{}, k []string, v string) error {
 	case int64:
 		b, err = strconv.ParseInt(v, 0, 64)
 	default:
-		logasfmt.Println("unknow type", s[k[l]])
+		fmt.Println("unknow type", s[k[l]])
 	}
 	if err != nil {
 		return fmt.Errorf("parse value failed: %w", err)
@@ -724,7 +723,7 @@ func (y *yhCli) listConns() error {
 	sort.Slice(c.Connections, func(i, j int) bool { return c.Connections[i].Id < c.Connections[j].Id })
 
 	for i := range c.Connections {
-		logasfmt.Println(c.Connections[i].Id, c.Connections[i].Addr, "|", fmt.Sprintf("%s <-> %s", c.Connections[i].Local, c.Connections[i].Remote))
+		fmt.Println(c.Connections[i].Id, c.Connections[i].Addr, "|", fmt.Sprintf("%s <-> %s", c.Connections[i].Local, c.Connections[i].Remote))
 	}
 
 	return nil
