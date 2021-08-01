@@ -151,7 +151,7 @@ func runSetSysProxy(conf *config.Config) {
 	})
 	conf.AddObserver(func(current, old *config.Setting) {
 		if current.SystemProxy.HTTP != old.SystemProxy.HTTP ||
-			current.SystemProxy.HTTP != old.SystemProxy.Socks5 ||
+			current.SystemProxy.Socks5 != old.SystemProxy.Socks5 ||
 			current.Proxy.HTTP != old.Proxy.HTTP ||
 			current.Proxy.Socks5 != old.Proxy.Socks5 {
 			sysproxy.UnsetSysProxy()
