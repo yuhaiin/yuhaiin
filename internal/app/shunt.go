@@ -53,7 +53,7 @@ func NewShunt(conf *config.Config) (*Shunt, error) {
 	err := conf.Exec(
 		func(ss *config.Setting) error {
 			s.file = ss.Bypass.BypassFile
-			s.mapper = mapper.NewMapper(getDNS(ss.DNS).LookupIP)
+			s.mapper = mapper.NewMapper(getDNS(ss.Dns.Remote).LookupIP)
 			err := s.RefreshMapping()
 			if err != nil {
 				return fmt.Errorf("refresh mapping failed: %v", err)
@@ -74,8 +74,8 @@ func NewShunt(conf *config.Config) (*Shunt, error) {
 	})
 
 	conf.AddObserver(func(current, old *config.Setting) {
-		if diffDNS(current.DNS, old.DNS) {
-			s.mapper.SetLookup(getDNS(current.DNS).LookupIP)
+		if diffDNS(current.Dns.Remote, old.Dns.Remote) {
+			s.mapper.SetLookup(getDNS(current.Dns.Remote).LookupIP)
 		}
 	})
 
@@ -149,7 +149,7 @@ func diffDNS(old, new *config.DNS) bool {
 	if old.Host != new.Host {
 		return true
 	}
-	if old.DOH != new.DOH {
+	if old.Type != new.Type {
 		return true
 	}
 	if old.Subnet != new.Subnet {
@@ -169,8 +169,17 @@ func getDNS(dc *config.DNS) dns.DNS {
 			_, subnet, _ = net.ParseCIDR(dc.Subnet + "/128")
 		}
 	}
-	if dc.DOH {
+
+	switch dc.Type {
+	case config.DNS_doh:
 		return dns.NewDoH(dc.Host, subnet, nil)
+	case config.DNS_dot:
+		return dns.NewDoT(dc.Host, subnet, nil)
+	case config.DNS_tcp:
+		fallthrough
+	case config.DNS_udp:
+		fallthrough
+	default:
+		return dns.NewDNS(dc.Host, subnet, nil)
 	}
-	return dns.NewDNS(dc.Host, subnet, nil)
 }

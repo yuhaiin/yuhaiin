@@ -14,6 +14,10 @@ func SetSysProxy(http, socks5 string) {
 	var httpHostname, httpPort string
 	var socks5Hostname, socks5Port string
 
+	if http == "" && socks5 == "" {
+		return
+	}
+
 	if http != "" {
 		httpHostname, httpPort, _ = net.SplitHostPort(http)
 		logasfmt.Printf("set http system hostname: %s, port: %s\n", httpHostname, httpPort)

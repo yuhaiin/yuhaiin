@@ -135,9 +135,6 @@ func main() {
 
 func runSetSysProxy(conf *config.Config) {
 	setSysProxy := func(s *config.Setting) {
-		if !s.SystemProxy.Enabled {
-			return
-		}
 		var http, socks5 string
 		if s.SystemProxy.HTTP {
 			http = s.Proxy.HTTP
@@ -153,8 +150,7 @@ func runSetSysProxy(conf *config.Config) {
 		return nil
 	})
 	conf.AddObserver(func(current, old *config.Setting) {
-		if current.SystemProxy.Enabled != old.SystemProxy.Enabled ||
-			current.SystemProxy.HTTP != old.SystemProxy.HTTP ||
+		if current.SystemProxy.HTTP != old.SystemProxy.HTTP ||
 			current.SystemProxy.HTTP != old.SystemProxy.Socks5 ||
 			current.Proxy.HTTP != old.Proxy.HTTP ||
 			current.Proxy.Socks5 != old.Proxy.Socks5 {

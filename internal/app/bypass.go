@@ -61,17 +61,17 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 		func(s *config.Setting) error {
 			m.dialer = &net.Dialer{
 				Timeout:  11 * time.Second,
-				Resolver: getDNS(s.LocalDNS).Resolver(),
+				Resolver: getDNS(s.Dns.Local).Resolver(),
 			}
 			m.bypass = s.Bypass.Enabled
 			return nil
 		})
 
 	conf.AddObserver(func(current, old *config.Setting) {
-		if diffDNS(old.LocalDNS, current.LocalDNS) {
+		if diffDNS(old.Dns.Local, current.Dns.Local) {
 			m.dialer = &net.Dialer{
 				Timeout:  8 * time.Second,
-				Resolver: getDNS(current.LocalDNS).Resolver(),
+				Resolver: getDNS(current.Dns.Local).Resolver(),
 			}
 		}
 	})

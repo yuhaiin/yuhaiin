@@ -7,7 +7,7 @@ import (
 )
 
 func TestDOH(t *testing.T) {
-	_, s, _ := net.ParseCIDR("1.1.1.1/28")
+	// _, s, _ := net.ParseCIDR("1.1.1.1/28")
 	// d := NewDoH("cloudflare-dns.com", nil)
 	// d := NewDoH("public.dns.iij.jp", s, nil)
 	// d := NewDOH("dns.google")
@@ -16,7 +16,7 @@ func TestDOH(t *testing.T) {
 	// d := NewDoH("1.0.0.1", nil)
 	// d := NewDoH("223.5.5.5", s, nil)
 	// d := NewDoH("sm2.doh.pub", s, nil)
-	d := NewDoH("doh.pub", s, nil)
+	d := NewDoH("doh.pub", nil, nil)
 	// d := NewDoH("101.6.6.6:8443", nil)
 	// d := NewDoH("doh.360.cn", s, nil)
 	// d := NewDOH("doh.dns.sb")

@@ -34,9 +34,6 @@ type doh struct {
 }
 
 func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
-	if subnet == nil {
-		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
-	}
 	dns := &doh{
 		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),
@@ -68,7 +65,7 @@ func (d *doh) LookupIP(domain string) (ip []net.IP, err error) {
 }
 
 func (d *doh) search(domain string) ([]net.IP, error) {
-	DNS, err := dnsHandle(domain, d.Subnet, d.post)
+	DNS, err := reqAndHandle(domain, d.Subnet, d.post)
 	if err != nil || len(DNS) == 0 {
 		return nil, fmt.Errorf("doh resolve domain %s failed: %v", domain, err)
 	}
