@@ -52,6 +52,9 @@ func getSysProxy() (*syscall.LazyDLL, error) {
 }
 
 func SetSysProxy(http, _ string) {
+	if http == "" {
+		return
+	}
 	httpHostname, httpPort, err := net.SplitHostPort(http)
 	if err != nil {
 		log.Println(err)

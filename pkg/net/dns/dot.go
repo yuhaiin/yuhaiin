@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
@@ -20,13 +21,17 @@ type dot struct {
 }
 
 func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
-	if subnet == nil {
-		_, subnet, _ = net.ParseCIDR("0.0.0.0/0")
-	}
 	if p == nil {
 		p = &proxy.DefaultProxy{}
 	}
-	servername, _, _ := net.SplitHostPort(host)
+	servername, _, err := net.SplitHostPort(host)
+	if e, ok := err.(*net.AddrError); ok {
+		if strings.Contains(e.Err, "missing port in address") {
+			servername = host
+			host = net.JoinHostPort(host, "853")
+		}
+	}
+
 	return &dot{
 		host:         host,
 		subnet:       subnet,
@@ -46,7 +51,7 @@ func (d *dot) LookupIP(domain string) ([]net.IP, error) {
 		ClientSessionCache: d.sessionCache,
 	})
 	defer conn.Close()
-	return dnsHandle(domain, d.subnet, func(reqData []byte) (body []byte, err error) {
+	return reqAndHandle(domain, d.subnet, func(reqData []byte) (body []byte, err error) {
 		length := len(reqData) // dns over tcp, prefix two bytes is request data's length
 		reqData = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, reqData...)
 		_, err = conn.Write(reqData)
@@ -76,10 +81,7 @@ func (d *dot) Resolver() *net.Resolver {
 			if err != nil {
 				return nil, fmt.Errorf("tcp dial failed: %v", err)
 			}
-			conn = tls.Client(conn, &tls.Config{
-				ServerName:         d.servername,
-				ClientSessionCache: d.sessionCache,
-			})
+			conn = tls.Client(conn, &tls.Config{ServerName: d.servername, ClientSessionCache: d.sessionCache})
 			return conn, nil
 		},
 	}
