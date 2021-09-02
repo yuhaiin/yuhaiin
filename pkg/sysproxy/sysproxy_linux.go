@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"os/exec"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
@@ -65,9 +64,9 @@ func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
 func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
 
 	// KDE
-	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
-		return
-	}
+	// if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
+	// return
+	// }
 
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
@@ -119,9 +118,9 @@ func gnomeUnsetSysProxy() {
 }
 
 func kdeUnsetSysProxy() {
-	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
-		return
-	}
+	// if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
+	// return
+	// }
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
 		log.Println(err)
