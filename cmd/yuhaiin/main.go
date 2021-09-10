@@ -62,11 +62,9 @@ func main() {
 	}
 
 	out := []io.Writer{os.Stdout}
-	f, err := os.OpenFile(filepath.Join(dir, "yuhaiin.log"), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
-	if err == nil {
-		defer f.Close()
-		out = append(out, f)
-	}
+	f := logasfmt.NewLogWriter(filepath.Join(dir, "yuhaiin.log"))
+	defer f.Close()
+	out = append(out, f)
 	logasfmt.SetOutput(io.MultiWriter(out...))
 	logasfmt.Println("--------start yuhaiin----------")
 	logasfmt.Println("save config at:", *configDir)
