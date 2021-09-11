@@ -45,16 +45,16 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 		f.timer.Reset(time.Hour)
 		fs, err := os.Stat(f.path)
 		if err != nil {
-			Println(err)
+			log.Println(err)
 			break
 		}
 
 		if fs.Size() < 1024*1024 {
-			Println("checked logs' file is not over 1 MB, break")
+			log.Println("checked logs' file is not over 1 MB, break")
 			break
 		}
 
-		Println("checked logs' file over 1 MB, rename old logs")
+		log.Println("checked logs' file over 1 MB, rename old logs")
 
 		f.fileLock.Lock()
 		if f.w != nil {
