@@ -43,7 +43,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 	select {
 	case <-f.timer.C:
 		f.timer.Stop()
-		f.timer = time.NewTicker(time.Hour)
+		f.timer.Reset(time.Hour)
 		fs, err := os.Stat(f.path)
 		if err != nil {
 			log.Println(err)
