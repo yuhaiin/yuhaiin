@@ -96,7 +96,9 @@ lat -s 5322574f8337b90440650c0d7c4a2427d2194b6cefc916f859e6656f1b0e797d`,
 	latency.Flags().IntP("node", "n", -1, "node index")
 
 	all := &cobra.Command{
-		Use: "all",
+		Use:     "all",
+		Long:    "get all node of a group latency,eg: all [group index]",
+		Example: "all 0",
 		Run: func(cmd *cobra.Command, args []string) {
 			i, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -115,7 +117,7 @@ lat -s 5322574f8337b90440650c0d7c4a2427d2194b6cefc916f859e6656f1b0e797d`,
 func streamCmd(y *yhCli) *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   "data",
-		Short: "stream data",
+		Short: "see stream data",
 		Run: func(cmd *cobra.Command, args []string) {
 			y.streamData()
 		},
@@ -130,14 +132,18 @@ func subCmd(y *yhCli) *cobra.Command {
 	}
 
 	update := &cobra.Command{
-		Use: "update",
+		Use:     "update",
+		Long:    "update all subscription",
+		Example: "update",
 		Run: func(cmd *cobra.Command, args []string) {
 			y.updateSub()
 		},
 	}
 
 	add := &cobra.Command{
-		Use: "add",
+		Use:     "add",
+		Long:    "add new subscription, add [name] [url] [type]",
+		Example: `add test_link https://example.com`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 2 {
 				log.Println("incorrect arguments")
@@ -163,7 +169,8 @@ func subCmd(y *yhCli) *cobra.Command {
 	}
 
 	ls := &cobra.Command{
-		Use: "ls",
+		Use:  "ls",
+		Long: "list all subscription link",
 		Run: func(cmd *cobra.Command, args []string) {
 			n, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
 			if err != nil {
@@ -250,7 +257,11 @@ func nodeCmd(y *yhCli) *cobra.Command {
 	}
 
 	use := &cobra.Command{
-		Use: "use",
+		Use:  "use",
+		Long: "use a node",
+		Example: `use xasfssgtrt5435342q3wdf233e3f
+use 0 0
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			specifiedGN(cmd, args,
 				func(s string) {
@@ -267,7 +278,11 @@ func nodeCmd(y *yhCli) *cobra.Command {
 	use.Flags().IntP("node", "n", -1, "node index")
 
 	set := &cobra.Command{
-		Use: "set",
+		Use:  "set",
+		Long: "set one node config",
+		Example: `set zxcdfarewr43fregret43g vmess.address=example.com
+set 0 0 vmess.address=example
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 2 {
 				y.setNodeConfig(args[0], args[1])
@@ -299,14 +314,17 @@ func nodeCmd(y *yhCli) *cobra.Command {
 
 func configCmd(y *yhCli) *cobra.Command {
 	configCmd := &cobra.Command{
-		Use: "config",
+		Use:  "config",
+		Long: "list config",
 		Run: func(cmd *cobra.Command, args []string) {
 			y.showConfig()
 		},
 	}
 
 	set := &cobra.Command{
-		Use: "set",
+		Use:     "set",
+		Long:    "set config",
+		Example: "set dns.remote.host=1.1.1.1",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 1 {
 				log.Println("args length is not 1")
@@ -331,14 +349,17 @@ func connCmd(y *yhCli) *cobra.Command {
 	}
 
 	list := &cobra.Command{
-		Use: "ls",
+		Use:  "ls",
+		Long: "list all exist connections",
 		Run: func(cmd *cobra.Command, args []string) {
 			y.listConns()
 		},
 	}
 
 	close := &cobra.Command{
-		Use: "close",
+		Use:     "close",
+		Long:    "clone connections, close [connection id]",
+		Example: "close 123 124 125",
 		Run: func(cmd *cobra.Command, args []string) {
 			var ids []int64
 			for i := range args {
