@@ -94,6 +94,9 @@ type Trie struct {
 
 // Insert insert node to tree
 func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
+	if mark == nil {
+		return
+	}
 	r := t
 	for i := range ip {
 		for b := byte(128); b != 0; b = b >> 1 {
