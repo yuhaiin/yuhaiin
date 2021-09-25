@@ -357,10 +357,17 @@ func connCmd(y *yhCli) *cobra.Command {
 	}
 
 	close := &cobra.Command{
-		Use:     "close",
-		Long:    "clone connections, close [connection id]",
-		Example: "close 123 124 125",
+		Use:  "close",
+		Long: "clone connections, close [connection id]",
+		Example: `close 123 124 125
+close all
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 1 && args[0] == "all" {
+				y.closeAllConns()
+				return
+			}
+
 			var ids []int64
 			for i := range args {
 				z, err := strconv.ParseInt(args[i], 10, 64)
@@ -793,4 +800,19 @@ func (y *yhCli) listConns() error {
 
 func (y *yhCli) closeConns(id ...int64) {
 	_, _ = y.cm.CloseConn(context.TODO(), &app.CloseConnsReq{Conns: id})
+}
+
+func (y *yhCli) closeAllConns() error {
+	c, err := y.cm.Conns(context.TODO(), &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("get conns failed: %w", err)
+	}
+
+	ids := make([]int64, 0, len(c.Connections))
+	for _, i := range c.Connections {
+		ids = append(ids, i.Id)
+	}
+
+	_, err = y.cm.CloseConn(context.TODO(), &app.CloseConnsReq{Conns: ids})
+	return err
 }
