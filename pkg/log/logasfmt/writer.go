@@ -23,7 +23,7 @@ type FileWriter struct {
 func NewLogWriter(file string) *FileWriter {
 	return &FileWriter{
 		path:  file,
-		timer: time.NewTicker(time.Second),
+		timer: time.NewTicker(0),
 	}
 }
 

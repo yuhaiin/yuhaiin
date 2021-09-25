@@ -136,7 +136,48 @@ func subCmd(y *yhCli) *cobra.Command {
 		},
 	}
 
-	subCmd.AddCommand(update)
+	add := &cobra.Command{
+		Use: "add",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 2 {
+				log.Println("incorrect arguments")
+				return
+			}
+			var t string
+			if len(args) == 3 {
+				t = args[2]
+			}
+
+			if len(args) == 2 {
+				_, err := y.sub.AddLink(context.TODO(), &subscr.NodeLink{
+					Name: args[0],
+					Url:  args[1],
+					Type: t,
+				})
+				if err != nil {
+					log.Println("add link failed:", err)
+					return
+				}
+			}
+		},
+	}
+
+	ls := &cobra.Command{
+		Use: "ls",
+		Run: func(cmd *cobra.Command, args []string) {
+			n, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+			if err != nil {
+				log.Println("get nodes failed:", err)
+				return
+			}
+
+			for _, v := range n.Links {
+				fmt.Println(v.Name, v.Url, v.Type)
+			}
+		},
+	}
+
+	subCmd.AddCommand(ls, update, add)
 
 	return subCmd
 }
