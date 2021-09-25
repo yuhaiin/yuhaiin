@@ -16,8 +16,8 @@ func TestCidrMatch_Inset(t *testing.T) {
 	}
 	cidrMatch.Insert("127.0.0.1/8", "testlocal")
 	cidrMatch.Insert("ff::/16", "testV6local")
-	cidrMatch.v6CidrTrie.Print()
-	cidrMatch.v4CidrTrie.Print()
+	// cidrMatch.v6CidrTrie.Print()
+	// cidrMatch.v4CidrTrie.Print()
 	testIPv4 := "10.2.2.1"
 	testIPv4b := "100.2.2.1"
 	testIPv6 := "2001:0db8:0000:0000:1234:0000:0000:9abc"
