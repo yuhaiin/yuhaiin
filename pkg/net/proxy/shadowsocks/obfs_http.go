@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -80,8 +81,8 @@ func (ho *HTTPObfs) Write(b []byte) (int, error) {
 	return ho.Conn.Write(b)
 }
 
-// NewHTTPObfs return a HTTPObfs
-func NewHTTPObfs(conn net.Conn, host string, port string) net.Conn {
+// newHTTPObfs return a HTTPObfs
+func newHTTPObfs(conn net.Conn, host string, port string) net.Conn {
 	return &HTTPObfs{
 		Conn:          conn,
 		firstRequest:  true,
@@ -89,4 +90,34 @@ func NewHTTPObfs(conn net.Conn, host string, port string) net.Conn {
 		host:          host,
 		port:          port,
 	}
+}
+
+var _ proxy.Proxy = (*httpOBFS)(nil)
+
+type httpOBFS struct {
+	host string
+	port string
+	p    proxy.Proxy
+}
+
+func NewHTTPOBFS(host string, port string) func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p proxy.Proxy) (proxy.Proxy, error) {
+		return &httpOBFS{
+			host: host,
+			port: host,
+			p:    p,
+		}, nil
+	}
+}
+
+func (h *httpOBFS) Conn(s string) (net.Conn, error) {
+	conn, err := h.p.Conn(s)
+	if err != nil {
+		return nil, err
+	}
+	return newHTTPObfs(conn, h.host, h.port), nil
+}
+
+func (h *httpOBFS) PacketConn(s string) (net.PacketConn, error) {
+	return h.p.PacketConn(s)
 }

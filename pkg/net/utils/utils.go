@@ -108,6 +108,14 @@ func (c *ClientUtil) GetConn() (net.Conn, error) {
 	return c.dial()
 }
 
+func (c *ClientUtil) Conn(host string) (net.Conn, error) {
+	return c.GetConn()
+}
+
+func (c *ClientUtil) PacketConn(host string) (net.PacketConn, error) {
+	return net.ListenPacket("udp", "")
+}
+
 func (c *ClientUtil) refreshCache() {
 	var x []net.IP
 	if z := net.ParseIP(c.address); z != nil {

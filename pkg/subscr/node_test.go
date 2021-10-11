@@ -152,3 +152,32 @@ func TestMarshalMap(t *testing.T) {
 
 	t.Log(s)
 }
+
+func TestReflect(t *testing.T) {
+	z := &Point{Node: &Point_Shadowsocksr{Shadowsocksr: &Shadowsocksr{}}}
+
+	v, err := z.Conn()
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("%#v", v)
+
+	z = &Point{Node: &Point_Shadowsocksr{}}
+
+	v, err = z.Conn()
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("%#v", v)
+
+	z = &Point{}
+
+	v, err = z.Conn()
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("%#v", v)
+}

@@ -25,7 +25,7 @@ type Vmess struct {
 
 	*utils.ClientUtil
 	client  *gcvmess.Client
-	getConn func() (net.Conn, error)
+	getConn proxy.Proxy
 }
 
 type netConfig struct {
@@ -74,7 +74,7 @@ func NewVmess(
 	case "ws":
 		v.path = netPath
 		v.host = netHost
-		v.getConn = websocket.NewClient(v.GetConn, v.host, v.path, v.insecureSkipVerify, v.tls, []string{v.cert}).NewConn
+		v.getConn = websocket.NewClient(v.GetConn, v.host, v.path, v.insecureSkipVerify, v.tls, []string{v.cert})
 	case "quic":
 		v.tls = true
 		v.host = netHost
@@ -82,9 +82,9 @@ func NewVmess(
 		if err != nil {
 			return nil, fmt.Errorf("create new quic client failed: %v", err)
 		}
-		v.getConn = c.NewConn
+		v.getConn = c
 	default:
-		v.getConn = v.GetConn
+		v.getConn = v
 	}
 
 	if v.tls {
@@ -92,6 +92,26 @@ func NewVmess(
 	}
 	// fmt.Println(v)
 	return v, nil
+}
+
+func NewVmess2(uuid, security string, alterID uint32) func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p proxy.Proxy) (proxy.Proxy, error) {
+		client, err := gcvmess.NewClient(uuid, security, int(alterID))
+		if err != nil {
+			return nil, fmt.Errorf("new vmess client failed: %v", err)
+		}
+
+		v := &Vmess{
+			uuid:     uuid,
+			security: security,
+			alterID:  alterID,
+			client:   client,
+			getConn:  p,
+		}
+
+		return v, nil
+	}
+
 }
 
 //Conn create a connection for host
@@ -105,7 +125,7 @@ func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
 }
 
 func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
-	conn, err := v.getConn()
+	conn, err := v.getConn.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}

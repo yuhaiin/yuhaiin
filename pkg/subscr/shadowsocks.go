@@ -41,12 +41,11 @@ func (*shadowsocks) ParseLink(str []byte, group string) (*Point, error) {
 	return p, nil
 }
 
-func (*shadowsocks) ParseConn(n *Point) (proxy.Proxy, error) {
-	s := n.GetShadowsocks()
+func (p *Point_Shadowsocks) Conn() (proxy.Proxy, error) {
+	s := p.Shadowsocks
 	if s == nil {
-		return nil, fmt.Errorf("can't get shadowsocks message")
+		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-
 	ss, err := ssClient.NewShadowsocks(
 		s.Method,
 		s.Password,

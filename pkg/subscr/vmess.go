@@ -70,13 +70,12 @@ func (v *vmess) ParseLinkManual(link []byte, group string) (*Point, error) {
 	return s, nil
 }
 
-//ParseConn parse map to net.Conn
-func (*vmess) ParseConn(n *Point) (proxy.Proxy, error) {
-	x := n.GetVmess()
+//Conn parse map to net.Conn
+func (p *Point_Vmess) Conn() (proxy.Proxy, error) {
+	x := p.Vmess
 	if x == nil {
-		return nil, fmt.Errorf("can't get vmess message")
+		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-
 	port, err := strconv.Atoi(x.Port)
 	if err != nil {
 		return nil, fmt.Errorf("convert port to int failed: %v", err)
