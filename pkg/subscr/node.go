@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	reflect "reflect"
 	sync "sync"
 	"time"
 
@@ -43,7 +44,7 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 	}
 
 	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
-	p, err := ParseNodeConn(now)
+	p, err := now.Conn()
 	if err != nil {
 		p = &proxy.DefaultProxy{}
 	}
@@ -155,8 +156,12 @@ func (n *NodeManager) ChangeNowNode(c context.Context, s *wrapperspb.StringValue
 		return p, fmt.Errorf("save config failed: %v", err)
 	}
 
-	n.Proxy, err = ParseNodeConn(p)
-	return n.node.NowNode, err
+	proxy, err := p.Conn()
+	if err != nil {
+		return nil, fmt.Errorf("create conn failed: %w", err)
+	}
+	n.Proxy = proxy
+	return n.node.NowNode, nil
 }
 
 func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
@@ -277,27 +282,16 @@ func parseUrl(str []byte, group string) (node *Point, err error) {
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
-		node, err := DefaultShadowsocks.ParseLink(str, group)
-		if err != nil {
-			return nil, err
-		}
-		return node, nil
+		node, err = DefaultShadowsocks.ParseLink(str, group)
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
-		node, err := DefaultShadowsocksr.ParseLink(str, group)
-		if err != nil {
-			return nil, err
-		}
-		return node, nil
+		node, err = DefaultShadowsocksr.ParseLink(str, group)
 	case bytes.HasPrefix(str, []byte("vmess://")):
-		node, err := DefaultVmess.ParseLink(str, group)
-		if err != nil {
-			return nil, err
-		}
-		return node, nil
+		node, err = DefaultVmess.ParseLink(str, group)
 	default:
-		return nil, errors.New("no support " + string(str))
+		err = fmt.Errorf("no support %s", string(str))
 	}
+	return node, err
 }
 
 func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
@@ -346,7 +340,7 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 		return &wrapperspb.StringValue{}, fmt.Errorf("get node failed: %v", err)
 	}
 
-	px, err := ParseNodeConn(p)
+	px, err := p.Conn()
 	if err != nil {
 		return &wrapperspb.StringValue{}, fmt.Errorf("get conn failed: %v", err)
 	}
@@ -422,23 +416,6 @@ func (n *NodeManager) save() error {
 	return err
 }
 
-func ParseNodeConn(s *Point) (proxy.Proxy, error) {
-	if s == nil {
-		return nil, errors.New("not support type")
-	}
-
-	switch s.Node.(type) {
-	case *Point_Shadowsocks:
-		return DefaultShadowsocks.ParseConn(s)
-	case *Point_Shadowsocksr:
-		return DefaultShadowsocksr.ParseConn(s)
-	case *Point_Vmess:
-		return DefaultVmess.ParseConn(s)
-	}
-
-	return nil, errors.New("not support type")
-}
-
 func (n *NodeManager) GetHash(group, node string) (string, error) {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
@@ -454,4 +431,32 @@ func (n *NodeManager) GetHash(group, node string) (string, error) {
 	}
 
 	return nn, nil
+}
+
+func (p *Point) Conn() (proxy.Proxy, error) {
+	value := reflect.ValueOf(p.Node)
+	if !value.IsValid() {
+		return nil, fmt.Errorf("invalid value: %v", p.Node)
+	}
+	conn := value.MethodByName("Conn")
+	if !conn.IsValid() {
+		return nil, fmt.Errorf("no method Conn for value: %v", value)
+	}
+	result := conn.Call(make([]reflect.Value, 0))
+	if len(result) != 2 {
+		return nil, fmt.Errorf("result is incorrect")
+	}
+
+	r0 := result[0].Interface()
+	r1 := result[1].Interface()
+
+	px, ok := r0.(proxy.Proxy)
+	if !ok && r0 != nil {
+		return nil, fmt.Errorf("result0 type is not proxy: %v", r0)
+	}
+	err, ok := r1.(error)
+	if !ok && r1 != nil {
+		return nil, fmt.Errorf("result1 type is not error: %v", r1)
+	}
+	return px, err
 }

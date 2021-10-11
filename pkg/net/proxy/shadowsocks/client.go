@@ -31,7 +31,7 @@ type Shadowsocks struct {
 	pluginOpt  string
 	pluginFunc func(conn net.Conn) (net.Conn, error)
 
-	*utils.ClientUtil
+	p proxy.Proxy
 }
 
 //NewShadowsocks new shadowsocks client
@@ -48,7 +48,7 @@ func NewShadowsocks(cipherName string, password string, server, port string,
 		plugin:    strings.ToUpper(plugin),
 		pluginOpt: pluginOpt,
 
-		ClientUtil: utils.NewClientUtil(server, port),
+		p: utils.NewClientUtil(server, port),
 	}
 	switch strings.ToLower(plugin) {
 	case OBFS:
@@ -76,9 +76,25 @@ func NewShadowsocks(cipherName string, password string, server, port string,
 	return s, nil
 }
 
+func NewShadowsocks2(cipherName string, password string, server, port string) func(proxy.Proxy) (proxy.Proxy, error) {
+	return func(p proxy.Proxy) (proxy.Proxy, error) {
+		cipher, err := core.PickCipher(strings.ToUpper(cipherName), nil, password)
+		if err != nil {
+			return nil, err
+		}
+		return &Shadowsocks{
+			cipher: cipher,
+			server: server,
+			port:   port,
+
+			p: p,
+		}, nil
+	}
+}
+
 //Conn .
 func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
-	conn, err = s.GetConn()
+	conn, err = s.p.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial to %s failed: %v", s.server, err)
 	}
@@ -115,16 +131,13 @@ func (s *Shadowsocks) PacketConn(string) (net.PacketConn, error) {
 		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}
 
-	pc, err := net.ListenPacket("udp", "")
+	pc, err := s.p.PacketConn(s.server)
 	if err != nil {
 		return nil, fmt.Errorf("create packet conn failed")
 	}
 	pc = s.cipher.PacketConn(pc)
 
-	return &ssPacketConn{
-		PacketConn: pc,
-		add:        addr,
-	}, nil
+	return &ssPacketConn{PacketConn: pc, add: addr}, nil
 }
 
 type ssPacketConn struct {
