@@ -60,11 +60,11 @@ func (r *shadowsocksr) ParseLinkManual(link []byte, group string) (*Point, error
 	return s, nil
 }
 
-// ParseConn parse a ssr map to conn function
-func (*shadowsocksr) ParseConn(n *Point) (proxy.Proxy, error) {
-	s := n.GetShadowsocksr()
+// Conn parse to conn function
+func (p *Point_Shadowsocksr) Conn() (proxy.Proxy, error) {
+	s := p.Shadowsocksr
 	if s == nil {
-		return nil, fmt.Errorf("can't get shadowsocksr message")
+		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 	ssr, err := ssrClient.NewShadowsocksrClient(
 		s.Server, s.Port,

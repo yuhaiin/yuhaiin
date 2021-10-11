@@ -24,7 +24,7 @@ func NewObfs(conn net.Conn, pluginOpt string) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewHTTPObfs(conn, hostname, port), nil
+		return newHTTPObfs(conn, hostname, port), nil
 	default:
 		return nil, errors.New("not support plugin")
 	}
