@@ -8,7 +8,7 @@ test:
 	@echo ${GO_CMD}
 
 .PHONY: all
-all: build cli
+all: yuhaiin cli
 
 .PHONY: vet
 vet:
