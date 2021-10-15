@@ -26,14 +26,14 @@ func TestNewMatcher(t *testing.T) {
 	matcher.Insert("music.126.com", "126")
 	matcher.Insert("*.advertising.com", "advertising")
 
-	assert.Equal(t, "test_cidr", matcher.Search("10.2.2.1"))            // true
-	assert.Equal(t, "test_baidu", matcher.Search("www.baidu.com"))      // true
-	assert.Equal(t, "test_baidu", matcher.Search("passport.baidu.com")) // true
-	assert.Equal(t, "test_baidu", matcher.Search("tieba.baidu.com"))    // true
+	assert.Equal(t, "test_cidr", matcher.Search("10.2.2.1"))
+	assert.Equal(t, "test_baidu", matcher.Search("www.baidu.com"))
+	assert.Equal(t, "test_baidu", matcher.Search("passport.baidu.com"))
+	assert.Equal(t, "test_baidu", matcher.Search("tieba.baidu.com"))
 	assert.Equal(t, nil, matcher.Search("www.google.com"))
 	assert.Equal(t, "163", matcher.Search("test.music.163.com"))
 	assert.Equal(t, "advertising", matcher.Search("guce.advertising.com"))
-	assert.Equal(t, "test_cidr", matcher.Search("www.twitter.com")) // false
+	assert.Equal(t, "test_cidr", matcher.Search("www.twitter.com"))
 	assert.Equal(t, "test_cidr", matcher.Search("www.facebook.com"))
 	assert.Equal(t, nil, matcher.Search("127.0.0.1"))
 	assert.Equal(t, nil, matcher.Search("ff::"))
