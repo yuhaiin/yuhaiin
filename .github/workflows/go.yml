@@ -19,7 +19,7 @@ jobs:
         go-version: 1.16
 
     - name: Build
-      run: make build
+      run: make all
 
     - name: Test
       run: make vet
