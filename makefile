@@ -40,5 +40,3 @@ gofmt: ## Verify the source code gofmt
 			-path './pkg/sysproxy/dll_windows/*' \
 		\) -exec gofmt -d -e -s -w {} \+
 	git diff --exit-code
-
-

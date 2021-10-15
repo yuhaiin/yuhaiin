@@ -197,7 +197,6 @@ func NewTrieTree() Trie {
 }
 
 func ipv4toInt(ip net.IP) string {
-	logasfmt.Println([]byte(ip))
 	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip)) // there ip is ip.To4()
 }
 

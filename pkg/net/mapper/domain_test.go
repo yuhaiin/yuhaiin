@@ -1,36 +1,26 @@
 package mapper
 
 import (
-	"log"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // BenchmarkDomainMatcher_Search-4   	20780998	        58.13 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkDomainMatcher_Search(b *testing.B) {
-	b.StopTimer()
 	root := NewDomainMapper()
 	root.Insert("*.baidu.com", "test_baidu")
 	root.Insert("www.baidu.sub.com.cn", "test_baidu")
 	root.Insert("www.google.com", "test_google")
-	b.StartTimer()
-	for n := 0; n < b.N; n++ {
-		if n%2 == 0 {
-			root.Search("www.baidu.com")
-		} else {
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
 			root.Search("www.baidu.sub.com.cn.net")
 		}
-	}
+	})
 }
 
-func TestDomain_Insert(t *testing.T) {
-	x := strings.Split("music.163.com", ".")
-	for index := range x {
-		log.Println(x[index], index, len(x))
-	}
-}
-
-func TestDomainMatcher_SearchFlip(t *testing.T) {
+func TestDomainMatcherSearch(t *testing.T) {
 	root := NewDomainMapper()
 	root.Insert("*.baidu.com", "sub_baidu_test")
 	root.Insert("www.baidu.com", "test_baidu")
@@ -40,14 +30,19 @@ func TestDomainMatcher_SearchFlip(t *testing.T) {
 	root.Insert("www.google.com", "test_google")
 	root.Insert("music.111.com", "1111")
 	root.Insert("163.com", "163")
-	t.Log(root.Search("www.baidu.com"))        // true
-	t.Log(root.Search("spo.baidu.com"))        // true
-	t.Log(root.Search("last.baidu.com.cn"))    // true
-	t.Log(root.Search("test.baidu.com"))       // true
-	t.Log(root.Search("test.test2.baidu.com")) // true
-	t.Log(root.Search("www.baidu.cn"))         // true
-	t.Log(root.Search("www.google.com"))       // true
-	t.Log(root.Search("www.google.cn"))        // false
-	t.Log(root.Search("music.163.com"))        // false
-	t.Log(root.Search("163.com"))              // true
+
+	search := func(s string) interface{} {
+		res, _ := root.Search(s)
+		return res
+	}
+	assert.Equal(t, "test_baidu", search("www.baidu.com"))
+	assert.Equal(t, "test_no_sub_baidu", search("spo.baidu.com"))
+	assert.Equal(t, "test_last_baidu", search("last.baidu.com.cn"))
+	assert.Equal(t, "sub_baidu_test", search("test.baidu.com"))
+	assert.Equal(t, "sub_baidu_test", search("test.test2.baidu.com"))
+	assert.Equal(t, "last_sub_baidu_test", search("www.baidu.cn"))
+	assert.Equal(t, "test_google", search("www.google.com"))
+	assert.Equal(t, nil, search("www.google.cn"))
+	assert.Equal(t, nil, search("music.163.com"))
+	assert.Equal(t, "163", search("163.com"))
 }

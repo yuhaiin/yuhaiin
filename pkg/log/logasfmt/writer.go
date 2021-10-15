@@ -16,6 +16,7 @@ type FileWriter struct {
 	path  string
 	timer *time.Ticker
 	w     *os.File
+	log   *log.Logger
 
 	fileLock sync.RWMutex
 }
@@ -24,6 +25,7 @@ func NewLogWriter(file string) *FileWriter {
 	return &FileWriter{
 		path:  file,
 		timer: time.NewTicker(1),
+		log:   log.New(os.Stderr, "log", 0),
 	}
 }
 
@@ -45,16 +47,16 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 		f.timer.Reset(time.Hour)
 		fs, err := os.Stat(f.path)
 		if err != nil {
-			log.Println(err)
+			f.log.Println(err)
 			break
 		}
 
 		if fs.Size() < 1024*1024 {
-			log.Println("checked logs' file is not over 1 MB, break")
+			f.log.Println("checked logs' file is not over 1 MB, break")
 			break
 		}
 
-		log.Println("checked logs' file over 1 MB, rename old logs")
+		f.log.Println("checked logs' file over 1 MB, rename old logs")
 
 		f.fileLock.Lock()
 		if f.w != nil {
@@ -64,7 +66,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 
 		err = os.Rename(f.path, fmt.Sprintf("%s_%d", f.path, time.Now().Unix()))
 		if err != nil {
-			log.Println(err)
+			f.log.Println(err)
 		}
 		f.fileLock.Unlock()
 	default:

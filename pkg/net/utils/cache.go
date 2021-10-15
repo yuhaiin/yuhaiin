@@ -16,8 +16,7 @@ type lruEntry struct {
 type LRU struct {
 	capacity int
 	list     *list.List
-	lock     sync.Mutex
-	mapping  map[interface{}]*list.Element
+	mapping  sync.Map
 	timeout  time.Duration
 }
 
@@ -26,73 +25,62 @@ func NewLru(capacity int, timeout time.Duration) *LRU {
 	return &LRU{
 		capacity: capacity,
 		list:     list.New(),
-		mapping:  make(map[interface{}]*list.Element),
 		timeout:  timeout,
 	}
 }
 
 func (l *LRU) Add(key, value interface{}) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	if elem, ok := l.mapping[key]; ok {
-		r := elem.Value.(*lruEntry)
+	if elem, ok := l.mapping.Load(key); ok {
+		r := elem.(*list.Element).Value.(*lruEntry)
 		r.key = key
 		r.data = value
 		r.store = time.Now()
-		l.list.MoveToFront(elem)
+		l.list.MoveToFront(elem.(*list.Element))
 		return
 	}
 
 	if l.capacity == 0 || l.list.Len() < l.capacity {
-		l.mapping[key] = l.list.PushFront(&lruEntry{
+		l.mapping.Store(key, l.list.PushFront(&lruEntry{
 			key:   key,
 			data:  value,
 			store: time.Now(),
-		})
+		}))
 		return
 	}
 
 	elem := l.list.Back()
 	r := elem.Value.(*lruEntry)
-	delete(l.mapping, r.key)
+	l.mapping.Delete(r.key)
 	r.key = key
 	r.data = value
 	r.store = time.Now()
 	l.list.MoveToFront(elem)
-	l.mapping[key] = elem
+	l.mapping.Store(key, elem)
 }
 
 //Delete delete a key from cache
 func (l *LRU) Delete(key interface{}) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	node, ok := l.mapping[key]
-	if ok {
-		delete(l.mapping, key)
-		l.list.Remove(node)
-	}
+	l.mapping.LoadAndDelete(key)
 }
 
 func (l *LRU) Load(key interface{}) (interface{}, bool) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	node, ok := l.mapping[key]
+	node, ok := l.mapping.Load(key)
 	if !ok {
 		return nil, false
 	}
 
-	y, ok := node.Value.(*lruEntry)
+	y, ok := node.(*list.Element).Value.(*lruEntry)
 	if !ok {
 		return nil, false
 	}
 
 	if l.timeout != 0 && time.Since(y.store) >= l.timeout {
-		delete(l.mapping, key)
-		l.list.Remove(node)
+		l.mapping.Delete(key)
+		l.list.Remove(node.(*list.Element))
 		return nil, false
 	}
 
-	l.list.MoveToFront(node)
+	l.list.MoveToFront(node.(*list.Element))
 	return y.data, true
 }
 
