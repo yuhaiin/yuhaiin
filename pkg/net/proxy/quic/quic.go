@@ -111,7 +111,7 @@ func NewClient(network, address string, port int, certPath []string, insecureSki
 	return c, nil
 }
 
-func (c *Client) NewQUIC(serverName string, certPath []string, insecureSkipVerify bool) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewQUIC(serverName string, certPath []string, insecureSkipVerify bool) func(proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{p: p}
 		var err error

@@ -2,10 +2,19 @@ package subscr
 
 import (
 	"bytes"
+	context "context"
 	"io/ioutil"
 	"log"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/stretchr/testify/require"
+
+	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 )
 
 func TestSsrParse2(t *testing.T) {
@@ -35,4 +44,36 @@ func TestLint(t *testing.T) {
 	for _, x := range bytes.Split(dst, []byte("\n")) {
 		log.Println((&shadowsocksr{}).ParseLink(x, "test"))
 	}
+}
+
+func TestConnections(t *testing.T) {
+	p := utils.NewClientUtil("127.0.0.1", "1090")
+
+	z, err := ssClient.NewHTTPOBFS("example.com", "80")(p)
+	require.Nil(t, err)
+	z, err = ssClient.NewShadowsocks("AEAD_AES_128_GCM", "test", "127.0.0.1", "1090")(z)
+	require.Nil(t, err)
+	tt := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return z.Conn(addr)
+			},
+		},
+	}
+
+	req := http.Request{
+		Method: "GET",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "ip.sb",
+		},
+		Header: make(http.Header),
+	}
+	req.Header.Set("User-Agent", "curl/v2.4.1")
+	resp, err := tt.Do(&req)
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
+	t.Log(string(data))
 }
