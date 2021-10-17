@@ -22,7 +22,23 @@ message point{
         shadowsocks shadowsocks = 5 [json_name="shadowsocks"];
         shadowsocksr shadowsocksr = 6 [json_name="shadowsocksr"];
         vmess vmess = 7 [json_name="vmess"];
+        websocket websocket = 8 [json_name="websocket"];
+        quic quic = 9 [json_name="quic"];
+        obfs_http obfs_http = 10 [json_name="obfs_http"];
     }
+
+    message protocol {
+        oneof protocol {
+            shadowsocks shadowsocks = 1 [json_name="shadowsocks"];
+            shadowsocksr shadowsocksr = 2 [json_name="shadowsocksr"];
+            vmess vmess = 3 [json_name="vmess"];
+            websocket websocket = 4 [json_name="websocket"];
+            quic quic = 5 [json_name="quic"];
+            obfs_http obfs_http = 6 [json_name="obfs_http"];
+        }
+    }
+
+    repeated protocol protocols = 11 [json_name="protocols"];
 }
 
 message shadowsocks{
@@ -103,6 +119,24 @@ message vmess2{
     int64 class = 14 [json_name="class"];
 }
 
+message websocket {
+    string host = 1 [json_name="host"];
+    string path = 2 [json_name="path"];
+    bool insecure_skip_verify = 3 [json_name="insecure_skip_verify"];
+    bool tls_enable = 4 [json_name="tls_enable"];
+    string tls_ca_cert = 5 [json_name="tls_ca_cert"];
+}
+
+message quic {
+    string server_name = 1 [json_name="server_name"];
+    bool insecure_skip_verify = 3 [json_name="insecure_skip_verify"];
+    string tls_ca_cert = 5 [json_name="tls_ca_cert"];   
+}
+
+message obfs_http {
+    string host = 1 [json_name="host"];
+    string port = 2 [json_name="port"];
+}
   
 message node{
     point now_node = 1 [json_name="now_node"];
