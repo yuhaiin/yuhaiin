@@ -6,17 +6,23 @@ import (
 	"net"
 	"net/http"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewV2ray(t *testing.T) {
-
-	s, err := NewShadowsocks("AEAD_CHACHA20_POLY1305", "your-password", "127.0.0.1", "8488", "v2ray", "host:baidu.com")
+	p := utils.NewClientUtil("127.0.0.1", "1090")
+	z, err := websocket.NewWebsocket("baidu.com", "", true, true, nil)(p)
+	require.Nil(t, err)
+	z, err = NewShadowsocks("AEAD_CHACHA20_POLY1305", "your-password", "127.0.0.1", "8488")(z)
 	if err != nil {
 		t.Error(err)
 	}
 
 	DialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return s.Conn(addr)
+		return z.Conn(addr)
 	}
 	tr := http.Transport{
 		DialContext: DialContext,

@@ -442,6 +442,7 @@ func (p *Point) Conn() (proxy.Proxy, error) {
 	if !conn.IsValid() {
 		return nil, fmt.Errorf("no method Conn for value: %v", value)
 	}
+
 	result := conn.Call(make([]reflect.Value, 0))
 	if len(result) != 2 {
 		return nil, fmt.Errorf("result is incorrect")

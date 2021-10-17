@@ -3,11 +3,16 @@ package subscr
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 )
@@ -46,16 +51,90 @@ func (p *Point_Shadowsocks) Conn() (proxy.Proxy, error) {
 	if s == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-	ss, err := ssClient.NewShadowsocks(
-		s.Method,
-		s.Password,
-		s.Server, s.Port,
-		s.Plugin,
-		s.PluginOpt,
-	)
+
+	var py proxy.Proxy = utils.NewClientUtil(s.Server, s.Port)
+
+	var plugin func(string) (func(proxy.Proxy) (proxy.Proxy, error), error)
+	switch strings.ToLower(s.Plugin) {
+	case "obfs-local":
+		plugin = NewObfs
+	case "v2ray":
+		plugin = NewV2raySelf
+	default:
+		plugin = func(s string) (func(proxy.Proxy) (proxy.Proxy, error), error) {
+			return func(p proxy.Proxy) (proxy.Proxy, error) { return p, nil }, nil
+		}
+	}
+	pluginC, err := plugin(s.PluginOpt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("init plugin failed: %w", err)
+	}
+	py, err = pluginC(py)
+	if err != nil {
+		return nil, fmt.Errorf("init plugin failed: %w", err)
+	}
+	return ssClient.NewShadowsocks(s.Method, s.Password, s.Server, s.Port)(py)
+}
+
+func NewV2raySelf(options string) (func(proxy.Proxy) (proxy.Proxy, error), error) {
+	// fastOpen := false
+	path := "/"
+	host := "cloudfront.com"
+	tlsEnabled := false
+	cert := ""
+	// certRaw := ""
+	mode := "websocket"
+
+	for _, x := range strings.Split(options, ";") {
+		if !strings.Contains(x, "=") {
+			if x == "tls" {
+				tlsEnabled = true
+			}
+			continue
+		}
+		s := strings.Split(x, "=")
+		switch s[0] {
+		case "mode":
+			mode = s[1]
+		case "path":
+			path = s[1]
+		case "cert":
+			cert = s[1]
+		case "host":
+			host = s[1]
+			// case "certRaw":
+			// certRaw = s[1]
+			// case "fastOpen":
+			// fastOpen = true
+		}
 	}
 
-	return ss, nil
+	switch mode {
+	case "websocket":
+		return websocket.NewWebsocket(host, path, false, tlsEnabled, []string{cert}), nil
+	case "quic":
+		return quic.NewQUIC(host, []string{cert}, false), nil
+	}
+
+	return nil, fmt.Errorf("unsupported mode")
+}
+
+func NewObfs(pluginOpt string) (func(proxy.Proxy) (proxy.Proxy, error), error) {
+	args := make(map[string]string)
+	for _, x := range strings.Split(pluginOpt, ";") {
+		if strings.Contains(x, "=") {
+			s := strings.Split(x, "=")
+			args[s[0]] = s[1]
+		}
+	}
+	switch args["obfs"] {
+	case "http":
+		hostname, port, err := net.SplitHostPort(args["obfs-host"])
+		if err != nil {
+			return nil, err
+		}
+		return ssClient.NewHTTPOBFS(hostname, port), nil
+	default:
+		return nil, errors.New("not support plugin")
+	}
 }

@@ -8,7 +8,11 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
+	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	libVmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -85,23 +89,29 @@ func (p *Point_Vmess) Conn() (proxy.Proxy, error) {
 		return nil, fmt.Errorf("convert AlterId to int failed: %v", err)
 	}
 
-	v, err := libVmess.NewVmess(
-		x.Address,
-		uint32(port),
-		x.Uuid,
-		"",
-		x.Type,
-		uint32(aid),
-		x.Net,
-		x.Path,
-		x.Host,
-		x.Tls == "tls",
-		!x.VerifyCert,
-		"",
-	)
+	c := utils.NewClientUtil(x.Address, strconv.Itoa(port))
+
+	pp, err := websocket.NewWebsocket(x.Host, x.Path, !x.VerifyCert, x.Tls == "tls", nil)(c)
 	if err != nil {
-		return nil, fmt.Errorf("new vmess failed: %v", err)
+		return nil, fmt.Errorf("create websocket failed: %w", err)
 	}
 
-	return v, nil
+	pp, err = libVmess.NewVmess(x.Uuid, "", uint32(aid))(pp)
+	if err != nil {
+		return nil, fmt.Errorf("create vmess failed: %w", err)
+	}
+	return pp, nil
+}
+
+func (p *PointProtocol_Websocket) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+	return websocket.NewWebsocket(p.Websocket.Host, p.Websocket.Path,
+		p.Websocket.InsecureSkipVerify, p.Websocket.TlsEnable, []string{})(z)
+}
+
+func (p *PointProtocol_Quic) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+	return quic.NewQUIC(p.Quic.ServerName, []string{}, p.Quic.InsecureSkipVerify)(z)
+}
+
+func (p *PointProtocol_ObfsHttp) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+	return ssClient.NewHTTPOBFS(p.ObfsHttp.Host, p.ObfsHttp.Port)(z)
 }
