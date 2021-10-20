@@ -1,6 +1,8 @@
 package utils
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestReducedUnit(t *testing.T) {
 	t.Log(ReducedUnit(2065))

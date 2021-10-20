@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 
 	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 )
@@ -66,13 +67,14 @@ func (p *Point_Shadowsocksr) Conn() (proxy.Proxy, error) {
 	if s == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-	ssr, err := ssrClient.NewShadowsocksrClient(
+
+	ssr, err := ssrClient.NewShadowsocksr(
 		s.Server, s.Port,
 		s.Method,
 		s.Password,
 		s.Obfs, s.Obfsparam,
 		s.Protocol, s.Protoparam,
-	)
+	)(utils.NewClientUtil(s.Server, s.Port))
 	if err != nil {
 		return nil, err
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 
 	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	shadowsocksr "github.com/v2rayA/shadowsocksR"
 	"github.com/v2rayA/shadowsocksR/obfs"
 	Protocol "github.com/v2rayA/shadowsocksR/protocol"
@@ -18,10 +17,9 @@ import (
 	"github.com/v2rayA/shadowsocksR/streamCipher"
 )
 
-type Shadowsocksr struct {
-	host string
-	port string
+var _ proxy.Proxy = (*Shadowsocksr)(nil)
 
+type Shadowsocksr struct {
 	encryptMethod   string
 	encryptPassword string
 	obfs            string
@@ -31,34 +29,30 @@ type Shadowsocksr struct {
 	protocolParam   string
 	protocolData    interface{}
 
-	*utils.ClientUtil
+	p proxy.Proxy
 }
 
-func NewShadowsocksrClient(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) (ssr proxy.Proxy, err error) {
-	s := &Shadowsocksr{
-		host:            host,
-		port:            port,
-		encryptMethod:   method,
-		encryptPassword: password,
-		obfs:            obfs,
-		obfsParam:       obfsParam,
-		protocol:        protocol,
-		protocolParam:   protocolParam,
+func NewShadowsocksr(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) func(proxy.Proxy) (proxy.Proxy, error) {
+	return func(p proxy.Proxy) (proxy.Proxy, error) {
+		s := &Shadowsocksr{
+			encryptMethod:   method,
+			encryptPassword: password,
+			obfs:            obfs,
+			obfsParam:       obfsParam,
+			protocol:        protocol,
+			protocolParam:   protocolParam,
 
-		ClientUtil: utils.NewClientUtil(host, port),
+			p: p,
+		}
+		s.protocolData = new(Protocol.AuthData)
+		return s, nil
 	}
-	s.protocolData = new(Protocol.AuthData)
-	return s, nil
 }
 
 func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
-	target, err := socks5client.ParseAddr(addr)
+	c, err := s.p.Conn(addr)
 	if err != nil {
-		return nil, err
-	}
-	c, err := s.GetConn()
-	if err != nil {
-		return nil, fmt.Errorf("[ssr] dial to %s -> %s", s.host, err)
+		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
 
 	cipher, err := streamCipher.NewStreamCipher(s.encryptMethod, s.encryptPassword)
@@ -110,6 +104,10 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	}
 	ssrconn.IProtocol.SetData(s.protocolData)
 
+	target, err := socks5client.ParseAddr(addr)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := ssrconn.Write(target); err != nil {
 		_ = ssrconn.Close()
 		return nil, err
