@@ -4,6 +4,7 @@ import (
 	context "context"
 	"log"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -53,14 +54,25 @@ func (c *ConnManager) SetProxy(p proxy.Proxy) {
 func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) {
 	resp := &ConnResp{}
 	c.conns.Range(func(key, value interface{}) bool {
-		if x, ok := value.(*conn); ok {
-			resp.Connections = append(resp.Connections, &x.ConnRespConnection)
+		v := reflect.ValueOf(value)
+		if v.Kind() != reflect.Ptr && v.Kind() != reflect.Interface {
+			log.Println(v.Kind())
+			return true
 		}
 
-		if x, ok := value.(*packetConn); ok {
-			resp.Connections = append(resp.Connections, &x.ConnRespConnection)
+		v = v.Elem()
+		if v.Kind() != reflect.Struct {
+			log.Println(v.Kind())
+			return true
 		}
 
+		v = v.FieldByName("ConnRespConnection")
+		if v.IsValid() {
+			v, ok := v.Interface().(ConnRespConnection)
+			if ok {
+				resp.Connections = append(resp.Connections, &v)
+			}
+		}
 		return true
 	})
 
@@ -73,14 +85,17 @@ func (c *ConnManager) CloseConn(_ context.Context, x *CloseConnsReq) (*emptypb.E
 		if !ok {
 			return &emptypb.Empty{}, nil
 		}
-		if x, ok := z.(net.Conn); ok {
-			_ = x.Close()
+
+		v := reflect.ValueOf(z)
+		if v.IsNil() || !v.IsValid() {
+			continue
+		}
+		cl := v.MethodByName("Close")
+		if !cl.IsValid() {
+			continue
 		}
 
-		if x, ok := z.(net.PacketConn); ok {
-			_ = x.Close()
-		}
-
+		_ = cl.Call([]reflect.Value{})
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -132,12 +147,19 @@ func (c *ConnManager) addPacketConn(i *packetConn) {
 
 func (c *ConnManager) delete(id int64) {
 	v, _ := c.conns.LoadAndDelete(id)
-	if x, ok := v.(*conn); ok {
-		logasfmt.Printf("close tcp conn id: %d,addr: %s\n", x.Id, x.Addr)
+
+	vv := reflect.ValueOf(v)
+	if vv.Kind() != reflect.Ptr && vv.Kind() != reflect.Interface {
+		return
 	}
-	if x, ok := v.(*packetConn); ok {
-		logasfmt.Printf("close packet conn id: %d,addr: %s\n", x.Id, x.Addr)
+
+	vv = vv.Elem()
+	if vv.Kind() != reflect.Struct {
+		return
 	}
+
+	logasfmt.Printf("close %s id: %d,addr: %s\n",
+		vv.Type().Name(), vv.FieldByName("Id"), vv.FieldByName("Addr"))
 }
 
 func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
