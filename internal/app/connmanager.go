@@ -51,6 +51,8 @@ func (c *ConnManager) SetProxy(p proxy.Proxy) {
 	c.proxy = p
 }
 
+var connRespName = reflect.TypeOf(ConnRespConnection{}).Name()
+
 func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) {
 	resp := &ConnResp{}
 	c.conns.Range(func(key, value interface{}) bool {
@@ -66,7 +68,7 @@ func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) 
 			return true
 		}
 
-		v = v.FieldByName("ConnRespConnection")
+		v = v.FieldByName(connRespName)
 		if v.IsValid() {
 			v, ok := v.Interface().(ConnRespConnection)
 			if ok {
