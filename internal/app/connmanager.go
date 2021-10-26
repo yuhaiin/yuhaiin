@@ -158,7 +158,7 @@ func (c *ConnManager) delete(id int64) {
 		return
 	}
 
-	logasfmt.Printf("close %s id: %d,addr: %s\n",
+	logasfmt.Printf("close %s id: %v,addr: %v\n",
 		vv.Type().Name(), vv.FieldByName("Id"), vv.FieldByName("Addr"))
 }
 
