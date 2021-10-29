@@ -67,14 +67,14 @@ _end:
 func (x *Mapper) Clear() {
 	x.cidr = NewCidrMapper()
 	x.domain = NewDomainMapper()
-	x.cache = utils.NewLru(150, 0)
+	x.cache = utils.NewLru(400, 0)
 }
 
 func NewMapper(lookup func(string) ([]net.IP, error)) (matcher *Mapper) {
 	return &Mapper{
 		cidr:   NewCidrMapper(),
 		domain: NewDomainMapper(),
-		cache:  utils.NewLru(150, 0),
+		cache:  utils.NewLru(400, 0),
 		lookup: lookup,
 	}
 }
