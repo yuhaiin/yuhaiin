@@ -7,7 +7,7 @@ import (
 )
 
 func TestShunt(t *testing.T) {
-	x, err := NewShunt(&config.Config{})
+	x, err := NewShunt(&config.Config{}, nil)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

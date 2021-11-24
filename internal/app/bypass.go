@@ -50,18 +50,19 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 		p = &proxy.DefaultProxy{}
 	}
 
-	shunt, err := NewShunt(conf)
+	m := &BypassManager{proxy: p}
+
+	shunt, err := NewShunt(conf, WithProxy(m))
 	if err != nil {
 		log.Printf("create shunt failed: %v, disable bypass.\n", err)
 	}
-
-	m := &BypassManager{proxy: p, mapper: shunt.Get}
+	m.mapper = shunt.Get
 
 	_ = conf.Exec(
 		func(s *config.Setting) error {
 			m.dialer = &net.Dialer{
 				Timeout:  11 * time.Second,
-				Resolver: getDNS(s.Dns.Local).Resolver(),
+				Resolver: getDNS(s.Dns.Local, nil).Resolver(),
 			}
 			m.bypass = s.Bypass.Enabled
 			return nil
@@ -71,7 +72,7 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 		if diffDNS(old.Dns.Local, current.Dns.Local) {
 			m.dialer = &net.Dialer{
 				Timeout:  8 * time.Second,
-				Resolver: getDNS(current.Dns.Local).Resolver(),
+				Resolver: getDNS(current.Dns.Local, nil).Resolver(),
 			}
 		}
 	})

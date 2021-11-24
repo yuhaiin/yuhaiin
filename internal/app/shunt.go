@@ -20,6 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
 //go:embed yuhaiin.conf
@@ -43,17 +44,28 @@ type Shunt struct {
 	file   string
 	mapper *mapper.Mapper
 
+	p        proxy.Proxy
 	fileLock sync.RWMutex
 }
 
+func WithProxy(p proxy.Proxy) func(*Shunt) {
+	return func(s *Shunt) {
+		s.p = p
+	}
+}
+
 //NewShunt file: bypass file; lookup: domain resolver, can be nil
-func NewShunt(conf *config.Config) (*Shunt, error) {
+func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 	s := &Shunt{}
+
+	for _, opt := range opts {
+		opt(s)
+	}
 
 	err := conf.Exec(
 		func(ss *config.Setting) error {
 			s.file = ss.Bypass.BypassFile
-			s.mapper = mapper.NewMapper(getDNS(ss.Dns.Remote).LookupIP)
+			s.mapper = mapper.NewMapper(getDNS(ss.Dns.Remote, s.p).LookupIP)
 			err := s.RefreshMapping()
 			if err != nil {
 				return fmt.Errorf("refresh mapping failed: %v", err)
@@ -75,7 +87,7 @@ func NewShunt(conf *config.Config) (*Shunt, error) {
 
 	conf.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(current.Dns.Remote, old.Dns.Remote) {
-			s.mapper.SetLookup(getDNS(current.Dns.Remote).LookupIP)
+			s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
 		}
 	})
 
@@ -155,10 +167,15 @@ func diffDNS(old, new *config.DNS) bool {
 	if old.Subnet != new.Subnet {
 		return true
 	}
+
+	if old.Proxy != new.Proxy {
+		return true
+	}
+
 	return false
 }
 
-func getDNS(dc *config.DNS) dns.DNS {
+func getDNS(dc *config.DNS, proxy proxy.Proxy) dns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		if net.ParseIP(dc.Subnet).To4() != nil {
@@ -170,16 +187,20 @@ func getDNS(dc *config.DNS) dns.DNS {
 		}
 	}
 
+	if !dc.Proxy {
+		proxy = nil
+	}
+
 	switch dc.Type {
 	case config.DNS_doh:
-		return dns.NewDoH(dc.Host, subnet, nil)
+		return dns.NewDoH(dc.Host, subnet, proxy)
 	case config.DNS_dot:
-		return dns.NewDoT(dc.Host, subnet, nil)
+		return dns.NewDoT(dc.Host, subnet, proxy)
 	case config.DNS_tcp:
 		fallthrough
 	case config.DNS_udp:
 		fallthrough
 	default:
-		return dns.NewDNS(dc.Host, subnet, nil)
+		return dns.NewDNS(dc.Host, subnet, proxy)
 	}
 }

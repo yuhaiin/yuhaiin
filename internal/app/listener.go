@@ -69,5 +69,4 @@ func (l *Listener) SetProxy(p proxy.Proxy) {
 	} else {
 		l.Proxy = p
 	}
-
 }

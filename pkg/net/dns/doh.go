@@ -25,9 +25,10 @@ type doh struct {
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
 
-	host string
-	port string
-	url  string
+	host     string
+	hostname string
+	port     string
+	url      string
 
 	cache      *utils.LRU
 	httpClient *http.Client
@@ -76,10 +77,10 @@ func (d *doh) setServer(host string) {
 	d.url = "https://" + host
 	uri, err := url.Parse("//" + host)
 	if err != nil {
-		d.host = host
+		d.hostname = host
 		d.port = "443"
 	} else {
-		d.host = uri.Hostname()
+		d.hostname = uri.Hostname()
 		d.port = uri.Port()
 		if d.port == "" {
 			d.port = "443"
@@ -89,7 +90,16 @@ func (d *doh) setServer(host string) {
 		}
 	}
 
-	d.ClientUtil = utils.NewClientUtil(d.host, d.port)
+	if net.ParseIP(d.hostname) == nil {
+		ip, err := net.LookupIP(d.hostname)
+		if err != nil {
+			ip = append(ip, net.ParseIP("1.1.1.1"))
+		}
+		d.hostname = ip[0].String()
+	}
+
+	d.host = net.JoinHostPort(d.hostname, d.port)
+	d.ClientUtil = utils.NewClientUtil(d.hostname, d.port)
 }
 
 func (d *doh) setProxy(p func(string) (net.Conn, error)) {
@@ -97,12 +107,12 @@ func (d *doh) setProxy(p func(string) (net.Conn, error)) {
 	d.httpClient = &http.Client{
 		Transport: &http.Transport{
 			//Proxy: http.ProxyFromEnvironment,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				switch network {
 				case "tcp":
-					return d.Proxy(addr)
+					return d.Proxy(d.host)
 				default:
-					return net.Dial(network, addr)
+					return net.Dial(network, d.host)
 				}
 			},
 			DisableKeepAlives: false,

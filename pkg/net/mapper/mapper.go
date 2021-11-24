@@ -3,15 +3,13 @@ package mapper
 import (
 	"net"
 	"sync"
-
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 type Mapper struct {
 	lookup func(string) ([]net.IP, error)
 	cidr   *Cidr
 	domain *domain
-	cache  *utils.LRU
+	// cache  *utils.LRU
 
 	lookupLock sync.RWMutex
 }
@@ -36,9 +34,9 @@ func (x *Mapper) Insert(str string, mark interface{}) {
 }
 
 func (x *Mapper) Search(str string) (mark interface{}) {
-	if de, _ := x.cache.Load(str); de != nil {
-		return de
-	}
+	// if de, _ := x.cache.Load(str); de != nil {
+	// 	return de
+	// }
 
 	if ip := net.ParseIP(str); ip != nil {
 		mark, _ = x.cidr.SearchIP(ip)
@@ -60,21 +58,21 @@ func (x *Mapper) Search(str string) (mark interface{}) {
 	}
 
 _end:
-	x.cache.Add(str, mark)
+	// x.cache.Add(str, mark)
 	return mark
 }
 
 func (x *Mapper) Clear() {
 	x.cidr = NewCidrMapper()
 	x.domain = NewDomainMapper()
-	x.cache = utils.NewLru(400, 0)
+	// x.cache = utils.NewLru(400, 0)
 }
 
 func NewMapper(lookup func(string) ([]net.IP, error)) (matcher *Mapper) {
 	return &Mapper{
 		cidr:   NewCidrMapper(),
 		domain: NewDomainMapper(),
-		cache:  utils.NewLru(400, 0),
+		// cache:  utils.NewLru(400, 0),
 		lookup: lookup,
 	}
 }
