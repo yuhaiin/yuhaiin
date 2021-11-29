@@ -40,15 +40,15 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 	require.Nil(b, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
 	require.Nil(b, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
 
-	// testIPv4 := "10.2.2.1"
+	testIPv4 := "10.2.2.1"
 	//testIPv4b := "100.2.2.1"
 	//testIPv6 := "2001:0db8:0000:0000:1234:0000:0000:9abc"
-	testIPv6b := "3001:0db8:0000:0000:1234:0000:0000:9abc"
+	// testIPv6b := "3001:0db8:0000:0000:1234:0000:0000:9abc"
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			// cidrMatch.Search(testIPv4)
-			cidrMatch.Search(testIPv6b)
+			cidrMatch.Search(testIPv4)
+			// cidrMatch.Search(testIPv6b)
 		}
 	})
 }

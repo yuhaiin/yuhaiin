@@ -102,14 +102,7 @@ func (c *ClientUtil) GetConn() (net.Conn, error) {
 }
 
 func (c *ClientUtil) Conn(host string) (net.Conn, error) {
-	conn, err := c.dial()
-	if err == nil {
-		return conn, err
-	}
-
-	c.refreshCache()
-
-	return c.dial()
+	return c.GetConn()
 }
 
 func (c *ClientUtil) PacketConn(host string) (net.PacketConn, error) {
@@ -117,19 +110,18 @@ func (c *ClientUtil) PacketConn(host string) (net.PacketConn, error) {
 }
 
 func (c *ClientUtil) refresh() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	x, err := c.lookupIP(c.address)
 	if err != nil {
 		log.Printf("lookup address %s failed: %v", c.address, err)
 		return
 	}
 
-	lookupCache := make([]string, 0, len(x))
+	c.lookupCache = make([]string, 0, len(x))
 	port := strconv.Itoa(c.port)
 	for i := range x {
-		lookupCache = append(c.lookupCache, net.JoinHostPort(x[i].String(), port))
+		c.lookupCache = append(c.lookupCache, net.JoinHostPort(x[i].String(), port))
 	}
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.lookupCache = lookupCache
 }

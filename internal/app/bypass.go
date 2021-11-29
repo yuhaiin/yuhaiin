@@ -38,7 +38,7 @@ var Mode = map[string]MODE{
 type BypassManager struct {
 	mapper func(string) MODE
 	proxy  proxy.Proxy
-	dialer *net.Dialer
+	dialer proxy.Proxy
 	bypass bool
 }
 
@@ -58,22 +58,21 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 	}
 	m.mapper = shunt.Get
 
-	_ = conf.Exec(
-		func(s *config.Setting) error {
-			m.dialer = &net.Dialer{
+	applyDirectDNS := func(s *config.Setting) error {
+		m.dialer = &direct{
+			dialer: &net.Dialer{
 				Timeout:  11 * time.Second,
 				Resolver: getDNS(s.Dns.Local, nil).Resolver(),
-			}
-			m.bypass = s.Bypass.Enabled
-			return nil
-		})
+			},
+		}
+		m.bypass = s.Bypass.Enabled
+		return nil
+	}
 
+	_ = conf.Exec(applyDirectDNS)
 	conf.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(old.Dns.Local, current.Dns.Local) {
-			m.dialer = &net.Dialer{
-				Timeout:  8 * time.Second,
-				Resolver: getDNS(current.Dns.Local, nil).Resolver(),
-			}
+			applyDirectDNS(current)
 		}
 	})
 
@@ -122,7 +121,7 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy, err error) {
 	case BLOCK:
 		err = fmt.Errorf("%w: %v", ErrBlockAddr, host)
 	case DIRECT:
-		p = &direct{dialer: m.dialer}
+		p = m.dialer
 	default:
 		p = m.proxy
 	}
