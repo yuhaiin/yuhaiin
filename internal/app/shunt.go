@@ -124,6 +124,7 @@ func (s *Shunt) RefreshMapping() error {
 		if errors.Is(c, io.EOF) {
 			break
 		}
+		a = a[:len(a)-1]
 
 		if len(a) <= 3 || a[0] == '#' {
 			continue
