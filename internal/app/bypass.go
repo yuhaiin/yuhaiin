@@ -22,10 +22,15 @@ const (
 	MAX MODE = 3
 )
 
-var ModeMapping = map[MODE]string{
-	OTHERS: "proxy",
-	DIRECT: "direct",
-	BLOCK:  "block",
+func (m MODE) String() string {
+	switch m {
+	case BLOCK:
+		return "BLOCK"
+	case DIRECT:
+		return "DIRECT"
+	default:
+		return "PROXY"
+	}
 }
 
 var Mode = map[string]MODE{
@@ -39,7 +44,6 @@ type BypassManager struct {
 	mapper func(string) MODE
 	proxy  proxy.Proxy
 	dialer proxy.Proxy
-	bypass bool
 }
 
 var ErrBlockAddr = errors.New("BLOCK ADDRESS")
@@ -56,7 +60,17 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 	if err != nil {
 		log.Printf("create shunt failed: %v, disable bypass.\n", err)
 	}
-	m.mapper = shunt.Get
+
+	applyBypass := func(s *config.Setting) error {
+		if !s.Bypass.Enabled {
+			m.mapper = func(s string) MODE {
+				return OTHERS
+			}
+		} else {
+			m.mapper = shunt.Get
+		}
+		return nil
+	}
 
 	applyDirectDNS := func(s *config.Setting) error {
 		m.dialer = &direct{
@@ -65,11 +79,10 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 				Resolver: getDNS(s.Dns.Local, nil).Resolver(),
 			},
 		}
-		m.bypass = s.Bypass.Enabled
 		return nil
 	}
 
-	_ = conf.Exec(applyDirectDNS)
+	_ = conf.Exec(applyDirectDNS, applyBypass)
 	conf.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(old.Dns.Local, current.Dns.Local) {
 			applyDirectDNS(current)
@@ -78,7 +91,7 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 
 	conf.AddObserver(func(current, old *config.Setting) {
 		if current.Bypass.Enabled != old.Bypass.Enabled {
-			m.bypass = current.Bypass.Enabled
+			applyBypass(current)
 		}
 	})
 
@@ -87,39 +100,26 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 
 //Conn get net.Conn by host
 func (m *BypassManager) Conn(host string) (conn net.Conn, err error) {
-	resp, err := m.marry(host)
-	if err != nil {
-		return nil, fmt.Errorf("map failed: %v", err)
-	}
-
-	return resp.Conn(host)
-
+	return m.marry(host).Conn(host)
 }
 
 func (m *BypassManager) PacketConn(host string) (conn net.PacketConn, err error) {
-	resp, err := m.marry(host)
-	if err != nil {
-		return nil, fmt.Errorf("map failed: %v", err)
-	}
-	return resp.PacketConn(host)
+	return m.marry(host).PacketConn(host)
 }
 
-func (m *BypassManager) marry(host string) (p proxy.Proxy, err error) {
+func (m *BypassManager) marry(host string) (p proxy.Proxy) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return nil, fmt.Errorf("split host [%s] failed: %v", host, err)
+		return &errProxy{err: fmt.Errorf("split host [%s] failed: %v", host, err)}
 	}
 
-	mark := OTHERS
-	if m.mapper != nil && m.bypass {
-		mark = m.mapper(hostname)
-	}
+	mark := m.mapper(hostname)
 
-	logasfmt.Printf("[%s] ->  mode: %s\n", host, ModeMapping[mark])
+	logasfmt.Printf("[%s] ->  mode: %v\n", host, mark)
 
 	switch mark {
 	case BLOCK:
-		err = fmt.Errorf("%w: %v", ErrBlockAddr, host)
+		p = &errProxy{err: fmt.Errorf("%w: %v", ErrBlockAddr, host)}
 	case DIRECT:
 		p = m.dialer
 	default:
@@ -139,4 +139,16 @@ func (d *direct) Conn(s string) (net.Conn, error) {
 
 func (d *direct) PacketConn(string) (net.PacketConn, error) {
 	return net.ListenPacket("udp", "")
+}
+
+type errProxy struct {
+	err error
+}
+
+func (e *errProxy) Conn(string) (net.Conn, error) {
+	return nil, e.err
+}
+
+func (e *errProxy) PacketConn(string) (net.PacketConn, error) {
+	return nil, e.err
 }

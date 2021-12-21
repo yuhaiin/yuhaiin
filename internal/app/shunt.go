@@ -2,7 +2,6 @@ package app
 
 import (
 	"bufio"
-	"bytes"
 	_ "embed" //embed for bypass file
 	"errors"
 	"fmt"
@@ -121,22 +120,21 @@ func (s *Shunt) RefreshMapping() error {
 	re, _ := regexp.Compile("^([^ ]+) +([^ ]+) *$") // already test that is right regular expression, so don't need to check error
 	br := bufio.NewReader(f)
 	for {
-		a, _, c := br.ReadLine()
-		if c == io.EOF {
+		a, c := br.ReadBytes('\n')
+		if errors.Is(c, io.EOF) {
 			break
 		}
-		if bytes.HasPrefix(a, []byte("#")) {
+
+		if len(a) <= 3 || a[0] == '#' {
 			continue
 		}
+
 		result := re.FindSubmatch(a)
 		if len(result) != 3 {
 			continue
 		}
-		mode := Mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))]
-		if mode == OTHERS {
-			continue
-		}
-		s.mapper.Insert(string(result[1]), mode)
+
+		s.mapper.Insert(string(result[1]), Mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))])
 	}
 	return nil
 }
@@ -158,32 +156,24 @@ func (s *Shunt) Get(domain string) MODE {
 }
 
 func diffDNS(old, new *config.DNS) bool {
-	if old.Host != new.Host {
-		return true
-	}
-	if old.Type != new.Type {
-		return true
-	}
-	if old.Subnet != new.Subnet {
-		return true
-	}
-
-	if old.Proxy != new.Proxy {
-		return true
-	}
-
-	return false
+	return old.Host != new.Host ||
+		old.Type != new.Type ||
+		old.Subnet != new.Subnet || old.Proxy != new.Proxy
 }
 
 func getDNS(dc *config.DNS, proxy proxy.Proxy) dns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
-		if net.ParseIP(dc.Subnet).To4() != nil {
-			_, subnet, _ = net.ParseCIDR(dc.Subnet + "/32")
-		}
+		p := net.ParseIP(dc.Subnet)
+		if p != nil {
+			var mask net.IPMask
+			if p.To4() == nil {
+				mask = net.IPMask{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
+			} else {
+				mask = net.IPMask{255, 255, 255, 255}
+			}
 
-		if net.ParseIP(dc.Subnet).To16() != nil {
-			_, subnet, _ = net.ParseCIDR(dc.Subnet + "/128")
+			subnet = &net.IPNet{IP: p, Mask: mask}
 		}
 	}
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"net"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
@@ -27,4 +28,19 @@ func TestMode(t *testing.T) {
 	} else {
 		t.Log("OK", v)
 	}
+}
+
+func TestDiffDNS(t *testing.T) {
+	z := diffDNS(&config.DNS{}, &config.DNS{})
+	t.Log(z)
+
+	_, x, _ := net.ParseCIDR("1.1.1.1/32")
+	t.Log(len(x.IP))
+	t.Log([]byte(x.Mask))
+
+	_, xx, _ := net.ParseCIDR("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128")
+	t.Log(len(xx.IP))
+	t.Log([]byte(xx.Mask))
+
+	t.Log(len(net.ParseIP("1.1.1.1")))
 }

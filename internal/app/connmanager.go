@@ -70,9 +70,9 @@ func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) 
 
 		v = v.FieldByName(connRespName)
 		if v.IsValid() {
-			v, ok := v.Interface().(ConnRespConnection)
+			v, ok := v.Interface().(*ConnRespConnection)
 			if ok {
-				resp.Connections = append(resp.Connections, &v)
+				resp.Connections = append(resp.Connections, v)
 			}
 		}
 		return true
@@ -166,7 +166,7 @@ func (c *ConnManager) delete(id int64) {
 
 func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
 	s := &conn{
-		ConnRespConnection: ConnRespConnection{
+		ConnRespConnection: &ConnRespConnection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr,
 			Local:  x.LocalAddr().String(),
@@ -186,7 +186,7 @@ func (c *ConnManager) newPacketConn(addr string, x net.PacketConn) net.PacketCon
 		return nil
 	}
 	s := &packetConn{
-		ConnRespConnection: ConnRespConnection{
+		ConnRespConnection: &ConnRespConnection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr,
 			Local:  x.LocalAddr().String(),
@@ -223,7 +223,7 @@ type conn struct {
 	net.Conn
 	cm *ConnManager
 
-	ConnRespConnection
+	*ConnRespConnection
 }
 
 func (s *conn) Close() error {
@@ -249,7 +249,7 @@ type packetConn struct {
 	net.PacketConn
 	cm *ConnManager
 
-	ConnRespConnection
+	*ConnRespConnection
 }
 
 func (s *packetConn) Close() error {
