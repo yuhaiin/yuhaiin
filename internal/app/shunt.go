@@ -5,7 +5,6 @@ import (
 	_ "embed" //embed for bypass file
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -118,13 +117,13 @@ func (s *Shunt) RefreshMapping() error {
 	s.mapper.Clear()
 
 	re, _ := regexp.Compile("^([^ ]+) +([^ ]+) *$") // already test that is right regular expression, so don't need to check error
-	br := bufio.NewReader(f)
+	br := bufio.NewScanner(f)
 	for {
-		a, c := br.ReadBytes('\n')
-		if errors.Is(c, io.EOF) {
+		if !br.Scan() {
 			break
 		}
-		a = a[:len(a)-1]
+
+		a := br.Bytes()
 
 		if len(a) <= 3 || a[0] == '#' {
 			continue
