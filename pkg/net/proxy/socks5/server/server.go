@@ -234,7 +234,7 @@ func NewServer(host, username, password string) (proxy.Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create tcp server failed: %v", err)
 	}
-	udp, err := proxy.NewUDPServer(host, proxy.UDPWithHandle(udpHandle))
+	udp, err := proxy.NewUDPServer(host, proxy.UDPWithHandle((&udpHandler{}).handle))
 	if err != nil {
 		return nil, fmt.Errorf("create udp server failed: %v", err)
 	}

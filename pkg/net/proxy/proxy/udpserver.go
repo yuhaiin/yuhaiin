@@ -19,7 +19,7 @@ type UDPServer struct {
 	config net.ListenConfig
 
 	listener   net.PacketConn
-	handle     func([]byte, Proxy) ([]byte, error)
+	handle     func([]byte, func(data []byte), Proxy) error
 	listenFunc func(net.PacketConn, Proxy) error
 	proxy      atomic.Value
 }
@@ -51,7 +51,7 @@ func UDPWithListenFunc(f func(net.PacketConn, Proxy) error) func(u *UDPServer) {
 	}
 }
 
-func UDPWithHandle(f func([]byte, Proxy) ([]byte, error)) func(u *UDPServer) {
+func UDPWithHandle(f func([]byte, func([]byte), Proxy) error) func(u *UDPServer) {
 	return func(u *UDPServer) {
 		u.handle = f
 	}
@@ -60,7 +60,7 @@ func UDPWithHandle(f func([]byte, Proxy) ([]byte, error)) func(u *UDPServer) {
 func NewUDPServer(host string, opt ...func(u *UDPServer)) (Server, error) {
 	u := &UDPServer{
 		host:   host,
-		handle: func(b []byte, p Proxy) ([]byte, error) { return nil, fmt.Errorf("handle not defined") },
+		handle: func(b []byte, rw func([]byte), p Proxy) error { return fmt.Errorf("handle not defined") },
 		proxy:  atomic.Value{},
 		config: net.ListenConfig{},
 	}
@@ -143,7 +143,7 @@ func (u *UDPServer) process() error {
 func (u *UDPServer) defaultListenFunc(l net.PacketConn) error {
 	var tempDelay time.Duration
 	for {
-		b := make([]byte, 600)
+		b := make([]byte, 1024)
 		n, remoteAddr, err := l.ReadFrom(b)
 		if err != nil {
 			// from https://golang.org/src/net/http/server.go?s=93655:93701#L2977
@@ -172,16 +172,19 @@ func (u *UDPServer) defaultListenFunc(l net.PacketConn) error {
 		}
 
 		tempDelay = 0
-		go func() {
-			data, err := u.handle(b[:n], u)
+
+		go func(b []byte, remoteAddr net.Addr) {
+			err = u.handle(b, func(data []byte) {
+				_, err = l.WriteTo(data, remoteAddr)
+				if err != nil {
+					log.Printf("udp listener write to client failed: %v", err)
+				}
+			}, u)
 			if err != nil {
 				log.Printf("udp handle failed: %v", err)
 				return
+				// continue
 			}
-			_, err = l.WriteTo(data, remoteAddr)
-			if err != nil {
-				log.Printf("udp listener write to client failed: %v", err)
-			}
-		}()
+		}(b[:n], remoteAddr)
 	}
 }
