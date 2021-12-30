@@ -1,10 +1,8 @@
 package socks5server
 
 import (
-	"bytes"
 	"fmt"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -14,84 +12,83 @@ import (
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
 // https://github.com/net-byte/socks5-server/blob/main/socks5/udp.go
-type udpHandler struct {
-	connMap sync.Map
+type udpServer struct {
+	l net.PacketConn
+	p net.PacketConn
+
+	target net.Addr
+	local  net.Addr
+
+	header []byte
 }
 
-func (u *udpHandler) handle(b []byte, rw func([]byte), f proxy.Proxy) error {
-	if len(b) == 0 {
-		return fmt.Errorf("normalHandleUDP() -> b byte array is empty")
-	}
-	/*
-	* progress
-	* 1. listener get client data
-	* 2. get local/proxy packetConn
-	* 3. write client data to local/proxy packetConn
-	* 4. read data from local/proxy packetConn
-	* 5. write data that from remote to client
-	 */
-	host, port, addrSize, err := ResolveAddr(b[3:])
+func newUDPServer(f proxy.Proxy, target string) (*udpServer, error) {
+	l, err := net.ListenPacket("udp", "")
 	if err != nil {
-		return fmt.Errorf("resolve socks5 address failed: %v", err)
+		return nil, fmt.Errorf("listen udp failed: %v", err)
 	}
 
-	if net.ParseIP(host) == nil {
-		addr, err := net.ResolveIPAddr("ip", host)
-		if err != nil {
-			return fmt.Errorf("resolve IP Addr failed: %v", err)
-		}
-		host = addr.IP.String()
-	}
-
-	h := net.JoinHostPort(host, strconv.Itoa(port))
-	var conn net.PacketConn
-	c, ok := u.connMap.Load(h)
-	if ok {
-		conn = c.(net.PacketConn)
-	}
-
-	if conn == nil {
-		conn, err = f.PacketConn(h)
-		if err != nil {
-			return fmt.Errorf("get packetConn from f failed: %v", err)
-		}
-		conn = &udpHandlerPacketConn{key: h, m: &u.connMap, PacketConn: conn}
-		u.connMap.Store(h, conn)
-	}
-	defer conn.Close()
-
-	target, err := net.ResolveUDPAddr("udp", h)
+	p, err := f.PacketConn(target)
 	if err != nil {
-		return fmt.Errorf("resolve udp addr failed: %v", err)
+		return nil, fmt.Errorf("connect to %s failed: %v", target, err)
 	}
-	// write data to target and read the response back
-	logasfmt.Println("UDP write", conn.LocalAddr(), "->", target)
-	// fmt.Println("write data:", data, "origin:", b)
 
-	conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
-	_, err = conn.WriteTo(b[3+addrSize:], target)
+	tar, err := net.ResolveUDPAddr("udp", target)
 	if err != nil {
-		return fmt.Errorf("write data to remote packetConn failed: %v", err)
+		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}
 
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 60))
+	u := &udpServer{l: l, p: p, target: tar}
+	go u.l2r()
+	return u, nil
+}
+
+func (u *udpServer) l2r() {
 	buf := make([]byte, 1024)
-	var n, all int
-	var addr net.Addr
 	for {
-		n, addr, err = conn.ReadFrom(buf)
-		if n == 0 || err != nil {
-			logasfmt.Println("read data From remote packetConn failed:", err)
+		n, l, err := u.l.ReadFrom(buf)
+		if err != nil {
 			break
 		}
-		all += n
-		bf := bytes.NewBuffer(b[:3+addrSize]) // copy addr []byte{0,0,0,addr...}
-		bf.Write(buf[:n])
-		rw(bf.Bytes())
+
+		_, _, size, err := ResolveAddr(buf[3:n])
+		if err != nil {
+			logasfmt.Println("resolve addr failed:", err)
+			continue
+		}
+
+		if u.header == nil {
+			u.local = l
+			u.header = make([]byte, 3+size)
+			copy(u.header, buf[:3+size])
+			go u.r2l()
+		}
+
+		u.p.WriteTo(buf[3+size:n], u.target)
+	}
+}
+
+func (u *udpServer) r2l() {
+	buf := make([]byte, 1024)
+	for {
+		n, _, err := u.p.ReadFrom(buf)
+		if err != nil {
+			break
+		}
+
+		u.l.SetWriteDeadline(time.Now().Add(time.Second * 30))
+		u.l.WriteTo(append(u.header, buf[:n]...), u.local)
+	}
+}
+
+func (u *udpServer) Close() {
+	if u.l != nil {
+		u.l.Close()
 	}
 
-	logasfmt.Printf("UDP read data(size:%d) from %s\n", all, addr.String())
-	return nil
+	if u.p != nil {
+		u.p.Close()
+	}
 }
 
 var _ net.PacketConn = (*udpHandlerPacketConn)(nil)

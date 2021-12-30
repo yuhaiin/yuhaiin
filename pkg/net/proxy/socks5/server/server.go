@@ -152,14 +152,24 @@ func getTarget(host, port string, mode byte, client net.Conn, f proxy.Proxy) (ne
 		}
 
 	case udp: // udp
-		b := make([]byte, 10)
-		writeSecondResp(client, succeeded, client.LocalAddr().String())
+		l, err := newUDPServer(f, net.JoinHostPort(host, port))
+		if err != nil {
+			writeSecondResp(client, hostUnreachable, client.LocalAddr().String())
+			return nil, err
+		}
+		// logasfmt.Println("----------request udp----------",
+		// 	"target", net.JoinHostPort(host, port),
+		// 	"local", l.l.LocalAddr().String(),
+		// 	"remote", client.RemoteAddr().String(),
+		// )
+		writeSecondResp(client, succeeded, l.l.LocalAddr().String())
+		b := make([]byte, 2)
 		for {
-			_, err := client.Read(b[:2])
-			if err, ok := err.(net.Error); ok && err.Timeout() {
-				continue
+			_, err := client.Read(b)
+			if err != nil {
+				l.Close()
+				return nil, errUDP
 			}
-			return nil, errUDP
 		}
 
 	case bind: // bind request
@@ -218,7 +228,7 @@ func writeSecondResp(conn net.Conn, errREP byte, addr string) {
 
 type server struct {
 	tcp proxy.Server
-	udp proxy.Server
+	// udp proxy.Server
 }
 
 func NewServer(host, username, password string) (proxy.Server, error) {
@@ -234,16 +244,16 @@ func NewServer(host, username, password string) (proxy.Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create tcp server failed: %v", err)
 	}
-	udp, err := proxy.NewUDPServer(host, proxy.UDPWithHandle((&udpHandler{}).handle))
-	if err != nil {
-		return nil, fmt.Errorf("create udp server failed: %v", err)
-	}
-	return &server{tcp: tcp, udp: udp}, nil
+	// udp, err := proxy.NewUDPServer(host, proxy.UDPWithHandle((&udpHandler{}).handle))
+	// if err != nil {
+	// 	return nil, fmt.Errorf("create udp server failed: %v", err)
+	// }
+	return &server{tcp: tcp}, nil
 }
 
 func (s *server) SetProxy(p proxy.Proxy) {
 	s.tcp.SetProxy(p)
-	s.udp.SetProxy(p)
+	// s.udp.SetProxy(p)
 }
 
 func (s *server) SetServer(host string) error {
@@ -251,10 +261,10 @@ func (s *server) SetServer(host string) error {
 	if err != nil {
 		return fmt.Errorf("socks5 tcp server set host failed: %v", err)
 	}
-	err = s.udp.SetServer(host)
-	if err != nil {
-		return fmt.Errorf("socks5 udp server set host failed: %v", err)
-	}
+	// err = s.udp.SetServer(host)
+	// if err != nil {
+	// 	return fmt.Errorf("socks5 udp server set host failed: %v", err)
+	// }
 	return nil
 }
 
@@ -263,9 +273,9 @@ func (s *server) Close() error {
 	if err != nil {
 		return fmt.Errorf("socks5 tcp close server failed: %v", err)
 	}
-	err = s.udp.Close()
-	if err != nil {
-		return fmt.Errorf("socks5 udp close server failed: %v", err)
-	}
+	// err = s.udp.Close()
+	// if err != nil {
+	// 	return fmt.Errorf("socks5 udp close server failed: %v", err)
+	// }
 	return nil
 }
