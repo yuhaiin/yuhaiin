@@ -3,21 +3,21 @@ package socks5server
 import (
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
 // https://github.com/net-byte/socks5-server/blob/main/socks5/udp.go
 type udpServer struct {
-	l net.PacketConn
-	p net.PacketConn
+	listener net.PacketConn
+	proxy    net.PacketConn
 
-	target net.Addr
-	local  net.Addr
+	remoteTarget net.Addr
+	localRemote  net.Addr
 
 	header []byte
 }
@@ -38,68 +38,55 @@ func newUDPServer(f proxy.Proxy, target string) (*udpServer, error) {
 		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}
 
-	u := &udpServer{l: l, p: p, target: tar}
-	go u.l2r()
+	u := &udpServer{listener: l, proxy: p, remoteTarget: tar}
+	go u.forward()
 	return u, nil
 }
 
-func (u *udpServer) l2r() {
+func (u *udpServer) forward() {
 	buf := make([]byte, 1024)
 	for {
-		n, l, err := u.l.ReadFrom(buf)
+		n, l, err := u.listener.ReadFrom(buf)
 		if err != nil {
 			break
 		}
 
-		_, _, size, err := ResolveAddr(buf[3:n])
+		_, _, size, err := socks5client.ResolveAddr(buf[3:n])
 		if err != nil {
 			logasfmt.Println("resolve addr failed:", err)
 			continue
 		}
 
 		if u.header == nil {
-			u.local = l
+			u.localRemote = l
 			u.header = make([]byte, 3+size)
 			copy(u.header, buf[:3+size])
-			go u.r2l()
+			go u.reply()
 		}
 
-		u.p.WriteTo(buf[3+size:n], u.target)
+		u.proxy.WriteTo(buf[3+size:n], u.remoteTarget)
 	}
 }
 
-func (u *udpServer) r2l() {
+func (u *udpServer) reply() {
 	buf := make([]byte, 1024)
 	for {
-		n, _, err := u.p.ReadFrom(buf)
+		n, _, err := u.proxy.ReadFrom(buf)
 		if err != nil {
 			break
 		}
 
-		u.l.SetWriteDeadline(time.Now().Add(time.Second * 30))
-		u.l.WriteTo(append(u.header, buf[:n]...), u.local)
+		u.listener.SetWriteDeadline(time.Now().Add(time.Second * 30))
+		u.listener.WriteTo(append(u.header, buf[:n]...), u.localRemote)
 	}
 }
 
 func (u *udpServer) Close() {
-	if u.l != nil {
-		u.l.Close()
+	if u.listener != nil {
+		u.listener.Close()
 	}
 
-	if u.p != nil {
-		u.p.Close()
+	if u.proxy != nil {
+		u.proxy.Close()
 	}
-}
-
-var _ net.PacketConn = (*udpHandlerPacketConn)(nil)
-
-type udpHandlerPacketConn struct {
-	net.PacketConn
-	key string
-	m   *sync.Map
-}
-
-func (u *udpHandlerPacketConn) Close() error {
-	u.m.Delete(u.key)
-	return u.PacketConn.Close()
 }

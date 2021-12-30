@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -47,7 +49,7 @@ func (s *client) Conn(host string) (net.Conn, error) {
 		return nil, fmt.Errorf("first hand failed: %v", err)
 	}
 
-	err = s.handshake2(conn, host)
+	_, err = s.handshake2(conn, connect, host)
 	if err != nil {
 		return nil, fmt.Errorf("second hand failed: %v", err)
 	}
@@ -89,44 +91,106 @@ func (s *client) handshake1(conn net.Conn) error {
 	return nil
 }
 
-func (s *client) handshake2(conn net.Conn, address string) error {
+type cmd byte
+
+const (
+	connect cmd = 0x01
+	bind    cmd = 0x02
+	udp     cmd = 0x03
+
+	ipv4       byte = 0x01
+	domainName byte = 0x03
+	ipv6       byte = 0x04
+)
+
+type header struct {
+	VER  byte
+	REP  byte
+	RSV  byte
+	ATYP byte
+	ADDR string
+	PORT int
+}
+
+func (s *client) handshake2(conn net.Conn, cmd cmd, address string) (header, error) {
 	addr, err := ParseAddr(address)
 	if err != nil {
-		return fmt.Errorf("secondVerify:ParseAddr -> %v", err)
+		return header{}, fmt.Errorf("secondVerify:ParseAddr -> %v", err)
 	}
-	sendData := bytes.NewBuffer([]byte{0x05, 0x01, 0x00})
+	sendData := bytes.NewBuffer([]byte{0x05, byte(cmd), 0x00})
 	sendData.Write(addr)
 
 	if _, err = conn.Write(sendData.Bytes()); err != nil {
-		return err
+		return header{}, err
 	}
 
 	getData := make([]byte, 1024)
-	if _, err = conn.Read(getData[:]); err != nil {
-		return err
+	n, err := conn.Read(getData[:])
+	if err != nil {
+		return header{}, err
 	}
 	if getData[0] != 0x05 || getData[1] != 0x00 {
-		return errors.New("socks5 second handshake failed")
+		return header{}, errors.New("socks5 second handshake failed")
 	}
-	return nil
+
+	dst, port, _, err := ResolveAddr(getData[3:n])
+	if err != nil {
+		return header{}, err
+	}
+
+	return header{
+		VER:  getData[0],
+		REP:  getData[1],
+		RSV:  getData[2],
+		ATYP: getData[3],
+		ADDR: dst,
+		PORT: port,
+	}, nil
 }
 
 func (s *client) PacketConn(host string) (net.PacketConn, error) {
-	addr, err := net.ResolveUDPAddr("udp", s.host)
+	conn, err := s.ClientUtil.GetConn()
+	if err != nil {
+		return nil, fmt.Errorf("dial tcp failed: %v", err)
+	}
+
+	err = s.handshake1(conn)
+	if err != nil {
+		return nil, fmt.Errorf("first hand failed: %v", err)
+	}
+
+	r, err := s.handshake2(conn, udp, host)
+	if err != nil {
+		return nil, fmt.Errorf("second hand failed: %v", err)
+	}
+
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(r.ADDR, strconv.Itoa(r.PORT)))
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %v", err)
 	}
 
-	return newSocks5PacketConn(host, addr)
+	go func() {
+		t := time.NewTicker(time.Second * 3)
+		for range t.C {
+			_, err := conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+			if err != nil {
+				log.Printf("write udp response failed: %v", err)
+				break
+			}
+		}
+	}()
+	return newSocks5PacketConn(host, addr, conn)
 }
 
 type socks5PacketConn struct {
 	net.PacketConn
 	addr   []byte
 	server net.Addr
+
+	tcp net.Conn
 }
 
-func newSocks5PacketConn(address string, server net.Addr) (net.PacketConn, error) {
+func newSocks5PacketConn(address string, server net.Addr, tcp net.Conn) (net.PacketConn, error) {
 	addr, err := ParseAddr(address)
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %v", err)
@@ -141,8 +205,14 @@ func newSocks5PacketConn(address string, server net.Addr) (net.PacketConn, error
 		server:     server,
 		addr:       addr,
 		PacketConn: conn,
+		tcp:        tcp,
 	}, nil
 
+}
+
+func (s *socks5PacketConn) Close() error {
+	s.tcp.Close()
+	return s.PacketConn.Close()
 }
 
 func (s *socks5PacketConn) WriteTo(p []byte, _ net.Addr) (int, error) {
@@ -194,6 +264,38 @@ func ParseAddr(hostname string) (data []byte, err error) {
 	sendData.WriteByte(byte(serverPort >> 8))
 	sendData.WriteByte(byte(serverPort & 255))
 	return sendData.Bytes(), nil
+}
+
+func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
+	if len(raw) <= 0 {
+		return "", 0, 0, fmt.Errorf("ResolveAddr() -> raw byte array is empty")
+	}
+	targetAddrRawSize := 1
+	switch raw[0] {
+	case ipv4:
+		dst = net.IP(raw[targetAddrRawSize : targetAddrRawSize+4]).String()
+		targetAddrRawSize += 4
+	case ipv6:
+		if len(raw) < 1+16+2 {
+			return "", 0, 0, errors.New("errShortAddrRaw")
+		}
+		dst = net.IP(raw[1 : 1+16]).String()
+		targetAddrRawSize += 16
+	case domainName:
+		addrLen := int(raw[1])
+		if len(raw) < 1+1+addrLen+2 {
+			// errShortAddrRaw
+			return "", 0, 0, errors.New("error short address raw")
+		}
+		dst = string(raw[1+1 : 1+1+addrLen])
+		targetAddrRawSize += 1 + addrLen
+	default:
+		// errUnrecognizedAddrType
+		return "", 0, 0, errors.New("udp socks: Failed to get UDP package header")
+	}
+	port = (int(raw[targetAddrRawSize]) << 8) | int(raw[targetAddrRawSize+1])
+	targetAddrRawSize += 2
+	return dst, port, targetAddrRawSize, nil
 }
 
 // The client connects to the server, and sends a version
