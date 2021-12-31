@@ -19,7 +19,8 @@ type udpServer struct {
 	remoteTarget net.Addr
 	localRemote  net.Addr
 
-	header []byte
+	header     []byte
+	headerSize int
 }
 
 func newUDPServer(f proxy.Proxy, target string) (*udpServer, error) {
@@ -51,20 +52,20 @@ func (u *udpServer) forward() {
 			break
 		}
 
-		_, _, size, err := socks5client.ResolveAddr(buf[3:n])
-		if err != nil {
-			logasfmt.Println("resolve addr failed:", err)
-			continue
-		}
-
 		if u.header == nil {
+			_, _, size, err := socks5client.ResolveAddr(buf[3:n])
+			if err != nil {
+				logasfmt.Println("resolve addr failed:", err)
+				continue
+			}
 			u.localRemote = l
 			u.header = make([]byte, 3+size)
 			copy(u.header, buf[:3+size])
+			u.headerSize = len(u.header)
 			go u.reply()
 		}
 
-		u.proxy.WriteTo(buf[3+size:n], u.remoteTarget)
+		u.proxy.WriteTo(buf[u.headerSize:n], u.remoteTarget)
 	}
 }
 

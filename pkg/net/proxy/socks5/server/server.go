@@ -122,30 +122,13 @@ func verifyUserPass(client net.Conn, user, key string) error {
 }
 
 func secondHand(host, port string, mode byte, client net.Conn, f proxy.Proxy) error {
+	var err error
 	switch mode {
 	case connect:
-		server, err := f.Conn(net.JoinHostPort(host, port))
-		if err != nil {
-			writeSecondResp(client, hostUnreachable, client.LocalAddr().String())
-			return err
-		}
-		if z, ok := server.(*net.TCPConn); ok {
-			_ = z.SetKeepAlive(true)
-		}
-		writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
-		// hand shake successful
-		utils.Forward(client, server)
-		server.Close()
+		err = handleConnect(net.JoinHostPort(host, port), client, f)
 
 	case udp: // udp
-		l, err := newUDPServer(f, net.JoinHostPort(host, port))
-		if err != nil {
-			writeSecondResp(client, hostUnreachable, client.LocalAddr().String())
-			return err
-		}
-		writeSecondResp(client, succeeded, l.listener.LocalAddr().String())
-		io.Copy(io.Discard, client)
-		l.Close()
+		err = handleUDP(net.JoinHostPort(host, port), client, f)
 
 	case bind: // bind request
 		fallthrough
@@ -154,6 +137,36 @@ func secondHand(host, port string, mode byte, client net.Conn, f proxy.Proxy) er
 		writeSecondResp(client, commandNotSupport, client.LocalAddr().String())
 		return fmt.Errorf("not Support Method %d", mode)
 	}
+
+	if err != nil {
+		writeSecondResp(client, hostUnreachable, client.LocalAddr().String())
+	}
+	return err
+}
+
+func handleConnect(target string, client net.Conn, f proxy.Proxy) error {
+	server, err := f.Conn(target)
+	if err != nil {
+		return fmt.Errorf("connect to %s failed: %w", target, err)
+	}
+	if z, ok := server.(*net.TCPConn); ok {
+		_ = z.SetKeepAlive(true)
+	}
+	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
+	// hand shake successful
+	utils.Forward(client, server)
+	server.Close()
+	return nil
+}
+
+func handleUDP(target string, client net.Conn, f proxy.Proxy) error {
+	l, err := newUDPServer(f, target)
+	if err != nil {
+		return fmt.Errorf("new udp server failed: %w", err)
+	}
+	writeSecondResp(client, succeeded, l.listener.LocalAddr().String())
+	io.Copy(io.Discard, client)
+	l.Close()
 	return nil
 }
 
