@@ -8,6 +8,8 @@ require (
 	github.com/lucas-clemente/quic-go v0.21.2
 	github.com/rivo/tview v0.0.0-20210624165335-29d673af0ce2
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
+	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091
+	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
 	github.com/v2rayA/shadowsocksR v1.0.3
