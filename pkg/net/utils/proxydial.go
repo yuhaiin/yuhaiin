@@ -27,7 +27,7 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 //ClientUtil .
 type ClientUtil struct {
 	address string
-	port    int
+	port    uint16
 	host    string
 	lock    sync.RWMutex
 
@@ -44,10 +44,10 @@ func WithLookupIP(f func(host string) ([]net.IP, error)) func(*ClientUtil) {
 
 //NewClientUtil .
 func NewClientUtil(address, port string, opts ...func(*ClientUtil)) *ClientUtil {
-	p, _ := strconv.Atoi(port)
+	p, _ := strconv.ParseUint(port, 10, 16)
 	c := &ClientUtil{
 		address: address,
-		port:    p,
+		port:    uint16(p),
 		host:    net.JoinHostPort(address, port),
 		lookupIP: func(host string) ([]net.IP, error) {
 			return LookupIP(net.DefaultResolver, host)
@@ -120,7 +120,7 @@ func (c *ClientUtil) refresh() {
 	}
 
 	c.lookupCache = make([]string, 0, len(x))
-	port := strconv.Itoa(c.port)
+	port := strconv.FormatUint(uint64(c.port), 10)
 	for i := range x {
 		c.lookupCache = append(c.lookupCache, net.JoinHostPort(x[i].String(), port))
 	}

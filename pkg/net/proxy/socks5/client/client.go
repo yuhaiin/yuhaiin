@@ -243,7 +243,7 @@ func ParseAddr(hostname string) (data []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	serverPort, err := strconv.Atoi(port)
+	serverPort, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
 		return nil, err
 	}

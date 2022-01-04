@@ -80,16 +80,16 @@ func (p *Point_Vmess) Conn() (proxy.Proxy, error) {
 	if x == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-	port, err := strconv.Atoi(x.Port)
+	_, err := strconv.ParseUint(x.Port, 10, 16)
 	if err != nil {
 		return nil, fmt.Errorf("convert port to int failed: %v", err)
 	}
-	aid, err := strconv.Atoi(x.AlterId)
+	aid, err := strconv.ParseInt(x.AlterId, 10, 0)
 	if err != nil {
 		return nil, fmt.Errorf("convert AlterId to int failed: %v", err)
 	}
 
-	c := utils.NewClientUtil(x.Address, strconv.Itoa(port))
+	c := utils.NewClientUtil(x.Address, x.Port)
 
 	pp, err := websocket.NewWebsocket(x.Host, x.Path, !x.VerifyCert, x.Tls == "tls", nil)(c)
 	if err != nil {

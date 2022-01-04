@@ -66,7 +66,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 
 	// should initialize obfs/protocol now
 	rs := strings.Split(ssrconn.RemoteAddr().String(), ":")
-	port, _ := strconv.Atoi(rs[1])
+	port, _ := strconv.ParseUint(rs[1], 10, 16)
 
 	ssrconn.IObfs = obfs.NewObfs(s.obfs)
 	if ssrconn.IObfs == nil {
