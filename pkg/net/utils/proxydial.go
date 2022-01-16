@@ -3,11 +3,16 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 // LookupIP looks up host using the local resolver.
@@ -73,9 +78,11 @@ var clientDialer = net.Dialer{Timeout: time.Second * 10}
 func (c *ClientUtil) dial() (net.Conn, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
+	es := &errs{}
 	for ci := range c.lookupCache {
 		conn, err := clientDialer.DialContext(context.Background(), "tcp", c.lookupCache[ci])
 		if err != nil {
+			es.Add(err)
 			continue
 		}
 
@@ -86,14 +93,52 @@ func (c *ClientUtil) dial() (net.Conn, error) {
 		return conn, nil
 	}
 
-	return nil, errors.New("dial failed")
+	return nil, fmt.Errorf("dial failed: %w", es)
+}
+
+type errs struct {
+	err []error
+}
+
+func (e *errs) Error() string {
+	s := strings.Builder{}
+	for i := range e.err {
+		s.WriteString(e.err[i].Error())
+		s.WriteByte('\n')
+	}
+
+	return s.String()
+}
+
+func (e *errs) Errors() []error {
+	return e.err
+}
+
+func (e *errs) Add(err error) {
+	if err == nil {
+		return
+	}
+	e.err = append(e.err, err)
 }
 
 //GetConn .
 func (c *ClientUtil) GetConn() (net.Conn, error) {
+	r := 0
+
+retry:
 	conn, err := c.dial()
 	if err == nil {
 		return conn, err
+	}
+
+	if errors.Is(err, syscall.ECONNRESET) {
+		if r <= 3 {
+			logasfmt.Println("check connection reset by peer: ", err, "retry")
+			r++
+			goto retry
+		}
+		logasfmt.Println("direct return error:", err)
+		return nil, err
 	}
 
 	c.refreshCache()

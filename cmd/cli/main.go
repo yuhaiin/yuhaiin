@@ -50,27 +50,29 @@ func defaultConfigDir() (Path string) {
 	return
 }
 
+var y *yhCli
+
 func main() {
-	host, err := ioutil.ReadFile(filepath.Join(defaultConfigDir(), "yuhaiin.lock_payload"))
-	if err != nil {
-		panic(err)
-	}
-	y, err := NewCli(string(host))
-	if err != nil {
-		panic(err)
-	}
+	cobra.OnInitialize(func() {
+		host, err := ioutil.ReadFile(filepath.Join(defaultConfigDir(), "yuhaiin.lock_payload"))
+		if err != nil {
+			panic(err)
+		}
+		y, err = NewCli(string(host))
+		if err != nil {
+			panic(err)
+		}
+	})
 
 	rootCmd := cobra.Command{
 		Use:   "yh",
 		Short: "a cli client for yuhaiin",
-		Long:  "",
 	}
-
-	rootCmd.AddCommand(nodeCmd(y), latencyCmd(y), streamCmd(y), subCmd(y), listCmd(y), configCmd(y), connCmd(y))
+	rootCmd.AddCommand(nodeCmd(), latencyCmd(), streamCmd(), subCmd(), listCmd(), configCmd(), connCmd())
 	rootCmd.Execute()
 }
 
-func latencyCmd(y *yhCli) *cobra.Command {
+func latencyCmd() *cobra.Command {
 	latency := &cobra.Command{
 		Use:   "lat",
 		Short: "get node latency",
@@ -114,7 +116,7 @@ lat -s 5322574f8337b90440650c0d7c4a2427d2194b6cefc916f859e6656f1b0e797d`,
 	return latency
 }
 
-func streamCmd(y *yhCli) *cobra.Command {
+func streamCmd() *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   "data",
 		Short: "see stream data",
@@ -126,7 +128,7 @@ func streamCmd(y *yhCli) *cobra.Command {
 	return streamCmd
 }
 
-func subCmd(y *yhCli) *cobra.Command {
+func subCmd() *cobra.Command {
 	subCmd := &cobra.Command{
 		Use: "sub",
 	}
@@ -189,7 +191,7 @@ func subCmd(y *yhCli) *cobra.Command {
 	return subCmd
 }
 
-func listCmd(y *yhCli) *cobra.Command {
+func listCmd() *cobra.Command {
 	ls := &cobra.Command{
 		Use:   "ls",
 		Short: "list node info",
@@ -251,7 +253,7 @@ ls 0 0`,
 	return ls
 }
 
-func nodeCmd(y *yhCli) *cobra.Command {
+func nodeCmd() *cobra.Command {
 	nodeCmd := &cobra.Command{
 		Use: "node",
 	}
@@ -312,7 +314,7 @@ set 0 0 vmess.address=example
 	return nodeCmd
 }
 
-func configCmd(y *yhCli) *cobra.Command {
+func configCmd() *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:  "config",
 		Long: "list config",
@@ -343,7 +345,7 @@ func configCmd(y *yhCli) *cobra.Command {
 	return configCmd
 }
 
-func connCmd(y *yhCli) *cobra.Command {
+func connCmd() *cobra.Command {
 	connCmd := &cobra.Command{
 		Use: "conn",
 	}

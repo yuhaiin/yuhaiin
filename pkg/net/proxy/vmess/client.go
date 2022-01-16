@@ -20,7 +20,7 @@ type Vmess struct {
 
 func NewVmess(uuid, security string, alterID uint32) func(p proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		client, err := gcvmess.NewClient(uuid, security, int(alterID))
+		client, err := gcvmess.NewClient(uuid, security, int(alterID), alterID == 0)
 		if err != nil {
 			return nil, fmt.Errorf("new vmess client failed: %v", err)
 		}

@@ -6,8 +6,10 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"io"
 	"math/rand"
@@ -49,6 +51,8 @@ type Client struct {
 	count    int
 	opt      byte
 	security byte
+
+	isAead bool
 }
 
 // Conn is a connection to vmess server
@@ -71,17 +75,20 @@ type Conn struct {
 	dataReader io.Reader
 	dataWriter io.Writer
 
-	udp bool
+	isAead bool
+	udp    bool
 }
 
 // NewClient .
-func NewClient(uuidStr, security string, alterID int) (*Client, error) {
+func NewClient(uuidStr, security string, alterID int, isAead bool) (*Client, error) {
 	uuid, err := StrToUUID(uuidStr)
 	if err != nil {
 		return nil, err
 	}
 
-	c := &Client{}
+	c := &Client{
+		isAead: isAead,
+	}
 	user := NewUser(uuid)
 	c.users = append(c.users, user)
 	c.users = append(c.users, user.GenAlterIDUsers(alterID)...)
@@ -119,7 +126,9 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 
 // NewConn .
 func (c *Client) NewConn(rc net.Conn, network, target string) (*Conn, error) {
-	conn := &Conn{user: c.users[rand.Intn(c.count)], opt: c.opt, security: c.security, udp: network == "udp"}
+	conn := &Conn{
+		isAead: c.isAead,
+		user:   c.users[rand.Intn(c.count)], opt: c.opt, security: c.security, udp: network == "udp"}
 	var err error
 	conn.atyp, conn.addr, conn.port, err = ParseAddr(target)
 	if err != nil {
@@ -133,14 +142,24 @@ func (c *Client) NewConn(rc net.Conn, network, target string) (*Conn, error) {
 	copy(conn.reqBodyKey[:], randBytes[16:32])
 	conn.reqRespV = randBytes[32]
 
-	conn.respBodyIV = md5.Sum(conn.reqBodyIV[:])
-	conn.respBodyKey = md5.Sum(conn.reqBodyKey[:])
+	if !c.isAead {
+		// !none aead
+		conn.respBodyIV = md5.Sum(conn.reqBodyIV[:])
+		conn.respBodyKey = md5.Sum(conn.reqBodyKey[:])
 
-	// AuthInfo
-	_, err = rc.Write(conn.EncodeAuthInfo())
-	if err != nil {
-		return nil, err
+		// AuthInfo
+		_, err = rc.Write(conn.EncodeAuthInfo())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// aead
+		rbIV := sha256.Sum256(conn.reqBodyIV[:])
+		copy(conn.respBodyIV[:], rbIV[:16])
+		rbKey := sha256.Sum256(conn.reqBodyKey[:])
+		copy(conn.respBodyKey[:], rbKey[:16])
 	}
+
 	// Request
 	req, err := conn.EncodeRequest()
 	if err != nil {
@@ -215,33 +234,54 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	}
 	buf.Write(fnv1a.Sum(nil))
 
-	block, err := aes.NewCipher(c.user.CmdKey[:])
-	if err != nil {
-		return nil, err
+	if !c.isAead {
+		// !none aead
+		block, err := aes.NewCipher(c.user.CmdKey[:])
+		if err != nil {
+			return nil, err
+		}
+
+		stream := cipher.NewCFBEncrypter(block, TimestampHash(time.Now().UTC()))
+		stream.XORKeyStream(buf.Bytes(), buf.Bytes())
+		return buf.Bytes(), nil
 	}
 
-	stream := cipher.NewCFBEncrypter(block, TimestampHash(time.Now().UTC()))
-	stream.XORKeyStream(buf.Bytes(), buf.Bytes())
-
-	return buf.Bytes(), nil
+	// aead
+	var fixedLengthCmdKey [16]byte
+	copy(fixedLengthCmdKey[:], c.user.CmdKey[:])
+	vmessout := SealVMessAEADHeader(fixedLengthCmdKey, buf.Bytes())
+	return vmessout, nil
 }
 
 // DecodeRespHeader .
 func (c *Conn) DecodeRespHeader() error {
-	block, err := aes.NewCipher(c.respBodyKey[:])
-	if err != nil {
-		return err
+	var buf []byte
+	if !c.isAead {
+		// !none aead
+		block, err := aes.NewCipher(c.respBodyKey[:])
+		if err != nil {
+			return err
+		}
+
+		stream := cipher.NewCFBDecrypter(block, c.respBodyIV[:])
+
+		buf = make([]byte, 4)
+		_, err = io.ReadFull(c.Conn, buf)
+		if err != nil {
+			return err
+		}
+
+		stream.XORKeyStream(buf, buf)
+	} else {
+		var err error
+		buf, err = DecodeResponseHeader(c.respBodyKey[:], c.respBodyIV[:], c.Conn)
+		if err != nil {
+			return fmt.Errorf("decode response header failed: %w", err)
+		}
+		if len(buf) < 4 {
+			return errors.New("unexpected buffer length")
+		}
 	}
-
-	stream := cipher.NewCFBDecrypter(block, c.respBodyIV[:])
-
-	buf := make([]byte, 4)
-	_, err = io.ReadFull(c.Conn, buf)
-	if err != nil {
-		return err
-	}
-
-	stream.XORKeyStream(buf, buf)
 
 	if buf[0] != c.reqRespV {
 		return errors.New("unexpected response header")
