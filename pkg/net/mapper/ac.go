@@ -7,14 +7,14 @@ type ac struct {
 type acNode struct {
 	fail *acNode
 	mark string
-	node map[byte]*acNode
+	node map[rune]*acNode
 }
 
 func (a *ac) search(str string) []string {
 	p := a.root
 	resp := []string{}
 
-	for _, c := range []byte(str) {
+	for _, c := range str {
 		_, ok := p.node[c]
 		for !ok && p != a.root {
 			p = p.fail
@@ -39,7 +39,7 @@ func (a *ac) searchLongest(str string) string {
 	p := a.root
 	resp := ""
 
-	for _, c := range []byte(str) {
+	for _, c := range str {
 		_, ok := p.node[c]
 		for !ok && p != a.root {
 			p = p.fail
@@ -63,9 +63,9 @@ func (a *ac) searchLongest(str string) string {
 
 func (a *ac) Insert(str string) {
 	p := a.root
-	for _, c := range []byte(str) {
+	for _, c := range str {
 		if p.node[c] == nil {
-			p.node[c] = &acNode{node: make(map[byte]*acNode)}
+			p.node[c] = &acNode{node: make(map[rune]*acNode)}
 		}
 		p = p.node[c]
 	}
@@ -90,7 +90,7 @@ func (a *ac) BuildFail() {
 	}
 }
 
-func (a *ac) findFail(parent *acNode, b byte) *acNode {
+func (a *ac) findFail(parent *acNode, b rune) *acNode {
 	if parent == a.root {
 		return parent
 	}
@@ -103,7 +103,7 @@ func (a *ac) findFail(parent *acNode, b byte) *acNode {
 type queueElem struct {
 	p *acNode
 	n *acNode
-	b byte
+	b rune
 }
 type queue struct {
 	qu []*queueElem
@@ -132,7 +132,7 @@ func (q *queue) size() int {
 	return len(q.qu)
 }
 func NewAC() *ac {
-	r := &acNode{node: make(map[byte]*acNode)}
+	r := &acNode{node: make(map[rune]*acNode)}
 	r.fail = r
 
 	return &ac{root: r}

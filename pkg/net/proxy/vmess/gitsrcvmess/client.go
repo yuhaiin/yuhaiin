@@ -72,8 +72,8 @@ type Conn struct {
 	respBodyKey [16]byte
 
 	net.Conn
-	dataReader io.Reader
-	dataWriter io.Writer
+	dataReader io.ReadCloser
+	dataWriter io.WriteCloser
 
 	isAead bool
 	udp    bool
@@ -368,4 +368,16 @@ func (c *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
 
 func (c *Conn) WriteTo(b []byte, _ net.Addr) (int, error) {
 	return c.Write(b)
+}
+
+func (c *Conn) Close() error {
+	if c.dataReader != nil {
+		c.dataReader.Close()
+	}
+
+	if c.dataWriter != nil {
+		c.dataWriter.Close()
+	}
+
+	return c.Conn.Close()
 }

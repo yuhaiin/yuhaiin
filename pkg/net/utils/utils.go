@@ -7,32 +7,40 @@ import (
 	"sync"
 )
 
-var (
-	//BuffPool byte array poll
-	BuffPool = sync.Pool{
+var poolMap = sync.Map{}
+var DefaultSize = 8 * 0x400
+
+func BuffPool(size int) *sync.Pool {
+	if v, ok := poolMap.Load(size); ok {
+		return v.(*sync.Pool)
+	}
+
+	p := &sync.Pool{
 		New: func() interface{} {
-			x := make([]byte, 8*0x400)
+			x := make([]byte, size)
 			return &x
 		},
 	}
-)
+	poolMap.Store(size, p)
+	return p
+}
 
 //Forward pipe
 func Forward(conn1, conn2 net.Conn) {
 	go func() {
-		buf := *BuffPool.Get().(*[]byte)
-		defer BuffPool.Put(&(buf))
+		buf := *BuffPool(DefaultSize).Get().(*[]byte)
+		defer BuffPool(DefaultSize).Put(&(buf))
 		_, _ = io.CopyBuffer(conn2, conn1, buf)
 	}()
-	buf := *BuffPool.Get().(*[]byte)
-	defer BuffPool.Put(&(buf))
+	buf := *BuffPool(DefaultSize).Get().(*[]byte)
+	defer BuffPool(DefaultSize).Put(&(buf))
 	_, _ = io.CopyBuffer(conn1, conn2, buf)
 }
 
 //SingleForward single pipe
 func SingleForward(src io.Reader, dst io.Writer) (err error) {
-	buf := *BuffPool.Get().(*[]byte)
-	defer BuffPool.Put(&(buf))
+	buf := *BuffPool(DefaultSize).Get().(*[]byte)
+	defer BuffPool(DefaultSize).Put(&(buf))
 	_, err = io.CopyBuffer(dst, src, buf)
 	return
 }

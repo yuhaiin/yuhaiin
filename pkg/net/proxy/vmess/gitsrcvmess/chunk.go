@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 const (
@@ -12,17 +14,24 @@ const (
 	defaultChunkSize = 1 << 13 // 8192
 )
 
+var _ io.WriteCloser = &aeadWriter{}
+
 type chunkedWriter struct {
 	io.Writer
 	buf []byte
 }
 
 // ChunkedWriter returns a chunked writer
-func ChunkedWriter(w io.Writer) io.Writer {
+func ChunkedWriter(w io.Writer) io.WriteCloser {
 	return &chunkedWriter{
 		Writer: w,
-		buf:    make([]byte, lenSize+maxChunkSize),
+		buf:    *utils.BuffPool(lenSize + maxChunkSize).Get().(*[]byte),
 	}
+}
+
+func (w *chunkedWriter) Close() error {
+	utils.BuffPool(lenSize + maxChunkSize).Put(&w.buf)
+	return nil
 }
 
 func (w *chunkedWriter) Write(b []byte) (int, error) {
@@ -61,11 +70,16 @@ type chunkedReader struct {
 }
 
 // ChunkedReader returns a chunked reader
-func ChunkedReader(r io.Reader) io.Reader {
+func ChunkedReader(r io.Reader) io.ReadCloser {
 	return &chunkedReader{
 		Reader: r,
-		buf:    make([]byte, lenSize), // NOTE: buf only used to save header bytes now
+		buf:    *utils.BuffPool(lenSize).Get().(*[]byte), // NOTE: buf only used to save header bytes now
 	}
+}
+
+func (r *chunkedReader) Close() error {
+	utils.BuffPool(lenSize).Put(&r.buf)
+	return nil
 }
 
 func (r *chunkedReader) Read(b []byte) (int, error) {
