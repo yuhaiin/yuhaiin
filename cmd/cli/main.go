@@ -287,7 +287,10 @@ set 0 0 vmess.address=example
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 2 {
-				y.setNodeConfig(args[0], args[1])
+				err := y.setNodeConfig(args[0], args[1])
+				if err != nil {
+					log.Println(err)
+				}
 			}
 			if len(args) == 3 {
 				i, err := strconv.Atoi(args[0])

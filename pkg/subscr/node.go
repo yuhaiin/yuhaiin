@@ -302,6 +302,7 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 		return &emptypb.Empty{}, nil
 	}
 
+	delete(n.node.Nodes, s.Value)
 	delete(n.node.GroupNodesMap[p.NGroup].NodeHashMap, p.NName)
 
 	for i, x := range n.node.GroupNodesMap[p.NGroup].Nodes {
