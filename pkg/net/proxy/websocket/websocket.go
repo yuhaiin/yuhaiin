@@ -23,67 +23,6 @@ type Client struct {
 	p      proxy.Proxy
 }
 
-func NewClient(conn func() (net.Conn, error), host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCertFilePath []string) *Client {
-	c := &Client{}
-
-	c.dialer = websocket.Dialer{
-		NetDial: func(network, addr string) (net.Conn, error) {
-			return conn()
-		},
-		ReadBufferSize:   16 * 1024,
-		WriteBufferSize:  16 * 1024,
-		HandshakeTimeout: time.Second * 12,
-	}
-
-	protocol := "ws"
-	if tlsEnable {
-		//tls
-		protocol = "wss"
-		root, err := x509.SystemCertPool()
-		if err != nil {
-			log.Printf("get x509 system cert pool failed: %v, create new cert pool.", err)
-			root = x509.NewCertPool()
-		}
-
-		ns, _, err := net.SplitHostPort(host)
-		if err != nil {
-			log.Printf("split host and port failed: %v", err)
-			ns = host
-		}
-		c.dialer.TLSClientConfig = &tls.Config{
-			ServerName:             ns,
-			RootCAs:                root,
-			NextProtos:             []string{"http/1.1"},
-			InsecureSkipVerify:     insecureSkipVerify,
-			SessionTicketsDisabled: true,
-			ClientSessionCache:     tlsSessionCache,
-		}
-
-		for i := range tlsCaCertFilePath {
-			if tlsCaCertFilePath[i] == "" {
-				continue
-			}
-
-			cert, err := ioutil.ReadFile(tlsCaCertFilePath[i])
-			if err != nil {
-				log.Printf("read cert failed: %v\n", err)
-				continue
-			}
-
-			ok := c.dialer.TLSClientConfig.RootCAs.AppendCertsFromPEM(cert)
-			if !ok {
-				log.Printf("add cert from pem failed.")
-			}
-		}
-	}
-
-	c.header = http.Header{}
-	c.header.Add("Host", host)
-	c.uri = fmt.Sprintf("%s://%s%s", protocol, host, getNormalizedPath(path))
-
-	return c
-}
-
 func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCertFilePath []string) func(p proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{p: p}
@@ -92,8 +31,8 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 			NetDial: func(network, addr string) (net.Conn, error) {
 				return p.Conn(addr)
 			},
-			ReadBufferSize:   16 * 1024,
-			WriteBufferSize:  16 * 1024,
+			// ReadBufferSize:   16 * 1024,
+			// WriteBufferSize:  16 * 1024,
 			HandshakeTimeout: time.Second * 12,
 		}
 
@@ -146,15 +85,8 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 		return c, nil
 	}
 }
-func (c *Client) NewConn() (net.Conn, error) {
-	con, _, err := c.dialer.Dial(c.uri, c.header)
-	if err != nil {
-		return nil, fmt.Errorf("websocket dial failed: %w", err)
-	}
-	return &wsConn{Conn: con}, nil
-}
 
-func (c *Client) Conn(host string) (net.Conn, error) {
+func (c *Client) Conn(string) (net.Conn, error) {
 	con, _, err := c.dialer.Dial(c.uri, c.header)
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial failed: %w", err)
