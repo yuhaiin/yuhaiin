@@ -18,6 +18,7 @@ type LRU struct {
 	list     *list.List
 	mapping  sync.Map
 	timeout  time.Duration
+	lock     sync.Mutex
 }
 
 //NewLru create new lru cache
@@ -30,6 +31,8 @@ func NewLru(capacity int, timeout time.Duration) *LRU {
 }
 
 func (l *LRU) Add(key, value interface{}) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	if elem, ok := l.mapping.Load(key); ok {
 		r := elem.(*list.Element).Value.(*lruEntry)
 		r.key = key
@@ -64,6 +67,8 @@ func (l *LRU) Delete(key interface{}) {
 }
 
 func (l *LRU) Load(key interface{}) (interface{}, bool) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	node, ok := l.mapping.Load(key)
 	if !ok {
 		return nil, false

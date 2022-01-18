@@ -88,6 +88,7 @@ message vmess{
     string v = 12 [json_name="v"];
     bool verify_cert = 13 [json_name="verify_cert"];
     int64 class = 14 [json_name="class"];
+    string security = 15 [json_name="security"];
 }
 
 message vmess2{
@@ -117,6 +118,7 @@ message vmess2{
     string v = 12 [json_name="v"];
     bool verify_cert = 13 [json_name="verify_cert"];
     int64 class = 14 [json_name="class"];
+    string security = 15 [json_name="security"];
 }
 
 message websocket {

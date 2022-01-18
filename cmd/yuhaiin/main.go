@@ -89,12 +89,16 @@ func main() {
 	/*
 	* net.Conn/net.PacketConn
 	*    |
+	*    v
 	* nodeManger
 	*    |
+	*    v
 	* BypassManager
 	*    |
+	*    v
 	* statis/connection manager
 	*    |
+	*    v
 	* listener
 	 */
 

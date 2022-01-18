@@ -10,12 +10,8 @@ import (
 
 //Vmess vmess client
 type Vmess struct {
-	uuid     string
-	security string
-	alterID  uint32
-
-	client  *gcvmess.Client
-	getConn proxy.Proxy
+	client *gcvmess.Client
+	dial   proxy.Proxy
 }
 
 func NewVmess(uuid, security string, alterID uint32) func(p proxy.Proxy) (proxy.Proxy, error) {
@@ -25,15 +21,7 @@ func NewVmess(uuid, security string, alterID uint32) func(p proxy.Proxy) (proxy.
 			return nil, fmt.Errorf("new vmess client failed: %v", err)
 		}
 
-		v := &Vmess{
-			uuid:     uuid,
-			security: security,
-			alterID:  alterID,
-			client:   client,
-			getConn:  p,
-		}
-
-		return v, nil
+		return &Vmess{client: client, dial: p}, nil
 	}
 
 }
@@ -49,7 +37,7 @@ func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
 }
 
 func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
-	conn, err := v.getConn.Conn(host)
+	conn, err := v.dial.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
