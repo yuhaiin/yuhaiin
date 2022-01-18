@@ -26,14 +26,14 @@ func BuffPool(size int) *sync.Pool {
 
 //Forward pipe
 func Forward(conn1, conn2 io.ReadWriter) {
-	go func() {
-		buf := *BuffPool(DefaultSize).Get().(*[]byte)
-		defer BuffPool(DefaultSize).Put(&(buf))
-		_, _ = io.CopyBuffer(conn2, conn1, buf)
-	}()
 	buf := *BuffPool(DefaultSize).Get().(*[]byte)
 	defer BuffPool(DefaultSize).Put(&(buf))
-	_, _ = io.CopyBuffer(conn1, conn2, buf)
+	i := DefaultSize / 2
+
+	go func() {
+		_, _ = io.CopyBuffer(conn2, conn1, buf[:i])
+	}()
+	_, _ = io.CopyBuffer(conn1, conn2, buf[i:])
 }
 
 //SingleForward single pipe

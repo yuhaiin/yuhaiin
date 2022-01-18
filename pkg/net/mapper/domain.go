@@ -62,10 +62,11 @@ func insert(root *domainNode, domain string, mark interface{}) {
 		}
 
 		if root.child == nil {
-			root.child = map[string]*domainNode{}
+			root.child = make(map[string]*domainNode)
 		}
+
 		if root.child[domain[pre:aft]] == nil {
-			root.child[domain[pre:aft]] = &domainNode{child: make(map[string]*domainNode)}
+			root.child[domain[pre:aft]] = &domainNode{}
 		}
 
 		root = root.child[domain[pre:aft]]

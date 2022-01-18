@@ -18,7 +18,7 @@ type Client struct {
 	uri string
 	p   proxy.Proxy
 
-	nywsDialer *nyws.DialOptions
+	dialOptions *nyws.DialOptions
 }
 
 func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCertFilePath []string) func(p proxy.Proxy) (proxy.Proxy, error) {
@@ -72,11 +72,11 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 			}
 		}
 
-		c.nywsDialer = &nyws.DialOptions{
+		c.dialOptions = &nyws.DialOptions{
 			HTTPHeader: http.Header{},
 			HTTPClient: &http.Client{Transport: transport},
 		}
-		c.nywsDialer.HTTPHeader.Add("Host", host)
+		c.dialOptions.HTTPHeader.Add("Host", host)
 		c.uri = fmt.Sprintf("%s://%s%s", protocol, host, getNormalizedPath(path))
 
 		return c, nil
@@ -84,7 +84,7 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 }
 
 func (c *Client) Conn(string) (net.Conn, error) {
-	con, _, err := nyws.Dial(context.TODO(), c.uri, c.nywsDialer)
+	con, _, err := nyws.Dial(context.TODO(), c.uri, c.dialOptions)
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial failed: %w", err)
 	}

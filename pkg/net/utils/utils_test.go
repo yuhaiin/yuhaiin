@@ -5,6 +5,8 @@ import (
 )
 
 func TestReducedUnit(t *testing.T) {
+	s := []string{"a", "b", "z", "c", "d"}
+	t.Log(s[:2], s[2:])
 	t.Log(ReducedUnit(2065))
 	t.Log(ReducedUnit(10240000))
 	t.Log(ReducedUnitStr(265))
