@@ -96,7 +96,7 @@ func (p *Point_Vmess) Conn() (proxy.Proxy, error) {
 		return nil, fmt.Errorf("create websocket failed: %w", err)
 	}
 
-	pp, err = libVmess.NewVmess(x.Uuid, "", uint32(aid))(pp)
+	pp, err = libVmess.NewVmess(x.Uuid, x.Security, uint32(aid))(pp)
 	if err != nil {
 		return nil, fmt.Errorf("create vmess failed: %w", err)
 	}

@@ -165,7 +165,7 @@ func handleUDP(target string, client net.Conn, f proxy.Proxy) error {
 		return fmt.Errorf("new udp server failed: %w", err)
 	}
 	writeSecondResp(client, succeeded, l.listener.LocalAddr().String())
-	io.Copy(io.Discard, client)
+	utils.SingleForward(client, io.Discard)
 	l.Close()
 	return nil
 }

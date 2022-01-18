@@ -86,10 +86,9 @@ func NewCidrMapper() *Cidr {
 	CIDR TRIE
 ********************************/
 type Trie struct {
-	isLast bool
-	mark   interface{}
-	left   *Trie // 0
-	right  *Trie // 1
+	mark  interface{}
+	left  *Trie // 0
+	right *Trie // 1
 }
 
 // Insert insert node to tree
@@ -112,8 +111,7 @@ func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 				r = r.left
 			}
 
-			if r.isLast || i*8+int(math.Log2(float64(128/b)))+1 == maskSize {
-				r.isLast = true
+			if r.mark != nil || i*8+int(math.Log2(float64(128/b)))+1 == maskSize {
 				r.mark = mark
 				r.left = new(Trie)
 				r.right = new(Trie)
@@ -136,7 +134,7 @@ func (t *Trie) Search(ip net.IP) (mark interface{}, ok bool) {
 			if r == nil {
 				return nil, false
 			}
-			if r.isLast {
+			if r.mark != nil {
 				return r.mark, true
 			}
 		}

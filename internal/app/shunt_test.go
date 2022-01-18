@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"net"
 	"testing"
 
@@ -43,4 +44,28 @@ func TestDiffDNS(t *testing.T) {
 	t.Log([]byte(xx.Mask))
 
 	t.Log(len(net.ParseIP("1.1.1.1")))
+}
+
+func TestIndex(t *testing.T) {
+	str := "aaaaabbbbbb "
+	a := []byte(str)
+	i := bytes.IndexByte(a, ' ')
+	if i == -1 {
+		return
+	}
+	c := a[:i]
+	i2 := bytes.IndexByte(a[i+1:], ' ')
+	var b []byte
+	if i2 != -1 {
+		b = a[i+1 : i2+i+1]
+	} else {
+		b = a[i+1:]
+	}
+
+	if bytes.Equal(b, []byte{}) {
+		t.Log("empty")
+	}
+
+	t.Log(i, i2+i+1)
+	t.Log(string(c), string(b)+";")
 }

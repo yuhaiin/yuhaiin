@@ -4,7 +4,6 @@ go 1.17
 
 require (
 	github.com/golang/mock v1.6.0
-	github.com/gorilla/websocket v1.4.2
 	github.com/lucas-clemente/quic-go v0.24.0
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091
@@ -13,8 +12,9 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/v2rayA/shadowsocksR v1.0.3
 	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce
-	google.golang.org/grpc v1.39.0
+	google.golang.org/grpc v1.43.0
 	google.golang.org/protobuf v1.27.1
+	nhooyr.io/websocket v1.8.7
 )
 
 require (
@@ -26,7 +26,9 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/marten-seemann/qtls-go1-16 v0.1.4 // indirect
 	github.com/marten-seemann/qtls-go1-17 v0.1.0 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect

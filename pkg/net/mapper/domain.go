@@ -4,11 +4,16 @@ import (
 	"strings"
 )
 
+var (
+	_        = 0
+	last     = 1
+	wildcard = 2
+)
+
 type domainNode struct {
-	last     bool
-	wildcard bool
-	mark     interface{}
-	child    map[string]*domainNode
+	symbol int
+	mark   interface{}
+	child  map[string]*domainNode
 }
 
 func search(root *domainNode, domain string) (interface{}, bool) {
@@ -16,17 +21,17 @@ func search(root *domainNode, domain string) (interface{}, bool) {
 }
 
 func searchDFS(root *domainNode, domain string, first, asterisk bool, aft int) (interface{}, bool) {
-	if root == nil || aft < 0 {
+	if root == nil || root.child == nil || aft < 0 {
 		return nil, false
 	}
 
 	pre := strings.LastIndexByte(domain[:aft], '.') + 1
 
 	if r, ok := root.child[domain[pre:aft]]; ok {
-		if r.wildcard {
+		if r.symbol == wildcard {
 			return r.mark, true
 		}
-		if r.last && pre == 0 {
+		if r.symbol == last && pre == 0 {
 			return r.mark, true
 		}
 		return searchDFS(r, domain, false, asterisk, pre-1)
@@ -50,12 +55,15 @@ func insert(root *domainNode, domain string, mark interface{}) {
 		pre = strings.LastIndexByte(domain[:aft], '.') + 1
 
 		if pre == 0 && domain[0] == '*' {
-			root.wildcard = true
+			root.symbol = wildcard
 			root.mark = mark
-			root.child = make(map[string]*domainNode) // clear child,because this node is last
+			root.child = nil
 			break
 		}
 
+		if root.child == nil {
+			root.child = map[string]*domainNode{}
+		}
 		if root.child[domain[pre:aft]] == nil {
 			root.child[domain[pre:aft]] = &domainNode{child: make(map[string]*domainNode)}
 		}
@@ -63,9 +71,9 @@ func insert(root *domainNode, domain string, mark interface{}) {
 		root = root.child[domain[pre:aft]]
 
 		if pre == 0 {
-			root.last = true
+			root.symbol = last
 			root.mark = mark
-			root.child = make(map[string]*domainNode) // clear child,because this node is last
+			root.child = nil
 		}
 
 		aft = pre - 1

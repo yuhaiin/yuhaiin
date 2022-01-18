@@ -80,15 +80,14 @@ type Conn struct {
 }
 
 // NewClient .
-func NewClient(uuidStr, security string, alterID int, isAead bool) (*Client, error) {
+func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 	uuid, err := StrToUUID(uuidStr)
 	if err != nil {
 		return nil, err
 	}
 
-	c := &Client{
-		isAead: isAead,
-	}
+	c := &Client{isAead: alterID == 0}
+
 	user := NewUser(uuid)
 	c.users = append(c.users, user)
 	c.users = append(c.users, user.GenAlterIDUsers(alterID)...)

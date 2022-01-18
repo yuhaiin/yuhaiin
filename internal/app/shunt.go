@@ -2,15 +2,18 @@ package app
 
 import (
 	"bufio"
+	"bytes"
 	_ "embed" //embed for bypass file
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path"
-	"regexp"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"unsafe"
@@ -24,18 +27,58 @@ import (
 //go:embed yuhaiin.conf
 var bypassData []byte
 
-func saveBypassData(filePath string) (err error) {
-	err = os.MkdirAll(path.Dir(filePath), os.ModePerm)
+func init() {
+	defer runtime.GC()
+
+	cache, err := os.UserCacheDir()
 	if err != nil {
-		return fmt.Errorf("make dir all failed: %w", err)
+		log.Println("get user cache dir failed:", err)
+		return
+	}
+	cache = path.Join(cache, "yuhaiin")
+	err = os.MkdirAll(cache, os.ModePerm)
+	if err != nil {
+		log.Println("create cache dir failed:", err)
+		return
+	}
+	err = ioutil.WriteFile(filepath.Join(cache, "bypass.conf"), bypassData, os.ModePerm)
+	if err != nil {
+		log.Println("write bypass file failed: %w", err)
+	}
+}
+
+func copyBypassFile(target string) error {
+	_, err := os.Stat(target)
+	if errors.Is(err, os.ErrNotExist) {
+		err = os.MkdirAll(filepath.Dir(target), os.ModePerm)
+	}
+	if err != nil {
+		return err
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return fmt.Errorf("get user cache dir failed: %w", err)
+	}
+	cache = filepath.Join(cache, "yuhaiin", "bypass.conf")
+	_, err = os.Stat(cache)
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("bypass file not found: %w", err)
 	}
 
-	err = ioutil.WriteFile(filePath, bypassData, os.ModePerm)
+	source, err := os.Open(cache)
 	if err != nil {
-		return fmt.Errorf("write bypass file failed: %w", err)
+		return fmt.Errorf("open bypass file failed: %w", err)
 	}
+	defer source.Close()
 
-	return
+	destination, err := os.Create(target)
+	if err != nil {
+		return fmt.Errorf("create bypass file failed: %w", err)
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
 }
 
 type Shunt struct {
@@ -102,7 +145,7 @@ func (s *Shunt) RefreshMapping() error {
 
 	_, err := os.Stat(s.file)
 	if errors.Is(err, os.ErrNotExist) {
-		err = saveBypassData(s.file)
+		err = copyBypassFile(s.file)
 	}
 	if err != nil {
 		return err
@@ -116,7 +159,6 @@ func (s *Shunt) RefreshMapping() error {
 
 	s.mapper.Clear()
 
-	re, _ := regexp.Compile("^([^ ]+) +([^ ]+) *$") // already test that is right regular expression, so don't need to check error
 	br := bufio.NewScanner(f)
 	for {
 		if !br.Scan() {
@@ -129,12 +171,25 @@ func (s *Shunt) RefreshMapping() error {
 			continue
 		}
 
-		result := re.FindSubmatch(a)
-		if len(result) != 3 {
+		i := bytes.IndexByte(a, ' ')
+		if i == -1 {
 			continue
 		}
 
-		s.mapper.Insert(string(result[1]), Mode[strings.ToLower(*(*string)(unsafe.Pointer(&result[2])))])
+		c := a[:i]
+		i2 := bytes.IndexByte(a[i+1:], ' ')
+		var b []byte
+		if i2 != -1 {
+			b = a[i+1 : i2+i+1]
+		} else {
+			b = a[i+1:]
+		}
+
+		if bytes.Equal(b, []byte{}) {
+			continue
+		}
+
+		s.mapper.Insert(string(c), Mode[strings.ToLower(*(*string)(unsafe.Pointer(&b)))])
 	}
 	return nil
 }

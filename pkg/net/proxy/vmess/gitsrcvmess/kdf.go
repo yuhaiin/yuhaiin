@@ -14,6 +14,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 // copy from https://github.com/v2fly/v2ray-core/tree/054e6679830885c94cc37d27ab2aa96b5b37e019/proxy/vmess/aead
@@ -84,7 +86,8 @@ func NewCipherFromKey(cmdKey []byte) cipher.Block {
 func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 	generatedAuthID := CreateAuthID(key[:], time.Now().Unix())
 
-	connectionNonce := make([]byte, 8)
+	connectionNonce := *utils.BuffPool(8).Get().(*[]byte)
+	defer utils.BuffPool(8).Put(&connectionNonce)
 	if _, err := io.ReadFull(rand3.Reader, connectionNonce); err != nil {
 		panic(err.Error())
 	}

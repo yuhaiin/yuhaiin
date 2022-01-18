@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"io"
-	"net"
 	"sync"
 )
 
@@ -26,7 +25,7 @@ func BuffPool(size int) *sync.Pool {
 }
 
 //Forward pipe
-func Forward(conn1, conn2 net.Conn) {
+func Forward(conn1, conn2 io.ReadWriter) {
 	go func() {
 		buf := *BuffPool(DefaultSize).Get().(*[]byte)
 		defer BuffPool(DefaultSize).Put(&(buf))
