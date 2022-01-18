@@ -49,3 +49,33 @@ func TestUnmarshal2(t *testing.T) {
 	}
 	t.Log(z)
 }
+
+// func TestVmess(t *testing.T) {
+// 	z, err := createConn()
+// 	require.NoError(t, err)
+
+// 	tt := &http.Client{
+// 		Transport: &http.Transport{
+// 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+// 				return z.Conn(addr)
+// 			},
+// 		},
+// 	}
+
+// 	req := http.Request{
+// 		Method: "GET",
+// 		URL: &url.URL{
+// 			Scheme: "http",
+// 			Host:   "ip.sb",
+// 		},
+// 		Header: make(http.Header),
+// 	}
+// 	req.Header.Set("User-Agent", "curl/v2.4.1")
+// 	resp, err := tt.Do(&req)
+// 	t.Error(err)
+// 	require.Nil(t, err)
+// 	defer resp.Body.Close()
+// 	data, err := ioutil.ReadAll(resp.Body)
+// 	require.Nil(t, err)
+// 	t.Log(string(data))
+// }

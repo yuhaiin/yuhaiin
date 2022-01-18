@@ -9,7 +9,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	ss5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	ss5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
@@ -97,7 +96,7 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
 	}
 
-	host, port, addrSize, err := ss5server.ResolveAddr(b[:n])
+	host, port, addrSize, err := ss5client.ResolveAddr(b[:n])
 	if err != nil {
 		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
 	}

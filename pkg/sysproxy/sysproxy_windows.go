@@ -2,6 +2,7 @@ package sysproxy
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -48,6 +49,13 @@ func getSysProxy() (*syscall.LazyDLL, error) {
 		return nil, errors.New("not support " + runtime.GOARCH)
 	}
 
+	if dll == "" {
+		return nil, fmt.Errorf("dll filepath is empty")
+	}
+	_, err = os.Stat(dll)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("dll file is not exist: %w", err)
+	}
 	logasfmt.Println("System Proxy DLL:", dll)
 	return syscall.NewLazyDLL(dll), nil
 }
@@ -67,6 +75,11 @@ func SetSysProxy(http, _ string) {
 		return
 	}
 	setSysProxy := sysproxy.NewProc("SetSystemProxy")
+	if err = setSysProxy.Find(); err != nil {
+		logasfmt.Println("can't find SetSystemProxy func", err)
+		return
+	}
+
 	hostPtr, err := strPtr(httpHostname)
 	if err != nil {
 		log.Println(err)
@@ -104,6 +117,10 @@ func UnsetSysProxy() {
 		return
 	}
 	clearSysproxy := sysproxy.NewProc("ClearSystemProxy")
+	if err = clearSysproxy.Find(); err != nil {
+		logasfmt.Println("can't find ClearSystemProxy func", err)
+		return
+	}
 	ret, _, e1 := syscall.Syscall(clearSysproxy.Addr(), 0, 0, 0, 0)
 	if ret == 0 {
 		if e1 != 0 {

@@ -1,143 +1,47 @@
 package utils
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
-	"log"
-	"net"
-	"strconv"
 	"sync"
-	"time"
 )
 
-var (
-	//BuffPool byte array poll
-	BuffPool = sync.Pool{
+var poolMap = sync.Map{}
+var DefaultSize = 8 * 0x400
+
+func BuffPool(size int) *sync.Pool {
+	if v, ok := poolMap.Load(size); ok {
+		return v.(*sync.Pool)
+	}
+
+	p := &sync.Pool{
 		New: func() interface{} {
-			x := make([]byte, 8*0x400)
+			x := make([]byte, size)
 			return &x
 		},
 	}
-)
+	poolMap.Store(size, p)
+	return p
+}
 
 //Forward pipe
-func Forward(conn1, conn2 net.Conn) {
+func Forward(conn1, conn2 io.ReadWriter) {
+	buf := *BuffPool(DefaultSize).Get().(*[]byte)
+	defer BuffPool(DefaultSize).Put(&(buf))
+	i := DefaultSize / 2
+
 	go func() {
-		buf := *BuffPool.Get().(*[]byte)
-		defer BuffPool.Put(&(buf))
-		_, _ = io.CopyBuffer(conn2, conn1, buf)
+		_, _ = io.CopyBuffer(conn2, conn1, buf[:i])
 	}()
-	buf := *BuffPool.Get().(*[]byte)
-	defer BuffPool.Put(&(buf))
-	_, _ = io.CopyBuffer(conn1, conn2, buf)
+	_, _ = io.CopyBuffer(conn1, conn2, buf[i:])
 }
 
 //SingleForward single pipe
 func SingleForward(src io.Reader, dst io.Writer) (err error) {
-	buf := *BuffPool.Get().(*[]byte)
-	defer BuffPool.Put(&(buf))
+	buf := *BuffPool(DefaultSize).Get().(*[]byte)
+	defer BuffPool(DefaultSize).Put(&(buf))
 	_, err = io.CopyBuffer(dst, src, buf)
 	return
-}
-
-// LookupIP looks up host using the local resolver.
-// It returns a slice of that host's IPv4 and IPv6 addresses.
-func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
-	addrs, err := resolver.LookupIPAddr(context.Background(), host)
-	if err != nil {
-		return nil, err
-	}
-	ips := make([]net.IP, len(addrs))
-	for i, ia := range addrs {
-		ips[i] = ia.IP
-	}
-	return ips, nil
-}
-
-//ClientUtil .
-type ClientUtil struct {
-	address  string
-	port     int
-	host     string
-	tcpCache []*net.TCPAddr
-	lock     sync.RWMutex
-}
-
-//NewClientUtil .
-func NewClientUtil(address, port string) *ClientUtil {
-	p, _ := strconv.Atoi(port)
-	return &ClientUtil{
-		address: address,
-		port:    p,
-		host:    net.JoinHostPort(address, port),
-	}
-}
-
-func (c *ClientUtil) lookUp(s string) ([]net.IP, error) {
-	return LookupIP(net.DefaultResolver, s)
-}
-
-func (c *ClientUtil) dial() (net.Conn, error) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	for ci := range c.tcpCache {
-		conn, err := net.DialTimeout("tcp", c.tcpCache[ci].String(), time.Second*10)
-		if err != nil {
-			continue
-		}
-		return conn, nil
-	}
-	return nil, errors.New("dial failed")
-}
-
-//GetConn .
-func (c *ClientUtil) GetConn() (net.Conn, error) {
-	conn, err := c.dial()
-	if err == nil {
-		return conn, err
-	}
-
-	if x, ok := conn.(*net.TCPConn); ok {
-		_ = x.SetKeepAlive(true)
-	}
-
-	c.refreshCache()
-
-	return c.dial()
-}
-
-func (c *ClientUtil) Conn(host string) (net.Conn, error) {
-	return c.GetConn()
-}
-
-func (c *ClientUtil) PacketConn(host string) (net.PacketConn, error) {
-	return net.ListenPacket("udp", "")
-}
-
-func (c *ClientUtil) refreshCache() {
-	var x []net.IP
-	if z := net.ParseIP(c.address); z != nil {
-		x = append(x, z)
-	} else {
-		var err error
-		x, err = c.lookUp(c.address)
-		if err != nil {
-			log.Printf("lookup address %s failed: %v", c.address, err)
-			return
-		}
-	}
-
-	tcpCache := make([]*net.TCPAddr, 0, len(x))
-	for i := range x {
-		tcpCache = append(c.tcpCache, &net.TCPAddr{IP: x[i], Port: c.port})
-	}
-
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.tcpCache = tcpCache
 }
 
 //Unit .

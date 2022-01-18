@@ -32,6 +32,15 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 		}
 	}
 
+	hostname, port, _ := net.SplitHostPort(host)
+	if net.ParseIP(hostname) == nil {
+		i, err := net.LookupIP(hostname)
+		if err != nil {
+			i = []net.IP{net.ParseIP("1.1.1.1")}
+		}
+		host = net.JoinHostPort(i[0].String(), port)
+	}
+
 	return &dot{
 		host:         host,
 		subnet:       subnet,

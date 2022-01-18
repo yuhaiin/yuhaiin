@@ -5,7 +5,11 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"io"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
+
+var _ io.WriteCloser = &aeadWriter{}
 
 type aeadWriter struct {
 	io.Writer
@@ -17,15 +21,21 @@ type aeadWriter struct {
 }
 
 // AEADWriter returns a aead writer
-func AEADWriter(w io.Writer, aead cipher.AEAD, iv []byte) io.Writer {
+func AEADWriter(w io.Writer, aead cipher.AEAD, iv []byte) io.WriteCloser {
 	return &aeadWriter{
 		Writer: w,
 		AEAD:   aead,
-		buf:    make([]byte, lenSize+maxChunkSize),
-		nonce:  make([]byte, aead.NonceSize()),
+		buf:    *utils.BuffPool(lenSize + maxChunkSize).Get().(*[]byte),
+		nonce:  *utils.BuffPool(aead.NonceSize()).Get().(*[]byte),
 		count:  0,
 		iv:     iv,
 	}
+}
+
+func (w *aeadWriter) Close() error {
+	utils.BuffPool(lenSize + maxChunkSize).Put(&w.buf)
+	utils.BuffPool(w.AEAD.NonceSize()).Put(&w.nonce)
+	return nil
 }
 
 func (w *aeadWriter) Write(b []byte) (int, error) {
@@ -68,6 +78,8 @@ func (w *aeadWriter) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, err
 }
 
+var _ io.ReadCloser = &aeadReader{}
+
 type aeadReader struct {
 	io.Reader
 	cipher.AEAD
@@ -79,15 +91,21 @@ type aeadReader struct {
 }
 
 // AEADReader returns a aead reader
-func AEADReader(r io.Reader, aead cipher.AEAD, iv []byte) io.Reader {
+func AEADReader(r io.Reader, aead cipher.AEAD, iv []byte) io.ReadCloser {
 	return &aeadReader{
 		Reader: r,
 		AEAD:   aead,
-		buf:    make([]byte, lenSize+maxChunkSize),
-		nonce:  make([]byte, aead.NonceSize()),
+		buf:    *utils.BuffPool(lenSize + maxChunkSize).Get().(*[]byte),
+		nonce:  *utils.BuffPool(aead.NonceSize()).Get().(*[]byte),
 		count:  0,
 		iv:     iv,
 	}
+}
+
+func (r *aeadReader) Close() error {
+	utils.BuffPool(lenSize + maxChunkSize).Put(&r.buf)
+	utils.BuffPool(r.AEAD.NonceSize()).Put(&r.nonce)
+	return nil
 }
 
 func (r *aeadReader) Read(b []byte) (int, error) {
