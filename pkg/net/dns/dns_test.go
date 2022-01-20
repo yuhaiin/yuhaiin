@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"testing"
 
 	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
@@ -23,7 +24,8 @@ func TestDNS(t *testing.T) {
 }
 
 func TestDNS2(t *testing.T) {
-	dns := NewDNS("114.114.114.114:53", nil, nil)
+	_, subnet, _ := net.ParseCIDR("1.1.1.1/32")
+	dns := NewDNS("114.114.114.114:53", subnet, nil)
 	t.Log(dns.LookupIP("baidu.com"))
 	t.Log(dns.LookupIP("google.com"))
 	//t.Log(DNS("223.5.5.5:53", "www.google.com"))
