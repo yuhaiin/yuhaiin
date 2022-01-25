@@ -69,7 +69,8 @@ func (p *Point_Shadowsocksr) Conn() (proxy.Proxy, error) {
 	}
 
 	ssr, err := ssrClient.NewShadowsocksr(
-		s.Server, s.Port,
+		s.Server,
+		s.Port,
 		s.Method,
 		s.Password,
 		s.Obfs, s.Obfsparam,

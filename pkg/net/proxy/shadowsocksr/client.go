@@ -1,50 +1,73 @@
 package shadowsocksr
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
+	streamCipher "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
+	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	shadowsocksr "github.com/v2rayA/shadowsocksR"
-	"github.com/v2rayA/shadowsocksR/obfs"
-	Protocol "github.com/v2rayA/shadowsocksR/protocol"
-	"github.com/v2rayA/shadowsocksR/ssr"
-	"github.com/v2rayA/shadowsocksR/streamCipher"
 )
 
 var _ proxy.Proxy = (*Shadowsocksr)(nil)
 
 type Shadowsocksr struct {
-	encryptMethod   string
-	encryptPassword string
-	obfs            string
-	obfsParam       string
-	obfsData        interface{}
-	protocol        string
-	protocolParam   string
-	protocolData    interface{}
-
-	p proxy.Proxy
+	host   string
+	proto  *protocol.Protocol
+	obfss  *obfs.Obfs
+	cipher *streamCipher.Cipher
+	p      proxy.Proxy
 }
 
-func NewShadowsocksr(host, port, method, password, obfs, obfsParam, protocol, protocolParam string) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewShadowsocksr(host, port string, method, password, obfss, obfsParam, protoc, protocolParam string) func(proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		s := &Shadowsocksr{
-			encryptMethod:   method,
-			encryptPassword: password,
-			obfs:            obfs,
-			obfsParam:       obfsParam,
-			protocol:        protocol,
-			protocolParam:   protocolParam,
-
-			p: p,
+		cipher, err := streamCipher.NewCipher(method, password)
+		if err != nil {
+			return nil, err
 		}
-		s.protocolData = new(Protocol.AuthData)
+
+		port, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return nil, err
+		}
+		obfs, err := obfs.NewObfs(obfss, ssr.ServerInfo{
+			Host:   host,
+			Port:   uint16(port),
+			Param:  obfsParam,
+			TcpMss: 1460,
+			IVLen:  cipher.IVLen(),
+			Key:    cipher.Key(),
+			KeyLen: cipher.KeyLen(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		protocol, err := protocol.NewProtocol(protoc, ssr.ServerInfo{
+			Host:   host,
+			Port:   uint16(port),
+			Param:  protocolParam,
+			TcpMss: 1460,
+			IVLen:  cipher.IVLen(),
+			Key:    cipher.Key(),
+			KeyLen: cipher.KeyLen(),
+		}, obfs.Overhead())
+		if err != nil {
+			return nil, err
+		}
+
+		s := &Shadowsocksr{
+			host:   net.JoinHostPort(host, strconv.FormatUint(port, 10)),
+			cipher: cipher,
+			p:      p,
+			obfss:  obfs,
+			proto:  protocol,
+		}
 		return s, nil
 	}
 }
@@ -55,66 +78,72 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
 
-	cipher, err := streamCipher.NewStreamCipher(s.encryptMethod, s.encryptPassword)
-	if err != nil {
-		return nil, err
-	}
-	ssrconn := shadowsocksr.NewSSTCPConn(c, cipher)
-	if ssrconn.Conn == nil || ssrconn.RemoteAddr() == nil {
-		return nil, errors.New("[ssr] nil connection")
-	}
+	// obfsServerInfo.SetHeadLen(b, 30)
+	// protocolServerInfo.SetHeadLen(b, 30)
 
-	// should initialize obfs/protocol now
-	rs := strings.Split(ssrconn.RemoteAddr().String(), ":")
-	port, _ := strconv.ParseUint(rs[1], 10, 16)
-
-	ssrconn.IObfs = obfs.NewObfs(s.obfs)
-	if ssrconn.IObfs == nil {
-		return nil, errors.New("[ssr] unsupported obfs type: " + s.obfs)
-	}
-
-	obfsServerInfo := &ssr.ServerInfo{
-		Host:   rs[0],
-		Port:   uint16(port),
-		TcpMss: 1460,
-		Param:  s.obfsParam,
-	}
-	ssrconn.IObfs.SetServerInfo(obfsServerInfo)
-
-	ssrconn.IProtocol = Protocol.NewProtocol(s.protocol)
-	if ssrconn.IProtocol == nil {
-		return nil, errors.New("[ssr] unsupported protocol type: " + s.protocol)
-	}
-
-	protocolServerInfo := &ssr.ServerInfo{
-		Host:   rs[0],
-		Port:   uint16(port),
-		TcpMss: 1460,
-		Param:  s.protocolParam,
-	}
-	ssrconn.IProtocol.SetServerInfo(protocolServerInfo)
-
-	if s.obfsData == nil {
-		s.obfsData = ssrconn.IObfs.GetData()
-	}
-	ssrconn.IObfs.SetData(s.obfsData)
-
-	if s.protocolData == nil {
-		s.protocolData = ssrconn.IProtocol.GetData()
-	}
-	ssrconn.IProtocol.SetData(s.protocolData)
-
+	obfs := s.obfss.StreamObfs(c)
+	cipher := s.cipher.StreamCipher(obfs)
+	conn := s.proto.StreamProtocol(cipher, cipher.WriteIV())
 	target, err := socks5client.ParseAddr(addr)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := ssrconn.Write(target); err != nil {
-		_ = ssrconn.Close()
+	if _, err := conn.Write(target); err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
-	return ssrconn, nil
+
+	return conn, nil
 }
 
 func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
+	c, err := s.p.PacketConn(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	cipher := s.cipher.PacketCopher(c)
+	proto := s.proto.PacketProtocol(cipher)
+	defer log.Println("return packet protocol")
+
+	udpAddr, err := net.ResolveUDPAddr("udp", s.host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
+	}
+	tar, err := socks5client.ParseAddr(addr)
+	if err != nil {
+		return nil, err
+	}
+	return &ssPacketConn{proto, udpAddr, tar}, nil
 	return net.ListenPacket("udp", "")
+}
+
+type ssPacketConn struct {
+	net.PacketConn
+	add    net.Addr
+	target []byte
+}
+
+func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, _, err := v.PacketConn.ReadFrom(b)
+	if err != nil {
+		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
+	}
+
+	host, port, addrSize, err := socks5client.ResolveAddr(b[:n])
+	if err != nil {
+		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
+	}
+
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.FormatInt(int64(port), 10)))
+	if err != nil {
+		return 0, nil, fmt.Errorf("resolve udp address failed: %v", err)
+	}
+
+	copy(b, b[addrSize:])
+	return n - addrSize, addr, nil
+}
+
+func (v *ssPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+	return v.PacketConn.WriteTo(bytes.Join([][]byte{v.target, b}, []byte{}), v.add)
 }
