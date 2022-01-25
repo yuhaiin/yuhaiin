@@ -77,3 +77,36 @@ func TestConnections(t *testing.T) {
 	require.Nil(t, err)
 	t.Log(string(data))
 }
+
+// func TestConnectionSsr(t *testing.T) {
+// 	tt := &http.Client{
+// 		Transport: &http.Transport{
+// 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+// 				return z.Conn(addr)
+// 			},
+// 		},
+// 	}
+
+// 	dns := dns.NewDNS("1.1.1.1:53", nil, z)
+// 	t.Log(dns.LookupIP("www.google.com"))
+
+// 	req := http.Request{
+// 		Method: "GET",
+// 		URL: &url.URL{
+// 			Scheme: "http",
+// 			Host:   "ip.sb",
+// 		},
+// 		Header: make(http.Header),
+// 	}
+// 	req.Header.Set("User-Agent", "curl/v2.4.1")
+// 	resp, err := tt.Do(&req)
+// 	if err != nil {
+// 		t.Error(err)
+// 		t.FailNow()
+// 	}
+// 	require.Nil(t, err)
+// 	defer resp.Body.Close()
+// 	data, err := ioutil.ReadAll(resp.Body)
+// 	require.Nil(t, err)
+// 	t.Log(string(data))
+// }

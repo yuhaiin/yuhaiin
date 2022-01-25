@@ -51,7 +51,6 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 }
 
 func (d *dot) LookupIP(domain string) ([]net.IP, error) {
-	// TODO TCP pool
 	conn, err := d.proxy(d.host)
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial failed: %v", err)
