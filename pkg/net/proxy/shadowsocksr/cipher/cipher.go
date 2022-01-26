@@ -12,7 +12,6 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 
@@ -271,7 +270,7 @@ func (c *Cipher) StreamCipher(conn net.Conn) *StreamCipher {
 	}
 }
 
-func (c *Cipher) PacketCopher(conn net.PacketConn) net.PacketConn {
+func (c *Cipher) PacketCipher(conn net.PacketConn) net.PacketConn {
 	return &PacketCipher{
 		key:        c.key,
 		info:       c.info,
@@ -399,23 +398,23 @@ func (c *StreamCipher) InfoKeyLen() int {
 	return c.info.keyLen
 }
 
-var read = int64(0)
+// var read = int64(0)
 
 func (c *StreamCipher) Read(b []byte) (int, error) {
 	if c.dec == nil {
 		z := *utils.BuffPool(c.InfoIVLen()).Get().(*[]byte)
 		defer utils.BuffPool(c.InfoIVLen()).Put(&z)
 
-		atomic.AddInt64(&read, 1)
-		log.Println("----------start read----------", atomic.LoadInt64(&read))
+		// atomic.AddInt64(&read, 1)
+		// log.Println("----------start read----------", atomic.LoadInt64(&read))
 		_, err := io.ReadFull(c.Conn, z)
 		if err != nil {
-			atomic.AddInt64(&read, -1)
-			log.Println("----------end read----------", atomic.LoadInt64(&read), err)
+			// atomic.AddInt64(&read, -1)
+			// log.Println("----------end read----------", atomic.LoadInt64(&read), err)
 			return 0, err
 		}
-		atomic.AddInt64(&read, -1)
-		log.Println("----------read iv----------", atomic.LoadInt64(&read))
+		// atomic.AddInt64(&read, -1)
+		// log.Println("----------read iv----------", atomic.LoadInt64(&read))
 
 		copy(c.readIV, z)
 		c.dec, err = c.info.newStream(c.key, z, Decrypt)

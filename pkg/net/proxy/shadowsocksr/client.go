@@ -102,7 +102,7 @@ func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 		return nil, err
 	}
 
-	cipher := s.cipher.PacketCopher(c)
+	cipher := s.cipher.PacketCipher(c)
 	proto := s.proto.PacketProtocol(cipher)
 	defer log.Println("return packet protocol")
 
@@ -115,7 +115,6 @@ func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 		return nil, err
 	}
 	return &ssPacketConn{proto, udpAddr, tar}, nil
-	return net.ListenPacket("udp", "")
 }
 
 type ssPacketConn struct {

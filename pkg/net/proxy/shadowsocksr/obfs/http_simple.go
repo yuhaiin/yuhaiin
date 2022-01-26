@@ -67,7 +67,6 @@ func newHttpSimple(conn net.Conn, info ssr.ServerInfo) IObfs {
 }
 
 func (t *httpSimplePost) boundary() (ret string) {
-
 	set := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	for i := 0; i < 32; i++ {
 		ret = fmt.Sprintf("%s%c", ret, set[rand.Intn(len(set))])
@@ -82,90 +81,71 @@ func (t *httpSimplePost) data2URLEncode(data []byte) (ret string) {
 	return
 }
 
-func (t *httpSimplePost) Encode(data []byte) (encodedData []byte, err error) {
+func (t *httpSimplePost) encode(data []byte) []byte {
 	if t.rawTransSent {
-		return data, nil
+		return data
 	}
+
 	dataLength := len(data)
-	var headData []byte
-	if headSize := t.IVLen + 30; dataLength-headSize > 64 {
-		headData = make([]byte, headSize+rand.Intn(64))
+	headSize := t.IVLen + 30
+	if dataLength-headSize > 64 {
+		headSize = headSize + rand.Intn(64)
 	} else {
-		headData = make([]byte, dataLength)
+		headSize = dataLength
 	}
-	copy(headData, data[0:len(headData)])
-	requestPathIndex := rand.Intn(len(requestPath)/2) * 2
+
 	host := t.Host
 	var customHead string
 
 	if len(t.Param) > 0 {
 		customHeads := strings.Split(t.Param, "#")
-		if len(customHeads) > 2 {
-			customHeads = customHeads[0:2]
-		}
 		param := t.Param
 		if len(customHeads) > 1 {
 			customHead = customHeads[1]
 			param = customHeads[0]
 		}
+
 		hosts := strings.Split(param, ",")
 		if len(hosts) > 0 {
 			host = strings.TrimSpace(hosts[rand.Intn(len(hosts))])
 		}
 	}
-	method := "GET /"
-	if !t.methodGet {
-		method = "POST /"
-	}
-	httpBuf := fmt.Sprintf("%s%s%s%s HTTP/1.1\r\nHost: %s:%d\r\n",
-		method,
-		requestPath[requestPathIndex],
-		t.data2URLEncode(headData),
-		requestPath[requestPathIndex+1],
-		host,
-		t.Port)
-	if len(customHead) > 0 {
-		httpBuf = httpBuf + strings.Replace(customHead, "\\n", "\r\n", -1) + "\r\n\r\n"
+
+	buf := bytes.NewBuffer(nil)
+	if t.methodGet {
+		buf.WriteString("GET /")
 	} else {
-		var contentType string
-		if !t.methodGet {
-			contentType = "Content-Type: multipart/form-data; boundary=" + t.boundary() + "\r\n"
-		}
-		httpBuf = httpBuf +
-			"User-Agent: " + requestUserAgent[t.userAgentIndex] + "\r\n" +
-			"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" +
-			"Accept-Language: en-US,en;q=0.8\r\n" +
-			"Accept-Encoding: gzip, deflate\r\n" +
-			contentType +
-			"DNT: 1\r\n" +
-			"Connection: keep-alive\r\n" +
-			"\r\n"
+		buf.WriteString("POST /")
 	}
 
-	if len(headData) < dataLength {
-		encodedData = make([]byte, len(httpBuf)+(dataLength-len(headData)))
-		copy(encodedData, []byte(httpBuf))
-		copy(encodedData[len(httpBuf):], data[len(headData):])
+	requestPathIndex := rand.Intn(len(requestPath)/2) * 2
+
+	buf.WriteString(requestPath[requestPathIndex])
+	buf.WriteString(t.data2URLEncode(data[:headSize]))
+	buf.WriteString(requestPath[requestPathIndex+1])
+	buf.WriteString("HTTP/1.1\r\n")
+	buf.WriteString(fmt.Sprintf("Host: %s:%d\r\n", host, t.Port))
+
+	if len(customHead) > 0 {
+		buf.WriteString(strings.Replace(customHead, "\\n", "\r\n", -1))
+		buf.WriteString("\r\n\r\n")
 	} else {
-		encodedData = []byte(httpBuf)
+		buf.WriteString(fmt.Sprintf("User-Agent: %s\r\n", requestUserAgent[t.userAgentIndex]))
+		buf.WriteString("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n")
+		buf.WriteString("Accept-Language: en-US,en;q=0.8\r\n")
+		buf.WriteString("Accept-Encoding: gzip, deflate\r\n")
+		if !t.methodGet {
+			buf.WriteString(fmt.Sprintf("Content-Type: multipart/form-data; boundary=%s\r\n", t.boundary()))
+		}
+		buf.WriteString("DNT: 1\r\n")
+		buf.WriteString("Connection: keep-alive\r\n")
+		buf.WriteString("\r\n")
 	}
+	buf.Write(data[headSize:])
+
 	t.rawTransSent = true
 
-	return
-}
-
-func (t *httpSimplePost) Decode(data []byte) (decodedData []byte, needSendBack bool, err error) {
-	if t.rawTransReceived {
-		return data, false, nil
-	}
-
-	pos := bytes.Index(data, []byte("\r\n\r\n"))
-	if pos > 0 {
-		decodedData = make([]byte, len(data)-pos-4)
-		copy(decodedData, data[pos+4:])
-		t.rawTransReceived = true
-	}
-	return decodedData, false, nil
+	return buf.Bytes()
 }
 
 func (t *httpSimplePost) Read(b []byte) (int, error) {
@@ -185,6 +165,7 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 
 	buf := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
 	defer utils.BuffPool(utils.DefaultSize).Put(&buf)
+
 	n, err := t.Conn.Read(buf)
 	if err != nil {
 		return n, fmt.Errorf("read http simple header failed: %w", err)
@@ -194,34 +175,24 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 	if pos == -1 {
 		return 0, io.EOF
 	}
+	pos = pos + 4
 
-	// log.Println("pos:", pos, "length:", len(buf[:n]), "data", string(buf[:n]))
-	// decodedData = make([]byte, len(data)-pos-4)
-	nn := copy(b, buf[pos+4:n])
+	nn := copy(b, buf[pos:n])
 	if n-pos-4 > nn {
-		t.buf = make([]byte, n-pos-4-nn)
-		copy(t.buf, buf[pos+4+nn:n])
+		t.buf = append(t.buf, buf[pos+nn:n]...)
 	}
+
 	t.rawTransReceived = true
-	// log.Println("nn:", nn)
+
 	return nn, nil
 }
 
 func (t *httpSimplePost) Write(b []byte) (int, error) {
-	// defer log.Println("----------obfs write--------------")
 	if t.rawTransSent {
 		return t.Conn.Write(b)
 	}
 
-	data, err := t.Encode(b)
-	if err != nil {
-		return 0, err
-	}
-
-	_, err = t.Conn.Write(data)
-	if err != nil {
-		return 0, err
-	}
+	_, err := t.Conn.Write(t.encode(b))
 	return len(b), err
 }
 
