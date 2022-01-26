@@ -9,7 +9,7 @@ import (
 var poolMap = sync.Map{}
 var DefaultSize = 8 * 0x400
 
-func BuffPool(size int) *sync.Pool {
+func buffPool(size int) *sync.Pool {
 	if v, ok := poolMap.Load(size); ok {
 		return v.(*sync.Pool)
 	}
@@ -24,10 +24,18 @@ func BuffPool(size int) *sync.Pool {
 	return p
 }
 
+func GetBytes(size int) []byte {
+	return *buffPool(size).Get().(*[]byte)
+}
+
+func PutBytes(size int, b *[]byte) {
+	buffPool(size).Put(b)
+}
+
 //Forward pipe
 func Forward(conn1, conn2 io.ReadWriter) {
-	buf := *BuffPool(DefaultSize).Get().(*[]byte)
-	defer BuffPool(DefaultSize).Put(&(buf))
+	buf := GetBytes(DefaultSize)
+	defer PutBytes(DefaultSize, &buf)
 	i := DefaultSize / 2
 
 	go func() {
@@ -38,8 +46,8 @@ func Forward(conn1, conn2 io.ReadWriter) {
 
 //SingleForward single pipe
 func SingleForward(src io.Reader, dst io.Writer) (err error) {
-	buf := *BuffPool(DefaultSize).Get().(*[]byte)
-	defer BuffPool(DefaultSize).Put(&(buf))
+	buf := GetBytes(DefaultSize)
+	defer PutBytes(DefaultSize, &buf)
 	_, err = io.CopyBuffer(dst, src, buf)
 	return
 }

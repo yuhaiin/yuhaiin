@@ -137,14 +137,14 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 	return &protocolConn{
 		Conn:                c,
 		IProtocol:           p,
-		readBuf:             *utils.BuffPool(utils.DefaultSize).Get().(*[]byte),
+		readBuf:             utils.GetBytes(utils.DefaultSize),
 		decryptedBuf:        new(bytes.Buffer),
 		underPostdecryptBuf: new(bytes.Buffer),
 	}
 }
 
 func (c *protocolConn) Close() error {
-	utils.BuffPool(utils.DefaultSize).Put(&c.readBuf)
+	utils.PutBytes(utils.DefaultSize, &c.readBuf)
 	return c.Conn.Close()
 }
 

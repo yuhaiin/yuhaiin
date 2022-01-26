@@ -163,8 +163,8 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 		return t.Conn.Read(b)
 	}
 
-	buf := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&buf)
+	buf := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(utils.DefaultSize, &buf)
 
 	n, err := t.Conn.Read(buf)
 	if err != nil {

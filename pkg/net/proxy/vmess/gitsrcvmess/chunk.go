@@ -25,12 +25,12 @@ type chunkedWriter struct {
 func ChunkedWriter(w io.Writer) io.WriteCloser {
 	return &chunkedWriter{
 		Writer: w,
-		buf:    *utils.BuffPool(lenSize + maxChunkSize).Get().(*[]byte),
+		buf:    utils.GetBytes(lenSize + maxChunkSize),
 	}
 }
 
 func (w *chunkedWriter) Close() error {
-	utils.BuffPool(lenSize + maxChunkSize).Put(&w.buf)
+	utils.PutBytes(lenSize+maxChunkSize, &w.buf)
 	return nil
 }
 
@@ -73,12 +73,12 @@ type chunkedReader struct {
 func ChunkedReader(r io.Reader) io.ReadCloser {
 	return &chunkedReader{
 		Reader: r,
-		buf:    *utils.BuffPool(lenSize).Get().(*[]byte), // NOTE: buf only used to save header bytes now
+		buf:    utils.GetBytes(lenSize), // NOTE: buf only used to save header bytes now
 	}
 }
 
 func (r *chunkedReader) Close() error {
-	utils.BuffPool(lenSize).Put(&r.buf)
+	utils.PutBytes(lenSize, &r.buf)
 	return nil
 }
 

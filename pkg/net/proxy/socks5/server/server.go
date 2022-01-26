@@ -53,8 +53,8 @@ func handshake(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
 
 func handle(user, key string, client net.Conn, f proxy.Proxy) {
 	var err error
-	b := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&(b))
+	b := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(utils.DefaultSize, &b)
 
 	//socks5 first handshake
 	_, err = client.Read(b)
@@ -104,8 +104,8 @@ func firstHand(client net.Conn, ver, nMethod, method byte, user, key string) err
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
-	b := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&(b))
+	b := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(utils.DefaultSize, &b)
 	// get username and password
 	_, err := client.Read(b[:])
 	if err != nil {

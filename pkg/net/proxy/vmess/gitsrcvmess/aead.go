@@ -25,16 +25,16 @@ func AEADWriter(w io.Writer, aead cipher.AEAD, iv []byte) io.WriteCloser {
 	return &aeadWriter{
 		Writer: w,
 		AEAD:   aead,
-		buf:    *utils.BuffPool(lenSize + maxChunkSize).Get().(*[]byte),
-		nonce:  *utils.BuffPool(aead.NonceSize()).Get().(*[]byte),
+		buf:    utils.GetBytes(lenSize + maxChunkSize),
+		nonce:  utils.GetBytes(aead.NonceSize()),
 		count:  0,
 		iv:     iv,
 	}
 }
 
 func (w *aeadWriter) Close() error {
-	utils.BuffPool(lenSize + maxChunkSize).Put(&w.buf)
-	utils.BuffPool(w.AEAD.NonceSize()).Put(&w.nonce)
+	utils.PutBytes(lenSize+maxChunkSize, &w.buf)
+	utils.PutBytes(w.AEAD.NonceSize(), &w.nonce)
 	return nil
 }
 
@@ -95,16 +95,16 @@ func AEADReader(r io.Reader, aead cipher.AEAD, iv []byte) io.ReadCloser {
 	return &aeadReader{
 		Reader: r,
 		AEAD:   aead,
-		buf:    *utils.BuffPool(lenSize + maxChunkSize).Get().(*[]byte),
-		nonce:  *utils.BuffPool(aead.NonceSize()).Get().(*[]byte),
+		buf:    utils.GetBytes(lenSize + maxChunkSize),
+		nonce:  utils.GetBytes(aead.NonceSize()),
 		count:  0,
 		iv:     iv,
 	}
 }
 
 func (r *aeadReader) Close() error {
-	utils.BuffPool(lenSize + maxChunkSize).Put(&r.buf)
-	utils.BuffPool(r.AEAD.NonceSize()).Put(&r.nonce)
+	utils.PutBytes(lenSize+maxChunkSize, &r.buf)
+	utils.PutBytes(r.AEAD.NonceSize(), &r.nonce)
 	return nil
 }
 

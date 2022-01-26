@@ -66,8 +66,8 @@ func (r *randomHead) Read(b []byte) (n int, err error) {
 		return r.Conn.Read(b)
 	}
 
-	buf := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&buf)
+	buf := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(utils.DefaultSize, &buf)
 	r.Conn.Read(buf)
 	r.rawTransReceived = true
 	r.Conn.Write(nil)

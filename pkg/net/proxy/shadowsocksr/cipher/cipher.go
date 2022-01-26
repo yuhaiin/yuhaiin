@@ -119,8 +119,8 @@ func (c *salsaStreamCipher) XORKeyStream(dst, src []byte) {
 	if cap(dst) >= dataSize {
 		buf = dst[:dataSize]
 	} else if utils.DefaultSize >= dataSize {
-		buf = *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-		defer utils.BuffPool(utils.DefaultSize).Put(&buf)
+		buf = utils.GetBytes(utils.DefaultSize)
+		defer utils.PutBytes(utils.DefaultSize, &buf)
 		buf = buf[:dataSize]
 	} else {
 		buf = make([]byte, dataSize)
@@ -285,8 +285,8 @@ type PacketCipher struct {
 }
 
 func (p *PacketCipher) WriteTo(b []byte, addr net.Addr) (int, error) {
-	buf := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&buf)
+	buf := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(utils.DefaultSize, &buf)
 	_, err := rand.Read(buf[:p.info.ivLen])
 	if err != nil {
 		return 0, err
@@ -402,8 +402,8 @@ func (c *StreamCipher) InfoKeyLen() int {
 
 func (c *StreamCipher) Read(b []byte) (int, error) {
 	if c.dec == nil {
-		z := *utils.BuffPool(c.InfoIVLen()).Get().(*[]byte)
-		defer utils.BuffPool(c.InfoIVLen()).Put(&z)
+		z := utils.GetBytes(c.InfoIVLen())
+		defer utils.PutBytes(c.InfoIVLen(), &z)
 
 		// atomic.AddInt64(&read, 1)
 		// log.Println("----------start read----------", atomic.LoadInt64(&read))
