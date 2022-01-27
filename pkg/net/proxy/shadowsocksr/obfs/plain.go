@@ -1,6 +1,7 @@
 package obfs
 
 import (
+	"io"
 	"net"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -21,4 +22,8 @@ func newPlainObfs(conn net.Conn, _ ssr.ServerInfo) IObfs {
 
 func (p *plain) GetOverhead() int {
 	return 0
+}
+
+func (p *plain) ReadFrom(r io.Reader) (int64, error) {
+	return io.Copy(p.Conn, r)
 }

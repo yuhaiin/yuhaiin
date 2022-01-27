@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -43,7 +44,6 @@ const (
 )
 
 var _ net.Conn = (*Conn)(nil)
-var _ net.PacketConn = (*Conn)(nil)
 
 // Client vmess client
 type Client struct {
@@ -73,7 +73,7 @@ type Conn struct {
 
 	net.Conn
 	dataReader io.ReadCloser
-	dataWriter io.WriteCloser
+	dataWriter writer
 
 	isAead bool
 	udp    bool
@@ -123,8 +123,26 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 	return c, nil
 }
 
+func (c *Client) NewConn(rc net.Conn, target string) (net.Conn, error) {
+	conn, err := c.newConn(rc, "tcp", target)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vmessConn{Conn: conn}, nil
+}
+
+func (c *Client) NewPacketConn(rc net.Conn, target string) (net.PacketConn, error) {
+	conn, err := c.newConn(rc, "udp", target)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vmessPacketConn{Conn: conn}, nil
+}
+
 // NewConn .
-func (c *Client) NewConn(rc net.Conn, network, target string) (*Conn, error) {
+func (c *Client) newConn(rc net.Conn, network, target string) (*Conn, error) {
 	conn := &Conn{
 		isAead: c.isAead,
 		user:   c.users[rand.Intn(c.count)], opt: c.opt, security: c.security, udp: network == "udp"}
@@ -300,7 +318,12 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		return c.dataWriter.Write(b)
 	}
 
-	c.dataWriter = c.Conn
+	c.initWriter()
+	return c.dataWriter.Write(b)
+}
+
+func (c *Conn) initWriter() {
+	c.dataWriter = &connWriter{Conn: c.Conn}
 	if c.opt&OptChunkStream == OptChunkStream {
 		switch c.security {
 		case SecurityNone:
@@ -321,8 +344,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			c.dataWriter = AEADWriter(c.Conn, aead, c.reqBodyIV[:])
 		}
 	}
-
-	return c.dataWriter.Write(b)
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
@@ -360,15 +381,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	return c.dataReader.Read(b)
 }
 
-func (c *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
-	n, err := c.Read(b)
-	return n, c.RemoteAddr(), err
-}
-
-func (c *Conn) WriteTo(b []byte, _ net.Addr) (int, error) {
-	return c.Write(b)
-}
-
 func (c *Conn) Close() error {
 	if c.dataReader != nil {
 		c.dataReader.Close()
@@ -379,4 +391,42 @@ func (c *Conn) Close() error {
 	}
 
 	return c.Conn.Close()
+}
+
+var _ net.Conn = (*vmessConn)(nil)
+var _ io.ReaderFrom = (*vmessConn)(nil)
+var _ io.WriterTo = (*vmessConn)(nil)
+
+type vmessConn struct {
+	*Conn
+}
+
+func (v *vmessConn) ReadFrom(r io.Reader) (int64, error) {
+	if v.dataWriter != nil {
+		return v.dataWriter.ReadFrom(r)
+	}
+
+	v.initWriter()
+	return v.dataWriter.ReadFrom(r)
+}
+
+func (v *vmessConn) WriteTo(w io.Writer) (int64, error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(2048, &buf)
+	return io.CopyBuffer(w, v.Conn, buf)
+}
+
+var _ net.PacketConn = (*vmessPacketConn)(nil)
+
+type vmessPacketConn struct {
+	*Conn
+}
+
+func (c *vmessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, err := c.Read(b)
+	return n, c.RemoteAddr(), err
+}
+
+func (c *vmessPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+	return c.Write(b)
 }

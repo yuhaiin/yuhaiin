@@ -2,7 +2,9 @@ package protocol
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 
@@ -137,14 +139,14 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 	return &protocolConn{
 		Conn:                c,
 		IProtocol:           p,
-		readBuf:             utils.GetBytes(utils.DefaultSize),
+		readBuf:             utils.GetBytes(2048),
 		decryptedBuf:        new(bytes.Buffer),
 		underPostdecryptBuf: new(bytes.Buffer),
 	}
 }
 
 func (c *protocolConn) Close() error {
-	utils.PutBytes(utils.DefaultSize, &c.readBuf)
+	utils.PutBytes(2048, &c.readBuf)
 	return c.Conn.Close()
 }
 
@@ -208,4 +210,48 @@ func (c *protocolConn) Write(b []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(b), nil
+}
+
+func (c *protocolConn) ReadFrom(r io.Reader) (int64, error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(2048, &buf)
+
+	n := int64(0)
+	for {
+		nr, er := r.Read(buf)
+		n += int64(nr)
+		_, err := c.Write(buf[:nr])
+		if err != nil {
+			return n, err
+		}
+		if er != nil {
+			if errors.Is(er, io.EOF) {
+				return n, nil
+			}
+			return n, er
+		}
+	}
+}
+
+func (c *protocolConn) WriteTo(w io.Writer) (int64, error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(2048, &buf)
+
+	n := int64(0)
+	for {
+		nr, er := c.Read(buf)
+		if nr > 0 {
+			nw, err := w.Write(buf[:nr])
+			n += int64(nw)
+			if err != nil {
+				return n, err
+			}
+		}
+		if er != nil {
+			if errors.Is(er, io.EOF) {
+				return n, nil
+			}
+			return n, er
+		}
+	}
 }

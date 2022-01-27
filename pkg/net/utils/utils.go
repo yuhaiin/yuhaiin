@@ -34,14 +34,21 @@ func PutBytes(size int, b *[]byte) {
 
 //Forward pipe
 func Forward(conn1, conn2 io.ReadWriter) {
-	buf := GetBytes(DefaultSize)
-	defer PutBytes(DefaultSize, &buf)
-	i := DefaultSize / 2
+	if c, ok := conn1.(io.ReaderFrom); ok {
+		go c.ReadFrom(conn2)
+	} else if c, ok := conn2.(io.WriterTo); ok {
+		go c.WriteTo(conn1)
+	} else {
+		go SingleForward(conn2, conn1)
+	}
 
-	go func() {
-		_, _ = io.CopyBuffer(conn2, conn1, buf[:i])
-	}()
-	_, _ = io.CopyBuffer(conn1, conn2, buf[i:])
+	if c, ok := conn2.(io.ReaderFrom); ok {
+		c.ReadFrom(conn1)
+	} else if c, ok := conn1.(io.WriterTo); ok {
+		c.WriteTo(conn2)
+	} else {
+		SingleForward(conn1, conn2)
+	}
 }
 
 //SingleForward single pipe

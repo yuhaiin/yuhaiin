@@ -2,6 +2,7 @@ package app
 
 import (
 	context "context"
+	"io"
 	"log"
 	"net"
 	"reflect"
@@ -206,6 +207,9 @@ func (c *ConnManager) Conn(host string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	_, ok := conn.(io.ReaderFrom)
+	logasfmt.Println("app conn", reflect.TypeOf(conn), ok)
 	return c.newConn(host, conn), nil
 }
 
@@ -241,6 +245,18 @@ func (s *conn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
 	atomic.AddUint64(&s.cm.download, uint64(n))
 	return
+}
+
+func (s *conn) ReadFrom(r io.Reader) (int64, error) {
+	n, err := io.Copy(s.Conn, r)
+	atomic.AddUint64(&s.cm.download, uint64(n))
+	return n, err
+}
+
+func (s *conn) WriteTo(r io.Writer) (int64, error) {
+	n, err := io.Copy(r, s.Conn)
+	atomic.AddUint64(&s.cm.upload, uint64(n))
+	return n, err
 }
 
 var _ net.PacketConn = (*packetConn)(nil)

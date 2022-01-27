@@ -21,7 +21,7 @@ type aeadWriter struct {
 }
 
 // AEADWriter returns a aead writer
-func AEADWriter(w io.Writer, aead cipher.AEAD, iv []byte) io.WriteCloser {
+func AEADWriter(w io.Writer, aead cipher.AEAD, iv []byte) writer {
 	return &aeadWriter{
 		Writer: w,
 		AEAD:   aead,

@@ -3,6 +3,7 @@ package dns
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -115,6 +116,7 @@ func (d *doh) setProxy(p func(string) (net.Conn, error)) {
 					return net.Dial(network, d.host)
 				}
 			},
+			TLSClientConfig:   new(tls.Config),
 			DisableKeepAlives: false,
 		},
 		Timeout: 10 * time.Second,

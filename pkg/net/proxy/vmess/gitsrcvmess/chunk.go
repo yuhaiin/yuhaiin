@@ -4,9 +4,23 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
+
+type writer interface {
+	io.WriteCloser
+	io.ReaderFrom
+}
+
+type connWriter struct {
+	net.Conn
+}
+
+func (c *connWriter) ReadFrom(r io.Reader) (int64, error) {
+	return io.Copy(c.Conn, r)
+}
 
 const (
 	lenSize          = 2
@@ -14,7 +28,7 @@ const (
 	defaultChunkSize = 1 << 13 // 8192
 )
 
-var _ io.WriteCloser = &aeadWriter{}
+var _ writer = &aeadWriter{}
 
 type chunkedWriter struct {
 	io.Writer
@@ -22,7 +36,7 @@ type chunkedWriter struct {
 }
 
 // ChunkedWriter returns a chunked writer
-func ChunkedWriter(w io.Writer) io.WriteCloser {
+func ChunkedWriter(w io.Writer) writer {
 	return &chunkedWriter{
 		Writer: w,
 		buf:    utils.GetBytes(lenSize + maxChunkSize),

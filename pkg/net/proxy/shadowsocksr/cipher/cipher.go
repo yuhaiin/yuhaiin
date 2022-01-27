@@ -433,6 +433,27 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 	return n, nil
 }
 
+func (c *StreamCipher) ReadFrom(r io.Reader) (int64, error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(2048, &buf)
+
+	n := int64(0)
+	for {
+		nr, er := r.Read(buf)
+		n += int64(nr)
+		_, err := c.Write(buf[:nr])
+		if err != nil {
+			return n, err
+		}
+		if er != nil {
+			if errors.Is(er, io.EOF) {
+				return n, nil
+			}
+			return n, er
+		}
+	}
+}
+
 func (c *StreamCipher) Write(b []byte) (int, error) {
 	var err error
 	if c.enc == nil {
@@ -446,12 +467,15 @@ func (c *StreamCipher) Write(b []byte) (int, error) {
 			return 0, err
 		}
 	}
+
 	n := 0
-	buf := make([]byte, 2048)
-	for nw := 0; n < len(b) && err == nil; n += nw {
-		end := n + len(buf)
-		if end > len(b) {
-			end = len(b)
+	lb := len(b)
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(2048, &buf)
+	for nw := 0; n < lb && err == nil; n += nw {
+		end := n + 2048
+		if end > lb {
+			end = lb
 		}
 		c.enc.XORKeyStream(buf, b[n:end])
 		nw, err = c.Conn.Write(buf[:end-n])
