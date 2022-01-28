@@ -10,9 +10,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	libVmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -89,7 +89,7 @@ func (p *Point_Vmess) Conn() (proxy.Proxy, error) {
 		return nil, fmt.Errorf("convert AlterId to int failed: %v", err)
 	}
 
-	c := utils.NewClientUtil(x.Address, x.Port)
+	c := simple.NewSimple(x.Address, x.Port)
 
 	pp, err := websocket.NewWebsocket(x.Host, x.Path, !x.VerifyCert, x.Tls == "tls", nil)(c)
 	if err != nil {

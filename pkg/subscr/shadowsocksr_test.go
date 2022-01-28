@@ -11,10 +11,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/stretchr/testify/require"
 
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 )
 
 func TestSsrParse2(t *testing.T) {
@@ -47,7 +47,7 @@ func TestLint(t *testing.T) {
 }
 
 func TestConnections(t *testing.T) {
-	p := utils.NewClientUtil("127.0.0.1", "1090")
+	p := simple.NewSimple("127.0.0.1", "1090")
 
 	z, err := ssClient.NewHTTPOBFS("example.com", "80")(p)
 	require.Nil(t, err)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -21,7 +22,7 @@ var _ DNS = (*doh)(nil)
 
 type doh struct {
 	DNS
-	*utils.ClientUtil
+	*simple.Simple
 
 	Subnet *net.IPNet
 	Proxy  func(domain string) (net.Conn, error)
@@ -45,7 +46,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 
 	if p == nil {
 		dns.setProxy(func(s string) (net.Conn, error) {
-			return dns.ClientUtil.GetConn()
+			return dns.Simple.Conn(s)
 		})
 	} else {
 		dns.setProxy(p.Conn)
@@ -100,7 +101,7 @@ func (d *doh) setServer(host string) {
 	}
 
 	d.host = net.JoinHostPort(d.hostname, d.port)
-	d.ClientUtil = utils.NewClientUtil(d.hostname, d.port)
+	d.Simple = simple.NewSimple(d.hostname, d.port)
 }
 
 func (d *doh) setProxy(p func(string) (net.Conn, error)) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
@@ -73,12 +74,10 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 	}
 
 	applyDirectDNS := func(s *config.Setting) error {
-		m.dialer = &direct{
-			dialer: &net.Dialer{
-				Timeout:  11 * time.Second,
-				Resolver: getDNS(s.Dns.Local, nil).Resolver(),
-			},
-		}
+		m.dialer = direct.NewDirect(&net.Dialer{
+			Timeout:  11 * time.Second,
+			Resolver: getDNS(s.Dns.Local, nil).Resolver(),
+		})
 		return nil
 	}
 
@@ -127,18 +126,6 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy) {
 	}
 
 	return
-}
-
-type direct struct {
-	dialer *net.Dialer
-}
-
-func (d *direct) Conn(s string) (net.Conn, error) {
-	return d.dialer.Dial("tcp", s)
-}
-
-func (d *direct) PacketConn(string) (net.PacketConn, error) {
-	return net.ListenPacket("udp", "")
 }
 
 type errProxy struct {

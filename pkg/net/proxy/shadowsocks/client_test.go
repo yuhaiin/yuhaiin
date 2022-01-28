@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +20,7 @@ func TestImplement(t *testing.T) {
 }
 
 func TestConn(t *testing.T) {
-	p := utils.NewClientUtil("127.0.0.1", "1090")
+	p := simple.NewSimple("127.0.0.1", "1090")
 	z, err := websocket.NewWebsocket("localhost:1090", "", true, true, nil)(p)
 	require.Nil(t, err)
 	z, err = NewShadowsocks(
@@ -59,7 +59,7 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p := utils.NewClientUtil("127.0.0.1", "1090")
+	p := simple.NewSimple("127.0.0.1", "1090")
 	s, err := NewShadowsocks("aes-128-gcm", "test", "127.0.0.1", "1090")(p)
 	require.Nil(t, err)
 

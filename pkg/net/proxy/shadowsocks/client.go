@@ -21,10 +21,7 @@ var (
 
 //Shadowsocks shadowsocks
 type Shadowsocks struct {
-	cipher core.Cipher
-	server string
-	port   string
-
+	cipher  core.Cipher
 	p       proxy.Proxy
 	udpAddr net.Addr
 }
@@ -41,7 +38,7 @@ func NewShadowsocks(cipherName string, password string, server, port string) fun
 			return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 		}
 
-		return &Shadowsocks{cipher: cipher, server: server, port: port, p: p, udpAddr: addr}, nil
+		return &Shadowsocks{cipher: cipher, p: p, udpAddr: addr}, nil
 	}
 }
 
@@ -49,7 +46,7 @@ func NewShadowsocks(cipherName string, password string, server, port string) fun
 func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	conn, err = s.p.Conn(host)
 	if err != nil {
-		return nil, fmt.Errorf("dial to %s failed: %v", s.server, err)
+		return nil, fmt.Errorf("dial to %s failed: %v", host, err)
 	}
 
 	if x, ok := conn.(*net.TCPConn); ok {
@@ -57,12 +54,10 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	}
 
 	conn = s.cipher.StreamConn(conn)
-
 	target, err := ss5client.ParseAddr(host)
 	if err != nil {
 		return nil, fmt.Errorf("parse host failed: %v", err)
 	}
-
 	if _, err = conn.Write(target); err != nil {
 		return nil, fmt.Errorf("shadowsocks write target failed: %v", err)
 	}
@@ -71,23 +66,27 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 
 //PacketConn .
 func (s *Shadowsocks) PacketConn(tar string) (net.PacketConn, error) {
-	pc, err := s.p.PacketConn(s.server)
+	pc, err := s.p.PacketConn(tar)
 	if err != nil {
 		return nil, fmt.Errorf("create packet conn failed")
 	}
 	pc = s.cipher.PacketConn(pc)
 
-	addr, err := ss5client.ParseAddr(tar)
-	if err != nil {
-		return nil, fmt.Errorf("parse target failed: %v", err)
-	}
-	return &ssPacketConn{PacketConn: pc, add: s.udpAddr, target: addr}, nil
+	return NewSsPacketConn(pc, s.udpAddr, tar)
 }
 
 type ssPacketConn struct {
 	net.PacketConn
 	add    net.Addr
 	target []byte
+}
+
+func NewSsPacketConn(conn net.PacketConn, host net.Addr, target string) (net.PacketConn, error) {
+	addr, err := ss5client.ParseAddr(target)
+	if err != nil {
+		return nil, err
+	}
+	return &ssPacketConn{PacketConn: conn, add: host, target: addr}, nil
 }
 
 func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 
 	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 )
@@ -75,7 +75,7 @@ func (p *Point_Shadowsocksr) Conn() (proxy.Proxy, error) {
 		s.Password,
 		s.Obfs, s.Obfsparam,
 		s.Protocol, s.Protoparam,
-	)(utils.NewClientUtil(s.Server, s.Port))
+	)(simple.NewSimple(s.Server, s.Port))
 	if err != nil {
 		return nil, err
 	}

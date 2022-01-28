@@ -1,4 +1,4 @@
-package utils
+package simple
 
 import (
 	"context"
@@ -29,8 +29,8 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 	return ips, nil
 }
 
-//ClientUtil .
-type ClientUtil struct {
+//Simple .
+type Simple struct {
 	address string
 	port    uint16
 	host    string
@@ -41,16 +41,16 @@ type ClientUtil struct {
 	lookupIP     func(host string) ([]net.IP, error)
 }
 
-func WithLookupIP(f func(host string) ([]net.IP, error)) func(*ClientUtil) {
-	return func(cu *ClientUtil) {
+func WithLookupIP(f func(host string) ([]net.IP, error)) func(*Simple) {
+	return func(cu *Simple) {
 		cu.lookupIP = f
 	}
 }
 
-//NewClientUtil .
-func NewClientUtil(address, port string, opts ...func(*ClientUtil)) *ClientUtil {
+//NewSimple .
+func NewSimple(address, port string, opts ...func(*Simple)) *Simple {
 	p, _ := strconv.ParseUint(port, 10, 16)
-	c := &ClientUtil{
+	c := &Simple{
 		address: address,
 		port:    uint16(p),
 		host:    net.JoinHostPort(address, port),
@@ -75,7 +75,7 @@ func NewClientUtil(address, port string, opts ...func(*ClientUtil)) *ClientUtil 
 
 var clientDialer = net.Dialer{Timeout: time.Second * 10}
 
-func (c *ClientUtil) dial() (net.Conn, error) {
+func (c *Simple) dial() (net.Conn, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	es := &errs{}
@@ -122,7 +122,7 @@ func (e *errs) Add(err error) {
 }
 
 //GetConn .
-func (c *ClientUtil) GetConn() (net.Conn, error) {
+func (c *Simple) getConn() (net.Conn, error) {
 	r := 0
 
 retry:
@@ -146,15 +146,15 @@ retry:
 	return c.dial()
 }
 
-func (c *ClientUtil) Conn(host string) (net.Conn, error) {
-	return c.GetConn()
+func (c *Simple) Conn(host string) (net.Conn, error) {
+	return c.getConn()
 }
 
-func (c *ClientUtil) PacketConn(host string) (net.PacketConn, error) {
+func (c *Simple) PacketConn(host string) (net.PacketConn, error) {
 	return net.ListenPacket("udp", "")
 }
 
-func (c *ClientUtil) refresh() {
+func (c *Simple) refresh() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
