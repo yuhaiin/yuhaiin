@@ -79,3 +79,8 @@ func TestM(t *testing.T) {
 		t.Log(1 << i)
 	}
 }
+
+func TestGetDNSHostnameAndMode(t *testing.T) {
+	s, m := getDNSHostnameAndMode(&config.DNS{Host: "1.1.1.1"})
+	t.Log(s, m)
+}

@@ -111,6 +111,7 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 			if err != nil {
 				return fmt.Errorf("refresh mapping failed: %v", err)
 			}
+			s.mapper.Insert(getDNSHostnameAndMode(ss.Dns.Remote))
 			return nil
 		})
 	if err != nil {
@@ -129,6 +130,7 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 	conf.AddObserver(func(current, old *config.Setting) {
 		if diffDNS(current.Dns.Remote, old.Dns.Remote) {
 			s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
+			s.mapper.Insert(getDNSHostnameAndMode(current.Dns.Remote))
 		}
 	})
 
@@ -208,6 +210,28 @@ func (s *Shunt) SetFile(f string) error {
 func (s *Shunt) Get(domain string) MODE {
 	x, _ := s.mapper.Search(domain).(MODE)
 	return x
+}
+
+func getDNSHostnameAndMode(dc *config.DNS) (string, MODE) {
+	host := dc.Host
+	if dc.Type == config.DNS_doh {
+		i := strings.IndexByte(dc.Host, '/')
+		if i != -1 {
+			host = dc.Host[:i]
+		}
+	}
+
+	h, _, err := net.SplitHostPort(host)
+	if err == nil {
+		host = h
+	}
+
+	mode := OTHERS
+	if !dc.Proxy {
+		mode = DIRECT
+	}
+
+	return host, mode
 }
 
 func diffDNS(old, new *config.DNS) bool {
