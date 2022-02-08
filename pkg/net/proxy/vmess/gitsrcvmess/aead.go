@@ -33,8 +33,8 @@ func AEADWriter(w io.Writer, aead cipher.AEAD, iv []byte) writer {
 }
 
 func (w *aeadWriter) Close() error {
-	utils.PutBytes(lenSize+maxChunkSize, &w.buf)
-	utils.PutBytes(w.AEAD.NonceSize(), &w.nonce)
+	utils.PutBytes(w.buf)
+	utils.PutBytes(w.nonce)
 	return nil
 }
 
@@ -57,7 +57,7 @@ func (w *aeadWriter) ReadFrom(r io.Reader) (n int64, err error) {
 			binary.BigEndian.PutUint16(w.nonce[:2], w.count)
 			copy(w.nonce[2:], w.iv[2:12])
 
-			w.Seal(payloadBuf[:0], w.nonce, payloadBuf, nil)
+			w.Seal(payloadBuf[:0], w.nonce[:w.NonceSize()], payloadBuf, nil)
 			w.count++
 
 			_, ew := w.Writer.Write(w.buf)
@@ -83,11 +83,13 @@ var _ io.ReadCloser = &aeadReader{}
 type aeadReader struct {
 	io.Reader
 	cipher.AEAD
-	nonce    []byte
-	buf      []byte
-	leftover []byte
-	count    uint16
-	iv       []byte
+	nonce   []byte
+	buf     []byte
+	offset  int
+	dataLen int
+	lenBuf  []byte
+	count   uint16
+	iv      []byte
 }
 
 // AEADReader returns a aead reader
@@ -95,7 +97,7 @@ func AEADReader(r io.Reader, aead cipher.AEAD, iv []byte) io.ReadCloser {
 	return &aeadReader{
 		Reader: r,
 		AEAD:   aead,
-		buf:    utils.GetBytes(lenSize + maxChunkSize),
+		lenBuf: utils.GetBytes(lenSize),
 		nonce:  utils.GetBytes(aead.NonceSize()),
 		count:  0,
 		iv:     iv,
@@ -103,33 +105,39 @@ func AEADReader(r io.Reader, aead cipher.AEAD, iv []byte) io.ReadCloser {
 }
 
 func (r *aeadReader) Close() error {
-	utils.PutBytes(lenSize+maxChunkSize, &r.buf)
-	utils.PutBytes(r.AEAD.NonceSize(), &r.nonce)
+	utils.PutBytes(r.lenBuf)
+	utils.PutBytes(r.nonce)
 	return nil
 }
 
 func (r *aeadReader) Read(b []byte) (int, error) {
-	if len(r.leftover) > 0 {
-		n := copy(b, r.leftover)
-		r.leftover = r.leftover[n:]
+	if r.offset != r.dataLen {
+		// logasfmt.Println(r.offset, r.dataLen)
+		n := copy(b, r.buf[r.offset:r.dataLen])
+		r.offset += n
+		if r.offset == r.dataLen {
+			// utils.PutBytes(&r.buf)
+			r.buf = nil
+		}
 		return n, nil
 	}
 
 	// get length
-	_, err := io.ReadFull(r.Reader, r.buf[:lenSize])
+	_, err := io.ReadFull(r.Reader, r.lenBuf)
 	if err != nil {
 		return 0, err
 	}
 
 	// if length == 0, then this is the end
-	l := binary.BigEndian.Uint16(r.buf[:lenSize])
+	l := binary.BigEndian.Uint16(r.lenBuf)
 	if l == 0 {
 		return 0, nil
 	}
 
+	r.buf = utils.GetBytes(int(l))
+	// logasfmt.Println(l, len(r.buf))
 	// get payload
-	buf := r.buf[:l]
-	_, err = io.ReadFull(r.Reader, buf)
+	_, err = io.ReadFull(r.Reader, r.buf[:l])
 	if err != nil {
 		return 0, err
 	}
@@ -137,16 +145,20 @@ func (r *aeadReader) Read(b []byte) (int, error) {
 	binary.BigEndian.PutUint16(r.nonce[:2], r.count)
 	copy(r.nonce[2:], r.iv[2:12])
 
-	_, err = r.Open(buf[:0], r.nonce, buf, nil)
+	_, err = r.Open(r.buf[:0], r.nonce[:r.NonceSize()], r.buf[:l], nil)
 	r.count++
 	if err != nil {
 		return 0, err
 	}
 
-	dataLen := int(l) - r.Overhead()
-	m := copy(b, r.buf[:dataLen])
-	if m < int(dataLen) {
-		r.leftover = r.buf[m:dataLen]
+	r.dataLen = int(l) - r.Overhead()
+	m := copy(b, r.buf[:r.dataLen])
+	if m < int(r.dataLen) {
+		r.offset = m
+	} else {
+		r.offset = r.dataLen
+		// utils.PutBytes(&r.buf)
+		r.buf = nil
 	}
 
 	return m, err

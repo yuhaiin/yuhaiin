@@ -30,17 +30,17 @@ func NewShadowsocksr(host, port string, method, password, obfss, obfsParam, prot
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		cipher, err := streamCipher.NewCipher(method, password)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("new cipher failed: %w", err)
 		}
 
 		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, port))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resolve udp addr failed: %w", err)
 		}
 
 		port, err := strconv.ParseUint(port, 10, 16)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse port failed: %w", err)
 		}
 
 		obfs, err := obfs.NewObfs(obfss, ssr.ServerInfo{
@@ -53,7 +53,7 @@ func NewShadowsocksr(host, port string, method, password, obfss, obfsParam, prot
 			KeyLen: cipher.KeyLen(),
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("new obfs failed: %w", err)
 		}
 		protocol, err := protocol.NewProtocol(protoc, ssr.ServerInfo{
 			Host:   host,
@@ -65,18 +65,17 @@ func NewShadowsocksr(host, port string, method, password, obfss, obfsParam, prot
 			KeyLen: cipher.KeyLen(),
 		}, obfs.Overhead())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("new protocol failed: %w", err)
 		}
 
-		s := &Shadowsocksr{
+		return &Shadowsocksr{
 			host:    net.JoinHostPort(host, strconv.FormatUint(port, 10)),
 			cipher:  cipher,
 			p:       p,
 			obfss:   obfs,
 			proto:   protocol,
 			udpAddr: addr,
-		}
-		return s, nil
+		}, nil
 	}
 }
 
@@ -92,11 +91,11 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	conn := s.proto.StreamProtocol(cipher, cipher.WriteIV())
 	target, err := socks5client.ParseAddr(addr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 	if _, err := conn.Write(target); err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, fmt.Errorf("write target failed: %w", err)
 	}
 
 	return conn, nil
@@ -105,7 +104,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 	c, err := s.p.PacketConn(addr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get packet conn failed: %w", err)
 	}
 	cipher := s.cipher.PacketCipher(c)
 	proto := s.proto.PacketProtocol(cipher)

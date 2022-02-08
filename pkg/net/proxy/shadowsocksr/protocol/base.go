@@ -146,7 +146,7 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 }
 
 func (c *protocolConn) Close() error {
-	utils.PutBytes(2048, &c.readBuf)
+	utils.PutBytes(c.readBuf)
 	return c.Conn.Close()
 }
 
@@ -214,7 +214,7 @@ func (c *protocolConn) Write(b []byte) (n int, err error) {
 
 func (c *protocolConn) ReadFrom(r io.Reader) (int64, error) {
 	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(2048, &buf)
+	defer utils.PutBytes(buf)
 
 	n := int64(0)
 	for {
@@ -235,7 +235,7 @@ func (c *protocolConn) ReadFrom(r io.Reader) (int64, error) {
 
 func (c *protocolConn) WriteTo(w io.Writer) (int64, error) {
 	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(2048, &buf)
+	defer utils.PutBytes(buf)
 
 	n := int64(0)
 	for {

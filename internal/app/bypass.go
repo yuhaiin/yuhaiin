@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -46,8 +45,6 @@ type BypassManager struct {
 	proxy  proxy.Proxy
 	dialer proxy.Proxy
 }
-
-var ErrBlockAddr = errors.New("BLOCK ADDRESS")
 
 //NewBypassManager .
 func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
@@ -109,16 +106,16 @@ func (m *BypassManager) PacketConn(host string) (conn net.PacketConn, err error)
 func (m *BypassManager) marry(host string) (p proxy.Proxy) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return &errProxy{err: fmt.Errorf("split host [%s] failed: %v", host, err)}
+		return newErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err))
 	}
 
 	mark := m.mapper(hostname)
 
-	logasfmt.Printf("[%s] ->  mode: %v\n", host, mark)
+	logasfmt.Printf("[%s] -> %v\n", host, mark)
 
 	switch mark {
 	case BLOCK:
-		p = &errProxy{err: fmt.Errorf("%w: %v", ErrBlockAddr, host)}
+		p = newErrProxy(fmt.Errorf("BLOCK: %v", host))
 	case DIRECT:
 		p = m.dialer
 	default:
@@ -130,6 +127,10 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy) {
 
 type errProxy struct {
 	err error
+}
+
+func newErrProxy(err error) proxy.Proxy {
+	return &errProxy{err: err}
 }
 
 func (e *errProxy) Conn(string) (net.Conn, error) {

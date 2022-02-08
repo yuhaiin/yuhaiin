@@ -44,7 +44,7 @@ func ChunkedWriter(w io.Writer) writer {
 }
 
 func (w *chunkedWriter) Close() error {
-	utils.PutBytes(lenSize+maxChunkSize, &w.buf)
+	utils.PutBytes(w.buf)
 	return nil
 }
 
@@ -92,7 +92,7 @@ func ChunkedReader(r io.Reader) io.ReadCloser {
 }
 
 func (r *chunkedReader) Close() error {
-	utils.PutBytes(lenSize, &r.buf)
+	utils.PutBytes(r.buf)
 	return nil
 }
 

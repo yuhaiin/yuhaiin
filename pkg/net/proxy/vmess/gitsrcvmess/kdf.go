@@ -87,7 +87,7 @@ func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 	generatedAuthID := CreateAuthID(key[:], time.Now().Unix())
 
 	connectionNonce := utils.GetBytes(8)
-	defer utils.PutBytes(8, &connectionNonce)
+	defer utils.PutBytes(connectionNonce)
 	if _, err := io.ReadFull(rand3.Reader, connectionNonce); err != nil {
 		panic(err.Error())
 	}

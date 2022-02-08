@@ -174,7 +174,7 @@ func (n *dns) Resolver() *net.Resolver {
 
 func (n *dns) udp(req []byte) (data []byte, err error) {
 	var b = utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(utils.DefaultSize, &(b))
+	defer utils.PutBytes(b)
 
 	addr, err := net.ResolveUDPAddr("udp", n.Server)
 	if err != nil {

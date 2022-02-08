@@ -40,7 +40,7 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 
 	if ho.firstResponse {
 		buf := utils.GetBytes(utils.DefaultSize)
-		defer utils.PutBytes(utils.DefaultSize, &buf)
+		defer utils.PutBytes(buf)
 		n, err := ho.Conn.Read(buf)
 		if err != nil {
 			// utils.BuffPool(utils.DefaultSize).Put(&(buf))

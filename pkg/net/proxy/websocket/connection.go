@@ -34,7 +34,7 @@ func (c *connection) Read(b []byte) (int, error) {
 
 func (c *connection) ReadFrom(r io.Reader) (int64, error) {
 	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(2048, &buf)
+	defer utils.PutBytes(buf)
 
 	n := int64(0)
 	for {
@@ -74,7 +74,7 @@ func (c *connection) Write(b []byte) (int, error) {
 
 func (c *connection) WriteTo(w io.Writer) (int64, error) {
 	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(2048, &buf)
+	defer utils.PutBytes(buf)
 
 	n := int64(0)
 	for {

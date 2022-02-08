@@ -5,12 +5,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -29,11 +29,14 @@ func handshake(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
 		modeOption[index](o)
 	}
 	return func(conn net.Conn, f proxy.Proxy) {
-		handle(o.Username, o.Password, conn, f)
+		err := handle(o.Username, o.Password, conn, f)
+		if err != nil {
+			logasfmt.Println("http server handle failed:", err)
+		}
 	}
 }
 
-func handle(user, key string, src net.Conn, f proxy.Proxy) {
+func handle(user, key string, src net.Conn, f proxy.Proxy) error {
 	/*
 		use golang http
 	*/
@@ -43,53 +46,54 @@ func handle(user, key string, src net.Conn, f proxy.Proxy) {
 _start:
 	req, err := http.ReadRequest(inBoundReader)
 	if err != nil {
-		return
+		return fmt.Errorf("read request failed: %v", err)
 	}
 
 	err = verifyUserPass(user, key, src, req)
 	if err != nil {
-		log.Printf("http verify user pass failed: %v\n", err)
-		return
+		return fmt.Errorf("http verify user pass failed: %v", err)
 	}
 
 	host := req.Host
 	if req.URL.Port() == "" {
-		host = net.JoinHostPort(host, "80")
+		if strings.EqualFold(req.URL.Scheme, "https") {
+			host = net.JoinHostPort(host, "443")
+		} else {
+			host = net.JoinHostPort(host, "80")
+		}
 	}
 
 	dstc, err := f.Conn(host)
 	if err != nil {
-		log.Printf("get remote conn failed: %v\n", err)
 		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-		_, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
+		er := resp503(src)
+		if er != nil {
+			return fmt.Errorf("resp 503 failed: %v", er)
+		}
 		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
-		return
-	}
-
-	if x, ok := dstc.(*net.TCPConn); ok {
-		_ = x.SetKeepAlive(true)
+		return fmt.Errorf("get conn from proxy failed: %v", err)
 	}
 
 	if req.Method == http.MethodConnect {
-		connect(src, dstc)
-		return
+		return connect(src, dstc)
 	}
 
-	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive" ||
-		strings.TrimSpace(strings.ToLower(req.Header.Get("Connection"))) == "keep-alive"
+	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"
 
 	err = normal(src, dstc, req, keepAlive)
 	if err != nil {
-		// log.Printf("normal failed: %v\n", err)
-		return
+		return fmt.Errorf("http normal proxy failed: %v", err)
 	}
 
 	if keepAlive {
 		goto _start
 	}
+
+	return nil
 }
 
 func verifyUserPass(user, key string, client net.Conn, req *http.Request) error {
@@ -128,14 +132,14 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 	return cs[:s], cs[s+1:], true
 }
 
-func connect(client net.Conn, dst net.Conn) {
+func connect(client net.Conn, dst net.Conn) error {
 	defer dst.Close()
 	_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("write to client failed: %v", err)
 	}
 	utils.Forward(dst, client)
+	return nil
 }
 
 func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
@@ -150,6 +154,7 @@ func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
 	if err != nil {
 		return fmt.Errorf("http read response failed: %v", err)
 	}
+	defer resp.Body.Close()
 
 	err = modifyResponse(resp, keepAlive)
 	if err != nil {
@@ -160,7 +165,6 @@ func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
 	if err != nil {
 		return fmt.Errorf("resp write failed: %v", err)
 	}
-	// _ = utils.SingleForward(resp.Body, src)
 
 	return nil
 }
@@ -192,6 +196,7 @@ func modifyResponse(resp *http.Response, keepAlive bool) error {
 	}
 	resp.Close = true
 	if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
+		resp.Header.Set("Proxy-Connection", "keep-alive")
 		resp.Header.Set("Connection", "Keep-Alive")
 		resp.Header.Set("Keep-Alive", "timeout=4")
 		resp.Close = false
@@ -201,7 +206,7 @@ func modifyResponse(resp *http.Response, keepAlive bool) error {
 
 // https://github.com/go-httpproxy
 
-func resp503(dst net.Conn) {
+func resp503(dst net.Conn) error {
 	resp := &http.Response{
 		Status:        "Service Unavailable",
 		StatusCode:    503,
@@ -215,7 +220,7 @@ func resp503(dst net.Conn) {
 	}
 	resp.Header.Set("Connection", "close")
 	resp.Header.Set("Proxy-Connection", "close")
-	_ = resp.Write(dst)
+	return resp.Write(dst)
 }
 
 func resp400(dst net.Conn) {

@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"io"
+	"math/bits"
 	"sync"
 )
 
@@ -10,14 +11,14 @@ var poolMap = sync.Map{}
 var DefaultSize = 8 * 0x400
 
 func buffPool(size int) *sync.Pool {
+
 	if v, ok := poolMap.Load(size); ok {
 		return v.(*sync.Pool)
 	}
 
 	p := &sync.Pool{
 		New: func() interface{} {
-			x := make([]byte, size)
-			return &x
+			return make([]byte, size)
 		},
 	}
 	poolMap.Store(size, p)
@@ -25,11 +26,16 @@ func buffPool(size int) *sync.Pool {
 }
 
 func GetBytes(size int) []byte {
-	return *buffPool(size).Get().(*[]byte)
+	l := bits.Len(uint(size)) - 1
+	if size != 1<<l {
+		size = 1 << (l + 1)
+	}
+	return buffPool(size).Get().([]byte)
 }
 
-func PutBytes(size int, b *[]byte) {
-	buffPool(size).Put(b)
+func PutBytes(b []byte) {
+	l := bits.Len(uint(len(b))) - 1
+	buffPool(1 << l).Put(b) //lint:ignore SA6002 ignore temporarily
 }
 
 //Forward pipe
@@ -54,7 +60,7 @@ func Forward(conn1, conn2 io.ReadWriter) {
 //SingleForward single pipe
 func SingleForward(src io.Reader, dst io.Writer) (err error) {
 	buf := GetBytes(DefaultSize)
-	defer PutBytes(DefaultSize, &buf)
+	defer PutBytes(buf)
 	_, err = io.CopyBuffer(dst, src, buf)
 	return
 }

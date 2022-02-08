@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"math/bits"
 	"net"
 	"testing"
 
@@ -68,4 +69,13 @@ func TestIndex(t *testing.T) {
 
 	t.Log(i, i2+i+1)
 	t.Log(string(c), string(b)+";")
+}
+
+func TestM(t *testing.T) {
+	z := make([]byte, 17)
+
+	for i := range z {
+		t.Log(bits.Len32(uint32(i)))
+		t.Log(1 << i)
+	}
 }

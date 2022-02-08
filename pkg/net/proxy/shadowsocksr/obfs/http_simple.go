@@ -165,7 +165,7 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 	}
 
 	buf := utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(utils.DefaultSize, &buf)
+	defer utils.PutBytes(buf)
 
 	n, err := t.Conn.Read(buf)
 	if err != nil {
@@ -190,7 +190,7 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 
 func (t *httpSimplePost) ReadFrom(r io.Reader) (int64, error) {
 	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(2048, &buf)
+	defer utils.PutBytes(buf)
 
 	n := int64(0)
 	for {

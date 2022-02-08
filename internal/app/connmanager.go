@@ -208,8 +208,8 @@ func (c *ConnManager) Conn(host string) (net.Conn, error) {
 		return nil, err
 	}
 
-	_, ok := conn.(io.ReaderFrom)
-	logasfmt.Println("app conn", reflect.TypeOf(conn), ok)
+	// _, ok := conn.(io.ReaderFrom)
+	// logasfmt.Println("app conn", reflect.TypeOf(conn), ok)
 	return c.newConn(host, conn), nil
 }
 
