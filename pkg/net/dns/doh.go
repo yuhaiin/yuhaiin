@@ -66,6 +66,7 @@ func (d *doh) search(domain string) ([]net.IP, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer r.Close()
 		return ioutil.ReadAll(r)
 	})
 
