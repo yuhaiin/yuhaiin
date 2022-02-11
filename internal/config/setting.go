@@ -13,8 +13,8 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-// SettingDecodeJSON decode setting json to struct
-func SettingDecodeJSON(dir string) (*Setting, error) {
+// settingDecodeJSON decode setting json to struct
+func settingDecodeJSON(dir string) (*Setting, error) {
 	pa := &Setting{
 		SystemProxy: &SystemProxy{
 			HTTP:   true,
@@ -47,7 +47,7 @@ func SettingDecodeJSON(dir string) (*Setting, error) {
 	data, err := ioutil.ReadFile(filepath.Join(dir, "yuhaiinConfig.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return pa, SettingEnCodeJSON(pa, dir)
+			return pa, settingEnCodeJSON(pa, dir)
 		}
 		return pa, fmt.Errorf("read config file failed: %v", err)
 	}
@@ -55,8 +55,8 @@ func SettingDecodeJSON(dir string) (*Setting, error) {
 	return pa, err
 }
 
-// SettingEnCodeJSON encode setting struct to json
-func SettingEnCodeJSON(pa *Setting, dir string) error {
+// settingEnCodeJSON encode setting struct to json
+func settingEnCodeJSON(pa *Setting, dir string) error {
 	_, err := os.Stat(filepath.Join(dir, "yuhaiinConfig.json"))
 	if err != nil && os.IsNotExist(err) {
 		err = os.MkdirAll(dir, os.ModePerm)
@@ -73,6 +73,10 @@ func SettingEnCodeJSON(pa *Setting, dir string) error {
 	return ioutil.WriteFile(filepath.Join(dir, "yuhaiinConfig.json"), data, os.ModePerm)
 }
 
+type observer struct {
+	diff func(current, old *Setting) bool
+	exec func(current *Setting)
+}
 type Config struct {
 	UnimplementedConfigDaoServer
 	current   *Setting
@@ -80,6 +84,8 @@ type Config struct {
 	path      string
 	observers []Observer
 	exec      map[string]InitFunc
+
+	os []observer
 
 	lock     sync.RWMutex
 	execlock sync.RWMutex
@@ -89,7 +95,7 @@ type InitFunc func(*Setting) error
 type Observer func(current, old *Setting)
 
 func NewConfig(dir string, o ...InitFunc) (*Config, error) {
-	c, err := SettingDecodeJSON(dir)
+	c, err := settingDecodeJSON(dir)
 	if err != nil {
 		return nil, fmt.Errorf("decode setting failed: %v", err)
 	}
@@ -122,7 +128,7 @@ func (c *Config) Load(context.Context, *emptypb.Empty) (*Setting, error) {
 func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	err := SettingEnCodeJSON(s, c.path)
+	err := settingEnCodeJSON(s, c.path)
 	if err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %v", err)
 	}
@@ -140,6 +146,18 @@ func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
 	}
 	wg.Wait()
 
+	wg = sync.WaitGroup{}
+	for i := range c.os {
+		wg.Add(1)
+		go func(o observer) {
+			wg.Done()
+			if o.diff(c.current, c.old) {
+				o.exec(c.current)
+			}
+		}(c.os[i])
+	}
+	wg.Wait()
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -150,6 +168,22 @@ func (c *Config) AddObserver(o Observer) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.observers = append(c.observers, o)
+}
+
+func (c *Config) AddObserver2(diff func(current, old *Setting) bool, exec func(current *Setting)) {
+	if diff == nil || exec == nil {
+		return
+	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.os = append(c.os, observer{diff, exec})
+}
+
+func (c *Config) AddObserverAndExec(diff func(current, old *Setting) bool, exec func(current *Setting)) {
+	c.AddObserver2(diff, exec)
+	exec(c.current)
 }
 
 func (c *Config) AddExecCommand(key string, o InitFunc) error {

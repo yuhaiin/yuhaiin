@@ -161,24 +161,16 @@ func (c *ConnManager) delete(id int64) {
 		return
 	}
 
-	logasfmt.Printf("close %s id: %v,addr: %v\n",
-		vv.Type().Name(), vv.FieldByName("Id"), vv.FieldByName("Addr"))
+	logasfmt.Printf("close %s %v: %v, %s <-> %s\n",
+		vv.Type().Name(), vv.FieldByName("Id"), vv.FieldByName("Addr"), vv.FieldByName("Local"), vv.FieldByName("Remote"))
 }
 
 func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
-	s := &conn{
-		ConnRespConnection: &ConnRespConnection{
-			Id:     c.idSeed.Generate(),
-			Addr:   addr,
-			Local:  x.LocalAddr().String(),
-			Remote: x.RemoteAddr().String(),
-		},
-		Conn: x,
-		cm:   c,
+	if x == nil {
+		return nil
 	}
-
+	s := newConn(addr, x, c)
 	c.add(s)
-
 	return s
 }
 
@@ -186,19 +178,8 @@ func (c *ConnManager) newPacketConn(addr string, x net.PacketConn) net.PacketCon
 	if x == nil {
 		return nil
 	}
-	s := &packetConn{
-		ConnRespConnection: &ConnRespConnection{
-			Id:     c.idSeed.Generate(),
-			Addr:   addr,
-			Local:  x.LocalAddr().String(),
-			Remote: addr,
-		},
-		PacketConn: x,
-		cm:         c,
-	}
-
+	s := newPacketConn(addr, x, c)
 	c.addPacketConn(s)
-
 	return s
 }
 
@@ -208,8 +189,6 @@ func (c *ConnManager) Conn(host string) (net.Conn, error) {
 		return nil, err
 	}
 
-	// _, ok := conn.(io.ReaderFrom)
-	// logasfmt.Println("app conn", reflect.TypeOf(conn), ok)
 	return c.newConn(host, conn), nil
 }
 
@@ -221,42 +200,60 @@ func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 	return c.newPacketConn(host, conn), nil
 }
 
-var _ net.Conn = (*conn)(nil)
+var _ net.Conn = (*preConn)(nil)
 
-type conn struct {
+type preConn struct {
 	net.Conn
 	cm *ConnManager
 
 	*ConnRespConnection
 }
 
-func (s *conn) Close() error {
+func (s *preConn) Close() error {
 	s.cm.delete(s.Id)
 	return s.Conn.Close()
 }
 
-func (s *conn) Write(b []byte) (n int, err error) {
+func (s *preConn) Write(b []byte) (n int, err error) {
 	n, err = s.Conn.Write(b)
 	atomic.AddUint64(&s.cm.upload, uint64(n))
 	return
 }
 
-func (s *conn) Read(b []byte) (n int, err error) {
+func (s *preConn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
 	atomic.AddUint64(&s.cm.download, uint64(n))
 	return
 }
 
-func (s *conn) ReadFrom(r io.Reader) (int64, error) {
-	n, err := io.Copy(s.Conn, r)
-	atomic.AddUint64(&s.cm.download, uint64(n))
-	return n, err
+type conn struct {
+	*preConn
 }
 
-func (s *conn) WriteTo(r io.Writer) (int64, error) {
-	n, err := io.Copy(r, s.Conn)
-	atomic.AddUint64(&s.cm.upload, uint64(n))
-	return n, err
+func newConn(addr string, con net.Conn, cm *ConnManager) *conn {
+	return &conn{
+		preConn: &preConn{
+			ConnRespConnection: &ConnRespConnection{
+				Id:     cm.idSeed.Generate(),
+				Addr:   addr,
+				Local:  con.LocalAddr().String(),
+				Remote: con.RemoteAddr().String(),
+			},
+			Conn: con,
+			cm:   cm,
+		},
+	}
+}
+func (s *conn) ReadFrom(r io.Reader) (resp int64, _ error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+	return io.CopyBuffer(s.preConn, r, buf)
+}
+
+func (s *conn) WriteTo(w io.Writer) (resp int64, _ error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+	return io.CopyBuffer(w, s.preConn, buf)
 }
 
 var _ net.PacketConn = (*packetConn)(nil)
@@ -268,6 +265,18 @@ type packetConn struct {
 	*ConnRespConnection
 }
 
+func newPacketConn(addr string, con net.PacketConn, cm *ConnManager) *packetConn {
+	return &packetConn{
+		PacketConn: con,
+		cm:         cm,
+		ConnRespConnection: &ConnRespConnection{
+			Addr:   addr,
+			Id:     cm.idSeed.Generate(),
+			Local:  con.LocalAddr().String(),
+			Remote: addr,
+		},
+	}
+}
 func (s *packetConn) Close() error {
 	s.cm.delete(s.Id)
 	return s.PacketConn.Close()

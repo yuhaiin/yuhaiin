@@ -116,7 +116,7 @@ func (r *aeadReader) Read(b []byte) (int, error) {
 		n := copy(b, r.buf[r.offset:r.dataLen])
 		r.offset += n
 		if r.offset == r.dataLen {
-			// utils.PutBytes(&r.buf)
+			utils.PutBytes(r.buf)
 			r.buf = nil
 		}
 		return n, nil
@@ -157,7 +157,7 @@ func (r *aeadReader) Read(b []byte) (int, error) {
 		r.offset = m
 	} else {
 		r.offset = r.dataLen
-		// utils.PutBytes(&r.buf)
+		utils.PutBytes(r.buf)
 		r.buf = nil
 	}
 

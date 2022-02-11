@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/internal/api"
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
@@ -119,13 +118,9 @@ func main() {
 		log.Printf("create new listener failed: %v\n", err)
 	}
 
-	runSetSysProxy(conf)
-	defer sysproxy.UnsetSysProxy()
+	sysproxy.Set(conf)
+	defer sysproxy.Unset()
 
-	grpcServer.RegisterService(&api.Config_ServiceDesc, api.NewConfig(conf, flowStatis))  // TODO Deprecated
-	grpcServer.RegisterService(&api.Node_ServiceDesc, api.NewNode(nodeManager))           // TODO Deprecated
-	grpcServer.RegisterService(&api.Subscribe_ServiceDesc, api.NewSubscribe(nodeManager)) // TODO Deprecated
-	grpcServer.RegisterService(&api.ProcessInit_ServiceDesc, api.NewProcess(lock, *host))
 	grpcServer.RegisterService(&subscr.NodeManager_ServiceDesc, nodeManager)
 	grpcServer.RegisterService(&config.ConfigDao_ServiceDesc, conf)
 	grpcServer.RegisterService(&app.Connections_ServiceDesc, flowStatis)
@@ -133,33 +128,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func runSetSysProxy(conf *config.Config) {
-	setSysProxy := func(s *config.Setting) {
-		var http, socks5 string
-		if s.SystemProxy.HTTP {
-			http = s.Proxy.HTTP
-		}
-		if s.SystemProxy.Socks5 {
-			socks5 = s.Proxy.Socks5
-		}
-		sysproxy.SetSysProxy(http, socks5)
-	}
-
-	conf.Exec(func(s *config.Setting) error {
-		setSysProxy(s)
-		return nil
-	})
-	conf.AddObserver(func(current, old *config.Setting) {
-		if current.SystemProxy.HTTP != old.SystemProxy.HTTP ||
-			current.SystemProxy.Socks5 != old.SystemProxy.Socks5 ||
-			current.Proxy.HTTP != old.Proxy.HTTP ||
-			current.Proxy.Socks5 != old.Proxy.Socks5 {
-			sysproxy.UnsetSysProxy()
-			setSysProxy(current)
-		}
-	})
 }
 
 func defaultConfigDir() (Path string) {

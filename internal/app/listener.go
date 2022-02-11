@@ -34,12 +34,9 @@ func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener, err error) {
 		if err != nil {
 			return fmt.Errorf("create http server failed: %v", err)
 		}
-
-		if runtime.GOOS != "windows" {
-			l.redir, err = rs.NewServer(s.Proxy.Redir)
-			if err != nil {
-				return fmt.Errorf("create redir server failed: %v", err)
-			}
+		l.redir, err = rs.NewServer(s.Proxy.Redir)
+		if err != nil {
+			return fmt.Errorf("create redir server failed: %v", err)
 		}
 		return nil
 	})
@@ -47,12 +44,19 @@ func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener, err error) {
 		return nil, err
 	}
 
+	c.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return true
+	}, func(current *config.Setting) {
+		if l.http != nil {
+			l.http.SetServer(current.Proxy.HTTP)
+		} else {
+			l.http, _ = hs.NewServer(current.Proxy.HTTP, "", "")
+		}
+	})
 	c.AddObserver(func(cc, _ *config.Setting) {
 		l.http.SetServer(cc.Proxy.GetHTTP())
 		l.socks5.SetServer(cc.Proxy.GetSocks5())
-		if runtime.GOOS != "windows" {
-			l.redir.SetServer(cc.Proxy.GetRedir())
-		}
+		l.redir.SetServer(cc.Proxy.GetRedir())
 	})
 
 	l.socks5.SetProxy(l)

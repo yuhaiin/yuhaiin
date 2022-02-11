@@ -59,35 +59,24 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 		log.Printf("create shunt failed: %v, disable bypass.\n", err)
 	}
 
-	applyBypass := func(s *config.Setting) error {
-		if !s.Bypass.Enabled {
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return diffDNS(current.Dns.Local, old.Dns.Local)
+	}, func(current *config.Setting) {
+		m.dialer = direct.NewDirect(&net.Dialer{
+			Timeout:  11 * time.Second,
+			Resolver: getDNS(current.Dns.Local, nil).Resolver(),
+		})
+	})
+
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return current.Bypass.Enabled != old.Bypass.Enabled
+	}, func(current *config.Setting) {
+		if !current.Bypass.Enabled {
 			m.mapper = func(s string) MODE {
 				return OTHERS
 			}
 		} else {
 			m.mapper = shunt.Get
-		}
-		return nil
-	}
-
-	applyDirectDNS := func(s *config.Setting) error {
-		m.dialer = direct.NewDirect(&net.Dialer{
-			Timeout:  11 * time.Second,
-			Resolver: getDNS(s.Dns.Local, nil).Resolver(),
-		})
-		return nil
-	}
-
-	_ = conf.Exec(applyDirectDNS, applyBypass)
-	conf.AddObserver(func(current, old *config.Setting) {
-		if diffDNS(old.Dns.Local, current.Dns.Local) {
-			applyDirectDNS(current)
-		}
-	})
-
-	conf.AddObserver(func(current, old *config.Setting) {
-		if current.Bypass.Enabled != old.Bypass.Enabled {
-			applyBypass(current)
 		}
 	})
 

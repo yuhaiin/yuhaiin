@@ -103,35 +103,22 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 		opt(s)
 	}
 
-	err := conf.Exec(
-		func(ss *config.Setting) error {
-			s.file = ss.Bypass.BypassFile
-			s.mapper = mapper.NewMapper(getDNS(ss.Dns.Remote, s.p).LookupIP)
-			err := s.RefreshMapping()
-			if err != nil {
-				return fmt.Errorf("refresh mapping failed: %v", err)
-			}
-			s.mapper.Insert(getDNSHostnameAndMode(ss.Dns.Remote))
-			return nil
-		})
-	if err != nil {
-		return s, err
-	}
+	s.mapper = mapper.NewMapper(nil)
 
-	conf.AddObserver(func(current, old *config.Setting) {
-		if current.Bypass.BypassFile != old.Bypass.BypassFile {
-			err := s.SetFile(current.Bypass.BypassFile)
-			if err != nil {
-				log.Printf("shunt set file failed: %v", err)
-			}
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return current.Bypass.BypassFile != old.Bypass.BypassFile
+	}, func(current *config.Setting) {
+		err := s.SetFile(current.Bypass.BypassFile)
+		if err != nil {
+			log.Printf("shunt set file failed: %v", err)
 		}
 	})
 
-	conf.AddObserver(func(current, old *config.Setting) {
-		if diffDNS(current.Dns.Remote, old.Dns.Remote) {
-			s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
-			s.mapper.Insert(getDNSHostnameAndMode(current.Dns.Remote))
-		}
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return diffDNS(current.Dns.Remote, old.Dns.Remote)
+	}, func(current *config.Setting) {
+		s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
+		s.mapper.Insert(getDNSHostnameAndMode(current.Dns.Remote))
 	})
 
 	conf.AddExecCommand("RefreshMapping", func(*config.Setting) error {
