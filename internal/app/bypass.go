@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
@@ -62,10 +61,7 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
 		return diffDNS(current.Dns.Local, old.Dns.Local)
 	}, func(current *config.Setting) {
-		m.dialer = direct.NewDirect(&net.Dialer{
-			Timeout:  11 * time.Second,
-			Resolver: getDNS(current.Dns.Local, nil).Resolver(),
-		})
+		m.dialer = direct.NewDirect(direct.WithLookup(getDNS(current.Dns.Local, nil).LookupIP))
 	})
 
 	conf.AddObserverAndExec(func(current, old *config.Setting) bool {

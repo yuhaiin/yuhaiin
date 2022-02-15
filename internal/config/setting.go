@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -79,11 +80,10 @@ type observer struct {
 }
 type Config struct {
 	UnimplementedConfigDaoServer
-	current   *Setting
-	old       *Setting
-	path      string
-	observers []Observer
-	exec      map[string]InitFunc
+	current *Setting
+	old     *Setting
+	path    string
+	exec    map[string]InitFunc
 
 	os []observer
 
@@ -92,31 +92,16 @@ type Config struct {
 }
 
 type InitFunc func(*Setting) error
-type Observer func(current, old *Setting)
 
-func NewConfig(dir string, o ...InitFunc) (*Config, error) {
+func NewConfig(dir string) (*Config, error) {
 	c, err := settingDecodeJSON(dir)
 	if err != nil {
 		return nil, fmt.Errorf("decode setting failed: %v", err)
 	}
 
 	cf := &Config{current: c, old: c, path: dir, exec: make(map[string]InitFunc)}
-	err = cf.Exec(o...)
-	if err != nil {
-		return nil, err
-	}
 
 	return cf, nil
-}
-
-func (c *Config) Exec(o ...InitFunc) error {
-	for i := range o {
-		err := o[i](c.current)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (c *Config) Load(context.Context, *emptypb.Empty) (*Setting, error) {
@@ -133,26 +118,16 @@ func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %v", err)
 	}
 
-	c.old = c.current
-	c.current = s
+	c.old = proto.Clone(c.current).(*Setting)
+	c.current = proto.Clone(s).(*Setting)
 
 	wg := sync.WaitGroup{}
-	for i := range c.observers {
-		wg.Add(1)
-		go func(o Observer) {
-			wg.Done()
-			o(c.current, c.old)
-		}(c.observers[i])
-	}
-	wg.Wait()
-
-	wg = sync.WaitGroup{}
 	for i := range c.os {
 		wg.Add(1)
 		go func(o observer) {
 			wg.Done()
-			if o.diff(c.current, c.old) {
-				o.exec(c.current)
+			if o.diff(proto.Clone(c.current).(*Setting), proto.Clone(c.old).(*Setting)) {
+				o.exec(proto.Clone(c.current).(*Setting))
 			}
 		}(c.os[i])
 	}
@@ -161,16 +136,7 @@ func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }
 
-func (c *Config) AddObserver(o Observer) {
-	if o == nil {
-		return
-	}
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.observers = append(c.observers, o)
-}
-
-func (c *Config) AddObserver2(diff func(current, old *Setting) bool, exec func(current *Setting)) {
+func (c *Config) AddObserver(diff func(current, old *Setting) bool, exec func(current *Setting)) {
 	if diff == nil || exec == nil {
 		return
 	}
@@ -182,7 +148,7 @@ func (c *Config) AddObserver2(diff func(current, old *Setting) bool, exec func(c
 }
 
 func (c *Config) AddObserverAndExec(diff func(current, old *Setting) bool, exec func(current *Setting)) {
-	c.AddObserver2(diff, exec)
+	c.AddObserver(diff, exec)
 	exec(c.current)
 }
 
