@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.27.1
 // 	protoc        v3.19.4
-// source: internal/config/config.proto
+// source: config.proto
 
 package config
 
@@ -60,11 +60,11 @@ func (x DNSDnsType) String() string {
 }
 
 func (DNSDnsType) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_config_config_proto_enumTypes[0].Descriptor()
+	return file_config_proto_enumTypes[0].Descriptor()
 }
 
 func (DNSDnsType) Type() protoreflect.EnumType {
-	return &file_internal_config_config_proto_enumTypes[0]
+	return &file_config_proto_enumTypes[0]
 }
 
 func (x DNSDnsType) Number() protoreflect.EnumNumber {
@@ -73,7 +73,59 @@ func (x DNSDnsType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DNSDnsType.Descriptor instead.
 func (DNSDnsType) EnumDescriptor() ([]byte, []int) {
-	return file_internal_config_config_proto_rawDescGZIP(), []int{4, 0}
+	return file_config_proto_rawDescGZIP(), []int{4, 0}
+}
+
+type ProxyProxyType int32
+
+const (
+	Proxy_reserve ProxyProxyType = 0
+	Proxy_http    ProxyProxyType = 1
+	Proxy_socks5  ProxyProxyType = 2
+	Proxy_redir   ProxyProxyType = 3
+)
+
+// Enum value maps for ProxyProxyType.
+var (
+	ProxyProxyType_name = map[int32]string{
+		0: "reserve",
+		1: "http",
+		2: "socks5",
+		3: "redir",
+	}
+	ProxyProxyType_value = map[string]int32{
+		"reserve": 0,
+		"http":    1,
+		"socks5":  2,
+		"redir":   3,
+	}
+)
+
+func (x ProxyProxyType) Enum() *ProxyProxyType {
+	p := new(ProxyProxyType)
+	*p = x
+	return p
+}
+
+func (x ProxyProxyType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ProxyProxyType) Descriptor() protoreflect.EnumDescriptor {
+	return file_config_proto_enumTypes[1].Descriptor()
+}
+
+func (ProxyProxyType) Type() protoreflect.EnumType {
+	return &file_config_proto_enumTypes[1]
+}
+
+func (x ProxyProxyType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ProxyProxyType.Descriptor instead.
+func (ProxyProxyType) EnumDescriptor() ([]byte, []int) {
+	return file_config_proto_rawDescGZIP(), []int{5, 0}
 }
 
 type Setting struct {
@@ -90,7 +142,7 @@ type Setting struct {
 func (x *Setting) Reset() {
 	*x = Setting{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_config_config_proto_msgTypes[0]
+		mi := &file_config_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -103,7 +155,7 @@ func (x *Setting) String() string {
 func (*Setting) ProtoMessage() {}
 
 func (x *Setting) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_config_config_proto_msgTypes[0]
+	mi := &file_config_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -116,7 +168,7 @@ func (x *Setting) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Setting.ProtoReflect.Descriptor instead.
 func (*Setting) Descriptor() ([]byte, []int) {
-	return file_internal_config_config_proto_rawDescGZIP(), []int{0}
+	return file_config_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Setting) GetSystemProxy() *SystemProxy {
@@ -159,7 +211,7 @@ type DnsSetting struct {
 func (x *DnsSetting) Reset() {
 	*x = DnsSetting{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_config_config_proto_msgTypes[1]
+		mi := &file_config_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -172,7 +224,7 @@ func (x *DnsSetting) String() string {
 func (*DnsSetting) ProtoMessage() {}
 
 func (x *DnsSetting) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_config_config_proto_msgTypes[1]
+	mi := &file_config_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -185,7 +237,7 @@ func (x *DnsSetting) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DnsSetting.ProtoReflect.Descriptor instead.
 func (*DnsSetting) Descriptor() ([]byte, []int) {
-	return file_internal_config_config_proto_rawDescGZIP(), []int{1}
+	return file_config_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DnsSetting) GetRemote() *DNS {
@@ -214,7 +266,7 @@ type SystemProxy struct {
 func (x *SystemProxy) Reset() {
 	*x = SystemProxy{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_config_config_proto_msgTypes[2]
+		mi := &file_config_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -227,7 +279,7 @@ func (x *SystemProxy) String() string {
 func (*SystemProxy) ProtoMessage() {}
 
 func (x *SystemProxy) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_config_config_proto_msgTypes[2]
+	mi := &file_config_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -240,7 +292,7 @@ func (x *SystemProxy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemProxy.ProtoReflect.Descriptor instead.
 func (*SystemProxy) Descriptor() ([]byte, []int) {
-	return file_internal_config_config_proto_rawDescGZIP(), []int{2}
+	return file_config_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SystemProxy) GetHTTP() bool {
@@ -269,7 +321,7 @@ type Bypass struct {
 func (x *Bypass) Reset() {
 	*x = Bypass{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_config_config_proto_msgTypes[3]
+		mi := &file_config_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -282,7 +334,7 @@ func (x *Bypass) String() string {
 func (*Bypass) ProtoMessage() {}
 
 func (x *Bypass) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_config_config_proto_msgTypes[3]
+	mi := &file_config_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -295,7 +347,7 @@ func (x *Bypass) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Bypass.ProtoReflect.Descriptor instead.
 func (*Bypass) Descriptor() ([]byte, []int) {
-	return file_internal_config_config_proto_rawDescGZIP(), []int{3}
+	return file_config_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Bypass) GetEnabled() bool {
@@ -326,7 +378,7 @@ type DNS struct {
 func (x *DNS) Reset() {
 	*x = DNS{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_config_config_proto_msgTypes[4]
+		mi := &file_config_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -339,7 +391,7 @@ func (x *DNS) String() string {
 func (*DNS) ProtoMessage() {}
 
 func (x *DNS) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_config_config_proto_msgTypes[4]
+	mi := &file_config_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +404,7 @@ func (x *DNS) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DNS.ProtoReflect.Descriptor instead.
 func (*DNS) Descriptor() ([]byte, []int) {
-	return file_internal_config_config_proto_rawDescGZIP(), []int{4}
+	return file_config_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DNS) GetHost() string {
@@ -388,15 +440,13 @@ type Proxy struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	HTTP   string `protobuf:"bytes,1,opt,name=HTTP,json=http,proto3" json:"HTTP,omitempty"`
-	Socks5 string `protobuf:"bytes,2,opt,name=Socks5,json=socks5,proto3" json:"Socks5,omitempty"`
-	Redir  string `protobuf:"bytes,3,opt,name=Redir,json=redir,proto3" json:"Redir,omitempty"`
+	Proxy map[string]string `protobuf:"bytes,4,rep,name=proxy,proto3" json:"proxy,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *Proxy) Reset() {
 	*x = Proxy{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_config_config_proto_msgTypes[5]
+		mi := &file_config_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -409,7 +459,7 @@ func (x *Proxy) String() string {
 func (*Proxy) ProtoMessage() {}
 
 func (x *Proxy) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_config_config_proto_msgTypes[5]
+	mi := &file_config_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -422,35 +472,20 @@ func (x *Proxy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Proxy.ProtoReflect.Descriptor instead.
 func (*Proxy) Descriptor() ([]byte, []int) {
-	return file_internal_config_config_proto_rawDescGZIP(), []int{5}
+	return file_config_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *Proxy) GetHTTP() string {
+func (x *Proxy) GetProxy() map[string]string {
 	if x != nil {
-		return x.HTTP
+		return x.Proxy
 	}
-	return ""
+	return nil
 }
 
-func (x *Proxy) GetSocks5() string {
-	if x != nil {
-		return x.Socks5
-	}
-	return ""
-}
+var File_config_proto protoreflect.FileDescriptor
 
-func (x *Proxy) GetRedir() string {
-	if x != nil {
-		return x.Redir
-	}
-	return ""
-}
-
-var File_internal_config_config_proto protoreflect.FileDescriptor
-
-var file_internal_config_config_proto_rawDesc = []byte{
-	0x0a, 0x1c, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69,
-	0x67, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x0b,
+var file_config_proto_rawDesc = []byte{
+	0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x0b,
 	0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x1a, 0x1b, 0x67, 0x6f, 0x6f,
 	0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x65, 0x6d, 0x70,
 	0x74, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0xc9, 0x01, 0x0a, 0x07, 0x53, 0x65, 0x74,
@@ -491,75 +526,85 @@ var file_internal_config_config_proto_rawDesc = []byte{
 	0x0a, 0x08, 0x64, 0x6e, 0x73, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x72, 0x65,
 	0x73, 0x65, 0x72, 0x76, 0x65, 0x10, 0x00, 0x12, 0x07, 0x0a, 0x03, 0x75, 0x64, 0x70, 0x10, 0x01,
 	0x12, 0x07, 0x0a, 0x03, 0x74, 0x63, 0x70, 0x10, 0x02, 0x12, 0x07, 0x0a, 0x03, 0x64, 0x6f, 0x68,
-	0x10, 0x03, 0x12, 0x07, 0x0a, 0x03, 0x64, 0x6f, 0x74, 0x10, 0x04, 0x22, 0x49, 0x0a, 0x05, 0x50,
-	0x72, 0x6f, 0x78, 0x79, 0x12, 0x12, 0x0a, 0x04, 0x48, 0x54, 0x54, 0x50, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x04, 0x68, 0x74, 0x74, 0x70, 0x12, 0x16, 0x0a, 0x06, 0x53, 0x6f, 0x63, 0x6b,
-	0x73, 0x35, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x73, 0x6f, 0x63, 0x6b, 0x73, 0x35,
-	0x12, 0x14, 0x0a, 0x05, 0x52, 0x65, 0x64, 0x69, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x05, 0x72, 0x65, 0x64, 0x69, 0x72, 0x32, 0x78, 0x0a, 0x0a, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67,
-	0x5f, 0x64, 0x61, 0x6f, 0x12, 0x34, 0x0a, 0x04, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x16, 0x2e, 0x67,
-	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45,
-	0x6d, 0x70, 0x74, 0x79, 0x1a, 0x14, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x12, 0x34, 0x0a, 0x04, 0x73, 0x61,
-	0x76, 0x65, 0x12, 0x14, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x1a, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c,
-	0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79,
-	0x42, 0x2e, 0x5a, 0x2c, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x41,
-	0x73, 0x75, 0x74, 0x6f, 0x72, 0x75, 0x66, 0x61, 0x2f, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e,
-	0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x10, 0x03, 0x12, 0x07, 0x0a, 0x03, 0x64, 0x6f, 0x74, 0x10, 0x04, 0x22, 0xb2, 0x01, 0x0a, 0x05,
+	0x50, 0x72, 0x6f, 0x78, 0x79, 0x12, 0x33, 0x0a, 0x05, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x18, 0x04,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x45, 0x6e,
+	0x74, 0x72, 0x79, 0x52, 0x05, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x1a, 0x38, 0x0a, 0x0a, 0x50, 0x72,
+	0x6f, 0x78, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61,
+	0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
+	0x3a, 0x02, 0x38, 0x01, 0x22, 0x3a, 0x0a, 0x0a, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x5f, 0x74, 0x79,
+	0x70, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x72, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x10, 0x00, 0x12,
+	0x08, 0x0a, 0x04, 0x68, 0x74, 0x74, 0x70, 0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x73, 0x6f, 0x63,
+	0x6b, 0x73, 0x35, 0x10, 0x02, 0x12, 0x09, 0x0a, 0x05, 0x72, 0x65, 0x64, 0x69, 0x72, 0x10, 0x03,
+	0x32, 0x78, 0x0a, 0x0a, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x64, 0x61, 0x6f, 0x12, 0x34,
+	0x0a, 0x04, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x14,
+	0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x53, 0x65, 0x74,
+	0x74, 0x69, 0x6e, 0x67, 0x12, 0x34, 0x0a, 0x04, 0x73, 0x61, 0x76, 0x65, 0x12, 0x14, 0x2e, 0x79,
+	0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69,
+	0x6e, 0x67, 0x1a, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x42, 0x2e, 0x5a, 0x2c, 0x67, 0x69,
+	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x41, 0x73, 0x75, 0x74, 0x6f, 0x72, 0x75,
+	0x66, 0x61, 0x2f, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72,
+	0x6e, 0x61, 0x6c, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 }
 
 var (
-	file_internal_config_config_proto_rawDescOnce sync.Once
-	file_internal_config_config_proto_rawDescData = file_internal_config_config_proto_rawDesc
+	file_config_proto_rawDescOnce sync.Once
+	file_config_proto_rawDescData = file_config_proto_rawDesc
 )
 
-func file_internal_config_config_proto_rawDescGZIP() []byte {
-	file_internal_config_config_proto_rawDescOnce.Do(func() {
-		file_internal_config_config_proto_rawDescData = protoimpl.X.CompressGZIP(file_internal_config_config_proto_rawDescData)
+func file_config_proto_rawDescGZIP() []byte {
+	file_config_proto_rawDescOnce.Do(func() {
+		file_config_proto_rawDescData = protoimpl.X.CompressGZIP(file_config_proto_rawDescData)
 	})
-	return file_internal_config_config_proto_rawDescData
+	return file_config_proto_rawDescData
 }
 
-var file_internal_config_config_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_internal_config_config_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_internal_config_config_proto_goTypes = []interface{}{
+var file_config_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_config_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_config_proto_goTypes = []interface{}{
 	(DNSDnsType)(0),       // 0: yuhaiin.api.DNS.dns_type
-	(*Setting)(nil),       // 1: yuhaiin.api.Setting
-	(*DnsSetting)(nil),    // 2: yuhaiin.api.dns_setting
-	(*SystemProxy)(nil),   // 3: yuhaiin.api.SystemProxy
-	(*Bypass)(nil),        // 4: yuhaiin.api.Bypass
-	(*DNS)(nil),           // 5: yuhaiin.api.DNS
-	(*Proxy)(nil),         // 6: yuhaiin.api.Proxy
-	(*emptypb.Empty)(nil), // 7: google.protobuf.Empty
+	(ProxyProxyType)(0),   // 1: yuhaiin.api.Proxy.proxy_type
+	(*Setting)(nil),       // 2: yuhaiin.api.Setting
+	(*DnsSetting)(nil),    // 3: yuhaiin.api.dns_setting
+	(*SystemProxy)(nil),   // 4: yuhaiin.api.SystemProxy
+	(*Bypass)(nil),        // 5: yuhaiin.api.Bypass
+	(*DNS)(nil),           // 6: yuhaiin.api.DNS
+	(*Proxy)(nil),         // 7: yuhaiin.api.Proxy
+	nil,                   // 8: yuhaiin.api.Proxy.ProxyEntry
+	(*emptypb.Empty)(nil), // 9: google.protobuf.Empty
 }
-var file_internal_config_config_proto_depIdxs = []int32{
-	3, // 0: yuhaiin.api.Setting.SystemProxy:type_name -> yuhaiin.api.SystemProxy
-	4, // 1: yuhaiin.api.Setting.Bypass:type_name -> yuhaiin.api.Bypass
-	6, // 2: yuhaiin.api.Setting.Proxy:type_name -> yuhaiin.api.Proxy
-	2, // 3: yuhaiin.api.Setting.dns:type_name -> yuhaiin.api.dns_setting
-	5, // 4: yuhaiin.api.dns_setting.remote:type_name -> yuhaiin.api.DNS
-	5, // 5: yuhaiin.api.dns_setting.local:type_name -> yuhaiin.api.DNS
-	0, // 6: yuhaiin.api.DNS.type:type_name -> yuhaiin.api.DNS.dns_type
-	7, // 7: yuhaiin.api.config_dao.load:input_type -> google.protobuf.Empty
-	1, // 8: yuhaiin.api.config_dao.save:input_type -> yuhaiin.api.Setting
-	1, // 9: yuhaiin.api.config_dao.load:output_type -> yuhaiin.api.Setting
-	7, // 10: yuhaiin.api.config_dao.save:output_type -> google.protobuf.Empty
-	9, // [9:11] is the sub-list for method output_type
-	7, // [7:9] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+var file_config_proto_depIdxs = []int32{
+	4,  // 0: yuhaiin.api.Setting.SystemProxy:type_name -> yuhaiin.api.SystemProxy
+	5,  // 1: yuhaiin.api.Setting.Bypass:type_name -> yuhaiin.api.Bypass
+	7,  // 2: yuhaiin.api.Setting.Proxy:type_name -> yuhaiin.api.Proxy
+	3,  // 3: yuhaiin.api.Setting.dns:type_name -> yuhaiin.api.dns_setting
+	6,  // 4: yuhaiin.api.dns_setting.remote:type_name -> yuhaiin.api.DNS
+	6,  // 5: yuhaiin.api.dns_setting.local:type_name -> yuhaiin.api.DNS
+	0,  // 6: yuhaiin.api.DNS.type:type_name -> yuhaiin.api.DNS.dns_type
+	8,  // 7: yuhaiin.api.Proxy.proxy:type_name -> yuhaiin.api.Proxy.ProxyEntry
+	9,  // 8: yuhaiin.api.config_dao.load:input_type -> google.protobuf.Empty
+	2,  // 9: yuhaiin.api.config_dao.save:input_type -> yuhaiin.api.Setting
+	2,  // 10: yuhaiin.api.config_dao.load:output_type -> yuhaiin.api.Setting
+	9,  // 11: yuhaiin.api.config_dao.save:output_type -> google.protobuf.Empty
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
-func init() { file_internal_config_config_proto_init() }
-func file_internal_config_config_proto_init() {
-	if File_internal_config_config_proto != nil {
+func init() { file_config_proto_init() }
+func file_config_proto_init() {
+	if File_config_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_internal_config_config_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_config_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Setting); i {
 			case 0:
 				return &v.state
@@ -571,7 +616,7 @@ func file_internal_config_config_proto_init() {
 				return nil
 			}
 		}
-		file_internal_config_config_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+		file_config_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DnsSetting); i {
 			case 0:
 				return &v.state
@@ -583,7 +628,7 @@ func file_internal_config_config_proto_init() {
 				return nil
 			}
 		}
-		file_internal_config_config_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+		file_config_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SystemProxy); i {
 			case 0:
 				return &v.state
@@ -595,7 +640,7 @@ func file_internal_config_config_proto_init() {
 				return nil
 			}
 		}
-		file_internal_config_config_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+		file_config_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Bypass); i {
 			case 0:
 				return &v.state
@@ -607,7 +652,7 @@ func file_internal_config_config_proto_init() {
 				return nil
 			}
 		}
-		file_internal_config_config_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+		file_config_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DNS); i {
 			case 0:
 				return &v.state
@@ -619,7 +664,7 @@ func file_internal_config_config_proto_init() {
 				return nil
 			}
 		}
-		file_internal_config_config_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+		file_config_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Proxy); i {
 			case 0:
 				return &v.state
@@ -636,19 +681,19 @@ func file_internal_config_config_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_internal_config_config_proto_rawDesc,
-			NumEnums:      1,
-			NumMessages:   6,
+			RawDescriptor: file_config_proto_rawDesc,
+			NumEnums:      2,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_internal_config_config_proto_goTypes,
-		DependencyIndexes: file_internal_config_config_proto_depIdxs,
-		EnumInfos:         file_internal_config_config_proto_enumTypes,
-		MessageInfos:      file_internal_config_config_proto_msgTypes,
+		GoTypes:           file_config_proto_goTypes,
+		DependencyIndexes: file_config_proto_depIdxs,
+		EnumInfos:         file_config_proto_enumTypes,
+		MessageInfos:      file_config_proto_msgTypes,
 	}.Build()
-	File_internal_config_config_proto = out.File
-	file_internal_config_config_proto_rawDesc = nil
-	file_internal_config_config_proto_goTypes = nil
-	file_internal_config_config_proto_depIdxs = nil
+	File_config_proto = out.File
+	file_config_proto_rawDesc = nil
+	file_config_proto_goTypes = nil
+	file_config_proto_depIdxs = nil
 }

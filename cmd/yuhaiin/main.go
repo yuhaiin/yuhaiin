@@ -85,38 +85,17 @@ func main() {
 		stopWithParentExited()
 	}
 
-	/*
-	* net.Conn/net.PacketConn
-	*    |
-	*    v
-	* nodeManger
-	*    |
-	*    v
-	* BypassManager
-	*    |
-	*    v
-	* statis/connection manager
-	*    |
-	*    v
-	* listener
-	 */
-
+	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager -> statis/connection manager -> listener
 	nodeManager, err := subscr.NewNodeManager(filepath.Join(*configDir, "node.json"))
 	if err != nil {
 		panic(err)
 	}
-
 	conf, err := config.NewConfig(*configDir)
 	if err != nil {
 		panic(err)
 	}
-
 	flowStatis := app.NewConnManager(app.NewBypassManager(conf, nodeManager))
-
-	_, err = app.NewListener(conf, flowStatis)
-	if err != nil {
-		log.Printf("create new listener failed: %v\n", err)
-	}
+	_ = app.NewListener(conf, flowStatis)
 
 	sysproxy.Set(conf)
 	defer sysproxy.Unset()

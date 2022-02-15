@@ -55,7 +55,8 @@ _start:
 	}
 
 	host := req.Host
-	if req.URL.Port() == "" {
+	if _, p, _ := net.SplitHostPort(host); p == "" {
+		logasfmt.Println(req.Host, req.URL, req.RemoteAddr)
 		if strings.EqualFold(req.URL.Scheme, "https") {
 			host = net.JoinHostPort(host, "443")
 		} else {

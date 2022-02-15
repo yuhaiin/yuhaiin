@@ -14,8 +14,16 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
+//go:generate  protoc --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative config.proto
+
 // settingDecodeJSON decode setting json to struct
 func settingDecodeJSON(dir string) (*Setting, error) {
+	p := map[string]string{
+		Proxy_http.String():   "127.0.0.1:8188",
+		Proxy_socks5.String(): "127.0.0.1:1080",
+		Proxy_redir.String():  "127.0.0.1:8088",
+	}
+
 	pa := &Setting{
 		SystemProxy: &SystemProxy{
 			HTTP:   true,
@@ -28,10 +36,9 @@ func settingDecodeJSON(dir string) (*Setting, error) {
 			BypassFile: path.Join(dir, "yuhaiin.conf"),
 		},
 		Proxy: &Proxy{
-			HTTP:   "127.0.0.1:8188",
-			Socks5: "127.0.0.1:1080",
-			Redir:  "127.0.0.1:8088",
+			Proxy: p,
 		},
+
 		Dns: &DnsSetting{
 			Remote: &DNS{
 				Host:   "cloudflare-dns.com",
@@ -53,6 +60,17 @@ func settingDecodeJSON(dir string) (*Setting, error) {
 		return pa, fmt.Errorf("read config file failed: %v", err)
 	}
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
+	if err == nil {
+		if pa.Proxy.Proxy == nil {
+			pa.Proxy.Proxy = make(map[string]string)
+		}
+
+		for k, v := range p {
+			if pa.Proxy.Proxy[k] == "" {
+				pa.Proxy.Proxy[k] = v
+			}
+		}
+	}
 	return pa, err
 }
 

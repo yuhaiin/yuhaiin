@@ -1,21 +1,22 @@
 package sysproxy
 
-import "github.com/Asutorufa/yuhaiin/internal/config"
+import (
+	"github.com/Asutorufa/yuhaiin/internal/config"
+
+	"google.golang.org/protobuf/proto"
+)
 
 func Set(conf *config.Config) {
 	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
-		return current.SystemProxy.HTTP != old.SystemProxy.HTTP ||
-			current.SystemProxy.Socks5 != old.SystemProxy.Socks5 ||
-			current.Proxy.HTTP != old.Proxy.HTTP ||
-			current.Proxy.Socks5 != old.Proxy.Socks5
+		return proto.Equal(current.Proxy, old.Proxy)
 	}, func(s *config.Setting) {
 		UnsetSysProxy()
 		var http, socks5 string
 		if s.SystemProxy.HTTP {
-			http = s.Proxy.HTTP
+			http = s.Proxy.Proxy[config.Proxy_http.String()]
 		}
 		if s.SystemProxy.Socks5 {
-			socks5 = s.Proxy.Socks5
+			socks5 = s.Proxy.Proxy[config.Proxy_socks5.String()]
 		}
 		SetSysProxy(http, socks5)
 	})
