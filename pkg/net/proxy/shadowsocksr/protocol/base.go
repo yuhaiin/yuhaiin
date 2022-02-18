@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -109,7 +108,7 @@ func (c *protocolPacket) WriteTo(b []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 	_, err = c.PacketConn.WriteTo(data, addr)
-	defer log.Println("write to", addr, "error", err)
+	// defer log.Println("write to", addr, "error", err)
 	return len(b), err
 }
 

@@ -190,7 +190,12 @@ func (s *Shunt) RefreshMapping() error {
 }
 
 func (s *Shunt) Get(domain string) MODE {
-	return s.mapper.Search(domain).(MODE)
+	m, ok := s.mapper.Search(domain).(MODE)
+	if !ok {
+		return OTHERS
+	}
+
+	return m
 }
 
 func getDNSHostnameAndMode(dc *config.DNS) (string, MODE) {

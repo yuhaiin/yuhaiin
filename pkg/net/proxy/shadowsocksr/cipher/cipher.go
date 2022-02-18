@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 
@@ -303,7 +302,7 @@ func (p *PacketCipher) WriteTo(b []byte, addr net.Addr) (int, error) {
 		return n, err
 	}
 
-	defer log.Println("PacketCipher.WriteTo", addr.String(), n)
+	// defer log.Println("PacketCipher.WriteTo", addr.String(), n)
 	return len(b), nil
 }
 
