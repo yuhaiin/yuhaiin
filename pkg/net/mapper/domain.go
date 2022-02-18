@@ -16,36 +16,74 @@ type domainNode struct {
 	child  map[string]*domainNode
 }
 
-func search(root *domainNode, domain string) (interface{}, bool) {
-	return searchDFS(root, domain, true, false, len(domain))
+type domainStr struct {
+	domain string
+	aft    int
+	pre    int
 }
 
-func searchDFS(root *domainNode, domain string, first, asterisk bool, aft int) (interface{}, bool) {
-	if root == nil || root.child == nil || aft < 0 {
-		return nil, false
+func newDomainStr(domain string) *domainStr {
+	return &domainStr{
+		domain: domain,
+		aft:    len(domain),
+		pre:    strings.LastIndexByte(domain, '.') + 1,
 	}
+}
 
-	pre := strings.LastIndexByte(domain[:aft], '.') + 1
+func (d *domainStr) hasNext() bool {
+	return d.aft >= 0
+}
 
-	if r, ok := root.child[domain[pre:aft]]; ok {
-		if r.symbol == wildcard {
-			return r.mark, true
+func (d *domainStr) last() bool {
+	return d.pre == 0
+}
+
+func (d *domainStr) next() bool {
+	d.aft = d.pre - 1
+	if d.aft < 0 {
+		return false
+	}
+	d.pre = strings.LastIndexByte(d.domain[:d.aft], '.') + 1
+	return true
+}
+
+func (d *domainStr) str() string {
+	return d.domain[d.pre:d.aft]
+}
+
+func s(root *domainNode, domain string) (resp interface{}, ok bool) {
+	s := root
+	z := newDomainStr(domain)
+	first, asterisk := true, false
+
+	for {
+		if !z.hasNext() || s == nil {
+			return
 		}
-		if r.symbol == last && pre == 0 {
-			return r.mark, true
+
+		if r, ok := s.child[z.str()]; ok {
+			if r.symbol == wildcard {
+				resp, ok = r.mark, true
+			}
+
+			if r.symbol == last && z.last() {
+				return r.mark, true
+			}
+
+			s, first, _ = r, false, z.next()
+			continue
 		}
-		return searchDFS(r, domain, false, asterisk, pre-1)
-	}
 
-	if !first {
-		return nil, false
-	}
+		if !first {
+			return
+		}
 
-	if !asterisk {
-		return searchDFS(root.child["*"], domain, first, true, aft)
+		if !asterisk {
+			s, asterisk = root.child["*"], true
+		} else {
+			z.next()
+		}
 	}
-
-	return searchDFS(root, domain, first, asterisk, pre-1)
 }
 
 func insert(root *domainNode, domain string, mark interface{}) {
@@ -57,7 +95,7 @@ func insert(root *domainNode, domain string, mark interface{}) {
 		if pre == 0 && domain[0] == '*' {
 			root.symbol = wildcard
 			root.mark = mark
-			root.child = nil
+			// root.child = nil
 			break
 		}
 
@@ -74,7 +112,7 @@ func insert(root *domainNode, domain string, mark interface{}) {
 		if pre == 0 {
 			root.symbol = last
 			root.mark = mark
-			root.child = nil
+			// root.child = nil
 		}
 
 		aft = pre - 1
@@ -99,11 +137,11 @@ func (d *domain) Insert(domain string, mark interface{}) {
 }
 
 func (d *domain) Search(domain string) (mark interface{}, ok bool) {
-	mark, ok = search(d.root, domain)
+	mark, ok = s(d.root, domain)
 	if ok {
 		return
 	}
-	return search(d.wildcardRoot, domain)
+	return s(d.wildcardRoot, domain)
 }
 
 func NewDomainMapper() *domain {

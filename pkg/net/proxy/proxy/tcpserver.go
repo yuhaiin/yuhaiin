@@ -140,7 +140,7 @@ func (t *TCPServer) process() error {
 					tempDelay *= 2
 				}
 
-				if max := 1 * time.Second; tempDelay > max {
+				if max := 3 * time.Second; tempDelay > max {
 					tempDelay = max
 				}
 
