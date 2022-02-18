@@ -87,15 +87,11 @@ func s(root *domainNode, domain string) (resp interface{}, ok bool) {
 }
 
 func insert(root *domainNode, domain string, mark interface{}) {
-	aft := len(domain)
-	var pre int
-	for aft >= 0 {
-		pre = strings.LastIndexByte(domain[:aft], '.') + 1
-
-		if pre == 0 && domain[0] == '*' {
+	z := newDomainStr(domain)
+	for z.hasNext() {
+		if z.last() && domain[0] == '*' {
 			root.symbol = wildcard
 			root.mark = mark
-			// root.child = nil
 			break
 		}
 
@@ -103,19 +99,18 @@ func insert(root *domainNode, domain string, mark interface{}) {
 			root.child = make(map[string]*domainNode)
 		}
 
-		if root.child[domain[pre:aft]] == nil {
-			root.child[domain[pre:aft]] = &domainNode{}
+		if root.child[z.str()] == nil {
+			root.child[z.str()] = &domainNode{}
 		}
 
-		root = root.child[domain[pre:aft]]
+		root = root.child[z.str()]
 
-		if pre == 0 {
+		if z.last() {
 			root.symbol = last
 			root.mark = mark
-			// root.child = nil
 		}
 
-		aft = pre - 1
+		z.next()
 	}
 }
 
