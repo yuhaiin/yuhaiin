@@ -165,6 +165,11 @@ func (c *Config) AddObserver(diff func(current, old *Setting) bool, exec func(cu
 	c.os = append(c.os, observer{diff, exec})
 }
 
+type ConfigObserver interface {
+	AddObserverAndExec(func(current, old *Setting) bool, func(current *Setting))
+	AddExecCommand(string, InitFunc)
+}
+
 func (c *Config) AddObserverAndExec(diff func(current, old *Setting) bool, exec func(current *Setting)) {
 	c.AddObserver(diff, exec)
 	exec(c.current)

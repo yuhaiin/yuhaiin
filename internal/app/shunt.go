@@ -108,9 +108,15 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
 		return current.Bypass.BypassFile != old.Bypass.BypassFile
 	}, func(current *config.Setting) {
-		err := s.SetFile(current.Bypass.BypassFile)
-		if err != nil {
-			log.Printf("shunt set file failed: %v", err)
+		if s.file == current.Bypass.BypassFile {
+			return
+		}
+		s.fileLock.Lock()
+		s.file = current.Bypass.BypassFile
+		s.fileLock.Unlock()
+
+		if err := s.RefreshMapping(); err != nil {
+			log.Println("refresh bypass file failed:", err)
 		}
 	})
 
@@ -183,20 +189,8 @@ func (s *Shunt) RefreshMapping() error {
 	return nil
 }
 
-func (s *Shunt) SetFile(f string) error {
-	if s.file == f {
-		return nil
-	}
-	s.fileLock.Lock()
-	s.file = f
-	s.fileLock.Unlock()
-
-	return s.RefreshMapping()
-}
-
 func (s *Shunt) Get(domain string) MODE {
-	x, _ := s.mapper.Search(domain).(MODE)
-	return x
+	return s.mapper.Search(domain).(MODE)
 }
 
 func getDNSHostnameAndMode(dc *config.DNS) (string, MODE) {

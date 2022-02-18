@@ -118,7 +118,6 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	log.Println("read from", addr, "error", err)
 	decoded, err := c.IProtocol.PostDecryptPacket(b[:n])
 	if err != nil {
 		return n, addr, err

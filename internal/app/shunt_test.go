@@ -81,6 +81,5 @@ func TestM(t *testing.T) {
 }
 
 func TestGetDNSHostnameAndMode(t *testing.T) {
-	s, m := getDNSHostnameAndMode(&config.DNS{Host: "1.1.1.1"})
-	t.Log(s, m)
+	t.Log(getDNSHostnameAndMode(&config.DNS{Host: "1.1.1.1"}))
 }

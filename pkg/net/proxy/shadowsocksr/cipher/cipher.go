@@ -312,7 +312,7 @@ func (p *PacketCipher) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	log.Println("PacketCipher.ReadFrom", addr.String(), n)
+	// log.Println("PacketCipher.ReadFrom", addr.String(), n)
 	iv := b[:p.info.ivLen]
 	s, err := p.info.newStream(p.key, iv, Decrypt)
 	if err != nil {
