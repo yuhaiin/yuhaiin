@@ -404,14 +404,17 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 		z := utils.GetBytes(c.InfoIVLen())
 		defer utils.PutBytes(z)
 
+		// c.Conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		// atomic.AddInt64(&read, 1)
 		// log.Println("----------start read----------", atomic.LoadInt64(&read))
 		_, err := io.ReadFull(c.Conn, z)
 		if err != nil {
 			// atomic.AddInt64(&read, -1)
 			// log.Println("----------end read----------", atomic.LoadInt64(&read), err)
+			// logasfmt.Println("read error", err)
 			return 0, err
 		}
+		// c.Conn.SetReadDeadline(time.Time{})
 		// atomic.AddInt64(&read, -1)
 		// log.Println("----------read iv----------", atomic.LoadInt64(&read))
 

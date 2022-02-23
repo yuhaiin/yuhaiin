@@ -244,6 +244,7 @@ func newConn(addr string, con net.Conn, cm *ConnManager) *conn {
 		},
 	}
 }
+
 func (s *conn) ReadFrom(r io.Reader) (resp int64, _ error) {
 	buf := utils.GetBytes(2048)
 	defer utils.PutBytes(buf)

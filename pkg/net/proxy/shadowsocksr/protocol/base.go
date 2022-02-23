@@ -145,6 +145,7 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 
 func (c *protocolConn) Close() error {
 	utils.PutBytes(c.readBuf)
+	// logasfmt.Println("protocolConn close-------------------")
 	return c.Conn.Close()
 }
 

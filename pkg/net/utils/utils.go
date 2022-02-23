@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/bits"
@@ -39,22 +40,32 @@ func PutBytes(b []byte) {
 }
 
 //Forward pipe
-func Forward(conn1, conn2 io.ReadWriter) {
-	if c, ok := conn1.(io.ReaderFrom); ok {
-		go c.ReadFrom(conn2)
-	} else if c, ok := conn2.(io.WriterTo); ok {
-		go c.WriteTo(conn1)
-	} else {
-		go SingleForward(conn2, conn1)
-	}
+func Forward(local, remote io.ReadWriter) {
+	ctx, cancel := context.WithCancel(context.Background())
 
-	if c, ok := conn2.(io.ReaderFrom); ok {
-		c.ReadFrom(conn1)
-	} else if c, ok := conn1.(io.WriterTo); ok {
-		c.WriteTo(conn2)
-	} else {
-		SingleForward(conn1, conn2)
-	}
+	go func() {
+		defer cancel()
+		if c, ok := remote.(io.ReaderFrom); ok {
+			c.ReadFrom(local) // local -> remote
+		} else if c, ok := local.(io.WriterTo); ok {
+			c.WriteTo(remote) // local -> remote
+		} else {
+			SingleForward(local, remote) // local -> remote
+		}
+	}()
+
+	go func() {
+		defer cancel()
+		if c, ok := local.(io.ReaderFrom); ok {
+			c.ReadFrom(remote) // remote -> local
+		} else if c, ok := remote.(io.WriterTo); ok {
+			c.WriteTo(local) // remote -> local
+		} else {
+			SingleForward(remote, local) // remote -> local
+		}
+	}()
+
+	<-ctx.Done()
 }
 
 //SingleForward single pipe
