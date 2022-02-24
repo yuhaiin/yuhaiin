@@ -1,11 +1,12 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"math/bits"
+	"net"
 	"sync"
+	"time"
 )
 
 var poolMap = sync.Map{}
@@ -39,40 +40,36 @@ func PutBytes(b []byte) {
 	buffPool(1 << l).Put(b) //lint:ignore SA6002 ignore temporarily
 }
 
-//Forward pipe
-func Forward(local, remote io.ReadWriter) {
-	ctx, cancel := context.WithCancel(context.Background())
-
+//Relay pipe
+func Relay(local, remote io.ReadWriter) {
+	wait := make(chan struct{})
 	go func() {
-		defer cancel()
-		if c, ok := remote.(io.ReaderFrom); ok {
-			c.ReadFrom(local) // local -> remote
-		} else if c, ok := local.(io.WriterTo); ok {
-			c.WriteTo(remote) // local -> remote
-		} else {
-			SingleForward(local, remote) // local -> remote
+		defer close(wait)
+		Copy(remote, local)
+		if r, ok := remote.(net.Conn); ok {
+			r.SetReadDeadline(time.Now())
 		}
 	}()
 
-	go func() {
-		defer cancel()
-		if c, ok := local.(io.ReaderFrom); ok {
-			c.ReadFrom(remote) // remote -> local
-		} else if c, ok := remote.(io.WriterTo); ok {
-			c.WriteTo(local) // remote -> local
-		} else {
-			SingleForward(remote, local) // remote -> local
-		}
-	}()
+	Copy(local, remote)
+	if r, ok := local.(net.Conn); ok {
+		r.SetReadDeadline(time.Now())
+	}
 
-	<-ctx.Done()
+	<-wait
 }
 
-//SingleForward single pipe
-func SingleForward(src io.Reader, dst io.Writer) (err error) {
-	buf := GetBytes(DefaultSize)
-	defer PutBytes(buf)
-	_, err = io.CopyBuffer(dst, src, buf)
+func Copy(dst io.Writer, src io.Reader) (err error) {
+	if c, ok := dst.(io.ReaderFrom); ok {
+		c.ReadFrom(src) // local -> remote
+	} else if c, ok := src.(io.WriterTo); ok {
+		c.WriteTo(dst) // local -> remote
+	} else {
+		buf := GetBytes(DefaultSize)
+		defer PutBytes(buf)
+		_, err = io.CopyBuffer(dst, src, buf) // local -> remote
+	}
+
 	return
 }
 

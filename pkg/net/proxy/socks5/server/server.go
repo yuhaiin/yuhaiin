@@ -151,7 +151,7 @@ func handleConnect(target string, client net.Conn, f proxy.Proxy) error {
 	}
 	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
 	// hand shake successful
-	utils.Forward(client, server)
+	utils.Relay(client, server)
 	server.Close()
 	return nil
 }
@@ -162,7 +162,7 @@ func handleUDP(target string, client net.Conn, f proxy.Proxy) error {
 		return fmt.Errorf("new udp server failed: %w", err)
 	}
 	writeSecondResp(client, succeeded, l.listener.LocalAddr().String())
-	utils.SingleForward(client, io.Discard)
+	utils.Copy(io.Discard, client)
 	l.Close()
 	return nil
 }

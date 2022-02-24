@@ -139,7 +139,7 @@ func connect(client net.Conn, dst net.Conn) error {
 	if err != nil {
 		return fmt.Errorf("write to client failed: %v", err)
 	}
-	utils.Forward(dst, client)
+	utils.Relay(dst, client)
 	return nil
 }
 
