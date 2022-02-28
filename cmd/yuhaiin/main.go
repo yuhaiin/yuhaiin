@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func init() {
+func initialize(kwdc bool) {
 	go func() {
 		// pprof
 		_ = http.ListenAndServe("0.0.0.0:6060", nil)
@@ -33,13 +33,35 @@ func init() {
 	go func() {
 		signChannel := make(chan os.Signal, 5)
 		signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-		for s := range signChannel {
-			switch s {
-			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-				log.Println("stop server")
+		ppid := os.Getppid()
+
+		var ticker *time.Ticker
+		if kwdc {
+			ticker = time.NewTicker(time.Second)
+		} else {
+			ticker = &time.Ticker{C: make(<-chan time.Time)}
+		}
+
+		for {
+			select {
+			case s := <-signChannel:
+				switch s {
+				case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+					log.Println("stop server")
+					grpcServer.Stop()
+					return
+				default:
+					logasfmt.Println("OTHERS SIGN:", s)
+				}
+
+			case <-ticker.C:
+				if os.Getppid() == ppid {
+					continue
+				}
+
+				log.Println("checked parent already exited, exit myself.")
 				grpcServer.Stop()
-			default:
-				logasfmt.Println("OTHERS SIGN:", s)
+				return
 			}
 		}
 	}()
@@ -81,9 +103,7 @@ func main() {
 		panic(err)
 	}
 
-	if !*kwdc {
-		stopWithParentExited()
-	}
+	initialize(!*kwdc)
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager -> statis/connection manager -> listener
 	nodeManager, err := subscr.NewNodeManager(filepath.Join(*configDir, "node.json"))
@@ -131,20 +151,4 @@ func defaultConfigDir() (Path string) {
 	}
 	Path = path.Join(filepath.Dir(execPath), "config")
 	return
-}
-
-func stopWithParentExited() {
-	go func() {
-		ppid := os.Getppid()
-		ticker := time.NewTicker(time.Second)
-
-		for range ticker.C {
-			if os.Getppid() == ppid {
-				continue
-			}
-
-			log.Println("checked parent already exited, exit myself.")
-			grpcServer.Stop()
-		}
-	}()
 }

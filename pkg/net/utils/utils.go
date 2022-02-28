@@ -47,7 +47,7 @@ func Relay(local, remote io.ReadWriter) {
 		defer close(wait)
 		Copy(remote, local)
 		if r, ok := remote.(net.Conn); ok {
-			r.SetReadDeadline(time.Now())
+			r.SetReadDeadline(time.Now()) // make another Copy exit
 		}
 	}()
 
