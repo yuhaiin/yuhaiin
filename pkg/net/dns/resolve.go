@@ -339,6 +339,10 @@ func resolveHeader(req []byte, answer []byte) (header respHeader, answerSection 
 	return header, c, nil
 }
 
+type answer interface {
+	Answer()
+}
+
 func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, err error) {
 	for i := anCount; i > 0; i-- {
 		_, _, c = getName(c, b)

@@ -22,8 +22,7 @@ import (
 var _ DNS = (*doh)(nil)
 
 type doh struct {
-	Subnet *net.IPNet
-	Proxy  func(domain string) (net.Conn, error)
+	Proxy func(domain string) (net.Conn, error)
 
 	host     string
 	hostname string
@@ -32,12 +31,12 @@ type doh struct {
 
 	cache      *utils.LRU
 	httpClient *http.Client
+	resolver   *client
 }
 
 func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	dns := &doh{
-		Subnet: subnet,
-		cache:  utils.NewLru(200, 20*time.Minute),
+		cache: utils.NewLru(200, 20*time.Minute),
 	}
 
 	dns.setServer(host)
@@ -45,6 +44,14 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 		p = simple.NewSimple(dns.hostname, dns.port)
 	}
 	dns.setProxy(p.Conn)
+	dns.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
+		r, err := dns.post(bytes.NewReader(b))
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+		return ioutil.ReadAll(r)
+	})
 	return dns
 }
 
@@ -54,26 +61,10 @@ func (d *doh) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	if ip, err = d.search(domain); len(ip) != 0 {
+	if ip, err = d.resolver.Request(domain); len(ip) != 0 {
 		d.cache.Add(domain, ip)
 	}
 	return
-}
-
-func (d *doh) search(domain string) ([]net.IP, error) {
-	DNS, err := reqAndHandle(domain, d.Subnet, func(b []byte) ([]byte, error) {
-		r, err := d.post(bytes.NewReader(b))
-		if err != nil {
-			return nil, err
-		}
-		defer r.Close()
-		return ioutil.ReadAll(r)
-	})
-
-	if err != nil || len(DNS) == 0 {
-		return nil, fmt.Errorf("doh resolve domain %s failed: %v", domain, err)
-	}
-	return DNS, nil
 }
 
 func (d *doh) setServer(host string) {

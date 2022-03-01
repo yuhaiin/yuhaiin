@@ -19,34 +19,33 @@ type DNS interface {
 	Resolver() *net.Resolver
 }
 
-func reqAndHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, error)) ([]net.IP, error) {
-	// var req []byte
-	// if subnet == nil {
-	// 	req = creatRequest(domain, A, false)
-	// } else {
-	// 	req = createEDNSReq(domain, A, createEdnsClientSubnet(subnet))
-	// }
+type client struct {
+	template dnsmessage.Message
+	send     func([]byte) ([]byte, error)
+}
 
-	m := dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:                 uint16(rand.Intn(65536)),
-			Response:           false,
-			OpCode:             0,
-			Authoritative:      false,
-			Truncated:          false,
-			RecursionDesired:   true,
-			RecursionAvailable: false,
-			RCode:              0,
-		},
-		Questions: []dnsmessage.Question{
-			{
-				Name:  dnsmessage.MustNewName(domain + "."),
-				Type:  dnsmessage.TypeA,
-				Class: dnsmessage.ClassINET,
+func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
+	c := &client{
+		send: send,
+		template: dnsmessage.Message{
+			Header: dnsmessage.Header{
+				Response:           false,
+				OpCode:             0,
+				Authoritative:      false,
+				Truncated:          false,
+				RecursionDesired:   true,
+				RecursionAvailable: false,
+				RCode:              0,
+			},
+			Questions: []dnsmessage.Question{
+				{
+					Name:  dnsmessage.MustNewName("."),
+					Type:  dnsmessage.TypeA,
+					Class: dnsmessage.ClassINET,
+				},
 			},
 		},
 	}
-
 	if subnet != nil {
 		optionData := bytes.NewBuffer(nil)
 		mask, _ := subnet.Mask.Size()
@@ -61,7 +60,7 @@ func reqAndHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, erro
 		optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
 		optionData.Write(ip)             // subnet IP
 
-		m.Additionals = append(m.Additionals, dnsmessage.Resource{
+		c.template.Additionals = append(c.template.Additionals, dnsmessage.Resource{
 			Header: dnsmessage.ResourceHeader{
 				Name:  dnsmessage.MustNewName("."),
 				Type:  41,
@@ -78,23 +77,30 @@ func reqAndHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, erro
 			},
 		})
 	}
-	req, err := m.Pack()
+	return c
+}
+
+func (c *client) Request(domain string) ([]net.IP, error) {
+	req := c.template
+	req.ID = uint16(rand.Intn(65535))
+	req.Questions[0].Name = dnsmessage.MustNewName(domain + ".")
+	d, err := req.Pack()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pack dns message failed: %w", err)
 	}
-	// fmt.Println(req)
-	b, err := f(req)
+
+	d, err = c.send(d)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
 	var p dnsmessage.Parser
-	he, err := p.Start(b)
+	he, err := p.Start(d)
 	if err != nil {
 		return nil, err
 	}
 
-	if he.ID != m.ID {
+	if he.ID != req.ID {
 		return nil, fmt.Errorf("id not match")
 	}
 
@@ -116,18 +122,16 @@ func reqAndHandle(domain string, subnet *net.IPNet, f func([]byte) ([]byte, erro
 		A := a.Body.(*dnsmessage.AResource).A
 		i = append(i, net.IPv4(A[0], A[1], A[2], A[3]))
 	}
-	// fmt.Println(p.AllAnswers())
-	// return Resolve(req, b)
 }
 
 var _ DNS = (*dns)(nil)
 
 type dns struct {
-	DNS
 	Server string
-	Subnet *net.IPNet
 	cache  *utils.LRU
 	proxy  proxy.Proxy
+
+	resolver *client
 }
 
 func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
@@ -145,24 +149,25 @@ func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 		host = net.JoinHostPort(host, "53")
 	}
 
-	return &dns{
+	d := &dns{
 		Server: host,
-		Subnet: subnet,
 		cache:  utils.NewLru(200, 20*time.Minute),
 		proxy:  p,
 	}
+
+	d.resolver = NewClient(subnet, d.udp)
+
+	return d
 }
 
 // LookupIP resolve domain return net.IP array
-func (n *dns) LookupIP(domain string) (DNS []net.IP, err error) {
+func (n *dns) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := n.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	DNS, err = reqAndHandle(domain, n.Subnet, n.udp)
-	if err != nil || len(DNS) == 0 {
-		return nil, fmt.Errorf("normal resolve domain %s failed: %v", domain, err)
+	if ip, err = n.resolver.Request(domain); len(ip) != 0 {
+		n.cache.Add(domain, ip)
 	}
-	n.cache.Add(domain, DNS)
 	return
 }
 
