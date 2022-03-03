@@ -1,14 +1,13 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
@@ -46,8 +45,6 @@ type BypassManager struct {
 	dialer proxy.Proxy
 }
 
-var ErrBlockAddr = errors.New("BLOCK ADDRESS")
-
 //NewBypassManager .
 func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 	if p == nil {
@@ -61,37 +58,21 @@ func NewBypassManager(conf *config.Config, p proxy.Proxy) *BypassManager {
 		log.Printf("create shunt failed: %v, disable bypass.\n", err)
 	}
 
-	applyBypass := func(s *config.Setting) error {
-		if !s.Bypass.Enabled {
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return diffDNS(current.Dns.Local, old.Dns.Local)
+	}, func(current *config.Setting) {
+		m.dialer = direct.NewDirect(direct.WithLookup(getDNS(current.Dns.Local, nil).LookupIP))
+	})
+
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return current.Bypass.Enabled != old.Bypass.Enabled
+	}, func(current *config.Setting) {
+		if !current.Bypass.Enabled {
 			m.mapper = func(s string) MODE {
 				return OTHERS
 			}
 		} else {
 			m.mapper = shunt.Get
-		}
-		return nil
-	}
-
-	applyDirectDNS := func(s *config.Setting) error {
-		m.dialer = &direct{
-			dialer: &net.Dialer{
-				Timeout:  11 * time.Second,
-				Resolver: getDNS(s.Dns.Local, nil).Resolver(),
-			},
-		}
-		return nil
-	}
-
-	_ = conf.Exec(applyDirectDNS, applyBypass)
-	conf.AddObserver(func(current, old *config.Setting) {
-		if diffDNS(old.Dns.Local, current.Dns.Local) {
-			applyDirectDNS(current)
-		}
-	})
-
-	conf.AddObserver(func(current, old *config.Setting) {
-		if current.Bypass.Enabled != old.Bypass.Enabled {
-			applyBypass(current)
 		}
 	})
 
@@ -110,16 +91,16 @@ func (m *BypassManager) PacketConn(host string) (conn net.PacketConn, err error)
 func (m *BypassManager) marry(host string) (p proxy.Proxy) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return &errProxy{err: fmt.Errorf("split host [%s] failed: %v", host, err)}
+		return newErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err))
 	}
 
 	mark := m.mapper(hostname)
 
-	logasfmt.Printf("[%s] ->  mode: %v\n", host, mark)
+	logasfmt.Printf("[%s] -> %v\n", host, mark)
 
 	switch mark {
 	case BLOCK:
-		p = &errProxy{err: fmt.Errorf("%w: %v", ErrBlockAddr, host)}
+		p = newErrProxy(fmt.Errorf("BLOCK: %v", host))
 	case DIRECT:
 		p = m.dialer
 	default:
@@ -129,20 +110,12 @@ func (m *BypassManager) marry(host string) (p proxy.Proxy) {
 	return
 }
 
-type direct struct {
-	dialer *net.Dialer
-}
-
-func (d *direct) Conn(s string) (net.Conn, error) {
-	return d.dialer.Dial("tcp", s)
-}
-
-func (d *direct) PacketConn(string) (net.PacketConn, error) {
-	return net.ListenPacket("udp", "")
-}
-
 type errProxy struct {
 	err error
+}
+
+func newErrProxy(err error) proxy.Proxy {
+	return &errProxy{err: err}
 }
 
 func (e *errProxy) Conn(string) (net.Conn, error) {

@@ -19,11 +19,7 @@ func TestJsonPb(t *testing.T) {
 			Enabled:    true,
 			BypassFile: path.Join("/tmp/yuhaiin/setting", "yuhaiin.conf"),
 		},
-		Proxy: &Proxy{
-			HTTP:   "127.0.0.1:8188",
-			Socks5: "127.0.0.1:1080",
-			Redir:  "127.0.0.1:8088",
-		},
+		Proxy: &Proxy{},
 		Dns: &DnsSetting{
 			Remote: &DNS{
 				Host:   "cloudflare-dns.com",

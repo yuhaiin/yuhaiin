@@ -397,7 +397,7 @@ func (n *NodeManager) save() error {
 	if errors.Is(err, os.ErrNotExist) {
 		err = os.MkdirAll(path.Dir(n.configPath), os.ModePerm)
 		if err != nil {
-			return fmt.Errorf("node -> enCodeJSON():MkDirAll -> %v", err)
+			return fmt.Errorf("make config dir failed: %w", err)
 		}
 	}
 

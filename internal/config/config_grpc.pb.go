@@ -134,5 +134,5 @@ var ConfigDao_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/config/config.proto",
+	Metadata: "config.proto",
 }

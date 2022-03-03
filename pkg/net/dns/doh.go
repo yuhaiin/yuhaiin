@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -13,17 +15,14 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 var _ DNS = (*doh)(nil)
 
 type doh struct {
-	DNS
-	*utils.ClientUtil
-
-	Subnet *net.IPNet
-	Proxy  func(domain string) (net.Conn, error)
+	Proxy func(domain string) (net.Conn, error)
 
 	host     string
 	hostname string
@@ -32,24 +31,27 @@ type doh struct {
 
 	cache      *utils.LRU
 	httpClient *http.Client
+	resolver   *client
 }
 
 func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	dns := &doh{
-		Subnet: subnet,
-		cache:  utils.NewLru(200, 20*time.Minute),
+		cache: utils.NewLru(200, 20*time.Minute),
 	}
 
 	dns.setServer(host)
-
 	if p == nil {
-		dns.setProxy(func(s string) (net.Conn, error) {
-			return dns.ClientUtil.GetConn()
-		})
-	} else {
-		dns.setProxy(p.Conn)
+		p = simple.NewSimple(dns.hostname, dns.port)
 	}
-
+	dns.setProxy(p.Conn)
+	dns.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
+		r, err := dns.post(bytes.NewReader(b))
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+		return ioutil.ReadAll(r)
+	})
 	return dns
 }
 
@@ -59,18 +61,10 @@ func (d *doh) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := d.cache.Load(domain); x != nil {
 		return x.([]net.IP), nil
 	}
-	if ip, err = d.search(domain); len(ip) != 0 {
+	if ip, err = d.resolver.Request(domain); len(ip) != 0 {
 		d.cache.Add(domain, ip)
 	}
 	return
-}
-
-func (d *doh) search(domain string) ([]net.IP, error) {
-	DNS, err := reqAndHandle(domain, d.Subnet, d.post)
-	if err != nil || len(DNS) == 0 {
-		return nil, fmt.Errorf("doh resolve domain %s failed: %v", domain, err)
-	}
-	return DNS, nil
 }
 
 func (d *doh) setServer(host string) {
@@ -90,16 +84,7 @@ func (d *doh) setServer(host string) {
 		}
 	}
 
-	if net.ParseIP(d.hostname) == nil {
-		ip, err := net.LookupIP(d.hostname)
-		if err != nil {
-			ip = append(ip, net.ParseIP("1.1.1.1"))
-		}
-		d.hostname = ip[0].String()
-	}
-
 	d.host = net.JoinHostPort(d.hostname, d.port)
-	d.ClientUtil = utils.NewClientUtil(d.hostname, d.port)
 }
 
 func (d *doh) setProxy(p func(string) (net.Conn, error)) {
@@ -115,7 +100,6 @@ func (d *doh) setProxy(p func(string) (net.Conn, error)) {
 					return net.Dial(network, d.host)
 				}
 			},
-			DisableKeepAlives: false,
 		},
 		Timeout: 10 * time.Second,
 	}
@@ -137,100 +121,102 @@ func (d *doh) get(dReq []byte) (body []byte, err error) {
 }
 
 // https://www.cnblogs.com/mafeng/p/7068837.html
-func (d *doh) post(dReq []byte) (body []byte, err error) {
-	resp, err := d.httpClient.Post(d.url, "application/dns-message", bytes.NewReader(dReq))
+func (d *doh) post(req io.Reader) (io.ReadCloser, error) {
+	resp, err := d.httpClient.Post(d.url, "application/dns-message", req)
 	if err != nil {
 		return nil, fmt.Errorf("doh post failed: %v", err)
 	}
-	defer resp.Body.Close()
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("doh read body failed: %v", err)
-	}
-	return
+
+	return resp.Body, nil
 }
 
 func (d *doh) Resolver() *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(context.Context, string, string) (net.Conn, error) {
-			return dohDial(d.url, d.httpClient), nil
+			return dohConn(d.post), nil
 		},
 	}
 }
 
-var _ net.Conn = (*dohResolverDial)(nil)
-var _ net.PacketConn = (*dohResolverDial)(nil)
+var _ net.Conn = (*dohUDPConn)(nil)
+var _ net.PacketConn = (*dohUDPConn)(nil)
 
-type dohResolverDial struct {
-	host       string
-	deadline   time.Time
-	buffer     *bytes.Buffer
-	httpClient *http.Client
+type dohUDPConn struct {
+	deadline time.Time
+	buffer   *bytes.Buffer
+	handle   func(io.Reader) (io.ReadCloser, error)
+	body     io.ReadCloser
 }
 
-func dohDial(host string, client *http.Client) net.Conn {
-	return &dohResolverDial{
-		host:       host,
-		buffer:     bytes.NewBuffer(nil),
-		httpClient: client,
+func dohConn(handle func(io.Reader) (io.ReadCloser, error)) net.Conn {
+	return &dohUDPConn{
+		buffer: bytes.NewBuffer(nil),
+		handle: handle,
 	}
 }
 
-func (d *dohResolverDial) Write(data []byte) (int, error) {
+func (d *dohUDPConn) Write(data []byte) (int, error) {
 	return d.WriteTo(data, nil)
 }
 
-func (d *dohResolverDial) Read(data []byte) (int, error) {
-	n, err := d.buffer.Read(data)
+func (d *dohUDPConn) Read(data []byte) (int, error) {
+	n, _, err := d.ReadFrom(data)
 	return n, err
 }
 
-func (d *dohResolverDial) WriteTo(data []byte, _ net.Addr) (int, error) {
+func (d *dohUDPConn) WriteTo(data []byte, _ net.Addr) (int, error) {
 	if time.Now().After(d.deadline) {
 		return 0, fmt.Errorf("write deadline")
 	}
-	resp, err := d.httpClient.Post(d.host, "application/dns-message", bytes.NewReader(data))
-	if err != nil {
-		return 0, fmt.Errorf("post failed: %v", err)
-	}
-	defer resp.Body.Close()
-	_, err = d.buffer.ReadFrom(resp.Body)
-	if err != nil {
-		return 0, fmt.Errorf("read from body failed: %v", err)
-	}
+
+	d.buffer.Write(data)
 	return len(data), nil
 }
 
-func (d *dohResolverDial) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
+func (d *dohUDPConn) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
 	if time.Now().After(d.deadline) {
 		return 0, nil, fmt.Errorf("read deadline")
 	}
 
-	n, err = d.buffer.Read(data)
-	return n, nil, err
+	if d.body == nil {
+		d.body, err = d.handle(d.buffer)
+		if err != nil {
+			return 0, nil, fmt.Errorf("doh read body failed: %v", err)
+		}
+	}
+
+	n, err = d.body.Read(data)
+	if err != nil && errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return n, &net.IPAddr{IP: net.IPv4zero}, err
 }
 
-func (d *dohResolverDial) Close() error {
+func (d *dohUDPConn) Close() error {
+	if d.body != nil {
+		return d.body.Close()
+	}
+
 	return nil
 }
 
-func (d *dohResolverDial) SetDeadline(t time.Time) error {
+func (d *dohUDPConn) SetDeadline(t time.Time) error {
 	d.deadline = t
 	return nil
 }
 
-func (d *dohResolverDial) SetReadDeadline(t time.Time) error {
+func (d *dohUDPConn) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
-func (d *dohResolverDial) SetWriteDeadline(t time.Time) error {
+func (d *dohUDPConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func (d *dohResolverDial) LocalAddr() net.Addr {
+func (d *dohUDPConn) LocalAddr() net.Addr {
 	return nil
 }
-func (d *dohResolverDial) RemoteAddr() net.Addr {
+func (d *dohUDPConn) RemoteAddr() net.Addr {
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 )
 
 // https://tools.ietf.org/html/rfc1928
@@ -23,23 +23,23 @@ type client struct {
 	username string
 	password string
 
-	*utils.ClientUtil
+	proxy.Proxy
 }
 
 func NewSocks5Client(host, port, user, password string) proxy.Proxy {
 	x := &client{
-		username:   user,
-		hostname:   host,
-		port:       port,
-		host:       net.JoinHostPort(host, port),
-		password:   password,
-		ClientUtil: utils.NewClientUtil(host, port),
+		username: user,
+		hostname: host,
+		port:     port,
+		host:     net.JoinHostPort(host, port),
+		password: password,
+		Proxy:    simple.NewSimple(host, port),
 	}
 	return x
 }
 
 func (s *client) Conn(host string) (net.Conn, error) {
-	conn, err := s.ClientUtil.GetConn()
+	conn, err := s.Proxy.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %v", err)
 	}
@@ -149,7 +149,7 @@ func (s *client) handshake2(conn net.Conn, cmd cmd, address string) (header, err
 }
 
 func (s *client) PacketConn(host string) (net.PacketConn, error) {
-	conn, err := s.ClientUtil.GetConn()
+	conn, err := s.Proxy.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp failed: %v", err)
 	}

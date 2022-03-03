@@ -11,8 +11,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 )
@@ -51,8 +51,7 @@ func (p *Point_Shadowsocks) Conn() (proxy.Proxy, error) {
 	if s == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-
-	var py proxy.Proxy = utils.NewClientUtil(s.Server, s.Port)
+	var py proxy.Proxy = simple.NewSimple(s.Server, s.Port)
 
 	var plugin func(string) (func(proxy.Proxy) (proxy.Proxy, error), error)
 	switch strings.ToLower(s.Plugin) {

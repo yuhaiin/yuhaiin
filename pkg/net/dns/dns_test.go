@@ -33,8 +33,9 @@ func TestDNS2(t *testing.T) {
 }
 
 func TestDNS9(t *testing.T) {
-	dns := NewDNS("1.1.1.1:53", nil, socks5client.NewSocks5Client("127.0.0.1", "1080", "", ""))
+	dns := NewDNS("[2a07:a8c0::e2:8bb3]:53", nil, socks5client.NewSocks5Client("127.0.0.1", "1080", "", ""))
 	t.Log(dns.LookupIP("www.baidu.com"))
+	t.Log(dns.LookupIP("www.twitter.com"))
 	t.Log(dns.LookupIP("google.com")) // without proxy [93.46.8.90] <nil>, with proxy [172.217.27.78] <nil>
 }
 

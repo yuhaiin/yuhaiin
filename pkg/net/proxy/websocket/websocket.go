@@ -11,25 +11,27 @@ import (
 	"net/http"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	nyws "nhooyr.io/websocket"
+	"github.com/gorilla/websocket"
 )
 
 type Client struct {
 	uri string
 	p   proxy.Proxy
 
-	dialOptions *nyws.DialOptions
+	header http.Header
+	dialer *websocket.Dialer
 }
 
 func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCertFilePath []string) func(p proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{p: p}
 
-		transport := &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialer := &websocket.Dialer{
+			NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return p.Conn(addr)
 			},
 		}
+
 		protocol := "ws"
 		if tlsEnable {
 			//tls
@@ -45,7 +47,7 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 				log.Printf("split host and port failed: %v", err)
 				ns = host
 			}
-			transport.TLSClientConfig = &tls.Config{
+			dialer.TLSClientConfig = &tls.Config{
 				ServerName:             ns,
 				RootCAs:                root,
 				NextProtos:             []string{"http/1.1"},
@@ -65,30 +67,26 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 					continue
 				}
 
-				ok := transport.TLSClientConfig.RootCAs.AppendCertsFromPEM(cert)
+				ok := dialer.TLSClientConfig.RootCAs.AppendCertsFromPEM(cert)
 				if !ok {
 					log.Printf("add cert from pem failed.")
 				}
 			}
 		}
 
-		c.dialOptions = &nyws.DialOptions{
-			HTTPHeader: http.Header{},
-			HTTPClient: &http.Client{Transport: transport},
-		}
-		c.dialOptions.HTTPHeader.Add("Host", host)
+		header := http.Header{}
+		header.Add("Host", host)
+		c.header = header
 		c.uri = fmt.Sprintf("%s://%s%s", protocol, host, getNormalizedPath(path))
+		c.dialer = dialer
 
 		return c, nil
 	}
 }
 
 func (c *Client) Conn(string) (net.Conn, error) {
-	con, _, err := nyws.Dial(context.TODO(), c.uri, c.dialOptions)
-	if err != nil {
-		return nil, fmt.Errorf("websocket dial failed: %w", err)
-	}
-	return nyws.NetConn(context.TODO(), con, nyws.MessageBinary), nil
+	cc, _, err := c.dialer.Dial(c.uri, c.header)
+	return &connection{Conn: cc}, err
 }
 
 func (c *Client) PacketConn(host string) (net.PacketConn, error) {

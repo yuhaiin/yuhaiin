@@ -41,7 +41,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) {
 		return
 	}
 
-	utils.Forward(c, r)
+	utils.Relay(c, r)
 }
 
 func newTCPServer(h string) (proxy.Server, error) {

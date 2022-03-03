@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -197,16 +196,4 @@ func TestScanf(t *testing.T) {
 
 	d := re.FindAllStringSubmatch("v   aaaaccc", -1)
 	t.Log(len(d), d)
-}
-
-func TestErr(t *testing.T) {
-	a := fmt.Errorf("%w: aaa", ErrBlockAddr)
-
-	if errors.Is(a, ErrBlockAddr) {
-		t.Log("yes")
-	} else {
-		t.Log("NO")
-	}
-
-	t.Log(a)
 }

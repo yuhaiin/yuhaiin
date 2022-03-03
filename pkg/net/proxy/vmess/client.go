@@ -28,22 +28,18 @@ func NewVmess(uuid, security string, alterID uint32) func(p proxy.Proxy) (proxy.
 
 //Conn create a connection for host
 func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
-	return v.conn("tcp", host)
+	c, err := v.dial.Conn(host)
+	if err != nil {
+		return nil, fmt.Errorf("get conn failed: %w", err)
+	}
+	return v.client.NewConn(c, host)
 }
 
 //PacketConn packet transport connection
 func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
-	return v.conn("udp", host)
-}
-
-func (v *Vmess) conn(network, host string) (*gcvmess.Conn, error) {
-	conn, err := v.dial.Conn(host)
+	c, err := v.dial.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	rconn, err := v.client.NewConn(conn, network, host)
-	if err != nil {
-		return nil, fmt.Errorf("get vmess conn failed: %w", err)
-	}
-	return rconn, nil
+	return v.client.NewPacketConn(c, host)
 }

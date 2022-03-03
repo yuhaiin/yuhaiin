@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewV2ray(t *testing.T) {
-	p := utils.NewClientUtil("127.0.0.1", "1090")
+	p := simple.NewSimple("127.0.0.1", "1090")
 	z, err := websocket.NewWebsocket("baidu.com", "", true, true, nil)(p)
 	require.Nil(t, err)
 	z, err = NewShadowsocks("AEAD_CHACHA20_POLY1305", "your-password", "127.0.0.1", "8488")(z)

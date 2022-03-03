@@ -1,29 +1,12 @@
 package main
 
 import (
-	"context"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
-
-	"github.com/Asutorufa/yuhaiin/internal/api"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
-
-func TestApi(t *testing.T) {
-	conn, err := grpc.Dial("127.0.0.1:50051", grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		t.Error(err)
-	}
-	defer conn.Close()
-	c := api.NewProcessInitClient(conn)
-	log.Println(c.ProcessInit(context.Background(), &emptypb.Empty{}))
-	//log.Println(c.GetConfig(context.Background(), &empty.Empty{}))
-	//log.Println(c.GetGroup(context.Background(), &empty.Empty{}))
-}
 
 func TestPath(t *testing.T) {
 	file, err := exec.LookPath(os.Args[0])

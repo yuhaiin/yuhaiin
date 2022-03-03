@@ -9,10 +9,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
 	"math/rand"
 	"net"
-	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 
@@ -120,8 +118,8 @@ func (c *salsaStreamCipher) XORKeyStream(dst, src []byte) {
 	if cap(dst) >= dataSize {
 		buf = dst[:dataSize]
 	} else if utils.DefaultSize >= dataSize {
-		buf = *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-		defer utils.BuffPool(utils.DefaultSize).Put(&buf)
+		buf = utils.GetBytes(utils.DefaultSize)
+		defer utils.PutBytes(buf)
 		buf = buf[:dataSize]
 	} else {
 		buf = make([]byte, dataSize)
@@ -271,7 +269,7 @@ func (c *Cipher) StreamCipher(conn net.Conn) *StreamCipher {
 	}
 }
 
-func (c *Cipher) PacketCopher(conn net.PacketConn) net.PacketConn {
+func (c *Cipher) PacketCipher(conn net.PacketConn) net.PacketConn {
 	return &PacketCipher{
 		key:        c.key,
 		info:       c.info,
@@ -286,8 +284,8 @@ type PacketCipher struct {
 }
 
 func (p *PacketCipher) WriteTo(b []byte, addr net.Addr) (int, error) {
-	buf := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&buf)
+	buf := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(buf)
 	_, err := rand.Read(buf[:p.info.ivLen])
 	if err != nil {
 		return 0, err
@@ -304,7 +302,7 @@ func (p *PacketCipher) WriteTo(b []byte, addr net.Addr) (int, error) {
 		return n, err
 	}
 
-	defer log.Println("PacketCipher.WriteTo", addr.String(), n)
+	// defer log.Println("PacketCipher.WriteTo", addr.String(), n)
 	return len(b), nil
 }
 
@@ -313,7 +311,7 @@ func (p *PacketCipher) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	log.Println("PacketCipher.ReadFrom", addr.String(), n)
+	// log.Println("PacketCipher.ReadFrom", addr.String(), n)
 	iv := b[:p.info.ivLen]
 	s, err := p.info.newStream(p.key, iv, Decrypt)
 	if err != nil {
@@ -399,23 +397,26 @@ func (c *StreamCipher) InfoKeyLen() int {
 	return c.info.keyLen
 }
 
-var read = int64(0)
+// var read = int64(0)
 
 func (c *StreamCipher) Read(b []byte) (int, error) {
 	if c.dec == nil {
-		z := *utils.BuffPool(c.InfoIVLen()).Get().(*[]byte)
-		defer utils.BuffPool(c.InfoIVLen()).Put(&z)
+		z := utils.GetBytes(c.InfoIVLen())
+		defer utils.PutBytes(z)
 
-		atomic.AddInt64(&read, 1)
-		log.Println("----------start read----------", atomic.LoadInt64(&read))
+		// c.Conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+		// atomic.AddInt64(&read, 1)
+		// log.Println("----------start read----------", atomic.LoadInt64(&read))
 		_, err := io.ReadFull(c.Conn, z)
 		if err != nil {
-			atomic.AddInt64(&read, -1)
-			log.Println("----------end read----------", atomic.LoadInt64(&read), err)
+			// atomic.AddInt64(&read, -1)
+			// log.Println("----------end read----------", atomic.LoadInt64(&read), err)
+			// logasfmt.Println("read error", err)
 			return 0, err
 		}
-		atomic.AddInt64(&read, -1)
-		log.Println("----------read iv----------", atomic.LoadInt64(&read))
+		// c.Conn.SetReadDeadline(time.Time{})
+		// atomic.AddInt64(&read, -1)
+		// log.Println("----------read iv----------", atomic.LoadInt64(&read))
 
 		copy(c.readIV, z)
 		c.dec, err = c.info.newStream(c.key, z, Decrypt)
@@ -434,6 +435,27 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 	return n, nil
 }
 
+func (c *StreamCipher) ReadFrom(r io.Reader) (int64, error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+
+	n := int64(0)
+	for {
+		nr, er := r.Read(buf)
+		n += int64(nr)
+		_, err := c.Write(buf[:nr])
+		if err != nil {
+			return n, err
+		}
+		if er != nil {
+			if errors.Is(er, io.EOF) {
+				return n, nil
+			}
+			return n, er
+		}
+	}
+}
+
 func (c *StreamCipher) Write(b []byte) (int, error) {
 	var err error
 	if c.enc == nil {
@@ -447,12 +469,15 @@ func (c *StreamCipher) Write(b []byte) (int, error) {
 			return 0, err
 		}
 	}
+
 	n := 0
-	buf := make([]byte, 2048)
-	for nw := 0; n < len(b) && err == nil; n += nw {
-		end := n + len(buf)
-		if end > len(b) {
-			end = len(b)
+	lb := len(b)
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+	for nw := 0; n < lb && err == nil; n += nw {
+		end := n + 2048
+		if end > lb {
+			end = lb
 		}
 		c.enc.XORKeyStream(buf, b[n:end])
 		nw, err = c.Conn.Write(buf[:end-n])

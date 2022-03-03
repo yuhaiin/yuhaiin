@@ -59,7 +59,7 @@ func TestSplit(t *testing.T) {
 
 func TestResolver(t *testing.T) {
 	_, s, _ := net.ParseCIDR("114.114.114.114/31")
-	// d := NewDoH("223.5.5.5", nil)
+	// d := NewDoH("223.5.5.5", s, nil)
 	d := NewDoH("1.1.1.1", s, nil)
 
 	t.Log(d.(*doh).Resolver().LookupHost(context.Background(), "www.baidu.com"))
