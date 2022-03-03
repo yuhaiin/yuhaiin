@@ -10,11 +10,20 @@ import (
 	"sync"
 
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-// SettingDecodeJSON decode setting json to struct
-func SettingDecodeJSON(dir string) (*Setting, error) {
+//go:generate  protoc --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative config.proto
+
+// settingDecodeJSON decode setting json to struct
+func settingDecodeJSON(dir string) (*Setting, error) {
+	p := map[string]string{
+		Proxy_http.String():   "127.0.0.1:8188",
+		Proxy_socks5.String(): "127.0.0.1:1080",
+		Proxy_redir.String():  "127.0.0.1:8088",
+	}
+
 	pa := &Setting{
 		SystemProxy: &SystemProxy{
 			HTTP:   true,
@@ -27,10 +36,9 @@ func SettingDecodeJSON(dir string) (*Setting, error) {
 			BypassFile: path.Join(dir, "yuhaiin.conf"),
 		},
 		Proxy: &Proxy{
-			HTTP:   "127.0.0.1:8188",
-			Socks5: "127.0.0.1:1080",
-			Redir:  "127.0.0.1:8088",
+			Proxy: p,
 		},
+
 		Dns: &DnsSetting{
 			Remote: &DNS{
 				Host:   "cloudflare-dns.com",
@@ -47,16 +55,27 @@ func SettingDecodeJSON(dir string) (*Setting, error) {
 	data, err := ioutil.ReadFile(filepath.Join(dir, "yuhaiinConfig.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return pa, SettingEnCodeJSON(pa, dir)
+			return pa, settingEnCodeJSON(pa, dir)
 		}
 		return pa, fmt.Errorf("read config file failed: %v", err)
 	}
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
+	if err == nil {
+		if pa.Proxy.Proxy == nil {
+			pa.Proxy.Proxy = make(map[string]string)
+		}
+
+		for k, v := range p {
+			if pa.Proxy.Proxy[k] == "" {
+				pa.Proxy.Proxy[k] = v
+			}
+		}
+	}
 	return pa, err
 }
 
-// SettingEnCodeJSON encode setting struct to json
-func SettingEnCodeJSON(pa *Setting, dir string) error {
+// settingEnCodeJSON encode setting struct to json
+func settingEnCodeJSON(pa *Setting, dir string) error {
 	_, err := os.Stat(filepath.Join(dir, "yuhaiinConfig.json"))
 	if err != nil && os.IsNotExist(err) {
 		err = os.MkdirAll(dir, os.ModePerm)
@@ -73,44 +92,34 @@ func SettingEnCodeJSON(pa *Setting, dir string) error {
 	return ioutil.WriteFile(filepath.Join(dir, "yuhaiinConfig.json"), data, os.ModePerm)
 }
 
+type observer struct {
+	diff func(current, old *Setting) bool
+	exec func(current *Setting)
+}
 type Config struct {
 	UnimplementedConfigDaoServer
-	current   *Setting
-	old       *Setting
-	path      string
-	observers []Observer
-	exec      map[string]InitFunc
+	current *Setting
+	old     *Setting
+	path    string
+	exec    map[string]InitFunc
+
+	os []observer
 
 	lock     sync.RWMutex
 	execlock sync.RWMutex
 }
 
 type InitFunc func(*Setting) error
-type Observer func(current, old *Setting)
 
-func NewConfig(dir string, o ...InitFunc) (*Config, error) {
-	c, err := SettingDecodeJSON(dir)
+func NewConfig(dir string) (*Config, error) {
+	c, err := settingDecodeJSON(dir)
 	if err != nil {
 		return nil, fmt.Errorf("decode setting failed: %v", err)
 	}
 
 	cf := &Config{current: c, old: c, path: dir, exec: make(map[string]InitFunc)}
-	err = cf.Exec(o...)
-	if err != nil {
-		return nil, err
-	}
 
 	return cf, nil
-}
-
-func (c *Config) Exec(o ...InitFunc) error {
-	for i := range o {
-		err := o[i](c.current)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (c *Config) Load(context.Context, *emptypb.Empty) (*Setting, error) {
@@ -122,34 +131,48 @@ func (c *Config) Load(context.Context, *emptypb.Empty) (*Setting, error) {
 func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	err := SettingEnCodeJSON(s, c.path)
+	err := settingEnCodeJSON(s, c.path)
 	if err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %v", err)
 	}
 
-	c.old = c.current
-	c.current = s
+	c.old = proto.Clone(c.current).(*Setting)
+	c.current = proto.Clone(s).(*Setting)
 
 	wg := sync.WaitGroup{}
-	for i := range c.observers {
+	for i := range c.os {
 		wg.Add(1)
-		go func(o Observer) {
+		go func(o observer) {
 			wg.Done()
-			o(c.current, c.old)
-		}(c.observers[i])
+			if o.diff(proto.Clone(c.current).(*Setting), proto.Clone(c.old).(*Setting)) {
+				o.exec(proto.Clone(c.current).(*Setting))
+			}
+		}(c.os[i])
 	}
 	wg.Wait()
 
 	return &emptypb.Empty{}, nil
 }
 
-func (c *Config) AddObserver(o Observer) {
-	if o == nil {
+func (c *Config) AddObserver(diff func(current, old *Setting) bool, exec func(current *Setting)) {
+	if diff == nil || exec == nil {
 		return
 	}
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.observers = append(c.observers, o)
+
+	c.os = append(c.os, observer{diff, exec})
+}
+
+type ConfigObserver interface {
+	AddObserverAndExec(func(current, old *Setting) bool, func(current *Setting))
+	AddExecCommand(string, InitFunc)
+}
+
+func (c *Config) AddObserverAndExec(diff func(current, old *Setting) bool, exec func(current *Setting)) {
+	c.AddObserver(diff, exec)
+	exec(c.current)
 }
 
 func (c *Config) AddExecCommand(key string, o InitFunc) error {

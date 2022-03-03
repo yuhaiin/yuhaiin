@@ -30,6 +30,8 @@ func TestDomainMatcherSearch(t *testing.T) {
 	root.Insert("www.google.com", "test_google")
 	root.Insert("music.111.com", "1111")
 	root.Insert("163.com", "163")
+	root.Insert("*.google.com", "google")
+	root.Insert("*.dl.google.com", "google_dl")
 
 	search := func(s string) interface{} {
 		res, _ := root.Search(s)
@@ -45,6 +47,8 @@ func TestDomainMatcherSearch(t *testing.T) {
 	assert.Equal(t, nil, search("www.google.cn"))
 	assert.Equal(t, nil, search("music.163.com"))
 	assert.Equal(t, "163", search("163.com"))
+	assert.Equal(t, "google", search("www.x.google.com"))
+	assert.Equal(t, "google_dl", search("dl.google.com"))
 }
 
 func TestGetIndex(t *testing.T) {

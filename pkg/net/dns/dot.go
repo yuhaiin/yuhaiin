@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 var _ DNS = (*dot)(nil)
@@ -15,9 +17,11 @@ var _ DNS = (*dot)(nil)
 type dot struct {
 	host         string
 	servername   string
-	subnet       *net.IPNet
 	proxy        func(string) (net.Conn, error)
 	sessionCache tls.ClientSessionCache
+	cache        *utils.LRU
+
+	resolver *client
 }
 
 func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
@@ -41,29 +45,25 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 		host = net.JoinHostPort(i[0].String(), port)
 	}
 
-	return &dot{
+	d := &dot{
 		host:         host,
-		subnet:       subnet,
 		servername:   servername,
 		sessionCache: tls.NewLRUClientSessionCache(0),
 		proxy:        p.Conn,
+		cache:        utils.NewLru(200, 20*time.Minute),
 	}
-}
 
-func (d *dot) LookupIP(domain string) ([]net.IP, error) {
-	conn, err := d.proxy(d.host)
-	if err != nil {
-		return nil, fmt.Errorf("tcp dial failed: %v", err)
-	}
-	conn = tls.Client(conn, &tls.Config{
-		ServerName:         d.servername,
-		ClientSessionCache: d.sessionCache,
-	})
-	defer conn.Close()
-	return reqAndHandle(domain, d.subnet, func(reqData []byte) (body []byte, err error) {
-		length := len(reqData) // dns over tcp, prefix two bytes is request data's length
-		reqData = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, reqData...)
-		_, err = conn.Write(reqData)
+	d.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
+		conn, err := d.proxy(d.host)
+		if err != nil {
+			return nil, fmt.Errorf("tcp dial failed: %v", err)
+		}
+		conn = tls.Client(conn, &tls.Config{ServerName: d.servername, ClientSessionCache: d.sessionCache})
+		defer conn.Close()
+
+		length := len(b) // dns over tcp, prefix two bytes is request data's length
+		b = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, b...)
+		_, err = conn.Write(b)
 		if err != nil {
 			return nil, fmt.Errorf("write data failed: %v", err)
 		}
@@ -80,6 +80,18 @@ func (d *dot) LookupIP(domain string) ([]net.IP, error) {
 		}
 		return all[:n], err
 	})
+
+	return d
+}
+
+func (d *dot) LookupIP(domain string) (ip []net.IP, err error) {
+	if x, _ := d.cache.Load(domain); x != nil {
+		return x.([]net.IP), nil
+	}
+	if ip, err = d.resolver.Request(domain); len(ip) != 0 {
+		d.cache.Add(domain, ip)
+	}
+	return
 }
 
 func (d *dot) Resolver() *net.Resolver {

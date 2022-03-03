@@ -23,3 +23,11 @@ jobs:
 
     - name: Test
       run: make vet
+
+    - name: upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: output
+        path: |
+          yuhaiin
+          yh

@@ -24,3 +24,15 @@ func BenchmarkReducedUnit(b *testing.B) {
 		ReducedUnitStr(102400009999999999)
 	}
 }
+
+func TestM(t *testing.T) {
+	z := make([]byte, 10)
+	x := z[5:]
+
+	x[0] = 0x01
+	x[1] = 0x02
+	x[3] = 0x03
+
+	t.Log(z, x)
+
+}

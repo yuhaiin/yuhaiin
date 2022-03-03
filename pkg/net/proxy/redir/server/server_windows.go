@@ -15,5 +15,5 @@ func RedirHandle() func(net.Conn, proxy.Proxy) {
 }
 
 func NewServer(host string) (proxy.Server, error) {
-	return nil, fmt.Errorf("windows not support redir")
+	return &proxy.EmptyServer{}, nil
 }

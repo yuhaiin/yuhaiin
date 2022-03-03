@@ -103,33 +103,28 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 		opt(s)
 	}
 
-	err := conf.Exec(
-		func(ss *config.Setting) error {
-			s.file = ss.Bypass.BypassFile
-			s.mapper = mapper.NewMapper(getDNS(ss.Dns.Remote, s.p).LookupIP)
-			err := s.RefreshMapping()
-			if err != nil {
-				return fmt.Errorf("refresh mapping failed: %v", err)
-			}
-			return nil
-		})
-	if err != nil {
-		return s, err
-	}
+	s.mapper = mapper.NewMapper(nil)
 
-	conf.AddObserver(func(current, old *config.Setting) {
-		if current.Bypass.BypassFile != old.Bypass.BypassFile {
-			err := s.SetFile(current.Bypass.BypassFile)
-			if err != nil {
-				log.Printf("shunt set file failed: %v", err)
-			}
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return current.Bypass.BypassFile != old.Bypass.BypassFile
+	}, func(current *config.Setting) {
+		if s.file == current.Bypass.BypassFile {
+			return
+		}
+		s.fileLock.Lock()
+		s.file = current.Bypass.BypassFile
+		s.fileLock.Unlock()
+
+		if err := s.RefreshMapping(); err != nil {
+			log.Println("refresh bypass file failed:", err)
 		}
 	})
 
-	conf.AddObserver(func(current, old *config.Setting) {
-		if diffDNS(current.Dns.Remote, old.Dns.Remote) {
-			s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
-		}
+	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+		return diffDNS(current.Dns.Remote, old.Dns.Remote)
+	}, func(current *config.Setting) {
+		s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
+		s.mapper.Insert(getDNSHostnameAndMode(current.Dns.Remote))
 	})
 
 	conf.AddExecCommand("RefreshMapping", func(*config.Setting) error {
@@ -194,20 +189,35 @@ func (s *Shunt) RefreshMapping() error {
 	return nil
 }
 
-func (s *Shunt) SetFile(f string) error {
-	if s.file == f {
-		return nil
+func (s *Shunt) Get(domain string) MODE {
+	m, ok := s.mapper.Search(domain).(MODE)
+	if !ok {
+		return OTHERS
 	}
-	s.fileLock.Lock()
-	s.file = f
-	s.fileLock.Unlock()
 
-	return s.RefreshMapping()
+	return m
 }
 
-func (s *Shunt) Get(domain string) MODE {
-	x, _ := s.mapper.Search(domain).(MODE)
-	return x
+func getDNSHostnameAndMode(dc *config.DNS) (string, MODE) {
+	host := dc.Host
+	if dc.Type == config.DNS_doh {
+		i := strings.IndexByte(dc.Host, '/')
+		if i != -1 {
+			host = dc.Host[:i]
+		}
+	}
+
+	h, _, err := net.SplitHostPort(host)
+	if err == nil {
+		host = h
+	}
+
+	mode := OTHERS
+	if !dc.Proxy {
+		mode = DIRECT
+	}
+
+	return host, mode
 }
 
 func diffDNS(old, new *config.DNS) bool {

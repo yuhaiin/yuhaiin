@@ -43,9 +43,13 @@ message DNS{
 }
 
 message Proxy {
-  string HTTP = 1 [json_name="http"];
-  string Socks5 = 2 [json_name="socks5"];
-  string Redir = 3 [json_name="redir"];
+  enum proxy_type{
+    reserve = 0;
+    http = 1;
+    socks5 = 2;
+    redir = 3;
+  }
+  map<string,string> proxy = 4 [json_name="proxy"];
 }
 
 service config_dao {

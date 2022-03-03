@@ -29,6 +29,6 @@ func handle(req net.Conn, f proxy.Proxy) error {
 	}
 
 	defer rsp.Close()
-	utils.Forward(req, rsp)
+	utils.Relay(req, rsp)
 	return nil
 }

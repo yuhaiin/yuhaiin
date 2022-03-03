@@ -5,3 +5,11 @@ type Server interface {
 	SetServer(host string) error
 	Close() error
 }
+
+var _ Server = (*EmptyServer)(nil)
+
+type EmptyServer struct{}
+
+func (e *EmptyServer) SetProxy(Proxy)         {}
+func (e *EmptyServer) SetServer(string) error { return nil }
+func (e *EmptyServer) Close() error           { return nil }

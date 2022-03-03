@@ -1,0 +1,10 @@
+syntax = "proto3";
+package yuhaiin.pkg.sysproxy;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/sysproxy";
+
+
+message SystemProxy {
+    bool HTTP = 2 [json_name="http"];
+    bool Socks5 = 3 [json_name="socks5"];
+  }

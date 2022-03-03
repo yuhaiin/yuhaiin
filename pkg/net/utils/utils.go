@@ -3,44 +3,73 @@ package utils
 import (
 	"fmt"
 	"io"
+	"math/bits"
+	"net"
 	"sync"
+	"time"
 )
 
 var poolMap = sync.Map{}
 var DefaultSize = 8 * 0x400
 
-func BuffPool(size int) *sync.Pool {
+func buffPool(size int) *sync.Pool {
+
 	if v, ok := poolMap.Load(size); ok {
 		return v.(*sync.Pool)
 	}
 
 	p := &sync.Pool{
 		New: func() interface{} {
-			x := make([]byte, size)
-			return &x
+			return make([]byte, size)
 		},
 	}
 	poolMap.Store(size, p)
 	return p
 }
 
-//Forward pipe
-func Forward(conn1, conn2 io.ReadWriter) {
-	buf := *BuffPool(DefaultSize).Get().(*[]byte)
-	defer BuffPool(DefaultSize).Put(&(buf))
-	i := DefaultSize / 2
-
-	go func() {
-		_, _ = io.CopyBuffer(conn2, conn1, buf[:i])
-	}()
-	_, _ = io.CopyBuffer(conn1, conn2, buf[i:])
+func GetBytes(size int) []byte {
+	l := bits.Len(uint(size)) - 1
+	if size != 1<<l {
+		size = 1 << (l + 1)
+	}
+	return buffPool(size).Get().([]byte)
 }
 
-//SingleForward single pipe
-func SingleForward(src io.Reader, dst io.Writer) (err error) {
-	buf := *BuffPool(DefaultSize).Get().(*[]byte)
-	defer BuffPool(DefaultSize).Put(&(buf))
-	_, err = io.CopyBuffer(dst, src, buf)
+func PutBytes(b []byte) {
+	l := bits.Len(uint(len(b))) - 1
+	buffPool(1 << l).Put(b) //lint:ignore SA6002 ignore temporarily
+}
+
+//Relay pipe
+func Relay(local, remote io.ReadWriter) {
+	wait := make(chan struct{})
+	go func() {
+		defer close(wait)
+		Copy(remote, local)
+		if r, ok := remote.(net.Conn); ok {
+			r.SetReadDeadline(time.Now()) // make another Copy exit
+		}
+	}()
+
+	Copy(local, remote)
+	if r, ok := local.(net.Conn); ok {
+		r.SetReadDeadline(time.Now())
+	}
+
+	<-wait
+}
+
+func Copy(dst io.Writer, src io.Reader) (err error) {
+	if c, ok := dst.(io.ReaderFrom); ok {
+		c.ReadFrom(src) // local -> remote
+	} else if c, ok := src.(io.WriterTo); ok {
+		c.WriteTo(dst) // local -> remote
+	} else {
+		buf := GetBytes(DefaultSize)
+		defer PutBytes(buf)
+		_, err = io.CopyBuffer(dst, src, buf) // local -> remote
+	}
+
 	return
 }
 

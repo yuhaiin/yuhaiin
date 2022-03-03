@@ -47,43 +47,43 @@ func handshake(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
 		modeOption[index](o)
 	}
 	return func(conn net.Conn, f proxy.Proxy) {
-		handle(o.Username, o.Password, conn, f)
+		if err := handle(o.Username, o.Password, conn, f); err != nil {
+			logasfmt.Println("socks5 server handle failed:", err)
+		}
 	}
 }
 
-func handle(user, key string, client net.Conn, f proxy.Proxy) {
-	var err error
-	b := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&(b))
+func handle(user, key string, client net.Conn, f proxy.Proxy) (err error) {
+	b := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(b)
 
 	//socks5 first handshake
 	_, err = client.Read(b)
 	if err != nil {
-		return
+		return fmt.Errorf("read first handshake failed: %w", err)
 	}
 
 	err = firstHand(client, b[0], b[1], b[2], user, key)
 	if err != nil {
-		//fmt.Println(err)
-		return
+		return fmt.Errorf("first hand failed: %w", err)
 	}
 
 	// socks5 second handshake
 	_, err = client.Read(b[:])
 	if err != nil {
-		return
+		return fmt.Errorf("read second handshake failed: %w", err)
 	}
 
 	host, port, _, err := socks5client.ResolveAddr(b[3:])
 	if err != nil {
-		return
+		return fmt.Errorf("resolve addr failed: %w", err)
 	}
-	err = secondHand(host, strconv.Itoa(port), b[1], client, f)
+	err = secondHand(net.JoinHostPort(host, strconv.Itoa(port)), b[1], client, f)
 	if err != nil {
-		logasfmt.Println("second hand failed:", err)
-		return
+		return fmt.Errorf("second hand failed: %w", err)
 	}
 
+	return
 }
 
 func firstHand(client net.Conn, ver, nMethod, method byte, user, key string) error {
@@ -104,8 +104,8 @@ func firstHand(client net.Conn, ver, nMethod, method byte, user, key string) err
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
-	b := *utils.BuffPool(utils.DefaultSize).Get().(*[]byte)
-	defer utils.BuffPool(utils.DefaultSize).Put(&(b))
+	b := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(b)
 	// get username and password
 	_, err := client.Read(b[:])
 	if err != nil {
@@ -121,14 +121,14 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return nil
 }
 
-func secondHand(host, port string, mode byte, client net.Conn, f proxy.Proxy) error {
+func secondHand(host string, mode byte, client net.Conn, f proxy.Proxy) error {
 	var err error
 	switch mode {
 	case connect:
-		err = handleConnect(net.JoinHostPort(host, port), client, f)
+		err = handleConnect(host, client, f)
 
 	case udp: // udp
-		err = handleUDP(net.JoinHostPort(host, port), client, f)
+		err = handleUDP(host, client, f)
 
 	case bind: // bind request
 		fallthrough
@@ -149,12 +149,9 @@ func handleConnect(target string, client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("connect to %s failed: %w", target, err)
 	}
-	if z, ok := server.(*net.TCPConn); ok {
-		_ = z.SetKeepAlive(true)
-	}
 	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
 	// hand shake successful
-	utils.Forward(client, server)
+	utils.Relay(client, server)
 	server.Close()
 	return nil
 }
@@ -165,7 +162,7 @@ func handleUDP(target string, client net.Conn, f proxy.Proxy) error {
 		return fmt.Errorf("new udp server failed: %w", err)
 	}
 	writeSecondResp(client, succeeded, l.listener.LocalAddr().String())
-	utils.SingleForward(client, io.Discard)
+	utils.Copy(io.Discard, client)
 	l.Close()
 	return nil
 }
