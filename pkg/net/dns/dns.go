@@ -110,6 +110,9 @@ func (c *client) Request(domain string) ([]net.IP, error) {
 	for {
 		a, err := p.Answer()
 		if err == dnsmessage.ErrSectionDone {
+			if len(i) == 0 {
+				return nil, fmt.Errorf("no answer")
+			}
 			return i, nil
 		}
 		if err != nil {
