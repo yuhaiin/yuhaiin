@@ -1,26 +1,23 @@
 package mapper
 
 import (
-	"container/list"
 	"encoding/binary"
 	"fmt"
 	"log"
 	"math"
 	"math/big"
 	"net"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 // Cidr cidr matcher
-type Cidr struct {
-	v4CidrTrie Trie
-	v6CidrTrie Trie
-	singleTrie Trie
+type Cidr[T any] struct {
+	v4CidrTrie Trie[T]
+	v6CidrTrie Trie[T]
+	singleTrie Trie[T]
 }
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
-func (c *Cidr) Insert(cidr string, mark interface{}) error {
+func (c *Cidr[T]) Insert(cidr string, mark T) error {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return fmt.Errorf("parse cidr [%s] failed: %v", cidr, err)
@@ -29,7 +26,7 @@ func (c *Cidr) Insert(cidr string, mark interface{}) error {
 	return nil
 }
 
-func (c *Cidr) InsertCIDR(ipNet *net.IPNet, mark interface{}) {
+func (c *Cidr[T]) InsertCIDR(ipNet *net.IPNet, mark T) {
 	maskSize, _ := ipNet.Mask.Size()
 	x := ipNet.IP.To4()
 	if x != nil {
@@ -39,7 +36,7 @@ func (c *Cidr) InsertCIDR(ipNet *net.IPNet, mark interface{}) {
 	}
 }
 
-func (c *Cidr) singleInsert(cidr string, mark interface{}) error {
+func (c *Cidr[T]) singleInsert(cidr string, mark T) error {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return fmt.Errorf("parse cidr [%s] failed: %v", cidr, err)
@@ -52,20 +49,20 @@ func (c *Cidr) singleInsert(cidr string, mark interface{}) error {
 	return nil
 }
 
-func (c *Cidr) singleSearch(ip string) (mark interface{}, ok bool) {
+func (c *Cidr[T]) singleSearch(ip string) (mark T, ok bool) {
 	return c.singleTrie.Search(net.ParseIP(ip).To16())
 }
 
 // MatchWithTrie match ip with trie
-func (c *Cidr) Search(ip string) (mark interface{}, ok bool) {
+func (c *Cidr[T]) Search(ip string) (mark T, ok bool) {
 	iP := net.ParseIP(ip)
 	if iP == nil {
-		return nil, false
+		return mark, false
 	}
 	return c.SearchIP(iP)
 }
 
-func (c *Cidr) SearchIP(ip net.IP) (mark interface{}, ok bool) {
+func (c *Cidr[T]) SearchIP(ip net.IP) (mark T, ok bool) {
 	if x := ip.To4(); x != nil {
 		return c.v4CidrTrie.Search(x)
 	} else {
@@ -74,47 +71,46 @@ func (c *Cidr) SearchIP(ip net.IP) (mark interface{}, ok bool) {
 }
 
 // NewCidrMatchWithTrie <--
-func NewCidrMapper() *Cidr {
-	cidrMapper := new(Cidr)
-	cidrMapper.v4CidrTrie = NewTrieTree()
-	cidrMapper.v6CidrTrie = NewTrieTree()
-	cidrMapper.singleTrie = NewTrieTree()
+func NewCidrMapper[T any]() *Cidr[T] {
+	cidrMapper := new(Cidr[T])
+	cidrMapper.v4CidrTrie = NewTrieTree[T]()
+	cidrMapper.v6CidrTrie = NewTrieTree[T]()
+	cidrMapper.singleTrie = NewTrieTree[T]()
 	return cidrMapper
 }
 
 /*******************************
 	CIDR TRIE
 ********************************/
-type Trie struct {
-	mark  interface{}
-	left  *Trie // 0
-	right *Trie // 1
+type Trie[T any] struct {
+	mark  T
+	last  bool
+	left  *Trie[T] // 0
+	right *Trie[T] // 1
 }
 
 // Insert insert node to tree
-func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
-	if mark == nil {
-		return
-	}
+func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
 	r := t
 	for i := range ip {
 		for b := byte(128); b != 0; b = b >> 1 {
 			if ip[i]&b != 0 {
 				if r.right == nil {
-					r.right = new(Trie)
+					r.right = new(Trie[T])
 				}
 				r = r.right
 			} else {
 				if r.left == nil {
-					r.left = new(Trie)
+					r.left = new(Trie[T])
 				}
 				r = r.left
 			}
 
-			if r.mark != nil || i*8+int(math.Log2(float64(128/b)))+1 == maskSize {
+			if i*8+int(math.Log2(float64(128/b)))+1 == maskSize {
 				r.mark = mark
-				r.left = new(Trie)
-				r.right = new(Trie)
+				r.last = true
+				r.left = new(Trie[T])
+				r.right = new(Trie[T])
 				return
 			}
 		}
@@ -122,8 +118,9 @@ func (t *Trie) Insert(ip net.IP, maskSize int, mark interface{}) {
 }
 
 // Search search from trie tree
-func (t *Trie) Search(ip net.IP) (mark interface{}, ok bool) {
+func (t *Trie[T]) Search(ip net.IP) (mark T, ok bool) {
 	r := t
+out:
 	for i := range ip {
 		for b := byte(128); b != 0; b = b >> 1 {
 			if ip[i]&b != 0 { // bit = 1
@@ -132,18 +129,18 @@ func (t *Trie) Search(ip net.IP) (mark interface{}, ok bool) {
 				r = r.left
 			}
 			if r == nil {
-				return nil, false
+				break out
 			}
-			if r.mark != nil {
-				return r.mark, true
+			if r.last {
+				mark, ok = r.mark, true
 			}
 		}
 	}
-	return nil, false
+	return
 }
 
 // PrintTree print this tree
-func (t *Trie) PrintTree(node *Trie) {
+func (t *Trie[T]) PrintTree(node *Trie[T]) {
 	if node.left != nil {
 		t.PrintTree(node.left)
 		log.Printf("0 ")
@@ -154,44 +151,9 @@ func (t *Trie) PrintTree(node *Trie) {
 	}
 }
 
-func (t *Trie) Print() {
-	type p struct {
-		c *Trie
-		s string
-	}
-	x := list.List{}
-	x.PushBack(&p{
-		c: t,
-		s: "",
-	})
-
-	for x.Len() != 0 {
-		y := x.Front()
-		z := y.Value.(*p)
-		logasfmt.Printf("%v ", z.s)
-		x.Remove(y)
-
-		if z.c.left != nil {
-			x.PushBack(&p{
-				c: z.c.left,
-				s: "0",
-			})
-		}
-
-		if z.c.right != nil {
-			x.PushBack(&p{
-				c: z.c.right,
-				s: "1",
-			})
-		}
-	}
-
-	logasfmt.Printf("\n")
-}
-
 // NewTrieTree create a new trie tree
-func NewTrieTree() Trie {
-	return Trie{}
+func NewTrieTree[T any]() Trie[T] {
+	return Trie[T]{}
 }
 
 func ipv4toInt(ip net.IP) string {

@@ -2,17 +2,13 @@ package simple
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 // LookupIP looks up host using the local resolver.
@@ -73,7 +69,7 @@ func NewSimple(address, port string, opts ...func(*Simple)) *Simple {
 	return c
 }
 
-var clientDialer = net.Dialer{Timeout: time.Second * 10}
+var clientDialer = net.Dialer{Timeout: time.Second * 5}
 
 func (c *Simple) dial() (net.Conn, error) {
 	c.lock.RLock()
@@ -123,23 +119,23 @@ func (e *errs) Add(err error) {
 
 //GetConn .
 func (c *Simple) getConn() (net.Conn, error) {
-	r := 0
+	// r := 0
 
-retry:
+	// retry:
 	conn, err := c.dial()
 	if err == nil {
 		return conn, err
 	}
 
-	if errors.Is(err, syscall.ECONNRESET) {
-		if r <= 3 {
-			logasfmt.Println("check connection reset by peer: ", err, "retry")
-			r++
-			goto retry
-		}
-		logasfmt.Println("direct return error:", err)
-		return nil, err
-	}
+	// if errors.Is(err, syscall.ECONNRESET) {
+	// 	if r <= 3 {
+	// 		logasfmt.Println("check connection reset by peer: ", err, "retry")
+	// 		r++
+	// 		goto retry
+	// 	}
+	// 	logasfmt.Println("direct return error:", err)
+	// 	return nil, err
+	// }
 
 	c.refreshCache()
 

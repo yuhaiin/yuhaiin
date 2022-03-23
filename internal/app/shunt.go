@@ -83,7 +83,7 @@ func copyBypassFile(target string) error {
 
 type Shunt struct {
 	file   string
-	mapper *mapper.Mapper
+	mapper *mapper.Mapper[MODE]
 
 	p        proxy.Proxy
 	fileLock sync.RWMutex
@@ -103,7 +103,7 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 		opt(s)
 	}
 
-	s.mapper = mapper.NewMapper(nil)
+	s.mapper = mapper.NewMapper[MODE](nil)
 
 	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
 		return current.Bypass.BypassFile != old.Bypass.BypassFile
@@ -190,11 +190,7 @@ func (s *Shunt) RefreshMapping() error {
 }
 
 func (s *Shunt) Get(domain string) MODE {
-	m, ok := s.mapper.Search(domain).(MODE)
-	if !ok {
-		return OTHERS
-	}
-
+	m, _ := s.mapper.Search(domain)
 	return m
 }
 

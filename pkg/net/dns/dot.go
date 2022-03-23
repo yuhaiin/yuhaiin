@@ -19,7 +19,7 @@ type dot struct {
 	servername   string
 	proxy        func(string) (net.Conn, error)
 	sessionCache tls.ClientSessionCache
-	cache        *utils.LRU
+	cache        *utils.LRU[string, []net.IP]
 
 	resolver *client
 }
@@ -50,7 +50,7 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 		servername:   servername,
 		sessionCache: tls.NewLRUClientSessionCache(0),
 		proxy:        p.Conn,
-		cache:        utils.NewLru(200, 20*time.Minute),
+		cache:        utils.NewLru[string, []net.IP](200, 20*time.Minute),
 	}
 
 	d.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
@@ -86,7 +86,7 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 
 func (d *dot) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := d.cache.Load(domain); x != nil {
-		return x.([]net.IP), nil
+		return x, nil
 	}
 	if ip, err = d.resolver.Request(domain); len(ip) != 0 {
 		d.cache.Add(domain, ip)
