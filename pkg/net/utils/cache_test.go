@@ -8,7 +8,7 @@ import (
 )
 
 func TestLru(t *testing.T) {
-	l := NewLru(4, 0)
+	l := NewLru[string, string](4, 0)
 
 	l.Add("a", "a")
 	l.Add("b", "b")
@@ -36,7 +36,7 @@ func TestLru(t *testing.T) {
 }
 
 func BenchmarkNewLru(b *testing.B) {
-	l := NewLru(100, 0*time.Minute)
+	l := NewLru[string, string](100, 0*time.Minute)
 
 	l.Add("a", "a")
 	l.Add("b", "b")

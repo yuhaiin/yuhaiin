@@ -14,9 +14,12 @@ import (
 	"os"
 	"path"
 	reflect "reflect"
+	"strings"
 	sync "sync"
+	"syscall"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -34,6 +37,8 @@ type NodeManager struct {
 	lock       sync.RWMutex
 	filelock   sync.RWMutex
 	proxy.Proxy
+
+	balanced *balanced
 }
 
 func NewNodeManager(configPath string) (n *NodeManager, err error) {
@@ -51,6 +56,18 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 
 	n.Proxy = p
 
+	n.balanced = &balanced{
+		err: &ban{
+			c: &sync.Map{},
+		},
+		cache: &sync.Map{},
+	}
+
+	for _, v := range n.node.Balanced {
+		n.balanced.nodes = append(n.balanced.nodes, n.node.Nodes[v])
+	}
+
+	n.balanced.len = len(n.balanced.nodes)
 	return n, nil
 }
 
@@ -343,6 +360,7 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 
 	px, err := p.Conn()
 	if err != nil {
+		logasfmt.Println("get latency conn failed: %v", err)
 		return &wrapperspb.StringValue{}, fmt.Errorf("get conn failed: %v", err)
 	}
 
@@ -351,6 +369,7 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 		"https://www.google.com/generate_204",
 	)
 	if err != nil {
+		logasfmt.Println("test latency failed: %v", err)
 		return &wrapperspb.StringValue{Value: err.Error()}, err
 	}
 	return &wrapperspb.StringValue{Value: t.String()}, err
@@ -461,4 +480,134 @@ func (p *Point) Conn() (proxy.Proxy, error) {
 		return nil, fmt.Errorf("result1 type is not error: %v", r1)
 	}
 	return px, err
+}
+
+type balanced struct {
+	nodes []*Point
+	len   int
+	cache *sync.Map
+
+	err *ban
+}
+
+type ban struct {
+	c *sync.Map
+}
+
+func (b *ban) add(s string) {
+	if v, ok := b.c.Load(s); ok {
+		z := v.(*band)
+		z.t = time.Now()
+		z.d = z.d * z.d
+
+		b.c.Store(s, z)
+		return
+	}
+
+	b.c.Store(s, &band{time.Now(), 2})
+}
+
+func (b *ban) isBan(h string) bool {
+	if v, ok := b.c.Load(h); ok {
+		z := v.(*band)
+		if z.t.Add(time.Duration(z.d) * time.Minute).After(time.Now()) {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *ban) remove(s string) {
+	b.c.Delete(s)
+}
+
+type band struct {
+	t time.Time
+	d int
+}
+
+type tmpGetNode struct {
+	i int
+	b *balanced
+}
+
+func (t *tmpGetNode) next() (*Point, bool) {
+_retry:
+	if t.i > t.b.len-1 {
+		return nil, false
+	}
+
+	n := t.b.nodes[t.i]
+	t.i++
+	if t.b.err.isBan(n.NHash) {
+		goto _retry
+	}
+
+	return n, true
+}
+
+func (b *balanced) Conn(h string) (net.Conn, error) {
+	t := tmpGetNode{0, b}
+
+	for {
+		n, ok := t.next()
+		if !ok {
+			return nil, fmt.Errorf("no node can connect")
+		}
+
+		// if b.err.isBan(n.NHash) {
+		// logasfmt.Println("tmp ban node", n.NName)
+		// continue
+		// } else {
+		logasfmt.Println("try use", t.i, n.NName)
+		// }
+
+		var c proxy.Proxy
+		if v, ok := b.cache.Load(n.NHash); ok {
+			c = v.(proxy.Proxy)
+		} else {
+			cc, err := n.Conn()
+			if err != nil {
+				continue
+			}
+
+			c = cc
+			b.cache.Store(n.NHash, cc)
+		}
+
+		z, err := c.Conn(h)
+		if err == nil {
+			logasfmt.Println(h, "use node", n.NName)
+			b.err.remove(n.NHash)
+			return z, nil
+		}
+
+		if errors.Is(err, syscall.ECONNRESET) ||
+			errors.Is(err, syscall.ECONNREFUSED) ||
+			errors.Is(err, syscall.ETIMEDOUT) {
+			b.err.add(n.NHash)
+			logasfmt.Println("type equal, try next", t.i, n.NName, " -> err:", err)
+			continue
+		}
+
+		if strings.Contains(err.Error(), "connection reset by peer") ||
+			strings.Contains(err.Error(), "connection refused") ||
+			strings.Contains(err.Error(), "i/o timeout") {
+			b.err.add(n.NHash)
+			logasfmt.Println("string equal, try next", t.i, n.NName, " -> err:", err)
+			continue
+		}
+
+		logasfmt.Println("other errors:", err)
+		return nil, fmt.Errorf("conn failed: %v", err)
+	}
+}
+
+func (b *balanced) PacketConn(h string) (net.PacketConn, error) {
+	c, err := b.nodes[0].Conn()
+	if err != nil {
+		return nil, err
+	}
+
+	return c.PacketConn(h)
 }

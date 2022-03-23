@@ -131,7 +131,7 @@ var _ DNS = (*dns)(nil)
 
 type dns struct {
 	Server string
-	cache  *utils.LRU
+	cache  *utils.LRU[string, []net.IP]
 	proxy  proxy.Proxy
 
 	resolver *client
@@ -154,7 +154,7 @@ func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 
 	d := &dns{
 		Server: host,
-		cache:  utils.NewLru(200, 20*time.Minute),
+		cache:  utils.NewLru[string, []net.IP](200, 20*time.Minute),
 		proxy:  p,
 	}
 
@@ -166,7 +166,7 @@ func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 // LookupIP resolve domain return net.IP array
 func (n *dns) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := n.cache.Load(domain); x != nil {
-		return x.([]net.IP), nil
+		return x, nil
 	}
 	if ip, err = n.resolver.Request(domain); len(ip) != 0 {
 		n.cache.Add(domain, ip)
