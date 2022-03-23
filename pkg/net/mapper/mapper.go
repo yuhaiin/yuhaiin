@@ -5,21 +5,21 @@ import (
 	"sync"
 )
 
-type Mapper struct {
+type Mapper[T any] struct {
 	lookup func(string) ([]net.IP, error)
-	cidr   *Cidr
-	domain *domain
+	cidr   *Cidr[T]
+	domain *domain[T]
 
 	lookupLock sync.RWMutex
 }
 
-func (x *Mapper) SetLookup(f func(string) ([]net.IP, error)) {
+func (x *Mapper[T]) SetLookup(f func(string) ([]net.IP, error)) {
 	x.lookupLock.Lock()
 	defer x.lookupLock.Unlock()
 	x.lookup = f
 }
 
-func (x *Mapper) Insert(str string, mark interface{}) {
+func (x *Mapper[T]) Insert(str string, mark T) {
 	if str == "" {
 		return
 	}
@@ -32,14 +32,14 @@ func (x *Mapper) Insert(str string, mark interface{}) {
 	}
 }
 
-func (x *Mapper) Search(str string) (mark interface{}) {
+func (x *Mapper[T]) Search(str string) (mark T, ok bool) {
 	if ip := net.ParseIP(str); ip != nil {
-		mark, _ = x.cidr.SearchIP(ip)
+		mark, ok = x.cidr.SearchIP(ip)
 		goto _end
 	}
 
-	mark, _ = x.domain.Search(str)
-	if mark != nil {
+	mark, ok = x.domain.Search(str)
+	if ok {
 		goto _end
 	}
 
@@ -49,22 +49,22 @@ func (x *Mapper) Search(str string) (mark interface{}) {
 		goto _end
 	}
 	if dns, err := x.lookup(str); err == nil {
-		mark, _ = x.cidr.SearchIP(dns[0])
+		mark, ok = x.cidr.SearchIP(dns[0])
 	}
 
 _end:
-	return mark
+	return
 }
 
-func (x *Mapper) Clear() {
-	x.cidr = NewCidrMapper()
-	x.domain = NewDomainMapper()
+func (x *Mapper[T]) Clear() {
+	x.cidr = NewCidrMapper[T]()
+	x.domain = NewDomainMapper[T]()
 }
 
-func NewMapper(lookup func(string) ([]net.IP, error)) (matcher *Mapper) {
-	return &Mapper{
-		cidr:   NewCidrMapper(),
-		domain: NewDomainMapper(),
+func NewMapper[T any](lookup func(string) ([]net.IP, error)) (matcher *Mapper[T]) {
+	return &Mapper[T]{
+		cidr:   NewCidrMapper[T](),
+		domain: NewDomainMapper[T](),
 		lookup: lookup,
 	}
 }

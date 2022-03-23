@@ -8,7 +8,7 @@ import (
 
 // BenchmarkDomainMatcher_Search-4   	20780998	        58.13 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkDomainMatcher_Search(b *testing.B) {
-	root := NewDomainMapper()
+	root := NewDomainMapper[string]()
 	root.Insert("*.baidu.com", "test_baidu")
 	root.Insert("www.baidu.sub.com.cn", "test_baidu")
 	root.Insert("www.google.com", "test_google")
@@ -21,7 +21,7 @@ func BenchmarkDomainMatcher_Search(b *testing.B) {
 }
 
 func TestDomainMatcherSearch(t *testing.T) {
-	root := NewDomainMapper()
+	root := NewDomainMapper[string]()
 	root.Insert("*.baidu.com", "sub_baidu_test")
 	root.Insert("www.baidu.com", "test_baidu")
 	root.Insert("last.baidu.*", "test_last_baidu")

@@ -29,14 +29,14 @@ type doh struct {
 	port     string
 	url      string
 
-	cache      *utils.LRU
+	cache      *utils.LRU[string, []net.IP]
 	httpClient *http.Client
 	resolver   *client
 }
 
 func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	dns := &doh{
-		cache: utils.NewLru(200, 20*time.Minute),
+		cache: utils.NewLru[string, []net.IP](200, 20*time.Minute),
 	}
 
 	dns.setServer(host)
@@ -59,7 +59,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 // https://tools.ietf.org/html/rfc8484
 func (d *doh) LookupIP(domain string) (ip []net.IP, err error) {
 	if x, _ := d.cache.Load(domain); x != nil {
-		return x.([]net.IP), nil
+		return x, nil
 	}
 	if ip, err = d.resolver.Request(domain); len(ip) != 0 {
 		d.cache.Add(domain, ip)

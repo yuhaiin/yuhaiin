@@ -10,10 +10,10 @@ var (
 	wildcard = 2
 )
 
-type domainNode struct {
+type domainNode[T any] struct {
 	symbol int
-	mark   interface{}
-	child  map[string]*domainNode
+	mark   T
+	child  map[string]*domainNode[T]
 }
 
 type domainStr struct {
@@ -51,7 +51,7 @@ func (d *domainStr) str() string {
 	return d.domain[d.pre:d.aft]
 }
 
-func s(root *domainNode, domain string) (resp interface{}, ok bool) {
+func s[T any](root *domainNode[T], domain string) (resp T, ok bool) {
 	s := root
 	z := newDomainStr(domain)
 	first, asterisk := true, false
@@ -86,7 +86,7 @@ func s(root *domainNode, domain string) (resp interface{}, ok bool) {
 	}
 }
 
-func insert(root *domainNode, domain string, mark interface{}) {
+func insert[T any](root *domainNode[T], domain string, mark T) {
 	z := newDomainStr(domain)
 	for z.hasNext() {
 		if z.last() && domain[0] == '*' {
@@ -96,11 +96,11 @@ func insert(root *domainNode, domain string, mark interface{}) {
 		}
 
 		if root.child == nil {
-			root.child = make(map[string]*domainNode)
+			root.child = make(map[string]*domainNode[T])
 		}
 
 		if root.child[z.str()] == nil {
-			root.child[z.str()] = &domainNode{}
+			root.child[z.str()] = &domainNode[T]{}
 		}
 
 		root = root.child[z.str()]
@@ -114,12 +114,12 @@ func insert(root *domainNode, domain string, mark interface{}) {
 	}
 }
 
-type domain struct {
-	root         *domainNode // for example.com, example.*
-	wildcardRoot *domainNode // for *.example.com, *.example.*
+type domain[T any] struct {
+	root         *domainNode[T] // for example.com, example.*
+	wildcardRoot *domainNode[T] // for *.example.com, *.example.*
 }
 
-func (d *domain) Insert(domain string, mark interface{}) {
+func (d *domain[T]) Insert(domain string, mark T) {
 	if len(domain) == 0 {
 		return
 	}
@@ -131,7 +131,7 @@ func (d *domain) Insert(domain string, mark interface{}) {
 	}
 }
 
-func (d *domain) Search(domain string) (mark interface{}, ok bool) {
+func (d *domain[T]) Search(domain string) (mark T, ok bool) {
 	mark, ok = s(d.root, domain)
 	if ok {
 		return
@@ -139,9 +139,9 @@ func (d *domain) Search(domain string) (mark interface{}, ok bool) {
 	return s(d.wildcardRoot, domain)
 }
 
-func NewDomainMapper() *domain {
-	return &domain{
-		root:         &domainNode{child: map[string]*domainNode{}},
-		wildcardRoot: &domainNode{child: map[string]*domainNode{}},
+func NewDomainMapper[T any]() *domain[T] {
+	return &domain[T]{
+		root:         &domainNode[T]{child: map[string]*domainNode[T]{}},
+		wildcardRoot: &domainNode[T]{child: map[string]*domainNode[T]{}},
 	}
 }

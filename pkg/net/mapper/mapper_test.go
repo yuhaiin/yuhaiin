@@ -19,29 +19,33 @@ func TestNewMatcher(t *testing.T) {
 	dns.EXPECT().LookupIP("www.facebook.com").Return([]net.IP{net.ParseIP("10.2.2.1")}, nil)
 	dns.EXPECT().LookupIP("www.google.com").Return([]net.IP{net.ParseIP("127.0.0.1")}, nil)
 
-	matcher := NewMapper(dns.LookupIP)
+	matcher := NewMapper[string](dns.LookupIP)
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	matcher.Insert("*.163.com", "163")
 	matcher.Insert("music.126.com", "126")
 	matcher.Insert("*.advertising.com", "advertising")
 
-	assert.Equal(t, "test_cidr", matcher.Search("10.2.2.1"))
-	assert.Equal(t, "test_baidu", matcher.Search("www.baidu.com"))
-	assert.Equal(t, "test_baidu", matcher.Search("passport.baidu.com"))
-	assert.Equal(t, "test_baidu", matcher.Search("tieba.baidu.com"))
-	assert.Equal(t, nil, matcher.Search("www.google.com"))
-	assert.Equal(t, "163", matcher.Search("test.music.163.com"))
-	assert.Equal(t, "advertising", matcher.Search("guce.advertising.com"))
-	assert.Equal(t, "test_cidr", matcher.Search("www.twitter.com"))
-	assert.Equal(t, "test_cidr", matcher.Search("www.facebook.com"))
-	assert.Equal(t, nil, matcher.Search("127.0.0.1"))
-	assert.Equal(t, nil, matcher.Search("ff::"))
+	search := func(s string) interface{} {
+		res, _ := matcher.Search(s)
+		return res
+	}
+	assert.Equal(t, "test_cidr", search("10.2.2.1"))
+	assert.Equal(t, "test_baidu", search("www.baidu.com"))
+	assert.Equal(t, "test_baidu", search("passport.baidu.com"))
+	assert.Equal(t, "test_baidu", search("tieba.baidu.com"))
+	assert.Equal(t, nil, search("www.google.com"))
+	assert.Equal(t, "163", search("test.music.163.com"))
+	assert.Equal(t, "advertising", search("guce.advertising.com"))
+	assert.Equal(t, "test_cidr", search("www.twitter.com"))
+	assert.Equal(t, "test_cidr", search("www.facebook.com"))
+	assert.Equal(t, nil, search("127.0.0.1"))
+	assert.Equal(t, nil, search("ff::"))
 }
 
 func BenchmarkMapper(b *testing.B) {
 	b.StopTimer()
-	matcher := NewMapper(dns.NewDoH("223.5.5.5", nil, nil).LookupIP)
+	matcher := NewMapper[string](dns.NewDoH("223.5.5.5", nil, nil).LookupIP)
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	b.StartTimer()

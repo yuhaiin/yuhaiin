@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-type lruEntry struct {
-	key   interface{}
-	data  interface{}
+type lruEntry[K, V any] struct {
+	key   K
+	data  V
 	store time.Time
 }
 
 //LRU Least Recently Used
-type LRU struct {
+type LRU[K, V any] struct {
 	capacity int
 	list     *list.List
 	mapping  sync.Map
@@ -22,19 +22,19 @@ type LRU struct {
 }
 
 //NewLru create new lru cache
-func NewLru(capacity int, timeout time.Duration) *LRU {
-	return &LRU{
+func NewLru[K, V any](capacity int, timeout time.Duration) *LRU[K, V] {
+	return &LRU[K, V]{
 		capacity: capacity,
 		list:     list.New(),
 		timeout:  timeout,
 	}
 }
 
-func (l *LRU) Add(key, value interface{}) {
+func (l *LRU[K, V]) Add(key K, value V) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	if elem, ok := l.mapping.Load(key); ok {
-		r := elem.(*list.Element).Value.(*lruEntry)
+		r := elem.(*list.Element).Value.(*lruEntry[K, V])
 		r.key = key
 		r.data = value
 		r.store = time.Now()
@@ -43,7 +43,7 @@ func (l *LRU) Add(key, value interface{}) {
 	}
 
 	if l.capacity == 0 || l.list.Len() < l.capacity {
-		l.mapping.Store(key, l.list.PushFront(&lruEntry{
+		l.mapping.Store(key, l.list.PushFront(&lruEntry[K, V]{
 			key:   key,
 			data:  value,
 			store: time.Now(),
@@ -52,7 +52,7 @@ func (l *LRU) Add(key, value interface{}) {
 	}
 
 	elem := l.list.Back()
-	r := elem.Value.(*lruEntry)
+	r := elem.Value.(*lruEntry[K, V])
 	l.mapping.Delete(r.key)
 	r.key = key
 	r.data = value
@@ -62,27 +62,27 @@ func (l *LRU) Add(key, value interface{}) {
 }
 
 //Delete delete a key from cache
-func (l *LRU) Delete(key interface{}) {
+func (l *LRU[K, V]) Delete(key K) {
 	l.mapping.LoadAndDelete(key)
 }
 
-func (l *LRU) Load(key interface{}) (interface{}, bool) {
+func (l *LRU[K, V]) Load(key K) (v V, ok bool) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	node, ok := l.mapping.Load(key)
 	if !ok {
-		return nil, false
+		return v, false
 	}
 
-	y, ok := node.(*list.Element).Value.(*lruEntry)
+	y, ok := node.(*list.Element).Value.(*lruEntry[K, V])
 	if !ok {
-		return nil, false
+		return v, false
 	}
 
 	if l.timeout != 0 && time.Since(y.store) >= l.timeout {
 		l.mapping.Delete(key)
 		l.list.Remove(node.(*list.Element))
-		return nil, false
+		return v, false
 	}
 
 	l.list.MoveToFront(node.(*list.Element))

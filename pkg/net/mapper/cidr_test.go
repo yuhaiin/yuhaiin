@@ -9,7 +9,7 @@ import (
 )
 
 func TestCidrMatch_Inset(t *testing.T) {
-	cidrMatch := NewCidrMapper()
+	cidrMatch := NewCidrMapper[string]()
 	require.Nil(t, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
 	require.Nil(t, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
 	require.Nil(t, cidrMatch.Insert("127.0.0.1/8", "testlocal"))
@@ -36,7 +36,7 @@ func TestCidrMatch_Inset(t *testing.T) {
 
 // BenchmarkCidrMatch_Search-4 9119133 130.6 ns/op 16 B/op 1 allocs/op
 func BenchmarkCidrMatch_Search(b *testing.B) {
-	cidrMatch := NewCidrMapper()
+	cidrMatch := NewCidrMapper[string]()
 	require.Nil(b, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
 	require.Nil(b, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
 
@@ -131,7 +131,7 @@ func TestTo6(t *testing.T) {
 // 2102 ns/op,2106 ns/op
 // BenchmarkSingleTrie-4 9823910 128.0 ns/op 16 B/op  1 allocs/op
 func BenchmarkSingleTrie(b *testing.B) {
-	m := NewCidrMapper()
+	m := NewCidrMapper[string]()
 	if err := m.singleInsert("127.0.0.1/28", "localhost"); err != nil {
 		b.Error(err)
 	}

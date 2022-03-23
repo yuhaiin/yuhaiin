@@ -86,7 +86,10 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 
 func (c *Client) Conn(string) (net.Conn, error) {
 	cc, _, err := c.dialer.Dial(c.uri, c.header)
-	return &connection{Conn: cc}, err
+	if err != nil {
+		return nil, fmt.Errorf("websocket dial failed: %w", err)
+	}
+	return &connection{Conn: cc}, nil
 }
 
 func (c *Client) PacketConn(host string) (net.PacketConn, error) {
