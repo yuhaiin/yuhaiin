@@ -14,7 +14,6 @@ import (
 	"path"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
@@ -24,7 +23,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func initialize(kwdc bool) {
+func initialize() {
 	go func() {
 		// pprof
 		_ = http.ListenAndServe("0.0.0.0:6060", nil)
@@ -33,14 +32,9 @@ func initialize(kwdc bool) {
 	go func() {
 		signChannel := make(chan os.Signal, 5)
 		signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-		ppid := os.Getppid()
 
-		var ticker *time.Ticker
-		if kwdc {
-			ticker = time.NewTicker(time.Second)
-		} else {
-			ticker = &time.Ticker{C: make(<-chan time.Time)}
-		}
+		// ppid := os.Getppid()
+		// ticker := time.NewTicker(time.Second)
 
 		for {
 			select {
@@ -54,17 +48,29 @@ func initialize(kwdc bool) {
 					logasfmt.Println("OTHERS SIGN:", s)
 				}
 
-			case <-ticker.C:
-				if os.Getppid() == ppid {
-					continue
-				}
+				// case <-ticker.C:
+				// 	if os.Getppid() == ppid {
+				// 		continue
+				// 	}
 
-				log.Println("checked parent already exited, exit myself.")
-				grpcServer.Stop()
-				return
+				// 	log.Println("checked parent already exited, exit myself.")
+				// 	grpcServer.Stop()
+				// 	return
 			}
 		}
 	}()
+}
+
+func initLog(configPath string) {
+	dir := path.Join(configPath, "log")
+	_, err := os.Stat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		os.MkdirAll(dir, os.ModePerm)
+	}
+	out := []io.Writer{os.Stdout}
+	f := logasfmt.NewLogWriter(filepath.Join(dir, "yuhaiin.log"))
+	defer f.Close()
+	logasfmt.SetOutput(io.MultiWriter(append(out, f)...))
 }
 
 var grpcServer = grpc.NewServer(grpc.EmptyServerOption{})
@@ -72,26 +78,21 @@ var grpcServer = grpc.NewServer(grpc.EmptyServerOption{})
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
 	host := flag.String("host", "127.0.0.1:50051", "RPC SERVER HOST")
-	configDir := flag.String("cd", defaultConfigDir(), "config dir")
-	kwdc := flag.Bool("kwdc", false, "kill process when grpc disconnect")
+	path := flag.String("cd", defaultConfigDir(), "config dir")
 	flag.Parse()
 
-	dir := path.Join(*configDir, "log")
-	_, err := os.Stat(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		os.MkdirAll(dir, os.ModePerm)
-	}
+	initLog(*path)
 
-	out := []io.Writer{os.Stdout}
-	f := logasfmt.NewLogWriter(filepath.Join(dir, "yuhaiin.log"))
-	defer f.Close()
-	out = append(out, f)
-	logasfmt.SetOutput(io.MultiWriter(out...))
-	logasfmt.Println("--------start yuhaiin----------")
-	logasfmt.Println("save config at:", *configDir)
+	logasfmt.Println(`
+***************************************
+***************************************
+***********start yuhaiin***************
+***************************************
+***************************************`)
+	logasfmt.Println("save config at:", *path)
 	logasfmt.Println("gRPC Listen Host:", *host)
 
-	lock, err := app.NewLock(filepath.Join(*configDir, "yuhaiin.lock"), *host)
+	lock, err := app.NewLock(filepath.Join(*path, "yuhaiin.lock"), *host)
 	if err != nil {
 		panic(err)
 	}
@@ -103,14 +104,14 @@ func main() {
 		panic(err)
 	}
 
-	initialize(!*kwdc)
+	initialize()
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager -> statis/connection manager -> listener
-	nodeManager, err := subscr.NewNodeManager(filepath.Join(*configDir, "node.json"))
+	nodeManager, err := subscr.NewNodeManager(filepath.Join(*path, "node.json"))
 	if err != nil {
 		panic(err)
 	}
-	conf, err := config.NewConfig(*configDir)
+	conf, err := config.NewConfig(*path)
 	if err != nil {
 		panic(err)
 	}

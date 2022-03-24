@@ -90,8 +90,7 @@ func insert[T any](root *domainNode[T], domain string, mark T) {
 	z := newDomainStr(domain)
 	for z.hasNext() {
 		if z.last() && domain[0] == '*' {
-			root.symbol = wildcard
-			root.mark = mark
+			root.symbol, root.mark = wildcard, mark
 			break
 		}
 
@@ -106,8 +105,7 @@ func insert[T any](root *domainNode[T], domain string, mark T) {
 		root = root.child[z.str()]
 
 		if z.last() {
-			root.symbol = last
-			root.mark = mark
+			root.symbol, root.mark = last, mark
 		}
 
 		z.next()

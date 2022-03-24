@@ -199,7 +199,7 @@ func getDNSHostnameAndMode(dc *config.DNS) (string, MODE) {
 	if dc.Type == config.DNS_doh {
 		i := strings.IndexByte(dc.Host, '/')
 		if i != -1 {
-			host = dc.Host[:i]
+			host = dc.Host[:i] // remove doh path
 		}
 	}
 
@@ -226,9 +226,9 @@ func getDNS(dc *config.DNS, proxy proxy.Proxy) dns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)
-		if p != nil {
+		if p != nil { // no mask
 			var mask net.IPMask
-			if p.To4() == nil {
+			if p.To4() == nil { // ipv6
 				mask = net.IPMask{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
 			} else {
 				mask = net.IPMask{255, 255, 255, 255}

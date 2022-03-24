@@ -9,13 +9,9 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
-
-func TestReadline(t *testing.T) {
-	modes := map[string]int{"direct": 0, "proxy": 1, "block": 2}
-	t.Log(modes["test"], modes["direct"], modes["block"], modes["block2"])
-}
 
 func TestDNS(t *testing.T) {
 	URI, err := url.Parse("//" + "baidu.com:443")
@@ -162,12 +158,6 @@ func TestResolver(t *testing.T) {
 	t.Log(resolver.LookupIPAddr(context.Background(), "www.baidu.com"))
 }
 
-func TestSpilt(t *testing.T) {
-	log.Println(net.SplitHostPort("www.baidu.com:443"))
-	log.Println(net.SplitHostPort("127.0.0.1:443"))
-	log.Println(net.SplitHostPort("[::]:443"))
-}
-
 func TestScanf(t *testing.T) {
 	str := "a b"
 	var a string
@@ -196,4 +186,12 @@ func TestScanf(t *testing.T) {
 
 	d := re.FindAllStringSubmatch("v   aaaaccc", -1)
 	t.Log(len(d), d)
+}
+func TestValue(t *testing.T) {
+	var z atomic.Value
+	z.Store(func() {})
+	t.Log(z.Load())
+	var x func()
+	z.Store(x)
+	t.Log(z.Load())
 }

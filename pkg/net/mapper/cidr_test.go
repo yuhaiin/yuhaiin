@@ -1,7 +1,6 @@
 package mapper
 
 import (
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,81 +50,6 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 			// cidrMatch.Search(testIPv6b)
 		}
 	})
-}
-
-func TestIpToInt(t *testing.T) {
-	t.Log([]byte(net.ParseIP("127.0.0.1").To4()))
-	t.Log(ipv4toInt(net.ParseIP("127.0.0.1")))
-	t.Log(ipv4toInt2(net.ParseIP("127.0.0.1").To4()))
-	t.Log(ipv4toInt(net.ParseIP("0.0.0.1")))
-	t.Log(ipv4toInt2(net.ParseIP("0.0.0.1").To4()))
-	t.Log(ipv4toInt(net.ParseIP("255.255.255.255")))
-	t.Log(ipv4toInt2(net.ParseIP("255.255.255.255").To4()))
-	t.Log(ipv6toInt(net.ParseIP("ff::ff")))
-	t.Log(ipv6toInt(net.ParseIP("::ff")))
-}
-
-// 297 293
-func BenchmarkIpv4toInt(b *testing.B) {
-	str := net.ParseIP("0.0.255.255")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ipv4toInt(str)
-	}
-}
-
-// 827 821
-// 729 752
-func BenchmarkIpv6toInt(b *testing.B) {
-	str := net.ParseIP("ffff::ffff")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ipv6toInt2(str)
-	}
-}
-
-func TestIpToCidr(t *testing.T) {
-	ip, ipNet, err := net.ParseCIDR("127.0.0.1/28")
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(ip)
-	t.Log(ipNet.Mask.Size())
-	ip, ipNet, err = net.ParseCIDR("ff::ff/64")
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(ip.To4())
-	t.Log(ipNet.Mask.Size())
-}
-
-func TestTo6(t *testing.T) {
-	// Addresses in this group consist of an 80-bit prefix of zeros,
-	// the next 16 bits are ones, and the remaining,
-	// least-significant 32 bits contain the IPv4 address.
-	// For example,
-	// ::ffff:192.0.2.128 represents the IPv4 address 192.0.2.128.
-	// Another format, called "IPv4-compatible IPv6 address",
-	// is ::192.0.2.128; however, this method is deprecated.
-	t.Log(ipv6toInt(net.ParseIP("127.0.0.1")))
-	t.Log(ipv6toInt2(net.ParseIP("127.0.0.1")))
-	t.Log(ipv6toInt(net.ParseIP("::127.0.0.1")))     //deprecated
-	t.Log([]byte(net.ParseIP("::127.0.0.1").To16())) //deprecated
-	t.Log([]byte(net.ParseIP("127.0.0.1").To16()))
-	t.Log(net.ParseIP("::ffff:a:b"))
-	//01111111 00000000 00000000 00000001
-
-	_, ips, err := net.ParseCIDR("127.0.0.1/28")
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(ips.IP.To16())
-	if len(ips.IP) == net.IPv4len {
-		size, _ := ips.Mask.Size()
-		t.Log(size + 96)
-		t.Log(ipv6toInt(ips.IP)[:size+96])
-		t.Log([]byte(ips.IP.Mask(ips.Mask).To16()))
-	}
 }
 
 // 2102 ns/op,2106 ns/op

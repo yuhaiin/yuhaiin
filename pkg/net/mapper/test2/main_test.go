@@ -8,8 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func main() {
-	t := &testing.T{}
+func TestCidr(t *testing.T) {
 	cidrMatch := mapper.NewCidrMapper[string]()
 	require.Nil(t, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
 	require.Nil(t, cidrMatch.Insert("10.2.2.1/24", "testIPv42"))
