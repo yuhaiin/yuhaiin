@@ -2,8 +2,10 @@ package socks5client
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -296,6 +298,56 @@ func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
 	port = (int(raw[targetAddrRawSize]) << 8) | int(raw[targetAddrRawSize+1])
 	targetAddrRawSize += 2
 	return dst, port, targetAddrRawSize, nil
+}
+
+func ResolveAddrReader(r io.Reader) (hostname string, port, size int, err error) {
+	byteBuf := [1]byte{}
+	_, err = io.ReadFull(r, byteBuf[:])
+	if err != nil {
+		err = fmt.Errorf("unable to read ATYP: %w", err)
+		return
+	}
+	switch byteBuf[0] {
+	case ipv4:
+		var buf [6]byte
+		_, err = io.ReadFull(r, buf[:])
+		if err != nil {
+			err = fmt.Errorf("failed to read IPv4: %w", err)
+			return
+		}
+		hostname = net.IP(buf[0:4]).String()
+		port = int(binary.BigEndian.Uint16(buf[4:6]))
+	case ipv6:
+		var buf [18]byte
+		_, err = io.ReadFull(r, buf[:])
+		if err != nil {
+			err = fmt.Errorf("failed to read IPv6: %w", err)
+			return
+		}
+		hostname = net.IP(buf[0:16]).String()
+		port = int(binary.BigEndian.Uint16(buf[16:18]))
+	case domainName:
+		_, err = io.ReadFull(r, byteBuf[:])
+		length := byteBuf[0]
+		if err != nil {
+			err = fmt.Errorf("failed to read domain name length")
+			return
+		}
+		buf := make([]byte, length+2)
+		_, err = io.ReadFull(r, buf)
+		if err != nil {
+			err = fmt.Errorf("failed to read domain name")
+			return
+		}
+		// the fucking browser uses IP as a domain name sometimes
+		host := buf[0:length]
+		hostname = string(host)
+		port = int(binary.BigEndian.Uint16(buf[length : length+2]))
+	default:
+		err = fmt.Errorf("invalid ATYP " + strconv.FormatInt(int64(byteBuf[0]), 10))
+		return
+	}
+	return
 }
 
 // The client connects to the server, and sends a version

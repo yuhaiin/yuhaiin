@@ -88,6 +88,8 @@ func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 
 	connectionNonce := utils.GetBytes(8)
 	defer utils.PutBytes(connectionNonce)
+
+	connectionNonce = connectionNonce[:8]
 	if _, err := io.ReadFull(rand3.Reader, connectionNonce); err != nil {
 		panic(err.Error())
 	}

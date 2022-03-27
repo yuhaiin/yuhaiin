@@ -2,6 +2,7 @@ package simple
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net"
@@ -35,11 +36,18 @@ type Simple struct {
 	lookupCache  []string
 	refreshCache func()
 	lookupIP     func(host string) ([]net.IP, error)
+	tlsConfig    *tls.Config
 }
 
 func WithLookupIP(f func(host string) ([]net.IP, error)) func(*Simple) {
 	return func(cu *Simple) {
 		cu.lookupIP = f
+	}
+}
+
+func WithTLSConfig(t *tls.Config) func(*Simple) {
+	return func(c *Simple) {
+		c.tlsConfig = t
 	}
 }
 
@@ -86,6 +94,9 @@ func (c *Simple) dial() (net.Conn, error) {
 			_ = x.SetKeepAlive(true)
 		}
 
+		if c.tlsConfig != nil {
+			conn = tls.Client(conn, c.tlsConfig)
+		}
 		return conn, nil
 	}
 

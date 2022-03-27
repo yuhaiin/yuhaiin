@@ -24,7 +24,7 @@ func TestSsrParse2(t *testing.T) {
 		"ssr://MjIyLjIyMi4yMjIuMjIyOjQ0MzphdXRoX2FlczEyOF9tZDU6Y2hhY2hhMjAtaWV0ZjpodHRwX3Bvc3Q6ZEdWemRBby8/b2Jmc3BhcmFtPWRHVnpkQW8mcHJvdG9wYXJhbT1kR1Z6ZEFvJnJlbWFya3M9ZEdWemRBbyZncm91cD1kR1Z6ZEFvCg"}
 
 	for x := range ssr {
-		log.Println((&shadowsocksr{}).ParseLink([]byte(ssr[x]), "test"))
+		log.Println((&shadowsocksr{}).ParseLink([]byte(ssr[x])))
 	}
 }
 
@@ -42,7 +42,7 @@ func TestLint(t *testing.T) {
 		t.Log(err)
 	}
 	for _, x := range bytes.Split(dst, []byte("\n")) {
-		log.Println((&shadowsocksr{}).ParseLink(x, "test"))
+		log.Println((&shadowsocksr{}).ParseLink(x))
 	}
 }
 
@@ -110,3 +110,36 @@ func TestConnections(t *testing.T) {
 // 	require.Nil(t, err)
 // 	t.Log(string(data))
 // }
+
+func TestSSr(t *testing.T) {
+	p := &Point_Shadowsocksr{
+		&Shadowsocksr{},
+	}
+	z, err := p.Conn()
+	require.Nil(t, err)
+
+	tt := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return z.Conn(addr)
+			},
+		},
+	}
+
+	req := http.Request{
+		Method: "GET",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "ip.sb",
+		},
+		Header: make(http.Header),
+	}
+	req.Header.Set("User-Agent", "curl/v2.4.1")
+	resp, err := tt.Do(&req)
+	t.Error(err)
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
+	t.Log(string(data))
+}

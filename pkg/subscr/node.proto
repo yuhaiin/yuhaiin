@@ -24,6 +24,7 @@ message point {
     websocket websocket = 8 [ json_name = "websocket" ];
     quic quic = 9 [ json_name = "quic" ];
     obfs_http obfs_http = 10 [ json_name = "obfs_http" ];
+    trojan trojan = 12 [ json_name = "trojan" ];
   }
 
   message protocol {
@@ -34,6 +35,7 @@ message point {
       websocket websocket = 4 [ json_name = "websocket" ];
       quic quic = 5 [ json_name = "quic" ];
       obfs_http obfs_http = 6 [ json_name = "obfs_http" ];
+      trojan trojan = 7 [ json_name = "trojan" ];
     }
   }
 
@@ -118,6 +120,14 @@ message vmess2 {
   bool verify_cert = 13 [ json_name = "verify_cert" ];
   int64 class = 14 [ json_name = "class" ];
   string security = 15 [ json_name = "security" ];
+}
+
+message trojan {
+  string server = 1 [ json_name = "server" ];
+  string port = 2 [ json_name = "port" ];
+  string password = 3 [ json_name = "password" ];
+  string sni = 4 [ json_name = "sni" ];
+  string peer = 5 [ json_name = "peer" ];
 }
 
 message websocket {

@@ -299,15 +299,24 @@ func parseUrl(str []byte, group string) (node *Point, err error) {
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
-		node, err = DefaultShadowsocks.ParseLink(str, group)
+		node, err = DefaultShadowsocks.ParseLink(str)
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
-		node, err = DefaultShadowsocksr.ParseLink(str, group)
+		node, err = DefaultShadowsocksr.ParseLink(str)
 	case bytes.HasPrefix(str, []byte("vmess://")):
-		node, err = DefaultVmess.ParseLink(str, group)
+		node, err = DefaultVmess.ParseLink(str)
+	case bytes.HasPrefix(str, []byte("trojan://")):
+		node, err = DefaultTrojan.ParseLink(str)
 	default:
 		err = fmt.Errorf("no support %s", string(str))
 	}
+
+	if err != nil {
+		return nil, err
+	}
+	z := sha256.Sum256([]byte(node.String()))
+	node.NHash = hex.EncodeToString(z[:])
+	node.NGroup = group
 	return node, err
 }
 

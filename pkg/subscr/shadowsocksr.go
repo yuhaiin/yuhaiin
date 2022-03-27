@@ -19,12 +19,11 @@ var DefaultShadowsocksr = &shadowsocksr{}
 type shadowsocksr struct{}
 
 // ParseLink parse a base64 encode ssr link
-func (*shadowsocksr) ParseLink(link []byte, group string) (*Point, error) {
+func (*shadowsocksr) ParseLink(link []byte) (*Point, error) {
 	decodeStr := strings.Split(DecodeUrlBase64(strings.Replace(string(link), "ssr://", "", -1)), "/?")
 
 	p := &Point{
 		NOrigin: Point_remote,
-		NGroup:  group,
 	}
 
 	n := new(Shadowsocksr)
@@ -52,8 +51,8 @@ func (*shadowsocksr) ParseLink(link []byte, group string) (*Point, error) {
 }
 
 // ParseLinkManual parse a manual base64 encode ssr link
-func (r *shadowsocksr) ParseLinkManual(link []byte, group string) (*Point, error) {
-	s, err := r.ParseLink(link, group)
+func (r *shadowsocksr) ParseLinkManual(link []byte) (*Point, error) {
+	s, err := r.ParseLink(link)
 	if err != nil {
 		return nil, err
 	}
