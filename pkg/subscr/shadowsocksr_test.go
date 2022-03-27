@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 )
@@ -78,38 +80,47 @@ func TestConnections(t *testing.T) {
 	t.Log(string(data))
 }
 
-// func TestConnectionSsr(t *testing.T) {
-// 	tt := &http.Client{
-// 		Transport: &http.Transport{
-// 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-// 				return z.Conn(addr)
-// 			},
-// 		},
-// 	}
+func TestConnectionSsr(t *testing.T) {
+	p := &Point_Shadowsocksr{
+		&Shadowsocksr{},
+	}
 
-// 	dns := dns.NewDNS("1.1.1.1:53", nil, z)
-// 	t.Log(dns.LookupIP("www.google.com"))
+	err := protojson.Unmarshal([]byte(``), p.Shadowsocksr)
+	require.Nil(t, err)
+	z, err := p.Conn()
+	require.Nil(t, err)
 
-// 	req := http.Request{
-// 		Method: "GET",
-// 		URL: &url.URL{
-// 			Scheme: "http",
-// 			Host:   "ip.sb",
-// 		},
-// 		Header: make(http.Header),
-// 	}
-// 	req.Header.Set("User-Agent", "curl/v2.4.1")
-// 	resp, err := tt.Do(&req)
-// 	if err != nil {
-// 		t.Error(err)
-// 		t.FailNow()
-// 	}
-// 	require.Nil(t, err)
-// 	defer resp.Body.Close()
-// 	data, err := ioutil.ReadAll(resp.Body)
-// 	require.Nil(t, err)
-// 	t.Log(string(data))
-// }
+	tt := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return z.Conn(addr)
+			},
+		},
+	}
+
+	dns := dns.NewDNS("1.1.1.1:53", nil, z)
+	t.Log(dns.LookupIP("www.google.com"))
+
+	req := http.Request{
+		Method: "GET",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "ip.sb",
+		},
+		Header: make(http.Header),
+	}
+	req.Header.Set("User-Agent", "curl/v2.4.1")
+	resp, err := tt.Do(&req)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
+	t.Log(string(data))
+}
 
 func TestSSr(t *testing.T) {
 	p := &Point_Shadowsocksr{

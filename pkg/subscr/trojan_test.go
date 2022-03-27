@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	tc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 	"github.com/stretchr/testify/require"
@@ -21,11 +22,14 @@ func TestParseTrojan(t *testing.T) {
 
 func TestTrojan(t *testing.T) {
 	p := simple.NewSimple("1.1.1.1", "443", simple.WithTLSConfig(&tls.Config{
-		ServerName: "example.com",
+		ServerName: "x.cn",
 	}))
 
-	z, err := tc.NewClient("cbadadad10-2222-3adada-aada6e-adadadada")(p)
+	z, err := tc.NewClient("c")(p)
 	require.NoError(t, err)
+
+	dns := dns.NewDNS("1.1.1.1:53", nil, z)
+	t.Log(dns.LookupIP("www.google.com"))
 
 	tt := &http.Client{
 		Transport: &http.Transport{

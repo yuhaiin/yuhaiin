@@ -131,9 +131,10 @@ func (c *Client) PacketConn(addr string) (net.PacketConn, error) {
 	}
 	return &PacketConn{
 		Conn: &OutboundConn{
-			Conn: conn,
-			cmd:  Associate,
-			addr: addr,
+			Conn:     conn,
+			cmd:      Associate,
+			addr:     addr,
+			password: c.password,
 		},
 	}, nil
 }
@@ -145,11 +146,13 @@ type PacketConn struct {
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	packet := make([]byte, 0, MaxPacketSize)
 	w := bytes.NewBuffer(packet)
+
 	d, err := socks5client.ParseAddr(addr.String())
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse address: %w", err)
 	}
 	w.Write(d)
+
 	length := len(payload)
 	lengthBuf := [2]byte{}
 	crlf := [2]byte{0x0d, 0x0a}
@@ -169,6 +172,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (int, net.Addr, error) {
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
+
 	lengthBuf := [2]byte{}
 	if _, err := io.ReadFull(c.Conn, lengthBuf[:]); err != nil {
 		return 0, nil, fmt.Errorf("failed to read length")
