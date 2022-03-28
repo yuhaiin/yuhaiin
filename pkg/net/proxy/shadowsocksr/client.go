@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 var _ proxy.Proxy = (*Shadowsocksr)(nil)
@@ -69,7 +69,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	obfs := s.obfss.StreamObfs(c)
 	cipher := s.cipher.StreamCipher(obfs)
 	conn := s.proto.StreamProtocol(cipher, cipher.WriteIV())
-	target, err := socks5client.ParseAddr(addr)
+	target, err := s5c.ParseAddr(addr)
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}

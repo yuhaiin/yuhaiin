@@ -1,8 +1,6 @@
 package subscr
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -44,8 +42,6 @@ func (*shadowsocksr) ParseLink(link []byte) (*Point, error) {
 		p.NName = "[ssr]" + DecodeUrlBase64(query.Get("remarks"))
 	}
 	p.Node = &Point_Shadowsocksr{Shadowsocksr: n}
-	z := sha256.Sum256([]byte(p.String()))
-	p.NHash = hex.EncodeToString(z[:])
 
 	return p, nil
 }

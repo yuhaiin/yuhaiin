@@ -41,10 +41,10 @@ func handle(user, key string, src net.Conn, f proxy.Proxy) error {
 		use golang http
 	*/
 	defer src.Close()
-	inBoundReader := bufio.NewReader(src)
+	reader := bufio.NewReader(src)
 
 _start:
-	req, err := http.ReadRequest(inBoundReader)
+	req, err := http.ReadRequest(reader)
 	if err != nil {
 		return fmt.Errorf("read request failed: %v", err)
 	}
@@ -145,6 +145,10 @@ func connect(client net.Conn, dst net.Conn) error {
 
 func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
 	defer dst.Close()
+	if req.URL.Host == "" {
+		return resp400(dst)
+	}
+
 	modifyRequest(req)
 	err := req.Write(dst)
 	if err != nil {
@@ -174,13 +178,19 @@ func modifyRequest(req *http.Request) {
 	if len(req.URL.Host) > 0 {
 		req.Host = req.URL.Host
 	}
+
+	// Prevent UA from being set to golang's default ones
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "")
+	}
+
 	req.RequestURI = ""
 	req.Header.Set("Connection", "close")
-	req.Header = removeHeader(req.Header)
+	removeHeader(req.Header)
 }
 
 func modifyResponse(resp *http.Response, keepAlive bool) error {
-	resp.Header = removeHeader(resp.Header)
+	removeHeader(resp.Header)
 	if resp.ContentLength >= 0 {
 		resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
 	} else {
@@ -224,7 +234,7 @@ func resp503(dst net.Conn) error {
 	return resp.Write(dst)
 }
 
-func resp400(dst net.Conn) {
+func resp400(dst net.Conn) error {
 	// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
 	response := &http.Response{
 		Status:        "Bad Request",
@@ -239,10 +249,10 @@ func resp400(dst net.Conn) {
 	}
 	response.Header.Set("Proxy-Connection", "close")
 	response.Header.Set("Connection", "close")
-	_ = response.Write(dst)
+	return response.Write(dst)
 }
 
-func removeHeader(h http.Header) http.Header {
+func removeHeader(h http.Header) {
 	connections := h.Get("Connection")
 	h.Del("Connection")
 	if len(connections) != 0 {
@@ -257,7 +267,6 @@ func removeHeader(h http.Header) http.Header {
 	h.Del("Trailers")
 	h.Del("Transfer-Encoding")
 	h.Del("Upgrade")
-	return h
 }
 
 func NewServer(host, username, password string) (proxy.Server, error) {

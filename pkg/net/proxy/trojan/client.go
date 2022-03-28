@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 const (
@@ -24,9 +24,13 @@ const (
 type Command byte
 
 const (
-	Connect   Command = 1
-	Associate Command = 3
+	Connect   Command = 1 // TCP
+	Associate Command = 3 // UDP
 	Mux       Command = 0x7f
+)
+
+var (
+	crlf = []byte{'\r', '\n'}
 )
 
 type OutboundConn struct {
@@ -37,54 +41,31 @@ type OutboundConn struct {
 	net.Conn
 }
 
-func (c *OutboundConn) WriteHeader(payload []byte) (bool, error) {
-	var err error
-	written := false
+func (c *OutboundConn) WriteHeader() (err error) {
 	c.headerWrittenOnce.Do(func() {
 		buf := bytes.NewBuffer(make([]byte, 0, MaxPacketSize))
-		crlf := []byte{0x0d, 0x0a}
+
 		buf.Write(c.password)
 		buf.Write(crlf)
 		buf.WriteByte(byte(c.cmd))
 
-		var d []byte
-		d, err = socks5client.ParseAddr(c.addr)
+		err = s5c.ParseAddrWriter(c.addr, buf)
 		if err != nil {
 			return
 		}
-		buf.Write(d)
 
 		buf.Write(crlf)
-		if payload != nil {
-			buf.Write(payload)
-		}
 		_, err = c.Conn.Write(buf.Bytes())
-		if err == nil {
-			written = true
-		}
 	})
-	return written, err
+	return
 }
 
 func (c *OutboundConn) Write(p []byte) (int, error) {
-	written, err := c.WriteHeader(p)
+	err := c.WriteHeader()
 	if err != nil {
 		return 0, fmt.Errorf("trojan failed to flush header with payload: %w", err)
 	}
-	if written {
-		return len(p), nil
-	}
-	n, err := c.Conn.Write(p)
-	return n, err
-}
-
-func (c *OutboundConn) Read(p []byte) (int, error) {
-	n, err := c.Conn.Read(p)
-	return n, err
-}
-
-func (c *OutboundConn) Close() error {
-	return c.Conn.Close()
+	return c.Conn.Write(p)
 }
 
 // modified from https://github.com/p4gefau1t/trojan-go/blob/master/tunnel/trojan/client.go
@@ -119,7 +100,7 @@ func (c *Client) Conn(addr string) (net.Conn, error) {
 		// if the trojan header is still buffered after 100 ms, the client may expect data from the server
 		// so we flush the trojan header
 		time.Sleep(time.Millisecond * 100)
-		newConn.WriteHeader(nil)
+		newConn.WriteHeader()
 	}(newConn)
 	return newConn, nil
 }
@@ -147,28 +128,27 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	packet := make([]byte, 0, MaxPacketSize)
 	w := bytes.NewBuffer(packet)
 
-	d, err := socks5client.ParseAddr(addr.String())
+	err := s5c.ParseAddrWriter(addr.String(), w)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse address: %w", err)
 	}
-	w.Write(d)
 
 	length := len(payload)
 	lengthBuf := [2]byte{}
-	crlf := [2]byte{0x0d, 0x0a}
-
 	binary.BigEndian.PutUint16(lengthBuf[:], uint16(length))
 	w.Write(lengthBuf[:])
-	w.Write(crlf[:])
+
+	w.Write(crlf) // crlf
+
 	w.Write(payload)
 
 	_, err = c.Conn.Write(w.Bytes())
 
-	return len(payload), err
+	return length, err
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (int, net.Addr, error) {
-	host, port, _, err := socks5client.ResolveAddrReader(c.Conn)
+	host, port, _, err := s5c.ResolveAddrReader(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}

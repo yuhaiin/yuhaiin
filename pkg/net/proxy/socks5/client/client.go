@@ -241,31 +241,38 @@ func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 func ParseAddr(hostname string) (data []byte, err error) {
-	hostname, port, err := net.SplitHostPort(hostname)
+	sendData := bytes.NewBuffer(nil)
+	err = ParseAddrWriter(hostname, sendData)
 	if err != nil {
 		return nil, err
+	}
+	return sendData.Bytes(), nil
+}
+
+func ParseAddrWriter(hostname string, sendData io.Writer) (err error) {
+	hostname, port, err := net.SplitHostPort(hostname)
+	if err != nil {
+		return err
 	}
 	serverPort, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	sendData := bytes.NewBuffer(nil)
 	if serverIP := net.ParseIP(hostname); serverIP != nil {
 		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
-			sendData.WriteByte(0x01)
+			sendData.Write([]byte{0x01})
 			sendData.Write(serverIP.To4())
 		} else {
-			sendData.WriteByte(0x04)
+			sendData.Write([]byte{0x04})
 			sendData.Write(serverIP.To16())
 		}
 	} else {
-		sendData.WriteByte(0x03)
-		sendData.WriteByte(byte(len(hostname)))
-		sendData.WriteString(hostname)
+		sendData.Write([]byte{0x03})
+		sendData.Write([]byte{byte(len(hostname))})
+		sendData.Write([]byte(hostname))
 	}
-	sendData.WriteByte(byte(serverPort >> 8))
-	sendData.WriteByte(byte(serverPort & 255))
-	return sendData.Bytes(), nil
+	sendData.Write([]byte{byte(serverPort >> 8), byte(serverPort & 255)})
+	return nil
 }
 
 func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
