@@ -2,6 +2,7 @@ package app
 
 import (
 	context "context"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -10,7 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -21,14 +24,21 @@ var _ ConnectionsServer = (*ConnManager)(nil)
 
 type ConnManager struct {
 	UnimplementedConnectionsServer
-	conns    sync.Map
+
+	conns sync.Map
+
 	download uint64
 	upload   uint64
-	idSeed   *idGenerater
-	proxy    proxy.Proxy
+
+	idSeed *idGenerater
+
+	proxy  proxy.Proxy
+	direct proxy.Proxy
+
+	mapper func(string) MODE
 }
 
-func NewConnManager(p proxy.Proxy) *ConnManager {
+func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 	if p == nil {
 		p = &proxy.DefaultProxy{}
 	}
@@ -41,15 +51,29 @@ func NewConnManager(p proxy.Proxy) *ConnManager {
 		proxy:  p,
 	}
 
-	return c
-}
-
-func (c *ConnManager) SetProxy(p proxy.Proxy) {
-	if p == nil {
-		p = &proxy.DefaultProxy{}
+	shunt, err := NewShunt(conf, WithProxy(c))
+	if err != nil {
+		return nil, fmt.Errorf("create shunt failed: %v, disable bypass.\n", err)
 	}
 
-	c.proxy = p
+	conf.AddObserverAndExec(
+		func(current, old *config.Setting) bool { return diffDNS(current.Dns.Local, old.Dns.Local) },
+		func(current *config.Setting) {
+			c.direct = direct.NewDirect(direct.WithLookup(getDNS(current.Dns.Local, nil).LookupIP))
+		},
+	)
+
+	conf.AddObserverAndExec(
+		func(current, old *config.Setting) bool { return current.Bypass.Enabled != old.Bypass.Enabled },
+		func(current *config.Setting) {
+			if !current.Bypass.Enabled {
+				c.mapper = func(s string) MODE { return OTHERS }
+			} else {
+				c.mapper = shunt.Get
+			}
+		})
+
+	return c, nil
 }
 
 var connRespName = reflect.TypeOf(ConnRespConnection{}).Name()
@@ -140,14 +164,6 @@ func (c *ConnManager) GetUpload() uint64 {
 	return atomic.LoadUint64(&c.upload)
 }
 
-func (c *ConnManager) add(i *conn) {
-	c.conns.Store(i.Id, i)
-}
-
-func (c *ConnManager) addPacketConn(i *packetConn) {
-	c.conns.Store(i.Id, i)
-}
-
 func (c *ConnManager) delete(id int64) {
 	v, _ := c.conns.LoadAndDelete(id)
 
@@ -165,39 +181,46 @@ func (c *ConnManager) delete(id int64) {
 		vv.Type().Name(), vv.FieldByName("Id"), vv.FieldByName("Addr"), vv.FieldByName("Local"), vv.FieldByName("Remote"))
 }
 
-func (c *ConnManager) newConn(addr string, x net.Conn) net.Conn {
-	if x == nil {
-		return nil
-	}
-	s := newConn(addr, x, c)
-	c.add(s)
-	return s
-}
-
-func (c *ConnManager) newPacketConn(addr string, x net.PacketConn) net.PacketConn {
-	if x == nil {
-		return nil
-	}
-	s := newPacketConn(addr, x, c)
-	c.addPacketConn(s)
-	return s
-}
-
 func (c *ConnManager) Conn(host string) (net.Conn, error) {
-	conn, err := c.proxy.Conn(host)
+	con, err := c.marry(host).Conn(host)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.newConn(host, conn), nil
+	s := &conn{
+		preConn: &preConn{
+			ConnRespConnection: &ConnRespConnection{
+				Id:     c.idSeed.Generate(),
+				Addr:   host,
+				Local:  con.LocalAddr().String(),
+				Remote: con.RemoteAddr().String(),
+			},
+			Conn: con,
+			cm:   c,
+		},
+	}
+	c.conns.Store(s.Id, s)
+	return s, nil
 }
 
 func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
-	conn, err := c.proxy.PacketConn(host)
+	con, err := c.marry(host).PacketConn(host)
 	if err != nil {
 		return nil, err
 	}
-	return c.newPacketConn(host, conn), nil
+
+	s := &packetConn{
+		PacketConn: con,
+		cm:         c,
+		ConnRespConnection: &ConnRespConnection{
+			Addr:   host,
+			Id:     c.idSeed.Generate(),
+			Local:  con.LocalAddr().String(),
+			Remote: host,
+		},
+	}
+	c.conns.Store(s.Id, s)
+	return s, nil
 }
 
 var _ net.Conn = (*preConn)(nil)
@@ -230,21 +253,6 @@ type conn struct {
 	*preConn
 }
 
-func newConn(addr string, con net.Conn, cm *ConnManager) *conn {
-	return &conn{
-		preConn: &preConn{
-			ConnRespConnection: &ConnRespConnection{
-				Id:     cm.idSeed.Generate(),
-				Addr:   addr,
-				Local:  con.LocalAddr().String(),
-				Remote: con.RemoteAddr().String(),
-			},
-			Conn: con,
-			cm:   cm,
-		},
-	}
-}
-
 func (s *conn) ReadFrom(r io.Reader) (resp int64, _ error) {
 	buf := utils.GetBytes(2048)
 	defer utils.PutBytes(buf)
@@ -266,18 +274,6 @@ type packetConn struct {
 	*ConnRespConnection
 }
 
-func newPacketConn(addr string, con net.PacketConn, cm *ConnManager) *packetConn {
-	return &packetConn{
-		PacketConn: con,
-		cm:         cm,
-		ConnRespConnection: &ConnRespConnection{
-			Addr:   addr,
-			Id:     cm.idSeed.Generate(),
-			Local:  con.LocalAddr().String(),
-			Remote: addr,
-		},
-	}
-}
 func (s *packetConn) Close() error {
 	s.cm.delete(s.Id)
 	return s.PacketConn.Close()
@@ -301,4 +297,42 @@ type idGenerater struct {
 
 func (i *idGenerater) Generate() (id int64) {
 	return atomic.AddInt64(&i.node, 1)
+}
+
+func (m *ConnManager) marry(host string) (p proxy.Proxy) {
+	hostname, _, err := net.SplitHostPort(host)
+	if err != nil {
+		return newErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err))
+	}
+
+	mark := m.mapper(hostname)
+
+	logasfmt.Printf("[%s] -> %v\n", host, mark)
+
+	switch mark {
+	case BLOCK:
+		p = newErrProxy(fmt.Errorf("BLOCK: %v", host))
+	case DIRECT:
+		p = m.direct
+	default:
+		p = m.proxy
+	}
+
+	return
+}
+
+type errProxy struct {
+	err error
+}
+
+func newErrProxy(err error) proxy.Proxy {
+	return &errProxy{err: err}
+}
+
+func (e *errProxy) Conn(string) (net.Conn, error) {
+	return nil, e.err
+}
+
+func (e *errProxy) PacketConn(string) (net.PacketConn, error) {
+	return nil, e.err
 }

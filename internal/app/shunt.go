@@ -24,6 +24,33 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
+type MODE int
+
+const (
+	OTHERS MODE = 0
+	BLOCK  MODE = 1
+	DIRECT MODE = 2
+	// PROXY  MODE = 3
+	MAX MODE = 3
+)
+
+func (m MODE) String() string {
+	switch m {
+	case BLOCK:
+		return "BLOCK"
+	case DIRECT:
+		return "DIRECT"
+	default:
+		return "PROXY"
+	}
+}
+
+var Mode = map[string]MODE{
+	"direct": DIRECT,
+	// "proxy":  PROXY,
+	"block": BLOCK,
+}
+
 //go:embed yuhaiin.conf
 var bypassData []byte
 

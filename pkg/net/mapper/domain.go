@@ -61,7 +61,7 @@ func s[T any](root *domainNode[T], domain string) (resp T, ok bool) {
 			return
 		}
 
-		if r, ok := s.child[z.str()]; ok {
+		if r, okk := s.child[z.str()]; okk {
 			if r.symbol == wildcard {
 				resp, ok = r.mark, true
 			}

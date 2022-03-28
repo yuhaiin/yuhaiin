@@ -106,7 +106,7 @@ func main() {
 
 	initialize()
 
-	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager -> statis/connection manager -> listener
+	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
 	nodeManager, err := subscr.NewNodeManager(filepath.Join(*path, "node.json"))
 	if err != nil {
 		panic(err)
@@ -115,7 +115,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	flowStatis := app.NewConnManager(app.NewBypassManager(conf, nodeManager))
+	flowStatis, err := app.NewConnManager(conf, nodeManager)
+	if err != nil {
+		panic(err)
+	}
 	_ = app.NewListener(conf, flowStatis)
 
 	sysproxy.Set(conf)
