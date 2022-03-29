@@ -3,7 +3,6 @@ package app
 import (
 	"bufio"
 	"bytes"
-	_ "embed" //embed for bypass file
 	"errors"
 	"fmt"
 	"io"
@@ -50,9 +49,6 @@ var Mode = map[string]MODE{
 	// "proxy":  PROXY,
 	"block": BLOCK,
 }
-
-//go:embed yuhaiin.conf
-var bypassData []byte
 
 func init() {
 	defer runtime.GC()

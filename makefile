@@ -18,9 +18,13 @@ vet:
 yuhaiin:
 	go build -gcflags="-m" -ldflags="-s -w" -trimpath -o yuhaiin -v ./cmd/yuhaiin/...
 
+.PHONY: yuhaiinns
+yuhaiinns:
+	go build -gcflags="-m" -tags="nostatic" -ldflags="-s -w" -trimpath -o yuhaiin -v ./cmd/yuhaiin/...
+
 .PHONY: cli
 cli:
-	go build -gcflags="-m" -ldflags="-s -w" -trimpath -o yh -v ./cmd/cli/...
+	go build -gcflags="-m" -tags="nostatic" -ldflags="-s -w" -trimpath -o yh -v ./cmd/cli/...
 
 .PHONY: install
 install: build cli

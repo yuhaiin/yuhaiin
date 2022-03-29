@@ -18,8 +18,16 @@ jobs:
       with:
         go-version: 1.18
 
+    - name: Set up Upx
+      run: |
+        sudo apt update
+        sudo apt install -y upx
+
     - name: Build
-      run: make all
+      run: |
+        make all
+        upx --lzma --best yuhaiin
+        upx --lzma --best yh
 
     - name: Test
       run: make vet
