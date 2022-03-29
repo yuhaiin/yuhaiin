@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
+	sync "sync"
 	"sync/atomic"
 	"time"
 
@@ -24,11 +24,11 @@ var _ ConnectionsServer = (*ConnManager)(nil)
 type ConnManager struct {
 	UnimplementedConnectionsServer
 
-	idSeed           *idGenerater
-	conns            syncmap.SyncMap[int64, staticConn]
-	download, upload uint64
-	proxy, direct    proxy.Proxy
-	mapper           func(string) MODE
+	idSeed        *idGenerater
+	conns         syncmap.SyncMap[int64, staticConn]
+	accountant    accountant
+	proxy, direct proxy.Proxy
+	mapper        func(string) MODE
 }
 
 func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
@@ -37,10 +37,8 @@ func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 	}
 
 	c := &ConnManager{
-		download: 0,
-		upload:   0,
-		idSeed:   &idGenerater{},
-		proxy:    p,
+		idSeed: &idGenerater{},
+		proxy:  p,
 	}
 
 	shunt, err := NewShunt(conf, WithProxy(c))
@@ -91,31 +89,11 @@ func (c *ConnManager) CloseConn(_ context.Context, x *CloseConnsReq) (*emptypb.E
 
 func (c *ConnManager) Statistic(_ *emptypb.Empty, srv Connections_StatisticServer) error {
 	logasfmt.Println("Start Send Flow Message to Client.")
-	da, ua := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
-	doa, uoa := da, ua
-	ctx := srv.Context()
-	for {
-		doa, uoa = da, ua
-		da, ua = atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
-
-		err := srv.Send(&RateResp{
-			Download:     utils.ReducedUnitStr(float64(da)),
-			Upload:       utils.ReducedUnitStr(float64(ua)),
-			DownloadRate: utils.ReducedUnitStr(float64(da-doa)) + "/S",
-			UploadRate:   utils.ReducedUnitStr(float64(ua-uoa)) + "/S",
-		})
-		if err != nil {
-			log.Println(err)
-		}
-
-		select {
-		case <-ctx.Done():
-			logasfmt.Println("Client is Hidden, Close Stream.")
-			return ctx.Err()
-		case <-time.After(time.Second):
-			continue
-		}
-	}
+	id := c.accountant.AddClient(srv.Send)
+	<-srv.Context().Done()
+	c.accountant.RemoveClient(id)
+	logasfmt.Println("Client is Hidden, Close Stream.")
+	return srv.Context().Err()
 }
 
 func (c *ConnManager) delete(id int64) {
@@ -239,13 +217,13 @@ func (s *preConn) Close() error {
 
 func (s *preConn) Write(b []byte) (n int, err error) {
 	n, err = s.Conn.Write(b)
-	atomic.AddUint64(&s.cm.upload, uint64(n))
+	s.cm.accountant.AddUpload(uint64(n))
 	return
 }
 
 func (s *preConn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
-	atomic.AddUint64(&s.cm.download, uint64(n))
+	s.cm.accountant.AddDownload(uint64(n))
 	return
 }
 
@@ -279,13 +257,13 @@ func (s *packetConn) Close() error {
 
 func (s *packetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	n, err = s.PacketConn.WriteTo(p, addr)
-	atomic.AddUint64(&s.cm.upload, uint64(n))
+	s.cm.accountant.AddUpload(uint64(n))
 	return
 }
 
 func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, addr, err = s.PacketConn.ReadFrom(p)
-	atomic.AddUint64(&s.cm.download, uint64(n))
+	s.cm.accountant.AddDownload(uint64(n))
 	return
 }
 
@@ -331,4 +309,99 @@ func (e *errProxy) Conn(string) (net.Conn, error) {
 
 func (e *errProxy) PacketConn(string) (net.PacketConn, error) {
 	return nil, e.err
+}
+
+type accountant struct {
+	download, upload uint64
+
+	clientCount int64
+
+	started chan bool
+
+	ig      idGenerater
+	clients syncmap.SyncMap[int64, func(*RateResp) error]
+	lock    sync.Mutex
+}
+
+func (c *accountant) AddDownload(n uint64) {
+	atomic.AddUint64(&c.download, uint64(n))
+}
+
+func (c *accountant) AddUpload(n uint64) {
+	atomic.AddUint64(&c.upload, uint64(n))
+}
+
+func (c *accountant) start() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	atomic.AddInt64(&c.clientCount, 1)
+	if c.started != nil {
+		select {
+		case <-c.started:
+		default:
+			return
+		}
+	}
+
+	c.started = make(chan bool)
+
+	go func() {
+		tmpD, tmpU := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
+
+		for {
+			select {
+			case <-time.After(time.Second):
+			case _, ok := <-c.started:
+				if !ok {
+					logasfmt.Println("accountant stopped")
+					return
+				}
+			}
+
+			d, u := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
+
+			c.clients.Range(func(key int64, value func(*RateResp) error) bool {
+				err := value(&RateResp{
+					Download:     utils.ReducedUnitToString(float64(d)),
+					Upload:       utils.ReducedUnitToString(float64(u)),
+					DownloadRate: utils.ReducedUnitToString(float64(d-tmpD)) + "/S",
+					UploadRate:   utils.ReducedUnitToString(float64(u-tmpU)) + "/S",
+				})
+				if err != nil {
+					logasfmt.Println("accountant client error:", err)
+				}
+				return true
+			})
+
+			tmpD, tmpU = d, u
+		}
+	}()
+}
+
+func (c *accountant) stop() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	atomic.AddInt64(&c.clientCount, -1)
+	if atomic.LoadInt64(&c.clientCount) > 0 {
+		return
+	}
+
+	logasfmt.Println("accountant stopping")
+
+	if c.started != nil {
+		close(c.started)
+		c.started = nil
+	}
+}
+
+func (c *accountant) AddClient(f func(*RateResp) error) (id int64) {
+	id = c.ig.Generate()
+	c.clients.Store(id, f)
+	c.start()
+	return
+}
+
+func (c *accountant) RemoveClient(id int64) {
+	c.clients.Delete(id)
+	c.stop()
 }
