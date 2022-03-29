@@ -1,13 +1,11 @@
 package app
 
 import (
-	context "context"
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"reflect"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -25,17 +24,11 @@ var _ ConnectionsServer = (*ConnManager)(nil)
 type ConnManager struct {
 	UnimplementedConnectionsServer
 
-	conns sync.Map
-
-	download uint64
-	upload   uint64
-
-	idSeed *idGenerater
-
-	proxy  proxy.Proxy
-	direct proxy.Proxy
-
-	mapper func(string) MODE
+	idSeed           *idGenerater
+	conns            syncmap.SyncMap[int64, staticConn]
+	download, upload uint64
+	proxy, direct    proxy.Proxy
+	mapper           func(string) MODE
 }
 
 func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
@@ -46,9 +39,8 @@ func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 	c := &ConnManager{
 		download: 0,
 		upload:   0,
-
-		idSeed: &idGenerater{},
-		proxy:  p,
+		idSeed:   &idGenerater{},
+		proxy:    p,
 	}
 
 	shunt, err := NewShunt(conf, WithProxy(c))
@@ -76,30 +68,10 @@ func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 	return c, nil
 }
 
-var connRespName = reflect.TypeOf(ConnRespConnection{}).Name()
-
 func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) {
 	resp := &ConnResp{}
-	c.conns.Range(func(key, value interface{}) bool {
-		v := reflect.ValueOf(value)
-		if v.Kind() != reflect.Ptr && v.Kind() != reflect.Interface {
-			log.Println(v.Kind())
-			return true
-		}
-
-		v = v.Elem()
-		if v.Kind() != reflect.Struct {
-			log.Println(v.Kind())
-			return true
-		}
-
-		v = v.FieldByName(connRespName)
-		if v.IsValid() {
-			v, ok := v.Interface().(*ConnRespConnection)
-			if ok {
-				resp.Connections = append(resp.Connections, v)
-			}
-		}
+	c.conns.Range(func(key int64, v staticConn) bool {
+		resp.Connections = append(resp.Connections, v.GetConnResp())
 		return true
 	})
 
@@ -112,17 +84,7 @@ func (c *ConnManager) CloseConn(_ context.Context, x *CloseConnsReq) (*emptypb.E
 		if !ok {
 			return &emptypb.Empty{}, nil
 		}
-
-		v := reflect.ValueOf(z)
-		if v.IsNil() || !v.IsValid() {
-			continue
-		}
-		cl := v.MethodByName("Close")
-		if !cl.IsValid() {
-			continue
-		}
-
-		_ = cl.Call([]reflect.Value{})
+		z.Close()
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -156,33 +118,22 @@ func (c *ConnManager) Statistic(_ *emptypb.Empty, srv Connections_StatisticServe
 	}
 }
 
-func (c *ConnManager) GetDownload() uint64 {
-	return atomic.LoadUint64(&c.download)
-}
-
-func (c *ConnManager) GetUpload() uint64 {
-	return atomic.LoadUint64(&c.upload)
-}
-
 func (c *ConnManager) delete(id int64) {
-	v, _ := c.conns.LoadAndDelete(id)
-
-	vv := reflect.ValueOf(v)
-	if vv.Kind() != reflect.Ptr && vv.Kind() != reflect.Interface {
+	z, ok := c.conns.LoadAndDelete(id)
+	if !ok {
 		return
 	}
 
-	vv = vv.Elem()
-	if vv.Kind() != reflect.Struct {
-		return
-	}
-
-	logasfmt.Printf("close %s %v: %v, %s <-> %s\n",
-		vv.Type().Name(), vv.FieldByName("Id"), vv.FieldByName("Addr"), vv.FieldByName("Local"), vv.FieldByName("Remote"))
+	logasfmt.Printf("close %v<%s[%v]>: %v, %s <-> %s\n",
+		z.GetId(), z.Type(), z.Mark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
 }
 
 func (c *ConnManager) Conn(host string) (net.Conn, error) {
-	con, err := c.marry(host).Conn(host)
+	p, mark := c.marry(host)
+
+	logasfmt.Printf("[%s] -> %v\n", host, mark)
+
+	con, err := p.Conn(host)
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +148,7 @@ func (c *ConnManager) Conn(host string) (net.Conn, error) {
 			},
 			Conn: con,
 			cm:   c,
+			mark: mark,
 		},
 	}
 	c.conns.Store(s.Id, s)
@@ -204,13 +156,18 @@ func (c *ConnManager) Conn(host string) (net.Conn, error) {
 }
 
 func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
-	con, err := c.marry(host).PacketConn(host)
+	p, mark := c.marry(host)
+
+	logasfmt.Printf("[%s] -> %v\n", host, mark)
+
+	con, err := p.PacketConn(host)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &packetConn{
 		PacketConn: con,
+		mark:       mark,
 		cm:         c,
 		ConnRespConnection: &ConnRespConnection{
 			Addr:   host,
@@ -223,12 +180,55 @@ func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 	return s, nil
 }
 
+type staticConn interface {
+	io.Closer
+
+	Mark() MODE
+
+	Type() string
+	GetId() int64
+	GetAddr() string
+	GetLocal() string
+	GetRemote() string
+	GetConnResp() *ConnRespConnection
+}
+
+var _ staticConn = (*conn)(nil)
+
+type conn struct {
+	*preConn
+}
+
+func (s *conn) Type() string {
+	return "TCP"
+}
+
+func (s *conn) Mark() MODE {
+	return s.mark
+}
+
+func (s *conn) GetConnResp() *ConnRespConnection {
+	return s.ConnRespConnection
+}
+
+func (s *conn) ReadFrom(r io.Reader) (resp int64, _ error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+	return io.CopyBuffer(s.preConn, r, buf)
+}
+
+func (s *conn) WriteTo(w io.Writer) (resp int64, _ error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+	return io.CopyBuffer(w, s.preConn, buf)
+}
+
 var _ net.Conn = (*preConn)(nil)
 
 type preConn struct {
 	net.Conn
-	cm *ConnManager
-
+	cm   *ConnManager
+	mark MODE
 	*ConnRespConnection
 }
 
@@ -249,29 +249,27 @@ func (s *preConn) Read(b []byte) (n int, err error) {
 	return
 }
 
-type conn struct {
-	*preConn
-}
-
-func (s *conn) ReadFrom(r io.Reader) (resp int64, _ error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-	return io.CopyBuffer(s.preConn, r, buf)
-}
-
-func (s *conn) WriteTo(w io.Writer) (resp int64, _ error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-	return io.CopyBuffer(w, s.preConn, buf)
-}
-
 var _ net.PacketConn = (*packetConn)(nil)
+var _ staticConn = (*packetConn)(nil)
 
 type packetConn struct {
 	net.PacketConn
-	cm *ConnManager
+	cm   *ConnManager
+	mark MODE
 
 	*ConnRespConnection
+}
+
+func (s *packetConn) Type() string {
+	return "UDP"
+}
+
+func (s *packetConn) Mark() MODE {
+	return s.mark
+}
+
+func (s *packetConn) GetConnResp() *ConnRespConnection {
+	return s.ConnRespConnection
 }
 
 func (s *packetConn) Close() error {
@@ -299,15 +297,13 @@ func (i *idGenerater) Generate() (id int64) {
 	return atomic.AddInt64(&i.node, 1)
 }
 
-func (m *ConnManager) marry(host string) (p proxy.Proxy) {
+func (m *ConnManager) marry(host string) (p proxy.Proxy, mark MODE) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return newErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err))
+		return newErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), MODE(-1)
 	}
 
-	mark := m.mapper(hostname)
-
-	logasfmt.Printf("[%s] -> %v\n", host, mark)
+	mark = m.mapper(hostname)
 
 	switch mark {
 	case BLOCK:

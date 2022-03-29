@@ -45,7 +45,7 @@ func WithLookupIP(f func(host string) ([]net.IP, error)) func(*Simple) {
 	}
 }
 
-func WithTLSConfig(t *tls.Config) func(*Simple) {
+func WithTLS(t *tls.Config) func(*Simple) {
 	return func(c *Simple) {
 		c.tlsConfig = t
 	}

@@ -48,6 +48,6 @@ func (p *Point_Trojan) Conn() (proxy.Proxy, error) {
 	}
 
 	return tc.NewClient(s.Password)(
-		simple.NewSimple(s.Server, s.Port, simple.WithTLSConfig(&tls.Config{ServerName: s.Sni})),
+		simple.NewSimple(s.Server, s.Port, simple.WithTLS(&tls.Config{ServerName: s.Sni})),
 	)
 }
