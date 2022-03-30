@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -30,23 +29,23 @@ func defaultConfigDir() (Path string) {
 	var err error
 	Path, err = os.UserConfigDir()
 	if err == nil {
-		Path = path.Join(Path, "yuhaiin")
+		Path = filepath.Join(Path, "yuhaiin")
 		return
 	}
 
 	file, err := exec.LookPath(os.Args[0])
 	if err != nil {
 		log.Println(err)
-		Path = "./yuhaiin"
+		Path = filepath.Join(".", "yuhaiin")
 		return
 	}
 	execPath, err := filepath.Abs(file)
 	if err != nil {
 		log.Println(err)
-		Path = "./yuhaiin"
+		Path = filepath.Join(".", "yuhaiin")
 		return
 	}
-	Path = path.Join(filepath.Dir(execPath), "config")
+	Path = filepath.Join(filepath.Dir(execPath), "config")
 	return
 }
 

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,7 +18,7 @@ func TestJsonPb(t *testing.T) {
 		},
 		Bypass: &Bypass{
 			Enabled:    true,
-			BypassFile: path.Join("/tmp/yuhaiin/setting", "yuhaiin.conf"),
+			BypassFile: filepath.Join("/tmp/yuhaiin/setting", "yuhaiin.conf"),
 		},
 		Proxy: &Proxy{},
 		Dns: &DnsSetting{
