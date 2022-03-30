@@ -382,7 +382,6 @@ close all
 				}
 
 				ids = append(ids, z)
-
 			}
 
 			y.closeConns(ids...)

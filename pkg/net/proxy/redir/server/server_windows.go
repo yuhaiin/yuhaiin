@@ -4,7 +4,6 @@
 package server
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"

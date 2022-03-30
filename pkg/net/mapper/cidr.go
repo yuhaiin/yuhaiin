@@ -1,11 +1,9 @@
 package mapper
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log"
 	"math"
-	"math/big"
 	"net"
 )
 
@@ -154,42 +152,4 @@ func (t *Trie[T]) PrintTree(node *Trie[T]) {
 // NewTrieTree create a new trie tree
 func NewTrieTree[T any]() Trie[T] {
 	return Trie[T]{}
-}
-
-func ipv4toInt(ip net.IP) string {
-	return fmt.Sprintf("%032b", binary.BigEndian.Uint32(ip)) // there ip is ip.To4()
-}
-
-func ipv4toInt2(ip net.IP) []byte {
-	s := make([]byte, 0, 32)
-	for i := range ip {
-		for b := byte(128); b != 0; b = b >> 1 {
-			if ip[i]&b != 0 {
-				s = append(s, 1)
-			} else {
-				s = append(s, 0)
-			}
-		}
-	}
-	return s
-}
-
-func ipv6toInt(ip net.IP) string {
-	// from http://golang.org/pkg/net/#pkg-constants
-	// IPv6len = 16
-	return fmt.Sprintf("%0128b", big.NewInt(0).SetBytes(ip)) // there ip is ip.To16()
-}
-
-func ipv6toInt2(ip net.IP) []byte {
-	s := make([]byte, 0, 128)
-	for i := range ip {
-		for b := byte(128); b != 0; b = b >> 1 {
-			if ip[i]&b != 0 {
-				s = append(s, 1)
-			} else {
-				s = append(s, 0)
-			}
-		}
-	}
-	return s
 }

@@ -25,7 +25,7 @@ var DefaultVmess = &vmess{}
 //             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC
 //             IsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY
 //             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
-func (*vmess) ParseLink(str []byte, group string) (*Point, error) {
+func (*vmess) ParseLink(str []byte) (*Point, error) {
 	data := DecodeBase64(strings.ReplaceAll(string(str), "vmess://", ""))
 	n := &Vmess{}
 	err := protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}.Unmarshal([]byte(data), n)
@@ -55,7 +55,6 @@ func (*vmess) ParseLink(str []byte, group string) (*Point, error) {
 
 	p := &Point{
 		NName:   "[vmess]" + n.Ps,
-		NGroup:  group,
 		NOrigin: Point_remote,
 		Node:    &Point_Vmess{Vmess: n},
 	}
@@ -65,8 +64,8 @@ func (*vmess) ParseLink(str []byte, group string) (*Point, error) {
 }
 
 // ParseLinkManual parse a manual base64 encode vmess link
-func (v *vmess) ParseLinkManual(link []byte, group string) (*Point, error) {
-	s, err := v.ParseLink(link, group)
+func (v *vmess) ParseLinkManual(link []byte) (*Point, error) {
+	s, err := v.ParseLink(link)
 	if err != nil {
 		return nil, err
 	}

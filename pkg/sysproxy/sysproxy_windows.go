@@ -1,12 +1,16 @@
 package sysproxy
 
 import (
+	"embed"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"log"
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"syscall"
@@ -14,6 +18,64 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
+
+//go:embed dll_windows/Release/*
+var sysproxyDLL embed.FS
+
+func expertDLL(execPath string) (string, error) {
+	var arch string
+	if runtime.GOARCH == "amd64" {
+		arch = "x64"
+	} else if runtime.GOARCH == "386" {
+		arch = "x86"
+	} else {
+		return "", errors.New("not support " + runtime.GOARCH)
+	}
+
+	dllDir := path.Join(filepath.Dir(execPath), "static", "dll", arch)
+	dll := filepath.Join(dllDir, "sysproxydll.dll")
+
+	_, err := os.Stat(dll)
+	if err == nil {
+		return dll, nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("stat %s error: %s", dllDir, err)
+	}
+
+	err = os.MkdirAll(dllDir, os.ModePerm)
+	if err != nil {
+		return "", fmt.Errorf("mkdir %s error: %s", dllDir, err)
+	}
+	f, err := fs.Sub(sysproxyDLL, "dll_windows")
+	if err != nil {
+		return "", err
+	}
+	if f, err = fs.Sub(f, "Release"); err != nil {
+		return "", err
+	}
+	if f, err = fs.Sub(f, arch); err != nil {
+		return "", err
+	}
+	ff, err := f.Open("sysproxydll.dll")
+	if err != nil {
+		return "", err
+	}
+	defer ff.Close()
+
+	of, err := os.OpenFile(dll, os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return "", fmt.Errorf("open %s error: %s", dll, err)
+	}
+	defer of.Close()
+
+	_, err = io.Copy(of, ff)
+	if err != nil {
+		return "", fmt.Errorf("copy %s error: %s", dll, err)
+	}
+	return dll, nil
+}
 
 func strPtr(s string) (uintptr, error) {
 	b, err := syscall.BytePtrFromString(s)
@@ -40,21 +102,10 @@ func getSysProxy() (*syscall.LazyDLL, error) {
 	if err != nil {
 		return nil, err
 	}
-	var dll string
-	if runtime.GOARCH == "amd64" {
-		dll = filepath.Dir(execPath) + "\\static\\dll\\x64\\sysproxydll.dll"
-	} else if runtime.GOARCH == "386" {
-		dll = filepath.Dir(execPath) + "\\static\\dll\\x86\\sysproxydll.dll"
-	} else {
-		return nil, errors.New("not support " + runtime.GOARCH)
-	}
 
-	if dll == "" {
-		return nil, fmt.Errorf("dll filepath is empty")
-	}
-	_, err = os.Stat(dll)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("dll file is not exist: %w", err)
+	dll, err := expertDLL(execPath)
+	if err != nil {
+		return nil, fmt.Errorf("expertDLL failed: %w", err)
 	}
 	logasfmt.Println("System Proxy DLL:", dll)
 	return syscall.NewLazyDLL(dll), nil

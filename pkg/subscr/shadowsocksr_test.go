@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 )
@@ -24,7 +26,7 @@ func TestSsrParse2(t *testing.T) {
 		"ssr://MjIyLjIyMi4yMjIuMjIyOjQ0MzphdXRoX2FlczEyOF9tZDU6Y2hhY2hhMjAtaWV0ZjpodHRwX3Bvc3Q6ZEdWemRBby8/b2Jmc3BhcmFtPWRHVnpkQW8mcHJvdG9wYXJhbT1kR1Z6ZEFvJnJlbWFya3M9ZEdWemRBbyZncm91cD1kR1Z6ZEFvCg"}
 
 	for x := range ssr {
-		log.Println((&shadowsocksr{}).ParseLink([]byte(ssr[x]), "test"))
+		log.Println((&shadowsocksr{}).ParseLink([]byte(ssr[x])))
 	}
 }
 
@@ -42,7 +44,7 @@ func TestLint(t *testing.T) {
 		t.Log(err)
 	}
 	for _, x := range bytes.Split(dst, []byte("\n")) {
-		log.Println((&shadowsocksr{}).ParseLink(x, "test"))
+		log.Println((&shadowsocksr{}).ParseLink(x))
 	}
 }
 
@@ -78,35 +80,77 @@ func TestConnections(t *testing.T) {
 	t.Log(string(data))
 }
 
-// func TestConnectionSsr(t *testing.T) {
-// 	tt := &http.Client{
-// 		Transport: &http.Transport{
-// 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-// 				return z.Conn(addr)
-// 			},
-// 		},
-// 	}
+func TestConnectionSsr(t *testing.T) {
+	p := &Point_Shadowsocksr{
+		&Shadowsocksr{},
+	}
 
-// 	dns := dns.NewDNS("1.1.1.1:53", nil, z)
-// 	t.Log(dns.LookupIP("www.google.com"))
+	err := protojson.Unmarshal([]byte(``), p.Shadowsocksr)
+	require.Nil(t, err)
+	z, err := p.Conn()
+	require.Nil(t, err)
 
-// 	req := http.Request{
-// 		Method: "GET",
-// 		URL: &url.URL{
-// 			Scheme: "http",
-// 			Host:   "ip.sb",
-// 		},
-// 		Header: make(http.Header),
-// 	}
-// 	req.Header.Set("User-Agent", "curl/v2.4.1")
-// 	resp, err := tt.Do(&req)
-// 	if err != nil {
-// 		t.Error(err)
-// 		t.FailNow()
-// 	}
-// 	require.Nil(t, err)
-// 	defer resp.Body.Close()
-// 	data, err := ioutil.ReadAll(resp.Body)
-// 	require.Nil(t, err)
-// 	t.Log(string(data))
-// }
+	tt := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return z.Conn(addr)
+			},
+		},
+	}
+
+	dns := dns.NewDNS("1.1.1.1:53", nil, z)
+	t.Log(dns.LookupIP("www.google.com"))
+
+	req := http.Request{
+		Method: "GET",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "ip.sb",
+		},
+		Header: make(http.Header),
+	}
+	req.Header.Set("User-Agent", "curl/v2.4.1")
+	resp, err := tt.Do(&req)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
+	t.Log(string(data))
+}
+
+func TestSSr(t *testing.T) {
+	p := &Point_Shadowsocksr{
+		&Shadowsocksr{},
+	}
+	z, err := p.Conn()
+	require.Nil(t, err)
+
+	tt := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return z.Conn(addr)
+			},
+		},
+	}
+
+	req := http.Request{
+		Method: "GET",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "ip.sb",
+		},
+		Header: make(http.Header),
+	}
+	req.Header.Set("User-Agent", "curl/v2.4.1")
+	resp, err := tt.Do(&req)
+	t.Error(err)
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
+	t.Log(string(data))
+}

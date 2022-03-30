@@ -8,6 +8,7 @@ import (
 	"crypto/rc4"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -245,7 +246,6 @@ func NewCipher(method, password string) (*Cipher, error) {
 	}
 
 	key := EVPBytesToKey(password, mi.keyLen)
-
 	return &Cipher{key, mi}, nil
 }
 
@@ -407,7 +407,7 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 		// c.Conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		// atomic.AddInt64(&read, 1)
 		// log.Println("----------start read----------", atomic.LoadInt64(&read))
-		_, err := io.ReadFull(c.Conn, z)
+		_, err := io.ReadFull(c.Conn, z[:c.InfoIVLen()])
 		if err != nil {
 			// atomic.AddInt64(&read, -1)
 			// log.Println("----------end read----------", atomic.LoadInt64(&read), err)
@@ -419,9 +419,9 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 		// log.Println("----------read iv----------", atomic.LoadInt64(&read))
 
 		copy(c.readIV, z)
-		c.dec, err = c.info.newStream(c.key, z, Decrypt)
+		c.dec, err = c.info.newStream(c.key, z[:c.InfoIVLen()], Decrypt)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("create new decor failed: %w", err)
 		}
 	}
 

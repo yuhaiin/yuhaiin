@@ -28,7 +28,7 @@ func TestGetVmess(t *testing.T) {
 		"0IjowLCJhaWQiOjIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lI" +
 		"iwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY2NjYy1" +
 		"kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg"
-	t.Log((&vmess{}).ParseLink([]byte(data), ""))
+	t.Log((&vmess{}).ParseLink([]byte(data)))
 }
 
 func TestUnmarshal2(t *testing.T) {

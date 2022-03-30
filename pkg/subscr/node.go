@@ -299,15 +299,24 @@ func parseUrl(str []byte, group string) (node *Point, err error) {
 	switch {
 	// Shadowsocks
 	case bytes.HasPrefix(str, []byte("ss://")):
-		node, err = DefaultShadowsocks.ParseLink(str, group)
+		node, err = DefaultShadowsocks.ParseLink(str)
 	// ShadowsocksR
 	case bytes.HasPrefix(str, []byte("ssr://")):
-		node, err = DefaultShadowsocksr.ParseLink(str, group)
+		node, err = DefaultShadowsocksr.ParseLink(str)
 	case bytes.HasPrefix(str, []byte("vmess://")):
-		node, err = DefaultVmess.ParseLink(str, group)
+		node, err = DefaultVmess.ParseLink(str)
+	case bytes.HasPrefix(str, []byte("trojan://")):
+		node, err = DefaultTrojan.ParseLink(str)
 	default:
 		err = fmt.Errorf("no support %s", string(str))
 	}
+
+	if err != nil {
+		return nil, err
+	}
+	z := sha256.Sum256([]byte(node.String()))
+	node.NHash = hex.EncodeToString(z[:])
+	node.NGroup = group
 	return node, err
 }
 
@@ -360,7 +369,7 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 
 	px, err := p.Conn()
 	if err != nil {
-		logasfmt.Println("get latency conn failed: %v", err)
+		logasfmt.Printf("get latency conn failed: %v\n", err)
 		return &wrapperspb.StringValue{}, fmt.Errorf("get conn failed: %v", err)
 	}
 
@@ -369,7 +378,7 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 		"https://www.google.com/generate_204",
 	)
 	if err != nil {
-		logasfmt.Println("test latency failed: %v", err)
+		logasfmt.Printf("test latency failed: %v\n", err)
 		return &wrapperspb.StringValue{Value: err.Error()}, err
 	}
 	return &wrapperspb.StringValue{Value: t.String()}, err
