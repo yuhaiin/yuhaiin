@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -58,7 +57,7 @@ func init() {
 		log.Println("get user cache dir failed:", err)
 		return
 	}
-	cache = path.Join(cache, "yuhaiin")
+	cache = filepath.Join(cache, "yuhaiin")
 	err = os.MkdirAll(cache, os.ModePerm)
 	if err != nil {
 		log.Println("create cache dir failed:", err)

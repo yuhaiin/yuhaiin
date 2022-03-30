@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"sync"
 
@@ -33,7 +32,7 @@ func settingDecodeJSON(dir string) (*Setting, error) {
 		},
 		Bypass: &Bypass{
 			Enabled:    true,
-			BypassFile: path.Join(dir, "yuhaiin.conf"),
+			BypassFile: filepath.Join(dir, "yuhaiin.conf"),
 		},
 		Proxy: &Proxy{
 			Proxy: p,

@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"runtime"
 	"syscall"
@@ -32,7 +31,7 @@ func expertDLL(execPath string) (string, error) {
 		return "", errors.New("not support " + runtime.GOARCH)
 	}
 
-	dllDir := path.Join(filepath.Dir(execPath), "static", "dll", arch)
+	dllDir := filepath.Join(filepath.Dir(execPath), "static", "dll", arch)
 	dll := filepath.Join(dllDir, "sysproxydll.dll")
 
 	_, err := os.Stat(dll)
@@ -112,41 +111,42 @@ func getSysProxy() (*syscall.LazyDLL, error) {
 }
 
 func SetSysProxy(http, _ string) {
+	if err := setSysProxy(http, ""); err != nil {
+		logasfmt.Println("SetSysProxy failed:", err)
+	}
+}
+
+func setSysProxy(http, _ string) error {
 	if http == "" {
-		return
+		return nil
 	}
 	httpHostname, httpPort, err := net.SplitHostPort(http)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("split http hostname and port failed: %w", err)
 	}
 	sysproxy, err := getSysProxy()
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("getSysProxy failed: %w", err)
 	}
+
 	setSysProxy := sysproxy.NewProc("SetSystemProxy")
 	if err = setSysProxy.Find(); err != nil {
-		logasfmt.Println("can't find SetSystemProxy func", err)
-		return
+		return fmt.Errorf("can't find SetSystemProxy func: %w", err)
 	}
 
 	hostPtr, err := strPtr(httpHostname)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("http hostname strPtr failed: %w", err)
 	}
 	portPtr, err := strPtr(httpPort)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("http port strPtr failed: %w", err)
 	}
 	emptyPtr, err := strPtr("")
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("empty strPtr failed: %w", err)
 	}
-	ret, _, e1 := syscall.Syscall(setSysProxy.Addr(), 3, hostPtr, portPtr, emptyPtr)
+	ret, _, e1 := syscall.SyscallN(setSysProxy.Addr(), hostPtr, portPtr, emptyPtr)
 	if ret == 0 {
 		if e1 != 0 {
 			err = error(e1)
@@ -155,24 +155,29 @@ func SetSysProxy(http, _ string) {
 		}
 	}
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("syscall SetSystemProxy failed: %w", err)
 	}
 	logasfmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
+	return nil
 }
 
 func UnsetSysProxy() {
+	if err := unsetSysProxy(); err != nil {
+		logasfmt.Println("UnsetSysProxy failed:", err)
+	}
+}
+
+func unsetSysProxy() error {
 	sysproxy, err := getSysProxy()
 	if err != nil {
 		log.Println(err)
-		return
+		return fmt.Errorf("getSysProxy failed: %w", err)
 	}
 	clearSysproxy := sysproxy.NewProc("ClearSystemProxy")
 	if err = clearSysproxy.Find(); err != nil {
-		logasfmt.Println("can't find ClearSystemProxy func", err)
-		return
+		return fmt.Errorf("can't find ClearSystemProxy func: %w", err)
 	}
-	ret, _, e1 := syscall.Syscall(clearSysproxy.Addr(), 0, 0, 0, 0)
+	ret, _, e1 := syscall.SyscallN(clearSysproxy.Addr())
 	if ret == 0 {
 		if e1 != 0 {
 			err = error(e1)
@@ -181,10 +186,10 @@ func UnsetSysProxy() {
 		}
 	}
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("syscall ClearSystemProxy failed: %w", err)
 	}
 	logasfmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
+	return nil
 }
 
 /*
