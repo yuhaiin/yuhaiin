@@ -18,10 +18,10 @@ jobs:
       with:
         go-version: 1.18
 
-    - name: Set up Upx
-      run: |
-        sudo apt update
-        sudo apt install -y upx
+    # - name: Set up Upx
+    #   run: |
+    #     sudo apt update
+    #     sudo apt install -y upx
 
     - name: Build
       run: |
