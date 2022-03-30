@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	ss5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
@@ -54,7 +54,7 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	}
 
 	conn = s.cipher.StreamConn(conn)
-	target, err := ss5client.ParseAddr(host)
+	target, err := s5c.ParseAddr(host)
 	if err != nil {
 		return nil, fmt.Errorf("parse host failed: %v", err)
 	}
@@ -82,7 +82,7 @@ type ssPacketConn struct {
 }
 
 func NewSsPacketConn(conn net.PacketConn, host net.Addr, target string) (net.PacketConn, error) {
-	addr, err := ss5client.ParseAddr(target)
+	addr, err := s5c.ParseAddr(target)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
 	}
 
-	host, port, addrSize, err := ss5client.ResolveAddr(b[:n])
+	host, port, addrSize, err := s5c.ResolveAddr(b[:n])
 	if err != nil {
 		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
 	}

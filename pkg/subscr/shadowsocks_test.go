@@ -22,5 +22,5 @@ func TestShadowSocks(t *testing.T) {
 		t.Log(err)
 	}
 	t.Log(string(bytes.Split(dst, []byte{'\n'})[0]))
-	log.Println((&shadowsocks{}).ParseLink(bytes.Split(dst, []byte{'\n'})[0], "test"))
+	log.Println((&shadowsocks{}).ParseLink(bytes.Split(dst, []byte{'\n'})[0]))
 }

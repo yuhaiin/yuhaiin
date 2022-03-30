@@ -22,7 +22,6 @@ func (a *ac) search(str string) []string {
 		}
 
 		if _, ok = p.node[c]; ok {
-
 			p = p.node[c]
 			if p.mark != "" {
 				resp = append(resp, p.mark)

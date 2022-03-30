@@ -7,13 +7,14 @@
 - gui project move to [yuhaiinqt](https://github.com/Asutorufa/yuhaiinqt).  
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Supported Protocol  
-    - Shadowsocksr  
-        - Support Protocol: [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
-    - Shadowsocks  
-        - Support Plugin: Obfs-Http, v2ray-plugin[websocket, quic](no mux)  
-    - Vmess(no mux)
-    - Socks5, HTTP, Linux/Mac Redir  
-    - DNS: Normal DNS,EDNS,DNSSEC,DNS over HTTPS   
+  - Shadowsocksr  
+    - Support Protocol: [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
+  - Shadowsocks  
+    - Support Plugin: Obfs-Http, v2ray-plugin[websocket, quic](no mux)  
+  - Vmess(no mux)
+  - trojan(no mux)
+  - Socks5, HTTP, Linux/Mac Redir  
+  - DNS: Normal DNS,EDNS,DNS over HTTPS, DNS over TLS
 - Supported Subscription: Shadowsocksr, SSD  
 - Auto Set System Proxy for Linux/Windows.  
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
@@ -96,4 +97,3 @@ yh sub update
 - [プロ生ちゃん](https://kei.pronama.jp/)
 
 </details>
-

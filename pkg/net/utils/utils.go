@@ -123,8 +123,8 @@ func ReducedUnit(byte float64) (result float64, unit Unit) {
 	return byte, B //B
 }
 
-//ReducedUnitStr .
-func ReducedUnitStr(byte float64) (result string) {
+//ReducedUnitToString .
+func ReducedUnitToString(byte float64) (result string) {
 	if byte > 1125899906842624 {
 		return fmt.Sprintf("%.2f%s", byte/1125899906842624, PB2) //PB
 	}
