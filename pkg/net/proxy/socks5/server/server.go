@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -74,7 +74,7 @@ func handle(user, key string, client net.Conn, f proxy.Proxy) (err error) {
 		return fmt.Errorf("read second handshake failed: %w", err)
 	}
 
-	host, port, _, err := socks5client.ResolveAddr(b[3:])
+	host, port, _, err := s5c.ResolveAddr(b[3:])
 	if err != nil {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}
@@ -172,7 +172,7 @@ func writeFirstResp(conn net.Conn, errREP byte) {
 }
 
 func writeSecondResp(conn net.Conn, errREP byte, addr string) {
-	Addr, err := socks5client.ParseAddr(addr)
+	Addr, err := s5c.ParseAddr(addr)
 	if err != nil {
 		return
 	}

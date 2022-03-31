@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-
-	"strings"
 )
 
 type creator func(ssr.ServerInfo) IProtocol

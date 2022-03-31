@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	reflect "reflect"
 	"strings"
 	sync "sync"
 	"syscall"
@@ -463,32 +462,12 @@ func (n *NodeManager) GetHash(group, node string) (string, error) {
 }
 
 func (p *Point) Conn() (proxy.Proxy, error) {
-	value := reflect.ValueOf(p.Node)
-	if !value.IsValid() {
-		return nil, fmt.Errorf("invalid value: %v", p.Node)
-	}
-	conn := value.MethodByName("Conn")
-	if !conn.IsValid() {
-		return nil, fmt.Errorf("no method Conn for value: %v", value)
+	z, ok := p.Node.(interface{ Conn() (proxy.Proxy, error) })
+	if !ok {
+		return nil, fmt.Errorf("node is not implement Conn()(proxy.Proxy,error)")
 	}
 
-	result := conn.Call(make([]reflect.Value, 0))
-	if len(result) != 2 {
-		return nil, fmt.Errorf("result is incorrect")
-	}
-
-	r0 := result[0].Interface()
-	r1 := result[1].Interface()
-
-	px, ok := r0.(proxy.Proxy)
-	if !ok && r0 != nil {
-		return nil, fmt.Errorf("result0 type is not proxy: %v", r0)
-	}
-	err, ok := r1.(error)
-	if !ok && r1 != nil {
-		return nil, fmt.Errorf("result1 type is not error: %v", r1)
-	}
-	return px, err
+	return z.Conn()
 }
 
 type balanced struct {
