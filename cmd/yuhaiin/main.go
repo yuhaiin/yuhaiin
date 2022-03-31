@@ -60,7 +60,7 @@ func initialize() {
 	}()
 }
 
-func initLog(configPath string) {
+func initLog(configPath string) (close func() error) {
 	dir := filepath.Join(configPath, "log")
 	_, err := os.Stat(dir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -68,8 +68,9 @@ func initLog(configPath string) {
 	}
 	out := []io.Writer{os.Stdout}
 	f := logasfmt.NewLogWriter(filepath.Join(dir, "yuhaiin.log"))
-	defer f.Close()
 	logasfmt.SetOutput(io.MultiWriter(append(out, f)...))
+
+	return f.Close
 }
 
 var grpcServer = grpc.NewServer(grpc.EmptyServerOption{})
@@ -80,7 +81,8 @@ func main() {
 	path := flag.String("cd", defaultConfigDir(), "config dir")
 	flag.Parse()
 
-	initLog(*path)
+	close := initLog(*path)
+	defer close()
 
 	logasfmt.Println(`
 ***************************************

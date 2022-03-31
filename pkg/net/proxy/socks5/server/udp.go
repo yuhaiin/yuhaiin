@@ -7,7 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
@@ -53,7 +53,7 @@ func (u *udpServer) forward() {
 		}
 
 		if u.header == nil {
-			_, _, size, err := socks5client.ResolveAddr(buf[3:n])
+			_, _, size, err := s5c.ResolveAddr(buf[3:n])
 			if err != nil {
 				logasfmt.Println("resolve addr failed:", err)
 				continue

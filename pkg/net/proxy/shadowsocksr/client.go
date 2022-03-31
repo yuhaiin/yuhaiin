@@ -6,7 +6,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
-	streamCipher "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -18,7 +18,7 @@ var _ proxy.Proxy = (*Shadowsocksr)(nil)
 type Shadowsocksr struct {
 	proto  *protocol.Protocol
 	obfss  *obfs.Obfs
-	cipher *streamCipher.Cipher
+	cipher *cipher.Cipher
 	dial   proxy.Proxy
 
 	udpAddr net.Addr
@@ -26,7 +26,7 @@ type Shadowsocksr struct {
 
 func NewShadowsocksr(host, port string, method, password, obfss, obfsParam, protoc, protocolParam string) func(proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		cipher, err := streamCipher.NewCipher(method, password)
+		cipher, err := cipher.NewCipher(method, password)
 		if err != nil {
 			return nil, fmt.Errorf("new cipher failed: %w", err)
 		}
