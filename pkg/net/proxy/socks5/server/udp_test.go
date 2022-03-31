@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestServer_UDP2(t *testing.T) { // make a writer and write to dst
@@ -22,7 +22,7 @@ func TestServer_UDP2(t *testing.T) { // make a writer and write to dst
 	//	t.Error(err)
 	//}
 
-	z, _ := socks5client.ParseAddr("1.1.1.1:53")
+	z, _ := s5c.ParseAddr("1.1.1.1:53")
 	x := append([]byte{0, 0, 0}, z...)
 
 	//conn.Write(x)

@@ -15,9 +15,8 @@ import (
 	"strings"
 	"time"
 
-	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-
 	cipher2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
+	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
 func init() {

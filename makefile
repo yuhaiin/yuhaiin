@@ -18,6 +18,10 @@ vet:
 yuhaiin:
 	go build -gcflags="-m" -ldflags="-s -w" -trimpath -o yuhaiin -v ./cmd/yuhaiin/...
 
+.PHONY: yuhaiin_windows
+yuhaiin_windows:
+	GOOS=windows GOARCH=amd64 go build -gcflags="-m" -ldflags="-s -w" -trimpath -o yuhaiin.exe -v ./cmd/yuhaiin/...
+
 .PHONY: yuhaiinns
 yuhaiinns:
 	go build -gcflags="-m" -tags="nostatic" -ldflags="-s -w" -trimpath -o yuhaiin -v ./cmd/yuhaiin/...
