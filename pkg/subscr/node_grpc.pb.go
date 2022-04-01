@@ -423,5 +423,5 @@ var NodeManager_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "pkg/subscr/node.proto",
+	Metadata: "node.proto",
 }

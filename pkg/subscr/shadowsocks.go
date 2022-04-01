@@ -1,18 +1,14 @@
 package subscr
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-
-	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
+	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 )
 
 var DefaultShadowsocks = &shadowsocks{}
@@ -35,42 +31,55 @@ func (*shadowsocks) ParseLink(str []byte) (*Point, error) {
 	p := &Point{
 		NOrigin: Point_remote,
 		NName:   "[ss]" + ssUrl.Fragment,
-		Node:    &Point_Shadowsocks{Shadowsocks: n},
 	}
+
+	port, err := strconv.Atoi(n.Port)
+	if err != nil {
+		return nil, err
+	}
+	p.Protocols = []*PointProtocol{
+		{
+			Protocol: &PointProtocol_Simple{
+				&Simple{
+					Host: n.Server,
+					Port: int32(port),
+				},
+			},
+		},
+	}
+
+	switch strings.ToLower(n.Plugin) {
+	case "obfs-local":
+		oh, err := parseObfs(n.PluginOpt)
+		if err != nil {
+			return nil, err
+		}
+		p.Protocols = append(p.Protocols, oh)
+	case "v2ray":
+		v, err := parseV2ray(n.PluginOpt)
+		if err != nil {
+			return nil, err
+		}
+
+		p.Protocols = append(p.Protocols, v)
+	default:
+	}
+
+	p.Protocols = append(p.Protocols,
+		&PointProtocol{Protocol: &PointProtocol_Shadowsocks{
+			Shadowsocks: &Shadowsocks{
+				Method:   n.Method,
+				Password: n.Password,
+				Server:   n.Server,
+				Port:     n.Port,
+			},
+		},
+		})
 
 	return p, nil
 }
 
-func (p *Point_Shadowsocks) Conn() (proxy.Proxy, error) {
-	s := p.Shadowsocks
-	if s == nil {
-		return nil, fmt.Errorf("value is nil: %v", p)
-	}
-	var py proxy.Proxy = simple.NewSimple(s.Server, s.Port)
-
-	var plugin func(string) (func(proxy.Proxy) (proxy.Proxy, error), error)
-	switch strings.ToLower(s.Plugin) {
-	case "obfs-local":
-		plugin = NewObfs
-	case "v2ray":
-		plugin = NewV2raySelf
-	default:
-		plugin = func(s string) (func(proxy.Proxy) (proxy.Proxy, error), error) {
-			return func(p proxy.Proxy) (proxy.Proxy, error) { return p, nil }, nil
-		}
-	}
-	pluginC, err := plugin(s.PluginOpt)
-	if err != nil {
-		return nil, fmt.Errorf("init plugin failed: %w", err)
-	}
-	py, err = pluginC(py)
-	if err != nil {
-		return nil, fmt.Errorf("init plugin failed: %w", err)
-	}
-	return ssClient.NewShadowsocks(s.Method, s.Password, s.Server, s.Port)(py)
-}
-
-func NewV2raySelf(options string) (func(proxy.Proxy) (proxy.Proxy, error), error) {
+func parseV2ray(options string) (*PointProtocol, error) {
 	// fastOpen := false
 	path := "/"
 	host := "cloudfront.com"
@@ -105,15 +114,31 @@ func NewV2raySelf(options string) (func(proxy.Proxy) (proxy.Proxy, error), error
 
 	switch mode {
 	case "websocket":
-		return websocket.NewWebsocket(host, path, false, tlsEnabled, []string{cert}), nil
+		return &PointProtocol{
+			Protocol: &PointProtocol_Websocket{
+				&Websocket{
+					Host:      host,
+					Path:      path,
+					TlsCaCert: cert,
+					TlsEnable: tlsEnabled,
+				},
+			},
+		}, nil
 	case "quic":
-		return quic.NewQUIC(host, []string{cert}, false), nil
+		return &PointProtocol{
+			Protocol: &PointProtocol_Quic{
+				&Quic{
+					ServerName: host,
+					TlsCaCert:  cert,
+				},
+			},
+		}, nil
 	}
 
 	return nil, fmt.Errorf("unsupported mode")
 }
 
-func NewObfs(pluginOpt string) (func(proxy.Proxy) (proxy.Proxy, error), error) {
+func parseObfs(pluginOpt string) (*PointProtocol, error) {
 	args := make(map[string]string)
 	for _, x := range strings.Split(pluginOpt, ";") {
 		if strings.Contains(x, "=") {
@@ -121,14 +146,25 @@ func NewObfs(pluginOpt string) (func(proxy.Proxy) (proxy.Proxy, error), error) {
 			args[s[0]] = s[1]
 		}
 	}
-	switch args["obfs"] {
-	case "http":
-		hostname, port, err := net.SplitHostPort(args["obfs-host"])
-		if err != nil {
-			return nil, err
-		}
-		return ssClient.NewHTTPOBFS(hostname, port), nil
-	default:
-		return nil, errors.New("not support plugin")
+	hostname, port, err := net.SplitHostPort(args["obfs-host"])
+	if err != nil {
+		return nil, err
 	}
+	return &PointProtocol{
+		Protocol: &PointProtocol_ObfsHttp{
+			&ObfsHttp{
+				Host: hostname,
+				Port: port,
+			},
+		}}, nil
+
+}
+
+func (p *PointProtocol_Shadowsocks) Conn(x proxy.Proxy) (proxy.Proxy, error) {
+	z := p.Shadowsocks
+	if z == nil {
+		return nil, fmt.Errorf("invalid shadowsocks")
+	}
+
+	return ss.NewShadowsocks(z.Method, z.Password, z.Server, z.Port)(x)
 }

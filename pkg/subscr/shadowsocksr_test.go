@@ -81,11 +81,11 @@ func TestConnections(t *testing.T) {
 }
 
 func TestConnectionSsr(t *testing.T) {
-	p := &Point_Shadowsocksr{
-		&Shadowsocksr{},
+	p := &Point{
+		Protocols: []*PointProtocol{},
 	}
 
-	err := protojson.Unmarshal([]byte(``), p.Shadowsocksr)
+	err := protojson.Unmarshal([]byte(``), p)
 	require.Nil(t, err)
 	z, err := p.Conn()
 	require.Nil(t, err)
@@ -123,8 +123,8 @@ func TestConnectionSsr(t *testing.T) {
 }
 
 func TestSSr(t *testing.T) {
-	p := &Point_Shadowsocksr{
-		&Shadowsocksr{},
+	p := &Point{
+		Protocols: []*PointProtocol{},
 	}
 	z, err := p.Conn()
 	require.Nil(t, err)
