@@ -10,55 +10,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func TestMarshalJson(t *testing.T) {
-	s := &Point{
-		NHash:   "n_hash",
-		NName:   "n_name",
-		NGroup:  "n_group",
-		NOrigin: Point_manual,
-		Node: &Point_Shadowsocksr{
-			Shadowsocksr: &Shadowsocksr{
-				Server: "server",
-			},
-		},
-	}
-
-	ss, err := protojson.Marshal(s)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-
-	t.Log(string(ss))
-	zz := &Point{}
-	err = protojson.Unmarshal(ss, zz)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-	t.Log(zz)
-
-	s.Node = &Point_Vmess{
-		Vmess: &Vmess{
-			Address: "address",
-		},
-	}
-
-	ss, err = protojson.Marshal(s)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-
-	t.Log(string(ss))
-	err = protojson.Unmarshal(ss, zz)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-	t.Log(zz)
-}
-
 func TestNodeManager(t *testing.T) {
 	n, err := NewNodeManager("/tmp/yuhaiin/nodeManagerTest/config.json")
 	if err != nil {
@@ -109,11 +60,6 @@ func TestMarshalMap(t *testing.T) {
 		NName:   "n_name",
 		NGroup:  "n_group",
 		NOrigin: Point_manual,
-		Node: &Point_Shadowsocksr{
-			Shadowsocksr: &Shadowsocksr{
-				Server: "server",
-			},
-		},
 	}
 
 	data, _ := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(s)
@@ -151,33 +97,4 @@ func TestMarshalMap(t *testing.T) {
 	}
 
 	t.Log(s)
-}
-
-func TestReflect(t *testing.T) {
-	z := &Point{Node: &Point_Shadowsocksr{Shadowsocksr: &Shadowsocksr{}}}
-
-	v, err := z.Conn()
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Logf("%#v", v)
-
-	z = &Point{Node: &Point_Shadowsocksr{}}
-
-	v, err = z.Conn()
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Logf("%#v", v)
-
-	z = &Point{}
-
-	v, err = z.Conn()
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Logf("%#v", v)
 }
