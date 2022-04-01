@@ -2,7 +2,7 @@ package subscr
 
 import (
 	"bytes"
-	context "context"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -13,18 +13,19 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
-	sync "sync"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"google.golang.org/protobuf/encoding/protojson"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
-	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+//go:generate protoc --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative node.proto
 
 var _ NodeManagerServer = (*NodeManager)(nil)
 var _ proxy.Proxy = (*NodeManager)(nil)
@@ -36,8 +37,6 @@ type NodeManager struct {
 	lock       sync.RWMutex
 	filelock   sync.RWMutex
 	proxy.Proxy
-
-	balanced *balanced
 }
 
 func NewNodeManager(configPath string) (n *NodeManager, err error) {
@@ -54,19 +53,6 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 	}
 
 	n.Proxy = p
-
-	n.balanced = &balanced{
-		err: &ban{
-			c: &sync.Map{},
-		},
-		cache: &sync.Map{},
-	}
-
-	for _, v := range n.node.Balanced {
-		n.balanced.nodes = append(n.balanced.nodes, n.node.Nodes[v])
-	}
-
-	n.balanced.len = len(n.balanced.nodes)
 	return n, nil
 }
 
@@ -313,8 +299,7 @@ func parseUrl(str []byte, group string) (node *Point, err error) {
 	if err != nil {
 		return nil, err
 	}
-	z := sha256.Sum256([]byte(node.String()))
-	node.NHash = hex.EncodeToString(z[:])
+	refreshHash(node)
 	node.NGroup = group
 	return node, err
 }
@@ -461,141 +446,20 @@ func (n *NodeManager) GetHash(group, node string) (string, error) {
 	return nn, nil
 }
 
-func (p *Point) Conn() (proxy.Proxy, error) {
-	z, ok := p.Node.(interface{ Conn() (proxy.Proxy, error) })
-	if !ok {
-		return nil, fmt.Errorf("node is not implement Conn()(proxy.Proxy,error)")
-	}
-
-	return z.Conn()
-}
-
-type balanced struct {
-	nodes []*Point
-	len   int
-	cache *sync.Map
-
-	err *ban
-}
-
-type ban struct {
-	c *sync.Map
-}
-
-func (b *ban) add(s string) {
-	if v, ok := b.c.Load(s); ok {
-		z := v.(*band)
-		z.t = time.Now()
-		z.d = z.d * z.d
-
-		b.c.Store(s, z)
-		return
-	}
-
-	b.c.Store(s, &band{time.Now(), 2})
-}
-
-func (b *ban) isBan(h string) bool {
-	if v, ok := b.c.Load(h); ok {
-		z := v.(*band)
-		if z.t.Add(time.Duration(z.d) * time.Minute).After(time.Now()) {
-			return true
-		}
-	}
-	return false
-}
-
-func (b *ban) remove(s string) {
-	b.c.Delete(s)
-}
-
-type band struct {
-	t time.Time
-	d int
-}
-
-type tmpGetNode struct {
-	i int
-	b *balanced
-}
-
-func (t *tmpGetNode) next() (*Point, bool) {
-_retry:
-	if t.i > t.b.len-1 {
-		return nil, false
-	}
-
-	n := t.b.nodes[t.i]
-	t.i++
-	if t.b.err.isBan(n.NHash) {
-		goto _retry
-	}
-
-	return n, true
-}
-
-func (b *balanced) Conn(h string) (net.Conn, error) {
-	t := tmpGetNode{0, b}
-
-	for {
-		n, ok := t.next()
+func (p *Point) Conn() (r proxy.Proxy, err error) {
+	r = direct.DefaultDirect
+	for _, v := range p.Protocols {
+		x, ok := v.Protocol.(interface {
+			Conn(proxy.Proxy) (proxy.Proxy, error)
+		})
 		if !ok {
-			return nil, fmt.Errorf("no node can connect")
+			return nil, fmt.Errorf("protocol %v is not support", v.Protocol)
 		}
-
-		// if b.err.isBan(n.NHash) {
-		// logasfmt.Println("tmp ban node", n.NName)
-		// continue
-		// } else {
-		logasfmt.Println("try use", t.i, n.NName)
-		// }
-
-		var c proxy.Proxy
-		if v, ok := b.cache.Load(n.NHash); ok {
-			c = v.(proxy.Proxy)
-		} else {
-			cc, err := n.Conn()
-			if err != nil {
-				continue
-			}
-
-			c = cc
-			b.cache.Store(n.NHash, cc)
+		r, err = x.Conn(r)
+		if err != nil {
+			return
 		}
-
-		z, err := c.Conn(h)
-		if err == nil {
-			logasfmt.Println(h, "use node", n.NName)
-			b.err.remove(n.NHash)
-			return z, nil
-		}
-
-		if errors.Is(err, syscall.ECONNRESET) ||
-			errors.Is(err, syscall.ECONNREFUSED) ||
-			errors.Is(err, syscall.ETIMEDOUT) {
-			b.err.add(n.NHash)
-			logasfmt.Println("type equal, try next", t.i, n.NName, " -> err:", err)
-			continue
-		}
-
-		if strings.Contains(err.Error(), "connection reset by peer") ||
-			strings.Contains(err.Error(), "connection refused") ||
-			strings.Contains(err.Error(), "i/o timeout") {
-			b.err.add(n.NHash)
-			logasfmt.Println("string equal, try next", t.i, n.NName, " -> err:", err)
-			continue
-		}
-
-		logasfmt.Println("other errors:", err)
-		return nil, fmt.Errorf("conn failed: %v", err)
-	}
-}
-
-func (b *balanced) PacketConn(h string) (net.PacketConn, error) {
-	c, err := b.nodes[0].Conn()
-	if err != nil {
-		return nil, err
 	}
 
-	return c.PacketConn(h)
+	return
 }

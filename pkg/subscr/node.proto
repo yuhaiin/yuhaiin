@@ -17,16 +17,6 @@ message point {
     manual = 102;
   }
   origin n_origin = 4 [ json_name = "yuhaiin_origin" ];
-  oneof node {
-    shadowsocks shadowsocks = 5 [ json_name = "shadowsocks" ];
-    shadowsocksr shadowsocksr = 6 [ json_name = "shadowsocksr" ];
-    vmess vmess = 7 [ json_name = "vmess" ];
-    websocket websocket = 8 [ json_name = "websocket" ];
-    quic quic = 9 [ json_name = "quic" ];
-    obfs_http obfs_http = 10 [ json_name = "obfs_http" ];
-    trojan trojan = 12 [ json_name = "trojan" ];
-  }
-
   message protocol {
     oneof protocol {
       shadowsocks shadowsocks = 1 [ json_name = "shadowsocks" ];
@@ -36,6 +26,7 @@ message point {
       quic quic = 5 [ json_name = "quic" ];
       obfs_http obfs_http = 6 [ json_name = "obfs_http" ];
       trojan trojan = 7 [ json_name = "trojan" ];
+      simple simple = 8 [ json_name = "simple" ];
     }
   }
 
@@ -63,70 +54,15 @@ message shadowsocksr {
 }
 
 message vmess {
-  // address
-  string address = 2 [ json_name = "add" ];
-  string port = 3 [ json_name = "port" ];
   // uuid
   string uuid = 4 [ json_name = "id" ];
   // alter id
   string alter_id = 5 [ json_name = "aid" ];
-  // name
-  string ps = 6 [ json_name = "ps" ];
-  // (tcp\kcp\ws\h2\quic)
-  string net = 7 [ json_name = "net" ];
-  // fake type [(none\http\srtp\utp\wechat-video) *tcp or kcp or QUIC]
-  string type = 8 [ json_name = "type" ];
-  string tls = 9 [ json_name = "tls" ];
-  // 1)http host(cut up with (,) )
-  // 2)ws host
-  // 3)h2 host
-  // 4)QUIC security
-  string host = 10 [ json_name = "host" ];
-  // 1)ws path
-  // 2)h2 path
-  // 3)QUIC key/Kcp seed
-  string path = 11 [ json_name = "path" ];
-  string v = 12 [ json_name = "v" ];
-  bool verify_cert = 13 [ json_name = "verify_cert" ];
-  int64 class = 14 [ json_name = "class" ];
-  string security = 15 [ json_name = "security" ];
-}
-
-message vmess2 {
-  // address
-  string address = 2 [ json_name = "add" ];
-  int32 port = 3 [ json_name = "port" ];
-  // uuid
-  string uuid = 4 [ json_name = "id" ];
-  // alter id
-  int32 alter_id = 5 [ json_name = "aid" ];
-  // name
-  string ps = 6 [ json_name = "ps" ];
-  // (tcp\kcp\ws\h2\quic)
-  string net = 7 [ json_name = "net" ];
-  // fake type [(none\http\srtp\utp\wechat-video) *tcp or kcp or QUIC]
-  string type = 8 [ json_name = "type" ];
-  string tls = 9 [ json_name = "tls" ];
-  // 1)http host(cut up with (,) )
-  // 2)ws host
-  // 3)h2 host
-  // 4)QUIC security
-  string host = 10 [ json_name = "host" ];
-  // 1)ws path
-  // 2)h2 path
-  // 3)QUIC key/Kcp seed
-  string path = 11 [ json_name = "path" ];
-  string v = 12 [ json_name = "v" ];
-  bool verify_cert = 13 [ json_name = "verify_cert" ];
-  int64 class = 14 [ json_name = "class" ];
   string security = 15 [ json_name = "security" ];
 }
 
 message trojan {
-  string server = 1 [ json_name = "server" ];
-  string port = 2 [ json_name = "port" ];
   string password = 3 [ json_name = "password" ];
-  string sni = 4 [ json_name = "sni" ];
   string peer = 5 [ json_name = "peer" ];
 }
 
@@ -149,6 +85,18 @@ message obfs_http {
   string port = 2 [ json_name = "port" ];
 }
 
+message simple {
+  string host = 1 [ json_name = "host" ];
+  int32 port = 2 [ json_name = "port" ];
+  message tls_config {
+    bool enable = 1 [ json_name = "enable" ];
+    string server_name = 2 [ json_name = "server_name" ];
+    repeated bytes ca_cert = 3 [ json_name = "ca_cert" ];
+    bool insecure_skip_verify = 4 [ json_name = "insecure_skip_verify" ];
+  }
+  tls_config tls = 3 [ json_name = "tls_config" ];
+}
+
 message node {
   point now_node = 1 [ json_name = "now_node" ];
   message link {
@@ -165,7 +113,6 @@ message node {
   }
   map<string, node_array> group_nodes_map = 4 [ json_name = "group_nodes_map" ];
   map<string, point> nodes = 5 [ json_name = "nodes" ];
-  repeated string balanced = 6 [ json_name = "balanced" ];
 }
 
 service node_manager {

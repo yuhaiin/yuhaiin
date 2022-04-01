@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 
 	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 )
@@ -18,31 +18,51 @@ type shadowsocksr struct{}
 
 // ParseLink parse a base64 encode ssr link
 func (*shadowsocksr) ParseLink(link []byte) (*Point, error) {
-	decodeStr := strings.Split(DecodeUrlBase64(strings.Replace(string(link), "ssr://", "", -1)), "/?")
+	decodeStr := strings.Split(DecodeUrlBase64(strings.TrimPrefix(string(link), "ssr://")), "/?")
 
-	p := &Point{
-		NOrigin: Point_remote,
-	}
-
-	n := new(Shadowsocksr)
 	x := strings.Split(decodeStr[0], ":")
 	if len(x) != 6 {
 		return nil, errors.New("link: " + decodeStr[0] + " is not format Shadowsocksr link")
 	}
-	n.Server = x[0]
-	n.Port = x[1]
-	n.Protocol = x[2]
-	n.Method = x[3]
-	n.Obfs = x[4]
-	n.Password = DecodeUrlBase64(x[5])
-	if len(decodeStr) > 1 {
-		query, _ := url.ParseQuery(decodeStr[1])
-		n.Obfsparam = DecodeUrlBase64(query.Get("obfsparam"))
-		n.Protoparam = DecodeUrlBase64(query.Get("protoparam"))
-		p.NName = "[ssr]" + DecodeUrlBase64(query.Get("remarks"))
+	if len(decodeStr) <= 1 {
+		decodeStr = append(decodeStr, "")
 	}
-	p.Node = &Point_Shadowsocksr{Shadowsocksr: n}
+	query, _ := url.ParseQuery(decodeStr[1])
 
+	p := &Point{
+		NOrigin: Point_remote,
+		NName:   "[ssr]" + DecodeUrlBase64(query.Get("remarks")),
+	}
+
+	n := &Shadowsocksr{
+		Server:     x[0],
+		Port:       x[1],
+		Protocol:   x[2],
+		Method:     x[3],
+		Obfs:       x[4],
+		Password:   DecodeUrlBase64(x[5]),
+		Obfsparam:  DecodeUrlBase64(query.Get("obfsparam")),
+		Protoparam: DecodeUrlBase64(query.Get("protoparam")),
+	}
+
+	port, err := strconv.Atoi(n.Port)
+	if err != nil {
+		return nil, errors.New("invalid port")
+	}
+
+	p.Protocols = []*PointProtocol{
+		{
+			Protocol: &PointProtocol_Simple{
+				&Simple{
+					Host: n.Server,
+					Port: int32(port),
+				},
+			},
+		},
+		{
+			Protocol: &PointProtocol_Shadowsocksr{n},
+		},
+	}
 	return p, nil
 }
 
@@ -56,21 +76,17 @@ func (r *shadowsocksr) ParseLinkManual(link []byte) (*Point, error) {
 	return s, nil
 }
 
-// Conn parse to conn function
-func (p *Point_Shadowsocksr) Conn() (proxy.Proxy, error) {
+func (p *PointProtocol_Shadowsocksr) Conn(x proxy.Proxy) (proxy.Proxy, error) {
 	s := p.Shadowsocksr
 	if s == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 
 	ssr, err := ssrClient.NewShadowsocksr(
-		s.Server,
-		s.Port,
-		s.Method,
-		s.Password,
+		s.Server, s.Port,
+		s.Method, s.Password,
 		s.Obfs, s.Obfsparam,
-		s.Protocol, s.Protoparam,
-	)(simple.NewSimple(s.Server, s.Port))
+		s.Protocol, s.Protoparam)(x)
 	if err != nil {
 		return nil, err
 	}

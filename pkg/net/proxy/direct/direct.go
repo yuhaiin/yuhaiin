@@ -24,6 +24,8 @@ func WithLookup(f func(host string) ([]net.IP, error)) Option {
 	}
 }
 
+var DefaultDirect proxy.Proxy = NewDirect()
+
 func NewDirect(o ...Option) proxy.Proxy {
 	d := &direct{
 		dialer: &net.Dialer{

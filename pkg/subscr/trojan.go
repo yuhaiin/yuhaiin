@@ -1,13 +1,12 @@
 package subscr
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	tc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 )
 
@@ -23,31 +22,46 @@ func (t *trojan) ParseLink(b []byte) (*Point, error) {
 	if u.Scheme != "trojan" {
 		return nil, errors.New("invalid scheme")
 	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		return nil, errors.New("invalid port")
+	}
 
-	return &Point{
+	p := &Point{
 		NName:   "[trojan]" + u.Fragment,
 		NOrigin: Point_remote,
-		Node: &Point_Trojan{
-			&Trojan{
-				Server:   u.Hostname(),
-				Port:     u.Port(),
-				Password: u.User.String(),
-				Sni:      u.Query().Get("sni"),
-				Peer:     u.Query().Get("peer"),
+		Protocols: []*PointProtocol{
+			{
+				Protocol: &PointProtocol_Simple{
+					&Simple{
+						Host: u.Hostname(),
+						Port: int32(port),
+						Tls: &SimpleTlsConfig{
+							Enable:     true,
+							ServerName: u.Query().Get("sni"),
+						},
+					},
+				},
+			},
+			{
+				Protocol: &PointProtocol_Trojan{
+					&Trojan{
+						Password: u.User.String(),
+						Peer:     u.Query().Get("peer"),
+					},
+				},
 			},
 		},
+	}
 
-		Protocols: []*PointProtocol{},
-	}, nil
+	return p, nil
 }
 
-func (p *Point_Trojan) Conn() (proxy.Proxy, error) {
+func (p *PointProtocol_Trojan) Conn(z proxy.Proxy) (proxy.Proxy, error) {
 	s := p.Trojan
 	if s == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 
-	return tc.NewClient(s.Password)(
-		simple.NewSimple(s.Server, s.Port, simple.WithTLS(&tls.Config{ServerName: s.Sni})),
-	)
+	return tc.NewClient(s.Password)(z)
 }
