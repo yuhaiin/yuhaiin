@@ -18,7 +18,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -64,12 +63,12 @@ func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*Point, error) {
 		return n.node.NowNode, nil
 	}
 
-	z := n.node.GroupNodesMap[n.node.NowNode.NGroup]
+	z := n.node.GroupNodesMap[n.node.NowNode.Group]
 	if z == nil {
 		return n.node.NowNode, nil
 	}
 
-	hash := z.NodeHashMap[n.node.NowNode.NName]
+	hash := z.NodeHashMap[n.node.NowNode.Name]
 	if hash != "" {
 		return n.node.Nodes[hash], nil
 	}
@@ -88,7 +87,7 @@ func (n *NodeManager) GetNode(_ context.Context, s *wrapperspb.StringValue) (*Po
 }
 
 func (n *NodeManager) SaveNode(c context.Context, p *Point) (*Point, error) {
-	_, err := n.DeleteNode(c, &wrapperspb.StringValue{Value: p.NHash})
+	_, err := n.DeleteNode(c, &wrapperspb.StringValue{Value: p.Hash})
 	if err != nil {
 		return &Point{}, fmt.Errorf("delete node failed: %v", err)
 	}
@@ -97,28 +96,28 @@ func (n *NodeManager) SaveNode(c context.Context, p *Point) (*Point, error) {
 	defer n.lock.Unlock()
 
 	refreshHash(p)
-	_, ok := n.node.GroupNodesMap[p.GetNGroup()]
+	_, ok := n.node.GroupNodesMap[p.GetGroup()]
 	if !ok {
-		n.node.Groups = append(n.node.Groups, p.NGroup)
-		n.node.GroupNodesMap[p.NGroup] = &NodeNodeArray{
-			Group:       p.NGroup,
+		n.node.Groups = append(n.node.Groups, p.Group)
+		n.node.GroupNodesMap[p.Group] = &NodeNodeArray{
+			Group:       p.Group,
 			Nodes:       make([]string, 0),
 			NodeHashMap: make(map[string]string),
 		}
 	}
 
-	n.node.GroupNodesMap[p.NGroup].NodeHashMap[p.NName] = p.NHash
-	n.node.GroupNodesMap[p.NGroup].Nodes = append(n.node.GroupNodesMap[p.NGroup].Nodes, p.NName)
+	n.node.GroupNodesMap[p.Group].NodeHashMap[p.Name] = p.Hash
+	n.node.GroupNodesMap[p.Group].Nodes = append(n.node.GroupNodesMap[p.Group].Nodes, p.Name)
 
-	n.node.Nodes[p.NHash] = p
+	n.node.Nodes[p.Hash] = p
 
 	return p, n.save()
 }
 
 func refreshHash(p *Point) {
-	p.NHash = ""
+	p.Hash = ""
 	z := sha256.Sum256([]byte(p.String()))
-	p.NHash = hex.EncodeToString(z[:])
+	p.Hash = hex.EncodeToString(z[:])
 }
 
 func (n *NodeManager) GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error) {
@@ -148,7 +147,7 @@ func (n *NodeManager) ChangeNowNode(c context.Context, s *wrapperspb.StringValue
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
-	if n.node.NowNode.NHash == p.NHash {
+	if n.node.NowNode.Hash == p.Hash {
 		return p, nil
 	}
 	n.node.NowNode = p
@@ -255,7 +254,7 @@ func (n *NodeManager) deleteRemoteNodes(group string) {
 	msmap := x.NodeHashMap
 	left := make([]string, 0)
 	for i := range ns {
-		if n.node.Nodes[msmap[ns[i]]].GetNOrigin() != Point_remote {
+		if n.node.Nodes[msmap[ns[i]]].GetOrigin() != Point_remote {
 			left = append(left, ns[i])
 			continue
 		}
@@ -300,7 +299,7 @@ func parseUrl(str []byte, group string) (node *Point, err error) {
 		return nil, err
 	}
 	refreshHash(node)
-	node.NGroup = group
+	node.Group = group
 	return node, err
 }
 
@@ -313,28 +312,28 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 	}
 
 	delete(n.node.Nodes, s.Value)
-	delete(n.node.GroupNodesMap[p.NGroup].NodeHashMap, p.NName)
+	delete(n.node.GroupNodesMap[p.Group].NodeHashMap, p.Name)
 
-	for i, x := range n.node.GroupNodesMap[p.NGroup].Nodes {
-		if x != p.NName {
+	for i, x := range n.node.GroupNodesMap[p.Group].Nodes {
+		if x != p.Name {
 			continue
 		}
 
-		n.node.GroupNodesMap[p.NGroup].Nodes = append(
-			n.node.GroupNodesMap[p.NGroup].Nodes[:i],
-			n.node.GroupNodesMap[p.NGroup].Nodes[i+1:]...,
+		n.node.GroupNodesMap[p.Group].Nodes = append(
+			n.node.GroupNodesMap[p.Group].Nodes[:i],
+			n.node.GroupNodesMap[p.Group].Nodes[i+1:]...,
 		)
 		break
 	}
 
-	if len(n.node.GroupNodesMap[p.NGroup].Nodes) != 0 {
+	if len(n.node.GroupNodesMap[p.Group].Nodes) != 0 {
 		return &emptypb.Empty{}, n.save()
 	}
 
-	delete(n.node.GroupNodesMap, p.NGroup)
+	delete(n.node.GroupNodesMap, p.Group)
 
 	for i, x := range n.node.Groups {
-		if x != p.NGroup {
+		if x != p.Group {
 			continue
 		}
 
@@ -425,6 +424,7 @@ func (n *NodeManager) save() error {
 	if err != nil {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}
+
 	_, err = file.Write(data)
 	return err
 }
@@ -444,22 +444,4 @@ func (n *NodeManager) GetHash(group, node string) (string, error) {
 	}
 
 	return nn, nil
-}
-
-func (p *Point) Conn() (r proxy.Proxy, err error) {
-	r = direct.DefaultDirect
-	for _, v := range p.Protocols {
-		x, ok := v.Protocol.(interface {
-			Conn(proxy.Proxy) (proxy.Proxy, error)
-		})
-		if !ok {
-			return nil, fmt.Errorf("protocol %v is not support", v.Protocol)
-		}
-		r, err = x.Conn(r)
-		if err != nil {
-			return
-		}
-	}
-
-	return
 }

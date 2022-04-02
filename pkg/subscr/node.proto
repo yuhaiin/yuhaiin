@@ -8,15 +8,17 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 
 message point {
-  string n_hash = 1 [ json_name = "yuhaiin_hash" ];
-  string n_name = 2 [ json_name = "yuhaiin_name" ];
-  string n_group = 3 [ json_name = "yuhaiin_group" ];
-  enum origin {
+  string hash = 1 [ json_name = "hash" ];
+  string name = 2 [ json_name = "name" ];
+  string group = 3 [ json_name = "group" ];
+
+  enum origin_type {
     node_origin_reserve = 0;
     remote = 101;
     manual = 102;
   }
-  origin n_origin = 4 [ json_name = "yuhaiin_origin" ];
+  origin_type origin = 4 [ json_name = "origin" ];
+
   message protocol {
     oneof protocol {
       shadowsocks shadowsocks = 1 [ json_name = "shadowsocks" ];
@@ -29,7 +31,7 @@ message point {
       simple simple = 8 [ json_name = "simple" ];
     }
   }
-
+  // will use protocols' order to create dialer
   repeated protocol protocols = 11 [ json_name = "protocols" ];
 }
 

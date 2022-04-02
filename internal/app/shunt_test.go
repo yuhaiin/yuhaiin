@@ -48,9 +48,21 @@ func TestDiffDNS(t *testing.T) {
 }
 
 func TestIndex(t *testing.T) {
-	str := "aaaaabbbbbb "
+	str := "#abcdefg"
+	i := bytes.IndexByte([]byte(str), '#')
+	if i != -1 {
+		t.Log(str[:i])
+	}
+
+	str = "abcdefg adada cccc#ddsd"
+	i = bytes.IndexByte([]byte(str), '#')
+	if i != -1 {
+		t.Log(str[:i])
+	}
+
+	str = "aaaaabbbbbb "
 	a := []byte(str)
-	i := bytes.IndexByte(a, ' ')
+	i = bytes.IndexByte(a, ' ')
 	if i == -1 {
 		return
 	}

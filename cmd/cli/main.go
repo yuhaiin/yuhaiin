@@ -617,9 +617,9 @@ func (y *yhCli) nowNode() error {
 		return fmt.Errorf("get now node failed: %w", err)
 	}
 
-	fmt.Println("name ", n.NName)
-	fmt.Println("group", n.NGroup)
-	fmt.Println("hash ", n.NHash)
+	fmt.Println("name ", n.Name)
+	fmt.Println("group", n.Group)
+	fmt.Println("hash ", n.Hash)
 	return nil
 }
 

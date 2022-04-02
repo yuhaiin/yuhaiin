@@ -13,11 +13,11 @@ func DecodeUrlBase64(str string) string {
 			str += "="
 		}
 	}
-	deStr, err := base64.URLEncoding.DecodeString(str)
+	data, err := base64.URLEncoding.DecodeString(str)
 	if err != nil {
 		log.Println(err)
 	}
-	return string(deStr)
+	return string(data)
 }
 
 // DecodeBase64 decode base64 string, auto add '=' if not enough
@@ -28,11 +28,11 @@ func DecodeBase64(str string) string {
 			str += "="
 		}
 	}
-	deStr, err := base64.StdEncoding.DecodeString(str)
+	data, err := base64.StdEncoding.DecodeString(str)
 	if err != nil {
 		log.Println(err)
 	}
-	return string(deStr)
+	return string(data)
 }
 
 // DecodeBytesBase64 decode base64 string, auto add '=' if not enough
@@ -43,7 +43,7 @@ func DecodeBytesBase64(str []byte) ([]byte, error) {
 			str = append(str, '=')
 		}
 	}
-	deStr := make([]byte, base64.StdEncoding.DecodedLen(len(str)))
-	_, err := base64.StdEncoding.Decode(deStr, str)
-	return deStr, err
+	data := make([]byte, base64.StdEncoding.DecodedLen(len(str)))
+	_, err := base64.StdEncoding.Decode(data, str)
+	return data, err
 }

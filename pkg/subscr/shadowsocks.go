@@ -6,9 +6,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 )
 
 var DefaultShadowsocks = &shadowsocks{}
@@ -29,8 +26,8 @@ func (*shadowsocks) ParseLink(str []byte) (*Point, error) {
 	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
 
 	p := &Point{
-		NOrigin: Point_remote,
-		NName:   "[ss]" + ssUrl.Fragment,
+		Origin: Point_remote,
+		Name:   "[ss]" + ssUrl.Fragment,
 	}
 
 	port, err := strconv.Atoi(n.Port)
@@ -158,13 +155,4 @@ func parseObfs(pluginOpt string) (*PointProtocol, error) {
 			},
 		}}, nil
 
-}
-
-func (p *PointProtocol_Shadowsocks) Conn(x proxy.Proxy) (proxy.Proxy, error) {
-	z := p.Shadowsocks
-	if z == nil {
-		return nil, fmt.Errorf("invalid shadowsocks")
-	}
-
-	return ss.NewShadowsocks(z.Method, z.Password, z.Server, z.Port)(x)
 }
