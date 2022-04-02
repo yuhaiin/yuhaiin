@@ -1,7 +1,12 @@
 GO=$(shell command -v go | head -n1)
-GO_LDFLAGS= -ldflags=\"-s -w\"
-GO_GCFLAGS= -gcflags=\"-m\"
-GO_CMD=$(GO) $(GO_LDFLAGS) $(GO_GCFLAGS)
+GO_LDFLAGS= -ldflags="-s -w"
+GO_GCFLAGS= -gcflags="-m"
+GO_BUILD_CMD=$(GO) build $(GO_LDFLAGS) $(GO_GCFLAGS) -trimpath
+WINDOWS_AMD64=GOOS=windows GOARCH=amd64
+
+YUHAIIN=-v ./cmd/yuhaiin/...
+CLI=-v ./cmd/cli/...
+
 .PHONY: test
 test:
 	@echo "test"
@@ -16,19 +21,23 @@ vet:
 
 .PHONY: yuhaiin
 yuhaiin:
-	go build -gcflags="-m" -ldflags="-s -w" -trimpath -o yuhaiin -v ./cmd/yuhaiin/...
+	$(GO_BUILD_CMD) -o yuhaiin $(YUHAIIN)
 
 .PHONY: yuhaiin_windows
 yuhaiin_windows:
-	GOOS=windows GOARCH=amd64 go build -gcflags="-m" -ldflags="-s -w" -trimpath -o yuhaiin.exe -v ./cmd/yuhaiin/...
+	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -o yuhaiin.exe $(YUHAIIN)
 
 .PHONY: yuhaiinns
 yuhaiinns:
-	go build -gcflags="-m" -tags="nostatic" -ldflags="-s -w" -trimpath -o yuhaiin -v ./cmd/yuhaiin/...
+	$(GO_BUILD_CMD) -tags="nostatic" -o yuhaiin $(YUHAIIN)
 
 .PHONY: cli
 cli:
-	go build -gcflags="-m" -tags="nostatic" -ldflags="-s -w" -trimpath -o yh -v ./cmd/cli/...
+	$(GO_BUILD_CMD) -tags="nostatic" -o yh $(CLI)
+
+.PHONY: cli_windows
+cli_windows:
+	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -tags="nostatic" -o yh.exe $(CLI)
 
 .PHONY: install
 install: build cli

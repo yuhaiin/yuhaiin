@@ -2,14 +2,9 @@ package subscr
 
 import (
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-
-	ssrClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 )
 
 var DefaultShadowsocksr = &shadowsocksr{}
@@ -30,8 +25,8 @@ func (*shadowsocksr) ParseLink(link []byte) (*Point, error) {
 	query, _ := url.ParseQuery(decodeStr[1])
 
 	p := &Point{
-		NOrigin: Point_remote,
-		NName:   "[ssr]" + DecodeUrlBase64(query.Get("remarks")),
+		Origin: Point_remote,
+		Name:   "[ssr]" + DecodeUrlBase64(query.Get("remarks")),
 	}
 
 	n := &Shadowsocksr{
@@ -72,23 +67,6 @@ func (r *shadowsocksr) ParseLinkManual(link []byte) (*Point, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = Point_manual
+	s.Origin = Point_manual
 	return s, nil
-}
-
-func (p *PointProtocol_Shadowsocksr) Conn(x proxy.Proxy) (proxy.Proxy, error) {
-	s := p.Shadowsocksr
-	if s == nil {
-		return nil, fmt.Errorf("value is nil: %v", p)
-	}
-
-	ssr, err := ssrClient.NewShadowsocksr(
-		s.Server, s.Port,
-		s.Method, s.Password,
-		s.Obfs, s.Obfsparam,
-		s.Protocol, s.Protoparam)(x)
-	if err != nil {
-		return nil, err
-	}
-	return ssr, nil
 }

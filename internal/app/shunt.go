@@ -5,13 +5,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"unsafe"
@@ -49,58 +47,21 @@ var Mode = map[string]MODE{
 	"block": BLOCK,
 }
 
-func init() {
-	defer runtime.GC()
-
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		log.Println("get user cache dir failed:", err)
-		return
-	}
-	cache = filepath.Join(cache, "yuhaiin")
-	err = os.MkdirAll(cache, os.ModePerm)
-	if err != nil {
-		log.Println("create cache dir failed:", err)
-		return
-	}
-	err = ioutil.WriteFile(filepath.Join(cache, "bypass.conf"), bypassData, os.ModePerm)
-	if err != nil {
-		log.Println("write bypass file failed: %w", err)
-	}
-}
-
 func copyBypassFile(target string) error {
 	_, err := os.Stat(target)
-	if errors.Is(err, os.ErrNotExist) {
-		err = os.MkdirAll(filepath.Dir(target), os.ModePerm)
-	}
-	if err != nil {
-		return err
-	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return fmt.Errorf("get user cache dir failed: %w", err)
-	}
-	cache = filepath.Join(cache, "yuhaiin", "bypass.conf")
-	_, err = os.Stat(cache)
-	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("bypass file not found: %w", err)
+	if err == nil {
+		return nil
 	}
 
-	source, err := os.Open(cache)
-	if err != nil {
-		return fmt.Errorf("open bypass file failed: %w", err)
+	if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat bypass file failed: %w", err)
 	}
-	defer source.Close()
 
-	destination, err := os.Create(target)
+	err = os.MkdirAll(filepath.Dir(target), os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("create bypass file failed: %w", err)
+		return fmt.Errorf("create bypass dir failed: %w", err)
 	}
-	defer destination.Close()
-
-	_, err = io.Copy(destination, source)
-	return err
+	return ioutil.WriteFile(target, bypassData, os.ModePerm)
 }
 
 type Shunt struct {
@@ -160,12 +121,9 @@ func (s *Shunt) RefreshMapping() error {
 	s.fileLock.RLock()
 	defer s.fileLock.RUnlock()
 
-	_, err := os.Stat(s.file)
-	if errors.Is(err, os.ErrNotExist) {
-		err = copyBypassFile(s.file)
-	}
+	err := copyBypassFile(s.file)
 	if err != nil {
-		return err
+		return fmt.Errorf("copy bypass file failed: %w", err)
 	}
 
 	f, err := os.Open(s.file)
@@ -184,23 +142,17 @@ func (s *Shunt) RefreshMapping() error {
 
 		a := br.Bytes()
 
-		if len(a) <= 3 || a[0] == '#' {
-			continue
+		i := bytes.IndexByte(a, '#')
+		if i != -1 {
+			a = a[:i]
 		}
 
-		i := bytes.IndexByte(a, ' ')
+		i = bytes.IndexByte(a, ' ')
 		if i == -1 {
 			continue
 		}
 
-		c := a[:i]
-		i2 := bytes.IndexByte(a[i+1:], ' ')
-		var b []byte
-		if i2 != -1 {
-			b = a[i+1 : i2+i+1]
-		} else {
-			b = a[i+1:]
-		}
+		c, b := a[:i], a[i+1:]
 
 		if bytes.Equal(b, []byte{}) {
 			continue
