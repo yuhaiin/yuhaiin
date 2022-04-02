@@ -56,10 +56,10 @@ func TestDelete(t *testing.T) {
 
 func TestMarshalMap(t *testing.T) {
 	s := &Point{
-		NHash:   "n_hash",
-		NName:   "n_name",
-		NGroup:  "n_group",
-		NOrigin: Point_manual,
+		Hash:   "n_hash",
+		Name:   "n_name",
+		Group:  "n_group",
+		Origin: Point_manual,
 	}
 
 	data, _ := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(s)

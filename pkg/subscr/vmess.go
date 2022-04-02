@@ -1,18 +1,10 @@
 package subscr
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
-	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
-	vmessc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 )
 
 type vmess struct{}
@@ -107,8 +99,8 @@ func (*vmess) ParseLink(str []byte) (*Point, error) {
 	}
 
 	p := &Point{
-		NName:   "[vmess]" + n.Ps,
-		NOrigin: Point_remote,
+		Name:   "[vmess]" + n.Ps,
+		Origin: Point_remote,
 	}
 
 	port, err := strconv.Atoi(n.Port)
@@ -168,45 +160,6 @@ func (v *vmess) ParseLinkManual(link []byte) (*Point, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.NOrigin = Point_manual
+	s.Origin = Point_manual
 	return s, nil
-}
-
-func (p *PointProtocol_Simple) Conn(proxy.Proxy) (proxy.Proxy, error) {
-	x := p.Simple
-	if x == nil {
-		return nil, fmt.Errorf("value is nil: %v", p)
-	}
-
-	var tc *tls.Config
-
-	if x.Tls != nil && x.Tls.Enable {
-		tc = &tls.Config{
-			ServerName:         x.Tls.ServerName,
-			InsecureSkipVerify: x.Tls.InsecureSkipVerify,
-		}
-	}
-
-	return simple.NewSimple(x.Host, strconv.Itoa(int(x.Port)), simple.WithTLS(tc)), nil
-}
-
-func (p *PointProtocol_Vmess) Conn(z proxy.Proxy) (proxy.Proxy, error) {
-	aid, err := strconv.Atoi(p.Vmess.AlterId)
-	if err != nil {
-		return nil, fmt.Errorf("convert AlterId to int failed: %v", err)
-	}
-	return vmessc.NewVmess(p.Vmess.Uuid, p.Vmess.Security, uint32(aid))(z)
-}
-
-func (p *PointProtocol_Websocket) Conn(z proxy.Proxy) (proxy.Proxy, error) {
-	return websocket.NewWebsocket(p.Websocket.Host, p.Websocket.Path,
-		p.Websocket.InsecureSkipVerify, p.Websocket.TlsEnable, []string{})(z)
-}
-
-func (p *PointProtocol_Quic) Conn(z proxy.Proxy) (proxy.Proxy, error) {
-	return quic.NewQUIC(p.Quic.ServerName, []string{}, p.Quic.InsecureSkipVerify)(z)
-}
-
-func (p *PointProtocol_ObfsHttp) Conn(z proxy.Proxy) (proxy.Proxy, error) {
-	return ss.NewHTTPOBFS(p.ObfsHttp.Host, p.ObfsHttp.Port)(z)
 }

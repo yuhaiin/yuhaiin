@@ -2,12 +2,8 @@ package subscr
 
 import (
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
-
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	tc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 )
 
 var DefaultTrojan = &trojan{}
@@ -28,8 +24,8 @@ func (t *trojan) ParseLink(b []byte) (*Point, error) {
 	}
 
 	p := &Point{
-		NName:   "[trojan]" + u.Fragment,
-		NOrigin: Point_remote,
+		Name:   "[trojan]" + u.Fragment,
+		Origin: Point_remote,
 		Protocols: []*PointProtocol{
 			{
 				Protocol: &PointProtocol_Simple{
@@ -55,13 +51,4 @@ func (t *trojan) ParseLink(b []byte) (*Point, error) {
 	}
 
 	return p, nil
-}
-
-func (p *PointProtocol_Trojan) Conn(z proxy.Proxy) (proxy.Proxy, error) {
-	s := p.Trojan
-	if s == nil {
-		return nil, fmt.Errorf("value is nil: %v", p)
-	}
-
-	return tc.NewClient(s.Password)(z)
 }
