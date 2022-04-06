@@ -20,6 +20,22 @@ func DecodeUrlBase64(str string) string {
 	return string(data)
 }
 
+// DecodeUrlBase64Bytes decode url safe base64 string, auto add '=' if not enough
+func DecodeUrlBase64Bytes(str []byte) []byte {
+	l := len(str)
+	if l%4 != 0 {
+		for i := 0; i < 4-l%4; i++ {
+			str = append(str, '=')
+		}
+	}
+	data := make([]byte, base64.URLEncoding.DecodedLen(len(str)))
+	_, err := base64.URLEncoding.Decode(data, str)
+	if err != nil {
+		log.Println(err)
+	}
+	return data
+}
+
 // DecodeBase64 decode base64 string, auto add '=' if not enough
 func DecodeBase64(str string) string {
 	l := len(str)
@@ -33,6 +49,22 @@ func DecodeBase64(str string) string {
 		log.Println(err)
 	}
 	return string(data)
+}
+
+// DecodeBase64Bytes decode base64 string, auto add '=' if not enough
+func DecodeBase64Bytes(str []byte) []byte {
+	l := len(str)
+	if l%4 != 0 {
+		for i := 0; i < 4-l%4; i++ {
+			str = append(str, '=')
+		}
+	}
+	data := make([]byte, base64.StdEncoding.DecodedLen(len(str)))
+	_, err := base64.StdEncoding.Decode(data, str)
+	if err != nil {
+		log.Println(err)
+	}
+	return data
 }
 
 // DecodeBytesBase64 decode base64 string, auto add '=' if not enough

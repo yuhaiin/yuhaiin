@@ -13,111 +13,83 @@ var DefaultShadowsocks = &shadowsocks{}
 type shadowsocks struct{}
 
 func (*shadowsocks) ParseLink(str []byte) (*Point, error) {
-	n := new(Shadowsocks)
 	ssUrl, err := url.Parse(string(str))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse url failed: %w", err)
 	}
-	n.Server = ssUrl.Hostname()
-	n.Port = ssUrl.Port()
-	n.Method = strings.Split(DecodeUrlBase64(ssUrl.User.String()), ":")[0]
-	n.Password = strings.Split(DecodeUrlBase64(ssUrl.User.String()), ":")[1]
-	n.Plugin = strings.Split(ssUrl.Query().Get("plugin"), ";")[0]
-	n.PluginOpt = strings.Replace(ssUrl.Query().Get("plugin"), n.Plugin+";", "", -1)
 
-	p := &Point{
+	server, portstr := ssUrl.Hostname(), ssUrl.Port()
+
+	var method, password string
+	mps := DecodeUrlBase64(ssUrl.User.String())
+	if i := strings.IndexByte(mps, ':'); i != -1 {
+		method, password = mps[:i], mps[i+1:]
+	}
+
+	var plugin *PointProtocol
+	pluginopts := parseOpts(ssUrl.Query().Get("plugin"))
+	switch {
+	case pluginopts["obfs-local"] == "true":
+		plugin, err = parseObfs(pluginopts)
+	case pluginopts["v2ray"] == "true":
+		plugin, err = parseV2ray(pluginopts)
+	default:
+		plugin = &PointProtocol{Protocol: &PointProtocol_None{&None{}}}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("parse plugin failed: %w", err)
+	}
+
+	port, err := strconv.Atoi(portstr)
+	if err != nil {
+		return nil, fmt.Errorf("parse port failed: %w", err)
+	}
+
+	return &Point{
 		Origin: Point_remote,
 		Name:   "[ss]" + ssUrl.Fragment,
-	}
-
-	port, err := strconv.Atoi(n.Port)
-	if err != nil {
-		return nil, err
-	}
-	p.Protocols = []*PointProtocol{
-		{
-			Protocol: &PointProtocol_Simple{
-				&Simple{
-					Host: n.Server,
-					Port: int32(port),
+		Protocols: []*PointProtocol{
+			{
+				Protocol: &PointProtocol_Simple{
+					&Simple{
+						Host: server,
+						Port: int32(port),
+					},
+				},
+			},
+			plugin,
+			{
+				Protocol: &PointProtocol_Shadowsocks{
+					&Shadowsocks{
+						Server:   server,
+						Port:     portstr,
+						Method:   method,
+						Password: password,
+					},
 				},
 			},
 		},
-	}
-
-	switch strings.ToLower(n.Plugin) {
-	case "obfs-local":
-		oh, err := parseObfs(n.PluginOpt)
-		if err != nil {
-			return nil, err
-		}
-		p.Protocols = append(p.Protocols, oh)
-	case "v2ray":
-		v, err := parseV2ray(n.PluginOpt)
-		if err != nil {
-			return nil, err
-		}
-
-		p.Protocols = append(p.Protocols, v)
-	default:
-	}
-
-	p.Protocols = append(p.Protocols,
-		&PointProtocol{Protocol: &PointProtocol_Shadowsocks{
-			Shadowsocks: &Shadowsocks{
-				Method:   n.Method,
-				Password: n.Password,
-				Server:   n.Server,
-				Port:     n.Port,
-			},
-		},
-		})
-
-	return p, nil
+	}, nil
 }
 
-func parseV2ray(options string) (*PointProtocol, error) {
+func parseV2ray(store map[string]string) (*PointProtocol, error) {
 	// fastOpen := false
-	path := "/"
-	host := "cloudfront.com"
-	tlsEnabled := false
-	cert := ""
+	// path := "/"
+	// host := "cloudfront.com"
+	// tlsEnabled := false
+	// cert := ""
 	// certRaw := ""
-	mode := "websocket"
+	// mode := "websocket"
 
-	for _, x := range strings.Split(options, ";") {
-		if !strings.Contains(x, "=") {
-			if x == "tls" {
-				tlsEnabled = true
-			}
-			continue
-		}
-		s := strings.Split(x, "=")
-		switch s[0] {
-		case "mode":
-			mode = s[1]
-		case "path":
-			path = s[1]
-		case "cert":
-			cert = s[1]
-		case "host":
-			host = s[1]
-			// case "certRaw":
-			// certRaw = s[1]
-			// case "fastOpen":
-			// fastOpen = true
-		}
-	}
-
-	switch mode {
+	switch store["mode"] {
 	case "websocket":
 		return &PointProtocol{
 			Protocol: &PointProtocol_Websocket{
 				&Websocket{
-					Host:      host,
-					Path:      path,
-					TlsCaCert: cert,
-					TlsEnable: tlsEnabled,
+					Host:      store["host"],
+					Path:      store["path"],
+					TlsCaCert: store["cert"],
+					TlsEnable: store["tls"] == "true",
 				},
 			},
 		}, nil
@@ -125,24 +97,17 @@ func parseV2ray(options string) (*PointProtocol, error) {
 		return &PointProtocol{
 			Protocol: &PointProtocol_Quic{
 				&Quic{
-					ServerName: host,
-					TlsCaCert:  cert,
+					ServerName: store["host"],
+					TlsCaCert:  store["cert"],
 				},
 			},
 		}, nil
 	}
 
-	return nil, fmt.Errorf("unsupported mode")
+	return nil, fmt.Errorf("unsupported mode: %v", store["mode"])
 }
 
-func parseObfs(pluginOpt string) (*PointProtocol, error) {
-	args := make(map[string]string)
-	for _, x := range strings.Split(pluginOpt, ";") {
-		if strings.Contains(x, "=") {
-			s := strings.Split(x, "=")
-			args[s[0]] = s[1]
-		}
-	}
+func parseObfs(args map[string]string) (*PointProtocol, error) {
 	hostname, port, err := net.SplitHostPort(args["obfs-host"])
 	if err != nil {
 		return nil, err
@@ -155,4 +120,18 @@ func parseObfs(pluginOpt string) (*PointProtocol, error) {
 			},
 		}}, nil
 
+}
+
+func parseOpts(options string) map[string]string {
+	store := make(map[string]string)
+	for _, x := range strings.Split(options, ";") {
+		i := strings.IndexByte(x, '=')
+		if i == -1 {
+			store[x] = "true"
+		} else {
+			key, value := x[:i], x[i+1:]
+			store[key] = value
+		}
+	}
+	return store
 }
