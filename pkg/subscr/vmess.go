@@ -1,13 +1,16 @@
 package subscr
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 )
 
-type vmess struct{}
+type vmess struct {
+	get  func(interface{}) string
+	trim func([]byte) []byte
+}
 
 var DefaultVmess = &vmess{}
 
@@ -16,16 +19,32 @@ var DefaultVmess = &vmess{}
 //             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC
 //             IsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY
 //             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
-func (*vmess) ParseLink(str []byte) (*Point, error) {
-	data := DecodeBase64(strings.TrimPrefix(string(str), "vmess://"))
+func (v *vmess) ParseLink(link []byte) (*Point, error) {
+	if v.get == nil {
+		v.get = func(p interface{}) string {
+			switch p.(type) {
+			case string:
+				return p.(string)
+			case float64:
+				return strconv.Itoa(int(p.(float64)))
+			}
+
+			return ""
+		}
+	}
+
+	if v.trim == nil {
+		v.trim = func(b []byte) []byte { return trimJSON(b, '{', '}') }
+	}
+
 	n := struct {
 		// address
-		Address string `json:"add,omitempty"`
-		Port    string `json:"port,omitempty"`
+		Address string      `json:"add,omitempty"`
+		Port    interface{} `json:"port,omitempty"`
 		// uuid
 		Uuid string `json:"id,omitempty"`
 		// alter id
-		AlterId string `json:"aid,omitempty"`
+		AlterId interface{} `json:"aid,omitempty"`
 		// name
 		Ps string `json:"ps,omitempty"`
 		// (tcp\kcp\ws\h2\quic)
@@ -47,75 +66,14 @@ func (*vmess) ParseLink(str []byte) (*Point, error) {
 		Class      int64  `json:"class,omitempty"`
 		Security   string `json:"security,omitempty"`
 	}{}
-	err := json.Unmarshal([]byte(data), &n)
+	err := json.Unmarshal(v.trim(DecodeBase64Bytes(bytes.TrimPrefix(link, []byte("vmess://")))), &n)
 	if err != nil {
-		z := struct {
-			// address
-			Address string `json:"add,omitempty"`
-			Port    int32  `json:"port,omitempty"`
-			// uuid
-			Uuid string `json:"id,omitempty"`
-			// alter id
-			AlterId int32 `json:"aid,omitempty"`
-			// name
-			Ps string `json:"ps,omitempty"`
-			// (tcp\kcp\ws\h2\quic)
-			Net string `json:"net,omitempty"`
-			// fake type [(none\http\srtp\utp\wechat-video) *tcp or kcp or QUIC]
-			Type string `json:"type,omitempty"`
-			Tls  string `json:"tls,omitempty"`
-			// 1)http host(cut up with (,) )
-			// 2)ws host
-			// 3)h2 host
-			// 4)QUIC security
-			Host string `json:"host,omitempty"`
-			// 1)ws path
-			// 2)h2 path
-			// 3)QUIC key/Kcp seed
-			Path       string `json:"path,omitempty"`
-			V          string `json:"v,omitempty"`
-			VerifyCert bool   `json:"verify_cert,omitempty"`
-			Class      int64  `json:"class,omitempty"`
-			Security   string `json:"security,omitempty"`
-		}{}
-		err = json.Unmarshal([]byte(data), &z)
-		if err != nil {
-			return nil, fmt.Errorf("unmarshal failed: %v\nstr: -%s-\nRaw: %s", err, data, str)
-		}
-		n.Address = z.Address
-		n.Port = strconv.Itoa(int(z.Port))
-		n.Uuid = z.Uuid
-		n.AlterId = strconv.Itoa(int(z.AlterId))
-		n.Ps = z.Ps
-		n.Net = z.Net
-		n.Type = z.Type
-		n.Tls = z.Tls
-		n.Host = z.Host
-		n.Path = z.Path
-		n.V = z.V
-		n.VerifyCert = z.VerifyCert
-		n.Class = z.Class
-		n.Security = z.Security
+		return nil, err
 	}
 
-	p := &Point{
-		Name:   "[vmess]" + n.Ps,
-		Origin: Point_remote,
-	}
-
-	port, err := strconv.Atoi(n.Port)
+	port, err := strconv.Atoi(v.get(n.Port))
 	if err != nil {
 		return nil, fmt.Errorf("vmess port is not a number: %v", err)
-	}
-	p.Protocols = []*PointProtocol{
-		{
-			Protocol: &PointProtocol_Simple{
-				&Simple{
-					Host: n.Address,
-					Port: int32(port),
-				},
-			},
-		},
 	}
 
 	switch n.Type {
@@ -124,10 +82,10 @@ func (*vmess) ParseLink(str []byte) (*Point, error) {
 		return nil, fmt.Errorf("vmess type is not supported: %v", n.Type)
 	}
 
+	var net *PointProtocol
 	switch n.Net {
-	case "tcp":
 	case "ws":
-		p.Protocols = append(p.Protocols, &PointProtocol{
+		net = &PointProtocol{
 			Protocol: &PointProtocol_Websocket{
 				&Websocket{
 					Host:               n.Host,
@@ -137,29 +95,44 @@ func (*vmess) ParseLink(str []byte) (*Point, error) {
 					TlsCaCert:          "",
 				},
 			},
-		})
+		}
+	case "tcp":
+		net = &PointProtocol{Protocol: &PointProtocol_None{&None{}}}
 	default:
 		return nil, fmt.Errorf("vmess net is not supported: %v", n.Net)
 	}
 
-	p.Protocols = append(p.Protocols, &PointProtocol{
-		Protocol: &PointProtocol_Vmess{
-			&Vmess{
-				Uuid:     n.Uuid,
-				AlterId:  n.AlterId,
-				Security: n.Security,
+	return &Point{
+		Name:   "[vmess]" + n.Ps,
+		Origin: Point_remote,
+		Protocols: []*PointProtocol{
+			{
+				Protocol: &PointProtocol_Simple{
+					&Simple{
+						Host: n.Address,
+						Port: int32(port),
+					},
+				},
+			},
+			net,
+			{
+				Protocol: &PointProtocol_Vmess{
+					&Vmess{
+						Uuid:     n.Uuid,
+						AlterId:  v.get(n.AlterId),
+						Security: n.Security,
+					},
+				},
 			},
 		},
-	})
-	return p, nil
+	}, nil
 }
 
-// ParseLinkManual parse a manual base64 encode vmess link
-func (v *vmess) ParseLinkManual(link []byte) (*Point, error) {
-	s, err := v.ParseLink(link)
-	if err != nil {
-		return nil, err
+func trimJSON(b []byte, start, end byte) []byte {
+	s := bytes.IndexByte(b, start)
+	e := bytes.LastIndexByte(b, end)
+	if s == -1 || e == -1 {
+		return b
 	}
-	s.Origin = Point_manual
-	return s, nil
+	return b[s : e+1]
 }

@@ -177,12 +177,11 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				conn, err := n.Conn(addr)
+				conn, err := (&net.Dialer{Timeout: time.Second * 30}).DialContext(ctx, network, addr)
 				if err == nil {
 					return conn, nil
 				}
-
-				return (&net.Dialer{Timeout: time.Second * 30}).DialContext(ctx, network, addr)
+				return n.Conn(addr)
 			},
 		},
 	}
@@ -232,12 +231,12 @@ func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *N
 	for _, x := range bytes.Split(dst, []byte("\n")) {
 		node, err := parseUrl(x, link.Name)
 		if err != nil {
-			log.Println(err)
+			log.Printf("parse url %s failed: %v\n", x, err)
 			continue
 		}
 		_, err = n.SaveNode(c, node)
 		if err != nil {
-			log.Println(err)
+			log.Printf("save node %s failed: %v\n", x, err)
 		}
 	}
 }
