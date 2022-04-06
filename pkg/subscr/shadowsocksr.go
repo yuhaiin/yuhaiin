@@ -1,6 +1,7 @@
 package subscr
 
 import (
+	"bytes"
 	"errors"
 	"net/url"
 	"strconv"
@@ -13,52 +14,50 @@ type shadowsocksr struct{}
 
 // ParseLink parse a base64 encode ssr link
 func (*shadowsocksr) ParseLink(link []byte) (*Point, error) {
-	decodeStr := strings.Split(DecodeUrlBase64(strings.TrimPrefix(string(link), "ssr://")), "/?")
+	decodeStr := bytes.Split(DecodeUrlBase64Bytes(bytes.TrimPrefix(link, []byte("ssr://"))), []byte{'/', '?'})
 
-	x := strings.Split(decodeStr[0], ":")
+	x := strings.Split(string(decodeStr[0]), ":")
 	if len(x) != 6 {
-		return nil, errors.New("link: " + decodeStr[0] + " is not format Shadowsocksr link")
+		return nil, errors.New("link: " + string(decodeStr[0]) + " is not shadowsocksr link")
 	}
 	if len(decodeStr) <= 1 {
-		decodeStr = append(decodeStr, "")
+		decodeStr = append(decodeStr, []byte{})
 	}
-	query, _ := url.ParseQuery(decodeStr[1])
+	query, _ := url.ParseQuery(string(decodeStr[1]))
 
-	p := &Point{
-		Origin: Point_remote,
-		Name:   "[ssr]" + DecodeUrlBase64(query.Get("remarks")),
-	}
-
-	n := &Shadowsocksr{
-		Server:     x[0],
-		Port:       x[1],
-		Protocol:   x[2],
-		Method:     x[3],
-		Obfs:       x[4],
-		Password:   DecodeUrlBase64(x[5]),
-		Obfsparam:  DecodeUrlBase64(query.Get("obfsparam")),
-		Protoparam: DecodeUrlBase64(query.Get("protoparam")),
-	}
-
-	port, err := strconv.Atoi(n.Port)
+	port, err := strconv.Atoi(x[1])
 	if err != nil {
 		return nil, errors.New("invalid port")
 	}
 
-	p.Protocols = []*PointProtocol{
-		{
-			Protocol: &PointProtocol_Simple{
-				&Simple{
-					Host: n.Server,
-					Port: int32(port),
+	return &Point{
+		Origin: Point_remote,
+		Name:   "[ssr]" + DecodeUrlBase64(query.Get("remarks")),
+		Protocols: []*PointProtocol{
+			{
+				Protocol: &PointProtocol_Simple{
+					&Simple{
+						Host: x[0],
+						Port: int32(port),
+					},
+				},
+			},
+			{
+				Protocol: &PointProtocol_Shadowsocksr{
+					Shadowsocksr: &Shadowsocksr{
+						Server:     x[0],
+						Port:       x[1],
+						Protocol:   x[2],
+						Method:     x[3],
+						Obfs:       x[4],
+						Password:   DecodeUrlBase64(x[5]),
+						Obfsparam:  DecodeUrlBase64(query.Get("obfsparam")),
+						Protoparam: DecodeUrlBase64(query.Get("protoparam")),
+					},
 				},
 			},
 		},
-		{
-			Protocol: &PointProtocol_Shadowsocksr{n},
-		},
-	}
-	return p, nil
+	}, nil
 }
 
 // ParseLinkManual parse a manual base64 encode ssr link

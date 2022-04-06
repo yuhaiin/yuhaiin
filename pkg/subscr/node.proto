@@ -29,6 +29,7 @@ message point {
       obfs_http obfs_http = 6 [ json_name = "obfs_http" ];
       trojan trojan = 7 [ json_name = "trojan" ];
       simple simple = 8 [ json_name = "simple" ];
+      none none = 9 [ json_name = "none" ];
     }
   }
   // will use protocols' order to create dialer
@@ -40,8 +41,6 @@ message shadowsocks {
   string port = 2 [ json_name = "port" ];
   string method = 3 [ json_name = "method" ];
   string password = 4 [ json_name = "password" ];
-  string plugin = 5 [ json_name = "plugin" ];
-  string plugin_opt = 6 [ json_name = "plugin_opt" ];
 }
 
 message shadowsocksr {
@@ -86,6 +85,8 @@ message obfs_http {
   string host = 1 [ json_name = "host" ];
   string port = 2 [ json_name = "port" ];
 }
+
+message none {}
 
 message simple {
   string host = 1 [ json_name = "host" ];

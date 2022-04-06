@@ -96,6 +96,8 @@ func (p *PointProtocol_Shadowsocksr) Conn(x proxy.Proxy) (proxy.Proxy, error) {
 		s.Protocol, s.Protoparam)(x)
 }
 
+func (d *PointProtocol_None) Conn(p proxy.Proxy) (proxy.Proxy, error) { return p, nil }
+
 func (p *Point) Conn() (r proxy.Proxy, err error) {
 	r = direct.DefaultDirect
 	for _, v := range p.Protocols {
