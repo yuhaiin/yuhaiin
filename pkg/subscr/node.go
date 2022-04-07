@@ -36,6 +36,8 @@ type NodeManager struct {
 	lock       sync.RWMutex
 	filelock   sync.RWMutex
 	proxy.Proxy
+
+	manager *manager
 }
 
 func NewNodeManager(configPath string) (n *NodeManager, err error) {
@@ -44,6 +46,8 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 	if err != nil {
 		return n, fmt.Errorf("load config failed: %v", err)
 	}
+
+	n.manager = &manager{Manager: n.node.Manager}
 
 	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
 	p, err := now.Conn()
@@ -63,27 +67,21 @@ func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*Point, error) {
 		return n.node.NowNode, nil
 	}
 
-	z := n.node.GroupNodesMap[n.node.NowNode.Group]
-	if z == nil {
+	p, ok := n.manager.GetNodeByName(n.node.NowNode.Group, n.node.NowNode.Name)
+	if !ok {
 		return n.node.NowNode, nil
 	}
 
-	hash := z.NodeHashMap[n.node.NowNode.Name]
-	if hash != "" {
-		return n.node.Nodes[hash], nil
-	}
-
-	return n.node.NowNode, nil
+	return p, nil
 }
 
 func (n *NodeManager) GetNode(_ context.Context, s *wrapperspb.StringValue) (*Point, error) {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
-	p, ok := n.node.Nodes[s.Value]
-	if ok {
-		return p, nil
+	p, ok := n.manager.GetNode(s.Value)
+	if !ok {
+		return &Point{}, fmt.Errorf("node not found")
 	}
-	return nil, fmt.Errorf("can't find node %v", s.Value)
+
+	return p, nil
 }
 
 func (n *NodeManager) SaveNode(c context.Context, p *Point) (*Point, error) {
@@ -92,25 +90,8 @@ func (n *NodeManager) SaveNode(c context.Context, p *Point) (*Point, error) {
 		return &Point{}, fmt.Errorf("delete node failed: %v", err)
 	}
 
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
 	refreshHash(p)
-	_, ok := n.node.GroupNodesMap[p.GetGroup()]
-	if !ok {
-		n.node.Groups = append(n.node.Groups, p.Group)
-		n.node.GroupNodesMap[p.Group] = &NodeNodeArray{
-			Group:       p.Group,
-			Nodes:       make([]string, 0),
-			NodeHashMap: make(map[string]string),
-		}
-	}
-
-	n.node.GroupNodesMap[p.Group].NodeHashMap[p.Name] = p.Hash
-	n.node.GroupNodesMap[p.Group].Nodes = append(n.node.GroupNodesMap[p.Group].Nodes, p.Name)
-
-	n.node.Nodes[p.Hash] = p
-
+	n.manager.AddNode(p)
 	return p, n.save()
 }
 
@@ -169,9 +150,6 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 	if n.node.Links == nil {
 		n.node.Links = make(map[string]*NodeLink)
 	}
-	if n.node.Nodes == nil {
-		n.node.Nodes = make(map[string]*Point)
-	}
 
 	client := &http.Client{
 		Timeout: time.Minute * 2,
@@ -191,7 +169,9 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 		wg.Add(1)
 		go func(l *NodeLink) {
 			defer wg.Done()
-			n.oneLinkGet(c, client, l)
+			if err := n.oneLinkGet(c, client, l); err != nil {
+				log.Printf("get one link failed: %v", err)
+			}
 		}(l)
 	}
 
@@ -201,33 +181,29 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 	return &emptypb.Empty{}, err
 }
 
-func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *NodeLink) {
+func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *NodeLink) error {
 	req, err := http.NewRequest("GET", link.Url, nil)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("create request failed: %v", err)
 	}
 
 	req.Header.Set("User-Agent", "yuhaiin")
 
 	res, err := client.Do(req)
 	if err != nil {
-		log.Printf("get %s failed: %v\n", link.Name, err)
-		return
+		return fmt.Errorf("get %s failed: %v", link.Name, err)
 	}
 	defer res.Body.Close()
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("read body failed: %v", err)
 	}
 	dst, err := DecodeBytesBase64(body)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("decode body failed: %v", err)
 	}
-	n.deleteRemoteNodes(link.Name)
+	n.manager.DeleteRemoteNodes(link.Name)
 	for _, x := range bytes.Split(dst, []byte("\n")) {
 		node, err := parseUrl(x, link.Name)
 		if err != nil {
@@ -239,43 +215,8 @@ func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *N
 			log.Printf("save node %s failed: %v\n", x, err)
 		}
 	}
-}
 
-func (n *NodeManager) deleteRemoteNodes(group string) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-	x, ok := n.node.GroupNodesMap[group]
-	if !ok {
-		return
-	}
-
-	ns := x.Nodes
-	msmap := x.NodeHashMap
-	left := make([]string, 0)
-	for i := range ns {
-		if n.node.Nodes[msmap[ns[i]]].GetOrigin() != Point_remote {
-			left = append(left, ns[i])
-			continue
-		}
-
-		delete(n.node.Nodes, msmap[ns[i]])
-		delete(n.node.GroupNodesMap[group].NodeHashMap, ns[i])
-	}
-
-	if len(left) == 0 {
-		delete(n.node.GroupNodesMap, group)
-		for i, x := range n.node.Groups {
-			if x != group {
-				continue
-			}
-
-			n.node.Groups = append(n.node.Groups[:i], n.node.Groups[i+1:]...)
-			break
-		}
-		return
-	}
-
-	n.node.GroupNodesMap[group].Nodes = left
+	return nil
 }
 
 func parseUrl(str []byte, group string) (node *Point, err error) {
@@ -303,43 +244,7 @@ func parseUrl(str []byte, group string) (node *Point, err error) {
 }
 
 func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-	p, ok := n.node.Nodes[s.Value]
-	if !ok {
-		return &emptypb.Empty{}, nil
-	}
-
-	delete(n.node.Nodes, s.Value)
-	delete(n.node.GroupNodesMap[p.Group].NodeHashMap, p.Name)
-
-	for i, x := range n.node.GroupNodesMap[p.Group].Nodes {
-		if x != p.Name {
-			continue
-		}
-
-		n.node.GroupNodesMap[p.Group].Nodes = append(
-			n.node.GroupNodesMap[p.Group].Nodes[:i],
-			n.node.GroupNodesMap[p.Group].Nodes[i+1:]...,
-		)
-		break
-	}
-
-	if len(n.node.GroupNodesMap[p.Group].Nodes) != 0 {
-		return &emptypb.Empty{}, n.save()
-	}
-
-	delete(n.node.GroupNodesMap, p.Group)
-
-	for i, x := range n.node.Groups {
-		if x != p.Group {
-			continue
-		}
-
-		n.node.Groups = append(n.node.Groups[:i], n.node.Groups[i+1:]...)
-		break
-	}
-
+	n.manager.DeleteNode(s.Value)
 	return &emptypb.Empty{}, n.save()
 }
 
@@ -368,11 +273,13 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 
 func (n *NodeManager) load() error {
 	n.node = &Node{
-		NowNode:       &Point{},
-		Links:         make(map[string]*NodeLink),
-		Groups:        make([]string, 0),
-		GroupNodesMap: make(map[string]*NodeNodeArray),
-		Nodes:         make(map[string]*Point),
+		NowNode: &Point{},
+		Links:   make(map[string]*NodeLink),
+		Manager: &Manager{
+			Groups:        make([]string, 0),
+			GroupNodesMap: make(map[string]*ManagerNodeArray),
+			Nodes:         make(map[string]*Point),
+		},
 	}
 	_, err := os.Stat(n.configPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -393,10 +300,15 @@ func (n *NodeManager) load() error {
 	if n.node.Links == nil {
 		n.node.Links = make(map[string]*NodeLink)
 	}
-	if n.node.Groups == nil {
-		n.node.Groups = make([]string, 0)
-		n.node.GroupNodesMap = make(map[string]*NodeNodeArray)
-		n.node.Nodes = make(map[string]*Point)
+
+	if n.node.Manager == nil {
+		n.node.Manager = &Manager{}
+	}
+
+	if n.node.Manager.Groups == nil {
+		n.node.Manager.Groups = make([]string, 0)
+		n.node.Manager.GroupNodesMap = make(map[string]*ManagerNodeArray)
+		n.node.Manager.Nodes = make(map[string]*Point)
 	}
 
 	return err
@@ -426,21 +338,4 @@ func (n *NodeManager) save() error {
 
 	_, err = file.Write(data)
 	return err
-}
-
-func (n *NodeManager) GetHash(group, node string) (string, error) {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
-
-	g, ok := n.node.GroupNodesMap[group]
-	if !ok {
-		return "", fmt.Errorf("group %v is not exist", group)
-	}
-
-	nn, ok := g.NodeHashMap[node]
-	if !ok {
-		return "", fmt.Errorf("node %v is not exist", node)
-	}
-
-	return nn, nil
 }

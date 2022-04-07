@@ -118,7 +118,8 @@ func parseObfs(args map[string]string) (*PointProtocol, error) {
 				Host: hostname,
 				Port: port,
 			},
-		}}, nil
+		},
+	}, nil
 
 }
 

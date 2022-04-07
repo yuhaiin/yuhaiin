@@ -473,11 +473,11 @@ func (y *yhCli) listAll() error {
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
-	for i := range ns.Groups {
-		fmt.Println(i, ns.Groups[i])
-		for z := range ns.GroupNodesMap[ns.Groups[i]].Nodes {
-			node := ns.GroupNodesMap[ns.Groups[i]].Nodes[z]
-			fmt.Println("\t", z, node, "hash:", ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[node])
+	for i := range ns.Manager.Groups {
+		fmt.Println(i, ns.Manager.Groups[i])
+		for z := range ns.Manager.GroupNodesMap[ns.Manager.Groups[i]].Nodes {
+			node := ns.Manager.GroupNodesMap[ns.Manager.Groups[i]].Nodes[z]
+			fmt.Println("\t", z, node, "hash:", ns.Manager.GroupNodesMap[ns.Manager.Groups[i]].NodeHashMap[node])
 		}
 	}
 
@@ -485,10 +485,12 @@ func (y *yhCli) listAll() error {
 }
 
 func (y *yhCli) group() error {
-	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
+
+	ns := nss.Manager
 
 	for i := range ns.Groups {
 		fmt.Println(i, ns.Groups[i])
@@ -497,10 +499,12 @@ func (y *yhCli) group() error {
 }
 
 func (y *yhCli) nodes(i int) error {
-	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
+
+	ns := nss.Manager
 
 	if i >= len(ns.Groups) || i < 0 {
 		return nil
@@ -522,11 +526,12 @@ func (y *yhCli) latencyWithGroupAndNode(i, z int) error {
 }
 
 func (y *yhCli) getHash(i, z int) (string, error) {
-
-	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return "", fmt.Errorf("get node failed: %w", err)
 	}
+
+	ns := nss.Manager
 
 	if i >= len(ns.Groups) || i < 0 {
 		return "", fmt.Errorf("group index error")
@@ -553,11 +558,13 @@ func (y *yhCli) latency(hash string) error {
 }
 
 func (y *yhCli) latencyAll(i int) {
-	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		log.Printf("get node failed: %v\n", err)
 		return
 	}
+
+	ns := nss.Manager
 
 	if i >= len(ns.Groups) {
 		return
@@ -582,10 +589,12 @@ func (y *yhCli) latencyAll(i int) {
 }
 
 func (y *yhCli) changeNowNodeWithGroupAndNode(i, z int) error {
-	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
+
+	ns := nss.Manager
 
 	if i >= len(ns.Groups) {
 		return nil
