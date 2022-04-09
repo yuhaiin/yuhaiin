@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	simplehttp "github.com/Asutorufa/yuhaiin/internal/app/http"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
@@ -124,6 +125,8 @@ func main() {
 
 	sysproxy.Set(conf)
 	defer sysproxy.Unset()
+
+	simplehttp.Httpserver(nodeManager, flowStatis, conf)
 
 	grpcServer.RegisterService(&subscr.NodeManager_ServiceDesc, nodeManager)
 	grpcServer.RegisterService(&config.ConfigDao_ServiceDesc, conf)
