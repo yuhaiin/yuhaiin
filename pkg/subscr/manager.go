@@ -39,7 +39,9 @@ func (m *manager) AddNode(p *Point) {
 	if m.Nodes == nil {
 		m.Nodes = make(map[string]*Point)
 	}
-
+	if m.GroupNodesMap == nil {
+		m.GroupNodesMap = make(map[string]*ManagerNodeArray)
+	}
 	_, ok := m.GroupNodesMap[p.Group]
 	if !ok {
 		m.GroupNodesMap[p.Group] = &ManagerNodeArray{
@@ -50,9 +52,11 @@ func (m *manager) AddNode(p *Point) {
 		m.Groups = append(m.Groups, p.Group)
 	}
 
+	_, ok = m.GroupNodesMap[p.Group].NodeHashMap[p.Name]
+	if !ok {
+		m.GroupNodesMap[p.Group].Nodes = append(m.GroupNodesMap[p.Group].Nodes, p.Name)
+	}
 	m.GroupNodesMap[p.Group].NodeHashMap[p.Name] = p.Hash
-	m.GroupNodesMap[p.Group].Nodes = append(m.GroupNodesMap[p.Group].Nodes, p.Name)
-
 	m.Nodes[p.Hash] = p
 }
 
@@ -117,7 +121,6 @@ func (m *manager) DeleteNode(hash string) {
 			m.GroupNodesMap[p.Group].Nodes[:i],
 			m.GroupNodesMap[p.Group].Nodes[i+1:]...,
 		)
-		break
 	}
 
 	if len(m.GroupNodesMap[p.Group].Nodes) != 0 {
