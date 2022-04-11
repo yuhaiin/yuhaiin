@@ -104,19 +104,17 @@ message node {
   point now_node = 1 [ json_name = "now_node" ];
   message link {
     string name = 1 [ json_name = "name" ];
-    string type = 2 [ json_name = "type" ];
+    enum link_type {
+      reserve = 0;
+      trojan = 1;
+      vmess = 2;
+      shadowsocks = 3;
+      shadowsocksr = 4;
+    }
+    link_type type = 2 [ json_name = "type" ];
     string url = 3 [ json_name = "url" ];
   }
   map<string, link> links = 2 [ json_name = "links" ];
-  // repeated string groups = 3 [ json_name = "groups" ];
-  // message node_array {
-  // string group = 1 [ json_name = "name" ];
-  // repeated string nodes = 2 [ json_name = "nodes" ];
-  // map<string, string> node_hash_map = 3 [ json_name = "node_hash_map" ];
-  // }
-  // map<string, node_array> group_nodes_map = 4 [ json_name = "group_nodes_map"
-  // ]; map<string, point> nodes = 5 [ json_name = "nodes" ];
-
   manager manager = 6 [ json_name = "manager" ];
 }
 
@@ -133,14 +131,25 @@ message manager {
 
 service node_manager {
   rpc now(google.protobuf.Empty) returns (point);
+  // use req is hash string of point
+  rpc use(google.protobuf.StringValue) returns (point);
+
   rpc get_node(google.protobuf.StringValue) returns (point);
   rpc save_node(point) returns (point);
-  rpc get_nodes(google.protobuf.StringValue) returns (node);
-  rpc add_link(node.link) returns (google.protobuf.Empty);
-  rpc delete_link(google.protobuf.StringValue) returns (google.protobuf.Empty);
-  rpc change_now_node(google.protobuf.StringValue) returns (point);
-  rpc refresh_subscr(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc delete_node(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc get_manager(google.protobuf.StringValue) returns (manager);
+
+  rpc save_links(save_link_req) returns (google.protobuf.Empty);
+  rpc delete_links(link_req) returns (google.protobuf.Empty);
+  rpc update_links(link_req) returns (google.protobuf.Empty);
+  rpc get_links(google.protobuf.Empty) returns (get_links_resp);
+
   rpc latency(google.protobuf.StringValue)
       returns (google.protobuf.StringValue);
+}
+
+message save_link_req { repeated node.link links = 1 [ json_name = "links" ]; }
+message link_req { repeated string names = 1 [ json_name = "names" ]; }
+message get_links_resp {
+  map<string, node.link> links = 1 [ json_name = "links" ];
 }

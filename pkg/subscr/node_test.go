@@ -17,11 +17,17 @@ func TestNodeManager(t *testing.T) {
 		t.FailNow()
 	}
 
-	_, err = n.AddLink(context.TODO(), &NodeLink{
-		Name: "test",
-		Type: "test",
-		Url:  "test",
-	})
+	_, err = n.SaveLinks(context.TODO(),
+		&SaveLinkReq{
+			Links: []*NodeLink{
+				{
+					Name: "test",
+					Type: NodeLink_reserve,
+					Url:  "test",
+				},
+			},
+		},
+	)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
