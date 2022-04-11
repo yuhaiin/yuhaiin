@@ -5,13 +5,22 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
-func TcpLatency(dialContext func(context.Context, string, string) (net.Conn, error), target string) (time.Duration, error) {
-	timeNow := time.Now()
-	_, err := (&http.Client{Transport: &http.Transport{DialContext: dialContext}, Timeout: 3 * time.Second}).Get(target)
+func HTTP(p proxy.Proxy, target string) (time.Duration, error) {
+	start := time.Now()
+	_, err := (&http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return p.Conn(addr)
+			},
+		},
+		Timeout: 3 * time.Second,
+	}).Get(target)
 	if err != nil {
 		return 0, err
 	}
-	return time.Since(timeNow), nil
+	return time.Since(start), nil
 }

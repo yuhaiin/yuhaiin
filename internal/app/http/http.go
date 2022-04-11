@@ -40,7 +40,7 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 	})
 
 	http.HandleFunc("/group", func(w http.ResponseWriter, r *http.Request) {
-		ns, err := nodeManager.GetNodes(context.TODO(), &wrapperspb.StringValue{})
+		ns, err := nodeManager.GetManager(context.TODO(), &wrapperspb.StringValue{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -48,7 +48,7 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 
 		str := strings.Builder{}
 
-		for _, n := range ns.GetManager().GetGroups() {
+		for _, n := range ns.GetGroups() {
 			str.WriteString(fmt.Sprintf(`<a href="/nodes?group=%s">%s</a>`, n, n))
 			str.WriteString("<br/>")
 			str.WriteByte('\n')
@@ -60,14 +60,14 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 	http.HandleFunc("/nodes", func(w http.ResponseWriter, r *http.Request) {
 		group := r.URL.Query().Get("group")
 
-		ns, err := nodeManager.GetNodes(context.TODO(), &wrapperspb.StringValue{})
+		ns, err := nodeManager.GetManager(context.TODO(), &wrapperspb.StringValue{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		nhm := ns.Manager.GroupNodesMap[group].NodeHashMap
-		nds := ns.Manager.GroupNodesMap[group].Nodes
+		nhm := ns.GroupNodesMap[group].NodeHashMap
+		nds := ns.GroupNodesMap[group].Nodes
 		sort.Strings(nds)
 
 		str := strings.Builder{}
@@ -119,7 +119,7 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 	http.HandleFunc("/use", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
 
-		p, err := nodeManager.ChangeNowNode(context.TODO(), &wrapperspb.StringValue{Value: hash})
+		p, err := nodeManager.Use(context.TODO(), &wrapperspb.StringValue{Value: hash})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
