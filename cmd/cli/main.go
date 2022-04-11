@@ -150,17 +150,23 @@ func subCmd() *cobra.Command {
 				log.Println("incorrect arguments")
 				return
 			}
-			var t string
+			var t int
 			if len(args) == 3 {
-				t = args[2]
+				t, _ = strconv.Atoi(args[2])
 			}
 
 			if len(args) == 2 {
-				_, err := y.sub.AddLink(context.TODO(), &subscr.NodeLink{
-					Name: args[0],
-					Url:  args[1],
-					Type: t,
-				})
+				_, err := y.sub.SaveLinks(context.TODO(),
+					&subscr.SaveLinkReq{
+						Links: []*subscr.NodeLink{
+							{
+								Name: args[0],
+								Url:  args[1],
+								Type: subscr.NodeLinkLinkType(t),
+							},
+						},
+					},
+				)
 				if err != nil {
 					log.Println("add link failed:", err)
 					return
@@ -173,7 +179,7 @@ func subCmd() *cobra.Command {
 		Use:  "ls",
 		Long: "list all subscription link",
 		Run: func(cmd *cobra.Command, args []string) {
-			n, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+			n, err := y.sub.GetLinks(context.Background(), &emptypb.Empty{})
 			if err != nil {
 				log.Println("get nodes failed:", err)
 				return
@@ -469,15 +475,15 @@ func (y *yhCli) streamData() {
 }
 
 func (y *yhCli) listAll() error {
-	ns, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	ns, err := y.sub.GetManager(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
-	for i := range ns.Manager.Groups {
-		fmt.Println(i, ns.Manager.Groups[i])
-		for z := range ns.Manager.GroupNodesMap[ns.Manager.Groups[i]].Nodes {
-			node := ns.Manager.GroupNodesMap[ns.Manager.Groups[i]].Nodes[z]
-			fmt.Println("\t", z, node, "hash:", ns.Manager.GroupNodesMap[ns.Manager.Groups[i]].NodeHashMap[node])
+	for i := range ns.Groups {
+		fmt.Println(i, ns.Groups[i])
+		for z := range ns.GroupNodesMap[ns.Groups[i]].Nodes {
+			node := ns.GroupNodesMap[ns.Groups[i]].Nodes[z]
+			fmt.Println("\t", z, node, "hash:", ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[node])
 		}
 	}
 
@@ -485,12 +491,10 @@ func (y *yhCli) listAll() error {
 }
 
 func (y *yhCli) group() error {
-	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	ns, err := y.sub.GetManager(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
-
-	ns := nss.Manager
 
 	for i := range ns.Groups {
 		fmt.Println(i, ns.Groups[i])
@@ -499,12 +503,10 @@ func (y *yhCli) group() error {
 }
 
 func (y *yhCli) nodes(i int) error {
-	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	ns, err := y.sub.GetManager(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
-
-	ns := nss.Manager
 
 	if i >= len(ns.Groups) || i < 0 {
 		return nil
@@ -526,12 +528,10 @@ func (y *yhCli) latencyWithGroupAndNode(i, z int) error {
 }
 
 func (y *yhCli) getHash(i, z int) (string, error) {
-	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	ns, err := y.sub.GetManager(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return "", fmt.Errorf("get node failed: %w", err)
 	}
-
-	ns := nss.Manager
 
 	if i >= len(ns.Groups) || i < 0 {
 		return "", fmt.Errorf("group index error")
@@ -558,13 +558,11 @@ func (y *yhCli) latency(hash string) error {
 }
 
 func (y *yhCli) latencyAll(i int) {
-	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	ns, err := y.sub.GetManager(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		log.Printf("get node failed: %v\n", err)
 		return
 	}
-
-	ns := nss.Manager
 
 	if i >= len(ns.Groups) {
 		return
@@ -589,12 +587,10 @@ func (y *yhCli) latencyAll(i int) {
 }
 
 func (y *yhCli) changeNowNodeWithGroupAndNode(i, z int) error {
-	nss, err := y.sub.GetNodes(context.Background(), &wrapperspb.StringValue{})
+	ns, err := y.sub.GetManager(context.Background(), &wrapperspb.StringValue{})
 	if err != nil {
 		return fmt.Errorf("get node failed: %w", err)
 	}
-
-	ns := nss.Manager
 
 	if i >= len(ns.Groups) {
 		return nil
@@ -611,7 +607,7 @@ func (y *yhCli) changeNowNodeWithGroupAndNode(i, z int) error {
 }
 
 func (y *yhCli) changeNowNode(hash string) error {
-	l, err := y.sub.ChangeNowNode(context.Background(), &wrapperspb.StringValue{Value: hash})
+	l, err := y.sub.Use(context.Background(), &wrapperspb.StringValue{Value: hash})
 	if err != nil {
 		return fmt.Errorf("change now node failed: %w", err)
 	}
@@ -633,7 +629,16 @@ func (y *yhCli) nowNode() error {
 }
 
 func (y *yhCli) updateSub() error {
-	_, err := y.sub.RefreshSubscr(context.Background(), &emptypb.Empty{})
+	n, err := y.sub.GetLinks(context.TODO(), &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("get node failed: %w", err)
+	}
+
+	var req *subscr.LinkReq
+	for _, link := range n.GetLinks() {
+		req.Names = append(req.Names, link.Name)
+	}
+	_, err = y.sub.UpdateLinks(context.Background(), req)
 	return err
 }
 

@@ -25,14 +25,16 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeManagerClient interface {
 	Now(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Point, error)
+	// use req is hash string of point
+	Use(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error)
 	GetNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error)
 	SaveNode(ctx context.Context, in *Point, opts ...grpc.CallOption) (*Point, error)
-	GetNodes(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Node, error)
-	AddLink(ctx context.Context, in *NodeLink, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	DeleteLink(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ChangeNowNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error)
-	RefreshSubscr(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeleteNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetManager(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Manager, error)
+	SaveLinks(ctx context.Context, in *SaveLinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetLinks(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetLinksResp, error)
 	Latency(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
 }
 
@@ -47,6 +49,15 @@ func NewNodeManagerClient(cc grpc.ClientConnInterface) NodeManagerClient {
 func (c *nodeManagerClient) Now(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Point, error) {
 	out := new(Point)
 	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/now", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeManagerClient) Use(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error) {
+	out := new(Point)
+	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/use", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -71,54 +82,54 @@ func (c *nodeManagerClient) SaveNode(ctx context.Context, in *Point, opts ...grp
 	return out, nil
 }
 
-func (c *nodeManagerClient) GetNodes(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Node, error) {
-	out := new(Node)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/get_nodes", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeManagerClient) AddLink(ctx context.Context, in *NodeLink, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/add_link", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeManagerClient) DeleteLink(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/delete_link", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeManagerClient) ChangeNowNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error) {
-	out := new(Point)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/change_now_node", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeManagerClient) RefreshSubscr(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/refresh_subscr", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *nodeManagerClient) DeleteNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/delete_node", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeManagerClient) GetManager(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Manager, error) {
+	out := new(Manager)
+	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/get_manager", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeManagerClient) SaveLinks(ctx context.Context, in *SaveLinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/save_links", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeManagerClient) DeleteLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/delete_links", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeManagerClient) UpdateLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/update_links", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeManagerClient) GetLinks(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetLinksResp, error) {
+	out := new(GetLinksResp)
+	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/get_links", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -139,14 +150,16 @@ func (c *nodeManagerClient) Latency(ctx context.Context, in *wrapperspb.StringVa
 // for forward compatibility
 type NodeManagerServer interface {
 	Now(context.Context, *emptypb.Empty) (*Point, error)
+	// use req is hash string of point
+	Use(context.Context, *wrapperspb.StringValue) (*Point, error)
 	GetNode(context.Context, *wrapperspb.StringValue) (*Point, error)
 	SaveNode(context.Context, *Point) (*Point, error)
-	GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error)
-	AddLink(context.Context, *NodeLink) (*emptypb.Empty, error)
-	DeleteLink(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
-	ChangeNowNode(context.Context, *wrapperspb.StringValue) (*Point, error)
-	RefreshSubscr(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	DeleteNode(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
+	GetManager(context.Context, *wrapperspb.StringValue) (*Manager, error)
+	SaveLinks(context.Context, *SaveLinkReq) (*emptypb.Empty, error)
+	DeleteLinks(context.Context, *LinkReq) (*emptypb.Empty, error)
+	UpdateLinks(context.Context, *LinkReq) (*emptypb.Empty, error)
+	GetLinks(context.Context, *emptypb.Empty) (*GetLinksResp, error)
 	Latency(context.Context, *wrapperspb.StringValue) (*wrapperspb.StringValue, error)
 	mustEmbedUnimplementedNodeManagerServer()
 }
@@ -158,29 +171,32 @@ type UnimplementedNodeManagerServer struct {
 func (UnimplementedNodeManagerServer) Now(context.Context, *emptypb.Empty) (*Point, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Now not implemented")
 }
+func (UnimplementedNodeManagerServer) Use(context.Context, *wrapperspb.StringValue) (*Point, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Use not implemented")
+}
 func (UnimplementedNodeManagerServer) GetNode(context.Context, *wrapperspb.StringValue) (*Point, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNode not implemented")
 }
 func (UnimplementedNodeManagerServer) SaveNode(context.Context, *Point) (*Point, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveNode not implemented")
 }
-func (UnimplementedNodeManagerServer) GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetNodes not implemented")
-}
-func (UnimplementedNodeManagerServer) AddLink(context.Context, *NodeLink) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddLink not implemented")
-}
-func (UnimplementedNodeManagerServer) DeleteLink(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteLink not implemented")
-}
-func (UnimplementedNodeManagerServer) ChangeNowNode(context.Context, *wrapperspb.StringValue) (*Point, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ChangeNowNode not implemented")
-}
-func (UnimplementedNodeManagerServer) RefreshSubscr(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RefreshSubscr not implemented")
-}
 func (UnimplementedNodeManagerServer) DeleteNode(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNode not implemented")
+}
+func (UnimplementedNodeManagerServer) GetManager(context.Context, *wrapperspb.StringValue) (*Manager, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetManager not implemented")
+}
+func (UnimplementedNodeManagerServer) SaveLinks(context.Context, *SaveLinkReq) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveLinks not implemented")
+}
+func (UnimplementedNodeManagerServer) DeleteLinks(context.Context, *LinkReq) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteLinks not implemented")
+}
+func (UnimplementedNodeManagerServer) UpdateLinks(context.Context, *LinkReq) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateLinks not implemented")
+}
+func (UnimplementedNodeManagerServer) GetLinks(context.Context, *emptypb.Empty) (*GetLinksResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLinks not implemented")
 }
 func (UnimplementedNodeManagerServer) Latency(context.Context, *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Latency not implemented")
@@ -212,6 +228,24 @@ func _NodeManager_Now_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).Now(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeManager_Use_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(wrapperspb.StringValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).Use(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.subscr.node_manager/use",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).Use(ctx, req.(*wrapperspb.StringValue))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -252,96 +286,6 @@ func _NodeManager_SaveNode_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeManager_GetNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrapperspb.StringValue)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeManagerServer).GetNodes(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/get_nodes",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeManagerServer).GetNodes(ctx, req.(*wrapperspb.StringValue))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeManager_AddLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(NodeLink)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeManagerServer).AddLink(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/add_link",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeManagerServer).AddLink(ctx, req.(*NodeLink))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeManager_DeleteLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrapperspb.StringValue)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeManagerServer).DeleteLink(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/delete_link",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeManagerServer).DeleteLink(ctx, req.(*wrapperspb.StringValue))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeManager_ChangeNowNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrapperspb.StringValue)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeManagerServer).ChangeNowNode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/change_now_node",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeManagerServer).ChangeNowNode(ctx, req.(*wrapperspb.StringValue))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeManager_RefreshSubscr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeManagerServer).RefreshSubscr(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/refresh_subscr",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeManagerServer).RefreshSubscr(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _NodeManager_DeleteNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(wrapperspb.StringValue)
 	if err := dec(in); err != nil {
@@ -356,6 +300,96 @@ func _NodeManager_DeleteNode_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).DeleteNode(ctx, req.(*wrapperspb.StringValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeManager_GetManager_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(wrapperspb.StringValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).GetManager(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.subscr.node_manager/get_manager",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).GetManager(ctx, req.(*wrapperspb.StringValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeManager_SaveLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveLinkReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).SaveLinks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.subscr.node_manager/save_links",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).SaveLinks(ctx, req.(*SaveLinkReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeManager_DeleteLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LinkReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).DeleteLinks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.subscr.node_manager/delete_links",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).DeleteLinks(ctx, req.(*LinkReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeManager_UpdateLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LinkReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).UpdateLinks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.subscr.node_manager/update_links",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).UpdateLinks(ctx, req.(*LinkReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeManager_GetLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).GetLinks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yuhaiin.subscr.node_manager/get_links",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).GetLinks(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -390,6 +424,10 @@ var NodeManager_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeManager_Now_Handler,
 		},
 		{
+			MethodName: "use",
+			Handler:    _NodeManager_Use_Handler,
+		},
+		{
 			MethodName: "get_node",
 			Handler:    _NodeManager_GetNode_Handler,
 		},
@@ -398,28 +436,28 @@ var NodeManager_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeManager_SaveNode_Handler,
 		},
 		{
-			MethodName: "get_nodes",
-			Handler:    _NodeManager_GetNodes_Handler,
-		},
-		{
-			MethodName: "add_link",
-			Handler:    _NodeManager_AddLink_Handler,
-		},
-		{
-			MethodName: "delete_link",
-			Handler:    _NodeManager_DeleteLink_Handler,
-		},
-		{
-			MethodName: "change_now_node",
-			Handler:    _NodeManager_ChangeNowNode_Handler,
-		},
-		{
-			MethodName: "refresh_subscr",
-			Handler:    _NodeManager_RefreshSubscr_Handler,
-		},
-		{
 			MethodName: "delete_node",
 			Handler:    _NodeManager_DeleteNode_Handler,
+		},
+		{
+			MethodName: "get_manager",
+			Handler:    _NodeManager_GetManager_Handler,
+		},
+		{
+			MethodName: "save_links",
+			Handler:    _NodeManager_SaveLinks_Handler,
+		},
+		{
+			MethodName: "delete_links",
+			Handler:    _NodeManager_DeleteLinks_Handler,
+		},
+		{
+			MethodName: "update_links",
+			Handler:    _NodeManager_UpdateLinks_Handler,
+		},
+		{
+			MethodName: "get_links",
+			Handler:    _NodeManager_GetLinks_Handler,
 		},
 		{
 			MethodName: "latency",

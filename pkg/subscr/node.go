@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -85,14 +84,15 @@ func (n *NodeManager) GetNode(_ context.Context, s *wrapperspb.StringValue) (*Po
 }
 
 func (n *NodeManager) SaveNode(c context.Context, p *Point) (*Point, error) {
-	_, err := n.DeleteNode(c, &wrapperspb.StringValue{Value: p.Hash})
-	if err != nil {
-		return &Point{}, fmt.Errorf("delete node failed: %v", err)
-	}
+	n.saveNode(p)
+	return p, n.save()
+}
 
+func (n *NodeManager) saveNode(p *Point) *Point {
+	n.manager.DeleteNode(p.Hash)
 	refreshHash(p)
 	n.manager.AddNode(p)
-	return p, n.save()
+	return p
 }
 
 func refreshHash(p *Point) {
@@ -101,25 +101,31 @@ func refreshHash(p *Point) {
 	p.Hash = hex.EncodeToString(z[:])
 }
 
-func (n *NodeManager) GetNodes(context.Context, *wrapperspb.StringValue) (*Node, error) {
-	return n.node, nil
+func (n *NodeManager) GetManager(context.Context, *wrapperspb.StringValue) (*Manager, error) {
+	return n.manager.Manager, nil
 }
 
-func (n *NodeManager) AddLink(_ context.Context, l *NodeLink) (*emptypb.Empty, error) {
+func (n *NodeManager) SaveLinks(_ context.Context, l *SaveLinkReq) (*emptypb.Empty, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	n.node.Links[l.Name] = l
+	for _, l := range l.Links {
+		n.node.Links[l.Name] = l
+	}
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) DeleteLink(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
+func (n *NodeManager) DeleteLinks(_ context.Context, s *LinkReq) (*emptypb.Empty, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	delete(n.node.Links, s.Value)
+
+	for _, l := range s.Names {
+		delete(n.node.Links, l)
+	}
+
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) ChangeNowNode(c context.Context, s *wrapperspb.StringValue) (*Point, error) {
+func (n *NodeManager) Use(c context.Context, s *wrapperspb.StringValue) (*Point, error) {
 	p, err := n.GetNode(c, s)
 	if err != nil {
 		return &Point{}, fmt.Errorf("get node failed: %v", err)
@@ -146,7 +152,13 @@ func (n *NodeManager) ChangeNowNode(c context.Context, s *wrapperspb.StringValue
 	return n.node.NowNode, nil
 }
 
-func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+func (n *NodeManager) GetLinks(ctx context.Context, in *emptypb.Empty) (*GetLinksResp, error) {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+	return &GetLinksResp{Links: n.node.Links}, nil
+}
+
+func (n *NodeManager) UpdateLinks(c context.Context, req *LinkReq) (*emptypb.Empty, error) {
 	if n.node.Links == nil {
 		n.node.Links = make(map[string]*NodeLink)
 	}
@@ -159,13 +171,18 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 				if err == nil {
 					return conn, nil
 				}
-				return n.Conn(addr)
+				return n.Proxy.Conn(addr)
 			},
 		},
 	}
 
 	wg := sync.WaitGroup{}
-	for _, l := range n.node.Links {
+	for _, l := range req.Names {
+		l, ok := n.node.Links[l]
+		if !ok {
+			continue
+		}
+
 		wg.Add(1)
 		go func(l *NodeLink) {
 			defer wg.Done()
@@ -177,8 +194,7 @@ func (n *NodeManager) RefreshSubscr(c context.Context, _ *emptypb.Empty) (*empty
 
 	wg.Wait()
 
-	err := n.save()
-	return &emptypb.Empty{}, err
+	return &emptypb.Empty{}, n.save()
 }
 
 func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *NodeLink) error {
@@ -210,10 +226,7 @@ func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *N
 			log.Printf("parse url %s failed: %v\n", x, err)
 			continue
 		}
-		_, err = n.SaveNode(c, node)
-		if err != nil {
-			log.Printf("save node %s failed: %v\n", x, err)
-		}
+		n.saveNode(node)
 	}
 
 	return nil
@@ -256,18 +269,10 @@ func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wr
 
 	px, err := p.Conn()
 	if err != nil {
-		logasfmt.Printf("get latency conn failed: %v\n", err)
 		return &wrapperspb.StringValue{}, fmt.Errorf("get conn failed: %v", err)
 	}
 
-	t, err := latency.TcpLatency(
-		func(_ context.Context, _, addr string) (net.Conn, error) { return px.Conn(addr) },
-		"https://www.google.com/generate_204",
-	)
-	if err != nil {
-		logasfmt.Printf("test latency failed: %v\n", err)
-		return &wrapperspb.StringValue{Value: err.Error()}, err
-	}
+	t, err := latency.HTTP(px, "https://www.google.com/generate_204")
 	return &wrapperspb.StringValue{Value: t.String()}, err
 }
 
@@ -288,7 +293,7 @@ func (n *NodeManager) load() error {
 
 	n.filelock.RLock()
 	defer n.filelock.RUnlock()
-	data, err := ioutil.ReadFile(n.configPath)
+	data, err := os.ReadFile(n.configPath)
 	if err != nil {
 		return fmt.Errorf("read node file failed: %v", err)
 	}
@@ -326,16 +331,10 @@ func (n *NodeManager) save() error {
 	n.filelock.Lock()
 	defer n.filelock.Unlock()
 
-	file, err := os.OpenFile(n.configPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("open node config failed: %v", err)
-	}
-	defer file.Close()
 	data, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(n.node)
 	if err != nil {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}
 
-	_, err = file.Write(data)
-	return err
+	return os.WriteFile(n.configPath, data, os.ModePerm)
 }
