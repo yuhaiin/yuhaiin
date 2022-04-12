@@ -26,7 +26,7 @@ func settingDecodeJSON(dir string) (*config.Setting, error) {
 
 	pa := &config.Setting{
 		SystemProxy: &config.SystemProxy{
-			HTTP:   true,
+			Http:   true,
 			Socks5: false,
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
@@ -40,15 +40,15 @@ func settingDecodeJSON(dir string) (*config.Setting, error) {
 		},
 
 		Dns: &config.DnsSetting{
-			Remote: &config.DNS{
+			Remote: &config.Dns{
 				Host:   "cloudflare-dns.com",
-				Type:   config.DNS_doh,
+				Type:   config.Dns_doh,
 				Proxy:  false,
 				Subnet: "0.0.0.0/32",
 			},
-			Local: &config.DNS{
+			Local: &config.Dns{
 				Host: "223.5.5.5",
-				Type: config.DNS_doh,
+				Type: config.Dns_doh,
 			},
 		},
 	}
