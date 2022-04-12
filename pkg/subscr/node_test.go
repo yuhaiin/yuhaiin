@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"reflect"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -18,11 +20,11 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	_, err = n.SaveLinks(context.TODO(),
-		&SaveLinkReq{
-			Links: []*NodeLink{
+		&node.SaveLinkReq{
+			Links: []*node.NodeLink{
 				{
 					Name: "test",
-					Type: NodeLink_reserve,
+					Type: node.NodeLink_reserve,
 					Url:  "test",
 				},
 			},
@@ -61,11 +63,11 @@ func TestDelete(t *testing.T) {
 }
 
 func TestMarshalMap(t *testing.T) {
-	s := &Point{
+	s := &node.Point{
 		Hash:   "n_hash",
 		Name:   "n_name",
 		Group:  "n_group",
-		Origin: Point_manual,
+		Origin: node.Point_manual,
 	}
 
 	data, _ := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(s)
@@ -103,4 +105,12 @@ func TestMarshalMap(t *testing.T) {
 	}
 
 	t.Log(s)
+}
+
+func TestProtoMsgType(t *testing.T) {
+	p := &node.PointProtocol{
+		Protocol: &node.PointProtocol_None{},
+	}
+
+	t.Log(reflect.TypeOf(p.GetProtocol()) == reflect.TypeOf(&node.PointProtocol_None{}))
 }

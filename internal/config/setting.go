@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -16,38 +17,38 @@ import (
 //go:generate  protoc --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative config.proto
 
 // settingDecodeJSON decode setting json to struct
-func settingDecodeJSON(dir string) (*Setting, error) {
+func settingDecodeJSON(dir string) (*config.Setting, error) {
 	p := map[string]string{
-		Proxy_http.String():   "127.0.0.1:8188",
-		Proxy_socks5.String(): "127.0.0.1:1080",
-		Proxy_redir.String():  "127.0.0.1:8088",
+		config.Proxy_http.String():   "127.0.0.1:8188",
+		config.Proxy_socks5.String(): "127.0.0.1:1080",
+		config.Proxy_redir.String():  "127.0.0.1:8088",
 	}
 
-	pa := &Setting{
-		SystemProxy: &SystemProxy{
+	pa := &config.Setting{
+		SystemProxy: &config.SystemProxy{
 			HTTP:   true,
 			Socks5: false,
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		},
-		Bypass: &Bypass{
+		Bypass: &config.Bypass{
 			Enabled:    true,
 			BypassFile: filepath.Join(dir, "yuhaiin.conf"),
 		},
-		Proxy: &Proxy{
+		Proxy: &config.Proxy{
 			Proxy: p,
 		},
 
-		Dns: &DnsSetting{
-			Remote: &DNS{
+		Dns: &config.DnsSetting{
+			Remote: &config.DNS{
 				Host:   "cloudflare-dns.com",
-				Type:   DNS_doh,
+				Type:   config.DNS_doh,
 				Proxy:  false,
 				Subnet: "0.0.0.0/32",
 			},
-			Local: &DNS{
+			Local: &config.DNS{
 				Host: "223.5.5.5",
-				Type: DNS_doh,
+				Type: config.DNS_doh,
 			},
 		},
 	}
@@ -74,7 +75,7 @@ func settingDecodeJSON(dir string) (*Setting, error) {
 }
 
 // settingEnCodeJSON encode setting struct to json
-func settingEnCodeJSON(pa *Setting, dir string) error {
+func settingEnCodeJSON(pa *config.Setting, dir string) error {
 	_, err := os.Stat(filepath.Join(dir, "yuhaiinConfig.json"))
 	if err != nil && os.IsNotExist(err) {
 		err = os.MkdirAll(dir, os.ModePerm)
@@ -92,13 +93,13 @@ func settingEnCodeJSON(pa *Setting, dir string) error {
 }
 
 type observer struct {
-	diff func(current, old *Setting) bool
-	exec func(current *Setting)
+	diff func(current, old *config.Setting) bool
+	exec func(current *config.Setting)
 }
 type Config struct {
-	UnimplementedConfigDaoServer
-	current *Setting
-	old     *Setting
+	config.UnimplementedConfigDaoServer
+	current *config.Setting
+	old     *config.Setting
 	path    string
 	exec    map[string]InitFunc
 
@@ -108,7 +109,7 @@ type Config struct {
 	execlock sync.RWMutex
 }
 
-type InitFunc func(*Setting) error
+type InitFunc func(*config.Setting) error
 
 func NewConfig(dir string) (*Config, error) {
 	c, err := settingDecodeJSON(dir)
@@ -121,13 +122,13 @@ func NewConfig(dir string) (*Config, error) {
 	return cf, nil
 }
 
-func (c *Config) Load(context.Context, *emptypb.Empty) (*Setting, error) {
+func (c *Config) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.current, nil
 }
 
-func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
+func (c *Config) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	err := settingEnCodeJSON(s, c.path)
@@ -135,16 +136,16 @@ func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %v", err)
 	}
 
-	c.old = proto.Clone(c.current).(*Setting)
-	c.current = proto.Clone(s).(*Setting)
+	c.old = proto.Clone(c.current).(*config.Setting)
+	c.current = proto.Clone(s).(*config.Setting)
 
 	wg := sync.WaitGroup{}
 	for i := range c.os {
 		wg.Add(1)
 		go func(o observer) {
 			wg.Done()
-			if o.diff(proto.Clone(c.current).(*Setting), proto.Clone(c.old).(*Setting)) {
-				o.exec(proto.Clone(c.current).(*Setting))
+			if o.diff(proto.Clone(c.current).(*config.Setting), proto.Clone(c.old).(*config.Setting)) {
+				o.exec(proto.Clone(c.current).(*config.Setting))
 			}
 		}(c.os[i])
 	}
@@ -153,7 +154,7 @@ func (c *Config) Save(_ context.Context, s *Setting) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }
 
-func (c *Config) AddObserver(diff func(current, old *Setting) bool, exec func(current *Setting)) {
+func (c *Config) AddObserver(diff func(current, old *config.Setting) bool, exec func(current *config.Setting)) {
 	if diff == nil || exec == nil {
 		return
 	}
@@ -165,11 +166,11 @@ func (c *Config) AddObserver(diff func(current, old *Setting) bool, exec func(cu
 }
 
 type ConfigObserver interface {
-	AddObserverAndExec(func(current, old *Setting) bool, func(current *Setting))
+	AddObserverAndExec(func(current, old *config.Setting) bool, func(current *config.Setting))
 	AddExecCommand(string, InitFunc)
 }
 
-func (c *Config) AddObserverAndExec(diff func(current, old *Setting) bool, exec func(current *Setting)) {
+func (c *Config) AddObserverAndExec(diff func(current, old *config.Setting) bool, exec func(current *config.Setting)) {
 	c.AddObserver(diff, exec)
 	exec(c.current)
 }

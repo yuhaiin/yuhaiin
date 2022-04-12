@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -164,7 +165,7 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 			return
 		}
 
-		_, err = connManager.CloseConn(context.TODO(), &app.CloseConnsReq{Conns: []int64{int64(i)}})
+		_, err = connManager.CloseConn(context.TODO(), &statistic.CloseConnsReq{Conns: []int64{int64(i)}})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

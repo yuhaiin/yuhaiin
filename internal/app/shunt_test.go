@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func TestShunt(t *testing.T) {
@@ -33,7 +34,7 @@ func TestMode(t *testing.T) {
 }
 
 func TestDiffDNS(t *testing.T) {
-	z := diffDNS(&config.DNS{}, &config.DNS{})
+	z := diffDNS(&protoconfig.DNS{}, &protoconfig.DNS{})
 	t.Log(z)
 
 	_, x, _ := net.ParseCIDR("1.1.1.1/32")
@@ -93,5 +94,5 @@ func TestM(t *testing.T) {
 }
 
 func TestGetDNSHostnameAndMode(t *testing.T) {
-	t.Log(getDNSHostnameAndMode(&config.DNS{Host: "1.1.1.1"}))
+	t.Log(getDNSHostnameAndMode(&protoconfig.DNS{Host: "1.1.1.1"}))
 }

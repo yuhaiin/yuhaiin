@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.19.4
-// source: node.proto
+// source: pkg/protos/node/node.proto
 
-package subscr
+package node
 
 import (
 	context "context"
@@ -48,7 +48,7 @@ func NewNodeManagerClient(cc grpc.ClientConnInterface) NodeManagerClient {
 
 func (c *nodeManagerClient) Now(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Point, error) {
 	out := new(Point)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/now", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/now", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (c *nodeManagerClient) Now(ctx context.Context, in *emptypb.Empty, opts ...
 
 func (c *nodeManagerClient) Use(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error) {
 	out := new(Point)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/use", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/use", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (c *nodeManagerClient) Use(ctx context.Context, in *wrapperspb.StringValue,
 
 func (c *nodeManagerClient) GetNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Point, error) {
 	out := new(Point)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/get_node", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/get_node", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (c *nodeManagerClient) GetNode(ctx context.Context, in *wrapperspb.StringVa
 
 func (c *nodeManagerClient) SaveNode(ctx context.Context, in *Point, opts ...grpc.CallOption) (*Point, error) {
 	out := new(Point)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/save_node", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/save_node", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (c *nodeManagerClient) SaveNode(ctx context.Context, in *Point, opts ...grp
 
 func (c *nodeManagerClient) DeleteNode(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/delete_node", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/delete_node", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (c *nodeManagerClient) DeleteNode(ctx context.Context, in *wrapperspb.Strin
 
 func (c *nodeManagerClient) GetManager(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Manager, error) {
 	out := new(Manager)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/get_manager", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/get_manager", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (c *nodeManagerClient) GetManager(ctx context.Context, in *wrapperspb.Strin
 
 func (c *nodeManagerClient) SaveLinks(ctx context.Context, in *SaveLinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/save_links", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/save_links", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (c *nodeManagerClient) SaveLinks(ctx context.Context, in *SaveLinkReq, opts
 
 func (c *nodeManagerClient) DeleteLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/delete_links", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/delete_links", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (c *nodeManagerClient) DeleteLinks(ctx context.Context, in *LinkReq, opts .
 
 func (c *nodeManagerClient) UpdateLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/update_links", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/update_links", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (c *nodeManagerClient) UpdateLinks(ctx context.Context, in *LinkReq, opts .
 
 func (c *nodeManagerClient) GetLinks(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetLinksResp, error) {
 	out := new(GetLinksResp)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/get_links", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/get_links", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (c *nodeManagerClient) GetLinks(ctx context.Context, in *emptypb.Empty, opt
 
 func (c *nodeManagerClient) Latency(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*wrapperspb.StringValue, error) {
 	out := new(wrapperspb.StringValue)
-	err := c.cc.Invoke(ctx, "/yuhaiin.subscr.node_manager/latency", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/latency", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func _NodeManager_Now_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/now",
+		FullMethod: "/yuhaiin.node.node_manager/now",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).Now(ctx, req.(*emptypb.Empty))
@@ -242,7 +242,7 @@ func _NodeManager_Use_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/use",
+		FullMethod: "/yuhaiin.node.node_manager/use",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).Use(ctx, req.(*wrapperspb.StringValue))
@@ -260,7 +260,7 @@ func _NodeManager_GetNode_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/get_node",
+		FullMethod: "/yuhaiin.node.node_manager/get_node",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).GetNode(ctx, req.(*wrapperspb.StringValue))
@@ -278,7 +278,7 @@ func _NodeManager_SaveNode_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/save_node",
+		FullMethod: "/yuhaiin.node.node_manager/save_node",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).SaveNode(ctx, req.(*Point))
@@ -296,7 +296,7 @@ func _NodeManager_DeleteNode_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/delete_node",
+		FullMethod: "/yuhaiin.node.node_manager/delete_node",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).DeleteNode(ctx, req.(*wrapperspb.StringValue))
@@ -314,7 +314,7 @@ func _NodeManager_GetManager_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/get_manager",
+		FullMethod: "/yuhaiin.node.node_manager/get_manager",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).GetManager(ctx, req.(*wrapperspb.StringValue))
@@ -332,7 +332,7 @@ func _NodeManager_SaveLinks_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/save_links",
+		FullMethod: "/yuhaiin.node.node_manager/save_links",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).SaveLinks(ctx, req.(*SaveLinkReq))
@@ -350,7 +350,7 @@ func _NodeManager_DeleteLinks_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/delete_links",
+		FullMethod: "/yuhaiin.node.node_manager/delete_links",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).DeleteLinks(ctx, req.(*LinkReq))
@@ -368,7 +368,7 @@ func _NodeManager_UpdateLinks_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/update_links",
+		FullMethod: "/yuhaiin.node.node_manager/update_links",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).UpdateLinks(ctx, req.(*LinkReq))
@@ -386,7 +386,7 @@ func _NodeManager_GetLinks_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/get_links",
+		FullMethod: "/yuhaiin.node.node_manager/get_links",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).GetLinks(ctx, req.(*emptypb.Empty))
@@ -404,7 +404,7 @@ func _NodeManager_Latency_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.subscr.node_manager/latency",
+		FullMethod: "/yuhaiin.node.node_manager/latency",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeManagerServer).Latency(ctx, req.(*wrapperspb.StringValue))
@@ -416,7 +416,7 @@ func _NodeManager_Latency_Handler(srv interface{}, ctx context.Context, dec func
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var NodeManager_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "yuhaiin.subscr.node_manager",
+	ServiceName: "yuhaiin.node.node_manager",
 	HandlerType: (*NodeManagerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -465,5 +465,5 @@ var NodeManager_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "node.proto",
+	Metadata: "pkg/protos/node/node.proto",
 }
