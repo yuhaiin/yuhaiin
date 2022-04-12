@@ -70,16 +70,10 @@ message trojan {
 message websocket {
   string host = 1 [ json_name = "host" ];
   string path = 2 [ json_name = "path" ];
-  bool insecure_skip_verify = 3 [ json_name = "insecure_skip_verify" ];
-  bool tls_enable = 4 [ json_name = "tls_enable" ];
-  string tls_ca_cert = 5 [ json_name = "tls_ca_cert" ];
+  tls_config tls = 3 [ json_name = "tls" ];
 }
 
-message quic {
-  string server_name = 1 [ json_name = "server_name" ];
-  bool insecure_skip_verify = 3 [ json_name = "insecure_skip_verify" ];
-  string tls_ca_cert = 5 [ json_name = "tls_ca_cert" ];
-}
+message quic { tls_config tls = 1 [ json_name = "tls" ]; }
 
 message obfs_http {
   string host = 1 [ json_name = "host" ];
@@ -91,13 +85,14 @@ message none {}
 message simple {
   string host = 1 [ json_name = "host" ];
   int32 port = 2 [ json_name = "port" ];
-  message tls_config {
-    bool enable = 1 [ json_name = "enable" ];
-    string server_name = 2 [ json_name = "server_name" ];
-    repeated bytes ca_cert = 3 [ json_name = "ca_cert" ];
-    bool insecure_skip_verify = 4 [ json_name = "insecure_skip_verify" ];
-  }
   tls_config tls = 3 [ json_name = "tls_config" ];
+}
+
+message tls_config {
+  bool enable = 1 [ json_name = "enable" ];
+  string server_name = 2 [ json_name = "server_name" ];
+  repeated bytes ca_cert = 3 [ json_name = "ca_cert" ];
+  bool insecure_skip_verify = 4 [ json_name = "insecure_skip_verify" ];
 }
 
 message node {
