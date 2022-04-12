@@ -21,7 +21,7 @@ func TestImplement(t *testing.T) {
 
 func TestConn(t *testing.T) {
 	p := simple.NewSimple("127.0.0.1", "1090")
-	z, err := websocket.NewWebsocket("localhost:1090", "", true, true, nil)(p)
+	z, err := websocket.NewWebsocket("localhost:1090", "", nil)(p)
 	require.Nil(t, err)
 	z, err = NewShadowsocks(
 		"aes-128-gcm",

@@ -31,7 +31,7 @@ func init() {
 						Simple: &node.Simple{
 							Host: u.Hostname(),
 							Port: int32(port),
-							Tls: &node.SimpleTlsConfig{
+							Tls: &node.TlsConfig{
 								Enable:     true,
 								ServerName: u.Query().Get("sni"),
 							},

@@ -634,7 +634,7 @@ func (y *yhCli) updateSub() error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 
-	var req *node.LinkReq
+	req := &node.LinkReq{}
 	for _, link := range n.GetLinks() {
 		req.Names = append(req.Names, link.Name)
 	}
