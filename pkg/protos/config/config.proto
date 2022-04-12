@@ -6,30 +6,30 @@ option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
 
 import "google/protobuf/empty.proto";
 
-message Setting {
-  SystemProxy SystemProxy = 1 [ json_name = "system_proxy" ];
-  Bypass Bypass = 2 [ json_name = "bypass" ];
-  Proxy Proxy = 3 [ json_name = "proxy" ];
+message setting {
+  system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
+  bypass bypass = 2 [ json_name = "bypass" ];
+  proxy proxy = 3 [ json_name = "proxy" ];
   dns_setting dns = 4 [ json_name = "dns" ];
 }
 
 message dns_setting {
-  DNS remote = 1 [ json_name = "remote" ];
-  DNS local = 2 [ json_name = "local" ];
+  dns remote = 1 [ json_name = "remote" ];
+  dns local = 2 [ json_name = "local" ];
 }
 
-message SystemProxy {
-  bool HTTP = 2 [ json_name = "http" ];
-  bool Socks5 = 3 [ json_name = "socks5" ];
+message system_proxy {
+  bool http = 2 [ json_name = "http" ];
+  bool socks5 = 3 [ json_name = "socks5" ];
 }
 
-message Bypass {
-  bool Enabled = 1 [ json_name = "enabled" ];
-  string BypassFile = 2 [ json_name = "bypass_file" ];
+message bypass {
+  bool enabled = 1 [ json_name = "enabled" ];
+  string bypass_file = 2 [ json_name = "bypass_file" ];
 }
 
-message DNS {
-  string Host = 1 [ json_name = "host" ];
+message dns {
+  string host = 1 [ json_name = "host" ];
   enum dns_type {
     reserve = 0;
     udp = 1;
@@ -38,11 +38,11 @@ message DNS {
     dot = 4;
   }
   dns_type type = 5 [ json_name = "type" ];
-  bool Proxy = 3 [ json_name = "proxy" ];
+  bool proxy = 3 [ json_name = "proxy" ];
   string subnet = 4 [ json_name = "subnet" ];
 }
 
-message Proxy {
+message proxy {
   enum proxy_type {
     reserve = 0;
     http = 1;
@@ -53,6 +53,6 @@ message Proxy {
 }
 
 service config_dao {
-  rpc load(google.protobuf.Empty) returns (Setting);
-  rpc save(Setting) returns (google.protobuf.Empty);
+  rpc load(google.protobuf.Empty) returns (setting);
+  rpc save(setting) returns (google.protobuf.Empty);
 }

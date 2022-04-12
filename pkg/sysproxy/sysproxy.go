@@ -13,7 +13,7 @@ func Set(conf *config.Config) {
 	}, func(s *cb.Setting) {
 		UnsetSysProxy()
 		var http, socks5 string
-		if s.SystemProxy.HTTP {
+		if s.SystemProxy.Http {
 			http = s.Proxy.Proxy[cb.Proxy_http.String()]
 		}
 		if s.SystemProxy.Socks5 {
