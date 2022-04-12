@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
@@ -14,9 +13,10 @@ import (
 	tc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 	vmessc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
-func (p *PointProtocol_Simple) Conn(proxy.Proxy) (proxy.Proxy, error) {
+func SimpleConn(p *node.PointProtocol_Simple, _ proxy.Proxy) (proxy.Proxy, error) {
 	x := p.Simple
 	if x == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
@@ -34,7 +34,7 @@ func (p *PointProtocol_Simple) Conn(proxy.Proxy) (proxy.Proxy, error) {
 	return simple.NewSimple(x.Host, strconv.Itoa(int(x.Port)), simple.WithTLS(tc)), nil
 }
 
-func (p *PointProtocol_Vmess) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+func VmessConn(p *node.PointProtocol_Vmess, z proxy.Proxy) (proxy.Proxy, error) {
 	if p.Vmess == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
@@ -46,7 +46,7 @@ func (p *PointProtocol_Vmess) Conn(z proxy.Proxy) (proxy.Proxy, error) {
 	return vmessc.NewVmess(p.Vmess.Uuid, p.Vmess.Security, uint32(aid))(z)
 }
 
-func (p *PointProtocol_Websocket) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+func WebsocketConn(p *node.PointProtocol_Websocket, z proxy.Proxy) (proxy.Proxy, error) {
 	if p.Websocket == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
@@ -54,28 +54,28 @@ func (p *PointProtocol_Websocket) Conn(z proxy.Proxy) (proxy.Proxy, error) {
 		p.Websocket.InsecureSkipVerify, p.Websocket.TlsEnable, []string{})(z)
 }
 
-func (p *PointProtocol_Quic) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+func QuicConn(p *node.PointProtocol_Quic, z proxy.Proxy) (proxy.Proxy, error) {
 	if p.Quic == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 	return quic.NewQUIC(p.Quic.ServerName, []string{}, p.Quic.InsecureSkipVerify)(z)
 }
 
-func (p *PointProtocol_ObfsHttp) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+func ObfsHttpConn(p *node.PointProtocol_ObfsHttp, z proxy.Proxy) (proxy.Proxy, error) {
 	if p.ObfsHttp == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 	return ss.NewHTTPOBFS(p.ObfsHttp.Host, p.ObfsHttp.Port)(z)
 }
 
-func (p *PointProtocol_Trojan) Conn(z proxy.Proxy) (proxy.Proxy, error) {
+func TrojanConn(p *node.PointProtocol_Trojan, z proxy.Proxy) (proxy.Proxy, error) {
 	if p.Trojan == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 	return tc.NewClient(p.Trojan.Password)(z)
 }
 
-func (p *PointProtocol_Shadowsocks) Conn(x proxy.Proxy) (proxy.Proxy, error) {
+func ShadowsocksConn(p *node.PointProtocol_Shadowsocks, x proxy.Proxy) (proxy.Proxy, error) {
 	if p.Shadowsocks == nil {
 		return nil, fmt.Errorf("invalid shadowsocks")
 	}
@@ -83,7 +83,7 @@ func (p *PointProtocol_Shadowsocks) Conn(x proxy.Proxy) (proxy.Proxy, error) {
 		p.Shadowsocks.Server, p.Shadowsocks.Port)(x)
 }
 
-func (p *PointProtocol_Shadowsocksr) Conn(x proxy.Proxy) (proxy.Proxy, error) {
+func ShadowsocksrConn(p *node.PointProtocol_Shadowsocksr, x proxy.Proxy) (proxy.Proxy, error) {
 	s := p.Shadowsocksr
 	if s == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
@@ -96,22 +96,16 @@ func (p *PointProtocol_Shadowsocksr) Conn(x proxy.Proxy) (proxy.Proxy, error) {
 		s.Protocol, s.Protoparam)(x)
 }
 
-func (d *PointProtocol_None) Conn(p proxy.Proxy) (proxy.Proxy, error) { return p, nil }
+func NoneConn(d *node.PointProtocol_None, p proxy.Proxy) (proxy.Proxy, error) { return p, nil }
 
-func (p *Point) Conn() (r proxy.Proxy, err error) {
-	r = direct.DefaultDirect
-	for _, v := range p.Protocols {
-		x, ok := v.Protocol.(interface {
-			Conn(proxy.Proxy) (proxy.Proxy, error)
-		})
-		if !ok {
-			return nil, fmt.Errorf("protocol %v is not support", v.Protocol)
-		}
-		r, err = x.Conn(r)
-		if err != nil {
-			return
-		}
-	}
-
-	return
+func init() {
+	node.RegisterProtocol(NoneConn)
+	node.RegisterProtocol(SimpleConn)
+	node.RegisterProtocol(VmessConn)
+	node.RegisterProtocol(WebsocketConn)
+	node.RegisterProtocol(QuicConn)
+	node.RegisterProtocol(ObfsHttpConn)
+	node.RegisterProtocol(TrojanConn)
+	node.RegisterProtocol(ShadowsocksConn)
+	node.RegisterProtocol(ShadowsocksrConn)
 }

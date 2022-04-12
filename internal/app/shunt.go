@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type MODE int
@@ -88,9 +89,9 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 
 	s.mapper = mapper.NewMapper[MODE](nil)
 
-	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+	conf.AddObserverAndExec(func(current, old *protoconfig.Setting) bool {
 		return current.Bypass.BypassFile != old.Bypass.BypassFile
-	}, func(current *config.Setting) {
+	}, func(current *protoconfig.Setting) {
 		if s.file == current.Bypass.BypassFile {
 			return
 		}
@@ -103,14 +104,14 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 		}
 	})
 
-	conf.AddObserverAndExec(func(current, old *config.Setting) bool {
+	conf.AddObserverAndExec(func(current, old *protoconfig.Setting) bool {
 		return diffDNS(current.Dns.Remote, old.Dns.Remote)
-	}, func(current *config.Setting) {
+	}, func(current *protoconfig.Setting) {
 		s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
 		s.mapper.Insert(getDNSHostnameAndMode(current.Dns.Remote))
 	})
 
-	conf.AddExecCommand("RefreshMapping", func(*config.Setting) error {
+	conf.AddExecCommand("RefreshMapping", func(*protoconfig.Setting) error {
 		return s.RefreshMapping()
 	})
 
@@ -168,9 +169,9 @@ func (s *Shunt) Get(domain string) MODE {
 	return m
 }
 
-func getDNSHostnameAndMode(dc *config.DNS) (string, MODE) {
+func getDNSHostnameAndMode(dc *protoconfig.DNS) (string, MODE) {
 	host := dc.Host
-	if dc.Type == config.DNS_doh {
+	if dc.Type == protoconfig.DNS_doh {
 		i := strings.IndexByte(dc.Host, '/')
 		if i != -1 {
 			host = dc.Host[:i] // remove doh path
@@ -190,13 +191,13 @@ func getDNSHostnameAndMode(dc *config.DNS) (string, MODE) {
 	return host, mode
 }
 
-func diffDNS(old, new *config.DNS) bool {
+func diffDNS(old, new *protoconfig.DNS) bool {
 	return old.Host != new.Host ||
 		old.Type != new.Type ||
 		old.Subnet != new.Subnet || old.Proxy != new.Proxy
 }
 
-func getDNS(dc *config.DNS, proxy proxy.Proxy) dns.DNS {
+func getDNS(dc *protoconfig.DNS, proxy proxy.Proxy) dns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)
@@ -217,13 +218,13 @@ func getDNS(dc *config.DNS, proxy proxy.Proxy) dns.DNS {
 	}
 
 	switch dc.Type {
-	case config.DNS_doh:
+	case protoconfig.DNS_doh:
 		return dns.NewDoH(dc.Host, subnet, proxy)
-	case config.DNS_dot:
+	case protoconfig.DNS_dot:
 		return dns.NewDoT(dc.Host, subnet, proxy)
-	case config.DNS_tcp:
+	case protoconfig.DNS_tcp:
 		fallthrough
-	case config.DNS_udp:
+	case protoconfig.DNS_udp:
 		fallthrough
 	default:
 		return dns.NewDNS(dc.Host, subnet, proxy)

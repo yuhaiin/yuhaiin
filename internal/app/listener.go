@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	rs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type Listener struct {
@@ -16,10 +17,10 @@ type Listener struct {
 	ps   map[string]proxy.Server
 }
 
-var creatorMap = map[config.ProxyProxyType]func(h string) (proxy.Server, error){
-	config.Proxy_socks5: func(h string) (proxy.Server, error) { return ss.NewServer(h, "", "") },
-	config.Proxy_http:   func(h string) (proxy.Server, error) { return hs.NewServer(h, "", "") },
-	config.Proxy_redir:  func(h string) (proxy.Server, error) { return rs.NewServer(h) },
+var creatorMap = map[protoconfig.ProxyProxyType]func(h string) (proxy.Server, error){
+	protoconfig.Proxy_socks5: func(h string) (proxy.Server, error) { return ss.NewServer(h, "", "") },
+	protoconfig.Proxy_http:   func(h string) (proxy.Server, error) { return hs.NewServer(h, "", "") },
+	protoconfig.Proxy_redir:  func(h string) (proxy.Server, error) { return rs.NewServer(h) },
 }
 
 func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener) {
@@ -30,7 +31,7 @@ func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener) {
 		ps: make(map[string]proxy.Server),
 	}
 
-	c.AddObserverAndExec(func(_, _ *config.Setting) bool { return true }, func(current *config.Setting) {
+	c.AddObserverAndExec(func(_, _ *protoconfig.Setting) bool { return true }, func(current *protoconfig.Setting) {
 		l.lock.Lock()
 		defer l.lock.Unlock()
 		for k, v := range creatorMap {
