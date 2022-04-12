@@ -2,21 +2,23 @@ package subscr
 
 import (
 	"sync"
+
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 type manager struct {
-	*Manager
+	*node.Manager
 	lock sync.RWMutex
 }
 
-func (m *manager) GetNode(hash string) (*Point, bool) {
+func (m *manager) GetNode(hash string) (*node.Point, bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	p, ok := m.Nodes[hash]
 	return p, ok
 }
 
-func (m *manager) GetNodeByName(group, name string) (*Point, bool) {
+func (m *manager) GetNodeByName(group, name string) (*node.Point, bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	z := m.GroupNodesMap[group]
@@ -32,19 +34,19 @@ func (m *manager) GetNodeByName(group, name string) (*Point, bool) {
 	return m.GetNode(hash)
 }
 
-func (m *manager) AddNode(p *Point) {
+func (m *manager) AddNode(p *node.Point) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	if m.Nodes == nil {
-		m.Nodes = make(map[string]*Point)
+		m.Nodes = make(map[string]*node.Point)
 	}
 	if m.GroupNodesMap == nil {
-		m.GroupNodesMap = make(map[string]*ManagerNodeArray)
+		m.GroupNodesMap = make(map[string]*node.ManagerNodeArray)
 	}
 	_, ok := m.GroupNodesMap[p.Group]
 	if !ok {
-		m.GroupNodesMap[p.Group] = &ManagerNodeArray{
+		m.GroupNodesMap[p.Group] = &node.ManagerNodeArray{
 			Group:       p.Group,
 			Nodes:       make([]string, 0),
 			NodeHashMap: make(map[string]string),
@@ -75,7 +77,7 @@ func (n *manager) DeleteRemoteNodes(group string) {
 	msmap := x.NodeHashMap
 	left := make([]string, 0)
 	for i := range ns {
-		if m.Nodes[msmap[ns[i]]].GetOrigin() != Point_remote {
+		if m.Nodes[msmap[ns[i]]].GetOrigin() != node.Point_remote {
 			left = append(left, ns[i])
 			continue
 		}
@@ -98,6 +100,13 @@ func (n *manager) DeleteRemoteNodes(group string) {
 	}
 
 	m.GroupNodesMap[group].Nodes = left
+}
+
+func (m *manager) GetManager() *node.Manager {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	return m.Manager
 }
 
 func (m *manager) DeleteNode(hash string) {

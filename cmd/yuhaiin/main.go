@@ -18,6 +18,9 @@ import (
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/app/http"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
+	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"google.golang.org/grpc"
@@ -128,9 +131,9 @@ func main() {
 
 	simplehttp.Httpserver(nodeManager, flowStatis, conf)
 
-	grpcServer.RegisterService(&subscr.NodeManager_ServiceDesc, nodeManager)
-	grpcServer.RegisterService(&config.ConfigDao_ServiceDesc, conf)
-	grpcServer.RegisterService(&app.Connections_ServiceDesc, flowStatis)
+	grpcServer.RegisterService(&node.NodeManager_ServiceDesc, nodeManager)
+	grpcServer.RegisterService(&protoconfig.ConfigDao_ServiceDesc, conf)
+	grpcServer.RegisterService(&statistic.Connections_ServiceDesc, flowStatis)
 	err = grpcServer.Serve(lis)
 	if err != nil {
 		panic(err)

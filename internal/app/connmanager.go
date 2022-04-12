@@ -14,15 +14,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 var _ proxy.Proxy = (*ConnManager)(nil)
-var _ ConnectionsServer = (*ConnManager)(nil)
+var _ statistic.ConnectionsServer = (*ConnManager)(nil)
 
 type ConnManager struct {
-	UnimplementedConnectionsServer
+	statistic.UnimplementedConnectionsServer
 
 	idSeed        *idGenerater
 	conns         syncmap.SyncMap[int64, staticConn]
@@ -47,15 +49,15 @@ func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 	}
 
 	conf.AddObserverAndExec(
-		func(current, old *config.Setting) bool { return diffDNS(current.Dns.Local, old.Dns.Local) },
-		func(current *config.Setting) {
+		func(current, old *protoconfig.Setting) bool { return diffDNS(current.Dns.Local, old.Dns.Local) },
+		func(current *protoconfig.Setting) {
 			c.direct = direct.NewDirect(direct.WithLookup(getDNS(current.Dns.Local, nil).LookupIP))
 		},
 	)
 
 	conf.AddObserverAndExec(
-		func(current, old *config.Setting) bool { return current.Bypass.Enabled != old.Bypass.Enabled },
-		func(current *config.Setting) {
+		func(current, old *protoconfig.Setting) bool { return current.Bypass.Enabled != old.Bypass.Enabled },
+		func(current *protoconfig.Setting) {
 			if !current.Bypass.Enabled {
 				c.mapper = func(s string) MODE { return OTHERS }
 			} else {
@@ -66,8 +68,8 @@ func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 	return c, nil
 }
 
-func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) {
-	resp := &ConnResp{}
+func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
+	resp := &statistic.ConnResp{}
 	c.conns.Range(func(key int64, v staticConn) bool {
 		resp.Connections = append(resp.Connections, v.GetConnResp())
 		return true
@@ -76,7 +78,7 @@ func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) 
 	return resp, nil
 }
 
-func (c *ConnManager) CloseConn(_ context.Context, x *CloseConnsReq) (*emptypb.Empty, error) {
+func (c *ConnManager) CloseConn(_ context.Context, x *statistic.CloseConnsReq) (*emptypb.Empty, error) {
 	for _, x := range x.Conns {
 		z, ok := c.conns.Load(x)
 		if !ok {
@@ -87,7 +89,7 @@ func (c *ConnManager) CloseConn(_ context.Context, x *CloseConnsReq) (*emptypb.E
 	return &emptypb.Empty{}, nil
 }
 
-func (c *ConnManager) Statistic(_ *emptypb.Empty, srv Connections_StatisticServer) error {
+func (c *ConnManager) Statistic(_ *emptypb.Empty, srv statistic.Connections_StatisticServer) error {
 	logasfmt.Println("Start Send Flow Message to Client.")
 	id := c.accountant.AddClient(srv.Send)
 	<-srv.Context().Done()
@@ -118,7 +120,7 @@ func (c *ConnManager) Conn(host string) (net.Conn, error) {
 
 	s := &conn{
 		preConn: &preConn{
-			ConnRespConnection: &ConnRespConnection{
+			ConnRespConnection: &statistic.ConnRespConnection{
 				Id:     c.idSeed.Generate(),
 				Addr:   host,
 				Local:  con.LocalAddr().String(),
@@ -147,7 +149,7 @@ func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 		PacketConn: con,
 		mark:       mark,
 		cm:         c,
-		ConnRespConnection: &ConnRespConnection{
+		ConnRespConnection: &statistic.ConnRespConnection{
 			Addr:   host,
 			Id:     c.idSeed.Generate(),
 			Local:  con.LocalAddr().String(),
@@ -168,7 +170,7 @@ type staticConn interface {
 	GetAddr() string
 	GetLocal() string
 	GetRemote() string
-	GetConnResp() *ConnRespConnection
+	GetConnResp() *statistic.ConnRespConnection
 }
 
 var _ staticConn = (*conn)(nil)
@@ -185,7 +187,7 @@ func (s *conn) Mark() MODE {
 	return s.mark
 }
 
-func (s *conn) GetConnResp() *ConnRespConnection {
+func (s *conn) GetConnResp() *statistic.ConnRespConnection {
 	return s.ConnRespConnection
 }
 
@@ -207,7 +209,7 @@ type preConn struct {
 	net.Conn
 	cm   *ConnManager
 	mark MODE
-	*ConnRespConnection
+	*statistic.ConnRespConnection
 }
 
 func (s *preConn) Close() error {
@@ -235,7 +237,7 @@ type packetConn struct {
 	cm   *ConnManager
 	mark MODE
 
-	*ConnRespConnection
+	*statistic.ConnRespConnection
 }
 
 func (s *packetConn) Type() string {
@@ -246,7 +248,7 @@ func (s *packetConn) Mark() MODE {
 	return s.mark
 }
 
-func (s *packetConn) GetConnResp() *ConnRespConnection {
+func (s *packetConn) GetConnResp() *statistic.ConnRespConnection {
 	return s.ConnRespConnection
 }
 
@@ -319,7 +321,7 @@ type accountant struct {
 	started chan bool
 
 	ig      idGenerater
-	clients syncmap.SyncMap[int64, func(*RateResp) error]
+	clients syncmap.SyncMap[int64, func(*statistic.RateResp) error]
 	lock    sync.Mutex
 }
 
@@ -360,8 +362,8 @@ func (c *accountant) start() {
 
 			d, u := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
 
-			c.clients.Range(func(key int64, value func(*RateResp) error) bool {
-				err := value(&RateResp{
+			c.clients.Range(func(key int64, value func(*statistic.RateResp) error) bool {
+				err := value(&statistic.RateResp{
 					Download:     utils.ReducedUnitToString(float64(d)),
 					Upload:       utils.ReducedUnitToString(float64(u)),
 					DownloadRate: utils.ReducedUnitToString(float64(d-tmpD)) + "/S",
@@ -394,7 +396,7 @@ func (c *accountant) stop() {
 	}
 }
 
-func (c *accountant) AddClient(f func(*RateResp) error) (id int64) {
+func (c *accountant) AddClient(f func(*statistic.RateResp) error) (id int64) {
 	id = c.ig.Generate()
 	c.clients.Store(id, f)
 	c.start()

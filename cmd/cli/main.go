@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/internal/app"
-	"github.com/Asutorufa/yuhaiin/internal/config"
-	"github.com/Asutorufa/yuhaiin/pkg/subscr"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -157,12 +157,12 @@ func subCmd() *cobra.Command {
 
 			if len(args) == 2 {
 				_, err := y.sub.SaveLinks(context.TODO(),
-					&subscr.SaveLinkReq{
-						Links: []*subscr.NodeLink{
+					&node.SaveLinkReq{
+						Links: []*node.NodeLink{
 							{
 								Name: args[0],
 								Url:  args[1],
-								Type: subscr.NodeLinkLinkType(t),
+								Type: node.NodeLinkLinkType(t),
 							},
 						},
 					},
@@ -430,8 +430,8 @@ func specifiedGN(cmd *cobra.Command, args []string, f1 func(string), f2 func(int
 
 type yhCli struct {
 	conn *grpc.ClientConn
-	cm   app.ConnectionsClient
-	sub  subscr.NodeManagerClient
+	cm   statistic.ConnectionsClient
+	sub  node.NodeManagerClient
 	cg   config.ConfigDaoClient
 }
 
@@ -443,8 +443,8 @@ func NewCli(host string) (*yhCli, error) {
 		return nil, fmt.Errorf("grpc dial failed: %w", err)
 	}
 
-	cm := app.NewConnectionsClient(conn)
-	sub := subscr.NewNodeManagerClient(conn)
+	cm := statistic.NewConnectionsClient(conn)
+	sub := node.NewNodeManagerClient(conn)
 	cg := config.NewConfigDaoClient(conn)
 	return &yhCli{conn: conn, cm: cm, sub: sub, cg: cg}, nil
 }
@@ -634,7 +634,7 @@ func (y *yhCli) updateSub() error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 
-	var req *subscr.LinkReq
+	var req *node.LinkReq
 	for _, link := range n.GetLinks() {
 		req.Names = append(req.Names, link.Name)
 	}
@@ -816,7 +816,7 @@ func (y *yhCli) listConns() error {
 }
 
 func (y *yhCli) closeConns(id ...int64) {
-	_, _ = y.cm.CloseConn(context.TODO(), &app.CloseConnsReq{Conns: id})
+	_, _ = y.cm.CloseConn(context.TODO(), &statistic.CloseConnsReq{Conns: id})
 }
 
 func (y *yhCli) closeAllConns() error {
@@ -830,6 +830,6 @@ func (y *yhCli) closeAllConns() error {
 		ids = append(ids, i.Id)
 	}
 
-	_, err = y.cm.CloseConn(context.TODO(), &app.CloseConnsReq{Conns: ids})
+	_, err = y.cm.CloseConn(context.TODO(), &statistic.CloseConnsReq{Conns: ids})
 	return err
 }

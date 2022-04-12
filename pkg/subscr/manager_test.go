@@ -3,25 +3,26 @@ package subscr
 import (
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestAddNode(t *testing.T) {
 	mg := &manager{
-		Manager: &Manager{},
+		Manager: &node.Manager{},
 	}
 
-	mg.AddNode(&Point{
+	mg.AddNode(&node.Point{
 		Hash:  "adadav",
 		Name:  "feefe",
 		Group: "group",
 	})
-	mg.AddNode(&Point{
+	mg.AddNode(&node.Point{
 		Hash:  "adadab",
 		Name:  "fafaf",
 		Group: "group",
 	})
-	mg.AddNode(&Point{
+	mg.AddNode(&node.Point{
 		Hash:  "adada",
 		Name:  "fazczfzf",
 		Group: "group",

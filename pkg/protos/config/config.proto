@@ -1,0 +1,58 @@
+syntax = "proto3";
+package yuhaiin.config;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
+// protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative config.proto
+
+import "google/protobuf/empty.proto";
+
+message Setting {
+  SystemProxy SystemProxy = 1 [ json_name = "system_proxy" ];
+  Bypass Bypass = 2 [ json_name = "bypass" ];
+  Proxy Proxy = 3 [ json_name = "proxy" ];
+  dns_setting dns = 4 [ json_name = "dns" ];
+}
+
+message dns_setting {
+  DNS remote = 1 [ json_name = "remote" ];
+  DNS local = 2 [ json_name = "local" ];
+}
+
+message SystemProxy {
+  bool HTTP = 2 [ json_name = "http" ];
+  bool Socks5 = 3 [ json_name = "socks5" ];
+}
+
+message Bypass {
+  bool Enabled = 1 [ json_name = "enabled" ];
+  string BypassFile = 2 [ json_name = "bypass_file" ];
+}
+
+message DNS {
+  string Host = 1 [ json_name = "host" ];
+  enum dns_type {
+    reserve = 0;
+    udp = 1;
+    tcp = 2;
+    doh = 3;
+    dot = 4;
+  }
+  dns_type type = 5 [ json_name = "type" ];
+  bool Proxy = 3 [ json_name = "proxy" ];
+  string subnet = 4 [ json_name = "subnet" ];
+}
+
+message Proxy {
+  enum proxy_type {
+    reserve = 0;
+    http = 1;
+    socks5 = 2;
+    redir = 3;
+  }
+  map<string, string> proxy = 4 [ json_name = "proxy" ];
+}
+
+service config_dao {
+  rpc load(google.protobuf.Empty) returns (Setting);
+  rpc save(Setting) returns (google.protobuf.Empty);
+}

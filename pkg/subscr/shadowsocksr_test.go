@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 func TestSsrParse2(t *testing.T) {
@@ -26,7 +27,7 @@ func TestSsrParse2(t *testing.T) {
 		"ssr://MjIyLjIyMi4yMjIuMjIyOjQ0MzphdXRoX2FlczEyOF9tZDU6Y2hhY2hhMjAtaWV0ZjpodHRwX3Bvc3Q6ZEdWemRBby8/b2Jmc3BhcmFtPWRHVnpkQW8mcHJvdG9wYXJhbT1kR1Z6ZEFvJnJlbWFya3M9ZEdWemRBbyZncm91cD1kR1Z6ZEFvCg"}
 
 	for x := range ssr {
-		log.Println((&shadowsocksr{}).ParseLink([]byte(ssr[x])))
+		log.Println(ParseLinkData(node.NodeLink_shadowsocksr, []byte(ssr[x])))
 	}
 }
 
@@ -44,7 +45,7 @@ func TestLint(t *testing.T) {
 		t.Log(err)
 	}
 	for _, x := range bytes.Split(dst, []byte("\n")) {
-		log.Println((&shadowsocksr{}).ParseLink(x))
+		log.Println(ParseLinkData(node.NodeLink_shadowsocksr, x))
 	}
 }
 
@@ -81,8 +82,8 @@ func TestConnections(t *testing.T) {
 }
 
 func TestConnectionSsr(t *testing.T) {
-	p := &Point{
-		Protocols: []*PointProtocol{},
+	p := &node.Point{
+		Protocols: []*node.PointProtocol{},
 	}
 
 	err := protojson.Unmarshal([]byte(``), p)
@@ -123,8 +124,8 @@ func TestConnectionSsr(t *testing.T) {
 }
 
 func TestSSr(t *testing.T) {
-	p := &Point{
-		Protocols: []*PointProtocol{},
+	p := &node.Point{
+		Protocols: []*node.PointProtocol{},
 	}
 	z, err := p.Conn()
 	require.Nil(t, err)

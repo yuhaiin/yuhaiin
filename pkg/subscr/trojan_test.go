@@ -12,12 +12,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	tc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseTrojan(t *testing.T) {
 	data := "trojan://cb60ba10-1178-3896-ba6e-69ffae322db5@1.1.1.1:443?sni=www.google.com&peer=www.google.com#zxdsdfsdf"
-	t.Log((&trojan{}).ParseLink([]byte(data)))
+	t.Log(ParseLinkData(node.NodeLink_trojan, []byte(data)))
 }
 
 func TestTrojan(t *testing.T) {
