@@ -14,7 +14,7 @@ import (
 func TestJsonPb(t *testing.T) {
 	s := &config.Setting{
 		SystemProxy: &config.SystemProxy{
-			HTTP:   true,
+			Http:   true,
 			Socks5: false,
 		},
 		Bypass: &config.Bypass{
@@ -23,15 +23,15 @@ func TestJsonPb(t *testing.T) {
 		},
 		Proxy: &config.Proxy{},
 		Dns: &config.DnsSetting{
-			Remote: &config.DNS{
+			Remote: &config.Dns{
 				Host:   "cloudflare-dns.com",
-				Type:   config.DNS_doh,
+				Type:   config.Dns_doh,
 				Proxy:  false,
 				Subnet: "0.0.0.0/32",
 			},
-			Local: &config.DNS{
+			Local: &config.Dns{
 				Host: "223.5.5.5",
-				Type: config.DNS_doh,
+				Type: config.Dns_doh,
 			},
 		},
 	}

@@ -34,7 +34,7 @@ func TestMode(t *testing.T) {
 }
 
 func TestDiffDNS(t *testing.T) {
-	z := diffDNS(&protoconfig.DNS{}, &protoconfig.DNS{})
+	z := diffDNS(&protoconfig.Dns{}, &protoconfig.Dns{})
 	t.Log(z)
 
 	_, x, _ := net.ParseCIDR("1.1.1.1/32")
@@ -94,5 +94,5 @@ func TestM(t *testing.T) {
 }
 
 func TestGetDNSHostnameAndMode(t *testing.T) {
-	t.Log(getDNSHostnameAndMode(&protoconfig.DNS{Host: "1.1.1.1"}))
+	t.Log(getDNSHostnameAndMode(&protoconfig.Dns{Host: "1.1.1.1"}))
 }

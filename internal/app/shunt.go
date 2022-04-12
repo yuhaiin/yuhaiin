@@ -169,9 +169,9 @@ func (s *Shunt) Get(domain string) MODE {
 	return m
 }
 
-func getDNSHostnameAndMode(dc *protoconfig.DNS) (string, MODE) {
+func getDNSHostnameAndMode(dc *protoconfig.Dns) (string, MODE) {
 	host := dc.Host
-	if dc.Type == protoconfig.DNS_doh {
+	if dc.Type == protoconfig.Dns_doh {
 		i := strings.IndexByte(dc.Host, '/')
 		if i != -1 {
 			host = dc.Host[:i] // remove doh path
@@ -191,13 +191,13 @@ func getDNSHostnameAndMode(dc *protoconfig.DNS) (string, MODE) {
 	return host, mode
 }
 
-func diffDNS(old, new *protoconfig.DNS) bool {
+func diffDNS(old, new *protoconfig.Dns) bool {
 	return old.Host != new.Host ||
 		old.Type != new.Type ||
 		old.Subnet != new.Subnet || old.Proxy != new.Proxy
 }
 
-func getDNS(dc *protoconfig.DNS, proxy proxy.Proxy) dns.DNS {
+func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)
@@ -218,13 +218,13 @@ func getDNS(dc *protoconfig.DNS, proxy proxy.Proxy) dns.DNS {
 	}
 
 	switch dc.Type {
-	case protoconfig.DNS_doh:
+	case protoconfig.Dns_doh:
 		return dns.NewDoH(dc.Host, subnet, proxy)
-	case protoconfig.DNS_dot:
+	case protoconfig.Dns_dot:
 		return dns.NewDoT(dc.Host, subnet, proxy)
-	case protoconfig.DNS_tcp:
+	case protoconfig.Dns_tcp:
 		fallthrough
-	case protoconfig.DNS_udp:
+	case protoconfig.Dns_udp:
 		fallthrough
 	default:
 		return dns.NewDNS(dc.Host, subnet, proxy)
