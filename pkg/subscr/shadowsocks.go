@@ -2,8 +2,10 @@ package subscr
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -82,15 +84,33 @@ func parseV2ray(store map[string]string) (*node.PointProtocol, error) {
 	// certRaw := ""
 	// mode := "websocket"
 
+	var err error
+	var cert []byte
+	if store["cert"] != "" {
+		cert, err = os.ReadFile(store["cert"])
+		if err != nil {
+			log.Printf("read cert file failed: %v", err)
+		}
+	}
+
+	ns, _, err := net.SplitHostPort(store["host"])
+	if err != nil {
+		log.Printf("split host and port failed: %v", err)
+		ns = store["host"]
+	}
+
 	switch store["mode"] {
 	case "websocket":
 		return &node.PointProtocol{
 			Protocol: &node.PointProtocol_Websocket{
 				Websocket: &node.Websocket{
-					Host:      store["host"],
-					Path:      store["path"],
-					TlsCaCert: store["cert"],
-					TlsEnable: store["tls"] == "true",
+					Host: store["host"],
+					Path: store["path"],
+					Tls: &node.TlsConfig{
+						ServerName: ns,
+						Enable:     store["tls"] == "true",
+						CaCert:     [][]byte{cert},
+					},
 				},
 			},
 		}, nil
@@ -98,8 +118,10 @@ func parseV2ray(store map[string]string) (*node.PointProtocol, error) {
 		return &node.PointProtocol{
 			Protocol: &node.PointProtocol_Quic{
 				Quic: &node.Quic{
-					ServerName: store["host"],
-					TlsCaCert:  store["cert"],
+					Tls: &node.TlsConfig{
+						ServerName: ns,
+						CaCert:     [][]byte{cert},
+					},
 				},
 			},
 		}, nil

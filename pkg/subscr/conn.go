@@ -2,7 +2,9 @@ package subscr
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
@@ -50,15 +52,15 @@ func WebsocketConn(p *node.PointProtocol_Websocket, z proxy.Proxy) (proxy.Proxy,
 	if p.Websocket == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-	return websocket.NewWebsocket(p.Websocket.Host, p.Websocket.Path,
-		p.Websocket.InsecureSkipVerify, p.Websocket.TlsEnable, []string{})(z)
+
+	return websocket.NewWebsocket(p.Websocket.Host, p.Websocket.Path, parseTLSConfig(p.Websocket.Tls))(z)
 }
 
 func QuicConn(p *node.PointProtocol_Quic, z proxy.Proxy) (proxy.Proxy, error) {
 	if p.Quic == nil {
 		return nil, fmt.Errorf("value is nil: %v", p)
 	}
-	return quic.NewQUIC(p.Quic.ServerName, []string{}, p.Quic.InsecureSkipVerify)(z)
+	return quic.NewQUIC(parseTLSConfig(p.Quic.Tls))(z)
 }
 
 func ObfsHttpConn(p *node.PointProtocol_ObfsHttp, z proxy.Proxy) (proxy.Proxy, error) {
@@ -108,4 +110,34 @@ func init() {
 	node.RegisterProtocol(TrojanConn)
 	node.RegisterProtocol(ShadowsocksConn)
 	node.RegisterProtocol(ShadowsocksrConn)
+}
+
+func parseTLSConfig(t *node.TlsConfig) *tls.Config {
+	if t == nil || !t.Enable {
+		return nil
+	}
+	//tls
+	root, err := x509.SystemCertPool()
+	if err != nil {
+		log.Printf("get x509 system cert pool failed: %v, create new cert pool.", err)
+		root = x509.NewCertPool()
+	}
+
+	config := &tls.Config{
+		ServerName: t.ServerName,
+		RootCAs:    root,
+		// NextProtos:             []string{"http/1.1"},
+		InsecureSkipVerify: t.InsecureSkipVerify,
+		// SessionTicketsDisabled: true,
+		// ClientSessionCache:     tlsSessionCache,
+	}
+
+	for i := range t.CaCert {
+		ok := config.RootCAs.AppendCertsFromPEM(t.CaCert[i])
+		if !ok {
+			log.Printf("add cert from pem failed.")
+		}
+	}
+
+	return config
 }

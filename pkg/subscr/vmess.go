@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
+	sysnet "net"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -84,14 +86,23 @@ func init() {
 		var net *node.PointProtocol
 		switch n.Net {
 		case "ws":
+			ns, _, err := sysnet.SplitHostPort(n.Host)
+			if err != nil {
+				log.Printf("split host and port failed: %v", err)
+				ns = n.Host
+			}
+
 			net = &node.PointProtocol{
 				Protocol: &node.PointProtocol_Websocket{
 					Websocket: &node.Websocket{
-						Host:               n.Host,
-						Path:               n.Path,
-						InsecureSkipVerify: !n.VerifyCert,
-						TlsEnable:          n.Tls == "tls",
-						TlsCaCert:          "",
+						Host: n.Host,
+						Path: n.Path,
+						Tls: &node.TlsConfig{
+							ServerName:         ns,
+							InsecureSkipVerify: !n.VerifyCert,
+							Enable:             n.Tls == "tls",
+							CaCert:             nil,
+						},
 					},
 				},
 			}

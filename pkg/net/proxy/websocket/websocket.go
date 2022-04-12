@@ -3,10 +3,7 @@ package websocket
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 
@@ -22,7 +19,7 @@ type Client struct {
 	dialer *websocket.Dialer
 }
 
-func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCertFilePath []string) func(p proxy.Proxy) (proxy.Proxy, error) {
+func NewWebsocket(host, path string, tls *tls.Config) func(p proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{p: p}
 
@@ -33,45 +30,10 @@ func NewWebsocket(host, path string, insecureSkipVerify, tlsEnable bool, tlsCaCe
 		}
 
 		protocol := "ws"
-		if tlsEnable {
+		if tls != nil {
 			//tls
 			protocol = "wss"
-			root, err := x509.SystemCertPool()
-			if err != nil {
-				log.Printf("get x509 system cert pool failed: %v, create new cert pool.", err)
-				root = x509.NewCertPool()
-			}
-
-			ns, _, err := net.SplitHostPort(host)
-			if err != nil {
-				log.Printf("split host and port failed: %v", err)
-				ns = host
-			}
-			dialer.TLSClientConfig = &tls.Config{
-				ServerName:             ns,
-				RootCAs:                root,
-				NextProtos:             []string{"http/1.1"},
-				InsecureSkipVerify:     insecureSkipVerify,
-				SessionTicketsDisabled: true,
-				ClientSessionCache:     tlsSessionCache,
-			}
-
-			for i := range tlsCaCertFilePath {
-				if tlsCaCertFilePath[i] == "" {
-					continue
-				}
-
-				cert, err := ioutil.ReadFile(tlsCaCertFilePath[i])
-				if err != nil {
-					log.Printf("read cert failed: %v\n", err)
-					continue
-				}
-
-				ok := dialer.TLSClientConfig.RootCAs.AppendCertsFromPEM(cert)
-				if !ok {
-					log.Printf("add cert from pem failed.")
-				}
-			}
+			dialer.TLSClientConfig = tls
 		}
 
 		header := http.Header{}
