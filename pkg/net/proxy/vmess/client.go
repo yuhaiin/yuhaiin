@@ -16,7 +16,7 @@ type Vmess struct {
 	dial   proxy.Proxy
 }
 
-func NewVmess(config *node.PointProtocol_Vmess) func(p proxy.Proxy) (proxy.Proxy, error) {
+func NewVmess(config *node.PointProtocol_Vmess) node.WrapProxy {
 	alterID, err := strconv.Atoi(config.Vmess.AlterId)
 	if err != nil {
 		return node.ErrConn(fmt.Errorf("convert AlterId to int failed: %v", err))

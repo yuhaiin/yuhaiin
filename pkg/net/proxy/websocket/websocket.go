@@ -20,7 +20,7 @@ type Client struct {
 	dialer *websocket.Dialer
 }
 
-func NewWebsocket(config *node.PointProtocol_Websocket) func(p proxy.Proxy) (proxy.Proxy, error) {
+func NewWebsocket(config *node.PointProtocol_Websocket) node.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{p: p}
 
