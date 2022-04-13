@@ -549,11 +549,11 @@ func (y *yhCli) getHash(i, z int) (string, error) {
 }
 
 func (y *yhCli) latency(hash string) error {
-	l, err := y.sub.Latency(context.Background(), &wrapperspb.StringValue{Value: hash})
+	l, err := y.sub.Latency(context.Background(), &node.LatencyReq{NodeHash: []string{hash}})
 	if err != nil {
 		return fmt.Errorf("get latency failed: %w", err)
 	}
-	fmt.Println(l.Value)
+	fmt.Println(l.HashLatencyMap[hash])
 	return nil
 }
 
@@ -568,19 +568,26 @@ func (y *yhCli) latencyAll(i int) {
 		return
 	}
 
+	group := ns.GroupNodesMap[ns.Groups[i]]
+
 	wg := sync.WaitGroup{}
-	for _, z := range ns.GroupNodesMap[ns.Groups[i]].Nodes {
+	for _, z := range group.Nodes {
 		wg.Add(1)
-		go func(z string) {
+		go func(name, hash string) {
 			defer wg.Done()
-			l, err := y.sub.Latency(context.TODO(), &wrapperspb.StringValue{Value: ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[z]})
+			l, err := y.sub.Latency(context.TODO(), &node.LatencyReq{NodeHash: []string{hash}})
 			if err != nil {
-				fmt.Printf("%s: %v\n", z, "timeout")
+				fmt.Printf("%s: %v\n", name, err)
 				return
 			}
 
-			fmt.Printf("%s: %s | %s\n", z, l.Value, ns.GroupNodesMap[ns.Groups[i]].NodeHashMap[z])
-		}(z)
+			latency := "test timeout or can't connect"
+			if z, ok := l.HashLatencyMap[hash]; ok {
+				latency = z
+			}
+
+			fmt.Printf("%s: %s | %s\n", name, latency, hash)
+		}(z, group.NodeHashMap[z])
 	}
 
 	wg.Wait()

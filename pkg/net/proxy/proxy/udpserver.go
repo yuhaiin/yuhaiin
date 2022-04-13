@@ -26,7 +26,7 @@ type UDPServer struct {
 
 func (u *UDPServer) SetProxy(f Proxy) {
 	if f == nil {
-		f = &DefaultProxy{}
+		f = &Default{}
 	}
 	u.proxy.Store(f)
 }
@@ -36,7 +36,7 @@ func (u *UDPServer) getProxy() Proxy {
 	if ok {
 		return y
 	}
-	return &DefaultProxy{}
+	return &Default{}
 }
 
 func UDPWithListenConfig(n net.ListenConfig) func(u *UDPServer) {

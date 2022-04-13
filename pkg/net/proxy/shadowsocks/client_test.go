@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,13 +22,17 @@ func TestImplement(t *testing.T) {
 
 func TestConn(t *testing.T) {
 	p := simple.NewSimple("127.0.0.1", "1090")
-	z, err := websocket.NewWebsocket("localhost:1090", "", nil)(p)
+	z, err := websocket.NewWebsocket(&node.PointProtocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
 	require.Nil(t, err)
 	z, err = NewShadowsocks(
-		"aes-128-gcm",
-		"test",
-		"127.0.0.1",
-		"1090",
+		&node.PointProtocol_Shadowsocks{
+			Shadowsocks: &node.Shadowsocks{
+				Method:   "aes-128-gcm",
+				Password: "test",
+				Server:   "127.0.0.1",
+				Port:     "1090",
+			},
+		},
 		// "v2ray",
 		// "tls;cert=/mnt/data/program/go-shadowsocks/ca.crt;host=localhost:1090",
 	)(z)
@@ -60,7 +65,15 @@ func TestConn(t *testing.T) {
 
 func TestUDPConn(t *testing.T) {
 	p := simple.NewSimple("127.0.0.1", "1090")
-	s, err := NewShadowsocks("aes-128-gcm", "test", "127.0.0.1", "1090")(p)
+	s, err := NewShadowsocks(
+		&node.PointProtocol_Shadowsocks{
+			Shadowsocks: &node.Shadowsocks{
+				Method:   "aes-128-gcm",
+				Password: "test",
+				Server:   "127.0.0.1",
+				Port:     "1090",
+			},
+		})(p)
 	require.Nil(t, err)
 
 	c, err := s.PacketConn("223.5.5.5:53")

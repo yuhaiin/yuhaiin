@@ -25,7 +25,7 @@ var creatorMap = map[protoconfig.ProxyProxyType]func(h string) (proxy.Server, er
 
 func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener) {
 	if pro == nil {
-		pro = &proxy.DefaultProxy{}
+		pro = &proxy.Default{}
 	}
 	l = &Listener{
 		ps: make(map[string]proxy.Server),

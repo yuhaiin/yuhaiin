@@ -52,9 +52,23 @@ func TestLint(t *testing.T) {
 func TestConnections(t *testing.T) {
 	p := simple.NewSimple("127.0.0.1", "1090")
 
-	z, err := ssClient.NewHTTPOBFS("example.com", "80")(p)
+	z, err := ssClient.NewHTTPOBFS(
+		&node.PointProtocol_ObfsHttp{
+			ObfsHttp: &node.ObfsHttp{
+				Host: "example.com",
+				Port: "80",
+			},
+		})(p)
 	require.Nil(t, err)
-	z, err = ssClient.NewShadowsocks("AEAD_AES_128_GCM", "test", "127.0.0.1", "1090")(z)
+	z, err = ssClient.NewShadowsocks(
+		&node.PointProtocol_Shadowsocks{
+			Shadowsocks: &node.Shadowsocks{
+				Method:   "AEAD_AES_128_GCM",
+				Password: "test",
+				Server:   "127.0.0.1",
+				Port:     "1090",
+			},
+		})(z)
 	require.Nil(t, err)
 	tt := &http.Client{
 		Transport: &http.Transport{

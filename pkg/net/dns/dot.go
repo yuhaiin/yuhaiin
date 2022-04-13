@@ -26,7 +26,7 @@ type dot struct {
 
 func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if p == nil {
-		p = &proxy.DefaultProxy{}
+		p = &proxy.Default{}
 	}
 	servername, _, err := net.SplitHostPort(host)
 	if e, ok := err.(*net.AddrError); ok {

@@ -9,14 +9,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/shadowsocks/go-shadowsocks2/core"
-)
-
-var (
-	//OBFS plugin
-	OBFS = "obfs-local"
-	//V2RAY websocket and quic plugin
-	V2RAY = "v2ray"
 )
 
 //Shadowsocks shadowsocks
@@ -26,14 +20,15 @@ type Shadowsocks struct {
 	udpAddr net.Addr
 }
 
-func NewShadowsocks(cipherName string, password string, server, port string) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewShadowsocks(config *node.PointProtocol_Shadowsocks) func(proxy.Proxy) (proxy.Proxy, error) {
+	c := config.Shadowsocks
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		cipher, err := core.PickCipher(strings.ToUpper(cipherName), nil, password)
+		cipher, err := core.PickCipher(strings.ToUpper(c.Method), nil, c.Password)
 		if err != nil {
 			return nil, err
 		}
 
-		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(server, port))
+		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.Server, c.Port))
 		if err != nil {
 			return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 		}

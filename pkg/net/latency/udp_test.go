@@ -7,5 +7,5 @@ import (
 )
 
 func TestUDP(t *testing.T) {
-	t.Log(DNS(&proxy.DefaultProxy{}, "1.1.1.1:53", "www.google.com"))
+	t.Log(DNS(&proxy.Default{}, "1.1.1.1:53", "www.google.com"))
 }
