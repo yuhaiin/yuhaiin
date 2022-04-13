@@ -139,8 +139,14 @@ service node_manager {
   rpc update_links(link_req) returns (google.protobuf.Empty);
   rpc get_links(google.protobuf.Empty) returns (get_links_resp);
 
-  rpc latency(google.protobuf.StringValue)
-      returns (google.protobuf.StringValue);
+  rpc latency(latency_req) returns (latency_resp);
+}
+
+message latency_req {
+  repeated string node_hash = 1 [ json_name = "node_hash" ];
+}
+message latency_resp {
+  map<string, string> hash_latency_map = 1 [ json_name = "hash_latency_map" ];
 }
 
 message save_link_req { repeated node.link links = 1 [ json_name = "links" ]; }

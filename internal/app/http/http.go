@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -108,13 +109,17 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 
 	http.HandleFunc("/latency", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
-		lt, err := nodeManager.Latency(context.TODO(), &wrapperspb.StringValue{Value: hash})
+		lt, err := nodeManager.Latency(context.TODO(), &node.LatencyReq{NodeHash: []string{hash}})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if _, ok := lt.HashLatencyMap[hash]; !ok {
+			http.Error(w, "test latency timeout or can't connect", http.StatusInternalServerError)
+			return
+		}
 
-		w.Write([]byte(lt.Value))
+		w.Write([]byte(lt.HashLatencyMap[hash]))
 	})
 
 	http.HandleFunc("/use", func(w http.ResponseWriter, r *http.Request) {

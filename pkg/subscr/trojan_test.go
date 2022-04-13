@@ -24,7 +24,7 @@ func TestParseTrojan(t *testing.T) {
 func TestTrojan(t *testing.T) {
 	p := simple.NewSimple("1.1.1.1", "443", simple.WithTLS(&tls.Config{ServerName: "x.cn"}))
 
-	z, err := tc.NewClient("c")(p)
+	z, err := tc.NewClient(&node.PointProtocol_Trojan{Trojan: &node.Trojan{Password: "c"}})(p)
 	require.NoError(t, err)
 
 	dns := dns.NewDNS("1.1.1.1:53", nil, z)

@@ -7,5 +7,5 @@ import (
 )
 
 func TestTCP(t *testing.T) {
-	t.Log(HTTP(&proxy.DefaultProxy{}, "https://www.baidu.com"))
+	t.Log(HTTP(&proxy.Default{}, "https://www.baidu.com"))
 }

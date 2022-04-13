@@ -12,6 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 /*
@@ -101,11 +102,11 @@ type httpOBFS struct {
 	p    proxy.Proxy
 }
 
-func NewHTTPOBFS(host string, port string) func(p proxy.Proxy) (proxy.Proxy, error) {
+func NewHTTPOBFS(config *node.PointProtocol_ObfsHttp) func(p proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &httpOBFS{
-			host: host,
-			port: host,
+			host: config.ObfsHttp.Host,
+			port: config.ObfsHttp.Port,
 			p:    p,
 		}, nil
 	}

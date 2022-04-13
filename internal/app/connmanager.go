@@ -35,7 +35,7 @@ type ConnManager struct {
 
 func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 	if p == nil {
-		p = &proxy.DefaultProxy{}
+		p = &proxy.Default{}
 	}
 
 	c := &ConnManager{
@@ -280,14 +280,14 @@ func (i *idGenerater) Generate() (id int64) {
 func (m *ConnManager) marry(host string) (p proxy.Proxy, mark MODE) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return newErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), MODE(-1)
+		return proxy.NewErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), MODE(-1)
 	}
 
 	mark = m.mapper(hostname)
 
 	switch mark {
 	case BLOCK:
-		p = newErrProxy(fmt.Errorf("BLOCK: %v", host))
+		p = proxy.NewErrProxy(fmt.Errorf("BLOCK: %v", host))
 	case DIRECT:
 		p = m.direct
 	default:
@@ -295,22 +295,6 @@ func (m *ConnManager) marry(host string) (p proxy.Proxy, mark MODE) {
 	}
 
 	return
-}
-
-type errProxy struct {
-	err error
-}
-
-func newErrProxy(err error) proxy.Proxy {
-	return &errProxy{err: err}
-}
-
-func (e *errProxy) Conn(string) (net.Conn, error) {
-	return nil, e.err
-}
-
-func (e *errProxy) PacketConn(string) (net.PacketConn, error) {
-	return nil, e.err
 }
 
 type accountant struct {

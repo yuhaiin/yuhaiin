@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -17,11 +18,11 @@ type Client struct {
 	p          proxy.Proxy
 }
 
-func NewQUIC(tls *tls.Config) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewQUIC(config *node.PointProtocol_Quic) func(proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
 			p:         p,
-			tlsConfig: tls,
+			tlsConfig: node.ParseTLSConfig(config.Quic.Tls),
 			quicConfig: &quic.Config{
 				KeepAlive:            true,
 				ConnectionIDLength:   12,

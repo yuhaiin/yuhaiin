@@ -80,7 +80,7 @@ func (t *TCPServer) SetServer(host string) (err error) {
 
 func (t *TCPServer) SetProxy(p Proxy) {
 	if p == nil {
-		p = &DefaultProxy{}
+		p = &Default{}
 	}
 	t.proxy.Store(p)
 }
@@ -90,7 +90,7 @@ func (t *TCPServer) getProxy() Proxy {
 	if ok {
 		return y
 	}
-	return &DefaultProxy{}
+	return &Default{}
 }
 
 func (t *TCPServer) Conn(host string) (net.Conn, error) {

@@ -139,7 +139,7 @@ type dns struct {
 
 func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if p == nil {
-		p = &proxy.DefaultProxy{}
+		p = &proxy.Default{}
 	}
 
 	_, _, err := net.SplitHostPort(host)

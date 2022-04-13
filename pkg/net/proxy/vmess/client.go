@@ -3,9 +3,11 @@ package vmess
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	gcvmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 //Vmess vmess client
@@ -14,9 +16,13 @@ type Vmess struct {
 	dial   proxy.Proxy
 }
 
-func NewVmess(uuid, security string, alterID uint32) func(p proxy.Proxy) (proxy.Proxy, error) {
+func NewVmess(config *node.PointProtocol_Vmess) func(p proxy.Proxy) (proxy.Proxy, error) {
+	alterID, err := strconv.Atoi(config.Vmess.AlterId)
+	if err != nil {
+		return node.ErrConn(fmt.Errorf("convert AlterId to int failed: %v", err))
+	}
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		client, err := gcvmess.NewClient(uuid, security, int(alterID))
+		client, err := gcvmess.NewClient(config.Vmess.Uuid, config.Vmess.Security, alterID)
 		if err != nil {
 			return nil, fmt.Errorf("new vmess client failed: %v", err)
 		}
