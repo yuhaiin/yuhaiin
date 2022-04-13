@@ -15,6 +15,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 const (
@@ -74,10 +75,10 @@ type Client struct {
 	password []byte
 }
 
-func NewClient(password string) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewClient(config *node.PointProtocol_Trojan) func(proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &Client{
-			password: hexSha224([]byte(password)),
+			password: hexSha224([]byte(config.Trojan.Password)),
 			proxy:    p,
 		}, nil
 	}

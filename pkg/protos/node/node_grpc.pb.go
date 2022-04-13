@@ -35,7 +35,7 @@ type NodeManagerClient interface {
 	DeleteLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	UpdateLinks(ctx context.Context, in *LinkReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetLinks(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetLinksResp, error)
-	Latency(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
+	Latency(ctx context.Context, in *LatencyReq, opts ...grpc.CallOption) (*LatencyResp, error)
 }
 
 type nodeManagerClient struct {
@@ -136,8 +136,8 @@ func (c *nodeManagerClient) GetLinks(ctx context.Context, in *emptypb.Empty, opt
 	return out, nil
 }
 
-func (c *nodeManagerClient) Latency(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*wrapperspb.StringValue, error) {
-	out := new(wrapperspb.StringValue)
+func (c *nodeManagerClient) Latency(ctx context.Context, in *LatencyReq, opts ...grpc.CallOption) (*LatencyResp, error) {
+	out := new(LatencyResp)
 	err := c.cc.Invoke(ctx, "/yuhaiin.node.node_manager/latency", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ type NodeManagerServer interface {
 	DeleteLinks(context.Context, *LinkReq) (*emptypb.Empty, error)
 	UpdateLinks(context.Context, *LinkReq) (*emptypb.Empty, error)
 	GetLinks(context.Context, *emptypb.Empty) (*GetLinksResp, error)
-	Latency(context.Context, *wrapperspb.StringValue) (*wrapperspb.StringValue, error)
+	Latency(context.Context, *LatencyReq) (*LatencyResp, error)
 	mustEmbedUnimplementedNodeManagerServer()
 }
 
@@ -198,7 +198,7 @@ func (UnimplementedNodeManagerServer) UpdateLinks(context.Context, *LinkReq) (*e
 func (UnimplementedNodeManagerServer) GetLinks(context.Context, *emptypb.Empty) (*GetLinksResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLinks not implemented")
 }
-func (UnimplementedNodeManagerServer) Latency(context.Context, *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
+func (UnimplementedNodeManagerServer) Latency(context.Context, *LatencyReq) (*LatencyResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Latency not implemented")
 }
 func (UnimplementedNodeManagerServer) mustEmbedUnimplementedNodeManagerServer() {}
@@ -395,7 +395,7 @@ func _NodeManager_GetLinks_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _NodeManager_Latency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrapperspb.StringValue)
+	in := new(LatencyReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -407,7 +407,7 @@ func _NodeManager_Latency_Handler(srv interface{}, ctx context.Context, dec func
 		FullMethod: "/yuhaiin.node.node_manager/latency",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeManagerServer).Latency(ctx, req.(*wrapperspb.StringValue))
+		return srv.(NodeManagerServer).Latency(ctx, req.(*LatencyReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }

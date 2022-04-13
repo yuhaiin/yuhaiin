@@ -55,7 +55,7 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
 	p, err := now.Conn()
 	if err != nil {
-		p = &proxy.DefaultProxy{}
+		p = &proxy.Default{}
 	}
 
 	n.Proxy = p
@@ -265,19 +265,38 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) Latency(c context.Context, s *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
-	p, err := n.GetNode(c, s)
-	if err != nil {
-		return &wrapperspb.StringValue{}, fmt.Errorf("get node failed: %v", err)
+func (n *NodeManager) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyResp, error) {
+	resp := &node.LatencyResp{HashLatencyMap: make(map[string]string)}
+	var respLock sync.Mutex
+
+	var wg sync.WaitGroup
+	for _, s := range req.NodeHash {
+		wg.Add(1)
+		go func(s string) {
+			defer wg.Done()
+			p, err := n.GetNode(c, &wrapperspb.StringValue{Value: s})
+			if err != nil {
+				return
+			}
+
+			px, err := p.Conn()
+			if err != nil {
+				return
+			}
+
+			t, err := latency.HTTP(px, "https://www.google.com/generate_204")
+			if err != nil {
+				return
+			}
+
+			respLock.Lock()
+			resp.HashLatencyMap[s] = t.String()
+			respLock.Unlock()
+		}(s)
 	}
 
-	px, err := p.Conn()
-	if err != nil {
-		return &wrapperspb.StringValue{}, fmt.Errorf("get conn failed: %v", err)
-	}
-
-	t, err := latency.HTTP(px, "https://www.google.com/generate_204")
-	return &wrapperspb.StringValue{Value: t.String()}, err
+	wg.Wait()
+	return resp, nil
 }
 
 func (n *NodeManager) load() error {
@@ -291,11 +310,11 @@ func (n *NodeManager) load() error {
 		},
 	}
 
-	defer func() {
+	defer func(no *node.Node) {
 		n.now = no.NowNode
 		n.links = no.Links
 		n.manager = &manager{Manager: no.Manager}
-	}()
+	}(no)
 
 	_, err := os.Stat(n.configPath)
 	if errors.Is(err, os.ErrNotExist) {

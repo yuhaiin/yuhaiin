@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 var _ proxy.Proxy = (*Shadowsocksr)(nil)
@@ -24,30 +25,32 @@ type Shadowsocksr struct {
 	udpAddr net.Addr
 }
 
-func NewShadowsocksr(host, port string, method, password, obfss, obfsParam, protoc, protocolParam string) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) func(proxy.Proxy) (proxy.Proxy, error) {
+	c := config.Shadowsocksr
+
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		cipher, err := cipher.NewCipher(method, password)
+		cipher, err := cipher.NewCipher(c.Method, c.Password)
 		if err != nil {
 			return nil, fmt.Errorf("new cipher failed: %w", err)
 		}
 
-		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, port))
+		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.Server, c.Port))
 		if err != nil {
 			return nil, fmt.Errorf("resolve udp addr failed: %w", err)
 		}
 
-		obfs, err := obfs.NewObfs(obfss, ssr.ServerInfo{
-			Host: host, Port: uint16(addr.Port),
-			Param:  obfsParam,
+		obfs, err := obfs.NewObfs(c.Obfs, ssr.ServerInfo{
+			Host: c.Server, Port: uint16(addr.Port),
+			Param:  c.Obfsparam,
 			TcpMss: 1460,
 			IVLen:  cipher.IVLen(), Key: cipher.Key(), KeyLen: cipher.KeyLen(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("new obfs failed: %w", err)
 		}
-		protocol, err := protocol.NewProtocol(protoc, ssr.ServerInfo{
-			Host: host, Port: uint16(addr.Port),
-			Param:  protocolParam,
+		protocol, err := protocol.NewProtocol(c.Protocol, ssr.ServerInfo{
+			Host: c.Server, Port: uint16(addr.Port),
+			Param:  c.Protoparam,
 			TcpMss: 1460,
 			IVLen:  cipher.IVLen(), Key: cipher.Key(), KeyLen: cipher.KeyLen(),
 		}, obfs.Overhead())

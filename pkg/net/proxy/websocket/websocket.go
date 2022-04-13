@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/gorilla/websocket"
 )
 
@@ -19,7 +20,7 @@ type Client struct {
 	dialer *websocket.Dialer
 }
 
-func NewWebsocket(host, path string, tls *tls.Config) func(p proxy.Proxy) (proxy.Proxy, error) {
+func NewWebsocket(config *node.PointProtocol_Websocket) func(p proxy.Proxy) (proxy.Proxy, error) {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{p: p}
 
@@ -30,6 +31,7 @@ func NewWebsocket(host, path string, tls *tls.Config) func(p proxy.Proxy) (proxy
 		}
 
 		protocol := "ws"
+		tls := node.ParseTLSConfig(config.Websocket.Tls)
 		if tls != nil {
 			//tls
 			protocol = "wss"
@@ -37,9 +39,9 @@ func NewWebsocket(host, path string, tls *tls.Config) func(p proxy.Proxy) (proxy
 		}
 
 		header := http.Header{}
-		header.Add("Host", host)
+		header.Add("Host", config.Websocket.Host)
 		c.header = header
-		c.uri = fmt.Sprintf("%s://%s%s", protocol, host, getNormalizedPath(path))
+		c.uri = fmt.Sprintf("%s://%s%s", protocol, config.Websocket.Host, getNormalizedPath(config.Websocket.Path))
 		c.dialer = dialer
 
 		return c, nil
