@@ -18,7 +18,7 @@ type Client struct {
 	p          proxy.Proxy
 }
 
-func NewQUIC(config *node.PointProtocol_Quic) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewQUIC(config *node.PointProtocol_Quic) node.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
 			p:         p,

@@ -12,10 +12,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
+type WrapProxy func(p proxy.Proxy) (proxy.Proxy, error)
+
 func (p *Point) Conn() (r proxy.Proxy, err error) {
 	r = direct.Default
 	for _, v := range p.Protocols {
-		r, err = Proxy(v.Protocol)(r)
+		r, err = Wrap(v.Protocol)(r)
 		if err != nil {
 			return
 		}
@@ -24,21 +26,21 @@ func (p *Point) Conn() (r proxy.Proxy, err error) {
 	return
 }
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(isPointProtocol_Protocol) func(proxy.Proxy) (proxy.Proxy, error)]
+var execProtocol syncmap.SyncMap[reflect.Type, func(isPointProtocol_Protocol) WrapProxy]
 
-func RegisterProtocol[T isPointProtocol_Protocol](f func(T) func(proxy.Proxy) (proxy.Proxy, error)) {
-	if f == nil {
+func RegisterProtocol[T isPointProtocol_Protocol](wrap func(T) WrapProxy) {
+	if wrap == nil {
 		return
 	}
 
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(t isPointProtocol_Protocol) func(p proxy.Proxy) (proxy.Proxy, error) { return f(t.(T)) },
+		func(t isPointProtocol_Protocol) WrapProxy { return wrap(t.(T)) },
 	)
 }
 
-func Proxy(p isPointProtocol_Protocol) func(proxy.Proxy) (proxy.Proxy, error) {
+func Wrap(p isPointProtocol_Protocol) WrapProxy {
 	if p == nil {
 		return ErrConn(fmt.Errorf("value is nil: %v", p))
 	}
@@ -81,7 +83,7 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 	return config
 }
 
-func ErrConn(err error) func(proxy.Proxy) (proxy.Proxy, error) {
+func ErrConn(err error) WrapProxy {
 	return func(proxy.Proxy) (proxy.Proxy, error) {
 		return nil, err
 	}

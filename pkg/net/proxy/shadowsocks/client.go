@@ -20,7 +20,7 @@ type Shadowsocks struct {
 	udpAddr net.Addr
 }
 
-func NewShadowsocks(config *node.PointProtocol_Shadowsocks) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewShadowsocks(config *node.PointProtocol_Shadowsocks) node.WrapProxy {
 	c := config.Shadowsocks
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		cipher, err := core.PickCipher(strings.ToUpper(c.Method), nil, c.Password)
