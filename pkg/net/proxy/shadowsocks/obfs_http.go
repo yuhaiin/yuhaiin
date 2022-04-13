@@ -102,7 +102,7 @@ type httpOBFS struct {
 	p    proxy.Proxy
 }
 
-func NewHTTPOBFS(config *node.PointProtocol_ObfsHttp) func(p proxy.Proxy) (proxy.Proxy, error) {
+func NewHTTPOBFS(config *node.PointProtocol_ObfsHttp) node.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &httpOBFS{
 			host: config.ObfsHttp.Host,

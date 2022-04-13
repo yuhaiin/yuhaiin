@@ -25,7 +25,7 @@ type Shadowsocksr struct {
 	udpAddr net.Addr
 }
 
-func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) func(proxy.Proxy) (proxy.Proxy, error) {
+func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 	c := config.Shadowsocksr
 
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
