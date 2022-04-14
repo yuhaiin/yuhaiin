@@ -80,11 +80,9 @@ func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*statistic.ConnRes
 
 func (c *ConnManager) CloseConn(_ context.Context, x *statistic.CloseConnsReq) (*emptypb.Empty, error) {
 	for _, x := range x.Conns {
-		z, ok := c.conns.Load(x)
-		if !ok {
-			return &emptypb.Empty{}, nil
+		if z, ok := c.conns.Load(x); ok {
+			z.Close()
 		}
-		z.Close()
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -99,13 +97,10 @@ func (c *ConnManager) Statistic(_ *emptypb.Empty, srv statistic.Connections_Stat
 }
 
 func (c *ConnManager) delete(id int64) {
-	z, ok := c.conns.LoadAndDelete(id)
-	if !ok {
-		return
+	if z, ok := c.conns.LoadAndDelete(id); ok {
+		logasfmt.Printf("close %v<%s[%v]>: %v, %s <-> %s\n",
+			z.GetId(), z.Type(), z.GetMark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
 	}
-
-	logasfmt.Printf("close %v<%s[%v]>: %v, %s <-> %s\n",
-		z.GetId(), z.Type(), z.Mark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
 }
 
 func (c *ConnManager) Conn(host string) (net.Conn, error) {
@@ -123,12 +118,12 @@ func (c *ConnManager) Conn(host string) (net.Conn, error) {
 			ConnRespConnection: &statistic.ConnRespConnection{
 				Id:     c.idSeed.Generate(),
 				Addr:   host,
+				Mark:   mark.String(),
 				Local:  con.LocalAddr().String(),
 				Remote: con.RemoteAddr().String(),
 			},
 			Conn: con,
 			cm:   c,
-			mark: mark,
 		},
 	}
 	c.conns.Store(s.Id, s)
@@ -147,13 +142,13 @@ func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 
 	s := &packetConn{
 		PacketConn: con,
-		mark:       mark,
 		cm:         c,
 		ConnRespConnection: &statistic.ConnRespConnection{
 			Addr:   host,
 			Id:     c.idSeed.Generate(),
 			Local:  con.LocalAddr().String(),
 			Remote: host,
+			Mark:   mark.String(),
 		},
 	}
 	c.conns.Store(s.Id, s)
@@ -163,13 +158,12 @@ func (c *ConnManager) PacketConn(host string) (net.PacketConn, error) {
 type staticConn interface {
 	io.Closer
 
-	Mark() MODE
-
 	Type() string
 	GetId() int64
 	GetAddr() string
 	GetLocal() string
 	GetRemote() string
+	GetMark() string
 	GetConnResp() *statistic.ConnRespConnection
 }
 
@@ -181,10 +175,6 @@ type conn struct {
 
 func (s *conn) Type() string {
 	return "TCP"
-}
-
-func (s *conn) Mark() MODE {
-	return s.mark
 }
 
 func (s *conn) GetConnResp() *statistic.ConnRespConnection {
@@ -207,8 +197,7 @@ var _ net.Conn = (*preConn)(nil)
 
 type preConn struct {
 	net.Conn
-	cm   *ConnManager
-	mark MODE
+	cm *ConnManager
 	*statistic.ConnRespConnection
 }
 
@@ -234,18 +223,13 @@ var _ staticConn = (*packetConn)(nil)
 
 type packetConn struct {
 	net.PacketConn
-	cm   *ConnManager
-	mark MODE
+	cm *ConnManager
 
 	*statistic.ConnRespConnection
 }
 
 func (s *packetConn) Type() string {
 	return "UDP"
-}
-
-func (s *packetConn) Mark() MODE {
-	return s.mark
 }
 
 func (s *packetConn) GetConnResp() *statistic.ConnRespConnection {

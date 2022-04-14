@@ -23,7 +23,7 @@ import (
 
 type MODE int
 
-const (
+var (
 	OTHERS MODE = 0
 	BLOCK  MODE = 1
 	DIRECT MODE = 2
@@ -42,10 +42,10 @@ func (m MODE) String() string {
 	}
 }
 
-var Mode = map[string]MODE{
-	"direct": DIRECT,
+var Mode = map[string]*MODE{
+	"direct": &DIRECT,
 	// "proxy":  PROXY,
-	"block": BLOCK,
+	"block": &BLOCK,
 }
 
 func copyBypassFile(target string) error {
@@ -67,7 +67,7 @@ func copyBypassFile(target string) error {
 
 type Shunt struct {
 	file   string
-	mapper *mapper.Mapper[MODE]
+	mapper *mapper.Mapper[*MODE]
 
 	p        proxy.Proxy
 	fileLock sync.RWMutex
@@ -87,7 +87,7 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 		opt(s)
 	}
 
-	s.mapper = mapper.NewMapper[MODE](nil)
+	s.mapper = mapper.NewMapper[*MODE](nil)
 
 	conf.AddObserverAndExec(func(current, old *protoconfig.Setting) bool {
 		return current.Bypass.BypassFile != old.Bypass.BypassFile
@@ -166,10 +166,13 @@ func (s *Shunt) RefreshMapping() error {
 
 func (s *Shunt) Get(domain string) MODE {
 	m, _ := s.mapper.Search(domain)
-	return m
+	if m == nil {
+		return OTHERS
+	}
+	return *m
 }
 
-func getDNSHostnameAndMode(dc *protoconfig.Dns) (string, MODE) {
+func getDNSHostnameAndMode(dc *protoconfig.Dns) (string, *MODE) {
 	host := dc.Host
 	if dc.Type == protoconfig.Dns_doh {
 		i := strings.IndexByte(dc.Host, '/')
@@ -183,9 +186,9 @@ func getDNSHostnameAndMode(dc *protoconfig.Dns) (string, MODE) {
 		host = h
 	}
 
-	mode := OTHERS
+	mode := &OTHERS
 	if !dc.Proxy {
-		mode = DIRECT
+		mode = &DIRECT
 	}
 
 	return host, mode

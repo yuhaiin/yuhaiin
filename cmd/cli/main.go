@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -25,35 +23,11 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func defaultConfigDir() (Path string) {
-	var err error
-	Path, err = os.UserConfigDir()
-	if err == nil {
-		Path = filepath.Join(Path, "yuhaiin")
-		return
-	}
-
-	file, err := exec.LookPath(os.Args[0])
-	if err != nil {
-		log.Println(err)
-		Path = filepath.Join(".", "yuhaiin")
-		return
-	}
-	execPath, err := filepath.Abs(file)
-	if err != nil {
-		log.Println(err)
-		Path = filepath.Join(".", "yuhaiin")
-		return
-	}
-	Path = filepath.Join(filepath.Dir(execPath), "config")
-	return
-}
-
 var y *yhCli
 
 func main() {
 	cobra.OnInitialize(func() {
-		host, err := ioutil.ReadFile(filepath.Join(defaultConfigDir(), "yuhaiin.lock_payload"))
+		host, err := ioutil.ReadFile(filepath.Join(config.DefaultConfigDir(), "yuhaiin.lock_payload"))
 		if err != nil {
 			panic(err)
 		}
