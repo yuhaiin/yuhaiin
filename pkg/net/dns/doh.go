@@ -68,8 +68,13 @@ func (d *doh) LookupIP(domain string) (ip []net.IP, err error) {
 }
 
 func (d *doh) setServer(host string) {
-	d.url = "https://" + host
-	uri, err := url.Parse("//" + host)
+	if !strings.HasPrefix(host, "https://") {
+		d.url = "https://" + host
+	} else {
+		d.url = host
+	}
+
+	uri, err := url.Parse(d.url)
 	if err != nil {
 		d.hostname = host
 		d.port = "443"

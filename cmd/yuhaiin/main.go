@@ -9,7 +9,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -82,19 +81,13 @@ var grpcServer = grpc.NewServer(grpc.EmptyServerOption{})
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
 	host := flag.String("host", "127.0.0.1:50051", "RPC SERVER HOST")
-	path := flag.String("cd", defaultConfigDir(), "config dir")
+	path := flag.String("cd", protoconfig.DefaultConfigDir(), "config dir")
 	flag.Parse()
 
 	close := initLog(*path)
 	defer close()
 
-	logasfmt.Println(`
-***************************************
-***************************************
-***********start yuhaiin***************
-***************************************
-***************************************`)
-	logasfmt.Println("save config at:", *path)
+	logasfmt.Println("\n\n\nsave config at:", *path)
 	logasfmt.Println("gRPC Listen Host:", *host)
 
 	lock, err := app.NewLock(filepath.Join(*path, "yuhaiin.lock"), *host)
@@ -138,29 +131,4 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func defaultConfigDir() (Path string) {
-	var err error
-	Path, err = os.UserConfigDir()
-	if err == nil {
-		Path = filepath.Join(Path, "yuhaiin")
-		return
-	}
-
-	file, err := exec.LookPath(os.Args[0])
-	if err != nil {
-		log.Println(err)
-		Path = filepath.Join(".", "yuhaiin")
-		return
-	}
-	execPath, err := filepath.Abs(file)
-	if err != nil {
-		log.Println(err)
-		Path = filepath.Join(".", "yuhaiin")
-		return
-	}
-
-	Path = filepath.Join(filepath.Dir(execPath), "config")
-	return
 }
