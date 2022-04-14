@@ -27,6 +27,7 @@ message conn_resp {
     int64 id = 2;
     string local = 3;
     string remote = 4;
+    string mark = 5;
   }
   repeated connection connections = 1;
 }

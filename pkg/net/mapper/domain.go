@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"encoding/json"
 	"strings"
 )
 
@@ -11,9 +12,9 @@ var (
 )
 
 type domainNode[T any] struct {
-	symbol int
-	mark   T
-	child  map[string]*domainNode[T]
+	Symbol *int                      `json:"symbol"`
+	Mark   T                         `json:"mark"`
+	Child  map[string]*domainNode[T] `json:"child"`
 }
 
 type domainStr struct {
@@ -61,13 +62,15 @@ func s[T any](root *domainNode[T], domain string) (resp T, ok bool) {
 			return
 		}
 
-		if r, okk := s.child[z.str()]; okk {
-			if r.symbol == wildcard {
-				resp, ok = r.mark, true
-			}
+		if r, okk := s.Child[z.str()]; okk {
+			if r.Symbol != nil {
+				if *r.Symbol == wildcard {
+					resp, ok = r.Mark, true
+				}
 
-			if r.symbol == last && z.last() {
-				return r.mark, true
+				if *r.Symbol == last && z.last() {
+					return r.Mark, true
+				}
 			}
 
 			s, first, _ = r, false, z.next()
@@ -79,7 +82,7 @@ func s[T any](root *domainNode[T], domain string) (resp T, ok bool) {
 		}
 
 		if !asterisk {
-			s, asterisk = root.child["*"], true
+			s, asterisk = root.Child["*"], true
 		} else {
 			z.next()
 		}
@@ -90,22 +93,22 @@ func insert[T any](root *domainNode[T], domain string, mark T) {
 	z := newDomainStr(domain)
 	for z.hasNext() {
 		if z.last() && domain[0] == '*' {
-			root.symbol, root.mark = wildcard, mark
+			root.Symbol, root.Mark = &wildcard, mark
 			break
 		}
 
-		if root.child == nil {
-			root.child = make(map[string]*domainNode[T])
+		if root.Child == nil {
+			root.Child = make(map[string]*domainNode[T])
 		}
 
-		if root.child[z.str()] == nil {
-			root.child[z.str()] = &domainNode[T]{}
+		if root.Child[z.str()] == nil {
+			root.Child[z.str()] = &domainNode[T]{}
 		}
 
-		root = root.child[z.str()]
+		root = root.Child[z.str()]
 
 		if z.last() {
-			root.symbol, root.mark = last, mark
+			root.Symbol, root.Mark = &last, mark
 		}
 
 		z.next()
@@ -113,8 +116,8 @@ func insert[T any](root *domainNode[T], domain string, mark T) {
 }
 
 type domain[T any] struct {
-	root         *domainNode[T] // for example.com, example.*
-	wildcardRoot *domainNode[T] // for *.example.com, *.example.*
+	Root         *domainNode[T] `json:"root"`          // for example.com, example.*
+	WildcardRoot *domainNode[T] `json:"wildcard_root"` // for *.example.com, *.example.*
 }
 
 func (d *domain[T]) Insert(domain string, mark T) {
@@ -123,23 +126,27 @@ func (d *domain[T]) Insert(domain string, mark T) {
 	}
 
 	if domain[0] == '*' {
-		insert(d.wildcardRoot, domain, mark)
+		insert(d.WildcardRoot, domain, mark)
 	} else {
-		insert(d.root, domain, mark)
+		insert(d.Root, domain, mark)
 	}
 }
 
 func (d *domain[T]) Search(domain string) (mark T, ok bool) {
-	mark, ok = s(d.root, domain)
+	mark, ok = s(d.Root, domain)
 	if ok {
 		return
 	}
-	return s(d.wildcardRoot, domain)
+	return s(d.WildcardRoot, domain)
+}
+
+func (d *domain[T]) Marshal() ([]byte, error) {
+	return json.MarshalIndent(d, "", "  ")
 }
 
 func NewDomainMapper[T any]() *domain[T] {
 	return &domain[T]{
-		root:         &domainNode[T]{child: map[string]*domainNode[T]{}},
-		wildcardRoot: &domainNode[T]{child: map[string]*domainNode[T]{}},
+		Root:         &domainNode[T]{Child: map[string]*domainNode[T]{}},
+		WildcardRoot: &domainNode[T]{Child: map[string]*domainNode[T]{}},
 	}
 }

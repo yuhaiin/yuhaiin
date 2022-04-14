@@ -11,7 +11,7 @@ import (
 )
 
 func TestShunt(t *testing.T) {
-	x, err := NewShunt(&config.Config{}, nil)
+	x, err := NewShunt(&config.Config{})
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
