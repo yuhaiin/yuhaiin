@@ -23,11 +23,11 @@ func init() {
 		//             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
 		if get == nil {
 			get = func(p interface{}) string {
-				switch p.(type) {
+				switch p := p.(type) {
 				case string:
-					return p.(string)
+					return p
 				case float64:
-					return strconv.Itoa(int(p.(float64)))
+					return strconv.Itoa(int(p))
 				}
 
 				return ""

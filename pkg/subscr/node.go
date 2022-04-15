@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -43,14 +44,9 @@ type NodeManager struct {
 }
 
 func NewNodeManager(configPath string) (n *NodeManager, err error) {
-	n = &NodeManager{
-		configPath: configPath,
-	}
+	n = &NodeManager{configPath: configPath}
 
-	err = n.load()
-	if err != nil {
-		return n, fmt.Errorf("load config failed: %v", err)
-	}
+	n.load()
 
 	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
 	p, err := now.Conn()
@@ -112,6 +108,9 @@ func (n *NodeManager) GetManager(context.Context, *wrapperspb.StringValue) (*nod
 func (n *NodeManager) SaveLinks(_ context.Context, l *node.SaveLinkReq) (*emptypb.Empty, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
+	if n.links == nil {
+		n.links = make(map[string]*node.NodeLink)
+	}
 	for _, l := range l.Links {
 		n.links[l.Name] = l
 	}
@@ -299,39 +298,26 @@ func (n *NodeManager) Latency(c context.Context, req *node.LatencyReq) (*node.La
 	return resp, nil
 }
 
-func (n *NodeManager) load() error {
-	no := &node.Node{
-		NowNode: &node.Point{},
-		Links:   make(map[string]*node.NodeLink),
-		Manager: &node.Manager{
-			Groups:        make([]string, 0),
-			GroupNodesMap: make(map[string]*node.ManagerNodeArray),
-			Nodes:         make(map[string]*node.Point),
-		},
-	}
-
-	defer func(no *node.Node) {
-		n.now = no.NowNode
-		n.links = no.Links
-		n.manager = &manager{Manager: no.Manager}
-	}(no)
-
-	_, err := os.Stat(n.configPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return n.save()
-	}
+func (n *NodeManager) load() {
+	no := &node.Node{}
 
 	n.filelock.RLock()
 	defer n.filelock.RUnlock()
 	data, err := os.ReadFile(n.configPath)
 	if err != nil {
-		return fmt.Errorf("read node file failed: %v", err)
+		data = []byte{'{', '}'}
+		logasfmt.Printf("read node file failed: %v\n", err)
 	}
+
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, no)
+	if err != nil {
+		logasfmt.Printf("unmarshal node file failed: %v\n", err)
+	}
 
 	if no.NowNode == nil {
 		no.NowNode = &node.Point{}
 	}
+
 	if no.Links == nil {
 		no.Links = make(map[string]*node.NodeLink)
 	}
@@ -346,7 +332,9 @@ func (n *NodeManager) load() error {
 		no.Manager.Nodes = make(map[string]*node.Point)
 	}
 
-	return err
+	n.now = no.NowNode
+	n.links = no.Links
+	n.manager = &manager{Manager: no.Manager}
 }
 
 func (n *NodeManager) save() error {
@@ -361,8 +349,12 @@ func (n *NodeManager) save() error {
 	n.filelock.Lock()
 	defer n.filelock.Unlock()
 
+	var manager *node.Manager
+	if n.manager != nil {
+		manager = n.manager.GetManager()
+	}
 	data, err := protojson.MarshalOptions{Indent: "\t"}.
-		Marshal(&node.Node{NowNode: n.now, Links: n.links, Manager: n.manager.GetManager()})
+		Marshal(&node.Node{NowNode: n.now, Links: n.links, Manager: manager})
 	if err != nil {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}
