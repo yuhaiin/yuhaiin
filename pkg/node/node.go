@@ -265,7 +265,7 @@ func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (
 }
 
 func (n *NodeManager) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyResp, error) {
-	resp := &node.LatencyResp{HashLatencyMap: make(map[string]string)}
+	resp := &node.LatencyResp{HashLatencyMap: make(map[string]*node.LatencyRespLatency)}
 	var respLock sync.Mutex
 
 	var wg sync.WaitGroup
@@ -283,13 +283,18 @@ func (n *NodeManager) Latency(c context.Context, req *node.LatencyReq) (*node.La
 				return
 			}
 
+			var tcp, udp string
 			t, err := latency.HTTP(px, "https://www.google.com/generate_204")
-			if err != nil {
-				return
+			if err == nil {
+				tcp = t.String()
+			}
+			t, err = latency.DNS(px, "1.1.1.1:53", "www.google.com")
+			if err == nil {
+				udp = t.String()
 			}
 
 			respLock.Lock()
-			resp.HashLatencyMap[s] = t.String()
+			resp.HashLatencyMap[s] = &node.LatencyRespLatency{Tcp: tcp, Udp: udp}
 			respLock.Unlock()
 		}(s)
 	}

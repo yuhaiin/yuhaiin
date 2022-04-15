@@ -557,7 +557,7 @@ func (y *yhCli) latencyAll(i int) {
 
 			latency := "test timeout or can't connect"
 			if z, ok := l.HashLatencyMap[hash]; ok {
-				latency = z
+				latency = z.Tcp
 			}
 
 			fmt.Printf("%s: %s | %s\n", name, latency, hash)

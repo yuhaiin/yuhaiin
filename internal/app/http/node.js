@@ -1,15 +1,33 @@
-function latency(id, hash) {
+function latency(id) {
+    const test = document.querySelector('#i' + id + ' .test');
+    const tcp = document.querySelector('#i' + id + ' .tcp');
+    const udp = document.querySelector('#i' + id + ' .udp');
+
+    test.innerText = "Testing...";
+
     var xmlhttp = new XMLHttpRequest();
-    xmlhttp.open("GET", "/latency?hash=" + hash, true);
+    xmlhttp.open("GET", "/latency?hash=" + id, true);
     xmlhttp.send();
     xmlhttp.onreadystatechange = function() {
+        let latency = null;
         if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
-            console.log('get data：' + JSON.stringify(xmlhttp.responseText));
-
-            document.getElementById(id).innerHTML = xmlhttp.responseText;
-        } else {
-            document.getElementById(id).innerHTML = '9999.99ms';
+            latency = JSON.parse(xmlhttp.responseText);
+            console.log('get data：', latency);
         }
+
+        if (latency != null && latency.tcp != "") {
+            tcp.innerText = latency.tcp;
+        } else {
+            tcp.innerText = "9999.99ms";
+        }
+
+        if (latency != null && latency.udp != "") {
+            udp.innerText = latency.udp;
+        } else {
+            udp.innerText = "9999.99ms";
+        }
+
+        test.innerText = "Test";
     }
 }
 
