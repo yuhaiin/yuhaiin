@@ -34,7 +34,7 @@ jobs:
     - name: Test
       run: make vet
 
-    - name: upload
+    - name: upload_linux
       uses: actions/upload-artifact@v2
       with:
         name: output_linux_amd64
