@@ -29,7 +29,6 @@ func NewVmess(config *node.PointProtocol_Vmess) node.WrapProxy {
 
 		return &Vmess{client: client, dial: p}, nil
 	}
-
 }
 
 //Conn create a connection for host
