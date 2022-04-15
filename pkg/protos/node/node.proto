@@ -152,7 +152,11 @@ message latency_req {
   repeated string node_hash = 1 [ json_name = "node_hash" ];
 }
 message latency_resp {
-  map<string, string> hash_latency_map = 1 [ json_name = "hash_latency_map" ];
+  message latency {
+    string tcp = 1 [ json_name = "tcp" ];
+    string udp = 2 [ json_name = "udp" ];
+  }
+  map<string, latency> hash_latency_map = 1 [ json_name = "hash_latency_map" ];
 }
 
 message save_link_req { repeated node.link links = 1 [ json_name = "links" ]; }

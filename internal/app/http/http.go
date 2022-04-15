@@ -92,12 +92,14 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 
 		str.WriteString(fmt.Sprintf(`<script>%s</script>`, nodeJS))
 		for _, v := range nds {
-			str.WriteString("<p>")
+			str.WriteString(fmt.Sprintf("<p id=%s>", "i"+nhm[v]))
 			str.WriteString(fmt.Sprintf(`<a href="/node?hash=%s">%s</a>`, nhm[v], v))
 			str.WriteString("&nbsp;&nbsp;")
-			str.WriteString(fmt.Sprintf(`<a id=%s>0.00ms</a>`, nhm[v]))
+			str.WriteString(`TCP: <a class="tcp">N/A</a>`)
 			str.WriteString("&nbsp;&nbsp;")
-			str.WriteString(fmt.Sprintf(`<a href='javascript:latency("%s","%s")'>Test</a>`, nhm[v], nhm[v]))
+			str.WriteString(`UDP: <a class="udp">N/A</a>`)
+			str.WriteString("&nbsp;&nbsp;")
+			str.WriteString(fmt.Sprintf(`<a class="test" href='javascript:latency("%s")'>Test</a>`, nhm[v]))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='/use?hash=%s'>Use This</a>`, nhm[v]))
 			str.WriteString("&nbsp;&nbsp;")
@@ -250,7 +252,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 			return
 		}
 
-		w.Write([]byte(lt.HashLatencyMap[hash]))
+		w.Write([]byte(fmt.Sprintf(`{"tcp":"%s","udp":"%s"}`, lt.HashLatencyMap[hash].Tcp, lt.HashLatencyMap[hash].Udp)))
 	})
 
 	http.HandleFunc("/use", func(w http.ResponseWriter, r *http.Request) {
