@@ -20,6 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
+	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -49,7 +50,7 @@ func NewNodeManager(configPath string) (n *NodeManager, err error) {
 	n.load()
 
 	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
-	p, err := now.Conn()
+	p, err := register.Dialer(now)
 	if err != nil {
 		p = &proxy.Default{}
 	}
@@ -147,7 +148,7 @@ func (n *NodeManager) Use(c context.Context, s *wrapperspb.StringValue) (*node.P
 		return p, fmt.Errorf("save config failed: %v", err)
 	}
 
-	proxy, err := p.Conn()
+	proxy, err := register.Dialer(p)
 	if err != nil {
 		return nil, fmt.Errorf("create conn failed: %w", err)
 	}
@@ -278,7 +279,7 @@ func (n *NodeManager) Latency(c context.Context, req *node.LatencyReq) (*node.La
 				return
 			}
 
-			px, err := p.Conn()
+			px, err := register.Dialer(p)
 			if err != nil {
 				return
 			}

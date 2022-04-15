@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -102,7 +103,7 @@ func TestConnectionSsr(t *testing.T) {
 
 	err := protojson.Unmarshal([]byte(``), p)
 	require.Nil(t, err)
-	z, err := p.Conn()
+	z, err := register.Dialer(p)
 	require.Nil(t, err)
 
 	tt := &http.Client{
@@ -141,7 +142,7 @@ func TestSSr(t *testing.T) {
 	p := &node.Point{
 		Protocols: []*node.PointProtocol{},
 	}
-	z, err := p.Conn()
+	z, err := register.Dialer(p)
 	require.Nil(t, err)
 
 	tt := &http.Client{

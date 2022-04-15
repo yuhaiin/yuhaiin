@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -43,7 +44,7 @@ func TestVmess(t *testing.T) {
 	err := protojson.Unmarshal([]byte(``), z)
 	require.NoError(t, err)
 
-	x, err := z.Conn()
+	x, err := register.Dialer(z)
 	require.NoError(t, err)
 
 	tt := &http.Client{

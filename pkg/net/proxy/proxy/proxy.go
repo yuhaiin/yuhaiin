@@ -6,7 +6,15 @@ import (
 )
 
 type Proxy interface {
+	StreamProxy
+	PacketProxy
+}
+
+type StreamProxy interface {
 	Conn(string) (net.Conn, error)
+}
+
+type PacketProxy interface {
 	PacketConn(string) (net.PacketConn, error)
 }
 
