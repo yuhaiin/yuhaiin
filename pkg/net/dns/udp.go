@@ -16,12 +16,12 @@ var _ DNS = (*dns)(nil)
 type dns struct {
 	Server string
 	cache  *utils.LRU[string, []net.IP]
-	proxy  proxy.Proxy
+	proxy  proxy.PacketProxy
 
 	resolver *client
 }
 
-func NewDNS(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
+func NewDNS(host string, subnet *net.IPNet, p proxy.PacketProxy) DNS {
 	if p == nil {
 		p = &proxy.Default{}
 	}

@@ -7,24 +7,11 @@ import (
 	"log"
 	"reflect"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type WrapProxy func(p proxy.Proxy) (proxy.Proxy, error)
-
-func (p *Point) Conn() (r proxy.Proxy, err error) {
-	r = direct.Default
-	for _, v := range p.Protocols {
-		r, err = Wrap(v.Protocol)(r)
-		if err != nil {
-			return
-		}
-	}
-
-	return
-}
 
 var execProtocol syncmap.SyncMap[reflect.Type, func(isPointProtocol_Protocol) WrapProxy]
 

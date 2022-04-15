@@ -3,6 +3,7 @@ package register
 import (
 	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
@@ -33,4 +34,16 @@ func init() {
 	node.RegisterProtocol(ss.NewShadowsocks)
 	node.RegisterProtocol(ssr.NewShadowsocksr)
 	node.RegisterProtocol(s5c.NewSocks5)
+}
+
+func Dialer(p *node.Point) (r proxy.Proxy, err error) {
+	r = direct.Default
+	for _, v := range p.Protocols {
+		r, err = node.Wrap(v.Protocol)(r)
+		if err != nil {
+			return
+		}
+	}
+
+	return
 }

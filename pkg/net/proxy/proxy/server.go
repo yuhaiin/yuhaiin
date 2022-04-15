@@ -1,9 +1,11 @@
 package proxy
 
+import "io"
+
 type Server interface {
 	SetProxy(Proxy)
 	SetServer(host string) error
-	Close() error
+	io.Closer
 }
 
 var _ Server = (*EmptyServer)(nil)

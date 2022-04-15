@@ -3,7 +3,6 @@ package node
 import (
 	"sync"
 
-	_ "github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 

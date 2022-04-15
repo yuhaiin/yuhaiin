@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 
-	_ "github.com/Asutorufa/yuhaiin/pkg/node/register" // register protocol
+	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -29,7 +29,7 @@ func main() {
 		},
 	}
 
-	proxy, err := node.Conn()
+	proxy, err := register.Dialer(node)
 	if err != nil {
 		panic(err)
 	}

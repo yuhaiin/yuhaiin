@@ -9,8 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 // TCPServer tcp server common
@@ -74,7 +72,7 @@ func (t *TCPServer) SetServer(host string) (err error) {
 		return
 	}
 
-	logasfmt.Println("SetServer create new server")
+	log.Println("SetServer create new server")
 	return t.run()
 }
 
@@ -109,7 +107,7 @@ func (t *TCPServer) GetListenHost() string {
 }
 
 func (t *TCPServer) run() (err error) {
-	logasfmt.Println("New TCP Server:", t.host)
+	log.Println("New TCP Server:", t.host)
 	t.listener, err = t.config.Listen(context.TODO(), "tcp", t.host)
 	if err != nil {
 		return fmt.Errorf("TcpServer:run() -> %v", err)
