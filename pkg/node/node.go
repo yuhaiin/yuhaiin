@@ -1,4 +1,4 @@
-package subscr
+package node
 
 import (
 	"bytes"
@@ -19,8 +19,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -218,7 +218,7 @@ func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *n
 	if err != nil {
 		return fmt.Errorf("read body failed: %v", err)
 	}
-	dst, err := DecodeBytesBase64(body)
+	dst, err := parser.DecodeBytesBase64(body)
 	if err != nil {
 		return fmt.Errorf("decode body failed: %v", err)
 	}
@@ -250,7 +250,7 @@ func parseUrl(str []byte, l *node.NodeLink) (no *node.Point, err error) {
 			t = node.NodeLink_trojan
 		}
 	}
-	no, err = ParseLinkData(t, str)
+	no, err = parser.ParseLinkData(t, str)
 	if err != nil {
 		return nil, fmt.Errorf("parse link data failed: %v", err)
 	}
@@ -360,15 +360,4 @@ func (n *NodeManager) save() error {
 	}
 
 	return os.WriteFile(n.configPath, data, os.ModePerm)
-}
-
-var parseLink syncmap.SyncMap[node.NodeLinkLinkType, func(data []byte) (*node.Point, error)]
-
-func ParseLinkData(t node.NodeLinkLinkType, data []byte) (*node.Point, error) {
-	parser, ok := parseLink.Load(t)
-	if !ok {
-		return nil, fmt.Errorf("no support %s", t)
-	}
-
-	return parser(data)
 }

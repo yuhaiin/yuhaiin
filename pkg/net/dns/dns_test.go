@@ -7,7 +7,7 @@ import (
 	"net"
 	"testing"
 
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDNS2(t *testing.T) {
@@ -20,7 +20,7 @@ func TestDNS2(t *testing.T) {
 }
 
 func TestDNS9(t *testing.T) {
-	dns := NewDNS("[2001:4860:4860::8888]:53", nil, socks5client.NewSocks5Client("127.0.0.1", "1080", "", ""))
+	dns := NewDNS("[2001:4860:4860::8888]:53", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
 	t.Log(dns.LookupIP("www.baidu.com"))
 	t.Log(dns.LookupIP("www.twitter.com"))
 	t.Log(dns.LookupIP("google.com")) // without proxy [93.46.8.90] <nil>, with proxy [172.217.27.78] <nil>

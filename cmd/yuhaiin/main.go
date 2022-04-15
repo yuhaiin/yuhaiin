@@ -17,10 +17,10 @@ import (
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/app/http"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
+	nodemanager "github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"google.golang.org/grpc"
 )
@@ -38,27 +38,24 @@ func initialize() {
 		// ppid := os.Getppid()
 		// ticker := time.NewTicker(time.Second)
 
-		for {
-			select {
-			case s := <-signChannel:
-				switch s {
-				case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-					log.Println("stop server")
-					grpcServer.Stop()
-					return
-				default:
-					logasfmt.Println("OTHERS SIGN:", s)
-				}
-
-				// case <-ticker.C:
-				// 	if os.Getppid() == ppid {
-				// 		continue
-				// 	}
-
-				// 	log.Println("checked parent already exited, exit myself.")
-				// 	grpcServer.Stop()
-				// 	return
+		for s := range signChannel {
+			switch s {
+			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+				log.Println("stop server")
+				grpcServer.Stop()
+				return
+			default:
+				logasfmt.Println("OTHERS SIGN:", s)
 			}
+
+			// case <-ticker.C:
+			// 	if os.Getppid() == ppid {
+			// 		continue
+			// 	}
+
+			// 	log.Println("checked parent already exited, exit myself.")
+			// 	grpcServer.Stop()
+			// 	return
 		}
 	}()
 }
@@ -105,7 +102,7 @@ func main() {
 	initialize()
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
-	nodeManager, err := subscr.NewNodeManager(filepath.Join(*path, "node.json"))
+	nodeManager, err := nodemanager.NewNodeManager(filepath.Join(*path, "node.json"))
 	if err != nil {
 		panic(err)
 	}
