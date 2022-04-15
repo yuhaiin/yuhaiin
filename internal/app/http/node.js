@@ -12,3 +12,12 @@ function latency(id, hash) {
         }
     }
 }
+
+function del(hash) {
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.open("GET", "/node/delete?hash=" + hash, true);
+    xmlhttp.send();
+    xmlhttp.onreadystatechange = function() {
+        location.reload();
+    }
+}
