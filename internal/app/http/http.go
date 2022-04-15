@@ -12,10 +12,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	nodemanager "github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/subscr"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -34,7 +34,7 @@ var subJS []byte
 //go:embed toast.html
 var toastHTML []byte
 
-func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, conf *config.Config) {
+func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManager, conf *config.Config) {
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte{}) })
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -233,6 +233,7 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 		str.WriteString(create("shadowsocksr", &node.PointProtocol{Protocol: &node.PointProtocol_Shadowsocksr{}}))
 		str.WriteString(create("vmess", &node.PointProtocol{Protocol: &node.PointProtocol_Vmess{}}))
 		str.WriteString(create("trojan", &node.PointProtocol{Protocol: &node.PointProtocol_Trojan{}}))
+		str.WriteString(create("socks5", &node.PointProtocol{Protocol: &node.PointProtocol_Socks5{}}))
 
 		w.Write([]byte(createHTML(str.String())))
 	})

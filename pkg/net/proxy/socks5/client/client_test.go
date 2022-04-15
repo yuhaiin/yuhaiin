@@ -1,4 +1,4 @@
-package socks5client
+package client
 
 import (
 	"testing"

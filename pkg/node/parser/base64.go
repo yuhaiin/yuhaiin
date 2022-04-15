@@ -1,4 +1,4 @@
-package subscr
+package parser
 
 import (
 	"encoding/base64"

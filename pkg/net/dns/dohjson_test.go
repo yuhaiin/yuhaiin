@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"testing"
 
-	socks5client "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDNSOverHTTPS(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return socks5client.NewSocks5Client("127.0.0.1", "1080", "", "").Conn(addr)
+		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(addr)
 	}
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))

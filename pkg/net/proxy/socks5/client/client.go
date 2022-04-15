@@ -1,4 +1,4 @@
-package socks5client
+package client
 
 import (
 	"bytes"
@@ -13,31 +13,32 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 // https://tools.ietf.org/html/rfc1928
 // client socks5 client
 // host socks5 server's ip/domain and port
 type client struct {
-	hostname string
-	port     string
-	host     string
 	username string
 	password string
 
 	proxy.Proxy
 }
 
-func NewSocks5Client(host, port, user, password string) proxy.Proxy {
-	x := &client{
-		username: user,
-		hostname: host,
-		port:     port,
-		host:     net.JoinHostPort(host, port),
-		password: password,
-		Proxy:    simple.NewSimple(host, port),
+func NewSocks5(config *node.PointProtocol_Socks5) node.WrapProxy {
+	return func(p proxy.Proxy) (proxy.Proxy, error) {
+		return &client{
+			Proxy:    p,
+			username: config.Socks5.User,
+			password: config.Socks5.Password,
+		}, nil
 	}
-	return x
+}
+
+func Dial(host, port, user, password string) proxy.Proxy {
+	p, _ := NewSocks5(&node.PointProtocol_Socks5{Socks5: &node.Socks5{User: user, Password: password}})(simple.NewSimple(host, port))
+	return p
 }
 
 func (s *client) Conn(host string) (net.Conn, error) {
