@@ -59,6 +59,7 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		sort.Strings(ns.Groups)
 
 		str := strings.Builder{}
 
@@ -370,7 +371,14 @@ func Httpserver(nodeManager *subscr.NodeManager, connManager *app.ConnManager, c
 		str.WriteString("<script>")
 		str.Write(subJS)
 		str.WriteString("</script>")
-		for _, l := range links.GetLinks() {
+		ls := make([]string, 0, len(links.Links))
+		for v := range links.Links {
+			ls = append(ls, v)
+		}
+		sort.Strings(ls)
+
+		for _, v := range ls {
+			l := links.Links[v]
 			str.WriteString("<p>")
 			str.WriteString(fmt.Sprintf(`<a href='javascript: copy("%s");'>%s</a>`, l.GetUrl(), l.GetName()))
 			str.WriteString("&nbsp;&nbsp;")
