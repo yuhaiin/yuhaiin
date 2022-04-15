@@ -17,14 +17,14 @@ var _ DNS = (*dot)(nil)
 type dot struct {
 	host         string
 	servername   string
-	proxy        func(string) (net.Conn, error)
+	proxy        proxy.StreamProxy
 	sessionCache tls.ClientSessionCache
 	cache        *utils.LRU[string, []net.IP]
 
 	resolver *client
 }
 
-func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
+func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 	if p == nil {
 		p = &proxy.Default{}
 	}
@@ -49,12 +49,12 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 		host:         host,
 		servername:   servername,
 		sessionCache: tls.NewLRUClientSessionCache(0),
-		proxy:        p.Conn,
+		proxy:        p,
 		cache:        utils.NewLru[string, []net.IP](200, 20*time.Minute),
 	}
 
 	d.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
-		conn, err := d.proxy(d.host)
+		conn, err := d.proxy.Conn(d.host)
 		if err != nil {
 			return nil, fmt.Errorf("tcp dial failed: %v", err)
 		}
@@ -98,7 +98,7 @@ func (d *dot) Resolver() *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			conn, err := d.proxy(d.host)
+			conn, err := d.proxy.Conn(d.host)
 			if err != nil {
 				return nil, fmt.Errorf("tcp dial failed: %v", err)
 			}

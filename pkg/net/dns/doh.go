@@ -22,7 +22,7 @@ import (
 var _ DNS = (*doh)(nil)
 
 type doh struct {
-	Proxy func(domain string) (net.Conn, error)
+	Proxy proxy.StreamProxy
 
 	host     string
 	hostname string
@@ -34,7 +34,7 @@ type doh struct {
 	resolver   *client
 }
 
-func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
+func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 	dns := &doh{
 		cache: utils.NewLru[string, []net.IP](200, 20*time.Minute),
 	}
@@ -43,7 +43,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.Proxy) DNS {
 	if p == nil {
 		p = simple.NewSimple(dns.hostname, dns.port)
 	}
-	dns.setProxy(p.Conn)
+	dns.setProxy(p)
 	dns.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
 		r, err := dns.post(bytes.NewReader(b))
 		if err != nil {
@@ -92,7 +92,7 @@ func (d *doh) setServer(host string) {
 	d.host = net.JoinHostPort(d.hostname, d.port)
 }
 
-func (d *doh) setProxy(p func(string) (net.Conn, error)) {
+func (d *doh) setProxy(p proxy.StreamProxy) {
 	d.Proxy = p
 	d.httpClient = &http.Client{
 		Transport: &http.Transport{
@@ -100,7 +100,7 @@ func (d *doh) setProxy(p func(string) (net.Conn, error)) {
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				switch network {
 				case "tcp":
-					return d.Proxy(d.host)
+					return d.Proxy.Conn(d.host)
 				default:
 					return net.Dial(network, d.host)
 				}
