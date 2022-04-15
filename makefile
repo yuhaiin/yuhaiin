@@ -13,7 +13,7 @@ test:
 	@echo ${GO_CMD}
 
 .PHONY: all
-all: yuhaiin cli
+all: yuhaiin cli yuhaiin_windows cli_windows
 
 .PHONY: vet
 vet:

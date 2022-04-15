@@ -28,6 +28,8 @@ jobs:
         make all
         upx --lzma --best yuhaiin
         upx --lzma --best yh
+        upx --lzma --best yuhaiin.exe
+        upx --lzma --best yh.exe
 
     - name: Test
       run: make vet
@@ -35,7 +37,15 @@ jobs:
     - name: upload
       uses: actions/upload-artifact@v2
       with:
-        name: output
+        name: output_linux_amd64
         path: |
           yuhaiin
           yh
+
+    - name: upload_windows
+      uses: actions/upload-artifact@v2
+      with:
+        name: output_windows_amd64
+        path: |
+          yuhaiin.exe
+          yh.exe
