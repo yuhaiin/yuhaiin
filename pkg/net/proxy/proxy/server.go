@@ -1,10 +1,12 @@
 package proxy
 
-import "io"
+import (
+	"io"
+)
 
 type Server interface {
 	SetProxy(Proxy)
-	SetServer(host string) error
+	SetServer(string) error
 	io.Closer
 }
 

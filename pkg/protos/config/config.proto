@@ -9,8 +9,8 @@ import "google/protobuf/empty.proto";
 message setting {
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
   bypass bypass = 2 [ json_name = "bypass" ];
-  proxy proxy = 3 [ json_name = "proxy" ];
   dns_setting dns = 4 [ json_name = "dns" ];
+  server server = 5 [ json_name = "server" ];
 }
 
 message dns_setting {
@@ -42,15 +42,33 @@ message dns {
   string subnet = 4 [ json_name = "subnet" ];
 }
 
-message proxy {
-  enum proxy_type {
-    reserve = 0;
-    http = 1;
-    socks5 = 2;
-    redir = 3;
+message server {
+  message protocol {
+    string name = 1 [ json_name = "name" ];
+    string hash = 2 [ json_name = "hash" ];
+    oneof protocol {
+      http http = 3 [ json_name = "http" ];
+      socks5 socks5 = 4 [ json_name = "socks5" ];
+      redir redir = 5 [ json_name = "redir" ];
+    }
   }
-  map<string, string> proxy = 4 [ json_name = "proxy" ];
+
+  map<string, protocol> servers = 5 [ json_name = "servers" ];
 }
+
+message http {
+  string host = 1 [ json_name = "host" ];
+  string username = 3 [ json_name = "username" ];
+  string password = 4 [ json_name = "password" ];
+}
+
+message socks5 {
+  string host = 1 [ json_name = "host" ];
+  string username = 3 [ json_name = "username" ];
+  string password = 4 [ json_name = "password" ];
+}
+
+message redir { string host = 1 [ json_name = "host" ]; }
 
 service config_dao {
   rpc load(google.protobuf.Empty) returns (setting);

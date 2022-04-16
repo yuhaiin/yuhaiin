@@ -21,7 +21,6 @@ func TestJsonPb(t *testing.T) {
 			Enabled:    true,
 			BypassFile: filepath.Join("/tmp/yuhaiin/setting", "yuhaiin.conf"),
 		},
-		Proxy: &config.Proxy{},
 		Dns: &config.DnsSetting{
 			Remote: &config.Dns{
 				Host:   "cloudflare-dns.com",
@@ -46,7 +45,6 @@ func TestJsonPb(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(s2, s2.Proxy)
 
 	s3 := &config.Setting{}
 	err = protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}.Unmarshal([]byte(`{"system_proxy":{"enabled":true,"http":true,"unknowTest":""}}`), s3)

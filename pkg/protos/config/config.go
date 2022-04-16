@@ -1,10 +1,15 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	reflect "reflect"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 func DefaultConfigDir() (Path string) {
@@ -30,4 +35,31 @@ func DefaultConfigDir() (Path string) {
 
 	Path = filepath.Join(filepath.Dir(execPath), "config")
 	return
+}
+
+var execProtocol syncmap.SyncMap[reflect.Type, func(isServerProtocol_Protocol) (proxy.Server, error)]
+
+func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T) (proxy.Server, error)) {
+	if wrap == nil {
+		return
+	}
+
+	var z T
+	execProtocol.Store(
+		reflect.TypeOf(z),
+		func(t isServerProtocol_Protocol) (proxy.Server, error) { return wrap(t.(T)) },
+	)
+}
+
+func CreateServer(p isServerProtocol_Protocol) (proxy.Server, error) {
+	if p == nil {
+		return nil, fmt.Errorf("value is nil: %v", p)
+	}
+
+	conn, ok := execProtocol.Load(reflect.TypeOf(p))
+	if !ok {
+		return nil, fmt.Errorf("protocol %v is not support", p)
+	}
+
+	return conn(p)
 }

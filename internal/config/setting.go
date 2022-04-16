@@ -2,6 +2,8 @@ package config
 
 import (
 	context "context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,12 +19,6 @@ import (
 
 // settingDecodeJSON decode setting json to struct
 func settingDecodeJSON(dir string) *config.Setting {
-	p := map[string]string{
-		config.Proxy_http.String():   "127.0.0.1:8188",
-		config.Proxy_socks5.String(): "127.0.0.1:1080",
-		config.Proxy_redir.String():  "127.0.0.1:8088",
-	}
-
 	pa := &config.Setting{
 		SystemProxy: &config.SystemProxy{
 			Http:   true,
@@ -33,9 +29,6 @@ func settingDecodeJSON(dir string) *config.Setting {
 		Bypass: &config.Bypass{
 			Enabled:    true,
 			BypassFile: filepath.Join(dir, "yuhaiin.conf"),
-		},
-		Proxy: &config.Proxy{
-			Proxy: p,
 		},
 
 		Dns: &config.DnsSetting{
@@ -62,13 +55,37 @@ func settingDecodeJSON(dir string) *config.Setting {
 		log.Printf("unmarshal config file failed: %v\n", err)
 	}
 
-	if pa.Proxy.Proxy == nil {
-		pa.Proxy.Proxy = make(map[string]string)
-	}
-
-	for k, v := range p {
-		if pa.Proxy.Proxy[k] == "" {
-			pa.Proxy.Proxy[k] = v
+	if pa.Server == nil || pa.Server.Servers == nil {
+		pa.Server = &config.Server{
+			Servers: map[string]*config.ServerProtocol{
+				"http": {
+					Name: "http",
+					Hash: "http",
+					Protocol: &config.ServerProtocol_Http{
+						Http: &config.Http{
+							Host: "127.0.0.1:8188",
+						},
+					},
+				},
+				"socks5": {
+					Name: "socks5",
+					Hash: "socks5",
+					Protocol: &config.ServerProtocol_Socks5{
+						Socks5: &config.Socks5{
+							Host: "127.0.0.1:1080",
+						},
+					},
+				},
+				"redir": {
+					Name: "redir",
+					Hash: "redir",
+					Protocol: &config.ServerProtocol_Redir{
+						Redir: &config.Redir{
+							Host: "127.0.0.1:8088",
+						},
+					},
+				},
+			},
 		}
 	}
 	return pa
@@ -126,6 +143,9 @@ func (c *Config) Load(context.Context, *emptypb.Empty) (*config.Setting, error) 
 func (c *Config) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	for _, v := range s.Server.Servers {
+		refreshHash(v)
+	}
 	err := settingEnCodeJSON(s, c.path)
 	if err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %v", err)
@@ -147,6 +167,12 @@ func (c *Config) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, err
 	wg.Wait()
 
 	return &emptypb.Empty{}, nil
+}
+
+func refreshHash(p *config.ServerProtocol) {
+	p.Hash = ""
+	z := sha256.Sum256([]byte(p.String()))
+	p.Hash = hex.EncodeToString(z[:])
 }
 
 func (c *Config) AddObserver(diff func(current, old *config.Setting) bool, exec func(current *config.Setting)) {
