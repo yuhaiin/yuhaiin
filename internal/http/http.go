@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -16,6 +17,8 @@ import (
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/gorilla/websocket"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -30,6 +33,9 @@ var configJS []byte
 
 //go:embed sub.js
 var subJS []byte
+
+//go:embed statistic.js
+var statisticJS []byte
 
 //go:embed toast.html
 var toastHTML []byte
@@ -282,6 +288,9 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
 
 		str := strings.Builder{}
+		str.WriteString(fmt.Sprintf(`<script>%s</script>`, statisticJS))
+		str.WriteString(`<pre id="statistic">Loading...</pre>`)
+		str.WriteString("<hr/>")
 
 		for _, c := range conns.GetConnections() {
 			str.WriteString("<p>")
@@ -463,6 +472,55 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 
 		http.Redirect(w, r, "/sub", http.StatusFound)
 	})
+
+	var upgrader = websocket.Upgrader{} // use default options
+
+	http.HandleFunc("/statistic", func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		defer c.Close()
+
+		ctx, cancel := context.WithCancel(context.TODO())
+		go func() {
+			_, _, err := c.ReadMessage()
+			if err != nil {
+				cancel()
+			}
+		}()
+
+		connManager.Statistic(&emptypb.Empty{}, newStatisticSend(ctx, func(rr *statistic.RateResp) error {
+			data, _ := protojson.Marshal(rr)
+			err = c.WriteMessage(websocket.TextMessage, data)
+			if err != nil {
+				cancel()
+			}
+
+			return err
+		}))
+	})
+}
+
+var _ statistic.Connections_StatisticServer = &statisticSend{}
+
+type statisticSend struct {
+	grpc.ServerStream
+	send func(*statistic.RateResp) error
+	ctx  context.Context
+}
+
+func newStatisticSend(ctx context.Context, send func(*statistic.RateResp) error) *statisticSend {
+	return &statisticSend{ctx: ctx, send: send}
+}
+
+func (s *statisticSend) Send(statistic *statistic.RateResp) error {
+	return s.send(statistic)
+}
+
+func (s *statisticSend) Context() context.Context {
+	return s.ctx
 }
 
 func createHTML(s string) string {

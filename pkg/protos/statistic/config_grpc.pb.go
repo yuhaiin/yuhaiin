@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.19.4
-// source: pkg/protos/statistic/config.proto
+// source: statistic/config.proto
 
 package statistic
 
@@ -202,5 +202,5 @@ var Connections_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "pkg/protos/statistic/config.proto",
+	Metadata: "statistic/config.proto",
 }
