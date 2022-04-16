@@ -3,6 +3,8 @@ package app
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -21,34 +23,12 @@ import (
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
-type MODE int
+//go:generate go run bypass/generate.go -des=bypass/bypass.gz
 
-var (
-	OTHERS MODE = 0
-	BLOCK  MODE = 1
-	DIRECT MODE = 2
-	// PROXY  MODE = 3
-	MAX MODE = 3
-)
+// go:embed bypass/bypass.gz
+var BYPASS_DATA []byte
 
-func (m MODE) String() string {
-	switch m {
-	case BLOCK:
-		return "BLOCK"
-	case DIRECT:
-		return "DIRECT"
-	default:
-		return "PROXY"
-	}
-}
-
-var Mode = map[string]*MODE{
-	"direct": &DIRECT,
-	// "proxy":  PROXY,
-	"block": &BLOCK,
-}
-
-func copyBypassFile(target string) error {
+func writeDefaultBypassData(target string) error {
 	_, err := os.Stat(target)
 	if err == nil {
 		return nil
@@ -62,7 +42,39 @@ func copyBypassFile(target string) error {
 	if err != nil {
 		return fmt.Errorf("create bypass dir failed: %w", err)
 	}
-	return ioutil.WriteFile(target, bypassData, os.ModePerm)
+
+	gr, err := gzip.NewReader(bytes.NewReader(BYPASS_DATA))
+	if err != nil {
+		return fmt.Errorf("create gzip reader failed: %w", err)
+	}
+	defer gr.Close()
+
+	data, err := ioutil.ReadAll(gr)
+	if err != nil {
+		return fmt.Errorf("read gzip data failed: %w", err)
+	}
+
+	return ioutil.WriteFile(target, data, os.ModePerm)
+}
+
+type MODE string
+
+var (
+	OTHERS MODE = "OTHERS"
+	BLOCK  MODE = "BLOCK"
+	DIRECT MODE = "DIRECT"
+	// PROXY  MODE = 3
+	MAX MODE = "MAX"
+)
+
+func (m MODE) String() string {
+	return string(m)
+}
+
+var Mode = map[string]*MODE{
+	"direct": &DIRECT,
+	// "proxy":  PROXY,
+	"block": &BLOCK,
 }
 
 type Shunt struct {
@@ -80,7 +92,7 @@ func WithProxy(p proxy.Proxy) func(*Shunt) {
 }
 
 //NewShunt file: bypass file; lookup: domain resolver, can be nil
-func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
+func NewShunt(conf *config.Config, opts ...func(*Shunt)) *Shunt {
 	s := &Shunt{}
 
 	for _, opt := range opts {
@@ -115,14 +127,14 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) (*Shunt, error) {
 		return s.RefreshMapping()
 	})
 
-	return s, nil
+	return s
 }
 
 func (s *Shunt) RefreshMapping() error {
 	s.fileLock.RLock()
 	defer s.fileLock.RUnlock()
 
-	err := copyBypassFile(s.file)
+	err := writeDefaultBypassData(s.file)
 	if err != nil {
 		return fmt.Errorf("copy bypass file failed: %w", err)
 	}

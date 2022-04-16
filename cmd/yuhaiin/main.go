@@ -14,8 +14,8 @@ import (
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
-	simplehttp "github.com/Asutorufa/yuhaiin/internal/app/http"
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	nodemanager "github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -102,18 +102,9 @@ func main() {
 	initialize()
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
-	nodeManager, err := nodemanager.NewNodeManager(filepath.Join(*path, "node.json"))
-	if err != nil {
-		panic(err)
-	}
-	conf, err := config.NewConfig(*path)
-	if err != nil {
-		panic(err)
-	}
-	flowStatis, err := app.NewConnManager(conf, nodeManager)
-	if err != nil {
-		panic(err)
-	}
+	nodeManager := nodemanager.NewNodeManager(filepath.Join(*path, "node.json"))
+	conf := config.NewConfig(*path)
+	flowStatis := app.NewConnManager(conf, nodeManager)
 	_ = app.NewListener(conf, flowStatis)
 
 	sysproxy.Set(conf)
