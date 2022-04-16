@@ -27,16 +27,13 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-//go:generate protoc --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative node.proto
-
-var _ node.NodeManagerServer = (*NodeManager)(nil)
 var _ proxy.Proxy = (*NodeManager)(nil)
 
 type NodeManager struct {
 	node.UnimplementedNodeManagerServer
-	configPath string
-	lock       sync.RWMutex
-	filelock   sync.RWMutex
+
+	savaPath       string
+	lock, filelock sync.RWMutex
 	proxy.Proxy
 
 	now     *node.Point
@@ -44,19 +41,21 @@ type NodeManager struct {
 	links   map[string]*node.NodeLink
 }
 
-func NewNodeManager(configPath string) (n *NodeManager, err error) {
-	n = &NodeManager{configPath: configPath}
+func NewNodeManager(configPath string) (n *NodeManager) {
+	n = &NodeManager{savaPath: configPath}
 
 	n.load()
 
 	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
 	p, err := register.Dialer(now)
 	if err != nil {
+		log.Printf("create conn failed: %v", err)
 		p = &proxy.Default{}
 	}
 
 	n.Proxy = p
-	return n, nil
+
+	return
 }
 
 func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*node.Point, error) {
@@ -309,7 +308,7 @@ func (n *NodeManager) load() {
 
 	n.filelock.RLock()
 	defer n.filelock.RUnlock()
-	data, err := os.ReadFile(n.configPath)
+	data, err := os.ReadFile(n.savaPath)
 	if err != nil {
 		data = []byte{'{', '}'}
 		logasfmt.Printf("read node file failed: %v\n", err)
@@ -344,9 +343,9 @@ func (n *NodeManager) load() {
 }
 
 func (n *NodeManager) save() error {
-	_, err := os.Stat(path.Dir(n.configPath))
+	_, err := os.Stat(path.Dir(n.savaPath))
 	if errors.Is(err, os.ErrNotExist) {
-		err = os.MkdirAll(path.Dir(n.configPath), os.ModePerm)
+		err = os.MkdirAll(path.Dir(n.savaPath), os.ModePerm)
 		if err != nil {
 			return fmt.Errorf("make config dir failed: %w", err)
 		}
@@ -365,5 +364,5 @@ func (n *NodeManager) save() error {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}
 
-	return os.WriteFile(n.configPath, data, os.ModePerm)
+	return os.WriteFile(n.savaPath, data, os.ModePerm)
 }

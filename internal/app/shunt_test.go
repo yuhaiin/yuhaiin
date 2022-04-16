@@ -11,11 +11,7 @@ import (
 )
 
 func TestShunt(t *testing.T) {
-	x, err := NewShunt(&config.Config{})
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
+	x := NewShunt(&config.Config{})
 
 	t.Log(x.Get("sp0.baidu.com"))
 	t.Log(x.Get("www.baidu.com"))

@@ -4,6 +4,7 @@ import (
 	context "context"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -14,10 +15,8 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-//go:generate  protoc --go_out=. --go-grpc_out=. --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative config.proto
-
 // settingDecodeJSON decode setting json to struct
-func settingDecodeJSON(dir string) (*config.Setting, error) {
+func settingDecodeJSON(dir string) *config.Setting {
 	p := map[string]string{
 		config.Proxy_http.String():   "127.0.0.1:8188",
 		config.Proxy_socks5.String(): "127.0.0.1:1080",
@@ -54,24 +53,25 @@ func settingDecodeJSON(dir string) (*config.Setting, error) {
 	}
 	data, err := ioutil.ReadFile(filepath.Join(dir, "yuhaiinConfig.json"))
 	if err != nil {
-		if os.IsNotExist(err) {
-			return pa, settingEnCodeJSON(pa, dir)
-		}
-		return pa, fmt.Errorf("read config file failed: %v", err)
+		log.Printf("read config file failed: %v\n", err)
+		data = []byte{'{', '}'}
 	}
-	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
-	if err == nil {
-		if pa.Proxy.Proxy == nil {
-			pa.Proxy.Proxy = make(map[string]string)
-		}
 
-		for k, v := range p {
-			if pa.Proxy.Proxy[k] == "" {
-				pa.Proxy.Proxy[k] = v
-			}
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
+	if err != nil {
+		log.Printf("unmarshal config file failed: %v\n", err)
+	}
+
+	if pa.Proxy.Proxy == nil {
+		pa.Proxy.Proxy = make(map[string]string)
+	}
+
+	for k, v := range p {
+		if pa.Proxy.Proxy[k] == "" {
+			pa.Proxy.Proxy[k] = v
 		}
 	}
-	return pa, err
+	return pa
 }
 
 // settingEnCodeJSON encode setting struct to json
@@ -111,15 +111,10 @@ type Config struct {
 
 type InitFunc func(*config.Setting) error
 
-func NewConfig(dir string) (*Config, error) {
-	c, err := settingDecodeJSON(dir)
-	if err != nil {
-		return nil, fmt.Errorf("decode setting failed: %v", err)
-	}
-
+func NewConfig(dir string) *Config {
+	c := settingDecodeJSON(dir)
 	cf := &Config{current: c, old: c, path: dir, exec: make(map[string]InitFunc)}
-
-	return cf, nil
+	return cf
 }
 
 func (c *Config) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {

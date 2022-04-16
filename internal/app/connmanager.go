@@ -21,7 +21,6 @@ import (
 )
 
 var _ proxy.Proxy = (*ConnManager)(nil)
-var _ statistic.ConnectionsServer = (*ConnManager)(nil)
 
 type ConnManager struct {
 	statistic.UnimplementedConnectionsServer
@@ -33,7 +32,7 @@ type ConnManager struct {
 	mapper        func(string) MODE
 }
 
-func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
+func NewConnManager(conf *config.Config, p proxy.Proxy) *ConnManager {
 	if p == nil {
 		p = &proxy.Default{}
 	}
@@ -43,10 +42,7 @@ func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 		proxy:  p,
 	}
 
-	shunt, err := NewShunt(conf, WithProxy(c))
-	if err != nil {
-		return nil, fmt.Errorf("create shunt failed: %v, disable bypass.\n", err)
-	}
+	shunt := NewShunt(conf, WithProxy(c))
 
 	conf.AddObserverAndExec(
 		func(current, old *protoconfig.Setting) bool { return diffDNS(current.Dns.Local, old.Dns.Local) },
@@ -65,7 +61,7 @@ func NewConnManager(conf *config.Config, p proxy.Proxy) (*ConnManager, error) {
 			}
 		})
 
-	return c, nil
+	return c
 }
 
 func (c *ConnManager) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
@@ -264,7 +260,7 @@ func (i *idGenerater) Generate() (id int64) {
 func (m *ConnManager) marry(host string) (p proxy.Proxy, mark MODE) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return proxy.NewErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), MODE(-1)
+		return proxy.NewErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), MODE("UNKNOWN")
 	}
 
 	mark = m.mapper(hostname)

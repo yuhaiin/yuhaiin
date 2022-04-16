@@ -13,13 +13,9 @@ import (
 )
 
 func TestNodeManager(t *testing.T) {
-	n, err := NewNodeManager("/tmp/yuhaiin/nodeManagerTest/config.json")
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
+	n := NewNodeManager("/tmp/yuhaiin/nodeManagerTest/config.json")
 
-	_, err = n.SaveLinks(context.TODO(),
+	_, err := n.SaveLinks(context.TODO(),
 		&node.SaveLinkReq{
 			Links: []*node.NodeLink{
 				{
