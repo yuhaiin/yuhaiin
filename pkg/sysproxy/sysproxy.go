@@ -9,15 +9,19 @@ import (
 
 func Set(conf *config.Config) {
 	conf.AddObserverAndExec(func(current, old *cb.Setting) bool {
-		return proto.Equal(current.Proxy, old.Proxy)
+		return proto.Equal(current.Server, old.Server)
 	}, func(s *cb.Setting) {
 		UnsetSysProxy()
 		var http, socks5 string
-		if s.SystemProxy.Http {
-			http = s.Proxy.Proxy[cb.Proxy_http.String()]
-		}
-		if s.SystemProxy.Socks5 {
-			socks5 = s.Proxy.Proxy[cb.Proxy_socks5.String()]
+
+		for _, v := range s.Server.Servers {
+			if v.GetHttp() != nil && s.SystemProxy.Http {
+				http = v.GetHttp().GetHost()
+			}
+
+			if v.GetSocks5() != nil && s.SystemProxy.Socks5 {
+				socks5 = v.GetSocks5().GetHost()
+			}
 		}
 		SetSysProxy(http, socks5)
 	})
