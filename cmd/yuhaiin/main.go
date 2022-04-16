@@ -7,10 +7,10 @@ import (
 	"log"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
@@ -22,15 +22,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 )
 
 func initialize() {
-	go func() {
-		// pprof
-		_ = http.ListenAndServe("0.0.0.0:6060", nil)
-	}()
-
 	go func() {
 		signChannel := make(chan os.Signal, 5)
 		signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -42,7 +39,9 @@ func initialize() {
 			switch s {
 			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
 				log.Println("stop server")
-				grpcServer.Stop()
+				if lis != nil {
+					lis.Close()
+				}
 				return
 			default:
 				logasfmt.Println("OTHERS SIGN:", s)
@@ -73,7 +72,8 @@ func initLog(configPath string) (close func() error) {
 	return f.Close
 }
 
-var grpcServer = grpc.NewServer(grpc.EmptyServerOption{})
+// var grpcServer = grpc.NewServer(grpc.EmptyServerOption{})
+var lis net.Listener
 
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
@@ -85,7 +85,7 @@ func main() {
 	defer close()
 
 	logasfmt.Println("\n\n\nsave config at:", *path)
-	logasfmt.Println("gRPC Listen Host:", *host)
+	logasfmt.Println("gRPC&HTTP Listen Host:", *host)
 
 	lock, err := app.NewLock(filepath.Join(*path, "yuhaiin.lock"), *host)
 	if err != nil {
@@ -94,7 +94,7 @@ func main() {
 	defer lock.UnLock()
 
 	// initialize Local Servers Controller
-	lis, err := net.Listen("tcp", *host)
+	lis, err = net.Listen("tcp", *host)
 	if err != nil {
 		panic(err)
 	}
@@ -110,12 +110,22 @@ func main() {
 	sysproxy.Set(conf)
 	defer sysproxy.Unset()
 
-	simplehttp.Httpserver(nodeManager, flowStatis, conf)
+	mux := http.NewServeMux()
+	simplehttp.Httpserver(mux, nodeManager, flowStatis, conf)
 
+	grpcServer := grpc.NewServer()
 	grpcServer.RegisterService(&node.NodeManager_ServiceDesc, nodeManager)
 	grpcServer.RegisterService(&protoconfig.ConfigDao_ServiceDesc, conf)
 	grpcServer.RegisterService(&statistic.Connections_ServiceDesc, flowStatis)
-	err = grpcServer.Serve(lis)
+
+	// h2c for grpc insecure mode
+	err = http.Serve(lis, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+			grpcServer.ServeHTTP(w, r)
+		} else {
+			mux.ServeHTTP(w, r)
+		}
+	}), &http2.Server{}))
 	if err != nil {
 		panic(err)
 	}

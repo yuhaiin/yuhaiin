@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,10 +41,17 @@ var statisticJS []byte
 //go:embed toast.html
 var toastHTML []byte
 
-func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManager, conf *config.Config) {
-	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte{}) })
+func Httpserver(mux *http.ServeMux, nodeManager *nodemanager.NodeManager, connManager *app.ConnManager, conf *config.Config) {
+	// pprof
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte{}) })
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		point, err := nodeManager.Now(context.TODO(), &emptypb.Empty{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -59,7 +67,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(fmt.Sprintf(`<pre>%s</pre>`, string(data)))))
 	})
 
-	http.HandleFunc("/group", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/group", func(w http.ResponseWriter, r *http.Request) {
 		ns, err := nodeManager.GetManager(context.TODO(), &wrapperspb.StringValue{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -81,7 +89,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/nodes", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/nodes", func(w http.ResponseWriter, r *http.Request) {
 		group := r.URL.Query().Get("group")
 
 		ns, err := nodeManager.GetManager(context.TODO(), &wrapperspb.StringValue{})
@@ -115,7 +123,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/node", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/node", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
 
 		n, err := nodeManager.GetNode(context.TODO(), &wrapperspb.StringValue{Value: hash})
@@ -145,7 +153,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/node/add", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/node/add", func(w http.ResponseWriter, r *http.Request) {
 		str := strings.Builder{}
 		str.WriteString("<script>")
 		str.Write(configJS)
@@ -178,7 +186,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/node/save", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/node/save", func(w http.ResponseWriter, r *http.Request) {
 		data, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -201,7 +209,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte("successful"))
 	})
 
-	http.HandleFunc("/node/delete", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/node/delete", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
 		if hash == "" {
 			http.Error(w, "hash is empty", http.StatusInternalServerError)
@@ -217,7 +225,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write(nil)
 	})
 
-	http.HandleFunc("/node/template", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/node/template", func(w http.ResponseWriter, r *http.Request) {
 		create := func(name string, data proto.Message) string {
 			b, _ := protojson.MarshalOptions{Indent: "  ", EmitUnpopulated: true}.Marshal(data)
 			str := strings.Builder{}
@@ -246,7 +254,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/latency", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/latency", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
 		lt, err := nodeManager.Latency(context.TODO(), &node.LatencyReq{NodeHash: []string{hash}})
 		if err != nil {
@@ -261,7 +269,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(fmt.Sprintf(`{"tcp":"%s","udp":"%s"}`, lt.HashLatencyMap[hash].Tcp, lt.HashLatencyMap[hash].Udp)))
 	})
 
-	http.HandleFunc("/use", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/use", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
 
 		p, err := nodeManager.Use(context.TODO(), &wrapperspb.StringValue{Value: hash})
@@ -279,7 +287,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(fmt.Sprintf(`<pre>%s</pre>`, string(data)))))
 	})
 
-	http.HandleFunc("/conn/list", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/conn/list", func(w http.ResponseWriter, r *http.Request) {
 		conns, err := connManager.Conns(context.TODO(), &emptypb.Empty{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -303,7 +311,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/conn/close", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/conn/close", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("id")
 
 		i, err := strconv.Atoi(id)
@@ -321,7 +329,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		http.Redirect(w, r, "/conn/list", http.StatusFound)
 	})
 
-	http.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
 		c, err := conf.Load(context.TODO(), &emptypb.Empty{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -348,7 +356,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/config/save", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/config/save", func(w http.ResponseWriter, r *http.Request) {
 		data, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -371,7 +379,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte("successful"))
 	})
 
-	http.HandleFunc("/sub", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/sub", func(w http.ResponseWriter, r *http.Request) {
 		links, err := nodeManager.GetLinks(context.TODO(), &emptypb.Empty{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -416,7 +424,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		w.Write([]byte(createHTML(str.String())))
 	})
 
-	http.HandleFunc("/sub/add", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/sub/add", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		link := r.URL.Query().Get("link")
 
@@ -441,7 +449,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		http.Redirect(w, r, "/sub", http.StatusFound)
 	})
 
-	http.HandleFunc("/sub/delete", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/sub/delete", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		if name == "" {
 			http.Redirect(w, r, "/sub", http.StatusFound)
@@ -457,7 +465,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 		http.Redirect(w, r, "/sub", http.StatusFound)
 	})
 
-	http.HandleFunc("/sub/update", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/sub/update", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		if name == "" {
 			http.Redirect(w, r, "/sub", http.StatusFound)
@@ -475,7 +483,7 @@ func Httpserver(nodeManager *nodemanager.NodeManager, connManager *app.ConnManag
 
 	var upgrader = websocket.Upgrader{} // use default options
 
-	http.HandleFunc("/statistic", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/statistic", func(w http.ResponseWriter, r *http.Request) {
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			log.Println(err)
