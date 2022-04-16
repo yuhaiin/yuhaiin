@@ -10,6 +10,7 @@ function save(id, path) {
             data = "Save Failed: " + xmlhttp.responseText;
         } else {
             data = "Save Successful";
+            location.reload();
         }
         document.getElementById('error').innerText = data;
     }

@@ -72,7 +72,6 @@ func initLog(configPath string) (close func() error) {
 	return f.Close
 }
 
-// var grpcServer = grpc.NewServer(grpc.EmptyServerOption{})
 var lis net.Listener
 
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto

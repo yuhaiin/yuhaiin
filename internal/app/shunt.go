@@ -63,8 +63,8 @@ var (
 	OTHERS MODE = "OTHERS"
 	BLOCK  MODE = "BLOCK"
 	DIRECT MODE = "DIRECT"
-	// PROXY  MODE = 3
-	MAX MODE = "MAX"
+	PROXY  MODE = "PROXY"
+	MAX    MODE = "MAX"
 )
 
 func (m MODE) String() string {
@@ -179,7 +179,7 @@ func (s *Shunt) RefreshMapping() error {
 func (s *Shunt) Get(domain string) MODE {
 	m, _ := s.mapper.Search(domain)
 	if m == nil {
-		return OTHERS
+		return PROXY
 	}
 	return *m
 }
@@ -198,7 +198,7 @@ func getDNSHostnameAndMode(dc *protoconfig.Dns) (string, *MODE) {
 		host = h
 	}
 
-	mode := &OTHERS
+	mode := &PROXY
 	if !dc.Proxy {
 		mode = &DIRECT
 	}
