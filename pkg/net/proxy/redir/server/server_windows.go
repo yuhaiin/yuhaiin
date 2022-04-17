@@ -13,6 +13,6 @@ func RedirHandle() func(net.Conn, proxy.Proxy) {
 	return nil
 }
 
-func NewServer(host string) (proxy.Server, error) {
+func NewServer(host string, _ proxy.Proxy) (proxy.Server, error) {
 	return &proxy.EmptyServer{}, nil
 }

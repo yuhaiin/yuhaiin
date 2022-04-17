@@ -74,6 +74,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	conn := s.proto.StreamProtocol(cipher, cipher.WriteIV())
 	target, err := s5c.ParseAddr(addr)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 	if _, err := conn.Write(target); err != nil {
@@ -91,5 +92,11 @@ func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 	}
 	cipher := s.cipher.PacketCipher(c)
 	proto := s.proto.PacketProtocol(cipher)
-	return shadowsocks.NewSsPacketConn(proto, s.udpAddr, addr)
+	conn, err := shadowsocks.NewSsPacketConn(proto, s.udpAddr, addr)
+	if err != nil {
+		c.Close()
+		return nil, fmt.Errorf("new ss packet conn failed: %w", err)
+	}
+
+	return conn, nil
 }

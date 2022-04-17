@@ -126,6 +126,7 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 func (c *Client) NewConn(rc net.Conn, target string) (net.Conn, error) {
 	conn, err := c.newConn(rc, "tcp", target)
 	if err != nil {
+		rc.Close()
 		return nil, err
 	}
 
