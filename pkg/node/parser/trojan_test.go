@@ -18,7 +18,7 @@ import (
 
 func TestParseTrojan(t *testing.T) {
 	data := "trojan://cb60ba10-1178-3896-ba6e-69ffae322db5@1.1.1.1:443?sni=www.google.com&peer=www.google.com#zxdsdfsdf"
-	t.Log(ParseLinkData(node.NodeLink_trojan, []byte(data)))
+	t.Log(Parse(node.NodeLink_trojan, []byte(data)))
 }
 
 func TestTrojan(t *testing.T) {

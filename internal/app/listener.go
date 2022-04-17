@@ -22,14 +22,14 @@ type Listener struct {
 }
 
 func init() {
-	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http) (proxy.Server, error) {
-		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password)
+	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http, dialer proxy.Proxy) (proxy.Server, error) {
+		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password, dialer)
 	})
-	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5) (proxy.Server, error) {
-		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password)
+	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5, dialer proxy.Proxy) (proxy.Server, error) {
+		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password, dialer)
 	})
-	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Redir) (proxy.Server, error) {
-		return rs.NewServer(t.Redir.Host)
+	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Redir, dialer proxy.Proxy) (proxy.Server, error) {
+		return rs.NewServer(t.Redir.Host, dialer)
 	})
 }
 
@@ -80,13 +80,12 @@ func (l *Listener) update(name string, pro proxy.Proxy, config *protoconfig.Serv
 }
 
 func (l *Listener) start(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
-	server, err := protoconfig.CreateServer(config.Protocol)
+	server, err := protoconfig.CreateServer(config.Protocol, pro)
 	if err != nil {
 		logasfmt.Printf("create server failed: %v\n", err)
 		return
 	}
 
-	server.SetProxy(pro)
 	l.store[name] = struct {
 		hash   string
 		server proxy.Server

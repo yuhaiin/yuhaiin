@@ -31,6 +31,7 @@ message point {
       simple simple = 8 [ json_name = "simple" ];
       none none = 9 [ json_name = "none" ];
       socks5 socks5 = 10 [ json_name = "socks5" ];
+      http http = 11 [ json_name = "http" ];
     }
   }
   // will use protocols' order to create dialer
@@ -38,6 +39,11 @@ message point {
 }
 
 message socks5 {
+  string user = 1 [ json_name = "user" ];
+  string password = 2 [ json_name = "password" ];
+}
+
+message http {
   string user = 1 [ json_name = "user" ];
   string password = 2 [ json_name = "password" ];
 }

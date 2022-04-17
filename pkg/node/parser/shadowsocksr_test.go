@@ -1,24 +1,21 @@
 package parser
 
 import (
-	"bytes"
 	context "context"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	ssClient "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
+	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestSsrParse2(t *testing.T) {
@@ -28,32 +25,14 @@ func TestSsrParse2(t *testing.T) {
 		"ssr://MjIyLjIyMi4yMjIuMjIyOjQ0MzphdXRoX2FlczEyOF9tZDU6Y2hhY2hhMjAtaWV0ZjpodHRwX3Bvc3Q6ZEdWemRBby8/b2Jmc3BhcmFtPWRHVnpkQW8mcHJvdG9wYXJhbT1kR1Z6ZEFvJnJlbWFya3M9ZEdWemRBbyZncm91cD1kR1Z6ZEFvCg"}
 
 	for x := range ssr {
-		log.Println(ParseLinkData(node.NodeLink_shadowsocksr, []byte(ssr[x])))
-	}
-}
-
-func TestLint(t *testing.T) {
-	f, err := os.Open("/node_ssr.txt")
-	if err != nil {
-		t.Log(err)
-	}
-	s, err := ioutil.ReadAll(f)
-	if err != nil {
-		t.Log(err)
-	}
-	dst, err := DecodeBytesBase64(s)
-	if err != nil {
-		t.Log(err)
-	}
-	for _, x := range bytes.Split(dst, []byte("\n")) {
-		log.Println(ParseLinkData(node.NodeLink_shadowsocksr, x))
+		log.Println(Parse(node.NodeLink_shadowsocksr, []byte(ssr[x])))
 	}
 }
 
 func TestConnections(t *testing.T) {
 	p := simple.NewSimple("127.0.0.1", "1090")
 
-	z, err := ssClient.NewHTTPOBFS(
+	z, err := ss.NewHTTPOBFS(
 		&node.PointProtocol_ObfsHttp{
 			ObfsHttp: &node.ObfsHttp{
 				Host: "example.com",
@@ -61,7 +40,7 @@ func TestConnections(t *testing.T) {
 			},
 		})(p)
 	require.Nil(t, err)
-	z, err = ssClient.NewShadowsocks(
+	z, err = ss.NewShadowsocks(
 		&node.PointProtocol_Shadowsocks{
 			Shadowsocks: &node.Shadowsocks{
 				Method:   "AEAD_AES_128_GCM",

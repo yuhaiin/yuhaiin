@@ -44,6 +44,6 @@ func handleTCP(c net.Conn, p proxy.Proxy) {
 	utils.Relay(c, r)
 }
 
-func newTCPServer(h string) (proxy.Server, error) {
-	return proxy.NewTCPServer(h, proxy.TCPWithHandle(handleTCP), proxy.TCPWithListenConfig(net.ListenConfig{Control: controlTCP}))
+func newTCPServer(h string, dialer proxy.Proxy) (proxy.Server, error) {
+	return proxy.NewTCPServer(h, dialer, proxy.TCPWithHandle(handleTCP), proxy.TCPWithListenConfig(net.ListenConfig{Control: controlTCP}))
 }

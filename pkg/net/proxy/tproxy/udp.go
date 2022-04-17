@@ -19,8 +19,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
-func newUDPServer(host string) (proxy.Server, error) {
-	return proxy.NewUDPServer(host, proxy.UDPWithListenConfig(net.ListenConfig{Control: controlUDP}), proxy.UDPWithListenFunc(handleUDP))
+func newUDPServer(host string, dialer proxy.Proxy) (proxy.Server, error) {
+	return proxy.NewUDPServer(host, dialer, proxy.UDPWithListenConfig(net.ListenConfig{Control: controlUDP}), proxy.UDPWithListenFunc(handleUDP))
 }
 
 func controlUDP(network, address string, c syscall.RawConn) error {
