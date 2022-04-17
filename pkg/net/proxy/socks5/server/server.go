@@ -179,9 +179,9 @@ func writeSecondResp(conn net.Conn, errREP byte, addr string) {
 	_, _ = conn.Write(append([]byte{0x05, errREP, 0x00}, Addr...))
 }
 
-func NewServer(host, username, password string) (proxy.Server, error) {
+func NewServer(host, username, password string, dialer proxy.Proxy) (proxy.Server, error) {
 	return proxy.NewTCPServer(
-		host,
+		host, dialer,
 		proxy.TCPWithHandle(
 			handshake(func(o *Option) {
 				o.Password = password

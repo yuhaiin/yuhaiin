@@ -51,7 +51,6 @@ func initLog(configPath string) io.Closer {
 	return f
 }
 
-// protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
 	host := flag.String("host", "127.0.0.1:50051", "gRPC and http listen host")
 	path := flag.String("path", protoconfig.DefaultConfigDir(), "save data path")

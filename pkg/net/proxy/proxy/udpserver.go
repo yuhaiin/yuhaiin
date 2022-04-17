@@ -6,113 +6,83 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"sync"
-	"sync/atomic"
 	"time"
 )
 
-type UDPServer struct {
-	host   string
-	lock   sync.Mutex
-	config net.ListenConfig
+type udpserver struct {
+	listener net.PacketConn
+	proxy    Proxy
+}
 
-	listener   net.PacketConn
+type udpOpt struct {
+	config     net.ListenConfig
 	handle     func([]byte, func(data []byte), Proxy) error
 	listenFunc func(net.PacketConn, Proxy) error
-	proxy      atomic.Value
 }
 
-func (u *UDPServer) SetProxy(f Proxy) {
-	if f == nil {
-		f = &Default{}
-	}
-	u.proxy.Store(f)
-}
-
-func (u *UDPServer) getProxy() Proxy {
-	y, ok := u.proxy.Load().(Proxy)
-	if ok {
-		return y
-	}
-	return &Default{}
-}
-
-func UDPWithListenConfig(n net.ListenConfig) func(u *UDPServer) {
-	return func(u *UDPServer) {
+func UDPWithListenConfig(n net.ListenConfig) func(u *udpOpt) {
+	return func(u *udpOpt) {
 		u.config = n
 	}
 }
 
-func UDPWithListenFunc(f func(net.PacketConn, Proxy) error) func(u *UDPServer) {
-	return func(u *UDPServer) {
+func UDPWithListenFunc(f func(net.PacketConn, Proxy) error) func(u *udpOpt) {
+	return func(u *udpOpt) {
 		u.listenFunc = f
 	}
 }
 
-func UDPWithHandle(f func([]byte, func([]byte), Proxy) error) func(u *UDPServer) {
-	return func(u *UDPServer) {
+func UDPWithHandle(f func([]byte, func([]byte), Proxy) error) func(u *udpOpt) {
+	return func(u *udpOpt) {
 		u.handle = f
 	}
 }
 
-func NewUDPServer(host string, opt ...func(u *UDPServer)) (Server, error) {
-	u := &UDPServer{
-		host:   host,
-		handle: func(b []byte, rw func([]byte), p Proxy) error { return fmt.Errorf("handle not defined") },
-		proxy:  atomic.Value{},
-		config: net.ListenConfig{},
+func NewUDPServer(host string, proxy Proxy, opt ...func(u *udpOpt)) (Server, error) {
+	if host == "" {
+		return nil, fmt.Errorf("host not defined")
 	}
-	u.listenFunc = func(pc net.PacketConn, p Proxy) error { return u.defaultListenFunc(pc) }
 
+	if proxy == nil {
+		proxy = &Default{}
+	}
+	udp := &udpserver{proxy: proxy}
+	u := &udpOpt{config: net.ListenConfig{}}
 	for i := range opt {
 		opt[i](u)
 	}
 
-	if host == "" {
-		return u, nil
+	if u.listenFunc == nil && u.handle == nil {
+		return nil, fmt.Errorf("udp server must define listen func or handle func")
 	}
 
-	err := u.run()
+	if u.listenFunc == nil && u.handle != nil {
+		u.listenFunc = func(pc net.PacketConn, p Proxy) error { return udp.defaultListenFunc(pc, u.handle) }
+	}
+
+	err := udp.run(host, u.config, u.listenFunc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("udp server run failed: %v", err)
 	}
-	return u, nil
+	return udp, nil
 }
 
-func (u *UDPServer) SetServer(host string) error {
-	if u.host == host {
-		return nil
-	}
-	_ = u.Close()
-
-	u.lock.Lock()
-	defer u.lock.Unlock()
-
-	u.host = host
-
-	if host == "" {
-		return nil
-	}
-
-	log.Println("SetServer create new server")
-	return u.run()
-}
-
-func (u *UDPServer) Close() error {
+func (u *udpserver) Close() error {
 	if u.listener == nil {
 		return nil
 	}
 	return u.listener.Close()
 }
 
-func (u *UDPServer) run() (err error) {
-	u.listener, err = u.config.ListenPacket(context.TODO(), "udp", u.host)
+func (u *udpserver) run(host string, config net.ListenConfig, listenFunc func(net.PacketConn, Proxy) error) (err error) {
+	u.listener, err = config.ListenPacket(context.TODO(), "udp", host)
 	if err != nil {
-		return fmt.Errorf("UdpServer:run() -> %v", err)
+		return fmt.Errorf("udp server listen failed: %v", err)
 	}
 
+	log.Println("new udp listener:", host)
 	go func() {
-		err := u.process()
+		err := listenFunc(u.listener, u)
 		if err != nil {
 			log.Println(err)
 		}
@@ -120,25 +90,18 @@ func (u *UDPServer) run() (err error) {
 	return nil
 }
 
-func (t *UDPServer) Conn(host string) (net.Conn, error) {
-	return t.getProxy().Conn(host)
+func (t *udpserver) Conn(host string) (net.Conn, error) {
+	return t.proxy.Conn(host)
 }
 
-func (t *UDPServer) PacketConn(host string) (net.PacketConn, error) {
+func (t *udpserver) PacketConn(host string) (net.PacketConn, error) {
 	if t.listener.LocalAddr().String() == host {
 		return nil, fmt.Errorf("access host same as listener: %v", t.listener.LocalAddr())
 	}
-	return t.getProxy().PacketConn(host)
+	return t.proxy.PacketConn(host)
 }
 
-func (u *UDPServer) process() error {
-	u.lock.Lock()
-	defer u.lock.Unlock()
-	log.Println("New UDP Server:", u.host)
-	return u.listenFunc(u.listener, u)
-}
-
-func (u *UDPServer) defaultListenFunc(l net.PacketConn) error {
+func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func([]byte, func(data []byte), Proxy) error) error {
 	var tempDelay time.Duration
 	for {
 		b := make([]byte, 1024)
@@ -172,7 +135,7 @@ func (u *UDPServer) defaultListenFunc(l net.PacketConn) error {
 		tempDelay = 0
 
 		go func(b []byte, remoteAddr net.Addr) {
-			err = u.handle(b, func(data []byte) {
+			err = handle(b, func(data []byte) {
 				_, err = l.WriteTo(data, remoteAddr)
 				if err != nil {
 					log.Printf("udp listener write to client failed: %v", err)
@@ -181,7 +144,6 @@ func (u *UDPServer) defaultListenFunc(l net.PacketConn) error {
 			if err != nil {
 				log.Printf("udp handle failed: %v", err)
 				return
-				// continue
 			}
 		}(b[:n], remoteAddr)
 	}

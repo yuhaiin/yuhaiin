@@ -250,7 +250,7 @@ func parseUrl(str []byte, l *node.NodeLink) (no *node.Point, err error) {
 			t = node.NodeLink_trojan
 		}
 	}
-	no, err = parser.ParseLinkData(t, str)
+	no, err = parser.Parse(t, str)
 	if err != nil {
 		return nil, fmt.Errorf("parse link data failed: %v", err)
 	}
