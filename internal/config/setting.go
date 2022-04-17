@@ -28,7 +28,7 @@ func settingDecodeJSON(dir string) *config.Setting {
 		},
 		Bypass: &config.Bypass{
 			Enabled:    true,
-			BypassFile: filepath.Join(dir, "yuhaiin.conf"),
+			BypassFile: filepath.Join(filepath.Dir(dir), "yuhaiin.conf"),
 		},
 
 		Dns: &config.DnsSetting{
@@ -44,7 +44,7 @@ func settingDecodeJSON(dir string) *config.Setting {
 			},
 		},
 	}
-	data, err := ioutil.ReadFile(filepath.Join(dir, "yuhaiinConfig.json"))
+	data, err := ioutil.ReadFile(dir)
 	if err != nil {
 		log.Printf("read config file failed: %v\n", err)
 		data = []byte{'{', '}'}
@@ -93,7 +93,7 @@ func settingDecodeJSON(dir string) *config.Setting {
 
 // settingEnCodeJSON encode setting struct to json
 func settingEnCodeJSON(pa *config.Setting, dir string) error {
-	_, err := os.Stat(filepath.Join(dir, "yuhaiinConfig.json"))
+	_, err := os.Stat(dir)
 	if err != nil && os.IsNotExist(err) {
 		err = os.MkdirAll(dir, os.ModePerm)
 		if err != nil {

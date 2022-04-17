@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
@@ -32,11 +33,11 @@ func init() {
 	})
 }
 
-func NewListener(c *config.Config, pro proxy.Proxy) (l *Listener) {
+func NewListener(c *config.Config, pro proxy.Proxy) io.Closer {
 	if pro == nil {
 		pro = &proxy.Default{}
 	}
-	l = &Listener{
+	l := &Listener{
 		store: make(map[string]struct {
 			hash   string
 			server proxy.Server
@@ -93,4 +94,20 @@ func (l *Listener) start(name string, pro proxy.Proxy, config *protoconfig.Serve
 		hash:   config.Hash,
 		server: server,
 	}
+}
+
+func (l *Listener) Close() error {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	for _, v := range l.store {
+		v.server.Close()
+	}
+
+	l.store = make(map[string]struct {
+		hash   string
+		server proxy.Server
+	})
+
+	return nil
 }
