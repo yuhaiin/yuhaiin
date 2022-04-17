@@ -250,6 +250,7 @@ func Httpserver(mux *http.ServeMux, nodeManager *nodemanager.NodeManager, connMa
 		str.WriteString(create("vmess", &node.PointProtocol{Protocol: &node.PointProtocol_Vmess{}}))
 		str.WriteString(create("trojan", &node.PointProtocol{Protocol: &node.PointProtocol_Trojan{}}))
 		str.WriteString(create("socks5", &node.PointProtocol{Protocol: &node.PointProtocol_Socks5{}}))
+		str.WriteString(create("http", &node.PointProtocol{Protocol: &node.PointProtocol_Http{}}))
 
 		w.Write([]byte(createHTML(str.String())))
 	})

@@ -20,6 +20,6 @@ func RedirHandle() func(net.Conn, proxy.Proxy) {
 	}
 }
 
-func NewServer(host string) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, proxy.TCPWithHandle(RedirHandle()))
+func NewServer(host string, dialer proxy.Proxy) (proxy.Server, error) {
+	return proxy.NewTCPServer(host, dialer, proxy.TCPWithHandle(RedirHandle()))
 }
