@@ -42,15 +42,19 @@ func (c *client) Conn(host string) (net.Conn, error) {
 
 	err = req.Write(conn)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("write request failed: %w", err)
 	}
 
 	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("read response failed: %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		conn.Close()
 		return nil, fmt.Errorf("status code not ok: %d", resp.StatusCode)
 	}
 

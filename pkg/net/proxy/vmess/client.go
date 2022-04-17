@@ -37,7 +37,13 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	return v.client.NewConn(c, host)
+	conn, err = v.client.NewConn(c, host)
+	if err != nil {
+		c.Close()
+		return nil, fmt.Errorf("new conn failed: %w", err)
+	}
+
+	return conn, nil
 }
 
 //PacketConn packet transport connection
@@ -46,5 +52,11 @@ func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	return v.client.NewPacketConn(c, host)
+	conn, err = v.client.NewPacketConn(c, host)
+	if err != nil {
+		c.Close()
+		return nil, fmt.Errorf("new conn failed: %w", err)
+	}
+
+	return conn, nil
 }
