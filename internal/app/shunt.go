@@ -23,8 +23,6 @@ import (
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
-//go:generate go run bypass/generate.go -des=bypass/bypass.gz
-
 // go:embed bypass/bypass.gz
 var BYPASS_DATA []byte
 
