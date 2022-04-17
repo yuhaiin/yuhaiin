@@ -4,28 +4,22 @@ import (
 	"bytes"
 	"compress/gzip"
 	_ "embed"
-	"flag"
 	"os"
 )
+
+//go:generate go run generate.go
 
 //go:embed yuhaiin.conf
 var data []byte
 
 func main() {
-	path := flag.String("des", "", "")
-	flag.Parse()
-
-	if path == nil {
-		panic("des is empty")
-	}
-
 	b := bytes.NewBuffer(nil)
 
 	gw := gzip.NewWriter(b)
 	gw.Write(data)
 	gw.Close()
 
-	err := os.WriteFile(*path, b.Bytes(), 0644)
+	err := os.WriteFile("bypass.gz", b.Bytes(), 0644)
 	if err != nil {
 		panic(err)
 	}

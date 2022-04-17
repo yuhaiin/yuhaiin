@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -27,39 +26,19 @@ import (
 	"google.golang.org/grpc"
 )
 
-func initialize() {
+func listenSign(lis io.Closer) {
+	signChannel := make(chan os.Signal, 1)
+	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
 	go func() {
-		signChannel := make(chan os.Signal, 5)
-		signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-		// ppid := os.Getppid()
-		// ticker := time.NewTicker(time.Second)
-
-		for s := range signChannel {
-			switch s {
-			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-				log.Println("stop server")
-				if lis != nil {
-					lis.Close()
-				}
-				return
-			default:
-				logasfmt.Println("OTHERS SIGN:", s)
-			}
-
-			// case <-ticker.C:
-			// 	if os.Getppid() == ppid {
-			// 		continue
-			// 	}
-
-			// 	log.Println("checked parent already exited, exit myself.")
-			// 	grpcServer.Stop()
-			// 	return
+		<-signChannel
+		if lis != nil {
+			lis.Close()
 		}
 	}()
 }
 
-func initLog(configPath string) (close func() error) {
+func initLog(configPath string) io.Closer {
 	dir := filepath.Join(configPath, "log")
 	_, err := os.Stat(dir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -69,22 +48,20 @@ func initLog(configPath string) (close func() error) {
 	f := logasfmt.NewLogWriter(filepath.Join(dir, "yuhaiin.log"))
 	logasfmt.SetOutput(io.MultiWriter(append(out, f)...))
 
-	return f.Close
+	return f
 }
-
-var lis net.Listener
 
 // protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative api/api.proto
 func main() {
-	host := flag.String("host", "127.0.0.1:50051", "RPC SERVER HOST")
-	path := flag.String("cd", protoconfig.DefaultConfigDir(), "config dir")
+	host := flag.String("host", "127.0.0.1:50051", "gRPC and http listen host")
+	path := flag.String("path", protoconfig.DefaultConfigDir(), "save data path")
 	flag.Parse()
 
-	close := initLog(*path)
-	defer close()
+	logger := initLog(*path)
+	defer logger.Close()
 
 	logasfmt.Println("\n\n\nsave config at:", *path)
-	logasfmt.Println("gRPC&HTTP Listen Host:", *host)
+	logasfmt.Println("gRPC and http listen at:", *host)
 
 	lock, err := app.NewLock(filepath.Join(*path, "yuhaiin.lock"), *host)
 	if err != nil {
@@ -93,29 +70,31 @@ func main() {
 	defer lock.UnLock()
 
 	// initialize Local Servers Controller
-	lis, err = net.Listen("tcp", *host)
+	lis, err := net.Listen("tcp", *host)
 	if err != nil {
 		panic(err)
 	}
 
-	initialize()
+	listenSign(lis)
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
-	nodeManager := nodemanager.NewNodeManager(filepath.Join(*path, "node.json"))
-	conf := config.NewConfig(*path)
-	flowStatis := app.NewConnManager(conf, nodeManager)
-	_ = app.NewListener(conf, flowStatis)
+	nodes := nodemanager.NewNodeManager(filepath.Join(*path, "node.json"))
+	setting := config.NewConfig(filepath.Join(*path, "config.json"))
+	statistics := app.NewConnManager(setting, nodes)
 
-	sysproxy.Set(conf)
+	listener := app.NewListener(setting, statistics)
+	defer listener.Close()
+
+	sysproxy.Set(setting)
 	defer sysproxy.Unset()
 
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodeManager, flowStatis, conf)
+	simplehttp.Httpserver(mux, nodes, statistics, setting)
 
 	grpcServer := grpc.NewServer()
-	grpcServer.RegisterService(&node.NodeManager_ServiceDesc, nodeManager)
-	grpcServer.RegisterService(&protoconfig.ConfigDao_ServiceDesc, conf)
-	grpcServer.RegisterService(&statistic.Connections_ServiceDesc, flowStatis)
+	grpcServer.RegisterService(&node.NodeManager_ServiceDesc, nodes)
+	grpcServer.RegisterService(&protoconfig.ConfigDao_ServiceDesc, setting)
+	grpcServer.RegisterService(&statistic.Connections_ServiceDesc, statistics)
 
 	// h2c for grpc insecure mode
 	err = http.Serve(lis, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
