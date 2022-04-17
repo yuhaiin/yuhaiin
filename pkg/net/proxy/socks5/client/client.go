@@ -49,11 +49,13 @@ func (s *client) Conn(host string) (net.Conn, error) {
 
 	err = s.handshake1(conn)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("first hand failed: %v", err)
 	}
 
 	_, err = s.handshake2(conn, connect, host)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %v", err)
 	}
 
@@ -159,16 +161,19 @@ func (s *client) PacketConn(host string) (net.PacketConn, error) {
 
 	err = s.handshake1(conn)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("first hand failed: %v", err)
 	}
 
 	r, err := s.handshake2(conn, udp, host)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %v", err)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(r.ADDR, strconv.Itoa(r.PORT)))
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("resolve addr failed: %v", err)
 	}
 
@@ -182,7 +187,13 @@ func (s *client) PacketConn(host string) (net.PacketConn, error) {
 			}
 		}
 	}()
-	return newSocks5PacketConn(host, addr, conn)
+	conn2, err := newSocks5PacketConn(host, addr, conn)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("new socks5 packet conn failed: %v", err)
+	}
+
+	return conn2, nil
 }
 
 type socks5PacketConn struct {

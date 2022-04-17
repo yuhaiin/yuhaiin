@@ -51,9 +51,11 @@ func (s *Shadowsocks) Conn(host string) (conn net.Conn, err error) {
 	conn = s.cipher.StreamConn(conn)
 	target, err := s5c.ParseAddr(host)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("parse host failed: %v", err)
 	}
 	if _, err = conn.Write(target); err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("shadowsocks write target failed: %v", err)
 	}
 	return conn, nil
@@ -67,7 +69,13 @@ func (s *Shadowsocks) PacketConn(tar string) (net.PacketConn, error) {
 	}
 	pc = s.cipher.PacketConn(pc)
 
-	return NewSsPacketConn(pc, s.udpAddr, tar)
+	conn, err := NewSsPacketConn(pc, s.udpAddr, tar)
+	if err != nil {
+		pc.Close()
+		return nil, fmt.Errorf("create ss packet conn failed: %v", err)
+	}
+
+	return conn, nil
 }
 
 type ssPacketConn struct {
