@@ -52,10 +52,6 @@ func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T, proxy.Proxy) (pr
 }
 
 func CreateServer(p isServerProtocol_Protocol, dialer proxy.Proxy) (proxy.Server, error) {
-	if p == nil {
-		return nil, fmt.Errorf("value is nil: %v", p)
-	}
-
 	conn, ok := execProtocol.Load(reflect.TypeOf(p))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", p)

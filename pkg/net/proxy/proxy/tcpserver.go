@@ -12,12 +12,10 @@ import (
 // tcpserver tcp server common
 type tcpserver struct {
 	listener net.Listener
-	proxy    Proxy
 }
 
 type tcpOpt struct {
 	config net.ListenConfig
-	handle func(net.Conn, Proxy)
 }
 
 func TCPWithListenConfig(n net.ListenConfig) func(u *tcpOpt) {
@@ -26,20 +24,14 @@ func TCPWithListenConfig(n net.ListenConfig) func(u *tcpOpt) {
 	}
 }
 
-func TCPWithHandle(f func(net.Conn, Proxy)) func(u *tcpOpt) {
-	return func(u *tcpOpt) {
-		u.handle = f
-	}
-}
-
 // NewTCPServer create new TCP listener
-func NewTCPServer(host string, proxy Proxy, opt ...func(*tcpOpt)) (Server, error) {
+func NewTCPServer(host string, handle func(net.Conn), opt ...func(*tcpOpt)) (Server, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host is empty")
 	}
 
-	if proxy == nil {
-		proxy = &Default{}
+	if handle == nil {
+		return nil, fmt.Errorf("handle is empty")
 	}
 
 	s := &tcpOpt{config: net.ListenConfig{}}
@@ -48,36 +40,21 @@ func NewTCPServer(host string, proxy Proxy, opt ...func(*tcpOpt)) (Server, error
 		opt[i](s)
 	}
 
-	if s.handle == nil {
-		return nil, fmt.Errorf("handle is nil")
-	}
-
-	tcp := &tcpserver{proxy: proxy}
-	err := tcp.run(host, s.config, s.handle)
+	tcp := &tcpserver{}
+	err := tcp.run(host, s.config, handle)
 	if err != nil {
 		return nil, fmt.Errorf("tcp server run failed: %v", err)
 	}
 	return tcp, nil
 }
 
-func (t *tcpserver) Conn(host string) (net.Conn, error) {
-	if t.listener.Addr().String() == host {
-		return nil, fmt.Errorf("access host same as listener: %v", t.listener.Addr())
-	}
-	return t.proxy.Conn(host)
-}
-
-func (t *tcpserver) PacketConn(host string) (net.PacketConn, error) {
-	return t.proxy.PacketConn(host)
-}
-
-func (t *tcpserver) run(host string, config net.ListenConfig, handle func(net.Conn, Proxy)) (err error) {
+func (t *tcpserver) run(host string, config net.ListenConfig, handle func(net.Conn)) (err error) {
 	t.listener, err = config.Listen(context.TODO(), "tcp", host)
 	if err != nil {
 		return fmt.Errorf("tcp server listen failed: %v", err)
 	}
 
-	log.Println("new tcp listener:", host)
+	log.Println("new tcp server listen at:", host)
 
 	go func() {
 		err := t.process(handle)
@@ -88,7 +65,7 @@ func (t *tcpserver) run(host string, config net.ListenConfig, handle func(net.Co
 	return
 }
 
-func (t *tcpserver) process(handle func(net.Conn, Proxy)) error {
+func (t *tcpserver) process(handle func(net.Conn)) error {
 	var tempDelay time.Duration
 	for {
 		c, err := t.listener.Accept()
@@ -122,7 +99,7 @@ func (t *tcpserver) process(handle func(net.Conn, Proxy)) error {
 
 		go func() {
 			defer c.Close()
-			handle(c, t)
+			handle(c)
 		}()
 	}
 }
@@ -132,4 +109,12 @@ func (t *tcpserver) Close() error {
 		return nil
 	}
 	return t.listener.Close()
+}
+
+func (t *tcpserver) Addr() net.Addr {
+	if t.listener == nil {
+		return &net.TCPAddr{}
+	}
+
+	return t.listener.Addr()
 }

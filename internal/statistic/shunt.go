@@ -1,4 +1,4 @@
-package app
+package statistic
 
 import (
 	"bufio"
@@ -23,7 +23,7 @@ import (
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
-// go:embed bypass/bypass.gz
+// go:embed statics/bypass.gz
 var BYPASS_DATA []byte
 
 func writeDefaultBypassData(target string) error {
