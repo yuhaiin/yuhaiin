@@ -15,28 +15,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-type Option struct {
-	Username string
-	Password string
-}
-
-func handshake(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
-	o := &Option{}
-	for index := range modeOption {
-		if modeOption[index] == nil {
-			continue
-		}
-		modeOption[index](o)
-	}
-	return func(conn net.Conn, f proxy.Proxy) {
-		err := handle(o.Username, o.Password, conn, f)
+func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
+	return func(conn net.Conn) {
+		err := handle(username, password, conn, dialer)
 		if err != nil {
 			logasfmt.Println("http server handle failed:", err)
 		}
 	}
 }
 
-func handle(user, key string, src net.Conn, f proxy.Proxy) error {
+func handle(user, key string, src net.Conn, f proxy.StreamProxy) error {
 	/*
 		use golang http
 	*/
@@ -269,9 +257,6 @@ func removeHeader(h http.Header) {
 	h.Del("Upgrade")
 }
 
-func NewServer(host, username, password string, dialer proxy.Proxy) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, dialer, proxy.TCPWithHandle(handshake(func(o *Option) {
-		o.Password = password
-		o.Username = username
-	})))
+func NewServer(host, username, password string, dialer proxy.StreamProxy) (proxy.Server, error) {
+	return proxy.NewTCPServer(host, handshake(dialer, username, password))
 }

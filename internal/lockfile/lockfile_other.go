@@ -1,7 +1,7 @@
 //go:build !windows
 // +build !windows
 
-package app
+package lockfile
 
 import (
 	"os"

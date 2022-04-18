@@ -15,7 +15,7 @@ func init() {
 	var get func(interface{}) string
 	var trim func([]byte) []byte
 
-	parseLink.Store(node.NodeLink_vmess, func(data []byte) (*node.Point, error) {
+	store.Store(node.NodeLink_vmess, func(data []byte) (*node.Point, error) {
 		//ParseLink parse vmess link
 		// eg: vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnV
 		//             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC

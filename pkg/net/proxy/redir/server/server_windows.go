@@ -4,14 +4,8 @@
 package server
 
 import (
-	"net"
-
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
-
-func RedirHandle() func(net.Conn, proxy.Proxy) {
-	return nil
-}
 
 func NewServer(host string, _ proxy.Proxy) (proxy.Server, error) {
 	return &proxy.EmptyServer{}, nil

@@ -106,7 +106,7 @@ func settingEnCodeJSON(pa *config.Setting, dir string) error {
 		return fmt.Errorf("marshal setting failed: %v", err)
 	}
 
-	return ioutil.WriteFile(filepath.Join(dir, "yuhaiinConfig.json"), data, os.ModePerm)
+	return ioutil.WriteFile(dir, data, os.ModePerm)
 }
 
 type observer struct {
@@ -189,6 +189,11 @@ func (c *Config) AddObserver(diff func(current, old *config.Setting) bool, exec 
 type ConfigObserver interface {
 	AddObserverAndExec(func(current, old *config.Setting) bool, func(current *config.Setting))
 	AddExecCommand(string, InitFunc)
+}
+
+type Observer interface {
+	Update(current, old *config.Setting) bool
+	Exec(current *config.Setting)
 }
 
 func (c *Config) AddObserverAndExec(diff func(current, old *config.Setting) bool, exec func(current *config.Setting)) {

@@ -51,3 +51,13 @@ func TestResolve(t *testing.T) {
 
 	t.Log(Resolve(req, ans))
 }
+
+func TestWritePacket(t *testing.T) {
+	l, err := net.ListenPacket("udp", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:38655")
+	t.Log(l.WriteTo([]byte("hello"), addr))
+}
