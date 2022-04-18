@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	parseLink.Store(node.NodeLink_trojan, func(data []byte) (*node.Point, error) {
+	store.Store(node.NodeLink_trojan, func(data []byte) (*node.Point, error) {
 		u, err := url.Parse(string(data))
 		if err != nil {
 			return nil, fmt.Errorf("parse trojan link error: %w", err)

@@ -12,11 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-type Option struct {
-	Username string
-	Password string
-}
-
 const (
 	connect = 0x01
 	udp     = 0x03
@@ -38,16 +33,9 @@ const (
 	addressTypeNotSupport         = 0x08
 )
 
-func handshake(modeOption ...func(*Option)) func(net.Conn, proxy.Proxy) {
-	o := &Option{}
-	for index := range modeOption {
-		if modeOption[index] == nil {
-			continue
-		}
-		modeOption[index](o)
-	}
-	return func(conn net.Conn, f proxy.Proxy) {
-		if err := handle(o.Username, o.Password, conn, f); err != nil {
+func handshake(dialer proxy.Proxy, username, password string) func(net.Conn) {
+	return func(conn net.Conn) {
+		if err := handle(username, password, conn, dialer); err != nil {
 			logasfmt.Println("socks5 server handle failed:", err)
 		}
 	}
@@ -180,13 +168,5 @@ func writeSecondResp(conn net.Conn, errREP byte, addr string) {
 }
 
 func NewServer(host, username, password string, dialer proxy.Proxy) (proxy.Server, error) {
-	return proxy.NewTCPServer(
-		host, dialer,
-		proxy.TCPWithHandle(
-			handshake(func(o *Option) {
-				o.Password = password
-				o.Username = username
-			}),
-		),
-	)
+	return proxy.NewTCPServer(host, handshake(dialer, username, password))
 }

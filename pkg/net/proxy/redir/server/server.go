@@ -10,9 +10,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 )
 
-func RedirHandle() func(net.Conn, proxy.Proxy) {
-	return func(conn net.Conn, f proxy.Proxy) {
-		err := handle(conn, f)
+func RedirHandle(dialer proxy.Proxy) func(net.Conn) {
+	return func(conn net.Conn) {
+		err := handle(conn, dialer)
 		if err != nil {
 			log.Println(err)
 			return
@@ -21,5 +21,5 @@ func RedirHandle() func(net.Conn, proxy.Proxy) {
 }
 
 func NewServer(host string, dialer proxy.Proxy) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, dialer, proxy.TCPWithHandle(RedirHandle()))
+	return proxy.NewTCPServer(host, RedirHandle(dialer))
 }

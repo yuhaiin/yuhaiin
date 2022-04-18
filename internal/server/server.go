@@ -1,4 +1,4 @@
-package app
+package server
 
 import (
 	"io"
@@ -82,7 +82,7 @@ func (l *Listener) update(name string, pro proxy.Proxy, config *protoconfig.Serv
 func (l *Listener) start(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
 	server, err := protoconfig.CreateServer(config.Protocol, pro)
 	if err != nil {
-		logasfmt.Printf("create server failed: %v\n", err)
+		logasfmt.Printf("create server %s failed: %v\n", name, err)
 		return
 	}
 

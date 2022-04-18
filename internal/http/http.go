@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	instatistic "github.com/Asutorufa/yuhaiin/internal/statistic"
 	nodemanager "github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -41,7 +41,7 @@ var statisticJS []byte
 //go:embed toast.html
 var toastHTML []byte
 
-func Httpserver(mux *http.ServeMux, nodeManager *nodemanager.NodeManager, connManager *app.ConnManager, conf *config.Config) {
+func Httpserver(mux *http.ServeMux, nodeManager *nodemanager.NodeManager, connManager *instatistic.Statistic, conf *config.Config) {
 	// pprof
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)

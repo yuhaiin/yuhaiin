@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	parseLink.Store(node.NodeLink_shadowsocks, func(data []byte) (*node.Point, error) {
+	store.Store(node.NodeLink_shadowsocks, func(data []byte) (*node.Point, error) {
 		ssUrl, err := url.Parse(string(data))
 		if err != nil {
 			return nil, fmt.Errorf("parse url failed: %w", err)

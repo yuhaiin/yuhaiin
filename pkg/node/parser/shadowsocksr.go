@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	parseLink.Store(node.NodeLink_shadowsocksr, func(data []byte) (*node.Point, error) {
+	store.Store(node.NodeLink_shadowsocksr, func(data []byte) (*node.Point, error) {
 		// ParseLink parse a base64 encode ssr link
 		decodeStr := bytes.Split(DecodeUrlBase64Bytes(bytes.TrimPrefix(data, []byte("ssr://"))), []byte{'/', '?'})
 

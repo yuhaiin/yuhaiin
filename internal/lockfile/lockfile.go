@@ -1,4 +1,4 @@
-package app
+package lockfile
 
 import (
 	"errors"
@@ -11,14 +11,15 @@ import (
 )
 
 type Lock struct {
-	lockfile string
-	lockFile *os.File
+	lockfile    string
+	payloadfile string
+	lockFile    *os.File
 
 	locked bool
 }
 
 func NewLock(lockfile, payload string) (*Lock, error) {
-	l := &Lock{lockfile: lockfile}
+	l := &Lock{lockfile: lockfile, payloadfile: lockfile + "_PAYLOAD"}
 
 	return l, l.Lock(payload)
 }
@@ -48,7 +49,7 @@ func (l *Lock) Lock(payload string) error {
 
 	l.locked = true
 
-	err = ioutil.WriteFile(l.lockfile+"_payload", []byte(payload), os.ModePerm)
+	err = ioutil.WriteFile(l.payloadfile, []byte(payload), os.ModePerm)
 	if err != nil {
 		log.Printf("write host to file failed: %v", err)
 	}
@@ -56,7 +57,7 @@ func (l *Lock) Lock(payload string) error {
 }
 
 func (l *Lock) Payload() (string, error) {
-	s, err := ioutil.ReadFile(l.lockfile + "_payload")
+	s, err := ioutil.ReadFile(l.payloadfile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -67,7 +68,7 @@ func (l *Lock) Payload() (string, error) {
 }
 
 func (l *Lock) UnLock() (erra error) {
-	err := os.Remove(l.lockfile + "_payload")
+	err := os.Remove(l.payloadfile)
 	if err != nil {
 		erra = fmt.Errorf("%v\nremove host file failed: %v", erra, err)
 	}
