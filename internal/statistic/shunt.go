@@ -90,7 +90,7 @@ func WithProxy(p proxy.Proxy) func(*Shunt) {
 }
 
 //NewShunt file: bypass file; lookup: domain resolver, can be nil
-func NewShunt(conf *config.Config, opts ...func(*Shunt)) *Shunt {
+func NewShunt(conf config.ConfigObserver, opts ...func(*Shunt)) *Shunt {
 	s := &Shunt{}
 
 	for _, opt := range opts {
@@ -109,7 +109,7 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) *Shunt {
 		s.file = current.Bypass.BypassFile
 		s.fileLock.Unlock()
 
-		if err := s.RefreshMapping(); err != nil {
+		if err := s.Refresh(); err != nil {
 			log.Println("refresh bypass file failed:", err)
 		}
 	})
@@ -122,13 +122,13 @@ func NewShunt(conf *config.Config, opts ...func(*Shunt)) *Shunt {
 	})
 
 	conf.AddExecCommand("RefreshMapping", func(*protoconfig.Setting) error {
-		return s.RefreshMapping()
+		return s.Refresh()
 	})
 
 	return s
 }
 
-func (s *Shunt) RefreshMapping() error {
+func (s *Shunt) Refresh() error {
 	s.fileLock.RLock()
 	defer s.fileLock.RUnlock()
 

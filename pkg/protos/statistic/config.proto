@@ -17,18 +17,19 @@ message close_conns_req { repeated int64 conns = 1; }
 message rate_resp {
   string download = 1 [ json_name = "download" ];
   string upload = 2 [ json_name = "upload" ];
-  ;
   string download_rate = 3 [ json_name = "download_rate" ];
   string upload_rate = 4 [ json_name = "upload_rate" ];
 }
 
+message connection {
+  string addr = 1 [ json_name = "addr" ];
+  int64 id = 2 [ json_name = "id" ];
+  string local = 3 [ json_name = "local" ];
+  string remote = 4 [ json_name = "remote" ];
+  string mark = 5 [ json_name = "mark" ];
+  string type = 6 [ json_name = "type" ];
+}
+
 message conn_resp {
-  message connection {
-    string addr = 1 [ json_name = "addr" ];
-    int64 id = 2 [ json_name = "id" ];
-    string local = 3 [ json_name = "local" ];
-    string remote = 4 [ json_name = "remote" ];
-    string mark = 5 [ json_name = "mark" ];
-  }
   repeated connection connections = 1 [ json_name = "connections" ];
 }

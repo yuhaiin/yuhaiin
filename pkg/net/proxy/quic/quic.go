@@ -15,13 +15,13 @@ type Client struct {
 	addr       *net.UDPAddr
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
-	p          proxy.Proxy
+	dialer     proxy.Proxy
 }
 
 func NewQUIC(config *node.PointProtocol_Quic) node.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
-			p:         p,
+			dialer:    dialer,
 			tlsConfig: node.ParseTLSConfig(config.Quic.Tls),
 			quicConfig: &quic.Config{
 				KeepAlive:            true,
@@ -36,7 +36,7 @@ func NewQUIC(config *node.PointProtocol_Quic) node.WrapProxy {
 }
 
 func (c *Client) Conn(host string) (net.Conn, error) {
-	conn, err := c.p.PacketConn(host)
+	conn, err := c.dialer.PacketConn(host)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (c *Client) Conn(host string) (net.Conn, error) {
 }
 
 func (c *Client) PacketConn(host string) (net.PacketConn, error) {
-	return c.p.PacketConn(host)
+	return c.dialer.PacketConn(host)
 }
 
 var _ net.Conn = (*interConn)(nil)

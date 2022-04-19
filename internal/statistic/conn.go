@@ -1,6 +1,7 @@
 package statistic
 
 import (
+	"errors"
 	"io"
 	"net"
 
@@ -8,100 +9,121 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
-type statisticConn interface {
+type observer interface {
 	io.Closer
-
-	Type() string
+	GetType() string
 	GetId() int64
 	GetAddr() string
 	GetLocal() string
 	GetRemote() string
 	GetMark() string
-	GetConnResp() *statistic.ConnRespConnection
+	GetStatistic() *statistic.Connection
 }
 
-var _ statisticConn = (*conn)(nil)
+var _ observer = (*conn)(nil)
 
 type conn struct {
-	*preConn
-}
-
-func (s *conn) Type() string {
-	return "TCP"
-}
-
-func (s *conn) GetConnResp() *statistic.ConnRespConnection {
-	return s.ConnRespConnection
-}
-
-func (s *conn) ReadFrom(r io.Reader) (resp int64, _ error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-	return io.CopyBuffer(s.preConn, r, buf)
-}
-
-func (s *conn) WriteTo(w io.Writer) (resp int64, _ error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-	return io.CopyBuffer(w, s.preConn, buf)
-}
-
-var _ net.Conn = (*preConn)(nil)
-
-type preConn struct {
 	net.Conn
-	cm *Statistic
-	*statistic.ConnRespConnection
+
+	*statistic.Connection
+	manager *Statistic
 }
 
-func (s *preConn) Close() error {
-	s.cm.delete(s.Id)
+func (s *conn) Close() error {
+	s.manager.delete(s.Id)
 	return s.Conn.Close()
 }
 
-func (s *preConn) Write(b []byte) (n int, err error) {
+func (s *conn) Write(b []byte) (n int, err error) {
 	n, err = s.Conn.Write(b)
-	s.cm.accountant.AddUpload(uint64(n))
+	s.manager.accountant.AddUpload(uint64(n))
 	return
 }
 
-func (s *preConn) Read(b []byte) (n int, err error) {
+func (s *conn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
-	s.cm.accountant.AddDownload(uint64(n))
+	s.manager.accountant.AddDownload(uint64(n))
 	return
 }
 
-var _ net.PacketConn = (*packetConn)(nil)
-var _ statisticConn = (*packetConn)(nil)
+func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+
+	for {
+		n, er := r.Read(buf)
+		if n > 0 {
+			resp += int64(n)
+			_, ew := s.Conn.Write(buf[:n])
+			if ew != nil {
+				break
+			}
+		}
+		if er != nil {
+			if !errors.Is(er, io.EOF) {
+				err = er
+			}
+			break
+		}
+	}
+
+	return
+}
+
+func (s *conn) WriteTo(w io.Writer) (resp int64, err error) {
+	buf := utils.GetBytes(2048)
+	defer utils.PutBytes(buf)
+
+	for {
+		n, er := s.Read(buf)
+		if n > 0 {
+			resp += int64(n)
+			_, ew := w.Write(buf[:n])
+			if ew != nil {
+				break
+			}
+		}
+		if er != nil {
+			if !errors.Is(er, io.EOF) {
+				err = er
+			}
+			break
+		}
+	}
+
+	return
+}
+
+func (s *conn) GetStatistic() *statistic.Connection {
+	return s.Connection
+}
+
+var _ observer = (*packetConn)(nil)
 
 type packetConn struct {
 	net.PacketConn
-	cm *Statistic
 
-	*statistic.ConnRespConnection
+	*statistic.Connection
+	manager *Statistic
 }
 
-func (s *packetConn) Type() string {
-	return "UDP"
-}
-
-func (s *packetConn) GetConnResp() *statistic.ConnRespConnection {
-	return s.ConnRespConnection
+func (s *packetConn) GetStatistic() *statistic.Connection {
+	return s.Connection
 }
 
 func (s *packetConn) Close() error {
-	s.cm.delete(s.Id)
+	s.manager.delete(s.Id)
 	return s.PacketConn.Close()
 }
 
 func (s *packetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	n, err = s.PacketConn.WriteTo(p, addr)
-	s.cm.accountant.AddUpload(uint64(n))
+	s.manager.AddUpload(uint64(n))
 	return
 }
 
 func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, addr, err = s.PacketConn.ReadFrom(p)
-	s.cm.accountant.AddDownload(uint64(n))
+	s.manager.AddDownload(uint64(n))
 	return
 }

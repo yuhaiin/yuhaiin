@@ -20,21 +20,21 @@ var _ proxy.Proxy = (*Statistic)(nil)
 type Statistic struct {
 	statistic.UnimplementedConnectionsServer
 
-	idSeed        *idGenerater
-	conns         syncmap.SyncMap[int64, statisticConn]
-	accountant    accountant
+	idSeed *idGenerater
+	conns  syncmap.SyncMap[int64, observer]
+	accountant
 	proxy, direct proxy.Proxy
 	mapper        func(string) MODE
 }
 
-func NewStatistic(conf *config.Config, p proxy.Proxy) *Statistic {
-	if p == nil {
-		p = &proxy.Default{}
+func NewStatistic(conf config.ConfigObserver, dialer proxy.Proxy) *Statistic {
+	if dialer == nil {
+		dialer = &proxy.Default{}
 	}
 
 	c := &Statistic{
 		idSeed: &idGenerater{},
-		proxy:  p,
+		proxy:  dialer,
 	}
 
 	shunt := NewShunt(conf, WithProxy(c))
@@ -61,8 +61,8 @@ func NewStatistic(conf *config.Config, p proxy.Proxy) *Statistic {
 
 func (c *Statistic) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
 	resp := &statistic.ConnResp{}
-	c.conns.Range(func(key int64, v statisticConn) bool {
-		resp.Connections = append(resp.Connections, v.GetConnResp())
+	c.conns.Range(func(key int64, v observer) bool {
+		resp.Connections = append(resp.Connections, v.GetStatistic())
 		return true
 	})
 
@@ -90,63 +90,59 @@ func (c *Statistic) Statistic(_ *emptypb.Empty, srv statistic.Connections_Statis
 func (c *Statistic) delete(id int64) {
 	if z, ok := c.conns.LoadAndDelete(id); ok {
 		logasfmt.Printf("close %v<%s[%v]>: %v, %s <-> %s\n",
-			z.GetId(), z.Type(), z.GetMark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
+			z.GetId(), z.GetType(), z.GetMark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
 	}
 }
 
 func (c *Statistic) Conn(host string) (net.Conn, error) {
-	p, mark := c.marry(host)
+	dialer, mark := c.marry(host)
 
-	logasfmt.Printf("[%s] -> %v\n", host, mark)
-
-	con, err := p.Conn(host)
+	con, err := dialer.Conn(host)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &conn{
-		preConn: &preConn{
-			ConnRespConnection: &statistic.ConnRespConnection{
-				Id:     c.idSeed.Generate(),
-				Addr:   host,
-				Mark:   mark.String(),
-				Local:  con.LocalAddr().String(),
-				Remote: con.RemoteAddr().String(),
-			},
-			Conn: con,
-			cm:   c,
+		Connection: &statistic.Connection{
+			Id:     c.idSeed.Generate(),
+			Addr:   host,
+			Mark:   mark.String(),
+			Local:  con.LocalAddr().String(),
+			Remote: con.RemoteAddr().String(),
+			Type:   "Stream",
 		},
+		Conn:    con,
+		manager: c,
 	}
 	c.conns.Store(s.Id, s)
 	return s, nil
 }
 
 func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
-	p, mark := c.marry(host)
+	dialer, mark := c.marry(host)
 
-	logasfmt.Printf("[%s] -> %v\n", host, mark)
-
-	con, err := p.PacketConn(host)
+	con, err := dialer.PacketConn(host)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &packetConn{
 		PacketConn: con,
-		cm:         c,
-		ConnRespConnection: &statistic.ConnRespConnection{
+		manager:    c,
+		Connection: &statistic.Connection{
 			Addr:   host,
 			Id:     c.idSeed.Generate(),
 			Local:  con.LocalAddr().String(),
 			Remote: host,
 			Mark:   mark.String(),
+			Type:   "Packet",
 		},
 	}
 	c.conns.Store(s.Id, s)
 	return s, nil
 }
 
-func (m *Statistic) marry(host string) (p proxy.Proxy, mark MODE) {
+func (m *Statistic) marry(host string) (dialer proxy.Proxy, mark MODE) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
 		return proxy.NewErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), MODE("UNKNOWN")
@@ -154,13 +150,15 @@ func (m *Statistic) marry(host string) (p proxy.Proxy, mark MODE) {
 
 	mark = m.mapper(hostname)
 
+	logasfmt.Printf("[%s] -> %v\n", host, mark)
+
 	switch mark {
 	case BLOCK:
-		p = proxy.NewErrProxy(fmt.Errorf("BLOCK: %v", host))
+		dialer = proxy.NewErrProxy(fmt.Errorf("BLOCK: %v", host))
 	case DIRECT:
-		p = m.direct
+		dialer = m.direct
 	default:
-		p = m.proxy
+		dialer = m.proxy
 	}
 
 	return

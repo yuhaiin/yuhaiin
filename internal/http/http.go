@@ -303,7 +303,7 @@ func Httpserver(mux *http.ServeMux, nodeManager *nodemanager.NodeManager, connMa
 
 		for _, c := range conns.GetConnections() {
 			str.WriteString("<p>")
-			str.WriteString(fmt.Sprintf(`<a>%d| [%s] %s, %s <-> %s</a>`, c.GetId(), c.GetMark(), c.GetAddr(), c.GetLocal(), c.GetRemote()))
+			str.WriteString(fmt.Sprintf(`<a>%d| &lt;%s[%s]&gt; %s, %s <-> %s</a>`, c.GetId(), c.GetType(), c.GetMark(), c.GetAddr(), c.GetLocal(), c.GetRemote()))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='/conn/close?id=%d'>Close</a>`, c.GetId()))
 			str.WriteString("</p>")
