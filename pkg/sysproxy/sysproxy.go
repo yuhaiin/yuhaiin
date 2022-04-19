@@ -3,11 +3,10 @@ package sysproxy
 import (
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	cb "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-
 	"google.golang.org/protobuf/proto"
 )
 
-func Set(conf *config.Config) {
+func Set(conf config.ConfigObserver) {
 	conf.AddObserverAndExec(func(current, old *cb.Setting) bool {
 		return proto.Equal(current.Server, old.Server)
 	}, func(s *cb.Setting) {

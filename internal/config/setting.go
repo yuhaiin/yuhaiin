@@ -188,7 +188,7 @@ func (c *Config) AddObserver(diff func(current, old *config.Setting) bool, exec 
 
 type ConfigObserver interface {
 	AddObserverAndExec(func(current, old *config.Setting) bool, func(current *config.Setting))
-	AddExecCommand(string, InitFunc)
+	AddExecCommand(string, InitFunc) error
 }
 
 type Observer interface {

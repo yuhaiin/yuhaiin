@@ -13,7 +13,7 @@ import (
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
-type Listener struct {
+type listener struct {
 	lock  sync.Mutex
 	store map[string]struct {
 		hash   string
@@ -33,11 +33,11 @@ func init() {
 	})
 }
 
-func NewListener(c *config.Config, pro proxy.Proxy) io.Closer {
+func NewListener(c config.ConfigObserver, pro proxy.Proxy) io.Closer {
 	if pro == nil {
 		pro = &proxy.Default{}
 	}
-	l := &Listener{
+	l := &listener{
 		store: make(map[string]struct {
 			hash   string
 			server proxy.Server
@@ -62,7 +62,7 @@ func NewListener(c *config.Config, pro proxy.Proxy) io.Closer {
 	return l
 }
 
-func (l *Listener) update(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
+func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
 	v, ok := l.store[name]
 	if !ok {
 		l.start(name, pro, config)
@@ -79,7 +79,7 @@ func (l *Listener) update(name string, pro proxy.Proxy, config *protoconfig.Serv
 	l.start(name, pro, config)
 }
 
-func (l *Listener) start(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
+func (l *listener) start(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
 	server, err := protoconfig.CreateServer(config.Protocol, pro)
 	if err != nil {
 		logasfmt.Printf("create server %s failed: %v\n", name, err)
@@ -95,7 +95,7 @@ func (l *Listener) start(name string, pro proxy.Proxy, config *protoconfig.Serve
 	}
 }
 
-func (l *Listener) Close() error {
+func (l *listener) Close() error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
