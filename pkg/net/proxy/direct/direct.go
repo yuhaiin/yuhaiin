@@ -62,10 +62,10 @@ func (d *direct) Conn(s string) (net.Conn, error) {
 
 	var ips []net.IP
 
-	if i := net.ParseIP(s); i != nil {
+	if i := net.ParseIP(h); i != nil {
 		ips = append(ips, i)
 	} else if ips, err = d.lookup(h); err != nil {
-		return nil, fmt.Errorf("tcp dial failed: %w", err)
+		return nil, fmt.Errorf("lookup host [%s] failed: %w", h, err)
 	}
 
 	var errs errors
