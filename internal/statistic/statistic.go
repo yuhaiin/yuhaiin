@@ -20,9 +20,10 @@ var _ proxy.Proxy = (*Statistic)(nil)
 type Statistic struct {
 	statistic.UnimplementedConnectionsServer
 
-	idSeed *idGenerater
-	conns  syncmap.SyncMap[int64, observer]
 	accountant
+
+	idSeed        idGenerater
+	conns         syncmap.SyncMap[int64, observer]
 	proxy, direct proxy.Proxy
 	mapper        func(string) MODE
 }
@@ -32,10 +33,7 @@ func NewStatistic(conf config.ConfigObserver, dialer proxy.Proxy) *Statistic {
 		dialer = &proxy.Default{}
 	}
 
-	c := &Statistic{
-		idSeed: &idGenerater{},
-		proxy:  dialer,
-	}
+	c := &Statistic{proxy: dialer}
 
 	shunt := NewShunt(conf, WithProxy(c))
 
@@ -89,7 +87,7 @@ func (c *Statistic) Statistic(_ *emptypb.Empty, srv statistic.Connections_Statis
 
 func (c *Statistic) delete(id int64) {
 	if z, ok := c.conns.LoadAndDelete(id); ok {
-		logasfmt.Printf("close %v<%s[%v]>: %v, %s <-> %s\n",
+		logasfmt.Printf("close %v| <%s[%v]>: %v, %s <-> %s\n",
 			z.GetId(), z.GetType(), z.GetMark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
 	}
 }
@@ -114,7 +112,7 @@ func (c *Statistic) Conn(host string) (net.Conn, error) {
 		Conn:    con,
 		manager: c,
 	}
-	c.conns.Store(s.Id, s)
+	c.storeConnection(s)
 	return s, nil
 }
 
@@ -138,19 +136,23 @@ func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
 			Type:   "Packet",
 		},
 	}
-	c.conns.Store(s.Id, s)
+	c.storeConnection(s)
 	return s, nil
+}
+
+func (c *Statistic) storeConnection(o observer) {
+	logasfmt.Printf("%v| <%s[%v]>: %v, %s <-> %s\n",
+		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), o.GetLocal(), o.GetRemote())
+	c.conns.Store(o.GetId(), o)
 }
 
 func (m *Statistic) marry(host string) (dialer proxy.Proxy, mark MODE) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
-		return proxy.NewErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), MODE("UNKNOWN")
+		return proxy.NewErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), UNKNOWN
 	}
 
 	mark = m.mapper(hostname)
-
-	logasfmt.Printf("[%s] -> %v\n", host, mark)
 
 	switch mark {
 	case BLOCK:
