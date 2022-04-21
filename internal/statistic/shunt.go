@@ -63,6 +63,8 @@ var (
 	DIRECT MODE = "DIRECT"
 	PROXY  MODE = "PROXY"
 	MAX    MODE = "MAX"
+
+	UNKNOWN MODE = "UNKNOWN"
 )
 
 func (m MODE) String() string {

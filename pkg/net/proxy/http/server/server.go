@@ -64,7 +64,7 @@ _start:
 		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
-		return fmt.Errorf("get conn from proxy failed: %v", err)
+		return fmt.Errorf("get conn [%s] from proxy failed: %v", host, err)
 	}
 
 	if req.Method == http.MethodConnect {

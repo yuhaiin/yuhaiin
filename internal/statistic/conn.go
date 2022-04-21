@@ -11,6 +11,7 @@ import (
 
 type observer interface {
 	io.Closer
+
 	GetType() string
 	GetId() int64
 	GetAddr() string
