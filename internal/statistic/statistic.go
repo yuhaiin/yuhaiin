@@ -2,12 +2,9 @@ package statistic
 
 import (
 	"context"
-	"fmt"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -22,44 +19,31 @@ type Statistic struct {
 
 	accountant
 
-	idSeed        idGenerater
-	conns         syncmap.SyncMap[int64, observer]
-	proxy, direct proxy.Proxy
-	mapper        func(string) MODE
+	idSeed idGenerater
+	dialer *dialer
+	conns  syncmap.SyncMap[int64, connection]
+	shunt  *Shunt
 }
 
-func NewStatistic(conf config.ConfigObserver, dialer proxy.Proxy) *Statistic {
+func NewStatistic(dialer proxy.Proxy) *Statistic {
 	if dialer == nil {
 		dialer = &proxy.Default{}
 	}
 
-	c := &Statistic{proxy: dialer}
+	c := &Statistic{dialer: newDialer(dialer)}
 
-	shunt := NewShunt(conf, WithProxy(c))
-
-	conf.AddObserverAndExec(
-		func(current, old *protoconfig.Setting) bool { return diffDNS(current.Dns.Local, old.Dns.Local) },
-		func(current *protoconfig.Setting) {
-			c.direct = direct.NewDirect(direct.WithLookup(getDNS(current.Dns.Local, nil).LookupIP))
-		},
-	)
-
-	conf.AddObserverAndExec(
-		func(current, old *protoconfig.Setting) bool { return current.Bypass.Enabled != old.Bypass.Enabled },
-		func(current *protoconfig.Setting) {
-			if !current.Bypass.Enabled {
-				c.mapper = func(s string) MODE { return OTHERS }
-			} else {
-				c.mapper = shunt.Get
-			}
-		})
-
+	c.shunt = newShunt(c)
 	return c
+}
+
+func (c *Statistic) Update(s *protoconfig.Setting) {
+	c.dialer.Update(s)
+	c.shunt.Update(s)
 }
 
 func (c *Statistic) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
 	resp := &statistic.ConnResp{}
-	c.conns.Range(func(key int64, v observer) bool {
+	c.conns.Range(func(key int64, v connection) bool {
 		resp.Connections = append(resp.Connections, v.GetStatistic())
 		return true
 	})
@@ -93,9 +77,9 @@ func (c *Statistic) delete(id int64) {
 }
 
 func (c *Statistic) Conn(host string) (net.Conn, error) {
-	dialer, mark := c.marry(host)
+	mark := c.shunt.Get(host)
 
-	con, err := dialer.Conn(host)
+	con, err := c.dialer.dial(mark).Conn(host)
 	if err != nil {
 		return nil, err
 	}
@@ -117,9 +101,9 @@ func (c *Statistic) Conn(host string) (net.Conn, error) {
 }
 
 func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
-	dialer, mark := c.marry(host)
+	mark := c.shunt.Get(host)
 
-	con, err := dialer.PacketConn(host)
+	con, err := c.dialer.dial(mark).PacketConn(host)
 	if err != nil {
 		return nil, err
 	}
@@ -140,28 +124,8 @@ func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
 	return s, nil
 }
 
-func (c *Statistic) storeConnection(o observer) {
+func (c *Statistic) storeConnection(o connection) {
 	logasfmt.Printf("%v| <%s[%v]>: %v, %s <-> %s\n",
 		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), o.GetLocal(), o.GetRemote())
 	c.conns.Store(o.GetId(), o)
-}
-
-func (m *Statistic) marry(host string) (dialer proxy.Proxy, mark MODE) {
-	hostname, _, err := net.SplitHostPort(host)
-	if err != nil {
-		return proxy.NewErrProxy(fmt.Errorf("split host [%s] failed: %v", host, err)), UNKNOWN
-	}
-
-	mark = m.mapper(hostname)
-
-	switch mark {
-	case BLOCK:
-		dialer = proxy.NewErrProxy(fmt.Errorf("BLOCK: %v", host))
-	case DIRECT:
-		dialer = m.direct
-	default:
-		dialer = m.proxy
-	}
-
-	return
 }

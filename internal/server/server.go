@@ -1,10 +1,8 @@
 package server
 
 import (
-	"io"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
@@ -19,6 +17,8 @@ type listener struct {
 		hash   string
 		server proxy.Server
 	}
+
+	pro proxy.Proxy
 }
 
 func init() {
@@ -33,7 +33,7 @@ func init() {
 	})
 }
 
-func NewListener(c config.ConfigObserver, pro proxy.Proxy) io.Closer {
+func NewListener(pro proxy.Proxy) *listener {
 	if pro == nil {
 		pro = &proxy.Default{}
 	}
@@ -42,24 +42,25 @@ func NewListener(c config.ConfigObserver, pro proxy.Proxy) io.Closer {
 			hash   string
 			server proxy.Server
 		}),
+		pro: pro,
 	}
 
-	c.AddObserverAndExec(func(_, _ *protoconfig.Setting) bool { return true }, func(current *protoconfig.Setting) {
-		l.lock.Lock()
-		defer l.lock.Unlock()
-		for k, v := range l.store {
-			if _, ok := current.Server.Servers[k]; !ok {
-				v.server.Close()
-				delete(l.store, k)
-			}
-		}
-
-		for k, v := range current.Server.Servers {
-			l.update(k, pro, v)
-		}
-	})
-
 	return l
+}
+
+func (l *listener) Update(current *protoconfig.Setting) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	for k, v := range l.store {
+		if _, ok := current.Server.Servers[k]; !ok {
+			v.server.Close()
+			delete(l.store, k)
+		}
+	}
+
+	for k, v := range current.Server.Servers {
+		l.update(k, l.pro, v)
+	}
 }
 
 func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {

@@ -44,9 +44,12 @@ func (c *accountant) start() {
 	}
 
 	c.started = make(chan bool)
+	reduce := func(u uint64) string {
+		return utils.ReducedUnitToString(float64(u))
+	}
 
 	go func() {
-		tmpD, tmpU := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
+		dw, up := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
 
 		for {
 			select {
@@ -60,20 +63,23 @@ func (c *accountant) start() {
 
 			d, u := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
 
-			c.clients.Range(func(key int64, value func(*statistic.RateResp) error) bool {
-				err := value(&statistic.RateResp{
-					Download:     utils.ReducedUnitToString(float64(d)),
-					Upload:       utils.ReducedUnitToString(float64(u)),
-					DownloadRate: utils.ReducedUnitToString(float64(d-tmpD)) + "/S",
-					UploadRate:   utils.ReducedUnitToString(float64(u-tmpU)) + "/S",
-				})
-				if err != nil {
-					logasfmt.Println("accountant client error:", err)
-				}
-				return true
-			})
+			c.clients.Range(
+				func(key int64, value func(*statistic.RateResp) error) bool {
+					data := &statistic.RateResp{
+						Download:     reduce(d),
+						Upload:       reduce(u),
+						DownloadRate: reduce(d-dw) + "/S",
+						UploadRate:   reduce(u-up) + "/S",
+					}
 
-			tmpD, tmpU = d, u
+					if err := value(data); err != nil {
+						logasfmt.Println("accountant client error:", err)
+					}
+
+					return true
+				})
+
+			dw, up = d, u
 		}
 	}()
 }

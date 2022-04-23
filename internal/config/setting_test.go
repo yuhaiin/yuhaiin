@@ -1,9 +1,6 @@
 package config
 
 import (
-	"os"
-	"os/exec"
-	"path"
 	"path/filepath"
 	"testing"
 
@@ -52,39 +49,4 @@ func TestJsonPb(t *testing.T) {
 		t.Log(err)
 	}
 	t.Log(s3)
-}
-
-func TestCreatDir(t *testing.T) {
-_retry:
-	file, err := os.OpenFile("./b/a/a.txt", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Log(path.Dir("./b/a/a.txt"))
-			err = os.MkdirAll(path.Dir("./b/a/a.txt"), os.ModePerm)
-			if err != nil {
-				t.Error(err)
-			}
-			goto _retry
-		}
-		t.Error(err)
-	}
-	defer file.Close()
-	t.Log(file.WriteString("test"))
-}
-
-func TestCmd(t *testing.T) {
-	process, err := os.FindProcess(11192)
-	if err != nil {
-		t.Log(err)
-	}
-	cmd := exec.Command("", "")
-	cmd.Process = process
-	err = cmd.Wait()
-	if err != nil {
-		t.Error(err)
-	}
-	//err = cmd.Process.Kill()
-	//if err != nil {
-	//	t.Error(err)
-	//}
 }

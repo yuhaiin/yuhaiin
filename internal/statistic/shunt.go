@@ -16,7 +16,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
@@ -78,56 +77,42 @@ var Mode = map[string]*MODE{
 }
 
 type Shunt struct {
-	file   string
-	mapper *mapper.Mapper[*MODE]
+	file string
 
-	p        proxy.Proxy
+	remote *protoconfig.Dns
+
+	mapper *mapper.Mapper[*MODE]
+	bypass bool
+
+	dialer   proxy.Proxy
 	fileLock sync.RWMutex
 }
 
-func WithProxy(p proxy.Proxy) func(*Shunt) {
-	return func(s *Shunt) {
-		s.p = p
+func newShunt(dialer proxy.Proxy) *Shunt {
+	return &Shunt{
+		dialer: dialer,
+		mapper: mapper.NewMapper[*MODE](nil),
 	}
 }
 
-//NewShunt file: bypass file; lookup: domain resolver, can be nil
-func NewShunt(conf config.ConfigObserver, opts ...func(*Shunt)) *Shunt {
-	s := &Shunt{}
-
-	for _, opt := range opts {
-		opt(s)
-	}
-
-	s.mapper = mapper.NewMapper[*MODE](nil)
-
-	conf.AddObserverAndExec(func(current, old *protoconfig.Setting) bool {
-		return current.Bypass.BypassFile != old.Bypass.BypassFile
-	}, func(current *protoconfig.Setting) {
-		if s.file == current.Bypass.BypassFile {
-			return
-		}
+func (s *Shunt) Update(c *protoconfig.Setting) {
+	if s.file == "" || s.file != c.Bypass.BypassFile {
 		s.fileLock.Lock()
-		s.file = current.Bypass.BypassFile
+		s.file = c.Bypass.BypassFile
 		s.fileLock.Unlock()
 
 		if err := s.Refresh(); err != nil {
 			log.Println("refresh bypass file failed:", err)
 		}
-	})
+	}
 
-	conf.AddObserverAndExec(func(current, old *protoconfig.Setting) bool {
-		return diffDNS(current.Dns.Remote, old.Dns.Remote)
-	}, func(current *protoconfig.Setting) {
-		s.mapper.SetLookup(getDNS(current.Dns.Remote, s.p).LookupIP)
-		s.mapper.Insert(getDNSHostnameAndMode(current.Dns.Remote))
-	})
+	if s.remote == nil || diffDNS(s.remote, c.Dns.Remote) {
+		s.mapper.SetLookup(getDNS(c.Dns.Remote, s.dialer).LookupIP)
+		s.mapper.Insert(getDnsConfig(c.Dns.Remote))
+		s.remote = c.Dns.Remote
+	}
 
-	conf.AddExecCommand("RefreshMapping", func(*protoconfig.Setting) error {
-		return s.Refresh()
-	})
-
-	return s
+	s.bypass = c.Bypass.Enabled
 }
 
 func (s *Shunt) Refresh() error {
@@ -177,6 +162,14 @@ func (s *Shunt) Refresh() error {
 }
 
 func (s *Shunt) Get(domain string) MODE {
+	host, _, err := net.SplitHostPort(domain)
+	if err == nil {
+		domain = host
+	}
+
+	if !s.bypass {
+		return PROXY
+	}
 	m, _ := s.mapper.Search(domain)
 	if m == nil {
 		return PROXY
@@ -184,7 +177,7 @@ func (s *Shunt) Get(domain string) MODE {
 	return *m
 }
 
-func getDNSHostnameAndMode(dc *protoconfig.Dns) (string, *MODE) {
+func getDnsConfig(dc *protoconfig.Dns) (string, *MODE) {
 	host := dc.Host
 	if dc.Type == protoconfig.Dns_doh {
 		i := strings.IndexByte(dc.Host, '/')
