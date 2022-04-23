@@ -50,3 +50,9 @@ func TestJsonPb(t *testing.T) {
 	}
 	t.Log(s3)
 }
+
+func TestLoad(t *testing.T) {
+	x := load("")
+
+	t.Log(x)
+}
