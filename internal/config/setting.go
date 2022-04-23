@@ -99,31 +99,8 @@ func WrapUpdate(u func(*config.Setting)) Observer {
 }
 
 func load(dir string) *config.Setting {
-	pa := &config.Setting{
-		SystemProxy: &config.SystemProxy{
-			Http:   true,
-			Socks5: false,
-			// linux system set socks5 will make firfox websocket can't connect
-			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
-		},
-		Bypass: &config.Bypass{
-			Enabled:    true,
-			BypassFile: filepath.Join(filepath.Dir(dir), "yuhaiin.conf"),
-		},
+	pa := &config.Setting{}
 
-		Dns: &config.DnsSetting{
-			Remote: &config.Dns{
-				Host:   "cloudflare-dns.com",
-				Type:   config.Dns_doh,
-				Proxy:  false,
-				Subnet: "0.0.0.0/32",
-			},
-			Local: &config.Dns{
-				Host: "223.5.5.5",
-				Type: config.Dns_doh,
-			},
-		},
-	}
 	data, err := ioutil.ReadFile(dir)
 	if err != nil {
 		log.Printf("read config file failed: %v\n", err)
@@ -133,6 +110,42 @@ func load(dir string) *config.Setting {
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
 	if err != nil {
 		log.Printf("unmarshal config file failed: %v\n", err)
+	}
+
+	if pa.SystemProxy == nil {
+		pa.SystemProxy = &config.SystemProxy{
+			Http:   true,
+			Socks5: false,
+			// linux system set socks5 will make firfox websocket can't connect
+			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
+		}
+	}
+
+	if pa.Bypass == nil {
+		pa.Bypass = &config.Bypass{
+			Enabled:    true,
+			BypassFile: filepath.Join(filepath.Dir(dir), "yuhaiin.conf"),
+		}
+	}
+
+	if pa.Dns == nil {
+		pa.Dns = &config.DnsSetting{}
+	}
+
+	if pa.Dns.Local == nil {
+		pa.Dns.Local = &config.Dns{
+			Host: "223.5.5.5",
+			Type: config.Dns_doh,
+		}
+	}
+
+	if pa.Dns.Remote == nil {
+		pa.Dns.Remote = &config.Dns{
+			Host:   "cloudflare-dns.com",
+			Type:   config.Dns_doh,
+			Proxy:  false,
+			Subnet: "0.0.0.0/32",
+		}
 	}
 
 	if pa.Server == nil || pa.Server.Servers == nil {
