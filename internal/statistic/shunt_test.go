@@ -6,17 +6,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/internal/config"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
-
-func TestShunt(t *testing.T) {
-	x := NewShunt(&config.Config{})
-
-	t.Log(x.Get("sp0.baidu.com"))
-	t.Log(x.Get("www.baidu.com"))
-	t.Log(x.Get("www.google.com"))
-}
 
 func TestMode(t *testing.T) {
 	v := (interface{})(nil)
@@ -90,5 +81,5 @@ func TestM(t *testing.T) {
 }
 
 func TestGetDNSHostnameAndMode(t *testing.T) {
-	t.Log(getDNSHostnameAndMode(&protoconfig.Dns{Host: "1.1.1.1"}))
+	t.Log(getDnsConfig(&protoconfig.Dns{Host: "1.1.1.1"}))
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
-type observer interface {
+type connection interface {
 	io.Closer
 
 	GetType() string
@@ -21,7 +21,7 @@ type observer interface {
 	GetStatistic() *statistic.Connection
 }
 
-var _ observer = (*conn)(nil)
+var _ connection = (*conn)(nil)
 
 type conn struct {
 	net.Conn
@@ -99,7 +99,7 @@ func (s *conn) GetStatistic() *statistic.Connection {
 	return s.Connection
 }
 
-var _ observer = (*packetConn)(nil)
+var _ connection = (*packetConn)(nil)
 
 type packetConn struct {
 	net.PacketConn
