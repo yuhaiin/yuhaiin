@@ -14,7 +14,6 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-
 	"github.com/dgryski/go-camellia"
 	"github.com/dgryski/go-idea"
 	"github.com/dgryski/go-rc2"
@@ -261,7 +260,7 @@ func (c *Cipher) KeyLen() int {
 	return c.info.keyLen
 }
 
-func (c *Cipher) StreamCipher(conn net.Conn) *StreamCipher {
+func (c *Cipher) Stream(conn net.Conn) *StreamCipher {
 	return &StreamCipher{
 		key:  c.key,
 		info: c.info,
@@ -269,7 +268,7 @@ func (c *Cipher) StreamCipher(conn net.Conn) *StreamCipher {
 	}
 }
 
-func (c *Cipher) PacketCipher(conn net.PacketConn) net.PacketConn {
+func (c *Cipher) Packet(conn net.PacketConn) net.PacketConn {
 	return &PacketCipher{
 		key:        c.key,
 		info:       c.info,
@@ -302,7 +301,6 @@ func (p *PacketCipher) WriteTo(b []byte, addr net.Addr) (int, error) {
 		return n, err
 	}
 
-	// defer log.Println("PacketCipher.WriteTo", addr.String(), n)
 	return len(b), nil
 }
 
@@ -311,7 +309,6 @@ func (p *PacketCipher) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	// log.Println("PacketCipher.ReadFrom", addr.String(), n)
 	iv := b[:p.info.ivLen]
 	s, err := p.info.newStream(p.key, iv, Decrypt)
 	if err != nil {
@@ -404,19 +401,10 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 		z := utils.GetBytes(c.InfoIVLen())
 		defer utils.PutBytes(z)
 
-		// c.Conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-		// atomic.AddInt64(&read, 1)
-		// log.Println("----------start read----------", atomic.LoadInt64(&read))
 		_, err := io.ReadFull(c.Conn, z[:c.InfoIVLen()])
 		if err != nil {
-			// atomic.AddInt64(&read, -1)
-			// log.Println("----------end read----------", atomic.LoadInt64(&read), err)
-			// logasfmt.Println("read error", err)
 			return 0, err
 		}
-		// c.Conn.SetReadDeadline(time.Time{})
-		// atomic.AddInt64(&read, -1)
-		// log.Println("----------read iv----------", atomic.LoadInt64(&read))
 
 		copy(c.readIV, z)
 		c.dec, err = c.info.newStream(c.key, z[:c.InfoIVLen()], Decrypt)
@@ -429,9 +417,7 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	// log.Println("read:", n)
 	c.dec.XORKeyStream(b, b[:n])
-	// log.Println(len(b))
 	return n, nil
 }
 

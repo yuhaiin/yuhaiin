@@ -15,7 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-type creator func(ssr.ServerInfo) IProtocol
+type creator func(ProtocolInfo) IProtocol
 
 var (
 	creatorMap = make(map[string]creator)
@@ -26,15 +26,12 @@ type hashDigestMethod func(data []byte) []byte
 type rndMethod func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
 
 type IProtocol interface {
-	PreEncrypt(data []byte) ([]byte, error)
-	PostDecrypt(data []byte) ([]byte, int, error)
-	PreEncryptPacket(data []byte) ([]byte, error)
-	PostDecryptPacket(data []byte) ([]byte, error)
-	GetOverhead() int
-	AddOverhead(size int)
+	EncryptStream(data []byte) ([]byte, error)
+	DecryptStream(data []byte) ([]byte, int, error)
+	EncryptPacket(data []byte) ([]byte, error)
+	DecryptPacket(data []byte) ([]byte, error)
 
-	GetData() interface{}
-	SetData(interface{})
+	GetOverhead() int
 }
 
 type AuthData struct {
@@ -61,7 +58,7 @@ func register(name string, c creator) {
 	creatorMap[name] = c
 }
 
-func createProtocol(name string, info ssr.ServerInfo) IProtocol {
+func createProtocol(name string, info ProtocolInfo) IProtocol {
 	c, ok := creatorMap[strings.ToLower(name)]
 	if ok {
 		return c(info)
@@ -77,34 +74,25 @@ func checkProtocol(name string) error {
 }
 
 type Protocol struct {
-	name     string
-	info     ssr.ServerInfo
-	auth     *AuthData
-	overhead int
+	name string
+	info ProtocolInfo
 }
 
-func NewProtocol(name string, info ssr.ServerInfo, overhead int) (*Protocol, error) {
+func NewProtocol(name string, info ProtocolInfo) (*Protocol, error) {
 	if err := checkProtocol(name); err != nil {
 		return nil, err
 	}
-	return &Protocol{name, info, &AuthData{}, overhead}, nil
+	return &Protocol{name, info}, nil
 }
 
-func (p *Protocol) StreamProtocol(conn net.Conn, writeIV []byte) net.Conn {
+func (p *Protocol) Stream(conn net.Conn, writeIV []byte) net.Conn {
 	i := p.info
 	i.IV = writeIV
-	pt := createProtocol(p.name, i)
-	pt.SetData(p.auth)
-	pt.AddOverhead(p.overhead)
-	return newProtocolConn(conn, pt)
+	return newProtocolConn(conn, createProtocol(p.name, i))
 }
 
-func (p *Protocol) PacketProtocol(conn net.PacketConn) *protocolPacket {
-	i := p.info
-	pt := createProtocol(p.name, i)
-	pt.SetData(p.auth)
-	pt.AddOverhead(p.overhead)
-	return newProtocolPacket(conn, pt)
+func (p *Protocol) Packet(conn net.PacketConn) *protocolPacket {
+	return newProtocolPacket(conn, createProtocol(p.name, p.info))
 }
 
 type protocolPacket struct {
@@ -120,12 +108,11 @@ func newProtocolPacket(conn net.PacketConn, p IProtocol) *protocolPacket {
 }
 
 func (c *protocolPacket) WriteTo(b []byte, addr net.Addr) (int, error) {
-	data, err := c.IProtocol.PreEncryptPacket(b)
+	data, err := c.IProtocol.EncryptPacket(b)
 	if err != nil {
 		return 0, err
 	}
 	_, err = c.PacketConn.WriteTo(data, addr)
-	// defer log.Println("write to", addr, "error", err)
 	return len(b), err
 }
 
@@ -134,7 +121,7 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	decoded, err := c.IProtocol.PostDecryptPacket(b[:n])
+	decoded, err := c.IProtocol.DecryptPacket(b[:n])
 	if err != nil {
 		return n, addr, err
 	}
@@ -175,7 +162,6 @@ func (c *protocolConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *protocolConn) doRead(b []byte) (n int, err error) {
-	//先吐出已经解密后数据
 	if c.decryptedBuf.Len() > 0 {
 		return c.decryptedBuf.Read(b)
 	}
@@ -187,7 +173,7 @@ func (c *protocolConn) doRead(b []byte) (n int, err error) {
 
 	c.underPostdecryptBuf.Write(c.readBuf[:n])
 
-	decryptedData, length, err := c.IProtocol.PostDecrypt(c.underPostdecryptBuf.Bytes())
+	decryptedData, length, err := c.IProtocol.DecryptStream(c.underPostdecryptBuf.Bytes())
 	if err != nil {
 		c.underPostdecryptBuf.Reset()
 		return 0, err
@@ -213,7 +199,7 @@ func (c *protocolConn) doRead(b []byte) (n int, err error) {
 }
 
 func (c *protocolConn) Write(b []byte) (n int, err error) {
-	data, err := c.IProtocol.PreEncrypt(b)
+	data, err := c.IProtocol.EncryptStream(b)
 	if err != nil {
 		return 0, err
 	}
@@ -266,4 +252,40 @@ func (c *protocolConn) WriteTo(w io.Writer) (int64, error) {
 			return n, er
 		}
 	}
+}
+
+type ProtocolInfo struct {
+	ssr.Info
+	HeadLen int
+	TcpMss  int
+	Param   string
+	IV      []byte
+
+	Auth *AuthData
+
+	ObfsOverhead int
+}
+
+func (s *ProtocolInfo) SetHeadLen(data []byte, defaultValue int) {
+	s.HeadLen = GetHeadSize(data, defaultValue)
+}
+
+func GetHeadSize(data []byte, defaultValue int) int {
+	if data == nil || len(data) < 2 {
+		return defaultValue
+	}
+	headType := data[0] & 0x07
+	switch headType {
+	case 1:
+		// IPv4 1+4+2
+		return 7
+	case 4:
+		// IPv6 1+16+2
+		return 19
+	case 3:
+		// domain name, variant length
+		return 4 + int(data[1])
+	}
+
+	return defaultValue
 }

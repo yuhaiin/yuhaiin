@@ -12,14 +12,14 @@ func init() {
 }
 
 // newHttpPost create a http_post object
-func newHttpPost(con net.Conn, info ssr.ServerInfo) IObfs {
+func newHttpPost(con net.Conn, info ssr.ObfsInfo) IObfs {
 	// newHttpSimple create a http_simple object
 
 	t := &httpSimplePost{
 		userAgentIndex: rand.Intn(len(requestUserAgent)),
 		methodGet:      false,
 		Conn:           con,
-		ServerInfo:     info,
+		ObfsInfo:       info,
 	}
 	return t
 }

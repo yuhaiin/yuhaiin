@@ -8,7 +8,7 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-type creator func(net.Conn, ssr.ServerInfo) IObfs
+type creator func(net.Conn, ssr.ObfsInfo) IObfs
 
 var (
 	creatorMap = make(map[string]creator)
@@ -24,23 +24,15 @@ func register(name string, c creator) {
 	creatorMap[name] = c
 }
 
-// NewObfs create an obfs object by name and return as an IObfs interface
-func newObfs(conn net.Conn, name string, info ssr.ServerInfo) (IObfs, error) {
-	c, ok := creatorMap[strings.ToLower(name)]
-	if ok {
-		return c(conn, info), nil
-	}
-	return nil, fmt.Errorf("obfs %s not found", name)
-}
-
 type Obfs struct {
 	name     string
-	info     ssr.ServerInfo
+	info     ssr.ObfsInfo
 	overhead int
 	creator  creator
 }
 
-func NewObfs(name string, info ssr.ServerInfo) (*Obfs, error) {
+// NewObfs create an obfs object by name and return as an IObfs interface
+func NewObfs(name string, info ssr.ObfsInfo) (*Obfs, error) {
 	o, ok := creatorMap[strings.ToLower(name)]
 	if !ok {
 		return nil, fmt.Errorf("obfs %s not found", name)
@@ -54,7 +46,6 @@ func (o *Obfs) Overhead() int {
 	return o.overhead
 }
 
-func (o *Obfs) StreamObfs(conn net.Conn) net.Conn {
-	i := o.info
-	return o.creator(conn, i)
+func (o *Obfs) Stream(conn net.Conn) net.Conn {
+	return o.creator(conn, o.info)
 }

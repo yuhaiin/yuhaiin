@@ -24,7 +24,7 @@ func init() {
 }
 
 type authChainA struct {
-	ssr.ServerInfo
+	ProtocolInfo
 	randomClient ssr.Shift128plusContext
 	randomServer ssr.Shift128plusContext
 	recvInfo
@@ -43,9 +43,11 @@ type authChainA struct {
 	dataSizeList   []int
 	dataSizeList2  []int
 	chunkID        uint32
+
+	overhead int
 }
 
-func NewAuthChainA(info ssr.ServerInfo) IProtocol {
+func NewAuthChainA(info ProtocolInfo) IProtocol {
 	a := &authChainA{
 		salt:       "auth_chain_a",
 		hmac:       ssr.HmacMD5,
@@ -55,10 +57,13 @@ func NewAuthChainA(info ssr.ServerInfo) IProtocol {
 			recvID: 1,
 			buffer: new(bytes.Buffer),
 		},
-		ServerInfo: info,
-		data:       &AuthData{},
+		ProtocolInfo: info,
+		data:         info.Auth,
 	}
-	a.Overhead = 4
+	if a.data == nil {
+		a.data = &AuthData{}
+	}
+	a.overhead = 4 + info.ObfsOverhead
 	return a
 }
 
@@ -96,7 +101,7 @@ func (a *authChainA) getServerRandLen(dataLength int, overhead int) int {
 
 func (a *authChainA) packedDataLen(data []byte) (chunkLength, randLength int) {
 	dataLength := len(data)
-	randLength = a.getClientRandLen(dataLength, a.Overhead)
+	randLength = a.getClientRandLen(dataLength, a.overhead)
 	chunkLength = randLength + dataLength + 2 + 2
 	return
 }
@@ -143,7 +148,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	binary.LittleEndian.PutUint32(encrypt[:4], uint32(t))
 	copy(encrypt[4:8], a.data.clientID)
 	binary.LittleEndian.PutUint32(encrypt[8:], a.data.connectionID)
-	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.Overhead))
+	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))
 	binary.LittleEndian.PutUint16(encrypt[14:16], 0)
 
 	// first 12 bytes
@@ -157,7 +162,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	{
 		uid := make([]byte, 4)
 		if a.userKey == nil {
-			params := strings.Split(a.ServerInfo.Param, ":")
+			params := strings.Split(a.Param, ":")
 			if len(params) >= 2 {
 				if userID, err := strconv.Atoi(params[0]); err == nil {
 					binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
@@ -218,7 +223,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authChainA) PreEncrypt(plainData []byte) (outData []byte, err error) {
+func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error) {
 	a.buffer.Reset()
 	dataLength := len(plainData)
 	offset := 0
@@ -232,7 +237,7 @@ func (a *authChainA) PreEncrypt(plainData []byte) (outData []byte, err error) {
 		dataLength -= headSize
 		a.hasSentHeader = true
 	}
-	var unitSize = a.TcpMss - a.Overhead
+	var unitSize = a.TcpMss - a.overhead
 	for dataLength > unitSize {
 		dataLen, randLength := a.packedDataLen(plainData[offset : offset+unitSize])
 		b := make([]byte, dataLen)
@@ -250,7 +255,7 @@ func (a *authChainA) PreEncrypt(plainData []byte) (outData []byte, err error) {
 	return a.buffer.Bytes(), nil
 }
 
-func (a *authChainA) PostDecrypt(plainData []byte) (outData []byte, n int, err error) {
+func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err error) {
 	a.buffer.Reset()
 	key := make([]byte, len(a.userKey)+4)
 	readlenth := 0
@@ -258,7 +263,7 @@ func (a *authChainA) PostDecrypt(plainData []byte) (outData []byte, n int, err e
 	for len(plainData) > 4 {
 		binary.LittleEndian.PutUint32(key[len(a.userKey):], a.recvID)
 		dataLen := (int)((uint(plainData[1]^a.lastServerHash[15]) << 8) + uint(plainData[0]^a.lastServerHash[14]))
-		randLen := a.getServerRandLen(dataLen, a.Overhead)
+		randLen := a.getServerRandLen(dataLen, a.overhead)
 		length := randLen + dataLen
 		if length >= 4096 {
 			return nil, 0, ssr.ErrAuthChainDataLengthError
@@ -295,15 +300,12 @@ func (a *authChainA) PostDecrypt(plainData []byte) (outData []byte, n int, err e
 }
 
 func (a *authChainA) GetOverhead() int {
-	return 4
+	return a.overhead
 }
 
-func (a *authChainA) AddOverhead(o int) {
-	a.Overhead += o
-}
-func (a *authChainA) PreEncryptPacket(b []byte) ([]byte, error) {
+func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 	if a.userKey == nil {
-		params := strings.Split(a.ServerInfo.Param, ":")
+		params := strings.Split(a.Param, ":")
 		if len(params) >= 2 {
 			if userID, err := strconv.Atoi(params[0]); err == nil {
 				binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
@@ -335,7 +337,7 @@ func (a *authChainA) PreEncryptPacket(b []byte) ([]byte, error) {
 	return wantedData, nil
 }
 
-func (a *authChainA) PostDecryptPacket(b []byte) ([]byte, error) {
+func (a *authChainA) DecryptPacket(b []byte) ([]byte, error) {
 	if len(b) < 9 {
 		return nil, ssr.ErrAuthChainDataLengthError
 	}

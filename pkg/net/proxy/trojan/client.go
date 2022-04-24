@@ -15,6 +15,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -44,8 +45,11 @@ type OutboundConn struct {
 
 func (c *OutboundConn) WriteHeader() (err error) {
 	c.headerWrittenOnce.Do(func() {
-		buf := bytes.NewBuffer(make([]byte, 0, MaxPacketSize))
+		packet := utils.GetBytes(MaxPacketSize)
+		defer utils.PutBytes(packet)
 
+		buf := bytes.NewBuffer(packet)
+		buf.Reset()
 		buf.Write(c.password)
 		buf.Write(crlf)
 		buf.WriteByte(byte(c.cmd))
@@ -126,7 +130,9 @@ type PacketConn struct {
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
-	packet := make([]byte, 0, MaxPacketSize)
+	packet := utils.GetBytes(MaxPacketSize)
+	defer utils.PutBytes(packet)
+
 	w := bytes.NewBuffer(packet)
 
 	err := s5c.ParseAddrWriter(addr.String(), w)
