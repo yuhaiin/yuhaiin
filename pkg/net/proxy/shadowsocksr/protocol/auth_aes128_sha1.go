@@ -23,5 +23,6 @@ func NewAuthAES128SHA1(info ssr.ServerInfo) IProtocol {
 		ServerInfo: info,
 	}
 	a.Overhead = 9
+	a.initUserKey()
 	return a
 }

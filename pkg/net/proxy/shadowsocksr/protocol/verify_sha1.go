@@ -35,13 +35,15 @@ func (v *verifySHA1) otaConnectAuth(data []byte) []byte {
 	return append(data, ssr.HmacSHA1(append(v.IV, v.Key...), data)...)
 }
 
-func (v *verifySHA1) otaReqChunkAuth(chunkId uint32, data []byte) []byte {
+func (v *verifySHA1) otaReqChunkAuth(chunkId uint32, data []byte) {
 	nb := make([]byte, 2)
 	binary.BigEndian.PutUint16(nb, uint16(len(data)))
 	chunkIdBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
-	header := append(nb, ssr.HmacSHA1(append(v.IV, chunkIdBytes...), data)...)
-	return append(header, data...)
+
+	v.buffer.Write(nb)
+	v.buffer.Write(ssr.HmacSHA1(append(v.IV, chunkIdBytes...), data))
+	v.buffer.Write(data)
 }
 
 func (v *verifySHA1) otaVerifyAuth(iv []byte, chunkId uint32, data []byte, expectedHmacSha1 []byte) bool {
@@ -87,13 +89,13 @@ func (v *verifySHA1) PreEncrypt(data []byte) (encryptedData []byte, err error) {
 	const blockSize = 4096
 	for dataLength > blockSize {
 		chunkId := v.getAndIncreaseChunkId()
-		v.buffer.Write(v.otaReqChunkAuth(chunkId, data[offset:offset+blockSize]))
+		v.otaReqChunkAuth(chunkId, data[offset:offset+blockSize])
 		dataLength -= blockSize
 		offset += blockSize
 	}
 	if dataLength > 0 {
 		chunkId := v.getAndIncreaseChunkId()
-		v.buffer.Write(v.otaReqChunkAuth(chunkId, data[offset:]))
+		v.otaReqChunkAuth(chunkId, data[offset:])
 	}
 	return v.buffer.Bytes(), nil
 }

@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -37,6 +40,21 @@ type IProtocol interface {
 type AuthData struct {
 	clientID     []byte
 	connectionID uint32
+
+	lock sync.Mutex
+}
+
+func (a *AuthData) nextAuth() {
+	if a.connectionID <= 0xFF000000 && len(a.clientID) != 0 {
+		atomic.AddUint32(&a.connectionID, 1)
+		return
+	}
+
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.clientID = make([]byte, 8)
+	rand.Read(a.clientID)
+	atomic.StoreUint32(&a.connectionID, rand.Uint32()&0xFFFFFF)
 }
 
 func register(name string, c creator) {
@@ -144,7 +162,6 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 
 func (c *protocolConn) Close() error {
 	utils.PutBytes(c.readBuf)
-	// logasfmt.Println("protocolConn close-------------------")
 	return c.Conn.Close()
 }
 
@@ -169,41 +186,38 @@ func (c *protocolConn) doRead(b []byte) (n int, err error) {
 	}
 
 	c.underPostdecryptBuf.Write(c.readBuf[:n])
-	// and read it to buf immediately
-	buf := c.underPostdecryptBuf.Bytes()
-	postDecryptedData, length, err := c.IProtocol.PostDecrypt(buf)
+
+	decryptedData, length, err := c.IProtocol.PostDecrypt(c.underPostdecryptBuf.Bytes())
 	if err != nil {
 		c.underPostdecryptBuf.Reset()
-		//log.Println(string(decodebytes))
-		//log.Println("err", err)
 		return 0, err
 	}
 
 	if length == 0 {
-		// not enough to postDecrypt
+		// not enough to decrypt
 		return 0, nil
 	}
 
 	c.underPostdecryptBuf.Next(length)
 
-	postDecryptedLength := len(postDecryptedData)
-	blength := len(b)
-	//b的长度是否够用
+	postDecryptedLength, blength := len(decryptedData), len(b)
+
 	if blength >= postDecryptedLength {
-		copy(b, postDecryptedData)
-		return postDecryptedLength, nil
+		blength = postDecryptedLength
 	}
-	copy(b, postDecryptedData[:blength])
-	c.decryptedBuf.Write(postDecryptedData[blength:])
+
+	copy(b, decryptedData[:blength])
+	c.decryptedBuf.Write(decryptedData[blength:])
+
 	return blength, nil
 }
 
 func (c *protocolConn) Write(b []byte) (n int, err error) {
-	outData, err := c.IProtocol.PreEncrypt(b)
+	data, err := c.IProtocol.PreEncrypt(b)
 	if err != nil {
 		return 0, err
 	}
-	_, err = c.Conn.Write(outData)
+	_, err = c.Conn.Write(data)
 	if err != nil {
 		return 0, err
 	}
