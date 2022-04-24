@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -27,7 +28,7 @@ var y *yhCli
 
 func main() {
 	cobra.OnInitialize(func() {
-		host, err := ioutil.ReadFile(filepath.Join(config.DefaultConfigDir(), "yuhaiin.lock_payload"))
+		host, err := ioutil.ReadFile(filepath.Join(config.DefaultConfigDir(), "LOCK_PAYLOAD"))
 		if err != nil {
 			panic(err)
 		}
@@ -412,7 +413,8 @@ type yhCli struct {
 func NewCli(host string) (*yhCli, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, string(host), grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, string(host),
+		grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial failed: %w", err)
 	}

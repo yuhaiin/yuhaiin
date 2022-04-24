@@ -55,7 +55,7 @@ func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
 		n, er := r.Read(buf)
 		if n > 0 {
 			resp += int64(n)
-			_, ew := s.Conn.Write(buf[:n])
+			_, ew := s.Write(buf[:n])
 			if ew != nil {
 				break
 			}
