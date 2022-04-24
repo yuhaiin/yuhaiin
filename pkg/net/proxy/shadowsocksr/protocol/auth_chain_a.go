@@ -131,14 +131,9 @@ const authheadLength = 4 + 8 + 4 + 16 + 4
 
 func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	outData = make([]byte, authheadLength, authheadLength+1500)
-	a.data.connectionID++
-	if a.data.connectionID > 0xFF000000 || a.data.clientID == nil {
-		a.data.clientID = make([]byte, 4)
-		rand.Read(a.data.clientID)
-		b := make([]byte, 4)
-		rand.Read(b)
-		a.data.connectionID = binary.LittleEndian.Uint32(b) & 0xFFFFFF
-	}
+
+	a.data.nextAuth()
+
 	var key = make([]byte, a.IVLen+a.KeyLen)
 	copy(key, a.IV)
 	copy(key[a.IVLen:], a.Key)
