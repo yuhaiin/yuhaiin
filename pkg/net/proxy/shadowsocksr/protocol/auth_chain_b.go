@@ -11,7 +11,7 @@ func init() {
 	register("auth_chain_b", NewAuthChainB)
 }
 
-func NewAuthChainB(info ssr.ServerInfo) IProtocol {
+func NewAuthChainB(info ProtocolInfo) IProtocol {
 	a := &authChainA{
 		salt:       "auth_chain_b",
 		hmac:       ssr.HmacMD5,
@@ -21,9 +21,15 @@ func NewAuthChainB(info ssr.ServerInfo) IProtocol {
 			recvID: 1,
 			buffer: new(bytes.Buffer),
 		},
-		ServerInfo: info,
+		ProtocolInfo: info,
+		data:         info.Auth,
 	}
-	a.Overhead = 4
+
+	if a.data == nil {
+		a.data = &AuthData{}
+	}
+
+	a.overhead = 4 + info.ObfsOverhead
 	a.authChainBInitDataSize()
 	return a
 }
@@ -81,15 +87,4 @@ func authChainBGetRandLen(dataLength int, random *ssr.Shift128plusContext, lastH
 		return int(random.Next() % 521)
 	}
 	return int(random.Next() % 1021)
-}
-
-func (o *authChainA) GetData() interface{} {
-	if o.data == nil {
-		o.data = &AuthData{}
-	}
-	return o.data
-}
-
-func (o *authChainA) SetData(data interface{}) {
-	o.data = data.(*AuthData)
 }

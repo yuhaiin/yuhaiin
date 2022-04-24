@@ -21,7 +21,7 @@ func init() {
 	register("random_head", newRandomHead)
 }
 
-func newRandomHead(conn net.Conn, _ ssr.ServerInfo) IObfs {
+func newRandomHead(conn net.Conn, _ ssr.ObfsInfo) IObfs {
 	p := &randomHead{Conn: conn}
 	return p
 }

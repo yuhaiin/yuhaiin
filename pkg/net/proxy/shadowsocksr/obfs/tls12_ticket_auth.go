@@ -26,7 +26,7 @@ type tlsAuthData struct {
 
 // tls12TicketAuth tls1.2_ticket_auth obfs encapsulate
 type tls12TicketAuth struct {
-	ssr.ServerInfo
+	ssr.ObfsInfo
 	data            *tlsAuthData
 	handshakeStatus int
 	sendSaver       bytes.Buffer
@@ -37,8 +37,8 @@ type tls12TicketAuth struct {
 }
 
 // newTLS12TicketAuth create a tlv1.2_ticket_auth object
-func newTLS12TicketAuth(conn net.Conn, info ssr.ServerInfo) IObfs {
-	return &tls12TicketAuth{Conn: conn, ServerInfo: info}
+func newTLS12TicketAuth(conn net.Conn, info ssr.ObfsInfo) IObfs {
+	return &tls12TicketAuth{Conn: conn, ObfsInfo: info}
 }
 
 func (t *tls12TicketAuth) GetData() *tlsAuthData {

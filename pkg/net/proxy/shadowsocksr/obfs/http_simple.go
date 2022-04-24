@@ -42,7 +42,7 @@ var (
 
 // HttpSimple http_simple obfs encapsulate
 type httpSimplePost struct {
-	ssr.ServerInfo
+	ssr.ObfsInfo
 	rawTransSent     bool
 	rawTransReceived bool
 	userAgentIndex   int
@@ -57,12 +57,12 @@ func init() {
 }
 
 // newHttpSimple create a http_simple object
-func newHttpSimple(conn net.Conn, info ssr.ServerInfo) IObfs {
+func newHttpSimple(conn net.Conn, info ssr.ObfsInfo) IObfs {
 	t := &httpSimplePost{
 		userAgentIndex: rand.Intn(len(requestUserAgent)),
 		methodGet:      true,
 		Conn:           conn,
-		ServerInfo:     info,
+		ObfsInfo:       info,
 	}
 	return t
 }

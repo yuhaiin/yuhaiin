@@ -13,7 +13,7 @@ func init() {
 }
 
 type verifySHA1 struct {
-	ssr.ServerInfo
+	ProtocolInfo
 	hasSentHeader bool
 	buffer        bytes.Buffer
 	chunkId       uint32
@@ -23,11 +23,10 @@ const (
 	oneTimeAuthMask byte = 0x10
 )
 
-func NewVerifySHA1(info ssr.ServerInfo) IProtocol {
+func NewVerifySHA1(info ProtocolInfo) IProtocol {
 	a := &verifySHA1{
-		ServerInfo: info,
+		ProtocolInfo: info,
 	}
-	a.Overhead = 0
 	return a
 }
 
@@ -59,23 +58,7 @@ func (v *verifySHA1) getAndIncreaseChunkId() (chunkId uint32) {
 	return
 }
 
-func (v *verifySHA1) SetServerInfo(s *ssr.ServerInfo) {
-	v.ServerInfo = *s
-}
-
-func (v *verifySHA1) GetServerInfo() (s *ssr.ServerInfo) {
-	return &v.ServerInfo
-}
-
-func (v *verifySHA1) SetData(data interface{}) {
-
-}
-
-func (v *verifySHA1) GetData() interface{} {
-	return nil
-}
-
-func (v *verifySHA1) PreEncrypt(data []byte) (encryptedData []byte, err error) {
+func (v *verifySHA1) EncryptStream(data []byte) (encryptedData []byte, err error) {
 	v.buffer.Reset()
 	dataLength := len(data)
 	offset := 0
@@ -100,7 +83,7 @@ func (v *verifySHA1) PreEncrypt(data []byte) (encryptedData []byte, err error) {
 	return v.buffer.Bytes(), nil
 }
 
-func (v *verifySHA1) PostDecrypt(data []byte) ([]byte, int, error) {
+func (v *verifySHA1) DecryptStream(data []byte) ([]byte, int, error) {
 	return data, len(data), nil
 }
 
@@ -108,11 +91,9 @@ func (v *verifySHA1) GetOverhead() int {
 	return 0
 }
 
-func (v *verifySHA1) AddOverhead(int) {}
-
-func (a *verifySHA1) PreEncryptPacket(b []byte) ([]byte, error) {
+func (a *verifySHA1) EncryptPacket(b []byte) ([]byte, error) {
 	return b, nil
 }
-func (a *verifySHA1) PostDecryptPacket(b []byte) ([]byte, error) {
+func (a *verifySHA1) DecryptPacket(b []byte) ([]byte, error) {
 	return b, nil
 }
