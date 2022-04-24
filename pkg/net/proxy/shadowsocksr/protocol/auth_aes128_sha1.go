@@ -10,7 +10,7 @@ func init() {
 	register("auth_aes128_sha1", NewAuthAES128SHA1)
 }
 
-func NewAuthAES128SHA1(info ssr.ServerInfo) IProtocol {
+func NewAuthAES128SHA1(info ProtocolInfo) IProtocol {
 	a := &authAES128{
 		salt:       "auth_aes128_sha1",
 		hmac:       ssr.HmacSHA1,
@@ -20,9 +20,14 @@ func NewAuthAES128SHA1(info ssr.ServerInfo) IProtocol {
 			recvID: 1,
 			buffer: bytes.NewBuffer(nil),
 		},
-		ServerInfo: info,
+
+		key:    info.Key,
+		keyLen: info.KeyLen,
+		iv:     info.IV,
+		ivLen:  info.IVLen,
+		param:  info.Param,
+		auth:   info.Auth,
 	}
-	a.Overhead = 9
 	a.initUserKey()
 	return a
 }

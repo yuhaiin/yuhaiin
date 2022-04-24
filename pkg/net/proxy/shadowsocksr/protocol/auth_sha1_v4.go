@@ -14,18 +14,21 @@ func init() {
 }
 
 type authSHA1v4 struct {
-	ssr.ServerInfo
+	ProtocolInfo
 	data          *AuthData
 	hasSentHeader bool
 	buffer        bytes.Buffer
 }
 
-func NewAuthSHA1v4(info ssr.ServerInfo) IProtocol {
+func NewAuthSHA1v4(info ProtocolInfo) IProtocol {
 	a := &authSHA1v4{
-		ServerInfo: info,
-		data:       &AuthData{},
+		ProtocolInfo: info,
+		data:         info.Auth,
 	}
-	a.Overhead = 7
+
+	if a.data == nil {
+		a.data = &AuthData{}
+	}
 	return a
 }
 
@@ -134,12 +137,12 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authSHA1v4) PreEncrypt(plainData []byte) (outData []byte, err error) {
+func (a *authSHA1v4) EncryptStream(plainData []byte) (outData []byte, err error) {
 	a.buffer.Reset()
 	dataLength := len(plainData)
 	offset := 0
 	if !a.hasSentHeader && dataLength > 0 {
-		headSize := ssr.GetHeadSize(plainData, 30)
+		headSize := GetHeadSize(plainData, 30)
 		if headSize > dataLength {
 			headSize = dataLength
 		}
@@ -161,7 +164,7 @@ func (a *authSHA1v4) PreEncrypt(plainData []byte) (outData []byte, err error) {
 	return a.buffer.Bytes(), nil
 }
 
-func (a *authSHA1v4) PostDecrypt(plainData []byte) (outData []byte, n int, err error) {
+func (a *authSHA1v4) DecryptStream(plainData []byte) (outData []byte, n int, err error) {
 	a.buffer.Reset()
 	dataLength := len(plainData)
 	plainLength := dataLength
@@ -207,8 +210,6 @@ func (a *authSHA1v4) GetOverhead() int {
 	return 7
 }
 
-func (a *authSHA1v4) AddOverhead(int) {}
-
 func calcShortAdler32(input []byte, a, b uint32) (uint32, uint32) {
 	for _, i := range input {
 		a += uint32(i)
@@ -237,20 +238,9 @@ func CheckAdler32(input []byte, l int) bool {
 	return adler32 == checksum
 }
 
-func (o *authSHA1v4) GetData() interface{} {
-	if o.data == nil {
-		o.data = &AuthData{}
-	}
-	return o.data
-}
-
-func (o *authSHA1v4) SetData(data interface{}) {
-	o.data = data.(*AuthData)
-}
-
-func (a *authSHA1v4) PreEncryptPacket(b []byte) ([]byte, error) {
+func (a *authSHA1v4) EncryptPacket(b []byte) ([]byte, error) {
 	return b, nil
 }
-func (a *authSHA1v4) PostDecryptPacket(b []byte) ([]byte, error) {
+func (a *authSHA1v4) DecryptPacket(b []byte) ([]byte, error) {
 	return b, nil
 }

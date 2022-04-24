@@ -17,10 +17,10 @@ import (
 var _ proxy.Proxy = (*Shadowsocksr)(nil)
 
 type Shadowsocksr struct {
-	proto  *protocol.Protocol
-	obfss  *obfs.Obfs
-	cipher *cipher.Cipher
-	dial   proxy.Proxy
+	protocol *protocol.Protocol
+	obfs     *obfs.Obfs
+	cipher   *cipher.Cipher
+	dial     proxy.Proxy
 
 	udpAddr net.Addr
 }
@@ -39,26 +39,33 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 			return nil, fmt.Errorf("resolve udp addr failed: %w", err)
 		}
 
-		obfs, err := obfs.NewObfs(c.Obfs, ssr.ServerInfo{
+		info := ssr.Info{
+			IVLen:  cipher.IVLen(),
+			Key:    cipher.Key(),
+			KeyLen: cipher.KeyLen(),
+		}
+
+		obfs, err := obfs.NewObfs(c.Obfs, ssr.ObfsInfo{
 			Host: c.Server, Port: uint16(addr.Port),
-			Param:  c.Obfsparam,
-			TcpMss: 1460,
-			IVLen:  cipher.IVLen(), Key: cipher.Key(), KeyLen: cipher.KeyLen(),
-		})
+			Param: c.Obfsparam, Info: info})
 		if err != nil {
 			return nil, fmt.Errorf("new obfs failed: %w", err)
 		}
-		protocol, err := protocol.NewProtocol(c.Protocol, ssr.ServerInfo{
-			Host: c.Server, Port: uint16(addr.Port),
-			Param:  c.Protoparam,
-			TcpMss: 1460,
-			IVLen:  cipher.IVLen(), Key: cipher.Key(), KeyLen: cipher.KeyLen(),
-		}, obfs.Overhead())
+
+		protocol, err := protocol.NewProtocol(
+			c.Protocol,
+			protocol.ProtocolInfo{
+				Auth:         &protocol.AuthData{},
+				Param:        c.Protoparam,
+				TcpMss:       1460,
+				Info:         info,
+				ObfsOverhead: obfs.Overhead(),
+			})
 		if err != nil {
 			return nil, fmt.Errorf("new protocol failed: %w", err)
 		}
 
-		return &Shadowsocksr{cipher: cipher, dial: p, obfss: obfs, proto: protocol, udpAddr: addr}, nil
+		return &Shadowsocksr{cipher: cipher, dial: p, obfs: obfs, protocol: protocol, udpAddr: addr}, nil
 	}
 }
 
@@ -69,9 +76,9 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	}
 	// obfsServerInfo.SetHeadLen(b, 30)
 	// protocolServerInfo.SetHeadLen(b, 30)
-	obfs := s.obfss.StreamObfs(c)
-	cipher := s.cipher.StreamCipher(obfs)
-	conn := s.proto.StreamProtocol(cipher, cipher.WriteIV())
+	obfs := s.obfs.Stream(c)
+	cipher := s.cipher.Stream(obfs)
+	conn := s.protocol.Stream(cipher, cipher.WriteIV())
 	target, err := s5c.ParseAddr(addr)
 	if err != nil {
 		conn.Close()
@@ -90,8 +97,8 @@ func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get packet conn failed: %w", err)
 	}
-	cipher := s.cipher.PacketCipher(c)
-	proto := s.proto.PacketProtocol(cipher)
+	cipher := s.cipher.Packet(c)
+	proto := s.protocol.Packet(cipher)
 	conn, err := shadowsocks.NewSsPacketConn(proto, s.udpAddr, addr)
 	if err != nil {
 		c.Close()

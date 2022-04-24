@@ -15,7 +15,7 @@ type plain struct {
 	net.Conn
 }
 
-func newPlainObfs(conn net.Conn, _ ssr.ServerInfo) IObfs {
+func newPlainObfs(conn net.Conn, _ ssr.ObfsInfo) IObfs {
 	p := &plain{Conn: conn}
 	return p
 }
