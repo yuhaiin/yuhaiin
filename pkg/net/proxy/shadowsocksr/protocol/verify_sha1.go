@@ -15,7 +15,7 @@ func init() {
 type verifySHA1 struct {
 	ProtocolInfo
 	hasSentHeader bool
-	buffer        bytes.Buffer
+	buffer        *bytes.Buffer
 	chunkId       uint32
 }
 
@@ -26,6 +26,7 @@ const (
 func NewVerifySHA1(info ProtocolInfo) IProtocol {
 	a := &verifySHA1{
 		ProtocolInfo: info,
+		buffer:       getBuffer(),
 	}
 	return a
 }
@@ -96,4 +97,8 @@ func (a *verifySHA1) EncryptPacket(b []byte) ([]byte, error) {
 }
 func (a *verifySHA1) DecryptPacket(b []byte) ([]byte, error) {
 	return b, nil
+}
+
+func (a *verifySHA1) Close() error {
+	return nil
 }

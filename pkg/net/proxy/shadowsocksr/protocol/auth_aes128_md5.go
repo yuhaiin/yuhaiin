@@ -29,7 +29,8 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 		packID:     1,
 		recvInfo: recvInfo{
 			recvID: 1,
-			buffer: bytes.NewBuffer(nil),
+			rbuf:   getBuffer(),
+			wbuf:   getBuffer(),
 		},
 
 		key:    info.Key,
@@ -45,7 +46,8 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 
 type recvInfo struct {
 	recvID uint32
-	buffer *bytes.Buffer
+	rbuf   *bytes.Buffer
+	wbuf   *bytes.Buffer
 }
 
 type authAES128 struct {
@@ -90,31 +92,31 @@ func (a *authAES128) packData(data []byte) {
 	a.packID++
 
 	// 0~1, out length
-	binary.Write(a.buffer, binary.LittleEndian, uint16(outLength&0xFFFF))
+	binary.Write(a.wbuf, binary.LittleEndian, uint16(outLength&0xFFFF))
 
 	// 2~3, hmac
-	a.buffer.Write(a.hmac(key, a.buffer.Bytes()[a.buffer.Len()-2:])[:2])
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-2:])[:2])
 
 	// 4, rand length
 	if randLength < 128 {
-		a.buffer.WriteByte(byte(randLength & 0xFF))
+		a.wbuf.WriteByte(byte(randLength & 0xFF))
 		randLength -= 1
 	} else {
 		// 4, magic number 0xFF
-		a.buffer.WriteByte(0xFF)
+		a.wbuf.WriteByte(0xFF)
 		// 5~6, rand length
-		binary.Write(a.buffer, binary.LittleEndian, uint16(randLength&0xFFFF))
+		binary.Write(a.wbuf, binary.LittleEndian, uint16(randLength&0xFFFF))
 		randLength -= 3
 	}
 
 	// 4~rand length+4, rand number
-	a.buffer.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
+	a.wbuf.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
 
 	// rand length+4~out length-4, data
-	a.buffer.Write(data)
+	a.wbuf.Write(data)
 
 	// hmac
-	a.buffer.Write(a.hmac(key, a.buffer.Bytes()[a.buffer.Len()-outLength+4:])[:4])
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-outLength+4:])[:4])
 
 }
 
@@ -176,14 +178,14 @@ func (a *authAES128) packAuthData(data []byte) {
 	copy(key, a.iv)
 	copy(key[a.ivLen:], a.key)
 
-	a.buffer.Write([]byte{byte(rand.Intn(256))})
-	a.buffer.Write(a.hmac(key, a.buffer.Bytes()[a.buffer.Len()-1:])[0 : 7-1])
-	a.buffer.Write(a.uid[:])
-	a.buffer.Write(encrypt[:16])
-	a.buffer.Write(a.hmac(key, a.buffer.Bytes()[a.buffer.Len()-20:])[0:4])
-	a.buffer.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
-	a.buffer.Write(data)
-	a.buffer.Write(a.hmac(a.userKey, a.buffer.Bytes()[a.buffer.Len()-outLength+4:])[0:4])
+	a.wbuf.Write([]byte{byte(rand.Intn(256))})
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-1:])[0 : 7-1])
+	a.wbuf.Write(a.uid[:])
+	a.wbuf.Write(encrypt[:16])
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-20:])[0:4])
+	a.wbuf.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
+	a.wbuf.Write(data)
+	a.wbuf.Write(a.hmac(a.userKey, a.wbuf.Bytes()[a.wbuf.Len()-outLength+4:])[0:4])
 }
 
 func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
@@ -193,7 +195,7 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 		return nil, nil
 	}
 
-	a.buffer.Reset()
+	a.wbuf.Reset()
 
 	if !a.hasSentHeader {
 		authLen := dataLen
@@ -214,11 +216,11 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 	}
 	a.packData(data)
 
-	return a.buffer.Bytes(), nil
+	return a.wbuf.Bytes(), nil
 }
 
 func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
-	a.buffer.Reset()
+	a.rbuf.Reset()
 
 	datalen, readLen := len(data), 0
 
@@ -259,20 +261,20 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 			return nil, 0, ssr.ErrAuthAES128PosOutOfRange
 		}
 
-		a.buffer.Write(data[pos : clen-4])
+		a.rbuf.Write(data[pos : clen-4])
 
 		data, datalen, readLen = data[clen:], datalen-clen, readLen+clen
 	}
 
-	return a.buffer.Bytes(), readLen, nil
+	return a.rbuf.Bytes(), readLen, nil
 }
 
 func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
-	a.buffer.Reset()
-	a.buffer.Write(b)
-	a.buffer.Write(a.uid[:])
-	a.buffer.Write(a.hmac(a.userKey, a.buffer.Bytes())[:4])
-	return a.buffer.Bytes(), nil
+	a.wbuf.Reset()
+	a.wbuf.Write(b)
+	a.wbuf.Write(a.uid[:])
+	a.wbuf.Write(a.hmac(a.userKey, a.wbuf.Bytes())[:4])
+	return a.wbuf.Bytes(), nil
 }
 
 func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
@@ -285,4 +287,11 @@ func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
 
 func (a *authAES128) GetOverhead() int {
 	return 9
+}
+
+func (a *recvInfo) Close() error {
+	putBuffer(a.wbuf)
+	putBuffer(a.rbuf)
+
+	return nil
 }

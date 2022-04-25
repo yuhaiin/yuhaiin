@@ -91,7 +91,7 @@ func (c *Statistic) Conn(host string) (net.Conn, error) {
 			Mark:   mark.String(),
 			Local:  con.LocalAddr().String(),
 			Remote: con.RemoteAddr().String(),
-			Type:   "Stream",
+			Type:   con.LocalAddr().Network(),
 		},
 		Conn:    con,
 		manager: c,
@@ -117,7 +117,7 @@ func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
 			Local:  con.LocalAddr().String(),
 			Remote: host,
 			Mark:   mark.String(),
-			Type:   "Packet",
+			Type:   con.LocalAddr().Network(),
 		},
 	}
 	c.storeConnection(s)

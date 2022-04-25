@@ -30,6 +30,7 @@ type IProtocol interface {
 	DecryptStream(data []byte) ([]byte, int, error)
 	EncryptPacket(data []byte) ([]byte, error)
 	DecryptPacket(data []byte) ([]byte, error)
+	io.Closer
 
 	GetOverhead() int
 }
@@ -96,19 +97,19 @@ func (p *Protocol) Packet(conn net.PacketConn) *protocolPacket {
 }
 
 type protocolPacket struct {
-	IProtocol
+	protocol IProtocol
 	net.PacketConn
 }
 
 func newProtocolPacket(conn net.PacketConn, p IProtocol) *protocolPacket {
 	return &protocolPacket{
 		PacketConn: conn,
-		IProtocol:  p,
+		protocol:   p,
 	}
 }
 
 func (c *protocolPacket) WriteTo(b []byte, addr net.Addr) (int, error) {
-	data, err := c.IProtocol.EncryptPacket(b)
+	data, err := c.protocol.EncryptPacket(b)
 	if err != nil {
 		return 0, err
 	}
@@ -121,7 +122,7 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	decoded, err := c.IProtocol.DecryptPacket(b[:n])
+	decoded, err := c.protocol.DecryptPacket(b[:n])
 	if err != nil {
 		return n, addr, err
 	}
@@ -129,8 +130,14 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 	return len(decoded), addr, nil
 }
 
+func (c *protocolPacket) Close() error {
+	c.protocol.Close()
+
+	return c.PacketConn.Close()
+}
+
 type protocolConn struct {
-	IProtocol
+	protocol IProtocol
 	net.Conn
 	readBuf             []byte
 	underPostdecryptBuf *bytes.Buffer
@@ -140,15 +147,18 @@ type protocolConn struct {
 func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 	return &protocolConn{
 		Conn:                c,
-		IProtocol:           p,
+		protocol:            p,
 		readBuf:             utils.GetBytes(2048),
-		decryptedBuf:        new(bytes.Buffer),
-		underPostdecryptBuf: new(bytes.Buffer),
+		decryptedBuf:        getBuffer(),
+		underPostdecryptBuf: getBuffer(),
 	}
 }
 
 func (c *protocolConn) Close() error {
 	utils.PutBytes(c.readBuf)
+	putBuffer(c.decryptedBuf)
+	putBuffer(c.underPostdecryptBuf)
+	c.protocol.Close()
 	return c.Conn.Close()
 }
 
@@ -173,7 +183,7 @@ func (c *protocolConn) doRead(b []byte) (n int, err error) {
 
 	c.underPostdecryptBuf.Write(c.readBuf[:n])
 
-	decryptedData, length, err := c.IProtocol.DecryptStream(c.underPostdecryptBuf.Bytes())
+	decryptedData, length, err := c.protocol.DecryptStream(c.underPostdecryptBuf.Bytes())
 	if err != nil {
 		c.underPostdecryptBuf.Reset()
 		return 0, err
@@ -199,7 +209,7 @@ func (c *protocolConn) doRead(b []byte) (n int, err error) {
 }
 
 func (c *protocolConn) Write(b []byte) (n int, err error) {
-	data, err := c.IProtocol.EncryptStream(b)
+	data, err := c.protocol.EncryptStream(b)
 	if err != nil {
 		return 0, err
 	}
@@ -208,6 +218,19 @@ func (c *protocolConn) Write(b []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(b), nil
+}
+
+var bufpool = sync.Pool{
+	New: func() any { return bytes.NewBuffer(nil) },
+}
+
+func getBuffer() *bytes.Buffer {
+	return bufpool.Get().(*bytes.Buffer)
+}
+
+func putBuffer(b *bytes.Buffer) {
+	b.Reset()
+	bufpool.Put(b)
 }
 
 func (c *protocolConn) ReadFrom(r io.Reader) (int64, error) {

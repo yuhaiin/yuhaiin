@@ -7,11 +7,8 @@ require (
 	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/dgryski/go-rc2 v0.0.0-20150621095337-8a9021637152
 	github.com/golang/mock v1.6.0
-	github.com/gorilla/websocket v1.4.2
 	github.com/lucas-clemente/quic-go v0.26.0
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
-	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091
-	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
