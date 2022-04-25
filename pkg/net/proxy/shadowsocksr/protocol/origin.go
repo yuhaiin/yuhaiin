@@ -29,3 +29,7 @@ func (a *origin) EncryptPacket(b []byte) ([]byte, error) {
 func (a *origin) DecryptPacket(b []byte) ([]byte, error) {
 	return b, nil
 }
+
+func (a *origin) Close() error {
+	return nil
+}

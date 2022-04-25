@@ -4,14 +4,14 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/gorilla/websocket"
+	"golang.org/x/net/websocket"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -63,33 +63,37 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 		http.Redirect(w, r, "/conn/list", http.StatusFound)
 	})
 
-	var upgrader = websocket.Upgrader{} // use default options
-
+	var server *websocket.Server
 	mux.HandleFunc("/statistic", func(w http.ResponseWriter, r *http.Request) {
-		c, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Println(err)
+		if server != nil {
+			server.ServeHTTP(w, r)
 			return
 		}
-		defer c.Close()
 
-		ctx, cancel := context.WithCancel(context.TODO())
-		go func() {
-			_, _, err := c.ReadMessage()
-			if err != nil {
-				cancel()
-			}
-		}()
+		server = &websocket.Server{
+			Handler: func(c *websocket.Conn) {
+				ctx, cancel := context.WithCancel(context.TODO())
+				go func() {
+					var tmp string
+					err := websocket.Message.Receive(c, &tmp)
+					if err != nil {
+						cancel()
+					}
+				}()
 
-		stt.Statistic(&emptypb.Empty{}, newStatisticSend(ctx, func(rr *statistic.RateResp) error {
-			data, _ := protojson.Marshal(rr)
-			err = c.WriteMessage(websocket.TextMessage, data)
-			if err != nil {
-				cancel()
-			}
+				stt.Statistic(&emptypb.Empty{}, newStatisticSend(ctx, func(rr *statistic.RateResp) error {
+					data, _ := protojson.Marshal(rr)
+					err := websocket.Message.Send(c, *(*string)(unsafe.Pointer(&data)))
+					if err != nil {
+						cancel()
+					}
 
-			return err
-		}))
+					return err
+				}))
+
+			},
+		}
+		server.ServeHTTP(w, r)
 	})
 }
 

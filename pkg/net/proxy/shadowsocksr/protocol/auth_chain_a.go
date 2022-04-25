@@ -55,7 +55,8 @@ func NewAuthChainA(info ProtocolInfo) IProtocol {
 		rnd:        authChainAGetRandLen,
 		recvInfo: recvInfo{
 			recvID: 1,
-			buffer: new(bytes.Buffer),
+			wbuf:   new(bytes.Buffer),
+			rbuf:   new(bytes.Buffer),
 		},
 		ProtocolInfo: info,
 		data:         info.Auth,
@@ -224,7 +225,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 }
 
 func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error) {
-	a.buffer.Reset()
+	a.wbuf.Reset()
 	dataLength := len(plainData)
 	offset := 0
 	if dataLength > 0 && !a.hasSentHeader {
@@ -232,7 +233,7 @@ func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error)
 		if headSize > dataLength {
 			headSize = dataLength
 		}
-		a.buffer.Write(a.packAuthData(plainData[:headSize]))
+		a.wbuf.Write(a.packAuthData(plainData[:headSize]))
 		offset += headSize
 		dataLength -= headSize
 		a.hasSentHeader = true
@@ -242,7 +243,7 @@ func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error)
 		dataLen, randLength := a.packedDataLen(plainData[offset : offset+unitSize])
 		b := make([]byte, dataLen)
 		a.packData(b, plainData[offset:offset+unitSize], randLength)
-		a.buffer.Write(b)
+		a.wbuf.Write(b)
 		dataLength -= unitSize
 		offset += unitSize
 	}
@@ -250,13 +251,13 @@ func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error)
 		dataLen, randLength := a.packedDataLen(plainData[offset:])
 		b := make([]byte, dataLen)
 		a.packData(b, plainData[offset:], randLength)
-		a.buffer.Write(b)
+		a.wbuf.Write(b)
 	}
-	return a.buffer.Bytes(), nil
+	return a.wbuf.Bytes(), nil
 }
 
 func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err error) {
-	a.buffer.Reset()
+	a.rbuf.Reset()
 	key := make([]byte, len(a.userKey)+4)
 	readlenth := 0
 	copy(key, a.userKey)
@@ -286,9 +287,9 @@ func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err
 
 		b := make([]byte, dataLen)
 		a.cipher.Decrypt(b, plainData[dataPos:dataPos+dataLen])
-		a.buffer.Write(b)
+		a.rbuf.Write(b)
 		if a.recvID == 1 {
-			a.TcpMss = int(binary.LittleEndian.Uint16(a.buffer.Next(2)))
+			a.TcpMss = int(binary.LittleEndian.Uint16(a.rbuf.Next(2)))
 		}
 		a.lastServerHash = hash
 		a.recvID++
@@ -296,7 +297,7 @@ func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err
 		readlenth += length
 
 	}
-	return a.buffer.Bytes(), readlenth, nil
+	return a.rbuf.Bytes(), readlenth, nil
 }
 
 func (a *authChainA) GetOverhead() int {

@@ -18,7 +18,8 @@ func NewAuthAES128SHA1(info ProtocolInfo) IProtocol {
 		packID:     1,
 		recvInfo: recvInfo{
 			recvID: 1,
-			buffer: bytes.NewBuffer(nil),
+			wbuf:   bytes.NewBuffer(nil),
+			rbuf:   bytes.NewBuffer(nil),
 		},
 
 		key:    info.Key,

@@ -1,5 +1,6 @@
 package tun
 
+/*
 import (
 	"log"
 
@@ -37,3 +38,4 @@ func main() {
 		log.Printf("Payload: % x\n", frame.Payload())
 	}
 }
+*/
