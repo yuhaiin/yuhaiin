@@ -17,13 +17,14 @@ type authSHA1v4 struct {
 	ProtocolInfo
 	data          *AuthData
 	hasSentHeader bool
-	buffer        bytes.Buffer
+	buffer        *bytes.Buffer
 }
 
 func NewAuthSHA1v4(info ProtocolInfo) IProtocol {
 	a := &authSHA1v4{
 		ProtocolInfo: info,
 		data:         info.Auth,
+		buffer:       getBuffer(),
 	}
 
 	if a.data == nil {
@@ -208,6 +209,12 @@ func (a *authSHA1v4) DecryptStream(plainData []byte) (outData []byte, n int, err
 
 func (a *authSHA1v4) GetOverhead() int {
 	return 7
+}
+
+func (a *authSHA1v4) Close() error {
+	putBuffer(a.buffer)
+
+	return nil
 }
 
 func calcShortAdler32(input []byte, a, b uint32) (uint32, uint32) {

@@ -27,7 +27,7 @@ func init() {
 		}
 	})
 	node.RegisterProtocol(vmess.NewVmess)
-	node.RegisterProtocol(websocket.NewWebsocket)
+	node.RegisterProtocol(websocket.New)
 	node.RegisterProtocol(quic.NewQUIC)
 	node.RegisterProtocol(ss.NewHTTPOBFS)
 	node.RegisterProtocol(trojan.NewClient)

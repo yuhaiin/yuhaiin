@@ -22,7 +22,7 @@ func TestImplement(t *testing.T) {
 
 func TestConn(t *testing.T) {
 	p := simple.NewSimple("127.0.0.1", "1090")
-	z, err := websocket.NewWebsocket(&node.PointProtocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
+	z, err := websocket.New(&node.PointProtocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
 	require.Nil(t, err)
 	z, err = NewShadowsocks(
 		&node.PointProtocol_Shadowsocks{

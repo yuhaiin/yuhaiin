@@ -40,6 +40,8 @@ func Wrap(p isPointProtocol_Protocol) WrapProxy {
 	return conn(p)
 }
 
+var tlsSessionCache = tls.NewLRUClientSessionCache(128)
+
 func ParseTLSConfig(t *TlsConfig) *tls.Config {
 	if t == nil || !t.Enable {
 		return nil
@@ -57,7 +59,7 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 		// NextProtos:             []string{"http/1.1"},
 		InsecureSkipVerify: t.InsecureSkipVerify,
 		// SessionTicketsDisabled: true,
-		// ClientSessionCache:     tlsSessionCache,
+		ClientSessionCache: tlsSessionCache,
 	}
 
 	for i := range t.CaCert {
