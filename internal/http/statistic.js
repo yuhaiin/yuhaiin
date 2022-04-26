@@ -1,4 +1,9 @@
 window.onload = function() {
+    refresh();
+    connect();
+}
+
+function connect() {
     var ws = new WebSocket('ws://' + window.location.host + '/statistic');
     window.onbeforeunload = function() {
         ws.close();
@@ -12,7 +17,43 @@ window.onload = function() {
     }
 
     ws.onclose = function(event) {
-        console.log('close websocket')
+        console.log('close websocket, reconnect will in 1 second');
         stt.innerText = 'Loading...';
+        setTimeout(connect, 1000);
+    }
+}
+
+function refresh() {
+    var xmlhttp = new XMLHttpRequest();
+    let connections = document.getElementById('connections');
+
+    xmlhttp.open("GET", "/connections", true);
+    xmlhttp.send();
+
+    xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState != 4) return;
+        if (xmlhttp.status == 200) {
+            connections.innerHTML = xmlhttp.responseText;
+            return
+        }
+
+        console.log("get connections failed: " + xmlhttp.status)
+    }
+}
+
+function close(id) {
+    var xmlhttp = new XMLHttpRequest();
+
+    xmlhttp.open("GET", "/conn/close?id=" + id, true);
+    xmlhttp.send();
+
+    xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState != 4) return;
+        if (xmlhttp.status == 200) {
+            refresh();
+            return
+        }
+
+        console.log("close node failed: " + xmlhttp.status)
     }
 }

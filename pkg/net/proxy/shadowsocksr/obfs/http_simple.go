@@ -50,6 +50,8 @@ type httpSimplePost struct {
 
 	buf []byte
 	net.Conn
+
+	param simpleParam
 }
 
 func init() {
@@ -63,7 +65,10 @@ func newHttpSimple(conn net.Conn, info ssr.ObfsInfo) IObfs {
 		methodGet:      true,
 		Conn:           conn,
 		ObfsInfo:       info,
+		param:          simpleParam{},
 	}
+
+	t.param.parse(t.Param)
 	return t
 }
 
@@ -82,6 +87,32 @@ func (t *httpSimplePost) data2URLEncode(data []byte) (ret string) {
 	return
 }
 
+type simpleParam struct {
+	customHead string
+	hosts      []string
+}
+
+func (s *simpleParam) parse(param string) {
+	if len(param) == 0 {
+		return
+	}
+
+	customHeads := strings.Split(param, "#")
+	if len(customHeads) > 1 {
+		s.customHead = strings.Replace(customHeads[1], "\\n", "\r\n", -1)
+		param = customHeads[0]
+	}
+
+	s.hosts = strings.Split(param, ",")
+}
+
+func (s *simpleParam) getRandHost(host string) string {
+	if len(s.hosts) == 0 {
+		return host
+	}
+	return s.hosts[rand.Intn(len(s.hosts))]
+}
+
 func (t *httpSimplePost) encode(data []byte) []byte {
 	if t.rawTransSent {
 		return data
@@ -95,40 +126,25 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 		headSize = dataLength
 	}
 
-	host := t.Host
-	var customHead string
+	buf := ssr.GetBuffer()
+	defer ssr.PutBuffer(buf)
 
-	if len(t.Param) > 0 {
-		customHeads := strings.Split(t.Param, "#")
-		param := t.Param
-		if len(customHeads) > 1 {
-			customHead = customHeads[1]
-			param = customHeads[0]
-		}
-
-		hosts := strings.Split(param, ",")
-		if len(hosts) > 0 {
-			host = strings.TrimSpace(hosts[rand.Intn(len(hosts))])
-		}
-	}
-
-	buf := bytes.NewBuffer(nil)
 	if t.methodGet {
 		buf.WriteString("GET /")
 	} else {
 		buf.WriteString("POST /")
 	}
 
-	requestPathIndex := rand.Intn(len(requestPath)/2) * 2
+	randPathIndex := rand.Intn(len(requestPath)/2) * 2
 
-	buf.WriteString(requestPath[requestPathIndex])
+	buf.WriteString(requestPath[randPathIndex])
 	buf.WriteString(t.data2URLEncode(data[:headSize]))
-	buf.WriteString(requestPath[requestPathIndex+1])
+	buf.WriteString(requestPath[randPathIndex+1])
 	buf.WriteString("HTTP/1.1\r\n")
-	buf.WriteString(fmt.Sprintf("Host: %s:%d\r\n", host, t.Port))
+	buf.WriteString(fmt.Sprintf("Host: %s:%d\r\n", t.param.getRandHost(t.Host), t.Port))
 
-	if len(customHead) > 0 {
-		buf.WriteString(strings.Replace(customHead, "\\n", "\r\n", -1))
+	if len(t.param.customHead) > 0 {
+		buf.WriteString(t.param.customHead)
 		buf.WriteString("\r\n\r\n")
 	} else {
 		buf.WriteString(fmt.Sprintf("User-Agent: %s\r\n", requestUserAgent[t.userAgentIndex]))

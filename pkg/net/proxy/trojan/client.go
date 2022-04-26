@@ -80,10 +80,10 @@ type Client struct {
 }
 
 func NewClient(config *node.PointProtocol_Trojan) node.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		return &Client{
 			password: hexSha224([]byte(config.Trojan.Password)),
-			proxy:    p,
+			proxy:    dialer,
 		}, nil
 	}
 }

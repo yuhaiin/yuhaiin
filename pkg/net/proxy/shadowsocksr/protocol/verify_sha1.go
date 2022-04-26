@@ -26,7 +26,7 @@ const (
 func NewVerifySHA1(info ProtocolInfo) IProtocol {
 	a := &verifySHA1{
 		ProtocolInfo: info,
-		buffer:       getBuffer(),
+		buffer:       ssr.GetBuffer(),
 	}
 	return a
 }

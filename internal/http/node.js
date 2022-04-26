@@ -9,8 +9,9 @@ function latency(id) {
     xmlhttp.open("GET", "/latency?hash=" + id, true);
     xmlhttp.send();
     xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState != 4) return;
         let latency = null;
-        if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+        if (xmlhttp.status == 200) {
             latency = JSON.parse(xmlhttp.responseText);
             console.log('get data：', latency);
         }
@@ -36,6 +37,7 @@ function del(hash) {
     xmlhttp.open("GET", "/node/delete?hash=" + hash, true);
     xmlhttp.send();
     xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState != 4) return;
         location.reload();
     }
 }
