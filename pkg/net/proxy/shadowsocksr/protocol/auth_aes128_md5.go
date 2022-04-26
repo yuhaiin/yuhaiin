@@ -29,8 +29,8 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 		packID:     1,
 		recvInfo: recvInfo{
 			recvID: 1,
-			rbuf:   getBuffer(),
-			wbuf:   getBuffer(),
+			rbuf:   ssr.GetBuffer(),
+			wbuf:   ssr.GetBuffer(),
 		},
 
 		key:    info.Key,
@@ -290,8 +290,8 @@ func (a *authAES128) GetOverhead() int {
 }
 
 func (a *recvInfo) Close() error {
-	putBuffer(a.wbuf)
-	putBuffer(a.rbuf)
+	ssr.PutBuffer(a.wbuf)
+	ssr.PutBuffer(a.rbuf)
 
 	return nil
 }

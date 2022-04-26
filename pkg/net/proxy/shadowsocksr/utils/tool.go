@@ -1,9 +1,11 @@
 package ssr
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
+	"sync"
 )
 
 func HmacMD5(key []byte, data []byte) []byte {
@@ -48,4 +50,17 @@ func EVPBytesToKey(password string, keyLen int) (key []byte) {
 		copy(m[start:], MD5Sum(d))
 	}
 	return m[:keyLen]
+}
+
+var bufpool = sync.Pool{
+	New: func() any { return bytes.NewBuffer(nil) },
+}
+
+func GetBuffer() *bytes.Buffer {
+	return bufpool.Get().(*bytes.Buffer)
+}
+
+func PutBuffer(b *bytes.Buffer) {
+	b.Reset()
+	bufpool.Put(b)
 }

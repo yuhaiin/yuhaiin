@@ -149,15 +149,15 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 		Conn:                c,
 		protocol:            p,
 		readBuf:             utils.GetBytes(2048),
-		decryptedBuf:        getBuffer(),
-		underPostdecryptBuf: getBuffer(),
+		decryptedBuf:        ssr.GetBuffer(),
+		underPostdecryptBuf: ssr.GetBuffer(),
 	}
 }
 
 func (c *protocolConn) Close() error {
 	utils.PutBytes(c.readBuf)
-	putBuffer(c.decryptedBuf)
-	putBuffer(c.underPostdecryptBuf)
+	ssr.PutBuffer(c.decryptedBuf)
+	ssr.PutBuffer(c.underPostdecryptBuf)
 	c.protocol.Close()
 	return c.Conn.Close()
 }
@@ -218,19 +218,6 @@ func (c *protocolConn) Write(b []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(b), nil
-}
-
-var bufpool = sync.Pool{
-	New: func() any { return bytes.NewBuffer(nil) },
-}
-
-func getBuffer() *bytes.Buffer {
-	return bufpool.Get().(*bytes.Buffer)
-}
-
-func putBuffer(b *bytes.Buffer) {
-	b.Reset()
-	bufpool.Put(b)
 }
 
 func (c *protocolConn) ReadFrom(r io.Reader) (int64, error) {
