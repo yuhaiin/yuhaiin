@@ -23,9 +23,9 @@ var (
 )
 
 type Info struct {
-	IVLen  int
-	Key    []byte
-	KeyLen int
+	IVSize  int
+	Key     []byte
+	KeySize int
 }
 
 type ObfsInfo struct {

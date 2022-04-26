@@ -34,9 +34,9 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 		},
 
 		key:    info.Key,
-		keyLen: info.KeyLen,
+		keyLen: info.KeySize,
 		iv:     info.IV,
-		ivLen:  info.IVLen,
+		ivLen:  info.IVSize,
 		param:  info.Param,
 		auth:   info.Auth,
 	}

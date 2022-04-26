@@ -23,8 +23,6 @@ import (
 	"golang.org/x/crypto/salsa20/salsa"
 )
 
-var errEmptyPassword = errors.New("empty key")
-
 type DecOrEnc int
 
 const (
@@ -98,10 +96,6 @@ func newRC4MD5Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
 }
 
 func newChaCha20Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
-	return chacha20.NewUnauthenticatedCipher(key, iv)
-}
-
-func newChacha20IETFStream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
 	return chacha20.NewUnauthenticatedCipher(key, iv)
 }
 
@@ -182,13 +176,13 @@ func newNoneStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
 	return new(NoneStream), nil
 }
 
-type cipherInfo struct {
-	keyLen    int
-	ivLen     int
-	newStream func(key, iv []byte, doe DecOrEnc) (cipher.Stream, error)
+type cipherCreator struct {
+	keySize int
+	ivSize  int
+	stream  func(key, iv []byte, doe DecOrEnc) (cipher.Stream, error)
 }
 
-var streamCipherMethod = map[string]*cipherInfo{
+var streamCipherMethod = map[string]*cipherCreator{
 	"aes-128-cfb":      {16, 16, newAESCFBStream},
 	"aes-192-cfb":      {24, 16, newAESCFBStream},
 	"aes-256-cfb":      {32, 16, newAESCFBStream},
@@ -204,7 +198,7 @@ var streamCipherMethod = map[string]*cipherInfo{
 	"rc4-md5":          {16, 16, newRC4MD5Stream},
 	"rc4-md5-6":        {16, 6, newRC4MD5Stream},
 	"chacha20":         {32, 8, newChaCha20Stream},
-	"chacha20-ietf":    {32, 12, newChacha20IETFStream},
+	"chacha20-ietf":    {32, 12, newChaCha20Stream},
 	"salsa20":          {32, 8, newSalsa20Stream},
 	"camellia-128-cfb": {16, 16, newCamelliaStream},
 	"camellia-192-cfb": {24, 16, newCamelliaStream},
@@ -216,25 +210,16 @@ var streamCipherMethod = map[string]*cipherInfo{
 	"none":             {16, 0, newNoneStream},
 }
 
-func CheckCipherMethod(method string) error {
-	if method == "" {
-		method = "rc4-md5"
-	}
-	_, ok := streamCipherMethod[method]
-	if !ok {
-		return errors.New("Unsupported encryption method: " + method)
-	}
-	return nil
-}
-
 type Cipher struct {
-	key  []byte
-	info *cipherInfo
+	key    []byte
+	cipher *cipherCreator
+
+	isNone bool
 }
 
 func NewCipher(method, password string) (*Cipher, error) {
 	if password == "" {
-		return nil, errEmptyPassword
+		return nil, fmt.Errorf("password is empty")
 	}
 	if method == "" {
 		method = "rc4-md5"
@@ -244,40 +229,37 @@ func NewCipher(method, password string) (*Cipher, error) {
 		return nil, errors.New("Unsupported encryption method: " + method)
 	}
 
-	key := EVPBytesToKey(password, mi.keyLen)
-	return &Cipher{key, mi}, nil
+	return &Cipher{EVPBytesToKey(password, mi.keySize), mi, method == "none" || method == "dummy"}, nil
 }
 
-func (c *Cipher) IVLen() int {
-	return c.info.ivLen
+func (c *Cipher) IVSize() int {
+	return c.cipher.ivSize
 }
 
 func (c *Cipher) Key() []byte {
 	return c.key
 }
 
-func (c *Cipher) KeyLen() int {
-	return c.info.keyLen
+func (c *Cipher) KeySize() int {
+	return c.cipher.keySize
 }
 
-func (c *Cipher) Stream(conn net.Conn) *StreamCipher {
-	return &StreamCipher{
-		key:  c.key,
-		info: c.info,
-		Conn: conn,
+func (c *Cipher) Stream(conn net.Conn) net.Conn {
+	if c.isNone {
+		return conn
 	}
+	return &streamCipher{key: c.key, cipher: c.cipher, Conn: conn}
 }
 
 func (c *Cipher) Packet(conn net.PacketConn) net.PacketConn {
-	return &PacketCipher{
-		key:        c.key,
-		info:       c.info,
-		PacketConn: conn,
+	if c.isNone {
+		return conn
 	}
+	return &PacketCipher{c.cipher, conn, c.key}
 }
 
 type PacketCipher struct {
-	info *cipherInfo
+	cipher *cipherCreator
 	net.PacketConn
 	key []byte
 }
@@ -285,18 +267,18 @@ type PacketCipher struct {
 func (p *PacketCipher) WriteTo(b []byte, addr net.Addr) (int, error) {
 	buf := utils.GetBytes(utils.DefaultSize)
 	defer utils.PutBytes(buf)
-	_, err := rand.Read(buf[:p.info.ivLen])
+	_, err := rand.Read(buf[:p.cipher.ivSize])
 	if err != nil {
 		return 0, err
 	}
 
-	s, err := p.info.newStream(p.key, buf[:p.info.ivLen], Encrypt)
+	s, err := p.cipher.stream(p.key, buf[:p.cipher.ivSize], Encrypt)
 	if err != nil {
 		return 0, err
 	}
 
-	s.XORKeyStream(buf[p.info.ivLen:], b)
-	n, err := p.PacketConn.WriteTo(buf[:p.info.ivLen+len(b)], addr)
+	s.XORKeyStream(buf[p.cipher.ivSize:], b)
+	n, err := p.PacketConn.WriteTo(buf[:p.cipher.ivSize+len(b)], addr)
 	if err != nil {
 		return n, err
 	}
@@ -309,111 +291,54 @@ func (p *PacketCipher) ReadFrom(b []byte) (int, net.Addr, error) {
 	if err != nil {
 		return n, addr, err
 	}
-	iv := b[:p.info.ivLen]
-	s, err := p.info.newStream(p.key, iv, Decrypt)
+	iv := b[:p.cipher.ivSize]
+	s, err := p.cipher.stream(p.key, iv, Decrypt)
 	if err != nil {
 		return n, addr, err
 	}
-	dst := make([]byte, n-p.info.ivLen)
-	s.XORKeyStream(dst, b[p.info.ivLen:n])
+	dst := make([]byte, n-p.cipher.ivSize)
+	s.XORKeyStream(dst, b[p.cipher.ivSize:n])
 
 	n = copy(b, dst)
 
 	return n, addr, nil
 }
 
-type StreamCipher struct {
-	enc     cipher.Stream
-	dec     cipher.Stream
-	key     []byte
-	info    *cipherInfo
-	writeIv []byte
-	readIV  []byte
+type streamCipher struct {
 	net.Conn
+
+	key    []byte
+	cipher *cipherCreator
+
+	enc, dec        cipher.Stream
+	writeIV, readIV []byte
 }
 
-// NewStreamCipher creates a cipher that can be used in Dial() etc.
-// Use cipher.Copy() to create a new cipher with the same method and password
-// to avoid the cost of repeated cipher initialization.
-func NewStreamCipher(conn net.Conn, method, password string) (c *StreamCipher, err error) {
-	if password == "" {
-		return nil, errEmptyPassword
+func (c *streamCipher) WriteIV() []byte {
+	if c.writeIV == nil {
+		c.writeIV = make([]byte, c.cipher.ivSize)
+		rand.Read(c.writeIV)
 	}
-	if method == "" {
-		method = "rc4-md5"
+	return c.writeIV
+}
+
+func (c *streamCipher) ReadIV() []byte {
+	if c.readIV == nil {
+		c.readIV = make([]byte, c.cipher.ivSize)
+		io.ReadFull(c.Conn, c.readIV)
 	}
-	mi, ok := streamCipherMethod[method]
-	if !ok {
-		return nil, errors.New("Unsupported encryption method: " + method)
-	}
-
-	key := EVPBytesToKey(password, mi.keyLen)
-
-	c = &StreamCipher{key: key, info: mi, Conn: conn}
-
-	return c, nil
+	return c.readIV
 }
 
-func (c *StreamCipher) InitDecrypt(iv []byte) (err error) {
-	c.readIV = iv
-	c.dec, err = c.info.newStream(c.key, iv, Decrypt)
-	return
-}
-
-// Initializes the block cipher with CFB mode, returns IV.
-func (c *StreamCipher) InitEncrypt() (iv []byte, err error) {
-	c.enc, err = c.info.newStream(c.key, c.WriteIV(), Encrypt)
-	return c.WriteIV(), err
-}
-
-func (c *StreamCipher) Encrypt(dst, src []byte) {
-	c.enc.XORKeyStream(dst, src)
-}
-
-func (c *StreamCipher) Decrypt(dst, src []byte) {
-	c.dec.XORKeyStream(dst, src)
-}
-
-func (c *StreamCipher) Key() []byte {
-	return c.key
-}
-
-func (c *StreamCipher) WriteIV() []byte {
-	if c.writeIv == nil {
-		c.writeIv = make([]byte, c.info.ivLen)
-		rand.Read(c.writeIv)
-	}
-	return c.writeIv
-}
-
-func (c *StreamCipher) InfoIVLen() int {
-	return c.info.ivLen
-}
-
-func (c *StreamCipher) InfoKeyLen() int {
-	return c.info.keyLen
-}
-
-// var read = int64(0)
-
-func (c *StreamCipher) Read(b []byte) (int, error) {
+func (c *streamCipher) Read(b []byte) (n int, err error) {
 	if c.dec == nil {
-		z := utils.GetBytes(c.InfoIVLen())
-		defer utils.PutBytes(z)
-
-		_, err := io.ReadFull(c.Conn, z[:c.InfoIVLen()])
-		if err != nil {
-			return 0, err
-		}
-
-		copy(c.readIV, z)
-		c.dec, err = c.info.newStream(c.key, z[:c.InfoIVLen()], Decrypt)
+		c.dec, err = c.cipher.stream(c.key, c.ReadIV(), Decrypt)
 		if err != nil {
 			return 0, fmt.Errorf("create new decor failed: %w", err)
 		}
 	}
 
-	n, err := c.Conn.Read(b)
+	n, err = c.Conn.Read(b)
 	if err != nil {
 		return n, err
 	}
@@ -421,7 +346,7 @@ func (c *StreamCipher) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-func (c *StreamCipher) ReadFrom(r io.Reader) (int64, error) {
+func (c *streamCipher) ReadFrom(r io.Reader) (int64, error) {
 	buf := utils.GetBytes(2048)
 	defer utils.PutBytes(buf)
 
@@ -442,10 +367,10 @@ func (c *StreamCipher) ReadFrom(r io.Reader) (int64, error) {
 	}
 }
 
-func (c *StreamCipher) Write(b []byte) (int, error) {
+func (c *streamCipher) Write(b []byte) (int, error) {
 	var err error
 	if c.enc == nil {
-		c.enc, err = c.info.newStream(c.key, c.WriteIV(), Encrypt)
+		c.enc, err = c.cipher.stream(c.key, c.WriteIV(), Encrypt)
 		if err != nil {
 			return 0, err
 		}
@@ -472,27 +397,16 @@ func (c *StreamCipher) Write(b []byte) (int, error) {
 }
 
 func EVPBytesToKey(password string, keyLen int) (key []byte) {
-	const md5Len = 16
-
-	cnt := (keyLen-1)/md5Len + 1
-	m := make([]byte, cnt*md5Len)
-	copy(m, MD5Sum([]byte(password)))
-
 	// Repeatedly call md5 until bytes generated is enough.
 	// Each call to md5 uses data: prev md5 sum + password.
-	d := make([]byte, md5Len+len(password))
-	start := 0
-	for i := 1; i < cnt; i++ {
-		start += md5Len
-		copy(d, m[start-md5Len:start])
-		copy(d[md5Len:], password)
-		copy(m[start:], MD5Sum(d))
-	}
-	return m[:keyLen]
-}
-
-func MD5Sum(d []byte) []byte {
+	var b, prev []byte
 	h := md5.New()
-	h.Write(d)
-	return h.Sum(nil)
+	for len(b) < keyLen {
+		h.Write(prev)
+		h.Write([]byte(password))
+		b = h.Sum(b)
+		prev = b[len(b)-h.Size():]
+		h.Reset()
+	}
+	return b[:keyLen]
 }
