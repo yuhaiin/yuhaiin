@@ -100,7 +100,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 
 	// 2~6, crc of out length+salt+key
 	salt := []byte("auth_sha1_v4")
-	crcData := make([]byte, len(salt)+a.KeyLen+2)
+	crcData := make([]byte, len(salt)+a.KeySize+2)
 	copy(crcData[0:2], outData[0:2])
 	copy(crcData[2:], salt)
 	copy(crcData[2+len(salt):], a.Key)
@@ -128,9 +128,9 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	// rand length+18~rand length+18+data length, data
 	copy(outData[dataOffset+12:], data)
 
-	key := make([]byte, a.IVLen+a.KeyLen)
+	key := make([]byte, a.IVSize+a.KeySize)
 	copy(key, a.IV)
-	copy(key[a.IVLen:], a.Key)
+	copy(key[a.IVSize:], a.Key)
 
 	h := ssr.HmacSHA1(key, outData[:outLength-ssr.ObfsHMACSHA1Len])
 	// out length-10~out length/rand length+18+data length~end, hmac

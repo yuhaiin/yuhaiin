@@ -40,9 +40,9 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 		}
 
 		info := ssr.Info{
-			IVLen:  cipher.IVLen(),
-			Key:    cipher.Key(),
-			KeyLen: cipher.KeyLen(),
+			IVSize:  cipher.IVSize(),
+			Key:     cipher.Key(),
+			KeySize: cipher.KeySize(),
 		}
 
 		obfs, err := obfs.NewObfs(c.Obfs, ssr.ObfsInfo{
@@ -78,7 +78,12 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	// protocolServerInfo.SetHeadLen(b, 30)
 	obfs := s.obfs.Stream(c)
 	cipher := s.cipher.Stream(obfs)
-	conn := s.protocol.Stream(cipher, cipher.WriteIV())
+
+	var iv []byte
+	if z, ok := cipher.(interface{ WriteIV() []byte }); ok {
+		iv = z.WriteIV()
+	}
+	conn := s.protocol.Stream(cipher, iv)
 	target, err := s5c.ParseAddr(addr)
 	if err != nil {
 		conn.Close()

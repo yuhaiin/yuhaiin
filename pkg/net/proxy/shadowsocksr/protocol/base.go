@@ -266,10 +266,10 @@ func (c *protocolConn) WriteTo(w io.Writer) (int64, error) {
 
 type ProtocolInfo struct {
 	ssr.Info
-	HeadLen int
-	TcpMss  int
-	Param   string
-	IV      []byte
+	HeadSize int
+	TcpMss   int
+	Param    string
+	IV       []byte
 
 	Auth *AuthData
 
@@ -277,7 +277,7 @@ type ProtocolInfo struct {
 }
 
 func (s *ProtocolInfo) SetHeadLen(data []byte, defaultValue int) {
-	s.HeadLen = GetHeadSize(data, defaultValue)
+	s.HeadSize = GetHeadSize(data, defaultValue)
 }
 
 func GetHeadSize(data []byte, defaultValue int) int {
