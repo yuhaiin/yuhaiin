@@ -119,7 +119,7 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 	}
 
 	dataLength := len(data)
-	headSize := t.IVLen + 30
+	headSize := t.IVSize + 30
 	if dataLength-headSize > 64 {
 		headSize = headSize + rand.Intn(64)
 	} else {

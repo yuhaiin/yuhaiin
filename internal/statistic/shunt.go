@@ -79,7 +79,7 @@ var Mode = map[string]*MODE{
 type Shunt struct {
 	file string
 
-	remote *protoconfig.Dns
+	resolver *protoconfig.Dns
 
 	mapper *mapper.Mapper[*MODE]
 	bypass bool
@@ -106,10 +106,10 @@ func (s *Shunt) Update(c *protoconfig.Setting) {
 		}
 	}
 
-	if s.remote == nil || diffDNS(s.remote, c.Dns.Remote) {
+	if s.resolver == nil || diffDNS(s.resolver, c.Dns.Remote) {
 		s.mapper.SetLookup(getDNS(c.Dns.Remote, s.dialer).LookupIP)
 		s.mapper.Insert(getDnsConfig(c.Dns.Remote))
-		s.remote = c.Dns.Remote
+		s.resolver = c.Dns.Remote
 	}
 
 	s.bypass = c.Bypass.Enabled

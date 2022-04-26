@@ -65,10 +65,10 @@ func (v *verifySHA1) EncryptStream(data []byte) (encryptedData []byte, err error
 	offset := 0
 	if !v.hasSentHeader {
 		data[0] |= oneTimeAuthMask
-		v.buffer.Write(v.otaConnectAuth(data[:v.HeadLen]))
+		v.buffer.Write(v.otaConnectAuth(data[:v.HeadSize]))
 		v.hasSentHeader = true
-		dataLength -= v.HeadLen
-		offset += v.HeadLen
+		dataLength -= v.HeadSize
+		offset += v.HeadSize
 	}
 	const blockSize = 4096
 	for dataLength > blockSize {

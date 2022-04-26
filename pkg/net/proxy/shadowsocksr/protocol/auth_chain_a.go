@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	cipher2 "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
@@ -28,7 +27,10 @@ type authChainA struct {
 	randomClient ssr.Shift128plusContext
 	randomServer ssr.Shift128plusContext
 	recvInfo
-	cipher         *cipher2.StreamCipher
+	// cipher         *cipher2.StreamCipher
+
+	encrypter      cipher.Stream
+	decrypter      cipher.Stream
 	hasSentHeader  bool
 	lastClientHash []byte
 	lastServerHash []byte
@@ -117,7 +119,7 @@ func (a *authChainA) packData(outData []byte, data []byte, randLength int) {
 		if dataLength > 0 {
 			randPart1Length := getRandStartPos(&a.randomClient, randLength)
 			rand.Read(outData[2 : 2+randPart1Length])
-			a.cipher.Encrypt(outData[2+randPart1Length:], data)
+			a.encrypter.XORKeyStream(outData[2+randPart1Length:], data)
 			rand.Read(outData[2+randPart1Length+dataLength : outLength])
 		} else {
 			rand.Read(outData[2 : 2+randLength])
@@ -140,9 +142,9 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 
 	a.data.nextAuth()
 
-	var key = make([]byte, a.IVLen+a.KeyLen)
+	var key = make([]byte, a.IVSize+a.KeySize)
 	copy(key, a.IV)
-	copy(key[a.IVLen:], a.Key)
+	copy(key[a.IVSize:], a.Key)
 
 	encrypt := make([]byte, 20)
 	t := time.Now().Unix()
@@ -174,8 +176,8 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 			if a.userKey == nil {
 				rand.Read(a.uid[:])
 
-				a.userKeyLen = a.KeyLen
-				a.userKey = make([]byte, a.KeyLen)
+				a.userKeyLen = a.KeySize
+				a.userKey = make([]byte, a.KeySize)
 				copy(a.userKey, a.Key)
 			}
 		}
@@ -207,9 +209,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	password := make([]byte, len(base64UserKey)+base64.StdEncoding.EncodedLen(16))
 	copy(password, base64UserKey)
 	base64.StdEncoding.Encode(password[len(base64UserKey):], a.lastClientHash[:16])
-	a.cipher, _ = cipher2.NewStreamCipher(nil, "rc4", string(password))
-	_, _ = a.cipher.InitEncrypt()
-	_ = a.cipher.InitDecrypt(nil)
+	a.initRC4Cipher(password)
 
 	// data
 	chunkLength, randLength := a.packedDataLen(data)
@@ -222,6 +222,11 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	}
 	a.packData(outData[authheadLength:], data, randLength)
 	return outData
+}
+
+func (a *authChainA) initRC4Cipher(key []byte) {
+	a.encrypter, _ = rc4.NewCipher(key)
+	a.decrypter, _ = rc4.NewCipher(key)
 }
 
 func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error) {
@@ -286,7 +291,7 @@ func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err
 		}
 
 		b := make([]byte, dataLen)
-		a.cipher.Decrypt(b, plainData[dataPos:dataPos+dataLen])
+		a.decrypter.XORKeyStream(b, plainData[dataPos:dataPos+dataLen])
 		a.rbuf.Write(b)
 		if a.recvID == 1 {
 			a.TcpMss = int(binary.LittleEndian.Uint16(a.rbuf.Next(2)))
@@ -317,8 +322,8 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 		if a.userKey == nil {
 			rand.Read(a.uid[:])
 
-			a.userKeyLen = a.KeyLen
-			a.userKey = make([]byte, a.KeyLen)
+			a.userKeyLen = a.KeySize
+			a.userKey = make([]byte, a.KeySize)
 			copy(a.userKey, a.Key)
 		}
 	}

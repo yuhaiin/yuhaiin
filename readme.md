@@ -1,31 +1,37 @@
+#
+
 [![GitHub license](https://img.shields.io/github/license/Asutorufa/yuhaiin)](https://github.com/Asutorufa/yuhaiin/blob/master/LICENSE)
 [![releases](https://img.shields.io/github/release-pre/asutorufa/yuhaiin.svg)](https://github.com/Asutorufa/yuhaiin/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/yuhaiin)](https://goreportcard.com/report/github.com/Asutorufa/yuhaiin)
 [![Go Reference](https://pkg.go.dev/badge/github.com/Asutorufa/yuhaiin.svg)](https://pkg.go.dev/github.com/Asutorufa/yuhaiin)
 ![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
-
-- gui project move to [yuhaiinqt](https://github.com/Asutorufa/yuhaiinqt).  
+  
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Supported Protocol  
   - Shadowsocksr  
-    - Support Protocol: [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
-  - Shadowsocks  
-    - Support Plugin: Obfs-Http, v2ray-plugin[websocket, quic](no mux)  
-  - Vmess(no mux)
-  - trojan(no mux)
-  - Socks5, HTTP, Linux/Mac Redir  
-  - DNS: Normal DNS,EDNS,DNS over HTTPS, DNS over TLS
-- Supported Subscription: Shadowsocksr, SSD  
-- Auto Set System Proxy for Linux/Windows.  
+  - Shadowsocks(plugin: Obfs-Http, v2ray-plugin[websocket, quic](no mux))  
+  - Vmess(no mux), trojan(no mux), Socks5, HTTP, Linux/Mac Redir  
+- support DNS Protocol: DNS, EDNS, DNS over HTTPS, DNS over TLS
+- Auto Set System Proxy.  
+- a Simple web page can to configure.
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
-- icon from プロ生ちゃん.  
-- アイコンがプロ生ちゃんから、ご注意ください。  
-- [TODO](https://github.com/Asutorufa/yuhaiin/wiki/TODO).  
+- icon from プロ生ちゃん.アイコンがプロ生ちゃんから、ご注意ください。  
 - Others Please Check [Wiki](https://github.com/Asutorufa/yuhaiin/wiki).  
 
 <!-- 
 ![v0.2.12-beta_linux](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/v0.2.12-beta_linux.png)  
 ![v0.2.12-beta_windows](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/v0.2.12-beta_windows.png)   -->
+
+```shell
+# host: grpc and http listen address, default: 127.0.0.1:50051
+# path: Store application data path, default:
+#   linux ~/.config/yuhaiin/, windows %APPDATA%/yuhaiin/
+yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin/config.json
+```
+
+![web_page](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/web_page.png)
+
+a simple cli tools supported
 
 ```shell
 // list all connections
@@ -73,7 +79,7 @@ yh set <node-hash> <xxx>.<xxx>.<xxx>=<xxx>
 // list all subscriptions
 yh sub ls
 // add a subscription
-yh sub add <sub-link>
+yh sub add <name> <sub-link>
 // update all subscriptions
 yh sub update
 ```
