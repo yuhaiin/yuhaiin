@@ -24,7 +24,7 @@ func NewAuthSHA1v4(info ProtocolInfo) IProtocol {
 	a := &authSHA1v4{
 		ProtocolInfo: info,
 		data:         info.Auth,
-		buffer:       getBuffer(),
+		buffer:       ssr.GetBuffer(),
 	}
 
 	if a.data == nil {
@@ -212,7 +212,7 @@ func (a *authSHA1v4) GetOverhead() int {
 }
 
 func (a *authSHA1v4) Close() error {
-	putBuffer(a.buffer)
+	ssr.PutBuffer(a.buffer)
 
 	return nil
 }
