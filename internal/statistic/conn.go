@@ -1,6 +1,7 @@
 package statistic
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net"
@@ -28,17 +29,24 @@ type conn struct {
 
 	*statistic.Connection
 	manager *Statistic
+
+	wbuf, rbuf []byte
 }
 
 func (s *conn) Close() error {
+	if s.wbuf != nil {
+		utils.PutBytes(s.wbuf)
+	}
+	if s.rbuf != nil {
+		utils.PutBytes(s.rbuf)
+	}
 	s.manager.delete(s.Id)
 	return s.Conn.Close()
 }
 
-func (s *conn) Write(b []byte) (n int, err error) {
-	n, err = s.Conn.Write(b)
-	s.manager.accountant.AddUpload(uint64(n))
-	return
+func (s *conn) Write(b []byte) (_ int, err error) {
+	n, err := s.ReadFrom(bytes.NewBuffer(b))
+	return int(n), err
 }
 
 func (s *conn) Read(b []byte) (n int, err error) {
@@ -48,14 +56,16 @@ func (s *conn) Read(b []byte) (n int, err error) {
 }
 
 func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
+	if s.wbuf == nil {
+		s.wbuf = utils.GetBytes(2048)
+	}
 
 	for {
-		n, er := r.Read(buf)
+		n, er := r.Read(s.wbuf)
 		if n > 0 {
 			resp += int64(n)
-			_, ew := s.Write(buf[:n])
+			s.manager.accountant.AddUpload(uint64(n))
+			_, ew := s.Conn.Write(s.wbuf[:n])
 			if ew != nil {
 				break
 			}
@@ -72,14 +82,14 @@ func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
 }
 
 func (s *conn) WriteTo(w io.Writer) (resp int64, err error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-
+	if s.rbuf == nil {
+		s.rbuf = utils.GetBytes(2048)
+	}
 	for {
-		n, er := s.Read(buf)
+		n, er := s.Read(s.rbuf)
 		if n > 0 {
 			resp += int64(n)
-			_, ew := w.Write(buf[:n])
+			_, ew := w.Write(s.rbuf[:n])
 			if ew != nil {
 				break
 			}

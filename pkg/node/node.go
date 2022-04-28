@@ -27,38 +27,50 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-var _ proxy.Proxy = (*NodeManager)(nil)
+var _ proxy.Proxy = (*Nodes)(nil)
 
-type NodeManager struct {
+type Nodes struct {
 	node.UnimplementedNodeManagerServer
 
 	savaPath       string
 	lock, filelock sync.RWMutex
-	proxy.Proxy
+	proxy          proxy.Proxy
 
 	now     *node.Point
 	manager *manager
 	links   map[string]*node.NodeLink
 }
 
-func NewNodeManager(configPath string) (n *NodeManager) {
-	n = &NodeManager{savaPath: configPath}
-
+func NewNodes(configPath string) (n *Nodes) {
+	n = &Nodes{savaPath: configPath}
 	n.load()
-
-	now, _ := n.Now(context.TODO(), &emptypb.Empty{})
-	p, err := register.Dialer(now)
-	if err != nil {
-		log.Printf("create conn failed: %v", err)
-		p = &proxy.Default{}
-	}
-
-	n.Proxy = p
-
 	return
 }
 
-func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*node.Point, error) {
+func (n *Nodes) dialer() proxy.Proxy {
+	if n.proxy == nil {
+		now, _ := n.Now(context.TODO(), &emptypb.Empty{})
+		p, err := register.Dialer(now)
+		if err != nil {
+			log.Printf("create conn failed: %v", err)
+			return &proxy.Default{}
+		}
+
+		n.proxy = p
+	}
+
+	return n.proxy
+}
+
+func (n *Nodes) Conn(host string) (net.Conn, error) {
+	return n.dialer().Conn(host)
+}
+
+func (n *Nodes) PacketConn(host string) (net.PacketConn, error) {
+	return n.dialer().PacketConn(host)
+}
+
+func (n *Nodes) Now(context.Context, *emptypb.Empty) (*node.Point, error) {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
 
@@ -74,7 +86,7 @@ func (n *NodeManager) Now(context.Context, *emptypb.Empty) (*node.Point, error) 
 	return p, nil
 }
 
-func (n *NodeManager) GetNode(_ context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
+func (n *Nodes) GetNode(_ context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
 	p, ok := n.manager.GetNode(s.Value)
 	if !ok {
 		return &node.Point{}, fmt.Errorf("node not found")
@@ -83,12 +95,12 @@ func (n *NodeManager) GetNode(_ context.Context, s *wrapperspb.StringValue) (*no
 	return p, nil
 }
 
-func (n *NodeManager) SaveNode(c context.Context, p *node.Point) (*node.Point, error) {
+func (n *Nodes) SaveNode(c context.Context, p *node.Point) (*node.Point, error) {
 	n.saveNode(p)
 	return p, n.save()
 }
 
-func (n *NodeManager) saveNode(p *node.Point) *node.Point {
+func (n *Nodes) saveNode(p *node.Point) *node.Point {
 	n.manager.DeleteNode(p.Hash)
 	refreshHash(p)
 	n.manager.AddNode(p)
@@ -101,11 +113,11 @@ func refreshHash(p *node.Point) {
 	p.Hash = hex.EncodeToString(z[:])
 }
 
-func (n *NodeManager) GetManager(context.Context, *wrapperspb.StringValue) (*node.Manager, error) {
+func (n *Nodes) GetManager(context.Context, *wrapperspb.StringValue) (*node.Manager, error) {
 	return n.manager.GetManager(), nil
 }
 
-func (n *NodeManager) SaveLinks(_ context.Context, l *node.SaveLinkReq) (*emptypb.Empty, error) {
+func (n *Nodes) SaveLinks(_ context.Context, l *node.SaveLinkReq) (*emptypb.Empty, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	if n.links == nil {
@@ -117,7 +129,7 @@ func (n *NodeManager) SaveLinks(_ context.Context, l *node.SaveLinkReq) (*emptyp
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) DeleteLinks(_ context.Context, s *node.LinkReq) (*emptypb.Empty, error) {
+func (n *Nodes) DeleteLinks(_ context.Context, s *node.LinkReq) (*emptypb.Empty, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
@@ -128,7 +140,7 @@ func (n *NodeManager) DeleteLinks(_ context.Context, s *node.LinkReq) (*emptypb.
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) Use(c context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
+func (n *Nodes) Use(c context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
 	p, err := n.GetNode(c, s)
 	if err != nil {
 		return &node.Point{}, fmt.Errorf("get node failed: %v", err)
@@ -146,22 +158,17 @@ func (n *NodeManager) Use(c context.Context, s *wrapperspb.StringValue) (*node.P
 	if err != nil {
 		return p, fmt.Errorf("save config failed: %v", err)
 	}
-
-	proxy, err := register.Dialer(p)
-	if err != nil {
-		return nil, fmt.Errorf("create conn failed: %w", err)
-	}
-	n.Proxy = proxy
+	n.proxy = nil
 	return n.now, nil
 }
 
-func (n *NodeManager) GetLinks(ctx context.Context, in *emptypb.Empty) (*node.GetLinksResp, error) {
+func (n *Nodes) GetLinks(ctx context.Context, in *emptypb.Empty) (*node.GetLinksResp, error) {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
 	return &node.GetLinksResp{Links: n.links}, nil
 }
 
-func (n *NodeManager) UpdateLinks(c context.Context, req *node.LinkReq) (*emptypb.Empty, error) {
+func (n *Nodes) UpdateLinks(c context.Context, req *node.LinkReq) (*emptypb.Empty, error) {
 	if n.links == nil {
 		n.links = make(map[string]*node.NodeLink)
 	}
@@ -174,7 +181,7 @@ func (n *NodeManager) UpdateLinks(c context.Context, req *node.LinkReq) (*emptyp
 				if err == nil {
 					return conn, nil
 				}
-				return n.Proxy.Conn(addr)
+				return n.dialer().Conn(addr)
 			},
 		},
 	}
@@ -200,7 +207,7 @@ func (n *NodeManager) UpdateLinks(c context.Context, req *node.LinkReq) (*emptyp
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) oneLinkGet(c context.Context, client *http.Client, link *node.NodeLink) error {
+func (n *Nodes) oneLinkGet(c context.Context, client *http.Client, link *node.NodeLink) error {
 	req, err := http.NewRequest("GET", link.Url, nil)
 	if err != nil {
 		return fmt.Errorf("create request failed: %v", err)
@@ -259,12 +266,12 @@ func parseUrl(str []byte, l *node.NodeLink) (no *node.Point, err error) {
 	return no, nil
 }
 
-func (n *NodeManager) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
+func (n *Nodes) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	n.manager.DeleteNode(s.Value)
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *NodeManager) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyResp, error) {
+func (n *Nodes) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyResp, error) {
 	resp := &node.LatencyResp{HashLatencyMap: make(map[string]*node.LatencyRespLatency)}
 	var respLock sync.Mutex
 
@@ -303,7 +310,7 @@ func (n *NodeManager) Latency(c context.Context, req *node.LatencyReq) (*node.La
 	return resp, nil
 }
 
-func (n *NodeManager) load() {
+func (n *Nodes) load() {
 	no := &node.Node{}
 
 	n.filelock.RLock()
@@ -342,7 +349,7 @@ func (n *NodeManager) load() {
 	n.manager = &manager{Manager: no.Manager}
 }
 
-func (n *NodeManager) save() error {
+func (n *Nodes) save() error {
 	_, err := os.Stat(path.Dir(n.savaPath))
 	if errors.Is(err, os.ErrNotExist) {
 		err = os.MkdirAll(path.Dir(n.savaPath), os.ModePerm)

@@ -48,7 +48,7 @@ type httpSimplePost struct {
 	userAgentIndex   int
 	methodGet        bool // true for get, false for post
 
-	buf []byte
+	buf, wbuf []byte
 	net.Conn
 
 	param simpleParam
@@ -66,6 +66,7 @@ func newHttpSimple(conn net.Conn, info ssr.ObfsInfo) IObfs {
 		Conn:           conn,
 		ObfsInfo:       info,
 		param:          simpleParam{},
+		wbuf:           utils.GetBytes(2048),
 	}
 
 	t.param.parse(t.Param)
@@ -205,14 +206,12 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 }
 
 func (t *httpSimplePost) ReadFrom(r io.Reader) (int64, error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-
 	n := int64(0)
 	for {
-		nr, er := r.Read(buf)
+		nr, er := r.Read(t.wbuf)
 		n += int64(nr)
-		_, err := t.Write(buf[:nr])
+
+		_, err := t.Write(t.wbuf[:nr])
 		if err != nil {
 			return n, err
 		}
