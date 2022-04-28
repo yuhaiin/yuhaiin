@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -30,6 +29,7 @@ type IProtocol interface {
 	DecryptStream(data []byte) ([]byte, int, error)
 	EncryptPacket(data []byte) ([]byte, error)
 	DecryptPacket(data []byte) ([]byte, error)
+
 	io.Closer
 
 	GetOverhead() int
@@ -102,10 +102,7 @@ type protocolPacket struct {
 }
 
 func newProtocolPacket(conn net.PacketConn, p IProtocol) *protocolPacket {
-	return &protocolPacket{
-		PacketConn: conn,
-		protocol:   p,
-	}
+	return &protocolPacket{PacketConn: conn, protocol: p}
 }
 
 func (c *protocolPacket) WriteTo(b []byte, addr net.Addr) (int, error) {
@@ -132,7 +129,6 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 
 func (c *protocolPacket) Close() error {
 	c.protocol.Close()
-
 	return c.PacketConn.Close()
 }
 
@@ -218,50 +214,6 @@ func (c *protocolConn) Write(b []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(b), nil
-}
-
-func (c *protocolConn) ReadFrom(r io.Reader) (int64, error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-
-	n := int64(0)
-	for {
-		nr, er := r.Read(buf)
-		n += int64(nr)
-		_, err := c.Write(buf[:nr])
-		if err != nil {
-			return n, err
-		}
-		if er != nil {
-			if errors.Is(er, io.EOF) {
-				return n, nil
-			}
-			return n, er
-		}
-	}
-}
-
-func (c *protocolConn) WriteTo(w io.Writer) (int64, error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
-
-	n := int64(0)
-	for {
-		nr, er := c.Read(buf)
-		if nr > 0 {
-			nw, err := w.Write(buf[:nr])
-			n += int64(nw)
-			if err != nil {
-				return n, err
-			}
-		}
-		if er != nil {
-			if errors.Is(er, io.EOF) {
-				return n, nil
-			}
-			return n, er
-		}
-	}
 }
 
 type ProtocolInfo struct {

@@ -22,7 +22,7 @@ type Shadowsocksr struct {
 	cipher   *cipher.Cipher
 	dial     proxy.Proxy
 
-	udpAddr net.Addr
+	udpAddr *net.UDPAddr
 }
 
 func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
@@ -77,7 +77,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	// obfsServerInfo.SetHeadLen(b, 30)
 	// protocolServerInfo.SetHeadLen(b, 30)
 	obfs := s.obfs.Stream(c)
-	cipher := s.cipher.Stream(obfs)
+	cipher := s.cipher.StreamConn(obfs)
 
 	var iv []byte
 	if z, ok := cipher.(interface{ WriteIV() []byte }); ok {
@@ -102,7 +102,7 @@ func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get packet conn failed: %w", err)
 	}
-	cipher := s.cipher.Packet(c)
+	cipher := s.cipher.PacketConn(c)
 	proto := s.protocol.Packet(cipher)
 	conn, err := shadowsocks.NewSsPacketConn(proto, s.udpAddr, addr)
 	if err != nil {

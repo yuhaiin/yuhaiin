@@ -60,7 +60,7 @@ func main() {
 	grpcserver.RegisterService(&protoconfig.ConfigDao_ServiceDesc, setting)
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
-	nodes := node.NewNodeManager(pc.node)
+	nodes := node.NewNodes(pc.node)
 	grpcserver.RegisterService(&protonode.NodeManager_ServiceDesc, nodes)
 
 	statistics := statistic.NewStatistic(nodes)
