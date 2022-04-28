@@ -13,7 +13,7 @@ import (
 )
 
 func TestNodeManager(t *testing.T) {
-	n := NewNodeManager("/tmp/yuhaiin/nodeManagerTest/config.json")
+	n := NewNodes("/tmp/yuhaiin/nodeManagerTest/config.json")
 
 	_, err := n.SaveLinks(context.TODO(),
 		&node.SaveLinkReq{

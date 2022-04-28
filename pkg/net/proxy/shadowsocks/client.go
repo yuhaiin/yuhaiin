@@ -17,7 +17,7 @@ import (
 type Shadowsocks struct {
 	cipher  core.Cipher
 	p       proxy.Proxy
-	udpAddr net.Addr
+	udpAddr *net.UDPAddr
 }
 
 func NewShadowsocks(config *node.PointProtocol_Shadowsocks) node.WrapProxy {
@@ -80,11 +80,11 @@ func (s *Shadowsocks) PacketConn(tar string) (net.PacketConn, error) {
 
 type ssPacketConn struct {
 	net.PacketConn
-	add    net.Addr
+	add    *net.UDPAddr
 	target []byte
 }
 
-func NewSsPacketConn(conn net.PacketConn, host net.Addr, target string) (net.PacketConn, error) {
+func NewSsPacketConn(conn net.PacketConn, host *net.UDPAddr, target string) (net.PacketConn, error) {
 	addr, err := s5c.ParseAddr(target)
 	if err != nil {
 		return nil, err
