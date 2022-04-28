@@ -187,7 +187,7 @@ func load(dir string) *config.Setting {
 func save(pa *config.Setting, dir string) error {
 	_, err := os.Stat(dir)
 	if err != nil && os.IsNotExist(err) {
-		err = os.MkdirAll(dir, os.ModePerm)
+		err = os.MkdirAll(filepath.Dir(dir), os.ModePerm)
 		if err != nil {
 			return fmt.Errorf("make dir failed: %v", err)
 		}

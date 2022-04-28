@@ -51,15 +51,16 @@ func creatRequest(domain string, reqType reqType, arCount bool) []byte {
 		data.Write([]byte{0b00000000, 0b00000000})
 	}
 
-	for _, x := range strings.Split(domain, ".") { // domain: www.example.com => 3www7example3com <- last with 0
-		data.WriteByte(byte(len(x)))
-		data.WriteString(x)
+	domain = domain + "." // domain: www.example.com => 3www7example3com <- last with 0
+	for i := strings.IndexByte(domain, '.'); i != -1; i = strings.IndexByte(domain, '.') {
+		data.WriteByte(byte(i))
+		data.WriteString(domain[:i])
+		domain = domain[i+1:]
 	}
 	data.WriteByte(0b00000000) // add the 0 for last of domain
 
 	data.Write([]byte{reqType[0], reqType[1]}) // qType 1 -> A:ipv4 01 | 28 -> AAAA:ipv6  000000 00011100 => 0 0x1c
 	data.Write([]byte{0b00000000, 0b00000001}) // qClass: 1 = from internet
-	//https://www.cnblogs.com/zsy/p/5935407.html
 	return data.Bytes()
 }
 
@@ -419,12 +420,56 @@ func getName(c []byte, all []byte) (name string, size int, x []byte) {
 			s.WriteString(tmp)
 			break
 		}
+
 		s.Write(c[1 : int(c[0])+1])
 		s.WriteString(".")
 		size += int(c[0]) + 1
 		c = c[int(c[0])+1:]
 	}
 	return s.String(), size, c
+}
+
+type reader struct {
+	raw []byte
+	r   *bytes.Buffer
+}
+
+func newReader(raw []byte) *reader {
+	return &reader{raw: raw, r: bytes.NewBuffer(raw)}
+}
+
+func (r *reader) domain(rr *bytes.Buffer) (string, error) {
+	s := strings.Builder{}
+
+	var err error
+	for {
+		var b byte
+		if b, err = rr.ReadByte(); err != nil {
+			return "", fmt.Errorf("read byte failed: %w", err)
+		}
+
+		if b == 0 {
+			break
+		}
+
+		if b&128 == 128 && b&64 == 64 {
+			b, err = rr.ReadByte()
+			if err != nil {
+				return "", fmt.Errorf("read name offset failed: %w", err)
+			}
+			name, err := r.domain(bytes.NewBuffer(r.raw[b:]))
+			if err != nil {
+				return "", fmt.Errorf("read name failed: %w", err)
+			}
+			s.WriteString(name)
+			break
+		}
+
+		s.WriteString(string(rr.Next(int(b))))
+		s.WriteString(".")
+	}
+
+	return s.String(), nil
 }
 
 // https://www.ietf.org/rfc/rfc1035.txt
