@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 func GetReq(req []byte) (resp respHeader, err error) {
@@ -56,9 +54,9 @@ func DNSServer() {
 
 			switch head.dnsType {
 			case A:
-				logasfmt.Println("A")
+				log.Println("A")
 			case AAAA:
-				logasfmt.Println("AAAA")
+				log.Println("AAAA")
 			}
 
 			log.Println(head)
