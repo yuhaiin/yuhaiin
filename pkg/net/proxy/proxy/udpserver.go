@@ -119,11 +119,10 @@ func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func(io.Reader) (
 			}
 
 			if errors.Is(err, net.ErrClosed) {
-				log.Printf("checked udp server closed: %v\n", err)
+				return fmt.Errorf("checked tcp server closed: %w", err)
 			} else {
-				log.Printf("udp server accept failed: %v\n", err)
+				return fmt.Errorf("tcp server accept failed: %w", err)
 			}
-			return fmt.Errorf("udp server accept failed: %v", err)
 		}
 
 		tempDelay = 0

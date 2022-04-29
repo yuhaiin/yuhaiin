@@ -3,10 +3,10 @@ package socks5server
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -36,7 +36,7 @@ const (
 func handshake(dialer proxy.Proxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
 		if err := handle(username, password, conn, dialer); err != nil {
-			logasfmt.Println("socks5 server handle failed:", err)
+			log.Println("socks5 server handle failed:", err)
 		}
 	}
 }

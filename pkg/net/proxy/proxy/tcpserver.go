@@ -88,11 +88,10 @@ func (t *tcpserver) process(handle func(net.Conn)) error {
 			}
 
 			if errors.Is(err, net.ErrClosed) {
-				log.Printf("checked tcp server closed: %v\n", err)
+				return fmt.Errorf("checked tcp server closed: %w", err)
 			} else {
-				log.Printf("tcp server accept failed: %v\n", err)
+				return fmt.Errorf("tcp server accept failed: %w", err)
 			}
-			return fmt.Errorf("tcp server accept failed: %v", err)
 		}
 
 		tempDelay = 0

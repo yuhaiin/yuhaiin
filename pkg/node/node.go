@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
@@ -318,12 +317,12 @@ func (n *Nodes) load() {
 	data, err := os.ReadFile(n.savaPath)
 	if err != nil {
 		data = []byte{'{', '}'}
-		logasfmt.Printf("read node file failed: %v\n", err)
+		log.Printf("read node file failed: %v\n", err)
 	}
 
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, no)
 	if err != nil {
-		logasfmt.Printf("unmarshal node file failed: %v\n", err)
+		log.Printf("unmarshal node file failed: %v\n", err)
 	}
 
 	if no.NowNode == nil {

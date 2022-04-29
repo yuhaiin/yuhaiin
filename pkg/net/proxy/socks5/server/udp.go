@@ -2,10 +2,10 @@ package socks5server
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
@@ -55,7 +55,7 @@ func (u *udpServer) forward() {
 		if u.header == nil {
 			_, _, size, err := s5c.ResolveAddr(buf[3:n])
 			if err != nil {
-				logasfmt.Println("resolve addr failed:", err)
+				log.Println("resolve addr failed:", err)
 				continue
 			}
 			u.localRemote = l

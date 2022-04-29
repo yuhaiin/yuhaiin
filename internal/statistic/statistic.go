@@ -2,9 +2,9 @@ package statistic
 
 import (
 	"context"
+	"log"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -61,17 +61,17 @@ func (c *Statistic) CloseConn(_ context.Context, x *statistic.CloseConnsReq) (*e
 }
 
 func (c *Statistic) Statistic(_ *emptypb.Empty, srv statistic.Connections_StatisticServer) error {
-	logasfmt.Println("Start Send Flow Message to Client.")
+	log.Println("Start Send Flow Message to Client.")
 	id := c.accountant.AddClient(srv.Send)
 	<-srv.Context().Done()
 	c.accountant.RemoveClient(id)
-	logasfmt.Println("Client is Hidden, Close Stream.")
+	log.Println("Client is Hidden, Close Stream.")
 	return srv.Context().Err()
 }
 
 func (c *Statistic) delete(id int64) {
 	if z, ok := c.conns.LoadAndDelete(id); ok {
-		logasfmt.Printf("close %v| <%s[%v]>: %v, %s <-> %s\n",
+		log.Printf("close %v| <%s[%v]>: %v, %s <-> %s\n",
 			z.GetId(), z.GetType(), z.GetMark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
 	}
 }
@@ -125,7 +125,7 @@ func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
 }
 
 func (c *Statistic) storeConnection(o connection) {
-	logasfmt.Printf("%v| <%s[%v]>: %v, %s <-> %s\n",
+	log.Printf("%v| <%s[%v]>: %v, %s <-> %s\n",
 		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), o.GetLocal(), o.GetRemote())
 	c.conns.Store(o.GetId(), o)
 }

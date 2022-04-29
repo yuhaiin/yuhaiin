@@ -5,12 +5,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -19,7 +19,7 @@ func handshake(dialer proxy.StreamProxy, username, password string) func(net.Con
 	return func(conn net.Conn) {
 		err := handle(username, password, conn, dialer)
 		if err != nil {
-			logasfmt.Println("http server handle failed:", err)
+			log.Println("http server handle failed:", err)
 		}
 	}
 }
@@ -44,7 +44,7 @@ _start:
 
 	host := req.Host
 	if _, p, _ := net.SplitHostPort(host); p == "" {
-		logasfmt.Println(req.Host, req.URL, req.RemoteAddr)
+		log.Println(req.Host, req.URL, req.RemoteAddr)
 		if strings.EqualFold(req.URL.Scheme, "https") {
 			host = net.JoinHostPort(host, "443")
 		} else {

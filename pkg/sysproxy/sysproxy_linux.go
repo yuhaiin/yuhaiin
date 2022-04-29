@@ -5,8 +5,6 @@ import (
 	"log"
 	"net"
 	"os/exec"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 func SetSysProxy(http, socks5 string) {
@@ -19,11 +17,11 @@ func SetSysProxy(http, socks5 string) {
 
 	if http != "" {
 		httpHostname, httpPort, _ = net.SplitHostPort(http)
-		logasfmt.Printf("set http system hostname: %s, port: %s\n", httpHostname, httpPort)
+		log.Printf("set http system hostname: %s, port: %s\n", httpHostname, httpPort)
 	}
 	if socks5 != "" {
 		socks5Hostname, socks5Port, _ = net.SplitHostPort(socks5)
-		logasfmt.Printf("set socks5 system hostname: %s, port: %s\n", socks5Hostname, socks5Port)
+		log.Printf("set socks5 system hostname: %s, port: %s\n", socks5Hostname, socks5Port)
 	}
 
 	gnomeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port)
