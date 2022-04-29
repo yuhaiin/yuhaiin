@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -17,7 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/lockfile"
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
+	logw "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	protonode "github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -36,12 +37,13 @@ func main() {
 
 	pc := pathConfig(*savepath)
 
-	f := logasfmt.NewLogWriter(pc.logfile)
-	logasfmt.SetOutput(io.MultiWriter(append([]io.Writer{os.Stdout}, f)...))
+	f := logw.NewLogWriter(pc.logfile)
 	defer f.Close()
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	log.SetOutput(io.MultiWriter(f, os.Stdout))
 
-	logasfmt.Println("\n\n\nsave config at:", pc.dir)
-	logasfmt.Println("gRPC and http listen at:", *host)
+	log.Println("\n\n\nsave config at:", pc.dir)
+	log.Println("gRPC and http listen at:", *host)
 
 	lock := error.Must(lockfile.NewLock(pc.lockfile, *host))
 	defer lock.UnLock()

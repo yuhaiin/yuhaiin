@@ -14,8 +14,6 @@ import (
 	"runtime"
 	"syscall"
 	"unsafe"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 )
 
 //go:embed dll_windows/Release/*
@@ -106,13 +104,13 @@ func getSysProxy() (*syscall.LazyDLL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("expertDLL failed: %w", err)
 	}
-	logasfmt.Println("System Proxy DLL:", dll)
+	log.Println("System Proxy DLL:", dll)
 	return syscall.NewLazyDLL(dll), nil
 }
 
 func SetSysProxy(http, _ string) {
 	if err := setSysProxy(http, ""); err != nil {
-		logasfmt.Println("SetSysProxy failed:", err)
+		log.Println("SetSysProxy failed:", err)
 	}
 }
 
@@ -157,13 +155,13 @@ func setSysProxy(http, _ string) error {
 	if err != nil {
 		return fmt.Errorf("syscall SetSystemProxy failed: %w", err)
 	}
-	logasfmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
+	log.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
 	return nil
 }
 
 func UnsetSysProxy() {
 	if err := unsetSysProxy(); err != nil {
-		logasfmt.Println("UnsetSysProxy failed:", err)
+		log.Println("UnsetSysProxy failed:", err)
 	}
 }
 
@@ -188,7 +186,7 @@ func unsetSysProxy() error {
 	if err != nil {
 		return fmt.Errorf("syscall ClearSystemProxy failed: %w", err)
 	}
-	logasfmt.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
+	log.Printf("%d.%d\n", byte(ret), uint8(ret>>8))
 	return nil
 }
 

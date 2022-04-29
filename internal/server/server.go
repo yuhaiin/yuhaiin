@@ -1,9 +1,9 @@
 package server
 
 import (
+	"log"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log/logasfmt"
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	rs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
@@ -83,7 +83,7 @@ func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.Serv
 func (l *listener) start(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
 	server, err := protoconfig.CreateServer(config.Protocol, pro)
 	if err != nil {
-		logasfmt.Printf("create server %s failed: %v\n", name, err)
+		log.Printf("create server %s failed: %v\n", name, err)
 		return
 	}
 

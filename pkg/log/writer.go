@@ -1,4 +1,4 @@
-package logasfmt
+package log
 
 import (
 	"fmt"
@@ -77,6 +77,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 	if f.w == nil {
 		f.w, err = os.OpenFile(filepath.Join(f.path), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 		if err != nil {
+			f.log.Println(err)
 			return 0, err
 		}
 	}
