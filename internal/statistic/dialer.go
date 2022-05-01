@@ -7,6 +7,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"google.golang.org/protobuf/proto"
 )
 
 type dialer struct {
@@ -26,7 +27,7 @@ func newDialer(dia proxy.Proxy) *dialer {
 }
 
 func (d *dialer) Update(s *protoconfig.Setting) {
-	if d.local != nil && !diffDNS(d.local, s.Dns.Local) {
+	if proto.Equal(d.local, s.Dns.Local) {
 		return
 	}
 

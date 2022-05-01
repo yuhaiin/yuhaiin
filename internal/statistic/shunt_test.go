@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestMode(t *testing.T) {
@@ -21,7 +22,7 @@ func TestMode(t *testing.T) {
 }
 
 func TestDiffDNS(t *testing.T) {
-	z := diffDNS(&protoconfig.Dns{}, &protoconfig.Dns{})
+	z := !proto.Equal(&protoconfig.Dns{}, &protoconfig.Dns{})
 	t.Log(z)
 
 	_, x, _ := net.ParseCIDR("1.1.1.1/32")

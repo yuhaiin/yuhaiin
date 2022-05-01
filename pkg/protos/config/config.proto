@@ -44,7 +44,6 @@ message dns {
 message server {
   message protocol {
     string name = 1 [ json_name = "name" ];
-    string hash = 2 [ json_name = "hash" ];
     oneof protocol {
       http http = 3 [ json_name = "http" ];
       socks5 socks5 = 4 [ json_name = "socks5" ];
