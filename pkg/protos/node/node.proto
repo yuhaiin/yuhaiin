@@ -35,7 +35,7 @@ message point {
     }
   }
   // will use protocols' order to create dialer
-  repeated protocol protocols = 11 [ json_name = "protocols" ];
+  repeated protocol protocols = 5 [ json_name = "protocols" ];
 }
 
 message socks5 {
@@ -68,15 +68,15 @@ message shadowsocksr {
 
 message vmess {
   // uuid
-  string uuid = 4 [ json_name = "id" ];
+  string uuid = 1 [ json_name = "id" ];
   // alter id
-  string alter_id = 5 [ json_name = "aid" ];
-  string security = 15 [ json_name = "security" ];
+  string alter_id = 2 [ json_name = "aid" ];
+  string security = 3 [ json_name = "security" ];
 }
 
 message trojan {
-  string password = 3 [ json_name = "password" ];
-  string peer = 5 [ json_name = "peer" ];
+  string password = 1 [ json_name = "password" ];
+  string peer = 2 [ json_name = "peer" ];
 }
 
 message websocket {
@@ -122,18 +122,18 @@ message node {
     string url = 3 [ json_name = "url" ];
   }
   map<string, link> links = 2 [ json_name = "links" ];
-  manager manager = 6 [ json_name = "manager" ];
+  manager manager = 3 [ json_name = "manager" ];
 }
 
 message manager {
-  repeated string groups = 3 [ json_name = "groups" ];
+  repeated string groups = 1 [ json_name = "groups" ];
   message node_array {
     string group = 1 [ json_name = "name" ];
     repeated string nodes = 2 [ json_name = "nodes" ];
     map<string, string> node_hash_map = 3 [ json_name = "node_hash_map" ];
   }
-  map<string, node_array> group_nodes_map = 4 [ json_name = "group_nodes_map" ];
-  map<string, point> nodes = 5 [ json_name = "nodes" ];
+  map<string, node_array> group_nodes_map = 2 [ json_name = "group_nodes_map" ];
+  map<string, point> nodes = 3 [ json_name = "nodes" ];
 }
 
 service node_manager {

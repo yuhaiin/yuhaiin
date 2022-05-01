@@ -2,8 +2,6 @@ package config
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -42,9 +40,7 @@ func (c *iconfig) Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 func (c *iconfig) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	for _, v := range s.Server.Servers {
-		refreshHash(v)
-	}
+
 	err := save(s, c.path)
 	if err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %v", err)
@@ -63,12 +59,6 @@ func (c *iconfig) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, er
 	wg.Wait()
 
 	return &emptypb.Empty{}, nil
-}
-
-func refreshHash(p *config.ServerProtocol) {
-	p.Hash = ""
-	z := sha256.Sum256([]byte(p.String()))
-	p.Hash = hex.EncodeToString(z[:])
 }
 
 type Observer interface {
@@ -153,7 +143,6 @@ func load(dir string) *config.Setting {
 			Servers: map[string]*config.ServerProtocol{
 				"http": {
 					Name: "http",
-					Hash: "http",
 					Protocol: &config.ServerProtocol_Http{
 						Http: &config.Http{
 							Host: "127.0.0.1:8188",
@@ -162,7 +151,6 @@ func load(dir string) *config.Setting {
 				},
 				"socks5": {
 					Name: "socks5",
-					Hash: "socks5",
 					Protocol: &config.ServerProtocol_Socks5{
 						Socks5: &config.Socks5{
 							Host: "127.0.0.1:1080",
@@ -171,7 +159,6 @@ func load(dir string) *config.Setting {
 				},
 				"redir": {
 					Name: "redir",
-					Hash: "redir",
 					Protocol: &config.ServerProtocol_Redir{
 						Redir: &config.Redir{
 							Host: "127.0.0.1:8088",
