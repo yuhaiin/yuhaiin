@@ -8,7 +8,7 @@ import (
 var server *cb.Server
 
 func Update(s *cb.Setting) {
-	if server != nil && proto.Equal(server, s.Server) {
+	if proto.Equal(server, s.Server) {
 		return
 	}
 	UnsetSysProxy()

@@ -20,6 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"google.golang.org/protobuf/proto"
 )
 
 // go:embed statics/bypass.gz
@@ -77,54 +78,51 @@ var Mode = map[string]*MODE{
 }
 
 type Shunt struct {
-	file string
-
-	resolver *protoconfig.Dns
-
 	mapper *mapper.Mapper[*MODE]
-	bypass bool
 
-	dialer   proxy.Proxy
-	fileLock sync.RWMutex
+	config *protoconfig.Bypass
+	lock   sync.RWMutex
+
+	resolver *remoteResolver
 }
 
 func newShunt(dialer proxy.Proxy) *Shunt {
+	resolver := newRemoteResolver(dialer)
 	return &Shunt{
-		dialer: dialer,
-		mapper: mapper.NewMapper[*MODE](nil),
+		mapper:   mapper.NewMapper[*MODE](resolver.LookupIP),
+		config:   &protoconfig.Bypass{Enabled: true, BypassFile: ""},
+		resolver: resolver,
 	}
 }
 
 func (s *Shunt) Update(c *protoconfig.Setting) {
-	if s.file == "" || s.file != c.Bypass.BypassFile {
-		s.fileLock.Lock()
-		s.file = c.Bypass.BypassFile
-		s.fileLock.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-		if err := s.Refresh(); err != nil {
+	diff := !proto.Equal(s.config, c.Bypass)
+	s.config = c.Bypass
+
+	if !s.config.Enabled {
+		s.mapper.Clear()
+	}
+
+	if diff && s.config.Enabled {
+		if err := s.refresh(); err != nil {
 			log.Println("refresh bypass file failed:", err)
 		}
 	}
 
-	if s.resolver == nil || diffDNS(s.resolver, c.Dns.Remote) {
-		s.mapper.SetLookup(getDNS(c.Dns.Remote, s.dialer).LookupIP)
-		s.mapper.Insert(getDnsConfig(c.Dns.Remote))
-		s.resolver = c.Dns.Remote
-	}
-
-	s.bypass = c.Bypass.Enabled
+	s.mapper.Insert(getDnsConfig(c.Dns.Remote))
+	s.resolver.Update(c)
 }
 
-func (s *Shunt) Refresh() error {
-	s.fileLock.RLock()
-	defer s.fileLock.RUnlock()
-
-	err := writeDefaultBypassData(s.file)
+func (s *Shunt) refresh() error {
+	err := writeDefaultBypassData(s.config.BypassFile)
 	if err != nil {
 		return fmt.Errorf("copy bypass file failed: %w", err)
 	}
 
-	f, err := os.Open(s.file)
+	f, err := os.Open(s.config.BypassFile)
 	if err != nil {
 		return fmt.Errorf("open bypass file failed: %w", err)
 	}
@@ -162,14 +160,15 @@ func (s *Shunt) Refresh() error {
 }
 
 func (s *Shunt) Get(domain string) MODE {
+	if !s.config.Enabled {
+		return PROXY
+	}
+
 	host, _, err := net.SplitHostPort(domain)
 	if err == nil {
 		domain = host
 	}
 
-	if !s.bypass {
-		return PROXY
-	}
 	m, _ := s.mapper.Search(domain)
 	if m == nil {
 		return PROXY
@@ -197,12 +196,6 @@ func getDnsConfig(dc *protoconfig.Dns) (string, *MODE) {
 	}
 
 	return host, mode
-}
-
-func diffDNS(old, new *protoconfig.Dns) bool {
-	return old.Host != new.Host ||
-		old.Type != new.Type ||
-		old.Subnet != new.Subnet || old.Proxy != new.Proxy
 }
 
 func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {

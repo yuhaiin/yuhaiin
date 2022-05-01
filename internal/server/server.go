@@ -9,12 +9,13 @@ import (
 	rs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"google.golang.org/protobuf/proto"
 )
 
 type listener struct {
 	lock  sync.Mutex
 	store map[string]struct {
-		hash   string
+		config proto.Message
 		server proxy.Server
 	}
 
@@ -39,7 +40,7 @@ func NewListener(pro proxy.Proxy) *listener {
 	}
 	l := &listener{
 		store: make(map[string]struct {
-			hash   string
+			config proto.Message
 			server proxy.Server
 		}),
 		pro: pro,
@@ -70,7 +71,7 @@ func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.Serv
 		return
 	}
 
-	if v.hash == config.Hash {
+	if proto.Equal(v.config, config) {
 		return
 	}
 
@@ -88,10 +89,10 @@ func (l *listener) start(name string, pro proxy.Proxy, config *protoconfig.Serve
 	}
 
 	l.store[name] = struct {
-		hash   string
+		config proto.Message
 		server proxy.Server
 	}{
-		hash:   config.Hash,
+		config: config,
 		server: server,
 	}
 }
@@ -105,7 +106,7 @@ func (l *listener) Close() error {
 	}
 
 	l.store = make(map[string]struct {
-		hash   string
+		config proto.Message
 		server proxy.Server
 	})
 
