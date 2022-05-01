@@ -2,7 +2,6 @@ package parser
 
 import (
 	context "context"
-	"crypto/tls"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -10,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
-	tc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
+	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestParseTrojan(t *testing.T) {
@@ -22,10 +21,14 @@ func TestParseTrojan(t *testing.T) {
 }
 
 func TestTrojan(t *testing.T) {
-	p := simple.NewSimple("1.1.1.1", "443", simple.WithTLS(&tls.Config{ServerName: "x.cn"}))
+	p := &node.Point{
+		Protocols: []*node.PointProtocol{},
+	}
 
-	z, err := tc.NewClient(&node.PointProtocol_Trojan{Trojan: &node.Trojan{Password: "c"}})(p)
-	require.NoError(t, err)
+	err := protojson.Unmarshal([]byte(``), p)
+	require.Nil(t, err)
+	z, err := register.Dialer(p)
+	require.Nil(t, err)
 
 	dns := dns.NewDNS("1.1.1.1:53", nil, z)
 	t.Log(dns.LookupIP("www.google.com"))
