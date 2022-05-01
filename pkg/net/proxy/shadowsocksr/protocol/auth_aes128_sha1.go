@@ -1,8 +1,6 @@
 package protocol
 
 import (
-	"bytes"
-
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
@@ -18,8 +16,8 @@ func NewAuthAES128SHA1(info ProtocolInfo) IProtocol {
 		packID:     1,
 		recvInfo: recvInfo{
 			recvID: 1,
-			wbuf:   bytes.NewBuffer(nil),
-			rbuf:   bytes.NewBuffer(nil),
+			wbuf:   ssr.GetBuffer(),
+			rbuf:   ssr.GetBuffer(),
 		},
 
 		key:    info.Key,

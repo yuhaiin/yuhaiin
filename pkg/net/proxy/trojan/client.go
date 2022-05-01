@@ -1,7 +1,6 @@
 package trojan
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -14,8 +13,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -45,11 +44,9 @@ type OutboundConn struct {
 
 func (c *OutboundConn) WriteHeader() (err error) {
 	c.headerWrittenOnce.Do(func() {
-		packet := utils.GetBytes(MaxPacketSize)
-		defer utils.PutBytes(packet)
+		buf := ssr.GetBuffer()
+		defer ssr.PutBuffer(buf)
 
-		buf := bytes.NewBuffer(packet)
-		buf.Reset()
 		buf.Write(c.password)
 		buf.Write(crlf)
 		buf.WriteByte(byte(c.cmd))
@@ -130,10 +127,8 @@ type PacketConn struct {
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
-	packet := utils.GetBytes(MaxPacketSize)
-	defer utils.PutBytes(packet)
-
-	w := bytes.NewBuffer(packet)
+	w := ssr.GetBuffer()
+	defer ssr.PutBuffer(w)
 
 	err := s5c.ParseAddrWriter(addr.String(), w)
 	if err != nil {
@@ -162,13 +157,13 @@ func (c *PacketConn) ReadFrom(payload []byte) (int, net.Addr, error) {
 
 	lengthBuf := [2]byte{}
 	if _, err := io.ReadFull(c.Conn, lengthBuf[:]); err != nil {
-		return 0, nil, fmt.Errorf("failed to read length")
+		return 0, nil, fmt.Errorf("read length failed: %w", err)
 	}
 	length := int(binary.BigEndian.Uint16(lengthBuf[:]))
 
 	crlf := [2]byte{}
 	if _, err := io.ReadFull(c.Conn, crlf[:]); err != nil {
-		return 0, nil, fmt.Errorf("failed to read crlf")
+		return 0, nil, fmt.Errorf("read crlf failed: %w", err)
 	}
 
 	if len(payload) < length || length > MaxPacketSize {
