@@ -58,7 +58,7 @@ _start:
 		// _, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
 		er := resp503(src)
 		if er != nil {
-			return fmt.Errorf("resp 503 failed: %v", er)
+			err = fmt.Errorf("%w\nresp 503 failed: %v", err, er)
 		}
 		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
