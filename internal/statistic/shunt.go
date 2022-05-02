@@ -23,7 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// go:embed statics/bypass.gz
+//go:embed statics/bypass.gz
 var BYPASS_DATA []byte
 
 func writeDefaultBypassData(target string) error {

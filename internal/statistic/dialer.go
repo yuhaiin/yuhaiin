@@ -31,7 +31,7 @@ func (d *dialer) Update(s *protoconfig.Setting) {
 		return
 	}
 
-	d.store.Store(DIRECT, direct.NewDirect(direct.WithLookup(getDNS(s.Dns.Local, nil).LookupIP)))
+	d.store.Store(DIRECT, direct.NewDirect(direct.WithLookup(getDNS(s.Dns.Local, nil))))
 	d.local = s.Dns.Local
 }
 
