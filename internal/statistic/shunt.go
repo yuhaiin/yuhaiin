@@ -16,7 +16,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -88,8 +87,11 @@ type Shunt struct {
 
 func newShunt(dialer proxy.Proxy) *Shunt {
 	resolver := newRemoteResolver(dialer)
+	mapr := mapper.NewMapper[*MODE](resolver.LookupIP)
+	mapr.WrapPrefixSearch(resolver)
+
 	return &Shunt{
-		mapper:   mapper.NewMapper[*MODE](resolver.LookupIP),
+		mapper:   mapr,
 		config:   &protoconfig.Bypass{Enabled: true, BypassFile: ""},
 		resolver: resolver,
 	}
@@ -112,7 +114,6 @@ func (s *Shunt) Update(c *protoconfig.Setting) {
 		}
 	}
 
-	s.mapper.Insert(getDnsConfig(c.Dns.Remote))
 	s.resolver.Update(c)
 }
 
@@ -174,60 +175,4 @@ func (s *Shunt) Get(domain string) MODE {
 		return PROXY
 	}
 	return *m
-}
-
-func getDnsConfig(dc *protoconfig.Dns) (string, *MODE) {
-	host := dc.Host
-	if dc.Type == protoconfig.Dns_doh {
-		i := strings.IndexByte(dc.Host, '/')
-		if i != -1 {
-			host = dc.Host[:i] // remove doh path
-		}
-	}
-
-	h, _, err := net.SplitHostPort(host)
-	if err == nil {
-		host = h
-	}
-
-	mode := &PROXY
-	if !dc.Proxy {
-		mode = &DIRECT
-	}
-
-	return host, mode
-}
-
-func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
-	_, subnet, err := net.ParseCIDR(dc.Subnet)
-	if err != nil {
-		p := net.ParseIP(dc.Subnet)
-		if p != nil { // no mask
-			var mask net.IPMask
-			if p.To4() == nil { // ipv6
-				mask = net.IPMask{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
-			} else {
-				mask = net.IPMask{255, 255, 255, 255}
-			}
-
-			subnet = &net.IPNet{IP: p, Mask: mask}
-		}
-	}
-
-	if !dc.Proxy {
-		proxy = nil
-	}
-
-	switch dc.Type {
-	case protoconfig.Dns_doh:
-		return dns.NewDoH(dc.Host, subnet, proxy)
-	case protoconfig.Dns_dot:
-		return dns.NewDoT(dc.Host, subnet, proxy)
-	case protoconfig.Dns_tcp:
-		fallthrough
-	case protoconfig.Dns_udp:
-		fallthrough
-	default:
-		return dns.NewDNS(dc.Host, subnet, proxy)
-	}
 }

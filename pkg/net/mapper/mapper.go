@@ -7,6 +7,7 @@ import (
 )
 
 type Mapper[T any] struct {
+	preMap []Search[T]
 	lookup *value[func(string) ([]net.IP, error)]
 	cidr   *Cidr[T]
 	domain *domain[T]
@@ -39,6 +40,13 @@ func (x *Mapper[T]) lookupIP(s string) ([]net.IP, error) {
 }
 
 func (x *Mapper[T]) Search(str string) (mark T, ok bool) {
+	for _, f := range x.preMap {
+		mark, ok = f.Search(str)
+		if ok {
+			return
+		}
+	}
+
 	if ip := net.ParseIP(str); ip != nil {
 		return x.cidr.SearchIP(ip)
 	}
@@ -52,6 +60,14 @@ func (x *Mapper[T]) Search(str string) (mark T, ok bool) {
 	}
 
 	return
+}
+
+type Search[T any] interface {
+	Search(string) (T, bool)
+}
+
+func (x *Mapper[T]) WrapPrefixSearch(f Search[T]) {
+	x.preMap = append(x.preMap, f)
 }
 
 func (x *Mapper[T]) Clear() {
