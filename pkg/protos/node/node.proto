@@ -155,8 +155,14 @@ service node_manager {
 }
 
 message latency_req {
-  repeated string node_hash = 1 [ json_name = "node_hash" ];
+  message request {
+    string hash = 1 [ json_name = "hash" ];
+    bool udp = 2 [ json_name = "udp" ];
+    bool tcp = 3 [ json_name = "tcp" ];
+  }
+  repeated request requests = 1 [ json_name = "requests" ];
 }
+
 message latency_resp {
   message latency {
     string tcp = 1 [ json_name = "tcp" ];

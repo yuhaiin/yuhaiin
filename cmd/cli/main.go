@@ -525,7 +525,13 @@ func (y *yhCli) getHash(i, z int) (string, error) {
 }
 
 func (y *yhCli) latency(hash string) error {
-	l, err := y.sub.Latency(context.Background(), &node.LatencyReq{NodeHash: []string{hash}})
+	l, err := y.sub.Latency(context.Background(), &node.LatencyReq{
+		Requests: []*node.LatencyReqRequest{
+			{
+				Hash: hash,
+				Tcp:  true,
+			},
+		}})
 	if err != nil {
 		return fmt.Errorf("get latency failed: %w", err)
 	}
@@ -551,7 +557,12 @@ func (y *yhCli) latencyAll(i int) {
 		wg.Add(1)
 		go func(name, hash string) {
 			defer wg.Done()
-			l, err := y.sub.Latency(context.TODO(), &node.LatencyReq{NodeHash: []string{hash}})
+			l, err := y.sub.Latency(context.TODO(), &node.LatencyReq{Requests: []*node.LatencyReqRequest{
+				{
+					Hash: hash,
+					Tcp:  true,
+				},
+			}})
 			if err != nil {
 				fmt.Printf("%s: %v\n", name, err)
 				return

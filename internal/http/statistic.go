@@ -3,16 +3,17 @@ package simplehttp
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/net/websocket"
-	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -22,7 +23,9 @@ var statisticJS []byte
 
 func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 	mux.HandleFunc("/conn/list", func(w http.ResponseWriter, r *http.Request) {
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
+
 		str.WriteString(fmt.Sprintf(`<script>%s</script>`, statisticJS))
 		str.WriteString(`<pre id="statistic">Loading...</pre>`)
 		str.WriteString("<hr/>")
@@ -59,7 +62,8 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 		}
 		sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
 
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
 
 		for _, c := range conns.GetConnections() {
 			str.WriteString("<p>")
@@ -69,7 +73,7 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 			str.WriteString("</p>")
 		}
 
-		w.Write([]byte(str.String()))
+		w.Write(str.Bytes())
 	})
 
 	var server *websocket.Server
@@ -81,6 +85,7 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 
 		server = &websocket.Server{
 			Handler: func(c *websocket.Conn) {
+				defer c.Close()
 				ctx, cancel := context.WithCancel(context.TODO())
 				go func() {
 					var tmp string
@@ -90,15 +95,20 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 					}
 				}()
 
-				stt.Statistic(&emptypb.Empty{}, newStatisticSend(ctx, func(rr *statistic.RateResp) error {
-					data, _ := protojson.Marshal(rr)
-					err := websocket.Message.Send(c, *(*string)(unsafe.Pointer(&data)))
-					if err != nil {
-						cancel()
-					}
-
-					return err
-				}))
+				stt.Statistic(
+					&emptypb.Empty{},
+					&statisticServer{
+						ctx,
+						func(rr *statistic.RateResp) error {
+							data, _ := protojson.Marshal(rr)
+							err := websocket.Message.Send(c, *(*string)(unsafe.Pointer(&data)))
+							if err != nil {
+								cancel()
+							}
+							return err
+						},
+					},
+				)
 
 			},
 		}
@@ -106,22 +116,20 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 	})
 }
 
-var _ statistic.Connections_StatisticServer = &statisticSend{}
+var _ statistic.Connections_StatisticServer = &statisticServer{}
 
-type statisticSend struct {
-	grpc.ServerStream
-	send func(*statistic.RateResp) error
+type statisticServer struct {
 	ctx  context.Context
+	send func(*statistic.RateResp) error
 }
 
-func newStatisticSend(ctx context.Context, send func(*statistic.RateResp) error) *statisticSend {
-	return &statisticSend{ctx: ctx, send: send}
-}
+func (s *statisticServer) Send(statistic *statistic.RateResp) error { return s.send(statistic) }
+func (s *statisticServer) Context() context.Context                 { return s.ctx }
 
-func (s *statisticSend) Send(statistic *statistic.RateResp) error {
-	return s.send(statistic)
-}
+var errNotImpl = errors.New("not implemented")
 
-func (s *statisticSend) Context() context.Context {
-	return s.ctx
-}
+func (s *statisticServer) SetHeader(metadata.MD) error  { return errNotImpl }
+func (s *statisticServer) SendHeader(metadata.MD) error { return errNotImpl }
+func (s *statisticServer) SetTrailer(metadata.MD)       {}
+func (s *statisticServer) SendMsg(m interface{}) error  { return errNotImpl }
+func (s *statisticServer) RecvMsg(m interface{}) error  { return errNotImpl }

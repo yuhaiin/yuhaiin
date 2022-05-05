@@ -38,7 +38,15 @@ func TestNodeManager(t *testing.T) {
 	// }
 	hash := "db084f1d4f90140540e47a13ca77204d1f597e933481d58dfe2e5860f76f75ff"
 	t.Log(n.GetNode(context.TODO(), &wrapperspb.StringValue{Value: hash}))
-	t.Log(n.Latency(context.TODO(), &node.LatencyReq{NodeHash: []string{hash}}))
+	t.Log(n.Latency(context.TODO(), &node.LatencyReq{
+		Requests: []*node.LatencyReqRequest{
+			{
+				Hash: hash,
+				Udp:  true,
+				Tcp:  true,
+			},
+		},
+	}))
 	// t.Log(n.node)
 }
 

@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"bytes"
 	"io"
 	"math/bits"
 	"net"
@@ -38,6 +38,19 @@ func GetBytes(size int) []byte {
 func PutBytes(b []byte) {
 	l := bits.Len(uint(len(b))) - 1
 	buffPool(1 << l).Put(b) //lint:ignore SA6002 ignore temporarily
+}
+
+var bufpool = sync.Pool{
+	New: func() any { return bytes.NewBuffer(nil) },
+}
+
+func GetBuffer() *bytes.Buffer {
+	return bufpool.Get().(*bytes.Buffer)
+}
+
+func PutBuffer(b *bytes.Buffer) {
+	b.Reset()
+	bufpool.Put(b)
 }
 
 //Relay pipe
@@ -89,19 +102,26 @@ var (
 	TB Unit = 4
 	//PB .
 	PB Unit = 5
-	//B2 .
-	B2 = "B"
-	//KB2 .
-	KB2 = "KB"
-	//MB2 .
-	MB2 = "MB"
-	//GB2 .
-	GB2 = "GB"
-	//TB2 .
-	TB2 = "TB"
-	//PB2 .
-	PB2 = "PB"
 )
+
+func (u Unit) String() string {
+	switch u {
+	case B:
+		return "B"
+	case KB:
+		return "KB"
+	case MB:
+		return "MB"
+	case GB:
+		return "GB"
+	case TB:
+		return "TB"
+	case PB:
+		return "PB"
+	default:
+		return "B"
+	}
+}
 
 //ReducedUnit .
 func ReducedUnit(byte float64) (result float64, unit Unit) {
@@ -121,24 +141,4 @@ func ReducedUnit(byte float64) (result float64, unit Unit) {
 		return byte / 1024, KB //KB
 	}
 	return byte, B //B
-}
-
-//ReducedUnitToString .
-func ReducedUnitToString(byte float64) (result string) {
-	if byte > 1125899906842624 {
-		return fmt.Sprintf("%.2f%s", byte/1125899906842624, PB2) //PB
-	}
-	if byte > 1099511627776 {
-		return fmt.Sprintf("%.2f%s", byte/1099511627776, TB2) //TB
-	}
-	if byte > 1073741824 {
-		return fmt.Sprintf("%.2f%s", byte/1073741824, GB2) //GB
-	}
-	if byte > 1048576 {
-		return fmt.Sprintf("%.2f%s", byte/1048576, MB2) //MB
-	}
-	if byte > 1024 {
-		return fmt.Sprintf("%.2f%s", byte/1024, KB2) //KB
-	}
-	return fmt.Sprintf("%.2f%s", byte, B2) //B
 }

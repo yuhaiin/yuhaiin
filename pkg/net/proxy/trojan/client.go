@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -44,8 +44,8 @@ type OutboundConn struct {
 
 func (c *OutboundConn) WriteHeader() (err error) {
 	c.headerWrittenOnce.Do(func() {
-		buf := ssr.GetBuffer()
-		defer ssr.PutBuffer(buf)
+		buf := utils.GetBuffer()
+		defer utils.PutBuffer(buf)
 
 		buf.Write(c.password)
 		buf.Write(crlf)
@@ -127,8 +127,8 @@ type PacketConn struct {
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
-	w := ssr.GetBuffer()
-	defer ssr.PutBuffer(w)
+	w := utils.GetBuffer()
+	defer utils.PutBuffer(w)
 
 	err := s5c.ParseAddrWriter(addr.String(), w)
 	if err != nil {

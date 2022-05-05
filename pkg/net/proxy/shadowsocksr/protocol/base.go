@@ -145,15 +145,15 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 		Conn:                c,
 		protocol:            p,
 		readBuf:             utils.GetBytes(2048),
-		decryptedBuf:        ssr.GetBuffer(),
-		underPostdecryptBuf: ssr.GetBuffer(),
+		decryptedBuf:        utils.GetBuffer(),
+		underPostdecryptBuf: utils.GetBuffer(),
 	}
 }
 
 func (c *protocolConn) Close() error {
 	utils.PutBytes(c.readBuf)
-	ssr.PutBuffer(c.decryptedBuf)
-	ssr.PutBuffer(c.underPostdecryptBuf)
+	utils.PutBuffer(c.decryptedBuf)
+	utils.PutBuffer(c.underPostdecryptBuf)
 	c.protocol.Close()
 	return c.Conn.Close()
 }
