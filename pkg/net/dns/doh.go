@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -157,7 +156,7 @@ type dohUDPConn struct {
 
 func dohConn(handle func(io.Reader) (io.ReadCloser, error)) net.Conn {
 	return &dohUDPConn{
-		buffer: ssr.GetBuffer(),
+		buffer: utils.GetBuffer(),
 		handle: handle,
 	}
 }
@@ -203,7 +202,7 @@ func (d *dohUDPConn) Close() error {
 	if d.body != nil {
 		return d.body.Close()
 	}
-	ssr.PutBuffer(d.buffer)
+	utils.PutBuffer(d.buffer)
 
 	return nil
 }

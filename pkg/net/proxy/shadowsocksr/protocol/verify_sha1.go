@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 func init() {
@@ -26,7 +27,7 @@ const (
 func NewVerifySHA1(info ProtocolInfo) IProtocol {
 	a := &verifySHA1{
 		ProtocolInfo: info,
-		buffer:       ssr.GetBuffer(),
+		buffer:       utils.GetBuffer(),
 	}
 	return a
 }

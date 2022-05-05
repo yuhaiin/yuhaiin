@@ -1,6 +1,7 @@
 package statistic
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -45,7 +46,8 @@ func (c *accountant) start() {
 
 	c.started = make(chan bool)
 	reduce := func(u uint64) string {
-		return utils.ReducedUnitToString(float64(u))
+		r, unit := utils.ReducedUnit(float64(u))
+		return fmt.Sprintf("%.2f%s", r, unit.String())
 	}
 
 	go func() {

@@ -275,11 +275,11 @@ func (n *Nodes) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyR
 	var respLock sync.Mutex
 
 	var wg sync.WaitGroup
-	for _, s := range req.NodeHash {
+	for _, s := range req.Requests {
 		wg.Add(1)
-		go func(s string) {
+		go func(s *node.LatencyReqRequest) {
 			defer wg.Done()
-			p, err := n.GetNode(c, &wrapperspb.StringValue{Value: s})
+			p, err := n.GetNode(c, &wrapperspb.StringValue{Value: s.GetHash()})
 			if err != nil {
 				return
 			}
@@ -290,17 +290,22 @@ func (n *Nodes) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyR
 			}
 
 			var tcp, udp string
-			t, err := latency.HTTP(px, "https://www.google.com/generate_204")
-			if err == nil {
-				tcp = t.String()
+			if s.Tcp {
+				t, err := latency.HTTP(px, "https://www.google.com/generate_204")
+				if err == nil {
+					tcp = t.String()
+				}
 			}
-			t, err = latency.DNS(px, "1.1.1.1:53", "www.google.com")
-			if err == nil {
-				udp = t.String()
+
+			if s.Udp {
+				t, err := latency.DNS(px, "1.1.1.1:53", "www.google.com")
+				if err == nil {
+					udp = t.String()
+				}
 			}
 
 			respLock.Lock()
-			resp.HashLatencyMap[s] = &node.LatencyRespLatency{Tcp: tcp, Udp: udp}
+			resp.HashLatencyMap[s.Hash] = &node.LatencyRespLatency{Tcp: tcp, Udp: udp}
 			respLock.Unlock()
 		}(s)
 	}

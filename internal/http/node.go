@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sort"
-	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -47,7 +47,8 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 		}
 		sort.Strings(ns.Groups)
 
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
 
 		for _, n := range ns.GetGroups() {
 			str.WriteString(fmt.Sprintf(`<a href="/nodes?group=%s">%s</a>`, n, n))
@@ -74,7 +75,8 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 		nds := ns.GroupNodesMap[group].Nodes
 		sort.Strings(nds)
 
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
 
 		str.WriteString(fmt.Sprintf(`<script>%s</script>`, nodeJS))
 		for _, v := range nds {
@@ -110,7 +112,9 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 			return
 		}
 
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
+
 		str.WriteString("<script>")
 		str.Write(configJS)
 		str.WriteString("</script>")
@@ -126,7 +130,9 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 	})
 
 	mux.HandleFunc("/node/add", func(w http.ResponseWriter, r *http.Request) {
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
+
 		str.WriteString("<script>")
 		str.Write(configJS)
 		str.WriteString("</script>")
@@ -200,7 +206,9 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 	mux.HandleFunc("/node/template", func(w http.ResponseWriter, r *http.Request) {
 		create := func(name string, data proto.Message) string {
 			b, _ := protojson.MarshalOptions{Indent: "  ", EmitUnpopulated: true}.Marshal(data)
-			str := strings.Builder{}
+			str := utils.GetBuffer()
+			defer utils.PutBuffer(str)
+
 			str.WriteString("<hr/>")
 			str.WriteString(name)
 			str.WriteString("<pre>")
@@ -210,7 +218,9 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 			return str.String()
 		}
 
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
+
 		str.WriteString("TEMPLATE")
 		str.WriteString(create("simple", &node.PointProtocol{Protocol: &node.PointProtocol_Simple{Simple: &node.Simple{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}}))
 		str.WriteString(create("none", &node.PointProtocol{Protocol: &node.PointProtocol_None{}}))
@@ -229,7 +239,9 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 
 	mux.HandleFunc("/latency", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
-		lt, err := nm.Latency(context.TODO(), &node.LatencyReq{NodeHash: []string{hash}})
+		t := r.URL.Query().Get("type")
+		lt, err := nm.Latency(context.TODO(), &node.LatencyReq{
+			Requests: []*node.LatencyReqRequest{{Hash: hash, Tcp: t == "tcp", Udp: t == "udp"}}})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -239,7 +251,14 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 			return
 		}
 
-		w.Write([]byte(fmt.Sprintf(`{"tcp":"%s","udp":"%s"}`, lt.HashLatencyMap[hash].Tcp, lt.HashLatencyMap[hash].Udp)))
+		var resp string
+		if t == "tcp" {
+			resp = lt.HashLatencyMap[hash].Tcp
+		} else if t == "udp" {
+			resp = lt.HashLatencyMap[hash].Udp
+		}
+
+		w.Write([]byte(resp))
 	})
 
 	mux.HandleFunc("/use", func(w http.ResponseWriter, r *http.Request) {
@@ -269,7 +288,9 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 			return
 		}
 
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
+
 		str.Write(toastHTML)
 		str.WriteString("<script>")
 		str.Write(subJS)

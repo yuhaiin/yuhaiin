@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -30,7 +30,8 @@ func initConfig(mux *http.ServeMux, cf config.ConfigDaoServer) {
 			return
 		}
 
-		str := strings.Builder{}
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
 		str.WriteString("<script>")
 		str.Write(configJS)
 		str.WriteString("</script>")

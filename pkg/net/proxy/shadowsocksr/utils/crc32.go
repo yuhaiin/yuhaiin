@@ -1,6 +1,8 @@
 package ssr
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 var (
 	crc32Table = make([]uint32, 256)
@@ -24,29 +26,23 @@ func createCRC32Table() {
 	}
 }
 
-func CalcCRC32(input []byte, length int, value uint32) uint32 {
-	value = 0xFFFFFFFF
-	return DoCalcCRC32(input, 0, length, value)
+func CalcCRC32(input []byte, length int) uint32 {
+	return doCalcCRC32(input, length, 0xFFFFFFFF)
 }
 
-func DoCalcCRC32(input []byte, index int, length int, value uint32) uint32 {
+func doCalcCRC32(input []byte, length int, value uint32) uint32 {
 	buffer := input
-	for i := index; i < length; i++ {
+	for i := 0; i < length; i++ {
 		value = (value >> 8) ^ crc32Table[byte(value&0xFF)^buffer[i]]
 	}
 	return value ^ 0xFFFFFFFF
 }
 
-func DoSetCRC32(buffer []byte, index int, length int) {
-	crc := CalcCRC32(buffer[:length-4], length-4, 0xFFFFFFFF)
-	binary.LittleEndian.PutUint32(buffer[length-4:], crc^0xFFFFFFFF)
-}
-
 func SetCRC32(buffer []byte, length int) {
-	DoSetCRC32(buffer, 0, length)
+	doSetCRC32(buffer, length)
 }
 
-func CheckCRC32(buffer []byte, length int) bool {
-	crc := CalcCRC32(buffer, length, 0xFFFFFFFF)
-	return crc == 0xFFFFFFFF
+func doSetCRC32(buffer []byte, length int) {
+	crc := CalcCRC32(buffer[:length-4], length-4)
+	binary.LittleEndian.PutUint32(buffer[length-4:], crc^0xFFFFFFFF)
 }
