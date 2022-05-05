@@ -10,7 +10,7 @@ import (
 )
 
 type direct struct {
-	dialer   *net.Dialer
+	dns      dns.DNS
 	listener *net.ListenConfig
 }
 
@@ -18,19 +18,14 @@ type Option func(*direct)
 
 func WithLookup(dns dns.DNS) Option {
 	return func(d *direct) {
-		d.dialer.Resolver = dns.Resolver()
+		d.dns = dns
 	}
 }
 
 var Default proxy.Proxy = NewDirect()
 
 func NewDirect(o ...Option) proxy.Proxy {
-	d := &direct{
-		dialer: &net.Dialer{
-			Timeout: time.Second * 10,
-		},
-		listener: &net.ListenConfig{},
-	}
+	d := &direct{listener: &net.ListenConfig{}}
 
 	for _, opt := range o {
 		opt(d)
@@ -40,7 +35,7 @@ func NewDirect(o ...Option) proxy.Proxy {
 }
 
 func (d *direct) Conn(s string) (net.Conn, error) {
-	return d.dialer.Dial("tcp", s)
+	return (&net.Dialer{Timeout: time.Second * 10, Resolver: d.dns.Resolver()}).Dial("tcp", s)
 }
 
 func (d *direct) PacketConn(string) (net.PacketConn, error) {

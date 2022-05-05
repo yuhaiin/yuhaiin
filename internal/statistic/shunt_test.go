@@ -82,5 +82,5 @@ func TestM(t *testing.T) {
 }
 
 func TestGetDNSHostnameAndMode(t *testing.T) {
-	t.Log(getDnsConfig(&protoconfig.Dns{Host: "1.1.1.1"}))
+	t.Log(getDnsConfig(&protoconfig.Dns{Host: "https://[ff::ff]:443/dns-query", Type: protoconfig.Dns_doh}))
 }
