@@ -1,35 +1,39 @@
 function latency(id) {
     const test = document.querySelector('#i' + id + ' .test');
-    const tcp = document.querySelector('#i' + id + ' .tcp');
-    const udp = document.querySelector('#i' + id + ' .udp');
 
     test.innerText = "Testing...";
 
+    var tcp = false;
+    var udp = false;
+    var updateTestText = () => { if (tcp && udp) test.innerText = "Test"; };
+
+    lat(id, "tcp", () => {
+        tcp = true;
+        updateTestText();
+    });
+    lat(id, "udp", () => {
+        udp = true;
+        updateTestText();
+    });
+}
+
+function lat(id, type, callback) {
+    const elem = document.querySelector('#i' + id + ' .' + type);
+
     var xmlhttp = new XMLHttpRequest();
-    xmlhttp.open("GET", "/latency?hash=" + id, true);
-    xmlhttp.send();
+    xmlhttp.open("GET", "/latency?hash=" + id + "&type=" + type, true);
     xmlhttp.onreadystatechange = function() {
         if (xmlhttp.readyState != 4) return;
         let latency = null;
         if (xmlhttp.status == 200) {
-            latency = JSON.parse(xmlhttp.responseText);
-            console.log('get data：', latency);
+            latency = xmlhttp.responseText;
+            console.log('get ' + type + ' data：', latency);
         }
 
-        if (latency != null && latency.tcp != "") {
-            tcp.innerText = latency.tcp;
-        } else {
-            tcp.innerText = "9999.99ms";
-        }
-
-        if (latency != null && latency.udp != "") {
-            udp.innerText = latency.udp;
-        } else {
-            udp.innerText = "9999.99ms";
-        }
-
-        test.innerText = "Test";
+        elem.innerText = latency != "" ? latency : "9999.99ms";
+        callback();
     }
+    xmlhttp.send();
 }
 
 function del(hash) {

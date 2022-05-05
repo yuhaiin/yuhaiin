@@ -1,7 +1,5 @@
 package ssr
 
-import "encoding/binary"
-
 func calcShortAdler32(input []byte, a, b uint32) (uint32, uint32) {
 	for _, i := range input {
 		a += uint32(i)
@@ -22,10 +20,4 @@ func CalcAdler32(input []byte) uint32 {
 	}
 	a, b = calcShortAdler32(input, a, b)
 	return (b << 16) + a
-}
-
-func CheckAdler32(input []byte, l int) bool {
-	adler32 := CalcAdler32(input[:l-4])
-	checksum := binary.LittleEndian.Uint32(input[l-4:])
-	return adler32 == checksum
 }
