@@ -106,7 +106,7 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 			return
 		}
 
-		data, err := protojson.MarshalOptions{Indent: "  "}.Marshal(n)
+		data, err := protojson.MarshalOptions{Indent: "  ", EmitUnpopulated: true}.Marshal(n)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
