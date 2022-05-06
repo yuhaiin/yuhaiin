@@ -43,16 +43,26 @@ func init() {
 			Address string      `json:"add,omitempty"`
 			Port    interface{} `json:"port,omitempty"`
 			// uuid
-			Uuid string `json:"id,omitempty"`
+			Uuid     string `json:"id,omitempty"`
+			Security string `json:"security,omitempty"`
 			// alter id
 			AlterId interface{} `json:"aid,omitempty"`
+
 			// name
-			Ps string `json:"ps,omitempty"`
+			Ps     string `json:"ps,omitempty"`
+			Remark string `json:"remark,omitempty"`
+
 			// (tcp\kcp\ws\h2\quic)
 			Net string `json:"net,omitempty"`
+
 			// fake type [(none\http\srtp\utp\wechat-video) *tcp or kcp or QUIC]
-			Type string `json:"type,omitempty"`
-			Tls  string `json:"tls,omitempty"`
+			Type       string `json:"type,omitempty"`
+			HeaderType string `json:"headerType,omitempty"`
+
+			Tls        string `json:"tls,omitempty"`
+			Sni        string `json:"sni,omitempty"`
+			VerifyCert bool   `json:"verify_cert,omitempty"`
+
 			// 1)http host(cut up with (,) )
 			// 2)ws host
 			// 3)h2 host
@@ -61,15 +71,18 @@ func init() {
 			// 1)ws path
 			// 2)h2 path
 			// 3)QUIC key/Kcp seed
-			Path       string `json:"path,omitempty"`
-			V          string `json:"v,omitempty"`
-			VerifyCert bool   `json:"verify_cert,omitempty"`
-			Class      int64  `json:"class,omitempty"`
-			Security   string `json:"security,omitempty"`
+			Path string `json:"path,omitempty"`
+
+			V     string `json:"v,omitempty"`
+			Class int64  `json:"class,omitempty"`
 		}{}
 		err := json.Unmarshal(trim(DecodeBase64Bytes(bytes.TrimPrefix(data, []byte("vmess://")))), &n)
 		if err != nil {
 			return nil, err
+		}
+
+		if n.Ps == "" {
+			n.Ps = n.Remark
 		}
 
 		port, err := strconv.Atoi(get(n.Port))
@@ -77,7 +90,10 @@ func init() {
 			return nil, fmt.Errorf("vmess port is not a number: %v", err)
 		}
 
-		switch n.Type {
+		if n.HeaderType == "" {
+			n.HeaderType = n.Type
+		}
+		switch n.HeaderType {
 		case "none":
 		default:
 			return nil, fmt.Errorf("vmess type is not supported: %v", n.Type)
@@ -86,10 +102,15 @@ func init() {
 		var net *node.PointProtocol
 		switch n.Net {
 		case "ws":
-			ns, _, err := sysnet.SplitHostPort(n.Host)
-			if err != nil {
-				log.Printf("split host and port failed: %v", err)
-				ns = n.Host
+			if n.Host == "" {
+				n.Host = sysnet.JoinHostPort(n.Address, get(n.Port))
+			}
+			if n.Sni == "" {
+				n.Sni, _, err = sysnet.SplitHostPort(n.Host)
+				if err != nil {
+					log.Printf("split host and port failed: %v", err)
+					n.Sni = n.Host
+				}
 			}
 
 			net = &node.PointProtocol{
@@ -98,7 +119,7 @@ func init() {
 						Host: n.Host,
 						Path: n.Path,
 						Tls: &node.TlsConfig{
-							ServerName:         ns,
+							ServerName:         n.Sni,
 							InsecureSkipVerify: !n.VerifyCert,
 							Enable:             n.Tls == "tls",
 							CaCert:             nil,

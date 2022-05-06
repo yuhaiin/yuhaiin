@@ -65,7 +65,6 @@ func TestVmess(t *testing.T) {
 	}
 	req.Header.Set("User-Agent", "curl/v2.4.1")
 	resp, err := tt.Do(&req)
-	t.Error(err)
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
