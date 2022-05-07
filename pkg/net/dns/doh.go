@@ -148,10 +148,12 @@ var _ net.Conn = (*dohUDPConn)(nil)
 var _ net.PacketConn = (*dohUDPConn)(nil)
 
 type dohUDPConn struct {
-	deadline time.Time
-	buffer   *bytes.Buffer
-	handle   func(io.Reader) (io.ReadCloser, error)
-	body     io.ReadCloser
+	hasDeadline bool
+	deadline    time.Time
+
+	buffer *bytes.Buffer
+	handle func(io.Reader) (io.ReadCloser, error)
+	body   io.ReadCloser
 }
 
 func dohConn(handle func(io.Reader) (io.ReadCloser, error)) net.Conn {
@@ -171,7 +173,7 @@ func (d *dohUDPConn) Read(data []byte) (int, error) {
 }
 
 func (d *dohUDPConn) WriteTo(data []byte, _ net.Addr) (int, error) {
-	if time.Now().After(d.deadline) {
+	if d.hasDeadline && time.Now().After(d.deadline) {
 		return 0, fmt.Errorf("write deadline")
 	}
 
@@ -180,7 +182,7 @@ func (d *dohUDPConn) WriteTo(data []byte, _ net.Addr) (int, error) {
 }
 
 func (d *dohUDPConn) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
-	if time.Now().After(d.deadline) {
+	if d.hasDeadline && time.Now().After(d.deadline) {
 		return 0, nil, fmt.Errorf("read deadline")
 	}
 
@@ -194,6 +196,8 @@ func (d *dohUDPConn) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
 	n, err = d.body.Read(data)
 	if err != nil && errors.Is(err, io.EOF) {
 		err = nil
+		d.body.Close()
+		d.body = nil
 	}
 	return n, &net.IPAddr{IP: net.IPv4zero}, err
 }
@@ -208,6 +212,9 @@ func (d *dohUDPConn) Close() error {
 }
 
 func (d *dohUDPConn) SetDeadline(t time.Time) error {
+	if t.IsZero() {
+		d.hasDeadline = false
+	}
 	d.deadline = t
 	return nil
 }

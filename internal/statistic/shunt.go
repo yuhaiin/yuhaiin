@@ -17,7 +17,6 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
@@ -81,19 +80,14 @@ type Shunt struct {
 
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
-
-	resolver *remoteResolver
 }
 
-func newShunt(dialer proxy.Proxy) *Shunt {
-	resolver := newRemoteResolver(dialer)
+func newShunt(resolver *remoteResolver) *Shunt {
 	mapr := mapper.NewMapper[*MODE](resolver.LookupIP)
-	mapr.WrapPrefixSearch(resolver)
 
 	return &Shunt{
-		mapper:   mapr,
-		config:   &protoconfig.Bypass{Enabled: true, BypassFile: ""},
-		resolver: resolver,
+		mapper: mapr,
+		config: &protoconfig.Bypass{Enabled: true, BypassFile: ""},
 	}
 }
 
@@ -113,8 +107,6 @@ func (s *Shunt) Update(c *protoconfig.Setting) {
 			log.Println("refresh bypass file failed:", err)
 		}
 	}
-
-	s.resolver.Update(c)
 }
 
 func (s *Shunt) refresh() error {

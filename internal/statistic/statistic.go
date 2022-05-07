@@ -2,9 +2,11 @@ package statistic
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -20,9 +22,13 @@ type Statistic struct {
 	accountant
 
 	idSeed idGenerater
-	dialer *dialer
 	conns  syncmap.SyncMap[int64, connection]
 	shunt  *Shunt
+
+	remoteResolver *remoteResolver
+	localResolver  *localResolver
+
+	dial func(MODE) proxy.Proxy
 }
 
 func NewStatistic(dialer proxy.Proxy) *Statistic {
@@ -30,15 +36,31 @@ func NewStatistic(dialer proxy.Proxy) *Statistic {
 		dialer = &proxy.Default{}
 	}
 
-	c := &Statistic{dialer: newDialer(dialer)}
+	c := &Statistic{}
 
-	c.shunt = newShunt(c)
+	c.remoteResolver = newRemoteResolver(&resolverProxy{c})
+	c.localResolver = newLocalResolver(&directProxy{c})
+	c.shunt = newShunt(c.remoteResolver)
+
+	direct := direct.NewDirect(direct.WithLookup(c.localResolver))
+	block := proxy.NewErrProxy(errors.New("blocked"))
+	c.dial = func(m MODE) proxy.Proxy {
+		switch m {
+		case DIRECT:
+			return direct
+		case BLOCK:
+			return block
+		}
+		return dialer
+	}
+
 	return c
 }
 
 func (c *Statistic) Update(s *protoconfig.Setting) {
-	c.dialer.Update(s)
 	c.shunt.Update(s)
+	c.localResolver.Update(s)
+	c.remoteResolver.Update(s)
 }
 
 func (c *Statistic) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
@@ -78,10 +100,16 @@ func (c *Statistic) delete(id int64) {
 
 func (c *Statistic) Conn(host string) (net.Conn, error) {
 	mark := c.shunt.Get(host)
-
-	con, err := c.dialer.dial(mark).Conn(host)
+	con, err := c.dial(mark).Conn(host)
 	if err != nil {
 		return nil, err
+	}
+	return c.addConn(con, host, mark), nil
+}
+
+func (c *Statistic) addConn(con net.Conn, host string, mark MODE) net.Conn {
+	if con == nil {
+		return nil
 	}
 
 	s := &conn{
@@ -97,17 +125,19 @@ func (c *Statistic) Conn(host string) (net.Conn, error) {
 		manager: c,
 	}
 	c.storeConnection(s)
-	return s, nil
+	return s
 }
 
 func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
 	mark := c.shunt.Get(host)
-
-	con, err := c.dialer.dial(mark).PacketConn(host)
+	con, err := c.dial(mark).PacketConn(host)
 	if err != nil {
 		return nil, err
 	}
+	return c.addPacketConn(con, host, mark), nil
+}
 
+func (c *Statistic) addPacketConn(con net.PacketConn, host string, mark MODE) net.PacketConn {
 	s := &packetConn{
 		PacketConn: con,
 		manager:    c,
@@ -121,11 +151,57 @@ func (c *Statistic) PacketConn(host string) (net.PacketConn, error) {
 		},
 	}
 	c.storeConnection(s)
-	return s, nil
+	return s
 }
 
 func (c *Statistic) storeConnection(o connection) {
 	log.Printf("%v| <%s[%v]>: %v, %s <-> %s\n",
 		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), o.GetLocal(), o.GetRemote())
 	c.conns.Store(o.GetId(), o)
+}
+
+type resolverProxy struct{ *Statistic }
+
+func (c *resolverProxy) mark() MODE {
+	if c.remoteResolver != nil && c.remoteResolver.IsProxy() {
+		return PROXY
+	}
+
+	return DIRECT
+}
+
+func (c *resolverProxy) Conn(host string) (net.Conn, error) {
+	con, err := c.dial(c.mark()).Conn(host)
+	if err != nil {
+		return nil, err
+	}
+	return c.addConn(con, host, c.mark()), nil
+}
+
+func (c *resolverProxy) PacketConn(host string) (net.PacketConn, error) {
+	con, err := c.dial(c.mark()).PacketConn(host)
+	if err != nil {
+		return nil, err
+	}
+	return c.addPacketConn(con, host, c.mark()), nil
+}
+
+type directProxy struct{ *Statistic }
+
+func (d *directProxy) Conn(host string) (net.Conn, error) {
+	conn, err := direct.Default.Conn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.addConn(conn, host, DIRECT), nil
+}
+
+func (d *directProxy) PacketConn(host string) (net.PacketConn, error) {
+	con, err := direct.Default.PacketConn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.addPacketConn(con, host, DIRECT), nil
 }

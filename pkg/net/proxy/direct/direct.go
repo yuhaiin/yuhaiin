@@ -18,6 +18,9 @@ type Option func(*direct)
 
 func WithLookup(dns dns.DNS) Option {
 	return func(d *direct) {
+		if dns == nil {
+			return
+		}
 		d.dns = dns
 	}
 }
@@ -25,12 +28,11 @@ func WithLookup(dns dns.DNS) Option {
 var Default proxy.Proxy = NewDirect()
 
 func NewDirect(o ...Option) proxy.Proxy {
-	d := &direct{listener: &net.ListenConfig{}}
+	d := &direct{listener: &net.ListenConfig{}, dns: dns.DefaultDNS}
 
 	for _, opt := range o {
 		opt(d)
 	}
-
 	return d
 }
 

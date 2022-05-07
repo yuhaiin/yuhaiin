@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -13,6 +14,15 @@ type DNS interface {
 	LookupIP(domain string) ([]net.IP, error)
 	Resolver() *net.Resolver
 }
+
+var DefaultDNS DNS = &systemDNS{}
+
+type systemDNS struct{}
+
+func (d *systemDNS) LookupIP(domain string) ([]net.IP, error) {
+	return net.DefaultResolver.LookupIP(context.TODO(), "ip", domain)
+}
+func (d *systemDNS) Resolver() *net.Resolver { return net.DefaultResolver }
 
 type client struct {
 	template dnsmessage.Message
