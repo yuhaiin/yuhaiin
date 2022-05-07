@@ -36,6 +36,9 @@ func (r *remoteResolver) Update(c *protoconfig.Setting) {
 	}
 
 	r.config = c.Dns.Remote
+	if r.dns != nil {
+		r.dns.Close()
+	}
 	r.dns = getDNS(r.config, r.dialer)
 }
 
@@ -65,6 +68,7 @@ func (l *localResolver) Update(c *protoconfig.Setting) {
 	}
 
 	l.config = c.Dns.Local
+	l.Close()
 	l.dns = getDNS(l.config, l.dialer)
 	l.resolver = l.dns.Resolver()
 }
@@ -82,6 +86,14 @@ func (l *localResolver) Resolver() *net.Resolver {
 		return net.DefaultResolver
 	}
 	return l.resolver
+}
+
+func (l *localResolver) Close() error {
+	if l.dns != nil {
+		return l.dns.Close()
+	}
+
+	return nil
 }
 
 func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
