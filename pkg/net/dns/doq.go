@@ -69,8 +69,19 @@ func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) DNS {
 
 		return ioutil.ReadAll(con)
 	})
-
 	return d
+}
+
+func (d *doq) Close() error {
+	if d.connection != nil {
+		d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+	}
+
+	if d.conn != nil {
+		d.conn.Close()
+	}
+
+	return nil
 }
 
 func (d *doq) initSession() error {

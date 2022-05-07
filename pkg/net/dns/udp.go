@@ -54,6 +54,8 @@ func (n *dns) Resolver() *net.Resolver {
 	}
 }
 
+func (n *dns) Close() error { return nil }
+
 func (n *dns) udp(req []byte) (data []byte, err error) {
 	var b = utils.GetBytes(utils.DefaultSize)
 	defer utils.PutBytes(b)
