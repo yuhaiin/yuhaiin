@@ -24,7 +24,7 @@ import (
 var proxyDLL []byte
 
 func expertDLL(execPath string) (string, error) {
-	dll := filepath.Join(filepath.Dir(execPath), "proxy.dll")
+	dll := filepath.Join(execPath, "proxy.dll")
 
 	_, err := os.Stat(dll)
 	if err == nil {
@@ -34,6 +34,7 @@ func expertDLL(execPath string) (string, error) {
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("stat %s error: %s", dll, err)
 	}
+
 	err = ioutil.WriteFile(dll, proxyDLL, os.ModePerm)
 	if err != nil {
 		return "", fmt.Errorf("write %s failed: %w", dll, err)
@@ -58,7 +59,7 @@ func getExecPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return execPath, nil
+	return filepath.Dir(execPath), nil
 }
 
 func getdll() (*syscall.LazyDLL, error) {
@@ -71,13 +72,13 @@ func getdll() (*syscall.LazyDLL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("expertDLL failed: %w", err)
 	}
-	log.Println("System Proxy DLL:", dll)
+	log.Println("use windows proxy dll file:", dll)
 	return syscall.NewLazyDLL(dll), nil
 }
 
 func SetSysProxy(http, _ string) {
 	if err := setSysProxy(http, ""); err != nil {
-		log.Println("SetSysProxy failed:", err)
+		log.Println("set system proxy failed:", err)
 	}
 }
 
@@ -87,7 +88,7 @@ func setSysProxy(http, _ string) error {
 	}
 	d, err := getdll()
 	if err != nil {
-		return fmt.Errorf("getSysProxy failed: %w", err)
+		return fmt.Errorf("get proxy dll failed: %w", err)
 	}
 	sw := d.NewProc("switch_system_proxy")
 	if err := sw.Find(); err != nil {
@@ -122,14 +123,14 @@ func setSysProxy(http, _ string) error {
 
 func UnsetSysProxy() {
 	if err := unsetSysProxy(); err != nil {
-		log.Println("UnsetSysProxy failed:", err)
+		log.Println("unset wystem proxy failed:", err)
 	}
 }
 
 func unsetSysProxy() error {
 	d, err := getdll()
 	if err != nil {
-		return fmt.Errorf("getSysProxy failed: %w", err)
+		return fmt.Errorf("get proxy dll failed: %w", err)
 	}
 	sw := d.NewProc("switch_system_proxy")
 	if err := sw.Find(); err != nil {

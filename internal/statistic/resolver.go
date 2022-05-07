@@ -16,12 +16,18 @@ type remoteResolver struct {
 	config *protoconfig.Dns
 	dns    dns.DNS
 	dialer proxy.Proxy
-
-	hostname string
 }
 
 func newRemoteResolver(dialer proxy.Proxy) *remoteResolver {
 	return &remoteResolver{dialer: dialer}
+}
+
+func (r *remoteResolver) IsProxy() bool {
+	if r.config == nil {
+		return false
+	}
+
+	return r.config.Proxy
 }
 
 func (r *remoteResolver) Update(c *protoconfig.Setting) {
@@ -30,19 +36,7 @@ func (r *remoteResolver) Update(c *protoconfig.Setting) {
 	}
 
 	r.config = c.Dns.Remote
-
 	r.dns = getDNS(r.config, r.dialer)
-	r.hostname = getDnsConfig(r.config)
-}
-
-func (s *remoteResolver) Search(host string) (*MODE, bool) {
-	if s.hostname == host {
-		if s.config.Proxy {
-			return &PROXY, true
-		}
-		return &DIRECT, true
-	}
-	return &UNKNOWN, false
 }
 
 func (r *remoteResolver) LookupIP(host string) ([]net.IP, error) {
@@ -55,14 +49,14 @@ func (r *remoteResolver) LookupIP(host string) ([]net.IP, error) {
 var _ dns.DNS = (*localResolver)(nil)
 
 type localResolver struct {
-	config *protoconfig.Dns
-	dns    dns.DNS
-
+	config   *protoconfig.Dns
+	dns      dns.DNS
+	dialer   proxy.Proxy
 	resolver *net.Resolver
 }
 
-func newLocalResolver() *localResolver {
-	return &localResolver{}
+func newLocalResolver(dialer proxy.Proxy) *localResolver {
+	return &localResolver{dialer: dialer}
 }
 
 func (l *localResolver) Update(c *protoconfig.Setting) {
@@ -71,7 +65,7 @@ func (l *localResolver) Update(c *protoconfig.Setting) {
 	}
 
 	l.config = c.Dns.Local
-	l.dns = getDNS(l.config, nil)
+	l.dns = getDNS(l.config, l.dialer)
 	l.resolver = l.dns.Resolver()
 }
 
