@@ -207,13 +207,13 @@ func newSocks5PacketConn(address string, server net.Addr, tcp net.Conn) (net.Pac
 		return nil, fmt.Errorf("create packet failed: %v", err)
 	}
 
+	fmt.Println(conn.LocalAddr())
 	return &socks5PacketConn{
 		server:     server,
 		addr:       addr,
 		PacketConn: conn,
 		tcp:        tcp,
 	}, nil
-
 }
 
 func (s *socks5PacketConn) Close() error {
@@ -239,7 +239,6 @@ func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	}
 
 	copy(p[0:], z[prefix:n])
-
 	// log.Printf("z: %v,\n p: %v\n", z[:], p[:])
 	return n - prefix, addr, nil
 }

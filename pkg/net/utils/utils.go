@@ -10,7 +10,7 @@ import (
 )
 
 var poolMap = sync.Map{}
-var DefaultSize = 8 * 0x400
+var DefaultSize = 16 * 0x400
 
 func buffPool(size int) *sync.Pool {
 

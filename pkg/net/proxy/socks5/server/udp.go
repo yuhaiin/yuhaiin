@@ -8,6 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
@@ -45,7 +46,8 @@ func newUDPServer(f proxy.Proxy, target string) (*udpServer, error) {
 }
 
 func (u *udpServer) forward() {
-	buf := make([]byte, 1024)
+	buf := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(buf)
 	for {
 		n, l, err := u.listener.ReadFrom(buf)
 		if err != nil {
@@ -64,13 +66,13 @@ func (u *udpServer) forward() {
 			u.headerSize = len(u.header)
 			go u.reply()
 		}
-
 		u.proxy.WriteTo(buf[u.headerSize:n], u.remoteTarget)
 	}
 }
 
 func (u *udpServer) reply() {
-	buf := make([]byte, 1024)
+	buf := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(buf)
 	for {
 		n, _, err := u.proxy.ReadFrom(buf)
 		if err != nil {

@@ -31,6 +31,10 @@ func NewQUIC(config *node.PointProtocol_Quic) node.WrapProxy {
 			},
 		}
 
+		if c.tlsConfig == nil {
+			c.tlsConfig = &tls.Config{}
+		}
+
 		return c, nil
 	}
 }
