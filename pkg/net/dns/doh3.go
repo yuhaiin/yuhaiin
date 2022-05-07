@@ -56,3 +56,5 @@ func (d *doh3) setServer(host string) {
 		d.url += "/dns-query"
 	}
 }
+
+func (d *doh3) Close() error { return nil }

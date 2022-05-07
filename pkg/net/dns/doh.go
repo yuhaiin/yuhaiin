@@ -52,6 +52,8 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 	return dns
 }
 
+func (d *doh) Close() error { return nil }
+
 // https://tools.ietf.org/html/rfc8484
 
 func (d *doh) setServer(host string) {

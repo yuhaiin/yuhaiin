@@ -96,6 +96,14 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 	return d
 }
 
+func (d *dot) Close() error {
+	if d.conn != nil {
+		return d.conn.Close()
+	}
+
+	return nil
+}
+
 func (d *dot) initConn() error {
 	if d.conn != nil {
 		return nil

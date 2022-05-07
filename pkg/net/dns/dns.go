@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"time"
@@ -15,6 +16,7 @@ import (
 type DNS interface {
 	LookupIP(domain string) ([]net.IP, error)
 	Resolver() *net.Resolver
+	io.Closer
 }
 
 var DefaultDNS DNS = &systemDNS{}
@@ -25,6 +27,7 @@ func (d *systemDNS) LookupIP(domain string) ([]net.IP, error) {
 	return net.DefaultResolver.LookupIP(context.TODO(), "ip", domain)
 }
 func (d *systemDNS) Resolver() *net.Resolver { return net.DefaultResolver }
+func (d *systemDNS) Close() error            { return nil }
 
 type client struct {
 	template dnsmessage.Message
