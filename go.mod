@@ -7,13 +7,13 @@ require (
 	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/dgryski/go-rc2 v0.0.0-20150621095337-8a9021637152
 	github.com/golang/mock v1.6.0
-	github.com/lucas-clemente/quic-go v0.26.0
+	github.com/lucas-clemente/quic-go v0.27.0
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
 	golang.org/x/net v0.0.0-20220421235706-1d1ef9303861
-	google.golang.org/grpc v1.45.0
+	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 )
 
@@ -25,6 +25,7 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/marten-seemann/qpack v0.2.1 // indirect
 	github.com/marten-seemann/qtls-go1-16 v0.1.5 // indirect
 	github.com/marten-seemann/qtls-go1-17 v0.1.1 // indirect
 	github.com/marten-seemann/qtls-go1-18 v0.1.1 // indirect

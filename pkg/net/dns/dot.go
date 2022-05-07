@@ -3,13 +3,13 @@ package dns
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 var _ DNS = (*dot)(nil)
@@ -19,15 +19,22 @@ type dot struct {
 	servername   string
 	proxy        proxy.StreamProxy
 	sessionCache tls.ClientSessionCache
-	cache        *utils.LRU[string, []net.IP]
 
-	resolver *client
+	*client
+
+	conn net.Conn
+	lock sync.Mutex
 }
 
 func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 	if p == nil {
 		p = &proxy.Default{}
 	}
+
+	if i := strings.Index(host, "://"); i != -1 {
+		host = host[i+3:]
+	}
+
 	servername, _, err := net.SplitHostPort(host)
 	if e, ok := err.(*net.AddrError); ok {
 		if strings.Contains(e.Err, "missing port in address") {
@@ -36,45 +43,50 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 		}
 	}
 
-	hostname, port, _ := net.SplitHostPort(host)
-	if net.ParseIP(hostname) == nil {
-		i, err := net.LookupIP(hostname)
-		if err != nil {
-			i = []net.IP{net.ParseIP("1.1.1.1")}
-		}
-		host = net.JoinHostPort(i[0].String(), port)
-	}
-
 	d := &dot{
 		host:         host,
 		servername:   servername,
 		sessionCache: tls.NewLRUClientSessionCache(0),
 		proxy:        p,
-		cache:        utils.NewLru[string, []net.IP](200, 20*time.Minute),
 	}
 
-	d.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
-		conn, err := d.proxy.Conn(d.host)
-		if err != nil {
-			return nil, fmt.Errorf("tcp dial failed: %v", err)
-		}
-		conn = tls.Client(conn, &tls.Config{ServerName: d.servername, ClientSessionCache: d.sessionCache})
-		defer conn.Close()
+	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
+		// conn, err := d.proxy.Conn(d.host)
+		// if err != nil {
+		// 	return nil, fmt.Errorf("tcp dial failed: %v", err)
+		// }
+		// conn = tls.Client(conn, &tls.Config{ServerName: d.servername, ClientSessionCache: d.sessionCache})
+		// defer conn.Close()
+
+		d.lock.Lock()
+		defer d.lock.Unlock()
 
 		length := len(b) // dns over tcp, prefix two bytes is request data's length
 		b = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, b...)
-		_, err = conn.Write(b)
+
+	_retry:
+		err := d.initConn()
 		if err != nil {
+			return nil, err
+		}
+
+		_, err = d.conn.Write(b)
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				d.conn.Close()
+				d.conn = nil
+				goto _retry
+			}
 			return nil, fmt.Errorf("write data failed: %v", err)
 		}
 
 		leg := make([]byte, 2)
-		_, err = conn.Read(leg)
+		_, err = d.conn.Read(leg)
 		if err != nil {
 			return nil, fmt.Errorf("read data length from server failed %v", err)
 		}
 		all := make([]byte, int(leg[0])<<8+int(leg[1]))
-		n, err := conn.Read(all)
+		n, err := d.conn.Read(all)
 		if err != nil {
 			return nil, fmt.Errorf("read data from server failed: %v", err)
 		}
@@ -84,14 +96,17 @@ func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 	return d
 }
 
-func (d *dot) LookupIP(domain string) (ip []net.IP, err error) {
-	if x, _ := d.cache.Load(domain); x != nil {
-		return x, nil
+func (d *dot) initConn() error {
+	if d.conn != nil {
+		return nil
 	}
-	if ip, err = d.resolver.Request(domain); len(ip) != 0 {
-		d.cache.Add(domain, ip)
+	conn, err := d.proxy.Conn(d.host)
+	if err != nil {
+		return fmt.Errorf("tcp dial failed: %v", err)
 	}
-	return
+
+	d.conn = tls.Client(conn, &tls.Config{ServerName: d.servername, ClientSessionCache: d.sessionCache})
+	return nil
 }
 
 func (d *dot) Resolver() *net.Resolver {

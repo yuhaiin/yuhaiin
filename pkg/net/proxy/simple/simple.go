@@ -4,11 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
+	"math/rand"
 	"net"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 )
 
@@ -28,19 +25,20 @@ func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
 
 //Simple .
 type Simple struct {
-	address string
-	port    uint16
-	host    string
-	lock    sync.RWMutex
+	address  string
+	port     string
+	isDomain bool
+	host     string
 
-	lookupCache  []string
-	refreshCache func()
-	lookupIP     func(host string) ([]net.IP, error)
-	tlsConfig    *tls.Config
+	lookupIP  func(host string) ([]net.IP, error)
+	tlsConfig *tls.Config
 }
 
 func WithLookupIP(f func(host string) ([]net.IP, error)) func(*Simple) {
 	return func(cu *Simple) {
+		if f == nil {
+			return
+		}
 		cu.lookupIP = f
 	}
 }
@@ -53,11 +51,11 @@ func WithTLS(t *tls.Config) func(*Simple) {
 
 //NewSimple .
 func NewSimple(address, port string, opts ...func(*Simple)) *Simple {
-	p, _ := strconv.ParseUint(port, 10, 16)
 	c := &Simple{
-		address: address,
-		port:    uint16(p),
-		host:    net.JoinHostPort(address, port),
+		address:  address,
+		port:     port,
+		host:     net.JoinHostPort(address, port),
+		isDomain: net.ParseIP(address) == nil,
 		lookupIP: func(host string) ([]net.IP, error) {
 			return LookupIP(net.DefaultResolver, host)
 		},
@@ -67,113 +65,35 @@ func NewSimple(address, port string, opts ...func(*Simple)) *Simple {
 		opts[i](c)
 	}
 
-	if net.ParseIP(address) != nil {
-		c.refreshCache = func() {}
-		c.lookupCache = []string{net.JoinHostPort(address, port)}
-	} else {
-		c.refreshCache = c.refresh
-	}
-
 	return c
 }
 
 var clientDialer = net.Dialer{Timeout: time.Second * 5}
 
-func (c *Simple) dial() (net.Conn, error) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	es := &errs{}
-	for ci := range c.lookupCache {
-		conn, err := clientDialer.DialContext(context.Background(), "tcp", c.lookupCache[ci])
-		if err != nil {
-			es.Add(err)
-			continue
-		}
-
-		if x, ok := conn.(*net.TCPConn); ok {
-			_ = x.SetKeepAlive(true)
-		}
-
-		if c.tlsConfig != nil {
-			conn = tls.Client(conn, c.tlsConfig)
-		}
-		return conn, nil
-	}
-
-	return nil, fmt.Errorf("dial failed: %w", es)
-}
-
-type errs struct {
-	err []error
-}
-
-func (e *errs) Error() string {
-	s := strings.Builder{}
-	for i := range e.err {
-		s.WriteString(e.err[i].Error())
-		s.WriteByte('\n')
-	}
-
-	return s.String()
-}
-
-func (e *errs) Errors() []error {
-	return e.err
-}
-
-func (e *errs) Add(err error) {
-	if err == nil {
-		return
-	}
-	e.err = append(e.err, err)
-}
-
-//GetConn .
-func (c *Simple) getConn() (net.Conn, error) {
-	// r := 0
-
-	// retry:
-	conn, err := c.dial()
-	if err == nil {
-		return conn, err
-	}
-
-	// if errors.Is(err, syscall.ECONNRESET) {
-	// 	if r <= 3 {
-	// 		logasfmt.Println("check connection reset by peer: ", err, "retry")
-	// 		r++
-	// 		goto retry
-	// 	}
-	// 	logasfmt.Println("direct return error:", err)
-	// 	return nil, err
-	// }
-
-	c.refreshCache()
-
-	return c.dial()
-}
-
 func (c *Simple) Conn(host string) (net.Conn, error) {
-	return c.getConn()
+	address := c.host
+
+	if c.isDomain {
+		x, err := c.lookupIP(c.address)
+		if err != nil {
+			return nil, err
+		}
+
+		address = net.JoinHostPort(x[rand.Intn(len(x))].String(), c.port)
+	}
+
+	conn, err := clientDialer.Dial("tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("simple dial failed: %w", err)
+	}
+
+	if c.tlsConfig != nil {
+		conn = tls.Client(conn, c.tlsConfig)
+	}
+
+	return conn, nil
 }
 
 func (c *Simple) PacketConn(host string) (net.PacketConn, error) {
 	return net.ListenPacket("udp", "")
-}
-
-func (c *Simple) refresh() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	x, err := c.lookupIP(c.address)
-	if err != nil {
-		log.Printf("lookup address %s failed: %v", c.address, err)
-		return
-	}
-
-	c.lookupCache = make([]string, 0, len(x))
-	port := strconv.FormatUint(uint64(c.port), 10)
-	for i := range x {
-		c.lookupCache = append(c.lookupCache, net.JoinHostPort(x[i].String(), port))
-	}
 }

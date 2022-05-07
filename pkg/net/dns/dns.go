@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -27,11 +29,14 @@ func (d *systemDNS) Resolver() *net.Resolver { return net.DefaultResolver }
 type client struct {
 	template dnsmessage.Message
 	send     func([]byte) ([]byte, error)
+
+	cache *utils.LRU[string, []net.IP]
 }
 
 func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
 	c := &client{
-		send: send,
+		send:  send,
+		cache: utils.NewLru[string, []net.IP](200, 20*time.Minute),
 		template: dnsmessage.Message{
 			Header: dnsmessage.Header{
 				Response:           false,
@@ -85,7 +90,10 @@ func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
 	return c
 }
 
-func (c *client) Request(domain string) ([]net.IP, error) {
+func (c *client) LookupIP(domain string) ([]net.IP, error) {
+	if x, _ := c.cache.Load(domain); x != nil {
+		return x, nil
+	}
 	req := c.template
 	req.ID = uint16(rand.Intn(65535))
 	req.Questions[0].Name = dnsmessage.MustNewName(domain + ".")
@@ -118,6 +126,7 @@ func (c *client) Request(domain string) ([]net.IP, error) {
 			if len(i) == 0 {
 				return nil, fmt.Errorf("no answer")
 			}
+			c.cache.Add(domain, i)
 			return i, nil
 		}
 		if err != nil {

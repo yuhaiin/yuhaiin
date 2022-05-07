@@ -2,6 +2,8 @@ package direct
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -37,7 +39,21 @@ func NewDirect(o ...Option) proxy.Proxy {
 }
 
 func (d *direct) Conn(s string) (net.Conn, error) {
-	return (&net.Dialer{Timeout: time.Second * 10, Resolver: d.dns.Resolver()}).Dial("tcp", s)
+	address, port, err := net.SplitHostPort(s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address: %s", s)
+	}
+
+	if net.ParseIP(address) == nil {
+		x, err := d.dns.LookupIP(address)
+		if err != nil {
+			return nil, err
+		}
+
+		s = net.JoinHostPort(x[rand.Intn(len(x))].String(), port)
+	}
+
+	return (&net.Dialer{Timeout: time.Second * 10}).Dial("tcp", s)
 }
 
 func (d *direct) PacketConn(string) (net.PacketConn, error) {
