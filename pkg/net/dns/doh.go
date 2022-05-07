@@ -29,22 +29,19 @@ type doh struct {
 	port     string
 	url      string
 
-	cache      *utils.LRU[string, []net.IP]
 	httpClient *http.Client
-	resolver   *client
+	*client
 }
 
 func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
-	dns := &doh{
-		cache: utils.NewLru[string, []net.IP](200, 20*time.Minute),
-	}
+	dns := &doh{}
 
 	dns.setServer(host)
 	if p == nil {
 		p = simple.NewSimple(dns.hostname, dns.port)
 	}
 	dns.setProxy(p)
-	dns.resolver = NewClient(subnet, func(b []byte) ([]byte, error) {
+	dns.client = NewClient(subnet, func(b []byte) ([]byte, error) {
 		r, err := dns.post(bytes.NewReader(b))
 		if err != nil {
 			return nil, err
@@ -55,17 +52,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
 	return dns
 }
 
-// LookupIP .
 // https://tools.ietf.org/html/rfc8484
-func (d *doh) LookupIP(domain string) (ip []net.IP, err error) {
-	if x, _ := d.cache.Load(domain); x != nil {
-		return x, nil
-	}
-	if ip, err = d.resolver.Request(domain); len(ip) != 0 {
-		d.cache.Add(domain, ip)
-	}
-	return
-}
 
 func (d *doh) setServer(host string) {
 	if !strings.HasPrefix(host, "https://") {
@@ -97,6 +84,7 @@ func (d *doh) setProxy(p proxy.StreamProxy) {
 	d.httpClient = &http.Client{
 		Transport: &http.Transport{
 			//Proxy: http.ProxyFromEnvironment,
+			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				switch network {
 				case "tcp":

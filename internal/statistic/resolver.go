@@ -105,6 +105,10 @@ func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
 		return dns.NewDoH(dc.Host, subnet, proxy)
 	case protoconfig.Dns_dot:
 		return dns.NewDoT(dc.Host, subnet, proxy)
+	case protoconfig.Dns_doq:
+		return dns.NewDoQ(dc.Host, subnet, proxy)
+	case protoconfig.Dns_doh3:
+		return dns.NewDoH3(dc.Host, subnet)
 	case protoconfig.Dns_tcp:
 		fallthrough
 	case protoconfig.Dns_udp:

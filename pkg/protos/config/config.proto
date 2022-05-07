@@ -35,6 +35,8 @@ message dns {
     tcp = 2;
     doh = 3;
     dot = 4;
+    doq = 5;
+    doh3 = 6;
   }
   dns_type type = 5 [ json_name = "type" ];
   bool proxy = 3 [ json_name = "proxy" ];
