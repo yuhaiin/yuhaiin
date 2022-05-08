@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -92,29 +91,27 @@ func (d *doq) initSession() error {
 		select {
 		case <-d.connection.Context().Done():
 			d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-			if d.conn != nil {
-				log.Println("DEBUG: CLOSE DOQ PacketConn")
-				d.conn.Close()
-				d.conn = nil
-			}
 		default:
 			return nil
 		}
 	}
 
-	conn, err := d.p.PacketConn(d.host)
-	if err != nil {
-		return err
+	if d.conn == nil {
+		conn, err := d.p.PacketConn(d.host)
+		if err != nil {
+			return err
+		}
+		d.conn = conn
 	}
-	d.conn = conn
 
 	addr, err := net.ResolveUDPAddr("udp", d.host)
 	if err != nil {
 		return fmt.Errorf("resolve udp addr failed: %w", err)
 	}
+
 	hostname, _, _ := net.SplitHostPort(d.host)
-	session, err := quic.Dial(
-		conn,
+	session, err := quic.DialEarly(
+		d.conn,
 		addr,
 		hostname,
 		&tls.Config{

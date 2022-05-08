@@ -16,7 +16,9 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
@@ -75,23 +77,26 @@ var Mode = map[string]*MODE{
 	"block": &BLOCK,
 }
 
-type Shunt struct {
+type shunt struct {
 	mapper *mapper.Mapper[*MODE]
 
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
+
+	conns conns
+
+	dialers map[MODE]proxy.Proxy
 }
 
-func newShunt(resolver *remoteResolver) *Shunt {
-	mapr := mapper.NewMapper[*MODE](resolver.LookupIP)
-
-	return &Shunt{
-		mapper: mapr,
+func newShunt(resolver dns.DNS, conns conns) *shunt {
+	return &shunt{
+		mapper: mapper.NewMapper[*MODE](resolver.LookupIP),
+		conns:  conns,
 		config: &protoconfig.Bypass{Enabled: true, BypassFile: ""},
 	}
 }
 
-func (s *Shunt) Update(c *protoconfig.Setting) {
+func (s *shunt) Update(c *protoconfig.Setting) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -109,7 +114,7 @@ func (s *Shunt) Update(c *protoconfig.Setting) {
 	}
 }
 
-func (s *Shunt) refresh() error {
+func (s *shunt) refresh() error {
 	err := writeDefaultBypassData(s.config.BypassFile)
 	if err != nil {
 		return fmt.Errorf("copy bypass file failed: %w", err)
@@ -152,7 +157,7 @@ func (s *Shunt) refresh() error {
 	return nil
 }
 
-func (s *Shunt) Get(domain string) MODE {
+func (s *shunt) Get(domain string) MODE {
 	if !s.config.Enabled {
 		return PROXY
 	}
@@ -167,4 +172,52 @@ func (s *Shunt) Get(domain string) MODE {
 		return PROXY
 	}
 	return *m
+}
+
+func (s *shunt) AddDialer(m MODE, p proxy.Proxy) {
+	if s.dialers == nil {
+		s.dialers = make(map[MODE]proxy.Proxy)
+	}
+
+	s.dialers[m] = p
+}
+
+func (s *shunt) GetDialer(m MODE) proxy.Proxy {
+	if s.dialers != nil {
+		d, ok := s.dialers[m]
+		if ok {
+			return d
+		}
+	}
+	return proxy.NewErrProxy(errors.New("no dialer"))
+}
+
+func (s *shunt) Conn(host string) (net.Conn, error) {
+	m := s.Get(host)
+	dialer, ok := s.dialers[m]
+	if !ok {
+		return nil, fmt.Errorf("not found dialer for %s", m)
+	}
+
+	conn, err := dialer.Conn(host)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+	}
+
+	return s.conns.AddConn(conn, host, m), nil
+}
+
+func (s *shunt) PacketConn(host string) (net.PacketConn, error) {
+	m := s.Get(host)
+	dialer, ok := s.dialers[m]
+	if !ok {
+		return nil, fmt.Errorf("not found dialer for %s", m)
+	}
+
+	conn, err := dialer.PacketConn(host)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+	}
+
+	return s.conns.AddPacketConn(conn, host, m), nil
 }
