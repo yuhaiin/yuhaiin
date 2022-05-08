@@ -9,9 +9,17 @@
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Supported Protocol  
   - Shadowsocksr  
-  - Shadowsocks(plugin: Obfs-Http, v2ray-plugin[websocket, quic](no mux))  
-  - Vmess(no mux), trojan(no mux), Socks5, HTTP, Linux/Mac Redir  
-- support DNS Protocol: DNS, EDNS, DNS over HTTPS, DNS over TLS
+  - Shadowsocks(plugin: Obfs-Http, v2ray-plugin[websocket, quic])  
+  - Vmess, trojan
+  - Socks5, HTTP, Linux/Mac Redir
+  - TODO: TUN
+- support DNS:
+  - DNS, EDNS
+  - DNS over UDP
+  - DNS over HTTPS(3)
+  - DNS over Quic
+  - DNS over TLS
+  - TODO: DNS over TCP
 - Auto Set System Proxy.  
 - a Simple web page can to configure.
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)  

@@ -4,33 +4,30 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
 
-type remoteResolver struct {
-	config *protoconfig.Dns
-	dns    dns.DNS
-	dialer proxy.Proxy
+type remotedns struct {
+	config        *protoconfig.Dns
+	dns           dns.DNS
+	direct, proxy proxy.Proxy
+	conns         conns
 }
 
-func newRemoteResolver(dialer proxy.Proxy) *remoteResolver {
-	return &remoteResolver{dialer: dialer}
-}
-
-func (r *remoteResolver) IsProxy() bool {
-	if r.config == nil {
-		return false
+func newRemotedns(direct, proxy proxy.Proxy, conns conns) *remotedns {
+	return &remotedns{
+		direct: direct,
+		proxy:  proxy,
+		conns:  conns,
 	}
-
-	return r.config.Proxy
 }
 
-func (r *remoteResolver) Update(c *protoconfig.Setting) {
+func (r *remotedns) Update(c *protoconfig.Setting) {
 	if proto.Equal(r.config, c.Dns.Remote) {
 		return
 	}
@@ -39,41 +36,84 @@ func (r *remoteResolver) Update(c *protoconfig.Setting) {
 	if r.dns != nil {
 		r.dns.Close()
 	}
-	r.dns = getDNS(r.config, r.dialer)
+
+	MODE := DIRECT
+	dialer := r.direct
+	if r.config.Proxy {
+		MODE = PROXY
+		dialer = r.proxy
+	}
+	r.dns = getDNS(r.config, &remotednsDialer{r.conns, dialer, MODE})
 }
 
-func (r *remoteResolver) LookupIP(host string) ([]net.IP, error) {
+func (r *remotedns) LookupIP(host string) ([]net.IP, error) {
 	if r.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}
 	return r.dns.LookupIP(host)
 }
 
-var _ dns.DNS = (*localResolver)(nil)
+func (l *remotedns) Resolver() *net.Resolver {
+	if l.dns == nil {
+		return net.DefaultResolver
+	}
+	return l.dns.Resolver()
+}
 
-type localResolver struct {
+func (l *remotedns) Close() error {
+	if l.dns != nil {
+		return l.dns.Close()
+	}
+	return nil
+}
+
+type remotednsDialer struct {
+	conns
+	dialer proxy.Proxy
+	MODE
+}
+
+func (c *remotednsDialer) Conn(host string) (net.Conn, error) {
+	con, err := c.dialer.Conn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.conns.AddConn(con, host, c.MODE), nil
+}
+
+func (c *remotednsDialer) PacketConn(host string) (net.PacketConn, error) {
+	con, err := c.dialer.PacketConn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.conns.AddPacketConn(con, host, c.MODE), nil
+}
+
+type localdns struct {
 	config   *protoconfig.Dns
 	dns      dns.DNS
-	dialer   proxy.Proxy
 	resolver *net.Resolver
+	conns    conns
 }
 
-func newLocalResolver(dialer proxy.Proxy) *localResolver {
-	return &localResolver{dialer: dialer}
+func newLocaldns(conns conns) *localdns {
+	return &localdns{conns: conns}
 }
 
-func (l *localResolver) Update(c *protoconfig.Setting) {
+func (l *localdns) Update(c *protoconfig.Setting) {
 	if proto.Equal(l.config, c.Dns.Local) {
 		return
 	}
 
 	l.config = c.Dns.Local
 	l.Close()
-	l.dns = getDNS(l.config, l.dialer)
+	l.dns = getDNS(l.config, &localdnsDialer{l.conns})
 	l.resolver = l.dns.Resolver()
 }
 
-func (l *localResolver) LookupIP(host string) ([]net.IP, error) {
+func (l *localdns) LookupIP(host string) ([]net.IP, error) {
 	if l.dns == nil {
 		return net.DefaultResolver.LookupIP(context.TODO(), "ip", host)
 	}
@@ -81,19 +121,39 @@ func (l *localResolver) LookupIP(host string) ([]net.IP, error) {
 	return l.dns.LookupIP(host)
 }
 
-func (l *localResolver) Resolver() *net.Resolver {
+func (l *localdns) Resolver() *net.Resolver {
 	if l.resolver == nil {
 		return net.DefaultResolver
 	}
 	return l.resolver
 }
 
-func (l *localResolver) Close() error {
+func (l *localdns) Close() error {
 	if l.dns != nil {
 		return l.dns.Close()
 	}
 
 	return nil
+}
+
+type localdnsDialer struct{ conns }
+
+func (d *localdnsDialer) Conn(host string) (net.Conn, error) {
+	conn, err := direct.Default.Conn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.AddConn(conn, host, DIRECT), nil
+}
+
+func (d *localdnsDialer) PacketConn(host string) (net.PacketConn, error) {
+	con, err := direct.Default.PacketConn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.AddPacketConn(con, host, DIRECT), nil
 }
 
 func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
@@ -128,26 +188,4 @@ func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
 	default:
 		return dns.NewDNS(dc.Host, subnet, proxy)
 	}
-}
-
-func getDnsConfig(dc *protoconfig.Dns) string {
-	host := dc.Host
-	if dc.Type == protoconfig.Dns_doh {
-		i := strings.Index(host, "://")
-		if i != -1 {
-			host = host[i+3:] // remove http scheme
-		}
-
-		i = strings.IndexByte(host, '/')
-		if i != -1 {
-			host = host[:i] // remove doh path
-		}
-	}
-
-	h, _, err := net.SplitHostPort(host)
-	if err == nil {
-		host = h
-	}
-
-	return host
 }

@@ -65,11 +65,11 @@ func main() {
 	nodes := node.NewNodes(pc.node)
 	grpcserver.RegisterService(&protonode.NodeManager_ServiceDesc, nodes)
 
-	statistics := statistic.NewStatistic(nodes)
-	setting.AddObserver(statistics)
-	grpcserver.RegisterService(&protosttc.Connections_ServiceDesc, statistics)
+	app := statistic.NewRouter(nodes)
+	setting.AddObserver(app)
+	grpcserver.RegisterService(&protosttc.Connections_ServiceDesc, app.Statistic())
 
-	listener := server.NewListener(statistics)
+	listener := server.NewListener(app.Proxy())
 	setting.AddObserver(listener)
 	defer listener.Close()
 
@@ -77,7 +77,7 @@ func main() {
 	defer sysproxy.Unset()
 
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodes, statistics, setting)
+	simplehttp.Httpserver(mux, nodes, app.Statistic(), setting)
 
 	error.Must(struct{}{},
 		// h2c for grpc insecure mode
