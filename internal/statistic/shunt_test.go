@@ -80,7 +80,3 @@ func TestM(t *testing.T) {
 		t.Log(1 << i)
 	}
 }
-
-func TestGetDNSHostnameAndMode(t *testing.T) {
-	t.Log(getDnsConfig(&protoconfig.Dns{Host: "https://[ff::ff]:443/dns-query", Type: protoconfig.Dns_doh}))
-}

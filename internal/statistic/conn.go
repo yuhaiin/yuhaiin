@@ -28,9 +28,27 @@ type conn struct {
 	net.Conn
 
 	*statistic.Connection
-	manager *Statistic
+	manager *counter
 
 	wbuf, rbuf []byte
+}
+
+func (c *counter) AddConn(con net.Conn, addr string, mark MODE) net.Conn {
+	z := &conn{
+		Connection: &statistic.Connection{
+			Id:     c.idSeed.Generate(),
+			Addr:   addr,
+			Mark:   mark.String(),
+			Local:  con.LocalAddr().String(),
+			Remote: con.RemoteAddr().String(),
+			Type:   con.LocalAddr().Network(),
+		},
+		Conn:    con,
+		manager: c,
+	}
+
+	c.storeConnection(z)
+	return z
 }
 
 func (s *conn) Close() error {
@@ -115,7 +133,25 @@ type packetConn struct {
 	net.PacketConn
 
 	*statistic.Connection
-	manager *Statistic
+	manager *counter
+}
+
+func (c *counter) AddPacketConn(con net.PacketConn, addr string, mark MODE) net.PacketConn {
+	z := &packetConn{
+		Connection: &statistic.Connection{
+			Id:     c.idSeed.Generate(),
+			Addr:   addr,
+			Mark:   mark.String(),
+			Local:  con.LocalAddr().String(),
+			Remote: addr,
+			Type:   con.LocalAddr().Network(),
+		},
+		PacketConn: con,
+		manager:    c,
+	}
+
+	c.storeConnection(z)
+	return z
 }
 
 func (s *packetConn) GetStatistic() *statistic.Connection {
