@@ -1,27 +1,14 @@
 package simple
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"math/rand"
 	"net"
 	"time"
-)
 
-// LookupIP looks up host using the local resolver.
-// It returns a slice of that host's IPv4 and IPv6 addresses.
-func LookupIP(resolver *net.Resolver, host string) ([]net.IP, error) {
-	addrs, err := resolver.LookupIPAddr(context.Background(), host)
-	if err != nil {
-		return nil, err
-	}
-	ips := make([]net.IP, len(addrs))
-	for i, ia := range addrs {
-		ips[i] = ia.IP
-	}
-	return ips, nil
-}
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
+)
 
 //Simple .
 type Simple struct {
@@ -56,9 +43,7 @@ func NewSimple(address, port string, opts ...func(*Simple)) *Simple {
 		port:     port,
 		host:     net.JoinHostPort(address, port),
 		isDomain: net.ParseIP(address) == nil,
-		lookupIP: func(host string) ([]net.IP, error) {
-			return LookupIP(net.DefaultResolver, host)
-		},
+		lookupIP: resolver.LookupIP,
 	}
 
 	for i := range opts {

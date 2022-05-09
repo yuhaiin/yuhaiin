@@ -3,8 +3,9 @@ package register
 import (
 	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	httpc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
@@ -38,7 +39,7 @@ func init() {
 }
 
 func Dialer(p *node.Point) (r proxy.Proxy, err error) {
-	r = &proxy.Default{}
+	r = direct.Default
 	for _, v := range p.Protocols {
 		r, err = node.Wrap(v.Protocol)(r)
 		if err != nil {

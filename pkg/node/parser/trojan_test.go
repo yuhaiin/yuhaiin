@@ -30,7 +30,7 @@ func TestTrojan(t *testing.T) {
 	z, err := register.Dialer(p)
 	require.Nil(t, err)
 
-	dns := dns.NewDNS("1.1.1.1:53", nil, z)
+	dns := dns.NewDoU("1.1.1.1:53", nil, z)
 	t.Log(dns.LookupIP("www.google.com"))
 
 	tt := &http.Client{

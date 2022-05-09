@@ -2,44 +2,26 @@ package dns
 
 import (
 	"bytes"
-	"context"
+	"container/list"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-type DNS interface {
-	LookupIP(domain string) ([]net.IP, error)
-	Resolver() *net.Resolver
-	io.Closer
-}
-
-var DefaultDNS DNS = &systemDNS{}
-
-type systemDNS struct{}
-
-func (d *systemDNS) LookupIP(domain string) ([]net.IP, error) {
-	return net.DefaultResolver.LookupIP(context.TODO(), "ip", domain)
-}
-func (d *systemDNS) Resolver() *net.Resolver { return net.DefaultResolver }
-func (d *systemDNS) Close() error            { return nil }
-
 type client struct {
 	template dnsmessage.Message
-	send     func([]byte) ([]byte, error)
-
-	cache *utils.LRU[string, []net.IP]
+	do       func([]byte) ([]byte, error)
+	cache    *dnsLruCache[string, []net.IP]
 }
 
 func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
 	c := &client{
-		send:  send,
-		cache: utils.NewLru[string, []net.IP](200, 20*time.Minute),
+		do:    send,
+		cache: newCache[string, []net.IP](200),
 		template: dnsmessage.Message{
 			Header: dnsmessage.Header{
 				Response:           false,
@@ -105,7 +87,7 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 		return nil, fmt.Errorf("pack dns message failed: %w", err)
 	}
 
-	d, err = c.send(d)
+	d, err = c.do(d)
 	if err != nil {
 		return nil, fmt.Errorf("send dns message failed: %w", err)
 	}
@@ -122,24 +104,123 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 
 	p.SkipAllQuestions()
 
+	var ttl uint32
 	i := make([]net.IP, 0, 1)
 	for {
-		a, err := p.Answer()
+		header, err := p.AnswerHeader()
 		if err == dnsmessage.ErrSectionDone {
 			if len(i) == 0 {
 				return nil, fmt.Errorf("no answer")
 			}
-			c.cache.Add(domain, i)
+			c.cache.Add(domain, i, time.Now().Add(time.Duration(ttl)*time.Second))
 			return i, nil
 		}
 		if err != nil {
 			return nil, err
 		}
-		if a.Header.Type != dnsmessage.TypeA {
-			continue
+		// All Resources in a set should have the same TTL (RFC 2181 Section 5.2).
+		ttl = header.TTL
+
+		switch header.Type {
+		case dnsmessage.TypeA:
+			body, err := p.AResource()
+			if err != nil {
+				return nil, err
+			}
+			i = append(i, net.IP(body.A[:]))
+		case dnsmessage.TypeAAAA:
+			body, err := p.AAAAResource()
+			if err != nil {
+				return nil, err
+			}
+			i = append(i, net.IP(body.AAAA[:]))
+		default:
+			err = p.SkipAnswer()
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		A := a.Body.(*dnsmessage.AResource).A
-		i = append(i, net.IPv4(A[0], A[1], A[2], A[3]))
 	}
+}
+
+type cacheEntry[K, V any] struct {
+	key        K
+	data       V
+	expireTime time.Time
+}
+
+//dnsLruCache Least Recently Used
+type dnsLruCache[K, V any] struct {
+	capacity int
+	list     *list.List
+	mapping  sync.Map
+	lock     sync.Mutex
+}
+
+//newCache create new lru cache
+func newCache[K, V any](capacity int) *dnsLruCache[K, V] {
+	return &dnsLruCache[K, V]{
+		capacity: capacity,
+		list:     list.New(),
+	}
+}
+
+func (l *dnsLruCache[K, V]) Add(key K, value V, expireTime time.Time) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	if elem, ok := l.mapping.Load(key); ok {
+		r := elem.(*list.Element).Value.(*cacheEntry[K, V])
+		r.key = key
+		r.data = value
+		r.expireTime = expireTime
+		l.list.MoveToFront(elem.(*list.Element))
+		return
+	}
+
+	if l.capacity == 0 || l.list.Len() < l.capacity {
+		l.mapping.Store(key, l.list.PushFront(&cacheEntry[K, V]{
+			key:        key,
+			data:       value,
+			expireTime: expireTime,
+		}))
+		return
+	}
+
+	elem := l.list.Back()
+	r := elem.Value.(*cacheEntry[K, V])
+	l.mapping.Delete(r.key)
+	r.key = key
+	r.data = value
+	r.expireTime = expireTime
+	l.list.MoveToFront(elem)
+	l.mapping.Store(key, elem)
+}
+
+//Delete delete a key from cache
+func (l *dnsLruCache[K, V]) Delete(key K) {
+	l.mapping.LoadAndDelete(key)
+}
+
+func (l *dnsLruCache[K, V]) Load(key K) (v V, ok bool) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	node, ok := l.mapping.Load(key)
+	if !ok {
+		return v, false
+	}
+
+	y, ok := node.(*list.Element).Value.(*cacheEntry[K, V])
+	if !ok {
+		return v, false
+	}
+
+	if time.Now().After(y.expireTime) {
+		l.mapping.Delete(key)
+		l.list.Remove(node.(*list.Element))
+		return v, false
+	}
+
+	l.list.MoveToFront(node.(*list.Element))
+	return y.data, true
 }

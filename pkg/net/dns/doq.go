@@ -9,7 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	nr "github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	"github.com/lucas-clemente/quic-go"
 	"golang.org/x/net/http2"
 )
@@ -25,9 +28,9 @@ type doq struct {
 	*client
 }
 
-func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) DNS {
+func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
 	if dialer == nil {
-		dialer = &proxy.Default{}
+		dialer = direct.Default
 	}
 
 	if i := strings.Index(host, "://"); i != -1 {
@@ -104,7 +107,7 @@ func (d *doq) initSession() error {
 		d.conn = conn
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", d.host)
+	addr, err := nr.ResolveUDPAddr(d.host)
 	if err != nil {
 		return fmt.Errorf("resolve udp addr failed: %w", err)
 	}

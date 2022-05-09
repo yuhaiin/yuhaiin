@@ -4,9 +4,11 @@
 package server
 
 import (
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 )
 
-func NewServer(host string, _ proxy.Proxy) (proxy.Server, error) {
-	return &proxy.EmptyServer{}, nil
+func NewServer(host string, _ proxy.Proxy) (iserver.Server, error) {
+	return &server.EmptyServer{}, nil
 }

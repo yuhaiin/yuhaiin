@@ -16,13 +16,15 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	lis "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 )
 
-func newUDPServer(host string, dialer proxy.Proxy) (proxy.Server, error) {
-	return proxy.NewUDPServer(host,
-		proxy.UDPWithListenConfig(net.ListenConfig{Control: controlUDP}),
-		proxy.UDPWithListenFunc(func(pc net.PacketConn) error { return handleUDP(pc, dialer) }))
+func newUDPServer(host string, dialer proxy.Proxy) (is.Server, error) {
+	return lis.NewUDPServer(host,
+		lis.UDPWithListenConfig(net.ListenConfig{Control: controlUDP}),
+		lis.UDPWithListenFunc(func(pc net.PacketConn) error { return handleUDP(pc, dialer) }))
 }
 
 func controlUDP(network, address string, c syscall.RawConn) error {

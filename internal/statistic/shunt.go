@@ -16,9 +16,10 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	imapper "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
@@ -78,7 +79,7 @@ var Mode = map[string]*MODE{
 }
 
 type shunt struct {
-	mapper *mapper.Mapper[*MODE]
+	mapper imapper.Mapper[string, *MODE]
 
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
@@ -90,7 +91,7 @@ type shunt struct {
 
 func newShunt(resolver dns.DNS, conns conns) *shunt {
 	return &shunt{
-		mapper: mapper.NewMapper[*MODE](resolver.LookupIP),
+		mapper: mapper.NewMapper[*MODE](resolver),
 		conns:  conns,
 		config: &protoconfig.Bypass{Enabled: true, BypassFile: ""},
 	}
@@ -157,7 +158,7 @@ func (s *shunt) refresh() error {
 	return nil
 }
 
-func (s *shunt) Get(domain string) MODE {
+func (s *shunt) match(domain string) MODE {
 	if !s.config.Enabled {
 		return PROXY
 	}
@@ -193,7 +194,7 @@ func (s *shunt) GetDialer(m MODE) proxy.Proxy {
 }
 
 func (s *shunt) Conn(host string) (net.Conn, error) {
-	m := s.Get(host)
+	m := s.match(host)
 	dialer, ok := s.dialers[m]
 	if !ok {
 		return nil, fmt.Errorf("not found dialer for %s", m)
@@ -204,11 +205,11 @@ func (s *shunt) Conn(host string) (net.Conn, error) {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return s.conns.AddConn(conn, host, m), nil
+	return s.conns.AddConn(conn, host, m.String()), nil
 }
 
 func (s *shunt) PacketConn(host string) (net.PacketConn, error) {
-	m := s.Get(host)
+	m := s.match(host)
 	dialer, ok := s.dialers[m]
 	if !ok {
 		return nil, fmt.Errorf("not found dialer for %s", m)
@@ -219,5 +220,5 @@ func (s *shunt) PacketConn(host string) (net.PacketConn, error) {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return s.conns.AddPacketConn(conn, host, m), nil
+	return s.conns.AddPacketConn(conn, host, m.String()), nil
 }

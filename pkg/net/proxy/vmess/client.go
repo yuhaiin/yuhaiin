@@ -5,7 +5,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	gcvmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )

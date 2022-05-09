@@ -6,7 +6,7 @@ package server
 import (
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/nfutil"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )

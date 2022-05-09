@@ -11,8 +11,8 @@ import (
 )
 
 type conns interface {
-	AddConn(_ net.Conn, host string, _ MODE) net.Conn
-	AddPacketConn(_ net.PacketConn, host string, _ MODE) net.PacketConn
+	AddConn(_ net.Conn, host, mark string) net.Conn
+	AddPacketConn(_ net.PacketConn, host, mark string) net.PacketConn
 }
 
 var _ conns = (*counter)(nil)
@@ -31,7 +31,7 @@ func NewStatistic() *counter { return &counter{} }
 func (c *counter) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
 	resp := &statistic.ConnResp{}
 	c.conns.Range(func(key int64, v connection) bool {
-		resp.Connections = append(resp.Connections, v.GetStatistic())
+		resp.Connections = append(resp.Connections, v.Info())
 		return true
 	})
 

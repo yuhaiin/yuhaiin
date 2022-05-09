@@ -1,23 +1,21 @@
 package mapper
 
 import (
-	"fmt"
+	"math/rand"
 	"net"
-	"sync/atomic"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 )
 
-type Mapper[T any] struct {
-	preMap []Search[T]
-	lookup *value[func(string) ([]net.IP, error)]
+type combine[T any] struct {
 	cidr   *Cidr[T]
 	domain *domain[T]
+
+	dns dns.DNS
 }
 
-func (x *Mapper[T]) SetLookup(f func(string) ([]net.IP, error)) {
-	x.lookup.Store(f)
-}
-
-func (x *Mapper[T]) Insert(str string, mark T) {
+func (x *combine[T]) Insert(str string, mark T) {
 	if str == "" {
 		return
 	}
@@ -30,23 +28,7 @@ func (x *Mapper[T]) Insert(str string, mark T) {
 	}
 }
 
-func (x *Mapper[T]) lookupIP(s string) ([]net.IP, error) {
-	lookup := x.lookup.Load()
-	if lookup == nil {
-		return nil, fmt.Errorf("no lookup function")
-	}
-
-	return lookup(s)
-}
-
-func (x *Mapper[T]) Search(str string) (mark T, ok bool) {
-	for _, f := range x.preMap {
-		mark, ok = f.Search(str)
-		if ok {
-			return
-		}
-	}
-
+func (x *combine[T]) Search(str string) (mark T, ok bool) {
 	if ip := net.ParseIP(str); ip != nil {
 		return x.cidr.SearchIP(ip)
 	}
@@ -55,52 +37,28 @@ func (x *Mapper[T]) Search(str string) (mark T, ok bool) {
 		return
 	}
 
-	if dns, err := x.lookupIP(str); err == nil {
-		mark, ok = x.cidr.SearchIP(dns[0])
+	if x.dns == nil {
+		return
+	}
+
+	if dns, err := x.dns.LookupIP(str); err == nil {
+		mark, ok = x.cidr.SearchIP(dns[rand.Intn(len(dns))])
 	}
 
 	return
 }
 
-type Search[T any] interface {
-	Search(string) (T, bool)
-}
-
-func (x *Mapper[T]) WrapPrefixSearch(f Search[T]) {
-	x.preMap = append(x.preMap, f)
-}
-
-func (x *Mapper[T]) Clear() {
+func (x *combine[T]) Clear() error {
 	x.cidr = NewCidrMapper[T]()
 	x.domain = NewDomainMapper[T]()
+
+	return nil
 }
 
-func NewMapper[T any](lookup func(string) ([]net.IP, error)) (matcher *Mapper[T]) {
-	return &Mapper[T]{
+func NewMapper[T any](dns dns.DNS) mapper.Mapper[string, T] {
+	return &combine[T]{
 		cidr:   NewCidrMapper[T](),
 		domain: NewDomainMapper[T](),
-		lookup: newValue(lookup),
+		dns:    dns,
 	}
-}
-
-type value[T any] struct {
-	v atomic.Value
-}
-
-func newValue[T any](t T) *value[T] {
-	a := &value[T]{v: atomic.Value{}}
-	a.Store(t)
-
-	return a
-}
-
-func (v *value[T]) Store(t T) {
-	v.v.Store(t)
-}
-
-func (v *value[T]) Load() (t T) {
-	if r := v.v.Load(); r != nil {
-		t = r.(T)
-	}
-	return
 }

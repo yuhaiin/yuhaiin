@@ -6,15 +6,16 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
 
 type remotedns struct {
 	config        *protoconfig.Dns
-	dns           dns.DNS
+	dns           idns.DNS
 	direct, proxy proxy.Proxy
 	conns         conns
 }
@@ -37,13 +38,14 @@ func (r *remotedns) Update(c *protoconfig.Setting) {
 		r.dns.Close()
 	}
 
-	MODE := DIRECT
+	mark := "REMOTEDNS_DIRECT"
 	dialer := r.direct
 	if r.config.Proxy {
-		MODE = PROXY
+		mark = "REMOTEDNS_PROXY"
 		dialer = r.proxy
 	}
-	r.dns = getDNS(r.config, &remotednsDialer{r.conns, dialer, MODE})
+
+	r.dns = getDNS(r.config, &dnsdialer{r.conns, dialer, mark})
 }
 
 func (r *remotedns) LookupIP(host string) ([]net.IP, error) {
@@ -53,13 +55,6 @@ func (r *remotedns) LookupIP(host string) ([]net.IP, error) {
 	return r.dns.LookupIP(host)
 }
 
-func (l *remotedns) Resolver() *net.Resolver {
-	if l.dns == nil {
-		return net.DefaultResolver
-	}
-	return l.dns.Resolver()
-}
-
 func (l *remotedns) Close() error {
 	if l.dns != nil {
 		return l.dns.Close()
@@ -67,35 +62,10 @@ func (l *remotedns) Close() error {
 	return nil
 }
 
-type remotednsDialer struct {
-	conns
-	dialer proxy.Proxy
-	MODE
-}
-
-func (c *remotednsDialer) Conn(host string) (net.Conn, error) {
-	con, err := c.dialer.Conn(host)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.conns.AddConn(con, host, c.MODE), nil
-}
-
-func (c *remotednsDialer) PacketConn(host string) (net.PacketConn, error) {
-	con, err := c.dialer.PacketConn(host)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.conns.AddPacketConn(con, host, c.MODE), nil
-}
-
 type localdns struct {
-	config   *protoconfig.Dns
-	dns      dns.DNS
-	resolver *net.Resolver
-	conns    conns
+	config *protoconfig.Dns
+	dns    idns.DNS
+	conns  conns
 }
 
 func newLocaldns(conns conns) *localdns {
@@ -109,8 +79,7 @@ func (l *localdns) Update(c *protoconfig.Setting) {
 
 	l.config = c.Dns.Local
 	l.Close()
-	l.dns = getDNS(l.config, &localdnsDialer{l.conns})
-	l.resolver = l.dns.Resolver()
+	l.dns = getDNS(l.config, &dnsdialer{l.conns, direct.Default, "LOCALDNS_DIRECT"})
 }
 
 func (l *localdns) LookupIP(host string) ([]net.IP, error) {
@@ -121,13 +90,6 @@ func (l *localdns) LookupIP(host string) ([]net.IP, error) {
 	return l.dns.LookupIP(host)
 }
 
-func (l *localdns) Resolver() *net.Resolver {
-	if l.resolver == nil {
-		return net.DefaultResolver
-	}
-	return l.resolver
-}
-
 func (l *localdns) Close() error {
 	if l.dns != nil {
 		return l.dns.Close()
@@ -136,27 +98,7 @@ func (l *localdns) Close() error {
 	return nil
 }
 
-type localdnsDialer struct{ conns }
-
-func (d *localdnsDialer) Conn(host string) (net.Conn, error) {
-	conn, err := direct.Default.Conn(host)
-	if err != nil {
-		return nil, err
-	}
-
-	return d.AddConn(conn, host, DIRECT), nil
-}
-
-func (d *localdnsDialer) PacketConn(host string) (net.PacketConn, error) {
-	con, err := direct.Default.PacketConn(host)
-	if err != nil {
-		return nil, err
-	}
-
-	return d.AddPacketConn(con, host, DIRECT), nil
-}
-
-func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
+func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)
@@ -186,6 +128,30 @@ func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) dns.DNS {
 	case protoconfig.Dns_udp:
 		fallthrough
 	default:
-		return dns.NewDNS(dc.Host, subnet, proxy)
+		return dns.NewDoU(dc.Host, subnet, proxy)
 	}
+}
+
+type dnsdialer struct {
+	conns
+	dialer proxy.Proxy
+	mark   string
+}
+
+func (c *dnsdialer) Conn(host string) (net.Conn, error) {
+	con, err := c.dialer.Conn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.conns.AddConn(con, host, c.mark), nil
+}
+
+func (c *dnsdialer) PacketConn(host string) (net.PacketConn, error) {
+	con, err := c.dialer.PacketConn(host)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.conns.AddPacketConn(con, host, c.mark), nil
 }

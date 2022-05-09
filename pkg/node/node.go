@@ -16,8 +16,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -52,7 +53,7 @@ func (n *Nodes) dialer() proxy.Proxy {
 		p, err := register.Dialer(now)
 		if err != nil {
 			log.Printf("create conn failed: %v", err)
-			return &proxy.Default{}
+			return direct.Default
 		}
 
 		n.proxy = p
