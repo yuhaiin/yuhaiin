@@ -6,9 +6,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
@@ -35,7 +36,7 @@ func newUDPServer(f proxy.Proxy, target string) (*udpServer, error) {
 		return nil, fmt.Errorf("connect to %s failed: %v", target, err)
 	}
 
-	tar, err := net.ResolveUDPAddr("udp", target)
+	tar, err := resolver.ResolveUDPAddr(target)
 	if err != nil {
 		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
 	}

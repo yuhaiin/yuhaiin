@@ -7,8 +7,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 )
 
 type direct struct {
@@ -30,7 +31,7 @@ func WithLookup(dns dns.DNS) Option {
 var Default proxy.Proxy = NewDirect()
 
 func NewDirect(o ...Option) proxy.Proxy {
-	d := &direct{listener: &net.ListenConfig{}, dns: dns.DefaultDNS}
+	d := &direct{listener: &net.ListenConfig{}, dns: resolver.Bootstrap}
 
 	for _, opt := range o {
 		opt(d)

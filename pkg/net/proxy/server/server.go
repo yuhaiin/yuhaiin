@@ -1,15 +1,12 @@
-package proxy
+package server
 
 import (
-	"io"
 	"net"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 )
 
-type Server interface {
-	io.Closer
-}
-
-var _ Server = (*EmptyServer)(nil)
+var _ server.Server = (*EmptyServer)(nil)
 
 type EmptyServer struct{}
 

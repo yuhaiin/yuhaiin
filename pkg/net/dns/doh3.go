@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/lucas-clemente/quic-go/http3"
 )
 
@@ -19,7 +20,7 @@ type doh3 struct {
 	*client
 }
 
-func NewDoH3(host string, subnet *net.IPNet) DNS {
+func NewDoH3(host string, subnet *net.IPNet) dns.DNS {
 	d := &doh3{
 		httpClient: &http.Client{
 			Transport: &http3.RoundTripper{},

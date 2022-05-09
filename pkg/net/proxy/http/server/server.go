@@ -11,7 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -257,6 +259,6 @@ func removeHeader(h http.Header) {
 	h.Del("Upgrade")
 }
 
-func NewServer(host, username, password string, dialer proxy.StreamProxy) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, handshake(dialer, username, password))
+func NewServer(host, username, password string, dialer proxy.StreamProxy) (iserver.Server, error) {
+	return server.NewTCPServer(host, handshake(dialer, username, password))
 }

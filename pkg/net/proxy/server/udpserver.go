@@ -1,4 +1,4 @@
-package proxy
+package server
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 )
 
 type udpserver struct {
@@ -39,7 +41,7 @@ func UDPWithHandle(f func(req io.Reader) (resp io.ReadCloser, err error)) func(u
 	}
 }
 
-func NewUDPServer(host string, opt ...func(u *udpOpt)) (Server, error) {
+func NewUDPServer(host string, opt ...func(u *udpOpt)) (server.Server, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host not defined")
 	}

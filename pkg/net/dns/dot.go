@@ -9,10 +9,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 )
 
-var _ DNS = (*dot)(nil)
+var _ dns.DNS = (*dot)(nil)
 
 type dot struct {
 	host         string
@@ -26,9 +28,9 @@ type dot struct {
 	lock sync.Mutex
 }
 
-func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
+func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
 	if p == nil {
-		p = &proxy.Default{}
+		p = direct.Default
 	}
 
 	if i := strings.Index(host, "://"); i != -1 {

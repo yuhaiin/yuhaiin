@@ -7,7 +7,9 @@ import (
 	"log"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 )
 
 func RedirHandle(dialer proxy.Proxy) func(net.Conn) {
@@ -20,6 +22,6 @@ func RedirHandle(dialer proxy.Proxy) func(net.Conn) {
 	}
 }
 
-func NewServer(host string, dialer proxy.Proxy) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, RedirHandle(dialer))
+func NewServer(host string, dialer proxy.Proxy) (iserver.Server, error) {
+	return server.NewTCPServer(host, RedirHandle(dialer))
 }

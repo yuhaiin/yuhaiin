@@ -93,7 +93,7 @@ func TestConnectionSsr(t *testing.T) {
 		},
 	}
 
-	dns := dns.NewDNS("1.1.1.1:53", nil, z)
+	dns := dns.NewDoU("1.1.1.1:53", nil, z)
 	t.Log(dns.LookupIP("www.google.com"))
 
 	req := http.Request{

@@ -7,7 +7,9 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -167,6 +169,6 @@ func writeSecondResp(conn net.Conn, errREP byte, addr string) {
 	_, _ = conn.Write(append([]byte{0x05, errREP, 0x00}, Addr...))
 }
 
-func NewServer(host, username, password string, dialer proxy.Proxy) (proxy.Server, error) {
-	return proxy.NewTCPServer(host, handshake(dialer, username, password))
+func NewServer(host, username, password string, dialer proxy.Proxy) (iserver.Server, error) {
+	return server.NewTCPServer(host, handshake(dialer, username, password))
 }
