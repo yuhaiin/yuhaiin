@@ -7,7 +7,7 @@ import (
 	"log"
 	"reflect"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 

@@ -9,7 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -163,7 +164,7 @@ func (s *client) PacketConn(host string) (net.PacketConn, error) {
 		return nil, fmt.Errorf("second hand failed: %v", err)
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(r.ADDR, strconv.Itoa(r.PORT)))
+	addr, err := resolver.ResolveUDPAddr(net.JoinHostPort(r.ADDR, strconv.Itoa(r.PORT)))
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("resolve addr failed: %v", err)

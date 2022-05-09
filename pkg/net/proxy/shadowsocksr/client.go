@@ -3,14 +3,16 @@ package shadowsocksr
 import (
 	"fmt"
 	"net"
+	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -22,7 +24,7 @@ type Shadowsocksr struct {
 	cipher   *cipher.Cipher
 	dial     proxy.Proxy
 
-	udpAddr *net.UDPAddr
+	addr string
 }
 
 func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
@@ -34,9 +36,9 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 			return nil, fmt.Errorf("new cipher failed: %w", err)
 		}
 
-		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.Server, c.Port))
+		port, err := strconv.ParseUint(c.Port, 10, 16)
 		if err != nil {
-			return nil, fmt.Errorf("resolve udp addr failed: %w", err)
+			return nil, fmt.Errorf("parse port failed: %w", err)
 		}
 
 		info := ssr.Info{
@@ -46,7 +48,7 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 		}
 
 		obfs, err := obfs.NewObfs(c.Obfs, ssr.ObfsInfo{
-			Host: c.Server, Port: uint16(addr.Port),
+			Host: c.Server, Port: uint16(port),
 			Param: c.Obfsparam, Info: info})
 		if err != nil {
 			return nil, fmt.Errorf("new obfs failed: %w", err)
@@ -65,7 +67,7 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 			return nil, fmt.Errorf("new protocol failed: %w", err)
 		}
 
-		return &Shadowsocksr{cipher: cipher, dial: p, obfs: obfs, protocol: protocol, udpAddr: addr}, nil
+		return &Shadowsocksr{cipher: cipher, dial: p, obfs: obfs, protocol: protocol, addr: net.JoinHostPort(c.Server, c.Port)}, nil
 	}
 }
 
@@ -104,7 +106,12 @@ func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 	}
 	cipher := s.cipher.PacketConn(c)
 	proto := s.protocol.Packet(cipher)
-	conn, err := shadowsocks.NewSsPacketConn(proto, s.udpAddr, addr)
+	uaddr, err := resolver.ResolveUDPAddr(s.addr)
+	if err != nil {
+		c.Close()
+		return nil, fmt.Errorf("resolve udp addr failed: %w", err)
+	}
+	conn, err := shadowsocks.NewSsPacketConn(proto, uaddr, addr)
 	if err != nil {
 		c.Close()
 		return nil, fmt.Errorf("new ss packet conn failed: %w", err)

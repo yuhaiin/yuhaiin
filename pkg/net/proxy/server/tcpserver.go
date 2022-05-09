@@ -1,4 +1,4 @@
-package proxy
+package server
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 )
 
 // tcpserver tcp server common
@@ -25,7 +27,7 @@ func TCPWithListenConfig(n net.ListenConfig) func(u *tcpOpt) {
 }
 
 // NewTCPServer create new TCP listener
-func NewTCPServer(host string, handle func(net.Conn), opt ...func(*tcpOpt)) (Server, error) {
+func NewTCPServer(host string, handle func(net.Conn), opt ...func(*tcpOpt)) (server.Server, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host is empty")
 	}

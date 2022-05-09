@@ -14,12 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-var _ DNS = (*doh)(nil)
+var _ dns.DNS = (*doh)(nil)
 
 type doh struct {
 	Proxy proxy.StreamProxy
@@ -33,7 +34,7 @@ type doh struct {
 	*client
 }
 
-func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) DNS {
+func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
 	dns := &doh{}
 
 	dns.setServer(host)
@@ -85,15 +86,11 @@ func (d *doh) setProxy(p proxy.StreamProxy) {
 	d.Proxy = p
 	d.httpClient = &http.Client{
 		Transport: &http.Transport{
+			DisableKeepAlives: false,
 			//Proxy: http.ProxyFromEnvironment,
 			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				switch network {
-				case "tcp":
-					return d.Proxy.Conn(d.host)
-				default:
-					return net.Dial(network, d.host)
-				}
+				return d.Proxy.Conn(d.host)
 			},
 		},
 		Timeout: 10 * time.Second,

@@ -8,7 +8,9 @@ import (
 	"net"
 	"syscall"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	lis "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -44,7 +46,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) {
 	utils.Relay(c, r)
 }
 
-func newTCPServer(h string, dialer proxy.Proxy) (proxy.Server, error) {
-	return proxy.NewTCPServer(h, func(c net.Conn) { handleTCP(c, dialer) },
-		proxy.TCPWithListenConfig(net.ListenConfig{Control: controlTCP}))
+func newTCPServer(h string, dialer proxy.Proxy) (is.Server, error) {
+	return lis.NewTCPServer(h, func(c net.Conn) { handleTCP(c, dialer) },
+		lis.TCPWithListenConfig(net.ListenConfig{Control: controlTCP}))
 }

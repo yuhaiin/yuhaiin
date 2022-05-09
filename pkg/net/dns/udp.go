@@ -7,22 +7,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	nr "github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 )
 
-var _ DNS = (*dns)(nil)
+var _ dns.DNS = (*udp)(nil)
 
-type dns struct {
+type udp struct {
 	Server string
 	proxy  proxy.PacketProxy
 
 	*client
 }
 
-func NewDNS(host string, subnet *net.IPNet, p proxy.PacketProxy) DNS {
+func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 	if p == nil {
-		p = &proxy.Default{}
+		p = direct.Default
 	}
 
 	_, _, err := net.SplitHostPort(host)
@@ -35,7 +38,7 @@ func NewDNS(host string, subnet *net.IPNet, p proxy.PacketProxy) DNS {
 		host = net.JoinHostPort(host, "53")
 	}
 
-	d := &dns{
+	d := &udp{
 		Server: host,
 		proxy:  p,
 	}
@@ -45,7 +48,7 @@ func NewDNS(host string, subnet *net.IPNet, p proxy.PacketProxy) DNS {
 	return d
 }
 
-func (n *dns) Resolver() *net.Resolver {
+func (n *udp) Resolver() *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -54,13 +57,13 @@ func (n *dns) Resolver() *net.Resolver {
 	}
 }
 
-func (n *dns) Close() error { return nil }
+func (n *udp) Close() error { return nil }
 
-func (n *dns) udp(req []byte) (data []byte, err error) {
+func (n *udp) udp(req []byte) (data []byte, err error) {
 	var b = utils.GetBytes(utils.DefaultSize)
 	defer utils.PutBytes(b)
 
-	addr, err := net.ResolveUDPAddr("udp", n.Server)
+	addr, err := nr.ResolveUDPAddr(n.Server)
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %v", err)
 	}

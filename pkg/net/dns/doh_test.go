@@ -4,19 +4,21 @@ import (
 	"context"
 	"net"
 	"testing"
+
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDOH(t *testing.T) {
 	// _, s, _ := net.ParseCIDR("223.5.5.5/22")
 	// d := NewDoH("cloudflare-dns.com", nil)
 	// d := NewDoH("public.dns.iij.jp", s, nil)
-	// d := NewDoH("dns.google", s, s5c.Dial("127.0.0.1", "1080", "", ""))
+	d := NewDoH("dns.google", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
 	// d := NewDoH("dns.nextdns.io/e28bb3", nil)
 	// d := NewDoH("1.1.1.1", nil)
 	// d := NewDoH("1.0.0.1", nil)
 	// d := NewDoH("223.5.5.5", s, nil)
 	// d := NewDoH("sm2.doh.pub", s, nil)
-	d := NewDoH("doh.pub", nil, nil)
+	// d := NewDoH("doh.pub", nil, nil)
 	// d := NewDoH("101.6.6.6:8443", nil)
 	// d := NewDoH("doh.360.cn", s, nil)
 	// d := NewDOH("doh.dns.sb")
@@ -31,7 +33,6 @@ func TestDOH(t *testing.T) {
 	t.Log(d.LookupIP("www.pixiv.net"))
 
 	t.Log(d.LookupIP("s1.hdslb.com"))
-	t.Log(d.Resolver().LookupIP(context.Background(), "ip", "s1.hdslb.com"))
 	//t.Log(d.LookupIP("baidu.com"))
 	//t.Log(d.LookupIP("ss1.bdstatic.com"))
 	//t.Log(d.LookupIP("dns.nextdns.io"))

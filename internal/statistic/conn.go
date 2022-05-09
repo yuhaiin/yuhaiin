@@ -19,7 +19,7 @@ type connection interface {
 	GetLocal() string
 	GetRemote() string
 	GetMark() string
-	GetStatistic() *statistic.Connection
+	Info() *statistic.Connection
 }
 
 var _ connection = (*conn)(nil)
@@ -33,12 +33,12 @@ type conn struct {
 	wbuf, rbuf []byte
 }
 
-func (c *counter) AddConn(con net.Conn, addr string, mark MODE) net.Conn {
+func (c *counter) AddConn(con net.Conn, addr, mark string) net.Conn {
 	z := &conn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr,
-			Mark:   mark.String(),
+			Mark:   mark,
 			Local:  con.LocalAddr().String(),
 			Remote: con.RemoteAddr().String(),
 			Type:   con.LocalAddr().Network(),
@@ -123,7 +123,7 @@ func (s *conn) WriteTo(w io.Writer) (resp int64, err error) {
 	return
 }
 
-func (s *conn) GetStatistic() *statistic.Connection {
+func (s *conn) Info() *statistic.Connection {
 	return s.Connection
 }
 
@@ -136,12 +136,12 @@ type packetConn struct {
 	manager *counter
 }
 
-func (c *counter) AddPacketConn(con net.PacketConn, addr string, mark MODE) net.PacketConn {
+func (c *counter) AddPacketConn(con net.PacketConn, addr, mark string) net.PacketConn {
 	z := &packetConn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr,
-			Mark:   mark.String(),
+			Mark:   mark,
 			Local:  con.LocalAddr().String(),
 			Remote: addr,
 			Type:   con.LocalAddr().Network(),
@@ -154,7 +154,7 @@ func (c *counter) AddPacketConn(con net.PacketConn, addr string, mark MODE) net.
 	return z
 }
 
-func (s *packetConn) GetStatistic() *statistic.Connection {
+func (s *packetConn) Info() *statistic.Connection {
 	return s.Connection
 }
 

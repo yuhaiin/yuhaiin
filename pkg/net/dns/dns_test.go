@@ -12,7 +12,7 @@ import (
 
 func TestDNS2(t *testing.T) {
 	_, subnet, _ := net.ParseCIDR("1.1.1.1/32")
-	dns := NewDNS("114.114.114.114:53", subnet, nil)
+	dns := NewDoU("114.114.114.114:53", subnet, nil)
 	t.Log(dns.LookupIP("baidu.com"))
 	t.Log(dns.LookupIP("google.com"))
 	//t.Log(DNS("223.5.5.5:53", "www.google.com"))
@@ -20,7 +20,7 @@ func TestDNS2(t *testing.T) {
 }
 
 func TestDNS9(t *testing.T) {
-	dns := NewDNS("8.8.8.8:53", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
+	dns := NewDoU("8.8.8.8:53", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
 	t.Log(dns.LookupIP("www.baidu.com"))
 	t.Log(dns.LookupIP("www.twitter.com"))
 	t.Log(dns.LookupIP("google.com")) // without proxy [93.46.8.90] <nil>, with proxy [172.217.27.78] <nil>
@@ -38,7 +38,10 @@ func TestDNS6(t *testing.T) {
 }
 
 func TestDNSResolver(t *testing.T) {
-	d := NewDNS("114.114.114.114:53", nil, nil)
+	dd := NewDoU("114.114.114.114:53", nil, nil)
+
+	d := dd.(*udp)
+
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.baidu.com"))
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.google.com"))
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.cloudflare.com"))

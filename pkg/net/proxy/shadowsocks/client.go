@@ -7,17 +7,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
 //Shadowsocks shadowsocks
 type Shadowsocks struct {
-	cipher  core.Cipher
-	p       proxy.Proxy
-	udpAddr *net.UDPAddr
+	cipher core.Cipher
+	p      proxy.Proxy
+
+	addr string
 }
 
 func NewShadowsocks(config *node.PointProtocol_Shadowsocks) node.WrapProxy {
@@ -28,12 +30,7 @@ func NewShadowsocks(config *node.PointProtocol_Shadowsocks) node.WrapProxy {
 			return nil, err
 		}
 
-		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.Server, c.Port))
-		if err != nil {
-			return nil, fmt.Errorf("resolve udp addr failed: %v", err)
-		}
-
-		return &Shadowsocks{cipher: cipher, p: p, udpAddr: addr}, nil
+		return &Shadowsocks{cipher: cipher, p: p, addr: net.JoinHostPort(c.Server, c.Port)}, nil
 	}
 }
 
@@ -69,7 +66,12 @@ func (s *Shadowsocks) PacketConn(tar string) (net.PacketConn, error) {
 	}
 	pc = s.cipher.PacketConn(pc)
 
-	conn, err := NewSsPacketConn(pc, s.udpAddr, tar)
+	uaddr, err := resolver.ResolveUDPAddr(s.addr)
+	if err != nil {
+		pc.Close()
+		return nil, fmt.Errorf("resolve udp address failed: %v", err)
+	}
+	conn, err := NewSsPacketConn(pc, uaddr, tar)
 	if err != nil {
 		pc.Close()
 		return nil, fmt.Errorf("create ss packet conn failed: %v", err)
@@ -103,7 +105,7 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.FormatInt(int64(port), 10)))
+	addr, err := resolver.ResolveUDPAddr(net.JoinHostPort(host, strconv.FormatInt(int64(port), 10)))
 	if err != nil {
 		return 0, nil, fmt.Errorf("resolve udp address failed: %v", err)
 	}
