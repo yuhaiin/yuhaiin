@@ -3,6 +3,7 @@ package statistic
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
@@ -48,7 +49,13 @@ func (r *remotedns) LookupIP(host string) ([]net.IP, error) {
 	if r.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}
-	return r.dns.LookupIP(host)
+	ips, err := r.dns.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("remotedns lookup failed: %w", err)
+	}
+
+	log.Println("remotedns lookup success:", host, ips)
+	return ips, nil
 }
 
 func (l *remotedns) Close() error {
@@ -83,7 +90,13 @@ func (l *localdns) LookupIP(host string) ([]net.IP, error) {
 		return net.DefaultResolver.LookupIP(context.TODO(), "ip", host)
 	}
 
-	return l.dns.LookupIP(host)
+	ips, err := l.dns.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("localdns lookup failed: %w", err)
+	}
+
+	log.Println("localdns lookup success:", host, ips)
+	return ips, nil
 }
 
 func (l *localdns) Close() error {
