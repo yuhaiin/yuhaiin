@@ -34,9 +34,6 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 			host = net.JoinHostPort(host, "53")
 		}
 	}
-	if i := net.ParseIP(host); i != nil {
-		host = net.JoinHostPort(host, "53")
-	}
 
 	d := &udp{
 		Server: host,
