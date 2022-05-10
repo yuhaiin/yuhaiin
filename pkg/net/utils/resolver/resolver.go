@@ -6,9 +6,11 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 )
 
-var Bootstrap = &System{}
+var Bootstrap dns.DNS = &System{}
 
 type System struct{}
 
@@ -17,9 +19,7 @@ func (d *System) LookupIP(domain string) ([]net.IP, error) {
 }
 func (d *System) Close() error { return nil }
 
-func LookupIP(domain string) ([]net.IP, error) {
-	return Bootstrap.LookupIP(domain)
-}
+func LookupIP(domain string) ([]net.IP, error) { return Bootstrap.LookupIP(domain) }
 
 func ResolveUDPAddr(address string) (*net.UDPAddr, error) {
 	host, port, err := net.SplitHostPort(address)

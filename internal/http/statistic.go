@@ -131,5 +131,5 @@ var errNotImpl = errors.New("not implemented")
 func (s *statisticServer) SetHeader(metadata.MD) error  { return errNotImpl }
 func (s *statisticServer) SendHeader(metadata.MD) error { return errNotImpl }
 func (s *statisticServer) SetTrailer(metadata.MD)       {}
-func (s *statisticServer) SendMsg(m interface{}) error  { return errNotImpl }
-func (s *statisticServer) RecvMsg(m interface{}) error  { return errNotImpl }
+func (s *statisticServer) SendMsg(m any) error          { return errNotImpl }
+func (s *statisticServer) RecvMsg(m any) error          { return errNotImpl }

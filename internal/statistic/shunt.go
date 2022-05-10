@@ -68,15 +68,9 @@ var (
 	UNKNOWN MODE = "UNKNOWN"
 )
 
-func (m MODE) String() string {
-	return string(m)
-}
+func (m MODE) String() string { return string(m) }
 
-var Mode = map[string]*MODE{
-	"direct": &DIRECT,
-	// "proxy":  PROXY,
-	"block": &BLOCK,
-}
+var Mode = map[string]*MODE{"direct": &DIRECT /* "proxy":  PROXY,*/, "block": &BLOCK}
 
 type shunt struct {
 	mapper imapper.Mapper[string, *MODE]

@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	var get func(interface{}) string
+	var get func(any) string
 	var trim func([]byte) []byte
 
 	store.Store(node.NodeLink_vmess, func(data []byte) (*node.Point, error) {
@@ -22,7 +22,7 @@ func init() {
 		//             IsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY
 		//             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
 		if get == nil {
-			get = func(p interface{}) string {
+			get = func(p any) string {
 				switch p := p.(type) {
 				case string:
 					return p
@@ -40,13 +40,13 @@ func init() {
 
 		n := struct {
 			// address
-			Address string      `json:"add,omitempty"`
-			Port    interface{} `json:"port,omitempty"`
+			Address string `json:"add,omitempty"`
+			Port    any    `json:"port,omitempty"`
 			// uuid
 			Uuid     string `json:"id,omitempty"`
 			Security string `json:"security,omitempty"`
 			// alter id
-			AlterId interface{} `json:"aid,omitempty"`
+			AlterId any `json:"aid,omitempty"`
 
 			// name
 			Ps     string `json:"ps,omitempty"`
