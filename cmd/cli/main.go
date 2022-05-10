@@ -670,7 +670,7 @@ func (y *yhCli) setNodeConfig(hash string, setting string) error {
 
 	data := protojson.MarshalOptions{Indent: "\t", UseProtoNames: true, EmitUnpopulated: true}.Format(node)
 
-	var s map[string]interface{}
+	var s map[string]any
 	err = json.Unmarshal([]byte(data), &s)
 	if err != nil {
 		return fmt.Errorf("unmarshal failed: %w", err)
@@ -726,7 +726,7 @@ func (y *yhCli) setConfig(setting string) error {
 
 	data := protojson.MarshalOptions{Indent: "\t", EmitUnpopulated: true}.Format(c)
 
-	var s map[string]interface{}
+	var s map[string]any
 	err = json.Unmarshal([]byte(data), &s)
 	if err != nil {
 		return fmt.Errorf("unmarshal failed: %w", err)
@@ -764,10 +764,10 @@ func (y *yhCli) setConfig(setting string) error {
 	return y.showConfig()
 }
 
-func set(s map[string]interface{}, k []string, v string) error {
+func set(s map[string]any, k []string, v string) error {
 	l := len(k) - 1
 	for i := 0; i < l; i++ {
-		v, ok := s[k[i]].(map[string]interface{})
+		v, ok := s[k[i]].(map[string]any)
 		if !ok {
 			return fmt.Errorf("can't find key %v", k[i])
 		}
@@ -775,7 +775,7 @@ func set(s map[string]interface{}, k []string, v string) error {
 		s = v
 	}
 
-	var b interface{}
+	var b any
 	var err error
 	switch s[k[l]].(type) {
 	case bool:

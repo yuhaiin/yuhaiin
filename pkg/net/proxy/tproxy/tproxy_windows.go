@@ -6,9 +6,9 @@ package tproxy
 import (
 	"fmt"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 )
 
-func NewServer(h string) (interfaces.Server, error) {
+func NewServer(h string) (server.Server, error) {
 	return nil, fmt.Errorf("tproxy not support for windows")
 }

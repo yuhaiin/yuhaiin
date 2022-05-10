@@ -21,11 +21,7 @@ type remotedns struct {
 }
 
 func newRemotedns(direct, proxy proxy.Proxy, conns conns) *remotedns {
-	return &remotedns{
-		direct: direct,
-		proxy:  proxy,
-		conns:  conns,
-	}
+	return &remotedns{direct: direct, proxy: proxy, conns: conns}
 }
 
 func (r *remotedns) Update(c *protoconfig.Setting) {
