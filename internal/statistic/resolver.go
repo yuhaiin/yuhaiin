@@ -133,7 +133,7 @@ func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
 	case protoconfig.Dns_doh3:
 		return dns.NewDoH3(dc.Host, subnet)
 	case protoconfig.Dns_tcp:
-		fallthrough
+		return dns.NewTCP(dc.Host, subnet, proxy)
 	case protoconfig.Dns_udp:
 		fallthrough
 	default:

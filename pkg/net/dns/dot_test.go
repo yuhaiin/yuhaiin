@@ -27,7 +27,7 @@ func TestDOT(t *testing.T) {
 func TestDOTResolver(t *testing.T) {
 	dd := NewDoT("223.5.5.5", nil, nil)
 
-	d := dd.(*dot)
+	d := dd.(*tcp)
 
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.baidu.com"))
 	t.Log(d.Resolver().LookupHost(context.Background(), "www.google.com"))

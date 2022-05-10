@@ -19,7 +19,7 @@
   - DNS over HTTPS(3)
   - DNS over Quic
   - DNS over TLS
-  - TODO: DNS over TCP
+  - DNS over TCP
 - Auto Set System Proxy.  
 - a Simple web page can to configure.
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)  

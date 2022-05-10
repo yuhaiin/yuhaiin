@@ -4,27 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net"
 	"testing"
-
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
-
-func TestDNS2(t *testing.T) {
-	_, subnet, _ := net.ParseCIDR("1.1.1.1/32")
-	dns := NewDoU("114.114.114.114:53", subnet, nil)
-	t.Log(dns.LookupIP("baidu.com"))
-	t.Log(dns.LookupIP("google.com"))
-	//t.Log(DNS("223.5.5.5:53", "www.google.com"))
-	//t.Log(DNS("114.114.114.114:53", "www.baidu.com"))
-}
-
-func TestDNS9(t *testing.T) {
-	dns := NewDoU("8.8.8.8:53", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
-	t.Log(dns.LookupIP("www.baidu.com"))
-	t.Log(dns.LookupIP("www.twitter.com"))
-	t.Log(dns.LookupIP("google.com")) // without proxy [93.46.8.90] <nil>, with proxy [172.217.27.78] <nil>
-}
 
 func TestDNS3(t *testing.T) {
 	t.Log(0b10000001)
@@ -53,14 +34,4 @@ func TestResolve(t *testing.T) {
 	ans := []byte{46, 230, 129, 128, 0, 1, 0, 3, 0, 0, 0, 1, 7, 98, 114, 111, 119, 115, 101, 114, 4, 112, 105, 112, 101, 4, 97, 114, 105, 97, 9, 109, 105, 99, 114, 111, 115, 111, 102, 116, 3, 99, 111, 109, 0, 0, 1, 0, 1, 192, 12, 0, 5, 0, 1, 0, 0, 13, 58, 0, 40, 7, 98, 114, 111, 119, 115, 101, 114, 6, 101, 118, 101, 110, 116, 115, 4, 100, 97, 116, 97, 14, 116, 114, 97, 102, 102, 105, 99, 109, 97, 110, 97, 103, 101, 114, 3, 110, 101, 116, 0, 192, 61, 0, 5, 0, 1, 0, 0, 0, 43, 0, 32, 20, 115, 107, 121, 112, 101, 100, 97, 116, 97, 112, 114, 100, 99, 111, 108, 99, 117, 115, 49, 50, 8, 99, 108, 111, 117, 100, 97, 112, 112, 192, 96, 192, 113, 0, 1, 0, 1, 0, 0, 0, 6, 0, 4, 13, 89, 202, 241, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0}
 
 	t.Log(Resolve(req, ans))
-}
-
-func TestWritePacket(t *testing.T) {
-	l, err := net.ListenPacket("udp", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	addr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:38655")
-	t.Log(l.WriteTo([]byte("hello"), addr))
 }
