@@ -94,6 +94,10 @@ func (d *doq) initSession() error {
 		select {
 		case <-d.connection.Context().Done():
 			d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+			if d.conn != nil {
+				d.conn.Close()
+				d.conn = nil
+			}
 		default:
 			return nil
 		}
