@@ -34,7 +34,7 @@ func NewSocks5(config *node.PointProtocol_Socks5) node.WrapProxy {
 	}
 }
 
-func (s *client) Conn(host string) (net.Conn, error) {
+func (s *client) Conn(host proxy.Address) (net.Conn, error) {
 	conn, err := s.dialer.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %v", err)
@@ -110,15 +110,11 @@ type header struct {
 	PORT int
 }
 
-func (s *client) handshake2(conn net.Conn, cmd cmd, address string) (header, error) {
-	addr, err := ParseAddr(address)
-	if err != nil {
-		return header{}, fmt.Errorf("secondVerify:ParseAddr -> %v", err)
-	}
+func (s *client) handshake2(conn net.Conn, cmd cmd, address proxy.Address) (header, error) {
 	sendData := bytes.NewBuffer([]byte{0x05, byte(cmd), 0x00})
-	sendData.Write(addr)
+	sendData.Write(ParseAddr(address))
 
-	if _, err = conn.Write(sendData.Bytes()); err != nil {
+	if _, err := conn.Write(sendData.Bytes()); err != nil {
 		return header{}, err
 	}
 
@@ -146,7 +142,7 @@ func (s *client) handshake2(conn net.Conn, cmd cmd, address string) (header, err
 	}, nil
 }
 
-func (s *client) PacketConn(host string) (net.PacketConn, error) {
+func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	conn, err := s.dialer.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp failed: %v", err)
@@ -197,24 +193,13 @@ type socks5PacketConn struct {
 	tcp net.Conn
 }
 
-func newSocks5PacketConn(address string, server net.Addr, tcp net.Conn) (net.PacketConn, error) {
-	addr, err := ParseAddr(address)
-	if err != nil {
-		return nil, fmt.Errorf("parse addr failed: %v", err)
-	}
-
+func newSocks5PacketConn(address proxy.Address, server net.Addr, tcp net.Conn) (net.PacketConn, error) {
 	conn, err := net.ListenPacket("udp", "")
 	if err != nil {
 		return nil, fmt.Errorf("create packet failed: %v", err)
 	}
 
-	fmt.Println(conn.LocalAddr())
-	return &socks5PacketConn{
-		server:     server,
-		addr:       addr,
-		PacketConn: conn,
-		tcp:        tcp,
-	}, nil
+	return &socks5PacketConn{conn, ParseAddr(address), server, tcp}, nil
 }
 
 func (s *socks5PacketConn) Close() error {

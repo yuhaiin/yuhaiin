@@ -3,6 +3,7 @@ package dns
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"time"
@@ -33,39 +34,46 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 		}
 	}
 
-	return &udp{NewClient(subnet, func(req []byte) ([]byte, error) {
-		var b = utils.GetBytes(utils.DefaultSize)
-		defer utils.PutBytes(b)
+	add, err := proxy.ParseAddress("udp", host)
+	if err != nil {
+		log.Println(err)
+		add = proxy.EmptyAddr
+	}
 
-		addr, err := nr.ResolveUDPAddr(host)
-		if err != nil {
-			return nil, fmt.Errorf("resolve addr failed: %v", err)
-		}
+	return &udp{
+		NewClient(subnet, func(req []byte) ([]byte, error) {
+			var b = utils.GetBytes(utils.DefaultSize)
+			defer utils.PutBytes(b)
 
-		conn, err := p.PacketConn(host)
-		if err != nil {
-			return nil, fmt.Errorf("get packetConn failed: %v", err)
-		}
-		defer conn.Close()
+			addr, err := nr.ResolveUDPAddr(host)
+			if err != nil {
+				return nil, fmt.Errorf("resolve addr failed: %v", err)
+			}
 
-		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		if err != nil {
-			return nil, fmt.Errorf("set read deadline failed: %v", err)
-		}
+			conn, err := p.PacketConn(add)
+			if err != nil {
+				return nil, fmt.Errorf("get packetConn failed: %v", err)
+			}
+			defer conn.Close()
 
-		_, err = conn.WriteTo(req, addr)
-		if err != nil {
-			return nil, err
-		}
+			err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			if err != nil {
+				return nil, fmt.Errorf("set read deadline failed: %v", err)
+			}
 
-		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		if err != nil {
-			return nil, fmt.Errorf("set read deadline failed: %v", err)
-		}
+			_, err = conn.WriteTo(req, addr)
+			if err != nil {
+				return nil, err
+			}
 
-		nn, _, err := conn.ReadFrom(b)
-		return b[:nn], err
-	}), host}
+			err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			if err != nil {
+				return nil, fmt.Errorf("set read deadline failed: %v", err)
+			}
+
+			nn, _, err := conn.ReadFrom(b)
+			return b[:nn], err
+		}), host}
 }
 
 func (n *udp) Resolver() *net.Resolver {

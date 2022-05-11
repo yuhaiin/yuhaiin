@@ -5,14 +5,15 @@ import (
 	"log"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 type conns interface {
-	AddConn(_ net.Conn, host, mark string) net.Conn
-	AddPacketConn(_ net.PacketConn, host, mark string) net.PacketConn
+	AddConn(_ net.Conn, host proxy.Address, mark string) net.Conn
+	AddPacketConn(_ net.PacketConn, host proxy.Address, mark string) net.PacketConn
 }
 
 var _ conns = (*counter)(nil)

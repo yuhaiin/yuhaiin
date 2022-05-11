@@ -1,8 +1,6 @@
 package register
 
 import (
-	"strconv"
-
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	httpc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/client"
@@ -23,7 +21,7 @@ func init() {
 	})
 	node.RegisterProtocol(func(p *node.PointProtocol_Simple) node.WrapProxy {
 		return func(proxy.Proxy) (proxy.Proxy, error) {
-			return simple.NewSimple(p.Simple.Host, strconv.Itoa(int(p.Simple.Port)),
+			return simple.NewSimple(proxy.ParseAddressSplit("", p.Simple.GetHost(), uint16(p.Simple.GetPort())),
 				simple.WithTLS(node.ParseTLSConfig(p.Simple.Tls))), nil
 		}
 	})

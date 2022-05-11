@@ -19,7 +19,7 @@ func handle(req net.Conn, f proxy.Proxy) error {
 		return err
 	}
 
-	rsp, err := f.Conn(target.String())
+	rsp, err := f.Conn(proxy.ParseTCPAddress(target))
 	if err != nil {
 		return err
 	}

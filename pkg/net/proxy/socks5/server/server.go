@@ -124,22 +124,30 @@ func secondHand(host string, mode byte, client net.Conn, f proxy.Proxy) error {
 		fallthrough
 
 	default:
-		writeSecondResp(client, commandNotSupport, client.LocalAddr().String())
+		writeSecondResp(client, commandNotSupport, proxy.EmptyAddr)
 		return fmt.Errorf("not Support Method %d", mode)
 	}
 
 	if err != nil {
-		writeSecondResp(client, hostUnreachable, client.LocalAddr().String())
+		writeSecondResp(client, hostUnreachable, proxy.EmptyAddr)
 	}
 	return err
 }
 
 func handleConnect(target string, client net.Conn, f proxy.Proxy) error {
-	server, err := f.Conn(target)
+	addr, err := proxy.ParseAddress("tcp", target)
+	if err != nil {
+		return fmt.Errorf("parse address failed: %w", err)
+	}
+	server, err := f.Conn(addr)
 	if err != nil {
 		return fmt.Errorf("connect to %s failed: %w", target, err)
 	}
-	writeSecondResp(client, succeeded, client.LocalAddr().String()) // response to connect successful
+	caddr, err := proxy.ParseSysAddr(client.LocalAddr())
+	if err != nil {
+		return fmt.Errorf("parse local addr failed: %w", err)
+	}
+	writeSecondResp(client, succeeded, caddr) // response to connect successful
 	// hand shake successful
 	utils.Relay(client, server)
 	server.Close()
@@ -147,11 +155,19 @@ func handleConnect(target string, client net.Conn, f proxy.Proxy) error {
 }
 
 func handleUDP(target string, client net.Conn, f proxy.Proxy) error {
-	l, err := newUDPServer(f, target)
+	addr, err := proxy.ParseAddress("udp", target)
+	if err != nil {
+		return fmt.Errorf("parse address failed: %w", err)
+	}
+	l, err := newUDPServer(f, addr)
 	if err != nil {
 		return fmt.Errorf("new udp server failed: %w", err)
 	}
-	writeSecondResp(client, succeeded, l.listener.LocalAddr().String())
+	laddr, err := proxy.ParseSysAddr(l.listener.LocalAddr())
+	if err != nil {
+		return fmt.Errorf("parse sys addr failed: %w", err)
+	}
+	writeSecondResp(client, succeeded, laddr)
 	utils.Copy(io.Discard, client)
 	l.Close()
 	return nil
@@ -161,12 +177,8 @@ func writeFirstResp(conn net.Conn, errREP byte) {
 	_, _ = conn.Write([]byte{0x05, errREP})
 }
 
-func writeSecondResp(conn net.Conn, errREP byte, addr string) {
-	Addr, err := s5c.ParseAddr(addr)
-	if err != nil {
-		return
-	}
-	_, _ = conn.Write(append([]byte{0x05, errREP, 0x00}, Addr...))
+func writeSecondResp(conn net.Conn, errREP byte, addr proxy.Address) {
+	_, _ = conn.Write(append([]byte{0x05, errREP, 0x00}, s5c.ParseAddr(addr)...))
 }
 
 func NewServer(host, username, password string, dialer proxy.Proxy) (iserver.Server, error) {

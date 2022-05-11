@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 
@@ -17,7 +18,7 @@ var _ dns.DNS = (*tcp)(nil)
 var sessionCache = tls.NewLRUClientSessionCache(128)
 
 type tcp struct {
-	host  string
+	host  proxy.Address
 	proxy proxy.StreamProxy
 
 	*client
@@ -45,10 +46,12 @@ func newTCP(host, defaultPort string, subnet *net.IPNet, p proxy.StreamProxy) *t
 		}
 	}
 
-	d := &tcp{
-		host:  host,
-		proxy: p,
+	addr, err := proxy.ParseAddress("tcp", host)
+	if err != nil {
+		log.Println(err)
+		addr = proxy.EmptyAddr
 	}
+	d := &tcp{host: addr, proxy: p}
 
 	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
 		length := len(b) // dns over tcp, prefix two bytes is request data's length

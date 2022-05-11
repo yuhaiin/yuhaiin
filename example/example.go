@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
@@ -29,14 +31,18 @@ func main() {
 		},
 	}
 
-	proxy, err := register.Dialer(node)
+	pro, err := register.Dialer(node)
 	if err != nil {
 		panic(err)
 	}
 
 	c := http.Client{
 		Transport: &http.Transport{Dial: func(network, addr string) (net.Conn, error) {
-			return proxy.Conn(addr)
+			add, err := proxy.ParseAddress(network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("parse address failed: %v", err)
+			}
+			return pro.Conn(add)
 		}},
 	}
 	resp, err := c.Get("https://www.google.com")

@@ -9,7 +9,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 )
 
 // https://github.com/haxii/socks5/blob/bb9bca477f9b3ca36fa3b43e3127e3128da1c15b/udp.go#L20
@@ -25,7 +24,7 @@ type udpServer struct {
 	headerSize int
 }
 
-func newUDPServer(f proxy.Proxy, target string) (*udpServer, error) {
+func newUDPServer(f proxy.Proxy, target proxy.Address) (*udpServer, error) {
 	l, err := net.ListenPacket("udp", "")
 	if err != nil {
 		return nil, fmt.Errorf("listen udp failed: %v", err)
@@ -36,12 +35,7 @@ func newUDPServer(f proxy.Proxy, target string) (*udpServer, error) {
 		return nil, fmt.Errorf("connect to %s failed: %v", target, err)
 	}
 
-	tar, err := resolver.ResolveUDPAddr(target)
-	if err != nil {
-		return nil, fmt.Errorf("resolve udp addr failed: %v", err)
-	}
-
-	u := &udpServer{listener: l, proxy: p, remoteTarget: tar}
+	u := &udpServer{listener: l, proxy: p, remoteTarget: target}
 	go u.forward()
 	return u, nil
 }
@@ -67,6 +61,7 @@ func (u *udpServer) forward() {
 			u.headerSize = len(u.header)
 			go u.reply()
 		}
+		u.proxy.SetWriteDeadline(time.Now().Add(time.Second * 10))
 		u.proxy.WriteTo(buf[u.headerSize:n], u.remoteTarget)
 	}
 }
@@ -80,7 +75,8 @@ func (u *udpServer) reply() {
 			break
 		}
 
-		u.listener.SetWriteDeadline(time.Now().Add(time.Second * 30))
+		// log.Println(buf[:n])
+		u.listener.SetWriteDeadline(time.Now().Add(time.Second * 10))
 		u.listener.WriteTo(append(u.header, buf[:n]...), u.localRemote)
 	}
 }

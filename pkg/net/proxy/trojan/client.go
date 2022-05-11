@@ -36,7 +36,7 @@ var (
 
 type OutboundConn struct {
 	cmd               Command
-	addr              string
+	addr              proxy.Address
 	password          []byte
 	headerWrittenOnce sync.Once
 	net.Conn
@@ -51,10 +51,7 @@ func (c *OutboundConn) WriteHeader() (err error) {
 		buf.Write(crlf)
 		buf.WriteByte(byte(c.cmd))
 
-		err = s5c.ParseAddrWriter(c.addr, buf)
-		if err != nil {
-			return
-		}
+		s5c.ParseAddrWriter(c.addr, buf)
 
 		buf.Write(crlf)
 		_, err = c.Conn.Write(buf.Bytes())
@@ -85,7 +82,7 @@ func NewClient(config *node.PointProtocol_Trojan) node.WrapProxy {
 	}
 }
 
-func (c *Client) Conn(addr string) (net.Conn, error) {
+func (c *Client) Conn(addr proxy.Address) (net.Conn, error) {
 	conn, err := c.proxy.Conn(addr)
 	if err != nil {
 		return nil, err
@@ -107,7 +104,7 @@ func (c *Client) Conn(addr string) (net.Conn, error) {
 	return newConn, nil
 }
 
-func (c *Client) PacketConn(addr string) (net.PacketConn, error) {
+func (c *Client) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	conn, err := c.proxy.Conn(addr)
 	if err != nil {
 		return nil, err
@@ -130,10 +127,12 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	w := utils.GetBuffer()
 	defer utils.PutBuffer(w)
 
-	err := s5c.ParseAddrWriter(addr.String(), w)
+	taddr, err := proxy.ParseSysAddr(addr)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse address: %w", err)
+		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
+
+	s5c.ParseAddrWriter(taddr, w)
 
 	length := len(payload)
 	lengthBuf := [2]byte{}

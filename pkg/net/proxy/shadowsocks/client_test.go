@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -21,7 +22,8 @@ func TestImplement(t *testing.T) {
 }
 
 func TestConn(t *testing.T) {
-	p := simple.NewSimple("127.0.0.1", "1090")
+
+	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", 1080))
 	z, err := websocket.New(&node.PointProtocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
 	require.Nil(t, err)
 	z, err = NewShadowsocks(
@@ -48,7 +50,11 @@ func TestConn(t *testing.T) {
 				default:
 					return net.Dial(network, addr)
 				case "tcp":
-					return z.Conn(addr)
+					ad, err := proxy.ParseAddress(network, addr)
+					if err != nil {
+						return nil, fmt.Errorf("parse address failed: %v", err)
+					}
+					return z.Conn(ad)
 				}
 			},
 		},
@@ -64,7 +70,7 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p := simple.NewSimple("127.0.0.1", "1090")
+	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", 1090))
 	s, err := NewShadowsocks(
 		&node.PointProtocol_Shadowsocks{
 			Shadowsocks: &node.Shadowsocks{
@@ -76,7 +82,8 @@ func TestUDPConn(t *testing.T) {
 		})(p)
 	require.Nil(t, err)
 
-	c, err := s.PacketConn("223.5.5.5:53")
+	ad, _ := proxy.ParseAddress("udp", "223.5.5.5:53")
+	c, err := s.PacketConn(ad)
 	require.Nil(t, err)
 
 	req := "ev4BAAABAAAAAAAAA3d3dwZnb29nbGUDY29tAAABAAE="

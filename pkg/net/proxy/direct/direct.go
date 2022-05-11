@@ -2,7 +2,6 @@ package direct
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"net"
 	"time"
@@ -39,24 +38,20 @@ func NewDirect(o ...Option) proxy.Proxy {
 	return d
 }
 
-func (d *direct) Conn(s string) (net.Conn, error) {
-	address, port, err := net.SplitHostPort(s)
-	if err != nil {
-		return nil, fmt.Errorf("invalid address: %s", s)
-	}
-
-	if net.ParseIP(address) == nil {
-		x, err := d.dns.LookupIP(address)
+func (d *direct) Conn(s proxy.Address) (net.Conn, error) {
+	host := s.String()
+	if s.Type() == proxy.DOMAIN {
+		x, err := d.dns.LookupIP(s.Hostname())
 		if err != nil {
 			return nil, err
 		}
 
-		s = net.JoinHostPort(x[rand.Intn(len(x))].String(), port)
+		host = net.JoinHostPort(x[rand.Intn(len(x))].String(), s.Port().String())
 	}
 
-	return (&net.Dialer{Timeout: time.Second * 10}).Dial("tcp", s)
+	return (&net.Dialer{Timeout: time.Second * 10}).Dial("tcp", host)
 }
 
-func (d *direct) PacketConn(string) (net.PacketConn, error) {
+func (d *direct) PacketConn(proxy.Address) (net.PacketConn, error) {
 	return d.listener.ListenPacket(context.TODO(), "udp", "")
 }

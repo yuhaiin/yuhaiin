@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math/bits"
 	"testing"
 )
 
@@ -21,4 +22,13 @@ func TestM(t *testing.T) {
 
 	t.Log(z, x)
 
+}
+
+func TestM2(t *testing.T) {
+	z := make([]byte, 17)
+
+	for i := range z {
+		t.Log(bits.Len32(uint32(i)))
+		t.Log(1 << i)
+	}
 }

@@ -112,7 +112,7 @@ func NewHTTPOBFS(config *node.PointProtocol_ObfsHttp) node.WrapProxy {
 	}
 }
 
-func (h *httpOBFS) Conn(s string) (net.Conn, error) {
+func (h *httpOBFS) Conn(s proxy.Address) (net.Conn, error) {
 	conn, err := h.p.Conn(s)
 	if err != nil {
 		return nil, err
@@ -120,6 +120,6 @@ func (h *httpOBFS) Conn(s string) (net.Conn, error) {
 	return newHTTPObfs(conn, h.host, h.port), nil
 }
 
-func (h *httpOBFS) PacketConn(s string) (net.PacketConn, error) {
+func (h *httpOBFS) PacketConn(s proxy.Address) (net.PacketConn, error) {
 	return h.p.PacketConn(s)
 }

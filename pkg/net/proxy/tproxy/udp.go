@@ -143,7 +143,7 @@ func handleSingleUDPReq(oob, b []byte, addr *net.UDPAddr, p proxy.Proxy) error {
 		return fmt.Errorf("unable to obtain original destination: %s", err)
 	}
 
-	conn, err := p.PacketConn(originalDst.IP.String())
+	conn, err := p.PacketConn(proxy.ParseUDPAddr(addr))
 	if err != nil {
 		return fmt.Errorf("get packet conn failed: %w", err)
 	}

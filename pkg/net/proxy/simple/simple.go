@@ -7,15 +7,13 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 )
 
 //Simple .
 type Simple struct {
-	address  string
-	port     string
-	isDomain bool
-	host     string
+	addr proxy.Address
 
 	lookupIP  func(host string) ([]net.IP, error)
 	tlsConfig *tls.Config
@@ -37,14 +35,8 @@ func WithTLS(t *tls.Config) func(*Simple) {
 }
 
 //NewSimple .
-func NewSimple(address, port string, opts ...func(*Simple)) *Simple {
-	c := &Simple{
-		address:  address,
-		port:     port,
-		host:     net.JoinHostPort(address, port),
-		isDomain: net.ParseIP(address) == nil,
-		lookupIP: resolver.LookupIP,
-	}
+func NewSimple(address proxy.Address, opts ...func(*Simple)) proxy.Proxy {
+	c := &Simple{addr: address, lookupIP: resolver.LookupIP}
 
 	for i := range opts {
 		opts[i](c)
@@ -55,16 +47,16 @@ func NewSimple(address, port string, opts ...func(*Simple)) *Simple {
 
 var clientDialer = net.Dialer{Timeout: time.Second * 5}
 
-func (c *Simple) Conn(host string) (net.Conn, error) {
-	address := c.host
+func (c *Simple) Conn(proxy.Address) (net.Conn, error) {
+	address := c.addr.String()
 
-	if c.isDomain {
-		x, err := c.lookupIP(c.address)
+	if c.addr.Type() == proxy.DOMAIN {
+		x, err := c.lookupIP(c.addr.Hostname())
 		if err != nil {
 			return nil, err
 		}
 
-		address = net.JoinHostPort(x[rand.Intn(len(x))].String(), c.port)
+		address = net.JoinHostPort(x[rand.Intn(len(x))].String(), c.addr.Port().String())
 	}
 
 	conn, err := clientDialer.Dial("tcp", address)
@@ -79,6 +71,6 @@ func (c *Simple) Conn(host string) (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *Simple) PacketConn(host string) (net.PacketConn, error) {
+func (c *Simple) PacketConn(proxy.Address) (net.PacketConn, error) {
 	return net.ListenPacket("udp", "")
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
@@ -33,11 +34,11 @@ type conn struct {
 	wbuf, rbuf []byte
 }
 
-func (c *counter) AddConn(con net.Conn, addr, mark string) net.Conn {
+func (c *counter) AddConn(con net.Conn, addr proxy.Address, mark string) net.Conn {
 	z := &conn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
-			Addr:   addr,
+			Addr:   addr.String(),
 			Mark:   mark,
 			Local:  con.LocalAddr().String(),
 			Remote: con.RemoteAddr().String(),
@@ -136,14 +137,14 @@ type packetConn struct {
 	manager *counter
 }
 
-func (c *counter) AddPacketConn(con net.PacketConn, addr, mark string) net.PacketConn {
+func (c *counter) AddPacketConn(con net.PacketConn, addr proxy.Address, mark string) net.PacketConn {
 	z := &packetConn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
-			Addr:   addr,
+			Addr:   addr.String(),
 			Mark:   mark,
 			Local:  con.LocalAddr().String(),
-			Remote: addr,
+			Remote: addr.String(),
 			Type:   con.LocalAddr().Network(),
 		},
 		PacketConn: con,
