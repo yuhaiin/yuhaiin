@@ -59,6 +59,11 @@ func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
 		}
 		defer d.lock.RUnlock()
 
+		err = con.SetWriteDeadline(time.Now().Add(time.Second * 4))
+		if err != nil {
+			return nil, fmt.Errorf("set write deadline failed: %w", err)
+		}
+
 		_, err = con.Write(b)
 		if err != nil {
 			return nil, fmt.Errorf("write dns req failed: %w", err)
@@ -69,7 +74,17 @@ func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
 			return nil, fmt.Errorf("close stream failed: %w", err)
 		}
 
-		return ioutil.ReadAll(con)
+		err = con.SetReadDeadline(time.Now().Add(time.Second * 4))
+		if err != nil {
+			return nil, fmt.Errorf("set read deadline failed: %w", err)
+		}
+
+		data, err := ioutil.ReadAll(con)
+		if err != nil {
+			return nil, fmt.Errorf("read dns server response failed: %w", err)
+		}
+
+		return data, nil
 	})
 	return d
 }
@@ -126,6 +141,7 @@ func (d *doq) initSession() error {
 		},
 		&quic.Config{
 			HandshakeIdleTimeout: time.Second * 10,
+			MaxIdleTimeout:       time.Second * 10,
 		})
 	if err != nil {
 		return fmt.Errorf("quic dial failed: %w", err)

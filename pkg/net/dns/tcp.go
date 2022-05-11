@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -23,8 +22,7 @@ type tcp struct {
 
 	*client
 
-	tls  *tls.Config
-	lock sync.Mutex
+	tls *tls.Config
 }
 
 func NewTCP(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
@@ -53,16 +51,6 @@ func newTCP(host, defaultPort string, subnet *net.IPNet, p proxy.StreamProxy) *t
 	}
 
 	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
-		// conn, err := d.proxy.Conn(d.host)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("tcp dial failed: %v", err)
-		// }
-		// conn = tls.Client(conn, &tls.Config{ServerName: d.servername, ClientSessionCache: d.sessionCache})
-		// defer conn.Close()
-
-		d.lock.Lock()
-		defer d.lock.Unlock()
-
 		length := len(b) // dns over tcp, prefix two bytes is request data's length
 		b = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, b...)
 
@@ -107,7 +95,12 @@ func (d *tcp) Resolver() *net.Resolver {
 			if err != nil {
 				return nil, fmt.Errorf("tcp dial failed: %v", err)
 			}
-			return tls.Client(conn, d.tls), nil
+
+			if d.tls != nil {
+				conn = tls.Client(conn, d.tls)
+			}
+
+			return conn, nil
 		},
 	}
 }
