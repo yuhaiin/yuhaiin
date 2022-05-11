@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/lucas-clemente/quic-go/http3"
@@ -23,6 +24,7 @@ type doh3 struct {
 func NewDoH3(host string, subnet *net.IPNet) dns.DNS {
 	d := &doh3{
 		httpClient: &http.Client{
+			Timeout:   time.Second * 5,
 			Transport: &http3.RoundTripper{},
 		},
 	}

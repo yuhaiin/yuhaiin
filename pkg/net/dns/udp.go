@@ -17,10 +17,8 @@ import (
 var _ dns.DNS = (*udp)(nil)
 
 type udp struct {
-	Server string
-	proxy  proxy.PacketProxy
-
 	*client
+	server string
 }
 
 func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
@@ -35,49 +33,48 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 		}
 	}
 
-	d := &udp{
-		Server: host,
-		proxy:  p,
-	}
+	return &udp{NewClient(subnet, func(req []byte) ([]byte, error) {
+		var b = utils.GetBytes(utils.DefaultSize)
+		defer utils.PutBytes(b)
 
-	d.client = NewClient(subnet, d.udp)
+		addr, err := nr.ResolveUDPAddr(host)
+		if err != nil {
+			return nil, fmt.Errorf("resolve addr failed: %v", err)
+		}
 
-	return d
+		conn, err := p.PacketConn(host)
+		if err != nil {
+			return nil, fmt.Errorf("get packetConn failed: %v", err)
+		}
+		defer conn.Close()
+
+		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			return nil, fmt.Errorf("set read deadline failed: %v", err)
+		}
+
+		_, err = conn.WriteTo(req, addr)
+		if err != nil {
+			return nil, err
+		}
+
+		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			return nil, fmt.Errorf("set read deadline failed: %v", err)
+		}
+
+		nn, _, err := conn.ReadFrom(b)
+		return b[:nn], err
+	}), host}
 }
 
 func (n *udp) Resolver() *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return net.DialTimeout("udp", n.Server, time.Second*6)
+			return net.DialTimeout("udp", n.server, time.Second*6)
 		},
 	}
 }
 
 func (n *udp) Close() error { return nil }
-
-func (n *udp) udp(req []byte) (data []byte, err error) {
-	var b = utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(b)
-
-	addr, err := nr.ResolveUDPAddr(n.Server)
-	if err != nil {
-		return nil, fmt.Errorf("resolve addr failed: %v", err)
-	}
-
-	conn, err := n.proxy.PacketConn(n.Server)
-	if err != nil {
-		return nil, fmt.Errorf("get packetConn failed: %v", err)
-	}
-	defer conn.Close()
-
-	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
-
-	_, err = conn.WriteTo(req, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	nn, _, err := conn.ReadFrom(b)
-	return b[:nn], err
-}

@@ -58,11 +58,6 @@ func TestDOH(t *testing.T) {
 	// t.Log(DOH("cloudflare-dns.com", "115-235-111-150.dhost.00cdn.com"))
 }
 
-func TestSplit(t *testing.T) {
-	t.Log(net.SplitHostPort("www.google.com"))
-	t.Log(net.SplitHostPort("www.google.com:443"))
-}
-
 func TestResolver(t *testing.T) {
 	_, s, _ := net.ParseCIDR("114.114.114.114/31")
 	d := NewDoH("223.5.5.5", s, nil)
