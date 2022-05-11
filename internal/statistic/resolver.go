@@ -147,7 +147,7 @@ type dnsdialer struct {
 	mark   string
 }
 
-func (c *dnsdialer) Conn(host string) (net.Conn, error) {
+func (c *dnsdialer) Conn(host proxy.Address) (net.Conn, error) {
 	con, err := c.dialer.Conn(host)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (c *dnsdialer) Conn(host string) (net.Conn, error) {
 	return c.conns.AddConn(con, host, c.mark), nil
 }
 
-func (c *dnsdialer) PacketConn(host string) (net.PacketConn, error) {
+func (c *dnsdialer) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	con, err := c.dialer.PacketConn(host)
 	if err != nil {
 		return nil, err

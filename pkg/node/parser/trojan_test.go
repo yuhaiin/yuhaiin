@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,9 @@ func TestTrojan(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return z.Conn(addr)
+				ad, err := proxy.ParseAddress(network, addr)
+				require.Nil(t, err)
+				return z.Conn(ad)
 			},
 		},
 	}

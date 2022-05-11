@@ -73,7 +73,7 @@ func (m MODE) String() string { return string(m) }
 var Mode = map[string]*MODE{"direct": &DIRECT /* "proxy":  PROXY,*/, "block": &BLOCK}
 
 type shunt struct {
-	mapper imapper.Mapper[string, *MODE]
+	mapper imapper.Mapper[string, proxy.Address, *MODE]
 
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
@@ -152,17 +152,12 @@ func (s *shunt) refresh() error {
 	return nil
 }
 
-func (s *shunt) match(domain string) MODE {
+func (s *shunt) match(addr proxy.Address) MODE {
 	if !s.config.Enabled {
 		return PROXY
 	}
 
-	host, _, err := net.SplitHostPort(domain)
-	if err == nil {
-		domain = host
-	}
-
-	m, _ := s.mapper.Search(domain)
+	m, _ := s.mapper.Search(addr)
 	if m == nil {
 		return PROXY
 	}
@@ -187,7 +182,7 @@ func (s *shunt) GetDialer(m MODE) proxy.Proxy {
 	return proxy.NewErrProxy(errors.New("no dialer"))
 }
 
-func (s *shunt) Conn(host string) (net.Conn, error) {
+func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	m := s.match(host)
 	dialer, ok := s.dialers[m]
 	if !ok {
@@ -202,7 +197,7 @@ func (s *shunt) Conn(host string) (net.Conn, error) {
 	return s.conns.AddConn(conn, host, m.String()), nil
 }
 
-func (s *shunt) PacketConn(host string) (net.PacketConn, error) {
+func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	m := s.match(host)
 	dialer, ok := s.dialers[m]
 	if !ok {

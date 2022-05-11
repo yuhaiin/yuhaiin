@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,10 +26,8 @@ var _ dns.DNS = (*doh)(nil)
 type doh struct {
 	Proxy proxy.StreamProxy
 
-	host     string
-	hostname string
-	port     string
-	url      string
+	host proxy.Address
+	url  string
 
 	httpClient *http.Client
 	*client
@@ -39,7 +38,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
 
 	dns.setServer(host)
 	if p == nil {
-		p = simple.NewSimple(dns.hostname, dns.port)
+		p = simple.NewSimple(dns.host)
 	}
 	dns.setProxy(p)
 	dns.client = NewClient(subnet, func(b []byte) ([]byte, error) {
@@ -64,22 +63,24 @@ func (d *doh) setServer(host string) {
 		d.url = host
 	}
 
+	var hostname, port string
 	uri, err := url.Parse(d.url)
 	if err != nil {
-		d.hostname = host
-		d.port = "443"
+		hostname = host
+		port = "443"
 	} else {
-		d.hostname = uri.Hostname()
-		d.port = uri.Port()
-		if d.port == "" {
-			d.port = "443"
+		hostname = uri.Hostname()
+		port = uri.Port()
+		if port == "" {
+			port = "443"
 		}
 		if uri.Path == "" {
 			d.url += "/dns-query"
 		}
 	}
 
-	d.host = net.JoinHostPort(d.hostname, d.port)
+	por, _ := strconv.ParseUint(port, 10, 16)
+	d.host = proxy.ParseAddressSplit("tcp", hostname, uint16(por))
 }
 
 func (d *doh) setProxy(p proxy.StreamProxy) {

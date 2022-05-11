@@ -1,7 +1,7 @@
 package mapper
 
-type Mapper[K, V any] interface {
+type Mapper[K, K2, V any] interface {
 	Insert(K, V)
-	Search(K) (V, bool)
+	Search(K2) (V, bool)
 	Clear() error
 }

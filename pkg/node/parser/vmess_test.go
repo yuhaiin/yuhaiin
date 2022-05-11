@@ -2,12 +2,14 @@ package parser
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/stretchr/testify/require"
@@ -50,7 +52,11 @@ func TestVmess(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return x.Conn(addr)
+				ad, err := proxy.ParseAddress(network, addr)
+				if err != nil {
+					return nil, fmt.Errorf("parse address failed: %v", err)
+				}
+				return x.Conn(ad)
 			},
 		},
 	}

@@ -49,7 +49,7 @@ func New(cf *node.PointProtocol_Websocket) node.WrapProxy {
 	}
 }
 
-func (c *client) Conn(h string) (net.Conn, error) {
+func (c *client) Conn(h proxy.Address) (net.Conn, error) {
 	conn, err := c.dialer.Conn(h)
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial failed: %w", err)
@@ -67,7 +67,7 @@ func (c *client) Conn(h string) (net.Conn, error) {
 	return &connection{Conn: wsconn, laddr: conn.LocalAddr, raddr: conn.RemoteAddr}, nil
 }
 
-func (c *client) PacketConn(host string) (net.PacketConn, error) {
+func (c *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return c.dialer.PacketConn(host)
 }
 

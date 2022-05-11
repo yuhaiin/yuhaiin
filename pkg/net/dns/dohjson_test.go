@@ -2,17 +2,23 @@ package dns
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDNSOverHTTPS(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(addr)
+		ad, err := proxy.ParseAddress(network, addr)
+		if err != nil {
+			return nil, fmt.Errorf("parse address failed: %v", err)
+		}
+		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(ad)
 	}
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))

@@ -54,7 +54,11 @@ _start:
 		}
 	}
 
-	dstc, err := f.Conn(host)
+	address, err := proxy.ParseAddress("tcp", host)
+	if err != nil {
+		return fmt.Errorf("parse address failed: %v", err)
+	}
+	dstc, err := f.Conn(address)
 	if err != nil {
 		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))

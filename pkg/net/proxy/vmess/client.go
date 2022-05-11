@@ -32,12 +32,12 @@ func NewVmess(config *node.PointProtocol_Vmess) node.WrapProxy {
 }
 
 //Conn create a connection for host
-func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
+func (v *Vmess) Conn(host proxy.Address) (conn net.Conn, err error) {
 	c, err := v.dial.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	conn, err = v.client.NewConn(c, host)
+	conn, err = v.client.NewConn(c, host.String())
 	if err != nil {
 		c.Close()
 		return nil, fmt.Errorf("new conn failed: %w", err)
@@ -47,12 +47,12 @@ func (v *Vmess) Conn(host string) (conn net.Conn, err error) {
 }
 
 //PacketConn packet transport connection
-func (v *Vmess) PacketConn(host string) (conn net.PacketConn, err error) {
+func (v *Vmess) PacketConn(host proxy.Address) (conn net.PacketConn, err error) {
 	c, err := v.dial.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	conn, err = v.client.NewPacketConn(c, host)
+	conn, err = v.client.NewPacketConn(c, host.String())
 	if err != nil {
 		c.Close()
 		return nil, fmt.Errorf("new conn failed: %w", err)
