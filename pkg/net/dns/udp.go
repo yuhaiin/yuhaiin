@@ -45,7 +45,7 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 			var b = utils.GetBytes(utils.DefaultSize)
 			defer utils.PutBytes(b)
 
-			addr, err := nr.ResolveUDPAddr(host)
+			addr, err := proxy.ResolveIPAddress(add, nr.LookupIP)
 			if err != nil {
 				return nil, fmt.Errorf("resolve addr failed: %v", err)
 			}
@@ -61,7 +61,7 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 				return nil, fmt.Errorf("set read deadline failed: %v", err)
 			}
 
-			_, err = conn.WriteTo(req, addr)
+			_, err = conn.WriteTo(req, addr.UDPAddr())
 			if err != nil {
 				return nil, err
 			}

@@ -133,14 +133,14 @@ func (d *doq) initSession() error {
 		d.conn = conn
 	}
 
-	addr, err := nr.ResolveUDPAddr(d.host.String())
+	addr, err := proxy.ResolveIPAddress(d.host, nr.LookupIP)
 	if err != nil {
 		return fmt.Errorf("resolve udp addr failed: %w", err)
 	}
 
 	session, err := quic.DialEarly(
 		d.conn,
-		addr,
+		addr.UDPAddr(),
 		d.host.Hostname(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i00", http2.NextProtoTLS},
