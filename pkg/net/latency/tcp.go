@@ -2,6 +2,7 @@ package latency
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -14,7 +15,11 @@ func HTTP(p proxy.Proxy, target string) (time.Duration, error) {
 	_, err := (&http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return p.Conn(addr)
+				ad, err := proxy.ParseAddress(network, addr)
+				if err != nil {
+					return nil, fmt.Errorf("parse address failed: %v", err)
+				}
+				return p.Conn(ad)
 			},
 		},
 		Timeout: 3 * time.Second,

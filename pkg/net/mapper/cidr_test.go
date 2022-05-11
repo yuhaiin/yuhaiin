@@ -27,10 +27,10 @@ func TestCidrMatch_Inset(t *testing.T) {
 	assert.Equal(t, "testIPv4", search(testIPv4))
 	assert.Equal(t, "testIPv6", search(testIPv6))
 	assert.Equal(t, "testlocal", search("127.1.1.1"))
-	assert.Equal(t, nil, search("129.1.1.1"))
+	assert.Equal(t, "", search("129.1.1.1"))
 	assert.Equal(t, "testV6local", search("ff:ff::"))
-	assert.Equal(t, nil, search(testIPv4b))
-	assert.Equal(t, nil, search(testIPv6b))
+	assert.Equal(t, "", search(testIPv4b))
+	assert.Equal(t, "", search(testIPv6b))
 }
 
 // BenchmarkCidrMatch_Search-4 9119133 130.6 ns/op 16 B/op 1 allocs/op

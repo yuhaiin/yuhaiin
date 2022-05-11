@@ -37,7 +37,12 @@ func controlTCP(network, address string, c syscall.RawConn) error {
 }
 
 func handleTCP(c net.Conn, p proxy.Proxy) {
-	r, err := p.Conn(c.LocalAddr().String())
+	addr, err := proxy.ParseSysAddr(c.LocalAddr())
+	if err != nil {
+		log.Printf("parse local addr failed: %v", err)
+		return
+	}
+	r, err := p.Conn(addr)
 	if err != nil {
 		log.Printf("get conn failed: %v", err)
 		return

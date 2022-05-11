@@ -6,6 +6,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
 type combine[T any] struct {
@@ -28,12 +29,12 @@ func (x *combine[T]) Insert(str string, mark T) {
 	}
 }
 
-func (x *combine[T]) Search(str string) (mark T, ok bool) {
-	if ip := net.ParseIP(str); ip != nil {
-		return x.cidr.SearchIP(ip)
+func (x *combine[T]) Search(str proxy.Address) (mark T, ok bool) {
+	if str.Type() == proxy.IP {
+		return x.cidr.SearchIP(str.IP())
 	}
 
-	if mark, ok = x.domain.Search(str); ok {
+	if mark, ok = x.domain.Search(str.Hostname()); ok {
 		return
 	}
 
@@ -41,7 +42,7 @@ func (x *combine[T]) Search(str string) (mark T, ok bool) {
 		return
 	}
 
-	if dns, err := x.dns.LookupIP(str); err == nil {
+	if dns, err := x.dns.LookupIP(str.Hostname()); err == nil {
 		mark, ok = x.cidr.SearchIP(dns[rand.Intn(len(dns))])
 	}
 
@@ -55,7 +56,7 @@ func (x *combine[T]) Clear() error {
 	return nil
 }
 
-func NewMapper[T any](dns dns.DNS) mapper.Mapper[string, T] {
+func NewMapper[T any](dns dns.DNS) mapper.Mapper[string, proxy.Address, T] {
 	return &combine[T]{
 		cidr:   NewCidrMapper[T](),
 		domain: NewDomainMapper[T](),

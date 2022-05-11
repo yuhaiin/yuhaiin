@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -20,7 +21,7 @@ import (
 type doq struct {
 	conn       net.PacketConn
 	connection quic.Connection
-	host       string
+	host       proxy.Address
 	p          proxy.PacketProxy
 
 	lock sync.RWMutex
@@ -44,7 +45,13 @@ func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
 		}
 	}
 
-	d := &doq{p: dialer, host: host}
+	addr, err := proxy.ParseAddress("tcp", host)
+	if err != nil {
+		log.Println(err)
+		addr = proxy.EmptyAddr
+	}
+
+	d := &doq{p: dialer, host: addr}
 
 	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
 		err := d.initSession()
@@ -126,16 +133,15 @@ func (d *doq) initSession() error {
 		d.conn = conn
 	}
 
-	addr, err := nr.ResolveUDPAddr(d.host)
+	addr, err := nr.ResolveUDPAddr(d.host.String())
 	if err != nil {
 		return fmt.Errorf("resolve udp addr failed: %w", err)
 	}
 
-	hostname, _, _ := net.SplitHostPort(d.host)
 	session, err := quic.DialEarly(
 		d.conn,
 		addr,
-		hostname,
+		d.host.Hostname(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i00", http2.NextProtoTLS},
 		},

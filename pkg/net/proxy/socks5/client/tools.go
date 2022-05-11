@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -11,47 +10,48 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
 func Dial(host, port, user, password string) proxy.Proxy {
-	p, _ := NewSocks5(&node.PointProtocol_Socks5{Socks5: &node.Socks5{User: user, Password: password}})(simple.NewSimple(host, port))
+	addr, err := proxy.ParseAddress("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		return proxy.NewErrProxy(err)
+	}
+	p, _ := NewSocks5(&node.PointProtocol_Socks5{Socks5: &node.Socks5{User: user, Password: password}})(
+		simple.NewSimple(addr))
 	return p
 }
 
-func ParseAddr(hostname string) (data []byte, err error) {
-	sendData := bytes.NewBuffer(nil)
-	err = ParseAddrWriter(hostname, sendData)
-	if err != nil {
-		return nil, err
-	}
-	return sendData.Bytes(), nil
+func ParseAddr(hostname proxy.Address) (data []byte) {
+	sendData := utils.GetBuffer()
+	defer utils.PutBuffer(sendData)
+
+	ParseAddrWriter(hostname, sendData)
+	return sendData.Bytes()
 }
 
-func ParseAddrWriter(hostname string, sendData io.Writer) (err error) {
-	hostname, port, err := net.SplitHostPort(hostname)
-	if err != nil {
-		return err
-	}
-	serverPort, err := strconv.ParseUint(port, 10, 16)
-	if err != nil {
-		return err
-	}
-	if serverIP := net.ParseIP(hostname); serverIP != nil {
-		if serverIPv4 := serverIP.To4(); serverIPv4 != nil {
+func ParseAddrWriter(addr proxy.Address, sendData io.Writer) {
+	switch addr.Type() {
+	case proxy.IP:
+		if ip := addr.IP().To4(); ip != nil {
 			sendData.Write([]byte{0x01})
-			sendData.Write(serverIP.To4())
+			sendData.Write(ip)
 		} else {
 			sendData.Write([]byte{0x04})
-			sendData.Write(serverIP.To16())
+			sendData.Write(addr.IP().To16())
 		}
-	} else {
+	case proxy.DOMAIN:
+		fallthrough
+	default:
 		sendData.Write([]byte{0x03})
-		sendData.Write([]byte{byte(len(hostname))})
-		sendData.Write([]byte(hostname))
+		sendData.Write([]byte{byte(len(addr.Hostname()))})
+		sendData.Write([]byte(addr.Hostname()))
 	}
-	sendData.Write([]byte{byte(serverPort >> 8), byte(serverPort & 255)})
-	return nil
+
+	sendData.Write([]byte{byte(addr.Port().Port() >> 8), byte(addr.Port().Port() & 255)})
+
 }
 
 func ResolveAddr(raw []byte) (dst string, port, size int, err error) {

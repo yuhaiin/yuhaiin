@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
@@ -30,7 +31,7 @@ func TestSsrParse2(t *testing.T) {
 }
 
 func TestConnections(t *testing.T) {
-	p := simple.NewSimple("127.0.0.1", "1090")
+	p := simple.NewSimple(proxy.ParseAddressSplit("", "127.0.0.1", 1090))
 
 	z, err := ss.NewHTTPOBFS(
 		&node.PointProtocol_ObfsHttp{
@@ -53,7 +54,9 @@ func TestConnections(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return z.Conn(addr)
+				ad, err := proxy.ParseAddress(network, addr)
+				require.Nil(t, err)
+				return z.Conn(ad)
 			},
 		},
 	}
@@ -88,7 +91,9 @@ func TestConnectionSsr(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return z.Conn(addr)
+				ad, err := proxy.ParseAddress(network, addr)
+				require.Nil(t, err)
+				return z.Conn(ad)
 			},
 		},
 	}
@@ -127,7 +132,9 @@ func TestSSr(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return z.Conn(addr)
+				ad, err := proxy.ParseAddress(network, addr)
+				require.Nil(t, err)
+				return z.Conn(ad)
 			},
 		},
 	}

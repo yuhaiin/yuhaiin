@@ -23,17 +23,17 @@ func NewHttp(config *node.PointProtocol_Http) node.WrapProxy {
 	}
 }
 
-func (c *client) Conn(host string) (net.Conn, error) {
-	conn, err := c.dialer.Conn(host)
+func (c *client) Conn(s proxy.Address) (net.Conn, error) {
+	conn, err := c.dialer.Conn(s)
 	if err != nil {
 		return nil, fmt.Errorf("dialer conn failed: %w", err)
 	}
 
 	req := &http.Request{
 		Method: http.MethodConnect,
-		URL:    &url.URL{Host: host},
+		URL:    &url.URL{Host: s.String()},
 		Header: make(http.Header),
-		Host:   host,
+		Host:   s.String(),
 	}
 
 	if c.user != "" || c.password != "" {
@@ -61,6 +61,6 @@ func (c *client) Conn(host string) (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *client) PacketConn(host string) (net.PacketConn, error) {
-	return c.dialer.PacketConn(host)
+func (c *client) PacketConn(s proxy.Address) (net.PacketConn, error) {
+	return c.dialer.PacketConn(s)
 }

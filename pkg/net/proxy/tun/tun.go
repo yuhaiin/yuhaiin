@@ -76,7 +76,7 @@ func (t *Tun) New(name string) (*stack.Stack, error) {
 
 				local := gonet.NewTCPConn(&wq, ep)
 
-				conn, er := t.dialer.Conn(net.JoinHostPort(r.ID().LocalAddress.String(), strconv.Itoa(int(r.ID().LocalPort))))
+				conn, er := t.dialer.Conn(proxy.ParseAddressSplit("tcp", r.ID().LocalAddress.String(), r.ID().LocalPort))
 				if er != nil {
 					local.Close()
 					return
@@ -101,7 +101,7 @@ func (t *Tun) New(name string) (*stack.Stack, error) {
 
 		local := gonet.NewUDPConn(s, &wq, ep)
 
-		conn, er := t.dialer.PacketConn(net.JoinHostPort(fr.ID().LocalAddress.String(), strconv.Itoa(int(fr.ID().LocalPort))))
+		conn, er := t.dialer.PacketConn(proxy.ParseAddressSplit("udp", fr.ID().LocalAddress.String(), fr.ID().LocalPort))
 		if er != nil {
 			local.Close()
 			return

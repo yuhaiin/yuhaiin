@@ -62,11 +62,11 @@ func (n *Nodes) dialer() proxy.Proxy {
 	return n.proxy
 }
 
-func (n *Nodes) Conn(host string) (net.Conn, error) {
+func (n *Nodes) Conn(host proxy.Address) (net.Conn, error) {
 	return n.dialer().Conn(host)
 }
 
-func (n *Nodes) PacketConn(host string) (net.PacketConn, error) {
+func (n *Nodes) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return n.dialer().PacketConn(host)
 }
 
@@ -181,7 +181,12 @@ func (n *Nodes) UpdateLinks(c context.Context, req *node.LinkReq) (*emptypb.Empt
 				if err == nil {
 					return conn, nil
 				}
-				return n.dialer().Conn(addr)
+
+				ad, err := proxy.ParseAddress(network, addr)
+				if err != nil {
+					return nil, fmt.Errorf("parse address failed: %v", err)
+				}
+				return n.dialer().Conn(ad)
 			},
 		},
 	}

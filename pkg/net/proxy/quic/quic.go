@@ -39,8 +39,8 @@ func NewQUIC(config *node.PointProtocol_Quic) node.WrapProxy {
 	}
 }
 
-func (c *Client) Conn(host string) (net.Conn, error) {
-	conn, err := c.dialer.PacketConn(host)
+func (c *Client) Conn(s proxy.Address) (net.Conn, error) {
+	conn, err := c.dialer.PacketConn(s)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (c *Client) Conn(host string) (net.Conn, error) {
 	return &interConn{Stream: stream, local: session.LocalAddr(), remote: session.RemoteAddr()}, nil
 }
 
-func (c *Client) PacketConn(host string) (net.PacketConn, error) {
+func (c *Client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return c.dialer.PacketConn(host)
 }
 

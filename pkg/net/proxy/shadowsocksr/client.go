@@ -71,7 +71,7 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 	}
 }
 
-func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
+func (s *Shadowsocksr) Conn(addr proxy.Address) (net.Conn, error) {
 	c, err := s.dial.Conn(addr)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
@@ -86,12 +86,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 		iv = z.WriteIV()
 	}
 	conn := s.protocol.Stream(cipher, iv)
-	target, err := s5c.ParseAddr(addr)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("parse addr failed: %w", err)
-	}
-	if _, err := conn.Write(target); err != nil {
+	if _, err := conn.Write(s5c.ParseAddr(addr)); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("write target failed: %w", err)
 	}
@@ -99,7 +94,7 @@ func (s *Shadowsocksr) Conn(addr string) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
+func (s *Shadowsocksr) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	c, err := s.dial.PacketConn(addr)
 	if err != nil {
 		return nil, fmt.Errorf("get packet conn failed: %w", err)
@@ -111,11 +106,5 @@ func (s *Shadowsocksr) PacketConn(addr string) (net.PacketConn, error) {
 		c.Close()
 		return nil, fmt.Errorf("resolve udp addr failed: %w", err)
 	}
-	conn, err := shadowsocks.NewSsPacketConn(proto, uaddr, addr)
-	if err != nil {
-		c.Close()
-		return nil, fmt.Errorf("new ss packet conn failed: %w", err)
-	}
-
-	return conn, nil
+	return shadowsocks.NewSsPacketConn(proto, uaddr, addr), nil
 }
