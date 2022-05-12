@@ -75,6 +75,14 @@ func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
 	return c
 }
 
+func (c *client) Do(b []byte) ([]byte, error) {
+	if c.do == nil {
+		return nil, fmt.Errorf("no dns process function")
+	}
+
+	return c.do(b)
+}
+
 func (c *client) LookupIP(domain string) ([]net.IP, error) {
 	if x, _ := c.cache.Load(domain); x != nil {
 		return x, nil
