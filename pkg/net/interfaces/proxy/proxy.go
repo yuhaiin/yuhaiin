@@ -58,6 +58,7 @@ type Address interface {
 	net.Addr
 
 	WithResolver(dns.DNS)
+
 	Zone() string // IPv6 scoped addressing zone
 	UDPAddr() *net.UDPAddr
 	TCPAddr() *net.TCPAddr

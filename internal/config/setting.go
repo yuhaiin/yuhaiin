@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -88,10 +91,10 @@ func WrapUpdate(u func(*config.Setting)) Observer {
 	return &wrap{u}
 }
 
-func load(dir string) *config.Setting {
+func load(path string) *config.Setting {
 	pa := &config.Setting{}
 
-	data, err := ioutil.ReadFile(dir)
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Printf("read config file failed: %v\n", err)
 		data = []byte{'{', '}'}
@@ -114,7 +117,7 @@ func load(dir string) *config.Setting {
 	if pa.Bypass == nil {
 		pa.Bypass = &config.Bypass{
 			Enabled:    true,
-			BypassFile: filepath.Join(filepath.Dir(dir), "yuhaiin.conf"),
+			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
 		}
 	}
 
@@ -138,32 +141,24 @@ func load(dir string) *config.Setting {
 		}
 	}
 
+	if pa.Dns.Bootstrap == nil {
+		pa.Dns.Bootstrap = &config.Dns{Host: "8.8.8.8:53", Type: config.Dns_udp}
+	}
+
 	if pa.Server == nil || pa.Server.Servers == nil {
 		pa.Server = &config.Server{
 			Servers: map[string]*config.ServerProtocol{
 				"http": {
-					Name: "http",
-					Protocol: &config.ServerProtocol_Http{
-						Http: &config.Http{
-							Host: "127.0.0.1:8188",
-						},
-					},
+					Name:     "http",
+					Protocol: &config.ServerProtocol_Http{Http: &config.Http{Host: "127.0.0.1:8188"}},
 				},
 				"socks5": {
-					Name: "socks5",
-					Protocol: &config.ServerProtocol_Socks5{
-						Socks5: &config.Socks5{
-							Host: "127.0.0.1:1080",
-						},
-					},
+					Name:     "socks5",
+					Protocol: &config.ServerProtocol_Socks5{Socks5: &config.Socks5{Host: "127.0.0.1:1080"}},
 				},
 				"redir": {
-					Name: "redir",
-					Protocol: &config.ServerProtocol_Redir{
-						Redir: &config.Redir{
-							Host: "127.0.0.1:8088",
-						},
-					},
+					Name:     "redir",
+					Protocol: &config.ServerProtocol_Redir{Redir: &config.Redir{Host: "127.0.0.1:8088"}},
 				},
 			},
 		}
@@ -180,10 +175,63 @@ func save(pa *config.Setting, dir string) error {
 		}
 	}
 
+	if err = check(pa); err != nil {
+		return err
+	}
+
 	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t"}.Marshal(pa)
 	if err != nil {
 		return fmt.Errorf("marshal setting failed: %v", err)
 	}
 
 	return ioutil.WriteFile(dir, data, os.ModePerm)
+}
+
+func check(pa *config.Setting) error {
+	err := checkBypass(pa.Bypass)
+	if err != nil {
+		return err
+	}
+
+	err = CheckBootstrapDns(pa.Dns.Bootstrap)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkBypass(pa *config.Bypass) error {
+	if !pa.Enabled {
+		return nil
+	}
+
+	_, err := os.Stat(pa.BypassFile)
+	if err != nil {
+		return fmt.Errorf("check bypass file stat failed: %w", err)
+	}
+
+	return nil
+}
+
+func CheckBootstrapDns(pa *config.Dns) error {
+	host := pa.Host
+
+	if !strings.Contains(host, "://") {
+		if len(strings.Split(host, ":")) > 2 && !strings.Contains(host, "[") {
+			host = "[" + host + "]"
+		}
+		host = "//" + host
+	}
+
+	uri, err := url.Parse(host)
+	if err != nil {
+		return fmt.Errorf("dns bootstrap host is only support ip address: %w", err)
+	}
+
+	if net.ParseIP(uri.Hostname()) == nil {
+		return fmt.Errorf("dns bootstrap host is only support ip address")
+	}
+
+	return nil
 }

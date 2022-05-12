@@ -5,6 +5,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
@@ -12,6 +13,7 @@ import (
 type router struct {
 	remotedns *remotedns
 	localdns  *localdns
+	bootstrap *bootstrap
 	statistic *counter
 	shunt     *shunt
 }
@@ -20,7 +22,8 @@ func NewRouter(dialer proxy.Proxy) *router {
 	c := &router{statistic: NewStatistic()}
 
 	c.localdns = newLocaldns(c.statistic)
-
+	c.bootstrap = newBootstrap(c.statistic)
+	resolver.Bootstrap = c.bootstrap
 	c.remotedns = newRemotedns(direct.Default, dialer, c.statistic)
 
 	c.shunt = newShunt(c.remotedns, c.statistic)
@@ -34,6 +37,7 @@ func NewRouter(dialer proxy.Proxy) *router {
 func (a *router) Update(s *protoconfig.Setting) {
 	a.shunt.Update(s)
 	a.localdns.Update(s)
+	a.bootstrap.Update(s)
 	a.remotedns.Update(s)
 }
 

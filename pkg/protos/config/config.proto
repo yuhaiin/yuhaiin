@@ -15,6 +15,7 @@ message setting {
 message dns_setting {
   dns remote = 1 [ json_name = "remote" ];
   dns local = 2 [ json_name = "local" ];
+  dns bootstrap = 3 [ json_name = "bootstrap" ];
 }
 
 message system_proxy {
