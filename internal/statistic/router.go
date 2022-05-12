@@ -2,8 +2,11 @@ package statistic
 
 import (
 	"errors"
+	"log"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -16,6 +19,9 @@ type router struct {
 	bootstrap *bootstrap
 	statistic *counter
 	shunt     *shunt
+
+	dnsserver     server.Server
+	dnsserverHost string
 }
 
 func NewRouter(dialer proxy.Proxy) *router {
@@ -39,6 +45,17 @@ func (a *router) Update(s *protoconfig.Setting) {
 	a.localdns.Update(s)
 	a.bootstrap.Update(s)
 	a.remotedns.Update(s)
+
+	if a.dnsserverHost != s.Dns.Server {
+		if a.dnsserver != nil {
+			if err := a.dnsserver.Close(); err != nil {
+				log.Println("close dns server failed:", err)
+			}
+		}
+
+		a.dnsserver = dns.NewDnsServer(s.Dns.Server, a.shunt.GetResolver)
+		a.dnsserverHost = s.Dns.Server
+	}
 }
 
 func (a *router) Proxy() proxy.Proxy { return a.shunt }

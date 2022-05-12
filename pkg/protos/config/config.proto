@@ -13,6 +13,7 @@ message setting {
 }
 
 message dns_setting {
+  string server = 4 [ json_name = "server" ];
   dns remote = 1 [ json_name = "remote" ];
   dns local = 2 [ json_name = "local" ];
   dns bootstrap = 3 [ json_name = "bootstrap" ];

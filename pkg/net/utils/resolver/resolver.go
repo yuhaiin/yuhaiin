@@ -17,7 +17,8 @@ type System struct{}
 func (d *System) LookupIP(domain string) ([]net.IP, error) {
 	return net.DefaultResolver.LookupIP(context.TODO(), "ip4", domain)
 }
-func (d *System) Close() error { return nil }
+func (d *System) Close() error              { return nil }
+func (d *System) Do([]byte) ([]byte, error) { return nil, fmt.Errorf("system dns not support") }
 
 func LookupIP(domain string) ([]net.IP, error) { return Bootstrap.LookupIP(domain) }
 

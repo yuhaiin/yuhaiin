@@ -30,8 +30,8 @@ func TestDOH(t *testing.T) {
 	t.Log(d.LookupIP("push.services.mozilla.com"))
 	t.Log(d.LookupIP("www.google.com"))
 	t.Log(d.LookupIP("www.pixiv.net"))
-
 	t.Log(d.LookupIP("s1.hdslb.com"))
+	t.Log(d.LookupIP("dns.nextdns.io"))
 	//t.Log(d.LookupIP("baidu.com"))
 	//t.Log(d.LookupIP("ss1.bdstatic.com"))
 	//t.Log(d.LookupIP("dns.nextdns.io"))
