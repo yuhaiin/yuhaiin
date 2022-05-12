@@ -38,7 +38,7 @@ func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
 
 	dns.setServer(host)
 	if p == nil {
-		p = simple.NewSimple(dns.host)
+		p = simple.NewSimple(dns.host, nil)
 	}
 	dns.setProxy(p)
 	dns.client = NewClient(subnet, func(b []byte) ([]byte, error) {

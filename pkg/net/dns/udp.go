@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	nr "github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 )
 
 var _ dns.DNS = (*udp)(nil)
@@ -45,11 +44,6 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 			var b = utils.GetBytes(utils.DefaultSize)
 			defer utils.PutBytes(b)
 
-			addr, err := proxy.ResolveIPAddress(add, nr.LookupIP)
-			if err != nil {
-				return nil, fmt.Errorf("resolve addr failed: %v", err)
-			}
-
 			conn, err := p.PacketConn(add)
 			if err != nil {
 				return nil, fmt.Errorf("get packetConn failed: %v", err)
@@ -61,7 +55,7 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 				return nil, fmt.Errorf("set read deadline failed: %v", err)
 			}
 
-			_, err = conn.WriteTo(req, addr.UDPAddr())
+			_, err = conn.WriteTo(req, add.UDPAddr())
 			if err != nil {
 				return nil, err
 			}

@@ -31,7 +31,7 @@ func TestSsrParse2(t *testing.T) {
 }
 
 func TestConnections(t *testing.T) {
-	p := simple.NewSimple(proxy.ParseAddressSplit("", "127.0.0.1", 1090))
+	p := simple.NewSimple(proxy.ParseAddressSplit("", "127.0.0.1", 1090), nil)
 
 	z, err := ss.NewHTTPOBFS(
 		&node.PointProtocol_ObfsHttp{
