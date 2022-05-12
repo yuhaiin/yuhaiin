@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	nr "github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	"github.com/lucas-clemente/quic-go"
 	"golang.org/x/net/http2"
 )
@@ -133,14 +132,9 @@ func (d *doq) initSession() error {
 		d.conn = conn
 	}
 
-	addr, err := proxy.ResolveIPAddress(d.host, nr.LookupIP)
-	if err != nil {
-		return fmt.Errorf("resolve udp addr failed: %w", err)
-	}
-
 	session, err := quic.DialEarly(
 		d.conn,
-		addr.UDPAddr(),
+		d.host.UDPAddr(),
 		d.host.Hostname(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i00", http2.NextProtoTLS},

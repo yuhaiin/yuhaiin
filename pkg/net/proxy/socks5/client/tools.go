@@ -20,7 +20,7 @@ func Dial(host, port, user, password string) proxy.Proxy {
 		return proxy.NewErrProxy(err)
 	}
 	p, _ := NewSocks5(&node.PointProtocol_Socks5{Socks5: &node.Socks5{User: user, Password: password}})(
-		simple.NewSimple(addr))
+		simple.NewSimple(addr, nil))
 	return p
 }
 
