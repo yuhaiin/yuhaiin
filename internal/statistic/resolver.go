@@ -6,10 +6,12 @@ import (
 	"log"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
@@ -87,7 +89,7 @@ func (l *localdns) Update(c *protoconfig.Setting) {
 
 func (l *localdns) LookupIP(host string) ([]net.IP, error) {
 	if l.dns == nil {
-		return net.DefaultResolver.LookupIP(context.TODO(), "ip", host)
+		return resolver.LookupIP(host)
 	}
 
 	ips, err := l.dns.LookupIP(host)
@@ -102,6 +104,54 @@ func (l *localdns) LookupIP(host string) ([]net.IP, error) {
 func (l *localdns) Close() error {
 	if l.dns != nil {
 		return l.dns.Close()
+	}
+
+	return nil
+}
+
+type bootstrap struct {
+	config *protoconfig.Dns
+	dns    idns.DNS
+	conns  conns
+}
+
+func newBootstrap(conns conns) *bootstrap {
+	return &bootstrap{conns: conns}
+}
+
+func (b *bootstrap) Update(c *protoconfig.Setting) {
+	if proto.Equal(b.config, c.Dns.Bootstrap) {
+		return
+	}
+
+	err := config.CheckBootstrapDns(c.Dns.Bootstrap)
+	if err != nil {
+		log.Printf("check bootstrap dns failed: %v\n", err)
+		return
+	}
+
+	b.config = c.Dns.Bootstrap
+	b.Close()
+	b.dns = getDNS(b.config, &dnsdialer{b.conns, direct.Default, "BOOTSTRAP_DIRECT"})
+}
+
+func (l *bootstrap) LookupIP(host string) ([]net.IP, error) {
+	if l.dns == nil {
+		return net.DefaultResolver.LookupIP(context.TODO(), "ip", host)
+	}
+
+	ips, err := l.dns.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("localdns lookup failed: %w", err)
+	}
+
+	log.Println("bootstrap dns lookup success:", host, ips)
+	return ips, nil
+}
+
+func (b *bootstrap) Close() error {
+	if b.dns != nil {
+		return b.dns.Close()
 	}
 
 	return nil
