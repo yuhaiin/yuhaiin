@@ -42,6 +42,7 @@ message dns {
   dns_type type = 5 [ json_name = "type" ];
   bool proxy = 3 [ json_name = "proxy" ];
   string subnet = 4 [ json_name = "subnet" ];
+  string tls_servername = 2 [ json_name = "tls_servername" ];
 }
 
 message server {

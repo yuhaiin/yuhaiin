@@ -8,8 +8,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
-func NewDoT(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
+func NewDoT(host, servername string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
 	d := newTCP(host, "853", subnet, p)
-	d.tls = &tls.Config{ServerName: d.host.Hostname(), ClientSessionCache: sessionCache}
+	if servername == "" {
+		servername = d.host.Hostname()
+	}
+	d.tls = &tls.Config{ServerName: servername, ClientSessionCache: sessionCache}
 	return d
 }

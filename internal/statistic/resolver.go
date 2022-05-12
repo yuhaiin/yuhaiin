@@ -175,11 +175,11 @@ func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
 
 	switch dc.Type {
 	case protoconfig.Dns_doh:
-		return dns.NewDoH(dc.Host, subnet, proxy)
+		return dns.NewDoH(dc.Host, dc.TlsServername, subnet, proxy)
 	case protoconfig.Dns_dot:
-		return dns.NewDoT(dc.Host, subnet, proxy)
+		return dns.NewDoT(dc.Host, dc.TlsServername, subnet, proxy)
 	case protoconfig.Dns_doq:
-		return dns.NewDoQ(dc.Host, subnet, proxy)
+		return dns.NewDoQ(dc.Host, dc.TlsServername, subnet, proxy)
 	case protoconfig.Dns_doh3:
 		return dns.NewDoH3(dc.Host, subnet)
 	case protoconfig.Dns_tcp:
