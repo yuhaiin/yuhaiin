@@ -142,7 +142,7 @@ func load(path string) *config.Setting {
 	}
 
 	if pa.Dns.Bootstrap == nil {
-		pa.Dns.Bootstrap = &config.Dns{Host: "8.8.8.8:53", Type: config.Dns_udp}
+		pa.Dns.Bootstrap = &config.Dns{Host: "8.8.4.4", Type: config.Dns_dot}
 	}
 
 	if pa.Server == nil || pa.Server.Servers == nil {
