@@ -56,3 +56,26 @@ func TestLoad(t *testing.T) {
 
 	t.Log(x)
 }
+
+func TestCheckDNS(t *testing.T) {
+	z := &config.Dns{
+		Host: "example.com",
+	}
+
+	t.Log(CheckBootstrapDns(z))
+
+	z.Host = "1.1.1.1"
+	t.Log(CheckBootstrapDns(z))
+
+	z.Host = "1.1.1.1:53"
+	t.Log(CheckBootstrapDns(z))
+
+	z.Host = "ff::ff"
+	t.Log(CheckBootstrapDns(z))
+
+	z.Host = "[ff::ff]:53"
+	t.Log(CheckBootstrapDns(z))
+
+	z.Host = "1.1.1.1/dns-query"
+	t.Log(CheckBootstrapDns(z))
+}
