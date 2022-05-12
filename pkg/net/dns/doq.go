@@ -21,6 +21,7 @@ type doq struct {
 	conn       net.PacketConn
 	connection quic.Connection
 	host       proxy.Address
+	servername string
 	p          proxy.PacketProxy
 
 	lock sync.RWMutex
@@ -28,7 +29,7 @@ type doq struct {
 	*client
 }
 
-func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
+func NewDoQ(host, servername string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
 	if dialer == nil {
 		dialer = direct.Default
 	}
@@ -50,7 +51,7 @@ func NewDoQ(host string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
 		addr = proxy.EmptyAddr
 	}
 
-	d := &doq{p: dialer, host: addr}
+	d := &doq{p: dialer, host: addr, servername: servername}
 
 	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
 		err := d.initSession()
@@ -138,6 +139,7 @@ func (d *doq) initSession() error {
 		d.host.Hostname(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i00", http2.NextProtoTLS},
+			ServerName: d.servername,
 		},
 		&quic.Config{
 			HandshakeIdleTimeout: time.Second * 10,

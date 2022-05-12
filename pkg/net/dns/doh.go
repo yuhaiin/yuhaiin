@@ -3,6 +3,7 @@ package dns
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -33,14 +34,14 @@ type doh struct {
 	*client
 }
 
-func NewDoH(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
+func NewDoH(host, servername string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
 	dns := &doh{}
 
 	dns.setServer(host)
 	if p == nil {
 		p = simple.NewSimple(dns.host, nil)
 	}
-	dns.setProxy(p)
+	dns.setProxy(p, servername)
 	dns.client = NewClient(subnet, func(b []byte) ([]byte, error) {
 		r, err := dns.post(bytes.NewReader(b))
 		if err != nil {
@@ -83,7 +84,7 @@ func (d *doh) setServer(host string) {
 	d.host = proxy.ParseAddressSplit("tcp", hostname, uint16(por))
 }
 
-func (d *doh) setProxy(p proxy.StreamProxy) {
+func (d *doh) setProxy(p proxy.StreamProxy, servername string) {
 	d.Proxy = p
 	d.httpClient = &http.Client{
 		Transport: &http.Transport{
@@ -93,8 +94,12 @@ func (d *doh) setProxy(p proxy.StreamProxy) {
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return d.Proxy.Conn(d.host)
 			},
+			TLSClientConfig: &tls.Config{
+				ClientSessionCache: sessionCache,
+				ServerName:         servername,
+			},
 		},
-		Timeout: 10 * time.Second,
+		Timeout: 4 * time.Second,
 	}
 }
 

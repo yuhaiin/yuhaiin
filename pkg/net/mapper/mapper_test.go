@@ -37,7 +37,7 @@ func TestNewMatcher(t *testing.T) {
 
 func BenchmarkMapper(b *testing.B) {
 	b.StopTimer()
-	matcher := NewMapper[string](dns.NewDoH("223.5.5.5", nil, nil))
+	matcher := NewMapper[string](dns.NewDoH("223.5.5.5", "", nil, nil))
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	a1, _ := proxy.ParseAddress("", "www.example.baidu.com:0")
