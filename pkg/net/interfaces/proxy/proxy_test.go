@@ -16,18 +16,17 @@ func TestAddr(t *testing.T) {
 
 	t.Log(addr.Hostname(), addr.IP(), addr.Port(), addr.Type())
 
-	ia, err := ResolveIPAddress(addr, nil)
-	require.NoError(t, err)
-	t.Log(ia.UDPAddr().Zone)
+	t.Log(addr.UDPAddr())
 
 	z, _ := net.ResolveUDPAddr("udp", "[ff::ff%eth0]:53")
 	t.Log(z.String(), z.IP, z.Port, z.Zone)
 
 	addr, err = ParseAddress("tcp", "www.google.com:443")
 	require.NoError(t, err)
+	t.Log(addr.UDPAddr())
 
-	ia, err = ResolveIPAddress(addr, resolver.Bootstrap.LookupIP)
-	require.NoError(t, err)
-	t.Log(ia.UDPAddr(), ia.TCPAddr())
-	t.Log(addr)
+	t.Log(addr.(*DomainAddr).resolver)
+	addr.WithResolver(resolver.Bootstrap)
+	t.Log(addr.(*DomainAddr).resolver)
+
 }

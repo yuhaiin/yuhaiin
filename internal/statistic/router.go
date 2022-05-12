@@ -21,14 +21,12 @@ func NewRouter(dialer proxy.Proxy) *router {
 
 	c.localdns = newLocaldns(c.statistic)
 
-	direct := direct.NewDirect(direct.WithLookup(c.localdns))
-
-	c.remotedns = newRemotedns(direct, dialer, c.statistic)
+	c.remotedns = newRemotedns(direct.Default, dialer, c.statistic)
 
 	c.shunt = newShunt(c.remotedns, c.statistic)
-	c.shunt.AddDialer(PROXY, dialer)
-	c.shunt.AddDialer(DIRECT, direct)
-	c.shunt.AddDialer(BLOCK, proxy.NewErrProxy(errors.New("block")))
+	c.shunt.AddDialer(PROXY, dialer, c.remotedns)
+	c.shunt.AddDialer(DIRECT, direct.Default, c.localdns)
+	c.shunt.AddDialer(BLOCK, proxy.NewErrProxy(errors.New("block")), c.localdns)
 
 	return c
 }

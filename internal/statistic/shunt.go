@@ -80,7 +80,8 @@ type shunt struct {
 
 	conns conns
 
-	dialers map[MODE]proxy.Proxy
+	dialers  map[MODE]proxy.Proxy
+	resolver map[MODE]dns.DNS
 }
 
 func newShunt(resolver dns.DNS, conns conns) *shunt {
@@ -164,12 +165,18 @@ func (s *shunt) match(addr proxy.Address) MODE {
 	return *m
 }
 
-func (s *shunt) AddDialer(m MODE, p proxy.Proxy) {
+func (s *shunt) AddDialer(m MODE, p proxy.Proxy, resolver dns.DNS) {
 	if s.dialers == nil {
 		s.dialers = make(map[MODE]proxy.Proxy)
 	}
 
 	s.dialers[m] = p
+
+	if s.resolver == nil {
+		s.resolver = make(map[MODE]dns.DNS)
+	}
+
+	s.resolver[m] = resolver
 }
 
 func (s *shunt) GetDialer(m MODE) proxy.Proxy {
@@ -188,6 +195,12 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	if !ok {
 		return nil, fmt.Errorf("not found dialer for %s", m)
 	}
+	resolv, ok := s.resolver[m]
+	if !ok {
+		return nil, fmt.Errorf("not found resolver for %s", m)
+	}
+
+	host.WithResolver(resolv)
 
 	conn, err := dialer.Conn(host)
 	if err != nil {
@@ -203,6 +216,12 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	if !ok {
 		return nil, fmt.Errorf("not found dialer for %s", m)
 	}
+	resolv, ok := s.resolver[m]
+	if !ok {
+		return nil, fmt.Errorf("not found resolver for %s", m)
+	}
+
+	host.WithResolver(resolv)
 
 	conn, err := dialer.PacketConn(host)
 	if err != nil {

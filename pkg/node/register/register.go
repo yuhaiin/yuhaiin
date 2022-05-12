@@ -22,7 +22,7 @@ func init() {
 	node.RegisterProtocol(func(p *node.PointProtocol_Simple) node.WrapProxy {
 		return func(proxy.Proxy) (proxy.Proxy, error) {
 			return simple.NewSimple(proxy.ParseAddressSplit("", p.Simple.GetHost(), uint16(p.Simple.GetPort())),
-				simple.WithTLS(node.ParseTLSConfig(p.Simple.Tls))), nil
+				node.ParseTLSConfig(p.Simple.Tls)), nil
 		}
 	})
 	node.RegisterProtocol(vmess.NewVmess)
