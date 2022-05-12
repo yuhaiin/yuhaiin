@@ -20,6 +20,7 @@ import (
 	imapper "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
@@ -229,4 +230,15 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	}
 
 	return s.conns.AddPacketConn(conn, host, m.String()), nil
+}
+
+func (s *shunt) GetResolver(host proxy.Address) dns.DNS {
+	m := s.match(host)
+	if s.resolver != nil {
+		d, ok := s.resolver[m]
+		if ok {
+			return d
+		}
+	}
+	return resolver.Bootstrap
 }
