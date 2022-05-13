@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,7 +27,7 @@ func NewLogWriter(file string) *FileWriter {
 	return &FileWriter{
 		path:  file,
 		timer: time.NewTicker(1),
-		log:   log.New(os.Stderr, "log", 0),
+		log:   log.New(os.Stderr, "[log]: ", 0),
 	}
 }
 
@@ -68,6 +70,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 		if err != nil {
 			f.log.Println(err)
 		}
+		f.removeOldFile()
 		f.fileLock.Unlock()
 	default:
 	}
@@ -75,7 +78,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 	f.fileLock.RLock()
 	defer f.fileLock.RUnlock()
 	if f.w == nil {
-		f.w, err = os.OpenFile(filepath.Join(f.path), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+		f.w, err = os.OpenFile(f.path, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 		if err != nil {
 			f.log.Println(err)
 			return 0, err
@@ -83,4 +86,40 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 	}
 
 	return f.w.Write(p)
+}
+
+func (f *FileWriter) removeOldFile() {
+	dir, filename := filepath.Split(f.path)
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		f.log.Println(err)
+		return
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name() < files[j].Name()
+	})
+
+	logfiles := make([]string, 0, len(files))
+
+	for _, file := range files {
+		if file.Name() == filename || !strings.HasPrefix(file.Name(), filename) {
+			continue
+		}
+
+		logfiles = append(logfiles, file.Name())
+	}
+
+	if len(logfiles) <= 5 {
+		return
+	}
+
+	for _, name := range logfiles[:len(logfiles)-5] {
+		if err = os.Remove(filepath.Join(dir, name)); err != nil {
+			f.log.Printf("remove log file %s failed: %v\n", name, err)
+			continue
+		}
+
+		f.log.Println("remove log file", name)
+	}
 }

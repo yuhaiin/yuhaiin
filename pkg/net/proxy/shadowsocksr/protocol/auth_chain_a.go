@@ -185,7 +185,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 			uid[i] = a.uid[i] ^ a.lastClientHash[8+i]
 		}
 		base64UserKey = base64.StdEncoding.EncodeToString(a.userKey)
-		aesCipherKey := ssr.EVPBytesToKey(base64UserKey+a.salt, 16)
+		aesCipherKey := ssr.KDF(base64UserKey+a.salt, 16)
 		block, err := aes.NewCipher(aesCipherKey)
 		if err != nil {
 			return

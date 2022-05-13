@@ -2,7 +2,6 @@ package client
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -54,84 +53,52 @@ func ParseAddrWriter(addr proxy.Address, sendData io.Writer) {
 
 }
 
-func ResolveAddr(raw []byte) (dst string, port, size int, err error) {
-	if len(raw) <= 0 {
-		return "", 0, 0, fmt.Errorf("raw byte array is empty")
+func ResolveAddr(r io.Reader) (_ proxy.Address, size int, err error) {
+	var byteBuf [1]byte
+	if size, err = io.ReadFull(r, byteBuf[:]); err != nil {
+		return nil, 0, fmt.Errorf("unable to read ATYP: %w", err)
 	}
-	targetAddrRawSize := 1
-	switch raw[0] {
-	case ipv4:
-		dst = net.IP(raw[targetAddrRawSize : targetAddrRawSize+4]).String()
-		targetAddrRawSize += 4
-	case ipv6:
-		if len(raw) < 1+16+2 {
-			return "", 0, 0, errors.New("errShortAddrRaw")
-		}
-		dst = net.IP(raw[1 : 1+16]).String()
-		targetAddrRawSize += 16
-	case domainName:
-		addrLen := int(raw[1])
-		if len(raw) < 1+1+addrLen+2 {
-			// errShortAddrRaw
-			return "", 0, 0, errors.New("error short address raw")
-		}
-		dst = string(raw[1+1 : 1+1+addrLen])
-		targetAddrRawSize += 1 + addrLen
-	default:
-		// errUnrecognizedAddrType
-		return "", 0, 0, errors.New("udp socks: Failed to get UDP package header")
-	}
-	port = (int(raw[targetAddrRawSize]) << 8) | int(raw[targetAddrRawSize+1])
-	targetAddrRawSize += 2
-	return dst, port, targetAddrRawSize, nil
-}
 
-func ResolveAddrReader(r io.Reader) (hostname string, port, size int, err error) {
-	byteBuf := [1]byte{}
-	_, err = io.ReadFull(r, byteBuf[:])
-	if err != nil {
-		err = fmt.Errorf("unable to read ATYP: %w", err)
-		return
-	}
+	var bufSize int
+
 	switch byteBuf[0] {
 	case ipv4:
-		var buf [6]byte
-		_, err = io.ReadFull(r, buf[:])
-		if err != nil {
-			err = fmt.Errorf("failed to read IPv4: %w", err)
-			return
-		}
-		hostname = net.IP(buf[0:4]).String()
-		port = int(binary.BigEndian.Uint16(buf[4:6]))
+		bufSize = 4
 	case ipv6:
-		var buf [18]byte
-		_, err = io.ReadFull(r, buf[:])
-		if err != nil {
-			err = fmt.Errorf("failed to read IPv6: %w", err)
-			return
-		}
-		hostname = net.IP(buf[0:16]).String()
-		port = int(binary.BigEndian.Uint16(buf[16:18]))
+		bufSize = 16
 	case domainName:
-		_, err = io.ReadFull(r, byteBuf[:])
-		length := byteBuf[0]
-		if err != nil {
-			err = fmt.Errorf("failed to read domain name length")
-			return
+		length := make([]byte, 1)
+		if _, err = io.ReadFull(r, length); err != nil {
+			return nil, 0, fmt.Errorf("failed to read domain name length: %w", err)
 		}
-		buf := make([]byte, length+2)
-		_, err = io.ReadFull(r, buf)
-		if err != nil {
-			err = fmt.Errorf("failed to read domain name")
-			return
-		}
-		// the fucking browser uses IP as a domain name sometimes
-		host := buf[0:length]
-		hostname = string(host)
-		port = int(binary.BigEndian.Uint16(buf[length : length+2]))
+
+		size += 1
+
+		bufSize = int(length[0])
 	default:
-		err = fmt.Errorf("invalid ATYP " + strconv.FormatInt(int64(byteBuf[0]), 10))
-		return
+		return nil, 0, fmt.Errorf("invalid ATYP " + strconv.FormatInt(int64(byteBuf[0]), 10))
 	}
-	return
+
+	buf := make([]byte, bufSize)
+	if _, err = io.ReadFull(r, buf[:]); err != nil {
+		return nil, 0, fmt.Errorf("failed to read IPv6: %w", err)
+	}
+	size += bufSize
+
+	var hostname string
+	switch byteBuf[0] {
+	case ipv4, ipv6:
+		hostname = net.IP(buf[:]).String()
+	case domainName:
+		hostname = string(buf)
+		size += 1
+	}
+
+	if _, err = io.ReadFull(r, buf[:2]); err != nil {
+		return nil, 0, fmt.Errorf("failed to read port: %w", err)
+	}
+	size += 2
+	port := binary.BigEndian.Uint16(buf[0:2])
+
+	return proxy.ParseAddressSplit("", hostname, port), size, nil
 }

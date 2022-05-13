@@ -127,6 +127,7 @@ func newSalsa20Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
 	var c salsaStreamCipher
 	copy(c.nonce[:], iv[:8])
 	copy(c.key[:], key[:32])
+
 	return &c, nil
 }
 
