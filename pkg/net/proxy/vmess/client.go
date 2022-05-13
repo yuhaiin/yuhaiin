@@ -37,7 +37,7 @@ func (v *Vmess) Conn(host proxy.Address) (conn net.Conn, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	conn, err = v.client.NewConn(c, host.String())
+	conn, err = v.client.NewConn(c, host)
 	if err != nil {
 		c.Close()
 		return nil, fmt.Errorf("new conn failed: %w", err)
@@ -52,7 +52,7 @@ func (v *Vmess) PacketConn(host proxy.Address) (conn net.PacketConn, err error) 
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
-	conn, err = v.client.NewPacketConn(c, host.String())
+	conn, err = v.client.NewPacketConn(c, host)
 	if err != nil {
 		c.Close()
 		return nil, fmt.Errorf("new conn failed: %w", err)

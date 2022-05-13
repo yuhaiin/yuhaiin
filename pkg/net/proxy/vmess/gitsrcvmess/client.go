@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -37,11 +38,15 @@ const (
 	SecurityNone             byte = 5
 )
 
+type CMD byte
+
 // CMD types
 const (
-	CmdTCP byte = 1
-	CmdUDP byte = 2
+	CmdTCP CMD = 1
+	CmdUDP CMD = 2
 )
+
+func (c CMD) Byte() byte { return byte(c) }
 
 var _ net.Conn = (*Conn)(nil)
 
@@ -76,7 +81,7 @@ type Conn struct {
 	dataWriter writer
 
 	isAead bool
-	udp    bool
+	CMD    CMD
 }
 
 // NewClient .
@@ -123,8 +128,8 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) NewConn(rc net.Conn, target string) (net.Conn, error) {
-	conn, err := c.newConn(rc, "tcp", target)
+func (c *Client) NewConn(rc net.Conn, target proxy.Address) (net.Conn, error) {
+	conn, err := c.newConn(rc, CmdTCP, target)
 	if err != nil {
 		rc.Close()
 		return nil, err
@@ -133,8 +138,8 @@ func (c *Client) NewConn(rc net.Conn, target string) (net.Conn, error) {
 	return &vmessConn{Conn: conn}, nil
 }
 
-func (c *Client) NewPacketConn(rc net.Conn, target string) (net.PacketConn, error) {
-	conn, err := c.newConn(rc, "udp", target)
+func (c *Client) NewPacketConn(rc net.Conn, target proxy.Address) (net.PacketConn, error) {
+	conn, err := c.newConn(rc, CmdUDP, target)
 	if err != nil {
 		return nil, err
 	}
@@ -143,14 +148,19 @@ func (c *Client) NewPacketConn(rc net.Conn, target string) (net.PacketConn, erro
 }
 
 // NewConn .
-func (c *Client) newConn(rc net.Conn, network, target string) (*Conn, error) {
+func (c *Client) newConn(rc net.Conn, cmd CMD, target proxy.Address) (*Conn, error) {
 	conn := &Conn{
-		isAead: c.isAead,
-		user:   c.users[rand.Intn(c.count)], opt: c.opt, security: c.security, udp: network == "udp"}
+		isAead:   c.isAead,
+		user:     c.users[rand.Intn(c.count)],
+		opt:      c.opt,
+		security: c.security,
+		CMD:      cmd,
+	}
+
 	var err error
 	conn.atyp, conn.addr, conn.port, err = ParseAddr(target)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse target address failed: %w", err)
 	}
 
 	randBytes := make([]byte, 33)
@@ -222,11 +232,8 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	buf.WriteByte(pSec)
 
 	buf.WriteByte(0) // reserved
-	if c.udp {
-		buf.WriteByte(CmdUDP)
-	} else {
-		buf.WriteByte(CmdTCP) // cmd
-	}
+
+	buf.WriteByte(c.CMD.Byte()) // cmd
 
 	// target
 	err := binary.Write(buf, binary.BigEndian, uint16(c.port)) // port

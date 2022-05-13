@@ -3,7 +3,8 @@ package vmess
 import (
 	"fmt"
 	"net"
-	"strconv"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
 // Atyp is vmess addr type
@@ -24,39 +25,32 @@ type Addr []byte
 type Port uint16
 
 // ParseAddr parses the address in string s
-func ParseAddr(s string) (Atyp, Addr, Port, error) {
+func ParseAddr(s proxy.Address) (Atyp, Addr, Port, error) {
 	var atyp Atyp
 	var addr Addr
 
-	host, port, err := net.SplitHostPort(s)
-	if err != nil {
-		return 0, nil, 0, err
-	}
-
-	if ip := net.ParseIP(host); ip != nil {
-		if ip4 := ip.To4(); ip4 != nil {
-			addr = make([]byte, net.IPv4len)
-			atyp = AtypIP4
-			copy(addr[:], ip4)
-		} else {
-			addr = make([]byte, net.IPv6len)
-			atyp = AtypIP6
-			copy(addr[:], ip)
-		}
-	} else {
-		if len(host) > 255 {
+	if s.Type() == proxy.DOMAIN {
+		if len(s.Hostname()) > 255 {
 			return 0, nil, 0, fmt.Errorf("addr length over 255")
 		}
-		addr = make([]byte, 1+len(host))
 		atyp = AtypDomain
-		addr[0] = byte(len(host))
-		copy(addr[1:], host)
+		addr = append([]byte{byte(len(s.Hostname()))}, []byte(s.Hostname())...)
 	}
 
-	portnum, err := strconv.ParseUint(port, 10, 16)
-	if err != nil {
-		return 0, nil, 0, err
+	ip := s.IP()
+	if ip == nil {
+		return 0, nil, 0, fmt.Errorf("invalid addr")
 	}
 
-	return atyp, addr, Port(portnum), err
+	if ip4 := ip.To4(); ip4 != nil {
+		addr = make([]byte, net.IPv4len)
+		atyp = AtypIP4
+		copy(addr[:], ip4)
+	} else {
+		addr = make([]byte, net.IPv6len)
+		atyp = AtypIP6
+		copy(addr[:], ip)
+	}
+
+	return atyp, addr, Port(s.Port().Port()), nil
 }
