@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
@@ -59,17 +58,16 @@ func handle(user, key string, client net.Conn, f proxy.Proxy) (err error) {
 	}
 
 	// socks5 second handshake
-	_, err = client.Read(b[:])
-	if err != nil {
+	if _, err = io.ReadFull(client, b[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
 	}
 
-	host, port, _, err := s5c.ResolveAddr(b[3:])
+	addr, _, err := s5c.ResolveAddr(client)
 	if err != nil {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}
-	err = secondHand(net.JoinHostPort(host, strconv.Itoa(port)), b[1], client, f)
-	if err != nil {
+
+	if err = secondHand(addr, b[1], client, f); err != nil {
 		return fmt.Errorf("second hand failed: %w", err)
 	}
 
@@ -111,7 +109,8 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return nil
 }
 
-func secondHand(host string, mode byte, client net.Conn, f proxy.Proxy) error {
+func secondHand(host proxy.Address, mode byte, client net.Conn, f proxy.Proxy) error {
+	// log.Println("mode", mode)
 	var err error
 	switch mode {
 	case connect:
@@ -134,12 +133,8 @@ func secondHand(host string, mode byte, client net.Conn, f proxy.Proxy) error {
 	return err
 }
 
-func handleConnect(target string, client net.Conn, f proxy.Proxy) error {
-	addr, err := proxy.ParseAddress("tcp", target)
-	if err != nil {
-		return fmt.Errorf("parse address failed: %w", err)
-	}
-	server, err := f.Conn(addr)
+func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
+	server, err := f.Conn(target)
 	if err != nil {
 		return fmt.Errorf("connect to %s failed: %w", target, err)
 	}
@@ -154,12 +149,8 @@ func handleConnect(target string, client net.Conn, f proxy.Proxy) error {
 	return nil
 }
 
-func handleUDP(target string, client net.Conn, f proxy.Proxy) error {
-	addr, err := proxy.ParseAddress("udp", target)
-	if err != nil {
-		return fmt.Errorf("parse address failed: %w", err)
-	}
-	l, err := newUDPServer(f, addr)
+func handleUDP(target proxy.Address, client net.Conn, f proxy.Proxy) error {
+	l, err := newUDPServer(f, target)
 	if err != nil {
 		return fmt.Errorf("new udp server failed: %w", err)
 	}
@@ -167,6 +158,7 @@ func handleUDP(target string, client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
+	// log.Println("udp server listen on", laddr)
 	writeSecondResp(client, succeeded, laddr)
 	utils.Copy(io.Discard, client)
 	l.Close()

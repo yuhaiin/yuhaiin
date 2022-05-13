@@ -1,7 +1,6 @@
 package dns
 
 import (
-	"bytes"
 	"container/list"
 	"fmt"
 	"math/rand"
@@ -9,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -42,7 +42,9 @@ func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
 		},
 	}
 	if subnet != nil {
-		optionData := bytes.NewBuffer(nil)
+		optionData := utils.GetBuffer()
+		defer utils.PutBuffer(optionData)
+
 		mask, _ := subnet.Mask.Size()
 		ip := subnet.IP.To4()
 		if ip == nil { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml

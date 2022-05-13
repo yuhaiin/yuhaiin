@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -149,7 +148,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (int, net.Addr, error) {
-	host, port, _, err := s5c.ResolveAddrReader(c.Conn)
+	addr, _, err := s5c.ResolveAddr(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
@@ -174,7 +173,6 @@ func (c *PacketConn) ReadFrom(payload []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("failed to read payload")
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(port)))
 	return length, addr, err
 }
 

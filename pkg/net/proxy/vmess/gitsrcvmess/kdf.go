@@ -60,7 +60,9 @@ func KDF16(key []byte, path ...string) []byte {
 }
 
 func CreateAuthID(cmdKey []byte, time int64) [16]byte {
-	buf := bytes.NewBuffer(nil)
+	buf := utils.GetBuffer()
+	defer utils.PutBuffer(buf)
+
 	binary.Write(buf, binary.BigEndian, time)
 	var zero uint32
 	io.CopyN(buf, rand3.Reader, 4)
@@ -94,7 +96,8 @@ func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 		panic(err.Error())
 	}
 
-	aeadPayloadLengthSerializeBuffer := bytes.NewBuffer(nil)
+	aeadPayloadLengthSerializeBuffer := utils.GetBuffer()
+	defer utils.PutBuffer(aeadPayloadLengthSerializeBuffer)
 
 	headerPayloadDataLen := uint16(len(data))
 
@@ -141,7 +144,8 @@ func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 		payloadHeaderAEADEncrypted = payloadHeaderAEAD.Seal(nil, payloadHeaderAEADNonce, data, generatedAuthID[:])
 	}
 
-	outputBuffer := bytes.NewBuffer(nil)
+	outputBuffer := utils.GetBuffer()
+	defer utils.PutBuffer(outputBuffer)
 
 	outputBuffer.Write(generatedAuthID[:])               // 16
 	outputBuffer.Write(payloadHeaderLengthAEADEncrypted) // 2+16

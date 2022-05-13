@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
-	"strconv"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -56,7 +56,10 @@ func (s *client) Conn(host proxy.Address) (net.Conn, error) {
 }
 
 func (s *client) handshake1(conn net.Conn) error {
-	sendData := bytes.NewBuffer([]byte{0x05, 0x01, 0x00})
+	sendData := utils.GetBuffer()
+	defer utils.PutBuffer(sendData)
+
+	sendData.Write([]byte{0x05, 0x01, 0x00})
 	_, err := conn.Write(sendData.Bytes())
 	if err != nil {
 		return fmt.Errorf("firstVerify:sendData -> %v", err)
@@ -101,45 +104,32 @@ const (
 	ipv6       byte = 0x04
 )
 
-type header struct {
-	VER  byte
-	REP  byte
-	RSV  byte
-	ATYP byte
-	ADDR string
-	PORT int
-}
+func (s *client) handshake2(conn net.Conn, cmd cmd, address proxy.Address) (target proxy.Address, err error) {
+	sendData := utils.GetBuffer()
+	defer utils.PutBuffer(sendData)
 
-func (s *client) handshake2(conn net.Conn, cmd cmd, address proxy.Address) (header, error) {
-	sendData := bytes.NewBuffer([]byte{0x05, byte(cmd), 0x00})
+	sendData.Write([]byte{0x05, byte(cmd), 0x00})
 	sendData.Write(ParseAddr(address))
 
-	if _, err := conn.Write(sendData.Bytes()); err != nil {
-		return header{}, err
+	if _, err = conn.Write(sendData.Bytes()); err != nil {
+		return nil, err
 	}
 
-	getData := make([]byte, 1024)
-	n, err := conn.Read(getData[:])
-	if err != nil {
-		return header{}, err
+	getData := make([]byte, 3)
+	if _, err := io.ReadFull(conn, getData); err != nil {
+		return nil, err
 	}
+
 	if getData[0] != 0x05 || getData[1] != 0x00 {
-		return header{}, errors.New("socks5 second handshake failed")
+		return nil, errors.New("socks5 second handshake failed")
 	}
 
-	dst, port, _, err := ResolveAddr(getData[3:n])
+	addr, _, err := ResolveAddr(conn)
 	if err != nil {
-		return header{}, err
+		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
 
-	return header{
-		VER:  getData[0],
-		REP:  getData[1],
-		RSV:  getData[2],
-		ATYP: getData[3],
-		ADDR: dst,
-		PORT: port,
-	}, nil
+	return addr, nil
 }
 
 func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
@@ -154,16 +144,10 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("first hand failed: %v", err)
 	}
 
-	r, err := s.handshake2(conn, udp, host)
+	addr, err := s.handshake2(conn, udp, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %v", err)
-	}
-
-	addr, err := resolver.ResolveUDPAddr(net.JoinHostPort(r.ADDR, strconv.Itoa(r.PORT)))
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("resolve addr failed: %v", err)
 	}
 
 	go func() {
@@ -176,7 +160,9 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 			}
 		}
 	}()
-	conn2, err := newSocks5PacketConn(host, addr, conn)
+
+	// log.Println(addr)
+	conn2, err := newSocks5PacketConn(host, addr.UDPAddr(), conn)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("new socks5 packet conn failed: %v", err)

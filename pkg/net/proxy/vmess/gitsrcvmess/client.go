@@ -364,8 +364,14 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 			c.dataReader = ChunkedReader(c.Conn)
 
 		case SecurityAES128GCM:
-			block, _ := aes.NewCipher(c.respBodyKey[:])
-			aead, _ := cipher.NewGCM(block)
+			block, err := aes.NewCipher(c.respBodyKey[:])
+			if err != nil {
+				return 0, fmt.Errorf("new aes cipher failed: %w", err)
+			}
+			aead, err := cipher.NewGCM(block)
+			if err != nil {
+				return 0, fmt.Errorf("new gcm failed: %w", err)
+			}
 			c.dataReader = AEADReader(c.Conn, aead, c.respBodyIV[:])
 
 		case SecurityChacha20Poly1305:
@@ -374,7 +380,10 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 			copy(key, t[:])
 			t = md5.Sum(key[:16])
 			copy(key[16:], t[:])
-			aead, _ := chacha20poly1305.New(key)
+			aead, err := chacha20poly1305.New(key)
+			if err != nil {
+				return 0, fmt.Errorf("new chacha20poly1305 failed: %w", err)
+			}
 			c.dataReader = AEADReader(c.Conn, aead, c.respBodyIV[:])
 		}
 	}

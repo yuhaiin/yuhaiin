@@ -1,6 +1,7 @@
 package socks5server
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net"
@@ -50,7 +51,7 @@ func (u *udpServer) forward() {
 		}
 
 		if u.header == nil {
-			_, _, size, err := s5c.ResolveAddr(buf[3:n])
+			_, size, err := s5c.ResolveAddr(bytes.NewBuffer(buf[3:n]))
 			if err != nil {
 				log.Println("resolve addr failed:", err)
 				continue
@@ -61,6 +62,7 @@ func (u *udpServer) forward() {
 			u.headerSize = len(u.header)
 			go u.reply()
 		}
+		// log.Println("write------", buf[:n])
 		u.proxy.SetWriteDeadline(time.Now().Add(time.Second * 10))
 		u.proxy.WriteTo(buf[u.headerSize:n], u.remoteTarget)
 	}

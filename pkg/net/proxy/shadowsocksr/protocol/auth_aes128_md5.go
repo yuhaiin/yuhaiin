@@ -153,7 +153,7 @@ func (a *authAES128) packAuthData(data []byte) {
 
 	outLength := randLength + 16 + 4 + 4 + 7 + dataLength + 4
 
-	aesCipherKey := ssr.EVPBytesToKey(base64.StdEncoding.EncodeToString(a.userKey)+a.salt, 16)
+	aesCipherKey := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+a.salt, 16)
 	block, err := aes.NewCipher(aesCipherKey)
 	if err != nil {
 		return

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -85,14 +84,9 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
 	}
 
-	host, port, addrSize, err := s5c.ResolveAddr(b[:n])
+	addr, addrSize, err := s5c.ResolveAddr(bytes.NewBuffer(b[:n]))
 	if err != nil {
 		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
-	}
-
-	addr, err := resolver.ResolveUDPAddr(net.JoinHostPort(host, strconv.FormatInt(int64(port), 10)))
-	if err != nil {
-		return 0, nil, fmt.Errorf("resolve udp address failed: %v", err)
 	}
 
 	copy(b, b[addrSize:])
