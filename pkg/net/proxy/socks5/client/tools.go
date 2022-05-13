@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -23,33 +23,31 @@ func Dial(host, port, user, password string) proxy.Proxy {
 	return p
 }
 
-func ParseAddr(hostname proxy.Address) (data []byte) {
-	sendData := utils.GetBuffer()
-	defer utils.PutBuffer(sendData)
-
-	ParseAddrWriter(hostname, sendData)
-	return sendData.Bytes()
+func ParseAddr(hostname proxy.Address) []byte {
+	buf := bytes.NewBuffer(make([]byte, 0, 3))
+	ParseAddrWriter(hostname, buf)
+	return buf.Bytes()
 }
 
-func ParseAddrWriter(addr proxy.Address, sendData io.Writer) {
+func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 	switch addr.Type() {
 	case proxy.IP:
 		if ip := addr.IP().To4(); ip != nil {
-			sendData.Write([]byte{0x01})
-			sendData.Write(ip)
+			buf.Write([]byte{0x01})
+			buf.Write(ip)
 		} else {
-			sendData.Write([]byte{0x04})
-			sendData.Write(addr.IP().To16())
+			buf.Write([]byte{0x04})
+			buf.Write(addr.IP().To16())
 		}
 	case proxy.DOMAIN:
 		fallthrough
 	default:
-		sendData.Write([]byte{0x03})
-		sendData.Write([]byte{byte(len(addr.Hostname()))})
-		sendData.Write([]byte(addr.Hostname()))
+		buf.Write([]byte{0x03})
+		buf.Write([]byte{byte(len(addr.Hostname()))})
+		buf.Write([]byte(addr.Hostname()))
 	}
 
-	sendData.Write([]byte{byte(addr.Port().Port() >> 8), byte(addr.Port().Port() & 255)})
+	buf.Write([]byte{byte(addr.Port().Port() >> 8), byte(addr.Port().Port() & 255)})
 
 }
 
