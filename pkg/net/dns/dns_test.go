@@ -1,7 +1,7 @@
 package dns
 
 import (
-	"context"
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"testing"
@@ -19,14 +19,19 @@ func TestDNS6(t *testing.T) {
 }
 
 func TestDNSResolver(t *testing.T) {
-	dd := NewDoU("114.114.114.114:53", nil, nil)
+	b := bytes.NewBuffer(nil)
 
-	d := dd.(*udp)
+	b.WriteByte(0x01)
 
-	t.Log(d.Resolver().LookupHost(context.Background(), "www.baidu.com"))
-	t.Log(d.Resolver().LookupHost(context.Background(), "www.google.com"))
-	t.Log(d.Resolver().LookupHost(context.Background(), "www.cloudflare.com"))
-	t.Log(d.Resolver().LookupHost(context.Background(), "www.apple.com"))
+	z := b.Bytes()
+
+	t.Log(z)
+
+	b.Reset()
+	b.WriteByte(0x02)
+
+	t.Log(z, b.Bytes())
+
 }
 
 func TestResolve(t *testing.T) {

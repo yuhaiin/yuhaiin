@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"bytes"
 	"container/list"
 	"fmt"
 	"math/rand"
@@ -8,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -42,8 +42,7 @@ func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
 		},
 	}
 	if subnet != nil {
-		optionData := utils.GetBuffer()
-		defer utils.PutBuffer(optionData)
+		optionData := bytes.NewBuffer(nil)
 
 		mask, _ := subnet.Mask.Size()
 		ip := subnet.IP.To4()

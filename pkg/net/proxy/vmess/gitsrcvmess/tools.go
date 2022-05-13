@@ -96,14 +96,11 @@ func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 		panic(err.Error())
 	}
 
-	aeadPayloadLengthSerializeBuffer := utils.GetBuffer()
-	defer utils.PutBuffer(aeadPayloadLengthSerializeBuffer)
-
+	aeadPayloadLengthSerializeBuffer := bytes.NewBuffer(nil)
 	headerPayloadDataLen := uint16(len(data))
-
 	binary.Write(aeadPayloadLengthSerializeBuffer, binary.BigEndian, headerPayloadDataLen)
-
 	aeadPayloadLengthSerializedByte := aeadPayloadLengthSerializeBuffer.Bytes()
+
 	var payloadHeaderLengthAEADEncrypted []byte
 
 	{
@@ -144,8 +141,7 @@ func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 		payloadHeaderAEADEncrypted = payloadHeaderAEAD.Seal(nil, payloadHeaderAEADNonce, data, generatedAuthID[:])
 	}
 
-	outputBuffer := utils.GetBuffer()
-	defer utils.PutBuffer(outputBuffer)
+	outputBuffer := bytes.NewBuffer(nil)
 
 	outputBuffer.Write(generatedAuthID[:])               // 16
 	outputBuffer.Write(payloadHeaderLengthAEADEncrypted) // 2+16
