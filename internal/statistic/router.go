@@ -46,16 +46,20 @@ func (a *router) Update(s *protoconfig.Setting) {
 	a.bootstrap.Update(s)
 	a.remotedns.Update(s)
 
-	if a.dnsserverHost != s.Dns.Server {
-		if a.dnsserver != nil {
-			if err := a.dnsserver.Close(); err != nil {
-				log.Println("close dns server failed:", err)
-			}
-		}
-
-		a.dnsserver = dns.NewDnsServer(s.Dns.Server, a.shunt.GetResolver)
-		a.dnsserverHost = s.Dns.Server
+	if a.dnsserverHost == s.Dns.Server {
+		return
 	}
+
+	if a.dnsserver != nil {
+		if err := a.dnsserver.Close(); err != nil {
+			log.Println("close dns server failed:", err)
+		}
+	}
+
+	if s.Dns.Server != "" {
+		a.dnsserver = dns.NewDnsServer(s.Dns.Server, a.shunt.GetResolver)
+	}
+	a.dnsserverHost = s.Dns.Server
 }
 
 func (a *router) Proxy() proxy.Proxy { return a.shunt }

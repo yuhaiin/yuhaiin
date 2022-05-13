@@ -4,14 +4,16 @@ import (
 	"context"
 	"net"
 	"testing"
+
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDOH(t *testing.T) {
 	// _, s, _ := net.ParseCIDR("223.5.5.5/22")
 	// d := NewDoH("cloudflare-dns.com", nil)
 	// d := NewDoH("public.dns.iij.jp", s, nil)
-	// d := NewDoH("dns.google", "", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
-	d := NewDoH("43.154.169.30", "a.passcloud.xyz", nil, nil)
+	d := NewDoH("dns.google", "", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
+	// d := NewDoH("43.154.169.30", "a.passcloud.xyz", nil, nil)
 	// d := NewDoH("dns.nextdns.io/e28bb3", nil)
 	// d := NewDoH("1.1.1.1", nil, nil)
 	// d := NewDoH("1.0.0.1", nil, nil)
