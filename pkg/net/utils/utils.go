@@ -2,7 +2,9 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"io"
+	"log"
 	"math/bits"
 	"net"
 	"sync"
@@ -69,13 +71,21 @@ func Relay(local, remote io.ReadWriter) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		Copy(remote, local)
+		if err := Copy(remote, local); err != nil && !errors.Is(err, io.EOF) {
+			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
+				log.Println("replay local -> remote failed:", err)
+			}
+		}
 		if r, ok := remote.(net.Conn); ok {
 			r.SetReadDeadline(time.Now()) // make another Copy exit
 		}
 	}()
 
-	Copy(local, remote)
+	if err := Copy(local, remote); err != nil && !errors.Is(err, io.EOF) {
+		if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
+			log.Println("relay remote -> local failed:", err)
+		}
+	}
 	if r, ok := local.(net.Conn); ok {
 		r.SetReadDeadline(time.Now())
 	}
@@ -85,9 +95,9 @@ func Relay(local, remote io.ReadWriter) {
 
 func Copy(dst io.Writer, src io.Reader) (err error) {
 	if c, ok := dst.(io.ReaderFrom); ok {
-		c.ReadFrom(src) // local -> remote
+		_, err = c.ReadFrom(src) // local -> remote
 	} else if c, ok := src.(io.WriterTo); ok {
-		c.WriteTo(dst) // local -> remote
+		_, err = c.WriteTo(dst) // local -> remote
 	} else {
 		buf := GetBytes(DefaultSize)
 		defer PutBytes(buf)
