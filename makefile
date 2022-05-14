@@ -1,7 +1,22 @@
+MODULE := github.com/Asutorufa/yuhaiin
+
+BUILD_COMMIT  := $(shell git rev-parse --short HEAD)
+BUILD_VERSION := $(shell git describe --abbrev=0 --tags HEAD)
+BUILD_ARCH	:= $(shell uname -a)
+BUILD_TIME	:= $(shell date)
+
 GO=$(shell command -v go | head -n1)
-GO_LDFLAGS= -ldflags="-s -w"
-GO_GCFLAGS= -gcflags="-m"
-GO_BUILD_CMD=$(GO) build $(GO_LDFLAGS) $(GO_GCFLAGS) -trimpath
+
+GO_LDFLAGS= -s -w -buildid=
+GO_LDFLAGS += -X "$(MODULE)/internal/version.Version=$(BUILD_VERSION)"
+GO_LDFLAGS += -X "$(MODULE)/internal/version.GitCommit=$(BUILD_COMMIT)"
+GO_LDFLAGS += -X "$(MODULE)/internal/version.BuildArch=$(BUILD_ARCH)"
+GO_LDFLAGS += -X "$(MODULE)/internal/version.BuildTime=$(BUILD_TIME)"
+
+GO_GCFLAGS= -m
+
+GO_BUILD_CMD=$(GO) build -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath
+
 WINDOWS_AMD64=GOOS=windows GOARCH=amd64
 
 YUHAIIN=-v ./cmd/yuhaiin/...

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -18,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/lockfile"
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	logw "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -31,9 +33,15 @@ import (
 )
 
 func main() {
+	ver := flag.Bool("v", false, "show version")
 	host := flag.String("host", "127.0.0.1:50051", "gRPC and http listen host")
 	savepath := flag.String("path", protoconfig.DefaultConfigDir(), "save data path")
 	flag.Parse()
+
+	if *ver {
+		fmt.Print(version.String())
+		return
+	}
 
 	pc := pathConfig(*savepath)
 

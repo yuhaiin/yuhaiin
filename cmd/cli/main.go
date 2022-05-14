@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -42,8 +43,20 @@ func main() {
 		Use:   "yh",
 		Short: "a cli client for yuhaiin",
 	}
-	rootCmd.AddCommand(nodeCmd(), latencyCmd(), streamCmd(), subCmd(), listCmd(), configCmd(), connCmd())
+	rootCmd.AddCommand(versionCmd(), nodeCmd(), latencyCmd(), streamCmd(), subCmd(), listCmd(), configCmd(), connCmd())
 	rootCmd.Execute()
+}
+
+func versionCmd() *cobra.Command {
+	ver := &cobra.Command{
+		Use:   "version",
+		Short: "get version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Print(version.String())
+		},
+	}
+
+	return ver
 }
 
 func latencyCmd() *cobra.Command {
