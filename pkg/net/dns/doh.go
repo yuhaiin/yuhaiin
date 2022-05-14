@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -24,31 +23,50 @@ import (
 
 var _ dns.DNS = (*doh)(nil)
 
-type doh struct {
-	Proxy proxy.StreamProxy
-
-	host proxy.Address
-	url  string
-
-	httpClient *http.Client
-	*client
-}
+type doh struct{ *client }
 
 func NewDoH(host, servername string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
 	dns := &doh{}
 
-	dns.setServer(host)
+	url, addr := dns.getUrlAndHost(host)
+
 	if p == nil {
-		p = simple.NewSimple(dns.host, nil)
+		p = simple.NewSimple(addr, nil)
 	}
-	dns.setProxy(p, servername)
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives: false,
+			//Proxy: http.ProxyFromEnvironment,
+			ForceAttemptHTTP2: true,
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return p.Conn(addr)
+			},
+			TLSClientConfig: &tls.Config{
+				ClientSessionCache: sessionCache,
+				ServerName:         servername,
+			},
+		},
+		Timeout: 4 * time.Second,
+	}
+
 	dns.client = NewClient(subnet, func(b []byte) ([]byte, error) {
-		r, err := dns.post(bytes.NewReader(b))
+		resp, err := httpClient.Post(url, "application/dns-message", bytes.NewReader(b))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("doh post failed: %v", err)
 		}
-		defer r.Close()
-		return ioutil.ReadAll(r)
+		defer resp.Body.Close()
+		return ioutil.ReadAll(resp.Body)
+
+		/*
+			* Get
+			urls := fmt.Sprintf(
+				"%s?dns=%s",
+				url,
+				strings.TrimSuffix(base64.URLEncoding.EncodeToString(dReq), "="),
+			)
+			resp, err := httpClient.Get(urls)
+		*/
 	})
 	return dns
 }
@@ -56,16 +74,16 @@ func NewDoH(host, servername string, subnet *net.IPNet, p proxy.StreamProxy) dns
 func (d *doh) Close() error { return nil }
 
 // https://tools.ietf.org/html/rfc8484
-
-func (d *doh) setServer(host string) {
+func (d *doh) getUrlAndHost(host string) (_ string, addr proxy.Address) {
+	var urls string
 	if !strings.HasPrefix(host, "https://") {
-		d.url = "https://" + host
+		urls = "https://" + host
 	} else {
-		d.url = host
+		urls = host
 	}
 
 	var hostname, port string
-	uri, err := url.Parse(d.url)
+	uri, err := url.Parse(urls)
 	if err != nil {
 		hostname = host
 		port = "443"
@@ -76,63 +94,19 @@ func (d *doh) setServer(host string) {
 			port = "443"
 		}
 		if uri.Path == "" {
-			d.url += "/dns-query"
+			urls += "/dns-query"
 		}
 	}
 
 	por, _ := strconv.ParseUint(port, 10, 16)
-	d.host = proxy.ParseAddressSplit("tcp", hostname, uint16(por))
+	return urls, proxy.ParseAddressSplit("tcp", hostname, uint16(por))
 }
 
-func (d *doh) setProxy(p proxy.StreamProxy, servername string) {
-	d.Proxy = p
-	d.httpClient = &http.Client{
-		Transport: &http.Transport{
-			DisableKeepAlives: false,
-			//Proxy: http.ProxyFromEnvironment,
-			ForceAttemptHTTP2: true,
-			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				return d.Proxy.Conn(d.host)
-			},
-			TLSClientConfig: &tls.Config{
-				ClientSessionCache: sessionCache,
-				ServerName:         servername,
-			},
-		},
-		Timeout: 4 * time.Second,
-	}
-}
-
-func (d *doh) get(dReq []byte) (body []byte, err error) {
-	query := strings.Replace(base64.URLEncoding.EncodeToString(dReq), "=", "", -1)
-	urls := d.url + "?dns=" + query
-	res, err := d.httpClient.Get(urls)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err = ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	return
-}
-
-// https://www.cnblogs.com/mafeng/p/7068837.html
-func (d *doh) post(req io.Reader) (io.ReadCloser, error) {
-	resp, err := d.httpClient.Post(d.url, "application/dns-message", req)
-	if err != nil {
-		return nil, fmt.Errorf("doh post failed: %v", err)
-	}
-
-	return resp.Body, nil
-}
-
-func (d *doh) Resolver() *net.Resolver {
+func (d *doh) Resolver(f func(io.Reader) (io.ReadCloser, error)) *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(context.Context, string, string) (net.Conn, error) {
-			return dohConn(d.post), nil
+			return dohConn(f), nil
 		},
 	}
 }

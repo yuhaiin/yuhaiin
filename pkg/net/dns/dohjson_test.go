@@ -12,7 +12,7 @@ import (
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
-func TestDNSOverHTTPS(t *testing.T) {
+func TestDNSJson(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		ad, err := proxy.ParseAddress(network, addr)
 		if err != nil {
@@ -20,12 +20,11 @@ func TestDNSOverHTTPS(t *testing.T) {
 		}
 		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(ad)
 	}
-	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
-	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))
-	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "cm.bilibili.com", nil))
+	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
+	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "i0.hdslb.com", nil))
+	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "cm.bilibili.com", nil))
 	t.Log(DOHJsonAPI("https://dns.google/resolve", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://dns.google/resolve", "i0.hdslb.com", dialContext))
-	t.Log(DOHJsonAPI("https://cloudflare-dns.com/dns-query", "cm.bilibili.com", nil))
 }
 
 func TestC(t *testing.T) {

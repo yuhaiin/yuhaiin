@@ -9,6 +9,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	yerr "github.com/Asutorufa/yuhaiin/pkg/utils/error"
 )
 
 type Pool interface {
@@ -72,8 +74,8 @@ func Relay(local, remote io.ReadWriter) {
 	go func() {
 		defer close(wait)
 		if err := Copy(remote, local); err != nil && !errors.Is(err, io.EOF) {
-			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
-				log.Println("replay local -> remote failed:", err)
+			if ne, ok := yerr.To[net.Error](err); !ok || !ne.Timeout() {
+				log.Println("relay remote -> local failed:", err)
 			}
 		}
 		if r, ok := remote.(net.Conn); ok {
@@ -82,7 +84,7 @@ func Relay(local, remote io.ReadWriter) {
 	}()
 
 	if err := Copy(local, remote); err != nil && !errors.Is(err, io.EOF) {
-		if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
+		if ne, ok := yerr.To[net.Error](err); !ok || !ne.Timeout() {
 			log.Println("relay remote -> local failed:", err)
 		}
 	}
