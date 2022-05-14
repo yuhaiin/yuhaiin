@@ -1,7 +1,6 @@
 package dns
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -16,10 +15,7 @@ import (
 
 var _ dns.DNS = (*udp)(nil)
 
-type udp struct {
-	*client
-	server string
-}
+type udp struct{ *client }
 
 func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 	if p == nil {
@@ -39,44 +35,34 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 		add = proxy.EmptyAddr
 	}
 
-	return &udp{
-		NewClient(subnet, func(req []byte) ([]byte, error) {
-			var b = utils.GetBytes(utils.DefaultSize)
-			defer utils.PutBytes(b)
+	return &udp{NewClient(subnet, func(req []byte) ([]byte, error) {
+		var b = utils.GetBytes(utils.DefaultSize)
+		defer utils.PutBytes(b)
 
-			conn, err := p.PacketConn(add)
-			if err != nil {
-				return nil, fmt.Errorf("get packetConn failed: %v", err)
-			}
-			defer conn.Close()
+		conn, err := p.PacketConn(add)
+		if err != nil {
+			return nil, fmt.Errorf("get packetConn failed: %v", err)
+		}
+		defer conn.Close()
 
-			err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-			if err != nil {
-				return nil, fmt.Errorf("set read deadline failed: %v", err)
-			}
+		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			return nil, fmt.Errorf("set read deadline failed: %v", err)
+		}
 
-			_, err = conn.WriteTo(req, add.UDPAddr())
-			if err != nil {
-				return nil, err
-			}
+		_, err = conn.WriteTo(req, add.UDPAddr())
+		if err != nil {
+			return nil, err
+		}
 
-			err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-			if err != nil {
-				return nil, fmt.Errorf("set read deadline failed: %v", err)
-			}
+		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			return nil, fmt.Errorf("set read deadline failed: %v", err)
+		}
 
-			nn, _, err := conn.ReadFrom(b)
-			return b[:nn], err
-		}), host}
-}
-
-func (n *udp) Resolver() *net.Resolver {
-	return &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return net.DialTimeout("udp", n.server, time.Second*6)
-		},
-	}
+		nn, _, err := conn.ReadFrom(b)
+		return b[:nn], err
+	})}
 }
 
 func (n *udp) Close() error { return nil }

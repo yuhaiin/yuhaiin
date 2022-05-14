@@ -1,7 +1,6 @@
 package dns
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
@@ -89,21 +88,3 @@ func newTCP(host, defaultPort string, subnet *net.IPNet, p proxy.StreamProxy) *t
 }
 
 func (d *tcp) Close() error { return nil }
-
-func (d *tcp) Resolver() *net.Resolver {
-	return &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			conn, err := d.proxy.Conn(d.host)
-			if err != nil {
-				return nil, fmt.Errorf("tcp dial failed: %v", err)
-			}
-
-			if d.tls != nil {
-				conn = tls.Client(conn, d.tls)
-			}
-
-			return conn, nil
-		},
-	}
-}

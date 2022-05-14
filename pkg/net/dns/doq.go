@@ -22,7 +22,7 @@ type doq struct {
 	connection quic.Connection
 	host       proxy.Address
 	servername string
-	p          proxy.PacketProxy
+	dialer     proxy.PacketProxy
 
 	lock sync.RWMutex
 
@@ -51,7 +51,7 @@ func NewDoQ(host, servername string, subnet *net.IPNet, dialer proxy.PacketProxy
 		addr = proxy.EmptyAddr
 	}
 
-	d := &doq{p: dialer, host: addr, servername: servername}
+	d := &doq{dialer: dialer, host: addr, servername: servername}
 
 	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
 		err := d.initSession()
@@ -126,7 +126,7 @@ func (d *doq) initSession() error {
 	}
 
 	if d.conn == nil {
-		conn, err := d.p.PacketConn(d.host)
+		conn, err := d.dialer.PacketConn(d.host)
 		if err != nil {
 			return err
 		}
@@ -151,10 +151,6 @@ func (d *doq) initSession() error {
 
 	d.connection = session
 	return nil
-}
-
-func (d *doq) Resolver() *net.Resolver {
-	return net.DefaultResolver
 }
 
 var TlsProtos = []string{"doq-i02"}
