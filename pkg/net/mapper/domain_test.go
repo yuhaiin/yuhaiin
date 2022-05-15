@@ -3,7 +3,7 @@ package mapper
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 // BenchmarkDomainMatcher_Search-4   	20780998	        58.13 ns/op	       0 B/op	       0 allocs/op
@@ -33,7 +33,7 @@ func TestDomainMatcherSearch(t *testing.T) {
 	root.Insert("*.google.com", "google")
 	root.Insert("*.dl.google.com", "google_dl")
 
-	search := func(s string) interface{} {
+	search := func(s string) string {
 		res, _ := root.Search(s)
 		return res
 	}

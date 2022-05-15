@@ -8,10 +8,10 @@ import (
 	"crypto/rc4"
 	"encoding/binary"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher/camellia"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher/idea"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher/rc2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/dgryski/go-camellia"
-	"github.com/dgryski/go-idea"
-	"github.com/dgryski/go-rc2"
 	"golang.org/x/crypto/blowfish"
 	"golang.org/x/crypto/cast5"
 	"golang.org/x/crypto/chacha20"
@@ -132,7 +132,7 @@ func newSalsa20Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
 }
 
 func newCamelliaStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	block, err := camellia.New(key)
+	block, err := camellia.NewCipher(key)
 	return newCFBStream(block, err, iv, doe)
 }
 
