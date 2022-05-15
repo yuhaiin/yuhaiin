@@ -1,7 +1,6 @@
 package statistic
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -44,7 +43,7 @@ func (r *remotedns) Update(c *protoconfig.Setting) {
 		dialer = r.proxy
 	}
 
-	r.dns = getDNS(r.config, &dnsdialer{r.conns, dialer, mark})
+	r.dns = getDNS("REMOTEDNS", r.config, &dnsdialer{r.conns, dialer, mark})
 }
 
 func (r *remotedns) LookupIP(host string) ([]net.IP, error) {
@@ -56,7 +55,6 @@ func (r *remotedns) LookupIP(host string) ([]net.IP, error) {
 		return nil, fmt.Errorf("remotedns lookup failed: %w", err)
 	}
 
-	log.Println("remotedns lookup success:", host, ips)
 	return ips, nil
 }
 
@@ -84,7 +82,7 @@ func (l *localdns) Update(c *protoconfig.Setting) {
 
 	l.config = c.Dns.Local
 	l.Close()
-	l.dns = getDNS(l.config, &dnsdialer{l.conns, direct.Default, "LOCALDNS_DIRECT"})
+	l.dns = getDNS("LOCALDNS", l.config, &dnsdialer{l.conns, direct.Default, "LOCALDNS_DIRECT"})
 }
 
 func (l *localdns) LookupIP(host string) ([]net.IP, error) {
@@ -97,7 +95,6 @@ func (l *localdns) LookupIP(host string) ([]net.IP, error) {
 		return nil, fmt.Errorf("localdns lookup failed: %w", err)
 	}
 
-	log.Println("localdns lookup success:", host, ips)
 	return ips, nil
 }
 
@@ -132,12 +129,12 @@ func (b *bootstrap) Update(c *protoconfig.Setting) {
 
 	b.config = c.Dns.Bootstrap
 	b.Close()
-	b.dns = getDNS(b.config, &dnsdialer{b.conns, direct.Default, "BOOTSTRAP_DIRECT"})
+	b.dns = getDNS("BOOTSTRAP", b.config, &dnsdialer{b.conns, direct.Default, "BOOTSTRAP_DIRECT"})
 }
 
 func (l *bootstrap) LookupIP(host string) ([]net.IP, error) {
 	if l.dns == nil {
-		return net.DefaultResolver.LookupIP(context.TODO(), "ip", host)
+		return nil, fmt.Errorf("bootstrap dns not initialized")
 	}
 
 	ips, err := l.dns.LookupIP(host)
@@ -145,7 +142,6 @@ func (l *bootstrap) LookupIP(host string) ([]net.IP, error) {
 		return nil, fmt.Errorf("localdns lookup failed: %w", err)
 	}
 
-	log.Println("bootstrap dns lookup success:", host, ips)
 	return ips, nil
 }
 
@@ -157,7 +153,7 @@ func (b *bootstrap) Close() error {
 	return nil
 }
 
-func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
+func getDNS(name string, dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)
@@ -173,21 +169,28 @@ func getDNS(dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
 		}
 	}
 
+	config := idns.Config{
+		Name:       name,
+		Subnet:     subnet,
+		Host:       dc.Host,
+		Servername: dc.TlsServername,
+	}
+
 	switch dc.Type {
 	case protoconfig.Dns_doh:
-		return dns.NewDoH(dc.Host, dc.TlsServername, subnet, proxy)
+		return dns.NewDoH(config, proxy)
 	case protoconfig.Dns_dot:
-		return dns.NewDoT(dc.Host, dc.TlsServername, subnet, proxy)
+		return dns.NewDoT(config, proxy)
 	case protoconfig.Dns_doq:
-		return dns.NewDoQ(dc.Host, dc.TlsServername, subnet, proxy)
+		return dns.NewDoQ(config, proxy)
 	case protoconfig.Dns_doh3:
-		return dns.NewDoH3(dc.Host, subnet)
+		return dns.NewDoH3(config, subnet)
 	case protoconfig.Dns_tcp:
-		return dns.NewTCP(dc.Host, subnet, proxy)
+		return dns.NewTCP(config, proxy)
 	case protoconfig.Dns_udp:
 		fallthrough
 	default:
-		return dns.NewDoU(dc.Host, subnet, proxy)
+		return dns.NewDoU(config, proxy)
 	}
 }
 

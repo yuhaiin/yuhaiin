@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -20,7 +21,7 @@ import (
 func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
 		err := handle(username, password, conn, dialer)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			log.Println("http server handle failed:", err)
 		}
 	}
@@ -36,12 +37,12 @@ func handle(user, key string, src net.Conn, f proxy.StreamProxy) error {
 _start:
 	req, err := http.ReadRequest(reader)
 	if err != nil {
-		return fmt.Errorf("read request failed: %v", err)
+		return fmt.Errorf("read request failed: %w", err)
 	}
 
 	err = verifyUserPass(user, key, src, req)
 	if err != nil {
-		return fmt.Errorf("http verify user pass failed: %v", err)
+		return fmt.Errorf("http verify user pass failed: %w", err)
 	}
 
 	host := req.Host
@@ -56,7 +57,7 @@ _start:
 
 	address, err := proxy.ParseAddress("tcp", host)
 	if err != nil {
-		return fmt.Errorf("parse address failed: %v", err)
+		return fmt.Errorf("parse address failed: %w", err)
 	}
 	dstc, err := f.Conn(address)
 	if err != nil {
@@ -64,13 +65,13 @@ _start:
 		// _, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
 		er := resp503(src)
 		if er != nil {
-			err = fmt.Errorf("%w\nresp 503 failed: %v", err, er)
+			err = fmt.Errorf("%v\nresp 503 failed: %w", err, er)
 		}
 		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
 		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
 		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
-		return fmt.Errorf("get conn [%s] from proxy failed: %v", host, err)
+		return fmt.Errorf("get conn [%s] from proxy failed: %w", host, err)
 	}
 
 	if req.Method == http.MethodConnect {
@@ -81,7 +82,7 @@ _start:
 
 	err = normal(src, dstc, req, keepAlive)
 	if err != nil {
-		return fmt.Errorf("http normal proxy failed: %v", err)
+		return fmt.Errorf("http normal proxy failed: %w", err)
 	}
 
 	if keepAlive {
@@ -131,7 +132,7 @@ func connect(client net.Conn, dst net.Conn) error {
 	defer dst.Close()
 	_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	if err != nil {
-		return fmt.Errorf("write to client failed: %v", err)
+		return fmt.Errorf("write to client failed: %w", err)
 	}
 	utils.Relay(dst, client)
 	return nil
@@ -146,23 +147,23 @@ func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
 	modifyRequest(req)
 	err := req.Write(dst)
 	if err != nil {
-		return fmt.Errorf("req write failed: %v", err)
+		return fmt.Errorf("req write failed: %w", err)
 	}
 
 	resp, err := http.ReadResponse(bufio.NewReader(dst), req)
 	if err != nil {
-		return fmt.Errorf("http read response failed: %v", err)
+		return fmt.Errorf("http read response failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	err = modifyResponse(resp, keepAlive)
 	if err != nil {
-		return fmt.Errorf("modify response failed: %v", err)
+		return fmt.Errorf("modify response failed: %w", err)
 	}
 
 	err = resp.Write(src)
 	if err != nil {
-		return fmt.Errorf("resp write failed: %v", err)
+		return fmt.Errorf("resp write failed: %w", err)
 	}
 
 	return nil

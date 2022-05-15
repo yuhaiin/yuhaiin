@@ -14,8 +14,6 @@ import (
 
 var _ dns.DNS = (*tcp)(nil)
 
-var sessionCache = tls.NewLRUClientSessionCache(128)
-
 type tcp struct {
 	host  proxy.Address
 	proxy proxy.StreamProxy
@@ -25,15 +23,16 @@ type tcp struct {
 	tls *tls.Config
 }
 
-func NewTCP(host string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
-	return newTCP(host, "53", subnet, p)
+func NewTCP(config dns.Config, p proxy.StreamProxy) dns.DNS {
+	return newTCP(config, "53", p)
 }
 
-func newTCP(host, defaultPort string, subnet *net.IPNet, p proxy.StreamProxy) *tcp {
+func newTCP(config dns.Config, defaultPort string, p proxy.StreamProxy) *tcp {
 	if p == nil {
 		p = direct.Default
 	}
 
+	host := config.Host
 	if i := strings.Index(host, "://"); i != -1 {
 		host = host[i+3:]
 	}
@@ -52,7 +51,7 @@ func newTCP(host, defaultPort string, subnet *net.IPNet, p proxy.StreamProxy) *t
 	}
 	d := &tcp{host: addr, proxy: p}
 
-	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
+	d.client = NewClient(config, func(b []byte) ([]byte, error) {
 		length := len(b) // dns over tcp, prefix two bytes is request data's length
 		b = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, b...)
 

@@ -29,10 +29,12 @@ type doq struct {
 	*client
 }
 
-func NewDoQ(host, servername string, subnet *net.IPNet, dialer proxy.PacketProxy) dns.DNS {
+func NewDoQ(config dns.Config, dialer proxy.PacketProxy) dns.DNS {
 	if dialer == nil {
 		dialer = direct.Default
 	}
+
+	host := config.Host
 
 	if i := strings.Index(host, "://"); i != -1 {
 		host = host[i+3:]
@@ -51,9 +53,9 @@ func NewDoQ(host, servername string, subnet *net.IPNet, dialer proxy.PacketProxy
 		addr = proxy.EmptyAddr
 	}
 
-	d := &doq{dialer: dialer, host: addr, servername: servername}
+	d := &doq{dialer: dialer, host: addr, servername: config.Servername}
 
-	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
+	d.client = NewClient(config, func(b []byte) ([]byte, error) {
 		err := d.initSession()
 		if err != nil {
 			return nil, fmt.Errorf("init session failed: %w", err)

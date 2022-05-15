@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
@@ -98,7 +99,7 @@ func TestConnectionSsr(t *testing.T) {
 		},
 	}
 
-	dns := dns.NewDoU("1.1.1.1:53", nil, z)
+	dns := dns.NewDoU(idns.Config{Host: "1.1.1.1:53"}, z)
 	t.Log(dns.LookupIP("www.google.com"))
 
 	req := http.Request{
