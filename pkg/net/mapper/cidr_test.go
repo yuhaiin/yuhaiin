@@ -3,18 +3,17 @@ package mapper
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestCidrMatch_Inset(t *testing.T) {
 	cidrMatch := NewCidrMapper[string]()
-	require.Nil(t, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
-	require.Nil(t, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
-	require.Nil(t, cidrMatch.Insert("127.0.0.1/8", "testlocal"))
-	require.Nil(t, cidrMatch.Insert("ff::/16", "testV6local"))
+	assert.NoError(t, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
+	assert.NoError(t, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
+	assert.NoError(t, cidrMatch.Insert("127.0.0.1/8", "testlocal"))
+	assert.NoError(t, cidrMatch.Insert("ff::/16", "testV6local"))
 
-	search := func(s string) interface{} {
+	search := func(s string) string {
 		res, _ := cidrMatch.Search(s)
 		return res
 	}
@@ -36,8 +35,8 @@ func TestCidrMatch_Inset(t *testing.T) {
 // BenchmarkCidrMatch_Search-4 9119133 130.6 ns/op 16 B/op 1 allocs/op
 func BenchmarkCidrMatch_Search(b *testing.B) {
 	cidrMatch := NewCidrMapper[string]()
-	require.Nil(b, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
-	require.Nil(b, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
+	assert.NoError(b, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
+	assert.NoError(b, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))
 
 	testIPv4 := "10.2.2.1"
 	//testIPv4b := "100.2.2.1"

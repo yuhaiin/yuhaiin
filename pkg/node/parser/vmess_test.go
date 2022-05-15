@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/stretchr/testify/require"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -44,10 +44,10 @@ func TestVmess(t *testing.T) {
 	z := &node.Point{}
 
 	err := protojson.Unmarshal([]byte(``), z)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	x, err := register.Dialer(z)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	tt := &http.Client{
 		Transport: &http.Transport{
@@ -71,9 +71,9 @@ func TestVmess(t *testing.T) {
 	}
 	req.Header.Set("User-Agent", "curl/v2.4.1")
 	resp, err := tt.Do(&req)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	t.Log(string(data))
 }

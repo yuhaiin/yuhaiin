@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/stretchr/testify/require"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -41,7 +41,7 @@ func TestConnections(t *testing.T) {
 				Port: "80",
 			},
 		})(p)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	z, err = ss.NewShadowsocks(
 		&node.PointProtocol_Shadowsocks{
 			Shadowsocks: &node.Shadowsocks{
@@ -51,12 +51,12 @@ func TestConnections(t *testing.T) {
 				Port:     "1090",
 			},
 		})(z)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				ad, err := proxy.ParseAddress(network, addr)
-				require.Nil(t, err)
+				assert.NoError(t, err)
 				return z.Conn(ad)
 			},
 		},
@@ -72,10 +72,10 @@ func TestConnections(t *testing.T) {
 	}
 	req.Header.Set("User-Agent", "curl/v2.4.1")
 	resp, err := tt.Do(&req)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	t.Log(string(data))
 }
 
@@ -85,15 +85,15 @@ func TestConnectionSsr(t *testing.T) {
 	}
 
 	err := protojson.Unmarshal([]byte(``), p)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	z, err := register.Dialer(p)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				ad, err := proxy.ParseAddress(network, addr)
-				require.Nil(t, err)
+				assert.NoError(t, err)
 				return z.Conn(ad)
 			},
 		},
@@ -116,10 +116,10 @@ func TestConnectionSsr(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	t.Log(string(data))
 }
 
@@ -128,13 +128,13 @@ func TestSSr(t *testing.T) {
 		Protocols: []*node.PointProtocol{},
 	}
 	z, err := register.Dialer(p)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				ad, err := proxy.ParseAddress(network, addr)
-				require.Nil(t, err)
+				assert.NoError(t, err)
 				return z.Conn(ad)
 			},
 		},
@@ -151,9 +151,9 @@ func TestSSr(t *testing.T) {
 	req.Header.Set("User-Agent", "curl/v2.4.1")
 	resp, err := tt.Do(&req)
 	t.Error(err)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	t.Log(string(data))
 }

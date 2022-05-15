@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/stretchr/testify/require"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestImplement(t *testing.T) {
@@ -25,7 +25,7 @@ func TestConn(t *testing.T) {
 
 	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", 1080), nil)
 	z, err := websocket.New(&node.PointProtocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	z, err = NewShadowsocks(
 		&node.PointProtocol_Shadowsocks{
 			Shadowsocks: &node.Shadowsocks{
@@ -61,10 +61,10 @@ func TestConn(t *testing.T) {
 	}
 
 	resp, err := cc.Get("http://ip.sb")
-	require.Nil(t, err)
+	assert.NoError(t, err)
 
 	data, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 
 	t.Log(string(data))
 }
@@ -80,25 +80,25 @@ func TestUDPConn(t *testing.T) {
 				Port:     "1090",
 			},
 		})(p)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 
 	ad, _ := proxy.ParseAddress("udp", "223.5.5.5:53")
 	c, err := s.PacketConn(ad)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 
 	req := "ev4BAAABAAAAAAAAA3d3dwZnb29nbGUDY29tAAABAAE="
 
 	data, err := base64.StdEncoding.DecodeString(req)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	x, err := c.WriteTo([]byte(data), nil)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 
 	t.Log(x)
 
 	y := make([]byte, 32*1024)
 
 	x, addr, err := c.ReadFrom(y)
-	require.Nil(t, err)
+	assert.NoError(t, err)
 	t.Log(addr, y[:x])
 
 }

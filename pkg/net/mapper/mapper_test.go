@@ -7,7 +7,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/stretchr/testify/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestNewMatcher(t *testing.T) {
@@ -18,7 +18,7 @@ func TestNewMatcher(t *testing.T) {
 	matcher.Insert("music.126.com", "126")
 	matcher.Insert("*.advertising.com", "advertising")
 
-	search := func(s string) interface{} {
+	search := func(s string) string {
 		addr, _ := proxy.ParseAddress("", net.JoinHostPort(s, "0"))
 		res, _ := matcher.Search(addr)
 		return res

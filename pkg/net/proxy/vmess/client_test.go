@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -13,7 +13,7 @@ func TestChaCHa20Poly1305(t *testing.T) {
 	key := make([]byte, chacha20poly1305.KeySize)
 	rand.Read(key)
 	aead, err := chacha20poly1305.New(key)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	none := make([]byte, aead.NonceSize())
 	rand.Read(none)
@@ -24,6 +24,6 @@ func TestChaCHa20Poly1305(t *testing.T) {
 	t.Log(hex.EncodeToString(cryptTxt))
 
 	decryptTxt, err := aead.Open(nil, none, cryptTxt, nil)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	t.Log(string(decryptTxt))
 }

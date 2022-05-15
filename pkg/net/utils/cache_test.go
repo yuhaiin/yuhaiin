@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestLru(t *testing.T) {
@@ -15,24 +15,24 @@ func TestLru(t *testing.T) {
 	l.Add("c", "c")
 
 	c, ok := l.Load("b")
-	assert.True(t, ok)
+	assert.Equal(t, true, ok)
 	assert.Equal(t, "b", c)
 
 	c, ok = l.Load("a")
-	assert.True(t, ok)
+	assert.Equal(t, true, ok)
 	assert.Equal(t, "a", c)
 
 	c, ok = l.Load("c")
-	assert.True(t, ok)
+	assert.Equal(t, true, ok)
 	assert.Equal(t, "c", c)
 
 	l.Add("d", "d")
 	l.Add("e", "e")
 
 	_, ok = l.Load("b")
-	assert.False(t, ok)
+	assert.Equal(t, false, ok)
 	_, ok = l.Load("a")
-	assert.True(t, ok)
+	assert.Equal(t, true, ok)
 }
 
 func BenchmarkNewLru(b *testing.B) {

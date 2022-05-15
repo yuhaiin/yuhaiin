@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
-	"github.com/stretchr/testify/require"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestAddr(t *testing.T) {
@@ -22,7 +22,7 @@ func TestAddr(t *testing.T) {
 	t.Log(z.String(), z.IP, z.Port, z.Zone)
 
 	addr, err = ParseAddress("tcp", "www.google.com:443")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	t.Log(addr.UDPAddr())
 
 	t.Log(addr.(*DomainAddr).resolver)

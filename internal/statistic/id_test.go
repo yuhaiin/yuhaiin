@@ -3,7 +3,7 @@ package statistic
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestIDGenerate(t *testing.T) {
