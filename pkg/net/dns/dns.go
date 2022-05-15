@@ -4,51 +4,38 @@ import (
 	"bytes"
 	"container/list"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type client struct {
-	template dnsmessage.Message
-	do       func([]byte) ([]byte, error)
-	cache    *dnsLruCache[string, []net.IP]
+	subnet []dnsmessage.Resource
+	do     func([]byte) ([]byte, error)
+	cache  *dnsLruCache[string, []net.IP]
+
+	config dns.Config
 }
 
-func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
+func NewClient(config dns.Config, send func([]byte) ([]byte, error)) *client {
 	c := &client{
-		do:    send,
-		cache: newCache[string, []net.IP](200),
-		template: dnsmessage.Message{
-			Header: dnsmessage.Header{
-				Response:           false,
-				OpCode:             0,
-				Authoritative:      false,
-				Truncated:          false,
-				RecursionDesired:   true,
-				RecursionAvailable: false,
-				RCode:              0,
-			},
-			Questions: []dnsmessage.Question{
-				{
-					Name:  dnsmessage.MustNewName("."),
-					Type:  dnsmessage.TypeA,
-					Class: dnsmessage.ClassINET,
-				},
-			},
-		},
+		do:     send,
+		cache:  newCache[string, []net.IP](200),
+		config: config,
 	}
-	if subnet != nil {
+	if config.Subnet != nil {
 		optionData := bytes.NewBuffer(nil)
 
-		mask, _ := subnet.Mask.Size()
-		ip := subnet.IP.To4()
+		mask, _ := config.Subnet.Mask.Size()
+		ip := config.Subnet.IP.To4()
 		if ip == nil { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
 			optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
-			ip = subnet.IP.To16()
+			ip = config.Subnet.IP.To16()
 		} else {
 			optionData.Write([]byte{0b00000000, 0b00000001}) // family ipv4 1
 		}
@@ -56,22 +43,24 @@ func NewClient(subnet *net.IPNet, send func([]byte) ([]byte, error)) *client {
 		optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
 		optionData.Write(ip)             // subnet IP
 
-		c.template.Additionals = append(c.template.Additionals, dnsmessage.Resource{
-			Header: dnsmessage.ResourceHeader{
-				Name:  dnsmessage.MustNewName("."),
-				Type:  41,
-				Class: 4096,
-				TTL:   0,
-			},
-			Body: &dnsmessage.OPTResource{
-				Options: []dnsmessage.Option{
-					{
-						Code: 8,
-						Data: optionData.Bytes(),
+		c.subnet = []dnsmessage.Resource{
+			{
+				Header: dnsmessage.ResourceHeader{
+					Name:  dnsmessage.MustNewName("."),
+					Type:  41,
+					Class: 4096,
+					TTL:   0,
+				},
+				Body: &dnsmessage.OPTResource{
+					Options: []dnsmessage.Option{
+						{
+							Code: 8,
+							Data: optionData.Bytes(),
+						},
 					},
 				},
 			},
-		})
+		}
 	}
 	return c
 }
@@ -88,9 +77,28 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 	if x, _ := c.cache.Load(domain); x != nil {
 		return x, nil
 	}
-	req := c.template
-	req.ID = uint16(rand.Intn(65535))
-	req.Questions[0].Name = dnsmessage.MustNewName(domain + ".")
+
+	req := dnsmessage.Message{
+		Header: dnsmessage.Header{
+			ID:                 uint16(rand.Intn(65535)),
+			Response:           false,
+			OpCode:             0,
+			Authoritative:      false,
+			Truncated:          false,
+			RecursionDesired:   true,
+			RecursionAvailable: false,
+			RCode:              0,
+		},
+		Questions: []dnsmessage.Question{
+			{
+				Name:  dnsmessage.MustNewName(domain + "."),
+				Type:  dnsmessage.TypeA,
+				Class: dnsmessage.ClassINET,
+			},
+		},
+		Additionals: c.subnet,
+	}
+
 	d, err := req.Pack()
 	if err != nil {
 		return nil, fmt.Errorf("pack dns message failed: %w", err)
@@ -121,6 +129,7 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 			if len(i) == 0 {
 				return nil, fmt.Errorf("no answer")
 			}
+			log.Printf("%s lookup host [%s] success: ttl: %d, ips: %v\n", c.config.Name, domain, ttl, i)
 			c.cache.Add(domain, i, time.Now().Add(time.Duration(ttl)*time.Second))
 			return i, nil
 		}

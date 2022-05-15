@@ -19,6 +19,10 @@ var (
 )
 
 func String() string {
+	if Version == "" {
+		Version = "Not Released Version"
+	}
+
 	str := strings.Builder{}
 
 	str.WriteString("version: ")

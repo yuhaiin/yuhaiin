@@ -25,10 +25,10 @@ var _ dns.DNS = (*doh)(nil)
 
 type doh struct{ *client }
 
-func NewDoH(host, servername string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
+func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 	dns := &doh{}
 
-	url, addr := dns.getUrlAndHost(host)
+	url, addr := dns.getUrlAndHost(config.Host)
 
 	if p == nil {
 		p = simple.NewSimple(addr, nil)
@@ -42,15 +42,12 @@ func NewDoH(host, servername string, subnet *net.IPNet, p proxy.StreamProxy) dns
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return p.Conn(addr)
 			},
-			TLSClientConfig: &tls.Config{
-				ClientSessionCache: sessionCache,
-				ServerName:         servername,
-			},
+			TLSClientConfig: &tls.Config{ServerName: config.Servername},
 		},
 		Timeout: 4 * time.Second,
 	}
 
-	dns.client = NewClient(subnet, func(b []byte) ([]byte, error) {
+	dns.client = NewClient(config, func(b []byte) ([]byte, error) {
 		resp, err := httpClient.Post(url, "application/dns-message", bytes.NewReader(b))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %v", err)

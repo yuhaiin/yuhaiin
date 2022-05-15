@@ -2,17 +2,16 @@ package dns
 
 import (
 	"crypto/tls"
-	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
-func NewDoT(host, servername string, subnet *net.IPNet, p proxy.StreamProxy) dns.DNS {
-	d := newTCP(host, "853", subnet, p)
-	if servername == "" {
-		servername = d.host.Hostname()
+func NewDoT(config dns.Config, p proxy.StreamProxy) dns.DNS {
+	d := newTCP(config, "853", p)
+	if config.Servername == "" {
+		config.Servername = d.host.Hostname()
 	}
-	d.tls = &tls.Config{ServerName: servername, ClientSessionCache: sessionCache}
+	d.tls = &tls.Config{ServerName: config.Servername}
 	return d
 }

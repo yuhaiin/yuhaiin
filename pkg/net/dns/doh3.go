@@ -16,7 +16,7 @@ import (
 
 type doh3 struct{ *client }
 
-func NewDoH3(host string, subnet *net.IPNet) dns.DNS {
+func NewDoH3(config dns.Config, subnet *net.IPNet) dns.DNS {
 	d := &doh3{}
 
 	httpClient := &http.Client{
@@ -24,19 +24,16 @@ func NewDoH3(host string, subnet *net.IPNet) dns.DNS {
 		Transport: &http3.RoundTripper{},
 	}
 
-	var urls string
-	if !strings.HasPrefix(host, "https://") {
-		urls = "https://" + host
-	} else {
-		urls = host
+	if !strings.HasPrefix(config.Host, "https://") {
+		config.Host = "https://" + config.Host
 	}
-	uri, err := url.Parse(urls)
+	uri, err := url.Parse(config.Host)
 	if err == nil && uri.Path == "" {
-		urls += "/dns-query"
+		config.Host += "/dns-query"
 	}
 
-	d.client = NewClient(subnet, func(b []byte) ([]byte, error) {
-		resp, err := httpClient.Post(urls, "application/dns-message", bytes.NewBuffer(b))
+	d.client = NewClient(config, func(b []byte) ([]byte, error) {
+		resp, err := httpClient.Post(config.Host, "application/dns-message", bytes.NewBuffer(b))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %v", err)
 		}

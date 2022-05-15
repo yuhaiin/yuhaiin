@@ -10,3 +10,10 @@ type DNS interface {
 	// Resolver() *net.Resolver
 	io.Closer
 }
+
+type Config struct {
+	Name       string
+	Host       string
+	Servername string
+	Subnet     *net.IPNet
+}

@@ -17,11 +17,12 @@ var _ dns.DNS = (*udp)(nil)
 
 type udp struct{ *client }
 
-func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
+func NewDoU(config dns.Config, p proxy.PacketProxy) dns.DNS {
 	if p == nil {
 		p = direct.Default
 	}
 
+	host := config.Host
 	_, _, err := net.SplitHostPort(host)
 	if e, ok := err.(*net.AddrError); ok {
 		if strings.Contains(e.Err, "missing port in address") {
@@ -35,7 +36,7 @@ func NewDoU(host string, subnet *net.IPNet, p proxy.PacketProxy) dns.DNS {
 		add = proxy.EmptyAddr
 	}
 
-	return &udp{NewClient(subnet, func(req []byte) ([]byte, error) {
+	return &udp{NewClient(config, func(req []byte) ([]byte, error) {
 		var b = utils.GetBytes(utils.DefaultSize)
 		defer utils.PutBytes(b)
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -31,7 +32,7 @@ func TestTrojan(t *testing.T) {
 	z, err := register.Dialer(p)
 	require.Nil(t, err)
 
-	dns := dns.NewDoU("1.1.1.1:53", nil, z)
+	dns := dns.NewDoU(idns.Config{Host: "1.1.1.1:53"}, z)
 	t.Log(dns.LookupIP("www.google.com"))
 
 	tt := &http.Client{
