@@ -18,6 +18,7 @@ GO_GCFLAGS= -m
 GO_BUILD_CMD=$(GO) build -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath
 
 WINDOWS_AMD64=GOOS=windows GOARCH=amd64
+ANDROID_ARM64=GOOS=android GOARCH=arm64
 
 YUHAIIN=-v ./cmd/yuhaiin/...
 CLI=-v ./cmd/cli/...
@@ -42,17 +43,18 @@ yuhaiin:
 yuhaiin_windows:
 	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -o yuhaiin.exe $(YUHAIIN)
 
-.PHONY: yuhaiinns
-yuhaiinns:
-	$(GO_BUILD_CMD) -tags="nostatic" -o yuhaiin $(YUHAIIN)
-
-.PHONY: cli
-cli:
-	$(GO_BUILD_CMD) -tags="nostatic" -o yh $(CLI)
-
 .PHONY: cli_windows
 cli_windows:
-	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -tags="nostatic" -o yh.exe $(CLI)
+	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -o yh.exe $(CLI)
+
+.PHONY: yuhaiin_android
+yuhaiin_android:
+	$(ANDROID_ARM64) $(GO_BUILD_CMD) -o yuhaiin_android $(YUHAIIN)
+
+.PHONY: cli_android
+cli_android:
+	$(ANDROID_ARM64) $(GO_BUILD_CMD) -o yh_android $(CLI)
+
 
 .PHONY: install
 install: build cli
