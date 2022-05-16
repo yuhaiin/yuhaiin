@@ -8,9 +8,11 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"io"
+	"log"
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -46,8 +48,12 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 
 type recvInfo struct {
 	recvID uint32
-	rbuf   *bytes.Buffer
-	wbuf   *bytes.Buffer
+
+	rbuf     *bytes.Buffer
+	rbufLock sync.Mutex
+
+	wbuf     *bytes.Buffer
+	wbufLock sync.Mutex
 }
 
 type authAES128 struct {
@@ -110,7 +116,10 @@ func (a *authAES128) packData(data []byte) {
 	}
 
 	// 4~rand length+4, rand number
-	a.wbuf.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
+	_, err := a.wbuf.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
+	if err != nil {
+		log.Println(err)
+	}
 
 	// rand length+4~out length-4, data
 	a.wbuf.Write(data)
@@ -163,12 +172,11 @@ func (a *authAES128) packAuthData(data []byte) {
 	defer utils.PutBytes(encrypt)
 
 	a.auth.nextAuth()
-	now := time.Now().Unix()
-	binary.LittleEndian.PutUint32(encrypt[0:4], uint32(now))
+	binary.LittleEndian.PutUint32(encrypt[0:4], uint32(time.Now().Unix()))
 	copy(encrypt[4:], a.auth.clientID)
 	binary.LittleEndian.PutUint32(encrypt[8:], a.auth.connectionID)
-	binary.LittleEndian.PutUint16(encrypt[12:], uint16(outLength&0xFFFF))
-	binary.LittleEndian.PutUint16(encrypt[14:], uint16(randLength&0xFFFF))
+	binary.LittleEndian.PutUint16(encrypt[12:], uint16(outLength))
+	binary.LittleEndian.PutUint16(encrypt[14:], uint16(randLength))
 
 	iv := make([]byte, aes.BlockSize)
 	cbc := cipher.NewCBCEncrypter(block, iv)
@@ -179,10 +187,10 @@ func (a *authAES128) packAuthData(data []byte) {
 	copy(key[a.ivLen:], a.key)
 
 	a.wbuf.Write([]byte{byte(rand.Intn(256))})
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-1:])[0 : 7-1])
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-1:])[:7-1])
 	a.wbuf.Write(a.uid[:])
 	a.wbuf.Write(encrypt[:16])
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-20:])[0:4])
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-20:])[:4])
 	a.wbuf.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
 	a.wbuf.Write(data)
 	a.wbuf.Write(a.hmac(a.userKey, a.wbuf.Bytes()[a.wbuf.Len()-outLength+4:])[0:4])
@@ -195,6 +203,9 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 		return nil, nil
 	}
 
+	a.wbufLock.Lock()
+	defer a.wbufLock.Unlock()
+
 	a.wbuf.Reset()
 
 	if !a.hasSentHeader {
@@ -204,9 +215,9 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 		}
 
 		a.packAuthData(data[:authLen])
+		data = data[authLen:]
 
 		a.hasSentHeader = true
-		data = data[authLen:]
 	}
 
 	const blockSize = 4096
@@ -270,6 +281,9 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 }
 
 func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
+	a.wbufLock.Lock()
+	defer a.wbufLock.Unlock()
+
 	a.wbuf.Reset()
 	a.wbuf.Write(b)
 	a.wbuf.Write(a.uid[:])
@@ -290,6 +304,11 @@ func (a *authAES128) GetOverhead() int {
 }
 
 func (a *recvInfo) Close() error {
+	a.rbufLock.Lock()
+	a.wbufLock.Lock()
+	defer a.rbufLock.Unlock()
+	defer a.wbufLock.Unlock()
+
 	utils.PutBuffer(a.wbuf)
 	utils.PutBuffer(a.rbuf)
 
