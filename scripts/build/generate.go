@@ -1,5 +1,7 @@
 package scripts
 
+import _ "golang.org/x/mobile/cmd/gomobile"
+
 // windows exe icon and describe
 // windres from minGW64 https://sourceforge.net/projects/mingw-w64/files/mingw-w64/mingw-w64-release/
 // qt set application icon https://github.com/therecipe/qt/wiki/Setting-the-Application-Icon
