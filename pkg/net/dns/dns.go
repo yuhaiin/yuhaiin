@@ -127,7 +127,7 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 		header, err := p.AnswerHeader()
 		if err == dnsmessage.ErrSectionDone {
 			if len(i) == 0 {
-				return nil, fmt.Errorf("no answer")
+				return nil, fmt.Errorf("domain %v no dns answer", domain)
 			}
 			log.Printf("%s lookup host [%s] success: ttl: %d, ips: %v\n", c.config.Name, domain, ttl, i)
 			c.cache.Add(domain, i, time.Now().Add(time.Duration(ttl)*time.Second))
