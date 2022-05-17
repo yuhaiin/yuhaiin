@@ -7,6 +7,7 @@ import (
 
 type DNS interface {
 	LookupIP(domain string) ([]net.IP, error)
+	Do([]byte) ([]byte, error)
 	// Resolver() *net.Resolver
 	io.Closer
 }

@@ -65,6 +65,14 @@ func (l *remotedns) Close() error {
 	return nil
 }
 
+func (b *remotedns) Do(r []byte) ([]byte, error) {
+	if b.dns == nil {
+		return nil, fmt.Errorf("bootstrap dns not initialized")
+	}
+
+	return b.dns.Do(r)
+}
+
 type localdns struct {
 	config *protoconfig.Dns
 	dns    idns.DNS
@@ -104,6 +112,14 @@ func (l *localdns) Close() error {
 	}
 
 	return nil
+}
+
+func (b *localdns) Do(r []byte) ([]byte, error) {
+	if b.dns == nil {
+		return nil, fmt.Errorf("bootstrap dns not initialized")
+	}
+
+	return b.dns.Do(r)
 }
 
 type bootstrap struct {
@@ -151,6 +167,14 @@ func (b *bootstrap) Close() error {
 	}
 
 	return nil
+}
+
+func (b *bootstrap) Do(r []byte) ([]byte, error) {
+	if b.dns == nil {
+		return nil, fmt.Errorf("bootstrap dns not initialized")
+	}
+
+	return b.dns.Do(r)
 }
 
 func getDNS(name string, dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {

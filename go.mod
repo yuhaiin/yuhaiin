@@ -7,6 +7,7 @@ require (
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	github.com/spf13/cobra v1.2.1
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
+	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
 	golang.org/x/net v0.0.0-20220421235706-1d1ef9303861
 	golang.org/x/sys v0.0.0-20220315194320-039c03cc5b86
 	golang.zx2c4.com/wireguard v0.0.0-20220407013110-ef5c587f782d
