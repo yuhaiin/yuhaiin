@@ -3,8 +3,10 @@ package statistic
 import (
 	"errors"
 	"log"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -22,20 +24,25 @@ type router struct {
 
 	dnsserver     server.Server
 	dnsserverHost string
+
+	fake *dns.Fake
 }
 
-func NewRouter(dialer proxy.Proxy) *router {
+func NewRouter(dialer proxy.Proxy, fakednsIpRange *net.IPNet) *router {
 	c := &router{statistic: NewStatistic()}
+
+	c.fake = dns.NewFake(fakednsIpRange)
 
 	c.localdns = newLocaldns(c.statistic)
 	c.bootstrap = newBootstrap(c.statistic)
 	resolver.Bootstrap = c.bootstrap
 	c.remotedns = newRemotedns(direct.Default, dialer, c.statistic)
 
-	c.shunt = newShunt(c.remotedns, c.statistic)
+	c.shunt = newShunt(c.remotedns, c.statistic, c.fake)
+
 	c.shunt.AddDialer(PROXY, dialer, c.remotedns)
 	c.shunt.AddDialer(DIRECT, direct.Default, c.localdns)
-	c.shunt.AddDialer(BLOCK, proxy.NewErrProxy(errors.New("block")), c.localdns)
+	c.shunt.AddDialer(BLOCK, proxy.NewErrProxy(errors.New("block")), idns.NewErrorDNS(errors.New("block")))
 
 	return c
 }
@@ -57,7 +64,15 @@ func (a *router) Update(s *protoconfig.Setting) {
 	}
 
 	if s.Dns.Server != "" {
-		a.dnsserver = dns.NewDnsServer(s.Dns.Server, a.shunt.GetResolver)
+		f := a.shunt.GetResolver
+		if s.Dns.Fakedns {
+			f = func(addr proxy.Address) idns.DNS {
+				r := a.shunt.GetResolver(addr)
+
+				return dns.WrapFakeDNS(r, a.fake)
+			}
+		}
+		a.dnsserver = dns.NewDnsServer(s.Dns.Server, f)
 	}
 	a.dnsserverHost = s.Dns.Server
 }

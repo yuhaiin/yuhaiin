@@ -39,6 +39,10 @@ vet:
 yuhaiin:
 	$(GO_BUILD_CMD) -o yuhaiin $(YUHAIIN)
 
+.PHONY: cli
+cli:
+	$(GO_BUILD_CMD) -o yh $(CLI)
+
 .PHONY: yuhaiin_windows
 yuhaiin_windows:
 	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -o yuhaiin.exe $(YUHAIIN)

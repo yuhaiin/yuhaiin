@@ -16,6 +16,7 @@ import (
 	"sync"
 	"unsafe"
 
+	cdns "github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	imapper "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -83,13 +84,16 @@ type shunt struct {
 
 	dialers  map[MODE]proxy.Proxy
 	resolver map[MODE]dns.DNS
+
+	fake *cdns.Fake
 }
 
-func newShunt(resolver dns.DNS, conns conns) *shunt {
+func newShunt(resolver dns.DNS, conns conns, fake *cdns.Fake) *shunt {
 	return &shunt{
 		mapper: mapper.NewMapper[*MODE](resolver),
 		conns:  conns,
 		config: &protoconfig.Bypass{Enabled: true, BypassFile: ""},
+		fake:   fake,
 	}
 }
 
@@ -191,6 +195,13 @@ func (s *shunt) GetDialer(m MODE) proxy.Proxy {
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
+	if host.Type() == proxy.IP {
+		d, ok := s.fake.GetDomainFromIP(host.IP().String())
+		if ok {
+			host = proxy.ParseAddressSplit("", d, host.Port().Port())
+		}
+	}
+
 	m := s.match(host)
 	dialer, ok := s.dialers[m]
 	if !ok {
@@ -212,6 +223,13 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 }
 
 func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
+	if host.Type() == proxy.IP {
+		d, ok := s.fake.GetDomainFromIP(host.IP().String())
+		if ok {
+			host = proxy.ParseAddressSplit("", d, host.Port().Port())
+		}
+	}
+
 	m := s.match(host)
 	dialer, ok := s.dialers[m]
 	if !ok {
