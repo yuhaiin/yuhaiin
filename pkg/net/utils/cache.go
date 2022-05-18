@@ -14,11 +14,12 @@ type lruEntry[K, V any] struct {
 
 //LRU Least Recently Used
 type LRU[K, V any] struct {
-	capacity int
-	list     *list.List
-	mapping  sync.Map
-	timeout  time.Duration
-	lock     sync.Mutex
+	capacity     int
+	list         *list.List
+	mapping      sync.Map
+	valueMapping sync.Map
+	timeout      time.Duration
+	lock         sync.Mutex
 }
 
 //NewLru create new lru cache
@@ -43,27 +44,34 @@ func (l *LRU[K, V]) Add(key K, value V) {
 	}
 
 	if l.capacity == 0 || l.list.Len() < l.capacity {
-		l.mapping.Store(key, l.list.PushFront(&lruEntry[K, V]{
+		element := l.list.PushFront(&lruEntry[K, V]{
 			key:   key,
 			data:  value,
 			store: time.Now(),
-		}))
+		})
+		l.mapping.Store(key, element)
+		l.valueMapping.Store(value, element)
 		return
 	}
 
 	elem := l.list.Back()
 	r := elem.Value.(*lruEntry[K, V])
 	l.mapping.Delete(r.key)
+	l.valueMapping.Delete(r.data)
 	r.key = key
 	r.data = value
 	r.store = time.Now()
 	l.list.MoveToFront(elem)
 	l.mapping.Store(key, elem)
+	l.valueMapping.Store(value, elem)
 }
 
 //Delete delete a key from cache
 func (l *LRU[K, V]) Delete(key K) {
-	l.mapping.LoadAndDelete(key)
+	v, ok := l.mapping.LoadAndDelete(key)
+	if ok {
+		l.valueMapping.Delete(v.(*list.Element).Value.(*lruEntry[K, V]).data)
+	}
 }
 
 func (l *LRU[K, V]) Load(key K) (v V, ok bool) {
@@ -81,12 +89,44 @@ func (l *LRU[K, V]) Load(key K) (v V, ok bool) {
 
 	if l.timeout != 0 && time.Since(y.store) >= l.timeout {
 		l.mapping.Delete(key)
+		l.valueMapping.Delete(y.data)
 		l.list.Remove(node.(*list.Element))
 		return v, false
 	}
 
 	l.list.MoveToFront(node.(*list.Element))
 	return y.data, true
+}
+
+func (l *LRU[K, V]) ValueLoad(v V) (k K, ok bool) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	node, ok := l.valueMapping.Load(v)
+	if !ok {
+		return k, false
+	}
+
+	y, ok := node.(*list.Element).Value.(*lruEntry[K, V])
+	if !ok {
+		return k, false
+	}
+
+	if l.timeout != 0 && time.Since(y.store) >= l.timeout {
+		l.valueMapping.Delete(v)
+		l.mapping.Delete(y.key)
+		l.list.Remove(node.(*list.Element))
+		return k, false
+	}
+
+	l.list.MoveToFront(node.(*list.Element))
+	return y.key, true
+}
+
+func (l *LRU[K, V]) ValueExist(key V) bool {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	_, ok := l.valueMapping.Load(key)
+	return ok
 }
 
 // Cache use map save history
