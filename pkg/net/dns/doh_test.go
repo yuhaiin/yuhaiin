@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDOH(t *testing.T) {
@@ -11,7 +12,7 @@ func TestDOH(t *testing.T) {
 	// d := NewDoH("cloudflare-dns.com", nil)
 	// d := NewDoH("public.dns.iij.jp", s, nil)
 	// d := NewDoH("dns.google", "", nil, s5c.Dial("127.0.0.1", "1080", "", ""))
-	d := NewDoH(dns.Config{Host: "43.154.169.30", Servername: "a.passcloud.xyz"}, nil)
+	d := NewDoH(dns.Config{Host: "192.0.2.214", Servername: "a.passcloud.xyz"}, s5c.Dial("127.0.0.1", "1080", "", ""))
 	// d := NewDoH("dns.nextdns.io/e28bb3", nil)
 	// d := NewDoH("1.1.1.1", nil, nil)
 	// d := NewDoH("1.0.0.1", nil, nil)

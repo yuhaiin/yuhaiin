@@ -10,9 +10,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 
+	aconfig "github.com/Asutorufa/yuhaiin/cmd/android/config"
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/server"
@@ -20,29 +20,17 @@ import (
 	logw "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	protonode "github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	protosttc "github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+// GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -o yuhaiin.aar -target=android ./
 
 var lis net.Listener
 
 type Yuhaiin struct{}
 
-func (Yuhaiin) Start(host, savepath, dnsServer, socks5server string) error {
-	// ver := flag.Bool("v", false, "show version")
-	// host := flag.String("host", "127.0.0.1:50051", "gRPC and http listen host")
-	// savepath := flag.String("path", protoconfig.DefaultConfigDir(), "save data path")
-	// flag.Parse()
-
-	// if *ver {
-	// fmt.Print(version.String())
-	// return
-	// }
-
+func (Yuhaiin) Start(host, savepath, dnsServer, socks5server, httpserver string,
+	fakedns bool, fakednsIpRange string) error {
 	pc := pathConfig(savepath)
 
 	f := logw.NewLogWriter(pc.logfile)
@@ -52,9 +40,6 @@ func (Yuhaiin) Start(host, savepath, dnsServer, socks5server string) error {
 
 	log.Println("\n\n\nsave config at:", pc.dir)
 	log.Println("gRPC and http listen at:", host)
-
-	// lock := error.Must(lockfile.NewLock(pc.lockfile, host))
-	// defer lock.UnLock()
 
 	var err error
 	// create listener
@@ -68,69 +53,60 @@ func (Yuhaiin) Start(host, savepath, dnsServer, socks5server string) error {
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() bool { return (<-signChannel).String() != "" && lis != nil && lis.Close() != nil }()
 
-	grpcserver := grpc.NewServer()
-
 	setting := config.NewConfig(pc.config)
 	settings, err := setting.Load(context.TODO(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
-	if dnsServer != "" {
-		if settings.Dns == nil {
-			settings.Dns = &protoconfig.DnsSetting{}
-		}
 
-		settings.Dns.Server = dnsServer
+	if settings.Dns == nil {
+		settings.Dns = &protoconfig.DnsSetting{}
 	}
 
-	if socks5server != "" {
-		if settings.Server == nil {
-			settings.Server = &protoconfig.Server{}
-		}
+	settings.Dns.Server = dnsServer
+	settings.Dns.Fakedns = fakedns
 
-		if settings.Server.Servers == nil {
-			settings.Server.Servers = make(map[string]*protoconfig.ServerProtocol)
-		}
-
-		settings.Server.Servers["socks5"] = &protoconfig.ServerProtocol{
-			Name: "socks5",
+	settings.Server.Servers = map[string]*protoconfig.ServerProtocol{
+		"socks5": {
 			Protocol: &protoconfig.ServerProtocol_Socks5{
 				Socks5: &protoconfig.Socks5{
 					Host: socks5server,
 				},
 			},
-		}
-	}
-	if _, err = setting.Save(context.TODO(), settings); err != nil {
-		return err
+		},
+		"http": {
+			Protocol: &protoconfig.ServerProtocol_Http{
+				Http: &protoconfig.Http{
+					Host: httpserver,
+				},
+			},
+		},
 	}
 
-	grpcserver.RegisterService(&protoconfig.ConfigDao_ServiceDesc, setting)
+	wrapSetting := aconfig.NewWrapSetting(setting, settings)
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
 	nodes := node.NewNodes(pc.node)
-	grpcserver.RegisterService(&protonode.NodeManager_ServiceDesc, nodes)
+	// grpcserver.RegisterService(&protonode.NodeManager_ServiceDesc, nodes)
 
-	app := statistic.NewRouter(nodes)
+	_, ipRange, err := net.ParseCIDR(fakednsIpRange)
+	if err != nil {
+		return err
+	}
+	app := statistic.NewRouter(nodes, ipRange)
 	setting.AddObserver(app)
-	grpcserver.RegisterService(&protosttc.Connections_ServiceDesc, app.Statistic())
 
 	listener := server.NewListener(app.Proxy())
 	setting.AddObserver(listener)
 	defer listener.Close()
 
-	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodes, app.Statistic(), setting)
+	if _, err = setting.Save(context.TODO(), settings); err != nil {
+		return err
+	}
 
-	// h2c for grpc insecure mode
-	return http.Serve(lis, h2c.NewHandler(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
-				grpcserver.ServeHTTP(w, r)
-			} else {
-				mux.ServeHTTP(w, r)
-			}
-		}), &http2.Server{}))
+	mux := http.NewServeMux()
+	simplehttp.Httpserver(mux, nodes, app.Statistic(), wrapSetting)
+	return http.Serve(lis, mux)
 }
 
 func (Yuhaiin) Stop() {

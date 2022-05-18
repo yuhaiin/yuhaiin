@@ -33,6 +33,12 @@ func TestLru(t *testing.T) {
 	assert.Equal(t, false, ok)
 	_, ok = l.Load("a")
 	assert.Equal(t, true, ok)
+
+	t.Log(l.ValueExist("a"))
+	t.Log(l.ValueExist("b"))
+	t.Log(l.ValueExist("c"))
+	t.Log(l.ValueExist("d"))
+	t.Log(l.ValueExist("e"))
 }
 
 func BenchmarkNewLru(b *testing.B) {

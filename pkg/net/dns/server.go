@@ -132,7 +132,6 @@ func (d *dnsServer) startTCP() (err error) {
 }
 
 func (d *dnsServer) handle(b []byte) ([]byte, error) {
-	log.Println("handle----------", b)
 	var parse dnsmessage.Parser
 
 	h, err := parse.Start(b)
@@ -148,7 +147,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	add := proxy.ParseAddressSplit("", strings.TrimSuffix(q.Name.String(), "."), 0)
 
 	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA {
-		log.Println("not a or aaaa")
+		log.Println(q.Type, "not a or aaaa")
 		return d.processor(add).Do(b)
 	}
 
@@ -156,6 +155,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	if err != nil {
 		log.Println(err)
 	}
+	log.Println("map", ips, "to", add)
 
 	resp := dnsmessage.Message{
 		Header: dnsmessage.Header{
