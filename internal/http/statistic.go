@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sort"
 	"strconv"
 	"unsafe"
@@ -20,6 +21,8 @@ import (
 
 //go:embed statistic.js
 var statisticJS []byte
+
+var os = runtime.GOOS
 
 func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 	mux.HandleFunc("/conn/list", func(w http.ResponseWriter, r *http.Request) {
@@ -66,11 +69,14 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 		defer utils.PutBuffer(str)
 
 		for _, c := range conns.GetConnections() {
-			str.WriteString("<p>")
-			str.WriteString(fmt.Sprintf(`<a>%d| &lt;%s[%s]&gt; %s, %s <-> %s</a>`, c.GetId(), c.GetType(), c.GetMark(), c.GetAddr(), c.GetLocal(), c.GetRemote()))
+			str.WriteString(`<li>`)
+			str.WriteString(fmt.Sprintf(`%d| &lt;%s[%s]&gt; %s, %s <-> %s`, c.GetId(), c.GetType(), c.GetMark(), c.GetAddr(), c.GetLocal(), c.GetRemote()))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
-			str.WriteString("</p>")
+			str.WriteString("</li>")
+			// if os == "android" {
+			str.WriteByte('\n')
+			// }
 		}
 
 		w.Write(str.Bytes())

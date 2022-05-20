@@ -80,7 +80,7 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 
 		str.WriteString(fmt.Sprintf(`<script>%s</script>`, nodeJS))
 		for _, v := range nds {
-			str.WriteString(fmt.Sprintf("<p id=%s>", "i"+nhm[v]))
+			str.WriteString(fmt.Sprintf("<li id=%s>", "i"+nhm[v]))
 			str.WriteString(fmt.Sprintf(`<a href="/node?hash=%s">%s</a>`, nhm[v], v))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(`TCP: <a class="tcp">N/A</a>`)
@@ -92,7 +92,10 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 			str.WriteString(fmt.Sprintf(`<a href='/use?hash=%s'>Use This</a>`, nhm[v]))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='javascript: del("%s");'>Delete</a>`, nhm[v]))
-			str.WriteString("</p>")
+			str.WriteString("</li>")
+			if os == "android" {
+				str.WriteByte('\n')
+			}
 		}
 		w.Write([]byte(createHTML(str.String())))
 	})

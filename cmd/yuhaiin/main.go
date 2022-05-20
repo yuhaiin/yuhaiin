@@ -75,6 +75,7 @@ func main() {
 
 	_, ipRange, _ := net.ParseCIDR("192.0.2.1/24")
 	app := statistic.NewRouter(nodes, ipRange)
+	defer app.Close()
 	setting.AddObserver(app)
 	grpcserver.RegisterService(&protosttc.Connections_ServiceDesc, app.Statistic())
 
