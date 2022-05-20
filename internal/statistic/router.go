@@ -80,3 +80,22 @@ func (a *router) Update(s *protoconfig.Setting) {
 func (a *router) Proxy() proxy.Proxy { return a.shunt }
 
 func (a *router) Statistic() statistic.ConnectionsServer { return a.statistic }
+
+func (a *router) Close() error {
+	if a.dnsserver != nil {
+		a.dnsserver.Close()
+	}
+
+	if a.localdns != nil {
+		a.localdns.Close()
+	}
+
+	if a.remotedns != nil {
+		a.remotedns.Close()
+	}
+	if a.bootstrap != nil {
+		a.bootstrap.Close()
+	}
+
+	return nil
+}

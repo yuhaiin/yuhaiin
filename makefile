@@ -33,7 +33,7 @@ all: yuhaiin cli yuhaiin_windows cli_windows
 
 .PHONY: vet
 vet:
-	$(GO) vet ./...
+	$(GO) vet $(shell go list ./... | grep -v '/scripts/')
 
 .PHONY: yuhaiin
 yuhaiin:
