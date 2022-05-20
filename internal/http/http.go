@@ -38,7 +38,6 @@ func createHTML(s string) string {
 			<meta charset="UTF-8">
 			<title>yuhaiin</title>
 			<style>
-				p {line-height:50%%;}
 			</style>
 		</head>
 		<body>

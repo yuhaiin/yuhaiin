@@ -27,9 +27,9 @@ import (
 
 var lis net.Listener
 
-type Yuhaiin struct{}
+type App struct{}
 
-func (Yuhaiin) Start(host, savepath, dnsServer, socks5server, httpserver string,
+func (App) Start(host, savepath, dnsServer, socks5server, httpserver string,
 	fakedns bool, fakednsIpRange string) error {
 	pc := pathConfig(savepath)
 
@@ -94,6 +94,7 @@ func (Yuhaiin) Start(host, savepath, dnsServer, socks5server, httpserver string,
 		return err
 	}
 	app := statistic.NewRouter(nodes, ipRange)
+	defer app.Close()
 	setting.AddObserver(app)
 
 	listener := server.NewListener(app.Proxy())
@@ -109,7 +110,7 @@ func (Yuhaiin) Start(host, savepath, dnsServer, socks5server, httpserver string,
 	return http.Serve(lis, mux)
 }
 
-func (Yuhaiin) Stop() {
+func (App) Stop() {
 	if lis != nil {
 		lis.Close()
 	}
