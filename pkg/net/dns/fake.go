@@ -21,9 +21,9 @@ type Fake struct {
 func NewFake(ipRange *net.IPNet) *Fake {
 	ones, bits := ipRange.Mask.Size()
 	lruSize := int(math.Pow(2, float64(bits-ones)) - 1)
-	if lruSize > 250 {
-		lruSize = 250
-	}
+	// if lruSize > 250 {
+	// 	lruSize = 250
+	// }
 	return &Fake{
 		ipRange:    ipRange,
 		domainToIP: utils.NewLru[string, string](lruSize, 0*time.Minute),
@@ -77,10 +77,7 @@ type FakeDNS struct {
 }
 
 func WrapFakeDNS(upStream dns.DNS, pool *Fake) *FakeDNS {
-	return &FakeDNS{
-		upStream: upStream,
-		pool:     pool,
-	}
+	return &FakeDNS{upStream: upStream, pool: pool}
 }
 func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
 	ip := f.pool.GetFakeIPForDomain(domain)

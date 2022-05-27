@@ -26,6 +26,7 @@ func (w *WrapSetting) Save(ctx context.Context, in *config.Setting) (*emptypb.Em
 	in.Dns.Server = w.setting.Dns.Server
 	in.Dns.Fakedns = w.setting.Dns.Fakedns
 	in.Server = w.setting.Server
+	in.Bypass = w.setting.Bypass
 
 	return w.config.Save(ctx, in)
 }

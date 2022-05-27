@@ -306,28 +306,26 @@ func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
 
 		for _, v := range ls {
 			l := links.Links[v]
-			str.WriteString("<p>")
+			str.WriteString("<li>")
 			str.WriteString(fmt.Sprintf(`<a href='javascript: copy("%s");'>%s</a>`, l.GetUrl(), l.GetName()))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='/sub/delete?name=%s'>Delete</a>`, l.GetName()))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='/sub/update?name=%s'>Update</a>`, l.GetName()))
-			str.WriteString("</p>")
+			str.WriteString("</li>")
 		}
 
 		str.WriteString("<hr/>")
-		str.WriteString("Add a New Link")
-		str.WriteString("<p>")
-		str.WriteString(`<a>Name:</a>`)
+		str.WriteString("Add a New Link<br/><br/>")
+		str.WriteString(`Name:`)
 		str.WriteString("&nbsp;&nbsp;")
 		str.WriteString(`<input type="text" id="name" value="">`)
-		str.WriteString("&nbsp;&nbsp;")
-		str.WriteString(`<a>Link:</a>`)
+		str.WriteString("<br/>")
+		str.WriteString(`Link:`)
 		str.WriteString("&nbsp;&nbsp;")
 		str.WriteString(`<input type="text" id="link" value="">`)
-		str.WriteString("&nbsp;&nbsp;")
+		str.WriteString("<br/>")
 		str.WriteString(`<a href="javascript: add();">ADD</a>`)
-		str.WriteString("</p>")
 		w.Write([]byte(createHTML(str.String())))
 	})
 

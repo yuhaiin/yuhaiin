@@ -30,15 +30,18 @@ func Httpserver(mux *http.ServeMux, nm node.NodeManagerServer, stt statistic.Con
 
 }
 
+//go:embed http.js
+var metaJS []byte
+
+// <meta charset="UTF-8">
 func createHTML(s string) string {
 	return fmt.Sprintf(`
 	<!DOCTYPE html>
 	<html>
 		<head>
-			<meta charset="UTF-8">
 			<title>yuhaiin</title>
-			<style>
-			</style>
+			<style></style>
+			<script>%s</script>
 		</head>
 		<body>
 			%s
@@ -53,5 +56,5 @@ func createHTML(s string) string {
 			</p>
 		</body>
 	</html>
-	`, s)
+	`, metaJS, s)
 }

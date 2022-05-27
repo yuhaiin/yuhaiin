@@ -7,6 +7,7 @@
 ![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
   
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
+- Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Supported Protocol  
   - Shadowsocksr  
   - Shadowsocks(plugin: Obfs-Http, v2ray-plugin[websocket, quic])  
@@ -15,6 +16,7 @@
   - TODO: TUN
 - support DNS:
   - DNS, EDNS
+  - FakeDNS
   - DNS over UDP
   - DNS over HTTPS(3)
   - DNS over Quic
