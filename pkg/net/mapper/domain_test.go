@@ -32,6 +32,8 @@ func TestDomainMatcherSearch(t *testing.T) {
 	root.Insert("163.com", "163")
 	root.Insert("*.google.com", "google")
 	root.Insert("*.dl.google.com", "google_dl")
+	root.Insert("api.sec.miui.*", "ad_miui")
+	root.Insert("*.miui.com", "miui")
 
 	search := func(s string) string {
 		res, _ := root.Search(s)
@@ -49,4 +51,5 @@ func TestDomainMatcherSearch(t *testing.T) {
 	assert.Equal(t, "163", search("163.com"))
 	assert.Equal(t, "google", search("www.x.google.com"))
 	assert.Equal(t, "google_dl", search("dl.google.com"))
+	assert.Equal(t, "ad_miui", search("api.sec.miui.com"))
 }

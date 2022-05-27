@@ -79,6 +79,14 @@ func (a *router) Update(s *protoconfig.Setting) {
 
 func (a *router) Proxy() proxy.Proxy { return a.shunt }
 
+func (a *router) Insert(addr string, mode *MODE) {
+	if a.shunt == nil {
+		return
+	}
+
+	a.shunt.mapper.Insert(addr, mode)
+}
+
 func (a *router) Statistic() statistic.ConnectionsServer { return a.statistic }
 
 func (a *router) Close() error {

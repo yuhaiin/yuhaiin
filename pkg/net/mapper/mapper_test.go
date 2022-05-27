@@ -17,6 +17,7 @@ func TestNewMatcher(t *testing.T) {
 	matcher.Insert("*.163.com", "163")
 	matcher.Insert("music.126.com", "126")
 	matcher.Insert("*.advertising.com", "advertising")
+	matcher.Insert("api.sec.miui.*", "ad_miui")
 
 	search := func(s string) string {
 		addr, _ := proxy.ParseAddress("", net.JoinHostPort(s, "0"))
@@ -34,6 +35,7 @@ func TestNewMatcher(t *testing.T) {
 	assert.Equal(t, "", search("www.facebook.com"))
 	assert.Equal(t, "", search("127.0.0.1"))
 	assert.Equal(t, "", search("ff::"))
+	assert.Equal(t, "ad_miui", search("api.sec.miui.com"))
 }
 
 func BenchmarkMapper(b *testing.B) {

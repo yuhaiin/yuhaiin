@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	aconfig "github.com/Asutorufa/yuhaiin/cmd/android/config"
@@ -25,33 +26,42 @@ import (
 
 // GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -o yuhaiin.aar -target=android ./
 
-var lis net.Listener
+type App struct {
+	closers []func() error
+}
 
-type App struct{}
-
-func (App) Start(host, savepath, dnsServer, socks5server, httpserver string,
-	fakedns bool, fakednsIpRange string) error {
+func (a *App) Start(
+	host, savepath, dnsServer, socks5server, httpserver string,
+	fakedns bool, fakednsIpRange string,
+	saveLogcat bool,
+	block, proxy, direct string,
+) error {
 	pc := pathConfig(savepath)
 
-	f := logw.NewLogWriter(pc.logfile)
-	defer f.Close()
+	writes := []io.Writer{os.Stdout}
+	if saveLogcat {
+		f := logw.NewLogWriter(pc.logfile)
+		a.closers = append(a.closers, f.Close)
+		writes = append(writes, f)
+	}
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	log.SetOutput(io.MultiWriter(f, os.Stdout))
+	log.SetOutput(io.MultiWriter(writes...))
 
 	log.Println("\n\n\nsave config at:", pc.dir)
 	log.Println("gRPC and http listen at:", host)
 
 	var err error
 	// create listener
-	lis, err = net.Listen("tcp", host)
+	lis, err := net.Listen("tcp", host)
 	if err != nil {
 		return err
 	}
+	a.closers = append(a.closers, lis.Close)
 
 	// listen system signal
 	signChannel := make(chan os.Signal, 1)
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() bool { return (<-signChannel).String() != "" && lis != nil && lis.Close() != nil }()
+	go func() bool { return (<-signChannel).String() != "" && a != nil && a.Stop() != nil }()
 
 	setting := config.NewConfig(pc.config)
 	settings, err := setting.Load(context.TODO(), &emptypb.Empty{})
@@ -94,12 +104,15 @@ func (App) Start(host, savepath, dnsServer, socks5server, httpserver string,
 		return err
 	}
 	app := statistic.NewRouter(nodes, ipRange)
-	defer app.Close()
+	a.closers = append(a.closers, app.Close)
 	setting.AddObserver(app)
+	insert(app.Insert, block, &statistic.BLOCK)
+	insert(app.Insert, proxy, &statistic.PROXY)
+	insert(app.Insert, direct, &statistic.DIRECT)
 
 	listener := server.NewListener(app.Proxy())
 	setting.AddObserver(listener)
-	defer listener.Close()
+	a.closers = append(a.closers, listener.Close)
 
 	if _, err = setting.Save(context.TODO(), settings); err != nil {
 		return err
@@ -107,14 +120,27 @@ func (App) Start(host, savepath, dnsServer, socks5server, httpserver string,
 
 	mux := http.NewServeMux()
 	simplehttp.Httpserver(mux, nodes, app.Statistic(), wrapSetting)
-	return http.Serve(lis, mux)
+	go http.Serve(lis, mux)
+	return nil
 }
 
-func (App) Stop() {
-	if lis != nil {
-		lis.Close()
+func (a *App) Stop() error {
+	for _, closer := range a.closers {
+		closer()
+	}
+	return nil
+}
+
+func insert(f func(string, *statistic.MODE), rules string, mode *statistic.MODE) {
+	for _, rule := range strings.Split(rules, "\n") {
+		rule = strings.TrimSpace(rule)
+		if rule == "" {
+			continue
+		}
+		f(rule, mode)
 	}
 }
+
 func pathConfig(configPath string) struct{ dir, lockfile, node, config, logfile string } {
 	create := func(child ...string) string { return filepath.Join(append([]string{configPath}, child...)...) }
 	config := struct{ dir, lockfile, node, config, logfile string }{
