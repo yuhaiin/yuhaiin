@@ -22,7 +22,7 @@ func HTTP(p proxy.Proxy, target string) (time.Duration, error) {
 				return p.Conn(ad)
 			},
 		},
-		Timeout: 3 * time.Second,
+		Timeout: 4 * time.Second,
 	}).Get(target)
 	if err != nil {
 		return 0, err

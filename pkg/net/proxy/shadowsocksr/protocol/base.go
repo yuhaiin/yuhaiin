@@ -128,7 +128,7 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 }
 
 func (c *protocolPacket) Close() error {
-	c.protocol.Close()
+	defer c.protocol.Close()
 	return c.PacketConn.Close()
 }
 
@@ -151,10 +151,12 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 }
 
 func (c *protocolConn) Close() error {
-	utils.PutBytes(c.readBuf)
-	utils.PutBuffer(c.decryptedBuf)
-	utils.PutBuffer(c.underPostdecryptBuf)
-	c.protocol.Close()
+	defer func() {
+		c.protocol.Close()
+		utils.PutBytes(c.readBuf)
+		utils.PutBuffer(c.decryptedBuf)
+		utils.PutBuffer(c.underPostdecryptBuf)
+	}()
 	return c.Conn.Close()
 }
 

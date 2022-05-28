@@ -297,7 +297,7 @@ func (n *Nodes) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyR
 
 			var tcp, udp string
 			if s.Tcp {
-				t, err := latency.HTTP(px, "https://www.google.com/generate_204")
+				t, err := latency.HTTP(px, "https://clients3.google.com/generate_204")
 				if err == nil {
 					tcp = t.String()
 				}
