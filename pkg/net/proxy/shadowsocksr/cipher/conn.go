@@ -140,7 +140,7 @@ func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 }
 
 func (p *packetConn) Close() error {
-	utils.PutBytes(p.buf)
+	defer utils.PutBytes(p.buf)
 	return p.PacketConn.Close()
 }
 
@@ -237,6 +237,6 @@ func (c *streamConn) Write(b []byte) (int, error) {
 }
 
 func (c *streamConn) Close() error {
-	utils.PutBytes(c.buf)
+	defer utils.PutBytes(c.buf)
 	return c.Conn.Close()
 }

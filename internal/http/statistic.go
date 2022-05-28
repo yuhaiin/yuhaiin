@@ -74,9 +74,6 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
 			str.WriteString("</li>")
-			// if os == "android" {
-			str.WriteByte('\n')
-			// }
 		}
 
 		w.Write(str.Bytes())
