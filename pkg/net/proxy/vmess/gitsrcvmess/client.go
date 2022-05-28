@@ -400,11 +400,11 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 
 func (c *Conn) Close() error {
 	if c.dataReader != nil {
-		c.dataReader.Close()
+		defer c.dataReader.Close()
 	}
 
 	if c.dataWriter != nil {
-		c.dataWriter.Close()
+		defer c.dataWriter.Close()
 	}
 
 	return c.Conn.Close()

@@ -23,7 +23,10 @@ import (
 
 var _ dns.DNS = (*doh)(nil)
 
-type doh struct{ *client }
+type doh struct {
+	*client
+	httpClient *http.Client
+}
 
 func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 	dns := &doh{}
@@ -34,9 +37,8 @@ func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 		p = simple.NewSimple(addr, nil)
 	}
 
-	httpClient := &http.Client{
+	dns.httpClient = &http.Client{
 		Transport: &http.Transport{
-			DisableKeepAlives: false,
 			//Proxy: http.ProxyFromEnvironment,
 			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
@@ -48,7 +50,13 @@ func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 	}
 
 	dns.client = NewClient(config, func(b []byte) ([]byte, error) {
-		resp, err := httpClient.Post(url, "application/dns-message", bytes.NewReader(b))
+		req, err := http.NewRequest("POST", url, bytes.NewReader(b))
+		if err != nil {
+			return nil, fmt.Errorf("doh new request failed: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/dns-message")
+		req.Header.Set("User-Agent", string([]byte{' '}))
+		resp, err := dns.httpClient.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %v", err)
 		}

@@ -12,7 +12,6 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -49,11 +48,8 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 type recvInfo struct {
 	recvID uint32
 
-	rbuf     *bytes.Buffer
-	rbufLock sync.Mutex
-
-	wbuf     *bytes.Buffer
-	wbufLock sync.Mutex
+	rbuf *bytes.Buffer
+	wbuf *bytes.Buffer
 }
 
 type authAES128 struct {
@@ -116,17 +112,20 @@ func (a *authAES128) packData(data []byte) {
 	}
 
 	// 4~rand length+4, rand number
-	_, err := a.wbuf.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
-	if err != nil {
-		log.Println(err)
+	if _, err := io.CopyN(a.wbuf, crand.Reader, int64(randLength)); err != nil {
+		log.Printf("copy rand bytes failed: %s\n", err)
 	}
 
 	// rand length+4~out length-4, data
 	a.wbuf.Write(data)
 
+	start := a.wbuf.Len() - outLength + 4
+	if start < 0 {
+		log.Println("---------------start < 0, buf len: ", a.wbuf.Len(), "out length: ", outLength)
+		start = 0
+	}
 	// hmac
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-outLength+4:])[:4])
-
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[start:])[:4])
 }
 
 func (a *authAES128) initUserKey() {
@@ -203,9 +202,6 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 		return nil, nil
 	}
 
-	a.wbufLock.Lock()
-	defer a.wbufLock.Unlock()
-
 	a.wbuf.Reset()
 
 	if !a.hasSentHeader {
@@ -281,9 +277,6 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 }
 
 func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
-	a.wbufLock.Lock()
-	defer a.wbufLock.Unlock()
-
 	a.wbuf.Reset()
 	a.wbuf.Write(b)
 	a.wbuf.Write(a.uid[:])
@@ -304,13 +297,7 @@ func (a *authAES128) GetOverhead() int {
 }
 
 func (a *recvInfo) Close() error {
-	a.rbufLock.Lock()
-	a.wbufLock.Lock()
-	defer a.rbufLock.Unlock()
-	defer a.wbufLock.Unlock()
-
 	utils.PutBuffer(a.wbuf)
 	utils.PutBuffer(a.rbuf)
-
 	return nil
 }
