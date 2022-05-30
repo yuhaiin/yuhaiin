@@ -49,7 +49,7 @@ type Port interface {
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
-	// IP return net.IP, if address is ip else return nil
+	// IP return net.IP, if address is ip else resolve the domain and return one of ips
 	IP() (net.IP, error)
 	// Port return port of address
 	Port() Port

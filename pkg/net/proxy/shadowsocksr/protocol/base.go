@@ -234,8 +234,9 @@ func (s *ProtocolInfo) SetHeadLen(data []byte, defaultValue int) {
 	s.HeadSize = GetHeadSize(data, defaultValue)
 }
 
+// https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/plain.py#L93
 func GetHeadSize(data []byte, defaultValue int) int {
-	if data == nil || len(data) < 2 {
+	if len(data) < 2 {
 		return defaultValue
 	}
 	headType := data[0] & 0x07
