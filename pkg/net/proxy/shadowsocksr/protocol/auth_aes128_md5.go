@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"io"
 	"log"
+	"math"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -40,6 +41,7 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 		ivLen:  info.IVSize,
 		param:  info.Param,
 		auth:   info.Auth,
+		tcpMSS: info.TcpMss,
 	}
 	a.initUserKey()
 	return a
@@ -56,6 +58,7 @@ type authAES128 struct {
 	recvInfo
 	auth          *AuthData
 	hasSentHeader bool
+	rawTrans      bool
 	packID        uint32
 	userKey       []byte
 	uid           [4]byte
@@ -65,27 +68,20 @@ type authAES128 struct {
 
 	key, iv       []byte
 	keyLen, ivLen int
+	tcpMSS        int
 
 	param string
 }
 
-func (a *authAES128) packData(data []byte) {
+func (a *authAES128) packData(data []byte, fullDataSize int) {
 	dataLength := len(data)
-	randLength := 1
-
-	if dataLength <= 1200 {
-		if a.packID > 4 {
-			randLength += rand.Intn(32)
-		} else {
-			if dataLength > 900 {
-				randLength += rand.Intn(128)
-			} else {
-				randLength += rand.Intn(512)
-			}
-		}
+	if dataLength == 0 {
+		return
 	}
+	randLength := a.rndDataLen(dataLength, fullDataSize)
 
-	outLength := randLength + dataLength + 8
+	// 1: randLengthData Length
+	outLength := 1 + randLength + dataLength + 8
 
 	key := make([]byte, len(a.userKey)+4)
 	copy(key, a.userKey)
@@ -94,21 +90,20 @@ func (a *authAES128) packData(data []byte) {
 	a.packID++
 
 	// 0~1, out length
-	binary.Write(a.wbuf, binary.LittleEndian, uint16(outLength&0xFFFF))
+	binary.Write(a.wbuf, binary.LittleEndian, uint16(outLength))
 
 	// 2~3, hmac
 	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-2:])[:2])
 
 	// 4, rand length
 	if randLength < 128 {
-		a.wbuf.WriteByte(byte(randLength & 0xFF))
-		randLength -= 1
+		a.wbuf.WriteByte(byte(randLength + 1))
 	} else {
-		// 4, magic number 0xFF
-		a.wbuf.WriteByte(0xFF)
+		// 4, magic number 255
+		a.wbuf.WriteByte(255)
 		// 5~6, rand length
-		binary.Write(a.wbuf, binary.LittleEndian, uint16(randLength&0xFFFF))
-		randLength -= 3
+		binary.Write(a.wbuf, binary.LittleEndian, uint16(randLength+1))
+		randLength -= 2
 	}
 
 	// 4~rand length+4, rand number
@@ -149,8 +144,49 @@ func (a *authAES128) initUserKey() {
 	}
 }
 
+// https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L501
+func (a *authAES128) rndDataLen(bufSize, fullBufSize int) int {
+	trapezoidRandomFLoat := func(maxVal int, d float64) int {
+		var r float64
+		if d == 0 {
+			r = rand.Float64()
+		} else {
+			s := rand.Float64()
+			a := 1 - d
+			r = (math.Sqrt(a*a+4*d*s) - a) / (2 * d)
+		}
+
+		return int(float64(maxVal) * r)
+	}
+
+	if fullBufSize >= utils.DefaultSize {
+		return 0
+	}
+
+	revLen := a.tcpMSS - bufSize - a.GetOverhead()
+	if revLen == 0 {
+		return 0
+	}
+	if revLen < 0 {
+		if revLen > -a.tcpMSS {
+			return trapezoidRandomFLoat(revLen+a.tcpMSS, -0.3)
+		}
+
+		return rand.Intn(32)
+	}
+
+	if bufSize > 900 {
+		return rand.Intn(revLen)
+	}
+
+	return trapezoidRandomFLoat(revLen, -0.3)
+}
+
 func (a *authAES128) packAuthData(data []byte) {
 	dataLength := len(data)
+	if dataLength == 0 {
+		return
+	}
 
 	var randLength int
 	if dataLength > 400 {
@@ -159,7 +195,7 @@ func (a *authAES128) packAuthData(data []byte) {
 		randLength = rand.Intn(1024)
 	}
 
-	outLength := randLength + 16 + 4 + 4 + 7 + dataLength + 4
+	outLength := 7 + 4 + 16 + 4 + dataLength + randLength + 4
 
 	aesCipherKey := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+a.salt, 16)
 	block, err := aes.NewCipher(aesCipherKey)
@@ -186,7 +222,7 @@ func (a *authAES128) packAuthData(data []byte) {
 	copy(key[a.ivLen:], a.key)
 
 	a.wbuf.Write([]byte{byte(rand.Intn(256))})
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-1:])[:7-1])
+	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-1:])[:6])
 	a.wbuf.Write(a.uid[:])
 	a.wbuf.Write(encrypt[:16])
 	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-20:])[:4])
@@ -210,9 +246,9 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 	a.wbuf.Reset()
 
 	if !a.hasSentHeader {
-		authLen := dataLen
-		if authLen > 1200 {
-			authLen = 1200
+		authLen := GetHeadSize(data, 30) + rand.Intn(32)
+		if authLen > dataLen {
+			authLen = dataLen
 		}
 
 		a.packAuthData(data[:authLen])
@@ -221,17 +257,22 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 		a.hasSentHeader = true
 	}
 
-	const blockSize = 4096
-	for len(data) > blockSize {
-		a.packData(data[:blockSize])
-		data = data[blockSize:]
+	// https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L459
+	const unitLen = 8100
+	for len(data) > unitLen {
+		a.packData(data[:unitLen], dataLen)
+		data = data[unitLen:]
 	}
-	a.packData(data)
+	a.packData(data, dataLen)
 
 	return a.wbuf.Bytes(), nil
 }
 
 func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
+	if a.rawTrans {
+		return data, len(data), nil
+	}
+
 	a.rbuf.Reset()
 
 	datalen, readLen := len(data), 0
@@ -242,25 +283,26 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 	copy(key[0:], a.userKey)
 
 	for datalen > 4 {
-		clen := int(binary.LittleEndian.Uint16(data[0:2]))
-		if clen >= 8192 || clen < 7 {
-			return nil, 0, ssr.ErrAuthAES128DataLengthError
-		}
-
-		if clen > datalen {
-			break
-		}
-
 		binary.LittleEndian.PutUint32(key[keyLen-4:], a.recvID)
-		a.recvID++
-
 		if !bytes.Equal(a.hmac(key[:keyLen], data[0:2])[:2], data[2:4]) {
 			return nil, 0, ssr.ErrAuthAES128IncorrectHMAC
 		}
 
+		clen := int(binary.LittleEndian.Uint16(data[0:2]))
+		if clen >= 8192 || clen < 7 {
+			a.rawTrans = true
+			return nil, 0, ssr.ErrAuthAES128DataLengthError
+		}
+		if clen > datalen {
+			break
+		}
+
 		if !bytes.Equal(a.hmac(key[:keyLen], data[:clen-4])[:4], data[clen-4:clen]) {
+			a.rawTrans = true
 			return nil, 0, ssr.ErrAuthAES128IncorrectChecksum
 		}
+
+		a.recvID++
 
 		pos := int(data[4])
 		if pos < 255 {
@@ -281,6 +323,7 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 	return a.rbuf.Bytes(), readLen, nil
 }
 
+// https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L749
 func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 	a.wbuf.Reset()
 	a.wbuf.Write(b)
@@ -289,6 +332,7 @@ func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 	return a.wbuf.Bytes(), nil
 }
 
+// https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L764
 func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
 	if !bytes.Equal(a.hmac(a.key, b[:len(b)-4])[:4], b[len(b)-4:]) {
 		return nil, ssr.ErrAuthAES128IncorrectChecksum
