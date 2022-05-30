@@ -161,8 +161,12 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		}
 	}()
 
+	uaddr, err := addr.UDPAddr()
+	if err != nil {
+		return nil, fmt.Errorf("get udp addr failed: %w", err)
+	}
 	// log.Println(addr)
-	conn2, err := newSocks5PacketConn(host, addr.UDPAddr(), conn)
+	conn2, err := newSocks5PacketConn(host, uaddr, conn)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("new socks5 packet conn failed: %v", err)

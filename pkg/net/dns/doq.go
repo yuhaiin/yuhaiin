@@ -135,9 +135,13 @@ func (d *doq) initSession() error {
 		d.conn = conn
 	}
 
+	uaddr, err := d.host.UDPAddr()
+	if err != nil {
+		return fmt.Errorf("get host udp addr failed: %w", err)
+	}
 	session, err := quic.DialEarly(
 		d.conn,
-		d.host.UDPAddr(),
+		uaddr,
 		d.host.Hostname(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i00", http2.NextProtoTLS},

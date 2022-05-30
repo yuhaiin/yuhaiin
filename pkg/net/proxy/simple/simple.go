@@ -24,7 +24,11 @@ func NewSimple(address proxy.Address, tls *tls.Config) proxy.Proxy {
 var clientDialer = net.Dialer{Timeout: time.Second * 5}
 
 func (c *Simple) Conn(proxy.Address) (net.Conn, error) {
-	conn, err := clientDialer.Dial("tcp", c.addr.IPHost())
+	host, err := c.addr.IPHost()
+	if err != nil {
+		return nil, fmt.Errorf("get host failed: %w", err)
+	}
+	conn, err := clientDialer.Dial("tcp", host)
 	if err != nil {
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}

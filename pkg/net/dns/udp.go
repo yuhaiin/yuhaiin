@@ -51,7 +51,11 @@ func NewDoU(config dns.Config, p proxy.PacketProxy) dns.DNS {
 			return nil, fmt.Errorf("set read deadline failed: %v", err)
 		}
 
-		_, err = conn.WriteTo(req, add.UDPAddr())
+		uaddr, err := add.UDPAddr()
+		if err != nil {
+			return nil, fmt.Errorf("get udp addr failed: %w", err)
+		}
+		_, err = conn.WriteTo(req, uaddr)
 		if err != nil {
 			return nil, err
 		}

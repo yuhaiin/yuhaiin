@@ -37,9 +37,9 @@ func ParseAddr(s proxy.Address) (Atyp, Addr, Port, error) {
 		addr = append([]byte{byte(len(s.Hostname()))}, []byte(s.Hostname())...)
 	}
 
-	ip := s.IP()
-	if ip == nil {
-		return 0, nil, 0, fmt.Errorf("invalid addr")
+	ip, err := s.IP()
+	if err != nil {
+		return 0, nil, 0, fmt.Errorf("invalid addr: %w", err)
 	}
 
 	if ip4 := ip.To4(); ip4 != nil {
