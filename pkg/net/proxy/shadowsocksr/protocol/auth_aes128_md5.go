@@ -190,9 +190,14 @@ func (a *authAES128) packAuthData(data []byte) {
 	a.wbuf.Write(a.uid[:])
 	a.wbuf.Write(encrypt[:16])
 	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-20:])[:4])
-	a.wbuf.ReadFrom(io.LimitReader(crand.Reader, int64(randLength)))
+	io.CopyN(a.wbuf, crand.Reader, int64(randLength))
 	a.wbuf.Write(data)
-	a.wbuf.Write(a.hmac(a.userKey, a.wbuf.Bytes()[a.wbuf.Len()-outLength+4:])[0:4])
+	start := a.wbuf.Len() - outLength + 4
+	if start < 0 {
+		log.Println("---------------start < 0, buf len: ", a.wbuf.Len(), "out length: ", outLength)
+		start = 0
+	}
+	a.wbuf.Write(a.hmac(a.userKey, a.wbuf.Bytes()[start:])[:4])
 }
 
 func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {

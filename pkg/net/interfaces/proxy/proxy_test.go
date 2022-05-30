@@ -14,7 +14,9 @@ func TestAddr(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log(addr.Hostname(), addr.IP(), addr.Port(), addr.Type())
+	ip, err := addr.IP()
+	assert.NoError(t, err)
+	t.Log(addr.Hostname(), ip, addr.Port(), addr.Type())
 
 	t.Log(addr.UDPAddr())
 
