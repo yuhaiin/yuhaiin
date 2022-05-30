@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	yerr "github.com/Asutorufa/yuhaiin/pkg/utils/error"
 )
 
 func Dial(host, port, user, password string) proxy.Proxy {
@@ -32,12 +33,12 @@ func ParseAddr(hostname proxy.Address) []byte {
 func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 	switch addr.Type() {
 	case proxy.IP:
-		if ip := addr.IP().To4(); ip != nil {
+		if ip := yerr.Must(addr.IP()).To4(); ip != nil {
 			buf.Write([]byte{0x01})
 			buf.Write(ip)
 		} else {
 			buf.Write([]byte{0x04})
-			buf.Write(addr.IP().To16())
+			buf.Write(yerr.Must(addr.IP()).To16())
 		}
 	case proxy.DOMAIN:
 		fallthrough

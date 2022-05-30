@@ -151,11 +151,13 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 		return d.processor(add).Do(b)
 	}
 
+	rCode := dnsmessage.RCodeSuccess
+
 	ips, err := d.processor(add).LookupIP(strings.TrimSuffix(q.Name.String(), "."))
 	if err != nil {
-		log.Println(err)
+		log.Printf("lookup domain %s failed: %v\n", q.Name.String(), err)
+		rCode = dnsmessage.RCodeNameError
 	}
-	log.Println("map", ips, "to", add)
 
 	resp := dnsmessage.Message{
 		Header: dnsmessage.Header{
@@ -163,7 +165,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 			Response:           true,
 			Authoritative:      true,
 			RecursionDesired:   true,
-			RCode:              dnsmessage.RCodeSuccess,
+			RCode:              rCode,
 			RecursionAvailable: true,
 		},
 		Questions: []dnsmessage.Question{

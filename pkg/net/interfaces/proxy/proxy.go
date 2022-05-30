@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -49,7 +50,7 @@ type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
 	// IP return net.IP, if address is ip else return nil
-	IP() net.IP
+	IP() (net.IP, error)
 	// Port return port of address
 	Port() Port
 	// Type return type of address, domain or ip
@@ -60,10 +61,10 @@ type Address interface {
 	WithResolver(dns.DNS)
 
 	Zone() string // IPv6 scoped addressing zone
-	UDPAddr() *net.UDPAddr
-	TCPAddr() *net.TCPAddr
+	UDPAddr() (*net.UDPAddr, error)
+	TCPAddr() (*net.TCPAddr, error)
 	// IPHost if address is ip, return host, else resolve domain to ip and return JoinHostPort(ip,port)
-	IPHost() string
+	IPHost() (string, error)
 }
 
 func ParseAddress(network, addr string) (ad Address, _ error) {
@@ -199,14 +200,13 @@ type DomainAddr struct {
 
 func (d DomainAddr) String() string   { return d.host }
 func (d DomainAddr) Hostname() string { return d.hostname }
-func (d DomainAddr) IP() net.IP {
+func (d DomainAddr) IP() (net.IP, error) {
 	ip, err := d.lookupIP()
 	if err != nil {
-		log.Printf("lookup ip failed: %v\n", err)
-		ip = net.IPv4zero
+		return nil, fmt.Errorf("resolve address %s failed: %w", d.hostname, err)
 	}
 
-	return ip
+	return ip, nil
 }
 func (d DomainAddr) Port() Port                     { return d.port }
 func (d DomainAddr) Network() string                { return d.network }
@@ -227,26 +227,30 @@ func (d DomainAddr) lookupIP() (net.IP, error) {
 	return ips[rand.Intn(len(ips))], nil
 }
 
-func (d DomainAddr) UDPAddr() *net.UDPAddr {
+func (d DomainAddr) UDPAddr() (*net.UDPAddr, error) {
 	ip, err := d.lookupIP()
 	if err != nil {
-		log.Printf("[WARN] resolve address %s failed: %v\n", d.hostname, err)
-		ip = net.IPv4zero
+		return nil, fmt.Errorf("resolve udp address %s failed: %w", d.hostname, err)
 	}
 
-	return &net.UDPAddr{IP: ip, Port: int(d.port.Port())}
+	return &net.UDPAddr{IP: ip, Port: int(d.port.Port())}, nil
 }
 
-func (d DomainAddr) TCPAddr() *net.TCPAddr {
+func (d DomainAddr) TCPAddr() (*net.TCPAddr, error) {
 	ip, err := d.lookupIP()
 	if err != nil {
-		log.Printf("[WARN] resolve address %s failed: %v\n", d.hostname, err)
-		ip = net.IPv4zero
+		return nil, fmt.Errorf("resolve tcp address %s failed: %w", d.hostname, err)
 	}
 
-	return &net.TCPAddr{IP: ip, Port: int(d.port.Port())}
+	return &net.TCPAddr{IP: ip, Port: int(d.port.Port())}, nil
 }
-func (d DomainAddr) IPHost() string { return net.JoinHostPort(d.IP().String(), d.port.String()) }
+func (d DomainAddr) IPHost() (string, error) {
+	ip, err := d.IP()
+	if err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(ip.String(), d.port.String()), nil
+}
 
 var _ Address = (*IPAddr)(nil)
 
@@ -256,32 +260,32 @@ type IPAddr struct {
 	zone string
 }
 
-func (i IPAddr) IP() net.IP   { return i.origin }
-func (i IPAddr) Type() Type   { return IP }
-func (i IPAddr) Zone() string { return i.zone }
-func (i IPAddr) UDPAddr() *net.UDPAddr {
-	return &net.UDPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}
+func (i IPAddr) IP() (net.IP, error) { return i.origin, nil }
+func (i IPAddr) Type() Type          { return IP }
+func (i IPAddr) Zone() string        { return i.zone }
+func (i IPAddr) UDPAddr() (*net.UDPAddr, error) {
+	return &net.UDPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}, nil
 }
-func (i IPAddr) TCPAddr() *net.TCPAddr {
-	return &net.TCPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}
+func (i IPAddr) TCPAddr() (*net.TCPAddr, error) {
+	return &net.TCPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}, nil
 }
-func (i IPAddr) IPHost() string { return i.String() }
+func (i IPAddr) IPHost() (string, error) { return i.String(), nil }
 
 var EmptyAddr = &emptyAddr{}
 
 type emptyAddr struct{}
 
-func (d emptyAddr) String() string        { return "" }
-func (d emptyAddr) Hostname() string      { return "" }
-func (d emptyAddr) IP() net.IP            { return net.IPv4zero }
-func (d emptyAddr) Port() Port            { return port{0, ""} }
-func (d emptyAddr) Network() string       { return "" }
-func (d emptyAddr) Type() Type            { return EMPTY }
-func (d emptyAddr) WithResolver(dns.DNS)  {}
-func (d emptyAddr) Zone() string          { return "" }
-func (d emptyAddr) UDPAddr() *net.UDPAddr { return &net.UDPAddr{IP: net.IPv4zero} }
-func (d emptyAddr) TCPAddr() *net.TCPAddr { return &net.TCPAddr{IP: net.IPv4zero} }
-func (d emptyAddr) IPHost() string        { return "" }
+func (d emptyAddr) String() string                 { return "" }
+func (d emptyAddr) Hostname() string               { return "" }
+func (d emptyAddr) IP() (net.IP, error)            { return nil, errors.New("empty") }
+func (d emptyAddr) Port() Port                     { return port{0, ""} }
+func (d emptyAddr) Network() string                { return "" }
+func (d emptyAddr) Type() Type                     { return EMPTY }
+func (d emptyAddr) WithResolver(dns.DNS)           {}
+func (d emptyAddr) Zone() string                   { return "" }
+func (d emptyAddr) UDPAddr() (*net.UDPAddr, error) { return nil, errors.New("empty") }
+func (d emptyAddr) TCPAddr() (*net.TCPAddr, error) { return nil, errors.New("empty") }
+func (d emptyAddr) IPHost() (string, error)        { return "", errors.New("empty") }
 
 type port struct {
 	n   uint16

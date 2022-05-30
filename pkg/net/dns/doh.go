@@ -3,7 +3,6 @@ package dns
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -23,63 +22,61 @@ import (
 
 var _ dns.DNS = (*doh)(nil)
 
-type doh struct {
-	*client
-	httpClient *http.Client
-}
+type doh struct{ *client }
 
 func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
-	dns := &doh{}
-
-	url, addr := dns.getUrlAndHost(config.Host)
+	url, addr, err := getUrlAndHost(config.Host, config.Servername)
+	if err != nil {
+		return dns.NewErrorDNS(err)
+	}
 
 	if p == nil {
 		p = simple.NewSimple(addr, nil)
 	}
 
-	dns.httpClient = &http.Client{
+	httpClient := &http.Client{
 		Transport: &http.Transport{
-			//Proxy: http.ProxyFromEnvironment,
 			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return p.Conn(addr)
 			},
-			TLSClientConfig: &tls.Config{ServerName: config.Servername},
 		},
 		Timeout: 4 * time.Second,
 	}
 
-	dns.client = NewClient(config, func(b []byte) ([]byte, error) {
-		req, err := http.NewRequest("POST", url, bytes.NewReader(b))
-		if err != nil {
-			return nil, fmt.Errorf("doh new request failed: %v", err)
-		}
-		req.Header.Set("Content-Type", "application/dns-message")
-		req.Header.Set("User-Agent", string([]byte{' '}))
-		resp, err := dns.httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("doh post failed: %v", err)
-		}
-		defer resp.Body.Close()
-		return ioutil.ReadAll(resp.Body)
+	return &doh{
+		client: NewClient(config, func(b []byte) ([]byte, error) {
+			req, err := http.NewRequest("POST", url, bytes.NewReader(b))
+			if err != nil {
+				return nil, fmt.Errorf("doh new request failed: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/dns-message")
+			req.Header.Set("User-Agent", string([]byte{' '}))
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				return nil, fmt.Errorf("doh post failed: %v", err)
+			}
 
-		/*
-			* Get
-			urls := fmt.Sprintf(
-				"%s?dns=%s",
-				url,
-				strings.TrimSuffix(base64.URLEncoding.EncodeToString(dReq), "="),
-			)
-			resp, err := httpClient.Get(urls)
-		*/
-	})
-	return dns
+			defer resp.Body.Close()
+			return ioutil.ReadAll(resp.Body)
+
+			/*
+				* Get
+				urls := fmt.Sprintf(
+					"%s?dns=%s",
+					url,
+					strings.TrimSuffix(base64.URLEncoding.EncodeToString(dReq), "="),
+				)
+				resp, err := httpClient.Get(urls)
+			*/
+		}),
+	}
 }
 
 func (d *doh) Close() error { return nil }
 
 // https://tools.ietf.org/html/rfc8484
-func (d *doh) getUrlAndHost(host string) (_ string, addr proxy.Address) {
+func getUrlAndHost(host, servername string) (_ string, addr proxy.Address, _ error) {
 	var urls string
 	if !strings.HasPrefix(host, "https://") {
 		urls = "https://" + host
@@ -87,24 +84,24 @@ func (d *doh) getUrlAndHost(host string) (_ string, addr proxy.Address) {
 		urls = host
 	}
 
-	var hostname, port string
 	uri, err := url.Parse(urls)
 	if err != nil {
-		hostname = host
+		return "", nil, fmt.Errorf("doh parse url failed: %v", err)
+	}
+
+	hostname, port := uri.Hostname(), uri.Port()
+	if port == "" {
 		port = "443"
-	} else {
-		hostname = uri.Hostname()
-		port = uri.Port()
-		if port == "" {
-			port = "443"
-		}
-		if uri.Path == "" {
-			urls += "/dns-query"
-		}
+	}
+	if uri.Path == "" {
+		uri.Path = "/dns-query"
+	}
+	if servername != "" {
+		uri.Host = net.JoinHostPort(servername, port)
 	}
 
 	por, _ := strconv.ParseUint(port, 10, 16)
-	return urls, proxy.ParseAddressSplit("tcp", hostname, uint16(por))
+	return uri.String(), proxy.ParseAddressSplit("tcp", hostname, uint16(por)), nil
 }
 
 func (d *doh) Resolver(f func(io.Reader) (io.ReadCloser, error)) *net.Resolver {
