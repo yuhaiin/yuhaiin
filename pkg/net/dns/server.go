@@ -146,17 +146,10 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 
 	add := proxy.ParseAddressSplit("", strings.TrimSuffix(q.Name.String(), "."), 0)
 
-	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA {
-		log.Println(q.Type, "not a or aaaa")
+	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
+		q.Type != dnsmessage.TypePTR {
+		log.Println(q.Type, "not a, aaaa or ptr")
 		return d.processor(add).Do(b)
-	}
-
-	rCode := dnsmessage.RCodeSuccess
-
-	ips, err := d.processor(add).LookupIP(strings.TrimSuffix(q.Name.String(), "."))
-	if err != nil {
-		log.Printf("lookup domain %s failed: %v\n", q.Name.String(), err)
-		rCode = dnsmessage.RCodeNameError
 	}
 
 	resp := dnsmessage.Message{
@@ -165,16 +158,30 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 			Response:           true,
 			Authoritative:      true,
 			RecursionDesired:   true,
-			RCode:              rCode,
+			RCode:              dnsmessage.RCodeSuccess,
 			RecursionAvailable: true,
 		},
 		Questions: []dnsmessage.Question{
 			{
 				Name:  q.Name,
-				Type:  dnsmessage.TypeA,
+				Type:  q.Type,
 				Class: dnsmessage.ClassINET,
 			},
 		},
+	}
+
+	processor := d.processor(add)
+
+	// PTR
+	if q.Type == dnsmessage.TypePTR {
+		return d.handlePtr(b, resp, processor, q.Name)
+	}
+
+	// A or AAAA
+	ips, err := processor.LookupIP(strings.TrimSuffix(q.Name.String(), "."))
+	if err != nil {
+		log.Printf("lookup domain %s failed: %v\n", q.Name.String(), err)
+		resp.RCode = dnsmessage.RCodeNameError
 	}
 
 	for _, ip := range ips {
@@ -191,4 +198,29 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	}
 
 	return resp.Pack()
+}
+
+func (d *dnsServer) handlePtr(raw []byte, msg dnsmessage.Message,
+	processor dns.DNS, name dnsmessage.Name) ([]byte, error) {
+	if ff, ok := processor.(interface{ LookupPtr(string) (string, error) }); ok {
+		r, err := ff.LookupPtr(name.String())
+		if err == nil {
+			msg.Answers = []dnsmessage.Resource{
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  name,
+						Class: dnsmessage.ClassINET,
+						TTL:   600,
+					},
+					Body: &dnsmessage.PTRResource{
+						PTR: dnsmessage.MustNewName(r + "."),
+					},
+				},
+			}
+
+			return msg.Pack()
+		}
+	}
+
+	return processor.Do(raw)
 }

@@ -428,7 +428,7 @@ func (v *vmessConn) ReadFrom(r io.Reader) (int64, error) {
 }
 
 func (v *vmessConn) WriteTo(w io.Writer) (int64, error) {
-	buf := utils.GetBytes(2048)
+	buf := utils.GetBytes(utils.DefaultSize)
 	defer utils.PutBytes(buf)
 	return io.CopyBuffer(w, v.Conn, buf)
 }

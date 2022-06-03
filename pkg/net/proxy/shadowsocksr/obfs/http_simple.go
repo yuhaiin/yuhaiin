@@ -66,7 +66,7 @@ func newHttpSimple(conn net.Conn, info ssr.ObfsInfo) IObfs {
 		Conn:           conn,
 		ObfsInfo:       info,
 		param:          simpleParam{},
-		wbuf:           utils.GetBytes(2048),
+		wbuf:           utils.GetBytes(utils.DefaultSize),
 	}
 
 	t.param.parse(t.Param)

@@ -156,7 +156,7 @@ type streamConn struct {
 }
 
 func newStreamConn(c net.Conn, ciph CipherCreator, key []byte) *streamConn {
-	return &streamConn{Conn: c, key: key, cipher: ciph, buf: utils.GetBytes(2048)}
+	return &streamConn{Conn: c, key: key, cipher: ciph, buf: utils.GetBytes(utils.DefaultSize)}
 }
 
 func (c *streamConn) WriteIV() []byte {
