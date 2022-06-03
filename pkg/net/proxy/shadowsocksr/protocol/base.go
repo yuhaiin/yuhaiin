@@ -144,7 +144,7 @@ func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 	return &protocolConn{
 		Conn:                c,
 		protocol:            p,
-		readBuf:             utils.GetBytes(2048),
+		readBuf:             utils.GetBytes(utils.DefaultSize),
 		decryptedBuf:        utils.GetBuffer(),
 		underPostdecryptBuf: utils.GetBuffer(),
 	}

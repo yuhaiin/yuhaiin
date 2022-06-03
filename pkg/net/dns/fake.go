@@ -1,10 +1,12 @@
 package dns
 
 import (
+	"fmt"
 	"log"
 	"math"
 	"math/big"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,6 +86,38 @@ func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
 	ip := f.pool.GetFakeIPForDomain(domain)
 	log.Println("map", ip, "to", domain)
 	return []net.IP{net.ParseIP(ip).To4()}, nil
+}
+
+func (f *FakeDNS) LookupPtr(name string) (string, error) {
+	var ip string
+
+	if i := strings.Index(name, ".in-addr.arpa."); i != -1 {
+		p := strings.Split(name[:i], ".")
+		for i := 3; i >= 0; i-- {
+			ip += p[i]
+			if i != 0 {
+				ip += "."
+			}
+		}
+	} else if i := strings.Index(name, ".ip6.arpa."); i != -1 {
+		p := strings.Split(name[:i], ".")
+		count := 0
+		for i := 31; i >= 0; i-- {
+			ip += p[i]
+			count++
+			if count == 4 && i != 0 {
+				ip += ":"
+				count = 0
+			}
+		}
+	}
+
+	r, ok := f.pool.GetDomainFromIP(ip)
+	if !ok {
+		return "", fmt.Errorf("not found %s[%s] ptr", ip, name)
+	}
+
+	return r, nil
 }
 
 func (f *FakeDNS) Do(b []byte) ([]byte, error) { return f.upStream.Do(b) }
