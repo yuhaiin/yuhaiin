@@ -36,7 +36,11 @@ func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			ForceAttemptHTTP2: true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			ForceAttemptHTTP2:     true,
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return p.Conn(addr)
 			},

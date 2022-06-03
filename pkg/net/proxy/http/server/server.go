@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -9,8 +10,8 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
@@ -20,14 +21,36 @@ import (
 
 func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
-		err := handle(username, password, conn, dialer)
+		dialer := func(addr string) (net.Conn, error) {
+			address, err := proxy.ParseAddress("tcp", addr)
+			if err != nil {
+				return nil, fmt.Errorf("parse address failed: %w", err)
+			}
+			return dialer.Conn(address)
+		}
+		client := &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return dialer(addr)
+				},
+			},
+
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		err := handle(username, password, conn, dialer, client)
 		if err != nil && !errors.Is(err, io.EOF) {
 			log.Println("http server handle failed:", err)
 		}
 	}
 }
 
-func handle(user, key string, src net.Conn, f proxy.StreamProxy) error {
+func handle(user, key string, src net.Conn, dialer func(string) (net.Conn, error), client *http.Client) error {
 	/*
 		use golang http
 	*/
@@ -45,44 +68,15 @@ _start:
 		return fmt.Errorf("http verify user pass failed: %w", err)
 	}
 
-	host := req.Host
-	if _, p, _ := net.SplitHostPort(host); p == "" {
-		log.Println(req.Host, req.URL, req.RemoteAddr)
-		if strings.EqualFold(req.URL.Scheme, "https") {
-			host = net.JoinHostPort(host, "443")
-		} else {
-			host = net.JoinHostPort(host, "80")
-		}
-	}
-
-	address, err := proxy.ParseAddress("tcp", host)
-	if err != nil {
-		return fmt.Errorf("parse address failed: %w", err)
-	}
-	dstc, err := f.Conn(address)
-	if err != nil {
-		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-		// _, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
-		er := resp503(src)
-		if er != nil {
-			err = fmt.Errorf("%v\nresp 503 failed: %w", err, er)
-		}
-		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
-		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
-		return fmt.Errorf("get conn [%s] from proxy failed: %w", host, err)
-	}
-
 	if req.Method == http.MethodConnect {
-		return connect(src, dstc)
+		return connect(src, dialer, req)
 	}
 
 	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"
 
-	err = normal(src, dstc, req, keepAlive)
-	if err != nil {
-		return fmt.Errorf("http normal proxy failed: %w", err)
+	if err = normal(src, client, req, keepAlive); err != nil {
+		// only have resp write error
+		return nil
 	}
 
 	if keepAlive {
@@ -128,9 +122,29 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 	return cs[:s], cs[s+1:], true
 }
 
-func connect(client net.Conn, dst net.Conn) error {
+func connect(client net.Conn, f func(string) (net.Conn, error), req *http.Request) error {
+	host := req.URL.Host
+	if req.URL.Port() == "" {
+		host = net.JoinHostPort(host, "80")
+	}
+
+	dst, err := f(host)
+	if err != nil {
+		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
+		er := resp503(client)
+		if er != nil {
+			err = fmt.Errorf("%v\nresp 503 failed: %w", err, er)
+		}
+		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
+		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
+		return fmt.Errorf("get conn [%s] from proxy failed: %w", host, err)
+	}
 	defer dst.Close()
-	_, err := client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+
+	_, err = client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 	if err != nil {
 		return fmt.Errorf("write to client failed: %w", err)
 	}
@@ -138,27 +152,15 @@ func connect(client net.Conn, dst net.Conn) error {
 	return nil
 }
 
-func normal(src, dst net.Conn, req *http.Request, keepAlive bool) error {
-	defer dst.Close()
-	if req.URL.Host == "" {
-		return resp400(dst)
-	}
-
+func normal(src net.Conn, client *http.Client, req *http.Request, keepAlive bool) error {
 	modifyRequest(req)
-	err := req.Write(dst)
-	if err != nil {
-		return fmt.Errorf("req write failed: %w", err)
-	}
 
-	resp, err := http.ReadResponse(bufio.NewReader(dst), req)
+	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("http read response failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	err = modifyResponse(resp, keepAlive)
-	if err != nil {
-		return fmt.Errorf("modify response failed: %w", err)
+		log.Printf("http client do failed: %v\n", err)
+		resp = resp502(src)
+	} else {
+		modifyResponse(resp, keepAlive)
 	}
 
 	err = resp.Write(src)
@@ -184,30 +186,16 @@ func modifyRequest(req *http.Request) {
 	removeHeader(req.Header)
 }
 
-func modifyResponse(resp *http.Response, keepAlive bool) error {
+func modifyResponse(resp *http.Response, keepAlive bool) {
 	removeHeader(resp.Header)
-	if resp.ContentLength >= 0 {
-		resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
-	} else {
-		resp.Header.Del("Content-Length")
-	}
 
-	te := ""
-	if len(resp.TransferEncoding) > 0 {
-		if len(resp.TransferEncoding) > 1 {
-			// ErrUnsupportedTransferEncoding
-			return errors.New("ErrUnsupportedTransferEncoding")
-		}
-		te = resp.TransferEncoding[0]
-	}
 	resp.Close = true
-	if keepAlive && (resp.ContentLength >= 0 || te == "chunked") {
+	if keepAlive && (resp.ContentLength >= 0) {
 		resp.Header.Set("Proxy-Connection", "keep-alive")
 		resp.Header.Set("Connection", "Keep-Alive")
 		resp.Header.Set("Keep-Alive", "timeout=4")
 		resp.Close = false
 	}
-	return nil
 }
 
 // https://github.com/go-httpproxy
@@ -245,6 +233,24 @@ func resp400(dst net.Conn) error {
 	response.Header.Set("Proxy-Connection", "close")
 	response.Header.Set("Connection", "close")
 	return response.Write(dst)
+}
+
+func resp502(dst net.Conn) *http.Response {
+	// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
+	response := &http.Response{
+		Status:        "Bad Request",
+		StatusCode:    http.StatusBadGateway,
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        http.Header(make(map[string][]string)),
+		Body:          nil,
+		ContentLength: 0,
+		Close:         true,
+	}
+	response.Header.Set("Proxy-Connection", "close")
+	response.Header.Set("Connection", "close")
+	return response
 }
 
 func removeHeader(h http.Header) {
