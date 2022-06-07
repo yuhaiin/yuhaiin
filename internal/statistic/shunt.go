@@ -154,12 +154,23 @@ func (s *shunt) refresh() error {
 	return nil
 }
 
-func (s *shunt) match(addr proxy.Address) MODE {
+func (s *shunt) match(addr proxy.Address, resolveDomain bool) MODE {
 	if !s.config.Enabled {
 		return PROXY
 	}
 
-	m, _ := s.mapper.Search(addr)
+	var m *MODE
+	if resolveDomain {
+		m, _ = s.mapper.Search(addr)
+	} else {
+		r := s.mapper
+		if z, ok := s.mapper.(interface {
+			Domain() imapper.Mapper[string, proxy.Address, *MODE]
+		}); ok {
+			r = z.Domain()
+		}
+		m, _ = r.Search(addr)
+	}
 	if m == nil {
 		return PROXY
 	}
@@ -191,7 +202,7 @@ func (s *shunt) GetDialer(m MODE) proxy.Proxy {
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
-	m := s.match(host)
+	m := s.match(host, true)
 	dialer, ok := s.dialers[m]
 	if !ok {
 		return nil, fmt.Errorf("not found dialer for %s", m)
@@ -212,7 +223,7 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 }
 
 func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	m := s.match(host)
+	m := s.match(host, true)
 	dialer, ok := s.dialers[m]
 	if !ok {
 		return nil, fmt.Errorf("not found dialer for %s", m)
@@ -233,7 +244,7 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 }
 
 func (s *shunt) GetResolver(host proxy.Address) (dns.DNS, MODE) {
-	m := s.match(host)
+	m := s.match(host, false)
 	if s.resolver != nil {
 		d, ok := s.resolver[m]
 		if ok {

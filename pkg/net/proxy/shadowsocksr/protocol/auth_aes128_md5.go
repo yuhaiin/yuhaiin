@@ -87,7 +87,7 @@ func (a *authAES128) packData(data []byte, fullDataSize int) {
 	copy(key, a.userKey)
 	binary.LittleEndian.PutUint32(key[len(key)-4:], a.packID)
 
-	a.packID++
+	a.packID = (a.packID + 1) & 0xFFFFFFFF
 
 	// 0~1, out length
 	binary.Write(a.wbuf, binary.LittleEndian, uint16(outLength))
@@ -302,7 +302,7 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 			return nil, 0, ssr.ErrAuthAES128IncorrectChecksum
 		}
 
-		a.recvID++
+		a.recvID = (a.recvID + 1) & 0xFFFFFFFF
 
 		pos := int(data[4])
 		if pos < 255 {

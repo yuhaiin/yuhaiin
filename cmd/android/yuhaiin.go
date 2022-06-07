@@ -13,8 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	aconfig "github.com/Asutorufa/yuhaiin/cmd/android/config"
-	"github.com/Asutorufa/yuhaiin/internal/config"
+	iconfig "github.com/Asutorufa/yuhaiin/internal/config"
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
@@ -30,16 +29,48 @@ type App struct {
 	closers []func() error
 }
 
-func (a *App) Start(
-	host, savepath, dnsServer, socks5server, httpserver string,
-	fakedns bool, fakednsIpRange string,
-	saveLogcat bool,
-	block, proxy, direct string,
-) error {
-	pc := pathConfig(savepath)
+type Opts struct {
+	Host       string
+	Savepath   string
+	Socks5     string
+	Http       string
+	SaveLogcat bool
+	Block      string
+	Proxy      string
+	Direct     string
+	DNS        *DNSSetting
+}
+
+type DNSSetting struct {
+	Server         string
+	Fakedns        bool
+	FakednsIpRange string
+	Remote         *DNS
+	Local          *DNS
+	Bootstrap      *DNS
+}
+
+type DNS struct {
+	Host string
+	// Type
+	// 0: reserve
+	// 1: udp
+	// 2: tcp
+	// 3: doh
+	// 4: dot
+	// 5: doq
+	// 6: doh3
+	Type          int32
+	Proxy         bool
+	Subnet        string
+	TlsServername string
+}
+
+func (a *App) Start(opt *Opts) error {
+	pc := pathConfig(opt.Savepath)
 
 	writes := []io.Writer{os.Stdout}
-	if saveLogcat {
+	if opt.SaveLogcat {
 		f := logw.NewLogWriter(pc.logfile)
 		a.closers = append(a.closers, f.Close)
 		writes = append(writes, f)
@@ -48,11 +79,11 @@ func (a *App) Start(
 	log.SetOutput(io.MultiWriter(writes...))
 
 	log.Println("\n\n\nsave config at:", pc.dir)
-	log.Println("gRPC and http listen at:", host)
+	log.Println("gRPC and http listen at:", opt.Host)
 
 	var err error
 	// create listener
-	lis, err := net.Listen("tcp", host)
+	lis, err := net.Listen("tcp", opt.Host)
 	if err != nil {
 		return err
 	}
@@ -63,63 +94,28 @@ func (a *App) Start(
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() bool { return (<-signChannel).String() != "" && a != nil && a.Stop() != nil }()
 
-	setting := config.NewConfig(pc.config)
-	settings, err := setting.Load(context.TODO(), &emptypb.Empty{})
-	if err != nil {
-		return err
-	}
-
-	if settings.Dns == nil {
-		settings.Dns = &protoconfig.DnsSetting{}
-	}
-
-	settings.Dns.Server = dnsServer
-	settings.Dns.Fakedns = fakedns
-
-	settings.Server.Servers = map[string]*protoconfig.ServerProtocol{
-		"socks5": {
-			Protocol: &protoconfig.ServerProtocol_Socks5{
-				Socks5: &protoconfig.Socks5{
-					Host: socks5server,
-				},
-			},
-		},
-		"http": {
-			Protocol: &protoconfig.ServerProtocol_Http{
-				Http: &protoconfig.Http{
-					Host: httpserver,
-				},
-			},
-		},
-	}
-
-	wrapSetting := aconfig.NewWrapSetting(setting, settings)
+	fakeSetting := fakeSetting(opt, pc.config)
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
 	nodes := node.NewNodes(pc.node)
-	// grpcserver.RegisterService(&protonode.NodeManager_ServiceDesc, nodes)
 
-	_, ipRange, err := net.ParseCIDR(fakednsIpRange)
+	_, ipRange, err := net.ParseCIDR(opt.DNS.FakednsIpRange)
 	if err != nil {
 		return err
 	}
 	app := statistic.NewRouter(nodes, ipRange)
 	a.closers = append(a.closers, app.Close)
-	setting.AddObserver(app)
-	insert(app.Insert, block, &statistic.BLOCK)
-	insert(app.Insert, proxy, &statistic.PROXY)
-	insert(app.Insert, direct, &statistic.DIRECT)
+	fakeSetting.AddObserver(app)
+	insert(app.Insert, opt.Block, &statistic.BLOCK)
+	insert(app.Insert, opt.Proxy, &statistic.PROXY)
+	insert(app.Insert, opt.Direct, &statistic.DIRECT)
 
 	listener := server.NewListener(app.Proxy())
-	setting.AddObserver(listener)
+	fakeSetting.AddObserver(listener)
 	a.closers = append(a.closers, listener.Close)
 
-	if _, err = setting.Save(context.TODO(), settings); err != nil {
-		return err
-	}
-
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodes, app.Statistic(), wrapSetting)
+	simplehttp.Httpserver(mux, nodes, app.Statistic(), fakeSetting)
 	go http.Serve(lis, mux)
 	return nil
 }
@@ -154,4 +150,84 @@ func pathConfig(configPath string) struct{ dir, lockfile, node, config, logfile 
 	}
 
 	return config
+}
+
+func fakeSetting(opt *Opts, path string) *fakeSettings {
+	settings := &protoconfig.Setting{
+		Dns: &protoconfig.DnsSetting{
+			Server:  opt.DNS.Server,
+			Fakedns: opt.DNS.Fakedns,
+			Remote: &protoconfig.Dns{
+				Host:          opt.DNS.Remote.Host,
+				Type:          protoconfig.DnsDnsType(opt.DNS.Remote.Type),
+				Proxy:         opt.DNS.Remote.Proxy,
+				Subnet:        opt.DNS.Remote.Subnet,
+				TlsServername: opt.DNS.Remote.TlsServername,
+			},
+			Local: &protoconfig.Dns{
+				Host:          opt.DNS.Local.Host,
+				Type:          protoconfig.DnsDnsType(opt.DNS.Local.Type),
+				Proxy:         opt.DNS.Local.Proxy,
+				Subnet:        opt.DNS.Local.Subnet,
+				TlsServername: opt.DNS.Local.TlsServername,
+			},
+			Bootstrap: &protoconfig.Dns{
+				Host:          opt.DNS.Bootstrap.Host,
+				Type:          protoconfig.DnsDnsType(opt.DNS.Bootstrap.Type),
+				Proxy:         opt.DNS.Bootstrap.Proxy,
+				Subnet:        opt.DNS.Bootstrap.Subnet,
+				TlsServername: opt.DNS.Bootstrap.TlsServername,
+			},
+		},
+		SystemProxy: &protoconfig.SystemProxy{},
+		Server: &protoconfig.Server{
+			Servers: map[string]*protoconfig.ServerProtocol{
+				"socks5": {
+					Protocol: &protoconfig.ServerProtocol_Socks5{
+						Socks5: &protoconfig.Socks5{
+							Host: opt.Socks5,
+						},
+					},
+				},
+				"http": {
+					Protocol: &protoconfig.ServerProtocol_Http{
+						Http: &protoconfig.Http{
+							Host: opt.Http,
+						},
+					},
+				},
+			},
+		},
+
+		Bypass: &protoconfig.Bypass{
+			Enabled:    true,
+			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+		},
+	}
+
+	return newFakeSetting(settings)
+}
+
+var _ protoconfig.ConfigDaoServer = (*fakeSettings)(nil)
+
+type fakeSettings struct {
+	protoconfig.UnimplementedConfigDaoServer
+	setting *protoconfig.Setting
+}
+
+func newFakeSetting(setting *protoconfig.Setting) *fakeSettings {
+	return &fakeSettings{setting: setting}
+}
+
+func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*protoconfig.Setting, error) {
+	return w.setting, nil
+}
+func (w *fakeSettings) Save(ctx context.Context, in *protoconfig.Setting) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
+}
+
+func (w *fakeSettings) AddObserver(o iconfig.Observer) {
+	if o != nil {
+		o.Update(w.setting)
+	}
 }
