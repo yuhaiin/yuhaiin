@@ -35,7 +35,7 @@ func (x *combine[T]) Search(str proxy.Address) (mark T, ok bool) {
 		return x.cidr.SearchIP(yerr.Must(str.IP()))
 	}
 
-	if mark, ok = x.domain.Search(str.Hostname()); ok {
+	if mark, ok = x.domain.Search(str); ok {
 		return
 	}
 
@@ -50,6 +50,8 @@ func (x *combine[T]) Search(str proxy.Address) (mark T, ok bool) {
 	return
 }
 
+func (x *combine[T]) Domain() mapper.Mapper[string, proxy.Address, T] { return x.domain }
+
 func (x *combine[T]) Clear() error {
 	x.cidr = NewCidrMapper[T]()
 	x.domain = NewDomainMapper[T]()
@@ -58,9 +60,5 @@ func (x *combine[T]) Clear() error {
 }
 
 func NewMapper[T any](dns dns.DNS) mapper.Mapper[string, proxy.Address, T] {
-	return &combine[T]{
-		cidr:   NewCidrMapper[T](),
-		domain: NewDomainMapper[T](),
-		dns:    dns,
-	}
+	return &combine[T]{cidr: NewCidrMapper[T](), domain: NewDomainMapper[T](), dns: dns}
 }

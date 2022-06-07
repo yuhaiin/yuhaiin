@@ -3,6 +3,8 @@ package mapper
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
 var (
@@ -132,16 +134,20 @@ func (d *domain[T]) Insert(domain string, mark T) {
 	}
 }
 
-func (d *domain[T]) Search(domain string) (mark T, ok bool) {
-	mark, ok = s(d.Root, domain)
+func (d *domain[T]) Search(domain proxy.Address) (mark T, ok bool) {
+	mark, ok = s(d.Root, domain.Hostname())
 	if ok {
 		return
 	}
-	return s(d.WildcardRoot, domain)
+	return s(d.WildcardRoot, domain.Hostname())
 }
 
 func (d *domain[T]) Marshal() ([]byte, error) {
 	return json.MarshalIndent(d, "", "  ")
+}
+
+func (d *domain[T]) Clear() error {
+	return nil
 }
 
 func NewDomainMapper[T any]() *domain[T] {
