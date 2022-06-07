@@ -3,6 +3,7 @@ package mapper
 import (
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -15,7 +16,7 @@ func BenchmarkDomainMatcher_Search(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			root.Search("www.baidu.sub.com.cn.net")
+			root.Search(proxy.ParseAddressSplit("", "www.baidu.sub.com.cn.net", 0))
 		}
 	})
 }
@@ -36,7 +37,7 @@ func TestDomainMatcherSearch(t *testing.T) {
 	root.Insert("*.miui.com", "miui")
 
 	search := func(s string) string {
-		res, _ := root.Search(s)
+		res, _ := root.Search(proxy.ParseAddressSplit("", s, 0))
 		return res
 	}
 	assert.Equal(t, "test_baidu", search("www.baidu.com"))
