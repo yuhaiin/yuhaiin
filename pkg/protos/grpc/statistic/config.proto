@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package yuhaiin.protos.grpc.statistic;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic";
+
+import "google/protobuf/empty.proto";
+import "statistic/config.proto";
+
+service connections {
+  rpc conns(google.protobuf.Empty) returns (yuhaiin.statistic.conn_resp);
+  rpc close_conn(yuhaiin.statistic.close_conns_req)
+      returns (google.protobuf.Empty);
+  rpc statistic(google.protobuf.Empty)
+      returns (stream yuhaiin.statistic.rate_resp);
+}

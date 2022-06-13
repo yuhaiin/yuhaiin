@@ -23,8 +23,9 @@ import (
 	logw "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	protonode "github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	protosttc "github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/error"
 	"golang.org/x/net/http2"
@@ -67,17 +68,17 @@ func main() {
 	grpcserver := grpc.NewServer()
 
 	setting := config.NewConfig(pc.config)
-	grpcserver.RegisterService(&protoconfig.ConfigDao_ServiceDesc, setting)
+	grpcserver.RegisterService(&grpcconfig.ConfigDao_ServiceDesc, setting)
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
 	nodes := node.NewNodes(pc.node)
-	grpcserver.RegisterService(&protonode.NodeManager_ServiceDesc, nodes)
+	grpcserver.RegisterService(&grpcnode.NodeManager_ServiceDesc, nodes)
 
 	_, ipRange, _ := net.ParseCIDR("192.0.2.1/24")
 	app := statistic.NewRouter(nodes, ipRange)
 	defer app.Close()
 	setting.AddObserver(app)
-	grpcserver.RegisterService(&protosttc.Connections_ServiceDesc, app.Statistic())
+	grpcserver.RegisterService(&grpcsts.Connections_ServiceDesc, app.Statistic())
 
 	listener := server.NewListener(app.Proxy())
 	setting.AddObserver(listener)

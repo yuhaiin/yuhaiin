@@ -2,12 +2,13 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.20.1
-// source: config/config.proto
+// source: grpc/config/config.proto
 
 package config
 
 import (
 	context "context"
+	config "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -23,8 +24,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConfigDaoClient interface {
-	Load(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Setting, error)
-	Save(ctx context.Context, in *Setting, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Load(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*config.Setting, error)
+	Save(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type configDaoClient struct {
@@ -35,18 +36,18 @@ func NewConfigDaoClient(cc grpc.ClientConnInterface) ConfigDaoClient {
 	return &configDaoClient{cc}
 }
 
-func (c *configDaoClient) Load(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Setting, error) {
-	out := new(Setting)
-	err := c.cc.Invoke(ctx, "/yuhaiin.config.config_dao/load", in, out, opts...)
+func (c *configDaoClient) Load(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*config.Setting, error) {
+	out := new(config.Setting)
+	err := c.cc.Invoke(ctx, "/yuhaiin.protos.grpc.config.config_dao/load", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *configDaoClient) Save(ctx context.Context, in *Setting, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *configDaoClient) Save(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.config.config_dao/save", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.protos.grpc.config.config_dao/save", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +58,8 @@ func (c *configDaoClient) Save(ctx context.Context, in *Setting, opts ...grpc.Ca
 // All implementations must embed UnimplementedConfigDaoServer
 // for forward compatibility
 type ConfigDaoServer interface {
-	Load(context.Context, *emptypb.Empty) (*Setting, error)
-	Save(context.Context, *Setting) (*emptypb.Empty, error)
+	Load(context.Context, *emptypb.Empty) (*config.Setting, error)
+	Save(context.Context, *config.Setting) (*emptypb.Empty, error)
 	mustEmbedUnimplementedConfigDaoServer()
 }
 
@@ -66,10 +67,10 @@ type ConfigDaoServer interface {
 type UnimplementedConfigDaoServer struct {
 }
 
-func (UnimplementedConfigDaoServer) Load(context.Context, *emptypb.Empty) (*Setting, error) {
+func (UnimplementedConfigDaoServer) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Load not implemented")
 }
-func (UnimplementedConfigDaoServer) Save(context.Context, *Setting) (*emptypb.Empty, error) {
+func (UnimplementedConfigDaoServer) Save(context.Context, *config.Setting) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Save not implemented")
 }
 func (UnimplementedConfigDaoServer) mustEmbedUnimplementedConfigDaoServer() {}
@@ -95,7 +96,7 @@ func _ConfigDao_Load_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.config.config_dao/load",
+		FullMethod: "/yuhaiin.protos.grpc.config.config_dao/load",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConfigDaoServer).Load(ctx, req.(*emptypb.Empty))
@@ -104,7 +105,7 @@ func _ConfigDao_Load_Handler(srv interface{}, ctx context.Context, dec func(inte
 }
 
 func _ConfigDao_Save_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Setting)
+	in := new(config.Setting)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -113,10 +114,10 @@ func _ConfigDao_Save_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.config.config_dao/save",
+		FullMethod: "/yuhaiin.protos.grpc.config.config_dao/save",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConfigDaoServer).Save(ctx, req.(*Setting))
+		return srv.(ConfigDaoServer).Save(ctx, req.(*config.Setting))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -125,7 +126,7 @@ func _ConfigDao_Save_Handler(srv interface{}, ctx context.Context, dec func(inte
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ConfigDao_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "yuhaiin.config.config_dao",
+	ServiceName: "yuhaiin.protos.grpc.config.config_dao",
 	HandlerType: (*ConfigDaoServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -138,5 +139,5 @@ var ConfigDao_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "config/config.proto",
+	Metadata: "grpc/config/config.proto",
 }

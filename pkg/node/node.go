@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -30,7 +31,7 @@ import (
 var _ proxy.Proxy = (*Nodes)(nil)
 
 type Nodes struct {
-	node.UnimplementedNodeManagerServer
+	grpcnode.UnimplementedNodeManagerServer
 
 	savaPath       string
 	lock, filelock sync.RWMutex

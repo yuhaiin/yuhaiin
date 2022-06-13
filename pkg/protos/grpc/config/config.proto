@@ -1,0 +1,12 @@
+syntax = "proto3";
+package yuhaiin.protos.grpc.config;
+
+import "config/config.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config";
+
+service config_dao {
+  rpc load(google.protobuf.Empty) returns (yuhaiin.config.setting);
+  rpc save(yuhaiin.config.setting) returns (google.protobuf.Empty);
+}
