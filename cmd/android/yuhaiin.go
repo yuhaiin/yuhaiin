@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -18,8 +19,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
 	logw "github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -27,6 +30,9 @@ import (
 
 type App struct {
 	closers []func() error
+	running chan struct{}
+
+	node *node.Nodes
 }
 
 type Opts struct {
@@ -67,6 +73,25 @@ type DNS struct {
 }
 
 func (a *App) Start(opt *Opts) error {
+	if a.running != nil {
+		select {
+		case <-a.running:
+		default:
+			log.Println("yuhaiin is already running")
+			return nil
+		}
+	}
+
+	a.closers = []func() error{
+		func() error {
+			if a.running != nil {
+				close(a.running)
+				a.running = nil
+			}
+			return nil
+		},
+	}
+
 	pc := pathConfig(opt.Savepath)
 
 	writes := []io.Writer{os.Stdout}
@@ -97,13 +122,13 @@ func (a *App) Start(opt *Opts) error {
 	fakeSetting := fakeSetting(opt, pc.config)
 
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
-	nodes := node.NewNodes(pc.node)
+	a.node = node.NewNodes(pc.node)
 
 	_, ipRange, err := net.ParseCIDR(opt.DNS.FakednsIpRange)
 	if err != nil {
 		return err
 	}
-	app := statistic.NewRouter(nodes, ipRange)
+	app := statistic.NewRouter(a.node, ipRange)
 	a.closers = append(a.closers, app.Close)
 	fakeSetting.AddObserver(app)
 	insert(app.Insert, opt.Block, &statistic.BLOCK)
@@ -115,7 +140,7 @@ func (a *App) Start(opt *Opts) error {
 	a.closers = append(a.closers, listener.Close)
 
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodes, app.Statistic(), fakeSetting)
+	simplehttp.Httpserver(mux, a.node, app.Statistic(), fakeSetting)
 	go http.Serve(lis, mux)
 	return nil
 }
@@ -124,7 +149,41 @@ func (a *App) Stop() error {
 	for _, closer := range a.closers {
 		closer()
 	}
+	a.node = nil
 	return nil
+}
+
+func (a *App) SaveNewBypass(link, dir string) error {
+	r, err := http.Get(link)
+	if err != nil {
+		log.Println("get new bypass failed:", err)
+		if a.node == nil {
+			log.Println("node is nil")
+			return err
+		}
+		r, err = (&http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					add, err := proxy.ParseAddress(network, addr)
+					if err != nil {
+						return nil, err
+					}
+					return a.node.Conn(add)
+				},
+			},
+		}).Get(link)
+		if err != nil {
+			log.Println("get new bypass by proxy failed:", err)
+			return err
+		}
+	}
+	defer r.Body.Close()
+
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filepath.Join(dir, "yuhaiin.conf"), data, os.ModePerm)
 }
 
 func insert(f func(string, *statistic.MODE), rules string, mode *statistic.MODE) {
@@ -208,10 +267,8 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 	return newFakeSetting(settings)
 }
 
-var _ protoconfig.ConfigDaoServer = (*fakeSettings)(nil)
-
 type fakeSettings struct {
-	protoconfig.UnimplementedConfigDaoServer
+	config.UnimplementedConfigDaoServer
 	setting *protoconfig.Setting
 }
 
@@ -222,6 +279,7 @@ func newFakeSetting(setting *protoconfig.Setting) *fakeSettings {
 func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*protoconfig.Setting, error) {
 	return w.setting, nil
 }
+
 func (w *fakeSettings) Save(ctx context.Context, in *protoconfig.Setting) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }

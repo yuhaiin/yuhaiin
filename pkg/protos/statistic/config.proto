@@ -4,14 +4,6 @@ package yuhaiin.statistic;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/statistic";
 
-import "google/protobuf/empty.proto";
-
-service connections {
-  rpc conns(google.protobuf.Empty) returns (conn_resp);
-  rpc close_conn(close_conns_req) returns (google.protobuf.Empty);
-  rpc statistic(google.protobuf.Empty) returns (stream rate_resp);
-}
-
 message close_conns_req { repeated int64 conns = 1; }
 
 message rate_resp {

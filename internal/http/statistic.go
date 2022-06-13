@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/net/websocket"
 	"google.golang.org/grpc/metadata"
@@ -24,7 +25,7 @@ var statisticJS []byte
 
 var os = runtime.GOOS
 
-func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
+func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
 	mux.HandleFunc("/conn/list", func(w http.ResponseWriter, r *http.Request) {
 		str := utils.GetBuffer()
 		defer utils.PutBuffer(str)
@@ -119,7 +120,7 @@ func initStatistic(mux *http.ServeMux, stt statistic.ConnectionsServer) {
 	})
 }
 
-var _ statistic.Connections_StatisticServer = &statisticServer{}
+var _ grpcsts.Connections_StatisticServer = &statisticServer{}
 
 type statisticServer struct {
 	ctx  context.Context

@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -22,7 +23,7 @@ var nodeJS []byte
 //go:embed sub.js
 var subJS []byte
 
-func initNode(mux *http.ServeMux, nm node.NodeManagerServer) {
+func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		point, err := nm.Now(context.TODO(), &emptypb.Empty{})
 		if err != nil {

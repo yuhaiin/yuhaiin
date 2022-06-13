@@ -2,12 +2,13 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.20.1
-// source: statistic/config.proto
+// source: grpc/statistic/config.proto
 
 package statistic
 
 import (
 	context "context"
+	statistic "github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -23,8 +24,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConnectionsClient interface {
-	Conns(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ConnResp, error)
-	CloseConn(ctx context.Context, in *CloseConnsReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Conns(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*statistic.ConnResp, error)
+	CloseConn(ctx context.Context, in *statistic.CloseConnsReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Statistic(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Connections_StatisticClient, error)
 }
 
@@ -36,18 +37,18 @@ func NewConnectionsClient(cc grpc.ClientConnInterface) ConnectionsClient {
 	return &connectionsClient{cc}
 }
 
-func (c *connectionsClient) Conns(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ConnResp, error) {
-	out := new(ConnResp)
-	err := c.cc.Invoke(ctx, "/yuhaiin.statistic.connections/conns", in, out, opts...)
+func (c *connectionsClient) Conns(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*statistic.ConnResp, error) {
+	out := new(statistic.ConnResp)
+	err := c.cc.Invoke(ctx, "/yuhaiin.protos.grpc.statistic.connections/conns", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *connectionsClient) CloseConn(ctx context.Context, in *CloseConnsReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *connectionsClient) CloseConn(ctx context.Context, in *statistic.CloseConnsReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/yuhaiin.statistic.connections/close_conn", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/yuhaiin.protos.grpc.statistic.connections/close_conn", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (c *connectionsClient) CloseConn(ctx context.Context, in *CloseConnsReq, op
 }
 
 func (c *connectionsClient) Statistic(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Connections_StatisticClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Connections_ServiceDesc.Streams[0], "/yuhaiin.statistic.connections/statistic", opts...)
+	stream, err := c.cc.NewStream(ctx, &Connections_ServiceDesc.Streams[0], "/yuhaiin.protos.grpc.statistic.connections/statistic", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func (c *connectionsClient) Statistic(ctx context.Context, in *emptypb.Empty, op
 }
 
 type Connections_StatisticClient interface {
-	Recv() (*RateResp, error)
+	Recv() (*statistic.RateResp, error)
 	grpc.ClientStream
 }
 
@@ -78,8 +79,8 @@ type connectionsStatisticClient struct {
 	grpc.ClientStream
 }
 
-func (x *connectionsStatisticClient) Recv() (*RateResp, error) {
-	m := new(RateResp)
+func (x *connectionsStatisticClient) Recv() (*statistic.RateResp, error) {
+	m := new(statistic.RateResp)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -90,8 +91,8 @@ func (x *connectionsStatisticClient) Recv() (*RateResp, error) {
 // All implementations must embed UnimplementedConnectionsServer
 // for forward compatibility
 type ConnectionsServer interface {
-	Conns(context.Context, *emptypb.Empty) (*ConnResp, error)
-	CloseConn(context.Context, *CloseConnsReq) (*emptypb.Empty, error)
+	Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error)
+	CloseConn(context.Context, *statistic.CloseConnsReq) (*emptypb.Empty, error)
 	Statistic(*emptypb.Empty, Connections_StatisticServer) error
 	mustEmbedUnimplementedConnectionsServer()
 }
@@ -100,10 +101,10 @@ type ConnectionsServer interface {
 type UnimplementedConnectionsServer struct {
 }
 
-func (UnimplementedConnectionsServer) Conns(context.Context, *emptypb.Empty) (*ConnResp, error) {
+func (UnimplementedConnectionsServer) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Conns not implemented")
 }
-func (UnimplementedConnectionsServer) CloseConn(context.Context, *CloseConnsReq) (*emptypb.Empty, error) {
+func (UnimplementedConnectionsServer) CloseConn(context.Context, *statistic.CloseConnsReq) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CloseConn not implemented")
 }
 func (UnimplementedConnectionsServer) Statistic(*emptypb.Empty, Connections_StatisticServer) error {
@@ -132,7 +133,7 @@ func _Connections_Conns_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.statistic.connections/conns",
+		FullMethod: "/yuhaiin.protos.grpc.statistic.connections/conns",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConnectionsServer).Conns(ctx, req.(*emptypb.Empty))
@@ -141,7 +142,7 @@ func _Connections_Conns_Handler(srv interface{}, ctx context.Context, dec func(i
 }
 
 func _Connections_CloseConn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CloseConnsReq)
+	in := new(statistic.CloseConnsReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -150,10 +151,10 @@ func _Connections_CloseConn_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/yuhaiin.statistic.connections/close_conn",
+		FullMethod: "/yuhaiin.protos.grpc.statistic.connections/close_conn",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConnectionsServer).CloseConn(ctx, req.(*CloseConnsReq))
+		return srv.(ConnectionsServer).CloseConn(ctx, req.(*statistic.CloseConnsReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -167,7 +168,7 @@ func _Connections_Statistic_Handler(srv interface{}, stream grpc.ServerStream) e
 }
 
 type Connections_StatisticServer interface {
-	Send(*RateResp) error
+	Send(*statistic.RateResp) error
 	grpc.ServerStream
 }
 
@@ -175,7 +176,7 @@ type connectionsStatisticServer struct {
 	grpc.ServerStream
 }
 
-func (x *connectionsStatisticServer) Send(m *RateResp) error {
+func (x *connectionsStatisticServer) Send(m *statistic.RateResp) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -183,7 +184,7 @@ func (x *connectionsStatisticServer) Send(m *RateResp) error {
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Connections_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "yuhaiin.statistic.connections",
+	ServiceName: "yuhaiin.protos.grpc.statistic.connections",
 	HandlerType: (*ConnectionsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -202,5 +203,5 @@ var Connections_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "statistic/config.proto",
+	Metadata: "grpc/statistic/config.proto",
 }

@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -19,7 +20,7 @@ type conns interface {
 var _ conns = (*counter)(nil)
 
 type counter struct {
-	statistic.UnimplementedConnectionsServer
+	grpcsts.UnimplementedConnectionsServer
 
 	accountant
 
@@ -48,7 +49,7 @@ func (c *counter) CloseConn(_ context.Context, x *statistic.CloseConnsReq) (*emp
 	return &emptypb.Empty{}, nil
 }
 
-func (c *counter) Statistic(_ *emptypb.Empty, srv statistic.Connections_StatisticServer) error {
+func (c *counter) Statistic(_ *emptypb.Empty, srv grpcsts.Connections_StatisticServer) error {
 	log.Println("Start Send Flow Message to Client.")
 	id := c.accountant.AddClient(srv.Send)
 	<-srv.Context().Done()

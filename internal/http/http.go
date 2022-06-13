@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 )
 
 //go:embed toast.html

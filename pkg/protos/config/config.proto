@@ -3,8 +3,6 @@ package yuhaiin.config;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
 
-import "google/protobuf/empty.proto";
-
 message setting {
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
   bypass bypass = 2 [ json_name = "bypass" ];
@@ -73,8 +71,3 @@ message socks5 {
 }
 
 message redir { string host = 1 [ json_name = "host" ]; }
-
-service config_dao {
-  rpc load(google.protobuf.Empty) returns (setting);
-  rpc save(setting) returns (google.protobuf.Empty);
-}

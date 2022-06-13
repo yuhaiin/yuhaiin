@@ -13,13 +13,14 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type iconfig struct {
-	config.UnimplementedConfigDaoServer
+	grpcconfig.UnimplementedConfigDaoServer
 	current *config.Setting
 	path    string
 
