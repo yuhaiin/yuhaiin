@@ -15,6 +15,9 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/spf13/cobra"
@@ -418,9 +421,9 @@ func specifiedGN(cmd *cobra.Command, args []string, f1 func(string), f2 func(int
 
 type yhCli struct {
 	conn *grpc.ClientConn
-	cm   statistic.ConnectionsClient
-	sub  node.NodeManagerClient
-	cg   config.ConfigDaoClient
+	cm   grpcsts.ConnectionsClient
+	sub  grpcnode.NodeManagerClient
+	cg   grpcconfig.ConfigDaoClient
 }
 
 func NewCli(host string) (*yhCli, error) {
@@ -432,9 +435,9 @@ func NewCli(host string) (*yhCli, error) {
 		return nil, fmt.Errorf("grpc dial failed: %w", err)
 	}
 
-	cm := statistic.NewConnectionsClient(conn)
-	sub := node.NewNodeManagerClient(conn)
-	cg := config.NewConfigDaoClient(conn)
+	cm := grpcsts.NewConnectionsClient(conn)
+	sub := grpcnode.NewNodeManagerClient(conn)
+	cg := grpcconfig.NewConfigDaoClient(conn)
 	return &yhCli{conn: conn, cm: cm, sub: sub, cg: cg}, nil
 }
 

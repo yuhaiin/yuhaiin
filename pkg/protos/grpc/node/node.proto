@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package yuhaiin.protos.grpc.node;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+import "node/node.proto";
+
+service node_manager {
+  rpc now(google.protobuf.Empty) returns (yuhaiin.node.point);
+  // use req is hash string of point
+  rpc use(google.protobuf.StringValue) returns (yuhaiin.node.point);
+
+  rpc get_node(google.protobuf.StringValue) returns (yuhaiin.node.point);
+  rpc save_node(yuhaiin.node.point) returns (yuhaiin.node.point);
+  rpc delete_node(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc get_manager(google.protobuf.StringValue) returns (yuhaiin.node.manager);
+
+  rpc save_links(yuhaiin.node.save_link_req) returns (google.protobuf.Empty);
+  rpc delete_links(yuhaiin.node.link_req) returns (google.protobuf.Empty);
+  rpc update_links(yuhaiin.node.link_req) returns (google.protobuf.Empty);
+  rpc get_links(google.protobuf.Empty) returns (yuhaiin.node.get_links_resp);
+
+  rpc latency(yuhaiin.node.latency_req) returns (yuhaiin.node.latency_resp);
+}
