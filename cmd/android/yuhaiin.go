@@ -9,10 +9,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	iconfig "github.com/Asutorufa/yuhaiin/internal/config"
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
@@ -26,7 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -o yuhaiin.aar -target=android ./
+// GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -target=android/amd64,android/arm64 -ldflags='-s -w' -trimpath -v -o yuhaiin.aar ./
 
 type App struct {
 	closers []func() error
@@ -113,11 +111,6 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 	a.closers = append(a.closers, lis.Close)
-
-	// listen system signal
-	signChannel := make(chan os.Signal, 1)
-	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() bool { return (<-signChannel).String() != "" && a != nil && a.Stop() != nil }()
 
 	fakeSetting := fakeSetting(opt, pc.config)
 
