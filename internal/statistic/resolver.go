@@ -46,7 +46,7 @@ func (r *remotedns) Update(c *protoconfig.Setting) {
 	r.dns = getDNS("REMOTEDNS", r.config, &dnsdialer{r.conns, dialer, mark})
 }
 
-func (r *remotedns) LookupIP(host string) ([]net.IP, error) {
+func (r *remotedns) LookupIP(host string) (idns.IPResponse, error) {
 	if r.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}
@@ -93,7 +93,7 @@ func (l *localdns) Update(c *protoconfig.Setting) {
 	l.dns = getDNS("LOCALDNS", l.config, &dnsdialer{l.conns, direct.Default, "LOCALDNS_DIRECT"})
 }
 
-func (l *localdns) LookupIP(host string) ([]net.IP, error) {
+func (l *localdns) LookupIP(host string) (idns.IPResponse, error) {
 	if l.dns == nil {
 		return resolver.LookupIP(host)
 	}
@@ -148,7 +148,7 @@ func (b *bootstrap) Update(c *protoconfig.Setting) {
 	b.dns = getDNS("BOOTSTRAP", b.config, &dnsdialer{b.conns, direct.Default, "BOOTSTRAP_DIRECT"})
 }
 
-func (l *bootstrap) LookupIP(host string) ([]net.IP, error) {
+func (l *bootstrap) LookupIP(host string) (idns.IPResponse, error) {
 	if l.dns == nil {
 		return nil, fmt.Errorf("bootstrap dns not initialized")
 	}

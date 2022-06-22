@@ -44,7 +44,7 @@ func (x *combine[T]) Search(str proxy.Address) (mark T, ok bool) {
 	}
 
 	if dns, err := x.dns.LookupIP(str.Hostname()); err == nil {
-		mark, ok = x.cidr.SearchIP(dns[rand.Intn(len(dns))])
+		mark, ok = x.cidr.SearchIP(dns.IPs()[rand.Intn(len(dns.IPs()))])
 	}
 
 	return
