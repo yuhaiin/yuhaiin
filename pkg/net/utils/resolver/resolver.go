@@ -14,13 +14,15 @@ var Bootstrap dns.DNS = &System{}
 
 type System struct{}
 
-func (d *System) LookupIP(domain string) ([]net.IP, error) {
-	return net.DefaultResolver.LookupIP(context.TODO(), "ip4", domain)
+func (d *System) LookupIP(domain string) (dns.IPResponse, error) {
+	ips, err := net.DefaultResolver.LookupIP(context.TODO(), "ip4", domain)
+	return dns.NewIPResponse(ips, 600), err
 }
+
 func (d *System) Close() error              { return nil }
 func (d *System) Do([]byte) ([]byte, error) { return nil, fmt.Errorf("system dns not support") }
 
-func LookupIP(domain string) ([]net.IP, error) { return Bootstrap.LookupIP(domain) }
+func LookupIP(domain string) (dns.IPResponse, error) { return Bootstrap.LookupIP(domain) }
 
 func ResolveUDPAddr(address string) (*net.UDPAddr, error) {
 	host, port, err := net.SplitHostPort(address)
@@ -35,7 +37,7 @@ func ResolveUDPAddr(address string) (*net.UDPAddr, error) {
 			return nil, err
 		}
 
-		ip = x[rand.Intn(len(x))]
+		ip = x.IPs()[rand.Intn(len(x.IPs()))]
 	}
 
 	p, err := strconv.Atoi(port)

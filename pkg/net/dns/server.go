@@ -131,6 +131,8 @@ func (d *dnsServer) startTCP() (err error) {
 	}
 }
 
+var emptyIPResponse = dns.NewIPResponse(nil, 0)
+
 func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	var parse dnsmessage.Parser
 
@@ -178,20 +180,21 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	}
 
 	// A or AAAA
-	ips, err := processor.LookupIP(strings.TrimSuffix(q.Name.String(), "."))
+	r, err := processor.LookupIP(strings.TrimSuffix(q.Name.String(), "."))
 	if err != nil {
 		log.Printf("lookup domain %s failed: %v\n", q.Name.String(), err)
 		resp.RCode = dnsmessage.RCodeNameError
+		r = emptyIPResponse
 	}
 
-	for _, ip := range ips {
+	for _, ip := range r.IPs() {
 		resource := dnsmessage.AResource{}
 		copy(resource.A[:], ip)
 		resp.Answers = append(resp.Answers, dnsmessage.Resource{
 			Header: dnsmessage.ResourceHeader{
 				Name:  q.Name,
 				Class: dnsmessage.ClassINET,
-				TTL:   600,
+				TTL:   r.TTL(),
 			},
 			Body: &resource,
 		})

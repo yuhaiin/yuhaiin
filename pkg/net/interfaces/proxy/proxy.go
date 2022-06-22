@@ -224,7 +224,7 @@ func (d DomainAddr) lookupIP() (net.IP, error) {
 		return nil, fmt.Errorf("resolve address failed: %w", err)
 	}
 
-	return ips[rand.Intn(len(ips))], nil
+	return ips.IPs()[rand.Intn(len(ips.IPs()))], nil
 }
 
 func (d DomainAddr) UDPAddr() (*net.UDPAddr, error) {

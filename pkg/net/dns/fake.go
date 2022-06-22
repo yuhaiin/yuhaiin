@@ -82,10 +82,10 @@ type FakeDNS struct {
 func WrapFakeDNS(upStream dns.DNS, pool *Fake) *FakeDNS {
 	return &FakeDNS{upStream: upStream, pool: pool}
 }
-func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
+func (f *FakeDNS) LookupIP(domain string) (dns.IPResponse, error) {
 	ip := f.pool.GetFakeIPForDomain(domain)
 	log.Println("map", ip, "to", domain)
-	return []net.IP{net.ParseIP(ip).To4()}, nil
+	return dns.NewIPResponse([]net.IP{net.ParseIP(ip).To4()}, 600), nil
 }
 
 func (f *FakeDNS) LookupPtr(name string) (string, error) {

@@ -17,15 +17,20 @@ import (
 type client struct {
 	subnet []dnsmessage.Resource
 	do     func([]byte) ([]byte, error)
-	cache  *dnsLruCache[string, []net.IP]
+	cache  *dnsLruCache[string, cacheElement]
 
 	config dns.Config
+}
+
+type cacheElement struct {
+	ips         []net.IP
+	expireAfter time.Time
 }
 
 func NewClient(config dns.Config, send func([]byte) ([]byte, error)) *client {
 	c := &client{
 		do:     send,
-		cache:  newCache[string, []net.IP](200),
+		cache:  newCache[string, cacheElement](200),
 		config: config,
 	}
 	if config.Subnet != nil {
@@ -73,9 +78,9 @@ func (c *client) Do(b []byte) ([]byte, error) {
 	return c.do(b)
 }
 
-func (c *client) LookupIP(domain string) ([]net.IP, error) {
-	if x, _ := c.cache.Load(domain); x != nil {
-		return x, nil
+func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
+	if x, ok := c.cache.Load(domain); ok {
+		return dns.NewIPResponse(x.ips, uint32(time.Until(x.expireAfter).Seconds())), nil
 	}
 
 	req := dnsmessage.Message{
@@ -129,9 +134,12 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 			if len(i) == 0 {
 				return nil, fmt.Errorf("domain %v no dns answer", domain)
 			}
-			log.Printf("%s lookup host [%s] success: ttl: %d, ips: %v\n", c.config.Name, domain, ttl, i)
-			c.cache.Add(domain, i, time.Now().Add(time.Duration(ttl)*time.Second))
-			return i, nil
+
+			response := dns.NewIPResponse(i, ttl)
+			log.Printf("%s lookup host [%s] success: %v\n", c.config.Name, domain, response)
+			expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
+			c.cache.Add(domain, cacheElement{i, expireAfter}, expireAfter)
+			return response, nil
 		}
 		if err != nil {
 			return nil, err
