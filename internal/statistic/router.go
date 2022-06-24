@@ -8,7 +8,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -22,7 +21,7 @@ type router struct {
 	statistic *counter
 	shunt     *shunt
 
-	dnsserver     server.Server
+	dnsserver     *dns.DNSServer
 	dnsserverHost string
 
 	fake *fakedns
@@ -71,7 +70,8 @@ func (a *router) Update(s *protoconfig.Setting) {
 	a.dnsserverHost = s.Dns.Server
 }
 
-func (a *router) Proxy() proxy.Proxy { return a.fake }
+func (a *router) Proxy() proxy.Proxy        { return a.fake }
+func (a *router) DNSServer() *dns.DNSServer { return a.dnsserver }
 
 func (a *router) Insert(addr string, mode *MODE) {
 	if a.shunt == nil {

@@ -3,6 +3,7 @@ package yuhaiin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -18,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
 	logw "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
@@ -43,6 +45,7 @@ type Opts struct {
 	Proxy      string
 	Direct     string
 	DNS        *DNSSetting
+	TUN        *TUN
 }
 
 type DNSSetting struct {
@@ -68,6 +71,13 @@ type DNS struct {
 	Proxy         bool
 	Subnet        string
 	TlsServername string
+}
+
+type TUN struct {
+	FD           int32
+	MTU          int32
+	Gateway      string
+	DNSHijacking bool
 }
 
 func (a *App) Start(opt *Opts) error {
@@ -108,6 +118,7 @@ func (a *App) Start(opt *Opts) error {
 	// create listener
 	lis, err := net.Listen("tcp", opt.Host)
 	if err != nil {
+		a.Stop()
 		return err
 	}
 	a.closers = append(a.closers, lis.Close)
@@ -119,6 +130,7 @@ func (a *App) Start(opt *Opts) error {
 
 	_, ipRange, err := net.ParseCIDR(opt.DNS.FakednsIpRange)
 	if err != nil {
+		a.Stop()
 		return err
 	}
 	app := statistic.NewRouter(a.node, ipRange)
@@ -131,6 +143,24 @@ func (a *App) Start(opt *Opts) error {
 	listener := server.NewListener(app.Proxy())
 	fakeSetting.AddObserver(listener)
 	a.closers = append(a.closers, listener.Close)
+
+	stack, err := tun.NewTun(
+		&tun.TunOpt{
+			Name:         fmt.Sprintf("fd://%d", opt.TUN.FD),
+			Gateway:      opt.TUN.Gateway,
+			MTU:          int(opt.TUN.MTU),
+			DNSHijacking: opt.TUN.DNSHijacking,
+			DNS:          app.DNSServer(),
+			Dialer:       app.Proxy(),
+		})
+	if err != nil {
+		a.Stop()
+		return err
+	}
+	a.closers = append(a.closers, func() error {
+		stack.Close()
+		return nil
+	})
 
 	mux := http.NewServeMux()
 	simplehttp.Httpserver(mux, a.node, app.Statistic(), fakeSetting)
