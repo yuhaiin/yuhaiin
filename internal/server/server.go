@@ -8,11 +8,19 @@ import (
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
-	rs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
+
+func init() {
+	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http, dialer proxy.Proxy) (iserver.Server, error) {
+		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password, dialer)
+	})
+	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5, dialer proxy.Proxy) (iserver.Server, error) {
+		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password, dialer)
+	})
+}
 
 type listener struct {
 	lock  sync.Mutex
@@ -22,18 +30,6 @@ type listener struct {
 	}
 
 	pro proxy.Proxy
-}
-
-func init() {
-	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http, dialer proxy.Proxy) (iserver.Server, error) {
-		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password, dialer)
-	})
-	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5, dialer proxy.Proxy) (iserver.Server, error) {
-		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password, dialer)
-	})
-	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Redir, dialer proxy.Proxy) (iserver.Server, error) {
-		return rs.NewServer(t.Redir.Host, dialer)
-	})
 }
 
 func NewListener(pro proxy.Proxy) *listener {

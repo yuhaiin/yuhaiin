@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"runtime"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
@@ -99,6 +100,41 @@ func (t *tcpserver) process(handle func(net.Conn)) error {
 		tempDelay = 0
 
 		go func() {
+			if runtime.GOOS != "windows" {
+// 				if c, ok := c.(*net.TCPConn); ok {
+// 					raw, err := c.SyscallConn()
+// 					if err != nil {
+// 						log.Println(err)
+// 					} else {
+// 						raw.Control(func(fd uintptr) {
+// 							// which is the system socket (type is plateform specific - Int for linux)
+// 							ucred, err := syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+// 							if err != nil {
+// 								log.Printf("tcp server: GetsockoptUcred failed: %v\n", err)
+// 							} else {
+// 								fmt.Printf("peer_pid: %d\n", ucred.Pid)
+// 								fmt.Printf("peer_uid: %d\n", ucred.Uid)
+// 								fmt.Printf("peer_gid: %d\n", ucred.Gid)
+// 								fmt.Println(user.LookupId(strconv.Itoa(int(ucred.Uid))))
+// 							}
+// 						})
+// 					}
+// 				}
+				// fdVal := reflect.Indirect(reflect.ValueOf(c)).FieldByName("fd")
+				// pfdVal := reflect.Indirect(fdVal).FieldByName("pfd")
+				// cfd := int(pfdVal.FieldByName("Sysfd").Int())
+
+				// // which is the system socket (type is plateform specific - Int for linux)
+				// ucred, err := syscall.GetsockoptUcred(cfd, syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+				// if err != nil {
+				// 	log.Printf("tcp server: GetsockoptUcred failed: %v\n", err)
+				// } else {
+				// 	// fmt.Printf("peer_pid: %d\n", ucred.Pid)
+				// 	fmt.Printf("peer_uid: %d\n", ucred.Uid)
+				// 	// fmt.Printf("peer_gid: %d\n", ucred.Gid)
+				// 	fmt.Println(user.LookupId(strconv.Itoa(int(ucred.Uid))))
+				// }
+			}
 			defer c.Close()
 			handle(c)
 		}()
