@@ -38,9 +38,9 @@ func DefaultConfigDir() (Path string) {
 	return
 }
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(isServerProtocol_Protocol, proxy.Proxy) (server.Server, error)]
+var execProtocol syncmap.SyncMap[reflect.Type, func(isServerProtocol_Protocol, ...func(*Opts)) (server.Server, error)]
 
-func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T, proxy.Proxy) (server.Server, error)) {
+func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T, ...func(*Opts)) (server.Server, error)) {
 	if wrap == nil {
 		return
 	}
@@ -48,17 +48,34 @@ func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T, proxy.Proxy) (se
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(t isServerProtocol_Protocol, p proxy.Proxy) (server.Server, error) {
-			return wrap(t.(T), p)
+		func(t isServerProtocol_Protocol, p ...func(*Opts)) (server.Server, error) {
+			return wrap(t.(T), p...)
 		},
 	)
 }
 
-func CreateServer(p isServerProtocol_Protocol, dialer proxy.Proxy) (server.Server, error) {
+type Opts struct {
+	Dialer    proxy.Proxy
+	DNSServer server.DNSServer
+}
+
+func WithDialer(p proxy.Proxy) func(*Opts) {
+	return func(o *Opts) {
+		o.Dialer = p
+	}
+}
+
+func WithDNSServer(s server.DNSServer) func(*Opts) {
+	return func(o *Opts) {
+		o.DNSServer = s
+	}
+}
+
+func CreateServer(p isServerProtocol_Protocol, opts ...func(*Opts)) (server.Server, error) {
 	conn, ok := execProtocol.Load(reflect.TypeOf(p))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", p)
 	}
 
-	return conn(p, dialer)
+	return conn(p, opts...)
 }
