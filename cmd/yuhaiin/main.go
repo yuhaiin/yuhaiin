@@ -80,7 +80,7 @@ func main() {
 	setting.AddObserver(app)
 	grpcserver.RegisterService(&grpcsts.Connections_ServiceDesc, app.Statistic())
 
-	listener := server.NewListener(app.Proxy())
+	listener := server.NewListener(app.Proxy(), app.DNSServer())
 	setting.AddObserver(listener)
 	defer listener.Close()
 

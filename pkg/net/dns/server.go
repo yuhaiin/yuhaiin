@@ -10,19 +10,20 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-type DNSServer struct {
+type dnsServer struct {
 	server      string
 	processor   func(proxy.Address) dns.DNS
 	listener    net.PacketConn
 	tcpListener net.Listener
 }
 
-func NewDnsServer(server string, process func(proxy.Address) dns.DNS) *DNSServer {
-	d := &DNSServer{server: server, processor: process}
+func NewDnsServer(server string, process func(proxy.Address) dns.DNS) server.DNSServer {
+	d := &dnsServer{server: server, processor: process}
 	go func() {
 		if err := d.start(); err != nil {
 			log.Println(err)
@@ -38,7 +39,7 @@ func NewDnsServer(server string, process func(proxy.Address) dns.DNS) *DNSServer
 	return d
 }
 
-func (d *DNSServer) Close() error {
+func (d *dnsServer) Close() error {
 	if d.listener != nil {
 		d.listener.Close()
 	}
@@ -49,7 +50,7 @@ func (d *DNSServer) Close() error {
 	return nil
 }
 
-func (d *DNSServer) start() (err error) {
+func (d *dnsServer) start() (err error) {
 	d.listener, err = net.ListenPacket("udp", d.server)
 	if err != nil {
 		return fmt.Errorf("dns udp server listen failed: %w", err)
@@ -58,21 +59,25 @@ func (d *DNSServer) start() (err error) {
 	log.Println("new udp dns server listen at:", d.server)
 
 	for {
-
 		err = d.HandleUDP(d.listener)
 		if err != nil {
-			log.Println(err)
-			return err
+			if e, ok := err.(net.Error); ok {
+				if e.Temporary() {
+					continue
+				}
+			}
+			return fmt.Errorf("dns udp server handle failed: %w", err)
 		}
 	}
 
 }
 
-func (d *DNSServer) startTCP() (err error) {
+func (d *dnsServer) startTCP() (err error) {
 	d.tcpListener, err = net.Listen("tcp", d.server)
 	if err != nil {
 		return fmt.Errorf("dns server listen failed: %w", err)
 	}
+	defer d.tcpListener.Close()
 	log.Println("new tcp dns server listen at:", d.server)
 	for {
 		conn, err := d.tcpListener.Accept()
@@ -85,17 +90,20 @@ func (d *DNSServer) startTCP() (err error) {
 			return fmt.Errorf("dns server accept failed: %w", err)
 		}
 
-		go d.HandleTCP(conn)
+		go func(conn net.Conn) {
+			defer conn.Close()
+			if err := d.HandleTCP(conn); err != nil {
+				log.Println(err)
+			}
+		}(conn)
 	}
 }
 
-func (d *DNSServer) HandleTCP(c net.Conn) {
-	defer c.Close()
+func (d *dnsServer) HandleTCP(c net.Conn) error {
 	l := make([]byte, 2)
 	_, err := io.ReadFull(c, l)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("dns server read length failed: %w", err)
 	}
 
 	length := int(binary.BigEndian.Uint16(l))
@@ -104,46 +112,40 @@ func (d *DNSServer) HandleTCP(c net.Conn) {
 
 	n, err := io.ReadFull(c, data[:length])
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
 	data, err = d.handle(data[:n])
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("dns server handle failed: %w", err)
 	}
 
-	binary.Write(c, binary.BigEndian, uint16(len(data)))
-	c.Write(data)
+	if err = binary.Write(c, binary.BigEndian, uint16(len(data))); err != nil {
+		return fmt.Errorf("dns server write length failed: %w", err)
+	}
+	_, err = c.Write(data)
+	return err
 }
 
-func (d *DNSServer) HandleUDP(l net.PacketConn) error {
+func (d *dnsServer) HandleUDP(l net.PacketConn) error {
 	p := utils.GetBytes(utils.DefaultSize)
 	defer utils.PutBytes(p)
 	n, addr, err := l.ReadFrom(p)
 	if err != nil {
-		if e, ok := err.(net.Error); ok {
-			if e.Temporary() {
-				return nil
-			}
-		}
-		return fmt.Errorf("dns server read failed: %w", err)
+		return err
 	}
 
 	data, err := d.handle(p[:n])
 	if err != nil {
-		log.Println(err)
-		return nil
+		return fmt.Errorf("dns server handle failed: %w", err)
 	}
-	l.WriteTo(data, addr)
-
-	return nil
+	_, err = l.WriteTo(data, addr)
+	return err
 }
 
 var emptyIPResponse = dns.NewIPResponse(nil, 0)
 
-func (d *DNSServer) handle(b []byte) ([]byte, error) {
+func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	var parse dnsmessage.Parser
 
 	h, err := parse.Start(b)
@@ -213,7 +215,7 @@ func (d *DNSServer) handle(b []byte) ([]byte, error) {
 	return resp.Pack()
 }
 
-func (d *DNSServer) handlePtr(raw []byte, msg dnsmessage.Message,
+func (d *dnsServer) handlePtr(raw []byte, msg dnsmessage.Message,
 	processor dns.DNS, name dnsmessage.Name) ([]byte, error) {
 	if ff, ok := processor.(interface{ LookupPtr(string) (string, error) }); ok {
 		r, err := ff.LookupPtr(name.String())

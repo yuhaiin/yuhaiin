@@ -2,23 +2,23 @@ package tun
 
 import (
 	"fmt"
-	"strings"
 
 	"golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-func open2(name string) (_ stack.LinkEndpoint, err error) {
-	if !strings.HasPrefix(name, "tun://") {
-		return nil, fmt.Errorf("invalid tun name: %s", name)
-	}
+func open(name string, mtu int) (_ stack.LinkEndpoint, err error) {
+	return nil, fmt.Errorf("not implemented")
+	// if !strings.HasPrefix(name, "tun://") {
+	// 	return nil, fmt.Errorf("invalid tun name: %s", name)
+	// }
 
-	dev, err := tun.CreateTUN(name[6:], 1500)
-	if err != nil {
-		return nil, fmt.Errorf("create tun failed: %w", err)
-	}
+	// dev, err := tun.CreateTUN(name[6:], 1500)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("create tun failed: %w", err)
+	// }
 
-	return New(&wrapDev{4, dev}, 1500, 4)
+	// return New(&wrapDev{4, dev}, 1500, 4)
 }
 
 type wrapDev struct {

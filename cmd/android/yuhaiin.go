@@ -19,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
 	logw "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
@@ -140,27 +139,9 @@ func (a *App) Start(opt *Opts) error {
 	insert(app.Insert, opt.Proxy, &statistic.PROXY)
 	insert(app.Insert, opt.Direct, &statistic.DIRECT)
 
-	listener := server.NewListener(app.Proxy())
+	listener := server.NewListener(app.Proxy(), app.DNSServer())
 	fakeSetting.AddObserver(listener)
 	a.closers = append(a.closers, listener.Close)
-
-	stack, err := tun.NewTun(
-		&tun.TunOpt{
-			Name:         fmt.Sprintf("fd://%d", opt.TUN.FD),
-			Gateway:      opt.TUN.Gateway,
-			MTU:          int(opt.TUN.MTU),
-			DNSHijacking: opt.TUN.DNSHijacking,
-			DNS:          app.DNSServer(),
-			Dialer:       app.Proxy(),
-		})
-	if err != nil {
-		a.Stop()
-		return err
-	}
-	a.closers = append(a.closers, func() error {
-		stack.Close()
-		return nil
-	})
 
 	mux := http.NewServeMux()
 	simplehttp.Httpserver(mux, a.node, app.Statistic(), fakeSetting)
@@ -275,6 +256,16 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 					Protocol: &protoconfig.ServerProtocol_Http{
 						Http: &protoconfig.Http{
 							Host: opt.Http,
+						},
+					},
+				},
+				"tun": {
+					Protocol: &protoconfig.ServerProtocol_Tun{
+						Tun: &protoconfig.Tun{
+							Name:         fmt.Sprintf("fd://%d", opt.TUN.FD),
+							Mtu:          opt.TUN.MTU,
+							Gateway:      opt.TUN.Gateway,
+							DnsHijacking: opt.TUN.DNSHijacking,
 						},
 					},
 				},

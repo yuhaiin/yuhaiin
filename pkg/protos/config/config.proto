@@ -4,6 +4,8 @@ package yuhaiin.config;
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
 
 message setting {
+  // net interface, eg: eth0
+  string net_interface = 6 [ json_name = "net_interface" ];
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
   bypass bypass = 2 [ json_name = "bypass" ];
   dns_setting dns = 4 [ json_name = "dns" ];
@@ -52,6 +54,7 @@ message server {
       http http = 3 [ json_name = "http" ];
       socks5 socks5 = 4 [ json_name = "socks5" ];
       redir redir = 5 [ json_name = "redir" ];
+      tun tun = 6 [ json_name = "tun" ];
     }
   }
 
@@ -71,3 +74,12 @@ message socks5 {
 }
 
 message redir { string host = 1 [ json_name = "host" ]; }
+
+message tun {
+  // name of the tun device
+  // eg: tun://tun0, fd://123
+  string name = 1 [ json_name = "name" ];
+  int32 mtu = 2 [ json_name = "mtu" ];
+  string gateway = 3 [ json_name = "gateway" ];
+  bool dns_hijacking = 4 [ json_name = "dns_hijacking" ];
+}
