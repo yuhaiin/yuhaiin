@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"log"
 	"sync"
 
@@ -9,16 +10,44 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http, dialer proxy.Proxy) (iserver.Server, error) {
-		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password, dialer)
+	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
+		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
+		for _, o := range opts {
+			o(x)
+		}
+		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password, x.Dialer)
 	})
-	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5, dialer proxy.Proxy) (iserver.Server, error) {
-		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password, dialer)
+	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
+		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
+		for _, o := range opts {
+			o(x)
+		}
+		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password, x.Dialer)
+	})
+	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Tun, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
+		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
+		for _, o := range opts {
+			o(x)
+		}
+		s, err := tun.NewTun(&tun.TunOpt{
+			Name:         t.Tun.Name,
+			MTU:          int(t.Tun.Mtu),
+			Gateway:      t.Tun.Gateway,
+			DNSHijacking: t.Tun.DnsHijacking,
+			Dialer:       x.Dialer,
+			DNS:          x.DNSServer,
+		})
+
+		return iserver.WrapClose(func() error {
+			s.Close()
+			return nil
+		}), err
 	})
 }
 
@@ -30,9 +59,10 @@ type listener struct {
 	}
 
 	pro proxy.Proxy
+	dns iserver.DNSServer
 }
 
-func NewListener(pro proxy.Proxy) *listener {
+func NewListener(pro proxy.Proxy, dnsServer iserver.DNSServer) *listener {
 	if pro == nil {
 		pro = direct.Default
 	}
@@ -42,6 +72,7 @@ func NewListener(pro proxy.Proxy) *listener {
 			server iserver.Server
 		}),
 		pro: pro,
+		dns: dnsServer,
 	}
 
 	return l
@@ -65,7 +96,7 @@ func (l *listener) Update(current *protoconfig.Setting) {
 func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
 	v, ok := l.store[name]
 	if !ok {
-		l.start(name, pro, config)
+		l.start(name, config)
 		return
 	}
 
@@ -76,11 +107,15 @@ func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.Serv
 	v.server.Close()
 	delete(l.store, name)
 
-	l.start(name, pro, config)
+	l.start(name, config)
 }
 
-func (l *listener) start(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
-	server, err := protoconfig.CreateServer(config.Protocol, pro)
+func (l *listener) start(name string, config *protoconfig.ServerProtocol) {
+	server, err := protoconfig.CreateServer(
+		config.Protocol,
+		protoconfig.WithDialer(l.pro),
+		protoconfig.WithDNSServer(l.dns),
+	)
 	if err != nil {
 		log.Printf("create server %s failed: %v\n", name, err)
 		return
