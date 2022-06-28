@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
@@ -51,7 +52,7 @@ func (d *dnsServer) Close() error {
 }
 
 func (d *dnsServer) start() (err error) {
-	d.listener, err = net.ListenPacket("udp", d.server)
+	d.listener, err = dialer.ListenPacket("udp", d.server)
 	if err != nil {
 		return fmt.Errorf("dns udp server listen failed: %w", err)
 	}
