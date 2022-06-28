@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -26,7 +27,7 @@ type udpServer struct {
 }
 
 func newUDPServer(f proxy.Proxy, target proxy.Address) (*udpServer, error) {
-	l, err := net.ListenPacket("udp", "")
+	l, err := dialer.ListenPacket("udp", "")
 	if err != nil {
 		return nil, fmt.Errorf("listen udp failed: %v", err)
 	}

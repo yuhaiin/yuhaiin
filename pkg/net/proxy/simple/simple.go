@@ -1,11 +1,13 @@
 package simple
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
@@ -21,14 +23,14 @@ func NewSimple(address proxy.Address, tls *tls.Config) proxy.Proxy {
 	return &Simple{addr: address, tlsConfig: tls}
 }
 
-var clientDialer = net.Dialer{Timeout: time.Second * 5}
-
 func (c *Simple) Conn(proxy.Address) (net.Conn, error) {
 	host, err := c.addr.IPHost()
 	if err != nil {
 		return nil, fmt.Errorf("get host failed: %w", err)
 	}
-	conn, err := clientDialer.Dial("tcp", host)
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	defer cancel()
+	conn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}
@@ -41,5 +43,5 @@ func (c *Simple) Conn(proxy.Address) (net.Conn, error) {
 }
 
 func (c *Simple) PacketConn(proxy.Address) (net.PacketConn, error) {
-	return net.ListenPacket("udp", "")
+	return dialer.ListenPacket("udp", "")
 }

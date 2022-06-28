@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -53,6 +54,8 @@ func (a *router) Update(s *protoconfig.Setting) {
 	a.bootstrap.Update(s)
 	a.remotedns.Update(s)
 	a.fake.Update(s)
+
+	UpdateInterfaceName(s)
 
 	if a.dnsserverHost == s.Dns.Server {
 		return
@@ -146,3 +149,5 @@ func (f *fakedns) getAddr(addr proxy.Address) proxy.Address {
 
 	return addr
 }
+
+func UpdateInterfaceName(cb *protoconfig.Setting) { dialer.DefaultInterfaceName = cb.GetNetInterface() }
