@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -178,7 +179,7 @@ func (n *Nodes) UpdateLinks(c context.Context, req *node.LinkReq) (*emptypb.Empt
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				conn, err := (&net.Dialer{Timeout: time.Second * 30}).DialContext(ctx, network, addr)
+				conn, err := dialer.DialContext(ctx, network, addr)
 				if err == nil {
 					return conn, nil
 				}

@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -184,7 +185,7 @@ type socks5PacketConn struct {
 }
 
 func newSocks5PacketConn(address proxy.Address, server net.Addr, tcp net.Conn) (net.PacketConn, error) {
-	conn, err := net.ListenPacket("udp", "")
+	conn, err := dialer.ListenPacket("udp", "")
 	if err != nil {
 		return nil, fmt.Errorf("create packet failed: %v", err)
 	}
