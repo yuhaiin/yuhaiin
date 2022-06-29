@@ -52,7 +52,7 @@ func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 
 }
 
-func ResolveAddr(r io.Reader) (_ proxy.Address, size int, err error) {
+func ResolveAddr(network string, r io.Reader) (_ proxy.Address, size int, err error) {
 	var byteBuf [1]byte
 	if size, err = io.ReadFull(r, byteBuf[:]); err != nil {
 		return nil, 0, fmt.Errorf("unable to read ATYP: %w", err)
@@ -99,5 +99,5 @@ func ResolveAddr(r io.Reader) (_ proxy.Address, size int, err error) {
 	size += 2
 	port := binary.BigEndian.Uint16(buf[0:2])
 
-	return proxy.ParseAddressSplit("", hostname, port), size, nil
+	return proxy.ParseAddressSplit(network, hostname, port), size, nil
 }
