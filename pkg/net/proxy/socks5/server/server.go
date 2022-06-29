@@ -62,7 +62,7 @@ func handle(user, key string, client net.Conn, f proxy.Proxy) (err error) {
 		return fmt.Errorf("read second handshake failed: %w", err)
 	}
 
-	addr, _, err := s5c.ResolveAddr(client)
+	addr, _, err := s5c.ResolveAddr("tcp", client)
 	if err != nil {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}

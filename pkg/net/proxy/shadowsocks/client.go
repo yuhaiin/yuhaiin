@@ -84,7 +84,7 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
 	}
 
-	addr, addrSize, err := s5c.ResolveAddr(bytes.NewBuffer(b[:n]))
+	addr, addrSize, err := s5c.ResolveAddr("udp", bytes.NewBuffer(b[:n]))
 	if err != nil {
 		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
 	}
