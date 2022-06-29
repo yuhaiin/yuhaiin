@@ -125,7 +125,7 @@ func (s *client) handshake2(conn net.Conn, cmd cmd, address proxy.Address) (targ
 		return nil, errors.New("socks5 second handshake failed")
 	}
 
-	addr, _, err := ResolveAddr(conn)
+	addr, _, err := ResolveAddr("tcp", conn)
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}

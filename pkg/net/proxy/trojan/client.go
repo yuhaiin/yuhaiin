@@ -148,7 +148,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (int, net.Addr, error) {
-	addr, _, err := s5c.ResolveAddr(c.Conn)
+	addr, _, err := s5c.ResolveAddr("udp", c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}

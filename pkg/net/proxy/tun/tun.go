@@ -245,11 +245,6 @@ func handleUDPToLocal(uc, pc net.PacketConn, remote net.Addr) {
 			return
 		}
 
-		if from.Network() != remote.Network() || from.String() != remote.String() {
-			log.Printf("[UDP] drop unknown packet from %s\n", from)
-			return
-		}
-
 		if _, err := uc.WriteTo(buf[:n], nil); err != nil {
 			log.Printf("[UDP] write back from %s error: %v\n", from, err)
 			return

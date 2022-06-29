@@ -52,7 +52,7 @@ func (u *udpServer) forward() {
 		}
 
 		if u.header == nil {
-			_, size, err := s5c.ResolveAddr(bytes.NewBuffer(buf[3:n]))
+			_, size, err := s5c.ResolveAddr("udp", bytes.NewBuffer(buf[3:n]))
 			if err != nil {
 				log.Println("resolve addr failed:", err)
 				continue
