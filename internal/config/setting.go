@@ -126,6 +126,10 @@ func load(path string) *config.Setting {
 		pa.Dns = &config.DnsSetting{}
 	}
 
+	if pa.Dns.FakednsIpRange == "" {
+		pa.Dns.FakednsIpRange = "10.2.0.1/24"
+	}
+
 	if pa.Dns.Local == nil {
 		pa.Dns.Local = &config.Dns{
 			Host: "223.5.5.5",
