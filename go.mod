@@ -10,6 +10,7 @@ require (
 	golang.org/x/mobile v0.0.0-20220518205345-8578da9835fd
 	golang.org/x/net v0.0.0-20220607020251-c690dde0001d
 	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68
+	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
 	golang.zx2c4.com/wireguard v0.0.0-20220407013110-ef5c587f782d
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
@@ -33,7 +34,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/mod v0.5.1 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20220609170525-579cf78fd858 // indirect
 	golang.org/x/tools v0.1.9 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect

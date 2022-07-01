@@ -29,7 +29,7 @@ type router struct {
 	fake *fakedns
 }
 
-func NewRouter(dialer proxy.Proxy, fakednsIpRange *net.IPNet) *router {
+func NewRouter(dialer proxy.Proxy) *router {
 	c := &router{statistic: NewStatistic()}
 
 	c.localdns = newLocaldns(c.statistic)
@@ -43,7 +43,8 @@ func NewRouter(dialer proxy.Proxy, fakednsIpRange *net.IPNet) *router {
 	c.shunt.AddDialer(DIRECT, direct.Default, c.localdns)
 	c.shunt.AddDialer(BLOCK, proxy.NewErrProxy(errors.New("block")), idns.NewErrorDNS(errors.New("block")))
 
-	c.fake = newFakedns(fakednsIpRange, c.shunt)
+	_, ipRange, _ := net.ParseCIDR("10.2.0.1/24")
+	c.fake = newFakedns(ipRange, c.shunt)
 
 	return c
 }
@@ -129,7 +130,17 @@ func (f *fakedns) GetResolver(addr proxy.Address) idns.DNS {
 	return z
 }
 
-func (f *fakedns) Update(c *protoconfig.Setting) { f.config = c.Dns }
+func (f *fakedns) Update(c *protoconfig.Setting) {
+	f.config = c.Dns
+
+	_, ipRange, err := net.ParseCIDR(c.Dns.FakednsIpRange)
+	if err != nil {
+		log.Println("parse fakedns ip range failed:", err)
+		return
+	}
+
+	f.fake = dns.NewFake(ipRange)
+}
 
 func (f *fakedns) Conn(addr proxy.Address) (net.Conn, error) {
 	return f.shunt.Conn(f.getAddr(addr))
