@@ -2,7 +2,6 @@ package dns
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/big"
 	"net"
@@ -84,7 +83,7 @@ func WrapFakeDNS(upStream dns.DNS, pool *Fake) *FakeDNS {
 }
 func (f *FakeDNS) LookupIP(domain string) (dns.IPResponse, error) {
 	ip := f.pool.GetFakeIPForDomain(domain)
-	log.Println("map", ip, "to", domain)
+	// log.Println("map", ip, "to", domain)
 	return dns.NewIPResponse([]net.IP{net.ParseIP(ip).To4()}, 600), nil
 }
 

@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 
@@ -17,6 +18,9 @@ import (
 
 func init() {
 	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
+		if !p.Http.Enabled {
+			return nil, fmt.Errorf("http server is disabled")
+		}
 		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
 		for _, o := range opts {
 			o(x)
@@ -24,6 +28,9 @@ func init() {
 		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password, x.Dialer)
 	})
 	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
+		if !t.Socks5.Enabled {
+			return nil, fmt.Errorf("socks5 server is disabled")
+		}
 		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
 		for _, o := range opts {
 			o(x)
@@ -31,17 +38,21 @@ func init() {
 		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password, x.Dialer)
 	})
 	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Tun, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
+		if !t.Tun.Enabled {
+			return nil, fmt.Errorf("tun server is disabled")
+		}
 		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
 		for _, o := range opts {
 			o(x)
 		}
 		s, err := tun.NewTun(&tun.TunOpt{
-			Name:         t.Tun.Name,
-			MTU:          int(t.Tun.Mtu),
-			Gateway:      t.Tun.Gateway,
-			DNSHijacking: t.Tun.DnsHijacking,
-			Dialer:       x.Dialer,
-			DNS:          x.DNSServer,
+			Name:          t.Tun.Name,
+			MTU:           int(t.Tun.Mtu),
+			Gateway:       t.Tun.Gateway,
+			DNSHijacking:  t.Tun.DnsHijacking,
+			Dialer:        x.Dialer,
+			DNS:           x.DNSServer,
+			SkipMulticast: t.Tun.SkipMulticast,
 		})
 
 		return iserver.WrapClose(func() error {
@@ -82,7 +93,15 @@ func (l *listener) Update(current *protoconfig.Setting) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	for k, v := range l.store {
-		if _, ok := current.Server.Servers[k]; !ok {
+		z, ok := current.Server.Servers[k]
+		if ok {
+			en, o := z.GetProtocol().(interface{ GetEnabled() bool })
+			if o && !en.GetEnabled() {
+				ok = false
+			}
+		}
+
+		if !ok {
 			v.server.Close()
 			delete(l.store, k)
 		}

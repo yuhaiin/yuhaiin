@@ -66,15 +66,20 @@ message http {
   string host = 1 [ json_name = "host" ];
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
+  bool enabled = 2 [ json_name = "enabled" ];
 }
 
 message socks5 {
   string host = 1 [ json_name = "host" ];
+  bool enabled = 2 [ json_name = "enabled" ];
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
 }
 
-message redir { string host = 1 [ json_name = "host" ]; }
+message redir {
+  string host = 1 [ json_name = "host" ];
+  bool enabled = 2 [ json_name = "enabled" ];
+}
 
 message tun {
   // name of the tun device
@@ -83,4 +88,6 @@ message tun {
   int32 mtu = 2 [ json_name = "mtu" ];
   string gateway = 3 [ json_name = "gateway" ];
   bool dns_hijacking = 4 [ json_name = "dns_hijacking" ];
+  bool enabled = 5 [ json_name = "enabled" ];
+  bool skip_multicast = 6 [ json_name = "skip_multicast" ];
 }

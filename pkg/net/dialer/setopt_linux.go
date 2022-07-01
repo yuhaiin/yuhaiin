@@ -4,7 +4,6 @@
 package dialer
 
 import (
-	"log"
 	"net"
 	"syscall"
 
@@ -30,7 +29,7 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 		}
 
 		if opts.InterfaceName != "" {
-			log.Println("dialer: set socket option: SO_BINDTODEVICE", opts.InterfaceName)
+			// log.Println("dialer: set socket option: SO_BINDTODEVICE", opts.InterfaceName)
 			if innerErr = unix.BindToDevice(int(fd), opts.InterfaceName); innerErr != nil {
 				return
 			}
