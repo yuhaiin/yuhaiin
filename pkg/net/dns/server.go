@@ -25,6 +25,12 @@ type dnsServer struct {
 
 func NewDnsServer(server string, process func(proxy.Address) dns.DNS) server.DNSServer {
 	d := &dnsServer{server: server, processor: process}
+
+	if server == "" {
+		log.Println("dns server is empty, skip to listen tcp and udp")
+		return d
+	}
+
 	go func() {
 		if err := d.start(); err != nil {
 			log.Println(err)

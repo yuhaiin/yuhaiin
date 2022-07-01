@@ -58,7 +58,7 @@ func (a *router) Update(s *protoconfig.Setting) {
 
 	UpdateInterfaceName(s)
 
-	if a.dnsserverHost == s.Dns.Server {
+	if a.dnsserverHost == s.Dns.Server && a.dnsserver != nil {
 		return
 	}
 
@@ -67,11 +67,7 @@ func (a *router) Update(s *protoconfig.Setting) {
 			log.Println("close dns server failed:", err)
 		}
 	}
-
-	if s.Dns.Server != "" {
-		a.dnsserver = dns.NewDnsServer(s.Dns.Server, a.fake.GetResolver)
-	}
-
+	a.dnsserver = dns.NewDnsServer(s.Dns.Server, a.fake.GetResolver)
 	a.dnsserverHost = s.Dns.Server
 }
 
