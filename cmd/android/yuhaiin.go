@@ -244,24 +244,28 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 				"socks5": {
 					Protocol: &protoconfig.ServerProtocol_Socks5{
 						Socks5: &protoconfig.Socks5{
-							Host: opt.Socks5,
+							Enabled: opt.Socks5 != "",
+							Host:    opt.Socks5,
 						},
 					},
 				},
 				"http": {
 					Protocol: &protoconfig.ServerProtocol_Http{
 						Http: &protoconfig.Http{
-							Host: opt.Http,
+							Enabled: opt.Http != "",
+							Host:    opt.Http,
 						},
 					},
 				},
 				"tun": {
 					Protocol: &protoconfig.ServerProtocol_Tun{
 						Tun: &protoconfig.Tun{
-							Name:         fmt.Sprintf("fd://%d", opt.TUN.FD),
-							Mtu:          opt.TUN.MTU,
-							Gateway:      opt.TUN.Gateway,
-							DnsHijacking: opt.TUN.DNSHijacking,
+							Enabled:       true,
+							Name:          fmt.Sprintf("fd://%d", opt.TUN.FD),
+							Mtu:           opt.TUN.MTU,
+							Gateway:       opt.TUN.Gateway,
+							DnsHijacking:  opt.TUN.DNSHijacking,
+							SkipMulticast: true,
 						},
 					},
 				},

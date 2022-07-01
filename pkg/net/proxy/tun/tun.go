@@ -25,12 +25,13 @@ import (
 )
 
 type TunOpt struct {
-	Name         string
-	Gateway      string
-	MTU          int
-	DNSHijacking bool
-	DNS          server.DNSServer
-	Dialer       proxy.Proxy
+	Name          string
+	Gateway       string
+	MTU           int
+	DNSHijacking  bool
+	SkipMulticast bool
+	DNS           server.DNSServer
+	Dialer        proxy.Proxy
 }
 
 func NewTun(opt *TunOpt) (*stack.Stack, error) {
@@ -182,7 +183,8 @@ func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
 
 		go func(local net.PacketConn, id stack.TransportEndpointID) {
 			defer local.Close()
-			if isDNSReq(opt, fr.ID()) {
+
+			if isDNSReq(opt, id) {
 				if err := opt.DNS.HandleUDP(local); err != nil {
 					log.Printf("dns handle udp failed: %v\n", err)
 				}
@@ -190,6 +192,20 @@ func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
 			}
 
 			addr := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), id.LocalPort)
+			if opt.SkipMulticast && addr.Type() == proxy.IP {
+				if ip, _ := addr.IP(); !ip.IsGlobalUnicast() {
+					buf := utils.GetBytes(utils.DefaultSize)
+					defer utils.PutBytes(buf)
+
+					for {
+						local.SetReadDeadline(time.Now().Add(60 * time.Second))
+						if _, _, err := local.ReadFrom(buf); err != nil {
+							return
+						}
+					}
+				}
+			}
+
 			conn, er := opt.Dialer.PacketConn(addr)
 			if er != nil {
 				return

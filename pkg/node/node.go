@@ -179,15 +179,22 @@ func (n *Nodes) UpdateLinks(c context.Context, req *node.LinkReq) (*emptypb.Empt
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				conn, err := dialer.DialContext(ctx, network, addr)
-				if err == nil {
-					return conn, nil
-				}
-
+				log.Println("dial:", network, addr)
 				ad, err := proxy.ParseAddress(network, addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %v", err)
 				}
+
+				ipHost, err := ad.IPHost()
+				if err == nil {
+					ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+					defer cancel()
+					conn, err := dialer.DialContext(ctx, network, ipHost)
+					if err == nil {
+						return conn, nil
+					}
+				}
+
 				return n.dialer().Conn(ad)
 			},
 		},
