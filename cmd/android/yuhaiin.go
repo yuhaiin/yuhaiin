@@ -127,12 +127,7 @@ func (a *App) Start(opt *Opts) error {
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
 	a.node = node.NewNodes(pc.node)
 
-	_, ipRange, err := net.ParseCIDR(opt.DNS.FakednsIpRange)
-	if err != nil {
-		a.Stop()
-		return err
-	}
-	app := statistic.NewRouter(a.node, ipRange)
+	app := statistic.NewRouter(a.node)
 	a.closers = append(a.closers, app.Close)
 	fakeSetting.AddObserver(app)
 	insert(app.Insert, opt.Block, &statistic.BLOCK)
@@ -218,8 +213,9 @@ func pathConfig(configPath string) struct{ dir, lockfile, node, config, logfile 
 func fakeSetting(opt *Opts, path string) *fakeSettings {
 	settings := &protoconfig.Setting{
 		Dns: &protoconfig.DnsSetting{
-			Server:  opt.DNS.Server,
-			Fakedns: opt.DNS.Fakedns,
+			Server:         opt.DNS.Server,
+			Fakedns:        opt.DNS.Fakedns,
+			FakednsIpRange: opt.DNS.FakednsIpRange,
 			Remote: &protoconfig.Dns{
 				Host:          opt.DNS.Remote.Host,
 				Type:          protoconfig.DnsDnsType(opt.DNS.Remote.Type),

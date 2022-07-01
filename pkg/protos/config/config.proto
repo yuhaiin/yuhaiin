@@ -15,6 +15,7 @@ message setting {
 message dns_setting {
   string server = 4 [ json_name = "server" ];
   bool fakedns = 5 [ json_name = "fakedns" ];
+  string fakedns_ip_range = 6 [ json_name = "fakedns_ip_range" ];
   dns remote = 1 [ json_name = "remote" ];
   dns local = 2 [ json_name = "local" ];
   dns bootstrap = 3 [ json_name = "bootstrap" ];

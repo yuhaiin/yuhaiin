@@ -74,8 +74,7 @@ func main() {
 	nodes := node.NewNodes(pc.node)
 	grpcserver.RegisterService(&grpcnode.NodeManager_ServiceDesc, nodes)
 
-	_, ipRange, _ := net.ParseCIDR("192.0.2.1/24")
-	app := statistic.NewRouter(nodes, ipRange)
+	app := statistic.NewRouter(nodes)
 	defer app.Close()
 	setting.AddObserver(app)
 	grpcserver.RegisterService(&grpcsts.Connections_ServiceDesc, app.Statistic())

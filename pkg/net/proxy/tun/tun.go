@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"golang.org/x/time/rate"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -76,15 +77,15 @@ func NewTun(opt *TunOpt) (*stack.Stack, error) {
 	s.SetSpoofing(nicID, true)
 	s.SetPromiscuousMode(nicID, true)
 
-	// ttlopt := tcpip.DefaultTTLOption(defaultTimeToLive)
-	// s.SetNetworkProtocolOption(ipv4.ProtocolNumber, &ttlopt)
-	// s.SetNetworkProtocolOption(ipv6.ProtocolNumber, &ttlopt)
+	ttlopt := tcpip.DefaultTTLOption(defaultTimeToLive)
+	s.SetNetworkProtocolOption(ipv4.ProtocolNumber, &ttlopt)
+	s.SetNetworkProtocolOption(ipv6.ProtocolNumber, &ttlopt)
 
-	// s.SetForwardingDefaultAndAllNICs(ipv4.ProtocolNumber, ipForwardingEnabled)
-	// s.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, ipForwardingEnabled)
+	s.SetForwardingDefaultAndAllNICs(ipv4.ProtocolNumber, ipForwardingEnabled)
+	s.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, ipForwardingEnabled)
 
-	// s.SetICMPBurst(icmpBurst)
-	// s.SetICMPLimit(icmpLimit)
+	s.SetICMPBurst(icmpBurst)
+	s.SetICMPLimit(icmpLimit)
 
 	rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
 		Min:     1,
@@ -100,11 +101,11 @@ func NewTun(opt *TunOpt) (*stack.Stack, error) {
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
 
-	// opt2 := tcpip.CongestionControlOption(tcpCongestionControlAlgorithm)
-	// s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt2)
+	opt2 := tcpip.CongestionControlOption(tcpCongestionControlAlgorithm)
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt2)
 
-	// opt3 := tcpip.TCPDelayEnabled(tcpDelayEnabled)
-	// s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt3)
+	opt3 := tcpip.TCPDelayEnabled(tcpDelayEnabled)
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt3)
 
 	sOpt := tcpip.TCPSACKEnabled(tcpSACKEnabled)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sOpt)
@@ -112,8 +113,8 @@ func NewTun(opt *TunOpt) (*stack.Stack, error) {
 	mOpt := tcpip.TCPModerateReceiveBufferOption(tcpModerateReceiveBufferEnabled)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &mOpt)
 
-	// tr := tcpRecovery
-	// s.SetTransportProtocolOption(tcp.ProtocolNumber, &tr)
+	tr := tcpRecovery
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tr)
 	return s, nil
 }
 
@@ -128,9 +129,9 @@ func tcpForwarder(s *stack.Stack, opt *TunOpt) *tcp.Forwarder {
 		}
 		defer r.Complete(false)
 
-		// if err = setSocketOptions(s, ep); err != nil {
-		// log.Printf("set socket options failed: %v\n", err)
-		// }
+		if err = setSocketOptions(s, ep); err != nil {
+			log.Printf("set socket options failed: %v\n", err)
+		}
 
 		local := gTcpConn{gonet.NewTCPConn(&wq, ep)}
 
@@ -253,9 +254,28 @@ func handleUDPToLocal(uc, pc net.PacketConn, remote net.Addr) {
 }
 
 const (
+	// defaultTimeToLive specifies the default TTL used by stack.
+	defaultTimeToLive uint8 = 64
+
+	// ipForwardingEnabled is the value used by stack to enable packet
+	// forwarding between NICs.
+	ipForwardingEnabled = true
+
+	// icmpBurst is the default number of ICMP messages that can be sent in
+	// a single burst.
+	icmpBurst = 50
+
+	// icmpLimit is the default maximum number of ICMP messages permitted
+	// by this rate limiter.
+	icmpLimit rate.Limit = 1000
+
 	// tcpCongestionControl is the congestion control algorithm used by
 	// stack. ccReno is the default option in gVisor stack.
 	tcpCongestionControlAlgorithm = "reno" // "reno" or "cubic"
+
+	// tcpDelayEnabled is the value used by stack to enable or disable
+	// tcp delay option. Disable Nagle's algorithm here by default.
+	tcpDelayEnabled = false
 
 	// tcpModerateReceiveBufferEnabled is the value used by stack to
 	// enable or disable tcp receive buffer auto-tuning option.
@@ -264,62 +284,65 @@ const (
 	// tcpSACKEnabled is the value used by stack to enable or disable
 	// tcp selective ACK.
 	tcpSACKEnabled = true
+
+	// tcpRecovery is the loss detection algorithm used by TCP.
+	tcpRecovery = tcpip.TCPRACKLossDetection
 )
 
-// const (
-// 	// defaultWndSize if set to zero, the default
-// 	// receive window buffer size is used instead.
-// 	defaultWndSize = 0
+const (
+	// defaultWndSize if set to zero, the default
+	// receive window buffer size is used instead.
+	defaultWndSize = 0
 
-// 	// maxConnAttempts specifies the maximum number
-// 	// of in-flight tcp connection attempts.
-// 	maxConnAttempts = 2 << 10
+	// maxConnAttempts specifies the maximum number
+	// of in-flight tcp connection attempts.
+	maxConnAttempts = 2 << 10
 
-// 	// tcpKeepaliveCount is the maximum number of
-// 	// TCP keep-alive probes to send before giving up
-// 	// and killing the connection if no response is
-// 	// obtained from the other end.
-// 	tcpKeepaliveCount = 9
+	// tcpKeepaliveCount is the maximum number of
+	// TCP keep-alive probes to send before giving up
+	// and killing the connection if no response is
+	// obtained from the other end.
+	tcpKeepaliveCount = 9
 
-// 	// tcpKeepaliveIdle specifies the time a connection
-// 	// must remain idle before the first TCP keepalive
-// 	// packet is sent. Once this time is reached,
-// 	// tcpKeepaliveInterval option is used instead.
-// 	tcpKeepaliveIdle = 60 * time.Second
+	// tcpKeepaliveIdle specifies the time a connection
+	// must remain idle before the first TCP keepalive
+	// packet is sent. Once this time is reached,
+	// tcpKeepaliveInterval option is used instead.
+	tcpKeepaliveIdle = 60 * time.Second
 
-// 	// tcpKeepaliveInterval specifies the interval
-// 	// time between sending TCP keepalive packets.
-// 	tcpKeepaliveInterval = 30 * time.Second
-// )
+	// tcpKeepaliveInterval specifies the interval
+	// time between sending TCP keepalive packets.
+	tcpKeepaliveInterval = 30 * time.Second
+)
 
-// func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
-// 	{ /* TCP keepalive options */
-// 		ep.SocketOptions().SetKeepAlive(true)
+func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
+	{ /* TCP keepalive options */
+		ep.SocketOptions().SetKeepAlive(true)
 
-// 		idle := tcpip.KeepaliveIdleOption(tcpKeepaliveIdle)
-// 		if err := ep.SetSockOpt(&idle); err != nil {
-// 			return err
-// 		}
+		idle := tcpip.KeepaliveIdleOption(tcpKeepaliveIdle)
+		if err := ep.SetSockOpt(&idle); err != nil {
+			return err
+		}
 
-// 		interval := tcpip.KeepaliveIntervalOption(tcpKeepaliveInterval)
-// 		if err := ep.SetSockOpt(&interval); err != nil {
-// 			return err
-// 		}
+		interval := tcpip.KeepaliveIntervalOption(tcpKeepaliveInterval)
+		if err := ep.SetSockOpt(&interval); err != nil {
+			return err
+		}
 
-// 		if err := ep.SetSockOptInt(tcpip.KeepaliveCountOption, tcpKeepaliveCount); err != nil {
-// 			return err
-// 		}
-// 	}
-// 	{ /* TCP recv/send buffer size */
-// 		var ss tcpip.TCPSendBufferSizeRangeOption
-// 		if err := s.TransportProtocolOption(header.TCPProtocolNumber, &ss); err == nil {
-// 			ep.SocketOptions().SetReceiveBufferSize(int64(ss.Default), false)
-// 		}
+		if err := ep.SetSockOptInt(tcpip.KeepaliveCountOption, tcpKeepaliveCount); err != nil {
+			return err
+		}
+	}
+	{ /* TCP recv/send buffer size */
+		var ss tcpip.TCPSendBufferSizeRangeOption
+		if err := s.TransportProtocolOption(header.TCPProtocolNumber, &ss); err == nil {
+			ep.SocketOptions().SetReceiveBufferSize(int64(ss.Default), false)
+		}
 
-// 		var rs tcpip.TCPReceiveBufferSizeRangeOption
-// 		if err := s.TransportProtocolOption(header.TCPProtocolNumber, &rs); err == nil {
-// 			ep.SocketOptions().SetReceiveBufferSize(int64(rs.Default), false)
-// 		}
-// 	}
-// 	return nil
-// }
+		var rs tcpip.TCPReceiveBufferSizeRangeOption
+		if err := s.TransportProtocolOption(header.TCPProtocolNumber, &rs); err == nil {
+			ep.SocketOptions().SetReceiveBufferSize(int64(rs.Default), false)
+		}
+	}
+	return nil
+}
