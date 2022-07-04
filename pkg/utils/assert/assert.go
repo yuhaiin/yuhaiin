@@ -30,7 +30,7 @@ func MustEqual[T comparable](t testing.TB, expected, actual T) {
 	}
 }
 
-func ObjectsAreEqual(expected, actual interface{}) bool {
+func ObjectsAreEqual(expected, actual any) bool {
 	if expected == nil || actual == nil {
 		return expected == actual
 	}

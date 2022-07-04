@@ -71,7 +71,7 @@ func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
 
 		for _, c := range conns.GetConnections() {
 			str.WriteString(`<li>`)
-			str.WriteString(fmt.Sprintf(`%d| &lt;%s[%s]&gt; %s, %s <-> %s`, c.GetId(), c.GetType(), c.GetMark(), c.GetAddr(), c.GetLocal(), c.GetRemote()))
+			str.WriteString(fmt.Sprintf(`%d| &lt;%s[%s]&gt; %s(fakeip: [%s]), %s <-> %s`, c.GetId(), c.GetType(), c.GetMark(), c.GetAddr(), c.GetFakedns(), c.GetLocal(), c.GetRemote()))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
 			str.WriteString("</li>")

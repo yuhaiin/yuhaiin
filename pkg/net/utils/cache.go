@@ -145,18 +145,18 @@ func NewCache() *Cache {
 }
 
 //Get .
-func (c *Cache) Get(domain string) (interface{}, bool) {
+func (c *Cache) Get(domain string) (any, bool) {
 	return c.pool.Load(domain)
 }
 
 //Add .
-func (c *Cache) Add(domain string, mark interface{}) {
+func (c *Cache) Add(domain string, mark any) {
 	if mark == nil {
 		return
 	}
 	if c.number > 800 {
 		tmp := 0
-		c.pool.Range(func(key, value interface{}) bool {
+		c.pool.Range(func(key, value any) bool {
 			c.pool.Delete(key)
 			if tmp >= 80 {
 				return false
@@ -168,7 +168,7 @@ func (c *Cache) Add(domain string, mark interface{}) {
 
 		if time.Since(c.lastUpdateTime) >= time.Hour {
 			number := 0
-			c.pool.Range(func(key, value interface{}) bool {
+			c.pool.Range(func(key, value any) bool {
 				number++
 				return true
 			})

@@ -9,14 +9,14 @@
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Supported Protocol  
-  - Shadowsocksr  
-  - Shadowsocks(plugin: Obfs-Http, v2ray-plugin[websocket, quic])  
-  - Vmess, trojan
+  - Shadowsocksr, Shadowsocks, Vmess, trojan  
+  - Websocket, Quic, obfs-http  
   - Socks5, HTTP, Linux/Mac Redir
-  - TODO: TUN
+  - TUN([gvisor](https://github.com/google/gvisor))
 - support DNS:
   - DNS, EDNS
   - FakeDNS
+  - DNS Server
   - DNS over UDP
   - DNS over HTTPS(3)
   - DNS over Quic
@@ -111,5 +111,8 @@ yh sub update
 - [gRPC](https://grpc.io/)  
 - [protobuf](https://github.com/golang/protobuf)  
 - [プロ生ちゃん](https://kei.pronama.jp/)
+- [WireGuard/wireguard-go](https://github.com/WireGuard/wireguard-go)
+- [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
+- [google/gvisor](https://github.com/google/gvisor)
 
 </details>

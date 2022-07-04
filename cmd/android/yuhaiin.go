@@ -149,6 +149,7 @@ func (a *App) Stop() error {
 		closer()
 	}
 	a.node = nil
+	a.closers = nil
 	return nil
 }
 
@@ -266,6 +267,7 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 							Gateway:       opt.TUN.Gateway,
 							DnsHijacking:  opt.TUN.DNSHijacking,
 							SkipMulticast: true,
+							Driver:        protoconfig.Tun_channel,
 						},
 					},
 				},
