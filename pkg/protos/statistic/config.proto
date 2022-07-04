@@ -20,6 +20,7 @@ message connection {
   string remote = 4 [ json_name = "remote" ];
   string mark = 5 [ json_name = "mark" ];
   string type = 6 [ json_name = "type" ];
+  string fakedns = 7 [ json_name = "fakedns" ];
 }
 
 message conn_resp {

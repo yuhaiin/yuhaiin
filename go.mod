@@ -14,7 +14,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20220407013110-ef5c587f782d
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
-	gvisor.dev/gvisor v0.0.0-20220625024455-f4267629920c
+	gvisor.dev/gvisor v0.0.0-20211020211948-f76a604701b6
 )
 
 require (

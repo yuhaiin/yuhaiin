@@ -90,4 +90,9 @@ message tun {
   bool dns_hijacking = 4 [ json_name = "dns_hijacking" ];
   bool enabled = 5 [ json_name = "enabled" ];
   bool skip_multicast = 6 [ json_name = "skip_multicast" ];
+  enum endpoint_driver {
+    fdbased = 0;
+    channel = 1;
+  }
+  endpoint_driver driver = 7 [ json_name = "driver" ];
 }

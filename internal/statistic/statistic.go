@@ -2,6 +2,7 @@ package statistic
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 
@@ -49,6 +50,13 @@ func (c *counter) CloseConn(_ context.Context, x *statistic.CloseConnsReq) (*emp
 	return &emptypb.Empty{}, nil
 }
 
+func (c *counter) CloseAll() {
+	c.conns.Range(func(key int64, v connection) bool {
+		v.Close()
+		return true
+	})
+}
+
 func (c *counter) Statistic(_ *emptypb.Empty, srv grpcsts.Connections_StatisticServer) error {
 	log.Println("Start Send Flow Message to Client.")
 	id := c.accountant.AddClient(srv.Send)
@@ -60,13 +68,16 @@ func (c *counter) Statistic(_ *emptypb.Empty, srv grpcsts.Connections_StatisticS
 
 func (c *counter) delete(id int64) {
 	if z, ok := c.conns.LoadAndDelete(id); ok {
-		log.Printf("close %v| <%s[%v]>: %v, %s <-> %s\n",
-			z.GetId(), z.GetType(), z.GetMark(), z.GetAddr(), z.GetLocal(), z.GetRemote())
+		log.Println("close", c.cString(z))
 	}
 }
 
 func (c *counter) storeConnection(o connection) {
-	log.Printf("%v| <%s[%v]>: %v, %s <-> %s\n",
-		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), o.GetLocal(), o.GetRemote())
+	log.Println(c.cString(o))
 	c.conns.Store(o.GetId(), o)
+}
+
+func (c *counter) cString(o connection) string {
+	return fmt.Sprintf("%v| <%s[%v]>: %v(fakeip: [%s]), %s <-> %s",
+		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), o.GetFakedns(), o.GetLocal(), o.GetRemote())
 }

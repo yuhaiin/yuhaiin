@@ -100,6 +100,9 @@ func (a *router) Close() error {
 		a.bootstrap.Close()
 	}
 
+	if a.statistic != nil {
+		a.statistic.CloseAll()
+	}
 	return nil
 }
 
@@ -146,11 +149,15 @@ func (f *fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	return f.shunt.PacketConn(f.getAddr(addr))
 }
 
+const FAKEDNS_MARK = "FAKEDNS"
+
 func (f *fakedns) getAddr(addr proxy.Address) proxy.Address {
 	if f.config != nil && f.config.Fakedns && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {
+			ad := addr
 			addr = proxy.ParseAddressSplit("tcp", t, addr.Port().Port())
+			addr.AddMark(FAKEDNS_MARK, ad.String())
 		}
 	}
 

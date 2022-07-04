@@ -27,7 +27,7 @@ import (
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/error"
+	yerror "github.com/Asutorufa/yuhaiin/pkg/utils/error"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -54,11 +54,11 @@ func main() {
 	log.Println("\n\n\nsave config at:", pc.dir)
 	log.Println("gRPC and http listen at:", *host)
 
-	lock := error.Must(lockfile.NewLock(pc.lockfile, *host))
+	lock := yerror.Must(lockfile.NewLock(pc.lockfile, *host))
 	defer lock.UnLock()
 
 	// create listener
-	lis := error.Must(net.Listen("tcp", *host))
+	lis := yerror.Must(net.Listen("tcp", *host))
 
 	// listen system signal
 	signChannel := make(chan os.Signal, 1)
@@ -89,7 +89,7 @@ func main() {
 	mux := http.NewServeMux()
 	simplehttp.Httpserver(mux, nodes, app.Statistic(), setting)
 
-	error.Must(struct{}{},
+	yerror.Must(struct{}{},
 		// h2c for grpc insecure mode
 		http.Serve(lis, h2c.NewHandler(http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
