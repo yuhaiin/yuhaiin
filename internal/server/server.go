@@ -45,20 +45,16 @@ func init() {
 		for _, o := range opts {
 			o(x)
 		}
-		s, err := tun.NewTun(&tun.TunOpt{
-			Name:          t.Tun.Name,
-			MTU:           int(t.Tun.Mtu),
-			Gateway:       t.Tun.Gateway,
-			DNSHijacking:  t.Tun.DnsHijacking,
-			Dialer:        x.Dialer,
-			DNS:           x.DNSServer,
-			SkipMulticast: t.Tun.SkipMulticast,
+		return tun.NewTun(&tun.TunOpt{
+			Name:           t.Tun.Name,
+			MTU:            int(t.Tun.Mtu),
+			Gateway:        t.Tun.Gateway,
+			DNSHijacking:   t.Tun.DnsHijacking,
+			Dialer:         x.Dialer,
+			DNS:            x.DNSServer,
+			EndpointDriver: t.Tun.Driver,
+			SkipMulticast:  t.Tun.SkipMulticast,
 		})
-
-		return iserver.WrapClose(func() error {
-			s.Close()
-			return nil
-		}), err
 	})
 }
 

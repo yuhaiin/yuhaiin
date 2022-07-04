@@ -1,6 +1,8 @@
 package syncmap
 
-import "sync"
+import (
+	"sync"
+)
 
 type SyncMap[key, value any] struct {
 	data sync.Map
@@ -39,7 +41,7 @@ func (a *SyncMap[T1, T2]) Delete(key T1) {
 }
 
 func (a *SyncMap[T1, T2]) Range(f func(key T1, value T2) bool) {
-	a.data.Range(func(key, value interface{}) bool {
+	a.data.Range(func(key, value any) bool {
 		return f(key.(T1), value.(T2))
 	})
 }

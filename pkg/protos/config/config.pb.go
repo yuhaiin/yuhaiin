@@ -81,6 +81,52 @@ func (DnsDnsType) EnumDescriptor() ([]byte, []int) {
 	return file_config_config_proto_rawDescGZIP(), []int{4, 0}
 }
 
+type TunEndpointDriver int32
+
+const (
+	Tun_fdbased TunEndpointDriver = 0
+	Tun_channel TunEndpointDriver = 1
+)
+
+// Enum value maps for TunEndpointDriver.
+var (
+	TunEndpointDriver_name = map[int32]string{
+		0: "fdbased",
+		1: "channel",
+	}
+	TunEndpointDriver_value = map[string]int32{
+		"fdbased": 0,
+		"channel": 1,
+	}
+)
+
+func (x TunEndpointDriver) Enum() *TunEndpointDriver {
+	p := new(TunEndpointDriver)
+	*p = x
+	return p
+}
+
+func (x TunEndpointDriver) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TunEndpointDriver) Descriptor() protoreflect.EnumDescriptor {
+	return file_config_config_proto_enumTypes[1].Descriptor()
+}
+
+func (TunEndpointDriver) Type() protoreflect.EnumType {
+	return &file_config_config_proto_enumTypes[1]
+}
+
+func (x TunEndpointDriver) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TunEndpointDriver.Descriptor instead.
+func (TunEndpointDriver) EnumDescriptor() ([]byte, []int) {
+	return file_config_config_proto_rawDescGZIP(), []int{9, 0}
+}
+
 type Setting struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -688,12 +734,13 @@ type Tun struct {
 
 	// name of the tun device
 	// eg: tun://tun0, fd://123
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Mtu           int32  `protobuf:"varint,2,opt,name=mtu,proto3" json:"mtu,omitempty"`
-	Gateway       string `protobuf:"bytes,3,opt,name=gateway,proto3" json:"gateway,omitempty"`
-	DnsHijacking  bool   `protobuf:"varint,4,opt,name=dns_hijacking,proto3" json:"dns_hijacking,omitempty"`
-	Enabled       bool   `protobuf:"varint,5,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	SkipMulticast bool   `protobuf:"varint,6,opt,name=skip_multicast,proto3" json:"skip_multicast,omitempty"`
+	Name          string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Mtu           int32             `protobuf:"varint,2,opt,name=mtu,proto3" json:"mtu,omitempty"`
+	Gateway       string            `protobuf:"bytes,3,opt,name=gateway,proto3" json:"gateway,omitempty"`
+	DnsHijacking  bool              `protobuf:"varint,4,opt,name=dns_hijacking,proto3" json:"dns_hijacking,omitempty"`
+	Enabled       bool              `protobuf:"varint,5,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	SkipMulticast bool              `protobuf:"varint,6,opt,name=skip_multicast,proto3" json:"skip_multicast,omitempty"`
+	Driver        TunEndpointDriver `protobuf:"varint,7,opt,name=driver,proto3,enum=yuhaiin.config.TunEndpointDriver" json:"driver,omitempty"`
 }
 
 func (x *Tun) Reset() {
@@ -768,6 +815,13 @@ func (x *Tun) GetSkipMulticast() bool {
 		return x.SkipMulticast
 	}
 	return false
+}
+
+func (x *Tun) GetDriver() TunEndpointDriver {
+	if x != nil {
+		return x.Driver
+	}
+	return Tun_fdbased
 }
 
 type ServerProtocol struct {
@@ -988,7 +1042,7 @@ var file_config_config_proto_rawDesc = []byte{
 	0x35, 0x0a, 0x05, 0x72, 0x65, 0x64, 0x69, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x6f, 0x73, 0x74,
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x12, 0x18, 0x0a, 0x07,
 	0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x65,
-	0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x22, 0xad, 0x01, 0x0a, 0x03, 0x74, 0x75, 0x6e, 0x12, 0x12,
+	0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x22, 0x97, 0x02, 0x0a, 0x03, 0x74, 0x75, 0x6e, 0x12, 0x12,
 	0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61,
 	0x6d, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x6d, 0x74, 0x75, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52,
 	0x03, 0x6d, 0x74, 0x75, 0x12, 0x18, 0x0a, 0x07, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x18,
@@ -999,10 +1053,17 @@ var file_config_config_proto_rawDesc = []byte{
 	0x05, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x12, 0x26,
 	0x0a, 0x0e, 0x73, 0x6b, 0x69, 0x70, 0x5f, 0x6d, 0x75, 0x6c, 0x74, 0x69, 0x63, 0x61, 0x73, 0x74,
 	0x18, 0x06, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0e, 0x73, 0x6b, 0x69, 0x70, 0x5f, 0x6d, 0x75, 0x6c,
-	0x74, 0x69, 0x63, 0x61, 0x73, 0x74, 0x42, 0x30, 0x5a, 0x2e, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x41, 0x73, 0x75, 0x74, 0x6f, 0x72, 0x75, 0x66, 0x61, 0x2f, 0x79,
-	0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x73, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x74, 0x69, 0x63, 0x61, 0x73, 0x74, 0x12, 0x3b, 0x0a, 0x06, 0x64, 0x72, 0x69, 0x76, 0x65, 0x72,
+	0x18, 0x07, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x23, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e,
+	0x2e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x74, 0x75, 0x6e, 0x2e, 0x65, 0x6e, 0x64, 0x70,
+	0x6f, 0x69, 0x6e, 0x74, 0x5f, 0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x52, 0x06, 0x64, 0x72, 0x69,
+	0x76, 0x65, 0x72, 0x22, 0x2b, 0x0a, 0x0f, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x5f,
+	0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x12, 0x0b, 0x0a, 0x07, 0x66, 0x64, 0x62, 0x61, 0x73, 0x65,
+	0x64, 0x10, 0x00, 0x12, 0x0b, 0x0a, 0x07, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x10, 0x01,
+	0x42, 0x30, 0x5a, 0x2e, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x41,
+	0x73, 0x75, 0x74, 0x6f, 0x72, 0x75, 0x66, 0x61, 0x2f, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e,
+	0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x63, 0x6f, 0x6e, 0x66,
+	0x69, 0x67, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1017,43 +1078,45 @@ func file_config_config_proto_rawDescGZIP() []byte {
 	return file_config_config_proto_rawDescData
 }
 
-var file_config_config_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_config_config_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_config_config_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_config_config_proto_goTypes = []interface{}{
 	(DnsDnsType)(0),        // 0: yuhaiin.config.dns.dns_type
-	(*Setting)(nil),        // 1: yuhaiin.config.setting
-	(*DnsSetting)(nil),     // 2: yuhaiin.config.dns_setting
-	(*SystemProxy)(nil),    // 3: yuhaiin.config.system_proxy
-	(*Bypass)(nil),         // 4: yuhaiin.config.bypass
-	(*Dns)(nil),            // 5: yuhaiin.config.dns
-	(*Server)(nil),         // 6: yuhaiin.config.server
-	(*Http)(nil),           // 7: yuhaiin.config.http
-	(*Socks5)(nil),         // 8: yuhaiin.config.socks5
-	(*Redir)(nil),          // 9: yuhaiin.config.redir
-	(*Tun)(nil),            // 10: yuhaiin.config.tun
-	(*ServerProtocol)(nil), // 11: yuhaiin.config.server.protocol
-	nil,                    // 12: yuhaiin.config.server.ServersEntry
+	(TunEndpointDriver)(0), // 1: yuhaiin.config.tun.endpoint_driver
+	(*Setting)(nil),        // 2: yuhaiin.config.setting
+	(*DnsSetting)(nil),     // 3: yuhaiin.config.dns_setting
+	(*SystemProxy)(nil),    // 4: yuhaiin.config.system_proxy
+	(*Bypass)(nil),         // 5: yuhaiin.config.bypass
+	(*Dns)(nil),            // 6: yuhaiin.config.dns
+	(*Server)(nil),         // 7: yuhaiin.config.server
+	(*Http)(nil),           // 8: yuhaiin.config.http
+	(*Socks5)(nil),         // 9: yuhaiin.config.socks5
+	(*Redir)(nil),          // 10: yuhaiin.config.redir
+	(*Tun)(nil),            // 11: yuhaiin.config.tun
+	(*ServerProtocol)(nil), // 12: yuhaiin.config.server.protocol
+	nil,                    // 13: yuhaiin.config.server.ServersEntry
 }
 var file_config_config_proto_depIdxs = []int32{
-	3,  // 0: yuhaiin.config.setting.system_proxy:type_name -> yuhaiin.config.system_proxy
-	4,  // 1: yuhaiin.config.setting.bypass:type_name -> yuhaiin.config.bypass
-	2,  // 2: yuhaiin.config.setting.dns:type_name -> yuhaiin.config.dns_setting
-	6,  // 3: yuhaiin.config.setting.server:type_name -> yuhaiin.config.server
-	5,  // 4: yuhaiin.config.dns_setting.remote:type_name -> yuhaiin.config.dns
-	5,  // 5: yuhaiin.config.dns_setting.local:type_name -> yuhaiin.config.dns
-	5,  // 6: yuhaiin.config.dns_setting.bootstrap:type_name -> yuhaiin.config.dns
+	4,  // 0: yuhaiin.config.setting.system_proxy:type_name -> yuhaiin.config.system_proxy
+	5,  // 1: yuhaiin.config.setting.bypass:type_name -> yuhaiin.config.bypass
+	3,  // 2: yuhaiin.config.setting.dns:type_name -> yuhaiin.config.dns_setting
+	7,  // 3: yuhaiin.config.setting.server:type_name -> yuhaiin.config.server
+	6,  // 4: yuhaiin.config.dns_setting.remote:type_name -> yuhaiin.config.dns
+	6,  // 5: yuhaiin.config.dns_setting.local:type_name -> yuhaiin.config.dns
+	6,  // 6: yuhaiin.config.dns_setting.bootstrap:type_name -> yuhaiin.config.dns
 	0,  // 7: yuhaiin.config.dns.type:type_name -> yuhaiin.config.dns.dns_type
-	12, // 8: yuhaiin.config.server.servers:type_name -> yuhaiin.config.server.ServersEntry
-	7,  // 9: yuhaiin.config.server.protocol.http:type_name -> yuhaiin.config.http
-	8,  // 10: yuhaiin.config.server.protocol.socks5:type_name -> yuhaiin.config.socks5
-	9,  // 11: yuhaiin.config.server.protocol.redir:type_name -> yuhaiin.config.redir
-	10, // 12: yuhaiin.config.server.protocol.tun:type_name -> yuhaiin.config.tun
-	11, // 13: yuhaiin.config.server.ServersEntry.value:type_name -> yuhaiin.config.server.protocol
-	14, // [14:14] is the sub-list for method output_type
-	14, // [14:14] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	13, // 8: yuhaiin.config.server.servers:type_name -> yuhaiin.config.server.ServersEntry
+	1,  // 9: yuhaiin.config.tun.driver:type_name -> yuhaiin.config.tun.endpoint_driver
+	8,  // 10: yuhaiin.config.server.protocol.http:type_name -> yuhaiin.config.http
+	9,  // 11: yuhaiin.config.server.protocol.socks5:type_name -> yuhaiin.config.socks5
+	10, // 12: yuhaiin.config.server.protocol.redir:type_name -> yuhaiin.config.redir
+	11, // 13: yuhaiin.config.server.protocol.tun:type_name -> yuhaiin.config.tun
+	12, // 14: yuhaiin.config.server.ServersEntry.value:type_name -> yuhaiin.config.server.protocol
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_config_config_proto_init() }
@@ -1206,7 +1269,7 @@ func file_config_config_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_config_config_proto_rawDesc,
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,

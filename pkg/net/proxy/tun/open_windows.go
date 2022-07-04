@@ -3,11 +3,12 @@ package tun
 import (
 	"fmt"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-func open(name string, mtu int) (_ stack.LinkEndpoint, err error) {
+func open(name string, driver config.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
 	return nil, fmt.Errorf("not implemented")
 	// if !strings.HasPrefix(name, "tun://") {
 	// 	return nil, fmt.Errorf("invalid tun name: %s", name)

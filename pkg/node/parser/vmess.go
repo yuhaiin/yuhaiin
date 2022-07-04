@@ -76,7 +76,7 @@ func init() {
 			V     string `json:"v,omitempty"`
 			Class int64  `json:"class,omitempty"`
 		}{}
-		err := json.Unmarshal(trim(DecodeBase64Bytes(bytes.TrimPrefix(data, []byte("vmess://")))), &n)
+		err := json.Unmarshal(trim(DecodeBase64Bytes(bytes.TrimSpace(bytes.TrimPrefix(data, []byte("vmess://"))))), &n)
 		if err != nil {
 			return nil, err
 		}
