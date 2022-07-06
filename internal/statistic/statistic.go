@@ -14,8 +14,8 @@ import (
 )
 
 type conns interface {
-	AddConn(_ net.Conn, host proxy.Address, mark string) net.Conn
-	AddPacketConn(_ net.PacketConn, host proxy.Address, mark string) net.PacketConn
+	AddConn(_ net.Conn, host proxy.Address) net.Conn
+	AddPacketConn(_ net.PacketConn, host proxy.Address) net.PacketConn
 }
 
 var _ conns = (*counter)(nil)
@@ -29,7 +29,7 @@ type counter struct {
 	conns  syncmap.SyncMap[int64, connection]
 }
 
-func NewStatistic() *counter { return &counter{} }
+func newStatistic() *counter { return &counter{} }
 
 func (c *counter) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
 	resp := &statistic.ConnResp{}
