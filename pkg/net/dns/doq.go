@@ -13,9 +13,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/lucas-clemente/quic-go"
 	"golang.org/x/net/http2"
 )
+
+func init() {
+	Register(config.Dns_doq, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoQ(c, p) })
+}
 
 type doq struct {
 	conn       net.PacketConn

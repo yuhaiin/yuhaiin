@@ -5,7 +5,12 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
+
+func init() {
+	Register(config.Dns_dot, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoT(c, p) })
+}
 
 func NewDoT(config dns.Config, p proxy.StreamProxy) dns.DNS {
 	d := newTCP(config, "853", p)

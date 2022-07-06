@@ -11,8 +11,28 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 )
+
+var dnsMap syncmap.SyncMap[config.DnsDnsType, func(dns.Config, proxy.Proxy) dns.DNS]
+
+func New(tYPE config.DnsDnsType, config dns.Config, dialer proxy.Proxy) dns.DNS {
+	f, ok := dnsMap.Load(tYPE)
+	if !ok {
+		return dns.NewErrorDNS(fmt.Errorf("no dns type %v process found", tYPE))
+	}
+
+	return f(config, dialer)
+}
+
+func Register(tYPE config.DnsDnsType, f func(dns.Config, proxy.Proxy) dns.DNS) {
+	if f != nil {
+		dnsMap.Store(tYPE, f)
+	}
+}
 
 type client struct {
 	subnet []dnsmessage.Resource

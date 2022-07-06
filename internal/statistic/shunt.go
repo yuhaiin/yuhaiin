@@ -67,6 +67,8 @@ var (
 	MAX    MODE = "MAX"
 
 	UNKNOWN MODE = "UNKNOWN"
+
+	MODE_MARK = "MODE_MARK"
 )
 
 func (m MODE) String() string { return string(m) }
@@ -177,7 +179,7 @@ func (s *shunt) match(addr proxy.Address, resolveDomain bool) MODE {
 	return *m
 }
 
-func (s *shunt) AddDialer(m MODE, p proxy.Proxy, resolver dns.DNS) {
+func (s *shunt) AddMode(m MODE, p proxy.Proxy, resolver dns.DNS) {
 	if s.dialers == nil {
 		s.dialers = make(map[MODE]proxy.Proxy)
 	}
@@ -198,7 +200,7 @@ func (s *shunt) GetDialer(m MODE) proxy.Proxy {
 			return d
 		}
 	}
-	return proxy.NewErrProxy(errors.New("no dialer"))
+	return proxy.NewErrProxy(fmt.Errorf("no dialer for mode: %s", m))
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
@@ -213,13 +215,14 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	}
 
 	host.WithResolver(resolv)
+	host.AddMark(MODE_MARK, m.String())
 
 	conn, err := dialer.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return s.conns.AddConn(conn, host, m.String()), nil
+	return s.conns.AddConn(conn, host), nil
 }
 
 func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
@@ -234,13 +237,14 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	}
 
 	host.WithResolver(resolv)
+	host.AddMark(MODE_MARK, m.String())
 
 	conn, err := dialer.PacketConn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return s.conns.AddPacketConn(conn, host, m.String()), nil
+	return s.conns.AddPacketConn(conn, host), nil
 }
 
 func (s *shunt) GetResolver(host proxy.Address) (dns.DNS, MODE) {

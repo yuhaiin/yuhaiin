@@ -35,16 +35,16 @@ type conn struct {
 	wbuf, rbuf []byte
 }
 
-func (c *counter) AddConn(con net.Conn, addr proxy.Address, mark string) net.Conn {
+func (c *counter) AddConn(con net.Conn, addr proxy.Address) net.Conn {
 	z := &conn{
 		Connection: &statistic.Connection{
 			Id:      c.idSeed.Generate(),
 			Addr:    addr.String(),
-			Mark:    mark,
+			Mark:    getStringValue(MODE_MARK, addr),
 			Local:   con.LocalAddr().String(),
 			Remote:  con.RemoteAddr().String(),
 			Type:    con.LocalAddr().Network(),
-			Fakedns: getFakedns(addr),
+			Fakedns: getStringValue(FAKEDNS_MARK, addr),
 		},
 		Conn:    con,
 		manager: c,
@@ -139,8 +139,8 @@ type packetConn struct {
 	manager *counter
 }
 
-func getFakedns(addr proxy.Address) string {
-	m, _ := addr.GetMark(FAKEDNS_MARK)
+func getStringValue(key any, addr proxy.Address) string {
+	m, _ := addr.GetMark(key)
 	r, ok := m.(string)
 	if !ok {
 		return ""
@@ -148,16 +148,16 @@ func getFakedns(addr proxy.Address) string {
 
 	return r
 }
-func (c *counter) AddPacketConn(con net.PacketConn, addr proxy.Address, mark string) net.PacketConn {
+func (c *counter) AddPacketConn(con net.PacketConn, addr proxy.Address) net.PacketConn {
 	z := &packetConn{
 		Connection: &statistic.Connection{
 			Id:      c.idSeed.Generate(),
 			Addr:    addr.String(),
-			Mark:    mark,
+			Mark:    getStringValue(MODE_MARK, addr),
 			Local:   con.LocalAddr().String(),
 			Remote:  addr.String(),
 			Type:    con.LocalAddr().Network(),
-			Fakedns: getFakedns(addr),
+			Fakedns: getStringValue(FAKEDNS_MARK, addr),
 		},
 		PacketConn: con,
 		manager:    c,

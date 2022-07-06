@@ -11,53 +11,81 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 )
 
 type router struct {
-	remotedns *remotedns
-	localdns  *localdns
-	bootstrap *bootstrap
+	resolvers *resolvers
 	statistic *counter
 	shunt     *shunt
-
-	dnsserver     server.DNSServer
-	dnsserverHost string
-
-	fake *fakedns
+	dnsServer *dnsServer
 }
 
 func NewRouter(dialer proxy.Proxy) *router {
-	c := &router{statistic: NewStatistic()}
+	c := &router{
+		statistic: newStatistic(),
+	}
 
-	c.localdns = newLocaldns(c.statistic)
-	c.bootstrap = newBootstrap(c.statistic)
-	resolver.Bootstrap = c.bootstrap
-	c.remotedns = newRemotedns(direct.Default, dialer, c.statistic)
+	c.resolvers = newResolvers(direct.Default, dialer, c.statistic)
 
-	c.shunt = newShunt(c.remotedns, c.statistic)
+	c.shunt = newShunt(c.resolvers.remotedns, c.statistic)
+	c.shunt.AddMode(PROXY, dialer, c.resolvers.remotedns)
+	c.shunt.AddMode(DIRECT, direct.Default, c.resolvers.localdns)
+	c.shunt.AddMode(BLOCK, proxy.DiscardProxy, idns.NewErrorDNS(errors.New("block")))
 
-	c.shunt.AddDialer(PROXY, dialer, c.remotedns)
-	c.shunt.AddDialer(DIRECT, direct.Default, c.localdns)
-	c.shunt.AddDialer(BLOCK, proxy.NewErrProxy(errors.New("block")), idns.NewErrorDNS(errors.New("block")))
-
-	_, ipRange, _ := net.ParseCIDR("10.2.0.1/24")
-	c.fake = newFakedns(ipRange, c.shunt)
-
+	c.dnsServer = newDNSServer(c.shunt)
 	return c
 }
 
 func (a *router) Update(s *protoconfig.Setting) {
 	a.shunt.Update(s)
-	a.localdns.Update(s)
-	a.bootstrap.Update(s)
-	a.remotedns.Update(s)
-	a.fake.Update(s)
-
+	a.resolvers.Update(s)
+	a.dnsServer.Update(s)
 	UpdateInterfaceName(s)
+}
 
+func (a *router) Proxy() proxy.Proxy          { return a.dnsServer.fake }
+func (a *router) DNSServer() server.DNSServer { return a.dnsServer.dnsserver }
+
+func (a *router) Insert(addr string, mode *MODE) {
+	if a.shunt == nil {
+		return
+	}
+
+	a.shunt.mapper.Insert(addr, mode)
+}
+
+func (a *router) Statistic() statistic.ConnectionsServer { return a.statistic }
+
+func (a *router) Close() error {
+	if a.dnsServer != nil {
+		a.dnsServer.Close()
+	}
+	if a.resolvers != nil {
+		a.resolvers.Close()
+	}
+	if a.statistic != nil {
+		a.statistic.CloseAll()
+	}
+	return nil
+}
+
+func UpdateInterfaceName(cb *protoconfig.Setting) { dialer.DefaultInterfaceName = cb.GetNetInterface() }
+
+type dnsServer struct {
+	dnsserver     server.DNSServer
+	dnsserverHost string
+	fake          *fakedns
+}
+
+func newDNSServer(shunt *shunt) *dnsServer {
+	_, ipRange, _ := net.ParseCIDR("10.2.0.1/24")
+	return &dnsServer{fake: newFakedns(ipRange, shunt)}
+}
+
+func (a *dnsServer) Update(s *protoconfig.Setting) {
+	a.fake.Update(s)
 	if a.dnsserverHost == s.Dns.Server && a.dnsserver != nil {
 		return
 	}
@@ -71,37 +99,9 @@ func (a *router) Update(s *protoconfig.Setting) {
 	a.dnsserverHost = s.Dns.Server
 }
 
-func (a *router) Proxy() proxy.Proxy          { return a.fake }
-func (a *router) DNSServer() server.DNSServer { return a.dnsserver }
-
-func (a *router) Insert(addr string, mode *MODE) {
-	if a.shunt == nil {
-		return
-	}
-
-	a.shunt.mapper.Insert(addr, mode)
-}
-
-func (a *router) Statistic() statistic.ConnectionsServer { return a.statistic }
-
-func (a *router) Close() error {
+func (a *dnsServer) Close() error {
 	if a.dnsserver != nil {
-		a.dnsserver.Close()
-	}
-
-	if a.localdns != nil {
-		a.localdns.Close()
-	}
-
-	if a.remotedns != nil {
-		a.remotedns.Close()
-	}
-	if a.bootstrap != nil {
-		a.bootstrap.Close()
-	}
-
-	if a.statistic != nil {
-		a.statistic.CloseAll()
+		return a.dnsserver.Close()
 	}
 	return nil
 }
@@ -122,8 +122,8 @@ func newFakedns(ipRange *net.IPNet, dialer *shunt) *fakedns {
 }
 
 func (f *fakedns) GetResolver(addr proxy.Address) idns.DNS {
-	z, mode := f.shunt.GetResolver(addr)
-	if mode != BLOCK && f.config != nil && f.config.Fakedns {
+	z, _ := f.shunt.GetResolver(addr)
+	if f.config != nil && f.config.Fakedns {
 		return dns.WrapFakeDNS(z, f.fake)
 	}
 	return z
@@ -163,5 +163,3 @@ func (f *fakedns) getAddr(addr proxy.Address) proxy.Address {
 
 	return addr
 }
-
-func UpdateInterfaceName(cb *protoconfig.Setting) { dialer.DefaultInterfaceName = cb.GetNetInterface() }
