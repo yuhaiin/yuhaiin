@@ -18,7 +18,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
+
+func init() {
+	Register(config.Dns_doh, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoH(c, p) })
+}
 
 var _ dns.DNS = (*doh)(nil)
 

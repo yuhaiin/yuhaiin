@@ -7,7 +7,7 @@ import (
 )
 
 func TestDoh3(t *testing.T) {
-	c := NewDoH3(dns.Config{Host: "cloudflare-dns.com"}, nil)
+	c := NewDoH3(dns.Config{Host: "cloudflare-dns.com"})
 
 	t.Log(c.LookupIP("www.google.com"))
 	t.Log(c.LookupIP("www.baidu.com"))

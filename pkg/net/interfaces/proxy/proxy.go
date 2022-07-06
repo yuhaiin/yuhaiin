@@ -3,12 +3,14 @@ package proxy
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
@@ -26,6 +28,42 @@ type StreamProxy interface {
 type PacketProxy interface {
 	PacketConn(Address) (net.PacketConn, error)
 }
+
+var DiscardProxy Proxy = &Discard{}
+
+type Discard struct{}
+
+func (*Discard) Conn(Address) (net.Conn, error)             { return DiscardNetConn, nil }
+func (*Discard) PacketConn(Address) (net.PacketConn, error) { return DiscardNetPacketConn, nil }
+
+var DiscardNetConn net.Conn = &DiscardConn{}
+
+type DiscardConn struct{}
+
+func (*DiscardConn) Read(b []byte) (n int, err error)   { return 0, io.EOF }
+func (*DiscardConn) Write(b []byte) (n int, err error)  { return len(b), nil }
+func (*DiscardConn) Close() error                       { return nil }
+func (*DiscardConn) LocalAddr() net.Addr                { return EmptyAddr }
+func (*DiscardConn) RemoteAddr() net.Addr               { return EmptyAddr }
+func (*DiscardConn) SetDeadline(t time.Time) error      { return nil }
+func (*DiscardConn) SetReadDeadline(t time.Time) error  { return nil }
+func (*DiscardConn) SetWriteDeadline(t time.Time) error { return nil }
+
+var DiscardNetPacketConn net.PacketConn = &DiscardPacketConn{}
+
+type DiscardPacketConn struct{}
+
+func (*DiscardPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	return 0, EmptyAddr, io.EOF
+}
+func (*DiscardPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	return len(p), nil
+}
+func (*DiscardPacketConn) Close() error                       { return nil }
+func (*DiscardPacketConn) LocalAddr() net.Addr                { return EmptyAddr }
+func (*DiscardPacketConn) SetDeadline(t time.Time) error      { return nil }
+func (*DiscardPacketConn) SetReadDeadline(t time.Time) error  { return nil }
+func (*DiscardPacketConn) SetWriteDeadline(t time.Time) error { return nil }
 
 type errProxy struct{ error }
 
@@ -281,7 +319,7 @@ func (i IPAddr) TCPAddr() (*net.TCPAddr, error) {
 }
 func (i IPAddr) IPHost() (string, error) { return i.String(), nil }
 
-var EmptyAddr = &emptyAddr{}
+var EmptyAddr Address = &emptyAddr{}
 
 type emptyAddr struct{}
 

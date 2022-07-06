@@ -11,7 +11,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
+
+func init() {
+	Register(config.Dns_udp, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoU(c, p) })
+	Register(config.Dns_reserve, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoU(c, p) })
+}
 
 var _ dns.DNS = (*udp)(nil)
 

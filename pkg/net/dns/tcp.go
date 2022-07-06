@@ -10,7 +10,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
+
+func init() {
+	Register(config.Dns_tcp, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewTCP(c, p) })
+}
 
 var _ dns.DNS = (*tcp)(nil)
 
