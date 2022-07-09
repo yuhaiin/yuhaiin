@@ -16,26 +16,26 @@ import (
 )
 
 func tcpForwarder(s *stack.Stack, opt *TunOpt) *tcp.Forwarder {
-	return tcp.NewForwarder(s, 0, 1024, func(r *tcp.ForwarderRequest) {
-		var wq waiter.Queue
+	return tcp.NewForwarder(s, defaultWndSize, maxConnAttempts, func(r *tcp.ForwarderRequest) {
+		wq := new(waiter.Queue)
+		id := r.ID()
 
-		ep, err := r.CreateEndpoint(&wq)
+		ep, err := r.CreateEndpoint(wq)
 		if err != nil {
+			log.Println("create endpoint failed:", err)
 			r.Complete(true)
 			return
 		}
-		defer r.Complete(false)
+		r.Complete(false)
 
 		if err = setSocketOptions(s, ep); err != nil {
 			log.Printf("set socket options failed: %v\n", err)
 		}
 
-		local := gonet.NewTCPConn(&wq, ep)
-
 		go func(local net.Conn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			if isDNSReq(opt, id) {
+			if isdns(opt, id) {
 				if err := opt.DNS.HandleTCP(local); err != nil {
 					log.Printf("dns handle tcp failed: %v\n", err)
 				}
@@ -45,11 +45,12 @@ func tcpForwarder(s *stack.Stack, opt *TunOpt) *tcp.Forwarder {
 			addr := proxy.ParseAddressSplit("tcp", id.LocalAddress.String(), id.LocalPort)
 			conn, er := opt.Dialer.Conn(addr)
 			if er != nil {
+				log.Printf("dial failed: %v\n", er)
 				return
 			}
 			defer conn.Close()
 			utils.Relay(local, conn)
-		}(local, r.ID())
+		}(gonet.NewTCPConn(wq, ep), id)
 	})
 }
 

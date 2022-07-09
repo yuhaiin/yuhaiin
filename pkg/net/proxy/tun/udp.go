@@ -1,10 +1,9 @@
 package tun
 
 import (
-	"errors"
+	"io"
 	"log"
 	"net"
-	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -20,6 +19,7 @@ func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
 		var wq waiter.Queue
 		ep, err := fr.CreateEndpoint(&wq)
 		if err != nil {
+			log.Println("create endpoint failed:", err)
 			return
 		}
 
@@ -28,7 +28,7 @@ func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
 		go func(local net.PacketConn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			if isDNSReq(opt, id) {
+			if isdns(opt, id) {
 				if err := opt.DNS.HandleUDP(local); err != nil {
 					log.Printf("dns handle udp failed: %v\n", err)
 				}
@@ -52,56 +52,42 @@ func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
 
 			conn, er := opt.Dialer.PacketConn(addr)
 			if er != nil {
+				log.Printf("[UDP] dial %s error: %v\n", addr, er)
 				return
 			}
 			defer conn.Close()
 
 			uaddr, err := addr.UDPAddr()
 			if err != nil {
+				log.Printf("[UDP] parse %s error: %v\n", addr, err)
 				return
 			}
-			go handleUDPToRemote(local, conn, uaddr)
-			handleUDPToLocal(local, conn, uaddr)
+			go copyPacketBuffer(conn, local, uaddr, 60*time.Second)
+			copyPacketBuffer(local, conn, nil, 60*time.Second)
 		}(local, fr.ID())
 	})
 }
 
 var MaxSegmentSize = (1 << 16) - 1
 
-func handleUDPToRemote(uc, pc net.PacketConn, remote net.Addr) {
+func copyPacketBuffer(dst net.PacketConn, src net.PacketConn, to net.Addr, timeout time.Duration) error {
 	buf := utils.GetBytes(MaxSegmentSize)
 	defer utils.PutBytes(buf)
 
 	for {
-		n, _, err := uc.ReadFrom(buf)
-		if err != nil {
-			return
+		src.SetReadDeadline(time.Now().Add(timeout))
+		n, _, err := src.ReadFrom(buf)
+		if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			return nil /* ignore I/O timeout */
+		} else if err == io.EOF {
+			return nil /* ignore EOF */
+		} else if err != nil {
+			return err
 		}
 
-		if _, err := pc.WriteTo(buf[:n], remote); err != nil {
-			log.Printf("[UDP] write to %s error: %v\n", remote, err)
+		if _, err = dst.WriteTo(buf[:n], to); err != nil {
+			return err
 		}
-		pc.SetReadDeadline(time.Now().Add(20 * time.Second)) /* reset timeout */
-	}
-}
-
-func handleUDPToLocal(uc, pc net.PacketConn, remote net.Addr) {
-	buf := utils.GetBytes(MaxSegmentSize)
-	defer utils.PutBytes(buf)
-
-	for {
-		pc.SetReadDeadline(time.Now().Add(20 * time.Second)) /* reset timeout */
-		n, from, err := pc.ReadFrom(buf)
-		if err != nil {
-			if !errors.Is(err, os.ErrDeadlineExceeded) /* ignore I/O timeout */ {
-				log.Printf("[UDP] read error: %v\n", err)
-			}
-			return
-		}
-
-		if _, err := uc.WriteTo(buf[:n], nil); err != nil {
-			log.Printf("[UDP] write back from %s error: %v\n", from, err)
-			return
-		}
+		dst.SetReadDeadline(time.Now().Add(timeout))
 	}
 }
