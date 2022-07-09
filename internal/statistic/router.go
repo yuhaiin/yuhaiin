@@ -32,7 +32,7 @@ func NewRouter(dialer proxy.Proxy) *router {
 	c.shunt = newShunt(c.resolvers.remotedns, c.statistic)
 	c.shunt.AddMode(PROXY, dialer, c.resolvers.remotedns)
 	c.shunt.AddMode(DIRECT, direct.Default, c.resolvers.localdns)
-	c.shunt.AddMode(BLOCK, proxy.DiscardProxy, idns.NewErrorDNS(errors.New("block")))
+	c.shunt.AddMode(BLOCK, proxy.NewErrProxy(errors.New("BLOCKED")), idns.NewErrorDNS(errors.New("BLOCKED")))
 
 	c.dnsServer = newDNSServer(c.shunt)
 	return c
@@ -122,8 +122,8 @@ func newFakedns(ipRange *net.IPNet, dialer *shunt) *fakedns {
 }
 
 func (f *fakedns) GetResolver(addr proxy.Address) idns.DNS {
-	z, _ := f.shunt.GetResolver(addr)
-	if f.config != nil && f.config.Fakedns {
+	z, m := f.shunt.GetResolver(addr)
+	if m != BLOCK && f.config != nil && f.config.Fakedns {
 		return dns.WrapFakeDNS(z, f.fake)
 	}
 	return z

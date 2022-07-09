@@ -20,6 +20,7 @@ package tun
 
 import (
 	"log"
+	"sync"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -28,7 +29,7 @@ import (
 
 type writer interface {
 	Write([]byte) tcpip.Error
-	WritePacket(*stack.PacketBuffer) tcpip.Error
+	// WritePacket(*stack.PacketBuffer) tcpip.Error
 	WritePackets(stack.PacketBufferList) (int, tcpip.Error)
 }
 
@@ -49,7 +50,7 @@ type Endpoint struct {
 
 	writer  writer
 	inbound inbound
-	closed  chan struct{}
+	wg      sync.WaitGroup
 }
 
 // New creates a new channel endpoint.
@@ -66,24 +67,13 @@ func (e *Endpoint) SetInbound(i inbound) { e.inbound = i }
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
 func (e *Endpoint) Close() {
-	if e.closed == nil {
-		return
-	}
-
-	select {
-	case <-e.closed:
-		return
-	default:
-	}
-
 	e.inbound.stop()
-	<-e.closed
-	e.closed = nil
+	e.wg.Wait()
 }
 
 // InjectInbound injects an inbound packet.
 func (e *Endpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) {
-	e.dispatcher.DeliverNetworkPacket("", "", protocol, pkt)
+	e.dispatcher.DeliverNetworkPacket(protocol, pkt)
 }
 
 // InjectOutbound writes a fully formed outbound packet directly to the
@@ -99,12 +89,14 @@ func (e *Endpoint) InjectOutbound(dest tcpip.Address, packet []byte) tcpip.Error
 func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 	if dispatcher == nil && e.IsAttached() {
 		e.Close()
+		e.dispatcher = nil
 	}
 
 	if dispatcher != nil && !e.IsAttached() {
-		e.closed = make(chan struct{})
+		e.dispatcher = dispatcher
+		e.wg.Add(1)
 		go func() {
-			defer close(e.closed)
+			defer e.wg.Done()
 			for {
 				cont, err := e.inbound.dispatch()
 				if err != nil || !cont {
@@ -115,7 +107,6 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 		}()
 	}
 
-	e.dispatcher = dispatcher
 }
 
 // IsAttached implements stack.LinkEndpoint.IsAttached.
@@ -147,48 +138,30 @@ func (e *Endpoint) LinkAddress() tcpip.LinkAddress {
 
 // WritePackets stores outbound packets into the channel.
 // Multiple concurrent calls are permitted.
-// func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
-// 	iovecs := make([]unix.Iovec, 0, 47)
-// 	for _, pkt := range pkts.AsSlice() {
-// 		/*
-// 			    old method
-// 				sendBuffer := utils.GetBuffer()
-// 				defer utils.PutBuffer(sendBuffer)
-// 				sendBuffer.Reset()
-// 				sendBuffer.Write(pkt.NetworkHeader().View())
-// 				sendBuffer.Write(pkt.TransportHeader().View())
-// 				sendBuffer.Write(pkt.Data().AsRange().ToOwnedView())
-// 		*/
-
-// 		for _, s := range pkt.Slices() {
-// 			iovecs = append(iovecs, rawfile.IovecFromBytes(s))
-// 		}
-// 	}
-// 	if err := rawfile.NonBlockingWriteIovec(e.fd, iovecs); err != nil {
-// 		return 0, err
-// 	}
-// 	return pkts.Len(), nil
-// }
-
-func (e *Endpoint) WritePacket(_ stack.RouteInfo, _ tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) tcpip.Error {
-	return e.writer.WritePacket(pkt)
-}
-
-func (e *Endpoint) WritePackets(_ stack.RouteInfo, pkts stack.PacketBufferList, _ tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
+func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
 	return e.writer.WritePackets(pkts)
 }
 
-func (e *Endpoint) WriteRawPacket(pkt *stack.PacketBuffer) tcpip.Error {
-	return e.writer.WritePacket(pkt)
-}
+// func (e *Endpoint) WritePacket(_ stack.RouteInfo, _ tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) tcpip.Error {
+// 	return e.writer.WritePacket(pkt)
+// }
+
+// func (e *Endpoint) WritePackets(_ stack.RouteInfo, pkts stack.PacketBufferList, _ tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
+// 	return e.writer.WritePackets(pkts)
+// }
+
+// func (e *Endpoint) WriteRawPacket(pkt *stack.PacketBuffer) tcpip.Error {
+// 	return e.writer.WritePacket(pkt)
+// }
 
 // Wait implements stack.LinkEndpoint.Wait.
-func (*Endpoint) Wait() {}
+func (e *Endpoint) Wait() { e.wg.Wait() }
 
 // ARPHardwareType implements stack.LinkEndpoint.ARPHardwareType.
 func (*Endpoint) ARPHardwareType() header.ARPHardwareType { return header.ARPHardwareNone }
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
-// func (*Endpoint) AddHeader(*stack.PacketBuffer) {}
-func (*Endpoint) AddHeader(tcpip.LinkAddress, tcpip.LinkAddress, tcpip.NetworkProtocolNumber, *stack.PacketBuffer) {
-}
+func (*Endpoint) AddHeader(*stack.PacketBuffer) {}
+
+// func (*Endpoint) AddHeader(tcpip.LinkAddress, tcpip.LinkAddress, tcpip.NetworkProtocolNumber, *stack.PacketBuffer) {
+// }

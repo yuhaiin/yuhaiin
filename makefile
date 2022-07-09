@@ -18,7 +18,8 @@ GO_GCFLAGS= -m
 GO_BUILD_CMD=$(GO) build -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath
 
 WINDOWS_AMD64=GOOS=windows GOARCH=amd64
-ANDROID_ARM64=GOOS=android GOARCH=arm64
+ANDROID_ARM64=GOOS=android GOARCH=arm64 CGO_ENABLED=1 CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
+ANDROID_AMD64=GOOS=android GOARCH=amd64 CGO_ENABLED=1 CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang
 
 YUHAIIN=-v ./cmd/yuhaiin/...
 CLI=-v ./cmd/cli/...
@@ -53,7 +54,8 @@ cli_windows:
 
 .PHONY: yuhaiin_android
 yuhaiin_android:
-	$(ANDROID_ARM64) $(GO_BUILD_CMD) -o yuhaiin_android $(YUHAIIN)
+	$(ANDROID_ARM64) $(GO_BUILD_CMD) -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
+	$(ANDROID_AMD64) $(GO_BUILD_CMD) -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
 
 .PHONY: cli_android
 cli_android:

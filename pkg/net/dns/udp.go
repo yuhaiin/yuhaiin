@@ -42,38 +42,39 @@ func NewDoU(config dns.Config, p proxy.PacketProxy) dns.DNS {
 		add = proxy.EmptyAddr
 	}
 
-	return &udp{NewClient(config, func(req []byte) ([]byte, error) {
-		var b = utils.GetBytes(utils.DefaultSize)
-		defer utils.PutBytes(b)
+	return &udp{
+		NewClient(config, func(req []byte) ([]byte, error) {
+			var b = utils.GetBytes(utils.DefaultSize)
+			defer utils.PutBytes(b)
 
-		conn, err := p.PacketConn(add)
-		if err != nil {
-			return nil, fmt.Errorf("get packetConn failed: %v", err)
-		}
-		defer conn.Close()
+			conn, err := p.PacketConn(add)
+			if err != nil {
+				return nil, fmt.Errorf("get packetConn failed: %v", err)
+			}
+			defer conn.Close()
 
-		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		if err != nil {
-			return nil, fmt.Errorf("set read deadline failed: %v", err)
-		}
+			err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			if err != nil {
+				return nil, fmt.Errorf("set read deadline failed: %v", err)
+			}
 
-		uaddr, err := add.UDPAddr()
-		if err != nil {
-			return nil, fmt.Errorf("get udp addr failed: %w", err)
-		}
-		_, err = conn.WriteTo(req, uaddr)
-		if err != nil {
-			return nil, err
-		}
+			uaddr, err := add.UDPAddr()
+			if err != nil {
+				return nil, fmt.Errorf("get udp addr failed: %w", err)
+			}
+			_, err = conn.WriteTo(req, uaddr)
+			if err != nil {
+				return nil, err
+			}
 
-		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		if err != nil {
-			return nil, fmt.Errorf("set read deadline failed: %v", err)
-		}
+			err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			if err != nil {
+				return nil, fmt.Errorf("set read deadline failed: %v", err)
+			}
 
-		nn, _, err := conn.ReadFrom(b)
-		return b[:nn], err
-	})}
+			nn, _, err := conn.ReadFrom(b)
+			return b[:nn], err
+		})}
 }
 
 func (n *udp) Close() error { return nil }

@@ -37,8 +37,11 @@ type tunServer struct {
 
 func (t *tunServer) Close() error {
 	if t.stack != nil {
-		t.stack.Close()
+		t.stack.RemoveRoutes(func(r tcpip.Route) bool {
+			return true
+		})
 		t.stack.RemoveNIC(t.nicID)
+		t.stack.Close()
 	}
 
 	return nil
@@ -131,7 +134,7 @@ func NewTun(opt *TunOpt) (*tunServer, error) {
 	return &tunServer{stack: s, nicID: nicID}, nil
 }
 
-func isDNSReq(opt *TunOpt, id stack.TransportEndpointID) bool {
+func isdns(opt *TunOpt, id stack.TransportEndpointID) bool {
 	if id.LocalPort == 53 && (opt.DNSHijacking || id.LocalAddress.String() == opt.Gateway) {
 		return true
 	}
