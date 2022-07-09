@@ -8,8 +8,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wintun"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -66,14 +66,19 @@ func (w *winWriter) Write(b []byte) tcpip.Error {
 	return &tcpip.ErrClosedForSend{}
 }
 
-func (w *winWriter) WritePacket(pkt *stack.PacketBuffer) tcpip.Error {
-	v := buffer.NewVectorisedView(pkt.Size(), pkt.Views())
-	return w.Write(v.ToView())
-}
+// func (w *winWriter) WritePacket(pkt *stack.PacketBuffer) tcpip.Error {
+// 	v := buffer.NewVectorisedView(pkt.Size(), pkt.Views())
+// 	return w.Write(v.ToView())
+// }
 
 func (w *winWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
-	for pkt := pkts.Front(); pkt != nil; pkt = pkt.Next() {
-		if err := w.WritePacket(pkt); err != nil {
+	// for pkt := pkts.Front(); pkt != nil; pkt = pkt.Next() {
+	// 	if err := w.WritePacket(pkt); err != nil {
+	// 		return 0, err
+	// 	}
+	// }
+	for _, pkt := range pkts.AsSlice() {
+		if err := w.Write(pkt.Data().AsRange().AsView()); err != nil {
 			return 0, err
 		}
 	}
@@ -103,8 +108,9 @@ func (w *winInbound) dispatch() (bool, tcpip.Error) {
 	defer w.session.ReleaseReceivePacket(packet)
 
 	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-		Data: buffer.NewViewFromBytes(packet).ToVectorisedView(),
+		Payload: buffer.NewWithData(packet),
 	})
+	defer pkt.DecRef()
 
 	var p tcpip.NetworkProtocolNumber
 

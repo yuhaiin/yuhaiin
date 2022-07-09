@@ -22,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -83,8 +84,10 @@ type shunt struct {
 
 	conns conns
 
-	dialers  map[MODE]proxy.Proxy
-	resolver map[MODE]dns.DNS
+	modeStore syncmap.SyncMap[MODE, struct {
+		dialer proxy.Proxy
+		dns    dns.DNS
+	}]
 }
 
 func newShunt(resolver dns.DNS, conns conns) *shunt {
@@ -180,44 +183,31 @@ func (s *shunt) match(addr proxy.Address, resolveDomain bool) MODE {
 }
 
 func (s *shunt) AddMode(m MODE, p proxy.Proxy, resolver dns.DNS) {
-	if s.dialers == nil {
-		s.dialers = make(map[MODE]proxy.Proxy)
-	}
-
-	s.dialers[m] = p
-
-	if s.resolver == nil {
-		s.resolver = make(map[MODE]dns.DNS)
-	}
-
-	s.resolver[m] = resolver
+	s.modeStore.Store(m, struct {
+		dialer proxy.Proxy
+		dns    dns.DNS
+	}{p, resolver})
 }
 
 func (s *shunt) GetDialer(m MODE) proxy.Proxy {
-	if s.dialers != nil {
-		d, ok := s.dialers[m]
-		if ok {
-			return d
-		}
+	d, ok := s.modeStore.Load(m)
+	if ok {
+		return d.dialer
 	}
 	return proxy.NewErrProxy(fmt.Errorf("no dialer for mode: %s", m))
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	m := s.match(host, true)
-	dialer, ok := s.dialers[m]
+	mode, ok := s.modeStore.Load(m)
 	if !ok {
-		return nil, fmt.Errorf("not found dialer for %s", m)
-	}
-	resolv, ok := s.resolver[m]
-	if !ok {
-		return nil, fmt.Errorf("not found resolver for %s", m)
+		return nil, fmt.Errorf("not found mode for %s", m)
 	}
 
-	host.WithResolver(resolv)
+	host.WithResolver(mode.dns)
 	host.AddMark(MODE_MARK, m.String())
 
-	conn, err := dialer.Conn(host)
+	conn, err := mode.dialer.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -227,19 +217,15 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 
 func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	m := s.match(host, true)
-	dialer, ok := s.dialers[m]
+	mode, ok := s.modeStore.Load(m)
 	if !ok {
-		return nil, fmt.Errorf("not found dialer for %s", m)
-	}
-	resolv, ok := s.resolver[m]
-	if !ok {
-		return nil, fmt.Errorf("not found resolver for %s", m)
+		return nil, fmt.Errorf("not found mode for %s", m)
 	}
 
-	host.WithResolver(resolv)
+	host.WithResolver(mode.dns)
 	host.AddMark(MODE_MARK, m.String())
 
-	conn, err := dialer.PacketConn(host)
+	conn, err := mode.dialer.PacketConn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -249,11 +235,9 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 
 func (s *shunt) GetResolver(host proxy.Address) (dns.DNS, MODE) {
 	m := s.match(host, false)
-	if s.resolver != nil {
-		d, ok := s.resolver[m]
-		if ok {
-			return d, m
-		}
+	d, ok := s.modeStore.Load(m)
+	if ok {
+		return d.dns, m
 	}
 	return resolver.Bootstrap, m
 }

@@ -28,36 +28,34 @@ import (
 // GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -target=android/amd64,android/arm64 -ldflags='-s -w' -trimpath -v -o yuhaiin.aar ./
 
 type App struct {
-	closers []func() error
-	running chan struct{}
-
-	node *node.Nodes
+	dialer proxy.Proxy
+	lis    net.Listener
 }
 
 type Opts struct {
-	Host       string
-	Savepath   string
-	Socks5     string
-	Http       string
-	SaveLogcat bool
-	Block      string
-	Proxy      string
-	Direct     string
-	DNS        *DNSSetting
-	TUN        *TUN
+	Host       string      `json:"host"`
+	Savepath   string      `json:"savepath"`
+	Socks5     string      `json:"socks5"`
+	Http       string      `json:"http"`
+	SaveLogcat bool        `json:"save_logcat"`
+	Block      string      `json:"block"`
+	Proxy      string      `json:"proxy"`
+	Direct     string      `json:"direct"`
+	DNS        *DNSSetting `json:"dns"`
+	TUN        *TUN        `json:"tun"`
 }
 
 type DNSSetting struct {
-	Server         string
-	Fakedns        bool
-	FakednsIpRange string
-	Remote         *DNS
-	Local          *DNS
-	Bootstrap      *DNS
+	Server         string `json:"server"`
+	Fakedns        bool   `json:"fakedns"`
+	FakednsIpRange string `json:"fakedns_ip_range"`
+	Remote         *DNS   `json:"remote"`
+	Local          *DNS   `json:"local"`
+	Bootstrap      *DNS   `json:"bootstrap"`
 }
 
 type DNS struct {
-	Host string
+	Host string `json:"host"`
 	// Type
 	// 0: reserve
 	// 1: udp
@@ -66,98 +64,94 @@ type DNS struct {
 	// 4: dot
 	// 5: doq
 	// 6: doh3
-	Type          int32
-	Proxy         bool
-	Subnet        string
-	TlsServername string
+	Type          int32  `json:"type"`
+	Proxy         bool   `json:"proxy"`
+	Subnet        string `json:"subnet"`
+	TlsServername string `json:"tls_servername"`
 }
 
 type TUN struct {
-	FD           int32
-	MTU          int32
-	Gateway      string
-	DNSHijacking bool
+	FD           int32  `json:"fd"`
+	MTU          int32  `json:"mtu"`
+	Gateway      string `json:"gateway"`
+	DNSHijacking bool   `json:"dns_hijacking"`
+	// Driver
+	// 0: fdbased
+	// 1: channel
+	Driver int32 `json:"driver"`
 }
 
 func (a *App) Start(opt *Opts) error {
-	if a.running != nil {
-		select {
-		case <-a.running:
-		default:
-			log.Println("yuhaiin is already running")
-			return nil
+	if a.lis != nil {
+		log.Println("yuhaiin is already running")
+		return nil
+	}
+
+	errChan := make(chan error)
+	defer close(errChan)
+
+	go func() {
+		pc := pathConfig(opt.Savepath)
+
+		log.SetFlags(log.Lshortfile | log.LstdFlags)
+
+		if opt.SaveLogcat {
+			writes := []io.Writer{os.Stdout}
+			f := logw.NewLogWriter(pc.logfile)
+			defer f.Close()
+			writes = append(writes, f)
+			log.SetOutput(io.MultiWriter(writes...))
 		}
-	}
 
-	a.closers = []func() error{
-		func() error {
-			if a.running != nil {
-				close(a.running)
-				a.running = nil
-			}
-			return nil
-		},
-	}
+		log.Println("\n\n\nsave config at:", pc.dir)
+		log.Println("gRPC and http listen at:", opt.Host)
 
-	pc := pathConfig(opt.Savepath)
+		// create listener
+		lis, err := net.Listen("tcp", opt.Host)
+		if err != nil {
+			errChan <- err
+		}
+		a.lis = lis
 
-	writes := []io.Writer{os.Stdout}
-	if opt.SaveLogcat {
-		f := logw.NewLogWriter(pc.logfile)
-		a.closers = append(a.closers, f.Close)
-		writes = append(writes, f)
-	}
-	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	log.SetOutput(io.MultiWriter(writes...))
+		fakeSetting := fakeSetting(opt, pc.config)
 
-	log.Println("\n\n\nsave config at:", pc.dir)
-	log.Println("gRPC and http listen at:", opt.Host)
+		// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
+		node := node.NewNodes(pc.node)
+		a.dialer = node
+		app := statistic.NewRouter(a.dialer)
+		defer app.Close()
+		fakeSetting.AddObserver(app)
+		insert(app.Insert, opt.Block, &statistic.BLOCK)
+		insert(app.Insert, opt.Proxy, &statistic.PROXY)
+		insert(app.Insert, opt.Direct, &statistic.DIRECT)
 
-	var err error
-	// create listener
-	lis, err := net.Listen("tcp", opt.Host)
-	if err != nil {
-		a.Stop()
-		return err
-	}
-	a.closers = append(a.closers, lis.Close)
+		listener := server.NewListener(app.Proxy(), app.DNSServer())
+		defer listener.Close()
+		fakeSetting.AddObserver(listener)
 
-	fakeSetting := fakeSetting(opt, pc.config)
-
-	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
-	a.node = node.NewNodes(pc.node)
-
-	app := statistic.NewRouter(a.node)
-	a.closers = append(a.closers, app.Close)
-	fakeSetting.AddObserver(app)
-	insert(app.Insert, opt.Block, &statistic.BLOCK)
-	insert(app.Insert, opt.Proxy, &statistic.PROXY)
-	insert(app.Insert, opt.Direct, &statistic.DIRECT)
-
-	listener := server.NewListener(app.Proxy(), app.DNSServer())
-	fakeSetting.AddObserver(listener)
-	a.closers = append(a.closers, listener.Close)
-
-	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, a.node, app.Statistic(), fakeSetting)
-	go http.Serve(lis, mux)
-	return nil
+		mux := http.NewServeMux()
+		simplehttp.Httpserver(mux, node, app.Statistic(), fakeSetting)
+		errChan <- nil
+		http.Serve(lis, mux)
+	}()
+	return <-errChan
 }
 
 func (a *App) Stop() error {
-	for _, closer := range a.closers {
-		closer()
+	if a.lis == nil {
+		return nil
 	}
-	a.node = nil
-	a.closers = nil
-	return nil
+	err := a.lis.Close()
+	a.lis = nil
+	a.dialer = nil
+	return err
 }
 
 func (a *App) SaveNewBypass(link, dir string) error {
 	r, err := http.Get(link)
 	if err != nil {
 		log.Println("get new bypass failed:", err)
-		if a.node == nil {
+		if a.dialer == nil {
 			log.Println("node is nil")
 			return err
 		}
@@ -168,7 +162,7 @@ func (a *App) SaveNewBypass(link, dir string) error {
 					if err != nil {
 						return nil, err
 					}
-					return a.node.Conn(add)
+					return a.dialer.Conn(add)
 				},
 			},
 		}).Get(link)
@@ -267,7 +261,7 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 							Gateway:       opt.TUN.Gateway,
 							DnsHijacking:  opt.TUN.DNSHijacking,
 							SkipMulticast: true,
-							Driver:        protoconfig.Tun_channel,
+							Driver:        protoconfig.TunEndpointDriver(opt.TUN.Driver),
 						},
 					},
 				},
