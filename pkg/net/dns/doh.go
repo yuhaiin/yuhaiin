@@ -41,32 +41,38 @@ func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-			ForceAttemptHTTP2:     true,
+			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				return p.Conn(addr)
+				switch network {
+				case "tcp":
+					return p.Conn(addr)
+				default:
+					return nil, fmt.Errorf("unsupported network: %s", network)
+				}
 			},
 		},
-		Timeout: 4 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 
 	return &doh{
 		client: NewClient(config, func(b []byte) ([]byte, error) {
-			req, err := http.NewRequest("POST", url, bytes.NewReader(b))
+			req, err := http.NewRequest("POST", url, bytes.NewBuffer(b))
 			if err != nil {
 				return nil, fmt.Errorf("doh new request failed: %v", err)
 			}
 			req.Header.Set("Content-Type", "application/dns-message")
+			req.Header.Set("Accept", "application/dns-message")
 			req.Header.Set("User-Agent", string([]byte{' '}))
 			resp, err := httpClient.Do(req)
 			if err != nil {
 				return nil, fmt.Errorf("doh post failed: %v", err)
 			}
-
 			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				utils.Copy(io.Discard, resp.Body) // from v2fly
+				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
+			}
 			return ioutil.ReadAll(resp.Body)
 
 			/*
