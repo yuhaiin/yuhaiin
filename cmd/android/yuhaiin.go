@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	iconfig "github.com/Asutorufa/yuhaiin/internal/config"
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
@@ -29,7 +30,10 @@ import (
 
 type App struct {
 	dialer proxy.Proxy
-	lis    net.Listener
+	lis    io.Closer
+
+	lock   sync.Mutex
+	closed chan struct{}
 }
 
 type Opts struct {
@@ -82,9 +86,14 @@ type TUN struct {
 }
 
 func (a *App) Start(opt *Opts) error {
-	if a.lis != nil {
-		log.Println("yuhaiin is already running")
-		return nil
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.closed != nil {
+		select {
+		case <-a.closed:
+		default:
+			return errors.New("yuhaiin is already running")
+		}
 	}
 
 	errChan := make(chan error)
@@ -111,7 +120,7 @@ func (a *App) Start(opt *Opts) error {
 		if err != nil {
 			errChan <- err
 		}
-		a.lis = lis
+		defer lis.Close()
 
 		fakeSetting := fakeSetting(opt, pc.config)
 
@@ -121,9 +130,9 @@ func (a *App) Start(opt *Opts) error {
 		app := statistic.NewRouter(a.dialer)
 		defer app.Close()
 		fakeSetting.AddObserver(app)
-		insert(app.Insert, opt.Block, &statistic.BLOCK)
-		insert(app.Insert, opt.Proxy, &statistic.PROXY)
-		insert(app.Insert, opt.Direct, &statistic.DIRECT)
+		insert(app.Insert, opt.Block, "BLOCK")
+		insert(app.Insert, opt.Proxy, "PROXY")
+		insert(app.Insert, opt.Direct, "DIRECT")
 
 		listener := server.NewListener(app.Proxy(), app.DNSServer())
 		defer listener.Close()
@@ -131,20 +140,50 @@ func (a *App) Start(opt *Opts) error {
 
 		mux := http.NewServeMux()
 		simplehttp.Httpserver(mux, node, app.Statistic(), fakeSetting)
+		srv := &http.Server{Handler: mux}
+		defer srv.Close()
+		a.lis = srv
+		a.closed = make(chan struct{})
+		defer close(a.closed)
+
 		errChan <- nil
-		http.Serve(lis, mux)
+
+		srv.Serve(lis)
 	}()
 	return <-errChan
 }
 
 func (a *App) Stop() error {
-	if a.lis == nil {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	if a.closed == nil {
 		return nil
 	}
-	err := a.lis.Close()
+	var err error
+	if a.lis != nil {
+		err = a.lis.Close()
+	}
+	<-a.closed
 	a.lis = nil
 	a.dialer = nil
+	a.closed = nil
 	return err
+}
+
+func (a *App) Running() bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.closed == nil {
+		return false
+	}
+
+	select {
+	case <-a.closed:
+		return false
+	default:
+		return true
+	}
 }
 
 func (a *App) SaveNewBypass(link, dir string) error {
@@ -180,7 +219,7 @@ func (a *App) SaveNewBypass(link, dir string) error {
 	return ioutil.WriteFile(filepath.Join(dir, "yuhaiin.conf"), data, os.ModePerm)
 }
 
-func insert(f func(string, *statistic.MODE), rules string, mode *statistic.MODE) {
+func insert(f func(string, string), rules string, mode string) {
 	for _, rule := range strings.Split(rules, "\n") {
 		rule = strings.TrimSpace(rule)
 		if rule == "" {

@@ -9,17 +9,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestMode(t *testing.T) {
-	v := (any)(nil)
-
-	v, ok := v.(MODE)
-	if !ok {
-		t.Log("!OK", v)
-	} else {
-		t.Log("OK", v)
-	}
-}
-
 func TestDiffDNS(t *testing.T) {
 	z := !proto.Equal(&protoconfig.Dns{}, &protoconfig.Dns{})
 	t.Log(z)

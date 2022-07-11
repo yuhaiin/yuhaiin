@@ -30,9 +30,9 @@ func NewRouter(dialer proxy.Proxy) *router {
 	c.resolvers = newResolvers(direct.Default, dialer, c.statistic)
 
 	c.shunt = newShunt(c.resolvers.remotedns, c.statistic)
-	c.shunt.AddMode(PROXY, dialer, c.resolvers.remotedns)
-	c.shunt.AddMode(DIRECT, direct.Default, c.resolvers.localdns)
-	c.shunt.AddMode(BLOCK, proxy.NewErrProxy(errors.New("BLOCKED")), idns.NewErrorDNS(errors.New("BLOCKED")))
+	c.shunt.AddMode("PROXY", true, dialer, c.resolvers.remotedns)
+	c.shunt.AddMode("DIRECT", false, direct.Default, c.resolvers.localdns)
+	c.shunt.AddMode("BLOCK", false, proxy.NewErrProxy(errors.New("BLOCKED")), idns.NewErrorDNS(errors.New("BLOCKED")))
 
 	c.dnsServer = newDNSServer(c.shunt)
 	return c
@@ -48,12 +48,10 @@ func (a *router) Update(s *protoconfig.Setting) {
 func (a *router) Proxy() proxy.Proxy          { return a.dnsServer.fake }
 func (a *router) DNSServer() server.DNSServer { return a.dnsServer.dnsserver }
 
-func (a *router) Insert(addr string, mode *MODE) {
-	if a.shunt == nil {
-		return
+func (a *router) Insert(addr string, mode string) {
+	if a.shunt != nil {
+		a.shunt.Insert(addr, mode)
 	}
-
-	a.shunt.mapper.Insert(addr, mode)
 }
 
 func (a *router) Statistic() statistic.ConnectionsServer { return a.statistic }
@@ -112,18 +110,20 @@ type fakedns struct {
 	config *protoconfig.DnsSetting
 
 	shunt *shunt
+	block int64
 }
 
 func newFakedns(ipRange *net.IPNet, dialer *shunt) *fakedns {
 	return &fakedns{
 		fake:  dns.NewFake(ipRange),
 		shunt: dialer,
+		block: dialer.GetID("BLOCK"),
 	}
 }
 
 func (f *fakedns) GetResolver(addr proxy.Address) idns.DNS {
 	z, m := f.shunt.GetResolver(addr)
-	if m != BLOCK && f.config != nil && f.config.Fakedns {
+	if m != f.block && f.config != nil && f.config.Fakedns {
 		return dns.WrapFakeDNS(z, f.fake)
 	}
 	return z
