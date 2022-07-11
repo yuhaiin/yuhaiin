@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	imapper "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
@@ -58,41 +57,29 @@ func writeDefaultBypassData(target string) error {
 	return ioutil.WriteFile(target, data, os.ModePerm)
 }
 
-type MODE string
-
 var (
-	OTHERS MODE = "OTHERS"
-	BLOCK  MODE = "BLOCK"
-	DIRECT MODE = "DIRECT"
-	PROXY  MODE = "PROXY"
-	MAX    MODE = "MAX"
-
-	UNKNOWN MODE = "UNKNOWN"
-
 	MODE_MARK = "MODE_MARK"
 )
 
-func (m MODE) String() string { return string(m) }
-
-var Mode = map[string]*MODE{"direct": &DIRECT /* "proxy":  PROXY,*/, "block": &BLOCK}
-
 type shunt struct {
-	mapper imapper.Mapper[string, proxy.Address, *MODE]
+	mapper imapper.Mapper[string, proxy.Address, int64]
 
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
 
 	conns conns
 
-	modeStore syncmap.SyncMap[MODE, struct {
+	rule
+	modeStore syncmap.SyncMap[int64, struct {
 		dialer proxy.Proxy
 		dns    dns.DNS
 	}]
+	defaultMode int64
 }
 
 func newShunt(resolver dns.DNS, conns conns) *shunt {
 	return &shunt{
-		mapper: mapper.NewMapper[*MODE](resolver),
+		mapper: mapper.NewMapper[int64](resolver),
 		conns:  conns,
 		config: &protoconfig.Bypass{Enabled: true, BypassFile: ""},
 	}
@@ -150,47 +137,50 @@ func (s *shunt) refresh() error {
 
 		c, b := a[:i], a[i+1:]
 
-		if bytes.Equal(b, []byte{}) {
-			continue
+		if len(c) != 0 && len(b) != 0 {
+			s.Insert(string(c), string(b))
 		}
-
-		s.mapper.Insert(string(c), Mode[strings.ToLower(*(*string)(unsafe.Pointer(&b)))])
 	}
 	return nil
 }
 
-func (s *shunt) match(addr proxy.Address, resolveDomain bool) MODE {
+func (s *shunt) Insert(c, mode string) { s.mapper.Insert(c, s.rule.GetID(strings.ToUpper(mode))) }
+
+func (s *shunt) match(addr proxy.Address, resolveDomain bool) int64 {
 	if !s.config.Enabled {
-		return PROXY
+		return s.defaultMode
 	}
 
-	var m *MODE
-	if resolveDomain {
-		m, _ = s.mapper.Search(addr)
-	} else {
-		r := s.mapper
+	r := s.mapper
+	if !resolveDomain {
 		if z, ok := s.mapper.(interface {
-			Domain() imapper.Mapper[string, proxy.Address, *MODE]
+			Domain() imapper.Mapper[string, proxy.Address, int64]
 		}); ok {
 			r = z.Domain()
 		}
-		m, _ = r.Search(addr)
 	}
-	if m == nil {
-		return PROXY
+	if m, ok := r.Search(addr); ok {
+		return m
 	}
-	return *m
+
+	return s.defaultMode
 }
 
-func (s *shunt) AddMode(m MODE, p proxy.Proxy, resolver dns.DNS) {
-	s.modeStore.Store(m, struct {
+func (s *shunt) AddMode(m string, defaultMode bool, p proxy.Proxy, resolver dns.DNS) (id int64) {
+	id = s.rule.GetID(m)
+	s.modeStore.Store(id, struct {
 		dialer proxy.Proxy
 		dns    dns.DNS
 	}{p, resolver})
+	if defaultMode {
+		s.defaultMode = id
+	}
+
+	return id
 }
 
-func (s *shunt) GetDialer(m MODE) proxy.Proxy {
-	d, ok := s.modeStore.Load(m)
+func (s *shunt) GetDialer(m string) proxy.Proxy {
+	d, ok := s.modeStore.Load(s.rule.GetID(m))
 	if ok {
 		return d.dialer
 	}
@@ -201,11 +191,11 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	m := s.match(host, true)
 	mode, ok := s.modeStore.Load(m)
 	if !ok {
-		return nil, fmt.Errorf("not found mode for %s", m)
+		return nil, fmt.Errorf("not found mode for %d", m)
 	}
 
 	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK, m.String())
+	host.AddMark(MODE_MARK, m)
 
 	conn, err := mode.dialer.Conn(host)
 	if err != nil {
@@ -219,11 +209,11 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	m := s.match(host, true)
 	mode, ok := s.modeStore.Load(m)
 	if !ok {
-		return nil, fmt.Errorf("not found mode for %s", m)
+		return nil, fmt.Errorf("not found mode for %d", m)
 	}
 
 	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK, m.String())
+	host.AddMark(MODE_MARK, s.rule.GetMode(m))
 
 	conn, err := mode.dialer.PacketConn(host)
 	if err != nil {
@@ -233,11 +223,34 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return s.conns.AddPacketConn(conn, host), nil
 }
 
-func (s *shunt) GetResolver(host proxy.Address) (dns.DNS, MODE) {
+func (s *shunt) GetResolver(host proxy.Address) (dns.DNS, int64) {
 	m := s.match(host, false)
 	d, ok := s.modeStore.Load(m)
 	if ok {
 		return d.dns, m
 	}
 	return resolver.Bootstrap, m
+}
+
+type rule struct {
+	id        idGenerater
+	mapping   syncmap.SyncMap[string, int64]
+	idMapping syncmap.SyncMap[int64, string]
+}
+
+func (r *rule) GetID(s string) int64 {
+	if v, ok := r.mapping.Load(s); ok {
+		return v
+	}
+	id := r.id.Generate()
+	r.mapping.Store(s, id)
+	r.idMapping.Store(id, s)
+	return id
+}
+
+func (r *rule) GetMode(id int64) string {
+	if v, ok := r.idMapping.Load(id); ok {
+		return v
+	}
+	return ""
 }
