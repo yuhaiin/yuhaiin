@@ -27,7 +27,14 @@ message system_proxy {
 }
 
 message bypass {
-  bool enabled = 1 [ json_name = "enabled" ];
+  enum mode {
+    bypass = 0;
+    direct = 1;
+    proxy = 2;
+    block = 3;
+  }
+  mode tcp = 3 [ json_name = "tcp" ];
+  mode udp = 4 [ json_name = "udp" ];
   string bypass_file = 2 [ json_name = "bypass_file" ];
 }
 
