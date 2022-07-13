@@ -42,13 +42,21 @@ type Opts struct {
 	Socks5     string      `json:"socks5"`
 	Http       string      `json:"http"`
 	SaveLogcat bool        `json:"save_logcat"`
-	Block      string      `json:"block"`
-	Proxy      string      `json:"proxy"`
-	Direct     string      `json:"direct"`
+	Bypass     *Bypass     `json:"bypass"`
 	DNS        *DNSSetting `json:"dns"`
 	TUN        *TUN        `json:"tun"`
 }
 
+type Bypass struct {
+	// 0: bypass, 1: proxy, 2: direct, 3: block
+	TCP int32 `json:"tcp"`
+	// 0: bypass, 1: proxy, 2: direct, 3: block
+	UDP int32 `json:"udp"`
+
+	Block  string `json:"block"`
+	Proxy  string `json:"proxy"`
+	Direct string `json:"direct"`
+}
 type DNSSetting struct {
 	Server         string `json:"server"`
 	Fakedns        bool   `json:"fakedns"`
@@ -130,9 +138,9 @@ func (a *App) Start(opt *Opts) error {
 		app := statistic.NewRouter(a.dialer)
 		defer app.Close()
 		fakeSetting.AddObserver(app)
-		insert(app.Insert, opt.Block, "BLOCK")
-		insert(app.Insert, opt.Proxy, "PROXY")
-		insert(app.Insert, opt.Direct, "DIRECT")
+		insert(app.Insert, opt.Bypass.Block, protoconfig.Bypass_block.String())
+		insert(app.Insert, opt.Bypass.Proxy, protoconfig.Bypass_proxy.String())
+		insert(app.Insert, opt.Bypass.Direct, protoconfig.Bypass_direct.String())
 
 		listener := server.NewListener(app.Proxy(), app.DNSServer())
 		defer listener.Close()
@@ -308,7 +316,8 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 		},
 
 		Bypass: &protoconfig.Bypass{
-			Enabled:    true,
+			Tcp:        protoconfig.BypassMode(opt.Bypass.TCP),
+			Udp:        protoconfig.BypassMode(opt.Bypass.UDP),
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
 		},
 	}

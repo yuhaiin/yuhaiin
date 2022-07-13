@@ -117,8 +117,9 @@ func load(path string) *config.Setting {
 
 	if pa.Bypass == nil {
 		pa.Bypass = &config.Bypass{
-			Enabled:    true,
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+			Tcp:        config.Bypass_bypass,
+			Udp:        config.Bypass_bypass,
 		}
 	}
 
@@ -235,10 +236,9 @@ func check(pa *config.Setting) error {
 }
 
 func checkBypass(pa *config.Bypass) error {
-	if !pa.Enabled {
+	if pa.Tcp != config.Bypass_bypass && pa.Udp != config.Bypass_bypass {
 		return nil
 	}
-
 	_, err := os.Stat(pa.BypassFile)
 	if err != nil {
 		return fmt.Errorf("check bypass file stat failed: %w", err)
