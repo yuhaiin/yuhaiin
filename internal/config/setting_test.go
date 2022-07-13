@@ -15,7 +15,6 @@ func TestJsonPb(t *testing.T) {
 			Socks5: false,
 		},
 		Bypass: &config.Bypass{
-			Enabled:    true,
 			BypassFile: filepath.Join("/tmp/yuhaiin/setting", "yuhaiin.conf"),
 		},
 		Dns: &config.DnsSetting{

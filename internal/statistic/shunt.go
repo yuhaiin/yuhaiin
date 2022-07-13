@@ -22,7 +22,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"google.golang.org/protobuf/proto"
 )
 
 //go:embed statics/bypass.gz
@@ -81,7 +80,11 @@ func newShunt(resolver dns.DNS, conns conns) *shunt {
 	return &shunt{
 		mapper: mapper.NewMapper[int64](resolver),
 		conns:  conns,
-		config: &protoconfig.Bypass{Enabled: true, BypassFile: ""},
+		config: &protoconfig.Bypass{
+			Tcp:        protoconfig.Bypass_bypass,
+			Udp:        protoconfig.Bypass_bypass,
+			BypassFile: "",
+		},
 	}
 }
 
@@ -89,14 +92,11 @@ func (s *shunt) Update(c *protoconfig.Setting) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	diff := !proto.Equal(s.config, c.Bypass)
+	diff := (s.config == nil && c != nil) || s.config.BypassFile != c.Bypass.BypassFile
 	s.config = c.Bypass
 
-	if !s.config.Enabled {
+	if diff {
 		s.mapper.Clear()
-	}
-
-	if diff && s.config.Enabled {
 		if err := s.refresh(); err != nil {
 			log.Println("refresh bypass file failed:", err)
 		}
@@ -144,13 +144,9 @@ func (s *shunt) refresh() error {
 	return nil
 }
 
-func (s *shunt) Insert(c, mode string) { s.mapper.Insert(c, s.rule.GetID(strings.ToUpper(mode))) }
+func (s *shunt) Insert(c, mode string) { s.mapper.Insert(c, s.rule.GetID(mode)) }
 
 func (s *shunt) match(addr proxy.Address, resolveDomain bool) int64 {
-	if !s.config.Enabled {
-		return s.defaultMode
-	}
-
 	r := s.mapper
 	if !resolveDomain {
 		if z, ok := s.mapper.(interface {
@@ -188,14 +184,14 @@ func (s *shunt) GetDialer(m string) proxy.Proxy {
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
-	m := s.match(host, true)
+	m, mark := s.getMark(s.config.Tcp, host)
 	mode, ok := s.modeStore.Load(m)
 	if !ok {
 		return nil, fmt.Errorf("not found mode for %d", m)
 	}
 
 	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK, m)
+	host.AddMark(MODE_MARK, mark)
 
 	conn, err := mode.dialer.Conn(host)
 	if err != nil {
@@ -205,15 +201,24 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	return s.conns.AddConn(conn, host), nil
 }
 
-func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
+func (s *shunt) getMark(mode protoconfig.BypassMode, host proxy.Address) (int64, string) {
+	if mode != protoconfig.Bypass_bypass {
+		mark := mode.String()
+		return s.rule.GetID(mark), mark
+	}
 	m := s.match(host, true)
+	return m, s.rule.GetMode(m)
+}
+
+func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
+	m, mark := s.getMark(s.config.Udp, host)
 	mode, ok := s.modeStore.Load(m)
 	if !ok {
 		return nil, fmt.Errorf("not found mode for %d", m)
 	}
 
 	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK, s.rule.GetMode(m))
+	host.AddMark(MODE_MARK, mark)
 
 	conn, err := mode.dialer.PacketConn(host)
 	if err != nil {
@@ -239,6 +244,7 @@ type rule struct {
 }
 
 func (r *rule) GetID(s string) int64 {
+	s = strings.ToUpper(s)
 	if v, ok := r.mapping.Load(s); ok {
 		return v
 	}
