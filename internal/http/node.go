@@ -3,6 +3,7 @@ package simplehttp
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -25,19 +26,42 @@ var subJS []byte
 
 func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		point, err := nm.Now(context.TODO(), &emptypb.Empty{})
+		point, err := nm.Now(context.TODO(), &node.NowReq{Net: node.NowReq_tcp})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tcpData, err := protojson.MarshalOptions{Indent: "  "}.Marshal(point)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		data, err := protojson.MarshalOptions{Indent: "  "}.Marshal(point)
+		point, err = nm.Now(context.TODO(), &node.NowReq{Net: node.NowReq_udp})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		udpData, err := protojson.MarshalOptions{Indent: "  "}.Marshal(point)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Write([]byte(createHTML(fmt.Sprintf(`<pre>%s</pre>`, string(data)))))
+		str := utils.GetBuffer()
+		defer utils.PutBuffer(str)
+
+		str.WriteString("TCP")
+		str.WriteString("<pre>")
+		str.Write(tcpData)
+		str.WriteString("</pre>")
+		str.WriteString("<hr/>")
+		str.WriteString("UDP")
+		str.WriteString("<pre>")
+		str.Write(udpData)
+		str.WriteString("</pre>")
+
+		w.Write([]byte(createHTML(str.String())))
 	})
 
 	mux.HandleFunc("/group", func(w http.ResponseWriter, r *http.Request) {
@@ -80,24 +104,27 @@ func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 		defer utils.PutBuffer(str)
 
 		str.WriteString(fmt.Sprintf(`<script>%s</script>`, nodeJS))
-		for _, v := range nds {
-			str.WriteString(fmt.Sprintf("<li id=%s>", "i"+nhm[v]))
-			str.WriteString(fmt.Sprintf(`<a href="/node?hash=%s">%s</a>`, nhm[v], v))
+
+		for _, n := range nds {
+			str.WriteString(fmt.Sprintf(`<div id="%s">`, "i"+nhm[n]))
+			str.WriteString(fmt.Sprintf(`<input type="radio" name="select_node" value="%s">`, nhm[n]))
+			str.WriteString(fmt.Sprintf(`<a href="/node?hash=%s">%s</a>`, nhm[n], n))
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(`TCP: <a class="tcp">N/A</a>`)
 			str.WriteString("&nbsp;&nbsp;")
 			str.WriteString(`UDP: <a class="udp">N/A</a>`)
 			str.WriteString("&nbsp;&nbsp;")
-			str.WriteString(fmt.Sprintf(`<a class="test" href='javascript:latency("%s")'>Test</a>`, nhm[v]))
-			str.WriteString("&nbsp;&nbsp;")
-			str.WriteString(fmt.Sprintf(`<a href='/use?hash=%s'>Use This</a>`, nhm[v]))
-			str.WriteString("&nbsp;&nbsp;")
-			str.WriteString(fmt.Sprintf(`<a href='javascript: del("%s");'>Delete</a>`, nhm[v]))
-			str.WriteString("</li>")
-			if os == "android" {
-				str.WriteByte('\n')
-			}
+			str.WriteString(fmt.Sprintf(`<a class="test" href='javascript:latency("%s")'>Test</a>`, nhm[n]))
+			str.WriteString("</div>")
 		}
+		str.WriteString("<br/>")
+		str.WriteString("<a href='javascript: use(\"tcpudp\");'>USE</a>")
+		str.WriteString("&nbsp;&nbsp;")
+		str.WriteString("<a href='javascript: use(\"tcp\");'>USE FOR TCP</a>")
+		str.WriteString("&nbsp;&nbsp;")
+		str.WriteString("<a href='javascript: use(\"udp\");'>USE FOR UDP</a>")
+		str.WriteString("&nbsp;&nbsp;")
+		str.WriteString("<a href='javascript: del();'>DELETE</a>")
 		w.Write([]byte(createHTML(str.String())))
 	})
 
@@ -267,8 +294,21 @@ func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 
 	mux.HandleFunc("/use", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.URL.Query().Get("hash")
+		net := r.URL.Query().Get("net")
 
-		p, err := nm.Use(context.TODO(), &wrapperspb.StringValue{Value: hash})
+		req := &node.UseReq{Hash: hash}
+
+		switch net {
+		case "tcp":
+			req.Tcp = true
+		case "udp":
+			req.Udp = true
+		default:
+			req.Tcp = true
+			req.Udp = true
+		}
+
+		p, err := nm.Use(context.TODO(), req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -307,14 +347,17 @@ func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 
 		for _, v := range ls {
 			l := links.Links[v]
-			str.WriteString("<li>")
+			str.WriteString("<div>")
+			str.WriteString(fmt.Sprintf(`<input type="checkbox" name="links" value="%s"/>`, l.GetName()))
 			str.WriteString(fmt.Sprintf(`<a href='javascript: copy("%s");'>%s</a>`, l.GetUrl(), l.GetName()))
-			str.WriteString("&nbsp;&nbsp;")
-			str.WriteString(fmt.Sprintf(`<a href='/sub/delete?name=%s'>Delete</a>`, l.GetName()))
-			str.WriteString("&nbsp;&nbsp;")
-			str.WriteString(fmt.Sprintf(`<a href='/sub/update?name=%s'>Update</a>`, l.GetName()))
-			str.WriteString("</li>")
+			str.WriteString("</div>")
 		}
+
+		str.WriteString("<br/>")
+		str.WriteString(`<a href='javascript:update()'>UPDATE</a>`)
+		str.WriteString("&nbsp;&nbsp;&nbsp;&nbsp;")
+		str.WriteString(`<a href='javascript:delSubs()'>DELETE</a>`)
+		str.WriteString("<br/>")
 
 		str.WriteString("<hr/>")
 		str.WriteString("Add a New Link<br/><br/>")
@@ -356,13 +399,20 @@ func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 	})
 
 	mux.HandleFunc("/sub/delete", func(w http.ResponseWriter, r *http.Request) {
-		name := r.URL.Query().Get("name")
-		if name == "" {
+		data := r.URL.Query().Get("links")
+		if data == "" {
 			http.Redirect(w, r, "/sub", http.StatusFound)
 			return
 		}
 
-		_, err := nm.DeleteLinks(context.TODO(), &node.LinkReq{Names: []string{name}})
+		var names []string
+
+		if err := json.Unmarshal([]byte(data), &names); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		_, err := nm.DeleteLinks(context.TODO(), &node.LinkReq{Names: names})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -372,13 +422,19 @@ func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 	})
 
 	mux.HandleFunc("/sub/update", func(w http.ResponseWriter, r *http.Request) {
-		name := r.URL.Query().Get("name")
-		if name == "" {
+		data := r.URL.Query().Get("links")
+		if data == "" {
 			http.Redirect(w, r, "/sub", http.StatusFound)
 			return
 		}
 
-		_, err := nm.UpdateLinks(context.TODO(), &node.LinkReq{Names: []string{name}})
+		var names []string
+		if err := json.Unmarshal([]byte(data), &names); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		_, err := nm.UpdateLinks(context.TODO(), &node.LinkReq{Names: names})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

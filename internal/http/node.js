@@ -22,7 +22,7 @@ function lat(id, type, callback) {
 
     var xmlhttp = new XMLHttpRequest();
     xmlhttp.open("GET", "/latency?hash=" + id + "&type=" + type, true);
-    xmlhttp.onreadystatechange = function() {
+    xmlhttp.onreadystatechange = function () {
         if (xmlhttp.readyState != 4) return;
         let latency = null;
         if (xmlhttp.status == 200) {
@@ -36,12 +36,36 @@ function lat(id, type, callback) {
     xmlhttp.send();
 }
 
-function del(hash) {
+function del() {
+    var hash = getSelectNode();
+    console.log('del node:', hash);
+    if (hash == 0) return;
     var xmlhttp = new XMLHttpRequest();
     xmlhttp.open("GET", "/node/delete?hash=" + hash, true);
     xmlhttp.send();
-    xmlhttp.onreadystatechange = function() {
+    xmlhttp.onreadystatechange = function () {
         if (xmlhttp.readyState != 4) return;
         location.reload();
     }
+}
+
+function use(net) {
+    var hash = getSelectNode();
+    console.log('use node:', hash);
+    if (hash == 0) return;
+
+    window.location = "/use?hash=" + hash + "&net=" + net;
+}
+
+function getSelectNode() {
+    var radios = document.getElementsByName("select_node");
+    var value = 0;
+    for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked == true) {
+            value = radios[i].value;
+            break;
+        }
+    }
+
+    return value;
 }
