@@ -617,7 +617,11 @@ func (y *yhCli) changeNowNodeWithGroupAndNode(i, z int) error {
 }
 
 func (y *yhCli) changeNowNode(hash string) error {
-	l, err := y.sub.Use(context.Background(), &wrapperspb.StringValue{Value: hash})
+	l, err := y.sub.Use(context.Background(), &node.UseReq{
+		Tcp:  true,
+		Udp:  true,
+		Hash: hash,
+	})
 	if err != nil {
 		return fmt.Errorf("change now node failed: %w", err)
 	}
@@ -627,7 +631,7 @@ func (y *yhCli) changeNowNode(hash string) error {
 }
 
 func (y *yhCli) nowNode() error {
-	n, err := y.sub.Now(context.Background(), &emptypb.Empty{})
+	n, err := y.sub.Now(context.Background(), &node.NowReq{Net: node.NowReq_tcp})
 	if err != nil {
 		return fmt.Errorf("get now node failed: %w", err)
 	}

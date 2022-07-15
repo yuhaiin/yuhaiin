@@ -9,9 +9,9 @@ import "google/protobuf/wrappers.proto";
 import "node/node.proto";
 
 service node_manager {
-  rpc now(google.protobuf.Empty) returns (yuhaiin.node.point);
+  rpc now(yuhaiin.node.now_req) returns (yuhaiin.node.point);
   // use req is hash string of point
-  rpc use(google.protobuf.StringValue) returns (yuhaiin.node.point);
+  rpc use(yuhaiin.node.use_req) returns (yuhaiin.node.point);
 
   rpc get_node(google.protobuf.StringValue) returns (yuhaiin.node.point);
   rpc save_node(yuhaiin.node.point) returns (yuhaiin.node.point);

@@ -2,6 +2,7 @@ package yuhaiin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -253,6 +254,8 @@ func pathConfig(configPath string) struct{ dir, lockfile, node, config, logfile 
 }
 
 func fakeSetting(opt *Opts, path string) *fakeSettings {
+	opts, _ := json.Marshal(opt)
+	log.Println("fake setting:", string(opts))
 	settings := &protoconfig.Setting{
 		Dns: &protoconfig.DnsSetting{
 			Server:         opt.DNS.Server,
