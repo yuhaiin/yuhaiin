@@ -103,11 +103,14 @@ func (r *remotedns) Update(c *protoconfig.Setting) {
 		r.dns.Close()
 	}
 
-	mark := "REMOTEDNS_DIRECT"
-	dialer := r.direct
+	var mark string
+	var dialer proxy.Proxy
 	if r.config.Proxy {
 		mark = "REMOTEDNS_PROXY"
 		dialer = r.proxy
+	} else {
+		mark = "REMOTEDNS_DIRECT"
+		dialer = r.direct
 	}
 
 	r.dns = getDNS("REMOTEDNS", r.config, &dnsdialer{r.conns, dialer, mark})

@@ -36,9 +36,10 @@ type Nodes struct {
 
 	savaPath       string
 	lock, filelock sync.RWMutex
-	proxy          proxy.Proxy
 
-	now     *node.Point
+	tcpProxy, udpProxy proxy.Proxy
+	tcp, udp           *node.Point
+
 	manager *manager
 	links   map[string]*node.NodeLink
 }
@@ -49,40 +50,60 @@ func NewNodes(configPath string) (n *Nodes) {
 	return
 }
 
-func (n *Nodes) dialer() proxy.Proxy {
-	if n.proxy == nil {
-		now, _ := n.Now(context.TODO(), &emptypb.Empty{})
+func (n *Nodes) tcpDialer() proxy.Proxy {
+	if n.tcpProxy == nil {
+		now, _ := n.Now(context.TODO(), &node.NowReq{Net: node.NowReq_tcp})
 		p, err := register.Dialer(now)
 		if err != nil {
 			log.Printf("create conn failed: %v", err)
 			return direct.Default
 		}
 
-		n.proxy = p
+		n.tcpProxy = p
 	}
 
-	return n.proxy
+	return n.tcpProxy
 }
 
 func (n *Nodes) Conn(host proxy.Address) (net.Conn, error) {
-	return n.dialer().Conn(host)
+	return n.tcpDialer().Conn(host)
 }
 
 func (n *Nodes) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	return n.dialer().PacketConn(host)
+	if n.udpProxy == nil {
+		now, _ := n.Now(context.TODO(), &node.NowReq{Net: node.NowReq_udp})
+		p, err := register.Dialer(now)
+		if err != nil {
+			log.Printf("create conn failed: %v", err)
+			return direct.Default.PacketConn(host)
+		}
+		n.udpProxy = p
+	}
+
+	return n.udpProxy.PacketConn(host)
 }
 
-func (n *Nodes) Now(context.Context, *emptypb.Empty) (*node.Point, error) {
+func (n *Nodes) Now(_ context.Context, r *node.NowReq) (*node.Point, error) {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
 
-	if n.now == nil {
-		return n.now, nil
+	var now *node.Point
+
+	switch r.Net {
+	case node.NowReq_tcp:
+		now = n.tcp
+	case node.NowReq_udp:
+		now = n.udp
 	}
 
-	p, ok := n.manager.GetNodeByName(n.now.Group, n.now.Name)
+	if now == nil {
+		now = &node.Point{}
+		return now, nil
+	}
+
+	p, ok := n.manager.GetNodeByName(now.Group, now.Name)
 	if !ok {
-		return n.now, nil
+		return now, nil
 	}
 
 	return p, nil
@@ -142,8 +163,8 @@ func (n *Nodes) DeleteLinks(_ context.Context, s *node.LinkReq) (*emptypb.Empty,
 	return &emptypb.Empty{}, n.save()
 }
 
-func (n *Nodes) Use(c context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
-	p, err := n.GetNode(c, s)
+func (n *Nodes) Use(c context.Context, s *node.UseReq) (*node.Point, error) {
+	p, err := n.GetNode(c, &wrapperspb.StringValue{Value: s.Hash})
 	if err != nil {
 		return &node.Point{}, fmt.Errorf("get node failed: %v", err)
 	}
@@ -151,17 +172,20 @@ func (n *Nodes) Use(c context.Context, s *wrapperspb.StringValue) (*node.Point, 
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
-	if n.now.Hash == p.Hash {
-		return p, nil
+	if s.Tcp && n.tcp.Hash != p.Hash {
+		n.tcp = p
+		n.tcpProxy = nil
 	}
-	n.now = p
+	if s.Udp && n.udp.Hash != p.Hash {
+		n.udp = p
+		n.udpProxy = nil
+	}
 
 	err = n.save()
 	if err != nil {
 		return p, fmt.Errorf("save config failed: %v", err)
 	}
-	n.proxy = nil
-	return n.now, nil
+	return p, nil
 }
 
 func (n *Nodes) GetLinks(ctx context.Context, in *emptypb.Empty) (*node.GetLinksResp, error) {
@@ -195,7 +219,7 @@ func (n *Nodes) UpdateLinks(c context.Context, req *node.LinkReq) (*emptypb.Empt
 					}
 				}
 
-				return n.dialer().Conn(ad)
+				return n.tcpDialer().Conn(ad)
 			},
 		},
 	}
@@ -334,37 +358,36 @@ func (n *Nodes) load() {
 
 	n.filelock.RLock()
 	defer n.filelock.RUnlock()
-	data, err := os.ReadFile(n.savaPath)
-	if err != nil {
-		data = []byte{'{', '}'}
+
+	if data, err := os.ReadFile(n.savaPath); err == nil {
+		if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, no); err != nil {
+			log.Printf("unmarshal node file failed: %v\n", err)
+		}
+	} else {
 		log.Printf("read node file failed: %v\n", err)
 	}
 
-	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, no)
-	if err != nil {
-		log.Printf("unmarshal node file failed: %v\n", err)
+_init:
+	for {
+		switch {
+		case no.Tcp == nil:
+			no.Tcp = &node.Point{}
+		case no.Udp == nil:
+			no.Udp = &node.Point{}
+		case no.Links == nil:
+			no.Links = make(map[string]*node.NodeLink)
+		case no.Manager == nil:
+			no.Manager = &node.Manager{}
+		case no.Manager.Groups == nil:
+			no.Manager.Groups = make([]string, 0)
+			no.Manager.GroupNodesMap = make(map[string]*node.ManagerNodeArray)
+			no.Manager.Nodes = make(map[string]*node.Point)
+		default:
+			break _init
+		}
 	}
 
-	if no.NowNode == nil {
-		no.NowNode = &node.Point{}
-	}
-
-	if no.Links == nil {
-		no.Links = make(map[string]*node.NodeLink)
-	}
-
-	if no.Manager == nil {
-		no.Manager = &node.Manager{}
-	}
-
-	if no.Manager.Groups == nil {
-		no.Manager.Groups = make([]string, 0)
-		no.Manager.GroupNodesMap = make(map[string]*node.ManagerNodeArray)
-		no.Manager.Nodes = make(map[string]*node.Point)
-	}
-
-	n.now = no.NowNode
-	n.links = no.Links
+	n.tcp, n.udp, n.links = no.Tcp, no.Udp, no.Links
 	n.manager = &manager{Manager: no.Manager}
 }
 
@@ -384,8 +407,9 @@ func (n *Nodes) save() error {
 	if n.manager != nil {
 		manager = n.manager.GetManager()
 	}
+
 	data, err := protojson.MarshalOptions{Indent: "\t"}.
-		Marshal(&node.Node{NowNode: n.now, Links: n.links, Manager: manager})
+		Marshal(&node.Node{Tcp: n.tcp, Udp: n.udp, Links: n.links, Manager: manager})
 	if err != nil {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}

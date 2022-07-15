@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"runtime"
 	"sort"
 	"strconv"
 	"unsafe"
@@ -22,8 +21,6 @@ import (
 
 //go:embed statistic.js
 var statisticJS []byte
-
-var os = runtime.GOOS
 
 func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
 	mux.HandleFunc("/conn/list", func(w http.ResponseWriter, r *http.Request) {

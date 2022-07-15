@@ -105,7 +105,8 @@ message tls_config {
 }
 
 message node {
-  point now_node = 1 [ json_name = "now_node" ];
+  point tcp = 4 [ json_name = "tcp" ];
+  point udp = 5 [ json_name = "udp" ];
   message link {
     string name = 1 [ json_name = "name" ];
     enum link_type {
@@ -154,4 +155,20 @@ message save_link_req { repeated node.link links = 1 [ json_name = "links" ]; }
 message link_req { repeated string names = 1 [ json_name = "names" ]; }
 message get_links_resp {
   map<string, node.link> links = 1 [ json_name = "links" ];
+}
+
+message use_req {
+  bool tcp = 1 [ json_name = "tcp" ];
+  bool udp = 2 [ json_name = "udp" ];
+  string hash = 3 [ json_name = "hash" ];
+}
+
+message now_req {
+  enum now_req_net {
+    reserve = 0;
+    tcp = 1;
+    udp = 2;
+  }
+
+  now_req_net net = 1 [ json_name = "type" ];
 }
