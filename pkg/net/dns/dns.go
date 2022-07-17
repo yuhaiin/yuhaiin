@@ -150,20 +150,13 @@ func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
 	i := make([]net.IP, 0, 1)
 	for {
 		header, err := p.AnswerHeader()
-		if err == dnsmessage.ErrSectionDone {
-			if len(i) == 0 {
-				return nil, fmt.Errorf("domain %v no dns answer", domain)
-			}
-
-			response := dns.NewIPResponse(i, ttl)
-			log.Printf("%s lookup host [%s] success: %v\n", c.config.Name, domain, response)
-			expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
-			c.cache.Add(domain, cacheElement{i, expireAfter}, expireAfter)
-			return response, nil
-		}
 		if err != nil {
+			if err == dnsmessage.ErrSectionDone {
+				break
+			}
 			return nil, err
 		}
+
 		// All Resources in a set should have the same TTL (RFC 2181 Section 5.2).
 		ttl = header.TTL
 
@@ -186,8 +179,19 @@ func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
 				return nil, err
 			}
 		}
-
 	}
+
+	if len(i) == 0 {
+		return nil, fmt.Errorf("domain %v no dns answer", domain)
+	}
+
+	resp := dns.NewIPResponse(i, ttl)
+
+	log.Printf("%s lookup host [%s] success: %v\n", c.config.Name, domain, resp)
+
+	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
+	c.cache.Add(domain, cacheElement{i, expireAfter}, expireAfter)
+	return resp, nil
 }
 
 type cacheEntry[K, V any] struct {

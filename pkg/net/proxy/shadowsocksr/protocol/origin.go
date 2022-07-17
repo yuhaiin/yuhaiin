@@ -1,35 +1,21 @@
 package protocol
 
+import "bytes"
+
 func init() {
 	register("origin", NewOrigin)
 }
 
 type origin struct{}
 
-func NewOrigin(ProtocolInfo) IProtocol {
-	a := &origin{}
-	return a
-}
+var _origin = &origin{}
 
-func (o *origin) EncryptStream(data []byte) (encryptedData []byte, err error) {
-	return data, nil
-}
-
-func (o *origin) DecryptStream(data []byte) ([]byte, int, error) {
-	return data, len(data), nil
-}
-
-func (o *origin) GetOverhead() int {
-	return 0
-}
-
-func (a *origin) EncryptPacket(b []byte) ([]byte, error) {
-	return b, nil
-}
-func (a *origin) DecryptPacket(b []byte) ([]byte, error) {
-	return b, nil
-}
-
-func (a *origin) Close() error {
+func NewOrigin(ProtocolInfo) IProtocol { return _origin }
+func (o *origin) EncryptStream(dst *bytes.Buffer, data []byte) (err error) {
+	dst.Write(data)
 	return nil
 }
+func (o *origin) DecryptStream(dst *bytes.Buffer, data []byte) (int, error) { return dst.Write(data) }
+func (o *origin) GetOverhead() int                                          { return 0 }
+func (a *origin) EncryptPacket(b []byte) ([]byte, error)                    { return b, nil }
+func (a *origin) DecryptPacket(b []byte) ([]byte, error)                    { return b, nil }

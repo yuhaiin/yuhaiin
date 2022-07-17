@@ -100,16 +100,16 @@ func NewTun(opt *TunOpt) (*tunServer, error) {
 	s.SetICMPLimit(icmpLimit)
 
 	rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
-		Min:     1,
+		Min:     tcp.MinBufferSize,
 		Default: utils.DefaultSize,
-		Max:     utils.DefaultSize,
+		Max:     tcp.MaxBufferSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &rcvOpt)
 
 	sndOpt := tcpip.TCPSendBufferSizeRangeOption{
-		Min:     1,
+		Min:     tcp.MinBufferSize,
 		Default: utils.DefaultSize,
-		Max:     utils.DefaultSize,
+		Max:     tcp.MaxBufferSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
 
