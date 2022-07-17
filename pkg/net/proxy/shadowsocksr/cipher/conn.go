@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/shadowsocks/go-shadowsocks2/core"
@@ -152,7 +153,8 @@ type streamConn struct {
 	enc, dec        cipher.Stream
 	writeIV, readIV []byte
 
-	buf []byte
+	buf  []byte
+	once sync.Once
 }
 
 func newStreamConn(c net.Conn, ciph CipherCreator, key []byte) *streamConn {
@@ -237,6 +239,9 @@ func (c *streamConn) Write(b []byte) (int, error) {
 }
 
 func (c *streamConn) Close() error {
-	defer utils.PutBytes(c.buf)
+	c.once.Do(func() {
+		utils.PutBytes(c.buf)
+		c.buf = nil
+	})
 	return c.Conn.Close()
 }

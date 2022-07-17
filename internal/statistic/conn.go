@@ -57,9 +57,11 @@ func (c *counter) AddConn(con net.Conn, addr proxy.Address) net.Conn {
 func (s *conn) Close() error {
 	if s.wbuf != nil {
 		utils.PutBytes(s.wbuf)
+		s.wbuf = nil
 	}
 	if s.rbuf != nil {
 		utils.PutBytes(s.rbuf)
+		s.rbuf = nil
 	}
 	s.manager.delete(s.Id)
 	return s.Conn.Close()
@@ -78,7 +80,7 @@ func (s *conn) Read(b []byte) (n int, err error) {
 
 func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
 	if s.wbuf == nil {
-		s.wbuf = utils.GetBytes(2048)
+		s.wbuf = utils.GetBytes(utils.DefaultSize)
 	}
 
 	for {
@@ -104,7 +106,7 @@ func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
 
 func (s *conn) WriteTo(w io.Writer) (resp int64, err error) {
 	if s.rbuf == nil {
-		s.rbuf = utils.GetBytes(2048)
+		s.rbuf = utils.GetBytes(utils.DefaultSize)
 	}
 	for {
 		n, er := s.Read(s.rbuf)

@@ -26,8 +26,7 @@ type authChainA struct {
 	ProtocolInfo
 	randomClient ssr.Shift128plusContext
 	randomServer ssr.Shift128plusContext
-	recvInfo
-	// cipher         *cipher2.StreamCipher
+	recvID       uint32
 
 	encrypter      cipher.Stream
 	decrypter      cipher.Stream
@@ -51,15 +50,11 @@ type authChainA struct {
 
 func NewAuthChainA(info ProtocolInfo) IProtocol {
 	a := &authChainA{
-		salt:       "auth_chain_a",
-		hmac:       ssr.HmacMD5,
-		hashDigest: ssr.SHA1Sum,
-		rnd:        authChainAGetRandLen,
-		recvInfo: recvInfo{
-			recvID: 1,
-			wbuf:   new(bytes.Buffer),
-			rbuf:   new(bytes.Buffer),
-		},
+		salt:         "auth_chain_a",
+		hmac:         ssr.HmacMD5,
+		hashDigest:   ssr.SHA1Sum,
+		rnd:          authChainAGetRandLen,
+		recvID:       1,
 		ProtocolInfo: info,
 		data:         info.Auth,
 	}
@@ -229,8 +224,7 @@ func (a *authChainA) initRC4Cipher(key []byte) {
 	a.decrypter, _ = rc4.NewCipher(key)
 }
 
-func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error) {
-	a.wbuf.Reset()
+func (a *authChainA) EncryptStream(wbuf *bytes.Buffer, plainData []byte) (err error) {
 	dataLength := len(plainData)
 	offset := 0
 	if dataLength > 0 && !a.hasSentHeader {
@@ -238,7 +232,7 @@ func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error)
 		if headSize > dataLength {
 			headSize = dataLength
 		}
-		a.wbuf.Write(a.packAuthData(plainData[:headSize]))
+		wbuf.Write(a.packAuthData(plainData[:headSize]))
 		offset += headSize
 		dataLength -= headSize
 		a.hasSentHeader = true
@@ -248,7 +242,7 @@ func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error)
 		dataLen, randLength := a.packedDataLen(plainData[offset : offset+unitSize])
 		b := make([]byte, dataLen)
 		a.packData(b, plainData[offset:offset+unitSize], randLength)
-		a.wbuf.Write(b)
+		wbuf.Write(b)
 		dataLength -= unitSize
 		offset += unitSize
 	}
@@ -256,13 +250,12 @@ func (a *authChainA) EncryptStream(plainData []byte) (outData []byte, err error)
 		dataLen, randLength := a.packedDataLen(plainData[offset:])
 		b := make([]byte, dataLen)
 		a.packData(b, plainData[offset:], randLength)
-		a.wbuf.Write(b)
+		wbuf.Write(b)
 	}
-	return a.wbuf.Bytes(), nil
+	return nil
 }
 
-func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err error) {
-	a.rbuf.Reset()
+func (a *authChainA) DecryptStream(rbuf *bytes.Buffer, plainData []byte) (n int, err error) {
 	key := make([]byte, len(a.userKey)+4)
 	readlenth := 0
 	copy(key, a.userKey)
@@ -272,7 +265,7 @@ func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err
 		randLen := a.getServerRandLen(dataLen, a.overhead)
 		length := randLen + dataLen
 		if length >= 4096 {
-			return nil, 0, ssr.ErrAuthChainDataLengthError
+			return 0, ssr.ErrAuthChainDataLengthError
 		}
 
 		length += 4
@@ -282,7 +275,7 @@ func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err
 
 		hash := a.hmac(key, plainData[:length-2])
 		if !bytes.Equal(hash[:2], plainData[length-2:length]) {
-			return nil, 0, ssr.ErrAuthChainIncorrectHMAC
+			return 0, ssr.ErrAuthChainIncorrectHMAC
 		}
 
 		dataPos := 2
@@ -292,9 +285,9 @@ func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err
 
 		b := make([]byte, dataLen)
 		a.decrypter.XORKeyStream(b, plainData[dataPos:dataPos+dataLen])
-		a.rbuf.Write(b)
+		rbuf.Write(b)
 		if a.recvID == 1 {
-			a.TcpMss = int(binary.LittleEndian.Uint16(a.rbuf.Next(2)))
+			a.TcpMss = int(binary.LittleEndian.Uint16(rbuf.Next(2)))
 		}
 		a.lastServerHash = hash
 		a.recvID++
@@ -302,7 +295,7 @@ func (a *authChainA) DecryptStream(plainData []byte) (outData []byte, n int, err
 		readlenth += length
 
 	}
-	return a.rbuf.Bytes(), readlenth, nil
+	return readlenth, nil
 }
 
 func (a *authChainA) GetOverhead() int {

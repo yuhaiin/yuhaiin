@@ -107,13 +107,15 @@ func (d *dnsServer) startTCP() (err error) {
 }
 
 func (d *dnsServer) HandleTCP(c net.Conn) error {
-	l := make([]byte, 2)
-	_, err := io.ReadFull(c, l)
+	l := utils.GetBytes(2)
+	defer utils.PutBytes(l)
+
+	_, err := io.ReadFull(c, l[:2])
 	if err != nil {
 		return fmt.Errorf("dns server read length failed: %w", err)
 	}
 
-	length := int(binary.BigEndian.Uint16(l))
+	length := int(binary.BigEndian.Uint16(l[:2]))
 	data := utils.GetBytes(length)
 	defer utils.PutBytes(data)
 

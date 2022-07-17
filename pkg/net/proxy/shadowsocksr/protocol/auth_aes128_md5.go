@@ -29,33 +29,21 @@ func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
 		hmac:       ssr.HmacMD5,
 		hashDigest: ssr.MD5Sum,
 		packID:     1,
-		recvInfo: recvInfo{
-			recvID: 1,
-			rbuf:   utils.GetBuffer(),
-			wbuf:   utils.GetBuffer(),
-		},
-
-		key:    info.Key,
-		keyLen: info.KeySize,
-		iv:     info.IV,
-		ivLen:  info.IVSize,
-		param:  info.Param,
-		auth:   info.Auth,
-		tcpMSS: info.TcpMss,
+		recvID:     1,
+		key:        info.Key,
+		keyLen:     info.KeySize,
+		iv:         info.IV,
+		ivLen:      info.IVSize,
+		param:      info.Param,
+		auth:       info.Auth,
+		tcpMSS:     info.TcpMss,
 	}
 	a.initUserKey()
 	return a
 }
 
-type recvInfo struct {
-	recvID uint32
-
-	rbuf *bytes.Buffer
-	wbuf *bytes.Buffer
-}
-
 type authAES128 struct {
-	recvInfo
+	recvID        uint32
 	auth          *AuthData
 	hasSentHeader bool
 	rawTrans      bool
@@ -73,7 +61,7 @@ type authAES128 struct {
 	param string
 }
 
-func (a *authAES128) packData(data []byte, fullDataSize int) {
+func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int) {
 	dataLength := len(data)
 	if dataLength == 0 {
 		return
@@ -90,37 +78,37 @@ func (a *authAES128) packData(data []byte, fullDataSize int) {
 	a.packID = (a.packID + 1) & 0xFFFFFFFF
 
 	// 0~1, out length
-	binary.Write(a.wbuf, binary.LittleEndian, uint16(outLength))
+	binary.Write(wbuf, binary.LittleEndian, uint16(outLength))
 
 	// 2~3, hmac
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-2:])[:2])
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-2:])[:2])
 
 	// 4, rand length
 	if randLength < 128 {
-		a.wbuf.WriteByte(byte(randLength + 1))
+		wbuf.WriteByte(byte(randLength + 1))
 	} else {
 		// 4, magic number 255
-		a.wbuf.WriteByte(255)
+		wbuf.WriteByte(255)
 		// 5~6, rand length
-		binary.Write(a.wbuf, binary.LittleEndian, uint16(randLength+1))
+		binary.Write(wbuf, binary.LittleEndian, uint16(randLength+1))
 		randLength -= 2
 	}
 
 	// 4~rand length+4, rand number
-	if _, err := io.CopyN(a.wbuf, crand.Reader, int64(randLength)); err != nil {
+	if _, err := io.CopyN(wbuf, crand.Reader, int64(randLength)); err != nil {
 		log.Printf("copy rand bytes failed: %s\n", err)
 	}
 
 	// rand length+4~out length-4, data
-	a.wbuf.Write(data)
+	wbuf.Write(data)
 
-	start := a.wbuf.Len() - outLength + 4
+	start := wbuf.Len() - outLength + 4
 	if start < 0 {
-		log.Println("---------------start < 0, buf len: ", a.wbuf.Len(), "out length: ", outLength)
+		log.Println("---------------start < 0, buf len: ", wbuf.Len(), "out length: ", outLength)
 		start = 0
 	}
 	// hmac
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[start:])[:4])
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[start:])[:4])
 }
 
 func (a *authAES128) initUserKey() {
@@ -182,7 +170,7 @@ func (a *authAES128) rndDataLen(bufSize, fullBufSize int) int {
 	return trapezoidRandomFLoat(revLen, -0.3)
 }
 
-func (a *authAES128) packAuthData(data []byte) {
+func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	dataLength := len(data)
 	if dataLength == 0 {
 		return
@@ -221,29 +209,27 @@ func (a *authAES128) packAuthData(data []byte) {
 	copy(key, a.iv)
 	copy(key[a.ivLen:], a.key)
 
-	a.wbuf.Write([]byte{byte(rand.Intn(256))})
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-1:])[:6])
-	a.wbuf.Write(a.uid[:])
-	a.wbuf.Write(encrypt[:16])
-	a.wbuf.Write(a.hmac(key, a.wbuf.Bytes()[a.wbuf.Len()-20:])[:4])
-	io.CopyN(a.wbuf, crand.Reader, int64(randLength))
-	a.wbuf.Write(data)
-	start := a.wbuf.Len() - outLength + 4
+	wbuf.Write([]byte{byte(rand.Intn(256))})
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-1:])[:6])
+	wbuf.Write(a.uid[:])
+	wbuf.Write(encrypt[:16])
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-20:])[:4])
+	io.CopyN(wbuf, crand.Reader, int64(randLength))
+	wbuf.Write(data)
+	start := wbuf.Len() - outLength + 4
 	if start < 0 {
-		log.Println("---------------start < 0, buf len: ", a.wbuf.Len(), "out length: ", outLength)
+		log.Println("---------------start < 0, buf len: ", wbuf.Len(), "out length: ", outLength)
 		start = 0
 	}
-	a.wbuf.Write(a.hmac(a.userKey, a.wbuf.Bytes()[start:])[:4])
+	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes()[start:])[:4])
 }
 
-func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
+func (a *authAES128) EncryptStream(wbuf *bytes.Buffer, data []byte) (err error) {
 	dataLen := len(data)
 
 	if dataLen <= 0 {
-		return nil, nil
+		return nil
 	}
-
-	a.wbuf.Reset()
 
 	if !a.hasSentHeader {
 		authLen := GetHeadSize(data, 30) + rand.Intn(32)
@@ -251,7 +237,7 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 			authLen = dataLen
 		}
 
-		a.packAuthData(data[:authLen])
+		a.packAuthData(wbuf, data[:authLen])
 		data = data[authLen:]
 
 		a.hasSentHeader = true
@@ -260,38 +246,38 @@ func (a *authAES128) EncryptStream(data []byte) (_ []byte, err error) {
 	// https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L459
 	const unitLen = 8100
 	for len(data) > unitLen {
-		a.packData(data[:unitLen], dataLen)
+		a.packData(wbuf, data[:unitLen], dataLen)
 		data = data[unitLen:]
 	}
-	a.packData(data, dataLen)
+	a.packData(wbuf, data, dataLen)
 
-	return a.wbuf.Bytes(), nil
+	return nil
 }
 
-func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
+func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error) {
 	if a.rawTrans {
-		return data, len(data), nil
+		return rbuf.Write(data)
 	}
-
-	a.rbuf.Reset()
 
 	datalen, readLen := len(data), 0
 
 	keyLen := len(a.userKey) + 4
+
 	key := utils.GetBytes(keyLen)
 	defer utils.PutBytes(key)
+
 	copy(key[0:], a.userKey)
 
 	for datalen > 4 {
 		binary.LittleEndian.PutUint32(key[keyLen-4:], a.recvID)
 		if !bytes.Equal(a.hmac(key[:keyLen], data[0:2])[:2], data[2:4]) {
-			return nil, 0, ssr.ErrAuthAES128IncorrectHMAC
+			return 0, ssr.ErrAuthAES128IncorrectHMAC
 		}
 
 		clen := int(binary.LittleEndian.Uint16(data[0:2]))
 		if clen >= 8192 || clen < 7 {
 			a.rawTrans = true
-			return nil, 0, ssr.ErrAuthAES128DataLengthError
+			return 0, ssr.ErrAuthAES128DataLengthError
 		}
 		if clen > datalen {
 			break
@@ -299,7 +285,7 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 
 		if !bytes.Equal(a.hmac(key[:keyLen], data[:clen-4])[:4], data[clen-4:clen]) {
 			a.rawTrans = true
-			return nil, 0, ssr.ErrAuthAES128IncorrectChecksum
+			return 0, ssr.ErrAuthAES128IncorrectChecksum
 		}
 
 		a.recvID = (a.recvID + 1) & 0xFFFFFFFF
@@ -312,24 +298,24 @@ func (a *authAES128) DecryptStream(data []byte) ([]byte, int, error) {
 		}
 
 		if pos > clen-4 {
-			return nil, 0, ssr.ErrAuthAES128PosOutOfRange
+			return 0, ssr.ErrAuthAES128PosOutOfRange
 		}
 
-		a.rbuf.Write(data[pos : clen-4])
+		rbuf.Write(data[pos : clen-4])
 
 		data, datalen, readLen = data[clen:], datalen-clen, readLen+clen
 	}
 
-	return a.rbuf.Bytes(), readLen, nil
+	return readLen, nil
 }
 
 // https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L749
 func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
-	a.wbuf.Reset()
-	a.wbuf.Write(b)
-	a.wbuf.Write(a.uid[:])
-	a.wbuf.Write(a.hmac(a.userKey, a.wbuf.Bytes())[:4])
-	return a.wbuf.Bytes(), nil
+	wbuf := bytes.NewBuffer(nil)
+	wbuf.Write(b)
+	wbuf.Write(a.uid[:])
+	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes())[:4])
+	return wbuf.Bytes(), nil
 }
 
 // https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L764
@@ -341,12 +327,4 @@ func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
 	return b[:len(b)-4], nil
 }
 
-func (a *authAES128) GetOverhead() int {
-	return 9
-}
-
-func (a *recvInfo) Close() error {
-	utils.PutBuffer(a.wbuf)
-	utils.PutBuffer(a.rbuf)
-	return nil
-}
+func (a *authAES128) GetOverhead() int { return 9 }

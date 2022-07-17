@@ -24,7 +24,7 @@ func NewQUIC(config *node.PointProtocol_Quic) node.WrapProxy {
 			dialer:    dialer,
 			tlsConfig: node.ParseTLSConfig(config.Quic.Tls),
 			quicConfig: &quic.Config{
-				KeepAlive:            true,
+				KeepAlivePeriod:      time.Second * 30,
 				ConnectionIDLength:   12,
 				HandshakeIdleTimeout: time.Second * 8,
 				MaxIdleTimeout:       time.Second * 30,

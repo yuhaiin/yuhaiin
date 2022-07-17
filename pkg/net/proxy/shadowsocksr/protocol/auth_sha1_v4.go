@@ -7,7 +7,6 @@ import (
 	"time"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
 func init() {
@@ -18,14 +17,12 @@ type authSHA1v4 struct {
 	ProtocolInfo
 	data          *AuthData
 	hasSentHeader bool
-	buffer        *bytes.Buffer
 }
 
 func NewAuthSHA1v4(info ProtocolInfo) IProtocol {
 	a := &authSHA1v4{
 		ProtocolInfo: info,
 		data:         info.Auth,
-		buffer:       utils.GetBuffer(),
 	}
 
 	if a.data == nil {
@@ -139,8 +136,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authSHA1v4) EncryptStream(plainData []byte) (outData []byte, err error) {
-	a.buffer.Reset()
+func (a *authSHA1v4) EncryptStream(buffer *bytes.Buffer, plainData []byte) (err error) {
 	dataLength := len(plainData)
 	offset := 0
 	if !a.hasSentHeader && dataLength > 0 {
@@ -148,40 +144,39 @@ func (a *authSHA1v4) EncryptStream(plainData []byte) (outData []byte, err error)
 		if headSize > dataLength {
 			headSize = dataLength
 		}
-		a.buffer.Write(a.packAuthData(plainData[:headSize]))
+		buffer.Write(a.packAuthData(plainData[:headSize]))
 		offset += headSize
 		dataLength -= headSize
 		a.hasSentHeader = true
 	}
 	const blockSize = 4096
 	for dataLength > blockSize {
-		a.buffer.Write(a.packData(plainData[offset : offset+blockSize]))
+		buffer.Write(a.packData(plainData[offset : offset+blockSize]))
 		offset += blockSize
 		dataLength -= blockSize
 	}
 	if dataLength > 0 {
-		a.buffer.Write(a.packData(plainData[offset:]))
+		buffer.Write(a.packData(plainData[offset:]))
 	}
 
-	return a.buffer.Bytes(), nil
+	return nil
 }
 
-func (a *authSHA1v4) DecryptStream(plainData []byte) (outData []byte, n int, err error) {
-	a.buffer.Reset()
+func (a *authSHA1v4) DecryptStream(dst *bytes.Buffer, plainData []byte) (n int, err error) {
 	dataLength := len(plainData)
 	plainLength := dataLength
 	for dataLength > 4 {
 		crc32 := ssr.CalcCRC32(plainData, 2)
 		if binary.LittleEndian.Uint16(plainData[2:4]) != uint16(crc32&0xFFFF) {
 			//common.Error("auth_sha1_v4 post decrypt data crc32 error")
-			return nil, 0, ssr.ErrAuthSHA1v4CRC32Error
+			return 0, ssr.ErrAuthSHA1v4CRC32Error
 		}
 		length := int(binary.BigEndian.Uint16(plainData[0:2]))
 		if length >= 8192 || length < 8 {
 			//common.Error("auth_sha1_v4 post decrypt data length error")
 			dataLength = 0
 			plainData = nil
-			return nil, 0, ssr.ErrAuthSHA1v4DataLengthError
+			return 0, ssr.ErrAuthSHA1v4DataLengthError
 		}
 		if length > dataLength {
 			break
@@ -195,27 +190,21 @@ func (a *authSHA1v4) DecryptStream(plainData []byte) (outData []byte, n int, err
 				pos = int(binary.BigEndian.Uint16(plainData[5:5+2])) + 4
 			}
 			outLength := length - pos - 4
-			a.buffer.Write(plainData[pos : pos+outLength])
+			dst.Write(plainData[pos : pos+outLength])
 			dataLength -= length
 			plainData = plainData[length:]
 		} else {
 			//common.Error("auth_sha1_v4 post decrypt incorrect checksum")
 			dataLength = 0
 			plainData = nil
-			return nil, 0, ssr.ErrAuthSHA1v4IncorrectChecksum
+			return 0, ssr.ErrAuthSHA1v4IncorrectChecksum
 		}
 	}
-	return a.buffer.Bytes(), plainLength - dataLength, nil
+	return plainLength - dataLength, nil
 }
 
 func (a *authSHA1v4) GetOverhead() int {
 	return 7
-}
-
-func (a *authSHA1v4) Close() error {
-	utils.PutBuffer(a.buffer)
-
-	return nil
 }
 
 func calcShortAdler32(input []byte, a, b uint32) (uint32, uint32) {
