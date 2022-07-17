@@ -62,8 +62,10 @@ var bufpool = sync.Pool{New: func() any { return bytes.NewBuffer(nil) }}
 
 func (pool) GetBuffer() *bytes.Buffer { return bufpool.Get().(*bytes.Buffer) }
 func (pool) PutBuffer(b *bytes.Buffer) {
-	b.Reset()
-	bufpool.Put(b)
+	if b != nil {
+		b.Reset()
+		bufpool.Put(b)
+	}
 }
 
 //Relay pipe

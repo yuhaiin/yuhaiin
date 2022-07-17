@@ -11,19 +11,8 @@ func init() {
 	register("plain", newPlainObfs)
 }
 
-type plain struct {
-	net.Conn
-}
+type plain struct{ net.Conn }
 
-func newPlainObfs(conn net.Conn, _ ssr.ObfsInfo) IObfs {
-	p := &plain{Conn: conn}
-	return p
-}
-
-func (p *plain) GetOverhead() int {
-	return 0
-}
-
-func (p *plain) ReadFrom(r io.Reader) (int64, error) {
-	return io.Copy(p.Conn, r)
-}
+func newPlainObfs(conn net.Conn, _ ssr.ObfsInfo) IObfs { return &plain{conn} }
+func (p *plain) GetOverhead() int                      { return 0 }
+func (p *plain) ReadFrom(r io.Reader) (int64, error)   { return io.Copy(p.Conn, r) }
