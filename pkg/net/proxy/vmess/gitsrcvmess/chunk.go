@@ -32,21 +32,13 @@ var _ writer = &aeadWriter{}
 
 type chunkedWriter struct {
 	io.Writer
-	buf []byte
+	buf [lenSize + maxChunkSize]byte
 }
 
 // ChunkedWriter returns a chunked writer
-func ChunkedWriter(w io.Writer) writer {
-	return &chunkedWriter{
-		Writer: w,
-		buf:    utils.GetBytes(lenSize + maxChunkSize),
-	}
-}
+func ChunkedWriter(w io.Writer) writer { return &chunkedWriter{Writer: w} }
 
-func (w *chunkedWriter) Close() error {
-	utils.PutBytes(w.buf)
-	return nil
-}
+func (w *chunkedWriter) Close() error { return nil }
 
 func (w *chunkedWriter) Write(b []byte) (int, error) {
 	n, err := w.ReadFrom(bytes.NewBuffer(b))

@@ -12,6 +12,7 @@ import (
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
@@ -54,9 +55,12 @@ func init() {
 			DNS:            x.DNSServer,
 			EndpointDriver: t.Tun.Driver,
 			SkipMulticast:  t.Tun.SkipMulticast,
+			UidDumper:      UidDumper,
 		})
 	})
 }
+
+var UidDumper config.UidDumper
 
 type listener struct {
 	lock  sync.Mutex

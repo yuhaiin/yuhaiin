@@ -124,40 +124,22 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 	return len(decoded), addr, nil
 }
 
-func (c *protocolPacket) Close() error {
-	return c.PacketConn.Close()
-}
+func (c *protocolPacket) Close() error { return c.PacketConn.Close() }
 
 type protocolConn struct {
 	protocol IProtocol
 	net.Conn
 
-	readBuf             []byte
-	underPostdecryptBuf *bytes.Buffer
-	decryptedBuf        *bytes.Buffer
-	once                sync.Once
+	readBuf             [utils.DefaultSize / 4]byte
+	underPostdecryptBuf bytes.Buffer
+	decryptedBuf        bytes.Buffer
 }
 
 func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
 	return &protocolConn{
-		Conn:                c,
-		protocol:            p,
-		readBuf:             utils.GetBytes(utils.DefaultSize),
-		decryptedBuf:        utils.GetBuffer(),
-		underPostdecryptBuf: utils.GetBuffer(),
+		Conn:     c,
+		protocol: p,
 	}
-}
-
-func (c *protocolConn) Close() error {
-	defer c.once.Do(func() {
-		utils.PutBytes(c.readBuf)
-		utils.PutBuffer(c.decryptedBuf)
-		utils.PutBuffer(c.underPostdecryptBuf)
-		c.decryptedBuf = nil
-		c.underPostdecryptBuf = nil
-		c.readBuf = nil
-	})
-	return c.Conn.Close()
 }
 
 func (c *protocolConn) Read(b []byte) (n int, err error) {
@@ -165,19 +147,19 @@ func (c *protocolConn) Read(b []byte) (n int, err error) {
 		return c.decryptedBuf.Read(b)
 	}
 
-	n, err = c.Conn.Read(c.readBuf)
+	n, err = c.Conn.Read(c.readBuf[:])
 	if err != nil {
 		return 0, err
 	}
 
 	c.underPostdecryptBuf.Write(c.readBuf[:n])
-	length, err := c.protocol.DecryptStream(c.decryptedBuf, c.underPostdecryptBuf.Bytes())
+	length, err := c.protocol.DecryptStream(&c.decryptedBuf, c.underPostdecryptBuf.Bytes())
 	if err != nil {
 		c.underPostdecryptBuf.Reset()
 		return 0, err
 	}
-
 	c.underPostdecryptBuf.Next(length)
+
 	n, _ = c.decryptedBuf.Read(b)
 	return n, nil
 }
@@ -185,6 +167,7 @@ func (c *protocolConn) Read(b []byte) (n int, err error) {
 func (c *protocolConn) Write(b []byte) (n int, err error) {
 	buf := utils.GetBuffer()
 	defer utils.PutBuffer(buf)
+
 	if err = c.protocol.EncryptStream(buf, b); err != nil {
 		return 0, err
 	}

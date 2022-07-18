@@ -20,7 +20,7 @@ type connection interface {
 	GetLocal() string
 	GetRemote() string
 	GetMark() string
-	GetFakedns() string
+	GetExtra() map[string]string
 	Info() *statistic.Connection
 }
 
@@ -32,19 +32,19 @@ type conn struct {
 	*statistic.Connection
 	manager *counter
 
-	wbuf, rbuf []byte
+	wbuf, rbuf [utils.DefaultSize / 4]byte
 }
 
 func (c *counter) AddConn(con net.Conn, addr proxy.Address) net.Conn {
 	z := &conn{
 		Connection: &statistic.Connection{
-			Id:      c.idSeed.Generate(),
-			Addr:    addr.String(),
-			Mark:    getStringValue(MODE_MARK, addr),
-			Local:   con.LocalAddr().String(),
-			Remote:  con.RemoteAddr().String(),
-			Type:    con.LocalAddr().Network(),
-			Fakedns: getStringValue(FAKEDNS_MARK, addr),
+			Id:     c.idSeed.Generate(),
+			Addr:   addr.String(),
+			Mark:   getStringValue(MODE_MARK, addr),
+			Local:  con.LocalAddr().String(),
+			Remote: con.RemoteAddr().String(),
+			Type:   con.LocalAddr().Network(),
+			Extra:  extraMap(addr),
 		},
 		Conn:    con,
 		manager: c,
@@ -55,14 +55,6 @@ func (c *counter) AddConn(con net.Conn, addr proxy.Address) net.Conn {
 }
 
 func (s *conn) Close() error {
-	if s.wbuf != nil {
-		utils.PutBytes(s.wbuf)
-		s.wbuf = nil
-	}
-	if s.rbuf != nil {
-		utils.PutBytes(s.rbuf)
-		s.rbuf = nil
-	}
 	s.manager.delete(s.Id)
 	return s.Conn.Close()
 }
@@ -79,12 +71,8 @@ func (s *conn) Read(b []byte) (n int, err error) {
 }
 
 func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
-	if s.wbuf == nil {
-		s.wbuf = utils.GetBytes(utils.DefaultSize)
-	}
-
 	for {
-		n, er := r.Read(s.wbuf)
+		n, er := r.Read(s.wbuf[:])
 		if n > 0 {
 			resp += int64(n)
 			s.manager.accountant.AddUpload(uint64(n))
@@ -105,11 +93,8 @@ func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
 }
 
 func (s *conn) WriteTo(w io.Writer) (resp int64, err error) {
-	if s.rbuf == nil {
-		s.rbuf = utils.GetBytes(utils.DefaultSize)
-	}
 	for {
-		n, er := s.Read(s.rbuf)
+		n, er := s.Read(s.rbuf[:])
 		if n > 0 {
 			resp += int64(n)
 			_, ew := w.Write(s.rbuf[:n])
@@ -128,9 +113,7 @@ func (s *conn) WriteTo(w io.Writer) (resp int64, err error) {
 	return
 }
 
-func (s *conn) Info() *statistic.Connection {
-	return s.Connection
-}
+func (s *conn) Info() *statistic.Connection { return s.Connection }
 
 var _ connection = (*packetConn)(nil)
 
@@ -150,16 +133,41 @@ func getStringValue(key any, addr proxy.Address) string {
 
 	return r
 }
+
+func extraMap(addr proxy.Address) map[string]string {
+	r := make(map[string]string)
+	addr.RangeMark(func(k, v any) bool {
+		kk, ok := k.(string)
+		if !ok {
+			return true
+		}
+
+		vv, ok := v.(string)
+		if !ok {
+			return true
+		}
+
+		if k == MODE_MARK {
+			return true
+		}
+
+		r[kk] = vv
+		return true
+	})
+
+	return r
+}
+
 func (c *counter) AddPacketConn(con net.PacketConn, addr proxy.Address) net.PacketConn {
 	z := &packetConn{
 		Connection: &statistic.Connection{
-			Id:      c.idSeed.Generate(),
-			Addr:    addr.String(),
-			Mark:    getStringValue(MODE_MARK, addr),
-			Local:   con.LocalAddr().String(),
-			Remote:  addr.String(),
-			Type:    con.LocalAddr().Network(),
-			Fakedns: getStringValue(FAKEDNS_MARK, addr),
+			Id:     c.idSeed.Generate(),
+			Addr:   addr.String(),
+			Mark:   getStringValue(MODE_MARK, addr),
+			Local:  con.LocalAddr().String(),
+			Remote: addr.String(),
+			Type:   con.LocalAddr().Network(),
+			Extra:  extraMap(addr),
 		},
 		PacketConn: con,
 		manager:    c,

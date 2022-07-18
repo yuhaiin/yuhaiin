@@ -54,9 +54,15 @@ func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T, ...func(*Opts)) 
 	)
 }
 
+type UidDumper interface {
+	DumpUid(ipProto int32, srcIp string, srcPort int32, destIp string, destPort int32) (int32, error)
+	GetUidInfo(uid int32) (string, error)
+}
+
 type Opts struct {
 	Dialer    proxy.Proxy
 	DNSServer server.DNSServer
+	UidDumper UidDumper
 }
 
 func WithDialer(p proxy.Proxy) func(*Opts) {
@@ -68,6 +74,12 @@ func WithDialer(p proxy.Proxy) func(*Opts) {
 func WithDNSServer(s server.DNSServer) func(*Opts) {
 	return func(o *Opts) {
 		o.DNSServer = s
+	}
+}
+
+func WithUidDumper(d UidDumper) func(*Opts) {
+	return func(o *Opts) {
+		o.UidDumper = d
 	}
 }
 
