@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
@@ -78,6 +79,16 @@ func (c *counter) storeConnection(o connection) {
 }
 
 func (c *counter) cString(o connection) string {
-	return fmt.Sprintf("%v| <%s[%v]>: %v(fakeip: [%s]), %s <-> %s",
-		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), o.GetFakedns(), o.GetLocal(), o.GetRemote())
+	return fmt.Sprintf("%v| <%s[%v]>: %v(%s), %s <-> %s",
+		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), getExtra(o), o.GetLocal(), o.GetRemote())
+}
+
+func getExtra(o connection) string {
+	str := strings.Builder{}
+
+	for k, v := range o.GetExtra() {
+		str.WriteString(fmt.Sprintf("%s: %s,", k, v))
+	}
+
+	return str.String()
 }

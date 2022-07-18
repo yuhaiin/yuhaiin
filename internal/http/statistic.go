@@ -66,14 +66,20 @@ func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
 		str := utils.GetBuffer()
 		defer utils.PutBuffer(str)
 
+		str.WriteString("<dl>")
 		for _, c := range conns.GetConnections() {
-			str.WriteString(`<li>`)
-			str.WriteString(fmt.Sprintf(`%d| &lt;%s[%s]&gt; %s(fakeip: [%s]), %s <-> %s`, c.GetId(), c.GetType(), c.GetMark(), c.GetAddr(), c.GetFakedns(), c.GetLocal(), c.GetRemote()))
-			str.WriteString("&nbsp;&nbsp;")
+			str.WriteString("<hr/>")
+			str.WriteString(fmt.Sprintf("<dt>%d| &lt;%s[%s]&gt; %s ", c.Id, c.GetType(), c.GetMark(), c.GetAddr()))
 			str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
-			str.WriteString("</li>")
+			str.WriteString("</dt>")
+			str.WriteString(fmt.Sprintf("<dd>src: %s</dd>", c.GetLocal()))
+			str.WriteString(fmt.Sprintf("<dd>dst: %s</dd>", c.GetRemote()))
+			for k, v := range c.GetExtra() {
+				str.WriteString(fmt.Sprintf("<dd>%s: %s</dd>", k, v))
+			}
 		}
 
+		str.WriteString("</dl>")
 		w.Write(str.Bytes())
 	})
 

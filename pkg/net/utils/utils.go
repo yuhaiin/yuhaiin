@@ -19,7 +19,8 @@ type Pool interface {
 	PutBuffer(b *bytes.Buffer)
 }
 
-var DefaultSize = 16 * 0x400
+const DefaultSize = 16 * 0x400
+
 var DefaultPool Pool = &pool{}
 
 func GetBytes(size int) []byte  { return DefaultPool.GetBytes(size) }
@@ -112,7 +113,7 @@ func Copy(dst io.Writer, src io.Reader) (err error) {
 //Unit .
 type Unit int
 
-var (
+const (
 	//B .
 	B Unit = 0
 	//KB .

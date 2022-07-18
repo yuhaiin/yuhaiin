@@ -268,22 +268,25 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 
 	copy(key[0:], a.userKey)
 
-	for datalen > 4 {
+	for remain := datalen; remain > 4; remain = datalen - readLen {
 		binary.LittleEndian.PutUint32(key[keyLen-4:], a.recvID)
 		if !bytes.Equal(a.hmac(key[:keyLen], data[0:2])[:2], data[2:4]) {
 			return 0, ssr.ErrAuthAES128IncorrectHMAC
 		}
 
 		clen := int(binary.LittleEndian.Uint16(data[0:2]))
+		cdlen := clen - 4
+
 		if clen >= 8192 || clen < 7 {
 			a.rawTrans = true
 			return 0, ssr.ErrAuthAES128DataLengthError
 		}
-		if clen > datalen {
+
+		if clen > remain {
 			break
 		}
 
-		if !bytes.Equal(a.hmac(key[:keyLen], data[:clen-4])[:4], data[clen-4:clen]) {
+		if !bytes.Equal(a.hmac(key[:keyLen], data[:cdlen])[:4], data[cdlen:clen]) {
 			a.rawTrans = true
 			return 0, ssr.ErrAuthAES128IncorrectChecksum
 		}
@@ -291,19 +294,18 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 		a.recvID = (a.recvID + 1) & 0xFFFFFFFF
 
 		pos := int(data[4])
-		if pos < 255 {
-			pos += 4
-		} else {
-			pos = int(binary.LittleEndian.Uint16(data[5:7])) + 4
+		if pos >= 255 {
+			pos = int(binary.LittleEndian.Uint16(data[5:7]))
 		}
+		pos += 4
 
-		if pos > clen-4 {
+		if pos > cdlen {
 			return 0, ssr.ErrAuthAES128PosOutOfRange
 		}
 
-		rbuf.Write(data[pos : clen-4])
+		rbuf.Write(data[pos:cdlen])
 
-		data, datalen, readLen = data[clen:], datalen-clen, readLen+clen
+		data, readLen = data[clen:], readLen+clen
 	}
 
 	return readLen, nil

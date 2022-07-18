@@ -2,6 +2,7 @@ package statistic
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 
@@ -142,11 +143,20 @@ func (f *fakedns) Update(c *protoconfig.Setting) {
 }
 
 func (f *fakedns) Conn(addr proxy.Address) (net.Conn, error) {
-	return f.shunt.Conn(f.getAddr(addr))
+	c, err := f.shunt.Conn(f.getAddr(addr))
+	if err != nil {
+		return nil, fmt.Errorf("connect tcp to %s(%s) failed: %s", addr, getStringValue("packageName", addr), err)
+	}
+
+	return c, nil
 }
 
 func (f *fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	return f.shunt.PacketConn(f.getAddr(addr))
+	c, err := f.shunt.PacketConn(f.getAddr(addr))
+	if err != nil {
+		return nil, fmt.Errorf("connect udp to %s(%s) failed: %s", addr, getStringValue("packageName", addr), err)
+	}
+	return c, nil
 }
 
 const FAKEDNS_MARK = "FAKEDNS"
@@ -155,11 +165,10 @@ func (f *fakedns) getAddr(addr proxy.Address) proxy.Address {
 	if f.config != nil && f.config.Fakedns && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {
-			ad := addr
-			addr = proxy.ParseAddressSplit("tcp", t, addr.Port().Port())
-			addr.AddMark(FAKEDNS_MARK, ad.String())
+			fakeip := addr.String()
+			addr = proxy.ConvertFakeDNS(addr, t)
+			addr.AddMark(FAKEDNS_MARK, fakeip)
 		}
 	}
-
 	return addr
 }

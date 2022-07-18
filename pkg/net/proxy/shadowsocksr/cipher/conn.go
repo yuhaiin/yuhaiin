@@ -3,14 +3,13 @@ package cipher
 import (
 	"bytes"
 	"crypto/cipher"
-	"crypto/md5"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"net"
-	"sync"
 
+	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
@@ -32,7 +31,7 @@ func NewCipher(method, password string) (*Cipher, error) {
 	if !ok {
 		return nil, fmt.Errorf("unsupported encryption method: %v", method)
 	}
-	key := EVPBytesToKey(password, mi.KeySize())
+	key := ssr.KDF(password, mi.KeySize())
 
 	var conn core.Cipher
 	if method == "none" || method == "dummy" {
@@ -42,33 +41,9 @@ func NewCipher(method, password string) (*Cipher, error) {
 	}
 	return &Cipher{key, mi, conn}, nil
 }
-
-func EVPBytesToKey(password string, keyLen int) (key []byte) {
-	// Repeatedly call md5 until bytes generated is enough.
-	// Each call to md5 uses data: prev md5 sum + password.
-	var b, prev []byte
-	h := md5.New()
-	for len(b) < keyLen {
-		h.Write(prev)
-		h.Write([]byte(password))
-		b = h.Sum(b)
-		prev = b[len(b)-h.Size():]
-		h.Reset()
-	}
-	return b[:keyLen]
-}
-
-func (c *Cipher) IVSize() int {
-	return c.cipher.IVSize()
-}
-
-func (c *Cipher) Key() []byte {
-	return c.key
-}
-
-func (c *Cipher) KeySize() int {
-	return c.cipher.KeySize()
-}
+func (c *Cipher) IVSize() int  { return c.cipher.IVSize() }
+func (c *Cipher) Key() []byte  { return c.key }
+func (c *Cipher) KeySize() int { return c.cipher.KeySize() }
 
 // dummy cipher does not encrypt
 type dummy struct{}
@@ -81,10 +56,7 @@ type cipherConn struct {
 	key    []byte
 }
 
-func (c *cipherConn) StreamConn(conn net.Conn) net.Conn {
-	return newStreamConn(conn, c.cipher, c.key)
-}
-
+func (c *cipherConn) StreamConn(conn net.Conn) net.Conn { return newStreamConn(conn, c.cipher, c.key) }
 func (c *cipherConn) PacketConn(conn net.PacketConn) net.PacketConn {
 	return newPacketConn(conn, c.cipher, c.key)
 }
@@ -95,11 +67,11 @@ type packetConn struct {
 	key    []byte
 	cipher CipherCreator
 
-	buf []byte
+	buf [utils.DefaultSize]byte
 }
 
 func newPacketConn(c net.PacketConn, ciph CipherCreator, key []byte) *packetConn {
-	return &packetConn{PacketConn: c, key: key, cipher: ciph, buf: utils.GetBytes(utils.DefaultSize)}
+	return &packetConn{PacketConn: c, key: key, cipher: ciph}
 }
 
 func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
@@ -140,11 +112,6 @@ func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	return n, addr, nil
 }
 
-func (p *packetConn) Close() error {
-	defer utils.PutBytes(p.buf)
-	return p.PacketConn.Close()
-}
-
 type streamConn struct {
 	net.Conn
 	key    []byte
@@ -153,12 +120,11 @@ type streamConn struct {
 	enc, dec        cipher.Stream
 	writeIV, readIV []byte
 
-	buf  []byte
-	once sync.Once
+	buf [utils.DefaultSize / 4]byte
 }
 
 func newStreamConn(c net.Conn, ciph CipherCreator, key []byte) *streamConn {
-	return &streamConn{Conn: c, key: key, cipher: ciph, buf: utils.GetBytes(utils.DefaultSize)}
+	return &streamConn{Conn: c, key: key, cipher: ciph}
 }
 
 func (c *streamConn) WriteIV() []byte {
@@ -208,7 +174,7 @@ func (c *streamConn) ReadFrom(r io.Reader) (_ int64, err error) {
 
 	n := int64(0)
 	for {
-		nr, er := r.Read(c.buf)
+		nr, er := r.Read(c.buf[:])
 
 		if nr > 0 {
 			n += int64(nr)
@@ -236,12 +202,4 @@ func (c *streamConn) ReadFrom(r io.Reader) (_ int64, err error) {
 func (c *streamConn) Write(b []byte) (int, error) {
 	n, err := c.ReadFrom(bytes.NewBuffer(b))
 	return int(n), err
-}
-
-func (c *streamConn) Close() error {
-	c.once.Do(func() {
-		utils.PutBytes(c.buf)
-		c.buf = nil
-	})
-	return c.Conn.Close()
 }

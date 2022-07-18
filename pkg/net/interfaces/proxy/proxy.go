@@ -107,12 +107,14 @@ type Address interface {
 
 	AddMark(key, value any)
 	GetMark(key any) (any, bool)
+	RangeMark(func(k, v any) bool)
 }
 
 type store struct{ m sync.Map }
 
-func (s *store) AddMark(key, value any)      { s.m.Store(key, value) }
-func (s *store) GetMark(key any) (any, bool) { return s.m.Load(key) }
+func (s *store) AddMark(key, value any)          { s.m.Store(key, value) }
+func (s *store) GetMark(key any) (any, bool)     { return s.m.Load(key) }
+func (s *store) RangeMark(f func(k, v any) bool) { s.m.Range(f) }
 
 func ParseAddress(network, addr string) (ad Address, _ error) {
 	hostname, ports, err := net.SplitHostPort(addr)
@@ -300,6 +302,23 @@ func (d *DomainAddr) IPHost() (string, error) {
 	return net.JoinHostPort(ip.String(), d.port.String()), nil
 }
 
+func ConvertFakeDNS(src Address, real string) Address {
+	z, ok := src.(*IPAddr)
+	if !ok {
+		return ParseAddressSplit(src.Network(), real, src.Port().Port())
+	}
+
+	d, ok := z.Address.(*DomainAddr)
+	if !ok {
+		return ParseAddressSplit(src.Network(), real, src.Port().Port())
+	}
+
+	d.host = net.JoinHostPort(real, d.port.String())
+	d.hostname = real
+
+	return d
+}
+
 var _ Address = (*IPAddr)(nil)
 
 type IPAddr struct {
@@ -336,6 +355,7 @@ func (d emptyAddr) TCPAddr() (*net.TCPAddr, error) { return nil, errors.New("emp
 func (d emptyAddr) IPHost() (string, error)        { return "", errors.New("empty") }
 func (d emptyAddr) AddMark(any, any)               {}
 func (d emptyAddr) GetMark(any) (any, bool)        { return nil, false }
+func (d emptyAddr) RangeMark(func(any, any) bool)  {}
 
 type port struct {
 	n   uint16

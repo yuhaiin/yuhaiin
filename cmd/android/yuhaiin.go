@@ -91,7 +91,13 @@ type TUN struct {
 	// Driver
 	// 0: fdbased
 	// 1: channel
-	Driver int32 `json:"driver"`
+	Driver    int32 `json:"driver"`
+	UidDumper UidDumper
+}
+
+type UidDumper interface {
+	DumpUid(ipProto int32, srcIp string, srcPort int32, destIp string, destPort int32) (int32, error)
+	GetUidInfo(uid int32) (string, error)
 }
 
 func (a *App) Start(opt *Opts) error {
@@ -143,6 +149,7 @@ func (a *App) Start(opt *Opts) error {
 		insert(app.Insert, opt.Bypass.Proxy, protoconfig.Bypass_proxy.String())
 		insert(app.Insert, opt.Bypass.Direct, protoconfig.Bypass_direct.String())
 
+		server.UidDumper = opt.TUN.UidDumper
 		listener := server.NewListener(app.Proxy(), app.DNSServer())
 		defer listener.Close()
 		fakeSetting.AddObserver(listener)
