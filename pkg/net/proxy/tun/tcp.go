@@ -43,9 +43,11 @@ func tcpForwarder(s *stack.Stack, opt *TunOpt) *tcp.Forwarder {
 			}
 
 			addr := proxy.ParseAddressSplit("tcp", id.LocalAddress.String(), id.LocalPort)
+			addMessage(addr, id, opt)
+
 			conn, er := opt.Dialer.Conn(addr)
 			if er != nil {
-				log.Printf("dial failed: %v\n", er)
+				log.Printf("dial failed:%v\n", er)
 				return
 			}
 			defer conn.Close()

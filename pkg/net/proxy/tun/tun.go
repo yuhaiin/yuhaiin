@@ -28,6 +28,9 @@ type TunOpt struct {
 	EndpointDriver config.TunEndpointDriver
 	DNS            server.DNSServer
 	Dialer         proxy.Proxy
+
+	// only for android
+	UidDumper config.UidDumper
 }
 
 type tunServer struct {

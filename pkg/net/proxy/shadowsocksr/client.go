@@ -48,8 +48,11 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 		}
 
 		obfs, err := obfs.NewObfs(c.Obfs, ssr.ObfsInfo{
-			Host: c.Server, Port: uint16(port),
-			Param: c.Obfsparam, Info: info})
+			Host:  c.Server,
+			Port:  uint16(port),
+			Param: c.Obfsparam,
+			Info:  info,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("new obfs failed: %w", err)
 		}
@@ -67,7 +70,7 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 			return nil, fmt.Errorf("new protocol failed: %w", err)
 		}
 
-		return &Shadowsocksr{cipher: cipher, dial: p, obfs: obfs, protocol: protocol, addr: net.JoinHostPort(c.Server, c.Port)}, nil
+		return &Shadowsocksr{protocol, obfs, cipher, p, net.JoinHostPort(c.Server, c.Port)}, nil
 	}
 }
 
@@ -85,6 +88,7 @@ func (s *Shadowsocksr) Conn(addr proxy.Address) (net.Conn, error) {
 	if z, ok := cipher.(interface{ WriteIV() []byte }); ok {
 		iv = z.WriteIV()
 	}
+
 	conn := s.protocol.Stream(cipher, iv)
 	if _, err := conn.Write(s5c.ParseAddr(addr)); err != nil {
 		_ = conn.Close()

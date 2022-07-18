@@ -30,5 +30,4 @@ func TestAddr(t *testing.T) {
 	t.Log(addr.(*DomainAddr).resolver)
 	addr.WithResolver(resolver.Bootstrap)
 	t.Log(addr.(*DomainAddr).resolver)
-
 }

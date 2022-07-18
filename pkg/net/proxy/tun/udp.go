@@ -49,6 +49,7 @@ func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
 					}
 				}
 			}
+			addMessage(addr, id, opt)
 
 			conn, er := opt.Dialer.PacketConn(addr)
 			if er != nil {
