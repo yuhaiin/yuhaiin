@@ -73,6 +73,7 @@ func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 				utils.Copy(io.Discard, resp.Body) // from v2fly
 				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 			}
+
 			return ioutil.ReadAll(resp.Body)
 
 			/*

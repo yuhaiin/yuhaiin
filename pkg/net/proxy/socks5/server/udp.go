@@ -51,6 +51,8 @@ func (u *udpServer) forward() {
 			break
 		}
 
+		// log.Println("get data", buf[:n])
+
 		if u.header == nil {
 			_, size, err := s5c.ResolveAddr("udp", bytes.NewBuffer(buf[3:n]))
 			if err != nil {
