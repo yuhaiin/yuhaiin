@@ -21,7 +21,8 @@ type client struct {
 	username string
 	password string
 
-	dialer proxy.Proxy
+	hostname string
+	dialer   proxy.Proxy
 }
 
 // NewSocks5 returns a new Socks5 client
@@ -31,6 +32,7 @@ func NewSocks5(config *node.PointProtocol_Socks5) node.WrapProxy {
 			dialer:   dialer,
 			username: config.Socks5.User,
 			password: config.Socks5.Password,
+			hostname: config.Socks5.Hostname,
 		}, nil
 	}
 }
@@ -129,6 +131,7 @@ func (s *client) handshake2(conn net.Conn, cmd cmd, address proxy.Address) (targ
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
+	addr = proxy.ParseAddressSplit("", s.hostname, addr.Port().Port())
 
 	return addr, nil
 }
@@ -166,7 +169,7 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get udp addr failed: %w", err)
 	}
-	// log.Println(addr)
+
 	conn2, err := newSocks5PacketConn(host, uaddr, conn)
 	if err != nil {
 		conn.Close()

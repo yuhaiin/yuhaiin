@@ -18,11 +18,7 @@ message connection {
   int64 id = 2 [ json_name = "id" ];
   string local = 3 [ json_name = "local" ];
   string remote = 4 [ json_name = "remote" ];
-  string mark = 5 [ json_name = "mark" ];
   string type = 6 [ json_name = "type" ];
-  // string fakedns = 7 [ json_name = "fakedns" ];
-  // package_name only for android
-  // string package_name = 8 [ json_name = "package_name" ];
   map<string, string> extra = 9 [ json_name = "extra" ];
 }
 

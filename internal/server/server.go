@@ -12,7 +12,6 @@ import (
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"google.golang.org/protobuf/proto"
 )
@@ -55,12 +54,10 @@ func init() {
 			DNS:            x.DNSServer,
 			EndpointDriver: t.Tun.Driver,
 			SkipMulticast:  t.Tun.SkipMulticast,
-			UidDumper:      UidDumper,
+			UidDumper:      x.UidDumper,
 		})
 	})
 }
-
-var UidDumper config.UidDumper
 
 type listener struct {
 	lock  sync.Mutex
@@ -69,21 +66,19 @@ type listener struct {
 		server iserver.Server
 	}
 
-	pro proxy.Proxy
-	dns iserver.DNSServer
+	opts *protoconfig.Opts
 }
 
-func NewListener(pro proxy.Proxy, dnsServer iserver.DNSServer) *listener {
-	if pro == nil {
-		pro = direct.Default
+func NewListener(opts *protoconfig.Opts) *listener {
+	if opts.Dialer == nil {
+		opts.Dialer = direct.Default
 	}
 	l := &listener{
 		store: make(map[string]struct {
 			config proto.Message
 			server iserver.Server
 		}),
-		pro: pro,
-		dns: dnsServer,
+		opts: opts,
 	}
 
 	return l
@@ -108,11 +103,11 @@ func (l *listener) Update(current *protoconfig.Setting) {
 	}
 
 	for k, v := range current.Server.Servers {
-		l.update(k, l.pro, v)
+		l.update(k, v)
 	}
 }
 
-func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.ServerProtocol) {
+func (l *listener) update(name string, config *protoconfig.ServerProtocol) {
 	v, ok := l.store[name]
 	if !ok {
 		l.start(name, config)
@@ -132,8 +127,7 @@ func (l *listener) update(name string, pro proxy.Proxy, config *protoconfig.Serv
 func (l *listener) start(name string, config *protoconfig.ServerProtocol) {
 	server, err := protoconfig.CreateServer(
 		config.Protocol,
-		protoconfig.WithDialer(l.pro),
-		protoconfig.WithDNSServer(l.dns),
+		func(o *protoconfig.Opts) { *o = *l.opts },
 	)
 	if err != nil {
 		log.Printf("create server %s failed: %v\n", name, err)
