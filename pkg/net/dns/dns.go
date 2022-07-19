@@ -66,7 +66,13 @@ func NewClient(config dns.Config, send func([]byte) ([]byte, error)) *client {
 		}
 		optionData.WriteByte(byte(mask)) // mask
 		optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
-		optionData.Write(ip)             // subnet IP
+
+		i := mask / 8 // cut the ip bytes
+		if mask%8 != 0 {
+			i++
+		}
+
+		optionData.Write(ip[:i]) // subnet IP
 
 		c.subnet = []dnsmessage.Resource{
 			{
@@ -142,6 +148,10 @@ func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
 
 	if he.ID != req.ID {
 		return nil, fmt.Errorf("id not match")
+	}
+
+	if he.RCode != dnsmessage.RCodeSuccess {
+		return nil, fmt.Errorf("rCode (%v) not success", he.RCode)
 	}
 
 	p.SkipAllQuestions()

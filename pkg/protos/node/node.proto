@@ -36,8 +36,12 @@ message point {
 }
 
 message socks5 {
+  // eg: 127.0.0.1
+  string hostname = 3 [ json_name = "hostname" ];
+  int32 port = 4 [ json_name = "port" ];
   string user = 1 [ json_name = "user" ];
   string password = 2 [ json_name = "password" ];
+  // TODO: add override hostname options
 }
 
 message http {

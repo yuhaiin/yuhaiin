@@ -24,6 +24,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -100,6 +101,25 @@ type UidDumper interface {
 	GetUidInfo(uid int32) (string, error)
 }
 
+type uidDumper struct {
+	UidDumper
+	cache syncmap.SyncMap[int32, string]
+}
+
+func (u *uidDumper) GetUidInfo(uid int32) (string, error) {
+	if r, ok := u.cache.Load(uid); ok {
+		return r, nil
+	}
+
+	r, err := u.UidDumper.GetUidInfo(uid)
+	if err != nil {
+		return "", err
+	}
+
+	u.cache.Store(uid, r)
+	return r, nil
+}
+
 func (a *App) Start(opt *Opts) error {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -149,8 +169,11 @@ func (a *App) Start(opt *Opts) error {
 		insert(app.Insert, opt.Bypass.Proxy, protoconfig.Bypass_proxy.String())
 		insert(app.Insert, opt.Bypass.Direct, protoconfig.Bypass_direct.String())
 
-		server.UidDumper = opt.TUN.UidDumper
-		listener := server.NewListener(app.Proxy(), app.DNSServer())
+		listener := server.NewListener(&protoconfig.Opts{
+			Dialer:    app.Proxy(),
+			DNSServer: app.DNSServer(),
+			UidDumper: &uidDumper{UidDumper: opt.TUN.UidDumper},
+		})
 		defer listener.Close()
 		fakeSetting.AddObserver(listener)
 
@@ -356,4 +379,20 @@ func (w *fakeSettings) AddObserver(o iconfig.Observer) {
 	if o != nil {
 		o.Update(w.setting)
 	}
+}
+
+type CIDR struct {
+	IP   string
+	Mask int32
+}
+
+func ParseCIDR(s string) (*CIDR, error) {
+	_, ipNet, err := net.ParseCIDR(s)
+	if err != nil {
+		return nil, err
+	}
+
+	mask, _ := ipNet.Mask.Size()
+	ip := ipNet.IP.String()
+	return &CIDR{IP: ip, Mask: int32(mask)}, nil
 }

@@ -80,13 +80,16 @@ func (c *counter) storeConnection(o connection) {
 
 func (c *counter) cString(o connection) string {
 	return fmt.Sprintf("%v| <%s[%v]>: %v(%s), %s <-> %s",
-		o.GetId(), o.GetType(), o.GetMark(), o.GetAddr(), getExtra(o), o.GetLocal(), o.GetRemote())
+		o.GetId(), o.GetType(), o.GetExtra()[MODE_MARK], o.GetAddr(), getExtra(o), o.GetLocal(), o.GetRemote())
 }
 
 func getExtra(o connection) string {
 	str := strings.Builder{}
 
 	for k, v := range o.GetExtra() {
+		if k == MODE_MARK {
+			continue
+		}
 		str.WriteString(fmt.Sprintf("%s: %s,", k, v))
 	}
 

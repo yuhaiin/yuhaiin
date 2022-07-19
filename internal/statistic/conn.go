@@ -3,6 +3,7 @@ package statistic
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 
@@ -19,7 +20,6 @@ type connection interface {
 	GetAddr() string
 	GetLocal() string
 	GetRemote() string
-	GetMark() string
 	GetExtra() map[string]string
 	Info() *statistic.Connection
 }
@@ -40,10 +40,9 @@ func (c *counter) AddConn(con net.Conn, addr proxy.Address) net.Conn {
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr.String(),
-			Mark:   getStringValue(MODE_MARK, addr),
 			Local:  con.LocalAddr().String(),
 			Remote: con.RemoteAddr().String(),
-			Type:   con.LocalAddr().Network(),
+			Type:   fmt.Sprintf("TCP(%s)", con.LocalAddr().Network()),
 			Extra:  extraMap(addr),
 		},
 		Conn:    con,
@@ -147,10 +146,6 @@ func extraMap(addr proxy.Address) map[string]string {
 			return true
 		}
 
-		if k == MODE_MARK {
-			return true
-		}
-
 		r[kk] = vv
 		return true
 	})
@@ -163,10 +158,9 @@ func (c *counter) AddPacketConn(con net.PacketConn, addr proxy.Address) net.Pack
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr.String(),
-			Mark:   getStringValue(MODE_MARK, addr),
 			Local:  con.LocalAddr().String(),
 			Remote: addr.String(),
-			Type:   con.LocalAddr().Network(),
+			Type:   fmt.Sprintf("UDP(%s)", con.LocalAddr().Network()),
 			Extra:  extraMap(addr),
 		},
 		PacketConn: con,
