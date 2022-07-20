@@ -117,7 +117,7 @@ func secondHand(host proxy.Address, mode byte, client net.Conn, f proxy.Proxy) e
 		err = handleConnect(host, client, f)
 
 	case udp: // udp
-		err = handleUDP(host, client, f)
+		err = handleUDP(client, f)
 
 	case bind: // bind request
 		fallthrough
@@ -149,20 +149,19 @@ func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
 	return nil
 }
 
-func handleUDP(target proxy.Address, client net.Conn, f proxy.Proxy) error {
-	l, err := newUDPServer(f, target)
+func handleUDP(client net.Conn, f proxy.Proxy) error {
+	l, err := newUDPServer(f)
 	if err != nil {
 		return fmt.Errorf("new udp server failed: %w", err)
 	}
-	laddr, err := proxy.ParseSysAddr(l.listener.LocalAddr())
+	laddr, err := proxy.ParseSysAddr(l.LocalAddr())
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
 	// log.Println("udp server listen on", laddr)
 	writeSecondResp(client, succeeded, laddr)
 	utils.Copy(io.Discard, client)
-	l.Close()
-	return nil
+	return l.Close()
 }
 
 func writeFirstResp(conn net.Conn, errREP byte) {
