@@ -64,7 +64,6 @@ func ResolveAddr(network string, r io.Reader) (_ proxy.Address, size int, err er
 	}
 
 	var bufSize int
-
 	switch byteBuf[0] {
 	case ipv4:
 		bufSize = 4
