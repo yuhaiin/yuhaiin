@@ -113,7 +113,7 @@ func (r *remotedns) Update(c *protoconfig.Setting) {
 		dialer = r.direct
 	}
 
-	r.dns = getDNS("REMOTEDNS", r.config, &dnsdialer{r.conns, dialer, mark})
+	r.dns = getDNS("REMOTEDNS", c.GetIpv6(), r.config, &dnsdialer{r.conns, dialer, mark})
 }
 
 type localdns struct{ basedns }
@@ -126,7 +126,7 @@ func (l *localdns) Update(c *protoconfig.Setting) {
 
 	l.config = c.Dns.Local
 	l.Close()
-	l.dns = getDNS("LOCALDNS", l.config, &dnsdialer{l.conns, direct.Default, "LOCALDNS_DIRECT"})
+	l.dns = getDNS("LOCALDNS", c.GetIpv6(), l.config, &dnsdialer{l.conns, direct.Default, "LOCALDNS_DIRECT"})
 }
 
 type bootstrap struct{ basedns }
@@ -137,18 +137,17 @@ func (b *bootstrap) Update(c *protoconfig.Setting) {
 		return
 	}
 
-	err := config.CheckBootstrapDns(c.Dns.Bootstrap)
-	if err != nil {
+	if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
 		log.Printf("check bootstrap dns failed: %v\n", err)
 		return
 	}
 
 	b.config = c.Dns.Bootstrap
 	b.Close()
-	b.dns = getDNS("BOOTSTRAP", b.config, &dnsdialer{b.conns, direct.Default, "BOOTSTRAP_DIRECT"})
+	b.dns = getDNS("BOOTSTRAP", c.GetIpv6(), b.config, &dnsdialer{b.conns, direct.Default, "BOOTSTRAP_DIRECT"})
 }
 
-func getDNS(name string, dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
+func getDNS(name string, ipv6 bool, dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)
@@ -171,6 +170,7 @@ func getDNS(name string, dc *protoconfig.Dns, proxy proxy.Proxy) idns.DNS {
 			Host:       dc.Host,
 			Servername: dc.TlsServername,
 			Subnet:     subnet,
+			IPv6:       ipv6,
 		},
 		proxy)
 }

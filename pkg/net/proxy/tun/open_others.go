@@ -71,7 +71,7 @@ func (w *fdWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 				sendBuffer.Write(pkt.Data().AsRange().ToOwnedView())
 		*/
 
-		for _, s := range pkt.Slices() {
+		for _, s := range pkt.AsSlices() {
 			iovecs = append(iovecs, rawfile.IovecFromBytes(s))
 		}
 	}

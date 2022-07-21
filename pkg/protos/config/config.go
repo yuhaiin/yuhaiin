@@ -63,6 +63,7 @@ type Opts struct {
 	Dialer    proxy.Proxy
 	DNSServer server.DNSServer
 	UidDumper UidDumper
+	IPv6      bool
 }
 
 func WithDialer(p proxy.Proxy) func(*Opts) {

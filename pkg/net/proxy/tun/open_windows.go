@@ -8,7 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wintun"
-	"gvisor.dev/gvisor/pkg/buffer"
+	buffer "gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -78,7 +78,7 @@ func (w *winWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error)
 	// 	}
 	// }
 	for _, pkt := range pkts.AsSlice() {
-		if err := w.Write(pkt.Data().AsRange().AsView()); err != nil {
+		if err := w.Write(pkt.Data().AsRange().ToSlice()); err != nil {
 			return 0, err
 		}
 	}
@@ -108,7 +108,7 @@ func (w *winInbound) dispatch() (bool, tcpip.Error) {
 	defer w.session.ReleaseReceivePacket(packet)
 
 	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-		Payload: buffer.NewWithData(packet),
+		Payload: buffer.MakeWithData(packet),
 	})
 	defer pkt.DecRef()
 
