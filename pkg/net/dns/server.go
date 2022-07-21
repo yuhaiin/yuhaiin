@@ -209,15 +209,25 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	}
 
 	for _, ip := range r.IPs() {
-		resource := dnsmessage.AResource{}
-		copy(resource.A[:], ip)
+		var resource dnsmessage.ResourceBody
+
+		if z := ip.To4(); z != nil {
+			a := &dnsmessage.AResource{}
+			copy(a.A[:], z)
+			resource = a
+		} else {
+			aaaa := &dnsmessage.AAAAResource{}
+			copy(aaaa.AAAA[:], z.To16())
+			resource = aaaa
+		}
+
 		resp.Answers = append(resp.Answers, dnsmessage.Resource{
 			Header: dnsmessage.ResourceHeader{
 				Name:  q.Name,
 				Class: dnsmessage.ClassINET,
 				TTL:   r.TTL(),
 			},
-			Body: &resource,
+			Body: resource,
 		})
 	}
 

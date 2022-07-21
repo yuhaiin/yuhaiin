@@ -22,6 +22,7 @@ import (
 	"log"
 	"sync"
 
+	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -80,8 +81,8 @@ func (e *Endpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber, pkt *stac
 // link.
 //
 // dest is used by endpoints with multiple raw destinations.
-func (e *Endpoint) InjectOutbound(dest tcpip.Address, packet []byte) tcpip.Error {
-	return e.writer.Write(packet)
+func (e *Endpoint) InjectOutbound(dest tcpip.Address, packet *bufferv2.View) tcpip.Error {
+	return e.writer.Write(packet.AsSlice())
 }
 
 // Attach saves the stack network-layer dispatcher for use later when packets
