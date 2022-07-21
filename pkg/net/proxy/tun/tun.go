@@ -25,6 +25,7 @@ type TunOpt struct {
 	MTU            int
 	DNSHijacking   bool
 	SkipMulticast  bool
+	IPv6           bool
 	EndpointDriver config.TunEndpointDriver
 	DNS            server.DNSServer
 	Dialer         proxy.Proxy
@@ -74,10 +75,16 @@ func NewTun(opt *TunOpt) (*tunServer, error) {
 
 	log.Println("new tun stack:", opt.Name, "mtu:", opt.MTU, "gateway:", opt.Gateway)
 
-	s := stack.New(stack.Options{
-		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4, icmp.NewProtocol6},
-	})
+	stackOption := stack.Options{
+		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
+		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
+	}
+	if opt.IPv6 {
+		stackOption.NetworkProtocols = append(stackOption.NetworkProtocols, ipv6.NewProtocol)
+		stackOption.TransportProtocols = append(stackOption.TransportProtocols, icmp.NewProtocol6)
+	}
+
+	s := stack.New(stackOption)
 
 	// Generate unique NIC id.
 	nicID := tcpip.NICID(s.UniqueID())

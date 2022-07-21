@@ -55,6 +55,7 @@ func init() {
 			EndpointDriver: t.Tun.Driver,
 			SkipMulticast:  t.Tun.SkipMulticast,
 			UidDumper:      x.UidDumper,
+			IPv6:           x.IPv6,
 		})
 	})
 }
@@ -87,6 +88,7 @@ func NewListener(opts *protoconfig.Opts) *listener {
 func (l *listener) Update(current *protoconfig.Setting) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
+	l.opts.IPv6 = current.Ipv6
 	for k, v := range l.store {
 		z, ok := current.Server.Servers[k]
 		if ok {

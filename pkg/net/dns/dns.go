@@ -48,11 +48,8 @@ type cacheElement struct {
 }
 
 func NewClient(config dns.Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{
-		do:     send,
-		cache:  newCache[string, cacheElement](200),
-		config: config,
-	}
+	c := &client{do: send, config: config, cache: newCache[string, cacheElement](200)}
+
 	if config.Subnet != nil {
 		optionData := bytes.NewBuffer(nil)
 
@@ -109,6 +106,52 @@ func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
 		return dns.NewIPResponse(x.ips, uint32(time.Until(x.expireAfter).Seconds())), nil
 	}
 
+	var ttl, ttl2 uint32
+	var i, i2 []net.IP
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var err error
+		if ttl, i, err = c.lookupIP(domain, dnsmessage.TypeA); err != nil {
+			log.Println("lookup A failed:", err)
+		}
+	}()
+
+	if c.config.IPv6 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var err error
+			if ttl2, i2, err = c.lookupIP(domain, dnsmessage.TypeAAAA); err != nil {
+				log.Println("lookup AAAA failed:", err)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if ttl == 0 {
+		ttl = ttl2
+	}
+	i = append(i, i2...)
+
+	if len(i) == 0 {
+		return nil, fmt.Errorf("domain %v no dns answer", domain)
+	}
+
+	resp := dns.NewIPResponse(i, ttl)
+
+	log.Printf("%s lookup host [%s] success: %v\n", c.config.Name, domain, resp)
+
+	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
+	c.cache.Add(domain, cacheElement{i, expireAfter}, expireAfter)
+	return resp, nil
+}
+
+func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net.IP, error) {
 	req := dnsmessage.Message{
 		Header: dnsmessage.Header{
 			ID:                 uint16(rand.Intn(65535)),
@@ -123,7 +166,7 @@ func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
 		Questions: []dnsmessage.Question{
 			{
 				Name:  dnsmessage.MustNewName(domain + "."),
-				Type:  dnsmessage.TypeA,
+				Type:  reqType,
 				Class: dnsmessage.ClassINET,
 			},
 		},
@@ -132,39 +175,40 @@ func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
 
 	d, err := req.Pack()
 	if err != nil {
-		return nil, fmt.Errorf("pack dns message failed: %w", err)
+		return 0, nil, fmt.Errorf("pack dns message failed: %w", err)
 	}
 
 	d, err = c.do(d)
 	if err != nil {
-		return nil, fmt.Errorf("send dns message failed: %w", err)
+		return 0, nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
 	var p dnsmessage.Parser
 	he, err := p.Start(d)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	if he.ID != req.ID {
-		return nil, fmt.Errorf("id not match")
+		return 0, nil, fmt.Errorf("id not match")
 	}
 
 	if he.RCode != dnsmessage.RCodeSuccess {
-		return nil, fmt.Errorf("rCode (%v) not success", he.RCode)
+		return 0, nil, fmt.Errorf("rCode (%v) not success", he.RCode)
 	}
 
 	p.SkipAllQuestions()
 
 	var ttl uint32
 	i := make([]net.IP, 0, 1)
+
 	for {
 		header, err := p.AnswerHeader()
 		if err != nil {
 			if err == dnsmessage.ErrSectionDone {
 				break
 			}
-			return nil, err
+			return 0, nil, err
 		}
 
 		// All Resources in a set should have the same TTL (RFC 2181 Section 5.2).
@@ -174,34 +218,24 @@ func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
 		case dnsmessage.TypeA:
 			body, err := p.AResource()
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 			i = append(i, net.IP(body.A[:]))
 		case dnsmessage.TypeAAAA:
 			body, err := p.AAAAResource()
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 			i = append(i, net.IP(body.AAAA[:]))
 		default:
 			err = p.SkipAnswer()
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 		}
 	}
 
-	if len(i) == 0 {
-		return nil, fmt.Errorf("domain %v no dns answer", domain)
-	}
-
-	resp := dns.NewIPResponse(i, ttl)
-
-	log.Printf("%s lookup host [%s] success: %v\n", c.config.Name, domain, resp)
-
-	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
-	c.cache.Add(domain, cacheElement{i, expireAfter}, expireAfter)
-	return resp, nil
+	return ttl, i, nil
 }
 
 type cacheEntry[K, V any] struct {

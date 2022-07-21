@@ -262,7 +262,7 @@ type Socks5 struct {
 	Hostname string `protobuf:"bytes,3,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	Port     int32  `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
 	User     string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
-	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"` // TODO: add override hostname options
 }
 
 func (x *Socks5) Reset() {

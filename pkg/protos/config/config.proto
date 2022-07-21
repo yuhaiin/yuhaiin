@@ -5,6 +5,7 @@ option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
 
 message setting {
   // net interface, eg: eth0
+  bool ipv6 = 7 [ json_name = "ipv6" ];
   string net_interface = 6 [ json_name = "net_interface" ];
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
   bypass bypass = 2 [ json_name = "bypass" ];

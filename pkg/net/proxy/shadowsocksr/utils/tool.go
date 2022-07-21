@@ -4,6 +4,9 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
+	_ "unsafe"
+
+	_ "github.com/shadowsocks/go-shadowsocks2/core"
 )
 
 func HmacMD5(key []byte, data []byte) []byte {
@@ -30,16 +33,5 @@ func SHA1Sum(d []byte) []byte {
 	return h.Sum(nil)
 }
 
-// key-derivation function from original Shadowsocks
-func KDF(password string, keyLen int) []byte {
-	var b, prev []byte
-	h := md5.New()
-	for len(b) < keyLen {
-		h.Write(prev)
-		h.Write([]byte(password))
-		b = h.Sum(b)
-		prev = b[len(b)-h.Size():]
-		h.Reset()
-	}
-	return b[:keyLen]
-}
+//go:linkname KDF github.com/shadowsocks/go-shadowsocks2/core.kdf
+func KDF(string, int) []byte

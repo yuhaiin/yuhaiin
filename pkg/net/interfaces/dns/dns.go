@@ -49,4 +49,5 @@ type Config struct {
 	Host       string
 	Servername string
 	Subnet     *net.IPNet
+	IPv6       bool
 }

@@ -44,6 +44,7 @@ type Opts struct {
 	Socks5     string      `json:"socks5"`
 	Http       string      `json:"http"`
 	SaveLogcat bool        `json:"save_logcat"`
+	IPv6       bool        `json:"ipv6"`
 	Bypass     *Bypass     `json:"bypass"`
 	DNS        *DNSSetting `json:"dns"`
 	TUN        *TUN        `json:"tun"`
@@ -287,6 +288,7 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 	opts, _ := json.Marshal(opt)
 	log.Println("fake setting:", string(opts))
 	settings := &protoconfig.Setting{
+		Ipv6: opt.IPv6,
 		Dns: &protoconfig.DnsSetting{
 			Server:         opt.DNS.Server,
 			Fakedns:        opt.DNS.Fakedns,
