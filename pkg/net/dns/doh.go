@@ -3,67 +3,60 @@ package dns
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func init() {
-	Register(config.Dns_doh, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoH(c, p) })
+	Register(config.Dns_doh, NewDoH)
 }
 
 var _ dns.DNS = (*doh)(nil)
 
 type doh struct{ *client }
 
-func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
-	url, addr, err := getUrlAndHost(config.Host, config.Servername)
-	if err != nil {
-		return dns.NewErrorDNS(err)
-	}
+func NewDoH(config Config) dns.DNS {
+	uri := getUrlAndHost(config.Host)
 
-	if p == nil {
-		p = simple.NewSimple(addr, nil)
-	}
-
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			ForceAttemptHTTP2: true,
-			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				switch network {
-				case "tcp":
-					return p.Conn(addr)
-				default:
-					return nil, fmt.Errorf("unsupported network: %s", network)
+	roundTripper := &http.Transport{
+		TLSClientConfig:   &tls.Config{ServerName: config.Servername},
+		ForceAttemptHTTP2: true,
+		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
+			switch network {
+			case "tcp", "tcp4", "tcp6":
+				addr, err := proxy.ParseAddress(network, host)
+				if err != nil {
+					return nil, fmt.Errorf("doh parse address failed: %v", err)
 				}
-			},
+				return config.Dialer.Conn(addr)
+			default:
+				return nil, fmt.Errorf("unsupported network: %s", network)
+			}
 		},
-		Timeout: 30 * time.Second,
 	}
 
 	return &doh{
 		client: NewClient(config, func(b []byte) ([]byte, error) {
-			req, err := http.NewRequest("POST", url, bytes.NewBuffer(b))
+			req, err := http.NewRequest("POST", uri, bytes.NewBuffer(b))
 			if err != nil {
 				return nil, fmt.Errorf("doh new request failed: %v", err)
 			}
 			req.Header.Set("Content-Type", "application/dns-message")
 			req.Header.Set("Accept", "application/dns-message")
 			req.Header.Set("User-Agent", string([]byte{' '}))
-			resp, err := httpClient.Do(req)
+			resp, err := (&http.Client{Transport: roundTripper}).Do(req)
 			if err != nil {
 				return nil, fmt.Errorf("doh post failed: %v", err)
 			}
@@ -92,32 +85,23 @@ func NewDoH(config dns.Config, p proxy.StreamProxy) dns.DNS {
 func (d *doh) Close() error { return nil }
 
 // https://tools.ietf.org/html/rfc8484
-func getUrlAndHost(host, servername string) (_ string, addr proxy.Address, _ error) {
-	var urls string
-	if !strings.HasPrefix(host, "https://") {
-		urls = "https://" + host
-	} else {
-		urls = host
+func getUrlAndHost(host string) string {
+	scheme, rest, _ := utils.GetScheme(host)
+	if scheme == "" {
+		host = "https://" + host
 	}
 
-	uri, err := url.Parse(urls)
-	if err != nil {
-		return "", nil, fmt.Errorf("doh parse url failed: %v", err)
+	rest = strings.TrimPrefix(rest, "//")
+
+	if rest == "" {
+		host += "no-host-specified"
 	}
 
-	hostname, port := uri.Hostname(), uri.Port()
-	if port == "" {
-		port = "443"
-	}
-	if uri.Path == "" {
-		uri.Path = "/dns-query"
-	}
-	if servername != "" {
-		uri.Host = net.JoinHostPort(servername, port)
+	if !strings.Contains(rest, "/") {
+		host = host + "/dns-query"
 	}
 
-	por, _ := strconv.ParseUint(port, 10, 16)
-	return uri.String(), proxy.ParseAddressSplit("tcp", hostname, uint16(por)), nil
+	return host
 }
 
 func (d *doh) Resolver(f func(io.Reader) (io.ReadCloser, error)) *net.Resolver {

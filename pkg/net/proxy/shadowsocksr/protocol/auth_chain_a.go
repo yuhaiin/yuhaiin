@@ -4,9 +4,9 @@ package protocol
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/md5"
 	"crypto/rc4"
 	"encoding/base64"
 	"encoding/binary"
@@ -51,8 +51,8 @@ type authChainA struct {
 func NewAuthChainA(info ProtocolInfo) IProtocol {
 	a := &authChainA{
 		salt:         "auth_chain_a",
-		hmac:         ssr.HmacMD5,
-		hashDigest:   ssr.SHA1Sum,
+		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.MD5, key, data, buf) },
+		hashDigest:   func(data []byte) []byte { return ssr.HashSum(crypto.SHA1, data) },
 		rnd:          authChainAGetRandLen,
 		recvID:       1,
 		ProtocolInfo: info,
@@ -126,7 +126,7 @@ func (a *authChainA) packData(outData []byte, data []byte, randLength int) {
 	copy(key, a.userKey)
 	a.chunkID++
 	binary.LittleEndian.PutUint32(key[a.userKeyLen:], a.chunkID)
-	a.lastClientHash = a.hmac(key, outData[:outLength])
+	a.lastClientHash = a.hmac(key, outData[:outLength], nil)
 	copy(outData[outLength:], a.lastClientHash[:2])
 }
 
@@ -152,7 +152,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	// first 12 bytes
 	{
 		rand.Read(outData[:4])
-		a.lastClientHash = a.hmac(key, outData[:4])
+		a.lastClientHash = a.hmac(key, outData[:4], nil)
 		copy(outData[4:], a.lastClientHash[:8])
 	}
 	var base64UserKey string
@@ -194,7 +194,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	}
 	// final HMAC
 	{
-		a.lastServerHash = a.hmac(a.userKey, encrypt[0:20])
+		a.lastServerHash = a.hmac(a.userKey, encrypt[0:20], nil)
 
 		copy(outData[12:], encrypt)
 		copy(outData[12+20:], a.lastServerHash[:4])
@@ -273,7 +273,7 @@ func (a *authChainA) DecryptStream(rbuf *bytes.Buffer, plainData []byte) (n int,
 			break
 		}
 
-		hash := a.hmac(key, plainData[:length-2])
+		hash := a.hmac(key, plainData[:length-2], nil)
 		if !bytes.Equal(hash[:2], plainData[length-2:length]) {
 			return 0, ssr.ErrAuthChainIncorrectHMAC
 		}
@@ -323,10 +323,10 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 	authData := make([]byte, 3)
 	rand.Read(authData)
 
-	md5Data := ssr.HmacMD5(a.userKey, authData)
+	md5Data := a.hmac(a.userKey, authData, nil)
 	randDataLength := udpGetRandLength(md5Data, &a.randomClient)
 
-	key := Kdf(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	key := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
 	rc4Cipher, err := rc4.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -340,14 +340,14 @@ func (a *authChainA) DecryptPacket(b []byte) ([]byte, error) {
 	if len(b) < 9 {
 		return nil, ssr.ErrAuthChainDataLengthError
 	}
-	if !bytes.Equal(ssr.HmacMD5(a.userKey, b[:len(b)-1])[:1], b[len(b)-1:]) {
+	if !bytes.Equal(a.hmac(a.userKey, b[:len(b)-1], nil)[:1], b[len(b)-1:]) {
 		return nil, ssr.ErrAuthChainIncorrectHMAC
 	}
-	md5Data := ssr.HmacMD5(a.Key, b[len(b)-8:len(b)-1])
+	md5Data := a.hmac(a.Key, b[len(b)-8:len(b)-1], nil)
 
 	randDataLength := udpGetRandLength(md5Data, &a.randomServer)
 
-	key := Kdf(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	key := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
 	rc4Cipher, err := rc4.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -360,18 +360,4 @@ func (a *authChainA) DecryptPacket(b []byte) ([]byte, error) {
 func udpGetRandLength(lastHash []byte, random *ssr.Shift128plusContext) int {
 	random.InitFromBin(lastHash)
 	return int(random.Next() % 127)
-}
-
-// key-derivation function from original Shadowsocks
-func Kdf(password string, keyLen int) []byte {
-	var b, prev []byte
-	h := md5.New()
-	for len(b) < keyLen {
-		h.Write(prev)
-		h.Write([]byte(password))
-		b = h.Sum(b)
-		prev = b[len(b)-h.Size():]
-		h.Reset()
-	}
-	return b[:keyLen]
 }

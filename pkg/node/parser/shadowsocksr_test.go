@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -99,7 +99,9 @@ func TestConnectionSsr(t *testing.T) {
 		},
 	}
 
-	dns := dns.NewDoU(idns.Config{Host: "1.1.1.1:53"}, z)
+	dns := dns.New(dns.Config{
+		Type: config.Dns_udp,
+		Host: "1.1.1.1:53", Dialer: z})
 	t.Log(dns.LookupIP("www.google.com"))
 
 	req := http.Request{

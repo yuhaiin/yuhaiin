@@ -9,25 +9,20 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func init() {
-	Register(config.Dns_udp, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoU(c, p) })
-	Register(config.Dns_reserve, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoU(c, p) })
+	Register(config.Dns_udp, NewDoU)
+	Register(config.Dns_reserve, NewDoU)
 }
 
 var _ dns.DNS = (*udp)(nil)
 
 type udp struct{ *client }
 
-func NewDoU(config dns.Config, p proxy.PacketProxy) dns.DNS {
-	if p == nil {
-		p = direct.Default
-	}
-
+func NewDoU(config Config) dns.DNS {
 	host := config.Host
 	_, _, err := net.SplitHostPort(host)
 	if e, ok := err.(*net.AddrError); ok {
@@ -47,7 +42,7 @@ func NewDoU(config dns.Config, p proxy.PacketProxy) dns.DNS {
 			var b = utils.GetBytes(utils.DefaultSize)
 			defer utils.PutBytes(b)
 
-			conn, err := p.PacketConn(add)
+			conn, err := config.Dialer.PacketConn(add)
 			if err != nil {
 				return nil, fmt.Errorf("get packetConn failed: %v", err)
 			}

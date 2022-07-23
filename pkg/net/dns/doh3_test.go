@@ -3,11 +3,15 @@ package dns
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func TestDoh3(t *testing.T) {
-	c := NewDoH3(dns.Config{Host: "cloudflare-dns.com"})
+	c := New(Config{
+		Type: config.Dns_doh3,
+		Host: "cloudflare-dns.com",
+		IPv6: true,
+	})
 
 	t.Log(c.LookupIP("www.google.com"))
 	t.Log(c.LookupIP("www.baidu.com"))

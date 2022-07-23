@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Fake struct {
@@ -81,9 +82,19 @@ type FakeDNS struct {
 func WrapFakeDNS(upStream dns.DNS, pool *Fake) *FakeDNS {
 	return &FakeDNS{upStream: upStream, pool: pool}
 }
-func (f *FakeDNS) LookupIP(domain string) (dns.IPResponse, error) {
+func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
 	ip := f.pool.GetFakeIPForDomain(domain)
 	// log.Println("map", ip, "to", domain)
+
+	return []net.IP{net.ParseIP(ip).To4()}, nil
+}
+
+func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error) {
+	ip := f.pool.GetFakeIPForDomain(domain)
+
+	if t == dnsmessage.TypeAAAA {
+		return dns.NewIPResponse([]net.IP{net.ParseIP(ip).To16()}, 600), nil
+	}
 	return dns.NewIPResponse([]net.IP{net.ParseIP(ip).To4()}, 600), nil
 }
 

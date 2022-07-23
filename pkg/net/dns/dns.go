@@ -12,43 +12,64 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-var dnsMap syncmap.SyncMap[config.DnsDnsType, func(dns.Config, proxy.Proxy) dns.DNS]
+type Config struct {
+	Type       config.DnsDnsType
+	Name       string
+	Host       string
+	Servername string
+	Subnet     *net.IPNet
+	IPv6       bool
 
-func New(tYPE config.DnsDnsType, config dns.Config, dialer proxy.Proxy) dns.DNS {
-	f, ok := dnsMap.Load(tYPE)
-	if !ok {
-		return dns.NewErrorDNS(fmt.Errorf("no dns type %v process found", tYPE))
-	}
-
-	return f(config, dialer)
+	Dialer proxy.Proxy
 }
 
-func Register(tYPE config.DnsDnsType, f func(dns.Config, proxy.Proxy) dns.DNS) {
+var dnsMap syncmap.SyncMap[config.DnsDnsType, func(Config) dns.DNS]
+
+func New(config Config) dns.DNS {
+	f, ok := dnsMap.Load(config.Type)
+	if !ok {
+		return dns.NewErrorDNS(fmt.Errorf("no dns type %v process found", config.Type))
+	}
+
+	if config.Dialer == nil {
+		config.Dialer = direct.Default
+	}
+	return f(config)
+}
+
+func Register(tYPE config.DnsDnsType, f func(Config) dns.DNS) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}
 }
 
+var _ dns.DNS = (*client)(nil)
+
 type client struct {
 	subnet []dnsmessage.Resource
 	do     func([]byte) ([]byte, error)
-	cache  *dnsLruCache[string, cacheElement]
+	cache  *dnsLruCache[string, ipResponse]
 
-	config dns.Config
+	config Config
 }
 
-type cacheElement struct {
+type ipResponse struct {
 	ips         []net.IP
 	expireAfter time.Time
 }
 
-func NewClient(config dns.Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{do: send, config: config, cache: newCache[string, cacheElement](200)}
+func (c ipResponse) String() string {
+	return fmt.Sprintf(`{ ips: %v]`, c.ips)
+}
+
+func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
+	c := &client{do: send, config: config, cache: newCache[string, ipResponse](300)}
 
 	if config.Subnet != nil {
 		optionData := bytes.NewBuffer(nil)
@@ -101,54 +122,58 @@ func (c *client) Do(b []byte) ([]byte, error) {
 	return c.do(b)
 }
 
-func (c *client) LookupIP(domain string) (dns.IPResponse, error) {
-	if x, ok := c.cache.Load(domain); ok {
-		return dns.NewIPResponse(x.ips, uint32(time.Until(x.expireAfter).Seconds())), nil
-	}
-
-	var ttl, ttl2 uint32
-	var i, i2 []net.IP
-
+func (c *client) LookupIP(domain string) ([]net.IP, error) {
+	var aaaaerr error
+	var aaaa dns.IPResponse
 	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-		if ttl, i, err = c.lookupIP(domain, dnsmessage.TypeA); err != nil {
-			log.Println("lookup A failed:", err)
-		}
-	}()
 
 	if c.config.IPv6 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			var err error
-			if ttl2, i2, err = c.lookupIP(domain, dnsmessage.TypeAAAA); err != nil {
-				log.Println("lookup AAAA failed:", err)
-			}
+			aaaa, aaaaerr = c.Record(domain, dnsmessage.TypeAAAA)
 		}()
 	}
 
-	wg.Wait()
-
-	if ttl == 0 {
-		ttl = ttl2
-	}
-	i = append(i, i2...)
-
-	if len(i) == 0 {
-		return nil, fmt.Errorf("domain %v no dns answer", domain)
+	var resp []net.IP
+	a, aerr := c.Record(domain, dnsmessage.TypeA)
+	if aerr == nil {
+		resp = a.IPs()
 	}
 
-	resp := dns.NewIPResponse(i, ttl)
+	if c.config.IPv6 {
+		wg.Wait()
+		if aaaaerr == nil {
+			resp = append(resp, aaaa.IPs()...)
+		}
+	}
 
-	log.Printf("%s lookup host [%s] success: %v\n", c.config.Name, domain, resp)
+	if aerr != nil && (!c.config.IPv6 || aaaaerr != nil) {
+		return nil, fmt.Errorf("lookup ip failed: aaaa: %v, a: %w", aaaaerr, aerr)
+	}
+
+	return resp, nil
+}
+
+func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPResponse, error) {
+	key := domain + reqType.String()
+
+	if x, ok := c.cache.Load(key); ok {
+		return dns.NewIPResponse(x.ips, uint32(time.Until(x.expireAfter).Seconds())), nil
+	}
+
+	ttl, resp, err := c.lookupIP(domain, reqType)
+	if err != nil {
+		return nil, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
+	}
+
+	log.Printf("%s lookup host [%s] %v success: {ips: %v, ttl: %d}\n",
+		c.config.Name, domain, reqType, resp, ttl)
 
 	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
-	c.cache.Add(domain, cacheElement{i, expireAfter}, expireAfter)
-	return resp, nil
+
+	c.cache.Add(key, ipResponse{resp, expireAfter}, expireAfter)
+	return dns.NewIPResponse(resp, ttl), nil
 }
 
 func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net.IP, error) {
@@ -214,14 +239,14 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 		// All Resources in a set should have the same TTL (RFC 2181 Section 5.2).
 		ttl = header.TTL
 
-		switch header.Type {
-		case dnsmessage.TypeA:
+		switch {
+		case header.Type == dnsmessage.TypeA && reqType == dnsmessage.TypeA:
 			body, err := p.AResource()
 			if err != nil {
 				return 0, nil, err
 			}
 			i = append(i, net.IP(body.A[:]))
-		case dnsmessage.TypeAAAA:
+		case header.Type == dnsmessage.TypeAAAA && reqType == dnsmessage.TypeAAAA:
 			body, err := p.AAAAResource()
 			if err != nil {
 				return 0, nil, err
@@ -235,8 +260,13 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 		}
 	}
 
+	if len(i) == 0 {
+		return 0, nil, fmt.Errorf("no ip found")
+	}
 	return ttl, i, nil
 }
+
+func (c *client) Close() error { return nil }
 
 type cacheEntry[K, V any] struct {
 	key        K

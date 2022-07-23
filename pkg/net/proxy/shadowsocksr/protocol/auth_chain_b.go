@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"crypto"
 	"sort"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -13,8 +14,8 @@ func init() {
 func NewAuthChainB(info ProtocolInfo) IProtocol {
 	a := &authChainA{
 		salt:         "auth_chain_b",
-		hmac:         ssr.HmacMD5,
-		hashDigest:   ssr.SHA1Sum,
+		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.MD5, key, data, buf) },
+		hashDigest:   func(data []byte) []byte { return ssr.HashSum(crypto.SHA1, data) },
 		rnd:          authChainBGetRandLen,
 		recvID:       1,
 		ProtocolInfo: info,

@@ -2,6 +2,7 @@ package obfs
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/hmac"
 	"encoding/binary"
 	"fmt"
@@ -304,7 +305,7 @@ func (t *tls12TicketAuth) hmacSHA1(data []byte) []byte {
 	copy(key, t.Key)
 	copy(key[t.KeySize:], t.GetData().localClientID[:])
 
-	sha1Data := ssr.HmacSHA1(key, data)
+	sha1Data := ssr.Hmac(crypto.SHA1, key, data, nil)
 	return sha1Data[:ssr.ObfsHMACSHA1Len]
 }
 

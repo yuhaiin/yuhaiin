@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/binary"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -16,6 +17,7 @@ type verifySHA1 struct {
 	ProtocolInfo
 	hasSentHeader bool
 	chunkId       uint32
+	hmac          hmacMethod
 }
 
 const (
@@ -25,12 +27,13 @@ const (
 func NewVerifySHA1(info ProtocolInfo) IProtocol {
 	a := &verifySHA1{
 		ProtocolInfo: info,
+		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.SHA1, key, data, buf) },
 	}
 	return a
 }
 
 func (v *verifySHA1) otaConnectAuth(data []byte) []byte {
-	return append(data, ssr.HmacSHA1(append(v.IV, v.Key...), data)...)
+	return append(data, v.hmac(append(v.IV, v.Key...), data, nil)...)
 }
 
 func (v *verifySHA1) otaReqChunkAuth(buffer *bytes.Buffer, chunkId uint32, data []byte) {
@@ -40,14 +43,14 @@ func (v *verifySHA1) otaReqChunkAuth(buffer *bytes.Buffer, chunkId uint32, data 
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
 
 	buffer.Write(nb)
-	buffer.Write(ssr.HmacSHA1(append(v.IV, chunkIdBytes...), data))
+	buffer.Write(v.hmac(append(v.IV, chunkIdBytes...), data, nil))
 	buffer.Write(data)
 }
 
 func (v *verifySHA1) otaVerifyAuth(iv []byte, chunkId uint32, data []byte, expectedHmacSha1 []byte) bool {
 	chunkIdBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
-	actualHmacSha1 := ssr.HmacSHA1(append(iv, chunkIdBytes...), data)
+	actualHmacSha1 := v.hmac(append(iv, chunkIdBytes...), data, nil)
 	return bytes.Equal(expectedHmacSha1, actualHmacSha1)
 }
 

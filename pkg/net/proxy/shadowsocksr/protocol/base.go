@@ -19,7 +19,7 @@ var (
 	creatorMap = make(map[string]creator)
 )
 
-type hmacMethod func(key []byte, data []byte) []byte
+type hmacMethod func(key []byte, data []byte, buf []byte) []byte
 type hashDigestMethod func(data []byte) []byte
 type rndMethod func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
 
