@@ -12,14 +12,13 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/lucas-clemente/quic-go"
 	"golang.org/x/net/http2"
 )
 
 func init() {
-	Register(config.Dns_doq, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoQ(c, p) })
+	Register(config.Dns_doq, NewDoQ)
 }
 
 type doq struct {
@@ -34,11 +33,7 @@ type doq struct {
 	*client
 }
 
-func NewDoQ(config dns.Config, dialer proxy.PacketProxy) dns.DNS {
-	if dialer == nil {
-		dialer = direct.Default
-	}
-
+func NewDoQ(config Config) dns.DNS {
 	host := config.Host
 
 	if i := strings.Index(host, "://"); i != -1 {
@@ -58,7 +53,7 @@ func NewDoQ(config dns.Config, dialer proxy.PacketProxy) dns.DNS {
 		addr = proxy.EmptyAddr
 	}
 
-	d := &doq{dialer: dialer, host: addr, servername: config.Servername}
+	d := &doq{dialer: config.Dialer, host: addr, servername: config.Servername}
 
 	d.client = NewClient(config, func(b []byte) ([]byte, error) {
 		err := d.initSession()

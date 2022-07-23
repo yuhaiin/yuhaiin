@@ -4,14 +4,31 @@ import (
 	"fmt"
 	"io"
 	"net"
+
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 type DNS interface {
-	LookupIP(domain string) (IPResponse, error)
+	LookupIP(domain string) ([]net.IP, error)
+	Record(domain string, _ dnsmessage.Type) (IPResponse, error)
 	Do([]byte) ([]byte, error)
 	// Resolver() *net.Resolver
 	io.Closer
 }
+
+type Record interface {
+	A() IPResponse
+	AAAA() IPResponse
+}
+
+type record struct {
+	a    IPResponse
+	aaaa IPResponse
+}
+
+func NewRecord(a IPResponse, aaaa IPResponse) Record { return &record{a, aaaa} }
+func (r record) A() IPResponse                       { return r.a }
+func (r record) AAAA() IPResponse                    { return r.aaaa }
 
 type IPResponse interface {
 	IPs() []net.IP
@@ -37,17 +54,9 @@ type errorDNS struct{ error }
 func NewErrorDNS(err error) DNS {
 	return &errorDNS{err}
 }
-func (d *errorDNS) LookupIP(domain string) (IPResponse, error) {
+func (d *errorDNS) LookupIP(domain string) ([]net.IP, error) {
 	return nil, fmt.Errorf("lookup %s failed: %w", domain, d.error)
 }
-
-func (d *errorDNS) Do([]byte) ([]byte, error) { return nil, fmt.Errorf("do failed: %w", d.error) }
-func (d *errorDNS) Close() error              { return nil }
-
-type Config struct {
-	Name       string
-	Host       string
-	Servername string
-	Subnet     *net.IPNet
-	IPv6       bool
-}
+func (d *errorDNS) Record(domain string, _ dnsmessage.Type) (IPResponse, error) { return nil, d.error }
+func (d *errorDNS) Do([]byte) ([]byte, error)                                   { return nil, fmt.Errorf("do failed: %w", d.error) }
+func (d *errorDNS) Close() error                                                { return nil }

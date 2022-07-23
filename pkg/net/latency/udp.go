@@ -4,12 +4,11 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
 func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
-	d := dns.NewDoU(idns.Config{Host: host}, p)
+	d := dns.NewDoU(dns.Config{Host: host, Dialer: p})
 
 	start := time.Now()
 

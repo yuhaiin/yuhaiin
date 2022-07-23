@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/binary"
 	"math/rand"
 	"time"
@@ -130,7 +131,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	copy(key, a.IV)
 	copy(key[a.IVSize:], a.Key)
 
-	h := ssr.HmacSHA1(key, outData[:outLength-ssr.ObfsHMACSHA1Len])
+	h := ssr.Hmac(crypto.SHA1, key, outData[:outLength-ssr.ObfsHMACSHA1Len], nil)
 	// out length-10~out length/rand length+18+data length~end, hmac
 	copy(outData[outLength-ssr.ObfsHMACSHA1Len:], h[0:ssr.ObfsHMACSHA1Len])
 	return outData

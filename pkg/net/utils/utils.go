@@ -7,8 +7,12 @@ import (
 	"log"
 	"math/bits"
 	"net"
+	_ "net/url"
 	"sync"
 	"time"
+	_ "unsafe"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type Pool interface {
@@ -28,20 +32,16 @@ func PutBytes(b []byte)         { DefaultPool.PutBytes(b) }
 func GetBuffer() *bytes.Buffer  { return DefaultPool.GetBuffer() }
 func PutBuffer(b *bytes.Buffer) { DefaultPool.PutBuffer(b) }
 
-var poolMap = sync.Map{}
+var poolMap syncmap.SyncMap[int, *sync.Pool]
 
 type pool struct{}
 
 func buffPool(size int) *sync.Pool {
 	if v, ok := poolMap.Load(size); ok {
-		return v.(*sync.Pool)
+		return v
 	}
 
-	p := &sync.Pool{
-		New: func() any {
-			return make([]byte, size)
-		},
-	}
+	p := &sync.Pool{New: func() any { return make([]byte, size) }}
 	poolMap.Store(size, p)
 	return p
 }
@@ -166,3 +166,6 @@ func ReducedUnit(byte float64) (result float64, unit Unit) {
 	}
 	return byte, B //B
 }
+
+//go:linkname GetScheme net/url.getScheme
+func GetScheme(ur string) (scheme, etc string, err error)

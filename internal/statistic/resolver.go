@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -58,7 +59,7 @@ type basedns struct {
 }
 
 func (l *basedns) Update(c *protoconfig.Setting) {}
-func (l *basedns) LookupIP(host string) (idns.IPResponse, error) {
+func (l *basedns) LookupIP(host string) ([]net.IP, error) {
 	if l.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}
@@ -70,6 +71,15 @@ func (l *basedns) LookupIP(host string) (idns.IPResponse, error) {
 
 	return ips, nil
 }
+
+func (l *basedns) Record(domain string, t dnsmessage.Type) (idns.IPResponse, error) {
+	if l.dns == nil {
+		return nil, fmt.Errorf("dns not initialized")
+	}
+
+	return l.dns.Record(domain, t)
+}
+
 func (l *basedns) Close() error {
 	if l.dns != nil {
 		return l.dns.Close()
@@ -164,15 +174,15 @@ func getDNS(name string, ipv6 bool, dc *protoconfig.Dns, proxy proxy.Proxy) idns
 	}
 
 	return dns.New(
-		dc.Type,
-		idns.Config{
+		dns.Config{
+			Type:       dc.Type,
 			Name:       name,
 			Host:       dc.Host,
 			Servername: dc.TlsServername,
 			Subnet:     subnet,
 			IPv6:       ipv6,
-		},
-		proxy)
+			Dialer:     proxy,
+		})
 }
 
 type dnsdialer struct {

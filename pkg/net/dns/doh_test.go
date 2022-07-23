@@ -4,7 +4,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDOH(t *testing.T) {
@@ -12,8 +14,13 @@ func TestDOH(t *testing.T) {
 	_ = s
 	// d := NewDoH("cloudflare-dns.com", nil)
 	// d := NewDoH("public.dns.iij.jp", s, nil)
-	// d := NewDoH(dns.Config{Host: "dns.google"}, s5c.Dial("127.0.0.1", "1080", "", ""))
-	d := NewDoH(dns.Config{Host: "9.9.9.9", Subnet: s, IPv6: true}, nil)
+	d := New(Config{
+		Type:   config.Dns_doh,
+		Host:   "dns.google",
+		IPv6:   true,
+		Dialer: s5c.Dial("127.0.0.1", "1080", "", ""),
+	})
+	// d := NewDoH(dns.Config{Host: "9.9.9.9", Subnet: s, IPv6: true}, nil)
 	// d := NewDoH(dns.Config{Host: "43.154.169.30", Servername: "a.passcloud.xyz"}, s5c.Dial("127.0.0.1", "1080", "", ""))
 	// d := NewDoH("1.1.1.1", nil, nil)
 	// d := NewDoH("1.0.0.1", nil, nil)
@@ -60,4 +67,13 @@ func TestDOH(t *testing.T) {
 	//t.Log(DOH("dns.nextdns.io", "google.com"))
 
 	// t.Log(DOH("cloudflare-dns.com", "115-235-111-150.dhost.00cdn.com"))
+}
+
+func TestGetURL(t *testing.T) {
+	dnsQStr := "https://8.8.8.8/dns-query"
+	assert.Equal(t, getUrlAndHost("https://8.8.8.8"), dnsQStr)
+	assert.Equal(t, getUrlAndHost("8.8.8.8"), dnsQStr)
+
+	t.Log(getUrlAndHost("https://"))
+	t.Log(getUrlAndHost("/dns-query"))
 }
