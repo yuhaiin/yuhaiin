@@ -11,18 +11,17 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/lucas-clemente/quic-go/http3"
 )
 
 func init() {
-	Register(config.Dns_doh3, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewDoH3(c) })
+	Register(config.Dns_doh3, NewDoH3)
 }
 
 type doh3 struct{ *client }
 
-func NewDoH3(config dns.Config) dns.DNS {
+func NewDoH3(config Config) dns.DNS {
 	d := &doh3{}
 
 	httpClient := &http.Client{

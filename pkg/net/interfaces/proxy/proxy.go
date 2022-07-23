@@ -8,9 +8,9 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
+	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
@@ -129,28 +129,19 @@ func ParseAddress(network, addr string) (ad Address, _ error) {
 		return nil, fmt.Errorf("parse port failed: %w", err)
 	}
 
-	ad = &DomainAddr{
-		host:     addr,
-		hostname: hostname,
-		port:     port{uint16(por), ports},
-		network:  network,
-	}
-
-	var zone string
-	if i := strings.LastIndexByte(hostname, '%'); i != -1 {
-		zone = hostname[i+1:]
-		hostname = hostname[:i]
-	}
-
-	if i := net.ParseIP(hostname); i != nil {
-		ad = IPAddr{i, ad, zone}
-	}
-
-	return
+	return ParseAddressSplit(network, hostname, uint16(por)), nil
 }
+
+//go:linkname ParseIPZone net.parseIPZone
+func ParseIPZone(s string) (net.IP, string)
 
 func ParseAddressSplit(network, addr string, por uint16) (ad Address) {
 	ports := strconv.FormatUint(uint64(por), 10)
+	i, zone := ParseIPZone(addr)
+	if i != nil {
+		addr = i.String()
+	}
+
 	ad = &DomainAddr{
 		host:     net.JoinHostPort(addr, ports),
 		hostname: addr,
@@ -158,13 +149,7 @@ func ParseAddressSplit(network, addr string, por uint16) (ad Address) {
 		network:  network,
 	}
 
-	var zone string
-	if i := strings.LastIndexByte(addr, '%'); i != -1 {
-		zone = addr[i+1:]
-		addr = addr[:i]
-	}
-
-	if i := net.ParseIP(addr); i != nil {
+	if i != nil {
 		ad = &IPAddr{i, ad, zone}
 	}
 
@@ -274,7 +259,7 @@ func (d *DomainAddr) lookupIP() (net.IP, error) {
 		return nil, fmt.Errorf("resolve address failed: %w", err)
 	}
 
-	return ips.IPs()[rand.Intn(len(ips.IPs()))], nil
+	return ips[rand.Intn(len(ips))], nil
 }
 
 func (d *DomainAddr) UDPAddr() (*net.UDPAddr, error) {

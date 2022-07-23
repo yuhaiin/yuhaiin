@@ -170,10 +170,14 @@ func (a *App) Start(opt *Opts) error {
 		insert(app.Insert, opt.Bypass.Proxy, protoconfig.Bypass_proxy.String())
 		insert(app.Insert, opt.Bypass.Direct, protoconfig.Bypass_direct.String())
 
+		var uidd protoconfig.UidDumper
+		if opt.TUN.UidDumper != nil {
+			uidd = &uidDumper{UidDumper: opt.TUN.UidDumper}
+		}
 		listener := server.NewListener(&protoconfig.Opts{
 			Dialer:    app.Proxy(),
 			DNSServer: app.DNSServer(),
-			UidDumper: &uidDumper{UidDumper: opt.TUN.UidDumper},
+			UidDumper: uidd,
 		})
 		defer listener.Close()
 		fakeSetting.AddObserver(listener)

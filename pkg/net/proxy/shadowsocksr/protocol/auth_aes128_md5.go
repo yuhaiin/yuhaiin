@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	crand "crypto/rand"
@@ -23,11 +24,13 @@ func init() {
 	register("auth_aes128_md5", NewAuthAES128MD5)
 }
 
-func NewAuthAES128MD5(info ProtocolInfo) IProtocol {
+func NewAuthAES128MD5(info ProtocolInfo) IProtocol { return newAuthAES128(info, crypto.MD5) }
+
+func newAuthAES128(info ProtocolInfo, hash crypto.Hash) IProtocol {
 	a := &authAES128{
-		salt:       "auth_aes128_md5",
-		hmac:       ssr.HmacMD5,
-		hashDigest: ssr.MD5Sum,
+		salt:       "auth_aes128_" + strings.ToLower(strings.Replace(hash.String(), "-", "", -1)),
+		hmac:       func(key, data, buf []byte) []byte { return ssr.Hmac(hash, key, data, buf) },
+		hashDigest: func(data []byte) []byte { return ssr.HashSum(hash, data) },
 		packID:     1,
 		recvID:     1,
 		key:        info.Key,
@@ -80,8 +83,11 @@ func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int)
 	// 0~1, out length
 	binary.Write(wbuf, binary.LittleEndian, uint16(outLength))
 
+	hmacBuf := utils.GetBytes(6)
+	defer utils.PutBytes(hmacBuf)
+
 	// 2~3, hmac
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-2:])[:2])
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-2:], hmacBuf)[:2])
 
 	// 4, rand length
 	if randLength < 128 {
@@ -103,12 +109,8 @@ func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int)
 	wbuf.Write(data)
 
 	start := wbuf.Len() - outLength + 4
-	if start < 0 {
-		log.Println("---------------start < 0, buf len: ", wbuf.Len(), "out length: ", outLength)
-		start = 0
-	}
 	// hmac
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[start:])[:4])
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[start:], hmacBuf)[:4])
 }
 
 func (a *authAES128) initUserKey() {
@@ -209,19 +211,18 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	copy(key, a.iv)
 	copy(key[a.ivLen:], a.key)
 
+	hmacBuf := utils.GetBytes(6)
+	defer utils.PutBytes(hmacBuf)
+
 	wbuf.Write([]byte{byte(rand.Intn(256))})
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-1:])[:6])
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
 	wbuf.Write(a.uid[:])
 	wbuf.Write(encrypt[:16])
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-20:])[:4])
+	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
 	io.CopyN(wbuf, crand.Reader, int64(randLength))
 	wbuf.Write(data)
 	start := wbuf.Len() - outLength + 4
-	if start < 0 {
-		log.Println("---------------start < 0, buf len: ", wbuf.Len(), "out length: ", outLength)
-		start = 0
-	}
-	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes()[start:])[:4])
+	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes()[start:], hmacBuf)[:4])
 }
 
 func (a *authAES128) EncryptStream(wbuf *bytes.Buffer, data []byte) (err error) {
@@ -268,9 +269,12 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 
 	copy(key[0:], a.userKey)
 
+	hmacBuf := utils.GetBytes(6)
+	defer utils.PutBytes(hmacBuf)
+
 	for remain := datalen; remain > 4; remain = datalen - readLen {
 		binary.LittleEndian.PutUint32(key[keyLen-4:], a.recvID)
-		if !bytes.Equal(a.hmac(key[:keyLen], data[0:2])[:2], data[2:4]) {
+		if !bytes.Equal(a.hmac(key[:keyLen], data[0:2], hmacBuf)[:2], data[2:4]) {
 			return 0, ssr.ErrAuthAES128IncorrectHMAC
 		}
 
@@ -286,7 +290,7 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 			break
 		}
 
-		if !bytes.Equal(a.hmac(key[:keyLen], data[:cdlen])[:4], data[cdlen:clen]) {
+		if !bytes.Equal(a.hmac(key[:keyLen], data[:cdlen], hmacBuf)[:4], data[cdlen:clen]) {
 			a.rawTrans = true
 			return 0, ssr.ErrAuthAES128IncorrectChecksum
 		}
@@ -316,13 +320,17 @@ func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 	wbuf := bytes.NewBuffer(nil)
 	wbuf.Write(b)
 	wbuf.Write(a.uid[:])
-	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes())[:4])
+	hmacBuf := utils.GetBytes(6)
+	defer utils.PutBytes(hmacBuf)
+	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes(), hmacBuf)[:4])
 	return wbuf.Bytes(), nil
 }
 
 // https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L764
 func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
-	if !bytes.Equal(a.hmac(a.key, b[:len(b)-4])[:4], b[len(b)-4:]) {
+	hmacBuf := utils.GetBytes(6)
+	defer utils.PutBytes(hmacBuf)
+	if !bytes.Equal(a.hmac(a.key, b[:len(b)-4], hmacBuf)[:4], b[len(b)-4:]) {
 		return nil, ssr.ErrAuthAES128IncorrectChecksum
 	}
 

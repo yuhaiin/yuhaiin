@@ -32,3 +32,7 @@ func TestM2(t *testing.T) {
 		t.Log(1 << i)
 	}
 }
+
+func TestGetScheme(t *testing.T) {
+	t.Log(GetScheme("http://www.baidu.com/dns-query"))
+}

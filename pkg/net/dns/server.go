@@ -201,34 +201,36 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	}
 
 	// A or AAAA
-	r, err := processor.LookupIP(strings.TrimSuffix(q.Name.String(), "."))
+	r, err := processor.Record(strings.TrimSuffix(q.Name.String(), "."), q.Type)
 	if err != nil {
 		log.Printf("lookup domain %s failed: %v\n", q.Name.String(), err)
-		resp.RCode = dnsmessage.RCodeNameError
 		r = emptyIPResponse
 	}
 
-	for _, ip := range r.IPs() {
+	for _, a := range r.IPs() {
 		var resource dnsmessage.ResourceBody
-
-		if z := ip.To4(); z != nil {
-			a := &dnsmessage.AResource{}
-			copy(a.A[:], z)
-			resource = a
+		if q.Type == dnsmessage.TypeA {
+			rr := &dnsmessage.AResource{}
+			copy(rr.A[:], a.To4())
+			resource = rr
 		} else {
-			aaaa := &dnsmessage.AAAAResource{}
-			copy(aaaa.AAAA[:], z.To16())
-			resource = aaaa
+			rr := &dnsmessage.AAAAResource{}
+			copy(rr.AAAA[:], a.To16())
+			resource = rr
 		}
-
 		resp.Answers = append(resp.Answers, dnsmessage.Resource{
 			Header: dnsmessage.ResourceHeader{
 				Name:  q.Name,
+				Type:  q.Type,
 				Class: dnsmessage.ClassINET,
 				TTL:   r.TTL(),
 			},
 			Body: resource,
 		})
+	}
+
+	if len(resp.Answers) == 0 {
+		resp.RCode = dnsmessage.RCodeNameError
 	}
 
 	return resp.Pack()

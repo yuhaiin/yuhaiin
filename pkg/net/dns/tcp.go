@@ -9,12 +9,11 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func init() {
-	Register(config.Dns_tcp, func(c dns.Config, p proxy.Proxy) dns.DNS { return NewTCP(c, p) })
+	Register(config.Dns_tcp, NewTCP)
 }
 
 var _ dns.DNS = (*tcp)(nil)
@@ -28,15 +27,11 @@ type tcp struct {
 	tls *tls.Config
 }
 
-func NewTCP(config dns.Config, p proxy.StreamProxy) dns.DNS {
-	return newTCP(config, "53", p)
+func NewTCP(config Config) dns.DNS {
+	return newTCP(config, "53")
 }
 
-func newTCP(config dns.Config, defaultPort string, p proxy.StreamProxy) *tcp {
-	if p == nil {
-		p = direct.Default
-	}
-
+func newTCP(config Config, defaultPort string) *tcp {
 	host := config.Host
 	if i := strings.Index(host, "://"); i != -1 {
 		host = host[i+3:]
@@ -54,7 +49,7 @@ func newTCP(config dns.Config, defaultPort string, p proxy.StreamProxy) *tcp {
 		log.Println(err)
 		addr = proxy.EmptyAddr
 	}
-	d := &tcp{host: addr, proxy: p}
+	d := &tcp{host: addr, proxy: config.Dialer}
 
 	d.client = NewClient(config, func(b []byte) ([]byte, error) {
 		length := len(b) // dns over tcp, prefix two bytes is request data's length
