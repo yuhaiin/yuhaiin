@@ -19,7 +19,7 @@ import (
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
-	logw "github.com/Asutorufa/yuhaiin/pkg/log"
+	ylog "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -39,17 +39,22 @@ type App struct {
 }
 
 type Opts struct {
-	Host       string      `json:"host"`
-	Savepath   string      `json:"savepath"`
-	Socks5     string      `json:"socks5"`
-	Http       string      `json:"http"`
-	SaveLogcat bool        `json:"save_logcat"`
-	IPv6       bool        `json:"ipv6"`
-	Bypass     *Bypass     `json:"bypass"`
-	DNS        *DNSSetting `json:"dns"`
-	TUN        *TUN        `json:"tun"`
+	Host     string      `json:"host"`
+	Savepath string      `json:"savepath"`
+	Socks5   string      `json:"socks5"`
+	Http     string      `json:"http"`
+	IPv6     bool        `json:"ipv6"`
+	Bypass   *Bypass     `json:"bypass"`
+	DNS      *DNSSetting `json:"dns"`
+	TUN      *TUN        `json:"tun"`
+	Log      *Log        `json:"log"`
 }
 
+type Log struct {
+	SaveLogcat bool `json:"save_logcat"`
+	// 0:verbose, 1:debug, 2:info, 3:warning, 4:error, 5: fatal
+	LogLevel int32 `json:"log_level"`
+}
 type Bypass struct {
 	// 0: bypass, 1: proxy, 2: direct, 3: block
 	TCP int32 `json:"tcp"`
@@ -140,17 +145,6 @@ func (a *App) Start(opt *Opts) error {
 
 		log.SetFlags(log.Lshortfile | log.LstdFlags)
 
-		if opt.SaveLogcat {
-			writes := []io.Writer{os.Stdout}
-			f := logw.NewLogWriter(pc.logfile)
-			defer f.Close()
-			writes = append(writes, f)
-			log.SetOutput(io.MultiWriter(writes...))
-		}
-
-		log.Println("\n\n\nsave config at:", pc.dir)
-		log.Println("gRPC and http listen at:", opt.Host)
-
 		// create listener
 		lis, err := net.Listen("tcp", opt.Host)
 		if err != nil {
@@ -159,6 +153,12 @@ func (a *App) Start(opt *Opts) error {
 		defer lis.Close()
 
 		fakeSetting := fakeSetting(opt, pc.config)
+
+		fakeSetting.AddObserver(iconfig.WrapUpdate(func(s *protoconfig.Setting) { ylog.Set(s.GetLogcat(), pc.logfile) }))
+		defer ylog.Close()
+
+		log.Println("\n\n\nsave config at:", pc.dir)
+		log.Println("gRPC and http listen at:", opt.Host)
 
 		// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
 		node := node.NewNodes(pc.node)
@@ -358,6 +358,11 @@ func fakeSetting(opt *Opts, path string) *fakeSettings {
 			Tcp:        protoconfig.BypassMode(opt.Bypass.TCP),
 			Udp:        protoconfig.BypassMode(opt.Bypass.UDP),
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+		},
+
+		Logcat: &protoconfig.Logcat{
+			Level: protoconfig.LogcatLogLevel(opt.Log.LogLevel),
+			Save:  opt.Log.SaveLogcat,
 		},
 	}
 

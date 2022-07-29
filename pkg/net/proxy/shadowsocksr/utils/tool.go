@@ -12,19 +12,19 @@ import (
 
 var hmacPool syncmap.SyncMap[crypto.Hash, *sync.Pool]
 
-func getHmac(hash crypto.Hash, key []byte) customHmac {
+func getHmac(hash crypto.Hash, key []byte) CHmac {
 	z, ok := hmacPool.Load(hash)
 	if !ok {
 		z = &sync.Pool{New: func() interface{} { return NewHmac(hash) }}
 		hmacPool.Store(hash, z)
 	}
 
-	h := z.Get().(customHmac)
-	h.Reset(key)
+	h := z.Get().(CHmac)
+	h.ResetKey(key)
 	return h
 }
 
-func putHmac(h customHmac) {
+func putHmac(h CHmac) {
 	z, ok := hmacPool.Load(h.Hash())
 	if !ok {
 
@@ -50,11 +50,6 @@ func Hmac(c crypto.Hash, key, data, buf []byte) []byte {
 
 var hashPool syncmap.SyncMap[crypto.Hash, *sync.Pool]
 
-type customHash interface {
-	hash.Hash
-	CryptoHash() crypto.Hash
-}
-
 type chash struct {
 	hash.Hash
 	h crypto.Hash
@@ -62,20 +57,20 @@ type chash struct {
 
 func (c chash) CryptoHash() crypto.Hash { return c.h }
 
-func newCHash(c crypto.Hash) customHash { return &chash{h: c, Hash: c.New()} }
+func newCHash(c crypto.Hash) *chash { return &chash{h: c, Hash: c.New()} }
 
-func getHash(ha crypto.Hash) customHash {
+func getHash(ha crypto.Hash) *chash {
 	h, ok := hashPool.Load(ha)
 	if !ok {
 		h = &sync.Pool{New: func() interface{} { return newCHash(ha) }}
 		hashPool.Store(ha, h)
 	}
-	z := h.Get().(customHash)
+	z := h.Get().(*chash)
 	z.Reset()
 	return z
 }
 
-func putHash(hh customHash) {
+func putHash(hh *chash) {
 	h, ok := hashPool.Load(hh.CryptoHash())
 	if !ok {
 		h = &sync.Pool{New: func() interface{} { return newCHash(hh.CryptoHash()) }}

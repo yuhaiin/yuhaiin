@@ -5,12 +5,9 @@ import (
 	"hash"
 )
 
-type customHmac interface {
-	Reset(key []byte)
-	Write(p []byte) (n int, err error)
-	Size() int
-	BlockSize() int
-	Sum(in []byte) []byte
+type CHmac interface {
+	hash.Hash
+	ResetKey(key []byte)
 	Hash() crypto.Hash
 }
 
@@ -48,23 +45,27 @@ func memsetRepeat(a []byte, v byte) {
 	}
 }
 
-func (h *chmac) Reset(key []byte) {
-	blockSize := h.inner.BlockSize()
-	if len(key) > blockSize {
-		h.outer.Reset()
-		// If key is too big, hash it.
-		h.outer.Write(key)
-		key = h.outer.Sum(nil)
-	}
-	memsetRepeat(h.ipad, 0x0)
-	memsetRepeat(h.opad, 0x0)
-	copy(h.ipad, key)
-	copy(h.opad, key)
-	for i := range h.ipad {
-		h.ipad[i] ^= 0x36
-	}
-	for i := range h.opad {
-		h.opad[i] ^= 0x5c
+func (h *chmac) Reset() { h.ResetKey(nil) }
+
+func (h *chmac) ResetKey(key []byte) {
+	if key != nil {
+		blockSize := h.inner.BlockSize()
+		if len(key) > blockSize {
+			h.outer.Reset()
+			// If key is too big, hash it.
+			h.outer.Write(key)
+			key = h.outer.Sum(nil)
+		}
+		memsetRepeat(h.ipad, 0x0)
+		memsetRepeat(h.opad, 0x0)
+		copy(h.ipad, key)
+		copy(h.opad, key)
+		for i := range h.ipad {
+			h.ipad[i] ^= 0x36
+		}
+		for i := range h.opad {
+			h.opad[i] ^= 0x5c
+		}
 	}
 	h.inner.Reset()
 	h.inner.Write(h.ipad)
@@ -76,7 +77,7 @@ func (h *chmac) Reset(key []byte) {
 // Note that unlike other hash implementations in the standard library,
 // the returned Hash does not implement encoding.BinaryMarshaler
 // or encoding.BinaryUnmarshaler.
-func NewHmac(h crypto.Hash) customHmac {
+func NewHmac(h crypto.Hash) CHmac {
 	hm := new(chmac)
 	hm.h = h
 	hm.outer = h.New()
@@ -100,6 +101,4 @@ func NewHmac(h crypto.Hash) customHmac {
 	return hm
 }
 
-func (h *chmac) Hash() crypto.Hash {
-	return h.h
-}
+func (h *chmac) Hash() crypto.Hash { return h.h }

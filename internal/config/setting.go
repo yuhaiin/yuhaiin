@@ -197,6 +197,13 @@ func load(path string) *config.Setting {
 			},
 		}
 	}
+
+	if pa.Logcat == nil {
+		pa.Logcat = &config.Logcat{
+			Level: config.Logcat_debug,
+			Save:  true,
+		}
+	}
 	return pa
 }
 
