@@ -7,7 +7,9 @@ import (
 	"net"
 	"strings"
 
+	ylog "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -69,18 +71,21 @@ func (c *counter) Statistic(_ *emptypb.Empty, srv grpcsts.Connections_StatisticS
 
 func (c *counter) delete(id int64) {
 	if z, ok := c.conns.LoadAndDelete(id); ok {
-		log.Println("close", c.cString(z))
+		ylog.Debugln("close", c.cString(z))
 	}
 }
 
 func (c *counter) storeConnection(o connection) {
-	log.Println(c.cString(o))
+	ylog.Debugf(c.cString(o))
 	c.conns.Store(o.GetId(), o)
 }
 
-func (c *counter) cString(o connection) string {
-	return fmt.Sprintf("%v| <%s[%v]>: %v(%s), %s <-> %s",
-		o.GetId(), o.GetType(), o.GetExtra()[MODE_MARK], o.GetAddr(), getExtra(o), o.GetLocal(), o.GetRemote())
+func (c *counter) cString(o connection) (s string) {
+	if ylog.IsOutput(config.Logcat_debug) {
+		s = fmt.Sprintf("%v| <%s[%v]>: %v(%s), %s <-> %s",
+			o.GetId(), o.GetType(), o.GetExtra()[MODE_MARK], o.GetAddr(), getExtra(o), o.GetLocal(), o.GetRemote())
+	}
+	return
 }
 
 func getExtra(o connection) string {
