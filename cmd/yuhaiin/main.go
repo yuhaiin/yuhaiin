@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -20,7 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/statistic"
 	"github.com/Asutorufa/yuhaiin/internal/version"
-	logw "github.com/Asutorufa/yuhaiin/pkg/log"
+	ylog "github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
@@ -46,13 +45,7 @@ func main() {
 
 	pc := pathConfig(*savepath)
 
-	f := logw.NewLogWriter(pc.logfile)
-	defer f.Close()
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	log.SetOutput(io.MultiWriter(f, os.Stdout))
-
-	log.Println("\n\n\nsave config at:", pc.dir)
-	log.Println("gRPC and http listen at:", *host)
 
 	lock := yerror.Must(lockfile.NewLock(pc.lockfile, *host))
 	defer lock.UnLock()
@@ -70,6 +63,12 @@ func main() {
 	setting := config.NewConfig(pc.config)
 	grpcserver.RegisterService(&grpcconfig.ConfigDao_ServiceDesc, setting)
 
+	setting.AddObserver(config.WrapUpdate(func(s *protoconfig.Setting) { ylog.Set(s.GetLogcat(), pc.logfile) }))
+	defer ylog.Close()
+
+	log.Println("\n\n\nsave config at:", pc.dir)
+	log.Println("gRPC and http listen at:", *host)
+
 	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
 	nodes := node.NewNodes(pc.node)
 	grpcserver.RegisterService(&grpcnode.NodeManager_ServiceDesc, nodes)
@@ -85,6 +84,8 @@ func main() {
 
 	setting.AddObserver(config.WrapUpdate(sysproxy.Update))
 	defer sysproxy.Unset()
+
+	setting.AddObserver(config.WrapUpdate(func(s *protoconfig.Setting) { ylog.SetLevel(s.Logcat.GetLevel()) }))
 
 	mux := http.NewServeMux()
 	simplehttp.Httpserver(mux, nodes, app.Statistic(), setting)

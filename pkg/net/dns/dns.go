@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"container/list"
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -85,8 +85,8 @@ func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
 		optionData.WriteByte(byte(mask)) // mask
 		optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
 
-		i := mask / 8 // cut the ip bytes
-		if mask%8 != 0 {
+		var i int // cut the ip bytes
+		if i = mask / 8; mask%8 != 0 {
 			i++
 		}
 
@@ -167,7 +167,7 @@ func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPResponse,
 		return nil, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
 	}
 
-	log.Printf("%s lookup host [%s] %v success: {ips: %v, ttl: %d}\n",
+	log.Debugf("%s lookup host [%s] %v success: {ips: %v, ttl: %d}\n",
 		c.config.Name, domain, reqType, resp, ttl)
 
 	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
