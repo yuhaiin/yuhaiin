@@ -94,7 +94,6 @@ func ResolveAddr(network string, r io.Reader) (_ proxy.Address, size int, err er
 		hostname = net.IP(buf[:]).String()
 	case domainName:
 		hostname = string(buf)
-		size += 1
 	}
 
 	if _, err = io.ReadFull(r, buf[:2]); err != nil {

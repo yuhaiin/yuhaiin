@@ -159,7 +159,7 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
 	// log.Println("udp server listen on", laddr)
-	writeSecondResp(client, succeeded, laddr)
+	writeSecondResp(client, succeeded, proxy.ParseAddressSplit("udp", "0.0.0.0", laddr.Port().Port()))
 	utils.Copy(io.Discard, client)
 	return l.Close()
 }

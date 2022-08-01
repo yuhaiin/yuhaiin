@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -62,7 +63,7 @@ func NewDoQ(config Config) dns.DNS {
 		}
 
 		d.lock.RLock()
-		con, err := d.connection.OpenStream()
+		con, err := d.connection.OpenStreamSync(context.TODO())
 		if err != nil {
 			return nil, fmt.Errorf("open stream failed: %w", err)
 		}
@@ -70,11 +71,13 @@ func NewDoQ(config Config) dns.DNS {
 
 		err = con.SetWriteDeadline(time.Now().Add(time.Second * 4))
 		if err != nil {
+			con.Close()
 			return nil, fmt.Errorf("set write deadline failed: %w", err)
 		}
 
 		_, err = con.Write(b)
 		if err != nil {
+			con.Close()
 			return nil, fmt.Errorf("write dns req failed: %w", err)
 		}
 
@@ -135,13 +138,9 @@ func (d *doq) initSession() error {
 		d.conn = conn
 	}
 
-	uaddr, err := d.host.UDPAddr()
-	if err != nil {
-		return fmt.Errorf("get host udp addr failed: %w", err)
-	}
-	session, err := quic.DialEarly(
+	session, err := quic.Dial(
 		d.conn,
-		uaddr,
+		d.host,
 		d.host.Hostname(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i00", http2.NextProtoTLS},

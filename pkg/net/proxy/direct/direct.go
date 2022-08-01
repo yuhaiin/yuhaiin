@@ -27,5 +27,36 @@ func (d *direct) Conn(s proxy.Address) (net.Conn, error) {
 }
 
 func (d *direct) PacketConn(proxy.Address) (net.PacketConn, error) {
-	return dialer.ListenPacket("udp", "")
+	p, err := dialer.ListenPacket("udp", "")
+	if err != nil {
+		return nil, fmt.Errorf("listen packet failed: %w", err)
+	}
+
+	return &packetConn{PacketConn: p}, nil
+}
+
+type packetConn struct{ net.PacketConn }
+
+func (p *packetConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
+	switch z := addr.(type) {
+	case *net.UDPAddr:
+	case proxy.Address:
+		addr, err = z.UDPAddr()
+		if err != nil {
+			return 0, err
+		}
+	default:
+		a, err := proxy.ParseSysAddr(addr)
+		if err != nil {
+			return 0, err
+		}
+		addr, err = a.UDPAddr()
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	// log.Println("write to", addr, len(b))
+
+	return p.PacketConn.WriteTo(b, addr)
 }

@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	yerror "github.com/Asutorufa/yuhaiin/pkg/utils/error"
 )
 
 // https://tools.ietf.org/html/rfc1928
@@ -131,7 +130,10 @@ func (s *client) handshake2(conn net.Conn, cmd cmd, address proxy.Address) (targ
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
-	addr = proxy.ParseAddressSplit("", s.hostname, addr.Port().Port())
+
+	if addr.Type() == proxy.IP && yerror.Must(addr.IP()).IsUnspecified() {
+		addr = proxy.ParseAddressSplit("", s.hostname, addr.Port().Port())
+	}
 
 	return addr, nil
 }
@@ -154,15 +156,16 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("second hand failed: %v", err)
 	}
 
+	pc, err := dialer.ListenPacket("udp", "")
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("listen udp failed: %v", err)
+	}
+
 	go func() {
-		t := time.NewTicker(time.Second * 3)
-		for range t.C {
-			_, err := conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-			if err != nil {
-				log.Printf("write udp response failed: %v", err)
-				break
-			}
-		}
+		io.Copy(io.Discard, conn)
+		conn.Close()
+		pc.Close()
 	}()
 
 	uaddr, err := addr.UDPAddr()
@@ -170,7 +173,7 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("get udp addr failed: %w", err)
 	}
 
-	conn2, err := newSocks5PacketConn(host, uaddr, conn)
+	conn2, err := newSocks5PacketConn(uaddr, conn, pc)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("new socks5 packet conn failed: %v", err)
@@ -181,19 +184,13 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 
 type socks5PacketConn struct {
 	net.PacketConn
-	addr   []byte
 	server net.Addr
 
 	tcp net.Conn
 }
 
-func newSocks5PacketConn(address proxy.Address, server net.Addr, tcp net.Conn) (net.PacketConn, error) {
-	conn, err := dialer.ListenPacket("udp", "")
-	if err != nil {
-		return nil, fmt.Errorf("create packet failed: %v", err)
-	}
-
-	return &socks5PacketConn{conn, ParseAddr(address), server, tcp}, nil
+func newSocks5PacketConn(server net.Addr, tcp net.Conn, local net.PacketConn) (net.PacketConn, error) {
+	return &socks5PacketConn{local, server, tcp}, nil
 }
 
 func (s *socks5PacketConn) Close() error {
@@ -201,26 +198,44 @@ func (s *socks5PacketConn) Close() error {
 	return s.PacketConn.Close()
 }
 
-func (s *socks5PacketConn) WriteTo(p []byte, _ net.Addr) (int, error) {
-	return s.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, s.addr, p}, []byte{}), s.server)
+func (s *socks5PacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
+	ad, ok := addr.(proxy.Address)
+	if !ok {
+		ad, err = proxy.ParseSysAddr(addr)
+		if err != nil {
+			return 0, fmt.Errorf("parse addr failed: %v", err)
+		}
+	}
+	return s.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, ParseAddr(ad), p}, []byte{}), s.server)
 }
 
 func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
-	z := make([]byte, len(p))
-	n, addr, err := s.PacketConn.ReadFrom(z)
+	n, addr, err := s.PacketConn.ReadFrom(p)
 	if err != nil {
 		return 0, addr, fmt.Errorf("read from remote failed: %v", err)
 	}
 
-	prefix := 3 + len(s.addr)
-
-	if n < prefix {
-		return 0, addr, fmt.Errorf("slice out of range, get: %d less %d", n, 3+len(s.addr))
+	adr, size, err := ResolveAddr("udp", bytes.NewReader(p[3:n]))
+	if err != nil {
+		return 0, addr, fmt.Errorf("resolve addr failed: %v", err)
 	}
 
-	copy(p[0:], z[prefix:n])
-	// log.Printf("z: %v,\n p: %v\n", z[:], p[:])
-	return n - prefix, addr, nil
+	uaddr, err := adr.UDPAddr()
+	if err != nil {
+		return 0, addr, fmt.Errorf("get udp addr failed: %v", err)
+	}
+
+	prefix := 3 + size
+
+	// log.Println("read from remote", n, addr, adr, "prefix", prefix)
+
+	if n < prefix {
+		return 0, addr, fmt.Errorf("slice out of range, get: %d less %d", n, prefix)
+	}
+
+	copy(p[0:], p[prefix:n])
+
+	return n - prefix, uaddr, nil
 }
 
 // The client connects to the server, and sends a version
