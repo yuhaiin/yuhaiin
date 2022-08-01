@@ -53,11 +53,7 @@ func NewDoU(config Config) dns.DNS {
 				return nil, fmt.Errorf("set read deadline failed: %v", err)
 			}
 
-			uaddr, err := add.UDPAddr()
-			if err != nil {
-				return nil, fmt.Errorf("get udp addr failed: %w", err)
-			}
-			_, err = conn.WriteTo(req, uaddr)
+			_, err = conn.WriteTo(req, add)
 			if err != nil {
 				return nil, err
 			}
