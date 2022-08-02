@@ -138,12 +138,12 @@ func (d *doq) initSession() error {
 		d.conn = conn
 	}
 
-	session, err := quic.Dial(
+	session, err := quic.DialEarly(
 		d.conn,
 		d.host,
 		d.host.Hostname(),
 		&tls.Config{
-			NextProtos: []string{"http/1.1", "doq-i00", http2.NextProtoTLS},
+			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},
 			ServerName: d.servername,
 		},
 		&quic.Config{

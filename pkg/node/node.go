@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -263,9 +264,9 @@ func (n *Nodes) oneLinkGet(c context.Context, client *http.Client, link *node.No
 	if err != nil {
 		return fmt.Errorf("read body failed: %v", err)
 	}
-	dst, err := parser.DecodeBytesBase64(body)
-	if err != nil {
-		return fmt.Errorf("decode body failed: %v", err)
+	dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(body)))
+	if _, err = base64.RawStdEncoding.Decode(dst, bytes.TrimRight(body, "=")); err != nil {
+		return fmt.Errorf("decode body failed: %w, body: %v", err, string(body))
 	}
 	n.manager.DeleteRemoteNodes(link.Name)
 	for _, x := range bytes.Split(dst, []byte("\n")) {

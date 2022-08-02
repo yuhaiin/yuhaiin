@@ -1,14 +1,16 @@
 package parser
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
-	"log"
 	"net"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -22,9 +24,12 @@ func init() {
 		server, portstr := ssUrl.Hostname(), ssUrl.Port()
 
 		var method, password string
-		mps := DecodeUrlBase64(ssUrl.User.String())
-		if i := strings.IndexByte(mps, ':'); i != -1 {
-			method, password = mps[:i], mps[i+1:]
+		mps, err := base64.RawURLEncoding.DecodeString(ssUrl.User.String())
+		if err != nil {
+			log.Warningf("parse shadowsocks user failed: %v", err)
+		}
+		if i := bytes.IndexByte(mps, ':'); i != -1 {
+			method, password = string(mps[:i]), string(mps[i+1:])
 		}
 
 		var plugin *node.PointProtocol
@@ -89,13 +94,13 @@ func parseV2ray(store map[string]string) (*node.PointProtocol, error) {
 	if store["cert"] != "" {
 		cert, err = os.ReadFile(store["cert"])
 		if err != nil {
-			log.Printf("read cert file failed: %v", err)
+			log.Warningf("read cert file failed: %v", err)
 		}
 	}
 
 	ns, _, err := net.SplitHostPort(store["host"])
 	if err != nil {
-		log.Printf("split host and port failed: %v", err)
+		log.Warningf("split host and port failed: %v", err)
 		ns = store["host"]
 	}
 

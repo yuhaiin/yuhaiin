@@ -1,8 +1,8 @@
 package parser
 
 import (
-	context "context"
-	"io/ioutil"
+	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -57,7 +57,7 @@ func TestTrojan(t *testing.T) {
 	t.Error(err)
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	t.Log(string(data))
 }

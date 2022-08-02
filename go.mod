@@ -1,20 +1,20 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.18
+go 1.19
 
 require (
-	github.com/lucas-clemente/quic-go v0.28.0
+	github.com/lucas-clemente/quic-go v0.28.1
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	github.com/spf13/cobra v1.4.0
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
-	golang.org/x/mobile v0.0.0-20220518205345-8578da9835fd
-	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e
-	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68
-	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
+	golang.org/x/mobile v0.0.0-20220722155234-aaac322e2105
+	golang.org/x/net v0.0.0-20220802222814-0bcc04d9c69b
+	golang.org/x/sys v0.0.0-20220731174439-a90be440212d
+	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
 	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.28.0
-	gvisor.dev/gvisor v0.0.0-20220722234115-e3e6499abbba
+	google.golang.org/protobuf v1.28.1
+	gvisor.dev/gvisor v0.0.0-20220803014006-aa41c8be0ab7
 )
 
 require (
