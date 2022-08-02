@@ -2,9 +2,9 @@ package vmess
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/binary"
@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -53,7 +54,6 @@ var _ net.Conn = (*Conn)(nil)
 // Client vmess client
 type Client struct {
 	users    []*User
-	count    int
 	opt      byte
 	security byte
 
@@ -66,9 +66,7 @@ type Conn struct {
 	opt      byte
 	security byte
 
-	atyp Atyp
-	addr Addr
-	port Port
+	addr address
 
 	reqBodyIV   [16]byte
 	reqBodyKey  [16]byte
@@ -96,7 +94,6 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 	user := NewUser(uuid)
 	c.users = append(c.users, user)
 	c.users = append(c.users, user.GenAlterIDUsers(alterID)...)
-	c.count = len(c.users)
 
 	c.opt = OptChunkStream
 
@@ -151,14 +148,14 @@ func (c *Client) NewPacketConn(rc net.Conn, target proxy.Address) (net.PacketCon
 func (c *Client) newConn(rc net.Conn, cmd CMD, target proxy.Address) (*Conn, error) {
 	conn := &Conn{
 		isAead:   c.isAead,
-		user:     c.users[rand.Intn(c.count)],
+		user:     c.users[rand.Intn(len(c.users))],
 		opt:      c.opt,
 		security: c.security,
 		CMD:      cmd,
 	}
 
 	var err error
-	conn.atyp, conn.addr, conn.port, err = ParseAddr(target)
+	conn.addr, err = ParseAddr(target)
 	if err != nil {
 		return nil, fmt.Errorf("parse target address failed: %w", err)
 	}
@@ -171,17 +168,9 @@ func (c *Client) newConn(rc net.Conn, cmd CMD, target proxy.Address) (*Conn, err
 	conn.reqRespV = randBytes[32]
 
 	if !c.isAead {
-		// !none aead
 		conn.respBodyIV = md5.Sum(conn.reqBodyIV[:])
 		conn.respBodyKey = md5.Sum(conn.reqBodyKey[:])
-
-		// AuthInfo
-		_, err = rc.Write(conn.EncodeAuthInfo())
-		if err != nil {
-			return nil, err
-		}
 	} else {
-		// aead
 		rbIV := sha256.Sum256(conn.reqBodyIV[:])
 		copy(conn.respBodyIV[:], rbIV[:16])
 		rbKey := sha256.Sum256(conn.reqBodyKey[:])
@@ -204,19 +193,11 @@ func (c *Client) newConn(rc net.Conn, cmd CMD, target proxy.Address) (*Conn, err
 	return conn, nil
 }
 
-// EncodeAuthInfo returns HMAC("md5", UUID, UTC) result
-func (c *Conn) EncodeAuthInfo() []byte {
-	ts := make([]byte, 8)
-	binary.BigEndian.PutUint64(ts, uint64(time.Now().UTC().Unix()))
-
-	h := hmac.New(md5.New, c.user.UUID[:])
-	h.Write(ts)
-
-	return h.Sum(nil)
-}
+func (c *Conn) RemoteAddr() net.Addr { return c.addr.origin }
 
 // EncodeRequest encodes requests to network bytes
 func (c *Conn) EncodeRequest() ([]byte, error) {
+
 	buf := new(bytes.Buffer)
 
 	// Request
@@ -228,21 +209,17 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 
 	// pLen and Sec
 	paddingLen := rand.Intn(16)
-	pSec := byte(paddingLen<<4) | c.security // P(4bit) and Sec(4bit)
-	buf.WriteByte(pSec)
+	buf.WriteByte(byte(paddingLen<<4) | c.security) // P(4bit) and Sec(4bit)
 
 	buf.WriteByte(0) // reserved
 
 	buf.WriteByte(c.CMD.Byte()) // cmd
 
 	// target
-	err := binary.Write(buf, binary.BigEndian, uint16(c.port)) // port
-	if err != nil {
-		return nil, err
-	}
+	binary.Write(buf, binary.BigEndian, uint16(c.addr.port)) // port
 
-	buf.WriteByte(byte(c.atyp)) // atyp
-	buf.Write(c.addr)           // addr
+	buf.WriteByte(byte(c.addr.atyp)) // atyp
+	buf.Write(c.addr.addr)           // addr
 
 	// padding
 	if paddingLen > 0 {
@@ -253,22 +230,24 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 
 	// F
 	fnv1a := fnv.New32a()
-	_, err = fnv1a.Write(buf.Bytes())
-	if err != nil {
-		return nil, err
-	}
+	fnv1a.Write(buf.Bytes())
 	buf.Write(fnv1a.Sum(nil))
 
 	if !c.isAead {
-		// !none aead
+		now := time.Now().UTC()
 		block, err := aes.NewCipher(c.user.CmdKey[:])
 		if err != nil {
 			return nil, err
 		}
-
-		stream := cipher.NewCFBEncrypter(block, TimestampHash(time.Now().UTC()))
+		stream := cipher.NewCFBEncrypter(block, TimestampHash(now))
 		stream.XORKeyStream(buf.Bytes(), buf.Bytes())
-		return buf.Bytes(), nil
+
+		abuf := new(bytes.Buffer)
+		ts := make([]byte, 8)
+		binary.BigEndian.PutUint64(ts, uint64(now.Unix()))
+		abuf.Write(ssr.Hmac(crypto.MD5, c.user.UUID[:], ts, nil))
+		abuf.Write(buf.Bytes())
+		return abuf.Bytes(), nil
 	}
 
 	// aead
@@ -322,12 +301,13 @@ func (c *Conn) DecodeRespHeader() error {
 }
 
 func (c *Conn) Write(b []byte) (n int, err error) {
-	if c.dataWriter != nil {
-		return c.dataWriter.Write(b)
-	}
+	for {
+		if c.dataWriter != nil {
+			return c.dataWriter.Write(b)
+		}
 
-	c.initWriter()
-	return c.dataWriter.Write(b)
+		c.initWriter()
+	}
 }
 
 func (c *Conn) initWriter() {

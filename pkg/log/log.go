@@ -10,6 +10,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
+func init() {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+}
+
 var writer *FileWriter
 var lock sync.Mutex
 
@@ -88,5 +92,11 @@ func Errorf(format string, v ...any) {
 func Errorln(v ...any) {
 	if level <= config.Logcat_error {
 		log.Output(2, fmt.Sprintln(v...))
+	}
+}
+
+func Output(depth int, lev config.LogcatLogLevel, format string, v ...any) {
+	if level <= lev {
+		log.Output(depth+1, fmt.Sprintf(format, v...))
 	}
 }

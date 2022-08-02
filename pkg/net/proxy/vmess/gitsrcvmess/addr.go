@@ -18,6 +18,13 @@ const (
 	AtypIP6    Atyp = 3
 )
 
+type address struct {
+	atyp   Atyp
+	addr   Addr
+	port   Port
+	origin proxy.Address
+}
+
 // Addr is vmess addr
 type Addr []byte
 
@@ -25,32 +32,31 @@ type Addr []byte
 type Port uint16
 
 // ParseAddr parses the address in string s
-func ParseAddr(s proxy.Address) (Atyp, Addr, Port, error) {
+func ParseAddr(s proxy.Address) (address, error) {
 	var atyp Atyp
 	var addr Addr
 
 	if s.Type() == proxy.DOMAIN {
-		if len(s.Hostname()) > 255 {
-			return 0, nil, 0, fmt.Errorf("addr length over 255")
-		}
 		atyp = AtypDomain
-		addr = append([]byte{byte(len(s.Hostname()))}, []byte(s.Hostname())...)
-	}
-
-	ip, err := s.IP()
-	if err != nil {
-		return 0, nil, 0, fmt.Errorf("invalid addr: %w", err)
-	}
-
-	if ip4 := ip.To4(); ip4 != nil {
-		addr = make([]byte, net.IPv4len)
-		atyp = AtypIP4
-		copy(addr[:], ip4)
+		addr = make([]byte, len(s.Hostname())+1)
+		addr[0] = byte(len(s.Hostname()))
+		copy(addr[1:], s.Hostname())
 	} else {
-		addr = make([]byte, net.IPv6len)
-		atyp = AtypIP6
-		copy(addr[:], ip)
+		ip, err := s.IP()
+		if err != nil {
+			return address{}, fmt.Errorf("invalid addr: %w", err)
+		}
+
+		if ip4 := ip.To4(); ip4 != nil {
+			addr = make([]byte, net.IPv4len)
+			atyp = AtypIP4
+			copy(addr[:], ip4)
+		} else {
+			addr = make([]byte, net.IPv6len)
+			atyp = AtypIP6
+			copy(addr[:], ip.To16())
+		}
 	}
 
-	return atyp, addr, Port(s.Port().Port()), nil
+	return address{atyp, addr, Port(s.Port().Port()), s}, nil
 }

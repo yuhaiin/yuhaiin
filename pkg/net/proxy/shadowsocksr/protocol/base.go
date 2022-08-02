@@ -34,14 +34,14 @@ type IProtocol interface {
 
 type AuthData struct {
 	clientID     []byte
-	connectionID uint32
+	connectionID atomic.Uint32
 
 	lock sync.Mutex
 }
 
 func (a *AuthData) nextAuth() {
-	if a.connectionID <= 0xFF000000 && len(a.clientID) != 0 {
-		atomic.AddUint32(&a.connectionID, 1)
+	if a.connectionID.Load() <= 0xFF000000 && len(a.clientID) != 0 {
+		a.connectionID.Add(1)
 		return
 	}
 
@@ -49,7 +49,7 @@ func (a *AuthData) nextAuth() {
 	defer a.lock.Unlock()
 	a.clientID = make([]byte, 8)
 	rand.Read(a.clientID)
-	atomic.StoreUint32(&a.connectionID, rand.Uint32()&0xFFFFFF)
+	a.connectionID.Store(rand.Uint32() & 0xFFFFFF)
 }
 
 func register(name string, c creator) {

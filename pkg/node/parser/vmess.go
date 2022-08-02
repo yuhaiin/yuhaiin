@@ -2,12 +2,13 @@ package parser
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	sysnet "net"
 	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -76,8 +77,14 @@ func init() {
 			V     string `json:"v,omitempty"`
 			Class int64  `json:"class,omitempty"`
 		}{}
-		err := json.Unmarshal(trim(DecodeBase64Bytes(bytes.TrimSpace(bytes.TrimPrefix(data, []byte("vmess://"))))), &n)
+
+		data = bytes.TrimRight(bytes.TrimSpace(bytes.TrimPrefix(data, []byte("vmess://"))), "=")
+		dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(data)))
+		_, err := base64.RawStdEncoding.Decode(dst, data)
 		if err != nil {
+			log.Warningln("base64 decode failed: ", err, string(data), len(data))
+		}
+		if err := json.Unmarshal(trim(dst), &n); err != nil {
 			return nil, err
 		}
 
@@ -108,7 +115,7 @@ func init() {
 			if n.Sni == "" {
 				n.Sni, _, err = sysnet.SplitHostPort(n.Host)
 				if err != nil {
-					log.Printf("split host and port failed: %v", err)
+					log.Warningf("split host and port failed: %v", err)
 					n.Sni = n.Host
 				}
 			}

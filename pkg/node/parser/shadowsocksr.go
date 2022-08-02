@@ -2,18 +2,27 @@ package parser
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"net/url"
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	yerror "github.com/Asutorufa/yuhaiin/pkg/utils/error"
 )
 
 func init() {
 	store.Store(node.NodeLink_shadowsocksr, func(data []byte) (*node.Point, error) {
+		data = bytes.TrimPrefix(data, []byte("ssr://"))
+		dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(data)))
+		_, err := base64.RawURLEncoding.Decode(dst, data)
+		if err != nil {
+			log.Warningf("parse shadowsocksr failed: %v, %v", err, string(data))
+		}
 		// ParseLink parse a base64 encode ssr link
-		decodeStr := bytes.Split(DecodeUrlBase64Bytes(bytes.TrimPrefix(data, []byte("ssr://"))), []byte{'/', '?'})
+		decodeStr := bytes.Split(dst, []byte{'/', '?'})
 
 		x := strings.Split(string(decodeStr[0]), ":")
 		if len(x) != 6 {
@@ -29,9 +38,14 @@ func init() {
 			return nil, errors.New("invalid port")
 		}
 
+		password, err := base64.RawURLEncoding.DecodeString(x[5])
+		if err != nil {
+			log.Warningln("parse shadowsocksr password failed:", err)
+		}
+
 		return &node.Point{
 			Origin: node.Point_remote,
-			Name:   "[ssr]" + DecodeUrlBase64(query.Get("remarks")),
+			Name:   "[ssr]" + string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("remarks")))),
 			Protocols: []*node.PointProtocol{
 				{
 					Protocol: &node.PointProtocol_Simple{
@@ -49,9 +63,9 @@ func init() {
 							Protocol:   x[2],
 							Method:     x[3],
 							Obfs:       x[4],
-							Password:   DecodeUrlBase64(x[5]),
-							Obfsparam:  DecodeUrlBase64(query.Get("obfsparam")),
-							Protoparam: DecodeUrlBase64(query.Get("protoparam")),
+							Password:   string(password),
+							Obfsparam:  string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("obfsparam")))),
+							Protoparam: string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("protoparam")))),
 						},
 					},
 				},
