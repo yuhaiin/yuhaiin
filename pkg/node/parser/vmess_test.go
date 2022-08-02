@@ -3,7 +3,7 @@ package parser
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -73,7 +73,7 @@ func TestVmess(t *testing.T) {
 	resp, err := tt.Do(&req)
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	t.Log(string(data))
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
-//Vmess vmess client
+// Vmess vmess client
 type Vmess struct {
 	client *gcvmess.Client
 	dial   proxy.Proxy
@@ -31,7 +31,7 @@ func NewVmess(config *node.PointProtocol_Vmess) node.WrapProxy {
 	}
 }
 
-//Conn create a connection for host
+// Conn create a connection for host
 func (v *Vmess) Conn(host proxy.Address) (conn net.Conn, err error) {
 	c, err := v.dial.Conn(host)
 	if err != nil {
@@ -46,12 +46,13 @@ func (v *Vmess) Conn(host proxy.Address) (conn net.Conn, err error) {
 	return conn, nil
 }
 
-//PacketConn packet transport connection
+// PacketConn packet transport connection
 func (v *Vmess) PacketConn(host proxy.Address) (conn net.PacketConn, err error) {
 	c, err := v.dial.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
+
 	conn, err = v.client.NewPacketConn(c, host)
 	if err != nil {
 		c.Close()

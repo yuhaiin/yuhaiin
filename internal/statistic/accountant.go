@@ -13,9 +13,9 @@ import (
 )
 
 type accountant struct {
-	download, upload uint64
+	download, upload atomic.Uint64
 
-	clientCount int64
+	clientCount atomic.Int64
 
 	started chan bool
 
@@ -24,18 +24,13 @@ type accountant struct {
 	lock    sync.Mutex
 }
 
-func (c *accountant) AddDownload(n uint64) {
-	atomic.AddUint64(&c.download, uint64(n))
-}
-
-func (c *accountant) AddUpload(n uint64) {
-	atomic.AddUint64(&c.upload, uint64(n))
-}
+func (c *accountant) AddDownload(n uint64) { c.download.Add(n) }
+func (c *accountant) AddUpload(n uint64)   { c.upload.Add(n) }
 
 func (c *accountant) start() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	atomic.AddInt64(&c.clientCount, 1)
+	c.clientCount.Add(1)
 	if c.started != nil {
 		select {
 		case <-c.started:
@@ -51,7 +46,7 @@ func (c *accountant) start() {
 	}
 
 	go func() {
-		dw, up := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
+		dw, up := c.download.Load(), c.upload.Load()
 
 		for {
 			select {
@@ -63,7 +58,7 @@ func (c *accountant) start() {
 				}
 			}
 
-			d, u := atomic.LoadUint64(&c.download), atomic.LoadUint64(&c.upload)
+			d, u := c.download.Load(), c.upload.Load()
 
 			c.clients.Range(
 				func(key int64, value func(*statistic.RateResp) error) bool {
@@ -89,8 +84,8 @@ func (c *accountant) start() {
 func (c *accountant) stop() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	atomic.AddInt64(&c.clientCount, -1)
-	if atomic.LoadInt64(&c.clientCount) > 0 {
+	c.clientCount.Add(-1)
+	if c.clientCount.Load() > 0 {
 		return
 	}
 

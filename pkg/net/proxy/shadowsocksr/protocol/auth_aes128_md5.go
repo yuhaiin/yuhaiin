@@ -199,7 +199,7 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	a.auth.nextAuth()
 	binary.LittleEndian.PutUint32(encrypt[0:4], uint32(time.Now().Unix()))
 	copy(encrypt[4:], a.auth.clientID)
-	binary.LittleEndian.PutUint32(encrypt[8:], a.auth.connectionID)
+	binary.LittleEndian.PutUint32(encrypt[8:], a.auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(outLength))
 	binary.LittleEndian.PutUint16(encrypt[14:], uint16(randLength))
 

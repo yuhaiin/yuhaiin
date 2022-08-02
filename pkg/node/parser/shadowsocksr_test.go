@@ -1,8 +1,8 @@
 package parser
 
 import (
-	context "context"
-	"io/ioutil"
+	"context"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -74,7 +74,7 @@ func TestConnections(t *testing.T) {
 	resp, err := tt.Do(&req)
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	t.Log(string(data))
 }
@@ -120,7 +120,7 @@ func TestConnectionSsr(t *testing.T) {
 	}
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	t.Log(string(data))
 }
@@ -155,7 +155,7 @@ func TestSSr(t *testing.T) {
 	t.Error(err)
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	t.Log(string(data))
 }

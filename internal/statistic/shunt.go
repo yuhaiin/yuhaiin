@@ -7,7 +7,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -48,12 +48,12 @@ func writeDefaultBypassData(target string) error {
 	}
 	defer gr.Close()
 
-	data, err := ioutil.ReadAll(gr)
+	data, err := io.ReadAll(gr)
 	if err != nil {
 		return fmt.Errorf("read gzip data failed: %w", err)
 	}
 
-	return ioutil.WriteFile(target, data, os.ModePerm)
+	return os.WriteFile(target, data, os.ModePerm)
 }
 
 var (
