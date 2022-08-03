@@ -26,3 +26,11 @@ type DNSServer interface {
 	HandleUDP(net.PacketConn) error
 	HandleTCP(net.Conn) error
 }
+
+var EmptyDNSServer DNSServer = &emptyDNSServer{}
+
+type emptyDNSServer struct{}
+
+func (e *emptyDNSServer) Close() error                   { return nil }
+func (e *emptyDNSServer) HandleUDP(net.PacketConn) error { return io.EOF }
+func (e *emptyDNSServer) HandleTCP(net.Conn) error       { return io.EOF }

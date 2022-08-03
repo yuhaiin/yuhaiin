@@ -4,10 +4,11 @@ import (
 	"math/rand"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	yerr "github.com/Asutorufa/yuhaiin/pkg/utils/error"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 type combine[T any] struct {
@@ -30,12 +31,12 @@ func (x *combine[T]) Insert(str string, mark T) {
 	}
 }
 
-func (x *combine[T]) Search(str proxy.Address) (mark T, ok bool) {
-	if str.Type() == proxy.IP {
-		return x.cidr.SearchIP(yerr.Must(str.IP()))
+func (x *combine[T]) Search(addr proxy.Address) (mark T, ok bool) {
+	if addr.Type() == proxy.IP {
+		return x.cidr.SearchIP(yerror.Must(addr.IP()))
 	}
 
-	if mark, ok = x.domain.Search(str); ok {
+	if mark, ok = x.domain.Search(addr); ok {
 		return
 	}
 
@@ -43,8 +44,10 @@ func (x *combine[T]) Search(str proxy.Address) (mark T, ok bool) {
 		return
 	}
 
-	if ips, err := x.dns.LookupIP(str.Hostname()); err == nil {
+	if ips, err := x.dns.LookupIP(addr.Hostname()); err == nil {
 		mark, ok = x.cidr.SearchIP(ips[rand.Intn(len(ips))])
+	} else {
+		log.Warningf("dns lookup %v failed: %v, skip match ip", addr, err)
 	}
 
 	return

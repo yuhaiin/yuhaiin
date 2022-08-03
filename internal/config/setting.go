@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/url"
@@ -19,7 +18,21 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-type iconfig struct {
+type Setting interface {
+	grpcconfig.ConfigDaoServer
+	AddObserver(Observer)
+}
+
+type Observer interface {
+	Update(*config.Setting)
+}
+
+type observer struct{ u func(s *config.Setting) }
+
+func (w *observer) Update(s *config.Setting)       { w.u(s) }
+func NewObserver(u func(*config.Setting)) Observer { return &observer{u} }
+
+type settingImpl struct {
 	grpcconfig.UnimplementedConfigDaoServer
 	current *config.Setting
 	path    string
@@ -29,19 +42,19 @@ type iconfig struct {
 	lock sync.RWMutex
 }
 
-func NewConfig(dir string) *iconfig {
+func NewConfig(dir string) Setting {
 	c := load(dir)
-	cf := &iconfig{current: c, path: dir}
+	cf := &settingImpl{current: c, path: dir}
 	return cf
 }
 
-func (c *iconfig) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
+func (c *settingImpl) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.current, nil
 }
 
-func (c *iconfig) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
+func (c *settingImpl) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -65,11 +78,7 @@ func (c *iconfig) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, er
 	return &emptypb.Empty{}, nil
 }
 
-type Observer interface {
-	Update(*config.Setting)
-}
-
-func (c *iconfig) AddObserver(o Observer) {
+func (c *settingImpl) AddObserver(o Observer) {
 	if o == nil {
 		return
 	}
@@ -80,22 +89,10 @@ func (c *iconfig) AddObserver(o Observer) {
 	o.Update(c.current)
 }
 
-type wrap struct {
-	u func(s *config.Setting)
-}
-
-func (w *wrap) Update(s *config.Setting) {
-	w.u(s)
-}
-
-func WrapUpdate(u func(*config.Setting)) Observer {
-	return &wrap{u}
-}
-
 func load(path string) *config.Setting {
 	pa := &config.Setting{}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Printf("read config file failed: %v\n", err)
 		data = []byte{'{', '}'}
@@ -225,7 +222,7 @@ func save(pa *config.Setting, dir string) error {
 		return fmt.Errorf("marshal setting failed: %v", err)
 	}
 
-	return ioutil.WriteFile(dir, data, os.ModePerm)
+	return os.WriteFile(dir, data, os.ModePerm)
 }
 
 func check(pa *config.Setting) error {

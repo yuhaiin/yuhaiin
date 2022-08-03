@@ -8,12 +8,12 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
-//Shadowsocks shadowsocks
+// Shadowsocks shadowsocks
 type Shadowsocks struct {
 	cipher core.Cipher
 	p      proxy.Proxy
@@ -33,7 +33,7 @@ func NewShadowsocks(config *node.PointProtocol_Shadowsocks) node.WrapProxy {
 	}
 }
 
-//Conn .
+// Conn .
 func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
 	conn, err = s.p.Conn(addr)
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
 	return conn, nil
 }
 
-//PacketConn .
+// PacketConn .
 func (s *Shadowsocks) PacketConn(tar proxy.Address) (net.PacketConn, error) {
 	pc, err := s.p.PacketConn(tar)
 	if err != nil {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -91,7 +91,7 @@ func NewDoQ(config Config) dns.DNS {
 			return nil, fmt.Errorf("set read deadline failed: %w", err)
 		}
 
-		data, err := ioutil.ReadAll(con)
+		data, err := io.ReadAll(con)
 		if err != nil {
 			return nil, fmt.Errorf("read dns server response failed: %w", err)
 		}

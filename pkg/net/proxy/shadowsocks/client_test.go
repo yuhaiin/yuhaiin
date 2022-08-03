@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -63,7 +63,7 @@ func TestConn(t *testing.T) {
 	resp, err := cc.Get("http://ip.sb")
 	assert.NoError(t, err)
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
 	t.Log(string(data))

@@ -17,14 +17,14 @@ import (
 )
 
 type dnsServer struct {
-	server      string
-	processor   func(proxy.Address) dns.DNS
-	listener    net.PacketConn
-	tcpListener net.Listener
+	server        string
+	resolverProxy proxy.ResolverProxy
+	listener      net.PacketConn
+	tcpListener   net.Listener
 }
 
-func NewDnsServer(server string, process func(proxy.Address) dns.DNS) server.DNSServer {
-	d := &dnsServer{server: server, processor: process}
+func NewDnsServer(server string, process proxy.ResolverProxy) server.DNSServer {
+	d := &dnsServer{server: server, resolverProxy: process}
 
 	if server == "" {
 		log.Println("dns server is empty, skip to listen tcp and udp")
@@ -172,7 +172,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
 		q.Type != dnsmessage.TypePTR {
 		log.Println(q.Type, "not a, aaaa or ptr")
-		return d.processor(add).Do(b)
+		return d.resolverProxy.Resolver(add).Do(b)
 	}
 
 	resp := dnsmessage.Message{
@@ -193,7 +193,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 		},
 	}
 
-	processor := d.processor(add)
+	processor := d.resolverProxy.Resolver(add)
 
 	// PTR
 	if q.Type == dnsmessage.TypePTR {

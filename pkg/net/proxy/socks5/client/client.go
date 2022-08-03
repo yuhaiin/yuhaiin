@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	yerror "github.com/Asutorufa/yuhaiin/pkg/utils/error"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 // https://tools.ietf.org/html/rfc1928

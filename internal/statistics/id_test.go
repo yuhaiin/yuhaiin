@@ -1,4 +1,4 @@
-package statistic
+package statistics
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestIDGenerate(t *testing.T) {
-	var idGenerater idGenerater
+	var idGenerater IDGenerator
 
 	assert.Equal(t, int64(1), idGenerater.Generate())
 	assert.Equal(t, int64(2), idGenerater.Generate())

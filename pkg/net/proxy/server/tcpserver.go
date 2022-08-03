@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"runtime"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 )
 
@@ -17,18 +17,8 @@ type tcpserver struct {
 	listener net.Listener
 }
 
-type tcpOpt struct {
-	config net.ListenConfig
-}
-
-func TCPWithListenConfig(n net.ListenConfig) func(u *tcpOpt) {
-	return func(u *tcpOpt) {
-		u.config = n
-	}
-}
-
 // NewTCPServer create new TCP listener
-func NewTCPServer(host string, handle func(net.Conn), opt ...func(*tcpOpt)) (server.Server, error) {
+func NewTCPServer(host string, handle func(net.Conn)) (server.Server, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host is empty")
 	}
@@ -37,22 +27,16 @@ func NewTCPServer(host string, handle func(net.Conn), opt ...func(*tcpOpt)) (ser
 		return nil, fmt.Errorf("handle is empty")
 	}
 
-	s := &tcpOpt{config: net.ListenConfig{}}
-
-	for i := range opt {
-		opt[i](s)
-	}
-
 	tcp := &tcpserver{}
-	err := tcp.run(host, s.config, handle)
+	err := tcp.run(host, handle)
 	if err != nil {
 		return nil, fmt.Errorf("tcp server run failed: %v", err)
 	}
 	return tcp, nil
 }
 
-func (t *tcpserver) run(host string, config net.ListenConfig, handle func(net.Conn)) (err error) {
-	t.listener, err = config.Listen(context.TODO(), "tcp", host)
+func (t *tcpserver) run(host string, handle func(net.Conn)) (err error) {
+	t.listener, err = dialer.ListenContext(context.Background(), "tcp", host)
 	if err != nil {
 		return fmt.Errorf("tcp server listen failed: %v", err)
 	}
@@ -99,26 +83,10 @@ func (t *tcpserver) process(handle func(net.Conn)) error {
 
 		tempDelay = 0
 
-		go func() {
-			if runtime.GOOS != "windows" {
-				if c, ok := c.(*net.TCPConn); ok {
-					raw, err := c.SyscallConn()
-					if err == nil {
-						raw.Control(
-							func(fd uintptr) {
-								err = control(fd)
-							},
-						)
-						if err != nil {
-							log.Println(err)
-							return
-						}
-					}
-				}
-			}
+		go func(c net.Conn) {
 			defer c.Close()
 			handle(c)
-		}()
+		}(c)
 	}
 }
 

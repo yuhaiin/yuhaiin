@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	yerror "github.com/Asutorufa/yuhaiin/pkg/utils/error"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func init() {

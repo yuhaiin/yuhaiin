@@ -83,29 +83,3 @@ func (w *fdWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 }
 
 func (w *fdWriter) Write(b []byte) tcpip.Error { return rawfile.NonBlockingWrite(w.fd, b) }
-
-// func (w *fdWriter) WritePacket(pkt *stack.PacketBuffer) tcpip.Error {
-// 	views := pkt.Views()
-// 	iovecs := make([]unix.Iovec, 0, len(views))
-// 	for _, v := range views {
-// 		iovecs = append(iovecs, rawfile.IovecFromBytes(v))
-// 	}
-
-// 	if err := rawfile.NonBlockingWriteIovec(w.fd, iovecs); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
-// func (w *fdWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
-// 	iovecs := make([]unix.Iovec, 0, 47)
-// 	for pkt := pkts.Front(); pkt != nil; pkt = pkt.Next() {
-// 		for _, s := range pkt.Views() {
-// 			iovecs = append(iovecs, rawfile.IovecFromBytes(s))
-// 		}
-// 	}
-// 	if err := rawfile.NonBlockingWriteIovec(w.fd, iovecs); err != nil {
-// 		return 0, err
-// 	}
-// 	return pkts.Len(), nil
-// }
