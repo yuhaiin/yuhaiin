@@ -66,11 +66,6 @@ func (w *winWriter) Write(b []byte) tcpip.Error {
 	return &tcpip.ErrClosedForSend{}
 }
 
-// func (w *winWriter) WritePacket(pkt *stack.PacketBuffer) tcpip.Error {
-// 	v := buffer.NewVectorisedView(pkt.Size(), pkt.Views())
-// 	return w.Write(v.ToView())
-// }
-
 func (w *winWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
 	// for pkt := pkts.Front(); pkt != nil; pkt = pkt.Next() {
 	// 	if err := w.WritePacket(pkt); err != nil {

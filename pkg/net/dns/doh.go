@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -67,7 +66,7 @@ func NewDoH(config Config) dns.DNS {
 				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 			}
 
-			return ioutil.ReadAll(resp.Body)
+			return io.ReadAll(resp.Body)
 
 			/*
 				* Get

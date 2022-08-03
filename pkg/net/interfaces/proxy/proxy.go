@@ -13,7 +13,7 @@ import (
 	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 )
 
 type Proxy interface {
@@ -70,6 +70,15 @@ type errProxy struct{ error }
 func NewErrProxy(err error) Proxy                             { return &errProxy{err} }
 func (e errProxy) Conn(Address) (net.Conn, error)             { return nil, e.error }
 func (e errProxy) PacketConn(Address) (net.PacketConn, error) { return nil, e.error }
+
+type ResolverProxy interface {
+	Resolver(Address) dns.DNS
+}
+
+type resolverProxy struct{ dns.DNS }
+
+func WrapDNS(d dns.DNS) ResolverProxy             { return &resolverProxy{d} }
+func (r *resolverProxy) Resolver(Address) dns.DNS { return r.DNS }
 
 type Type string
 

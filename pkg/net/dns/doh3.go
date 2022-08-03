@@ -3,7 +3,7 @@ package dns
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -43,7 +43,7 @@ func NewDoH3(config Config) dns.DNS {
 			return nil, fmt.Errorf("doh post failed: %v", err)
 		}
 		defer resp.Body.Close()
-		return ioutil.ReadAll(resp.Body)
+		return io.ReadAll(resp.Body)
 	})
 
 	return d

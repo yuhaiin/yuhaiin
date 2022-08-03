@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -35,7 +34,7 @@ func expertDLL(execPath string) (string, error) {
 		return "", fmt.Errorf("stat %s error: %s", dll, err)
 	}
 
-	err = ioutil.WriteFile(dll, proxyDLL, os.ModePerm)
+	err = os.WriteFile(dll, proxyDLL, os.ModePerm)
 	if err != nil {
 		return "", fmt.Errorf("write %s failed: %w", dll, err)
 	}

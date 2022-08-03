@@ -1,4 +1,4 @@
-package statistic
+package router
 
 import (
 	"bufio"
@@ -15,11 +15,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/internal/config"
+	"github.com/Asutorufa/yuhaiin/internal/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	imapper "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -56,9 +58,17 @@ func writeDefaultBypassData(target string) error {
 	return os.WriteFile(target, data, os.ModePerm)
 }
 
-var (
-	MODE_MARK = "MODE_MARK"
+const (
+	MODE_MARK = "MODE"
 )
+
+type Shunt interface {
+	proxy.Proxy
+	proxy.ResolverProxy
+	config.Observer
+	AddMode(mode string, isDefault bool, _ proxy.Proxy, _ dns.DNS)
+	Insert(addr string, mode string)
+}
 
 type shunt struct {
 	mapper imapper.Mapper[string, proxy.Address, int64]
@@ -66,7 +76,7 @@ type shunt struct {
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
 
-	conns conns
+	conns statistics.Statistics
 
 	rule
 	modeStore syncmap.SyncMap[int64, struct {
@@ -76,7 +86,7 @@ type shunt struct {
 	defaultMode int64
 }
 
-func newShunt(resolver dns.DNS, conns conns) *shunt {
+func newShunt(resolver dns.DNS, conns statistics.Statistics) Shunt {
 	return &shunt{
 		mapper: mapper.NewMapper[int64](resolver),
 		conns:  conns,
@@ -162,8 +172,8 @@ func (s *shunt) match(addr proxy.Address, resolveDomain bool) int64 {
 	return s.defaultMode
 }
 
-func (s *shunt) AddMode(m string, defaultMode bool, p proxy.Proxy, resolver dns.DNS) (id int64) {
-	id = s.rule.GetID(m)
+func (s *shunt) AddMode(m string, defaultMode bool, p proxy.Proxy, resolver dns.DNS) {
+	id := s.rule.GetID(m)
 	s.modeStore.Store(id, struct {
 		dialer proxy.Proxy
 		dns    dns.DNS
@@ -171,16 +181,6 @@ func (s *shunt) AddMode(m string, defaultMode bool, p proxy.Proxy, resolver dns.
 	if defaultMode {
 		s.defaultMode = id
 	}
-
-	return id
-}
-
-func (s *shunt) GetDialer(m string) proxy.Proxy {
-	d, ok := s.modeStore.Load(s.rule.GetID(m))
-	if ok {
-		return d.dialer
-	}
-	return proxy.NewErrProxy(fmt.Errorf("no dialer for mode: %s", m))
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
@@ -228,17 +228,17 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return s.conns.AddPacketConn(conn, host), nil
 }
 
-func (s *shunt) GetResolver(host proxy.Address) (dns.DNS, int64) {
+func (s *shunt) Resolver(host proxy.Address) dns.DNS {
 	m := s.match(host, false)
 	d, ok := s.modeStore.Load(m)
 	if ok {
-		return d.dns, m
+		return d.dns
 	}
-	return resolver.Bootstrap, m
+	return resolver.Bootstrap
 }
 
 type rule struct {
-	id        idGenerater
+	id        statistics.IDGenerator
 	mapping   syncmap.SyncMap[string, int64]
 	idMapping syncmap.SyncMap[int64, string]
 }

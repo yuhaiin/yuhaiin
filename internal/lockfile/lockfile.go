@@ -3,10 +3,10 @@ package lockfile
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -15,7 +15,7 @@ type Lock struct {
 	payloadfile string
 	lockFile    *os.File
 
-	locked bool
+	locked atomic.Bool
 }
 
 func NewLock(lockfile, payload string) (*Lock, error) {
@@ -25,7 +25,7 @@ func NewLock(lockfile, payload string) (*Lock, error) {
 }
 
 func (l *Lock) Lock(payload string) error {
-	if l.locked {
+	if l.locked.Load() {
 		return nil
 	}
 
@@ -47,9 +47,9 @@ func (l *Lock) Lock(payload string) error {
 		return fmt.Errorf("lock file failed: %v", err)
 	}
 
-	l.locked = true
+	l.locked.Store(true)
 
-	err = ioutil.WriteFile(l.payloadfile, []byte(payload), os.ModePerm)
+	err = os.WriteFile(l.payloadfile, []byte(payload), os.ModePerm)
 	if err != nil {
 		log.Printf("write host to file failed: %v", err)
 	}
@@ -57,7 +57,7 @@ func (l *Lock) Lock(payload string) error {
 }
 
 func (l *Lock) Payload() (string, error) {
-	s, err := ioutil.ReadFile(l.payloadfile)
+	s, err := os.ReadFile(l.payloadfile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -77,7 +77,7 @@ func (l *Lock) UnLock() (erra error) {
 		erra = fmt.Errorf("%v\nunlock file failed: %v", erra, err)
 	}
 
-	l.locked = false
+	l.locked.Store(false)
 
 	err = os.Remove(l.lockfile)
 	if err != nil {

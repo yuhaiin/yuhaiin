@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"unsafe"
 
-	istatistic "github.com/Asutorufa/yuhaiin/internal/statistic"
+	"github.com/Asutorufa/yuhaiin/internal/router"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -70,13 +70,13 @@ func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
 		str.WriteString("<dl>")
 		for _, c := range conns.GetConnections() {
 			str.WriteString("<hr/>")
-			str.WriteString(fmt.Sprintf("<dt>%d| &lt;%s[%s]&gt; %s ", c.Id, c.GetType(), c.GetExtra()[istatistic.MODE_MARK], c.GetAddr()))
+			str.WriteString(fmt.Sprintf("<dt>%d| &lt;%s[%s]&gt; %s ", c.Id, c.GetType(), c.GetExtra()[router.MODE_MARK], c.GetAddr()))
 			str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
 			str.WriteString("</dt>")
 			str.WriteString(fmt.Sprintf("<dd>src: %s</dd>", c.GetLocal()))
 			str.WriteString(fmt.Sprintf("<dd>dst: %s</dd>", c.GetRemote()))
 			for k, v := range c.GetExtra() {
-				if k == istatistic.MODE_MARK {
+				if k == router.MODE_MARK {
 					continue
 				}
 				str.WriteString(fmt.Sprintf("<dd>%s: %s</dd>", k, v))

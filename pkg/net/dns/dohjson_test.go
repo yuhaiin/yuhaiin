@@ -3,7 +3,7 @@ package dns
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -36,7 +36,7 @@ func TestC(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Log("Read error", err)
 	}

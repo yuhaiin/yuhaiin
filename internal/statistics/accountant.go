@@ -1,4 +1,4 @@
-package statistic
+package statistics
 
 import (
 	"fmt"
@@ -17,9 +17,9 @@ type accountant struct {
 
 	clientCount atomic.Int64
 
-	started chan bool
+	started chan struct{}
 
-	ig      idGenerater
+	ig      IDGenerator
 	clients syncmap.SyncMap[int64, func(*statistic.RateResp) error]
 	lock    sync.Mutex
 }
@@ -30,16 +30,18 @@ func (c *accountant) AddUpload(n uint64)   { c.upload.Add(n) }
 func (c *accountant) start() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+
 	c.clientCount.Add(1)
-	if c.started != nil {
-		select {
-		case <-c.started:
-		default:
+	select {
+	case <-c.started:
+	default:
+		if c.started != nil {
 			return
 		}
 	}
 
-	c.started = make(chan bool)
+	c.started = make(chan struct{})
+
 	reduce := func(u uint64) string {
 		r, unit := utils.ReducedUnit(float64(u))
 		return fmt.Sprintf("%.2f%s", r, unit.String())
@@ -93,7 +95,6 @@ func (c *accountant) stop() {
 
 	if c.started != nil {
 		close(c.started)
-		c.started = nil
 	}
 }
 
@@ -105,6 +106,7 @@ func (c *accountant) AddClient(f func(*statistic.RateResp) error) (id int64) {
 }
 
 func (c *accountant) RemoveClient(id int64) {
-	c.clients.Delete(id)
-	c.stop()
+	if _, ok := c.clients.LoadAndDelete(id); ok {
+		c.stop()
+	}
 }
