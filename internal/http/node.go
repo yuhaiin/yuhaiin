@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 
@@ -196,7 +196,7 @@ func initNode(mux *http.ServeMux, nm grpcnode.NodeManagerServer) {
 	})
 
 	mux.HandleFunc("/node/save", func(w http.ResponseWriter, r *http.Request) {
-		data, err := ioutil.ReadAll(r.Body)
+		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

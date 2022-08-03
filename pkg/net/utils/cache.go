@@ -12,7 +12,7 @@ type lruEntry[K, V any] struct {
 	store time.Time
 }
 
-//LRU Least Recently Used
+// LRU Least Recently Used
 type LRU[K, V any] struct {
 	capacity     int
 	list         *list.List
@@ -22,7 +22,7 @@ type LRU[K, V any] struct {
 	lock         sync.Mutex
 }
 
-//NewLru create new lru cache
+// NewLru create new lru cache
 func NewLru[K, V any](capacity int, timeout time.Duration) *LRU[K, V] {
 	return &LRU[K, V]{
 		capacity: capacity,
@@ -66,7 +66,7 @@ func (l *LRU[K, V]) Add(key K, value V) {
 	l.valueMapping.Store(value, elem)
 }
 
-//Delete delete a key from cache
+// Delete delete a key from cache
 func (l *LRU[K, V]) Delete(key K) {
 	v, ok := l.mapping.LoadAndDelete(key)
 	if ok {
@@ -136,7 +136,7 @@ type Cache struct {
 	lastUpdateTime time.Time
 }
 
-//NewCache create new cache
+// NewCache create new cache
 func NewCache() *Cache {
 	return &Cache{
 		number:         0,
@@ -144,12 +144,12 @@ func NewCache() *Cache {
 	}
 }
 
-//Get .
+// Get .
 func (c *Cache) Get(domain string) (any, bool) {
 	return c.pool.Load(domain)
 }
 
-//Add .
+// Add .
 func (c *Cache) Add(domain string, mark any) {
 	if mark == nil {
 		return

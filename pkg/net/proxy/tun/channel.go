@@ -30,7 +30,6 @@ import (
 
 type writer interface {
 	Write([]byte) tcpip.Error
-	// WritePacket(*stack.PacketBuffer) tcpip.Error
 	WritePackets(stack.PacketBufferList) (int, tcpip.Error)
 }
 
@@ -143,18 +142,6 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 	return e.writer.WritePackets(pkts)
 }
 
-// func (e *Endpoint) WritePacket(_ stack.RouteInfo, _ tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) tcpip.Error {
-// 	return e.writer.WritePacket(pkt)
-// }
-
-// func (e *Endpoint) WritePackets(_ stack.RouteInfo, pkts stack.PacketBufferList, _ tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
-// 	return e.writer.WritePackets(pkts)
-// }
-
-// func (e *Endpoint) WriteRawPacket(pkt *stack.PacketBuffer) tcpip.Error {
-// 	return e.writer.WritePacket(pkt)
-// }
-
 // Wait implements stack.LinkEndpoint.Wait.
 func (e *Endpoint) Wait() { e.wg.Wait() }
 
@@ -163,6 +150,3 @@ func (*Endpoint) ARPHardwareType() header.ARPHardwareType { return header.ARPHar
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
 func (*Endpoint) AddHeader(*stack.PacketBuffer) {}
-
-// func (*Endpoint) AddHeader(tcpip.LinkAddress, tcpip.LinkAddress, tcpip.NetworkProtocolNumber, *stack.PacketBuffer) {
-// }

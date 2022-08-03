@@ -3,7 +3,7 @@ package dns
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 )
@@ -105,7 +105,7 @@ func DOHJsonAPI(DNSServer, domain string, proxy func(ctx context.Context, networ
 	if err != nil {
 		return nil, err
 	}
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}

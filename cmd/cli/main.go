@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -32,7 +32,7 @@ var y *yhCli
 
 func main() {
 	cobra.OnInitialize(func() {
-		host, err := ioutil.ReadFile(filepath.Join(config.DefaultConfigDir(), "LOCK_PAYLOAD"))
+		host, err := os.ReadFile(filepath.Join(config.DefaultConfigDir(), "LOCK_PAYLOAD"))
 		if err != nil {
 			panic(err)
 		}

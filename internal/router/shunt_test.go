@@ -1,4 +1,4 @@
-package statistic
+package router
 
 import (
 	"bytes"

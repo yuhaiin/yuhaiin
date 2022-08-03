@@ -6,6 +6,19 @@ import (
 	"syscall"
 )
 
+func ListenContext(ctx context.Context, network string, address string) (net.Listener, error) {
+	return (&net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			return setSocketOptions(network, address, c, &Options{
+				InterfaceName:  DefaultInterfaceName,
+				RoutingMark:    DefaultRoutingMark,
+				InterfaceIndex: DefaultInterfaceIndex,
+			})
+		},
+	}).
+		Listen(ctx, network, address)
+}
+
 func DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	return DialContextWithOptions(ctx, network, address, &Options{
 		InterfaceName:  DefaultInterfaceName,

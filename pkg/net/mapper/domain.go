@@ -8,13 +8,13 @@ import (
 )
 
 var (
-	_        = 0
-	last     = 1
-	wildcard = 2
+	_        uint8 = 0
+	last     uint8 = 1
+	wildcard uint8 = 2
 )
 
 type domainNode[T any] struct {
-	Symbol *int                      `json:"symbol"`
+	Symbol uint8                     `json:"symbol"`
 	Mark   T                         `json:"mark"`
 	Child  map[string]*domainNode[T] `json:"child"`
 }
@@ -65,12 +65,12 @@ func s[T any](root *domainNode[T], domain string) (resp T, ok bool) {
 		}
 
 		if r, okk := s.Child[z.str()]; okk {
-			if r.Symbol != nil {
-				if *r.Symbol == wildcard {
+			if r.Symbol != 0 {
+				if r.Symbol == wildcard {
 					resp, ok = r.Mark, true
 				}
 
-				if *r.Symbol == last && z.last() {
+				if r.Symbol == last && z.last() {
 					return r.Mark, true
 				}
 			}
@@ -95,7 +95,7 @@ func insert[T any](root *domainNode[T], domain string, mark T) {
 	z := newDomainStr(domain)
 	for z.hasNext() {
 		if z.last() && domain[0] == '*' {
-			root.Symbol, root.Mark = &wildcard, mark
+			root.Symbol, root.Mark = wildcard, mark
 			break
 		}
 
@@ -110,7 +110,7 @@ func insert[T any](root *domainNode[T], domain string, mark T) {
 		root = root.Child[z.str()]
 
 		if z.last() {
-			root.Symbol, root.Mark = &last, mark
+			root.Symbol, root.Mark = last, mark
 		}
 
 		z.next()

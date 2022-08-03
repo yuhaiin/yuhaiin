@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"sync"
 	"time"
@@ -165,7 +164,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (int, net.Addr, error) {
 	}
 
 	if len(payload) < length || length > MaxPacketSize {
-		io.CopyN(ioutil.Discard, c.Conn, int64(length)) // drain the rest of the packet
+		io.CopyN(io.Discard, c.Conn, int64(length)) // drain the rest of the packet
 		return 0, nil, fmt.Errorf("incoming packet size is too large")
 	}
 

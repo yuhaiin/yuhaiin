@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -260,7 +260,7 @@ func (n *Nodes) oneLinkGet(c context.Context, client *http.Client, link *node.No
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return fmt.Errorf("read body failed: %v", err)
 	}

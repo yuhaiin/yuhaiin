@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 

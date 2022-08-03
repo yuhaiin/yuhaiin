@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 

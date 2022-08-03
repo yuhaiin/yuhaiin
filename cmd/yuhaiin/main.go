@@ -1,32 +1,21 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
+	yuhaiin "github.com/Asutorufa/yuhaiin/internal"
 	"github.com/Asutorufa/yuhaiin/internal/config"
-	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/lockfile"
-	"github.com/Asutorufa/yuhaiin/internal/server"
-	"github.com/Asutorufa/yuhaiin/internal/statistic"
 	"github.com/Asutorufa/yuhaiin/internal/version"
-	ylog "github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
-	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	yerror "github.com/Asutorufa/yuhaiin/pkg/utils/error"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -43,76 +32,42 @@ func main() {
 		return
 	}
 
-	pc := pathConfig(*savepath)
-
-	log.SetFlags(log.Lshortfile | log.LstdFlags)
-
-	lock := yerror.Must(lockfile.NewLock(pc.lockfile, *host))
+	pc := yuhaiin.PathConfig(*savepath)
+	lock := yerror.Must(lockfile.NewLock(pc.Lockfile, *host))
 	defer lock.UnLock()
 
-	// create listener
-	lis := yerror.Must(net.Listen("tcp", *host))
+	setting := config.NewConfig(pc.Config)
+	grpcserver := grpc.NewServer()
+
+	resp := yerror.Must(
+		yuhaiin.Start(
+			yuhaiin.StartOpt{
+				PathConfig: pc,
+				Host:       *host,
+				Setting:    setting,
+				GRPCServer: grpcserver,
+			},
+		))
+	defer resp.Close()
 
 	// listen system signal
 	signChannel := make(chan os.Signal, 1)
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() bool { return (<-signChannel).String() != "" && lis != nil && lis.Close() != nil }()
+	go func() bool {
+		return (<-signChannel).String() != "" && resp.HttpListener != nil && resp.HttpListener.Close() != nil
+	}()
 
-	grpcserver := grpc.NewServer()
-
-	setting := config.NewConfig(pc.config)
-	grpcserver.RegisterService(&grpcconfig.ConfigDao_ServiceDesc, setting)
-
-	setting.AddObserver(config.WrapUpdate(func(s *protoconfig.Setting) { ylog.Set(s.GetLogcat(), pc.logfile) }))
-	defer ylog.Close()
-
-	log.Println("\n\n\nsave config at:", pc.dir)
-	log.Println("gRPC and http listen at:", *host)
-
-	// * net.Conn/net.PacketConn -> nodeManger -> BypassManager&statis/connection manager -> listener
-	nodes := node.NewNodes(pc.node)
-	grpcserver.RegisterService(&grpcnode.NodeManager_ServiceDesc, nodes)
-
-	app := statistic.NewRouter(nodes)
-	defer app.Close()
-	setting.AddObserver(app)
-	grpcserver.RegisterService(&grpcsts.Connections_ServiceDesc, app.Statistic())
-
-	listener := server.NewListener(&protoconfig.Opts{Dialer: app.Proxy(), DNSServer: app.DNSServer()})
-	setting.AddObserver(listener)
-	defer listener.Close()
-
-	setting.AddObserver(config.WrapUpdate(sysproxy.Update))
+	setting.AddObserver(config.NewObserver(sysproxy.Update))
 	defer sysproxy.Unset()
-
-	setting.AddObserver(config.WrapUpdate(func(s *protoconfig.Setting) { ylog.SetLevel(s.Logcat.GetLevel()) }))
-
-	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodes, app.Statistic(), setting)
 
 	yerror.Must(struct{}{},
 		// h2c for grpc insecure mode
-		http.Serve(lis, h2c.NewHandler(http.HandlerFunc(
+		http.Serve(resp.HttpListener, h2c.NewHandler(http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 					grpcserver.ServeHTTP(w, r)
 				} else {
-					mux.ServeHTTP(w, r)
+					resp.Mux.ServeHTTP(w, r)
 				}
 			}), &http2.Server{})))
-}
-
-func pathConfig(configPath string) struct{ dir, lockfile, node, config, logfile string } {
-	create := func(child ...string) string { return filepath.Join(append([]string{configPath}, child...)...) }
-	config := struct{ dir, lockfile, node, config, logfile string }{
-		dir: configPath, lockfile: create("LOCK"),
-		node: create("node.json"), config: create("config.json"),
-		logfile: create("log", "yuhaiin.log"),
-	}
-
-	if _, err := os.Stat(config.logfile); errors.Is(err, os.ErrNotExist) {
-		os.MkdirAll(filepath.Dir(config.logfile), os.ModePerm)
-	}
-
-	return config
 }

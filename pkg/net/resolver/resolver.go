@@ -13,10 +13,16 @@ import (
 
 var Bootstrap dns.DNS = &System{}
 
-type System struct{}
+type System struct{ DisableIPv6 bool }
 
 func (d *System) LookupIP(domain string) ([]net.IP, error) {
-	return net.DefaultResolver.LookupIP(context.TODO(), "ip", domain)
+	var network string
+	if d.DisableIPv6 {
+		network = "ip4"
+	} else {
+		network = "ip"
+	}
+	return net.DefaultResolver.LookupIP(context.TODO(), network, domain)
 }
 
 func (d *System) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error) {
