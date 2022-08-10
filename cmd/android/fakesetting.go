@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func fakeSetting(opt *Opts, path string) *fakeSettings {
+func fakeSetting(opt *Opts, path string) iconfig.Setting {
 	opts, _ := json.Marshal(opt)
 	log.Infoln("fake setting:", string(opts))
 	settings := &protoconfig.Setting{

@@ -66,7 +66,9 @@ func (d *dnsServer) start() (err error) {
 	log.Println("new udp dns server listen at:", d.server)
 
 	for {
-		err = d.HandleUDP(d.listener)
+		buf := utils.GetBytes(utils.DefaultSize)
+
+		n, addr, err := d.listener.ReadFrom(buf)
 		if err != nil {
 			if e, ok := err.(net.Error); ok {
 				if e.Temporary() {
@@ -75,8 +77,20 @@ func (d *dnsServer) start() (err error) {
 			}
 			return fmt.Errorf("dns udp server handle failed: %w", err)
 		}
-	}
 
+		go func(buf []byte, n int, addr net.Addr) {
+			defer utils.PutBytes(buf)
+			data, err := d.handle(buf[:n])
+			if err != nil {
+				log.Println("dns server handle data failed:", err)
+				return
+			}
+
+			if _, err = d.listener.WriteTo(data, addr); err != nil {
+				log.Println(err)
+			}
+		}(buf, n, addr)
+	}
 }
 
 func (d *dnsServer) startTCP() (err error) {
