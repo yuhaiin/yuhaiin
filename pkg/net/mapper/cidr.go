@@ -34,6 +34,14 @@ func (c *Cidr[T]) InsertCIDR(ipNet *net.IPNet, mark T) {
 	}
 }
 
+func (c *Cidr[T]) InsertIP(ip net.IP, maskSize int, mark T) {
+	if x := ip.To4(); x != nil {
+		c.v4CidrTrie.Insert(x, maskSize, mark)
+	} else {
+		c.v6CidrTrie.Insert(ip.To16(), maskSize, mark)
+	}
+}
+
 func (c *Cidr[T]) singleInsert(cidr string, mark T) error {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
@@ -77,9 +85,13 @@ func NewCidrMapper[T any]() *Cidr[T] {
 	return cidrMapper
 }
 
-/*******************************
+/*
+******************************
+
 	CIDR TRIE
-********************************/
+
+*******************************
+*/
 type Trie[T any] struct {
 	mark  T
 	last  bool

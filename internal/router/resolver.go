@@ -23,6 +23,24 @@ type Resolvers struct {
 }
 
 func NewResolvers(direc, prox proxy.Proxy, counter statistics.Statistics) *Resolvers {
+	get := func(name string, r *protoconfig.Dns, ipv6 bool) idns.DNS {
+		var mark string
+		var dialer proxy.Proxy
+		if r.Proxy {
+			mark = name + "_PROXY"
+			dialer = prox
+		} else {
+			mark = name + "_DIRECT"
+			dialer = direc
+		}
+
+		return getDNS(name,
+			ipv6,
+			r,
+			&dnsdialer{counter, dialer, mark},
+		)
+	}
+
 	c := &Resolvers{
 		dns: [3]*basedns{
 			newBasedns(func(r *basedns, c *protoconfig.Setting) {
@@ -32,22 +50,7 @@ func NewResolvers(direc, prox proxy.Proxy, counter statistics.Statistics) *Resol
 
 				r.config = c.Dns.Remote
 				r.Close()
-
-				var mark string
-				var dialer proxy.Proxy
-				if r.config.Proxy {
-					mark = "REMOTEDNS_PROXY"
-					dialer = prox
-				} else {
-					mark = "REMOTEDNS_DIRECT"
-					dialer = direc
-				}
-
-				r.dns = getDNS("REMOTEDNS",
-					c.GetIpv6(),
-					r.config,
-					&dnsdialer{counter, dialer, mark},
-				)
+				r.dns = get("REMOTEDNS", r.config, c.GetIpv6())
 			}),
 			newBasedns(func(l *basedns, c *protoconfig.Setting) {
 				if proto.Equal(l.config, c.Dns.Local) {
@@ -56,12 +59,7 @@ func NewResolvers(direc, prox proxy.Proxy, counter statistics.Statistics) *Resol
 
 				l.config = c.Dns.Local
 				l.Close()
-				l.dns = getDNS(
-					"LOCALDNS",
-					c.GetIpv6(),
-					l.config,
-					&dnsdialer{counter, direct.Default, "LOCALDNS_DIRECT"},
-				)
+				l.dns = get("LOCALDNS", l.config, c.GetIpv6())
 			}),
 			newBasedns(func(b *basedns, c *protoconfig.Setting) {
 				if proto.Equal(b.config, c.Dns.Bootstrap) {
