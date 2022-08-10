@@ -27,6 +27,7 @@ ANDROID_AMD64=GOOS=android GOARCH=amd64 CGO_ENABLED=1 CC=${ANDROID_NDK_HOME}/too
 
 YUHAIIN=-v ./cmd/yuhaiin/...
 CLI=-v ./cmd/cli/...
+DNSRELAY= -v ./cmd/dnsrelay/...
 
 .PHONY: test
 test:
@@ -34,7 +35,7 @@ test:
 	@echo ${GO_CMD}
 
 .PHONY: all
-all: yuhaiin cli yuhaiin_windows cli_windows
+all: yuhaiin cli yuhaiin_windows cli_windows dnsrelay dnsrelay_windows
 
 .PHONY: vet
 vet:
@@ -44,6 +45,16 @@ vet:
 yuhaiin:
 	$(LINUX_AMD64) $(GO_BUILD_CMD) -o yuhaiin $(YUHAIIN)
 	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -o yuhaiin_v3 $(YUHAIIN)
+
+.PHONY: dnsrelay
+dnsrelay:
+	# $(LINUX_AMD64) $(GO_BUILD_CMD) -o dnsrelay $(DNSRELAY)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -o dnsrelay $(DNSRELAY)
+
+.PHONY: dnsrelay_windows
+dnsrelay_windows:
+	# $(WINDOWS_AMD64) $(GO_BUILD_CMD) -o dnsrelay.exe $(DNSRELAY)
+	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -o dnsrelay.exe $(DNSRELAY)
 
 .PHONY: cli
 cli:

@@ -55,7 +55,7 @@ func NewDoH(config Config) dns.DNS {
 			req.Header.Set("Content-Type", "application/dns-message")
 			req.Header.Set("Accept", "application/dns-message")
 			req.Header.Set("User-Agent", string([]byte{' '}))
-			resp, err := (&http.Client{Transport: roundTripper}).Do(req)
+			resp, err := (&http.Client{Transport: roundTripper, Timeout: time.Second * 6}).Do(req)
 			if err != nil {
 				return nil, fmt.Errorf("doh post failed: %v", err)
 			}

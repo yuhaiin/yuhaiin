@@ -24,11 +24,22 @@ func (x *combine[T]) Insert(str string, mark T) {
 	}
 
 	_, ipNet, err := net.ParseCIDR(str)
-	if err != nil {
-		x.domain.Insert(str, mark)
-	} else {
+	if err == nil {
 		x.cidr.InsertCIDR(ipNet, mark)
+		return
 	}
+
+	if ip := net.ParseIP(str); ip != nil {
+		mask := 128
+		if ip.To4() != nil {
+			mask = 32
+		}
+		x.cidr.InsertIP(ip, mask, mark)
+		return
+	}
+
+	x.domain.Insert(str, mark)
+
 }
 
 func (x *combine[T]) Search(addr proxy.Address) (mark T, ok bool) {

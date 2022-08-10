@@ -38,9 +38,8 @@ func initConfig(mux *http.ServeMux, cf grpcconfig.ConfigDaoServer) {
 		str.WriteString("<script>")
 		str.Write(configJS)
 		str.WriteString("</script>")
-		str.WriteString("<p>1. local dns not support proxy</p>")
-		str.WriteString("<p>2. bootstrap dns to resolve proxy,localdns and remotedns domain</p>")
-		str.WriteString("<p>3. bootstrap dns only support ip address and not support proxy</p>")
+		str.WriteString("<p>1. bootstrap dns to resolve proxy,localdns and remotedns domain</p>")
+		str.WriteString("<p>2. bootstrap dns only support ip address and not support proxy</p>")
 		str.WriteString("<hr/>")
 		str.WriteString(fmt.Sprintf(`<pre id="config" contenteditable="false">%s</pre>`, string(data)))
 		if strings.ToLower(runtime.GOOS) != "android" {

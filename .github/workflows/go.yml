@@ -34,6 +34,8 @@ jobs:
         upx --lzma --best yh.exe
         upx --lzma --best yuhaiin_v3.exe
         upx --lzma --best yh_v3.exe
+        upx --lzma --best dnsrelay
+        upx --lzma --best dnsrelay.exe
 
     - name: Test
       run: make vet
@@ -69,3 +71,11 @@ jobs:
         path: |
           yuhaiin_v3.exe
           yh_v3.exe
+
+    - name: upload_dnsrelay
+      uses: actions/upload-artifact@v2
+      with:
+        name: output_dnsrelay
+        path: |
+          dnsrelay
+          dnsrelay.exe
