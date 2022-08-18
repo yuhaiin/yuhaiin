@@ -8,23 +8,18 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-func init() {
-	register("verify_sha1", NewVerifySHA1)
-	register("ota", NewVerifySHA1)
-}
-
 type verifySHA1 struct {
 	ProtocolInfo
 	hasSentHeader bool
 	chunkId       uint32
-	hmac          hmacMethod
+	hmac          func(key, data, buf []byte) []byte
 }
 
 const (
 	oneTimeAuthMask byte = 0x10
 )
 
-func NewVerifySHA1(info ProtocolInfo) IProtocol {
+func NewVerifySHA1(info ProtocolInfo) Protocol {
 	a := &verifySHA1{
 		ProtocolInfo: info,
 		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.SHA1, key, data, buf) },

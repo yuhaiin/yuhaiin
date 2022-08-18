@@ -10,7 +10,6 @@ import (
 	"net"
 	"strings"
 
-	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
@@ -42,7 +41,7 @@ var (
 
 // HttpSimple http_simple obfs encapsulate
 type httpSimplePost struct {
-	ssr.ObfsInfo
+	ObfsInfo
 	rawTransSent     bool
 	rawTransReceived bool
 	userAgentIndex   int
@@ -55,12 +54,8 @@ type httpSimplePost struct {
 	param simpleParam
 }
 
-func init() {
-	register("http_simple", newHttpSimple)
-}
-
 // newHttpSimple create a http_simple object
-func newHttpSimple(conn net.Conn, info ssr.ObfsInfo) IObfs {
+func newHttpSimple(conn net.Conn, info ObfsInfo) Obfs {
 	t := &httpSimplePost{
 		userAgentIndex: rand.Intn(len(requestUserAgent)),
 		methodGet:      true,

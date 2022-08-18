@@ -14,7 +14,7 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.1
-	gvisor.dev/gvisor v0.0.0-20220803014006-aa41c8be0ab7
+	gvisor.dev/gvisor v0.0.0-20220817001344-846276b3dbc5
 )
 
 require (

@@ -3,49 +3,52 @@ package obfs
 import (
 	"fmt"
 	"net"
-	"strings"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-type creator func(net.Conn, ssr.ObfsInfo) IObfs
+var ObfsMap = map[string]func(net.Conn, ObfsInfo) Obfs{
+	"http_post":              newHttpPost,
+	"http_simple":            newHttpSimple,
+	"plain":                  newPlainObfs,
+	"random_head":            newRandomHead,
+	"tls1.2_ticket_auth":     newTLS12TicketAuth,
+	"tls1.2_ticket_fastauth": newTLS12TicketAuth,
+}
 
-var (
-	creatorMap = make(map[string]creator)
-)
-
-type IObfs interface {
+type Obfs interface {
 	GetOverhead() int
-
 	net.Conn
 }
 
-func register(name string, c creator) {
-	creatorMap[name] = c
+type ObfsInfo struct {
+	ssr.Info
+	Name  string
+	Host  string
+	Port  uint16
+	Param string
 }
 
-type Obfs struct {
-	name     string
-	info     ssr.ObfsInfo
-	overhead int
-	creator  creator
-}
-
-// NewObfs create an obfs object by name and return as an IObfs interface
-func NewObfs(name string, info ssr.ObfsInfo) (*Obfs, error) {
-	o, ok := creatorMap[strings.ToLower(name)]
+func (o *ObfsInfo) creator() (func(net.Conn, ObfsInfo) Obfs, error) {
+	z, ok := ObfsMap[o.Name]
 	if !ok {
-		return nil, fmt.Errorf("obfs %s not found", name)
+		return nil, fmt.Errorf("obfs %s not found", o.Name)
 	}
 
-	overhead := o(nil, info).GetOverhead()
-	return &Obfs{name, info, overhead, o}, nil
+	return z, nil
+}
+func (o *ObfsInfo) Stream(c net.Conn) (net.Conn, error) {
+	cc, err := o.creator()
+	if err != nil {
+		return nil, err
+	}
+	return cc(c, *o), nil
 }
 
-func (o *Obfs) Overhead() int {
-	return o.overhead
-}
-
-func (o *Obfs) Stream(conn net.Conn) net.Conn {
-	return o.creator(conn, o.info)
+func (o *ObfsInfo) Overhead() int {
+	cc, err := o.creator()
+	if err != nil {
+		return -1
+	}
+	return cc(nil, *o).GetOverhead()
 }

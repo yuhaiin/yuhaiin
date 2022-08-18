@@ -1,27 +1,18 @@
 package node
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"path"
 	"sync"
-	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -35,14 +26,12 @@ var _ proxy.Proxy = (*Nodes)(nil)
 type Nodes struct {
 	grpcnode.UnimplementedNodeManagerServer
 
-	savaPath       string
-	lock, filelock sync.RWMutex
+	savaPath string
+	lock     sync.RWMutex
 
-	tcpProxy, udpProxy proxy.Proxy
-	tcp, udp           *node.Point
-
+	*outbound
 	manager *manager
-	links   map[string]*node.NodeLink
+	link    *link
 }
 
 func NewNodes(configPath string) (n *Nodes) {
@@ -51,63 +40,8 @@ func NewNodes(configPath string) (n *Nodes) {
 	return
 }
 
-func (n *Nodes) tcpDialer() proxy.Proxy {
-	if n.tcpProxy == nil {
-		now, _ := n.Now(context.TODO(), &node.NowReq{Net: node.NowReq_tcp})
-		p, err := register.Dialer(now)
-		if err != nil {
-			log.Printf("create conn failed: %v", err)
-			return direct.Default
-		}
-
-		n.tcpProxy = p
-	}
-
-	return n.tcpProxy
-}
-
-func (n *Nodes) Conn(host proxy.Address) (net.Conn, error) {
-	return n.tcpDialer().Conn(host)
-}
-
-func (n *Nodes) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	if n.udpProxy == nil {
-		now, _ := n.Now(context.TODO(), &node.NowReq{Net: node.NowReq_udp})
-		p, err := register.Dialer(now)
-		if err != nil {
-			log.Printf("create conn failed: %v", err)
-			return direct.Default.PacketConn(host)
-		}
-		n.udpProxy = p
-	}
-
-	return n.udpProxy.PacketConn(host)
-}
-
 func (n *Nodes) Now(_ context.Context, r *node.NowReq) (*node.Point, error) {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
-
-	var now *node.Point
-
-	switch r.Net {
-	case node.NowReq_tcp:
-		now = n.tcp
-	case node.NowReq_udp:
-		now = n.udp
-	}
-
-	if now == nil {
-		now = &node.Point{}
-		return now, nil
-	}
-
-	p, ok := n.manager.GetNodeByName(now.Group, now.Name)
-	if !ok {
-		return now, nil
-	}
-
-	return p, nil
+	return n.outbound.Point(r.Net == node.NowReq_udp), nil
 }
 
 func (n *Nodes) GetNode(_ context.Context, s *wrapperspb.StringValue) (*node.Point, error) {
@@ -120,15 +54,10 @@ func (n *Nodes) GetNode(_ context.Context, s *wrapperspb.StringValue) (*node.Poi
 }
 
 func (n *Nodes) SaveNode(c context.Context, p *node.Point) (*node.Point, error) {
-	n.saveNode(p)
-	return p, n.save()
-}
-
-func (n *Nodes) saveNode(p *node.Point) *node.Point {
 	n.manager.DeleteNode(p.Hash)
 	refreshHash(p)
 	n.manager.AddNode(p)
-	return p
+	return p, n.save()
 }
 
 func refreshHash(p *node.Point) {
@@ -142,25 +71,12 @@ func (n *Nodes) GetManager(context.Context, *wrapperspb.StringValue) (*node.Mana
 }
 
 func (n *Nodes) SaveLinks(_ context.Context, l *node.SaveLinkReq) (*emptypb.Empty, error) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-	if n.links == nil {
-		n.links = make(map[string]*node.NodeLink)
-	}
-	for _, l := range l.Links {
-		n.links[l.Name] = l
-	}
+	n.link.Save(l.GetLinks())
 	return &emptypb.Empty{}, n.save()
 }
 
 func (n *Nodes) DeleteLinks(_ context.Context, s *node.LinkReq) (*emptypb.Empty, error) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
-	for _, l := range s.Names {
-		delete(n.links, l)
-	}
-
+	n.link.Delete(s.GetNames())
 	return &emptypb.Empty{}, n.save()
 }
 
@@ -170,16 +86,11 @@ func (n *Nodes) Use(c context.Context, s *node.UseReq) (*node.Point, error) {
 		return &node.Point{}, fmt.Errorf("get node failed: %v", err)
 	}
 
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
-	if s.Tcp && n.tcp.Hash != p.Hash {
-		n.tcp = p
-		n.tcpProxy = nil
+	if s.Tcp {
+		n.outbound.Save(p, false)
 	}
-	if s.Udp && n.udp.Hash != p.Hash {
-		n.udp = p
-		n.udpProxy = nil
+	if s.Udp {
+		n.outbound.Save(p, true)
 	}
 
 	err = n.save()
@@ -190,119 +101,12 @@ func (n *Nodes) Use(c context.Context, s *node.UseReq) (*node.Point, error) {
 }
 
 func (n *Nodes) GetLinks(ctx context.Context, in *emptypb.Empty) (*node.GetLinksResp, error) {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
-	return &node.GetLinksResp{Links: n.links}, nil
+	return &node.GetLinksResp{Links: n.link.Links()}, nil
 }
 
 func (n *Nodes) UpdateLinks(c context.Context, req *node.LinkReq) (*emptypb.Empty, error) {
-	if n.links == nil {
-		n.links = make(map[string]*node.NodeLink)
-	}
-
-	client := &http.Client{
-		Timeout: time.Minute * 2,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				log.Println("dial:", network, addr)
-				ad, err := proxy.ParseAddress(network, addr)
-				if err != nil {
-					return nil, fmt.Errorf("parse address failed: %v", err)
-				}
-
-				ipHost, err := ad.IPHost()
-				if err == nil {
-					ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-					defer cancel()
-					conn, err := dialer.DialContext(ctx, network, ipHost)
-					if err == nil {
-						return conn, nil
-					}
-				}
-
-				return n.tcpDialer().Conn(ad)
-			},
-		},
-	}
-
-	wg := sync.WaitGroup{}
-	for _, l := range req.Names {
-		l, ok := n.links[l]
-		if !ok {
-			continue
-		}
-
-		wg.Add(1)
-		go func(l *node.NodeLink) {
-			defer wg.Done()
-			if err := n.oneLinkGet(c, client, l); err != nil {
-				log.Printf("get one link failed: %v", err)
-			}
-		}(l)
-	}
-
-	wg.Wait()
-
+	n.link.Update(req.Names)
 	return &emptypb.Empty{}, n.save()
-}
-
-func (n *Nodes) oneLinkGet(c context.Context, client *http.Client, link *node.NodeLink) error {
-	req, err := http.NewRequest("GET", link.Url, nil)
-	if err != nil {
-		return fmt.Errorf("create request failed: %v", err)
-	}
-
-	req.Header.Set("User-Agent", "yuhaiin")
-
-	res, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("get %s failed: %v", link.Name, err)
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("read body failed: %v", err)
-	}
-	dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(body)))
-	if _, err = base64.RawStdEncoding.Decode(dst, bytes.TrimRight(body, "=")); err != nil {
-		return fmt.Errorf("decode body failed: %w, body: %v", err, string(body))
-	}
-	n.manager.DeleteRemoteNodes(link.Name)
-	for _, x := range bytes.Split(dst, []byte("\n")) {
-		node, err := parseUrl(x, link)
-		if err != nil {
-			log.Printf("parse url %s failed: %v\n", x, err)
-			continue
-		}
-		n.saveNode(node)
-	}
-
-	return nil
-}
-
-func parseUrl(str []byte, l *node.NodeLink) (no *node.Point, err error) {
-	t := l.Type
-
-	if t == node.NodeLink_reserve {
-		switch {
-		case bytes.HasPrefix(str, []byte("ss://")):
-			t = node.NodeLink_shadowsocks
-		case bytes.HasPrefix(str, []byte("ssr://")):
-			t = node.NodeLink_shadowsocksr
-		case bytes.HasPrefix(str, []byte("vmess://")):
-			t = node.NodeLink_vmess
-		case bytes.HasPrefix(str, []byte("trojan://")):
-			t = node.NodeLink_trojan
-		}
-	}
-	no, err = parser.Parse(t, str)
-	if err != nil {
-		return nil, fmt.Errorf("parse link data failed: %v", err)
-	}
-	refreshHash(no)
-	no.Group = l.Name
-	return no, nil
 }
 
 func (n *Nodes) DeleteNode(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
@@ -357,8 +161,8 @@ func (n *Nodes) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyR
 func (n *Nodes) load() {
 	no := &node.Node{}
 
-	n.filelock.RLock()
-	defer n.filelock.RUnlock()
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 
 	if data, err := os.ReadFile(n.savaPath); err == nil {
 		if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, no); err != nil {
@@ -388,8 +192,9 @@ _init:
 		}
 	}
 
-	n.tcp, n.udp, n.links = no.Tcp, no.Udp, no.Links
-	n.manager = &manager{Manager: no.Manager}
+	n.manager = NewManager(no.Manager)
+	n.outbound = NewOutbound(no.Tcp, no.Udp, n.manager)
+	n.link = NewLink(n.outbound, n.manager, no.Links)
 }
 
 func (n *Nodes) save() error {
@@ -401,16 +206,17 @@ func (n *Nodes) save() error {
 		}
 	}
 
-	n.filelock.Lock()
-	defer n.filelock.Unlock()
-
-	var manager *node.Manager
-	if n.manager != nil {
-		manager = n.manager.GetManager()
-	}
+	n.lock.Lock()
+	defer n.lock.Unlock()
 
 	data, err := protojson.MarshalOptions{Indent: "\t"}.
-		Marshal(&node.Node{Tcp: n.tcp, Udp: n.udp, Links: n.links, Manager: manager})
+		Marshal(
+			&node.Node{
+				Tcp:     n.outbound.Point(false),
+				Udp:     n.outbound.Point(true),
+				Links:   n.link.Links(),
+				Manager: n.manager.GetManager(),
+			})
 	if err != nil {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}

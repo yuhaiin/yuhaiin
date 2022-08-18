@@ -13,17 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-type creator func(ProtocolInfo) IProtocol
-
-var (
-	creatorMap = make(map[string]creator)
-)
-
-type hmacMethod func(key []byte, data []byte, buf []byte) []byte
-type hashDigestMethod func(data []byte) []byte
-type rndMethod func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
-
-type IProtocol interface {
+type Protocol interface {
 	EncryptStream(dst *bytes.Buffer, data []byte) error
 	DecryptStream(dst *bytes.Buffer, data []byte) (int, error)
 	EncryptPacket(data []byte) ([]byte, error)
@@ -31,6 +21,17 @@ type IProtocol interface {
 
 	GetOverhead() int
 }
+
+type errorProtocol struct{ error }
+
+func NewErrorProtocol(err error) Protocol                                   { return &errorProtocol{err} }
+func (e *errorProtocol) EncryptStream(dst *bytes.Buffer, data []byte) error { return e.error }
+func (e *errorProtocol) DecryptStream(dst *bytes.Buffer, data []byte) (int, error) {
+	return 0, e.error
+}
+func (e *errorProtocol) EncryptPacket(data []byte) ([]byte, error) { return nil, e.error }
+func (e *errorProtocol) DecryptPacket(data []byte) ([]byte, error) { return nil, e.error }
+func (e *errorProtocol) GetOverhead() int                          { return 0 }
 
 type AuthData struct {
 	clientID     []byte
@@ -52,53 +53,12 @@ func (a *AuthData) nextAuth() {
 	a.connectionID.Store(rand.Uint32() & 0xFFFFFF)
 }
 
-func register(name string, c creator) {
-	creatorMap[name] = c
-}
-
-func createProtocol(name string, info ProtocolInfo) IProtocol {
-	c, ok := creatorMap[strings.ToLower(name)]
-	if ok {
-		return c(info)
-	}
-	return nil
-}
-
-func checkProtocol(name string) error {
-	if _, ok := creatorMap[strings.ToLower(name)]; !ok {
-		return fmt.Errorf("protocol %s not found", name)
-	}
-	return nil
-}
-
-type Protocol struct {
-	name string
-	info ProtocolInfo
-}
-
-func NewProtocol(name string, info ProtocolInfo) (*Protocol, error) {
-	if err := checkProtocol(name); err != nil {
-		return nil, err
-	}
-	return &Protocol{name, info}, nil
-}
-
-func (p *Protocol) Stream(conn net.Conn, writeIV []byte) net.Conn {
-	i := p.info
-	i.IV = writeIV
-	return newProtocolConn(conn, createProtocol(p.name, i))
-}
-
-func (p *Protocol) Packet(conn net.PacketConn) *protocolPacket {
-	return newProtocolPacket(conn, createProtocol(p.name, p.info))
-}
-
 type protocolPacket struct {
-	protocol IProtocol
+	protocol Protocol
 	net.PacketConn
 }
 
-func newProtocolPacket(conn net.PacketConn, p IProtocol) *protocolPacket {
+func newPacketConn(conn net.PacketConn, p Protocol) net.PacketConn {
 	return &protocolPacket{PacketConn: conn, protocol: p}
 }
 
@@ -127,7 +87,7 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 func (c *protocolPacket) Close() error { return c.PacketConn.Close() }
 
 type protocolConn struct {
-	protocol IProtocol
+	protocol Protocol
 	net.Conn
 
 	readBuf             [utils.DefaultSize / 4]byte
@@ -135,7 +95,7 @@ type protocolConn struct {
 	decryptedBuf        bytes.Buffer
 }
 
-func newProtocolConn(c net.Conn, p IProtocol) *protocolConn {
+func newConn(c net.Conn, p Protocol) net.Conn {
 	return &protocolConn{
 		Conn:     c,
 		protocol: p,
@@ -177,8 +137,21 @@ func (c *protocolConn) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
+var ProtocolMap = map[string]func(ProtocolInfo) Protocol{
+	"auth_aes128_sha1": NewAuthAES128SHA1,
+	"auth_aes128_md5":  NewAuthAES128MD5,
+	"auth_chain_a":     NewAuthChainA,
+	"auth_chain_b":     NewAuthChainB,
+	"origin":           NewOrigin,
+	"auth_sha1_v4":     NewAuthSHA1v4,
+	"verify_sha1":      NewVerifySHA1,
+	"ota":              NewVerifySHA1,
+}
+
 type ProtocolInfo struct {
 	ssr.Info
+
+	Name     string
 	HeadSize int
 	TcpMss   int
 	Param    string
@@ -187,6 +160,33 @@ type ProtocolInfo struct {
 	Auth *AuthData
 
 	ObfsOverhead int
+}
+
+func (s ProtocolInfo) stream() (Protocol, error) {
+	c, ok := ProtocolMap[strings.ToLower(s.Name)]
+	if ok {
+		return c(s), nil
+	}
+	return nil, fmt.Errorf("protocol %s not found", s.Name)
+}
+
+func (s ProtocolInfo) Stream(c net.Conn, iv []byte) (net.Conn, error) {
+	z := s
+	z.IV = iv
+
+	p, err := z.stream()
+	if err != nil {
+		return nil, err
+	}
+	return newConn(c, p), nil
+}
+
+func (s ProtocolInfo) Packet(c net.PacketConn) (net.PacketConn, error) {
+	p, err := s.stream()
+	if err != nil {
+		return nil, err
+	}
+	return newPacketConn(c, p), nil
 }
 
 func (s *ProtocolInfo) SetHeadLen(data []byte, defaultValue int) {

@@ -11,6 +11,8 @@ type manager struct {
 	lock sync.RWMutex
 }
 
+func NewManager(m *node.Manager) *manager { return &manager{Manager: m} }
+
 func (m *manager) GetNode(hash string) (*node.Point, bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()

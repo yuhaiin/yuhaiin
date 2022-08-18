@@ -28,13 +28,6 @@ type Info struct {
 	KeySize int
 }
 
-type ObfsInfo struct {
-	Info
-	Host  string
-	Port  uint16
-	Param string
-}
-
 type Shift128plusContext struct {
 	v [2]uint64
 }
