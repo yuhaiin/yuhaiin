@@ -20,15 +20,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-func init() {
-	register("auth_aes128_md5", NewAuthAES128MD5)
-}
+func NewAuthAES128MD5(info ProtocolInfo) Protocol { return newAuthAES128(info, crypto.MD5) }
 
-func NewAuthAES128MD5(info ProtocolInfo) IProtocol { return newAuthAES128(info, crypto.MD5) }
-
-func newAuthAES128(info ProtocolInfo, hash crypto.Hash) IProtocol {
+func newAuthAES128(info ProtocolInfo, hash crypto.Hash) Protocol {
 	a := &authAES128{
-		salt:       "auth_aes128_" + strings.ToLower(strings.Replace(hash.String(), "-", "", -1)),
+		salt:       strings.ToLower(info.Name),
 		hmac:       func(key, data, buf []byte) []byte { return ssr.Hmac(hash, key, data, buf) },
 		hashDigest: func(data []byte) []byte { return ssr.HashSum(hash, data) },
 		packID:     1,
@@ -54,8 +50,8 @@ type authAES128 struct {
 	userKey       []byte
 	uid           [4]byte
 	salt          string
-	hmac          hmacMethod
-	hashDigest    hashDigestMethod
+	hmac          func(key, data, buf []byte) []byte
+	hashDigest    func([]byte) []byte
 
 	key, iv       []byte
 	keyLen, ivLen int

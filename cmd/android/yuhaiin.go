@@ -1,10 +1,8 @@
 package yuhaiin
 
 import (
-	"context"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,15 +10,15 @@ import (
 
 	yuhaiin "github.com/Asutorufa/yuhaiin/internal"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 // GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -target=android/amd64,android/arm64 -ldflags='-s -w' -trimpath -v -o yuhaiin.aar ./
 
 type App struct {
-	dialer proxy.Proxy
-	lis    *http.Server
+	nodes *node.Nodes
+	lis   *http.Server
 
 	lock   sync.Mutex
 	closed chan struct{}
@@ -59,11 +57,11 @@ func (a *App) Start(opt *Opts) error {
 			errChan <- err
 			return
 		}
-		a.dialer = resp.Node
+		a.nodes = resp.Node
 		a.lis = &http.Server{Handler: resp.Mux}
 		a.closed = make(chan struct{})
 		defer func() {
-			a.dialer = nil
+			a.nodes = nil
 			resp.Close()
 			a.lis.Close()
 			a.lis = nil
@@ -105,28 +103,17 @@ func (a *App) Running() bool {
 }
 
 func (a *App) SaveNewBypass(link, dir string) error {
-	r, err := http.Get(link)
+	var hc *http.Client
+	if a.nodes == nil {
+		hc = http.DefaultClient
+	} else {
+		hc = a.nodes.HTTPClient()
+	}
+
+	r, err := hc.Get(link)
 	if err != nil {
-		log.Warningln("get new bypass failed:", err)
-		if a.dialer == nil {
-			log.Warningln("node is nil")
-			return err
-		}
-		r, err = (&http.Client{
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					add, err := proxy.ParseAddress(network, addr)
-					if err != nil {
-						return nil, err
-					}
-					return a.dialer.Conn(add)
-				},
-			},
-		}).Get(link)
-		if err != nil {
-			log.Errorln("get new bypass by proxy failed:", err)
-			return err
-		}
+		log.Errorln("get new bypass by proxy failed:", err)
+		return err
 	}
 	defer r.Body.Close()
 

@@ -54,6 +54,10 @@ function use(net) {
     console.log('use node:', hash);
     if (hash == 0) return;
 
+    useByHash(net, hash);
+}
+
+function useByHash(net, hash) {
     window.location = "/use?hash=" + hash + "&net=" + net;
 }
 

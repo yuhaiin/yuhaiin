@@ -17,11 +17,7 @@ type randomHead struct {
 	net.Conn
 }
 
-func init() {
-	register("random_head", newRandomHead)
-}
-
-func newRandomHead(conn net.Conn, _ ssr.ObfsInfo) IObfs {
+func newRandomHead(conn net.Conn, _ ObfsInfo) Obfs {
 	p := &randomHead{Conn: conn}
 	return p
 }

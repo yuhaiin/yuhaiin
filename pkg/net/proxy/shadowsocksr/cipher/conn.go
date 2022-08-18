@@ -16,34 +16,34 @@ import (
 
 type Cipher struct {
 	key    []byte
-	cipher CipherCreator
+	ivSize int
 	core.Cipher
 }
 
 func NewCipher(method, password string) (*Cipher, error) {
+	if method == "none" || method == "dummy" {
+		return &Cipher{Cipher: dummy{}}, nil
+	}
+
 	if password == "" {
 		return nil, fmt.Errorf("password is empty")
 	}
+
 	if method == "" {
 		method = "rc4-md5"
 	}
-	mi, ok := streamCipherMethod[method]
+
+	ss, ok := streamCipherMethod[method]
 	if !ok {
 		return nil, fmt.Errorf("unsupported encryption method: %v", method)
 	}
-	key := ssr.KDF(password, mi.KeySize())
-
-	var conn core.Cipher
-	if method == "none" || method == "dummy" {
-		conn = &dummy{}
-	} else {
-		conn = &cipherConn{mi, key}
-	}
-	return &Cipher{key, mi, conn}, nil
+	key := ssr.KDF(password, ss.KeySize)
+	mi := ss.Creator(key)
+	return &Cipher{key, mi.IVSize(), &cipherConn{mi}}, nil
 }
-func (c *Cipher) IVSize() int  { return c.cipher.IVSize() }
+func (c *Cipher) IVSize() int  { return c.ivSize }
 func (c *Cipher) Key() []byte  { return c.key }
-func (c *Cipher) KeySize() int { return c.cipher.KeySize() }
+func (c *Cipher) KeySize() int { return len(c.key) }
 
 // dummy cipher does not encrypt
 type dummy struct{}
@@ -51,44 +51,40 @@ type dummy struct{}
 func (dummy) StreamConn(c net.Conn) net.Conn             { return c }
 func (dummy) PacketConn(c net.PacketConn) net.PacketConn { return c }
 
-type cipherConn struct {
-	cipher CipherCreator
-	key    []byte
-}
+type cipherConn struct{ CipherFactory }
 
-func (c *cipherConn) StreamConn(conn net.Conn) net.Conn { return newStreamConn(conn, c.cipher, c.key) }
+func (c *cipherConn) StreamConn(conn net.Conn) net.Conn { return newStreamConn(conn, c.CipherFactory) }
 func (c *cipherConn) PacketConn(conn net.PacketConn) net.PacketConn {
-	return newPacketConn(conn, c.cipher, c.key)
+	return newPacketConn(conn, c.CipherFactory)
 }
 
 type packetConn struct {
 	net.PacketConn
-
-	key    []byte
-	cipher CipherCreator
-
-	buf [utils.DefaultSize]byte
+	CipherFactory
 }
 
-func newPacketConn(c net.PacketConn, ciph CipherCreator, key []byte) *packetConn {
-	return &packetConn{PacketConn: c, key: key, cipher: ciph}
+func newPacketConn(c net.PacketConn, cipherFactory CipherFactory) net.PacketConn {
+	return &packetConn{c, cipherFactory}
 }
 
 func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	_, err := rand.Read(p.buf[:p.cipher.IVSize()])
+	buf := utils.GetBytes(utils.DefaultSize)
+	defer utils.PutBytes(buf)
+
+	_, err := rand.Read(buf[:p.IVSize()])
 	if err != nil {
 		return 0, err
 	}
 
-	s, err := p.cipher.Encrypter(p.key, p.buf[:p.cipher.IVSize()])
+	s, err := p.EncryptStream(buf[:p.IVSize()])
 	if err != nil {
 		return 0, err
 	}
 
-	s.XORKeyStream(p.buf[p.cipher.IVSize():], b)
-	n, err := p.PacketConn.WriteTo(p.buf[:p.cipher.IVSize()+len(b)], addr)
-	if err != nil {
-		return n, err
+	s.XORKeyStream(buf[p.IVSize():], b)
+
+	if _, err = p.PacketConn.WriteTo(buf[:p.IVSize()+len(b)], addr); err != nil {
+		return 0, err
 	}
 
 	return len(b), nil
@@ -97,25 +93,23 @@ func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, addr, err := p.PacketConn.ReadFrom(b)
 	if err != nil {
-		return n, addr, err
+		return 0, nil, err
 	}
-	iv := b[:p.cipher.IVSize()]
-	s, err := p.cipher.Decrypter(p.key, iv)
-	if err != nil {
-		return n, addr, err
-	}
-	dst := make([]byte, n-p.cipher.IVSize())
-	s.XORKeyStream(dst, b[p.cipher.IVSize():n])
 
-	n = copy(b, dst)
+	s, err := p.DecryptStream(b[:p.IVSize()])
+	if err != nil {
+		return 0, nil, err
+	}
+
+	s.XORKeyStream(b[p.IVSize():], b[p.IVSize():n])
+	n = copy(b, b[p.IVSize():n])
 
 	return n, addr, nil
 }
 
 type streamConn struct {
 	net.Conn
-	key    []byte
-	cipher CipherCreator
+	cipher CipherFactory
 
 	enc, dec        cipher.Stream
 	writeIV, readIV []byte
@@ -123,8 +117,8 @@ type streamConn struct {
 	buf [utils.DefaultSize / 4]byte
 }
 
-func newStreamConn(c net.Conn, ciph CipherCreator, key []byte) *streamConn {
-	return &streamConn{Conn: c, key: key, cipher: ciph}
+func newStreamConn(c net.Conn, ciph CipherFactory) net.Conn {
+	return &streamConn{Conn: c, cipher: ciph}
 }
 
 func (c *streamConn) WriteIV() []byte {
@@ -145,7 +139,7 @@ func (c *streamConn) ReadIV() []byte {
 
 func (c *streamConn) Read(b []byte) (n int, err error) {
 	if c.dec == nil {
-		c.dec, err = c.cipher.Decrypter(c.key, c.ReadIV())
+		c.dec, err = c.cipher.DecryptStream(c.ReadIV())
 		if err != nil {
 			return 0, fmt.Errorf("create new decor failed: %w", err)
 		}
@@ -161,7 +155,7 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 
 func (c *streamConn) ReadFrom(r io.Reader) (_ int64, err error) {
 	if c.enc == nil {
-		c.enc, err = c.cipher.Encrypter(c.key, c.WriteIV())
+		c.enc, err = c.cipher.EncryptStream(c.WriteIV())
 		if err != nil {
 			return 0, err
 		}
