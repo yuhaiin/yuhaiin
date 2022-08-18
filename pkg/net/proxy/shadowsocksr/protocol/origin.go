@@ -2,15 +2,11 @@ package protocol
 
 import "bytes"
 
-func init() {
-	register("origin", NewOrigin)
-}
-
 type origin struct{}
 
 var _origin = &origin{}
 
-func NewOrigin(ProtocolInfo) IProtocol { return _origin }
+func NewOrigin(ProtocolInfo) Protocol { return _origin }
 func (o *origin) EncryptStream(dst *bytes.Buffer, data []byte) (err error) {
 	dst.Write(data)
 	return nil

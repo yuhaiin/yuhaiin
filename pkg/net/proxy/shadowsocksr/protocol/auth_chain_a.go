@@ -18,10 +18,6 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-func init() {
-	register("auth_chain_a", NewAuthChainA)
-}
-
 type authChainA struct {
 	ProtocolInfo
 	randomClient ssr.Shift128plusContext
@@ -38,9 +34,9 @@ type authChainA struct {
 	uid            [4]byte
 	salt           string
 	data           *AuthData
-	hmac           hmacMethod
-	hashDigest     hashDigestMethod
-	rnd            rndMethod
+	hmac           func(key, data, buf []byte) []byte
+	hashDigest     func([]byte) []byte
+	rnd            func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
 	dataSizeList   []int
 	dataSizeList2  []int
 	chunkID        uint32
@@ -48,9 +44,9 @@ type authChainA struct {
 	overhead int
 }
 
-func NewAuthChainA(info ProtocolInfo) IProtocol {
+func NewAuthChainA(info ProtocolInfo) Protocol {
 	a := &authChainA{
-		salt:         "auth_chain_a",
+		salt:         info.Name,
 		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.MD5, key, data, buf) },
 		hashDigest:   func(data []byte) []byte { return ssr.HashSum(crypto.SHA1, data) },
 		rnd:          authChainAGetRandLen,

@@ -7,13 +7,9 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-func init() {
-	register("auth_chain_b", NewAuthChainB)
-}
-
-func NewAuthChainB(info ProtocolInfo) IProtocol {
+func NewAuthChainB(info ProtocolInfo) Protocol {
 	a := &authChainA{
-		salt:         "auth_chain_b",
+		salt:         info.Name,
 		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.MD5, key, data, buf) },
 		hashDigest:   func(data []byte) []byte { return ssr.HashSum(crypto.SHA1, data) },
 		rnd:          authChainBGetRandLen,

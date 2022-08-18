@@ -30,7 +30,9 @@ func NewDoH(config Config) dns.DNS {
 	uri := getUrlAndHost(config.Host)
 
 	roundTripper := &http.Transport{
-		TLSClientConfig:   &tls.Config{ServerName: config.Servername},
+		TLSClientConfig: &tls.Config{
+			ServerName: config.Servername,
+		},
 		ForceAttemptHTTP2: true,
 		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
 			switch network {
@@ -44,8 +46,15 @@ func NewDoH(config Config) dns.DNS {
 				return nil, fmt.Errorf("unsupported network: %s", network)
 			}
 		},
+		MaxIdleConns:        30,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 30 * time.Second,
 	}
 
+	hc := &http.Client{
+		Transport: roundTripper,
+		Timeout:   time.Second * 30,
+	}
 	return &doh{
 		client: NewClient(config, func(b []byte) ([]byte, error) {
 			req, err := http.NewRequest("POST", uri, bytes.NewBuffer(b))
@@ -54,8 +63,7 @@ func NewDoH(config Config) dns.DNS {
 			}
 			req.Header.Set("Content-Type", "application/dns-message")
 			req.Header.Set("Accept", "application/dns-message")
-			req.Header.Set("User-Agent", string([]byte{' '}))
-			resp, err := (&http.Client{Transport: roundTripper, Timeout: time.Second * 6}).Do(req)
+			resp, err := hc.Do(req)
 			if err != nil {
 				return nil, fmt.Errorf("doh post failed: %v", err)
 			}

@@ -16,18 +16,13 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-func init() {
-	register("tls1.2_ticket_auth", newTLS12TicketAuth)
-	register("tls1.2_ticket_fastauth", newTLS12TicketAuth)
-}
-
 type tlsAuthData struct {
 	localClientID [32]byte
 }
 
 // tls12TicketAuth tls1.2_ticket_auth obfs encapsulate
 type tls12TicketAuth struct {
-	ssr.ObfsInfo
+	ObfsInfo
 	data            *tlsAuthData
 	handshakeStatus int
 	sendSaver       bytes.Buffer
@@ -38,7 +33,7 @@ type tls12TicketAuth struct {
 }
 
 // newTLS12TicketAuth create a tlv1.2_ticket_auth object
-func newTLS12TicketAuth(conn net.Conn, info ssr.ObfsInfo) IObfs {
+func newTLS12TicketAuth(conn net.Conn, info ObfsInfo) Obfs {
 	return &tls12TicketAuth{Conn: conn, ObfsInfo: info}
 }
 

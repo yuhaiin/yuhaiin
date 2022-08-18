@@ -10,17 +10,13 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-func init() {
-	register("auth_sha1_v4", NewAuthSHA1v4)
-}
-
 type authSHA1v4 struct {
 	ProtocolInfo
 	data          *AuthData
 	hasSentHeader bool
 }
 
-func NewAuthSHA1v4(info ProtocolInfo) IProtocol {
+func NewAuthSHA1v4(info ProtocolInfo) Protocol {
 	a := &authSHA1v4{
 		ProtocolInfo: info,
 		data:         info.Auth,

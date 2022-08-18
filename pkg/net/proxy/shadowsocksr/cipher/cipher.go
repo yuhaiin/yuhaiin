@@ -18,75 +18,28 @@ import (
 	"golang.org/x/crypto/salsa20/salsa"
 )
 
-type DecOrEnc int
-
-const (
-	Decrypt DecOrEnc = iota
-	Encrypt
-)
-
-func newCTRStream(block cipher.Block, err error, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
+func newAESCTRStream(key, iv []byte, _ bool) (cipher.Stream, error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
 	return cipher.NewCTR(block, iv), nil
 }
 
-func newAESCTRStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
+func newAESOFBStream(key, iv []byte, _ bool) (cipher.Stream, error) {
 	block, err := aes.NewCipher(key)
-	return newCTRStream(block, err, iv, doe)
-}
-
-func newOFBStream(block cipher.Block, err error, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cipher.NewCTR(block, iv), nil
+	return cipher.NewOFB(block, iv), nil
 }
 
-func newAESOFBStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	block, err := aes.NewCipher(key)
-	return newOFBStream(block, err, iv, doe)
-}
-
-func newCFBStream(block cipher.Block, err error, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	if err != nil {
-		return nil, err
-	}
-	if doe == Encrypt {
-		return cipher.NewCFBEncrypter(block, iv), nil
-	} else {
-		return cipher.NewCFBDecrypter(block, iv), nil
-	}
-}
-
-func newAESCFBStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	block, err := aes.NewCipher(key)
-	return newCFBStream(block, err, iv, doe)
-}
-
-func newDESStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	block, err := des.NewCipher(key)
-	return newCFBStream(block, err, iv, doe)
-}
-
-func newBlowFishStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	aes.NewCipher(key)
-	block, err := blowfish.NewCipher(key)
-	return newCFBStream(block, err, iv, doe)
-}
-
-func newCast5Stream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	block, err := cast5.NewCipher(key)
-	return newCFBStream(block, err, iv, doe)
-}
-
-func newRC4MD5Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
+func newRC4MD5Stream(key, iv []byte, _ bool) (cipher.Stream, error) {
 	rc4key := md5.Sum(append(key, iv...))
 	return rc4.NewCipher(rc4key[:])
 }
 
-func newChaCha20Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
+func newChaCha20Stream(key, iv []byte, _ bool) (cipher.Stream, error) {
 	return chacha20.NewUnauthenticatedCipher(key, iv)
 }
 
@@ -123,7 +76,7 @@ func (c *salsaStreamCipher) XORKeyStream(dst, src []byte) {
 	c.counter += len(src)
 }
 
-func newSalsa20Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
+func newSalsa20Stream(key, iv []byte, _ bool) (cipher.Stream, error) {
 	var c salsaStreamCipher
 	copy(c.nonce[:], iv[:8])
 	copy(c.key[:], key[:32])
@@ -131,94 +84,129 @@ func newSalsa20Stream(key, iv []byte, _ DecOrEnc) (cipher.Stream, error) {
 	return &c, nil
 }
 
-func newCamelliaStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
+func newRC4Stream(key, iv []byte, doe bool) (cipher.Stream, error) {
+	return rc4.NewCipher(key)
+}
+
+func newCFBStream(block cipher.Block, err error, iv []byte, decrypt bool) (cipher.Stream, error) {
+	if err != nil {
+		return nil, err
+	}
+	if !decrypt {
+		return cipher.NewCFBEncrypter(block, iv), nil
+	} else {
+		return cipher.NewCFBDecrypter(block, iv), nil
+	}
+}
+
+func newAESCFBStream(key, iv []byte, doe bool) (cipher.Stream, error) {
+	block, err := aes.NewCipher(key)
+	return newCFBStream(block, err, iv, doe)
+}
+
+func newDESStream(key, iv []byte, doe bool) (cipher.Stream, error) {
+	block, err := des.NewCipher(key)
+	return newCFBStream(block, err, iv, doe)
+}
+
+func newBlowFishStream(key, iv []byte, doe bool) (cipher.Stream, error) {
+	aes.NewCipher(key)
+	block, err := blowfish.NewCipher(key)
+	return newCFBStream(block, err, iv, doe)
+}
+
+func newCast5Stream(key, iv []byte, doe bool) (cipher.Stream, error) {
+	block, err := cast5.NewCipher(key)
+	return newCFBStream(block, err, iv, doe)
+}
+
+func newCamelliaStream(key, iv []byte, doe bool) (cipher.Stream, error) {
 	block, err := camellia.NewCipher(key)
 	return newCFBStream(block, err, iv, doe)
 }
 
-func newIdeaStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
+func newIdeaStream(key, iv []byte, doe bool) (cipher.Stream, error) {
 	block, err := idea.NewCipher(key)
 	return newCFBStream(block, err, iv, doe)
 }
 
-func newRC2Stream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
+func newRC2Stream(key, iv []byte, doe bool) (cipher.Stream, error) {
 	block, err := rc2.New(key, 16)
 	return newCFBStream(block, err, iv, doe)
 }
 
-func newRC4Stream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	return rc4.NewCipher(key)
-}
-
-func newSeedStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
+func newSeedStream(key, iv []byte, doe bool) (cipher.Stream, error) {
 	// TODO: SEED block cipher implementation is required
 	block, err := rc2.New(key, 16)
 	return newCFBStream(block, err, iv, doe)
 }
 
-type NoneStream struct {
-	cipher.Stream
-}
+type NoneStream struct{}
 
-func (*NoneStream) XORKeyStream(dst, src []byte) {
-	copy(dst, src)
-}
+func (NoneStream) XORKeyStream(dst, src []byte)                     { copy(dst, src) }
+func newNoneStream(key, iv []byte, doe bool) (cipher.Stream, error) { return new(NoneStream), nil }
 
-func newNoneStream(key, iv []byte, doe DecOrEnc) (cipher.Stream, error) {
-	return new(NoneStream), nil
-}
-
-type CipherCreator interface {
-	KeySize() int
+type CipherFactory interface {
 	IVSize() int
-	Encrypter(key, iv []byte) (cipher.Stream, error)
-	Decrypter(key, iv []byte) (cipher.Stream, error)
+	EncryptStream(iv []byte) (cipher.Stream, error)
+	DecryptStream(iv []byte) (cipher.Stream, error)
 }
-type cipherObserver struct {
-	keySize, ivSize int
-	stream          func(key, iv []byte, doe DecOrEnc) (cipher.Stream, error)
-}
-
-func (c cipherObserver) KeySize() int {
-	return c.keySize
+type cipherFactory struct {
+	key    []byte
+	ivSize int
+	stream func(key, iv []byte, decrypt bool) (cipher.Stream, error)
 }
 
-func (c cipherObserver) IVSize() int {
-	return c.ivSize
+func (c cipherFactory) IVSize() int { return c.ivSize }
+func (c cipherFactory) EncryptStream(iv []byte) (cipher.Stream, error) {
+	return c.stream(c.key, iv, false)
+}
+func (c cipherFactory) DecryptStream(iv []byte) (cipher.Stream, error) {
+	return c.stream(c.key, iv, true)
 }
 
-func (c cipherObserver) Encrypter(key, iv []byte) (cipher.Stream, error) {
-	return c.stream(key, iv, Encrypt)
+func newCipherObserver(keySize, ivSize int, stream func(key, iv []byte, decrypt bool) (cipher.Stream, error)) struct {
+	KeySize int
+	Creator func(key []byte) CipherFactory
+} {
+	return struct {
+		KeySize int
+		Creator func(key []byte) CipherFactory
+	}{
+		KeySize: keySize,
+		Creator: func(key []byte) CipherFactory {
+			return cipherFactory{key, ivSize, stream}
+		},
+	}
 }
 
-func (c cipherObserver) Decrypter(key, iv []byte) (cipher.Stream, error) {
-	return c.stream(key, iv, Decrypt)
-}
-
-var streamCipherMethod = map[string]CipherCreator{
-	"aes-128-cfb":      cipherObserver{16, 16, newAESCFBStream},
-	"aes-192-cfb":      cipherObserver{24, 16, newAESCFBStream},
-	"aes-256-cfb":      cipherObserver{32, 16, newAESCFBStream},
-	"aes-128-ctr":      cipherObserver{16, 16, newAESCTRStream},
-	"aes-192-ctr":      cipherObserver{24, 16, newAESCTRStream},
-	"aes-256-ctr":      cipherObserver{32, 16, newAESCTRStream},
-	"aes-128-ofb":      cipherObserver{16, 16, newAESOFBStream},
-	"aes-192-ofb":      cipherObserver{24, 16, newAESOFBStream},
-	"aes-256-ofb":      cipherObserver{32, 16, newAESOFBStream},
-	"des-cfb":          cipherObserver{8, 8, newDESStream},
-	"bf-cfb":           cipherObserver{16, 8, newBlowFishStream},
-	"cast5-cfb":        cipherObserver{16, 8, newCast5Stream},
-	"rc4-md5":          cipherObserver{16, 16, newRC4MD5Stream},
-	"rc4-md5-6":        cipherObserver{16, 6, newRC4MD5Stream},
-	"chacha20":         cipherObserver{chacha20.KeySize, 8, newChaCha20Stream},
-	"chacha20-ietf":    cipherObserver{chacha20.KeySize, chacha20.NonceSize, newChaCha20Stream},
-	"salsa20":          cipherObserver{32, 8, newSalsa20Stream},
-	"camellia-128-cfb": cipherObserver{16, 16, newCamelliaStream},
-	"camellia-192-cfb": cipherObserver{24, 16, newCamelliaStream},
-	"camellia-256-cfb": cipherObserver{32, 16, newCamelliaStream},
-	"idea-cfb":         cipherObserver{16, 8, newIdeaStream},
-	"rc2-cfb":          cipherObserver{16, 8, newRC2Stream},
-	"seed-cfb":         cipherObserver{16, 8, newSeedStream},
-	"rc4":              cipherObserver{16, 0, newRC4Stream},
-	"none":             cipherObserver{16, 0, newNoneStream},
+var streamCipherMethod = map[string]struct {
+	KeySize int
+	Creator func(key []byte) CipherFactory
+}{
+	"aes-128-cfb":      newCipherObserver(16, 16, newAESCFBStream),
+	"aes-192-cfb":      newCipherObserver(24, 16, newAESCFBStream),
+	"aes-256-cfb":      newCipherObserver(32, 16, newAESCFBStream),
+	"aes-128-ctr":      newCipherObserver(16, 16, newAESCTRStream),
+	"aes-192-ctr":      newCipherObserver(24, 16, newAESCTRStream),
+	"aes-256-ctr":      newCipherObserver(32, 16, newAESCTRStream),
+	"aes-128-ofb":      newCipherObserver(16, 16, newAESOFBStream),
+	"aes-192-ofb":      newCipherObserver(24, 16, newAESOFBStream),
+	"aes-256-ofb":      newCipherObserver(32, 16, newAESOFBStream),
+	"des-cfb":          newCipherObserver(8, 8, newDESStream),
+	"bf-cfb":           newCipherObserver(16, 8, newBlowFishStream),
+	"cast5-cfb":        newCipherObserver(16, 8, newCast5Stream),
+	"rc4-md5":          newCipherObserver(16, 16, newRC4MD5Stream),
+	"rc4-md5-6":        newCipherObserver(16, 6, newRC4MD5Stream),
+	"chacha20":         newCipherObserver(chacha20.KeySize, 8, newChaCha20Stream),
+	"chacha20-ietf":    newCipherObserver(chacha20.KeySize, chacha20.NonceSize, newChaCha20Stream),
+	"salsa20":          newCipherObserver(32, 8, newSalsa20Stream),
+	"camellia-128-cfb": newCipherObserver(16, 16, newCamelliaStream),
+	"camellia-192-cfb": newCipherObserver(24, 16, newCamelliaStream),
+	"camellia-256-cfb": newCipherObserver(32, 16, newCamelliaStream),
+	"idea-cfb":         newCipherObserver(16, 8, newIdeaStream),
+	"rc2-cfb":          newCipherObserver(16, 8, newRC2Stream),
+	"seed-cfb":         newCipherObserver(16, 8, newSeedStream),
+	"rc4":              newCipherObserver(16, 0, newRC4Stream),
+	"none":             newCipherObserver(16, 0, newNoneStream),
 }
