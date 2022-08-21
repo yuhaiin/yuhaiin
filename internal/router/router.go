@@ -16,6 +16,7 @@ type Router struct {
 	shunt Shunt
 	*dnsServer
 	*fakedns
+	modes []Mode
 }
 
 type Mode struct {
@@ -27,7 +28,7 @@ type Mode struct {
 }
 
 func NewRouter(statistics stc.Statistics, bypassResolver dns.DNS, modes []Mode) *Router {
-	c := &Router{}
+	c := &Router{modes: modes}
 
 	c.shunt = newShunt(bypassResolver, statistics)
 
@@ -44,6 +45,9 @@ func NewRouter(statistics stc.Statistics, bypassResolver dns.DNS, modes []Mode) 
 
 func (a *Router) Update(s *protoconfig.Setting) {
 	a.shunt.Update(s)
+	for _, mode := range a.modes {
+		a.insert(mode.Rules, mode.Mode)
+	}
 	a.fakedns.Update(s)
 	a.dnsServer.Update(s)
 }

@@ -4,25 +4,36 @@ import (
 	"net"
 	"testing"
 
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	rr "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDOH(t *testing.T) {
+	rr.Bootstrap = &rr.System{DisableIPv6: true}
 	_, s, _ := net.ParseCIDR("223.5.5.5/24")
 	_ = s
 	// d := NewDoH("cloudflare-dns.com", nil)
-	// d := NewDoH("public.dns.iij.jp", s, nil)
-	d := New(Config{
-		Type:   config.Dns_doh,
-		Host:   "dns.google",
-		IPv6:   true,
-		Dialer: s5c.Dial("127.0.0.1", "1080", "", ""),
-	})
+	d := New(
+		Config{
+			Type:       config.Dns_doh,
+			Host:       "103.2.57.5",
+			Servername: "public.dns.iij.jp",
+			IPv6:       true,
+		})
+	// d := New(Config{
+	// 	Type:   config.Dns_doh,
+	// 	Host:   "dns.google",
+	// 	IPv6:   true,
+	// 	Dialer: s5c.Dial("127.0.0.1", "1080", "", ""),
+	// })
 	// d := NewDoH(dns.Config{Host: "9.9.9.9", Subnet: s, IPv6: true}, nil)
 	// d := NewDoH(dns.Config{Host: "43.154.169.30", Servername: "a.passcloud.xyz"}, s5c.Dial("127.0.0.1", "1080", "", ""))
-	// d := NewDoH("1.1.1.1", nil, nil)
+	// d := New(Config{
+	// 	Type: config.Dns_doh,
+	// 	Host: "https://unfiltered.adguard-dns.com/dns-query",
+	// 	IPv6: true,
+	// })
 	// d := NewDoH("1.0.0.1", nil, nil)
 	// d := NewDoH(dns.Config{Host: "223.5.5.5", Subnet: s}, nil)
 	// d := NewDoH(dns.Config{Host: "120.53.53.53", Subnet: s}, nil)
@@ -43,6 +54,7 @@ func TestDOH(t *testing.T) {
 	t.Log(d.LookupIP("s1.hdslb.com"))
 	t.Log(d.LookupIP("dns.nextdns.io"))
 	t.Log(d.LookupIP("bilibili.com"))
+	t.Log(d.LookupIP("test-ipv6.com"))
 	t.Log(d.LookupIP("test-ipv6.com"))
 	//t.Log(d.LookupIP("baidu.com"))
 	//t.Log(d.LookupIP("ss1.bdstatic.com"))

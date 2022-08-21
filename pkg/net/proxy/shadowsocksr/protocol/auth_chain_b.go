@@ -1,28 +1,13 @@
 package protocol
 
 import (
-	"crypto"
 	"sort"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
 func NewAuthChainB(info ProtocolInfo) Protocol {
-	a := &authChainA{
-		salt:         info.Name,
-		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.MD5, key, data, buf) },
-		hashDigest:   func(data []byte) []byte { return ssr.HashSum(crypto.SHA1, data) },
-		rnd:          authChainBGetRandLen,
-		recvID:       1,
-		ProtocolInfo: info,
-		data:         info.Auth,
-	}
-
-	if a.data == nil {
-		a.data = &AuthData{}
-	}
-
-	a.overhead = 4 + info.ObfsOverhead
+	a := newAuthChain(info, authChainBGetRandLen)
 	a.authChainBInitDataSize()
 	return a
 }

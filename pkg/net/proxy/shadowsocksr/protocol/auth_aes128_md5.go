@@ -24,40 +24,25 @@ func NewAuthAES128MD5(info ProtocolInfo) Protocol { return newAuthAES128(info, c
 
 func newAuthAES128(info ProtocolInfo, hash crypto.Hash) Protocol {
 	a := &authAES128{
-		salt:       strings.ToLower(info.Name),
-		hmac:       func(key, data, buf []byte) []byte { return ssr.Hmac(hash, key, data, buf) },
-		hashDigest: func(data []byte) []byte { return ssr.HashSum(hash, data) },
-		packID:     1,
-		recvID:     1,
-		key:        info.Key,
-		keyLen:     info.KeySize,
-		iv:         info.IV,
-		ivLen:      info.IVSize,
-		param:      info.Param,
-		auth:       info.Auth,
-		tcpMSS:     info.TcpMss,
+		salt:   strings.ToLower(info.Name),
+		hmac:   ssr.HMAC(hash),
+		packID: 1,
+		recvID: 1,
+		info:   info,
 	}
 	a.initUserKey()
 	return a
 }
 
 type authAES128 struct {
-	recvID        uint32
-	auth          *AuthData
-	hasSentHeader bool
-	rawTrans      bool
-	packID        uint32
-	userKey       []byte
-	uid           [4]byte
-	salt          string
-	hmac          func(key, data, buf []byte) []byte
-	hashDigest    func([]byte) []byte
+	hasSentHeader, rawTrans bool
+	recvID, packID          uint32
+	userKey                 []byte
+	uid                     [4]byte
+	salt                    string
+	hmac                    ssr.HMAC
 
-	key, iv       []byte
-	keyLen, ivLen int
-	tcpMSS        int
-
-	param string
+	info ProtocolInfo
 }
 
 func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int) {
@@ -83,7 +68,7 @@ func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int)
 	defer utils.PutBytes(hmacBuf)
 
 	// 2~3, hmac
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-2:], hmacBuf)[:2])
+	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-2:], hmacBuf)[:2])
 
 	// 4, rand length
 	if randLength < 128 {
@@ -106,7 +91,7 @@ func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int)
 
 	start := wbuf.Len() - outLength + 4
 	// hmac
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[start:], hmacBuf)[:4])
+	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[start:], hmacBuf)[:4])
 }
 
 func (a *authAES128) initUserKey() {
@@ -114,19 +99,19 @@ func (a *authAES128) initUserKey() {
 		return
 	}
 
-	params := strings.Split(a.param, ":")
+	params := strings.Split(a.info.Param, ":")
 	if len(params) >= 2 {
 		userID, err := strconv.ParseUint(params[0], 10, 32)
 		if err == nil {
 			binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
-			a.userKey = a.hashDigest([]byte(params[1]))
+			a.userKey = a.hmac.HASH([]byte(params[1]))
 		}
 	}
 
 	if a.userKey == nil {
 		rand.Read(a.uid[:])
-		a.userKey = make([]byte, a.keyLen)
-		copy(a.userKey, a.key)
+		a.userKey = make([]byte, a.info.KeySize)
+		copy(a.userKey, a.info.Key)
 	}
 }
 
@@ -149,13 +134,13 @@ func (a *authAES128) rndDataLen(bufSize, fullBufSize int) int {
 		return 0
 	}
 
-	revLen := a.tcpMSS - bufSize - a.GetOverhead()
+	revLen := a.info.TcpMss - bufSize - a.GetOverhead()
 	if revLen == 0 {
 		return 0
 	}
 	if revLen < 0 {
-		if revLen > -a.tcpMSS {
-			return trapezoidRandomFLoat(revLen+a.tcpMSS, -0.3)
+		if revLen > -a.info.TcpMss {
+			return trapezoidRandomFLoat(revLen+a.info.TcpMss, -0.3)
 		}
 
 		return rand.Intn(32)
@@ -192,10 +177,10 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	encrypt := utils.GetBytes(16)
 	defer utils.PutBytes(encrypt)
 
-	a.auth.nextAuth()
+	a.info.Auth.nextAuth()
 	binary.LittleEndian.PutUint32(encrypt[0:4], uint32(time.Now().Unix()))
-	copy(encrypt[4:], a.auth.clientID)
-	binary.LittleEndian.PutUint32(encrypt[8:], a.auth.connectionID.Load())
+	copy(encrypt[4:], a.info.Auth.clientID)
+	binary.LittleEndian.PutUint32(encrypt[8:], a.info.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(outLength))
 	binary.LittleEndian.PutUint16(encrypt[14:], uint16(randLength))
 
@@ -203,22 +188,22 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	cbc := cipher.NewCBCEncrypter(block, iv)
 	cbc.CryptBlocks(encrypt[:16], encrypt[:16])
 
-	key := make([]byte, a.ivLen+a.keyLen)
-	copy(key, a.iv)
-	copy(key[a.ivLen:], a.key)
+	key := make([]byte, a.info.IVSize+a.info.KeySize)
+	copy(key, a.info.IV)
+	copy(key[a.info.IVSize:], a.info.Key)
 
 	hmacBuf := utils.GetBytes(6)
 	defer utils.PutBytes(hmacBuf)
 
 	wbuf.Write([]byte{byte(rand.Intn(256))})
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
+	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
 	wbuf.Write(a.uid[:])
 	wbuf.Write(encrypt[:16])
-	wbuf.Write(a.hmac(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
+	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
 	io.CopyN(wbuf, crand.Reader, int64(randLength))
 	wbuf.Write(data)
 	start := wbuf.Len() - outLength + 4
-	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes()[start:], hmacBuf)[:4])
+	wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes()[start:], hmacBuf)[:4])
 }
 
 func (a *authAES128) EncryptStream(wbuf *bytes.Buffer, data []byte) (err error) {
@@ -270,7 +255,7 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 
 	for remain := datalen; remain > 4; remain = datalen - readLen {
 		binary.LittleEndian.PutUint32(key[keyLen-4:], a.recvID)
-		if !bytes.Equal(a.hmac(key[:keyLen], data[0:2], hmacBuf)[:2], data[2:4]) {
+		if !bytes.Equal(a.hmac.HMAC(key[:keyLen], data[0:2], hmacBuf)[:2], data[2:4]) {
 			return 0, ssr.ErrAuthAES128IncorrectHMAC
 		}
 
@@ -286,7 +271,7 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 			break
 		}
 
-		if !bytes.Equal(a.hmac(key[:keyLen], data[:cdlen], hmacBuf)[:4], data[cdlen:clen]) {
+		if !bytes.Equal(a.hmac.HMAC(key[:keyLen], data[:cdlen], hmacBuf)[:4], data[cdlen:clen]) {
 			a.rawTrans = true
 			return 0, ssr.ErrAuthAES128IncorrectChecksum
 		}
@@ -318,7 +303,7 @@ func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 	wbuf.Write(a.uid[:])
 	hmacBuf := utils.GetBytes(6)
 	defer utils.PutBytes(hmacBuf)
-	wbuf.Write(a.hmac(a.userKey, wbuf.Bytes(), hmacBuf)[:4])
+	wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes(), hmacBuf)[:4])
 	return wbuf.Bytes(), nil
 }
 
@@ -326,7 +311,7 @@ func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
 	hmacBuf := utils.GetBytes(6)
 	defer utils.PutBytes(hmacBuf)
-	if !bytes.Equal(a.hmac(a.key, b[:len(b)-4], hmacBuf)[:4], b[len(b)-4:]) {
+	if !bytes.Equal(a.hmac.HMAC(a.info.Key, b[:len(b)-4], hmacBuf)[:4], b[len(b)-4:]) {
 		return nil, ssr.ErrAuthAES128IncorrectChecksum
 	}
 
