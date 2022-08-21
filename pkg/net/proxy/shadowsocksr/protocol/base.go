@@ -90,9 +90,8 @@ type protocolConn struct {
 	protocol Protocol
 	net.Conn
 
-	readBuf             [utils.DefaultSize / 4]byte
-	underPostdecryptBuf bytes.Buffer
-	decryptedBuf        bytes.Buffer
+	readBuf               [utils.DefaultSize / 4]byte
+	ciphertext, plaintext bytes.Buffer
 }
 
 func newConn(c net.Conn, p Protocol) net.Conn {
@@ -103,8 +102,8 @@ func newConn(c net.Conn, p Protocol) net.Conn {
 }
 
 func (c *protocolConn) Read(b []byte) (n int, err error) {
-	if c.decryptedBuf.Len() > 0 {
-		return c.decryptedBuf.Read(b)
+	if c.plaintext.Len() > 0 {
+		return c.plaintext.Read(b)
 	}
 
 	n, err = c.Conn.Read(c.readBuf[:])
@@ -112,15 +111,15 @@ func (c *protocolConn) Read(b []byte) (n int, err error) {
 		return 0, err
 	}
 
-	c.underPostdecryptBuf.Write(c.readBuf[:n])
-	length, err := c.protocol.DecryptStream(&c.decryptedBuf, c.underPostdecryptBuf.Bytes())
+	c.ciphertext.Write(c.readBuf[:n])
+	length, err := c.protocol.DecryptStream(&c.plaintext, c.ciphertext.Bytes())
 	if err != nil {
-		c.underPostdecryptBuf.Reset()
+		c.ciphertext.Reset()
 		return 0, err
 	}
-	c.underPostdecryptBuf.Next(length)
+	c.ciphertext.Next(length)
 
-	n, _ = c.decryptedBuf.Read(b)
+	n, _ = c.plaintext.Read(b)
 	return n, nil
 }
 

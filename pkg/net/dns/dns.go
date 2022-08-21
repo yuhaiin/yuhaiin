@@ -2,7 +2,6 @@ package dns
 
 import (
 	"bytes"
-	"container/list"
 	"fmt"
 	"math/rand"
 	"net"
@@ -13,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
@@ -54,7 +54,7 @@ var _ dns.DNS = (*client)(nil)
 type client struct {
 	subnet []dnsmessage.Resource
 	do     func([]byte) ([]byte, error)
-	cache  *dnsLruCache[string, ipResponse]
+	cache  *utils.LRU[string, ipResponse]
 
 	config Config
 }
@@ -69,47 +69,51 @@ func (c ipResponse) String() string {
 }
 
 func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{do: send, config: config, cache: newCache[string, ipResponse](300)}
+	c := &client{do: send, config: config, cache: utils.NewLru[string, ipResponse](300, 0)}
 
-	if config.Subnet != nil {
-		optionData := bytes.NewBuffer(nil)
+	if config.Subnet == nil {
+		return c
+	}
 
-		mask, _ := config.Subnet.Mask.Size()
-		ip := config.Subnet.IP.To4()
-		if ip == nil { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
-			optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
-			ip = config.Subnet.IP.To16()
-		} else {
-			optionData.Write([]byte{0b00000000, 0b00000001}) // family ipv4 1
-		}
-		optionData.WriteByte(byte(mask)) // mask
-		optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
+	// EDNS Subnet
+	optionData := bytes.NewBuffer(nil)
 
-		var i int // cut the ip bytes
-		if i = mask / 8; mask%8 != 0 {
-			i++
-		}
+	ip := config.Subnet.IP.To4()
+	if ip == nil { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
+		optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
+		ip = config.Subnet.IP.To16()
+	} else {
+		optionData.Write([]byte{0b00000000, 0b00000001}) // family ipv4 1
+	}
 
-		optionData.Write(ip[:i]) // subnet IP
+	mask, _ := config.Subnet.Mask.Size()
+	optionData.WriteByte(byte(mask)) // mask
+	optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
 
-		c.subnet = []dnsmessage.Resource{
-			{
-				Header: dnsmessage.ResourceHeader{
-					Name:  dnsmessage.MustNewName("."),
-					Type:  41,
-					Class: 4096,
-					TTL:   0,
-				},
-				Body: &dnsmessage.OPTResource{
-					Options: []dnsmessage.Option{
-						{
-							Code: 8,
-							Data: optionData.Bytes(),
-						},
+	var i int // cut the ip bytes
+	if i = mask / 8; mask%8 != 0 {
+		i++
+	}
+
+	optionData.Write(ip[:i]) // subnet IP
+
+	c.subnet = []dnsmessage.Resource{
+		{
+			Header: dnsmessage.ResourceHeader{
+				Name:  dnsmessage.MustNewName("."),
+				Type:  41,
+				Class: 4096,
+				TTL:   0,
+			},
+			Body: &dnsmessage.OPTResource{
+				Options: []dnsmessage.Option{
+					{
+						Code: 8,
+						Data: optionData.Bytes(),
 					},
 				},
 			},
-		}
+		},
 	}
 	return c
 }
@@ -172,7 +176,7 @@ func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPResponse,
 
 	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
 
-	c.cache.Add(key, ipResponse{resp, expireAfter}, expireAfter)
+	c.cache.Add(key, ipResponse{resp, expireAfter}, utils.WithExpireTime(expireAfter))
 	return dns.NewIPResponse(resp, ttl), nil
 }
 
@@ -267,84 +271,3 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 }
 
 func (c *client) Close() error { return nil }
-
-type cacheEntry[K, V any] struct {
-	key        K
-	data       V
-	expireTime time.Time
-}
-
-//dnsLruCache Least Recently Used
-type dnsLruCache[K, V any] struct {
-	capacity int
-	list     *list.List
-	mapping  sync.Map
-	lock     sync.Mutex
-}
-
-//newCache create new lru cache
-func newCache[K, V any](capacity int) *dnsLruCache[K, V] {
-	return &dnsLruCache[K, V]{
-		capacity: capacity,
-		list:     list.New(),
-	}
-}
-
-func (l *dnsLruCache[K, V]) Add(key K, value V, expireTime time.Time) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	if elem, ok := l.mapping.Load(key); ok {
-		r := elem.(*list.Element).Value.(*cacheEntry[K, V])
-		r.key = key
-		r.data = value
-		r.expireTime = expireTime
-		l.list.MoveToFront(elem.(*list.Element))
-		return
-	}
-
-	if l.capacity == 0 || l.list.Len() < l.capacity {
-		l.mapping.Store(key, l.list.PushFront(&cacheEntry[K, V]{
-			key:        key,
-			data:       value,
-			expireTime: expireTime,
-		}))
-		return
-	}
-
-	elem := l.list.Back()
-	r := elem.Value.(*cacheEntry[K, V])
-	l.mapping.Delete(r.key)
-	r.key = key
-	r.data = value
-	r.expireTime = expireTime
-	l.list.MoveToFront(elem)
-	l.mapping.Store(key, elem)
-}
-
-//Delete delete a key from cache
-func (l *dnsLruCache[K, V]) Delete(key K) {
-	l.mapping.LoadAndDelete(key)
-}
-
-func (l *dnsLruCache[K, V]) Load(key K) (v V, ok bool) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	node, ok := l.mapping.Load(key)
-	if !ok {
-		return v, false
-	}
-
-	y, ok := node.(*list.Element).Value.(*cacheEntry[K, V])
-	if !ok {
-		return v, false
-	}
-
-	if time.Now().After(y.expireTime) {
-		l.mapping.Delete(key)
-		l.list.Remove(node.(*list.Element))
-		return v, false
-	}
-
-	l.list.MoveToFront(node.(*list.Element))
-	return y.data, true
-}

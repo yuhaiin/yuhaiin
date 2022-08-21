@@ -10,6 +10,11 @@ import (
 	_ "github.com/shadowsocks/go-shadowsocks2/core"
 )
 
+type HMAC crypto.Hash
+
+func (h HMAC) HMAC(key, data, buf []byte) []byte { return Hmac(crypto.Hash(h), key, data, buf) }
+func (h HMAC) HASH(b []byte) []byte              { return HashSum(crypto.Hash(h), b) }
+
 var hmacPool syncmap.SyncMap[crypto.Hash, *sync.Pool]
 
 func getHmac(hash crypto.Hash, key []byte) CHmac {

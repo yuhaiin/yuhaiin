@@ -33,9 +33,7 @@ type authChainA struct {
 	userKeyLen     int
 	uid            [4]byte
 	salt           string
-	data           *AuthData
-	hmac           func(key, data, buf []byte) []byte
-	hashDigest     func([]byte) []byte
+	hmac           ssr.HMAC
 	rnd            func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
 	dataSizeList   []int
 	dataSizeList2  []int
@@ -44,21 +42,17 @@ type authChainA struct {
 	overhead int
 }
 
-func NewAuthChainA(info ProtocolInfo) Protocol {
-	a := &authChainA{
+func NewAuthChainA(info ProtocolInfo) Protocol { return newAuthChain(info, authChainAGetRandLen) }
+
+func newAuthChain(info ProtocolInfo, rnd func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int) *authChainA {
+	return &authChainA{
 		salt:         info.Name,
-		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.MD5, key, data, buf) },
-		hashDigest:   func(data []byte) []byte { return ssr.HashSum(crypto.SHA1, data) },
-		rnd:          authChainAGetRandLen,
+		hmac:         ssr.HMAC(crypto.MD5),
+		rnd:          rnd,
 		recvID:       1,
 		ProtocolInfo: info,
-		data:         info.Auth,
+		overhead:     4 + info.ObfsOverhead,
 	}
-	if a.data == nil {
-		a.data = &AuthData{}
-	}
-	a.overhead = 4 + info.ObfsOverhead
-	return a
 }
 
 func authChainAGetRandLen(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int {
@@ -122,7 +116,7 @@ func (a *authChainA) packData(outData []byte, data []byte, randLength int) {
 	copy(key, a.userKey)
 	a.chunkID++
 	binary.LittleEndian.PutUint32(key[a.userKeyLen:], a.chunkID)
-	a.lastClientHash = a.hmac(key, outData[:outLength], nil)
+	a.lastClientHash = a.hmac.HMAC(key, outData[:outLength], nil)
 	copy(outData[outLength:], a.lastClientHash[:2])
 }
 
@@ -131,7 +125,7 @@ const authheadLength = 4 + 8 + 4 + 16 + 4
 func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	outData = make([]byte, authheadLength, authheadLength+1500)
 
-	a.data.nextAuth()
+	a.ProtocolInfo.Auth.nextAuth()
 
 	var key = make([]byte, a.IVSize+a.KeySize)
 	copy(key, a.IV)
@@ -140,15 +134,15 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	encrypt := make([]byte, 20)
 	t := time.Now().Unix()
 	binary.LittleEndian.PutUint32(encrypt[:4], uint32(t))
-	copy(encrypt[4:8], a.data.clientID)
-	binary.LittleEndian.PutUint32(encrypt[8:], a.data.connectionID.Load())
+	copy(encrypt[4:8], a.ProtocolInfo.Auth.clientID)
+	binary.LittleEndian.PutUint32(encrypt[8:], a.ProtocolInfo.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))
 	binary.LittleEndian.PutUint16(encrypt[14:16], 0)
 
 	// first 12 bytes
 	{
 		rand.Read(outData[:4])
-		a.lastClientHash = a.hmac(key, outData[:4], nil)
+		a.lastClientHash = a.hmac.HMAC(key, outData[:4], nil)
 		copy(outData[4:], a.lastClientHash[:8])
 	}
 	var base64UserKey string
@@ -190,7 +184,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	}
 	// final HMAC
 	{
-		a.lastServerHash = a.hmac(a.userKey, encrypt[0:20], nil)
+		a.lastServerHash = a.hmac.HMAC(a.userKey, encrypt[0:20], nil)
 
 		copy(outData[12:], encrypt)
 		copy(outData[12+20:], a.lastServerHash[:4])
@@ -269,7 +263,7 @@ func (a *authChainA) DecryptStream(rbuf *bytes.Buffer, plainData []byte) (n int,
 			break
 		}
 
-		hash := a.hmac(key, plainData[:length-2], nil)
+		hash := a.hmac.HMAC(key, plainData[:length-2], nil)
 		if !bytes.Equal(hash[:2], plainData[length-2:length]) {
 			return 0, ssr.ErrAuthChainIncorrectHMAC
 		}
@@ -319,7 +313,7 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 	authData := make([]byte, 3)
 	rand.Read(authData)
 
-	md5Data := a.hmac(a.userKey, authData, nil)
+	md5Data := a.hmac.HMAC(a.userKey, authData, nil)
 	randDataLength := udpGetRandLength(md5Data, &a.randomClient)
 
 	key := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
@@ -336,10 +330,10 @@ func (a *authChainA) DecryptPacket(b []byte) ([]byte, error) {
 	if len(b) < 9 {
 		return nil, ssr.ErrAuthChainDataLengthError
 	}
-	if !bytes.Equal(a.hmac(a.userKey, b[:len(b)-1], nil)[:1], b[len(b)-1:]) {
+	if !bytes.Equal(a.hmac.HMAC(a.userKey, b[:len(b)-1], nil)[:1], b[len(b)-1:]) {
 		return nil, ssr.ErrAuthChainIncorrectHMAC
 	}
-	md5Data := a.hmac(a.Key, b[len(b)-8:len(b)-1], nil)
+	md5Data := a.hmac.HMAC(a.Key, b[len(b)-8:len(b)-1], nil)
 
 	randDataLength := udpGetRandLength(md5Data, &a.randomServer)
 
