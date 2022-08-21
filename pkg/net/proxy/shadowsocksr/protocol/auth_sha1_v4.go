@@ -12,21 +12,10 @@ import (
 
 type authSHA1v4 struct {
 	ProtocolInfo
-	data          *AuthData
 	hasSentHeader bool
 }
 
-func NewAuthSHA1v4(info ProtocolInfo) Protocol {
-	a := &authSHA1v4{
-		ProtocolInfo: info,
-		data:         info.Auth,
-	}
-
-	if a.data == nil {
-		a.data = &AuthData{}
-	}
-	return a
-}
+func NewAuthSHA1v4(info ProtocolInfo) Protocol { return &authSHA1v4{ProtocolInfo: info} }
 
 func (a *authSHA1v4) packData(data []byte) (outData []byte) {
 	dataLength := len(data)
@@ -79,17 +68,9 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	dataOffset := randLength + 4 + 2
 	outLength := dataOffset + dataLength + 12 + ssr.ObfsHMACSHA1Len
 	outData = make([]byte, outLength)
-	a.data.connectionID.Add(1)
-	if a.data.connectionID.Load() > 0xFF000000 {
-		a.data.clientID = nil
-	}
-	if len(a.data.clientID) == 0 {
-		a.data.clientID = make([]byte, 8)
-		rand.Read(a.data.clientID)
-		b := make([]byte, 4)
-		rand.Read(b)
-		a.data.connectionID.Store(binary.LittleEndian.Uint32(b) & 0xFFFFFF)
-	}
+
+	a.Auth.nextAuth()
+
 	// 0-1, out length
 	binary.BigEndian.PutUint16(outData[0:2], uint16(outLength&0xFFFF))
 
@@ -117,9 +98,9 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	now := time.Now().Unix()
 	binary.LittleEndian.PutUint32(outData[dataOffset:dataOffset+4], uint32(now))
 	// rand length+10~rand length+14, client ID
-	copy(outData[dataOffset+4:dataOffset+4+4], a.data.clientID[0:4])
+	copy(outData[dataOffset+4:dataOffset+4+4], a.Auth.clientID[0:4])
 	// rand length+14~rand length+18, connection ID
-	binary.LittleEndian.PutUint32(outData[dataOffset+8:dataOffset+8+4], a.data.connectionID.Load())
+	binary.LittleEndian.PutUint32(outData[dataOffset+8:dataOffset+8+4], a.Auth.connectionID.Load())
 	// rand length+18~rand length+18+data length, data
 	copy(outData[dataOffset+12:], data)
 

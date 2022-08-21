@@ -12,7 +12,7 @@ type verifySHA1 struct {
 	ProtocolInfo
 	hasSentHeader bool
 	chunkId       uint32
-	hmac          func(key, data, buf []byte) []byte
+	hmac          ssr.HMAC
 }
 
 const (
@@ -22,13 +22,13 @@ const (
 func NewVerifySHA1(info ProtocolInfo) Protocol {
 	a := &verifySHA1{
 		ProtocolInfo: info,
-		hmac:         func(key, data, buf []byte) []byte { return ssr.Hmac(crypto.SHA1, key, data, buf) },
+		hmac:         ssr.HMAC(crypto.SHA1),
 	}
 	return a
 }
 
 func (v *verifySHA1) otaConnectAuth(data []byte) []byte {
-	return append(data, v.hmac(append(v.IV, v.Key...), data, nil)...)
+	return append(data, v.hmac.HMAC(append(v.IV, v.Key...), data, nil)...)
 }
 
 func (v *verifySHA1) otaReqChunkAuth(buffer *bytes.Buffer, chunkId uint32, data []byte) {
@@ -38,14 +38,14 @@ func (v *verifySHA1) otaReqChunkAuth(buffer *bytes.Buffer, chunkId uint32, data 
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
 
 	buffer.Write(nb)
-	buffer.Write(v.hmac(append(v.IV, chunkIdBytes...), data, nil))
+	buffer.Write(v.hmac.HMAC(append(v.IV, chunkIdBytes...), data, nil))
 	buffer.Write(data)
 }
 
 func (v *verifySHA1) otaVerifyAuth(iv []byte, chunkId uint32, data []byte, expectedHmacSha1 []byte) bool {
 	chunkIdBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(chunkIdBytes, chunkId)
-	actualHmacSha1 := v.hmac(append(iv, chunkIdBytes...), data, nil)
+	actualHmacSha1 := v.hmac.HMAC(append(iv, chunkIdBytes...), data, nil)
 	return bytes.Equal(expectedHmacSha1, actualHmacSha1)
 }
 

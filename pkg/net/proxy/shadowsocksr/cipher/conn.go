@@ -117,8 +117,8 @@ type streamConn struct {
 	buf [utils.DefaultSize / 4]byte
 }
 
-func newStreamConn(c net.Conn, ciph CipherFactory) net.Conn {
-	return &streamConn{Conn: c, cipher: ciph}
+func newStreamConn(c net.Conn, cipher CipherFactory) net.Conn {
+	return &streamConn{Conn: c, cipher: cipher}
 }
 
 func (c *streamConn) WriteIV() []byte {
