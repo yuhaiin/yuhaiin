@@ -71,48 +71,35 @@ func (w *chunkedWriter) ReadFrom(r io.Reader) (n int64, err error) {
 
 type chunkedReader struct {
 	io.Reader
-	buf       []byte
 	leftBytes int
 }
 
 // ChunkedReader returns a chunked reader
-func ChunkedReader(r io.Reader) io.ReadCloser {
-	return &chunkedReader{
-		Reader: r,
-		buf:    utils.GetBytes(lenSize), // NOTE: buf only used to save header bytes now
-	}
-}
-
-func (r *chunkedReader) Close() error {
-	utils.PutBytes(r.buf)
-	return nil
-}
-
+func ChunkedReader(r io.Reader) io.ReadCloser { return &chunkedReader{Reader: r} }
+func (r *chunkedReader) Close() error         { return nil }
 func (r *chunkedReader) Read(b []byte) (int, error) {
-	if r.leftBytes == 0 {
+	if r.leftBytes <= 0 {
+		buf := utils.GetBytes(lenSize)
+		defer utils.PutBytes(buf)
+
 		// get length
-		_, err := io.ReadFull(r.Reader, r.buf[:lenSize])
+		_, err := io.ReadFull(r.Reader, buf[:lenSize])
 		if err != nil {
 			return 0, err
 		}
-		r.leftBytes = int(binary.BigEndian.Uint16(r.buf[:lenSize]))
+		r.leftBytes = int(binary.BigEndian.Uint16(buf[:lenSize]))
 
 		// if length == 0, then this is the end
-		if r.leftBytes == 0 {
+		if r.leftBytes <= 0 {
 			return 0, nil
 		}
 	}
 
-	readLen := len(b)
-	if readLen > r.leftBytes {
-		readLen = r.leftBytes
-	}
-
-	m, err := r.Reader.Read(b[:readLen])
+	m, err := r.Reader.Read(b)
 	if err != nil {
 		return 0, err
 	}
-
 	r.leftBytes -= m
-	return m, err
+
+	return m, nil
 }

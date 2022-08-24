@@ -1,11 +1,10 @@
 package utils
 
 import (
-	"container/list"
 	"reflect"
-	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/synclist"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -29,20 +28,19 @@ type lruEntry[K, V any] struct {
 
 // LRU Least Recently Used
 type LRU[K comparable, V any] struct {
-	capacity      int
-	list          *list.List
-	mapping       syncmap.SyncMap[K, *list.Element]
-	valueMapping  syncmap.SyncMap[V, *list.Element]
-	valueHashable bool
-	timeout       time.Duration
-	lock          sync.Mutex
+	capacity       int
+	list           *synclist.SyncList[*lruEntry[K, V]]
+	mapping        syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
+	reverseMapping syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
+	valueHashable  bool
+	timeout        time.Duration
 }
 
 // NewLru create new lru cache
 func NewLru[K comparable, V any](capacity int, timeout time.Duration) *LRU[K, V] {
 	l := &LRU[K, V]{
 		capacity: capacity,
-		list:     list.New(),
+		list:     synclist.New[*lruEntry[K, V]](),
 		timeout:  timeout,
 	}
 
@@ -52,22 +50,21 @@ func NewLru[K comparable, V any](capacity int, timeout time.Duration) *LRU[K, V]
 	return l
 }
 
-func (l *LRU[K, V]) storeValueMapping(v V, le *list.Element) {
+func (l *LRU[K, V]) store(v *lruEntry[K, V], le *synclist.Element[*lruEntry[K, V]]) {
+	l.mapping.Store(v.key, le)
 	if l.valueHashable {
-		l.valueMapping.Store(v, le)
+		l.reverseMapping.Store(v.data, le)
 	}
 }
 
-func (l *LRU[K, V]) deleteValueMapping(v V) {
+func (l *LRU[K, V]) delete(v *lruEntry[K, V]) {
+	l.mapping.Delete(v.key)
 	if l.valueHashable {
-		l.valueMapping.Delete(v)
+		l.reverseMapping.Delete(v.data)
 	}
 }
 
 func (l *LRU[K, V]) Add(key K, value V, opts ...Option) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-
 	o := &options{}
 	for _, z := range opts {
 		z(o)
@@ -77,136 +74,108 @@ func (l *LRU[K, V]) Add(key K, value V, opts ...Option) {
 		o.expireTime = time.Now().Add(l.timeout)
 	}
 
+	entry := &lruEntry[K, V]{key, value, o.expireTime}
+
 	if elem, ok := l.mapping.Load(key); ok {
-		r := elem.Value.(*lruEntry[K, V])
-		r.key = key
-		r.data = value
-		r.expire = o.expireTime
-		l.list.MoveToFront(elem)
+		l.list.MoveToFront(elem.SetValue(entry))
 		return
 	}
+
+	var elem *synclist.Element[*lruEntry[K, V]]
 
 	if l.capacity == 0 || l.list.Len() < l.capacity {
-		element := l.list.PushFront(&lruEntry[K, V]{
-			key:    key,
-			data:   value,
-			expire: o.expireTime,
-		})
-		l.mapping.Store(key, element)
-		l.storeValueMapping(value, element)
-		return
+		elem = l.list.PushFront(entry)
+	} else {
+		elem = l.list.Back()
+		l.delete(elem.Value)
+		l.list.MoveToFront(elem.SetValue(entry))
 	}
 
-	elem := l.list.Back()
-	r := elem.Value.(*lruEntry[K, V])
-	l.mapping.Delete(r.key)
-	l.deleteValueMapping(r.data)
-	r.key = key
-	r.data = value
-	r.expire = o.expireTime
-	l.list.MoveToFront(elem)
-	l.mapping.Store(key, elem)
-	l.storeValueMapping(value, elem)
+	l.store(entry, elem)
 }
 
 // Delete delete a key from cache
 func (l *LRU[K, V]) Delete(key K) {
 	v, ok := l.mapping.LoadAndDelete(key)
 	if ok {
-		l.deleteValueMapping(v.Value.(*lruEntry[K, V]).data)
+		l.delete(v.Value)
 	}
 }
 
+func (l *LRU[K, V]) load(e *synclist.Element[*lruEntry[K, V]]) *lruEntry[K, V] {
+	if l.timeout != 0 && time.Now().After(e.Value.expire) {
+		l.delete(e.Value)
+		l.list.Remove(e)
+		return nil
+	}
+
+	l.list.MoveToFront(e)
+	return e.Value
+}
+
 func (l *LRU[K, V]) Load(key K) (v V, ok bool) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
 	node, ok := l.mapping.Load(key)
 	if !ok {
 		return v, false
 	}
 
-	y, ok := node.Value.(*lruEntry[K, V])
-	if !ok {
-		return v, false
+	if z := l.load(node); z != nil {
+		return z.data, true
 	}
 
-	if l.timeout != 0 && time.Now().After(y.expire) {
-		l.mapping.Delete(key)
-		l.deleteValueMapping(y.data)
-		l.list.Remove(node)
-		return v, false
-	}
-
-	l.list.MoveToFront(node)
-	return y.data, true
+	return v, false
 }
 
-func (l *LRU[K, V]) ValueLoad(v V) (k K, ok bool) {
+func (l *LRU[K, V]) ReverseLoad(v V) (k K, ok bool) {
 	if !l.valueHashable {
 		return k, false
 	}
 
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	node, ok := l.valueMapping.Load(v)
+	node, ok := l.reverseMapping.Load(v)
 	if !ok {
 		return k, false
 	}
 
-	y, ok := node.Value.(*lruEntry[K, V])
-	if !ok {
-		return k, false
+	if z := l.load(node); z != nil {
+		return z.key, true
 	}
 
-	if l.timeout != 0 && time.Now().After(y.expire) {
-		l.deleteValueMapping(v)
-		l.mapping.Delete(y.key)
-		l.list.Remove(node)
-		return k, false
-	}
-
-	l.list.MoveToFront(node)
-	return y.key, true
+	return k, false
 }
 
 func (l *LRU[K, V]) ValueExist(key V) bool {
 	if !l.valueHashable {
 		return false
 	}
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	_, ok := l.valueMapping.Load(key)
+	_, ok := l.reverseMapping.Load(key)
 	return ok
 }
 
 // Cache use map save history
-type Cache struct {
+type Cache[K comparable, V any] struct {
 	number         int
-	pool           sync.Map
+	pool           syncmap.SyncMap[K, V]
 	lastUpdateTime time.Time
 }
 
 // NewCache create new cache
-func NewCache() *Cache {
-	return &Cache{
+func NewCache[K comparable, V any]() *Cache[K, V] {
+	return &Cache[K, V]{
 		number:         0,
 		lastUpdateTime: time.Now(),
 	}
 }
 
 // Get .
-func (c *Cache) Get(domain string) (any, bool) {
+func (c *Cache[K, V]) Get(domain K) (V, bool) {
 	return c.pool.Load(domain)
 }
 
 // Add .
-func (c *Cache) Add(domain string, mark any) {
-	if mark == nil {
-		return
-	}
+func (c *Cache[K, V]) Add(domain K, mark V) {
 	if c.number > 800 {
 		tmp := 0
-		c.pool.Range(func(key, value any) bool {
+		c.pool.Range(func(key K, value V) bool {
 			c.pool.Delete(key)
 			if tmp >= 80 {
 				return false
@@ -218,7 +187,7 @@ func (c *Cache) Add(domain string, mark any) {
 
 		if time.Since(c.lastUpdateTime) >= time.Hour {
 			number := 0
-			c.pool.Range(func(key, value any) bool {
+			c.pool.Range(func(key K, value V) bool {
 				number++
 				return true
 			})
