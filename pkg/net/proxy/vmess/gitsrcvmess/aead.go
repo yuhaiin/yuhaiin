@@ -79,13 +79,10 @@ var _ io.ReadCloser = &aeadReader{}
 type aeadReader struct {
 	io.Reader
 	cipher.AEAD
-	nonce   []byte
-	buf     []byte
-	offset  int
-	dataLen int
-	lenBuf  [lenSize]byte
-	count   uint16
-	iv      []byte
+	count uint16
+	iv    []byte
+
+	decrypted bytes.Buffer
 }
 
 // AEADReader returns a aead reader
@@ -93,7 +90,6 @@ func AEADReader(r io.Reader, aead cipher.AEAD, iv []byte) io.ReadCloser {
 	return &aeadReader{
 		Reader: r,
 		AEAD:   aead,
-		nonce:  make([]byte, aead.NonceSize()),
 		count:  0,
 		iv:     iv,
 	}
@@ -102,55 +98,42 @@ func AEADReader(r io.Reader, aead cipher.AEAD, iv []byte) io.ReadCloser {
 func (r *aeadReader) Close() error { return nil }
 
 func (r *aeadReader) Read(b []byte) (int, error) {
-	if r.offset != r.dataLen {
-		// logasfmt.Println(r.offset, r.dataLen)
-		n := copy(b, r.buf[r.offset:r.dataLen])
-		r.offset += n
-		if r.offset == r.dataLen {
-			utils.PutBytes(r.buf)
-			r.buf = nil
-		}
-		return n, nil
+	if r.decrypted.Len() > 0 {
+		return r.decrypted.Read(b)
 	}
 
+	lb := utils.GetBytes(r.NonceSize())
+	defer utils.PutBytes(lb)
+
 	// get length
-	_, err := io.ReadFull(r.Reader, r.lenBuf[:])
+	_, err := io.ReadFull(r.Reader, lb[:lenSize])
 	if err != nil {
 		return 0, err
 	}
 
 	// if length == 0, then this is the end
-	l := binary.BigEndian.Uint16(r.lenBuf[:])
+	l := binary.BigEndian.Uint16(lb[:lenSize])
 	if l == 0 {
 		return 0, nil
 	}
 
-	r.buf = utils.GetBytes(int(l))
-	// logasfmt.Println(l, len(r.buf))
+	buf := utils.GetBytes(int(l))
+	defer utils.PutBytes(buf)
 	// get payload
-	_, err = io.ReadFull(r.Reader, r.buf[:l])
+	_, err = io.ReadFull(r.Reader, buf[:l])
 	if err != nil {
 		return 0, err
 	}
 
-	binary.BigEndian.PutUint16(r.nonce[:2], r.count)
-	copy(r.nonce[2:], r.iv[2:12])
+	binary.BigEndian.PutUint16(lb[:2], r.count)
+	copy(lb[2:], r.iv[2:12])
 
-	_, err = r.Open(r.buf[:0], r.nonce[:r.NonceSize()], r.buf[:l], nil)
+	_, err = r.Open(buf[:0], lb[:r.NonceSize()], buf[:l], nil)
 	r.count++
 	if err != nil {
 		return 0, err
 	}
 
-	r.dataLen = int(l) - r.Overhead()
-	m := copy(b, r.buf[:r.dataLen])
-	if m < int(r.dataLen) {
-		r.offset = m
-	} else {
-		r.offset = r.dataLen
-		utils.PutBytes(r.buf)
-		r.buf = nil
-	}
-
-	return m, err
+	r.decrypted.Write(buf[:int(l)-r.Overhead()])
+	return r.decrypted.Read(b)
 }

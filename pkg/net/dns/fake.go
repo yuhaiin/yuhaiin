@@ -69,7 +69,7 @@ func (fkdns *Fake) GetFakeIPForDomain(domain string) string {
 func (fkdns *Fake) GetDomainFromIP(ip string) (string, bool) {
 	fkdns.mu.Lock()
 	defer fkdns.mu.Unlock()
-	return fkdns.domainToIP.ValueLoad(ip)
+	return fkdns.domainToIP.ReverseLoad(ip)
 }
 
 var _ dns.DNS = (*FakeDNS)(nil)
