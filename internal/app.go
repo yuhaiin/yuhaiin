@@ -15,9 +15,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
@@ -104,7 +104,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 			{
 				Mode:     protoconfig.Bypass_block,
 				Default:  false,
-				Dialer:   proxy.NewErrProxy(errors.New("block")),
+				Dialer:   reject.NewReject(5, 15),
 				Resolver: dns.NewErrorDNS(errors.New("block")),
 				Rules:    opt.Rules[protoconfig.Bypass_block],
 			},

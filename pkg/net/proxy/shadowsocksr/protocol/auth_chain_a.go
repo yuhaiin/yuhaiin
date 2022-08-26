@@ -19,7 +19,7 @@ import (
 )
 
 type authChainA struct {
-	ProtocolInfo
+	Info
 	randomClient ssr.Shift128plusContext
 	randomServer ssr.Shift128plusContext
 	recvID       uint32
@@ -42,16 +42,16 @@ type authChainA struct {
 	overhead int
 }
 
-func NewAuthChainA(info ProtocolInfo) Protocol { return newAuthChain(info, authChainAGetRandLen) }
+func NewAuthChainA(info Info) Protocol { return newAuthChain(info, authChainAGetRandLen) }
 
-func newAuthChain(info ProtocolInfo, rnd func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int) *authChainA {
+func newAuthChain(info Info, rnd func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int) *authChainA {
 	return &authChainA{
-		salt:         info.Name,
-		hmac:         ssr.HMAC(crypto.MD5),
-		rnd:          rnd,
-		recvID:       1,
-		ProtocolInfo: info,
-		overhead:     4 + info.ObfsOverhead,
+		salt:     info.Name,
+		hmac:     ssr.HMAC(crypto.MD5),
+		rnd:      rnd,
+		recvID:   1,
+		Info:     info,
+		overhead: 4 + info.ObfsOverhead,
 	}
 }
 
@@ -125,7 +125,7 @@ const authheadLength = 4 + 8 + 4 + 16 + 4
 func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	outData = make([]byte, authheadLength, authheadLength+1500)
 
-	a.ProtocolInfo.Auth.nextAuth()
+	a.Info.Auth.nextAuth()
 
 	var key = make([]byte, a.IVSize+a.KeySize)
 	copy(key, a.IV)
@@ -134,8 +134,8 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	encrypt := make([]byte, 20)
 	t := time.Now().Unix()
 	binary.LittleEndian.PutUint32(encrypt[:4], uint32(t))
-	copy(encrypt[4:8], a.ProtocolInfo.Auth.clientID)
-	binary.LittleEndian.PutUint32(encrypt[8:], a.ProtocolInfo.Auth.connectionID.Load())
+	copy(encrypt[4:8], a.Info.Auth.clientID)
+	binary.LittleEndian.PutUint32(encrypt[8:], a.Info.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))
 	binary.LittleEndian.PutUint16(encrypt[14:16], 0)
 

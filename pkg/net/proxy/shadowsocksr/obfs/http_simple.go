@@ -41,7 +41,7 @@ var (
 
 // HttpSimple http_simple obfs encapsulate
 type httpSimplePost struct {
-	ObfsInfo
+	Info
 	rawTransSent     bool
 	rawTransReceived bool
 	userAgentIndex   int
@@ -55,12 +55,12 @@ type httpSimplePost struct {
 }
 
 // newHttpSimple create a http_simple object
-func newHttpSimple(conn net.Conn, info ObfsInfo) Obfs {
+func newHttpSimple(conn net.Conn, info Info) Obfs {
 	t := &httpSimplePost{
 		userAgentIndex: rand.Intn(len(requestUserAgent)),
 		methodGet:      true,
 		Conn:           conn,
-		ObfsInfo:       info,
+		Info:           info,
 		param:          simpleParam{},
 	}
 

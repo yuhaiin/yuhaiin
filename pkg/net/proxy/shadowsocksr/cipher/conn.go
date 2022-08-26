@@ -33,7 +33,7 @@ func NewCipher(method, password string) (*Cipher, error) {
 		method = "rc4-md5"
 	}
 
-	ss, ok := streamCipherMethod[method]
+	ss, ok := StreamCipherMethod[method]
 	if !ok {
 		return nil, fmt.Errorf("unsupported encryption method: %v", method)
 	}

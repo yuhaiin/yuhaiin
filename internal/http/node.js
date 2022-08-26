@@ -17,6 +17,12 @@ function latency(id) {
     });
 }
 
+function nodeSelectOrDetail(hash) {
+    const i = document.querySelector('input[name=select_node][value="' + hash + '"]')
+    if (i.checked === true) window.location = "/node?hash=" + encodeURIComponent(hash)
+    else i.click()
+}
+
 function lat(id, type, callback) {
     const elem = document.querySelector('#i' + id + ' .' + type);
 
@@ -39,9 +45,9 @@ function lat(id, type, callback) {
 function del() {
     var hash = getSelectNode();
     console.log('del node:', hash);
-    if (hash == 0) return;
+    if (hash == null) return;
     var xmlhttp = new XMLHttpRequest();
-    xmlhttp.open("GET", "/node/delete?hash=" + hash, true);
+    xmlhttp.open("DELETE", "/node?hash=" + hash, true);
     xmlhttp.send();
     xmlhttp.onreadystatechange = function () {
         if (xmlhttp.readyState != 4) return;
@@ -52,24 +58,21 @@ function del() {
 function use(net) {
     var hash = getSelectNode();
     console.log('use node:', hash);
-    if (hash == 0) return;
+    if (hash == null) return;
 
     useByHash(net, hash);
 }
 
 function useByHash(net, hash) {
-    window.location = "/use?hash=" + hash + "&net=" + net;
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.open("PUT", "/node?hash=" + hash + "&net=" + net, true);
+    xmlhttp.send();
+    xmlhttp.onreadystatechange = function () {
+        if (xmlhttp.readyState != 4) return;
+        if (xmlhttp.status == 200) window.location = "/node?hash=" + hash;
+    }
 }
 
 function getSelectNode() {
-    var radios = document.getElementsByName("select_node");
-    var value = 0;
-    for (var i = 0; i < radios.length; i++) {
-        if (radios[i].checked == true) {
-            value = radios[i].value;
-            break;
-        }
-    }
-
-    return value;
+    return document.querySelector('input[name=select_node]:checked').value;
 }

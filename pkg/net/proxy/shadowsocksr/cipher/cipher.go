@@ -180,7 +180,7 @@ func newCipherObserver(keySize, ivSize int, stream func(key, iv []byte, decrypt 
 	}
 }
 
-var streamCipherMethod = map[string]struct {
+var StreamCipherMethod = map[string]struct {
 	KeySize int
 	Creator func(key []byte) CipherFactory
 }{
