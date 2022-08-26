@@ -9,7 +9,7 @@ import (
 )
 
 type verifySHA1 struct {
-	ProtocolInfo
+	Info
 	hasSentHeader bool
 	chunkId       uint32
 	hmac          ssr.HMAC
@@ -19,10 +19,10 @@ const (
 	oneTimeAuthMask byte = 0x10
 )
 
-func NewVerifySHA1(info ProtocolInfo) Protocol {
+func NewVerifySHA1(info Info) Protocol {
 	a := &verifySHA1{
-		ProtocolInfo: info,
-		hmac:         ssr.HMAC(crypto.SHA1),
+		Info: info,
+		hmac: ssr.HMAC(crypto.SHA1),
 	}
 	return a
 }

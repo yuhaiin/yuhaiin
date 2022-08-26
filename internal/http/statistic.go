@@ -2,7 +2,6 @@ package simplehttp
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,81 +19,78 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-//go:embed statistic.js
-var statisticJS []byte
+type conn struct {
+	emptyHTTP
+	stt    grpcsts.ConnectionsServer
+	server *websocket.Server
+}
 
-func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
-	mux.HandleFunc("/conn/list", func(w http.ResponseWriter, r *http.Request) {
-		str := utils.GetBuffer()
-		defer utils.PutBuffer(str)
+func (c *conn) Delete(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
 
-		str.WriteString(fmt.Sprintf(`<script>%s</script>`, statisticJS))
-		str.WriteString(`<pre id="statistic">Loading...</pre>`)
+	i, err := strconv.Atoi(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = c.stt.CloseConn(context.TODO(), &statistic.CloseConnsReq{Conns: []int64{int64(i)}})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("OK"))
+}
+
+func (c *conn) Get(w http.ResponseWriter, r *http.Request) {
+	str := utils.GetBuffer()
+	defer utils.PutBuffer(str)
+
+	str.WriteString(fmt.Sprintf(`<script>%s</script>`, statisticJS))
+	str.WriteString(`<pre id="statistic">Loading...</pre>`)
+	str.WriteString("<hr/>")
+
+	str.WriteString(`<a href="javascript: refresh()">Refresh</a>`)
+	str.WriteString(`<p id="connections"></p>`)
+
+	w.Write([]byte(createHTML(str.String())))
+}
+
+func (c *conn) Post(w http.ResponseWriter, r *http.Request) {
+	conns, err := c.stt.Conns(context.TODO(), &emptypb.Empty{})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
+
+	str := utils.GetBuffer()
+	defer utils.PutBuffer(str)
+
+	str.WriteString("<dl>")
+	for _, c := range conns.GetConnections() {
 		str.WriteString("<hr/>")
-
-		str.WriteString(`<a href="javascript: refresh()">Refresh</a>`)
-		str.WriteString(`<p id="connections"></p>`)
-
-		w.Write([]byte(createHTML(str.String())))
-	})
-
-	mux.HandleFunc("/conn/close", func(w http.ResponseWriter, r *http.Request) {
-		id := r.URL.Query().Get("id")
-
-		i, err := strconv.Atoi(id)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		_, err = stt.CloseConn(context.TODO(), &statistic.CloseConnsReq{Conns: []int64{int64(i)}})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Write([]byte("OK"))
-	})
-
-	mux.HandleFunc("/connections", func(w http.ResponseWriter, r *http.Request) {
-		conns, err := stt.Conns(context.TODO(), &emptypb.Empty{})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
-
-		str := utils.GetBuffer()
-		defer utils.PutBuffer(str)
-
-		str.WriteString("<dl>")
-		for _, c := range conns.GetConnections() {
-			str.WriteString("<hr/>")
-			str.WriteString(fmt.Sprintf("<dt>%d| &lt;%s[%s]&gt; %s ", c.Id, c.GetType(), c.GetExtra()[router.MODE_MARK], c.GetAddr()))
-			str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
-			str.WriteString("</dt>")
-			str.WriteString(fmt.Sprintf("<dd>src: %s</dd>", c.GetLocal()))
-			str.WriteString(fmt.Sprintf("<dd>dst: %s</dd>", c.GetRemote()))
-			for k, v := range c.GetExtra() {
-				if k == router.MODE_MARK {
-					continue
-				}
-				str.WriteString(fmt.Sprintf("<dd>%s: %s</dd>", k, v))
+		str.WriteString(fmt.Sprintf("<dt>%d| &lt;%s[%s]&gt; %s ", c.Id, c.GetType(), c.GetExtra()[router.MODE_MARK], c.GetAddr()))
+		str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
+		str.WriteString("</dt>")
+		str.WriteString(fmt.Sprintf("<dd>src: %s</dd>", c.GetLocal()))
+		str.WriteString(fmt.Sprintf("<dd>dst: %s</dd>", c.GetRemote()))
+		for k, v := range c.GetExtra() {
+			if k == router.MODE_MARK {
+				continue
 			}
+			str.WriteString(fmt.Sprintf("<dd>%s: %s</dd>", k, v))
 		}
+	}
 
-		str.WriteString("</dl>")
-		w.Write(str.Bytes())
-	})
+	str.WriteString("</dl>")
+	w.Write(str.Bytes())
+}
 
-	var server *websocket.Server
-	mux.HandleFunc("/statistic", func(w http.ResponseWriter, r *http.Request) {
-		if server != nil {
-			server.ServeHTTP(w, r)
-			return
-		}
-
-		server = &websocket.Server{
+func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) {
+	if cc.server == nil {
+		cc.server = &websocket.Server{
 			Handler: func(c *websocket.Conn) {
 				defer c.Close()
 				ctx, cancel := context.WithCancel(context.TODO())
@@ -106,7 +102,7 @@ func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
 					}
 				}()
 
-				stt.Statistic(
+				cc.stt.Statistic(
 					&emptypb.Empty{},
 					&statisticServer{
 						ctx,
@@ -123,8 +119,8 @@ func initStatistic(mux *http.ServeMux, stt grpcsts.ConnectionsServer) {
 
 			},
 		}
-		server.ServeHTTP(w, r)
-	})
+	}
+	cc.server.ServeHTTP(w, r)
 }
 
 var _ grpcsts.Connections_StatisticServer = &statisticServer{}

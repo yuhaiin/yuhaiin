@@ -6,7 +6,7 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-func NewAuthChainB(info ProtocolInfo) Protocol {
+func NewAuthChainB(info Info) Protocol {
 	a := newAuthChain(info, authChainBGetRandLen)
 	a.authChainBInitDataSize()
 	return a

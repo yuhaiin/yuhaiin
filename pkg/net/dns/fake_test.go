@@ -1,10 +1,12 @@
 package dns
 
 import (
+	"fmt"
 	"math"
 	"net"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -45,4 +47,22 @@ func TestFake(t *testing.T) {
 	t.Log(f.GetFakeIPForDomain("h.com"))
 	t.Log(f.GetFakeIPForDomain("i.com"))
 	t.Log(f.GetFakeIPForDomain("j.com"))
+}
+
+func TestPtr(t *testing.T) {
+	_, zz, err := net.ParseCIDR("1.1.1.1/12")
+	assert.NoError(t, err)
+
+	f := NewFake(zz)
+	t.Log(f.GetFakeIPForDomain("aass"))
+
+	z := &FakeDNS{
+		upStream: dns.NewErrorDNS(fmt.Errorf("err")),
+		pool:     NewFake(zz),
+	}
+
+	z.LookupPtr("f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.0.0.ip6.arpa.")
+	z.LookupPtr("f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.ip6.arpa.")
+	z.LookupPtr("1.0.0.127.in-addr.arpa.")
+	z.LookupPtr("1.2.0.10.in-addr.arpa.")
 }

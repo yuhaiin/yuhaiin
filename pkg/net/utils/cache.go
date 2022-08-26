@@ -28,7 +28,7 @@ type lruEntry[K, V any] struct {
 
 // LRU Least Recently Used
 type LRU[K comparable, V any] struct {
-	capacity       int
+	capacity       uint
 	list           *synclist.SyncList[*lruEntry[K, V]]
 	mapping        syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
 	reverseMapping syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
@@ -37,7 +37,7 @@ type LRU[K comparable, V any] struct {
 }
 
 // NewLru create new lru cache
-func NewLru[K comparable, V any](capacity int, timeout time.Duration) *LRU[K, V] {
+func NewLru[K comparable, V any](capacity uint, timeout time.Duration) *LRU[K, V] {
 	l := &LRU[K, V]{
 		capacity: capacity,
 		list:     synclist.New[*lruEntry[K, V]](),
@@ -83,7 +83,7 @@ func (l *LRU[K, V]) Add(key K, value V, opts ...Option) {
 
 	var elem *synclist.Element[*lruEntry[K, V]]
 
-	if l.capacity == 0 || l.list.Len() < l.capacity {
+	if l.capacity == 0 || uint(l.list.Len()) < l.capacity {
 		elem = l.list.PushFront(entry)
 	} else {
 		elem = l.list.Back()

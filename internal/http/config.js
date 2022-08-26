@@ -2,7 +2,7 @@ function save(id, path) {
     var xmlhttp = new XMLHttpRequest();
 
     xmlhttp.open("POST", path, true);
-    xmlhttp.onload = function() {
+    xmlhttp.onload = function () {
         let data = "";
         if (xmlhttp.status != 200) {
             console.log(xmlhttp.status);

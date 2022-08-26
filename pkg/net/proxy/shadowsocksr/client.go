@@ -19,8 +19,8 @@ import (
 var _ proxy.Proxy = (*Shadowsocksr)(nil)
 
 type Shadowsocksr struct {
-	protocol *protocol.ProtocolInfo
-	obfs     *obfs.ObfsInfo
+	protocol *protocol.Info
+	obfs     *obfs.Info
 	cipher   *cipher.Cipher
 	dial     proxy.Proxy
 
@@ -46,14 +46,14 @@ func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 			Key:     cipher.Key(),
 			KeySize: cipher.KeySize(),
 		}
-		obfs := &obfs.ObfsInfo{
+		obfs := &obfs.Info{
 			Name:  c.Obfs,
 			Host:  c.Server,
 			Port:  uint16(port),
 			Param: c.Obfsparam,
 			Info:  info,
 		}
-		protocol := &protocol.ProtocolInfo{
+		protocol := &protocol.Info{
 			Name:         c.Protocol,
 			Auth:         &protocol.AuthData{},
 			Param:        c.Protoparam,
