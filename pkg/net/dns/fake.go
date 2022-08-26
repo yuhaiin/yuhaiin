@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -29,7 +30,7 @@ func NewFake(ipRange *net.IPNet) *Fake {
 	// }
 	return &Fake{
 		ipRange:    ipRange,
-		domainToIP: utils.NewLru[string, string](lruSize, 0*time.Minute),
+		domainToIP: utils.NewLru[string, string](uint(lruSize), 0*time.Minute),
 	}
 }
 
@@ -99,30 +100,32 @@ func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPResponse, erro
 }
 
 func (f *FakeDNS) LookupPtr(name string) (string, error) {
-	var ip string
+	ip := utils.GetBuffer()
+	defer utils.PutBuffer(ip)
 
-	if i := strings.Index(name, ".in-addr.arpa."); i != -1 {
-		p := strings.Split(name[:i], ".")
-		for i := 3; i >= 0; i-- {
-			ip += p[i]
-			if i != 0 {
-				ip += "."
-			}
-		}
-	} else if i := strings.Index(name, ".ip6.arpa."); i != -1 {
-		p := strings.Split(name[:i], ".")
-		count := 0
-		for i := 31; i >= 0; i-- {
-			ip += p[i]
-			count++
-			if count == 4 && i != 0 {
-				ip += ":"
-				count = 0
+	i := strings.Index(name, ".in-addr.arpa.")
+	if i == -1 {
+		i = strings.Index(name, ".ip6.arpa.")
+	}
+
+	if i == -1 {
+		return "", fmt.Errorf("ptr format error: %s", name)
+	}
+
+	p := strings.Split(name[:i], ".")
+	for i, v4 := len(p)-1, len(p) == 4; i >= 0; i-- {
+		ip.WriteString(p[i])
+		if i != 0 {
+			if v4 {
+				ip.WriteByte('.')
+			} else if i%4 == 0 {
+				ip.WriteByte(':')
 			}
 		}
 	}
 
-	r, ok := f.pool.GetDomainFromIP(ip)
+	b := ip.Bytes()
+	r, ok := f.pool.GetDomainFromIP(*(*string)(unsafe.Pointer(&b)))
 	if !ok {
 		return "", fmt.Errorf("not found %s[%s] ptr", ip, name)
 	}

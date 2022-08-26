@@ -53,16 +53,14 @@ func (a *AuthData) nextAuth() {
 	a.connectionID.Store(rand.Uint32() & 0xFFFFFF)
 }
 
-type protocolPacket struct {
+type packetConn struct {
 	protocol Protocol
 	net.PacketConn
 }
 
-func newPacketConn(conn net.PacketConn, p Protocol) net.PacketConn {
-	return &protocolPacket{PacketConn: conn, protocol: p}
-}
+func newPacketConn(conn net.PacketConn, p Protocol) net.PacketConn { return &packetConn{p, conn} }
 
-func (c *protocolPacket) WriteTo(b []byte, addr net.Addr) (int, error) {
+func (c *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	data, err := c.protocol.EncryptPacket(b)
 	if err != nil {
 		return 0, err
@@ -71,7 +69,7 @@ func (c *protocolPacket) WriteTo(b []byte, addr net.Addr) (int, error) {
 	return len(b), err
 }
 
-func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
+func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, addr, err := c.PacketConn.ReadFrom(b)
 	if err != nil {
 		return n, addr, err
@@ -84,9 +82,9 @@ func (c *protocolPacket) ReadFrom(b []byte) (int, net.Addr, error) {
 	return len(decoded), addr, nil
 }
 
-func (c *protocolPacket) Close() error { return c.PacketConn.Close() }
+func (c *packetConn) Close() error { return c.PacketConn.Close() }
 
-type protocolConn struct {
+type conn struct {
 	protocol Protocol
 	net.Conn
 
@@ -95,13 +93,13 @@ type protocolConn struct {
 }
 
 func newConn(c net.Conn, p Protocol) net.Conn {
-	return &protocolConn{
+	return &conn{
 		Conn:     c,
 		protocol: p,
 	}
 }
 
-func (c *protocolConn) Read(b []byte) (n int, err error) {
+func (c *conn) Read(b []byte) (n int, err error) {
 	if c.plaintext.Len() > 0 {
 		return c.plaintext.Read(b)
 	}
@@ -123,7 +121,7 @@ func (c *protocolConn) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (c *protocolConn) Write(b []byte) (n int, err error) {
+func (c *conn) Write(b []byte) (n int, err error) {
 	buf := utils.GetBuffer()
 	defer utils.PutBuffer(buf)
 
@@ -136,7 +134,7 @@ func (c *protocolConn) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-var ProtocolMap = map[string]func(ProtocolInfo) Protocol{
+var ProtocolMethod = map[string]func(Info) Protocol{
 	"auth_aes128_sha1": NewAuthAES128SHA1,
 	"auth_aes128_md5":  NewAuthAES128MD5,
 	"auth_chain_a":     NewAuthChainA,
@@ -147,7 +145,7 @@ var ProtocolMap = map[string]func(ProtocolInfo) Protocol{
 	"ota":              NewVerifySHA1,
 }
 
-type ProtocolInfo struct {
+type Info struct {
 	ssr.Info
 
 	Name     string
@@ -161,15 +159,15 @@ type ProtocolInfo struct {
 	ObfsOverhead int
 }
 
-func (s ProtocolInfo) stream() (Protocol, error) {
-	c, ok := ProtocolMap[strings.ToLower(s.Name)]
+func (s Info) stream() (Protocol, error) {
+	c, ok := ProtocolMethod[strings.ToLower(s.Name)]
 	if ok {
 		return c(s), nil
 	}
 	return nil, fmt.Errorf("protocol %s not found", s.Name)
 }
 
-func (s ProtocolInfo) Stream(c net.Conn, iv []byte) (net.Conn, error) {
+func (s Info) Stream(c net.Conn, iv []byte) (net.Conn, error) {
 	z := s
 	z.IV = iv
 
@@ -180,7 +178,7 @@ func (s ProtocolInfo) Stream(c net.Conn, iv []byte) (net.Conn, error) {
 	return newConn(c, p), nil
 }
 
-func (s ProtocolInfo) Packet(c net.PacketConn) (net.PacketConn, error) {
+func (s Info) Packet(c net.PacketConn) (net.PacketConn, error) {
 	p, err := s.stream()
 	if err != nil {
 		return nil, err
@@ -188,7 +186,7 @@ func (s ProtocolInfo) Packet(c net.PacketConn) (net.PacketConn, error) {
 	return newPacketConn(c, p), nil
 }
 
-func (s *ProtocolInfo) SetHeadLen(data []byte, defaultValue int) {
+func (s *Info) SetHeadLen(data []byte, defaultValue int) {
 	s.HeadSize = GetHeadSize(data, defaultValue)
 }
 

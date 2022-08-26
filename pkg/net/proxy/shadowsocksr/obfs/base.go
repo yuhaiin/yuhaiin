@@ -7,7 +7,7 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-var ObfsMap = map[string]func(net.Conn, ObfsInfo) Obfs{
+var ObfsMethod = map[string]func(net.Conn, Info) Obfs{
 	"http_post":              newHttpPost,
 	"http_simple":            newHttpSimple,
 	"plain":                  newPlainObfs,
@@ -21,7 +21,7 @@ type Obfs interface {
 	net.Conn
 }
 
-type ObfsInfo struct {
+type Info struct {
 	ssr.Info
 	Name  string
 	Host  string
@@ -29,15 +29,15 @@ type ObfsInfo struct {
 	Param string
 }
 
-func (o *ObfsInfo) creator() (func(net.Conn, ObfsInfo) Obfs, error) {
-	z, ok := ObfsMap[o.Name]
+func (o *Info) creator() (func(net.Conn, Info) Obfs, error) {
+	z, ok := ObfsMethod[o.Name]
 	if !ok {
 		return nil, fmt.Errorf("obfs %s not found", o.Name)
 	}
 
 	return z, nil
 }
-func (o *ObfsInfo) Stream(c net.Conn) (net.Conn, error) {
+func (o *Info) Stream(c net.Conn) (net.Conn, error) {
 	cc, err := o.creator()
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (o *ObfsInfo) Stream(c net.Conn) (net.Conn, error) {
 	return cc(c, *o), nil
 }
 
-func (o *ObfsInfo) Overhead() int {
+func (o *Info) Overhead() int {
 	cc, err := o.creator()
 	if err != nil {
 		return -1

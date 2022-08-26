@@ -20,9 +20,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-func NewAuthAES128MD5(info ProtocolInfo) Protocol { return newAuthAES128(info, crypto.MD5) }
+func NewAuthAES128MD5(info Info) Protocol { return newAuthAES128(info, crypto.MD5) }
 
-func newAuthAES128(info ProtocolInfo, hash crypto.Hash) Protocol {
+func newAuthAES128(info Info, hash crypto.Hash) Protocol {
 	a := &authAES128{
 		salt:   strings.ToLower(info.Name),
 		hmac:   ssr.HMAC(hash),
@@ -42,7 +42,7 @@ type authAES128 struct {
 	salt                    string
 	hmac                    ssr.HMAC
 
-	info ProtocolInfo
+	info Info
 }
 
 func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int) {

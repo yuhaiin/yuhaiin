@@ -11,11 +11,11 @@ import (
 )
 
 type authSHA1v4 struct {
-	ProtocolInfo
+	Info
 	hasSentHeader bool
 }
 
-func NewAuthSHA1v4(info ProtocolInfo) Protocol { return &authSHA1v4{ProtocolInfo: info} }
+func NewAuthSHA1v4(info Info) Protocol { return &authSHA1v4{Info: info} }
 
 func (a *authSHA1v4) packData(data []byte) (outData []byte) {
 	dataLength := len(data)

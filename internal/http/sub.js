@@ -2,9 +2,13 @@ function add() {
     let name = document.getElementById("name").value;
     let link = document.getElementById("link").value;
 
-    const re = "/sub/add?name=" + encodeURIComponent(name) + "&link=" + encodeURIComponent(link);
-    console.log(re);
-    window.location = re;
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.open("POST", "/sub?name=" + encodeURIComponent(name) + "&link=" + encodeURIComponent(link), true);
+    xmlhttp.onreadystatechange = function () {
+        if (xmlhttp.readyState != 4) return;
+        if (xmlhttp.status == 200) window.location = "/sub";
+    }
+    xmlhttp.send();
 }
 
 function copy(link) {
@@ -19,30 +23,39 @@ function copy(link) {
 
 function update() {
     var links = selectSubs();
-
-    window.location = "/sub/update?links=" + encodeURIComponent(links);
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.open("PATCH", "/sub?links=" + encodeURIComponent(links), true);
+    xmlhttp.onreadystatechange = function () {
+        if (xmlhttp.readyState != 4) return;
+        if (xmlhttp.status == 200) window.location = "/sub";
+    }
+    xmlhttp.send();
 }
 
 function delSubs() {
     var links = selectSubs();
-
-
     if (confirm("Are you sure to delete these subs?\n" + links)) {
-        window.location = "/sub/delete?links=" + encodeURIComponent(links);
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.open("DELETE", "/sub?links=" + encodeURIComponent(links), true);
+        xmlhttp.onreadystatechange = function () {
+            if (xmlhttp.readyState != 4) return;
+            if (xmlhttp.status == 200) window.location = "/sub";
+        }
+        xmlhttp.send();
     }
 }
 
 function selectSubs() {
-    //飞鸟慕鱼博客
-    //获取所有的 checkbox 属性的 input标签
-    obj = document.getElementsByName("links");
     check_val = [];
-    for (k in obj) {
-        //判断复选框是否被选中
-        if (obj[k].checked)
-            //获取被选中的复选框的值
-            check_val.push(obj[k].value);
-    }
-
+    document.querySelectorAll('input[name=links]:checked').forEach((v) => { check_val.push(v.value) })
     return JSON.stringify(check_val);
+}
+
+function linkSelectOrCopy(name, link) {
+    const i = document.querySelector('input[name=links][value="' + name + '"]')
+    if (i.checked === true) {
+        copy(link)
+        i.checked = false
+    }
+    else i.checked = true
 }
