@@ -11,7 +11,6 @@ import (
 type Cidr[T any] struct {
 	v4CidrTrie Trie[T]
 	v6CidrTrie Trie[T]
-	singleTrie Trie[T]
 }
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
@@ -42,23 +41,6 @@ func (c *Cidr[T]) InsertIP(ip net.IP, maskSize int, mark T) {
 	}
 }
 
-func (c *Cidr[T]) singleInsert(cidr string, mark T) error {
-	_, ipNet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return fmt.Errorf("parse cidr [%s] failed: %v", cidr, err)
-	}
-	maskSize, _ := ipNet.Mask.Size()
-	if len(ipNet.IP) == net.IPv4len {
-		maskSize += 96
-	}
-	c.singleTrie.Insert(ipNet.IP.To16(), maskSize, mark)
-	return nil
-}
-
-func (c *Cidr[T]) singleSearch(ip string) (mark T, ok bool) {
-	return c.singleTrie.Search(net.ParseIP(ip).To16())
-}
-
 // MatchWithTrie match ip with trie
 func (c *Cidr[T]) Search(ip string) (mark T, ok bool) {
 	iP := net.ParseIP(ip)
@@ -81,7 +63,6 @@ func NewCidrMapper[T any]() *Cidr[T] {
 	cidrMapper := new(Cidr[T])
 	cidrMapper.v4CidrTrie = NewTrieTree[T]()
 	cidrMapper.v6CidrTrie = NewTrieTree[T]()
-	cidrMapper.singleTrie = NewTrieTree[T]()
 	return cidrMapper
 }
 

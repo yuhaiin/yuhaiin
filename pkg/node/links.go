@@ -56,8 +56,6 @@ func (n *link) Update(names []string) {
 		n.links = make(map[string]*node.NodeLink)
 	}
 
-	client := n.outbound.HTTPClient()
-
 	wg := sync.WaitGroup{}
 	for _, l := range names {
 		l, ok := n.links[l]
@@ -68,7 +66,7 @@ func (n *link) Update(names []string) {
 		wg.Add(1)
 		go func(l *node.NodeLink) {
 			defer wg.Done()
-			if err := n.update(client, l); err != nil {
+			if err := n.update(n.outbound.Do, l); err != nil {
 				log.Printf("get one link failed: %v", err)
 			}
 		}(l)
@@ -77,7 +75,7 @@ func (n *link) Update(names []string) {
 	wg.Wait()
 }
 
-func (n *link) update(client *http.Client, link *node.NodeLink) error {
+func (n *link) update(do func(*http.Request) (*http.Response, error), link *node.NodeLink) error {
 	req, err := http.NewRequest("GET", link.Url, nil)
 	if err != nil {
 		return fmt.Errorf("create request failed: %v", err)
@@ -85,7 +83,7 @@ func (n *link) update(client *http.Client, link *node.NodeLink) error {
 
 	req.Header.Set("User-Agent", "yuhaiin")
 
-	res, err := client.Do(req)
+	res, err := do(req)
 	if err != nil {
 		return fmt.Errorf("get %s failed: %v", link.Name, err)
 	}

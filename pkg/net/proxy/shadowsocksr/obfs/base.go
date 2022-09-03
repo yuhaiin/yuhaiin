@@ -22,10 +22,10 @@ type Obfs interface {
 }
 
 type Info struct {
-	ssr.Info
+	*ssr.Info
 	Name  string
 	Host  string
-	Port  uint16
+	Port  string
 	Param string
 }
 

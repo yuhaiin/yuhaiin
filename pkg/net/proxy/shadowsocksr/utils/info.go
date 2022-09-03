@@ -23,9 +23,8 @@ var (
 )
 
 type Info struct {
-	IVSize  int
-	Key     []byte
-	KeySize int
+	IVSize, KeySize int
+	Key             []byte
 }
 
 type Shift128plusContext struct {

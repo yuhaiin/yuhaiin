@@ -8,13 +8,14 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
+func udpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) *udp.Forwarder {
 	return udp.NewForwarder(s, func(fr *udp.ForwarderRequest) {
 		var wq waiter.Queue
 		ep, err := fr.CreateEndpoint(&wq)
@@ -29,14 +30,14 @@ func udpForwarder(s *stack.Stack, opt *TunOpt) *udp.Forwarder {
 			defer local.Close()
 
 			if isdns(opt, id) {
-				if err := opt.DNS.HandleUDP(local); err != nil {
+				if err := opt.DNSServer.HandleUDP(local); err != nil {
 					log.Printf("dns handle udp failed: %v\n", err)
 				}
 				return
 			}
 
 			addr := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), id.LocalPort)
-			if opt.SkipMulticast && addr.Type() == proxy.IP {
+			if opt.Protocol.Tun.SkipMulticast && addr.Type() == proxy.IP {
 				if ip, _ := addr.IP(); !ip.IsGlobalUnicast() {
 					buf := utils.GetBytes(utils.DefaultSize)
 					defer utils.PutBytes(buf)

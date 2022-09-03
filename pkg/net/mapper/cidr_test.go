@@ -50,22 +50,3 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 		}
 	})
 }
-
-// 2102 ns/op,2106 ns/op
-// BenchmarkSingleTrie-4 9823910 128.0 ns/op 16 B/op  1 allocs/op
-func BenchmarkSingleTrie(b *testing.B) {
-	m := NewCidrMapper[string]()
-	if err := m.singleInsert("127.0.0.1/28", "localhost"); err != nil {
-		b.Error(err)
-	}
-	m.singleInsert("ff::/56", "")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if i%2 == 0 {
-			m.singleSearch("127.0.0.0")
-		} else {
-			m.singleSearch("ff::")
-		}
-	}
-}

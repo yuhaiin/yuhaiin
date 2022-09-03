@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -15,7 +16,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func tcpForwarder(s *stack.Stack, opt *TunOpt) *tcp.Forwarder {
+func tcpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) *tcp.Forwarder {
 	return tcp.NewForwarder(s, defaultWndSize, maxConnAttempts, func(r *tcp.ForwarderRequest) {
 		wq := new(waiter.Queue)
 		id := r.ID()
@@ -36,7 +37,7 @@ func tcpForwarder(s *stack.Stack, opt *TunOpt) *tcp.Forwarder {
 			defer local.Close()
 
 			if isdns(opt, id) {
-				if err := opt.DNS.HandleTCP(local); err != nil {
+				if err := opt.DNSServer.HandleTCP(local); err != nil {
 					log.Printf("dns handle tcp failed: %v\n", err)
 				}
 				return

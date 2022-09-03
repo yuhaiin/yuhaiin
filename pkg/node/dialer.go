@@ -92,8 +92,10 @@ func (o *outbound) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return o.ps[1].PacketConn(host)
 }
 
-func (o *outbound) HTTPClient() *http.Client {
-	return &http.Client{
+func (o *outbound) Do(req *http.Request) (*http.Response, error) {
+	f := direct.Default.Conn
+
+	c := &http.Client{
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -103,13 +105,17 @@ func (o *outbound) HTTPClient() *http.Client {
 					return nil, fmt.Errorf("parse address failed: %v", err)
 				}
 
-				conn, err := direct.Default.Conn(ad)
-				if err == nil {
-					return conn, nil
-				}
-
-				return o.Conn(ad)
+				return f(ad)
 			},
 		},
 	}
+
+	r, err := c.Do(req)
+	if err == nil {
+		return r, nil
+	}
+
+	f = o.Conn
+
+	return c.Do(req)
 }

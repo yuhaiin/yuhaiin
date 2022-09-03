@@ -72,7 +72,7 @@ func (s *subHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	str.WriteString("<br/>")
-	str.WriteString(`<a href='javascript:update()'>UPDATE</a>`)
+	str.WriteString(`<a id="update_button" href='javascript:update()'>UPDATE</a>`)
 	str.WriteString("&nbsp;&nbsp;&nbsp;&nbsp;")
 	str.WriteString(`<a href='javascript:delSubs()'>DELETE</a>`)
 	str.WriteString("<br/>")

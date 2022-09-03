@@ -22,12 +22,16 @@ function copy(link) {
 }
 
 function update() {
+    const ub = document.querySelector('#update_button');
+    ub.innerText = "UPDATING...";
+
     var links = selectSubs();
     var xmlhttp = new XMLHttpRequest();
     xmlhttp.open("PATCH", "/sub?links=" + encodeURIComponent(links), true);
     xmlhttp.onreadystatechange = function () {
         if (xmlhttp.readyState != 4) return;
-        if (xmlhttp.status == 200) window.location = "/sub";
+        ub.innerText = "UPDATE";
+        window.location = "/sub";
     }
     xmlhttp.send();
 }

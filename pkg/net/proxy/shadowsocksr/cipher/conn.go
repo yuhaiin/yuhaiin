@@ -1,9 +1,7 @@
 package cipher
 
 import (
-	"bytes"
 	"crypto/cipher"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -113,8 +111,6 @@ type streamConn struct {
 
 	enc, dec        cipher.Stream
 	writeIV, readIV []byte
-
-	buf [utils.DefaultSize / 4]byte
 }
 
 func newStreamConn(c net.Conn, cipher CipherFactory) net.Conn {
@@ -153,7 +149,7 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (c *streamConn) ReadFrom(r io.Reader) (_ int64, err error) {
+func (c *streamConn) Write(b []byte) (_ int, err error) {
 	if c.enc == nil {
 		c.enc, err = c.cipher.EncryptStream(c.WriteIV())
 		if err != nil {
@@ -166,34 +162,7 @@ func (c *streamConn) ReadFrom(r io.Reader) (_ int64, err error) {
 		}
 	}
 
-	n := int64(0)
-	for {
-		nr, er := r.Read(c.buf[:])
+	c.enc.XORKeyStream(b, b)
 
-		if nr > 0 {
-			n += int64(nr)
-
-			c.enc.XORKeyStream(c.buf[:nr], c.buf[:nr])
-
-			_, ew := c.Conn.Write(c.buf[:nr])
-			if ew != nil {
-				err = ew
-				break
-			}
-		}
-
-		if er != nil {
-			if !errors.Is(er, io.EOF) {
-				err = er
-			}
-			break
-		}
-	}
-
-	return n, err
-}
-
-func (c *streamConn) Write(b []byte) (int, error) {
-	n, err := c.ReadFrom(bytes.NewBuffer(b))
-	return int(n), err
+	return c.Conn.Write(b)
 }

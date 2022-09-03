@@ -48,25 +48,28 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 		Server: &protoconfig.Server{
 			Servers: map[string]*protoconfig.ServerProtocol{
 				"socks5": {
+					Name:    "socks5",
+					Enabled: opt.Socks5 != "",
 					Protocol: &protoconfig.ServerProtocol_Socks5{
 						Socks5: &protoconfig.Socks5{
-							Enabled: opt.Socks5 != "",
-							Host:    opt.Socks5,
+							Host: opt.Socks5,
 						},
 					},
 				},
 				"http": {
+					Name:    "http",
+					Enabled: opt.Http != "",
 					Protocol: &protoconfig.ServerProtocol_Http{
 						Http: &protoconfig.Http{
-							Enabled: opt.Http != "",
-							Host:    opt.Http,
+							Host: opt.Http,
 						},
 					},
 				},
 				"tun": {
+					Name:    "tun",
+					Enabled: true,
 					Protocol: &protoconfig.ServerProtocol_Tun{
 						Tun: &protoconfig.Tun{
-							Enabled:       true,
 							Name:          fmt.Sprintf("fd://%d", opt.TUN.FD),
 							Mtu:           opt.TUN.MTU,
 							Gateway:       opt.TUN.Gateway,
