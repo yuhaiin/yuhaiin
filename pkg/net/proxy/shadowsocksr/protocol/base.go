@@ -41,7 +41,7 @@ type AuthData struct {
 }
 
 func (a *AuthData) nextAuth() {
-	if a.connectionID.Load() <= 0xFF000000 && len(a.clientID) != 0 {
+	if a.connectionID.Load() <= 0xFF000000 && a.clientID != nil {
 		a.connectionID.Add(1)
 		return
 	}
@@ -88,7 +88,6 @@ type conn struct {
 	protocol Protocol
 	net.Conn
 
-	readBuf               [utils.DefaultSize / 4]byte
 	ciphertext, plaintext bytes.Buffer
 }
 
@@ -104,12 +103,12 @@ func (c *conn) Read(b []byte) (n int, err error) {
 		return c.plaintext.Read(b)
 	}
 
-	n, err = c.Conn.Read(c.readBuf[:])
+	n, err = c.Conn.Read(b)
 	if err != nil {
 		return 0, err
 	}
 
-	c.ciphertext.Write(c.readBuf[:n])
+	c.ciphertext.Write(b[:n])
 	length, err := c.protocol.DecryptStream(&c.plaintext, c.ciphertext.Bytes())
 	if err != nil {
 		c.ciphertext.Reset()
@@ -146,7 +145,7 @@ var ProtocolMethod = map[string]func(Info) Protocol{
 }
 
 type Info struct {
-	ssr.Info
+	*ssr.Info
 
 	Name     string
 	HeadSize int

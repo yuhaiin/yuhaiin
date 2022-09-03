@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/lucas-clemente/quic-go v0.29.0
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
-	github.com/spf13/cobra v1.4.0
+	github.com/spf13/cobra v1.5.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/mobile v0.0.0-20220722155234-aaac322e2105
 	golang.org/x/net v0.0.0-20220802222814-0bcc04d9c69b
@@ -14,7 +14,7 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
-	gvisor.dev/gvisor v0.0.0-20220817001344-846276b3dbc5
+	gvisor.dev/gvisor v0.0.0-20220901235040-6ca97ef2ce1c
 )
 
 require (

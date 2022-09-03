@@ -3,7 +3,6 @@ package shadowsocksr
 import (
 	"fmt"
 	"net"
-	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
@@ -29,36 +28,25 @@ type Shadowsocksr struct {
 
 func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
 	c := config.Shadowsocksr
-
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		cipher, err := cipher.NewCipher(c.Method, c.Password)
 		if err != nil {
 			return nil, fmt.Errorf("new cipher failed: %w", err)
 		}
 
-		port, err := strconv.ParseUint(c.Port, 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("parse port failed: %w", err)
-		}
-
-		info := ssr.Info{
-			IVSize:  cipher.IVSize(),
-			Key:     cipher.Key(),
-			KeySize: cipher.KeySize(),
-		}
 		obfs := &obfs.Info{
 			Name:  c.Obfs,
 			Host:  c.Server,
-			Port:  uint16(port),
+			Port:  c.Port,
 			Param: c.Obfsparam,
-			Info:  info,
+			Info:  &ssr.Info{IVSize: cipher.IVSize(), KeySize: cipher.KeySize(), Key: cipher.Key()},
 		}
 		protocol := &protocol.Info{
 			Name:         c.Protocol,
 			Auth:         &protocol.AuthData{},
 			Param:        c.Protoparam,
 			TcpMss:       1460,
-			Info:         info,
+			Info:         obfs.Info,
 			ObfsOverhead: obfs.Overhead(),
 		}
 

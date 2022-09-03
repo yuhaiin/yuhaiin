@@ -103,14 +103,19 @@ func (a *App) Running() bool {
 }
 
 func (a *App) SaveNewBypass(link, dir string) error {
-	var hc *http.Client
+	var hc func(*http.Request) (*http.Response, error)
 	if a.nodes == nil {
-		hc = http.DefaultClient
+		hc = http.DefaultClient.Do
 	} else {
-		hc = a.nodes.HTTPClient()
+		hc = a.nodes.Do
 	}
 
-	r, err := hc.Get(link)
+	req, err := http.NewRequest(http.MethodGet, link, nil)
+	if err != nil {
+		log.Errorln(err)
+	}
+
+	r, err := hc(req)
 	if err != nil {
 		log.Errorln("get new bypass by proxy failed:", err)
 		return err

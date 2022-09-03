@@ -1,162 +1,92 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"log"
-	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	protoconfig.RegisterProtocol(func(p *protoconfig.ServerProtocol_Http, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
-		if !p.Http.Enabled {
-			return nil, fmt.Errorf("http server is disabled")
-		}
-		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
-		for _, o := range opts {
-			o(x)
-		}
-		return hs.NewServer(p.Http.Host, p.Http.Username, p.Http.Password, x.Dialer)
-	})
-	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Socks5, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
-		if !t.Socks5.Enabled {
-			return nil, fmt.Errorf("socks5 server is disabled")
-		}
-		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
-		for _, o := range opts {
-			o(x)
-		}
-		return ss.NewServer(t.Socks5.Host, t.Socks5.Username, t.Socks5.Password, x.Dialer)
-	})
-	protoconfig.RegisterProtocol(func(t *protoconfig.ServerProtocol_Tun, opts ...func(*protoconfig.Opts)) (iserver.Server, error) {
-		if !t.Tun.Enabled {
-			return nil, fmt.Errorf("tun server is disabled")
-		}
-		x := &protoconfig.Opts{Dialer: proxy.NewErrProxy(errors.New("not implemented"))}
-		for _, o := range opts {
-			o(x)
-		}
-		return tun.NewTun(&tun.TunOpt{
-			Name:           t.Tun.Name,
-			MTU:            int(t.Tun.Mtu),
-			Gateway:        t.Tun.Gateway,
-			DNSHijacking:   t.Tun.DnsHijacking,
-			Dialer:         x.Dialer,
-			DNS:            x.DNSServer,
-			EndpointDriver: t.Tun.Driver,
-			SkipMulticast:  t.Tun.SkipMulticast,
-			UidDumper:      x.UidDumper,
-			IPv6:           x.IPv6,
-		})
-	})
+	protoconfig.RegisterProtocol(hs.NewServer)
+	protoconfig.RegisterProtocol(ss.NewServer)
+	protoconfig.RegisterProtocol(tun.NewTun)
 }
 
+type store struct {
+	config proto.Message
+	server iserver.Server
+}
 type listener struct {
-	lock  sync.Mutex
-	store map[string]struct {
-		config proto.Message
-		server iserver.Server
-	}
-
-	opts *protoconfig.Opts
+	store syncmap.SyncMap[string, store]
+	opts  *protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]
 }
 
-func NewListener(opts *protoconfig.Opts) *listener {
+func NewListener(opts *protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]) *listener {
 	if opts.Dialer == nil {
 		opts.Dialer = direct.Default
 	}
-	l := &listener{
-		store: make(map[string]struct {
-			config proto.Message
-			server iserver.Server
-		}),
-		opts: opts,
-	}
-
-	return l
+	return &listener{opts: opts}
 }
 
 func (l *listener) Update(current *protoconfig.Setting) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
 	l.opts.IPv6 = current.Ipv6
-	for k, v := range l.store {
-		z, ok := current.Server.Servers[k]
-		if ok {
-			en, o := z.GetProtocol().(interface{ GetEnabled() bool })
-			if o && !en.GetEnabled() {
-				ok = false
-			}
+
+	l.store.Range(func(key string, v store) bool {
+		z, ok := current.Server.Servers[key]
+		if !ok || !z.GetEnabled() {
+			v.server.Close()
+			l.store.Delete(key)
 		}
 
-		if !ok {
-			v.server.Close()
-			delete(l.store, k)
-		}
-	}
+		return true
+	})
 
 	for k, v := range current.Server.Servers {
-		l.update(k, v)
+		if err := l.start(k, v); err != nil {
+			log.Println(err)
+		}
 	}
 }
 
-func (l *listener) update(name string, config *protoconfig.ServerProtocol) {
-	v, ok := l.store[name]
-	if !ok {
-		l.start(name, config)
-		return
+func (l *listener) start(name string, config *protoconfig.ServerProtocol) error {
+	v, ok := l.store.Load(name)
+	if ok {
+		if proto.Equal(v.config, config) {
+			return nil
+		}
+		v.server.Close()
+		l.store.Delete(name)
 	}
 
-	if proto.Equal(v.config, config) {
-		return
+	if !config.Enabled {
+		return fmt.Errorf("server %s disabled", config.Name)
 	}
 
-	v.server.Close()
-	delete(l.store, name)
-
-	l.start(name, config)
-}
-
-func (l *listener) start(name string, config *protoconfig.ServerProtocol) {
 	server, err := protoconfig.CreateServer(
-		config.Protocol,
-		func(o *protoconfig.Opts) { *o = *l.opts },
-	)
+		protoconfig.CovertOpts(l.opts, func(protoconfig.IsServerProtocol_Protocol) protoconfig.IsServerProtocol_Protocol {
+			return config.Protocol
+		}))
 	if err != nil {
-		log.Printf("create server %s failed: %v\n", name, err)
-		return
+		return fmt.Errorf("create server %s failed: %w", name, err)
 	}
 
-	l.store[name] = struct {
-		config proto.Message
-		server iserver.Server
-	}{
-		config: config,
-		server: server,
-	}
+	l.store.Store(name, store{config, server})
+	return nil
 }
 
 func (l *listener) Close() error {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-
-	for _, v := range l.store {
-		v.server.Close()
-	}
-
-	l.store = make(map[string]struct {
-		config proto.Message
-		server iserver.Server
+	l.store.Range(func(key string, value store) bool {
+		value.server.Close()
+		l.store.Delete(key)
+		return true
 	})
-
 	return nil
 }

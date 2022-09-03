@@ -17,6 +17,7 @@ import (
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
@@ -130,21 +131,15 @@ func connect(client net.Conn, f func(string) (net.Conn, error), req *http.Reques
 
 	dst, err := f(host)
 	if err != nil {
-		// _, _ = src.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-		// _, _ = src.Write([]byte("HTTP/1.1 503 Service Unavailable\r\n\r\n"))
-		er := resp503(client)
+		er := respError(http.StatusBadGateway, req).Write(client)
 		if er != nil {
 			err = fmt.Errorf("%v\nresp 503 failed: %w", err, er)
 		}
-		// _, _ = src.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-		// _, _ = src.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-		//_, _ = src.Write([]byte("HTTP/1.1 408 Request Timeout\n\n"))
-		// _, _ = src.Write([]byte("HTTP/1.1 451 Unavailable For Legal Reasons\n\n"))
 		return fmt.Errorf("get conn [%s] from proxy failed: %w", host, err)
 	}
 	defer dst.Close()
 
-	_, err = client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+	_, err = fmt.Fprintf(client, "HTTP/%d.%d 200 Connection established\r\n\r\n", req.ProtoMajor, req.ProtoMinor)
 	if err != nil {
 		return fmt.Errorf("write to client failed: %w", err)
 	}
@@ -158,7 +153,7 @@ func normal(src net.Conn, client *http.Client, req *http.Request, keepAlive bool
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("http client do failed: %v\n", err)
-		resp = resp502(src)
+		resp = respError(http.StatusBadGateway, req)
 	} else {
 		modifyResponse(resp, keepAlive)
 	}
@@ -198,51 +193,14 @@ func modifyResponse(resp *http.Response, keepAlive bool) {
 	}
 }
 
-// https://github.com/go-httpproxy
-
-func resp503(dst net.Conn) error {
-	resp := &http.Response{
-		Status:        "Service Unavailable",
-		StatusCode:    503,
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		Header:        make(map[string][]string),
-		Body:          nil,
-		ContentLength: 0,
-		Close:         true,
-	}
-	resp.Header.Set("Connection", "close")
-	resp.Header.Set("Proxy-Connection", "close")
-	return resp.Write(dst)
-}
-
-func resp400(dst net.Conn) error {
+func respError(code int, req *http.Request) *http.Response {
 	// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
 	response := &http.Response{
-		Status:        "Bad Request",
-		StatusCode:    400,
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		Header:        http.Header(make(map[string][]string)),
-		Body:          nil,
-		ContentLength: 0,
-		Close:         true,
-	}
-	response.Header.Set("Proxy-Connection", "close")
-	response.Header.Set("Connection", "close")
-	return response.Write(dst)
-}
-
-func resp502(dst net.Conn) *http.Response {
-	// RFC 2068 (HTTP/1.1) requires URL to be absolute URL in HTTP proxy.
-	response := &http.Response{
-		Status:        "Bad Request",
-		StatusCode:    http.StatusBadGateway,
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
+		Status:        http.StatusText(code),
+		StatusCode:    code,
+		Proto:         req.Proto,
+		ProtoMajor:    req.ProtoMajor,
+		ProtoMinor:    req.ProtoMinor,
 		Header:        http.Header(make(map[string][]string)),
 		Body:          nil,
 		ContentLength: 0,
@@ -270,6 +228,7 @@ func removeHeader(h http.Header) {
 	h.Del("Upgrade")
 }
 
-func NewServer(host, username, password string, dialer proxy.StreamProxy) (iserver.Server, error) {
-	return server.NewTCPServer(host, handshake(dialer, username, password))
+func NewServer(o *config.Opts[*config.ServerProtocol_Http]) (iserver.Server, error) {
+	x := o.Protocol.Http
+	return server.NewTCPServer(x.Host, handshake(o.Dialer, x.Username, x.Password))
 }

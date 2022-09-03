@@ -137,7 +137,7 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 	buf.WriteString(t.data2URLEncode(data[:headSize]))
 	buf.WriteString(requestPath[randPathIndex+1])
 	buf.WriteString("HTTP/1.1\r\n")
-	buf.WriteString(fmt.Sprintf("Host: %s:%d\r\n", t.param.getRandHost(t.Host), t.Port))
+	buf.WriteString(fmt.Sprintf("Host: %s\r\n", net.JoinHostPort(t.param.getRandHost(t.Host), t.Port)))
 
 	if len(t.param.customHead) > 0 {
 		buf.WriteString(t.param.customHead)

@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 const (
@@ -172,6 +173,7 @@ func writeSecondResp(conn net.Conn, errREP byte, addr proxy.Address) {
 	_, _ = conn.Write(append([]byte{0x05, errREP, 0x00}, s5c.ParseAddr(addr)...))
 }
 
-func NewServer(host, username, password string, dialer proxy.Proxy) (iserver.Server, error) {
-	return server.NewTCPServer(host, handshake(dialer, username, password))
+func NewServer(o *config.Opts[*config.ServerProtocol_Socks5]) (iserver.Server, error) {
+	x := o.Protocol.Socks5
+	return server.NewTCPServer(x.Host, handshake(o.Dialer, x.Username, x.Password))
 }

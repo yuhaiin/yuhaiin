@@ -11,14 +11,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
-//Simple .
+// Simple .
 type Simple struct {
 	addr proxy.Address
 
 	tlsConfig *tls.Config
 }
 
-//NewSimple .
+// NewSimple .
 func NewSimple(address proxy.Address, tls *tls.Config) proxy.Proxy {
 	return &Simple{addr: address, tlsConfig: tls}
 }

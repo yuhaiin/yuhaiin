@@ -10,7 +10,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-func addMessage(addr proxy.Address, id stack.TransportEndpointID, opt *TunOpt) {
+func addMessage(addr proxy.Address, id stack.TransportEndpointID, opt *config.Opts[*config.ServerProtocol_Tun]) {
 	addPackageName(addr, opt.UidDumper, id.RemoteAddress.String(), int32(id.RemotePort))
 }
 

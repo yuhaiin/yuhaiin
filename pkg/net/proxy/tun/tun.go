@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -18,21 +17,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
-
-type TunOpt struct {
-	Name           string
-	Gateway        string
-	MTU            int
-	DNSHijacking   bool
-	SkipMulticast  bool
-	IPv6           bool
-	EndpointDriver config.TunEndpointDriver
-	DNS            server.DNSServer
-	Dialer         proxy.Proxy
-
-	// only for android
-	UidDumper config.UidDumper
-}
 
 type tunServer struct {
 	nicID tcpip.NICID
@@ -51,35 +35,36 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func NewTun(opt *TunOpt) (*tunServer, error) {
-	if opt.MTU <= 0 {
-		opt.MTU = 1500
+func NewTun(o *config.Opts[*config.ServerProtocol_Tun]) (server.Server, error) {
+	opt := o.Protocol.Tun
+	if opt.Mtu <= 0 {
+		opt.Mtu = 1500
 	}
 
 	if opt.Gateway == "" {
 		return nil, fmt.Errorf("gateway is empty")
 	}
 
-	if opt.Dialer == nil {
+	if o.Dialer == nil {
 		return nil, fmt.Errorf("dialer is nil")
 	}
 
-	if opt.DNS == nil {
+	if o.DNSServer == nil {
 		return nil, fmt.Errorf("dns is nil")
 	}
 
-	ep, err := open(opt.Name, opt.EndpointDriver, opt.MTU)
+	ep, err := open(opt.Name, opt.GetDriver(), int(opt.Mtu))
 	if err != nil {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
 
-	log.Println("new tun stack:", opt.Name, "mtu:", opt.MTU, "gateway:", opt.Gateway)
+	log.Println("new tun stack:", opt.Name, "mtu:", opt.Mtu, "gateway:", opt.Gateway)
 
 	stackOption := stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
 	}
-	if opt.IPv6 {
+	if o.IPv6 {
 		stackOption.NetworkProtocols = append(stackOption.NetworkProtocols, ipv6.NewProtocol)
 		stackOption.TransportProtocols = append(stackOption.TransportProtocols, icmp.NewProtocol6)
 	}
@@ -138,14 +123,14 @@ func NewTun(opt *TunOpt) (*tunServer, error) {
 	tr := tcpRecovery
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tr)
 
-	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder(s, opt).HandlePacket)
-	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder(s, opt).HandlePacket)
+	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder(s, o).HandlePacket)
+	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder(s, o).HandlePacket)
 
 	return &tunServer{stack: s, nicID: nicID}, nil
 }
 
-func isdns(opt *TunOpt, id stack.TransportEndpointID) bool {
-	if id.LocalPort == 53 && (opt.DNSHijacking || id.LocalAddress.String() == opt.Gateway) {
+func isdns(opt *config.Opts[*config.ServerProtocol_Tun], id stack.TransportEndpointID) bool {
+	if id.LocalPort == 53 && (opt.Protocol.Tun.DnsHijacking || id.LocalAddress.String() == opt.Protocol.Tun.Gateway) {
 		return true
 	}
 	return false
