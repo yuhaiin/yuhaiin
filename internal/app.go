@@ -112,7 +112,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.Setting.AddObserver(route)
 
 	listener := server.NewListener(
-		&protoconfig.Opts{Dialer: route, DNSServer: route, UidDumper: opt.UidDumper},
+		&protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]{Dialer: route, DNSServer: route, UidDumper: opt.UidDumper},
 	)
 	opt.Setting.AddObserver(listener)
 

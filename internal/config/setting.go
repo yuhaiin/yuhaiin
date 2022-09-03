@@ -152,37 +152,37 @@ func load(path string) *config.Setting {
 		pa.Server = &config.Server{
 			Servers: map[string]*config.ServerProtocol{
 				"http": {
-					Name: "http",
+					Name:    "http",
+					Enabled: true,
 					Protocol: &config.ServerProtocol_Http{
 						Http: &config.Http{
-							Enabled: true,
-							Host:    "127.0.0.1:8188",
+							Host: "127.0.0.1:8188",
 						},
 					},
 				},
 				"socks5": {
-					Name: "socks5",
+					Name:    "socks5",
+					Enabled: true,
 					Protocol: &config.ServerProtocol_Socks5{
 						Socks5: &config.Socks5{
-							Enabled: true,
-							Host:    "127.0.0.1:1080",
+							Host: "127.0.0.1:1080",
 						},
 					},
 				},
 				"redir": {
-					Name: "redir",
+					Name:    "redir",
+					Enabled: false,
 					Protocol: &config.ServerProtocol_Redir{
 						Redir: &config.Redir{
-							Host:    "127.0.0.1:8088",
-							Enabled: false,
+							Host: "127.0.0.1:8088",
 						},
 					},
 				},
 				"tun": {
-					Name: "tun",
+					Name:    "tun",
+					Enabled: false,
 					Protocol: &config.ServerProtocol_Tun{
 						Tun: &config.Tun{
-							Enabled:       false,
 							Name:          "tun://tun0",
 							Mtu:           1500,
 							Gateway:       "172.19.0.1",

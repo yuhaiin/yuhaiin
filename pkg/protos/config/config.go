@@ -38,9 +38,9 @@ func DefaultConfigDir() (Path string) {
 	return
 }
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(isServerProtocol_Protocol, ...func(*Opts)) (server.Server, error)]
+var execProtocol syncmap.SyncMap[reflect.Type, func(*Opts[IsServerProtocol_Protocol]) (server.Server, error)]
 
-func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T, ...func(*Opts)) (server.Server, error)) {
+func RegisterProtocol[T isServerProtocol_Protocol](wrap func(*Opts[T]) (server.Server, error)) {
 	if wrap == nil {
 		return
 	}
@@ -48,8 +48,8 @@ func RegisterProtocol[T isServerProtocol_Protocol](wrap func(T, ...func(*Opts)) 
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(t isServerProtocol_Protocol, p ...func(*Opts)) (server.Server, error) {
-			return wrap(t.(T), p...)
+		func(p *Opts[IsServerProtocol_Protocol]) (server.Server, error) {
+			return wrap(CovertOpts(p, func(p IsServerProtocol_Protocol) T { return p.(T) }))
 		},
 	)
 }
@@ -59,36 +59,33 @@ type UidDumper interface {
 	GetUidInfo(uid int32) (string, error)
 }
 
-type Opts struct {
+type Opts[T isServerProtocol_Protocol] struct {
 	Dialer    proxy.Proxy
 	DNSServer server.DNSServer
 	UidDumper UidDumper
 	IPv6      bool
+
+	Protocol T
 }
 
-func WithDialer(p proxy.Proxy) func(*Opts) {
-	return func(o *Opts) {
-		o.Dialer = p
+type IsServerProtocol_Protocol interface {
+	isServerProtocol_Protocol
+}
+
+func CovertOpts[T1, T2 isServerProtocol_Protocol](o *Opts[T1], f func(t T1) T2) *Opts[T2] {
+	return &Opts[T2]{
+		Dialer:    o.Dialer,
+		DNSServer: o.DNSServer,
+		UidDumper: o.UidDumper,
+		IPv6:      o.IPv6,
+		Protocol:  f(o.Protocol),
 	}
 }
 
-func WithDNSServer(s server.DNSServer) func(*Opts) {
-	return func(o *Opts) {
-		o.DNSServer = s
-	}
-}
-
-func WithUidDumper(d UidDumper) func(*Opts) {
-	return func(o *Opts) {
-		o.UidDumper = d
-	}
-}
-
-func CreateServer(p isServerProtocol_Protocol, opts ...func(*Opts)) (server.Server, error) {
-	conn, ok := execProtocol.Load(reflect.TypeOf(p))
+func CreateServer(opts *Opts[IsServerProtocol_Protocol]) (server.Server, error) {
+	conn, ok := execProtocol.Load(reflect.TypeOf(opts.Protocol))
 	if !ok {
-		return nil, fmt.Errorf("protocol %v is not support", p)
+		return nil, fmt.Errorf("protocol %v is not support", opts.Protocol)
 	}
-
-	return conn(p, opts...)
+	return conn(opts)
 }

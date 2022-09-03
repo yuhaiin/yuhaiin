@@ -39,33 +39,38 @@ func main() {
 
 		log.Println("read", n, "bytes from", form)
 
-		go func(buf []byte, n int, form net.Addr) {
-			defer utils.PutBytes(buf)
-			l, err := net.ListenPacket("udp", "")
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer l.Close()
-
-			l.SetWriteDeadline(time.Now().Add(time.Minute))
-			_, err = l.WriteTo(buf[:n], target)
-			if err != nil {
+		go func() {
+			if err := handle(ll, buf, n, form, target); err != nil {
 				log.Println(err)
-				return
 			}
-
-			l.SetReadDeadline(time.Now().Add(time.Minute))
-			n, _, err = l.ReadFrom(buf)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			_, err = ll.WriteTo(buf[:n], form)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-		}(buf, n, form)
+		}()
 	}
+}
+
+func handle(local net.PacketConn, buf []byte, n int, form, target net.Addr) error {
+	defer utils.PutBytes(buf)
+	l, err := net.ListenPacket("udp", "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer l.Close()
+
+	l.SetWriteDeadline(time.Now().Add(time.Minute))
+	_, err = l.WriteTo(buf[:n], target)
+	if err != nil {
+		return err
+	}
+
+	l.SetReadDeadline(time.Now().Add(time.Minute))
+	n, _, err = l.ReadFrom(buf)
+	if err != nil {
+		return err
+	}
+
+	_, err = local.WriteTo(buf[:n], form)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
