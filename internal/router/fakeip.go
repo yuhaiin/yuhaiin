@@ -42,20 +42,16 @@ func (f *fakedns) Update(c *protoconfig.Setting) {
 	f.fake = dns.NewFake(ipRange)
 }
 
-func getStringValue(key any, addr proxy.Address) string {
+func getValue[T any](key any, addr proxy.Address) T {
 	m, _ := addr.GetMark(key)
-	r, ok := m.(string)
-	if !ok {
-		return ""
-	}
-
-	return r
+	t, _ := m.(T)
+	return t
 }
 
 func (f *fakedns) Conn(addr proxy.Address) (net.Conn, error) {
 	c, err := f.shunt.Conn(f.getAddr(addr))
 	if err != nil {
-		return nil, fmt.Errorf("connect tcp to %s(%s) failed: %s", addr, getStringValue("packageName", addr), err)
+		return nil, fmt.Errorf("connect tcp to %s(%s) failed: %s", addr, getValue[string]("packageName", addr), err)
 	}
 
 	return c, nil
@@ -64,20 +60,16 @@ func (f *fakedns) Conn(addr proxy.Address) (net.Conn, error) {
 func (f *fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	c, err := f.shunt.PacketConn(f.getAddr(addr))
 	if err != nil {
-		return nil, fmt.Errorf("connect udp to %s(%s) failed: %s", addr, getStringValue("packageName", addr), err)
+		return nil, fmt.Errorf("connect udp to %s(%s) failed: %s", addr, getValue[string]("packageName", addr), err)
 	}
 	return c, nil
 }
-
-const FAKEDNS_MARK = "FAKEDNS"
 
 func (f *fakedns) getAddr(addr proxy.Address) proxy.Address {
 	if f.config != nil && f.config.Fakedns && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {
-			fakeip := addr.String()
 			addr = proxy.ConvertFakeDNS(addr, t)
-			addr.AddMark(FAKEDNS_MARK, fakeip)
 		}
 	}
 	return addr
