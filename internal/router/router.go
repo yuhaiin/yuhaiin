@@ -34,7 +34,6 @@ func NewRouter(statistics stc.Statistics, bypassResolver dns.DNS, modes []Mode) 
 
 	for _, mode := range modes {
 		c.shunt.AddMode(mode.Mode.String(), mode.Default, mode.Dialer, mode.Resolver)
-		c.insert(mode.Rules, mode.Mode)
 	}
 
 	c.fakedns = newFakedns(c.shunt)

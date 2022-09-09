@@ -2,6 +2,7 @@ package simplehttp
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
@@ -13,18 +14,16 @@ type latencyHandler struct {
 	nm grpcnode.NodeManagerServer
 }
 
-func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) {
+func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	hash := r.URL.Query().Get("hash")
 	t := r.URL.Query().Get("type")
 	lt, err := l.nm.Latency(context.TODO(), &node.LatencyReq{
 		Requests: []*node.LatencyReqRequest{{Hash: hash, Tcp: t == "tcp", Udp: t == "udp"}}})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	if _, ok := lt.HashLatencyMap[hash]; !ok {
-		http.Error(w, "test latency timeout or can't connect", http.StatusInternalServerError)
-		return
+		return errors.New("test latency timeout or can't connect")
 	}
 
 	var resp string
@@ -35,4 +34,6 @@ func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(resp))
+
+	return nil
 }

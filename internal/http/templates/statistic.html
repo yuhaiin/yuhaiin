@@ -1,0 +1,78 @@
+{{define "body"}}
+<script>
+    const formatBytes =
+        (a, b = 2) => { if (!+a) return "0B"; const c = 0 > b ? 0 : b, d = Math.floor(Math.log(a) / Math.log(1024)); return `${parseFloat((a / Math.pow(1024, d)).toFixed(c))}${["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"][d]}` }
+
+    const oldOnLoad = window.onload
+    window.onload = (e) => {
+        oldOnLoad(e)
+        refresh();
+        connect();
+    }
+
+    function connect() {
+        var ws = new WebSocket("ws://" + window.location.host + "/conn");
+        var download = 0
+        var upload = 0
+        var drate = 0
+        var urate = 0
+
+        window.onbeforeunload = function () {
+            ws.close();
+        }
+        const sttd = document.querySelector('#statistic-download');
+        const sttu = document.querySelector("#statistic-upload")
+        ws.onmessage = function (event) {
+            let data = JSON.parse(event.data);
+
+            if (download != 0 || upload != 0) {
+                drate = data.download - download
+                urate = data.upload - upload
+            }
+            download = data.download
+            upload = data.upload
+
+            sttd.innerText = `(${formatBytes(download)}): ${formatBytes(drate)}/S`
+            sttu.innerText = `(${formatBytes(data.upload)}): ${formatBytes(urate)}/S`
+        }
+
+        ws.onclose = function (event) {
+            console.log('close websocket, reconnect will in 1 second')
+            sttd.innerText = 'Loading...'
+            sttu.innerText = 'Loading...'
+            setTimeout(connect, 1000);
+        }
+    }
+
+    const refresh = () => ajax("POST", "/conn", null, (xmlhttp) => { document.getElementById('connections').innerHTML = xmlhttp.responseText; })
+    const close_conn = (id) => ajax("DELETE", `/conn?id=${id}`, null, (xmlhttp) => refresh())
+</script>
+
+<div class="card mb-3">
+    <div class="list-group list-group-flush">
+
+        <div class="list-group-item">
+            <div class="d-sm-flex">
+                <div class="endpoint-name flex-grow-1 notranslate">Download</div>
+                <div class="notranslate" style="opacity: 0.6;" id="statistic-download">Loading...</div>
+            </div>
+        </div>
+
+        <div class="list-group-item">
+            <div class="d-sm-flex">
+                <div class="endpoint-name flex-grow-1 notranslate">Upload</div>
+                <div class="notranslate" style="opacity: 0.6;" id="statistic-upload">Loading...</div>
+            </div>
+        </div>
+
+        <div class="list-group-item">
+            <div class="d-sm-flex">
+                <button class="btn btn-outline-primary flex-grow-1 notranslate" type="button"
+                    onclick="refresh()">Refresh</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="accordion mb-3" id="connections"></div>
+{{end}}

@@ -7,15 +7,12 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/internal/router"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/net/websocket"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -25,70 +22,37 @@ type conn struct {
 	server *websocket.Server
 }
 
-func (c *conn) Delete(w http.ResponseWriter, r *http.Request) {
+func (c *conn) Delete(w http.ResponseWriter, r *http.Request) error {
 	id := r.URL.Query().Get("id")
 
 	i, err := strconv.Atoi(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	_, err = c.stt.CloseConn(context.TODO(), &statistic.CloseConnsReq{Conns: []int64{int64(i)}})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	w.Write([]byte("OK"))
+	return nil
 }
 
-func (c *conn) Get(w http.ResponseWriter, r *http.Request) {
-	str := utils.GetBuffer()
-	defer utils.PutBuffer(str)
-
-	str.WriteString(fmt.Sprintf(`<script>%s</script>`, statisticJS))
-	str.WriteString(`<pre id="statistic">Loading...</pre>`)
-	str.WriteString("<hr/>")
-
-	str.WriteString(`<a href="javascript: refresh()">Refresh</a>`)
-	str.WriteString(`<p id="connections"></p>`)
-
-	w.Write([]byte(createHTML(str.String())))
+func (c *conn) Get(w http.ResponseWriter, r *http.Request) error {
+	return TPS.BodyExecute(w, nil, tps.STATISTIC)
 }
 
-func (c *conn) Post(w http.ResponseWriter, r *http.Request) {
+func (c *conn) Post(w http.ResponseWriter, r *http.Request) error {
 	conns, err := c.stt.Conns(context.TODO(), &emptypb.Empty{})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
-
-	str := utils.GetBuffer()
-	defer utils.PutBuffer(str)
-
-	str.WriteString("<dl>")
-	for _, c := range conns.GetConnections() {
-		str.WriteString("<hr/>")
-		str.WriteString(fmt.Sprintf("<dt>%d| &lt;%s[%s]&gt; %s ", c.Id, c.GetType(), c.GetExtra()[router.MODE_MARK], c.GetAddr()))
-		str.WriteString(fmt.Sprintf(`<a href='javascript: close("%d")'>Close</a>`, c.GetId()))
-		str.WriteString("</dt>")
-		str.WriteString(fmt.Sprintf("<dd>src: %s</dd>", c.GetLocal()))
-		str.WriteString(fmt.Sprintf("<dd>dst: %s</dd>", c.GetRemote()))
-		for k, v := range c.GetExtra() {
-			if k == router.MODE_MARK {
-				continue
-			}
-			str.WriteString(fmt.Sprintf("<dd>%s: %s</dd>", k, v))
-		}
-	}
-
-	str.WriteString("</dl>")
-	w.Write(str.Bytes())
+	return TPS.Execute(w, conns.GetConnections(), tps.CONNECTIONS)
 }
 
-func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) {
+func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
 	if cc.server == nil {
 		cc.server = &websocket.Server{
 			Handler: func(c *websocket.Conn) {
@@ -107,8 +71,7 @@ func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) {
 					&statisticServer{
 						ctx,
 						func(rr *statistic.RateResp) error {
-							data, _ := protojson.Marshal(rr)
-							err := websocket.Message.Send(c, *(*string)(unsafe.Pointer(&data)))
+							err := websocket.Message.Send(c, fmt.Sprintf(`{"download": %d, "upload": %d}`, rr.Download, rr.Upload))
 							if err != nil {
 								cancel()
 							}
@@ -121,6 +84,7 @@ func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	cc.server.ServeHTTP(w, r)
+	return nil
 }
 
 var _ grpcsts.Connections_StatisticServer = &statisticServer{}

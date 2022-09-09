@@ -1,0 +1,68 @@
+{{define "body"}}
+<script>
+    var id = 0;
+
+    const templates = () => Array.from(document.querySelectorAll(".node_templates")).map(x => x.getAttribute("value"))
+
+    const removeTemplate = (id) => document.querySelector(`#${id}`).remove();
+
+    const insertTemplate = () => {
+        const value = document.querySelector("#protocol").value;
+        document.querySelector('#node_template').insertAdjacentHTML("beforeend", `
+        <div class="list-group-item node_templates" id="template_${id}" value="${value}">
+            <div class="d-sm-flex">
+                <div class="endpoint-name flex-grow-1 notranslate">${value}</div>
+                <button class="btn btn-outline-danger notranslate" type="button" onclick='removeTemplate("template_${id}");'>Delete</button>
+            </div>
+        </div>`)
+        id += 1;
+    }
+
+    const generateTemplates = () => {
+        ajax("GET", `/node?page=generate_template&protocols=${encodeURIComponent(JSON.stringify(templates()))}`, null, (xmlhttp) => {
+            console.log(xmlhttp.responseText);
+            document.querySelector("#node").innerHTML = xmlhttp.responseText;
+        })
+    }
+</script>
+
+
+<div class="card mb-3">
+    <div class="list-group list-group-flush" id="node_template">
+
+        <div class="list-group-item">
+            <div class="d-sm-flex input-group">
+                <select class="form-select flex-grow-1 notranslate" id="protocol"
+                    aria-label="Example select with button addon">
+                    <option selected value="simple">simple</option>
+                    <option value="none">none</option>
+                    <option value="websocket">websocket</option>
+                    <option value="quic">quic</option>
+                    <option value="shadowsocks">shadowsocks</option>
+                    <option value="obfshttp">obfshttp</option>
+                    <option value="shadowsocksr">shadowsocksr</option>
+                    <option value="vmess">vmess</option>
+                    <option value="trojan">trojan</option>
+                    <option value="socks5">socks5</option>
+                    <option value="http">http</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary" onclick="insertTemplate()">Add</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="generateTemplates()">Generate</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<div class="card mb-3">
+    <div class="card-body">
+        <pre contenteditable="true" id="node"></pre>
+        <button class="btn btn-outline-primary" type="button" onclick='save("node","/node");'>Save</button>
+        <button class="btn btn-outline-primary" type="button" onclick="location.href='/node?page=template'">Protocols
+            Template</button>
+    </div>
+</div>
+
+
+{{end}}
