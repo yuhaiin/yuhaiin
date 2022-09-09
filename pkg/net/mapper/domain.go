@@ -50,7 +50,12 @@ func (d *domainStr) next() bool {
 	return true
 }
 
+var valueEmpty = string([]byte{0x03})
+
 func (d *domainStr) str() string {
+	if d.pre == d.aft {
+		return valueEmpty
+	}
 	return d.domain[d.pre:d.aft]
 }
 
@@ -84,7 +89,7 @@ func s[T any](root *domainNode[T], domain string) (resp T, ok bool) {
 		}
 
 		if !asterisk {
-			s, asterisk = root.Child["*"], true
+			s, asterisk = s.Child["*"], true
 		} else {
 			z.next()
 		}
@@ -147,6 +152,8 @@ func (d *domain[T]) Marshal() ([]byte, error) {
 }
 
 func (d *domain[T]) Clear() error {
+	d.Root = &domainNode[T]{Child: map[string]*domainNode[T]{}}
+	d.WildcardRoot = &domainNode[T]{Child: map[string]*domainNode[T]{}}
 	return nil
 }
 

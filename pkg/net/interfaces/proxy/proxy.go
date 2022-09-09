@@ -299,6 +299,8 @@ func (d *DomainAddr) IPHost() (string, error) {
 const FAKEDNS_MARK = "FAKEDNS"
 
 func ConvertFakeDNS(src Address, real string) Address {
+	host := src.String()
+
 	z, ok := src.(*IPAddr)
 	if !ok {
 		return ParseAddressSplit(src.Network(), real, src.Port().Port())
@@ -311,7 +313,7 @@ func ConvertFakeDNS(src Address, real string) Address {
 
 	d.host = net.JoinHostPort(real, d.port.String())
 	d.hostname = real
-	d.AddMark(FAKEDNS_MARK, src.String())
+	d.AddMark(FAKEDNS_MARK, host)
 
 	return d
 }

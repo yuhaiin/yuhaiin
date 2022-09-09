@@ -36,12 +36,13 @@
 # host: grpc and http listen address, default: 127.0.0.1:50051
 # path: Store application data path, default:
 #   linux ~/.config/yuhaiin/, windows %APPDATA%/yuhaiin/
-yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin/config.json
+yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 ```
 
 ![web_page](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/web_page.png)
 
-a simple cli tools supported
+<details>
+<summary>a simple cli tools supported</summary>
 
 ```shell
 // list all connections
@@ -93,6 +94,8 @@ yh sub add <name> <sub-link>
 // update all subscriptions
 yh sub update
 ```
+
+</details>
 
 <details>
 <summary>Acknowledgement</summary>

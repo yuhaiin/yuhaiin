@@ -7,10 +7,8 @@ option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/statistic";
 message close_conns_req { repeated int64 conns = 1; }
 
 message rate_resp {
-  string download = 1 [ json_name = "download" ];
-  string upload = 2 [ json_name = "upload" ];
-  string download_rate = 3 [ json_name = "download_rate" ];
-  string upload_rate = 4 [ json_name = "upload_rate" ];
+  uint64 download = 1 [ json_name = "download" ];
+  uint64 upload = 2 [ json_name = "upload" ];
 }
 
 message connection {

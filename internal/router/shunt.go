@@ -71,7 +71,7 @@ type Shunt interface {
 }
 
 type shunt struct {
-	mapper imapper.Mapper[string, proxy.Address, int64]
+	mapper imapper.Mapper[string, proxy.Address, uint16]
 
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
@@ -79,16 +79,16 @@ type shunt struct {
 	conns statistics.Statistics
 
 	rule
-	modeStore syncmap.SyncMap[int64, struct {
+	modeStore syncmap.SyncMap[uint16, struct {
 		dialer proxy.Proxy
 		dns    dns.DNS
 	}]
-	defaultMode int64
+	defaultMode uint16
 }
 
 func newShunt(resolver dns.DNS, conns statistics.Statistics) Shunt {
 	return &shunt{
-		mapper: mapper.NewMapper[int64](resolver),
+		mapper: mapper.NewMapper[uint16](resolver),
 		conns:  conns,
 		config: &protoconfig.Bypass{
 			Tcp:        protoconfig.Bypass_bypass,
@@ -156,11 +156,11 @@ func (s *shunt) refresh() error {
 
 func (s *shunt) Insert(c, mode string) { s.mapper.Insert(c, s.rule.GetID(mode)) }
 
-func (s *shunt) match(addr proxy.Address, resolveDomain bool) int64 {
+func (s *shunt) match(addr proxy.Address, resolveDomain bool) uint16 {
 	r := s.mapper
 	if !resolveDomain {
 		if z, ok := s.mapper.(interface {
-			Domain() imapper.Mapper[string, proxy.Address, int64]
+			Domain() imapper.Mapper[string, proxy.Address, uint16]
 		}); ok {
 			r = z.Domain()
 		}
@@ -201,7 +201,7 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	return s.conns.AddConn(conn, host), nil
 }
 
-func (s *shunt) getMark(mode protoconfig.BypassMode, host proxy.Address) (int64, string) {
+func (s *shunt) getMark(mode protoconfig.BypassMode, host proxy.Address) (uint16, string) {
 	if mode != protoconfig.Bypass_bypass {
 		mark := mode.String()
 		return s.rule.GetID(mark), mark
@@ -239,22 +239,22 @@ func (s *shunt) Resolver(host proxy.Address) dns.DNS {
 
 type rule struct {
 	id        statistics.IDGenerator
-	mapping   syncmap.SyncMap[string, int64]
-	idMapping syncmap.SyncMap[int64, string]
+	mapping   syncmap.SyncMap[string, uint16]
+	idMapping syncmap.SyncMap[uint16, string]
 }
 
-func (r *rule) GetID(s string) int64 {
+func (r *rule) GetID(s string) uint16 {
 	s = strings.ToUpper(s)
 	if v, ok := r.mapping.Load(s); ok {
 		return v
 	}
-	id := r.id.Generate()
+	id := uint16(r.id.Generate())
 	r.mapping.Store(s, id)
 	r.idMapping.Store(id, s)
 	return id
 }
 
-func (r *rule) GetMode(id int64) string {
+func (r *rule) GetMode(id uint16) string {
 	if v, ok := r.idMapping.Load(id); ok {
 		return v
 	}

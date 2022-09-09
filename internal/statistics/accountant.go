@@ -1,13 +1,11 @@
 package statistics
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -42,13 +40,7 @@ func (c *accountant) start() {
 
 	c.started = make(chan struct{})
 
-	reduce := func(u uint64) string {
-		r, unit := utils.ReducedUnit(float64(u))
-		return fmt.Sprintf("%.2f%s", r, unit.String())
-	}
-
 	go func() {
-		dw, up := c.download.Load(), c.upload.Load()
 
 		for {
 			select {
@@ -60,25 +52,16 @@ func (c *accountant) start() {
 				}
 			}
 
-			d, u := c.download.Load(), c.upload.Load()
+			data := &statistic.RateResp{Download: c.download.Load(), Upload: c.upload.Load()}
 
 			c.clients.Range(
 				func(key int64, value func(*statistic.RateResp) error) bool {
-					data := &statistic.RateResp{
-						Download:     reduce(d),
-						Upload:       reduce(u),
-						DownloadRate: reduce(d-dw) + "/S",
-						UploadRate:   reduce(u-up) + "/S",
-					}
-
 					if err := value(data); err != nil {
 						log.Println("accountant client error:", err)
 					}
 
 					return true
 				})
-
-			dw, up = d, u
 		}
 	}()
 }

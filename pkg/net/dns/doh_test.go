@@ -14,21 +14,23 @@ func TestDOH(t *testing.T) {
 	_, s, _ := net.ParseCIDR("223.5.5.5/24")
 	_ = s
 	// d := NewDoH("cloudflare-dns.com", nil)
-	d := New(
-		Config{
-			Type:       config.Dns_doh,
-			Host:       "103.2.57.5",
-			Servername: "public.dns.iij.jp",
-			IPv6:       true,
-		})
+	// d := New(
+	// 	Config{
+	// 		Type:       config.Dns_doh,
+	// 		Host:       "103.2.57.5",
+	// 		Servername: "public.dns.iij.jp",
+	// 		IPv6:       true,
+	// 		Subnet:     s,
+	// 	})
 	// d := New(Config{
 	// 	Type:   config.Dns_doh,
 	// 	Host:   "dns.google",
 	// 	IPv6:   true,
+	// 	Subnet: s,
 	// 	Dialer: s5c.Dial("127.0.0.1", "1080", "", ""),
 	// })
 	// d := NewDoH(dns.Config{Host: "9.9.9.9", Subnet: s, IPv6: true}, nil)
-	// d := NewDoH(dns.Config{Host: "43.154.169.30", Servername: "a.passcloud.xyz"}, s5c.Dial("127.0.0.1", "1080", "", ""))
+	// d := NewDoH(Config{Host: "43.154.169.30", Servername: "a.passcloud.xyz", Dialer: s5c.Dial("127.0.0.1", "1080", "", "")})
 	// d := New(Config{
 	// 	Type: config.Dns_doh,
 	// 	Host: "https://unfiltered.adguard-dns.com/dns-query",
@@ -38,7 +40,11 @@ func TestDOH(t *testing.T) {
 	// d := NewDoH(dns.Config{Host: "223.5.5.5", Subnet: s}, nil)
 	// d := NewDoH(dns.Config{Host: "120.53.53.53", Subnet: s}, nil)
 	// d := NewDoH("sm2.doh.pub", s, nil)
-	// d := NewDoH("doh.pub", nil, nil)
+	d := New(Config{
+		Type:   config.Dns_doh,
+		Host:   "doh.pub",
+		Subnet: s,
+	})
 	// d := NewDoH("101.6.6.6:8443", nil)
 	// d := NewDoH("doh.360.cn", s, nil)
 	// d := NewDOH("doh.dns.sb")
