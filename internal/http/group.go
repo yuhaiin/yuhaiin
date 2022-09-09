@@ -8,6 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -18,19 +19,19 @@ type groupHandler struct {
 
 func (g *groupHandler) Get(w http.ResponseWriter, r *http.Request) {
 	group := r.URL.Query().Get("name")
-	if group == "" {
-		g.groupList(w, r)
-	} else {
-		g.group(w, group)
-	}
-}
-
-func (g *groupHandler) groupList(w http.ResponseWriter, r *http.Request) {
 	ns, err := g.nm.GetManager(context.TODO(), &wrapperspb.StringValue{})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if group == "" {
+		g.groupList(w, r, ns)
+	} else {
+		g.group(w, r, ns, group)
+	}
+}
+
+func (g *groupHandler) groupList(w http.ResponseWriter, r *http.Request, ns *node.Manager) {
 	sort.Strings(ns.Groups)
 
 	str := utils.GetBuffer()
@@ -48,32 +49,29 @@ func (g *groupHandler) groupList(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(createHTML(str.String())))
 }
 
-func (g *groupHandler) group(w http.ResponseWriter, group string) {
-	ns, err := g.nm.GetManager(context.TODO(), &wrapperspb.StringValue{})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+func (g *groupHandler) group(w http.ResponseWriter, r *http.Request, ns *node.Manager, group string) {
+	z, ok := ns.GroupNodesMap[group]
+	if !ok {
+		g.groupList(w, r, ns)
 		return
 	}
-
-	nhm := ns.GroupNodesMap[group].NodeHashMap
-	nds := ns.GroupNodesMap[group].Nodes
-	sort.Strings(nds)
+	sort.Strings(z.Nodes)
 
 	str := utils.GetBuffer()
 	defer utils.PutBuffer(str)
 
 	str.WriteString(fmt.Sprintf(`<script>%s</script>`, nodeJS))
 
-	for _, n := range nds {
-		str.WriteString(fmt.Sprintf(`<div id="%s">`, "i"+nhm[n]))
-		str.WriteString(fmt.Sprintf(`<input type="radio" name="select_node" value="%s">`, nhm[n]))
-		str.WriteString(fmt.Sprintf(`<a href='javascript: nodeSelectOrDetail("%s")'>%s</a>`, nhm[n], n))
+	for _, n := range z.Nodes {
+		str.WriteString(fmt.Sprintf(`<div id="%s">`, "i"+z.NodeHashMap[n]))
+		str.WriteString(fmt.Sprintf(`<input type="radio" name="select_node" value="%s">`, z.NodeHashMap[n]))
+		str.WriteString(fmt.Sprintf(`<a href='javascript: nodeSelectOrDetail("%s")'>%s</a>`, z.NodeHashMap[n], n))
 		str.WriteString("&nbsp;&nbsp;")
 		str.WriteString(`TCP: <a class="tcp">N/A</a>`)
 		str.WriteString("&nbsp;&nbsp;")
 		str.WriteString(`UDP: <a class="udp">N/A</a>`)
 		str.WriteString("&nbsp;&nbsp;")
-		str.WriteString(fmt.Sprintf(`<a class="test" href='javascript:latency("%s")'>Test</a>`, nhm[n]))
+		str.WriteString(fmt.Sprintf(`<a class="test" href='javascript:latency("%s")'>Test</a>`, z.NodeHashMap[n]))
 		str.WriteString("</div>")
 	}
 	str.WriteString("<br/>")
