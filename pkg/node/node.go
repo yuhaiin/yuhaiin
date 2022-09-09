@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
@@ -138,6 +138,8 @@ func (n *Nodes) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyR
 				t, err := latency.HTTP(px, "https://clients3.google.com/generate_204")
 				if err == nil {
 					tcp = t.String()
+				} else {
+					log.Errorf("latency tcp failed: %v\n", err)
 				}
 			}
 
@@ -145,6 +147,8 @@ func (n *Nodes) Latency(c context.Context, req *node.LatencyReq) (*node.LatencyR
 				t, err := latency.DNS(px, "1.1.1.1:53", "www.google.com")
 				if err == nil {
 					udp = t.String()
+				} else {
+					log.Errorf("latency udp failed: %v\n", err)
 				}
 			}
 
@@ -166,10 +170,10 @@ func (n *Nodes) load() {
 
 	if data, err := os.ReadFile(n.savaPath); err == nil {
 		if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, no); err != nil {
-			log.Printf("unmarshal node file failed: %v\n", err)
+			log.Errorf("unmarshal node file failed: %v\n", err)
 		}
 	} else {
-		log.Printf("read node file failed: %v\n", err)
+		log.Errorf("read node file failed: %v\n", err)
 	}
 
 _init:

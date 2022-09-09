@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
@@ -447,6 +448,12 @@ func (y *yhCli) streamData() {
 		panic(err)
 	}
 
+	reduce := func(u uint64) string {
+		r, unit := utils.ReducedUnit(float64(u))
+		return fmt.Sprintf("%.2f%s", r, unit.String())
+	}
+
+	var download, upload uint64
 	ctx := sts.Context()
 	for {
 		select {
@@ -460,7 +467,15 @@ func (y *yhCli) streamData() {
 			break
 		}
 
-		s := fmt.Sprintf("D(%s):%s U(%s):%s", resp.Download, resp.DownloadRate, resp.Upload, resp.UploadRate)
+		var drate, urate uint64
+
+		if download != 0 || upload != 0 {
+			drate, urate = resp.Download-download, resp.Upload-upload
+		}
+
+		download, upload = resp.Download, resp.Upload
+
+		s := fmt.Sprintf("D(%s):%s U(%s):%s", reduce(resp.Download), reduce(drate), reduce(resp.Upload), reduce(urate))
 
 		fmt.Printf("%s%s\r", s, strings.Repeat(" ", 47-len(s)))
 	}
