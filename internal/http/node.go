@@ -10,8 +10,8 @@ import (
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -154,7 +154,7 @@ func (n *nodeHandler) Put(w http.ResponseWriter, r *http.Request) error {
 	hash := r.URL.Query().Get("hash")
 	net := r.URL.Query().Get("net")
 
-	req := &node.UseReq{Hash: hash}
+	req := &grpcnode.UseReq{Hash: hash}
 
 	switch net {
 	case "tcp":

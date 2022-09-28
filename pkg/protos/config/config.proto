@@ -3,6 +3,8 @@ package yuhaiin.config;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
 
+import "config/log/log.proto";
+
 message setting {
   // net interface, eg: eth0
   bool ipv6 = 7 [ json_name = "ipv6" ];
@@ -11,7 +13,7 @@ message setting {
   bypass bypass = 2 [ json_name = "bypass" ];
   dns_setting dns = 4 [ json_name = "dns" ];
   server server = 5 [ json_name = "server" ];
-  logcat logcat = 8 [ json_name = "logcat" ];
+  yuhaiin.log.logcat logcat = 8 [ json_name = "logcat" ];
 }
 
 message dns_setting {
@@ -38,6 +40,8 @@ message bypass {
   mode tcp = 3 [ json_name = "tcp" ];
   mode udp = 4 [ json_name = "udp" ];
   string bypass_file = 2 [ json_name = "bypass_file" ];
+
+  map<string, mode> custom_rule = 5 [ json_name = "custom_rule" ];
 }
 
 message dns {
@@ -52,7 +56,6 @@ message dns {
     doh3 = 6;
   }
   dns_type type = 5 [ json_name = "type" ];
-  bool proxy = 3 [ json_name = "proxy" ];
   string subnet = 4 [ json_name = "subnet" ];
   string tls_servername = 2 [ json_name = "tls_servername" ];
 }
@@ -99,17 +102,4 @@ message tun {
     channel = 1;
   }
   endpoint_driver driver = 7 [ json_name = "driver" ];
-}
-
-message logcat {
-  enum log_level {
-    verbose = 0;
-    debug = 1;
-    info = 2;
-    warning = 3;
-    error = 4;
-    fatal = 5;
-  }
-  log_level level = 1 [ json_name = "level" ];
-  bool save = 2 [ json_name = "save" ];
 }

@@ -5,8 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 )
 
 type latencyHandler struct {
@@ -17,8 +16,32 @@ type latencyHandler struct {
 func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	hash := r.URL.Query().Get("hash")
 	t := r.URL.Query().Get("type")
-	lt, err := l.nm.Latency(context.TODO(), &node.LatencyReq{
-		Requests: []*node.LatencyReqRequest{{Hash: hash, Tcp: t == "tcp", Udp: t == "udp"}}})
+
+	req := &grpcnode.LatencyReqRequest{Hash: hash}
+
+	if t == "tcp" {
+		req.Protocols = append(req.Protocols, &grpcnode.LatencyReqRequestProtocol{
+			Protocol: &grpcnode.LatencyReqRequestProtocol_Http{
+				Http: &grpcnode.LatencyReqHttp{
+					Url: "https://clients3.google.com/generate_204",
+				},
+			},
+		})
+	}
+
+	if t == "udp" {
+		req.Protocols = append(req.Protocols, &grpcnode.LatencyReqRequestProtocol{
+			Protocol: &grpcnode.LatencyReqRequestProtocol_Dns{
+				Dns: &grpcnode.LatencyReqDns{
+					Host:         "1.1.1.1:53",
+					TargetDomain: "www.google.com",
+				},
+			},
+		})
+	}
+
+	lt, err := l.nm.Latency(context.TODO(), &grpcnode.LatencyReq{Requests: []*grpcnode.LatencyReqRequest{req}})
+
 	if err != nil {
 		return err
 	}
@@ -27,10 +50,8 @@ func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	var resp string
-	if t == "tcp" {
-		resp = lt.HashLatencyMap[hash].Tcp
-	} else if t == "udp" {
-		resp = lt.HashLatencyMap[hash].Udp
+	if lt.HashLatencyMap[hash] != nil {
+		resp = lt.HashLatencyMap[hash].Times[0].AsDuration().String()
 	}
 
 	w.Write([]byte(resp))

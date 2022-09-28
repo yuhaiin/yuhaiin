@@ -2,8 +2,8 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/url"
 	"os"
@@ -11,8 +11,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
+	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -42,10 +44,21 @@ type settingImpl struct {
 	lock sync.RWMutex
 }
 
-func NewConfig(dir string) Setting {
-	c := load(dir)
-	cf := &settingImpl{current: c, path: dir}
-	return cf
+func NewConfig(path string) Setting {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Errorln("read config file failed: %v\n", err)
+	}
+
+	data = SetDefault(data, defaultConfig(path))
+
+	var pa config.Setting
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, &pa)
+	if err != nil {
+		log.Errorln("unmarshal config file failed: %v\n", err)
+	}
+
+	return &settingImpl{current: &pa, path: path}
 }
 
 func (c *settingImpl) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
@@ -89,67 +102,49 @@ func (c *settingImpl) AddObserver(o Observer) {
 	o.Update(c.current)
 }
 
-func load(path string) *config.Setting {
-	pa := &config.Setting{}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		log.Printf("read config file failed: %v\n", err)
-		data = []byte{'{', '}'}
-	}
-
-	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, pa)
-	if err != nil {
-		log.Printf("unmarshal config file failed: %v\n", err)
-	}
-
-	if pa.SystemProxy == nil {
-		pa.SystemProxy = &config.SystemProxy{
+func defaultConfig(path string) []byte {
+	defaultValue := &config.Setting{
+		Ipv6:         false,
+		NetInterface: "",
+		SystemProxy: &config.SystemProxy{
 			Http:   true,
 			Socks5: false,
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
-		}
-	}
-
-	if pa.Bypass == nil {
-		pa.Bypass = &config.Bypass{
-			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+		},
+		Bypass: &config.Bypass{
 			Tcp:        config.Bypass_bypass,
 			Udp:        config.Bypass_bypass,
-		}
-	}
-
-	if pa.Dns == nil {
-		pa.Dns = &config.DnsSetting{}
-	}
-
-	if pa.Dns.FakednsIpRange == "" {
-		pa.Dns.FakednsIpRange = "10.2.0.1/24"
-	}
-
-	if pa.Dns.Local == nil {
-		pa.Dns.Local = &config.Dns{
-			Host: "223.5.5.5",
-			Type: config.Dns_doh,
-		}
-	}
-
-	if pa.Dns.Remote == nil {
-		pa.Dns.Remote = &config.Dns{
-			Host:   "cloudflare-dns.com",
-			Type:   config.Dns_doh,
-			Proxy:  false,
-			Subnet: "0.0.0.0/32",
-		}
-	}
-
-	if pa.Dns.Bootstrap == nil {
-		pa.Dns.Bootstrap = &config.Dns{Host: "9.9.9.9", Type: config.Dns_doh}
-	}
-
-	if pa.Server == nil || pa.Server.Servers == nil {
-		pa.Server = &config.Server{
+			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+			CustomRule: map[string]config.BypassMode{
+				"dns.google":               config.Bypass_proxy,
+				"223.5.5.5":                config.Bypass_direct,
+				"exmaple.block.domain.com": config.Bypass_block,
+			},
+		},
+		Dns: &config.DnsSetting{
+			Server:         "127.0.0.1:5353",
+			Fakedns:        false,
+			FakednsIpRange: "10.0.2.1/24",
+			Local: &config.Dns{
+				Host: "223.5.5.5",
+				Type: config.Dns_doh,
+			},
+			Remote: &config.Dns{
+				Host:   "dns.google",
+				Type:   config.Dns_doh,
+				Subnet: "223.5.5.5",
+			},
+			Bootstrap: &config.Dns{
+				Host: "223.5.5.5",
+				Type: config.Dns_udp,
+			},
+		},
+		Logcat: &protolog.Logcat{
+			Level: protolog.LogLevel_debug,
+			Save:  true,
+		},
+		Server: &config.Server{
 			Servers: map[string]*config.ServerProtocol{
 				"http": {
 					Name:    "http",
@@ -192,16 +187,11 @@ func load(path string) *config.Setting {
 					},
 				},
 			},
-		}
+		},
 	}
 
-	if pa.Logcat == nil {
-		pa.Logcat = &config.Logcat{
-			Level: config.Logcat_debug,
-			Save:  true,
-		}
-	}
-	return pa
+	data, _ := protojson.Marshal(defaultValue)
+	return data
 }
 
 func save(pa *config.Setting, dir string) error {
@@ -252,8 +242,18 @@ func checkBypass(pa *config.Bypass) error {
 }
 
 func CheckBootstrapDns(pa *config.Dns) error {
-	host := pa.Host
+	hostname, err := GetDNSHostname(pa.Host)
+	if err != nil {
+		return err
+	}
+	if net.ParseIP(hostname) == nil {
+		return fmt.Errorf("dns bootstrap host is only support ip address")
+	}
 
+	return nil
+}
+
+func GetDNSHostname(host string) (string, error) {
 	if !strings.Contains(host, "://") {
 		if len(strings.Split(host, ":")) > 2 && !strings.Contains(host, "[") {
 			host = "[" + host + "]"
@@ -263,12 +263,38 @@ func CheckBootstrapDns(pa *config.Dns) error {
 
 	uri, err := url.Parse(host)
 	if err != nil {
-		return fmt.Errorf("dns bootstrap host is only support ip address: %w", err)
+		return "", fmt.Errorf("dns bootstrap host is only support ip address: %w", err)
 	}
 
-	if net.ParseIP(uri.Hostname()) == nil {
-		return fmt.Errorf("dns bootstrap host is only support ip address")
-	}
+	return uri.Hostname(), nil
+}
 
-	return nil
+func SetDefault(targetJSON, defaultJSON []byte) []byte {
+	m1 := make(map[string]any)
+	def := make(map[string]any)
+
+	json.Unmarshal(targetJSON, &m1)
+	json.Unmarshal(defaultJSON, &def)
+
+	setDefault(m1, def)
+
+	data, _ := json.Marshal(m1)
+	return data
+}
+
+func setDefault(m1, md map[string]any) {
+	for k, v := range md {
+		j1, ok := m1[k]
+		if !ok {
+			m1[k] = v
+			continue
+		}
+
+		z1, ok1 := j1.(map[string]any)
+		d1, ok2 := v.(map[string]any)
+
+		if ok1 && ok2 {
+			setDefault(z1, d1)
+		}
+	}
 }

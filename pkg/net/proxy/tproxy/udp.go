@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	lis "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
@@ -31,26 +31,26 @@ func controlUDP(network, address string, c syscall.RawConn) error {
 	var fn = func(s uintptr) {
 		err := syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT, 1)
 		if err != nil {
-			log.Printf("set socket with SOL_IP, IP_TRANSPARENT failed: %v", err)
+			log.Errorf("set socket with SOL_IP, IP_TRANSPARENT failed: %v", err)
 		}
 
 		val, err := syscall.GetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT)
 		if err != nil {
-			log.Printf("get socket with SOL_IP, IP_TRANSPARENT failed: %v", err)
+			log.Errorf("get socket with SOL_IP, IP_TRANSPARENT failed: %v", err)
 		} else {
-			log.Printf("value of IP_TRANSPARENT option is: %d", int(val))
+			log.Errorf("value of IP_TRANSPARENT option is: %d", int(val))
 		}
 
 		err = syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR, 1)
 		if err != nil {
-			log.Printf("set socket with SOL_IP, IP_RECVORIGDSTADDR failed: %v", err)
+			log.Errorf("set socket with SOL_IP, IP_RECVORIGDSTADDR failed: %v", err)
 		}
 
 		val, err = syscall.GetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR)
 		if err != nil {
-			log.Printf("get socket with SOL_IP, IP_RECVORIGDSTADDR failed: %v", err)
+			log.Errorf("get socket with SOL_IP, IP_RECVORIGDSTADDR failed: %v", err)
 		} else {
-			log.Printf("value of IP_RECVORIGDSTADDR option is: %d", int(val))
+			log.Errorf("value of IP_RECVORIGDSTADDR option is: %d", int(val))
 		}
 	}
 
@@ -81,21 +81,21 @@ func handleUDP(l net.PacketConn, p proxy.Proxy) error {
 					tempDelay = max
 				}
 
-				log.Printf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
+				log.Warningf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
 			if errors.Is(err, net.ErrClosed) {
-				log.Printf("checked udp server closed: %v\n", err)
+				log.Errorf("checked udp server closed: %v\n", err)
 			} else {
-				log.Printf("udp server accept failed: %v\n", err)
+				log.Errorf("udp server accept failed: %v\n", err)
 			}
 			return fmt.Errorf("read msg udp failed: %w", err)
 		}
 
 		err = handleSingleUDPReq(oob[:oobn], b[:n], addr, p)
 		if err != nil {
-			log.Printf("handle single udp req failed: %v", err)
+			log.Errorf("handle single udp req failed: %v", err)
 		}
 	}
 }

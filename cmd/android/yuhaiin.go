@@ -11,7 +11,6 @@ import (
 	yuhaiin "github.com/Asutorufa/yuhaiin/internal"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 // GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -target=android/amd64,android/arm64 -ldflags='-s -w' -trimpath -v -o yuhaiin.aar ./
@@ -46,12 +45,7 @@ func (a *App) Start(opt *Opts) error {
 			PathConfig: pc,
 			Setting:    fakeSetting,
 			Host:       opt.Host,
-			Rules: map[protoconfig.BypassMode]string{
-				protoconfig.Bypass_block:  opt.Bypass.Block,
-				protoconfig.Bypass_proxy:  opt.Bypass.Proxy,
-				protoconfig.Bypass_direct: opt.Bypass.Direct,
-			},
-			UidDumper: NewUidDumper(opt.TUN.UidDumper),
+			UidDumper:  NewUidDumper(opt.TUN.UidDumper),
 		})
 		if err != nil {
 			errChan <- err

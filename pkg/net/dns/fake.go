@@ -76,12 +76,12 @@ func (fkdns *Fake) GetDomainFromIP(ip string) (string, bool) {
 var _ dns.DNS = (*FakeDNS)(nil)
 
 type FakeDNS struct {
-	upStream dns.DNS
-	pool     *Fake
+	upStreamDo func(b []byte) ([]byte, error)
+	pool       *Fake
 }
 
-func WrapFakeDNS(upStream dns.DNS, pool *Fake) *FakeDNS {
-	return &FakeDNS{upStream: upStream, pool: pool}
+func WrapFakeDNS(upStreamDo func(b []byte) ([]byte, error), pool *Fake) *FakeDNS {
+	return &FakeDNS{upStreamDo: upStreamDo, pool: pool}
 }
 func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
 	ip := f.pool.GetFakeIPForDomain(domain)
@@ -133,6 +133,6 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 	return r, nil
 }
 
-func (f *FakeDNS) Do(b []byte) ([]byte, error) { return f.upStream.Do(b) }
+func (f *FakeDNS) Do(b []byte) ([]byte, error) { return f.upStreamDo(b) }
 
 func (f *FakeDNS) Close() error { return nil }

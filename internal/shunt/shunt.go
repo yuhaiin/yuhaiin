@@ -1,22 +1,19 @@
-package router
+package shunt
 
 import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	_ "embed"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/internal/config"
-	"github.com/Asutorufa/yuhaiin/internal/statistics"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	imapper "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -25,9 +22,6 @@ import (
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
-
-//go:embed statics/bypass.gz
-var BYPASS_DATA []byte
 
 func writeDefaultBypassData(target string) error {
 	_, err := os.Stat(target)
@@ -58,44 +52,41 @@ func writeDefaultBypassData(target string) error {
 	return os.WriteFile(target, data, os.ModePerm)
 }
 
-const (
-	MODE_MARK = "MODE"
-)
-
-type Shunt interface {
-	proxy.Proxy
-	proxy.ResolverProxy
-	config.Observer
-	AddMode(mode string, isDefault bool, _ proxy.Proxy, _ dns.DNS)
-	Insert(addr string, mode string)
-}
-
 type shunt struct {
-	mapper imapper.Mapper[string, proxy.Address, uint16]
+	mapper imapper.Mapper[string, proxy.Address, protoconfig.BypassMode]
 
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
 
-	conns statistics.Statistics
-
-	rule
-	modeStore syncmap.SyncMap[uint16, struct {
+	modeStore syncmap.SyncMap[protoconfig.BypassMode, struct {
 		dialer proxy.Proxy
 		dns    dns.DNS
 	}]
-	defaultMode uint16
+	defaultMode protoconfig.BypassMode
 }
 
-func newShunt(resolver dns.DNS, conns statistics.Statistics) Shunt {
-	return &shunt{
-		mapper: mapper.NewMapper[uint16](resolver),
-		conns:  conns,
+type Mode struct {
+	Mode     protoconfig.BypassMode
+	Default  bool
+	Dialer   proxy.Proxy
+	Resolver dns.DNS
+}
+
+func NewShunt(modes []Mode) proxy.DialerResolverProxy {
+	s := &shunt{
+		mapper: mapper.NewMapper[protoconfig.BypassMode](),
 		config: &protoconfig.Bypass{
 			Tcp:        protoconfig.Bypass_bypass,
 			Udp:        protoconfig.Bypass_bypass,
 			BypassFile: "",
 		},
 	}
+
+	for _, mode := range modes {
+		s.AddMode(mode.Mode, mode.Default, mode.Dialer, mode.Resolver)
+	}
+
+	return s
 }
 
 func (s *shunt) Update(c *protoconfig.Setting) {
@@ -108,8 +99,12 @@ func (s *shunt) Update(c *protoconfig.Setting) {
 	if diff {
 		s.mapper.Clear()
 		if err := s.refresh(); err != nil {
-			log.Println("refresh bypass file failed:", err)
+			log.Errorln("refresh bypass file failed:", err)
 		}
+	}
+
+	for k, v := range c.Bypass.CustomRule {
+		s.mapper.Insert(k, v)
 	}
 }
 
@@ -148,115 +143,95 @@ func (s *shunt) refresh() error {
 		c, b := a[:i], a[i+1:]
 
 		if len(c) != 0 && len(b) != 0 {
-			s.Insert(string(c), string(b))
+			s.mapper.Insert(strings.ToLower(string(c)), protoconfig.BypassMode(protoconfig.BypassMode_value[strings.ToLower(string(b))]))
 		}
 	}
 	return nil
 }
-
-func (s *shunt) Insert(c, mode string) { s.mapper.Insert(c, s.rule.GetID(mode)) }
-
-func (s *shunt) match(addr proxy.Address, resolveDomain bool) uint16 {
-	r := s.mapper
-	if !resolveDomain {
-		if z, ok := s.mapper.(interface {
-			Domain() imapper.Mapper[string, proxy.Address, uint16]
-		}); ok {
-			r = z.Domain()
-		}
-	}
-	if m, ok := r.Search(addr); ok {
-		return m
-	}
-
-	return s.defaultMode
-}
-
-func (s *shunt) AddMode(m string, defaultMode bool, p proxy.Proxy, resolver dns.DNS) {
-	id := s.rule.GetID(m)
-	s.modeStore.Store(id, struct {
+func (s *shunt) AddMode(m protoconfig.BypassMode, defaultMode bool, p proxy.Proxy, resolver dns.DNS) {
+	s.modeStore.Store(m, struct {
 		dialer proxy.Proxy
 		dns    dns.DNS
 	}{p, resolver})
 	if defaultMode {
-		s.defaultMode = id
+		s.defaultMode = m
 	}
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
-	m, mark := s.getMark(s.config.Tcp, host)
+	m := s.getMark(s.config.Tcp, host)
 	mode, ok := s.modeStore.Load(m)
 	if !ok {
 		return nil, fmt.Errorf("not found mode for %d", m)
 	}
 
 	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK, mark)
+	host.AddMark(MODE_MARK_KEY{}, m)
 
 	conn, err := mode.dialer.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return s.conns.AddConn(conn, host), nil
-}
-
-func (s *shunt) getMark(mode protoconfig.BypassMode, host proxy.Address) (uint16, string) {
-	if mode != protoconfig.Bypass_bypass {
-		mark := mode.String()
-		return s.rule.GetID(mark), mark
-	}
-	m := s.match(host, true)
-	return m, s.rule.GetMode(m)
+	return conn, err
 }
 
 func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	m, mark := s.getMark(s.config.Udp, host)
+	m := s.getMark(s.config.Udp, host)
+
 	mode, ok := s.modeStore.Load(m)
 	if !ok {
 		return nil, fmt.Errorf("not found mode for %d", m)
 	}
 
 	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK, mark)
+	host.AddMark(MODE_MARK_KEY{}, m)
 
 	conn, err := mode.dialer.PacketConn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return s.conns.AddPacketConn(conn, host), nil
+	return conn, err
 }
 
+func (s *shunt) getMark(mode protoconfig.BypassMode, host proxy.Address) protoconfig.BypassMode {
+	forceMode := proxy.GetMark(host, ForceModeKey{}, protoconfig.Bypass_bypass)
+
+	if forceMode != protoconfig.Bypass_bypass {
+		return forceMode
+	}
+
+	if mode != protoconfig.Bypass_bypass {
+		return mode
+	}
+
+	rv := resolver.Bootstrap
+	r, ok := s.modeStore.Load(s.defaultMode)
+	if ok {
+		rv = r.dns
+	}
+
+	host.WithResolver(rv)
+	m, ok := s.mapper.Search(host)
+	if !ok {
+		m = s.defaultMode
+	}
+
+	return m
+}
+
+var resolverResolver = dns.NewErrorDNS(imapper.ErrSkipResolveDomain)
+
 func (s *shunt) Resolver(host proxy.Address) dns.DNS {
-	m := s.match(host, false)
+	host.WithResolver(resolverResolver)
+	m, ok := s.mapper.Search(host)
+	if !ok {
+		m = s.defaultMode
+	}
 	d, ok := s.modeStore.Load(m)
 	if ok {
 		return d.dns
 	}
 	return resolver.Bootstrap
-}
-
-type rule struct {
-	id        statistics.IDGenerator
-	mapping   syncmap.SyncMap[string, uint16]
-	idMapping syncmap.SyncMap[uint16, string]
-}
-
-func (r *rule) GetID(s string) uint16 {
-	s = strings.ToUpper(s)
-	if v, ok := r.mapping.Load(s); ok {
-		return v
-	}
-	id := uint16(r.id.Generate())
-	r.mapping.Store(s, id)
-	r.idMapping.Store(id, s)
-	return id
-}
-
-func (r *rule) GetMode(id uint16) string {
-	if v, ok := r.idMapping.Load(id); ok {
-		return v
-	}
-	return ""
 }

@@ -9,20 +9,22 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
-	"github.com/Asutorufa/yuhaiin/internal/router"
+	"github.com/Asutorufa/yuhaiin/internal/resolver"
 	"github.com/Asutorufa/yuhaiin/internal/server"
+	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/internal/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
-	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
+	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"google.golang.org/grpc"
 )
 
@@ -40,10 +42,15 @@ type StartOpt struct {
 	PathConfig struct{ Dir, Lockfile, Node, Config, Logfile string }
 	Host       string
 	Setting    config.Setting
-	Rules      map[protoconfig.BypassMode]string `json:"rules"`
 
 	UidDumper  protoconfig.UidDumper
 	GRPCServer *grpc.Server
+}
+
+func (s *StartOpt) addObserver(observer any) {
+	if z, ok := observer.(config.Observer); ok {
+		s.Setting.AddObserver(z)
+	}
 }
 
 type StartResponse struct {
@@ -51,18 +58,15 @@ type StartResponse struct {
 
 	Mux *http.ServeMux
 
-	Node       *node.Nodes
-	Statistics statistics.Statistics
-	listeners  iserver.Server
-	Resolvers  *router.Resolvers
-	Router     *router.Router
+	Node *node.Nodes
+
+	servers []iserver.Server
 }
 
 func (s *StartResponse) Close() error {
-	s.Router.Close()
-	s.Resolvers.Close()
-	s.listeners.Close()
-	s.Statistics.Close()
+	for _, z := range s.servers {
+		z.Close()
+	}
 	log.Close()
 	return nil
 }
@@ -78,47 +82,68 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.Setting.AddObserver(config.NewObserver(func(s *protoconfig.Setting) { log.Set(s.GetLogcat(), opt.PathConfig.Logfile) }))
 	opt.Setting.AddObserver(config.NewObserver(func(s *protoconfig.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
+	// proxy access point/endpoint
 	node := node.NewNodes(opt.PathConfig.Node)
 
-	stcs := statistics.NewStatistics()
+	// make dns flow across all proxy chain
+	appDialer := &struct{ proxy.Proxy }{}
 
-	resolvers := router.NewResolvers(direct.Default, node, stcs)
-	opt.Setting.AddObserver(resolvers)
+	// local,remote,bootstrap dns
+	resolvers := resolver.NewResolvers(appDialer)
+	opt.addObserver(resolvers)
 
-	route := router.NewRouter(stcs, resolvers.Remote(),
-		[]router.Mode{
-			{
-				Mode:     protoconfig.Bypass_proxy,
-				Default:  true,
-				Dialer:   node,
-				Resolver: resolvers.Remote(),
-				Rules:    opt.Rules[protoconfig.Bypass_proxy],
-			},
-			{
-				Mode:     protoconfig.Bypass_direct,
-				Default:  false,
-				Dialer:   direct.Default,
-				Resolver: resolvers.Local(),
-				Rules:    opt.Rules[protoconfig.Bypass_direct],
-			},
-			{
-				Mode:     protoconfig.Bypass_block,
-				Default:  false,
-				Dialer:   reject.NewReject(5, 15),
-				Resolver: dns.NewErrorDNS(errors.New("block")),
-				Rules:    opt.Rules[protoconfig.Bypass_block],
-			},
-		})
-	opt.Setting.AddObserver(route)
+	// bypass dialer and dns request
+	st := shunt.NewShunt([]shunt.Mode{
+		{
+			Mode:     protoconfig.Bypass_proxy,
+			Default:  true,
+			Dialer:   node,
+			Resolver: resolvers.Remote(),
+		},
+		{
+			Mode:     protoconfig.Bypass_direct,
+			Default:  false,
+			Dialer:   direct.Default,
+			Resolver: resolvers.Local(),
+		},
+		{
+			Mode:     protoconfig.Bypass_block,
+			Default:  false,
+			Dialer:   reject.NewReject(5, 15),
+			Resolver: dns.NewErrorDNS(errors.New("block")),
+		},
+	})
+	opt.addObserver(st)
 
+	// wrap dialer and dns resolver to fake ip, if use
+	fakedns := resolver.NewFakeDNS(st)
+	opt.addObserver(fakedns)
+
+	// dns server/tun dns hijacking handler
+	dnsServer := resolver.NewDNSServer(fakedns)
+	opt.addObserver(dnsServer)
+
+	// connections' statistic & flow data
+	stcs := statistics.NewStatistics(fakedns)
+
+	// give dns a dialer
+	appDialer.Proxy = stcs
+
+	// http/socks5/redir/tun server
 	listener := server.NewListener(
-		&protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]{Dialer: route, DNSServer: route, UidDumper: opt.UidDumper},
+		&protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]{
+			Dialer:    stcs,
+			DNSServer: dnsServer,
+			UidDumper: opt.UidDumper,
+		},
 	)
-	opt.Setting.AddObserver(listener)
+	opt.addObserver(listener)
 
+	// http page
 	mux := http.NewServeMux()
 	simplehttp.Httpserver(mux, node, stcs, opt.Setting)
 
+	// grpc server
 	if opt.GRPCServer != nil {
 		opt.GRPCServer.RegisterService(&grpcconfig.ConfigDao_ServiceDesc, opt.Setting)
 		opt.GRPCServer.RegisterService(&grpcnode.NodeManager_ServiceDesc, node)
@@ -129,10 +154,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         node,
-		Statistics:   stcs,
-		listeners:    listener,
-		Resolvers:    resolvers,
-		Router:       route,
+		servers:      []iserver.Server{stcs, listener, resolvers, dnsServer},
 	}, nil
 }
 
@@ -150,3 +172,44 @@ func PathConfig(configPath string) struct{ Dir, Lockfile, Node, Config, Logfile 
 
 	return config
 }
+
+/*
+      dial ip
+        ^
+        |
++------------------+  +----------------------+
+|proxy/direct/block|->|local/remote/bootstrap|---------------+
++------------------+  +----------------------+               |
+         ^                          ^                        |
+         |                          |                        |
+         +-----+        +-----------+                        |
+               |        |                                    |
+	       |        |                                    |
+         +-----------------+                                 |
+         |      shunt      |                                 |
+	 +-----------------+                                 |
+		  ^                                          |
+		  |                                          |
+	 +-----------------+                                 |
+	 |   fake  dns     |                                 |
+	 +-----------------+                                 |
+		^  ^                                         |
+                |  |                                         |
+         +------+  +-------+                                 |
+	 |                 |                                 |
+         |                 |                                 |
++------------+   +--------------+                            |
+| dnsserver  |   |  statistic   |<---------------------------+
++------------+   +--------------+
+	  ^		^
+	  |<-----+	|
+	  | 	 |   +--------------+
+	request	 +---|  listeners   |
+		     +--------------+
+			  ^
+			  |
+			  |
+			  |
+			request
+
+*/

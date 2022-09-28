@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
@@ -43,7 +43,7 @@ func (u *udpServer) handle(dialer proxy.Proxy) {
 		n, l, err := u.PacketConn.ReadFrom(buf)
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
-				log.Println("read from local failed:", err)
+				log.Errorln("read from local failed:", err)
 			}
 			return
 		}
@@ -51,7 +51,7 @@ func (u *udpServer) handle(dialer proxy.Proxy) {
 		go func(data []byte, n int, local net.Addr) {
 			defer utils.PutBytes(data)
 			if err := u.relay(data, n, local, dialer); err != nil {
-				log.Println("relay failed:", err)
+				log.Errorln("relay failed:", err)
 			}
 		}(buf, n, l)
 	}
@@ -95,7 +95,7 @@ func (u *udpServer) relay(data []byte, n int, local net.Addr, dialer proxy.Proxy
 
 	go func() {
 		if err := u.remoteToLocal(remote, local, addr); err != nil && !errors.Is(err, net.ErrClosed) {
-			log.Println("remote to local failed:", err)
+			log.Errorln("remote to local failed:", err)
 		}
 		u.remoteCache.Delete(local.String())
 		remote.Close()
@@ -111,7 +111,7 @@ func (u *udpServer) localToRemote(local net.Addr, target *net.UDPAddr, data []by
 	}
 
 	if _, err := r.WriteTo(data, target); err != nil && !errors.Is(err, net.ErrClosed) {
-		log.Println("write to remote failed:", err)
+		log.Errorln("write to remote failed:", err)
 	}
 
 	// log.Println("udp write to", target, ":", len(data))

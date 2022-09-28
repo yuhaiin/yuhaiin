@@ -1,11 +1,11 @@
 package statistics
 
 import (
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -47,7 +47,7 @@ func (c *accountant) start() {
 			case <-time.After(time.Second):
 			case _, ok := <-c.started:
 				if !ok {
-					log.Println("accountant stopped")
+					log.Debugln("accountant stopped")
 					return
 				}
 			}
@@ -57,7 +57,7 @@ func (c *accountant) start() {
 			c.clients.Range(
 				func(key int64, value func(*statistic.RateResp) error) bool {
 					if err := value(data); err != nil {
-						log.Println("accountant client error:", err)
+						log.Errorln("accountant client error:", err)
 					}
 
 					return true
@@ -74,7 +74,7 @@ func (c *accountant) stop() {
 		return
 	}
 
-	log.Println("accountant stopping")
+	log.Debugln("accountant stopping")
 
 	if c.started != nil {
 		close(c.started)

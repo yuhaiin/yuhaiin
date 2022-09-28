@@ -10,7 +10,7 @@ import (
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
+	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 )

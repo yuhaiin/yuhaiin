@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -16,7 +17,7 @@ func TestNodeManager(t *testing.T) {
 	n := NewNodes("/tmp/yuhaiin/nodeManagerTest/config.json")
 
 	_, err := n.SaveLinks(context.TODO(),
-		&node.SaveLinkReq{
+		&grpcnode.SaveLinkReq{
 			Links: []*node.NodeLink{
 				{
 					Name: "test",
@@ -38,12 +39,10 @@ func TestNodeManager(t *testing.T) {
 	// }
 	hash := "db084f1d4f90140540e47a13ca77204d1f597e933481d58dfe2e5860f76f75ff"
 	t.Log(n.GetNode(context.TODO(), &wrapperspb.StringValue{Value: hash}))
-	t.Log(n.Latency(context.TODO(), &node.LatencyReq{
-		Requests: []*node.LatencyReqRequest{
+	t.Log(n.Latency(context.TODO(), &grpcnode.LatencyReq{
+		Requests: []*grpcnode.LatencyReqRequest{
 			{
 				Hash: hash,
-				Udp:  true,
-				Tcp:  true,
 			},
 		},
 	}))

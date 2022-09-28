@@ -5,10 +5,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
@@ -67,7 +67,7 @@ func (n *link) Update(names []string) {
 		go func(l *node.NodeLink) {
 			defer wg.Done()
 			if err := n.update(n.outbound.Do, l); err != nil {
-				log.Printf("get one link failed: %v", err)
+				log.Errorf("get one link failed: %v", err)
 			}
 		}(l)
 	}
@@ -101,7 +101,7 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *node
 	for _, x := range bytes.Split(dst, []byte("\n")) {
 		node, err := parseUrl(x, link)
 		if err != nil {
-			log.Printf("parse url %s failed: %v\n", x, err)
+			log.Errorf("parse url %s failed: %v\n", x, err)
 			continue
 		}
 		n.manager.DeleteNode(node.Hash)

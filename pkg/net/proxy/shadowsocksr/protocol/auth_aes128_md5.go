@@ -9,13 +9,13 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"io"
-	"log"
 	"math"
 	"math/rand"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
@@ -83,7 +83,7 @@ func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int)
 
 	// 4~rand length+4, rand number
 	if _, err := io.CopyN(wbuf, crand.Reader, int64(randLength)); err != nil {
-		log.Printf("copy rand bytes failed: %s\n", err)
+		log.Errorf("copy rand bytes failed: %s\n", err)
 	}
 
 	// rand length+4~out length-4, data

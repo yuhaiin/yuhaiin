@@ -9,8 +9,8 @@ import (
 	"strconv"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
-	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"golang.org/x/net/websocket"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"

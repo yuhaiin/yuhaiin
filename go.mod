@@ -3,7 +3,7 @@ module github.com/Asutorufa/yuhaiin
 go 1.19
 
 require (
-	github.com/lucas-clemente/quic-go v0.29.0
+	github.com/lucas-clemente/quic-go v0.29.1
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	github.com/spf13/cobra v1.5.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
@@ -12,9 +12,9 @@ require (
 	golang.org/x/sys v0.0.0-20220731174439-a90be440212d
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
-	google.golang.org/grpc v1.49.0
+	google.golang.org/grpc v1.50.0
 	google.golang.org/protobuf v1.28.1
-	gvisor.dev/gvisor v0.0.0-20220916222844-bc508d6264f0
+	gvisor.dev/gvisor v0.0.0-20221007230704-df69886e9238
 )
 
 require (

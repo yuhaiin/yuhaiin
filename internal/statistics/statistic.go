@@ -9,18 +9,18 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Statistics interface {
-	AddConn(_ net.Conn, host proxy.Address) net.Conn
-	AddPacketConn(_ net.PacketConn, host proxy.Address) net.PacketConn
 	grpcsts.ConnectionsServer
 	io.Closer
+	proxy.Proxy
 }
 
 var _ Statistics = (*counter)(nil)
@@ -32,9 +32,18 @@ type counter struct {
 
 	idSeed IDGenerator
 	conns  syncmap.SyncMap[int64, connection]
+
+	dialer proxy.Proxy
 }
 
-func NewStatistics() Statistics { return &counter{} }
+func NewStatistics(dialer proxy.Proxy) Statistics {
+	if dialer == nil {
+		dialer = direct.Default
+	}
+	return &counter{dialer: dialer}
+}
+
+func (c *counter) SetDialer(d proxy.Proxy) { c.dialer = d }
 
 func (c *counter) Conns(context.Context, *emptypb.Empty) (*statistic.ConnResp, error) {
 	resp := &statistic.ConnResp{}
@@ -85,7 +94,7 @@ func (c *counter) storeConnection(o connection) {
 }
 
 func (c *counter) cString(o connection) (s string) {
-	if log.IsOutput(config.Logcat_debug) {
+	if log.IsOutput(protolog.LogLevel_debug) {
 		s = fmt.Sprintf("%v| <%s>: %v(%s), %s <-> %s",
 			o.GetId(), o.GetType(), o.GetAddr(), getExtra(o), o.GetLocal(), o.GetRemote())
 	}
@@ -107,12 +116,21 @@ func extraMap(addr proxy.Address) map[string]string {
 	addr.RangeMark(func(k, v any) bool {
 		kk, ok := k.(string)
 		if !ok {
-			return true
+			z, ok := k.(interface{ String() string })
+			if !ok {
+				return true
+			}
+
+			kk = z.String()
 		}
 
 		vv, ok := v.(string)
 		if !ok {
-			return true
+			z, ok := v.(interface{ String() string })
+			if !ok {
+				return true
+			}
+			vv = z.String()
 		}
 
 		r[kk] = vv
@@ -122,38 +140,53 @@ func extraMap(addr proxy.Address) map[string]string {
 	return r
 }
 
-func (c *counter) AddPacketConn(con net.PacketConn, addr proxy.Address) net.PacketConn {
+func (c *counter) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+	con, err := c.dialer.PacketConn(addr)
+	if err != nil {
+		return nil, fmt.Errorf("dial packet conn failed: %w", err)
+	}
 	z := &packetConn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr.String(),
 			Local:  con.LocalAddr().String(),
 			Remote: addr.String(),
-			Type:   fmt.Sprintf("UDP(%s)", con.LocalAddr().Network()),
-			Extra:  extraMap(addr),
+			Type: &statistic.ConnectionNetType{
+				ConnType:       "udp",
+				UnderlyingType: con.LocalAddr().Network(),
+			},
+			Extra: extraMap(addr),
 		},
 		PacketConn: con,
 		manager:    c,
 	}
 
 	c.storeConnection(z)
-	return z
+	return z, nil
 }
 
-func (c *counter) AddConn(con net.Conn, addr proxy.Address) net.Conn {
+func (c *counter) Conn(addr proxy.Address) (net.Conn, error) {
+	con, err := c.dialer.Conn(addr)
+	if err != nil {
+		return nil, fmt.Errorf("dial conn failed: %w", err)
+	}
+
 	z := &conn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
 			Addr:   addr.String(),
 			Local:  con.LocalAddr().String(),
 			Remote: con.RemoteAddr().String(),
-			Type:   fmt.Sprintf("TCP(%s)", con.LocalAddr().Network()),
-			Extra:  extraMap(addr),
+			Type: &statistic.ConnectionNetType{
+				ConnType:       "tcp",
+				UnderlyingType: con.LocalAddr().Network(),
+			},
+			Extra: extraMap(addr),
 		},
 		Conn:    con,
 		manager: c,
 	}
 
 	c.storeConnection(z)
-	return z
+	return z, nil
 }
