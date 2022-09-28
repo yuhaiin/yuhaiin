@@ -10,13 +10,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/http/bootstrap"
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
+	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	sstatistic "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-func Httpserver(mux *http.ServeMux, nm node.NodeManagerServer, stt statistic.ConnectionsServer, cf config.ConfigDaoServer) {
+func Httpserver(mux *http.ServeMux, nm snode.NodeManagerServer, stt sstatistic.ConnectionsServer, cf config.ConfigDaoServer) {
 	// pprof
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)

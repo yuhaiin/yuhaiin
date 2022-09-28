@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
@@ -46,7 +46,7 @@ func handshake(dialer proxy.StreamProxy, username, password string) func(net.Con
 		}
 		err := handle(username, password, conn, dialer, client)
 		if err != nil && !errors.Is(err, io.EOF) {
-			log.Println("http server handle failed:", err)
+			log.Errorln("http server handle failed:", err)
 		}
 	}
 }
@@ -152,7 +152,7 @@ func normal(src net.Conn, client *http.Client, req *http.Request, keepAlive bool
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("http client do failed: %v\n", err)
+		log.Errorln("http client do failed:", err)
 		resp = respError(http.StatusBadGateway, req)
 	} else {
 		modifyResponse(resp, keepAlive)

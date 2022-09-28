@@ -3,10 +3,10 @@ package dns
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -46,7 +46,7 @@ func newTCP(config Config, defaultPort string) *tcp {
 
 	addr, err := proxy.ParseAddress("tcp", host)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		addr = proxy.EmptyAddr
 	}
 	d := &tcp{host: addr, proxy: config.Dialer}

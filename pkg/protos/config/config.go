@@ -2,12 +2,12 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -23,13 +23,13 @@ func DefaultConfigDir() (Path string) {
 
 	file, err := exec.LookPath(os.Args[0])
 	if err != nil {
-		log.Println(err)
+		log.Warningln(err)
 		Path = filepath.Join(".", "yuhaiin")
 		return
 	}
 	execPath, err := filepath.Abs(file)
 	if err != nil {
-		log.Println(err)
+		log.Warningln(err)
 		Path = filepath.Join(".", "yuhaiin")
 		return
 	}

@@ -2,9 +2,10 @@ package sysproxy
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os/exec"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 func SetSysProxy(http, socks5 string) {
@@ -17,11 +18,11 @@ func SetSysProxy(http, socks5 string) {
 
 	if http != "" {
 		httpHostname, httpPort, _ = net.SplitHostPort(http)
-		log.Printf("set http system hostname: %s, port: %s\n", httpHostname, httpPort)
+		log.Debugf("set http system hostname: %s, port: %s\n", httpHostname, httpPort)
 	}
 	if socks5 != "" {
 		socks5Hostname, socks5Port, _ = net.SplitHostPort(socks5)
-		log.Printf("set socks5 system hostname: %s, port: %s\n", socks5Hostname, socks5Port)
+		log.Debugf("set socks5 system hostname: %s, port: %s\n", socks5Hostname, socks5Port)
 	}
 
 	gnomeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port)
@@ -32,7 +33,7 @@ func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
 	// GNOME
 	gsettings, err := exec.LookPath("gsettings")
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		return
 	}
 	//https://wiki.archlinux.org/index.php/Proxy_server
@@ -68,7 +69,7 @@ func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
 
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		return
 	}
 
@@ -86,7 +87,7 @@ func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
 	// Notify kioslaves to reload system proxy configuration.
 	dbusSend, err := exec.LookPath("dbus-send")
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		return
 	}
 	_ = exec.Command(dbusSend, "--type=signal", "/KIO/Scheduler", "org.kde.KIO.Scheduler.reparseSlaveConfiguration", "string:''")
@@ -100,7 +101,7 @@ func UnsetSysProxy() {
 func gnomeUnsetSysProxy() {
 	gsettings, err := exec.LookPath("gsettings")
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		return
 	}
 
@@ -121,7 +122,7 @@ func kdeUnsetSysProxy() {
 	// }
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		return
 	}
 
@@ -135,7 +136,7 @@ func kdeUnsetSysProxy() {
 	// Notify kioslaves to reload system proxy configuration.
 	dbusSend, err := exec.LookPath("dbus-send")
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		return
 	}
 	_ = exec.Command(dbusSend, "--type=signal", "/KIO/Scheduler", "org.kde.KIO.Scheduler.reparseSlaveConfiguration", "string:''")

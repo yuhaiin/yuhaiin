@@ -51,7 +51,6 @@ type DNS struct {
 	// 5: doq
 	// 6: doh3
 	Type          int32  `json:"type"`
-	Proxy         bool   `json:"proxy"`
 	Subnet        string `json:"subnet"`
 	TlsServername string `json:"tls_servername"`
 }

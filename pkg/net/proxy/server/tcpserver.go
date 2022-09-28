@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 )
@@ -41,12 +41,12 @@ func (t *tcpserver) run(host string, handle func(net.Conn)) (err error) {
 		return fmt.Errorf("tcp server listen failed: %v", err)
 	}
 
-	log.Println("new tcp server listen at:", host)
+	log.Debugln("new tcp server listen at:", host)
 
 	go func() {
 		err := t.process(handle)
 		if err != nil {
-			log.Println(err)
+			log.Errorln(err)
 		}
 	}()
 	return
@@ -69,7 +69,7 @@ func (t *tcpserver) process(handle func(net.Conn)) error {
 					tempDelay = max
 				}
 
-				log.Printf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
+				log.Warningln("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}

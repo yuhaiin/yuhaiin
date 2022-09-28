@@ -4,9 +4,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"log"
 	"reflect"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -49,7 +49,7 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 	//tls
 	root, err := x509.SystemCertPool()
 	if err != nil {
-		log.Printf("get x509 system cert pool failed: %v, create new cert pool.", err)
+		log.Errorf("get x509 system cert pool failed: %v, create new cert pool.", err)
 		root = x509.NewCertPool()
 	}
 
@@ -65,7 +65,7 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 	for i := range t.CaCert {
 		ok := config.RootCAs.AppendCertsFromPEM(t.CaCert[i])
 		if !ok {
-			log.Printf("add cert from pem failed.")
+			log.Errorf("add cert from pem failed.")
 		}
 	}
 

@@ -7,12 +7,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
@@ -230,7 +230,7 @@ func (t *tls12TicketAuth) Decode(data []byte) (decodedData []byte, needSendBack 
 			var h [5]byte
 			_, _ = t.recvBuffer.Read(h[:])
 			if !bytes.Equal(h[0:3], []byte{0x17, 0x3, 0x3}) {
-				log.Println("incorrect magic number", h[0:3], ", 0x170303 is expected")
+				log.Warningln("incorrect magic number", h[0:3], ", 0x170303 is expected")
 				return nil, false, ssr.ErrTLS12TicketAuthIncorrectMagicNumber
 			}
 			size := int(binary.BigEndian.Uint16(h[3:5]))

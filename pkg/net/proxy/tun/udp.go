@@ -2,10 +2,10 @@ package tun
 
 import (
 	"io"
-	"log"
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -20,7 +20,7 @@ func udpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 		var wq waiter.Queue
 		ep, err := fr.CreateEndpoint(&wq)
 		if err != nil {
-			log.Println("create endpoint failed:", err)
+			log.Errorln("create endpoint failed:", err)
 			return
 		}
 
@@ -31,7 +31,7 @@ func udpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 
 			if isdns(opt, id) {
 				if err := opt.DNSServer.HandleUDP(local); err != nil {
-					log.Printf("dns handle udp failed: %v\n", err)
+					log.Errorf("dns handle udp failed: %v\n", err)
 				}
 				return
 			}
@@ -54,14 +54,14 @@ func udpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 
 			conn, er := opt.Dialer.PacketConn(addr)
 			if er != nil {
-				log.Printf("[UDP] dial %s error: %v\n", addr, er)
+				log.Errorf("[UDP] dial %s error: %v\n", addr, er)
 				return
 			}
 			defer conn.Close()
 
 			uaddr, err := addr.UDPAddr()
 			if err != nil {
-				log.Printf("[UDP] parse %s error: %v\n", addr, err)
+				log.Errorf("[UDP] parse %s error: %v\n", addr, err)
 				return
 			}
 			go copyPacketBuffer(conn, local, uaddr, 60*time.Second)

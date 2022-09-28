@@ -1,10 +1,10 @@
 package tun
 
 import (
-	"log"
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -23,14 +23,14 @@ func tcpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 
 		ep, err := r.CreateEndpoint(wq)
 		if err != nil {
-			log.Println("create endpoint failed:", err)
+			log.Errorln("create endpoint failed:", err)
 			r.Complete(true)
 			return
 		}
 		r.Complete(false)
 
 		if err = setSocketOptions(s, ep); err != nil {
-			log.Printf("set socket options failed: %v\n", err)
+			log.Errorf("set socket options failed: %v\n", err)
 		}
 
 		go func(local net.Conn, id stack.TransportEndpointID) {
@@ -38,7 +38,7 @@ func tcpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 
 			if isdns(opt, id) {
 				if err := opt.DNSServer.HandleTCP(local); err != nil {
-					log.Printf("dns handle tcp failed: %v\n", err)
+					log.Errorf("dns handle tcp failed: %v\n", err)
 				}
 				return
 			}
@@ -48,7 +48,7 @@ func tcpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 
 			conn, er := opt.Dialer.Conn(addr)
 			if er != nil {
-				log.Printf("dial failed:%v\n", er)
+				log.Errorf("dial failed:%v\n", er)
 				return
 			}
 			defer conn.Close()

@@ -3,11 +3,12 @@ package lockfile
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type Lock struct {
@@ -51,7 +52,7 @@ func (l *Lock) Lock(payload string) error {
 
 	err = os.WriteFile(l.payloadfile, []byte(payload), os.ModePerm)
 	if err != nil {
-		log.Printf("write host to file failed: %v", err)
+		log.Errorln("write host to file failed: %v", err)
 	}
 	return nil
 }

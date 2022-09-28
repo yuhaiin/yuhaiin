@@ -57,8 +57,8 @@ func TestPtr(t *testing.T) {
 	t.Log(f.GetFakeIPForDomain("aass"))
 
 	z := &FakeDNS{
-		upStream: dns.NewErrorDNS(fmt.Errorf("err")),
-		pool:     NewFake(zz),
+		upStreamDo: dns.NewErrorDNS(fmt.Errorf("err")).Do,
+		pool:       NewFake(zz),
 	}
 
 	z.LookupPtr("f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.0.0.ip6.arpa.")

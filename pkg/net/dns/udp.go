@@ -2,11 +2,11 @@ package dns
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
@@ -33,7 +33,7 @@ func NewDoU(config Config) dns.DNS {
 
 	add, err := proxy.ParseAddress("udp", host)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		add = proxy.EmptyAddr
 	}
 

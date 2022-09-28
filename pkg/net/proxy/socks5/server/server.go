@@ -3,9 +3,9 @@ package socks5server
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
@@ -38,7 +38,7 @@ const (
 func handshake(dialer proxy.Proxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
 		if err := handle(username, password, conn, dialer); err != nil {
-			log.Println("socks5 server handle failed:", err)
+			log.Errorln("socks5 server handle failed:", err)
 		}
 	}
 }
@@ -47,49 +47,37 @@ func handle(user, key string, client net.Conn, f proxy.Proxy) (err error) {
 	b := utils.GetBytes(utils.DefaultSize)
 	defer utils.PutBytes(b)
 
-	//socks5 first handshake
-	_, err = client.Read(b)
-	if err != nil {
-		return fmt.Errorf("read first handshake failed: %w", err)
-	}
-
-	err = firstHand(client, b[0], b[1], b[2], user, key)
+	err = firstHand(client, user, key, b)
 	if err != nil {
 		return fmt.Errorf("first hand failed: %w", err)
 	}
 
-	// socks5 second handshake
-	if _, err = io.ReadFull(client, b[:3]); err != nil {
-		return fmt.Errorf("read second handshake failed: %w", err)
-	}
-
-	addr, _, err := s5c.ResolveAddr("tcp", client)
-	if err != nil {
-		return fmt.Errorf("resolve addr failed: %w", err)
-	}
-
-	if err = secondHand(addr, b[1], client, f); err != nil {
+	if err = secondHand(client, f, b); err != nil {
 		return fmt.Errorf("second hand failed: %w", err)
 	}
 
 	return
 }
 
-func firstHand(client net.Conn, ver, nMethod, method byte, user, key string) error {
-	if ver != 0x05 {
+func firstHand(client net.Conn, user, key string, buf []byte) error {
+	//socks5 first handshake
+	if _, err := io.ReadFull(client, buf[:3]); err != nil {
+		return fmt.Errorf("read first handshake failed: %w", err)
+	}
+
+	if buf[0] != 0x05 { // ver
 		writeFirstResp(client, noAcceptableMethods)
 	}
 
-	if method == noAuthenticationRequired {
-		writeFirstResp(client, noAuthenticationRequired)
-		return nil
+	if buf[2] == noAuthenticationRequired { // method
+		return writeFirstResp(client, noAuthenticationRequired)
 	}
 
-	if nMethod == 1 && method == userAndPassword {
+	if buf[1] == 1 && buf[2] == userAndPassword { // nMethod
 		return verifyUserPass(client, user, key)
 	}
 	writeFirstResp(client, noAcceptableMethods)
-	return fmt.Errorf("no Acceptable Methods: length:%d, method:%d, from:%s", nMethod, method, client.RemoteAddr())
+	return fmt.Errorf("no Acceptable Methods: length:%d, method:%d, from:%s", buf[1], buf[2], client.RemoteAddr())
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
@@ -110,12 +98,21 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return nil
 }
 
-func secondHand(host proxy.Address, mode byte, client net.Conn, f proxy.Proxy) error {
-	// log.Println("mode", mode)
-	var err error
-	switch mode {
+func secondHand(client net.Conn, f proxy.Proxy, buf []byte) error {
+	// socks5 second handshake
+	if _, err := io.ReadFull(client, buf[:3]); err != nil {
+		return fmt.Errorf("read second handshake failed: %w", err)
+	}
+
+	addr, _, err := s5c.ResolveAddr("tcp", client)
+	if err != nil {
+		return fmt.Errorf("resolve addr failed: %w", err)
+	}
+
+	// log.Println("mode", buf[1])
+	switch buf[1] { // mode
 	case connect:
-		err = handleConnect(host, client, f)
+		err = handleConnect(addr, client, f)
 
 	case udp: // udp
 		err = handleUDP(client, f)
@@ -125,7 +122,7 @@ func secondHand(host proxy.Address, mode byte, client net.Conn, f proxy.Proxy) e
 
 	default:
 		writeSecondResp(client, commandNotSupport, proxy.EmptyAddr)
-		return fmt.Errorf("not Support Method %d", mode)
+		return fmt.Errorf("not Support Method %d", buf[1])
 	}
 
 	if err != nil {
@@ -165,12 +162,14 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 	return l.Close()
 }
 
-func writeFirstResp(conn net.Conn, errREP byte) {
-	_, _ = conn.Write([]byte{0x05, errREP})
+func writeFirstResp(conn net.Conn, errREP byte) error {
+	_, err := conn.Write([]byte{0x05, errREP})
+	return err
 }
 
-func writeSecondResp(conn net.Conn, errREP byte, addr proxy.Address) {
-	_, _ = conn.Write(append([]byte{0x05, errREP, 0x00}, s5c.ParseAddr(addr)...))
+func writeSecondResp(conn net.Conn, errREP byte, addr proxy.Address) error {
+	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, s5c.ParseAddr(addr)...))
+	return err
 }
 
 func NewServer(o *config.Opts[*config.ServerProtocol_Socks5]) (iserver.Server, error) {

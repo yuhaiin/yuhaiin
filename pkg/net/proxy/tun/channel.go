@@ -19,9 +19,9 @@
 package tun
 
 import (
-	"log"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -100,7 +100,7 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 			for {
 				cont, err := e.inbound.dispatch()
 				if err != nil || !cont {
-					log.Println("dispatch exit:", err)
+					log.Debugln("dispatch exit:", err)
 					break
 				}
 			}

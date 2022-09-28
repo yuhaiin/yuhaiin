@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package yuhaiin.log;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/log";
+
+enum log_level {
+  verbose = 0;
+  debug = 1;
+  info = 2;
+  warning = 3;
+  error = 4;
+  fatal = 5;
+}
+
+message logcat {
+  log_level level = 1 [ json_name = "level" ];
+  bool save = 2 [ json_name = "save" ];
+}

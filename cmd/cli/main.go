@@ -16,11 +16,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
-	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/statistic"
+	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -149,7 +149,7 @@ func subCmd() *cobra.Command {
 
 			if len(args) == 2 {
 				_, err := y.sub.SaveLinks(context.TODO(),
-					&node.SaveLinkReq{
+					&grpcnode.SaveLinkReq{
 						Links: []*node.NodeLink{
 							{
 								Name: args[0],
@@ -556,17 +556,25 @@ func (y *yhCli) getHash(i, z int) (string, error) {
 }
 
 func (y *yhCli) latency(hash string) error {
-	l, err := y.sub.Latency(context.Background(), &node.LatencyReq{
-		Requests: []*node.LatencyReqRequest{
+	l, err := y.sub.Latency(context.Background(), &grpcnode.LatencyReq{
+		Requests: []*grpcnode.LatencyReqRequest{
 			{
 				Hash: hash,
-				Tcp:  true,
+				Protocols: []*grpcnode.LatencyReqRequestProtocol{
+					{
+						Protocol: &grpcnode.LatencyReqRequestProtocol_Http{
+							Http: &grpcnode.LatencyReqHttp{
+								Url: "https://clients3.google.com/generate_204",
+							},
+						},
+					},
+				},
 			},
 		}})
 	if err != nil {
 		return fmt.Errorf("get latency failed: %w", err)
 	}
-	fmt.Println(l.HashLatencyMap[hash])
+	fmt.Println(l.HashLatencyMap[hash].Times[0].String())
 	return nil
 }
 
@@ -588,10 +596,18 @@ func (y *yhCli) latencyAll(i int) {
 		wg.Add(1)
 		go func(name, hash string) {
 			defer wg.Done()
-			l, err := y.sub.Latency(context.TODO(), &node.LatencyReq{Requests: []*node.LatencyReqRequest{
+			l, err := y.sub.Latency(context.TODO(), &grpcnode.LatencyReq{Requests: []*grpcnode.LatencyReqRequest{
 				{
 					Hash: hash,
-					Tcp:  true,
+					Protocols: []*grpcnode.LatencyReqRequestProtocol{
+						{
+							Protocol: &grpcnode.LatencyReqRequestProtocol_Http{
+								Http: &grpcnode.LatencyReqHttp{
+									Url: "https://clients3.google.com/generate_204",
+								},
+							},
+						},
+					},
 				},
 			}})
 			if err != nil {
@@ -601,7 +617,7 @@ func (y *yhCli) latencyAll(i int) {
 
 			latency := "test timeout or can't connect"
 			if z, ok := l.HashLatencyMap[hash]; ok {
-				latency = z.Tcp
+				latency = z.Times[0].String()
 			}
 
 			fmt.Printf("%s: %s | %s\n", name, latency, hash)
@@ -632,7 +648,7 @@ func (y *yhCli) changeNowNodeWithGroupAndNode(i, z int) error {
 }
 
 func (y *yhCli) changeNowNode(hash string) error {
-	l, err := y.sub.Use(context.Background(), &node.UseReq{
+	l, err := y.sub.Use(context.Background(), &grpcnode.UseReq{
 		Tcp:  true,
 		Udp:  true,
 		Hash: hash,
@@ -646,7 +662,7 @@ func (y *yhCli) changeNowNode(hash string) error {
 }
 
 func (y *yhCli) nowNode() error {
-	n, err := y.sub.Now(context.Background(), &node.NowReq{Net: node.NowReq_tcp})
+	n, err := y.sub.Now(context.Background(), &grpcnode.NowReq{Net: grpcnode.NowReq_tcp})
 	if err != nil {
 		return fmt.Errorf("get now node failed: %w", err)
 	}
@@ -663,7 +679,7 @@ func (y *yhCli) updateSub() error {
 		return fmt.Errorf("get node failed: %w", err)
 	}
 
-	req := &node.LinkReq{}
+	req := &grpcnode.LinkReq{}
 	for _, link := range n.GetLinks() {
 		req.Names = append(req.Names, link.Name)
 	}

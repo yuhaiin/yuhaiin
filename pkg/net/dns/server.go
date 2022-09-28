@@ -4,10 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -27,19 +27,19 @@ func NewDnsServer(server string, process proxy.ResolverProxy) server.DNSServer {
 	d := &dnsServer{server: server, resolverProxy: process}
 
 	if server == "" {
-		log.Println("dns server is empty, skip to listen tcp and udp")
+		log.Warningln("dns server is empty, skip to listen tcp and udp")
 		return d
 	}
 
 	go func() {
 		if err := d.start(); err != nil {
-			log.Println(err)
+			log.Errorln(err)
 		}
 	}()
 
 	go func() {
 		if err := d.startTCP(); err != nil {
-			log.Println(err)
+			log.Errorln(err)
 		}
 	}()
 
@@ -63,7 +63,7 @@ func (d *dnsServer) start() (err error) {
 		return fmt.Errorf("dns udp server listen failed: %w", err)
 	}
 	defer d.listener.Close()
-	log.Println("new udp dns server listen at:", d.server)
+	log.Infoln("new udp dns server listen at:", d.server)
 
 	for {
 		buf := utils.GetBytes(utils.DefaultSize)
@@ -82,12 +82,12 @@ func (d *dnsServer) start() (err error) {
 			defer utils.PutBytes(buf)
 			data, err := d.handle(buf[:n])
 			if err != nil {
-				log.Println("dns server handle data failed:", err)
+				log.Errorln("dns server handle data failed:", err)
 				return
 			}
 
 			if _, err = d.listener.WriteTo(data, addr); err != nil {
-				log.Println(err)
+				log.Errorln(err)
 			}
 		}(buf, n, addr)
 	}
@@ -99,7 +99,7 @@ func (d *dnsServer) startTCP() (err error) {
 		return fmt.Errorf("dns server listen failed: %w", err)
 	}
 	defer d.tcpListener.Close()
-	log.Println("new tcp dns server listen at:", d.server)
+	log.Errorln("new tcp dns server listen at:", d.server)
 	for {
 		conn, err := d.tcpListener.Accept()
 		if err != nil {
@@ -114,7 +114,7 @@ func (d *dnsServer) startTCP() (err error) {
 		go func(conn net.Conn) {
 			defer conn.Close()
 			if err := d.HandleTCP(conn); err != nil {
-				log.Println(err)
+				log.Errorln(err)
 			}
 		}(conn)
 	}
@@ -185,7 +185,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 
 	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
 		q.Type != dnsmessage.TypePTR {
-		log.Println(q.Type, "not a, aaaa or ptr")
+		log.Debugln(q.Type, "not a, aaaa or ptr")
 		return d.resolverProxy.Resolver(add).Do(b)
 	}
 
@@ -215,9 +215,9 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	}
 
 	// A or AAAA
-	r, err := processor.Record(strings.TrimSuffix(q.Name.String(), "."), q.Type)
+	r, err := processor.Record(add.Hostname(), q.Type)
 	if err != nil {
-		log.Printf("lookup domain %s failed: %v\n", q.Name.String(), err)
+		log.Errorf("lookup domain %s failed: %v\n", q.Name.String(), err)
 		r = emptyIPResponse
 	}
 
