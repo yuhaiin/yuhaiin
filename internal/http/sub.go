@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"sort"
 
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -25,7 +25,7 @@ func (s *subHandler) Post(w http.ResponseWriter, r *http.Request) error {
 		return errors.New("name or link is empty")
 	}
 
-	_, err := s.nm.SaveLinks(context.TODO(), &node.SaveLinkReq{
+	_, err := s.nm.SaveLinks(context.TODO(), &grpcnode.SaveLinkReq{
 		Links: []*node.NodeLink{
 			{
 				Name: name,
@@ -69,7 +69,7 @@ func (s *subHandler) Delete(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.nm.DeleteLinks(context.TODO(), &node.LinkReq{Names: names})
+	_, err := s.nm.DeleteLinks(context.TODO(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (s *subHandler) Patch(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.nm.UpdateLinks(context.TODO(), &node.LinkReq{Names: names})
+	_, err := s.nm.UpdateLinks(context.TODO(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}

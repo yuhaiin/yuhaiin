@@ -4,7 +4,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -26,8 +25,4 @@ func TestAddr(t *testing.T) {
 	addr, err = ParseAddress("tcp", "www.google.com:443")
 	assert.NoError(t, err)
 	t.Log(addr.UDPAddr())
-
-	t.Log(addr.(*DomainAddr).resolver)
-	addr.WithResolver(resolver.Bootstrap)
-	t.Log(addr.(*DomainAddr).resolver)
 }

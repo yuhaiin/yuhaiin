@@ -29,6 +29,7 @@ type doh struct{ *client }
 func NewDoH(config Config) dns.DNS {
 	uri := getUrlAndHost(config.Host)
 
+	var addr proxy.Address
 	roundTripper := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			ServerName: config.Servername,
@@ -37,23 +38,27 @@ func NewDoH(config Config) dns.DNS {
 		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
 			switch network {
 			case "tcp", "tcp4", "tcp6":
-				addr, err := proxy.ParseAddress(network, host)
-				if err != nil {
-					return nil, fmt.Errorf("doh parse address failed: %v", err)
+				if addr == nil {
+					var err error
+					addr, err = proxy.ParseAddress(network, host)
+					if err != nil {
+						return nil, fmt.Errorf("doh parse address failed: %v", err)
+					}
 				}
 				return config.Dialer.Conn(addr)
 			default:
 				return nil, fmt.Errorf("unsupported network: %s", network)
 			}
 		},
-		MaxIdleConns:        30,
-		IdleConnTimeout:     90 * time.Second,
-		TLSHandshakeTimeout: 30 * time.Second,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	hc := &http.Client{
 		Transport: roundTripper,
-		Timeout:   time.Second * 30,
+		Timeout:   time.Second * 10,
 	}
 	return &doh{
 		client: NewClient(config, func(b []byte) ([]byte, error) {

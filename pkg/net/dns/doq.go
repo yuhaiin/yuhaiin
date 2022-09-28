@@ -3,14 +3,15 @@ package dns
 import (
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -50,7 +51,7 @@ func NewDoQ(config Config) dns.DNS {
 
 	addr, err := proxy.ParseAddress("tcp", host)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		addr = proxy.EmptyAddr
 	}
 
@@ -75,6 +76,12 @@ func NewDoQ(config Config) dns.DNS {
 			return nil, fmt.Errorf("set write deadline failed: %w", err)
 		}
 
+		err = binary.Write(con, binary.BigEndian, uint16(len(b)))
+		if err != nil {
+			con.Close()
+			return nil, fmt.Errorf("write dns req length failed: %w", err)
+		}
+
 		_, err = con.Write(b)
 		if err != nil {
 			con.Close()
@@ -90,8 +97,14 @@ func NewDoQ(config Config) dns.DNS {
 		if err != nil {
 			return nil, fmt.Errorf("set read deadline failed: %w", err)
 		}
+		var length uint16
+		err = binary.Read(con, binary.BigEndian, &length)
+		if err != nil {
+			return nil, fmt.Errorf("read dns response length failed: %w", err)
+		}
 
-		data, err := io.ReadAll(con)
+		data := make([]byte, length)
+		_, err = io.ReadFull(con, data)
 		if err != nil {
 			return nil, fmt.Errorf("read dns server response failed: %w", err)
 		}
@@ -147,7 +160,7 @@ func (d *doq) initSession() error {
 			ServerName: d.servername,
 		},
 		&quic.Config{
-			HandshakeIdleTimeout: time.Second * 10,
+			HandshakeIdleTimeout: time.Second * 5,
 			MaxIdleTimeout:       time.Second * 10,
 		})
 	if err != nil {

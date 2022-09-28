@@ -13,7 +13,7 @@ import (
 type connection interface {
 	io.Closer
 
-	GetType() string
+	GetType() *statistic.ConnectionNetType
 	GetId() int64
 	GetAddr() string
 	GetLocal() string
@@ -45,7 +45,7 @@ func (s *conn) Write(b []byte) (_ int, err error) {
 
 func (s *conn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
-	s.manager.accountant.AddDownload(uint64(n))
+	s.manager.AddDownload(uint64(n))
 	return
 }
 
@@ -54,7 +54,7 @@ func (s *conn) ReadFrom(r io.Reader) (resp int64, err error) {
 		n, er := r.Read(s.wbuf[:])
 		if n > 0 {
 			resp += int64(n)
-			s.manager.accountant.AddUpload(uint64(n))
+			s.manager.AddUpload(uint64(n))
 			_, ew := s.Conn.Write(s.wbuf[:n])
 			if ew != nil {
 				break

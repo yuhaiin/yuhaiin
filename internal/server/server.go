@@ -2,8 +2,8 @@ package server
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
@@ -51,7 +51,7 @@ func (l *listener) Update(current *protoconfig.Setting) {
 
 	for k, v := range current.Server.Servers {
 		if err := l.start(k, v); err != nil {
-			log.Println(err)
+			log.Errorf("start %s failed: %v", k, err)
 		}
 	}
 }

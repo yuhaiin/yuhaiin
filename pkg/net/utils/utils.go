@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"math/bits"
 	"net"
 	_ "net/url"
@@ -12,6 +11,7 @@ import (
 	"time"
 	_ "unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -69,14 +69,14 @@ func (pool) PutBuffer(b *bytes.Buffer) {
 	}
 }
 
-//Relay pipe
+// Relay pipe
 func Relay(local, remote io.ReadWriter) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
 		if err := Copy(remote, local); err != nil && !errors.Is(err, io.EOF) {
 			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
-				log.Println("relay local -> remote failed:", err)
+				log.Errorln("relay local -> remote failed:", err)
 			}
 		}
 		if r, ok := remote.(interface{ SetDeadline(time.Time) error }); ok {
@@ -86,7 +86,7 @@ func Relay(local, remote io.ReadWriter) {
 
 	if err := Copy(local, remote); err != nil && !errors.Is(err, io.EOF) {
 		if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
-			log.Println("relay remote -> local failed:", err)
+			log.Errorln("relay remote -> local failed:", err)
 		}
 	}
 	if r, ok := local.(interface{ SetDeadline(time.Time) error }); ok {
@@ -110,7 +110,7 @@ func Copy(dst io.Writer, src io.Reader) (err error) {
 	return
 }
 
-//Unit .
+// Unit .
 type Unit int
 
 const (
@@ -147,7 +147,7 @@ func (u Unit) String() string {
 	}
 }
 
-//ReducedUnit .
+// ReducedUnit .
 func ReducedUnit(byte float64) (result float64, unit Unit) {
 	if byte > 1125899906842624 {
 		return byte / 1125899906842624, PB //PB

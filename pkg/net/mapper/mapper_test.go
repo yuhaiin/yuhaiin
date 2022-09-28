@@ -4,14 +4,12 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestNewMatcher(t *testing.T) {
-	matcher := NewMapper[string](nil)
+	matcher := NewMapper[string]()
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	matcher.Insert("*.163.com", "163")
@@ -40,7 +38,7 @@ func TestNewMatcher(t *testing.T) {
 
 func BenchmarkMapper(b *testing.B) {
 	b.StopTimer()
-	matcher := NewMapper[string](dns.New(dns.Config{Type: config.Dns_doh, Host: "223.5.5.5"}))
+	matcher := NewMapper[string]()
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
 	a1, _ := proxy.ParseAddress("", "www.example.baidu.com:0")

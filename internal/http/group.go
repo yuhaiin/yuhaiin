@@ -6,14 +6,14 @@ import (
 	"sort"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/grpc/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type groupHandler struct {
 	emptyHTTP
-	nm grpcnode.NodeManagerServer
+	nm snode.NodeManagerServer
 }
 
 func (g *groupHandler) Get(w http.ResponseWriter, r *http.Request) error {

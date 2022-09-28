@@ -4,14 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	_ "unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 )
@@ -74,6 +75,10 @@ func (e errProxy) PacketConn(Address) (net.PacketConn, error) { return nil, e.er
 type ResolverProxy interface {
 	Resolver(Address) dns.DNS
 }
+type DialerResolverProxy interface {
+	Proxy
+	ResolverProxy
+}
 
 type resolverProxy struct{ dns.DNS }
 
@@ -94,6 +99,26 @@ type Port interface {
 	String() string
 }
 
+type ResolverOption struct {
+	mode ResolverMode
+}
+
+func WithResolverMode(m ResolverMode) func(*ResolverOption) {
+	return func(ro *ResolverOption) {
+		ro.mode = m
+	}
+}
+
+type ResolverMode int
+
+const (
+	NORMAL    ResolverMode = 0
+	PERMANENT ResolverMode = 1
+)
+
+type resolverKey struct{}
+type resolverModeKey struct{}
+
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
@@ -106,7 +131,7 @@ type Address interface {
 
 	net.Addr
 
-	WithResolver(dns.DNS)
+	WithResolver(dns.DNS, ...func(*ResolverOption))
 
 	Zone() string // IPv6 scoped addressing zone
 	UDPAddr() (*net.UDPAddr, error)
@@ -125,10 +150,24 @@ func (s *store) AddMark(key, value any)          { s.m.Store(key, value) }
 func (s *store) GetMark(key any) (any, bool)     { return s.m.Load(key) }
 func (s *store) RangeMark(f func(k, v any) bool) { s.m.Range(f) }
 
+func GetMark[T any](s interface{ GetMark(any) (any, bool) }, k any, Default T) T {
+	z, ok := s.GetMark(k)
+	if !ok {
+		return Default
+	}
+
+	x, ok := z.(T)
+	if !ok {
+		return Default
+	}
+
+	return x
+}
+
 func ParseAddress(network, addr string) (ad Address, _ error) {
 	hostname, ports, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("split host port failed: %v\n", err)
+		log.Errorf("split host port failed: %v\n", err)
 		hostname = addr
 		ports = "0"
 	}
@@ -145,6 +184,7 @@ func ParseAddress(network, addr string) (ad Address, _ error) {
 func ParseIPZone(s string) (net.IP, string)
 
 func ParseAddressSplit(network, addr string, por uint16) (ad Address) {
+	addr = strings.ToLower(addr)
 	ports := strconv.FormatUint(uint64(por), 10)
 	i, zone := ParseIPZone(addr)
 	if i != nil {
@@ -223,6 +263,10 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 		return ParseIPAddr(ad), nil
 	case *net.UnixAddr:
 		return ParseUnixAddr(ad), nil
+	case *DomainAddr:
+		return ad, nil
+	case *IPAddr:
+		return ad, nil
 	}
 
 	return ParseAddress(ad.Network(), ad.String())
@@ -238,8 +282,6 @@ type DomainAddr struct {
 	port     port
 
 	network string
-
-	resolver dns.DNS
 }
 
 func (d *DomainAddr) String() string   { return d.host }
@@ -252,18 +294,26 @@ func (d *DomainAddr) IP() (net.IP, error) {
 
 	return ip, nil
 }
-func (d *DomainAddr) Port() Port                    { return d.port }
-func (d *DomainAddr) Network() string               { return d.network }
-func (d *DomainAddr) Type() Type                    { return DOMAIN }
-func (d *DomainAddr) WithResolver(resolver dns.DNS) { d.resolver = resolver }
-func (d *DomainAddr) Zone() string                  { return "" }
-func (d *DomainAddr) lookupIP() (net.IP, error) {
-	lookup := d.resolver
-	if lookup == nil {
-		lookup = resolver.Bootstrap
+func (d *DomainAddr) Port() Port      { return d.port }
+func (d *DomainAddr) Network() string { return d.network }
+func (d *DomainAddr) Type() Type      { return DOMAIN }
+func (d *DomainAddr) WithResolver(resolver dns.DNS, opts ...func(*ResolverOption)) {
+	if GetMark(d, resolverModeKey{}, NORMAL) == PERMANENT {
+		return
 	}
 
-	ips, err := lookup.LookupIP(d.hostname)
+	var opt ResolverOption
+	for _, o := range opts {
+		o(&opt)
+	}
+
+	d.AddMark(resolverKey{}, resolver)
+	d.AddMark(resolverModeKey{}, opt.mode)
+}
+
+func (d *DomainAddr) Zone() string { return "" }
+func (d *DomainAddr) lookupIP() (net.IP, error) {
+	ips, err := GetMark(d, resolverKey{}, resolver.Bootstrap).LookupIP(d.hostname)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address failed: %w", err)
 	}
@@ -296,7 +346,9 @@ func (d *DomainAddr) IPHost() (string, error) {
 	return net.JoinHostPort(ip.String(), d.port.String()), nil
 }
 
-const FAKEDNS_MARK = "FAKEDNS"
+type FAKE_IP_MARK_KEY struct{}
+
+func (FAKE_IP_MARK_KEY) String() string { return "Fake IP" }
 
 func ConvertFakeDNS(src Address, real string) Address {
 	host := src.String()
@@ -313,7 +365,7 @@ func ConvertFakeDNS(src Address, real string) Address {
 
 	d.host = net.JoinHostPort(real, d.port.String())
 	d.hostname = real
-	d.AddMark(FAKEDNS_MARK, host)
+	d.AddMark(FAKE_IP_MARK_KEY{}, host)
 
 	return d
 }
@@ -341,20 +393,20 @@ var EmptyAddr Address = &emptyAddr{}
 
 type emptyAddr struct{}
 
-func (d emptyAddr) String() string                 { return "" }
-func (d emptyAddr) Hostname() string               { return "" }
-func (d emptyAddr) IP() (net.IP, error)            { return nil, errors.New("empty") }
-func (d emptyAddr) Port() Port                     { return port{0, ""} }
-func (d emptyAddr) Network() string                { return "" }
-func (d emptyAddr) Type() Type                     { return EMPTY }
-func (d emptyAddr) WithResolver(dns.DNS)           {}
-func (d emptyAddr) Zone() string                   { return "" }
-func (d emptyAddr) UDPAddr() (*net.UDPAddr, error) { return nil, errors.New("empty") }
-func (d emptyAddr) TCPAddr() (*net.TCPAddr, error) { return nil, errors.New("empty") }
-func (d emptyAddr) IPHost() (string, error)        { return "", errors.New("empty") }
-func (d emptyAddr) AddMark(any, any)               {}
-func (d emptyAddr) GetMark(any) (any, bool)        { return nil, false }
-func (d emptyAddr) RangeMark(func(any, any) bool)  {}
+func (d emptyAddr) String() string                                 { return "" }
+func (d emptyAddr) Hostname() string                               { return "" }
+func (d emptyAddr) IP() (net.IP, error)                            { return nil, errors.New("empty") }
+func (d emptyAddr) Port() Port                                     { return port{0, ""} }
+func (d emptyAddr) Network() string                                { return "" }
+func (d emptyAddr) Type() Type                                     { return EMPTY }
+func (d emptyAddr) WithResolver(dns.DNS, ...func(*ResolverOption)) {}
+func (d emptyAddr) Zone() string                                   { return "" }
+func (d emptyAddr) UDPAddr() (*net.UDPAddr, error)                 { return nil, errors.New("empty") }
+func (d emptyAddr) TCPAddr() (*net.TCPAddr, error)                 { return nil, errors.New("empty") }
+func (d emptyAddr) IPHost() (string, error)                        { return "", errors.New("empty") }
+func (d emptyAddr) AddMark(any, any)                               {}
+func (d emptyAddr) GetMark(any) (any, bool)                        { return nil, false }
+func (d emptyAddr) RangeMark(func(any, any) bool)                  {}
 
 type port struct {
 	n   uint16

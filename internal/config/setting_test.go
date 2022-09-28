@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -21,7 +22,6 @@ func TestJsonPb(t *testing.T) {
 			Remote: &config.Dns{
 				Host:   "cloudflare-dns.com",
 				Type:   config.Dns_doh,
-				Proxy:  false,
 				Subnet: "0.0.0.0/32",
 			},
 			Local: &config.Dns{
@@ -50,12 +50,6 @@ func TestJsonPb(t *testing.T) {
 	t.Log(s3)
 }
 
-func TestLoad(t *testing.T) {
-	x := load("")
-
-	t.Log(x)
-}
-
 func TestCheckDNS(t *testing.T) {
 	z := &config.Dns{
 		Host: "example.com",
@@ -77,4 +71,27 @@ func TestCheckDNS(t *testing.T) {
 
 	z.Host = "1.1.1.1/dns-query"
 	t.Log(CheckBootstrapDns(z))
+}
+
+func TestSetDefault(t *testing.T) {
+	def := map[string]any{
+		"a": map[string]any{
+			"aa": "aa",
+		},
+		"b": "b",
+		"c": map[string]any{
+			"cc": "cc",
+		},
+	}
+
+	j := map[string]any{
+		"c": map[string]any{
+			"dd": "dd",
+		},
+	}
+
+	setDefault(j, def)
+
+	z, _ := json.Marshal(j)
+	t.Log(string(z))
 }

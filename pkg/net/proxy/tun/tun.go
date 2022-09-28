@@ -2,8 +2,8 @@ package tun
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -17,6 +17,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
+
+type PACKAGE_MARK_KEY struct{}
+
+func (PACKAGE_MARK_KEY) String() string { return "Package ID" }
 
 type tunServer struct {
 	nicID tcpip.NICID
@@ -58,7 +62,7 @@ func NewTun(o *config.Opts[*config.ServerProtocol_Tun]) (server.Server, error) {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
 
-	log.Println("new tun stack:", opt.Name, "mtu:", opt.Mtu, "gateway:", opt.Gateway)
+	log.Debugln("new tun stack:", opt.Name, "mtu:", opt.Mtu, "gateway:", opt.Gateway)
 
 	stackOption := stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},

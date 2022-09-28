@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 )
 
@@ -87,11 +87,11 @@ func (u *udpserver) run(host string, config net.ListenConfig, listenFunc func(ne
 		return fmt.Errorf("udp server listen failed: %v", err)
 	}
 
-	log.Println("new udp server listen at:", host)
+	log.Debugln("new udp server listen at:", host)
 	go func() {
 		err := listenFunc(u.listener)
 		if err != nil {
-			log.Println(err)
+			log.Errorln(err)
 		}
 	}()
 	return nil
@@ -115,7 +115,7 @@ func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func(io.Reader) (
 					tempDelay = max
 				}
 
-				log.Printf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
+				log.Warningf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
@@ -132,7 +132,7 @@ func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func(io.Reader) (
 		go func(b []byte, remoteAddr net.Addr) {
 			data, err := handle(bytes.NewReader(b))
 			if err != nil {
-				log.Printf("udp handle failed: %v", err)
+				log.Errorf("udp handle failed: %v", err)
 				return
 			}
 			defer data.Close()
@@ -141,14 +141,14 @@ func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func(io.Reader) (
 				n, err := data.Read(b)
 				if err != nil {
 					if !errors.Is(err, io.EOF) {
-						log.Printf("udp handle read failed: %v", err)
+						log.Errorf("udp handle read failed: %v", err)
 					}
 					break
 				}
 
 				_, err = l.WriteTo(b[:n], remoteAddr)
 				if err != nil {
-					log.Printf("udp listener write to client failed: %v", err)
+					log.Errorf("udp listener write to client failed: %v", err)
 					break
 				}
 			}

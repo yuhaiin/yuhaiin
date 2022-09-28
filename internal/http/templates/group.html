@@ -4,12 +4,10 @@
         <input class="form-check-input me-1" type="radio" name="select_node" value="{{index $.NodeHashMap .}}">
         <a href='#' data-bs-toggle="modal" data-bs-target="#nodeModal"
             data-bs-whatever="{{index $.NodeHashMap .}}">{{.}}</a>
-        <span class="d-inline-block notranslate tcp"
-            style="font-weight: 600; font-size: 80%; opacity: 0.4; margin-left: 8px; background: rgb(241, 241, 241) none repeat scroll 0% 0%; padding: 1px 4px;">tcp:
-            N/A</span>
-        <span class="d-inline-block notranslate udp"
-            style="font-weight: 600; font-size: 80%; opacity: 0.4; margin-left: 8px; background: rgb(241, 241, 241) none repeat scroll 0% 0%; padding: 1px 4px;">udp:
-            N/A</span>
+
+        <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase tcp">tcp: N/A</span>
+        <span class="badge rounded-pill bg-light text-dark ms-1 me-1 text-uppercase udp">udp: N/A</span>
+
         <a class="test" href='javascript:latency("{{index $.NodeHashMap .}}")'>Test</a>
     </div>
 </label>

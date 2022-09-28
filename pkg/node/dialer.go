@@ -3,12 +3,12 @@ package node
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
@@ -99,7 +99,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				log.Println("dial:", network, addr)
+				log.Debugln("dial:", network, addr)
 				ad, err := proxy.ParseAddress(network, addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %v", err)

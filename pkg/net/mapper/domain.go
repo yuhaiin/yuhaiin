@@ -19,29 +19,43 @@ type domainNode[T any] struct {
 	Child  map[string]*domainNode[T] `json:"child"`
 }
 
-type domainStr struct {
+func (d *domainNode[T]) child(s string) *domainNode[T] {
+	if d.Child == nil {
+		d.Child = make(map[string]*domainNode[T])
+	}
+
+	if d.Child[s] == nil {
+		d.Child[s] = &domainNode[T]{}
+	}
+
+	return d.Child[s]
+}
+
+func (d *domainNode[T]) childExist(s string) bool { return d.Child != nil && d.Child[s] != nil }
+
+type domainReader struct {
 	domain string
 	aft    int
 	pre    int
 }
 
-func newDomainStr(domain string) *domainStr {
-	return &domainStr{
+func newDomainReader(domain string) *domainReader {
+	return &domainReader{
 		domain: domain,
 		aft:    len(domain),
 		pre:    strings.LastIndexByte(domain, '.') + 1,
 	}
 }
 
-func (d *domainStr) hasNext() bool {
+func (d *domainReader) hasNext() bool {
 	return d.aft >= 0
 }
 
-func (d *domainStr) last() bool {
+func (d *domainReader) last() bool {
 	return d.pre == 0
 }
 
-func (d *domainStr) next() bool {
+func (d *domainReader) next() bool {
 	d.aft = d.pre - 1
 	if d.aft < 0 {
 		return false
@@ -50,72 +64,66 @@ func (d *domainStr) next() bool {
 	return true
 }
 
+func (d *domainReader) reset() {
+	d.aft = len(d.domain)
+	d.pre = strings.LastIndexByte(d.domain, '.') + 1
+}
+
 var valueEmpty = string([]byte{0x03})
 
-func (d *domainStr) str() string {
+func (d *domainReader) str() string {
 	if d.pre == d.aft {
 		return valueEmpty
 	}
 	return d.domain[d.pre:d.aft]
 }
 
-func s[T any](root *domainNode[T], domain string) (resp T, ok bool) {
-	s := root
-	z := newDomainStr(domain)
+func s[T any](node *domainNode[T], domain *domainReader) (resp T, ok bool) {
 	first, asterisk := true, false
 
-	for {
-		if !z.hasNext() || s == nil {
-			return
-		}
-
-		if r, okk := s.Child[z.str()]; okk {
-			if r.Symbol != 0 {
-				if r.Symbol == wildcard {
-					resp, ok = r.Mark, true
-				}
-
-				if r.Symbol == last && z.last() {
-					return r.Mark, true
-				}
+	for domain.hasNext() && node != nil {
+		if !node.childExist(domain.str()) {
+			if !first {
+				return
 			}
 
-			s, first, _ = r, false, z.next()
+			if !asterisk {
+				node, asterisk = node.child("*"), true
+			} else {
+				domain.next()
+			}
+
 			continue
 		}
 
-		if !first {
-			return
+		node = node.child(domain.str())
+		if node.Symbol != 0 {
+			if node.Symbol == wildcard {
+				resp, ok = node.Mark, true
+			}
+
+			if node.Symbol == last && domain.last() {
+				return node.Mark, true
+			}
 		}
 
-		if !asterisk {
-			s, asterisk = s.Child["*"], true
-		} else {
-			z.next()
-		}
+		first, _ = false, domain.next()
 	}
+
+	return
 }
 
-func insert[T any](root *domainNode[T], domain string, mark T) {
-	z := newDomainStr(domain)
+func insert[T any](node *domainNode[T], z *domainReader, mark T) {
 	for z.hasNext() {
-		if z.last() && domain[0] == '*' {
-			root.Symbol, root.Mark = wildcard, mark
+		if z.last() && z.str() == "*" {
+			node.Symbol, node.Mark = wildcard, mark
 			break
 		}
 
-		if root.Child == nil {
-			root.Child = make(map[string]*domainNode[T])
-		}
-
-		if root.Child[z.str()] == nil {
-			root.Child[z.str()] = &domainNode[T]{}
-		}
-
-		root = root.Child[z.str()]
+		node = node.child(z.str())
 
 		if z.last() {
-			root.Symbol, root.Mark = last, mark
+			node.Symbol, node.Mark = last, mark
 		}
 
 		z.next()
@@ -132,19 +140,25 @@ func (d *domain[T]) Insert(domain string, mark T) {
 		return
 	}
 
+	r := newDomainReader(domain)
 	if domain[0] == '*' {
-		insert(d.WildcardRoot, domain, mark)
+		insert(d.WildcardRoot, r, mark)
 	} else {
-		insert(d.Root, domain, mark)
+		insert(d.Root, r, mark)
 	}
 }
 
 func (d *domain[T]) Search(domain proxy.Address) (mark T, ok bool) {
-	mark, ok = s(d.Root, domain.Hostname())
+	r := newDomainReader(domain.Hostname())
+
+	mark, ok = s(d.Root, r)
 	if ok {
 		return
 	}
-	return s(d.WildcardRoot, domain.Hostname())
+
+	r.reset()
+
+	return s(d.WildcardRoot, r)
 }
 
 func (d *domain[T]) Marshal() ([]byte, error) {

@@ -2,9 +2,10 @@ package mapper
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"net"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 // Cidr cidr matcher
@@ -134,11 +135,11 @@ out:
 func (t *Trie[T]) PrintTree(node *Trie[T]) {
 	if node.left != nil {
 		t.PrintTree(node.left)
-		log.Printf("0 ")
+		log.Debugln("0 ")
 	}
 	if node.right != nil {
 		t.PrintTree(node.right)
-		log.Printf("1 ")
+		log.Debugln("1 ")
 	}
 }
 

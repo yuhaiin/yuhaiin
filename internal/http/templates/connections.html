@@ -4,7 +4,12 @@
         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
             data-bs-target="#panelsStayOpen-collapse{{.Id}}" aria-expanded="true"
             aria-controls="panelsStayOpen-collapse{{.Id}}">
-            {{.Id}}| &lt;{{.Type}}[{{.Extra.MODE}}]&gt; {{.Addr}}
+            <div class="d-inline">
+                <code class="ms-2">{{.Id}}|</code>
+                <span class="ms-2">{{.Addr}}</span>
+                <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">{{.Extra.MODE}}</span>
+                <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">{{.Type.ConnType}}</span>
+            </div>
         </button>
     </h2>
 
@@ -15,6 +20,20 @@
 
 
             <div class="list-group list-group-flush">
+
+                <div class="list-group-item">
+                    <div class="d-sm-flex">
+                        <div class="endpoint-name flex-grow-1 notranslate">Type</div>
+                        <div class="notranslate text-uppercase" style="opacity: 0.6;">{{.Type.ConnType}}</div>
+                    </div>
+                </div>
+
+                <div class="list-group-item">
+                    <div class="d-sm-flex">
+                        <div class="endpoint-name flex-grow-1 notranslate">Underlying</div>
+                        <div class="notranslate text-uppercase" style="opacity: 0.6;">{{.Type.UnderlyingType}}</div>
+                    </div>
+                </div>
 
                 <div class="list-group-item">
                     <div class="d-sm-flex">

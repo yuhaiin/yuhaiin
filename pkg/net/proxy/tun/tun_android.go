@@ -2,9 +2,9 @@ package tun
 
 import (
 	"fmt"
-	"log"
 	"syscall"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -29,16 +29,16 @@ func addPackageName(addr proxy.Address, dumper config.UidDumper, srcAddr string,
 
 	uid, err := dumper.DumpUid(network, srcAddr, srcPort, addr.Hostname(), int32(addr.Port().Port()))
 	if err != nil {
-		log.Printf("dump uid error: %v", err)
+		log.Errorf("dump uid error: %v", err)
 	}
 
 	var name string
 	if uid != 0 {
 		name, err = dumper.GetUidInfo(uid)
 		if err != nil {
-			log.Printf("get uid info error: %v", err)
+			log.Errorf("get uid info error: %v", err)
 		}
 	}
 
-	addr.AddMark("packageName", fmt.Sprintf("%s(%d)", name, uid))
+	addr.AddMark(PACKAGE_MARK_KEY{}, fmt.Sprintf("%s(%d)", name, uid))
 }

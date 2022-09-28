@@ -1,15 +1,20 @@
 package yuhaiin
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
+	"strings"
 
 	iconfig "github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/grpc/config"
+	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -25,21 +30,18 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			Remote: &protoconfig.Dns{
 				Host:          opt.DNS.Remote.Host,
 				Type:          protoconfig.DnsDnsType(opt.DNS.Remote.Type),
-				Proxy:         opt.DNS.Remote.Proxy,
 				Subnet:        opt.DNS.Remote.Subnet,
 				TlsServername: opt.DNS.Remote.TlsServername,
 			},
 			Local: &protoconfig.Dns{
 				Host:          opt.DNS.Local.Host,
 				Type:          protoconfig.DnsDnsType(opt.DNS.Local.Type),
-				Proxy:         opt.DNS.Local.Proxy,
 				Subnet:        opt.DNS.Local.Subnet,
 				TlsServername: opt.DNS.Local.TlsServername,
 			},
 			Bootstrap: &protoconfig.Dns{
 				Host:          opt.DNS.Bootstrap.Host,
 				Type:          protoconfig.DnsDnsType(opt.DNS.Bootstrap.Type),
-				Proxy:         opt.DNS.Bootstrap.Proxy,
 				Subnet:        opt.DNS.Bootstrap.Subnet,
 				TlsServername: opt.DNS.Bootstrap.TlsServername,
 			},
@@ -86,15 +88,35 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			Tcp:        protoconfig.BypassMode(opt.Bypass.TCP),
 			Udp:        protoconfig.BypassMode(opt.Bypass.UDP),
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+			CustomRule: make(map[string]protoconfig.BypassMode),
 		},
 
-		Logcat: &protoconfig.Logcat{
-			Level: protoconfig.LogcatLogLevel(opt.Log.LogLevel),
+		Logcat: &protolog.Logcat{
+			Level: protolog.LogLevel(opt.Log.LogLevel),
 			Save:  opt.Log.SaveLogcat,
 		},
 	}
 
+	applyRule(settings, opt.Bypass.Proxy, protoconfig.Bypass_proxy)
+	applyRule(settings, opt.Bypass.Block, protoconfig.Bypass_block)
+	applyRule(settings, opt.Bypass.Direct, protoconfig.Bypass_direct)
 	return newFakeSetting(settings)
+}
+
+func applyRule(settings *protoconfig.Setting, ruls string, mode protoconfig.BypassMode) {
+	r := bufio.NewReader(strings.NewReader(ruls))
+	for {
+		line, _, err := r.ReadLine()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			continue
+		}
+
+		settings.Bypass.CustomRule[string(line)] = mode
+	}
 }
 
 type fakeSettings struct {
