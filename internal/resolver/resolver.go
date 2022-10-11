@@ -177,11 +177,11 @@ func (d *dialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 type bootstrapDialer struct{ proxy.Proxy }
 
 func (b *bootstrapDialer) Conn(addr proxy.Address) (net.Conn, error) {
-	addr.AddMark(shunt.ForceModeKey{}, protoconfig.Bypass_direct)
+	addr.WithValue(shunt.ForceModeKey{}, protoconfig.Bypass_direct)
 	return b.Proxy.Conn(addr)
 }
 
 func (b *bootstrapDialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	addr.AddMark(shunt.ForceModeKey{}, protoconfig.Bypass_direct)
+	addr.WithValue(shunt.ForceModeKey{}, protoconfig.Bypass_direct)
 	return b.Proxy.PacketConn(addr)
 }

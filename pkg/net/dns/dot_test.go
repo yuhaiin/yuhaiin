@@ -16,7 +16,7 @@ func TestDOT(t *testing.T) {
 	t.Log(d.LookupIP("www.google.com"))
 	t.Log(d.LookupIP("www.baidu.com"))
 	t.Log(d.LookupIP("www.apple.com"))
-	t.Log(d.LookupIP("kctr.made1nheaven.xyz"))
+	t.Log(d.LookupIP("www.example.com"))
 	// d.SetServer("dot.pub:853") //  not support ENDS, so shit
 	// t.Log(d.LookupIP("www.google.com"))
 	// t.Log(d.LookupIP("www.baidu.com"))

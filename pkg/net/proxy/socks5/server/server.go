@@ -37,6 +37,7 @@ const (
 
 func handshake(dialer proxy.Proxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
+
 		if err := handle(username, password, conn, dialer); err != nil {
 			log.Errorln("socks5 server handle failed:", err)
 		}
@@ -157,7 +158,7 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
 	// log.Println("udp server listen on", laddr)
-	writeSecondResp(client, succeeded, proxy.ParseAddressSplit("udp", "0.0.0.0", laddr.Port().Port()))
+	writeSecondResp(client, succeeded, proxy.ParseAddressSplit("udp", "0.0.0.0", laddr.Port()))
 	utils.Copy(io.Discard, client)
 	return l.Close()
 }

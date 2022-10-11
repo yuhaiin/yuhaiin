@@ -67,11 +67,16 @@ func (f *Fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	return c, nil
 }
 
+type FAKE_IP_MARK_KEY struct{}
+
+func (FAKE_IP_MARK_KEY) String() string { return "Fake IP" }
+
 func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {
 	if f.config != nil && f.config.Fakedns && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {
-			addr = proxy.ConvertFakeDNS(addr, t)
+			addr.WithValue(FAKE_IP_MARK_KEY{}, addr.String())
+			addr = addr.OverrideHostname(t)
 		}
 	}
 	return addr

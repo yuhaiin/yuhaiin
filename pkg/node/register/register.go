@@ -21,7 +21,7 @@ func init() {
 	})
 	node.RegisterProtocol(func(p *node.PointProtocol_Simple) node.WrapProxy {
 		return func(proxy.Proxy) (proxy.Proxy, error) {
-			return simple.NewSimple(proxy.ParseAddressSplit("", p.Simple.GetHost(), uint16(p.Simple.GetPort())),
+			return simple.NewSimple(proxy.ParseAddressSplit("", p.Simple.GetHost(), proxy.ParsePort(p.Simple.GetPort())),
 				node.ParseTLSConfig(p.Simple.Tls)), nil
 		}
 	})

@@ -36,7 +36,7 @@ func udpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 				return
 			}
 
-			addr := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), id.LocalPort)
+			addr := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
 			if opt.Protocol.Tun.SkipMulticast && addr.Type() == proxy.IP {
 				if ip, _ := addr.IP(); !ip.IsGlobalUnicast() {
 					buf := utils.GetBytes(utils.DefaultSize)

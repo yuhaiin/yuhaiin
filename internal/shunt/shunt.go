@@ -3,13 +3,8 @@ package shunt
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
-	"errors"
 	"fmt"
-	"io"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -23,33 +18,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-func writeDefaultBypassData(target string) error {
-	_, err := os.Stat(target)
-	if err == nil {
-		return nil
-	}
-
-	if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("stat bypass file failed: %w", err)
-	}
-
-	err = os.MkdirAll(filepath.Dir(target), os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("create bypass dir failed: %w", err)
-	}
-
-	gr, err := gzip.NewReader(bytes.NewReader(BYPASS_DATA))
-	if err != nil {
-		return fmt.Errorf("create gzip reader failed: %w", err)
-	}
-	defer gr.Close()
-
-	data, err := io.ReadAll(gr)
-	if err != nil {
-		return fmt.Errorf("read gzip data failed: %w", err)
-	}
-
-	return os.WriteFile(target, data, os.ModePerm)
+type mode struct {
+	dialer proxy.Proxy
+	dns    dns.DNS
 }
 
 type shunt struct {
@@ -58,10 +29,7 @@ type shunt struct {
 	config *protoconfig.Bypass
 	lock   sync.RWMutex
 
-	modeStore syncmap.SyncMap[protoconfig.BypassMode, struct {
-		dialer proxy.Proxy
-		dns    dns.DNS
-	}]
+	modeStore   syncmap.SyncMap[protoconfig.BypassMode, mode]
 	defaultMode protoconfig.BypassMode
 }
 
@@ -109,15 +77,7 @@ func (s *shunt) Update(c *protoconfig.Setting) {
 }
 
 func (s *shunt) refresh() error {
-	err := writeDefaultBypassData(s.config.BypassFile)
-	if err != nil {
-		return fmt.Errorf("copy bypass file failed: %w", err)
-	}
-
-	f, err := os.Open(s.config.BypassFile)
-	if err != nil {
-		return fmt.Errorf("open bypass file failed: %w", err)
-	}
+	f := getBypassData(s.config.BypassFile)
 	defer f.Close()
 
 	s.mapper.Clear()
@@ -148,25 +108,19 @@ func (s *shunt) refresh() error {
 	}
 	return nil
 }
+
 func (s *shunt) AddMode(m protoconfig.BypassMode, defaultMode bool, p proxy.Proxy, resolver dns.DNS) {
-	s.modeStore.Store(m, struct {
-		dialer proxy.Proxy
-		dns    dns.DNS
-	}{p, resolver})
+	s.modeStore.Store(m, mode{p, resolver})
 	if defaultMode {
 		s.defaultMode = m
 	}
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
-	m := s.getMark(s.config.Tcp, host)
-	mode, ok := s.modeStore.Load(m)
+	host, mode, ok := s.getMark(s.config.Tcp, host)
 	if !ok {
-		return nil, fmt.Errorf("not found mode for %d", m)
+		return nil, fmt.Errorf("not found mode for %v", host)
 	}
-
-	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK_KEY{}, m)
 
 	conn, err := mode.dialer.Conn(host)
 	if err != nil {
@@ -177,15 +131,10 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 }
 
 func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	m := s.getMark(s.config.Udp, host)
-
-	mode, ok := s.modeStore.Load(m)
+	host, mode, ok := s.getMark(s.config.Udp, host)
 	if !ok {
-		return nil, fmt.Errorf("not found mode for %d", m)
+		return nil, fmt.Errorf("not found mode for %v", host)
 	}
-
-	host.WithResolver(mode.dns)
-	host.AddMark(MODE_MARK_KEY{}, m)
 
 	conn, err := mode.dialer.PacketConn(host)
 	if err != nil {
@@ -195,30 +144,37 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return conn, err
 }
 
-func (s *shunt) getMark(mode protoconfig.BypassMode, host proxy.Address) protoconfig.BypassMode {
+func (s *shunt) getMark(networkMode protoconfig.BypassMode, host proxy.Address) (proxy.Address, mode, bool) {
 	forceMode := proxy.GetMark(host, ForceModeKey{}, protoconfig.Bypass_bypass)
 
-	if forceMode != protoconfig.Bypass_bypass {
-		return forceMode
+	mode := forceMode
+
+	if forceMode == protoconfig.Bypass_bypass {
+		switch networkMode {
+		case protoconfig.Bypass_bypass:
+			rv := resolver.Bootstrap
+			r, ok := s.modeStore.Load(s.defaultMode)
+			if ok {
+				rv = r.dns
+			}
+
+			host.WithResolver(rv)
+			mode, ok = s.mapper.Search(host)
+			if !ok {
+				mode = s.defaultMode
+			}
+		default:
+			mode = networkMode
+		}
 	}
 
-	if mode != protoconfig.Bypass_bypass {
-		return mode
-	}
-
-	rv := resolver.Bootstrap
-	r, ok := s.modeStore.Load(s.defaultMode)
+	m, ok := s.modeStore.Load(mode)
 	if ok {
-		rv = r.dns
+		host.WithValue(MODE_MARK_KEY{}, mode)
+		host.WithResolver(m.dns)
 	}
 
-	host.WithResolver(rv)
-	m, ok := s.mapper.Search(host)
-	if !ok {
-		m = s.defaultMode
-	}
-
-	return m
+	return host, m, ok
 }
 
 var resolverResolver = dns.NewErrorDNS(imapper.ErrSkipResolveDomain)

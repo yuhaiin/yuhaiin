@@ -15,11 +15,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
+type outboundPoint struct {
+	*node.Point
+	proxy.Proxy
+}
+
 type outbound struct {
-	manager *manager
-	// 0: tcp, 1: udp
-	ps  [2]proxy.Proxy
-	pps [2]*node.Point
+	manager  *manager
+	udp, tcp outboundPoint
 
 	lock sync.RWMutex
 }
@@ -27,32 +30,33 @@ type outbound struct {
 func NewOutbound(tcp, udp *node.Point, mamanager *manager) *outbound {
 	return &outbound{
 		manager: mamanager,
-		pps:     [2]*node.Point{tcp, udp},
+		udp:     outboundPoint{udp, nil},
+		tcp:     outboundPoint{tcp, nil},
 	}
 }
 
 func (o *outbound) Save(p *node.Point, udp bool) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
-	var i int
-	if udp {
-		i = 1
-	} else {
-		i = 0
+	if udp && o.udp.Hash != p.Hash {
+		o.udp = outboundPoint{p, nil}
+	} else if o.tcp.Hash != p.Hash {
+		o.tcp = outboundPoint{p, nil}
 	}
-	if o.pps[i].Hash != p.Hash {
-		o.pps[i] = p
-		o.ps[i] = nil
-	}
+}
+
+func (o *outbound) refresh() {
+	o.udp.Proxy = nil
+	o.tcp.Proxy = nil
 }
 
 func (o *outbound) Point(udp bool) *node.Point {
 	var now *node.Point
 
 	if udp {
-		now = o.pps[1]
+		now = o.udp.Point
 	} else {
-		now = o.pps[0]
+		now = o.tcp.Point
 	}
 
 	if now == nil {
@@ -66,30 +70,27 @@ func (o *outbound) Point(udp bool) *node.Point {
 
 	return p
 }
-func (o *outbound) Conn(host proxy.Address) (net.Conn, error) {
-	if o.ps[0] == nil {
-		z, err := register.Dialer(o.Point(false))
+
+func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
+	if o.tcp.Proxy == nil {
+		o.tcp.Proxy, err = register.Dialer(o.Point(false))
 		if err != nil {
 			return nil, err
 		}
-
-		o.ps[0] = z
 	}
 
-	return o.ps[0].Conn(host)
+	return o.tcp.Conn(host)
 }
 
-func (o *outbound) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	if o.ps[1] == nil {
-		z, err := register.Dialer(o.Point(true))
+func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) {
+	if o.udp.Proxy == nil {
+		o.udp.Proxy, err = register.Dialer(o.Point(true))
 		if err != nil {
 			return nil, err
 		}
-
-		o.ps[1] = z
 	}
 
-	return o.ps[1].PacketConn(host)
+	return o.udp.PacketConn(host)
 }
 
 func (o *outbound) Do(req *http.Request) (*http.Response, error) {
