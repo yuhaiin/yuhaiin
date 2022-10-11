@@ -132,6 +132,7 @@ type Address interface {
 	net.Addr
 
 	WithResolver(dns.DNS, ...func(*ResolverOption))
+	OverrideHostname(string) Address
 
 	Zone() string // IPv6 scoped addressing zone
 	UDPAddr() (*net.UDPAddr, error)
@@ -139,19 +140,19 @@ type Address interface {
 	// IPHost if address is ip, return host, else resolve domain to ip and return JoinHostPort(ip,port)
 	IPHost() (string, error)
 
-	AddMark(key, value any)
-	GetMark(key any) (any, bool)
-	RangeMark(func(k, v any) bool)
+	WithValue(key, value any)
+	Value(key any) (any, bool)
+	RangeValue(func(k, v any) bool)
 }
 
 type store struct{ m sync.Map }
 
-func (s *store) AddMark(key, value any)          { s.m.Store(key, value) }
-func (s *store) GetMark(key any) (any, bool)     { return s.m.Load(key) }
-func (s *store) RangeMark(f func(k, v any) bool) { s.m.Range(f) }
+func (s *store) WithValue(key, value any)         { s.m.Store(key, value) }
+func (s *store) Value(key any) (any, bool)        { return s.m.Load(key) }
+func (s *store) RangeValue(f func(k, v any) bool) { s.m.Range(f) }
 
-func GetMark[T any](s interface{ GetMark(any) (any, bool) }, k any, Default T) T {
-	z, ok := s.GetMark(k)
+func GetMark[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
+	z, ok := s.Value(k)
 	if !ok {
 		return Default
 	}
@@ -172,29 +173,33 @@ func ParseAddress(network, addr string) (ad Address, _ error) {
 		ports = "0"
 	}
 
-	por, err := strconv.ParseUint(ports, 10, 16)
+	port, err := ParsePortStr(ports)
 	if err != nil {
 		return nil, fmt.Errorf("parse port failed: %w", err)
 	}
 
-	return ParseAddressSplit(network, hostname, uint16(por)), nil
+	return ParseAddressSplit(network, hostname, port), nil
 }
 
 //go:linkname ParseIPZone net.parseIPZone
 func ParseIPZone(s string) (net.IP, string)
 
-func ParseAddressSplit(network, addr string, por uint16) (ad Address) {
-	addr = strings.ToLower(addr)
-	ports := strconv.FormatUint(uint64(por), 10)
+func ParseAddressSplit(network, addr string, port Port) (ad Address) {
 	i, zone := ParseIPZone(addr)
 	if i != nil {
 		addr = i.String()
+	} else {
+		addr = strings.ToLower(addr)
+	}
+
+	if port == nil {
+		port = EmptyPort
 	}
 
 	ad = &DomainAddr{
-		host:     net.JoinHostPort(addr, ports),
+		host:     net.JoinHostPort(addr, port.String()),
 		hostname: addr,
-		port:     port{por, ports},
+		port:     port,
 		network:  network,
 	}
 
@@ -210,7 +215,7 @@ func ParseTCPAddress(ad *net.TCPAddr) Address {
 		Address: &DomainAddr{
 			host:     ad.String(),
 			hostname: ad.IP.String(),
-			port:     port{uint16(ad.Port), strconv.Itoa(ad.Port)},
+			port:     ParsePort(ad.Port),
 			network:  ad.Network(),
 		},
 		origin: ad.IP,
@@ -223,7 +228,7 @@ func ParseUDPAddr(ad *net.UDPAddr) Address {
 		Address: &DomainAddr{
 			host:     ad.String(),
 			hostname: ad.IP.String(),
-			port:     port{uint16(ad.Port), strconv.Itoa(ad.Port)},
+			port:     ParsePort(ad.Port),
 			network:  ad.Network(),
 		},
 		origin: ad.IP,
@@ -234,9 +239,9 @@ func ParseUDPAddr(ad *net.UDPAddr) Address {
 func ParseIPAddr(ad *net.IPAddr) Address {
 	return &IPAddr{
 		Address: &DomainAddr{
-			host:     net.JoinHostPort(ad.String(), "0"),
+			host:     ad.String(),
 			hostname: ad.IP.String(),
-			port:     port{0, "0"},
+			port:     EmptyPort,
 			network:  ad.Network(),
 		},
 		origin: ad.IP,
@@ -246,9 +251,9 @@ func ParseIPAddr(ad *net.IPAddr) Address {
 
 func ParseUnixAddr(ad *net.UnixAddr) Address {
 	return &DomainAddr{
-		host:     net.JoinHostPort(ad.String(), "0"),
+		host:     ad.String(),
 		hostname: ad.Name,
-		port:     port{0, "0"},
+		port:     EmptyPort,
 		network:  ad.Network(),
 	}
 }
@@ -276,10 +281,11 @@ var _ Address = (*DomainAddr)(nil)
 
 type DomainAddr struct {
 	store
+
 	host string
 
 	hostname string
-	port     port
+	port     Port
 
 	network string
 }
@@ -307,8 +313,8 @@ func (d *DomainAddr) WithResolver(resolver dns.DNS, opts ...func(*ResolverOption
 		o(&opt)
 	}
 
-	d.AddMark(resolverKey{}, resolver)
-	d.AddMark(resolverModeKey{}, opt.mode)
+	d.WithValue(resolverKey{}, resolver)
+	d.WithValue(resolverModeKey{}, opt.mode)
 }
 
 func (d *DomainAddr) Zone() string { return "" }
@@ -345,29 +351,22 @@ func (d *DomainAddr) IPHost() (string, error) {
 	}
 	return net.JoinHostPort(ip.String(), d.port.String()), nil
 }
-
-type FAKE_IP_MARK_KEY struct{}
-
-func (FAKE_IP_MARK_KEY) String() string { return "Fake IP" }
-
-func ConvertFakeDNS(src Address, real string) Address {
-	host := src.String()
-
-	z, ok := src.(*IPAddr)
-	if !ok {
-		return ParseAddressSplit(src.Network(), real, src.Port().Port())
+func (d *DomainAddr) OverrideHostname(s string) Address {
+	z, zone := ParseIPZone(s)
+	if z != nil {
+		s = z.String()
+	} else {
+		s = strings.ToLower(s)
 	}
 
-	d, ok := z.Address.(*DomainAddr)
-	if !ok {
-		return ParseAddressSplit(src.Network(), real, src.Port().Port())
+	d.hostname = s
+	d.host = net.JoinHostPort(s, d.port.String())
+
+	if z == nil {
+		return d
 	}
 
-	d.host = net.JoinHostPort(real, d.port.String())
-	d.hostname = real
-	d.AddMark(FAKE_IP_MARK_KEY{}, host)
-
-	return d
+	return &IPAddr{Address: d, origin: z, zone: zone}
 }
 
 var _ Address = (*IPAddr)(nil)
@@ -396,7 +395,7 @@ type emptyAddr struct{}
 func (d emptyAddr) String() string                                 { return "" }
 func (d emptyAddr) Hostname() string                               { return "" }
 func (d emptyAddr) IP() (net.IP, error)                            { return nil, errors.New("empty") }
-func (d emptyAddr) Port() Port                                     { return port{0, ""} }
+func (d emptyAddr) Port() Port                                     { return EmptyPort }
 func (d emptyAddr) Network() string                                { return "" }
 func (d emptyAddr) Type() Type                                     { return EMPTY }
 func (d emptyAddr) WithResolver(dns.DNS, ...func(*ResolverOption)) {}
@@ -404,14 +403,34 @@ func (d emptyAddr) Zone() string                                   { return "" }
 func (d emptyAddr) UDPAddr() (*net.UDPAddr, error)                 { return nil, errors.New("empty") }
 func (d emptyAddr) TCPAddr() (*net.TCPAddr, error)                 { return nil, errors.New("empty") }
 func (d emptyAddr) IPHost() (string, error)                        { return "", errors.New("empty") }
-func (d emptyAddr) AddMark(any, any)                               {}
-func (d emptyAddr) GetMark(any) (any, bool)                        { return nil, false }
-func (d emptyAddr) RangeMark(func(any, any) bool)                  {}
+func (d emptyAddr) WithValue(any, any)                             {}
+func (d emptyAddr) Value(any) (any, bool)                          { return nil, false }
+func (d emptyAddr) RangeValue(func(any, any) bool)                 {}
+func (d emptyAddr) OverrideHostname(string) Address                { return d }
 
-type port struct {
-	n   uint16
-	str string
+type PortImpl struct {
+	Number uint16
+	Str    string
 }
 
-func (p port) Port() uint16   { return p.n }
-func (p port) String() string { return p.str }
+func (p PortImpl) Port() uint16   { return p.Number }
+func (p PortImpl) String() string { return p.Str }
+
+var EmptyPort Port = PortImpl{}
+
+type PortNumber interface {
+	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~int | ~int8 | ~int16 | ~int32 | ~int64
+}
+
+func ParsePort[T PortNumber](p T) Port {
+	return PortImpl{uint16(p), strconv.FormatUint(uint64(p), 10)}
+}
+
+func ParsePortStr(p string) (Port, error) {
+	pt, err := strconv.ParseUint(p, 10, 16)
+	if err != nil {
+		return nil, err
+	}
+
+	return PortImpl{uint16(pt), p}, nil
+}

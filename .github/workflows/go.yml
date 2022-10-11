@@ -27,13 +27,9 @@ jobs:
       run: |
         make all
         upx --lzma --best yuhaiin
-        upx --lzma --best yh
         upx --lzma --best yuhaiin_v3
-        upx --lzma --best yh_v3
         upx --lzma --best yuhaiin.exe
-        upx --lzma --best yh.exe
         upx --lzma --best yuhaiin_v3.exe
-        upx --lzma --best yh_v3.exe
         upx --lzma --best dnsrelay
         upx --lzma --best dnsrelay.exe
 
@@ -46,7 +42,6 @@ jobs:
         name: output_linux_amd64
         path: |
           yuhaiin
-          yh
 
     - name: upload_linux_amd64v3
       uses: actions/upload-artifact@v2
@@ -54,7 +49,6 @@ jobs:
         name: output_linux_amd64v3
         path: |
           yuhaiin_v3
-          yh_v3
 
     - name: upload_windows_amd64
       uses: actions/upload-artifact@v2
@@ -62,7 +56,6 @@ jobs:
         name: output_windows_amd64
         path: |
           yuhaiin.exe
-          yh.exe
 
     - name: upload_windows_amd64v3
       uses: actions/upload-artifact@v2
@@ -70,7 +63,6 @@ jobs:
         name: output_windows_amd64v3
         path: |
           yuhaiin_v3.exe
-          yh_v3.exe
 
     - name: upload_dnsrelay
       uses: actions/upload-artifact@v2

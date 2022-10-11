@@ -181,7 +181,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 		return nil, fmt.Errorf("dns server parse failed: %w", err)
 	}
 
-	add := proxy.ParseAddressSplit("", strings.TrimSuffix(q.Name.String(), "."), 0)
+	add := proxy.ParseAddressSplit("", strings.TrimSuffix(q.Name.String(), "."), nil)
 
 	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
 		q.Type != dnsmessage.TypePTR {

@@ -3,13 +3,13 @@ package node
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
@@ -34,10 +34,18 @@ type Nodes struct {
 	link    *link
 }
 
-func NewNodes(configPath string) (n *Nodes) {
-	n = &Nodes{savaPath: configPath}
-	n.load()
-	return
+func NewNodes(configPath string) *Nodes {
+	no := load(configPath)
+	manager := NewManager(no.Manager)
+	outbound := NewOutbound(no.Tcp, no.Udp, manager)
+	link := NewLink(outbound, manager, no.Links)
+
+	return &Nodes{
+		savaPath: configPath,
+		manager:  manager,
+		outbound: outbound,
+		link:     link,
+	}
 }
 
 func (n *Nodes) Now(_ context.Context, r *grpcnode.NowReq) (*node.Point, error) {
@@ -62,8 +70,7 @@ func (n *Nodes) SaveNode(c context.Context, p *node.Point) (*node.Point, error) 
 
 func refreshHash(p *node.Point) {
 	p.Hash = ""
-	z := sha256.Sum256([]byte(p.String()))
-	p.Hash = hex.EncodeToString(z[:])
+	p.Hash = fmt.Sprintf("%x", sha256.Sum256([]byte(p.String())))
 }
 
 func (n *Nodes) GetManager(context.Context, *wrapperspb.StringValue) (*node.Manager, error) {
@@ -106,6 +113,7 @@ func (n *Nodes) GetLinks(ctx context.Context, in *emptypb.Empty) (*grpcnode.GetL
 
 func (n *Nodes) UpdateLinks(c context.Context, req *grpcnode.LinkReq) (*emptypb.Empty, error) {
 	n.link.Update(req.Names)
+	n.outbound.refresh()
 	return &emptypb.Empty{}, n.save()
 }
 
@@ -162,48 +170,49 @@ func (n *Nodes) Latency(c context.Context, req *grpcnode.LatencyReq) (*grpcnode.
 	return resp, nil
 }
 
-func (n *Nodes) load() {
+func load(path string) *node.Node {
+	defaultNode, _ := protojson.Marshal(&node.Node{
+		Tcp:   &node.Point{},
+		Udp:   &node.Point{},
+		Links: map[string]*node.NodeLink{},
+		Manager: &node.Manager{
+			Groups:        []string{},
+			GroupNodesMap: map[string]*node.ManagerNodeArray{},
+			Nodes:         map[string]*node.Point{},
+		},
+	})
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Errorln("read node file failed:", err)
+	}
+
+	data = config.SetDefault(data, defaultNode)
+
 	no := &node.Node{}
-
-	n.lock.RLock()
-	defer n.lock.RUnlock()
-
-	if data, err := os.ReadFile(n.savaPath); err == nil {
-		if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, no); err != nil {
-			log.Errorf("unmarshal node file failed: %v\n", err)
-		}
-	} else {
-		log.Errorf("read node file failed: %v\n", err)
+	if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, no); err != nil {
+		log.Errorln("unmarshal node file failed:", err)
 	}
 
-_init:
-	for {
-		switch {
-		case no.Tcp == nil:
-			no.Tcp = &node.Point{}
-		case no.Udp == nil:
-			no.Udp = &node.Point{}
-		case no.Links == nil:
-			no.Links = make(map[string]*node.NodeLink)
-		case no.Manager == nil:
-			no.Manager = &node.Manager{}
-		case no.Manager.Groups == nil:
-			no.Manager.Groups = make([]string, 0)
-			no.Manager.GroupNodesMap = make(map[string]*node.ManagerNodeArray)
-			no.Manager.Nodes = make(map[string]*node.Point)
-		default:
-			break _init
-		}
-	}
+	return no
+}
 
-	n.manager = NewManager(no.Manager)
-	n.outbound = NewOutbound(no.Tcp, no.Udp, n.manager)
-	n.link = NewLink(n.outbound, n.manager, no.Links)
+func (n *Nodes) toNode() *node.Node {
+	return &node.Node{
+		Tcp:     n.outbound.Point(false),
+		Udp:     n.outbound.Point(true),
+		Links:   n.link.Links(),
+		Manager: n.manager.GetManager(),
+	}
 }
 
 func (n *Nodes) save() error {
 	_, err := os.Stat(path.Dir(n.savaPath))
-	if errors.Is(err, os.ErrNotExist) {
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+
 		err = os.MkdirAll(path.Dir(n.savaPath), os.ModePerm)
 		if err != nil {
 			return fmt.Errorf("make config dir failed: %w", err)
@@ -213,14 +222,7 @@ func (n *Nodes) save() error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
-	data, err := protojson.MarshalOptions{Indent: "\t"}.
-		Marshal(
-			&node.Node{
-				Tcp:     n.outbound.Point(false),
-				Udp:     n.outbound.Point(true),
-				Links:   n.link.Links(),
-				Manager: n.manager.GetManager(),
-			})
+	data, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(n.toNode())
 	if err != nil {
 		return fmt.Errorf("marshal file failed: %v", err)
 	}

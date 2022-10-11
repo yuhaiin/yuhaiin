@@ -12,7 +12,7 @@ import (
 
 func TestClient(t *testing.T) {
 	conn, err := NewHttp(&node.PointProtocol_Http{Http: &node.Http{}})(
-		simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", 8188), nil))
+		simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", proxy.ParsePort(8188)), nil))
 	assert.NoError(t, err)
 
 	t.Log(latency.HTTP(conn, "https://www.google.com"))

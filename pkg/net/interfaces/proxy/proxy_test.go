@@ -26,3 +26,19 @@ func TestAddr(t *testing.T) {
 	assert.NoError(t, err)
 	t.Log(addr.UDPAddr())
 }
+
+func TestOverride(t *testing.T) {
+	z, err := ParseAddress("udp", "1.1.1.1:53")
+	assert.NoError(t, err)
+
+	t.Log(z)
+
+	z = z.OverrideHostname("baidu.com")
+	t.Log(z)
+
+	z = z.OverrideHostname("1.2.4.8")
+	t.Log(z)
+
+	z = z.OverrideHostname("223.5.5.5")
+	t.Log(z)
+}

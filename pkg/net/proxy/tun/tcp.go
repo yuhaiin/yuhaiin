@@ -43,7 +43,7 @@ func tcpForwarder(s *stack.Stack, opt *config.Opts[*config.ServerProtocol_Tun]) 
 				return
 			}
 
-			addr := proxy.ParseAddressSplit("tcp", id.LocalAddress.String(), id.LocalPort)
+			addr := proxy.ParseAddressSplit("tcp", id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
 			addMessage(addr, id, opt)
 
 			conn, er := opt.Dialer.Conn(addr)

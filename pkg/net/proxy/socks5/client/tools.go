@@ -102,5 +102,5 @@ func ResolveAddr(network string, r io.Reader) (_ proxy.Address, size int, err er
 	size += 2
 	port := binary.BigEndian.Uint16(buf[0:2])
 
-	return proxy.ParseAddressSplit(network, hostname, port), size, nil
+	return proxy.ParseAddressSplit(network, hostname, proxy.ParsePort(port)), size, nil
 }

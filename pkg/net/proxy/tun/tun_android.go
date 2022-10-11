@@ -40,5 +40,5 @@ func addPackageName(addr proxy.Address, dumper config.UidDumper, srcAddr string,
 		}
 	}
 
-	addr.AddMark(PACKAGE_MARK_KEY{}, fmt.Sprintf("%s(%d)", name, uid))
+	addr.WithValue(PACKAGE_MARK_KEY{}, fmt.Sprintf("%s(%d)", name, uid))
 }

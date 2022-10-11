@@ -72,7 +72,7 @@ func (e *Endpoint) Close() {
 }
 
 // InjectInbound injects an inbound packet.
-func (e *Endpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) {
+func (e *Endpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) {
 	e.dispatcher.DeliverNetworkPacket(protocol, pkt)
 }
 
@@ -149,4 +149,4 @@ func (e *Endpoint) Wait() { e.wg.Wait() }
 func (*Endpoint) ARPHardwareType() header.ARPHardwareType { return header.ARPHardwareNone }
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
-func (*Endpoint) AddHeader(*stack.PacketBuffer) {}
+func (*Endpoint) AddHeader(stack.PacketBufferPtr) {}

@@ -35,7 +35,7 @@ test:
 	@echo ${GO_CMD}
 
 .PHONY: all
-all: yuhaiin cli yuhaiin_windows cli_windows dnsrelay dnsrelay_windows
+all: yuhaiin yuhaiin_windows dnsrelay dnsrelay_windows
 
 .PHONY: vet
 vet:
