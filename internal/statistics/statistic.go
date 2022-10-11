@@ -113,24 +113,15 @@ func getExtra(o connection) string {
 
 func extraMap(addr proxy.Address) map[string]string {
 	r := make(map[string]string)
-	addr.RangeMark(func(k, v any) bool {
-		kk, ok := k.(string)
+	addr.RangeValue(func(k, v any) bool {
+		kk, ok := getString(k)
 		if !ok {
-			z, ok := k.(interface{ String() string })
-			if !ok {
-				return true
-			}
-
-			kk = z.String()
+			return true
 		}
 
-		vv, ok := v.(string)
+		vv, ok := getString(v)
 		if !ok {
-			z, ok := v.(interface{ String() string })
-			if !ok {
-				return true
-			}
-			vv = z.String()
+			return true
 		}
 
 		r[kk] = vv
@@ -138,6 +129,20 @@ func extraMap(addr proxy.Address) map[string]string {
 	})
 
 	return r
+}
+
+func getString(t any) (string, bool) {
+	z, ok := t.(string)
+	if ok {
+		return z, true
+	}
+
+	x, ok := t.(interface{ String() string })
+	if ok {
+		return x.String(), true
+	}
+
+	return "", false
 }
 
 func (c *counter) PacketConn(addr proxy.Address) (net.PacketConn, error) {

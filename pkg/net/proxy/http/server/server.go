@@ -27,6 +27,7 @@ func handshake(dialer proxy.StreamProxy, username, password string) func(net.Con
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
+
 			return dialer.Conn(address)
 		}
 		client := &http.Client{

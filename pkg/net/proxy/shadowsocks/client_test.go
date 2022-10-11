@@ -23,7 +23,7 @@ func TestImplement(t *testing.T) {
 
 func TestConn(t *testing.T) {
 
-	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", 1080), nil)
+	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", proxy.ParsePort(1080)), nil)
 	z, err := websocket.New(&node.PointProtocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
 	assert.NoError(t, err)
 	z, err = NewShadowsocks(
@@ -70,7 +70,7 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", 1090), nil)
+	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", proxy.ParsePort(1090)), nil)
 	s, err := NewShadowsocks(
 		&node.PointProtocol_Shadowsocks{
 			Shadowsocks: &node.Shadowsocks{

@@ -1,5 +1,7 @@
+// Deprecated use http page instead
 package main
 
+/*
 import (
 	"context"
 	"encoding/json"
@@ -195,7 +197,7 @@ func listCmd() *cobra.Command {
 		Long: `ls, list all groups
 ls all, list all groups and nodes
 ls now, show now node info
-ls <group index>, list nodes of group index 
+ls <group index>, list nodes of group index
 ls <group index> <node index>, show node info of group index and node index`,
 		Example: `ls
 ls all
@@ -878,3 +880,4 @@ func (y *yhCli) closeAllConns() error {
 	_, err = y.cm.CloseConn(context.TODO(), &statistic.CloseConnsReq{Conns: ids})
 	return err
 }
+*/

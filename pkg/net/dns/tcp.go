@@ -2,6 +2,7 @@ package dns
 
 import (
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strings"
@@ -52,12 +53,9 @@ func newTCP(config Config, defaultPort string) *tcp {
 	d := &tcp{host: addr, proxy: config.Dialer}
 
 	d.client = NewClient(config, func(b []byte) ([]byte, error) {
-		length := len(b) // dns over tcp, prefix two bytes is request data's length
-		b = append([]byte{byte(length >> 8), byte(length - ((length >> 8) << 8))}, b...)
-
 		conn, err := d.proxy.Conn(d.host)
 		if err != nil {
-			return nil, fmt.Errorf("tcp dial failed: %v", err)
+			return nil, fmt.Errorf("tcp dial failed: %w", err)
 		}
 		defer conn.Close()
 
@@ -65,20 +63,27 @@ func newTCP(config Config, defaultPort string) *tcp {
 			conn = tls.Client(conn, d.tls)
 		}
 
-		_, err = conn.Write(b)
+		// dns over tcp, prefix two bytes is request data's length
+		err = binary.Write(conn, binary.BigEndian, uint16(len(b)))
 		if err != nil {
-			return nil, fmt.Errorf("write data failed: %v", err)
+			return nil, fmt.Errorf("write data length failed: %w", err)
 		}
 
-		leg := make([]byte, 2)
-		_, err = conn.Read(leg)
+		_, err = conn.Write(b)
 		if err != nil {
-			return nil, fmt.Errorf("read data length from server failed %v", err)
+			return nil, fmt.Errorf("write data failed: %w", err)
 		}
-		all := make([]byte, int(leg[0])<<8+int(leg[1]))
+
+		var length uint16
+		err = binary.Read(conn, binary.BigEndian, &length)
+		if err != nil {
+			return nil, fmt.Errorf("read data length from server failed: %w", err)
+		}
+
+		all := make([]byte, length)
 		n, err := conn.Read(all)
 		if err != nil {
-			return nil, fmt.Errorf("read data from server failed: %v", err)
+			return nil, fmt.Errorf("read data from server failed: %w", err)
 		}
 		return all[:n], err
 	})
