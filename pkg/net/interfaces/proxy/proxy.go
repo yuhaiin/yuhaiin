@@ -99,25 +99,8 @@ type Port interface {
 	String() string
 }
 
-type ResolverOption struct {
-	mode ResolverMode
-}
-
-func WithResolverMode(m ResolverMode) func(*ResolverOption) {
-	return func(ro *ResolverOption) {
-		ro.mode = m
-	}
-}
-
-type ResolverMode int
-
-const (
-	NORMAL    ResolverMode = 0
-	PERMANENT ResolverMode = 1
-)
-
 type resolverKey struct{}
-type resolverModeKey struct{}
+type resolverCanCoverKey struct{}
 
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
@@ -131,7 +114,10 @@ type Address interface {
 
 	net.Addr
 
-	WithResolver(dns.DNS, ...func(*ResolverOption))
+	// WithResolver will use call IP(), IPHost(), UDPAddr(), TCPAddr()
+	// return the current resolver is applied, if can't cover return false
+	WithResolver(_ dns.DNS, canCover bool) bool
+	// OverrideHostname clone address(exclude Values) and change hostname
 	OverrideHostname(string) Address
 
 	Zone() string // IPv6 scoped addressing zone
@@ -144,12 +130,6 @@ type Address interface {
 	Value(key any) (any, bool)
 	RangeValue(func(k, v any) bool)
 }
-
-type store struct{ m sync.Map }
-
-func (s *store) WithValue(key, value any)         { s.m.Store(key, value) }
-func (s *store) Value(key any) (any, bool)        { return s.m.Load(key) }
-func (s *store) RangeValue(f func(k, v any) bool) { s.m.Range(f) }
 
 func GetMark[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
 	z, ok := s.Value(k)
@@ -280,7 +260,7 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 var _ Address = (*DomainAddr)(nil)
 
 type DomainAddr struct {
-	store
+	store *sync.Map
 
 	host string
 
@@ -303,20 +283,15 @@ func (d *DomainAddr) IP() (net.IP, error) {
 func (d *DomainAddr) Port() Port      { return d.port }
 func (d *DomainAddr) Network() string { return d.network }
 func (d *DomainAddr) Type() Type      { return DOMAIN }
-func (d *DomainAddr) WithResolver(resolver dns.DNS, opts ...func(*ResolverOption)) {
-	if GetMark(d, resolverModeKey{}, NORMAL) == PERMANENT {
-		return
-	}
-
-	var opt ResolverOption
-	for _, o := range opts {
-		o(&opt)
+func (d *DomainAddr) WithResolver(resolver dns.DNS, canCover bool) bool {
+	if !GetMark(d, resolverCanCoverKey{}, true) {
+		return false
 	}
 
 	d.WithValue(resolverKey{}, resolver)
-	d.WithValue(resolverModeKey{}, opt.mode)
+	d.WithValue(resolverCanCoverKey{}, canCover)
+	return true
 }
-
 func (d *DomainAddr) Zone() string { return "" }
 func (d *DomainAddr) lookupIP() (net.IP, error) {
 	ips, err := GetMark(d, resolverKey{}, resolver.Bootstrap).LookupIP(d.hostname)
@@ -351,6 +326,7 @@ func (d *DomainAddr) IPHost() (string, error) {
 	}
 	return net.JoinHostPort(ip.String(), d.port.String()), nil
 }
+
 func (d *DomainAddr) OverrideHostname(s string) Address {
 	z, zone := ParseIPZone(s)
 	if z != nil {
@@ -359,14 +335,37 @@ func (d *DomainAddr) OverrideHostname(s string) Address {
 		s = strings.ToLower(s)
 	}
 
-	d.hostname = s
-	d.host = net.JoinHostPort(s, d.port.String())
-
-	if z == nil {
-		return d
+	r := &DomainAddr{
+		hostname: s,
+		host:     net.JoinHostPort(s, d.port.String()),
+		store:    d.store,
+		port:     d.port,
+		network:  d.network,
 	}
 
-	return &IPAddr{Address: d, origin: z, zone: zone}
+	if z == nil {
+		return r
+	}
+
+	return &IPAddr{Address: r, origin: z, zone: zone}
+}
+func (s *DomainAddr) WithValue(key, value any) {
+	if s.store == nil {
+		s.store = &sync.Map{}
+	}
+	s.store.Store(key, value)
+}
+func (s *DomainAddr) Value(key any) (any, bool) {
+	if s.store == nil {
+		return nil, false
+	}
+	return s.store.Load(key)
+}
+func (s *DomainAddr) RangeValue(f func(k, v any) bool) {
+	if s.store == nil {
+		return
+	}
+	s.store.Range(f)
 }
 
 var _ Address = (*IPAddr)(nil)
@@ -392,21 +391,21 @@ var EmptyAddr Address = &emptyAddr{}
 
 type emptyAddr struct{}
 
-func (d emptyAddr) String() string                                 { return "" }
-func (d emptyAddr) Hostname() string                               { return "" }
-func (d emptyAddr) IP() (net.IP, error)                            { return nil, errors.New("empty") }
-func (d emptyAddr) Port() Port                                     { return EmptyPort }
-func (d emptyAddr) Network() string                                { return "" }
-func (d emptyAddr) Type() Type                                     { return EMPTY }
-func (d emptyAddr) WithResolver(dns.DNS, ...func(*ResolverOption)) {}
-func (d emptyAddr) Zone() string                                   { return "" }
-func (d emptyAddr) UDPAddr() (*net.UDPAddr, error)                 { return nil, errors.New("empty") }
-func (d emptyAddr) TCPAddr() (*net.TCPAddr, error)                 { return nil, errors.New("empty") }
-func (d emptyAddr) IPHost() (string, error)                        { return "", errors.New("empty") }
-func (d emptyAddr) WithValue(any, any)                             {}
-func (d emptyAddr) Value(any) (any, bool)                          { return nil, false }
-func (d emptyAddr) RangeValue(func(any, any) bool)                 {}
-func (d emptyAddr) OverrideHostname(string) Address                { return d }
+func (d emptyAddr) String() string                  { return "" }
+func (d emptyAddr) Hostname() string                { return "" }
+func (d emptyAddr) IP() (net.IP, error)             { return nil, errors.New("empty") }
+func (d emptyAddr) Port() Port                      { return EmptyPort }
+func (d emptyAddr) Network() string                 { return "" }
+func (d emptyAddr) Type() Type                      { return EMPTY }
+func (d emptyAddr) WithResolver(dns.DNS, bool) bool { return false }
+func (d emptyAddr) Zone() string                    { return "" }
+func (d emptyAddr) UDPAddr() (*net.UDPAddr, error)  { return nil, errors.New("empty") }
+func (d emptyAddr) TCPAddr() (*net.TCPAddr, error)  { return nil, errors.New("empty") }
+func (d emptyAddr) IPHost() (string, error)         { return "", errors.New("empty") }
+func (d emptyAddr) WithValue(any, any)              {}
+func (d emptyAddr) Value(any) (any, bool)           { return nil, false }
+func (d emptyAddr) RangeValue(func(any, any) bool)  {}
+func (d emptyAddr) OverrideHostname(string) Address { return d }
 
 type PortImpl struct {
 	Number uint16

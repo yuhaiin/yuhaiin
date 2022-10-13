@@ -21,7 +21,7 @@ type Shadowsocks struct {
 	addr string
 }
 
-func NewShadowsocks(config *node.PointProtocol_Shadowsocks) node.WrapProxy {
+func NewShadowsocks(config *node.Protocol_Shadowsocks) node.WrapProxy {
 	c := config.Shadowsocks
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		cipher, err := core.PickCipher(strings.ToUpper(c.Method), nil, c.Password)

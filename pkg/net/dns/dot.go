@@ -4,11 +4,11 @@ import (
 	"crypto/tls"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func init() {
-	Register(config.Dns_dot, NewDoT)
+	Register(pdns.Type_dot, NewDoT)
 }
 
 func NewDoT(config Config) dns.DNS {

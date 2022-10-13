@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	rr "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -41,7 +41,7 @@ func TestDOH(t *testing.T) {
 	// d := NewDoH(dns.Config{Host: "120.53.53.53", Subnet: s}, nil)
 	// d := NewDoH("sm2.doh.pub", s, nil)
 	d := New(Config{
-		Type:   config.Dns_doh,
+		Type:   dns.Type_doh,
 		Host:   "doh.pub",
 		Subnet: s,
 	})

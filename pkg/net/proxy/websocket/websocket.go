@@ -18,7 +18,7 @@ type client struct {
 	dialer    proxy.Proxy
 }
 
-func New(cf *node.PointProtocol_Websocket) node.WrapProxy {
+func New(cf *node.Protocol_Websocket) node.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 
 		header := http.Header{}

@@ -14,7 +14,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -24,17 +25,18 @@ type mode struct {
 }
 
 type shunt struct {
-	mapper imapper.Mapper[string, proxy.Address, protoconfig.BypassMode]
+	mapper imapper.Mapper[string, proxy.Address, bypass.Mode]
 
-	config *protoconfig.Bypass
-	lock   sync.RWMutex
+	config              *bypass.Config
+	resolveRemoteDomain bool
+	lock                sync.RWMutex
 
-	modeStore   syncmap.SyncMap[protoconfig.BypassMode, mode]
-	defaultMode protoconfig.BypassMode
+	modeStore   syncmap.SyncMap[bypass.Mode, mode]
+	defaultMode bypass.Mode
 }
 
 type Mode struct {
-	Mode     protoconfig.BypassMode
+	Mode     bypass.Mode
 	Default  bool
 	Dialer   proxy.Proxy
 	Resolver dns.DNS
@@ -42,10 +44,10 @@ type Mode struct {
 
 func NewShunt(modes []Mode) proxy.DialerResolverProxy {
 	s := &shunt{
-		mapper: mapper.NewMapper[protoconfig.BypassMode](),
-		config: &protoconfig.Bypass{
-			Tcp:        protoconfig.Bypass_bypass,
-			Udp:        protoconfig.Bypass_bypass,
+		mapper: mapper.NewMapper[bypass.Mode](),
+		config: &bypass.Config{
+			Tcp:        bypass.Mode_bypass,
+			Udp:        bypass.Mode_bypass,
 			BypassFile: "",
 		},
 	}
@@ -57,9 +59,11 @@ func NewShunt(modes []Mode) proxy.DialerResolverProxy {
 	return s
 }
 
-func (s *shunt) Update(c *protoconfig.Setting) {
+func (s *shunt) Update(c *pconfig.Setting) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.resolveRemoteDomain = c.Dns.ResolveRemoteDomain
 
 	diff := (s.config == nil && c != nil) || s.config.BypassFile != c.Bypass.BypassFile
 	s.config = c.Bypass
@@ -103,13 +107,13 @@ func (s *shunt) refresh() error {
 		c, b := a[:i], a[i+1:]
 
 		if len(c) != 0 && len(b) != 0 {
-			s.mapper.Insert(strings.ToLower(string(c)), protoconfig.BypassMode(protoconfig.BypassMode_value[strings.ToLower(string(b))]))
+			s.mapper.Insert(strings.ToLower(string(c)), bypass.Mode(bypass.Mode_value[strings.ToLower(string(b))]))
 		}
 	}
 	return nil
 }
 
-func (s *shunt) AddMode(m protoconfig.BypassMode, defaultMode bool, p proxy.Proxy, resolver dns.DNS) {
+func (s *shunt) AddMode(m bypass.Mode, defaultMode bool, p proxy.Proxy, resolver dns.DNS) {
 	s.modeStore.Store(m, mode{p, resolver})
 	if defaultMode {
 		s.defaultMode = m
@@ -144,34 +148,46 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return conn, err
 }
 
-func (s *shunt) getMark(networkMode protoconfig.BypassMode, host proxy.Address) (proxy.Address, mode, bool) {
-	forceMode := proxy.GetMark(host, ForceModeKey{}, protoconfig.Bypass_bypass)
+func (s *shunt) getMark(networkMode bypass.Mode, host proxy.Address) (proxy.Address, mode, bool) {
+	mode := proxy.GetMark(host, ForceModeKey{}, bypass.Mode_bypass)
 
-	mode := forceMode
+	if mode == bypass.Mode_bypass {
+		mode = networkMode
+	}
 
-	if forceMode == protoconfig.Bypass_bypass {
-		switch networkMode {
-		case protoconfig.Bypass_bypass:
-			rv := resolver.Bootstrap
-			r, ok := s.modeStore.Load(s.defaultMode)
-			if ok {
-				rv = r.dns
-			}
+	if mode == bypass.Mode_bypass {
+		rv := resolver.Bootstrap
+		r, ok := s.modeStore.Load(s.defaultMode)
+		if ok {
+			rv = r.dns
+		}
 
-			host.WithResolver(rv)
-			mode, ok = s.mapper.Search(host)
-			if !ok {
-				mode = s.defaultMode
-			}
-		default:
-			mode = networkMode
+		host.WithResolver(rv, true)
+		mode, ok = s.mapper.Search(host)
+		if !ok {
+			mode = s.defaultMode
 		}
 	}
 
 	m, ok := s.modeStore.Load(mode)
-	if ok {
-		host.WithValue(MODE_MARK_KEY{}, mode)
-		host.WithResolver(m.dns)
+	if !ok {
+		return host, m, ok
+	}
+
+	host.WithValue(MODE_MARK_KEY{}, mode)
+	host.WithResolver(m.dns, true)
+
+	if !s.resolveRemoteDomain || host.Type() != proxy.DOMAIN || mode != bypass.Mode_proxy {
+		return host, m, ok
+	}
+
+	ip, err := host.IP()
+	if err == nil {
+		host.WithValue(DOMAIN_MARK_KEY{}, host.String())
+		host = host.OverrideHostname(ip.String())
+		host.WithValue(IP_MARK_KEY{}, host.String())
+	} else {
+		log.Warningln("resolve remote domain failed: %w", err)
 	}
 
 	return host, m, ok
@@ -180,7 +196,7 @@ func (s *shunt) getMark(networkMode protoconfig.BypassMode, host proxy.Address) 
 var resolverResolver = dns.NewErrorDNS(imapper.ErrSkipResolveDomain)
 
 func (s *shunt) Resolver(host proxy.Address) dns.DNS {
-	host.WithResolver(resolverResolver)
+	host.WithResolver(resolverResolver, true)
 	m, ok := s.mapper.Search(host)
 	if !ok {
 		m = s.defaultMode

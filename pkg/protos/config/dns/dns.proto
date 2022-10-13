@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package yuhaiin.dns;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns";
+
+enum type {
+  reserve = 0;
+  udp = 1;
+  tcp = 2;
+  doh = 3;
+  dot = 4;
+  doq = 5;
+  doh3 = 6;
+}
+
+message dns {
+  string host = 1 [ json_name = "host" ];
+  type type = 5 [ json_name = "type" ];
+  string subnet = 4 [ json_name = "subnet" ];
+  string tls_servername = 2 [ json_name = "tls_servername" ];
+}
+
+message config {
+  string server = 4 [ json_name = "server" ];
+  bool fakedns = 5 [ json_name = "fakedns" ];
+  string fakedns_ip_range = 6 [ json_name = "fakedns_ip_range" ];
+  bool resolve_remote_domain = 7 [ json_name = "resolve_remote_domain" ];
+  dns remote = 1 [ json_name = "remote" ];
+  dns local = 2 [ json_name = "local" ];
+  dns bootstrap = 3 [ json_name = "bootstrap" ];
+}

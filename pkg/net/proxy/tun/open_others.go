@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
@@ -17,7 +17,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-func open(name string, driver config.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
+func open(name string, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
 	if len(name) >= unix.IFNAMSIZ {
 		return nil, fmt.Errorf("interface name too long: %s", name)
 	}
@@ -35,7 +35,7 @@ func open(name string, driver config.TunEndpointDriver, mtu int) (_ stack.LinkEn
 	}
 
 	switch driver {
-	case config.Tun_channel:
+	case listener.Tun_channel:
 		ce := NewEndpoint(newFDWriter(fd), uint32(mtu), "")
 		r, err := newReadVDispatcher(fd, ce)
 		if err != nil {

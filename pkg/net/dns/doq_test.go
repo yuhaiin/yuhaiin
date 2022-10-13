@@ -3,7 +3,7 @@ package dns
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func TestDoQ(t *testing.T) {
@@ -33,7 +33,7 @@ func TestDoQ(t *testing.T) {
 	// })
 
 	d := New(Config{
-		Type: config.Dns_doq,
+		Type: dns.Type_doq,
 		Host: "c.passcloud.xyz:784",
 		IPv6: true,
 	})

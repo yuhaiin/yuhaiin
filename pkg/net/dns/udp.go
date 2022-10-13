@@ -10,12 +10,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func init() {
-	Register(config.Dns_udp, NewDoU)
-	Register(config.Dns_reserve, NewDoU)
+	Register(pdns.Type_udp, NewDoU)
+	Register(pdns.Type_reserve, NewDoU)
 }
 
 var _ dns.DNS = (*udp)(nil)

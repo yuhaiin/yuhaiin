@@ -30,7 +30,7 @@ func TestAddr(t *testing.T) {
 func TestOverride(t *testing.T) {
 	z, err := ParseAddress("udp", "1.1.1.1:53")
 	assert.NoError(t, err)
-
+	z.WithValue("a", "b")
 	t.Log(z)
 
 	z = z.OverrideHostname("baidu.com")
@@ -41,4 +41,5 @@ func TestOverride(t *testing.T) {
 
 	z = z.OverrideHostname("223.5.5.5")
 	t.Log(z)
+	t.Log(z.Value("a"))
 }

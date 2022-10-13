@@ -21,18 +21,18 @@ type nodeHandler struct {
 	nm grpcnode.NodeManagerServer
 }
 
-var protocolsMapping = map[string]*node.PointProtocol{
-	"simple":       {Protocol: &node.PointProtocol_Simple{Simple: &node.Simple{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
-	"none":         {Protocol: &node.PointProtocol_None{}},
-	"websocket":    {Protocol: &node.PointProtocol_Websocket{Websocket: &node.Websocket{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
-	"quic":         {Protocol: &node.PointProtocol_Quic{Quic: &node.Quic{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
-	"shadowsocks":  {Protocol: &node.PointProtocol_Shadowsocks{}},
-	"obfshttp":     {Protocol: &node.PointProtocol_ObfsHttp{}},
-	"shadowsocksr": {Protocol: &node.PointProtocol_Shadowsocksr{}},
-	"vmess":        {Protocol: &node.PointProtocol_Vmess{}},
-	"trojan":       {Protocol: &node.PointProtocol_Trojan{}},
-	"socks5":       {Protocol: &node.PointProtocol_Socks5{}},
-	"http":         {Protocol: &node.PointProtocol_Http{}},
+var protocolsMapping = map[string]*node.Protocol{
+	"simple":       {Protocol: &node.Protocol_Simple{Simple: &node.Simple{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
+	"none":         {Protocol: &node.Protocol_None{}},
+	"websocket":    {Protocol: &node.Protocol_Websocket{Websocket: &node.Websocket{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
+	"quic":         {Protocol: &node.Protocol_Quic{Quic: &node.Quic{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
+	"shadowsocks":  {Protocol: &node.Protocol_Shadowsocks{}},
+	"obfshttp":     {Protocol: &node.Protocol_ObfsHttp{}},
+	"shadowsocksr": {Protocol: &node.Protocol_Shadowsocksr{}},
+	"vmess":        {Protocol: &node.Protocol_Vmess{}},
+	"trojan":       {Protocol: &node.Protocol_Trojan{}},
+	"socks5":       {Protocol: &node.Protocol_Socks5{}},
+	"http":         {Protocol: &node.Protocol_Http{}},
 }
 
 func (nn *nodeHandler) Get(w http.ResponseWriter, r *http.Request) error {
@@ -93,7 +93,7 @@ func (n *nodeHandler) generateTemplates(w http.ResponseWriter, r *http.Request) 
 		Name:      "new node",
 		Group:     "template group",
 		Origin:    node.Point_manual,
-		Protocols: []*node.PointProtocol{},
+		Protocols: []*node.Protocol{},
 	}
 
 	var protolos []string

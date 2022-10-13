@@ -6,15 +6,15 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-func addMessage(addr proxy.Address, id stack.TransportEndpointID, opt *config.Opts[*config.ServerProtocol_Tun]) {
+func addMessage(addr proxy.Address, id stack.TransportEndpointID, opt *listener.Opts[*listener.Protocol_Tun]) {
 	addPackageName(addr, opt.UidDumper, id.RemoteAddress.String(), int32(id.RemotePort))
 }
 
-func addPackageName(addr proxy.Address, dumper config.UidDumper, srcAddr string, srcPort int32) {
+func addPackageName(addr proxy.Address, dumper listener.UidDumper, srcAddr string, srcPort int32) {
 	if dumper == nil {
 		return
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 func TestClient(t *testing.T) {
-	conn, err := NewHttp(&node.PointProtocol_Http{Http: &node.Http{}})(
+	conn, err := NewHttp(&node.Protocol_Http{Http: &node.Http{}})(
 		simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", proxy.ParsePort(8188)), nil))
 	assert.NoError(t, err)
 

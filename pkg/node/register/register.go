@@ -16,10 +16,10 @@ import (
 )
 
 func init() {
-	node.RegisterProtocol(func(*node.PointProtocol_None) node.WrapProxy {
+	node.RegisterProtocol(func(*node.Protocol_None) node.WrapProxy {
 		return func(p proxy.Proxy) (proxy.Proxy, error) { return p, nil }
 	})
-	node.RegisterProtocol(func(p *node.PointProtocol_Simple) node.WrapProxy {
+	node.RegisterProtocol(func(p *node.Protocol_Simple) node.WrapProxy {
 		return func(proxy.Proxy) (proxy.Proxy, error) {
 			return simple.NewSimple(proxy.ParseAddressSplit("", p.Simple.GetHost(), proxy.ParsePort(p.Simple.GetPort())),
 				node.ParseTLSConfig(p.Simple.Tls)), nil
