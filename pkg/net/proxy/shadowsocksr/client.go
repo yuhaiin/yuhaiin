@@ -26,7 +26,7 @@ type Shadowsocksr struct {
 	addr string
 }
 
-func NewShadowsocksr(config *node.PointProtocol_Shadowsocksr) node.WrapProxy {
+func NewShadowsocksr(config *node.Protocol_Shadowsocksr) node.WrapProxy {
 	c := config.Shadowsocksr
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		cipher, err := cipher.NewCipher(c.Method, c.Password)

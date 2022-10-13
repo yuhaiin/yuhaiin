@@ -10,11 +10,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 type Fakedns struct {
 	fake   *dns.Fake
-	config *protoconfig.DnsSetting
+	config *pdns.Config
 
 	dialer proxy.DialerResolverProxy
 }

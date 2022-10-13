@@ -6,7 +6,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"golang.org/x/time/rate"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -39,7 +39,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func NewTun(o *config.Opts[*config.ServerProtocol_Tun]) (server.Server, error) {
+func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 	opt := o.Protocol.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500
@@ -133,7 +133,7 @@ func NewTun(o *config.Opts[*config.ServerProtocol_Tun]) (server.Server, error) {
 	return &tunServer{stack: s, nicID: nicID}, nil
 }
 
-func isdns(opt *config.Opts[*config.ServerProtocol_Tun], id stack.TransportEndpointID) bool {
+func isdns(opt *listener.Opts[*listener.Protocol_Tun], id stack.TransportEndpointID) bool {
 	if id.LocalPort == 53 && (opt.Protocol.Tun.DnsHijacking || id.LocalAddress.String() == opt.Protocol.Tun.Gateway) {
 		return true
 	}

@@ -19,7 +19,7 @@ func Dial(host, port, user, password string) proxy.Proxy {
 	if err != nil {
 		return proxy.NewErrProxy(err)
 	}
-	p, _ := NewSocks5(&node.PointProtocol_Socks5{
+	p, _ := NewSocks5(&node.Protocol_Socks5{
 		Socks5: &node.Socks5{
 			Hostname: host,
 			Port:     int32(addr.Port().Port()),

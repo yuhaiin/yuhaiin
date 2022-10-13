@@ -32,12 +32,13 @@ type Bypass struct {
 }
 
 type DNSSetting struct {
-	Server         string `json:"server"`
-	Fakedns        bool   `json:"fakedns"`
-	FakednsIpRange string `json:"fakedns_ip_range"`
-	Remote         *DNS   `json:"remote"`
-	Local          *DNS   `json:"local"`
-	Bootstrap      *DNS   `json:"bootstrap"`
+	Server              string `json:"server"`
+	Fakedns             bool   `json:"fakedns"`
+	FakednsIpRange      string `json:"fakedns_ip_range"`
+	ResolveRemoteDomain bool   `json:"resolve_remote_domain"`
+	Remote              *DNS   `json:"remote"`
+	Local               *DNS   `json:"local"`
+	Bootstrap           *DNS   `json:"bootstrap"`
 }
 
 type DNS struct {

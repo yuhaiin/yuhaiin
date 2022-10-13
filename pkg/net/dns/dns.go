@@ -13,13 +13,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Config struct {
-	Type       config.DnsDnsType
+	Type       pdns.Type
 	Name       string
 	Host       string
 	Servername string
@@ -29,7 +29,7 @@ type Config struct {
 	Dialer proxy.Proxy
 }
 
-var dnsMap syncmap.SyncMap[config.DnsDnsType, func(Config) dns.DNS]
+var dnsMap syncmap.SyncMap[pdns.Type, func(Config) dns.DNS]
 
 func New(config Config) dns.DNS {
 	f, ok := dnsMap.Load(config.Type)
@@ -43,7 +43,7 @@ func New(config Config) dns.DNS {
 	return f(config)
 }
 
-func Register(tYPE config.DnsDnsType, f func(Config) dns.DNS) {
+func Register(tYPE pdns.Type, f func(Config) dns.DNS) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}

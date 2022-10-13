@@ -27,9 +27,9 @@ func init() {
 		p := &node.Point{
 			Name:   "[trojan]" + u.Fragment,
 			Origin: node.Point_remote,
-			Protocols: []*node.PointProtocol{
+			Protocols: []*node.Protocol{
 				{
-					Protocol: &node.PointProtocol_Simple{
+					Protocol: &node.Protocol_Simple{
 						Simple: &node.Simple{
 							Host: u.Hostname(),
 							Port: int32(port),
@@ -41,7 +41,7 @@ func init() {
 					},
 				},
 				{
-					Protocol: &node.PointProtocol_Trojan{
+					Protocol: &node.Protocol_Trojan{
 						Trojan: &node.Trojan{
 							Password: u.User.String(),
 							Peer:     u.Query().Get("peer"),

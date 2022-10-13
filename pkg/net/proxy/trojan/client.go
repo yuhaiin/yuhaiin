@@ -71,7 +71,7 @@ type Client struct {
 	password []byte
 }
 
-func NewClient(config *node.PointProtocol_Trojan) node.WrapProxy {
+func NewClient(config *node.Protocol_Trojan) node.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		return &Client{
 			password: hexSha224([]byte(config.Trojan.Password)),

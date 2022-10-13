@@ -17,7 +17,7 @@ import (
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
 func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
@@ -229,7 +229,7 @@ func removeHeader(h http.Header) {
 	h.Del("Upgrade")
 }
 
-func NewServer(o *config.Opts[*config.ServerProtocol_Http]) (iserver.Server, error) {
+func NewServer(o *listener.Opts[*listener.Protocol_Http]) (iserver.Server, error) {
 	x := o.Protocol.Http
 	return server.NewTCPServer(x.Host, handshake(o.Dialer, x.Username, x.Password))
 }

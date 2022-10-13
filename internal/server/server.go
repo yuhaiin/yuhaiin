@@ -10,14 +10,15 @@ import (
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	clistener "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	protoconfig.RegisterProtocol(hs.NewServer)
-	protoconfig.RegisterProtocol(ss.NewServer)
-	protoconfig.RegisterProtocol(tun.NewTun)
+	clistener.RegisterProtocol(hs.NewServer)
+	clistener.RegisterProtocol(ss.NewServer)
+	clistener.RegisterProtocol(tun.NewTun)
 }
 
 type store struct {
@@ -26,10 +27,10 @@ type store struct {
 }
 type listener struct {
 	store syncmap.SyncMap[string, store]
-	opts  *protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]
+	opts  *clistener.Opts[clistener.IsProtocol_Protocol]
 }
 
-func NewListener(opts *protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]) *listener {
+func NewListener(opts *clistener.Opts[clistener.IsProtocol_Protocol]) *listener {
 	if opts.Dialer == nil {
 		opts.Dialer = direct.Default
 	}
@@ -56,7 +57,7 @@ func (l *listener) Update(current *protoconfig.Setting) {
 	}
 }
 
-func (l *listener) start(name string, config *protoconfig.ServerProtocol) error {
+func (l *listener) start(name string, config *clistener.Protocol) error {
 	v, ok := l.store.Load(name)
 	if ok {
 		if proto.Equal(v.config, config) {
@@ -70,8 +71,8 @@ func (l *listener) start(name string, config *protoconfig.ServerProtocol) error 
 		return fmt.Errorf("server %s disabled", config.Name)
 	}
 
-	server, err := protoconfig.CreateServer(
-		protoconfig.CovertOpts(l.opts, func(protoconfig.IsServerProtocol_Protocol) protoconfig.IsServerProtocol_Protocol {
+	server, err := clistener.CreateServer(
+		clistener.CovertOpts(l.opts, func(clistener.IsProtocol_Protocol) clistener.IsProtocol_Protocol {
 			return config.Protocol
 		}))
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -111,6 +112,18 @@ func getExtra(o connection) string {
 	return str.String()
 }
 
+func getAddr(addr proxy.Address) string {
+	z, ok := addr.Value(shunt.DOMAIN_MARK_KEY{})
+	if ok {
+		s, ok := getString(z)
+		if ok {
+			return s
+		}
+	}
+
+	return addr.String()
+}
+
 func extraMap(addr proxy.Address) map[string]string {
 	r := make(map[string]string)
 	addr.RangeValue(func(k, v any) bool {
@@ -153,7 +166,7 @@ func (c *counter) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	z := &packetConn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
-			Addr:   addr.String(),
+			Addr:   getAddr(addr),
 			Local:  con.LocalAddr().String(),
 			Remote: addr.String(),
 			Type: &statistic.ConnectionNetType{
@@ -179,7 +192,7 @@ func (c *counter) Conn(addr proxy.Address) (net.Conn, error) {
 	z := &conn{
 		Connection: &statistic.Connection{
 			Id:     c.idSeed.Generate(),
-			Addr:   addr.String(),
+			Addr:   getAddr(addr),
 			Local:  con.LocalAddr().String(),
 			Remote: con.RemoteAddr().String(),
 			Type: &statistic.ConnectionNetType{

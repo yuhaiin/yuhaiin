@@ -14,13 +14,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/lucas-clemente/quic-go"
 	"golang.org/x/net/http2"
 )
 
 func init() {
-	Register(config.Dns_doq, NewDoQ)
+	Register(pdns.Type_doq, NewDoQ)
 }
 
 type doq struct {

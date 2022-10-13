@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wintun"
 	buffer "gvisor.dev/gvisor/pkg/bufferv2"
@@ -19,7 +19,7 @@ var (
 	WintunStaticRequestedGUID *windows.GUID
 )
 
-func open(name string, _ config.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
+func open(name string, _ listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
 	if !strings.HasPrefix(name, "tun://") {
 		return nil, fmt.Errorf("invalid tun name: %s", name)
 	}

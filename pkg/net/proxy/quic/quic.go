@@ -18,7 +18,7 @@ type Client struct {
 	dialer     proxy.Proxy
 }
 
-func NewQUIC(config *node.PointProtocol_Quic) node.WrapProxy {
+func NewQUIC(config *node.Protocol_Quic) node.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
 			dialer:    dialer,

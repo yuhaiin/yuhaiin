@@ -6,6 +6,22 @@ option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
 
 import "google/protobuf/duration.proto";
 
+message protocol {
+  oneof protocol {
+    shadowsocks shadowsocks = 1 [ json_name = "shadowsocks" ];
+    shadowsocksr shadowsocksr = 2 [ json_name = "shadowsocksr" ];
+    vmess vmess = 3 [ json_name = "vmess" ];
+    websocket websocket = 4 [ json_name = "websocket" ];
+    quic quic = 5 [ json_name = "quic" ];
+    obfs_http obfs_http = 6 [ json_name = "obfs_http" ];
+    trojan trojan = 7 [ json_name = "trojan" ];
+    simple simple = 8 [ json_name = "simple" ];
+    none none = 9 [ json_name = "none" ];
+    socks5 socks5 = 10 [ json_name = "socks5" ];
+    http http = 11 [ json_name = "http" ];
+  }
+}
+
 message point {
   string hash = 1 [ json_name = "hash" ];
   string name = 2 [ json_name = "name" ];
@@ -17,22 +33,6 @@ message point {
     manual = 102;
   }
   origin_type origin = 4 [ json_name = "origin" ];
-
-  message protocol {
-    oneof protocol {
-      shadowsocks shadowsocks = 1 [ json_name = "shadowsocks" ];
-      shadowsocksr shadowsocksr = 2 [ json_name = "shadowsocksr" ];
-      vmess vmess = 3 [ json_name = "vmess" ];
-      websocket websocket = 4 [ json_name = "websocket" ];
-      quic quic = 5 [ json_name = "quic" ];
-      obfs_http obfs_http = 6 [ json_name = "obfs_http" ];
-      trojan trojan = 7 [ json_name = "trojan" ];
-      simple simple = 8 [ json_name = "simple" ];
-      none none = 9 [ json_name = "none" ];
-      socks5 socks5 = 10 [ json_name = "socks5" ];
-      http http = 11 [ json_name = "http" ];
-    }
-  }
   // will use protocols' order to create dialer
   repeated protocol protocols = 5 [ json_name = "protocols" ];
 }

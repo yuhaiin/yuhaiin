@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package yuhaiin.bypass;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass";
+
+enum mode {
+  bypass = 0;
+  direct = 1;
+  proxy = 2;
+  block = 3;
+}
+
+message config {
+  mode tcp = 3 [ json_name = "tcp" ];
+  mode udp = 4 [ json_name = "udp" ];
+  string bypass_file = 2 [ json_name = "bypass_file" ];
+  map<string, mode> custom_rule = 5 [ json_name = "custom_rule" ];
+}

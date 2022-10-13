@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -15,18 +17,18 @@ func TestJsonPb(t *testing.T) {
 			Http:   true,
 			Socks5: false,
 		},
-		Bypass: &config.Bypass{
+		Bypass: &bypass.Config{
 			BypassFile: filepath.Join("/tmp/yuhaiin/setting", "yuhaiin.conf"),
 		},
-		Dns: &config.DnsSetting{
-			Remote: &config.Dns{
+		Dns: &dns.Config{
+			Remote: &dns.Dns{
 				Host:   "cloudflare-dns.com",
-				Type:   config.Dns_doh,
+				Type:   dns.Type_doh,
 				Subnet: "0.0.0.0/32",
 			},
-			Local: &config.Dns{
+			Local: &dns.Dns{
 				Host: "223.5.5.5",
-				Type: config.Dns_doh,
+				Type: dns.Type_doh,
 			},
 		},
 	}
@@ -51,7 +53,7 @@ func TestJsonPb(t *testing.T) {
 }
 
 func TestCheckDNS(t *testing.T) {
-	z := &config.Dns{
+	z := &dns.Dns{
 		Host: "example.com",
 	}
 

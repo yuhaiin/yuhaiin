@@ -23,7 +23,7 @@ func TestParseTrojan(t *testing.T) {
 
 func TestTrojan(t *testing.T) {
 	p := &node.Point{
-		Protocols: []*node.PointProtocol{},
+		Protocols: []*node.Protocol{},
 	}
 
 	err := protojson.Unmarshal([]byte(``), p)
