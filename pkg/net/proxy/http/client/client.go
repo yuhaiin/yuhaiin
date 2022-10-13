@@ -17,7 +17,7 @@ type client struct {
 	user, password string
 }
 
-func NewHttp(config *node.PointProtocol_Http) node.WrapProxy {
+func NewHttp(config *node.Protocol_Http) node.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &client{p, config.Http.User, config.Http.Password}, nil
 	}

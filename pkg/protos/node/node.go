@@ -13,9 +13,9 @@ import (
 
 type WrapProxy func(p proxy.Proxy) (proxy.Proxy, error)
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(isPointProtocol_Protocol) WrapProxy]
+var execProtocol syncmap.SyncMap[reflect.Type, func(isProtocol_Protocol) WrapProxy]
 
-func RegisterProtocol[T isPointProtocol_Protocol](wrap func(T) WrapProxy) {
+func RegisterProtocol[T isProtocol_Protocol](wrap func(T) WrapProxy) {
 	if wrap == nil {
 		return
 	}
@@ -23,11 +23,11 @@ func RegisterProtocol[T isPointProtocol_Protocol](wrap func(T) WrapProxy) {
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(t isPointProtocol_Protocol) WrapProxy { return wrap(t.(T)) },
+		func(t isProtocol_Protocol) WrapProxy { return wrap(t.(T)) },
 	)
 }
 
-func Wrap(p isPointProtocol_Protocol) WrapProxy {
+func Wrap(p isProtocol_Protocol) WrapProxy {
 	if p == nil {
 		return ErrConn(fmt.Errorf("value is nil: %v", p))
 	}

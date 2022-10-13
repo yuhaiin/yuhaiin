@@ -15,11 +15,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func init() {
-	Register(config.Dns_doh, NewDoH)
+	Register(pdns.Type_doh, NewDoH)
 }
 
 var _ dns.DNS = (*doh)(nil)

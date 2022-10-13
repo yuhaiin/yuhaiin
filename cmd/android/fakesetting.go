@@ -13,7 +13,10 @@ import (
 	iconfig "github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -23,37 +26,38 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 	log.Infoln("fake setting:", string(opts))
 	settings := &protoconfig.Setting{
 		Ipv6: opt.IPv6,
-		Dns: &protoconfig.DnsSetting{
-			Server:         opt.DNS.Server,
-			Fakedns:        opt.DNS.Fakedns,
-			FakednsIpRange: opt.DNS.FakednsIpRange,
-			Remote: &protoconfig.Dns{
+		Dns: &dns.Config{
+			Server:              opt.DNS.Server,
+			Fakedns:             opt.DNS.Fakedns,
+			FakednsIpRange:      opt.DNS.FakednsIpRange,
+			ResolveRemoteDomain: opt.DNS.ResolveRemoteDomain,
+			Remote: &dns.Dns{
 				Host:          opt.DNS.Remote.Host,
-				Type:          protoconfig.DnsDnsType(opt.DNS.Remote.Type),
+				Type:          dns.Type(opt.DNS.Remote.Type),
 				Subnet:        opt.DNS.Remote.Subnet,
 				TlsServername: opt.DNS.Remote.TlsServername,
 			},
-			Local: &protoconfig.Dns{
+			Local: &dns.Dns{
 				Host:          opt.DNS.Local.Host,
-				Type:          protoconfig.DnsDnsType(opt.DNS.Local.Type),
+				Type:          dns.Type(opt.DNS.Local.Type),
 				Subnet:        opt.DNS.Local.Subnet,
 				TlsServername: opt.DNS.Local.TlsServername,
 			},
-			Bootstrap: &protoconfig.Dns{
+			Bootstrap: &dns.Dns{
 				Host:          opt.DNS.Bootstrap.Host,
-				Type:          protoconfig.DnsDnsType(opt.DNS.Bootstrap.Type),
+				Type:          dns.Type(opt.DNS.Bootstrap.Type),
 				Subnet:        opt.DNS.Bootstrap.Subnet,
 				TlsServername: opt.DNS.Bootstrap.TlsServername,
 			},
 		},
 		SystemProxy: &protoconfig.SystemProxy{},
-		Server: &protoconfig.Server{
-			Servers: map[string]*protoconfig.ServerProtocol{
+		Server: &listener.Config{
+			Servers: map[string]*listener.Protocol{
 				"socks5": {
 					Name:    "socks5",
 					Enabled: opt.Socks5 != "",
-					Protocol: &protoconfig.ServerProtocol_Socks5{
-						Socks5: &protoconfig.Socks5{
+					Protocol: &listener.Protocol_Socks5{
+						Socks5: &listener.Socks5{
 							Host: opt.Socks5,
 						},
 					},
@@ -61,8 +65,8 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 				"http": {
 					Name:    "http",
 					Enabled: opt.Http != "",
-					Protocol: &protoconfig.ServerProtocol_Http{
-						Http: &protoconfig.Http{
+					Protocol: &listener.Protocol_Http{
+						Http: &listener.Http{
 							Host: opt.Http,
 						},
 					},
@@ -70,25 +74,25 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 				"tun": {
 					Name:    "tun",
 					Enabled: true,
-					Protocol: &protoconfig.ServerProtocol_Tun{
-						Tun: &protoconfig.Tun{
+					Protocol: &listener.Protocol_Tun{
+						Tun: &listener.Tun{
 							Name:          fmt.Sprintf("fd://%d", opt.TUN.FD),
 							Mtu:           opt.TUN.MTU,
 							Gateway:       opt.TUN.Gateway,
 							DnsHijacking:  opt.TUN.DNSHijacking,
 							SkipMulticast: true,
-							Driver:        protoconfig.TunEndpointDriver(opt.TUN.Driver),
+							Driver:        listener.TunEndpointDriver(opt.TUN.Driver),
 						},
 					},
 				},
 			},
 		},
 
-		Bypass: &protoconfig.Bypass{
-			Tcp:        protoconfig.BypassMode(opt.Bypass.TCP),
-			Udp:        protoconfig.BypassMode(opt.Bypass.UDP),
+		Bypass: &bypass.Config{
+			Tcp:        bypass.Mode(opt.Bypass.TCP),
+			Udp:        bypass.Mode(opt.Bypass.UDP),
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
-			CustomRule: make(map[string]protoconfig.BypassMode),
+			CustomRule: make(map[string]bypass.Mode),
 		},
 
 		Logcat: &protolog.Logcat{
@@ -97,13 +101,13 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 		},
 	}
 
-	applyRule(settings, opt.Bypass.Proxy, protoconfig.Bypass_proxy)
-	applyRule(settings, opt.Bypass.Block, protoconfig.Bypass_block)
-	applyRule(settings, opt.Bypass.Direct, protoconfig.Bypass_direct)
+	applyRule(settings, opt.Bypass.Proxy, bypass.Mode_proxy)
+	applyRule(settings, opt.Bypass.Block, bypass.Mode_block)
+	applyRule(settings, opt.Bypass.Direct, bypass.Mode_direct)
 	return newFakeSetting(settings)
 }
 
-func applyRule(settings *protoconfig.Setting, ruls string, mode protoconfig.BypassMode) {
+func applyRule(settings *protoconfig.Setting, ruls string, mode bypass.Mode) {
 	r := bufio.NewReader(strings.NewReader(ruls))
 	for {
 		line, _, err := r.ReadLine()

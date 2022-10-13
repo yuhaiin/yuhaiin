@@ -2,9 +2,9 @@ package server
 
 import (
 	rs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	cl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
 func init() {
-	protoconfig.RegisterProtocol(rs.NewServer)
+	cl.RegisterProtocol(rs.NewServer)
 }

@@ -106,7 +106,7 @@ func init() {
 			return nil, fmt.Errorf("vmess type is not supported: %v", n.Type)
 		}
 
-		var net *node.PointProtocol
+		var net *node.Protocol
 		switch n.Net {
 		case "ws":
 			if n.Host == "" {
@@ -120,8 +120,8 @@ func init() {
 				}
 			}
 
-			net = &node.PointProtocol{
-				Protocol: &node.PointProtocol_Websocket{
+			net = &node.Protocol{
+				Protocol: &node.Protocol_Websocket{
 					Websocket: &node.Websocket{
 						Host: n.Host,
 						Path: n.Path,
@@ -135,7 +135,7 @@ func init() {
 				},
 			}
 		case "tcp":
-			net = &node.PointProtocol{Protocol: &node.PointProtocol_None{None: &node.None{}}}
+			net = &node.Protocol{Protocol: &node.Protocol_None{None: &node.None{}}}
 		default:
 			return nil, fmt.Errorf("vmess net is not supported: %v", n.Net)
 		}
@@ -143,9 +143,9 @@ func init() {
 		return &node.Point{
 			Name:   "[vmess]" + n.Ps,
 			Origin: node.Point_remote,
-			Protocols: []*node.PointProtocol{
+			Protocols: []*node.Protocol{
 				{
-					Protocol: &node.PointProtocol_Simple{
+					Protocol: &node.Protocol_Simple{
 						Simple: &node.Simple{
 							Host: n.Address,
 							Port: int32(port),
@@ -154,7 +154,7 @@ func init() {
 				},
 				net,
 				{
-					Protocol: &node.PointProtocol_Vmess{
+					Protocol: &node.Protocol_Vmess{
 						Vmess: &node.Vmess{
 							Uuid:     n.Uuid,
 							AlterId:  get(n.AlterId),

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func TestUDP(t *testing.T) {
@@ -13,7 +13,7 @@ func TestUDP(t *testing.T) {
 	// dns := NewDoU("114.114.114.114:53", subnet, nil)
 	// dns := NewDoU(dns.Config{Host: "1.1.1.1", Subnet: subnet}, s5c.Dial("127.0.0.1", "1080", "", ""))
 	// dns := NewDoU(dns.Config{Host: "8.8.8.8", Subnet: subnet}, s5c.Dial("127.0.0.1", "1080", "", ""))
-	dns := New(Config{Type: config.Dns_udp, Host: "one.one.one.one", Subnet: subnet, Dialer: s5c.Dial("127.0.0.1", "1080", "", "")})
+	dns := New(Config{Type: dns.Type_udp, Host: "one.one.one.one", Subnet: subnet, Dialer: s5c.Dial("127.0.0.1", "1080", "", "")})
 	t.Log(dns.LookupIP("baidu.com"))
 	t.Log(dns.LookupIP("google.com"))
 	t.Log(dns.LookupIP("www.twitter.com"))

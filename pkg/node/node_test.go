@@ -111,9 +111,9 @@ func TestMarshalMap(t *testing.T) {
 }
 
 func TestProtoMsgType(t *testing.T) {
-	p := &node.PointProtocol{
-		Protocol: &node.PointProtocol_None{},
+	p := &node.Protocol{
+		Protocol: &node.Protocol_None{},
 	}
 
-	t.Log(reflect.TypeOf(p.GetProtocol()) == reflect.TypeOf(&node.PointProtocol_None{}))
+	t.Log(reflect.TypeOf(p.GetProtocol()) == reflect.TypeOf(&node.Protocol_None{}))
 }

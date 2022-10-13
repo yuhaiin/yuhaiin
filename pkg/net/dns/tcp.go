@@ -10,11 +10,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func init() {
-	Register(config.Dns_tcp, NewTCP)
+	Register(pdns.Type_tcp, NewTCP)
 }
 
 var _ dns.DNS = (*tcp)(nil)

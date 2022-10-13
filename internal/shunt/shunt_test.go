@@ -5,12 +5,12 @@ import (
 	"net"
 	"testing"
 
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"google.golang.org/protobuf/proto"
 )
 
 func TestDiffDNS(t *testing.T) {
-	z := !proto.Equal(&protoconfig.Dns{}, &protoconfig.Dns{})
+	z := !proto.Equal(&dns.Dns{}, &dns.Dns{})
 	t.Log(z)
 
 	_, x, _ := net.ParseCIDR("1.1.1.1/32")

@@ -12,6 +12,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/protobuf/proto"
 )
@@ -80,7 +82,7 @@ func (r *Resolvers) Remote() idns.DNS { return r.remote }
 func (r *Resolvers) Local() idns.DNS  { return r.local }
 
 type basedns struct {
-	config *protoconfig.Dns
+	config *pdns.Dns
 	dns    idns.DNS
 
 	update func(*basedns, *protoconfig.Setting)
@@ -127,7 +129,7 @@ func (b *basedns) Do(r []byte) ([]byte, error) {
 	return b.dns.Do(r)
 }
 
-func getDNS(name string, ipv6 bool, dc *protoconfig.Dns, dialer proxy.Proxy) idns.DNS {
+func getDNS(name string, ipv6 bool, dc *pdns.Dns, dialer proxy.Proxy) idns.DNS {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)
@@ -162,14 +164,14 @@ type dialer struct {
 
 func (d *dialer) Conn(addr proxy.Address) (net.Conn, error) {
 	// force to use bootstrap dns, otherwise will dns query cycle
-	addr.WithResolver(d.bootstrap, proxy.WithResolverMode(proxy.PERMANENT))
+	addr.WithResolver(d.bootstrap, false)
 
 	return d.Proxy.Conn(addr)
 }
 
 func (d *dialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	// force to use bootstrap dns, otherwise will dns query cycle
-	addr.WithResolver(d.bootstrap, proxy.WithResolverMode(proxy.PERMANENT))
+	addr.WithResolver(d.bootstrap, false)
 
 	return d.Proxy.PacketConn(addr)
 }
@@ -177,11 +179,11 @@ func (d *dialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 type bootstrapDialer struct{ proxy.Proxy }
 
 func (b *bootstrapDialer) Conn(addr proxy.Address) (net.Conn, error) {
-	addr.WithValue(shunt.ForceModeKey{}, protoconfig.Bypass_direct)
+	addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
 	return b.Proxy.Conn(addr)
 }
 
 func (b *bootstrapDialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	addr.WithValue(shunt.ForceModeKey{}, protoconfig.Bypass_direct)
+	addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
 	return b.Proxy.PacketConn(addr)
 }

@@ -14,6 +14,12 @@ type MODE_MARK_KEY struct{}
 
 func (MODE_MARK_KEY) String() string { return "MODE" }
 
+type DOMAIN_MARK_KEY struct{}
+
+type IP_MARK_KEY struct{}
+
+func (IP_MARK_KEY) String() string { return "IP" }
+
 //go:embed statics/bypass.gz
 var BYPASS_DATA []byte
 

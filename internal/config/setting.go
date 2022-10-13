@@ -13,7 +13,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -112,45 +115,46 @@ func defaultConfig(path string) []byte {
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		},
-		Bypass: &config.Bypass{
-			Tcp:        config.Bypass_bypass,
-			Udp:        config.Bypass_bypass,
+		Bypass: &bypass.Config{
+			Tcp:        bypass.Mode_bypass,
+			Udp:        bypass.Mode_bypass,
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
-			CustomRule: map[string]config.BypassMode{
-				"dns.google":               config.Bypass_proxy,
-				"223.5.5.5":                config.Bypass_direct,
-				"exmaple.block.domain.com": config.Bypass_block,
+			CustomRule: map[string]bypass.Mode{
+				"dns.google":               bypass.Mode_proxy,
+				"223.5.5.5":                bypass.Mode_direct,
+				"exmaple.block.domain.com": bypass.Mode_block,
 			},
 		},
-		Dns: &config.DnsSetting{
-			Server:         "127.0.0.1:5353",
-			Fakedns:        false,
-			FakednsIpRange: "10.0.2.1/24",
-			Local: &config.Dns{
+		Dns: &dns.Config{
+			ResolveRemoteDomain: false,
+			Server:              "127.0.0.1:5353",
+			Fakedns:             false,
+			FakednsIpRange:      "10.0.2.1/24",
+			Local: &dns.Dns{
 				Host: "223.5.5.5",
-				Type: config.Dns_doh,
+				Type: dns.Type_doh,
 			},
-			Remote: &config.Dns{
+			Remote: &dns.Dns{
 				Host:   "dns.google",
-				Type:   config.Dns_doh,
+				Type:   dns.Type_doh,
 				Subnet: "223.5.5.5",
 			},
-			Bootstrap: &config.Dns{
+			Bootstrap: &dns.Dns{
 				Host: "223.5.5.5",
-				Type: config.Dns_udp,
+				Type: dns.Type_udp,
 			},
 		},
 		Logcat: &protolog.Logcat{
 			Level: protolog.LogLevel_debug,
 			Save:  true,
 		},
-		Server: &config.Server{
-			Servers: map[string]*config.ServerProtocol{
+		Server: &listener.Config{
+			Servers: map[string]*listener.Protocol{
 				"http": {
 					Name:    "http",
 					Enabled: true,
-					Protocol: &config.ServerProtocol_Http{
-						Http: &config.Http{
+					Protocol: &listener.Protocol_Http{
+						Http: &listener.Http{
 							Host: "127.0.0.1:8188",
 						},
 					},
@@ -158,8 +162,8 @@ func defaultConfig(path string) []byte {
 				"socks5": {
 					Name:    "socks5",
 					Enabled: true,
-					Protocol: &config.ServerProtocol_Socks5{
-						Socks5: &config.Socks5{
+					Protocol: &listener.Protocol_Socks5{
+						Socks5: &listener.Socks5{
 							Host: "127.0.0.1:1080",
 						},
 					},
@@ -167,8 +171,8 @@ func defaultConfig(path string) []byte {
 				"redir": {
 					Name:    "redir",
 					Enabled: false,
-					Protocol: &config.ServerProtocol_Redir{
-						Redir: &config.Redir{
+					Protocol: &listener.Protocol_Redir{
+						Redir: &listener.Redir{
 							Host: "127.0.0.1:8088",
 						},
 					},
@@ -176,8 +180,8 @@ func defaultConfig(path string) []byte {
 				"tun": {
 					Name:    "tun",
 					Enabled: false,
-					Protocol: &config.ServerProtocol_Tun{
-						Tun: &config.Tun{
+					Protocol: &listener.Protocol_Tun{
+						Tun: &listener.Tun{
 							Name:          "tun://tun0",
 							Mtu:           1500,
 							Gateway:       "172.19.0.1",
@@ -229,8 +233,8 @@ func check(pa *config.Setting) error {
 	return nil
 }
 
-func checkBypass(pa *config.Bypass) error {
-	if pa.Tcp != config.Bypass_bypass && pa.Udp != config.Bypass_bypass {
+func checkBypass(pa *bypass.Config) error {
+	if pa.Tcp != bypass.Mode_bypass && pa.Udp != bypass.Mode_bypass {
 		return nil
 	}
 	_, err := os.Stat(pa.BypassFile)
@@ -241,7 +245,7 @@ func checkBypass(pa *config.Bypass) error {
 	return nil
 }
 
-func CheckBootstrapDns(pa *config.Dns) error {
+func CheckBootstrapDns(pa *dns.Dns) error {
 	hostname, err := GetDNSHostname(pa.Host)
 	if err != nil {
 		return err

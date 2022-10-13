@@ -22,7 +22,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"google.golang.org/grpc"
@@ -43,7 +45,7 @@ type StartOpt struct {
 	Host       string
 	Setting    config.Setting
 
-	UidDumper  protoconfig.UidDumper
+	UidDumper  listener.UidDumper
 	GRPCServer *grpc.Server
 }
 
@@ -95,19 +97,19 @@ func Start(opt StartOpt) (StartResponse, error) {
 	// bypass dialer and dns request
 	st := shunt.NewShunt([]shunt.Mode{
 		{
-			Mode:     protoconfig.Bypass_proxy,
+			Mode:     bypass.Mode_proxy,
 			Default:  true,
 			Dialer:   node,
 			Resolver: resolvers.Remote(),
 		},
 		{
-			Mode:     protoconfig.Bypass_direct,
+			Mode:     bypass.Mode_direct,
 			Default:  false,
 			Dialer:   direct.Default,
 			Resolver: resolvers.Local(),
 		},
 		{
-			Mode:     protoconfig.Bypass_block,
+			Mode:     bypass.Mode_block,
 			Default:  false,
 			Dialer:   reject.NewReject(5, 15),
 			Resolver: dns.NewErrorDNS(errors.New("block")),
@@ -131,7 +133,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	// http/socks5/redir/tun server
 	listener := server.NewListener(
-		&protoconfig.Opts[protoconfig.IsServerProtocol_Protocol]{
+		&listener.Opts[listener.IsProtocol_Protocol]{
 			Dialer:    stcs,
 			DNSServer: dnsServer,
 			UidDumper: opt.UidDumper,

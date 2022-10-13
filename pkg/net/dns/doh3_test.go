@@ -3,12 +3,12 @@ package dns
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func TestDoh3(t *testing.T) {
 	c := New(Config{
-		Type: config.Dns_doh3,
+		Type: dns.Type_doh3,
 		Host: "cloudflare-dns.com",
 		IPv6: true,
 	})

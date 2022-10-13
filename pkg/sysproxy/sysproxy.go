@@ -2,10 +2,11 @@ package sysproxy
 
 import (
 	cb "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"google.golang.org/protobuf/proto"
 )
 
-var server *cb.Server
+var server *listener.Config
 
 func Update(s *cb.Setting) {
 	if proto.Equal(server, s.Server) {

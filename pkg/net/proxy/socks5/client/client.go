@@ -25,7 +25,7 @@ type client struct {
 }
 
 // NewSocks5 returns a new Socks5 client
-func NewSocks5(config *node.PointProtocol_Socks5) node.WrapProxy {
+func NewSocks5(config *node.Protocol_Socks5) node.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		return &client{
 			dialer:   dialer,

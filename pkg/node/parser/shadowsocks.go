@@ -32,7 +32,7 @@ func init() {
 			method, password = string(mps[:i]), string(mps[i+1:])
 		}
 
-		var plugin *node.PointProtocol
+		var plugin *node.Protocol
 		pluginopts := parseOpts(ssUrl.Query().Get("plugin"))
 		switch {
 		case pluginopts["obfs-local"] == "true":
@@ -40,7 +40,7 @@ func init() {
 		case pluginopts["v2ray"] == "true":
 			plugin, err = parseV2ray(pluginopts)
 		default:
-			plugin = &node.PointProtocol{Protocol: &node.PointProtocol_None{None: &node.None{}}}
+			plugin = &node.Protocol{Protocol: &node.Protocol_None{None: &node.None{}}}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("parse plugin failed: %w", err)
@@ -54,9 +54,9 @@ func init() {
 		return &node.Point{
 			Origin: node.Point_remote,
 			Name:   "[ss]" + ssUrl.Fragment,
-			Protocols: []*node.PointProtocol{
+			Protocols: []*node.Protocol{
 				{
-					Protocol: &node.PointProtocol_Simple{
+					Protocol: &node.Protocol_Simple{
 						Simple: &node.Simple{
 							Host: server,
 							Port: int32(port),
@@ -65,7 +65,7 @@ func init() {
 				},
 				plugin,
 				{
-					Protocol: &node.PointProtocol_Shadowsocks{
+					Protocol: &node.Protocol_Shadowsocks{
 						Shadowsocks: &node.Shadowsocks{
 							Server:   server,
 							Port:     portstr,
@@ -80,7 +80,7 @@ func init() {
 	})
 }
 
-func parseV2ray(store map[string]string) (*node.PointProtocol, error) {
+func parseV2ray(store map[string]string) (*node.Protocol, error) {
 	// fastOpen := false
 	// path := "/"
 	// host := "cloudfront.com"
@@ -106,8 +106,8 @@ func parseV2ray(store map[string]string) (*node.PointProtocol, error) {
 
 	switch store["mode"] {
 	case "websocket":
-		return &node.PointProtocol{
-			Protocol: &node.PointProtocol_Websocket{
+		return &node.Protocol{
+			Protocol: &node.Protocol_Websocket{
 				Websocket: &node.Websocket{
 					Host: store["host"],
 					Path: store["path"],
@@ -120,8 +120,8 @@ func parseV2ray(store map[string]string) (*node.PointProtocol, error) {
 			},
 		}, nil
 	case "quic":
-		return &node.PointProtocol{
-			Protocol: &node.PointProtocol_Quic{
+		return &node.Protocol{
+			Protocol: &node.Protocol_Quic{
 				Quic: &node.Quic{
 					Tls: &node.TlsConfig{
 						ServerName: ns,
@@ -135,13 +135,13 @@ func parseV2ray(store map[string]string) (*node.PointProtocol, error) {
 	return nil, fmt.Errorf("unsupported mode: %v", store["mode"])
 }
 
-func parseObfs(args map[string]string) (*node.PointProtocol, error) {
+func parseObfs(args map[string]string) (*node.Protocol, error) {
 	hostname, port, err := net.SplitHostPort(args["obfs-host"])
 	if err != nil {
 		return nil, err
 	}
-	return &node.PointProtocol{
-		Protocol: &node.PointProtocol_ObfsHttp{
+	return &node.Protocol{
+		Protocol: &node.Protocol_ObfsHttp{
 			ObfsHttp: &node.ObfsHttp{
 				Host: hostname,
 				Port: port,

@@ -14,9 +14,9 @@ import (
 
 func main() {
 	node := &node.Point{
-		Protocols: []*node.PointProtocol{
+		Protocols: []*node.Protocol{
 			{
-				Protocol: &node.PointProtocol_Simple{
+				Protocol: &node.Protocol_Simple{
 					Simple: &node.Simple{
 						Host: "127.0.0.1",
 						Port: 1080,
@@ -24,7 +24,7 @@ func main() {
 				},
 			},
 			{
-				Protocol: &node.PointProtocol_Socks5{
+				Protocol: &node.Protocol_Socks5{
 					Socks5: &node.Socks5{},
 				},
 			},

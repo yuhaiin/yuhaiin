@@ -46,9 +46,9 @@ func init() {
 		return &node.Point{
 			Origin: node.Point_remote,
 			Name:   "[ssr]" + string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("remarks")))),
-			Protocols: []*node.PointProtocol{
+			Protocols: []*node.Protocol{
 				{
-					Protocol: &node.PointProtocol_Simple{
+					Protocol: &node.Protocol_Simple{
 						Simple: &node.Simple{
 							Host: x[0],
 							Port: int32(port),
@@ -56,7 +56,7 @@ func init() {
 					},
 				},
 				{
-					Protocol: &node.PointProtocol_Shadowsocksr{
+					Protocol: &node.Protocol_Shadowsocksr{
 						Shadowsocksr: &node.Shadowsocksr{
 							Server:     x[0],
 							Port:       x[1],
