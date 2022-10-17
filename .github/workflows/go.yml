@@ -11,12 +11,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
-        go-version: 1.19
+        go-version: '>=1.19.0'
 
     # - name: Set up Upx
     #   run: |
@@ -37,35 +37,35 @@ jobs:
       run: make vet
 
     - name: upload_linux_amd64
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: output_linux_amd64
         path: |
           yuhaiin
 
     - name: upload_linux_amd64v3
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: output_linux_amd64v3
         path: |
           yuhaiin_v3
 
     - name: upload_windows_amd64
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: output_windows_amd64
         path: |
           yuhaiin.exe
 
     - name: upload_windows_amd64v3
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: output_windows_amd64v3
         path: |
           yuhaiin_v3.exe
 
     - name: upload_dnsrelay
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: output_dnsrelay
         path: |
