@@ -6,7 +6,7 @@ type origin struct{}
 
 var _origin = &origin{}
 
-func NewOrigin(Info) Protocol { return _origin }
+func NewOrigin(Protocol) protocol { return _origin }
 func (o *origin) EncryptStream(dst *bytes.Buffer, data []byte) (err error) {
 	dst.Write(data)
 	return nil

@@ -2,6 +2,7 @@ package dns
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -219,6 +220,10 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	if err != nil {
 		log.Errorf("lookup domain %s failed: %v\n", q.Name.String(), err)
 		r = emptyIPResponse
+
+		if !errors.Is(err, ErrNoIPFound) {
+			resp.RCode = dnsmessage.RCodeNameError
+		}
 	}
 
 	for _, a := range r.IPs() {
@@ -241,10 +246,6 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 			},
 			Body: resource,
 		})
-	}
-
-	if len(resp.Answers) == 0 {
-		resp.RCode = dnsmessage.RCodeNameError
 	}
 
 	return resp.Pack()

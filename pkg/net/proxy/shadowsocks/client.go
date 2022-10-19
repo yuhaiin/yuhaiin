@@ -54,18 +54,17 @@ func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
 
 // PacketConn .
 func (s *Shadowsocks) PacketConn(tar proxy.Address) (net.PacketConn, error) {
+	uaddr, err := resolver.ResolveUDPAddr(s.addr)
+	if err != nil {
+		return nil, fmt.Errorf("resolve udp address failed: %v", err)
+	}
+
 	pc, err := s.p.PacketConn(tar)
 	if err != nil {
 		return nil, fmt.Errorf("create packet conn failed")
 	}
-	pc = s.cipher.PacketConn(pc)
 
-	uaddr, err := resolver.ResolveUDPAddr(s.addr)
-	if err != nil {
-		pc.Close()
-		return nil, fmt.Errorf("resolve udp address failed: %v", err)
-	}
-	return NewSsPacketConn(pc, uaddr, tar), nil
+	return NewSsPacketConn(s.cipher.PacketConn(pc), uaddr, tar), nil
 }
 
 type ssPacketConn struct {

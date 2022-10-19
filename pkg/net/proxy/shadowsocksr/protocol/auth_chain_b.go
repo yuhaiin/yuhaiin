@@ -6,19 +6,19 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
-func NewAuthChainB(info Info) Protocol {
+func NewAuthChainB(info Protocol) protocol {
 	a := newAuthChain(info, authChainBGetRandLen)
 	a.authChainBInitDataSize()
 	return a
 }
 
 func (a *authChainA) authChainBInitDataSize() {
-	if len(a.Key) == 0 {
+	if len(a.Key()) == 0 {
 		return
 	}
 	// libev version
 	random := &a.randomServer
-	random.InitFromBin(a.Key)
+	random.InitFromBin(a.Key())
 	length := random.Next()%8 + 4
 	a.dataSizeList = make([]int, length)
 	for i := 0; i < int(length); i++ {

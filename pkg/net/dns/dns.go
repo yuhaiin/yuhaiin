@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -265,9 +266,11 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 	}
 
 	if len(i) == 0 {
-		return 0, nil, fmt.Errorf("no ip found")
+		return 0, nil, ErrNoIPFound
 	}
 	return ttl, i, nil
 }
+
+var ErrNoIPFound = errors.New("no ip fond")
 
 func (c *client) Close() error { return nil }

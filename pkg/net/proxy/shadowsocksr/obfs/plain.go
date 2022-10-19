@@ -6,5 +6,5 @@ import (
 
 type plain struct{ net.Conn }
 
-func newPlainObfs(conn net.Conn, _ Info) Obfs { return &plain{conn} }
+func newPlainObfs(conn net.Conn, _ Obfs) obfs { return &plain{conn} }
 func (p *plain) GetOverhead() int             { return 0 }

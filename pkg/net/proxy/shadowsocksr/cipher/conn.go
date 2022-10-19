@@ -39,9 +39,8 @@ func NewCipher(method, password string) (*Cipher, error) {
 	mi := ss.Creator(key)
 	return &Cipher{key, mi.IVSize(), &cipherConn{mi}}, nil
 }
-func (c *Cipher) IVSize() int  { return c.ivSize }
-func (c *Cipher) Key() []byte  { return c.key }
-func (c *Cipher) KeySize() int { return len(c.key) }
+func (c *Cipher) IVSize() int { return c.ivSize }
+func (c *Cipher) Key() []byte { return c.key }
 
 // dummy cipher does not encrypt
 type dummy struct{}
@@ -117,25 +116,33 @@ func newStreamConn(c net.Conn, cipher CipherFactory) net.Conn {
 	return &streamConn{Conn: c, cipher: cipher}
 }
 
-func (c *streamConn) WriteIV() []byte {
+func (c *streamConn) WriteIV() ([]byte, error) {
 	if c.writeIV == nil {
 		c.writeIV = make([]byte, c.cipher.IVSize())
-		rand.Read(c.writeIV)
+		if _, err := rand.Read(c.writeIV); err != nil {
+			return nil, err
+		}
 	}
-	return c.writeIV
+	return c.writeIV, nil
 }
 
-func (c *streamConn) ReadIV() []byte {
+func (c *streamConn) ReadIV() ([]byte, error) {
 	if c.readIV == nil {
 		c.readIV = make([]byte, c.cipher.IVSize())
-		io.ReadFull(c.Conn, c.readIV)
+		if _, err := io.ReadFull(c.Conn, c.readIV); err != nil {
+			return nil, err
+		}
 	}
-	return c.readIV
+	return c.readIV, nil
 }
 
 func (c *streamConn) Read(b []byte) (n int, err error) {
 	if c.dec == nil {
-		c.dec, err = c.cipher.DecryptStream(c.ReadIV())
+		readIV, err := c.ReadIV()
+		if err != nil {
+			return 0, fmt.Errorf("get read iv failed: %w", err)
+		}
+		c.dec, err = c.cipher.DecryptStream(readIV)
 		if err != nil {
 			return 0, fmt.Errorf("create new decor failed: %w", err)
 		}
@@ -151,12 +158,16 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 
 func (c *streamConn) Write(b []byte) (_ int, err error) {
 	if c.enc == nil {
-		c.enc, err = c.cipher.EncryptStream(c.WriteIV())
+		writeIV, err := c.WriteIV()
+		if err != nil {
+			return 0, fmt.Errorf("get write iv failed: %w", err)
+		}
+		c.enc, err = c.cipher.EncryptStream(writeIV)
 		if err != nil {
 			return 0, err
 		}
 
-		_, err = c.Conn.Write(c.WriteIV())
+		_, err = c.Conn.Write(writeIV)
 		if err != nil {
 			return 0, err
 		}
