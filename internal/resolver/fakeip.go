@@ -17,23 +17,24 @@ type Fakedns struct {
 	fake   *dns.Fake
 	config *pdns.Config
 
-	dialer proxy.DialerResolverProxy
+	dialer         proxy.Proxy
+	resolverDialer proxy.ResolverProxy
 }
 
-func NewFakeDNS(dialer proxy.DialerResolverProxy) proxy.DialerResolverProxy {
+func NewFakeDNS(dialer proxy.Proxy, resolverProxy proxy.ResolverProxy) proxy.DialerResolverProxy {
 	_, ipRange, _ := net.ParseCIDR("10.2.0.1/24")
-	return &Fakedns{fake: dns.NewFake(ipRange), dialer: dialer}
+	return &Fakedns{fake: dns.NewFake(ipRange), dialer: dialer, resolverDialer: resolverProxy}
 }
 
 func (f *Fakedns) Resolver(addr proxy.Address) idns.DNS {
 	if f.config != nil && f.config.Fakedns {
 		return dns.WrapFakeDNS(
-			func(b []byte) ([]byte, error) { return f.dialer.Resolver(addr).Do(b) },
+			func(b []byte) ([]byte, error) { return f.resolverDialer.Resolver(addr).Do(b) },
 			f.fake,
 		)
 	}
 
-	return f.dialer.Resolver(addr)
+	return f.resolverDialer.Resolver(addr)
 }
 
 func (f *Fakedns) Update(c *protoconfig.Setting) {

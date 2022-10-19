@@ -22,7 +22,7 @@ type tlsAuthData struct {
 
 // tls12TicketAuth tls1.2_ticket_auth obfs encapsulate
 type tls12TicketAuth struct {
-	Info
+	Obfs
 	data            *tlsAuthData
 	handshakeStatus int
 	sendSaver       bytes.Buffer
@@ -33,8 +33,8 @@ type tls12TicketAuth struct {
 }
 
 // newTLS12TicketAuth create a tlv1.2_ticket_auth object
-func newTLS12TicketAuth(conn net.Conn, info Info) Obfs {
-	return &tls12TicketAuth{Conn: conn, Info: info}
+func newTLS12TicketAuth(conn net.Conn, info Obfs) obfs {
+	return &tls12TicketAuth{Conn: conn, Obfs: info}
 }
 
 func (t *tls12TicketAuth) GetData() *tlsAuthData {
@@ -296,9 +296,9 @@ func (t *tls12TicketAuth) packAuthData() (outData []byte) {
 }
 
 func (t *tls12TicketAuth) hmacSHA1(data []byte) []byte {
-	key := make([]byte, t.KeySize+32)
-	copy(key, t.Key)
-	copy(key[t.KeySize:], t.GetData().localClientID[:])
+	key := make([]byte, len(t.Key())+32)
+	copy(key, t.Key())
+	copy(key[len(t.Key()):], t.GetData().localClientID[:])
 
 	sha1Data := ssr.Hmac(crypto.SHA1, key, data, nil)
 	return sha1Data[:ssr.ObfsHMACSHA1Len]

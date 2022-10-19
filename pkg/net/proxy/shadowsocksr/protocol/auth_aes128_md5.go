@@ -20,9 +20,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-func NewAuthAES128MD5(info Info) Protocol { return newAuthAES128(info, crypto.MD5) }
+func NewAuthAES128MD5(info Protocol) protocol { return newAuthAES128(info, crypto.MD5) }
 
-func newAuthAES128(info Info, hash crypto.Hash) Protocol {
+func newAuthAES128(info Protocol, hash crypto.Hash) protocol {
 	a := &authAES128{
 		salt:   strings.ToLower(info.Name),
 		hmac:   ssr.HMAC(hash),
@@ -42,7 +42,7 @@ type authAES128 struct {
 	salt                    string
 	hmac                    ssr.HMAC
 
-	info Info
+	info Protocol
 }
 
 func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int) {
@@ -110,8 +110,8 @@ func (a *authAES128) initUserKey() {
 
 	if a.userKey == nil {
 		rand.Read(a.uid[:])
-		a.userKey = make([]byte, a.info.KeySize)
-		copy(a.userKey, a.info.Key)
+		a.userKey = make([]byte, len(a.info.Key()))
+		copy(a.userKey, a.info.Key())
 	}
 }
 
@@ -188,9 +188,9 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	cbc := cipher.NewCBCEncrypter(block, iv)
 	cbc.CryptBlocks(encrypt[:16], encrypt[:16])
 
-	key := make([]byte, a.info.IVSize+a.info.KeySize)
+	key := make([]byte, a.info.IVSize()+len(a.info.Key()))
 	copy(key, a.info.IV)
-	copy(key[a.info.IVSize:], a.info.Key)
+	copy(key[a.info.IVSize():], a.info.Key())
 
 	hmacBuf := utils.GetBytes(6)
 	defer utils.PutBytes(hmacBuf)
@@ -311,7 +311,7 @@ func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
 	hmacBuf := utils.GetBytes(6)
 	defer utils.PutBytes(hmacBuf)
-	if !bytes.Equal(a.hmac.HMAC(a.info.Key, b[:len(b)-4], hmacBuf)[:4], b[len(b)-4:]) {
+	if !bytes.Equal(a.hmac.HMAC(a.info.Key(), b[:len(b)-4], hmacBuf)[:4], b[len(b)-4:]) {
 		return nil, ssr.ErrAuthAES128IncorrectChecksum
 	}
 

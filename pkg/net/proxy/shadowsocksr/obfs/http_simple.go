@@ -41,7 +41,7 @@ var (
 
 // HttpSimple http_simple obfs encapsulate
 type httpSimplePost struct {
-	Info
+	Obfs
 	rawTransSent     bool
 	rawTransReceived bool
 	userAgentIndex   int
@@ -55,12 +55,12 @@ type httpSimplePost struct {
 }
 
 // newHttpSimple create a http_simple object
-func newHttpSimple(conn net.Conn, info Info) Obfs {
+func newHttpSimple(conn net.Conn, info Obfs) obfs {
 	t := &httpSimplePost{
 		userAgentIndex: rand.Intn(len(requestUserAgent)),
 		methodGet:      true,
 		Conn:           conn,
-		Info:           info,
+		Obfs:           info,
 		param:          simpleParam{},
 	}
 
@@ -115,7 +115,7 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 	}
 
 	dataLength := len(data)
-	headSize := t.IVSize + 30
+	headSize := t.IVSize() + 30
 	if dataLength-headSize > 64 {
 		headSize = headSize + rand.Intn(64)
 	} else {

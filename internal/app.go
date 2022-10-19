@@ -117,16 +117,16 @@ func Start(opt StartOpt) (StartResponse, error) {
 	})
 	opt.addObserver(st)
 
+	// connections' statistic & flow data
+	stcs := statistics.NewStatistics(st)
+
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := resolver.NewFakeDNS(st)
+	fakedns := resolver.NewFakeDNS(stcs, st)
 	opt.addObserver(fakedns)
 
 	// dns server/tun dns hijacking handler
 	dnsServer := resolver.NewDNSServer(fakedns)
 	opt.addObserver(dnsServer)
-
-	// connections' statistic & flow data
-	stcs := statistics.NewStatistics(fakedns)
 
 	// give dns a dialer
 	appDialer.Proxy = stcs
@@ -134,7 +134,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	// http/socks5/redir/tun server
 	listener := server.NewListener(
 		&listener.Opts[listener.IsProtocol_Protocol]{
-			Dialer:    stcs,
+			Dialer:    fakedns,
 			DNSServer: dnsServer,
 			UidDumper: opt.UidDumper,
 		},

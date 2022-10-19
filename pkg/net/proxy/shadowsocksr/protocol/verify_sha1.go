@@ -9,7 +9,7 @@ import (
 )
 
 type verifySHA1 struct {
-	Info
+	Protocol
 	hasSentHeader bool
 	chunkId       uint32
 	hmac          ssr.HMAC
@@ -19,16 +19,16 @@ const (
 	oneTimeAuthMask byte = 0x10
 )
 
-func NewVerifySHA1(info Info) Protocol {
+func NewVerifySHA1(info Protocol) protocol {
 	a := &verifySHA1{
-		Info: info,
-		hmac: ssr.HMAC(crypto.SHA1),
+		Protocol: info,
+		hmac:     ssr.HMAC(crypto.SHA1),
 	}
 	return a
 }
 
 func (v *verifySHA1) otaConnectAuth(data []byte) []byte {
-	return append(data, v.hmac.HMAC(append(v.IV, v.Key...), data, nil)...)
+	return append(data, v.hmac.HMAC(append(v.IV, v.Key()...), data, nil)...)
 }
 
 func (v *verifySHA1) otaReqChunkAuth(buffer *bytes.Buffer, chunkId uint32, data []byte) {

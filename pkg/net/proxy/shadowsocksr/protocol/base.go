@@ -9,11 +9,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 )
 
-type Protocol interface {
+type protocol interface {
 	EncryptStream(dst *bytes.Buffer, data []byte) error
 	DecryptStream(dst *bytes.Buffer, data []byte) (int, error)
 	EncryptPacket(data []byte) ([]byte, error)
@@ -24,7 +24,7 @@ type Protocol interface {
 
 type errorProtocol struct{ error }
 
-func NewErrorProtocol(err error) Protocol                                   { return &errorProtocol{err} }
+func NewErrorProtocol(err error) protocol                                   { return &errorProtocol{err} }
 func (e *errorProtocol) EncryptStream(dst *bytes.Buffer, data []byte) error { return e.error }
 func (e *errorProtocol) DecryptStream(dst *bytes.Buffer, data []byte) (int, error) {
 	return 0, e.error
@@ -40,6 +40,8 @@ type AuthData struct {
 	lock sync.Mutex
 }
 
+func NewAuth() *AuthData { return &AuthData{} }
+
 func (a *AuthData) nextAuth() {
 	if a.connectionID.Load() <= 0xFF000000 && a.clientID != nil {
 		a.connectionID.Add(1)
@@ -54,11 +56,11 @@ func (a *AuthData) nextAuth() {
 }
 
 type packetConn struct {
-	protocol Protocol
+	protocol protocol
 	net.PacketConn
 }
 
-func newPacketConn(conn net.PacketConn, p Protocol) net.PacketConn { return &packetConn{p, conn} }
+func newPacketConn(conn net.PacketConn, p protocol) net.PacketConn { return &packetConn{p, conn} }
 
 func (c *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	data, err := c.protocol.EncryptPacket(b)
@@ -85,13 +87,13 @@ func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 func (c *packetConn) Close() error { return c.PacketConn.Close() }
 
 type conn struct {
-	protocol Protocol
+	protocol protocol
 	net.Conn
 
 	ciphertext, plaintext bytes.Buffer
 }
 
-func newConn(c net.Conn, p Protocol) net.Conn {
+func newConn(c net.Conn, p protocol) net.Conn {
 	return &conn{
 		Conn:     c,
 		protocol: p,
@@ -133,7 +135,7 @@ func (c *conn) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-var ProtocolMethod = map[string]func(Info) Protocol{
+var ProtocolMethod = map[string]func(Protocol) protocol{
 	"auth_aes128_sha1": NewAuthAES128SHA1,
 	"auth_aes128_md5":  NewAuthAES128MD5,
 	"auth_chain_a":     NewAuthChainA,
@@ -144,8 +146,8 @@ var ProtocolMethod = map[string]func(Info) Protocol{
 	"ota":              NewVerifySHA1,
 }
 
-type Info struct {
-	*ssr.Info
+type Protocol struct {
+	*cipher.Cipher
 
 	Name     string
 	HeadSize int
@@ -158,7 +160,7 @@ type Info struct {
 	ObfsOverhead int
 }
 
-func (s Info) stream() (Protocol, error) {
+func (s Protocol) stream() (protocol, error) {
 	c, ok := ProtocolMethod[strings.ToLower(s.Name)]
 	if ok {
 		return c(s), nil
@@ -166,7 +168,7 @@ func (s Info) stream() (Protocol, error) {
 	return nil, fmt.Errorf("protocol %s not found", s.Name)
 }
 
-func (s Info) Stream(c net.Conn, iv []byte) (net.Conn, error) {
+func (s Protocol) Stream(c net.Conn, iv []byte) (net.Conn, error) {
 	z := s
 	z.IV = iv
 
@@ -177,7 +179,7 @@ func (s Info) Stream(c net.Conn, iv []byte) (net.Conn, error) {
 	return newConn(c, p), nil
 }
 
-func (s Info) Packet(c net.PacketConn) (net.PacketConn, error) {
+func (s Protocol) Packet(c net.PacketConn) (net.PacketConn, error) {
 	p, err := s.stream()
 	if err != nil {
 		return nil, err
@@ -185,7 +187,7 @@ func (s Info) Packet(c net.PacketConn) (net.PacketConn, error) {
 	return newPacketConn(c, p), nil
 }
 
-func (s *Info) SetHeadLen(data []byte, defaultValue int) {
+func (s *Protocol) SetHeadLen(data []byte, defaultValue int) {
 	s.HeadSize = GetHeadSize(data, defaultValue)
 }
 
