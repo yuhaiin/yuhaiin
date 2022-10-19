@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net"
 
-	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 )
 
-var ObfsMethod = map[string]func(net.Conn, Info) Obfs{
+var ObfsMethod = map[string]func(net.Conn, Obfs) obfs{
 	"http_post":              newHttpPost,
 	"http_simple":            newHttpSimple,
 	"plain":                  newPlainObfs,
@@ -16,20 +16,20 @@ var ObfsMethod = map[string]func(net.Conn, Info) Obfs{
 	"tls1.2_ticket_fastauth": newTLS12TicketAuth,
 }
 
-type Obfs interface {
+type obfs interface {
 	GetOverhead() int
 	net.Conn
 }
 
-type Info struct {
-	*ssr.Info
+type Obfs struct {
+	*cipher.Cipher
 	Name  string
 	Host  string
 	Port  string
 	Param string
 }
 
-func (o *Info) creator() (func(net.Conn, Info) Obfs, error) {
+func (o *Obfs) creator() (func(net.Conn, Obfs) obfs, error) {
 	z, ok := ObfsMethod[o.Name]
 	if !ok {
 		return nil, fmt.Errorf("obfs %s not found", o.Name)
@@ -37,7 +37,7 @@ func (o *Info) creator() (func(net.Conn, Info) Obfs, error) {
 
 	return z, nil
 }
-func (o *Info) Stream(c net.Conn) (net.Conn, error) {
+func (o *Obfs) Stream(c net.Conn) (net.Conn, error) {
 	cc, err := o.creator()
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (o *Info) Stream(c net.Conn) (net.Conn, error) {
 	return cc(c, *o), nil
 }
 
-func (o *Info) Overhead() int {
+func (o *Obfs) Overhead() int {
 	cc, err := o.creator()
 	if err != nil {
 		return -1

@@ -17,7 +17,7 @@ type randomHead struct {
 	net.Conn
 }
 
-func newRandomHead(conn net.Conn, _ Info) Obfs {
+func newRandomHead(conn net.Conn, _ Obfs) obfs {
 	p := &randomHead{Conn: conn}
 	return p
 }

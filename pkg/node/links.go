@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
@@ -22,21 +23,26 @@ type link struct {
 }
 
 func NewLink(outbound *outbound, manager *manager, links map[string]*node.NodeLink) *link {
-	return &link{
-		outbound: outbound,
-		manager:  manager,
-		links:    links,
-	}
+	return &link{outbound: outbound, manager: manager, links: links}
 }
 
 func (l *link) Save(ls []*node.NodeLink) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
+
 	if l.links == nil {
 		l.links = make(map[string]*node.NodeLink)
 	}
+
 	for _, z := range ls {
-		l.links[z.Name] = z
+
+		node, err := parseUrl([]byte(z.Url), &node.NodeLink{Name: z.Name})
+		if err == nil {
+			l.addNode(node) // link is a node
+		} else {
+			l.links[z.Name] = z // link is a subscription
+		}
+
 	}
 }
 
@@ -93,40 +99,47 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *node
 	if err != nil {
 		return fmt.Errorf("read body failed: %v", err)
 	}
+
 	dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(body)))
 	if _, err = base64.RawStdEncoding.Decode(dst, bytes.TrimRight(body, "=")); err != nil {
 		return fmt.Errorf("decode body failed: %w, body: %v", err, string(body))
 	}
+
 	n.manager.DeleteRemoteNodes(link.Name)
+
 	for _, x := range bytes.Split(dst, []byte("\n")) {
 		node, err := parseUrl(x, link)
 		if err != nil {
 			log.Errorf("parse url %s failed: %v\n", x, err)
-			continue
+		} else {
+			n.addNode(node)
 		}
-		n.manager.DeleteNode(node.Hash)
-		refreshHash(node)
-		n.manager.AddNode(node)
 	}
 
 	return nil
+}
+
+func (n *link) addNode(node *node.Point) {
+	n.manager.DeleteNode(node.Hash)
+	refreshHash(node)
+	n.manager.AddNode(node)
+}
+
+var schemeTypeMap = map[string]node.NodeLinkLinkType{
+	"ss":     node.NodeLink_shadowsocks,
+	"ssr":    node.NodeLink_shadowsocksr,
+	"vmess":  node.NodeLink_vmess,
+	"trojan": node.NodeLink_trojan,
 }
 
 func parseUrl(str []byte, l *node.NodeLink) (no *node.Point, err error) {
 	t := l.Type
 
 	if t == node.NodeLink_reserve {
-		switch {
-		case bytes.HasPrefix(str, []byte("ss://")):
-			t = node.NodeLink_shadowsocks
-		case bytes.HasPrefix(str, []byte("ssr://")):
-			t = node.NodeLink_shadowsocksr
-		case bytes.HasPrefix(str, []byte("vmess://")):
-			t = node.NodeLink_vmess
-		case bytes.HasPrefix(str, []byte("trojan://")):
-			t = node.NodeLink_trojan
-		}
+		scheme, _, _ := utils.GetScheme(string(str))
+		t = schemeTypeMap[scheme]
 	}
+
 	no, err = parser.Parse(t, str)
 	if err != nil {
 		return nil, fmt.Errorf("parse link data failed: %v", err)

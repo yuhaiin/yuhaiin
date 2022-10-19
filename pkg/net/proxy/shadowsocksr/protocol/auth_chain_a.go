@@ -19,7 +19,7 @@ import (
 )
 
 type authChainA struct {
-	Info
+	Protocol
 	randomClient ssr.Shift128plusContext
 	randomServer ssr.Shift128plusContext
 	recvID       uint32
@@ -42,15 +42,15 @@ type authChainA struct {
 	overhead int
 }
 
-func NewAuthChainA(info Info) Protocol { return newAuthChain(info, authChainAGetRandLen) }
+func NewAuthChainA(info Protocol) protocol { return newAuthChain(info, authChainAGetRandLen) }
 
-func newAuthChain(info Info, rnd func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int) *authChainA {
+func newAuthChain(info Protocol, rnd func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int) *authChainA {
 	return &authChainA{
 		salt:     info.Name,
 		hmac:     ssr.HMAC(crypto.MD5),
 		rnd:      rnd,
 		recvID:   1,
-		Info:     info,
+		Protocol: info,
 		overhead: 4 + info.ObfsOverhead,
 	}
 }
@@ -125,17 +125,17 @@ const authheadLength = 4 + 8 + 4 + 16 + 4
 func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	outData = make([]byte, authheadLength, authheadLength+1500)
 
-	a.Info.Auth.nextAuth()
+	a.Protocol.Auth.nextAuth()
 
-	var key = make([]byte, a.IVSize+a.KeySize)
+	var key = make([]byte, a.IVSize()+len(a.Key()))
 	copy(key, a.IV)
-	copy(key[a.IVSize:], a.Key)
+	copy(key[a.IVSize():], a.Key())
 
 	encrypt := make([]byte, 20)
 	t := time.Now().Unix()
 	binary.LittleEndian.PutUint32(encrypt[:4], uint32(t))
-	copy(encrypt[4:8], a.Info.Auth.clientID)
-	binary.LittleEndian.PutUint32(encrypt[8:], a.Info.Auth.connectionID.Load())
+	copy(encrypt[4:8], a.Protocol.Auth.clientID)
+	binary.LittleEndian.PutUint32(encrypt[8:], a.Protocol.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))
 	binary.LittleEndian.PutUint16(encrypt[14:16], 0)
 
@@ -161,9 +161,9 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 			if a.userKey == nil {
 				rand.Read(a.uid[:])
 
-				a.userKeyLen = a.KeySize
-				a.userKey = make([]byte, a.KeySize)
-				copy(a.userKey, a.Key)
+				a.userKeyLen = len(a.Key())
+				a.userKey = make([]byte, len(a.Key()))
+				copy(a.userKey, a.Key())
 			}
 		}
 		for i := 0; i < 4; i++ {
@@ -305,9 +305,9 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 		if a.userKey == nil {
 			rand.Read(a.uid[:])
 
-			a.userKeyLen = a.KeySize
-			a.userKey = make([]byte, a.KeySize)
-			copy(a.userKey, a.Key)
+			a.userKeyLen = len(a.Key())
+			a.userKey = make([]byte, len(a.Key()))
+			copy(a.userKey, a.Key())
 		}
 	}
 	authData := make([]byte, 3)
@@ -333,7 +333,7 @@ func (a *authChainA) DecryptPacket(b []byte) ([]byte, error) {
 	if !bytes.Equal(a.hmac.HMAC(a.userKey, b[:len(b)-1], nil)[:1], b[len(b)-1:]) {
 		return nil, ssr.ErrAuthChainIncorrectHMAC
 	}
-	md5Data := a.hmac.HMAC(a.Key, b[len(b)-8:len(b)-1], nil)
+	md5Data := a.hmac.HMAC(a.Key(), b[len(b)-8:len(b)-1], nil)
 
 	randDataLength := udpGetRandLength(md5Data, &a.randomServer)
 

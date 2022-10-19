@@ -12,7 +12,7 @@ import (
 )
 
 func TestXxx(t *testing.T) {
-	f, err := os.Open("/proc/net/udp")
+	f, err := os.Open("/proc/net/tcp")
 	if err != nil {
 		t.Fatal(err)
 	}

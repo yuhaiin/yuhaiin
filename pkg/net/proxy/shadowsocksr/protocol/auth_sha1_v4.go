@@ -11,11 +11,11 @@ import (
 )
 
 type authSHA1v4 struct {
-	Info
+	Protocol
 	hasSentHeader bool
 }
 
-func NewAuthSHA1v4(info Info) Protocol { return &authSHA1v4{Info: info} }
+func NewAuthSHA1v4(info Protocol) protocol { return &authSHA1v4{Protocol: info} }
 
 func (a *authSHA1v4) packData(data []byte) (outData []byte) {
 	dataLength := len(data)
@@ -76,10 +76,10 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 
 	// 2~6, crc of out length+salt+key
 	salt := []byte("auth_sha1_v4")
-	crcData := make([]byte, len(salt)+a.KeySize+2)
+	crcData := make([]byte, len(salt)+len(a.Key())+2)
 	copy(crcData[0:2], outData[0:2])
 	copy(crcData[2:], salt)
-	copy(crcData[2+len(salt):], a.Key)
+	copy(crcData[2+len(salt):], a.Key())
 	crc32 := ssr.CalcCRC32(crcData, len(crcData))
 	// 2~6, crc of out length+salt+key
 	binary.LittleEndian.PutUint32(outData[2:], crc32)
@@ -104,9 +104,9 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	// rand length+18~rand length+18+data length, data
 	copy(outData[dataOffset+12:], data)
 
-	key := make([]byte, a.IVSize+a.KeySize)
+	key := make([]byte, a.IVSize()+len(a.Key()))
 	copy(key, a.IV)
-	copy(key[a.IVSize:], a.Key)
+	copy(key[a.IVSize():], a.Key())
 
 	h := ssr.Hmac(crypto.SHA1, key, outData[:outLength-ssr.ObfsHMACSHA1Len], nil)
 	// out length-10~out length/rand length+18+data length~end, hmac
