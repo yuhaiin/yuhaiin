@@ -143,6 +143,7 @@ func defaultConfig(path string) []byte {
 				Host: "223.5.5.5",
 				Type: dns.Type_udp,
 			},
+			Hosts: map[string]string{"example.com": "example.com"},
 		},
 		Logcat: &protolog.Logcat{
 			Level: protolog.LogLevel_debug,

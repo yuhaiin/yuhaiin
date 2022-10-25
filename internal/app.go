@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
+	"github.com/Asutorufa/yuhaiin/internal/hosts"
 	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/resolver"
 	"github.com/Asutorufa/yuhaiin/internal/server"
@@ -120,8 +121,11 @@ func Start(opt StartOpt) (StartResponse, error) {
 	// connections' statistic & flow data
 	stcs := statistics.NewStatistics(st)
 
+	hosts := hosts.NewHosts(stcs, st)
+	opt.addObserver(hosts)
+
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := resolver.NewFakeDNS(stcs, st)
+	fakedns := resolver.NewFakeDNS(hosts, hosts)
 	opt.addObserver(fakedns)
 
 	// dns server/tun dns hijacking handler

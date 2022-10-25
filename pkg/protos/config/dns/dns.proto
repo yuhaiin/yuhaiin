@@ -29,4 +29,5 @@ message config {
   dns remote = 1 [ json_name = "remote" ];
   dns local = 2 [ json_name = "local" ];
   dns bootstrap = 3 [ json_name = "bootstrap" ];
+  map<string, string> hosts = 8 [ json_name = "hosts" ];
 }
