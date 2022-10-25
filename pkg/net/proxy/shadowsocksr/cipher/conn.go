@@ -140,6 +140,9 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 	if c.dec == nil {
 		readIV, err := c.ReadIV()
 		if err != nil {
+			if e, ok := err.(net.Error); ok && e.Timeout() {
+				return 0, e
+			}
 			return 0, fmt.Errorf("get read iv failed: %w", err)
 		}
 		c.dec, err = c.cipher.DecryptStream(readIV)

@@ -31,6 +31,7 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			Fakedns:             opt.DNS.Fakedns,
 			FakednsIpRange:      opt.DNS.FakednsIpRange,
 			ResolveRemoteDomain: opt.DNS.ResolveRemoteDomain,
+			Hosts:               opt.DNS.Hosts,
 			Remote: &dns.Dns{
 				Host:          opt.DNS.Remote.Host,
 				Type:          dns.Type(opt.DNS.Remote.Type),
