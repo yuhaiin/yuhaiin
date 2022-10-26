@@ -15,10 +15,6 @@ import (
 )
 
 const (
-	connect = 0x01
-	udp     = 0x03
-	bind    = 0x02
-
 	noAuthenticationRequired = 0x00
 	gssapi                   = 0x01
 	userAndPassword          = 0x02
@@ -48,36 +44,36 @@ func handle(user, key string, client net.Conn, f proxy.Proxy) (err error) {
 	b := utils.GetBytes(utils.DefaultSize)
 	defer utils.PutBytes(b)
 
-	err = firstHand(client, user, key, b)
+	err = handshake1(client, user, key, b)
 	if err != nil {
 		return fmt.Errorf("first hand failed: %w", err)
 	}
 
-	if err = secondHand(client, f, b); err != nil {
+	if err = handshake2(client, f, b); err != nil {
 		return fmt.Errorf("second hand failed: %w", err)
 	}
 
 	return
 }
 
-func firstHand(client net.Conn, user, key string, buf []byte) error {
+func handshake1(client net.Conn, user, key string, buf []byte) error {
 	//socks5 first handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read first handshake failed: %w", err)
 	}
 
 	if buf[0] != 0x05 { // ver
-		writeFirstResp(client, noAcceptableMethods)
+		writeHandshake1(client, noAcceptableMethods)
 	}
 
 	if buf[2] == noAuthenticationRequired { // method
-		return writeFirstResp(client, noAuthenticationRequired)
+		return writeHandshake1(client, noAuthenticationRequired)
 	}
 
 	if buf[1] == 1 && buf[2] == userAndPassword { // nMethod
 		return verifyUserPass(client, user, key)
 	}
-	writeFirstResp(client, noAcceptableMethods)
+	writeHandshake1(client, noAcceptableMethods)
 	return fmt.Errorf("no Acceptable Methods: length:%d, method:%d, from:%s", buf[1], buf[2], client.RemoteAddr())
 }
 
@@ -92,42 +88,47 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	username := b[2 : 2+b[1]]
 	password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
 	if user != string(username) || key != string(password) {
-		writeFirstResp(client, 0x01)
+		writeHandshake1(client, 0x01)
 		return fmt.Errorf("verify username and password failed")
 	}
-	writeFirstResp(client, 0x00)
+	writeHandshake1(client, 0x00)
 	return nil
 }
 
-func secondHand(client net.Conn, f proxy.Proxy, buf []byte) error {
+func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 	// socks5 second handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
 	}
 
-	addr, _, err := s5c.ResolveAddr("tcp", client)
-	if err != nil {
-		return fmt.Errorf("resolve addr failed: %w", err)
+	if buf[0] != 0x05 { // ver
+		writeHandshake2(client, noAcceptableMethods, proxy.EmptyAddr)
 	}
 
-	// log.Println("mode", buf[1])
-	switch buf[1] { // mode
-	case connect:
+	var err error
+
+	switch s5c.CMD(buf[1]) { // mode
+	case s5c.Connect:
+		var addr proxy.Address
+		addr, _, err = s5c.ResolveAddr("tcp", client)
+		if err != nil {
+			return fmt.Errorf("resolve addr failed: %w", err)
+		}
 		err = handleConnect(addr, client, f)
 
-	case udp: // udp
+	case s5c.Udp: // udp
 		err = handleUDP(client, f)
 
-	case bind: // bind request
+	case s5c.Bind: // bind request
 		fallthrough
 
 	default:
-		writeSecondResp(client, commandNotSupport, proxy.EmptyAddr)
+		writeHandshake2(client, commandNotSupport, proxy.EmptyAddr)
 		return fmt.Errorf("not Support Method %d", buf[1])
 	}
 
 	if err != nil {
-		writeSecondResp(client, hostUnreachable, proxy.EmptyAddr)
+		writeHandshake2(client, hostUnreachable, proxy.EmptyAddr)
 	}
 	return err
 }
@@ -141,7 +142,7 @@ func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
-	writeSecondResp(client, succeeded, caddr) // response to connect successful
+	writeHandshake2(client, succeeded, caddr) // response to connect successful
 	// hand shake successful
 	utils.Relay(client, server)
 	server.Close()
@@ -157,18 +158,17 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	// log.Println("udp server listen on", laddr)
-	writeSecondResp(client, succeeded, proxy.ParseAddressSplit("udp", "0.0.0.0", laddr.Port()))
+	writeHandshake2(client, succeeded, proxy.ParseAddressSplit("udp", "0.0.0.0", laddr.Port()))
 	utils.Copy(io.Discard, client)
 	return l.Close()
 }
 
-func writeFirstResp(conn net.Conn, errREP byte) error {
+func writeHandshake1(conn net.Conn, errREP byte) error {
 	_, err := conn.Write([]byte{0x05, errREP})
 	return err
 }
 
-func writeSecondResp(conn net.Conn, errREP byte, addr proxy.Address) error {
+func writeHandshake2(conn net.Conn, errREP byte, addr proxy.Address) error {
 	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, s5c.ParseAddr(addr)...))
 	return err
 }

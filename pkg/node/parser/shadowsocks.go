@@ -67,8 +67,6 @@ func init() {
 				{
 					Protocol: &node.Protocol_Shadowsocks{
 						Shadowsocks: &node.Shadowsocks{
-							Server:   server,
-							Port:     portstr,
 							Method:   method,
 							Password: password,
 						},

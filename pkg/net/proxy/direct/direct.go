@@ -32,31 +32,20 @@ func (d *direct) PacketConn(proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}
 
-	return &packetConn{PacketConn: p}, nil
+	return &PacketConn{PacketConn: p}, nil
 }
 
-type packetConn struct{ net.PacketConn }
+type PacketConn struct{ net.PacketConn }
 
-func (p *packetConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
-	switch z := addr.(type) {
-	case *net.UDPAddr:
-	case proxy.Address:
-		addr, err = z.UDPAddr()
-		if err != nil {
-			return 0, err
-		}
-	default:
-		a, err := proxy.ParseSysAddr(addr)
-		if err != nil {
-			return 0, err
-		}
-		addr, err = a.UDPAddr()
-		if err != nil {
-			return 0, err
-		}
+func (p *PacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
+	a, err := proxy.ParseSysAddr(addr)
+	if err != nil {
+		return 0, err
 	}
-
-	// log.Println("write to", addr, len(b))
+	addr, err = a.UDPAddr()
+	if err != nil {
+		return 0, err
+	}
 
 	return p.PacketConn.WriteTo(b, addr)
 }

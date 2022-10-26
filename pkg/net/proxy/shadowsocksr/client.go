@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
@@ -21,8 +20,6 @@ type Shadowsocksr struct {
 	obfs     *obfs.Obfs
 	cipher   *cipher.Cipher
 	dial     proxy.Proxy
-
-	addr string
 }
 
 func NewShadowsocksr(config *node.Protocol_Shadowsocksr) node.WrapProxy {
@@ -50,7 +47,7 @@ func NewShadowsocksr(config *node.Protocol_Shadowsocksr) node.WrapProxy {
 			ObfsOverhead: obfs.Overhead(),
 		}
 
-		return &Shadowsocksr{protocol, obfs, cipher, p, net.JoinHostPort(c.Server, c.Port)}, nil
+		return &Shadowsocksr{protocol, obfs, cipher, p}, nil
 	}
 }
 
@@ -91,11 +88,6 @@ func (s *Shadowsocksr) Conn(addr proxy.Address) (net.Conn, error) {
 }
 
 func (s *Shadowsocksr) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	uaddr, err := resolver.ResolveUDPAddr(s.addr)
-	if err != nil {
-		return nil, fmt.Errorf("resolve udp addr failed: %w", err)
-	}
-
 	c, err := s.dial.PacketConn(addr)
 	if err != nil {
 		return nil, fmt.Errorf("get packet conn failed: %w", err)
@@ -107,5 +99,5 @@ func (s *Shadowsocksr) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("protocol packet failed: %w", err)
 	}
 
-	return shadowsocks.NewSsPacketConn(proto, uaddr, addr), nil
+	return shadowsocks.NewSsPacketConn(proto), nil
 }

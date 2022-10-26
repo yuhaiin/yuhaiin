@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -22,8 +23,7 @@ var MaxSegmentSize = (1 << 16) - 1
 // https://github.com/net-byte/socks5-server/blob/main/socks5/udp.go
 type udpServer struct {
 	net.PacketConn
-	remoteCache syncmap.SyncMap[string, net.PacketConn]
-	remoteLock  syncmap.SyncMap[string, *sync.Cond]
+	netTable *UdpNatTable
 }
 
 func newUDPServer(f proxy.Proxy) (net.PacketConn, error) {
@@ -32,7 +32,7 @@ func newUDPServer(f proxy.Proxy) (net.PacketConn, error) {
 		return nil, fmt.Errorf("listen udp failed: %v", err)
 	}
 
-	u := &udpServer{PacketConn: l}
+	u := &udpServer{PacketConn: l, netTable: NewUdpNatTable(f)}
 	go u.handle(f)
 	return u, nil
 }
@@ -48,102 +48,133 @@ func (u *udpServer) handle(dialer proxy.Proxy) {
 			return
 		}
 
-		go func(data []byte, n int, local net.Addr) {
+		go func(data []byte, n int, src net.Addr) {
 			defer utils.PutBytes(data)
-			if err := u.relay(data, n, local, dialer); err != nil {
-				log.Errorln("relay failed:", err)
+			addr, size, err := s5c.ResolveAddr("udp", bytes.NewBuffer(data[3:n]))
+			if err != nil {
+				log.Errorf("resolve addr failed: %v", err)
+				return
+			}
+
+			err = u.netTable.Write(data[3+size:n], src, addr,
+				&localPacketConn{u.PacketConn, s5c.ParseAddr(addr)})
+			if err != nil {
+				log.Errorln("write to nat table failed:", err)
 			}
 		}(buf, n, l)
 	}
 }
 
-func (u *udpServer) relay(data []byte, n int, local net.Addr, dialer proxy.Proxy) error {
-	addr, size, err := s5c.ResolveAddr("udp", bytes.NewBuffer(data[3:n]))
-	if err != nil {
-		return fmt.Errorf("resolve addr failed: %w", err)
-	}
-	udpAddr, err := addr.UDPAddr()
-	if err != nil {
-		return fmt.Errorf("resolve udp addr failed: %w", err)
-	}
-	data = data[3+size : n]
+func (u *udpServer) Close() error {
+	u.netTable.Close()
+	return u.PacketConn.Close()
+}
 
-	ok := u.localToRemote(local, udpAddr, data)
+type localPacketConn struct {
+	net.PacketConn
+	addr []byte
+}
+
+func (l *localPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	return l.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, l.addr, b}, nil), addr)
+}
+
+type UdpNatTable struct {
+	dialer proxy.Proxy
+	cache  syncmap.SyncMap[string, net.PacketConn]
+	lock   syncmap.SyncMap[string, *sync.Cond]
+}
+
+func NewUdpNatTable(dialer proxy.Proxy) *UdpNatTable {
+	return &UdpNatTable{dialer: dialer}
+}
+
+func (u *UdpNatTable) writeTo(data []byte, src, target net.Addr) (bool, error) {
+	r, ok := u.cache.Load(src.String())
+	if !ok {
+		return false, nil
+	}
+
+	if _, err := r.WriteTo(data, target); err != nil && !errors.Is(err, net.ErrClosed) {
+		return true, err
+	}
+
+	return true, nil
+}
+
+type clientAddress struct{}
+
+func (clientAddress) String() string { return "Client" }
+
+func (u *UdpNatTable) Write(data []byte, src net.Addr, target proxy.Address, client net.PacketConn) error {
+	ok, err := u.writeTo(data, src, target)
+	if err != nil {
+		return fmt.Errorf("client to proxy failed: %w", err)
+	}
 	if ok {
 		return nil
 	}
 
-	cond, ok := u.remoteLock.LoadOrStore(local.String(), sync.NewCond(&sync.Mutex{}))
+	cond, ok := u.lock.LoadOrStore(src.String(), sync.NewCond(&sync.Mutex{}))
 	if ok {
 		cond.L.Lock()
 		cond.Wait()
-		u.localToRemote(local, udpAddr, data)
+		u.writeTo(data, src, target)
 		cond.L.Unlock()
 		return nil
 	}
 
-	defer u.remoteLock.Delete(local.String())
+	defer u.lock.Delete(src.String())
 	defer cond.Broadcast()
 
-	remote, err := dialer.PacketConn(addr)
-	if err != nil {
-		return fmt.Errorf("dial %s failed: %w", addr, err)
-	}
-	u.remoteCache.Store(local.String(), remote)
+	target.WithValue(clientAddress{}, src)
 
-	u.localToRemote(local, udpAddr, data)
+	proxy, err := u.dialer.PacketConn(target)
+	if err != nil {
+		return fmt.Errorf("dial %s failed: %w", target, err)
+	}
+	u.cache.Store(src.String(), proxy)
+
+	u.writeTo(data, src, target)
 
 	go func() {
-		if err := u.remoteToLocal(remote, local, addr); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := u.relay(proxy, client, src); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Errorln("remote to local failed:", err)
 		}
-		u.remoteCache.Delete(local.String())
-		remote.Close()
 	}()
 
 	return nil
 }
 
-func (u *udpServer) localToRemote(local net.Addr, target *net.UDPAddr, data []byte) bool {
-	r, ok := u.remoteCache.Load(local.String())
-	if !ok {
-		return false
-	}
-
-	if _, err := r.WriteTo(data, target); err != nil && !errors.Is(err, net.ErrClosed) {
-		log.Errorln("write to remote failed:", err)
-	}
-
-	// log.Println("udp write to", target, ":", len(data))
-
-	return true
-}
-
-var udpTimeout = 60 * time.Second
-
-func (u *udpServer) remoteToLocal(remote net.PacketConn, local net.Addr, host proxy.Address) error {
+func (u *UdpNatTable) relay(proxy, client net.PacketConn, src net.Addr) error {
 	data := utils.GetBytes(MaxSegmentSize)
 	defer utils.PutBytes(data)
 
+	defer u.cache.Delete(src.String())
+	defer proxy.Close()
+
 	for {
-		remote.SetReadDeadline(time.Now().Add(udpTimeout))
-		n, _, err := remote.ReadFrom(data)
+		proxy.SetReadDeadline(time.Now().Add(time.Minute))
+		n, _, err := proxy.ReadFrom(data)
 		if err != nil {
-			return fmt.Errorf("read from %s failed: %w", host, err)
+			if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
+				return nil /* ignore I/O timeout & EOF */
+			}
+
+			return fmt.Errorf("read from proxy failed: %w", err)
 		}
 
-		// log.Println("udp read from", host, ad, ":", n)
-
-		if _, err := u.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, s5c.ParseAddr(host), data[:n]}, nil), local); err != nil {
-			return fmt.Errorf("response to local failed: %w", err)
+		if _, err := client.WriteTo(data[:n], src); err != nil {
+			return fmt.Errorf("write back to client failed: %w", err)
 		}
 	}
 }
 
-func (u *udpServer) Close() error {
-	u.remoteCache.Range(func(_ string, value net.PacketConn) bool {
+func (u *UdpNatTable) Close() error {
+	u.cache.Range(func(_ string, value net.PacketConn) bool {
 		value.Close()
 		return true
 	})
-	return u.PacketConn.Close()
+
+	return nil
 }

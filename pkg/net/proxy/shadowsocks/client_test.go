@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func TestImplement(t *testing.T) {
@@ -22,8 +23,13 @@ func TestImplement(t *testing.T) {
 }
 
 func TestConn(t *testing.T) {
-
-	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", proxy.ParsePort(1080)), nil)
+	p := yerror.Must(simple.NewSimple(
+		&node.Protocol_Simple{
+			Simple: &node.Simple{
+				Host: "127.0.0.1",
+				Port: 1080,
+			},
+		})(nil))
 	z, err := websocket.New(&node.Protocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
 	assert.NoError(t, err)
 	z, err = NewShadowsocks(
@@ -31,8 +37,6 @@ func TestConn(t *testing.T) {
 			Shadowsocks: &node.Shadowsocks{
 				Method:   "aes-128-gcm",
 				Password: "test",
-				Server:   "127.0.0.1",
-				Port:     "1090",
 			},
 		},
 		// "v2ray",
@@ -70,14 +74,18 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p := simple.NewSimple(proxy.ParseAddressSplit("tcp", "127.0.0.1", proxy.ParsePort(1090)), nil)
+	p := yerror.Must(simple.NewSimple(
+		&node.Protocol_Simple{
+			Simple: &node.Simple{
+				Host: "127.0.0.1",
+				Port: 1090,
+			},
+		})(nil))
 	s, err := NewShadowsocks(
 		&node.Protocol_Shadowsocks{
 			Shadowsocks: &node.Shadowsocks{
 				Method:   "aes-128-gcm",
 				Password: "test",
-				Server:   "127.0.0.1",
-				Port:     "1090",
 			},
 		})(p)
 	assert.NoError(t, err)

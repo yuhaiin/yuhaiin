@@ -22,15 +22,20 @@ func Dial(host, port, user, password string) proxy.Proxy {
 	p, _ := NewSocks5(&node.Protocol_Socks5{
 		Socks5: &node.Socks5{
 			Hostname: host,
-			Port:     int32(addr.Port().Port()),
 			User:     user,
 			Password: password,
-		}})(simple.NewSimple(addr, nil))
+		}})(yerror.Must(simple.NewSimple(&node.Protocol_Simple{
+		Simple: &node.Simple{
+			Host:             addr.Hostname(),
+			Port:             int32(addr.Port().Port()),
+			PacketConnDirect: true,
+		},
+	})(nil)))
 	return p
 }
 
 func ParseAddr(hostname proxy.Address) []byte {
-	buf := bytes.NewBuffer(make([]byte, 0, 3))
+	buf := bytes.NewBuffer(nil)
 	ParseAddrWriter(hostname, buf)
 	return buf.Bytes()
 }
@@ -65,11 +70,11 @@ func ResolveAddr(network string, r io.Reader) (_ proxy.Address, size int, err er
 
 	var bufSize int
 	switch byteBuf[0] {
-	case ipv4:
+	case IPv4:
 		bufSize = 4
-	case ipv6:
+	case IPv6:
 		bufSize = 16
-	case domainName:
+	case Domain:
 		length := make([]byte, 1)
 		if _, err = io.ReadFull(r, length); err != nil {
 			return nil, 0, fmt.Errorf("failed to read domain name length: %w", err)
@@ -90,9 +95,9 @@ func ResolveAddr(network string, r io.Reader) (_ proxy.Address, size int, err er
 
 	var hostname string
 	switch byteBuf[0] {
-	case ipv4, ipv6:
+	case IPv4, IPv6:
 		hostname = net.IP(buf[:]).String()
-	case domainName:
+	case Domain:
 		hostname = string(buf)
 	}
 

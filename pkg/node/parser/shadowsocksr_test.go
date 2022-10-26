@@ -17,6 +17,7 @@ import (
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -32,8 +33,13 @@ func TestSsrParse2(t *testing.T) {
 }
 
 func TestConnections(t *testing.T) {
-	p := simple.NewSimple(proxy.ParseAddressSplit("", "127.0.0.1", proxy.ParsePort(1090)), nil)
-
+	p := yerror.Must(simple.NewSimple(
+		&node.Protocol_Simple{
+			Simple: &node.Simple{
+				Host: "127.0.0.1",
+				Port: 1090,
+			},
+		})(nil))
 	z, err := ss.NewHTTPOBFS(
 		&node.Protocol_ObfsHttp{
 			ObfsHttp: &node.ObfsHttp{
@@ -47,8 +53,6 @@ func TestConnections(t *testing.T) {
 			Shadowsocks: &node.Shadowsocks{
 				Method:   "AEAD_AES_128_GCM",
 				Password: "test",
-				Server:   "127.0.0.1",
-				Port:     "1090",
 			},
 		})(z)
 	assert.NoError(t, err)
