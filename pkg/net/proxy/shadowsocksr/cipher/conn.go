@@ -8,6 +8,7 @@ import (
 	"net"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
@@ -65,7 +66,11 @@ func newPacketConn(c net.PacketConn, cipherFactory CipherFactory) net.PacketConn
 }
 
 func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	buf := utils.GetBytes(utils.DefaultSize)
+	if len(b)+p.IVSize() > s5s.MaxSegmentSize {
+		return 0, fmt.Errorf("udp data size too large")
+	}
+
+	buf := utils.GetBytes(s5s.MaxSegmentSize)
 	defer utils.PutBytes(buf)
 
 	_, err := rand.Read(buf[:p.IVSize()])

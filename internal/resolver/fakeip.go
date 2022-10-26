@@ -66,7 +66,7 @@ func (f *Fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 			addr, proxy.GetMark(addr, tun.PACKAGE_MARK_KEY{}, ""), err)
 	}
 
-	return c, nil
+	return &WrapAddressPacketConn{c, f.getAddr}, nil
 }
 
 type FAKE_IP_MARK_KEY struct{}
@@ -82,4 +82,20 @@ func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {
 		}
 	}
 	return addr
+}
+
+type WrapAddressPacketConn struct {
+	net.PacketConn
+	ProcessAddress func(proxy.Address) proxy.Address
+}
+
+func (f *WrapAddressPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	z, err := proxy.ParseSysAddr(addr)
+	if err != nil {
+		return 0, fmt.Errorf("parse addr failed: %w", err)
+	}
+
+	z = f.ProcessAddress(z)
+
+	return f.PacketConn.WriteTo(b, z)
 }

@@ -3,6 +3,7 @@ package hosts
 import (
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/internal/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -30,7 +31,11 @@ func (h *hosts) Update(c *config.Setting) {
 
 func (h *hosts) Conn(addr proxy.Address) (net.Conn, error) { return h.dialer.Conn(h.getAddr(addr)) }
 func (h *hosts) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	return h.dialer.PacketConn(h.getAddr(addr))
+	c, err := h.dialer.PacketConn(h.getAddr(addr))
+	if err != nil {
+		return nil, err
+	}
+	return &resolver.WrapAddressPacketConn{PacketConn: c, ProcessAddress: h.getAddr}, nil
 }
 
 type hostsKey struct{}

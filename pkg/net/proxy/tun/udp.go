@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -15,7 +16,28 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
+func udpForwarder(s *stack.Stack, natTable *s5s.UdpNatTable, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
+	handle := func(src net.PacketConn, target proxy.Address) error {
+		buf := utils.GetBytes(s5s.MaxSegmentSize)
+		defer utils.PutBytes(buf)
+
+		for {
+			src.SetReadDeadline(time.Now().Add(time.Minute))
+			n, addr, err := src.ReadFrom(buf)
+			if err != nil {
+				if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
+					return nil /* ignore I/O timeout & EOF */
+				}
+
+				return err
+			}
+
+			if err = natTable.Write(buf[:n], addr, target, src); err != nil {
+				return err
+			}
+		}
+	}
+
 	return udp.NewForwarder(s, func(fr *udp.ForwarderRequest) {
 		var wq waiter.Queue
 		ep, err := fr.CreateEndpoint(&wq)
@@ -29,7 +51,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 		go func(local net.PacketConn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			if isdns(opt, id) {
+			if isHandleDNS(opt, id) {
 				if err := opt.DNSServer.HandleUDP(local); err != nil {
 					log.Errorf("dns handle udp failed: %v\n", err)
 				}
@@ -43,7 +65,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 					defer utils.PutBytes(buf)
 
 					for {
-						local.SetReadDeadline(time.Now().Add(60 * time.Second))
+						local.SetReadDeadline(time.Now().Add(time.Minute))
 						if _, _, err := local.ReadFrom(buf); err != nil {
 							return
 						}
@@ -52,44 +74,10 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 			}
 			addMessage(addr, id, opt)
 
-			conn, er := opt.Dialer.PacketConn(addr)
-			if er != nil {
-				log.Errorf("[UDP] dial %s error: %v\n", addr, er)
-				return
+			if err := handle(local, addr); err != nil {
+				log.Errorln("handle udp request failed:", err)
 			}
-			defer conn.Close()
 
-			uaddr, err := addr.UDPAddr()
-			if err != nil {
-				log.Errorf("[UDP] parse %s error: %v\n", addr, err)
-				return
-			}
-			go copyPacketBuffer(conn, local, uaddr, 60*time.Second)
-			copyPacketBuffer(local, conn, nil, 60*time.Second)
 		}(local, fr.ID())
 	})
-}
-
-var MaxSegmentSize = (1 << 16) - 1
-
-func copyPacketBuffer(dst net.PacketConn, src net.PacketConn, to net.Addr, timeout time.Duration) error {
-	buf := utils.GetBytes(MaxSegmentSize)
-	defer utils.PutBytes(buf)
-
-	for {
-		src.SetReadDeadline(time.Now().Add(timeout))
-		n, _, err := src.ReadFrom(buf)
-		if ne, ok := err.(net.Error); ok && ne.Timeout() {
-			return nil /* ignore I/O timeout */
-		} else if err == io.EOF {
-			return nil /* ignore EOF */
-		} else if err != nil {
-			return err
-		}
-
-		if _, err = dst.WriteTo(buf[:n], to); err != nil {
-			return err
-		}
-		dst.SetReadDeadline(time.Now().Add(timeout))
-	}
 }

@@ -9,18 +9,27 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 )
 
-// Simple .
 type Simple struct {
-	addr proxy.Address
+	addr         proxy.Address
+	packetDirect bool
 
 	tlsConfig *tls.Config
 }
 
-// NewSimple .
-func NewSimple(address proxy.Address, tls *tls.Config) proxy.Proxy {
-	return &Simple{addr: address, tlsConfig: tls}
+func NewSimple(c *node.Protocol_Simple) node.WrapProxy {
+	return func(p proxy.Proxy) (proxy.Proxy, error) {
+		tls := node.ParseTLSConfig(c.Simple.Tls)
+
+		return &Simple{
+			addr:         proxy.ParseAddressSplit("", c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
+			packetDirect: c.Simple.PacketConnDirect,
+			tlsConfig:    tls,
+		}, nil
+	}
 }
 
 func (c *Simple) Conn(proxy.Address) (net.Conn, error) {
@@ -42,6 +51,33 @@ func (c *Simple) Conn(proxy.Address) (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *Simple) PacketConn(proxy.Address) (net.PacketConn, error) {
-	return dialer.ListenPacket("udp", "")
+func (c *Simple) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+	if c.packetDirect {
+		return direct.Default.PacketConn(addr)
+	}
+
+	conn, err := dialer.ListenPacket("udp", "")
+	if err != nil {
+		return nil, err
+	}
+
+	uaddr, err := c.addr.UDPAddr()
+	if err != nil {
+		return nil, err
+	}
+
+	return &packetConn{PacketConn: conn, addr: uaddr}, nil
+}
+
+type packetConn struct {
+	net.PacketConn
+	addr *net.UDPAddr
+}
+
+func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	return p.PacketConn.WriteTo(b, p.addr)
+}
+func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	z, _, err := p.PacketConn.ReadFrom(b)
+	return z, p.addr, err
 }

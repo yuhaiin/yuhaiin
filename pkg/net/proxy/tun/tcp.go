@@ -36,7 +36,7 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 		go func(local net.Conn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			if isdns(opt, id) {
+			if isHandleDNS(opt, id) {
 				if err := opt.DNSServer.HandleTCP(local); err != nil {
 					log.Errorf("dns handle tcp failed: %v\n", err)
 				}

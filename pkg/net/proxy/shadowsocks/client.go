@@ -8,7 +8,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
@@ -17,8 +16,6 @@ import (
 type Shadowsocks struct {
 	cipher core.Cipher
 	p      proxy.Proxy
-
-	addr string
 }
 
 func NewShadowsocks(config *node.Protocol_Shadowsocks) node.WrapProxy {
@@ -29,7 +26,7 @@ func NewShadowsocks(config *node.Protocol_Shadowsocks) node.WrapProxy {
 			return nil, err
 		}
 
-		return &Shadowsocks{cipher: cipher, p: p, addr: net.JoinHostPort(c.Server, c.Port)}, nil
+		return &Shadowsocks{cipher: cipher, p: p}, nil
 	}
 }
 
@@ -54,27 +51,18 @@ func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
 
 // PacketConn .
 func (s *Shadowsocks) PacketConn(tar proxy.Address) (net.PacketConn, error) {
-	uaddr, err := resolver.ResolveUDPAddr(s.addr)
-	if err != nil {
-		return nil, fmt.Errorf("resolve udp address failed: %v", err)
-	}
-
 	pc, err := s.p.PacketConn(tar)
 	if err != nil {
 		return nil, fmt.Errorf("create packet conn failed")
 	}
 
-	return NewSsPacketConn(s.cipher.PacketConn(pc), uaddr, tar), nil
+	return NewSsPacketConn(s.cipher.PacketConn(pc)), nil
 }
 
-type ssPacketConn struct {
-	net.PacketConn
-	add    *net.UDPAddr
-	target []byte
-}
+type ssPacketConn struct{ net.PacketConn }
 
-func NewSsPacketConn(conn net.PacketConn, host *net.UDPAddr, target proxy.Address) net.PacketConn {
-	return &ssPacketConn{PacketConn: conn, add: host, target: s5c.ParseAddr(target)}
+func NewSsPacketConn(conn net.PacketConn) net.PacketConn {
+	return &ssPacketConn{PacketConn: conn}
 }
 
 func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
@@ -92,6 +80,10 @@ func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	return n - addrSize, addr, nil
 }
 
-func (v *ssPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
-	return v.PacketConn.WriteTo(bytes.Join([][]byte{v.target, b}, []byte{}), v.add)
+func (v *ssPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	ad, err := proxy.ParseSysAddr(addr)
+	if err != nil {
+		return 0, err
+	}
+	return v.PacketConn.WriteTo(bytes.Join([][]byte{s5c.ParseAddr(ad), b}, nil), addr)
 }
