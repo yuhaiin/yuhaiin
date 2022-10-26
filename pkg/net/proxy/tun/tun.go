@@ -5,6 +5,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"golang.org/x/time/rate"
@@ -25,6 +26,8 @@ func (PACKAGE_MARK_KEY) String() string { return "Package ID" }
 type tunServer struct {
 	nicID tcpip.NICID
 	stack *stack.Stack
+
+	udpTable *s5s.UdpNatTable
 }
 
 func (t *tunServer) Close() error {
@@ -36,6 +39,9 @@ func (t *tunServer) Close() error {
 		t.stack.Close()
 	}
 
+	if t.udpTable != nil {
+		t.udpTable.Close()
+	}
 	return nil
 }
 
@@ -128,12 +134,14 @@ func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tr)
 
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder(s, o).HandlePacket)
-	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder(s, o).HandlePacket)
 
-	return &tunServer{stack: s, nicID: nicID}, nil
+	natTable := s5s.NewUdpNatTable(o.Dialer)
+	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder(s, natTable, o).HandlePacket)
+
+	return &tunServer{stack: s, udpTable: natTable, nicID: nicID}, nil
 }
 
-func isdns(opt *listener.Opts[*listener.Protocol_Tun], id stack.TransportEndpointID) bool {
+func isHandleDNS(opt *listener.Opts[*listener.Protocol_Tun], id stack.TransportEndpointID) bool {
 	if id.LocalPort == 53 && (opt.Protocol.Tun.DnsHijacking || id.LocalAddress.String() == opt.Protocol.Tun.Gateway) {
 		return true
 	}

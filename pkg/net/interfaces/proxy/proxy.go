@@ -240,6 +240,8 @@ func ParseUnixAddr(ad *net.UnixAddr) Address {
 
 func ParseSysAddr(ad net.Addr) (Address, error) {
 	switch ad := ad.(type) {
+	case Address:
+		return ad, nil
 	case *net.TCPAddr:
 		return ParseTCPAddress(ad), nil
 	case *net.UDPAddr:
@@ -248,10 +250,6 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 		return ParseIPAddr(ad), nil
 	case *net.UnixAddr:
 		return ParseUnixAddr(ad), nil
-	case *DomainAddr:
-		return ad, nil
-	case *IPAddr:
-		return ad, nil
 	}
 
 	return ParseAddress(ad.Network(), ad.String())

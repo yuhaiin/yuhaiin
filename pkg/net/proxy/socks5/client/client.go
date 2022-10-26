@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -48,7 +47,7 @@ func (s *client) Conn(host proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("first hand failed: %v", err)
 	}
 
-	_, err = s.handshake2(conn, connect, host)
+	_, err = s.handshake2(conn, Connect, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %v", err)
@@ -58,71 +57,76 @@ func (s *client) Conn(host proxy.Address) (net.Conn, error) {
 }
 
 func (s *client) handshake1(conn net.Conn) error {
-	sendData := utils.GetBuffer()
-	defer utils.PutBuffer(sendData)
+	_, err := conn.Write([]byte{0x05, 0x01, 0x00})
+	if err != nil {
+		return fmt.Errorf("write sock5 header failed: %w", err)
+	}
 
-	sendData.Write([]byte{0x05, 0x01, 0x00})
-	_, err := conn.Write(sendData.Bytes())
+	header := make([]byte, 2)
+	_, err = io.ReadFull(conn, header)
 	if err != nil {
-		return fmt.Errorf("firstVerify:sendData -> %v", err)
+		return fmt.Errorf("read header failed: %w", err)
 	}
-	getData := make([]byte, 3)
-	_, err = conn.Read(getData[:])
-	if err != nil {
-		return fmt.Errorf("firstVerify:Read -> %v", err)
-	}
-	if getData[0] != 0x05 || getData[1] == 0xFF {
-		return fmt.Errorf("firstVerify:checkVersion -> %v", errors.New("socks5 first handshake failed"))
+
+	if header[0] != 0x05 || header[1] == 0xFF {
+		return errors.New("unknown socks5 version")
 	}
 
 	//username and password
-	if getData[1] == 0x02 {
-		sendData.Write([]byte{0x01, byte(len(s.username))})
-		sendData.WriteString(s.username)
-		sendData.WriteByte(byte(len(s.password)))
-		sendData.WriteString(s.password)
-		_, _ = conn.Write(sendData.Bytes())
+	if header[1] == 0x02 {
+		req := utils.GetBuffer()
+		defer utils.PutBuffer(req)
 
-		_, err = conn.Read(getData[:])
+		req.Write([]byte{0x01, byte(len(s.username))})
+		req.WriteString(s.username)
+		req.WriteByte(byte(len(s.password)))
+		req.WriteString(s.password)
+
+		_, err = conn.Write(req.Bytes())
 		if err != nil {
-			return fmt.Errorf("firstVerify:Read2 -> %v", err)
+			return fmt.Errorf("write auth data failed: %w", err)
 		}
-		if getData[1] == 0x01 {
-			return fmt.Errorf("firstVerify -> %v", errors.New("username or password not correct,socks5 handshake failed"))
+
+		_, err = io.ReadFull(conn, header)
+		if err != nil {
+			return fmt.Errorf("read auth data failed: %w", err)
+		}
+		if header[1] == 0x01 {
+			return errors.New("username or password not correct,socks5 handshake failed")
 		}
 	}
 	return nil
 }
 
-type cmd byte
+type CMD byte
 
 const (
-	connect cmd = 0x01
-	bind    cmd = 0x02
-	udp     cmd = 0x03
+	Connect CMD = 0x01
+	Bind    CMD = 0x02
+	Udp     CMD = 0x03
 
-	ipv4       byte = 0x01
-	domainName byte = 0x03
-	ipv6       byte = 0x04
+	IPv4   byte = 0x01
+	Domain byte = 0x03
+	IPv6   byte = 0x04
 )
 
-func (s *client) handshake2(conn net.Conn, cmd cmd, address proxy.Address) (target proxy.Address, err error) {
-	sendData := utils.GetBuffer()
-	defer utils.PutBuffer(sendData)
+func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (target proxy.Address, err error) {
+	req := utils.GetBuffer()
+	defer utils.PutBuffer(req)
 
-	sendData.Write([]byte{0x05, byte(cmd), 0x00})
-	sendData.Write(ParseAddr(address))
+	req.Write([]byte{0x05, byte(cmd), 0x00})
+	req.Write(ParseAddr(address))
 
-	if _, err = conn.Write(sendData.Bytes()); err != nil {
+	if _, err = conn.Write(req.Bytes()); err != nil {
 		return nil, err
 	}
 
-	getData := make([]byte, 3)
-	if _, err := io.ReadFull(conn, getData); err != nil {
+	header := make([]byte, 3)
+	if _, err := io.ReadFull(conn, header); err != nil {
 		return nil, err
 	}
 
-	if getData[0] != 0x05 || getData[1] != 0x00 {
+	if header[0] != 0x05 || header[1] != 0x00 {
 		return nil, errors.New("socks5 second handshake failed")
 	}
 
@@ -150,47 +154,36 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("first hand failed: %v", err)
 	}
 
-	addr, err := s.handshake2(conn, udp, host)
+	addr, err := s.handshake2(conn, Udp, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %v", err)
 	}
 
-	pc, err := dialer.ListenPacket("udp", "")
+	pc, err := s.dialer.PacketConn(addr)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("listen udp failed: %v", err)
 	}
 
+	pc = newSocks5PacketConn(pc, conn, addr)
+
 	go func() {
 		io.Copy(io.Discard, conn)
-		conn.Close()
 		pc.Close()
 	}()
 
-	uaddr, err := addr.UDPAddr()
-	if err != nil {
-		return nil, fmt.Errorf("get udp addr failed: %w", err)
-	}
-
-	conn2, err := newSocks5PacketConn(uaddr, conn, pc)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("new socks5 packet conn failed: %v", err)
-	}
-
-	return conn2, nil
+	return pc, nil
 }
 
 type socks5PacketConn struct {
 	net.PacketConn
-	server net.Addr
-
-	tcp net.Conn
+	tcp    net.Conn
+	server proxy.Address
 }
 
-func newSocks5PacketConn(server net.Addr, tcp net.Conn, local net.PacketConn) (net.PacketConn, error) {
-	return &socks5PacketConn{local, server, tcp}, nil
+func newSocks5PacketConn(local net.PacketConn, tcp net.Conn, target proxy.Address) net.PacketConn {
+	return &socks5PacketConn{local, tcp, target}
 }
 
 func (s *socks5PacketConn) Close() error {
@@ -199,12 +192,9 @@ func (s *socks5PacketConn) Close() error {
 }
 
 func (s *socks5PacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
-	ad, ok := addr.(proxy.Address)
-	if !ok {
-		ad, err = proxy.ParseSysAddr(addr)
-		if err != nil {
-			return 0, fmt.Errorf("parse addr failed: %v", err)
-		}
+	ad, err := proxy.ParseSysAddr(addr)
+	if err != nil {
+		return 0, fmt.Errorf("parse addr failed: %v", err)
 	}
 	return s.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, ParseAddr(ad), p}, []byte{}), s.server)
 }
@@ -220,14 +210,7 @@ func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 		return 0, addr, fmt.Errorf("resolve addr failed: %v", err)
 	}
 
-	uaddr, err := adr.UDPAddr()
-	if err != nil {
-		return 0, addr, fmt.Errorf("get udp addr failed: %v", err)
-	}
-
 	prefix := 3 + size
-
-	// log.Println("read from remote", n, addr, adr, "prefix", prefix)
 
 	if n < prefix {
 		return 0, addr, fmt.Errorf("slice out of range, get: %d less %d", n, prefix)
@@ -235,7 +218,7 @@ func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 
 	copy(p[0:], p[prefix:n])
 
-	return n - prefix, uaddr, nil
+	return n - prefix, adr, nil
 }
 
 // The client connects to the server, and sends a version

@@ -19,12 +19,7 @@ func init() {
 	node.RegisterProtocol(func(*node.Protocol_None) node.WrapProxy {
 		return func(p proxy.Proxy) (proxy.Proxy, error) { return p, nil }
 	})
-	node.RegisterProtocol(func(p *node.Protocol_Simple) node.WrapProxy {
-		return func(proxy.Proxy) (proxy.Proxy, error) {
-			return simple.NewSimple(proxy.ParseAddressSplit("", p.Simple.GetHost(), proxy.ParsePort(p.Simple.GetPort())),
-				node.ParseTLSConfig(p.Simple.Tls)), nil
-		}
-	})
+	node.RegisterProtocol(simple.NewSimple)
 	node.RegisterProtocol(vmess.NewVmess)
 	node.RegisterProtocol(websocket.New)
 	node.RegisterProtocol(quic.NewQUIC)

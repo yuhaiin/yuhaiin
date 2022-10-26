@@ -40,7 +40,6 @@ message point {
 message socks5 {
   // eg: 127.0.0.1
   string hostname = 3 [ json_name = "hostname" ];
-  int32 port = 4 [ json_name = "port" ];
   string user = 1 [ json_name = "user" ];
   string password = 2 [ json_name = "password" ];
   // TODO: add override hostname options
@@ -52,10 +51,8 @@ message http {
 }
 
 message shadowsocks {
-  string server = 1 [ json_name = "server" ];
-  string port = 2 [ json_name = "port" ];
-  string method = 3 [ json_name = "method" ];
-  string password = 4 [ json_name = "password" ];
+  string method = 1 [ json_name = "method" ];
+  string password = 2 [ json_name = "password" ];
 }
 
 message shadowsocksr {
@@ -100,7 +97,9 @@ message none {}
 message simple {
   string host = 1 [ json_name = "host" ];
   int32 port = 2 [ json_name = "port" ];
-  tls_config tls = 3 [ json_name = "tls_config" ];
+  // udp will write to every packet target instead of only write to host:port
+  bool packet_conn_direct = 3 [ json_name = "packet_conn_direct" ];
+  tls_config tls = 4 [ json_name = "tls_config" ];
 }
 
 message tls_config {
