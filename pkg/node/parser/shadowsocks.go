@@ -46,7 +46,7 @@ func init() {
 			return nil, fmt.Errorf("parse plugin failed: %w", err)
 		}
 
-		port, err := strconv.Atoi(portstr)
+		port, err := strconv.ParseUint(portstr, 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("parse port failed: %w", err)
 		}
