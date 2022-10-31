@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"math/big"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func NewAuthAES128MD5(info Protocol) protocol { return newAuthAES128(info, crypto.MD5) }
@@ -153,6 +155,8 @@ func (a *authAES128) rndDataLen(bufSize, fullBufSize int) int {
 	return trapezoidRandomFLoat(revLen, -0.3)
 }
 
+var bigInt256 = big.NewInt(256)
+
 func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	dataLength := len(data)
 	if dataLength == 0 {
@@ -195,7 +199,7 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	hmacBuf := utils.GetBytes(6)
 	defer utils.PutBytes(hmacBuf)
 
-	wbuf.Write([]byte{byte(rand.Intn(256))})
+	wbuf.WriteByte(byte(yerror.Ignore(crand.Int(crand.Reader, bigInt256)).Uint64()))
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
 	wbuf.Write(a.uid[:])
 	wbuf.Write(encrypt[:16])

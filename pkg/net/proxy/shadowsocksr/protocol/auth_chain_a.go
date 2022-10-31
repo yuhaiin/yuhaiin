@@ -152,7 +152,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 		if a.userKey == nil {
 			params := strings.Split(a.Param, ":")
 			if len(params) >= 2 {
-				if userID, err := strconv.Atoi(params[0]); err == nil {
+				if userID, err := strconv.ParseUint(params[0], 10, 32); err == nil {
 					binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
 					a.userKeyLen = len(params[1])
 					a.userKey = []byte(params[1])
@@ -296,7 +296,7 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 	if a.userKey == nil {
 		params := strings.Split(a.Param, ":")
 		if len(params) >= 2 {
-			if userID, err := strconv.Atoi(params[0]); err == nil {
+			if userID, err := strconv.ParseUint(params[0], 10, 32); err == nil {
 				binary.LittleEndian.PutUint32(a.uid[:], uint32(userID))
 				a.userKeyLen = len(params[1])
 				a.userKey = []byte(params[1])
