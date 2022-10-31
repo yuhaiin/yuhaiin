@@ -92,7 +92,7 @@ func init() {
 			n.Ps = n.Remark
 		}
 
-		port, err := strconv.Atoi(get(n.Port))
+		port, err := strconv.ParseUint(get(n.Port), 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("vmess port is not a number: %v", err)
 		}

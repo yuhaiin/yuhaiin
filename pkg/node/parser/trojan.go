@@ -19,7 +19,7 @@ func init() {
 		if u.Scheme != "trojan" {
 			return nil, errors.New("invalid scheme")
 		}
-		port, err := strconv.Atoi(u.Port())
+		port, err := strconv.ParseUint(u.Port(), 10, 16)
 		if err != nil {
 			return nil, errors.New("invalid port")
 		}

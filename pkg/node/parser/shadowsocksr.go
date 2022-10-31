@@ -33,7 +33,7 @@ func init() {
 		}
 		query, _ := url.ParseQuery(string(decodeStr[1]))
 
-		port, err := strconv.Atoi(x[1])
+		port, err := strconv.ParseUint(x[1], 10, 16)
 		if err != nil {
 			return nil, errors.New("invalid port")
 		}
