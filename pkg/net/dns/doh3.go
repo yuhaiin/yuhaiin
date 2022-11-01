@@ -24,9 +24,11 @@ type doh3 struct{ *client }
 func NewDoH3(config Config) dns.DNS {
 	d := &doh3{}
 
+	tr := &http3.RoundTripper{}
+
 	httpClient := &http.Client{
 		Timeout:   time.Second * 5,
-		Transport: &http3.RoundTripper{},
+		Transport: tr,
 	}
 
 	if !strings.HasPrefix(config.Host, "https://") {

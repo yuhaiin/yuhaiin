@@ -23,6 +23,9 @@ type Simple struct {
 func NewSimple(c *node.Protocol_Simple) node.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		tls := node.ParseTLSConfig(c.Simple.Tls)
+		if tls != nil && !tls.InsecureSkipVerify && tls.ServerName == "" {
+			tls.ServerName = c.Simple.GetHost()
+		}
 
 		return &Simple{
 			addr:         proxy.ParseAddressSplit("", c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
