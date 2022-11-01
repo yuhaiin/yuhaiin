@@ -36,6 +36,10 @@ func New(cf *node.Protocol_Websocket) node.WrapProxy {
 			return nil, fmt.Errorf("websocket parse uri failed: %w", err)
 		}
 
+		if tls != nil && !tls.InsecureSkipVerify && tls.ServerName == "" {
+			tls.ServerName = uri.Hostname()
+		}
+
 		return &client{
 			wsConfig: &websocket.Config{
 				Location: uri, Origin: &url.URL{},

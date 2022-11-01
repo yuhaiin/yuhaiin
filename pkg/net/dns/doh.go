@@ -28,12 +28,24 @@ type doh struct{ *client }
 
 func NewDoH(config Config) dns.DNS {
 	uri := getUrlAndHost(config.Host)
+	req, err := http.NewRequest(http.MethodPost, uri, nil)
+	if err != nil {
+		return dns.NewErrorDNS(err)
+	}
+	req.Header.Set("Content-Type", "application/dns-message")
+	req.Header.Set("Accept", "application/dns-message")
+
+	if config.Servername == "" {
+		config.Servername = req.URL.Hostname()
+	}
+
+	tlsConfig := &tls.Config{
+		ServerName: config.Servername,
+	}
 
 	var addr proxy.Address
 	roundTripper := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			ServerName: config.Servername,
-		},
+		TLSClientConfig:   tlsConfig,
 		ForceAttemptHTTP2: true,
 		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
 			switch network {
@@ -62,12 +74,9 @@ func NewDoH(config Config) dns.DNS {
 	}
 	return &doh{
 		client: NewClient(config, func(b []byte) ([]byte, error) {
-			req, err := http.NewRequest("POST", uri, bytes.NewBuffer(b))
-			if err != nil {
-				return nil, fmt.Errorf("doh new request failed: %v", err)
-			}
-			req.Header.Set("Content-Type", "application/dns-message")
-			req.Header.Set("Accept", "application/dns-message")
+			req := req.Clone(context.Background())
+			req.Body = io.NopCloser(bytes.NewBuffer(b))
+
 			resp, err := hc.Do(req)
 			if err != nil {
 				return nil, fmt.Errorf("doh post failed: %v", err)
