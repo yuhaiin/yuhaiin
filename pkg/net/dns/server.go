@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -67,7 +67,7 @@ func (d *dnsServer) start() (err error) {
 	log.Infoln("new udp dns server listen at:", d.server)
 
 	for {
-		buf := utils.GetBytes(utils.DefaultSize)
+		buf := pool.GetBytes(pool.DefaultSize)
 
 		n, addr, err := d.listener.ReadFrom(buf)
 		if err != nil {
@@ -80,7 +80,7 @@ func (d *dnsServer) start() (err error) {
 		}
 
 		go func(buf []byte, n int, addr net.Addr) {
-			defer utils.PutBytes(buf)
+			defer pool.PutBytes(buf)
 			data, err := d.handle(buf[:n])
 			if err != nil {
 				log.Errorln("dns server handle data failed:", err)
@@ -122,17 +122,13 @@ func (d *dnsServer) startTCP() (err error) {
 }
 
 func (d *dnsServer) HandleTCP(c net.Conn) error {
-	l := utils.GetBytes(2)
-	defer utils.PutBytes(l)
-
-	_, err := io.ReadFull(c, l[:2])
-	if err != nil {
-		return fmt.Errorf("dns server read length failed: %w", err)
+	var length uint16
+	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
+		return fmt.Errorf("read dns length failed: %w", err)
 	}
 
-	length := int(binary.BigEndian.Uint16(l[:2]))
-	data := utils.GetBytes(length)
-	defer utils.PutBytes(data)
+	data := pool.GetBytes(int(length))
+	defer pool.PutBytes(data)
 
 	n, err := io.ReadFull(c, data[:length])
 	if err != nil {
@@ -152,8 +148,8 @@ func (d *dnsServer) HandleTCP(c net.Conn) error {
 }
 
 func (d *dnsServer) HandleUDP(l net.PacketConn) error {
-	p := utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(p)
+	p := pool.GetBytes(pool.DefaultSize)
+	defer pool.PutBytes(p)
 	n, addr, err := l.ReadFrom(p)
 	if err != nil {
 		return err
@@ -194,10 +190,10 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 		Header: dnsmessage.Header{
 			ID:                 h.ID,
 			Response:           true,
-			Authoritative:      true,
-			RecursionDesired:   true,
+			Authoritative:      false,
+			RecursionDesired:   false,
 			RCode:              dnsmessage.RCodeSuccess,
-			RecursionAvailable: true,
+			RecursionAvailable: false,
 		},
 		Questions: []dnsmessage.Question{
 			{

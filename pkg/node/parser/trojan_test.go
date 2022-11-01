@@ -11,19 +11,21 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestParseTrojan(t *testing.T) {
 	data := "trojan://cb60ba10-1178-3896-ba6e-69ffae322db5@1.1.1.1:443?sni=www.google.com&peer=www.google.com#zxdsdfsdf"
-	t.Log(Parse(node.NodeLink_trojan, []byte(data)))
+	t.Log(Parse(subscribe.Type_trojan, []byte(data)))
 }
 
 func TestTrojan(t *testing.T) {
-	p := &node.Point{
-		Protocols: []*node.Protocol{},
+	p := &point.Point{
+		Protocols: []*protocol.Protocol{},
 	}
 
 	err := protojson.Unmarshal([]byte(``), p)

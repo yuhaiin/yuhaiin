@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -39,7 +39,7 @@ func newUDPServer(f proxy.Proxy) (net.PacketConn, error) {
 
 func (u *udpServer) handle(dialer proxy.Proxy) {
 	for {
-		buf := utils.GetBytes(MaxSegmentSize)
+		buf := pool.GetBytes(MaxSegmentSize)
 		n, l, err := u.PacketConn.ReadFrom(buf)
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
@@ -49,7 +49,7 @@ func (u *udpServer) handle(dialer proxy.Proxy) {
 		}
 
 		go func(data []byte, n int, src net.Addr) {
-			defer utils.PutBytes(data)
+			defer pool.PutBytes(data)
 			addr, size, err := s5c.ResolveAddr("udp", bytes.NewBuffer(data[3:n]))
 			if err != nil {
 				log.Errorf("resolve addr failed: %v", err)
@@ -147,8 +147,8 @@ func (u *UdpNatTable) Write(data []byte, src net.Addr, target proxy.Address, cli
 }
 
 func (u *UdpNatTable) relay(proxy, client net.PacketConn, src net.Addr) error {
-	data := utils.GetBytes(MaxSegmentSize)
-	defer utils.PutBytes(data)
+	data := pool.GetBytes(MaxSegmentSize)
+	defer pool.PutBytes(data)
 
 	defer u.cache.Delete(src.String())
 	defer proxy.Close()

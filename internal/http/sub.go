@@ -7,14 +7,14 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type subHandler struct {
 	emptyHTTP
-	nm grpcnode.NodeManagerServer
+	nm grpcnode.SubscribeServer
 }
 
 func (s *subHandler) Post(w http.ResponseWriter, r *http.Request) error {
@@ -25,8 +25,8 @@ func (s *subHandler) Post(w http.ResponseWriter, r *http.Request) error {
 		return errors.New("name or link is empty")
 	}
 
-	_, err := s.nm.SaveLinks(context.TODO(), &grpcnode.SaveLinkReq{
-		Links: []*node.NodeLink{
+	_, err := s.nm.Save(context.TODO(), &grpcnode.SaveLinkReq{
+		Links: []*subscribe.Link{
 			{
 				Name: name,
 				Url:  link,
@@ -42,7 +42,7 @@ func (s *subHandler) Post(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *subHandler) Get(w http.ResponseWriter, r *http.Request) error {
-	links, err := s.nm.GetLinks(context.TODO(), &emptypb.Empty{})
+	links, err := s.nm.Get(context.TODO(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (s *subHandler) Delete(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.nm.DeleteLinks(context.TODO(), &grpcnode.LinkReq{Names: names})
+	_, err := s.nm.Remove(context.TODO(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (s *subHandler) Patch(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.nm.UpdateLinks(context.TODO(), &grpcnode.LinkReq{Names: names})
+	_, err := s.nm.Update(context.TODO(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}

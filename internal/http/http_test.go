@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -17,7 +17,7 @@ func TestXxx(t *testing.T) {
 	z := bytes.NewBuffer(nil)
 	err = tp.Execute(z, map[string]any{
 		"LS": []string{"testlink", "test2"},
-		"Links": map[string]node.NodeLink{
+		"Links": map[string]subscribe.Link{
 			"testlink": {
 				Name: "testlink",
 				Url:  "http://url",

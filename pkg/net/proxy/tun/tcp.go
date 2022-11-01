@@ -6,8 +6,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -52,7 +52,7 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 				return
 			}
 			defer conn.Close()
-			utils.Relay(local, conn)
+			relay.Relay(local, conn)
 		}(gonet.NewTCPConn(wq, ep), id)
 	})
 }

@@ -9,7 +9,7 @@ import (
 	"net/url"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 type client struct {
@@ -17,7 +17,7 @@ type client struct {
 	user, password string
 }
 
-func NewHttp(config *node.Protocol_Http) node.WrapProxy {
+func New(config *protocol.Protocol_Http) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &client{p, config.Http.User, config.Http.Password}, nil
 	}

@@ -1,9 +1,11 @@
 package dns
 
 import (
+	"encoding/base64"
 	"net"
 	"testing"
 
+	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	rr "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -12,45 +14,88 @@ import (
 func TestDOH(t *testing.T) {
 	rr.Bootstrap = &rr.System{DisableIPv6: true}
 	_, s, _ := net.ParseCIDR("223.5.5.5/24")
-	_ = s
-	// d := NewDoH("cloudflare-dns.com", nil)
-	// d := New(
-	// 	Config{
-	// 		Type:       config.Dns_doh,
-	// 		Host:       "103.2.57.5",
-	// 		Servername: "public.dns.iij.jp",
-	// 		IPv6:       true,
-	// 		Subnet:     s,
-	// 	})
-	// d := New(Config{
-	// 	Type:   config.Dns_doh,
-	// 	Host:   "dns.google",
-	// 	IPv6:   true,
-	// 	Subnet: s,
-	// 	Dialer: s5c.Dial("127.0.0.1", "1080", "", ""),
-	// })
-	// d := NewDoH(dns.Config{Host: "9.9.9.9", Subnet: s, IPv6: true}, nil)
-	// d := NewDoH(Config{Host: "43.154.169.30", Servername: "a.passcloud.xyz", Dialer: s5c.Dial("127.0.0.1", "1080", "", "")})
-	// d := New(Config{
-	// 	Type: config.Dns_doh,
-	// 	Host: "https://unfiltered.adguard-dns.com/dns-query",
-	// 	IPv6: true,
-	// })
-	// d := NewDoH("1.0.0.1", nil, nil)
-	// d := NewDoH(dns.Config{Host: "223.5.5.5", Subnet: s}, nil)
-	// d := NewDoH(dns.Config{Host: "120.53.53.53", Subnet: s}, nil)
-	// d := NewDoH("sm2.doh.pub", s, nil)
-	d := New(Config{
-		Type:   dns.Type_doh,
-		Host:   "doh.pub",
-		Subnet: s,
-	})
-	// d := NewDoH("101.6.6.6:8443", nil)
-	// d := NewDoH("doh.360.cn", s, nil)
-	// d := NewDOH("doh.dns.sb")
-	// d := NewDoH("doh.opendns.com", nil)
-	// _, s, _ := net.ParseCIDR("45.32.51.197/31")
-	//t.Log(d.LookupIP("plasma"))
+	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")
+
+	configMap := map[string]Config{
+		"google": {
+			Type:   dns.Type_doh,
+			Host:   "dns.google",
+			IPv6:   true,
+			Subnet: s,
+			Dialer: s5Dialer,
+		},
+		"iijJP": {
+			Type:       dns.Type_doh,
+			Host:       "103.2.57.5",
+			Servername: "public.dns.iij.jp",
+			IPv6:       true,
+			Subnet:     s,
+		},
+		"cloudflare": {
+			Type:   dns.Type_doh,
+			Host:   "cloudflare-dns.com",
+			Subnet: s,
+			IPv6:   true,
+			Dialer: s5Dialer,
+		},
+		"quad9": {
+			Type:   dns.Type_doh,
+			Host:   "9.9.9.9",
+			Subnet: s,
+			IPv6:   true,
+		},
+		"a.passcloud": {
+			Type:   dns.Type_doh,
+			Host:   "a.passcloud.xyz",
+			Subnet: s,
+			IPv6:   true,
+		},
+		"adguard": {
+			Type: dns.Type_doh,
+			Host: "https://unfiltered.adguard-dns.com/dns-query",
+			IPv6: true,
+		},
+		"ali": {
+			Type:   dns.Type_doh,
+			Host:   "223.5.5.5",
+			Subnet: s,
+		},
+		"dns.pub": {
+			Type:   dns.Type_doh,
+			Host:   "dns.pub",
+			Subnet: s,
+			IPv6:   true,
+		},
+		"sm2.dnspub": {
+			Type:   dns.Type_doh,
+			Host:   "sm2.doh.pub",
+			Subnet: s,
+			IPv6:   true,
+		},
+		"360": {
+			Type:   dns.Type_doh,
+			Host:   "doh.360.cn",
+			Subnet: s,
+			IPv6:   true,
+		},
+		"dnssb": {
+			Type:   dns.Type_doh,
+			Host:   "doh.dns.sb",
+			Subnet: s,
+			IPv6:   true,
+			Dialer: s5Dialer,
+		},
+		"opendns": {
+			Type:   dns.Type_doh,
+			Host:   "doh.opendns.com",
+			Subnet: s,
+			IPv6:   true,
+			Dialer: s5Dialer,
+		},
+	}
+
+	d := NewDoH(configMap["google"])
+	t.Log(d.LookupIP("plasma"))
 	t.Log(d.LookupIP("dc.services.visualstudio.com")) // -> will error, but not found reason
 	t.Log(d.LookupIP("i2.hdslb.com"))
 	t.Log(d.LookupIP("www.baidu.com"))
@@ -61,30 +106,11 @@ func TestDOH(t *testing.T) {
 	t.Log(d.LookupIP("dns.nextdns.io"))
 	t.Log(d.LookupIP("bilibili.com"))
 	t.Log(d.LookupIP("test-ipv6.com"))
-	t.Log(d.LookupIP("test-ipv6.com"))
-	//t.Log(d.LookupIP("baidu.com"))
-	//t.Log(d.LookupIP("ss1.bdstatic.com"))
-	//t.Log(d.LookupIP("dns.nextdns.io"))
-	//t.Log(DOH("dns.google", "www.twitter.com"))
-	// t.Log(DOH("cloudflare-dns.com", "www.twitter.com"))
-	// t.Log(DOH("dns.google", "www.facebook.com"))
-	// t.Log(DOH("cloudflare-dns.com", "www.facebook.com"))
-	// t.Log(DOH("dns.google", "www.v2ex.com"))
-	// t.Log(DOH("cloudflare-dns.com", "www.v2ex.com"))
-	// t.Log(DOH("dns.google", "www.baidu.com"))
-	// t.Log(DOH("cloudflare-dns.com", "www.baidu.com"))
-	//t.Log(DOH("dns.google", "www.google.com"))
-	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
-	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
-	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
-	//t.Log(DOH("cloudflare-dns.com", "www.google.com"))
-	//t.Log(DOH("dns.google", "www.archlinux.org"))
-	//t.Log(DOH("dns.google", "yahoo.co.jp"))
-
-	//t.Log(DOH("cloudflare-dns.com", "test-ipv6.nextdns.io"))
-	//t.Log(DOH("dns.nextdns.io", "google.com"))
-
-	// t.Log(DOH("cloudflare-dns.com", "115-235-111-150.dhost.00cdn.com"))
+	t.Log(d.LookupIP("ss1.bdstatic.com"))
+	t.Log(d.LookupIP("www.twitter.com"))
+	t.Log(d.LookupIP("www.facebook.com"))
+	t.Log(d.LookupIP("yahoo.co.jp"))
+	t.Log(d.LookupIP("115-235-111-150.dhost.00cdn.com"))
 }
 
 func TestGetURL(t *testing.T) {
@@ -94,4 +120,10 @@ func TestGetURL(t *testing.T) {
 
 	t.Log(getUrlAndHost("https://"))
 	t.Log(getUrlAndHost("/dns-query"))
+}
+
+func TestDohGetUrl(t *testing.T) {
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.example.com", A, false)))
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.google.com", A, false)))
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("a.62characterlabel-makes-base64url-distinct-from-standard-base64.example.com", A, false)))
 }

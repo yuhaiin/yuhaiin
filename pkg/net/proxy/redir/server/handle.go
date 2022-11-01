@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/nfutil"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func handle(req net.Conn, f proxy.Proxy) error {
@@ -29,6 +29,6 @@ func handle(req net.Conn, f proxy.Proxy) error {
 	}
 
 	defer rsp.Close()
-	utils.Relay(req, rsp)
+	relay.Relay(req, rsp)
 	return nil
 }

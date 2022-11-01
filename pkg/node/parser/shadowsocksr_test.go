@@ -11,81 +11,29 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func TestSsrParse2(t *testing.T) {
+func TestSsrParse(t *testing.T) {
 	ssr := []string{"ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz02YUtkNW9HcDZMcXImZ3JvdXA9NmFLZDVvR3A2THFy",
 		"ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz1jMlZqYjI1ayZncm91cD02YUtkNW9HcDZMcXIK",
 		"ssr://MS4xLjEuMTo1MzphdXRoX2NoYWluX2E6bm9uZTpodHRwX3NpbXBsZTo2YUtkNW9HcDZMcXIvP29iZnNwYXJhbT02YUtkNW9HcDZMcXImcHJvdG9wYXJhbT02YUtkNW9HcDZMcXImcmVtYXJrcz1jM056YzNOeiZncm91cD1jM056YzNOego",
 		"ssr://MjIyLjIyMi4yMjIuMjIyOjQ0MzphdXRoX2FlczEyOF9tZDU6Y2hhY2hhMjAtaWV0ZjpodHRwX3Bvc3Q6ZEdWemRBby8/b2Jmc3BhcmFtPWRHVnpkQW8mcHJvdG9wYXJhbT1kR1Z6ZEFvJnJlbWFya3M9ZEdWemRBbyZncm91cD1kR1Z6ZEFvCg"}
 
 	for x := range ssr {
-		log.Println(Parse(node.NodeLink_shadowsocksr, []byte(ssr[x])))
+		log.Println(Parse(subscribe.Type_shadowsocksr, []byte(ssr[x])))
 	}
-}
-
-func TestConnections(t *testing.T) {
-	p := yerror.Must(simple.NewSimple(
-		&node.Protocol_Simple{
-			Simple: &node.Simple{
-				Host: "127.0.0.1",
-				Port: 1090,
-			},
-		})(nil))
-	z, err := ss.NewHTTPOBFS(
-		&node.Protocol_ObfsHttp{
-			ObfsHttp: &node.ObfsHttp{
-				Host: "example.com",
-				Port: "80",
-			},
-		})(p)
-	assert.NoError(t, err)
-	z, err = ss.NewShadowsocks(
-		&node.Protocol_Shadowsocks{
-			Shadowsocks: &node.Shadowsocks{
-				Method:   "AEAD_AES_128_GCM",
-				Password: "test",
-			},
-		})(z)
-	assert.NoError(t, err)
-	tt := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := proxy.ParseAddress(network, addr)
-				assert.NoError(t, err)
-				return z.Conn(ad)
-			},
-		},
-	}
-
-	req := http.Request{
-		Method: "GET",
-		URL: &url.URL{
-			Scheme: "http",
-			Host:   "ip.sb",
-		},
-		Header: make(http.Header),
-	}
-	req.Header.Set("User-Agent", "curl/v2.4.1")
-	resp, err := tt.Do(&req)
-	assert.NoError(t, err)
-	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(data))
 }
 
 func TestConnectionSsr(t *testing.T) {
-	p := &node.Point{
-		Protocols: []*node.Protocol{},
+	p := &point.Point{
+		Protocols: []*protocol.Protocol{},
 	}
 
 	err := protojson.Unmarshal([]byte(``), p)
@@ -122,41 +70,6 @@ func TestConnectionSsr(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	assert.NoError(t, err)
-	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(data))
-}
-
-func TestSSr(t *testing.T) {
-	p := &node.Point{
-		Protocols: []*node.Protocol{},
-	}
-	z, err := register.Dialer(p)
-	assert.NoError(t, err)
-
-	tt := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := proxy.ParseAddress(network, addr)
-				assert.NoError(t, err)
-				return z.Conn(ad)
-			},
-		},
-	}
-
-	req := http.Request{
-		Method: "GET",
-		URL: &url.URL{
-			Scheme: "http",
-			Host:   "ip.sb",
-		},
-		Header: make(http.Header),
-	}
-	req.Header.Set("User-Agent", "curl/v2.4.1")
-	resp, err := tt.Do(&req)
-	t.Error(err)
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)

@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	lis "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func controlTCP(c syscall.RawConn) error {
@@ -56,7 +56,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 		return fmt.Errorf("get conn failed: %v", err)
 	}
 
-	utils.Relay(c, r)
+	relay.Relay(c, r)
 	return nil
 }
 

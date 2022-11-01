@@ -9,15 +9,16 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 func main() {
-	node := &node.Point{
-		Protocols: []*node.Protocol{
+	node := &point.Point{
+		Protocols: []*protocol.Protocol{
 			{
-				Protocol: &node.Protocol_Simple{
-					Simple: &node.Simple{
+				Protocol: &protocol.Protocol_Simple{
+					Simple: &protocol.Simple{
 						Host:             "127.0.0.1",
 						Port:             1080,
 						PacketConnDirect: true,
@@ -25,8 +26,8 @@ func main() {
 				},
 			},
 			{
-				Protocol: &node.Protocol_Socks5{
-					Socks5: &node.Socks5{},
+				Protocol: &protocol.Protocol_Socks5{
+					Socks5: &protocol.Socks5{},
 				},
 			},
 		},

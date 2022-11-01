@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	protocols "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 var _ proxy.Proxy = (*Shadowsocksr)(nil)
@@ -22,7 +22,7 @@ type Shadowsocksr struct {
 	dial     proxy.Proxy
 }
 
-func NewShadowsocksr(config *node.Protocol_Shadowsocksr) node.WrapProxy {
+func New(config *protocols.Protocol_Shadowsocksr) protocols.WrapProxy {
 	c := config.Shadowsocksr
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		cipher, err := cipher.NewCipher(c.Method, c.Password)

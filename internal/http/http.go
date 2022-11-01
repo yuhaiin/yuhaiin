@@ -16,7 +16,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-func Httpserver(mux *http.ServeMux, nm snode.NodeManagerServer, stt sstatistic.ConnectionsServer, cf config.ConfigDaoServer) {
+func Httpserver(mux *http.ServeMux,
+	nm snode.NodeServer, subscribe snode.SubscribeServer,
+	stt sstatistic.ConnectionsServer, cf config.ConfigDaoServer) {
 	// pprof
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -29,7 +31,7 @@ func Httpserver(mux *http.ServeMux, nm snode.NodeManagerServer, stt sstatistic.C
 	mux.Handle("/config", &handler{&configHandler{cf: cf}})
 	mux.Handle("/conn", &handler{&conn{stt: stt}})
 	mux.Handle("/node", &handler{&nodeHandler{nm: nm}})
-	mux.Handle("/sub", &handler{&subHandler{nm: nm}})
+	mux.Handle("/sub", &handler{&subHandler{nm: subscribe}})
 	mux.Handle("/group", &handler{&groupHandler{nm: nm}})
 	mux.Handle("/latency", &handler{&latencyHandler{nm: nm}})
 	mux.Handle("/bootstrap/", http.StripPrefix("/bootstrap", http.FileServer(http.FS(bootstrap.Bootstrap))))

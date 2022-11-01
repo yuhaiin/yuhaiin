@@ -12,7 +12,7 @@ import (
 
 type rootHandler struct {
 	emptyHTTP
-	nm grpcnode.NodeManagerServer
+	nm grpcnode.NodeServer
 }
 
 func (z *rootHandler) Get(w http.ResponseWriter, r *http.Request) error {

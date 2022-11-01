@@ -13,12 +13,12 @@ import (
 
 type groupHandler struct {
 	emptyHTTP
-	nm snode.NodeManagerServer
+	nm snode.NodeServer
 }
 
 func (g *groupHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	group := r.URL.Query().Get("name")
-	ns, err := g.nm.GetManager(context.TODO(), &wrapperspb.StringValue{})
+	ns, err := g.nm.Manager(context.TODO(), &wrapperspb.StringValue{})
 	if err != nil {
 		return err
 	}

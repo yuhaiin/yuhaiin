@@ -7,7 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	gcvmess "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess/gitsrcvmess"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 // Vmess vmess client
@@ -16,10 +16,10 @@ type Vmess struct {
 	dial   proxy.Proxy
 }
 
-func NewVmess(config *node.Protocol_Vmess) node.WrapProxy {
+func New(config *protocol.Protocol_Vmess) protocol.WrapProxy {
 	alterID, err := strconv.Atoi(config.Vmess.AlterId)
 	if err != nil {
-		return node.ErrConn(fmt.Errorf("convert AlterId to int failed: %v", err))
+		return protocol.ErrConn(fmt.Errorf("convert AlterId to int failed: %v", err))
 	}
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		client, err := gcvmess.NewClient(config.Vmess.Uuid, config.Vmess.Security, alterID)

@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
@@ -23,18 +23,18 @@ func TestImplement(t *testing.T) {
 }
 
 func TestConn(t *testing.T) {
-	p := yerror.Must(simple.NewSimple(
-		&node.Protocol_Simple{
-			Simple: &node.Simple{
+	p := yerror.Must(simple.New(
+		&protocol.Protocol_Simple{
+			Simple: &protocol.Simple{
 				Host: "127.0.0.1",
 				Port: 1080,
 			},
 		})(nil))
-	z, err := websocket.New(&node.Protocol_Websocket{Websocket: &node.Websocket{Host: "localhost:1090"}})(p)
+	z, err := websocket.New(&protocol.Protocol_Websocket{Websocket: &protocol.Websocket{Host: "localhost:1090"}})(p)
 	assert.NoError(t, err)
-	z, err = NewShadowsocks(
-		&node.Protocol_Shadowsocks{
-			Shadowsocks: &node.Shadowsocks{
+	z, err = New(
+		&protocol.Protocol_Shadowsocks{
+			Shadowsocks: &protocol.Shadowsocks{
 				Method:   "aes-128-gcm",
 				Password: "test",
 			},
@@ -74,16 +74,16 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p := yerror.Must(simple.NewSimple(
-		&node.Protocol_Simple{
-			Simple: &node.Simple{
+	p := yerror.Must(simple.New(
+		&protocol.Protocol_Simple{
+			Simple: &protocol.Simple{
 				Host: "127.0.0.1",
 				Port: 1090,
 			},
 		})(nil))
-	s, err := NewShadowsocks(
-		&node.Protocol_Shadowsocks{
-			Shadowsocks: &node.Shadowsocks{
+	s, err := New(
+		&protocol.Protocol_Shadowsocks{
+			Shadowsocks: &protocol.Shadowsocks{
 				Method:   "aes-128-gcm",
 				Password: "test",
 			},

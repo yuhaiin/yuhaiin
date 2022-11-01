@@ -8,7 +8,7 @@ import (
 	"net/url"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	protocols "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"golang.org/x/net/websocket"
 )
 
@@ -18,14 +18,14 @@ type client struct {
 	dialer    proxy.Proxy
 }
 
-func New(cf *node.Protocol_Websocket) node.WrapProxy {
+func New(cf *protocols.Protocol_Websocket) protocols.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 
 		header := http.Header{}
 		header.Add("Host", cf.Websocket.Host)
 
 		protocol := "ws"
-		tls := node.ParseTLSConfig(cf.Websocket.Tls)
+		tls := protocols.ParseTLSConfig(cf.Websocket.Tls)
 		if tls != nil {
 			//tls
 			protocol = "wss"
@@ -171,8 +171,8 @@ func (c *connection) Read(b []byte) (int, error) {
 }
 
 func (c *connection) ReadFrom(r io.Reader) (int64, error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
+	buf := pool.GetBytes(2048)
+	defer pool.PutBytes(buf)
 
 	n := int64(0)
 	for {
@@ -211,8 +211,8 @@ func (c *connection) Write(b []byte) (int, error) {
 }
 
 func (c *connection) WriteTo(w io.Writer) (int64, error) {
-	buf := utils.GetBytes(2048)
-	defer utils.PutBytes(buf)
+	buf := pool.GetBytes(2048)
+	defer pool.PutBytes(buf)
 
 	n := int64(0)
 	for {

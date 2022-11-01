@@ -13,8 +13,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -55,7 +55,7 @@ var _ dns.DNS = (*client)(nil)
 type client struct {
 	subnet []dnsmessage.Resource
 	do     func([]byte) ([]byte, error)
-	cache  *utils.LRU[string, ipResponse]
+	cache  *lru.LRU[string, ipResponse]
 
 	config Config
 }
@@ -70,7 +70,7 @@ func (c ipResponse) String() string {
 }
 
 func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{do: send, config: config, cache: utils.NewLru[string, ipResponse](300, 0)}
+	c := &client{do: send, config: config, cache: lru.NewLru[string, ipResponse](300, 0)}
 
 	if config.Subnet == nil {
 		return c
@@ -177,7 +177,7 @@ func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPResponse,
 
 	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
 
-	c.cache.Add(key, ipResponse{resp, expireAfter}, utils.WithExpireTime(expireAfter))
+	c.cache.Add(key, ipResponse{resp, expireAfter}, lru.WithExpireTime(expireAfter))
 	return dns.NewIPResponse(resp, ttl), nil
 }
 
@@ -213,7 +213,8 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 		return 0, nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
-	var p dnsmessage.Parser
+	p := &dnsmessage.Parser{}
+
 	he, err := p.Start(d)
 	if err != nil {
 		return 0, nil, err
@@ -230,39 +231,26 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 	p.SkipAllQuestions()
 
 	var ttl uint32
-	i := make([]net.IP, 0, 1)
+	i := make([]net.IP, 0)
 
 	for {
-		header, err := p.AnswerHeader()
+		ip, ttL, err := resolveAOrAAAA(p, reqType)
 		if err != nil {
-			if err == dnsmessage.ErrSectionDone {
+			if errors.Is(err, dnsmessage.ErrSectionDone) {
 				break
 			}
+
 			return 0, nil, err
+		}
+		if ip == nil {
+			continue
 		}
 
 		// All Resources in a set should have the same TTL (RFC 2181 Section 5.2).
-		ttl = header.TTL
-
-		switch {
-		case header.Type == dnsmessage.TypeA && reqType == dnsmessage.TypeA:
-			body, err := p.AResource()
-			if err != nil {
-				return 0, nil, err
-			}
-			i = append(i, net.IP(body.A[:]))
-		case header.Type == dnsmessage.TypeAAAA && reqType == dnsmessage.TypeAAAA:
-			body, err := p.AAAAResource()
-			if err != nil {
-				return 0, nil, err
-			}
-			i = append(i, net.IP(body.AAAA[:]))
-		default:
-			err = p.SkipAnswer()
-			if err != nil {
-				return 0, nil, err
-			}
+		if ttl == 0 || ttL < ttl {
+			ttl = ttL
 		}
+		i = append(i, ip)
 	}
 
 	if len(i) == 0 {
@@ -274,3 +262,32 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 var ErrNoIPFound = errors.New("no ip fond")
 
 func (c *client) Close() error { return nil }
+
+func resolveAOrAAAA(p *dnsmessage.Parser, reqType dnsmessage.Type) (net.IP, uint32, error) {
+	header, err := p.AnswerHeader()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	switch {
+	case header.Type == dnsmessage.TypeA && reqType == dnsmessage.TypeA:
+		body, err := p.AResource()
+		if err != nil {
+			return nil, 0, err
+		}
+		return net.IP(body.A[:]), header.TTL, nil
+	case header.Type == dnsmessage.TypeAAAA && reqType == dnsmessage.TypeAAAA:
+		body, err := p.AAAAResource()
+		if err != nil {
+			return nil, 0, err
+		}
+		return net.IP(body.AAAA[:]), header.TTL, nil
+	default:
+		err = p.SkipAnswer()
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return nil, 0, nil
+}

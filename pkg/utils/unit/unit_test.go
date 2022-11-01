@@ -1,4 +1,4 @@
-package utils
+package unit
 
 import (
 	"math/bits"
@@ -31,8 +31,4 @@ func TestM2(t *testing.T) {
 		t.Log(bits.Len32(uint32(i)))
 		t.Log(1 << i)
 	}
-}
-
-func TestGetScheme(t *testing.T) {
-	t.Log(GetScheme("http://www.baidu.com/dns-query"))
 }

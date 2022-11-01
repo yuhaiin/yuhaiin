@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package yuhaiin.point;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node/point";
+
+import "node/protocol/protocol.proto";
+
+enum origin {
+  reserve = 0;
+  remote = 101;
+  manual = 102;
+}
+
+message point {
+  string hash = 1 [ json_name = "hash" ];
+  string name = 2 [ json_name = "name" ];
+  string group = 3 [ json_name = "group" ];
+  origin origin = 4 [ json_name = "origin" ];
+  // will use protocols' order to create dialer
+  repeated yuhaiin.protocol.protocol protocols = 5 [ json_name = "protocols" ];
+}

@@ -4,127 +4,13 @@ package yuhaiin.node;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
 
-import "google/protobuf/duration.proto";
-
-message protocol {
-  oneof protocol {
-    shadowsocks shadowsocks = 1 [ json_name = "shadowsocks" ];
-    shadowsocksr shadowsocksr = 2 [ json_name = "shadowsocksr" ];
-    vmess vmess = 3 [ json_name = "vmess" ];
-    websocket websocket = 4 [ json_name = "websocket" ];
-    quic quic = 5 [ json_name = "quic" ];
-    obfs_http obfs_http = 6 [ json_name = "obfs_http" ];
-    trojan trojan = 7 [ json_name = "trojan" ];
-    simple simple = 8 [ json_name = "simple" ];
-    none none = 9 [ json_name = "none" ];
-    socks5 socks5 = 10 [ json_name = "socks5" ];
-    http http = 11 [ json_name = "http" ];
-  }
-}
-
-message point {
-  string hash = 1 [ json_name = "hash" ];
-  string name = 2 [ json_name = "name" ];
-  string group = 3 [ json_name = "group" ];
-
-  enum origin_type {
-    node_origin_reserve = 0;
-    remote = 101;
-    manual = 102;
-  }
-  origin_type origin = 4 [ json_name = "origin" ];
-  // will use protocols' order to create dialer
-  repeated protocol protocols = 5 [ json_name = "protocols" ];
-}
-
-message socks5 {
-  // eg: 127.0.0.1
-  string hostname = 3 [ json_name = "hostname" ];
-  string user = 1 [ json_name = "user" ];
-  string password = 2 [ json_name = "password" ];
-  // TODO: add override hostname options
-}
-
-message http {
-  string user = 1 [ json_name = "user" ];
-  string password = 2 [ json_name = "password" ];
-}
-
-message shadowsocks {
-  string method = 1 [ json_name = "method" ];
-  string password = 2 [ json_name = "password" ];
-}
-
-message shadowsocksr {
-  string server = 1 [ json_name = "server" ];
-  string port = 2 [ json_name = "port" ];
-  string method = 3 [ json_name = "method" ];
-  string password = 4 [ json_name = "password" ];
-  string obfs = 5 [ json_name = "obfs" ];
-  string obfsparam = 6 [ json_name = "obfsparam" ];
-  string protocol = 7 [ json_name = "protocol" ];
-  string protoparam = 8 [ json_name = "protoparam" ];
-}
-
-message vmess {
-  // uuid
-  string uuid = 1 [ json_name = "id" ];
-  // alter id
-  string alter_id = 2 [ json_name = "aid" ];
-  string security = 3 [ json_name = "security" ];
-}
-
-message trojan {
-  string password = 1 [ json_name = "password" ];
-  string peer = 2 [ json_name = "peer" ];
-}
-
-message websocket {
-  string host = 1 [ json_name = "host" ];
-  string path = 2 [ json_name = "path" ];
-  tls_config tls = 3 [ json_name = "tls" ];
-}
-
-message quic { tls_config tls = 1 [ json_name = "tls" ]; }
-
-message obfs_http {
-  string host = 1 [ json_name = "host" ];
-  string port = 2 [ json_name = "port" ];
-}
-
-message none {}
-
-message simple {
-  string host = 1 [ json_name = "host" ];
-  int32 port = 2 [ json_name = "port" ];
-  // udp will write to every packet target instead of only write to host:port
-  bool packet_conn_direct = 3 [ json_name = "packet_conn_direct" ];
-  tls_config tls = 4 [ json_name = "tls_config" ];
-}
-
-message tls_config {
-  bool enable = 1 [ json_name = "enable" ];
-  string server_name = 2 [ json_name = "server_name" ];
-  repeated bytes ca_cert = 3 [ json_name = "ca_cert" ];
-  bool insecure_skip_verify = 4 [ json_name = "insecure_skip_verify" ];
-}
+import "node/point/point.proto";
+import "node/subscribe/subscribe.proto";
 
 message node {
-  point tcp = 4 [ json_name = "tcp" ];
-  point udp = 5 [ json_name = "udp" ];
-  message link {
-    string name = 1 [ json_name = "name" ];
-    enum link_type {
-      reserve = 0;
-      trojan = 1;
-      vmess = 2;
-      shadowsocks = 3;
-      shadowsocksr = 4;
-    }
-    link_type type = 2 [ json_name = "type" ];
-    string url = 3 [ json_name = "url" ];
-  }
-  map<string, link> links = 2 [ json_name = "links" ];
+  yuhaiin.point.point tcp = 4 [ json_name = "tcp" ];
+  yuhaiin.point.point udp = 5 [ json_name = "udp" ];
+  map<string, yuhaiin.subscribe.link> links = 2 [ json_name = "links" ];
   manager manager = 3 [ json_name = "manager" ];
 }
 
@@ -136,5 +22,5 @@ message manager {
     map<string, string> node_hash_map = 3 [ json_name = "node_hash_map" ];
   }
   map<string, node_array> group_nodes_map = 2 [ json_name = "group_nodes_map" ];
-  map<string, point> nodes = 3 [ json_name = "nodes" ];
+  map<string, yuhaiin.point.point> nodes = 3 [ json_name = "nodes" ];
 }

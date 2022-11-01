@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 /*
@@ -40,16 +40,16 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 	}
 
 	if ho.firstResponse {
-		buf := utils.GetBytes(utils.DefaultSize)
-		defer utils.PutBytes(buf)
+		buf := pool.GetBytes(pool.DefaultSize)
+		defer pool.PutBytes(buf)
 		n, err := ho.Conn.Read(buf)
 		if err != nil {
-			// utils.BuffPool(utils.DefaultSize).Put(&(buf))
+			// utils.BuffPool(pool.DefaultSize).Put(&(buf))
 			return 0, err
 		}
 		idx := bytes.Index(buf[:n], []byte("\r\n\r\n"))
 		if idx == -1 {
-			// utils.BuffPool(utils.DefaultSize).Put(&(buf))
+			// utils.BuffPool(pool.DefaultSize).Put(&(buf))
 			return 0, io.EOF
 		}
 		ho.firstResponse = false
@@ -59,7 +59,7 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 			ho.buf = buf[:idx+4+length]
 			ho.offset = idx + 4 + n
 		} else {
-			// utils.BuffPool(utils.DefaultSize).Put(&(buf))
+			// utils.BuffPool(pool.DefaultSize).Put(&(buf))
 		}
 		return n, nil
 	}
@@ -102,7 +102,7 @@ type httpOBFS struct {
 	p    proxy.Proxy
 }
 
-func NewHTTPOBFS(config *node.Protocol_ObfsHttp) node.WrapProxy {
+func NewHTTPOBFS(config *protocol.Protocol_ObfsHttp) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &httpOBFS{
 			host: config.ObfsHttp.Host,

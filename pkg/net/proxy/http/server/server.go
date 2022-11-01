@@ -16,8 +16,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
@@ -144,7 +144,7 @@ func connect(client net.Conn, f func(string) (net.Conn, error), req *http.Reques
 	if err != nil {
 		return fmt.Errorf("write to client failed: %w", err)
 	}
-	utils.Relay(dst, client)
+	relay.Relay(dst, client)
 	return nil
 }
 

@@ -85,8 +85,10 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.Setting.AddObserver(config.NewObserver(func(s *protoconfig.Setting) { log.Set(s.GetLogcat(), opt.PathConfig.Logfile) }))
 	opt.Setting.AddObserver(config.NewObserver(func(s *protoconfig.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
+	filestore := node.NewFileStore(opt.PathConfig.Node)
 	// proxy access point/endpoint
-	node := node.NewNodes(opt.PathConfig.Node)
+	nodeService := node.NewNodes(filestore)
+	subscribe := node.NewSubscribe(filestore)
 
 	// make dns flow across all proxy chain
 	appDialer := &struct{ proxy.Proxy }{}
@@ -100,7 +102,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		{
 			Mode:     bypass.Mode_proxy,
 			Default:  true,
-			Dialer:   node,
+			Dialer:   nodeService,
 			Resolver: resolvers.Remote(),
 		},
 		{
@@ -147,19 +149,20 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	// http page
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, node, stcs, opt.Setting)
+	simplehttp.Httpserver(mux, nodeService, subscribe, stcs, opt.Setting)
 
 	// grpc server
 	if opt.GRPCServer != nil {
 		opt.GRPCServer.RegisterService(&grpcconfig.ConfigDao_ServiceDesc, opt.Setting)
-		opt.GRPCServer.RegisterService(&grpcnode.NodeManager_ServiceDesc, node)
+		opt.GRPCServer.RegisterService(&grpcnode.Node_ServiceDesc, nodeService)
+		opt.GRPCServer.RegisterService(&grpcnode.Subscribe_ServiceDesc, subscribe)
 		opt.GRPCServer.RegisterService(&grpcsts.Connections_ServiceDesc, stcs)
 	}
 
 	return StartResponse{
 		HttpListener: lis,
 		Mux:          mux,
-		Node:         node,
+		Node:         nodeService,
 		servers:      []iserver.Server{stcs, listener, resolvers, dnsServer},
 	}, nil
 }

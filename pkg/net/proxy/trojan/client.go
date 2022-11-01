@@ -11,8 +11,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 const (
@@ -30,8 +30,8 @@ const (
 var crlf = []byte{'\r', '\n'}
 
 func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr proxy.Address) (err error) {
-	buf := utils.GetBuffer()
-	defer utils.PutBuffer(buf)
+	buf := pool.GetBuffer()
+	defer pool.PutBuffer(buf)
 
 	buf.Write(c.password)
 	buf.Write(crlf)
@@ -49,7 +49,7 @@ type Client struct {
 	password []byte
 }
 
-func NewClient(config *node.Protocol_Trojan) node.WrapProxy {
+func New(config *protocol.Protocol_Trojan) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		return &Client{
 			password: hexSha224([]byte(config.Trojan.Password)),
@@ -96,8 +96,8 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
 
-	w := utils.GetBuffer()
-	defer utils.PutBuffer(w)
+	w := pool.GetBuffer()
+	defer pool.PutBuffer(w)
 
 	s5c.ParseAddrWriter(taddr, w)
 	addrSize := w.Len()

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -12,17 +13,17 @@ func TestAddNode(t *testing.T) {
 		Manager: &node.Manager{},
 	}
 
-	mg.AddNode(&node.Point{
+	mg.AddNode(&point.Point{
 		Hash:  "adadav",
 		Name:  "feefe",
 		Group: "group",
 	})
-	mg.AddNode(&node.Point{
+	mg.AddNode(&point.Point{
 		Hash:  "adadab",
 		Name:  "fafaf",
 		Group: "group",
 	})
-	mg.AddNode(&node.Point{
+	mg.AddNode(&point.Point{
 		Hash:  "adada",
 		Name:  "fazczfzf",
 		Group: "group",

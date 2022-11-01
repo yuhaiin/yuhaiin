@@ -4,7 +4,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/pfutil"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
@@ -24,6 +24,6 @@ func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
 		_ = rsp.(*net.TCPConn).SetKeepAlive(true)
 	}
 	defer rsp.Close()
-	utils.Forward(req, rsp)
+	relay.Relay(req, rsp)
 	return nil
 }
