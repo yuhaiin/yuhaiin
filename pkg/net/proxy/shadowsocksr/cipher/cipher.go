@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher/camellia"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher/idea"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher/rc2"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/crypto/blowfish"
 	"golang.org/x/crypto/cast5"
 	"golang.org/x/crypto/chacha20"
@@ -55,9 +55,9 @@ func (c *salsaStreamCipher) XORKeyStream(dst, src []byte) {
 	dataSize := len(src) + padLen
 	if cap(dst) >= dataSize {
 		buf = dst[:dataSize]
-	} else if utils.DefaultSize >= dataSize {
-		buf = utils.GetBytes(utils.DefaultSize)
-		defer utils.PutBytes(buf)
+	} else if pool.DefaultSize >= dataSize {
+		buf = pool.GetBytes(pool.DefaultSize)
+		defer pool.PutBytes(buf)
 		buf = buf[:dataSize]
 	} else {
 		buf = make([]byte, dataSize)

@@ -1,4 +1,4 @@
-package utils
+package lru
 
 import (
 	"reflect"
@@ -149,52 +149,4 @@ func (l *LRU[K, V]) ValueExist(key V) bool {
 	}
 	_, ok := l.reverseMapping.Load(key)
 	return ok
-}
-
-// Cache use map save history
-type Cache[K comparable, V any] struct {
-	number         int
-	pool           syncmap.SyncMap[K, V]
-	lastUpdateTime time.Time
-}
-
-// NewCache create new cache
-func NewCache[K comparable, V any]() *Cache[K, V] {
-	return &Cache[K, V]{
-		number:         0,
-		lastUpdateTime: time.Now(),
-	}
-}
-
-// Get .
-func (c *Cache[K, V]) Get(domain K) (V, bool) {
-	return c.pool.Load(domain)
-}
-
-// Add .
-func (c *Cache[K, V]) Add(domain K, mark V) {
-	if c.number > 800 {
-		tmp := 0
-		c.pool.Range(func(key K, value V) bool {
-			c.pool.Delete(key)
-			if tmp >= 80 {
-				return false
-			}
-			tmp++
-			return true
-		})
-		c.number -= 80
-
-		if time.Since(c.lastUpdateTime) >= time.Hour {
-			number := 0
-			c.pool.Range(func(key K, value V) bool {
-				number++
-				return true
-			})
-			c.number = number
-			c.lastUpdateTime = time.Now()
-		}
-	}
-	c.pool.Store(domain, mark)
-	c.number++
 }

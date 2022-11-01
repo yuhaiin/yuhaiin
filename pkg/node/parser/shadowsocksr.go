@@ -9,12 +9,14 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func init() {
-	store.Store(node.NodeLink_shadowsocksr, func(data []byte) (*node.Point, error) {
+	store.Store(subscribe.Type_shadowsocksr, func(data []byte) (*point.Point, error) {
 		data = bytes.TrimPrefix(data, []byte("ssr://"))
 		dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(data)))
 		_, err := base64.RawURLEncoding.Decode(dst, data)
@@ -43,21 +45,21 @@ func init() {
 			log.Warningln("parse shadowsocksr password failed:", err)
 		}
 
-		return &node.Point{
-			Origin: node.Point_remote,
+		return &point.Point{
+			Origin: point.Origin_remote,
 			Name:   "[ssr]" + string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("remarks")))),
-			Protocols: []*node.Protocol{
+			Protocols: []*protocol.Protocol{
 				{
-					Protocol: &node.Protocol_Simple{
-						Simple: &node.Simple{
+					Protocol: &protocol.Protocol_Simple{
+						Simple: &protocol.Simple{
 							Host: x[0],
 							Port: int32(port),
 						},
 					},
 				},
 				{
-					Protocol: &node.Protocol_Shadowsocksr{
-						Shadowsocksr: &node.Shadowsocksr{
+					Protocol: &protocol.Protocol_Shadowsocksr{
+						Shadowsocksr: &protocol.Shadowsocksr{
 							Server:     x[0],
 							Port:       x[1],
 							Protocol:   x[2],

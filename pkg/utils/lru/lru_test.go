@@ -1,4 +1,4 @@
-package utils
+package lru
 
 import (
 	"testing"
@@ -53,13 +53,4 @@ func BenchmarkNewLru(b *testing.B) {
 			l.Load("a")
 		}
 	})
-	// if i%3 == 0 {
-	// l.Load("a")
-	// } else if i%3 == 1 {
-	// 	go l.Add("z", "z")
-	// } else if i%3 == 2 {
-	// 	go l.Load("z")
-	// } else {
-	// 	go l.Load("c")
-	// }
 }

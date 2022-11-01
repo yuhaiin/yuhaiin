@@ -12,11 +12,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 )
 
 type outboundPoint struct {
-	*node.Point
+	*point.Point
 	proxy.Proxy
 }
 
@@ -27,7 +27,7 @@ type outbound struct {
 	lock sync.RWMutex
 }
 
-func NewOutbound(tcp, udp *node.Point, mamanager *manager) *outbound {
+func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
 	return &outbound{
 		manager: mamanager,
 		udp:     outboundPoint{udp, nil},
@@ -35,7 +35,7 @@ func NewOutbound(tcp, udp *node.Point, mamanager *manager) *outbound {
 	}
 }
 
-func (o *outbound) Save(p *node.Point, udp bool) {
+func (o *outbound) Save(p *point.Point, udp bool) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
 	if udp && o.udp.Hash != p.Hash {
@@ -50,8 +50,8 @@ func (o *outbound) refresh() {
 	o.tcp.Proxy = nil
 }
 
-func (o *outbound) Point(udp bool) *node.Point {
-	var now *node.Point
+func (o *outbound) Point(udp bool) *point.Point {
+	var now *point.Point
 
 	if udp {
 		now = o.udp.Point
@@ -60,7 +60,7 @@ func (o *outbound) Point(udp bool) *node.Point {
 	}
 
 	if now == nil {
-		return &node.Point{}
+		return &point.Point{}
 	}
 
 	p, ok := o.manager.GetNodeByName(now.Group, now.Name)

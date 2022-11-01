@@ -8,8 +8,8 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
@@ -23,8 +23,8 @@ type client struct {
 	dialer   proxy.Proxy
 }
 
-// NewSocks5 returns a new Socks5 client
-func NewSocks5(config *node.Protocol_Socks5) node.WrapProxy {
+// New returns a new Socks5 client
+func New(config *protocol.Protocol_Socks5) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		return &client{
 			dialer:   dialer,
@@ -74,8 +74,8 @@ func (s *client) handshake1(conn net.Conn) error {
 
 	//username and password
 	if header[1] == 0x02 {
-		req := utils.GetBuffer()
-		defer utils.PutBuffer(req)
+		req := pool.GetBuffer()
+		defer pool.PutBuffer(req)
 
 		req.Write([]byte{0x01, byte(len(s.username))})
 		req.WriteString(s.username)
@@ -111,8 +111,8 @@ const (
 )
 
 func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (target proxy.Address, err error) {
-	req := utils.GetBuffer()
-	defer utils.PutBuffer(req)
+	req := pool.GetBuffer()
+	defer pool.PutBuffer(req)
 
 	req.Write([]byte{0x05, byte(cmd), 0x00})
 	req.Write(ParseAddr(address))

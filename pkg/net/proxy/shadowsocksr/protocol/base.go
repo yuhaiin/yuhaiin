@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type protocol interface {
@@ -123,8 +123,8 @@ func (c *conn) Read(b []byte) (n int, err error) {
 }
 
 func (c *conn) Write(b []byte) (n int, err error) {
-	buf := utils.GetBuffer()
-	defer utils.PutBuffer(buf)
+	buf := pool.GetBuffer()
+	defer pool.PutBuffer(buf)
 
 	if err = c.protocol.EncryptStream(buf, b); err != nil {
 		return 0, err

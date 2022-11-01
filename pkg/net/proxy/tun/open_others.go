@@ -63,8 +63,8 @@ func (w *fdWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 	for _, pkt := range pkts.AsSlice() {
 		/*
 			    old method
-				sendBuffer := utils.GetBuffer()
-				defer utils.PutBuffer(sendBuffer)
+				sendBuffer := pool.GetBuffer()
+				defer pool.PutBuffer(sendBuffer)
 				sendBuffer.Reset()
 				sendBuffer.Write(pkt.NetworkHeader().View())
 				sendBuffer.Write(pkt.TransportHeader().View())

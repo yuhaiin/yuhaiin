@@ -7,24 +7,37 @@ option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node/service";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "node/node.proto";
+import "node/point/point.proto";
+import "node/subscribe/subscribe.proto";
 import "google/protobuf/duration.proto";
 
-service node_manager {
-  rpc now(now_req) returns (yuhaiin.node.point);
+service node {
+  rpc now(now_req) returns (yuhaiin.point.point);
   // use req is hash string of point
-  rpc use(use_req) returns (yuhaiin.node.point);
+  rpc use(use_req) returns (yuhaiin.point.point);
 
-  rpc get_node(google.protobuf.StringValue) returns (yuhaiin.node.point);
-  rpc save_node(yuhaiin.node.point) returns (yuhaiin.node.point);
-  rpc delete_node(google.protobuf.StringValue) returns (google.protobuf.Empty);
-  rpc get_manager(google.protobuf.StringValue) returns (yuhaiin.node.manager);
-
-  rpc save_links(save_link_req) returns (google.protobuf.Empty);
-  rpc delete_links(link_req) returns (google.protobuf.Empty);
-  rpc update_links(link_req) returns (google.protobuf.Empty);
-  rpc get_links(google.protobuf.Empty) returns (get_links_resp);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.point.point);
+  rpc save(yuhaiin.point.point) returns (yuhaiin.point.point);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc manager(google.protobuf.StringValue) returns (yuhaiin.node.manager);
 
   rpc latency(latency_req) returns (latency_resp);
+}
+
+message use_req {
+  bool tcp = 1 [ json_name = "tcp" ];
+  bool udp = 2 [ json_name = "udp" ];
+  string hash = 3 [ json_name = "hash" ];
+}
+
+message now_req {
+  enum now_req_net {
+    reserve = 0;
+    tcp = 1;
+    udp = 2;
+  }
+
+  now_req_net net = 1 [ json_name = "type" ];
 }
 
 message latency_req {
@@ -56,26 +69,17 @@ message latency_resp {
   map<string, latency> hash_latency_map = 1 [ json_name = "hash_latency_map" ];
 }
 
+service subscribe {
+  rpc save(save_link_req) returns (google.protobuf.Empty);
+  rpc remove(link_req) returns (google.protobuf.Empty);
+  rpc update(link_req) returns (google.protobuf.Empty);
+  rpc get(google.protobuf.Empty) returns (get_links_resp);
+}
+
 message save_link_req {
-  repeated yuhaiin.node.node.link links = 1 [ json_name = "links" ];
+  repeated yuhaiin.subscribe.link links = 1 [ json_name = "links" ];
 }
 message link_req { repeated string names = 1 [ json_name = "names" ]; }
 message get_links_resp {
-  map<string, yuhaiin.node.node.link> links = 1 [ json_name = "links" ];
-}
-
-message use_req {
-  bool tcp = 1 [ json_name = "tcp" ];
-  bool udp = 2 [ json_name = "udp" ];
-  string hash = 3 [ json_name = "hash" ];
-}
-
-message now_req {
-  enum now_req_net {
-    reserve = 0;
-    tcp = 1;
-    udp = 2;
-  }
-
-  now_req_net net = 1 [ json_name = "type" ];
+  map<string, yuhaiin.subscribe.link> links = 1 [ json_name = "links" ];
 }

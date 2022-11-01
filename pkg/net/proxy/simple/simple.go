@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 type Simple struct {
@@ -20,9 +20,9 @@ type Simple struct {
 	tlsConfig *tls.Config
 }
 
-func NewSimple(c *node.Protocol_Simple) node.WrapProxy {
+func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		tls := node.ParseTLSConfig(c.Simple.Tls)
+		tls := protocol.ParseTLSConfig(c.Simple.Tls)
 		if tls != nil && !tls.InsecureSkipVerify && tls.ServerName == "" {
 			tls.ServerName = c.Simple.GetHost()
 		}

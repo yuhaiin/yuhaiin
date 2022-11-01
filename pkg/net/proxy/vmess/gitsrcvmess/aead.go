@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 var _ io.WriteCloser = &aeadWriter{}
@@ -102,8 +102,8 @@ func (r *aeadReader) Read(b []byte) (int, error) {
 		return r.decrypted.Read(b)
 	}
 
-	lb := utils.GetBytes(r.NonceSize())
-	defer utils.PutBytes(lb)
+	lb := pool.GetBytes(r.NonceSize())
+	defer pool.PutBytes(lb)
 
 	// get length
 	_, err := io.ReadFull(r.Reader, lb[:lenSize])
@@ -117,8 +117,8 @@ func (r *aeadReader) Read(b []byte) (int, error) {
 		return 0, nil
 	}
 
-	buf := utils.GetBytes(int(l))
-	defer utils.PutBytes(buf)
+	buf := pool.GetBytes(int(l))
+	defer pool.PutBytes(buf)
 	// get payload
 	_, err = io.ReadFull(r.Reader, buf[:l])
 	if err != nil {

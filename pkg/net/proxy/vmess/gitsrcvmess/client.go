@@ -20,7 +20,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -408,8 +408,8 @@ func (v *vmessConn) ReadFrom(r io.Reader) (int64, error) {
 }
 
 func (v *vmessConn) WriteTo(w io.Writer) (int64, error) {
-	buf := utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(buf)
+	buf := pool.GetBytes(pool.DefaultSize)
+	defer pool.PutBytes(buf)
 	return io.CopyBuffer(w, v.Conn, buf)
 }
 

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -18,11 +18,11 @@ type Client struct {
 	dialer     proxy.Proxy
 }
 
-func NewQUIC(config *node.Protocol_Quic) node.WrapProxy {
+func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
 			dialer:    dialer,
-			tlsConfig: node.ParseTLSConfig(config.Quic.Tls),
+			tlsConfig: protocol.ParseTLSConfig(config.Quic.Tls),
 			quicConfig: &quic.Config{
 				KeepAlivePeriod:      time.Second * 30,
 				ConnectionIDLength:   12,

@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
 var _ proxy.Proxy = (*reject)(nil)
 
 type reject struct {
-	cache         *utils.LRU[string, object]
+	cache         *lru.LRU[string, object]
 	max, internal int
 }
 
@@ -23,7 +23,7 @@ type object struct {
 }
 
 func NewReject(maxDelay, interval int) proxy.Proxy {
-	return &reject{utils.NewLru[string, object](100, 0), maxDelay, interval}
+	return &reject{lru.NewLru[string, object](100, 0), maxDelay, interval}
 }
 
 func (r *reject) delay(addr proxy.Address) time.Duration {

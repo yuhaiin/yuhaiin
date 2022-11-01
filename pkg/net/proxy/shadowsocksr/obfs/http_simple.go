@@ -10,7 +10,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 var (
@@ -48,7 +48,7 @@ type httpSimplePost struct {
 	methodGet        bool // true for get, false for post
 
 	buf  []byte
-	wbuf [utils.DefaultSize / 4]byte
+	wbuf [pool.DefaultSize / 4]byte
 	net.Conn
 
 	param simpleParam
@@ -122,8 +122,8 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 		headSize = dataLength
 	}
 
-	buf := utils.GetBuffer()
-	defer utils.PutBuffer(buf)
+	buf := pool.GetBuffer()
+	defer pool.PutBuffer(buf)
 
 	if t.methodGet {
 		buf.WriteString("GET /")
@@ -176,8 +176,8 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 		return t.Conn.Read(b)
 	}
 
-	buf := utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(buf)
+	buf := pool.GetBytes(pool.DefaultSize)
+	defer pool.PutBytes(buf)
 
 	n, err := t.Conn.Read(buf)
 	if err != nil {
