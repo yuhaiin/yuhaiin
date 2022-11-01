@@ -8,8 +8,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
@@ -18,8 +18,8 @@ import (
 
 func udpForwarder(s *stack.Stack, natTable *s5s.UdpNatTable, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
 	handle := func(src net.PacketConn, target proxy.Address) error {
-		buf := utils.GetBytes(s5s.MaxSegmentSize)
-		defer utils.PutBytes(buf)
+		buf := pool.GetBytes(s5s.MaxSegmentSize)
+		defer pool.PutBytes(buf)
 
 		for {
 			src.SetReadDeadline(time.Now().Add(time.Minute))
@@ -61,8 +61,8 @@ func udpForwarder(s *stack.Stack, natTable *s5s.UdpNatTable, opt *listener.Opts[
 			addr := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
 			if opt.Protocol.Tun.SkipMulticast && addr.Type() == proxy.IP {
 				if ip, _ := addr.IP(); !ip.IsGlobalUnicast() {
-					buf := utils.GetBytes(utils.DefaultSize)
-					defer utils.PutBytes(buf)
+					buf := pool.GetBytes(pool.DefaultSize)
+					defer pool.PutBytes(buf)
 
 					for {
 						local.SetReadDeadline(time.Now().Add(time.Minute))

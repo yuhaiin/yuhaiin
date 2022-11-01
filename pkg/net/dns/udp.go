@@ -9,8 +9,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 func init() {
@@ -39,8 +39,8 @@ func NewDoU(config Config) dns.DNS {
 
 	return &udp{
 		NewClient(config, func(req []byte) ([]byte, error) {
-			var b = utils.GetBytes(utils.DefaultSize)
-			defer utils.PutBytes(b)
+			var b = pool.GetBytes(pool.DefaultSize)
+			defer pool.PutBytes(b)
 
 			conn, err := config.Dialer.PacketConn(add)
 			if err != nil {

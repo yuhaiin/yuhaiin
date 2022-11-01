@@ -10,7 +10,7 @@ import (
 
 type latencyHandler struct {
 	emptyHTTP
-	nm grpcnode.NodeManagerServer
+	nm grpcnode.NodeServer
 }
 
 func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) error {

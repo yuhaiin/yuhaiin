@@ -1,4 +1,4 @@
-package node
+package protocol
 
 import (
 	"crypto/tls"
@@ -46,30 +46,28 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 	if t == nil || !t.Enable {
 		return nil
 	}
-	//tls
+
 	root, err := x509.SystemCertPool()
 	if err != nil {
 		log.Errorf("get x509 system cert pool failed: %v, create new cert pool.", err)
 		root = x509.NewCertPool()
 	}
 
-	config := &tls.Config{
-		ServerName: t.ServerName,
-		RootCAs:    root,
-		// NextProtos:             []string{"http/1.1"},
-		InsecureSkipVerify: t.InsecureSkipVerify,
-		// SessionTicketsDisabled: true,
-		ClientSessionCache: tlsSessionCache,
-	}
-
 	for i := range t.CaCert {
-		ok := config.RootCAs.AppendCertsFromPEM(t.CaCert[i])
+		ok := root.AppendCertsFromPEM(t.CaCert[i])
 		if !ok {
 			log.Errorf("add cert from pem failed.")
 		}
 	}
 
-	return config
+	return &tls.Config{
+		ServerName:         t.ServerName,
+		RootCAs:            root,
+		NextProtos:         t.NextProtos,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+		ClientSessionCache: tlsSessionCache,
+		// SessionTicketsDisabled: true,
+	}
 }
 
 func ErrConn(err error) WrapProxy {

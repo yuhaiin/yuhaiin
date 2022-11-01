@@ -11,11 +11,13 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 )
 
 func init() {
-	store.Store(node.NodeLink_shadowsocks, func(data []byte) (*node.Point, error) {
+	store.Store(subscribe.Type_shadowsocks, func(data []byte) (*point.Point, error) {
 		ssUrl, err := url.Parse(string(data))
 		if err != nil {
 			return nil, fmt.Errorf("parse url failed: %w", err)
@@ -32,7 +34,7 @@ func init() {
 			method, password = string(mps[:i]), string(mps[i+1:])
 		}
 
-		var plugin *node.Protocol
+		var plugin *protocol.Protocol
 		pluginopts := parseOpts(ssUrl.Query().Get("plugin"))
 		switch {
 		case pluginopts["obfs-local"] == "true":
@@ -40,7 +42,7 @@ func init() {
 		case pluginopts["v2ray"] == "true":
 			plugin, err = parseV2ray(pluginopts)
 		default:
-			plugin = &node.Protocol{Protocol: &node.Protocol_None{None: &node.None{}}}
+			plugin = &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("parse plugin failed: %w", err)
@@ -51,13 +53,13 @@ func init() {
 			return nil, fmt.Errorf("parse port failed: %w", err)
 		}
 
-		return &node.Point{
-			Origin: node.Point_remote,
+		return &point.Point{
+			Origin: point.Origin_remote,
 			Name:   "[ss]" + ssUrl.Fragment,
-			Protocols: []*node.Protocol{
+			Protocols: []*protocol.Protocol{
 				{
-					Protocol: &node.Protocol_Simple{
-						Simple: &node.Simple{
+					Protocol: &protocol.Protocol_Simple{
+						Simple: &protocol.Simple{
 							Host: server,
 							Port: int32(port),
 						},
@@ -65,8 +67,8 @@ func init() {
 				},
 				plugin,
 				{
-					Protocol: &node.Protocol_Shadowsocks{
-						Shadowsocks: &node.Shadowsocks{
+					Protocol: &protocol.Protocol_Shadowsocks{
+						Shadowsocks: &protocol.Shadowsocks{
 							Method:   method,
 							Password: password,
 						},
@@ -78,7 +80,7 @@ func init() {
 	})
 }
 
-func parseV2ray(store map[string]string) (*node.Protocol, error) {
+func parseV2ray(store map[string]string) (*protocol.Protocol, error) {
 	// fastOpen := false
 	// path := "/"
 	// host := "cloudfront.com"
@@ -104,12 +106,12 @@ func parseV2ray(store map[string]string) (*node.Protocol, error) {
 
 	switch store["mode"] {
 	case "websocket":
-		return &node.Protocol{
-			Protocol: &node.Protocol_Websocket{
-				Websocket: &node.Websocket{
+		return &protocol.Protocol{
+			Protocol: &protocol.Protocol_Websocket{
+				Websocket: &protocol.Websocket{
 					Host: store["host"],
 					Path: store["path"],
-					Tls: &node.TlsConfig{
+					Tls: &protocol.TlsConfig{
 						ServerName: ns,
 						Enable:     store["tls"] == "true",
 						CaCert:     [][]byte{cert},
@@ -118,10 +120,10 @@ func parseV2ray(store map[string]string) (*node.Protocol, error) {
 			},
 		}, nil
 	case "quic":
-		return &node.Protocol{
-			Protocol: &node.Protocol_Quic{
-				Quic: &node.Quic{
-					Tls: &node.TlsConfig{
+		return &protocol.Protocol{
+			Protocol: &protocol.Protocol_Quic{
+				Quic: &protocol.Quic{
+					Tls: &protocol.TlsConfig{
 						ServerName: ns,
 						CaCert:     [][]byte{cert},
 					},
@@ -133,14 +135,14 @@ func parseV2ray(store map[string]string) (*node.Protocol, error) {
 	return nil, fmt.Errorf("unsupported mode: %v", store["mode"])
 }
 
-func parseObfs(args map[string]string) (*node.Protocol, error) {
+func parseObfs(args map[string]string) (*protocol.Protocol, error) {
 	hostname, port, err := net.SplitHostPort(args["obfs-host"])
 	if err != nil {
 		return nil, err
 	}
-	return &node.Protocol{
-		Protocol: &node.Protocol_ObfsHttp{
-			ObfsHttp: &node.ObfsHttp{
+	return &protocol.Protocol{
+		Protocol: &protocol.Protocol_ObfsHttp{
+			ObfsHttp: &protocol.ObfsHttp{
 				Host: hostname,
 				Port: port,
 			},

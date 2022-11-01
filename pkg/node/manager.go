@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 )
 
 type manager struct {
@@ -13,14 +14,14 @@ type manager struct {
 
 func NewManager(m *node.Manager) *manager { return &manager{Manager: m} }
 
-func (m *manager) GetNode(hash string) (*node.Point, bool) {
+func (m *manager) GetNode(hash string) (*point.Point, bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	p, ok := m.Nodes[hash]
 	return p, ok
 }
 
-func (m *manager) GetNodeByName(group, name string) (*node.Point, bool) {
+func (m *manager) GetNodeByName(group, name string) (*point.Point, bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	z := m.GroupNodesMap[group]
@@ -36,12 +37,12 @@ func (m *manager) GetNodeByName(group, name string) (*node.Point, bool) {
 	return m.GetNode(hash)
 }
 
-func (m *manager) AddNode(p *node.Point) {
+func (m *manager) AddNode(p *point.Point) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	if m.Nodes == nil {
-		m.Nodes = make(map[string]*node.Point)
+		m.Nodes = make(map[string]*point.Point)
 	}
 	if m.GroupNodesMap == nil {
 		m.GroupNodesMap = make(map[string]*node.ManagerNodeArray)
@@ -79,7 +80,7 @@ func (n *manager) DeleteRemoteNodes(group string) {
 	msmap := x.NodeHashMap
 	left := make([]string, 0)
 	for i := range ns {
-		if m.Nodes[msmap[ns[i]]].GetOrigin() != node.Point_remote {
+		if m.Nodes[msmap[ns[i]]].GetOrigin() != point.Origin_remote {
 			left = append(left, ns[i])
 			continue
 		}

@@ -9,34 +9,35 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/utils"
 )
 
 type link struct {
 	outbound *outbound
 	manager  *manager
 
-	links map[string]*node.NodeLink
+	links map[string]*subscribe.Link
 	lock  sync.RWMutex
 }
 
-func NewLink(outbound *outbound, manager *manager, links map[string]*node.NodeLink) *link {
+func NewLink(outbound *outbound, manager *manager, links map[string]*subscribe.Link) *link {
 	return &link{outbound: outbound, manager: manager, links: links}
 }
 
-func (l *link) Save(ls []*node.NodeLink) {
+func (l *link) Save(ls []*subscribe.Link) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
 	if l.links == nil {
-		l.links = make(map[string]*node.NodeLink)
+		l.links = make(map[string]*subscribe.Link)
 	}
 
 	for _, z := range ls {
 
-		node, err := parseUrl([]byte(z.Url), &node.NodeLink{Name: z.Name})
+		node, err := parseUrl([]byte(z.Url), &subscribe.Link{Name: z.Name})
 		if err == nil {
 			l.addNode(node) // link is a node
 		} else {
@@ -55,11 +56,11 @@ func (l *link) Delete(names []string) {
 	}
 }
 
-func (l *link) Links() map[string]*node.NodeLink { return l.links }
+func (l *link) Links() map[string]*subscribe.Link { return l.links }
 
 func (n *link) Update(names []string) {
 	if n.links == nil {
-		n.links = make(map[string]*node.NodeLink)
+		n.links = make(map[string]*subscribe.Link)
 	}
 
 	wg := sync.WaitGroup{}
@@ -70,7 +71,7 @@ func (n *link) Update(names []string) {
 		}
 
 		wg.Add(1)
-		go func(l *node.NodeLink) {
+		go func(l *subscribe.Link) {
 			defer wg.Done()
 			if err := n.update(n.outbound.Do, l); err != nil {
 				log.Errorf("get one link failed: %v", err)
@@ -79,9 +80,11 @@ func (n *link) Update(names []string) {
 	}
 
 	wg.Wait()
+
+	n.outbound.refresh()
 }
 
-func (n *link) update(do func(*http.Request) (*http.Response, error), link *node.NodeLink) error {
+func (n *link) update(do func(*http.Request) (*http.Response, error), link *subscribe.Link) error {
 	req, err := http.NewRequest("GET", link.Url, nil)
 	if err != nil {
 		return fmt.Errorf("create request failed: %v", err)
@@ -119,23 +122,23 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *node
 	return nil
 }
 
-func (n *link) addNode(node *node.Point) {
+func (n *link) addNode(node *point.Point) {
 	n.manager.DeleteNode(node.Hash)
 	refreshHash(node)
 	n.manager.AddNode(node)
 }
 
-var schemeTypeMap = map[string]node.NodeLinkLinkType{
-	"ss":     node.NodeLink_shadowsocks,
-	"ssr":    node.NodeLink_shadowsocksr,
-	"vmess":  node.NodeLink_vmess,
-	"trojan": node.NodeLink_trojan,
+var schemeTypeMap = map[string]subscribe.Type{
+	"ss":     subscribe.Type_shadowsocks,
+	"ssr":    subscribe.Type_shadowsocksr,
+	"vmess":  subscribe.Type_vmess,
+	"trojan": subscribe.Type_trojan,
 }
 
-func parseUrl(str []byte, l *node.NodeLink) (no *node.Point, err error) {
+func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
 	t := l.Type
 
-	if t == node.NodeLink_reserve {
+	if t == subscribe.Type_reserve {
 		scheme, _, _ := utils.GetScheme(string(str))
 		t = schemeTypeMap[scheme]
 	}

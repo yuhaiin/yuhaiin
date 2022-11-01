@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 	}
 
 	for {
-		buf := utils.GetBytes(utils.DefaultSize)
+		buf := pool.GetBytes(pool.DefaultSize)
 		n, form, err := ll.ReadFrom(buf)
 		if err != nil {
 			log.Fatal(err)
@@ -48,7 +48,7 @@ func main() {
 }
 
 func handle(local net.PacketConn, buf []byte, n int, form, target net.Addr) error {
-	defer utils.PutBytes(buf)
+	defer pool.PutBytes(buf)
 	l, err := net.ListenPacket("udp", "")
 	if err != nil {
 		log.Fatal(err)

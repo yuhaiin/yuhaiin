@@ -18,7 +18,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
@@ -66,8 +66,8 @@ func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int)
 	// 0~1, out length
 	binary.Write(wbuf, binary.LittleEndian, uint16(outLength))
 
-	hmacBuf := utils.GetBytes(6)
-	defer utils.PutBytes(hmacBuf)
+	hmacBuf := pool.GetBytes(6)
+	defer pool.PutBytes(hmacBuf)
 
 	// 2~3, hmac
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-2:], hmacBuf)[:2])
@@ -132,7 +132,7 @@ func (a *authAES128) rndDataLen(bufSize, fullBufSize int) int {
 		return int(float64(maxVal) * r)
 	}
 
-	if fullBufSize >= utils.DefaultSize {
+	if fullBufSize >= pool.DefaultSize {
 		return 0
 	}
 
@@ -178,8 +178,8 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 		return
 	}
 
-	encrypt := utils.GetBytes(16)
-	defer utils.PutBytes(encrypt)
+	encrypt := pool.GetBytes(16)
+	defer pool.PutBytes(encrypt)
 
 	a.info.Auth.nextAuth()
 	binary.LittleEndian.PutUint32(encrypt[0:4], uint32(time.Now().Unix()))
@@ -196,8 +196,8 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	copy(key, a.info.IV)
 	copy(key[a.info.IVSize():], a.info.Key())
 
-	hmacBuf := utils.GetBytes(6)
-	defer utils.PutBytes(hmacBuf)
+	hmacBuf := pool.GetBytes(6)
+	defer pool.PutBytes(hmacBuf)
 
 	wbuf.WriteByte(byte(yerror.Ignore(crand.Int(crand.Reader, bigInt256)).Uint64()))
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
@@ -249,13 +249,13 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 
 	keyLen := len(a.userKey) + 4
 
-	key := utils.GetBytes(keyLen)
-	defer utils.PutBytes(key)
+	key := pool.GetBytes(keyLen)
+	defer pool.PutBytes(key)
 
 	copy(key[0:], a.userKey)
 
-	hmacBuf := utils.GetBytes(6)
-	defer utils.PutBytes(hmacBuf)
+	hmacBuf := pool.GetBytes(6)
+	defer pool.PutBytes(hmacBuf)
 
 	for remain := datalen; remain > 4; remain = datalen - readLen {
 		binary.LittleEndian.PutUint32(key[keyLen-4:], a.recvID)
@@ -305,16 +305,16 @@ func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
 	wbuf := bytes.NewBuffer(nil)
 	wbuf.Write(b)
 	wbuf.Write(a.uid[:])
-	hmacBuf := utils.GetBytes(6)
-	defer utils.PutBytes(hmacBuf)
+	hmacBuf := pool.GetBytes(6)
+	defer pool.PutBytes(hmacBuf)
 	wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes(), hmacBuf)[:4])
 	return wbuf.Bytes(), nil
 }
 
 // https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L764
 func (a *authAES128) DecryptPacket(b []byte) ([]byte, error) {
-	hmacBuf := utils.GetBytes(6)
-	defer utils.PutBytes(hmacBuf)
+	hmacBuf := pool.GetBytes(6)
+	defer pool.PutBytes(hmacBuf)
 	if !bytes.Equal(a.hmac.HMAC(a.info.Key(), b[:len(b)-4], hmacBuf)[:4], b[len(b)-4:]) {
 		return nil, ssr.ErrAuthAES128IncorrectChecksum
 	}

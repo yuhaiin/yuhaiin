@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type writer interface {
@@ -79,8 +79,8 @@ func ChunkedReader(r io.Reader) io.ReadCloser { return &chunkedReader{Reader: r}
 func (r *chunkedReader) Close() error         { return nil }
 func (r *chunkedReader) Read(b []byte) (int, error) {
 	if r.leftBytes <= 0 {
-		buf := utils.GetBytes(lenSize)
-		defer utils.PutBytes(buf)
+		buf := pool.GetBytes(lenSize)
+		defer pool.PutBytes(buf)
 
 		// get length
 		_, err := io.ReadFull(r.Reader, buf[:lenSize])

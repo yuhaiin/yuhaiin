@@ -14,8 +14,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func init() {
@@ -84,7 +86,7 @@ func NewDoH(config Config) dns.DNS {
 			defer resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				utils.Copy(io.Discard, resp.Body) // from v2fly
+				relay.Copy(io.Discard, resp.Body) // from v2fly
 				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 			}
 
@@ -148,7 +150,7 @@ type dohUDPConn struct {
 
 func dohConn(handle func(io.Reader) (io.ReadCloser, error)) net.Conn {
 	return &dohUDPConn{
-		buffer: utils.GetBuffer(),
+		buffer: pool.GetBuffer(),
 		handle: handle,
 	}
 }
@@ -196,7 +198,7 @@ func (d *dohUDPConn) Close() error {
 	if d.body != nil {
 		return d.body.Close()
 	}
-	utils.PutBuffer(d.buffer)
+	pool.PutBuffer(d.buffer)
 
 	return nil
 }

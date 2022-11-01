@@ -11,12 +11,13 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Fake struct {
-	domainToIP *utils.LRU[string, string]
+	domainToIP *lru.LRU[string, string]
 	ipRange    *net.IPNet
 
 	mu sync.Mutex
@@ -30,7 +31,7 @@ func NewFake(ipRange *net.IPNet) *Fake {
 	// }
 	return &Fake{
 		ipRange:    ipRange,
-		domainToIP: utils.NewLru[string, string](uint(lruSize), 0*time.Minute),
+		domainToIP: lru.NewLru[string, string](uint(lruSize), 0*time.Minute),
 	}
 }
 
@@ -100,8 +101,8 @@ func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPResponse, erro
 }
 
 func (f *FakeDNS) LookupPtr(name string) (string, error) {
-	ip := utils.GetBuffer()
-	defer utils.PutBuffer(ip)
+	ip := pool.GetBuffer()
+	defer pool.PutBuffer(ip)
 
 	i := strings.Index(name, ".in-addr.arpa.")
 	if i == -1 {

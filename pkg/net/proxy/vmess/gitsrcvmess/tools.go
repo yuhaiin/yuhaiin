@@ -15,7 +15,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // copy from https://github.com/v2fly/v2ray-core/tree/054e6679830885c94cc37d27ab2aa96b5b37e019/proxy/vmess/aead
@@ -60,8 +60,8 @@ func KDF16(key []byte, path ...string) []byte {
 }
 
 func CreateAuthID(cmdKey []byte, time int64) [16]byte {
-	buf := utils.GetBuffer()
-	defer utils.PutBuffer(buf)
+	buf := pool.GetBuffer()
+	defer pool.PutBuffer(buf)
 
 	binary.Write(buf, binary.BigEndian, time)
 	var zero uint32
@@ -88,8 +88,8 @@ func NewCipherFromKey(cmdKey []byte) cipher.Block {
 func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 	generatedAuthID := CreateAuthID(key[:], time.Now().Unix())
 
-	connectionNonce := utils.GetBytes(8)
-	defer utils.PutBytes(connectionNonce)
+	connectionNonce := pool.GetBytes(8)
+	defer pool.PutBytes(connectionNonce)
 
 	connectionNonce = connectionNonce[:8]
 	if _, err := io.ReadFull(rand3.Reader, connectionNonce); err != nil {

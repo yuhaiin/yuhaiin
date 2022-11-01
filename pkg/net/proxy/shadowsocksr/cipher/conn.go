@@ -9,7 +9,7 @@ import (
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
@@ -70,8 +70,8 @@ func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("udp data size too large")
 	}
 
-	buf := utils.GetBytes(s5s.MaxSegmentSize)
-	defer utils.PutBytes(buf)
+	buf := pool.GetBytes(s5s.MaxSegmentSize)
+	defer pool.PutBytes(buf)
 
 	_, err := rand.Read(buf[:p.IVSize()])
 	if err != nil {

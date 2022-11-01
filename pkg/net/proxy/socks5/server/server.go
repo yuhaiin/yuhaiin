@@ -10,8 +10,9 @@ import (
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 const (
@@ -41,8 +42,8 @@ func handshake(dialer proxy.Proxy, username, password string) func(net.Conn) {
 }
 
 func handle(user, key string, client net.Conn, f proxy.Proxy) (err error) {
-	b := utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(b)
+	b := pool.GetBytes(pool.DefaultSize)
+	defer pool.PutBytes(b)
 
 	err = handshake1(client, user, key, b)
 	if err != nil {
@@ -78,8 +79,8 @@ func handshake1(client net.Conn, user, key string, buf []byte) error {
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
-	b := utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(b)
+	b := pool.GetBytes(pool.DefaultSize)
+	defer pool.PutBytes(b)
 	// get username and password
 	_, err := client.Read(b[:])
 	if err != nil {
@@ -144,7 +145,7 @@ func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
 	}
 	writeHandshake2(client, succeeded, caddr) // response to connect successful
 	// hand shake successful
-	utils.Relay(client, server)
+	relay.Relay(client, server)
 	server.Close()
 	return nil
 }
@@ -159,7 +160,7 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
 	writeHandshake2(client, succeeded, proxy.ParseAddressSplit("udp", "0.0.0.0", laddr.Port()))
-	utils.Copy(io.Discard, client)
+	relay.Copy(io.Discard, client)
 	return l.Close()
 }
 

@@ -9,30 +9,32 @@ import (
 	"net/http"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type nodeHandler struct {
 	emptyHTTP
-	nm grpcnode.NodeManagerServer
+	nm        grpcnode.NodeServer
+	subscribe grpcnode.SubscribeServer
 }
 
-var protocolsMapping = map[string]*node.Protocol{
-	"simple":       {Protocol: &node.Protocol_Simple{Simple: &node.Simple{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
-	"none":         {Protocol: &node.Protocol_None{}},
-	"websocket":    {Protocol: &node.Protocol_Websocket{Websocket: &node.Websocket{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
-	"quic":         {Protocol: &node.Protocol_Quic{Quic: &node.Quic{Tls: &node.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
-	"shadowsocks":  {Protocol: &node.Protocol_Shadowsocks{}},
-	"obfshttp":     {Protocol: &node.Protocol_ObfsHttp{}},
-	"shadowsocksr": {Protocol: &node.Protocol_Shadowsocksr{}},
-	"vmess":        {Protocol: &node.Protocol_Vmess{}},
-	"trojan":       {Protocol: &node.Protocol_Trojan{}},
-	"socks5":       {Protocol: &node.Protocol_Socks5{}},
-	"http":         {Protocol: &node.Protocol_Http{}},
+var protocolsMapping = map[string]*protocol.Protocol{
+	"simple":       {Protocol: &protocol.Protocol_Simple{Simple: &protocol.Simple{Tls: &protocol.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
+	"none":         {Protocol: &protocol.Protocol_None{}},
+	"websocket":    {Protocol: &protocol.Protocol_Websocket{Websocket: &protocol.Websocket{Tls: &protocol.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
+	"quic":         {Protocol: &protocol.Protocol_Quic{Quic: &protocol.Quic{Tls: &protocol.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
+	"shadowsocks":  {Protocol: &protocol.Protocol_Shadowsocks{}},
+	"obfshttp":     {Protocol: &protocol.Protocol_ObfsHttp{}},
+	"shadowsocksr": {Protocol: &protocol.Protocol_Shadowsocksr{}},
+	"vmess":        {Protocol: &protocol.Protocol_Vmess{}},
+	"trojan":       {Protocol: &protocol.Protocol_Trojan{}},
+	"socks5":       {Protocol: &protocol.Protocol_Socks5{}},
+	"http":         {Protocol: &protocol.Protocol_Http{}},
 }
 
 func (nn *nodeHandler) Get(w http.ResponseWriter, r *http.Request) error {
@@ -51,7 +53,7 @@ func (nn *nodeHandler) Get(w http.ResponseWriter, r *http.Request) error {
 
 	hash := r.URL.Query().Get("hash")
 
-	n, err := nn.nm.GetNode(context.TODO(), &wrapperspb.StringValue{Value: hash})
+	n, err := nn.nm.Get(context.TODO(), &wrapperspb.StringValue{Value: hash})
 	if err != nil {
 		return err
 	}
@@ -70,8 +72,8 @@ func (n *nodeHandler) newNode(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (n *nodeHandler) templates(w http.ResponseWriter, r *http.Request) error {
-	str := utils.GetBuffer()
-	defer utils.PutBuffer(str)
+	str := pool.GetBuffer()
+	defer pool.PutBuffer(str)
 
 	str.WriteString("TEMPLATE")
 
@@ -88,12 +90,12 @@ func (n *nodeHandler) templates(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (n *nodeHandler) generateTemplates(w http.ResponseWriter, r *http.Request) error {
-	node := &node.Point{
+	node := &point.Point{
 		Hash:      "",
 		Name:      "new node",
 		Group:     "template group",
-		Origin:    node.Point_manual,
-		Protocols: []*node.Protocol{},
+		Origin:    point.Origin_manual,
+		Protocols: []*protocol.Protocol{},
 	}
 
 	var protolos []string
@@ -120,7 +122,7 @@ func (n *nodeHandler) Delete(w http.ResponseWriter, r *http.Request) error {
 		return errors.New("hash is empty")
 	}
 
-	_, err := n.nm.DeleteNode(context.TODO(), &wrapperspb.StringValue{Value: hash})
+	_, err := n.nm.Remove(context.TODO(), &wrapperspb.StringValue{Value: hash})
 	if err != nil {
 		return err
 	}
@@ -135,13 +137,13 @@ func (n *nodeHandler) Post(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	point := &node.Point{}
+	point := &point.Point{}
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, point)
 	if err != nil {
 		return err
 	}
 
-	_, err = n.nm.SaveNode(context.TODO(), point)
+	_, err = n.nm.Save(context.TODO(), point)
 	if err != nil {
 		return err
 	}

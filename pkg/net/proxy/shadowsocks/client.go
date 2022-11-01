@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
@@ -18,7 +18,7 @@ type Shadowsocks struct {
 	p      proxy.Proxy
 }
 
-func NewShadowsocks(config *node.Protocol_Shadowsocks) node.WrapProxy {
+func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
 	c := config.Shadowsocks
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		cipher, err := core.PickCipher(strings.ToUpper(c.Method), nil, c.Password)

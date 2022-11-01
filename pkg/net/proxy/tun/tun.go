@@ -6,8 +6,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -106,14 +106,14 @@ func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 
 	rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
-		Default: utils.DefaultSize,
+		Default: pool.DefaultSize,
 		Max:     tcp.MaxBufferSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &rcvOpt)
 
 	sndOpt := tcpip.TCPSendBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
-		Default: utils.DefaultSize,
+		Default: pool.DefaultSize,
 		Max:     tcp.MaxBufferSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)

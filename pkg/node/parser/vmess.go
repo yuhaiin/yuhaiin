@@ -9,14 +9,16 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 )
 
 func init() {
 	var get func(any) string
 	var trim func([]byte) []byte
 
-	store.Store(node.NodeLink_vmess, func(data []byte) (*node.Point, error) {
+	store.Store(subscribe.Type_vmess, func(data []byte) (*point.Point, error) {
 		//ParseLink parse vmess link
 		// eg: vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnV
 		//             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC
@@ -106,7 +108,7 @@ func init() {
 			return nil, fmt.Errorf("vmess type is not supported: %v", n.Type)
 		}
 
-		var net *node.Protocol
+		var net *protocol.Protocol
 		switch n.Net {
 		case "ws":
 			if n.Host == "" {
@@ -120,12 +122,12 @@ func init() {
 				}
 			}
 
-			net = &node.Protocol{
-				Protocol: &node.Protocol_Websocket{
-					Websocket: &node.Websocket{
+			net = &protocol.Protocol{
+				Protocol: &protocol.Protocol_Websocket{
+					Websocket: &protocol.Websocket{
 						Host: n.Host,
 						Path: n.Path,
-						Tls: &node.TlsConfig{
+						Tls: &protocol.TlsConfig{
 							ServerName:         n.Sni,
 							InsecureSkipVerify: !n.VerifyCert,
 							Enable:             n.Tls == "tls",
@@ -135,18 +137,18 @@ func init() {
 				},
 			}
 		case "tcp":
-			net = &node.Protocol{Protocol: &node.Protocol_None{None: &node.None{}}}
+			net = &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
 		default:
 			return nil, fmt.Errorf("vmess net is not supported: %v", n.Net)
 		}
 
-		return &node.Point{
+		return &point.Point{
 			Name:   "[vmess]" + n.Ps,
-			Origin: node.Point_remote,
-			Protocols: []*node.Protocol{
+			Origin: point.Origin_remote,
+			Protocols: []*protocol.Protocol{
 				{
-					Protocol: &node.Protocol_Simple{
-						Simple: &node.Simple{
+					Protocol: &protocol.Protocol_Simple{
+						Simple: &protocol.Simple{
 							Host: n.Address,
 							Port: int32(port),
 						},
@@ -154,8 +156,8 @@ func init() {
 				},
 				net,
 				{
-					Protocol: &node.Protocol_Vmess{
-						Vmess: &node.Vmess{
+					Protocol: &protocol.Protocol_Vmess{
+						Vmess: &protocol.Vmess{
 							Uuid:     n.Uuid,
 							AlterId:  get(n.AlterId),
 							Security: n.Security,

@@ -76,7 +76,7 @@ func TimestampHash(t time.Time) []byte {
 	md5hash := md5.New()
 
 	ts := make([]byte, 8)
-	binary.BigEndian.PutUint64(ts, uint64(t.UTC().Unix()))
+	binary.BigEndian.PutUint64(ts, uint64(t.Unix()))
 	md5hash.Write(ts)
 	md5hash.Write(ts)
 	md5hash.Write(ts)

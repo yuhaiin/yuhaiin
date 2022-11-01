@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
@@ -19,13 +19,13 @@ func Dial(host, port, user, password string) proxy.Proxy {
 	if err != nil {
 		return proxy.NewErrProxy(err)
 	}
-	p, _ := NewSocks5(&node.Protocol_Socks5{
-		Socks5: &node.Socks5{
+	p, _ := New(&protocol.Protocol_Socks5{
+		Socks5: &protocol.Socks5{
 			Hostname: host,
 			User:     user,
 			Password: password,
-		}})(yerror.Must(simple.NewSimple(&node.Protocol_Simple{
-		Simple: &node.Simple{
+		}})(yerror.Must(simple.New(&protocol.Protocol_Simple{
+		Simple: &protocol.Simple{
 			Host:             addr.Hostname(),
 			Port:             int32(addr.Port().Port()),
 			PacketConnDirect: true,

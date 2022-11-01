@@ -5,7 +5,7 @@ import (
 	"net"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/net/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type randomHead struct {
@@ -62,8 +62,8 @@ func (r *randomHead) Read(b []byte) (n int, err error) {
 		return r.Conn.Read(b)
 	}
 
-	buf := utils.GetBytes(utils.DefaultSize)
-	defer utils.PutBytes(buf)
+	buf := pool.GetBytes(pool.DefaultSize)
+	defer pool.PutBytes(buf)
 	r.Conn.Read(buf)
 	r.rawTransReceived = true
 	r.Conn.Write(nil)
