@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/lucas-clemente/quic-go v0.30.0
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
-	golang.org/x/crypto v0.1.0
+	golang.org/x/crypto v0.2.0
 	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e
 	golang.org/x/net v0.2.0
 	golang.org/x/sys v0.2.0
