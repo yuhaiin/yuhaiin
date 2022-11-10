@@ -9,7 +9,7 @@ import "google/protobuf/wrappers.proto";
 import "node/node.proto";
 import "node/point/point.proto";
 import "node/subscribe/subscribe.proto";
-import "google/protobuf/duration.proto";
+import "node/latency/latency.proto";
 
 service node {
   rpc now(now_req) returns (yuhaiin.point.point);
@@ -21,7 +21,7 @@ service node {
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
   rpc manager(google.protobuf.StringValue) returns (yuhaiin.node.manager);
 
-  rpc latency(latency_req) returns (latency_resp);
+  rpc latency(yuhaiin.latency.requests) returns (yuhaiin.latency.response);
 }
 
 message use_req {
@@ -38,35 +38,6 @@ message now_req {
   }
 
   now_req_net net = 1 [ json_name = "type" ];
-}
-
-message latency_req {
-  message http { string url = 1 [ json_name = "url" ]; }
-  message dns {
-    string host = 1 [ json_name = "host" ];
-    string target_domain = 2 [ json_name = "target_name" ];
-  }
-  message request {
-    string hash = 1 [ json_name = "hash" ];
-
-    message protocol {
-      oneof protocol {
-        http http = 1 [ json_name = "http" ];
-        dns dns = 2 [ json_name = "dns" ];
-      }
-    }
-
-    repeated protocol protocols = 2 [ json_name = "protocols" ];
-  }
-  repeated request requests = 1 [ json_name = "requests" ];
-}
-
-message latency_resp {
-  message latency {
-    // return order by request protocols array
-    repeated google.protobuf.Duration times = 1 [ json_name = "times" ];
-  }
-  map<string, latency> hash_latency_map = 1 [ json_name = "hash_latency_map" ];
 }
 
 service subscribe {

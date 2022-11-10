@@ -19,8 +19,7 @@ import (
 
 type nodeHandler struct {
 	emptyHTTP
-	nm        grpcnode.NodeServer
-	subscribe grpcnode.SubscribeServer
+	nm grpcnode.NodeServer
 }
 
 var protocolsMapping = map[string]*protocol.Protocol{
@@ -35,6 +34,7 @@ var protocolsMapping = map[string]*protocol.Protocol{
 	"trojan":       {Protocol: &protocol.Protocol_Trojan{}},
 	"socks5":       {Protocol: &protocol.Protocol_Socks5{}},
 	"http":         {Protocol: &protocol.Protocol_Http{}},
+	"direct":       {Protocol: &protocol.Protocol_Direct{}},
 }
 
 func (nn *nodeHandler) Get(w http.ResponseWriter, r *http.Request) error {

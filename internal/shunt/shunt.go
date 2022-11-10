@@ -1,11 +1,9 @@
 package shunt
 
 import (
-	"bufio"
-	"bytes"
+	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -19,10 +17,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-type mode struct {
-	dialer proxy.Proxy
-	dns    dns.DNS
-}
+type MODE_MARK_KEY struct{}
+
+func (MODE_MARK_KEY) String() string { return "MODE" }
+
+type DOMAIN_MARK_KEY struct{}
+
+type IP_MARK_KEY struct{}
+
+func (IP_MARK_KEY) String() string { return "IP" }
+
+type ForceModeKey struct{}
 
 type shunt struct {
 	mapper imapper.Mapper[string, proxy.Address, bypass.Mode]
@@ -31,7 +36,7 @@ type shunt struct {
 	resolveRemoteDomain bool
 	lock                sync.RWMutex
 
-	modeStore   syncmap.SyncMap[bypass.Mode, mode]
+	modeStore   syncmap.SyncMap[bypass.Mode, Mode]
 	defaultMode bypass.Mode
 }
 
@@ -53,7 +58,7 @@ func NewShunt(modes []Mode) proxy.DialerResolverProxy {
 	}
 
 	for _, mode := range modes {
-		s.AddMode(mode.Mode, mode.Default, mode.Dialer, mode.Resolver)
+		s.AddMode(mode)
 	}
 
 	return s
@@ -70,9 +75,7 @@ func (s *shunt) Update(c *pconfig.Setting) {
 
 	if diff {
 		s.mapper.Clear()
-		if err := s.refresh(); err != nil {
-			log.Errorln("refresh bypass file failed:", err)
-		}
+		rangeRule(s.config.BypassFile, func(s1, s2 string) { s.mapper.Insert(s1, bypass.Mode(bypass.Mode_value[s2])) })
 	}
 
 	for k, v := range c.Bypass.CustomRule {
@@ -80,53 +83,17 @@ func (s *shunt) Update(c *pconfig.Setting) {
 	}
 }
 
-func (s *shunt) refresh() error {
-	f := getBypassData(s.config.BypassFile)
-	defer f.Close()
-
-	s.mapper.Clear()
-
-	br := bufio.NewScanner(f)
-	for {
-		if !br.Scan() {
-			break
-		}
-
-		a := br.Bytes()
-
-		i := bytes.IndexByte(a, '#')
-		if i != -1 {
-			a = a[:i]
-		}
-
-		i = bytes.IndexByte(a, ' ')
-		if i == -1 {
-			continue
-		}
-
-		c, b := a[:i], a[i+1:]
-
-		if len(c) != 0 && len(b) != 0 {
-			s.mapper.Insert(strings.ToLower(string(c)), bypass.Mode(bypass.Mode_value[strings.ToLower(string(b))]))
-		}
-	}
-	return nil
-}
-
-func (s *shunt) AddMode(m bypass.Mode, defaultMode bool, p proxy.Proxy, resolver dns.DNS) {
-	s.modeStore.Store(m, mode{p, resolver})
-	if defaultMode {
-		s.defaultMode = m
+func (s *shunt) AddMode(m Mode) {
+	s.modeStore.Store(m.Mode, m)
+	if m.Default {
+		s.defaultMode = m.Mode
 	}
 }
 
 func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
-	host, mode, ok := s.getMark(s.config.Tcp, host)
-	if !ok {
-		return nil, fmt.Errorf("not found mode for %v", host)
-	}
+	host, mode := s.bypass(s.config.Tcp, host)
 
-	conn, err := mode.dialer.Conn(host)
+	conn, err := mode.Dialer.Conn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -135,12 +102,9 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 }
 
 func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	host, mode, ok := s.getMark(s.config.Udp, host)
-	if !ok {
-		return nil, fmt.Errorf("not found mode for %v", host)
-	}
+	host, mode := s.bypass(s.config.Udp, host)
 
-	conn, err := mode.dialer.PacketConn(host)
+	conn, err := mode.Dialer.PacketConn(host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -148,7 +112,13 @@ func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return conn, err
 }
 
-func (s *shunt) getMark(networkMode bypass.Mode, host proxy.Address) (proxy.Address, mode, bool) {
+var errMode = Mode{
+	Mode:     bypass.Mode(-1),
+	Dialer:   proxy.NewErrProxy(errors.New("can't find mode")),
+	Resolver: dns.NewErrorDNS(errors.New("can't find mode")),
+}
+
+func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
 	mode := proxy.GetMark(host, ForceModeKey{}, bypass.Mode_bypass)
 
 	if mode == bypass.Mode_bypass {
@@ -156,10 +126,12 @@ func (s *shunt) getMark(networkMode bypass.Mode, host proxy.Address) (proxy.Addr
 	}
 
 	if mode == bypass.Mode_bypass {
-		rv := resolver.Bootstrap
+		var rv dns.DNS
 		r, ok := s.modeStore.Load(s.defaultMode)
 		if ok {
-			rv = r.dns
+			rv = r.Resolver
+		} else {
+			rv = resolver.Bootstrap
 		}
 
 		host.WithResolver(rv, true)
@@ -171,14 +143,14 @@ func (s *shunt) getMark(networkMode bypass.Mode, host proxy.Address) (proxy.Addr
 
 	m, ok := s.modeStore.Load(mode)
 	if !ok {
-		return host, m, ok
+		m = errMode
 	}
 
 	host.WithValue(MODE_MARK_KEY{}, mode)
-	host.WithResolver(m.dns, true)
+	host.WithResolver(m.Resolver, true)
 
 	if !s.resolveRemoteDomain || host.Type() != proxy.DOMAIN || mode != bypass.Mode_proxy {
-		return host, m, ok
+		return host, m
 	}
 
 	ip, err := host.IP()
@@ -190,20 +162,20 @@ func (s *shunt) getMark(networkMode bypass.Mode, host proxy.Address) (proxy.Addr
 		log.Warningln("resolve remote domain failed: %w", err)
 	}
 
-	return host, m, ok
+	return host, m
 }
 
-var resolverResolver = dns.NewErrorDNS(imapper.ErrSkipResolveDomain)
+var skipResolve = dns.NewErrorDNS(imapper.ErrSkipResolveDomain)
 
 func (s *shunt) Resolver(host proxy.Address) dns.DNS {
-	host.WithResolver(resolverResolver, true)
+	host.WithResolver(skipResolve, true)
 	m, ok := s.mapper.Search(host)
 	if !ok {
 		m = s.defaultMode
 	}
 	d, ok := s.modeStore.Load(m)
 	if ok {
-		return d.dns
+		return d.Resolver
 	}
 	return resolver.Bootstrap
 }

@@ -4,26 +4,16 @@ package yuhaiin.statistic;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/statistic";
 
-message close_conns_req { repeated int64 conns = 1; }
-
-message rate_resp {
-  uint64 download = 1 [ json_name = "download" ];
-  uint64 upload = 2 [ json_name = "upload" ];
+message net_type {
+  string conn_type = 1 [ json_name = "conn_type" ];
+  string underlying_type = 2 [ json_name = "underlying_type" ];
 }
 
 message connection {
   string addr = 1 [ json_name = "addr" ];
-  int64 id = 2 [ json_name = "id" ];
+  uint64 id = 2 [ json_name = "id" ];
   string local = 3 [ json_name = "local" ];
   string remote = 4 [ json_name = "remote" ];
-  message net_type {
-    string conn_type = 1 [ json_name = "conn_type" ];
-    string underlying_type = 2 [ json_name = "underlying_type" ];
-  }
   net_type type = 6 [ json_name = "type" ];
   map<string, string> extra = 9 [ json_name = "extra" ];
-}
-
-message conn_resp {
-  repeated connection connections = 1 [ json_name = "connections" ];
 }

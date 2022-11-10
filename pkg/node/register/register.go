@@ -31,6 +31,9 @@ func init() {
 	protocol.RegisterProtocol(ssr.New)
 	protocol.RegisterProtocol(s5c.New)
 	protocol.RegisterProtocol(httpc.New)
+	protocol.RegisterProtocol(func(d *protocol.Protocol_Direct) protocol.WrapProxy {
+		return func(p proxy.Proxy) (proxy.Proxy, error) { return direct.NewDirect(), nil }
+	})
 }
 
 func Dialer(p *point.Point) (r proxy.Proxy, err error) {
