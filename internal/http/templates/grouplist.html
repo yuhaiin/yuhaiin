@@ -29,11 +29,11 @@
         ajax("GET", `/latency?hash=${id}&type=${type}`, null,
             (xmlhttp) => {
                 if (xmlhttp.responseText != "") elem.innerText = `${type}: ${xmlhttp.responseText}`
-                else elem.innerText = `${type}: 9999.99ms`
+                else elem.innerText = `${type}: timeout`
                 console.log(`get ${type} data：`, elem.innerText)
                 callback()
             },
-            () => { elem.innerText = `${type}: 9999.99ms`; callback() });
+            () => { elem.innerText = `${type}: timeout`; callback() });
     }
 
     const deleteSelectedNode = () => ajax("DELETE", `/node?hash=${selectedNode()}`, null, () => location.reload(), (xmlhttp) => show_danger(`delete ${hash} failed, ${xmlhttp.responseText}`));

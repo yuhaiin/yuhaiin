@@ -17,6 +17,7 @@ message protocol {
     none none = 9 [ json_name = "none" ];
     socks5 socks5 = 10 [ json_name = "socks5" ];
     http http = 11 [ json_name = "http" ];
+    direct direct = 12 [ json_name = "direct" ];
   }
 }
 
@@ -94,3 +95,5 @@ message tls_config {
   // eg: h2, http/1.1
   repeated string next_protos = 5 [ json_name = "next_protos" ];
 }
+
+message direct {}

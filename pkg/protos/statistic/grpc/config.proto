@@ -8,9 +8,19 @@ import "google/protobuf/empty.proto";
 import "statistic/config.proto";
 
 service connections {
-  rpc conns(google.protobuf.Empty) returns (yuhaiin.statistic.conn_resp);
-  rpc close_conn(yuhaiin.statistic.close_conns_req)
-      returns (google.protobuf.Empty);
-  rpc statistic(google.protobuf.Empty)
-      returns (stream yuhaiin.statistic.rate_resp);
+  rpc conns(google.protobuf.Empty) returns (connections_info);
+  rpc close_conn(connections_id) returns (google.protobuf.Empty);
+  rpc total(google.protobuf.Empty) returns (total_flow);
+}
+
+message total_flow {
+  uint64 download = 1 [ json_name = "download" ];
+  uint64 upload = 2 [ json_name = "upload" ];
+}
+
+message connections_id { repeated uint64 ids = 1; }
+
+message connections_info {
+  repeated yuhaiin.statistic.connection connections = 1
+      [ json_name = "connections" ];
 }

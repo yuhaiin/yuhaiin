@@ -4,10 +4,13 @@ import (
 	"testing"
 
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	re "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func TestDoQ(t *testing.T) {
+	re.Bootstrap = &re.System{DisableIPv6: true}
+
 	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{
@@ -27,9 +30,15 @@ func TestDoQ(t *testing.T) {
 			Host: "c.passcoud.xyz:784",
 			IPv6: true,
 		},
+		"nextdns": {
+			Type:   dns.Type_doq,
+			Host:   "dns.nextdns.io:853",
+			IPv6:   true,
+			Dialer: s5Dialer,
+		},
 	}
 
-	d := New(configMap["adguard"])
+	d := New(configMap["nextdns"])
 	defer d.Close()
 
 	t.Log(d.LookupIP("www.google.com"))

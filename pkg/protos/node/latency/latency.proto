@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package yuhaiin.latency;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node/latency";
+
+import "google/protobuf/duration.proto";
+
+message http { string url = 1 [ json_name = "url" ]; }
+
+message dns {
+  string host = 1 [ json_name = "host" ];
+  string target_domain = 2 [ json_name = "target_name" ];
+}
+
+message dns_over_quic {
+  string host = 1 [ json_name = "host" ];
+  string target_domain = 2 [ json_name = "target_name" ];
+}
+
+message protocol {
+  oneof protocol {
+    http http = 1 [ json_name = "http" ];
+    dns dns = 2 [ json_name = "dns" ];
+    dns_over_quic dns_over_quic = 3 [ json_name = "dns_over_quic" ];
+  }
+}
+
+message request {
+  string id = 3 [ json_name = "id" ];
+  string hash = 1 [ json_name = "hash" ];
+  protocol protocol = 2 [ json_name = "protocol" ];
+}
+
+message requests { repeated request requests = 1 [ json_name = "requests" ]; }
+
+message response {
+  map<string, google.protobuf.Duration> id_latency_map = 1
+      [ json_name = "id_latency_map" ];
+}
