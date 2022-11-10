@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type latencyHandler struct {
@@ -13,48 +15,66 @@ type latencyHandler struct {
 	nm grpcnode.NodeServer
 }
 
-func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) error {
+func (l *latencyHandler) udp(r *http.Request) *latency.Request {
 	hash := r.URL.Query().Get("hash")
-	t := r.URL.Query().Get("type")
-
-	req := &grpcnode.LatencyReqRequest{Hash: hash}
-
-	if t == "tcp" {
-		req.Protocols = append(req.Protocols, &grpcnode.LatencyReqRequestProtocol{
-			Protocol: &grpcnode.LatencyReqRequestProtocol_Http{
-				Http: &grpcnode.LatencyReqHttp{
-					Url: "https://clients3.google.com/generate_204",
-				},
-			},
-		})
-	}
-
-	if t == "udp" {
-		req.Protocols = append(req.Protocols, &grpcnode.LatencyReqRequestProtocol{
-			Protocol: &grpcnode.LatencyReqRequestProtocol_Dns{
-				Dns: &grpcnode.LatencyReqDns{
-					Host:         "1.1.1.1:53",
+	return &latency.Request{
+		Id:   "udp",
+		Hash: hash,
+		Protocol: &latency.Protocol{
+			Protocol: &latency.Protocol_DnsOverQuic{
+				DnsOverQuic: &latency.DnsOverQuic{
+					Host:         "dns.nextdns.io:853",
 					TargetDomain: "www.google.com",
 				},
 			},
-		})
+		},
+	}
+}
+
+func (l *latencyHandler) tcp(r *http.Request) *latency.Request {
+	hash := r.URL.Query().Get("hash")
+	return &latency.Request{
+		Id:   "tcp",
+		Hash: hash,
+		Protocol: &latency.Protocol{
+			Protocol: &latency.Protocol_Http{
+				Http: &latency.Http{
+					Url: "https://clients3.google.com/generate_204",
+				},
+			},
+		},
+	}
+}
+
+func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) error {
+	t := r.URL.Query().Get("type")
+
+	req := &latency.Requests{}
+	if t == "tcp" {
+		req.Requests = append(req.Requests, l.tcp(r))
 	}
 
-	lt, err := l.nm.Latency(context.TODO(), &grpcnode.LatencyReq{Requests: []*grpcnode.LatencyReqRequest{req}})
+	if t == "udp" {
+		req.Requests = append(req.Requests, l.udp(r))
+	}
 
+	lt, err := l.nm.Latency(context.TODO(), req)
 	if err != nil {
 		return err
 	}
-	if _, ok := lt.HashLatencyMap[hash]; !ok {
+
+	var tt *durationpb.Duration
+	if z, ok := lt.IdLatencyMap["tcp"]; ok {
+		tt = z
+	} else if z, ok := lt.IdLatencyMap["udp"]; ok {
+		tt = z
+	}
+
+	if tt == nil || tt.AsDuration() == 0 {
 		return errors.New("test latency timeout or can't connect")
 	}
 
-	var resp string
-	if lt.HashLatencyMap[hash] != nil {
-		resp = lt.HashLatencyMap[hash].Times[0].AsDuration().String()
-	}
-
-	w.Write([]byte(resp))
+	w.Write([]byte(tt.AsDuration().String()))
 
 	return nil
 }

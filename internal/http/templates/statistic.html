@@ -12,6 +12,7 @@
 
     function connect() {
         var ws = new WebSocket("ws://" + window.location.host + "/conn");
+
         var download = 0
         var upload = 0
         var drate = 0
@@ -20,6 +21,9 @@
         window.onbeforeunload = function () {
             ws.close();
         }
+
+        var internal_id = setInterval(() => { ws.send(""); }, 1000)
+
         const sttd = document.querySelector('#statistic-download');
         const sttu = document.querySelector("#statistic-upload")
         ws.onmessage = function (event) {
@@ -41,6 +45,7 @@
             sttd.innerText = 'Loading...'
             sttu.innerText = 'Loading...'
             setTimeout(connect, 1000);
+            clearInterval(internal_id);
         }
     }
 

@@ -10,8 +10,8 @@ import (
 type connection interface {
 	io.Closer
 
-	GetType() *statistic.ConnectionNetType
-	GetId() int64
+	GetType() *statistic.NetType
+	GetId() uint64
 	GetAddr() string
 	GetLocal() string
 	GetRemote() string
