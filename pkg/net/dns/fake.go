@@ -39,6 +39,7 @@ func NewFake(ipRange *net.IPNet) *Fake {
 func (fkdns *Fake) GetFakeIPForDomain(domain string) string {
 	fkdns.mu.Lock()
 	defer fkdns.mu.Unlock()
+
 	if v, ok := fkdns.domainToIP.Load(domain); ok {
 		return v
 	}
@@ -48,11 +49,27 @@ func (fkdns *Fake) GetFakeIPForDomain(domain string) string {
 	if rooms < 64 {
 		currentTimeMillis %= (uint64(1) << rooms)
 	}
+
 	bigIntIP := big.NewInt(0).SetBytes(fkdns.ipRange.IP)
 	bigIntIP = bigIntIP.Add(bigIntIP, new(big.Int).SetUint64(currentTimeMillis))
+
+	var bytesLen, fillIndex int
+	if fkdns.ipRange.IP.To4() == nil { // ipv6
+		bytesLen = net.IPv6len
+		if len(bigIntIP.Bytes()) != net.IPv6len {
+			fillIndex = 1
+		}
+	} else {
+		bytesLen = net.IPv4len
+	}
+
+	bytes := pool.GetBytes(bytesLen)
+	defer pool.PutBytes(bytes)
+
 	var ip net.IP
 	for {
-		ip = net.IP(bigIntIP.Bytes())
+		bigIntIP.FillBytes(bytes[fillIndex:])
+		ip = net.IP(bytes)
 
 		// if we run for a long time, we may go back to beginning and start seeing the IP in use
 		if ok := fkdns.domainToIP.ValueExist(ip.String()); !ok {
@@ -60,7 +77,9 @@ func (fkdns *Fake) GetFakeIPForDomain(domain string) string {
 		}
 
 		bigIntIP = bigIntIP.Add(bigIntIP, big.NewInt(1))
-		if !fkdns.ipRange.Contains(bigIntIP.Bytes()) {
+
+		bigIntIP.FillBytes(bytes[fillIndex:])
+		if !fkdns.ipRange.Contains(bytes) {
 			bigIntIP = big.NewInt(0).SetBytes(fkdns.ipRange.IP)
 		}
 	}

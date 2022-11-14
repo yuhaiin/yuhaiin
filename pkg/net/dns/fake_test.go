@@ -3,6 +3,7 @@ package dns
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"net"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 )
 
 func TestFake(t *testing.T) {
-	_, z, err := net.ParseCIDR("127.0.0.1/24")
+	_, z, err := net.ParseCIDR("ff::ff/24")
 	assert.NoError(t, err)
 
 	ones, bites := z.Mask.Size()
@@ -65,4 +66,19 @@ func TestPtr(t *testing.T) {
 	z.LookupPtr("f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.ip6.arpa.")
 	z.LookupPtr("1.0.0.127.in-addr.arpa.")
 	z.LookupPtr("1.2.0.10.in-addr.arpa.")
+}
+
+func TestFakeGenerate(t *testing.T) {
+	_, z, err := net.ParseCIDR("ff::ff/24")
+	assert.NoError(t, err)
+
+	t.Log([]byte(z.IP.To16()))
+
+	i := big.NewInt(0).SetBytes(z.IP)
+
+	t.Log(i, i.Bytes())
+
+	i = i.Add(i, big.NewInt(70000))
+
+	t.Log(append([]byte{0}, i.Bytes()...), net.IP(append([]byte{0}, i.Bytes()...)))
 }
