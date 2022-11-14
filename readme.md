@@ -25,12 +25,8 @@
 - Auto Set System Proxy.  
 - a Simple web page can to configure.
 - [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
+- [config & protocols Docs](https://github.com/Asutorufa/yuhaiin/tree/main/docs).  
 - icon from プロ生ちゃん.アイコンがプロ生ちゃんから、ご注意ください。  
-- Others Please Check [Wiki](https://github.com/Asutorufa/yuhaiin/wiki).  
-
-<!-- 
-![v0.2.12-beta_linux](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/v0.2.12-beta_linux.png)  
-![v0.2.12-beta_windows](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/v0.2.12-beta_windows.png)   -->
 
 ```shell
 # host: grpc and http listen address, default: 127.0.0.1:50051
@@ -40,62 +36,6 @@ yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 ```
 
 ![web_page](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/web_page.png)
-
-<details>
-<summary>a simple cli tools supported</summary>
-
-```shell
-// list all connections
-yh conn ls
-// close connections by id
-yh conn close <id1> <id2> ...
-// close all connections
-yh conn close all
-
-// list group
-yh ls
-// list all nodes
-yh ls all
-// list all nodes in a group
-yh ls <group-number>
-// list info of a node
-yh ls <group-number> <node-number>
-yh ls <node-hash>
-// list info of now use node
-yh ls now
-
-// check config
-yh config
-// set config
-yh config set <xxx>.<xxx>.<xxx>=<xxx>
-// for example set remote dns host
-// yh config set dns.remote.host=1.1.1.1
-
-// see stream data
-yh data
-
-// get a node latency
-yh lat <group-number> <node-number>
-yh lat <node-hash>
-// get all node latency of a group
-yh lat all <group-number>
-
-// use a node
-yh use <group-number> <node-number>
-yh use <node-hash>
-// set a node config
-yh set <group-number> <node-number> <xxx>.<xxx>.<xxx>=<xxx>
-yh set <node-hash> <xxx>.<xxx>.<xxx>=<xxx>
-
-// list all subscriptions
-yh sub ls
-// add a subscription
-yh sub add <name> <sub-link>
-// update all subscriptions
-yh sub update
-```
-
-</details>
 
 <details>
 <summary>Acknowledgement</summary>
