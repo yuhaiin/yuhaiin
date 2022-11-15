@@ -17,9 +17,35 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
-func TestImplement(t *testing.T) {
-	// make sure implement
-	var _ proxy.Proxy = new(Shadowsocks)
+func ExampleNew() {
+	simple := simple.New(&protocol.Protocol_Simple{
+		Simple: &protocol.Simple{
+			Host:             "127.0.0.1",
+			Port:             1080,
+			PacketConnDirect: false,
+		},
+	})
+	ws := websocket.New(&protocol.Protocol_Websocket{
+		Websocket: &protocol.Websocket{
+			Host: "localhost",
+		},
+	})
+
+	ss := New(&protocol.Protocol_Shadowsocks{
+		Shadowsocks: &protocol.Shadowsocks{
+			Method:   "aes-128-gcm",
+			Password: "test",
+		},
+	})
+
+	var err error
+	var conn proxy.Proxy
+	for _, wrap := range []protocol.WrapProxy{simple, ws, ss} {
+		conn, err = wrap(conn)
+		if err != nil {
+			panic(err)
+		}
+	}
 }
 
 func TestConn(t *testing.T) {
