@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
@@ -51,15 +52,15 @@ func TestFake(t *testing.T) {
 }
 
 func TestPtr(t *testing.T) {
-	_, zz, err := net.ParseCIDR("1.1.1.1/12")
+	zz, err := netip.ParsePrefix("1.1.1.1/12")
 	assert.NoError(t, err)
 
-	f := NewFake(zz)
+	f := NewNFakeDNS(zz)
 	t.Log(f.GetFakeIPForDomain("aass"))
 
 	z := &FakeDNS{
 		upStreamDo: dns.NewErrorDNS(fmt.Errorf("err")).Do,
-		pool:       NewFake(zz),
+		pool:       NewNFakeDNS(zz),
 	}
 
 	z.LookupPtr("f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.0.0.ip6.arpa.")
@@ -81,4 +82,19 @@ func TestFakeGenerate(t *testing.T) {
 	i = i.Add(i, big.NewInt(70000))
 
 	t.Log(append([]byte{0}, i.Bytes()...), net.IP(append([]byte{0}, i.Bytes()...)))
+}
+
+func TestNetip(t *testing.T) {
+	z, err := netip.ParsePrefix("127.0.0.1/30")
+	assert.NoError(t, err)
+
+	ff := NewNFakeDNS(z)
+
+	t.Log(ff.GetFakeIPForDomain("aa"))
+	t.Log(ff.GetFakeIPForDomain("bb"))
+	t.Log(ff.GetFakeIPForDomain("cc"))
+	t.Log(ff.GetFakeIPForDomain("dd"))
+	ff.GetFakeIPForDomain("aa")
+	t.Log(ff.GetFakeIPForDomain("ee"))
+	t.Log(ff.GetFakeIPForDomain("ff"))
 }

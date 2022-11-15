@@ -3,6 +3,7 @@ package resolver
 import (
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
@@ -14,7 +15,7 @@ import (
 )
 
 type Fakedns struct {
-	fake   *dns.Fake
+	fake   *dns.NFakeDNS
 	config *pdns.Config
 
 	dialer         proxy.Proxy
@@ -22,8 +23,8 @@ type Fakedns struct {
 }
 
 func NewFakeDNS(dialer proxy.Proxy, resolverProxy proxy.ResolverProxy) proxy.DialerResolverProxy {
-	_, ipRange, _ := net.ParseCIDR("10.2.0.1/24")
-	return &Fakedns{fake: dns.NewFake(ipRange), dialer: dialer, resolverDialer: resolverProxy}
+	ipRange, _ := netip.ParsePrefix("10.2.0.1/24")
+	return &Fakedns{fake: dns.NewNFakeDNS(ipRange), dialer: dialer, resolverDialer: resolverProxy}
 }
 
 func (f *Fakedns) Resolver(addr proxy.Address) idns.DNS {
@@ -40,13 +41,13 @@ func (f *Fakedns) Resolver(addr proxy.Address) idns.DNS {
 func (f *Fakedns) Update(c *protoconfig.Setting) {
 	f.config = c.Dns
 
-	_, ipRange, err := net.ParseCIDR(c.Dns.FakednsIpRange)
+	ipRange, err := netip.ParsePrefix(c.Dns.FakednsIpRange)
 	if err != nil {
 		log.Errorln("parse fakedns ip range failed:", err)
 		return
 	}
 
-	f.fake = dns.NewFake(ipRange)
+	f.fake = dns.NewNFakeDNS(ipRange)
 }
 
 func (f *Fakedns) Conn(addr proxy.Address) (net.Conn, error) {

@@ -34,6 +34,8 @@ type LRU[K comparable, V any] struct {
 	reverseMapping syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
 	valueHashable  bool
 	timeout        time.Duration
+
+	lastPopEntry *lruEntry[K, V]
 }
 
 // NewLru create new lru cache
@@ -87,6 +89,11 @@ func (l *LRU[K, V]) Add(key K, value V, opts ...Option) {
 		elem = l.list.PushFront(entry)
 	} else {
 		elem = l.list.Back()
+		l.lastPopEntry = &lruEntry[K, V]{
+			key:    elem.Value.key,
+			data:   elem.Value.data,
+			expire: elem.Value.expire,
+		}
 		l.delete(elem.Value)
 		l.list.MoveToFront(elem.SetValue(entry))
 	}
@@ -149,4 +156,12 @@ func (l *LRU[K, V]) ValueExist(key V) bool {
 	}
 	_, ok := l.reverseMapping.Load(key)
 	return ok
+}
+
+func (l *LRU[K, V]) LastPopValue() (v V, _ bool) {
+	if l.lastPopEntry == nil {
+		return v, false
+	}
+
+	return l.lastPopEntry.data, true
 }
