@@ -1,4 +1,4 @@
-package mapper
+package cidr
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
-func TestCidrMatch_Inset(t *testing.T) {
+func TestCidrMatch(t *testing.T) {
 	cidrMatch := NewCidrMapper[string]()
 	assert.NoError(t, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))
 	assert.NoError(t, cidrMatch.Insert("2001:0db8:0000:0000:1234:0000:0000:9abc/32", "testIPv6"))

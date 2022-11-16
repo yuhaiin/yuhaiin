@@ -7,12 +7,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/cidr"
+	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 type combine[T any] struct {
-	cidr   *Cidr[T]
-	domain *domain[T]
+	cidr   *cidr.Cidr[T]
+	domain *domain.Domain[T]
 }
 
 func (x *combine[T]) Insert(str string, mark T) {
@@ -62,12 +64,11 @@ func (x *combine[T]) Search(addr proxy.Address) (mark T, ok bool) {
 func (x *combine[T]) Domain() mapper.Mapper[string, proxy.Address, T] { return x.domain }
 
 func (x *combine[T]) Clear() error {
-	x.cidr = NewCidrMapper[T]()
-	x.domain = NewDomainMapper[T]()
-
+	x.cidr = cidr.NewCidrMapper[T]()
+	x.domain = domain.NewDomainMapper[T]()
 	return nil
 }
 
 func NewMapper[T any]() mapper.Mapper[string, proxy.Address, T] {
-	return &combine[T]{cidr: NewCidrMapper[T](), domain: NewDomainMapper[T]()}
+	return &combine[T]{cidr: cidr.NewCidrMapper[T](), domain: domain.NewDomainMapper[T]()}
 }
