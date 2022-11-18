@@ -11,7 +11,7 @@ require (
 	golang.org/x/sys v0.2.0
 	golang.org/x/time v0.2.0
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
-	google.golang.org/grpc v1.50.1
+	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1
 	gvisor.dev/gvisor v0.0.0-20221021200512-49dfef473678
 )
