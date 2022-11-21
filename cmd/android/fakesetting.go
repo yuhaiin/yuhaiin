@@ -31,7 +31,7 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			Fakedns:             opt.DNS.Fakedns,
 			FakednsIpRange:      opt.DNS.FakednsIpRange,
 			ResolveRemoteDomain: opt.DNS.ResolveRemoteDomain,
-			Hosts:               opt.DNS.Hosts,
+			Hosts:               make(map[string]string),
 			Remote: &dns.Dns{
 				Host:          opt.DNS.Remote.Host,
 				Type:          dns.Type(opt.DNS.Remote.Type),
@@ -100,6 +100,10 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			Level: protolog.LogLevel(opt.Log.LogLevel),
 			Save:  opt.Log.SaveLogcat,
 		},
+	}
+
+	if err := json.Unmarshal(opt.DNS.Hosts, &settings.Dns.Hosts); err != nil {
+		log.Warningln("unmarshal hosts failed:", err)
 	}
 
 	applyRule(settings, opt.Bypass.Proxy, bypass.Mode_proxy)
