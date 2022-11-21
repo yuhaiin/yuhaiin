@@ -119,6 +119,7 @@ type Address interface {
 	WithResolver(_ dns.DNS, canCover bool) bool
 	// OverrideHostname clone address(exclude Values) and change hostname
 	OverrideHostname(string) Address
+	OverridePort(Port) Address
 
 	Zone() string // IPv6 scoped addressing zone
 	UDPAddr() (*net.UDPAddr, error)
@@ -347,6 +348,17 @@ func (d *DomainAddr) OverrideHostname(s string) Address {
 
 	return &IPAddr{Address: r, origin: z, zone: zone}
 }
+
+func (d *DomainAddr) OverridePort(p Port) Address {
+	return &DomainAddr{
+		hostname: d.Hostname(),
+		host:     net.JoinHostPort(d.Hostname(), p.String()),
+		store:    d.store,
+		port:     p,
+		network:  d.network,
+	}
+}
+
 func (s *DomainAddr) WithValue(key, value any) {
 	if s.store == nil {
 		s.store = &sync.Map{}
@@ -380,6 +392,14 @@ func (i IPAddr) Zone() string        { return i.zone }
 func (i IPAddr) UDPAddr() (*net.UDPAddr, error) {
 	return &net.UDPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}, nil
 }
+func (i IPAddr) OverridePort(p Port) Address {
+	return &IPAddr{
+		origin:  i.origin,
+		Address: i.Address.OverridePort(p),
+		zone:    i.zone,
+	}
+}
+
 func (i IPAddr) TCPAddr() (*net.TCPAddr, error) {
 	return &net.TCPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}, nil
 }
@@ -404,6 +424,7 @@ func (d emptyAddr) WithValue(any, any)              {}
 func (d emptyAddr) Value(any) (any, bool)           { return nil, false }
 func (d emptyAddr) RangeValue(func(any, any) bool)  {}
 func (d emptyAddr) OverrideHostname(string) Address { return d }
+func (d emptyAddr) OverridePort(Port) Address       { return d }
 
 type PortImpl struct {
 	Number uint16
