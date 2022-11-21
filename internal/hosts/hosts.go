@@ -25,7 +25,19 @@ func (h *hosts) Update(c *config.Setting) {
 	h.hosts = syncmap.SyncMap[string, proxy.Address]{}
 
 	for k, v := range c.Dns.Hosts {
-		h.hosts.Store(k, proxy.ParseAddressSplit("", v, proxy.EmptyPort))
+		_, _, e1 := net.SplitHostPort(k)
+		_, _, e2 := net.SplitHostPort(v)
+
+		if e1 == nil && e2 == nil {
+			addr, err := proxy.ParseAddress("", v)
+			if err == nil {
+				h.hosts.Store(k, addr)
+			}
+		}
+
+		if e1 != nil && e2 != nil {
+			h.hosts.Store(k, proxy.ParseAddressSplit("", v, proxy.EmptyPort))
+		}
 	}
 }
 
@@ -46,7 +58,14 @@ func (h *hosts) getAddr(addr proxy.Address) proxy.Address {
 	z, ok := h.hosts.Load(addr.Hostname())
 	if ok {
 		addr.WithValue(hostsKey{}, addr.Hostname())
+		return addr.OverrideHostname(z.Hostname())
+	}
+
+	z, ok = h.hosts.Load(addr.String())
+	if ok {
+		addr.WithValue(hostsKey{}, addr.String())
 		addr = addr.OverrideHostname(z.Hostname())
+		addr = addr.OverridePort(z.Port())
 	}
 
 	return addr
