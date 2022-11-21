@@ -3,7 +3,6 @@ package statistics
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"sync/atomic"
 
@@ -20,38 +19,26 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-type Statistics interface {
-	grpcsts.ConnectionsServer
-	io.Closer
-	proxy.Proxy
-}
-
-var _ Statistics = (*counter)(nil)
-
-type counter struct {
+type Connections struct {
 	grpcsts.UnimplementedConnectionsServer
 
-	download, upload atomic.Uint64
-
-	idSeed id.IDGenerator
-	conns  syncmap.SyncMap[uint64, connection]
-
 	dialer proxy.Proxy
+	idSeed id.IDGenerator
+
+	Download, Upload atomic.Uint64
+	connStore        syncmap.SyncMap[uint64, connection]
 }
 
-func NewStatistics(dialer proxy.Proxy) Statistics {
+func NewConnStore(dialer proxy.Proxy) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
-	return &counter{dialer: dialer}
+	return &Connections{dialer: dialer}
 }
 
-func (c *counter) AddDownload(i uint64) { c.download.Add(i) }
-func (c *counter) AddUpload(i uint64)   { c.upload.Add(i) }
-
-func (c *counter) Conns(context.Context, *emptypb.Empty) (*grpcsts.ConnectionsInfo, error) {
+func (c *Connections) Conns(context.Context, *emptypb.Empty) (*grpcsts.ConnectionsInfo, error) {
 	resp := &grpcsts.ConnectionsInfo{}
-	c.conns.Range(func(key uint64, v connection) bool {
+	c.connStore.Range(func(key uint64, v connection) bool {
 		resp.Connections = append(resp.Connections, v.Info())
 		return true
 	})
@@ -59,17 +46,17 @@ func (c *counter) Conns(context.Context, *emptypb.Empty) (*grpcsts.ConnectionsIn
 	return resp, nil
 }
 
-func (c *counter) CloseConn(_ context.Context, x *grpcsts.ConnectionsId) (*emptypb.Empty, error) {
+func (c *Connections) CloseConn(_ context.Context, x *grpcsts.ConnectionsId) (*emptypb.Empty, error) {
 	for _, x := range x.Ids {
-		if z, ok := c.conns.Load(x); ok {
+		if z, ok := c.connStore.Load(x); ok {
 			z.Close()
 		}
 	}
 	return &emptypb.Empty{}, nil
 }
 
-func (c *counter) Close() error {
-	c.conns.Range(func(key uint64, v connection) bool {
+func (c *Connections) Close() error {
+	c.connStore.Range(func(key uint64, v connection) bool {
 		v.Close()
 		return true
 	})
@@ -77,28 +64,30 @@ func (c *counter) Close() error {
 	return nil
 }
 
-func (c *counter) Total(context.Context, *emptypb.Empty) (*grpcsts.TotalFlow, error) {
-	return &grpcsts.TotalFlow{Download: c.download.Load(), Upload: c.upload.Load()}, nil
+func (c *Connections) Total(context.Context, *emptypb.Empty) (*grpcsts.TotalFlow, error) {
+	return &grpcsts.TotalFlow{Download: c.Download.Load(), Upload: c.Upload.Load()}, nil
 }
 
-func (c *counter) delete(id uint64) {
-	if z, ok := c.conns.LoadAndDelete(id); ok {
+func (c *Connections) Remove(id uint64) {
+	if z, ok := c.connStore.LoadAndDelete(id); ok {
 		log.Debugln("close", c.cString(z))
 	}
 }
 
-func (c *counter) storeConnection(o connection) {
+func (c *Connections) storeConnection(o connection) {
 	log.Debugf(c.cString(o))
-	c.conns.Store(o.GetId(), o)
+	c.connStore.Store(o.Info().GetId(), o)
 }
 
-func (c *counter) cString(o connection) (s string) {
+func (c *Connections) cString(oo connection) (s string) {
 	if !log.IsOutput(protolog.LogLevel_debug) {
 		return
 	}
 
 	str := pool.GetBuffer()
 	defer pool.PutBuffer(str)
+
+	o := oo.Info()
 
 	for k, v := range o.GetExtra() {
 		str.WriteString(fmt.Sprintf("%s: %s,", k, v))
@@ -107,31 +96,31 @@ func (c *counter) cString(o connection) (s string) {
 		o.GetId(), o.GetType(), o.GetAddr(), str.String(), o.GetLocal(), o.GetRemote())
 }
 
-func (c *counter) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	con, err := c.dialer.PacketConn(addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial packet conn failed: %w", err)
 	}
 
-	z := &packetConn{Connection: c.generateConnection("udp", addr, con), PacketConn: con, manager: c}
+	z := &packetConn{con, c.generateConnection("udp", addr, con), c}
 
 	c.storeConnection(z)
 	return z, nil
 }
 
-func (c *counter) Conn(addr proxy.Address) (net.Conn, error) {
+func (c *Connections) Conn(addr proxy.Address) (net.Conn, error) {
 	con, err := c.dialer.Conn(addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial conn failed: %w", err)
 	}
 
-	z := &conn{Connection: c.generateConnection("tcp", addr, con), Conn: con, manager: c}
+	z := &conn{con, c.generateConnection("tcp", addr, con), c}
 
 	c.storeConnection(z)
 	return z, nil
 }
 
-func (c *counter) generateConnection(network string, addr proxy.Address, con interface{ LocalAddr() net.Addr }) *statistic.Connection {
+func (c *Connections) generateConnection(network string, addr proxy.Address, con interface{ LocalAddr() net.Addr }) *statistic.Connection {
 	var remote string
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
 	if ok {
