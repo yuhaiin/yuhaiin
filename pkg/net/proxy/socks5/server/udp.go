@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -157,7 +158,7 @@ func (u *UdpNatTable) relay(proxy, client net.PacketConn, src net.Addr) error {
 		proxy.SetReadDeadline(time.Now().Add(time.Minute))
 		n, _, err := proxy.ReadFrom(data)
 		if err != nil {
-			if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
+			if ne, ok := err.(net.Error); (ok && ne.Timeout()) || errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {
 				return nil /* ignore I/O timeout & EOF */
 			}
 

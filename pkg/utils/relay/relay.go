@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -15,7 +16,7 @@ func Relay(local, remote io.ReadWriter) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		if err := Copy(remote, local); err != nil && !errors.Is(err, io.EOF) {
+		if err := Copy(remote, local); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
 			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
 				log.Errorln("relay local -> remote failed:", err)
 			}
@@ -25,7 +26,7 @@ func Relay(local, remote io.ReadWriter) {
 		}
 	}()
 
-	if err := Copy(local, remote); err != nil && !errors.Is(err, io.EOF) {
+	if err := Copy(local, remote); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
 		if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
 			log.Errorln("relay remote -> local failed:", err)
 		}
