@@ -8,10 +8,11 @@ import (
 )
 
 type Trie[T any] struct {
-	mark  T
 	last  bool
 	left  *Trie[T] // 0
 	right *Trie[T] // 1
+
+	mark T
 }
 
 // Insert insert node to tree

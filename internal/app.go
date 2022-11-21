@@ -121,7 +121,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.addObserver(st)
 
 	// connections' statistic & flow data
-	stcs := statistics.NewStatistics(st)
+	stcs := statistics.NewConnStore(st)
 
 	hosts := hosts.NewHosts(stcs, st)
 	opt.addObserver(hosts)
