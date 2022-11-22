@@ -9,7 +9,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
@@ -53,8 +52,7 @@ func (f *Fakedns) Update(c *protoconfig.Setting) {
 func (f *Fakedns) Conn(addr proxy.Address) (net.Conn, error) {
 	c, err := f.dialer.Conn(f.getAddr(addr))
 	if err != nil {
-		return nil, fmt.Errorf("connect tcp to %s(%s) failed: %s",
-			addr, proxy.GetMark(addr, tun.PACKAGE_MARK_KEY{}, ""), err)
+		return nil, fmt.Errorf("connect tcp to %s failed: %w", addr, err)
 	}
 
 	return c, nil
@@ -63,23 +61,17 @@ func (f *Fakedns) Conn(addr proxy.Address) (net.Conn, error) {
 func (f *Fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	c, err := f.dialer.PacketConn(f.getAddr(addr))
 	if err != nil {
-		return nil, fmt.Errorf("connect udp to %s(%s) failed: %s",
-			addr, proxy.GetMark(addr, tun.PACKAGE_MARK_KEY{}, ""), err)
+		return nil, fmt.Errorf("connect udp to %s failed: %w", addr, err)
 	}
 
 	return &WrapAddressPacketConn{c, f.getAddr}, nil
 }
 
-type FAKE_IP_MARK_KEY struct{}
-
-func (FAKE_IP_MARK_KEY) String() string { return "Fake IP" }
-
 func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {
 	if f.config != nil && f.config.Fakedns && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {
-			addr.WithValue(FAKE_IP_MARK_KEY{}, addr.String())
-			addr = addr.OverrideHostname(t)
+			return addr.OverrideHostname(t)
 		}
 	}
 	return addr

@@ -7,7 +7,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -17,50 +16,48 @@ func init() {
 	Register(pdns.Type_tcp, NewTCP)
 }
 
-var _ dns.DNS = (*tcp)(nil)
-
-type tcp struct {
-	host  proxy.Address
-	proxy proxy.StreamProxy
-
-	*client
-
-	tls *tls.Config
+func NewTCP(config Config) (dns.DNS, error) {
+	return newTCP(config, "53", nil)
 }
 
-func NewTCP(config Config) dns.DNS {
-	return newTCP(config, "53")
-}
-
-func newTCP(config Config, defaultPort string) *tcp {
-	host := config.Host
+// ParseAddr
+// host eg: cloudflare-dns.com, https://cloudflare-dns.com, 1.1.1.1:853
+func ParseAddr(host, defaultPort string) (proxy.Address, error) {
 	if i := strings.Index(host, "://"); i != -1 {
 		host = host[i+3:]
 	}
 
 	_, _, err := net.SplitHostPort(host)
-	if e, ok := err.(*net.AddrError); ok {
-		if strings.Contains(e.Err, "missing port in address") {
-			host = net.JoinHostPort(host, defaultPort)
+	if err != nil {
+		e, ok := err.(*net.AddrError)
+		if !ok || !strings.Contains(e.Err, "missing port in address") {
+			return nil, fmt.Errorf("split host port failed: %w", err)
 		}
+		host = net.JoinHostPort(host, defaultPort)
 	}
 
 	addr, err := proxy.ParseAddress("tcp", host)
 	if err != nil {
-		log.Errorln(err)
-		addr = proxy.EmptyAddr
+		return nil, fmt.Errorf("parse address failed: %w", err)
 	}
-	d := &tcp{host: addr, proxy: config.Dialer}
 
-	d.client = NewClient(config, func(b []byte) ([]byte, error) {
-		conn, err := d.proxy.Conn(d.host)
+	return addr, nil
+}
+
+func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, error) {
+	addr, err := ParseAddr(config.Host, defaultPort)
+	if err != nil {
+		return nil, fmt.Errorf("parse addr failed: %w", err)
+	}
+	return NewClient(config, func(b []byte) ([]byte, error) {
+		conn, err := config.Dialer.Conn(addr)
 		if err != nil {
 			return nil, fmt.Errorf("tcp dial failed: %w", err)
 		}
 		defer conn.Close()
 
-		if d.tls != nil {
-			conn = tls.Client(conn, d.tls)
+		if tlsConfig != nil {
+			conn = tls.Client(conn, tlsConfig)
 		}
 
 		// dns over tcp, prefix two bytes is request data's length
@@ -86,9 +83,5 @@ func newTCP(config Config, defaultPort string) *tcp {
 			return nil, fmt.Errorf("read data from server failed: %w", err)
 		}
 		return all[:n], err
-	})
-
-	return d
+	}), nil
 }
-
-func (d *tcp) Close() error { return nil }

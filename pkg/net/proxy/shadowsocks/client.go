@@ -34,7 +34,7 @@ func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
 func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
 	conn, err = s.p.Conn(addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial to %s failed: %v", addr, err)
+		return nil, fmt.Errorf("dial to %s failed: %w", addr, err)
 	}
 
 	if x, ok := conn.(*net.TCPConn); ok {
@@ -44,7 +44,7 @@ func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
 	conn = s.cipher.StreamConn(conn)
 	if _, err = conn.Write(s5c.ParseAddr(addr)); err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("shadowsocks write target failed: %v", err)
+		return nil, fmt.Errorf("shadowsocks write target failed: %w", err)
 	}
 	return conn, nil
 }
@@ -68,12 +68,12 @@ func NewSsPacketConn(conn net.PacketConn) net.PacketConn {
 func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, _, err := v.PacketConn.ReadFrom(b)
 	if err != nil {
-		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %v", err)
+		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %w", err)
 	}
 
 	addr, addrSize, err := s5c.ResolveAddr("udp", bytes.NewBuffer(b[:n]))
 	if err != nil {
-		return 0, nil, fmt.Errorf("resolve address failed: %v", err)
+		return 0, nil, fmt.Errorf("resolve address failed: %w", err)
 	}
 
 	copy(b, b[addrSize:])

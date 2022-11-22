@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestTCP(t *testing.T) {
@@ -19,7 +20,9 @@ func TestTCP(t *testing.T) {
 		},
 	}
 
-	dns := New(configMap["114"])
+	dns, err := New(configMap["114"])
+	assert.NoError(t, err)
+
 	t.Log(dns.LookupIP("baidu.com"))
 	t.Log(dns.LookupIP("google.com"))
 }

@@ -46,8 +46,8 @@ type StartOpt struct {
 	Host       string
 	Setting    config.Setting
 
-	UidDumper  listener.UidDumper
-	GRPCServer *grpc.Server
+	ProcessDumper listener.ProcessDumper
+	GRPCServer    *grpc.Server
 }
 
 func (s *StartOpt) addObserver(observer any) {
@@ -121,7 +121,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.addObserver(st)
 
 	// connections' statistic & flow data
-	stcs := statistics.NewConnStore(st)
+	stcs := statistics.NewConnStore(st, opt.ProcessDumper)
 
 	hosts := hosts.NewHosts(stcs, st)
 	opt.addObserver(hosts)
@@ -142,7 +142,6 @@ func Start(opt StartOpt) (StartResponse, error) {
 		&listener.Opts[listener.IsProtocol_Protocol]{
 			Dialer:    fakedns,
 			DNSServer: dnsServer,
-			UidDumper: opt.UidDumper,
 		},
 	)
 	opt.addObserver(listener)

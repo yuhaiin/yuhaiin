@@ -25,15 +25,13 @@ func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (server.Server,
 	)
 }
 
-type UidDumper interface {
-	DumpUid(ipProto int32, srcIp string, srcPort int32, destIp string, destPort int32) (int32, error)
-	GetUidInfo(uid int32) (string, error)
+type ProcessDumper interface {
+	ProcessName(network string, srcIp string, srcPort int32, destIp string, destPort int32) (string, error)
 }
 
 type Opts[T isProtocol_Protocol] struct {
 	Dialer    proxy.Proxy
 	DNSServer server.DNSServer
-	UidDumper UidDumper
 	IPv6      bool
 
 	Protocol T
@@ -47,7 +45,6 @@ func CovertOpts[T1, T2 isProtocol_Protocol](o *Opts[T1], f func(t T1) T2) *Opts[
 	return &Opts[T2]{
 		Dialer:    o.Dialer,
 		DNSServer: o.DNSServer,
-		UidDumper: o.UidDumper,
 		IPv6:      o.IPv6,
 		Protocol:  f(o.Protocol),
 	}

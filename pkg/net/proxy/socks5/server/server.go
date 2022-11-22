@@ -115,6 +115,10 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
+		addr.WithValue(proxy.SourceKey{}, client.RemoteAddr())
+		addr.WithValue(proxy.InboundKey{}, client.LocalAddr())
+		addr.WithValue(proxy.DestinationKey{}, addr)
+
 		err = handleConnect(addr, client, f)
 
 	case s5c.Udp: // udp

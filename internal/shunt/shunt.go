@@ -126,19 +126,8 @@ func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 	}
 
 	if mode == bypass.Mode_bypass {
-		var rv dns.DNS
-		r, ok := s.modeStore.Load(s.defaultMode)
-		if ok {
-			rv = r.Resolver
-		} else {
-			rv = resolver.Bootstrap
-		}
-
-		host.WithResolver(rv, true)
-		mode, ok = s.mapper.Search(host)
-		if !ok {
-			mode = s.defaultMode
-		}
+		host.WithResolver(s.loadResolver(s.defaultMode), true)
+		mode = s.search(host)
 	}
 
 	m, ok := s.modeStore.Load(mode)
@@ -169,13 +158,23 @@ var skipResolve = dns.NewErrorDNS(imapper.ErrSkipResolveDomain)
 
 func (s *shunt) Resolver(host proxy.Address) dns.DNS {
 	host.WithResolver(skipResolve, true)
-	m, ok := s.mapper.Search(host)
-	if !ok {
-		m = s.defaultMode
-	}
+	return s.loadResolver(s.search(host))
+}
+
+func (s *shunt) loadResolver(m bypass.Mode) dns.DNS {
 	d, ok := s.modeStore.Load(m)
 	if ok {
 		return d.Resolver
 	}
+
 	return resolver.Bootstrap
+}
+
+func (s *shunt) search(host proxy.Address) bypass.Mode {
+	m, ok := s.mapper.Search(host)
+	if !ok {
+		return s.defaultMode
+	}
+
+	return m
 }

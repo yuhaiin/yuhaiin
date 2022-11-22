@@ -55,7 +55,7 @@ func TestVmess(t *testing.T) {
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				ad, err := proxy.ParseAddress(network, addr)
 				if err != nil {
-					return nil, fmt.Errorf("parse address failed: %v", err)
+					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
 				return x.Conn(ad)
 			},

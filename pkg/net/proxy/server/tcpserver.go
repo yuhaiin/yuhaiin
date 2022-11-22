@@ -30,7 +30,7 @@ func NewTCPServer(host string, handle func(net.Conn)) (server.Server, error) {
 	tcp := &tcpserver{}
 	err := tcp.run(host, handle)
 	if err != nil {
-		return nil, fmt.Errorf("tcp server run failed: %v", err)
+		return nil, fmt.Errorf("tcp server run failed: %w", err)
 	}
 	return tcp, nil
 }
@@ -38,7 +38,7 @@ func NewTCPServer(host string, handle func(net.Conn)) (server.Server, error) {
 func (t *tcpserver) run(host string, handle func(net.Conn)) (err error) {
 	t.listener, err = dialer.ListenContext(context.Background(), "tcp", host)
 	if err != nil {
-		return fmt.Errorf("tcp server listen failed: %v", err)
+		return fmt.Errorf("tcp server listen failed: %w", err)
 	}
 
 	log.Debugln("new tcp server listen at:", host)

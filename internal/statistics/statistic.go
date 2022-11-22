@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync/atomic"
@@ -10,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
@@ -27,13 +29,15 @@ type Connections struct {
 
 	Download, Upload atomic.Uint64
 	connStore        syncmap.SyncMap[uint64, connection]
+
+	processDumper listener.ProcessDumper
 }
 
-func NewConnStore(dialer proxy.Proxy) *Connections {
+func NewConnStore(dialer proxy.Proxy, processDumper listener.ProcessDumper) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
-	return &Connections{dialer: dialer}
+	return &Connections{dialer: dialer, processDumper: processDumper}
 }
 
 func (c *Connections) Conns(context.Context, *emptypb.Empty) (*grpcsts.ConnectionsInfo, error) {
@@ -93,13 +97,14 @@ func (c *Connections) cString(oo connection) (s string) {
 		str.WriteString(fmt.Sprintf("%s: %s,", k, v))
 	}
 	return fmt.Sprintf("%v| <%s>: %v(%s), %s <-> %s",
-		o.GetId(), o.GetType(), o.GetAddr(), str.String(), o.GetLocal(), o.GetRemote())
+		o.GetId(), o.GetType(), o.GetAddr(), str.String(), o.Extra[proxy.SourceKey{}.String()], o.GetRemote())
 }
 
 func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+	process := c.DumpProcess(addr)
 	con, err := c.dialer.PacketConn(addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial packet conn failed: %w", err)
+		return nil, fmt.Errorf("dial packet conn (%s) failed: %w", process, err)
 	}
 
 	z := &packetConn{con, c.generateConnection("udp", addr, con), c}
@@ -109,9 +114,10 @@ func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 }
 
 func (c *Connections) Conn(addr proxy.Address) (net.Conn, error) {
+	process := c.DumpProcess(addr)
 	con, err := c.dialer.Conn(addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial conn failed: %w", err)
+		return nil, fmt.Errorf("dial conn (%s) failed: %w", process, err)
 	}
 
 	z := &conn{con, c.generateConnection("tcp", addr, con), c}
@@ -132,7 +138,6 @@ func (c *Connections) generateConnection(network string, addr proxy.Address, con
 	return &statistic.Connection{
 		Id:     c.idSeed.Generate(),
 		Addr:   getAddr(addr),
-		Local:  con.LocalAddr().String(),
 		Remote: remote,
 		Type: &statistic.NetType{
 			ConnType:       network,
@@ -141,6 +146,69 @@ func (c *Connections) generateConnection(network string, addr proxy.Address, con
 		Extra: extraMap(addr),
 	}
 }
+
+func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
+	if c.processDumper == nil {
+		return
+	}
+
+	source, ok := addr.Value(proxy.SourceKey{})
+	if !ok {
+		return
+	}
+	dst, ok := addr.Value(proxy.DestinationKey{})
+	if !ok {
+		return
+	}
+
+	var err error
+
+	var sourceAddr proxy.Address
+	switch z := source.(type) {
+	case net.Addr:
+		sourceAddr, err = proxy.ParseSysAddr(z)
+	case string:
+		sourceAddr, err = proxy.ParseAddress(addr.Network(), z)
+	case interface{ String() string }:
+		sourceAddr, err = proxy.ParseAddress(addr.Network(), z.String())
+	default:
+		err = errors.New("unsupported type")
+	}
+	if err != nil {
+		return
+	}
+
+	var dstAddr proxy.Address
+	switch z := dst.(type) {
+	case net.Addr:
+		dstAddr, err = proxy.ParseSysAddr(z)
+	case string:
+		dstAddr, err = proxy.ParseAddress(addr.Network(), z)
+	case interface{ String() string }:
+		dstAddr, err = proxy.ParseAddress(addr.Network(), z.String())
+	default:
+		err = errors.New("unsupported type")
+	}
+	if err != nil {
+		return
+	}
+
+	if dstAddr.Type() != proxy.IP || sourceAddr.Type() != proxy.IP {
+		return
+	}
+
+	process, err := c.processDumper.ProcessName(addr.Network(), sourceAddr.Hostname(), int32(sourceAddr.Port().Port()), dstAddr.Hostname(), int32(dstAddr.Port().Port()))
+	if err != nil {
+		log.Warningln("dump process failed:", err)
+	}
+
+	addr.WithValue(processKey{}, process)
+	return process
+}
+
+type processKey struct{}
+
+func (processKey) String() string { return "Process" }
 
 func getAddr(addr proxy.Address) string {
 	z, ok := addr.Value(shunt.DOMAIN_MARK_KEY{})
@@ -175,15 +243,12 @@ func extraMap(addr proxy.Address) map[string]string {
 }
 
 func getString(t any) (string, bool) {
-	z, ok := t.(string)
-	if ok {
+	switch z := t.(type) {
+	case string:
 		return z, true
+	case interface{ String() string }:
+		return z.String(), true
+	default:
+		return "", false
 	}
-
-	x, ok := t.(interface{ String() string })
-	if ok {
-		return x.String(), true
-	}
-
-	return "", false
 }

@@ -42,7 +42,7 @@ func main() {
 		Transport: &http.Transport{Dial: func(network, addr string) (net.Conn, error) {
 			add, err := proxy.ParseAddress(network, addr)
 			if err != nil {
-				return nil, fmt.Errorf("parse address failed: %v", err)
+				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
 			return pro.Conn(add)
 		}},

@@ -96,7 +96,7 @@ func init() {
 
 		port, err := strconv.ParseUint(get(n.Port), 10, 16)
 		if err != nil {
-			return nil, fmt.Errorf("vmess port is not a number: %v", err)
+			return nil, fmt.Errorf("vmess port is not a number: %w", err)
 		}
 
 		if n.HeaderType == "" {
