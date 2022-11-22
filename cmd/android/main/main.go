@@ -71,14 +71,14 @@ func getTunFD(file string) (int32, error) {
 	log.Println("getTunFD listen at:", file)
 	n, err := net.Listen("unix", file)
 	if err != nil {
-		return 0, fmt.Errorf("listen unix file failed: %v", err)
+		return 0, fmt.Errorf("listen unix file failed: %w", err)
 	}
 	defer n.Close()
 
 	for {
 		conn, err := n.Accept()
 		if err != nil {
-			return 0, fmt.Errorf("accept failed: %v", err)
+			return 0, fmt.Errorf("accept failed: %w", err)
 		}
 
 		fd, err := getFDFromConn(conn)
@@ -95,7 +95,7 @@ func getFDFromConn(conn net.Conn) (fd int, err error) {
 	defer conn.Close()
 	sysConn, err := conn.(*net.UnixConn).SyscallConn()
 	if err != nil {
-		return 0, fmt.Errorf("get syscallConn failed: %v", err)
+		return 0, fmt.Errorf("get syscallConn failed: %w", err)
 	}
 	var connFd uintptr
 	sysConn.Control(func(fd uintptr) {
@@ -124,12 +124,12 @@ func getFDFromConn(conn net.Conn) (fd int, err error) {
 
 	ccs, err := syscall.ParseSocketControlMessage(buf)
 	if err != nil {
-		return 0, fmt.Errorf("parse socket control message failed: %v", err)
+		return 0, fmt.Errorf("parse socket control message failed: %w", err)
 	}
 
 	fds, err := syscall.ParseUnixRights(&ccs[0])
 	if err != nil {
-		return 0, fmt.Errorf("parseUnixRights failed: %v", err)
+		return 0, fmt.Errorf("parseUnixRights failed: %w", err)
 	}
 
 	log.Println("get fd:", fds[0])
@@ -141,7 +141,7 @@ func getConfig(conn net.Conn) ([]byte, error) {
 	length := make([]byte, 2)
 	_, err := io.ReadFull(conn, length)
 	if err != nil {
-		return nil, fmt.Errorf("read length failed: %v", err)
+		return nil, fmt.Errorf("read length failed: %w", err)
 	}
 
 	l := int(length[0])<<8 + int(length[1])
@@ -149,7 +149,7 @@ func getConfig(conn net.Conn) ([]byte, error) {
 	data := make([]byte, l)
 	_, err = io.ReadFull(conn, data)
 	if err != nil {
-		return nil, fmt.Errorf("read data(%d) failed: %v", l, err)
+		return nil, fmt.Errorf("read data(%d) failed: %w", l, err)
 	}
 
 	log.Println("get config:", string(data))

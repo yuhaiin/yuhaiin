@@ -6,6 +6,7 @@ import (
 
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDOT(t *testing.T) {
@@ -38,7 +39,9 @@ func TestDOT(t *testing.T) {
 		},
 	}
 
-	d := New(configMap["google"])
+	d, err := New(configMap["google"])
+	assert.NoError(t, err)
+
 	t.Log(d.LookupIP("i2.hdslb.com"))
 	t.Log(d.LookupIP("www.google.com"))
 	t.Log(d.LookupIP("www.baidu.com"))

@@ -103,7 +103,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 				log.Debugln("dial:", network, addr)
 				ad, err := proxy.ParseAddress(network, addr)
 				if err != nil {
-					return nil, fmt.Errorf("parse address failed: %v", err)
+					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
 
 				return f(ad)

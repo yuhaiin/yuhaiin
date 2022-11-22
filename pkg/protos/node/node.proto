@@ -14,13 +14,14 @@ message node {
   manager manager = 3 [ json_name = "manager" ];
 }
 
+message nodes {
+  string group = 1 [ json_name = "name" ];
+  repeated string nodes = 2 [ json_name = "nodes" ];
+  map<string, string> node_hash_map = 3 [ json_name = "node_hash_map" ];
+}
+
 message manager {
   repeated string groups = 1 [ json_name = "groups" ];
-  message node_array {
-    string group = 1 [ json_name = "name" ];
-    repeated string nodes = 2 [ json_name = "nodes" ];
-    map<string, string> node_hash_map = 3 [ json_name = "node_hash_map" ];
-  }
-  map<string, node_array> group_nodes_map = 2 [ json_name = "group_nodes_map" ];
+  map<string, nodes> group_nodes_map = 2 [ json_name = "group_nodes_map" ];
   map<string, yuhaiin.point.point> nodes = 3 [ json_name = "nodes" ];
 }

@@ -28,7 +28,7 @@ func load(path string) *node.Node {
 		Links: map[string]*subscribe.Link{},
 		Manager: &node.Manager{
 			Groups:        []string{},
-			GroupNodesMap: map[string]*node.ManagerNodeArray{},
+			GroupNodesMap: map[string]*node.Nodes{},
 			Nodes:         map[string]*point.Point{},
 		},
 	})
@@ -107,7 +107,7 @@ func (n *FileStore) Save() error {
 
 	dataBytes, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(n.toNode())
 	if err != nil {
-		return fmt.Errorf("marshal file failed: %v", err)
+		return fmt.Errorf("marshal file failed: %w", err)
 	}
 
 	return os.WriteFile(n.path, dataBytes, os.ModePerm)

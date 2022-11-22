@@ -31,7 +31,7 @@ func expertDLL(execPath string) (string, error) {
 	}
 
 	if !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("stat %s error: %s", dll, err)
+		return "", fmt.Errorf("stat %s error: %w", dll, err)
 	}
 
 	err = os.WriteFile(dll, proxyDLL, os.ModePerm)

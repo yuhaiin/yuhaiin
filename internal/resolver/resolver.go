@@ -23,7 +23,7 @@ type Resolvers struct {
 }
 
 func NewResolvers(dl proxy.Proxy) *Resolvers {
-	resolver.Bootstrap = newResolver((&bootstrap{dl}).create)
+	resolver.Bootstrap = newResolver(&bootstrap{dl})
 
 	dialer := &dialer{Proxy: dl, Addr: func(addr proxy.Address) {
 		// force to use bootstrap dns, otherwise will dns query cycle
@@ -31,57 +31,12 @@ func NewResolvers(dl proxy.Proxy) *Resolvers {
 	}}
 
 	c := &Resolvers{
-		remote:    newResolver((&remote{dialer}).create),
-		local:     newResolver((&local{dialer}).create),
+		remote:    newResolver(&remote{dialer}),
+		local:     newResolver(&local{dialer}),
 		bootstrap: resolver.Bootstrap.(*basedns),
 	}
 
 	return c
-}
-
-type bootstrap struct{ proxy.Proxy }
-
-func (bs *bootstrap) create(b *basedns, c *protoconfig.Setting) {
-	if proto.Equal(b.config, c.Dns.Bootstrap) {
-		return
-	}
-
-	if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
-		log.Errorln("check bootstrap dns failed: %v\n", err)
-		return
-	}
-
-	b.config = c.Dns.Bootstrap
-	b.Close()
-
-	b.dns = getDNS("BOOTSTRAP", c.GetIpv6(), b.config, &dialer{Proxy: bs.Proxy, Addr: func(addr proxy.Address) {
-		addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
-		addr.WithResolver(&resolver.System{DisableIPv6: !c.GetIpv6()}, false)
-	}})
-}
-
-type remote struct{ proxy.Proxy }
-
-func (re *remote) create(r *basedns, c *protoconfig.Setting) {
-	if proto.Equal(r.config, c.Dns.Remote) {
-		return
-	}
-
-	r.config = c.Dns.Remote
-	r.Close()
-	r.dns = getDNS("REMOTEDNS", c.GetIpv6(), r.config, re.Proxy)
-}
-
-type local struct{ proxy.Proxy }
-
-func (lc *local) create(l *basedns, c *protoconfig.Setting) {
-	if proto.Equal(l.config, c.Dns.Local) {
-		return
-	}
-
-	l.config = c.Dns.Local
-	l.Close()
-	l.dns = getDNS("LOCALDNS", c.GetIpv6(), l.config, lc.Proxy)
 }
 
 func (r *Resolvers) Update(s *protoconfig.Setting) {
@@ -99,18 +54,86 @@ func (r *Resolvers) Close() error {
 func (r *Resolvers) Remote() idns.DNS { return r.remote }
 func (r *Resolvers) Local() idns.DNS  { return r.local }
 
+type bootstrap struct{ proxy.Proxy }
+
+func (bs *bootstrap) update(b *basedns, c *protoconfig.Setting) {
+	if proto.Equal(b.config, c.Dns.Bootstrap) {
+		return
+	}
+
+	if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
+		log.Errorln("check bootstrap dns failed: %v\n", err)
+		return
+	}
+
+	b.config = c.Dns.Bootstrap
+	b.Close()
+
+	z, err := getDNS("BOOTSTRAP", c.GetIpv6(), b.config,
+		&dialer{
+			Proxy: bs.Proxy,
+			Addr: func(addr proxy.Address) {
+				addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
+				addr.WithResolver(&resolver.System{DisableIPv6: !c.GetIpv6()}, false)
+			}},
+	)
+	if err != nil {
+		log.Errorln("get bootstrap dns failed: %w", err)
+	} else {
+		b.dns = z
+	}
+}
+
+type remote struct{ proxy.Proxy }
+
+func (re *remote) update(r *basedns, c *protoconfig.Setting) {
+	if proto.Equal(r.config, c.Dns.Remote) {
+		return
+	}
+
+	r.config = c.Dns.Remote
+	r.Close()
+	z, err := getDNS("REMOTEDNS", c.GetIpv6(), r.config, re.Proxy)
+	if err != nil {
+		log.Errorln("get remote dns failed: %w", err)
+	} else {
+		r.dns = z
+	}
+}
+
+type local struct{ proxy.Proxy }
+
+func (lc *local) update(l *basedns, c *protoconfig.Setting) {
+	if proto.Equal(l.config, c.Dns.Local) {
+		return
+	}
+
+	l.config = c.Dns.Local
+	l.Close()
+	z, err := getDNS("LOCALDNS", c.GetIpv6(), l.config, lc.Proxy)
+	if err != nil {
+		log.Errorln("get local dns failed:", err)
+	} else {
+		l.dns = z
+	}
+}
+
 type basedns struct {
 	config *pdns.Dns
 	dns    idns.DNS
 
-	update func(*basedns, *protoconfig.Setting)
+	update interface {
+		update(*basedns, *protoconfig.Setting)
+	}
 }
 
-func newResolver(update func(*basedns, *protoconfig.Setting)) *basedns {
+func newResolver(update interface {
+	update(*basedns, *protoconfig.Setting)
+}) *basedns {
 	return &basedns{update: update}
 }
 
-func (l *basedns) Update(c *protoconfig.Setting) { l.update(l, c) }
+func (l *basedns) Update(c *protoconfig.Setting) { l.update.update(l, c) }
 
 func (l *basedns) LookupIP(host string) ([]net.IP, error) {
 	if l.dns == nil {
@@ -147,7 +170,7 @@ func (b *basedns) Do(r []byte) ([]byte, error) {
 	return b.dns.Do(r)
 }
 
-func getDNS(name string, ipv6 bool, dc *pdns.Dns, dialer proxy.Proxy) idns.DNS {
+func getDNS(name string, ipv6 bool, dc *pdns.Dns, dialer proxy.Proxy) (idns.DNS, error) {
 	_, subnet, err := net.ParseCIDR(dc.Subnet)
 	if err != nil {
 		p := net.ParseIP(dc.Subnet)

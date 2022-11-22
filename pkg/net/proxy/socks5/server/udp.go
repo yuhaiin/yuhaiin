@@ -24,7 +24,7 @@ var MaxSegmentSize = (1 << 16) - 1
 // https://github.com/net-byte/socks5-server/blob/main/socks5/udp.go
 type udpServer struct {
 	net.PacketConn
-	netTable *UdpNatTable
+	netTable *NatTable
 }
 
 func newUDPServer(f proxy.Proxy) (net.PacketConn, error) {
@@ -33,7 +33,7 @@ func newUDPServer(f proxy.Proxy) (net.PacketConn, error) {
 		return nil, fmt.Errorf("listen udp failed: %v", err)
 	}
 
-	u := &udpServer{PacketConn: l, netTable: NewUdpNatTable(f)}
+	u := &udpServer{PacketConn: l, netTable: NewNatTable(f)}
 	go u.handle(f)
 	return u, nil
 }
@@ -41,7 +41,7 @@ func newUDPServer(f proxy.Proxy) (net.PacketConn, error) {
 func (u *udpServer) handle(dialer proxy.Proxy) {
 	for {
 		buf := pool.GetBytes(MaxSegmentSize)
-		n, l, err := u.PacketConn.ReadFrom(buf)
+		n, raddr, err := u.PacketConn.ReadFrom(buf)
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
 				log.Errorln("read from local failed:", err)
@@ -62,7 +62,7 @@ func (u *udpServer) handle(dialer proxy.Proxy) {
 			if err != nil {
 				log.Errorln("write to nat table failed:", err)
 			}
-		}(buf, n, l)
+		}(buf, n, raddr)
 	}
 }
 
@@ -80,35 +80,31 @@ func (l *localPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	return l.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, l.addr, b}, nil), addr)
 }
 
-type UdpNatTable struct {
+type NatTable struct {
 	dialer proxy.Proxy
 	cache  syncmap.SyncMap[string, net.PacketConn]
 	lock   syncmap.SyncMap[string, *sync.Cond]
 }
 
-func NewUdpNatTable(dialer proxy.Proxy) *UdpNatTable {
-	return &UdpNatTable{dialer: dialer}
+func NewNatTable(dialer proxy.Proxy) *NatTable {
+	return &NatTable{dialer: dialer}
 }
 
-func (u *UdpNatTable) writeTo(data []byte, src, target net.Addr) (bool, error) {
-	r, ok := u.cache.Load(src.String())
+func (u *NatTable) writeTo(data []byte, src, dst net.Addr) (bool, error) {
+	dstpconn, ok := u.cache.Load(src.String())
 	if !ok {
 		return false, nil
 	}
 
-	if _, err := r.WriteTo(data, target); err != nil && !errors.Is(err, net.ErrClosed) {
+	if _, err := dstpconn.WriteTo(data, dst); err != nil && !errors.Is(err, net.ErrClosed) {
 		return true, err
 	}
 
 	return true, nil
 }
 
-type clientAddress struct{}
-
-func (clientAddress) String() string { return "Client" }
-
-func (u *UdpNatTable) Write(data []byte, src net.Addr, target proxy.Address, client net.PacketConn) error {
-	ok, err := u.writeTo(data, src, target)
+func (u *NatTable) Write(data []byte, src net.Addr, dst proxy.Address, srcpconn net.PacketConn) error {
+	ok, err := u.writeTo(data, src, dst)
 	if err != nil {
 		return fmt.Errorf("client to proxy failed: %w", err)
 	}
@@ -120,7 +116,7 @@ func (u *UdpNatTable) Write(data []byte, src net.Addr, target proxy.Address, cli
 	if ok {
 		cond.L.Lock()
 		cond.Wait()
-		u.writeTo(data, src, target)
+		u.writeTo(data, src, dst)
 		cond.L.Unlock()
 		return nil
 	}
@@ -128,18 +124,21 @@ func (u *UdpNatTable) Write(data []byte, src net.Addr, target proxy.Address, cli
 	defer u.lock.Delete(src.String())
 	defer cond.Broadcast()
 
-	target.WithValue(clientAddress{}, src)
+	dst.WithValue(proxy.SourceKey{}, src)
+	dst.WithValue(proxy.DestinationKey{}, dst)
 
-	proxy, err := u.dialer.PacketConn(target)
+	dstpconn, err := u.dialer.PacketConn(dst)
 	if err != nil {
-		return fmt.Errorf("dial %s failed: %w", target, err)
+		return fmt.Errorf("dial %s failed: %w", dst, err)
 	}
-	u.cache.Store(src.String(), proxy)
+	u.cache.Store(src.String(), dstpconn)
 
-	u.writeTo(data, src, target)
+	u.writeTo(data, src, dst)
 
 	go func() {
-		if err := u.relay(proxy, client, src); err != nil && !errors.Is(err, net.ErrClosed) {
+		defer dstpconn.Close()
+		defer u.cache.Delete(src.String())
+		if err := u.relay(dstpconn, srcpconn, src); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Errorln("remote to local failed:", err)
 		}
 	}()
@@ -147,16 +146,13 @@ func (u *UdpNatTable) Write(data []byte, src net.Addr, target proxy.Address, cli
 	return nil
 }
 
-func (u *UdpNatTable) relay(proxy, client net.PacketConn, src net.Addr) error {
+func (u *NatTable) relay(dstpconn, srcpconn net.PacketConn, src net.Addr) error {
 	data := pool.GetBytes(MaxSegmentSize)
 	defer pool.PutBytes(data)
 
-	defer u.cache.Delete(src.String())
-	defer proxy.Close()
-
 	for {
-		proxy.SetReadDeadline(time.Now().Add(time.Minute))
-		n, _, err := proxy.ReadFrom(data)
+		dstpconn.SetReadDeadline(time.Now().Add(time.Minute))
+		n, _, err := dstpconn.ReadFrom(data)
 		if err != nil {
 			if ne, ok := err.(net.Error); (ok && ne.Timeout()) || errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {
 				return nil /* ignore I/O timeout & EOF */
@@ -165,13 +161,13 @@ func (u *UdpNatTable) relay(proxy, client net.PacketConn, src net.Addr) error {
 			return fmt.Errorf("read from proxy failed: %w", err)
 		}
 
-		if _, err := client.WriteTo(data[:n], src); err != nil {
+		if _, err := srcpconn.WriteTo(data[:n], src); err != nil {
 			return fmt.Errorf("write back to client failed: %w", err)
 		}
 	}
 }
 
-func (u *UdpNatTable) Close() error {
+func (u *NatTable) Close() error {
 	u.cache.Range(func(_ string, value net.PacketConn) bool {
 		value.Close()
 		return true

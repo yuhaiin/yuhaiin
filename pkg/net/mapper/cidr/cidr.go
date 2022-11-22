@@ -15,7 +15,7 @@ type Cidr[T any] struct {
 func (c *Cidr[T]) Insert(cidr string, mark T) error {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return fmt.Errorf("parse cidr [%s] failed: %v", cidr, err)
+		return fmt.Errorf("parse cidr [%s] failed: %w", cidr, err)
 	}
 	c.InsertCIDR(ipNet, mark)
 	return nil

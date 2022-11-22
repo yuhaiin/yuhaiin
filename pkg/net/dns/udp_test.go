@@ -6,6 +6,7 @@ import (
 
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestUDP(t *testing.T) {
@@ -32,16 +33,11 @@ func TestUDP(t *testing.T) {
 			Subnet: subnet,
 			IPv6:   true,
 		},
-		"tokyoRoot": {
-			Type: dns.Type_udp,
-			Host: "202.12.27.33",
-			// Subnet: subnet,
-			IPv6: true,
-			// Dialer: s5Dialer,
-		},
 	}
 
-	dns := New(configMap["tokyoRoot"])
+	dns, err := New(configMap["cloudflare"])
+	assert.NoError(t, err)
+
 	t.Log(dns.LookupIP("www.baidu.com"))
 	t.Log(dns.LookupIP("www.google.com"))
 	t.Log(dns.LookupIP("www.twitter.com"))

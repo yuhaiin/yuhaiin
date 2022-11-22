@@ -87,20 +87,20 @@ func (n *link) Update(names []string) {
 func (n *link) update(do func(*http.Request) (*http.Response, error), link *subscribe.Link) error {
 	req, err := http.NewRequest("GET", link.Url, nil)
 	if err != nil {
-		return fmt.Errorf("create request failed: %v", err)
+		return fmt.Errorf("create request failed: %w", err)
 	}
 
 	req.Header.Set("User-Agent", "yuhaiin")
 
 	res, err := do(req)
 	if err != nil {
-		return fmt.Errorf("get %s failed: %v", link.Name, err)
+		return fmt.Errorf("get %s failed: %w", link.Name, err)
 	}
 	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Errorf("read body failed: %v", err)
+		return fmt.Errorf("read body failed: %w", err)
 	}
 
 	dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(body)))
@@ -145,7 +145,7 @@ func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
 
 	no, err = parser.Parse(t, str)
 	if err != nil {
-		return nil, fmt.Errorf("parse link data failed: %v", err)
+		return nil, fmt.Errorf("parse link data failed: %w", err)
 	}
 	refreshHash(no)
 	no.Group = l.Name

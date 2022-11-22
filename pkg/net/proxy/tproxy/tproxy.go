@@ -32,11 +32,11 @@ type server struct {
 func (s *server) Close() error {
 	err := s.tcp.Close()
 	if err != nil {
-		return fmt.Errorf("socks5 tcp close server failed: %v", err)
+		return fmt.Errorf("socks5 tcp close server failed: %w", err)
 	}
 	err = s.udp.Close()
 	if err != nil {
-		return fmt.Errorf("socks5 udp close server failed: %v", err)
+		return fmt.Errorf("socks5 udp close server failed: %w", err)
 	}
 	return nil
 }

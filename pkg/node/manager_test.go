@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -34,5 +35,6 @@ func TestAddNode(t *testing.T) {
 	mg.DeleteNode("adada")
 
 	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.Manager)
-	t.Log(string(data))
+	data2, _ := json.MarshalIndent(mg.Manager, "", " ")
+	t.Log(string(data), string(data2))
 }

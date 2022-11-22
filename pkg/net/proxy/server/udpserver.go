@@ -62,7 +62,7 @@ func NewUDPServer(host string, opt ...func(u *udpOpt)) (server.Server, error) {
 
 	err := udp.run(host, u.config, u.listenFunc)
 	if err != nil {
-		return nil, fmt.Errorf("udp server run failed: %v", err)
+		return nil, fmt.Errorf("udp server run failed: %w", err)
 	}
 	return udp, nil
 }
@@ -84,7 +84,7 @@ func (u *udpserver) Addr() net.Addr {
 func (u *udpserver) run(host string, config net.ListenConfig, listenFunc func(net.PacketConn) error) (err error) {
 	u.listener, err = config.ListenPacket(context.TODO(), "udp", host)
 	if err != nil {
-		return fmt.Errorf("udp server listen failed: %v", err)
+		return fmt.Errorf("udp server listen failed: %w", err)
 	}
 
 	log.Debugln("new udp server listen at:", host)

@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	netdns "github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -76,7 +75,7 @@ func (c *settingImpl) Save(_ context.Context, s *config.Setting) (*emptypb.Empty
 
 	err := save(s, c.path)
 	if err != nil {
-		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %v", err)
+		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %w", err)
 	}
 
 	c.current = proto.Clone(s).(*config.Setting)
@@ -204,7 +203,7 @@ func save(pa *config.Setting, dir string) error {
 	if err != nil && os.IsNotExist(err) {
 		err = os.MkdirAll(filepath.Dir(dir), os.ModePerm)
 		if err != nil {
-			return fmt.Errorf("make dir failed: %v", err)
+			return fmt.Errorf("make dir failed: %w", err)
 		}
 	}
 
@@ -214,7 +213,7 @@ func save(pa *config.Setting, dir string) error {
 
 	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t"}.Marshal(pa)
 	if err != nil {
-		return fmt.Errorf("marshal setting failed: %v", err)
+		return fmt.Errorf("marshal setting failed: %w", err)
 	}
 
 	return os.WriteFile(dir, data, os.ModePerm)
@@ -247,31 +246,16 @@ func checkBypass(pa *bypass.Config) error {
 }
 
 func CheckBootstrapDns(pa *dns.Dns) error {
-	hostname, err := GetDNSHostname(pa.Host)
+	addr, err := netdns.ParseAddr(pa.Host, "443")
 	if err != nil {
 		return err
 	}
-	if net.ParseIP(hostname) == nil {
+
+	if addr.Type() != proxy.IP {
 		return fmt.Errorf("dns bootstrap host is only support ip address")
 	}
 
 	return nil
-}
-
-func GetDNSHostname(host string) (string, error) {
-	if !strings.Contains(host, "://") {
-		if len(strings.Split(host, ":")) > 2 && !strings.Contains(host, "[") {
-			host = "[" + host + "]"
-		}
-		host = "//" + host
-	}
-
-	uri, err := url.Parse(host)
-	if err != nil {
-		return "", fmt.Errorf("dns bootstrap host is only support ip address: %w", err)
-	}
-
-	return uri.Hostname(), nil
 }
 
 func SetDefault(targetJSON, defaultJSON []byte) []byte {

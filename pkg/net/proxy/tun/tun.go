@@ -19,15 +19,11 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
 
-type PACKAGE_MARK_KEY struct{}
-
-func (PACKAGE_MARK_KEY) String() string { return "Package ID" }
-
 type tunServer struct {
 	nicID tcpip.NICID
 	stack *stack.Stack
 
-	udpTable *s5s.UdpNatTable
+	udpTable *s5s.NatTable
 }
 
 func (t *tunServer) Close() error {
@@ -135,7 +131,7 @@ func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder(s, o).HandlePacket)
 
-	natTable := s5s.NewUdpNatTable(o.Dialer)
+	natTable := s5s.NewNatTable(o.Dialer)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder(s, natTable, o).HandlePacket)
 
 	return &tunServer{stack: s, udpTable: natTable, nicID: nicID}, nil

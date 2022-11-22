@@ -6,6 +6,7 @@ import (
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	re "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDoQ(t *testing.T) {
@@ -38,7 +39,9 @@ func TestDoQ(t *testing.T) {
 		},
 	}
 
-	d := New(configMap["nextdns"])
+	d, err := New(configMap["nextdns"])
+	assert.NoError(t, err)
+
 	defer d.Close()
 
 	t.Log(d.LookupIP("www.google.com"))

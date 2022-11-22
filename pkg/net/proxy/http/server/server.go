@@ -28,23 +28,30 @@ func handshake(dialer proxy.StreamProxy, username, password string) func(net.Con
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
 
+			address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
+			address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
+			address.WithValue(proxy.DestinationKey{}, address)
+
 			return dialer.Conn(address)
 		}
-		client := &http.Client{
-			Transport: &http.Transport{
-				MaxIdleConns:          100,
-				IdleConnTimeout:       90 * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ExpectContinueTimeout: 1 * time.Second,
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return dialer(addr)
-				},
-			},
 
+		tr := &http.Transport{
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return dialer(addr)
+			},
+		}
+		client := &http.Client{
+			Transport: tr,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
 		}
+		defer client.CloseIdleConnections()
+
 		err := handle(username, password, conn, dialer, client)
 		if err != nil && !errors.Is(err, io.EOF) {
 			log.Errorln("http server handle failed:", err)
@@ -156,6 +163,7 @@ func normal(src net.Conn, client *http.Client, req *http.Request, keepAlive bool
 		log.Errorln("http client do failed:", err)
 		resp = respError(http.StatusBadGateway, req)
 	} else {
+		defer resp.Body.Close()
 		modifyResponse(resp, keepAlive)
 	}
 
