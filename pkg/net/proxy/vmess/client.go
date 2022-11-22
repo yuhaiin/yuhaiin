@@ -19,12 +19,12 @@ type Vmess struct {
 func New(config *protocol.Protocol_Vmess) protocol.WrapProxy {
 	alterID, err := strconv.Atoi(config.Vmess.AlterId)
 	if err != nil {
-		return protocol.ErrConn(fmt.Errorf("convert AlterId to int failed: %v", err))
+		return protocol.ErrConn(fmt.Errorf("convert AlterId to int failed: %w", err))
 	}
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		client, err := gcvmess.NewClient(config.Vmess.Uuid, config.Vmess.Security, alterID)
 		if err != nil {
-			return nil, fmt.Errorf("new vmess client failed: %v", err)
+			return nil, fmt.Errorf("new vmess client failed: %w", err)
 		}
 
 		return &Vmess{client: client, dial: p}, nil

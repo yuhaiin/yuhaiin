@@ -16,7 +16,7 @@ func TestDNSJson(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		ad, err := proxy.ParseAddress(network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("parse address failed: %v", err)
+			return nil, fmt.Errorf("parse address failed: %w", err)
 		}
 		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(ad)
 	}

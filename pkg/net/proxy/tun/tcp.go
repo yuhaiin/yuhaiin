@@ -44,11 +44,12 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 			}
 
 			addr := proxy.ParseAddressSplit("tcp", id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
-			addMessage(addr, id, opt)
+			addr.WithValue(proxy.SourceKey{}, local.RemoteAddr())
+			addr.WithValue(proxy.DestinationKey{}, addr)
 
 			conn, er := opt.Dialer.Conn(addr)
 			if er != nil {
-				log.Errorf("dial failed:%v\n", er)
+				log.Errorln("dial failed:", er)
 				return
 			}
 			defer conn.Close()

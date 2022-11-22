@@ -38,19 +38,19 @@ func New(config *protocol.Protocol_Socks5) protocol.WrapProxy {
 func (s *client) Conn(host proxy.Address) (net.Conn, error) {
 	conn, err := s.dialer.Conn(host)
 	if err != nil {
-		return nil, fmt.Errorf("dial failed: %v", err)
+		return nil, fmt.Errorf("dial failed: %w", err)
 	}
 
 	err = s.handshake1(conn)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("first hand failed: %v", err)
+		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
 	_, err = s.handshake2(conn, Connect, host)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("second hand failed: %v", err)
+		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
 	return conn, nil
@@ -145,25 +145,25 @@ func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (targ
 func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	conn, err := s.dialer.Conn(host)
 	if err != nil {
-		return nil, fmt.Errorf("dial tcp failed: %v", err)
+		return nil, fmt.Errorf("dial tcp failed: %w", err)
 	}
 
 	err = s.handshake1(conn)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("first hand failed: %v", err)
+		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
 	addr, err := s.handshake2(conn, Udp, host)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("second hand failed: %v", err)
+		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
 	pc, err := s.dialer.PacketConn(addr)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("listen udp failed: %v", err)
+		return nil, fmt.Errorf("listen udp failed: %w", err)
 	}
 
 	pc = newSocks5PacketConn(pc, conn, addr)
@@ -194,7 +194,7 @@ func (s *socks5PacketConn) Close() error {
 func (s *socks5PacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 	ad, err := proxy.ParseSysAddr(addr)
 	if err != nil {
-		return 0, fmt.Errorf("parse addr failed: %v", err)
+		return 0, fmt.Errorf("parse addr failed: %w", err)
 	}
 	return s.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, ParseAddr(ad), p}, []byte{}), s.server)
 }
@@ -202,12 +202,12 @@ func (s *socks5PacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	n, addr, err := s.PacketConn.ReadFrom(p)
 	if err != nil {
-		return 0, addr, fmt.Errorf("read from remote failed: %v", err)
+		return 0, addr, fmt.Errorf("read from remote failed: %w", err)
 	}
 
 	adr, size, err := ResolveAddr("udp", bytes.NewReader(p[3:n]))
 	if err != nil {
-		return 0, addr, fmt.Errorf("resolve addr failed: %v", err)
+		return 0, addr, fmt.Errorf("resolve addr failed: %w", err)
 	}
 
 	prefix := 3 + size

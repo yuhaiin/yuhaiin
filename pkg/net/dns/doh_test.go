@@ -94,7 +94,9 @@ func TestDOH(t *testing.T) {
 		},
 	}
 
-	d := NewDoH(configMap["google"])
+	d, err := NewDoH(configMap["google"])
+	assert.NoError(t, err)
+
 	t.Log(d.LookupIP("plasma"))
 	t.Log(d.LookupIP("dc.services.visualstudio.com")) // -> will error, but not found reason
 	t.Log(d.LookupIP("i2.hdslb.com"))

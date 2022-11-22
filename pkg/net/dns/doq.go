@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -35,24 +33,10 @@ type doq struct {
 	*client
 }
 
-func NewDoQ(config Config) dns.DNS {
-	host := config.Host
-
-	if i := strings.Index(host, "://"); i != -1 {
-		host = host[i+3:]
-	}
-
-	_, _, err := net.SplitHostPort(host)
-	if e, ok := err.(*net.AddrError); ok {
-		if strings.Contains(e.Err, "missing port in address") {
-			host = net.JoinHostPort(host, "784")
-		}
-	}
-
-	addr, err := proxy.ParseAddress("tcp", host)
+func NewDoQ(config Config) (dns.DNS, error) {
+	addr, err := ParseAddr(config.Host, "784")
 	if err != nil {
-		log.Errorln(err)
-		addr = proxy.EmptyAddr
+		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
 	d := &doq{dialer: config.Dialer, host: addr, servername: config.Servername}
@@ -111,7 +95,7 @@ func NewDoQ(config Config) dns.DNS {
 
 		return data, nil
 	})
-	return d
+	return d, nil
 }
 
 func (d *doq) Close() error {

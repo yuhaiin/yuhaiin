@@ -44,16 +44,16 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 	}
 
 	if err := controlTCP(z.SyscallConn()); err != nil {
-		return fmt.Errorf("controlTCP failed: %v", err)
+		return fmt.Errorf("controlTCP failed: %w", err)
 	}
 
 	addr, err := proxy.ParseSysAddr(c.LocalAddr())
 	if err != nil {
-		return fmt.Errorf("parse local addr failed: %v", err)
+		return fmt.Errorf("parse local addr failed: %w", err)
 	}
 	r, err := p.Conn(addr)
 	if err != nil {
-		return fmt.Errorf("get conn failed: %v", err)
+		return fmt.Errorf("get conn failed: %w", err)
 	}
 
 	relay.Relay(c, r)

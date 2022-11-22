@@ -11,11 +11,19 @@ func init() {
 	Register(pdns.Type_dot, NewDoT)
 }
 
-func NewDoT(config Config) dns.DNS {
-	d := newTCP(config, "853")
-	if config.Servername == "" {
-		config.Servername = d.host.Hostname()
+func NewDoT(config Config) (dns.DNS, error) {
+	tlsConfig := &tls.Config{}
+	d, err := newTCP(config, "853", tlsConfig)
+	if err != nil {
+		return nil, err
 	}
-	d.tls = &tls.Config{ServerName: config.Servername}
-	return d
+	if config.Servername == "" {
+		addr, err := ParseAddr(config.Host, "853")
+		if err != nil {
+			return nil, err
+		}
+		config.Servername = addr.Hostname()
+	}
+	tlsConfig.ServerName = config.Servername
+	return d, nil
 }

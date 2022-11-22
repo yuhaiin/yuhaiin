@@ -9,16 +9,20 @@ import (
 )
 
 func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
-	d := dns.New(dns.Config{
+	d, err := dns.New(dns.Config{
 		Type:   pdns.Type_udp,
 		Host:   host,
 		Dialer: p,
 		IPv6:   true,
 	})
+	if err != nil {
+		return 0, err
+	}
+	defer d.Close()
 
 	start := time.Now()
 
-	_, err := d.LookupIP(target)
+	_, err = d.LookupIP(target)
 	if err != nil {
 		return 0, err
 	}
@@ -27,7 +31,7 @@ func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
 }
 
 func DNSOverQuic(p proxy.Proxy, host, target string) (time.Duration, error) {
-	d := dns.New(
+	d, err := dns.New(
 		dns.Config{
 			Type:   pdns.Type_doq,
 			Host:   host,
@@ -35,10 +39,14 @@ func DNSOverQuic(p proxy.Proxy, host, target string) (time.Duration, error) {
 			IPv6:   true,
 		},
 	)
+	if err != nil {
+		return 0, err
+	}
+	defer d.Close()
 
 	start := time.Now()
 
-	_, err := d.LookupIP(target)
+	_, err = d.LookupIP(target)
 	if err != nil {
 		return 0, err
 	}

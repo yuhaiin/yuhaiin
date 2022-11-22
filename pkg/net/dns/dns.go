@@ -30,12 +30,12 @@ type Config struct {
 	Dialer proxy.Proxy
 }
 
-var dnsMap syncmap.SyncMap[pdns.Type, func(Config) dns.DNS]
+var dnsMap syncmap.SyncMap[pdns.Type, func(Config) (dns.DNS, error)]
 
-func New(config Config) dns.DNS {
+func New(config Config) (dns.DNS, error) {
 	f, ok := dnsMap.Load(config.Type)
 	if !ok {
-		return dns.NewErrorDNS(fmt.Errorf("no dns type %v process found", config.Type))
+		return nil, fmt.Errorf("no dns type %v process found", config.Type)
 	}
 
 	if config.Dialer == nil {
@@ -44,7 +44,7 @@ func New(config Config) dns.DNS {
 	return f(config)
 }
 
-func Register(tYPE pdns.Type, f func(Config) dns.DNS) {
+func Register(tYPE pdns.Type, f func(Config) (dns.DNS, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}
@@ -53,9 +53,14 @@ func Register(tYPE pdns.Type, f func(Config) dns.DNS) {
 var _ dns.DNS = (*client)(nil)
 
 type client struct {
+	cache *lru.LRU[string, ipResponse]
+	cond  syncmap.SyncMap[string, *struct {
+		*sync.Cond
+		Response dns.IPResponse
+	}]
+
 	subnet []dnsmessage.Resource
 	do     func([]byte) ([]byte, error)
-	cache  *lru.LRU[string, ipResponse]
 
 	config Config
 }
@@ -66,7 +71,7 @@ type ipResponse struct {
 }
 
 func (c ipResponse) String() string {
-	return fmt.Sprintf(`{ ips: %v]`, c.ips)
+	return fmt.Sprintf(`{ ips: %v }`, c.ips)
 }
 
 func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
@@ -167,18 +172,38 @@ func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPResponse,
 		return dns.NewIPResponse(x.ips, uint32(time.Until(x.expireAfter).Seconds())), nil
 	}
 
+	lock := &struct {
+		*sync.Cond
+		Response dns.IPResponse
+	}{Cond: sync.NewCond(&sync.Mutex{})}
+	cond, ok := c.cond.LoadOrStore(key, lock)
+	if ok {
+		log.Debugln("wait for another request for", key)
+		cond.L.Lock()
+		cond.Wait()
+		cond.L.Unlock()
+
+		if cond.Response != nil {
+			return cond.Response, nil
+		}
+		return nil, fmt.Errorf("can't get response of %s from cond", key)
+	}
+
+	defer c.cond.Delete(key)
+	defer cond.Broadcast()
+
 	ttl, resp, err := c.lookupIP(domain, reqType)
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
 	}
+	cond.Response = dns.NewIPResponse(resp, ttl)
 
-	log.Debugf("%s lookup host [%s] %v success: {ips: %v, ttl: %d}\n",
-		c.config.Name, domain, reqType, resp, ttl)
+	log.Debugf("%s lookup host [%s] %v success: {ips: %v, ttl: %d}\n", c.config.Name, domain, reqType, resp, ttl)
 
 	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
-
 	c.cache.Add(key, ipResponse{resp, expireAfter}, lru.WithExpireTime(expireAfter))
-	return dns.NewIPResponse(resp, ttl), nil
+
+	return cond.Response, nil
 }
 
 func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net.IP, error) {
@@ -208,7 +233,7 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 		return 0, nil, fmt.Errorf("pack dns message failed: %w", err)
 	}
 
-	d, err = c.do(d)
+	d, err = c.Do(d)
 	if err != nil {
 		return 0, nil, fmt.Errorf("send dns message failed: %w", err)
 	}

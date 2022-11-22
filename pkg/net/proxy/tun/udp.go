@@ -16,14 +16,14 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func udpForwarder(s *stack.Stack, natTable *s5s.UdpNatTable, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
-	handle := func(src net.PacketConn, target proxy.Address) error {
+func udpForwarder(s *stack.Stack, natTable *s5s.NatTable, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
+	handle := func(srcpconn net.PacketConn, dst proxy.Address) error {
 		buf := pool.GetBytes(s5s.MaxSegmentSize)
 		defer pool.PutBytes(buf)
 
 		for {
-			src.SetReadDeadline(time.Now().Add(time.Minute))
-			n, addr, err := src.ReadFrom(buf)
+			srcpconn.SetReadDeadline(time.Now().Add(time.Minute))
+			n, src, err := srcpconn.ReadFrom(buf)
 			if err != nil {
 				if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
 					return nil /* ignore I/O timeout & EOF */
@@ -32,7 +32,7 @@ func udpForwarder(s *stack.Stack, natTable *s5s.UdpNatTable, opt *listener.Opts[
 				return err
 			}
 
-			if err = natTable.Write(buf[:n], addr, target, src); err != nil {
+			if err = natTable.Write(buf[:n], src, dst, srcpconn); err != nil {
 				return err
 			}
 		}
@@ -58,9 +58,9 @@ func udpForwarder(s *stack.Stack, natTable *s5s.UdpNatTable, opt *listener.Opts[
 				return
 			}
 
-			addr := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
-			if opt.Protocol.Tun.SkipMulticast && addr.Type() == proxy.IP {
-				if ip, _ := addr.IP(); !ip.IsGlobalUnicast() {
+			dst := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
+			if opt.Protocol.Tun.SkipMulticast && dst.Type() == proxy.IP {
+				if ip, _ := dst.IP(); !ip.IsGlobalUnicast() {
 					buf := pool.GetBytes(pool.DefaultSize)
 					defer pool.PutBytes(buf)
 
@@ -72,9 +72,8 @@ func udpForwarder(s *stack.Stack, natTable *s5s.UdpNatTable, opt *listener.Opts[
 					}
 				}
 			}
-			addMessage(addr, id, opt)
 
-			if err := handle(local, addr); err != nil {
+			if err := handle(local, dst); err != nil {
 				log.Errorln("handle udp request failed:", err)
 			}
 

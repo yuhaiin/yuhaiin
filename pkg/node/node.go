@@ -56,7 +56,7 @@ func (n *Nodes) Manager(context.Context, *wrapperspb.StringValue) (*node.Manager
 func (n *Nodes) Use(c context.Context, s *grpcnode.UseReq) (*point.Point, error) {
 	p, err := n.Get(c, &wrapperspb.StringValue{Value: s.Hash})
 	if err != nil {
-		return &point.Point{}, fmt.Errorf("get node failed: %v", err)
+		return &point.Point{}, fmt.Errorf("get node failed: %w", err)
 	}
 
 	if s.Tcp {
@@ -68,7 +68,7 @@ func (n *Nodes) Use(c context.Context, s *grpcnode.UseReq) (*point.Point, error)
 
 	err = n.fileStore.Save()
 	if err != nil {
-		return p, fmt.Errorf("save config failed: %v", err)
+		return p, fmt.Errorf("save config failed: %w", err)
 	}
 	return p, nil
 }

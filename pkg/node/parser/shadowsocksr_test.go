@@ -51,9 +51,11 @@ func TestConnectionSsr(t *testing.T) {
 		},
 	}
 
-	dns := dns.New(dns.Config{
+	dns, err := dns.New(dns.Config{
 		Type: pdns.Type_udp,
 		Host: "1.1.1.1:53", Dialer: z})
+	assert.NoError(t, err)
+
 	t.Log(dns.LookupIP("www.google.com"))
 
 	req := http.Request{

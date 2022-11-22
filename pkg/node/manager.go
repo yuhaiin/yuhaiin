@@ -45,11 +45,11 @@ func (m *manager) AddNode(p *point.Point) {
 		m.Nodes = make(map[string]*point.Point)
 	}
 	if m.GroupNodesMap == nil {
-		m.GroupNodesMap = make(map[string]*node.ManagerNodeArray)
+		m.GroupNodesMap = make(map[string]*node.Nodes)
 	}
 	_, ok := m.GroupNodesMap[p.Group]
 	if !ok {
-		m.GroupNodesMap[p.Group] = &node.ManagerNodeArray{
+		m.GroupNodesMap[p.Group] = &node.Nodes{
 			Group:       p.Group,
 			Nodes:       make([]string, 0),
 			NodeHashMap: make(map[string]string),
