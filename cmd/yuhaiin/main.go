@@ -14,12 +14,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/lockfile"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 )
+
+var processDumper listener.ProcessDumper
 
 func main() {
 	ver := flag.Bool("v", false, "show version")
@@ -42,10 +45,11 @@ func main() {
 	resp := yerror.Must(
 		yuhaiin.Start(
 			yuhaiin.StartOpt{
-				PathConfig: pc,
-				Host:       *host,
-				Setting:    setting,
-				GRPCServer: grpcserver,
+				PathConfig:    pc,
+				Host:          *host,
+				Setting:       setting,
+				GRPCServer:    grpcserver,
+				ProcessDumper: processDumper,
 			},
 		))
 	defer resp.Close()
