@@ -30,19 +30,17 @@ func (IP_MARK_KEY) String() string { return "IP" }
 type ForceModeKey struct{}
 
 type shunt struct {
-	mapper imapper.Mapper[string, proxy.Address, bypass.Mode]
-
-	config              *bypass.Config
 	resolveRemoteDomain bool
+	defaultMode         bypass.Mode
+	config              *bypass.Config
+	mapper              imapper.Mapper[string, proxy.Address, bypass.Mode]
 	lock                sync.RWMutex
-
-	modeStore   syncmap.SyncMap[bypass.Mode, Mode]
-	defaultMode bypass.Mode
+	modeStore           syncmap.SyncMap[bypass.Mode, Mode]
 }
 
 type Mode struct {
-	Mode     bypass.Mode
 	Default  bool
+	Mode     bypass.Mode
 	Dialer   proxy.Proxy
 	Resolver dns.DNS
 }

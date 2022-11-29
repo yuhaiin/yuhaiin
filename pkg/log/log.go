@@ -71,12 +71,12 @@ func Output(depth int, lev protolog.LogLevel, format string, v ...any) {
 }
 
 type logger struct {
-	log   *log.Logger
 	level protolog.LogLevel
-	depth int
+	depth int32
+	log   *log.Logger
 }
 
-func NewLogger(depth int) *logger {
+func NewLogger(depth int32) *logger {
 	return &logger{
 		log:   log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags),
 		level: protolog.LogLevel_info,
@@ -89,49 +89,49 @@ func (l logger) IsOutput(z protolog.LogLevel) bool { return l.level <= z }
 
 func (l *logger) Debugf(format string, v ...any) {
 	if l.level <= protolog.LogLevel_debug {
-		l.log.Output(l.depth, fmt.Sprintf(format, v...))
+		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
 	}
 }
 
 func (l *logger) Debugln(v ...any) {
 	if l.level <= protolog.LogLevel_debug {
-		l.log.Output(l.depth, fmt.Sprintln(v...))
+		l.log.Output(int(l.depth), fmt.Sprintln(v...))
 	}
 }
 
 func (l *logger) Infof(format string, v ...any) {
 	if l.level <= protolog.LogLevel_info {
-		l.log.Output(l.depth, fmt.Sprintf(format, v...))
+		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
 	}
 }
 
 func (l *logger) Infoln(v ...any) {
 	if l.level <= protolog.LogLevel_info {
-		l.log.Output(l.depth, fmt.Sprintln(v...))
+		l.log.Output(int(l.depth), fmt.Sprintln(v...))
 	}
 }
 
 func (l *logger) Warningf(format string, v ...any) {
 	if l.level <= protolog.LogLevel_warning {
-		l.log.Output(l.depth, fmt.Sprintf(format, v...))
+		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
 	}
 }
 
 func (l *logger) Warningln(v ...any) {
 	if l.level <= protolog.LogLevel_warning {
-		l.log.Output(l.depth, fmt.Sprintln(v...))
+		l.log.Output(int(l.depth), fmt.Sprintln(v...))
 	}
 }
 
 func (l *logger) Errorf(format string, v ...any) {
 	if l.level <= protolog.LogLevel_error {
-		l.log.Output(l.depth, fmt.Sprintf(format, v...))
+		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
 	}
 }
 
 func (l *logger) Errorln(v ...any) {
 	if l.level <= protolog.LogLevel_error {
-		l.log.Output(l.depth, fmt.Sprintln(v...))
+		l.log.Output(int(l.depth), fmt.Sprintln(v...))
 	}
 }
 
