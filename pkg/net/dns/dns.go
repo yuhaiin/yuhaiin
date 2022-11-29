@@ -21,13 +21,12 @@ import (
 
 type Config struct {
 	Type       pdns.Type
+	IPv6       bool
+	Subnet     *net.IPNet
 	Name       string
 	Host       string
 	Servername string
-	Subnet     *net.IPNet
-	IPv6       bool
-
-	Dialer proxy.Proxy
+	Dialer     proxy.Proxy
 }
 
 var dnsMap syncmap.SyncMap[pdns.Type, func(Config) (dns.DNS, error)]
@@ -53,16 +52,14 @@ func Register(tYPE pdns.Type, f func(Config) (dns.DNS, error)) {
 var _ dns.DNS = (*client)(nil)
 
 type client struct {
-	cache *lru.LRU[string, ipResponse]
-	cond  syncmap.SyncMap[string, *struct {
+	cache  *lru.LRU[string, ipResponse]
+	do     func([]byte) ([]byte, error)
+	config Config
+	subnet []dnsmessage.Resource
+	cond   syncmap.SyncMap[string, *struct {
 		*sync.Cond
 		Response dns.IPResponse
 	}]
-
-	subnet []dnsmessage.Resource
-	do     func([]byte) ([]byte, error)
-
-	config Config
 }
 
 type ipResponse struct {

@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 type Proxy interface {
@@ -85,13 +86,28 @@ type resolverProxy struct{ dns.DNS }
 func WrapDNS(d dns.DNS) ResolverProxy             { return &resolverProxy{d} }
 func (r *resolverProxy) Resolver(Address) dns.DNS { return r.DNS }
 
-type Type string
+type Type uint8
+
+func (t Type) String() string {
+	switch t {
+	case DOMAIN:
+		return "DOMAIN"
+	case IP:
+		return "IP"
+	case UNIX:
+		return "UNIX"
+	case EMPTY:
+		return "EMPTY"
+	default:
+		return "UNKNOWN"
+	}
+}
 
 const (
-	DOMAIN Type = "DOMAIN"
-	IP     Type = "IP"
-	UNIX   Type = "UNIX"
-	EMPTY  Type = "EMPTY"
+	DOMAIN Type = 1
+	IP     Type = 2
+	UNIX   Type = 3
+	EMPTY  Type = 4
 )
 
 type Port interface {
@@ -178,14 +194,13 @@ func ParseAddressSplit(network, addr string, port Port) (ad Address) {
 	}
 
 	ad = &DomainAddr{
-		host:     net.JoinHostPort(addr, port.String()),
 		hostname: addr,
 		port:     port,
 		network:  network,
 	}
 
 	if i != nil {
-		ad = &IPAddr{i, ad, zone}
+		ad = &IPAddr{ad, zone}
 	}
 
 	return
@@ -194,45 +209,38 @@ func ParseAddressSplit(network, addr string, port Port) (ad Address) {
 func ParseTCPAddress(ad *net.TCPAddr) Address {
 	return &IPAddr{
 		Address: &DomainAddr{
-			host:     ad.String(),
 			hostname: ad.IP.String(),
 			port:     ParsePort(ad.Port),
 			network:  ad.Network(),
 		},
-		origin: ad.IP,
-		zone:   ad.Zone,
+		zone: ad.Zone,
 	}
 }
 
 func ParseUDPAddr(ad *net.UDPAddr) Address {
 	return &IPAddr{
 		Address: &DomainAddr{
-			host:     ad.String(),
 			hostname: ad.IP.String(),
 			port:     ParsePort(ad.Port),
 			network:  ad.Network(),
 		},
-		origin: ad.IP,
-		zone:   ad.Zone,
+		zone: ad.Zone,
 	}
 }
 
 func ParseIPAddr(ad *net.IPAddr) Address {
 	return &IPAddr{
 		Address: &DomainAddr{
-			host:     ad.String(),
 			hostname: ad.IP.String(),
 			port:     EmptyPort,
 			network:  ad.Network(),
 		},
-		origin: ad.IP,
-		zone:   ad.Zone,
+		zone: ad.Zone,
 	}
 }
 
 func ParseUnixAddr(ad *net.UnixAddr) Address {
 	return &DomainAddr{
-		host:     ad.String(),
 		hostname: ad.Name,
 		port:     EmptyPort,
 		network:  ad.Network(),
@@ -259,17 +267,13 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 var _ Address = (*DomainAddr)(nil)
 
 type DomainAddr struct {
-	store *sync.Map
-
-	host string
-
-	hostname string
+	store    *sync.Map
 	port     Port
-
-	network string
+	hostname string
+	network  string
 }
 
-func (d *DomainAddr) String() string   { return d.host }
+func (d *DomainAddr) String() string   { return net.JoinHostPort(d.Hostname(), d.Port().String()) }
 func (d *DomainAddr) Hostname() string { return d.hostname }
 func (d *DomainAddr) IP() (net.IP, error) {
 	ip, err := d.lookupIP()
@@ -336,7 +340,6 @@ func (d *DomainAddr) OverrideHostname(s string) Address {
 
 	r := &DomainAddr{
 		hostname: s,
-		host:     net.JoinHostPort(s, d.port.String()),
 		store:    d.store,
 		port:     d.port,
 		network:  d.network,
@@ -346,13 +349,12 @@ func (d *DomainAddr) OverrideHostname(s string) Address {
 		return r
 	}
 
-	return &IPAddr{Address: r, origin: z, zone: zone}
+	return &IPAddr{Address: r, zone: zone}
 }
 
 func (d *DomainAddr) OverridePort(p Port) Address {
 	return &DomainAddr{
 		hostname: d.Hostname(),
-		host:     net.JoinHostPort(d.Hostname(), p.String()),
 		store:    d.store,
 		port:     p,
 		network:  d.network,
@@ -381,27 +383,25 @@ func (s *DomainAddr) RangeValue(f func(k, v any) bool) {
 var _ Address = (*IPAddr)(nil)
 
 type IPAddr struct {
-	origin net.IP
 	Address
 	zone string
 }
 
-func (i IPAddr) IP() (net.IP, error) { return i.origin, nil }
+func (i IPAddr) IP() (net.IP, error) { return net.ParseIP(i.Hostname()), nil }
 func (i IPAddr) Type() Type          { return IP }
 func (i IPAddr) Zone() string        { return i.zone }
 func (i IPAddr) UDPAddr() (*net.UDPAddr, error) {
-	return &net.UDPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}, nil
+	return &net.UDPAddr{IP: yerror.Must(i.IP()), Port: int(i.Port().Port()), Zone: i.zone}, nil
 }
 func (i IPAddr) OverridePort(p Port) Address {
 	return &IPAddr{
-		origin:  i.origin,
 		Address: i.Address.OverridePort(p),
 		zone:    i.zone,
 	}
 }
 
 func (i IPAddr) TCPAddr() (*net.TCPAddr, error) {
-	return &net.TCPAddr{IP: i.origin, Port: int(i.Port().Port()), Zone: i.zone}, nil
+	return &net.TCPAddr{IP: yerror.Must(i.IP()), Port: int(i.Port().Port()), Zone: i.zone}, nil
 }
 func (i IPAddr) IPHost() (string, error) { return i.String(), nil }
 
@@ -426,13 +426,10 @@ func (d emptyAddr) RangeValue(func(any, any) bool)  {}
 func (d emptyAddr) OverrideHostname(string) Address { return d }
 func (d emptyAddr) OverridePort(Port) Address       { return d }
 
-type PortImpl struct {
-	Number uint16
-	Str    string
-}
+type PortImpl struct{ Number uint16 }
 
 func (p PortImpl) Port() uint16   { return p.Number }
-func (p PortImpl) String() string { return p.Str }
+func (p PortImpl) String() string { return strconv.FormatUint(uint64(p.Number), 10) }
 
 var EmptyPort Port = PortImpl{}
 
@@ -441,7 +438,7 @@ type PortNumber interface {
 }
 
 func ParsePort[T PortNumber](p T) Port {
-	return PortImpl{uint16(p), strconv.FormatUint(uint64(p), 10)}
+	return PortImpl{uint16(p)}
 }
 
 func ParsePortStr(p string) (Port, error) {
@@ -450,7 +447,7 @@ func ParsePortStr(p string) (Port, error) {
 		return nil, err
 	}
 
-	return PortImpl{uint16(pt), p}, nil
+	return PortImpl{uint16(pt)}, nil
 }
 
 type SourceKey struct{}

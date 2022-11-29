@@ -7,8 +7,8 @@ var (
 )
 
 type domainNode[T any] struct {
-	Symbol uint8                     `json:"symbol"`
 	Mark   T                         `json:"mark"`
+	Symbol uint8                     `json:"symbol"`
 	Child  map[string]*domainNode[T] `json:"child"`
 }
 

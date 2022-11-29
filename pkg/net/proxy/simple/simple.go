@@ -14,10 +14,9 @@ import (
 )
 
 type Simple struct {
-	addr         proxy.Address
 	packetDirect bool
-
-	tlsConfig *tls.Config
+	tlsConfig    *tls.Config
+	addr         proxy.Address
 }
 
 func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
