@@ -43,14 +43,14 @@ var _ stack.InjectableLinkEndpoint = (*Endpoint)(nil)
 // Endpoint is link layer endpoint that stores outbound packets in a channel
 // and allows injection of inbound packets.
 type Endpoint struct {
+	wg  sync.WaitGroup
+	mtu uint32
+
 	dispatcher         stack.NetworkDispatcher
-	mtu                uint32
 	linkAddr           tcpip.LinkAddress
 	LinkEPCapabilities stack.LinkEndpointCapabilities
-
-	writer  writer
-	inbound inbound
-	wg      sync.WaitGroup
+	writer             writer
+	inbound            inbound
 }
 
 // New creates a new channel endpoint.

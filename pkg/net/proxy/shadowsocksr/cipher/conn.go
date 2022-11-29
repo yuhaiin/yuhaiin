@@ -14,8 +14,8 @@ import (
 )
 
 type Cipher struct {
-	key    []byte
 	ivSize int
+	key    []byte
 	core.Cipher
 }
 
@@ -38,7 +38,7 @@ func NewCipher(method, password string) (*Cipher, error) {
 	}
 	key := ssr.KDF(password, ss.KeySize)
 	mi := ss.Creator(key)
-	return &Cipher{key, mi.IVSize(), &cipherConn{mi}}, nil
+	return &Cipher{mi.IVSize(), key, &cipherConn{mi}}, nil
 }
 func (c *Cipher) IVSize() int { return c.ivSize }
 func (c *Cipher) Key() []byte { return c.key }

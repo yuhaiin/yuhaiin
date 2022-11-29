@@ -38,13 +38,12 @@ func newAuthAES128(info Protocol, hash crypto.Hash) protocol {
 
 type authAES128 struct {
 	hasSentHeader, rawTrans bool
-	recvID, packID          uint32
-	userKey                 []byte
 	uid                     [4]byte
-	salt                    string
+	recvID, packID          uint32
 	hmac                    ssr.HMAC
-
-	info Protocol
+	userKey                 []byte
+	salt                    string
+	info                    Protocol
 }
 
 func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int) {
