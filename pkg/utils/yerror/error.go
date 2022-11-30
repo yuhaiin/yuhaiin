@@ -19,3 +19,5 @@ func Ignore[T any](v T, err error) T {
 	}
 	return v
 }
+
+func Ignore2[T, T1, T2 any](v T, _ T1, _ T2) T { return v }
