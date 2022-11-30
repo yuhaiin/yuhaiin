@@ -2,7 +2,6 @@ package simplehttp
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -40,15 +39,6 @@ func (c *conn) Get(w http.ResponseWriter, r *http.Request) error {
 	return TPS.BodyExecute(w, nil, tps.STATISTIC)
 }
 
-func (c *conn) Post(w http.ResponseWriter, r *http.Request) error {
-	conns, err := c.stt.Conns(context.TODO(), &emptypb.Empty{})
-	if err != nil {
-		return err
-	}
-	sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
-	return TPS.Execute(w, conns.GetConnections(), tps.CONNECTIONS)
-}
-
 func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
 	if cc.server == nil {
 		cc.server = &websocket.Server{
@@ -61,12 +51,19 @@ func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
 					if err != nil {
 						break
 					}
-
 					total, err := cc.stt.Total(context.TODO(), &emptypb.Empty{})
 					if err != nil {
 						break
 					}
-					err = websocket.Message.Send(c, fmt.Sprintf(`{"download": %d, "upload": %d}`, total.Download, total.Upload))
+
+					conns, err := cc.stt.Conns(context.TODO(), &emptypb.Empty{})
+					if err != nil {
+						break
+					}
+					sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
+
+					err = websocket.JSON.Send(c,
+						map[string]any{"flow": total, "connections": conns.Connections})
 					if err != nil {
 						break
 					}
