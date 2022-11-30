@@ -6,7 +6,6 @@
     const oldOnLoad = window.onload
     window.onload = (e) => {
         oldOnLoad(e)
-        refresh();
         connect();
     }
 
@@ -22,22 +21,25 @@
             ws.close();
         }
 
-        var internal_id = setInterval(() => { ws.send(""); }, 1000)
+        var internal_id = setInterval(() => { ws.send(""); }, 2000)
 
         const sttd = document.querySelector('#statistic-download');
         const sttu = document.querySelector("#statistic-upload")
         ws.onmessage = function (event) {
-            let data = JSON.parse(event.data);
+            let all = JSON.parse(event.data);
 
+
+            let data = all.flow;
             if (download != 0 || upload != 0) {
-                drate = data.download - download
-                urate = data.upload - upload
+                drate = (data.download - download) / 2
+                urate = (data.upload - upload) / 2
             }
             download = data.download
             upload = data.upload
-
             sttd.innerText = `(${formatBytes(download)}): ${formatBytes(drate)}/S`
             sttu.innerText = `(${formatBytes(data.upload)}): ${formatBytes(urate)}/S`
+
+            refresh(all.connections);
         }
 
         ws.onclose = function (event) {
@@ -49,8 +51,106 @@
         }
     }
 
-    const refresh = () => ajax("POST", "/conn", null, (xmlhttp) => { document.getElementById('connections').innerHTML = xmlhttp.responseText; })
-    const close_conn = (id) => ajax("DELETE", `/conn?id=${id}`, null, (xmlhttp) => refresh())
+    var connections = new Set();
+
+    const refresh = (conns) => {
+        var connections_document = document.getElementById('connections');
+
+        const set = new Set();
+
+        conns.forEach((element) => {
+            set.add(element.id);
+            if (connections.has(element.id)) return;
+            connections.add(element.id);
+            connections_document.insertAdjacentHTML('beforeend', generate_conn_item(element));
+        });
+
+        connections.forEach((item) => {
+            if (!set.has(item)) {
+                var i = document.getElementById(`connection_${item}`)
+                if (i != null) i.remove();
+                connections.delete(item);
+            }
+        })
+    }
+
+    const generate_conn_item = (element) => {
+        return `
+    <div class="accordion-item" id="connection_${element.id}">
+        <h2 class="accordion-header" id="panelsStayOpen-heading${element.id}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                data-bs-target="#panelsStayOpen-collapse${element.id}" aria-expanded="true"
+                aria-controls="panelsStayOpen-collapse${element.id}">
+                <div class="d-inline">
+                    <code class="ms-2">${element.id}|</code>
+                    <span class="ms-2">${element.addr}</span>
+                    <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.extra.MODE}</span>
+                    <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.type.conn_type}</span>
+                </div>
+            </button>
+        </h2>
+    
+    
+        <div id="panelsStayOpen-collapse${element.id}" class="accordion-collapse collapse"
+            aria-labelledby="panelsStayOpen-heading${element.id}">
+            <div class="accordion-body">
+    
+    
+                <div class="list-group list-group-flush">
+    
+                    <div class="list-group-item">
+                        <div class="d-sm-flex">
+                            <div class="endpoint-name flex-grow-1 notranslate">Type</div>
+                            <div class="notranslate text-uppercase" style="opacity: 0.6;">${element.type.conn_type}</div>
+                        </div>
+                    </div>
+    
+                    <div class="list-group-item">
+                        <div class="d-sm-flex">
+                            <div class="endpoint-name flex-grow-1 notranslate">Underlying</div>
+                            <div class="notranslate text-uppercase" style="opacity: 0.6;">${element.type.underlying_type}</div>
+                        </div>
+                    </div>
+    
+                    <div class="list-group-item">
+                        <div class="d-sm-flex">
+                            <div class="endpoint-name flex-grow-1 notranslate">Outbound</div>
+                            <div class="notranslate" style="opacity: 0.6;">${element.remote}</div>
+                        </div>
+                    </div>
+    
+                    ${generate_item_info(element.extra)}
+   
+                    <div class="list-group-item">
+                        <div class="d-sm-flex">
+                            <button class="btn btn-outline-danger flex-grow-1 notranslate" type="button"
+                                onclick="close_conn('${element.id}')">Close</button>
+                        </div>
+                    </div>
+    
+                </div>
+            </div>
+        </div>
+    </div>`
+    }
+
+    const generate_item_info = (items) => {
+        var s = "";
+        Object.keys(items).forEach((key) => {
+            s += `
+        <div class="list-group-item">
+        <div class="d-sm-flex">
+            <div class="flex-grow-1 notranslate">${key}</div>
+            <div class="notranslate" style="opacity: 0.6;">${items[key]}</div>
+        </div>
+        </div>`})
+        return s;
+    }
+
+    const close_conn = (id) => ajax("DELETE", `/conn?id=${id}`, null, (xmlhttp) => {
+        connections.delete(id);
+        document.getElementById(`connection_${id}`).remove();
+    })
 </script>
 
 <div class="card mb-3">
@@ -70,12 +170,12 @@
             </div>
         </div>
 
-        <div class="list-group-item">
+        <!-- <div class="list-group-item">
             <div class="d-sm-flex">
                 <button class="btn btn-outline-primary flex-grow-1 notranslate" type="button"
                     onclick="refresh()">Refresh</button>
             </div>
-        </div>
+        </div> -->
     </div>
 </div>
 

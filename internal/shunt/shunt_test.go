@@ -3,6 +3,7 @@ package shunt
 import (
 	"bytes"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -32,6 +33,9 @@ func TestIndex(t *testing.T) {
 	}
 
 	str = "abcdefg adada cccc#ddsd"
+	t.Log(strings.Cut(str, "#"))
+	t.Log(strings.TrimRight(str, "#"))
+	t.Log(strings.TrimSuffix(str, "#"))
 	i = bytes.IndexByte([]byte(str), '#')
 	if i != -1 {
 		t.Log(str[:i])
