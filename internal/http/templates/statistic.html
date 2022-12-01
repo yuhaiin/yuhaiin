@@ -21,7 +21,13 @@
             ws.close();
         }
 
-        var internal_id = setInterval(() => { ws.send(""); }, 2000)
+        var internal_id = null;
+
+        ws.onopen = () => {
+            ws.send("");
+            internal_id = setInterval(() => { ws.send(""); }, 2000)
+        }
+
 
         const sttd = document.querySelector('#statistic-download');
         const sttu = document.querySelector("#statistic-upload")
@@ -47,7 +53,7 @@
             sttd.innerText = 'Loading...'
             sttu.innerText = 'Loading...'
             setTimeout(connect, 1000);
-            clearInterval(internal_id);
+            if (internal_id != null) clearInterval(internal_id);
         }
     }
 

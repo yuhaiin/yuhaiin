@@ -77,7 +77,25 @@
 
 
     const showNodes = (group) => ajax("GET", `/group?name=${group}`, null, (xmlhttp) => {
-        document.querySelector("#nodes").innerHTML = xmlhttp.responseText
+        let nodes_element = document.querySelector("#nodes");
+        nodes_element.innerHTML = "";
+        let data = JSON.parse(xmlhttp.responseText);
+        data.nodes.forEach(element => {
+            var hash = data.node_hash_map[element];
+            nodes_element.insertAdjacentHTML('beforeend', `
+<label class="list-group-item" style="border: 0ch; border-bottom: 1px solid #dee2e6;">
+    <div id="i${hash}">
+        <input class="form-check-input me-1" type="radio" name="select_node" value="${hash}">
+        <a href='#' data-bs-toggle="modal" data-bs-target="#nodeModal"
+            data-bs-whatever="${hash}">${element}</a>
+
+        <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase tcp">tcp: N/A</span>
+        <span class="badge rounded-pill bg-light text-dark ms-1 me-1 text-uppercase udp">udp: N/A</span>
+
+        <a class="test" href='javascript:latency("${hash}")'>Test</a>
+    </div>
+</label>`)
+        });
     })
 
     const emptyNodes = () => {

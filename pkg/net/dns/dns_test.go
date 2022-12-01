@@ -2,8 +2,6 @@ package dns
 
 import (
 	"net"
-	"testing"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
@@ -22,10 +20,4 @@ func ExampleNew() {
 		IPv6:       true,
 		Subnet:     subnet,
 	})
-}
-
-func TestAl(t *testing.T) {
-	c := ipResponse{}
-
-	t.Log(unsafe.Alignof(c), unsafe.Sizeof(c), unsafe.Sizeof(c.expireAfter), unsafe.Sizeof(c.ips))
 }

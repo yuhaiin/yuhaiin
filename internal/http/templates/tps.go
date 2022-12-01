@@ -10,7 +10,6 @@ var Pages embed.FS
 const (
 	FRAME = "http.html"
 
-	GROUP      = "group.html"
 	GROUP_LIST = "grouplist.html"
 	ROOT       = "root.html"
 	STATISTIC  = "statistic.html"
