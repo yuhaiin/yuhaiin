@@ -31,10 +31,9 @@ type Observer interface {
 	Update(*config.Setting)
 }
 
-type observer struct{ u func(s *config.Setting) }
+type ObserverFunc func(*config.Setting)
 
-func (w *observer) Update(s *config.Setting)       { w.u(s) }
-func NewObserver(u func(*config.Setting)) Observer { return &observer{u} }
+func (o ObserverFunc) Update(s *config.Setting) { o(s) }
 
 type settingImpl struct {
 	grpcconfig.UnimplementedConfigDaoServer
