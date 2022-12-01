@@ -15,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -60,9 +59,6 @@ func main() {
 	go func() bool {
 		return (<-signChannel).String() != "" && resp.HttpListener != nil && resp.HttpListener.Close() != nil
 	}()
-
-	setting.AddObserver(config.NewObserver(sysproxy.Update))
-	defer sysproxy.Unset()
 
 	yerror.Must(struct{}{},
 		// h2c for grpc insecure mode
