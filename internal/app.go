@@ -28,6 +28,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"google.golang.org/grpc"
 )
 
@@ -71,6 +72,7 @@ func (s *StartResponse) Close() error {
 		z.Close()
 	}
 	log.Close()
+	sysproxy.Unset()
 	return nil
 }
 
@@ -82,8 +84,9 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	log.Infof(yuhaiinArt, opt.PathConfig.Dir, opt.Host)
 
-	opt.Setting.AddObserver(config.NewObserver(func(s *protoconfig.Setting) { log.Set(s.GetLogcat(), opt.PathConfig.Logfile) }))
-	opt.Setting.AddObserver(config.NewObserver(func(s *protoconfig.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
+	opt.Setting.AddObserver(config.ObserverFunc(sysproxy.Update))
+	opt.Setting.AddObserver(config.ObserverFunc(func(s *protoconfig.Setting) { log.Set(s.GetLogcat(), opt.PathConfig.Logfile) }))
+	opt.Setting.AddObserver(config.ObserverFunc(func(s *protoconfig.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
 	filestore := node.NewFileStore(opt.PathConfig.Node)
 	// proxy access point/endpoint
