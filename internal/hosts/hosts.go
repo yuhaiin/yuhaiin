@@ -1,6 +1,7 @@
 package hosts
 
 import (
+	"errors"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/internal/resolver"
@@ -71,26 +72,36 @@ func (h *hosts) getAddr(addr proxy.Address) proxy.Address {
 	return addr
 }
 
-func (h *hosts) Resolver(addr proxy.Address) dns.DNS {
-	z, ok := h.hosts.Load(addr.Hostname())
-	if ok && z.Type() == proxy.IP {
-		return &hostsResolver{yerror.Ignore(z.IP()), addr, h.resolver}
-	}
-	return h.resolver.Resolver(addr)
-}
+func (h *hosts) Resolver(addr proxy.Address) dns.DNS { return &hostsResolver{h, addr} }
 
 type hostsResolver struct {
-	ip    net.IP
+	hosts *hosts
 	addr  proxy.Address
-	proxy proxy.ResolverProxy
 }
 
-func (h *hostsResolver) LookupIP(domain string) ([]net.IP, error) { return []net.IP{h.ip}, nil }
-func (h *hostsResolver) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error) {
-	if t == dnsmessage.TypeAAAA {
-		return dns.NewIPResponse([]net.IP{h.ip.To16()}, 600), nil
+func (h *hostsResolver) LookupIP(domain string) ([]net.IP, error) {
+	addr := h.hosts.getAddr(proxy.ParseAddressSplit("", domain, proxy.EmptyPort))
+	if addr.Type() == proxy.IP {
+		return []net.IP{yerror.Ignore(addr.IP())}, nil
 	}
-	return dns.NewIPResponse([]net.IP{h.ip.To4()}, 600), nil
+
+	return h.hosts.resolver.Resolver(addr).LookupIP(addr.Hostname())
 }
-func (h *hostsResolver) Do(b []byte) ([]byte, error) { return h.proxy.Resolver(h.addr).Do(b) }
+
+func (h *hostsResolver) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error) {
+	addr := h.hosts.getAddr(proxy.ParseAddressSplit("", domain, proxy.EmptyPort))
+	if addr.Type() == proxy.IP {
+		if t == dnsmessage.TypeAAAA {
+			return dns.NewIPResponse([]net.IP{yerror.Ignore(addr.IP()).To16()}, 600), nil
+		}
+
+		if t == dnsmessage.TypeA && yerror.Ignore(addr.IP()).To4() != nil {
+			return dns.NewIPResponse([]net.IP{yerror.Ignore(addr.IP()).To4()}, 600), nil
+		}
+		return nil, errors.New("here not include ipv6 hosts")
+	}
+
+	return h.hosts.resolver.Resolver(addr).Record(addr.Hostname(), t)
+}
+func (h *hostsResolver) Do(b []byte) ([]byte, error) { return h.hosts.resolver.Resolver(h.addr).Do(b) }
 func (h *hostsResolver) Close() error                { return nil }

@@ -16,20 +16,6 @@ type DNS interface {
 	io.Closer
 }
 
-type Record interface {
-	A() IPResponse
-	AAAA() IPResponse
-}
-
-type record struct {
-	a    IPResponse
-	aaaa IPResponse
-}
-
-func NewRecord(a IPResponse, aaaa IPResponse) Record { return &record{a, aaaa} }
-func (r record) A() IPResponse                       { return r.a }
-func (r record) AAAA() IPResponse                    { return r.aaaa }
-
 type IPResponse interface {
 	IPs() []net.IP
 	TTL() uint32
