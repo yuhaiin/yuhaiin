@@ -148,7 +148,7 @@ type Address interface {
 	RangeValue(func(k, v any) bool)
 }
 
-func GetMark[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
+func Value[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
 	z, ok := s.Value(k)
 	if !ok {
 		return Default
@@ -287,7 +287,7 @@ func (d *DomainAddr) Port() Port      { return d.port }
 func (d *DomainAddr) Network() string { return d.network }
 func (d *DomainAddr) Type() Type      { return DOMAIN }
 func (d *DomainAddr) WithResolver(resolver dns.DNS, canCover bool) bool {
-	if !GetMark(d, resolverCanCoverKey{}, true) {
+	if !Value(d, resolverCanCoverKey{}, true) {
 		return false
 	}
 
@@ -297,7 +297,7 @@ func (d *DomainAddr) WithResolver(resolver dns.DNS, canCover bool) bool {
 }
 func (d *DomainAddr) Zone() string { return "" }
 func (d *DomainAddr) lookupIP() (net.IP, error) {
-	ips, err := GetMark(d, resolverKey{}, resolver.Bootstrap).LookupIP(d.hostname)
+	ips, err := Value(d, resolverKey{}, resolver.Bootstrap).LookupIP(d.hostname)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address failed: %w", err)
 	}
@@ -399,7 +399,6 @@ func (i IPAddr) OverridePort(p Port) Address {
 		zone:    i.zone,
 	}
 }
-
 func (i IPAddr) TCPAddr() (*net.TCPAddr, error) {
 	return &net.TCPAddr{IP: yerror.Must(i.IP()), Port: int(i.Port().Port()), Zone: i.zone}, nil
 }
@@ -437,9 +436,7 @@ type PortNumber interface {
 	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~int | ~int8 | ~int16 | ~int32 | ~int64
 }
 
-func ParsePort[T PortNumber](p T) Port {
-	return PortImpl{uint16(p)}
-}
+func ParsePort[T PortNumber](p T) Port { return PortImpl{uint16(p)} }
 
 func ParsePortStr(p string) (Port, error) {
 	pt, err := strconv.ParseUint(p, 10, 16)
