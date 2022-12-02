@@ -117,7 +117,7 @@ var errMode = Mode{
 }
 
 func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
-	mode := proxy.GetMark(host, ForceModeKey{}, bypass.Mode_bypass)
+	mode := proxy.Value(host, ForceModeKey{}, bypass.Mode_bypass)
 
 	if mode == bypass.Mode_bypass {
 		mode = networkMode
