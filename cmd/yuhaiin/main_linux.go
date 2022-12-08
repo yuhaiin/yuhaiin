@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func init() {
@@ -13,10 +14,9 @@ func init() {
 
 type processDumperImpl struct{}
 
-func (processDumperImpl) ProcessName(network string, srcIp string, srcPort int32, _ string, _ int32) (string, error) {
-	ip := net.ParseIP(srcIp)
-	if ip == nil {
+func (processDumperImpl) ProcessName(network string, src, _ proxy.Address) (string, error) {
+	if src.Type() != proxy.IP {
 		return "", fmt.Errorf("source address is not ip")
 	}
-	return netlink.FindProcessName(network, ip, int(srcPort))
+	return netlink.FindProcessName(network, yerror.Ignore(src.IP()), int(src.Port().Port()))
 }

@@ -193,7 +193,7 @@ func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
 		return
 	}
 
-	process, err := c.processDumper.ProcessName(addr.Network(), sourceAddr.Hostname(), int32(sourceAddr.Port().Port()), dstAddr.Hostname(), int32(dstAddr.Port().Port()))
+	process, err := c.processDumper.ProcessName(addr.Network(), sourceAddr, dstAddr)
 	if err != nil {
 		log.Warningln("dump process failed:", err)
 		return

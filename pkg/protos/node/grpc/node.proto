@@ -31,13 +31,13 @@ message use_req {
 }
 
 message now_req {
-  enum now_req_net {
+  enum net_type {
     reserve = 0;
     tcp = 1;
     udp = 2;
   }
 
-  now_req_net net = 1 [ json_name = "type" ];
+  net_type net = 1 [ json_name = "type" ];
 }
 
 service subscribe {

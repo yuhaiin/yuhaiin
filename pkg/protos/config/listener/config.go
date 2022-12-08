@@ -26,7 +26,7 @@ func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (server.Server,
 }
 
 type ProcessDumper interface {
-	ProcessName(network string, srcIp string, srcPort int32, destIp string, destPort int32) (string, error)
+	ProcessName(network string, src, dst proxy.Address) (string, error)
 }
 
 type Opts[T isProtocol_Protocol] struct {

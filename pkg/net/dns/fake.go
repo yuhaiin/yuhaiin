@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -47,33 +46,65 @@ func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPResponse, erro
 	return dns.NewIPResponse([]net.IP{ip.To4()}, 600), nil
 }
 
-func (f *FakeDNS) LookupPtr(name string) (string, error) {
-	ip := pool.GetBuffer()
-	defer pool.PutBuffer(ip)
+var hex = map[byte]byte{
+	'0': 0,
+	'1': 1,
+	'2': 2,
+	'3': 3,
+	'4': 4,
+	'5': 5,
+	'6': 6,
+	'7': 7,
+	'8': 8,
+	'9': 9,
+	'A': 10,
+	'a': 10,
+	'b': 11,
+	'B': 11,
+	'C': 12,
+	'c': 12,
+	'D': 13,
+	'd': 13,
+	'e': 14,
+	'E': 14,
+	'f': 15,
+	'F': 15,
+}
 
-	i := strings.Index(name, ".in-addr.arpa.")
-	if i == -1 {
-		i = strings.Index(name, ".ip6.arpa.")
+func RetrieveIPFromPtr(name string) (net.IP, error) {
+	i := strings.Index(name, "ip6.arpa.")
+	if i != -1 && len(name[:i]) == 64 {
+		var ip [16]byte
+		for i := range ip {
+			ip[i] = hex[name[62-i*4]]*16 + hex[name[62-i*4-2]]
+		}
+		return net.IP(ip[:]), nil
 	}
 
-	if i == -1 {
-		return "", fmt.Errorf("ptr format error: %s", name)
+	if i = strings.Index(name, "in-addr.arpa."); i == -1 {
+		return nil, fmt.Errorf("ptr format failed: %s", name)
 	}
 
-	p := strings.Split(name[:i], ".")
-	for i, v4 := len(p)-1, len(p) == 4; i >= 0; i-- {
-		ip.WriteString(p[i])
-		if i != 0 {
-			if v4 {
-				ip.WriteByte('.')
-			} else if i%4 == 0 {
-				ip.WriteByte(':')
-			}
+	var ip [4]byte
+	var dotCount uint8
+
+	for _, v := range name[:i] {
+		if v == '.' {
+			dotCount++
+		} else {
+			ip[3-dotCount] = ip[3-dotCount]*10 + hex[byte(v)]
 		}
 	}
 
-	b := ip.Bytes()
-	r, ok := f.pool.GetDomainFromIP(*(*string)(unsafe.Pointer(&b)))
+	return net.IP(ip[:]), nil
+}
+
+func (f *FakeDNS) LookupPtr(name string) (string, error) {
+	ip, err := RetrieveIPFromPtr(name)
+	if err != nil {
+		return "", err
+	}
+	r, ok := f.pool.GetDomainFromIP(ip.String())
 	if !ok {
 		return "", fmt.Errorf("not found %s[%s] ptr", ip, name)
 	}
