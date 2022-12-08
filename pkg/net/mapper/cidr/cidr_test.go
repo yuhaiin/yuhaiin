@@ -32,7 +32,7 @@ func TestCidrMatch(t *testing.T) {
 	assert.Equal(t, "", search(testIPv6b))
 }
 
-// BenchmarkCidrMatch_Search-4 9119133 130.6 ns/op 16 B/op 1 allocs/op
+// BenchmarkCidrMatch_Search-4 40390761	 25.77 ns/op  16 B/op  1 allocs/op
 func BenchmarkCidrMatch_Search(b *testing.B) {
 	cidrMatch := NewCidrMapper[string]()
 	assert.NoError(b, cidrMatch.Insert("10.2.2.1/18", "testIPv4"))

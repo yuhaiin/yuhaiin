@@ -7,16 +7,18 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
-// BenchmarkDomainMatcher_Search-4   	20780998	        58.13 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkDomainMatcher_Search-4   	19006478	        71.57 ns/op	      64 B/op	       2 allocs/op
 func BenchmarkDomainMatcher_Search(b *testing.B) {
 	root := NewDomainMapper[string]()
 	root.Insert("*.baidu.com", "test_baidu")
 	root.Insert("www.baidu.sub.com.cn", "test_baidu")
 	root.Insert("www.google.com", "test_google")
 
+	addr := proxy.ParseAddressSplit("", "www.baidu.sub.com.cn.net", proxy.ParsePort(0))
+
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			root.Search(proxy.ParseAddressSplit("", "www.baidu.sub.com.cn.net", proxy.ParsePort(0)))
+			root.Search(addr)
 		}
 	})
 }
