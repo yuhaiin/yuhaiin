@@ -49,9 +49,7 @@ type packetConn struct {
 	manager *Connections
 }
 
-func (s *packetConn) Info() *statistic.Connection {
-	return s.Connection
-}
+func (s *packetConn) Info() *statistic.Connection { return s.Connection }
 
 func (s *packetConn) Close() error {
 	s.manager.Remove(s.Id)

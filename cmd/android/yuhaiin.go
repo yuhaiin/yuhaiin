@@ -13,6 +13,7 @@ import (
 
 	yuhaiin "github.com/Asutorufa/yuhaiin/internal"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 )
 
@@ -116,7 +117,7 @@ func (a *App) SaveNewBypass(link, dir string) error {
 	return os.WriteFile(filepath.Join(dir, "yuhaiin.conf"), data, os.ModePerm)
 }
 
-func (a *App) ProcessName(networks string, srcIp string, srcPort int32, destIp string, destPort int32) (string, error) {
+func (a *App) ProcessName(networks string, src, dst proxy.Address) (string, error) {
 	var network int32
 	switch networks {
 	case "tcp":
@@ -125,7 +126,7 @@ func (a *App) ProcessName(networks string, srcIp string, srcPort int32, destIp s
 		network = syscall.IPPROTO_UDP
 	}
 
-	uid, err := a.uidDUmper.DumpUid(network, srcIp, srcPort, destIp, destPort)
+	uid, err := a.uidDUmper.DumpUid(network, src.Hostname(), int32(src.Port().Port()), dst.Hostname(), int32(dst.Port().Port()))
 	if err != nil {
 		log.Errorf("dump uid error: %v", err)
 	}

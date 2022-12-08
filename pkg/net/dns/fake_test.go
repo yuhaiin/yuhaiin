@@ -10,6 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func TestFake(t *testing.T) {
@@ -69,6 +70,12 @@ func TestPtr(t *testing.T) {
 	z.LookupPtr("1.2.0.10.in-addr.arpa.")
 }
 
+func TestRetrieveIPFromPtr(t *testing.T) {
+	t.Log(RetrieveIPFromPtr("f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.0.0.ip6.arpa."))
+	t.Log(RetrieveIPFromPtr("1.2.0.10.in-addr.arpa."))
+	t.Log(RetrieveIPFromPtr("4.9.0.0.a.1.8.6.0.0.0.0.0.0.0.0.0.0.0.0.0.2.0.0.0.0.7.4.6.0.6.2.ip6.arpa."))
+}
+
 func TestFakeGenerate(t *testing.T) {
 	_, z, err := net.ParseCIDR("ff::ff/24")
 	assert.NoError(t, err)
@@ -85,6 +92,9 @@ func TestFakeGenerate(t *testing.T) {
 }
 
 func TestNetip(t *testing.T) {
+	t.Log(len("f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.f.f"))
+	t.Log(yerror.Ignore(netip.ParseAddr("2606:4700:20::681a:ffff")).As16())
+
 	z, err := netip.ParsePrefix("127.0.0.1/30")
 	assert.NoError(t, err)
 
