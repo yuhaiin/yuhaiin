@@ -8,7 +8,7 @@ require (
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	golang.org/x/crypto v0.3.0
 	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e
-	golang.org/x/net v0.3.0
+	golang.org/x/net v0.4.0
 	golang.org/x/sys v0.3.0
 	golang.org/x/time v0.3.0
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
