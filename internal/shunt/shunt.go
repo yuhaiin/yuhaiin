@@ -73,7 +73,7 @@ func (s *shunt) Update(c *pconfig.Setting) {
 
 	if diff {
 		s.mapper.Clear()
-		rangeRule(s.config.BypassFile, func(s1, s2 string) { s.mapper.Insert(s1, bypass.Mode(bypass.Mode_value[s2])) })
+		rangeRule(s.config.BypassFile, func(s1 string, s2 field) { s.mapper.Insert(s1, bypass.Mode(bypass.Mode_value[s2.mode])) })
 	}
 
 	for k, v := range c.Bypass.CustomRule {

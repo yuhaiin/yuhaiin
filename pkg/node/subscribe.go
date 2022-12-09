@@ -8,7 +8,7 @@ import (
 )
 
 type Subscribe struct {
-	grpcnode.SubscribeServer
+	grpcnode.UnimplementedSubscribeServer
 
 	fileStore *FileStore
 }

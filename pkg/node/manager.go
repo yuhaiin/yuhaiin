@@ -5,6 +5,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/utils"
 )
 
 type manager struct {
@@ -149,4 +150,44 @@ func (m *manager) DeleteNode(hash string) {
 		m.Groups = append(m.Groups[:i], m.Groups[i+1:]...)
 		break
 	}
+}
+
+func (m *manager) AddTag(tag string, hash string) {
+	_, ok := m.Manager.Nodes[hash]
+	if !ok {
+		return
+	}
+
+	if m.Manager.Tags == nil {
+		m.Manager.Tags = make(map[string]*node.Tags)
+	}
+
+	z, ok := m.Manager.Tags[tag]
+	if !ok {
+		z = &node.Tags{
+			Tag: tag,
+		}
+		m.Manager.Tags[tag] = z
+	}
+
+	if !utils.ExistInSlice(z.Hash, func(z string) bool { return z == hash }) {
+		z.Hash = append(z.Hash, hash)
+	}
+}
+
+func (m *manager) DeleteTag(tag string) {
+	if m.Manager.Tags == nil {
+		return
+	}
+
+	delete(m.Manager.Tags, tag)
+}
+
+func (m *manager) ExistTag(tag string) (*node.Tags, bool) {
+	if m.Manager.Tags != nil {
+		t, ok := m.Manager.Tags[tag]
+		return t, ok
+	}
+
+	return nil, false
 }
