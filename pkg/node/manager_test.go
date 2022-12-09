@@ -1,7 +1,6 @@
 package node
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
@@ -32,9 +31,14 @@ func TestAddNode(t *testing.T) {
 
 	t.Log(mg.Manager)
 
+	mg.AddTag("test_tag", "adadab")
+	mg.AddTag("test_tag3", "adada")
+	mg.AddTag("test_tag2", "adadab")
+	mg.AddTag("test_tag2", "adada")
+	mg.DeleteTag("test_tag2")
 	mg.DeleteNode("adada")
 
 	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.Manager)
-	data2, _ := json.MarshalIndent(mg.Manager, "", " ")
-	t.Log(string(data), string(data2))
+	// data2, _ := json.MarshalIndent(mg.Manager, "", " ")
+	t.Log(string(data))
 }

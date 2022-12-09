@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"sync"
@@ -71,7 +72,20 @@ func (o *outbound) Point(udp bool) *point.Point {
 	return p
 }
 
+type TagKey struct{}
+
+func (TagKey) String() string { return "Tag" }
+
 func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
+	if tag := proxy.Value(host, TagKey{}, ""); tag != "" {
+		tc, err := o.tagConn(tag)
+		if err == nil {
+			return tc.Conn(host)
+		} else {
+			log.Warningln("get dialer by tag failed:", err)
+		}
+	}
+
 	if o.tcp.Proxy == nil {
 		o.tcp.Proxy, err = register.Dialer(o.Point(false))
 		if err != nil {
@@ -83,6 +97,15 @@ func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
 }
 
 func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) {
+	if tag := proxy.Value(host, TagKey{}, ""); tag != "" {
+		tc, err := o.tagConn(tag)
+		if err == nil {
+			return tc.PacketConn(host)
+		} else {
+			log.Warningln("get dialer by tag failed:", err)
+		}
+	}
+
 	if o.udp.Proxy == nil {
 		o.udp.Proxy, err = register.Dialer(o.Point(true))
 		if err != nil {
@@ -91,6 +114,20 @@ func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) 
 	}
 
 	return o.udp.PacketConn(host)
+}
+
+func (o *outbound) tagConn(tag string) (proxy.Proxy, error) {
+	t, ok := o.manager.ExistTag(tag)
+	if !ok {
+		return nil, fmt.Errorf("tag %s is not exist", tag)
+	}
+
+	p, ok := o.manager.GetNode(t.Hash[rand.Intn(len(t.Hash))])
+	if !ok {
+		return nil, fmt.Errorf("get node from %v failed", t.Hash)
+	}
+
+	return register.Dialer(p)
 }
 
 func (o *outbound) Do(req *http.Request) (*http.Response, error) {

@@ -24,4 +24,10 @@ message manager {
   repeated string groups = 1 [ json_name = "groups" ];
   map<string, nodes> group_nodes_map = 2 [ json_name = "group_nodes_map" ];
   map<string, yuhaiin.point.point> nodes = 3 [ json_name = "nodes" ];
+  map<string, tags> tags = 4 [ json_name = "tags" ];
+}
+
+message tags {
+  string tag = 1 [ json_name = "tag" ];
+  repeated string hash = 2 [ json_name = "hash" ];
 }
