@@ -92,6 +92,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	// proxy access point/endpoint
 	nodeService := node.NewNodes(filestore)
 	subscribe := node.NewSubscribe(filestore)
+	tag := node.NewTag(filestore)
 
 	// make dns flow across all proxy chain
 	appDialer := &struct{ proxy.Proxy }{}
@@ -159,6 +160,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		opt.GRPCServer.RegisterService(&grpcnode.Node_ServiceDesc, nodeService)
 		opt.GRPCServer.RegisterService(&grpcnode.Subscribe_ServiceDesc, subscribe)
 		opt.GRPCServer.RegisterService(&grpcsts.Connections_ServiceDesc, stcs)
+		opt.GRPCServer.RegisterService(&grpcnode.Tag_ServiceDesc, tag)
 	}
 
 	return StartResponse{

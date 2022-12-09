@@ -54,3 +54,13 @@ message link_req { repeated string names = 1 [ json_name = "names" ]; }
 message get_links_resp {
   map<string, yuhaiin.subscribe.link> links = 1 [ json_name = "links" ];
 }
+
+service tag {
+  rpc save(save_tag_req) returns (google.protobuf.Empty);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+}
+
+message save_tag_req {
+  string tag = 1 [ json_name = "tag" ];
+  string hash = 2 [ json_name = "hash" ];
+}

@@ -89,6 +89,10 @@ func RetrieveIPFromPtr(name string) (net.IP, error) {
 	var dotCount uint8
 
 	for _, v := range name[:i] {
+		if dotCount > 3 {
+			break
+		}
+
 		if v == '.' {
 			dotCount++
 		} else {
