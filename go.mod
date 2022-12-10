@@ -3,7 +3,7 @@ module github.com/Asutorufa/yuhaiin
 go 1.19
 
 require (
-	github.com/lucas-clemente/quic-go v0.31.0
+	github.com/lucas-clemente/quic-go v0.31.1
 	github.com/mdlayher/netlink v1.7.0
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	golang.org/x/crypto v0.4.0
