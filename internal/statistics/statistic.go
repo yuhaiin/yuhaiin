@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -16,7 +17,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -74,7 +74,7 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*grpcsts.TotalFlow
 
 func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
-		log.Debugln("close", c.cString(z))
+		log.Debugf("close(%d) %s, %s<->%s\n", z.Info().GetId(), z.Info().GetAddr(), z.Info().Extra[proxy.SourceKey{}.String()], z.Info().Remote)
 	}
 }
 
@@ -88,16 +88,11 @@ func (c *Connections) cString(oo connection) (s string) {
 		return
 	}
 
-	str := pool.GetBuffer()
-	defer pool.PutBuffer(str)
-
 	o := oo.Info()
 
-	for k, v := range o.GetExtra() {
-		str.WriteString(fmt.Sprintf("%s: %s,", k, v))
-	}
-	return fmt.Sprintf("%v| <%s>: %v(%s), %s <-> %s",
-		o.GetId(), o.GetType(), o.GetAddr(), str.String(), o.Extra[proxy.SourceKey{}.String()], o.GetRemote())
+	extra, _ := json.Marshal(o.GetExtra())
+	return fmt.Sprintf("new(%d) [%s,%s]%s(Outbound: %s)%s",
+		o.GetId(), o.GetType().GetConnType(), o.GetType().GetUnderlyingType(), o.GetAddr(), o.GetRemote(), extra)
 }
 
 func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
