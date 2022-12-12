@@ -2,6 +2,7 @@ package yuhaiin
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -90,10 +91,11 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 		},
 
 		Bypass: &bypass.Config{
-			Tcp:        bypass.Mode(opt.Bypass.TCP),
-			Udp:        bypass.Mode(opt.Bypass.UDP),
-			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
-			CustomRule: make(map[string]bypass.Mode),
+			Tcp:          bypass.Mode(opt.Bypass.TCP),
+			Udp:          bypass.Mode(opt.Bypass.UDP),
+			BypassFile:   filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+			CustomRule:   make(map[string]bypass.Mode),
+			CustomRuleV2: make(map[string]*bypass.ModeConfig),
 		},
 
 		Logcat: &protolog.Logcat{
@@ -124,7 +126,27 @@ func applyRule(settings *protoconfig.Setting, ruls string, mode bypass.Mode) {
 			continue
 		}
 
-		settings.Bypass.CustomRule[string(line)] = mode
+		z := bytes.FieldsFunc(line, func(r rune) bool { return r == ',' })
+		if len(z) == 0 {
+			continue
+		}
+
+		xx := &bypass.ModeConfig{Mode: mode}
+
+		for _, x := range z[1:] {
+			i := bytes.IndexByte(x, '=')
+			if i == -1 {
+				continue
+			}
+
+			if xx.Fields == nil {
+				xx.Fields = make(map[string]string)
+			}
+
+			xx.Fields[strings.ToLower(string(x[:i]))] = strings.ToLower(string(x[i+1:]))
+		}
+
+		settings.Bypass.CustomRuleV2[string(z[0])] = xx
 	}
 }
 

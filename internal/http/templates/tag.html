@@ -1,0 +1,107 @@
+{{define "body"}}
+
+<script>
+    let groupDATA = JSON.parse("{{ .GroupJSON }}")
+
+
+    const oldOnLoad = window.onload
+
+    window.onload = () => {
+        oldOnLoad()
+        let node = document.getElementById('inputGroupNode');
+        let group = document.getElementById('inputGroupGroup');
+
+        Object.keys(groupDATA).forEach((key) => {
+            group.insertAdjacentHTML('beforeend', `<option value="${key}">${key}</option>`);
+        });
+
+        const onValueChange = (value) => {
+            if (value == "Empty") {
+                node.innerHTML = `<option selected value="">Choose...</option>`;
+                return
+            }
+
+            let nodes = groupDATA[value];
+            if (nodes == null) return;
+
+            node.innerHTML = `<option selected value="">Choose...</option>`;
+
+            Object.keys(nodes).forEach(key => {
+                node.insertAdjacentHTML('beforeend', `<option value="${nodes[key]}">${key}</option>`)
+            });
+        }
+
+        console.log(group.value);
+        onValueChange(group.value);
+        group.addEventListener('change', (e) => { onValueChange(e.currentTarget.value); })
+    }
+
+    const addTag = () => {
+        let tag = document.getElementById('inputGroupTag').value;
+        let hash = document.getElementById('inputGroupNode').value;
+
+        if (tag == "" || tag == null || hash == null || hash == "" || hash == "Empty") {
+            console.log(`tag [${tag}] or hash [${hash}] is empty`)
+            return;
+        }
+
+        console.log(tag, hash);
+
+        ajax("POST", `/tag`, `{"tag": "${tag}", "hash": "${hash}"}`, (xmlhttp) => {
+            location.reload();
+        }, (xmlhttp) => {
+            show_danger("add tag " + tag + " failed, " + xmlhttp.responseText)
+        })
+    }
+
+    const remove = (tag) => {
+        ajax("DELETE", `/tag?tag=${tag}`, null, (xmlhttp) => {
+            location.reload();
+        }, (xmlhttp) => {
+            show_danger("remove tag " + tag + " failed, " + xmlhttp.responseText)
+        })
+    }
+</script>
+<div class="card mb-3">
+
+    {{range $key,$value := .Tags}}
+    <label class="list-group-item" style="border: 0ch; border-bottom: 1px solid #dee2e6;">
+        <div class="d-sm-flex">
+            <div class="flex-grow-1">{{ $key }} {{ $value }}</div>
+            <div>
+                <a class="text-decoration-none" href='javascript:remove("{{ $key }}")'>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        class="bi bi-trash" viewBox="0 0 16 16">
+                        <path
+                            d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                        <path fill-rule="evenodd"
+                            d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                    </svg>DELETE
+                </a>
+            </div>
+        </div>
+    </label>
+    {{end}}
+
+
+    <div class="card-header">
+        <div class="input-group d-sm-flex">
+            <input id="inputGroupTag" type="text" class="form-control" placeholder="Tag" aria-label="Tag">
+            <span class="input-group-text">Node</span>
+            <select class="form-select" id="inputGroupGroup">
+                <option selected value="Empty">Choose...</option>
+
+            </select>
+
+            <select class="form-select" id="inputGroupNode">
+                <option selected value="">Choose...</option>
+            </select>
+
+            <button class="btn btn-outline-secondary" type="button" onclick="addTag()">Add</button>
+        </div>
+
+    </div>
+
+</div>
+
+{{end}}

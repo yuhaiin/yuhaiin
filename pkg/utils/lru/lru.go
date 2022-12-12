@@ -47,7 +47,9 @@ func NewLru[K comparable, V any](capacity uint, timeout time.Duration) *LRU[K, V
 	}
 
 	var t V
-	l.valueHashable = reflect.TypeOf(t).Comparable()
+	if tp := reflect.TypeOf(t); tp != nil {
+		l.valueHashable = tp.Comparable()
+	}
 
 	return l
 }
