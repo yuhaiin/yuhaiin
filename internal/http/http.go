@@ -18,7 +18,7 @@ import (
 
 func Httpserver(mux *http.ServeMux,
 	nm snode.NodeServer, subscribe snode.SubscribeServer,
-	stt sstatistic.ConnectionsServer, cf config.ConfigDaoServer) {
+	stt sstatistic.ConnectionsServer, cf config.ConfigDaoServer, ts snode.TagServer) {
 	// pprof
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -34,6 +34,7 @@ func Httpserver(mux *http.ServeMux,
 	mux.Handle("/sub", &handler{&subHandler{nm: subscribe}})
 	mux.Handle("/group", &handler{&groupHandler{nm: nm}})
 	mux.Handle("/latency", &handler{&latencyHandler{nm: nm}})
+	mux.Handle("/tag", &handler{&tag{nm: nm, ts: ts}})
 	mux.Handle("/bootstrap/", http.StripPrefix("/bootstrap", http.FileServer(http.FS(bootstrap.Bootstrap))))
 	mux.Handle("/", &handler{&rootHandler{nm: nm}})
 }
@@ -80,6 +81,8 @@ type handler struct {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	log.Infoln(r.Method, r.URL)
 	var err error
 	switch r.Method {

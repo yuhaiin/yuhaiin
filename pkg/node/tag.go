@@ -11,10 +11,11 @@ import (
 type tag struct {
 	grpcnode.UnimplementedTagServer
 
-	manager *manager
+	manager   *manager
+	fileStore *FileStore
 }
 
-func NewTag(f *FileStore) grpcnode.TagServer { return &tag{manager: f.manAger} }
+func NewTag(f *FileStore) grpcnode.TagServer { return &tag{manager: f.manAger, fileStore: f} }
 
 func (t *tag) Save(_ context.Context, r *grpcnode.SaveTagReq) (*emptypb.Empty, error) {
 	if _, ok := t.manager.ExistTag(r.Tag); ok {
@@ -23,10 +24,10 @@ func (t *tag) Save(_ context.Context, r *grpcnode.SaveTagReq) (*emptypb.Empty, e
 
 	t.manager.AddTag(r.Tag, r.Hash)
 
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, t.fileStore.Save()
 }
 
 func (t *tag) Remove(_ context.Context, r *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	t.manager.DeleteTag(r.Value)
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, t.fileStore.Save()
 }

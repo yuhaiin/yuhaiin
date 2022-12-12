@@ -152,7 +152,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	// http page
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodeService, subscribe, stcs, opt.Setting)
+	simplehttp.Httpserver(mux, nodeService, subscribe, stcs, opt.Setting, tag)
 
 	// grpc server
 	if opt.GRPCServer != nil {

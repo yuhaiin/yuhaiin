@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
 type outboundPoint struct {
@@ -25,14 +26,16 @@ type outbound struct {
 	manager  *manager
 	udp, tcp outboundPoint
 
-	lock sync.RWMutex
+	lruCache *lru.LRU[string, proxy.Proxy]
+	lock     sync.RWMutex
 }
 
 func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
 	return &outbound{
-		manager: mamanager,
-		udp:     outboundPoint{udp, nil},
-		tcp:     outboundPoint{tcp, nil},
+		manager:  mamanager,
+		udp:      outboundPoint{udp, nil},
+		tcp:      outboundPoint{tcp, nil},
+		lruCache: lru.NewLru[string, proxy.Proxy](20, 0),
 	}
 }
 
@@ -122,12 +125,25 @@ func (o *outbound) tagConn(tag string) (proxy.Proxy, error) {
 		return nil, fmt.Errorf("tag %s is not exist", tag)
 	}
 
-	p, ok := o.manager.GetNode(t.Hash[rand.Intn(len(t.Hash))])
+	hash := t.Hash[rand.Intn(len(t.Hash))]
+
+	v, ok := o.lruCache.Load(hash)
+	if ok {
+		return v, nil
+	}
+
+	p, ok := o.manager.GetNode(hash)
 	if !ok {
 		return nil, fmt.Errorf("get node from %v failed", t.Hash)
 	}
 
-	return register.Dialer(p)
+	v, err := register.Dialer(p)
+	if err != nil {
+		return nil, err
+	}
+
+	o.lruCache.Add(hash, v)
+	return v, nil
 }
 
 func (o *outbound) Do(req *http.Request) (*http.Response, error) {
