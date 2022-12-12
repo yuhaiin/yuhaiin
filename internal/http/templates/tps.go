@@ -17,4 +17,5 @@ const (
 	NEW_NODE   = "newnode.html"
 	EMPTY_BODY = "body.html"
 	CONFIG     = "config.html"
+	TAG        = "tag.html"
 )
