@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/lucas-clemente/quic-go v0.31.1
-	github.com/mdlayher/netlink v1.7.0
+	github.com/mdlayher/netlink v1.7.1
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	golang.org/x/crypto v0.4.0
 	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e
