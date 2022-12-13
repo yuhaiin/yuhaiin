@@ -79,7 +79,7 @@ func (s *shunt) Update(c *pconfig.Setting) {
 
 	for k, v := range c.Bypass.CustomRuleV2 {
 		if v.Mode == bypass.Mode_proxy && len(v.Fields) != 0 {
-			s.mapper.Insert(k, &Field{mode: v.Mode, Fields: v.Fields})
+			s.mapper.Insert(k, &field{v.Mode, v.Fields})
 		} else {
 			s.mapper.Insert(k, v.Mode)
 		}
@@ -133,11 +133,9 @@ func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 		fields := s.search(host)
 		mode = fields.Mode()
 
-		if mode == bypass.Mode_proxy {
-			v, ok := fields.Value("tag")
-			if ok {
-				host.WithValue(node.TagKey{}, v)
-			}
+		v, ok := fields.Value("tag")
+		if ok {
+			host.WithValue(node.TagKey{}, v)
 		}
 	}
 

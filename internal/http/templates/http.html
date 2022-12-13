@@ -31,7 +31,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"/>
             </div>`);
         const show_success = (text) => show_alert(text, "success")
-        const show_danger = (text) => show_danger(text, "danger")
+        const show_danger = (text) => show_alert(text, "danger")
 
         const copyToClipboard = (link) => navigator.clipboard.writeText(link).then(show_success("Copy Successful"), (err) => show_danger("Copy Failed: " + err));
 

@@ -193,7 +193,7 @@ func (c *Client) newConn(rc net.Conn, cmd CMD, target proxy.Address) (*Conn, err
 	return conn, nil
 }
 
-func (c *Conn) RemoteAddr() net.Addr { return c.addr.origin }
+func (c *Conn) RemoteAddr() net.Addr { return c.addr }
 
 // EncodeRequest encodes requests to network bytes
 func (c *Conn) EncodeRequest() ([]byte, error) {
@@ -216,7 +216,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	buf.WriteByte(c.CMD.Byte()) // cmd
 
 	// target
-	binary.Write(buf, binary.BigEndian, uint16(c.addr.port)) // port
+	binary.Write(buf, binary.BigEndian, uint16(c.addr.Port().Port())) // port
 
 	buf.WriteByte(byte(c.addr.atyp)) // atyp
 	buf.Write(c.addr.addr)           // addr

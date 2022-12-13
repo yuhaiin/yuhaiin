@@ -99,5 +99,5 @@ func (s *Shadowsocksr) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("protocol packet failed: %w", err)
 	}
 
-	return shadowsocks.NewSsPacketConn(proto), nil
+	return shadowsocks.NewPacketConn(proto), nil
 }

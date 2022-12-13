@@ -26,7 +26,7 @@ func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
 			return nil, err
 		}
 
-		return &Shadowsocks{cipher: cipher, p: p}, nil
+		return &Shadowsocks{cipher, p}, nil
 	}
 }
 
@@ -56,31 +56,28 @@ func (s *Shadowsocks) PacketConn(tar proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("create packet conn failed")
 	}
 
-	return NewSsPacketConn(s.cipher.PacketConn(pc)), nil
+	return NewPacketConn(s.cipher.PacketConn(pc)), nil
 }
 
-type ssPacketConn struct{ net.PacketConn }
+type packetConn struct{ net.PacketConn }
 
-func NewSsPacketConn(conn net.PacketConn) net.PacketConn {
-	return &ssPacketConn{PacketConn: conn}
-}
+func NewPacketConn(conn net.PacketConn) net.PacketConn { return &packetConn{conn} }
 
-func (v *ssPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+func (v *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, _, err := v.PacketConn.ReadFrom(b)
 	if err != nil {
 		return 0, nil, fmt.Errorf("read udp from shadowsocks failed: %w", err)
 	}
 
-	addr, addrSize, err := s5c.ResolveAddr("udp", bytes.NewBuffer(b[:n]))
+	addr, err := s5c.ResolveAddr(bytes.NewBuffer(b[:n]))
 	if err != nil {
 		return 0, nil, fmt.Errorf("resolve address failed: %w", err)
 	}
 
-	copy(b, b[addrSize:])
-	return n - addrSize, addr, nil
+	return copy(b, b[len(addr):n]), addr.Address("udp"), nil
 }
 
-func (v *ssPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+func (v *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	ad, err := proxy.ParseSysAddr(addr)
 	if err != nil {
 		return 0, err
