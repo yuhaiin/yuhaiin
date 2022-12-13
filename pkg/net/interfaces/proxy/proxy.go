@@ -425,18 +425,18 @@ func (d emptyAddr) RangeValue(func(any, any) bool)  {}
 func (d emptyAddr) OverrideHostname(string) Address { return d }
 func (d emptyAddr) OverridePort(Port) Address       { return d }
 
-type PortImpl struct{ Number uint16 }
+type PortUint16 uint16
 
-func (p PortImpl) Port() uint16   { return p.Number }
-func (p PortImpl) String() string { return strconv.FormatUint(uint64(p.Number), 10) }
+func (p PortUint16) Port() uint16   { return uint16(p) }
+func (p PortUint16) String() string { return strconv.FormatUint(uint64(p), 10) }
 
-var EmptyPort Port = PortImpl{}
+var EmptyPort Port = PortUint16(0)
 
 type PortNumber interface {
 	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~int | ~int8 | ~int16 | ~int32 | ~int64
 }
 
-func ParsePort[T PortNumber](p T) Port { return PortImpl{uint16(p)} }
+func ParsePort[T PortNumber](p T) Port { return PortUint16(p) }
 
 func ParsePortStr(p string) (Port, error) {
 	pt, err := strconv.ParseUint(p, 10, 16)
@@ -444,7 +444,7 @@ func ParsePortStr(p string) (Port, error) {
 		return nil, err
 	}
 
-	return PortImpl{uint16(pt)}, nil
+	return PortUint16(pt), nil
 }
 
 type SourceKey struct{}

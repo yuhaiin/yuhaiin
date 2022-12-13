@@ -133,18 +133,7 @@ func applyRule(settings *protoconfig.Setting, ruls string, mode bypass.Mode) {
 
 		xx := &bypass.ModeConfig{Mode: mode}
 
-		for _, x := range z[1:] {
-			i := bytes.IndexByte(x, '=')
-			if i == -1 {
-				continue
-			}
-
-			if xx.Fields == nil {
-				xx.Fields = make(map[string]string)
-			}
-
-			xx.Fields[strings.ToLower(string(x[:i]))] = strings.ToLower(string(x[i+1:]))
-		}
+		xx.StoreKV(z[1:])
 
 		settings.Bypass.CustomRuleV2[string(z[0])] = xx
 	}

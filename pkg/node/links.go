@@ -81,7 +81,15 @@ func (n *link) Update(names []string) {
 
 	wg.Wait()
 
-	n.outbound.refresh()
+	oo := n.outbound.UDP
+	if p, ok := n.manager.GetNodeByName(oo.Group, oo.Name); ok {
+		n.outbound.Save(p, true)
+	}
+
+	oo = n.outbound.TCP
+	if p, ok := n.manager.GetNodeByName(oo.Group, oo.Name); ok {
+		n.outbound.Save(p, false)
+	}
 }
 
 func (n *link) update(do func(*http.Request) (*http.Response, error), link *subscribe.Link) error {

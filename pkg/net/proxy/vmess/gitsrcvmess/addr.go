@@ -19,22 +19,15 @@ const (
 )
 
 type address struct {
-	atyp   Atyp
-	addr   Addr
-	port   Port
-	origin proxy.Address
+	atyp Atyp
+	addr []byte
+	proxy.Address
 }
-
-// Addr is vmess addr
-type Addr []byte
-
-// Port is vmess addr port
-type Port uint16
 
 // ParseAddr parses the address in string s
 func ParseAddr(s proxy.Address) (address, error) {
 	var atyp Atyp
-	var addr Addr
+	var addr []byte
 
 	if s.Type() == proxy.DOMAIN {
 		atyp = AtypDomain
@@ -58,5 +51,5 @@ func ParseAddr(s proxy.Address) (address, error) {
 		}
 	}
 
-	return address{atyp, addr, Port(s.Port().Port()), s}, nil
+	return address{atyp, addr, s}, nil
 }

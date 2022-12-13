@@ -2,11 +2,11 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -17,109 +17,84 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
-type outboundPoint struct {
-	*point.Point
-	proxy.Proxy
-}
-
 type outbound struct {
 	manager  *manager
-	udp, tcp outboundPoint
+	UDP, TCP *point.Point
 
 	lruCache *lru.LRU[string, proxy.Proxy]
-	lock     sync.RWMutex
 }
 
 func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
 	return &outbound{
 		manager:  mamanager,
-		udp:      outboundPoint{udp, nil},
-		tcp:      outboundPoint{tcp, nil},
-		lruCache: lru.NewLru[string, proxy.Proxy](20, 0),
+		UDP:      udp,
+		TCP:      tcp,
+		lruCache: lru.NewLru[string, proxy.Proxy](22, 0),
 	}
 }
 
 func (o *outbound) Save(p *point.Point, udp bool) {
-	o.lock.Lock()
-	defer o.lock.Unlock()
-	if udp && o.udp.Hash != p.Hash {
-		o.udp = outboundPoint{p, nil}
-	} else if o.tcp.Hash != p.Hash {
-		o.tcp = outboundPoint{p, nil}
-	}
-}
-
-func (o *outbound) refresh() {
-	o.udp.Proxy = nil
-	o.tcp.Proxy = nil
-}
-
-func (o *outbound) Point(udp bool) *point.Point {
-	var now *point.Point
-
 	if udp {
-		now = o.udp.Point
+		o.UDP = p
 	} else {
-		now = o.tcp.Point
+		o.TCP = p
 	}
-
-	if now == nil {
-		return &point.Point{}
-	}
-
-	p, ok := o.manager.GetNodeByName(now.Group, now.Name)
-	if !ok {
-		return now
-	}
-
-	return p
 }
+
+var errEmptyTag = errors.New("empty tag")
 
 type TagKey struct{}
 
 func (TagKey) String() string { return "Tag" }
 
 func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
-	if tag := proxy.Value(host, TagKey{}, ""); tag != "" {
-		tc, err := o.tagConn(tag)
-		if err == nil {
-			return tc.Conn(host)
-		} else {
-			log.Warningln("get dialer by tag failed:", err)
-		}
+	tc, err := o.tagConn(host)
+	if err == nil {
+		return tc.Conn(host)
+	} else if !errors.Is(err, errEmptyTag) {
+		log.Warningln(err)
 	}
 
-	if o.tcp.Proxy == nil {
-		o.tcp.Proxy, err = register.Dialer(o.Point(false))
+	p, ok := o.lruCache.Load(o.TCP.Hash)
+	if !ok {
+		p, err = register.Dialer(o.TCP)
 		if err != nil {
 			return nil, err
 		}
+
+		o.lruCache.Add(o.TCP.Hash, p)
 	}
 
-	return o.tcp.Conn(host)
+	return p.Conn(host)
 }
 
 func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) {
-	if tag := proxy.Value(host, TagKey{}, ""); tag != "" {
-		tc, err := o.tagConn(tag)
-		if err == nil {
-			return tc.PacketConn(host)
-		} else {
-			log.Warningln("get dialer by tag failed:", err)
-		}
+	tc, err := o.tagConn(host)
+	if err == nil {
+		return tc.PacketConn(host)
+	} else if !errors.Is(err, errEmptyTag) {
+		log.Warningln(err)
 	}
 
-	if o.udp.Proxy == nil {
-		o.udp.Proxy, err = register.Dialer(o.Point(true))
+	p, ok := o.lruCache.Load(o.UDP.Hash)
+	if !ok {
+		p, err = register.Dialer(o.UDP)
 		if err != nil {
 			return nil, err
 		}
+
+		o.lruCache.Add(o.UDP.Hash, p)
 	}
 
-	return o.udp.PacketConn(host)
+	return p.PacketConn(host)
 }
 
-func (o *outbound) tagConn(tag string) (proxy.Proxy, error) {
+func (o *outbound) tagConn(host proxy.Address) (proxy.Proxy, error) {
+	tag := proxy.Value(host, TagKey{}, "")
+	if tag == "" {
+		return nil, errEmptyTag
+	}
+
 	t, ok := o.manager.ExistTag(tag)
 	if !ok {
 		return nil, fmt.Errorf("tag %s is not exist", tag)
@@ -147,7 +122,7 @@ func (o *outbound) tagConn(tag string) (proxy.Proxy, error) {
 }
 
 func (o *outbound) Do(req *http.Request) (*http.Response, error) {
-	f := direct.Default.Conn
+	f := o.Conn
 
 	c := &http.Client{
 		Timeout: time.Minute * 2,
@@ -169,7 +144,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 		return r, nil
 	}
 
-	f = o.Conn
+	f = direct.Default.Conn
 
 	return c.Do(req)
 }
