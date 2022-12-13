@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
@@ -53,59 +52,55 @@ func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 	case proxy.DOMAIN:
 		fallthrough
 	default:
-		buf.Write([]byte{0x03})
-		buf.Write([]byte{byte(len(addr.Hostname()))})
+		buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
 		buf.Write([]byte(addr.Hostname()))
 	}
-
-	buf.Write([]byte{byte(addr.Port().Port() >> 8), byte(addr.Port().Port() & 255)})
-
+	binary.Write(buf, binary.BigEndian, addr.Port().Port())
 }
 
-func ResolveAddr(network string, r io.Reader) (_ proxy.Address, size int, err error) {
-	var byteBuf [1]byte
-	if size, err = io.ReadFull(r, byteBuf[:]); err != nil {
-		return nil, 0, fmt.Errorf("unable to read ATYP: %w", err)
+type ADDR []byte
+
+func (a ADDR) Address(network string) proxy.Address {
+	if len(a) == 0 {
+		return proxy.EmptyAddr
 	}
-
-	var bufSize int
-	switch byteBuf[0] {
-	case IPv4:
-		bufSize = 4
-	case IPv6:
-		bufSize = 16
-	case Domain:
-		length := make([]byte, 1)
-		if _, err = io.ReadFull(r, length); err != nil {
-			return nil, 0, fmt.Errorf("failed to read domain name length: %w", err)
-		}
-
-		size += 1
-
-		bufSize = int(length[0])
-	default:
-		return nil, 0, fmt.Errorf("invalid ATYP " + strconv.FormatInt(int64(byteBuf[0]), 10))
-	}
-
-	buf := make([]byte, bufSize)
-	if _, err = io.ReadFull(r, buf[:]); err != nil {
-		return nil, 0, fmt.Errorf("failed to read IPv6: %w", err)
-	}
-	size += bufSize
 
 	var hostname string
-	switch byteBuf[0] {
+	switch a[0] {
 	case IPv4, IPv6:
-		hostname = net.IP(buf[:]).String()
+		hostname = net.IP(a[1 : len(a)-2]).String()
 	case Domain:
-		hostname = string(buf)
+		hostname = string(a[2 : len(a)-2])
+	}
+	port := binary.BigEndian.Uint16(a[len(a)-2:])
+
+	return proxy.ParseAddressSplit(network, hostname, proxy.ParsePort(port))
+}
+
+func ResolveAddr(r io.Reader) (ADDR, error) {
+	var buf [2]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return nil, fmt.Errorf("unable to read addr type: %w", err)
 	}
 
-	if _, err = io.ReadFull(r, buf[:2]); err != nil {
-		return nil, 0, fmt.Errorf("failed to read port: %w", err)
-	}
-	size += 2
-	port := binary.BigEndian.Uint16(buf[0:2])
+	var addr ADDR
 
-	return proxy.ParseAddressSplit(network, hostname, proxy.ParsePort(port)), size, nil
+	switch buf[0] {
+	case IPv4:
+		addr = make([]byte, 1+4+2)
+	case IPv6:
+		addr = make([]byte, 1+16+2)
+	case Domain:
+		addr = make([]byte, 1+1+buf[1]+2)
+	default:
+		return nil, fmt.Errorf("unknown addr type: %d", buf[0])
+	}
+
+	copy(addr[:2], buf[:])
+
+	if _, err := io.ReadFull(r, addr[2:]); err != nil {
+		return nil, err
+	}
+
+	return addr, nil
 }

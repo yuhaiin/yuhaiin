@@ -135,10 +135,12 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		return n, c.addr, err
 	}
 
-	c.addr, _, err = s5c.ResolveAddr("udp", c.Conn)
+	addr, err := s5c.ResolveAddr(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
+
+	c.addr = addr.Address("udp")
 
 	var length uint16
 	if err = binary.Read(c.Conn, binary.BigEndian, &length); err != nil {

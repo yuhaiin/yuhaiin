@@ -118,8 +118,18 @@ func defaultConfig(path string) []byte {
 			Udp:        bypass.Mode_bypass,
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
 			CustomRuleV2: map[string]*bypass.ModeConfig{
-				"dns.google":               {Mode: bypass.Mode_proxy},
-				"223.5.5.5":                {Mode: bypass.Mode_direct},
+				"dns.google": {
+					Mode: bypass.Mode_proxy,
+					Fields: map[string]string{
+						"tag": "remote_dns",
+					},
+				},
+				"223.5.5.5": {
+					Mode: bypass.Mode_direct,
+					Fields: map[string]string{
+						"tag": "local_dns",
+					},
+				},
 				"exmaple.block.domain.com": {Mode: bypass.Mode_block},
 			},
 		},

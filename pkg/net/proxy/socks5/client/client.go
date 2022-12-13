@@ -130,10 +130,12 @@ func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (targ
 		return nil, errors.New("socks5 second handshake failed")
 	}
 
-	addr, _, err := ResolveAddr("tcp", conn)
+	add, err := ResolveAddr(conn)
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
+
+	addr := add.Address("tcp")
 
 	if addr.Type() == proxy.IP && yerror.Must(addr.IP()).IsUnspecified() {
 		addr = proxy.ParseAddressSplit("", s.hostname, addr.Port())
@@ -205,20 +207,18 @@ func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 		return 0, addr, fmt.Errorf("read from remote failed: %w", err)
 	}
 
-	adr, size, err := ResolveAddr("udp", bytes.NewReader(p[3:n]))
+	adr, err := ResolveAddr(bytes.NewReader(p[3:n]))
 	if err != nil {
 		return 0, addr, fmt.Errorf("resolve addr failed: %w", err)
 	}
 
-	prefix := 3 + size
+	prefix := 3 + len(adr)
 
 	if n < prefix {
 		return 0, addr, fmt.Errorf("slice out of range, get: %d less %d", n, prefix)
 	}
 
-	copy(p[0:], p[prefix:n])
-
-	return n - prefix, adr, nil
+	return copy(p[0:], p[prefix:n]), adr.Address("udp"), nil
 }
 
 // The client connects to the server, and sends a version

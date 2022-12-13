@@ -110,11 +110,12 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 
 	switch s5c.CMD(buf[1]) { // mode
 	case s5c.Connect:
-		var addr proxy.Address
-		addr, _, err = s5c.ResolveAddr("tcp", client)
+		adr, err := s5c.ResolveAddr(client)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
+
+		addr := adr.Address("tcp")
 		addr.WithValue(proxy.SourceKey{}, client.RemoteAddr())
 		addr.WithValue(proxy.InboundKey{}, client.LocalAddr())
 		addr.WithValue(proxy.DestinationKey{}, addr)

@@ -51,14 +51,14 @@ func (u *udpServer) handle(dialer proxy.Proxy) {
 
 		go func(data []byte, n int, src net.Addr) {
 			defer pool.PutBytes(data)
-			addr, size, err := s5c.ResolveAddr("udp", bytes.NewBuffer(data[3:n]))
+			addr, err := s5c.ResolveAddr(bytes.NewReader(data[3:n]))
 			if err != nil {
 				log.Errorf("resolve addr failed: %v", err)
 				return
 			}
 
-			err = u.netTable.Write(data[3+size:n], src, addr,
-				&localPacketConn{u.PacketConn, s5c.ParseAddr(addr)})
+			err = u.netTable.Write(data[3+len(addr):n], src, addr.Address("udp"),
+				&localPacketConn{u.PacketConn, addr})
 			if err != nil {
 				log.Errorln("write to nat table failed:", err)
 			}

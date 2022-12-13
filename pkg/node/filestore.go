@@ -50,8 +50,8 @@ func load(path string) *node.Node {
 
 func (n *FileStore) toNode() *node.Node {
 	return &node.Node{
-		Tcp:     n.outBound.Point(false),
-		Udp:     n.outBound.Point(true),
+		Tcp:     n.outBound.TCP,
+		Udp:     n.outBound.UDP,
 		Links:   n.links.Links(),
 		Manager: n.manAger.GetManager(),
 	}

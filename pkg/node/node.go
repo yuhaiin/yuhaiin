@@ -30,7 +30,11 @@ type Nodes struct {
 func NewNodes(fileStore *FileStore) *Nodes { return &Nodes{fileStore: fileStore} }
 
 func (n *Nodes) Now(_ context.Context, r *grpcnode.NowReq) (*point.Point, error) {
-	return n.outbound().Point(r.Net == grpcnode.NowReq_udp), nil
+	if r.Net == grpcnode.NowReq_udp {
+		return n.outbound().UDP, nil
+	} else {
+		return n.outbound().TCP, nil
+	}
 }
 
 func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point, error) {
