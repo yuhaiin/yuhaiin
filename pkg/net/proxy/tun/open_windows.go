@@ -81,6 +81,8 @@ func (w *winWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error)
 	return pkts.Len(), nil
 }
 
+func (w *winWriter) Close() error { return nil }
+
 var _ inbound = (*winInbound)(nil)
 
 type winInbound struct {

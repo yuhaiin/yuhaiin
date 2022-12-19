@@ -19,6 +19,7 @@
 package tun
 
 import (
+	"io"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -31,6 +32,7 @@ import (
 type writer interface {
 	Write([]byte) tcpip.Error
 	WritePackets(stack.PacketBufferList) (int, tcpip.Error)
+	io.Closer
 }
 
 type inbound interface {
@@ -69,6 +71,7 @@ func (e *Endpoint) SetInbound(i inbound) { e.inbound = i }
 func (e *Endpoint) Close() {
 	e.inbound.stop()
 	e.wg.Wait()
+	e.writer.Close()
 }
 
 // InjectInbound injects an inbound packet.

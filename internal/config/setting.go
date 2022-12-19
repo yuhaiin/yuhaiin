@@ -229,26 +229,9 @@ func save(pa *config.Setting, dir string) error {
 }
 
 func check(pa *config.Setting) error {
-	err := checkBypass(pa.Bypass)
+	err := CheckBootstrapDns(pa.Dns.Bootstrap)
 	if err != nil {
 		return err
-	}
-
-	err = CheckBootstrapDns(pa.Dns.Bootstrap)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func checkBypass(pa *bypass.Config) error {
-	if pa.Tcp != bypass.Mode_bypass && pa.Udp != bypass.Mode_bypass {
-		return nil
-	}
-	_, err := os.Stat(pa.BypassFile)
-	if err != nil {
-		return fmt.Errorf("check bypass file stat failed: %w", err)
 	}
 
 	return nil

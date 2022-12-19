@@ -4,7 +4,6 @@ import (
 	"html/template"
 	"io"
 	"net/http"
-	"net/http/pprof"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/internal/http/bootstrap"
@@ -16,18 +15,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
+var debug func(*http.ServeMux)
+
 func Httpserver(mux *http.ServeMux,
 	nm snode.NodeServer, subscribe snode.SubscribeServer,
 	stt sstatistic.ConnectionsServer, cf config.ConfigDaoServer, ts snode.TagServer) {
-	// pprof
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	if debug != nil {
+		debug(mux)
+	}
 
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte{}) })
-
 	mux.Handle("/config", &handler{&configHandler{cf: cf}})
 	mux.Handle("/conn", &handler{&conn{stt: stt}})
 	mux.Handle("/node", &handler{&nodeHandler{nm: nm}})

@@ -1,0 +1,92 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2007-2012 OpenWrt.org
+
+START=99
+
+USE_PROCD=1
+PROG=${HOME}/yuhaiin_alpine
+
+HOST=${HOST:-0.0.0.0:50051}
+CONFIG_PATH=${YUHAIIN_CONFIG_PATH:-${HOME}/yuhaiin}
+CONFIG_FILE=${CONFIG_PATH}/config.json
+
+TUN_NAME=$(jq -r '(.server.servers.tun.tun.name) | split("tun://")[] | split("fd://")[]' ${CONFIG_FILE})
+TUN_NAME=${TUN_NAME:-yuhaiin}
+
+PREFIX_ADDR=$(jq -r '(.server.servers.tun.tun.gateway)' ${CONFIG_FILE})
+PREFIX_ADDR=${PREFIX:-172.19.0.1}
+MASK_SIZE=${MASK_SIZE:-24}
+
+PREFIX=${PREFIX_ADDR}/${MASK_SIZE}
+
+TABLE=${TABLE:-233}
+LAN_IPS=${LAN_IPS:-"192.168.2.145 192.168.122.27"}
+
+RULES="
+default
+"
+
+start_service() {
+    if [ -z "$(ip tuntap list | grep "${TUN_NAME}: tun")" ]; then
+        logger "add tun device ${TUN_NAME}"
+        ip tuntap add mode tun dev ${TUN_NAME}
+    fi
+
+    if [ -z "$(ip addr show dev ${TUN_NAME} to ${PREFIX})" ]; then
+        logger "add addr ${PREFIX} to dev ${TUN_NAME}"
+        ip addr add ${PREFIX} dev ${TUN_NAME}
+    fi
+
+    if [ -z "$(ip link show ${TUN_NAME} up)" ]; then
+        logger "set dev ${TUN_NAME} up"
+        ip link set dev ${TUN_NAME} up
+    fi
+
+    ip route flush table ${TABLE}
+
+    for rule in ${RULES}; do
+        logger "add rule $rule to table ${TABLE}"
+        ip route replace $rule dev ${TUN_NAME} table ${TABLE}
+    done
+
+    for addr in ${LAN_IPS}; do
+        logger "add lan $addr"
+        ip rule add from ${addr} lookup ${TABLE} priority 30001
+    done
+
+    if [ -n "$(iptables -C FORWARD -o ${TUN_NAME} -j ACCEPT 2>&1)" ]; then
+        logger "iptables -I FORWARD -o ${TUN_NAME} -j ACCEPT"
+        iptables -I FORWARD -o ${TUN_NAME} -j ACCEPT
+    fi
+
+    if [ -n "$(iptables -C FORWARD -i ${TUN_NAME} -j ACCEPT 2>&1)" ]; then
+        logger "iptables -I FORWARD -i ${TUN_NAME} -j ACCEPT"
+        iptables -I FORWARD -i ${TUN_NAME} -j ACCEPT
+    fi
+
+    procd_open_instance yuhaiin
+    procd_set_param command $PROG -host $HOST -path $CONFIG_PATH
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+
+    procd_close_instance
+}
+
+stop_service() {
+    procd_send_signal $PROG
+
+    iptables -D FORWARD -o ${TUN_NAME} -j ACCEPT
+    iptables -D FORWARD -i ${TUN_NAME} -j ACCEPT
+
+    for addr in ${LAN_IPS}; do
+        logger "del lan $addr"
+        ip rule del from ${addr} lookup ${TABLE} priority 30001
+    done
+
+    ip route flush table ${TABLE}
+}
+
+restart_service() {
+    stop
+    start
+}

@@ -22,6 +22,7 @@ LINUX_AMD64=GOOS=linux GOARCH=amd64
 LINUX_AMD64v3=GOOS=linux GOARCH=amd64 GOAMD64=v3
 WINDOWS_AMD64=GOOS=windows GOARCH=amd64
 WINDOWS_AMD64v3=GOOS=windows GOARCH=amd64 GOAMD64=v3
+LINUX_MIPSLE=GOOS=linux GOARCH=mipsle GOMIPS=softfloat
 ANDROID_ARM64=GOOS=android GOARCH=arm64 CGO_ENABLED=1 CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
 ANDROID_AMD64=GOOS=android GOARCH=amd64 CGO_ENABLED=1 CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang
 
@@ -80,6 +81,9 @@ yuhaiin_android:
 cli_android:
 	$(ANDROID_ARM64) $(GO_BUILD_CMD) -o yh_android $(CLI)
 
+.PHONY: yuhaiin_mipsle
+yuhaiin_mipsle:
+	$(LINUX_MIPSLE) $(GO_BUILD_CMD) -tags "openwrt" -o yuhaiin_mipsle $(YUHAIIN)
 
 .PHONY: install
 install: build cli
