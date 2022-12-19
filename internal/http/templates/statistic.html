@@ -81,10 +81,6 @@
     }
 
     const generate_conn_item = (element) => {
-        let tag = "";
-        if (element.extra.Tag != null && element.extra.Tag != "") {
-            tag = `<span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.extra.Tag}</span>`;
-        }
         return `
     <div class="accordion-item" id="connection_${element.id}">
         <h2 class="accordion-header" id="panelsStayOpen-heading${element.id}">
@@ -96,7 +92,7 @@
                     <span class="ms-2">${element.addr}</span>
                     <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.extra.MODE}</span>
                     <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.type.conn_type}</span>
-                    ${tag}
+                    ${function () { return (element.extra.Tag != null && element.extra.Tag != "") ? `<span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.extra.Tag}</span>` : ""; }()}
                 </div>
             </button>
         </h2>

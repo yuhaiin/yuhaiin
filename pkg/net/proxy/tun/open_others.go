@@ -6,50 +6,41 @@ package tun
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
 	"gvisor.dev/gvisor/pkg/tcpip/link/rawfile"
 	"gvisor.dev/gvisor/pkg/tcpip/link/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 func open(name string, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
+	scheme, name, err := utils.GetScheme(name)
+	if err != nil {
+		return nil, fmt.Errorf("get scheme failed: %w", err)
+	}
+	name = name[2:]
+
 	if len(name) >= unix.IFNAMSIZ {
 		return nil, fmt.Errorf("interface name too long: %s", name)
 	}
 
 	var fd int
-	if strings.HasPrefix(name, "tun://") {
-		fd, err = tun.Open(name[6:])
-	} else if strings.HasPrefix(name, "fd://") {
-		fd, err = strconv.Atoi(name[5:])
-	} else {
+	switch scheme {
+	case "tun":
+		fd, err = tun.Open(name)
+	case "fd":
+		fd, err = strconv.Atoi(name)
+	default:
 		err = fmt.Errorf("invalid tun name: %s", name)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("open tun failed: %w", err)
+		return nil, fmt.Errorf("open tun [%s,%s] failed: %w", scheme, name, err)
 	}
 
-	switch driver {
-	case listener.Tun_channel:
-		ce := NewEndpoint(newFDWriter(fd), uint32(mtu), "")
-		r, err := newReadVDispatcher(fd, ce)
-		if err != nil {
-			return nil, fmt.Errorf("create readv dispatcher failed: %w", err)
-		}
-		ce.SetInbound(r)
-		return ce, nil
-	default:
-		return fdbased.New(&fdbased.Options{
-			FDs:            []int{fd},
-			MTU:            uint32(mtu),
-			EthernetHeader: false,
-		})
-	}
+	return openFD(fd, mtu, driver)
 }
 
 var _ writer = (*fdWriter)(nil)
@@ -83,3 +74,4 @@ func (w *fdWriter) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 }
 
 func (w *fdWriter) Write(b []byte) tcpip.Error { return rawfile.NonBlockingWrite(w.fd, b) }
+func (w *fdWriter) Close() error               { return unix.Close(w.fd) }
