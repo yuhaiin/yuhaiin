@@ -1,3 +1,6 @@
+//go:build !openwrt
+// +build !openwrt
+
 package main
 
 import (

@@ -32,7 +32,7 @@ func (t *tunServer) Close() error {
 			return true
 		})
 		t.stack.RemoveNIC(t.nicID)
-		t.stack.Close()
+		t.stack.Destroy()
 	}
 
 	if t.udpTable != nil {

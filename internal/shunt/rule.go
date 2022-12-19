@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	_ "embed"
 	"io"
 	"os"
 	"strings"
@@ -13,9 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
-
-//go:embed statics/bypass.gz
-var BYPASS_DATA []byte
 
 type field struct {
 	mode   bypass.Mode

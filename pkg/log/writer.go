@@ -53,7 +53,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 			break
 		}
 
-		if fs.Size() < 1024*1024 {
+		if fs.Size() < int64(maxSize) {
 			f.log.Println("checked logs' file is not over 1 MB, break")
 			break
 		}
@@ -110,11 +110,11 @@ func (f *FileWriter) removeOldFile() {
 		logfiles = append(logfiles, file.Name())
 	}
 
-	if len(logfiles) <= 5 {
+	if len(logfiles) <= maxFile {
 		return
 	}
 
-	for _, name := range logfiles[:len(logfiles)-5] {
+	for _, name := range logfiles[:len(logfiles)-maxFile] {
 		if err = os.Remove(filepath.Join(dir, name)); err != nil {
 			f.log.Printf("remove log file %s failed: %v\n", name, err)
 			continue
