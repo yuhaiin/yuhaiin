@@ -59,7 +59,7 @@ func (u *udpServer) handle(dialer proxy.Proxy) {
 
 			err = u.netTable.Write(data[3+len(addr):n], src, addr.Address("udp"),
 				&localPacketConn{u.PacketConn, addr})
-			if err != nil {
+			if err != nil && !errors.Is(err, os.ErrClosed) {
 				log.Errorln("write to nat table failed:", err)
 			}
 		}(buf, n, raddr)
@@ -95,12 +95,8 @@ func (u *NatTable) writeTo(data []byte, src, dst net.Addr) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-
-	if _, err := dstpconn.WriteTo(data, dst); err != nil && !errors.Is(err, net.ErrClosed) {
-		return true, err
-	}
-
-	return true, nil
+	_, err := dstpconn.WriteTo(data, dst)
+	return true, err
 }
 
 func (u *NatTable) Write(data []byte, src net.Addr, dst proxy.Address, srcpconn net.PacketConn) error {
@@ -116,9 +112,9 @@ func (u *NatTable) Write(data []byte, src net.Addr, dst proxy.Address, srcpconn 
 	if ok {
 		cond.L.Lock()
 		cond.Wait()
-		u.writeTo(data, src, dst)
+		_, err := u.writeTo(data, src, dst)
 		cond.L.Unlock()
-		return nil
+		return err
 	}
 
 	defer u.lock.Delete(src.String())
@@ -133,7 +129,9 @@ func (u *NatTable) Write(data []byte, src net.Addr, dst proxy.Address, srcpconn 
 	}
 	u.cache.Store(src.String(), dstpconn)
 
-	u.writeTo(data, src, dst)
+	if _, err = u.writeTo(data, src, dst); err != nil {
+		return fmt.Errorf("write data to remote failed: %w", err)
+	}
 
 	go func() {
 		defer dstpconn.Close()

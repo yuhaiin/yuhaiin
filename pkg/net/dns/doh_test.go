@@ -98,6 +98,7 @@ func TestDOH(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Log(d.LookupIP("plasma"))
+	t.Log(d.LookupIP("fonts.gstatic.com"))
 	t.Log(d.LookupIP("dc.services.visualstudio.com")) // -> will error, but not found reason
 	t.Log(d.LookupIP("i2.hdslb.com"))
 	t.Log(d.LookupIP("www.baidu.com"))
