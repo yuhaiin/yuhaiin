@@ -9,10 +9,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
+	"google.golang.org/grpc"
 )
 
 func init() {
 	processDumper = processDumperImpl{}
+	newGrpcServer = func() *grpc.Server { return grpc.NewServer() }
 }
 
 type processDumperImpl struct{}

@@ -22,6 +22,7 @@ import (
 )
 
 var processDumper listener.ProcessDumper
+var newGrpcServer = func() *grpc.Server { return nil }
 
 func main() {
 	ver := flag.Bool("v", false, "show version")
@@ -39,7 +40,7 @@ func main() {
 	defer lock.UnLock()
 
 	setting := config.NewConfig(pc.Config)
-	grpcserver := grpc.NewServer()
+	grpcserver := newGrpcServer()
 
 	resp := yerror.Must(
 		yuhaiin.Start(
@@ -64,7 +65,7 @@ func main() {
 		// h2c for grpc insecure mode
 		http.Serve(resp.HttpListener, h2c.NewHandler(http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+				if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 					grpcserver.ServeHTTP(w, r)
 				} else {
 					resp.Mux.ServeHTTP(w, r)
