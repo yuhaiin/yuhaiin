@@ -15,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type MODE_MARK_KEY struct{}
@@ -36,7 +35,7 @@ type shunt struct {
 	config              *bypass.Config
 	mapper              imapper.Mapper[string, proxy.Address, bypass.ModeEnum]
 	lock                sync.RWMutex
-	modeStore           syncmap.SyncMap[bypass.Mode, Mode]
+	modeStore           map[bypass.Mode]Mode
 }
 
 type Mode struct {
@@ -54,10 +53,14 @@ func NewShunt(modes []Mode) proxy.DialerResolverProxy {
 			Udp:        bypass.Mode_bypass,
 			BypassFile: "",
 		},
+		modeStore: make(map[bypass.Mode]Mode),
 	}
 
 	for _, mode := range modes {
-		s.AddMode(mode)
+		s.modeStore[mode.Mode] = mode
+		if mode.Default {
+			s.defaultMode = mode.Mode
+		}
 	}
 
 	return s
@@ -83,13 +86,6 @@ func (s *shunt) Update(c *pconfig.Setting) {
 		} else {
 			s.mapper.Insert(k, v.Mode)
 		}
-	}
-}
-
-func (s *shunt) AddMode(m Mode) {
-	s.modeStore.Store(m.Mode, m)
-	if m.Default {
-		s.defaultMode = m.Mode
 	}
 }
 
@@ -139,7 +135,7 @@ func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 		}
 	}
 
-	m, ok := s.modeStore.Load(mode)
+	m, ok := s.modeStore[mode]
 	if !ok {
 		m = errMode
 	}
@@ -171,7 +167,7 @@ func (s *shunt) Resolver(host proxy.Address) dns.DNS {
 }
 
 func (s *shunt) loadResolver(m bypass.ModeEnum) dns.DNS {
-	d, ok := s.modeStore.Load(m.Mode())
+	d, ok := s.modeStore[m.Mode()]
 	if ok {
 		return d.Resolver
 	}

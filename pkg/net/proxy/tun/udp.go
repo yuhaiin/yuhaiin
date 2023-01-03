@@ -1,8 +1,10 @@
 package tun
 
 import (
+	"errors"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -73,7 +75,7 @@ func udpForwarder(s *stack.Stack, natTable *s5s.NatTable, opt *listener.Opts[*li
 				}
 			}
 
-			if err := handle(local, dst); err != nil {
+			if err := handle(local, dst); err != nil && !errors.Is(err, os.ErrClosed) {
 				log.Errorln("handle udp request failed:", err)
 			}
 

@@ -35,7 +35,7 @@
 yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 ```
 
-![web_page](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/web_page.png)
+![web_page2](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/web_page2.png)
 
 <details>
 <summary>Acknowledgement</summary>
