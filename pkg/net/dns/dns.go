@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 type Config struct {
 	Type       pdns.Type
 	IPv6       bool
-	Subnet     *net.IPNet
+	Subnet     netip.Prefix
 	Name       string
 	Host       string
 	Servername string
@@ -72,24 +73,23 @@ func (c ipResponse) String() string {
 }
 
 func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{do: send, config: config, cache: lru.NewLru[string, ipResponse](300, 0)}
+	c := &client{do: send, config: config, cache: lru.NewLru[string, ipResponse](100, 0)}
 
-	if config.Subnet == nil {
+	if !config.Subnet.IsValid() {
 		return c
 	}
 
 	// EDNS Subnet
 	optionData := bytes.NewBuffer(nil)
 
-	ip := config.Subnet.IP.To4()
-	if ip == nil { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
+	ip := config.Subnet.Masked().Addr()
+	if ip.Is6() { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
 		optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
-		ip = config.Subnet.IP.To16()
 	} else {
 		optionData.Write([]byte{0b00000000, 0b00000001}) // family ipv4 1
 	}
 
-	mask, _ := config.Subnet.Mask.Size()
+	mask := config.Subnet.Bits()
 	optionData.WriteByte(byte(mask)) // mask
 	optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
 
@@ -98,7 +98,7 @@ func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
 		i++
 	}
 
-	optionData.Write(ip[:i]) // subnet IP
+	optionData.Write(ip.AsSlice()[:i]) // subnet IP
 
 	c.subnet = []dnsmessage.Resource{
 		{
@@ -175,7 +175,6 @@ func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPResponse,
 	}{Cond: sync.NewCond(&sync.Mutex{})}
 	cond, ok := c.cond.LoadOrStore(key, lock)
 	if ok {
-		log.Debugln("wait for another request for", key)
 		cond.L.Lock()
 		cond.Wait()
 		cond.L.Unlock()

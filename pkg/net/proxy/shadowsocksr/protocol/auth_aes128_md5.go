@@ -38,8 +38,8 @@ func newAuthAES128(info Protocol, hash crypto.Hash) protocol {
 
 type authAES128 struct {
 	hasSentHeader, rawTrans bool
-	uid                     [4]byte
 	recvID, packID          uint32
+	uid                     [4]byte
 	hmac                    ssr.HMAC
 	userKey                 []byte
 	salt                    string
@@ -154,8 +154,6 @@ func (a *authAES128) rndDataLen(bufSize, fullBufSize int) int {
 	return trapezoidRandomFLoat(revLen, -0.3)
 }
 
-var bigInt256 = big.NewInt(256)
-
 func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	dataLength := len(data)
 	if dataLength == 0 {
@@ -198,7 +196,7 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	hmacBuf := pool.GetBytes(6)
 	defer pool.PutBytes(hmacBuf)
 
-	wbuf.WriteByte(byte(yerror.Ignore(crand.Int(crand.Reader, bigInt256)).Uint64()))
+	wbuf.WriteByte(byte(yerror.Ignore(crand.Int(crand.Reader, big.NewInt(256))).Uint64()))
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
 	wbuf.Write(a.uid[:])
 	wbuf.Write(encrypt[:16])
@@ -301,13 +299,15 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 
 // https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L749
 func (a *authAES128) EncryptPacket(b []byte) ([]byte, error) {
-	wbuf := bytes.NewBuffer(nil)
-	wbuf.Write(b)
-	wbuf.Write(a.uid[:])
 	hmacBuf := pool.GetBytes(6)
 	defer pool.PutBytes(hmacBuf)
-	wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes(), hmacBuf)[:4])
-	return wbuf.Bytes(), nil
+
+	wbuf := make([]byte, 0, len(b)+len(a.uid)+4)
+	wbuf = append(wbuf, b...)
+	wbuf = append(wbuf, a.uid[:]...)
+	wbuf = append(wbuf, a.hmac.HMAC(a.userKey, wbuf, hmacBuf)[:4]...)
+
+	return wbuf, nil
 }
 
 // https://github.com/shadowsocksrr/shadowsocksr/blob/fd723a92c488d202b407323f0512987346944136/shadowsocks/obfsplugin/auth.py#L764

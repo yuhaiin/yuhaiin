@@ -64,7 +64,11 @@ func (f *Fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("connect udp to %s failed: %w", addr, err)
 	}
 
-	return &WrapAddressPacketConn{c, f.getAddr}, nil
+	if f.config != nil && f.config.Fakedns {
+		c = &WrapAddressPacketConn{c, f.getAddr}
+	}
+
+	return c, nil
 }
 
 func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {

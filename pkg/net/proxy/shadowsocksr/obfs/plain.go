@@ -4,7 +4,4 @@ import (
 	"net"
 )
 
-type plain struct{ net.Conn }
-
-func newPlainObfs(conn net.Conn, _ Obfs) obfs { return &plain{conn} }
-func (p *plain) GetOverhead() int             { return 0 }
+func newPlain(conn net.Conn, _ Obfs) net.Conn { return conn }

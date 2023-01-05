@@ -17,10 +17,7 @@ type randomHead struct {
 	net.Conn
 }
 
-func newRandomHead(conn net.Conn, _ Obfs) obfs {
-	p := &randomHead{Conn: conn}
-	return p
-}
+func newRandomHead(conn net.Conn, _ Obfs) net.Conn { return &randomHead{Conn: conn} }
 
 func (r *randomHead) encode(data []byte) (encodedData []byte) {
 	if r.rawTransSent {
@@ -70,6 +67,4 @@ func (r *randomHead) Read(b []byte) (n int, err error) {
 	return 0, nil
 }
 
-func (r *randomHead) GetOverhead() int {
-	return 0
-}
+func (r *randomHead) GetOverhead() int { return 0 }

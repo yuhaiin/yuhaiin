@@ -11,8 +11,8 @@ func ListenContext(ctx context.Context, network string, address string) (net.Lis
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, &Options{
 				InterfaceName:  DefaultInterfaceName,
-				RoutingMark:    DefaultRoutingMark,
 				InterfaceIndex: DefaultInterfaceIndex,
+				MarkSymbol:     DefaultMarkSymbol,
 			})
 		},
 	}).
@@ -23,7 +23,7 @@ func DialContext(ctx context.Context, network, address string) (net.Conn, error)
 	return DialContextWithOptions(ctx, network, address, &Options{
 		InterfaceName:  DefaultInterfaceName,
 		InterfaceIndex: DefaultInterfaceIndex,
-		RoutingMark:    DefaultRoutingMark,
+		MarkSymbol:     DefaultMarkSymbol,
 	})
 }
 
@@ -40,7 +40,7 @@ func ListenPacket(network, address string) (net.PacketConn, error) {
 	return ListenPacketWithOptions(network, address, &Options{
 		InterfaceName:  DefaultInterfaceName,
 		InterfaceIndex: DefaultInterfaceIndex,
-		RoutingMark:    DefaultRoutingMark,
+		MarkSymbol:     DefaultMarkSymbol,
 	})
 }
 
@@ -57,6 +57,7 @@ var (
 	DefaultInterfaceName  = ""
 	DefaultInterfaceIndex = 0
 	DefaultRoutingMark    = 0 // maybe need root permission
+	DefaultMarkSymbol     func(socket int32) bool
 )
 
 type Options struct {
@@ -73,7 +74,7 @@ type Options struct {
 	// RoutingMark is the mark for each packet sent through this
 	// socket. Changing the mark can be used for mark-based routing
 	// without netfilter or for packet filtering.
-	RoutingMark int
+	MarkSymbol func(socket int32) bool
 }
 
 func isTCPSocket(network string) bool {

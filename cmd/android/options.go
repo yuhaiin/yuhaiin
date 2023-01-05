@@ -61,17 +61,23 @@ type TUN struct {
 	FD           int32  `json:"fd"`
 	MTU          int32  `json:"mtu"`
 	Gateway      string `json:"gateway"`
+	Portal       string `json:"portal"`
 	DNSHijacking bool   `json:"dns_hijacking"`
 	// Driver
 	// 0: fdbased
 	// 1: channel
-	Driver    int32 `json:"driver"`
-	UidDumper UidDumper
+	Driver        int32 `json:"driver"`
+	UidDumper     UidDumper
+	SocketProtect SocketProtect
 }
 
 type UidDumper interface {
 	DumpUid(ipProto int32, srcIp string, srcPort int32, destIp string, destPort int32) (int32, error)
 	GetUidInfo(uid int32) (string, error)
+}
+
+type SocketProtect interface {
+	Protect(socket int32) bool
 }
 
 type uidDumper struct {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
+	"golang.org/x/exp/slices"
 )
 
 type manager struct {
@@ -25,13 +25,13 @@ func (m *manager) GetNode(hash string) (*point.Point, bool) {
 func (m *manager) GetNodeByName(group, name string) (*point.Point, bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	z := m.GroupNodesMap[group]
+	z := m.GroupsV2[group]
 	if z == nil {
 		return nil, false
 	}
 
-	hash := z.NodeHashMap[name]
-	if hash != "" {
+	hash := z.NodesV2[name]
+	if hash == "" {
 		return nil, false
 	}
 
@@ -45,24 +45,19 @@ func (m *manager) AddNode(p *point.Point) {
 	if m.Nodes == nil {
 		m.Nodes = make(map[string]*point.Point)
 	}
-	if m.GroupNodesMap == nil {
-		m.GroupNodesMap = make(map[string]*node.Nodes)
-	}
-	_, ok := m.GroupNodesMap[p.Group]
-	if !ok {
-		m.GroupNodesMap[p.Group] = &node.Nodes{
-			Group:       p.Group,
-			Nodes:       make([]string, 0),
-			NodeHashMap: make(map[string]string),
-		}
-		m.Groups = append(m.Groups, p.Group)
+	if m.GroupsV2 == nil {
+		m.GroupsV2 = make(map[string]*node.Nodes)
 	}
 
-	_, ok = m.GroupNodesMap[p.Group].NodeHashMap[p.Name]
+	n, ok := m.GroupsV2[p.Group]
 	if !ok {
-		m.GroupNodesMap[p.Group].Nodes = append(m.GroupNodesMap[p.Group].Nodes, p.Name)
+		n = &node.Nodes{
+			NodesV2: make(map[string]string),
+		}
+		m.GroupsV2[p.Group] = n
 	}
-	m.GroupNodesMap[p.Group].NodeHashMap[p.Name] = p.Hash
+
+	n.NodesV2[p.Name] = p.Hash
 	m.Nodes[p.Hash] = p
 }
 
@@ -72,38 +67,24 @@ func (n *manager) DeleteRemoteNodes(group string) {
 
 	m := n.Manager
 
-	x, ok := m.GroupNodesMap[group]
+	x, ok := m.GroupsV2[group]
 	if !ok {
 		return
 	}
 
-	ns := x.Nodes
-	msmap := x.NodeHashMap
-	left := make([]string, 0)
-	for i := range ns {
-		if m.Nodes[msmap[ns[i]]].GetOrigin() != point.Origin_remote {
-			left = append(left, ns[i])
+	for k, v := range x.NodesV2 {
+		n, ok := m.Nodes[v]
+		if ok && n.Origin != point.Origin_remote {
 			continue
 		}
 
-		delete(m.Nodes, msmap[ns[i]])
-		delete(m.GroupNodesMap[group].NodeHashMap, ns[i])
+		delete(x.NodesV2, k)
+		delete(m.Nodes, v)
 	}
 
-	if len(left) == 0 {
-		delete(m.GroupNodesMap, group)
-		for i, x := range m.Groups {
-			if x != group {
-				continue
-			}
-
-			m.Groups = append(m.Groups[:i], m.Groups[i+1:]...)
-			break
-		}
-		return
+	if len(x.NodesV2) == 0 {
+		delete(m.GroupsV2, group)
 	}
-
-	m.GroupNodesMap[group].Nodes = left
 }
 
 func (m *manager) GetManager() *node.Manager {
@@ -123,36 +104,15 @@ func (m *manager) DeleteNode(hash string) {
 	}
 
 	delete(m.Nodes, hash)
-	delete(m.GroupNodesMap[p.Group].NodeHashMap, p.Name)
-
-	for i, x := range m.GroupNodesMap[p.Group].Nodes {
-		if x != p.Name {
-			continue
-		}
-
-		m.GroupNodesMap[p.Group].Nodes = append(
-			m.GroupNodesMap[p.Group].Nodes[:i],
-			m.GroupNodesMap[p.Group].Nodes[i+1:]...,
-		)
-	}
-
-	if len(m.GroupNodesMap[p.Group].Nodes) != 0 {
-		return
-	}
-
-	delete(m.GroupNodesMap, p.Group)
-
-	for i, x := range m.Groups {
-		if x != p.Group {
-			continue
-		}
-
-		m.Groups = append(m.Groups[:i], m.Groups[i+1:]...)
-		break
+	delete(m.GroupsV2[p.Group].NodesV2, p.Name)
+	if len(m.GroupsV2[p.Group].NodesV2) == 0 {
+		delete(m.GroupsV2, p.Group)
 	}
 }
 
 func (m *manager) AddTag(tag string, hash string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
 	_, ok := m.Manager.Nodes[hash]
 	if !ok {
 		return
@@ -170,20 +130,22 @@ func (m *manager) AddTag(tag string, hash string) {
 		m.Manager.Tags[tag] = z
 	}
 
-	if !utils.ExistInSlice(z.Hash, func(z string) bool { return z == hash }) {
+	if !slices.Contains(z.Hash, hash) {
 		z.Hash = append(z.Hash, hash)
 	}
 }
 
 func (m *manager) DeleteTag(tag string) {
-	if m.Manager.Tags == nil {
-		return
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.Manager.Tags != nil {
+		delete(m.Manager.Tags, tag)
 	}
-
-	delete(m.Manager.Tags, tag)
 }
 
 func (m *manager) ExistTag(tag string) (*node.Tags, bool) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 	if m.Manager.Tags != nil {
 		t, ok := m.Manager.Tags[tag]
 		return t, ok

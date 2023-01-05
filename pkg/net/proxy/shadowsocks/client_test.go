@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
@@ -80,7 +81,7 @@ func TestConn(t *testing.T) {
 				default:
 					return net.Dial(network, addr)
 				case "tcp":
-					ad, err := proxy.ParseAddress(network, addr)
+					ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
 					if err != nil {
 						return nil, fmt.Errorf("parse address failed: %v", err)
 					}
@@ -116,7 +117,7 @@ func TestUDPConn(t *testing.T) {
 		})(p)
 	assert.NoError(t, err)
 
-	ad, _ := proxy.ParseAddress("udp", "223.5.5.5:53")
+	ad, _ := proxy.ParseAddress(statistic.Type_udp, "223.5.5.5:53")
 	c, err := s.PacketConn(ad)
 	assert.NoError(t, err)
 

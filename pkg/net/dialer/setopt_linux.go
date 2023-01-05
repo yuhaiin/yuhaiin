@@ -10,6 +10,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func LinuxMarkSymbol(fd int32, mark int) error {
+	return unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, mark)
+}
+
 func setSocketOptions(network, address string, c syscall.RawConn, opts *Options) (err error) {
 	if opts == nil || !isTCPSocket(network) && !isUDPSocket(network) {
 		return
@@ -17,6 +21,10 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 
 	var innerErr error
 	err = c.Control(func(fd uintptr) {
+		if opts.MarkSymbol != nil {
+			opts.MarkSymbol(int32(fd))
+		}
+
 		host, _, _ := net.SplitHostPort(address)
 		if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {
 			return
@@ -31,11 +39,6 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 		if opts.InterfaceName != "" {
 			// log.Println("dialer: set socket option: SO_BINDTODEVICE", opts.InterfaceName)
 			if innerErr = unix.BindToDevice(int(fd), opts.InterfaceName); innerErr != nil {
-				return
-			}
-		}
-		if opts.RoutingMark != 0 {
-			if innerErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, opts.RoutingMark); innerErr != nil {
 				return
 			}
 		}

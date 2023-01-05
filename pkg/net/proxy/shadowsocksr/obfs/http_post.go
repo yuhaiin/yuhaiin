@@ -6,7 +6,7 @@ import (
 )
 
 // newHttpPost create a http_post object
-func newHttpPost(con net.Conn, info Obfs) obfs {
+func newHttpPost(con net.Conn, info Obfs) net.Conn {
 	// newHttpSimple create a http_simple object
 
 	t := &httpSimplePost{

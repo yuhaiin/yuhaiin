@@ -3,6 +3,7 @@ package cidr
 import (
 	"fmt"
 	"net"
+	"net/netip"
 )
 
 // Cidr cidr matcher
@@ -13,7 +14,7 @@ type Cidr[T any] struct {
 
 // InsetOneCIDR Insert one CIDR to cidr matcher
 func (c *Cidr[T]) Insert(cidr string, mark T) error {
-	_, ipNet, err := net.ParseCIDR(cidr)
+	ipNet, err := netip.ParsePrefix(cidr)
 	if err != nil {
 		return fmt.Errorf("parse cidr [%s] failed: %w", cidr, err)
 	}
@@ -21,21 +22,19 @@ func (c *Cidr[T]) Insert(cidr string, mark T) error {
 	return nil
 }
 
-func (c *Cidr[T]) InsertCIDR(ipNet *net.IPNet, mark T) {
-	maskSize, _ := ipNet.Mask.Size()
-	x := ipNet.IP.To4()
-	if x != nil {
-		c.v4CidrTrie.Insert(x, maskSize, mark)
+func (c *Cidr[T]) InsertCIDR(ipNet netip.Prefix, mark T) {
+	if ipNet.Addr().Is4() {
+		c.v4CidrTrie.Insert(ipNet.Addr().AsSlice(), ipNet.Bits(), mark)
 	} else {
-		c.v6CidrTrie.Insert(ipNet.IP.To16(), maskSize, mark)
+		c.v6CidrTrie.Insert(ipNet.Addr().AsSlice(), ipNet.Bits(), mark)
 	}
 }
 
-func (c *Cidr[T]) InsertIP(ip net.IP, maskSize int, mark T) {
-	if x := ip.To4(); x != nil {
-		c.v4CidrTrie.Insert(x, maskSize, mark)
+func (c *Cidr[T]) InsertIP(ip netip.Addr, maskSize int, mark T) {
+	if ip.Is4() {
+		c.v4CidrTrie.Insert(ip.AsSlice(), maskSize, mark)
 	} else {
-		c.v6CidrTrie.Insert(ip.To16(), maskSize, mark)
+		c.v6CidrTrie.Insert(ip.AsSlice(), maskSize, mark)
 	}
 }
 

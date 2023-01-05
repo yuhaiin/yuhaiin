@@ -9,11 +9,11 @@ import (
 )
 
 func TestResolveAddr(t *testing.T) {
-	z := ParseAddr(proxy.ParseAddressSplit("", "a.com", proxy.ParsePort(51)))
+	z := ParseAddr(proxy.ParseAddressSplit(0, "a.com", proxy.ParsePort(51)))
 	t.Log(z)
 
 	addr, err := ResolveAddr(bytes.NewReader(z))
 	assert.NoError(t, err)
 	t.Log(addr)
-	t.Log(addr.Address(""))
+	t.Log(addr.Address(0))
 }

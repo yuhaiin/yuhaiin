@@ -4,15 +4,36 @@ package yuhaiin.statistic;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/statistic";
 
+/*
+        "tcp", "tcp4", "tcp6"
+        "udp", "udp4", "udp6"
+        "ip", "ip4", "ip6"
+        "unix", "unixgram", "unixpacket"
+*/
+enum type {
+  unknown = 0;
+  tcp = 1;
+  tcp4 = 2;
+  tcp6 = 3;
+  udp = 4;
+  udp4 = 5;
+  udp6 = 6;
+  ip = 7;
+  ip4 = 8;
+  ip6 = 9;
+  unix = 10;
+  unixgram = 11;
+  unixpacket = 12;
+}
+
 message net_type {
-  string conn_type = 1 [ json_name = "conn_type" ];
-  string underlying_type = 2 [ json_name = "underlying_type" ];
+  type conn_type = 1 [ json_name = "conn_type" ];
+  type underlying_type = 2 [ json_name = "underlying_type" ];
 }
 
 message connection {
   string addr = 1 [ json_name = "addr" ];
   uint64 id = 2 [ json_name = "id" ];
-  string remote = 4 [ json_name = "remote" ];
-  net_type type = 6 [ json_name = "type" ];
-  map<string, string> extra = 9 [ json_name = "extra" ];
+  net_type type = 3 [ json_name = "type" ];
+  map<string, string> extra = 4 [ json_name = "extra" ];
 }

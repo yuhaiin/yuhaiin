@@ -4,11 +4,12 @@ import (
 	"net"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestAddr(t *testing.T) {
-	addr, err := ParseAddress("udp", "[ff::ff%eth0]:53")
+	addr, err := ParseAddress(statistic.Type_udp, "[ff::ff%eth0]:53")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,13 +23,13 @@ func TestAddr(t *testing.T) {
 	z, _ := net.ResolveUDPAddr("udp", "[ff::ff%eth0]:53")
 	t.Log(z.String(), z.IP, z.Port, z.Zone)
 
-	addr, err = ParseAddress("tcp", "www.google.com:443")
+	addr, err = ParseAddress(statistic.Type_tcp, "www.google.com:443")
 	assert.NoError(t, err)
 	t.Log(addr.UDPAddr())
 }
 
 func TestOverride(t *testing.T) {
-	z, err := ParseAddress("udp", "1.1.1.1:53")
+	z, err := ParseAddress(statistic.Type_udp, "1.1.1.1:53")
 	assert.NoError(t, err)
 	z.WithValue("a", "b")
 	t.Log(z)

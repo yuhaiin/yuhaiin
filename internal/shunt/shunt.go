@@ -8,7 +8,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	imapper "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
@@ -29,13 +28,15 @@ func (IP_MARK_KEY) String() string { return "IP" }
 
 type ForceModeKey struct{}
 
-type shunt struct {
+type Shunt struct {
 	resolveRemoteDomain bool
 	defaultMode         bypass.Mode
 	config              *bypass.Config
-	mapper              imapper.Mapper[string, proxy.Address, bypass.ModeEnum]
+	mapper              *mapper.Combine[bypass.ModeEnum]
 	lock                sync.RWMutex
 	modeStore           map[bypass.Mode]Mode
+
+	tags []string
 }
 
 type Mode struct {
@@ -45,15 +46,15 @@ type Mode struct {
 	Resolver dns.DNS
 }
 
-func NewShunt(modes []Mode) proxy.DialerResolverProxy {
-	s := &shunt{
+func NewShunt(modes []Mode) *Shunt {
+	s := &Shunt{
 		mapper: mapper.NewMapper[bypass.ModeEnum](),
 		config: &bypass.Config{
 			Tcp:        bypass.Mode_bypass,
 			Udp:        bypass.Mode_bypass,
 			BypassFile: "",
 		},
-		modeStore: make(map[bypass.Mode]Mode),
+		modeStore: make(map[bypass.Mode]Mode, len(bypass.Mode_value)),
 	}
 
 	for _, mode := range modes {
@@ -66,7 +67,7 @@ func NewShunt(modes []Mode) proxy.DialerResolverProxy {
 	return s
 }
 
-func (s *shunt) Update(c *pconfig.Setting) {
+func (s *Shunt) Update(c *pconfig.Setting) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -77,19 +78,28 @@ func (s *shunt) Update(c *pconfig.Setting) {
 
 	if diff {
 		s.mapper.Clear()
-		rangeRule(s.config.BypassFile, func(s1 string, s2 bypass.ModeEnum) { s.mapper.Insert(s1, s2) })
+		s.tags = nil
+		rangeRule(s.config.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
+			s.mapper.Insert(s1, s2)
+			if s2.GetTag() != "" {
+				s.tags = append(s.tags, s2.GetTag())
+			}
+		})
 	}
 
 	for k, v := range c.Bypass.CustomRuleV2 {
-		if v.Mode == bypass.Mode_proxy && len(v.Fields) != 0 {
-			s.mapper.Insert(k, &field{v.Mode, v.Fields})
+		if v.Mode == bypass.Mode_proxy && len(v.GetTag()) != 0 {
+			s.mapper.Insert(k, bypass.Tag(v.GetTag()))
+			s.tags = append(s.tags, v.GetTag())
 		} else {
 			s.mapper.Insert(k, v.Mode)
 		}
 	}
 }
 
-func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
+func (s *Shunt) Tags() []string { return s.tags }
+
+func (s *Shunt) Conn(host proxy.Address) (net.Conn, error) {
 	host, mode := s.bypass(s.config.Tcp, host)
 
 	conn, err := mode.Dialer.Conn(host)
@@ -100,7 +110,7 @@ func (s *shunt) Conn(host proxy.Address) (net.Conn, error) {
 	return conn, err
 }
 
-func (s *shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
+func (s *Shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	host, mode := s.bypass(s.config.Udp, host)
 
 	conn, err := mode.Dialer.PacketConn(host)
@@ -117,7 +127,7 @@ var errMode = Mode{
 	Resolver: dns.NewErrorDNS(errors.New("can't find mode")),
 }
 
-func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
+func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
 	mode := proxy.Value(host, ForceModeKey{}, bypass.Mode_bypass)
 
 	if mode == bypass.Mode_bypass {
@@ -125,13 +135,12 @@ func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 	}
 
 	if mode == bypass.Mode_bypass {
-		host.WithResolver(s.loadResolver(s.defaultMode), true)
+		host.WithResolver(s.resolver(s.defaultMode), true)
 		fields := s.search(host)
 		mode = fields.Mode()
 
-		v, ok := fields.Value("tag")
-		if ok {
-			host.WithValue(node.TagKey{}, v)
+		if tag := fields.GetTag(); len(tag) != 0 {
+			host.WithValue(node.TagKey{}, tag)
 		}
 	}
 
@@ -159,14 +168,14 @@ func (s *shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 	return host, m
 }
 
-var skipResolve = dns.NewErrorDNS(imapper.ErrSkipResolveDomain)
+var skipResolve = dns.NewErrorDNS(mapper.ErrSkipResolveDomain)
 
-func (s *shunt) Resolver(host proxy.Address) dns.DNS {
+func (s *Shunt) Resolver(host proxy.Address) dns.DNS {
 	host.WithResolver(skipResolve, true)
-	return s.loadResolver(s.search(host))
+	return s.resolver(s.search(host))
 }
 
-func (s *shunt) loadResolver(m bypass.ModeEnum) dns.DNS {
+func (s *Shunt) resolver(m bypass.ModeEnum) dns.DNS {
 	d, ok := s.modeStore[m.Mode()]
 	if ok {
 		return d.Resolver
@@ -175,7 +184,7 @@ func (s *shunt) loadResolver(m bypass.ModeEnum) dns.DNS {
 	return resolver.Bootstrap
 }
 
-func (s *shunt) search(host proxy.Address) bypass.ModeEnum {
+func (s *Shunt) search(host proxy.Address) bypass.ModeEnum {
 	m, ok := s.mapper.Search(host)
 	if !ok {
 		return s.defaultMode

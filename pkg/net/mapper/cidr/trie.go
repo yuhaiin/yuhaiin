@@ -3,8 +3,6 @@ package cidr
 import (
 	"math"
 	"net"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type Trie[T any] struct {
@@ -64,19 +62,5 @@ out:
 	return
 }
 
-// PrintTree print this tree
-func (t *Trie[T]) PrintTree(node *Trie[T]) {
-	if node.left != nil {
-		t.PrintTree(node.left)
-		log.Debugln("0 ")
-	}
-	if node.right != nil {
-		t.PrintTree(node.right)
-		log.Debugln("1 ")
-	}
-}
-
 // NewTrieTree create a new trie tree
-func NewTrieTree[T any]() Trie[T] {
-	return Trie[T]{}
-}
+func NewTrieTree[T any]() Trie[T] { return Trie[T]{} }
