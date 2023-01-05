@@ -17,13 +17,14 @@ import (
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
 		dialer := func(addr string) (net.Conn, error) {
-			address, err := proxy.ParseAddress("tcp", addr)
+			address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}

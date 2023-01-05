@@ -42,6 +42,8 @@ message tun {
   enum endpoint_driver {
     fdbased = 0;
     channel = 1;
+    tun2socket = 2;
   }
   endpoint_driver driver = 7 [ json_name = "driver" ];
+  string portal = 8 [ json_name = "portal" ];
 }

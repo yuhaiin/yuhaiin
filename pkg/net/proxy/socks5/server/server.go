@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -116,7 +117,7 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
 
-		addr := adr.Address("tcp")
+		addr := adr.Address(statistic.Type_tcp)
 		addr.WithValue(proxy.SourceKey{}, client.RemoteAddr())
 		addr.WithValue(proxy.InboundKey{}, client.LocalAddr())
 		addr.WithValue(proxy.DestinationKey{}, addr)
@@ -165,7 +166,7 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	writeHandshake2(client, succeeded, proxy.ParseAddressSplit("udp", "0.0.0.0", laddr.Port()))
+	writeHandshake2(client, succeeded, proxy.ParseAddressSplit(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
 	relay.Copy(io.Discard, client)
 	return l.Close()
 }

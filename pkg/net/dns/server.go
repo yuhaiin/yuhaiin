@@ -67,7 +67,7 @@ func (d *dnsServer) start() (err error) {
 	log.Infoln("new udp dns server listen at:", d.server)
 
 	for {
-		buf := pool.GetBytes(pool.DefaultSize)
+		buf := pool.GetBytes(8192)
 
 		n, addr, err := d.listener.ReadFrom(buf)
 		if err != nil {
@@ -97,7 +97,7 @@ func (d *dnsServer) start() (err error) {
 func (d *dnsServer) startTCP() (err error) {
 	d.tcpListener, err = net.Listen("tcp", d.server)
 	if err != nil {
-		return fmt.Errorf("dns server listen failed: %w", err)
+		return fmt.Errorf("dns tcp server listen failed: %w", err)
 	}
 	defer d.tcpListener.Close()
 	log.Errorln("new tcp dns server listen at:", d.server)
@@ -148,7 +148,7 @@ func (d *dnsServer) HandleTCP(c net.Conn) error {
 }
 
 func (d *dnsServer) HandleUDP(l net.PacketConn) error {
-	p := pool.GetBytes(pool.DefaultSize)
+	p := pool.GetBytes(8192)
 	defer pool.PutBytes(p)
 	n, addr, err := l.ReadFrom(p)
 	if err != nil {
@@ -165,6 +165,8 @@ func (d *dnsServer) HandleUDP(l net.PacketConn) error {
 
 var emptyIPResponse = dns.NewIPResponse(nil, 0)
 
+func (d *dnsServer) Do(b []byte) ([]byte, error) { return d.handle(b) }
+
 func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	var parse dnsmessage.Parser
 
@@ -178,7 +180,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 		return nil, fmt.Errorf("dns server parse failed: %w", err)
 	}
 
-	add := proxy.ParseAddressSplit("", strings.TrimSuffix(q.Name.String(), "."), nil)
+	add := proxy.ParseAddressSplit(0, strings.TrimSuffix(q.Name.String(), "."), nil)
 
 	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
 		q.Type != dnsmessage.TypePTR {

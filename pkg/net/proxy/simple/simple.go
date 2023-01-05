@@ -27,7 +27,7 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 		}
 
 		return &Simple{
-			addr:         proxy.ParseAddressSplit("", c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
+			addr:         proxy.ParseAddressSplit(0, c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
 			packetDirect: c.Simple.PacketConnDirect,
 			tlsConfig:    tls,
 		}, nil

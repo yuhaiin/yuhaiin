@@ -5,41 +5,20 @@ package tun
 
 import (
 	"fmt"
-	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/rawfile"
-	"gvisor.dev/gvisor/pkg/tcpip/link/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 func open(name string, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
-	scheme, name, err := utils.GetScheme(name)
+	fd, err := tun2socket.Open(name)
 	if err != nil {
-		return nil, fmt.Errorf("get scheme failed: %w", err)
+		return nil, fmt.Errorf("open tun device failed: %w", err)
 	}
-	name = name[2:]
-
-	if len(name) >= unix.IFNAMSIZ {
-		return nil, fmt.Errorf("interface name too long: %s", name)
-	}
-
-	var fd int
-	switch scheme {
-	case "tun":
-		fd, err = tun.Open(name)
-	case "fd":
-		fd, err = strconv.Atoi(name)
-	default:
-		err = fmt.Errorf("invalid tun name: %s", name)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("open tun [%s,%s] failed: %w", scheme, name, err)
-	}
-
 	return openFD(fd, mtu, driver)
 }
 

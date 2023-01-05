@@ -10,11 +10,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func Dial(host, port, user, password string) proxy.Proxy {
-	addr, err := proxy.ParseAddress("tcp", net.JoinHostPort(host, port))
+	addr, err := proxy.ParseAddress(statistic.Type_tcp, net.JoinHostPort(host, port))
 	if err != nil {
 		return proxy.NewErrProxy(err)
 	}
@@ -60,7 +61,7 @@ func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 
 type ADDR []byte
 
-func (a ADDR) Address(network string) proxy.Address {
+func (a ADDR) Address(network statistic.Type) proxy.Address {
 	if len(a) == 0 {
 		return proxy.EmptyAddr
 	}

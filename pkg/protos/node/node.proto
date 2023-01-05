@@ -15,14 +15,11 @@ message node {
 }
 
 message nodes {
-  string group = 1 [ json_name = "name" ];
-  repeated string nodes = 2 [ json_name = "nodes" ];
-  map<string, string> node_hash_map = 3 [ json_name = "node_hash_map" ];
+  map<string, string> nodesV2 = 3 [ json_name = "node_hash_map" ];
 }
 
 message manager {
-  repeated string groups = 1 [ json_name = "groups" ];
-  map<string, nodes> group_nodes_map = 2 [ json_name = "group_nodes_map" ];
+  map<string, nodes> groupsV2 = 2 [ json_name = "group_nodes_map" ];
   map<string, yuhaiin.point.point> nodes = 3 [ json_name = "nodes" ];
   map<string, tags> tags = 4 [ json_name = "tags" ];
 }

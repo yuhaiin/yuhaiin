@@ -11,7 +11,7 @@ import (
 func TestXxx(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 
-	s5c.ParseAddrWriter(proxy.ParseAddressSplit("", "www.baidu.com", proxy.EmptyPort), b)
+	s5c.ParseAddrWriter(proxy.ParseAddressSplit(0, "www.baidu.com", proxy.EmptyPort), b)
 	size := b.Len()
 
 	b.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})

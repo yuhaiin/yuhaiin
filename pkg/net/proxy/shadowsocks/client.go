@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
@@ -74,7 +75,7 @@ func (v *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, fmt.Errorf("resolve address failed: %w", err)
 	}
 
-	return copy(b, b[len(addr):n]), addr.Address("udp"), nil
+	return copy(b, b[len(addr):n]), addr.Address(statistic.Type_udp), nil
 }
 
 func (v *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {

@@ -30,14 +30,14 @@ func (h *hosts) Update(c *config.Setting) {
 		_, _, e2 := net.SplitHostPort(v)
 
 		if e1 == nil && e2 == nil {
-			addr, err := proxy.ParseAddress("", v)
+			addr, err := proxy.ParseAddress(0, v)
 			if err == nil {
 				h.hosts.Store(k, addr)
 			}
 		}
 
 		if e1 != nil && e2 != nil {
-			h.hosts.Store(k, proxy.ParseAddressSplit("", v, proxy.EmptyPort))
+			h.hosts.Store(k, proxy.ParseAddressSplit(0, v, proxy.EmptyPort))
 		}
 	}
 }
@@ -80,7 +80,7 @@ type hostsResolver struct {
 }
 
 func (h *hostsResolver) LookupIP(domain string) ([]net.IP, error) {
-	addr := h.hosts.getAddr(proxy.ParseAddressSplit("", domain, proxy.EmptyPort))
+	addr := h.hosts.getAddr(proxy.ParseAddressSplit(0, domain, proxy.EmptyPort))
 	if addr.Type() == proxy.IP {
 		return []net.IP{yerror.Ignore(addr.IP())}, nil
 	}
@@ -89,7 +89,7 @@ func (h *hostsResolver) LookupIP(domain string) ([]net.IP, error) {
 }
 
 func (h *hostsResolver) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error) {
-	addr := h.hosts.getAddr(proxy.ParseAddressSplit("", domain, proxy.EmptyPort))
+	addr := h.hosts.getAddr(proxy.ParseAddressSplit(0, domain, proxy.EmptyPort))
 	if addr.Type() == proxy.IP {
 		if t == dnsmessage.TypeAAAA {
 			return dns.NewIPResponse([]net.IP{yerror.Ignore(addr.IP()).To16()}, 600), nil

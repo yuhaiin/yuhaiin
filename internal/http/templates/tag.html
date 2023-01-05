@@ -81,12 +81,17 @@
         })
     }
 
+
     const remove = (tag) => {
         ajax("DELETE", `/tag?tag=${tag}`, null, (xmlhttp) => {
             location.reload();
         }, (xmlhttp) => {
             show_danger(`remove tag ${tag} failed: ${xmlhttp.responseText}`)
         })
+    }
+
+    const setInputTagText = (text) => {
+        document.getElementById('inputGroupTag').value = text
     }
 </script>
 
@@ -107,8 +112,9 @@
 
     {{range $key,$value := .Tags}}
     <label class="list-group-item" style="border: 0ch; border-bottom: 1px solid #dee2e6;">
+
         <div class="d-flex flex-wrap">
-            <div class="me-2">{{ $key }}</div>
+            <a href="javascript: setInputTagText('{{ $key }}')" class="me-2 text-decoration-none">{{ $key }}</a>
 
             <a href='#' class="text-truncate" data-bs-toggle="modal" data-bs-target="#nodeModal"
                 data-bs-whatever="{{ $value }}">{{ $value }}</a>
@@ -124,6 +130,7 @@
             </a>
 
         </div>
+
     </label>
     {{end}}
 

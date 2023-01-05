@@ -33,7 +33,7 @@ type tls12TicketAuth struct {
 }
 
 // newTLS12TicketAuth create a tlv1.2_ticket_auth object
-func newTLS12TicketAuth(conn net.Conn, info Obfs) obfs {
+func newTLS12TicketAuth(conn net.Conn, info Obfs) net.Conn {
 	return &tls12TicketAuth{Conn: conn, Obfs: info}
 }
 
@@ -317,6 +317,4 @@ func (t *tls12TicketAuth) sni(u string) []byte {
 	return ret
 }
 
-func (t *tls12TicketAuth) GetOverhead() int {
-	return 5
-}
+func (t *tls12TicketAuth) GetOverhead() int { return 5 }

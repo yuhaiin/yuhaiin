@@ -80,8 +80,8 @@
         let nodes_element = document.querySelector("#nodes");
         nodes_element.innerHTML = "";
         let data = JSON.parse(xmlhttp.responseText);
-        data.nodes.forEach(element => {
-            var hash = data.node_hash_map[element];
+        Object.keys(data).sort().forEach(element => {
+            var hash = data[element];
             nodes_element.insertAdjacentHTML('beforeend', `
 <label class="list-group-item" style="border: 0ch; border-bottom: 1px solid #dee2e6;">
     <div id="i${hash}">
@@ -170,6 +170,5 @@
                 Node</a>
         </div>
     </div>
-
 </div>
 {{end}}

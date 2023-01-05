@@ -7,6 +7,7 @@ require (
 	github.com/mdlayher/netlink v1.7.1
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	golang.org/x/crypto v0.5.0
+	golang.org/x/exp v0.0.0-20230108222341-4b8118a2686a
 	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e
 	golang.org/x/net v0.5.0
 	golang.org/x/sys v0.4.0
@@ -31,10 +32,9 @@ require (
 	github.com/mdlayher/socket v0.4.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.2.0 // indirect
 	github.com/riobard/go-bloom v0.0.0-20200614022211-cdc8013cb5b3 // indirect
-	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
+	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
-	golang.org/x/tools v0.1.12 // indirect
+	golang.org/x/tools v0.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20210722135532-667f2b7c528f // indirect
 )

@@ -40,7 +40,7 @@ func TestTrojan(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := proxy.ParseAddress(network, addr)
+				ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
 				assert.NoError(t, err)
 				return z.Conn(ad)
 			},

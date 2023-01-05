@@ -129,7 +129,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				log.Debugln("dial:", network, addr)
-				ad, err := proxy.ParseAddress(network, addr)
+				ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}

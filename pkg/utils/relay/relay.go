@@ -44,7 +44,7 @@ func Copy(dst io.Writer, src io.Reader) (err error) {
 	} else if c, ok := src.(io.WriterTo); ok {
 		_, err = c.WriteTo(dst) // local -> remote
 	} else {
-		buf := pool.GetBytes(pool.DefaultSize)
+		buf := pool.GetBytes(8192)
 		defer pool.PutBytes(buf)
 		_, err = io.CopyBuffer(dst, src, buf) // local -> remote
 	}

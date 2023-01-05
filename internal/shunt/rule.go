@@ -13,23 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
-type field struct {
-	mode   bypass.Mode
-	fields map[string]string
-}
-
-func (f *field) Value(key string) (string, bool) {
-	if f == nil || f.fields == nil {
-		return "", false
-	}
-
-	x, ok := f.fields[key]
-	return x, ok
-}
-
-func (m *field) Mode() bypass.Mode { return m.mode.Mode() }
-func (m *field) Unknown() bool     { return m.mode.Unknown() }
-
 func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	var reader io.ReadCloser
 	var err error
@@ -60,10 +43,10 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 			f.StoreKV(fs[1:])
 		}
 
-		if f.Mode != bypass.Mode_proxy || len(f.Fields) == 0 {
+		if f.Mode != bypass.Mode_proxy || len(f.GetTag()) == 0 {
 			ranger(strings.ToLower(string(fields[0])), f.Mode)
 		} else {
-			ranger(strings.ToLower(string(fields[0])), &field{f.Mode, f.Fields})
+			ranger(strings.ToLower(string(fields[0])), bypass.Tag(f.GetTag()))
 		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
@@ -135,10 +136,10 @@ func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (targ
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
 
-	addr := add.Address("tcp")
+	addr := add.Address(statistic.Type_tcp)
 
 	if addr.Type() == proxy.IP && yerror.Must(addr.IP()).IsUnspecified() {
-		addr = proxy.ParseAddressSplit("", s.hostname, addr.Port())
+		addr = proxy.ParseAddressSplit(statistic.Type_tcp, s.hostname, addr.Port())
 	}
 
 	return addr, nil
@@ -218,7 +219,7 @@ func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 		return 0, addr, fmt.Errorf("slice out of range, get: %d less %d", n, prefix)
 	}
 
-	return copy(p[0:], p[prefix:n]), adr.Address("udp"), nil
+	return copy(p[0:], p[prefix:n]), adr.Address(statistic.Type_udp), nil
 }
 
 // The client connects to the server, and sends a version

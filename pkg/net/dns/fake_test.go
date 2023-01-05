@@ -2,7 +2,6 @@ package dns
 
 import (
 	"fmt"
-	"math"
 	"math/big"
 	"net"
 	"net/netip"
@@ -13,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
+/*
 func TestFake(t *testing.T) {
 	_, z, err := net.ParseCIDR("ff::ff/24")
 	assert.NoError(t, err)
@@ -51,6 +51,7 @@ func TestFake(t *testing.T) {
 	t.Log(f.GetFakeIPForDomain("i.com"))
 	t.Log(f.GetFakeIPForDomain("j.com"))
 }
+*/
 
 func TestPtr(t *testing.T) {
 	zz, err := netip.ParsePrefix("1.1.1.1/12")

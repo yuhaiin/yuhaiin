@@ -8,6 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/http/bootstrap"
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
+	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
@@ -17,24 +18,33 @@ import (
 
 var debug func(*http.ServeMux)
 
-func Httpserver(mux *http.ServeMux,
-	nm snode.NodeServer, subscribe snode.SubscribeServer,
-	stt sstatistic.ConnectionsServer, cf config.ConfigDaoServer, ts snode.TagServer) {
+type HttpServerOption struct {
+	Mux         *http.ServeMux
+	NodeServer  snode.NodeServer
+	Subscribe   snode.SubscribeServer
+	Connections sstatistic.ConnectionsServer
+	Config      config.ConfigDaoServer
+	Tag         snode.TagServer
+	Shunt       *shunt.Shunt
+}
+
+func Httpserver(o HttpServerOption) {
+	mux := o.Mux
 
 	if debug != nil {
 		debug(mux)
 	}
 
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte{}) })
-	mux.Handle("/config", &handler{&configHandler{cf: cf}})
-	mux.Handle("/conn", &handler{&conn{stt: stt}})
-	mux.Handle("/node", &handler{&nodeHandler{nm: nm}})
-	mux.Handle("/sub", &handler{&subHandler{nm: subscribe}})
-	mux.Handle("/group", &handler{&groupHandler{nm: nm}})
-	mux.Handle("/latency", &handler{&latencyHandler{nm: nm}})
-	mux.Handle("/tag", &handler{&tag{nm: nm, ts: ts}})
+	mux.Handle("/config", &handler{&configHandler{cf: o.Config}})
+	mux.Handle("/conn", &handler{&conn{stt: o.Connections}})
+	mux.Handle("/node", &handler{&nodeHandler{nm: o.NodeServer}})
+	mux.Handle("/sub", &handler{&subHandler{nm: o.Subscribe}})
+	mux.Handle("/group", &handler{&groupHandler{nm: o.NodeServer}})
+	mux.Handle("/latency", &handler{&latencyHandler{nm: o.NodeServer}})
+	mux.Handle("/tag", &handler{&tag{nm: o.NodeServer, ts: o.Tag, st: o.Shunt}})
 	mux.Handle("/bootstrap/", http.StripPrefix("/bootstrap", http.FileServer(http.FS(bootstrap.Bootstrap))))
-	mux.Handle("/", &handler{&rootHandler{nm: nm}})
+	mux.Handle("/", &handler{&rootHandler{nm: o.NodeServer}})
 }
 
 var TPS = &templates{}

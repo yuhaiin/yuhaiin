@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -140,7 +141,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
 
-	c.addr = addr.Address("udp")
+	c.addr = addr.Address(statistic.Type_udp)
 
 	var length uint16
 	if err = binary.Read(c.Conn, binary.BigEndian, &length); err != nil {

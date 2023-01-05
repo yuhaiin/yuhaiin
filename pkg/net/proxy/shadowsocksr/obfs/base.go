@@ -7,18 +7,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 )
 
-var ObfsMethod = map[string]func(net.Conn, Obfs) obfs{
-	"http_post":              newHttpPost,
-	"http_simple":            newHttpSimple,
-	"plain":                  newPlainObfs,
-	"random_head":            newRandomHead,
-	"tls1.2_ticket_auth":     newTLS12TicketAuth,
-	"tls1.2_ticket_fastauth": newTLS12TicketAuth,
-}
-
-type obfs interface {
-	GetOverhead() int
-	net.Conn
+var ObfsMethod = map[string]struct {
+	overhead int
+	stream   func(net.Conn, Obfs) net.Conn
+}{
+	"http_post":              {0, newHttpPost},
+	"http_simple":            {0, newHttpSimple},
+	"plain":                  {0, newPlain},
+	"random_head":            {0, newRandomHead},
+	"tls1.2_ticket_auth":     {5, newTLS12TicketAuth},
+	"tls1.2_ticket_fastauth": {5, newTLS12TicketAuth},
 }
 
 type Obfs struct {
@@ -29,26 +27,18 @@ type Obfs struct {
 	Param string
 }
 
-func (o *Obfs) creator() (func(net.Conn, Obfs) obfs, error) {
+func (o Obfs) Stream(c net.Conn) (net.Conn, error) {
 	z, ok := ObfsMethod[o.Name]
 	if !ok {
 		return nil, fmt.Errorf("obfs %s not found", o.Name)
 	}
-
-	return z, nil
-}
-func (o *Obfs) Stream(c net.Conn) (net.Conn, error) {
-	cc, err := o.creator()
-	if err != nil {
-		return nil, err
-	}
-	return cc(c, *o), nil
+	return z.stream(c, o), nil
 }
 
-func (o *Obfs) Overhead() int {
-	cc, err := o.creator()
-	if err != nil {
+func (o Obfs) Overhead() int {
+	z, ok := ObfsMethod[o.Name]
+	if !ok {
 		return -1
 	}
-	return cc(nil, *o).GetOverhead()
+	return z.overhead
 }

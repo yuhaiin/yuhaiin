@@ -55,7 +55,7 @@ type httpSimplePost struct {
 }
 
 // newHttpSimple create a http_simple object
-func newHttpSimple(conn net.Conn, info Obfs) obfs {
+func newHttpSimple(conn net.Conn, info Obfs) net.Conn {
 	t := &httpSimplePost{
 		userAgentIndex: rand.Intn(len(requestUserAgent)),
 		methodGet:      true,
@@ -228,6 +228,4 @@ func (t *httpSimplePost) Write(b []byte) (int, error) {
 	return len(b), err
 }
 
-func (t *httpSimplePost) GetOverhead() int {
-	return 0
-}
+func (t *httpSimplePost) GetOverhead() int { return 0 }

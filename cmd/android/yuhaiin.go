@@ -13,8 +13,10 @@ import (
 
 	yuhaiin "github.com/Asutorufa/yuhaiin/internal"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
 // GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -target=android/amd64,android/arm64 -ldflags='-s -w' -trimpath -v -o yuhaiin.aar ./
@@ -41,10 +43,17 @@ func (a *App) Start(opt *Opts) error {
 
 	go func() {
 		pc := yuhaiin.PathConfig(opt.Savepath)
-		a.uidDUmper = NewUidDumper(opt.TUN.UidDumper)
+
+		var processDumper listener.ProcessDumper
+		if opt.TUN.UidDumper != nil {
+			a.uidDUmper = NewUidDumper(opt.TUN.UidDumper)
+			processDumper = a
+		}
+
+		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
 		resp, err := yuhaiin.Start(
-			yuhaiin.StartOpt{PathConfig: pc, Setting: fakeSetting(opt, pc.Config), Host: opt.Host, ProcessDumper: a})
+			yuhaiin.StartOpt{PathConfig: pc, Setting: fakeSetting(opt, pc.Config), Host: opt.Host, ProcessDumper: processDumper})
 		if err != nil {
 			errChan <- err
 			return

@@ -10,7 +10,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -34,7 +36,7 @@ func udpForwarder(s *stack.Stack, natTable *s5s.NatTable, opt *listener.Opts[*li
 				return err
 			}
 
-			if err = natTable.Write(buf[:n], src, dst, srcpconn); err != nil {
+			if err = natTable.Write(buf[:n], src, dst, srcpconn.WriteTo); err != nil {
 				return err
 			}
 		}
@@ -53,17 +55,17 @@ func udpForwarder(s *stack.Stack, natTable *s5s.NatTable, opt *listener.Opts[*li
 		go func(local net.PacketConn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			if isHandleDNS(opt, id) {
+			if tun2socket.IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
 				if err := opt.DNSServer.HandleUDP(local); err != nil {
 					log.Errorf("dns handle udp failed: %v\n", err)
 				}
 				return
 			}
 
-			dst := proxy.ParseAddressSplit("udp", id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
+			dst := proxy.ParseAddressSplit(statistic.Type_udp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
 			if opt.Protocol.Tun.SkipMulticast && dst.Type() == proxy.IP {
 				if ip, _ := dst.IP(); !ip.IsGlobalUnicast() {
-					buf := pool.GetBytes(pool.DefaultSize)
+					buf := pool.GetBytes(1024)
 					defer pool.PutBytes(buf)
 
 					for {

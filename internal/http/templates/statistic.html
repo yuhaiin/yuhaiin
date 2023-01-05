@@ -60,11 +60,14 @@
     var connections = new Set();
 
     const refresh = (conns) => {
+        if (conns == null) return;
+
         var connections_document = document.getElementById('connections');
 
         const set = new Set();
 
-        conns.forEach((element) => {
+
+        conns.sort((a, b) => a.id - b.id).forEach((element) => {
             set.add(element.id);
             if (connections.has(element.id)) return;
             connections.add(element.id);
@@ -80,6 +83,22 @@
         })
     }
 
+    const net_map = {
+        0: "unknown",
+        1: "tcp",
+        2: "tcp4",
+        3: "tcp6",
+        4: "udp",
+        5: "udp4",
+        6: "udp6",
+        7: "ip",
+        8: "ip4",
+        9: "ip6",
+        10: "unix",
+        11: "unixgram",
+        12: "unixpacket",
+    }
+
     const generate_conn_item = (element) => {
         return `
     <div class="accordion-item" id="connection_${element.id}">
@@ -91,7 +110,7 @@
                     <code class="ms-2">${element.id}|</code>
                     <span class="ms-2">${element.addr}</span>
                     <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.extra.MODE}</span>
-                    <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.type.conn_type}</span>
+                    <span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${net_map[element.type.conn_type]}</span>
                     ${function () { return (element.extra.Tag != null && element.extra.Tag != "") ? `<span class="badge rounded-pill bg-light text-dark ms-1 text-uppercase">${element.extra.Tag}</span>` : ""; }()}
                 </div>
             </button>
@@ -108,21 +127,14 @@
                     <div class="list-group-item">
                         <div class="d-sm-flex">
                             <div class="endpoint-name flex-grow-1 notranslate">Type</div>
-                            <div class="notranslate text-uppercase" style="opacity: 0.6;">${element.type.conn_type}</div>
+                            <div class="notranslate text-uppercase" style="opacity: 0.6;">${net_map[element.type.conn_type]}</div>
                         </div>
                     </div>
     
                     <div class="list-group-item">
                         <div class="d-sm-flex">
                             <div class="endpoint-name flex-grow-1 notranslate">Underlying</div>
-                            <div class="notranslate text-uppercase" style="opacity: 0.6;">${element.type.underlying_type}</div>
-                        </div>
-                    </div>
-    
-                    <div class="list-group-item">
-                        <div class="d-sm-flex">
-                            <div class="endpoint-name flex-grow-1 notranslate">Outbound</div>
-                            <div class="notranslate" style="opacity: 0.6;">${element.remote}</div>
+                            <div class="notranslate text-uppercase" style="opacity: 0.6;">${net_map[element.type.underlying_type]}</div>
                         </div>
                     </div>
     
