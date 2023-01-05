@@ -1,7 +1,7 @@
 package dns
 
 import (
-	"net"
+	"net/netip"
 	"testing"
 
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestDOT(t *testing.T) {
-	_, s, _ := net.ParseCIDR("223.5.5.5/22")
+	s, _ := netip.ParsePrefix("223.5.5.5/22")
 	configMap := map[string]Config{
 		"google": {
 			Type:   dns.Type_dot,

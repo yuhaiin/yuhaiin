@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/internal/statistics"
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
@@ -31,16 +32,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"google.golang.org/grpc"
 )
-
-const yuhaiinArt = `
-_____.___.     .__           .__.__        
-\__  |   |__ __|  |__ _____  |__|__| ____  
- /   |   |  |  \  |  \\__  \ |  |  |/    \ 
- \____   |  |  /   Y  \/ __ \|  |  |   |  \
- / ______|____/|___|  (____  /__|__|___|  /
- \/                 \/     \/           \/ 
-Config Path: %s
-gRPC&HTTP Listen At: %s`
 
 type StartOpt struct {
 	PathConfig struct{ Dir, Lockfile, Node, Config, Logfile string }
@@ -82,7 +73,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		return StartResponse{}, err
 	}
 
-	log.Infof(yuhaiinArt, opt.PathConfig.Dir, opt.Host)
+	log.Infof("%s\nConfig Path: %s\ngRPC&HTTP Listen At: %s\n", version.Art, opt.PathConfig.Dir, opt.Host)
 
 	opt.Setting.AddObserver(config.ObserverFunc(sysproxy.Update))
 	opt.Setting.AddObserver(config.ObserverFunc(func(s *protoconfig.Setting) { log.Set(s.GetLogcat(), opt.PathConfig.Logfile) }))
@@ -152,7 +143,15 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	// http page
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(mux, nodeService, subscribe, stcs, opt.Setting, tag)
+	simplehttp.Httpserver(simplehttp.HttpServerOption{
+		Mux:         mux,
+		NodeServer:  nodeService,
+		Subscribe:   subscribe,
+		Connections: stcs,
+		Config:      opt.Setting,
+		Tag:         tag,
+		Shunt:       st,
+	})
 
 	// grpc server
 	if opt.GRPCServer != nil {

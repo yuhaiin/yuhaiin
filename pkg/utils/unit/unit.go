@@ -39,19 +39,19 @@ func (u Unit) String() string {
 
 // ReducedUnit .
 func ReducedUnit(byte float64) (result float64, unit Unit) {
-	if byte > 1125899906842624 {
+	if byte >= 1125899906842624 {
 		return byte / 1125899906842624, PB //PB
 	}
-	if byte > 1099511627776 {
+	if byte >= 1099511627776 {
 		return byte / 1099511627776, TB //TB
 	}
-	if byte > 1073741824 {
+	if byte >= 1073741824 {
 		return byte / 1073741824, GB //GB
 	}
-	if byte > 1048576 {
+	if byte >= 1048576 {
 		return byte / 1048576, MB //MB
 	}
-	if byte > 1024 {
+	if byte >= 1024 {
 		return byte / 1024, KB //KB
 	}
 	return byte, B //B

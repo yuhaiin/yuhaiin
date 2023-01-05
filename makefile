@@ -40,12 +40,12 @@ all: yuhaiin yuhaiin_windows dnsrelay dnsrelay_windows
 
 .PHONY: vet
 vet:
-	$(GO) vet $(shell go list ./... | grep -v '/scripts/')
+	$(GO) vet $(shell go list ./... | grep -v '/scripts/' | grep -v 'pkg/net/proxy/tun/tun2socket/tcpip')
 
 .PHONY: yuhaiin
 yuhaiin:
-	$(LINUX_AMD64) $(GO_BUILD_CMD) -o yuhaiin $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -o yuhaiin_v3 $(YUHAIIN)
+	$(LINUX_AMD64) $(GO_BUILD_CMD) -tags "debug" -o yuhaiin $(YUHAIIN)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -tags "debug" -o yuhaiin_v3 $(YUHAIIN)
 
 .PHONY: dnsrelay
 dnsrelay:

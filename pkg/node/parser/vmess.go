@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	sysnet "net"
+	"net"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -15,31 +15,12 @@ import (
 )
 
 func init() {
-	var get func(any) string
-	var trim func([]byte) []byte
-
 	store.Store(subscribe.Type_vmess, func(data []byte) (*point.Point, error) {
 		//ParseLink parse vmess link
 		// eg: vmess://eyJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6IiIsInZlcmlmeV9jZXJ0Ijp0cnV
 		//             lLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjowLCJhaWQiOjIsIm5ldCI6InRjcC
 		//             IsInR5cGUiOiJub25lIiwidiI6IjIiLCJwcyI6Im5hbWUiLCJpZCI6ImNjY2MtY
 		//             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
-		if get == nil {
-			get = func(p any) string {
-				switch p := p.(type) {
-				case string:
-					return p
-				case float64:
-					return strconv.Itoa(int(p))
-				}
-
-				return ""
-			}
-		}
-
-		if trim == nil {
-			trim = func(b []byte) []byte { return trimJSON(b, '{', '}') }
-		}
 
 		n := struct {
 			// address
@@ -86,7 +67,7 @@ func init() {
 		if err != nil {
 			log.Warningln("base64 decode failed: ", err, string(data), len(data))
 		}
-		if err := json.Unmarshal(trim(dst), &n); err != nil {
+		if err := json.Unmarshal(trimJSON(dst, '{', '}'), &n); err != nil {
 			return nil, err
 		}
 
@@ -94,7 +75,7 @@ func init() {
 			n.Ps = n.Remark
 		}
 
-		port, err := strconv.ParseUint(get(n.Port), 10, 16)
+		port, err := strconv.ParseUint(fmt.Sprint(n.Port), 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("vmess port is not a number: %w", err)
 		}
@@ -108,21 +89,21 @@ func init() {
 			return nil, fmt.Errorf("vmess type is not supported: %v", n.Type)
 		}
 
-		var net *protocol.Protocol
+		var netProtocol *protocol.Protocol
 		switch n.Net {
 		case "ws":
 			if n.Host == "" {
-				n.Host = sysnet.JoinHostPort(n.Address, get(n.Port))
+				n.Host = net.JoinHostPort(n.Address, fmt.Sprint(n.Port))
 			}
 			if n.Sni == "" {
-				n.Sni, _, err = sysnet.SplitHostPort(n.Host)
+				n.Sni, _, err = net.SplitHostPort(n.Host)
 				if err != nil {
 					log.Warningf("split host and port failed: %v", err)
 					n.Sni = n.Host
 				}
 			}
 
-			net = &protocol.Protocol{
+			netProtocol = &protocol.Protocol{
 				Protocol: &protocol.Protocol_Websocket{
 					Websocket: &protocol.Websocket{
 						Host: n.Host,
@@ -137,7 +118,7 @@ func init() {
 				},
 			}
 		case "tcp":
-			net = &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
+			netProtocol = &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
 		default:
 			return nil, fmt.Errorf("vmess net is not supported: %v", n.Net)
 		}
@@ -154,12 +135,12 @@ func init() {
 						},
 					},
 				},
-				net,
+				netProtocol,
 				{
 					Protocol: &protocol.Protocol_Vmess{
 						Vmess: &protocol.Vmess{
 							Uuid:     n.Uuid,
-							AlterId:  get(n.AlterId),
+							AlterId:  fmt.Sprint(n.AlterId),
 							Security: n.Security,
 						},
 					},
@@ -167,13 +148,4 @@ func init() {
 			},
 		}, nil
 	})
-}
-
-func trimJSON(b []byte, start, end byte) []byte {
-	s := bytes.IndexByte(b, start)
-	e := bytes.LastIndexByte(b, end)
-	if s == -1 || e == -1 {
-		return b
-	}
-	return b[s : e+1]
 }

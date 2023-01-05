@@ -1,7 +1,7 @@
 package dns
 
 import (
-	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestTCP(t *testing.T) {
-	_, subnet, _ := net.ParseCIDR("1.1.1.1/32")
+	subnet, _ := netip.ParsePrefix("1.1.1.1/32")
 
 	configMap := map[string]Config{
 		"114": {

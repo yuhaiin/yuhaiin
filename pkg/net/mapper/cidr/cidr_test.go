@@ -1,6 +1,8 @@
 package cidr
 
 import (
+	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -49,4 +51,16 @@ func BenchmarkCidrMatch_Search(b *testing.B) {
 			// cidrMatch.Search(testIPv6b)
 		}
 	})
+}
+
+func TestXxx(t *testing.T) {
+	_, z, err := net.ParseCIDR("10.0.2.1/24")
+	assert.NoError(t, err)
+	t.Log(z.Mask.Size())
+	t.Log(z.IP.To4())
+
+	zz, err := netip.ParsePrefix("10.0.2.1/24")
+	assert.NoError(t, err)
+	t.Log(zz.Bits())
+	t.Log(zz.Addr().AsSlice())
 }

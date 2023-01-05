@@ -45,7 +45,7 @@ func NewDoH(config Config) (dns.DNS, error) {
 			case "tcp", "tcp4", "tcp6":
 				if addr == nil {
 					var err error
-					addr, err = proxy.ParseAddress(network, host)
+					addr, err = proxy.ParseAddress(proxy.PaseNetwork(network), host)
 					if err != nil {
 						return nil, fmt.Errorf("doh parse address failed: %w", err)
 					}
@@ -73,7 +73,7 @@ func NewDoH(config Config) (dns.DNS, error) {
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			relay.Copy(io.Discard, resp.Body) // from v2fly
+			relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
 			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 

@@ -1,13 +1,13 @@
 package dns
 
 import (
-	"net"
+	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
 func ExampleNew() {
-	_, subnet, err := net.ParseCIDR("1.1.1.1/24")
+	subnet, err := netip.ParsePrefix("1.1.1.1/24")
 	if err != nil {
 		panic(err)
 	}

@@ -18,7 +18,7 @@ func TestNewMatcher(t *testing.T) {
 	matcher.Insert("api.sec.miui.*", "ad_miui")
 
 	search := func(s string) string {
-		addr, _ := proxy.ParseAddress("", net.JoinHostPort(s, "0"))
+		addr, _ := proxy.ParseAddress(0, net.JoinHostPort(s, "0"))
 		res, _ := matcher.Search(addr)
 		return res
 	}
@@ -41,8 +41,8 @@ func BenchmarkMapper(b *testing.B) {
 	matcher := NewMapper[string]()
 	matcher.Insert("*.baidu.com", "test_baidu")
 	matcher.Insert("10.2.2.1/18", "test_cidr")
-	a1, _ := proxy.ParseAddress("", "www.example.baidu.com:0")
-	a2, _ := proxy.ParseAddress("", "10.2.2.1:0")
+	a1, _ := proxy.ParseAddress(0, "www.example.baidu.com:0")
+	a2, _ := proxy.ParseAddress(0, "10.2.2.1:0")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		if i%2 == 1 {

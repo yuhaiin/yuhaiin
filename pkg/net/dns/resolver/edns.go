@@ -7,7 +7,7 @@ import (
 
 type EDNSOPT [2]byte
 
-//https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-11
+// https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-11
 var (
 	Reserved         = EDNSOPT{0b00000000, 0b00000000} //0
 	LLQ              = EDNSOPT{0b00000000, 0b00000001} //1 Optional
@@ -126,10 +126,10 @@ func resolveAdditional(b []byte, arCount int) {
 	}
 }
 
-//protocol change https://tools.ietf.org/html/rfc3225
-//https://tools.ietf.org/html/rfc4034
-//https://tools.ietf.org/html/rfc4035
-//Algorithm https://tools.ietf.org/html/rfc4034#appendix-A.1
+// protocol change https://tools.ietf.org/html/rfc3225
+// https://tools.ietf.org/html/rfc4034
+// https://tools.ietf.org/html/rfc4035
+// Algorithm https://tools.ietf.org/html/rfc4034#appendix-A.1
 func createDNSSEC(domain string, reqType2 reqType) (header eDNSHeader, b []byte) {
 	//eDNSHeader := createEDNSReq(domain,reqType2,[]byte{})
 	header = eDNSHeader{}

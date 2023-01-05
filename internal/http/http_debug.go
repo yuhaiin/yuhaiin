@@ -6,11 +6,13 @@ package simplehttp
 import (
 	"net/http"
 	"net/http/pprof"
+	"runtime"
 )
 
 func init() {
 	debug = func(mux *http.ServeMux) {
 		// pprof
+		runtime.MemProfileRate = 100 * 1024
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
 		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)

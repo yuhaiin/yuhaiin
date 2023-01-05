@@ -17,14 +17,13 @@ func (w *wrapServer) Close() error {
 	return w.c()
 }
 
-func WrapClose(c func() error) Server {
-	return &wrapServer{c: c}
-}
+func WrapClose(c func() error) Server { return &wrapServer{c} }
 
 type DNSServer interface {
 	Server
 	HandleUDP(net.PacketConn) error
 	HandleTCP(net.Conn) error
+	Do([]byte) ([]byte, error)
 }
 
 var EmptyDNSServer DNSServer = &emptyDNSServer{}
@@ -34,3 +33,4 @@ type emptyDNSServer struct{}
 func (e *emptyDNSServer) Close() error                   { return nil }
 func (e *emptyDNSServer) HandleUDP(net.PacketConn) error { return io.EOF }
 func (e *emptyDNSServer) HandleTCP(net.Conn) error       { return io.EOF }
+func (e *emptyDNSServer) Do([]byte) ([]byte, error)      { return nil, io.EOF }

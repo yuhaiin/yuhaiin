@@ -1,8 +1,7 @@
 package dns
 
 import (
-	"encoding/base64"
-	"net"
+	"net/netip"
 	"testing"
 
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
@@ -13,7 +12,8 @@ import (
 
 func TestDOH(t *testing.T) {
 	rr.Bootstrap = &rr.System{DisableIPv6: true}
-	_, s, _ := net.ParseCIDR("223.5.5.5/24")
+	s, err := netip.ParsePrefix("223.5.5.5/24")
+	assert.NoError(t, err)
 	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{
@@ -94,7 +94,7 @@ func TestDOH(t *testing.T) {
 		},
 	}
 
-	d, err := NewDoH(configMap["google"])
+	d, err := New(configMap["google"])
 	assert.NoError(t, err)
 
 	t.Log(d.LookupIP("plasma"))
@@ -123,10 +123,4 @@ func TestGetURL(t *testing.T) {
 
 	t.Log(getUrlAndHost("https://"))
 	t.Log(getUrlAndHost("/dns-query"))
-}
-
-func TestDohGetUrl(t *testing.T) {
-	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.example.com", A, false)))
-	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.google.com", A, false)))
-	t.Log(base64.URLEncoding.EncodeToString(creatRequest("a.62characterlabel-makes-base64url-distinct-from-standard-base64.example.com", A, false)))
 }

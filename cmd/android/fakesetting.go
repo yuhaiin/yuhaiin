@@ -81,6 +81,7 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 							Name:          fmt.Sprintf("fd://%d", opt.TUN.FD),
 							Mtu:           opt.TUN.MTU,
 							Gateway:       opt.TUN.Gateway,
+							Portal:        opt.TUN.Portal,
 							DnsHijacking:  opt.TUN.DNSHijacking,
 							SkipMulticast: true,
 							Driver:        listener.TunEndpointDriver(opt.TUN.Driver),
@@ -94,7 +95,6 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			Tcp:          bypass.Mode(opt.Bypass.TCP),
 			Udp:          bypass.Mode(opt.Bypass.UDP),
 			BypassFile:   filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
-			CustomRule:   make(map[string]bypass.Mode),
 			CustomRuleV2: make(map[string]*bypass.ModeConfig),
 		},
 

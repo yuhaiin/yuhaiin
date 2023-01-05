@@ -17,7 +17,7 @@ type DnsServer struct {
 }
 
 func NewDNSServer(resolver proxy.ResolverProxy) server.DNSServer {
-	return &DnsServer{resolver: resolver, DNSServer: server.EmptyDNSServer}
+	return &DnsServer{server.EmptyDNSServer, "", resolver}
 }
 
 func (a *DnsServer) Update(s *protoconfig.Setting) {
@@ -30,6 +30,7 @@ func (a *DnsServer) Update(s *protoconfig.Setting) {
 			log.Errorln("close dns server failed:", err)
 		}
 	}
+
 	a.DNSServer = dns.NewDnsServer(s.Dns.Server, a.resolver)
 	a.dnsserverHost = s.Dns.Server
 }

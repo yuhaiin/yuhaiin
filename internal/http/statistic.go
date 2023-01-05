@@ -3,7 +3,6 @@ package simplehttp
 import (
 	"context"
 	"net/http"
-	"sort"
 	"strconv"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
@@ -60,8 +59,6 @@ func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
 					if err != nil {
 						break
 					}
-					sort.Slice(conns.Connections, func(i, j int) bool { return conns.Connections[i].Id < conns.Connections[j].Id })
-
 					err = websocket.JSON.Send(c,
 						map[string]any{"flow": total, "connections": conns.Connections})
 					if err != nil {

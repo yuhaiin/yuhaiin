@@ -2,7 +2,6 @@ package statistics
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -13,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
@@ -42,11 +40,21 @@ func NewConnStore(dialer proxy.Proxy, processDumper listener.ProcessDumper) *Con
 
 func (c *Connections) Conns(context.Context, *emptypb.Empty) (*grpcsts.ConnectionsInfo, error) {
 	resp := &grpcsts.ConnectionsInfo{}
-	c.connStore.Range(func(key uint64, v connection) bool {
-		resp.Connections = append(resp.Connections, v.Info())
+	c.connStore.Range(func(key uint64, con connection) bool {
+		connection := &statistic.Connection{
+			Id:   con.ID(),
+			Addr: getAddr(con.Addr()),
+			Type: &statistic.NetType{
+				ConnType:       con.Addr().NetworkType(),
+				UnderlyingType: statistic.Type(statistic.Type_value[con.LocalAddr().Network()]),
+			},
+			Extra: extraMap(con.Addr()),
+		}
+		connection.Extra["Outbound"] = getRemote(con)
+
+		resp.Connections = append(resp.Connections, connection)
 		return true
 	})
-
 	return resp, nil
 }
 
@@ -74,25 +82,14 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*grpcsts.TotalFlow
 
 func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
-		log.Debugf("close(%d) %s, %s<->%s\n", z.Info().GetId(), z.Info().GetAddr(), z.Info().Extra[proxy.SourceKey{}.String()], z.Info().Remote)
+		source, _ := z.Addr().Value(proxy.SourceKey{})
+		log.Debugf("close(%d) %v, %v<->%s\n", z.ID(), z.Addr(), source, getRemote(z))
 	}
 }
 
 func (c *Connections) storeConnection(o connection) {
-	log.Debugf(c.cString(o))
-	c.connStore.Store(o.Info().GetId(), o)
-}
-
-func (c *Connections) cString(oo connection) (s string) {
-	if !log.IsOutput(protolog.LogLevel_debug) {
-		return
-	}
-
-	o := oo.Info()
-
-	extra, _ := json.Marshal(o.GetExtra())
-	return fmt.Sprintf("new(%d) [%s,%s]%s(Outbound: %s)%s",
-		o.GetId(), o.GetType().GetConnType(), o.GetType().GetUnderlyingType(), o.GetAddr(), o.GetRemote(), extra)
+	c.connStore.Store(o.ID(), o)
+	log.Debugf("new(%d) [%s]%v(outbound: %s)", o.ID(), o.Addr().Network(), o.Addr(), getRemote(o))
 }
 
 func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
@@ -102,7 +99,7 @@ func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("dial packet conn (%s) failed: %w", process, err)
 	}
 
-	z := &packetConn{con, c.generateConnection("udp", addr, con), c}
+	z := &packetConn{con, c.idSeed.Generate(), addr, c}
 
 	c.storeConnection(z)
 	return z, nil
@@ -115,31 +112,22 @@ func (c *Connections) Conn(addr proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("dial conn (%s) failed: %w", process, err)
 	}
 
-	z := &conn{con, c.generateConnection("tcp", addr, con), c}
+	z := &conn{con, c.idSeed.Generate(), addr, c}
 
 	c.storeConnection(z)
 	return z, nil
 }
 
-func (c *Connections) generateConnection(network string, addr proxy.Address, con interface{ LocalAddr() net.Addr }) *statistic.Connection {
+func getRemote(con connection) string {
 	var remote string
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
 	if ok {
 		remote = r.RemoteAddr().String()
 	} else {
-		remote = addr.String()
+		remote = con.Addr().String()
 	}
 
-	return &statistic.Connection{
-		Id:     c.idSeed.Generate(),
-		Addr:   getAddr(addr),
-		Remote: remote,
-		Type: &statistic.NetType{
-			ConnType:       network,
-			UnderlyingType: con.LocalAddr().Network(),
-		},
-		Extra: extraMap(addr),
-	}
+	return remote
 }
 
 func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
@@ -163,9 +151,9 @@ func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
 	case net.Addr:
 		sourceAddr, err = proxy.ParseSysAddr(z)
 	case string:
-		sourceAddr, err = proxy.ParseAddress(addr.Network(), z)
+		sourceAddr, err = proxy.ParseAddress(addr.NetworkType(), z)
 	case interface{ String() string }:
-		sourceAddr, err = proxy.ParseAddress(addr.Network(), z.String())
+		sourceAddr, err = proxy.ParseAddress(addr.NetworkType(), z.String())
 	default:
 		err = errors.New("unsupported type")
 	}
@@ -178,9 +166,9 @@ func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
 	case net.Addr:
 		dstAddr, err = proxy.ParseSysAddr(z)
 	case string:
-		dstAddr, err = proxy.ParseAddress(addr.Network(), z)
+		dstAddr, err = proxy.ParseAddress(addr.NetworkType(), z)
 	case interface{ String() string }:
-		dstAddr, err = proxy.ParseAddress(addr.Network(), z.String())
+		dstAddr, err = proxy.ParseAddress(addr.NetworkType(), z.String())
 	default:
 		err = errors.New("unsupported type")
 	}

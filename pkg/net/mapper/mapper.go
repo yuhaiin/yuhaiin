@@ -2,35 +2,34 @@ package mapper
 
 import (
 	"errors"
-	"net"
+	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
-type combine[T any] struct {
+type Combine[T any] struct {
 	cidr   *cidr.Cidr[T]
 	domain *domain.Domain[T]
 }
 
-func (x *combine[T]) Insert(str string, mark T) {
+func (x *Combine[T]) Insert(str string, mark T) {
 	if str == "" {
 		return
 	}
 
-	_, ipNet, err := net.ParseCIDR(str)
+	ipNet, err := netip.ParsePrefix(str)
 	if err == nil {
 		x.cidr.InsertCIDR(ipNet, mark)
 		return
 	}
 
-	if ip := net.ParseIP(str); ip != nil {
+	if ip, err := netip.ParseAddr(str); err == nil {
 		mask := 128
-		if ip.To4() != nil {
+		if ip.Is4() {
 			mask = 32
 		}
 		x.cidr.InsertIP(ip, mask, mark)
@@ -41,7 +40,9 @@ func (x *combine[T]) Insert(str string, mark T) {
 
 }
 
-func (x *combine[T]) Search(addr proxy.Address) (mark T, ok bool) {
+var ErrSkipResolveDomain = errors.New("skip resolver domain")
+
+func (x *Combine[T]) Search(addr proxy.Address) (mark T, ok bool) {
 	if addr.Type() == proxy.IP {
 		return x.cidr.SearchIP(yerror.Must(addr.IP()))
 	}
@@ -52,23 +53,19 @@ func (x *combine[T]) Search(addr proxy.Address) (mark T, ok bool) {
 
 	if ips, err := addr.IP(); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
-	} else {
-		if !errors.Is(err, mapper.ErrSkipResolveDomain) {
-			log.Warningf("dns lookup %v failed: %v, skip match ip", addr, err)
-		}
+	} else if !errors.Is(err, ErrSkipResolveDomain) {
+		log.Warningf("dns lookup %v failed: %v, skip match ip", addr, err)
 	}
 
 	return
 }
 
-func (x *combine[T]) Domain() mapper.Mapper[string, proxy.Address, T] { return x.domain }
-
-func (x *combine[T]) Clear() error {
+func (x *Combine[T]) Clear() error {
 	x.cidr = cidr.NewCidrMapper[T]()
 	x.domain = domain.NewDomainMapper[T]()
 	return nil
 }
 
-func NewMapper[T any]() mapper.Mapper[string, proxy.Address, T] {
-	return &combine[T]{cidr: cidr.NewCidrMapper[T](), domain: domain.NewDomainMapper[T]()}
+func NewMapper[T any]() *Combine[T] {
+	return &Combine[T]{cidr: cidr.NewCidrMapper[T](), domain: domain.NewDomainMapper[T]()}
 }

@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -48,4 +49,10 @@ func TestResolve(t *testing.T) {
 func TestResolveBit(t *testing.T) {
 	t.Log(0b10000001)
 	t.Log(fmt.Sprintf("%08b", 0b00000011)[4:])
+}
+
+func TestDohGetUrl(t *testing.T) {
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.example.com", A, false)))
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("www.google.com", A, false)))
+	t.Log(base64.URLEncoding.EncodeToString(creatRequest("a.62characterlabel-makes-base64url-distinct-from-standard-base64.example.com", A, false)))
 }

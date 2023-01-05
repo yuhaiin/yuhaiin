@@ -3,7 +3,6 @@ package dns
 import (
 	"fmt"
 	"math"
-	"math/big"
 	"net"
 	"net/netip"
 	"strings"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -241,7 +239,8 @@ func (f *fakeLru) LastPopValue() (string, bool) {
 	return f.LRU.LastPopValue()
 }
 
-// old impl
+/**
+ old impl
 
 type Fake struct {
 	domainToIP *lru.LRU[string, string]
@@ -319,3 +318,4 @@ func (fkdns *Fake) GetDomainFromIP(ip string) (string, bool) {
 	defer fkdns.mu.Unlock()
 	return fkdns.domainToIP.ReverseLoad(ip)
 }
+*/

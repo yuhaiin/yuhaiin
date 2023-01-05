@@ -12,7 +12,6 @@ type DNS interface {
 	LookupIP(domain string) ([]net.IP, error)
 	Record(domain string, _ dnsmessage.Type) (IPResponse, error)
 	Do([]byte) ([]byte, error)
-	// Resolver() *net.Resolver
 	io.Closer
 }
 

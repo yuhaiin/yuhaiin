@@ -9,9 +9,10 @@ import (
 	"sort"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
+	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
+	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -34,18 +35,17 @@ func (g *groupHandler) Get(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (g *groupHandler) groupList(w http.ResponseWriter, r *http.Request, ns *node.Manager) error {
-	sort.Strings(ns.Groups)
-	return TPS.BodyExecute(w, ns.GetGroups(), tps.GROUP_LIST)
+	groups := maps.Keys(ns.GroupsV2)
+	sort.Strings(groups)
+	return TPS.BodyExecute(w, groups, tps.GROUP_LIST)
 }
 
 func (g *groupHandler) group(w http.ResponseWriter, r *http.Request, ns *node.Manager, group string) error {
-	z, ok := ns.GroupNodesMap[group]
+	z, ok := ns.GroupsV2[group]
 	if !ok {
 		return fmt.Errorf("can't find %s", group)
 	}
-
-	sort.Strings(z.Nodes)
-	data, err := protojson.Marshal(z)
+	data, err := json.Marshal(z.NodesV2)
 	if err != nil {
 		return err
 	}
@@ -58,6 +58,7 @@ type tag struct {
 	emptyHTTP
 	nm snode.NodeServer
 	ts snode.TagServer
+	st *shunt.Shunt
 }
 
 func (t *tag) Get(w http.ResponseWriter, r *http.Request) error {
@@ -72,10 +73,16 @@ func (t *tag) Get(w http.ResponseWriter, r *http.Request) error {
 		tags[k] = v.GetHash()[0]
 	}
 
+	for _, v := range t.st.Tags() {
+		if _, ok := tags[v]; !ok {
+			tags[v] = ""
+		}
+	}
+
 	groups := make(map[string]map[string]string)
 
-	for k, v := range m.GroupNodesMap {
-		groups[k] = v.NodeHashMap
+	for k, v := range m.GroupsV2 {
+		groups[k] = v.NodesV2
 	}
 
 	gs, _ := json.Marshal(groups)

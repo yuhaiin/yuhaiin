@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 func init() {
@@ -36,7 +37,7 @@ func ParseAddr(host, defaultPort string) (proxy.Address, error) {
 		host = net.JoinHostPort(host, defaultPort)
 	}
 
-	addr, err := proxy.ParseAddress("tcp", host)
+	addr, err := proxy.ParseAddress(statistic.Type_tcp, host)
 	if err != nil {
 		return nil, fmt.Errorf("parse address failed: %w", err)
 	}

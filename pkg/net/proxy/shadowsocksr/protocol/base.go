@@ -149,15 +149,14 @@ var ProtocolMethod = map[string]func(Protocol) protocol{
 type Protocol struct {
 	*cipher.Cipher
 
-	Name     string
-	HeadSize int
-	TcpMss   int
-	Param    string
-	IV       []byte
+	HeadSize     int
+	TcpMss       int
+	ObfsOverhead int
+	Name         string
+	Param        string
+	IV           []byte
 
 	Auth *AuthData
-
-	ObfsOverhead int
 }
 
 func (s Protocol) stream() (protocol, error) {

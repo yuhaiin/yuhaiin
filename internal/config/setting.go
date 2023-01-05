@@ -120,15 +120,11 @@ func defaultConfig(path string) []byte {
 			CustomRuleV2: map[string]*bypass.ModeConfig{
 				"dns.google": {
 					Mode: bypass.Mode_proxy,
-					Fields: map[string]string{
-						"tag": "remote_dns",
-					},
+					Tag:  "remote_dns",
 				},
 				"223.5.5.5": {
 					Mode: bypass.Mode_direct,
-					Fields: map[string]string{
-						"tag": "local_dns",
-					},
+					Tag:  "local_dns",
 				},
 				"exmaple.block.domain.com": {Mode: bypass.Mode_block},
 			},
@@ -194,6 +190,7 @@ func defaultConfig(path string) []byte {
 							Name:          "tun://tun0",
 							Mtu:           1500,
 							Gateway:       "172.19.0.1",
+							Portal:        "172.19.0.2",
 							DnsHijacking:  true,
 							SkipMulticast: true,
 						},
@@ -220,7 +217,7 @@ func save(pa *config.Setting, dir string) error {
 		return err
 	}
 
-	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t"}.Marshal(pa)
+	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t", EmitUnpopulated: true}.Marshal(pa)
 	if err != nil {
 		return fmt.Errorf("marshal setting failed: %w", err)
 	}

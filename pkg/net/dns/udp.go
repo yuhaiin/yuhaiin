@@ -21,7 +21,7 @@ func NewDoU(config Config) (dns.DNS, error) {
 	}
 
 	return NewClient(config, func(req []byte) ([]byte, error) {
-		var b = pool.GetBytes(pool.DefaultSize)
+		var b = pool.GetBytes(8192)
 		defer pool.PutBytes(b)
 
 		conn, err := config.Dialer.PacketConn(addr)

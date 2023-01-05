@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
@@ -98,7 +99,7 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 		return fmt.Errorf("create request failed: %w", err)
 	}
 
-	req.Header.Set("User-Agent", "yuhaiin")
+	req.Header.Set("User-Agent", fmt.Sprintf("%s/%s-%s", version.AppName, version.Version, version.GitCommit))
 
 	res, err := do(req)
 	if err != nil {

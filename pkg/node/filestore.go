@@ -27,9 +27,9 @@ func load(path string) *node.Node {
 		Udp:   &point.Point{},
 		Links: map[string]*subscribe.Link{},
 		Manager: &node.Manager{
-			Groups:        []string{},
-			GroupNodesMap: map[string]*node.Nodes{},
-			Nodes:         map[string]*point.Point{},
+			GroupsV2: map[string]*node.Nodes{},
+			Nodes:    map[string]*point.Point{},
+			Tags:     map[string]*node.Tags{},
 		},
 	})
 
@@ -41,7 +41,7 @@ func load(path string) *node.Node {
 	data = config.SetDefault(data, defaultNode)
 
 	no := &node.Node{}
-	if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, no); err != nil {
+	if err = (protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}).Unmarshal(data, no); err != nil {
 		log.Errorln("unmarshal node file failed:", err)
 	}
 

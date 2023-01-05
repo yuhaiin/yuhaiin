@@ -3,6 +3,7 @@ package resolver
 import (
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
@@ -171,21 +172,13 @@ func (b *basedns) Do(r []byte) ([]byte, error) {
 }
 
 func getDNS(name string, ipv6 bool, dc *pdns.Dns, dialer proxy.Proxy) (idns.DNS, error) {
-	_, subnet, err := net.ParseCIDR(dc.Subnet)
+	subnet, err := netip.ParsePrefix(dc.Subnet)
 	if err != nil {
-		p := net.ParseIP(dc.Subnet)
-		if p != nil { // no mask
-			var mask net.IPMask
-			if p.To4() == nil { // ipv6
-				mask = net.IPMask{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
-			} else {
-				mask = net.IPMask{255, 255, 255, 255}
-			}
-
-			subnet = &net.IPNet{IP: p, Mask: mask}
+		p, err := netip.ParseAddr(dc.Subnet)
+		if err == nil {
+			subnet = netip.PrefixFrom(p, p.BitLen())
 		}
 	}
-
 	return dns.New(
 		dns.Config{
 			Type:       dc.Type,
