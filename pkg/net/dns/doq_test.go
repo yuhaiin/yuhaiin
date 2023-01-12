@@ -39,7 +39,7 @@ func TestDoQ(t *testing.T) {
 		},
 	}
 
-	d, err := New(configMap["nextdns"])
+	d, err := New(configMap["adguard"])
 	assert.NoError(t, err)
 
 	defer d.Close()

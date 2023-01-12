@@ -26,7 +26,7 @@ type Resolvers struct {
 func NewResolvers(dl proxy.Proxy) *Resolvers {
 	resolver.Bootstrap = newResolver(&bootstrap{dl})
 
-	dialer := &dialer{Proxy: dl, Addr: func(addr proxy.Address) {
+	dialer := &dialer{Proxy: dl, addr: func(addr proxy.Address) {
 		// force to use bootstrap dns, otherwise will dns query cycle
 		addr.WithResolver(resolver.Bootstrap, false)
 	}}
@@ -73,7 +73,7 @@ func (bs *bootstrap) update(b *basedns, c *protoconfig.Setting) {
 	z, err := getDNS("BOOTSTRAP", c.GetIpv6(), b.config,
 		&dialer{
 			Proxy: bs.Proxy,
-			Addr: func(addr proxy.Address) {
+			addr: func(addr proxy.Address) {
 				addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
 				addr.WithResolver(&resolver.System{DisableIPv6: !c.GetIpv6()}, false)
 			}},
@@ -193,15 +193,15 @@ func getDNS(name string, ipv6 bool, dc *pdns.Dns, dialer proxy.Proxy) (idns.DNS,
 
 type dialer struct {
 	proxy.Proxy
-	Addr func(addr proxy.Address)
+	addr func(addr proxy.Address)
 }
 
 func (d *dialer) Conn(addr proxy.Address) (net.Conn, error) {
-	d.Addr(addr)
+	d.addr(addr)
 	return d.Proxy.Conn(addr)
 }
 
 func (d *dialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	d.Addr(addr)
+	d.addr(addr)
 	return d.Proxy.PacketConn(addr)
 }

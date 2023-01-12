@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -20,9 +20,9 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func udpForwarder(s *stack.Stack, natTable *s5s.NatTable, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
+func udpForwarder(s *stack.Stack, natTable *nat.Table, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
 	handle := func(srcpconn net.PacketConn, dst proxy.Address) error {
-		buf := pool.GetBytes(s5s.MaxSegmentSize)
+		buf := pool.GetBytes(opt.Protocol.Tun.Mtu)
 		defer pool.PutBytes(buf)
 
 		for {
@@ -36,7 +36,29 @@ func udpForwarder(s *stack.Stack, natTable *s5s.NatTable, opt *listener.Opts[*li
 				return err
 			}
 
-			if err = natTable.Write(buf[:n], src, dst, srcpconn.WriteTo); err != nil {
+			err = natTable.Write(
+				&nat.Packet{
+					SourceAddress:      src,
+					DestinationAddress: dst,
+					Payload:            buf[:n],
+					WriteBack: func(b []byte, addr net.Addr) (int, error) {
+						from, err := proxy.ParseSysAddr(addr)
+						if err != nil {
+							return 0, err
+						}
+
+						// Symmetric NAT
+						// gVisor udp.NewForwarder only support Symmetric NAT,
+						// can't set source in udp header
+						// TODO: rewrite HandlePacket() to support full cone NAT
+						if from.String() != dst.String() {
+							return 0, nil
+						}
+						return srcpconn.WriteTo(b, src)
+					},
+				},
+			)
+			if err != nil {
 				return err
 			}
 		}

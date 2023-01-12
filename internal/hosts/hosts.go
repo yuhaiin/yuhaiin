@@ -56,10 +56,16 @@ type hostsKey struct{}
 func (hostsKey) String() string { return "Hosts" }
 
 func (h *hosts) getAddr(addr proxy.Address) proxy.Address {
+	if _, ok := addr.Value(hostsKey{}); ok {
+		return addr
+	}
+
 	z, ok := h.hosts.Load(addr.Hostname())
 	if ok {
 		addr.WithValue(hostsKey{}, addr.Hostname())
-		return addr.OverrideHostname(z.Hostname())
+		addr = addr.OverrideHostname(z.Hostname())
+		addr.WithValue(proxy.CurrentKey{}, addr)
+		return addr
 	}
 
 	z, ok = h.hosts.Load(addr.String())
@@ -67,6 +73,7 @@ func (h *hosts) getAddr(addr proxy.Address) proxy.Address {
 		addr.WithValue(hostsKey{}, addr.String())
 		addr = addr.OverrideHostname(z.Hostname())
 		addr = addr.OverridePort(z.Port())
+		addr.WithValue(proxy.CurrentKey{}, addr)
 	}
 
 	return addr

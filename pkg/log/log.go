@@ -14,6 +14,8 @@ import (
 type Logger interface {
 	SetLevel(protolog.LogLevel)
 	IsOutput(protolog.LogLevel) bool
+	Verbosef(string, ...any)
+	Verboseln(...any)
 	Debugf(string, ...any)
 	Debugln(...any)
 	Infof(string, ...any)
@@ -58,6 +60,8 @@ func Close() error {
 
 func SetLevel(l protolog.LogLevel)      { DefaultLogger.SetLevel(l) }
 func IsOutput(l protolog.LogLevel) bool { return DefaultLogger.IsOutput(l) }
+func Verbosef(format string, v ...any)  { DefaultLogger.Verbosef(format, v...) }
+func Verboseln(v ...any)                { DefaultLogger.Verboseln(v...) }
 func Debugf(format string, v ...any)    { DefaultLogger.Debugf(format, v...) }
 func Debugln(v ...any)                  { DefaultLogger.Debugln(v...) }
 func Infof(format string, v ...any)     { DefaultLogger.Infof(format, v...) }
@@ -87,6 +91,17 @@ func NewLogger(depth int32) *logger {
 func (l *logger) SetLevel(z protolog.LogLevel)     { l.level = z }
 func (l logger) IsOutput(z protolog.LogLevel) bool { return l.level <= z }
 
+func (l *logger) Verbosef(format string, v ...any) {
+	if l.level <= protolog.LogLevel_verbose {
+		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
+	}
+}
+
+func (l *logger) Verboseln(v ...any) {
+	if l.level <= protolog.LogLevel_verbose {
+		l.log.Output(int(l.depth), fmt.Sprintln(v...))
+	}
+}
 func (l *logger) Debugf(format string, v ...any) {
 	if l.level <= protolog.LogLevel_debug {
 		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))

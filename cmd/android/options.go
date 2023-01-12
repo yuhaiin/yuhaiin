@@ -66,6 +66,8 @@ type TUN struct {
 	// Driver
 	// 0: fdbased
 	// 1: channel
+	// 2: tun2socket
+	// 3: tun2socket_gvisor
 	Driver        int32 `json:"driver"`
 	UidDumper     UidDumper
 	SocketProtect SocketProtect

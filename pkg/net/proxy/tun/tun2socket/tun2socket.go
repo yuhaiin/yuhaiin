@@ -15,8 +15,8 @@ type Tun2Socket struct {
 }
 
 // noinspection GoUnusedExportedFunction
-func StartTun2Socket(device io.ReadWriteCloser, gateway, portal netip.Addr) (*Tun2Socket, error) {
-	tcp, udp, err := nat.Start(device, gateway, portal)
+func StartTun2SocketGvisor(device io.ReadWriteCloser, gateway, portal netip.Addr, mtu int32) (*Tun2Socket, error) {
+	tcp, udp, err := nat.StartGvisor(device, gateway, portal, mtu)
 	if err != nil {
 		return nil, err
 	}

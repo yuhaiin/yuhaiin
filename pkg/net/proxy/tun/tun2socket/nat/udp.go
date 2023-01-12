@@ -7,7 +7,10 @@ import (
 	"net/netip"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/tcpip"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/checksum"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
 type call struct {
@@ -20,11 +23,10 @@ type call struct {
 
 type UDP struct {
 	closed    bool
+	mtu       int32
 	device    io.Writer
 	queueLock sync.Mutex
 	queue     []*call
-	bufLock   sync.Mutex
-	buf       [65535]byte
 }
 
 func (u *UDP) ReadFrom(buf []byte) (int, netip.AddrPort, netip.AddrPort, error) {
@@ -57,40 +59,71 @@ func (u *UDP) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 		return 0, net.ErrClosed
 	}
 
-	u.bufLock.Lock()
-	defer u.bufLock.Unlock()
+	ipBuf := pool.GetBytes(u.mtu)
+	defer pool.PutBytes(ipBuf)
 
 	if len(buf) > 0xffff {
 		return 0, net.InvalidAddrError("invalid ip version")
 	}
 
-	if !local.Addr().Is4() || !remote.Addr().Is4() {
-		return 0, net.InvalidAddrError("invalid ip version")
+	if !local.Addr().IsValid() || !remote.Addr().IsValid() {
+		return 0, net.InvalidAddrError("invalid src or dst address")
 	}
 
-	tcpip.SetIPv4(u.buf[:])
+	udpTotalLength := header.UDPMinimumSize + uint16(len(buf))
+	var ip IP
+	var totalLength uint16
+	if remote.Addr().Unmap().Is4() {
+		if totalLength = header.IPv4MinimumSize + udpTotalLength; int(u.mtu) < int(totalLength) {
+			return 0, net.InvalidAddrError("ip packet total length large than mtu")
+		}
 
-	ip := tcpip.IPv4Packet(u.buf[:])
-	ip.SetHeaderLen(tcpip.IPv4HeaderSize)
-	ip.SetTotalLength(tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize + uint16(len(buf)))
-	ip.SetTypeOfService(0)
-	ip.SetIdentification(uint16(rand.Uint32()))
-	ip.SetFragmentOffset(0)
-	ip.SetTimeToLive(64)
-	ip.SetProtocol(tcpip.UDP)
-	ip.SetSourceIP(local.Addr())
-	ip.SetDestinationIP(remote.Addr())
+		ipv4 := header.IPv4(ipBuf)
+		ipv4.Encode(&header.IPv4Fields{
+			TOS:            0,
+			ID:             uint16(rand.Uint32()),
+			TotalLength:    totalLength,
+			FragmentOffset: 0,
+			TTL:            64,
+			Protocol:       uint8(header.UDPProtocolNumber),
+			SrcAddr:        tcpip.Address(local.Addr().AsSlice()),
+			DstAddr:        tcpip.Address(remote.Addr().AsSlice()),
+		})
 
-	udp := tcpip.UDPPacket(ip.Payload())
-	udp.SetLength(tcpip.UDPHeaderSize + uint16(len(buf)))
-	udp.SetSourcePort(local.Port())
-	udp.SetDestinationPort(remote.Port())
+		ip = ipv4
+	} else {
+		if totalLength = header.IPv6MinimumSize + udpTotalLength; int(u.mtu) < int(totalLength) {
+			return 0, net.InvalidAddrError("ip packet total length large than mtu")
+		}
+
+		ipv6 := header.IPv6(ipBuf)
+		ipv6.Encode(&header.IPv6Fields{
+			TransportProtocol: header.UDPProtocolNumber,
+			PayloadLength:     udpTotalLength,
+			SrcAddr:           tcpip.Address(local.Addr().AsSlice()),
+			DstAddr:           tcpip.Address(remote.Addr().AsSlice()),
+		})
+
+		ip = ipv6
+	}
+
+	udp := header.UDP(ip.Payload())
+	udp.Encode(&header.UDPFields{
+		SrcPort: local.Port(),
+		DstPort: remote.Port(),
+		Length:  udpTotalLength,
+	})
 	copy(udp.Payload(), buf)
 
-	ip.ResetChecksum()
-	udp.ResetChecksum(ip.PseudoSum())
+	if ip, ok := ip.(IPv4); ok {
+		ip.SetChecksum(0)
+		ip.SetChecksum(^checksum.CheckSumCombine(0, ipBuf[:ip.HeaderLength()]))
+	}
 
-	return u.device.Write(u.buf[:ip.TotalLen()])
+	udp.SetChecksum(0)
+	udp.SetChecksum(^checksum.CheckSumCombine(PseudoHeaderSum(ip, ipBuf, header.UDPProtocolNumber), udp /*udp hdr + udp payload*/))
+
+	return u.device.Write(ipBuf[:totalLength])
 }
 
 func (u *UDP) Close() error {
@@ -106,7 +139,7 @@ func (u *UDP) Close() error {
 	return nil
 }
 
-func (u *UDP) handleUDPPacket(ip tcpip.IPv4Packet, pkt tcpip.UDPPacket) {
+func (u *UDP) handleUDPPacket(source, destination netip.AddrPort, payload []byte) {
 	var c *call
 
 	u.queueLock.Lock()
@@ -120,9 +153,9 @@ func (u *UDP) handleUDPPacket(ip tcpip.IPv4Packet, pkt tcpip.UDPPacket) {
 	u.queueLock.Unlock()
 
 	if c != nil {
-		c.source = netip.AddrPortFrom(ip.SourceIP(), pkt.SourcePort())
-		c.destination = netip.AddrPortFrom(ip.DestinationIP(), pkt.DestinationPort())
-		c.n = copy(c.buf, pkt.Payload())
+		c.source = source
+		c.destination = destination
+		c.n = copy(c.buf, payload)
 		c.cond.Signal()
 	}
 }

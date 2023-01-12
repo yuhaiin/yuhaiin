@@ -18,6 +18,7 @@ message protocol {
     socks5 socks5 = 10 [ json_name = "socks5" ];
     http http = 11 [ json_name = "http" ];
     direct direct = 12 [ json_name = "direct" ];
+    reject reject = 13 [ json_name = "reject" ];
   }
 }
 
@@ -97,3 +98,5 @@ message tls_config {
 }
 
 message direct {}
+
+message reject {}
