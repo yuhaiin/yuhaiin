@@ -5,6 +5,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	httpc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
@@ -31,8 +32,11 @@ func init() {
 	protocol.RegisterProtocol(ssr.New)
 	protocol.RegisterProtocol(s5c.New)
 	protocol.RegisterProtocol(httpc.New)
-	protocol.RegisterProtocol(func(d *protocol.Protocol_Direct) protocol.WrapProxy {
-		return func(p proxy.Proxy) (proxy.Proxy, error) { return direct.NewDirect(), nil }
+	protocol.RegisterProtocol(func(*protocol.Protocol_Direct) protocol.WrapProxy {
+		return func(proxy.Proxy) (proxy.Proxy, error) { return direct.Default, nil }
+	})
+	protocol.RegisterProtocol(func(*protocol.Protocol_Reject) protocol.WrapProxy {
+		return func(proxy.Proxy) (proxy.Proxy, error) { return reject.Default, nil }
 	})
 }
 

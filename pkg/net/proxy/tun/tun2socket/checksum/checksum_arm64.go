@@ -1,4 +1,4 @@
-package tcpip
+package checksum
 
 import (
 	"unsafe"

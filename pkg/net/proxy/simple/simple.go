@@ -68,7 +68,7 @@ func (c *Simple) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, err
 	}
 
-	return &packetConn{PacketConn: conn, addr: uaddr}, nil
+	return &packetConn{conn, uaddr}, nil
 }
 
 type packetConn struct {

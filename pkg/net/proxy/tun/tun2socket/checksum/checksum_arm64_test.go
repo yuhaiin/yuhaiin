@@ -1,4 +1,4 @@
-package tcpip
+package checksum
 
 import (
 	"crypto/rand"
@@ -7,9 +7,9 @@ import (
 	"golang.org/x/sys/cpu"
 )
 
-func Test_SumAVX2(t *testing.T) {
-	if !cpu.X86.HasAVX2 {
-		t.Skipf("AVX2 unavailable")
+func Test_SumNeon(t *testing.T) {
+	if !cpu.ARM64.HasASIMD {
+		t.Skipf("Neon unavailable")
 	}
 
 	bytes := make([]byte, chunkSize)
@@ -22,18 +22,18 @@ func Test_SumAVX2(t *testing.T) {
 			}
 
 			compat := sumCompat(bytes[:size])
-			avx := sumAVX2(bytes[:size])
+			neon := sumNeon(bytes[:size])
 
-			if compat != avx {
+			if compat != neon {
 				t.Errorf("Sum of length=%d mismatched", size)
 			}
 		}
 	}
 }
 
-func Benchmark_SumAVX2(b *testing.B) {
-	if !cpu.X86.HasAVX2 {
-		b.Skipf("AVX2 unavailable")
+func Benchmark_SumNeon(b *testing.B) {
+	if !cpu.ARM64.HasASIMD {
+		b.Skipf("Neon unavailable")
 	}
 
 	bytes := make([]byte, chunkSize)
@@ -46,6 +46,6 @@ func Benchmark_SumAVX2(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		sumAVX2(bytes)
+		sumNeon(bytes)
 	}
 }

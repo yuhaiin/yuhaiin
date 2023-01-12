@@ -40,7 +40,7 @@ all: yuhaiin yuhaiin_windows dnsrelay dnsrelay_windows
 
 .PHONY: vet
 vet:
-	$(GO) vet $(shell go list ./... | grep -v '/scripts/' | grep -v 'pkg/net/proxy/tun/tun2socket/tcpip')
+	$(GO) vet $(shell go list ./... | grep -v '/scripts/' | grep -v 'pkg/net/proxy/tun/tun2socket/checksum')
 
 .PHONY: yuhaiin
 yuhaiin:

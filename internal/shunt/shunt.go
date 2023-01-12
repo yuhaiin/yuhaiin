@@ -16,9 +16,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
 
-type MODE_MARK_KEY struct{}
+type modeMarkKey struct{}
 
-func (MODE_MARK_KEY) String() string { return "MODE" }
+func (modeMarkKey) String() string { return "MODE" }
 
 type DOMAIN_MARK_KEY struct{}
 
@@ -149,7 +149,7 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 		m = errMode
 	}
 
-	host.WithValue(MODE_MARK_KEY{}, mode)
+	host.WithValue(modeMarkKey{}, mode)
 	host.WithResolver(m.Resolver, true)
 
 	if !s.resolveRemoteDomain || host.Type() != proxy.DOMAIN || mode != bypass.Mode_proxy {

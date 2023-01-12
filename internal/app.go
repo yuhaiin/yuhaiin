@@ -109,7 +109,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		{
 			Mode:     bypass.Mode_block,
 			Default:  false,
-			Dialer:   reject.NewReject(5, 15),
+			Dialer:   reject.Default,
 			Resolver: dns.NewErrorDNS(errors.New("block")),
 		},
 	})

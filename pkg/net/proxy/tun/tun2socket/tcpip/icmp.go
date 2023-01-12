@@ -2,6 +2,8 @@ package tcpip
 
 import (
 	"encoding/binary"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/checksum"
 )
 
 type ICMPType = byte
@@ -35,6 +37,6 @@ func (p ICMPPacket) SetChecksum(sum [2]byte) {
 }
 
 func (p ICMPPacket) ResetChecksum() {
-	p.SetChecksum(zeroChecksum)
-	p.SetChecksum(Checksum(0, p))
+	p.SetChecksum(checksum.ZeroChecksum)
+	p.SetChecksum(checksum.Checksum(0, p))
 }

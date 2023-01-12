@@ -2,6 +2,8 @@ package tcpip
 
 import (
 	"encoding/binary"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/checksum"
 )
 
 const UDPHeaderSize = 8
@@ -46,8 +48,8 @@ func (p UDPPacket) SetChecksum(sum [2]byte) {
 }
 
 func (p UDPPacket) ResetChecksum(psum uint32) {
-	p.SetChecksum(zeroChecksum)
-	p.SetChecksum(Checksum(psum, p))
+	p.SetChecksum(checksum.ZeroChecksum)
+	p.SetChecksum(checksum.Checksum(psum, p))
 }
 
 func (p UDPPacket) Valid() bool {

@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"net"
 
-	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	utils "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )
@@ -36,7 +36,7 @@ func NewCipher(method, password string) (*Cipher, error) {
 	if !ok {
 		return nil, fmt.Errorf("unsupported encryption method: %v", method)
 	}
-	key := ssr.KDF(password, ss.KeySize)
+	key := utils.KDF(password, ss.KeySize)
 	mi := ss.Creator(key)
 	return &Cipher{mi.IVSize(), key, &cipherConn{mi}}, nil
 }
@@ -66,11 +66,11 @@ func newPacketConn(c net.PacketConn, cipherFactory CipherFactory) net.PacketConn
 }
 
 func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	if len(b)+p.IVSize() > s5s.MaxSegmentSize {
+	if len(b)+p.IVSize() > nat.MaxSegmentSize {
 		return 0, fmt.Errorf("udp data size too large")
 	}
 
-	buf := pool.GetBytes(s5s.MaxSegmentSize)
+	buf := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(buf)
 
 	_, err := rand.Read(buf[:p.IVSize()])

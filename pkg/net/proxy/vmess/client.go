@@ -20,7 +20,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -125,27 +124,16 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) NewConn(rc net.Conn, target proxy.Address) (net.Conn, error) {
-	conn, err := c.newConn(rc, CmdTCP, target)
-	if err != nil {
-		rc.Close()
-		return nil, err
-	}
-
-	return &vmessConn{Conn: conn}, nil
+func (c *Client) NewConn(rc net.Conn, dst proxy.Address) (net.Conn, error) {
+	return c.newConn(rc, CmdTCP, dst)
 }
 
-func (c *Client) NewPacketConn(rc net.Conn, target proxy.Address) (net.PacketConn, error) {
-	conn, err := c.newConn(rc, CmdUDP, target)
-	if err != nil {
-		return nil, err
-	}
-
-	return &vmessPacketConn{Conn: conn}, nil
+func (c *Client) NewPacketConn(rc net.Conn, dst proxy.Address) (net.PacketConn, error) {
+	return c.newConn(rc, CmdUDP, dst)
 }
 
 // NewConn .
-func (c *Client) newConn(rc net.Conn, cmd CMD, target proxy.Address) (*Conn, error) {
+func (c *Client) newConn(rc net.Conn, cmd CMD, dst proxy.Address) (*Conn, error) {
 	conn := &Conn{
 		isAead:   c.isAead,
 		user:     c.users[rand.Intn(len(c.users))],
@@ -155,7 +143,7 @@ func (c *Client) newConn(rc net.Conn, cmd CMD, target proxy.Address) (*Conn, err
 	}
 
 	var err error
-	conn.addr, err = ParseAddr(target)
+	conn.addr, err = ParseAddr(dst)
 	if err != nil {
 		return nil, fmt.Errorf("parse target address failed: %w", err)
 	}
@@ -390,40 +378,11 @@ func (c *Conn) Close() error {
 	return c.Conn.Close()
 }
 
-var _ net.Conn = (*vmessConn)(nil)
-var _ io.ReaderFrom = (*vmessConn)(nil)
-var _ io.WriterTo = (*vmessConn)(nil)
-
-type vmessConn struct {
-	*Conn
-}
-
-func (v *vmessConn) ReadFrom(r io.Reader) (int64, error) {
-	if v.dataWriter != nil {
-		return v.dataWriter.ReadFrom(r)
-	}
-
-	v.initWriter()
-	return v.dataWriter.ReadFrom(r)
-}
-
-func (v *vmessConn) WriteTo(w io.Writer) (int64, error) {
-	buf := pool.GetBytes(pool.DefaultSize)
-	defer pool.PutBytes(buf)
-	return io.CopyBuffer(w, v.Conn, buf)
-}
-
-var _ net.PacketConn = (*vmessPacketConn)(nil)
-
-type vmessPacketConn struct {
-	*Conn
-}
-
-func (c *vmessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+func (c *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, err := c.Read(b)
 	return n, c.RemoteAddr(), err
 }
 
-func (c *vmessPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+func (c *Conn) WriteTo(b []byte, _ net.Addr) (int, error) {
 	return c.Write(b)
 }

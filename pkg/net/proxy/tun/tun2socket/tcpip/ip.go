@@ -3,15 +3,18 @@ package tcpip
 import (
 	"encoding/binary"
 	"net/netip"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/checksum"
 )
 
 type IPProtocol = byte
 
 // IPProtocol type
 const (
-	ICMP IPProtocol = 0x01
-	TCP             = 0x06
-	UDP             = 0x11
+	ICMP   IPProtocol = 0x01
+	TCP    IPProtocol = 0x06
+	UDP    IPProtocol = 0x11
+	ICMPv6 IPProtocol = 0x3a
 )
 
 const (
@@ -129,13 +132,13 @@ func (p IPv4Packet) SetTimeToLive(ttl byte) {
 }
 
 func (p IPv4Packet) ResetChecksum() {
-	p.SetChecksum(zeroChecksum)
-	p.SetChecksum(Checksum(0, p[:p.HeaderLen()]))
+	p.SetChecksum(checksum.ZeroChecksum)
+	p.SetChecksum(checksum.Checksum(0, p[:p.HeaderLen()]))
 }
 
 // PseudoSum for tcp checksum
 func (p IPv4Packet) PseudoSum() uint32 {
-	sum := Sum(p[12:20])
+	sum := checksum.Sum(p[12:20])
 	sum += uint32(p.Protocol())
 	sum += uint32(p.DataLen())
 	return sum
@@ -143,4 +146,8 @@ func (p IPv4Packet) PseudoSum() uint32 {
 
 func (p IPv4Packet) Valid() bool {
 	return len(p) >= IPv4HeaderSize && uint16(len(p)) >= p.TotalLen()
+}
+
+func (p IPv4Packet) DecTimeToLive() {
+	p[8] = p[8] - uint8(1)
 }

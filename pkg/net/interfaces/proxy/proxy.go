@@ -37,8 +37,8 @@ var DiscardProxy Proxy = &Discard{}
 
 type Discard struct{}
 
-func (*Discard) Conn(Address) (net.Conn, error)             { return DiscardNetConn, nil }
-func (*Discard) PacketConn(Address) (net.PacketConn, error) { return DiscardNetPacketConn, nil }
+func (Discard) Conn(Address) (net.Conn, error)             { return DiscardNetConn, nil }
+func (Discard) PacketConn(Address) (net.PacketConn, error) { return DiscardNetPacketConn, nil }
 
 var DiscardNetConn net.Conn = &DiscardConn{}
 
@@ -474,3 +474,9 @@ func (InboundKey) String() string { return "Inbound" }
 type DestinationKey struct{}
 
 func (DestinationKey) String() string { return "Destination" }
+
+type FakeIPKey struct{}
+
+func (FakeIPKey) String() string { return "FakeIP" }
+
+type CurrentKey struct{}

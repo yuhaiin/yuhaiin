@@ -75,7 +75,10 @@ func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {
 	if f.config != nil && f.config.Fakedns && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {
-			return addr.OverrideHostname(t)
+			r := addr.OverrideHostname(t)
+			r.WithValue(proxy.FakeIPKey{}, addr)
+			r.WithValue(proxy.CurrentKey{}, r)
+			return r
 		}
 	}
 	return addr
