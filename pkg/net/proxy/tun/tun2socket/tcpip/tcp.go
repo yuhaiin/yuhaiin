@@ -2,6 +2,8 @@ package tcpip
 
 import (
 	"encoding/binary"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/checksum"
 )
 
 const (
@@ -50,10 +52,18 @@ func (p TCPPacket) SetChecksum(sum [2]byte) {
 }
 
 func (p TCPPacket) ResetChecksum(psum uint32) {
-	p.SetChecksum(zeroChecksum)
-	p.SetChecksum(Checksum(psum, p))
+	p.SetChecksum(checksum.ZeroChecksum)
+	p.SetChecksum(checksum.Checksum(psum, p))
 }
 
 func (p TCPPacket) Valid() bool {
 	return len(p) >= TCPHeaderSize
+}
+
+func IsIPv4(packet []byte) bool {
+	return len(packet) > 0 && (packet[0]>>4) == 4
+}
+
+func SetIPv4(packet []byte) {
+	packet[0] = (packet[0] & 0x0f) | (4 << 4)
 }

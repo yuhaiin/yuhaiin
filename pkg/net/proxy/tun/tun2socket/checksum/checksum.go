@@ -1,8 +1,8 @@
-package tcpip
+package checksum
 
-var zeroChecksum = [2]byte{0x00, 0x00}
+var ZeroChecksum = [2]byte{0x00, 0x00}
 
-var sum = sumCompat
+var sum = unrolledSumCompat
 
 func Sum(b []byte) uint32 {
 	return sum(b)
@@ -19,10 +19,11 @@ func Checksum(sum uint32, b []byte) (answer [2]byte) {
 	return
 }
 
-func IsIPv4(packet []byte) bool {
-	return len(packet) > 0 && (packet[0]>>4) == 4
-}
-
-func SetIPv4(packet []byte) {
-	packet[0] = (packet[0] & 0x0f) | (4 << 4)
+func CheckSumCombine(sum uint32, b []byte) uint16 {
+	if len(b) != 0 {
+		sum += Sum(b)
+	}
+	sum = (sum >> 16) + (sum & 0xffff)
+	sum += sum >> 16
+	return uint16(sum)
 }

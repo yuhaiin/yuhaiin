@@ -1,7 +1,7 @@
 //go:build !noasm
 // +build !noasm
 
-package tcpip
+package checksum
 
 import (
 	"unsafe"

@@ -22,6 +22,8 @@ type object struct {
 	delay time.Duration
 }
 
+var Default = NewReject(5, 15)
+
 func NewReject(maxDelay, interval int) proxy.Proxy {
 	return &reject{lru.NewLru[string, object](100, 0), maxDelay, interval}
 }

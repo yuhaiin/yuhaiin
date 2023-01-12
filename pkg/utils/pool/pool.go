@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"golang.org/x/exp/constraints"
 )
 
 type Pool interface {
@@ -20,10 +21,10 @@ const DefaultSize = 16 * 0x400
 
 var DefaultPool Pool = &pool{}
 
-func GetBytes(size int) []byte  { return DefaultPool.GetBytes(size) }
-func PutBytes(b []byte)         { DefaultPool.PutBytes(b) }
-func GetBuffer() *bytes.Buffer  { return DefaultPool.GetBuffer() }
-func PutBuffer(b *bytes.Buffer) { DefaultPool.PutBuffer(b) }
+func GetBytes[T constraints.Integer](size T) []byte { return DefaultPool.GetBytes(int(size)) }
+func PutBytes(b []byte)                             { DefaultPool.PutBytes(b) }
+func GetBuffer() *bytes.Buffer                      { return DefaultPool.GetBuffer() }
+func PutBuffer(b *bytes.Buffer)                     { DefaultPool.PutBuffer(b) }
 
 var poolMap syncmap.SyncMap[int, *sync.Pool]
 

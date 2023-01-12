@@ -27,7 +27,7 @@ func (t *TCP) Accept() (net.Conn, error) {
 	addr := c.RemoteAddr().(*net.TCPAddr).AddrPort()
 
 	tup := t.table.tupleOf(uint16(addr.Port()))
-	if addr.Addr() != t.portal || tup == zeroTuple {
+	if addr.Addr().Unmap() != t.portal || tup == zeroTuple {
 		_ = c.Close()
 
 		return nil, net.InvalidAddrError("unknown remote addr")

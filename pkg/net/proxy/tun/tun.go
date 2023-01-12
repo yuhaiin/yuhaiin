@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	socks5server "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -12,7 +12,7 @@ import (
 
 type tunServer struct {
 	s        server.Server
-	natTable *socks5server.NatTable
+	natTable *nat.Table
 }
 
 func (t *tunServer) Close() error {
@@ -28,9 +28,9 @@ func (t *tunServer) Close() error {
 }
 
 func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (s server.Server, err error) {
-	natTable := socks5server.NewNatTable(o.Dialer)
+	natTable := nat.NewTable(o.Dialer)
 
-	if o.Protocol.Tun.Driver == listener.Tun_tun2socket {
+	if o.Protocol.Tun.Driver == listener.Tun_system_gvisor {
 		s, err = tun2socket.New(natTable, o)
 	} else {
 		s, err = tun.NewTun(natTable, o)

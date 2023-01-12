@@ -44,8 +44,7 @@ func (t *tcpserver) run(host string, handle func(net.Conn)) (err error) {
 	log.Debugln("new tcp server listen at:", host)
 
 	go func() {
-		err := t.process(handle)
-		if err != nil {
+		if err := t.process(handle); err != nil {
 			log.Errorln(err)
 		}
 	}()

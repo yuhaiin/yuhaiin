@@ -10,17 +10,17 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func New(natTable *s5s.NatTable, o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
-	gateway, ger := netip.ParseAddr(o.Protocol.Tun.Gateway)
-	portal, per := netip.ParseAddr(o.Protocol.Tun.Portal)
-	if ger != nil || per != nil {
+func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
+	gateway, gerr := netip.ParseAddr(o.Protocol.Tun.Gateway)
+	portal, perr := netip.ParseAddr(o.Protocol.Tun.Portal)
+	if gerr != nil || perr != nil {
 		return nil, fmt.Errorf("gateway or portal is invalid")
 	}
 
@@ -29,7 +29,7 @@ func New(natTable *s5s.NatTable, o *listener.Opts[*listener.Protocol_Tun]) (*Tun
 		return nil, fmt.Errorf("open tun device failed: %w", err)
 	}
 
-	lis, err := StartTun2Socket(device, gateway, portal)
+	lis, err := StartTun2SocketGvisor(device, gateway, portal, o.Protocol.Tun.Mtu)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func New(natTable *s5s.NatTable, o *listener.Opts[*listener.Protocol_Tun]) (*Tun
 
 	udp := func() {
 		defer lis.UDP().Close()
-		buf := pool.GetBytes(65535)
+		buf := pool.GetBytes(o.Protocol.Tun.Mtu)
 		defer pool.PutBytes(buf)
 		for {
 			if err = handleUDP(o, natTable, lis, buf); err != nil {
@@ -106,7 +106,7 @@ func handleTCP(o *listener.Opts[*listener.Protocol_Tun], conn net.Conn) error {
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
-func handleUDP(o *listener.Opts[*listener.Protocol_Tun], natTable *s5s.NatTable, lis *Tun2Socket, buf []byte) error {
+func handleUDP(o *listener.Opts[*listener.Protocol_Tun], natTable *nat.Table, lis *Tun2Socket, buf []byte) error {
 	n, src, dst, err := lis.UDP().ReadFrom(buf)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
@@ -125,8 +125,27 @@ func handleUDP(o *listener.Opts[*listener.Protocol_Tun], natTable *s5s.NatTable,
 		return err
 	}
 
-	return natTable.Write(zbuf, net.UDPAddrFromAddrPort(src), addr,
-		func(b []byte, addr net.Addr) (int, error) { return lis.UDP().WriteTo(b, dst, src) })
+	return natTable.Write(
+		&nat.Packet{
+			SourceAddress:      net.UDPAddrFromAddrPort(src),
+			DestinationAddress: addr,
+			Payload:            zbuf,
+			WriteBack: func(b []byte, addr net.Addr) (int, error) {
+				address, err := proxy.ParseSysAddr(addr)
+				if err != nil {
+					return 0, err
+				}
+
+				daddr, err := netip.ParseAddr(address.Hostname())
+				if err != nil {
+					return 0, err
+				}
+				daddr = daddr.WithZone(address.Zone())
+
+				return lis.UDP().WriteTo(b, netip.AddrPortFrom(daddr.Unmap(), address.Port().Port()), src)
+			},
+		},
+	)
 }
 
 func IsHandleDNS(opt *listener.Opts[*listener.Protocol_Tun], hostname string, port uint16) bool {

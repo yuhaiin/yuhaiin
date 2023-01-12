@@ -5,7 +5,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
@@ -35,7 +35,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func NewTun(natTable *s5s.NatTable, o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
+func NewTun(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 	opt := o.Protocol.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500

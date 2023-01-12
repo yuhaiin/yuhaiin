@@ -4,15 +4,19 @@
 [![releases](https://img.shields.io/github/release-pre/asutorufa/yuhaiin.svg)](https://github.com/Asutorufa/yuhaiin/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Asutorufa/yuhaiin)](https://goreportcard.com/report/github.com/Asutorufa/yuhaiin)
 [![Go Reference](https://pkg.go.dev/badge/github.com/Asutorufa/yuhaiin.svg)](https://pkg.go.dev/github.com/Asutorufa/yuhaiin)
-![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg)  
+![languages](https://img.shields.io/github/languages/top/asutorufa/yuhaiin.svg) [![Go](https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml/badge.svg)](https://github.com/Asutorufa/yuhaiin/actions/workflows/go.yml)  
   
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
-- Supported Protocol  
+- Inbound
+  - Socks5, HTTP, Linux/Mac Redir
+  - TUN
+    - [gvisor(Symmetric NAT)](https://github.com/google/gvisor)
+    - tun2socket(hijack tun TCP to a local TCP listener)
+- Outbound
+  - Socks5, HTTP, TCP
   - Shadowsocksr, Shadowsocks, Vmess, trojan  
   - Websocket, Quic, obfs-http  
-  - Socks5, HTTP, Linux/Mac Redir
-  - TUN([gvisor](https://github.com/google/gvisor))
 - support DNS:
   - DNS, EDNS
   - FakeDNS
@@ -22,11 +26,11 @@
   - DNS over Quic
   - DNS over TLS
   - DNS over TCP
-- Auto Set System Proxy.  
-- a Simple web page can to configure.
-- [Bypass File](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
-- [config & protocols Docs](https://github.com/Asutorufa/yuhaiin/tree/main/docs).  
-- icon from プロ生ちゃん.アイコンがプロ生ちゃんから、ご注意ください。  
+- Full cone NAT.
+- auto set Linux(KDE/Plasma,gnome),Windows Proxy  
+- [bypass rule](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
+- [config & protocols docs](https://github.com/Asutorufa/yuhaiin/tree/main/docs)  
+- icon from プロ生ちゃん. アイコンがプロ生ちゃんから、ご注意ください。  
 
 ```shell
 # host: grpc and http listen address, default: 127.0.0.1:50051
@@ -41,21 +45,21 @@ yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 <summary>Acknowledgement</summary>
 
 - [Golang](https://golang.org)  
+- [google/gVisor](https://github.com/google/gvisor)
+- [gRPC](https://grpc.io/)  
+- [protobuf-go](https://github.com/protocolbuffers/protobuf-go)  
+- [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
+- [プロ生ちゃん](https://kei.pronama.jp/)
+- [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
+- [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
+
+History:
+
 - [therecipe/qt](https://github.com/therecipe/qt)  
-- [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)(now change to json)  
+- [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)  
 - [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
 - [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
-- [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
-- [Dreamacro/clash](https://github.com/Dreamacro/clash)  
-- [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
 - [v2ray-plugin](https://github.com/shadowsocks/v2ray-plugin)  
 - [vmess-client](https://github.com/gitsrc/vmess-client)  
-- [v2ray](https://v2ray.com/)  
-- [gRPC](https://grpc.io/)  
-- [protobuf](https://github.com/golang/protobuf)  
-- [プロ生ちゃん](https://kei.pronama.jp/)
-- [WireGuard/wireguard-go](https://github.com/WireGuard/wireguard-go)
-- [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
-- [google/gvisor](https://github.com/google/gvisor)
 
 </details>

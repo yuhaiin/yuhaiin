@@ -9,7 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
-// Vmess vmess client
+// Vmess  client
 type Vmess struct {
 	client *Client
 	dial   proxy.Proxy

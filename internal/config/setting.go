@@ -188,7 +188,7 @@ func defaultConfig(path string) []byte {
 					Protocol: &listener.Protocol_Tun{
 						Tun: &listener.Tun{
 							Name:          "tun://tun0",
-							Mtu:           1500,
+							Mtu:           9000,
 							Gateway:       "172.19.0.1",
 							Portal:        "172.19.0.2",
 							DnsHijacking:  true,

@@ -2,7 +2,6 @@ package socks5server
 
 import (
 	"bytes"
-	"net"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -22,10 +21,4 @@ func TestResolveAddr(t *testing.T) {
 
 	x = s5c.ParseAddr(proxy.ParseAddressSplit(statistic.Type_tcp, "[ff::ff]", port))
 	t.Log(s5c.ResolveAddr(bytes.NewBuffer(x)))
-
-	addr, err := net.ResolveIPAddr("ip", "www.baidu.com")
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(addr.IP)
 }
