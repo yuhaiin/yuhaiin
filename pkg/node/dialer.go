@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -29,7 +28,7 @@ func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
 		manager:  mamanager,
 		UDP:      udp,
 		TCP:      tcp,
-		lruCache: lru.NewLru[string, proxy.Proxy](22, 0),
+		lruCache: lru.NewLru[string, proxy.Proxy](35, 0),
 	}
 }
 
@@ -41,18 +40,13 @@ func (o *outbound) Save(p *point.Point, udp bool) {
 	}
 }
 
-var errEmptyTag = errors.New("empty tag")
-
 type TagKey struct{}
 
 func (TagKey) String() string { return "Tag" }
 
 func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
-	tc, err := o.tagConn(host)
-	if err == nil {
+	if tc := o.tagConn(host); tc != nil {
 		return tc.Conn(host)
-	} else if !errors.Is(err, errEmptyTag) {
-		log.Warningln(err)
 	}
 
 	p, ok := o.lruCache.Load(o.TCP.Hash)
@@ -65,15 +59,13 @@ func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
 		o.lruCache.Add(o.TCP.Hash, p)
 	}
 
+	host.WithValue(HashKey{}, o.TCP.Hash)
 	return p.Conn(host)
 }
 
 func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) {
-	tc, err := o.tagConn(host)
-	if err == nil {
+	if tc := o.tagConn(host); tc != nil {
 		return tc.PacketConn(host)
-	} else if !errors.Is(err, errEmptyTag) {
-		log.Warningln(err)
 	}
 
 	p, ok := o.lruCache.Load(o.UDP.Hash)
@@ -86,39 +78,44 @@ func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) 
 		o.lruCache.Add(o.UDP.Hash, p)
 	}
 
+	host.WithValue(HashKey{}, o.UDP.Hash)
 	return p.PacketConn(host)
 }
 
-func (o *outbound) tagConn(host proxy.Address) (proxy.Proxy, error) {
+type HashKey struct{}
+
+func (HashKey) String() string { return "Hash" }
+
+func (o *outbound) tagConn(host proxy.Address) proxy.Proxy {
 	tag := proxy.Value(host, TagKey{}, "")
 	if tag == "" {
-		return nil, errEmptyTag
+		return nil
 	}
 
 	t, ok := o.manager.ExistTag(tag)
 	if !ok {
-		return nil, fmt.Errorf("tag %s is not exist", tag)
+		return nil
 	}
 
 	hash := t.Hash[rand.Intn(len(t.Hash))]
 
 	v, ok := o.lruCache.Load(hash)
-	if ok {
-		return v, nil
-	}
-
-	p, ok := o.manager.GetNode(hash)
 	if !ok {
-		return nil, fmt.Errorf("get node from %v failed", t.Hash)
+		p, ok := o.manager.GetNode(hash)
+		if !ok {
+			return nil
+		}
+
+		var err error
+		v, err = register.Dialer(p)
+		if err != nil {
+			return nil
+		}
+		o.lruCache.Add(hash, v)
 	}
 
-	v, err := register.Dialer(p)
-	if err != nil {
-		return nil, err
-	}
-
-	o.lruCache.Add(hash, v)
-	return v, nil
+	host.WithValue(HashKey{}, hash)
+	return v
 }
 
 func (o *outbound) Do(req *http.Request) (*http.Response, error) {

@@ -50,7 +50,10 @@ func (c *Connections) Conns(context.Context, *emptypb.Empty) (*grpcsts.Connectio
 			},
 			Extra: extraMap(con.Addr()),
 		}
-		connection.Extra["Outbound"] = getRemote(con)
+
+		if out := getRemote(con); out != "" {
+			connection.Extra["Outbound"] = out
+		}
 
 		resp.Connections = append(resp.Connections, connection)
 		return true
@@ -119,15 +122,12 @@ func (c *Connections) Conn(addr proxy.Address) (net.Conn, error) {
 }
 
 func getRemote(con connection) string {
-	var remote string
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
 	if ok {
-		remote = r.RemoteAddr().String()
-	} else {
-		remote = con.Addr().String()
+		return r.RemoteAddr().String()
 	}
 
-	return remote
+	return ""
 }
 
 func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
