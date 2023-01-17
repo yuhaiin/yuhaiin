@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package yuhaiin.tag;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag";
+
+enum type {
+  node = 0;
+  mirror = 1;
+}
+
+message tags {
+  string tag = 1 [ json_name = "tag" ];
+  type type = 3 [ json_name = "type" ];
+  repeated string hash = 2 [ json_name = "hash" ];
+}

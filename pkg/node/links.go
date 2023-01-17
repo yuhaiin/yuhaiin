@@ -133,7 +133,6 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 
 func (n *link) addNode(node *point.Point) {
 	n.manager.DeleteNode(node.Hash)
-	refreshHash(node)
 	n.manager.AddNode(node)
 }
 
@@ -156,7 +155,6 @@ func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse link data failed: %w", err)
 	}
-	refreshHash(no)
 	no.Group = l.Name
 	return no, nil
 }

@@ -1,6 +1,7 @@
 package socks5server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -35,9 +36,12 @@ const (
 
 func handshake(dialer proxy.Proxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
-
 		if err := handle(username, password, conn, dialer); err != nil {
-			log.Errorln("socks5 server handle failed:", err)
+			if errors.Is(err, proxy.ErrBlocked) {
+				log.Debugln(err)
+			} else {
+				log.Errorln("socks5 server handle failed:", err)
+			}
 		}
 	}
 }

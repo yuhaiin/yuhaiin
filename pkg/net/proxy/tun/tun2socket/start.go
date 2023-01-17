@@ -46,7 +46,11 @@ func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (*Tun2So
 
 			go func() {
 				if err = handleTCP(o, conn); err != nil {
-					log.Errorln("handle tcp failed:", err)
+					if errors.Is(err, proxy.ErrBlocked) {
+						log.Debugln(err)
+					} else {
+						log.Errorln("handle tcp failed:", err)
+					}
 				}
 			}()
 
@@ -60,7 +64,11 @@ func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (*Tun2So
 		defer pool.PutBytes(buf)
 		for {
 			if err = handleUDP(o, natTable, lis, buf); err != nil {
-				log.Errorln("handle udp failed:", err)
+				if errors.Is(err, proxy.ErrBlocked) {
+					log.Debugln(err)
+				} else {
+					log.Errorln("handle udp failed:", err)
+				}
 				if errors.Is(err, errUDPAccept) {
 					return
 				}

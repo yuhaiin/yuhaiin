@@ -1,6 +1,13 @@
 package yuhaiin
 
-import "github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+import (
+	"fmt"
+	"syscall"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+)
 
 type Opts struct {
 	Host     string      `json:"host"`
@@ -87,7 +94,7 @@ type uidDumper struct {
 	cache syncmap.SyncMap[int32, string]
 }
 
-func NewUidDumper(ud UidDumper) UidDumper {
+func NewUidDumper(ud UidDumper) *uidDumper {
 	if ud == nil {
 		return nil
 	}
@@ -106,4 +113,29 @@ func (u *uidDumper) GetUidInfo(uid int32) (string, error) {
 
 	u.cache.Store(uid, r)
 	return r, nil
+}
+
+func (a *uidDumper) ProcessName(networks string, src, dst proxy.Address) (string, error) {
+	var network int32
+	switch networks {
+	case "tcp":
+		network = syscall.IPPROTO_TCP
+	case "udp":
+		network = syscall.IPPROTO_UDP
+	}
+
+	uid, err := a.UidDumper.DumpUid(network, src.Hostname(), int32(src.Port().Port()), dst.Hostname(), int32(dst.Port().Port()))
+	if err != nil {
+		log.Errorf("dump uid error: %v", err)
+	}
+
+	var name string
+	if uid != 0 {
+		name, err = a.UidDumper.GetUidInfo(uid)
+		if err != nil {
+			return "", fmt.Errorf("get uid info error: %v", err)
+		}
+	}
+
+	return fmt.Sprintf("%s(%d)", name, uid), nil
 }

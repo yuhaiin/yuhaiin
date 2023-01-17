@@ -6,6 +6,7 @@ option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
 
 import "node/point/point.proto";
 import "node/subscribe/subscribe.proto";
+import "node/tag/tag.proto";
 
 message node {
   yuhaiin.point.point tcp = 4 [ json_name = "tcp" ];
@@ -21,10 +22,5 @@ message nodes {
 message manager {
   map<string, nodes> groupsV2 = 2 [ json_name = "group_nodes_map" ];
   map<string, yuhaiin.point.point> nodes = 3 [ json_name = "nodes" ];
-  map<string, tags> tags = 4 [ json_name = "tags" ];
-}
-
-message tags {
-  string tag = 1 [ json_name = "tag" ];
-  repeated string hash = 2 [ json_name = "hash" ];
+  map<string, yuhaiin.tag.tags> tags = 4 [ json_name = "tags" ];
 }

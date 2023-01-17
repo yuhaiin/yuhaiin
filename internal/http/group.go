@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -67,15 +68,23 @@ func (t *tag) Get(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	tags := make(map[string]string)
+	type tag struct {
+		Hash string `json:"hash"`
+		Type string `json:"type"`
+	}
+
+	tags := make(map[string]tag)
 
 	for k, v := range m.Tags {
-		tags[k] = v.GetHash()[0]
+		tags[k] = tag{
+			Hash: v.GetHash()[0],
+			Type: v.Type.String(),
+		}
 	}
 
 	for _, v := range t.st.Tags() {
 		if _, ok := tags[v]; !ok {
-			tags[v] = ""
+			tags[v] = tag{}
 		}
 	}
 
@@ -105,9 +114,15 @@ func (t *tag) Post(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	tYPE, ok := pt.Type_value[z["type"]]
+	if !ok {
+		return fmt.Errorf("unknown tag type: %v", z["type"])
+	}
+
 	_, err = t.ts.Save(context.TODO(), &snode.SaveTagReq{
 		Tag:  z["tag"],
 		Hash: z["hash"],
+		Type: pt.Type(tYPE),
 	})
 	return err
 }

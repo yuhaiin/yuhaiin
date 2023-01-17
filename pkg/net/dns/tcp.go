@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
@@ -32,8 +33,13 @@ func ParseAddr(host, defaultPort string) (proxy.Address, error) {
 	if err != nil {
 		e, ok := err.(*net.AddrError)
 		if !ok || !strings.Contains(e.Err, "missing port in address") {
-			return nil, fmt.Errorf("split host port failed: %w", err)
+			if ok && strings.Contains(e.Err, "too many colons in address") {
+				if _, er := netip.ParseAddr(host); er != nil {
+					return nil, fmt.Errorf("split host port failed: %w", err)
+				}
+			}
 		}
+
 		host = net.JoinHostPort(host, defaultPort)
 	}
 

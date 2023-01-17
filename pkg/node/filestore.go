@@ -1,7 +1,6 @@
 package node
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -13,13 +12,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"google.golang.org/protobuf/encoding/protojson"
 )
-
-func refreshHash(p *point.Point) {
-	p.Hash = ""
-	p.Hash = fmt.Sprintf("%x", sha256.Sum256([]byte(p.String())))
-}
 
 func load(path string) *node.Node {
 	defaultNode, _ := protojson.Marshal(&node.Node{
@@ -29,7 +24,7 @@ func load(path string) *node.Node {
 		Manager: &node.Manager{
 			GroupsV2: map[string]*node.Nodes{},
 			Nodes:    map[string]*point.Point{},
-			Tags:     map[string]*node.Tags{},
+			Tags:     map[string]*pt.Tags{},
 		},
 	})
 

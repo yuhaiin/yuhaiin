@@ -48,7 +48,6 @@ func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point,
 
 func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 	n.manager().DeleteNode(p.Hash)
-	refreshHash(p)
 	n.manager().AddNode(p)
 	return p, n.fileStore.Save()
 }

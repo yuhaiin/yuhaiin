@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/internal/hosts"
-	simplehttp "github.com/Asutorufa/yuhaiin/internal/http"
+	web "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/resolver"
 	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
@@ -19,22 +19,22 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"google.golang.org/grpc"
 )
 
 type StartOpt struct {
-	PathConfig struct{ Dir, Lockfile, Node, Config, Logfile string }
+	ConfigPath string
 	Host       string
 	Setting    config.Setting
 
@@ -55,7 +55,7 @@ type StartResponse struct {
 
 	Node *node.Nodes
 
-	servers []iserver.Server
+	servers []is.Server
 }
 
 func (s *StartResponse) Close() error {
@@ -73,13 +73,13 @@ func Start(opt StartOpt) (StartResponse, error) {
 		return StartResponse{}, err
 	}
 
-	log.Infof("%s\nConfig Path: %s\ngRPC&HTTP Listen At: %s\n", version.Art, opt.PathConfig.Dir, opt.Host)
+	log.Infof("%s\nConfig Path: %s\ngRPC&HTTP Listen At: %s\n", version.Art, opt.ConfigPath, opt.Host)
 
 	opt.Setting.AddObserver(config.ObserverFunc(sysproxy.Update))
-	opt.Setting.AddObserver(config.ObserverFunc(func(s *protoconfig.Setting) { log.Set(s.GetLogcat(), opt.PathConfig.Logfile) }))
-	opt.Setting.AddObserver(config.ObserverFunc(func(s *protoconfig.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
+	opt.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(opt.ConfigPath)) }))
+	opt.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
-	filestore := node.NewFileStore(opt.PathConfig.Node)
+	filestore := node.NewFileStore(PathGenerator.Node(opt.ConfigPath))
 	// proxy access point/endpoint
 	nodeService := node.NewNodes(filestore)
 	subscribe := node.NewSubscribe(filestore)
@@ -110,7 +110,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 			Mode:     bypass.Mode_block,
 			Default:  false,
 			Dialer:   reject.Default,
-			Resolver: dns.NewErrorDNS(errors.New("block")),
+			Resolver: dns.NewErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
 		},
 	})
 	opt.addObserver(st)
@@ -143,7 +143,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	// http page
 	mux := http.NewServeMux()
-	simplehttp.Httpserver(simplehttp.HttpServerOption{
+	web.Httpserver(web.HttpServerOption{
 		Mux:         mux,
 		NodeServer:  nodeService,
 		Subscribe:   subscribe,
@@ -155,34 +155,37 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	// grpc server
 	if opt.GRPCServer != nil {
-		opt.GRPCServer.RegisterService(&grpcconfig.ConfigDao_ServiceDesc, opt.Setting)
-		opt.GRPCServer.RegisterService(&grpcnode.Node_ServiceDesc, nodeService)
-		opt.GRPCServer.RegisterService(&grpcnode.Subscribe_ServiceDesc, subscribe)
-		opt.GRPCServer.RegisterService(&grpcsts.Connections_ServiceDesc, stcs)
-		opt.GRPCServer.RegisterService(&grpcnode.Tag_ServiceDesc, tag)
+		opt.GRPCServer.RegisterService(&gc.ConfigDao_ServiceDesc, opt.Setting)
+		opt.GRPCServer.RegisterService(&gn.Node_ServiceDesc, nodeService)
+		opt.GRPCServer.RegisterService(&gn.Subscribe_ServiceDesc, subscribe)
+		opt.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, stcs)
+		opt.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, tag)
 	}
 
 	return StartResponse{
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,
-		servers:      []iserver.Server{stcs, listener, resolvers, dnsServer},
+		servers:      []is.Server{stcs, listener, resolvers, dnsServer},
 	}, nil
 }
 
-func PathConfig(configPath string) struct{ Dir, Lockfile, Node, Config, Logfile string } {
-	create := func(child ...string) string { return filepath.Join(append([]string{configPath}, child...)...) }
-	config := struct{ Dir, Lockfile, Node, Config, Logfile string }{
-		configPath, create("LOCK"),
-		create("node.json"), create("config.json"),
-		create("log", "yuhaiin.log"),
+var PathGenerator = pathGenerator{}
+
+type pathGenerator struct{}
+
+func (p pathGenerator) Lock(dir string) string   { return p.makeDir(filepath.Join(dir, "LOCK")) }
+func (p pathGenerator) Node(dir string) string   { return p.makeDir(filepath.Join(dir, "node.json")) }
+func (p pathGenerator) Config(dir string) string { return p.makeDir(filepath.Join(dir, "config.json")) }
+func (p pathGenerator) Log(dir string) string {
+	return p.makeDir(filepath.Join(dir, "log", "yuhaiin.log"))
+}
+func (pathGenerator) makeDir(s string) string {
+	if _, err := os.Stat(s); errors.Is(err, os.ErrNotExist) {
+		os.MkdirAll(filepath.Dir(s), os.ModePerm)
 	}
 
-	if _, err := os.Stat(config.Logfile); errors.Is(err, os.ErrNotExist) {
-		os.MkdirAll(filepath.Dir(config.Logfile), os.ModePerm)
-	}
-
-	return config
+	return s
 }
 
 /*

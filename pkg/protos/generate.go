@@ -6,6 +6,7 @@ package protos
 //go:generate protoc --go_out=. --go_opt=paths=source_relative node/subscribe/subscribe.proto
 //go:generate protoc --go_out=. --go_opt=paths=source_relative node/point/point.proto
 //go:generate protoc --go_out=. --go_opt=paths=source_relative node/latency/latency.proto
+//go:generate protoc --go_out=. --go_opt=paths=source_relative node/tag/tag.proto
 //go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative node/grpc/node.proto
 
 // statistic

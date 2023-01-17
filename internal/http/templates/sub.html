@@ -77,18 +77,6 @@
     </div>
 </div>
 
-<div class="input-group mb-3">
-    <span class="input-group-text" id="basic-addon1">Name</span>
-    <input type="text" id="name" class="form-control" placeholder="Name" aria-label="Name"
-        aria-describedby="basic-addon1">
-    <span class="input-group-text" id="basic-addon1">Link</span>
-    <input type="text" id="link" class="form-control"
-        placeholder="http://...|https://...|vmess://...|ssr://...|ss://...|trojan://..." aria-label="Link"
-        aria-describedby="basic-addon1">
-    <button class="btn btn-outline-primary" type="button" onclick="add();">ADD</button>
-</div>
-
-
 <div class="card mb-3">
 
     {{range .LS}}
@@ -107,4 +95,23 @@
 
 </div>
 
+<div class="card mb-3">
+    <div class="card-body">
+
+        <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon1">Name</span>
+            <input type="text" id="name" class="form-control" placeholder="Name" aria-label="Name"
+                aria-describedby="basic-addon1">
+        </div>
+
+        <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon1">Link</span>
+            <input type="text" id="link" class="form-control"
+                placeholder="http://...|https://...|vmess://...|ssr://...|ss://...|trojan://..." aria-label="Link"
+                aria-describedby="basic-addon1">
+        </div>
+
+        <button class="btn btn-outline-primary" type="button" onclick="add();">ADD</button>
+    </div>
+</div>
 {{end}}
