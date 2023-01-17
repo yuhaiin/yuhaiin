@@ -34,14 +34,14 @@ func (i ipResponse) String() string                     { return fmt.Sprintf("{i
 
 var _ DNS = (*errorDNS)(nil)
 
-type errorDNS struct{ error }
+type errorDNS struct{ f func(domain string) error }
 
-func NewErrorDNS(err error) DNS {
-	return &errorDNS{err}
+func NewErrorDNS(f func(domain string) error) DNS {
+	return &errorDNS{f}
 }
-func (d *errorDNS) LookupIP(domain string) ([]net.IP, error) {
-	return nil, fmt.Errorf("lookup %s failed: %w", domain, d.error)
+func (d *errorDNS) LookupIP(domain string) ([]net.IP, error) { return nil, d.f(domain) }
+func (d *errorDNS) Record(domain string, _ dnsmessage.Type) (IPResponse, error) {
+	return nil, d.f(domain)
 }
-func (d *errorDNS) Record(domain string, _ dnsmessage.Type) (IPResponse, error) { return nil, d.error }
-func (d *errorDNS) Do([]byte) ([]byte, error)                                   { return nil, fmt.Errorf("do failed: %w", d.error) }
-func (d *errorDNS) Close() error                                                { return nil }
+func (d *errorDNS) Do([]byte) ([]byte, error) { return nil, d.f("") }
+func (d *errorDNS) Close() error              { return nil }

@@ -1,7 +1,7 @@
 package dns
 
 import (
-	"fmt"
+	"errors"
 	"math/big"
 	"net"
 	"net/netip"
@@ -61,7 +61,7 @@ func TestPtr(t *testing.T) {
 	t.Log(f.GetFakeIPForDomain("aass"))
 
 	z := &FakeDNS{
-		upStreamDo: dns.NewErrorDNS(fmt.Errorf("err")).Do,
+		upStreamDo: dns.NewErrorDNS(func(domain string) error { return errors.New("err") }).Do,
 		pool:       NewNFakeDNS(zz),
 	}
 

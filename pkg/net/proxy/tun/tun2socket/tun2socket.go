@@ -11,7 +11,7 @@ import (
 type Tun2Socket struct {
 	device io.Closer
 	tcp    *nat.TCP
-	udp    *nat.UDP
+	udp    *nat.UDPv2
 }
 
 // noinspection GoUnusedExportedFunction
@@ -21,11 +21,7 @@ func StartTun2SocketGvisor(device io.ReadWriteCloser, gateway, portal netip.Addr
 		return nil, err
 	}
 
-	return &Tun2Socket{
-		device: device,
-		tcp:    tcp,
-		udp:    udp,
-	}, nil
+	return &Tun2Socket{device, tcp, udp}, nil
 }
 
 func (t *Tun2Socket) Close() error {
@@ -39,10 +35,5 @@ func (t *Tun2Socket) Close() error {
 	return nil
 }
 
-func (t *Tun2Socket) TCP() *nat.TCP {
-	return t.tcp
-}
-
-func (t *Tun2Socket) UDP() *nat.UDP {
-	return t.udp
-}
+func (t *Tun2Socket) TCP() *nat.TCP   { return t.tcp }
+func (t *Tun2Socket) UDP() *nat.UDPv2 { return t.udp }

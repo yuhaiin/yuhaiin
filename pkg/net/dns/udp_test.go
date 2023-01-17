@@ -33,9 +33,16 @@ func TestUDP(t *testing.T) {
 			Subnet: subnet,
 			IPv6:   true,
 		},
+		"nextdns": {
+			Type:   dns.Type_udp,
+			Host:   "45.90.28.30",
+			Subnet: subnet,
+			Dialer: s5Dialer,
+			IPv6:   true,
+		},
 	}
 
-	dns, err := New(configMap["cloudflare"])
+	dns, err := New(configMap["nextdns"])
 	assert.NoError(t, err)
 
 	t.Log(dns.LookupIP("www.baidu.com"))

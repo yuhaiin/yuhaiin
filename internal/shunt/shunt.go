@@ -124,7 +124,7 @@ func (s *Shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 var errMode = Mode{
 	Mode:     bypass.Mode(-1),
 	Dialer:   proxy.NewErrProxy(errors.New("can't find mode")),
-	Resolver: dns.NewErrorDNS(errors.New("can't find mode")),
+	Resolver: dns.NewErrorDNS(func(domain string) error { return errors.New("can't find mode") }),
 }
 
 func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
@@ -168,7 +168,7 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 	return host, m
 }
 
-var skipResolve = dns.NewErrorDNS(mapper.ErrSkipResolveDomain)
+var skipResolve = dns.NewErrorDNS(func(domain string) error { return mapper.ErrSkipResolveDomain })
 
 func (s *Shunt) Resolver(host proxy.Address) dns.DNS {
 	host.WithResolver(skipResolve, true)

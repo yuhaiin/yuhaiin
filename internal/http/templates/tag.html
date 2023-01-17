@@ -3,6 +3,7 @@
 <script>
     let groupDATA = JSON.parse("{{ .GroupJSON }}")
 
+    let tagType;
 
     const oldOnLoad = window.onload
 
@@ -34,8 +35,8 @@
             // node modal end
         })
 
-        let node = document.getElementById('inputGroupNode');
-        let group = document.getElementById('inputGroupGroup');
+        let node = document.getElementById('inputGroupNodeSelect');
+        let group = document.getElementById('inputGroupGroupSelect');
 
         Object.keys(groupDATA).forEach((key) => {
             group.insertAdjacentHTML('beforeend', `<option value="${key}">${key}</option>`);
@@ -60,11 +61,39 @@
         console.log(group.value);
         onValueChange(group.value);
         group.addEventListener('change', (e) => { onValueChange(e.currentTarget.value); })
+
+
+        let tagRadio = document.querySelector('input[name="inlineRadioOptionsType"]:checked');
+        if (tagRadio == null || tagRadio.value == null) {
+            tagType = "node";
+            document.getElementById("inlineRadioNode").checked = true;
+        }
+        else tagType = tagRadio.value;
+
+        tagTypeChanged(tagType);
+        let radio_btns = document.querySelectorAll(`input[type='radio'][name='inlineRadioOptionsType']`);
+        for (let target of radio_btns) target.addEventListener(`change`, () => {
+            if (target.checked) {
+                tagType = target.value;
+                tagTypeChanged(tagType);
+            }
+        });
+    }
+
+    const tagTypeChanged = (type) => {
+        let mirrorShow = type == "mirror";
+        document.getElementById('inputGroupGroup').hidden = mirrorShow;
+        document.getElementById('inputGroupNode').hidden = mirrorShow;
+        document.getElementById('inputGroupMirror').hidden = !mirrorShow;
     }
 
     const addTag = () => {
         let tag = document.getElementById('inputGroupTag').value;
-        let hash = document.getElementById('inputGroupNode').value;
+        let hash;
+
+        if (tagType == "mirror") hash = document.getElementById("inputGroupMirrorTagSelect").value;
+        else hash = document.getElementById('inputGroupNodeSelect').value;
+
 
         if (tag == "" || tag == null || hash == null || hash == "" || hash == "Empty") {
             console.log(`tag [${tag}] or hash [${hash}] is empty`)
@@ -72,9 +101,9 @@
             return;
         }
 
-        console.log(tag, hash);
+        console.log(tag, hash, tagType);
 
-        ajax("POST", `/tag`, `{"tag": "${tag}", "hash": "${hash}"}`, (xmlhttp) => {
+        ajax("POST", `/tag`, `{"tag": "${tag}", "hash": "${hash}", "type": "${tagType}"}`, (xmlhttp) => {
             location.reload();
         }, (xmlhttp) => {
             show_danger(`add tag ${tag} failed: ${xmlhttp.responseText}`)
@@ -114,10 +143,23 @@
     <label class="list-group-item" style="border: 0ch; border-bottom: 1px solid #dee2e6;">
 
         <div class="d-flex flex-wrap">
-            <a href="javascript: setInputTagText('{{ $key }}')" class="me-2 text-decoration-none">{{ $key }}</a>
+            <a class="text-decoration-none" href="javascript: setInputTagText('{{ $key }}')">{{ $key }}</a>
 
-            <a href='#' class="text-truncate" data-bs-toggle="modal" data-bs-target="#nodeModal"
-                data-bs-whatever="{{ $value }}">{{ $value }}</a>
+            <span class="badge rounded-pill bg-light text-dark text-truncate ms-1">
+
+                {{if eq $value.Hash "" }}
+                Fallback &rarr; Global
+                {{ else }}
+
+                {{if eq $value.Type "mirror" }}
+                Mirror &rarr; {{ $value.Hash }}
+                {{ else }}
+                Target &rrarr; <a href='#' class="text-truncate" data-bs-toggle="modal" data-bs-target="#nodeModal"
+                    data-bs-whatever="{{ $value.Hash }}">{{ $value.Hash }}</a>
+                {{ end }}
+
+                {{ end }}
+            </span>
 
             <a class="text-decoration-none ms-auto text-truncate" href='javascript:remove("{{ $key }}")'>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash"
@@ -134,25 +176,58 @@
     </label>
     {{end}}
 
-
-    <div class="card-header">
-        <div class="input-group d-sm-flex">
-            <input id="inputGroupTag" type="text" class="form-control" placeholder="Tag" aria-label="Tag">
-            <span class="input-group-text">Node</span>
-            <select class="form-select" id="inputGroupGroup">
-                <option selected value="Empty">Choose...</option>
-
-            </select>
-
-            <select class="form-select" id="inputGroupNode">
-                <option selected value="">Choose...</option>
-            </select>
-
-            <button class="btn btn-outline-secondary" type="button" onclick="addTag()">Add</button>
-        </div>
-
-    </div>
-
 </div>
 
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="input-group mb-3">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="inlineRadioOptionsType" id="inlineRadioNode"
+                    value="node">
+                <label class="form-check-label" for="inlineRadioNode">Node</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="inlineRadioOptionsType" id="inlineRadioMirror"
+                    value="mirror">
+                <label class="form-check-label" for="inlineRadioMirror">Mirror</label>
+            </div>
+        </div>
+
+        <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon1">Tag</span>
+            <input type="text" id="inputGroupTag" class="form-control" placeholder="Tag" aria-label="Tag"
+                aria-describedby="basic-addon1">
+        </div>
+
+
+        <div class="input-group mb-3" id="inputGroupGroup">
+            <span class="input-group-text">Group</span>
+            <select class="form-select" id="inputGroupGroupSelect">
+                <option selected value="Empty">Choose...</option>
+            </select>
+        </div>
+
+
+        <div class="input-group mb-3" id="inputGroupNode">
+            <span class="input-group-text">Node</span>
+            <select class="form-select" id="inputGroupNodeSelect">
+                <option selected value="">Choose...</option>
+            </select>
+        </div>
+
+
+        <div class="input-group mb-3" id="inputGroupMirror">
+            <span class="input-group-text">Mirror Tag</span>
+            <select class="form-select" id="inputGroupMirrorTagSelect">
+                <option selected value="">Choose...</option>
+                {{range $key,$value := .Tags}}
+                <option value="{{ $key  }}">{{ $key }}</option>
+                {{end}}
+            </select>
+        </div>
+
+        <button class="btn btn-outline-secondary" type="button" onclick="addTag()">Save</button>
+    </div>
+</div>
 {{end}}

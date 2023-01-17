@@ -1,10 +1,13 @@
 package node
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"golang.org/x/exp/slices"
 )
 
@@ -49,6 +52,8 @@ func (m *manager) AddNode(p *point.Point) {
 		m.GroupsV2 = make(map[string]*node.Nodes)
 	}
 
+	m.refreshHash(p)
+
 	n, ok := m.GroupsV2[p.Group]
 	if !ok {
 		n = &node.Nodes{
@@ -59,6 +64,18 @@ func (m *manager) AddNode(p *point.Point) {
 
 	n.NodesV2[p.Name] = p.Hash
 	m.Nodes[p.Hash] = p
+}
+
+func (n *manager) refreshHash(p *point.Point) {
+	p.Hash = ""
+	p.Hash = fmt.Sprintf("%x", sha256.Sum256([]byte(p.String())))
+
+	for i := 6; i <= len(p.Hash); i++ {
+		if _, ok := n.Manager.Nodes[p.Hash[:i]]; !ok {
+			p.Hash = p.Hash[:i]
+			break
+		}
+	}
 }
 
 func (n *manager) DeleteRemoteNodes(group string) {
@@ -110,22 +127,34 @@ func (m *manager) DeleteNode(hash string) {
 	}
 }
 
-func (m *manager) AddTag(tag string, hash string) {
+func (m *manager) AddTag(tag string, t pt.Type, hash string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	_, ok := m.Manager.Nodes[hash]
+
+	if m.Manager.Tags == nil {
+		m.Manager.Tags = make(map[string]*pt.Tags)
+	}
+
+	var ok bool
+	switch t {
+	case pt.Type_node:
+		_, ok = m.Manager.Nodes[hash]
+	case pt.Type_mirror:
+		if tag == hash {
+			ok = false
+		} else {
+			_, ok = m.Manager.Tags[hash]
+		}
+	}
 	if !ok {
 		return
 	}
 
-	if m.Manager.Tags == nil {
-		m.Manager.Tags = make(map[string]*node.Tags)
-	}
-
 	z, ok := m.Manager.Tags[tag]
 	if !ok {
-		z = &node.Tags{
-			Tag: tag,
+		z = &pt.Tags{
+			Tag:  tag,
+			Type: t,
 		}
 		m.Manager.Tags[tag] = z
 	}
@@ -143,7 +172,7 @@ func (m *manager) DeleteTag(tag string) {
 	}
 }
 
-func (m *manager) ExistTag(tag string) (*node.Tags, bool) {
+func (m *manager) ExistTag(tag string) (*pt.Tags, bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	if m.Manager.Tags != nil {

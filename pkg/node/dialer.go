@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
@@ -92,9 +93,18 @@ func (o *outbound) tagConn(host proxy.Address) proxy.Proxy {
 		return nil
 	}
 
+_retry:
 	t, ok := o.manager.ExistTag(tag)
-	if !ok {
+	if !ok || len(t.Hash) <= 0 {
 		return nil
+	}
+
+	if t.Type == pt.Type_mirror {
+		if tag == t.Hash[0] {
+			return nil
+		}
+		tag = t.Hash[0]
+		goto _retry
 	}
 
 	hash := t.Hash[rand.Intn(len(t.Hash))]

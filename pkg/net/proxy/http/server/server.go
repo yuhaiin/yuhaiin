@@ -55,7 +55,11 @@ func handshake(dialer proxy.StreamProxy, username, password string) func(net.Con
 
 		err := handle(username, password, conn, dialer, client)
 		if err != nil && !errors.Is(err, io.EOF) {
-			log.Errorln("http server handle failed:", err)
+			if errors.Is(err, proxy.ErrBlocked) {
+				log.Debugln(err)
+			} else {
+				log.Errorln("http server handle failed:", err)
+			}
 		}
 	}
 }

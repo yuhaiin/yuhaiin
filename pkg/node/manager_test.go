@@ -31,10 +31,10 @@ func TestAddNode(t *testing.T) {
 
 	t.Log(mg.Manager)
 
-	mg.AddTag("test_tag", "adadab")
-	mg.AddTag("test_tag3", "adada")
-	mg.AddTag("test_tag2", "adadab")
-	mg.AddTag("test_tag2", "adada")
+	mg.AddTag("test_tag", 1, "adadab")
+	mg.AddTag("test_tag3", 0, "adada")
+	mg.AddTag("test_tag2", 0, "adadab")
+	mg.AddTag("test_tag2", 0, "adada")
 	mg.DeleteTag("test_tag2")
 	mg.DeleteNode("adada")
 

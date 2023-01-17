@@ -10,6 +10,7 @@ import "node/node.proto";
 import "node/point/point.proto";
 import "node/subscribe/subscribe.proto";
 import "node/latency/latency.proto";
+import "node/tag/tag.proto";
 
 service node {
   rpc now(now_req) returns (yuhaiin.point.point);
@@ -62,5 +63,6 @@ service tag {
 
 message save_tag_req {
   string tag = 1 [ json_name = "tag" ];
+  yuhaiin.tag.type type = 3 [ json_name = "type" ];
   string hash = 2 [ json_name = "hash" ];
 }

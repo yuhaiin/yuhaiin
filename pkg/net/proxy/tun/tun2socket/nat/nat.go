@@ -33,7 +33,7 @@ type TransportProtocol interface {
 	SetChecksum(v uint16)
 }
 
-func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *UDP, error) {
+func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *UDPv2, error) {
 	listener, err := net.ListenTCP("tcp", nil)
 	if err != nil {
 		return nil, nil, err
@@ -46,9 +46,15 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 	}
 
 	tab := newTable()
-	udp := &UDP{
-		device: device,
-		mtu:    mtu,
+	// udp := &UDP{
+	// 	device: device,
+	// 	mtu:    mtu,
+	// }
+
+	udp := &UDPv2{
+		device:  device,
+		mtu:     mtu,
+		channel: make(chan *callv2, 15),
 	}
 
 	tcp := &TCP{

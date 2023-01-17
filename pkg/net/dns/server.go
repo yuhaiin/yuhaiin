@@ -216,7 +216,14 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	// A or AAAA
 	r, err := processor.Record(add.Hostname(), q.Type)
 	if err != nil {
-		log.Errorf("lookup domain %s failed: %v\n", q.Name.String(), err)
+		if !errors.Is(err, ErrNoIPFound) {
+			if errors.Is(err, proxy.ErrBlocked) {
+				log.Debugln(err)
+			} else {
+				log.Errorf("lookup domain %s failed: %v\n", q.Name.String(), err)
+			}
+		}
+
 		r = emptyIPResponse
 
 		if !errors.Is(err, ErrNoIPFound) {

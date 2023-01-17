@@ -6,10 +6,20 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
 var _ proxy.Proxy = (*reject)(nil)
+
+type rejectImmediately struct{}
+
+func (rejectImmediately) Conn(addr proxy.Address) (net.Conn, error) {
+	return nil, proxy.NewBlockError(statistic.Type_tcp, addr.Hostname())
+}
+func (rejectImmediately) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+	return nil, proxy.NewBlockError(statistic.Type_udp, addr.Hostname())
+}
 
 type reject struct {
 	cache         *lru.LRU[string, object]
@@ -22,7 +32,7 @@ type object struct {
 	delay time.Duration
 }
 
-var Default = NewReject(5, 15)
+var Default = rejectImmediately{}
 
 func NewReject(maxDelay, interval int) proxy.Proxy {
 	return &reject{lru.NewLru[string, object](100, 0), maxDelay, interval}

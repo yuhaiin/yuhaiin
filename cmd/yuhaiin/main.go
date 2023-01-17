@@ -35,17 +35,16 @@ func main() {
 		return
 	}
 
-	pc := yuhaiin.PathConfig(*savepath)
-	lock := yerror.Must(lockfile.NewLock(pc.Lockfile, *host))
+	lock := yerror.Must(lockfile.NewLock(yuhaiin.PathGenerator.Lock(*savepath), *host))
 	defer lock.UnLock()
 
-	setting := config.NewConfig(pc.Config)
+	setting := config.NewConfig(yuhaiin.PathGenerator.Config(*savepath))
 	grpcserver := newGrpcServer()
 
 	resp := yerror.Must(
 		yuhaiin.Start(
 			yuhaiin.StartOpt{
-				PathConfig:    pc,
+				ConfigPath:    *savepath,
 				Host:          *host,
 				Setting:       setting,
 				GRPCServer:    grpcserver,
