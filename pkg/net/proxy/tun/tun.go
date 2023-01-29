@@ -33,7 +33,7 @@ func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (s server.Server, err erro
 	if o.Protocol.Tun.Driver == listener.Tun_system_gvisor {
 		s, err = tun2socket.New(natTable, o)
 	} else {
-		s, err = tun.NewTun(natTable, o)
+		s, err = tun.New(natTable, o)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("open tun device failed: %w", err)

@@ -1,12 +1,14 @@
 package dns
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -56,7 +58,13 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, 
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
+
 	return NewClient(config, func(b []byte) ([]byte, error) {
+		addr := proxy.ParseAddressPort(addr.NetworkType(), addr.Hostname(), addr.Port())
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+		defer cancel()
+		addr.WithContext(ctx)
+
 		conn, err := config.Dialer.Conn(addr)
 		if err != nil {
 			return nil, fmt.Errorf("tcp dial failed: %w", err)

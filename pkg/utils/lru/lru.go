@@ -9,12 +9,12 @@ import (
 )
 
 type options struct {
-	expireTime time.Time
+	expireTime int64
 }
 
 type Option func(*options)
 
-func WithExpireTime(t time.Time) Option {
+func WithExpireTimeUnix(t int64) Option {
 	return func(o *options) {
 		o.expireTime = t
 	}
@@ -23,7 +23,7 @@ func WithExpireTime(t time.Time) Option {
 type lruEntry[K, V any] struct {
 	key    K
 	data   V
-	expire time.Time
+	expire int64
 }
 
 // LRU Least Recently Used
@@ -74,8 +74,8 @@ func (l *LRU[K, V]) Add(key K, value V, opts ...Option) {
 		z(o)
 	}
 
-	if l.timeout != 0 && o.expireTime.Equal(time.Time{}) {
-		o.expireTime = time.Now().Add(l.timeout)
+	if l.timeout != 0 && o.expireTime <= 0 {
+		o.expireTime = time.Now().Unix() + int64(l.timeout.Seconds())
 	}
 
 	entry := &lruEntry[K, V]{key, value, o.expireTime}
@@ -112,7 +112,7 @@ func (l *LRU[K, V]) Delete(key K) {
 }
 
 func (l *LRU[K, V]) load(e *synclist.Element[*lruEntry[K, V]]) *lruEntry[K, V] {
-	if l.timeout != 0 && time.Now().After(e.Value.expire) {
+	if l.timeout != 0 && e.Value.expire-time.Now().Unix() < 0 {
 		l.delete(e.Value)
 		l.list.Remove(e)
 		return nil
@@ -166,4 +166,11 @@ func (l *LRU[K, V]) LastPopValue() (v V, _ bool) {
 	}
 
 	return l.lastPopEntry.data, true
+}
+
+func (l *LRU[K, V]) Range(ranger func(K, V)) {
+	l.mapping.Range(func(key K, value *synclist.Element[*lruEntry[K, V]]) bool {
+		ranger(key, value.Value.data)
+		return true
+	})
 }

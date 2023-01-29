@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -77,14 +76,14 @@ func udpForwarder(s *stack.Stack, natTable *nat.Table, opt *listener.Opts[*liste
 		go func(local net.PacketConn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			if tun2socket.IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
+			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
 				if err := opt.DNSServer.HandleUDP(local); err != nil {
 					log.Errorf("dns handle udp failed: %v\n", err)
 				}
 				return
 			}
 
-			dst := proxy.ParseAddressSplit(statistic.Type_udp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
+			dst := proxy.ParseAddressPort(statistic.Type_udp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
 			if opt.Protocol.Tun.SkipMulticast && dst.Type() == proxy.IP {
 				if ip, _ := dst.IP(); !ip.IsGlobalUnicast() {
 					buf := pool.GetBytes(1024)

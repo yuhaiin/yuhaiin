@@ -1,52 +1,98 @@
 package resolver
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	idns "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	id "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 type Fakedns struct {
-	fake   *dns.NFakeDNS
-	config *pdns.Config
+	enabled  bool
+	fake     *dns.FakeDNS
+	dialer   proxy.Proxy
+	upstream id.DNS
+	cacheDir string
 
-	dialer         proxy.Proxy
-	resolverDialer proxy.ResolverProxy
+	// current dns client(fake/upstream)
+	id.DNS
 }
 
-func NewFakeDNS(dialer proxy.Proxy, resolverProxy proxy.ResolverProxy) proxy.DialerResolverProxy {
-	ipRange, _ := netip.ParsePrefix("10.2.0.1/24")
-	return &Fakedns{fake: dns.NewNFakeDNS(ipRange), dialer: dialer, resolverDialer: resolverProxy}
+func NewFakeDNS(cacheDir string, dialer proxy.Proxy, upstream id.DNS) *Fakedns {
+	return &Fakedns{
+		fake:     dns.NewFakeDNS(upstream, yerror.Ignore(netip.ParsePrefix("10.2.0.1/24"))),
+		dialer:   dialer,
+		upstream: upstream,
+		DNS:      upstream,
+		cacheDir: cacheDir,
+	}
 }
 
-func (f *Fakedns) Resolver(addr proxy.Address) idns.DNS {
-	if f.config != nil && f.config.Fakedns {
-		return dns.WrapFakeDNS(
-			func(b []byte) ([]byte, error) { return f.resolverDialer.Resolver(addr).Do(b) },
-			f.fake,
-		)
+func (f *Fakedns) Close() error {
+	if !f.enabled {
+		return nil
 	}
 
-	return f.resolverDialer.Resolver(addr)
+	cache := make(map[string]string)
+
+	f.fake.LRU().Range(func(s1, s2 string) {
+		cache[s1] = s2
+	})
+
+	data, err := json.Marshal(cache)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(f.cacheDir, data, os.ModePerm)
 }
 
-func (f *Fakedns) Update(c *protoconfig.Setting) {
-	f.config = c.Dns
+func (f *Fakedns) RecoveryCache() {
+	if !f.enabled {
+		return
+	}
+	data, err := os.ReadFile(f.cacheDir)
+	if err != nil {
+		return
+	}
+
+	cache := make(map[string]string)
+	json.Unmarshal(data, &cache)
+
+	lru := f.fake.LRU()
+
+	for k, v := range cache {
+		lru.Add(k, v)
+	}
+}
+
+func (f *Fakedns) Update(c *pc.Setting) {
+	f.Close()
+
+	f.enabled = c.Dns.Fakedns
 
 	ipRange, err := netip.ParsePrefix(c.Dns.FakednsIpRange)
 	if err != nil {
 		log.Errorln("parse fakedns ip range failed:", err)
 		return
 	}
+	f.fake = dns.NewFakeDNS(f.upstream, ipRange)
 
-	f.fake = dns.NewNFakeDNS(ipRange)
+	if f.enabled {
+		f.DNS = f.fake
+	} else {
+		f.DNS = f.upstream
+	}
+
+	f.RecoveryCache()
 }
 
 func (f *Fakedns) Conn(addr proxy.Address) (net.Conn, error) {
@@ -64,15 +110,15 @@ func (f *Fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("connect udp to %s failed: %w", addr, err)
 	}
 
-	if f.config != nil && f.config.Fakedns {
-		c = &WrapAddressPacketConn{c, f.getAddr}
+	if f.enabled {
+		c = &dispatchPacketConn{c, f.getAddr}
 	}
 
 	return c, nil
 }
 
 func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {
-	if f.config != nil && f.config.Fakedns && addr.Type() == proxy.IP {
+	if f.enabled && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {
 			r := addr.OverrideHostname(t)
@@ -84,18 +130,16 @@ func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {
 	return addr
 }
 
-type WrapAddressPacketConn struct {
+type dispatchPacketConn struct {
 	net.PacketConn
-	ProcessAddress func(proxy.Address) proxy.Address
+	dispatch func(proxy.Address) proxy.Address
 }
 
-func (f *WrapAddressPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+func (f *dispatchPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	z, err := proxy.ParseSysAddr(addr)
 	if err != nil {
 		return 0, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	z = f.ProcessAddress(z)
-
-	return f.PacketConn.WriteTo(b, z)
+	return f.PacketConn.WriteTo(b, f.dispatch(z))
 }

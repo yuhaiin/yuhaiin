@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
@@ -38,6 +39,7 @@ func init() {
 	protocol.RegisterProtocol(func(*protocol.Protocol_Reject) protocol.WrapProxy {
 		return func(proxy.Proxy) (proxy.Proxy, error) { return reject.Default, nil }
 	})
+	protocol.RegisterProtocol(yuubinsya.New)
 }
 
 func Dialer(p *point.Point) (r proxy.Proxy, err error) {

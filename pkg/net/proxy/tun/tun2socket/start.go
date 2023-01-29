@@ -1,6 +1,7 @@
 package tun2socket
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -34,57 +36,76 @@ func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (*Tun2So
 		return nil, err
 	}
 
-	tcp := func() {
-		defer lis.TCP().Close()
-
-		for lis.TCP().SetDeadline(time.Time{}) == nil {
-			conn, err := lis.TCP().Accept()
-			if err != nil {
-				log.Errorln("tun2socket tcp accept failed:", err)
-				continue
-			}
-
-			go func() {
-				if err = handleTCP(o, conn); err != nil {
-					if errors.Is(err, proxy.ErrBlocked) {
-						log.Debugln(err)
-					} else {
-						log.Errorln("handle tcp failed:", err)
-					}
-				}
-			}()
-
-		}
-
+	handler := &handler{
+		listener:     lis,
+		portal:       portal,
+		DnsHijacking: o.Protocol.Tun.DnsHijacking,
+		Mtu:          o.Protocol.Tun.Mtu,
+		Dialer:       o.Dialer,
+		DNSServer:    o.DNSServer,
 	}
 
-	udp := func() {
-		defer lis.UDP().Close()
-		buf := pool.GetBytes(o.Protocol.Tun.Mtu)
-		defer pool.PutBytes(buf)
-		for {
-			if err = handleUDP(o, natTable, lis, buf); err != nil {
-				if errors.Is(err, proxy.ErrBlocked) {
-					log.Debugln(err)
-				} else {
-					log.Errorln("handle udp failed:", err)
-				}
-				if errors.Is(err, errUDPAccept) {
-					return
-				}
-			}
-		}
-	}
-
-	go tcp()
+	go handler.tcp()
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go udp()
+		go handler.udp(natTable)
 	}
 
 	return lis, nil
 }
 
-func handleTCP(o *listener.Opts[*listener.Protocol_Tun], conn net.Conn) error {
+type handler struct {
+	DnsHijacking bool
+	Mtu          int32
+	listener     *Tun2Socket
+	portal       netip.Addr
+	Dialer       proxy.Proxy
+	DNSServer    server.DNSServer
+}
+
+func (h *handler) tcp() {
+	lis := h.listener
+	defer lis.TCP().Close()
+
+	for lis.TCP().SetDeadline(time.Time{}) == nil {
+		conn, err := lis.TCP().Accept()
+		if err != nil {
+			log.Errorln("tun2socket tcp accept failed:", err)
+			continue
+		}
+
+		go func() {
+			if err = h.handleTCP(conn); err != nil {
+				if errors.Is(err, proxy.ErrBlocked) {
+					log.Debugln(err)
+				} else {
+					log.Errorln("handle tcp failed:", err)
+				}
+			}
+		}()
+
+	}
+}
+
+func (h *handler) udp(natTable *nat.Table) {
+	lis := h.listener
+	defer lis.UDP().Close()
+	buf := pool.GetBytes(h.Mtu)
+	defer pool.PutBytes(buf)
+	for {
+		if err := h.handleUDP(natTable, lis, buf); err != nil {
+			if errors.Is(err, proxy.ErrBlocked) {
+				log.Debugln(err)
+			} else {
+				log.Errorln("handle udp failed:", err)
+			}
+			if errors.Is(err, errUDPAccept) {
+				return
+			}
+		}
+	}
+}
+
+func (h *handler) handleTCP(conn net.Conn) error {
 	defer conn.Close()
 
 	// lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()  // source
@@ -94,15 +115,19 @@ func handleTCP(o *listener.Opts[*listener.Protocol_Tun], conn net.Conn) error {
 		return nil
 	}
 
-	addr := proxy.ParseAddressSplit(statistic.Type_tcp, rAddrPort.Addr().String(), proxy.ParsePort(rAddrPort.Port()))
+	if h.isHandleDNS(rAddrPort) {
+		return h.DNSServer.HandleTCP(conn)
+	}
+
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+	defer cancel()
+
+	addr := proxy.ParseAddrPort(statistic.Type_tcp, rAddrPort)
+	addr.WithContext(ctx)
 	addr.WithValue(proxy.SourceKey{}, conn.LocalAddr())
 	addr.WithValue(proxy.DestinationKey{}, conn.RemoteAddr())
 
-	if IsHandleDNS(o, addr.Hostname(), addr.Port().Port()) {
-		return o.DNSServer.HandleTCP(conn)
-	}
-
-	lconn, err := o.Dialer.Conn(addr)
+	lconn, err := h.Dialer.Conn(addr)
 	if err != nil {
 		return err
 	}
@@ -114,7 +139,7 @@ func handleTCP(o *listener.Opts[*listener.Protocol_Tun], conn net.Conn) error {
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
-func handleUDP(o *listener.Opts[*listener.Protocol_Tun], natTable *nat.Table, lis *Tun2Socket, buf []byte) error {
+func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) error {
 	n, src, dst, err := lis.UDP().ReadFrom(buf)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
@@ -122,10 +147,8 @@ func handleUDP(o *listener.Opts[*listener.Protocol_Tun], natTable *nat.Table, li
 
 	zbuf := buf[:n]
 
-	addr := proxy.ParseAddressSplit(statistic.Type_udp, dst.Addr().String(), proxy.ParsePort(dst.Port()))
-
-	if IsHandleDNS(o, addr.Hostname(), addr.Port().Port()) {
-		resp, err := o.DNSServer.Do(zbuf)
+	if h.isHandleDNS(dst) {
+		resp, err := h.DNSServer.Do(zbuf)
 		if err != nil {
 			return err
 		}
@@ -133,10 +156,16 @@ func handleUDP(o *listener.Opts[*listener.Protocol_Tun], natTable *nat.Table, li
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+	defer cancel()
+
+	dstAddr := proxy.ParseAddrPort(statistic.Type_udp, dst)
+	dstAddr.WithContext(ctx)
+
 	return natTable.Write(
 		&nat.Packet{
 			SourceAddress:      net.UDPAddrFromAddrPort(src),
-			DestinationAddress: addr,
+			DestinationAddress: dstAddr,
 			Payload:            zbuf,
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
 				address, err := proxy.ParseSysAddr(addr)
@@ -144,20 +173,19 @@ func handleUDP(o *listener.Opts[*listener.Protocol_Tun], natTable *nat.Table, li
 					return 0, err
 				}
 
-				daddr, err := netip.ParseAddr(address.Hostname())
+				daddr, err := address.AddrPort()
 				if err != nil {
 					return 0, err
 				}
-				daddr = daddr.WithZone(address.Zone())
 
-				return lis.UDP().WriteTo(b, netip.AddrPortFrom(daddr.Unmap(), address.Port().Port()), src)
+				return lis.UDP().WriteTo(b, daddr, src)
 			},
 		},
 	)
 }
 
-func IsHandleDNS(opt *listener.Opts[*listener.Protocol_Tun], hostname string, port uint16) bool {
-	if port == 53 && (opt.Protocol.Tun.DnsHijacking || hostname == opt.Protocol.Tun.Portal) {
+func (h *handler) isHandleDNS(addr netip.AddrPort) bool {
+	if addr.Port() == 53 && (h.DnsHijacking || addr.Addr() == h.portal) {
 		return true
 	}
 	return false

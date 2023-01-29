@@ -9,21 +9,21 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	netdns "github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	nd "github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Setting interface {
-	grpcconfig.ConfigDaoServer
+	gc.ConfigDaoServer
 	AddObserver(Observer)
 }
 
@@ -36,7 +36,7 @@ type ObserverFunc func(*config.Setting)
 func (o ObserverFunc) Update(s *config.Setting) { o(s) }
 
 type settingImpl struct {
-	grpcconfig.UnimplementedConfigDaoServer
+	gc.UnimplementedConfigDaoServer
 	current *config.Setting
 	path    string
 
@@ -129,28 +129,28 @@ func defaultConfig(path string) []byte {
 				"exmaple.block.domain.com": {Mode: bypass.Mode_block},
 			},
 		},
-		Dns: &dns.Config{
+		Dns: &pd.Config{
 			ResolveRemoteDomain: false,
 			Server:              "127.0.0.1:5353",
 			Fakedns:             false,
 			FakednsIpRange:      "10.0.2.1/24",
-			Local: &dns.Dns{
+			Local: &pd.Dns{
 				Host: "223.5.5.5",
-				Type: dns.Type_doh,
+				Type: pd.Type_doh,
 			},
-			Remote: &dns.Dns{
+			Remote: &pd.Dns{
 				Host:   "dns.google",
-				Type:   dns.Type_doh,
+				Type:   pd.Type_doh,
 				Subnet: "223.5.5.5",
 			},
-			Bootstrap: &dns.Dns{
+			Bootstrap: &pd.Dns{
 				Host: "223.5.5.5",
-				Type: dns.Type_udp,
+				Type: pd.Type_udp,
 			},
 			Hosts: map[string]string{"example.com": "example.com"},
 		},
-		Logcat: &protolog.Logcat{
-			Level: protolog.LogLevel_debug,
+		Logcat: &pl.Logcat{
+			Level: pl.LogLevel_debug,
 			Save:  true,
 		},
 		Server: &listener.Config{
@@ -234,8 +234,8 @@ func check(pa *config.Setting) error {
 	return nil
 }
 
-func CheckBootstrapDns(pa *dns.Dns) error {
-	addr, err := netdns.ParseAddr(pa.Host, "443")
+func CheckBootstrapDns(pa *pd.Dns) error {
+	addr, err := nd.ParseAddr(pa.Host, "443")
 	if err != nil {
 		return err
 	}

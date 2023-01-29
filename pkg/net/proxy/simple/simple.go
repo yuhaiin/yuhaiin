@@ -1,11 +1,9 @@
 package simple
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -27,21 +25,20 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 		}
 
 		return &Simple{
-			addr:         proxy.ParseAddressSplit(0, c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
+			addr:         proxy.ParseAddressPort(0, c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
 			packetDirect: c.Simple.PacketConnDirect,
 			tlsConfig:    tls,
 		}, nil
 	}
 }
 
-func (c *Simple) Conn(proxy.Address) (net.Conn, error) {
-	host, err := c.addr.IPHost()
+func (c *Simple) Conn(d proxy.Address) (net.Conn, error) {
+	ip, err := c.addr.IP()
 	if err != nil {
-		return nil, fmt.Errorf("get host failed: %w", err)
+		return nil, fmt.Errorf("get ip failed: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
-	defer cancel()
-	conn, err := dialer.DialContext(ctx, "tcp", host)
+
+	conn, err := dialer.DialContext(d.Context(), "tcp", net.JoinHostPort(ip.String(), c.addr.Port().String()))
 	if err != nil {
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}

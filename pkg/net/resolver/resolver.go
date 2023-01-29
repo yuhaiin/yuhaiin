@@ -25,7 +25,7 @@ func (d *System) LookupIP(domain string) ([]net.IP, error) {
 	return net.DefaultResolver.LookupIP(context.TODO(), network, domain)
 }
 
-func (d *System) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error) {
+func (d *System) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) {
 	var req string
 	if t == dnsmessage.TypeAAAA {
 		req = "ip6"
@@ -35,15 +35,15 @@ func (d *System) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error
 
 	ips, err := net.DefaultResolver.LookupIP(context.TODO(), req, domain)
 	if err != nil {
-		return nil, err
+		return dns.IPRecord{}, err
 	}
 
-	return dns.NewIPResponse(ips, 600), nil
+	return dns.IPRecord{IPs: ips, TTL: 600}, nil
 }
 
-func (d *System) Close() error                 { return nil }
-func (d *System) Do([]byte) ([]byte, error)    { return nil, fmt.Errorf("system dns not support") }
-func LookupIP(domain string) ([]net.IP, error) { return Bootstrap.LookupIP(domain) }
+func (d *System) Close() error                      { return nil }
+func (d *System) Do(string, []byte) ([]byte, error) { return nil, fmt.Errorf("system dns not support") }
+func LookupIP(domain string) ([]net.IP, error)      { return Bootstrap.LookupIP(domain) }
 
 func ResolveUDPAddr(address string) (*net.UDPAddr, error) {
 	host, port, err := net.SplitHostPort(address)

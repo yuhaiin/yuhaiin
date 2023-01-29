@@ -1,53 +1,45 @@
 package relay
 
 import (
-	"errors"
 	"io"
-	"net"
-	"os"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // Relay pipe
-func Relay(local, remote io.ReadWriter) {
+func Relay(rw1, rw2 io.ReadWriter) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		if err := Copy(remote, local); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
-			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
-				log.Errorln("relay local -> remote failed:", err)
-			}
-		}
-		if r, ok := remote.(interface{ SetDeadline(time.Time) error }); ok {
-			r.SetDeadline(time.Now().Add(-1)) // make another Copy exit
-		}
+		_ = Copy(rw2, rw1)
+		setDeadline(rw2) // make another Copy exit
 	}()
 
-	if err := Copy(local, remote); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
-		if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
-			log.Errorln("relay remote -> local failed:", err)
-		}
-	}
-	if r, ok := local.(interface{ SetDeadline(time.Time) error }); ok {
-		r.SetDeadline(time.Now().Add(-1))
-	}
+	_ = Copy(rw1, rw2)
+	setDeadline(rw1)
 
 	<-wait
 }
 
-func Copy(dst io.Writer, src io.Reader) (err error) {
-	if c, ok := dst.(io.ReaderFrom); ok {
-		_, err = c.ReadFrom(src) // local -> remote
-	} else if c, ok := src.(io.WriterTo); ok {
-		_, err = c.WriteTo(dst) // local -> remote
-	} else {
-		buf := pool.GetBytes(8192)
-		defer pool.PutBytes(buf)
-		_, err = io.CopyBuffer(dst, src, buf) // local -> remote
+func setDeadline(rw io.ReadWriter) {
+	if r, ok := rw.(interface{ SetDeadline(time.Time) error }); ok {
+		r.SetDeadline(time.Now())
 	}
+}
 
+func Copy(dst io.Writer, src io.Reader) (err error) {
+	buf := pool.GetBytes(8192)
+	defer pool.PutBytes(buf)
+	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
+	_, err = io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf) // local -> remote
 	return
+}
+
+type ReadOnlyReader struct {
+	io.Reader
+}
+
+type WriteOnlyWriter struct {
+	io.Writer
 }

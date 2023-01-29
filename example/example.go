@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -39,13 +40,15 @@ func main() {
 	}
 
 	c := http.Client{
-		Transport: &http.Transport{Dial: func(network, addr string) (net.Conn, error) {
-			add, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
-			if err != nil {
-				return nil, fmt.Errorf("parse address failed: %w", err)
-			}
-			return pro.Conn(add)
-		}},
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				add, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
+				if err != nil {
+					return nil, fmt.Errorf("parse address failed: %w", err)
+				}
+				add.WithContext(ctx)
+				return pro.Conn(add)
+			}},
 	}
 	resp, err := c.Get("https://www.google.com")
 	if err != nil {

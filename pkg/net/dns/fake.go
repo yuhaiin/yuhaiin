@@ -17,31 +17,31 @@ import (
 var _ dns.DNS = (*FakeDNS)(nil)
 
 type FakeDNS struct {
-	upStreamDo func(b []byte) ([]byte, error)
-	pool       *NFakeDNS
+	upstream dns.DNS
+	*FakeIPPool
 }
 
-func WrapFakeDNS(upStreamDo func(b []byte) ([]byte, error), pool *NFakeDNS) *FakeDNS {
-	return &FakeDNS{upStreamDo, pool}
+func NewFakeDNS(upStreamDo dns.DNS, ipRange netip.Prefix) *FakeDNS {
+	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange)}
 }
 
 func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
-	return []net.IP{net.ParseIP(f.pool.GetFakeIPForDomain(domain))}, nil
+	return []net.IP{net.ParseIP(f.FakeIPPool.GetFakeIPForDomain(domain))}, nil
 }
 
-func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPResponse, error) {
-	ipStr := f.pool.GetFakeIPForDomain(domain)
+func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+	ipStr := f.FakeIPPool.GetFakeIPForDomain(domain)
 
 	ip := net.ParseIP(ipStr)
 
 	if t == dnsmessage.TypeA && ip.To4() == nil {
-		return nil, fmt.Errorf("fake ip pool is ipv6, except ipv4")
+		return dns.IPRecord{}, fmt.Errorf("fake ip pool is ipv6, except ipv4")
 	}
 
 	if t == dnsmessage.TypeAAAA {
-		return dns.NewIPResponse([]net.IP{ip.To16()}, 600), nil
+		return dns.IPRecord{IPs: []net.IP{ip.To16()}, TTL: 600}, nil
 	}
-	return dns.NewIPResponse([]net.IP{ip.To4()}, 600), nil
+	return dns.IPRecord{IPs: []net.IP{ip.To4()}, TTL: 600}, nil
 }
 
 var hex = map[byte]byte{
@@ -106,7 +106,7 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	r, ok := f.pool.GetDomainFromIP(ip.String())
+	r, ok := f.FakeIPPool.GetDomainFromIP(ip.String())
 	if !ok {
 		return "", fmt.Errorf("not found %s[%s] ptr", ip, name)
 	}
@@ -114,11 +114,11 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 	return r, nil
 }
 
-func (f *FakeDNS) Do(b []byte) ([]byte, error) { return f.upStreamDo(b) }
+func (f *FakeDNS) Do(addr string, b []byte) ([]byte, error) { return f.upstream.Do(addr, b) }
 
 func (f *FakeDNS) Close() error { return nil }
 
-type NFakeDNS struct {
+type FakeIPPool struct {
 	prefix     netip.Prefix
 	current    netip.Addr
 	domainToIP *fakeLru
@@ -126,7 +126,7 @@ type NFakeDNS struct {
 	mu sync.Mutex
 }
 
-func NewNFakeDNS(prefix netip.Prefix) *NFakeDNS {
+func NewFakeIPPool(prefix netip.Prefix) *FakeIPPool {
 	prefix = prefix.Masked()
 
 	lenSize := 32
@@ -141,14 +141,14 @@ func NewNFakeDNS(prefix netip.Prefix) *NFakeDNS {
 		lruSize = int(math.Pow(2, float64(lenSize-prefix.Bits())) - 1)
 	}
 
-	return &NFakeDNS{
+	return &FakeIPPool{
 		prefix:     prefix,
 		current:    prefix.Addr().Prev(),
 		domainToIP: newFakeLru(lruSize),
 	}
 }
 
-func (n *NFakeDNS) GetFakeIPForDomain(s string) string {
+func (n *FakeIPPool) GetFakeIPForDomain(s string) string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -180,11 +180,13 @@ func (n *NFakeDNS) GetFakeIPForDomain(s string) string {
 	}
 }
 
-func (n *NFakeDNS) GetDomainFromIP(ip string) (string, bool) {
+func (n *FakeIPPool) GetDomainFromIP(ip string) (string, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return n.domainToIP.ReverseLoad(ip)
 }
+
+func (n *FakeIPPool) LRU() *lru.LRU[string, string] { return n.domainToIP.LRU }
 
 type fakeLru struct {
 	LRU *lru.LRU[string, string]
@@ -201,6 +203,7 @@ func newFakeLru(size int) *fakeLru {
 
 	return z
 }
+
 func (f *fakeLru) Load(k string) (string, bool) {
 	if f.size <= 0 {
 		return "", false
@@ -238,84 +241,3 @@ func (f *fakeLru) LastPopValue() (string, bool) {
 	}
 	return f.LRU.LastPopValue()
 }
-
-/**
- old impl
-
-type Fake struct {
-	domainToIP *lru.LRU[string, string]
-	ipRange    *net.IPNet
-
-	mu sync.Mutex
-}
-
-func NewFake(ipRange *net.IPNet) *Fake {
-	ones, bits := ipRange.Mask.Size()
-	lruSize := int(math.Pow(2, float64(bits-ones)) - 1)
-	// if lruSize > 250 {
-	// 	lruSize = 250
-	// }
-	return &Fake{
-		ipRange:    ipRange,
-		domainToIP: lru.NewLru[string, string](uint(lruSize), 0*time.Minute),
-	}
-}
-
-// GetFakeIPForDomain checks and generates a fake IP for a domain name
-func (fkdns *Fake) GetFakeIPForDomain(domain string) string {
-	fkdns.mu.Lock()
-	defer fkdns.mu.Unlock()
-
-	if v, ok := fkdns.domainToIP.Load(domain); ok {
-		return v
-	}
-	currentTimeMillis := uint64(time.Now().UnixNano() / 1e6)
-	ones, bits := fkdns.ipRange.Mask.Size()
-	rooms := bits - ones
-	if rooms < 64 {
-		currentTimeMillis %= (uint64(1) << rooms)
-	}
-
-	bigIntIP := big.NewInt(0).SetBytes(fkdns.ipRange.IP)
-	bigIntIP = bigIntIP.Add(bigIntIP, new(big.Int).SetUint64(currentTimeMillis))
-
-	var bytesLen, fillIndex int
-	if fkdns.ipRange.IP.To4() == nil { // ipv6
-		bytesLen = net.IPv6len
-		if len(bigIntIP.Bytes()) != net.IPv6len {
-			fillIndex = 1
-		}
-	} else {
-		bytesLen = net.IPv4len
-	}
-
-	bytes := pool.GetBytes(bytesLen)
-	defer pool.PutBytes(bytes)
-
-	var ip net.IP
-	for {
-		bigIntIP.FillBytes(bytes[fillIndex:])
-		ip = net.IP(bytes)
-
-		// if we run for a long time, we may go back to beginning and start seeing the IP in use
-		if ok := fkdns.domainToIP.ValueExist(ip.String()); !ok {
-			break
-		}
-
-		bigIntIP = bigIntIP.Add(bigIntIP, big.NewInt(1))
-
-		bigIntIP.FillBytes(bytes[fillIndex:])
-		if !fkdns.ipRange.Contains(bytes) {
-			bigIntIP = big.NewInt(0).SetBytes(fkdns.ipRange.IP)
-		}
-	}
-	fkdns.domainToIP.Add(domain, ip.String())
-	return ip.String()
-}
-
-func (fkdns *Fake) GetDomainFromIP(ip string) (string, bool) {
-	fkdns.mu.Lock()
-	defer fkdns.mu.Unlock()
-	return fkdns.domainToIP.ReverseLoad(ip)
-}
-*/

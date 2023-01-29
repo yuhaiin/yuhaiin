@@ -383,6 +383,15 @@ func (c *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
 	return n, c.RemoteAddr(), err
 }
 
-func (c *Conn) WriteTo(b []byte, _ net.Addr) (int, error) {
+func (c *Conn) WriteTo(b []byte, target net.Addr) (int, error) {
+	t, err := proxy.ParseSysAddr(target)
+	if err != nil {
+		return 0, err
+	}
+
+	if t.String() != c.addr.Address.String() {
+		return 0, fmt.Errorf("vmess only support symmetric NAT")
+	}
+
 	return c.Write(b)
 }

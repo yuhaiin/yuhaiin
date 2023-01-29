@@ -17,12 +17,17 @@
     // example.com block
     // 10.0.2.1/24 direct
     // 127.0.0.1 proxy
-    "custom_rule": { // custom rule, same as bypass file, for temporary use
-      "120.53.53.53": "direct",
-      "223.5.5.5": "direct",
-      "dns.google": "proxy",
-      "dns.nextdns.io": "proxy",
-      "exmaple.block.domain.com": "block"
+    "custom_rule_v2": {// custom rule, same as bypass file, for temporary use
+      "223.5.5.5": {
+        "mode": "direct"
+      },
+      "dns.google": {
+        "mode": "proxy",
+        "tag": "remote_dns"
+      },
+      "exmaple.block.domain.com": {
+        "mode": "block"
+      }
     }
   },
   "dns": {
@@ -99,9 +104,10 @@
           "name": "tun://tun0",// tun name or fd, eg: tun://tun0, fd://89
           "mtu": 1500,
           "gateway": "172.19.0.1", // tun gateway
+          "portal": "172.19.0.2",
           "dns_hijacking": true, // dns_hijacking, will hijacking request for port 53
           "skip_multicast": true,
-          "driver": "fdbased" // tun gvisor driver, support: fdbased, channel
+          "driver": "fdbased" // tun gvisor driver, support: fdbased, channel, system_gvisor
         }
       }
     }

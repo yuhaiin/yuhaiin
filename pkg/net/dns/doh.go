@@ -13,13 +13,13 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func init() {
-	Register(pdns.Type_doh, NewDoH)
+	Register(pd.Type_doh, NewDoH)
 }
 
 func NewDoH(config Config) (dns.DNS, error) {
@@ -29,27 +29,25 @@ func NewDoH(config Config) (dns.DNS, error) {
 	}
 
 	if config.Servername == "" {
-		config.Servername = req.Clone(nil).URL.Hostname()
+		config.Servername = req.Clone(context.TODO(), nil).URL.Hostname()
 	}
 
 	tlsConfig := &tls.Config{
 		ServerName: config.Servername,
 	}
 
-	var addr proxy.Address
 	roundTripper := &http.Transport{
 		TLSClientConfig:   tlsConfig,
 		ForceAttemptHTTP2: true,
 		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
 			switch network {
 			case "tcp", "tcp4", "tcp6":
-				if addr == nil {
-					var err error
-					addr, err = proxy.ParseAddress(proxy.PaseNetwork(network), host)
-					if err != nil {
-						return nil, fmt.Errorf("doh parse address failed: %w", err)
-					}
+				addr, err := proxy.ParseAddress(proxy.PaseNetwork(network), host)
+				if err != nil {
+					return nil, fmt.Errorf("doh parse address failed: %w", err)
 				}
+				addr.WithContext(ctx)
+
 				return config.Dialer.Conn(addr)
 			default:
 				return nil, fmt.Errorf("unsupported network: %s", network)
@@ -61,12 +59,10 @@ func NewDoH(config Config) (dns.DNS, error) {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	hc := &http.Client{
-		Transport: roundTripper,
-		Timeout:   time.Second * 10,
-	}
 	return NewClient(config, func(b []byte) ([]byte, error) {
-		resp, err := hc.Do(req.Clone(b))
+		ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+		defer cancel()
+		resp, err := roundTripper.RoundTrip(req.Clone(ctx, b))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)
 		}
@@ -126,8 +122,8 @@ func getRequest(host string) (*post, error) {
 	return &post{req}, nil
 }
 
-func (p *post) Clone(body []byte) *http.Request {
-	req := p.r.Clone(context.Background())
+func (p *post) Clone(ctx context.Context, body []byte) *http.Request {
+	req := p.r.Clone(ctx)
 	req.ContentLength = int64(len(body))
 	req.Body = io.NopCloser(bytes.NewBuffer(body))
 	req.GetBody = func() (io.ReadCloser, error) {

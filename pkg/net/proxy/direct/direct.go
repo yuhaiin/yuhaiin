@@ -1,10 +1,8 @@
 package direct
 
 import (
-	"context"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -17,13 +15,11 @@ var Default proxy.Proxy = NewDirect()
 func NewDirect() proxy.Proxy { return &direct{} }
 
 func (d *direct) Conn(s proxy.Address) (net.Conn, error) {
-	host, err := s.IPHost()
+	ip, err := s.IP()
 	if err != nil {
-		return nil, fmt.Errorf("get host failed: %w", err)
+		return nil, fmt.Errorf("get ip failed: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
-	defer cancel()
-	return dialer.DialContext(ctx, "tcp", host)
+	return dialer.DialContext(s.Context(), "tcp", net.JoinHostPort(ip.String(), s.Port().String()))
 }
 
 func (d *direct) PacketConn(proxy.Address) (net.PacketConn, error) {

@@ -35,7 +35,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func NewTun(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
+func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 	opt := o.Protocol.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500
@@ -165,3 +165,10 @@ const (
 	// tcpRecovery is the loss detection algorithm used by TCP.
 	tcpRecovery = tcpip.TCPRACKLossDetection
 )
+
+func IsHandleDNS(opt *listener.Opts[*listener.Protocol_Tun], hostname string, port uint16) bool {
+	if port == 53 && (opt.Protocol.Tun.DnsHijacking || hostname == opt.Protocol.Tun.Portal) {
+		return true
+	}
+	return false
+}

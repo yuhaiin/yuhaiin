@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
-	"github.com/Asutorufa/yuhaiin/internal/hosts"
 	web "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/resolver"
 	"github.com/Asutorufa/yuhaiin/internal/server"
@@ -98,13 +97,13 @@ func Start(opt StartOpt) (StartResponse, error) {
 			Mode:     bypass.Mode_proxy,
 			Default:  true,
 			Dialer:   nodeService,
-			Resolver: resolvers.Remote(),
+			Resolver: resolvers.Remote,
 		},
 		{
 			Mode:     bypass.Mode_direct,
 			Default:  false,
 			Dialer:   direct.Default,
-			Resolver: resolvers.Local(),
+			Resolver: resolvers.Local,
 		},
 		{
 			Mode:     bypass.Mode_block,
@@ -118,11 +117,11 @@ func Start(opt StartOpt) (StartResponse, error) {
 	// connections' statistic & flow data
 	stcs := statistics.NewConnStore(st, opt.ProcessDumper)
 
-	hosts := hosts.NewHosts(stcs, st)
+	hosts := resolver.NewHosts(stcs, st)
 	opt.addObserver(hosts)
 
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := resolver.NewFakeDNS(hosts, hosts)
+	fakedns := resolver.NewFakeDNS(PathGenerator.FakeDNSCache(opt.ConfigPath), hosts, hosts)
 	opt.addObserver(fakedns)
 
 	// dns server/tun dns hijacking handler
@@ -166,7 +165,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,
-		servers:      []is.Server{stcs, listener, resolvers, dnsServer},
+		servers:      []is.Server{stcs, listener, resolvers, dnsServer, fakedns},
 	}, nil
 }
 
@@ -179,6 +178,9 @@ func (p pathGenerator) Node(dir string) string   { return p.makeDir(filepath.Joi
 func (p pathGenerator) Config(dir string) string { return p.makeDir(filepath.Join(dir, "config.json")) }
 func (p pathGenerator) Log(dir string) string {
 	return p.makeDir(filepath.Join(dir, "log", "yuhaiin.log"))
+}
+func (p pathGenerator) FakeDNSCache(dir string) string {
+	return p.makeDir(filepath.Join(dir, "fakeip_cache.json"))
 }
 func (pathGenerator) makeDir(s string) string {
 	if _, err := os.Stat(s); errors.Is(err, os.ErrNotExist) {
