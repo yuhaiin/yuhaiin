@@ -1,43 +1,44 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	clistener "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	clistener.RegisterProtocol(hs.NewServer)
-	clistener.RegisterProtocol(ss.NewServer)
-	clistener.RegisterProtocol(tun.NewTun)
+	pl.RegisterProtocol(hs.NewServer)
+	pl.RegisterProtocol(ss.NewServer)
+	pl.RegisterProtocol(tun.NewTun)
 }
 
 type store struct {
 	config proto.Message
-	server iserver.Server
+	server server.Server
 }
 type listener struct {
 	store syncmap.SyncMap[string, store]
-	opts  *clistener.Opts[clistener.IsProtocol_Protocol]
+	opts  *pl.Opts[pl.IsProtocol_Protocol]
 }
 
-func NewListener(opts *clistener.Opts[clistener.IsProtocol_Protocol]) *listener {
+func NewListener(opts *pl.Opts[pl.IsProtocol_Protocol]) *listener {
 	if opts.Dialer == nil {
 		opts.Dialer = direct.Default
 	}
 	return &listener{opts: opts}
 }
 
-func (l *listener) Update(current *protoconfig.Setting) {
+func (l *listener) Update(current *pc.Setting) {
 	l.opts.IPv6 = current.Ipv6
 
 	l.store.Range(func(key string, v store) bool {
@@ -52,12 +53,18 @@ func (l *listener) Update(current *protoconfig.Setting) {
 
 	for k, v := range current.Server.Servers {
 		if err := l.start(k, v); err != nil {
-			log.Errorf("start %s failed: %v", k, err)
+			if errors.Is(err, errServerDisabled) {
+				log.Debugln(err)
+			} else {
+				log.Errorf("start %s failed: %v", k, err)
+			}
 		}
 	}
 }
 
-func (l *listener) start(name string, config *clistener.Protocol) error {
+var errServerDisabled = errors.New("disabled")
+
+func (l *listener) start(name string, config *pl.Protocol) error {
 	v, ok := l.store.Load(name)
 	if ok {
 		if proto.Equal(v.config, config) {
@@ -68,13 +75,11 @@ func (l *listener) start(name string, config *clistener.Protocol) error {
 	}
 
 	if !config.Enabled {
-		return fmt.Errorf("server %s disabled", config.Name)
+		return fmt.Errorf("server %s %w", config.Name, errServerDisabled)
 	}
 
-	server, err := clistener.CreateServer(
-		clistener.CovertOpts(l.opts, func(clistener.IsProtocol_Protocol) clistener.IsProtocol_Protocol {
-			return config.Protocol
-		}))
+	server, err := pl.CreateServer(
+		pl.CovertOpts(l.opts, func(pl.IsProtocol_Protocol) pl.IsProtocol_Protocol { return config.Protocol }))
 	if err != nil {
 		return fmt.Errorf("create server %s failed: %w", name, err)
 	}

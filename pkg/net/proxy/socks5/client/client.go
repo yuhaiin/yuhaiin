@@ -139,7 +139,7 @@ func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (targ
 	addr := add.Address(statistic.Type_tcp)
 
 	if addr.Type() == proxy.IP && yerror.Must(addr.IP()).IsUnspecified() {
-		addr = proxy.ParseAddressSplit(statistic.Type_tcp, s.hostname, addr.Port())
+		addr = proxy.ParseAddressPort(statistic.Type_tcp, s.hostname, addr.Port())
 	}
 
 	return addr, nil

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -12,8 +13,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
-	pconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 type modeMarkKey struct{}
@@ -29,12 +31,13 @@ func (IP_MARK_KEY) String() string { return "IP" }
 type ForceModeKey struct{}
 
 type Shunt struct {
-	resolveRemoteDomain bool
-	defaultMode         bypass.Mode
-	config              *bypass.Config
-	mapper              *mapper.Combine[bypass.ModeEnum]
-	lock                sync.RWMutex
-	modeStore           map[bypass.Mode]Mode
+	resolveRemoteDomain  bool
+	bypassFileModifyTime int64
+	defaultMode          bypass.Mode
+	config               *bypass.Config
+	mapper               *mapper.Combine[bypass.ModeEnum]
+	lock                 sync.RWMutex
+	modeStore            map[bypass.Mode]Mode
 
 	tags []string
 }
@@ -50,9 +53,8 @@ func NewShunt(modes []Mode) *Shunt {
 	s := &Shunt{
 		mapper: mapper.NewMapper[bypass.ModeEnum](),
 		config: &bypass.Config{
-			Tcp:        bypass.Mode_bypass,
-			Udp:        bypass.Mode_bypass,
-			BypassFile: "",
+			Tcp: bypass.Mode_bypass,
+			Udp: bypass.Mode_bypass,
 		},
 		modeStore: make(map[bypass.Mode]Mode, len(bypass.Mode_value)),
 	}
@@ -67,18 +69,25 @@ func NewShunt(modes []Mode) *Shunt {
 	return s
 }
 
-func (s *Shunt) Update(c *pconfig.Setting) {
+func (s *Shunt) Update(c *pc.Setting) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.resolveRemoteDomain = c.Dns.ResolveRemoteDomain
 
-	diff := (s.config == nil && c != nil) || s.config.BypassFile != c.Bypass.BypassFile
+	modifiedTime := s.bypassFileModifyTime
+	if stat, err := os.Stat(c.Bypass.BypassFile); err == nil {
+		modifiedTime = stat.ModTime().Unix()
+	}
+
+	diff := (s.config == nil && c != nil) || s.config.BypassFile != c.Bypass.BypassFile || s.bypassFileModifyTime != modifiedTime
+
 	s.config = c.Bypass
 
 	if diff {
 		s.mapper.Clear()
 		s.tags = nil
+		s.bypassFileModifyTime = modifiedTime
 		rangeRule(s.config.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
 			s.mapper.Insert(s1, s2)
 			if s2.GetTag() != "" {
@@ -128,17 +137,21 @@ var errMode = Mode{
 }
 
 func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
+	// get mode from upstream specified
 	mode := proxy.Value(host, ForceModeKey{}, bypass.Mode_bypass)
 
 	if mode == bypass.Mode_bypass {
+		// get mode from network(tcp/udp) rule
 		mode = networkMode
 	}
 
 	if mode == bypass.Mode_bypass {
+		// get mode from bypass rule
 		host.WithResolver(s.resolver(s.defaultMode), true)
 		fields := s.search(host)
 		mode = fields.Mode()
 
+		// get tag from bypass rule
 		if tag := fields.GetTag(); len(tag) != 0 {
 			host.WithValue(node.TagKey{}, tag)
 		}
@@ -156,6 +169,7 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 		return host, m
 	}
 
+	// resolve proxy domain if resolveRemoteDomain enabled
 	ip, err := host.IP()
 	if err == nil {
 		host.WithValue(DOMAIN_MARK_KEY{}, host.String())
@@ -170,7 +184,8 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 
 var skipResolve = dns.NewErrorDNS(func(domain string) error { return mapper.ErrSkipResolveDomain })
 
-func (s *Shunt) Resolver(host proxy.Address) dns.DNS {
+func (s *Shunt) Resolver(domain string) dns.DNS {
+	host := proxy.ParseAddressPort(0, domain, proxy.EmptyPort)
 	host.WithResolver(skipResolve, true)
 	return s.resolver(s.search(host))
 }
@@ -192,3 +207,10 @@ func (s *Shunt) search(host proxy.Address) bypass.ModeEnum {
 
 	return m
 }
+
+func (f *Shunt) LookupIP(domain string) ([]net.IP, error) { return f.Resolver(domain).LookupIP(domain) }
+func (f *Shunt) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+	return f.Resolver(domain).Record(domain, t)
+}
+func (f *Shunt) Do(addr string, b []byte) ([]byte, error) { return f.Resolver(addr).Do(addr, b) }
+func (f *Shunt) Close() error                             { return nil }

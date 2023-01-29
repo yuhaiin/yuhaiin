@@ -14,14 +14,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Config struct {
-	Type       pdns.Type
+	Type       pd.Type
 	IPv6       bool
 	Subnet     netip.Prefix
 	Name       string
@@ -30,7 +30,7 @@ type Config struct {
 	Dialer     proxy.Proxy
 }
 
-var dnsMap syncmap.SyncMap[pdns.Type, func(Config) (dns.DNS, error)]
+var dnsMap syncmap.SyncMap[pd.Type, func(Config) (dns.DNS, error)]
 
 func New(config Config) (dns.DNS, error) {
 	f, ok := dnsMap.Load(config.Type)
@@ -44,7 +44,7 @@ func New(config Config) (dns.DNS, error) {
 	return f(config)
 }
 
-func Register(tYPE pdns.Type, f func(Config) (dns.DNS, error)) {
+func Register(tYPE pd.Type, f func(Config) (dns.DNS, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}
@@ -53,27 +53,29 @@ func Register(tYPE pdns.Type, f func(Config) (dns.DNS, error)) {
 var _ dns.DNS = (*client)(nil)
 
 type client struct {
-	cache  *lru.LRU[string, ipResponse]
+	cache  *lru.LRU[string, ipRecord]
 	do     func([]byte) ([]byte, error)
 	config Config
 	subnet []dnsmessage.Resource
-	cond   syncmap.SyncMap[string, *struct {
-		*sync.Cond
-		Response dns.IPResponse
-	}]
+	cond   syncmap.SyncMap[string, *recordCond]
 }
 
-type ipResponse struct {
+type recordCond struct {
+	*sync.Cond
+	Record dns.IPRecord
+}
+
+type ipRecord struct {
 	ips         []net.IP
-	expireAfter time.Time
+	expireAfter int64
 }
 
-func (c ipResponse) String() string {
-	return fmt.Sprintf(`{ ips: %v }`, c.ips)
+func (c ipRecord) String() string {
+	return fmt.Sprintf(`{ ips: %v, expireAfter: %d }`, c.ips, c.expireAfter)
 }
 
 func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{do: send, config: config, cache: lru.NewLru[string, ipResponse](100, 0)}
+	c := &client{do: send, config: config, cache: lru.NewLru[string, ipRecord](100, 0)}
 
 	if !config.Subnet.IsValid() {
 		return c
@@ -121,7 +123,7 @@ func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
 	return c
 }
 
-func (c *client) Do(b []byte) ([]byte, error) {
+func (c *client) Do(_ string, b []byte) ([]byte, error) {
 	if c.do == nil {
 		return nil, fmt.Errorf("no dns process function")
 	}
@@ -131,7 +133,7 @@ func (c *client) Do(b []byte) ([]byte, error) {
 
 func (c *client) LookupIP(domain string) ([]net.IP, error) {
 	var aaaaerr error
-	var aaaa dns.IPResponse
+	var aaaa dns.IPRecord
 	var wg sync.WaitGroup
 
 	if c.config.IPv6 {
@@ -145,13 +147,13 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 	var resp []net.IP
 	a, aerr := c.Record(domain, dnsmessage.TypeA)
 	if aerr == nil {
-		resp = a.IPs()
+		resp = a.IPs
 	}
 
 	if c.config.IPv6 {
 		wg.Wait()
 		if aaaaerr == nil {
-			resp = append(resp, aaaa.IPs()...)
+			resp = append(resp, aaaa.IPs...)
 		}
 	}
 
@@ -162,47 +164,48 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 	return resp, nil
 }
 
-func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPResponse, error) {
+var ErrCondEmptyResponse = errors.New("can't get response from cond")
+
+func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
 	key := domain + reqType.String()
 
 	if x, ok := c.cache.Load(key); ok {
-		return dns.NewIPResponse(x.ips, uint32(time.Until(x.expireAfter).Seconds())), nil
+		return dns.IPRecord{IPs: x.ips, TTL: uint32(x.expireAfter - time.Now().Unix())}, nil
 	}
 
-	lock := &struct {
-		*sync.Cond
-		Response dns.IPResponse
-	}{Cond: sync.NewCond(&sync.Mutex{})}
-	cond, ok := c.cond.LoadOrStore(key, lock)
+	cond, ok := c.cond.LoadOrStore(key, &recordCond{Cond: sync.NewCond(&sync.Mutex{})})
 	if ok {
 		cond.L.Lock()
 		cond.Wait()
 		cond.L.Unlock()
 
-		if cond.Response != nil {
-			return cond.Response, nil
+		if len(cond.Record.IPs) != 0 {
+			return cond.Record, nil
 		}
-		return nil, fmt.Errorf("can't get response of %s from cond", key)
+		return dns.IPRecord{}, ErrCondEmptyResponse
 	}
 
-	defer c.cond.Delete(key)
-	defer cond.Broadcast()
+	defer func() {
+		c.cond.Delete(key)
+		cond.Broadcast()
+	}()
 
-	ttl, resp, err := c.lookupIP(domain, reqType)
+	record, err := c.lookupIP(domain, reqType)
 	if err != nil {
-		return nil, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
+		return dns.IPRecord{}, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
 	}
-	cond.Response = dns.NewIPResponse(resp, ttl)
 
-	log.Debugf("%s lookup host [%s] %v success: {ips: %v, ttl: %d}\n", c.config.Name, domain, reqType, resp, ttl)
+	cond.Record = record
 
-	expireAfter := time.Now().Add(time.Duration(ttl) * time.Second)
-	c.cache.Add(key, ipResponse{resp, expireAfter}, lru.WithExpireTime(expireAfter))
+	log.Debugf("%s lookup host [%s] %v success: %v\n", c.config.Name, domain, reqType, record)
 
-	return cond.Response, nil
+	expireAfter := time.Now().Unix() + int64(record.TTL)
+	c.cache.Add(key, ipRecord{record.IPs, expireAfter}, lru.WithExpireTimeUnix(expireAfter))
+
+	return record, nil
 }
 
-func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net.IP, error) {
+func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
 	req := dnsmessage.Message{
 		Header: dnsmessage.Header{
 			ID:                 uint16(rand.Intn(65535)),
@@ -226,33 +229,33 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 
 	d, err := req.Pack()
 	if err != nil {
-		return 0, nil, fmt.Errorf("pack dns message failed: %w", err)
+		return dns.IPRecord{}, fmt.Errorf("pack dns message failed: %w", err)
 	}
 
-	d, err = c.Do(d)
+	d, err = c.Do("", d)
 	if err != nil {
-		return 0, nil, fmt.Errorf("send dns message failed: %w", err)
+		return dns.IPRecord{}, fmt.Errorf("send dns message failed: %w", err)
 	}
 
 	p := &dnsmessage.Parser{}
 
-	he, err := p.Start(d)
+	resp, err := p.Start(d)
 	if err != nil {
-		return 0, nil, err
+		return dns.IPRecord{}, err
 	}
 
-	if he.ID != req.ID {
-		return 0, nil, fmt.Errorf("id not match")
+	if resp.ID != req.ID {
+		return dns.IPRecord{}, fmt.Errorf("id not match")
 	}
 
-	if he.RCode != dnsmessage.RCodeSuccess {
-		return 0, nil, fmt.Errorf("rCode (%v) not success", he.RCode)
+	if resp.RCode != dnsmessage.RCodeSuccess {
+		return dns.IPRecord{}, fmt.Errorf("rCode (%v) not success", resp.RCode)
 	}
 
 	p.SkipAllQuestions()
 
 	var ttl uint32
-	i := make([]net.IP, 0)
+	ips := make([]net.IP, 0)
 
 	for {
 		ip, ttL, err := resolveAOrAAAA(p, reqType)
@@ -261,7 +264,7 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 				break
 			}
 
-			return 0, nil, err
+			return dns.IPRecord{}, err
 		}
 		if ip == nil {
 			continue
@@ -271,13 +274,13 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (uint32, []net
 		if ttl == 0 || ttL < ttl {
 			ttl = ttL
 		}
-		i = append(i, ip)
+		ips = append(ips, ip)
 	}
 
-	if len(i) == 0 {
-		return 0, nil, ErrNoIPFound
+	if len(ips) == 0 {
+		return dns.IPRecord{}, ErrNoIPFound
 	}
-	return ttl, i, nil
+	return dns.IPRecord{IPs: ips, TTL: ttl}, nil
 }
 
 var ErrNoIPFound = errors.New("no ip fond")

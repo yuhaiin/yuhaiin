@@ -175,19 +175,19 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 		return
 	}
 
-	encrypt := pool.GetBytes(16)
-	defer pool.PutBytes(encrypt)
+	encrypt := pool.GetBytesV2(16)
+	defer pool.PutBytesV2(encrypt)
 
 	a.info.Auth.nextAuth()
-	binary.LittleEndian.PutUint32(encrypt[0:4], uint32(time.Now().Unix()))
-	copy(encrypt[4:], a.info.Auth.clientID)
-	binary.LittleEndian.PutUint32(encrypt[8:], a.info.Auth.connectionID.Load())
-	binary.LittleEndian.PutUint16(encrypt[12:], uint16(outLength))
-	binary.LittleEndian.PutUint16(encrypt[14:], uint16(randLength))
+	binary.LittleEndian.PutUint32(encrypt.Bytes(), uint32(time.Now().Unix()))
+	copy(encrypt.After(4), a.info.Auth.clientID)
+	binary.LittleEndian.PutUint32(encrypt.After(8), a.info.Auth.connectionID.Load())
+	binary.LittleEndian.PutUint16(encrypt.After(12), uint16(outLength))
+	binary.LittleEndian.PutUint16(encrypt.After(14), uint16(randLength))
 
 	iv := make([]byte, aes.BlockSize)
 	cbc := cipher.NewCBCEncrypter(block, iv)
-	cbc.CryptBlocks(encrypt[:16], encrypt[:16])
+	cbc.CryptBlocks(encrypt.Bytes(), encrypt.Bytes())
 
 	key := make([]byte, a.info.IVSize()+len(a.info.Key()))
 	copy(key, a.info.IV)
@@ -199,7 +199,7 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	wbuf.WriteByte(byte(yerror.Ignore(crand.Int(crand.Reader, big.NewInt(256))).Uint64()))
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
 	wbuf.Write(a.uid[:])
-	wbuf.Write(encrypt[:16])
+	wbuf.Write(encrypt.Bytes())
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
 	io.CopyN(wbuf, crand.Reader, int64(randLength))
 	wbuf.Write(data)
@@ -246,17 +246,17 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 
 	keyLen := len(a.userKey) + 4
 
-	key := pool.GetBytes(keyLen)
-	defer pool.PutBytes(key)
+	key := pool.GetBytesV2(keyLen)
+	defer pool.PutBytesV2(key)
 
-	copy(key[0:], a.userKey)
+	copy(key.Bytes(), a.userKey)
 
 	hmacBuf := pool.GetBytes(6)
 	defer pool.PutBytes(hmacBuf)
 
 	for remain := datalen; remain > 4; remain = datalen - readLen {
-		binary.LittleEndian.PutUint32(key[keyLen-4:], a.recvID)
-		if !bytes.Equal(a.hmac.HMAC(key[:keyLen], data[0:2], hmacBuf)[:2], data[2:4]) {
+		binary.LittleEndian.PutUint32(key.After(keyLen-4), a.recvID)
+		if !bytes.Equal(a.hmac.HMAC(key.Bytes(), data[0:2], hmacBuf)[:2], data[2:4]) {
 			return 0, ssr.ErrAuthAES128IncorrectHMAC
 		}
 
@@ -272,7 +272,7 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 			break
 		}
 
-		if !bytes.Equal(a.hmac.HMAC(key[:keyLen], data[:cdlen], hmacBuf)[:4], data[cdlen:clen]) {
+		if !bytes.Equal(a.hmac.HMAC(key.Bytes(), data[:cdlen], hmacBuf)[:4], data[cdlen:clen]) {
 			a.rawTrans = true
 			return 0, ssr.ErrAuthAES128IncorrectChecksum
 		}

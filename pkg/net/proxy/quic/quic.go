@@ -1,7 +1,6 @@
 package quic
 
 import (
-	"context"
 	"crypto/tls"
 	"net"
 	"time"
@@ -44,7 +43,7 @@ func (c *Client) Conn(s proxy.Address) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	session, err := quic.DialContext(context.Background(), conn, c.addr, "", c.tlsConfig, c.quicConfig)
+	session, err := quic.DialContext(s.Context(), conn, c.addr, "", c.tlsConfig, c.quicConfig)
 	if err != nil {
 		conn.Close()
 		return nil, err

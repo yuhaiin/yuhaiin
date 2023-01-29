@@ -1,10 +1,12 @@
 package dns
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -23,6 +25,11 @@ func NewDoU(config Config) (dns.DNS, error) {
 	return NewClient(config, func(req []byte) ([]byte, error) {
 		var b = pool.GetBytes(8192)
 		defer pool.PutBytes(b)
+
+		addr := proxy.ParseAddressPort(addr.NetworkType(), addr.Hostname(), addr.Port())
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+		defer cancel()
+		addr.WithContext(ctx)
 
 		conn, err := config.Dialer.PacketConn(addr)
 		if err != nil {

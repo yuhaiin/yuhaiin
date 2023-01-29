@@ -2,11 +2,13 @@ package socks5server
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -56,10 +58,16 @@ func (u *udpServer) handle() {
 			return
 		}
 
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+		defer cancel()
+
+		dst := addr.Address(statistic.Type_udp)
+		dst.WithContext(ctx)
+
 		err = u.natTable.Write(
 			&nat.Packet{
 				SourceAddress:      laddr,
-				DestinationAddress: addr.Address(statistic.Type_udp),
+				DestinationAddress: dst,
 				Payload:            buf[3+len(addr) : n],
 				WriteBack: func(b []byte, source net.Addr) (int, error) {
 					sourceAddr, err := proxy.ParseSysAddr(source)

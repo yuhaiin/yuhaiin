@@ -3,25 +3,25 @@ package resolver
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	id "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 var _ server.DNSServer = (*DnsServer)(nil)
 
 type DnsServer struct {
 	server.DNSServer
-	dnsserverHost string
-	resolver      proxy.ResolverProxy
+	serverHost string
+	resolver   id.DNS
 }
 
-func NewDNSServer(resolver proxy.ResolverProxy) server.DNSServer {
+func NewDNSServer(resolver id.DNS) server.DNSServer {
 	return &DnsServer{server.EmptyDNSServer, "", resolver}
 }
 
-func (a *DnsServer) Update(s *protoconfig.Setting) {
-	if a.dnsserverHost == s.Dns.Server && a.DNSServer != server.EmptyDNSServer {
+func (a *DnsServer) Update(s *pc.Setting) {
+	if a.serverHost == s.Dns.Server && a.DNSServer != server.EmptyDNSServer {
 		return
 	}
 
@@ -32,5 +32,5 @@ func (a *DnsServer) Update(s *protoconfig.Setting) {
 	}
 
 	a.DNSServer = dns.NewDnsServer(s.Dns.Server, a.resolver)
-	a.dnsserverHost = s.Dns.Server
+	a.serverHost = s.Dns.Server
 }

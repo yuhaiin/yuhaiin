@@ -75,7 +75,7 @@ func (a ADDR) Address(network statistic.Type) proxy.Address {
 	}
 	port := binary.BigEndian.Uint16(a[len(a)-2:])
 
-	return proxy.ParseAddressSplit(network, hostname, proxy.ParsePort(port))
+	return proxy.ParseAddressPort(network, hostname, proxy.ParsePort(port))
 }
 
 func ResolveAddr(r io.Reader) (ADDR, error) {

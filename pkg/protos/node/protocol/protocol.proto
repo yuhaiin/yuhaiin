@@ -19,6 +19,7 @@ message protocol {
     http http = 11 [ json_name = "http" ];
     direct direct = 12 [ json_name = "direct" ];
     reject reject = 13 [ json_name = "reject" ];
+    yuubinsya yuubinsya = 14 [json_name = "yuubinsya"];
   }
 }
 
@@ -62,6 +63,10 @@ message vmess {
 message trojan {
   string password = 1 [ json_name = "password" ];
   string peer = 2 [ json_name = "peer" ];
+}
+
+message yuubinsya {
+  string password = 1 [ json_name = "password" ];
 }
 
 message websocket {

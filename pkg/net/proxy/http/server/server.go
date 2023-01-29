@@ -24,11 +24,15 @@ import (
 func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
 	return func(conn net.Conn) {
 		dialer := func(addr string) (net.Conn, error) {
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+			defer cancel()
+
 			address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
 
+			address.WithContext(ctx)
 			address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
 			address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
 			address.WithValue(proxy.DestinationKey{}, address)

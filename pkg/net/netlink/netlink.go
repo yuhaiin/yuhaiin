@@ -114,7 +114,7 @@ func resolveSocketByNetlink(network string, ip net.IP, srcPort int) (uint32, uin
 
 	binary.BigEndian.PutUint16(request.SrcPort[:], uint16(srcPort))
 
-	conn, err := netlink.Dial(unix.NETLINK_INET_DIAG, nil)
+	conn, err := netlink.Dial(unix.NETLINK_SOCK_DIAG, nil)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -123,7 +123,7 @@ func resolveSocketByNetlink(network string, ip net.IP, srcPort int) (uint32, uin
 	message := netlink.Message{
 		Header: netlink.Header{
 			Type:  SOCK_DIAG_BY_FAMILY,
-			Flags: netlink.Request | netlink.Dump,
+			Flags: unix.NLM_F_REQUEST | unix.NLM_F_DUMP,
 		},
 		Data: (*(*[inetDiagRequestSize]byte)(unsafe.Pointer(request)))[:],
 	}
@@ -133,17 +133,16 @@ func resolveSocketByNetlink(network string, ip net.IP, srcPort int) (uint32, uin
 		return 0, 0, err
 	}
 
-	for _, msg := range messages {
-		if len(msg.Data) < inetDiagResponseSize {
-			continue
-		}
-
-		response := (*inetDiagResponse)(unsafe.Pointer(&msg.Data[0]))
-
-		return response.INode, response.UID, nil
+	if len(messages) > 2 {
+		return 0, 0, fmt.Errorf("multiple (%d) matching sockets", len(messages))
 	}
 
-	return 0, 0, errors.New("err not find")
+	if len(messages[0].Data) < inetDiagResponseSize {
+		return 0, 0, fmt.Errorf("socket data short read (%d); want %d", len(messages[0].Data), inetDiagResponseSize)
+	}
+
+	response := (*inetDiagResponse)(unsafe.Pointer(&messages[0].Data[0]))
+	return response.INode, response.UID, nil
 }
 
 func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {

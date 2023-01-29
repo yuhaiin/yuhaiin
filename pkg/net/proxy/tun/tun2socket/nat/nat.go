@@ -24,11 +24,6 @@ type IP interface {
 	PayloadLength() uint16
 }
 
-type IPv4 interface {
-	IP
-	HeaderLength() uint8
-}
-
 type TransportProtocol interface {
 	SetChecksum(v uint16)
 }
@@ -54,7 +49,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 	udp := &UDPv2{
 		device:  device,
 		mtu:     mtu,
-		channel: make(chan *callv2, 15),
+		channel: make(chan *callv2, 80),
 	}
 
 	tcp := &TCP{
@@ -95,10 +90,6 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 					continue
 				}
 
-				if ipv4.TTL() == 0x00 {
-					continue
-				}
-
 				if ipv4.More() {
 					continue
 				}
@@ -132,6 +123,9 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 				continue
 			}
 
+			destinationIP = destinationIP.Unmap()
+			sourceIP = sourceIP.Unmap()
+
 			if !destinationIP.IsGlobalUnicast() {
 				continue
 			}
@@ -143,11 +137,11 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 			case header.TCPProtocolNumber:
 				t := header.TCP(ip.Payload())
 
-				sourePort := t.SourcePort()
+				sourcePort := t.SourcePort()
 				destinationPort := t.DestinationPort()
 
 				if destinationIP == portal {
-					if sourceIP != gateway || sourePort != gatewayPort {
+					if sourceIP != gateway || sourcePort != gatewayPort {
 						continue
 					}
 
@@ -162,7 +156,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 					t.SetSourcePort(tup.DestinationAddr.Port())
 				} else {
 					tup := tuple{
-						SourceAddr:      netip.AddrPortFrom(sourceIP, sourePort),
+						SourceAddr:      netip.AddrPortFrom(sourceIP, sourcePort),
 						DestinationAddr: netip.AddrPortFrom(destinationIP, destinationPort),
 					}
 
@@ -228,12 +222,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 				continue
 			}
 
-			if ip, ok := ip.(IPv4); ok {
-				ip.SetChecksum(0)
-				ip.SetChecksum(^checksum.CheckSumCombine(0, raw[:ip.HeaderLength()]))
-			}
-			tp.SetChecksum(0)
-			tp.SetChecksum(^checksum.CheckSumCombine(pseudoHeaderSum, ip.Payload()))
+			resetCheckSum(ip, tp, pseudoHeaderSum)
 
 			if _, err = device.Write(raw); err != nil {
 				log.Errorln("write tcp raw to tun device failed:", err)
@@ -245,12 +234,21 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 	return tcp, udp, nil
 }
 
+func resetCheckSum(ip IP, tp TransportProtocol, pseudoHeaderSum uint32) {
+	if ip, ok := ip.(header.IPv4); ok {
+		ip.SetChecksum(0)
+		ip.SetChecksum(^checksum.CheckSumCombine(0, ip[:ip.HeaderLength()]))
+	}
+	tp.SetChecksum(0)
+	tp.SetChecksum(^checksum.CheckSumCombine(pseudoHeaderSum, ip.Payload()))
+}
+
 // PseudoHeaderChecksum calculates the pseudo-header checksum for the given
 // destination protocol and network address. Pseudo-headers are needed by
 // transport layers when calculating their own checksum.
 func PseudoHeaderSum(ip IP, ipRaw []byte, protocol tcpip.TransportProtocolNumber) uint32 {
 	var sum uint32
-	if _, ok := ip.(IPv4); ok {
+	if _, ok := ip.(header.IPv4); ok {
 		sum = checksum.Sum(ipRaw[12:header.IPv4MinimumSize]) // src address + dst address
 	} else {
 		sum = checksum.Sum(ipRaw[8:header.IPv6FixedHeaderSize]) // src address + dst address

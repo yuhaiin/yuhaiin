@@ -18,14 +18,14 @@ import (
 )
 
 type dnsServer struct {
-	server        string
-	resolverProxy proxy.ResolverProxy
-	listener      net.PacketConn
-	tcpListener   net.Listener
+	server      string
+	resolver    dns.DNS
+	listener    net.PacketConn
+	tcpListener net.Listener
 }
 
-func NewDnsServer(server string, process proxy.ResolverProxy) server.DNSServer {
-	d := &dnsServer{server: server, resolverProxy: process}
+func NewDnsServer(server string, process dns.DNS) server.DNSServer {
+	d := &dnsServer{server: server, resolver: process}
 
 	if server == "" {
 		log.Warningln("dns server is empty, skip to listen tcp and udp")
@@ -79,7 +79,7 @@ func (d *dnsServer) start() (err error) {
 			return fmt.Errorf("dns udp server handle failed: %w", err)
 		}
 
-		go func(buf []byte, n int, addr net.Addr) {
+		go func() {
 			defer pool.PutBytes(buf)
 			data, err := d.handle(buf[:n])
 			if err != nil {
@@ -90,7 +90,7 @@ func (d *dnsServer) start() (err error) {
 			if _, err = d.listener.WriteTo(data, addr); err != nil {
 				log.Errorln(err)
 			}
-		}(buf, n, addr)
+		}()
 	}
 }
 
@@ -112,12 +112,12 @@ func (d *dnsServer) startTCP() (err error) {
 			return fmt.Errorf("dns server accept failed: %w", err)
 		}
 
-		go func(conn net.Conn) {
+		go func() {
 			defer conn.Close()
 			if err := d.HandleTCP(conn); err != nil {
 				log.Errorln(err)
 			}
-		}(conn)
+		}()
 	}
 }
 
@@ -163,8 +163,6 @@ func (d *dnsServer) HandleUDP(l net.PacketConn) error {
 	return err
 }
 
-var emptyIPResponse = dns.NewIPResponse(nil, 0)
-
 func (d *dnsServer) Do(b []byte) ([]byte, error) { return d.handle(b) }
 
 func (d *dnsServer) handle(b []byte) ([]byte, error) {
@@ -180,12 +178,12 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 		return nil, fmt.Errorf("dns server parse failed: %w", err)
 	}
 
-	add := proxy.ParseAddressSplit(0, strings.TrimSuffix(q.Name.String(), "."), nil)
+	add := strings.TrimSuffix(q.Name.String(), ".")
 
 	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
 		q.Type != dnsmessage.TypePTR {
 		log.Debugln(q.Type, "not a, aaaa or ptr")
-		return d.resolverProxy.Resolver(add).Do(b)
+		return d.resolver.Do(add, b)
 	}
 
 	resp := dnsmessage.Message{
@@ -206,17 +204,15 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 		},
 	}
 
-	processor := d.resolverProxy.Resolver(add)
-
 	// PTR
 	if q.Type == dnsmessage.TypePTR {
-		return d.handlePtr(b, resp, processor, q.Name)
+		return d.handlePtr(add, b, resp, d.resolver, q.Name)
 	}
 
 	// A or AAAA
-	r, err := processor.Record(add.Hostname(), q.Type)
+	r, err := d.resolver.Record(add, q.Type)
 	if err != nil {
-		if !errors.Is(err, ErrNoIPFound) {
+		if !errors.Is(err, ErrNoIPFound) && !errors.Is(err, ErrCondEmptyResponse) {
 			if errors.Is(err, proxy.ErrBlocked) {
 				log.Debugln(err)
 			} else {
@@ -224,14 +220,12 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 			}
 		}
 
-		r = emptyIPResponse
-
 		if !errors.Is(err, ErrNoIPFound) {
 			resp.RCode = dnsmessage.RCodeNameError
 		}
 	}
 
-	for _, a := range r.IPs() {
+	for _, a := range r.IPs {
 		var resource dnsmessage.ResourceBody
 		if q.Type == dnsmessage.TypeA {
 			rr := &dnsmessage.AResource{}
@@ -247,7 +241,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 				Name:  q.Name,
 				Type:  q.Type,
 				Class: dnsmessage.ClassINET,
-				TTL:   r.TTL(),
+				TTL:   r.TTL,
 			},
 			Body: resource,
 		})
@@ -256,7 +250,7 @@ func (d *dnsServer) handle(b []byte) ([]byte, error) {
 	return resp.Pack()
 }
 
-func (d *dnsServer) handlePtr(raw []byte, msg dnsmessage.Message,
+func (d *dnsServer) handlePtr(address string, raw []byte, msg dnsmessage.Message,
 	processor dns.DNS, name dnsmessage.Name) ([]byte, error) {
 	if ff, ok := processor.(interface{ LookupPtr(string) (string, error) }); ok {
 		r, err := ff.LookupPtr(name.String())
@@ -278,5 +272,5 @@ func (d *dnsServer) handlePtr(raw []byte, msg dnsmessage.Message,
 		}
 	}
 
-	return processor.Do(raw)
+	return processor.Do(address, raw)
 }

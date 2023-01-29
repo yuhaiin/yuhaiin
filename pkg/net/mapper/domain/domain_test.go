@@ -14,7 +14,7 @@ func BenchmarkDomainMatcher_Search(b *testing.B) {
 	root.Insert("www.baidu.sub.com.cn", "test_baidu")
 	root.Insert("www.google.com", "test_google")
 
-	addr := proxy.ParseAddressSplit(0, "www.baidu.sub.com.cn.net", proxy.ParsePort(0))
+	addr := proxy.ParseAddressPort(0, "www.baidu.sub.com.cn.net", proxy.ParsePort(0))
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -39,7 +39,7 @@ func TestDomainMatcherSearch(t *testing.T) {
 	root.Insert("*.miui.com", "miui")
 
 	search := func(s string) string {
-		res, _ := root.Search(proxy.ParseAddressSplit(0, s, proxy.ParsePort(0)))
+		res, _ := root.Search(proxy.ParseAddressPort(0, s, proxy.ParsePort(0)))
 		return res
 	}
 	assert.Equal(t, "test_baidu", search("www.baidu.com"))

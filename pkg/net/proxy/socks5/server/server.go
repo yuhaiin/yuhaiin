@@ -1,10 +1,12 @@
 package socks5server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -121,7 +123,11 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
 
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+		defer cancel()
+
 		addr := adr.Address(statistic.Type_tcp)
+		addr.WithContext(ctx)
 		addr.WithValue(proxy.SourceKey{}, client.RemoteAddr())
 		addr.WithValue(proxy.InboundKey{}, client.LocalAddr())
 		addr.WithValue(proxy.DestinationKey{}, addr)
@@ -170,7 +176,7 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	writeHandshake2(client, succeeded, proxy.ParseAddressSplit(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
+	writeHandshake2(client, succeeded, proxy.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
 	relay.Copy(io.Discard, client)
 	return l.Close()
 }

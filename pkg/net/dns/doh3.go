@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,18 +20,15 @@ func init() {
 func NewDoH3(config Config) (dns.DNS, error) {
 	tr := &http3.RoundTripper{}
 
-	httpClient := &http.Client{
-		Timeout:   time.Second * 5,
-		Transport: tr,
-	}
-
 	req, err := getRequest(config.Host)
 	if err != nil {
 		return nil, fmt.Errorf("get request failed: %w", err)
 	}
 
 	return NewClient(config, func(b []byte) ([]byte, error) {
-		resp, err := httpClient.Do(req.Clone(b))
+		ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+		defer cancel()
+		resp, err := tr.RoundTrip(req.Clone(ctx, b))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)
 		}

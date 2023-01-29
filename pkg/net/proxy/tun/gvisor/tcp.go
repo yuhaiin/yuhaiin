@@ -1,12 +1,12 @@
 package tun
 
 import (
+	"context"
 	"net"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -38,14 +38,18 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 		go func(local net.Conn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			if tun2socket.IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
+			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
 				if err := opt.DNSServer.HandleTCP(local); err != nil {
 					log.Errorf("dns handle tcp failed: %v\n", err)
 				}
 				return
 			}
 
-			addr := proxy.ParseAddressSplit(statistic.Type_tcp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+			defer cancel()
+
+			addr := proxy.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
+			addr.WithContext(ctx)
 			addr.WithValue(proxy.SourceKey{}, local.RemoteAddr())
 			addr.WithValue(proxy.DestinationKey{}, addr)
 
