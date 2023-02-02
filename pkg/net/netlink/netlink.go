@@ -138,6 +138,10 @@ func resolveSocketByNetlink(network string, ip net.IP, srcPort int) (uint32, uin
 		return 0, 0, fmt.Errorf("multiple (%d) matching sockets", len(messages))
 	}
 
+	if len(messages) == 0 {
+		return 0, 0, fmt.Errorf("message is empty")
+	}
+
 	if len(messages[0].Data) < inetDiagResponseSize {
 		return 0, 0, fmt.Errorf("socket data short read (%d); want %d", len(messages[0].Data), inetDiagResponseSize)
 	}

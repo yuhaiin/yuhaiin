@@ -127,7 +127,14 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	if c.remain > 0 {
-		n, err := c.Conn.Read(payload)
+		var z int
+		if c.remain > len(payload) {
+			z = len(payload)
+		} else {
+			z = c.remain
+		}
+
+		n, err := c.Conn.Read(payload[:z])
 		if err != nil {
 			return 0, c.addr, err
 		}

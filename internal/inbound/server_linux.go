@@ -1,7 +1,7 @@
 //go:build !android
 // +build !android
 
-package server
+package inbound
 
 import (
 	rs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"

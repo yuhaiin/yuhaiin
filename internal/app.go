@@ -9,8 +9,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	web "github.com/Asutorufa/yuhaiin/internal/http"
+	"github.com/Asutorufa/yuhaiin/internal/inbound"
 	"github.com/Asutorufa/yuhaiin/internal/resolver"
-	"github.com/Asutorufa/yuhaiin/internal/server"
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/internal/statistics"
 	"github.com/Asutorufa/yuhaiin/internal/version"
@@ -132,7 +132,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	appDialer.Proxy = stcs
 
 	// http/socks5/redir/tun server
-	listener := server.NewListener(
+	listener := inbound.NewListener(
 		&listener.Opts[listener.IsProtocol_Protocol]{
 			Dialer:    fakedns,
 			DNSServer: dnsServer,

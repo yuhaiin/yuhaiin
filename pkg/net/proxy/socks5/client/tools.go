@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -34,10 +33,32 @@ func Dial(host, port, user, password string) proxy.Proxy {
 	return p
 }
 
-func ParseAddr(hostname proxy.Address) []byte {
-	buf := bytes.NewBuffer(nil)
-	ParseAddrWriter(hostname, buf)
-	return buf.Bytes()
+func ParseAddr(addr proxy.Address) ADDR {
+	var buf []byte
+	switch addr.Type() {
+	case proxy.IP:
+		ip, _ := addr.AddrPort()
+		if ip.Addr().Is4() {
+			buf = make([]byte, 1+4+2)
+			buf[0] = 0x01
+		} else {
+			buf = make([]byte, 1+16+2)
+			buf[0] = 0x04
+		}
+		copy(buf[1:], ip.Addr().AsSlice())
+
+	case proxy.DOMAIN:
+		fallthrough
+	default:
+		buf = make([]byte, 1+1+len(addr.Hostname())+2)
+		buf[0] = 0x03
+		buf[1] = byte(len(addr.Hostname()))
+		copy(buf[2:], []byte(addr.Hostname()))
+	}
+
+	binary.BigEndian.PutUint16(buf[len(buf)-2:], addr.Port().Port())
+
+	return buf
 }
 
 func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
