@@ -71,8 +71,6 @@ func (w *writer) ReadFrom(r io.Reader) (n int64, err error) {
 			w.Seal(buf[:0], w.nonce, buf[:2], nil)
 			increment(w.nonce)
 
-			// log.Infoln("length: ", buf[:2+w.Overhead()], "nounce:", w.nonce)
-
 			w.Seal(payloadBuf[:0], w.nonce, payloadBuf, nil)
 			increment(w.nonce)
 

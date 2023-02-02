@@ -1,6 +1,3 @@
-//go:build tun2socket_origin
-// +build tun2socket_origin
-
 package nat
 
 import (
@@ -18,7 +15,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
-func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *UDPv2, error) {
+func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *UDP, error) {
 	if !portal.Is4() || !gateway.Is4() {
 		return nil, nil, net.InvalidAddrError("only ipv4 supported")
 	}
@@ -35,10 +32,9 @@ func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *
 	}
 
 	tab := newTable()
-	udp := &UDPv2{
-		device:  device,
-		mtu:     mtu,
-		channel: make(chan *callv2, 30),
+	udp := &UDP{
+		device: device,
+		mtu:    mtu,
 	}
 
 	tcp := &TCP{
