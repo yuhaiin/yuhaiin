@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 	"golang.org/x/net/http2"
 )
 
