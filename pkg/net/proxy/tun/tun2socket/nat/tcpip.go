@@ -38,7 +38,7 @@ func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *
 	udp := &UDPv2{
 		device:  device,
 		mtu:     mtu,
-		channel: make(chan *callv2, 80),
+		channel: make(chan *callv2, 30),
 	}
 
 	tcp := &TCP{
@@ -196,47 +196,6 @@ func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *
 	return tcp, udp, nil
 }
 
-func (u *UDP) WriteToTCPIP(buf []byte, local, remote netip.AddrPort) (int, error) {
-	if u.closed {
-		return 0, net.ErrClosed
-	}
-
-	ipBuf := pool.GetBytes(u.mtu)
-	defer pool.PutBytes(ipBuf)
-
-	if len(buf) > 0xffff {
-		return 0, net.InvalidAddrError("invalid ip version")
-	}
-
-	if !local.Addr().Is4() || !remote.Addr().Is4() {
-		return 0, net.InvalidAddrError("invalid ip version")
-	}
-
-	tcpip.SetIPv4(ipBuf)
-
-	ip := tcpip.IPv4Packet(ipBuf)
-	ip.SetHeaderLen(tcpip.IPv4HeaderSize)
-	ip.SetTotalLength(tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize + uint16(len(buf)))
-	ip.SetTypeOfService(0)
-	ip.SetIdentification(uint16(rand.Uint32()))
-	ip.SetFragmentOffset(0)
-	ip.SetTimeToLive(64)
-	ip.SetProtocol(tcpip.UDP)
-	ip.SetSourceIP(local.Addr())
-	ip.SetDestinationIP(remote.Addr())
-
-	udp := tcpip.UDPPacket(ip.Payload())
-	udp.SetLength(tcpip.UDPHeaderSize + uint16(len(buf)))
-	udp.SetSourcePort(local.Port())
-	udp.SetDestinationPort(remote.Port())
-	copy(udp.Payload(), buf)
-
-	ip.ResetChecksum()
-	udp.ResetChecksum(ip.PseudoSum())
-
-	return u.device.Write(ipBuf[:ip.TotalLen()])
-}
-
 // UDP
 
 type call struct {
@@ -378,4 +337,45 @@ func (u *UDP) handleUDPPacket(source, destination netip.AddrPort, payload []byte
 		c.n = copy(c.buf, payload)
 		c.cond.Signal()
 	}
+}
+
+func (u *UDP) WriteToTCPIP(buf []byte, local, remote netip.AddrPort) (int, error) {
+	if u.closed {
+		return 0, net.ErrClosed
+	}
+
+	ipBuf := pool.GetBytes(u.mtu)
+	defer pool.PutBytes(ipBuf)
+
+	if len(buf) > 0xffff {
+		return 0, net.InvalidAddrError("invalid ip version")
+	}
+
+	if !local.Addr().Is4() || !remote.Addr().Is4() {
+		return 0, net.InvalidAddrError("invalid ip version")
+	}
+
+	tcpip.SetIPv4(ipBuf)
+
+	ip := tcpip.IPv4Packet(ipBuf)
+	ip.SetHeaderLen(tcpip.IPv4HeaderSize)
+	ip.SetTotalLength(tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize + uint16(len(buf)))
+	ip.SetTypeOfService(0)
+	ip.SetIdentification(uint16(rand.Uint32()))
+	ip.SetFragmentOffset(0)
+	ip.SetTimeToLive(64)
+	ip.SetProtocol(tcpip.UDP)
+	ip.SetSourceIP(local.Addr())
+	ip.SetDestinationIP(remote.Addr())
+
+	udp := tcpip.UDPPacket(ip.Payload())
+	udp.SetLength(tcpip.UDPHeaderSize + uint16(len(buf)))
+	udp.SetSourcePort(local.Port())
+	udp.SetDestinationPort(remote.Port())
+	copy(udp.Payload(), buf)
+
+	ip.ResetChecksum()
+	udp.ResetChecksum(ip.PseudoSum())
+
+	return u.device.Write(ipBuf[:ip.TotalLen()])
 }

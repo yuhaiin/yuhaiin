@@ -44,8 +44,8 @@ vet:
 
 .PHONY: yuhaiin
 yuhaiin:
-	$(LINUX_AMD64) $(GO_BUILD_CMD) -tags "debug" -o yuhaiin $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -tags "debug" -o yuhaiin_v3 $(YUHAIIN)
+	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin $(YUHAIIN)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin_v3 $(YUHAIIN)
 
 .PHONY: dnsrelay
 dnsrelay:
@@ -64,8 +64,8 @@ cli:
 
 .PHONY: yuhaiin_windows
 yuhaiin_windows:
-	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -o yuhaiin.exe $(YUHAIIN)
-	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -o yuhaiin_v3.exe $(YUHAIIN)
+	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin.exe $(YUHAIIN)
+	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_v3.exe $(YUHAIIN)
 
 .PHONY: cli_windows
 cli_windows:
@@ -74,8 +74,8 @@ cli_windows:
 
 .PHONY: yuhaiin_android
 yuhaiin_android:
-	$(ANDROID_ARM64) $(GO_BUILD_CMD) -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
-	$(ANDROID_AMD64) $(GO_BUILD_CMD) -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
+	$(ANDROID_ARM64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
+	$(ANDROID_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
 
 .PHONY: cli_android
 cli_android:
@@ -83,7 +83,7 @@ cli_android:
 
 .PHONY: yuhaiin_mipsle
 yuhaiin_mipsle:
-	$(LINUX_MIPSLE) $(GO_BUILD_CMD) -tags "openwrt" -o yuhaiin_mipsle $(YUHAIIN)
+	$(LINUX_MIPSLE) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "openwrt" -o yuhaiin_mipsle $(YUHAIIN)
 
 .PHONY: install
 install: build cli

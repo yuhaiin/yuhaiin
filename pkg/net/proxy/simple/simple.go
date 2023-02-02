@@ -43,6 +43,8 @@ func (c *Simple) Conn(d proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}
 
+	conn.(*net.TCPConn).SetKeepAlive(true)
+
 	if c.tlsConfig != nil {
 		conn = tls.Client(conn, c.tlsConfig)
 	}
