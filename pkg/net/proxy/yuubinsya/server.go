@@ -150,6 +150,9 @@ func (y *yuubinsya) handleUDP(c net.Conn) error {
 	go func() {
 		buf := pool.GetBytes(MaxPacketSize)
 		defer pool.PutBytes(buf)
+		buffer := pool.GetBuffer()
+		defer pool.PutBuffer(buffer)
+
 		for {
 			packetConn.SetReadDeadline(time.Now().Add(time.Minute))
 			n, from, err := packetConn.ReadFrom(buf)
@@ -157,17 +160,20 @@ func (y *yuubinsya) handleUDP(c net.Conn) error {
 				return
 			}
 
+			buffer.Reset()
+
 			addr, err := proxy.ParseSysAddr(from)
 			if err != nil {
 				return
 			}
 
-			s5c.ParseAddrWriter(addr, c)
-			if err = binary.Write(c, binary.BigEndian, uint16(n)); err != nil {
+			s5c.ParseAddrWriter(addr, buffer)
+			if err = binary.Write(buffer, binary.BigEndian, uint16(n)); err != nil {
 				return
 			}
+			buffer.Write(buf[:n])
 
-			if _, err := c.Write(buf[:n]); err != nil {
+			if _, err := c.Write(buffer.Bytes()); err != nil {
 				return
 			}
 		}
@@ -201,5 +207,7 @@ func (y *yuubinsya) handleUDP(c net.Conn) error {
 		if _, err = packetConn.WriteTo(buf.Bytes(), udpAddr); err != nil {
 			return err
 		}
+
+		pool.PutBytesV2(buf)
 	}
 }

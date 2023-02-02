@@ -158,7 +158,7 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 	}
 
 	if aerr != nil && (!c.config.IPv6 || aaaaerr != nil) {
-		return nil, fmt.Errorf("lookup ip failed: aaaa: %v, a: %w", aaaaerr, aerr)
+		return nil, fmt.Errorf("lookup ip failed: aaaa: %w, a: %w", aaaaerr, aerr)
 	}
 
 	return resp, nil

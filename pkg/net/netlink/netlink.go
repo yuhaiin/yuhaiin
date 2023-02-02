@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -151,7 +152,8 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 		return "", err
 	}
 
-	buffer := make([]byte, unix.PathMax)
+	buffer := pool.GetBytes(unix.PathMax)
+	defer pool.PutBytes(buffer)
 	socket := fmt.Appendf(nil, "socket:[%d]", inode)
 
 	for _, f := range files {
