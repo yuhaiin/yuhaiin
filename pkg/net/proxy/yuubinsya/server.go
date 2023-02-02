@@ -2,6 +2,8 @@ package yuubinsya
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -23,21 +25,24 @@ const (
 )
 
 type yuubinsya struct {
-	addr, serverName string
-	password         []byte
+	addr     string
+	password []byte
 
 	cert, key []byte
 
 	Lis net.Listener
+
+	mac ed25519.PrivateKey
 }
 
-func NewServer(host, serverName, password string, certPEM, keyPEM []byte) (*yuubinsya, error) {
+func NewServer(host, password string, certPEM, keyPEM []byte) (*yuubinsya, error) {
 	y := &yuubinsya{
 		addr:     host,
 		password: []byte(password),
 		cert:     certPEM,
 		key:      keyPEM,
 	}
+	y.mac = ed25519.NewKeyFromSeed(kdf(y.password, ed25519.SeedSize))
 
 	return y, nil
 
@@ -51,15 +56,19 @@ func (y *yuubinsya) Start() error {
 
 	log.Println("new server listen at:", lis.Addr())
 
-	cert, err := tls.X509KeyPair(y.cert, y.key)
-	if err != nil {
-		return err
-	}
+	var tlsConfig *tls.Config
 
-	lis = tls.NewListener(lis, &tls.Config{
-		ServerName:   y.serverName,
-		Certificates: []tls.Certificate{cert},
-	})
+	if y.cert != nil && y.key != nil {
+		cert, err := tls.X509KeyPair(y.cert, y.key)
+		if err != nil {
+			return err
+		}
+
+		tlsConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS13,
+		}
+	}
 
 	for {
 		conn, err := lis.Accept()
@@ -69,6 +78,21 @@ func (y *yuubinsya) Start() error {
 			}
 
 			continue
+		}
+
+		conn.(*net.TCPConn).SetKeepAlive(true)
+
+		if tlsConfig != nil {
+			conn = tls.Server(conn, tlsConfig)
+		} else {
+			con, err := handshakeServer(conn, y.mac)
+			if err != nil {
+				conn.Close()
+				log.Println("handshake failed:", err)
+				continue
+			}
+
+			conn = con
 		}
 
 		go func() {
@@ -87,30 +111,27 @@ var (
 func (y *yuubinsya) handle(c net.Conn) error {
 	defer c.Close()
 
-	z := make([]byte, 1) // net
+	z := make([]byte, 2) // net
 	if _, err := io.ReadFull(c, z); err != nil {
 		return err
 	}
 
-	net := z[0]
-	if net != tcp && net != udp {
+	if z[0] != tcp && z[0] != udp {
 		return errors.New("unknown network")
 	}
 
-	if _, err := io.ReadFull(c, z); err != nil {
-		return err
+	if z[1] > 0 {
+		password := make([]byte, z[1])
+		if _, err := io.ReadFull(c, password); err != nil {
+			return err
+		}
+
+		if !bytes.Equal(password, y.password) {
+			return errors.New("password is incorrect")
+		}
 	}
 
-	password := make([]byte, z[0])
-	if _, err := io.ReadFull(c, password); err != nil {
-		return err
-	}
-
-	if !bytes.Equal(password, y.password) {
-		return errors.New("password is incorrect")
-	}
-
-	switch net {
+	switch z[0] {
 	case tcp:
 		target, err := s5c.ResolveAddr(c)
 		if err != nil {
@@ -141,6 +162,8 @@ func (y *yuubinsya) handleTCP(c net.Conn, target s5c.ADDR) error {
 }
 
 func (y *yuubinsya) handleUDP(c net.Conn) error {
+	log.Println("new udp connect from", c.RemoteAddr())
+
 	packetConn, err := net.ListenPacket("udp", "")
 	if err != nil {
 		return err
@@ -179,13 +202,14 @@ func (y *yuubinsya) handleUDP(c net.Conn) error {
 		}
 	}()
 
+	var length uint16
+
 	for {
 		addr, err := s5c.ResolveAddr(c)
 		if err != nil {
 			return err
 		}
 
-		var length uint16
 		if err = binary.Read(c, binary.BigEndian, &length); err != nil {
 			return err
 		}
@@ -198,8 +222,6 @@ func (y *yuubinsya) handleUDP(c net.Conn) error {
 
 		paddr := addr.Address(statistic.Type_udp)
 
-		log.Printf("new udp connect from %v to %v\n", c.RemoteAddr(), paddr)
-
 		udpAddr, err := paddr.UDPAddr()
 		if err != nil {
 			return err
@@ -210,4 +232,17 @@ func (y *yuubinsya) handleUDP(c net.Conn) error {
 
 		pool.PutBytesV2(buf)
 	}
+}
+
+func kdf(password []byte, keyLen int) []byte {
+	var b, prev []byte
+	h := sha256.New()
+	for len(b) < keyLen {
+		h.Write(prev)
+		h.Write(password)
+		b = h.Sum(b)
+		prev = b[len(b)-h.Size():]
+		h.Reset()
+	}
+	return b[:keyLen]
 }

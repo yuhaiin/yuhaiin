@@ -36,7 +36,6 @@ func DNSOverQuic(p proxy.Proxy, host, target string) (time.Duration, error) {
 			Type:   pdns.Type_doq,
 			Host:   host,
 			Dialer: p,
-			IPv6:   true,
 		},
 	)
 	if err != nil {

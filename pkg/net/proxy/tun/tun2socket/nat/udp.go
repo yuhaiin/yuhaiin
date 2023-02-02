@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"sync"
 
+	ttcpip "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/tcpip"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -131,4 +132,45 @@ func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 
 	resetCheckSum(ip, udp, PseudoHeaderSum(ip, ipBuf, header.UDPProtocolNumber))
 	return u.device.Write(ipBuf[:totalLength])
+}
+
+func (u *UDP) WriteToTCPIP(buf []byte, local, remote netip.AddrPort) (int, error) {
+	if u.closed {
+		return 0, net.ErrClosed
+	}
+
+	ipBuf := pool.GetBytes(u.mtu)
+	defer pool.PutBytes(ipBuf)
+
+	if len(buf) > 0xffff {
+		return 0, net.InvalidAddrError("invalid ip version")
+	}
+
+	if !local.Addr().Is4() || !remote.Addr().Is4() {
+		return 0, net.InvalidAddrError("invalid ip version")
+	}
+
+	ttcpip.SetIPv4(ipBuf)
+
+	ip := ttcpip.IPv4Packet(ipBuf)
+	ip.SetHeaderLen(ttcpip.IPv4HeaderSize)
+	ip.SetTotalLength(ttcpip.IPv4HeaderSize + ttcpip.UDPHeaderSize + uint16(len(buf)))
+	ip.SetTypeOfService(0)
+	ip.SetIdentification(uint16(rand.Uint32()))
+	ip.SetFragmentOffset(0)
+	ip.SetTimeToLive(64)
+	ip.SetProtocol(ttcpip.UDP)
+	ip.SetSourceIP(local.Addr())
+	ip.SetDestinationIP(remote.Addr())
+
+	udp := ttcpip.UDPPacket(ip.Payload())
+	udp.SetLength(ttcpip.UDPHeaderSize + uint16(len(buf)))
+	udp.SetSourcePort(local.Port())
+	udp.SetDestinationPort(remote.Port())
+	copy(udp.Payload(), buf)
+
+	ip.ResetChecksum()
+	udp.ResetChecksum(ip.PseudoSum())
+
+	return u.device.Write(ipBuf[:ip.TotalLen()])
 }

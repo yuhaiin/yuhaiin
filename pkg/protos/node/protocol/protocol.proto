@@ -67,6 +67,7 @@ message trojan {
 
 message yuubinsya {
   string password = 1 [ json_name = "password" ];
+  tls_config tls = 3 [ json_name = "tls_config" ];
 }
 
 message websocket {

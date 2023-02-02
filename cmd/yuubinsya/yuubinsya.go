@@ -10,22 +10,26 @@ import (
 
 func main() {
 	host := flag.String("h", "", "-h")
-	serverName := flag.String("s", "", "-s")
 	password := flag.String("p", "", "-p")
 	certFile := flag.String("c", "", "-c")
 	keyFile := flag.String("k", "", "-k")
 	flag.Parse()
 
-	certPEM, err := os.ReadFile(*certFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	keyPEM, err := os.ReadFile(*keyFile)
-	if err != nil {
-		log.Fatal(err)
+	var err error
+	var certPEM, keyPEM []byte
+
+	if *certFile != "" && *keyFile != "" {
+		certPEM, err = os.ReadFile(*certFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		keyPEM, err = os.ReadFile(*keyFile)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	y, err := yuubinsya.NewServer(*host, *serverName, *password, certPEM, keyPEM)
+	y, err := yuubinsya.NewServer(*host, *password, certPEM, keyPEM)
 	if err != nil {
 		log.Fatal(err)
 	}
