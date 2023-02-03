@@ -39,7 +39,7 @@ func TestDoQ(t *testing.T) {
 		},
 	}
 
-	d, err := New(configMap["adguard"])
+	d, err := New(configMap["a.passcoud"])
 	assert.NoError(t, err)
 
 	defer d.Close()

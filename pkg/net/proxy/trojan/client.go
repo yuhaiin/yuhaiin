@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
@@ -89,6 +90,7 @@ type PacketConn struct {
 
 	remain int
 	addr   proxy.Address
+	mux    sync.Mutex
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
@@ -126,11 +128,12 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
 	if c.remain > 0 {
-		var z int
-		if c.remain > len(payload) {
-			z = len(payload)
-		} else {
+		z := len(payload)
+		if c.remain < z {
 			z = c.remain
 		}
 

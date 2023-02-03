@@ -1,14 +1,19 @@
 package yuubinsya
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/crypto/hkdf"
 )
 
 func TestXxx(t *testing.T) {
@@ -51,4 +56,36 @@ func TestXx2x(t *testing.T) {
 
 	t.Log(dst, ret)
 
+}
+
+func Test3(t *testing.T) {
+	// Underlying hash function for HMAC.
+	hash := sha256.New
+	// Cryptographically secure master secret.
+	secret := []byte{0x00, 0x01, 0x02, 0x03} // i.e. NOT this.
+	// Non-secret salt, optional (can be nil).
+	// Recommended: hash-length random value.
+	salt := make([]byte, hash().Size())
+	// if _, err := rand.Read(salt); err != nil {
+	// panic(err)
+	// }
+	// Non-secret context info, optional (can be nil).
+	info := []byte("hkdf example")
+	// Generate three 128-bit derived keys.
+	hkdf := hkdf.New(hash, secret, salt, info)
+	var keys [][]byte
+	for i := 0; i < 3; i++ {
+		key := make([]byte, 16)
+		if _, err := io.ReadFull(hkdf, key); err != nil {
+			panic(err)
+		}
+		keys = append(keys, key)
+	}
+	for i := range keys {
+		fmt.Printf("Key %v #%d: %v\n", keys[i], i+1, !bytes.Equal(keys[i], make([]byte, 16)))
+	}
+	// Output:
+	// Key #1: true
+	// Key #2: true
+	// Key #3: true
 }

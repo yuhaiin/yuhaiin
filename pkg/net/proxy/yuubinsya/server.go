@@ -2,11 +2,10 @@ package yuubinsya
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/sha256"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -21,28 +20,37 @@ import (
 )
 
 const (
-	MaxPacketSize = 1024 * 8
+	MaxPacketSize = 1024*64 - 1
 )
 
 type yuubinsya struct {
 	addr     string
 	password []byte
 
-	cert, key []byte
-
 	Lis net.Listener
 
-	mac ed25519.PrivateKey
+	handshaker handshaker
 }
 
 func NewServer(host, password string, certPEM, keyPEM []byte) (*yuubinsya, error) {
-	y := &yuubinsya{
-		addr:     host,
-		password: []byte(password),
-		cert:     certPEM,
-		key:      keyPEM,
+	var tlsConfig *tls.Config
+	if certPEM != nil && keyPEM != nil {
+		cert, err := tls.X509KeyPair(certPEM, keyPEM)
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS13,
+		}
 	}
-	y.mac = ed25519.NewKeyFromSeed(kdf(y.password, ed25519.SeedSize))
+
+	y := &yuubinsya{
+		addr:       host,
+		password:   []byte(password),
+		handshaker: NewHandshaker(true, []byte(password), tlsConfig),
+	}
 
 	return y, nil
 
@@ -56,20 +64,6 @@ func (y *yuubinsya) Start() error {
 
 	log.Println("new server listen at:", lis.Addr())
 
-	var tlsConfig *tls.Config
-
-	if y.cert != nil && y.key != nil {
-		cert, err := tls.X509KeyPair(y.cert, y.key)
-		if err != nil {
-			return err
-		}
-
-		tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			MinVersion:   tls.VersionTLS13,
-		}
-	}
-
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -77,25 +71,14 @@ func (y *yuubinsya) Start() error {
 				return err
 			}
 
+			log.Println("accept failed:", err)
 			continue
 		}
 
-		conn.(*net.TCPConn).SetKeepAlive(true)
-
-		if tlsConfig != nil {
-			conn = tls.Server(conn, tlsConfig)
-		} else {
-			con, err := handshakeServer(conn, y.mac)
-			if err != nil {
-				conn.Close()
-				log.Println("handshake failed:", err)
-				continue
-			}
-
-			conn = con
-		}
+		conn.(*net.TCPConn).SetKeepAlive(false)
 
 		go func() {
+			defer conn.Close()
 			if err := y.handle(conn); err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
 				log.Println("handle failed:", err)
 			}
@@ -108,44 +91,46 @@ var (
 	udp byte = 77
 )
 
-func (y *yuubinsya) handle(c net.Conn) error {
-	defer c.Close()
+func (y *yuubinsya) handle(conn net.Conn) error {
+	c, err := y.handshaker.handshake(conn)
+	if err != nil {
+		return fmt.Errorf("handshake failed: %w", err)
+	}
 
-	z := make([]byte, 2) // net
+	z := make([]byte, 2)
 	if _, err := io.ReadFull(c, z); err != nil {
 		return err
 	}
+	net, passwordLen := z[0], z[1]
 
-	if z[0] != tcp && z[0] != udp {
-		return errors.New("unknown network")
-	}
+	if passwordLen > 0 && (net == tcp || net == udp) {
+		password := pool.GetBytesV2(passwordLen)
+		defer pool.PutBytesV2(password)
 
-	if z[1] > 0 {
-		password := make([]byte, z[1])
-		if _, err := io.ReadFull(c, password); err != nil {
+		if _, err := io.ReadFull(c, password.Bytes()); err != nil {
 			return err
 		}
 
-		if !bytes.Equal(password, y.password) {
+		if !bytes.Equal(password.Bytes(), y.password) {
 			return errors.New("password is incorrect")
 		}
 	}
 
-	switch z[0] {
+	switch net {
 	case tcp:
-		target, err := s5c.ResolveAddr(c)
-		if err != nil {
-			return err
-		}
-		return y.handleTCP(c, target)
+		return y.stream(c)
 	case udp:
-		return y.handleUDP(c)
+		return y.packet(c)
+	default:
+		return errors.New("unknown network")
 	}
-
-	return nil
 }
 
-func (y *yuubinsya) handleTCP(c net.Conn, target s5c.ADDR) error {
+func (y *yuubinsya) stream(c net.Conn) error {
+	target, err := s5c.ResolveAddr(c)
+	if err != nil {
+		return err
+	}
 	addr := target.Address(statistic.Type_tcp).String()
 
 	log.Printf("new tcp connect from %v to %v\n", c.RemoteAddr(), addr)
@@ -156,12 +141,14 @@ func (y *yuubinsya) handleTCP(c net.Conn, target s5c.ADDR) error {
 	}
 	defer conn.Close()
 
+	conn.(*net.TCPConn).SetKeepAlive(false)
+
 	go relay.Copy(conn, c)
 	relay.Copy(c, conn)
 	return nil
 }
 
-func (y *yuubinsya) handleUDP(c net.Conn) error {
+func (y *yuubinsya) packet(c net.Conn) error {
 	log.Println("new udp connect from", c.RemoteAddr())
 
 	packetConn, err := net.ListenPacket("udp", "")
@@ -177,72 +164,72 @@ func (y *yuubinsya) handleUDP(c net.Conn) error {
 		defer pool.PutBuffer(buffer)
 
 		for {
-			packetConn.SetReadDeadline(time.Now().Add(time.Minute))
-			n, from, err := packetConn.ReadFrom(buf)
-			if err != nil {
-				return
-			}
-
-			buffer.Reset()
-
-			addr, err := proxy.ParseSysAddr(from)
-			if err != nil {
-				return
-			}
-
-			s5c.ParseAddrWriter(addr, buffer)
-			if err = binary.Write(buffer, binary.BigEndian, uint16(n)); err != nil {
-				return
-			}
-			buffer.Write(buf[:n])
-
-			if _, err := c.Write(buffer.Bytes()); err != nil {
+			if err := localToRemote(buf, buffer, c, packetConn); err != nil {
 				return
 			}
 		}
 	}()
 
-	var length uint16
-
 	for {
-		addr, err := s5c.ResolveAddr(c)
-		if err != nil {
+		if err = remoteToLocal(c, packetConn); err != nil {
 			return err
 		}
-
-		if err = binary.Read(c, binary.BigEndian, &length); err != nil {
-			return err
-		}
-
-		buf := pool.GetBytesV2(int(length))
-
-		if _, err = io.ReadFull(c, buf.Bytes()); err != nil {
-			return err
-		}
-
-		paddr := addr.Address(statistic.Type_udp)
-
-		udpAddr, err := paddr.UDPAddr()
-		if err != nil {
-			return err
-		}
-		if _, err = packetConn.WriteTo(buf.Bytes(), udpAddr); err != nil {
-			return err
-		}
-
-		pool.PutBytesV2(buf)
 	}
 }
 
-func kdf(password []byte, keyLen int) []byte {
-	var b, prev []byte
-	h := sha256.New()
-	for len(b) < keyLen {
-		h.Write(prev)
-		h.Write(password)
-		b = h.Sum(b)
-		prev = b[len(b)-h.Size():]
-		h.Reset()
+func localToRemote(buf []byte, buffer *bytes.Buffer, c net.Conn, local net.PacketConn) error {
+	local.SetReadDeadline(time.Now().Add(time.Minute))
+	n, from, err := local.ReadFrom(buf)
+	if err != nil {
+		return err
 	}
-	return b[:keyLen]
+
+	addr, err := proxy.ParseSysAddr(from)
+	if err != nil {
+		return err
+	}
+
+	buffer.Reset()
+	s5c.ParseAddrWriter(addr, buffer)
+	if err = binary.Write(buffer, binary.BigEndian, uint16(n)); err != nil {
+		return err
+	}
+	buffer.Write(buf[:n])
+
+	if _, err := c.Write(buffer.Bytes()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func remoteToLocal(c net.Conn, local net.PacketConn) error {
+	addr, err := s5c.ResolveAddr(c)
+	if err != nil {
+		return err
+	}
+
+	var length uint16
+	if err = binary.Read(c, binary.BigEndian, &length); err != nil {
+		return err
+	}
+
+	buf := pool.GetBytesV2(int(length))
+	defer pool.PutBytesV2(buf)
+
+	if _, err = io.ReadFull(c, buf.Bytes()); err != nil {
+		return err
+	}
+
+	paddr := addr.Address(statistic.Type_udp)
+
+	udpAddr, err := paddr.UDPAddr()
+	if err != nil {
+		return err
+	}
+	if _, err = local.WriteTo(buf.Bytes(), udpAddr); err != nil {
+		return err
+	}
+
+	return nil
 }

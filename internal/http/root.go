@@ -34,7 +34,7 @@ func (z *rootHandler) Get(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return TPS.BodyExecute(w, map[string]any{
-		"TCP": *(*string)(unsafe.Pointer(&tcpData)),
-		"UDP": *(*string)(unsafe.Pointer(&udpData)),
+		"TCP": unsafe.String(&tcpData[0], len(tcpData)),
+		"UDP": unsafe.String(&udpData[0], len(udpData)),
 	}, tps.ROOT)
 }

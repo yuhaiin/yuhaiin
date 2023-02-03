@@ -68,7 +68,7 @@ type Bytes struct {
 	size int
 }
 
-func (b *Bytes) Bytes() []byte          { return b.buf[:b.size] }
-func (b *Bytes) After(index int) []byte { return b.buf[index:b.size] }
-func GetBytesV2(size int) *Bytes        { return &Bytes{GetBytes(size), size} }
-func PutBytesV2(b *Bytes)               { PutBytes(b.buf) }
+func (b *Bytes) Bytes() []byte                        { return b.buf[:b.size] }
+func (b *Bytes) After(index int) []byte               { return b.buf[index:b.size] }
+func GetBytesV2[T constraints.Integer](size T) *Bytes { return &Bytes{GetBytes(size), int(size)} }
+func PutBytesV2(b *Bytes)                             { PutBytes(b.buf) }

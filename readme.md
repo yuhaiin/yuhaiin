@@ -9,11 +9,13 @@
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Inbound
+  - yuubinsya(experimental)
   - Socks5, HTTP, Linux/Mac Redir
   - TUN
     - [gvisor(Symmetric NAT)](https://github.com/google/gvisor)
     - tun2socket(hijack tun TCP to a local TCP listener)
 - Outbound
+  - yuubinsya(experimental)
   - Socks5, HTTP, TCP
   - Shadowsocksr, Shadowsocks, Vmess, trojan  
   - Websocket, Quic, obfs-http  

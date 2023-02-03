@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/net/http2"
 )
@@ -48,7 +49,9 @@ func NewDoQ(config Config) (dns.DNS, error) {
 		}
 
 		d.lock.RLock()
-		con, err := d.connection.OpenStreamSync(context.TODO())
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*4)
+		defer cancel()
+		con, err := d.connection.OpenStreamSync(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("open stream failed: %w", err)
 		}
@@ -60,14 +63,12 @@ func NewDoQ(config Config) (dns.DNS, error) {
 			return nil, fmt.Errorf("set write deadline failed: %w", err)
 		}
 
-		err = binary.Write(con, binary.BigEndian, uint16(len(b)))
-		if err != nil {
-			con.Close()
-			return nil, fmt.Errorf("write dns req length failed: %w", err)
-		}
+		buf := pool.GetBytesV2(2 + len(b))
+		defer pool.PutBytesV2(buf)
 
-		_, err = con.Write(b)
-		if err != nil {
+		binary.BigEndian.PutUint16(buf.Bytes()[:2], uint16(len(b)))
+
+		if _, err = con.Write(append(buf.Bytes()[:2], b...)); err != nil {
 			con.Close()
 			return nil, fmt.Errorf("write dns req failed: %w", err)
 		}
@@ -81,6 +82,7 @@ func NewDoQ(config Config) (dns.DNS, error) {
 		if err != nil {
 			return nil, fmt.Errorf("set read deadline failed: %w", err)
 		}
+
 		var length uint16
 		err = binary.Read(con, binary.BigEndian, &length)
 		if err != nil {
@@ -128,10 +130,14 @@ func (d *doq) initSession() error {
 	}
 
 	if d.conn == nil {
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*4)
+		defer cancel()
+		d.host.WithContext(ctx)
 		conn, err := d.dialer.PacketConn(d.host)
 		if err != nil {
 			return err
 		}
+		d.host.WithContext(context.TODO())
 		d.conn = conn
 	}
 
@@ -145,7 +151,7 @@ func (d *doq) initSession() error {
 		},
 		&quic.Config{
 			HandshakeIdleTimeout: time.Second * 5,
-			MaxIdleTimeout:       time.Second * 10,
+			MaxIdleTimeout:       time.Second * 5,
 		})
 	if err != nil {
 		return fmt.Errorf("quic dial failed: %w", err)

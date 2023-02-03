@@ -32,7 +32,7 @@ func (cc *configHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return TPS.BodyExecute(w, map[string]any{
-		"Config": *(*string)(unsafe.Pointer(&data)),
+		"Config": unsafe.String(&data[0], len(data)),
 		"GOOS":   strings.ToLower(runtime.GOOS),
 	}, tps.CONFIG)
 }
