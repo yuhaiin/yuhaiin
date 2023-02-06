@@ -25,6 +25,7 @@ type handshaker interface {
 
 type tlsHandshaker struct {
 	server    bool
+	quic      bool
 	password  []byte
 	tlsConfig *tls.Config
 }
@@ -43,6 +44,9 @@ func (t *tlsHandshaker) packetHeader(buf *bytes.Buffer) {
 }
 
 func (t *tlsHandshaker) handshake(conn net.Conn) (net.Conn, error) {
+	if t.quic {
+		return conn, nil
+	}
 	if t.server {
 		return tls.Server(conn, t.tlsConfig), nil
 	} else {
@@ -57,10 +61,11 @@ type traditionHandshaker struct {
 	aead   Aead
 }
 
-func NewHandshaker(server bool, password []byte, tlsConfig *tls.Config) handshaker {
+func NewHandshaker(server, quic bool, password []byte, tlsConfig *tls.Config) handshaker {
 	if tlsConfig != nil {
 		tlsConfig.MinVersion = tls.VersionTLS13
 		return &tlsHandshaker{
+			quic:      quic,
 			server:    server,
 			password:  password,
 			tlsConfig: tlsConfig,

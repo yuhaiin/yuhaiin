@@ -25,7 +25,7 @@ func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
 			proxy:      dialer,
-			handshaker: NewHandshaker(false, []byte(config.Yuubinsya.Password), protocol.ParseTLSConfig(config.Yuubinsya.Tls)),
+			handshaker: NewHandshaker(false, config.Yuubinsya.Quic, []byte(config.Yuubinsya.Password), protocol.ParseTLSConfig(config.Yuubinsya.Tls)),
 		}
 
 		return c, nil

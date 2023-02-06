@@ -14,3 +14,5 @@ cmd/android/*.aar
 cmd/android/main/jniLibs
 /dnsrelay
 tcpforward
+yuubinsya*
+cmd/quic_test/

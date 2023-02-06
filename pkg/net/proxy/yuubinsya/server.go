@@ -2,6 +2,7 @@ package yuubinsya
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -17,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/quic-go/quic-go"
 )
 
 const (
@@ -32,7 +34,7 @@ type yuubinsya struct {
 	handshaker handshaker
 }
 
-func NewServer(host, password string, certPEM, keyPEM []byte) (*yuubinsya, error) {
+func NewServer(host, password string, certPEM, keyPEM []byte, quic bool) (*yuubinsya, error) {
 	var tlsConfig *tls.Config
 	if certPEM != nil && keyPEM != nil {
 		cert, err := tls.X509KeyPair(certPEM, keyPEM)
@@ -49,7 +51,7 @@ func NewServer(host, password string, certPEM, keyPEM []byte) (*yuubinsya, error
 	y := &yuubinsya{
 		addr:       host,
 		password:   []byte(password),
-		handshaker: NewHandshaker(true, []byte(password), tlsConfig),
+		handshaker: NewHandshaker(true, quic, []byte(password), tlsConfig),
 	}
 
 	return y, nil
@@ -61,6 +63,7 @@ func (y *yuubinsya) Start() error {
 	if err != nil {
 		return err
 	}
+	defer lis.Close()
 
 	log.Println("new server listen at:", lis.Addr())
 
@@ -75,7 +78,7 @@ func (y *yuubinsya) Start() error {
 			continue
 		}
 
-		conn.(*net.TCPConn).SetKeepAlive(false)
+		conn.(*net.TCPConn).SetKeepAlive(true)
 
 		go func() {
 			defer conn.Close()
@@ -84,6 +87,67 @@ func (y *yuubinsya) Start() error {
 			}
 		}()
 	}
+}
+
+func (y *yuubinsya) StartQUIC() error {
+	tlsConfig := y.handshaker.(*tlsHandshaker).tlsConfig
+	tlsConfig.NextProtos = []string{"hyperledger-fabric"}
+	lis, err := quic.ListenAddr(y.addr, tlsConfig, nil)
+	if err != nil {
+		return err
+	}
+	defer lis.Close()
+
+	log.Println("new server listen at:", lis.Addr())
+
+	for {
+		conn, err := lis.Accept(context.TODO())
+		if err != nil {
+			return err
+		}
+		go func() {
+			defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+
+			for {
+				stream, err := conn.AcceptStream(context.TODO())
+				if err != nil {
+					return
+				}
+
+				go func() {
+					defer stream.Close()
+
+					log.Println("new quic conn from", conn.RemoteAddr())
+
+					conn := &interConn{
+						Stream: stream,
+						local:  conn.LocalAddr(),
+						remote: conn.RemoteAddr(),
+					}
+
+					if err := y.handle(conn); err != nil {
+						log.Println("handle failed:", err)
+					}
+				}()
+			}
+		}()
+	}
+}
+
+var _ net.Conn = (*interConn)(nil)
+
+type interConn struct {
+	quic.Stream
+	local  net.Addr
+	remote net.Addr
+}
+
+func (c *interConn) LocalAddr() net.Addr {
+	return c.local
+}
+
+func (c *interConn) RemoteAddr() net.Addr {
+	return c.remote
 }
 
 var (
@@ -143,8 +207,10 @@ func (y *yuubinsya) stream(c net.Conn) error {
 
 	conn.(*net.TCPConn).SetKeepAlive(false)
 
-	go relay.Copy(conn, c)
+	errChan := make(chan error)
+	go func() { errChan <- relay.Copy(conn, c) }()
 	relay.Copy(c, conn)
+	<-errChan
 	return nil
 }
 

@@ -21,9 +21,15 @@ func (l *latencyHandler) udp(r *http.Request) *latency.Request {
 		Id:   "udp",
 		Hash: hash,
 		Protocol: &latency.Protocol{
-			Protocol: &latency.Protocol_DnsOverQuic{
-				DnsOverQuic: &latency.DnsOverQuic{
-					Host:         "dns.nextdns.io:853",
+			// Protocol: &latency.Protocol_DnsOverQuic{
+			// 	DnsOverQuic: &latency.DnsOverQuic{
+			// 		Host:         "dns.nextdns.io:853",
+			// 		TargetDomain: "www.google.com",
+			// 	},
+			// },
+			Protocol: &latency.Protocol_Dns{
+				Dns: &latency.Dns{
+					Host:         "8.8.8.8",
 					TargetDomain: "www.google.com",
 				},
 			},

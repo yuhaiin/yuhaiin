@@ -19,7 +19,7 @@ message protocol {
     http http = 11 [ json_name = "http" ];
     direct direct = 12 [ json_name = "direct" ];
     reject reject = 13 [ json_name = "reject" ];
-    yuubinsya yuubinsya = 14 [json_name = "yuubinsya"];
+    yuubinsya yuubinsya = 14 [ json_name = "yuubinsya" ];
   }
 }
 
@@ -67,6 +67,7 @@ message trojan {
 
 message yuubinsya {
   string password = 1 [ json_name = "password" ];
+  bool quic = 2 [ json_name = "quic" ];
   tls_config tls = 3 [ json_name = "tls_config" ];
 }
 
@@ -76,7 +77,10 @@ message websocket {
   tls_config tls = 3 [ json_name = "tls" ];
 }
 
-message quic { tls_config tls = 1 [ json_name = "tls" ]; }
+message quic {
+  string host = 2 [ json_name = "host" ];
+  tls_config tls = 1 [ json_name = "tls" ];
+}
 
 message obfs_http {
   string host = 1 [ json_name = "host" ];

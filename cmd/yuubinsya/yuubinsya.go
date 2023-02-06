@@ -9,10 +9,11 @@ import (
 )
 
 func main() {
-	host := flag.String("h", "", "-h")
-	password := flag.String("p", "", "-p")
-	certFile := flag.String("c", "", "-c")
-	keyFile := flag.String("k", "", "-k")
+	host := flag.String("h", "", "-h, listen addr")
+	password := flag.String("p", "", "-p, password")
+	certFile := flag.String("c", "", "-c, server cert pem")
+	keyFile := flag.String("k", "", "-k, server key pem")
+	quic := flag.Bool("quic", false, "-quic")
 	flag.Parse()
 
 	var err error
@@ -29,12 +30,18 @@ func main() {
 		}
 	}
 
-	y, err := yuubinsya.NewServer(*host, *password, certPEM, keyPEM)
+	y, err := yuubinsya.NewServer(*host, *password, certPEM, keyPEM, *quic)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err = y.Start(); err != nil {
+	if *quic {
+		err = y.StartQUIC()
+	} else {
+		err = y.Start()
+	}
+
+	if err != nil {
 		log.Fatal(err)
 	}
 }

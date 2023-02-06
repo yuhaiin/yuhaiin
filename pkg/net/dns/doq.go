@@ -49,7 +49,7 @@ func NewDoQ(config Config) (dns.DNS, error) {
 		}
 
 		d.lock.RLock()
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*4)
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
 		defer cancel()
 		con, err := d.connection.OpenStreamSync(ctx)
 		if err != nil {
@@ -130,7 +130,7 @@ func (d *doq) initSession() error {
 	}
 
 	if d.conn == nil {
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*4)
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
 		defer cancel()
 		d.host.WithContext(ctx)
 		conn, err := d.dialer.PacketConn(d.host)
@@ -144,7 +144,7 @@ func (d *doq) initSession() error {
 	session, err := quic.DialEarly(
 		d.conn,
 		d.host,
-		d.host.Hostname(),
+		d.host.String(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},
 			ServerName: d.servername,
