@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -32,14 +33,12 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 		}
 
 		c := &Client{
-			host:       uaddr,
-			dialer:     dialer,
-			tlsConfig:  protocol.ParseTLSConfig(config.Quic.Tls),
+			host:      uaddr,
+			dialer:    dialer,
+			tlsConfig: protocol.ParseTLSConfig(config.Quic.Tls),
 			quicConfig: &quic.Config{
-				// KeepAlivePeriod:      time.Second * 30,
-				// ConnectionIDLength:   12,
-				// HandshakeIdleTimeout: time.Second * 8,
-				// MaxIdleTimeout:       time.Second * 30,
+				MaxIdleTimeout:  20 * time.Second,
+				KeepAlivePeriod: 20 * time.Second * 2 / 5,
 			},
 		}
 
@@ -110,7 +109,7 @@ func (c *Client) Conn(s proxy.Address) (net.Conn, error) {
 	// 	return nil, err
 	// }
 
-	stream, err := c.session.OpenStream()
+	stream, err := c.session.OpenStreamSync(s.Context())
 	if err != nil {
 		// conn.Close()
 		return nil, err
@@ -140,6 +139,8 @@ type interConn struct {
 }
 
 func (c *interConn) Close() error {
+	c.Stream.CancelRead(0)
+
 	var err error
 	if er := c.Stream.Close(); er != nil {
 		errors.Join(err, er)

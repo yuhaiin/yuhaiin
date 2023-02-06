@@ -62,8 +62,10 @@ type traditionHandshaker struct {
 }
 
 func NewHandshaker(server, quic bool, password []byte, tlsConfig *tls.Config) handshaker {
-	if tlsConfig != nil {
-		tlsConfig.MinVersion = tls.VersionTLS13
+	if quic || tlsConfig != nil {
+		if tlsConfig != nil {
+			tlsConfig.MinVersion = tls.VersionTLS13
+		}
 		return &tlsHandshaker{
 			quic:      quic,
 			server:    server,

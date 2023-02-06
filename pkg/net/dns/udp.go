@@ -53,6 +53,7 @@ func NewDoU(config Config) (dns.DNS, error) {
 		}
 
 		nn, _, err := conn.ReadFrom(b)
+
 		return b[:nn], err
 	}), nil
 }

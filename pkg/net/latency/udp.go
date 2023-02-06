@@ -13,7 +13,6 @@ func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
 		Type:   pdns.Type_udp,
 		Host:   host,
 		Dialer: p,
-		IPv6:   true,
 	})
 	if err != nil {
 		return 0, err
