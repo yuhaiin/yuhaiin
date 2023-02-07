@@ -18,12 +18,14 @@ import (
 type Client struct {
 	proxy proxy.Proxy
 
+	quic       bool
 	handshaker handshaker
 }
 
 func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
+			quic:       config.Yuubinsya.GetQuic(),
 			proxy:      dialer,
 			handshaker: NewHandshaker(false, config.Yuubinsya.Quic, []byte(config.Yuubinsya.Password), protocol.ParseTLSConfig(config.Yuubinsya.Tls)),
 		}
@@ -48,6 +50,13 @@ func (c *Client) Conn(addr proxy.Address) (net.Conn, error) {
 }
 
 func (c *Client) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+	/*
+		see (&yuubinsya{}).StartQUIC()
+		if c.quic {
+			return c.proxy.PacketConn(addr)
+		}
+	*/
+
 	conn, err := c.proxy.Conn(addr)
 	if err != nil {
 		return nil, err

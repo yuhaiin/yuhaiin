@@ -103,6 +103,7 @@ func (y *yuubinsya) StartQUIC() error {
 		MaxIncomingStreams: 2048,
 		KeepAlivePeriod:    0,
 		MaxIdleTimeout:     60 * time.Second,
+		EnableDatagrams:    true,
 	})
 	if err != nil {
 		return err
@@ -119,6 +120,24 @@ func (y *yuubinsya) StartQUIC() error {
 		go func() {
 			defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 
+			/*
+				because of https://github.com/quic-go/quic-go/blob/5b72f4c900f209b5705bb0959399d59e495a2c6e/internal/protocol/params.go#L137
+				MaxDatagramFrameSize Too short, here use stream trans udp data until quic-go will auto frag lager frame
+					// udp
+					go func() {
+						for {
+							data, err := conn.ReceiveMessage()
+							if err != nil {
+								log.Println("receive message failed:", err)
+								break
+							}
+
+							if err = y.handleQuicDatagram(data, conn); err != nil {
+								log.Println("handle datagram failed:", err)
+							}
+						}
+					}()
+			*/
 			for {
 				stream, err := conn.AcceptStream(context.TODO())
 				if err != nil {
@@ -142,6 +161,49 @@ func (y *yuubinsya) StartQUIC() error {
 			}
 		}()
 	}
+}
+
+func (c *yuubinsya) handleQuicDatagram(b []byte, session quic.Connection) error {
+	if len(b) <= 5 {
+		return fmt.Errorf("invalid datagram")
+	}
+
+	id := binary.BigEndian.Uint16(b[:2])
+	addr, err := s5c.ResolveAddr(bytes.NewBuffer(b[2:]))
+	if err != nil {
+		return err
+	}
+
+	log.Println("new udp from", session.RemoteAddr(), "id", id, "to", addr.Address(statistic.Type_udp))
+
+	return c.nat.Write(&nat.Packet{
+		SourceAddress: &quicAddr{
+			addr: session.RemoteAddr(),
+			id:   quic.StreamID(id),
+		},
+		DestinationAddress: addr.Address(statistic.Type_udp),
+		Payload:            b[2+len(addr):],
+		WriteBack: func(b []byte, addr net.Addr) (int, error) {
+			add, err := proxy.ParseSysAddr(addr)
+			if err != nil {
+				return 0, err
+			}
+
+			buf := pool.GetBuffer()
+			defer pool.PutBuffer(buf)
+
+			binary.Write(buf, binary.BigEndian, id)
+			s5c.ParseAddrWriter(add, buf)
+			buf.Write(b)
+
+			// log.Println("write back to", session.RemoteAddr(), "id", id)
+			if err = session.SendMessage(buf.Bytes()); err != nil {
+				return 0, err
+			}
+
+			return len(b), nil
+		},
+	})
 }
 
 var _ net.Conn = (*interConn)(nil)
