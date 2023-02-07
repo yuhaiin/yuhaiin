@@ -69,6 +69,7 @@ message yuubinsya {
   string password = 1 [ json_name = "password" ];
   bool quic = 2 [ json_name = "quic" ];
   tls_config tls = 3 [ json_name = "tls_config" ];
+  bool websocket = 4 [ json_name = "websocket" ];
 }
 
 message websocket {

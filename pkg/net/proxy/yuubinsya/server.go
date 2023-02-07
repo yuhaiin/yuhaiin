@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -10,16 +11,20 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	ws "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/quic-go/quic-go"
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -39,7 +44,7 @@ type yuubinsya struct {
 	nat *nat.Table
 }
 
-func NewServer(dialer proxy.Proxy, host, password string, certPEM, keyPEM []byte, quic bool) (*yuubinsya, error) {
+func NewServer(dialer proxy.Proxy, host, password string, certPEM, keyPEM []byte, quicOrWs bool) (*yuubinsya, error) {
 	var tlsConfig *tls.Config
 	if certPEM != nil && keyPEM != nil {
 		cert, err := tls.X509KeyPair(certPEM, keyPEM)
@@ -57,12 +62,69 @@ func NewServer(dialer proxy.Proxy, host, password string, certPEM, keyPEM []byte
 		dialer:     dialer,
 		addr:       host,
 		password:   []byte(password),
-		handshaker: NewHandshaker(true, quic, []byte(password), tlsConfig),
+		handshaker: NewHandshaker(true, quicOrWs, []byte(password), tlsConfig),
 		nat:        nat.NewTable(dialer),
 	}
 
 	return y, nil
 
+}
+
+func (y *yuubinsya) StartWebsocket() error {
+	lis, err := net.Listen("tcp", y.addr)
+	if err != nil {
+		return err
+	}
+	defer lis.Close()
+
+	log.Println("new websocket server listen at:", lis.Addr())
+
+	return http.Serve(tls.NewListener(lis,
+		y.handshaker.(*tlsHandshaker).tlsConfig),
+		http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+
+			if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" ||
+				!strings.Contains(strings.ToLower(req.Header.Get("Connection")), "upgrade") {
+				w.Write([]byte(`<!DOCTYPE html><html><head><style>body { max-width:400px; margin: 0 auto; }</style><title>A8.net</title></head><body>あなたのIPアドレスは ` + req.Header.Get("Cf-Connecting-Ip") + `<br/>A8スタッフブログ <a href="https://a8pr.jp">https://a8pr.jp</a></body></html>`))
+				return
+			}
+
+			w = &wrapHijacker{ResponseWriter: w}
+
+			(&websocket.Server{
+				Config: websocket.Config{},
+				Handler: func(c *websocket.Conn) {
+					defer c.Close()
+
+					conn, _, err := w.(http.Hijacker).Hijack()
+					if err != nil {
+						log.Println("hijack failed:", err)
+						return
+					}
+
+					if err := y.handle(&ws.Connection{Conn: c, RawConn: conn}); err != nil {
+						log.Println("websocket handle failed:", err)
+					}
+				},
+			}).ServeHTTP(w, req)
+		}))
+}
+
+type wrapHijacker struct {
+	http.ResponseWriter
+	conn net.Conn
+	buf  *bufio.ReadWriter
+}
+
+func (w *wrapHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if w.conn != nil {
+		return w.conn, w.buf, nil
+	}
+
+	conn, buf, err := w.ResponseWriter.(http.Hijacker).Hijack()
+	w.conn = conn
+	w.buf = buf
+	return conn, buf, err
 }
 
 func (y *yuubinsya) Start() error {

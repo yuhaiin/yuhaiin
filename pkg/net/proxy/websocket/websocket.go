@@ -69,20 +69,20 @@ func (c *client) Conn(h proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("websocket new client failed: %w", err)
 	}
 
-	return &connection{wsconn, conn}, nil
+	return &Connection{wsconn, conn}, nil
 }
 
 func (c *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	return c.dialer.PacketConn(host)
 }
 
-type connection struct {
+type Connection struct {
 	*websocket.Conn
-	conn net.Conn
+	RawConn net.Conn
 }
 
-func (c *connection) RemoteAddr() net.Addr { return c.conn.RemoteAddr() }
-func (c *connection) LocalAddr() net.Addr  { return c.conn.LocalAddr() }
+func (c *Connection) RemoteAddr() net.Addr { return c.RawConn.RemoteAddr() }
+func (c *Connection) LocalAddr() net.Addr  { return c.RawConn.LocalAddr() }
 
 func getNormalizedPath(path string) string {
 	if path == "" {

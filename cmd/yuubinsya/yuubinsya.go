@@ -28,6 +28,7 @@ func main() {
 	certFile := flag.String("c", "", "-c, server cert pem")
 	keyFile := flag.String("k", "", "-k, server key pem")
 	quic := flag.Bool("quic", false, "-quic")
+	ws := flag.Bool("ws", false, "-ws, websocket")
 	socks5 := flag.String("s5", "", "-s5, socks5 config(host and bypass)")
 	flag.Parse()
 
@@ -43,6 +44,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+
 	}
 
 	var dialer = &dialer{}
@@ -83,12 +85,14 @@ func main() {
 		}
 	}
 
-	y, err := yuubinsya.NewServer(dialer, *host, *password, certPEM, keyPEM, *quic)
+	y, err := yuubinsya.NewServer(dialer, *host, *password, certPEM, keyPEM, *quic || *ws)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if *quic {
+	if *ws {
+		err = y.StartWebsocket()
+	} else if *quic {
 		err = y.StartQUIC()
 	} else {
 		err = y.Start()
