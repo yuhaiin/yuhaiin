@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"crypto/tls"
 	"fmt"
 	"reflect"
 
@@ -56,4 +57,16 @@ func CreateServer(opts *Opts[IsProtocol_Protocol]) (server.Server, error) {
 		return nil, fmt.Errorf("protocol %v is not support", opts.Protocol)
 	}
 	return conn(opts)
+}
+
+func ParseTLS(t *TlsConfig) (*tls.Config, error) {
+	cert, err := tls.X509KeyPair(t.GetCert(), t.GetKey())
+	if err != nil {
+		return nil, err
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		NextProtos:   t.NextProtos,
+	}, nil
 }

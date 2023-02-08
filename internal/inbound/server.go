@@ -1,6 +1,7 @@
 package inbound
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 
@@ -10,6 +11,7 @@ import (
 	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -20,6 +22,37 @@ func init() {
 	pl.RegisterProtocol(hs.NewServer)
 	pl.RegisterProtocol(ss.NewServer)
 	pl.RegisterProtocol(tun.NewTun)
+	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (server.Server, error) {
+		var Type yuubinsya.Type
+		var err error
+		var tlsConfig *tls.Config
+		switch p := o.Protocol.Yuubinsya.Protocol.(type) {
+		case *pl.Yuubinsya_Normal:
+			Type = yuubinsya.TCP
+		case *pl.Yuubinsya_Tls:
+			Type = yuubinsya.TLS
+			tlsConfig, err = pl.ParseTLS(p.Tls.GetTls())
+		case *pl.Yuubinsya_Quic:
+			Type = yuubinsya.QUIC
+			tlsConfig, err = pl.ParseTLS(p.Quic.GetTls())
+		case *pl.Yuubinsya_Websocket:
+			Type = yuubinsya.WEBSOCKET
+			tlsConfig, err = pl.ParseTLS(p.Websocket.GetTls())
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		s := yuubinsya.NewServer(yuubinsya.Config{
+			Dialer:    o.Dialer,
+			Host:      o.Protocol.Yuubinsya.Host,
+			Password:  []byte(o.Protocol.Yuubinsya.Password),
+			TlsConfig: tlsConfig,
+			Type:      Type,
+		})
+		go s.Start()
+		return s, nil
+	})
 }
 
 type store struct {

@@ -4,6 +4,7 @@ BUILD_COMMIT  := $(shell git rev-parse --short HEAD)
 BUILD_VERSION := $(shell git describe --abbrev=0 --tags HEAD)
 BUILD_ARCH	:= $(shell uname -a)
 BUILD_TIME	:= $(shell date)
+CGO_ENABLED := 0
 
 GO=$(shell command -v go | head -n1)
 
@@ -15,7 +16,7 @@ GO_LDFLAGS += -X "$(MODULE)/internal/version.BuildTime=$(BUILD_TIME)"
 
 GO_GCFLAGS= -m
 
-GO_BUILD_CMD=$(GO) build -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath
+GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath
 
 # AMD64v3 https://github.com/golang/go/wiki/MinimumRequirements#amd64
 LINUX_AMD64=GOOS=linux GOARCH=amd64
@@ -45,8 +46,8 @@ vet:
 
 .PHONY: yuhaiin
 yuhaiin:
-	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin_v3 $(YUHAIIN)
+	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin $(YUHAIIN)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_v3 $(YUHAIIN)
 
 .PHONY: dnsrelay
 dnsrelay:
@@ -88,7 +89,7 @@ yuhaiin_mipsle:
 
 .PHONY: yuubinsya
 yuubinsya:
-	CGO_ENABLED=0 $(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuubinsya $(YUUBINSYA)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuubinsya $(YUUBINSYA)
 
 .PHONY: install
 install: build cli

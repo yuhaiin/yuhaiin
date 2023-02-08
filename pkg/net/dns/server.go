@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -67,7 +68,7 @@ func (d *dnsServer) start() (err error) {
 	log.Infoln("new udp dns server listen at:", d.server)
 
 	for {
-		buf := pool.GetBytes(8192)
+		buf := pool.GetBytes(nat.MaxSegmentSize)
 
 		n, addr, err := d.listener.ReadFrom(buf)
 		if err != nil {
@@ -148,7 +149,7 @@ func (d *dnsServer) HandleTCP(c net.Conn) error {
 }
 
 func (d *dnsServer) HandleUDP(l net.PacketConn) error {
-	p := pool.GetBytes(8192)
+	p := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(p)
 	n, addr, err := l.ReadFrom(p)
 	if err != nil {

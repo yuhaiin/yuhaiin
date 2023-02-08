@@ -80,6 +80,13 @@ func init() {
 			return nil, fmt.Errorf("vmess port is not a number: %w", err)
 		}
 
+		simple := &protocol.Protocol_Simple{
+			Simple: &protocol.Simple{
+				Host: n.Address,
+				Port: int32(port),
+			},
+		}
+
 		if n.HeaderType == "" {
 			n.HeaderType = n.Type
 		}
@@ -95,25 +102,29 @@ func init() {
 			if n.Host == "" {
 				n.Host = net.JoinHostPort(n.Address, fmt.Sprint(n.Port))
 			}
-			if n.Sni == "" {
-				n.Sni, _, err = net.SplitHostPort(n.Host)
-				if err != nil {
-					log.Warningf("split host and port failed: %v", err)
-					n.Sni = n.Host
+
+			if n.Tls == "tls" {
+				if n.Sni == "" {
+					n.Sni, _, err = net.SplitHostPort(n.Host)
+					if err != nil {
+						log.Warningf("split host and port failed: %v", err)
+						n.Sni = n.Host
+					}
+				}
+				simple.Simple.Tls = &protocol.TlsConfig{
+					ServerName:         n.Sni,
+					InsecureSkipVerify: !n.VerifyCert,
+					Enable:             true,
+					CaCert:             nil,
 				}
 			}
 
 			netProtocol = &protocol.Protocol{
 				Protocol: &protocol.Protocol_Websocket{
 					Websocket: &protocol.Websocket{
-						Host: n.Host,
-						Path: n.Path,
-						Tls: &protocol.TlsConfig{
-							ServerName:         n.Sni,
-							InsecureSkipVerify: !n.VerifyCert,
-							Enable:             n.Tls == "tls",
-							CaCert:             nil,
-						},
+						Host:       n.Host,
+						Path:       n.Path,
+						TlsEnabled: simple.Simple.Tls != nil,
 					},
 				},
 			}
@@ -128,12 +139,7 @@ func init() {
 			Origin: point.Origin_remote,
 			Protocols: []*protocol.Protocol{
 				{
-					Protocol: &protocol.Protocol_Simple{
-						Simple: &protocol.Simple{
-							Host: n.Address,
-							Port: int32(port),
-						},
-					},
+					Protocol: simple,
 				},
 				netProtocol,
 				{

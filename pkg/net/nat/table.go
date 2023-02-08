@@ -88,18 +88,15 @@ func (u *Table) Write(pkt *Packet) error {
 		return fmt.Errorf("dial %s failed: %w", pkt.DestinationAddress, err)
 	}
 
-	var fakeIP proxy.Address
 	if really, ok := pkt.DestinationAddress.Value(proxy.CurrentKey{}); ok {
-		fakeIP = pkt.DestinationAddress
-
-		pkt.DestinationAddress = really.(proxy.Address)
+		pkt.dstUDPAddr, err = really.(proxy.Address).UDPAddr()
+	} else {
+		pkt.dstUDPAddr, err = pkt.DestinationAddress.UDPAddr()
 	}
 
-	pkt.dstUDPAddr, err = pkt.DestinationAddress.UDPAddr()
 	if err != nil {
 		return fmt.Errorf("get udp addr failed: %w", err)
 	}
-
 	u.cache.Store(key, dstpconn)
 
 	if _, err = u.write(pkt, key); err != nil {
@@ -113,7 +110,7 @@ func (u *Table) Write(pkt *Packet) error {
 			dstpconn.Close()
 			u.cache.Delete(key)
 		}()
-		if err := u.writeBack(pkt, dstpconn, fakeIP); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := u.writeBack(pkt, dstpconn); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Errorln("remote to local failed:", err)
 		}
 	}()
@@ -121,7 +118,7 @@ func (u *Table) Write(pkt *Packet) error {
 	return nil
 }
 
-func (u *Table) writeBack(pkt *Packet, dstpconn net.PacketConn, fakeIp proxy.Address) error {
+func (u *Table) writeBack(pkt *Packet, dstpconn net.PacketConn) error {
 	data := pool.GetBytes(MaxSegmentSize)
 	defer pool.PutBytes(data)
 
@@ -140,15 +137,15 @@ func (u *Table) writeBack(pkt *Packet, dstpconn net.PacketConn, fakeIp proxy.Add
 			return fmt.Errorf("read from proxy failed: %w", err)
 		}
 
-		log.Verboseln("nat table read data length:", n, "from", from, "dst:", pkt.dstAddr(), "fakeIP:", fakeIp, "maybe write to:", pkt.SourceAddress)
+		log.Verboseln("nat table read data length:", n, "from", from, "dst:", pkt.dstAddr(), "fakeIP:", pkt.DestinationAddress, "maybe write to:", pkt.SourceAddress)
 
 		fromAddr, err := proxy.ParseSysAddr(from)
 		if err != nil {
 			return err
 		}
 
-		if fakeIp != nil && dstAddr == fromAddr.Hostname() {
-			fromAddr = fromAddr.OverrideHostname(fakeIp.Hostname())
+		if dstAddr == fromAddr.Hostname() {
+			fromAddr = fromAddr.OverrideHostname(pkt.DestinationAddress.Hostname())
 		}
 
 		// write back to client with source address

@@ -47,11 +47,12 @@ type settingImpl struct {
 
 func NewConfig(path string) Setting {
 	data, err := os.ReadFile(path)
+	data = SetDefault(data, defaultConfig(path))
+
 	if err != nil {
 		log.Errorln("read config file failed: %v\n", err)
+		os.WriteFile(path, data, os.ModePerm)
 	}
-
-	data = SetDefault(data, defaultConfig(path))
 
 	var pa config.Setting
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, &pa)
@@ -193,6 +194,17 @@ func defaultConfig(path string) []byte {
 							Portal:        "172.19.0.2",
 							DnsHijacking:  true,
 							SkipMulticast: true,
+						},
+					},
+				},
+				"yuubinsya": {
+					Name:    "yuubinsya",
+					Enabled: false,
+					Protocol: &listener.Protocol_Yuubinsya{
+						Yuubinsya: &listener.Yuubinsya{
+							Host:     "127.0.0.1:40501",
+							Password: "123",
+							Protocol: &listener.Yuubinsya_Normal{Normal: &listener.Normal{}},
 						},
 					},
 				},

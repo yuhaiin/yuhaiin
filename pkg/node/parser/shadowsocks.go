@@ -34,23 +34,28 @@ func init() {
 			method, password = string(mps[:i]), string(mps[i+1:])
 		}
 
+		port, err := strconv.ParseUint(portstr, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("parse port failed: %w", err)
+		}
+
+		simple := &protocol.Simple{
+			Host: server,
+			Port: int32(port),
+		}
+
 		var plugin *protocol.Protocol
 		pluginopts := parseOpts(ssUrl.Query().Get("plugin"))
 		switch {
 		case pluginopts["obfs-local"] == "true":
 			plugin, err = parseObfs(pluginopts)
 		case pluginopts["v2ray"] == "true":
-			plugin, err = parseV2ray(pluginopts)
+			plugin, err = parseV2ray(pluginopts, simple)
 		default:
 			plugin = &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("parse plugin failed: %w", err)
-		}
-
-		port, err := strconv.ParseUint(portstr, 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("parse port failed: %w", err)
 		}
 
 		return &point.Point{
@@ -59,10 +64,7 @@ func init() {
 			Protocols: []*protocol.Protocol{
 				{
 					Protocol: &protocol.Protocol_Simple{
-						Simple: &protocol.Simple{
-							Host: server,
-							Port: int32(port),
-						},
+						Simple: simple,
 					},
 				},
 				plugin,
@@ -80,7 +82,7 @@ func init() {
 	})
 }
 
-func parseV2ray(store map[string]string) (*protocol.Protocol, error) {
+func parseV2ray(store map[string]string, simple *protocol.Simple) (*protocol.Protocol, error) {
 	// fastOpen := false
 	// path := "/"
 	// host := "cloudfront.com"
@@ -106,16 +108,19 @@ func parseV2ray(store map[string]string) (*protocol.Protocol, error) {
 
 	switch store["mode"] {
 	case "websocket":
+		if store["tls"] == "true" {
+			simple.Tls = &protocol.TlsConfig{
+				ServerName: ns,
+				Enable:     store["tls"] == "true",
+				CaCert:     [][]byte{cert},
+			}
+		}
 		return &protocol.Protocol{
 			Protocol: &protocol.Protocol_Websocket{
 				Websocket: &protocol.Websocket{
-					Host: store["host"],
-					Path: store["path"],
-					Tls: &protocol.TlsConfig{
-						ServerName: ns,
-						Enable:     store["tls"] == "true",
-						CaCert:     [][]byte{cert},
-					},
+					Host:       store["host"],
+					Path:       store["path"],
+					TlsEnabled: simple.Tls != nil,
 				},
 			},
 		}, nil

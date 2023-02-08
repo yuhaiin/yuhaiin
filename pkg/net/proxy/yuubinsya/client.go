@@ -18,16 +18,14 @@ import (
 type Client struct {
 	proxy proxy.Proxy
 
-	quic       bool
 	handshaker handshaker
 }
 
 func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
-			quic:       config.Yuubinsya.GetQuic(),
 			proxy:      dialer,
-			handshaker: NewHandshaker(false, config.Yuubinsya.Quic || config.Yuubinsya.Websocket, []byte(config.Yuubinsya.Password), protocol.ParseTLSConfig(config.Yuubinsya.Tls)),
+			handshaker: NewHandshaker(false, config.Yuubinsya.GetTlsEnabled(), []byte(config.Yuubinsya.Password)),
 		}
 
 		return c, nil
