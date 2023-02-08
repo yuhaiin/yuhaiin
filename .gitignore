@@ -16,3 +16,4 @@ cmd/android/main/jniLibs
 tcpforward
 /yuubinsya*
 cmd/quic_test/
+cmd/yuubinsya/config.json

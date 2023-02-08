@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/ecdh"
 	"crypto/rand"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -23,12 +22,7 @@ type handshaker interface {
 	packetHeader(*bytes.Buffer)
 }
 
-type tlsHandshaker struct {
-	server    bool
-	quicOrWs  bool
-	password  []byte
-	tlsConfig *tls.Config
-}
+type tlsHandshaker struct{ password []byte }
 
 func (t *tlsHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
 	buf.WriteByte(tcp)
@@ -43,16 +37,7 @@ func (t *tlsHandshaker) packetHeader(buf *bytes.Buffer) {
 	buf.Write(t.password)
 }
 
-func (t *tlsHandshaker) handshake(conn net.Conn) (net.Conn, error) {
-	if t.quicOrWs {
-		return conn, nil
-	}
-	if t.server {
-		return tls.Server(conn, t.tlsConfig), nil
-	} else {
-		return tls.Client(conn, t.tlsConfig), nil
-	}
-}
+func (t *tlsHandshaker) handshake(conn net.Conn) (net.Conn, error) { return conn, nil }
 
 type traditionHandshaker struct {
 	server bool
@@ -61,17 +46,9 @@ type traditionHandshaker struct {
 	aead   Aead
 }
 
-func NewHandshaker(server, quicOrWs bool, password []byte, tlsConfig *tls.Config) handshaker {
-	if quicOrWs || tlsConfig != nil {
-		if tlsConfig != nil {
-			tlsConfig.MinVersion = tls.VersionTLS13
-		}
-		return &tlsHandshaker{
-			quicOrWs:  quicOrWs,
-			server:    server,
-			password:  password,
-			tlsConfig: tlsConfig,
-		}
+func NewHandshaker(server, tls bool, password []byte) handshaker {
+	if tls {
+		return &tlsHandshaker{password: password}
 	}
 
 	// sha256-hkdf-ecdh-ed25519-chacha20poly1305
