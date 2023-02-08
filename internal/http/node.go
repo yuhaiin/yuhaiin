@@ -25,7 +25,7 @@ type nodeHandler struct {
 var protocolsMapping = map[string]*protocol.Protocol{
 	"simple":       {Protocol: &protocol.Protocol_Simple{Simple: &protocol.Simple{Tls: &protocol.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
 	"none":         {Protocol: &protocol.Protocol_None{}},
-	"websocket":    {Protocol: &protocol.Protocol_Websocket{Websocket: &protocol.Websocket{Tls: &protocol.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
+	"websocket":    {Protocol: &protocol.Protocol_Websocket{Websocket: &protocol.Websocket{}}},
 	"quic":         {Protocol: &protocol.Protocol_Quic{Quic: &protocol.Quic{Tls: &protocol.TlsConfig{CaCert: [][]byte{{0x0, 0x01}}}}}},
 	"shadowsocks":  {Protocol: &protocol.Protocol_Shadowsocks{}},
 	"obfshttp":     {Protocol: &protocol.Protocol_ObfsHttp{}},

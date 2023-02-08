@@ -146,33 +146,13 @@ func (c *Client) Conn(s proxy.Address) (net.Conn, error) {
 	if err := c.initSession(); err != nil {
 		return nil, err
 	}
-	// conn, err := c.dialer.PacketConn(s)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// session, err := quic.DialContext(
-	// 	s.Context(),
-	// 	conn,
-	// 	c.host,
-	// 	c.host.String(),
-	// 	c.tlsConfig,
-	// 	c.quicConfig,
-	// )
-	// if err != nil {
-	// 	conn.Close()
-	// 	return nil, err
-	// }
 
 	stream, err := c.session.OpenStreamSync(s.Context())
 	if err != nil {
-		// conn.Close()
 		return nil, err
 	}
 
 	return &interConn{
-		// raw: conn,
-		// session: session,
 		Stream: stream,
 		local:  c.session.LocalAddr(),
 		remote: c.session.RemoteAddr(),
@@ -198,14 +178,11 @@ func (c *Client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		id:                  uint16(id),
 		resetDeadlineSignal: make(chan struct{}),
 	}, nil
-	// return c.dialer.PacketConn(host)
 }
 
 var _ net.Conn = (*interConn)(nil)
 
 type interConn struct {
-	// raw     net.PacketConn
-	// session quic.Connection
 	quic.Stream
 	local  net.Addr
 	remote net.Addr
@@ -218,14 +195,6 @@ func (c *interConn) Close() error {
 	if er := c.Stream.Close(); er != nil {
 		errors.Join(err, er)
 	}
-
-	// if er := c.session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), ""); er != nil {
-	// errors.Join(err, er)
-	// }
-
-	// if er := c.raw.Close(); er != nil {
-	// errors.Join(err, er)
-	// }
 
 	return err
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -23,7 +24,7 @@ func NewDoU(config Config) (dns.DNS, error) {
 	}
 
 	return NewClient(config, func(req []byte) ([]byte, error) {
-		var b = pool.GetBytes(8192)
+		var b = pool.GetBytes(nat.MaxSegmentSize)
 		defer pool.PutBytes(b)
 
 		addr := proxy.ParseAddressPort(addr.NetworkType(), addr.Hostname(), addr.Port())
@@ -37,7 +38,7 @@ func NewDoU(config Config) (dns.DNS, error) {
 		}
 		defer conn.Close()
 
-		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		err = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		if err != nil {
 			return nil, fmt.Errorf("set read deadline failed: %w", err)
 		}

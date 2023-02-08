@@ -128,7 +128,7 @@ func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (targ
 	}
 
 	if header[0] != 0x05 || header[1] != 0x00 {
-		return nil, errors.New("socks5 second handshake failed")
+		return nil, fmt.Errorf("socks5 second handshake failed, data: %v", header[:2])
 	}
 
 	add, err := ResolveAddr(conn)

@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,9 +12,8 @@ import (
 )
 
 type client struct {
-	wsConfig  *websocket.Config
-	tlsConfig *tls.Config
-	dialer    proxy.Proxy
+	wsConfig *websocket.Config
+	dialer   proxy.Proxy
 }
 
 func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
@@ -23,20 +21,16 @@ func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
 		header := http.Header{}
 		header.Add("Host", cf.Websocket.Host)
 
-		scheme := "ws"
-		tls := protocol.ParseTLSConfig(cf.Websocket.Tls)
-		if tls != nil {
-			//tls
+		var scheme string
+		if cf.Websocket.TlsEnabled {
 			scheme = "wss"
+		} else {
+			scheme = "ws"
 		}
 
 		uri, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, cf.Websocket.Host, getNormalizedPath(cf.Websocket.Path)))
 		if err != nil {
 			return nil, fmt.Errorf("websocket parse uri failed: %w", err)
-		}
-
-		if tls != nil && !tls.InsecureSkipVerify && tls.ServerName == "" {
-			tls.ServerName = uri.Hostname()
 		}
 
 		return &client{
@@ -46,8 +40,7 @@ func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
 				Version:  websocket.ProtocolVersionHybi13,
 				Header:   header,
 			},
-			tlsConfig: tls,
-			dialer:    dialer,
+			dialer: dialer,
 		}, nil
 
 	}
@@ -57,10 +50,6 @@ func (c *client) Conn(h proxy.Address) (net.Conn, error) {
 	conn, err := c.dialer.Conn(h)
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial failed: %w", err)
-	}
-
-	if c.tlsConfig != nil {
-		conn = tls.Client(conn, c.tlsConfig)
 	}
 
 	wsconn, err := websocket.NewClient(c.wsConfig, conn)
