@@ -511,6 +511,403 @@ func (x *Tun) GetPortal() string {
 	return ""
 }
 
+type Yuubinsya struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Host     string `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
+	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	// Types that are assignable to Protocol:
+	//
+	//	*Yuubinsya_Normal
+	//	*Yuubinsya_Tls
+	//	*Yuubinsya_Quic
+	//	*Yuubinsya_Websocket
+	Protocol isYuubinsya_Protocol `protobuf_oneof:"protocol"`
+}
+
+func (x *Yuubinsya) Reset() {
+	*x = Yuubinsya{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Yuubinsya) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Yuubinsya) ProtoMessage() {}
+
+func (x *Yuubinsya) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Yuubinsya.ProtoReflect.Descriptor instead.
+func (*Yuubinsya) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Yuubinsya) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *Yuubinsya) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (m *Yuubinsya) GetProtocol() isYuubinsya_Protocol {
+	if m != nil {
+		return m.Protocol
+	}
+	return nil
+}
+
+func (x *Yuubinsya) GetNormal() *Normal {
+	if x, ok := x.GetProtocol().(*Yuubinsya_Normal); ok {
+		return x.Normal
+	}
+	return nil
+}
+
+func (x *Yuubinsya) GetTls() *Tls {
+	if x, ok := x.GetProtocol().(*Yuubinsya_Tls); ok {
+		return x.Tls
+	}
+	return nil
+}
+
+func (x *Yuubinsya) GetQuic() *Quic {
+	if x, ok := x.GetProtocol().(*Yuubinsya_Quic); ok {
+		return x.Quic
+	}
+	return nil
+}
+
+func (x *Yuubinsya) GetWebsocket() *Websocket {
+	if x, ok := x.GetProtocol().(*Yuubinsya_Websocket); ok {
+		return x.Websocket
+	}
+	return nil
+}
+
+type isYuubinsya_Protocol interface {
+	isYuubinsya_Protocol()
+}
+
+type Yuubinsya_Normal struct {
+	Normal *Normal `protobuf:"bytes,3,opt,name=normal,proto3,oneof"`
+}
+
+type Yuubinsya_Tls struct {
+	Tls *Tls `protobuf:"bytes,4,opt,name=tls,proto3,oneof"`
+}
+
+type Yuubinsya_Quic struct {
+	Quic *Quic `protobuf:"bytes,5,opt,name=quic,proto3,oneof"`
+}
+
+type Yuubinsya_Websocket struct {
+	Websocket *Websocket `protobuf:"bytes,6,opt,name=websocket,proto3,oneof"`
+}
+
+func (*Yuubinsya_Normal) isYuubinsya_Protocol() {}
+
+func (*Yuubinsya_Tls) isYuubinsya_Protocol() {}
+
+func (*Yuubinsya_Quic) isYuubinsya_Protocol() {}
+
+func (*Yuubinsya_Websocket) isYuubinsya_Protocol() {}
+
+type Normal struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *Normal) Reset() {
+	*x = Normal{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Normal) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Normal) ProtoMessage() {}
+
+func (x *Normal) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Normal.ProtoReflect.Descriptor instead.
+func (*Normal) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{7}
+}
+
+type Websocket struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Tls *TlsConfig `protobuf:"bytes,1,opt,name=tls,proto3" json:"tls,omitempty"`
+}
+
+func (x *Websocket) Reset() {
+	*x = Websocket{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Websocket) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Websocket) ProtoMessage() {}
+
+func (x *Websocket) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Websocket.ProtoReflect.Descriptor instead.
+func (*Websocket) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *Websocket) GetTls() *TlsConfig {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
+}
+
+type Quic struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Tls *TlsConfig `protobuf:"bytes,1,opt,name=tls,proto3" json:"tls,omitempty"`
+}
+
+func (x *Quic) Reset() {
+	*x = Quic{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Quic) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Quic) ProtoMessage() {}
+
+func (x *Quic) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Quic.ProtoReflect.Descriptor instead.
+func (*Quic) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Quic) GetTls() *TlsConfig {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
+}
+
+type Tls struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Tls *TlsConfig `protobuf:"bytes,1,opt,name=tls,proto3" json:"tls,omitempty"`
+}
+
+func (x *Tls) Reset() {
+	*x = Tls{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Tls) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Tls) ProtoMessage() {}
+
+func (x *Tls) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Tls.ProtoReflect.Descriptor instead.
+func (*Tls) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Tls) GetTls() *TlsConfig {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
+}
+
+type TlsConfig struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Cert []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
+	Key  []byte `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+}
+
+func (x *TlsConfig) Reset() {
+	*x = TlsConfig{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TlsConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TlsConfig) ProtoMessage() {}
+
+func (x *TlsConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TlsConfig.ProtoReflect.Descriptor instead.
+func (*TlsConfig) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *TlsConfig) GetCert() []byte {
+	if x != nil {
+		return x.Cert
+	}
+	return nil
+}
+
+func (x *TlsConfig) GetKey() []byte {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+type YuubinsyaProtocolNormal struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *YuubinsyaProtocolNormal) Reset() {
+	*x = YuubinsyaProtocolNormal{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *YuubinsyaProtocolNormal) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*YuubinsyaProtocolNormal) ProtoMessage() {}
+
+func (x *YuubinsyaProtocolNormal) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use YuubinsyaProtocolNormal.ProtoReflect.Descriptor instead.
+func (*YuubinsyaProtocolNormal) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{6, 0}
+}
+
 var File_config_listener_listener_proto protoreflect.FileDescriptor
 
 var file_config_listener_listener_proto_rawDesc = []byte{
@@ -574,12 +971,45 @@ var file_config_listener_listener_proto_rawDesc = []byte{
 	0x3e, 0x0a, 0x0f, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x5f, 0x64, 0x72, 0x69, 0x76,
 	0x65, 0x72, 0x12, 0x0b, 0x0a, 0x07, 0x66, 0x64, 0x62, 0x61, 0x73, 0x65, 0x64, 0x10, 0x00, 0x12,
 	0x0b, 0x0a, 0x07, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x10, 0x01, 0x12, 0x11, 0x0a, 0x0d,
-	0x73, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x5f, 0x67, 0x76, 0x69, 0x73, 0x6f, 0x72, 0x10, 0x02, 0x42,
-	0x39, 0x5a, 0x37, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x41, 0x73,
-	0x75, 0x74, 0x6f, 0x72, 0x75, 0x66, 0x61, 0x2f, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2f,
-	0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69,
-	0x67, 0x2f, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x73, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x5f, 0x67, 0x76, 0x69, 0x73, 0x6f, 0x72, 0x10, 0x02, 0x22,
+	0xa4, 0x02, 0x0a, 0x09, 0x79, 0x75, 0x75, 0x62, 0x69, 0x6e, 0x73, 0x79, 0x61, 0x12, 0x12, 0x0a,
+	0x04, 0x68, 0x6f, 0x73, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f, 0x73,
+	0x74, 0x12, 0x1a, 0x0a, 0x08, 0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x08, 0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x12, 0x32, 0x0a,
+	0x06, 0x6e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e,
+	0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72,
+	0x2e, 0x6e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x48, 0x00, 0x52, 0x06, 0x6e, 0x6f, 0x72, 0x6d, 0x61,
+	0x6c, 0x12, 0x29, 0x0a, 0x03, 0x74, 0x6c, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15,
+	0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65,
+	0x72, 0x2e, 0x74, 0x6c, 0x73, 0x48, 0x00, 0x52, 0x03, 0x74, 0x6c, 0x73, 0x12, 0x2c, 0x0a, 0x04,
+	0x71, 0x75, 0x69, 0x63, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x16, 0x2e, 0x79, 0x75, 0x68,
+	0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72, 0x2e, 0x71, 0x75,
+	0x69, 0x63, 0x48, 0x00, 0x52, 0x04, 0x71, 0x75, 0x69, 0x63, 0x12, 0x3b, 0x0a, 0x09, 0x77, 0x65,
+	0x62, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e,
+	0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72,
+	0x2e, 0x77, 0x65, 0x62, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x48, 0x00, 0x52, 0x09, 0x77, 0x65,
+	0x62, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x1a, 0x11, 0x0a, 0x0f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x63, 0x6f, 0x6c, 0x5f, 0x6e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x42, 0x0a, 0x0a, 0x08, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x22, 0x08, 0x0a, 0x06, 0x6e, 0x6f, 0x72, 0x6d, 0x61, 0x6c,
+	0x22, 0x3b, 0x0a, 0x09, 0x77, 0x65, 0x62, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x12, 0x2e, 0x0a,
+	0x03, 0x74, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x79, 0x75, 0x68,
+	0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72, 0x2e, 0x74, 0x6c,
+	0x73, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x03, 0x74, 0x6c, 0x73, 0x22, 0x36, 0x0a,
+	0x04, 0x71, 0x75, 0x69, 0x63, 0x12, 0x2e, 0x0a, 0x03, 0x74, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73,
+	0x74, 0x65, 0x6e, 0x65, 0x72, 0x2e, 0x74, 0x6c, 0x73, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67,
+	0x52, 0x03, 0x74, 0x6c, 0x73, 0x22, 0x35, 0x0a, 0x03, 0x74, 0x6c, 0x73, 0x12, 0x2e, 0x0a, 0x03,
+	0x74, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x79, 0x75, 0x68, 0x61,
+	0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72, 0x2e, 0x74, 0x6c, 0x73,
+	0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x03, 0x74, 0x6c, 0x73, 0x22, 0x32, 0x0a, 0x0a,
+	0x74, 0x6c, 0x73, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x12, 0x0a, 0x04, 0x63, 0x65,
+	0x72, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x63, 0x65, 0x72, 0x74, 0x12, 0x10,
+	0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79,
+	0x42, 0x39, 0x5a, 0x37, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x41,
+	0x73, 0x75, 0x74, 0x6f, 0x72, 0x75, 0x66, 0x61, 0x2f, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e,
+	0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x63, 0x6f, 0x6e, 0x66,
+	0x69, 0x67, 0x2f, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72, 0x62, 0x06, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x33,
 }
 
 var (
@@ -595,30 +1025,44 @@ func file_config_listener_listener_proto_rawDescGZIP() []byte {
 }
 
 var file_config_listener_listener_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_config_listener_listener_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_config_listener_listener_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_config_listener_listener_proto_goTypes = []interface{}{
-	(TunEndpointDriver)(0), // 0: yuhaiin.listener.tun.endpoint_driver
-	(*Protocol)(nil),       // 1: yuhaiin.listener.protocol
-	(*Config)(nil),         // 2: yuhaiin.listener.config
-	(*Http)(nil),           // 3: yuhaiin.listener.http
-	(*Socks5)(nil),         // 4: yuhaiin.listener.socks5
-	(*Redir)(nil),          // 5: yuhaiin.listener.redir
-	(*Tun)(nil),            // 6: yuhaiin.listener.tun
-	nil,                    // 7: yuhaiin.listener.config.ServersEntry
+	(TunEndpointDriver)(0),          // 0: yuhaiin.listener.tun.endpoint_driver
+	(*Protocol)(nil),                // 1: yuhaiin.listener.protocol
+	(*Config)(nil),                  // 2: yuhaiin.listener.config
+	(*Http)(nil),                    // 3: yuhaiin.listener.http
+	(*Socks5)(nil),                  // 4: yuhaiin.listener.socks5
+	(*Redir)(nil),                   // 5: yuhaiin.listener.redir
+	(*Tun)(nil),                     // 6: yuhaiin.listener.tun
+	(*Yuubinsya)(nil),               // 7: yuhaiin.listener.yuubinsya
+	(*Normal)(nil),                  // 8: yuhaiin.listener.normal
+	(*Websocket)(nil),               // 9: yuhaiin.listener.websocket
+	(*Quic)(nil),                    // 10: yuhaiin.listener.quic
+	(*Tls)(nil),                     // 11: yuhaiin.listener.tls
+	(*TlsConfig)(nil),               // 12: yuhaiin.listener.tls_config
+	nil,                             // 13: yuhaiin.listener.config.ServersEntry
+	(*YuubinsyaProtocolNormal)(nil), // 14: yuhaiin.listener.yuubinsya.protocol_normal
 }
 var file_config_listener_listener_proto_depIdxs = []int32{
-	3, // 0: yuhaiin.listener.protocol.http:type_name -> yuhaiin.listener.http
-	4, // 1: yuhaiin.listener.protocol.socks5:type_name -> yuhaiin.listener.socks5
-	5, // 2: yuhaiin.listener.protocol.redir:type_name -> yuhaiin.listener.redir
-	6, // 3: yuhaiin.listener.protocol.tun:type_name -> yuhaiin.listener.tun
-	7, // 4: yuhaiin.listener.config.servers:type_name -> yuhaiin.listener.config.ServersEntry
-	0, // 5: yuhaiin.listener.tun.driver:type_name -> yuhaiin.listener.tun.endpoint_driver
-	1, // 6: yuhaiin.listener.config.ServersEntry.value:type_name -> yuhaiin.listener.protocol
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	3,  // 0: yuhaiin.listener.protocol.http:type_name -> yuhaiin.listener.http
+	4,  // 1: yuhaiin.listener.protocol.socks5:type_name -> yuhaiin.listener.socks5
+	5,  // 2: yuhaiin.listener.protocol.redir:type_name -> yuhaiin.listener.redir
+	6,  // 3: yuhaiin.listener.protocol.tun:type_name -> yuhaiin.listener.tun
+	13, // 4: yuhaiin.listener.config.servers:type_name -> yuhaiin.listener.config.ServersEntry
+	0,  // 5: yuhaiin.listener.tun.driver:type_name -> yuhaiin.listener.tun.endpoint_driver
+	8,  // 6: yuhaiin.listener.yuubinsya.normal:type_name -> yuhaiin.listener.normal
+	11, // 7: yuhaiin.listener.yuubinsya.tls:type_name -> yuhaiin.listener.tls
+	10, // 8: yuhaiin.listener.yuubinsya.quic:type_name -> yuhaiin.listener.quic
+	9,  // 9: yuhaiin.listener.yuubinsya.websocket:type_name -> yuhaiin.listener.websocket
+	12, // 10: yuhaiin.listener.websocket.tls:type_name -> yuhaiin.listener.tls_config
+	12, // 11: yuhaiin.listener.quic.tls:type_name -> yuhaiin.listener.tls_config
+	12, // 12: yuhaiin.listener.tls.tls:type_name -> yuhaiin.listener.tls_config
+	1,  // 13: yuhaiin.listener.config.ServersEntry.value:type_name -> yuhaiin.listener.protocol
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_config_listener_listener_proto_init() }
@@ -699,6 +1143,90 @@ func file_config_listener_listener_proto_init() {
 				return nil
 			}
 		}
+		file_config_listener_listener_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Yuubinsya); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_config_listener_listener_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Normal); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_config_listener_listener_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Websocket); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_config_listener_listener_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Quic); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_config_listener_listener_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Tls); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_config_listener_listener_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TlsConfig); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_config_listener_listener_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*YuubinsyaProtocolNormal); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_config_listener_listener_proto_msgTypes[0].OneofWrappers = []interface{}{
 		(*Protocol_Http)(nil),
@@ -706,13 +1234,19 @@ func file_config_listener_listener_proto_init() {
 		(*Protocol_Redir)(nil),
 		(*Protocol_Tun)(nil),
 	}
+	file_config_listener_listener_proto_msgTypes[6].OneofWrappers = []interface{}{
+		(*Yuubinsya_Normal)(nil),
+		(*Yuubinsya_Tls)(nil),
+		(*Yuubinsya_Quic)(nil),
+		(*Yuubinsya_Websocket)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_config_listener_listener_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

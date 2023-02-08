@@ -67,9 +67,7 @@ message trojan {
 
 message yuubinsya {
   string password = 1 [ json_name = "password" ];
-  bool quic = 2 [ json_name = "quic" ];
-  tls_config tls = 3 [ json_name = "tls_config" ];
-  bool websocket = 4 [ json_name = "websocket" ];
+  bool tls_enabled = 2 [ json_name = "tls_enabled" ];
 }
 
 message websocket {
@@ -95,7 +93,7 @@ message simple {
   int32 port = 2 [ json_name = "port" ];
   // udp will write to every packet target instead of only write to host:port
   bool packet_conn_direct = 3 [ json_name = "packet_conn_direct" ];
-  tls_config tls = 4 [ json_name = "tls_config" ];
+  tls_config tls = 4 [ json_name = "tls" ];
 }
 
 message tls_config {

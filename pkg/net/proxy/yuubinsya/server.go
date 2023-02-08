@@ -3,7 +3,6 @@ package yuubinsya
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -12,19 +11,16 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
-	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	ws "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"github.com/quic-go/quic-go"
-	"golang.org/x/net/websocket"
+	quicgo "github.com/quic-go/quic-go"
 )
 
 const (
@@ -32,82 +28,53 @@ const (
 )
 
 type yuubinsya struct {
-	addr     string
-	password []byte
+	Config
 
 	Lis net.Listener
 
 	handshaker handshaker
 
-	dialer proxy.Proxy
-
 	nat *nat.Table
 }
 
-func NewServer(dialer proxy.Proxy, host, password string, certPEM, keyPEM []byte, quicOrWs bool) (*yuubinsya, error) {
-	var tlsConfig *tls.Config
-	if certPEM != nil && keyPEM != nil {
-		cert, err := tls.X509KeyPair(certPEM, keyPEM)
-		if err != nil {
-			return nil, err
-		}
+type Type int
 
-		tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			MinVersion:   tls.VersionTLS13,
-		}
+var (
+	TCP       Type = 1
+	TLS       Type = 2
+	QUIC      Type = 3
+	WEBSOCKET Type = 4
+)
+
+type Config struct {
+	Dialer    proxy.Proxy
+	Host      string
+	Password  []byte
+	TlsConfig *tls.Config
+	Type      Type
+}
+
+func (c Config) String() string {
+	return fmt.Sprintf(`
+	{
+		"host": "%s",
+		"password": "%s",
+		"type": %d,
 	}
+	`, c.Host, c.Password, c.Type)
+}
+
+func NewServer(config Config) (*yuubinsya, error) {
+	log.Println(config)
 
 	y := &yuubinsya{
-		dialer:     dialer,
-		addr:       host,
-		password:   []byte(password),
-		handshaker: NewHandshaker(true, quicOrWs, []byte(password), tlsConfig),
-		nat:        nat.NewTable(dialer),
+		Config:     config,
+		handshaker: NewHandshaker(true, config.TlsConfig != nil, config.Password),
+		nat:        nat.NewTable(config.Dialer),
 	}
 
 	return y, nil
 
-}
-
-func (y *yuubinsya) StartWebsocket() error {
-	lis, err := net.Listen("tcp", y.addr)
-	if err != nil {
-		return err
-	}
-	defer lis.Close()
-
-	log.Println("new websocket server listen at:", lis.Addr())
-
-	return http.Serve(tls.NewListener(lis,
-		y.handshaker.(*tlsHandshaker).tlsConfig),
-		http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-
-			if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" ||
-				!strings.Contains(strings.ToLower(req.Header.Get("Connection")), "upgrade") {
-				w.Write([]byte(`<!DOCTYPE html><html><head><style>body { max-width:400px; margin: 0 auto; }</style><title>A8.net</title></head><body>あなたのIPアドレスは ` + req.Header.Get("Cf-Connecting-Ip") + `<br/>A8スタッフブログ <a href="https://a8pr.jp">https://a8pr.jp</a></body></html>`))
-				return
-			}
-
-			w = &wrapHijacker{ResponseWriter: w}
-
-			(&websocket.Server{
-				Config: websocket.Config{},
-				Handler: func(c *websocket.Conn) {
-					defer c.Close()
-
-					conn, _, err := w.(http.Hijacker).Hijack()
-					if err != nil {
-						log.Println("hijack failed:", err)
-						return
-					}
-
-					if err := y.handle(&ws.Connection{Conn: c, RawConn: conn}); err != nil {
-						log.Println("websocket handle failed:", err)
-					}
-				},
-			}).ServeHTTP(w, req)
-		}))
 }
 
 type wrapHijacker struct {
@@ -128,13 +95,38 @@ func (w *wrapHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 func (y *yuubinsya) Start() error {
-	lis, err := net.Listen("tcp", y.addr)
-	if err != nil {
-		return err
-	}
-	defer lis.Close()
+	var lis net.Listener
+	var err error
 
-	log.Println("new server listen at:", lis.Addr())
+	if y.Type != QUIC {
+		lis, err = net.Listen("tcp", y.Host)
+		if err != nil {
+			return err
+		}
+
+		if y.TlsConfig != nil {
+			lis = tls.NewListener(lis, y.TlsConfig)
+		}
+
+		if y.Type == WEBSOCKET {
+			lis = websocket.NewServer(lis)
+		}
+
+		defer lis.Close()
+	} else {
+		packetConn, err := net.ListenPacket("udp", y.Host)
+		if err != nil {
+			return err
+		}
+		defer packetConn.Close()
+		lis, err = quic.NewServer(packetConn, y.TlsConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer lis.Close()
+	}
+
+	log.Println(y.Type, "new server listen at:", lis.Addr())
 
 	for {
 		conn, err := lis.Accept()
@@ -147,142 +139,14 @@ func (y *yuubinsya) Start() error {
 			continue
 		}
 
-		conn.(*net.TCPConn).SetKeepAlive(true)
-
 		go func() {
 			defer conn.Close()
-			if err := y.handle(conn); err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
+			if err := y.handle(conn); err != nil {
 				log.Println("handle failed:", err)
 			}
 		}()
 	}
 }
-
-func (y *yuubinsya) StartQUIC() error {
-	tlsConfig := y.handshaker.(*tlsHandshaker).tlsConfig
-	tlsConfig.NextProtos = []string{"hyperledger-fabric"}
-	lis, err := quic.ListenAddrEarly(y.addr, tlsConfig, &quic.Config{
-		MaxIncomingStreams: 2048,
-		KeepAlivePeriod:    0,
-		MaxIdleTimeout:     60 * time.Second,
-		EnableDatagrams:    true,
-	})
-	if err != nil {
-		return err
-	}
-	defer lis.Close()
-
-	log.Println("new server listen at:", lis.Addr())
-
-	for {
-		conn, err := lis.Accept(context.TODO())
-		if err != nil {
-			return err
-		}
-		go func() {
-			defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-
-			/*
-				because of https://github.com/quic-go/quic-go/blob/5b72f4c900f209b5705bb0959399d59e495a2c6e/internal/protocol/params.go#L137
-				MaxDatagramFrameSize Too short, here use stream trans udp data until quic-go will auto frag lager frame
-					// udp
-					go func() {
-						for {
-							data, err := conn.ReceiveMessage()
-							if err != nil {
-								log.Println("receive message failed:", err)
-								break
-							}
-
-							if err = y.handleQuicDatagram(data, conn); err != nil {
-								log.Println("handle datagram failed:", err)
-							}
-						}
-					}()
-			*/
-			for {
-				stream, err := conn.AcceptStream(context.TODO())
-				if err != nil {
-					return
-				}
-
-				go func() {
-					log.Println("new quic conn from", conn.RemoteAddr(), "id", stream.StreamID())
-
-					conn := &interConn{
-						Stream: stream,
-						local:  conn.LocalAddr(),
-						remote: conn.RemoteAddr(),
-					}
-					defer conn.Close()
-
-					if err := y.handle(conn); err != nil {
-						log.Println("handle failed:", err)
-					}
-				}()
-			}
-		}()
-	}
-}
-
-func (c *yuubinsya) handleQuicDatagram(b []byte, session quic.Connection) error {
-	if len(b) <= 5 {
-		return fmt.Errorf("invalid datagram")
-	}
-
-	id := binary.BigEndian.Uint16(b[:2])
-	addr, err := s5c.ResolveAddr(bytes.NewBuffer(b[2:]))
-	if err != nil {
-		return err
-	}
-
-	log.Println("new udp from", session.RemoteAddr(), "id", id, "to", addr.Address(statistic.Type_udp))
-
-	return c.nat.Write(&nat.Packet{
-		SourceAddress: &quicAddr{
-			addr: session.RemoteAddr(),
-			id:   quic.StreamID(id),
-		},
-		DestinationAddress: addr.Address(statistic.Type_udp),
-		Payload:            b[2+len(addr):],
-		WriteBack: func(b []byte, addr net.Addr) (int, error) {
-			add, err := proxy.ParseSysAddr(addr)
-			if err != nil {
-				return 0, err
-			}
-
-			buf := pool.GetBuffer()
-			defer pool.PutBuffer(buf)
-
-			binary.Write(buf, binary.BigEndian, id)
-			s5c.ParseAddrWriter(add, buf)
-			buf.Write(b)
-
-			// log.Println("write back to", session.RemoteAddr(), "id", id)
-			if err = session.SendMessage(buf.Bytes()); err != nil {
-				return 0, err
-			}
-
-			return len(b), nil
-		},
-	})
-}
-
-var _ net.Conn = (*interConn)(nil)
-
-type interConn struct {
-	quic.Stream
-	local  net.Addr
-	remote net.Addr
-}
-
-func (c *interConn) Close() error {
-	c.Stream.CancelRead(0)
-	return c.Stream.Close()
-}
-
-func (c *interConn) LocalAddr() net.Addr  { return c.local }
-func (c *interConn) RemoteAddr() net.Addr { return c.remote }
 
 var (
 	tcp byte = 66
@@ -309,7 +173,7 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 			return err
 		}
 
-		if !bytes.Equal(password.Bytes(), y.password) {
+		if !bytes.Equal(password.Bytes(), y.Password) {
 			return errors.New("password is incorrect")
 		}
 	}
@@ -334,7 +198,7 @@ func (y *yuubinsya) stream(c net.Conn) error {
 
 	log.Printf("new tcp connect from %v to %v\n", c.RemoteAddr(), addr)
 
-	conn, err := y.dialer.Conn(addr)
+	conn, err := y.Dialer.Conn(addr)
 	if err != nil {
 		return err
 	}
@@ -375,8 +239,8 @@ func (y *yuubinsya) remoteToLocal(c net.Conn) error {
 	}
 
 	src := c.RemoteAddr()
-	if conn, ok := c.(interface{ StreamID() quic.StreamID }); ok {
-		src = &quicAddr{c.RemoteAddr(), conn.StreamID()}
+	if conn, ok := c.(interface{ StreamID() quicgo.StreamID }); ok {
+		src = &quic.QuicAddr{Addr: c.RemoteAddr(), ID: conn.StreamID()}
 	}
 
 	return y.nat.Write(&nat.Packet{
@@ -405,11 +269,3 @@ func (y *yuubinsya) remoteToLocal(c net.Conn) error {
 		},
 	})
 }
-
-type quicAddr struct {
-	addr net.Addr
-	id   quic.StreamID
-}
-
-func (q *quicAddr) String() string  { return fmt.Sprint(q.addr, q.id) }
-func (q *quicAddr) Network() string { return "quic" }
