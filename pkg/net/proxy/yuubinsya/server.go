@@ -126,6 +126,7 @@ func (y *yuubinsya) Start() error {
 		defer lis.Close()
 	}
 
+	y.Lis = lis
 	log.Println(y.Type, "new server listen at:", lis.Addr())
 
 	for {

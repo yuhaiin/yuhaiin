@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
@@ -18,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 type Socks5Config struct {
@@ -28,7 +28,6 @@ type Socks5Config struct {
 
 func (s Socks5Config) Dialer() (*dialer, error) {
 	var dialer = &dialer{}
-
 	if s.Host == "" || len(s.Domains) > 0 {
 		return dialer, nil
 	}
@@ -62,10 +61,15 @@ func (s Socks5Config) Dialer() (*dialer, error) {
 }
 
 type Config struct {
-	listener.Yuubinsya
+	Inbounds []*Inbound   `json:"inbound"`
+	Socks5   Socks5Config `json:"socks5"`
 }
 
-func (c *Config) ServerConfig(dialer proxy.Proxy) (yuubinsya.Config, error) {
+type Inbound struct{ listener.Yuubinsya }
+
+func (c *Inbound) MarshalJSON() ([]byte, error) { return protojson.Marshal(&c.Yuubinsya) }
+func (c *Inbound) UnmarshalJSON(b []byte) error { return protojson.Unmarshal(b, &c.Yuubinsya) }
+func (c *Inbound) ServerConfig(dialer proxy.Proxy) (yuubinsya.Config, error) {
 	var Type yuubinsya.Type
 	var err error
 	var tlsConfig *tls.Config
@@ -100,55 +104,47 @@ func unmarshalJson(file string, c any) error {
 	if err != nil {
 		return err
 	}
-
 	return json.Unmarshal(data, c)
 }
 
-func unmarshalProtoJson(file string, c proto.Message) error {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return err
-	}
-
-	return protojson.Unmarshal(data, c)
-}
-
 func main() {
-	protocol := flag.String("c", "", "-c, protocol config")
-	socks5 := flag.String("s5", "", "-s5, socks5 config(host and bypass)")
+	configFile := flag.String("c", "", "-c, config")
 	flag.Parse()
 
-	config := &Config{Yuubinsya: listener.Yuubinsya{}}
+	config := &Config{}
 
-	if err := unmarshalProtoJson(*protocol, &config.Yuubinsya); err != nil {
+	if err := unmarshalJson(*configFile, &config); err != nil {
 		log.Fatal(err)
 	}
 
-	var socks5Config Socks5Config
-	if *socks5 != "" {
-		if err := unmarshalJson(*socks5, &socks5Config); err != nil {
+	dialer, err := config.Socks5.Dialer()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+
+	for _, p := range config.Inbounds {
+		sc, err := p.ServerConfig(dialer)
+		if err != nil {
 			log.Fatal(err)
 		}
+
+		y, err := yuubinsya.NewServer(sc)
+		if err != nil {
+			log.Fatal(err)
+		}
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			if err = y.Start(); err != nil {
+				log.Fatal(err)
+			}
+		}()
 	}
 
-	dialer, err := socks5Config.Dialer()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	sc, err := config.ServerConfig(dialer)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	y, err := yuubinsya.NewServer(sc)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err = y.Start(); err != nil {
-		log.Fatal(err)
-	}
+	wg.Wait()
 }
 
 type dialer struct {
