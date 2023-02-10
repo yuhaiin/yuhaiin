@@ -3,6 +3,7 @@ package register
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	httpc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
@@ -40,6 +41,7 @@ func init() {
 		return func(proxy.Proxy) (proxy.Proxy, error) { return reject.Default, nil }
 	})
 	protocol.RegisterProtocol(yuubinsya.New)
+	protocol.RegisterProtocol(grpc.New)
 }
 
 func Dialer(p *point.Point) (r proxy.Proxy, err error) {

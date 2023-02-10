@@ -26,7 +26,7 @@ func NewTCP(config Config) (dns.DNS, error) {
 
 // ParseAddr
 // host eg: cloudflare-dns.com, https://cloudflare-dns.com, 1.1.1.1:853
-func ParseAddr(host, defaultPort string) (proxy.Address, error) {
+func ParseAddr(netType statistic.Type, host, defaultPort string) (proxy.Address, error) {
 	if i := strings.Index(host, "://"); i != -1 {
 		host = host[i+3:]
 	}
@@ -45,7 +45,7 @@ func ParseAddr(host, defaultPort string) (proxy.Address, error) {
 		host = net.JoinHostPort(host, defaultPort)
 	}
 
-	addr, err := proxy.ParseAddress(statistic.Type_tcp, host)
+	addr, err := proxy.ParseAddress(netType, host)
 	if err != nil {
 		return nil, fmt.Errorf("parse address failed: %w", err)
 	}
@@ -54,7 +54,7 @@ func ParseAddr(host, defaultPort string) (proxy.Address, error) {
 }
 
 func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, error) {
-	addr, err := ParseAddr(config.Host, defaultPort)
+	addr, err := ParseAddr(statistic.Type_tcp, config.Host, defaultPort)
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}

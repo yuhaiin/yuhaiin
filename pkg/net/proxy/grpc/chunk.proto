@@ -1,0 +1,11 @@
+syntax = "proto3";
+package stream;
+
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc";
+
+service stream {
+  rpc conn(stream google.protobuf.BytesValue)
+      returns (stream google.protobuf.BytesValue);
+}

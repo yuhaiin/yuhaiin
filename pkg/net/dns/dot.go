@@ -5,6 +5,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 func init() {
@@ -18,7 +19,7 @@ func NewDoT(config Config) (dns.DNS, error) {
 		return nil, err
 	}
 	if config.Servername == "" {
-		addr, err := ParseAddr(config.Host, "853")
+		addr, err := ParseAddr(statistic.Type_tcp, config.Host, "853")
 		if err != nil {
 			return nil, err
 		}

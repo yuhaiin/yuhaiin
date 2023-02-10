@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/net/http2"
@@ -35,7 +36,7 @@ type doq struct {
 }
 
 func NewDoQ(config Config) (dns.DNS, error) {
-	addr, err := ParseAddr(config.Host, "784")
+	addr, err := ParseAddr(statistic.Type_udp, config.Host, "784")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}

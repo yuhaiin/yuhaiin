@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -25,7 +26,7 @@ func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
 			proxy:      dialer,
-			handshaker: NewHandshaker(false, config.Yuubinsya.GetTlsEnabled(), []byte(config.Yuubinsya.Password)),
+			handshaker: NewHandshaker(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password)),
 		}
 
 		return c, nil
@@ -38,7 +39,7 @@ func (c *Client) Conn(addr proxy.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	hconn, err := c.handshaker.handshake(conn)
+	hconn, err := c.handshaker.handshakeClient(conn)
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -60,7 +61,7 @@ func (c *Client) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, err
 	}
 
-	hconn, err := c.handshaker.handshake(conn)
+	hconn, err := c.handshaker.handshakeClient(conn)
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -79,7 +80,6 @@ type PacketConn struct {
 
 	hmux sync.Mutex
 	rmux sync.Mutex
-	wmux sync.Mutex
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
@@ -92,31 +92,36 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	w := pool.GetBuffer()
 	defer pool.PutBuffer(w)
 
-	c.hmux.Lock()
 	if !c.headerWrote {
-		c.handshaker.packetHeader(w)
-		c.headerWrote = true
+		c.hmux.Lock()
+		if !c.headerWrote {
+			c.handshaker.packetHeader(w)
+			defer func() {
+				c.headerWrote = true
+				defer c.hmux.Unlock()
+			}()
+		} else {
+			c.hmux.Unlock()
+		}
 	}
-	c.hmux.Unlock()
 
 	b := bytes.NewBuffer(payload)
 
 	for b.Len() > 0 {
-		data := b.Next(MaxPacketSize)
+		data := b.Next(nat.MaxSegmentSize)
 		w.Write(s5Addr)
 		binary.Write(w, binary.BigEndian, uint16(len(data)))
 		w.Write(data)
+
+		n, err := c.Conn.Write(w.Bytes())
+
+		w.Reset()
+
+		if err != nil {
+			return len(payload) - b.Len() + len(data) - n, fmt.Errorf("write to %v failed: %w", addr, err)
+		}
 	}
 
-	c.wmux.Lock()
-	// because of aead will increment nonce two times,
-	// so we must make sure the data completely wrote before
-	// write next data
-	_, err = c.Conn.Write(w.Bytes())
-	defer c.wmux.Unlock()
-	if err != nil {
-		return 0, fmt.Errorf("write to %v failed: %w", addr, err)
-	}
 	return len(payload), nil
 }
 
@@ -191,8 +196,8 @@ func (c *Conn) Write(b []byte) (int, error) {
 	c.handshaker.streamHeader(buf, c.addr)
 	buf.Write(b)
 
-	if _, err := c.Conn.Write(buf.Bytes()); err != nil {
-		return 0, err
+	if n, err := c.Conn.Write(buf.Bytes()); err != nil {
+		return n, err
 	}
 
 	return len(b), nil

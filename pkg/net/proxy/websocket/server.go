@@ -30,7 +30,7 @@ type Server struct {
 func NewServer(lis net.Listener) *Server {
 	s := &Server{
 		Listener: lis,
-		connChan: make(chan *Connection, 10),
+		connChan: make(chan *Connection, 20),
 	}
 	s.server = &http.Server{Handler: s}
 

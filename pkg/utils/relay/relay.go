@@ -1,29 +1,36 @@
 package relay
 
 import (
+	"errors"
 	"io"
+	"os"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // Relay pipe
-func Relay(rw1, rw2 io.ReadWriter) {
+func Relay(rw1, rw2 io.ReadWriteCloser) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		_ = Copy(rw2, rw1)
+		if err := Copy(rw2, rw1); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
+			log.Errorln("relay rw1 -> rw2 failed:", err)
+		}
 		setDeadline(rw2) // make another Copy exit
 	}()
 
-	_ = Copy(rw1, rw2)
+	if err := Copy(rw1, rw2); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
+		log.Errorln("relay rw2 -> rw1 failed:", err)
+	}
 	setDeadline(rw1)
 
 	<-wait
 }
 
-func setDeadline(rw io.ReadWriter) {
+func setDeadline(rw io.ReadWriteCloser) {
 	if r, ok := rw.(interface{ CloseWrite() error }); ok {
 		r.CloseWrite()
 		return

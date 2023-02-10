@@ -3,7 +3,6 @@ package obfs
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -198,25 +197,6 @@ func (t *httpSimplePost) Read(b []byte) (int, error) {
 	t.rawTransReceived = true
 
 	return nn, nil
-}
-
-func (t *httpSimplePost) ReadFrom(r io.Reader) (int64, error) {
-	n := int64(0)
-	for {
-		nr, er := r.Read(t.wbuf[:])
-		n += int64(nr)
-
-		_, err := t.Write(t.wbuf[:nr])
-		if err != nil {
-			return n, err
-		}
-		if er != nil {
-			if errors.Is(er, io.EOF) {
-				return n, nil
-			}
-			return n, er
-		}
-	}
 }
 
 func (t *httpSimplePost) Write(b []byte) (int, error) {
