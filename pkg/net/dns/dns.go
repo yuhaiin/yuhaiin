@@ -283,7 +283,7 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (dns.IPRecord,
 	return dns.IPRecord{IPs: ips, TTL: ttl}, nil
 }
 
-var ErrNoIPFound = errors.New("no ip fond")
+var ErrNoIPFound = errors.New("no ip found")
 
 func (c *client) Close() error { return nil }
 

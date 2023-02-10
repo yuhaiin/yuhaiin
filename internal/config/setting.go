@@ -247,7 +247,7 @@ func check(pa *config.Setting) error {
 }
 
 func CheckBootstrapDns(pa *pd.Dns) error {
-	addr, err := nd.ParseAddr(pa.Host, "443")
+	addr, err := nd.ParseAddr(0, pa.Host, "443")
 	if err != nil {
 		return err
 	}

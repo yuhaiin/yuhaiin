@@ -38,6 +38,9 @@ func init() {
 		case *pl.Yuubinsya_Websocket:
 			Type = yuubinsya.WEBSOCKET
 			tlsConfig, err = pl.ParseTLS(p.Websocket.GetTls())
+		case *pl.Yuubinsya_Grpc:
+			Type = yuubinsya.GRPC
+			tlsConfig, err = pl.ParseTLS(p.Grpc.GetTls())
 		}
 		if err != nil {
 			return nil, err

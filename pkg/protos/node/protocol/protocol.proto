@@ -20,6 +20,7 @@ message protocol {
     direct direct = 12 [ json_name = "direct" ];
     reject reject = 13 [ json_name = "reject" ];
     yuubinsya yuubinsya = 14 [ json_name = "yuubinsya" ];
+    grpc grpc = 15 [ json_name = "grpc" ];
   }
 }
 
@@ -67,7 +68,7 @@ message trojan {
 
 message yuubinsya {
   string password = 1 [ json_name = "password" ];
-  bool tls_enabled = 2 [ json_name = "tls_enabled" ];
+  bool encrypted = 2 [ json_name = "encrypted" ];
 }
 
 message websocket {
@@ -75,6 +76,8 @@ message websocket {
   string path = 2 [ json_name = "path" ];
   bool tls_enabled = 4 [ json_name = "tls_enabled" ];
 }
+
+message grpc { tls_config tls = 1 [ json_name = "tls" ]; }
 
 message quic {
   string host = 2 [ json_name = "host" ];

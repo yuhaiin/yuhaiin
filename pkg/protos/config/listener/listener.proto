@@ -58,6 +58,7 @@ message yuubinsya {
     tls tls = 4 [ json_name = "tls" ];
     quic quic = 5 [ json_name = "quic" ];
     websocket websocket = 6 [ json_name = "websocket" ];
+    grpc grpc = 7 [ json_name = "grpc" ];
   }
 }
 
@@ -65,6 +66,7 @@ message normal {};
 message websocket { tls_config tls = 1 [ json_name = "tls" ]; };
 message quic { tls_config tls = 1 [ json_name = "tls" ]; };
 message tls { tls_config tls = 1 [ json_name = "tls" ]; };
+message grpc { tls_config tls = 1 [ json_name = "tls" ]; };
 
 message tls_config {
   bytes cert = 1 [ json_name = "cert" ];
