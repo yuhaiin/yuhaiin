@@ -3,6 +3,7 @@ package simple
 import (
 	"crypto/tls"
 	"fmt"
+	"math/rand"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -12,22 +13,30 @@ import (
 )
 
 type Simple struct {
+	proxy.EmptyDispatch
+
 	packetDirect bool
 	tlsConfig    *tls.Config
 	addr         proxy.Address
+	serverNames  []string
 }
 
 func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
+		var servernames []string
 		tls := protocol.ParseTLSConfig(c.Simple.Tls)
-		if tls != nil && !tls.InsecureSkipVerify && tls.ServerName == "" {
-			tls.ServerName = c.Simple.GetHost()
+		if tls != nil {
+			if !tls.InsecureSkipVerify && tls.ServerName == "" {
+				tls.ServerName = c.Simple.GetHost()
+			}
+			servernames = c.Simple.Tls.ServerNames
 		}
 
 		return &Simple{
 			addr:         proxy.ParseAddressPort(0, c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
 			packetDirect: c.Simple.PacketConnDirect,
 			tlsConfig:    tls,
+			serverNames:  servernames,
 		}, nil
 	}
 }
@@ -46,7 +55,12 @@ func (c *Simple) Conn(d proxy.Address) (net.Conn, error) {
 	conn.(*net.TCPConn).SetKeepAlive(true)
 
 	if c.tlsConfig != nil {
-		conn = tls.Client(conn, c.tlsConfig)
+		tlsConfig := c.tlsConfig
+		if sl := len(c.serverNames); sl > 1 {
+			tlsConfig = tlsConfig.Clone()
+			tlsConfig.ServerName = c.serverNames[rand.Intn(sl)]
+		}
+		conn = tls.Client(conn, tlsConfig)
 	}
 
 	return conn, nil

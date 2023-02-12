@@ -13,57 +13,60 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func handshake(dialer proxy.StreamProxy, username, password string) func(net.Conn) {
-	return func(conn net.Conn) {
-		dialer := func(addr string) (net.Conn, error) {
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
-			defer cancel()
+type HTTP struct {
+	dialer             proxy.Proxy
+	username, password string
+}
 
-			address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
-			if err != nil {
-				return nil, fmt.Errorf("parse address failed: %w", err)
-			}
+func (h *HTTP) handshake(conn net.Conn) {
+	dialer := func(addr string) (net.Conn, error) {
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+		defer cancel()
 
-			address.WithContext(ctx)
-			address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
-			address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
-			address.WithValue(proxy.DestinationKey{}, address)
-
-			return dialer.Conn(address)
+		address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
+		if err != nil {
+			return nil, fmt.Errorf("parse address failed: %w", err)
 		}
 
-		tr := &http.Transport{
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return dialer(addr)
-			},
-		}
-		client := &http.Client{
-			Transport: tr,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
-		defer client.CloseIdleConnections()
+		address.WithContext(ctx)
+		address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
+		address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
+		address.WithValue(proxy.DestinationKey{}, address)
 
-		err := handle(username, password, conn, dialer, client)
-		if err != nil && !errors.Is(err, io.EOF) {
-			if errors.Is(err, proxy.ErrBlocked) {
-				log.Debugln(err)
-			} else {
-				log.Errorln("http server handle failed:", err)
-			}
+		return h.dialer.Conn(address)
+	}
+
+	tr := &http.Transport{
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer(addr)
+		},
+	}
+	client := &http.Client{
+		Transport: tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	defer client.CloseIdleConnections()
+
+	err := handle(h.username, h.password, conn, dialer, client)
+	if err != nil && !errors.Is(err, io.EOF) {
+		if errors.Is(err, proxy.ErrBlocked) {
+			log.Debugln(err)
+		} else {
+			log.Errorln("http server handle failed:", err)
 		}
 	}
 }
@@ -247,6 +250,33 @@ func removeHeader(h http.Header) {
 }
 
 func NewServer(o *listener.Opts[*listener.Protocol_Http]) (iserver.Server, error) {
-	x := o.Protocol.Http
-	return server.NewTCPServer(x.Host, handshake(o.Dialer, x.Username, x.Password))
+	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Http.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	h := &HTTP{
+		dialer:   o.Dialer,
+		username: o.Protocol.Http.Username,
+		password: o.Protocol.Http.Password,
+	}
+
+	go func() {
+		for {
+			conn, err := lis.Accept()
+			if err != nil {
+				log.Errorln("accept failed:", err)
+				if ne, ok := err.(net.Error); ok && ne.Temporary() {
+					continue
+				}
+				return
+			}
+
+			go func() {
+				defer conn.Close()
+				h.handshake(conn)
+			}()
+		}
+	}()
+	return lis, nil
 }

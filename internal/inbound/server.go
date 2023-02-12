@@ -28,7 +28,7 @@ func init() {
 		var tlsConfig *tls.Config
 		switch p := o.Protocol.Yuubinsya.Protocol.(type) {
 		case *pl.Yuubinsya_Normal:
-			Type = yuubinsya.TCP
+			Type = yuubinsya.RAW_TCP
 		case *pl.Yuubinsya_Tls:
 			Type = yuubinsya.TLS
 			tlsConfig, err = pl.ParseTLS(p.Tls.GetTls())

@@ -95,6 +95,10 @@ func (f *Fakedns) Update(c *pc.Setting) {
 	f.RecoveryCache()
 }
 
+func (f *Fakedns) Dispatch(addr proxy.Address) (proxy.Address, error) {
+	return f.dialer.Dispatch(f.getAddr(addr))
+}
+
 func (f *Fakedns) Conn(addr proxy.Address) (net.Conn, error) {
 	c, err := f.dialer.Conn(f.getAddr(addr))
 	if err != nil {

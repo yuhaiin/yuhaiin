@@ -41,6 +41,11 @@ func (h *Hosts) Update(c *config.Setting) {
 	}
 }
 
+func (h *Hosts) Dispatch(addr proxy.Address) (proxy.Address, error) {
+	haddr := h.getAddr(addr)
+	return h.dialer.Dispatch(haddr)
+}
+
 func (h *Hosts) Conn(addr proxy.Address) (net.Conn, error) { return h.dialer.Conn(h.getAddr(addr)) }
 func (h *Hosts) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	c, err := h.dialer.PacketConn(h.getAddr(addr))
@@ -55,16 +60,12 @@ type hostsKey struct{}
 func (hostsKey) String() string { return "Hosts" }
 
 func (h *Hosts) getAddr(addr proxy.Address) proxy.Address {
-	if _, ok := addr.Value(hostsKey{}); ok {
-		return addr
-	}
-
 	z, ok := h.hosts.Load(addr.Hostname())
 	if ok {
 		addr.WithValue(hostsKey{}, addr.Hostname())
-		addr = addr.OverrideHostname(z.Hostname())
-		addr.WithValue(proxy.CurrentKey{}, addr)
-		return addr
+		haddr := addr.OverrideHostname(z.Hostname())
+		haddr.WithValue(proxy.CurrentKey{}, addr)
+		return haddr
 	}
 
 	z, ok = h.hosts.Load(addr.String())

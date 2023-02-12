@@ -8,7 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 )
 
-type direct struct{}
+type direct struct{ proxy.EmptyDispatch }
 
 var Default proxy.Proxy = NewDirect()
 

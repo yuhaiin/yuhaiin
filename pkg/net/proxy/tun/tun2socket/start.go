@@ -164,9 +164,9 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 
 	return natTable.Write(
 		&nat.Packet{
-			SourceAddress:      net.UDPAddrFromAddrPort(src),
-			DestinationAddress: dstAddr,
-			Payload:            zbuf,
+			Src:     net.UDPAddrFromAddrPort(src),
+			Dst:     dstAddr,
+			Payload: zbuf,
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
 				address, err := proxy.ParseSysAddr(addr)
 				if err != nil {

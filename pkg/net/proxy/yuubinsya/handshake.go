@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"golang.org/x/crypto/chacha20"
 	"golang.org/x/crypto/hkdf"
 )
 
@@ -29,14 +30,14 @@ type handshaker interface {
 type plainHandshaker struct{ password []byte }
 
 func (t *plainHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
-	buf.WriteByte(tcp)
+	buf.WriteByte(byte(TCP))
 	buf.WriteByte(byte(len(t.password)))
 	buf.Write(t.password)
 	s5c.ParseAddrWriter(addr, buf)
 }
 
 func (t *plainHandshaker) packetHeader(buf *bytes.Buffer) {
-	buf.WriteByte(udp)
+	buf.WriteByte(byte(UDP))
 	buf.WriteByte(byte(len(t.password)))
 	buf.Write(t.password)
 }
@@ -45,9 +46,10 @@ func (t *plainHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) { ret
 func (t *plainHandshaker) handshakeClient(conn net.Conn) (net.Conn, error) { return conn, nil }
 
 type encryptedHandshaker struct {
-	signer Signer
-	hash   Hash
-	aead   Aead
+	signer   Signer
+	hash     Hash
+	aead     Aead
+	password []byte
 }
 
 func NewHandshaker(encrypted bool, password []byte) handshaker {
@@ -60,39 +62,33 @@ func NewHandshaker(encrypted bool, password []byte) handshaker {
 		NewEd25519(Sha256, password),
 		Sha256,
 		Chacha20poly1305,
+		password,
 	}
 }
 
 func (t *encryptedHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
-	buf.Write([]byte{tcp, 0})
+	buf.Write([]byte{byte(TCP), 0})
 	s5c.ParseAddrWriter(addr, buf)
 }
-func (t *encryptedHandshaker) packetHeader(buf *bytes.Buffer) { buf.Write([]byte{udp, 0}) }
+func (t *encryptedHandshaker) packetHeader(buf *bytes.Buffer) { buf.Write([]byte{byte(UDP), 0}) }
 
 func (h *encryptedHandshaker) handshakeClient(conn net.Conn) (net.Conn, error) {
 	header := newHeader(h)
 	defer header.Def()
 
-	var rpb *ecdh.PublicKey
-	var pk *ecdh.PrivateKey
-	var err error
-
 	salt := make([]byte, h.hash.Size())
-	time := make([]byte, 8*2)
 
-	pk, err = h.send(header, conn, nil)
+	pk, time1, err := h.send(header, conn, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	copy(salt, header.salt())     // client salt
-	copy(time[:8], header.time()) // client time
+	copy(salt, header.salt()) // client salt
 
-	rpb, err = h.receive(header, conn, salt)
+	rpb, time2, err := h.receive(header, conn, salt)
 	if err != nil {
 		return nil, err
 	}
-	copy(time[8:], header.time()) // server time
 
 	if pk.PublicKey().Equal(rpb) {
 		return nil, fmt.Errorf("look like replay attack")
@@ -103,12 +99,12 @@ func (h *encryptedHandshaker) handshakeClient(conn net.Conn) (net.Conn, error) {
 		return nil, err
 	}
 
-	raead, rnonce, err := h.newAead(cryptKey, salt, time[:8])
+	raead, rnonce, err := h.newAead(cryptKey, salt, time1)
 	if err != nil {
 		return nil, err
 	}
 
-	waead, wnonce, err := h.newAead(cryptKey, salt, time[8:])
+	waead, wnonce, err := h.newAead(cryptKey, salt, time2)
 	if err != nil {
 		return nil, err
 	}
@@ -120,26 +116,19 @@ func (h *encryptedHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) {
 	header := newHeader(h)
 	defer header.Def()
 
-	var rpb *ecdh.PublicKey
-	var pk *ecdh.PrivateKey
-	var err error
-
 	salt := make([]byte, h.hash.Size())
-	time := make([]byte, 8*2)
 
-	rpb, err = h.receive(header, conn, nil)
+	rpb, time1, err := h.receive(header, conn, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	copy(salt, header.salt())     // client salt
-	copy(time[:8], header.time()) // client time
+	copy(salt, header.salt()) // client salt
 
-	pk, err = h.send(header, conn, salt)
+	pk, time2, err := h.send(header, conn, salt)
 	if err != nil {
 		return nil, err
 	}
-	copy(time[8:], header.time()) // server time
 
 	if pk.PublicKey().Equal(rpb) {
 		return nil, fmt.Errorf("look like replay attack")
@@ -150,12 +139,12 @@ func (h *encryptedHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) {
 		return nil, err
 	}
 
-	raead, rnonce, err := h.newAead(cryptKey, salt, time[:8])
+	raead, rnonce, err := h.newAead(cryptKey, salt, time1)
 	if err != nil {
 		return nil, err
 	}
 
-	waead, wnonce, err := h.newAead(cryptKey, salt, time[8:])
+	waead, wnonce, err := h.newAead(cryptKey, salt, time2)
 	if err != nil {
 		return nil, err
 	}
@@ -176,10 +165,10 @@ func (h *encryptedHandshaker) newAead(cryptKey, salt, time []byte) (cipher.AEAD,
 	return aead, keyNonce[h.aead.KeySize():], nil
 }
 
-func (h *encryptedHandshaker) receive(buf *header, conn net.Conn, salt []byte) (*ecdh.PublicKey, error) {
+func (h *encryptedHandshaker) receive(buf *header, conn net.Conn, salt []byte) (_ *ecdh.PublicKey, ttime []byte, _ error) {
 	_, err := io.ReadFull(conn, buf.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if salt != nil {
@@ -187,20 +176,30 @@ func (h *encryptedHandshaker) receive(buf *header, conn net.Conn, salt []byte) (
 	}
 
 	if !h.signer.Verify(buf.saltTimeSignature(), buf.signature()) {
-		return nil, errors.New("can't verify signature")
+		return nil, nil, errors.New("can't verify signature")
 	}
 
-	if math.Abs(float64(time.Now().Unix()-int64(binary.BigEndian.Uint64(buf.time())))) > 30 { // check time is in +-30s
-		return nil, errors.New("bad timestamp")
+	ttime = make([]byte, 8)
+	if err = h.encryptTime(h.password, buf.salt(), ttime, buf.time()); err != nil {
+		return nil, nil, fmt.Errorf("decrypt time failed: %w", err)
 	}
 
-	return ecdh.P256().NewPublicKey(buf.publickey())
+	if math.Abs(float64(time.Now().Unix()-int64(binary.BigEndian.Uint64(ttime)))) > 30 { // check time is in +-30s
+		return nil, nil, errors.New("bad timestamp")
+	}
+
+	pubkey, err := ecdh.P256().NewPublicKey(buf.publickey())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return pubkey, ttime, nil
 }
 
-func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (*ecdh.PrivateKey, error) {
+func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *ecdh.PrivateKey, ttime []byte, _ error) {
 	pk, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if salt != nil {
@@ -210,11 +209,17 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (*ec
 	}
 
 	copy(buf.publickey(), pk.PublicKey().Bytes())
-	binary.BigEndian.PutUint64(buf.time(), uint64(time.Now().Unix()))
+
+	ttime = make([]byte, 8)
+	binary.BigEndian.PutUint64(ttime, uint64(time.Now().Unix()))
+
+	if err = h.encryptTime(h.password, buf.salt(), buf.time(), ttime); err != nil {
+		return nil, nil, fmt.Errorf("encrypt time failed: %w", err)
+	}
 
 	signature, err := h.signer.Sign(rand.Reader, buf.saltTimeSignature())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	copy(buf.signature(), signature)
@@ -224,9 +229,10 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (*ec
 	}
 
 	if _, err = conn.Write(buf.Bytes()); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return pk, nil
+
+	return pk, ttime, nil
 }
 
 type header struct {
@@ -254,3 +260,26 @@ func (h *header) saltTimeSignature() []byte {
 	return h.Bytes()[h.th.signer.SignatureSize():]
 }
 func (h *header) Def() { defer pool.PutBytesV2(h.bytes) }
+
+func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error {
+	nonce := make([]byte, chacha20.NonceSize)
+	key := make([]byte, chacha20.KeySize)
+
+	kdf := hkdf.New(h.hash.New, password, salt, []byte{'t', 'i', 'm', 'e'})
+
+	if _, err := io.ReadFull(kdf, key); err != nil {
+		return err
+	}
+	if _, err := io.ReadFull(kdf, nonce); err != nil {
+		return err
+	}
+
+	cipher, err := chacha20.NewUnauthenticatedCipher(key, nonce)
+	if err != nil {
+		return err
+	}
+
+	cipher.XORKeyStream(dst, src)
+
+	return nil
+}

@@ -1,4 +1,4 @@
-package socks5server
+package server
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"runtime"
 	"time"
 
@@ -24,38 +23,41 @@ type udpServer struct {
 	natTable *nat.Table
 }
 
-func newUDPServer(f proxy.Proxy) (net.PacketConn, error) {
-	l, err := dialer.ListenPacket("udp", "")
+func (s *Socks5) newUDPServer() error {
+	l, err := dialer.ListenPacket("udp", s.addr)
 	if err != nil {
-		return nil, fmt.Errorf("listen udp failed: %v", err)
+		return fmt.Errorf("listen udp failed: %w", err)
 	}
 
-	u := &udpServer{PacketConn: l, natTable: nat.NewTable(f)}
+	u := &udpServer{PacketConn: l, natTable: nat.NewTable(s.dialer)}
+	s.udpServer = u
 
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go u.handle()
+		go func() {
+			defer s.Close()
+			if err := u.handle(); err != nil && !errors.Is(err, net.ErrClosed) {
+				log.Errorln("handle udp request failed:", err)
+			}
+
+		}()
 	}
 
-	return u, nil
+	return nil
 }
 
-func (u *udpServer) handle() {
+func (u *udpServer) handle() error {
 	buf := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(buf)
 
 	for {
-		n, laddr, err := u.PacketConn.ReadFrom(buf)
+		n, src, err := u.PacketConn.ReadFrom(buf)
 		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				log.Errorln("read from local failed:", err)
-			}
-			return
+			return err
 		}
 
 		addr, err := s5c.ResolveAddr(bytes.NewReader(buf[3:n]))
 		if err != nil {
-			log.Errorf("resolve addr failed: %v", err)
-			return
+			return fmt.Errorf("resolve addr failed: %w", err)
 		}
 
 		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
@@ -64,11 +66,11 @@ func (u *udpServer) handle() {
 		dst := addr.Address(statistic.Type_udp)
 		dst.WithContext(ctx)
 
-		err = u.natTable.Write(
+		return u.natTable.Write(
 			&nat.Packet{
-				SourceAddress:      laddr,
-				DestinationAddress: dst,
-				Payload:            buf[3+len(addr) : n],
+				Src:     src,
+				Dst:     dst,
+				Payload: buf[3+len(addr) : n],
 				WriteBack: func(b []byte, source net.Addr) (int, error) {
 					sourceAddr, err := proxy.ParseSysAddr(source)
 					if err != nil {
@@ -76,13 +78,10 @@ func (u *udpServer) handle() {
 					}
 					b = bytes.Join([][]byte{{0, 0, 0}, s5c.ParseAddr(sourceAddr), b}, nil)
 
-					return u.PacketConn.WriteTo(b, laddr)
+					return u.PacketConn.WriteTo(b, src)
 				},
 			},
 		)
-		if err != nil && !errors.Is(err, os.ErrClosed) {
-			log.Errorln("write to nat table failed:", err)
-		}
 	}
 }
 

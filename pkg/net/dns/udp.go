@@ -24,7 +24,7 @@ type udp struct {
 	*client
 
 	packetConn net.PacketConn
-	lock       sync.RWMutex
+	lock       sync.Mutex
 	bufChanMap syncmap.SyncMap[[2]byte, *bufChan]
 }
 
@@ -62,17 +62,16 @@ func (u *udp) handleResponse() {
 	}
 }
 
-func (u *udp) initPacketConn() error {
+func (u *udp) initPacketConn() (net.PacketConn, error) {
 	u.lock.Lock()
 	defer u.lock.Unlock()
-
 	if u.packetConn != nil {
-		return nil
+		return u.packetConn, nil
 	}
 
 	addr, err := ParseAddr(statistic.Type_udp, u.config.Host, "53")
 	if err != nil {
-		return fmt.Errorf("parse addr failed: %w", err)
+		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
@@ -81,13 +80,13 @@ func (u *udp) initPacketConn() error {
 
 	conn, err := u.config.Dialer.PacketConn(addr)
 	if err != nil {
-		return fmt.Errorf("get packetConn failed: %w", err)
+		return nil, fmt.Errorf("get packetConn failed: %w", err)
 	}
 
 	u.packetConn = conn
 	go u.handleResponse()
 
-	return nil
+	return conn, nil
 }
 
 type bufChan struct {
@@ -123,13 +122,11 @@ func NewDoU(config Config) (dns.DNS, error) {
 	udp := &udp{}
 
 	udp.client = NewClient(config, func(req []byte) ([]byte, error) {
-		if err := udp.initPacketConn(); err != nil {
+
+		packetConn, err := udp.initPacketConn()
+		if err != nil {
 			return nil, err
 		}
-
-		udp.lock.RLock()
-		defer udp.lock.RUnlock()
-
 		id := [2]byte{req[0], req[1]}
 
 	_retry:
@@ -145,7 +142,7 @@ func NewDoU(config Config) (dns.DNS, error) {
 			bchan.Close()
 		}()
 
-		_, err = udp.packetConn.WriteTo(req, addr)
+		_, err = packetConn.WriteTo(req, addr)
 		if err != nil {
 			return nil, err
 		}

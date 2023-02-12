@@ -13,7 +13,8 @@ import (
 
 type client struct {
 	wsConfig *websocket.Config
-	dialer   proxy.Proxy
+	proxy.EmptyDispatch
+	dialer proxy.Proxy
 }
 
 func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
