@@ -2,14 +2,12 @@ package quic
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -23,6 +21,7 @@ import (
 )
 
 type Client struct {
+	proxy.EmptyDispatch
 	host *net.UDPAddr
 	addr proxy.Address
 
@@ -172,11 +171,10 @@ func (c *Client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	c.udpLock.Unlock()
 
 	return &interPacketConn{
-		c:                   c,
-		session:             c.session,
-		msgChan:             msgChan,
-		id:                  uint16(id),
-		resetDeadlineSignal: make(chan struct{}),
+		c:       c,
+		session: c.session,
+		msgChan: msgChan,
+		id:      uint16(id),
 	}, nil
 }
 
@@ -216,41 +214,21 @@ type interPacketConn struct {
 
 	closed bool
 
-	resetDeadlineSignal chan struct{}
-	deadline            time.Time
+	deadline *time.Timer
 }
 
 func (x *interPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-_resetDeadline:
 	if x.closed {
 		return 0, nil, net.ErrClosed
 	}
 
-	var ctx context.Context
-	var cancel context.CancelFunc
-	if !x.deadline.IsZero() {
-		ctx, cancel = context.WithDeadline(context.TODO(), x.deadline)
-	} else {
-		ctx, cancel = context.WithCancel(context.TODO())
+	msg, ok := <-x.msgChan
+	if !ok {
+		return 0, nil, net.ErrClosed
 	}
+	n = copy(p, msg.data)
 
-	select {
-	case <-x.resetDeadlineSignal:
-		cancel()
-		goto _resetDeadline
-	case <-ctx.Done():
-		cancel()
-		return 0, nil, os.ErrDeadlineExceeded
-	case msg, ok := <-x.msgChan:
-		log.Println("get data from msg chan", msg)
-		cancel()
-		if !ok {
-			return 0, nil, net.ErrClosed
-		}
-		n = copy(p, msg.data)
-
-		return n, msg.addr, nil
-	}
+	return n, msg.addr, nil
 }
 
 func (x *interPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
@@ -296,19 +274,14 @@ func (x *interPacketConn) LocalAddr() net.Addr {
 }
 
 func (x *interPacketConn) SetDeadline(t time.Time) error {
-	x.SetReadDeadline(t)
-	x.SetWriteDeadline(t)
-	return nil
-}
+	d := time.Until(t)
 
-func (x *interPacketConn) SetReadDeadline(t time.Time) error {
-	x.deadline = t
-	reset := x.resetDeadlineSignal
-	x.resetDeadlineSignal = make(chan struct{})
-	close(reset)
+	if x.deadline != nil {
+		x.deadline.Reset(d)
+		return nil
+	}
+	x.deadline = time.AfterFunc(d, func() { x.Close() })
 	return nil
 }
-
-func (x *interPacketConn) SetWriteDeadline(t time.Time) error {
-	return nil
-}
+func (x *interPacketConn) SetReadDeadline(t time.Time) error  { return x.SetDeadline(t) }
+func (x *interPacketConn) SetWriteDeadline(t time.Time) error { return x.SetDeadline(t) }

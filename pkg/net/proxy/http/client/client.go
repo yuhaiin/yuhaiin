@@ -13,13 +13,14 @@ import (
 )
 
 type client struct {
+	proxy.EmptyDispatch
 	dialer         proxy.Proxy
 	user, password string
 }
 
 func New(config *protocol.Protocol_Http) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		return &client{p, config.Http.User, config.Http.Password}, nil
+		return &client{dialer: p, user: config.Http.User, password: config.Http.Password}, nil
 	}
 }
 

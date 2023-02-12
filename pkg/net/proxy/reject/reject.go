@@ -12,7 +12,7 @@ import (
 
 var _ proxy.Proxy = (*reject)(nil)
 
-type rejectImmediately struct{}
+type rejectImmediately struct{ proxy.EmptyDispatch }
 
 func (rejectImmediately) Conn(addr proxy.Address) (net.Conn, error) {
 	return nil, proxy.NewBlockError(statistic.Type_tcp, addr.Hostname())
@@ -24,6 +24,7 @@ func (rejectImmediately) PacketConn(addr proxy.Address) (net.PacketConn, error) 
 type reject struct {
 	cache         *lru.LRU[string, object]
 	max, internal int
+	proxy.EmptyDispatch
 }
 
 type object struct {
@@ -35,7 +36,7 @@ type object struct {
 var Default = rejectImmediately{}
 
 func NewReject(maxDelay, interval int) proxy.Proxy {
-	return &reject{lru.NewLru[string, object](100, 0), maxDelay, interval}
+	return &reject{cache: lru.NewLru[string, object](100, 0), max: maxDelay, internal: interval}
 }
 
 func (r *reject) delay(addr proxy.Address) time.Duration {

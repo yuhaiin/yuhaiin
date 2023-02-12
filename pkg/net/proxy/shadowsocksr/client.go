@@ -16,6 +16,8 @@ import (
 var _ proxy.Proxy = (*Shadowsocksr)(nil)
 
 type Shadowsocksr struct {
+	proxy.EmptyDispatch
+
 	protocol *protocol.Protocol
 	obfs     *obfs.Obfs
 	cipher   *cipher.Cipher
@@ -47,7 +49,7 @@ func New(config *protocols.Protocol_Shadowsocksr) protocols.WrapProxy {
 			ObfsOverhead: obfs.Overhead(),
 		}
 
-		return &Shadowsocksr{protocol, obfs, cipher, p}, nil
+		return &Shadowsocksr{protocol: protocol, obfs: obfs, cipher: cipher, dial: p}, nil
 	}
 }
 

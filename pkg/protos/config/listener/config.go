@@ -3,8 +3,11 @@ package listener
 import (
 	"crypto/tls"
 	"fmt"
+	"math/rand"
 	"reflect"
+	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -60,13 +63,54 @@ func CreateServer(opts *Opts[IsProtocol_Protocol]) (server.Server, error) {
 }
 
 func ParseTLS(t *TlsConfig) (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(t.GetCert(), t.GetKey())
-	if err != nil {
-		return nil, err
+	if t == nil {
+		return nil, nil
 	}
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
+	tlsConfig := &tls.Config{
+		Certificates: make([]tls.Certificate, 0, len(t.Certificates)),
 		NextProtos:   t.NextProtos,
-	}, nil
+	}
+
+	for _, c := range t.Certificates {
+		cert, err := tls.X509KeyPair(c.GetCert(), c.GetKey())
+		if err != nil {
+			log.Warningln("key pair failed:", c.GetCert())
+			continue
+		}
+
+		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
+	}
+
+	if len(t.ServerNameCertificate) == 0 {
+		return tlsConfig, nil
+	}
+
+	serverNameCertificateMap := make(map[string]*tls.Certificate, len(t.ServerNameCertificate))
+
+	for c, v := range t.ServerNameCertificate {
+		cert, err := tls.X509KeyPair(v.GetCert(), v.GetKey())
+		if err != nil {
+			log.Warningln("key pair failed:", v.GetCert())
+			continue
+		}
+
+		serverNameCertificateMap[c] = &cert
+	}
+
+	tlsConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		for c, v := range serverNameCertificateMap {
+			if strings.HasSuffix(chi.ServerName, c) {
+				return v, nil
+			}
+		}
+
+		if len(tlsConfig.Certificates) > 0 {
+			return &tlsConfig.Certificates[rand.Intn(len(tlsConfig.Certificates))], nil
+		}
+
+		return nil, fmt.Errorf("can't find certificate for %s", chi.ServerName)
+	}
+
+	return tlsConfig, nil
 }

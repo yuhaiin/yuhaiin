@@ -47,7 +47,8 @@ func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr proxy.Address) (er
 
 // modified from https://github.com/p4gefau1t/trojan-go/blob/master/tunnel/trojan/client.go
 type Client struct {
-	proxy    proxy.Proxy
+	proxy proxy.Proxy
+	proxy.EmptyDispatch
 	password []byte
 }
 

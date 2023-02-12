@@ -97,6 +97,7 @@ func newHTTPObfs(conn net.Conn, host string, port string) net.Conn {
 var _ proxy.Proxy = (*httpOBFS)(nil)
 
 type httpOBFS struct {
+	proxy.EmptyDispatch
 	host string
 	port string
 	p    proxy.Proxy

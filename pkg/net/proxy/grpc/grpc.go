@@ -178,6 +178,7 @@ func (addr) Network() string  { return "grpc" }
 func (a addr) String() string { return fmt.Sprintf("grpc://%d", a.id) }
 
 type client struct {
+	proxy.EmptyDispatch
 	dialer proxy.Proxy
 
 	rawConn    net.Conn
@@ -206,7 +207,6 @@ func (c *client) initClient() error {
 	defer c.lock.Unlock()
 
 	if c.clientConn != nil {
-		c.clientConn.GetState()
 		c.clientCountAdd()
 		return nil
 	}

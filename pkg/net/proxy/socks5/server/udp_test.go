@@ -1,1 +1,1 @@
-package socks5server
+package server

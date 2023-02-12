@@ -12,7 +12,8 @@ import (
 // Vmess  client
 type Vmess struct {
 	client *Client
-	dial   proxy.Proxy
+	proxy.EmptyDispatch
+	dial proxy.Proxy
 }
 
 func New(config *protocol.Protocol_Vmess) protocol.WrapProxy {
@@ -26,7 +27,7 @@ func New(config *protocol.Protocol_Vmess) protocol.WrapProxy {
 			return nil, fmt.Errorf("new vmess client failed: %w", err)
 		}
 
-		return &Vmess{client, p}, nil
+		return &Vmess{client: client, dial: p}, nil
 	}
 }
 

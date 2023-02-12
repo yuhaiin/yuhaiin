@@ -37,9 +37,9 @@ func udpForwarder(s *stack.Stack, natTable *nat.Table, opt *listener.Opts[*liste
 
 			err = natTable.Write(
 				&nat.Packet{
-					SourceAddress:      src,
-					DestinationAddress: dst,
-					Payload:            buf[:n],
+					Src:     src,
+					Dst:     dst,
+					Payload: buf[:n],
 					WriteBack: func(b []byte, addr net.Addr) (int, error) {
 						from, err := proxy.ParseSysAddr(addr)
 						if err != nil {

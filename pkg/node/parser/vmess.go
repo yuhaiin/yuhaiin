@@ -112,7 +112,7 @@ func init() {
 					}
 				}
 				simple.Simple.Tls = &protocol.TlsConfig{
-					ServerName:         n.Sni,
+					ServerNames:        []string{n.Sni},
 					InsecureSkipVerify: !n.VerifyCert,
 					Enable:             true,
 					CaCert:             nil,

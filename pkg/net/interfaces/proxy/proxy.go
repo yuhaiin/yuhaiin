@@ -22,6 +22,7 @@ import (
 type Proxy interface {
 	StreamProxy
 	PacketProxy
+	Dispatch(Address) (Address, error)
 }
 
 type StreamProxy interface {
@@ -32,9 +33,13 @@ type PacketProxy interface {
 	PacketConn(Address) (net.PacketConn, error)
 }
 
+type EmptyDispatch struct{}
+
+func (EmptyDispatch) Dispatch(a Address) (Address, error) { return a, nil }
+
 var DiscardProxy Proxy = &Discard{}
 
-type Discard struct{}
+type Discard struct{ EmptyDispatch }
 
 func (Discard) Conn(Address) (net.Conn, error)             { return DiscardNetConn, nil }
 func (Discard) PacketConn(Address) (net.PacketConn, error) { return DiscardNetPacketConn, nil }
@@ -68,9 +73,12 @@ func (*DiscardPacketConn) SetDeadline(t time.Time) error      { return nil }
 func (*DiscardPacketConn) SetReadDeadline(t time.Time) error  { return nil }
 func (*DiscardPacketConn) SetWriteDeadline(t time.Time) error { return nil }
 
-type errProxy struct{ error }
+type errProxy struct {
+	EmptyDispatch
+	error
+}
 
-func NewErrProxy(err error) Proxy                             { return &errProxy{err} }
+func NewErrProxy(err error) Proxy                             { return &errProxy{error: err} }
 func (e errProxy) Conn(Address) (net.Conn, error)             { return nil, e.error }
 func (e errProxy) PacketConn(Address) (net.PacketConn, error) { return nil, e.error }
 

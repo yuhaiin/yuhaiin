@@ -3,8 +3,6 @@ package websocket
 import (
 	"bufio"
 	"errors"
-	"fmt"
-	"html"
 	"io"
 	"net"
 	"net/http"
@@ -77,7 +75,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" ||
 		!strings.Contains(strings.ToLower(req.Header.Get("Connection")), "upgrade") {
-		fmt.Fprintf(w, `<!DOCTYPE html><html><head><style>body { max-width:400px; margin: 0 auto; }</style><title>A8.net</title></head><body>あなたのIPアドレスは %q<br/>A8スタッフブログ <a href="https://a8pr.jp">https://a8pr.jp</a></body></html>`, html.EscapeString(req.Header.Get("Cf-Connecting-Ip")))
 		return
 	}
 

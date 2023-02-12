@@ -23,6 +23,7 @@ var _ proxy.Proxy = (*Nodes)(nil)
 
 type Nodes struct {
 	grpcnode.UnimplementedNodeServer
+	proxy.EmptyDispatch
 
 	fileStore *FileStore
 }

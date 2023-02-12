@@ -17,6 +17,7 @@ import (
 type Shadowsocks struct {
 	cipher core.Cipher
 	p      proxy.Proxy
+	proxy.EmptyDispatch
 }
 
 func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
@@ -27,7 +28,7 @@ func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
 			return nil, err
 		}
 
-		return &Shadowsocks{cipher, p}, nil
+		return &Shadowsocks{cipher: cipher, p: p}, nil
 	}
 }
 

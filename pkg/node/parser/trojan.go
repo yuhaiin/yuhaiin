@@ -36,8 +36,7 @@ func init() {
 							Host: u.Hostname(),
 							Port: int32(port),
 							Tls: &protocol.TlsConfig{
-								Enable:     true,
-								ServerName: u.Query().Get("sni"),
+								Enable: true,
 							},
 						},
 					},
@@ -53,6 +52,9 @@ func init() {
 			},
 		}
 
+		if u.Query().Get("sni") != "" {
+			p.Protocols[0].GetSimple().Tls.ServerNames = []string{u.Query().Get("sni")}
+		}
 		return p, nil
 	})
 }

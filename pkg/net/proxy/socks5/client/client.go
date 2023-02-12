@@ -21,7 +21,8 @@ type client struct {
 	password string
 
 	hostname string
-	dialer   proxy.Proxy
+	proxy.EmptyDispatch
+	dialer proxy.Proxy
 }
 
 // New returns a new Socks5 client

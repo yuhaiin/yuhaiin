@@ -76,7 +76,7 @@ func (c *Inbound) ServerConfig(dialer proxy.Proxy) (yuubinsya.Config, error) {
 	var tlsConfig *tls.Config
 	switch p := c.Protocol.(type) {
 	case *listener.Yuubinsya_Normal:
-		Type = yuubinsya.TCP
+		Type = yuubinsya.RAW_TCP
 	case *listener.Yuubinsya_Tls:
 		Type = yuubinsya.TLS
 		tlsConfig, err = listener.ParseTLS(p.Tls.GetTls())
@@ -149,6 +149,7 @@ func main() {
 type dialer struct {
 	dialer proxy.Proxy
 
+	proxy.EmptyDispatch
 	mapper *mapper.Combine[struct{}]
 }
 

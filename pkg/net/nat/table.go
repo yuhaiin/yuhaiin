@@ -23,50 +23,63 @@ func NewTable(dialer proxy.Proxy) *Table {
 
 type Table struct {
 	dialer proxy.Proxy
-	cache  syncmap.SyncMap[string, net.PacketConn]
+	cache  syncmap.SyncMap[string, *SourceTable]
 	lock   syncmap.SyncMap[string, *sync.Cond]
 }
 
 func (u *Table) write(pkt *Packet, key string) (bool, error) {
-	dstpconn, ok := u.cache.Load(key)
+	t, ok := u.cache.Load(key)
 	if !ok {
 		return false, nil
 	}
 
-	_, err := dstpconn.WriteTo(pkt.Payload, pkt.dstAddr())
-	dstpconn.SetReadDeadline(time.Now().Add(time.Minute))
+	dst := pkt.Dst.String()
+
+	uaddr, ok := t.udpAddrStore.Load(dst)
+	if !ok {
+		addr, err := u.dialer.Dispatch(pkt.Dst)
+		if err != nil {
+			return true, fmt.Errorf("dispatch addr failed: %w", err)
+		}
+
+		uaddr, err = addr.UDPAddr()
+		if err != nil {
+			return false, err
+		}
+
+		t.udpAddrStore.Store(dst, uaddr)
+
+		if uaddr.String() != pkt.Dst.String() {
+			// TODO: maybe two dst(fake ip) have same uaddr, need help
+			t.originAddrStore.LoadOrStore(uaddr.String(), pkt.Dst)
+		}
+	}
+
+	_, err := t.dstPacketConn.WriteTo(pkt.Payload, uaddr)
+	t.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
 	return true, err
 }
 
 type Packet struct {
-	SourceAddress      net.Addr
-	DestinationAddress proxy.Address
-	dstUDPAddr         *net.UDPAddr
-	WriteBack          func(b []byte, addr net.Addr) (int, error)
-	Payload            []byte
-}
-
-func (p Packet) dstAddr() net.Addr {
-	if p.dstUDPAddr != nil {
-		return p.dstUDPAddr
-	}
-
-	return p.DestinationAddress
+	Src       net.Addr
+	Dst       proxy.Address
+	WriteBack func(b []byte, addr net.Addr) (int, error)
+	Payload   []byte
 }
 
 func (u *Table) Write(pkt *Packet) error {
-	key := pkt.SourceAddress.String()
+	key := pkt.Src.String()
 
 	ok, err := u.write(pkt, key)
 	if err != nil {
 		return fmt.Errorf("client to proxy failed: %w", err)
 	}
 	if ok {
-		log.Verboseln("nat table use **old** udp addr write to:", pkt.DestinationAddress, "from", pkt.SourceAddress)
+		log.Verboseln("nat table use **old** udp addr write to:", pkt.Dst, "from", pkt.Src)
 		return nil
 	}
 
-	log.Verboseln("nat table write to:", pkt.DestinationAddress, "from", pkt.SourceAddress)
+	log.Verboseln("nat table write to:", pkt.Dst, "from", pkt.Src)
 
 	cond, ok := u.lock.LoadOrStore(key, sync.NewCond(&sync.Mutex{}))
 	if ok {
@@ -80,24 +93,15 @@ func (u *Table) Write(pkt *Packet) error {
 	defer u.lock.Delete(key)
 	defer cond.Broadcast()
 
-	pkt.DestinationAddress.WithValue(proxy.SourceKey{}, pkt.SourceAddress)
-	pkt.DestinationAddress.WithValue(proxy.DestinationKey{}, pkt.DestinationAddress)
+	pkt.Dst.WithValue(proxy.SourceKey{}, pkt.Src)
+	pkt.Dst.WithValue(proxy.DestinationKey{}, pkt.Dst)
 
-	dstpconn, err := u.dialer.PacketConn(pkt.DestinationAddress)
+	dstpconn, err := u.dialer.PacketConn(pkt.Dst)
 	if err != nil {
-		return fmt.Errorf("dial %s failed: %w", pkt.DestinationAddress, err)
+		return fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
 	}
 
-	if really, ok := pkt.DestinationAddress.Value(proxy.CurrentKey{}); ok {
-		pkt.dstUDPAddr, err = really.(proxy.Address).UDPAddr()
-	} else {
-		pkt.dstUDPAddr, err = pkt.DestinationAddress.UDPAddr()
-	}
-
-	if err != nil {
-		return fmt.Errorf("get udp addr failed: %w", err)
-	}
-	u.cache.Store(key, dstpconn)
+	table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
 
 	if _, err = u.write(pkt, key); err != nil {
 		return fmt.Errorf("write data to remote failed: %w", err)
@@ -110,7 +114,7 @@ func (u *Table) Write(pkt *Packet) error {
 			dstpconn.Close()
 			u.cache.Delete(key)
 		}()
-		if err := u.writeBack(pkt, dstpconn); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := u.writeBack(pkt, table); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Errorln("remote to local failed:", err)
 		}
 	}()
@@ -118,17 +122,13 @@ func (u *Table) Write(pkt *Packet) error {
 	return nil
 }
 
-func (u *Table) writeBack(pkt *Packet, dstpconn net.PacketConn) error {
+func (u *Table) writeBack(pkt *Packet, table *SourceTable) error {
 	data := pool.GetBytes(MaxSegmentSize)
 	defer pool.PutBytes(data)
 
-	var dstAddr string
-	if pkt.dstUDPAddr != nil {
-		dstAddr = pkt.dstUDPAddr.AddrPort().Addr().String()
-	}
 	for {
-		dstpconn.SetReadDeadline(time.Now().Add(time.Minute))
-		n, from, err := dstpconn.ReadFrom(data)
+		table.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
+		n, from, err := table.dstPacketConn.ReadFrom(data)
 		if err != nil {
 			if ne, ok := err.(net.Error); (ok && ne.Timeout()) || errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {
 				return nil /* ignore I/O timeout & EOF */
@@ -137,29 +137,31 @@ func (u *Table) writeBack(pkt *Packet, dstpconn net.PacketConn) error {
 			return fmt.Errorf("read from proxy failed: %w", err)
 		}
 
-		log.Verboseln("nat table read data length:", n, "from", from, "dst:", pkt.dstAddr(), "fakeIP:", pkt.DestinationAddress, "maybe write to:", pkt.SourceAddress)
+		log.Verboseln("nat table read data length:", n, "from", from, "dst:", pkt.Dst, "fakeIP:", pkt.Dst, "maybe write to:", pkt.Src)
 
-		fromAddr, err := proxy.ParseSysAddr(from)
-		if err != nil {
-			return err
-		}
-
-		if dstAddr == fromAddr.Hostname() {
-			fromAddr = fromAddr.OverrideHostname(pkt.DestinationAddress.Hostname())
+		if addr, ok := table.originAddrStore.Load(from.String()); ok {
+			// TODO: maybe two dst(fake ip) have same uaddr, need help
+			from = addr
 		}
 
 		// write back to client with source address
-		if _, err := pkt.WriteBack(data[:n], fromAddr); err != nil {
+		if _, err := pkt.WriteBack(data[:n], from); err != nil {
 			return fmt.Errorf("write back to client failed: %w", err)
 		}
 	}
 }
 
 func (u *Table) Close() error {
-	u.cache.Range(func(_ string, value net.PacketConn) bool {
-		value.Close()
+	u.cache.Range(func(_ string, value *SourceTable) bool {
+		value.dstPacketConn.Close()
 		return true
 	})
 
 	return nil
+}
+
+type SourceTable struct {
+	dstPacketConn   net.PacketConn
+	originAddrStore syncmap.SyncMap[string, proxy.Address]
+	udpAddrStore    syncmap.SyncMap[string, *net.UDPAddr]
 }

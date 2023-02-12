@@ -69,7 +69,13 @@ message tls { tls_config tls = 1 [ json_name = "tls" ]; };
 message grpc { tls_config tls = 1 [ json_name = "tls" ]; };
 
 message tls_config {
+  repeated certificate certificates = 1 [ json_name = "certificates" ];
+  repeated string next_protos = 3 [ json_name = "next_protos" ];
+  map<string, certificate> server_name_certificate = 4
+      [ json_name = "server_name_certificate" ];
+}
+
+message certificate {
   bytes cert = 1 [ json_name = "cert" ];
   bytes key = 2 [ json_name = "key" ];
-  repeated string next_protos = 3 [ json_name = "next_protos" ];
 }

@@ -38,6 +38,10 @@ func NewConnStore(dialer proxy.Proxy, processDumper listener.ProcessDumper) *Con
 	return &Connections{dialer: dialer, processDumper: processDumper}
 }
 
+func (c *Connections) Dispatch(addr proxy.Address) (proxy.Address, error) {
+	return c.dialer.Dispatch(addr)
+}
+
 func (c *Connections) Conns(context.Context, *emptypb.Empty) (*grpcsts.ConnectionsInfo, error) {
 	resp := &grpcsts.ConnectionsInfo{}
 	c.connStore.Range(func(key uint64, con connection) bool {

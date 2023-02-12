@@ -59,9 +59,13 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 			log.Errorf("add cert from pem failed.")
 		}
 	}
+	var servername string
+	if len(t.ServerNames) > 0 {
+		servername = t.ServerNames[0]
+	}
 
 	return &tls.Config{
-		ServerName:         t.ServerName,
+		ServerName:         servername,
 		RootCAs:            root,
 		NextProtos:         t.NextProtos,
 		InsecureSkipVerify: t.InsecureSkipVerify,

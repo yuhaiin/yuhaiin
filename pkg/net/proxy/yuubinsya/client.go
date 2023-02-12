@@ -18,6 +18,7 @@ import (
 
 type Client struct {
 	proxy proxy.Proxy
+	proxy.EmptyDispatch
 
 	handshaker handshaker
 }

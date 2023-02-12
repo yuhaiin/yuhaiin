@@ -1,4 +1,4 @@
-package socks5server
+package server
 
 import (
 	"bytes"

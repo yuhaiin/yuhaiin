@@ -110,9 +110,9 @@ func parseV2ray(store map[string]string, simple *protocol.Simple) (*protocol.Pro
 	case "websocket":
 		if store["tls"] == "true" {
 			simple.Tls = &protocol.TlsConfig{
-				ServerName: ns,
-				Enable:     store["tls"] == "true",
-				CaCert:     [][]byte{cert},
+				ServerNames: []string{ns},
+				Enable:      store["tls"] == "true",
+				CaCert:      [][]byte{cert},
 			}
 		}
 		return &protocol.Protocol{
@@ -129,8 +129,8 @@ func parseV2ray(store map[string]string, simple *protocol.Simple) (*protocol.Pro
 			Protocol: &protocol.Protocol_Quic{
 				Quic: &protocol.Quic{
 					Tls: &protocol.TlsConfig{
-						ServerName: ns,
-						CaCert:     [][]byte{cert},
+						ServerNames: []string{ns},
+						CaCert:      [][]byte{cert},
 					},
 				},
 			},

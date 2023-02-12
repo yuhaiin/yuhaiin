@@ -101,7 +101,7 @@ message simple {
 
 message tls_config {
   bool enable = 1 [ json_name = "enable" ];
-  string server_name = 2 [ json_name = "server_name" ];
+  repeated string server_names = 6 [ json_name = "servernames" ];
   repeated bytes ca_cert = 3 [ json_name = "ca_cert" ];
   bool insecure_skip_verify = 4 [ json_name = "insecure_skip_verify" ];
   // next_protos ALPN Next Protocol

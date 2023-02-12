@@ -11,6 +11,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -39,7 +41,7 @@ type yuubinsya struct {
 type Type int
 
 var (
-	TCP       Type = 1
+	RAW_TCP   Type = 1
 	TLS       Type = 2
 	QUIC      Type = 3
 	WEBSOCKET Type = 4
@@ -146,17 +148,21 @@ func (y *yuubinsya) Start() error {
 
 		go func() {
 			defer conn.Close()
-			if err := y.handle(conn); err != nil {
+			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
 				log.Errorln("handle failed:", err)
 			}
 		}()
 	}
 }
 
+type Net byte
+
 var (
-	tcp byte = 66
-	udp byte = 77
+	TCP Net = 66
+	UDP Net = 77
 )
+
+func (n Net) Unknown() bool { return n != TCP && n != UDP }
 
 func (y *yuubinsya) handle(conn net.Conn) error {
 	c, err := y.handshaker.handshakeServer(conn)
@@ -168,29 +174,41 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 	if _, err := io.ReadFull(c, z); err != nil {
 		return fmt.Errorf("read net type failed: %w", err)
 	}
-	net, passwordLen := z[0], z[1]
+	net, passwordLen := Net(z[0]), z[1]
 
-	if passwordLen > 0 && (net == tcp || net == udp) {
+	if net.Unknown() {
+		write403(conn)
+		return fmt.Errorf("unknown network")
+	}
+
+	if y.TlsConfig != nil && passwordLen <= 0 {
+		write403(conn)
+		return fmt.Errorf("password is empty")
+	}
+
+	if passwordLen > 0 {
 		password := pool.GetBytesV2(passwordLen)
 		defer pool.PutBytesV2(password)
 
 		if _, err := io.ReadFull(c, password.Bytes()); err != nil {
+			write403(conn)
 			return fmt.Errorf("read password failed: %w", err)
 		}
 
 		if !bytes.Equal(password.Bytes(), y.Password) {
+			write403(conn)
 			return errors.New("password is incorrect")
 		}
 	}
 
 	switch net {
-	case tcp:
+	case TCP:
 		return y.stream(c)
-	case udp:
+	case UDP:
 		return y.packet(c)
-	default:
-		return errors.New("unknown network")
 	}
+
+	return nil
 }
 
 func (y *yuubinsya) Close() error {
@@ -234,39 +252,30 @@ func (y *yuubinsya) packet(c net.Conn) error {
 }
 
 func (y *yuubinsya) remoteToLocal(c net.Conn) error {
-	buf := pool.GetBytes(2 + nat.MaxSegmentSize + 4 + 255)
-	defer pool.PutBytes(buf)
+	buf := pool.GetBytesV2(5 + 255 + 2 + nat.MaxSegmentSize)
+	defer pool.PutBytesV2(buf)
 
-	n, err := c.Read(buf)
+	n, err := c.Read(buf.Bytes()[:4+255+2])
 	if err != nil {
-		return fmt.Errorf("read buf failed: %w", err)
+		return fmt.Errorf("read addr and length failed: %w", err)
 	}
 
-	addr, err := s5c.ResolveAddr(bytes.NewBuffer(buf))
+	addr, err := s5c.ResolveAddrBytes(buf.Bytes()[:4+255])
 	if err != nil {
 		return err
 	}
 
-	addrLen := len(addr)
+	length := binary.BigEndian.Uint16(buf.Bytes()[len(addr):])
 
-	if n == addrLen {
-		if _, err := io.ReadFull(c, buf[addrLen:addrLen+2]); err != nil {
-			return fmt.Errorf("read length failed: %w", err)
+	if remain := int(length) + len(addr) + 2 - n; remain > 0 {
+		if remain > len(buf.Bytes())-n {
+			return fmt.Errorf("packet too large")
 		}
-		n += 2
-	}
 
-	length := int(binary.BigEndian.Uint16(buf[addrLen:]))
-
-	if n-addrLen-2 < length {
-		m, err := io.ReadFull(c, buf[n:length+addrLen+2])
-		if err != nil {
-			return fmt.Errorf("read payload failed: %w", err)
+		if _, err = io.ReadFull(c, buf.Bytes()[n:n+remain]); err != nil {
+			return err
 		}
-		n += m
 	}
-
-	payload := buf[addrLen+2 : n]
 
 	src := c.RemoteAddr()
 	if conn, ok := c.(interface{ StreamID() quicgo.StreamID }); ok {
@@ -274,9 +283,9 @@ func (y *yuubinsya) remoteToLocal(c net.Conn) error {
 	}
 
 	return y.nat.Write(&nat.Packet{
-		SourceAddress:      src,
-		DestinationAddress: addr.Address(statistic.Type_udp),
-		Payload:            payload,
+		Src:     src,
+		Dst:     addr.Address(statistic.Type_udp),
+		Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],
 		WriteBack: func(buf []byte, from net.Addr) (int, error) {
 			addr, err := proxy.ParseSysAddr(from)
 			if err != nil {
@@ -299,4 +308,30 @@ func (y *yuubinsya) remoteToLocal(c net.Conn) error {
 			return len(buf), nil
 		},
 	})
+}
+
+func write403(conn net.Conn) {
+	data := []byte(`<html>
+<head><title>403 Forbidden</title></head>
+<body>
+<center><h1>403 Forbidden</h1></center>
+<hr><center>openresty</center>
+</body>
+</html>`)
+	t := http.Response{
+		Status:        http.StatusText(http.StatusForbidden),
+		StatusCode:    http.StatusForbidden,
+		Body:          io.NopCloser(bytes.NewBuffer(data)),
+		Header:        http.Header{},
+		Proto:         "HTTP/2",
+		ProtoMajor:    2,
+		ProtoMinor:    2,
+		ContentLength: int64(len(data)),
+	}
+
+	t.Header.Add("content-type", "text/html")
+	t.Header.Add("date", time.Now().UTC().Format(time.RFC1123))
+	t.Header.Add("server", "openresty")
+
+	t.Write(conn)
 }
