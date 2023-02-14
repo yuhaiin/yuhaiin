@@ -148,7 +148,7 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 		defer cancel()
 
 		addr := adr.Address(statistic.Type_tcp)

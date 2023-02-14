@@ -8,9 +8,8 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	utils "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
 type Cipher struct {
@@ -36,7 +35,7 @@ func NewCipher(method, password string) (*Cipher, error) {
 	if !ok {
 		return nil, fmt.Errorf("unsupported encryption method: %v", method)
 	}
-	key := utils.KDF(password, ss.KeySize)
+	key := core.KDF(password, ss.KeySize)
 	mi := ss.Creator(key)
 	return &Cipher{mi.IVSize(), key, &cipherConn{mi}}, nil
 }

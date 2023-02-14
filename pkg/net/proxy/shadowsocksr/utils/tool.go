@@ -4,10 +4,8 @@ import (
 	"crypto"
 	"hash"
 	"sync"
-	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	_ "github.com/shadowsocks/go-shadowsocks2/core"
 )
 
 type HMAC crypto.Hash
@@ -92,6 +90,3 @@ func HashSum(h crypto.Hash, d []byte) []byte {
 	hh.Write(d)
 	return hh.Sum(nil)
 }
-
-//go:linkname KDF github.com/shadowsocks/go-shadowsocks2/core.kdf
-func KDF(string, int) []byte

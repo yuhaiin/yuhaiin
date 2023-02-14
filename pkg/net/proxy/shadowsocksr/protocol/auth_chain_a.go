@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 )
 
@@ -170,7 +171,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 			uid[i] = a.uid[i] ^ a.lastClientHash[8+i]
 		}
 		base64UserKey = base64.StdEncoding.EncodeToString(a.userKey)
-		aesCipherKey := ssr.KDF(base64UserKey+a.salt, 16)
+		aesCipherKey := core.KDF(base64UserKey+a.salt, 16)
 		block, err := aes.NewCipher(aesCipherKey)
 		if err != nil {
 			return
@@ -316,7 +317,7 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 	md5Data := a.hmac.HMAC(a.userKey, authData, nil)
 	randDataLength := udpGetRandLength(md5Data, &a.randomClient)
 
-	key := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	key := core.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
 	rc4Cipher, err := rc4.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -337,7 +338,7 @@ func (a *authChainA) DecryptPacket(b []byte) ([]byte, error) {
 
 	randDataLength := udpGetRandLength(md5Data, &a.randomServer)
 
-	key := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
+	key := core.KDF(base64.StdEncoding.EncodeToString(a.userKey)+base64.StdEncoding.EncodeToString(md5Data), 16)
 	rc4Cipher, err := rc4.NewCipher(key)
 	if err != nil {
 		return nil, err

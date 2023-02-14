@@ -119,7 +119,7 @@ func (h *handler) handleTCP(conn net.Conn) error {
 		return h.DNSServer.HandleTCP(conn)
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 	defer cancel()
 
 	addr := proxy.ParseAddrPort(statistic.Type_tcp, rAddrPort)
@@ -156,7 +156,7 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 	defer cancel()
 
 	dstAddr := proxy.ParseAddrPort(statistic.Type_udp, dst)

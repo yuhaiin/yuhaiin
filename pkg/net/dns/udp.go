@@ -74,7 +74,7 @@ func (u *udp) initPacketConn() (net.PacketConn, error) {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 	defer cancel()
 	addr.WithContext(ctx)
 

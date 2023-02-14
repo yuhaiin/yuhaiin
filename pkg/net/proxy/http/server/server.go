@@ -28,7 +28,7 @@ type HTTP struct {
 
 func (h *HTTP) handshake(conn net.Conn) {
 	dialer := func(addr string) (net.Conn, error) {
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 		defer cancel()
 
 		address, err := proxy.ParseAddress(statistic.Type_tcp, addr)

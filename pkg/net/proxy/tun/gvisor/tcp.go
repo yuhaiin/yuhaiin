@@ -45,7 +45,7 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 			defer cancel()
 
 			addr := proxy.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))

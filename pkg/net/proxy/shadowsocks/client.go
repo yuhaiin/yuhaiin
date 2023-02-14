@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/shadowsocks/go-shadowsocks2/core"
 )
 
 // Shadowsocks shadowsocks
