@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/mdlayher/netlink v1.7.1
 	github.com/quic-go/quic-go v0.32.0
-	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	golang.org/x/crypto v0.6.0
 	golang.org/x/exp v0.0.0-20230108222341-4b8118a2686a
 	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
@@ -15,7 +14,7 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.1
-	gvisor.dev/gvisor v0.0.0-20230127155032-51e5f9cdea66
+	gvisor.dev/gvisor v0.0.0-20230214010051-27f3a24a8b72
 )
 
 require (
@@ -32,7 +31,6 @@ require (
 	github.com/quic-go/qtls-go1-18 v0.2.0 // indirect
 	github.com/quic-go/qtls-go1-19 v0.2.0 // indirect
 	github.com/quic-go/qtls-go1-20 v0.1.0 // indirect
-	github.com/riobard/go-bloom v0.0.0-20200614022211-cdc8013cb5b3 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/text v0.7.0 // indirect

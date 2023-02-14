@@ -3,10 +3,12 @@ package ssr
 import (
 	"crypto"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 )
 
 func TestKDF(t *testing.T) {
-	t.Log(KDF("12345678", 16))
+	t.Log(core.KDF("12345678", 16))
 }
 
 func TestMd5Hmac(t *testing.T) {

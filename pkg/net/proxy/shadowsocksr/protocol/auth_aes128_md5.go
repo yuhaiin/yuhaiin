@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
@@ -169,7 +170,7 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 
 	outLength := 7 + 4 + 16 + 4 + dataLength + randLength + 4
 
-	aesCipherKey := ssr.KDF(base64.StdEncoding.EncodeToString(a.userKey)+a.salt, 16)
+	aesCipherKey := core.KDF(base64.StdEncoding.EncodeToString(a.userKey)+a.salt, 16)
 	block, err := aes.NewCipher(aesCipherKey)
 	if err != nil {
 		return

@@ -49,11 +49,12 @@ var (
 )
 
 type Config struct {
-	Dialer    proxy.Proxy
-	Host      string
-	Password  []byte
-	TlsConfig *tls.Config
-	Type      Type
+	Dialer              proxy.Proxy
+	Host                string
+	Password            []byte
+	TlsConfig           *tls.Config
+	Type                Type
+	ForceDisableEncrypt bool
 }
 
 func (c Config) String() string {
@@ -69,7 +70,7 @@ func (c Config) String() string {
 func NewServer(config Config) *yuubinsya {
 	return &yuubinsya{
 		Config:     config,
-		handshaker: NewHandshaker(config.TlsConfig == nil, config.Password),
+		handshaker: NewHandshaker(!config.ForceDisableEncrypt && config.TlsConfig == nil, config.Password),
 		nat:        nat.NewTable(config.Dialer),
 	}
 }
@@ -224,10 +225,13 @@ func (y *yuubinsya) stream(c net.Conn) error {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
 	addr := target.Address(statistic.Type_tcp)
 	addr.WithValue(proxy.SourceKey{}, c.RemoteAddr())
 	addr.WithValue(proxy.DestinationKey{}, target)
 	addr.WithValue(proxy.InboundKey{}, c.LocalAddr())
+	addr.WithContext(ctx)
 
 	log.Debugf("new tcp connect from %v to %v\n", c.RemoteAddr(), addr)
 
@@ -282,9 +286,15 @@ func (y *yuubinsya) remoteToLocal(c net.Conn) error {
 		src = &quic.QuicAddr{Addr: c.RemoteAddr(), ID: conn.StreamID()}
 	}
 
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
+
+	dst := addr.Address(statistic.Type_udp)
+	dst.WithContext(ctx)
+
 	return y.nat.Write(&nat.Packet{
 		Src:     src,
-		Dst:     addr.Address(statistic.Type_udp),
+		Dst:     dst,
 		Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],
 		WriteBack: func(buf []byte, from net.Addr) (int, error) {
 			addr, err := proxy.ParseSysAddr(from)

@@ -47,11 +47,12 @@ func init() {
 		}
 
 		s := yuubinsya.NewServer(yuubinsya.Config{
-			Dialer:    o.Dialer,
-			Host:      o.Protocol.Yuubinsya.Host,
-			Password:  []byte(o.Protocol.Yuubinsya.Password),
-			TlsConfig: tlsConfig,
-			Type:      Type,
+			Dialer:              o.Dialer,
+			Host:                o.Protocol.Yuubinsya.Host,
+			Password:            []byte(o.Protocol.Yuubinsya.Password),
+			TlsConfig:           tlsConfig,
+			Type:                Type,
+			ForceDisableEncrypt: o.Protocol.Yuubinsya.ForceDisableEncrypt,
 		})
 		go s.Start()
 		return s, nil
