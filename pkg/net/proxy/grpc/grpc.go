@@ -157,13 +157,19 @@ func (c *conn) LocalAddr() net.Addr  { return c.laddr }
 func (c *conn) RemoteAddr() net.Addr { return c.raddr }
 
 func (c *conn) SetDeadline(t time.Time) error {
-	d := time.Until(t)
-
-	if c.deadline != nil {
-		c.deadline.Reset(d)
+	if c.deadline == nil {
+		if !t.IsZero() {
+			c.deadline = time.AfterFunc(t.Sub(time.Now()), func() { c.Close() })
+		}
 		return nil
 	}
-	c.deadline = time.AfterFunc(d, func() { c.Close() })
+
+	if t.IsZero() {
+		c.deadline.Stop()
+	} else {
+		c.deadline.Reset(t.Sub(time.Now()))
+	}
+
 	return nil
 }
 
@@ -187,9 +193,9 @@ type client struct {
 
 	tlsConfig *tls.Config
 
-	count        *atomic.Int64
-	noZeroSignal chan struct{}
-	lock         sync.Mutex
+	count     *atomic.Int64
+	stopTimer *time.Timer
+	lock      sync.Mutex
 }
 
 func New(config *protocol.Protocol_Grpc) protocol.WrapProxy {
@@ -250,10 +256,8 @@ func (c *client) initClient() error {
 }
 
 func (c *client) clientCountAdd() {
-	c.count.Add(1)
-	if c.noZeroSignal != nil {
-		close(c.noZeroSignal)
-		c.noZeroSignal = nil
+	if c.count.Add(1) == 1 && c.stopTimer != nil {
+		c.stopTimer.Stop()
 	}
 }
 
@@ -261,34 +265,23 @@ func (c *client) clientCountSub() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.count.Add(-1)
-
-	if c.count.Load() > 0 {
+	if c.count.Add(-1) != 0 {
 		return
 	}
 
-	c.noZeroSignal = make(chan struct{})
-	t := time.NewTimer(time.Minute)
-	go func() {
-		defer t.Stop()
-		select {
-		case <-c.noZeroSignal:
-			return
-		case <-t.C:
-			c.lock.Lock()
-			c.clientConn.Close()
-			c.rawConn.Close()
-			c.clientConn = nil
-			c.client = nil
-			c.rawConn = nil
-			c.noZeroSignal = nil
-			c.lock.Unlock()
-			return
-		}
-	}()
+	if c.stopTimer == nil {
+		c.stopTimer = time.AfterFunc(time.Minute, c.close)
+	} else {
+		c.stopTimer.Reset(time.Minute)
+	}
 }
 
 func (c *client) reconnect() error {
+	c.close()
+	return c.initClient()
+}
+
+func (c *client) close() {
 	c.lock.Lock()
 	if c.clientConn != nil {
 		c.clientConn.Close()
@@ -298,8 +291,6 @@ func (c *client) reconnect() error {
 		c.rawConn = nil
 	}
 	c.lock.Unlock()
-
-	return c.initClient()
 }
 
 func (c *client) Conn(addr proxy.Address) (net.Conn, error) {

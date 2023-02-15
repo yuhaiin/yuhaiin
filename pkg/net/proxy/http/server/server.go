@@ -26,23 +26,24 @@ type HTTP struct {
 	username, password string
 }
 
-func (h *HTTP) handshake(conn net.Conn) {
-	dialer := func(addr string) (net.Conn, error) {
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-		defer cancel()
+func (h *HTTP) dial(conn net.Conn, addr string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
 
-		address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
-		if err != nil {
-			return nil, fmt.Errorf("parse address failed: %w", err)
-		}
-
-		address.WithContext(ctx)
-		address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
-		address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
-		address.WithValue(proxy.DestinationKey{}, address)
-
-		return h.dialer.Conn(address)
+	address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
+	if err != nil {
+		return nil, fmt.Errorf("parse address failed: %w", err)
 	}
+
+	address.WithContext(ctx)
+	address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
+	address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
+	address.WithValue(proxy.DestinationKey{}, address)
+
+	return h.dialer.Conn(address)
+}
+
+func (h *HTTP) handshake(conn net.Conn) {
 
 	tr := &http.Transport{
 		MaxIdleConns:          100,
@@ -50,7 +51,7 @@ func (h *HTTP) handshake(conn net.Conn) {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return dialer(addr)
+			return h.dial(conn, addr)
 		},
 	}
 	client := &http.Client{
@@ -61,7 +62,7 @@ func (h *HTTP) handshake(conn net.Conn) {
 	}
 	defer client.CloseIdleConnections()
 
-	err := handle(h.username, h.password, conn, dialer, client)
+	err := h.handle(h.username, h.password, conn, client)
 	if err != nil && !errors.Is(err, io.EOF) {
 		if errors.Is(err, proxy.ErrBlocked) {
 			log.Debugln(err)
@@ -71,7 +72,7 @@ func (h *HTTP) handshake(conn net.Conn) {
 	}
 }
 
-func handle(user, key string, src net.Conn, dialer func(string) (net.Conn, error), client *http.Client) error {
+func (h *HTTP) handle(user, key string, src net.Conn, client *http.Client) error {
 	/*
 		use golang http
 	*/
@@ -90,7 +91,7 @@ _start:
 	}
 
 	if req.Method == http.MethodConnect {
-		return connect(src, dialer, req)
+		return h.connect(src, req)
 	}
 
 	keepAlive := strings.TrimSpace(strings.ToLower(req.Header.Get("Proxy-Connection"))) == "keep-alive"
@@ -143,13 +144,13 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 	return cs[:s], cs[s+1:], true
 }
 
-func connect(client net.Conn, f func(string) (net.Conn, error), req *http.Request) error {
+func (h *HTTP) connect(client net.Conn, req *http.Request) error {
 	host := req.URL.Host
 	if req.URL.Port() == "" {
 		host = net.JoinHostPort(host, "80")
 	}
 
-	dst, err := f(host)
+	dst, err := h.dial(client, host)
 	if err != nil {
 		er := respError(http.StatusBadGateway, req).Write(client)
 		if er != nil {

@@ -1,21 +1,15 @@
 package websocket
 
 import (
-	"bufio"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
-	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"golang.org/x/net/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/websocket"
 )
-
-//go:linkname newServerConn golang.org/x/net/websocket.newServerConn
-func newServerConn(rwc io.ReadWriteCloser, buf *bufio.ReadWriter, req *http.Request, config *websocket.Config, handshake func(*websocket.Config, *http.Request) error) (conn *websocket.Conn, err error)
 
 type Server struct {
 	net.Listener
@@ -84,7 +78,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	wsconn, err := newServerConn(conn, buf, req, &websocket.Config{}, nil)
+	wsconn, err := websocket.NewServerConn(conn, buf, req, &websocket.Config{}, nil)
 	if err != nil {
 		log.Errorln("new websocket server conn failed:", err)
 		return
