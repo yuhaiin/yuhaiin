@@ -8,13 +8,13 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/websocket"
+	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 )
 
 type Server struct {
 	net.Listener
 	server   *http.Server
-	connChan chan *Connection
+	connChan chan *websocket.Conn
 	closed   bool
 	lock     sync.RWMutex
 }
@@ -22,7 +22,7 @@ type Server struct {
 func NewServer(lis net.Listener) *Server {
 	s := &Server{
 		Listener: lis,
-		connChan: make(chan *Connection, 20),
+		connChan: make(chan *websocket.Conn, 20),
 	}
 	s.server = &http.Server{Handler: s}
 
@@ -78,11 +78,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	wsconn, err := websocket.NewServerConn(conn, buf, req, &websocket.Config{}, nil)
+	wsconn, err := websocket.NewServerConn(conn, buf, req, nil)
 	if err != nil {
 		log.Errorln("new websocket server conn failed:", err)
 		return
 	}
 
-	s.connChan <- &Connection{wsconn, conn}
+	s.connChan <- wsconn
 }
