@@ -13,13 +13,10 @@ package websocket // import "golang.org/x/net/websocket"
 
 import (
 	"bufio"
-	"crypto/tls"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 )
@@ -28,16 +25,6 @@ const (
 	ProtocolVersionHybi13    = 13
 	ProtocolVersionHybi      = ProtocolVersionHybi13
 	SupportedProtocolVersion = "13"
-
-	ContinuationFrame = 0
-	TextFrame         = 1
-	BinaryFrame       = 2
-	CloseFrame        = 8
-	PingFrame         = 9
-	PongFrame         = 10
-	UnknownFrame      = 255
-
-	DefaultMaxPayloadBytes = 32 << 20 // 32MB
 )
 
 // ProtocolError represents WebSocket protocol errors.
@@ -64,25 +51,13 @@ var (
 	ErrNotSupported         = &ProtocolError{"not supported"}
 )
 
-// ErrFrameTooLarge is returned by Codec's Receive method if payload size
-// exceeds limit set by Conn.MaxPayloadBytes
-var ErrFrameTooLarge = errors.New("websocket: frame payload size exceeds limit")
-
-// Addr is an implementation of net.Addr for WebSocket.
-type Addr struct {
-	*url.URL
-}
-
-// Network returns the network type for a WebSocket, "websocket".
-func (addr *Addr) Network() string { return "websocket" }
-
 // Config is a WebSocket configuration
 type Config struct {
-	// A WebSocket server address.
-	Location *url.URL
+	Host string
+	Path string
 
 	// A Websocket client origin.
-	Origin *url.URL
+	OriginUrl string // eg: http://example.com/from/ws
 
 	// WebSocket subprotocols.
 	Protocol []string
@@ -90,30 +65,10 @@ type Config struct {
 	// WebSocket protocol version.
 	Version int
 
-	// TLS config for secure WebSocket (wss).
-	TlsConfig *tls.Config
-
 	// Additional header fields to be sent in WebSocket opening handshake.
 	Header http.Header
 
-	// Dialer used when opening websocket connections.
-	Dialer *net.Dialer
-
 	handshakeData map[string]string
-}
-
-// serverHandshaker is an interface to handle WebSocket server side handshake.
-type serverHandshaker interface {
-	// ReadHandshake reads handshake request message from client.
-	// Returns http response code and error if any.
-	ReadHandshake(buf *bufio.Reader, req *http.Request) (code int, err error)
-
-	// AcceptHandshake accepts the client handshake request and sends
-	// handshake response back to client.
-	AcceptHandshake(buf *bufio.Writer) (err error)
-
-	// NewServerConn creates a new WebSocket connection.
-	NewServerConn(buf *bufio.ReadWriter, rwc net.Conn, request *http.Request) (conn *Conn)
 }
 
 // frameReader is an interface to read a WebSocket frame.
@@ -122,17 +77,7 @@ type frameReader interface {
 	io.Reader
 
 	// PayloadType returns payload type.
-	PayloadType() byte
-
-	// HeaderReader returns a reader to read header of the frame.
-	HeaderReader() io.Reader
-
-	// TrailerReader returns a reader to read trailer of the frame.
-	// If it returns nil, there is no trailer in the frame.
-	TrailerReader() io.Reader
-
-	// Len returns total length of the frame, including header and trailer.
-	Len() int
+	PayloadType() opcode
 }
 
 // frameReaderFactory is an interface to creates new frame reader.
@@ -148,7 +93,7 @@ type frameWriter interface {
 
 // frameWriterFactory is an interface to create new frame writer.
 type frameWriterFactory interface {
-	NewFrameWriter(payloadType byte) (w frameWriter, err error)
+	NewFrameWriter(payloadType opcode) (w frameWriter, err error)
 }
 
 type frameHandler interface {
@@ -160,7 +105,6 @@ type frameHandler interface {
 //
 // Multiple goroutines may invoke methods on a Conn simultaneously.
 type Conn struct {
-	config  *Config
 	request *http.Request
 
 	buf     *bufio.ReadWriter
@@ -174,7 +118,7 @@ type Conn struct {
 	frameWriterFactory
 
 	frameHandler
-	PayloadType        byte
+	PayloadType        opcode
 	defaultCloseStatus int
 
 	// MaxPayloadBytes limits the size of frame payload received over Conn
@@ -206,9 +150,6 @@ again:
 	}
 	n, err = ws.frameReader.Read(msg)
 	if err == io.EOF {
-		if trailer := ws.frameReader.TrailerReader(); trailer != nil {
-			io.Copy(ioutil.Discard, trailer)
-		}
 		ws.frameReader = nil
 		goto again
 	}
@@ -245,41 +186,19 @@ func (ws *Conn) IsClientConn() bool { return ws.request == nil }
 // IsServerConn reports whether ws is a server-side connection.
 func (ws *Conn) IsServerConn() bool { return ws.request != nil }
 
-// LocalAddr returns the WebSocket Origin for the connection for client, or
-// the WebSocket location for server.
-func (ws *Conn) LocalAddr() net.Addr {
-	if ws.IsClientConn() {
-		return &Addr{ws.config.Origin}
-	}
-	return &Addr{ws.config.Location}
-}
-
-// RemoteAddr returns the WebSocket location for the connection for client, or
-// the Websocket Origin for server.
-func (ws *Conn) RemoteAddr() net.Addr {
-	if ws.IsClientConn() {
-		return &Addr{ws.config.Location}
-	}
-	return &Addr{ws.config.Origin}
-}
+func (ws *Conn) LocalAddr() net.Addr  { return ws.RawConn.LocalAddr() }
+func (ws *Conn) RemoteAddr() net.Addr { return ws.RawConn.RemoteAddr() }
 
 var errSetDeadline = errors.New("websocket: cannot set deadline: not using a net.Conn")
 
 // SetDeadline sets the connection's network read & write deadlines.
-func (ws *Conn) SetDeadline(t time.Time) error {
-	return ws.RawConn.SetDeadline(t)
-}
+func (ws *Conn) SetDeadline(t time.Time) error { return ws.RawConn.SetDeadline(t) }
 
 // SetReadDeadline sets the connection's network read deadline.
-func (ws *Conn) SetReadDeadline(t time.Time) error {
-	return ws.RawConn.SetReadDeadline(t)
-}
+func (ws *Conn) SetReadDeadline(t time.Time) error { return ws.RawConn.SetReadDeadline(t) }
 
 // SetWriteDeadline sets the connection's network write deadline.
 func (ws *Conn) SetWriteDeadline(t time.Time) error { return ws.RawConn.SetWriteDeadline(t) }
-
-// Config returns the WebSocket config.
-func (ws *Conn) Config() *Config { return ws.config }
 
 // Request returns the http request upgraded to the WebSocket.
 // It is nil for client side.
