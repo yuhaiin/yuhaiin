@@ -274,13 +274,18 @@ func (x *interPacketConn) LocalAddr() net.Addr {
 }
 
 func (x *interPacketConn) SetDeadline(t time.Time) error {
-	d := time.Until(t)
-
-	if x.deadline != nil {
-		x.deadline.Reset(d)
+	if x.deadline == nil {
+		if !t.IsZero() {
+			x.deadline = time.AfterFunc(t.Sub(time.Now()), func() { x.Close() })
+		}
 		return nil
 	}
-	x.deadline = time.AfterFunc(d, func() { x.Close() })
+
+	if t.IsZero() {
+		x.deadline.Stop()
+	} else {
+		x.deadline.Reset(t.Sub(time.Now()))
+	}
 	return nil
 }
 func (x *interPacketConn) SetReadDeadline(t time.Time) error  { return x.SetDeadline(t) }

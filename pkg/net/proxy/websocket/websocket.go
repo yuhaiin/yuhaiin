@@ -7,8 +7,8 @@ import (
 	"net/url"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"golang.org/x/net/websocket"
 )
 
 type client struct {
