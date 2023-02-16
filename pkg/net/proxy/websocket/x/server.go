@@ -5,53 +5,71 @@
 package websocket
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 )
 
-func NewServerConn(rwc net.Conn, buf *bufio.ReadWriter, req *http.Request, handshake func(*http.Request) error) (conn *Conn, err error) {
-	var hs = &ServerHandshaker{}
-	code, err := hs.ReadHandshake(buf.Reader, req)
+type Request struct {
+	Request         *http.Request
+	SecWebSocketKey string
+	Protocol        []string
+	Header          http.Header
+}
+
+func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Request) error) (conn *Conn, err error) {
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		err = errors.New("http.ResponseWriter does not implement http.Hijacker")
+		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+		return nil, err
+	}
+
+	var hs = &ServerHandshaker{
+		Request: &Request{
+			Request: req,
+		},
+	}
+	code, err := hs.ReadHandshake(req)
 	if err != nil {
-		fmt.Fprintf(buf, "HTTP/1.1 %03d %s\r\n", code, http.StatusText(code))
 		if err == ErrBadWebSocketVersion {
-			fmt.Fprintf(buf, "Sec-WebSocket-Version: %s\r\n", SupportedProtocolVersion)
+			w.Header().Set("Sec-WebSocket-Version", SupportedProtocolVersion)
 		}
-		buf.WriteString("\r\n")
-		buf.WriteString(err.Error())
-		buf.Flush()
+		w.WriteHeader(code)
+		w.Write([]byte(err.Error()))
 		return
 	}
 
 	if handshake != nil {
-		err = handshake(req)
+		err = handshake(hs.Request)
 		if err != nil {
-			fmt.Fprintf(buf, "HTTP/1.1 %03d %s\r\n\r\n", http.StatusForbidden, http.StatusText(http.StatusForbidden))
-			buf.Flush()
+			w.WriteHeader(http.StatusForbidden)
 			return
 		}
 	}
-	err = hs.AcceptHandshake(buf.Writer)
+	err = hs.AcceptHandshake(w)
 	if err != nil {
-		fmt.Fprintf(buf, "HTTP/1.1 %03d %s\r\n\r\n", http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
-		buf.Flush()
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	conn = newHybiConn(buf, rwc, req)
-	return
+
+	rwc, buf, err := hj.Hijack()
+	if err != nil {
+		err = fmt.Errorf("failed to hijack connection: %w", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	return newHybiConn(buf, rwc, req), nil
 }
 
 // A HybiServerHandshaker performs a server handshake using hybi draft protocol.
 type ServerHandshaker struct {
-	Header   http.Header
-	Protocol []string
-	accept   []byte
+	*Request
 }
 
-func (c *ServerHandshaker) ReadHandshake(buf *bufio.Reader, req *http.Request) (code int, err error) {
+func (c *ServerHandshaker) ReadHandshake(req *http.Request) (code int, err error) {
 	if req.Method != "GET" {
 		return http.StatusMethodNotAllowed, ErrBadRequestMethod
 	}
@@ -61,8 +79,8 @@ func (c *ServerHandshaker) ReadHandshake(buf *bufio.Reader, req *http.Request) (
 		return http.StatusBadRequest, ErrNotWebSocket
 	}
 
-	key := req.Header.Get("Sec-Websocket-Key")
-	if key == "" {
+	c.SecWebSocketKey = req.Header.Get("Sec-Websocket-Key")
+	if c.SecWebSocketKey == "" {
 		return http.StatusBadRequest, ErrChallengeResponse
 	}
 
@@ -75,38 +93,45 @@ func (c *ServerHandshaker) ReadHandshake(buf *bufio.Reader, req *http.Request) (
 
 	protocol := strings.TrimSpace(req.Header.Get("Sec-Websocket-Protocol"))
 	if protocol != "" {
-		protocols := strings.Split(protocol, ",")
-		for i := 0; i < len(protocols); i++ {
-			c.Protocol = append(c.Protocol, strings.TrimSpace(protocols[i]))
+		for _, v := range strings.Split(protocol, ",") {
+			c.Protocol = append(c.Protocol, strings.TrimSpace(v))
 		}
 	}
-	c.accept, err = getNonceAccept([]byte(key))
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
+
 	return http.StatusSwitchingProtocols, nil
 }
 
-func (c *ServerHandshaker) AcceptHandshake(buf *bufio.Writer) (err error) {
+func (c *ServerHandshaker) AcceptHandshake(w http.ResponseWriter) (err error) {
 	if len(c.Protocol) > 0 && len(c.Protocol) != 1 {
 		// You need choose a Protocol in Handshake func in Server.
 		return ErrBadWebSocketProtocol
 	}
 
-	buf.WriteString("HTTP/1.1 101 Switching Protocols\r\n")
-	buf.WriteString("Upgrade: websocket\r\n")
-	buf.WriteString("Connection: Upgrade\r\n")
-	fmt.Fprintf(buf, "Sec-WebSocket-Accept: %s\r\n", string(c.accept))
+	w.Header().Set("Upgrade", "websocket")
+	w.Header().Set("Connection", "Upgrade")
+	w.Header().Set("Sec-WebSocket-Accept", getNonceAccept(c.SecWebSocketKey))
 	if len(c.Protocol) > 0 {
-		fmt.Fprintf(buf, "Sec-WebSocket-Protocol: %s\r\n", c.Protocol[0])
+		w.Header().Set("Sec-WebSocket-Protocol", c.Protocol[0])
 	}
 	// TODO(ukai): send Sec-WebSocket-Extensions.
 	if c.Header != nil {
-		err := c.Header.WriteSubset(buf, handshakeHeader)
-		if err != nil {
-			return err
+		for k, v := range c.Header {
+			if handshakeHeader[k] {
+				continue
+			}
+			for _, vv := range v {
+				w.Header().Add(k, vv)
+			}
 		}
 	}
-	buf.WriteString("\r\n")
-	return buf.Flush()
+	w.WriteHeader(http.StatusSwitchingProtocols)
+	return nil
+}
+
+func ServeHTTP(w http.ResponseWriter, req *http.Request, Handler func(*Conn) error) error {
+	conn, err := NewServerConn(w, req, nil)
+	if err != nil {
+		return err
+	}
+	return Handler(conn)
 }

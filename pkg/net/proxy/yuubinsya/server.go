@@ -1,7 +1,6 @@
 package yuubinsya
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -73,23 +72,6 @@ func NewServer(config Config) *yuubinsya {
 		handshaker: NewHandshaker(!config.ForceDisableEncrypt && config.TlsConfig == nil, config.Password),
 		nat:        nat.NewTable(config.Dialer),
 	}
-}
-
-type wrapHijacker struct {
-	http.ResponseWriter
-	conn net.Conn
-	buf  *bufio.ReadWriter
-}
-
-func (w *wrapHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if w.conn != nil {
-		return w.conn, w.buf, nil
-	}
-
-	conn, buf, err := w.ResponseWriter.(http.Hijacker).Hijack()
-	w.conn = conn
-	w.buf = buf
-	return conn, buf, err
 }
 
 func (y *yuubinsya) Start() error {

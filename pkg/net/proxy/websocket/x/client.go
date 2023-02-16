@@ -13,64 +13,47 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
+	_ "unsafe"
 )
 
-// DialError is an error that occurs while dialling a websocket server.
-type DialError struct {
-	*Config
-	Err error
-}
+// Config is a WebSocket configuration
+type Config struct {
+	Host string
+	Path string
 
-func (e *DialError) Error() string {
-	return "websocket.Dial " + e.Config.Host + e.Config.Path + ": " + e.Err.Error()
+	// A Websocket client origin.
+	OriginUrl string // eg: http://example.com/from/ws
+
+	// WebSocket subprotocols.
+	Protocol []string
 }
 
 // NewClient creates a new WebSocket client connection over rwc.
-func NewClient(config *Config, rwc net.Conn) (ws *Conn, err error) {
-	br := getBufioReader(rwc)
-	bw := getBufioWriter(rwc)
-	err = hybiClientHandshake(config, br, bw)
+func NewClient(config *Config, SecWebSocketKey string, header http.Header, rwc net.Conn, handshake func(*http.Response) error) (ws *Conn, err error) {
+	br := newBufioReader(rwc)
+	bw := newBufioWriterSize(rwc, 4096)
+	err = hybiClientHandshake(config, SecWebSocketKey, header, br, bw, handshake)
 	if err != nil {
 		return
 	}
-	buf := bufio.NewReadWriter(br, bw)
-	ws = newHybiConn(buf, rwc, nil)
+	ws = newHybiConn(bufio.NewReadWriter(br, bw), rwc, nil)
 	return
 }
 
-var bufioReaderPool sync.Pool
+//go:linkname newBufioReader net/http.newBufioReader
+func newBufioReader(r io.Reader) *bufio.Reader
 
-func getBufioReader(r io.Reader) *bufio.Reader {
-	br, ok := bufioReaderPool.Get().(*bufio.Reader)
-	if !ok {
-		return bufio.NewReader(r)
-	}
-	br.Reset(r)
-	return br
-}
+//go:linkname putBufioReader net/http.putBufioReader
+func putBufioReader(br *bufio.Reader)
 
-func putBufioReader(br *bufio.Reader) {
-	bufioReaderPool.Put(br)
-}
+//go:linkname newBufioWriterSize net/http.newBufioWriterSize
+func newBufioWriterSize(w io.Writer, size int) *bufio.Writer
 
-var bufioWriterPool sync.Pool
-
-func getBufioWriter(w io.Writer) *bufio.Writer {
-	bw, ok := bufioWriterPool.Get().(*bufio.Writer)
-	if !ok {
-		return bufio.NewWriter(w)
-	}
-	bw.Reset(w)
-	return bw
-}
-
-func putBufioWriter(bw *bufio.Writer) {
-	bufioWriterPool.Put(bw)
-}
+//go:linkname putBufioWriter net/http.putBufioWriter
+func putBufioWriter(br *bufio.Writer)
 
 // Client handshake described in draft-ietf-hybi-thewebsocket-protocol-17
-func hybiClientHandshake(config *Config, br *bufio.Reader, bw *bufio.Writer) (err error) {
+func hybiClientHandshake(config *Config, SecWebSocketKey string, header http.Header, br *bufio.Reader, bw *bufio.Writer, handshake func(*http.Response) error) (err error) {
 	fmt.Fprintf(bw, "GET %s HTTP/1.1\r\n", config.Path)
 
 	// According to RFC 6874, an HTTP client, proxy, or other
@@ -79,25 +62,28 @@ func hybiClientHandshake(config *Config, br *bufio.Reader, bw *bufio.Writer) (er
 	fmt.Fprintf(bw, "Host: %s\r\n", removeZone(config.Host))
 	bw.WriteString("Upgrade: websocket\r\n")
 	bw.WriteString("Connection: Upgrade\r\n")
-	nonce := generateNonce()
-	if config.handshakeData != nil {
-		nonce = []byte(config.handshakeData["key"])
+
+	var nonce string
+	if SecWebSocketKey != "" {
+		nonce = SecWebSocketKey
+	} else {
+		nonce = generateNonce()
 	}
+
 	fmt.Fprintf(bw, "Sec-WebSocket-Key: %s\r\n", nonce)
 	fmt.Fprintf(bw, "Origin: %s\r\n", config.OriginUrl)
 
-	if config.Version != ProtocolVersionHybi13 {
-		return ErrBadProtocolVersion
-	}
-
-	fmt.Fprintf(bw, "Sec-WebSocket-Version: %d\r\n", config.Version)
+	fmt.Fprintf(bw, "Sec-WebSocket-Version: %s\r\n", SupportedProtocolVersion)
 	if len(config.Protocol) > 0 {
 		fmt.Fprintf(bw, "Sec-WebSocket-Protocol: %s\r\n", strings.Join(config.Protocol, ", "))
 	}
-	// TODO(ukai): send Sec-WebSocket-Extensions.
-	err = config.Header.WriteSubset(bw, handshakeHeader)
-	if err != nil {
-		return err
+
+	if header != nil {
+		// TODO(ukai): send Sec-WebSocket-Extensions.
+		err = header.WriteSubset(bw, handshakeHeader)
+		if err != nil {
+			return err
+		}
 	}
 
 	bw.WriteString("\r\n")
@@ -115,44 +101,51 @@ func hybiClientHandshake(config *Config, br *bufio.Reader, bw *bufio.Writer) (er
 	if strings.ToLower(resp.Header.Get("Upgrade")) != "websocket" || strings.ToLower(resp.Header.Get("Connection")) != "upgrade" {
 		return ErrBadUpgrade
 	}
-	expectedAccept, err := getNonceAccept(nonce)
-	if err != nil {
-		return err
-	}
-	if resp.Header.Get("Sec-WebSocket-Accept") != string(expectedAccept) {
+
+	if resp.Header.Get("Sec-WebSocket-Accept") != getNonceAccept(nonce) {
 		return ErrChallengeResponse
 	}
+
 	if resp.Header.Get("Sec-WebSocket-Extensions") != "" {
 		return ErrUnsupportedExtensions
 	}
-	offeredProtocol := resp.Header.Get("Sec-WebSocket-Protocol")
-	if offeredProtocol != "" {
-		protocolMatched := false
-		for i := 0; i < len(config.Protocol); i++ {
-			if config.Protocol[i] == offeredProtocol {
-				protocolMatched = true
-				break
-			}
+
+	if err = verifySubprotocol(config.Protocol, resp); err != nil {
+		return err
+	}
+
+	if handshake != nil {
+		if err = handshake(resp); err != nil {
+			return err
 		}
-		if !protocolMatched {
-			return ErrBadWebSocketProtocol
-		}
-		config.Protocol = []string{offeredProtocol}
 	}
 
 	return nil
 }
 
+func verifySubprotocol(subprotos []string, resp *http.Response) error {
+	proto := resp.Header.Get("Sec-WebSocket-Protocol")
+	if proto == "" {
+		return nil
+	}
+
+	for _, sp2 := range subprotos {
+		if strings.EqualFold(sp2, proto) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("WebSocket protocol violation: unexpected Sec-WebSocket-Protocol from server: %q", proto)
+}
+
 // generateNonce generates a nonce consisting of a randomly selected 16-byte
 // value that has been base64-encoded.
-func generateNonce() (nonce []byte) {
+func generateNonce() string {
 	key := make([]byte, 16)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		panic(err)
 	}
-	nonce = make([]byte, 24)
-	base64.StdEncoding.Encode(nonce, key)
-	return
+	return base64.StdEncoding.EncodeToString(key)
 }
 
 // removeZone removes IPv6 zone identifier from host.

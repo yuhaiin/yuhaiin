@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
@@ -14,7 +16,7 @@ import (
 type Server struct {
 	net.Listener
 	server   *http.Server
-	connChan chan *websocket.Conn
+	connChan chan net.Conn
 	closed   bool
 	lock     sync.RWMutex
 }
@@ -22,7 +24,7 @@ type Server struct {
 func NewServer(lis net.Listener) *Server {
 	s := &Server{
 		Listener: lis,
-		connChan: make(chan *websocket.Conn, 20),
+		connChan: make(chan net.Conn, 20),
 	}
 	s.server = &http.Server{Handler: s}
 
@@ -72,17 +74,46 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	conn, buf, err := w.(http.Hijacker).Hijack()
-	if err != nil {
-		log.Errorln("hijack failed:", err)
-		return
-	}
+	var earlyData *bytes.Buffer
+	wsconn, err := websocket.NewServerConn(w, req, func(r *websocket.Request) error {
+		if r.Request.Header.Get("early_data") == "base64" {
+			data, err := base64.RawStdEncoding.DecodeString(r.SecWebSocketKey)
+			if err != nil {
+				return err
+			}
 
-	wsconn, err := websocket.NewServerConn(conn, buf, req, nil)
+			earlyData = bytes.NewBuffer(data)
+
+			r.Header = http.Header{}
+			r.Header.Add("early_data", "true")
+		}
+
+		return nil
+	})
 	if err != nil {
 		log.Errorln("new websocket server conn failed:", err)
 		return
 	}
 
-	s.connChan <- wsconn
+	if earlyData == nil {
+		s.connChan <- wsconn
+	} else {
+		s.connChan <- &Conn{wsconn, earlyData}
+	}
+}
+
+type Conn struct {
+	*websocket.Conn
+	buf *bytes.Buffer
+}
+
+func (c *Conn) Read(b []byte) (int, error) {
+	if c.buf != nil {
+		if c.buf.Len() > 0 {
+			return c.buf.Read(b)
+		}
+		c.buf = nil
+	}
+
+	return c.Conn.Read(b)
 }
