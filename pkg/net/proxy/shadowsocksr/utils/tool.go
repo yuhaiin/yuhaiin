@@ -18,7 +18,7 @@ var hmacPool syncmap.SyncMap[crypto.Hash, *sync.Pool]
 func getHmac(hash crypto.Hash, key []byte) CHmac {
 	z, ok := hmacPool.Load(hash)
 	if !ok {
-		z = &sync.Pool{New: func() interface{} { return NewHmac(hash) }}
+		z = &sync.Pool{New: func() any { return NewHmac(hash) }}
 		hmacPool.Store(hash, z)
 	}
 
@@ -31,7 +31,7 @@ func putHmac(h CHmac) {
 	z, ok := hmacPool.Load(h.Hash())
 	if !ok {
 
-		z = &sync.Pool{New: func() interface{} { return NewHmac(h.Hash()) }}
+		z = &sync.Pool{New: func() any { return NewHmac(h.Hash()) }}
 		hmacPool.Store(h.Hash(), z)
 	}
 	z.Put(h)
@@ -65,7 +65,7 @@ func newCHash(c crypto.Hash) *chash { return &chash{h: c, Hash: c.New()} }
 func getHash(ha crypto.Hash) *chash {
 	h, ok := hashPool.Load(ha)
 	if !ok {
-		h = &sync.Pool{New: func() interface{} { return newCHash(ha) }}
+		h = &sync.Pool{New: func() any { return newCHash(ha) }}
 		hashPool.Store(ha, h)
 	}
 	z := h.Get().(*chash)
@@ -76,7 +76,7 @@ func getHash(ha crypto.Hash) *chash {
 func putHash(hh *chash) {
 	h, ok := hashPool.Load(hh.CryptoHash())
 	if !ok {
-		h = &sync.Pool{New: func() interface{} { return newCHash(hh.CryptoHash()) }}
+		h = &sync.Pool{New: func() any { return newCHash(hh.CryptoHash()) }}
 		hashPool.Store(hh.CryptoHash(), h)
 	}
 	hh.Reset()

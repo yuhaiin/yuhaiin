@@ -12,19 +12,47 @@
 package websocket // import "golang.org/x/net/websocket"
 
 import (
-	"bufio"
-	"errors"
+	"crypto/sha1"
+	"encoding/base64"
 	"io"
-	"net"
-	"net/http"
-	"sync"
-	"time"
+	"unsafe"
 )
 
 const (
-	ProtocolVersionHybi13    = 13
-	ProtocolVersionHybi      = ProtocolVersionHybi13
 	SupportedProtocolVersion = "13"
+)
+
+const (
+	websocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+	closeStatusNormal            = 1000
+	closeStatusGoingAway         = 1001
+	closeStatusProtocolError     = 1002
+	closeStatusUnsupportedData   = 1003
+	closeStatusFrameTooLarge     = 1004
+	closeStatusNoStatusRcvd      = 1005
+	closeStatusAbnormalClosure   = 1006
+	closeStatusBadMessageData    = 1007
+	closeStatusPolicyViolation   = 1008
+	closeStatusTooBigData        = 1009
+	closeStatusExtensionMismatch = 1010
+
+	maxControlFramePayloadLength = 125
+)
+
+var (
+	ErrUnsupportedExtensions = &ProtocolError{"unsupported extensions"}
+
+	handshakeHeader = map[string]bool{
+		"Host":                   true,
+		"Upgrade":                true,
+		"Connection":             true,
+		"Sec-Websocket-Key":      true,
+		"Sec-Websocket-Origin":   true,
+		"Sec-Websocket-Version":  true,
+		"Sec-Websocket-Protocol": true,
+		"Sec-Websocket-Accept":   true,
+	}
 )
 
 // ProtocolError represents WebSocket protocol errors.
@@ -51,33 +79,12 @@ var (
 	ErrNotSupported         = &ProtocolError{"not supported"}
 )
 
-// Config is a WebSocket configuration
-type Config struct {
-	Host string
-	Path string
-
-	// A Websocket client origin.
-	OriginUrl string // eg: http://example.com/from/ws
-
-	// WebSocket subprotocols.
-	Protocol []string
-
-	// WebSocket protocol version.
-	Version int
-
-	// Additional header fields to be sent in WebSocket opening handshake.
-	Header http.Header
-
-	handshakeData map[string]string
-}
-
 // frameReader is an interface to read a WebSocket frame.
 type frameReader interface {
 	// Reader is to read payload of the frame.
 	io.Reader
 
-	// PayloadType returns payload type.
-	PayloadType() opcode
+	Header() *header
 }
 
 // frameReaderFactory is an interface to creates new frame reader.
@@ -87,7 +94,6 @@ type frameReaderFactory interface {
 
 // frameWriter is an interface to write a WebSocket frame.
 type frameWriter interface {
-	// Writer is to write payload of the frame.
 	io.WriteCloser
 }
 
@@ -101,105 +107,11 @@ type frameHandler interface {
 	WriteClose(status int) (err error)
 }
 
-// Conn represents a WebSocket connection.
-//
-// Multiple goroutines may invoke methods on a Conn simultaneously.
-type Conn struct {
-	request *http.Request
-
-	buf     *bufio.ReadWriter
-	RawConn net.Conn
-
-	rio sync.Mutex
-	frameReaderFactory
-	frameReader
-
-	wio sync.Mutex
-	frameWriterFactory
-
-	frameHandler
-	PayloadType        opcode
-	defaultCloseStatus int
-
-	// MaxPayloadBytes limits the size of frame payload received over Conn
-	// by Codec's Receive method. If zero, DefaultMaxPayloadBytes is used.
-	MaxPayloadBytes int
+// getNonceAccept computes the base64-encoded SHA-1 of the concatenation of
+// the nonce ("Sec-WebSocket-Key" value) with the websocket GUID string.
+func getNonceAccept(nonce string) string {
+	h := sha1.New()
+	h.Write(unsafe.Slice(unsafe.StringData(nonce), len(nonce)))
+	h.Write([]byte(websocketGUID))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
-
-// Read implements the io.Reader interface:
-// it reads data of a frame from the WebSocket connection.
-// if msg is not large enough for the frame data, it fills the msg and next Read
-// will read the rest of the frame data.
-// it reads Text frame or Binary frame.
-func (ws *Conn) Read(msg []byte) (n int, err error) {
-	ws.rio.Lock()
-	defer ws.rio.Unlock()
-again:
-	if ws.frameReader == nil {
-		frame, err := ws.frameReaderFactory.NewFrameReader()
-		if err != nil {
-			return 0, err
-		}
-		ws.frameReader, err = ws.frameHandler.HandleFrame(frame)
-		if err != nil {
-			return 0, err
-		}
-		if ws.frameReader == nil {
-			goto again
-		}
-	}
-	n, err = ws.frameReader.Read(msg)
-	if err == io.EOF {
-		ws.frameReader = nil
-		goto again
-	}
-	return n, err
-}
-
-// Write implements the io.Writer interface:
-// it writes data as a frame to the WebSocket connection.
-func (ws *Conn) Write(msg []byte) (n int, err error) {
-	ws.wio.Lock()
-	defer ws.wio.Unlock()
-	w, err := ws.frameWriterFactory.NewFrameWriter(ws.PayloadType)
-	if err != nil {
-		return 0, err
-	}
-	n, err = w.Write(msg)
-	w.Close()
-	return n, err
-}
-
-// Close implements the io.Closer interface.
-func (ws *Conn) Close() error {
-	err := ws.frameHandler.WriteClose(ws.defaultCloseStatus)
-	err1 := ws.RawConn.Close()
-	if err != nil {
-		return err
-	}
-	return err1
-}
-
-// IsClientConn reports whether ws is a client-side connection.
-func (ws *Conn) IsClientConn() bool { return ws.request == nil }
-
-// IsServerConn reports whether ws is a server-side connection.
-func (ws *Conn) IsServerConn() bool { return ws.request != nil }
-
-func (ws *Conn) LocalAddr() net.Addr  { return ws.RawConn.LocalAddr() }
-func (ws *Conn) RemoteAddr() net.Addr { return ws.RawConn.RemoteAddr() }
-
-var errSetDeadline = errors.New("websocket: cannot set deadline: not using a net.Conn")
-
-// SetDeadline sets the connection's network read & write deadlines.
-func (ws *Conn) SetDeadline(t time.Time) error { return ws.RawConn.SetDeadline(t) }
-
-// SetReadDeadline sets the connection's network read deadline.
-func (ws *Conn) SetReadDeadline(t time.Time) error { return ws.RawConn.SetReadDeadline(t) }
-
-// SetWriteDeadline sets the connection's network write deadline.
-func (ws *Conn) SetWriteDeadline(t time.Time) error { return ws.RawConn.SetWriteDeadline(t) }
-
-// Request returns the http request upgraded to the WebSocket.
-// It is nil for client side.
-func (ws *Conn) Request() *http.Request { return ws.request }

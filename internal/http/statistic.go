@@ -6,15 +6,14 @@ import (
 	"strconv"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
+	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
-	"golang.org/x/net/websocket"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type conn struct {
 	emptyHTTP
-	stt    grpcsts.ConnectionsServer
-	server *websocket.Server
+	stt grpcsts.ConnectionsServer
 }
 
 func (c *conn) Delete(w http.ResponseWriter, r *http.Request) error {
@@ -39,35 +38,29 @@ func (c *conn) Get(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
-	if cc.server == nil {
-		cc.server = &websocket.Server{
-			Handler: func(c *websocket.Conn) {
-				defer c.Close()
+	return websocket.ServeHTTP(w, r, cc.handler)
+}
 
-				for {
-					var tmp string
-					err := websocket.Message.Receive(c, &tmp)
-					if err != nil {
-						break
-					}
-					total, err := cc.stt.Total(context.TODO(), &emptypb.Empty{})
-					if err != nil {
-						break
-					}
+func (cc *conn) handler(c *websocket.Conn) error {
+	defer c.Close()
 
-					conns, err := cc.stt.Conns(context.TODO(), &emptypb.Empty{})
-					if err != nil {
-						break
-					}
-					err = websocket.JSON.Send(c,
-						map[string]any{"flow": total, "connections": conns.Connections})
-					if err != nil {
-						break
-					}
-				}
-			},
+	for {
+		var tmp string
+		err := websocket.Message.Receive(c, &tmp)
+		if err != nil {
+			return err
+		}
+		total, err := cc.stt.Total(context.TODO(), &emptypb.Empty{})
+		if err != nil {
+			return err
+		}
+		conns, err := cc.stt.Conns(context.TODO(), &emptypb.Empty{})
+		if err != nil {
+			return err
+		}
+		err = websocket.JSON.Send(c, map[string]any{"flow": total, "connections": conns.Connections})
+		if err != nil {
+			return err
 		}
 	}
-	cc.server.ServeHTTP(w, r)
-	return nil
 }
