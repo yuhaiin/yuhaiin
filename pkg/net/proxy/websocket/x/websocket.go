@@ -79,33 +79,21 @@ var (
 	ErrNotSupported         = &ProtocolError{"not supported"}
 )
 
-// frameReader is an interface to read a WebSocket frame.
-type frameReader interface {
-	// Reader is to read payload of the frame.
+type bufioReadWriter interface {
+	io.Writer
 	io.Reader
-
-	Header() *header
+	ReadByte() (byte, error)
+	WriteByte(byte) error
+	Flush() error
 }
 
-// frameReaderFactory is an interface to creates new frame reader.
-type frameReaderFactory interface {
-	NewFrameReader() (r frameReader, err error)
-}
+type ErrorBufioReadWriter struct{ error }
 
-// frameWriter is an interface to write a WebSocket frame.
-type frameWriter interface {
-	io.WriteCloser
-}
-
-// frameWriterFactory is an interface to create new frame writer.
-type frameWriterFactory interface {
-	NewFrameWriter(payloadType opcode) (w frameWriter, err error)
-}
-
-type frameHandler interface {
-	HandleFrame(frame frameReader) (r frameReader, err error)
-	WriteClose(status int) (err error)
-}
+func (b *ErrorBufioReadWriter) WriteByte(byte) error      { return b.error }
+func (b *ErrorBufioReadWriter) Flush() error              { return b.error }
+func (b *ErrorBufioReadWriter) Write([]byte) (int, error) { return 0, b.error }
+func (b *ErrorBufioReadWriter) Read([]byte) (int, error)  { return 0, b.error }
+func (b *ErrorBufioReadWriter) ReadByte() (byte, error)   { return 0, b.error }
 
 // getNonceAccept computes the base64-encoded SHA-1 of the concatenation of
 // the nonce ("Sec-WebSocket-Key" value) with the websocket GUID string.

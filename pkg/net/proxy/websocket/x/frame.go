@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -10,7 +9,7 @@ import (
 )
 
 // opcode represents a WebSocket opcode.
-type opcode int
+type opcode byte
 
 // https://tools.ietf.org/html/rfc6455#section-11.8.
 const (
@@ -29,9 +28,9 @@ const (
 	// 11-16 are reserved for further control frames.
 )
 
-// header represents a WebSocket frame header.
+// Header represents a WebSocket frame Header.
 // See https://tools.ietf.org/html/rfc6455#section-5.2.
-type header struct {
+type Header struct {
 	fin    bool
 	rsv1   bool
 	rsv2   bool
@@ -46,10 +45,10 @@ type header struct {
 
 // readFrameHeader reads a header from the reader.
 // See https://tools.ietf.org/html/rfc6455#section-5.2.
-func readFrameHeader(r *bufio.Reader, readBuf []byte) (h header, err error) {
+func readFrameHeader(r bufioReadWriter, readBuf []byte) (h Header, err error) {
 	b, err := r.ReadByte()
 	if err != nil {
-		return header{}, err
+		return Header{}, err
 	}
 
 	h.fin = b&(1<<7) != 0
@@ -61,7 +60,7 @@ func readFrameHeader(r *bufio.Reader, readBuf []byte) (h header, err error) {
 
 	b, err = r.ReadByte()
 	if err != nil {
-		return header{}, err
+		return Header{}, err
 	}
 
 	h.masked = b&(1<<7) != 0
@@ -78,17 +77,17 @@ func readFrameHeader(r *bufio.Reader, readBuf []byte) (h header, err error) {
 		h.payloadLength = int64(binary.BigEndian.Uint64(readBuf))
 	}
 	if err != nil {
-		return header{}, err
+		return Header{}, err
 	}
 
 	if h.payloadLength < 0 {
-		return header{}, fmt.Errorf("received negative payload length: %v", h.payloadLength)
+		return Header{}, fmt.Errorf("received negative payload length: %v", h.payloadLength)
 	}
 
 	if h.masked {
 		_, err = io.ReadFull(r, readBuf[:4])
 		if err != nil {
-			return header{}, err
+			return Header{}, err
 		}
 		h.maskKey = binary.LittleEndian.Uint32(readBuf)
 	}
@@ -102,7 +101,7 @@ const maxControlPayload = 125
 
 // writeFrameHeader writes the bytes of the header to w.
 // See https://tools.ietf.org/html/rfc6455#section-5.2
-func writeFrameHeader(h header, w *bufio.Writer, buf []byte) (err error) {
+func writeFrameHeader(h Header, w bufioReadWriter, buf []byte) (err error) {
 	var b byte
 	if h.fin {
 		b |= 1 << 7
