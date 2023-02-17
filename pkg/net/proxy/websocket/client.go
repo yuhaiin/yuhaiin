@@ -61,6 +61,7 @@ type earlyConn struct {
 	config          *websocket.Config
 	handshakeLock   sync.Mutex
 	handshakeSignal chan struct{}
+	closed          bool
 }
 
 func (e *earlyConn) Read(b []byte) (int, error) {
@@ -74,6 +75,11 @@ func (e *earlyConn) Read(b []byte) (int, error) {
 func (e *earlyConn) Close() error {
 	e.handshakeLock.Lock()
 	defer e.handshakeLock.Unlock()
+	if e.closed {
+		return nil
+	}
+
+	e.closed = true
 	err := e.Conn.Close()
 	select {
 	case <-e.handshakeSignal:
@@ -85,6 +91,10 @@ func (e *earlyConn) Close() error {
 }
 
 func (e *earlyConn) Write(b []byte) (int, error) {
+	if e.closed {
+		return 0, net.ErrClosed
+	}
+
 	if e.handclasp {
 		return e.Conn.Write(b)
 	}
@@ -96,11 +106,16 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 	e.handshakeLock.Lock()
 	defer e.handshakeLock.Unlock()
 
+	if e.closed {
+		return 0, net.ErrClosed
+	}
+
 	if e.handclasp {
 		return e.Conn.Write(b)
 	}
 
 	defer close(e.handshakeSignal)
+
 	header := http.Header{}
 
 	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0")

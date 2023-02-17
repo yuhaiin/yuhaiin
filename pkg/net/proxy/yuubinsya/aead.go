@@ -41,26 +41,28 @@ func (c *streamConn) Write(b []byte) (int, error) { return c.w.Write(b) }
 func NewConn(c net.Conn, rnonce, wnonce []byte, rciph, wciph cipher.AEAD) net.Conn {
 	return &streamConn{
 		Conn: c,
-		r:    NewReader(c, rnonce, rciph),
-		w:    NewWriter(c, wnonce, wciph),
+		r:    NewReader(c, rnonce, rciph, nat.MaxSegmentSize),
+		w:    NewWriter(c, wnonce, wciph, nat.MaxSegmentSize),
 	}
 }
 
 type writer struct {
 	io.Writer
 	cipher.AEAD
-	nonce []byte
+	nonce          []byte
+	maxPayloadSize int
 
 	lock sync.Mutex
 }
 
 // NewWriter wraps an io.Writer with AEAD encryption.
 
-func NewWriter(w io.Writer, nonce []byte, aead cipher.AEAD) *writer {
+func NewWriter(w io.Writer, nonce []byte, aead cipher.AEAD, maxPayloadSize int) *writer {
 	return &writer{
-		Writer: w,
-		AEAD:   aead,
-		nonce:  nonce,
+		Writer:         w,
+		AEAD:           aead,
+		nonce:          nonce,
+		maxPayloadSize: maxPayloadSize,
 	}
 }
 
@@ -69,15 +71,15 @@ func (w *writer) Write(p []byte) (n int, err error) {
 		return
 	}
 
-	buf := pool.GetBytes(2 + w.AEAD.Overhead() + nat.MaxSegmentSize + w.AEAD.Overhead())
+	buf := pool.GetBytes(2 + w.AEAD.Overhead() + w.maxPayloadSize + w.AEAD.Overhead())
 	defer pool.PutBytes(buf)
 
 	for pLen := len(p); pLen > 0; {
 		var data []byte
-		if pLen > nat.MaxSegmentSize {
-			data = p[:nat.MaxSegmentSize]
-			p = p[nat.MaxSegmentSize:]
-			pLen -= nat.MaxSegmentSize
+		if pLen > w.maxPayloadSize {
+			data = p[:w.maxPayloadSize]
+			p = p[w.maxPayloadSize:]
+			pLen -= w.maxPayloadSize
 		} else {
 			data = p
 			pLen = 0
@@ -110,11 +112,11 @@ type reader struct {
 	lock sync.Mutex
 }
 
-func NewReader(r io.Reader, nonce []byte, aead cipher.AEAD) *reader {
+func NewReader(r io.Reader, nonce []byte, aead cipher.AEAD, maxPayloadSize int) *reader {
 	return &reader{
 		Reader: r,
 		AEAD:   aead,
-		buf:    make([]byte, nat.MaxSegmentSize+aead.Overhead()),
+		buf:    make([]byte, maxPayloadSize+aead.Overhead()),
 		nonce:  nonce,
 	}
 }

@@ -36,7 +36,7 @@ func NewClient(config *Config, SecWebSocketKey string, header http.Header, rwc n
 	if err != nil {
 		return
 	}
-	ws = newHybiConn(bufio.NewReadWriter(br, bw), rwc, nil)
+	ws = newConn(bufio.NewReadWriter(br, bw), rwc, false)
 	return
 }
 

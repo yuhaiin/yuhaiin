@@ -22,14 +22,7 @@ func (cd Codec) Send(ws *Conn, v any) (err error) {
 	if err != nil {
 		return err
 	}
-	ws.wio.Lock()
-	defer ws.wio.Unlock()
-	w, err := ws.frameWriterFactory.NewFrameWriter(payloadType)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(data)
-	w.Close()
+	_, err = ws.WriteMsg(data, payloadType)
 	return err
 }
 
@@ -40,35 +33,22 @@ func (cd Codec) Send(ws *Conn, v any) (err error) {
 // completely. The next call to Receive would read and discard leftover data of
 // previous oversized frame before processing next frame.
 func (cd Codec) Receive(ws *Conn, v any) (err error) {
-	ws.rio.Lock()
-	defer ws.rio.Unlock()
-	if ws.frameReader != nil {
-		_, err = io.Copy(io.Discard, ws.frameReader)
-		if err != nil {
-			return err
-		}
-		ws.frameReader = nil
-	}
-again:
-	frame, err := ws.frameReaderFactory.NewFrameReader()
-	if err != nil {
+	if err = ws.DiscardReader(); err != nil {
 		return err
-	}
-	frame, err = ws.frameHandler.HandleFrame(frame)
-	if err != nil {
-		return err
-	}
-	if frame == nil {
-		goto again
 	}
 
-	if frame.Header().payloadLength > int64(DefaultMaxPayloadBytes) {
+	header, frame, err := ws.NextFrameReader()
+	if err != nil {
+		return err
+	}
+
+	if header.payloadLength > int64(DefaultMaxPayloadBytes) {
 		// payload size exceeds limit, no need to call Unmarshal
 		//
 		// set frameReader to current oversized frame so that
 		// the next call to this function can drain leftover
 		// data before processing the next frame
-		ws.frameReader = frame
+		ws.Frame = frame
 		return errors.New("websocket: frame payload size exceeds limit")
 	}
 
@@ -76,7 +56,7 @@ again:
 	if err != nil {
 		return err
 	}
-	return cd.Unmarshal(data, frame.Header().opcode, v)
+	return cd.Unmarshal(data, header.opcode, v)
 }
 
 func marshal(v any) (msg []byte, _ opcode, err error) {
@@ -86,7 +66,7 @@ func marshal(v any) (msg []byte, _ opcode, err error) {
 	case []byte:
 		return data, opBinary, nil
 	}
-	return nil, -1, ErrNotSupported
+	return nil, 8, ErrNotSupported
 }
 
 func unmarshal(msg []byte, _ opcode, v any) (err error) {

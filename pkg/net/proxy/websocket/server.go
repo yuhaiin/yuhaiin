@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -66,11 +65,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer s.lock.RUnlock()
 
 	if s.closed {
-		return
-	}
-
-	if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" ||
-		!strings.Contains(strings.ToLower(req.Header.Get("Connection")), "upgrade") {
 		return
 	}
 

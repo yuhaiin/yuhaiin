@@ -21,9 +21,8 @@ type Request struct {
 func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Request) error) (conn *Conn, err error) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		err = errors.New("http.ResponseWriter does not implement http.Hijacker")
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
-		return nil, err
+		return nil, errors.New("http.ResponseWriter does not implement http.Hijacker")
 	}
 
 	var hs = &ServerHandshaker{
@@ -61,7 +60,7 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 		return nil, err
 	}
 
-	return newHybiConn(buf, rwc, req), nil
+	return newConn(buf, rwc, true), nil
 }
 
 // A HybiServerHandshaker performs a server handshake using hybi draft protocol.
