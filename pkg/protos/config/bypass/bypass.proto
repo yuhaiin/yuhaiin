@@ -15,10 +15,11 @@ message config {
   mode tcp = 3 [ json_name = "tcp" ];
   mode udp = 4 [ json_name = "udp" ];
   string bypass_file = 2 [ json_name = "bypass_file" ];
-  map<string, mode_config> custom_rule_v2 = 6 [ json_name = "custom_rule_v2" ];
+  repeated mode_config custom_rule_v3 = 7 [ json_name = "custom_rule_v3" ];
 }
 
 message mode_config {
+  repeated string hostname = 3 [ json_name = "hostname" ];
   mode mode = 1 [ json_name = "mode" ];
   string tag = 2 [ json_name = "tag" ];
 }

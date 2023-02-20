@@ -2,9 +2,11 @@ package statistics
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
@@ -29,13 +31,22 @@ type Connections struct {
 	connStore        syncmap.SyncMap[uint64, connection]
 
 	processDumper listener.ProcessDumper
+	cacheFile     string
 }
 
-func NewConnStore(dialer proxy.Proxy, processDumper listener.ProcessDumper) *Connections {
+func NewConnStore(cacheFile string, dialer proxy.Proxy, processDumper listener.ProcessDumper) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
-	return &Connections{dialer: dialer, processDumper: processDumper}
+
+	c := &Connections{dialer: dialer, processDumper: processDumper, cacheFile: cacheFile}
+	z, err := os.ReadFile(cacheFile)
+	if err == nil {
+		c.Download.Store(binary.BigEndian.Uint64(z[:8]))
+		c.Upload.Store(binary.BigEndian.Uint64(z[8:]))
+	}
+
+	return c
 }
 
 func (c *Connections) Dispatch(addr proxy.Address) (proxy.Address, error) {
@@ -79,6 +90,12 @@ func (c *Connections) Close() error {
 		v.Close()
 		return true
 	})
+
+	flow := make([]byte, 16)
+	binary.BigEndian.PutUint64(flow[:8], c.Download.Load())
+	binary.BigEndian.PutUint64(flow[8:], c.Upload.Load())
+
+	os.WriteFile(c.cacheFile, flow, os.ModePerm)
 
 	return nil
 }

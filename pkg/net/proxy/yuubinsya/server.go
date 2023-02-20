@@ -78,9 +78,6 @@ func (y *yuubinsya) Start() error {
 	var lis net.Listener
 	var err error
 
-	switch y.Type {
-
-	}
 	if y.Type != QUIC {
 		lis, err = dialer.ListenContext(context.TODO(), "tcp", y.Host)
 		if err != nil {

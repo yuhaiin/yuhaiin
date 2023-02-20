@@ -39,9 +39,9 @@ func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error)
 	}
 
 	if t == dnsmessage.TypeAAAA {
-		return dns.IPRecord{IPs: []net.IP{ip.To16()}, TTL: 600}, nil
+		return dns.IPRecord{IPs: []net.IP{ip.To16()}, TTL: 60}, nil
 	}
-	return dns.IPRecord{IPs: []net.IP{ip.To4()}, TTL: 600}, nil
+	return dns.IPRecord{IPs: []net.IP{ip.To4()}, TTL: 60}, nil
 }
 
 var hex = map[byte]byte{
