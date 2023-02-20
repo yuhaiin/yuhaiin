@@ -95,7 +95,7 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			Tcp:          bypass.Mode(opt.Bypass.TCP),
 			Udp:          bypass.Mode(opt.Bypass.UDP),
 			BypassFile:   filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
-			CustomRuleV2: make(map[string]*bypass.ModeConfig),
+			CustomRuleV3: []*bypass.ModeConfig{},
 		},
 
 		Logcat: &protolog.Logcat{
@@ -115,6 +115,8 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 }
 
 func applyRule(settings *protoconfig.Setting, ruls string, mode bypass.Mode) {
+	cache := map[string]*bypass.ModeConfig{}
+
 	r := bufio.NewReader(strings.NewReader(ruls))
 	for {
 		line, _, err := r.ReadLine()
@@ -135,7 +137,22 @@ func applyRule(settings *protoconfig.Setting, ruls string, mode bypass.Mode) {
 
 		xx.StoreKV(z[1:])
 
-		settings.Bypass.CustomRuleV2[string(z[0])] = xx
+		var key string
+		if xx.GetMode() == bypass.Mode_proxy {
+			key = xx.GetMode().String() + xx.GetTag()
+		} else {
+			key = xx.GetMode().String()
+		}
+
+		zz, ok := cache[key]
+		if ok {
+			xx = zz
+		} else {
+			cache[key] = xx
+			settings.Bypass.CustomRuleV3 = append(settings.Bypass.CustomRuleV3, xx)
+		}
+
+		xx.Hostname = append(xx.Hostname, string(z[0]))
 	}
 }
 

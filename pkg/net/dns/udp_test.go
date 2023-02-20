@@ -11,12 +11,6 @@ import (
 
 func TestUDP(t *testing.T) {
 
-	z := []byte{1, 2}
-	id := [2]byte{z[0], z[1]}
-	z[0] = 3
-	z[1] = 4
-	t.Log(z, id)
-
 	subnet, _ := netip.ParsePrefix("223.5.5.0/24")
 	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")
 	configMap := map[string]Config{
@@ -49,7 +43,7 @@ func TestUDP(t *testing.T) {
 		},
 	}
 
-	dns, err := New(configMap["nextdns"])
+	dns, err := New(configMap["google"])
 	assert.NoError(t, err)
 
 	t.Log(dns.LookupIP("www.baidu.com"))

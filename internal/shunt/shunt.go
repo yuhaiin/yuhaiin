@@ -96,12 +96,17 @@ func (s *Shunt) Update(c *pc.Setting) {
 		})
 	}
 
-	for k, v := range c.Bypass.CustomRuleV2 {
-		if v.Mode == bypass.Mode_proxy && len(v.GetTag()) != 0 {
-			s.mapper.Insert(k, bypass.Tag(v.GetTag()))
+	for _, v := range c.Bypass.CustomRuleV3 {
+		var mark bypass.ModeEnum
+		if v.Mode == bypass.Mode_proxy && len(v.GetTag()) != 0 && len(v.Hostname) != 0 {
 			s.tags = append(s.tags, v.GetTag())
+			mark = bypass.Tag(v.GetTag())
 		} else {
-			s.mapper.Insert(k, v.Mode)
+			mark = v.Mode
+		}
+
+		for _, hostname := range v.Hostname {
+			s.mapper.Insert(hostname, mark)
 		}
 	}
 }

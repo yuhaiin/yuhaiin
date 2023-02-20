@@ -115,7 +115,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.addObserver(st)
 
 	// connections' statistic & flow data
-	stcs := statistics.NewConnStore(st, opt.ProcessDumper)
+	stcs := statistics.NewConnStore(PathGenerator.StatisticCache(opt.ConfigPath), st, opt.ProcessDumper)
 
 	hosts := resolver.NewHosts(stcs, st)
 	opt.addObserver(hosts)
@@ -188,6 +188,9 @@ func (pathGenerator) makeDir(s string) string {
 	}
 
 	return s
+}
+func (p pathGenerator) StatisticCache(dir string) string {
+	return p.makeDir(filepath.Join(dir, "flow"))
 }
 
 /*
