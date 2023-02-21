@@ -36,7 +36,7 @@ type object struct {
 var Default = rejectImmediately{}
 
 func NewReject(maxDelay, interval int) proxy.Proxy {
-	return &reject{cache: lru.NewLru[string, object](100, 0), max: maxDelay, internal: interval}
+	return &reject{cache: lru.NewLru[string, object](100), max: maxDelay, internal: interval}
 }
 
 func (r *reject) delay(addr proxy.Address) time.Duration {

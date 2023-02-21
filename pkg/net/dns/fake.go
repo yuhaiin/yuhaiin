@@ -7,9 +7,10 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
-	"time"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -21,8 +22,8 @@ type FakeDNS struct {
 	*FakeIPPool
 }
 
-func NewFakeDNS(upStreamDo dns.DNS, ipRange netip.Prefix) *FakeDNS {
-	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange)}
+func NewFakeDNS(upStreamDo dns.DNS, ipRange netip.Prefix, bbolt *cache.Cache) *FakeDNS {
+	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt)}
 }
 
 func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
@@ -126,7 +127,7 @@ type FakeIPPool struct {
 	mu sync.Mutex
 }
 
-func NewFakeIPPool(prefix netip.Prefix) *FakeIPPool {
+func NewFakeIPPool(prefix netip.Prefix, bbolt *cache.Cache) *FakeIPPool {
 	prefix = prefix.Masked()
 
 	lenSize := 32
@@ -134,17 +135,17 @@ func NewFakeIPPool(prefix netip.Prefix) *FakeIPPool {
 		lenSize = 128
 	}
 
-	var lruSize int
+	var lruSize uint
 	if prefix.Bits() == lenSize {
 		lruSize = 0
 	} else {
-		lruSize = int(math.Pow(2, float64(lenSize-prefix.Bits())) - 1)
+		lruSize = uint(math.Pow(2, float64(lenSize-prefix.Bits())) - 1)
 	}
 
 	return &FakeIPPool{
 		prefix:     prefix,
 		current:    prefix.Addr().Prev(),
-		domainToIP: newFakeLru(lruSize),
+		domainToIP: newFakeLru(lruSize, bbolt),
 	}
 }
 
@@ -189,54 +190,92 @@ func (n *FakeIPPool) GetDomainFromIP(ip string) (string, bool) {
 func (n *FakeIPPool) LRU() *lru.LRU[string, string] { return n.domainToIP.LRU }
 
 type fakeLru struct {
-	LRU *lru.LRU[string, string]
+	LRU   *lru.LRU[string, string]
+	bbolt *cache.Cache
 
-	size int
+	Size uint
 }
 
-func newFakeLru(size int) *fakeLru {
-	z := &fakeLru{size: size}
+func newFakeLru(size uint, bbolt *cache.Cache) *fakeLru {
+	z := &fakeLru{Size: size, bbolt: bbolt}
 
 	if size > 0 {
-		z.LRU = lru.NewLru[string, string](uint(size), time.Duration(0))
+		z.LRU = lru.NewLru(uint(size),
+			lru.WithOnRemove[string, string](func(s string) {
+				bbolt.Delete(unsafe.Slice(unsafe.StringData(s), len(s)))
+			}),
+		)
 	}
 
 	return z
 }
 
 func (f *fakeLru) Load(k string) (string, bool) {
-	if f.size <= 0 {
+	if f.Size <= 0 {
 		return "", false
 	}
 
-	return f.LRU.Load(k)
+	z, ok := f.LRU.Load(k)
+	if ok {
+		return z, ok
+	}
+
+	if v := f.bbolt.Get(unsafe.Slice(unsafe.StringData(k), len(k))); v != nil {
+		vv := string(v)
+		f.LRU.Add(k, vv)
+
+		return vv, true
+	}
+
+	return "", false
 }
 
 func (f *fakeLru) Add(k, v string) {
-	if f.size <= 0 {
+	if f.Size <= 0 {
 		return
 	}
 	f.LRU.Add(k, v)
+
+	if f.bbolt != nil {
+		f.bbolt.Put(unsafe.Slice(unsafe.StringData(k), len(k)), unsafe.Slice(unsafe.StringData(v), len(v)))
+		f.bbolt.Put(unsafe.Slice(unsafe.StringData(v), len(v)), unsafe.Slice(unsafe.StringData(k), len(k)))
+	}
 }
 
 func (f *fakeLru) ValueExist(v string) bool {
-	if f.size <= 0 {
+	if f.Size <= 0 {
 		return false
 	}
 
-	return f.LRU.ValueExist(v)
+	exist := f.LRU.ValueExist(v)
+	if exist {
+		return true
+	}
+
+	return f.bbolt.Get(unsafe.Slice(unsafe.StringData(v), len(v))) != nil
 }
 
 func (f *fakeLru) ReverseLoad(ip string) (string, bool) {
-	if f.size <= 0 {
+	if f.Size <= 0 {
 		return "", false
 	}
 
-	return f.LRU.ReverseLoad(ip)
+	k, ok := f.LRU.ReverseLoad(ip)
+	if ok {
+		return k, ok
+	}
+
+	if kk := f.bbolt.Get(unsafe.Slice(unsafe.StringData(ip), len(ip))); kk != nil {
+		k = string(kk)
+		f.LRU.Add(k, ip)
+		return k, true
+	}
+
+	return "", false
 }
 
 func (f *fakeLru) LastPopValue() (string, bool) {
-	if f.size <= 0 {
+	if f.Size <= 0 {
 		return "", false
 	}
 	return f.LRU.LastPopValue()

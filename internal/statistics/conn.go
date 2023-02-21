@@ -31,13 +31,13 @@ func (s *conn) Close() error {
 
 func (s *conn) Write(b []byte) (_ int, err error) {
 	n, err := s.Conn.Write(b)
-	s.manager.Upload.Add(uint64(n))
+	s.manager.Cache.AddUpload(uint64(n))
 	return int(n), err
 }
 
 func (s *conn) Read(b []byte) (n int, err error) {
 	n, err = s.Conn.Read(b)
-	s.manager.Download.Add(uint64(n))
+	s.manager.Cache.AddDownload(uint64(n))
 	return
 }
 
@@ -64,12 +64,12 @@ func (s *packetConn) Close() error {
 
 func (s *packetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	n, err = s.PacketConn.WriteTo(p, addr)
-	s.manager.Upload.Add(uint64(n))
+	s.manager.Cache.AddUpload(uint64(n))
 	return
 }
 
 func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, addr, err = s.PacketConn.ReadFrom(p)
-	s.manager.Download.Add(uint64(n))
+	s.manager.Cache.AddDownload(uint64(n))
 	return
 }
