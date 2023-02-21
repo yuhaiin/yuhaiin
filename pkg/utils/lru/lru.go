@@ -36,14 +36,31 @@ type LRU[K comparable, V any] struct {
 	timeout        time.Duration
 
 	lastPopEntry *lruEntry[K, V]
+	onRemove     func(K)
+}
+type Options[K comparable, V any] func(*LRU[K, V])
+
+func WithOnRemove[K comparable, V any](f func(K)) func(*LRU[K, V]) {
+	return func(l *LRU[K, V]) {
+		l.onRemove = f
+	}
+}
+
+func WithExpireTimeout[K comparable, V any](t time.Duration) func(*LRU[K, V]) {
+	return func(l *LRU[K, V]) {
+		l.timeout = t
+	}
 }
 
 // NewLru create new lru cache
-func NewLru[K comparable, V any](capacity uint, timeout time.Duration) *LRU[K, V] {
+func NewLru[K comparable, V any](capacity uint, options ...Options[K, V]) *LRU[K, V] {
 	l := &LRU[K, V]{
 		capacity: capacity,
 		list:     synclist.New[*lruEntry[K, V]](),
-		timeout:  timeout,
+	}
+
+	for _, o := range options {
+		o(l)
 	}
 
 	var t V
@@ -65,6 +82,9 @@ func (l *LRU[K, V]) delete(v *lruEntry[K, V]) {
 	l.mapping.Delete(v.key)
 	if l.valueHashable {
 		l.reverseMapping.Delete(v.data)
+	}
+	if l.onRemove != nil {
+		l.onRemove(v.key)
 	}
 }
 

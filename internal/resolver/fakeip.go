@@ -1,17 +1,16 @@
 package resolver
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/netip"
-	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	id "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
@@ -20,63 +19,23 @@ type Fakedns struct {
 	fake     *dns.FakeDNS
 	dialer   proxy.Proxy
 	upstream id.DNS
-	cacheDir string
+	cache    *cache.Cache
 
 	// current dns client(fake/upstream)
 	id.DNS
 }
 
-func NewFakeDNS(cacheDir string, dialer proxy.Proxy, upstream id.DNS) *Fakedns {
+func NewFakeDNS(dialer proxy.Proxy, upstream id.DNS, bbolt *cache.Cache) *Fakedns {
 	return &Fakedns{
-		fake:     dns.NewFakeDNS(upstream, yerror.Ignore(netip.ParsePrefix("10.2.0.1/24"))),
+		fake:     dns.NewFakeDNS(upstream, yerror.Ignore(netip.ParsePrefix("10.2.0.1/24")), bbolt),
 		dialer:   dialer,
 		upstream: upstream,
 		DNS:      upstream,
-		cacheDir: cacheDir,
-	}
-}
-
-func (f *Fakedns) Close() error {
-	if !f.enabled {
-		return nil
-	}
-
-	cache := make(map[string]string)
-
-	f.fake.LRU().Range(func(s1, s2 string) {
-		cache[s1] = s2
-	})
-
-	data, err := json.Marshal(cache)
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(f.cacheDir, data, os.ModePerm)
-}
-
-func (f *Fakedns) RecoveryCache() {
-	if !f.enabled {
-		return
-	}
-	data, err := os.ReadFile(f.cacheDir)
-	if err != nil {
-		return
-	}
-
-	cache := make(map[string]string)
-	json.Unmarshal(data, &cache)
-
-	lru := f.fake.LRU()
-
-	for k, v := range cache {
-		lru.Add(k, v)
+		cache:    bbolt,
 	}
 }
 
 func (f *Fakedns) Update(c *pc.Setting) {
-	f.Close()
-
 	f.enabled = c.Dns.Fakedns
 
 	ipRange, err := netip.ParsePrefix(c.Dns.FakednsIpRange)
@@ -84,15 +43,13 @@ func (f *Fakedns) Update(c *pc.Setting) {
 		log.Errorln("parse fakedns ip range failed:", err)
 		return
 	}
-	f.fake = dns.NewFakeDNS(f.upstream, ipRange)
+	f.fake = dns.NewFakeDNS(f.upstream, ipRange, f.cache)
 
 	if f.enabled {
 		f.DNS = f.fake
 	} else {
 		f.DNS = f.upstream
 	}
-
-	f.RecoveryCache()
 }
 
 func (f *Fakedns) Dispatch(addr proxy.Address) (proxy.Address, error) {

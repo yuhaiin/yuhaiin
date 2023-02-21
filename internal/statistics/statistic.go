@@ -2,12 +2,9 @@ package statistics
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -16,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -27,23 +25,21 @@ type Connections struct {
 	dialer proxy.Proxy
 	idSeed id.IDGenerator
 
-	Download, Upload atomic.Uint64
-	connStore        syncmap.SyncMap[uint64, connection]
+	connStore syncmap.SyncMap[uint64, connection]
 
 	processDumper listener.ProcessDumper
-	cacheFile     string
+	Cache         *Cache
 }
 
-func NewConnStore(cacheFile string, dialer proxy.Proxy, processDumper listener.ProcessDumper) *Connections {
+func NewConnStore(cache *cache.Cache, dialer proxy.Proxy, processDumper listener.ProcessDumper) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
 
-	c := &Connections{dialer: dialer, processDumper: processDumper, cacheFile: cacheFile}
-	z, err := os.ReadFile(cacheFile)
-	if err == nil {
-		c.Download.Store(binary.BigEndian.Uint64(z[:8]))
-		c.Upload.Store(binary.BigEndian.Uint64(z[8:]))
+	c := &Connections{
+		dialer:        dialer,
+		processDumper: processDumper,
+		Cache:         NewCache(cache),
 	}
 
 	return c
@@ -91,17 +87,15 @@ func (c *Connections) Close() error {
 		return true
 	})
 
-	flow := make([]byte, 16)
-	binary.BigEndian.PutUint64(flow[:8], c.Download.Load())
-	binary.BigEndian.PutUint64(flow[8:], c.Upload.Load())
-
-	os.WriteFile(c.cacheFile, flow, os.ModePerm)
-
+	c.Cache.Close()
 	return nil
 }
 
 func (c *Connections) Total(context.Context, *emptypb.Empty) (*grpcsts.TotalFlow, error) {
-	return &grpcsts.TotalFlow{Download: c.Download.Load(), Upload: c.Upload.Load()}, nil
+	return &grpcsts.TotalFlow{
+		Download: c.Cache.LoadDownload(),
+		Upload:   c.Cache.LoadUpload(),
+	}, nil
 }
 
 func (c *Connections) Remove(id uint64) {

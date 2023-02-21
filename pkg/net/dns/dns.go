@@ -75,7 +75,7 @@ func (c ipRecord) String() string {
 }
 
 func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{do: send, config: config, cache: lru.NewLru[string, ipRecord](100, 0)}
+	c := &client{do: send, config: config, cache: lru.NewLru[string, ipRecord](100)}
 
 	if !config.Subnet.IsValid() {
 		return c

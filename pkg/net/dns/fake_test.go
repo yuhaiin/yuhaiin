@@ -57,12 +57,12 @@ func TestPtr(t *testing.T) {
 	zz, err := netip.ParsePrefix("1.1.1.1/12")
 	assert.NoError(t, err)
 
-	f := NewFakeIPPool(zz)
+	f := NewFakeIPPool(zz, nil)
 	t.Log(f.GetFakeIPForDomain("aass"))
 
 	z := &FakeDNS{
 		upstream:   dns.NewErrorDNS(func(domain string) error { return errors.New("err") }),
-		FakeIPPool: NewFakeIPPool(zz),
+		FakeIPPool: NewFakeIPPool(zz, nil),
 	}
 
 	z.LookupPtr("f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.0.0.ip6.arpa.")
@@ -99,7 +99,7 @@ func TestNetip(t *testing.T) {
 	z, err := netip.ParsePrefix("127.0.0.1/30")
 	assert.NoError(t, err)
 
-	ff := NewFakeIPPool(z)
+	ff := NewFakeIPPool(z, nil)
 
 	t.Log(ff.GetFakeIPForDomain("aa"))
 	t.Log(ff.GetFakeIPForDomain("bb"))

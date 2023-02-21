@@ -2,13 +2,12 @@ package lru
 
 import (
 	"testing"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestLru(t *testing.T) {
-	l := NewLru[string, string](4, 0)
+	l := NewLru[string, string](4)
 
 	l.Add("a", "a")
 	l.Add("b", "b")
@@ -42,7 +41,7 @@ func TestLru(t *testing.T) {
 }
 
 func BenchmarkNewLru(b *testing.B) {
-	l := NewLru[string, string](100, 0*time.Minute)
+	l := NewLru[string, string](100)
 
 	l.Add("a", "a")
 	l.Add("b", "b")

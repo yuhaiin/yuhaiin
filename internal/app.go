@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/config"
 	web "github.com/Asutorufa/yuhaiin/internal/http"
@@ -29,6 +30,8 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"go.etcd.io/bbolt"
 	"google.golang.org/grpc"
 )
 
@@ -66,7 +69,26 @@ func (s *StartResponse) Close() error {
 	return nil
 }
 
+func initBboltDB(path string) *bbolt.DB {
+	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
+	switch err {
+	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
+		if err = os.Remove(path); err != nil {
+			break
+		}
+		log.Infoln("[CacheFile] remove invalid cache file and create new one")
+		db, err = bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
+	}
+	if err != nil {
+		log.Warningln("can't open cache file:", err)
+	}
+
+	return db
+}
+
 func Start(opt StartOpt) (StartResponse, error) {
+	db := initBboltDB(PathGenerator.Cache(opt.ConfigPath))
+
 	lis, err := net.Listen("tcp", opt.Host)
 	if err != nil {
 		return StartResponse{}, err
@@ -115,13 +137,13 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.addObserver(st)
 
 	// connections' statistic & flow data
-	stcs := statistics.NewConnStore(PathGenerator.StatisticCache(opt.ConfigPath), st, opt.ProcessDumper)
+	stcs := statistics.NewConnStore(cache.NewCache(db, "flow_data"), st, opt.ProcessDumper)
 
 	hosts := resolver.NewHosts(stcs, st)
 	opt.addObserver(hosts)
 
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := resolver.NewFakeDNS(PathGenerator.FakeDNSCache(opt.ConfigPath), hosts, hosts)
+	fakedns := resolver.NewFakeDNS(hosts, hosts, cache.NewCache(db, "fakedns_cache"))
 	opt.addObserver(fakedns)
 
 	// dns server/tun dns hijacking handler
@@ -165,7 +187,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,
-		servers:      []is.Server{stcs, listener, resolvers, dnsServer, fakedns},
+		servers:      []is.Server{stcs, listener, resolvers, dnsServer, db},
 	}, nil
 }
 
@@ -179,9 +201,6 @@ func (p pathGenerator) Config(dir string) string { return p.makeDir(filepath.Joi
 func (p pathGenerator) Log(dir string) string {
 	return p.makeDir(filepath.Join(dir, "log", "yuhaiin.log"))
 }
-func (p pathGenerator) FakeDNSCache(dir string) string {
-	return p.makeDir(filepath.Join(dir, "fakeip_cache.json"))
-}
 func (pathGenerator) makeDir(s string) string {
 	if _, err := os.Stat(s); errors.Is(err, os.ErrNotExist) {
 		os.MkdirAll(filepath.Dir(s), os.ModePerm)
@@ -189,9 +208,7 @@ func (pathGenerator) makeDir(s string) string {
 
 	return s
 }
-func (p pathGenerator) StatisticCache(dir string) string {
-	return p.makeDir(filepath.Join(dir, "flow"))
-}
+func (p pathGenerator) Cache(dir string) string { return p.makeDir(filepath.Join(dir, "cache")) }
 
 /*
       dial ip

@@ -29,7 +29,7 @@ func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
 		manager:  mamanager,
 		UDP:      udp,
 		TCP:      tcp,
-		lruCache: lru.NewLru[string, proxy.Proxy](35, 0),
+		lruCache: lru.NewLru[string, proxy.Proxy](35),
 	}
 }
 
