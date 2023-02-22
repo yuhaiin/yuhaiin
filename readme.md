@@ -30,8 +30,8 @@
   - DNS over TCP
 - Full cone NAT.
 - auto set Linux(KDE/Plasma,gnome),Windows Proxy  
-- [bypass rule](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
-- [config & protocols docs](https://github.com/Asutorufa/yuhaiin/tree/main/docs)  
+- [Rules](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
+- [Docs](https://github.com/Asutorufa/yuhaiin/tree/main/docs)  
 - icon from プロ生ちゃん. アイコンがプロ生ちゃんから、ご注意ください。  
 
 ```shell
@@ -50,13 +50,14 @@ yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 - [google/gVisor](https://github.com/google/gvisor)
 - [gRPC](https://grpc.io/)  
 - [protobuf-go](https://github.com/protocolbuffers/protobuf-go)  
-- [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
 - [プロ生ちゃん](https://kei.pronama.jp/)
+- [etcd-io/bbolt](https://github.com/etcd-io/bbolt)  
+
+Reference:
+
+- [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
 - [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
 - [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
-
-History:
-
 - [therecipe/qt](https://github.com/therecipe/qt)  
 - [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)  
 - [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  

@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Proxy interface {
@@ -251,7 +252,7 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 
 type addr struct {
 	network statistic.Type
-	lock    sync.RWMutex
+	mu      sync.RWMutex
 	store   map[any]any
 }
 
@@ -273,8 +274,8 @@ func (d *addr) WithResolver(resolver dns.DNS, canCover bool) bool {
 }
 
 func (s *addr) WithValue(key, value any) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.store == nil {
 		s.store = make(map[any]any)
 	}
@@ -283,8 +284,8 @@ func (s *addr) WithValue(key, value any) {
 }
 
 func (s *addr) Value(key any) (any, bool) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.store == nil {
 		return nil, false
 	}
@@ -293,8 +294,8 @@ func (s *addr) Value(key any) (any, bool) {
 }
 
 func (s *addr) RangeValue(f func(k, v any) bool) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for k, v := range s.store {
 		if !f(k, v) {
@@ -358,7 +359,18 @@ func (d *DomainAddr) AddrPort() (netip.AddrPort, error) {
 func (d *DomainAddr) Port() Port { return d.port }
 func (d *DomainAddr) Type() Type { return DOMAIN }
 func (d *DomainAddr) lookupIP() (net.IP, error) {
-	ips, err := Value(d, resolverKey{}, resolver.Bootstrap).LookupIP(d.hostname)
+	r := Value(d, resolverKey{}, resolver.Bootstrap)
+
+	if Value(d, PreferIPv6{}, false) {
+		ip, err := r.Record(d.hostname, dnsmessage.TypeAAAA)
+		if err == nil {
+			return ip.IPs[rand.Intn(len(ip.IPs))], nil
+		} else {
+			log.Warningf("resolve %s ipv6 failed: %w, fallback to ipv4\n", d.hostname, err)
+		}
+	}
+
+	ips, err := r.LookupIP(d.hostname)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address failed: %w", err)
 	}
@@ -474,6 +486,8 @@ func ParsePortStr(p string) (Port, error) {
 
 	return PortUint16(pt), nil
 }
+
+type PreferIPv6 struct{}
 
 type SourceKey struct{}
 

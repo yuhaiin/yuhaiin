@@ -43,10 +43,6 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 			f.StoreKV(fs[1:])
 		}
 
-		if f.Mode != bypass.Mode_proxy || len(f.GetTag()) == 0 {
-			ranger(strings.ToLower(string(fields[0])), f.Mode)
-		} else {
-			ranger(strings.ToLower(string(fields[0])), bypass.Tag(f.GetTag()))
-		}
+		ranger(strings.ToLower(string(fields[0])), f.ToModeEnum())
 	}
 }

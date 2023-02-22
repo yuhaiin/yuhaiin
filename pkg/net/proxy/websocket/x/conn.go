@@ -36,9 +36,9 @@ type Conn struct {
 	readHeaderBuf  [8]byte
 	writeHeaderBuf [8]byte
 
-	rio       sync.Mutex
-	wio       sync.Mutex
-	closeLock sync.Mutex
+	rio     sync.Mutex
+	wio     sync.Mutex
+	closeMu sync.Mutex
 
 	Rw    *struct{ bufioReadWriter }
 	Frame io.Reader
@@ -236,8 +236,8 @@ func (ws *Conn) WritePong(msg []byte) (n int, err error) { return ws.WriteMsg(ms
 
 // Close implements the io.Closer interface.
 func (ws *Conn) Close() error {
-	ws.closeLock.Lock()
-	defer ws.closeLock.Unlock()
+	ws.closeMu.Lock()
+	defer ws.closeMu.Unlock()
 
 	if ws.closed {
 		return nil

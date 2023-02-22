@@ -36,7 +36,7 @@ type Shunt struct {
 	defaultMode          bypass.Mode
 	config               *bypass.Config
 	mapper               *mapper.Combine[bypass.ModeEnum]
-	lock                 sync.RWMutex
+	mu                   sync.RWMutex
 	modeStore            map[bypass.Mode]Mode
 
 	tags []string
@@ -70,8 +70,8 @@ func NewShunt(modes []Mode) *Shunt {
 }
 
 func (s *Shunt) Update(c *pc.Setting) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	s.resolveRemoteDomain = c.Dns.ResolveRemoteDomain
 
@@ -97,12 +97,10 @@ func (s *Shunt) Update(c *pc.Setting) {
 	}
 
 	for _, v := range c.Bypass.CustomRuleV3 {
-		var mark bypass.ModeEnum
-		if v.Mode == bypass.Mode_proxy && len(v.GetTag()) != 0 && len(v.Hostname) != 0 {
-			s.tags = append(s.tags, v.GetTag())
-			mark = bypass.Tag(v.GetTag())
-		} else {
-			mark = v.Mode
+		mark := v.ToModeEnum()
+
+		if mark.GetTag() != "" {
+			s.tags = append(s.tags, mark.GetTag())
 		}
 
 		for _, hostname := range v.Hostname {
@@ -164,6 +162,10 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 		// get tag from bypass rule
 		if tag := fields.GetTag(); len(tag) != 0 {
 			host.WithValue(node.TagKey{}, tag)
+		}
+
+		if fields.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6 {
+			host.WithValue(proxy.PreferIPv6{}, true)
 		}
 	}
 

@@ -110,7 +110,7 @@ type conn struct {
 	laddr net.Addr
 
 	closed bool
-	lock   sync.Mutex
+	mu     sync.Mutex
 	close  context.CancelFunc
 
 	deadline *time.Timer
@@ -142,8 +142,8 @@ func (c *conn) Write(b []byte) (int, error) {
 }
 
 func (c *conn) Close() error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if c.closed {
 		return nil
@@ -195,7 +195,7 @@ type client struct {
 
 	count     *atomic.Int64
 	stopTimer *time.Timer
-	lock      sync.Mutex
+	mu        sync.Mutex
 }
 
 func New(config *protocol.Protocol_Grpc) protocol.WrapProxy {
@@ -209,8 +209,8 @@ func New(config *protocol.Protocol_Grpc) protocol.WrapProxy {
 }
 
 func (c *client) initClient() error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if c.clientConn != nil {
 		c.clientCountAdd()
@@ -262,8 +262,8 @@ func (c *client) clientCountAdd() {
 }
 
 func (c *client) clientCountSub() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if c.count.Add(-1) != 0 {
 		return
@@ -282,7 +282,7 @@ func (c *client) reconnect() error {
 }
 
 func (c *client) close() {
-	c.lock.Lock()
+	c.mu.Lock()
 	if c.clientConn != nil {
 		c.clientConn.Close()
 		c.rawConn.Close()
@@ -290,7 +290,7 @@ func (c *client) close() {
 		c.client = nil
 		c.rawConn = nil
 	}
-	c.lock.Unlock()
+	c.mu.Unlock()
 }
 
 func (c *client) Conn(addr proxy.Address) (net.Conn, error) {

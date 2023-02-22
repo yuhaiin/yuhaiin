@@ -19,10 +19,10 @@ type callv2 struct {
 	destination netip.AddrPort
 }
 type UDPv2 struct {
-	closed    bool
-	mtu       int32
-	device    io.Writer
-	queueLock sync.Mutex
+	closed  bool
+	mtu     int32
+	device  io.Writer
+	queueMu sync.Mutex
 
 	channel chan *callv2
 }
@@ -39,8 +39,8 @@ func (u *UDPv2) ReadFrom(buf []byte) (int, netip.AddrPort, netip.AddrPort, error
 }
 
 func (u *UDPv2) Close() error {
-	u.queueLock.Lock()
-	defer u.queueLock.Unlock()
+	u.queueMu.Lock()
+	defer u.queueMu.Unlock()
 
 	if !u.closed {
 		u.closed = true
@@ -51,8 +51,8 @@ func (u *UDPv2) Close() error {
 }
 
 func (u *UDPv2) handleUDPPacket(source, destination netip.AddrPort, payload []byte) {
-	u.queueLock.Lock()
-	defer u.queueLock.Unlock()
+	u.queueMu.Lock()
+	defer u.queueMu.Unlock()
 
 	if u.closed {
 		return

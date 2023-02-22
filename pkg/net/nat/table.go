@@ -24,7 +24,7 @@ func NewTable(dialer proxy.Proxy) *Table {
 type Table struct {
 	dialer proxy.Proxy
 	cache  syncmap.SyncMap[string, *SourceTable]
-	lock   syncmap.SyncMap[string, *sync.Cond]
+	mu     syncmap.SyncMap[string, *sync.Cond]
 }
 
 func (u *Table) write(pkt *Packet, key string) (bool, error) {
@@ -81,7 +81,7 @@ func (u *Table) Write(pkt *Packet) error {
 
 	log.Verboseln("nat table write to:", pkt.Dst, "from", pkt.Src)
 
-	cond, ok := u.lock.LoadOrStore(key, sync.NewCond(&sync.Mutex{}))
+	cond, ok := u.mu.LoadOrStore(key, sync.NewCond(&sync.Mutex{}))
 	if ok {
 		cond.L.Lock()
 		cond.Wait()
@@ -90,7 +90,7 @@ func (u *Table) Write(pkt *Packet) error {
 		return err
 	}
 
-	defer u.lock.Delete(key)
+	defer u.mu.Delete(key)
 	defer cond.Broadcast()
 
 	pkt.Dst.WithValue(proxy.SourceKey{}, pkt.Src)

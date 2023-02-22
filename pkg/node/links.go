@@ -21,7 +21,7 @@ type link struct {
 	manager  *manager
 
 	links map[string]*subscribe.Link
-	lock  sync.RWMutex
+	mu    sync.RWMutex
 }
 
 func NewLink(outbound *outbound, manager *manager, links map[string]*subscribe.Link) *link {
@@ -29,8 +29,8 @@ func NewLink(outbound *outbound, manager *manager, links map[string]*subscribe.L
 }
 
 func (l *link) Save(ls []*subscribe.Link) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	if l.links == nil {
 		l.links = make(map[string]*subscribe.Link)
@@ -49,8 +49,8 @@ func (l *link) Save(ls []*subscribe.Link) {
 }
 
 func (l *link) Delete(names []string) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	for _, z := range names {
 		delete(l.links, z)

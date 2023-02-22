@@ -10,12 +10,12 @@ import (
 type Domain[T any] struct {
 	Root         *domainNode[T] `json:"root"`          // for example.com, example.*
 	WildcardRoot *domainNode[T] `json:"wildcard_root"` // for *.example.com, *.example.*
-	lock         sync.Mutex
+	mu           sync.Mutex
 }
 
 func (d *Domain[T]) Insert(domain string, mark T) {
-	d.lock.Lock()
-	defer d.lock.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	if len(domain) == 0 {
 		return

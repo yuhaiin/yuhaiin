@@ -24,7 +24,7 @@ type BloomRing struct {
 	slotCount    int
 	entryCounter int
 	slots        []bloom.Filter
-	mutex        sync.RWMutex
+	mu           sync.RWMutex
 }
 
 func NewBloomRing(slot, capacity int, falsePositiveRate float64) *BloomRing {
@@ -44,8 +44,8 @@ func (r *BloomRing) Add(b []byte) {
 	if r == nil {
 		return
 	}
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.add(b)
 }
 
@@ -66,8 +66,8 @@ func (r *BloomRing) Test(b []byte) bool {
 	if r == nil {
 		return false
 	}
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	test := r.test(b)
 	return test
 }
@@ -82,8 +82,8 @@ func (r *BloomRing) test(b []byte) bool {
 }
 
 func (r *BloomRing) Check(b []byte) bool {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.Test(b) {
 		return true
 	}

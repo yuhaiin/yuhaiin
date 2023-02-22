@@ -10,5 +10,5 @@ import (
 )
 
 func TestXxx(t *testing.T) {
-	t.Log(unit.ReducedUnit(float64(binary.BigEndian.Uint64(yerror.Ignore(base64.RawStdEncoding.DecodeString("AAAACmiKO8QK"))))))
+	t.Log(unit.ReducedUnit(float64(binary.BigEndian.Uint64(yerror.Ignore(base64.RawStdEncoding.DecodeString("AAAAC9JgHpkK"))))))
 }

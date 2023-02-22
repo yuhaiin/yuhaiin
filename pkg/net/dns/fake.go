@@ -200,9 +200,16 @@ func newFakeLru(size uint, bbolt *cache.Cache) *fakeLru {
 	z := &fakeLru{Size: size, bbolt: bbolt}
 
 	if size > 0 {
-		z.LRU = lru.NewLru(uint(size),
+		z.LRU = lru.NewLru(
+			lru.WithCapacity[string, string](size),
 			lru.WithOnRemove[string, string](func(s string) {
+				v := bbolt.Get(unsafe.Slice(unsafe.StringData(s), len(s)))
+				if v == nil {
+					return
+				}
+
 				bbolt.Delete(unsafe.Slice(unsafe.StringData(s), len(s)))
+				bbolt.Delete(v)
 			}),
 		)
 	}
@@ -247,12 +254,7 @@ func (f *fakeLru) ValueExist(v string) bool {
 		return false
 	}
 
-	exist := f.LRU.ValueExist(v)
-	if exist {
-		return true
-	}
-
-	return f.bbolt.Get(unsafe.Slice(unsafe.StringData(v), len(v))) != nil
+	return f.LRU.ValueExist(v)
 }
 
 func (f *fakeLru) ReverseLoad(ip string) (string, bool) {

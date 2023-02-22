@@ -52,7 +52,7 @@ type writer struct {
 	nonce          []byte
 	maxPayloadSize int
 
-	lock sync.Mutex
+	mu sync.Mutex
 }
 
 // NewWriter wraps an io.Writer with AEAD encryption.
@@ -85,14 +85,14 @@ func (w *writer) Write(p []byte) (n int, err error) {
 			pLen = 0
 		}
 		binary.BigEndian.PutUint16(buf[:2], uint16(len(data)))
-		w.lock.Lock()
+		w.mu.Lock()
 		w.Seal(buf[:0], w.nonce, buf[:2], nil)
 		increment(w.nonce)
 		offset := w.Overhead() + 2
 		packet := w.Seal(buf[offset:offset], w.nonce, data, nil)
 		increment(w.nonce)
 		_, err = w.Writer.Write(buf[:offset+len(packet)])
-		w.lock.Unlock()
+		w.mu.Unlock()
 		if err != nil {
 			return
 		}
@@ -109,7 +109,7 @@ type reader struct {
 	buf      []byte
 	leftover []byte
 
-	lock sync.Mutex
+	mu sync.Mutex
 }
 
 func NewReader(r io.Reader, nonce []byte, aead cipher.AEAD, maxPayloadSize int) *reader {
@@ -156,8 +156,8 @@ func (r *reader) read() (int, error) {
 
 // Read reads from the embedded io.Reader, decrypts and writes to b.
 func (r *reader) Read(b []byte) (int, error) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	// copy decrypted bytes (if any) from previous record first
 	if len(r.leftover) > 0 {

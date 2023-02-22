@@ -25,15 +25,15 @@ type Client struct {
 	host *net.UDPAddr
 	addr proxy.Address
 
-	tlsConfig   *tls.Config
-	quicConfig  *quic.Config
-	dialer      proxy.Proxy
-	session     quic.Connection
-	sessionLock sync.Mutex
+	tlsConfig  *tls.Config
+	quicConfig *quic.Config
+	dialer     proxy.Proxy
+	session    quic.Connection
+	sessionMu  sync.Mutex
 
-	id      id.IDGenerator
-	udpMap  map[uint64]chan packet
-	udpLock sync.RWMutex
+	id     id.IDGenerator
+	udpMap map[uint64]chan packet
+	udpMu  sync.RWMutex
 }
 
 func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
@@ -72,8 +72,8 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 }
 
 func (c *Client) initSession() error {
-	c.sessionLock.Lock()
-	defer c.sessionLock.Unlock()
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
 
 	if c.session != nil {
 		return nil
@@ -89,8 +89,8 @@ func (c *Client) initSession() error {
 	go func() {
 		select {
 		case <-session.Context().Done():
-			c.sessionLock.Lock()
-			defer c.sessionLock.Unlock()
+			c.sessionMu.Lock()
+			defer c.sessionMu.Unlock()
 			session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 			conn.Close()
 			log.Println("session closed")
@@ -126,7 +126,7 @@ func (c *Client) handleDatagrams(b []byte) error {
 		return err
 	}
 
-	c.udpLock.RLock()
+	c.udpMu.RLock()
 	x, ok := c.udpMap[uint64(id)]
 	if !ok {
 		return fmt.Errorf("unknown udp id: %d, %v", id, b[:2])
@@ -136,7 +136,7 @@ func (c *Client) handleDatagrams(b []byte) error {
 		data: b[2+len(addr):],
 		addr: addr.Address(statistic.Type_udp),
 	}
-	c.udpLock.RUnlock()
+	c.udpMu.RUnlock()
 
 	return nil
 }
@@ -166,9 +166,9 @@ func (c *Client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 	id := c.id.Generate()
 	msgChan := make(chan packet, 30)
 
-	c.udpLock.Lock()
+	c.udpMu.Lock()
 	c.udpMap[id] = msgChan
-	c.udpLock.Unlock()
+	c.udpMu.Unlock()
 
 	return &interPacketConn{
 		c:       c,
@@ -255,8 +255,8 @@ func (x *interPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 }
 
 func (x *interPacketConn) Close() error {
-	x.c.udpLock.Lock()
-	defer x.c.udpLock.Unlock()
+	x.c.udpMu.Lock()
+	defer x.c.udpMu.Unlock()
 
 	if x.closed {
 		return nil

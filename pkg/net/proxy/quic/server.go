@@ -18,7 +18,7 @@ type Server struct {
 	quic.EarlyListener
 	tlsConfig *tls.Config
 
-	lock     sync.RWMutex
+	mu       sync.RWMutex
 	connChan chan *interConn
 	closed   bool
 }
@@ -50,8 +50,8 @@ func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 }
 
 func (s *Server) Close() error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.closed {
 		return nil
 	}
@@ -127,9 +127,9 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 			break
 		}
 
-		s.lock.RLock()
+		s.mu.RLock()
 		if s.closed {
-			s.lock.RUnlock()
+			s.mu.RUnlock()
 			break
 		}
 
@@ -141,7 +141,7 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 			remote: conn.RemoteAddr(),
 		}
 
-		s.lock.RUnlock()
+		s.mu.RUnlock()
 	}
 
 }

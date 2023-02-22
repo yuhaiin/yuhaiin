@@ -8,18 +8,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-type options struct {
-	expireTime int64
-}
-
-type Option func(*options)
-
-func WithExpireTimeUnix(t int64) Option {
-	return func(o *options) {
-		o.expireTime = t
-	}
-}
-
 type lruEntry[K, V any] struct {
 	key    K
 	data   V
@@ -38,7 +26,7 @@ type LRU[K comparable, V any] struct {
 	lastPopEntry *lruEntry[K, V]
 	onRemove     func(K)
 }
-type Options[K comparable, V any] func(*LRU[K, V])
+type Option[K comparable, V any] func(*LRU[K, V])
 
 func WithOnRemove[K comparable, V any](f func(K)) func(*LRU[K, V]) {
 	return func(l *LRU[K, V]) {
@@ -52,11 +40,16 @@ func WithExpireTimeout[K comparable, V any](t time.Duration) func(*LRU[K, V]) {
 	}
 }
 
+func WithCapacity[K comparable, V any](capacity uint) func(*LRU[K, V]) {
+	return func(l *LRU[K, V]) {
+		l.capacity = capacity
+	}
+}
+
 // NewLru create new lru cache
-func NewLru[K comparable, V any](capacity uint, options ...Options[K, V]) *LRU[K, V] {
+func NewLru[K comparable, V any](options ...Option[K, V]) *LRU[K, V] {
 	l := &LRU[K, V]{
-		capacity: capacity,
-		list:     synclist.New[*lruEntry[K, V]](),
+		list: synclist.New[*lruEntry[K, V]](),
 	}
 
 	for _, o := range options {
@@ -88,8 +81,20 @@ func (l *LRU[K, V]) delete(v *lruEntry[K, V]) {
 	}
 }
 
-func (l *LRU[K, V]) Add(key K, value V, opts ...Option) {
-	o := &options{}
+type addOptions struct {
+	expireTime int64
+}
+
+type AddOption func(*addOptions)
+
+func WithExpireTimeUnix(t int64) AddOption {
+	return func(o *addOptions) {
+		o.expireTime = t
+	}
+}
+
+func (l *LRU[K, V]) Add(key K, value V, opts ...AddOption) {
+	o := &addOptions{}
 	for _, z := range opts {
 		z(o)
 	}
