@@ -20,7 +20,7 @@ type FileWriter struct {
 	w     *os.File
 	log   *log.Logger
 
-	fileLock sync.RWMutex
+	mu sync.RWMutex
 }
 
 func NewLogWriter(file string) *FileWriter {
@@ -60,7 +60,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 
 		f.log.Println("checked logs' file over 1 MB, rename old logs")
 
-		f.fileLock.Lock()
+		f.mu.Lock()
 		if f.w != nil {
 			f.w.Close()
 			f.w = nil
@@ -71,12 +71,12 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 			f.log.Println(err)
 		}
 		f.removeOldFile()
-		f.fileLock.Unlock()
+		f.mu.Unlock()
 	default:
 	}
 
-	f.fileLock.RLock()
-	defer f.fileLock.RUnlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	if f.w == nil {
 		f.w, err = os.OpenFile(f.path, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 		if err != nil {

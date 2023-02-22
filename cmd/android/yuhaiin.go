@@ -21,13 +21,13 @@ type App struct {
 	nodes *node.Nodes
 	lis   *http.Server
 
-	lock    sync.Mutex
+	mu      sync.Mutex
 	started atomic.Bool
 }
 
 func (a *App) Start(opt *Opts) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
 	if a.started.Load() {
 		return errors.New("yuhaiin is already running")
@@ -71,8 +71,8 @@ func (a *App) Start(opt *Opts) error {
 }
 
 func (a *App) Stop() error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
 	if !a.started.Load() {
 		return nil

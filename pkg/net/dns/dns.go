@@ -54,7 +54,7 @@ var _ dns.DNS = (*client)(nil)
 
 type client struct {
 	cache  *lru.LRU[string, ipRecord]
-	do     func([]byte) ([]byte, error)
+	send   func([]byte) ([]byte, error)
 	config Config
 	subnet []dnsmessage.Resource
 	cond   syncmap.SyncMap[string, *recordCond]
@@ -75,7 +75,11 @@ func (c ipRecord) String() string {
 }
 
 func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
-	c := &client{do: send, config: config, cache: lru.NewLru[string, ipRecord](100)}
+	c := &client{
+		send:   send,
+		config: config,
+		cache:  lru.NewLru(lru.WithCapacity[string, ipRecord](100)),
+	}
 
 	if !config.Subnet.IsValid() {
 		return c
@@ -124,11 +128,11 @@ func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
 }
 
 func (c *client) Do(_ string, b []byte) ([]byte, error) {
-	if c.do == nil {
+	if c.send == nil {
 		return nil, fmt.Errorf("no dns process function")
 	}
 
-	return c.do(b)
+	return c.send(b)
 }
 
 func (c *client) LookupIP(domain string) ([]net.IP, error) {

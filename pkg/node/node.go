@@ -84,7 +84,7 @@ func (n *Nodes) Remove(_ context.Context, s *wrapperspb.StringValue) (*emptypb.E
 
 func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Response, error) {
 	resp := &latency.Response{IdLatencyMap: make(map[string]*durationpb.Duration)}
-	var respLock sync.Mutex
+	var mu sync.Mutex
 
 	var wg sync.WaitGroup
 	for _, s := range req.Requests {
@@ -112,9 +112,9 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 				}
 			}
 
-			respLock.Lock()
+			mu.Lock()
 			resp.IdLatencyMap[s.Id] = t
-			respLock.Unlock()
+			mu.Unlock()
 		}(s)
 	}
 

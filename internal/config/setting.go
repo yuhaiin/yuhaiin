@@ -42,7 +42,7 @@ type settingImpl struct {
 
 	os []Observer
 
-	lock sync.RWMutex
+	mu sync.RWMutex
 }
 
 func NewConfig(path string) Setting {
@@ -64,14 +64,14 @@ func NewConfig(path string) Setting {
 }
 
 func (c *settingImpl) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.current, nil
 }
 
 func (c *settingImpl) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	err := save(s, c.path)
 	if err != nil {
@@ -97,8 +97,8 @@ func (c *settingImpl) AddObserver(o Observer) {
 	if o == nil {
 		return
 	}
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.os = append(c.os, o)
 	o.Update(c.current)

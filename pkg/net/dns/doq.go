@@ -30,7 +30,7 @@ type doq struct {
 	servername string
 	dialer     proxy.PacketProxy
 
-	lock sync.RWMutex
+	mu sync.RWMutex
 
 	*client
 }
@@ -49,14 +49,14 @@ func NewDoQ(config Config) (dns.DNS, error) {
 			return nil, fmt.Errorf("init session failed: %w", err)
 		}
 
-		d.lock.RLock()
+		d.mu.RLock()
 		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
 		defer cancel()
 		con, err := d.connection.OpenStreamSync(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("open stream failed: %w", err)
 		}
-		defer d.lock.RUnlock()
+		defer d.mu.RUnlock()
 
 		err = con.SetWriteDeadline(time.Now().Add(time.Second * 4))
 		if err != nil {
@@ -114,8 +114,8 @@ func (d *doq) Close() error {
 }
 
 func (d *doq) initSession() error {
-	d.lock.Lock()
-	defer d.lock.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	if d.connection != nil {
 		select {

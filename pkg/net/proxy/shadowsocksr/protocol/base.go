@@ -37,7 +37,7 @@ type AuthData struct {
 	clientID     []byte
 	connectionID atomic.Uint32
 
-	lock sync.Mutex
+	mu sync.Mutex
 }
 
 func NewAuth() *AuthData { return &AuthData{} }
@@ -48,8 +48,8 @@ func (a *AuthData) nextAuth() {
 		return
 	}
 
-	a.lock.Lock()
-	defer a.lock.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.clientID = make([]byte, 8)
 	rand.Read(a.clientID)
 	a.connectionID.Store(rand.Uint32() & 0xFFFFFF)

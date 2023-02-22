@@ -18,8 +18,17 @@ message config {
   repeated mode_config custom_rule_v3 = 7 [ json_name = "custom_rule_v3" ];
 }
 
+enum resolve_strategy {
+  default = 0;
+  prefer_ipv4 = 1;
+  only_ipv4 = 2;
+  prefer_ipv6 = 3;
+  only_ipv6 = 4;
+}
+
 message mode_config {
   repeated string hostname = 3 [ json_name = "hostname" ];
   mode mode = 1 [ json_name = "mode" ];
   string tag = 2 [ json_name = "tag" ];
+  resolve_strategy resolve_strategy = 4 [ json_name = "resolve_strategy" ];
 }

@@ -24,13 +24,13 @@ type udp struct {
 	*client
 
 	packetConn net.PacketConn
-	lock       sync.Mutex
+	mu         sync.Mutex
 	bufChanMap syncmap.SyncMap[[2]byte, *bufChan]
 }
 
 func (u *udp) Close() error {
-	u.lock.Lock()
-	defer u.lock.Unlock()
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	if u.packetConn != nil {
 		err := u.packetConn.Close()
 		u.packetConn = nil
@@ -63,8 +63,8 @@ func (u *udp) handleResponse() {
 }
 
 func (u *udp) initPacketConn() (net.PacketConn, error) {
-	u.lock.Lock()
-	defer u.lock.Unlock()
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	if u.packetConn != nil {
 		return u.packetConn, nil
 	}
@@ -91,13 +91,13 @@ func (u *udp) initPacketConn() (net.PacketConn, error) {
 
 type bufChan struct {
 	closed  bool
-	lock    sync.Mutex
+	mu      sync.Mutex
 	bufChan chan []byte
 }
 
 func (b *bufChan) Send(buf []byte) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	if b.closed {
 		return
@@ -106,8 +106,8 @@ func (b *bufChan) Send(buf []byte) {
 }
 
 func (b *bufChan) Close() {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	b.closed = true
 	close(b.bufChan)

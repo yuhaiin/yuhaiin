@@ -17,7 +17,7 @@ type Server struct {
 	server   *http.Server
 	connChan chan net.Conn
 	closed   bool
-	lock     sync.RWMutex
+	mu       sync.RWMutex
 }
 
 func NewServer(lis net.Listener) *Server {
@@ -36,8 +36,8 @@ func NewServer(lis net.Listener) *Server {
 }
 
 func (s *Server) Close() error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.closed {
 		return nil
 	}
@@ -61,8 +61,8 @@ func (s *Server) Accept() (net.Conn, error) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	if s.closed {
 		return

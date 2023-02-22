@@ -53,7 +53,7 @@ func (n *FileStore) toNode() *node.Node {
 }
 
 type FileStore struct {
-	lock sync.RWMutex
+	mu   sync.RWMutex
 	path string
 
 	manAger  *manager
@@ -78,8 +78,8 @@ func (f *FileStore) link() *link         { return f.links }
 func (f *FileStore) manager() *manager   { return f.manAger }
 
 func (n *FileStore) Load() *node.Node {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 
 	return load(n.path)
 }
@@ -97,8 +97,8 @@ func (n *FileStore) Save() error {
 		}
 	}
 
-	n.lock.Lock()
-	defer n.lock.Unlock()
+	n.mu.Lock()
+	defer n.mu.Unlock()
 
 	dataBytes, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(n.toNode())
 	if err != nil {

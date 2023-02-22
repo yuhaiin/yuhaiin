@@ -31,11 +31,11 @@ type Logger interface {
 var DefaultLogger Logger = NewLogger(1)
 
 var writer *FileWriter
-var lock sync.Mutex
+var mu sync.Mutex
 
 func Set(config *protolog.Logcat, path string) {
-	lock.Lock()
-	defer lock.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 	DefaultLogger.SetLevel(config.Level)
 	if !config.Save && writer != nil {
 		DefaultLogger.SetOutput(os.Stdout)
@@ -50,8 +50,8 @@ func Set(config *protolog.Logcat, path string) {
 }
 
 func Close() error {
-	lock.Lock()
-	defer lock.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 	if writer != nil {
 		writer.Close()
 	}

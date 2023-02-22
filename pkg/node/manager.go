@@ -13,21 +13,21 @@ import (
 
 type manager struct {
 	*node.Manager
-	lock sync.RWMutex
+	mu sync.RWMutex
 }
 
 func NewManager(m *node.Manager) *manager { return &manager{Manager: m} }
 
 func (m *manager) GetNode(hash string) (*point.Point, bool) {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	p, ok := m.Nodes[hash]
 	return p, ok
 }
 
 func (m *manager) GetNodeByName(group, name string) (*point.Point, bool) {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	z := m.GroupsV2[group]
 	if z == nil {
 		return nil, false
@@ -42,8 +42,8 @@ func (m *manager) GetNodeByName(group, name string) (*point.Point, bool) {
 }
 
 func (m *manager) AddNode(p *point.Point) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if m.Nodes == nil {
 		m.Nodes = make(map[string]*point.Point)
@@ -79,8 +79,8 @@ func (n *manager) refreshHash(p *point.Point) {
 }
 
 func (n *manager) DeleteRemoteNodes(group string) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
+	n.mu.Lock()
+	defer n.mu.Unlock()
 
 	m := n.Manager
 
@@ -105,15 +105,15 @@ func (n *manager) DeleteRemoteNodes(group string) {
 }
 
 func (m *manager) GetManager() *node.Manager {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	return m.Manager
 }
 
 func (m *manager) DeleteNode(hash string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	p, ok := m.Nodes[hash]
 	if !ok {
@@ -128,8 +128,8 @@ func (m *manager) DeleteNode(hash string) {
 }
 
 func (m *manager) AddTag(tag string, t pt.Type, hash string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if m.Manager.Tags == nil {
 		m.Manager.Tags = make(map[string]*pt.Tags)
@@ -165,16 +165,16 @@ func (m *manager) AddTag(tag string, t pt.Type, hash string) {
 }
 
 func (m *manager) DeleteTag(tag string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.Manager.Tags != nil {
 		delete(m.Manager.Tags, tag)
 	}
 }
 
 func (m *manager) ExistTag(tag string) (*pt.Tags, bool) {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.Manager.Tags != nil {
 		t, ok := m.Manager.Tags[tag]
 		return t, ok

@@ -37,41 +37,41 @@ func (e *Element[T]) SetValue(t T) *Element[T] {
 }
 
 type SyncList[T any] struct {
-	l    *list.List
-	lock sync.RWMutex
+	l  *list.List
+	mu sync.RWMutex
 }
 
 func New[T any]() *SyncList[T] { return &SyncList[T]{l: list.New()} }
 
 func (s *SyncList[T]) MoveToFront(e *Element[T]) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	e.e.Value = e.Value
 	s.l.MoveToFront(e.e)
 }
 
 func (s *SyncList[T]) PushFront(v T) *Element[T] {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return &Element[T]{e: s.l.PushFront(v), Value: v}
 }
 
 func (s *SyncList[T]) PushBack(v T) *Element[T] {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return &Element[T]{e: s.l.PushBack(v), Value: v}
 }
 
 func (s *SyncList[T]) Remove(e *Element[T]) T {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.l.Remove(e.e)
 	return e.Value
 }
 
 func (s *SyncList[T]) Back() *Element[T] {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	b := s.l.Back()
 	if b == nil {
 		return nil
@@ -80,8 +80,8 @@ func (s *SyncList[T]) Back() *Element[T] {
 }
 
 func (s *SyncList[T]) Front() *Element[T] {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	b := s.l.Front()
 	if b == nil {
 		return nil
@@ -90,7 +90,7 @@ func (s *SyncList[T]) Front() *Element[T] {
 }
 
 func (s *SyncList[T]) Len() int {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.l.Len()
 }

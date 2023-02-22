@@ -14,21 +14,38 @@
     "bypass_file": "/mnt/share/Work/code/shell/ACL/yuhaiin/yuhaiin_my.conf",
     // bypass file location
     // support format
-    // example.com block
-    // 10.0.2.1/24 direct
-    // 127.0.0.1 proxy
-    "custom_rule_v2": {// custom rule, same as bypass file, for temporary use
-      "223.5.5.5": {
+    /*
+        10.0.2.1/24 direct
+        127.0.0.1   block
+        example.com proxy,tag=tag1,resolve_strategy=prefer_ipv6
+        *.example.com proxy,tag=tag2
+        *.example.* proxy
+    */
+    // * tag can specific node for current hostname/cidr/ip(configure in webpage)
+    // * resolve_strategy resolve domain to ip strategy, support: prefer_ipv4,only_ipv4,prefer_ipv6,only_ipv6,default
+    "custom_rule_v3": [// custom rule, same as bypass file, for temporary use
+      {
+        "hostname": [
+          "dns.google",
+          "dns.nextdns.io"
+        ],
+        "mode": "proxy",
+        "tag": "remote_dns",
+        "resolve_strategy": "default"
+      },
+      {
+        "hostname": [
+          "223.5.5.5"
+        ],
         "mode": "direct"
       },
-      "dns.google": {
-        "mode": "proxy",
-        "tag": "remote_dns"
-      },
-      "exmaple.block.domain.com": {
+      {
+        "hostname": [
+          "example.block.domain.com"
+        ],
         "mode": "block"
       }
-    }
+    ]
   },
   "dns": {
     "server": "127.0.0.1:5353", // dns server listener(tcp&udp), empty to disabled
@@ -67,7 +84,8 @@
     // "google.cn": "google.com"
     // "8.8.8.8": "dns.google"
       "10.2.2.49": "192.168.11.201",
-      "example.com": "example.com"
+      "example.com": "example.com",
+      "transmission:80": "localhost:9091"
     }
   },
   "server": { // local listener
@@ -108,6 +126,16 @@
           "dns_hijacking": true, // dns_hijacking, will hijacking request for port 53
           "skip_multicast": true,
           "driver": "fdbased" // tun gvisor driver, support: fdbased, channel, system_gvisor
+        }
+      },
+      "yuubinsya": { // experimental, custom protocol
+        "name": "yuubinsya",
+        "enabled": true,
+        "yuubinsya": {
+          "host": "127.0.0.1:40501",
+          "password": "123",
+          "force_disable_encrypt": false,
+          "normal": {} // support: normal,websocket,grpc,quic, see protobuf IDL
         }
       }
     }
