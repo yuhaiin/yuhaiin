@@ -9,11 +9,11 @@ import (
 	"strings"
 	"syscall"
 
-	yuhaiin "github.com/Asutorufa/yuhaiin/internal"
-	"github.com/Asutorufa/yuhaiin/internal/config"
-	"github.com/Asutorufa/yuhaiin/internal/lockfile"
 	"github.com/Asutorufa/yuhaiin/internal/version"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/app"
+	"github.com/Asutorufa/yuhaiin/pkg/app/config"
+	"github.com/Asutorufa/yuhaiin/pkg/app/lockfile"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
@@ -27,7 +27,7 @@ var newGrpcServer = func() *grpc.Server { return nil }
 func main() {
 	ver := flag.Bool("v", false, "show version")
 	host := flag.String("host", "127.0.0.1:50051", "gRPC and http listen host")
-	savepath := flag.String("path", protoconfig.DefaultConfigDir(), "save data path")
+	savepath := flag.String("path", pc.DefaultConfigDir(), "save data path")
 	flag.Parse()
 
 	if *ver {
@@ -35,15 +35,15 @@ func main() {
 		return
 	}
 
-	lock := yerror.Must(lockfile.NewLock(yuhaiin.PathGenerator.Lock(*savepath), *host))
+	lock := yerror.Must(lockfile.NewLock(app.PathGenerator.Lock(*savepath), *host))
 	defer lock.UnLock()
 
-	setting := config.NewConfig(yuhaiin.PathGenerator.Config(*savepath))
+	setting := config.NewConfig(app.PathGenerator.Config(*savepath))
 	grpcserver := newGrpcServer()
 
 	resp := yerror.Must(
-		yuhaiin.Start(
-			yuhaiin.StartOpt{
+		app.Start(
+			app.StartOpt{
 				ConfigPath:    *savepath,
 				Host:          *host,
 				Setting:       setting,

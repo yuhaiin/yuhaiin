@@ -4,22 +4,22 @@ import (
 	"context"
 	"errors"
 
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type tag struct {
-	grpcnode.UnimplementedTagServer
+	gn.UnimplementedTagServer
 
 	manager   *manager
 	fileStore *FileStore
 }
 
-func NewTag(f *FileStore) grpcnode.TagServer { return &tag{manager: f.manAger, fileStore: f} }
+func NewTag(f *FileStore) gn.TagServer { return &tag{manager: f.manAger, fileStore: f} }
 
-func (t *tag) Save(_ context.Context, r *grpcnode.SaveTagReq) (*emptypb.Empty, error) {
+func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
 	if r.Type == pt.Type_mirror && r.Tag == r.Hash {
 		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")
 	}

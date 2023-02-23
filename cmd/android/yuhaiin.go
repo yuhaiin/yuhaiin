@@ -9,7 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	yuhaiin "github.com/Asutorufa/yuhaiin/internal"
+	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
@@ -39,10 +39,10 @@ func (a *App) Start(opt *Opts) error {
 
 		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
-		resp, err := yuhaiin.Start(
-			yuhaiin.StartOpt{
+		resp, err := app.Start(
+			app.StartOpt{
 				ConfigPath:    opt.Savepath,
-				Setting:       fakeSetting(opt, yuhaiin.PathGenerator.Config(opt.Savepath)),
+				Setting:       fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
 				Host:          opt.Host,
 				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),
 			})
