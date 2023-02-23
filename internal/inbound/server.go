@@ -53,6 +53,7 @@ func init() {
 			TlsConfig:           tlsConfig,
 			Type:                Type,
 			ForceDisableEncrypt: o.Protocol.Yuubinsya.ForceDisableEncrypt,
+			NatTable:            o.NatTable,
 		})
 		go s.Start()
 		return s, nil

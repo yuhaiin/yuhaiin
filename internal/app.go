@@ -20,6 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
@@ -153,11 +154,14 @@ func Start(opt StartOpt) (StartResponse, error) {
 	// give dns a dialer
 	appDialer.Proxy = stcs
 
+	natTable := nat.NewTable(fakedns)
+
 	// http/socks5/redir/tun server
 	listener := inbound.NewListener(
 		&listener.Opts[listener.IsProtocol_Protocol]{
 			Dialer:    fakedns,
 			DNSServer: dnsServer,
+			NatTable:  natTable,
 		},
 	)
 	opt.addObserver(listener)
@@ -187,7 +191,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,
-		servers:      []is.Server{stcs, listener, resolvers, dnsServer, db},
+		servers:      []is.Server{stcs, listener, resolvers, dnsServer, db, natTable},
 	}, nil
 }
 

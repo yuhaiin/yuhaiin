@@ -5,7 +5,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
@@ -35,7 +34,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
+func New(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 	opt := o.Protocol.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500
@@ -125,7 +124,7 @@ func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (server.
 
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder(s, o).HandlePacket)
 
-	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder(s, natTable, o).HandlePacket)
+	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder(s, o).HandlePacket)
 
 	return &tunServer{stack: s, nicID: nicID}, nil
 }

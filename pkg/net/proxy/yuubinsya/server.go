@@ -33,8 +33,6 @@ type yuubinsya struct {
 	Lis net.Listener
 
 	handshaker handshaker
-
-	nat *nat.Table
 }
 
 type Type int
@@ -54,6 +52,7 @@ type Config struct {
 	TlsConfig           *tls.Config
 	Type                Type
 	ForceDisableEncrypt bool
+	NatTable            *nat.Table
 }
 
 func (c Config) String() string {
@@ -70,7 +69,6 @@ func NewServer(config Config) *yuubinsya {
 	return &yuubinsya{
 		Config:     config,
 		handshaker: NewHandshaker(!config.ForceDisableEncrypt && config.TlsConfig == nil, config.Password),
-		nat:        nat.NewTable(config.Dialer),
 	}
 }
 
@@ -271,7 +269,7 @@ func (y *yuubinsya) remoteToLocal(c net.Conn) error {
 	dst := addr.Address(statistic.Type_udp)
 	dst.WithContext(ctx)
 
-	return y.nat.Write(&nat.Packet{
+	return y.Config.NatTable.Write(&nat.Packet{
 		Src:     src,
 		Dst:     dst,
 		Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],

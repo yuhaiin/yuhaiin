@@ -19,7 +19,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func udpForwarder(s *stack.Stack, natTable *nat.Table, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
+func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
 	handle := func(srcpconn net.PacketConn, dst proxy.Address) error {
 		buf := pool.GetBytes(opt.Protocol.Tun.Mtu)
 		defer pool.PutBytes(buf)
@@ -35,7 +35,7 @@ func udpForwarder(s *stack.Stack, natTable *nat.Table, opt *listener.Opts[*liste
 				return err
 			}
 
-			err = natTable.Write(
+			err = opt.NatTable.Write(
 				&nat.Packet{
 					Src:     src,
 					Dst:     dst,

@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -37,6 +38,7 @@ type Opts[T isProtocol_Protocol] struct {
 	Dialer    proxy.Proxy
 	DNSServer server.DNSServer
 	IPv6      bool
+	NatTable  *nat.Table
 
 	Protocol T
 }
@@ -51,6 +53,7 @@ func CovertOpts[T1, T2 isProtocol_Protocol](o *Opts[T1], f func(t T1) T2) *Opts[
 		DNSServer: o.DNSServer,
 		IPv6:      o.IPv6,
 		Protocol:  f(o.Protocol),
+		NatTable:  o.NatTable,
 	}
 }
 

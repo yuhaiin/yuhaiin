@@ -19,7 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
+func New(o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
 	gateway, gerr := netip.ParseAddr(o.Protocol.Tun.Gateway)
 	portal, perr := netip.ParseAddr(o.Protocol.Tun.Portal)
 	if gerr != nil || perr != nil {
@@ -47,7 +47,7 @@ func New(natTable *nat.Table, o *listener.Opts[*listener.Protocol_Tun]) (*Tun2So
 
 	go handler.tcp()
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go handler.udp(natTable)
+		go handler.udp(o.NatTable)
 	}
 
 	return lis, nil
