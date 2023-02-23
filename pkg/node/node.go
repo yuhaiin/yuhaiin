@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -22,7 +22,7 @@ import (
 var _ proxy.Proxy = (*Nodes)(nil)
 
 type Nodes struct {
-	grpcnode.UnimplementedNodeServer
+	gn.UnimplementedNodeServer
 	proxy.EmptyDispatch
 
 	fileStore *FileStore
@@ -30,8 +30,8 @@ type Nodes struct {
 
 func NewNodes(fileStore *FileStore) *Nodes { return &Nodes{fileStore: fileStore} }
 
-func (n *Nodes) Now(_ context.Context, r *grpcnode.NowReq) (*point.Point, error) {
-	if r.Net == grpcnode.NowReq_udp {
+func (n *Nodes) Now(_ context.Context, r *gn.NowReq) (*point.Point, error) {
+	if r.Net == gn.NowReq_udp {
 		return n.outbound().UDP, nil
 	} else {
 		return n.outbound().TCP, nil
@@ -57,7 +57,7 @@ func (n *Nodes) Manager(context.Context, *wrapperspb.StringValue) (*node.Manager
 	return n.manager().GetManager(), nil
 }
 
-func (n *Nodes) Use(c context.Context, s *grpcnode.UseReq) (*point.Point, error) {
+func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
 	p, err := n.Get(c, &wrapperspb.StringValue{Value: s.Hash})
 	if err != nil {
 		return &point.Point{}, fmt.Errorf("get node failed: %w", err)

@@ -119,7 +119,7 @@ func (s *Shunt) Conn(host proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return conn, err
+	return conn, nil
 }
 
 func (s *Shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
@@ -130,7 +130,7 @@ func (s *Shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
 
-	return conn, err
+	return conn, nil
 }
 
 var errMode = Mode{

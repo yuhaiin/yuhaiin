@@ -1,25 +1,25 @@
-package yuhaiin
+package app
 
 import (
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/internal/config"
 	web "github.com/Asutorufa/yuhaiin/internal/http"
-	"github.com/Asutorufa/yuhaiin/internal/inbound"
 	"github.com/Asutorufa/yuhaiin/internal/resolver"
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
-	"github.com/Asutorufa/yuhaiin/internal/statistics"
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/app/config"
+	"github.com/Asutorufa/yuhaiin/pkg/app/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/app/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
@@ -58,11 +58,11 @@ type StartResponse struct {
 
 	Node *node.Nodes
 
-	servers []is.Server
+	closers []io.Closer
 }
 
 func (s *StartResponse) Close() error {
-	for _, z := range s.servers {
+	for _, z := range s.closers {
 		z.Close()
 	}
 	log.Close()
@@ -191,7 +191,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,
-		servers:      []is.Server{stcs, listener, resolvers, dnsServer, db, natTable},
+		closers:      []io.Closer{stcs, listener, resolvers, dnsServer, db, natTable},
 	}, nil
 }
 

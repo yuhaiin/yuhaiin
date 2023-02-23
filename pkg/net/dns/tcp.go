@@ -31,6 +31,10 @@ func ParseAddr(netType statistic.Type, host, defaultPort string) (proxy.Address,
 		host = host[i+3:]
 	}
 
+	if i := strings.IndexByte(host, '/'); i != -1 {
+		host = host[:i]
+	}
+
 	_, _, err := net.SplitHostPort(host)
 	if err != nil {
 		e, ok := err.(*net.AddrError)

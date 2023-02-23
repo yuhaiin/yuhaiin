@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/internal/config"
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/app/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	id "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"

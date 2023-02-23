@@ -11,21 +11,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	iconfig "github.com/Asutorufa/yuhaiin/internal/config"
+	"github.com/Asutorufa/yuhaiin/pkg/app/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	protoconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func fakeSetting(opt *Opts, path string) iconfig.Setting {
+func fakeSetting(opt *Opts, path string) config.Setting {
 	opts, _ := json.Marshal(opt)
 	log.Infoln("fake setting:", string(opts))
-	settings := &protoconfig.Setting{
+	settings := &pc.Setting{
 		Ipv6: opt.IPv6,
 		Dns: &dns.Config{
 			Server:              opt.DNS.Server,
@@ -52,7 +52,7 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 				TlsServername: opt.DNS.Bootstrap.TlsServername,
 			},
 		},
-		SystemProxy: &protoconfig.SystemProxy{},
+		SystemProxy: &pc.SystemProxy{},
 		Server: &listener.Config{
 			Servers: map[string]*listener.Protocol{
 				"socks5": {
@@ -98,8 +98,8 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 			CustomRuleV3: []*bypass.ModeConfig{},
 		},
 
-		Logcat: &protolog.Logcat{
-			Level: protolog.LogLevel(opt.Log.LogLevel),
+		Logcat: &pl.Logcat{
+			Level: pl.LogLevel(opt.Log.LogLevel),
 			Save:  opt.Log.SaveLogcat,
 		},
 	}
@@ -114,7 +114,7 @@ func fakeSetting(opt *Opts, path string) iconfig.Setting {
 	return newFakeSetting(settings)
 }
 
-func applyRule(settings *protoconfig.Setting, ruls string, mode bypass.Mode) {
+func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 	cache := map[string]*bypass.ModeConfig{}
 
 	r := bufio.NewReader(strings.NewReader(ruls))
@@ -157,23 +157,23 @@ func applyRule(settings *protoconfig.Setting, ruls string, mode bypass.Mode) {
 }
 
 type fakeSettings struct {
-	config.UnimplementedConfigDaoServer
-	setting *protoconfig.Setting
+	gc.UnimplementedConfigDaoServer
+	setting *pc.Setting
 }
 
-func newFakeSetting(setting *protoconfig.Setting) *fakeSettings {
+func newFakeSetting(setting *pc.Setting) *fakeSettings {
 	return &fakeSettings{setting: setting}
 }
 
-func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*protoconfig.Setting, error) {
+func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*pc.Setting, error) {
 	return w.setting, nil
 }
 
-func (w *fakeSettings) Save(ctx context.Context, in *protoconfig.Setting) (*emptypb.Empty, error) {
+func (w *fakeSettings) Save(ctx context.Context, in *pc.Setting) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }
 
-func (w *fakeSettings) AddObserver(o iconfig.Observer) {
+func (w *fakeSettings) AddObserver(o config.Observer) {
 	if o != nil {
 		o.Update(w.setting)
 	}
