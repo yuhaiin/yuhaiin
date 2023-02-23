@@ -248,7 +248,7 @@ func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (iserver.Server, err
 		password: o.Protocol.Socks5.Password,
 	}
 
-	err := s.newUDPServer()
+	err := s.newUDPServer(o.NatTable)
 	if err != nil {
 		s.Close()
 		return nil, fmt.Errorf("new udp server failed: %w", err)

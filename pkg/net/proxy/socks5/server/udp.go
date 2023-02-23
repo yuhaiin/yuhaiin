@@ -23,13 +23,13 @@ type udpServer struct {
 	natTable *nat.Table
 }
 
-func (s *Socks5) newUDPServer() error {
+func (s *Socks5) newUDPServer(natTable *nat.Table) error {
 	l, err := dialer.ListenPacket("udp", s.addr)
 	if err != nil {
 		return fmt.Errorf("listen udp failed: %w", err)
 	}
 
-	u := &udpServer{PacketConn: l, natTable: nat.NewTable(s.dialer)}
+	u := &udpServer{PacketConn: l, natTable: natTable}
 	s.udpServer = u
 
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
@@ -86,9 +86,4 @@ func (u *udpServer) handle(buf []byte, src net.Addr) error {
 		},
 	)
 
-}
-
-func (u *udpServer) Close() error {
-	u.natTable.Close()
-	return u.PacketConn.Close()
 }
