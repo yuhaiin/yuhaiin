@@ -6,19 +6,21 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type Opts struct {
-	Host     string      `json:"host"`
-	Savepath string      `json:"savepath"`
-	Socks5   string      `json:"socks5"`
-	Http     string      `json:"http"`
-	IPv6     bool        `json:"ipv6"`
-	Bypass   *Bypass     `json:"bypass"`
-	DNS      *DNSSetting `json:"dns"`
-	TUN      *TUN        `json:"tun"`
-	Log      *Log        `json:"log"`
+	Host          string      `json:"host"`
+	Savepath      string      `json:"savepath"`
+	Socks5        string      `json:"socks5"`
+	Http          string      `json:"http"`
+	IPv6          bool        `json:"ipv6"`
+	Bypass        *Bypass     `json:"bypass"`
+	DNS           *DNSSetting `json:"dns"`
+	TUN           *TUN        `json:"tun"`
+	Log           *Log        `json:"log"`
+	CloseFallback Closer
 }
 
 type Log struct {
@@ -89,12 +91,16 @@ type SocketProtect interface {
 	Protect(socket int32) bool
 }
 
+type Closer interface {
+	Close() error
+}
+
 type uidDumper struct {
 	UidDumper
 	cache syncmap.SyncMap[int32, string]
 }
 
-func NewUidDumper(ud UidDumper) *uidDumper {
+func NewUidDumper(ud UidDumper) listener.ProcessDumper {
 	if ud == nil {
 		return nil
 	}

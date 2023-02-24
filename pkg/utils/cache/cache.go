@@ -50,7 +50,7 @@ func (c *Cache) Put(k, v []byte) {
 	})
 }
 
-func (c *Cache) Delete(k []byte) {
+func (c *Cache) Delete(k ...[]byte) {
 	if c.db == nil {
 		return
 	}
@@ -60,6 +60,14 @@ func (c *Cache) Delete(k []byte) {
 			return nil
 		}
 
-		return b.Delete(k)
+		for _, kk := range k {
+			if kk == nil {
+				continue
+			}
+
+			b.Delete(kk)
+		}
+
+		return nil
 	})
 }

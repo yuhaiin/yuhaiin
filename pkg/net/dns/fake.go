@@ -128,6 +128,10 @@ type FakeIPPool struct {
 }
 
 func NewFakeIPPool(prefix netip.Prefix, bbolt *cache.Cache) *FakeIPPool {
+	if bbolt == nil {
+		bbolt = cache.NewCache(nil, "")
+	}
+
 	prefix = prefix.Masked()
 
 	lenSize := 32
@@ -203,13 +207,12 @@ func newFakeLru(size uint, bbolt *cache.Cache) *fakeLru {
 		z.LRU = lru.NewLru(
 			lru.WithCapacity[string, string](size),
 			lru.WithOnRemove[string, string](func(s string) {
-				v := bbolt.Get(unsafe.Slice(unsafe.StringData(s), len(s)))
+				kk := unsafe.Slice(unsafe.StringData(s), len(s))
+				v := bbolt.Get(kk)
 				if v == nil {
 					return
 				}
-
-				bbolt.Delete(unsafe.Slice(unsafe.StringData(s), len(s)))
-				bbolt.Delete(v)
+				bbolt.Delete(kk, v)
 			}),
 		)
 	}
@@ -227,10 +230,11 @@ func (f *fakeLru) Load(k string) (string, bool) {
 		return z, ok
 	}
 
-	if v := f.bbolt.Get(unsafe.Slice(unsafe.StringData(k), len(k))); v != nil {
+	kk := unsafe.Slice(unsafe.StringData(k), len(k))
+
+	if v := f.bbolt.Get(kk); v != nil {
 		vv := string(v)
 		f.LRU.Add(k, vv)
-
 		return vv, true
 	}
 
@@ -243,9 +247,12 @@ func (f *fakeLru) Add(k, v string) {
 	}
 	f.LRU.Add(k, v)
 
+	kk, vv := unsafe.Slice(unsafe.StringData(k), len(k)), unsafe.Slice(unsafe.StringData(v), len(v))
+
 	if f.bbolt != nil {
-		f.bbolt.Put(unsafe.Slice(unsafe.StringData(k), len(k)), unsafe.Slice(unsafe.StringData(v), len(v)))
-		f.bbolt.Put(unsafe.Slice(unsafe.StringData(v), len(v)), unsafe.Slice(unsafe.StringData(k), len(k)))
+		f.bbolt.Delete(kk, vv, f.bbolt.Get(kk), f.bbolt.Get(vv))
+		f.bbolt.Put(kk, vv)
+		f.bbolt.Put(vv, kk)
 	}
 }
 
@@ -254,7 +261,19 @@ func (f *fakeLru) ValueExist(v string) bool {
 		return false
 	}
 
-	return f.LRU.ValueExist(v)
+	if f.LRU.ValueExist(v) {
+		return true
+	}
+
+	vv := unsafe.Slice(unsafe.StringData(v), len(v))
+
+	k := f.bbolt.Get(vv)
+	if k != nil {
+		f.LRU.Add(string(k), v)
+		return true
+	}
+
+	return false
 }
 
 func (f *fakeLru) ReverseLoad(ip string) (string, bool) {
@@ -267,7 +286,9 @@ func (f *fakeLru) ReverseLoad(ip string) (string, bool) {
 		return k, ok
 	}
 
-	if kk := f.bbolt.Get(unsafe.Slice(unsafe.StringData(ip), len(ip))); kk != nil {
+	vv := unsafe.Slice(unsafe.StringData(ip), len(ip))
+
+	if kk := f.bbolt.Get(vv); kk != nil {
 		k = string(kk)
 		f.LRU.Add(k, ip)
 		return k, true
