@@ -99,7 +99,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 			c.handshaker.packetHeader(w)
 			defer func() {
 				c.headerWrote = true
-				defer c.hmux.Unlock()
+				c.hmux.Unlock()
 			}()
 		} else {
 			c.hmux.Unlock()

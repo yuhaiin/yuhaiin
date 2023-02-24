@@ -127,7 +127,7 @@ func (y *yuubinsya) Start() error {
 		go func() {
 			defer conn.Close()
 			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
-				log.Errorln("handle failed:", err)
+				log.Errorf("handle from %v failed: %v\n", conn.RemoteAddr(), err)
 			}
 		}()
 	}

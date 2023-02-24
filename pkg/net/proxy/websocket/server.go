@@ -85,7 +85,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return nil
 	})
 	if err != nil {
-		log.Errorln("new websocket server conn failed:", err)
+		log.Errorf("new websocket server conn from %v failed: %v\n", req.RemoteAddr, err)
 		return
 	}
 

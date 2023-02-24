@@ -63,6 +63,7 @@ func (a *App) Start(opt *Opts) error {
 		defer a.started.Store(false)
 
 		close(errChan)
+		defer opt.CloseFallback.Close()
 
 		a.lis.Serve(resp.HttpListener)
 	}()

@@ -56,8 +56,8 @@ func main() {
 	// listen system signal
 	signChannel := make(chan os.Signal, 1)
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() bool {
-		return (<-signChannel).String() != "" && resp.HttpListener != nil && resp.HttpListener.Close() != nil
+	go func() {
+		_ = (<-signChannel).String() != "" && resp.HttpListener != nil && resp.HttpListener.Close() != nil
 	}()
 
 	yerror.Must(struct{}{},
