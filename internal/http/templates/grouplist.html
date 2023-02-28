@@ -26,17 +26,17 @@
 
     function lat(id, type, callback) {
         const elem = document.querySelector(`#i${id} .${type}`);
-        ajax("GET", `/latency?hash=${id}&type=${type}`, null,
+        ajax("GET", `/latency?hash=${id}&type=${type}`, null, 3500,
             (xmlhttp) => {
                 if (xmlhttp.responseText != "") elem.innerText = `${type}: ${xmlhttp.responseText}`
                 else elem.innerText = `${type}: timeout`
-                console.log(`get ${type} data：`, elem.innerText)
+                console.log(`get ${type} data:`, elem.innerText)
                 callback()
             },
             () => { elem.innerText = `${type}: timeout`; callback() });
     }
 
-    const deleteSelectedNode = () => ajax("DELETE", `/node?hash=${selectedNode()}`, null, () => location.reload(), (xmlhttp) => show_danger(`delete ${hash} failed, ${xmlhttp.responseText}`));
+    const deleteSelectedNode = () => ajax("DELETE", `/node?hash=${selectedNode()}`, null, null, () => location.reload(), (xmlhttp) => show_danger(`delete ${hash} failed, ${xmlhttp.responseText}`));
 
     const use = (net) => {
         useByHash(net, selectedNode());
@@ -65,18 +65,20 @@
 
             modalTitle.textContent = linkName
 
-            ajax("GET", "/node?hash=" + recipient, null, (xmlhttp) => {
-                modalBodyInput.innerHTML = `<pre id="node" contenteditable="true">${xmlhttp.responseText}</pre>`
-                saveButton.classList.remove("disabled")
-            }, (xmlhttp) => {
-                modalBodyInput.innerHTML = `get node info failed ${xmlhttp.responseText}`
-                saveButton.classList.add("disabled")
-            })
+            ajax("GET", "/node?hash=" + recipient, null, null,
+                (xmlhttp) => {
+                    modalBodyInput.innerHTML = `<pre id="node" contenteditable="true">${xmlhttp.responseText}</pre>`
+                    saveButton.classList.remove("disabled")
+                },
+                (xmlhttp) => {
+                    modalBodyInput.innerHTML = `get node info failed ${xmlhttp.responseText}`
+                    saveButton.classList.add("disabled")
+                })
         })
     }
 
 
-    const showNodes = (group) => ajax("GET", `/group?name=${group}`, null, (xmlhttp) => {
+    const showNodes = (group) => ajax("GET", `/group?name=${group}`, null, null, (xmlhttp) => {
         let nodes_element = document.querySelector("#nodes");
         nodes_element.innerHTML = "";
         let data = JSON.parse(xmlhttp.responseText);

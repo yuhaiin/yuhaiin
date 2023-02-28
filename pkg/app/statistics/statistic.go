@@ -11,16 +11,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	grpcsts "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Connections struct {
-	grpcsts.UnimplementedConnectionsServer
+	gs.UnimplementedConnectionsServer
 
 	dialer proxy.Proxy
 	idSeed id.IDGenerator
@@ -29,6 +28,8 @@ type Connections struct {
 
 	processDumper listener.ProcessDumper
 	Cache         *Cache
+
+	notify notify
 }
 
 func NewConnStore(cache *cache.Cache, dialer proxy.Proxy, processDumper listener.ProcessDumper) *Connections {
@@ -49,30 +50,20 @@ func (c *Connections) Dispatch(addr proxy.Address) (proxy.Address, error) {
 	return c.dialer.Dispatch(addr)
 }
 
-func (c *Connections) Conns(context.Context, *emptypb.Empty) (*grpcsts.ConnectionsInfo, error) {
-	resp := &grpcsts.ConnectionsInfo{}
-	c.connStore.Range(func(key uint64, con connection) bool {
-		connection := &statistic.Connection{
-			Id:   con.ID(),
-			Addr: getAddr(con.Addr()),
-			Type: &statistic.NetType{
-				ConnType:       con.Addr().NetworkType(),
-				UnderlyingType: statistic.Type(statistic.Type_value[con.LocalAddr().Network()]),
-			},
-			Extra: extraMap(con.Addr()),
-		}
-
-		if out := getRemote(con); out != "" {
-			connection.Extra["Outbound"] = out
-		}
-
-		resp.Connections = append(resp.Connections, connection)
-		return true
-	})
-	return resp, nil
+func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
+	id := c.notify.register(s, c.connStore.ValueSlice()...)
+	defer c.notify.unregister(id)
+	log.Debugln("new notify client", id)
+	<-s.Context().Done()
+	log.Debugln("remove notify client", id)
+	return s.Context().Err()
 }
 
-func (c *Connections) CloseConn(_ context.Context, x *grpcsts.ConnectionsId) (*emptypb.Empty, error) {
+func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.ConnectionsInfo, error) {
+	return &gs.ConnectionsInfo{Connections: c.notify.icsToConnections(c.connStore.ValueSlice()...)}, nil
+}
+
+func (c *Connections) CloseConn(_ context.Context, x *gs.ConnectionsId) (*emptypb.Empty, error) {
 	for _, x := range x.Ids {
 		if z, ok := c.connStore.Load(x); ok {
 			z.Close()
@@ -91,8 +82,8 @@ func (c *Connections) Close() error {
 	return nil
 }
 
-func (c *Connections) Total(context.Context, *emptypb.Empty) (*grpcsts.TotalFlow, error) {
-	return &grpcsts.TotalFlow{
+func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, error) {
+	return &gs.TotalFlow{
 		Download: c.Cache.LoadDownload(),
 		Upload:   c.Cache.LoadUpload(),
 	}, nil
@@ -103,10 +94,13 @@ func (c *Connections) Remove(id uint64) {
 		source, _ := z.Addr().Value(proxy.SourceKey{})
 		log.Debugf("close(%d) %v, %v<->%s\n", z.ID(), z.Addr(), source, getRemote(z))
 	}
+
+	c.notify.pubRemoveConns(id)
 }
 
 func (c *Connections) storeConnection(o connection) {
 	c.connStore.Store(o.ID(), o)
+	c.notify.pubNewConns(o)
 	log.Debugf("new(%d) [%s]%v(outbound: %s)", o.ID(), o.Addr().Network(), o.Addr(), getRemote(o))
 }
 

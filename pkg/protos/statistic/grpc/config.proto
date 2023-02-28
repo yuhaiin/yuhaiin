@@ -11,6 +11,7 @@ service connections {
   rpc conns(google.protobuf.Empty) returns (connections_info);
   rpc close_conn(connections_id) returns (google.protobuf.Empty);
   rpc total(google.protobuf.Empty) returns (total_flow);
+  rpc notify(google.protobuf.Empty) returns (stream notify_data);
 }
 
 message total_flow {
@@ -23,4 +24,20 @@ message connections_id { repeated uint64 ids = 1; }
 message connections_info {
   repeated yuhaiin.statistic.connection connections = 1
       [ json_name = "connections" ];
+}
+
+message notify_data {
+  oneof data {
+    notify_new_connections notify_new_connections = 1;
+    notify_remove_connections notify_remove_connections = 2;
+  }
+}
+
+message notify_new_connections {
+  repeated yuhaiin.statistic.connection connections = 1
+      [ json_name = "connections" ];
+}
+
+message notify_remove_connections {
+  repeated uint64 ids = 1 [ json_name = "ids" ];
 }

@@ -27,7 +27,7 @@
 
             modalTitle.textContent = linkName
 
-            ajax("GET", "/node?hash=" + recipient, null, (xmlhttp) => {
+            ajax("GET", "/node?hash=" + recipient, null, null, (xmlhttp) => {
                 modalBodyInput.innerHTML = `<pre id="node">${xmlhttp.responseText}</pre>`
             }, (xmlhttp) => {
                 modalBodyInput.innerHTML = `get node info failed ${xmlhttp.responseText}`
@@ -103,20 +103,24 @@
 
         console.log(tag, hash, tagType);
 
-        ajax("POST", `/tag`, `{"tag": "${tag}", "hash": "${hash}", "type": "${tagType}"}`, (xmlhttp) => {
-            location.reload();
-        }, (xmlhttp) => {
-            show_danger(`add tag ${tag} failed: ${xmlhttp.responseText}`)
-        })
+        ajax("POST", `/tag`, `{"tag": "${tag}", "hash": "${hash}", "type": "${tagType}"}`, null,
+            (xmlhttp) => {
+                location.reload();
+            },
+            (xmlhttp) => {
+                show_danger(`add tag ${tag} failed: ${xmlhttp.responseText}`)
+            })
     }
 
 
     const remove = (tag) => {
-        ajax("DELETE", `/tag?tag=${tag}`, null, (xmlhttp) => {
-            location.reload();
-        }, (xmlhttp) => {
-            show_danger(`remove tag ${tag} failed: ${xmlhttp.responseText}`)
-        })
+        ajax("DELETE", `/tag?tag=${tag}`, null, null,
+            (xmlhttp) => {
+                location.reload();
+            },
+            (xmlhttp) => {
+                show_danger(`remove tag ${tag} failed: ${xmlhttp.responseText}`)
+            })
     }
 
     const setInputTagText = (text) => {

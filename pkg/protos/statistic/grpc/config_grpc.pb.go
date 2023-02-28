@@ -26,6 +26,7 @@ type ConnectionsClient interface {
 	Conns(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ConnectionsInfo, error)
 	CloseConn(ctx context.Context, in *ConnectionsId, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Total(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TotalFlow, error)
+	Notify(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Connections_NotifyClient, error)
 }
 
 type connectionsClient struct {
@@ -63,6 +64,38 @@ func (c *connectionsClient) Total(ctx context.Context, in *emptypb.Empty, opts .
 	return out, nil
 }
 
+func (c *connectionsClient) Notify(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Connections_NotifyClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Connections_ServiceDesc.Streams[0], "/yuhaiin.protos.statistic.service.connections/notify", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &connectionsNotifyClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Connections_NotifyClient interface {
+	Recv() (*NotifyData, error)
+	grpc.ClientStream
+}
+
+type connectionsNotifyClient struct {
+	grpc.ClientStream
+}
+
+func (x *connectionsNotifyClient) Recv() (*NotifyData, error) {
+	m := new(NotifyData)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // ConnectionsServer is the server API for Connections service.
 // All implementations must embed UnimplementedConnectionsServer
 // for forward compatibility
@@ -70,6 +103,7 @@ type ConnectionsServer interface {
 	Conns(context.Context, *emptypb.Empty) (*ConnectionsInfo, error)
 	CloseConn(context.Context, *ConnectionsId) (*emptypb.Empty, error)
 	Total(context.Context, *emptypb.Empty) (*TotalFlow, error)
+	Notify(*emptypb.Empty, Connections_NotifyServer) error
 	mustEmbedUnimplementedConnectionsServer()
 }
 
@@ -85,6 +119,9 @@ func (UnimplementedConnectionsServer) CloseConn(context.Context, *ConnectionsId)
 }
 func (UnimplementedConnectionsServer) Total(context.Context, *emptypb.Empty) (*TotalFlow, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Total not implemented")
+}
+func (UnimplementedConnectionsServer) Notify(*emptypb.Empty, Connections_NotifyServer) error {
+	return status.Errorf(codes.Unimplemented, "method Notify not implemented")
 }
 func (UnimplementedConnectionsServer) mustEmbedUnimplementedConnectionsServer() {}
 
@@ -153,6 +190,27 @@ func _Connections_Total_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Connections_Notify_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(emptypb.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ConnectionsServer).Notify(m, &connectionsNotifyServer{stream})
+}
+
+type Connections_NotifyServer interface {
+	Send(*NotifyData) error
+	grpc.ServerStream
+}
+
+type connectionsNotifyServer struct {
+	grpc.ServerStream
+}
+
+func (x *connectionsNotifyServer) Send(m *NotifyData) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // Connections_ServiceDesc is the grpc.ServiceDesc for Connections service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -173,6 +231,12 @@ var Connections_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Connections_Total_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "notify",
+			Handler:       _Connections_Notify_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "statistic/grpc/config.proto",
 }

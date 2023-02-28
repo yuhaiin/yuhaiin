@@ -42,3 +42,12 @@ func (a *SyncMap[T1, T2]) Range(f func(key T1, value T2) bool) {
 		return f(key.(T1), value.(T2))
 	})
 }
+
+func (a *SyncMap[key, T2]) ValueSlice() (r []T2) {
+	a.data.Range(func(key, value any) bool {
+		r = append(r, value.(T2))
+		return true
+	})
+
+	return r
+}

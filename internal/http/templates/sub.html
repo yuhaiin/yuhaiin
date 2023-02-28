@@ -3,7 +3,7 @@
     function add() {
         const name = document.getElementById("name").value;
         const link = document.getElementById("link").value;
-        ajax("POST", `/sub?name=${encodeURIComponent(name)}&link=${encodeURIComponent(link)}`, null, () => { window.location = "/sub" });
+        ajax("POST", `/sub?name=${encodeURIComponent(name)}&link=${encodeURIComponent(link)}`, null, null, () => { window.location = "/sub" });
     }
 
     function update() {
@@ -16,7 +16,7 @@
             ub.classList.remove("disabled")
         }
 
-        ajax("PATCH", `/sub?links=${encodeURIComponent(selectSubs())}`, null, (xmlhttp) => {
+        ajax("PATCH", `/sub?links=${encodeURIComponent(selectSubs())}`, null, null, (xmlhttp) => {
             finished()
             show_success("Update successful")
         }, (xmlhttp) => {
@@ -28,7 +28,7 @@
     function delSubs() {
         var links = selectSubs();
         if (confirm("Are you sure to delete these subs?\n" + links))
-            ajax("DELETE", "/sub?links=" + encodeURIComponent(links), null, () => { window.location = "/sub" })
+            ajax("DELETE", "/sub?links=" + encodeURIComponent(links), null, null, () => { window.location = "/sub" })
     }
 
     const selectSubs = () => {
