@@ -35,9 +35,10 @@
 
         const copyToClipboard = (link) => navigator.clipboard.writeText(link).then(show_success("Copy Successful"), (err) => show_danger("Copy Failed: " + err));
 
-        const ajax = (method, path, data, callback = null, callback_err = null) => {
+        const ajax = (method, path, data, timeout, callback = null, callback_err = null) => {
             const xmlhttp = new XMLHttpRequest();
             xmlhttp.open(method, path, true);
+            if (timeout != null) xmlhttp.timeout = timeout;
             xmlhttp.send(data);
 
             xmlhttp.onreadystatechange = function () {
@@ -52,15 +53,22 @@
         }
 
         // save data common func
-        const save = (id, path) => ajax("POST", path, document.getElementById(id).innerText,
+        const save = (id, path) => ajax("POST",
+            path,
+            document.getElementById(id).innerText,
+            null,
             () => location.reload(),
-            (xmlhttp) => show_danger("Save failed, " + xmlhttp.responseText),
+            (xmlhttp) => {
+                show_danger("Save failed, " + xmlhttp.responseText)
+                document.body.scrollTop = 0;
+                document.documentElement.scrollTop = 0;
+            }
         );
 
         // change now use node
         const useByHash = (net, hash) => {
             if (hash == null || hash == "") return
-            ajax("PUT", `/node?hash=${hash}&net=${net}`, null,
+            ajax("PUT", `/node?hash=${hash}&net=${net}`, null, null,
                 () => show_success(`Change (${net}) to ${hash} successful`),
                 (xmlhttp) => show_danger(`Change (${net}) to ${hash} failed, ${xmlhttp.responseText}`))
         }

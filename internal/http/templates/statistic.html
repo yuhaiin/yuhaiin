@@ -26,16 +26,22 @@
 
             modalTitle.textContent = linkName
 
-            ajax("GET", "/node?hash=" + recipient, null, (xmlhttp) => {
-                modalBodyInput.innerHTML = `<pre id="node">${xmlhttp.responseText}</pre>`
-            }, (xmlhttp) => {
-                modalBodyInput.innerHTML = `get node info failed ${xmlhttp.responseText}`
-            })
+            ajax("GET", "/node?hash=" + recipient, null, null,
+                (xmlhttp) => {
+                    modalBodyInput.innerHTML = `<pre id="node">${xmlhttp.responseText}</pre>`
+                },
+                (xmlhttp) => {
+                    modalBodyInput.innerHTML = `get node info failed ${xmlhttp.responseText}`
+                })
         })
         // node modal end
     }
 
     function connect() {
+        const sttd = document.querySelector('#statistic-download');
+        const sttu = document.querySelector("#statistic-upload");
+        const connections_document = document.getElementById('connections');
+
         var ws = new WebSocket("ws://" + window.location.host + "/conn");
 
         var download = 0
@@ -43,35 +49,40 @@
         var drate = 0
         var urate = 0
 
-        window.onbeforeunload = function () {
-            ws.close();
-        }
-
-        var internal_id = null;
+        window.onbeforeunload = function () { ws.close(); }
 
         ws.onopen = () => {
-            ws.send("");
-            internal_id = setInterval(() => { ws.send(""); }, 2000)
+            connections_document.innerHTML = "";
+            ws.send('2000'); // send ticker
         }
 
-
-        const sttd = document.querySelector('#statistic-download');
-        const sttu = document.querySelector("#statistic-upload")
         ws.onmessage = function (event) {
             let all = JSON.parse(event.data);
-
-
-            let data = all.flow;
-            if (download != 0 || upload != 0) {
-                drate = (data.download - download) / 2
-                urate = (data.upload - upload) / 2
+            switch (all.type) {
+                case 0:
+                    let data = all.flow;
+                    if (download != 0 || upload != 0) {
+                        drate = (data.download - download) / 2
+                        urate = (data.upload - upload) / 2
+                    }
+                    download = data.download
+                    upload = data.upload
+                    sttd.innerText = `(${formatBytes(download)}): ${formatBytes(drate)}/S`
+                    sttu.innerText = `(${formatBytes(data.upload)}): ${formatBytes(urate)}/S`
+                    break
+                case 1:
+                    all.data.forEach((element) => {
+                        if (document.getElementById(`connection_${element.id}`) == null)
+                            connections_document.insertAdjacentHTML('beforeend', generate_conn_item(element));
+                    })
+                    break
+                case 2:
+                    all.data.forEach((element) => {
+                        var i = document.getElementById(`connection_${element}`)
+                        if (i != null) i.remove();
+                    })
+                    break
             }
-            download = data.download
-            upload = data.upload
-            sttd.innerText = `(${formatBytes(download)}): ${formatBytes(drate)}/S`
-            sttu.innerText = `(${formatBytes(data.upload)}): ${formatBytes(urate)}/S`
-
-            refresh(all.connections);
         }
 
         ws.onclose = function (event) {
@@ -79,34 +90,7 @@
             sttd.innerText = 'Loading...'
             sttu.innerText = 'Loading...'
             setTimeout(connect, 1000);
-            if (internal_id != null) clearInterval(internal_id);
         }
-    }
-
-    var connections = new Set();
-
-    const refresh = (conns) => {
-        if (conns == null) return;
-
-        var connections_document = document.getElementById('connections');
-
-        const set = new Set();
-
-
-        conns.sort((a, b) => a.id - b.id).forEach((element) => {
-            set.add(element.id);
-            if (connections.has(element.id)) return;
-            connections.add(element.id);
-            connections_document.insertAdjacentHTML('beforeend', generate_conn_item(element));
-        });
-
-        connections.forEach((item) => {
-            if (!set.has(item)) {
-                var i = document.getElementById(`connection_${item}`)
-                if (i != null) i.remove();
-                connections.delete(item);
-            }
-        })
     }
 
     const net_map = {
@@ -196,10 +180,7 @@
         return s;
     }
 
-    const close_conn = (id) => ajax("DELETE", `/conn?id=${id}`, null, (xmlhttp) => {
-        connections.delete(id);
-        document.getElementById(`connection_${id}`).remove();
-    })
+    const close_conn = (id) => ajax("DELETE", `/conn?id=${id}`, null, null, null)
 </script>
 
 <div class="modal fade" id="nodeModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -231,13 +212,6 @@
                 <div class="notranslate" style="opacity: 0.6;" id="statistic-upload">Loading...</div>
             </div>
         </div>
-
-        <!-- <div class="list-group-item">
-            <div class="d-sm-flex">
-                <button class="btn btn-outline-primary flex-grow-1 notranslate" type="button"
-                    onclick="refresh()">Refresh</button>
-            </div>
-        </div> -->
     </div>
 </div>
 

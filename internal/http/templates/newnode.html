@@ -19,10 +19,11 @@
     }
 
     const generateTemplates = () => {
-        ajax("GET", `/node?page=generate_template&protocols=${encodeURIComponent(JSON.stringify(templates()))}`, null, (xmlhttp) => {
-            console.log(xmlhttp.responseText);
-            document.querySelector("#node").innerHTML = xmlhttp.responseText;
-        })
+        ajax("GET", `/node?page=generate_template&protocols=${encodeURIComponent(JSON.stringify(templates()))}`,
+            null, null, (xmlhttp) => {
+                console.log(xmlhttp.responseText);
+                document.querySelector("#node").innerHTML = xmlhttp.responseText;
+            })
     }
 </script>
 
