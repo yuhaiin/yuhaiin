@@ -14,7 +14,7 @@ require (
 	golang.org/x/time v0.3.0
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
 	google.golang.org/grpc v1.53.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.29.0
 	gvisor.dev/gvisor v0.0.0-20230214010051-27f3a24a8b72
 )
 
