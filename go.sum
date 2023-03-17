@@ -101,5 +101,5 @@ google.golang.org/protobuf v1.30.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqw
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
-gvisor.dev/gvisor v0.0.0-20230214010051-27f3a24a8b72 h1:CdeSIpRO9VgeEjBOuWCZW4wrygBLOBi+AdetXUYBQf0=
-gvisor.dev/gvisor v0.0.0-20230214010051-27f3a24a8b72/go.mod h1:XY9FOq3uqCrxEZNBRDDNva3qXzg5mNRaB70/chPa+9g=
+gvisor.dev/gvisor v0.0.0-20230316182123-fff6ea62bc93 h1:qu2BfwUMlvhIKEwU2JilRqN9+GTBWfLIMGm7QUnIVvw=
+gvisor.dev/gvisor v0.0.0-20230316182123-fff6ea62bc93/go.mod h1:pzr6sy8gDLfVmDAg8OYrlKvGEHw5C3PGTiBXBTCx76Q=
