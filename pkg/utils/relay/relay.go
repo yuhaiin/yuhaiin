@@ -35,9 +35,10 @@ func setDeadline(rw io.ReadWriteCloser) {
 		r.CloseWrite()
 		return
 	}
-
 	if r, ok := rw.(interface{ SetReadDeadline(time.Time) error }); ok {
 		r.SetReadDeadline(time.Now())
+	} else {
+		rw.Close()
 	}
 }
 
@@ -49,10 +50,5 @@ func Copy(dst io.Writer, src io.Reader) (err error) {
 	return
 }
 
-type ReadOnlyReader struct {
-	io.Reader
-}
-
-type WriteOnlyWriter struct {
-	io.Writer
-}
+type ReadOnlyReader struct{ io.Reader }
+type WriteOnlyWriter struct{ io.Writer }

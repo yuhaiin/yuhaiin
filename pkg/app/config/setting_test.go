@@ -45,7 +45,7 @@ func TestJsonPb(t *testing.T) {
 	}
 
 	s3 := &config.Setting{}
-	err = protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}.Unmarshal([]byte(`{"system_proxy":{"enabled":true,"http":true,"unknowTest":""}}`), s3)
+	err = protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}.Unmarshal([]byte(`{"system_proxy":{"enabled":true,"http":true,"unknownTest":""}}`), s3)
 	if err != nil {
 		t.Log(err)
 	}

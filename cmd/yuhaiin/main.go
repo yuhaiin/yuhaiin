@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	"github.com/Asutorufa/yuhaiin/pkg/app/config"
-	"github.com/Asutorufa/yuhaiin/pkg/app/lockfile"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
@@ -35,8 +34,11 @@ func main() {
 		return
 	}
 
-	lock := yerror.Must(lockfile.NewLock(app.PathGenerator.Lock(*savepath), *host))
-	defer lock.UnLock()
+	/*
+		bbolt will create db file lock, so here is useless
+		lock := yerror.Must(lockfile.NewLock(app.PathGenerator.Lock(*savepath), *host))
+		defer lock.UnLock()
+	*/
 
 	setting := config.NewConfig(app.PathGenerator.Config(*savepath))
 	grpcserver := newGrpcServer()
