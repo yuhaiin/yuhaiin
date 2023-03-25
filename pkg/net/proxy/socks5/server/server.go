@@ -181,6 +181,8 @@ func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("connect to %s failed: %w", target, err)
 	}
+	defer server.Close()
+
 	caddr, err := proxy.ParseSysAddr(client.LocalAddr())
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)
@@ -188,7 +190,6 @@ func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
 	writeHandshake2(client, succeeded, caddr) // response to connect successful
 	// hand shake successful
 	relay.Relay(client, server)
-	server.Close()
 	return nil
 }
 

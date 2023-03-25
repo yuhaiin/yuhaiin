@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
@@ -62,11 +63,16 @@ type earlyConn struct {
 	handshakeLock   sync.Mutex
 	handshakeSignal chan struct{}
 	closed          bool
+	deadline        *time.Timer
 }
 
 func (e *earlyConn) Read(b []byte) (int, error) {
 	if !e.handclasp {
 		<-e.handshakeSignal
+	}
+
+	if e.closed {
+		return 0, net.ErrClosed
 	}
 
 	return e.Conn.Read(b)
@@ -147,4 +153,32 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 	}
 
 	return len(b), nil
+}
+
+func (c *earlyConn) SetDeadline(t time.Time) error {
+	if c.deadline == nil {
+		if !t.IsZero() {
+			c.deadline = time.AfterFunc(t.Sub(time.Now()), func() { c.Close() })
+		}
+		return nil
+	}
+
+	if t.IsZero() {
+		c.deadline.Stop()
+	} else {
+		c.deadline.Reset(t.Sub(time.Now()))
+	}
+
+	c.Conn.SetDeadline(t)
+	return nil
+}
+
+func (c *earlyConn) SetReadDeadline(t time.Time) error {
+	c.SetDeadline(t)
+	return c.Conn.SetReadDeadline(t)
+}
+
+func (c *earlyConn) SetWriteDeadline(t time.Time) error {
+	c.SetDeadline(t)
+	return c.Conn.SetWriteDeadline(t)
 }
