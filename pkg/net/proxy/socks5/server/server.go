@@ -97,6 +97,7 @@ func handshake1(client net.Conn, user, key string, buf []byte) error {
 
 	if buf[0] != 0x05 { // ver
 		writeHandshake1(client, noAcceptableMethods)
+		return fmt.Errorf("new acceptable method: %d", buf[0])
 	}
 
 	if buf[2] == noAuthenticationRequired { // method
@@ -136,6 +137,7 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 
 	if buf[0] != 0x05 { // ver
 		writeHandshake2(client, noAcceptableMethods, proxy.EmptyAddr)
+		return fmt.Errorf("no acceptable method: %d", buf[0])
 	}
 
 	var err error

@@ -21,6 +21,8 @@ GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build -ldflags='$(GO_LDFLAGS)' -gc
 # AMD64v3 https://github.com/golang/go/wiki/MinimumRequirements#amd64
 LINUX_AMD64=GOOS=linux GOARCH=amd64
 LINUX_AMD64v3=GOOS=linux GOARCH=amd64 GOAMD64=v3
+DARWIN_AMD64=GOOS=darwin GOARCH=amd64
+DARWIN_AMD64v3=GOOS=darwin GOARCH=amd64 GOAMD64=v3
 WINDOWS_AMD64=GOOS=windows GOARCH=amd64
 WINDOWS_AMD64v3=GOOS=windows GOARCH=amd64 GOAMD64=v3
 LINUX_MIPSLE=GOOS=linux GOARCH=mipsle GOMIPS=softfloat
@@ -38,7 +40,7 @@ test:
 	@echo ${GO_CMD}
 
 .PHONY: all
-all: yuhaiin yuhaiin_windows dnsrelay dnsrelay_windows
+all: yuhaiin yuhaiin_windows dnsrelay dnsrelay_windows yuhaiin_darwin
 
 .PHONY: vet
 vet:
@@ -74,6 +76,11 @@ yuhaiin_windows:
 cli_windows:
 	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -o yh.exe $(CLI)
 	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -o yh_v3.exe $(CLI)
+
+.PHONY: yuhaiin_darwin
+yuhaiin_darwin:
+	$(DARWIN_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_darwin $(YUHAIIN)
+	$(DARWIN_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_darwin_v3 $(YUHAIIN)
 
 .PHONY: yuhaiin_android
 yuhaiin_android:

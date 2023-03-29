@@ -64,6 +64,20 @@ jobs:
         path: |
           yuhaiin_v3.exe
 
+    - name: upload_darwin_amd64
+      uses: actions/upload-artifact@v3
+      with:
+        name: output_darwin_amd64
+        path: |
+          yuhaiin_darwin
+
+    - name: upload_darwin_amd64v3
+      uses: actions/upload-artifact@v3
+      with:
+        name: output_darwin_amd64v3
+        path: |
+          yuhaiin_darwin_v3
+
     - name: upload_dnsrelay
       uses: actions/upload-artifact@v3
       with:

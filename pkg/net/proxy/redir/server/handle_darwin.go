@@ -3,11 +3,12 @@ package server
 import (
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/pfutil"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
+func handle(req net.Conn, dst proxy.Proxy) error {
 	defer req.Close()
 	_ = req.(*net.TCPConn).SetKeepAlive(true)
 	target, err := pfutil.NatLookup(req.(*net.TCPConn))
@@ -15,13 +16,14 @@ func handle(req net.Conn, dst func(string) (net.Conn, error)) error {
 		return err
 	}
 
-	rsp, err := dst(target.String())
+	rsp, err := dst.Conn(proxy.ParseTCPAddress(target))
 	if err != nil {
 		return err
 	}
-	switch rsp.(type) {
+
+	switch rsp := rsp.(type) {
 	case *net.TCPConn:
-		_ = rsp.(*net.TCPConn).SetKeepAlive(true)
+		_ = rsp.SetKeepAlive(true)
 	}
 	defer rsp.Close()
 	relay.Relay(req, rsp)
