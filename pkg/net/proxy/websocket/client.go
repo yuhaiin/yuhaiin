@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -39,7 +40,9 @@ func (c *client) Conn(h proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("websocket dial failed: %w", err)
 	}
 
-	return &earlyConn{config: c.wsConfig, Conn: conn, handshakeSignal: make(chan struct{})}, nil
+	ctx, cancel := context.WithCancel(context.TODO())
+
+	return &earlyConn{config: c.wsConfig, Conn: conn, handshakeCtx: ctx, handshakeDone: cancel}, nil
 }
 
 func (c *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
@@ -58,49 +61,31 @@ func getNormalizedPath(path string) string {
 
 type earlyConn struct {
 	handclasp bool
+
 	net.Conn
-	config          *websocket.Config
-	handshakeLock   sync.Mutex
-	handshakeSignal chan struct{}
-	closed          bool
-	deadline        *time.Timer
+	config *websocket.Config
+
+	handshakeMu   sync.Mutex
+	handshakeCtx  context.Context
+	handshakeDone func()
+
+	deadline *time.Timer
 }
 
 func (e *earlyConn) Read(b []byte) (int, error) {
 	if !e.handclasp {
-		<-e.handshakeSignal
-	}
-
-	if e.closed {
-		return 0, net.ErrClosed
+		<-e.handshakeCtx.Done()
 	}
 
 	return e.Conn.Read(b)
 }
 
 func (e *earlyConn) Close() error {
-	e.handshakeLock.Lock()
-	defer e.handshakeLock.Unlock()
-	if e.closed {
-		return nil
-	}
-
-	e.closed = true
-	err := e.Conn.Close()
-	select {
-	case <-e.handshakeSignal:
-	default:
-		close(e.handshakeSignal)
-	}
-
-	return err
+	e.handshakeDone()
+	return e.Conn.Close()
 }
 
 func (e *earlyConn) Write(b []byte) (int, error) {
-	if e.closed {
-		return 0, net.ErrClosed
-	}
-
 	if e.handclasp {
 		return e.Conn.Write(b)
 	}
@@ -109,18 +94,14 @@ func (e *earlyConn) Write(b []byte) (int, error) {
 }
 
 func (e *earlyConn) handshake(b []byte) (int, error) {
-	e.handshakeLock.Lock()
-	defer e.handshakeLock.Unlock()
-
-	if e.closed {
-		return 0, net.ErrClosed
-	}
+	e.handshakeMu.Lock()
+	defer e.handshakeMu.Unlock()
 
 	if e.handclasp {
 		return e.Conn.Write(b)
 	}
 
-	defer close(e.handshakeSignal)
+	defer e.handshakeDone()
 
 	header := http.Header{}
 
@@ -158,7 +139,7 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 func (c *earlyConn) SetDeadline(t time.Time) error {
 	if c.deadline == nil {
 		if !t.IsZero() {
-			c.deadline = time.AfterFunc(t.Sub(time.Now()), func() { c.Close() })
+			c.deadline = time.AfterFunc(t.Sub(time.Now()), func() { c.handshakeDone() })
 		}
 		return nil
 	}

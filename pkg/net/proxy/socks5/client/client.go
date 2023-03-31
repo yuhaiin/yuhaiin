@@ -14,6 +14,23 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
+const (
+	NoAuthenticationRequired = 0x00
+	Gssapi                   = 0x01
+	UserAndPassword          = 0x02
+	NoAcceptableMethods      = 0xff
+
+	Succeeded                     = 0x00
+	SocksServerFailure            = 0x01
+	ConnectionNotAllowedByRuleset = 0x02
+	NetworkUnreachable            = 0x03
+	HostUnreachable               = 0x04
+	ConnectionRefused             = 0x05
+	TTLExpired                    = 0x06
+	CommandNotSupport             = 0x07
+	AddressTypeNotSupport         = 0x08
+)
+
 // https://tools.ietf.org/html/rfc1928
 // client socks5 client
 type client struct {
@@ -59,7 +76,7 @@ func (s *client) Conn(host proxy.Address) (net.Conn, error) {
 }
 
 func (s *client) handshake1(conn net.Conn) error {
-	_, err := conn.Write([]byte{0x05, 0x01, 0x00})
+	_, err := conn.Write([]byte{0x05, 0x02, NoAuthenticationRequired, UserAndPassword})
 	if err != nil {
 		return fmt.Errorf("write sock5 header failed: %w", err)
 	}
@@ -70,12 +87,14 @@ func (s *client) handshake1(conn net.Conn) error {
 		return fmt.Errorf("read header failed: %w", err)
 	}
 
-	if header[0] != 0x05 || header[1] == 0xFF {
+	if header[0] != 0x05 {
 		return errors.New("unknown socks5 version")
 	}
 
-	//username and password
-	if header[1] == 0x02 {
+	switch header[1] {
+	case NoAuthenticationRequired:
+		return nil
+	case UserAndPassword: // username and password
 		req := pool.GetBuffer()
 		defer pool.PutBuffer(req)
 
@@ -97,7 +116,8 @@ func (s *client) handshake1(conn net.Conn) error {
 			return errors.New("username or password not correct,socks5 handshake failed")
 		}
 	}
-	return nil
+
+	return fmt.Errorf("unsupported Authentication methods: %d", header[1])
 }
 
 type CMD byte
@@ -128,7 +148,7 @@ func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (targ
 		return nil, err
 	}
 
-	if header[0] != 0x05 || header[1] != 0x00 {
+	if header[0] != 0x05 || header[1] != Succeeded {
 		return nil, fmt.Errorf("socks5 second handshake failed, data: %v", header[:2])
 	}
 

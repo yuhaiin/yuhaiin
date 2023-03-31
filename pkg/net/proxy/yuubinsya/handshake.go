@@ -27,43 +27,28 @@ type handshaker interface {
 	packetHeader(*bytes.Buffer)
 }
 
-type plainHandshaker struct{ password []byte }
+// plainHandshaker bytes is password
+type plainHandshaker []byte
 
-func (t *plainHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
-	buf.WriteByte(byte(TCP))
-	buf.WriteByte(byte(len(t.password)))
-	buf.Write(t.password)
+func (password plainHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
+	buf.Write([]byte{byte(TCP), byte(len(password))})
+	buf.Write(password)
 	s5c.ParseAddrWriter(addr, buf)
 }
 
-func (t *plainHandshaker) packetHeader(buf *bytes.Buffer) {
-	buf.WriteByte(byte(UDP))
-	buf.WriteByte(byte(len(t.password)))
-	buf.Write(t.password)
+func (password plainHandshaker) packetHeader(buf *bytes.Buffer) {
+	buf.Write([]byte{byte(UDP), byte(len(password))})
+	buf.Write(password)
 }
 
-func (t *plainHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) { return conn, nil }
-func (t *plainHandshaker) handshakeClient(conn net.Conn) (net.Conn, error) { return conn, nil }
+func (plainHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) { return conn, nil }
+func (plainHandshaker) handshakeClient(conn net.Conn) (net.Conn, error) { return conn, nil }
 
 type encryptedHandshaker struct {
 	signer   Signer
 	hash     Hash
 	aead     Aead
 	password []byte
-}
-
-func NewHandshaker(encrypted bool, password []byte) handshaker {
-	if !encrypted {
-		return &plainHandshaker{password}
-	}
-
-	// sha256-hkdf-ecdh-ed25519-chacha20poly1305
-	return &encryptedHandshaker{
-		NewEd25519(Sha256, password),
-		Sha256,
-		Chacha20poly1305,
-		password,
-	}
 }
 
 func (t *encryptedHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
@@ -282,4 +267,18 @@ func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error
 	cipher.XORKeyStream(dst, src)
 
 	return nil
+}
+
+func NewHandshaker(encrypted bool, password []byte) handshaker {
+	if !encrypted {
+		return plainHandshaker(password)
+	}
+
+	// sha256-hkdf-ecdh-ed25519-chacha20poly1305
+	return &encryptedHandshaker{
+		NewEd25519(Sha256, password),
+		Sha256,
+		Chacha20poly1305,
+		password,
+	}
 }
