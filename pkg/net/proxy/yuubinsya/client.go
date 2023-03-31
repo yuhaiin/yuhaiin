@@ -131,16 +131,12 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	defer c.rmux.Unlock()
 
 	if c.remain > 0 {
-		z := len(payload)
-		if c.remain < z {
-			z = c.remain
+		readLength := len(payload)
+		if c.remain < readLength {
+			readLength = c.remain
 		}
 
-		n, err := c.Conn.Read(payload[:z])
-		if err != nil {
-			return 0, c.addr, err
-		}
-
+		n, err := c.Conn.Read(payload[:readLength])
 		c.remain -= n
 		return n, c.addr, err
 	}

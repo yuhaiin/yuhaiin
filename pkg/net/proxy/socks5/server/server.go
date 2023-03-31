@@ -11,29 +11,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-)
-
-const (
-	noAuthenticationRequired = 0x00
-	gssapi                   = 0x01
-	userAndPassword          = 0x02
-	noAcceptableMethods      = 0xff
-
-	succeeded                     = 0x00
-	socksServerFailure            = 0x01
-	connectionNotAllowedByRuleset = 0x02
-	networkUnreachable            = 0x03
-	hostUnreachable               = 0x04
-	connectionRefused             = 0x05
-	ttlExpired                    = 0x06
-	commandNotSupport             = 0x07
-	addressTypeNotSupport         = 0x08
 )
 
 func (s *Socks5) newTCPServer() error {
@@ -49,7 +32,8 @@ func (s *Socks5) newTCPServer() error {
 		for {
 			conn, err := lis.Accept()
 			if err != nil {
-				log.Errorln("accept failed:", err)
+				log.Errorln("socks5 accept failed:", err)
+
 				if ne, ok := err.(net.Error); ok && ne.Temporary() {
 					continue
 				}
@@ -91,24 +75,41 @@ func (s *Socks5) handle(client net.Conn) (err error) {
 
 func handshake1(client net.Conn, user, key string, buf []byte) error {
 	//socks5 first handshake
-	if _, err := io.ReadFull(client, buf[:3]); err != nil {
+	if _, err := io.ReadFull(client, buf[:2]); err != nil {
 		return fmt.Errorf("read first handshake failed: %w", err)
 	}
 
 	if buf[0] != 0x05 { // ver
-		writeHandshake1(client, noAcceptableMethods)
+		writeHandshake1(client, s5c.NoAcceptableMethods)
 		return fmt.Errorf("new acceptable method: %d", buf[0])
 	}
 
-	if buf[2] == noAuthenticationRequired { // method
-		return writeHandshake1(client, noAuthenticationRequired)
+	nMethods := int(buf[1])
+
+	if nMethods > len(buf) {
+		writeHandshake1(client, s5c.NoAcceptableMethods)
+		return fmt.Errorf("nMethods length of methods out of buf")
 	}
 
-	if buf[1] == 1 && buf[2] == userAndPassword { // nMethod
-		return verifyUserPass(client, user, key)
+	if _, err := io.ReadFull(client, buf[:nMethods]); err != nil {
+		return fmt.Errorf("read methods failed: %w", err)
 	}
-	writeHandshake1(client, noAcceptableMethods)
-	return fmt.Errorf("no Acceptable Methods: length:%d, method:%d, from:%s", buf[1], buf[2], client.RemoteAddr())
+
+	needVerify := user != "" || key != ""
+
+	for _, v := range buf[:nMethods] { // range all supported methods
+		if !needVerify && v == s5c.NoAuthenticationRequired {
+			return writeHandshake1(client, s5c.NoAuthenticationRequired)
+		}
+
+		if needVerify && v == s5c.UserAndPassword {
+			return verifyUserPass(client, user, key)
+		}
+	}
+
+	writeHandshake1(client, s5c.NoAcceptableMethods)
+
+	return fmt.Errorf("no acceptable authentication methods: [length: %d, method:%v]", nMethods, buf[:nMethods])
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
@@ -136,7 +137,7 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 	}
 
 	if buf[0] != 0x05 { // ver
-		writeHandshake2(client, noAcceptableMethods, proxy.EmptyAddr)
+		writeHandshake2(client, s5c.NoAcceptableMethods, proxy.EmptyAddr)
 		return fmt.Errorf("no acceptable method: %d", buf[0])
 	}
 
@@ -168,12 +169,12 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 		fallthrough
 
 	default:
-		writeHandshake2(client, commandNotSupport, proxy.EmptyAddr)
+		writeHandshake2(client, s5c.CommandNotSupport, proxy.EmptyAddr)
 		return fmt.Errorf("not Support Method %d", buf[1])
 	}
 
 	if err != nil {
-		writeHandshake2(client, hostUnreachable, proxy.EmptyAddr)
+		writeHandshake2(client, s5c.HostUnreachable, proxy.EmptyAddr)
 	}
 	return err
 }
@@ -189,7 +190,7 @@ func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
-	writeHandshake2(client, succeeded, caddr) // response to connect successful
+	writeHandshake2(client, s5c.Succeeded, caddr) // response to connect successful
 	// hand shake successful
 	relay.Relay(client, server)
 	return nil
@@ -200,7 +201,7 @@ func handleUDP(client net.Conn, f proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	writeHandshake2(client, succeeded, proxy.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
+	writeHandshake2(client, s5c.Succeeded, proxy.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
 	relay.Copy(io.Discard, client)
 	return nil
 }
@@ -243,7 +244,7 @@ func (s *Socks5) Close() error {
 	return err
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (iserver.Server, error) {
+func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (is.Server, error) {
 	s := &Socks5{
 		dialer:   o.Dialer,
 		addr:     o.Protocol.Socks5.Host,
