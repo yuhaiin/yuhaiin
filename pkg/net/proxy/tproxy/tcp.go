@@ -11,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	lis "github.com/Asutorufa/yuhaiin/pkg/net/proxy/server"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -61,7 +60,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 }
 
 func newTCPServer(h string, dialer proxy.Proxy) (is.Server, error) {
-	return lis.NewTCPServer(h, func(c net.Conn) {
+	return NewTCPServer(h, func(c net.Conn) {
 		if err := handleTCP(c, dialer); err != nil {
 			log.Errorf("handleTCP failed: %v", err)
 		}
