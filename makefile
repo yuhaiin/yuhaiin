@@ -50,7 +50,7 @@ vet:
 yuhaiin:
 	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin $(YUHAIIN)
 	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin_v3 $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "openwrt" -o yuhaiin_openwrt_amdv3 $(YUHAIIN)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite" -o yuhaiin_openwrt_amdv3 $(YUHAIIN)
 
 .PHONY: dnsrelay
 dnsrelay:
@@ -93,7 +93,7 @@ cli_android:
 
 .PHONY: yuhaiin_mipsle
 yuhaiin_mipsle:
-	$(LINUX_MIPSLE) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "openwrt" -o yuhaiin_mipsle $(YUHAIIN)
+	$(LINUX_MIPSLE) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite" -o yuhaiin_mipsle $(YUHAIIN)
 
 .PHONY: yuubinsya
 yuubinsya:

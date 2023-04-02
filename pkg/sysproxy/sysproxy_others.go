@@ -1,5 +1,5 @@
-//go:build openwrt || (!linux && !windows && !android)
-// +build openwrt !linux,!windows,!android
+//go:build lite || (!linux && !windows && !android && !darwin)
+// +build lite !linux,!windows,!android,!darwin
 
 package sysproxy
 

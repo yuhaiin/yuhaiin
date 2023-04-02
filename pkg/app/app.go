@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -70,25 +71,25 @@ func (s *StartResponse) Close() error {
 	return nil
 }
 
-func initBboltDB(path string) *bbolt.DB {
-	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
+func initBboltDB(path string) (*bbolt.DB, error) {
+	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second * 2})
 	switch err {
 	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
 		if err = os.Remove(path); err != nil {
-			break
+			return nil, fmt.Errorf("remove invalod cache faile failed: %w", err)
 		}
-		log.Infoln("[CacheFile] remove invalid cache file and create new one")
-		db, err = bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
-	}
-	if err != nil {
-		log.Warningln("can't open cache file:", err)
+		log.Infoln("remove invalid cache file and create new one")
+		return bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
 	}
 
-	return db
+	return db, err
 }
 
 func Start(opt StartOpt) (StartResponse, error) {
-	db := initBboltDB(PathGenerator.Cache(opt.ConfigPath))
+	db, err := initBboltDB(PathGenerator.Cache(opt.ConfigPath))
+	if err != nil {
+		return StartResponse{}, fmt.Errorf("init bbolt cache failed: %w", err)
+	}
 
 	lis, err := net.Listen("tcp", opt.Host)
 	if err != nil {
