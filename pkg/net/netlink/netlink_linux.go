@@ -78,7 +78,7 @@ type inetDiagResponse struct {
 	INode   uint32
 }
 
-func FindProcessName(network string, ip net.IP, srcPort int) (string, error) {
+func FindProcessName(network string, ip net.IP, srcPort uint16) (string, error) {
 	inode, uid, err := resolveSocketByNetlink(network, ip, srcPort)
 	if err != nil {
 		return "", err
@@ -87,7 +87,7 @@ func FindProcessName(network string, ip net.IP, srcPort int) (string, error) {
 	return resolveProcessNameByProcSearch(inode, uid)
 }
 
-func resolveSocketByNetlink(network string, ip net.IP, srcPort int) (uint32, uint32, error) {
+func resolveSocketByNetlink(network string, ip net.IP, srcPort uint16) (uint32, uint32, error) {
 	request := &inetDiagRequest{
 		States: 0xffffffff,
 		Cookie: [2]uint32{0xffffffff, 0xffffffff},

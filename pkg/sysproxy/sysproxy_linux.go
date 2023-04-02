@@ -1,11 +1,12 @@
-//go:build !android && !openwrt
-// +build !android,!openwrt
+//go:build !android && !lite
+// +build !android,!lite
 
 package sysproxy
 
 import (
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -28,16 +29,19 @@ func SetSysProxy(http, socks5 string) {
 		log.Debugf("set socks5 system hostname: %s, port: %s\n", socks5Hostname, socks5Port)
 	}
 
-	gnomeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port)
-	kdeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port)
+	if err := gnomeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port); err != nil {
+		log.Errorln("set gnome proxy failed:", err)
+	}
+	if err := kdeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port); err != nil {
+		log.Errorln("set kde proxy failed:", err)
+	}
 }
 
-func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
+func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 	// GNOME
 	gsettings, err := exec.LookPath("gsettings")
 	if err != nil {
-		log.Errorln(err)
-		return
+		return fmt.Errorf("lookup gsettings failed: %w", err)
 	}
 	//https://wiki.archlinux.org/index.php/Proxy_server
 	//gsettings set org.gnome.system.proxy mode 'manual'
@@ -61,19 +65,20 @@ func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
 		_ = exec.Command(gsettings, "set", "org.gnome.system.proxy.socks", "port", socks5P).Run()
 	}
 	_ = exec.Command(gsettings, "set", "org.gnome.system.proxy", "ignore-hosts", "['localhost','::1','0.0.0.0/8','10.0.0.0/8','100.64.0.0/10','127.0.0.0/8','169.254.0.0/16','172.16.0.0/12','192.0.0.0/29','192.0.2.0/24','192.88.99.0/24','192.168.0.0/16','198.18.0.0/15','198.51.100.0/24','203.0.113.0/24','224.0.0.0/3']").Run()
+
+	return nil
 }
 
-func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
+func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 
 	// KDE
-	// if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
-	// return
-	// }
+	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
+		return fmt.Errorf("current session is not kde, skip set proxy")
+	}
 
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
-		log.Errorln(err)
-		return
+		return fmt.Errorf("lookup kwriteconfig5 failed: %w", err)
 	}
 
 	// kwriteconfig5 --file kioslaverc --group 'Proxy Settings' --key httpProxy "http://127.0.0.1 8188"
@@ -90,22 +95,26 @@ func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) {
 	// Notify kioslaves to reload system proxy configuration.
 	dbusSend, err := exec.LookPath("dbus-send")
 	if err != nil {
-		log.Errorln(err)
-		return
+		return fmt.Errorf("lookup dbus-send failed: %w", err)
 	}
 	_ = exec.Command(dbusSend, "--type=signal", "/KIO/Scheduler", "org.kde.KIO.Scheduler.reparseSlaveConfiguration", "string:''")
+
+	return nil
 }
 
 func UnsetSysProxy() {
-	gnomeUnsetSysProxy()
-	kdeUnsetSysProxy()
+	if err := gnomeUnsetSysProxy(); err != nil {
+		log.Errorln("unset gnome proxy failed:", err)
+	}
+	if err := kdeUnsetSysProxy(); err != nil {
+		log.Errorln("unset kde proxy failed: %w", err)
+	}
 }
 
-func gnomeUnsetSysProxy() {
+func gnomeUnsetSysProxy() error {
 	gsettings, err := exec.LookPath("gsettings")
 	if err != nil {
-		log.Errorln(err)
-		return
+		return fmt.Errorf("lookup gsetting failed: %w", err)
 	}
 
 	// GNOME
@@ -117,16 +126,17 @@ func gnomeUnsetSysProxy() {
 	_ = exec.Command(gsettings, "set", "org.gnome.system.proxy.https", "port", "0").Run()
 	_ = exec.Command(gsettings, "set", "org.gnome.system.proxy.socks", "host", "0").Run()
 	_ = exec.Command(gsettings, "set", "org.gnome.system.proxy.socks", "port", "0").Run()
+
+	return nil
 }
 
-func kdeUnsetSysProxy() {
-	// if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
-	// return
-	// }
+func kdeUnsetSysProxy() error {
+	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
+		return fmt.Errorf("current session is not kde, skip set kde proxy")
+	}
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
-		log.Errorln(err)
-		return
+		return fmt.Errorf("lookup kwriteconfig5 failed: %w", err)
 	}
 
 	// KDE
@@ -139,8 +149,9 @@ func kdeUnsetSysProxy() {
 	// Notify kioslaves to reload system proxy configuration.
 	dbusSend, err := exec.LookPath("dbus-send")
 	if err != nil {
-		log.Errorln(err)
-		return
+		return fmt.Errorf("lookup dbus-send failed: %w", err)
 	}
 	_ = exec.Command(dbusSend, "--type=signal", "/KIO/Scheduler", "org.kde.KIO.Scheduler.reparseSlaveConfiguration", "string:''")
+
+	return nil
 }

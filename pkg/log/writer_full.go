@@ -1,5 +1,5 @@
-//go:build !openwrt
-// +build !openwrt
+//go:build !lite
+// +build !lite
 
 package log
 
