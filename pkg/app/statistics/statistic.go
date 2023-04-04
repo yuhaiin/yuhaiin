@@ -104,9 +104,9 @@ func (c *Connections) storeConnection(o connection) {
 	log.Debugf("new(%d) [%s]%v(outbound: %s)", o.ID(), o.Addr().Network(), o.Addr(), getRemote(o))
 }
 
-func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (c *Connections) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
 	process := c.DumpProcess(addr)
-	con, err := c.dialer.PacketConn(addr)
+	con, err := c.dialer.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial packet conn (%s) failed: %w", process, err)
 	}
@@ -117,9 +117,9 @@ func (c *Connections) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 	return z, nil
 }
 
-func (c *Connections) Conn(addr proxy.Address) (net.Conn, error) {
+func (c *Connections) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
 	process := c.DumpProcess(addr)
-	con, err := c.dialer.Conn(addr)
+	con, err := c.dialer.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial conn (%s) failed: %w", process, err)
 	}

@@ -1,6 +1,7 @@
 package simple
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"math/rand"
@@ -41,13 +42,13 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 	}
 }
 
-func (c *Simple) Conn(d proxy.Address) (net.Conn, error) {
-	ip, err := c.addr.IP()
+func (c *Simple) Conn(ctx context.Context, d proxy.Address) (net.Conn, error) {
+	ip, err := c.addr.IP(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get ip failed: %w", err)
 	}
 
-	conn, err := dialer.DialContext(d.Context(), "tcp", net.JoinHostPort(ip.String(), c.addr.Port().String()))
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), c.addr.Port().String()))
 	if err != nil {
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}
@@ -66,9 +67,9 @@ func (c *Simple) Conn(d proxy.Address) (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *Simple) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (c *Simple) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
 	if c.packetDirect {
-		return direct.Default.PacketConn(addr)
+		return direct.Default.PacketConn(ctx, addr)
 	}
 
 	conn, err := dialer.ListenPacket("udp", "")
@@ -76,7 +77,7 @@ func (c *Simple) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		return nil, err
 	}
 
-	uaddr, err := c.addr.UDPAddr()
+	uaddr, err := c.addr.UDPAddr(ctx)
 	if err != nil {
 		return nil, err
 	}

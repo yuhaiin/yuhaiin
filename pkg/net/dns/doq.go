@@ -43,15 +43,13 @@ func NewDoQ(config Config) (dns.DNS, error) {
 
 	d := &doq{dialer: config.Dialer, host: addr, servername: config.Servername}
 
-	d.client = NewClient(config, func(b []byte) ([]byte, error) {
+	d.client = NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
 		err := d.initSession()
 		if err != nil {
 			return nil, fmt.Errorf("init session failed: %w", err)
 		}
 
 		d.mu.RLock()
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
-		defer cancel()
 		con, err := d.connection.OpenStreamSync(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("open stream failed: %w", err)
@@ -130,19 +128,19 @@ func (d *doq) initSession() error {
 		}
 	}
 
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+	defer cancel()
+
 	if d.conn == nil {
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
-		defer cancel()
-		d.host.WithContext(ctx)
-		conn, err := d.dialer.PacketConn(d.host)
+		conn, err := d.dialer.PacketConn(ctx, d.host)
 		if err != nil {
 			return err
 		}
-		d.host.WithContext(context.TODO())
 		d.conn = conn
 	}
 
-	session, err := quic.DialEarly(
+	session, err := quic.DialEarlyContext(
+		ctx,
 		d.conn,
 		d.host,
 		d.host.String(),

@@ -46,8 +46,7 @@ func main() {
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
-				add.WithContext(ctx)
-				return pro.Conn(add)
+				return pro.Conn(ctx, add)
 			}},
 	}
 	resp, err := c.Get("https://www.google.com")

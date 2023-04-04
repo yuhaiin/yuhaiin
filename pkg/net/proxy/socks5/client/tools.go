@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -37,7 +38,7 @@ func ParseAddr(addr proxy.Address) ADDR {
 	var buf []byte
 	switch addr.Type() {
 	case proxy.IP:
-		ip, _ := addr.AddrPort()
+		ip, _ := addr.AddrPort(context.TODO())
 		if ip.Addr().Is4() {
 			buf = make([]byte, 1+4+2)
 			buf[0] = 0x01
@@ -64,12 +65,12 @@ func ParseAddr(addr proxy.Address) ADDR {
 func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 	switch addr.Type() {
 	case proxy.IP:
-		if ip := yerror.Must(addr.IP()).To4(); ip != nil {
+		if ip := yerror.Must(addr.IP(context.TODO())).To4(); ip != nil {
 			buf.Write([]byte{0x01})
 			buf.Write(ip)
 		} else {
 			buf.Write([]byte{0x04})
-			buf.Write(yerror.Must(addr.IP()).To16())
+			buf.Write(yerror.Must(addr.IP(context.TODO())).To16())
 		}
 	case proxy.DOMAIN:
 		fallthrough

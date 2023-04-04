@@ -1,6 +1,7 @@
 package shunt
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -111,10 +112,10 @@ func (s *Shunt) Update(c *pc.Setting) {
 
 func (s *Shunt) Tags() []string { return s.tags }
 
-func (s *Shunt) Conn(host proxy.Address) (net.Conn, error) {
-	host, mode := s.bypass(s.config.Tcp, host)
+func (s *Shunt) Conn(ctx context.Context, host proxy.Address) (net.Conn, error) {
+	host, mode := s.bypass(ctx, s.config.Tcp, host)
 
-	conn, err := mode.Dialer.Conn(host)
+	conn, err := mode.Dialer.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -122,10 +123,10 @@ func (s *Shunt) Conn(host proxy.Address) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *Shunt) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	host, mode := s.bypass(s.config.Udp, host)
+func (s *Shunt) PacketConn(ctx context.Context, host proxy.Address) (net.PacketConn, error) {
+	host, mode := s.bypass(ctx, s.config.Udp, host)
 
-	conn, err := mode.Dialer.PacketConn(host)
+	conn, err := mode.Dialer.PacketConn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -140,11 +141,11 @@ var errMode = Mode{
 }
 
 func (s *Shunt) Dispatch(host proxy.Address) (proxy.Address, error) {
-	addr, _ := s.bypass(bypass.Mode_bypass, host)
+	addr, _ := s.bypass(context.TODO(), bypass.Mode_bypass, host)
 	return addr, nil
 }
 
-func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
+func (s *Shunt) bypass(ctx context.Context, networkMode bypass.Mode, host proxy.Address) (proxy.Address, Mode) {
 	// get mode from upstream specified
 	mode := proxy.Value(host, ForceModeKey{}, bypass.Mode_bypass)
 
@@ -156,7 +157,7 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 	if mode == bypass.Mode_bypass {
 		// get mode from bypass rule
 		host.WithResolver(s.resolver(s.defaultMode), true)
-		fields := s.search(host)
+		fields := s.search(ctx, host)
 		mode = fields.Mode()
 
 		// get tag from bypass rule
@@ -182,7 +183,7 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 	}
 
 	// resolve proxy domain if resolveRemoteDomain enabled
-	ip, err := host.IP()
+	ip, err := host.IP(ctx)
 	if err == nil {
 		host.WithValue(DOMAIN_MARK_KEY{}, host.String())
 		host = host.OverrideHostname(ip.String())
@@ -196,10 +197,10 @@ func (s *Shunt) bypass(networkMode bypass.Mode, host proxy.Address) (proxy.Addre
 
 var skipResolve = dns.NewErrorDNS(func(domain string) error { return mapper.ErrSkipResolveDomain })
 
-func (s *Shunt) Resolver(domain string) dns.DNS {
+func (s *Shunt) Resolver(ctx context.Context, domain string) dns.DNS {
 	host := proxy.ParseAddressPort(0, domain, proxy.EmptyPort)
 	host.WithResolver(skipResolve, true)
-	return s.resolver(s.search(host))
+	return s.resolver(s.search(ctx, host))
 }
 
 func (s *Shunt) resolver(m bypass.ModeEnum) dns.DNS {
@@ -211,8 +212,8 @@ func (s *Shunt) resolver(m bypass.ModeEnum) dns.DNS {
 	return resolver.Bootstrap
 }
 
-func (s *Shunt) search(host proxy.Address) bypass.ModeEnum {
-	m, ok := s.mapper.Search(host)
+func (s *Shunt) search(ctx context.Context, host proxy.Address) bypass.ModeEnum {
+	m, ok := s.mapper.Search(ctx, host)
 	if !ok {
 		return s.defaultMode
 	}
@@ -220,9 +221,13 @@ func (s *Shunt) search(host proxy.Address) bypass.ModeEnum {
 	return m
 }
 
-func (f *Shunt) LookupIP(domain string) ([]net.IP, error) { return f.Resolver(domain).LookupIP(domain) }
-func (f *Shunt) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) {
-	return f.Resolver(domain).Record(domain, t)
+func (f *Shunt) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
+	return f.Resolver(ctx, domain).LookupIP(ctx, domain)
 }
-func (f *Shunt) Do(addr string, b []byte) ([]byte, error) { return f.Resolver(addr).Do(addr, b) }
-func (f *Shunt) Close() error                             { return nil }
+func (f *Shunt) Record(ctx context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+	return f.Resolver(ctx, domain).Record(ctx, domain, t)
+}
+func (f *Shunt) Do(ctx context.Context, addr string, b []byte) ([]byte, error) {
+	return f.Resolver(ctx, addr).Do(ctx, addr, b)
+}
+func (f *Shunt) Close() error { return nil }

@@ -1,6 +1,7 @@
 package direct
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -14,21 +15,21 @@ var Default proxy.Proxy = NewDirect()
 
 func NewDirect() proxy.Proxy { return &direct{} }
 
-func (d *direct) Conn(s proxy.Address) (net.Conn, error) {
-	ip, err := s.IP()
+func (d *direct) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+	ip, err := s.IP(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get ip failed: %w", err)
 	}
-	return dialer.DialContext(s.Context(), "tcp", net.JoinHostPort(ip.String(), s.Port().String()))
+	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), s.Port().String()))
 }
 
-func (d *direct) PacketConn(proxy.Address) (net.PacketConn, error) {
+func (d *direct) PacketConn(context.Context, proxy.Address) (net.PacketConn, error) {
 	p, err := dialer.ListenPacket("udp", "")
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}
 
-	return &PacketConn{PacketConn: p}, nil
+	return &PacketConn{p}, nil
 }
 
 type PacketConn struct{ net.PacketConn }
@@ -38,7 +39,8 @@ func (p *PacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	addr, err = a.UDPAddr()
+
+	addr, err = a.UDPAddr(context.TODO())
 	if err != nil {
 		return 0, err
 	}

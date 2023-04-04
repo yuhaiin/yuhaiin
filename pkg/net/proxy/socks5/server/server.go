@@ -151,11 +151,7 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-		defer cancel()
-
 		addr := adr.Address(statistic.Type_tcp)
-		addr.WithContext(ctx)
 		addr.WithValue(proxy.SourceKey{}, client.RemoteAddr())
 		addr.WithValue(proxy.InboundKey{}, client.LocalAddr())
 		addr.WithValue(proxy.DestinationKey{}, addr)
@@ -180,7 +176,10 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 }
 
 func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
-	server, err := f.Conn(target)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
+
+	server, err := f.Conn(ctx, target)
 	if err != nil {
 		return fmt.Errorf("connect to %s failed: %w", target, err)
 	}

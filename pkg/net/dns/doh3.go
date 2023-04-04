@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -25,9 +24,7 @@ func NewDoH3(config Config) (dns.DNS, error) {
 		return nil, fmt.Errorf("get request failed: %w", err)
 	}
 
-	return NewClient(config, func(b []byte) ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
-		defer cancel()
+	return NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
 		resp, err := tr.RoundTrip(req.Clone(ctx, b))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)

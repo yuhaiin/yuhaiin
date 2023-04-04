@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -54,7 +55,7 @@ var _ dns.DNS = (*client)(nil)
 
 type client struct {
 	cache  *lru.LRU[string, ipRecord]
-	send   func([]byte) ([]byte, error)
+	send   func(context.Context, []byte) ([]byte, error)
 	config Config
 	subnet []dnsmessage.Resource
 	cond   syncmap.SyncMap[string, *recordCond]
@@ -74,7 +75,7 @@ func (c ipRecord) String() string {
 	return fmt.Sprintf(`{ ips: %v, expireAfter: %d }`, c.ips, c.expireAfter)
 }
 
-func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
+func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)) *client {
 	c := &client{
 		send:   send,
 		config: config,
@@ -127,15 +128,15 @@ func NewClient(config Config, send func([]byte) ([]byte, error)) *client {
 	return c
 }
 
-func (c *client) Do(_ string, b []byte) ([]byte, error) {
+func (c *client) Do(ctx context.Context, _ string, b []byte) ([]byte, error) {
 	if c.send == nil {
 		return nil, fmt.Errorf("no dns process function")
 	}
 
-	return c.send(b)
+	return c.send(ctx, b)
 }
 
-func (c *client) LookupIP(domain string) ([]net.IP, error) {
+func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	var aaaaerr error
 	var aaaa dns.IPRecord
 	var wg sync.WaitGroup
@@ -144,12 +145,12 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			aaaa, aaaaerr = c.Record(domain, dnsmessage.TypeAAAA)
+			aaaa, aaaaerr = c.Record(ctx, domain, dnsmessage.TypeAAAA)
 		}()
 	}
 
 	var resp []net.IP
-	a, aerr := c.Record(domain, dnsmessage.TypeA)
+	a, aerr := c.Record(ctx, domain, dnsmessage.TypeA)
 	if aerr == nil {
 		resp = a.IPs
 	}
@@ -170,7 +171,7 @@ func (c *client) LookupIP(domain string) ([]net.IP, error) {
 
 var ErrCondEmptyResponse = errors.New("can't get response from cond")
 
-func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
+func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
 	key := domain + reqType.String()
 
 	if x, ok := c.cache.Load(key); ok {
@@ -194,7 +195,7 @@ func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPRecord, e
 		cond.Broadcast()
 	}()
 
-	record, err := c.lookupIP(domain, reqType)
+	record, err := c.lookupIP(ctx, domain, reqType)
 	if err != nil {
 		return dns.IPRecord{}, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
 	}
@@ -209,7 +210,7 @@ func (c *client) Record(domain string, reqType dnsmessage.Type) (dns.IPRecord, e
 	return record, nil
 }
 
-func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
+func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
 	req := dnsmessage.Message{
 		Header: dnsmessage.Header{
 			ID:                 uint16(rand.Intn(65535)),
@@ -236,7 +237,7 @@ func (c *client) lookupIP(domain string, reqType dnsmessage.Type) (dns.IPRecord,
 		return dns.IPRecord{}, fmt.Errorf("pack dns message failed: %w", err)
 	}
 
-	d, err = c.Do("", d)
+	d, err = c.Do(ctx, "", d)
 	if err != nil {
 		return dns.IPRecord{}, fmt.Errorf("send dns message failed: %w", err)
 	}

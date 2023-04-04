@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -18,7 +19,7 @@ import (
 var _ dns.DNS = (*FakeDNS)(nil)
 
 type FakeDNS struct {
-	upstream dns.DNS
+	dns.DNS
 	*FakeIPPool
 }
 
@@ -26,11 +27,11 @@ func NewFakeDNS(upStreamDo dns.DNS, ipRange netip.Prefix, bbolt *cache.Cache) *F
 	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt)}
 }
 
-func (f *FakeDNS) LookupIP(domain string) ([]net.IP, error) {
+func (f *FakeDNS) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
 	return []net.IP{net.ParseIP(f.FakeIPPool.GetFakeIPForDomain(domain))}, nil
 }
 
-func (f *FakeDNS) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+func (f *FakeDNS) Record(_ context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
 	ipStr := f.FakeIPPool.GetFakeIPForDomain(domain)
 
 	ip := net.ParseIP(ipStr)
@@ -114,8 +115,6 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 
 	return r, nil
 }
-
-func (f *FakeDNS) Do(addr string, b []byte) ([]byte, error) { return f.upstream.Do(addr, b) }
 
 func (f *FakeDNS) Close() error { return nil }
 

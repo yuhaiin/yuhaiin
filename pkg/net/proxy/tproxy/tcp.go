@@ -4,6 +4,7 @@
 package tproxy
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"syscall"
@@ -50,7 +51,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
-	r, err := p.Conn(addr)
+	r, err := p.Conn(context.TODO(), addr)
 	if err != nil {
 		return fmt.Errorf("get conn failed: %w", err)
 	}

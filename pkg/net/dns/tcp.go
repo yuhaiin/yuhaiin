@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -63,13 +62,10 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, 
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	return NewClient(config, func(b []byte) ([]byte, error) {
+	return NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
 		addr := proxy.ParseAddressPort(addr.NetworkType(), addr.Hostname(), addr.Port())
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
-		defer cancel()
-		addr.WithContext(ctx)
 
-		conn, err := config.Dialer.Conn(addr)
+		conn, err := config.Dialer.Conn(ctx, addr)
 		if err != nil {
 			return nil, fmt.Errorf("tcp dial failed: %w", err)
 		}

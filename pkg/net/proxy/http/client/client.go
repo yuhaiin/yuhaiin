@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -13,19 +14,18 @@ import (
 )
 
 type client struct {
-	proxy.EmptyDispatch
-	dialer         proxy.Proxy
+	proxy.Proxy
 	user, password string
 }
 
 func New(config *protocol.Protocol_Http) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
-		return &client{dialer: p, user: config.Http.User, password: config.Http.Password}, nil
+		return &client{Proxy: p, user: config.Http.User, password: config.Http.Password}, nil
 	}
 }
 
-func (c *client) Conn(s proxy.Address) (net.Conn, error) {
-	conn, err := c.dialer.Conn(s)
+func (c *client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+	conn, err := c.Proxy.Conn(ctx, s)
 	if err != nil {
 		return nil, fmt.Errorf("dialer conn failed: %w", err)
 	}
@@ -60,8 +60,4 @@ func (c *client) Conn(s proxy.Address) (net.Conn, error) {
 	}
 
 	return conn, nil
-}
-
-func (c *client) PacketConn(s proxy.Address) (net.PacketConn, error) {
-	return c.dialer.PacketConn(s)
 }

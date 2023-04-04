@@ -57,7 +57,7 @@ func TestVmess(t *testing.T) {
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
-				return x.Conn(ad)
+				return x.Conn(ctx, ad)
 			},
 		},
 	}

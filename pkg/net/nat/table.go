@@ -1,6 +1,7 @@
 package nat
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,7 @@ type Table struct {
 	mu     syncmap.SyncMap[string, *sync.Cond]
 }
 
-func (u *Table) write(pkt *Packet, key string) (bool, error) {
+func (u *Table) write(ctx context.Context, pkt *Packet, key string) (bool, error) {
 	t, ok := u.cache.Load(key)
 	if !ok {
 		return false, nil
@@ -42,7 +43,7 @@ func (u *Table) write(pkt *Packet, key string) (bool, error) {
 			return true, fmt.Errorf("dispatch addr failed: %w", err)
 		}
 
-		uaddr, err = addr.UDPAddr()
+		uaddr, err = addr.UDPAddr(ctx)
 		if err != nil {
 			return false, err
 		}
@@ -67,10 +68,10 @@ type Packet struct {
 	Payload   []byte
 }
 
-func (u *Table) Write(pkt *Packet) error {
+func (u *Table) Write(ctx context.Context, pkt *Packet) error {
 	key := pkt.Src.String()
 
-	ok, err := u.write(pkt, key)
+	ok, err := u.write(ctx, pkt, key)
 	if err != nil {
 		return fmt.Errorf("client to proxy failed: %w", err)
 	}
@@ -85,7 +86,7 @@ func (u *Table) Write(pkt *Packet) error {
 	if ok {
 		cond.L.Lock()
 		cond.Wait()
-		_, err := u.write(pkt, key)
+		_, err := u.write(ctx, pkt, key)
 		cond.L.Unlock()
 		return err
 	}
@@ -96,14 +97,14 @@ func (u *Table) Write(pkt *Packet) error {
 	pkt.Dst.WithValue(proxy.SourceKey{}, pkt.Src)
 	pkt.Dst.WithValue(proxy.DestinationKey{}, pkt.Dst)
 
-	dstpconn, err := u.dialer.PacketConn(pkt.Dst)
+	dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 	if err != nil {
 		return fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
 	}
 
 	table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
 
-	if _, err = u.write(pkt, key); err != nil {
+	if _, err = u.write(ctx, pkt, key); err != nil {
 		return fmt.Errorf("write data to remote failed: %w", err)
 	}
 

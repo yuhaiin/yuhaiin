@@ -122,10 +122,12 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 	return resp, nil
 }
 
-func (n *Nodes) outbound() *outbound                       { return n.fileStore.outbound() }
-func (n *Nodes) Conn(addr proxy.Address) (net.Conn, error) { return n.outbound().Conn(addr) }
-func (n *Nodes) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	return n.outbound().PacketConn(addr)
+func (n *Nodes) outbound() *outbound { return n.fileStore.outbound() }
+func (n *Nodes) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	return n.outbound().Conn(ctx, addr)
+}
+func (n *Nodes) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+	return n.outbound().PacketConn(ctx, addr)
 }
 func (n *Nodes) manager() *manager                            { return n.fileStore.manager() }
 func (n *Nodes) Do(req *http.Request) (*http.Response, error) { return n.outbound().Do(req) }

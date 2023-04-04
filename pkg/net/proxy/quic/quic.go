@@ -2,6 +2,7 @@ package quic
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -71,14 +72,14 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 	}
 }
 
-func (c *Client) initSession() error {
+func (c *Client) initSession(ctx context.Context) error {
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
 
 	if c.session != nil {
 		return nil
 	}
-	conn, err := c.dialer.PacketConn(c.addr)
+	conn, err := c.dialer.PacketConn(ctx, c.addr)
 	if err != nil {
 		return err
 	}
@@ -141,12 +142,12 @@ func (c *Client) handleDatagrams(b []byte) error {
 	return nil
 }
 
-func (c *Client) Conn(s proxy.Address) (net.Conn, error) {
-	if err := c.initSession(); err != nil {
+func (c *Client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+	if err := c.initSession(ctx); err != nil {
 		return nil, err
 	}
 
-	stream, err := c.session.OpenStreamSync(s.Context())
+	stream, err := c.session.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -158,8 +159,8 @@ func (c *Client) Conn(s proxy.Address) (net.Conn, error) {
 	}, nil
 }
 
-func (c *Client) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	if err := c.initSession(); err != nil {
+func (c *Client) PacketConn(ctx context.Context, host proxy.Address) (net.PacketConn, error) {
+	if err := c.initSession(ctx); err != nil {
 		return nil, err
 	}
 

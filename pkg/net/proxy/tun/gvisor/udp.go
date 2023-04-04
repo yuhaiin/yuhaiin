@@ -1,6 +1,7 @@
 package tun
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -20,7 +21,7 @@ import (
 )
 
 func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
-	handle := func(srcpconn net.PacketConn, dst proxy.Address) error {
+	handle := func(ctx context.Context, srcpconn net.PacketConn, dst proxy.Address) error {
 		buf := pool.GetBytes(opt.Protocol.Tun.Mtu)
 		defer pool.PutBytes(buf)
 
@@ -36,6 +37,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 			}
 
 			err = opt.NatTable.Write(
+				ctx,
 				&nat.Packet{
 					Src:     src,
 					Dst:     dst,
@@ -76,8 +78,11 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 		go func(local net.PacketConn, id stack.TransportEndpointID) {
 			defer local.Close()
 
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+			defer cancel()
+
 			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
-				if err := opt.DNSServer.HandleUDP(local); err != nil {
+				if err := opt.DNSServer.HandleUDP(ctx, local); err != nil {
 					log.Errorf("dns handle udp failed: %v\n", err)
 				}
 				return
@@ -85,7 +90,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 
 			dst := proxy.ParseAddressPort(statistic.Type_udp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
 			if opt.Protocol.Tun.SkipMulticast && dst.Type() == proxy.IP {
-				if ip, _ := dst.IP(); !ip.IsGlobalUnicast() {
+				if ip, _ := dst.IP(context.TODO()); !ip.IsGlobalUnicast() {
 					buf := pool.GetBytes(1024)
 					defer pool.PutBytes(buf)
 
@@ -98,7 +103,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 				}
 			}
 
-			if err := handle(local, dst); err != nil && !errors.Is(err, os.ErrClosed) {
+			if err := handle(ctx, local, dst); err != nil && !errors.Is(err, os.ErrClosed) {
 				log.Errorln("handle udp request failed:", err)
 			}
 

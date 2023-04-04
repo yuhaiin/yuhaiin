@@ -62,7 +62,7 @@ func (u *udp) handleResponse() {
 	}
 }
 
-func (u *udp) initPacketConn() (net.PacketConn, error) {
+func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.packetConn != nil {
@@ -74,11 +74,7 @@ func (u *udp) initPacketConn() (net.PacketConn, error) {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-	defer cancel()
-	addr.WithContext(ctx)
-
-	conn, err := u.config.Dialer.PacketConn(addr)
+	conn, err := u.config.Dialer.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get packetConn failed: %w", err)
 	}
@@ -121,9 +117,9 @@ func NewDoU(config Config) (dns.DNS, error) {
 
 	udp := &udp{}
 
-	udp.client = NewClient(config, func(req []byte) ([]byte, error) {
+	udp.client = NewClient(config, func(ctx context.Context, req []byte) ([]byte, error) {
 
-		packetConn, err := udp.initPacketConn()
+		packetConn, err := udp.initPacketConn(ctx)
 		if err != nil {
 			return nil, err
 		}

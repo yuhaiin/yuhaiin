@@ -35,12 +35,11 @@ func (h *HTTP) dial(conn net.Conn, addr string) (net.Conn, error) {
 		return nil, fmt.Errorf("parse address failed: %w", err)
 	}
 
-	address.WithContext(ctx)
 	address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
 	address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
 	address.WithValue(proxy.DestinationKey{}, address)
 
-	return h.dialer.Conn(address)
+	return h.dialer.Conn(ctx, address)
 }
 
 func (h *HTTP) handshake(conn net.Conn) {

@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -97,23 +98,23 @@ func TestDOH(t *testing.T) {
 	d, err := New(configMap["google"])
 	assert.NoError(t, err)
 
-	t.Log(d.LookupIP("plasma"))
-	t.Log(d.LookupIP("fonts.gstatic.com"))
-	t.Log(d.LookupIP("dc.services.visualstudio.com")) // -> will error, but not found reason
-	t.Log(d.LookupIP("i2.hdslb.com"))
-	t.Log(d.LookupIP("www.baidu.com"))
-	t.Log(d.LookupIP("push.services.mozilla.com"))
-	t.Log(d.LookupIP("www.google.com"))
-	t.Log(d.LookupIP("www.pixiv.net"))
-	t.Log(d.LookupIP("s1.hdslb.com"))
-	t.Log(d.LookupIP("dns.nextdns.io"))
-	t.Log(d.LookupIP("bilibili.com"))
-	t.Log(d.LookupIP("test-ipv6.com"))
-	t.Log(d.LookupIP("ss1.bdstatic.com"))
-	t.Log(d.LookupIP("www.twitter.com"))
-	t.Log(d.LookupIP("www.facebook.com"))
-	t.Log(d.LookupIP("yahoo.co.jp"))
-	t.Log(d.LookupIP("115-235-111-150.dhost.00cdn.com"))
+	t.Log(d.LookupIP(context.TODO(), "plasma"))
+	t.Log(d.LookupIP(context.TODO(), "fonts.gstatic.com"))
+	t.Log(d.LookupIP(context.TODO(), "dc.services.visualstudio.com")) // -> will error, but not found reason
+	t.Log(d.LookupIP(context.TODO(), "i2.hdslb.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.baidu.com"))
+	t.Log(d.LookupIP(context.TODO(), "push.services.mozilla.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.google.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.pixiv.net"))
+	t.Log(d.LookupIP(context.TODO(), "s1.hdslb.com"))
+	t.Log(d.LookupIP(context.TODO(), "dns.nextdns.io"))
+	t.Log(d.LookupIP(context.TODO(), "bilibili.com"))
+	t.Log(d.LookupIP(context.TODO(), "test-ipv6.com"))
+	t.Log(d.LookupIP(context.TODO(), "ss1.bdstatic.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.twitter.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.facebook.com"))
+	t.Log(d.LookupIP(context.TODO(), "yahoo.co.jp"))
+	t.Log(d.LookupIP(context.TODO(), "115-235-111-150.dhost.00cdn.com"))
 }
 
 func TestGetURL(t *testing.T) {

@@ -10,7 +10,6 @@ import (
 )
 
 func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (s server.Server, err error) {
-
 	if o.Protocol.Tun.Driver == listener.Tun_system_gvisor {
 		s, err = tun2socket.New(o)
 	} else {

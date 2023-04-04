@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"testing"
 
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
@@ -44,6 +45,6 @@ func TestDoQ(t *testing.T) {
 
 	defer d.Close()
 
-	t.Log(d.LookupIP("www.google.com"))
-	t.Log(d.LookupIP("www.baidu.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.google.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.baidu.com"))
 }

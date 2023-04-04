@@ -2,6 +2,7 @@ package shadowsocks
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -97,30 +98,26 @@ func newHTTPObfs(conn net.Conn, host string, port string) net.Conn {
 var _ proxy.Proxy = (*httpOBFS)(nil)
 
 type httpOBFS struct {
-	proxy.EmptyDispatch
 	host string
 	port string
-	p    proxy.Proxy
+
+	proxy.Proxy
 }
 
 func NewHTTPOBFS(config *protocol.Protocol_ObfsHttp) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &httpOBFS{
-			host: config.ObfsHttp.Host,
-			port: config.ObfsHttp.Port,
-			p:    p,
+			host:  config.ObfsHttp.Host,
+			port:  config.ObfsHttp.Port,
+			Proxy: p,
 		}, nil
 	}
 }
 
-func (h *httpOBFS) Conn(s proxy.Address) (net.Conn, error) {
-	conn, err := h.p.Conn(s)
+func (h *httpOBFS) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+	conn, err := h.Proxy.Conn(ctx, s)
 	if err != nil {
 		return nil, err
 	}
 	return newHTTPObfs(conn, h.host, h.port), nil
-}
-
-func (h *httpOBFS) PacketConn(s proxy.Address) (net.PacketConn, error) {
-	return h.p.PacketConn(s)
 }

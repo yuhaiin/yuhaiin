@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -16,7 +17,7 @@ func handle(req net.Conn, f proxy.Proxy) error {
 		return err
 	}
 
-	rsp, err := f.Conn(proxy.ParseTCPAddress(target))
+	rsp, err := f.Conn(context.TODO(), proxy.ParseTCPAddress(target))
 	if err != nil {
 		return err
 	}

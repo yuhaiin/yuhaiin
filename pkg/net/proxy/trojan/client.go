@@ -2,6 +2,7 @@ package trojan
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -61,8 +62,8 @@ func New(config *protocol.Protocol_Trojan) protocol.WrapProxy {
 	}
 }
 
-func (c *Client) Conn(addr proxy.Address) (net.Conn, error) {
-	conn, err := c.proxy.Conn(addr)
+func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	conn, err := c.proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +75,8 @@ func (c *Client) Conn(addr proxy.Address) (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *Client) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	conn, err := c.proxy.Conn(addr)
+func (c *Client) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+	conn, err := c.proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
 	}

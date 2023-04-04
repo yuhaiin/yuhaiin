@@ -61,7 +61,7 @@ func TestPtr(t *testing.T) {
 	t.Log(f.GetFakeIPForDomain("aass"))
 
 	z := &FakeDNS{
-		upstream:   dns.NewErrorDNS(func(domain string) error { return errors.New("err") }),
+		DNS:        dns.NewErrorDNS(func(domain string) error { return errors.New("err") }),
 		FakeIPPool: NewFakeIPPool(zz, nil),
 	}
 

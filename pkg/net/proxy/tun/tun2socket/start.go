@@ -115,19 +115,18 @@ func (h *handler) handleTCP(conn net.Conn) error {
 		return nil
 	}
 
-	if h.isHandleDNS(rAddrPort) {
-		return h.DNSServer.HandleTCP(conn)
-	}
-
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 	defer cancel()
 
+	if h.isHandleDNS(rAddrPort) {
+		return h.DNSServer.HandleTCP(ctx, conn)
+	}
+
 	addr := proxy.ParseAddrPort(statistic.Type_tcp, rAddrPort)
-	addr.WithContext(ctx)
 	addr.WithValue(proxy.SourceKey{}, conn.LocalAddr())
 	addr.WithValue(proxy.DestinationKey{}, conn.RemoteAddr())
 
-	lconn, err := h.Dialer.Conn(addr)
+	lconn, err := h.Dialer.Conn(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -147,8 +146,11 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 
 	zbuf := buf[:n]
 
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
+
 	if h.isHandleDNS(dst) {
-		resp, err := h.DNSServer.Do(zbuf)
+		resp, err := h.DNSServer.Do(ctx, zbuf)
 		if err != nil {
 			return err
 		}
@@ -156,16 +158,10 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-	defer cancel()
-
-	dstAddr := proxy.ParseAddrPort(statistic.Type_udp, dst)
-	dstAddr.WithContext(ctx)
-
-	return natTable.Write(
+	return natTable.Write(ctx,
 		&nat.Packet{
 			Src:     net.UDPAddrFromAddrPort(src),
-			Dst:     dstAddr,
+			Dst:     proxy.ParseAddrPort(statistic.Type_udp, dst),
 			Payload: zbuf,
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
 				address, err := proxy.ParseSysAddr(addr)
@@ -173,7 +169,7 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 					return 0, err
 				}
 
-				daddr, err := address.AddrPort()
+				daddr, err := address.AddrPort(context.TODO())
 				if err != nil {
 					return 0, err
 				}

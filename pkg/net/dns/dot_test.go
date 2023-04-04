@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -42,9 +43,9 @@ func TestDOT(t *testing.T) {
 	d, err := New(configMap["google"])
 	assert.NoError(t, err)
 
-	t.Log(d.LookupIP("i2.hdslb.com"))
-	t.Log(d.LookupIP("www.google.com"))
-	t.Log(d.LookupIP("www.baidu.com"))
-	t.Log(d.LookupIP("www.apple.com"))
-	t.Log(d.LookupIP("www.example.com"))
+	t.Log(d.LookupIP(context.TODO(), "i2.hdslb.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.google.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.baidu.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.apple.com"))
+	t.Log(d.LookupIP(context.TODO(), "www.example.com"))
 }

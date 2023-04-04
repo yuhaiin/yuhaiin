@@ -85,7 +85,7 @@ func TestConn(t *testing.T) {
 					if err != nil {
 						return nil, fmt.Errorf("parse address failed: %v", err)
 					}
-					return z.Conn(ad)
+					return z.Conn(ctx, ad)
 				}
 			},
 		},
@@ -118,7 +118,7 @@ func TestUDPConn(t *testing.T) {
 	assert.NoError(t, err)
 
 	ad, _ := proxy.ParseAddress(statistic.Type_udp, "223.5.5.5:53")
-	c, err := s.PacketConn(ad)
+	c, err := s.PacketConn(context.TODO(), ad)
 	assert.NoError(t, err)
 
 	req := "ev4BAAABAAAAAAAAA3d3dwZnb29nbGUDY29tAAABAAE="

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -14,18 +15,18 @@ func TestAddr(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ip, err := addr.IP()
+	ip, err := addr.IP(context.TODO())
 	assert.NoError(t, err)
 	t.Log(addr.Hostname(), ip, addr.Port(), addr.Type())
 
-	t.Log(addr.UDPAddr())
+	t.Log(addr.UDPAddr(context.TODO()))
 
 	z, _ := net.ResolveUDPAddr("udp", "[ff::ff%eth0]:53")
 	t.Log(z.String(), z.IP, z.Port, z.Zone)
 
 	addr, err = ParseAddress(statistic.Type_tcp, "www.google.com:443")
 	assert.NoError(t, err)
-	t.Log(addr.UDPAddr())
+	t.Log(addr.UDPAddr(context.TODO()))
 }
 
 func TestOverride(t *testing.T) {

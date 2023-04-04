@@ -27,11 +27,11 @@ type Proxy interface {
 }
 
 type StreamProxy interface {
-	Conn(Address) (net.Conn, error)
+	Conn(context.Context, Address) (net.Conn, error)
 }
 
 type PacketProxy interface {
-	PacketConn(Address) (net.PacketConn, error)
+	PacketConn(context.Context, Address) (net.PacketConn, error)
 }
 
 type EmptyDispatch struct{}
@@ -42,8 +42,10 @@ var DiscardProxy Proxy = &Discard{}
 
 type Discard struct{ EmptyDispatch }
 
-func (Discard) Conn(Address) (net.Conn, error)             { return DiscardNetConn, nil }
-func (Discard) PacketConn(Address) (net.PacketConn, error) { return DiscardNetPacketConn, nil }
+func (Discard) Conn(context.Context, Address) (net.Conn, error) { return DiscardNetConn, nil }
+func (Discard) PacketConn(context.Context, Address) (net.PacketConn, error) {
+	return DiscardNetPacketConn, nil
+}
 
 var DiscardNetConn net.Conn = &DiscardConn{}
 
@@ -79,9 +81,9 @@ type errProxy struct {
 	error
 }
 
-func NewErrProxy(err error) Proxy                             { return &errProxy{error: err} }
-func (e errProxy) Conn(Address) (net.Conn, error)             { return nil, e.error }
-func (e errProxy) PacketConn(Address) (net.PacketConn, error) { return nil, e.error }
+func NewErrProxy(err error) Proxy                                              { return &errProxy{error: err} }
+func (e errProxy) Conn(context.Context, Address) (net.Conn, error)             { return nil, e.error }
+func (e errProxy) PacketConn(context.Context, Address) (net.PacketConn, error) { return nil, e.error }
 
 func PaseNetwork(s string) statistic.Type { return statistic.Type(statistic.Type_value[s]) }
 
@@ -121,8 +123,8 @@ type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
 	// IP return net.IP, if address is ip else resolve the domain and return one of ips
-	IP() (net.IP, error)
-	AddrPort() (netip.AddrPort, error)
+	IP(context.Context) (net.IP, error)
+	AddrPort(context.Context) (netip.AddrPort, error)
 	// Port return port of address
 	Port() Port
 	// Type return type of address, domain or ip
@@ -138,15 +140,12 @@ type Address interface {
 	OverrideHostname(string) Address
 	OverridePort(Port) Address
 
-	UDPAddr() (*net.UDPAddr, error)
-	TCPAddr() (*net.TCPAddr, error)
+	UDPAddr(context.Context) (*net.UDPAddr, error)
+	TCPAddr(context.Context) (*net.TCPAddr, error)
 
 	WithValue(key, value any)
 	Value(key any) (any, bool)
 	RangeValue(func(k, v any) bool)
-
-	Context() context.Context
-	WithContext(context.Context)
 }
 
 func Value[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
@@ -322,11 +321,6 @@ func (d *addr) overrideHostname(s string, port Port) Address {
 	}
 }
 
-type contextKey struct{}
-
-func (d *addr) Context() context.Context        { return Value(d, contextKey{}, context.TODO()) }
-func (d *addr) WithContext(ctx context.Context) { d.WithValue(contextKey{}, ctx) }
-
 var _ Address = (*DomainAddr)(nil)
 
 type DomainAddr struct {
@@ -337,8 +331,8 @@ type DomainAddr struct {
 
 func (d *DomainAddr) String() string   { return net.JoinHostPort(d.Hostname(), d.Port().String()) }
 func (d *DomainAddr) Hostname() string { return d.hostname }
-func (d *DomainAddr) IP() (net.IP, error) {
-	ip, err := d.lookupIP()
+func (d *DomainAddr) IP(ctx context.Context) (net.IP, error) {
+	ip, err := d.lookupIP(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address %s failed: %w", d.hostname, err)
 	}
@@ -346,8 +340,8 @@ func (d *DomainAddr) IP() (net.IP, error) {
 	return ip, nil
 }
 
-func (d *DomainAddr) AddrPort() (netip.AddrPort, error) {
-	ip, err := d.IP()
+func (d *DomainAddr) AddrPort(ctx context.Context) (netip.AddrPort, error) {
+	ip, err := d.IP(ctx)
 	if err != nil {
 		return netip.AddrPort{}, err
 	}
@@ -358,11 +352,11 @@ func (d *DomainAddr) AddrPort() (netip.AddrPort, error) {
 
 func (d *DomainAddr) Port() Port { return d.port }
 func (d *DomainAddr) Type() Type { return DOMAIN }
-func (d *DomainAddr) lookupIP() (net.IP, error) {
+func (d *DomainAddr) lookupIP(ctx context.Context) (net.IP, error) {
 	r := Value(d, resolverKey{}, resolver.Bootstrap)
 
 	if Value(d, PreferIPv6{}, false) {
-		ip, err := r.Record(d.hostname, dnsmessage.TypeAAAA)
+		ip, err := r.Record(ctx, d.hostname, dnsmessage.TypeAAAA)
 		if err == nil {
 			return ip.IPs[rand.Intn(len(ip.IPs))], nil
 		} else {
@@ -370,7 +364,7 @@ func (d *DomainAddr) lookupIP() (net.IP, error) {
 		}
 	}
 
-	ips, err := r.LookupIP(d.hostname)
+	ips, err := r.LookupIP(ctx, d.hostname)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address failed: %w", err)
 	}
@@ -378,8 +372,8 @@ func (d *DomainAddr) lookupIP() (net.IP, error) {
 	return ips[rand.Intn(len(ips))], nil
 }
 
-func (d *DomainAddr) UDPAddr() (*net.UDPAddr, error) {
-	ip, err := d.lookupIP()
+func (d *DomainAddr) UDPAddr(ctx context.Context) (*net.UDPAddr, error) {
+	ip, err := d.lookupIP(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve udp address %s failed: %w", d.hostname, err)
 	}
@@ -387,8 +381,8 @@ func (d *DomainAddr) UDPAddr() (*net.UDPAddr, error) {
 	return &net.UDPAddr{IP: ip, Port: int(d.port.Port())}, nil
 }
 
-func (d *DomainAddr) TCPAddr() (*net.TCPAddr, error) {
-	ip, err := d.lookupIP()
+func (d *DomainAddr) TCPAddr(ctx context.Context) (*net.TCPAddr, error) {
+	ip, err := d.lookupIP(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve tcp address %s failed: %w", d.hostname, err)
 	}
@@ -415,20 +409,20 @@ type IPAddrPort struct {
 	*addr
 }
 
-func (d *IPAddrPort) String() string                    { return d.addrPort.String() }
-func (d *IPAddrPort) Hostname() string                  { return d.addrPort.Addr().String() }
-func (d *IPAddrPort) AddrPort() (netip.AddrPort, error) { return d.addrPort, nil }
-func (d *IPAddrPort) IP() (net.IP, error)               { return d.addrPort.Addr().AsSlice(), nil }
-func (d *IPAddrPort) Port() Port                        { return ParsePort(d.addrPort.Port()) }
-func (d *IPAddrPort) Type() Type                        { return IP }
-func (d *IPAddrPort) UDPAddr() (*net.UDPAddr, error) {
+func (d *IPAddrPort) String() string                                   { return d.addrPort.String() }
+func (d *IPAddrPort) Hostname() string                                 { return d.addrPort.Addr().String() }
+func (d *IPAddrPort) AddrPort(context.Context) (netip.AddrPort, error) { return d.addrPort, nil }
+func (d *IPAddrPort) IP(context.Context) (net.IP, error)               { return d.addrPort.Addr().AsSlice(), nil }
+func (d *IPAddrPort) Port() Port                                       { return ParsePort(d.addrPort.Port()) }
+func (d *IPAddrPort) Type() Type                                       { return IP }
+func (d *IPAddrPort) UDPAddr(context.Context) (*net.UDPAddr, error) {
 	return &net.UDPAddr{
 		IP:   d.addrPort.Addr().AsSlice(),
 		Port: int(d.addrPort.Port()),
 		Zone: d.addrPort.Addr().Zone(),
 	}, nil
 }
-func (d *IPAddrPort) TCPAddr() (*net.TCPAddr, error) {
+func (d *IPAddrPort) TCPAddr(context.Context) (*net.TCPAddr, error) {
 	return &net.TCPAddr{
 		IP:   d.addrPort.Addr().AsSlice(),
 		Port: int(d.addrPort.Port()),
@@ -447,27 +441,27 @@ var EmptyAddr Address = &emptyAddr{}
 
 type emptyAddr struct{}
 
-func (d emptyAddr) String() string      { return "" }
-func (d emptyAddr) Hostname() string    { return "" }
-func (d emptyAddr) IP() (net.IP, error) { return nil, errors.New("empty") }
-func (d emptyAddr) AddrPort() (netip.AddrPort, error) {
+func (d emptyAddr) String() string                     { return "" }
+func (d emptyAddr) Hostname() string                   { return "" }
+func (d emptyAddr) IP(context.Context) (net.IP, error) { return nil, errors.New("empty") }
+func (d emptyAddr) AddrPort(context.Context) (netip.AddrPort, error) {
 	return netip.AddrPort{}, errors.New("empty")
 }
-func (d emptyAddr) Port() Port                      { return EmptyPort }
-func (d emptyAddr) Network() string                 { return "" }
-func (d emptyAddr) NetworkType() statistic.Type     { return 0 }
-func (d emptyAddr) Type() Type                      { return EMPTY }
-func (d emptyAddr) WithResolver(dns.DNS, bool) bool { return false }
-func (d emptyAddr) UDPAddr() (*net.UDPAddr, error)  { return nil, errors.New("empty") }
-func (d emptyAddr) TCPAddr() (*net.TCPAddr, error)  { return nil, errors.New("empty") }
-func (d emptyAddr) IPHost() (string, error)         { return "", errors.New("empty") }
-func (d emptyAddr) WithValue(any, any)              {}
-func (d emptyAddr) Value(any) (any, bool)           { return nil, false }
-func (d emptyAddr) RangeValue(func(any, any) bool)  {}
-func (d emptyAddr) OverrideHostname(string) Address { return d }
-func (d emptyAddr) OverridePort(Port) Address       { return d }
-func (d emptyAddr) Context() context.Context        { return context.TODO() }
-func (d emptyAddr) WithContext(context.Context)     {}
+func (d emptyAddr) Port() Port                                    { return EmptyPort }
+func (d emptyAddr) Network() string                               { return "" }
+func (d emptyAddr) NetworkType() statistic.Type                   { return 0 }
+func (d emptyAddr) Type() Type                                    { return EMPTY }
+func (d emptyAddr) WithResolver(dns.DNS, bool) bool               { return false }
+func (d emptyAddr) UDPAddr(context.Context) (*net.UDPAddr, error) { return nil, errors.New("empty") }
+func (d emptyAddr) TCPAddr(context.Context) (*net.TCPAddr, error) { return nil, errors.New("empty") }
+func (d emptyAddr) IPHost(context.Context) (string, error)        { return "", errors.New("empty") }
+func (d emptyAddr) WithValue(any, any)                            {}
+func (d emptyAddr) Value(any) (any, bool)                         { return nil, false }
+func (d emptyAddr) RangeValue(func(any, any) bool)                {}
+func (d emptyAddr) OverrideHostname(string) Address               { return d }
+func (d emptyAddr) OverridePort(Port) Address                     { return d }
+func (d emptyAddr) Context() context.Context                      { return context.TODO() }
+func (d emptyAddr) WithContext(context.Context)                   {}
 
 type PortUint16 uint16
 

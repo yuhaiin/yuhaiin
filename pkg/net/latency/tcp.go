@@ -18,7 +18,7 @@ func HTTP(p proxy.Proxy, target string) (time.Duration, error) {
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
-			return p.Conn(ad)
+			return p.Conn(ctx, ad)
 		},
 	}
 	defer tr.CloseIdleConnections()

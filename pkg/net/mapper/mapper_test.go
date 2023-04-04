@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestNewMatcher(t *testing.T) {
 
 	search := func(s string) string {
 		addr, _ := proxy.ParseAddress(0, net.JoinHostPort(s, "0"))
-		res, _ := matcher.Search(addr)
+		res, _ := matcher.Search(context.TODO(), addr)
 		return res
 	}
 	assert.Equal(t, "test_cidr", search("10.2.2.1"))
@@ -46,9 +47,9 @@ func BenchmarkMapper(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		if i%2 == 1 {
-			matcher.Search(a1)
+			matcher.Search(context.TODO(), a1)
 		} else {
-			matcher.Search(a2)
+			matcher.Search(context.TODO(), a2)
 		}
 	}
 }

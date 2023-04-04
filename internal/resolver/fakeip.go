@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/netip"
@@ -56,8 +57,8 @@ func (f *Fakedns) Dispatch(addr proxy.Address) (proxy.Address, error) {
 	return f.dialer.Dispatch(f.getAddr(addr))
 }
 
-func (f *Fakedns) Conn(addr proxy.Address) (net.Conn, error) {
-	c, err := f.dialer.Conn(f.getAddr(addr))
+func (f *Fakedns) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	c, err := f.dialer.Conn(ctx, f.getAddr(addr))
 	if err != nil {
 		return nil, fmt.Errorf("connect tcp to %s failed: %w", addr, err)
 	}
@@ -65,8 +66,8 @@ func (f *Fakedns) Conn(addr proxy.Address) (net.Conn, error) {
 	return c, nil
 }
 
-func (f *Fakedns) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	c, err := f.dialer.PacketConn(f.getAddr(addr))
+func (f *Fakedns) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+	c, err := f.dialer.PacketConn(ctx, f.getAddr(addr))
 	if err != nil {
 		return nil, fmt.Errorf("connect udp to %s failed: %w", addr, err)
 	}

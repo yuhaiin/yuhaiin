@@ -46,9 +46,8 @@ func NewDoH(config Config) (dns.DNS, error) {
 				if err != nil {
 					return nil, fmt.Errorf("doh parse address failed: %w", err)
 				}
-				addr.WithContext(ctx)
 
-				return config.Dialer.Conn(addr)
+				return config.Dialer.Conn(ctx, addr)
 			default:
 				return nil, fmt.Errorf("unsupported network: %s", network)
 			}
@@ -59,9 +58,7 @@ func NewDoH(config Config) (dns.DNS, error) {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	return NewClient(config, func(b []byte) ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
-		defer cancel()
+	return NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
 		resp, err := roundTripper.RoundTrip(req.Clone(ctx, b))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)

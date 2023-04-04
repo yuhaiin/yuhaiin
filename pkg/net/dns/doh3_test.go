@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"testing"
 
 	rr "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
@@ -22,7 +23,7 @@ func TestDoh3(t *testing.T) {
 	c, err := New(configMap["cloudflare"])
 	assert.NoError(t, err)
 
-	t.Log(c.LookupIP("www.google.com"))
-	t.Log(c.LookupIP("www.baidu.com"))
-	t.Log(c.LookupIP("www.qq.com"))
+	t.Log(c.LookupIP(context.TODO(), "www.google.com"))
+	t.Log(c.LookupIP(context.TODO(), "www.baidu.com"))
+	t.Log(c.LookupIP(context.TODO(), "www.qq.com"))
 }
