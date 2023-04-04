@@ -1,6 +1,7 @@
 package shadowsocksr
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -53,8 +54,8 @@ func New(config *protocols.Protocol_Shadowsocksr) protocols.WrapProxy {
 	}
 }
 
-func (s *Shadowsocksr) Conn(addr proxy.Address) (net.Conn, error) {
-	c, err := s.dial.Conn(addr)
+func (s *Shadowsocksr) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	c, err := s.dial.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
@@ -89,8 +90,8 @@ func (s *Shadowsocksr) Conn(addr proxy.Address) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *Shadowsocksr) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	c, err := s.dial.PacketConn(addr)
+func (s *Shadowsocksr) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+	c, err := s.dial.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get packet conn failed: %w", err)
 	}

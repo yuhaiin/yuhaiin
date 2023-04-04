@@ -1,6 +1,7 @@
 package vmess
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -12,8 +13,7 @@ import (
 // Vmess  client
 type Vmess struct {
 	client *Client
-	proxy.EmptyDispatch
-	dial proxy.Proxy
+	proxy.Proxy
 }
 
 func New(config *protocol.Protocol_Vmess) protocol.WrapProxy {
@@ -27,13 +27,13 @@ func New(config *protocol.Protocol_Vmess) protocol.WrapProxy {
 			return nil, fmt.Errorf("new vmess client failed: %w", err)
 		}
 
-		return &Vmess{client: client, dial: p}, nil
+		return &Vmess{client, p}, nil
 	}
 }
 
 // Conn create a connection for host
-func (v *Vmess) Conn(host proxy.Address) (conn net.Conn, err error) {
-	c, err := v.dial.Conn(host)
+func (v *Vmess) Conn(ctx context.Context, host proxy.Address) (conn net.Conn, err error) {
+	c, err := v.Proxy.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
@@ -47,8 +47,8 @@ func (v *Vmess) Conn(host proxy.Address) (conn net.Conn, err error) {
 }
 
 // PacketConn packet transport connection
-func (v *Vmess) PacketConn(host proxy.Address) (conn net.PacketConn, err error) {
-	c, err := v.dial.Conn(host)
+func (v *Vmess) PacketConn(ctx context.Context, host proxy.Address) (conn net.PacketConn, err error) {
+	c, err := v.Proxy.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}

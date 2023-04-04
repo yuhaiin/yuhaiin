@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"context"
 	"errors"
 	"net/netip"
 
@@ -42,16 +43,16 @@ func (x *Combine[T]) Insert(str string, mark T) {
 
 var ErrSkipResolveDomain = errors.New("skip resolver domain")
 
-func (x *Combine[T]) Search(addr proxy.Address) (mark T, ok bool) {
+func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok bool) {
 	if addr.Type() == proxy.IP {
-		return x.cidr.SearchIP(yerror.Must(addr.IP()))
+		return x.cidr.SearchIP(yerror.Must(addr.IP(ctx)))
 	}
 
 	if mark, ok = x.domain.Search(addr); ok {
 		return
 	}
 
-	if ips, err := addr.IP(); err == nil {
+	if ips, err := addr.IP(ctx); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
 	} else if !errors.Is(err, ErrSkipResolveDomain) {
 		log.Warningf("dns lookup %v failed: %v, skip match ip", addr, err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -153,22 +154,22 @@ type dialer struct {
 	mapper *mapper.Combine[struct{}]
 }
 
-func (d *dialer) Conn(addr proxy.Address) (net.Conn, error) {
+func (d *dialer) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
 	if d.dialer != nil {
-		if _, ok := d.mapper.Search(addr); ok {
+		if _, ok := d.mapper.Search(ctx, addr); ok {
 			log.Printf("%v tcp forward to socks5", addr)
-			return d.dialer.Conn(addr)
+			return d.dialer.Conn(ctx, addr)
 		}
 	}
 	return net.Dial("tcp", addr.String())
 }
 
-func (d *dialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (d *dialer) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
 	if d.dialer != nil {
-		if _, ok := d.mapper.Search(addr); ok {
+		if _, ok := d.mapper.Search(ctx, addr); ok {
 			log.Printf("%v udp forward to socks5", addr)
-			return d.dialer.PacketConn(addr)
+			return d.dialer.PacketConn(ctx, addr)
 		}
 	}
-	return direct.Default.PacketConn(addr)
+	return direct.Default.PacketConn(ctx, addr)
 }

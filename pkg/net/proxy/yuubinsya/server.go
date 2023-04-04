@@ -208,11 +208,10 @@ func (y *yuubinsya) stream(c net.Conn) error {
 	addr.WithValue(proxy.SourceKey{}, c.RemoteAddr())
 	addr.WithValue(proxy.DestinationKey{}, target)
 	addr.WithValue(proxy.InboundKey{}, c.LocalAddr())
-	addr.WithContext(ctx)
 
 	log.Debugf("new tcp connect from %v to %v\n", c.RemoteAddr(), addr)
 
-	conn, err := y.Dialer.Conn(addr)
+	conn, err := y.Dialer.Conn(ctx, addr)
 	if err != nil {
 		return fmt.Errorf("dial %v failed: %w", addr, err)
 	}
@@ -266,35 +265,34 @@ func (y *yuubinsya) remoteToLocal(c net.Conn) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 	defer cancel()
 
-	dst := addr.Address(statistic.Type_udp)
-	dst.WithContext(ctx)
+	return y.Config.NatTable.Write(
+		ctx,
+		&nat.Packet{
+			Src:     src,
+			Dst:     addr.Address(statistic.Type_udp),
+			Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],
+			WriteBack: func(buf []byte, from net.Addr) (int, error) {
+				addr, err := proxy.ParseSysAddr(from)
+				if err != nil {
+					return 0, err
+				}
 
-	return y.Config.NatTable.Write(&nat.Packet{
-		Src:     src,
-		Dst:     dst,
-		Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],
-		WriteBack: func(buf []byte, from net.Addr) (int, error) {
-			addr, err := proxy.ParseSysAddr(from)
-			if err != nil {
-				return 0, err
-			}
+				s5Addr := s5c.ParseAddr(addr)
 
-			s5Addr := s5c.ParseAddr(addr)
+				buffer := pool.GetBytesV2(len(s5Addr) + 2 + nat.MaxSegmentSize)
+				defer pool.PutBytesV2(buffer)
 
-			buffer := pool.GetBytesV2(len(s5Addr) + 2 + nat.MaxSegmentSize)
-			defer pool.PutBytesV2(buffer)
+				copy(buffer.Bytes(), s5Addr)
+				binary.BigEndian.PutUint16(buffer.Bytes()[len(s5Addr):], uint16(len(buf)))
+				copy(buffer.Bytes()[len(s5Addr)+2:], buf)
 
-			copy(buffer.Bytes(), s5Addr)
-			binary.BigEndian.PutUint16(buffer.Bytes()[len(s5Addr):], uint16(len(buf)))
-			copy(buffer.Bytes()[len(s5Addr)+2:], buf)
+				if _, err := c.Write(buffer.Bytes()[:len(s5Addr)+2+len(buf)]); err != nil {
+					return 0, err
+				}
 
-			if _, err := c.Write(buffer.Bytes()[:len(s5Addr)+2+len(buf)]); err != nil {
-				return 0, err
-			}
-
-			return len(buf), nil
-		},
-	})
+				return len(buf), nil
+			},
+		})
 }
 
 func write403(conn net.Conn) {

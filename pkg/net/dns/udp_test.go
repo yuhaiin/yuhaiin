@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -46,8 +47,8 @@ func TestUDP(t *testing.T) {
 	dns, err := New(configMap["google"])
 	assert.NoError(t, err)
 
-	t.Log(dns.LookupIP("www.baidu.com"))
-	t.Log(dns.LookupIP("www.google.com"))
-	t.Log(dns.LookupIP("www.twitter.com"))
-	t.Log(dns.LookupIP("i2.hdslb.com"))
+	t.Log(dns.LookupIP(context.TODO(), "www.baidu.com"))
+	t.Log(dns.LookupIP(context.TODO(), "www.google.com"))
+	t.Log(dns.LookupIP(context.TODO(), "www.twitter.com"))
+	t.Log(dns.LookupIP(context.TODO(), "i2.hdslb.com"))
 }

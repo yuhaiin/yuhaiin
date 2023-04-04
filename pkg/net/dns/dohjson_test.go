@@ -18,7 +18,7 @@ func TestDNSJson(t *testing.T) {
 		if err != nil {
 			return nil, fmt.Errorf("parse address failed: %w", err)
 		}
-		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(ad)
+		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(ctx, ad)
 	}
 	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "i0.hdslb.com", nil))

@@ -15,17 +15,17 @@ var Bootstrap dns.DNS = &System{}
 
 type System struct{ DisableIPv6 bool }
 
-func (d *System) LookupIP(domain string) ([]net.IP, error) {
+func (d *System) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	var network string
 	if d.DisableIPv6 {
 		network = "ip4"
 	} else {
 		network = "ip"
 	}
-	return net.DefaultResolver.LookupIP(context.TODO(), network, domain)
+	return net.DefaultResolver.LookupIP(ctx, network, domain)
 }
 
-func (d *System) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+func (d *System) Record(ctx context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
 	var req string
 	if t == dnsmessage.TypeAAAA {
 		req = "ip6"
@@ -33,7 +33,7 @@ func (d *System) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) 
 		req = "ip4"
 	}
 
-	ips, err := net.DefaultResolver.LookupIP(context.TODO(), req, domain)
+	ips, err := net.DefaultResolver.LookupIP(ctx, req, domain)
 	if err != nil {
 		return dns.IPRecord{}, err
 	}
@@ -41,11 +41,15 @@ func (d *System) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) 
 	return dns.IPRecord{IPs: ips, TTL: 600}, nil
 }
 
-func (d *System) Close() error                      { return nil }
-func (d *System) Do(string, []byte) ([]byte, error) { return nil, fmt.Errorf("system dns not support") }
-func LookupIP(domain string) ([]net.IP, error)      { return Bootstrap.LookupIP(domain) }
+func (d *System) Close() error { return nil }
+func (d *System) Do(context.Context, string, []byte) ([]byte, error) {
+	return nil, fmt.Errorf("system dns not support")
+}
+func LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
+	return Bootstrap.LookupIP(ctx, domain)
+}
 
-func ResolveUDPAddr(address string) (*net.UDPAddr, error) {
+func ResolveUDPAddr(ctx context.Context, address string) (*net.UDPAddr, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, fmt.Errorf("invalid address: %s", address)
@@ -53,7 +57,7 @@ func ResolveUDPAddr(address string) (*net.UDPAddr, error) {
 
 	ip := net.ParseIP(host)
 	if ip == nil {
-		x, err := Bootstrap.LookupIP(host)
+		x, err := Bootstrap.LookupIP(ctx, host)
 		if err != nil {
 			return nil, err
 		}

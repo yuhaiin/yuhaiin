@@ -66,13 +66,11 @@ func (u *udpServer) handle(buf []byte, src net.Addr) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
 	defer cancel()
 
-	dst := addr.Address(statistic.Type_udp)
-	dst.WithContext(ctx)
-
 	return u.natTable.Write(
+		ctx,
 		&nat.Packet{
 			Src:     src,
-			Dst:     dst,
+			Dst:     addr.Address(statistic.Type_udp),
 			Payload: buf[3+len(addr):],
 			WriteBack: func(b []byte, source net.Addr) (int, error) {
 				sourceAddr, err := proxy.ParseSysAddr(source)

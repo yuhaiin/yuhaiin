@@ -1,6 +1,7 @@
 package reject
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -14,10 +15,10 @@ var _ proxy.Proxy = (*reject)(nil)
 
 type rejectImmediately struct{ proxy.EmptyDispatch }
 
-func (rejectImmediately) Conn(addr proxy.Address) (net.Conn, error) {
+func (rejectImmediately) Conn(_ context.Context, addr proxy.Address) (net.Conn, error) {
 	return nil, proxy.NewBlockError(statistic.Type_tcp, addr.Hostname())
 }
-func (rejectImmediately) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (rejectImmediately) PacketConn(_ context.Context, addr proxy.Address) (net.PacketConn, error) {
 	return nil, proxy.NewBlockError(statistic.Type_udp, addr.Hostname())
 }
 
@@ -62,10 +63,10 @@ func (r *reject) delay(addr proxy.Address) time.Duration {
 	return z.delay
 }
 
-func (r *reject) Conn(addr proxy.Address) (net.Conn, error) {
+func (r *reject) Conn(_ context.Context, addr proxy.Address) (net.Conn, error) {
 	return nil, fmt.Errorf("blocked address tcp[%v], delay %v", addr, r.delay(addr))
 }
 
-func (r *reject) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (r *reject) PacketConn(_ context.Context, addr proxy.Address) (net.PacketConn, error) {
 	return nil, fmt.Errorf("blocked address udp[%v]. delay %v", addr, r.delay(addr))
 }

@@ -16,26 +16,25 @@ import (
 
 type client struct {
 	wsConfig *websocket.Config
-	proxy.EmptyDispatch
-	dialer proxy.Proxy
+	proxy.Proxy
 }
 
 func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 
 		return &client{
-			wsConfig: &websocket.Config{
+			&websocket.Config{
 				Host:      cf.Websocket.Host,
 				Path:      getNormalizedPath(cf.Websocket.Path),
 				OriginUrl: cf.Websocket.Host,
 			},
-			dialer: dialer,
+			dialer,
 		}, nil
 	}
 }
 
-func (c *client) Conn(h proxy.Address) (net.Conn, error) {
-	conn, err := c.dialer.Conn(h)
+func (c *client) Conn(ctx context.Context, h proxy.Address) (net.Conn, error) {
+	conn, err := c.Proxy.Conn(ctx, h)
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial failed: %w", err)
 	}
@@ -43,10 +42,6 @@ func (c *client) Conn(h proxy.Address) (net.Conn, error) {
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	return &earlyConn{config: c.wsConfig, Conn: conn, handshakeCtx: ctx, handshakeDone: cancel}, nil
-}
-
-func (c *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	return c.dialer.PacketConn(host)
 }
 
 func getNormalizedPath(path string) string {

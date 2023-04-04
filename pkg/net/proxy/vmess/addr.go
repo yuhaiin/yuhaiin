@@ -1,6 +1,7 @@
 package vmess
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -35,7 +36,7 @@ func ParseAddr(s proxy.Address) (address, error) {
 		addr[0] = byte(len(s.Hostname()))
 		copy(addr[1:], s.Hostname())
 	} else {
-		ip, err := s.IP()
+		ip, err := s.IP(context.TODO())
 		if err != nil {
 			return address{}, fmt.Errorf("invalid addr: %w", err)
 		}

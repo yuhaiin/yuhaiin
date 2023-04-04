@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/netip"
@@ -137,24 +138,24 @@ type baseClient struct {
 
 func (l *baseClient) Update(c *pc.Setting) { l.update(l, c) }
 
-func (l *baseClient) LookupIP(host string) ([]net.IP, error) {
+func (l *baseClient) LookupIP(ctx context.Context, host string) ([]net.IP, error) {
 	if l.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}
 
-	ips, err := l.dns.LookupIP(host)
+	ips, err := l.dns.LookupIP(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("localdns lookup failed: %w", err)
 	}
 
 	return ips, nil
 }
-func (l *baseClient) Record(domain string, t dnsmessage.Type) (id.IPRecord, error) {
+func (l *baseClient) Record(ctx context.Context, domain string, t dnsmessage.Type) (id.IPRecord, error) {
 	if l.dns == nil {
 		return id.IPRecord{}, fmt.Errorf("dns not initialized")
 	}
 
-	return l.dns.Record(domain, t)
+	return l.dns.Record(ctx, domain, t)
 }
 
 func (l *baseClient) Close() error {
@@ -165,12 +166,12 @@ func (l *baseClient) Close() error {
 	return nil
 }
 
-func (b *baseClient) Do(addr string, r []byte) ([]byte, error) {
+func (b *baseClient) Do(ctx context.Context, addr string, r []byte) ([]byte, error) {
 	if b.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}
 
-	return b.dns.Do(addr, r)
+	return b.dns.Do(ctx, addr, r)
 }
 
 func getDNS(name string, ipv6 bool, dc *pd.Dns, dialer proxy.Proxy) (id.DNS, error) {
@@ -198,12 +199,12 @@ type dialer struct {
 	addr func(addr proxy.Address)
 }
 
-func (d *dialer) Conn(addr proxy.Address) (net.Conn, error) {
+func (d *dialer) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
 	d.addr(addr)
-	return d.Proxy.Conn(addr)
+	return d.Proxy.Conn(ctx, addr)
 }
 
-func (d *dialer) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (d *dialer) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
 	d.addr(addr)
-	return d.Proxy.PacketConn(addr)
+	return d.Proxy.PacketConn(ctx, addr)
 }

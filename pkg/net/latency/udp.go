@@ -1,6 +1,7 @@
 package latency
 
 import (
+	"context"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
@@ -21,7 +22,10 @@ func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	_, err = d.LookupIP(target)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
+
+	_, err = d.LookupIP(ctx, target)
 	if err != nil {
 		return 0, err
 	}
@@ -44,7 +48,10 @@ func DNSOverQuic(p proxy.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	_, err = d.LookupIP(target)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
+
+	_, err = d.LookupIP(ctx, target)
 	if err != nil {
 		return 0, err
 	}

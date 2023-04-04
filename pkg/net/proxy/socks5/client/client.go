@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -54,8 +55,8 @@ func New(config *protocol.Protocol_Socks5) protocol.WrapProxy {
 	}
 }
 
-func (s *client) Conn(host proxy.Address) (net.Conn, error) {
-	conn, err := s.dialer.Conn(host)
+func (s *client) Conn(ctx context.Context, host proxy.Address) (net.Conn, error) {
+	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %w", err)
 	}
@@ -66,7 +67,7 @@ func (s *client) Conn(host proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
-	_, err = s.handshake2(conn, Connect, host)
+	_, err = s.handshake2(ctx, conn, Connect, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %w", err)
@@ -132,7 +133,7 @@ const (
 	IPv6   byte = 0x04
 )
 
-func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (target proxy.Address, err error) {
+func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd CMD, address proxy.Address) (target proxy.Address, err error) {
 	req := pool.GetBuffer()
 	defer pool.PutBuffer(req)
 
@@ -159,15 +160,15 @@ func (s *client) handshake2(conn net.Conn, cmd CMD, address proxy.Address) (targ
 
 	addr := add.Address(statistic.Type_tcp)
 
-	if addr.Type() == proxy.IP && yerror.Must(addr.IP()).IsUnspecified() {
+	if addr.Type() == proxy.IP && yerror.Must(addr.IP(ctx)).IsUnspecified() {
 		addr = proxy.ParseAddressPort(statistic.Type_tcp, s.hostname, addr.Port())
 	}
 
 	return addr, nil
 }
 
-func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
-	conn, err := s.dialer.Conn(host)
+func (s *client) PacketConn(ctx context.Context, host proxy.Address) (net.PacketConn, error) {
+	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp failed: %w", err)
 	}
@@ -178,13 +179,13 @@ func (s *client) PacketConn(host proxy.Address) (net.PacketConn, error) {
 		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
-	addr, err := s.handshake2(conn, Udp, host)
+	addr, err := s.handshake2(ctx, conn, Udp, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
-	pc, err := s.dialer.PacketConn(addr)
+	pc, err := s.dialer.PacketConn(ctx, addr)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("listen udp failed: %w", err)

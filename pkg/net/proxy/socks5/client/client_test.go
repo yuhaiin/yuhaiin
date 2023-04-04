@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 func TestUDP(t *testing.T) {
 	p := Dial("127.0.0.1", "1080", "", "")
 
-	packet, err := p.PacketConn(proxy.ParseAddressPort(statistic.Type_udp, "0.0.0.0", proxy.EmptyPort))
+	packet, err := p.PacketConn(context.TODO(), proxy.ParseAddressPort(statistic.Type_udp, "0.0.0.0", proxy.EmptyPort))
 	assert.NoError(t, err)
 	defer packet.Close()
 

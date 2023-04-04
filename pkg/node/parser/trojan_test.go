@@ -35,14 +35,14 @@ func TestTrojan(t *testing.T) {
 
 	dns, err := dns.NewDoU(dns.Config{Host: "1.1.1.1:53", Dialer: z})
 	assert.NoError(t, err)
-	t.Log(dns.LookupIP("www.google.com"))
+	t.Log(dns.LookupIP(context.TODO(), "www.google.com"))
 
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
 				assert.NoError(t, err)
-				return z.Conn(ad)
+				return z.Conn(ctx, ad)
 			},
 		},
 	}

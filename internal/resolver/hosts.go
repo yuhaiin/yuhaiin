@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"errors"
 	"net"
 
@@ -46,9 +47,11 @@ func (h *Hosts) Dispatch(addr proxy.Address) (proxy.Address, error) {
 	return h.dialer.Dispatch(haddr)
 }
 
-func (h *Hosts) Conn(addr proxy.Address) (net.Conn, error) { return h.dialer.Conn(h.getAddr(addr)) }
-func (h *Hosts) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	c, err := h.dialer.PacketConn(h.getAddr(addr))
+func (h *Hosts) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	return h.dialer.Conn(ctx, h.getAddr(addr))
+}
+func (h *Hosts) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+	c, err := h.dialer.PacketConn(ctx, h.getAddr(addr))
 	if err != nil {
 		return nil, err
 	}
@@ -78,29 +81,31 @@ func (h *Hosts) getAddr(addr proxy.Address) proxy.Address {
 	return addr
 }
 
-func (h *Hosts) LookupIP(domain string) ([]net.IP, error) {
+func (h *Hosts) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	addr := h.getAddr(proxy.ParseAddressPort(0, domain, proxy.EmptyPort))
 	if addr.Type() == proxy.IP {
-		return []net.IP{yerror.Ignore(addr.IP())}, nil
+		return []net.IP{yerror.Ignore(addr.IP(ctx))}, nil
 	}
 
-	return h.resolver.LookupIP(addr.Hostname())
+	return h.resolver.LookupIP(ctx, addr.Hostname())
 }
 
-func (h *Hosts) Record(domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+func (h *Hosts) Record(ctx context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
 	addr := h.getAddr(proxy.ParseAddressPort(0, domain, proxy.EmptyPort))
 	if addr.Type() == proxy.IP {
 		if t == dnsmessage.TypeAAAA {
-			return dns.IPRecord{IPs: []net.IP{yerror.Ignore(addr.IP()).To16()}, TTL: 600}, nil
+			return dns.IPRecord{IPs: []net.IP{yerror.Ignore(addr.IP(ctx)).To16()}, TTL: 600}, nil
 		}
 
-		if t == dnsmessage.TypeA && yerror.Ignore(addr.IP()).To4() != nil {
-			return dns.IPRecord{IPs: []net.IP{yerror.Ignore(addr.IP()).To4()}, TTL: 600}, nil
+		if t == dnsmessage.TypeA && yerror.Ignore(addr.IP(ctx)).To4() != nil {
+			return dns.IPRecord{IPs: []net.IP{yerror.Ignore(addr.IP(ctx)).To4()}, TTL: 600}, nil
 		}
 		return dns.IPRecord{}, errors.New("here not include ipv6 hosts")
 	}
 
-	return h.resolver.Record(addr.Hostname(), t)
+	return h.resolver.Record(ctx, addr.Hostname(), t)
 }
-func (h *Hosts) Do(addr string, b []byte) ([]byte, error) { return h.resolver.Do(addr, b) }
-func (h *Hosts) Close() error                             { return nil }
+func (h *Hosts) Do(ctx context.Context, addr string, b []byte) ([]byte, error) {
+	return h.resolver.Do(ctx, addr, b)
+}
+func (h *Hosts) Close() error { return nil }

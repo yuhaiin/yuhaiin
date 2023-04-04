@@ -16,8 +16,7 @@ import (
 )
 
 type client struct {
-	proxy.EmptyDispatch
-	dialer proxy.Proxy
+	proxy.Proxy
 
 	clientConn *grpc.ClientConn
 	client     StreamClient
@@ -32,7 +31,7 @@ type client struct {
 func New(config *protocol.Protocol_Grpc) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &client{
-			dialer:    p,
+			Proxy:     p,
 			count:     &atomic.Int64{},
 			tlsConfig: protocol.ParseTLSConfig(config.Grpc.Tls),
 		}, nil
@@ -68,7 +67,7 @@ func (c *client) initClient() error {
 		grpc.WithInitialWindowSize(65536),
 		tlsOption,
 		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return c.dialer.Conn(proxy.EmptyAddr)
+			return c.Proxy.Conn(ctx, proxy.EmptyAddr)
 		}))
 	if err != nil {
 		return err
@@ -117,7 +116,7 @@ func (c *client) close() {
 	c.mu.Unlock()
 }
 
-func (c *client) Conn(addr proxy.Address) (net.Conn, error) {
+func (c *client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
 	if err := c.initClient(); err != nil {
 		return nil, err
 	}
@@ -148,10 +147,6 @@ _retry:
 		},
 		raddr: addr,
 	}, nil
-}
-
-func (c *client) PacketConn(addr proxy.Address) (net.PacketConn, error) {
-	return c.dialer.PacketConn(addr)
 }
 
 type caddr struct{}

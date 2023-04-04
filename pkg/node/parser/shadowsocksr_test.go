@@ -47,7 +47,7 @@ func TestConnectionSsr(t *testing.T) {
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
 				assert.NoError(t, err)
-				return z.Conn(ad)
+				return z.Conn(ctx, ad)
 			},
 		},
 	}
@@ -57,7 +57,7 @@ func TestConnectionSsr(t *testing.T) {
 		Host: "1.1.1.1:53", Dialer: z})
 	assert.NoError(t, err)
 
-	t.Log(dns.LookupIP("www.google.com"))
+	t.Log(dns.LookupIP(context.TODO(), "www.google.com"))
 
 	req := http.Request{
 		Method: "GET",

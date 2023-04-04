@@ -2,6 +2,7 @@ package yuubinsya
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -17,8 +18,7 @@ import (
 )
 
 type Client struct {
-	proxy proxy.Proxy
-	proxy.EmptyDispatch
+	proxy.Proxy
 
 	handshaker handshaker
 }
@@ -26,16 +26,16 @@ type Client struct {
 func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
 		c := &Client{
-			proxy:      dialer,
-			handshaker: NewHandshaker(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password)),
+			dialer,
+			NewHandshaker(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password)),
 		}
 
 		return c, nil
 	}
 }
 
-func (c *Client) Conn(addr proxy.Address) (net.Conn, error) {
-	conn, err := c.proxy.Conn(addr)
+func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	conn, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (c *Client) Conn(addr proxy.Address) (net.Conn, error) {
 	return newConn(hconn, addr, c.handshaker), nil
 }
 
-func (c *Client) PacketConn(addr proxy.Address) (net.PacketConn, error) {
+func (c *Client) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
 	/*
 		see (&yuubinsya{}).StartQUIC()
 		if c.quic {
@@ -57,7 +57,7 @@ func (c *Client) PacketConn(addr proxy.Address) (net.PacketConn, error) {
 		}
 	*/
 
-	conn, err := c.proxy.Conn(addr)
+	conn, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
 	}

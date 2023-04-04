@@ -2,6 +2,7 @@ package shadowsocks
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -33,8 +34,8 @@ func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
 }
 
 // Conn .
-func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
-	conn, err = s.p.Conn(addr)
+func (s *Shadowsocks) Conn(ctx context.Context, addr proxy.Address) (conn net.Conn, err error) {
+	conn, err = s.p.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial to %s failed: %w", addr, err)
 	}
@@ -52,8 +53,8 @@ func (s *Shadowsocks) Conn(addr proxy.Address) (conn net.Conn, err error) {
 }
 
 // PacketConn .
-func (s *Shadowsocks) PacketConn(tar proxy.Address) (net.PacketConn, error) {
-	pc, err := s.p.PacketConn(tar)
+func (s *Shadowsocks) PacketConn(ctx context.Context, tar proxy.Address) (net.PacketConn, error) {
+	pc, err := s.p.PacketConn(ctx, tar)
 	if err != nil {
 		return nil, fmt.Errorf("create packet conn failed")
 	}

@@ -45,9 +45,9 @@ type TagKey struct{}
 
 func (TagKey) String() string { return "Tag" }
 
-func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
+func (o *outbound) Conn(ctx context.Context, host proxy.Address) (_ net.Conn, err error) {
 	if tc := o.tagConn(host); tc != nil {
-		return tc.Conn(host)
+		return tc.Conn(ctx, host)
 	}
 
 	p, ok := o.lruCache.Load(o.TCP.Hash)
@@ -61,12 +61,12 @@ func (o *outbound) Conn(host proxy.Address) (_ net.Conn, err error) {
 	}
 
 	host.WithValue(HashKey{}, o.TCP.Hash)
-	return p.Conn(host)
+	return p.Conn(ctx, host)
 }
 
-func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) {
+func (o *outbound) PacketConn(ctx context.Context, host proxy.Address) (_ net.PacketConn, err error) {
 	if tc := o.tagConn(host); tc != nil {
-		return tc.PacketConn(host)
+		return tc.PacketConn(ctx, host)
 	}
 
 	p, ok := o.lruCache.Load(o.UDP.Hash)
@@ -80,7 +80,7 @@ func (o *outbound) PacketConn(host proxy.Address) (_ net.PacketConn, err error) 
 	}
 
 	host.WithValue(HashKey{}, o.UDP.Hash)
-	return p.PacketConn(host)
+	return p.PacketConn(ctx, host)
 }
 
 type HashKey struct{}
@@ -141,7 +141,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
 
-				return f(ad)
+				return f(ctx, ad)
 			},
 		},
 	}

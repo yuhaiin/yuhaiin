@@ -38,22 +38,21 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 		go func(local net.Conn, id stack.TransportEndpointID) {
 			defer local.Close()
 
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+			defer cancel()
+
 			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
-				if err := opt.DNSServer.HandleTCP(local); err != nil {
+				if err := opt.DNSServer.HandleTCP(ctx, local); err != nil {
 					log.Errorf("dns handle tcp failed: %v\n", err)
 				}
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-			defer cancel()
-
 			addr := proxy.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
-			addr.WithContext(ctx)
 			addr.WithValue(proxy.SourceKey{}, local.RemoteAddr())
 			addr.WithValue(proxy.DestinationKey{}, addr)
 
-			conn, er := opt.Dialer.Conn(addr)
+			conn, er := opt.Dialer.Conn(ctx, addr)
 			if er != nil {
 				log.Errorln("dial failed:", er)
 				return

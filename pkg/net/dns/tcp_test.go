@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -23,6 +24,6 @@ func TestTCP(t *testing.T) {
 	dns, err := New(configMap["114"])
 	assert.NoError(t, err)
 
-	t.Log(dns.LookupIP("baidu.com"))
-	t.Log(dns.LookupIP("google.com"))
+	t.Log(dns.LookupIP(context.TODO(), "baidu.com"))
+	t.Log(dns.LookupIP(context.TODO(), "google.com"))
 }

@@ -5,6 +5,7 @@ package tproxy
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -142,7 +143,7 @@ func handleSingleUDPReq(oob, b []byte, addr *net.UDPAddr, p proxy.Proxy) error {
 		return fmt.Errorf("unable to obtain original destination: %w", err)
 	}
 
-	conn, err := p.PacketConn(proxy.ParseUDPAddr(addr))
+	conn, err := p.PacketConn(context.TODO(), proxy.ParseUDPAddr(addr))
 	if err != nil {
 		return fmt.Errorf("get packet conn failed: %w", err)
 	}
