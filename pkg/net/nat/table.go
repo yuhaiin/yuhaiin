@@ -38,7 +38,7 @@ func (u *Table) write(ctx context.Context, pkt *Packet, key string) (bool, error
 
 	uaddr, ok := t.udpAddrStore.Load(dst)
 	if !ok {
-		addr, err := u.dialer.Dispatch(pkt.Dst)
+		addr, err := u.dialer.Dispatch(ctx, pkt.Dst)
 		if err != nil {
 			return true, fmt.Errorf("dispatch addr failed: %w", err)
 		}

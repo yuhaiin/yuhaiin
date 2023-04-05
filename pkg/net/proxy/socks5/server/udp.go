@@ -63,7 +63,7 @@ func (u *udpServer) handle(buf []byte, src net.Addr) error {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
 	defer cancel()
 
 	return u.natTable.Write(

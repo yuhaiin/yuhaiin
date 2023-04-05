@@ -116,26 +116,16 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.addObserver(resolvers)
 
 	// bypass dialer and dns request
-	st := shunt.NewShunt([]shunt.Mode{
-		{
-			Mode:     bypass.Mode_proxy,
-			Default:  true,
-			Dialer:   nodeService,
-			Resolver: resolvers.Remote,
-		},
-		{
-			Mode:     bypass.Mode_direct,
-			Default:  false,
-			Dialer:   direct.Default,
-			Resolver: resolvers.Local,
-		},
-		{
-			Mode:     bypass.Mode_block,
-			Default:  false,
-			Dialer:   reject.Default,
-			Resolver: dns.NewErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
-		},
-	})
+	st := shunt.NewShunt(
+		shunt.Opts{
+			DirectDialer:   direct.Default,
+			DirectResolver: resolvers.Local,
+			ProxyDialer:    nodeService,
+			ProxyResolver:  resolvers.Remote,
+			BlockDialer:    reject.Default,
+			BLockResolver:  dns.NewErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
+			DefaultMode:    bypass.Mode_proxy,
+		})
 	opt.addObserver(st)
 
 	// connections' statistic & flow data

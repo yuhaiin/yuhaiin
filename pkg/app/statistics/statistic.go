@@ -21,7 +21,7 @@ import (
 type Connections struct {
 	gs.UnimplementedConnectionsServer
 
-	dialer proxy.Proxy
+	proxy.Proxy
 	idSeed id.IDGenerator
 
 	connStore syncmap.SyncMap[uint64, connection]
@@ -38,16 +38,12 @@ func NewConnStore(cache *cache.Cache, dialer proxy.Proxy, processDumper listener
 	}
 
 	c := &Connections{
-		dialer:        dialer,
+		Proxy:         dialer,
 		processDumper: processDumper,
 		Cache:         NewCache(cache),
 	}
 
 	return c
-}
-
-func (c *Connections) Dispatch(addr proxy.Address) (proxy.Address, error) {
-	return c.dialer.Dispatch(addr)
 }
 
 func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
@@ -106,7 +102,7 @@ func (c *Connections) storeConnection(o connection) {
 
 func (c *Connections) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
 	process := c.DumpProcess(addr)
-	con, err := c.dialer.PacketConn(ctx, addr)
+	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial packet conn (%s) failed: %w", process, err)
 	}
@@ -119,7 +115,7 @@ func (c *Connections) PacketConn(ctx context.Context, addr proxy.Address) (net.P
 
 func (c *Connections) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
 	process := c.DumpProcess(addr)
-	con, err := c.dialer.Conn(ctx, addr)
+	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial conn (%s) failed: %w", process, err)
 	}

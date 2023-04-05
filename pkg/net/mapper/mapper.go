@@ -61,6 +61,15 @@ func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok
 	return
 }
 
+func (x *Combine[T]) SearchWithDefault(ctx context.Context, addr proxy.Address, defaultT T) T {
+	t, ok := x.Search(ctx, addr)
+	if ok {
+		return t
+	}
+
+	return defaultT
+}
+
 func (x *Combine[T]) Clear() error {
 	x.cidr = cidr.NewCidrMapper[T]()
 	x.domain = domain.NewDomainMapper[T]()
