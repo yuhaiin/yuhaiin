@@ -42,27 +42,27 @@ func (h *Hosts) Update(c *config.Setting) {
 	}
 }
 
-func (h *Hosts) Dispatch(addr proxy.Address) (proxy.Address, error) {
-	haddr := h.getAddr(addr)
-	return h.dialer.Dispatch(haddr)
+func (h *Hosts) Dispatch(ctx context.Context, addr proxy.Address) (proxy.Address, error) {
+	haddr := h.dispatchAddr(addr)
+	return h.dialer.Dispatch(ctx, haddr)
 }
 
 func (h *Hosts) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
-	return h.dialer.Conn(ctx, h.getAddr(addr))
+	return h.dialer.Conn(ctx, h.dispatchAddr(addr))
 }
 func (h *Hosts) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
-	c, err := h.dialer.PacketConn(ctx, h.getAddr(addr))
+	c, err := h.dialer.PacketConn(ctx, h.dispatchAddr(addr))
 	if err != nil {
 		return nil, err
 	}
-	return &dispatchPacketConn{c, h.getAddr}, nil
+	return &dispatchPacketConn{c, h.dispatchAddr}, nil
 }
 
 type hostsKey struct{}
 
 func (hostsKey) String() string { return "Hosts" }
 
-func (h *Hosts) getAddr(addr proxy.Address) proxy.Address {
+func (h *Hosts) dispatchAddr(addr proxy.Address) proxy.Address {
 	z, ok := h.hosts.Load(addr.Hostname())
 	if ok {
 		addr.WithValue(hostsKey{}, addr.Hostname())
@@ -82,7 +82,7 @@ func (h *Hosts) getAddr(addr proxy.Address) proxy.Address {
 }
 
 func (h *Hosts) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
-	addr := h.getAddr(proxy.ParseAddressPort(0, domain, proxy.EmptyPort))
+	addr := h.dispatchAddr(proxy.ParseAddressPort(0, domain, proxy.EmptyPort))
 	if addr.Type() == proxy.IP {
 		return []net.IP{yerror.Ignore(addr.IP(ctx))}, nil
 	}
@@ -91,7 +91,7 @@ func (h *Hosts) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 }
 
 func (h *Hosts) Record(ctx context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
-	addr := h.getAddr(proxy.ParseAddressPort(0, domain, proxy.EmptyPort))
+	addr := h.dispatchAddr(proxy.ParseAddressPort(0, domain, proxy.EmptyPort))
 	if addr.Type() == proxy.IP {
 		if t == dnsmessage.TypeAAAA {
 			return dns.IPRecord{IPs: []net.IP{yerror.Ignore(addr.IP(ctx)).To16()}, TTL: 600}, nil

@@ -63,8 +63,6 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, 
 	}
 
 	return NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
-		addr := proxy.ParseAddressPort(addr.NetworkType(), addr.Hostname(), addr.Port())
-
 		conn, err := config.Dialer.Conn(ctx, addr)
 		if err != nil {
 			return nil, fmt.Errorf("tcp dial failed: %w", err)

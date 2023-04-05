@@ -53,12 +53,12 @@ func (f *Fakedns) Update(c *pc.Setting) {
 	}
 }
 
-func (f *Fakedns) Dispatch(addr proxy.Address) (proxy.Address, error) {
-	return f.dialer.Dispatch(f.getAddr(addr))
+func (f *Fakedns) Dispatch(ctx context.Context, addr proxy.Address) (proxy.Address, error) {
+	return f.dialer.Dispatch(ctx, f.dispatchAddr(addr))
 }
 
 func (f *Fakedns) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
-	c, err := f.dialer.Conn(ctx, f.getAddr(addr))
+	c, err := f.dialer.Conn(ctx, f.dispatchAddr(addr))
 	if err != nil {
 		return nil, fmt.Errorf("connect tcp to %s failed: %w", addr, err)
 	}
@@ -67,19 +67,19 @@ func (f *Fakedns) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error
 }
 
 func (f *Fakedns) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
-	c, err := f.dialer.PacketConn(ctx, f.getAddr(addr))
+	c, err := f.dialer.PacketConn(ctx, f.dispatchAddr(addr))
 	if err != nil {
 		return nil, fmt.Errorf("connect udp to %s failed: %w", addr, err)
 	}
 
 	if f.enabled {
-		c = &dispatchPacketConn{c, f.getAddr}
+		c = &dispatchPacketConn{c, f.dispatchAddr}
 	}
 
 	return c, nil
 }
 
-func (f *Fakedns) getAddr(addr proxy.Address) proxy.Address {
+func (f *Fakedns) dispatchAddr(addr proxy.Address) proxy.Address {
 	if f.enabled && addr.Type() == proxy.IP {
 		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
 		if ok {

@@ -23,7 +23,7 @@ import (
 type Proxy interface {
 	StreamProxy
 	PacketProxy
-	Dispatch(Address) (Address, error)
+	Dispatch(context.Context, Address) (Address, error)
 }
 
 type StreamProxy interface {
@@ -36,7 +36,7 @@ type PacketProxy interface {
 
 type EmptyDispatch struct{}
 
-func (EmptyDispatch) Dispatch(a Address) (Address, error) { return a, nil }
+func (EmptyDispatch) Dispatch(_ context.Context, a Address) (Address, error) { return a, nil }
 
 var DiscardProxy Proxy = &Discard{}
 
