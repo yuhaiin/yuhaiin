@@ -1,5 +1,6 @@
-//go:build linux || darwin
+//go:build (linux || darwin) && !lite
 // +build linux darwin
+// +build !lite
 
 package main
 

@@ -53,8 +53,8 @@ func (f *Fakedns) Update(c *pc.Setting) {
 	}
 }
 
-func (f *Fakedns) Dispatch(addr proxy.Address) (proxy.Address, error) {
-	return f.dialer.Dispatch(f.getAddr(addr))
+func (f *Fakedns) Dispatch(ctx context.Context, addr proxy.Address) (proxy.Address, error) {
+	return f.dialer.Dispatch(ctx, f.getAddr(addr))
 }
 
 func (f *Fakedns) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {

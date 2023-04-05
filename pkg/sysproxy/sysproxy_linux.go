@@ -107,7 +107,7 @@ func UnsetSysProxy() {
 		log.Errorln("unset gnome proxy failed:", err)
 	}
 	if err := kdeUnsetSysProxy(); err != nil {
-		log.Errorln("unset kde proxy failed: %w", err)
+		log.Errorln("unset kde proxy failed:", err)
 	}
 }
 

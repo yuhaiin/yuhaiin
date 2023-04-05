@@ -42,9 +42,9 @@ func (h *Hosts) Update(c *config.Setting) {
 	}
 }
 
-func (h *Hosts) Dispatch(addr proxy.Address) (proxy.Address, error) {
+func (h *Hosts) Dispatch(ctx context.Context, addr proxy.Address) (proxy.Address, error) {
 	haddr := h.getAddr(addr)
-	return h.dialer.Dispatch(haddr)
+	return h.dialer.Dispatch(ctx, haddr)
 }
 
 func (h *Hosts) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {

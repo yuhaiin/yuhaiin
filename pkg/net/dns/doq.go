@@ -44,7 +44,7 @@ func NewDoQ(config Config) (dns.DNS, error) {
 	d := &doq{dialer: config.Dialer, host: addr, servername: config.Servername}
 
 	d.client = NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
-		err := d.initSession()
+		err := d.initSession(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("init session failed: %w", err)
 		}
@@ -111,7 +111,7 @@ func (d *doq) Close() error {
 	return nil
 }
 
-func (d *doq) initSession() error {
+func (d *doq) initSession(ctx context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -127,9 +127,6 @@ func (d *doq) initSession() error {
 			return nil
 		}
 	}
-
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
-	defer cancel()
 
 	if d.conn == nil {
 		conn, err := d.dialer.PacketConn(ctx, d.host)

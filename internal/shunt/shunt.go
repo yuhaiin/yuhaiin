@@ -140,8 +140,8 @@ var errMode = Mode{
 	Resolver: dns.NewErrorDNS(func(domain string) error { return errors.New("can't find mode") }),
 }
 
-func (s *Shunt) Dispatch(host proxy.Address) (proxy.Address, error) {
-	addr, _ := s.bypass(context.TODO(), bypass.Mode_bypass, host)
+func (s *Shunt) Dispatch(ctx context.Context, host proxy.Address) (proxy.Address, error) {
+	addr, _ := s.bypass(ctx, bypass.Mode_bypass, host)
 	return addr, nil
 }
 
