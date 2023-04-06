@@ -203,7 +203,7 @@ func (s *Shunt) resolver(m bypass.Mode) dns.DNS {
 	}
 }
 
-var skipResolve = dns.NewErrorDNS(func(domain string) error { return mapper.ErrSkipResolveDomain })
+var skipResolve = dns.NewErrorDNS(func(domain string) error { return mapper.ErrSkipResolve })
 
 func (s *Shunt) Resolver(ctx context.Context, domain string) dns.DNS {
 	host := proxy.ParseAddressPort(0, domain, proxy.EmptyPort)

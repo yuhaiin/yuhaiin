@@ -71,10 +71,6 @@ type ipRecord struct {
 	expireAfter int64
 }
 
-func (c ipRecord) String() string {
-	return fmt.Sprintf(`{ ips: %v, expireAfter: %d }`, c.ips, c.expireAfter)
-}
-
 func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)) *client {
 	c := &client{
 		send:   send,
@@ -202,7 +198,14 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 
 	cond.Record = record
 
-	log.Debugf("%s lookup host [%s] %v success: %v\n", c.config.Name, domain, reqType, record)
+	log.Debug(
+		"resolve domain",
+		"resolver", c.config.Name,
+		"host", domain,
+		"type", reqType,
+		"ips", record.IPs,
+		"ttl", record.TTL,
+	)
 
 	expireAfter := time.Now().Unix() + int64(record.TTL)
 	c.cache.Add(key, ipRecord{record.IPs, expireAfter}, lru.WithExpireTimeUnix(expireAfter))

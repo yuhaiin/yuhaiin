@@ -41,7 +41,7 @@ func (x *Combine[T]) Insert(str string, mark T) {
 
 }
 
-var ErrSkipResolveDomain = errors.New("skip resolver domain")
+var ErrSkipResolve = errors.New("skip resolve domain")
 
 func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok bool) {
 	if addr.Type() == proxy.IP {
@@ -54,7 +54,7 @@ func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok
 
 	if ips, err := addr.IP(ctx); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
-	} else if !errors.Is(err, ErrSkipResolveDomain) {
+	} else if !errors.Is(err, ErrSkipResolve) {
 		log.Warningf("dns lookup %v failed: %v, skip match ip", addr, err)
 	}
 
