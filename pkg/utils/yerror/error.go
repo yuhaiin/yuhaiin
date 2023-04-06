@@ -2,12 +2,12 @@ package yerror
 
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	"golang.org/x/exp/slog"
 )
 
 func Must[T any](v T, err error) T {
 	if err != nil {
-		log.Output(2, protolog.LogLevel_error, err.Error())
+		log.Output(2, slog.LevelError, "must error", "err", err)
 		panic(err)
 	}
 	return v
@@ -15,7 +15,7 @@ func Must[T any](v T, err error) T {
 
 func Ignore[T any](v T, err error) T {
 	if err != nil {
-		log.Output(2, protolog.LogLevel_warning, "ignore error: %v", err)
+		log.Output(2, slog.LevelWarn, "ignore error", "err", err)
 	}
 	return v
 }

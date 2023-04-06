@@ -87,8 +87,11 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, err
 
 func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
-		source, _ := z.Addr().Value(proxy.SourceKey{})
-		log.Debugf("close(%d) %v, %v<->%s\n", z.ID(), z.Addr(), source, getRemote(z))
+		log.Debug("close conn",
+			"id", z.ID(),
+			"addr", z.Addr(),
+			"source", proxy.Value[net.Addr](z.Addr(), proxy.SourceKey{}, proxy.EmptyAddr),
+			"outbound", getRemote(z))
 	}
 
 	c.notify.pubRemoveConns(id)
@@ -97,7 +100,11 @@ func (c *Connections) Remove(id uint64) {
 func (c *Connections) storeConnection(o connection) {
 	c.connStore.Store(o.ID(), o)
 	c.notify.pubNewConns(o)
-	log.Debugf("new(%d) [%s]%v(outbound: %s)", o.ID(), o.Addr().Network(), o.Addr(), getRemote(o))
+	log.Debug("new conn",
+		"id", o.ID(),
+		"addr", o.Addr(),
+		"network", o.Addr().Network(),
+		"outbound", getRemote(o))
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {

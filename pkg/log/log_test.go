@@ -3,13 +3,13 @@ package log
 import (
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
+	"golang.org/x/exp/slog"
 )
 
 func TestLog(t *testing.T) {
 	Debugln("debug")
 	Infoln("info")
-	Output(1, log.LogLevel_error, "error")
+	Output(0, slog.LevelError, "error")
 }
 
 func TestLogger(t *testing.T) {
