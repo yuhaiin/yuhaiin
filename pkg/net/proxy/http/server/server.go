@@ -64,9 +64,9 @@ func (h *HTTP) handshake(conn net.Conn) {
 	err := h.handle(h.username, h.password, conn, client)
 	if err != nil && !errors.Is(err, io.EOF) {
 		if errors.Is(err, proxy.ErrBlocked) {
-			log.Debugln(err)
+			log.Debug(err.Error())
 		} else {
-			log.Errorln("http server handle failed:", err)
+			log.Error("http server handle failed", "err", err)
 		}
 	}
 }
@@ -172,7 +172,7 @@ func normal(src net.Conn, client *http.Client, req *http.Request, keepAlive bool
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errorln("http client do failed:", err)
+		log.Error("http client do failed", "err", err)
 		resp = respError(http.StatusBadGateway, req)
 	} else {
 		defer resp.Body.Close()
@@ -265,7 +265,7 @@ func NewServer(o *listener.Opts[*listener.Protocol_Http]) (iserver.Server, error
 		for {
 			conn, err := lis.Accept()
 			if err != nil {
-				log.Errorln("accept failed:", err)
+				log.Error("accept failed", "err", err)
 				if ne, ok := err.(net.Error); ok && ne.Temporary() {
 					continue
 				}

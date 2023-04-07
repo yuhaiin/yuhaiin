@@ -28,7 +28,7 @@ func init() {
 		var method, password string
 		mps, err := base64.RawURLEncoding.DecodeString(ssUrl.User.String())
 		if err != nil {
-			log.Warningf("parse shadowsocks user failed: %v", err)
+			log.Warn("parse shadowsocks user failed", "err", err)
 		}
 		if i := bytes.IndexByte(mps, ':'); i != -1 {
 			method, password = string(mps[:i]), string(mps[i+1:])
@@ -96,13 +96,13 @@ func parseV2ray(store map[string]string, simple *protocol.Simple) (*protocol.Pro
 	if store["cert"] != "" {
 		cert, err = os.ReadFile(store["cert"])
 		if err != nil {
-			log.Warningf("read cert file failed: %v", err)
+			log.Warn("read cert file failed", "err", err)
 		}
 	}
 
 	ns, _, err := net.SplitHostPort(store["host"])
 	if err != nil {
-		log.Warningf("split host and port failed: %v", err)
+		log.Warn("split host and port failed", "err", err)
 		ns = store["host"]
 	}
 

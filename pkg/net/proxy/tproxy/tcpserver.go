@@ -41,11 +41,11 @@ func (t *tcpserver) run(host string, handle func(net.Conn)) (err error) {
 		return fmt.Errorf("tcp server listen failed: %w", err)
 	}
 
-	log.Debugln("new tcp server listen at:", host)
+	log.Debug("new tcp server", "host", host)
 
 	go func() {
 		if err := t.process(handle); err != nil {
-			log.Errorln(err)
+			log.Error("tcp process failed", "err", err)
 		}
 	}()
 	return
@@ -68,7 +68,7 @@ func (t *tcpserver) process(handle func(net.Conn)) error {
 					tempDelay = max
 				}
 
-				log.Warningln("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
+				log.Warn(fmt.Sprintf("tcp sever: Accept failed retrying in %v", tempDelay), "err", err)
 				time.Sleep(tempDelay)
 				continue
 			}

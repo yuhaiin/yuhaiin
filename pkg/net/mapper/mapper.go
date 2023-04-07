@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
+	"golang.org/x/exp/slog"
 )
 
 type Combine[T any] struct {
@@ -55,7 +56,7 @@ func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok
 	if ips, err := addr.IP(ctx); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
 	} else if !errors.Is(err, ErrSkipResolve) {
-		log.Warningf("dns lookup %v failed: %v, skip match ip", addr, err)
+		log.Warn("dns lookup failed, skip match ip", slog.Any("addr", addr), slog.Any("err", err))
 	}
 
 	return

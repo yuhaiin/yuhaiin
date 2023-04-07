@@ -87,11 +87,11 @@ func (u *udpserver) run(host string, config net.ListenConfig, listenFunc func(ne
 		return fmt.Errorf("udp server listen failed: %w", err)
 	}
 
-	log.Debugln("new udp server listen at:", host)
+	log.Debug("new udp server", "host", host)
 	go func() {
 		err := listenFunc(u.listener)
 		if err != nil {
-			log.Errorln(err)
+			log.Error("listen failed", "err", err)
 		}
 	}()
 	return nil
@@ -115,7 +115,7 @@ func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func(io.Reader) (
 					tempDelay = max
 				}
 
-				log.Warningf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
+				log.Warn(fmt.Sprintf("tcp sever: Accept failed retrying in %v", tempDelay), "err", err)
 				time.Sleep(tempDelay)
 				continue
 			}
@@ -132,7 +132,7 @@ func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func(io.Reader) (
 		go func(b []byte, remoteAddr net.Addr) {
 			data, err := handle(bytes.NewReader(b))
 			if err != nil {
-				log.Errorf("udp handle failed: %v", err)
+				log.Error("udp handle failed", "err", err)
 				return
 			}
 			defer data.Close()
@@ -141,14 +141,14 @@ func (u *udpserver) defaultListenFunc(l net.PacketConn, handle func(io.Reader) (
 				n, err := data.Read(b)
 				if err != nil {
 					if !errors.Is(err, io.EOF) {
-						log.Errorf("udp handle read failed: %v", err)
+						log.Error("udp handle read failed", "err", err)
 					}
 					break
 				}
 
 				_, err = l.WriteTo(b[:n], remoteAddr)
 				if err != nil {
-					log.Errorf("udp listener write to client failed: %v", err)
+					log.Error("udp listener write to client failed", "err", err)
 					break
 				}
 			}

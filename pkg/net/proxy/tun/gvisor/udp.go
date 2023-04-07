@@ -69,7 +69,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 		var wq waiter.Queue
 		ep, err := fr.CreateEndpoint(&wq)
 		if err != nil {
-			log.Errorln("create endpoint failed:", err)
+			log.Error("create endpoint failed:", "err", err)
 			return
 		}
 
@@ -83,7 +83,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 
 			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
 				if err := opt.DNSServer.HandleUDP(ctx, local); err != nil {
-					log.Errorf("dns handle udp failed: %v\n", err)
+					log.Error("dns handle udp failed", "err", err)
 				}
 				return
 			}
@@ -104,7 +104,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 			}
 
 			if err := handle(ctx, local, dst); err != nil && !errors.Is(err, os.ErrClosed) {
-				log.Errorln("handle udp request failed:", err)
+				log.Error("handle udp request failed", "err", err)
 			}
 
 		}(local, fr.ID())

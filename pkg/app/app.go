@@ -78,7 +78,7 @@ func initBboltDB(path string) (*bbolt.DB, error) {
 		if err = os.Remove(path); err != nil {
 			return nil, fmt.Errorf("remove invalod cache faile failed: %w", err)
 		}
-		log.Infoln("remove invalid cache file and create new one")
+		log.Info("remove invalid cache file and create new one")
 		return bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
 	}
 
@@ -96,7 +96,8 @@ func Start(opt StartOpt) (StartResponse, error) {
 		return StartResponse{}, err
 	}
 
-	log.Infof("%s\nConfig Path: %s\ngRPC&HTTP Listen At: %s\n", version.Art, opt.ConfigPath, opt.Host)
+	fmt.Println(version.Art)
+	log.Info("config", "path", opt.ConfigPath, "grpc&http host", opt.Host)
 
 	opt.Setting.AddObserver(config.ObserverFunc(sysproxy.Update))
 	opt.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(opt.ConfigPath)) }))

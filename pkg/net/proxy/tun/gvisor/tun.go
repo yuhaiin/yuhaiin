@@ -57,7 +57,7 @@ func New(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
 
-	log.Debugln("new tun stack:", opt.Name, "mtu:", opt.Mtu, "portal:", opt.Portal)
+	log.Debug("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal)
 
 	stackOption := stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},

@@ -1,12 +1,13 @@
 package log
 
 import (
-	"fmt"
+	"context"
 	"io"
-	"log"
 	"os"
-	"strings"
+	"path/filepath"
+	"runtime"
 	"sync"
+	"time"
 
 	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"golang.org/x/exp/slog"
@@ -15,19 +16,10 @@ import (
 //go:generate protoc --go_out=. --go_opt=paths=source_relative log.proto
 type Logger interface {
 	SetLevel(slog.Level)
-
 	Debug(string, ...any)
-	Debugf(string, ...any)
-	Debugln(...any)
 	Info(string, ...any)
-	Infof(string, ...any)
-	Infoln(...any)
 	Warn(string, ...any)
-	Warningf(string, ...any)
-	Warningln(...any)
 	Error(string, ...any)
-	Errorf(string, ...any)
-	Errorln(...any)
 	Output(depth int, lev slog.Level, format string, v ...any)
 	SetOutput(io.Writer)
 }
@@ -62,16 +54,11 @@ func Close() error {
 	return nil
 }
 
-func SetLevel(l slog.Level)            { DefaultLogger.SetLevel(l) }
-func Debug(msg string, v ...any)       { DefaultLogger.Debug(msg, v...) }
-func Debugf(format string, v ...any)   { DefaultLogger.Debugf(format, v...) }
-func Debugln(v ...any)                 { DefaultLogger.Debugln(v...) }
-func Infof(format string, v ...any)    { DefaultLogger.Infof(format, v...) }
-func Infoln(v ...any)                  { DefaultLogger.Infoln(v...) }
-func Warningf(format string, v ...any) { DefaultLogger.Warningf(format, v...) }
-func Warningln(v ...any)               { DefaultLogger.Warningln(v...) }
-func Errorf(format string, v ...any)   { DefaultLogger.Errorf(format, v...) }
-func Errorln(v ...any)                 { DefaultLogger.Errorln(v...) }
+func SetLevel(l slog.Level)      { DefaultLogger.SetLevel(l) }
+func Debug(msg string, v ...any) { DefaultLogger.Debug(msg, v...) }
+func Info(msg string, v ...any)  { DefaultLogger.Info(msg, v...) }
+func Warn(msg string, v ...any)  { DefaultLogger.Warn(msg, v...) }
+func Error(msg string, v ...any) { DefaultLogger.Error(msg, v...) }
 func Output(depth int, lev slog.Level, format string, v ...any) {
 	DefaultLogger.Output(depth+1, lev, format, v...)
 }
@@ -93,18 +80,21 @@ func NewSLogger(depth int) Logger {
 		AddSource: true,
 		Level:     s,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			// Remove time.
+			// if a.Key == slog.TimeKey && len(groups) == 0 {
+			// a.Key = ""
+			// }
+
+			// Remove the directory from the source's filename.
 			if a.Key == slog.SourceKey {
-				v := a.Value.String()
-				if i := strings.LastIndexByte(v, '/'); i != -1 {
-					a.Value = slog.StringValue(v[i+1:])
-				}
+				a.Value = slog.StringValue(filepath.Base(a.Value.String()))
 			}
+
 			return a
 		},
 	}
 
 	s.Logger = slog.New(h.NewTextHandler(s))
-
 	return s
 
 }
@@ -112,75 +102,41 @@ func (l *slogger) SetLevel(z slog.Level) { l.level = z }
 func (l *slogger) Level() slog.Level     { return l.level }
 
 func (l *slogger) Debug(msg string, v ...any) {
-	l.Logger.LogDepth(l.depth, slog.LevelDebug, msg, v...)
-}
-
-func (l *slogger) Debugf(format string, v ...any) {
-	if l.level <= slog.LevelDebug {
-		l.Logger.LogDepth(l.depth, slog.LevelDebug, fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *slogger) Debugln(v ...any) {
-	if l.level <= slog.LevelDebug {
-		l.Logger.LogDepth(l.depth, slog.LevelDebug, fmt.Sprint(v...))
-	}
+	l.log(slog.LevelDebug, msg, v...)
 }
 
 func (l *slogger) Info(msg string, v ...any) {
-	l.Logger.LogDepth(l.depth, slog.LevelInfo, msg, v...)
-}
-
-func (l *slogger) Infof(format string, v ...any) {
-	if l.level <= slog.LevelInfo {
-		l.Logger.LogDepth(l.depth, slog.LevelInfo, fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *slogger) Infoln(v ...any) {
-	if l.level <= slog.LevelInfo {
-		l.Logger.LogDepth(l.depth, slog.LevelInfo, fmt.Sprint(v...))
-	}
+	l.log(slog.LevelInfo, msg, v...)
 }
 
 func (l *slogger) Warn(msg string, v ...any) {
-	l.Logger.LogDepth(l.depth, slog.LevelWarn, msg, v...)
-}
-
-func (l *slogger) Warningf(format string, v ...any) {
-	if l.level <= slog.LevelWarn {
-		l.Logger.LogDepth(l.depth, slog.LevelWarn, fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *slogger) Warningln(v ...any) {
-	if l.level <= slog.LevelWarn {
-		l.Logger.LogDepth(l.depth, slog.LevelWarn, fmt.Sprint(v...))
-	}
+	l.log(slog.LevelWarn, msg, v...)
 }
 
 func (l *slogger) Error(msg string, v ...any) {
-	l.Logger.LogDepth(l.depth, slog.LevelError, msg, v...)
+	l.log(slog.LevelError, msg, v...)
 }
 
-func (l *slogger) Errorf(format string, v ...any) {
-	if l.level <= slog.LevelError {
-		l.Logger.LogDepth(l.depth, slog.LevelError, fmt.Sprintf(format, v...))
+func (l *slogger) Output(depth int, level slog.Level, msg string, v ...any) {
+	ctx := context.Background()
+
+	if !l.Enabled(ctx, level) {
+		return
 	}
+
+	var pcs [1]uintptr
+	runtime.Callers(l.depth+depth, pcs[:]) // skip [Callers, Infof]
+	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
+	r.Add(v...)
+
+	_ = l.Logger.Handler().Handle(ctx, r)
 }
 
-func (l *slogger) Errorln(v ...any) {
-	if l.level <= slog.LevelError {
-		l.Logger.LogDepth(l.depth, slog.LevelError, fmt.Sprint(v...))
-	}
-}
-
-func (l *slogger) Output(depth int, lev slog.Level, msg string, v ...any) {
-	l.Logger.LogDepth(depth+1, lev, msg, v...)
-}
+func (l *slogger) log(level slog.Level, msg string, v ...any) { l.Output(3, level, msg, v...) }
 
 func (l *slogger) SetOutput(w io.Writer) { l.Writer = w }
 
+/*
 type logger struct {
 	level slog.Level
 	depth int32
@@ -253,3 +209,4 @@ func (l *logger) Output(depth int, lev slog.Level, format string, v ...any) {
 }
 
 func (l *logger) SetOutput(w io.Writer) { l.log.SetOutput(w) }
+*/

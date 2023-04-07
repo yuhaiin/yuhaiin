@@ -116,7 +116,7 @@ func (u *Table) Write(ctx context.Context, pkt *Packet) error {
 			u.cache.Delete(key)
 		}()
 		if err := u.writeBack(pkt, table); err != nil && !errors.Is(err, net.ErrClosed) {
-			log.Errorln("remote to local failed:", err)
+			log.Error("remote to local failed", "err", err)
 		}
 	}()
 

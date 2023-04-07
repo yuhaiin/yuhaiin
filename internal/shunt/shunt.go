@@ -170,7 +170,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host prox
 			host = host.OverrideHostname(ip.String())
 			host.WithValue(IP_MARK_KEY{}, host.String())
 		} else {
-			log.Warningln("resolve remote domain failed: %w", err)
+			log.Warn("resolve remote domain failed", "err", err)
 		}
 	}
 

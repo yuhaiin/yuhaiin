@@ -46,14 +46,14 @@ func NewConfig(path string) Setting {
 	data = SetDefault(data, defaultConfig(path))
 
 	if err != nil {
-		log.Errorln("read config file failed: %v\n", err)
+		log.Error("read config file failed", "err", err)
 		os.WriteFile(path, data, os.ModePerm)
 	}
 
 	var pa config.Setting
 	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, &pa)
 	if err != nil {
-		log.Errorln("unmarshal config file failed: %v\n", err)
+		log.Error("unmarshal config file failed", "err", err)
 	}
 
 	return &setting{current: &pa, path: path}

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
@@ -135,7 +134,6 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				log.Debugln("dial:", network, addr)
 				ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)

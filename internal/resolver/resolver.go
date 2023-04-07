@@ -77,7 +77,7 @@ func bootstrapUpdate(p proxy.Proxy, b *baseClient, c *pc.Setting) {
 	}
 
 	if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
-		log.Errorln("check bootstrap dns failed: %v\n", err)
+		log.Error("check bootstrap dns failed", "err", err)
 		return
 	}
 
@@ -93,7 +93,7 @@ func bootstrapUpdate(p proxy.Proxy, b *baseClient, c *pc.Setting) {
 			}},
 	)
 	if err != nil {
-		log.Errorln("get bootstrap dns failed: %w", err)
+		log.Error("get bootstrap dns failed", "err", err)
 	} else {
 		b.dns = z
 	}
@@ -108,7 +108,7 @@ func remoteUpdate(p proxy.Proxy, r *baseClient, c *pc.Setting) {
 	r.Close()
 	z, err := getDNS("REMOTEDNS", c.GetIpv6(), r.config, p)
 	if err != nil {
-		log.Errorln("get remote dns failed: %w", err)
+		log.Error("get remote dns failed", "err", err)
 	} else {
 		r.dns = z
 	}
@@ -123,7 +123,7 @@ func localUpdate(p proxy.Proxy, l *baseClient, c *pc.Setting) {
 	l.Close()
 	z, err := getDNS("LOCALDNS", c.GetIpv6(), l.config, p)
 	if err != nil {
-		log.Errorln("get local dns failed:", err)
+		log.Error("get local dns failed", "err", err)
 	} else {
 		l.dns = z
 	}

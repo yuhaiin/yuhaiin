@@ -41,7 +41,7 @@ func (f *Fakedns) Update(c *pc.Setting) {
 
 	ipRange, err := netip.ParsePrefix(c.Dns.FakednsIpRange)
 	if err != nil {
-		log.Errorln("parse fakedns ip range failed:", err)
+		log.Error("parse fakedns ip range failed", "err", err)
 		return
 	}
 	f.fake = dns.NewFakeDNS(f.upstream, ipRange, f.cache)

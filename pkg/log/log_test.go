@@ -7,13 +7,13 @@ import (
 )
 
 func TestLog(t *testing.T) {
-	Debugln("debug")
-	Infoln("info")
+	Debug("debug")
+	Info("source", slog.String("a", ""), slog.String("c", "d"))
 	Output(0, slog.LevelError, "error")
 }
 
 func TestLogger(t *testing.T) {
-	z := NewLogger(0)
+	z := NewSLogger(0)
 
-	z.Infoln("zzz")
+	z.Info("zzz")
 }

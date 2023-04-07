@@ -56,7 +56,7 @@ func (w *darwinWriter) Write(b []byte) tcpip.Error {
 		return nil
 	}
 
-	log.Errorln("write packet failed: ", err)
+	log.Error("write packet failed", "err", err)
 	return &tcpip.ErrClosedForSend{}
 }
 
@@ -93,7 +93,7 @@ func (w *darwinInbound) dispatch() (bool, tcpip.Error) {
 
 	n, err := w.file.Read(buf)
 	if err != nil {
-		log.Errorln("receive packet failed: ", err)
+		log.Error("receive packet failed", "err", err)
 		return false, &tcpip.ErrAborted{}
 	}
 

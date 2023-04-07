@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
+	"golang.org/x/exp/slog"
 )
 
 func init() {
@@ -21,7 +22,7 @@ func init() {
 		dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(data)))
 		_, err := base64.RawURLEncoding.Decode(dst, data)
 		if err != nil {
-			log.Warningf("parse shadowsocksr failed: %v, %v", err, string(data))
+			log.Warn("parse shadowsocksr failed", slog.String("data", string(data)), slog.Any("err", err))
 		}
 		// ParseLink parse a base64 encode ssr link
 		decodeStr := bytes.Split(dst, []byte{'/', '?'})
@@ -42,7 +43,7 @@ func init() {
 
 		password, err := base64.RawURLEncoding.DecodeString(x[5])
 		if err != nil {
-			log.Warningln("parse shadowsocksr password failed:", err)
+			log.Warn("parse shadowsocksr password failed", "err", err)
 		}
 
 		return &point.Point{

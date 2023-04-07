@@ -132,7 +132,7 @@ func (a *uidDumper) ProcessName(networks string, src, dst proxy.Address) (string
 
 	uid, err := a.UidDumper.DumpUid(network, src.Hostname(), int32(src.Port().Port()), dst.Hostname(), int32(dst.Port().Port()))
 	if err != nil {
-		log.Errorf("dump uid error: %v", err)
+		log.Error("dump uid error", "err", err)
 	}
 
 	var name string

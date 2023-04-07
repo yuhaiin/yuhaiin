@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"golang.org/x/exp/slog"
 )
 
 func init() {
@@ -65,7 +66,7 @@ func init() {
 		dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(data)))
 		_, err := base64.RawStdEncoding.Decode(dst, data)
 		if err != nil {
-			log.Warningln("base64 decode failed: ", err, string(data), len(data))
+			log.Warn("base64 decode failed", slog.String("data", string(data)), slog.Any("err", err))
 		}
 		if err := json.Unmarshal(trimJSON(dst, '{', '}'), &n); err != nil {
 			return nil, err
@@ -107,7 +108,7 @@ func init() {
 				if n.Sni == "" {
 					n.Sni, _, err = net.SplitHostPort(n.Host)
 					if err != nil {
-						log.Warningf("split host and port failed: %v", err)
+						log.Warn("split host and port failed", "err", err)
 						n.Sni = n.Host
 					}
 				}

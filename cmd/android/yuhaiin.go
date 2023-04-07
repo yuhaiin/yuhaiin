@@ -104,13 +104,13 @@ func (a *App) SaveNewBypass(link, dir string) error {
 
 	req, err := http.NewRequest(http.MethodGet, link, nil)
 	if err != nil {
-		log.Errorln(err)
+		log.Error("create get bypass file request failed", "err", err)
 		return err
 	}
 
 	r, err := hc(req)
 	if err != nil {
-		log.Errorln("get new bypass by proxy failed:", err)
+		log.Error("get new bypass by proxy failed", "err", err)
 		return err
 	}
 	defer r.Body.Close()

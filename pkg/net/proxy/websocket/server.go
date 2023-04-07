@@ -10,6 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
+	"golang.org/x/exp/slog"
 )
 
 type Server struct {
@@ -85,7 +86,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return nil
 	})
 	if err != nil {
-		log.Errorf("new websocket server conn from %v failed: %v\n", req.RemoteAddr, err)
+		log.Error("new websocket server conn failed", slog.Any("from", req.RemoteAddr), slog.Any("err", err))
 		return
 	}
 

@@ -31,26 +31,26 @@ func controlUDP(network, address string, c syscall.RawConn) error {
 	var fn = func(s uintptr) {
 		err := syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT, 1)
 		if err != nil {
-			log.Errorf("set socket with SOL_IP, IP_TRANSPARENT failed: %v", err)
+			log.Error("set socket with SOL_IP, IP_TRANSPARENT failed", "err", err)
 		}
 
 		val, err := syscall.GetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT)
 		if err != nil {
-			log.Errorf("get socket with SOL_IP, IP_TRANSPARENT failed: %v", err)
+			log.Error("get socket with SOL_IP, IP_TRANSPARENT failed", "err", err)
 		} else {
-			log.Errorf("value of IP_TRANSPARENT option is: %d", int(val))
+			log.Error("value of IP_TRANSPARENT option", "val", val)
 		}
 
 		err = syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR, 1)
 		if err != nil {
-			log.Errorf("set socket with SOL_IP, IP_RECVORIGDSTADDR failed: %v", err)
+			log.Error("set socket with SOL_IP, IP_RECVORIGDSTADDR failed", "err", err)
 		}
 
 		val, err = syscall.GetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR)
 		if err != nil {
-			log.Errorf("get socket with SOL_IP, IP_RECVORIGDSTADDR failed: %v", err)
+			log.Error("get socket with SOL_IP, IP_RECVORIGDSTADDR failed", "err", err)
 		} else {
-			log.Errorf("value of IP_RECVORIGDSTADDR option is: %d", int(val))
+			log.Error("value of IP_RECVORIGDSTADDR option", "val", val)
 		}
 	}
 
@@ -81,21 +81,21 @@ func handleUDP(l net.PacketConn, p proxy.Proxy) error {
 					tempDelay = max
 				}
 
-				log.Warningf("tcp sever: Accept error: %v; retrying in %v\n", err, tempDelay)
+				log.Warn(fmt.Sprintf("tcp sever: Accept failed retrying in %v", tempDelay), "err", err)
 				time.Sleep(tempDelay)
 				continue
 			}
 			if errors.Is(err, net.ErrClosed) {
-				log.Errorf("checked udp server closed: %v\n", err)
+				log.Error("checked udp server closed", "err", err)
 			} else {
-				log.Errorf("udp server accept failed: %v\n", err)
+				log.Error("udp server accept failed", "err", err)
 			}
 			return fmt.Errorf("read msg udp failed: %w", err)
 		}
 
 		err = handleSingleUDPReq(oob[:oobn], b[:n], addr, p)
 		if err != nil {
-			log.Errorf("handle single udp req failed: %v", err)
+			log.Error("handle single udp req failed", "err", err)
 		}
 	}
 }

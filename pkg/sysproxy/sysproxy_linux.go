@@ -22,18 +22,18 @@ func SetSysProxy(http, socks5 string) {
 
 	if http != "" {
 		httpHostname, httpPort, _ = net.SplitHostPort(http)
-		log.Debugf("set http system hostname: %s, port: %s\n", httpHostname, httpPort)
+		log.Debug("set http system proxy", "hostname", httpHostname, "port", httpPort)
 	}
 	if socks5 != "" {
 		socks5Hostname, socks5Port, _ = net.SplitHostPort(socks5)
-		log.Debugf("set socks5 system hostname: %s, port: %s\n", socks5Hostname, socks5Port)
+		log.Debug("set socks5 system proxy", "hostname", socks5Hostname, "port", socks5Port)
 	}
 
 	if err := gnomeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port); err != nil {
-		log.Errorln("set gnome proxy failed:", err)
+		log.Error("set gnome proxy failed", "err", err)
 	}
 	if err := kdeSetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port); err != nil {
-		log.Errorln("set kde proxy failed:", err)
+		log.Error("set kde proxy failed", "err", err)
 	}
 }
 
@@ -104,10 +104,10 @@ func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 
 func UnsetSysProxy() {
 	if err := gnomeUnsetSysProxy(); err != nil {
-		log.Errorln("unset gnome proxy failed:", err)
+		log.Error("unset gnome proxy failed", "err", err)
 	}
 	if err := kdeUnsetSysProxy(); err != nil {
-		log.Errorln("unset kde proxy failed:", err)
+		log.Error("unset kde proxy failed", "err", err)
 	}
 }
 

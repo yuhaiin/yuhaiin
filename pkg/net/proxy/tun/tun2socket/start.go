@@ -69,16 +69,16 @@ func (h *handler) tcp() {
 	for lis.TCP().SetDeadline(time.Time{}) == nil {
 		conn, err := lis.TCP().Accept()
 		if err != nil {
-			log.Errorln("tun2socket tcp accept failed:", err)
+			log.Error("tun2socket tcp accept failed", "err", err)
 			continue
 		}
 
 		go func() {
 			if err = h.handleTCP(conn); err != nil {
 				if errors.Is(err, proxy.ErrBlocked) {
-					log.Debugln(err)
+					log.Debug(err.Error())
 				} else {
-					log.Errorln("handle tcp failed:", err)
+					log.Error("handle tcp failed", "err", err)
 				}
 			}
 		}()
@@ -94,9 +94,9 @@ func (h *handler) udp(natTable *nat.Table) {
 	for {
 		if err := h.handleUDP(natTable, lis, buf); err != nil {
 			if errors.Is(err, proxy.ErrBlocked) {
-				log.Debugln(err)
+				log.Debug(err.Error())
 			} else {
-				log.Errorln("handle udp failed:", err)
+				log.Error("handle udp failed", "err", err)
 			}
 			if errors.Is(err, errUDPAccept) {
 				return

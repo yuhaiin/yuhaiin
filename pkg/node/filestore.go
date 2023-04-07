@@ -30,14 +30,14 @@ func load(path string) *node.Node {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Errorln("read node file failed:", err)
+		log.Error("read node file failed", "err", err)
 	}
 
 	data = config.SetDefault(data, defaultNode)
 
 	no := &node.Node{}
 	if err = (protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}).Unmarshal(data, no); err != nil {
-		log.Errorln("unmarshal node file failed:", err)
+		log.Error("unmarshal node file failed", "err", err)
 	}
 
 	return no
