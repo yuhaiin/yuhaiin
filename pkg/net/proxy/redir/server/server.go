@@ -14,7 +14,7 @@ func RedirHandle(dialer proxy.Proxy) func(net.Conn) {
 	return func(conn net.Conn) {
 		err := handle(conn, dialer)
 		if err != nil {
-			log.Errorln(err)
+			log.Error("redir handle failed", "err", err)
 			return
 		}
 	}

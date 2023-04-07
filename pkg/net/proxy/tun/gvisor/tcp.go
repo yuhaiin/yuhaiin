@@ -25,14 +25,14 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 
 		ep, err := r.CreateEndpoint(wq)
 		if err != nil {
-			log.Errorln("create endpoint failed:", err)
+			log.Error("create endpoint failed", "err", err)
 			r.Complete(true)
 			return
 		}
 		r.Complete(false)
 
 		if err = setSocketOptions(s, ep); err != nil {
-			log.Errorf("set socket options failed: %v\n", err)
+			log.Error("set socket options failed", "err", err)
 		}
 
 		go func(local net.Conn, id stack.TransportEndpointID) {
@@ -43,7 +43,7 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 
 			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
 				if err := opt.DNSServer.HandleTCP(ctx, local); err != nil {
-					log.Errorf("dns handle tcp failed: %v\n", err)
+					log.Error("dns handle tcp failed", "err", err)
 				}
 				return
 			}
@@ -54,7 +54,7 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 
 			conn, er := opt.Dialer.Conn(ctx, addr)
 			if er != nil {
-				log.Errorln("dial failed:", er)
+				log.Error("dial failed:", "err", er)
 				return
 			}
 			defer conn.Close()

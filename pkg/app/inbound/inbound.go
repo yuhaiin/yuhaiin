@@ -92,9 +92,9 @@ func (l *listener) Update(current *pc.Setting) {
 	for k, v := range current.Server.Servers {
 		if err := l.start(k, v); err != nil {
 			if errors.Is(err, errServerDisabled) {
-				log.Debugln(err)
+				log.Debug(err.Error())
 			} else {
-				log.Errorf("start %s failed: %v", k, err)
+				log.Error(fmt.Sprintf("start %s failed", k), "err", err)
 			}
 		}
 	}

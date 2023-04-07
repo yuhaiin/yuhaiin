@@ -19,14 +19,14 @@ func controlTCP(c syscall.RawConn) error {
 	var fn = func(s uintptr) {
 		err := syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT, 1)
 		if err != nil {
-			log.Warningf("set socket with SOL_IP,IP_TRANSPARENT failed: %v", err)
+			log.Warn("set socket with SOL_IP,IP_TRANSPARENT failed", "err", err)
 		}
 
 		v, err := syscall.GetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT)
 		if err != nil {
-			log.Warningf("get socket with SOL_IP, IP_TRANSPARENT failed: %v", err)
+			log.Warn("get socket with SOL_IP, IP_TRANSPARENT failed", "err", err)
 		} else {
-			log.Debugf("value of IP_TRANSPARENT option is: %d", int(v))
+			log.Debug("value of IP_TRANSPARENT", "options", int(v))
 		}
 	}
 
@@ -63,7 +63,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 func newTCPServer(h string, dialer proxy.Proxy) (is.Server, error) {
 	return NewTCPServer(h, func(c net.Conn) {
 		if err := handleTCP(c, dialer); err != nil {
-			log.Errorf("handleTCP failed: %v", err)
+			log.Error("handleTCP failed", "err", err)
 		}
 	})
 }

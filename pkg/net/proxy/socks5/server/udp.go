@@ -16,6 +16,7 @@ import (
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"golang.org/x/exp/slog"
 )
 
 type udpServer struct {
@@ -42,12 +43,12 @@ func (s *Socks5) newUDPServer(natTable *nat.Table) error {
 			for {
 				n, src, err := u.PacketConn.ReadFrom(buf)
 				if err != nil {
-					log.Errorln("read udp request failed:", err, "stop socks5 server")
+					log.Error("read udp request failed, stop socks5 server", slog.Any("err", err))
 					return
 				}
 
 				if err := u.handle(buf[:n], src); err != nil && !errors.Is(err, net.ErrClosed) {
-					log.Errorln("handle udp request failed:", err)
+					log.Error("handle udp request failed", "err", err)
 				}
 			}
 

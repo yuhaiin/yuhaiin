@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"golang.org/x/exp/slog"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -31,19 +32,19 @@ func NewDnsServer(server string, process dns.DNS) server.DNSServer {
 	d := &dnsServer{server: server, resolver: process}
 
 	if server == "" {
-		log.Warningln("dns server is empty, skip to listen tcp and udp")
+		log.Warn("dns server is empty, skip to listen tcp and udp")
 		return d
 	}
 
 	go func() {
 		if err := d.start(); err != nil {
-			log.Errorln(err)
+			log.Error("start udp dns server failed", slog.Any("err", err))
 		}
 	}()
 
 	go func() {
 		if err := d.startTCP(); err != nil {
-			log.Errorln(err)
+			log.Error("start tcp dns server failed", slog.Any("err", err))
 		}
 	}()
 
@@ -67,7 +68,7 @@ func (d *dnsServer) start() (err error) {
 		return fmt.Errorf("dns udp server listen failed: %w", err)
 	}
 	defer d.listener.Close()
-	log.Infoln("new udp dns server listen at:", d.server)
+	log.Info("new udp dns server", "host", d.server)
 
 	for {
 		buf := pool.GetBytes(nat.MaxSegmentSize)
@@ -90,12 +91,12 @@ func (d *dnsServer) start() (err error) {
 
 			data, err := d.handle(ctx, buf[:n])
 			if err != nil {
-				log.Errorln("dns server handle data failed:", err)
+				log.Error("dns server handle data failed", slog.Any("err", err))
 				return
 			}
 
 			if _, err = d.listener.WriteTo(data, addr); err != nil {
-				log.Errorln(err)
+				log.Error("write dns response to client failed", slog.Any("err", err))
 			}
 		}()
 	}
@@ -107,7 +108,7 @@ func (d *dnsServer) startTCP() (err error) {
 		return fmt.Errorf("dns tcp server listen failed: %w", err)
 	}
 	defer d.tcpListener.Close()
-	log.Errorln("new tcp dns server listen at:", d.server)
+	log.Error("new tcp dns server", "host", d.server)
 	for {
 		conn, err := d.tcpListener.Accept()
 		if err != nil {
@@ -126,7 +127,7 @@ func (d *dnsServer) startTCP() (err error) {
 			defer cancel()
 
 			if err := d.HandleTCP(ctx, conn); err != nil {
-				log.Errorln(err)
+				log.Error("handle dns tcp failed", "err", err)
 			}
 		}()
 	}
@@ -193,7 +194,7 @@ func (d *dnsServer) handle(ctx context.Context, b []byte) ([]byte, error) {
 
 	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
 		q.Type != dnsmessage.TypePTR {
-		log.Debugln(q.Type, "not a, aaaa or ptr")
+		log.Debug("not a, aaaa or ptr", "type", q.Type)
 		return d.resolver.Do(ctx, add, b)
 	}
 
@@ -225,9 +226,9 @@ func (d *dnsServer) handle(ctx context.Context, b []byte) ([]byte, error) {
 	if err != nil {
 		if !errors.Is(err, ErrNoIPFound) && !errors.Is(err, ErrCondEmptyResponse) {
 			if errors.Is(err, proxy.ErrBlocked) {
-				log.Debugln(err)
+				log.Debug(err.Error())
 			} else {
-				log.Errorf("lookup domain %s failed: %v\n", q.Name.String(), err)
+				log.Error("lookup domain failed", slog.String("domain", q.Name.String()), slog.Any("err", err))
 			}
 		}
 

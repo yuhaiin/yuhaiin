@@ -34,7 +34,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 		return nil, nil, err
 	}
 
-	log.Infoln("tun2socket gvisor listen at:", listener.Addr())
+	log.Info("new tun2socket gvisor tcp server", "host", listener.Addr())
 
 	if mtu <= 0 {
 		mtu = int32(nat.MaxSegmentSize)
@@ -225,7 +225,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 			resetCheckSum(ip, tp, pseudoHeaderSum)
 
 			if _, err = device.Write(raw); err != nil {
-				log.Errorln("write tcp raw to tun device failed:", err)
+				log.Error("write tcp raw to tun device failed", "err", err)
 			}
 
 		}

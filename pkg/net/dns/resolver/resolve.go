@@ -199,7 +199,7 @@ _start:
 		r.i += size
 		signature := r.aswer[r.i : r.i+sum-size-18]
 		r.i += sum - size - 18
-		log.Debugln(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature)
+		log.Debug(fmt.Sprintln(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature))
 	case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 		fallthrough
 	default:
@@ -382,7 +382,7 @@ func resolveAnswer(c []byte, anCount int, b []byte) (DNS []net.IP, left []byte, 
 			c = others
 			signature := c[:sum-size-18]
 			c = c[sum-size-18:]
-			log.Debugln(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature)
+			log.Debug(fmt.Sprintln(typeCover, algorithm, label, originalTTL, signExpiration, signInception, keyTag, signName, signature))
 		case NS, MD, MF, CNAME, SOA, MG, MB, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT:
 			fallthrough
 		default:

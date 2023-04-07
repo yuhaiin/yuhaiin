@@ -28,7 +28,7 @@ func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *
 		return nil, nil, err
 	}
 
-	log.Infoln("tun2socket listen at:", listener.Addr())
+	log.Info("new tun2socket listener", "host", listener.Addr())
 
 	if mtu <= 0 {
 		mtu = int32(nat.MaxSegmentSize)
@@ -142,7 +142,7 @@ func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *
 				t.ResetChecksum(ip.PseudoSum())
 
 				if _, err = device.Write(raw); err != nil {
-					log.Errorln("write tcp raw to tun device failed:", err)
+					log.Error("write tcp raw to tun device failed", "err", err)
 				}
 			case tcpip.UDP:
 				u := tcpip.UDPPacket(ip.Payload())

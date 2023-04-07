@@ -24,7 +24,7 @@ import (
 
 func fakeSetting(opt *Opts, path string) config.Setting {
 	opts, _ := json.Marshal(opt)
-	log.Infoln("fake setting:", string(opts))
+	log.Info("fake setting config", "data", string(opts))
 	settings := &pc.Setting{
 		Ipv6: opt.IPv6,
 		Dns: &dns.Config{
@@ -105,7 +105,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 	}
 
 	if err := json.Unmarshal(opt.DNS.Hosts, &settings.Dns.Hosts); err != nil {
-		log.Warningln("unmarshal hosts failed:", err)
+		log.Warn("unmarshal hosts failed", "err", err)
 	}
 
 	applyRule(settings, opt.Bypass.Proxy, bypass.Mode_proxy)

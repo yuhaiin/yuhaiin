@@ -49,9 +49,9 @@ func NewConnStore(cache *cache.Cache, dialer proxy.Proxy, processDumper listener
 func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
 	id := c.notify.register(s, c.connStore.ValueSlice()...)
 	defer c.notify.unregister(id)
-	log.Debugln("new notify client", id)
+	log.Debug("new notify client", "id", id)
 	<-s.Context().Done()
-	log.Debugln("remove notify client", id)
+	log.Debug("remove notify client", "id", id)
 	return s.Context().Err()
 }
 
@@ -90,7 +90,7 @@ func (c *Connections) Remove(id uint64) {
 		log.Debug("close conn",
 			"id", z.ID(),
 			"addr", z.Addr(),
-			"source", proxy.Value[net.Addr](z.Addr(), proxy.SourceKey{}, proxy.EmptyAddr),
+			"s0urce", proxy.Value[net.Addr](z.Addr(), proxy.SourceKey{}, proxy.EmptyAddr),
 			"outbound", getRemote(z))
 	}
 
@@ -190,7 +190,7 @@ func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
 
 	process, err := c.processDumper.ProcessName(addr.Network(), sourceAddr, dstAddr)
 	if err != nil {
-		log.Warningln("dump process failed:", err)
+		log.Warn("dump process failed", "err", err)
 		return
 	}
 

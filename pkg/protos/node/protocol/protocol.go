@@ -49,14 +49,14 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 
 	root, err := x509.SystemCertPool()
 	if err != nil {
-		log.Errorf("get x509 system cert pool failed: %v, create new cert pool.", err)
+		log.Error("get x509 system cert pool failed, create new cert pool.", "err", err)
 		root = x509.NewCertPool()
 	}
 
 	for i := range t.CaCert {
 		ok := root.AppendCertsFromPEM(t.CaCert[i])
 		if !ok {
-			log.Errorf("add cert from pem failed.")
+			log.Error("add cert from pem failed.")
 		}
 	}
 	var servername string

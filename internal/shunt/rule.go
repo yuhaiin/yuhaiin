@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
+	"golang.org/x/exp/slog"
 )
 
 func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
@@ -18,7 +19,7 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	var err error
 	reader, err = os.Open(path)
 	if err != nil {
-		log.Errorf("open bypass file %s failed: %v, fallback to use internal bypass data", path, err)
+		log.Error("open bypass file failed, fallback to use internal bypass data", slog.String("filepath", path), slog.Any("err", err))
 		reader, _ = gzip.NewReader(bytes.NewReader(BYPASS_DATA))
 	}
 	defer reader.Close()

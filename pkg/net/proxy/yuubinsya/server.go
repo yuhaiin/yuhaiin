@@ -25,6 +25,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	quicgo "github.com/quic-go/quic-go"
+	"golang.org/x/exp/slog"
 )
 
 type yuubinsya struct {
@@ -108,12 +109,13 @@ func (y *yuubinsya) Start() error {
 	}
 
 	y.Lis = lis
-	log.Infoln(y.Type, "new server listen at:", lis.Addr())
+
+	log.Info("new yuubinsya server", "type", y.Type, "host", lis.Addr())
 
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			log.Errorln("accept failed:", err)
+			log.Error("accept failed", "err", err)
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				continue
 			}
@@ -127,7 +129,7 @@ func (y *yuubinsya) Start() error {
 		go func() {
 			defer conn.Close()
 			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
-				log.Errorf("handle from %v failed: %v\n", conn.RemoteAddr(), err)
+				log.Error("handle failed", slog.Any("from", conn.RemoteAddr()), slog.Any("err", err))
 			}
 		}()
 	}
@@ -209,7 +211,7 @@ func (y *yuubinsya) stream(c net.Conn) error {
 	addr.WithValue(proxy.DestinationKey{}, target)
 	addr.WithValue(proxy.InboundKey{}, c.LocalAddr())
 
-	log.Debugf("new tcp connect from %v to %v\n", c.RemoteAddr(), addr)
+	log.Debug("new tcp connect", "from", c.RemoteAddr(), "to", addr)
 
 	conn, err := y.Dialer.Conn(ctx, addr)
 	if err != nil {
@@ -223,7 +225,7 @@ func (y *yuubinsya) stream(c net.Conn) error {
 }
 
 func (y *yuubinsya) packet(c net.Conn) error {
-	log.Debugln("new udp connect from", c.RemoteAddr())
+	log.Debug("new udp connect", "from", c.RemoteAddr())
 	for {
 		if err := y.remoteToLocal(c); err != nil {
 			return fmt.Errorf("handle packet request failed: %w", err)

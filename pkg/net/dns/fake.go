@@ -246,9 +246,9 @@ func (f *fakeLru) Add(k, v string) {
 	}
 	f.LRU.Add(k, v)
 
-	kk, vv := unsafe.Slice(unsafe.StringData(k), len(k)), unsafe.Slice(unsafe.StringData(v), len(v))
-
 	if f.bbolt != nil {
+		kk, vv := []byte(k), []byte(v)
+
 		f.bbolt.Delete(kk, vv, f.bbolt.Get(kk), f.bbolt.Get(vv))
 		f.bbolt.Put(kk, vv)
 		f.bbolt.Put(vv, kk)
@@ -264,7 +264,7 @@ func (f *fakeLru) ValueExist(v string) bool {
 		return true
 	}
 
-	vv := unsafe.Slice(unsafe.StringData(v), len(v))
+	vv := []byte(v)
 
 	k := f.bbolt.Get(vv)
 	if k != nil {
@@ -285,7 +285,7 @@ func (f *fakeLru) ReverseLoad(ip string) (string, bool) {
 		return k, ok
 	}
 
-	vv := unsafe.Slice(unsafe.StringData(ip), len(ip))
+	vv := []byte(ip)
 
 	if kk := f.bbolt.Get(vv); kk != nil {
 		k = string(kk)

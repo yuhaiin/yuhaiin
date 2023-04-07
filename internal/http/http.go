@@ -91,7 +91,8 @@ type handler struct {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	log.Infoln(r.Method, r.URL)
+	log.Info("new http request", "method", r.Method, "url", r.URL)
+
 	var err error
 	switch r.Method {
 	case http.MethodGet:

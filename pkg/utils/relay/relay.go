@@ -17,13 +17,13 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 	go func() {
 		defer close(wait)
 		if err := Copy(rw2, rw1); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
-			log.Errorln("relay rw1 -> rw2 failed:", err)
+			log.Error("relay rw1 -> rw2 failed", "err", err)
 		}
 		setDeadline(rw2) // make another Copy exit
 	}()
 
 	if err := Copy(rw1, rw2); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
-		log.Errorln("relay rw2 -> rw1 failed:", err)
+		log.Error("relay rw2 -> rw1 failed", "err", err)
 	}
 	setDeadline(rw1)
 

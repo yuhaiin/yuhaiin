@@ -108,7 +108,7 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 			if ok {
 				t, err = z.Latency(px)
 				if err != nil {
-					log.Errorln("latency failed:", err)
+					log.Error("latency failed", "err", err)
 				}
 			}
 

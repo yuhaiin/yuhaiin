@@ -18,13 +18,13 @@ func DefaultConfigDir() (Path string) {
 
 	file, err := exec.LookPath(os.Args[0])
 	if err != nil {
-		log.Warningln(err)
+		log.Warn("lookpath failed", "err", err)
 		Path = filepath.Join(".", "yuhaiin")
 		return
 	}
 	execPath, err := filepath.Abs(file)
 	if err != nil {
-		log.Warningln(err)
+		log.Warn("get file abs failed", "err", err)
 		Path = filepath.Join(".", "yuhaiin")
 		return
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/exp/slog"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -165,7 +166,7 @@ func Value[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
 func ParseAddress(network statistic.Type, addr string) (ad Address, _ error) {
 	hostname, portstr, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Errorf("split host port failed: %v\n", err)
+		log.Error("split host port failed", "err", err)
 		hostname = addr
 		portstr = "0"
 	}
@@ -360,7 +361,7 @@ func (d *DomainAddr) lookupIP(ctx context.Context) (net.IP, error) {
 		if err == nil {
 			return ip.IPs[rand.Intn(len(ip.IPs))], nil
 		} else {
-			log.Warningf("resolve %s ipv6 failed: %w, fallback to ipv4\n", d.hostname, err)
+			log.Warn("resolve ipv6 failed, fallback to ipv4", slog.String("domain", d.hostname), slog.Any("err", err))
 		}
 	}
 

@@ -7,7 +7,7 @@ require (
 	github.com/quic-go/quic-go v0.33.0
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.7.0
-	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
 	golang.org/x/net v0.9.0
 	golang.org/x/sys v0.7.0

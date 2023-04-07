@@ -21,18 +21,18 @@ func SetSysProxy(http, socks5 string) {
 
 	if http != "" {
 		httpHostname, httpPort, _ = net.SplitHostPort(http)
-		log.Debugf("set http system hostname: %s, port: %s\n", httpHostname, httpPort)
+		log.Debug("set http system proxy", "hostname", httpHostname, "port", httpPort)
 	}
 	if socks5 != "" {
 		socks5Hostname, socks5Port, _ = net.SplitHostPort(socks5)
-		log.Debugf("set socks5 system hostname: %s, port: %s\n", socks5Hostname, socks5Port)
+		log.Debug("set socks5 system proxy", "hostname", socks5Hostname, "port", socks5Port)
 	}
 
 	networksetup := "/usr/sbin/networksetup"
 
 	services, err := getServices(networksetup)
 	if err != nil {
-		log.Errorln("set sysproxy failed:", err)
+		log.Error("set sysproxy failed", "err", err)
 		return
 	}
 
@@ -56,7 +56,7 @@ func UnsetSysProxy() {
 
 	services, err := getServices(networksetup)
 	if err != nil {
-		log.Errorln("set sysproxy failed:", err)
+		log.Error("set sysproxy failed", "err", err)
 		return
 	}
 

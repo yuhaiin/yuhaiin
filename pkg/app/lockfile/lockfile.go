@@ -52,7 +52,7 @@ func (l *Lock) Lock(payload string) error {
 
 	err = os.WriteFile(l.payloadfile, []byte(payload), os.ModePerm)
 	if err != nil {
-		log.Errorln("write host to file failed: %v", err)
+		log.Error("write host to file failed", "err", err)
 	}
 	return nil
 }

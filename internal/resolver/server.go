@@ -27,7 +27,7 @@ func (a *DnsServer) Update(s *pc.Setting) {
 
 	if a.DNSServer != nil {
 		if err := a.DNSServer.Close(); err != nil {
-			log.Errorln("close dns server failed:", err)
+			log.Error("close dns server failed", "err", err)
 		}
 	}
 

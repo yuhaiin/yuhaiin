@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils"
+	"golang.org/x/exp/slog"
 )
 
 type link struct {
@@ -75,7 +76,7 @@ func (n *link) Update(names []string) {
 		go func(l *subscribe.Link) {
 			defer wg.Done()
 			if err := n.update(n.outbound.Do, l); err != nil {
-				log.Errorf("get one link failed: %v", err)
+				log.Error("get one link failed", "err", err)
 			}
 		}(l)
 	}
@@ -122,7 +123,7 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 	for _, x := range bytes.Split(dst, []byte("\n")) {
 		node, err := parseUrl(x, link)
 		if err != nil {
-			log.Errorf("parse url %s failed: %v\n", x, err)
+			log.Error("parse url failed", slog.String("url", string(x)), slog.Any("err", err))
 		} else {
 			n.addNode(node)
 		}

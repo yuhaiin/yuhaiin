@@ -32,7 +32,7 @@ func (s *Socks5) newTCPServer() error {
 		for {
 			conn, err := lis.Accept()
 			if err != nil {
-				log.Errorln("socks5 accept failed:", err)
+				log.Error("socks5 accept failed", "err", err)
 
 				if ne, ok := err.(net.Error); ok && ne.Temporary() {
 					continue
@@ -44,9 +44,9 @@ func (s *Socks5) newTCPServer() error {
 				defer conn.Close()
 				if err := s.handle(conn); err != nil {
 					if errors.Is(err, proxy.ErrBlocked) {
-						log.Debugln(err)
+						log.Debug(err.Error())
 					} else {
-						log.Errorln("socks5 server handle failed:", err)
+						log.Error("socks5 server handle failed", "err", err)
 					}
 				}
 			}()

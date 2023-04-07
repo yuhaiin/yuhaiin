@@ -103,7 +103,7 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 			for {
 				cont, err := e.inbound.dispatch()
 				if err != nil || !cont {
-					log.Debugln("dispatch exit:", err)
+					log.Debug("dispatch exit", "err", err)
 					break
 				}
 			}

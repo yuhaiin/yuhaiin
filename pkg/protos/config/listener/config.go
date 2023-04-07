@@ -78,7 +78,7 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 	for _, c := range t.Certificates {
 		cert, err := tls.X509KeyPair(c.GetCert(), c.GetKey())
 		if err != nil {
-			log.Warningln("key pair failed:", c.GetCert())
+			log.Warn("key pair failed:", "cert", c.GetCert())
 			continue
 		}
 
@@ -94,7 +94,7 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 	for c, v := range t.ServerNameCertificate {
 		cert, err := tls.X509KeyPair(v.GetCert(), v.GetKey())
 		if err != nil {
-			log.Warningln("key pair failed:", v.GetCert())
+			log.Warn("key pair failed", "cert", v.GetCert())
 			continue
 		}
 
