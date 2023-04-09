@@ -61,7 +61,7 @@ func TestPtr(t *testing.T) {
 	t.Log(f.GetFakeIPForDomain("aass"))
 
 	z := &FakeDNS{
-		DNS:        dns.NewErrorDNS(func(domain string) error { return errors.New("err") }),
+		DNS:        dns.ErrorDNS(func(domain string) error { return errors.New("err") }),
 		FakeIPPool: NewFakeIPPool(zz, nil),
 	}
 
@@ -101,11 +101,18 @@ func TestNetip(t *testing.T) {
 
 	ff := NewFakeIPPool(z, nil)
 
-	t.Log(ff.GetFakeIPForDomain("aa"))
-	t.Log(ff.GetFakeIPForDomain("bb"))
-	t.Log(ff.GetFakeIPForDomain("cc"))
-	t.Log(ff.GetFakeIPForDomain("dd"))
-	ff.GetFakeIPForDomain("aa")
-	t.Log(ff.GetFakeIPForDomain("ee"))
-	t.Log(ff.GetFakeIPForDomain("ff"))
+	getAndRev := func(a string) {
+		ip := ff.GetFakeIPForDomain(a)
+		host, _ := ff.GetDomainFromIP(ip)
+
+		t.Log(a, ip, host)
+	}
+
+	getAndRev("aa")
+	getAndRev("bb")
+	getAndRev("cc")
+	getAndRev("dd")
+	getAndRev("aa")
+	getAndRev("ee")
+	getAndRev("ff")
 }

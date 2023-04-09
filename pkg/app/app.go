@@ -124,7 +124,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 			ProxyDialer:    nodeService,
 			ProxyResolver:  resolvers.Remote,
 			BlockDialer:    reject.Default,
-			BLockResolver:  dns.NewErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
+			BLockResolver:  dns.ErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
 			DefaultMode:    bypass.Mode_proxy,
 		})
 	opt.addObserver(st)

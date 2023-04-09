@@ -24,11 +24,11 @@ type LRU[K comparable, V any] struct {
 	timeout        time.Duration
 
 	lastPopEntry *lruEntry[K, V]
-	onRemove     func(K)
+	onRemove     func(K, V)
 }
 type Option[K comparable, V any] func(*LRU[K, V])
 
-func WithOnRemove[K comparable, V any](f func(K)) func(*LRU[K, V]) {
+func WithOnRemove[K comparable, V any](f func(K, V)) func(*LRU[K, V]) {
 	return func(l *LRU[K, V]) {
 		l.onRemove = f
 	}
@@ -77,7 +77,7 @@ func (l *LRU[K, V]) delete(v *lruEntry[K, V]) {
 		l.reverseMapping.Delete(v.data)
 	}
 	if l.onRemove != nil {
-		l.onRemove(v.key)
+		l.onRemove(v.key, v.data)
 	}
 }
 
