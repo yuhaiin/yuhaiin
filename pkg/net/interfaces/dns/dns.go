@@ -23,16 +23,15 @@ type IPRecord struct {
 
 func (i IPRecord) String() string { return fmt.Sprintf("{ips: %v, ttl: %d}", i.IPs, i.TTL) }
 
-var _ DNS = (*errorDNS)(nil)
+var _ DNS = (*ErrorDNS)(nil)
 
-type errorDNS struct{ f func(domain string) error }
+type ErrorDNS func(domain string) error
 
-func NewErrorDNS(f func(domain string) error) DNS { return &errorDNS{f} }
-func (d *errorDNS) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
-	return nil, d.f(domain)
+func (e ErrorDNS) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
+	return nil, e(domain)
 }
-func (d *errorDNS) Record(ctx context.Context, domain string, _ dnsmessage.Type) (IPRecord, error) {
-	return IPRecord{}, d.f(domain)
+func (e ErrorDNS) Record(ctx context.Context, domain string, _ dnsmessage.Type) (IPRecord, error) {
+	return IPRecord{}, e(domain)
 }
-func (d *errorDNS) Do(context.Context, string, []byte) ([]byte, error) { return nil, d.f("") }
-func (d *errorDNS) Close() error                                       { return nil }
+func (e ErrorDNS) Do(context.Context, string, []byte) ([]byte, error) { return nil, e("") }
+func (e ErrorDNS) Close() error                                       { return nil }

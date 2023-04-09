@@ -28,22 +28,17 @@ func NewFakeDNS(upStreamDo dns.DNS, ipRange netip.Prefix, bbolt *cache.Cache) *F
 }
 
 func (f *FakeDNS) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
-	return []net.IP{net.ParseIP(f.FakeIPPool.GetFakeIPForDomain(domain))}, nil
+	return []net.IP{f.FakeIPPool.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
 func (f *FakeDNS) Record(_ context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
-	ipStr := f.FakeIPPool.GetFakeIPForDomain(domain)
+	ip := f.FakeIPPool.GetFakeIPForDomain(domain)
 
-	ip := net.ParseIP(ipStr)
-
-	if t == dnsmessage.TypeA && ip.To4() == nil {
+	if t == dnsmessage.TypeA && !ip.Is4() {
 		return dns.IPRecord{}, fmt.Errorf("fake ip pool is ipv6, except ipv4")
 	}
 
-	if t == dnsmessage.TypeAAAA {
-		return dns.IPRecord{IPs: []net.IP{ip.To16()}, TTL: 60}, nil
-	}
-	return dns.IPRecord{IPs: []net.IP{ip.To4()}, TTL: 60}, nil
+	return dns.IPRecord{IPs: []net.IP{ip.AsSlice()}, TTL: 60}, nil
 }
 
 var hex = map[byte]byte{
@@ -108,7 +103,13 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	r, ok := f.FakeIPPool.GetDomainFromIP(ip.String())
+
+	ipAddr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return "", fmt.Errorf("parse netip.Addr from bytes failed")
+	}
+
+	r, ok := f.FakeIPPool.GetDomainFromIP(ipAddr.Unmap())
 	if !ok {
 		return "", fmt.Errorf("not found %s[%s] ptr", ip, name)
 	}
@@ -152,7 +153,7 @@ func NewFakeIPPool(prefix netip.Prefix, bbolt *cache.Cache) *FakeIPPool {
 	}
 }
 
-func (n *FakeIPPool) GetFakeIPForDomain(s string) string {
+func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -175,25 +176,23 @@ func (n *FakeIPPool) GetFakeIPForDomain(s string) string {
 
 		n.current = addr
 
-		if n.domainToIP.ValueExist(addr.String()) {
-			continue
+		if !n.domainToIP.ValueExist(addr) {
+			n.domainToIP.Add(s, addr)
+			return addr
 		}
-
-		n.domainToIP.Add(s, addr.String())
-		return addr.String()
 	}
 }
 
-func (n *FakeIPPool) GetDomainFromIP(ip string) (string, bool) {
+func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.domainToIP.ReverseLoad(ip)
+	return n.domainToIP.ReverseLoad(ip.Unmap())
 }
 
-func (n *FakeIPPool) LRU() *lru.LRU[string, string] { return n.domainToIP.LRU }
+func (n *FakeIPPool) LRU() *lru.LRU[string, netip.Addr] { return n.domainToIP.LRU }
 
 type fakeLru struct {
-	LRU   *lru.LRU[string, string]
+	LRU   *lru.LRU[string, netip.Addr]
 	bbolt *cache.Cache
 
 	Size uint
@@ -204,101 +203,84 @@ func newFakeLru(size uint, bbolt *cache.Cache) *fakeLru {
 
 	if size > 0 {
 		z.LRU = lru.NewLru(
-			lru.WithCapacity[string, string](size),
-			lru.WithOnRemove[string, string](func(s string) {
-				kk := unsafe.Slice(unsafe.StringData(s), len(s))
-				v := bbolt.Get(kk)
-				if v == nil {
-					return
-				}
-				bbolt.Delete(kk, v)
-			}),
+			lru.WithCapacity[string, netip.Addr](size),
+			lru.WithOnRemove(func(s string, v netip.Addr) { bbolt.Delete([]byte(s), v.AsSlice()) }),
 		)
 	}
 
 	return z
 }
 
-func (f *fakeLru) Load(k string) (string, bool) {
+func (f *fakeLru) Load(host string) (netip.Addr, bool) {
 	if f.Size <= 0 {
-		return "", false
+		return netip.Addr{}, false
 	}
 
-	z, ok := f.LRU.Load(k)
+	z, ok := f.LRU.Load(host)
 	if ok {
 		return z, ok
 	}
 
-	kk := unsafe.Slice(unsafe.StringData(k), len(k))
-
-	if v := f.bbolt.Get(kk); v != nil {
-		vv := string(v)
-		f.LRU.Add(k, vv)
-		return vv, true
+	if ip, ok := netip.AddrFromSlice(f.bbolt.Get(unsafe.Slice(unsafe.StringData(host), len(host)))); ok {
+		ip = ip.Unmap()
+		f.LRU.Add(host, ip)
+		return ip, true
 	}
 
-	return "", false
+	return netip.Addr{}, false
 }
 
-func (f *fakeLru) Add(k, v string) {
+func (f *fakeLru) Add(host string, ip netip.Addr) {
 	if f.Size <= 0 {
 		return
 	}
-	f.LRU.Add(k, v)
+	f.LRU.Add(host, ip)
 
 	if f.bbolt != nil {
-		kk, vv := []byte(k), []byte(v)
-
-		f.bbolt.Delete(kk, vv, f.bbolt.Get(kk), f.bbolt.Get(vv))
-		f.bbolt.Put(kk, vv)
-		f.bbolt.Put(vv, kk)
+		host, ip := []byte(host), ip.AsSlice()
+		f.bbolt.Put(host, ip)
+		f.bbolt.Put(ip, host)
 	}
 }
 
-func (f *fakeLru) ValueExist(v string) bool {
+func (f *fakeLru) ValueExist(ip netip.Addr) bool {
 	if f.Size <= 0 {
 		return false
 	}
 
-	if f.LRU.ValueExist(v) {
+	if f.LRU.ValueExist(ip) {
 		return true
 	}
 
-	vv := []byte(v)
-
-	k := f.bbolt.Get(vv)
-	if k != nil {
-		f.LRU.Add(string(k), v)
+	if host := f.bbolt.Get(ip.AsSlice()); host != nil {
+		f.LRU.Add(string(host), ip)
 		return true
 	}
 
 	return false
 }
 
-func (f *fakeLru) ReverseLoad(ip string) (string, bool) {
+func (f *fakeLru) ReverseLoad(ip netip.Addr) (string, bool) {
 	if f.Size <= 0 {
 		return "", false
 	}
 
-	k, ok := f.LRU.ReverseLoad(ip)
+	host, ok := f.LRU.ReverseLoad(ip)
 	if ok {
-		return k, ok
+		return host, ok
 	}
 
-	vv := []byte(ip)
-
-	if kk := f.bbolt.Get(vv); kk != nil {
-		k = string(kk)
-		f.LRU.Add(k, ip)
-		return k, true
+	if host = string(f.bbolt.Get(ip.AsSlice())); host != "" {
+		f.LRU.Add(host, ip)
+		return host, true
 	}
 
 	return "", false
 }
 
-func (f *fakeLru) LastPopValue() (string, bool) {
+func (f *fakeLru) LastPopValue() (netip.Addr, bool) {
 	if f.Size <= 0 {
-		return "", false
+		return netip.Addr{}, false
 	}
 	return f.LRU.LastPopValue()
 }

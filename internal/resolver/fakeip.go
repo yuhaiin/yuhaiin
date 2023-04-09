@@ -81,7 +81,7 @@ func (f *Fakedns) PacketConn(ctx context.Context, addr proxy.Address) (net.Packe
 
 func (f *Fakedns) dispatchAddr(addr proxy.Address) proxy.Address {
 	if f.enabled && addr.Type() == proxy.IP {
-		t, ok := f.fake.GetDomainFromIP(addr.Hostname())
+		t, ok := f.fake.GetDomainFromIP(yerror.Ignore(addr.AddrPort(context.TODO())).Addr())
 		if ok {
 			r := addr.OverrideHostname(t)
 			r.WithValue(proxy.FakeIPKey{}, addr)
