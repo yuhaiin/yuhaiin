@@ -79,4 +79,7 @@ message tls_config {
 message certificate {
   bytes cert = 1 [ json_name = "cert" ];
   bytes key = 2 [ json_name = "key" ];
+
+  string cert_file_path = 3 [ json_name = "cert_file_path" ];
+  string key_file_path = 4 [ json_name = "key_file_path" ];
 }
