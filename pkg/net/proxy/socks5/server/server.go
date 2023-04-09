@@ -81,7 +81,7 @@ func handshake1(client net.Conn, user, key string, buf []byte) error {
 
 	if buf[0] != 0x05 { // ver
 		writeHandshake1(client, s5c.NoAcceptableMethods)
-		return fmt.Errorf("new acceptable method: %d", buf[0])
+		return fmt.Errorf("no acceptable method: %d", buf[0])
 	}
 
 	nMethods := int(buf[1])

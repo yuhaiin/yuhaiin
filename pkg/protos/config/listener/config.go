@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"golang.org/x/exp/slog"
 )
 
 var execProtocol syncmap.SyncMap[reflect.Type, func(*Opts[IsProtocol_Protocol]) (server.Server, error)]
@@ -76,9 +77,9 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 	}
 
 	for _, c := range t.Certificates {
-		cert, err := tls.X509KeyPair(c.GetCert(), c.GetKey())
+		cert, err := c.X509KeyPair()
 		if err != nil {
-			log.Warn("key pair failed:", "cert", c.GetCert())
+			log.Warn("key pair failed", "cert", c.Cert, "err", err)
 			continue
 		}
 
@@ -92,9 +93,9 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 	serverNameCertificateMap := make(map[string]*tls.Certificate, len(t.ServerNameCertificate))
 
 	for c, v := range t.ServerNameCertificate {
-		cert, err := tls.X509KeyPair(v.GetCert(), v.GetKey())
+		cert, err := v.X509KeyPair()
 		if err != nil {
-			log.Warn("key pair failed", "cert", v.GetCert())
+			log.Warn("key pair failed", "cert", v.Cert, "err", err)
 			continue
 		}
 
@@ -116,4 +117,18 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
+}
+
+func (c *Certificate) X509KeyPair() (tls.Certificate, error) {
+
+	if c.CertFilePath != "" && c.KeyFilePath != "" {
+		r, err := tls.LoadX509KeyPair(c.CertFilePath, c.KeyFilePath)
+		if err != nil {
+			log.Warn("load X509KeyPair error", slog.Any("err", err))
+		} else {
+			return r, nil
+		}
+	}
+
+	return tls.X509KeyPair(c.Cert, c.Key)
 }
