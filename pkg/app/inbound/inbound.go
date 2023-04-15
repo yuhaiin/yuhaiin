@@ -116,8 +116,7 @@ func (l *listener) start(name string, config *pl.Protocol) error {
 		return fmt.Errorf("server %s %w", config.Name, errServerDisabled)
 	}
 
-	server, err := pl.CreateServer(
-		pl.CovertOpts(l.opts, func(pl.IsProtocol_Protocol) pl.IsProtocol_Protocol { return config.Protocol }))
+	server, err := pl.CreateServer(pl.CovertOpts(l.opts, func(pl.IsProtocol_Protocol) pl.IsProtocol_Protocol { return config.Protocol }))
 	if err != nil {
 		return fmt.Errorf("create server %s failed: %w", name, err)
 	}

@@ -90,17 +90,17 @@ func (h *Hosts) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	return h.resolver.LookupIP(ctx, addr.Hostname())
 }
 
-func (h *Hosts) Record(ctx context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+func (h *Hosts) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
 	addr := h.dispatchAddr(proxy.ParseAddressPort(0, domain, proxy.EmptyPort))
 	if addr.Type() == proxy.IP {
 		if t == dnsmessage.TypeAAAA {
-			return dns.IPRecord{IPs: []net.IP{yerror.Ignore(addr.IP(ctx)).To16()}, TTL: 600}, nil
+			return []net.IP{yerror.Ignore(addr.IP(ctx)).To16()}, 600, nil
 		}
 
 		if t == dnsmessage.TypeA && yerror.Ignore(addr.IP(ctx)).To4() != nil {
-			return dns.IPRecord{IPs: []net.IP{yerror.Ignore(addr.IP(ctx)).To4()}, TTL: 600}, nil
+			return []net.IP{yerror.Ignore(addr.IP(ctx)).To4()}, 600, nil
 		}
-		return dns.IPRecord{}, errors.New("here not include ipv6 hosts")
+		return nil, 0, errors.New("here not include ipv6 hosts")
 	}
 
 	return h.resolver.Record(ctx, addr.Hostname(), t)

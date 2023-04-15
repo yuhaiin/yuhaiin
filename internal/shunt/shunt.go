@@ -214,7 +214,7 @@ func (s *Shunt) Resolver(ctx context.Context, domain string) dns.DNS {
 func (f *Shunt) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	return f.Resolver(ctx, domain).LookupIP(ctx, domain)
 }
-func (f *Shunt) Record(ctx context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+func (f *Shunt) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
 	return f.Resolver(ctx, domain).Record(ctx, domain, t)
 }
 func (f *Shunt) Do(ctx context.Context, addr string, b []byte) ([]byte, error) {

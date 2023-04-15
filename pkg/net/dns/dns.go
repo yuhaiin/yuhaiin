@@ -63,7 +63,8 @@ type client struct {
 
 type recordCond struct {
 	*sync.Cond
-	Record dns.IPRecord
+	ips []net.IP
+	ttl uint32
 }
 
 type ipRecord struct {
@@ -134,27 +135,23 @@ func (c *client) Do(ctx context.Context, _ string, b []byte) ([]byte, error) {
 
 func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	var aaaaerr error
-	var aaaa dns.IPRecord
+	var aaaa []net.IP
 	var wg sync.WaitGroup
 
 	if c.config.IPv6 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			aaaa, aaaaerr = c.Record(ctx, domain, dnsmessage.TypeAAAA)
+			aaaa, _, aaaaerr = c.Record(ctx, domain, dnsmessage.TypeAAAA)
 		}()
 	}
 
-	var resp []net.IP
-	a, aerr := c.Record(ctx, domain, dnsmessage.TypeA)
-	if aerr == nil {
-		resp = a.IPs
-	}
+	resp, _, aerr := c.Record(ctx, domain, dnsmessage.TypeA)
 
 	if c.config.IPv6 {
 		wg.Wait()
 		if aaaaerr == nil {
-			resp = append(resp, aaaa.IPs...)
+			resp = append(resp, aaaa...)
 		}
 	}
 
@@ -167,11 +164,11 @@ func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 
 var ErrCondEmptyResponse = errors.New("can't get response from cond")
 
-func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
+func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
 	key := domain + reqType.String()
 
 	if x, ok := c.cache.Load(key); ok {
-		return dns.IPRecord{IPs: x.ips, TTL: uint32(x.expireAfter - time.Now().Unix())}, nil
+		return x.ips, uint32(x.expireAfter - time.Now().Unix()), nil
 	}
 
 	cond, ok := c.cond.LoadOrStore(key, &recordCond{Cond: sync.NewCond(&sync.Mutex{})})
@@ -180,10 +177,10 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 		cond.Wait()
 		cond.L.Unlock()
 
-		if len(cond.Record.IPs) != 0 {
-			return cond.Record, nil
+		if len(cond.ips) != 0 {
+			return cond.ips, cond.ttl, nil
 		}
-		return dns.IPRecord{}, ErrCondEmptyResponse
+		return nil, 0, ErrCondEmptyResponse
 	}
 
 	defer func() {
@@ -191,29 +188,30 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 		cond.Broadcast()
 	}()
 
-	record, err := c.lookupIP(ctx, domain, reqType)
+	ips, ttl, err := c.lookupIP(ctx, domain, reqType)
 	if err != nil {
-		return dns.IPRecord{}, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
+		return ips, ttl, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
 	}
 
-	cond.Record = record
+	cond.ips = ips
+	cond.ttl = ttl
 
 	log.Debug(
 		"resolve domain",
 		"resolver", c.config.Name,
 		"host", domain,
 		"type", reqType,
-		"ips", record.IPs,
-		"ttl", record.TTL,
+		"ips", ips,
+		"ttl", ttl,
 	)
 
-	expireAfter := time.Now().Unix() + int64(record.TTL)
-	c.cache.Add(key, ipRecord{record.IPs, expireAfter}, lru.WithExpireTimeUnix(expireAfter))
+	expireAfter := time.Now().Unix() + int64(ttl)
+	c.cache.Add(key, ipRecord{ips, expireAfter}, lru.WithExpireTimeUnix(expireAfter))
 
-	return record, nil
+	return ips, ttl, nil
 }
 
-func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) (dns.IPRecord, error) {
+func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
 	req := dnsmessage.Message{
 		Header: dnsmessage.Header{
 			ID:                 uint16(rand.Intn(65535)),
@@ -237,27 +235,27 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 
 	d, err := req.Pack()
 	if err != nil {
-		return dns.IPRecord{}, fmt.Errorf("pack dns message failed: %w", err)
+		return nil, 0, fmt.Errorf("pack dns message failed: %w", err)
 	}
 
 	d, err = c.Do(ctx, "", d)
 	if err != nil {
-		return dns.IPRecord{}, fmt.Errorf("send dns message failed: %w", err)
+		return nil, 0, fmt.Errorf("send dns message failed: %w", err)
 	}
 
 	p := &dnsmessage.Parser{}
 
 	resp, err := p.Start(d)
 	if err != nil {
-		return dns.IPRecord{}, err
+		return nil, 0, err
 	}
 
 	if resp.ID != req.ID {
-		return dns.IPRecord{}, fmt.Errorf("id not match")
+		return nil, 0, fmt.Errorf("id not match")
 	}
 
 	if resp.RCode != dnsmessage.RCodeSuccess {
-		return dns.IPRecord{}, fmt.Errorf("rCode (%v) not success", resp.RCode)
+		return nil, 0, fmt.Errorf("rCode (%v) not success", resp.RCode)
 	}
 
 	p.SkipAllQuestions()
@@ -272,7 +270,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 				break
 			}
 
-			return dns.IPRecord{}, err
+			return nil, 0, err
 		}
 		if ip == nil {
 			continue
@@ -286,9 +284,9 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if len(ips) == 0 {
-		return dns.IPRecord{}, ErrNoIPFound
+		return nil, 0, ErrNoIPFound
 	}
-	return dns.IPRecord{IPs: ips, TTL: ttl}, nil
+	return ips, ttl, nil
 }
 
 var ErrNoIPFound = errors.New("no ip found")

@@ -222,7 +222,7 @@ func (d *dnsServer) handle(ctx context.Context, b []byte) ([]byte, error) {
 	}
 
 	// A or AAAA
-	r, err := d.resolver.Record(ctx, add, q.Type)
+	ips, ttl, err := d.resolver.Record(ctx, add, q.Type)
 	if err != nil {
 		if !errors.Is(err, ErrNoIPFound) && !errors.Is(err, ErrCondEmptyResponse) {
 			if errors.Is(err, proxy.ErrBlocked) {
@@ -237,7 +237,7 @@ func (d *dnsServer) handle(ctx context.Context, b []byte) ([]byte, error) {
 		}
 	}
 
-	for _, a := range r.IPs {
+	for _, a := range ips {
 		var resource dnsmessage.ResourceBody
 		if q.Type == dnsmessage.TypeA {
 			rr := &dnsmessage.AResource{}
@@ -253,7 +253,7 @@ func (d *dnsServer) handle(ctx context.Context, b []byte) ([]byte, error) {
 				Name:  q.Name,
 				Type:  q.Type,
 				Class: dnsmessage.ClassINET,
-				TTL:   r.TTL,
+				TTL:   ttl,
 			},
 			Body: resource,
 		})
