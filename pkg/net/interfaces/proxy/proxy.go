@@ -357,9 +357,9 @@ func (d *DomainAddr) lookupIP(ctx context.Context) (net.IP, error) {
 	r := Value(d, resolverKey{}, resolver.Bootstrap)
 
 	if Value(d, PreferIPv6{}, false) {
-		ip, err := r.Record(ctx, d.hostname, dnsmessage.TypeAAAA)
+		ips, _, err := r.Record(ctx, d.hostname, dnsmessage.TypeAAAA)
 		if err == nil {
-			return ip.IPs[rand.Intn(len(ip.IPs))], nil
+			return ips[rand.Intn(len(ips))], nil
 		} else {
 			log.Warn("resolve ipv6 failed, fallback to ipv4", slog.String("domain", d.hostname), slog.Any("err", err))
 		}

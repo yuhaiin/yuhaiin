@@ -31,14 +31,14 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
 	return []net.IP{f.FakeIPPool.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
-func (f *FakeDNS) Record(_ context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+func (f *FakeDNS) Record(_ context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
 	ip := f.FakeIPPool.GetFakeIPForDomain(domain)
 
 	if t == dnsmessage.TypeA && !ip.Is4() {
-		return dns.IPRecord{}, fmt.Errorf("fake ip pool is ipv6, except ipv4")
+		return nil, 0, fmt.Errorf("fake ip pool is ipv6, except ipv4")
 	}
 
-	return dns.IPRecord{IPs: []net.IP{ip.AsSlice()}, TTL: 60}, nil
+	return []net.IP{ip.AsSlice()}, 60, nil
 }
 
 var hex = map[byte]byte{

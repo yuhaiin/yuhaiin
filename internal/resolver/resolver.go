@@ -20,16 +20,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type Resolvers struct {
-	Local, Remote, Bootstrap *baseClient
-}
+type Resolvers struct{ Local, Remote, Bootstrap *client }
 
 func NewResolvers(dl proxy.Proxy) *Resolvers {
-	bootstrap := &baseClient{
-		update: func(b *baseClient, s *pc.Setting) {
-			bootstrapUpdate(dl, b, s)
-		},
-	}
+	bootstrap := newClient(bootstrapUpdate(dl))
 
 	dialer := &dialer{
 		Proxy: dl,
@@ -40,16 +34,8 @@ func NewResolvers(dl proxy.Proxy) *Resolvers {
 	}
 
 	c := &Resolvers{
-		Remote: &baseClient{
-			update: func(b *baseClient, s *pc.Setting) {
-				remoteUpdate(dialer, b, s)
-			},
-		},
-		Local: &baseClient{
-			update: func(b *baseClient, s *pc.Setting) {
-				localUpdate(dialer, b, s)
-			},
-		},
+		Remote:    newClient(remoteUpdate(dialer)),
+		Local:     newClient(localUpdate(dialer)),
 		Bootstrap: bootstrap,
 	}
 
@@ -71,74 +57,85 @@ func (r *Resolvers) Close() error {
 	return nil
 }
 
-func bootstrapUpdate(p proxy.Proxy, b *baseClient, c *pc.Setting) {
-	if proto.Equal(b.config, c.Dns.Bootstrap) {
-		return
-	}
+func bootstrapUpdate(p proxy.Proxy) func(b *client, s *pc.Setting) {
+	return func(b *client, c *pc.Setting) {
+		if proto.Equal(b.config, c.Dns.Bootstrap) {
+			return
+		}
 
-	if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
-		log.Error("check bootstrap dns failed", "err", err)
-		return
-	}
+		if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
+			log.Error("check bootstrap dns failed", "err", err)
+			return
+		}
 
-	b.config = c.Dns.Bootstrap
-	b.Close()
+		b.config = c.Dns.Bootstrap
+		b.Close()
 
-	z, err := getDNS("BOOTSTRAP", c.GetIpv6(), b.config,
-		&dialer{
-			Proxy: p,
-			addr: func(addr proxy.Address) {
-				addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
-				addr.WithResolver(&resolver.System{DisableIPv6: !c.GetIpv6()}, false)
-			}},
-	)
-	if err != nil {
-		log.Error("get bootstrap dns failed", "err", err)
-	} else {
-		b.dns = z
-	}
-}
-
-func remoteUpdate(p proxy.Proxy, r *baseClient, c *pc.Setting) {
-	if proto.Equal(r.config, c.Dns.Remote) {
-		return
-	}
-
-	r.config = c.Dns.Remote
-	r.Close()
-	z, err := getDNS("REMOTEDNS", c.GetIpv6(), r.config, p)
-	if err != nil {
-		log.Error("get remote dns failed", "err", err)
-	} else {
-		r.dns = z
+		z, err := getDNS("BOOTSTRAP", c.GetIpv6(), b.config,
+			&dialer{
+				Proxy: p,
+				addr: func(addr proxy.Address) {
+					addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
+					addr.WithResolver(&resolver.System{DisableIPv6: !c.GetIpv6()}, false)
+				}},
+		)
+		if err != nil {
+			log.Error("get bootstrap dns failed", "err", err)
+		} else {
+			b.dns = z
+		}
 	}
 }
 
-func localUpdate(p proxy.Proxy, l *baseClient, c *pc.Setting) {
-	if proto.Equal(l.config, c.Dns.Local) {
-		return
-	}
+func remoteUpdate(p proxy.Proxy) func(b *client, s *pc.Setting) {
+	return func(r *client, c *pc.Setting) {
+		if proto.Equal(r.config, c.Dns.Remote) {
+			return
+		}
 
-	l.config = c.Dns.Local
-	l.Close()
-	z, err := getDNS("LOCALDNS", c.GetIpv6(), l.config, p)
-	if err != nil {
-		log.Error("get local dns failed", "err", err)
-	} else {
-		l.dns = z
+		r.config = c.Dns.Remote
+		r.Close()
+		z, err := getDNS("REMOTEDNS", c.GetIpv6(), r.config, p)
+		if err != nil {
+			log.Error("get remote dns failed", "err", err)
+		} else {
+			r.dns = z
+		}
 	}
 }
 
-type baseClient struct {
+func localUpdate(p proxy.Proxy) func(b *client, s *pc.Setting) {
+	return func(l *client, c *pc.Setting) {
+
+		if proto.Equal(l.config, c.Dns.Local) {
+			return
+		}
+
+		l.config = c.Dns.Local
+		l.Close()
+		z, err := getDNS("LOCALDNS", c.GetIpv6(), l.config, p)
+		if err != nil {
+			log.Error("get local dns failed", "err", err)
+		} else {
+			l.dns = z
+		}
+	}
+}
+
+type client struct {
 	config *pd.Dns
 	dns    id.DNS
 
-	update func(*baseClient, *pc.Setting)
+	update func(*client, *pc.Setting)
 }
 
-func (l *baseClient) Update(c *pc.Setting) { l.update(l, c) }
+func newClient(update func(*client, *pc.Setting)) *client {
+	return &client{update: update}
+}
 
-func (l *baseClient) LookupIP(ctx context.Context, host string) ([]net.IP, error) {
+func (l *client) Update(c *pc.Setting) { l.update(l, c) }
+
+func (l *client) LookupIP(ctx context.Context, host string) ([]net.IP, error) {
 	if l.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}
@@ -150,15 +147,15 @@ func (l *baseClient) LookupIP(ctx context.Context, host string) ([]net.IP, error
 
 	return ips, nil
 }
-func (l *baseClient) Record(ctx context.Context, domain string, t dnsmessage.Type) (id.IPRecord, error) {
+func (l *client) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
 	if l.dns == nil {
-		return id.IPRecord{}, fmt.Errorf("dns not initialized")
+		return nil, 0, fmt.Errorf("dns not initialized")
 	}
 
 	return l.dns.Record(ctx, domain, t)
 }
 
-func (l *baseClient) Close() error {
+func (l *client) Close() error {
 	if l.dns != nil {
 		return l.dns.Close()
 	}
@@ -166,7 +163,7 @@ func (l *baseClient) Close() error {
 	return nil
 }
 
-func (b *baseClient) Do(ctx context.Context, addr string, r []byte) ([]byte, error) {
+func (b *client) Do(ctx context.Context, addr string, r []byte) ([]byte, error) {
 	if b.dns == nil {
 		return nil, fmt.Errorf("dns not initialized")
 	}

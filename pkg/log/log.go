@@ -14,14 +14,13 @@ import (
 )
 
 //go:generate protoc --go_out=. --go_opt=paths=source_relative log.proto
+
 type Logger interface {
-	SetLevel(slog.Level)
 	Debug(string, ...any)
 	Info(string, ...any)
 	Warn(string, ...any)
 	Error(string, ...any)
-	Output(depth int, lev slog.Level, format string, v ...any)
-	SetOutput(io.Writer)
+	Output(depth int, lev slog.Level, msg string, v ...any)
 }
 
 var DefaultLogger Logger = NewSLogger(1)
@@ -32,16 +31,24 @@ var mu sync.Mutex
 func Set(config *protolog.Logcat, path string) {
 	mu.Lock()
 	defer mu.Unlock()
-	DefaultLogger.SetLevel(config.Level.SLogLevel())
+	if logger, ok := DefaultLogger.(interface{ SetLevel(l slog.Level) }); ok {
+		logger.SetLevel(config.Level.SLogLevel())
+	}
+
+	logger, ok := DefaultLogger.(interface{ SetOutput(io.Writer) })
+	if !ok {
+		return
+	}
+
 	if !config.Save && writer != nil {
-		DefaultLogger.SetOutput(os.Stdout)
+		logger.SetOutput(os.Stdout)
 		writer.Close()
 		writer = nil
 	}
 
 	if config.Save && writer == nil {
 		writer = NewLogWriter(path)
-		DefaultLogger.SetOutput(io.MultiWriter(os.Stdout, writer))
+		logger.SetOutput(io.MultiWriter(os.Stdout, writer))
 	}
 }
 
@@ -54,7 +61,6 @@ func Close() error {
 	return nil
 }
 
-func SetLevel(l slog.Level)      { DefaultLogger.SetLevel(l) }
 func Debug(msg string, v ...any) { DefaultLogger.Debug(msg, v...) }
 func Info(msg string, v ...any)  { DefaultLogger.Info(msg, v...) }
 func Warn(msg string, v ...any)  { DefaultLogger.Warn(msg, v...) }
@@ -135,78 +141,3 @@ func (l *slogger) Output(depth int, level slog.Level, msg string, v ...any) {
 func (l *slogger) log(level slog.Level, msg string, v ...any) { l.Output(3, level, msg, v...) }
 
 func (l *slogger) SetOutput(w io.Writer) { l.Writer = w }
-
-/*
-type logger struct {
-	level slog.Level
-	depth int32
-	log   *log.Logger
-}
-
-func NewLogger(depth int32) *logger {
-	return &logger{
-		log:   log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags),
-		level: slog.LevelInfo,
-		depth: 2 + depth,
-	}
-}
-
-func (l *logger) SetLevel(z slog.Level) { l.level = z }
-func (l *logger) Level() slog.Level     { return slog.LevelDebug }
-
-func (l *logger) Debugf(format string, v ...any) {
-	if l.level <= slog.LevelDebug {
-		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *logger) Debugln(v ...any) {
-	if l.level <= slog.LevelDebug {
-		l.log.Output(int(l.depth), fmt.Sprintln(v...))
-	}
-}
-
-func (l *logger) Infof(format string, v ...any) {
-	if l.level <= slog.LevelInfo {
-		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *logger) Infoln(v ...any) {
-	if l.level <= slog.LevelInfo {
-		l.log.Output(int(l.depth), fmt.Sprintln(v...))
-	}
-}
-
-func (l *logger) Warningf(format string, v ...any) {
-	if l.level <= slog.LevelWarn {
-		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *logger) Warningln(v ...any) {
-	if l.level <= slog.LevelWarn {
-		l.log.Output(int(l.depth), fmt.Sprintln(v...))
-	}
-}
-
-func (l *logger) Errorf(format string, v ...any) {
-	if l.level <= slog.LevelError {
-		l.log.Output(int(l.depth), fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *logger) Errorln(v ...any) {
-	if l.level <= slog.LevelError {
-		l.log.Output(int(l.depth), fmt.Sprintln(v...))
-	}
-}
-
-func (l *logger) Output(depth int, lev slog.Level, format string, v ...any) {
-	if l.level <= lev {
-		l.log.Output(depth+1, fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *logger) SetOutput(w io.Writer) { l.log.SetOutput(w) }
-*/

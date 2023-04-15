@@ -25,7 +25,7 @@ func (d *System) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 	return net.DefaultResolver.LookupIP(ctx, network, domain)
 }
 
-func (d *System) Record(ctx context.Context, domain string, t dnsmessage.Type) (dns.IPRecord, error) {
+func (d *System) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
 	var req string
 	if t == dnsmessage.TypeAAAA {
 		req = "ip6"
@@ -35,10 +35,10 @@ func (d *System) Record(ctx context.Context, domain string, t dnsmessage.Type) (
 
 	ips, err := net.DefaultResolver.LookupIP(ctx, req, domain)
 	if err != nil {
-		return dns.IPRecord{}, err
+		return nil, 0, err
 	}
 
-	return dns.IPRecord{IPs: ips, TTL: 600}, nil
+	return ips, 60, nil
 }
 
 func (d *System) Close() error { return nil }
