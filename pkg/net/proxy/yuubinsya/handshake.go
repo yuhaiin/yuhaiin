@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -25,20 +26,41 @@ type handshaker interface {
 	handshakeClient(net.Conn) (net.Conn, error)
 	streamHeader(buf *bytes.Buffer, addr proxy.Address)
 	packetHeader(*bytes.Buffer)
+	parseHeader(net.Conn) (Net, error)
 }
 
 // plainHandshaker bytes is password
-type plainHandshaker []byte
+type plainHandshaker [sha256.Size]byte
 
 func (password plainHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
-	buf.Write([]byte{byte(TCP), byte(len(password))})
-	buf.Write(password)
+	buf.WriteByte(byte(TCP))
+	buf.Write(password[:])
 	s5c.ParseAddrWriter(addr, buf)
 }
 
 func (password plainHandshaker) packetHeader(buf *bytes.Buffer) {
-	buf.Write([]byte{byte(UDP), byte(len(password))})
-	buf.Write(password)
+	buf.WriteByte(byte(UDP))
+	buf.Write(password[:])
+}
+
+func (password plainHandshaker) parseHeader(c net.Conn) (Net, error) {
+	z := pool.GetBytesV2(Sha256.Size() + 1)
+	defer pool.PutBytesV2(z)
+
+	if _, err := io.ReadFull(c, z.Bytes()); err != nil {
+		return 0, fmt.Errorf("read net type failed: %w", err)
+	}
+	net := Net(z.Bytes()[0])
+
+	if net.Unknown() {
+		return 0, fmt.Errorf("unknown network")
+	}
+
+	if !bytes.Equal(z.Bytes()[1:], password[:]) {
+		return 0, errors.New("password is incorrect")
+	}
+
+	return net, nil
 }
 
 func (plainHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) { return conn, nil }
@@ -52,10 +74,25 @@ type encryptedHandshaker struct {
 }
 
 func (t *encryptedHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
-	buf.Write([]byte{byte(TCP), 0})
+	buf.Write([]byte{byte(TCP)})
 	s5c.ParseAddrWriter(addr, buf)
 }
-func (t *encryptedHandshaker) packetHeader(buf *bytes.Buffer) { buf.Write([]byte{byte(UDP), 0}) }
+func (t *encryptedHandshaker) packetHeader(buf *bytes.Buffer) { buf.Write([]byte{byte(UDP)}) }
+
+func (t *encryptedHandshaker) parseHeader(c net.Conn) (Net, error) {
+	z := make([]byte, 1)
+
+	if _, err := io.ReadFull(c, z); err != nil {
+		return 0, fmt.Errorf("read net type failed: %w", err)
+	}
+	net := Net(z[0])
+
+	if net.Unknown() {
+		return 0, fmt.Errorf("unknown network")
+	}
+
+	return net, nil
+}
 
 func (h *encryptedHandshaker) handshakeClient(conn net.Conn) (net.Conn, error) {
 	header := newHeader(h)
@@ -270,13 +307,18 @@ func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error
 }
 
 func NewHandshaker(encrypted bool, password []byte) handshaker {
+	h := sha256.New()
+	h.Write(password)
+	h.Write([]byte("+s@1t"))
+	hash := h.Sum(nil)
+
 	if !encrypted {
-		return plainHandshaker(password)
+		return plainHandshaker(hash)
 	}
 
 	// sha256-hkdf-ecdh-ed25519-chacha20poly1305
 	return &encryptedHandshaker{
-		NewEd25519(Sha256, password),
+		NewEd25519(Sha256, hash),
 		Sha256,
 		Chacha20poly1305,
 		password,

@@ -150,35 +150,10 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	z := make([]byte, 2)
-	if _, err := io.ReadFull(c, z); err != nil {
-		return fmt.Errorf("read net type failed: %w", err)
-	}
-	net, passwordLen := Net(z[0]), z[1]
-
-	if net.Unknown() {
+	net, err := y.handshaker.parseHeader(c)
+	if err != nil {
 		write403(conn)
-		return fmt.Errorf("unknown network")
-	}
-
-	if y.TlsConfig != nil && passwordLen <= 0 {
-		write403(conn)
-		return fmt.Errorf("password is empty")
-	}
-
-	if passwordLen > 0 {
-		password := pool.GetBytesV2(passwordLen)
-		defer pool.PutBytesV2(password)
-
-		if _, err := io.ReadFull(c, password.Bytes()); err != nil {
-			write403(conn)
-			return fmt.Errorf("read password failed: %w", err)
-		}
-
-		if !bytes.Equal(password.Bytes(), y.Password) {
-			write403(conn)
-			return errors.New("password is incorrect")
-		}
+		return fmt.Errorf("parse header failed: %w", err)
 	}
 
 	switch net {
