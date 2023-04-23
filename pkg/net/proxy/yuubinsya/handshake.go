@@ -53,7 +53,7 @@ func (password plainHandshaker) parseHeader(c net.Conn) (Net, error) {
 	net := Net(z.Bytes()[0])
 
 	if net.Unknown() {
-		return 0, fmt.Errorf("unknown network")
+		return 0, fmt.Errorf("unknown network: %d", net)
 	}
 
 	if !bytes.Equal(z.Bytes()[1:], password[:]) {
