@@ -94,6 +94,7 @@ message none {}
 message simple {
   string host = 1 [ json_name = "host" ];
   int32 port = 2 [ json_name = "port" ];
+  repeated host alternate_host = 5 [ json_name = "alternate_host" ];
   // udp will write to every packet target instead of only write to host:port
   bool packet_conn_direct = 3 [ json_name = "packet_conn_direct" ];
   tls_config tls = 4 [ json_name = "tls" ];
@@ -112,3 +113,8 @@ message tls_config {
 message direct {}
 
 message reject {}
+
+message host {
+  string host = 1 [ json_name = "host" ];
+  int32 port = 2 [ json_name = "port" ];
+}

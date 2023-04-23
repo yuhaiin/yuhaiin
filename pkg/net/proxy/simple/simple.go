@@ -3,9 +3,11 @@ package simple
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
@@ -18,8 +20,11 @@ type Simple struct {
 
 	packetDirect bool
 	tlsConfig    *tls.Config
-	addr         proxy.Address
+	addrs        []proxy.Address
 	serverNames  []string
+
+	index      int
+	updateTime time.Time
 }
 
 func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
@@ -33,8 +38,14 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 			servernames = c.Simple.Tls.ServerNames
 		}
 
+		var addrs []proxy.Address
+		addrs = append(addrs, proxy.ParseAddressPort(0, c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())))
+		for _, v := range c.Simple.GetAlternateHost() {
+			addrs = append(addrs, proxy.ParseAddressPort(0, v.GetHost(), proxy.ParsePort(v.GetPort())))
+		}
+
 		return &Simple{
-			addr:         proxy.ParseAddressPort(0, c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())),
+			addrs:        addrs,
 			packetDirect: c.Simple.PacketConnDirect,
 			tlsConfig:    tls,
 			serverNames:  servernames,
@@ -42,14 +53,54 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 	}
 }
 
-func (c *Simple) Conn(ctx context.Context, d proxy.Address) (net.Conn, error) {
-	ip, err := c.addr.IP(ctx)
+func (c *Simple) dial(addr proxy.Address) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
+	defer cancel()
+
+	ip, err := addr.IP(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get ip failed: %w", err)
+		return nil, err
 	}
 
-	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), c.addr.Port().String()))
+	con, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), addr.Port().String()))
 	if err != nil {
+		return nil, err
+	}
+
+	return con, nil
+}
+
+func (c *Simple) Conn(_ context.Context, d proxy.Address) (net.Conn, error) {
+	var conn net.Conn
+	var err error
+
+	if c.index != 0 && !c.updateTime.IsZero() {
+		if time.Since(c.updateTime) <= time.Minute*10 {
+			conn, _ = c.dial(c.addrs[c.index])
+		} else {
+			c.updateTime = time.Time{}
+		}
+	}
+
+	if conn == nil {
+		for i, addr := range c.addrs {
+			con, er := c.dial(addr)
+			if er != nil {
+				err = errors.Join(err, er)
+				continue
+			}
+
+			conn = con
+			c.index = i
+
+			if i != 0 {
+				c.updateTime = time.Now()
+			}
+			break
+		}
+	}
+
+	if conn == nil {
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}
 
@@ -77,7 +128,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr proxy.Address) (net.Packet
 		return nil, err
 	}
 
-	uaddr, err := c.addr.UDPAddr(ctx)
+	uaddr, err := c.addrs[0].UDPAddr(ctx)
 	if err != nil {
 		return nil, err
 	}
