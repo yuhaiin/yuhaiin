@@ -3,7 +3,7 @@ module github.com/Asutorufa/yuhaiin
 go 1.20
 
 require (
-	github.com/mdlayher/netlink v1.7.1
+	github.com/mdlayher/netlink v1.7.2
 	github.com/quic-go/quic-go v0.34.0
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.8.0
@@ -25,8 +25,8 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
-	github.com/josharian/native v1.0.0 // indirect
-	github.com/mdlayher/socket v0.4.0 // indirect
+	github.com/josharian/native v1.1.0 // indirect
+	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.2.0 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/quic-go/qtls-go1-19 v0.3.2 // indirect
