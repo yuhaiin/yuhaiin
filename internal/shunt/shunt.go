@@ -30,8 +30,8 @@ func (IP_MARK_KEY) String() string { return "IP" }
 type ForceModeKey struct{}
 
 type Shunt struct {
-	resolveProxy     bool
-	bypassModifyTime int64
+	resolveProxy bool
+	modifiedTime int64
 
 	config *bypass.Config
 	mapper *mapper.Combine[bypass.ModeEnum]
@@ -73,19 +73,19 @@ func (s *Shunt) Update(c *pc.Setting) {
 
 	s.resolveProxy = c.Dns.ResolveRemoteDomain
 
-	modifiedTime := s.bypassModifyTime
+	modifiedTime := s.modifiedTime
 	if stat, err := os.Stat(c.Bypass.BypassFile); err == nil {
 		modifiedTime = stat.ModTime().Unix()
 	}
 
-	diff := (s.config == nil && c != nil) || s.config.BypassFile != c.Bypass.BypassFile || s.bypassModifyTime != modifiedTime
+	diff := (s.config == nil && c != nil) || s.config.BypassFile != c.Bypass.BypassFile || s.modifiedTime != modifiedTime
 
 	s.config = c.Bypass
 
 	if diff {
 		s.mapper.Clear()
 		s.tags = nil
-		s.bypassModifyTime = modifiedTime
+		s.modifiedTime = modifiedTime
 		rangeRule(s.config.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
 			s.mapper.Insert(s1, s2)
 			if s2.GetTag() != "" {

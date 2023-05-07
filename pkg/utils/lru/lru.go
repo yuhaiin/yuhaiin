@@ -11,17 +11,17 @@ import (
 type lruEntry[K, V any] struct {
 	key    K
 	data   V
-	expire int64
+	expire time.Time
 }
 
 // LRU Least Recently Used
 type LRU[K comparable, V any] struct {
-	capacity       uint
-	list           *synclist.SyncList[*lruEntry[K, V]]
-	mapping        syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
-	reverseMapping syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
-	valueHashable  bool
-	timeout        time.Duration
+	capacity        uint
+	list            *synclist.SyncList[*lruEntry[K, V]]
+	mapping         syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
+	reverseMapping  syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
+	valueComparable bool
+	timeout         time.Duration
 
 	lastPopEntry *lruEntry[K, V]
 	onRemove     func(K, V)
@@ -58,7 +58,7 @@ func NewLru[K comparable, V any](options ...Option[K, V]) *LRU[K, V] {
 
 	var t V
 	if tp := reflect.TypeOf(t); tp != nil {
-		l.valueHashable = tp.Comparable()
+		l.valueComparable = tp.Comparable()
 	}
 
 	return l
@@ -66,14 +66,14 @@ func NewLru[K comparable, V any](options ...Option[K, V]) *LRU[K, V] {
 
 func (l *LRU[K, V]) store(v *lruEntry[K, V], le *synclist.Element[*lruEntry[K, V]]) {
 	l.mapping.Store(v.key, le)
-	if l.valueHashable {
+	if l.valueComparable {
 		l.reverseMapping.Store(v.data, le)
 	}
 }
 
 func (l *LRU[K, V]) delete(v *lruEntry[K, V]) {
 	l.mapping.Delete(v.key)
-	if l.valueHashable {
+	if l.valueComparable {
 		l.reverseMapping.Delete(v.data)
 	}
 	if l.onRemove != nil {
@@ -82,12 +82,12 @@ func (l *LRU[K, V]) delete(v *lruEntry[K, V]) {
 }
 
 type addOptions struct {
-	expireTime int64
+	expireTime time.Time
 }
 
 type AddOption func(*addOptions)
 
-func WithExpireTimeUnix(t int64) AddOption {
+func WithExpireTimeUnix(t time.Time) AddOption {
 	return func(o *addOptions) {
 		o.expireTime = t
 	}
@@ -99,8 +99,8 @@ func (l *LRU[K, V]) Add(key K, value V, opts ...AddOption) {
 		z(o)
 	}
 
-	if l.timeout != 0 && o.expireTime <= 0 {
-		o.expireTime = time.Now().Unix() + int64(l.timeout.Seconds())
+	if l.timeout != 0 && o.expireTime.IsZero() {
+		o.expireTime = time.Now().Add(l.timeout)
 	}
 
 	entry := &lruEntry[K, V]{key, value, o.expireTime}
@@ -137,7 +137,7 @@ func (l *LRU[K, V]) Delete(key K) {
 }
 
 func (l *LRU[K, V]) load(e *synclist.Element[*lruEntry[K, V]]) *lruEntry[K, V] {
-	if l.timeout != 0 && e.Value.expire-time.Now().Unix() < 0 {
+	if l.timeout != 0 && time.Now().After(e.Value.expire) {
 		l.delete(e.Value)
 		l.list.Remove(e)
 		return nil
@@ -148,20 +148,25 @@ func (l *LRU[K, V]) load(e *synclist.Element[*lruEntry[K, V]]) *lruEntry[K, V] {
 }
 
 func (l *LRU[K, V]) Load(key K) (v V, ok bool) {
+	v, _, ok = l.LoadExpireTime(key)
+	return
+}
+
+func (l *LRU[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time, ok bool) {
 	node, ok := l.mapping.Load(key)
 	if !ok {
-		return v, false
+		return v, expireTime, false
 	}
 
 	if z := l.load(node); z != nil {
-		return z.data, true
+		return z.data, z.expire, true
 	}
 
-	return v, false
+	return v, expireTime, false
 }
 
 func (l *LRU[K, V]) ReverseLoad(v V) (k K, ok bool) {
-	if !l.valueHashable {
+	if !l.valueComparable {
 		return k, false
 	}
 
@@ -178,7 +183,7 @@ func (l *LRU[K, V]) ReverseLoad(v V) (k K, ok bool) {
 }
 
 func (l *LRU[K, V]) ValueExist(key V) bool {
-	if !l.valueHashable {
+	if !l.valueComparable {
 		return false
 	}
 	_, ok := l.reverseMapping.Load(key)

@@ -54,7 +54,7 @@ func Register(tYPE pd.Type, f func(Config) (dns.DNS, error)) {
 var _ dns.DNS = (*client)(nil)
 
 type client struct {
-	cache  *lru.LRU[string, ipRecord]
+	cache  *lru.LRU[string, []net.IP]
 	send   func(context.Context, []byte) ([]byte, error)
 	config Config
 	subnet []dnsmessage.Resource
@@ -67,16 +67,11 @@ type recordCond struct {
 	ttl uint32
 }
 
-type ipRecord struct {
-	ips         []net.IP
-	expireAfter int64
-}
-
 func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)) *client {
 	c := &client{
 		send:   send,
 		config: config,
-		cache:  lru.NewLru(lru.WithCapacity[string, ipRecord](100)),
+		cache:  lru.NewLru(lru.WithCapacity[string, []net.IP](100)),
 	}
 
 	if !config.Subnet.IsValid() {
@@ -167,8 +162,8 @@ var ErrCondEmptyResponse = errors.New("can't get response from cond")
 func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
 	key := domain + reqType.String()
 
-	if x, ok := c.cache.Load(key); ok {
-		return x.ips, uint32(x.expireAfter - time.Now().Unix()), nil
+	if ips, expire, ok := c.cache.LoadExpireTime(key); ok {
+		return ips, uint32(expire.Sub(time.Now()).Seconds()), nil
 	}
 
 	cond, ok := c.cond.LoadOrStore(key, &recordCond{Cond: sync.NewCond(&sync.Mutex{})})
@@ -205,13 +200,16 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 		"ttl", ttl,
 	)
 
-	expireAfter := time.Now().Unix() + int64(ttl)
-	c.cache.Add(key, ipRecord{ips, expireAfter}, lru.WithExpireTimeUnix(expireAfter))
+	c.cache.Add(key, ips, lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
 
 	return ips, ttl, nil
 }
 
 func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
+	name, err := dnsmessage.NewName(domain + ".")
+	if err != nil {
+		return nil, 0, fmt.Errorf("parse domain failed: %w", err)
+	}
 	req := dnsmessage.Message{
 		Header: dnsmessage.Header{
 			ID:                 uint16(rand.Intn(65535)),
@@ -225,7 +223,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 		},
 		Questions: []dnsmessage.Question{
 			{
-				Name:  dnsmessage.MustNewName(domain + "."),
+				Name:  name,
 				Type:  reqType,
 				Class: dnsmessage.ClassINET,
 			},

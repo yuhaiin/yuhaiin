@@ -58,30 +58,31 @@ func NewDoH(config Config) (dns.DNS, error) {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	return NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
-		resp, err := roundTripper.RoundTrip(req.Clone(ctx, b))
-		if err != nil {
-			return nil, fmt.Errorf("doh post failed: %w", err)
-		}
-		defer resp.Body.Close()
+	return NewClient(config,
+		func(ctx context.Context, b []byte) ([]byte, error) {
+			resp, err := roundTripper.RoundTrip(req.Clone(ctx, b))
+			if err != nil {
+				return nil, fmt.Errorf("doh post failed: %w", err)
+			}
+			defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
-			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
-		}
+			if resp.StatusCode != http.StatusOK {
+				relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
+				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
+			}
 
-		return io.ReadAll(resp.Body)
+			return io.ReadAll(resp.Body)
 
-		/*
-			* Get
-			urls := fmt.Sprintf(
-				"%s?dns=%s",
-				url,
-				strings.TrimSuffix(base64.URLEncoding.EncodeToString(dReq), "="),
-			)
-			resp, err := httpClient.Get(urls)
-		*/
-	}), nil
+			/*
+				* Get
+				urls := fmt.Sprintf(
+					"%s?dns=%s",
+					url,
+					strings.TrimSuffix(base64.URLEncoding.EncodeToString(dReq), "="),
+				)
+				resp, err := httpClient.Get(urls)
+			*/
+		}), nil
 }
 
 // https://tools.ietf.org/html/rfc8484
