@@ -7,7 +7,7 @@ require (
 	github.com/quic-go/quic-go v0.34.0
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.8.0
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
+	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
 	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
 	golang.org/x/net v0.9.0
 	golang.org/x/sys v0.8.0
@@ -15,7 +15,7 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
 	google.golang.org/grpc v1.55.0
 	google.golang.org/protobuf v1.30.0
-	gvisor.dev/gvisor v0.0.0-20230324231650-b265e3e2c165
+	gvisor.dev/gvisor v0.0.0-20230506005148-9538f1385f75
 )
 
 require (

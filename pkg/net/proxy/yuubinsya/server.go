@@ -30,9 +30,7 @@ import (
 
 type yuubinsya struct {
 	Config
-
-	Lis net.Listener
-
+	Listener   net.Listener
 	handshaker handshaker
 }
 
@@ -73,49 +71,65 @@ func NewServer(config Config) *yuubinsya {
 	}
 }
 
-func (y *yuubinsya) Start() error {
-	var lis net.Listener
-	var err error
+type listener struct {
+	net.Listener
+	closer []io.Closer
+}
 
-	if y.Type != QUIC {
-		lis, err = dialer.ListenContext(context.TODO(), "tcp", y.Host)
-		if err != nil {
-			return err
-		}
-
-		if y.TlsConfig != nil {
-			lis = tls.NewListener(lis, y.TlsConfig)
-		}
-
-		switch y.Type {
-		case WEBSOCKET:
-			lis = websocket.NewServer(lis)
-		case GRPC:
-			lis = grpc.NewGrpc(lis)
-		}
-
-		defer lis.Close()
-	} else {
-		packetConn, err := dialer.ListenPacket("udp", y.Host)
-		if err != nil {
-			return err
-		}
-		defer packetConn.Close()
-		lis, err = quic.NewServer(packetConn, y.TlsConfig)
-		if err != nil {
-			return err
-		}
-		defer lis.Close()
+func (l *listener) Close() error {
+	for _, v := range l.closer {
+		v.Close()
 	}
 
-	y.Lis = lis
+	return l.Listener.Close()
+}
 
-	log.Info("new yuubinsya server", "type", y.Type, "host", lis.Addr())
+func (y *yuubinsya) Server() (net.Listener, error) {
+	if y.Type == QUIC {
+		packetConn, err := dialer.ListenPacket("udp", y.Host)
+		if err != nil {
+			return nil, err
+		}
+		quicListener, err := quic.NewServer(packetConn, y.TlsConfig)
+		if err != nil {
+			packetConn.Close()
+			return nil, err
+		}
+
+		return &listener{quicListener, []io.Closer{packetConn}}, nil
+	}
+
+	tcpListener, err := dialer.ListenContext(context.TODO(), "tcp", y.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	if y.TlsConfig != nil {
+		tcpListener = tls.NewListener(tcpListener, y.TlsConfig)
+	}
+
+	switch y.Type {
+	case WEBSOCKET:
+		tcpListener = websocket.NewServer(tcpListener)
+	case GRPC:
+		tcpListener = grpc.NewGrpc(tcpListener)
+	}
+	return tcpListener, nil
+}
+
+func (y *yuubinsya) Start() (err error) {
+	if y.Listener, err = y.Server(); err != nil {
+		return
+	}
+	defer y.Listener.Close()
+
+	log.Info("new yuubinsya server", "type", y.Type, "host", y.Listener.Addr())
 
 	for {
-		conn, err := lis.Accept()
+		conn, err := y.Listener.Accept()
 		if err != nil {
 			log.Error("accept failed", "err", err)
+
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				continue
 			}
@@ -167,10 +181,10 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 }
 
 func (y *yuubinsya) Close() error {
-	if y.Lis == nil {
+	if y.Listener == nil {
 		return nil
 	}
-	return y.Lis.Close()
+	return y.Listener.Close()
 }
 
 func (y *yuubinsya) stream(c net.Conn) error {
@@ -202,13 +216,13 @@ func (y *yuubinsya) stream(c net.Conn) error {
 func (y *yuubinsya) packet(c net.Conn) error {
 	log.Debug("new udp connect", "from", c.RemoteAddr())
 	for {
-		if err := y.remoteToLocal(c); err != nil {
+		if err := y.forwardPacket(c); err != nil {
 			return fmt.Errorf("handle packet request failed: %w", err)
 		}
 	}
 }
 
-func (y *yuubinsya) remoteToLocal(c net.Conn) error {
+func (y *yuubinsya) forwardPacket(c net.Conn) error {
 	buf := pool.GetBytesV2(5 + 255 + 2 + nat.MaxSegmentSize)
 	defer pool.PutBytesV2(buf)
 

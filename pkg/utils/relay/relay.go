@@ -46,7 +46,7 @@ func Copy(dst io.Writer, src io.Reader) (err error) {
 	buf := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(buf)
 	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
-	_, err = io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf) // local -> remote
+	_, err = io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf)
 	return
 }
 

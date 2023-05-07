@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"time"
 
@@ -36,11 +37,9 @@ func NewDnsServer(server string, process dns.DNS) server.DNSServer {
 		return d
 	}
 
-	go func() {
-		if err := d.start(); err != nil {
-			log.Error("start udp dns server failed", slog.Any("err", err))
-		}
-	}()
+	if err := d.startUDP(); err != nil {
+		log.Error("start udp dns server failed", slog.Any("err", err))
+	}
 
 	go func() {
 		if err := d.startTCP(); err != nil {
@@ -62,60 +61,63 @@ func (d *dnsServer) Close() error {
 	return nil
 }
 
-func (d *dnsServer) start() (err error) {
+func (d *dnsServer) startUDP() (err error) {
 	d.listener, err = dialer.ListenPacket("udp", d.server)
 	if err != nil {
 		return fmt.Errorf("dns udp server listen failed: %w", err)
 	}
-	defer d.listener.Close()
+
 	log.Info("new udp dns server", "host", d.server)
 
-	for {
-		buf := pool.GetBytes(nat.MaxSegmentSize)
-
-		n, addr, err := d.listener.ReadFrom(buf)
-		if err != nil {
-			if e, ok := err.(net.Error); ok {
-				if e.Temporary() {
-					continue
-				}
-			}
-			return fmt.Errorf("dns udp server handle failed: %w", err)
-		}
-
+	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
 		go func() {
+			defer d.Close()
+			buf := pool.GetBytes(nat.MaxSegmentSize)
 			defer pool.PutBytes(buf)
+			for {
+				n, addr, err := d.listener.ReadFrom(buf)
+				if err != nil {
+					if e, ok := err.(net.Error); ok && e.Temporary() {
+						continue
+					}
+					log.Error("dns udp server handle failed", "err", err)
+					return
+				}
 
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+				defer cancel()
 
-			data, err := d.handle(ctx, buf[:n])
-			if err != nil {
-				log.Error("dns server handle data failed", slog.Any("err", err))
-				return
-			}
+				data, err := d.handle(ctx, buf[:n])
+				if err != nil {
+					log.Error("dns server handle data failed", slog.Any("err", err))
+					return
+				}
 
-			if _, err = d.listener.WriteTo(data, addr); err != nil {
-				log.Error("write dns response to client failed", slog.Any("err", err))
+				if _, err = d.listener.WriteTo(data, addr); err != nil {
+					log.Error("write dns response to client failed", slog.Any("err", err))
+				}
 			}
 		}()
 	}
+
+	return nil
 }
 
 func (d *dnsServer) startTCP() (err error) {
+	defer d.Close()
+
 	d.tcpListener, err = net.Listen("tcp", d.server)
 	if err != nil {
 		return fmt.Errorf("dns tcp server listen failed: %w", err)
 	}
-	defer d.tcpListener.Close()
-	log.Error("new tcp dns server", "host", d.server)
+
+	log.Info("new tcp dns server", "host", d.server)
+
 	for {
 		conn, err := d.tcpListener.Accept()
 		if err != nil {
-			if e, ok := err.(net.Error); ok {
-				if e.Temporary() {
-					continue
-				}
+			if e, ok := err.(net.Error); ok && e.Temporary() {
+				continue
 			}
 			return fmt.Errorf("dns server accept failed: %w", err)
 		}
@@ -160,14 +162,15 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 }
 
 func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
-	p := pool.GetBytes(nat.MaxSegmentSize)
-	defer pool.PutBytes(p)
-	n, addr, err := l.ReadFrom(p)
+	buf := pool.GetBytes(nat.MaxSegmentSize)
+	defer pool.PutBytes(buf)
+
+	n, addr, err := l.ReadFrom(buf)
 	if err != nil {
 		return err
 	}
 
-	data, err := d.handle(ctx, p[:n])
+	data, err := d.handle(ctx, buf[:n])
 	if err != nil {
 		return fmt.Errorf("dns server handle failed: %w", err)
 	}
@@ -177,30 +180,47 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 
 func (d *dnsServer) Do(ctx context.Context, b []byte) ([]byte, error) { return d.handle(ctx, b) }
 
-func (d *dnsServer) handle(ctx context.Context, b []byte) ([]byte, error) {
+func (d *dnsServer) handle(ctx context.Context, raw []byte) ([]byte, error) {
 	var parse dnsmessage.Parser
-
-	h, err := parse.Start(b)
+	header, err := parse.Start(raw)
 	if err != nil {
 		return nil, fmt.Errorf("dns server parse failed: %w", err)
 	}
 
-	q, err := parse.Question()
+	question, err := parse.Question()
 	if err != nil {
 		return nil, fmt.Errorf("dns server parse failed: %w", err)
 	}
 
-	add := strings.TrimSuffix(q.Name.String(), ".")
+	reqMsg := &reqMsg{header, question, raw}
 
-	if q.Type != dnsmessage.TypeA && q.Type != dnsmessage.TypeAAAA &&
-		q.Type != dnsmessage.TypePTR {
-		log.Debug("not a, aaaa or ptr", "type", q.Type)
-		return d.resolver.Do(ctx, add, b)
+	// PTR
+	if question.Type == dnsmessage.TypePTR {
+		return d.handlePtr(ctx, reqMsg)
 	}
 
-	resp := dnsmessage.Message{
+	// A or AAAA
+	if question.Type == dnsmessage.TypeA || question.Type == dnsmessage.TypeAAAA {
+		return d.handleAOrAAAA(ctx, reqMsg)
+	}
+
+	// other question Type
+	log.Debug("other dns question Type", "type", question.Type)
+	return d.resolver.Do(ctx, reqMsg.Addr(), raw)
+}
+
+type reqMsg struct {
+	header   dnsmessage.Header
+	question dnsmessage.Question
+	raw      []byte
+}
+
+func (r *reqMsg) Addr() string { return strings.TrimSuffix(r.question.Name.String(), ".") }
+
+func (r *reqMsg) newResponse(f ...func(*dnsmessage.Message)) *dnsmessage.Message {
+	msg := &dnsmessage.Message{
 		Header: dnsmessage.Header{
-			ID:                 h.ID,
+			ID:                 r.header.ID,
 			Response:           true,
 			Authoritative:      false,
 			RecursionDesired:   false,
@@ -209,80 +229,90 @@ func (d *dnsServer) handle(ctx context.Context, b []byte) ([]byte, error) {
 		},
 		Questions: []dnsmessage.Question{
 			{
-				Name:  q.Name,
-				Type:  q.Type,
+				Name:  r.question.Name,
+				Type:  r.question.Type,
 				Class: dnsmessage.ClassINET,
 			},
 		},
 	}
 
-	// PTR
-	if q.Type == dnsmessage.TypePTR {
-		return d.handlePtr(ctx, add, b, resp, d.resolver, q.Name)
+	for _, f := range f {
+		f(msg)
 	}
 
-	// A or AAAA
-	ips, ttl, err := d.resolver.Record(ctx, add, q.Type)
+	return msg
+}
+func (d *dnsServer) handleAOrAAAA(ctx context.Context, reqMsg *reqMsg) ([]byte, error) {
+	records, ttl, err := d.resolver.Record(ctx, reqMsg.Addr(), reqMsg.question.Type)
 	if err != nil {
-		if !errors.Is(err, ErrNoIPFound) && !errors.Is(err, ErrCondEmptyResponse) {
+		noIPFound := errors.Is(err, ErrNoIPFound)
+
+		if !noIPFound && !errors.Is(err, ErrCondEmptyResponse) {
 			if errors.Is(err, proxy.ErrBlocked) {
 				log.Debug(err.Error())
 			} else {
-				log.Error("lookup domain failed", slog.String("domain", q.Name.String()), slog.Any("err", err))
+				log.Error("lookup domain failed", slog.String("domain", reqMsg.question.Name.String()), slog.Any("err", err))
 			}
 		}
 
-		if !errors.Is(err, ErrNoIPFound) {
-			resp.RCode = dnsmessage.RCodeNameError
+		if noIPFound {
+			return reqMsg.newResponse().Pack()
 		}
+
+		return reqMsg.newResponse(func(m *dnsmessage.Message) { m.RCode = dnsmessage.RCodeNameError }).Pack()
+
 	}
 
-	for _, a := range ips {
-		var resource dnsmessage.ResourceBody
-		if q.Type == dnsmessage.TypeA {
-			rr := &dnsmessage.AResource{}
-			copy(rr.A[:], a.To4())
-			resource = rr
-		} else {
-			rr := &dnsmessage.AAAAResource{}
-			copy(rr.AAAA[:], a.To16())
-			resource = rr
-		}
-		resp.Answers = append(resp.Answers, dnsmessage.Resource{
-			Header: dnsmessage.ResourceHeader{
-				Name:  q.Name,
-				Type:  q.Type,
-				Class: dnsmessage.ClassINET,
-				TTL:   ttl,
-			},
-			Body: resource,
-		})
-	}
+	msg := reqMsg.newResponse(func(m *dnsmessage.Message) {
+		m.Answers = make([]dnsmessage.Resource, 0, len(records))
 
-	return resp.Pack()
-}
-
-func (d *dnsServer) handlePtr(ctx context.Context, address string, raw []byte, msg dnsmessage.Message,
-	processor dns.DNS, name dnsmessage.Name) ([]byte, error) {
-	if ff, ok := processor.(interface{ LookupPtr(string) (string, error) }); ok {
-		r, err := ff.LookupPtr(name.String())
-		if err == nil {
-			msg.Answers = []dnsmessage.Resource{
-				{
-					Header: dnsmessage.ResourceHeader{
-						Name:  name,
-						Class: dnsmessage.ClassINET,
-						TTL:   600,
-					},
-					Body: &dnsmessage.PTRResource{
-						PTR: dnsmessage.MustNewName(r + "."),
-					},
+		for _, ip := range records {
+			answer := dnsmessage.Resource{
+				Header: dnsmessage.ResourceHeader{
+					Name:  reqMsg.question.Name,
+					Type:  reqMsg.question.Type,
+					Class: dnsmessage.ClassINET,
+					TTL:   ttl,
 				},
 			}
+
+			if reqMsg.question.Type == dnsmessage.TypeA {
+				answer.Body = &dnsmessage.AResource{A: [4]byte(ip.To4())}
+			} else {
+				answer.Body = &dnsmessage.AAAAResource{AAAA: [16]byte(ip.To16())}
+			}
+
+			m.Answers = append(m.Answers, answer)
+		}
+	})
+
+	return msg.Pack()
+}
+
+func (d *dnsServer) handlePtr(ctx context.Context, req *reqMsg) ([]byte, error) {
+
+	ff, ok := d.resolver.(interface{ LookupPtr(string) (string, error) })
+	if ok {
+		r, err := ff.LookupPtr(req.question.Name.String())
+		if err == nil {
+			msg := req.newResponse(func(m *dnsmessage.Message) {
+				m.Answers = []dnsmessage.Resource{
+					{
+						Header: dnsmessage.ResourceHeader{
+							Name:  req.question.Name,
+							Class: dnsmessage.ClassINET,
+							TTL:   600,
+						},
+						Body: &dnsmessage.PTRResource{
+							PTR: dnsmessage.MustNewName(r + "."),
+						},
+					},
+				}
+			})
 
 			return msg.Pack()
 		}
 	}
 
-	return processor.Do(ctx, address, raw)
+	return d.resolver.Do(ctx, req.Addr(), req.raw)
 }
