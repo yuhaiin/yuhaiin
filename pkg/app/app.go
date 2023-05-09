@@ -11,11 +11,11 @@ import (
 	"time"
 
 	web "github.com/Asutorufa/yuhaiin/internal/http"
-	"github.com/Asutorufa/yuhaiin/internal/resolver"
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app/config"
 	"github.com/Asutorufa/yuhaiin/pkg/app/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/app/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/app/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -46,9 +46,11 @@ type StartOpt struct {
 	GRPCServer    *grpc.Server
 }
 
-func (s *StartOpt) addObserver(observer any) {
-	if z, ok := observer.(config.Observer); ok {
-		s.Setting.AddObserver(z)
+func (s *StartOpt) addObserver(observers ...any) {
+	for _, observer := range observers {
+		if z, ok := observer.(config.Observer); ok {
+			s.Setting.AddObserver(z)
+		}
 	}
 }
 
@@ -76,7 +78,7 @@ func initBboltDB(path string) (*bbolt.DB, error) {
 	switch err {
 	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
 		if err = os.Remove(path); err != nil {
-			return nil, fmt.Errorf("remove invalod cache faile failed: %w", err)
+			return nil, fmt.Errorf("remove invalid cache file failed: %w", err)
 		}
 		log.Info("remove invalid cache file and create new one")
 		return bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second})
@@ -99,9 +101,9 @@ func Start(opt StartOpt) (StartResponse, error) {
 	fmt.Println(version.Art)
 	log.Info("config", "path", opt.ConfigPath, "grpc&http host", opt.Host)
 
-	opt.Setting.AddObserver(config.ObserverFunc(sysproxy.Update))
-	opt.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(opt.ConfigPath)) }))
-	opt.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
+	opt.addObserver(config.ObserverFunc(sysproxy.Update))
+	opt.addObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(opt.ConfigPath)) }))
+	opt.addObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
 	filestore := node.NewFileStore(PathGenerator.Node(opt.ConfigPath))
 	// proxy access point/endpoint
@@ -113,20 +115,21 @@ func Start(opt StartOpt) (StartResponse, error) {
 	appDialer := &struct{ proxy.Proxy }{}
 
 	// local,remote,bootstrap dns
-	resolvers := resolver.NewResolvers(appDialer)
-	opt.addObserver(resolvers)
+	bootstrap := resolver.NewBootstrap(appDialer)
+	stOpt := shunt.Opts{
+		DirectDialer:   direct.Default,
+		DirectResolver: resolver.NewLocal(appDialer),
+		ProxyDialer:    nodeService,
+		ProxyResolver:  resolver.NewRemote(appDialer),
+		BlockDialer:    reject.Default,
+		BLockResolver:  dns.ErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
+		DefaultMode:    bypass.Mode_proxy,
+	}
+
+	opt.addObserver(bootstrap, stOpt.DirectResolver, stOpt.ProxyResolver)
 
 	// bypass dialer and dns request
-	st := shunt.NewShunt(
-		shunt.Opts{
-			DirectDialer:   direct.Default,
-			DirectResolver: resolvers.Local,
-			ProxyDialer:    nodeService,
-			ProxyResolver:  resolvers.Remote,
-			BlockDialer:    reject.Default,
-			BLockResolver:  dns.ErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
-			DefaultMode:    bypass.Mode_proxy,
-		})
+	st := shunt.NewShunt(stOpt)
 	opt.addObserver(st)
 
 	// connections' statistic & flow data
@@ -183,7 +186,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,
-		closers:      []io.Closer{stcs, listener, resolvers, dnsServer, db, natTable},
+		closers:      []io.Closer{stcs, listener, bootstrap, st.DirectResolver, st.ProxyResolver, dnsServer, db, natTable},
 	}, nil
 }
 
