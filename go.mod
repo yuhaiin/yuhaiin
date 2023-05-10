@@ -6,7 +6,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/quic-go/quic-go v0.34.0
 	go.etcd.io/bbolt v1.3.7
-	golang.org/x/crypto v0.8.0
+	golang.org/x/crypto v0.9.0
 	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
 	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
 	golang.org/x/net v0.10.0
