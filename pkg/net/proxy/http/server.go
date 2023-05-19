@@ -1,25 +1,190 @@
-package httpserver
+package httpproxy
 
 import (
-	"bufio"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	iserver "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
+
+type server struct {
+	dialer             proxy.Proxy
+	username, password string
+	inbound            net.Addr
+	reverseProxy       *httputil.ReverseProxy
+}
+
+type remoteKey struct{}
+
+func NewServer(o *listener.Opts[*listener.Protocol_Http]) (is.Server, error) {
+	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Http.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	h := &server{
+		dialer:   o.Dialer,
+		username: o.Protocol.Http.Username,
+		password: o.Protocol.Http.Password,
+		inbound:  lis.Addr(),
+	}
+
+	tr := &http.Transport{
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			remoteAddr, _ := ctx.Value(remoteKey{}).(string)
+			return h.dial(remoteAddr, addr)
+		},
+	}
+
+	h.reverseProxy = &httputil.ReverseProxy{
+		Transport:  tr,
+		BufferPool: pool.ReverseProxyBuffer{},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			if !errors.Is(err, context.Canceled) {
+				log.Error("http: proxy error: ", err)
+			}
+			w.WriteHeader(http.StatusBadGateway)
+		},
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.Out = pr.Out.WithContext(context.WithValue(pr.Out.Context(), remoteKey{}, pr.In.RemoteAddr))
+			pr.Out.RequestURI = ""
+		},
+	}
+
+	go func() {
+		defer lis.Close()
+		if err := http.Serve(lis, h); err != nil {
+			log.Error("http serve failed:", err)
+		}
+	}()
+	return lis, nil
+}
+
+// parseBasicAuth parses an HTTP Basic Authentication string.
+// "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
+func parseBasicAuth(auth string) (username, password string, ok bool) {
+	const prefix = "Basic "
+	// Case insensitive prefix match. See Issue 22736.
+	if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
+		return
+	}
+	c, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
+	if err != nil {
+		return
+	}
+	cs := string(c)
+	s := strings.IndexByte(cs, ':')
+	if s < 0 {
+		return
+	}
+	return cs[:s], cs[s+1:], true
+}
+
+func (h *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	if h.password != "" || h.username != "" {
+		username, password, isHas := parseBasicAuth(r.Header.Get("Proxy-Authorization"))
+		if !isHas {
+			w.Header().Set("Proxy-Authenticate", "Basic")
+			w.WriteHeader(http.StatusProxyAuthRequired)
+			return
+		}
+
+		if username != h.username || password != h.password {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+	}
+
+	switch r.Method {
+	case http.MethodConnect:
+		h.connect(w, r)
+	default:
+		h.reverseProxy.ServeHTTP(w, r)
+	}
+}
+
+func (h *server) connect(w http.ResponseWriter, req *http.Request) error {
+	host := req.URL.Host
+	if req.URL.Port() == "" {
+		host = net.JoinHostPort(host, "80")
+	}
+
+	dst, err := h.dial(req.RemoteAddr, host)
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		return fmt.Errorf("get conn [%s] from proxy failed: %w", host, err)
+	}
+	defer dst.Close()
+
+	w.WriteHeader(http.StatusOK)
+
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		return errors.New("http.ResponseWriter does not implement http.Hijacker")
+	}
+
+	client, _, err := hj.Hijack()
+	if err != nil {
+		return fmt.Errorf("hijack failed: %w", err)
+	}
+	defer client.Close()
+
+	relay.Relay(dst, client)
+	return nil
+}
+
+func (h *server) dial(remoteAddr, addr string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	defer cancel()
+
+	address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
+	if err != nil {
+		return nil, fmt.Errorf("parse address failed: %w", err)
+	}
+
+	address.WithValue(proxy.InboundKey{}, h.inbound)
+	address.WithValue(proxy.SourceKey{}, remoteAddr)
+	address.WithValue(proxy.DestinationKey{}, address)
+
+	return h.dialer.Conn(ctx, address)
+}
+
+/*
+func verifyUserPass(user, key string, client net.Conn, req *http.Request) error {
+	if user == "" || key == "" {
+		return nil
+	}
+	username, password, isHas := parseBasicAuth(req.Header.Get("Proxy-Authorization"))
+	if !isHas {
+		_, _ = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
+		return errors.New("proxy Authentication Required")
+	}
+	if username != user || password != key {
+		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+		return errors.New("user or password verify failed")
+	}
+	return nil
+}
 
 type HTTP struct {
 	dialer             proxy.Proxy
@@ -72,9 +237,9 @@ func (h *HTTP) handshake(conn net.Conn) {
 }
 
 func (h *HTTP) handle(user, key string, src net.Conn, client *http.Client) error {
-	/*
-		use golang http
-	*/
+
+	// use golang http
+
 	defer src.Close()
 	reader := bufio.NewReader(src)
 
@@ -107,41 +272,6 @@ _start:
 	return nil
 }
 
-func verifyUserPass(user, key string, client net.Conn, req *http.Request) error {
-	if user == "" || key == "" {
-		return nil
-	}
-	username, password, isHas := parseBasicAuth(req.Header.Get("Proxy-Authorization"))
-	if !isHas {
-		_, _ = client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n"))
-		return errors.New("proxy Authentication Required")
-	}
-	if username != user || password != key {
-		_, _ = client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
-		return errors.New("user or password verify failed")
-	}
-	return nil
-}
-
-// parseBasicAuth parses an HTTP Basic Authentication string.
-// "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
-func parseBasicAuth(auth string) (username, password string, ok bool) {
-	const prefix = "Basic "
-	// Case insensitive prefix match. See Issue 22736.
-	if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
-		return
-	}
-	c, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
-	if err != nil {
-		return
-	}
-	cs := string(c)
-	s := strings.IndexByte(cs, ':')
-	if s < 0 {
-		return
-	}
-	return cs[:s], cs[s+1:], true
-}
 
 func (h *HTTP) connect(client net.Conn, req *http.Request) error {
 	host := req.URL.Host
@@ -280,3 +410,4 @@ func NewServer(o *listener.Opts[*listener.Protocol_Http]) (iserver.Server, error
 	}()
 	return lis, nil
 }
+*/

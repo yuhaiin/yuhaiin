@@ -1,4 +1,4 @@
-package client
+package httpproxy
 
 import (
 	"testing"
@@ -18,7 +18,7 @@ func TestClient(t *testing.T) {
 				Port: 8188,
 			},
 		})(nil))
-	conn, err := New(&protocol.Protocol_Http{Http: &protocol.Http{}})(p)
+	conn, err := NewClient(&protocol.Protocol_Http{Http: &protocol.Http{}})(p)
 	assert.NoError(t, err)
 
 	t.Log(latency.HTTP(conn, "https://www.google.com"))

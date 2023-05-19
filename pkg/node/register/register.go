@@ -4,7 +4,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
-	httpc "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/client"
+	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
@@ -33,7 +33,7 @@ func init() {
 	protocol.RegisterProtocol(ss.New)
 	protocol.RegisterProtocol(ssr.New)
 	protocol.RegisterProtocol(s5c.New)
-	protocol.RegisterProtocol(httpc.New)
+	protocol.RegisterProtocol(httpproxy.NewClient)
 	protocol.RegisterProtocol(func(*protocol.Protocol_Direct) protocol.WrapProxy {
 		return func(proxy.Proxy) (proxy.Proxy, error) { return direct.Default, nil }
 	})
