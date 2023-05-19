@@ -1,4 +1,4 @@
-package client
+package httpproxy
 
 import (
 	"bufio"
@@ -18,7 +18,7 @@ type client struct {
 	user, password string
 }
 
-func New(config *protocol.Protocol_Http) protocol.WrapProxy {
+func NewClient(config *protocol.Protocol_Http) protocol.WrapProxy {
 	return func(p proxy.Proxy) (proxy.Proxy, error) {
 		return &client{Proxy: p, user: config.Http.User, password: config.Http.Password}, nil
 	}
@@ -32,7 +32,7 @@ func (c *client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
 
 	req := &http.Request{
 		Method: http.MethodConnect,
-		URL:    &url.URL{Host: s.String()},
+		URL:    &url.URL{},
 		Header: make(http.Header),
 		Host:   s.String(),
 	}
@@ -47,17 +47,30 @@ func (c *client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("write request failed: %w", err)
 	}
 
-	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	bufioReader := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(bufioReader, req)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("read response failed: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		conn.Close()
 		return nil, fmt.Errorf("status code not ok: %d", resp.StatusCode)
 	}
 
-	return conn, nil
+	return &clientConn{conn, resp, bufioReader}, nil
+}
+
+type clientConn struct {
+	net.Conn
+	resp        *http.Response
+	bufioReader *bufio.Reader
+}
+
+func (c *clientConn) Read(b []byte) (int, error) { return c.bufioReader.Read(b) }
+
+func (c *clientConn) Close() error {
+	c.resp.Body.Close()
+	return c.Conn.Close()
 }

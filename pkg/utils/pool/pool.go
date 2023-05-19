@@ -3,6 +3,7 @@ package pool
 import (
 	"bytes"
 	"math/bits"
+	"net/http/httputil"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -25,6 +26,13 @@ func GetBytes[T constraints.Integer](size T) []byte { return DefaultPool.GetByte
 func PutBytes(b []byte)                             { DefaultPool.PutBytes(b) }
 func GetBuffer() *bytes.Buffer                      { return DefaultPool.GetBuffer() }
 func PutBuffer(b *bytes.Buffer)                     { DefaultPool.PutBuffer(b) }
+
+var _ httputil.BufferPool = (*ReverseProxyBuffer)(nil)
+
+type ReverseProxyBuffer struct{}
+
+func (ReverseProxyBuffer) Get() []byte  { return GetBytes(DefaultSize) }
+func (ReverseProxyBuffer) Put(b []byte) { PutBytes(b) }
 
 var poolMap syncmap.SyncMap[int, *sync.Pool]
 

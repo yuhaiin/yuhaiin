@@ -8,7 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	hs "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http/server"
+	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
@@ -19,7 +19,7 @@ import (
 )
 
 func init() {
-	pl.RegisterProtocol(hs.NewServer)
+	pl.RegisterProtocol(httpproxy.NewServer)
 	pl.RegisterProtocol(ss.NewServer)
 	pl.RegisterProtocol(tun.NewTun)
 	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (server.Server, error) {
