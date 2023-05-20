@@ -10,6 +10,13 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, amd64v3]
+        os: [[linux, ""], [darwin, ""], [windows, ".exe"]]
+        cmd: [yuhaiin, dnsrelay]
+
     steps:
     - uses: actions/checkout@v3
 
@@ -25,63 +32,14 @@ jobs:
 
     - name: Build
       run: |
-        make all
-        upx --lzma --best yuhaiin
-        upx --lzma --best yuhaiin_v3
-        upx --lzma --best yuhaiin.exe
-        upx --lzma --best yuhaiin_v3.exe
-        upx --lzma --best dnsrelay
-        upx --lzma --best dnsrelay.exe
+        make ${{ matrix.cmd }}_${{ matrix.os[0] }}
+        if [ ${{ matrix.os[0] }} != "darwin" ]; then
+          upx --lzma --best ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
+        fi
 
-    - name: Test
-      run: make vet
-
-    - name: upload_linux_amd64
+    - name: upload_${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}
       uses: actions/upload-artifact@v3
       with:
-        name: output_linux_amd64
+        name: ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}
         path: |
-          yuhaiin
-
-    - name: upload_linux_amd64v3
-      uses: actions/upload-artifact@v3
-      with:
-        name: output_linux_amd64v3
-        path: |
-          yuhaiin_v3
-
-    - name: upload_windows_amd64
-      uses: actions/upload-artifact@v3
-      with:
-        name: output_windows_amd64
-        path: |
-          yuhaiin.exe
-
-    - name: upload_windows_amd64v3
-      uses: actions/upload-artifact@v3
-      with:
-        name: output_windows_amd64v3
-        path: |
-          yuhaiin_v3.exe
-
-    - name: upload_darwin_amd64
-      uses: actions/upload-artifact@v3
-      with:
-        name: output_darwin_amd64
-        path: |
-          yuhaiin_darwin
-
-    - name: upload_darwin_amd64v3
-      uses: actions/upload-artifact@v3
-      with:
-        name: output_darwin_amd64v3
-        path: |
-          yuhaiin_darwin_v3
-
-    - name: upload_dnsrelay
-      uses: actions/upload-artifact@v3
-      with:
-        name: output_dnsrelay
-        path: |
-          dnsrelay
-          dnsrelay.exe
+          ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
