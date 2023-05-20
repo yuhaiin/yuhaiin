@@ -17,3 +17,4 @@ tcpforward
 /yuubinsya*
 cmd/quic_test/
 cmd/yuubinsya/config.json
+/dnsrelay_*
