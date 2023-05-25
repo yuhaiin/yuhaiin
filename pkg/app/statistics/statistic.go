@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -151,7 +152,16 @@ func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
 	if !ok {
 		return
 	}
-	dst, ok := addr.Value(proxy.DestinationKey{})
+
+	var dst any
+	if goos.IsAndroid == 1 {
+		dst, ok = addr.Value(proxy.InboundKey{})
+		if !ok {
+			dst, ok = addr.Value(proxy.DestinationKey{})
+		}
+	} else {
+		dst, ok = addr.Value(proxy.DestinationKey{})
+	}
 	if !ok {
 		return
 	}
