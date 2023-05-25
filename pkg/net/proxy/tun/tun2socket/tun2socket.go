@@ -3,9 +3,9 @@ package tun2socket
 import (
 	"io"
 	"net/netip"
-	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
 )
 
 type Tun2Socket struct {
@@ -28,7 +28,7 @@ func (t *Tun2Socket) Close() error {
 	_ = t.tcp.Close()
 	_ = t.udp.Close()
 
-	if runtime.GOOS != "android" {
+	if goos.IsAndroid == 0 {
 		return t.device.Close()
 	}
 
