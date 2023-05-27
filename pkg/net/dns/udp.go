@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -109,7 +109,7 @@ func (b *bufChan) Close() {
 	close(b.bufChan)
 }
 
-func NewDoU(config Config) (dns.DNS, error) {
+func NewDoU(config Config) (proxy.Resolver, error) {
 	addr, err := ParseAddr(statistic.Type_udp, config.Host, "53")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
@@ -138,7 +138,12 @@ func NewDoU(config Config) (dns.DNS, error) {
 			bchan.Close()
 		}()
 
-		_, err = packetConn.WriteTo(req, addr)
+		udpAddr, err := addr.UDPAddr(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = packetConn.WriteTo(req, udpAddr)
 		if err != nil {
 			return nil, err
 		}

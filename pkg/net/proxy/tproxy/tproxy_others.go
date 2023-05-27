@@ -6,10 +6,9 @@ package tproxy
 import (
 	"fmt"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 )
 
-func NewServer(h string, dialer proxy.Proxy) (is.Server, error) {
+func NewServer(string, proxy.Proxy) (proxy.Server, error) {
 	return nil, fmt.Errorf("tproxy only support linux")
 }

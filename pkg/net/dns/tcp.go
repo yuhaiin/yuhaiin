@@ -9,8 +9,7 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
@@ -19,7 +18,7 @@ func init() {
 	Register(pdns.Type_tcp, NewTCP)
 }
 
-func NewTCP(config Config) (dns.DNS, error) {
+func NewTCP(config Config) (proxy.Resolver, error) {
 	return newTCP(config, "53", nil)
 }
 

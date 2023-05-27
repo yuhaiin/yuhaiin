@@ -4,13 +4,13 @@ import (
 	"io"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 type connection interface {
 	io.Closer
 	LocalAddr() net.Addr
-	Addr() proxy.Address
+	Info() *statistic.Connection
 	ID() uint64
 }
 
@@ -19,13 +19,12 @@ var _ connection = (*conn)(nil)
 type conn struct {
 	net.Conn
 
-	id      uint64
-	addr    proxy.Address
+	info    *statistic.Connection
 	manager *Connections
 }
 
 func (s *conn) Close() error {
-	s.manager.Remove(s.id)
+	s.manager.Remove(s.ID())
 	return s.Conn.Close()
 }
 
@@ -41,24 +40,23 @@ func (s *conn) Read(b []byte) (n int, err error) {
 	return
 }
 
-func (s *conn) Addr() proxy.Address { return s.addr }
-func (s *conn) ID() uint64          { return s.id }
+func (s *conn) Info() *statistic.Connection { return s.info }
+func (s *conn) ID() uint64                  { return s.info.GetId() }
 
 var _ connection = (*packetConn)(nil)
 
 type packetConn struct {
 	net.PacketConn
 
-	id      uint64
-	addr    proxy.Address
+	info    *statistic.Connection
 	manager *Connections
 }
 
-func (s *packetConn) Addr() proxy.Address { return s.addr }
-func (s *packetConn) ID() uint64          { return s.id }
+func (s *packetConn) Info() *statistic.Connection { return s.info }
+func (s *packetConn) ID() uint64                  { return s.info.GetId() }
 
 func (s *packetConn) Close() error {
-	s.manager.Remove(s.id)
+	s.manager.Remove(s.ID())
 	return s.PacketConn.Close()
 }
 

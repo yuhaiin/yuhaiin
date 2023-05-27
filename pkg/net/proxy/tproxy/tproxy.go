@@ -6,13 +6,12 @@ package tproxy
 import (
 	"fmt"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 )
 
 // modified from https://github.com/LiamHaworth/go-tproxy
 
-func NewServer(h string, dialer proxy.Proxy) (is.Server, error) {
+func NewServer(h string, dialer proxy.Proxy) (proxy.Server, error) {
 	t, err := newTCPServer(h, dialer)
 	if err != nil {
 		return nil, fmt.Errorf("create tcp server failed: %w", err)
@@ -25,8 +24,8 @@ func NewServer(h string, dialer proxy.Proxy) (is.Server, error) {
 }
 
 type tproxy struct {
-	tcp is.Server
-	udp is.Server
+	tcp proxy.Server
+	udp proxy.Server
 }
 
 func (s *tproxy) Close() error {

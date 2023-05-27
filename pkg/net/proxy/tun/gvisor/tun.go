@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
@@ -34,7 +34,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func New(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
+func New(o *listener.Opts[*listener.Protocol_Tun]) (proxy.Server, error) {
 	opt := o.Protocol.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500
@@ -44,11 +44,11 @@ func New(o *listener.Opts[*listener.Protocol_Tun]) (server.Server, error) {
 		return nil, fmt.Errorf("gateway is empty")
 	}
 
-	if o.Dialer == nil {
-		return nil, fmt.Errorf("dialer is nil")
+	if o.Handler == nil {
+		return nil, fmt.Errorf("handler is nil")
 	}
 
-	if o.DNSServer == nil {
+	if o.DNSHandler == nil {
 		return nil, fmt.Errorf("dns is nil")
 	}
 

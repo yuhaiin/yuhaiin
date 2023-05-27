@@ -1,7 +1,7 @@
 package latency
 
 import (
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 )

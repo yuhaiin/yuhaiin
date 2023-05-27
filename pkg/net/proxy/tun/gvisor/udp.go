@@ -9,8 +9,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -36,9 +35,9 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 				return err
 			}
 
-			err = opt.NatTable.Write(
+			opt.Handler.Packet(
 				ctx,
-				&nat.Packet{
+				&proxy.Packet{
 					Src:     src,
 					Dst:     dst,
 					Payload: buf[:n],
@@ -59,9 +58,6 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 					},
 				},
 			)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -82,7 +78,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 			defer cancel()
 
 			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
-				if err := opt.DNSServer.HandleUDP(ctx, local); err != nil {
+				if err := opt.DNSHandler.HandleUDP(ctx, local); err != nil {
 					log.Error("dns handle udp failed", "err", err)
 				}
 				return

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -59,7 +59,7 @@ func (c *client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("status code not ok: %d", resp.StatusCode)
 	}
 
-	return &clientConn{conn, resp, bufioReader}, nil
+	return &clientConn{Conn: conn, resp: resp, bufioReader: bufioReader}, nil
 }
 
 type clientConn struct {

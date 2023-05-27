@@ -3,13 +3,13 @@ package tun
 import (
 	"fmt"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
-func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (s server.Server, err error) {
+func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (s proxy.Server, err error) {
 	if o.Protocol.Tun.Driver == listener.Tun_system_gvisor {
 		s, err = tun2socket.New(o)
 	} else {

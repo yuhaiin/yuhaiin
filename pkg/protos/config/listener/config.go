@@ -8,16 +8,14 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/exp/slog"
 )
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(*Opts[IsProtocol_Protocol]) (server.Server, error)]
+var execProtocol syncmap.SyncMap[reflect.Type, func(*Opts[IsProtocol_Protocol]) (proxy.Server, error)]
 
-func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (server.Server, error)) {
+func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (proxy.Server, error)) {
 	if wrap == nil {
 		return
 	}
@@ -25,7 +23,7 @@ func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (server.Server,
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(p *Opts[IsProtocol_Protocol]) (server.Server, error) {
+		func(p *Opts[IsProtocol_Protocol]) (proxy.Server, error) {
 			return wrap(CovertOpts(p, func(p IsProtocol_Protocol) T { return p.(T) }))
 		},
 	)
@@ -36,12 +34,12 @@ type ProcessDumper interface {
 }
 
 type Opts[T isProtocol_Protocol] struct {
-	Dialer    proxy.Proxy
-	DNSServer server.DNSServer
-	IPv6      bool
-	NatTable  *nat.Table
+	IPv6 bool
 
 	Protocol T
+
+	DNSHandler proxy.DNSHandler
+	Handler    proxy.Handler
 }
 
 type IsProtocol_Protocol interface {
@@ -50,15 +48,14 @@ type IsProtocol_Protocol interface {
 
 func CovertOpts[T1, T2 isProtocol_Protocol](o *Opts[T1], f func(t T1) T2) *Opts[T2] {
 	return &Opts[T2]{
-		Dialer:    o.Dialer,
-		DNSServer: o.DNSServer,
-		IPv6:      o.IPv6,
-		Protocol:  f(o.Protocol),
-		NatTable:  o.NatTable,
+		DNSHandler: o.DNSHandler,
+		IPv6:       o.IPv6,
+		Protocol:   f(o.Protocol),
+		Handler:    o.Handler,
 	}
 }
 
-func CreateServer(opts *Opts[IsProtocol_Protocol]) (server.Server, error) {
+func CreateServer(opts *Opts[IsProtocol_Protocol]) (proxy.Server, error) {
 	conn, ok := execProtocol.Load(reflect.TypeOf(opts.Protocol))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", opts.Protocol)

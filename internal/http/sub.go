@@ -1,7 +1,6 @@
 package simplehttp
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -25,7 +24,7 @@ func (s *subHandler) Post(w http.ResponseWriter, r *http.Request) error {
 		return errors.New("name or link is empty")
 	}
 
-	_, err := s.nm.Save(context.TODO(), &grpcnode.SaveLinkReq{
+	_, err := s.nm.Save(r.Context(), &grpcnode.SaveLinkReq{
 		Links: []*subscribe.Link{
 			{
 				Name: name,
@@ -42,7 +41,7 @@ func (s *subHandler) Post(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *subHandler) Get(w http.ResponseWriter, r *http.Request) error {
-	links, err := s.nm.Get(context.TODO(), &emptypb.Empty{})
+	links, err := s.nm.Get(r.Context(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
@@ -69,7 +68,7 @@ func (s *subHandler) Delete(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.nm.Remove(context.TODO(), &grpcnode.LinkReq{Names: names})
+	_, err := s.nm.Remove(r.Context(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}
@@ -90,7 +89,7 @@ func (s *subHandler) Patch(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.nm.Update(context.TODO(), &grpcnode.LinkReq{Names: names})
+	_, err := s.nm.Update(r.Context(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}

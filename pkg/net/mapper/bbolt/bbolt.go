@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	bolt "go.etcd.io/bbolt"
 )
 

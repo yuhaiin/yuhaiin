@@ -1,7 +1,6 @@
 package simplehttp
 
 import (
-	"context"
 	"net/http"
 	"unsafe"
 
@@ -16,7 +15,7 @@ type rootHandler struct {
 }
 
 func (z *rootHandler) Get(w http.ResponseWriter, r *http.Request) error {
-	point, err := z.nm.Now(context.TODO(), &grpcnode.NowReq{Net: grpcnode.NowReq_tcp})
+	point, err := z.nm.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_tcp})
 	if err != nil {
 		return err
 	}
@@ -25,7 +24,7 @@ func (z *rootHandler) Get(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	point, err = z.nm.Now(context.TODO(), &grpcnode.NowReq{Net: grpcnode.NowReq_udp})
+	point, err = z.nm.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_udp})
 	if err != nil {
 		return err
 	}

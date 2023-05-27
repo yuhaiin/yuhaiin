@@ -10,9 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	id "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/resolver"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -20,7 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func NewBootstrap(dl proxy.Proxy) id.DNS {
+func NewBootstrap(dl proxy.Proxy) proxy.Resolver {
 	bootstrap := wrap(func(b *dnsWrap, c *pc.Setting) {
 		if proto.Equal(b.config, c.Dns.Bootstrap) {
 			return
@@ -37,9 +35,9 @@ func NewBootstrap(dl proxy.Proxy) id.DNS {
 		z, err := newDNS("BOOTSTRAP", c.GetIpv6(), b.config,
 			&dialer{
 				Proxy: dl,
-				addr: func(addr proxy.Address) {
-					addr.WithValue(shunt.ForceModeKey{}, bypass.Mode_direct)
-					addr.WithResolver(&resolver.System{DisableIPv6: !c.GetIpv6()}, false)
+				addr: func(ctx context.Context, addr proxy.Address) {
+					proxy.StoreFromContext(ctx).Add(shunt.ForceModeKey{}, bypass.Mode_direct)
+					addr.WithResolver(&proxy.System{DisableIPv6: !c.GetIpv6()}, false)
 				}},
 		)
 		if err != nil {
@@ -48,12 +46,12 @@ func NewBootstrap(dl proxy.Proxy) id.DNS {
 			b.dns = z
 		}
 	})
-	resolver.Bootstrap = bootstrap
+	proxy.Bootstrap = bootstrap
 
 	return bootstrap
 }
 
-func NewLocal(dl proxy.Proxy) id.DNS {
+func NewLocal(dl proxy.Proxy) proxy.Resolver {
 	return wrap(func(l *dnsWrap, c *pc.Setting) {
 		if proto.Equal(l.config, c.Dns.Local) {
 			return
@@ -63,9 +61,9 @@ func NewLocal(dl proxy.Proxy) id.DNS {
 		l.Close()
 		z, err := newDNS("LOCALDNS", c.GetIpv6(), l.config, &dialer{
 			Proxy: dl,
-			addr: func(addr proxy.Address) {
+			addr: func(ctx context.Context, addr proxy.Address) {
 				// force to use bootstrap dns, otherwise will dns query cycle
-				addr.WithResolver(resolver.Bootstrap, false)
+				addr.WithResolver(proxy.Bootstrap, false)
 			},
 		})
 		if err != nil {
@@ -76,7 +74,7 @@ func NewLocal(dl proxy.Proxy) id.DNS {
 	})
 }
 
-func NewRemote(dl proxy.Proxy) id.DNS {
+func NewRemote(dl proxy.Proxy) proxy.Resolver {
 	return wrap(func(r *dnsWrap, c *pc.Setting) {
 		if proto.Equal(r.config, c.Dns.Remote) {
 			return
@@ -87,9 +85,9 @@ func NewRemote(dl proxy.Proxy) id.DNS {
 		z, err := newDNS("REMOTEDNS", c.GetIpv6(), r.config,
 			&dialer{
 				Proxy: dl,
-				addr: func(addr proxy.Address) {
+				addr: func(ctx context.Context, addr proxy.Address) {
 					// force to use bootstrap dns, otherwise will dns query cycle
-					addr.WithResolver(resolver.Bootstrap, false)
+					addr.WithResolver(proxy.Bootstrap, false)
 				},
 			})
 		if err != nil {
@@ -102,7 +100,7 @@ func NewRemote(dl proxy.Proxy) id.DNS {
 
 type dnsWrap struct {
 	config *pd.Dns
-	dns    id.DNS
+	dns    proxy.Resolver
 
 	update func(*dnsWrap, *pc.Setting)
 }
@@ -150,7 +148,7 @@ func (d *dnsWrap) Do(ctx context.Context, addr string, r []byte) ([]byte, error)
 	return d.dns.Do(ctx, addr, r)
 }
 
-func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer proxy.Proxy) (id.DNS, error) {
+func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer proxy.Proxy) (proxy.Resolver, error) {
 	subnet, err := netip.ParsePrefix(dc.Subnet)
 	if err != nil {
 		p, err := netip.ParseAddr(dc.Subnet)
@@ -172,15 +170,15 @@ func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer proxy.Proxy) (id.DNS, err
 
 type dialer struct {
 	proxy.Proxy
-	addr func(addr proxy.Address)
+	addr func(ctx context.Context, addr proxy.Address)
 }
 
 func (d *dialer) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
-	d.addr(addr)
+	d.addr(ctx, addr)
 	return d.Proxy.Conn(ctx, addr)
 }
 
 func (d *dialer) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
-	d.addr(addr)
+	d.addr(ctx, addr)
 	return d.Proxy.PacketConn(ctx, addr)
 }

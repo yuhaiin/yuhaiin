@@ -8,9 +8,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
@@ -90,8 +91,8 @@ func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
 		log.Debug("close conn",
 			"id", z.ID(),
-			"addr", z.Addr(),
-			"s0urce", proxy.Value[net.Addr](z.Addr(), proxy.SourceKey{}, proxy.EmptyAddr),
+			"addr", z.Info().Addr,
+			"s0urce", z.Info().Extra[(proxy.SourceKey{}).String()],
 			"outbound", getRemote(z))
 	}
 
@@ -103,38 +104,56 @@ func (c *Connections) storeConnection(o connection) {
 	c.notify.pubNewConns(o)
 	log.Debug("new conn",
 		"id", o.ID(),
-		"addr", o.Addr(),
-		"network", o.Addr().Network(),
-		"outbound", getRemote(o))
+		"addr", o.Info().Addr,
+		"network", o.Info().Type.ConnType,
+		"outbound", o.Info().Extra["Outbound"])
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
-	process := c.DumpProcess(addr)
+	process := c.DumpProcess(ctx, addr)
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial packet conn (%s) failed: %w", process, err)
 	}
 
-	z := &packetConn{con, c.idSeed.Generate(), addr, c}
+	z := &packetConn{con, c.getConnection(ctx, con, addr), c}
 
 	c.storeConnection(z)
 	return z, nil
 }
 
+func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr proxy.Address) *statistic.Connection {
+	store := proxy.StoreFromContext(ctx)
+
+	connection := &statistic.Connection{
+		Id:   c.idSeed.Generate(),
+		Addr: getAddr(store, addr),
+		Type: &statistic.NetType{
+			ConnType:       addr.NetworkType(),
+			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]),
+		},
+		Extra: extraMap(store),
+	}
+
+	if out := getRemote(conn); out != "" {
+		connection.Extra["Outbound"] = out
+	}
+	return connection
+}
+
 func (c *Connections) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
-	process := c.DumpProcess(addr)
+	process := c.DumpProcess(ctx, addr)
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial conn (%s) failed: %w", process, err)
 	}
 
-	z := &conn{con, c.idSeed.Generate(), addr, c}
-
+	z := &conn{con, c.getConnection(ctx, con, addr), c}
 	c.storeConnection(z)
 	return z, nil
 }
 
-func getRemote(con connection) string {
+func getRemote(con any) string {
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
 	if ok {
 		return r.RemoteAddr().String()
@@ -143,24 +162,26 @@ func getRemote(con connection) string {
 	return ""
 }
 
-func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
+func (c *Connections) DumpProcess(ctx context.Context, addr proxy.Address) (s string) {
 	if c.processDumper == nil {
 		return
 	}
 
-	source, ok := addr.Value(proxy.SourceKey{})
+	store := proxy.StoreFromContext(ctx)
+
+	source, ok := store.Get(proxy.SourceKey{})
 	if !ok {
 		return
 	}
 
 	var dst any
 	if goos.IsAndroid == 1 {
-		dst, ok = addr.Value(proxy.InboundKey{})
+		dst, ok = store.Get(proxy.InboundKey{})
 		if !ok {
-			dst, ok = addr.Value(proxy.DestinationKey{})
+			dst, ok = store.Get(proxy.DestinationKey{})
 		}
 	} else {
-		dst, ok = addr.Value(proxy.DestinationKey{})
+		dst, ok = store.Get(proxy.DestinationKey{})
 	}
 	if !ok {
 		return
@@ -204,7 +225,7 @@ func (c *Connections) DumpProcess(addr proxy.Address) (s string) {
 		return
 	}
 
-	addr.WithValue(processKey{}, process)
+	store.Add(processKey{}, process)
 	return process
 }
 
@@ -212,8 +233,8 @@ type processKey struct{}
 
 func (processKey) String() string { return "Process" }
 
-func getAddr(addr proxy.Address) string {
-	z, ok := addr.Value(shunt.DOMAIN_MARK_KEY{})
+func getAddr(store proxy.Store, addr proxy.Address) string {
+	z, ok := store.Get(shunt.DOMAIN_MARK_KEY{})
 	if ok {
 		s, ok := getString(z)
 		if ok {
@@ -224,9 +245,9 @@ func getAddr(addr proxy.Address) string {
 	return addr.String()
 }
 
-func extraMap(addr proxy.Address) map[string]string {
+func extraMap(addr proxy.Store) map[string]string {
 	r := make(map[string]string)
-	addr.RangeValue(func(k, v any) bool {
+	addr.Range(func(k, v any) bool {
 		kk, ok := getString(k)
 		if !ok {
 			return true

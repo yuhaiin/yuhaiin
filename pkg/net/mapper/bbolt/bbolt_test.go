@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/internal/statistics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	bolt "go.etcd.io/bbolt"

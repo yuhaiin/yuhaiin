@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 )
 
 // tcpserver tcp server common
@@ -18,7 +18,7 @@ type tcpserver struct {
 }
 
 // NewTCPServer create new TCP listener
-func NewTCPServer(host string, handle func(net.Conn)) (server.Server, error) {
+func NewTCPServer(host string, handle func(net.Conn)) (proxy.Server, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host is empty")
 	}

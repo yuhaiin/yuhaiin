@@ -7,11 +7,10 @@ import (
 	"fmt"
 	"net"
 	"runtime"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -21,16 +20,16 @@ import (
 
 type udpServer struct {
 	net.PacketConn
-	natTable *nat.Table
+	handler proxy.Handler
 }
 
-func (s *Socks5) newUDPServer(natTable *nat.Table) error {
+func (s *Socks5) newUDPServer(handler proxy.Handler) error {
 	l, err := dialer.ListenPacket("udp", s.addr)
 	if err != nil {
 		return fmt.Errorf("listen udp failed: %w", err)
 	}
 
-	u := &udpServer{PacketConn: l, natTable: natTable}
+	u := &udpServer{PacketConn: l, handler: handler}
 	s.udpServer = u
 
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
@@ -64,12 +63,9 @@ func (u *udpServer) handle(buf []byte, src net.Addr) error {
 		return fmt.Errorf("resolve addr failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
-	defer cancel()
-
-	return u.natTable.Write(
-		ctx,
-		&nat.Packet{
+	u.handler.Packet(
+		context.TODO(),
+		&proxy.Packet{
 			Src:     src,
 			Dst:     addr.Address(statistic.Type_udp),
 			Payload: buf[3+len(addr):],
@@ -84,5 +80,5 @@ func (u *udpServer) handle(buf []byte, src net.Addr) error {
 			},
 		},
 	)
-
+	return nil
 }

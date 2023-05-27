@@ -28,7 +28,7 @@ func (c *conn) Delete(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err = c.stt.CloseConn(context.TODO(), &gs.ConnectionsId{Ids: []uint64{i}})
+	_, err = c.stt.CloseConn(r.Context(), &gs.ConnectionsId{Ids: []uint64{i}})
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
 	return websocket.ServeHTTP(w, r, cc.handler)
 }
 
-func (cc *conn) handler(c *websocket.Conn) error {
+func (cc *conn) handler(ctx context.Context, c *websocket.Conn) error {
 	defer c.Close()
 
 	var tickerStr string
@@ -59,10 +59,10 @@ func (cc *conn) handler(c *websocket.Conn) error {
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go cc.stt.Notify(&emptypb.Empty{}, &connectionsNotifyServer{ctx, c})
+	go cc.stt.Notify(&emptypb.Empty{}, &connectionsNotifyServer{cctx, c})
 
 	ticker := time.NewTicker(time.Duration(t) * time.Millisecond)
 	defer ticker.Stop()
@@ -72,7 +72,7 @@ func (cc *conn) handler(c *websocket.Conn) error {
 		cancel()
 	}()
 
-	if err = cc.sendFlow(c); err != nil {
+	if err = cc.sendFlow(ctx, c); err != nil {
 		return err
 	}
 
@@ -82,15 +82,15 @@ func (cc *conn) handler(c *websocket.Conn) error {
 			return nil
 
 		case <-ticker.C:
-			if err = cc.sendFlow(c); err != nil {
+			if err = cc.sendFlow(ctx, c); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func (cc *conn) sendFlow(wsConn *websocket.Conn) error {
-	total, err := cc.stt.Total(context.TODO(), &emptypb.Empty{})
+func (cc *conn) sendFlow(ctx context.Context, wsConn *websocket.Conn) error {
+	total, err := cc.stt.Total(ctx, &emptypb.Empty{})
 	if err != nil {
 		return err
 	}

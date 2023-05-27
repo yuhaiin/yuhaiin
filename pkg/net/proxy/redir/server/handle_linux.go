@@ -4,29 +4,21 @@ import (
 	"context"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/nfutil"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func handle(req net.Conn, f proxy.Proxy) error {
-	defer req.Close()
+func handle(req net.Conn, f proxy.Handler) error {
 	_ = req.(*net.TCPConn).SetKeepAlive(true)
 	target, err := nfutil.GetOrigDst(req.(*net.TCPConn), false)
 	if err != nil {
 		return err
 	}
-
-	rsp, err := f.Conn(context.TODO(), proxy.ParseTCPAddress(target))
-	if err != nil {
-		return err
-	}
-
-	if rsp, ok := rsp.(*net.TCPConn); ok {
-		_ = rsp.SetKeepAlive(true)
-	}
-
-	defer rsp.Close()
-	relay.Relay(req, rsp)
+	f.Stream(context.TODO(), &proxy.StreamMeta{
+		Source:      proxy.EmptyAddr,
+		Destination: proxy.EmptyAddr,
+		Src:         req,
+		Address:     proxy.ParseTCPAddress(target),
+	})
 	return nil
 }

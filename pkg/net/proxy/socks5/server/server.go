@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -41,7 +39,6 @@ func (s *Socks5) newTCPServer() error {
 			}
 
 			go func() {
-				defer conn.Close()
 				if err := s.handle(conn); err != nil {
 					if errors.Is(err, proxy.ErrBlocked) {
 						log.Debug(err.Error())
@@ -66,7 +63,7 @@ func (s *Socks5) handle(client net.Conn) (err error) {
 		return fmt.Errorf("first hand failed: %w", err)
 	}
 
-	if err = handshake2(client, s.dialer, b); err != nil {
+	if err = handshake2(client, s.handler, b); err != nil {
 		return fmt.Errorf("second hand failed: %w", err)
 	}
 
@@ -130,7 +127,7 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return nil
 }
 
-func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
+func handshake2(client net.Conn, f proxy.Handler, buf []byte) error {
 	// socks5 second handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
@@ -152,14 +149,23 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 		}
 
 		addr := adr.Address(statistic.Type_tcp)
-		addr.WithValue(proxy.SourceKey{}, client.RemoteAddr())
-		addr.WithValue(proxy.InboundKey{}, client.LocalAddr())
-		addr.WithValue(proxy.DestinationKey{}, addr)
 
-		err = handleConnect(addr, client, f)
+		caddr, err := proxy.ParseSysAddr(client.LocalAddr())
+		if err != nil {
+			return fmt.Errorf("parse local addr failed: %w", err)
+		}
+		writeHandshake2(client, s5c.Succeeded, caddr) // response to connect successful
+
+		f.Stream(context.TODO(), &proxy.StreamMeta{
+			Source:      client.RemoteAddr(),
+			Destination: addr,
+			Inbound:     client.LocalAddr(),
+			Src:         client,
+			Address:     addr,
+		})
 
 	case s5c.Udp: // udp
-		err = handleUDP(client, f)
+		err = handleUDP(client)
 
 	case s5c.Bind: // bind request
 		fallthrough
@@ -175,27 +181,7 @@ func handshake2(client net.Conn, f proxy.Proxy, buf []byte) error {
 	return err
 }
 
-func handleConnect(target proxy.Address, client net.Conn, f proxy.Proxy) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-	defer cancel()
-
-	server, err := f.Conn(ctx, target)
-	if err != nil {
-		return fmt.Errorf("connect to %s failed: %w", target, err)
-	}
-	defer server.Close()
-
-	caddr, err := proxy.ParseSysAddr(client.LocalAddr())
-	if err != nil {
-		return fmt.Errorf("parse local addr failed: %w", err)
-	}
-	writeHandshake2(client, s5c.Succeeded, caddr) // response to connect successful
-	// hand shake successful
-	relay.Relay(client, server)
-	return nil
-}
-
-func handleUDP(client net.Conn, f proxy.Proxy) error {
+func handleUDP(client net.Conn) error {
 	laddr, err := proxy.ParseSysAddr(client.LocalAddr())
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
@@ -219,7 +205,7 @@ type Socks5 struct {
 	udpServer *udpServer
 	lis       net.Listener
 
-	dialer   proxy.Proxy
+	handler  proxy.Handler
 	addr     string
 	username string
 	password string
@@ -243,15 +229,15 @@ func (s *Socks5) Close() error {
 	return err
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (is.Server, error) {
+func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (proxy.Server, error) {
 	s := &Socks5{
-		dialer:   o.Dialer,
+		handler:  o.Handler,
 		addr:     o.Protocol.Socks5.Host,
 		username: o.Protocol.Socks5.Username,
 		password: o.Protocol.Socks5.Password,
 	}
 
-	err := s.newUDPServer(o.NatTable)
+	err := s.newUDPServer(o.Handler)
 	if err != nil {
 		s.Close()
 		return nil, fmt.Errorf("new udp server failed: %w", err)

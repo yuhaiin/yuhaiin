@@ -1,7 +1,6 @@
 package simplehttp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,7 +23,7 @@ type groupHandler struct {
 
 func (g *groupHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	group := r.URL.Query().Get("name")
-	ns, err := g.nm.Manager(context.TODO(), &wrapperspb.StringValue{})
+	ns, err := g.nm.Manager(r.Context(), &wrapperspb.StringValue{})
 	if err != nil {
 		return err
 	}
@@ -63,7 +62,7 @@ type tag struct {
 }
 
 func (t *tag) Get(w http.ResponseWriter, r *http.Request) error {
-	m, err := t.nm.Manager(context.TODO(), &wrapperspb.StringValue{})
+	m, err := t.nm.Manager(r.Context(), &wrapperspb.StringValue{})
 	if err != nil {
 		return err
 	}
@@ -119,7 +118,7 @@ func (t *tag) Post(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("unknown tag type: %v", z["type"])
 	}
 
-	_, err = t.ts.Save(context.TODO(), &snode.SaveTagReq{
+	_, err = t.ts.Save(r.Context(), &snode.SaveTagReq{
 		Tag:  z["tag"],
 		Hash: z["hash"],
 		Type: pt.Type(tYPE),
@@ -130,7 +129,7 @@ func (t *tag) Post(w http.ResponseWriter, r *http.Request) error {
 func (t *tag) Delete(w http.ResponseWriter, r *http.Request) error {
 	tag := r.URL.Query().Get("tag")
 
-	_, err := t.ts.Remove(context.TODO(), &wrapperspb.StringValue{
+	_, err := t.ts.Remove(r.Context(), &wrapperspb.StringValue{
 		Value: tag,
 	})
 	return err

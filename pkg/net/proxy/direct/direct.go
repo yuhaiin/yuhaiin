@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 )
 
 type direct struct{ proxy.EmptyDispatch }
@@ -35,15 +35,18 @@ func (d *direct) PacketConn(context.Context, proxy.Address) (net.PacketConn, err
 type PacketConn struct{ net.PacketConn }
 
 func (p *PacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
-	a, err := proxy.ParseSysAddr(addr)
-	if err != nil {
-		return 0, err
+	udpAddr, ok := addr.(*net.UDPAddr)
+	if !ok {
+		a, err := proxy.ParseSysAddr(addr)
+		if err != nil {
+			return 0, err
+		}
+
+		udpAddr, err = a.UDPAddr(context.TODO())
+		if err != nil {
+			return 0, err
+		}
 	}
 
-	addr, err = a.UDPAddr(context.TODO())
-	if err != nil {
-		return 0, err
-	}
-
-	return p.PacketConn.WriteTo(b, addr)
+	return p.PacketConn.WriteTo(b, udpAddr)
 }

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
@@ -53,10 +53,7 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 	}
 }
 
-func (c *Simple) dial(addr proxy.Address) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
-	defer cancel()
-
+func (c *Simple) dial(ctx context.Context, addr proxy.Address) (net.Conn, error) {
 	ip, err := addr.IP(ctx)
 	if err != nil {
 		return nil, err
@@ -70,13 +67,13 @@ func (c *Simple) dial(addr proxy.Address) (net.Conn, error) {
 	return con, nil
 }
 
-func (c *Simple) Conn(_ context.Context, d proxy.Address) (net.Conn, error) {
+func (c *Simple) Conn(ctx context.Context, d proxy.Address) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 
 	if c.index != 0 && !c.updateTime.IsZero() {
 		if time.Since(c.updateTime) <= time.Minute*10 {
-			conn, _ = c.dial(c.addrs[c.index])
+			conn, _ = c.dial(ctx, c.addrs[c.index])
 		} else {
 			c.updateTime = time.Time{}
 		}
@@ -84,11 +81,15 @@ func (c *Simple) Conn(_ context.Context, d proxy.Address) (net.Conn, error) {
 
 	if conn == nil {
 		for i, addr := range c.addrs {
-			con, er := c.dial(addr)
+			ctx, cancel := context.WithTimeout(ctx, time.Second*4)
+			con, er := c.dial(ctx, addr)
 			if er != nil {
 				err = errors.Join(err, er)
+				cancel()
 				continue
 			}
+
+			cancel()
 
 			conn = con
 			c.index = i

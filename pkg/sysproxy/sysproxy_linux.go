@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
@@ -64,7 +65,8 @@ func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 		_ = exec.Command(gsettings, "set", "org.gnome.system.proxy.socks", "host", socks5H).Run()
 		_ = exec.Command(gsettings, "set", "org.gnome.system.proxy.socks", "port", socks5P).Run()
 	}
-	_ = exec.Command(gsettings, "set", "org.gnome.system.proxy", "ignore-hosts", "['localhost','::1','0.0.0.0/8','10.0.0.0/8','100.64.0.0/10','127.0.0.0/8','169.254.0.0/16','172.16.0.0/12','192.0.0.0/29','192.0.2.0/24','192.88.99.0/24','192.168.0.0/16','198.18.0.0/15','198.51.100.0/24','203.0.113.0/24','224.0.0.0/3']").Run()
+	_ = exec.Command(gsettings, "set", "org.gnome.system.proxy", "ignore-hosts",
+		fmt.Sprintf("['%s']", strings.Join(priAddr, "','"))).Run()
 
 	return nil
 }
@@ -82,7 +84,7 @@ func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 	}
 
 	// kwriteconfig5 --file kioslaverc --group 'Proxy Settings' --key httpProxy "http://127.0.0.1 8188"
-	_ = exec.Command(kwriteconfig5, "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "NoProxyFor", "0.0.0.0/8,10.0.0.0/8,100.64.0.0/10,127.0.0.0/8,169.254.0.0/16,172.16.0.0/12,192.0.0.0/29,192.0.2.0/24,192.88.99.0/24,192.168.0.0/16,198.18.0.0/15,198.51.100.0/24,203.0.113.0/24,224.0.0.0/3").Run()
+	_ = exec.Command(kwriteconfig5, "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "NoProxyFor", strings.Join(priAddr, ",")).Run()
 	_ = exec.Command(kwriteconfig5, "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "ProxyType", "1").Run()
 	if httpH != "" || httpP != "" {
 		_ = exec.Command(kwriteconfig5, "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "httpProxy", fmt.Sprintf("http://%s %s", httpH, httpP)).Run()

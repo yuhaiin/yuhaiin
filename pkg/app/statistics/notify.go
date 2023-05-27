@@ -54,21 +54,7 @@ func (n *notify) icsToConnections(conns ...connection) []*statistic.Connection {
 	cons := make([]*statistic.Connection, 0, len(conns))
 
 	for _, o := range conns {
-		connection := &statistic.Connection{
-			Id:   o.ID(),
-			Addr: getAddr(o.Addr()),
-			Type: &statistic.NetType{
-				ConnType:       o.Addr().NetworkType(),
-				UnderlyingType: statistic.Type(statistic.Type_value[o.LocalAddr().Network()]),
-			},
-			Extra: extraMap(o.Addr()),
-		}
-
-		if out := getRemote(o); out != "" {
-			connection.Extra["Outbound"] = out
-		}
-
-		cons = append(cons, connection)
+		cons = append(cons, o.Info())
 	}
 
 	return cons
