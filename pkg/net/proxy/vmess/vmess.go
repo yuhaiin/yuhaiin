@@ -6,7 +6,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 

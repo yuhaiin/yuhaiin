@@ -32,6 +32,7 @@
 - auto set Linux(KDE/Plasma,gnome),Windows Proxy  
 - [Rules](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
 - [Docs](https://github.com/Asutorufa/yuhaiin/tree/main/docs)  
+- [Architecture](https://github.com/Asutorufa/yuhaiin/wiki/architecture)
 - icon from プロ生ちゃん. アイコンがプロ生ちゃんから、ご注意ください。  
 
 ```shell

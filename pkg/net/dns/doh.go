@@ -11,8 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -22,7 +21,7 @@ func init() {
 	Register(pd.Type_doh, NewDoH)
 }
 
-func NewDoH(config Config) (dns.DNS, error) {
+func NewDoH(config Config) (proxy.Resolver, error) {
 	req, err := getRequest(config.Host)
 	if err != nil {
 		return nil, err

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -28,7 +28,7 @@ type Table struct {
 	mu     syncmap.SyncMap[string, *sync.Cond]
 }
 
-func (u *Table) write(ctx context.Context, pkt *Packet, key string) (bool, error) {
+func (u *Table) write(ctx context.Context, pkt *proxy.Packet, key string) (bool, error) {
 	t, ok := u.cache.Load(key)
 	if !ok {
 		return false, nil
@@ -61,14 +61,7 @@ func (u *Table) write(ctx context.Context, pkt *Packet, key string) (bool, error
 	return true, err
 }
 
-type Packet struct {
-	Src       net.Addr
-	Dst       proxy.Address
-	WriteBack func(b []byte, addr net.Addr) (int, error)
-	Payload   []byte
-}
-
-func (u *Table) Write(ctx context.Context, pkt *Packet) error {
+func (u *Table) Write(ctx context.Context, pkt *proxy.Packet) error {
 	key := pkt.Src.String()
 
 	ok, err := u.write(ctx, pkt, key)
@@ -94,8 +87,9 @@ func (u *Table) Write(ctx context.Context, pkt *Packet) error {
 	defer u.mu.Delete(key)
 	defer cond.Broadcast()
 
-	pkt.Dst.WithValue(proxy.SourceKey{}, pkt.Src)
-	pkt.Dst.WithValue(proxy.DestinationKey{}, pkt.Dst)
+	proxy.StoreFromContext(ctx).
+		Add(proxy.SourceKey{}, pkt.Src).
+		Add(proxy.DestinationKey{}, pkt.Dst)
 
 	dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 	if err != nil {
@@ -123,7 +117,7 @@ func (u *Table) Write(ctx context.Context, pkt *Packet) error {
 	return nil
 }
 
-func (u *Table) writeBack(pkt *Packet, table *SourceTable) error {
+func (u *Table) writeBack(pkt *proxy.Packet, table *SourceTable) error {
 	data := pool.GetBytes(MaxSegmentSize)
 	defer pool.PutBytes(data)
 

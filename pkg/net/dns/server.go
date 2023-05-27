@@ -13,9 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/exp/slog"
@@ -24,12 +22,12 @@ import (
 
 type dnsServer struct {
 	server      string
-	resolver    dns.DNS
+	resolver    proxy.Resolver
 	listener    net.PacketConn
 	tcpListener net.Listener
 }
 
-func NewDnsServer(server string, process dns.DNS) server.DNSServer {
+func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
 	d := &dnsServer{server: server, resolver: process}
 
 	if server == "" {

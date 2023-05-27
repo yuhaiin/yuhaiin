@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	grpc "google.golang.org/grpc"
 )

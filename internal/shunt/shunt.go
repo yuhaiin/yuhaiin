@@ -8,8 +8,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -44,11 +43,11 @@ type Shunt struct {
 
 type Opts struct {
 	DirectDialer   proxy.Proxy
-	DirectResolver dns.DNS
+	DirectResolver proxy.Resolver
 	ProxyDialer    proxy.Proxy
-	ProxyResolver  dns.DNS
+	ProxyResolver  proxy.Resolver
 	BlockDialer    proxy.Proxy
-	BLockResolver  dns.DNS
+	BLockResolver  proxy.Resolver
 	DefaultMode    bypass.Mode
 }
 
@@ -138,7 +137,13 @@ func (s *Shunt) Dispatch(ctx context.Context, host proxy.Address) (proxy.Address
 
 func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host proxy.Address) (bypass.Mode, proxy.Address) {
 	// get mode from upstream specified
-	mode := proxy.Value(host, ForceModeKey{}, bypass.Mode_bypass)
+
+	store := proxy.StoreFromContext(ctx)
+
+	mode, ok := proxy.Get[bypass.Mode](ctx, ForceModeKey{})
+	if !ok {
+		mode = bypass.Mode_bypass
+	}
 
 	if mode == bypass.Mode_bypass && networkMode != bypass.Mode_bypass {
 		// get mode from network(tcp/udp) rule
@@ -151,24 +156,25 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host prox
 
 		// get tag from bypass rule
 		if tag := fields.GetTag(); len(tag) != 0 {
-			host.WithValue(node.TagKey{}, tag)
+
+			store.Add(node.TagKey{}, tag)
 		}
 
 		if fields.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6 {
-			host.WithValue(proxy.PreferIPv6{}, true)
+			host.PreferIPv6(true)
 		}
 	}
 
-	host.WithValue(modeMarkKey{}, mode)
+	store.Add(modeMarkKey{}, mode)
 	host.WithResolver(s.resolver(mode), true)
 
 	if s.resolveProxy && host.Type() == proxy.DOMAIN && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := host.IP(ctx)
 		if err == nil {
-			host.WithValue(DOMAIN_MARK_KEY{}, host.String())
+			store.Add(DOMAIN_MARK_KEY{}, host.String())
 			host = host.OverrideHostname(ip.String())
-			host.WithValue(IP_MARK_KEY{}, host.String())
+			store.Add(IP_MARK_KEY{}, host.String())
 		} else {
 			log.Warn("resolve remote domain failed", "err", err)
 		}
@@ -190,7 +196,7 @@ func (s *Shunt) dialer(m bypass.Mode) proxy.Proxy {
 	}
 }
 
-func (s *Shunt) resolver(m bypass.Mode) dns.DNS {
+func (s *Shunt) resolver(m bypass.Mode) proxy.Resolver {
 	switch m {
 	case bypass.Mode_block:
 		return s.BLockResolver
@@ -203,9 +209,9 @@ func (s *Shunt) resolver(m bypass.Mode) dns.DNS {
 	}
 }
 
-var skipResolve = dns.ErrorDNS(func(domain string) error { return mapper.ErrSkipResolve })
+var skipResolve = proxy.ErrorResolver(func(domain string) error { return mapper.ErrSkipResolve })
 
-func (s *Shunt) Resolver(ctx context.Context, domain string) dns.DNS {
+func (s *Shunt) Resolver(ctx context.Context, domain string) proxy.Resolver {
 	host := proxy.ParseAddressPort(0, domain, proxy.EmptyPort)
 	host.WithResolver(skipResolve, true)
 	return s.resolver(s.mapper.SearchWithDefault(ctx, host, s.DefaultMode).Mode())

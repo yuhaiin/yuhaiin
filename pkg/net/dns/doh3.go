@@ -6,17 +6,17 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/quic-go/quic-go/http3"
 )
 
 func init() {
-	Register(pdns.Type_doh3, NewDoH3)
+	Register(dns.Type_doh3, NewDoH3)
 }
 
-func NewDoH3(config Config) (dns.DNS, error) {
+func NewDoH3(config Config) (proxy.Resolver, error) {
 	tr := &http3.RoundTripper{}
 
 	req, err := getRequest(config.Host)

@@ -12,8 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -31,9 +30,9 @@ type Config struct {
 	Dialer     proxy.Proxy
 }
 
-var dnsMap syncmap.SyncMap[pd.Type, func(Config) (dns.DNS, error)]
+var dnsMap syncmap.SyncMap[pd.Type, func(Config) (proxy.Resolver, error)]
 
-func New(config Config) (dns.DNS, error) {
+func New(config Config) (proxy.Resolver, error) {
 	f, ok := dnsMap.Load(config.Type)
 	if !ok {
 		return nil, fmt.Errorf("no dns type %v process found", config.Type)
@@ -45,13 +44,13 @@ func New(config Config) (dns.DNS, error) {
 	return f(config)
 }
 
-func Register(tYPE pd.Type, f func(Config) (dns.DNS, error)) {
+func Register(tYPE pd.Type, f func(Config) (proxy.Resolver, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}
 }
 
-var _ dns.DNS = (*client)(nil)
+var _ proxy.Resolver = (*client)(nil)
 
 type client struct {
 	cache  *lru.LRU[string, []net.IP]

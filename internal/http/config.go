@@ -1,7 +1,6 @@
 package simplehttp
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"runtime"
@@ -21,7 +20,7 @@ type configHandler struct {
 }
 
 func (cc *configHandler) Get(w http.ResponseWriter, r *http.Request) error {
-	c, err := cc.cf.Load(context.TODO(), &emptypb.Empty{})
+	c, err := cc.cf.Load(r.Context(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
@@ -49,7 +48,7 @@ func (c *configHandler) Post(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err = c.cf.Save(context.TODO(), config)
+	_, err = c.cf.Save(r.Context(), config)
 	if err != nil {
 		return err
 	}

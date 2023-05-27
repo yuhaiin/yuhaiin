@@ -48,7 +48,10 @@ func SetSysProxy(http, socks5 string) {
 			_ = exec.Command(networksetup, "-setsocksfirewallproxystate", service, "on").Run()
 			_ = exec.Command(networksetup, "-setsocksfirewallproxy", service, socks5Hostname, socks5Port).Run()
 		}
+
+		_ = exec.Command(networksetup, append([]string{"-setproxybypassdomains", service}, priAddr...)...).Run()
 	}
+
 }
 
 func UnsetSysProxy() {
@@ -65,6 +68,7 @@ func UnsetSysProxy() {
 		_ = exec.Command(networksetup, "-setwebproxystate", service, "off").Run()
 		_ = exec.Command(networksetup, "-setsecurewebproxystate", service, "off").Run()
 		_ = exec.Command(networksetup, "-setsocksfirewallproxystate", service, "off").Run()
+		_ = exec.Command(networksetup, "-setproxybypassdomains", service, "").Run()
 	}
 }
 

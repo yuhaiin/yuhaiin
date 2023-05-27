@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 )
 
 func HTTP(p proxy.Proxy, target string) (time.Duration, error) {

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 )
 
 func TestReject(t *testing.T) {

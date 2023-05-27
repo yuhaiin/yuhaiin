@@ -6,7 +6,7 @@ import (
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"

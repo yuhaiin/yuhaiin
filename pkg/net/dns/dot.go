@@ -3,16 +3,16 @@ package dns
 import (
 	"crypto/tls"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 func init() {
-	Register(pdns.Type_dot, NewDoT)
+	Register(dns.Type_dot, NewDoT)
 }
 
-func NewDoT(config Config) (dns.DNS, error) {
+func NewDoT(config Config) (proxy.Resolver, error) {
 	tlsConfig := &tls.Config{}
 	d, err := newTCP(config, "853", tlsConfig)
 	if err != nil {

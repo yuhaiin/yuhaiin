@@ -5,6 +5,7 @@
 package websocket
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -127,10 +128,10 @@ func (c *ServerHandshaker) AcceptHandshake(w http.ResponseWriter) (err error) {
 	return nil
 }
 
-func ServeHTTP(w http.ResponseWriter, req *http.Request, Handler func(*Conn) error) error {
+func ServeHTTP(w http.ResponseWriter, req *http.Request, Handler func(context.Context, *Conn) error) error {
 	conn, err := NewServerConn(w, req, nil)
 	if err != nil {
 		return err
 	}
-	return Handler(conn)
+	return Handler(req.Context(), conn)
 }

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 

@@ -10,13 +10,10 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func New(o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
@@ -41,13 +38,13 @@ func New(o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
 		portal:       portal,
 		DnsHijacking: o.Protocol.Tun.DnsHijacking,
 		Mtu:          o.Protocol.Tun.Mtu,
-		Dialer:       o.Dialer,
-		DNSServer:    o.DNSServer,
+		handler:      o.Handler,
+		DNSHandler:   o.DNSHandler,
 	}
 
 	go handler.tcp()
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go handler.udp(o.NatTable)
+		go handler.udp(o.Handler)
 	}
 
 	return lis, nil
@@ -58,8 +55,8 @@ type handler struct {
 	Mtu          int32
 	listener     *Tun2Socket
 	portal       netip.Addr
-	Dialer       proxy.Proxy
-	DNSServer    server.DNSServer
+	handler      proxy.Handler
+	DNSHandler   proxy.DNSHandler
 }
 
 func (h *handler) tcp() {
@@ -86,13 +83,13 @@ func (h *handler) tcp() {
 	}
 }
 
-func (h *handler) udp(natTable *nat.Table) {
+func (h *handler) udp(server proxy.Handler) {
 	lis := h.listener
 	defer lis.UDP().Close()
 	buf := pool.GetBytes(h.Mtu)
 	defer pool.PutBytes(buf)
 	for {
-		if err := h.handleUDP(natTable, lis, buf); err != nil {
+		if err := h.handleUDP(server, lis, buf); err != nil {
 			if errors.Is(err, proxy.ErrBlocked) {
 				log.Debug(err.Error())
 			} else {
@@ -106,8 +103,6 @@ func (h *handler) udp(natTable *nat.Table) {
 }
 
 func (h *handler) handleTCP(conn net.Conn) error {
-	defer conn.Close()
-
 	// lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()  // source
 	rAddrPort := conn.RemoteAddr().(*net.TCPAddr).AddrPort() // dst
 
@@ -115,30 +110,23 @@ func (h *handler) handleTCP(conn net.Conn) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-	defer cancel()
-
 	if h.isHandleDNS(rAddrPort) {
-		return h.DNSServer.HandleTCP(ctx, conn)
+		return h.DNSHandler.HandleTCP(context.TODO(), conn)
 	}
 
-	addr := proxy.ParseAddrPort(statistic.Type_tcp, rAddrPort)
-	addr.WithValue(proxy.SourceKey{}, conn.LocalAddr())
-	addr.WithValue(proxy.DestinationKey{}, conn.RemoteAddr())
+	h.handler.Stream(context.TODO(), &proxy.StreamMeta{
+		Source:      conn.LocalAddr(),
+		Destination: conn.RemoteAddr(),
+		Src:         conn,
+		Address:     proxy.ParseAddrPort(statistic.Type_tcp, rAddrPort),
+	})
 
-	lconn, err := h.Dialer.Conn(ctx, addr)
-	if err != nil {
-		return err
-	}
-	defer lconn.Close()
-
-	relay.Relay(conn, lconn)
 	return nil
 }
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
-func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) error {
+func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket, buf []byte) error {
 	n, src, dst, err := lis.UDP().ReadFrom(buf)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
@@ -146,11 +134,8 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 
 	zbuf := buf[:n]
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-	defer cancel()
-
 	if h.isHandleDNS(dst) {
-		resp, err := h.DNSServer.Do(ctx, zbuf)
+		resp, err := h.DNSHandler.Do(context.TODO(), zbuf)
 		if err != nil {
 			return err
 		}
@@ -158,8 +143,8 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 		return err
 	}
 
-	return natTable.Write(ctx,
-		&nat.Packet{
+	server.Packet(context.TODO(),
+		&proxy.Packet{
 			Src:     net.UDPAddrFromAddrPort(src),
 			Dst:     proxy.ParseAddrPort(statistic.Type_udp, dst),
 			Payload: zbuf,
@@ -178,6 +163,7 @@ func (h *handler) handleUDP(natTable *nat.Table, lis *Tun2Socket, buf []byte) er
 			},
 		},
 	)
+	return nil
 }
 
 func (h *handler) isHandleDNS(addr netip.AddrPort) bool {

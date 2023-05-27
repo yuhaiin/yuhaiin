@@ -5,14 +5,14 @@ import (
 	"net/netip"
 	"testing"
 
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	rr "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDOH(t *testing.T) {
-	rr.Bootstrap = &rr.System{DisableIPv6: true}
+	proxy.Bootstrap = &proxy.System{DisableIPv6: true}
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
 	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")

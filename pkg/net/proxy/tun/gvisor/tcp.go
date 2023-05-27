@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -36,29 +35,21 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 		}
 
 		go func(local net.Conn, id stack.TransportEndpointID) {
-			defer local.Close()
-
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-			defer cancel()
-
 			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
-				if err := opt.DNSServer.HandleTCP(ctx, local); err != nil {
+				if err := opt.DNSHandler.HandleTCP(context.TODO(), local); err != nil {
 					log.Error("dns handle tcp failed", "err", err)
 				}
 				return
 			}
 
 			addr := proxy.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
-			addr.WithValue(proxy.SourceKey{}, local.RemoteAddr())
-			addr.WithValue(proxy.DestinationKey{}, addr)
 
-			conn, er := opt.Dialer.Conn(ctx, addr)
-			if er != nil {
-				log.Error("dial failed:", "err", er)
-				return
-			}
-			defer conn.Close()
-			relay.Relay(local, conn)
+			opt.Handler.Stream(context.TODO(), &proxy.StreamMeta{
+				Source:      local.RemoteAddr(),
+				Destination: addr,
+				Src:         local,
+				Address:     addr,
+			})
 		}(gonet.NewTCPConn(wq, ep), id)
 	})
 }

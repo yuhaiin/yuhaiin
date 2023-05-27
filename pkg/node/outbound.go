@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
@@ -45,7 +45,7 @@ type TagKey struct{}
 func (TagKey) String() string { return "Tag" }
 
 func (o *outbound) Conn(ctx context.Context, host proxy.Address) (_ net.Conn, err error) {
-	if tc := o.tagConn(host); tc != nil {
+	if tc := o.tagConn(ctx, host); tc != nil {
 		return tc.Conn(ctx, host)
 	}
 
@@ -59,12 +59,13 @@ func (o *outbound) Conn(ctx context.Context, host proxy.Address) (_ net.Conn, er
 		o.lruCache.Add(o.TCP.Hash, p)
 	}
 
-	host.WithValue(HashKey{}, o.TCP.Hash)
+	proxy.StoreFromContext(ctx).Add(HashKey{}, o.TCP.Hash)
+
 	return p.Conn(ctx, host)
 }
 
 func (o *outbound) PacketConn(ctx context.Context, host proxy.Address) (_ net.PacketConn, err error) {
-	if tc := o.tagConn(host); tc != nil {
+	if tc := o.tagConn(ctx, host); tc != nil {
 		return tc.PacketConn(ctx, host)
 	}
 
@@ -78,7 +79,7 @@ func (o *outbound) PacketConn(ctx context.Context, host proxy.Address) (_ net.Pa
 		o.lruCache.Add(o.UDP.Hash, p)
 	}
 
-	host.WithValue(HashKey{}, o.UDP.Hash)
+	proxy.StoreFromContext(ctx).Add(HashKey{}, o.UDP.Hash)
 	return p.PacketConn(ctx, host)
 }
 
@@ -86,9 +87,10 @@ type HashKey struct{}
 
 func (HashKey) String() string { return "Hash" }
 
-func (o *outbound) tagConn(host proxy.Address) proxy.Proxy {
-	tag := proxy.Value(host, TagKey{}, "")
-	if tag == "" {
+func (o *outbound) tagConn(ctx context.Context, host proxy.Address) proxy.Proxy {
+
+	tag, ok := proxy.Get[string](ctx, TagKey{})
+	if !ok {
 		return nil
 	}
 
@@ -123,7 +125,7 @@ _retry:
 		o.lruCache.Add(hash, v)
 	}
 
-	host.WithValue(HashKey{}, hash)
+	proxy.StoreFromContext(ctx).Add(HashKey{}, hash)
 	return v
 }
 

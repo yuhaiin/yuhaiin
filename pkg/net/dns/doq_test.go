@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	re "github.com/Asutorufa/yuhaiin/pkg/net/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDoQ(t *testing.T) {
-	re.Bootstrap = &re.System{DisableIPv6: true}
+	proxy.Bootstrap = &proxy.System{DisableIPv6: true}
 
 	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")
 

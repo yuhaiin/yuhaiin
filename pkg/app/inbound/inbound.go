@@ -6,8 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
@@ -22,7 +21,7 @@ func init() {
 	pl.RegisterProtocol(httpproxy.NewServer)
 	pl.RegisterProtocol(ss.NewServer)
 	pl.RegisterProtocol(tun.NewTun)
-	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (server.Server, error) {
+	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (proxy.Server, error) {
 		var Type yuubinsya.Type
 		var err error
 		var tlsConfig *tls.Config
@@ -47,13 +46,12 @@ func init() {
 		}
 
 		s := yuubinsya.NewServer(yuubinsya.Config{
-			Dialer:              o.Dialer,
 			Host:                o.Protocol.Yuubinsya.Host,
 			Password:            []byte(o.Protocol.Yuubinsya.Password),
 			TlsConfig:           tlsConfig,
 			Type:                Type,
 			ForceDisableEncrypt: o.Protocol.Yuubinsya.ForceDisableEncrypt,
-			NatTable:            o.NatTable,
+			Handler:             o.Handler,
 		})
 		go s.Start()
 		return s, nil
@@ -62,7 +60,7 @@ func init() {
 
 type store struct {
 	config proto.Message
-	server server.Server
+	server proxy.Server
 }
 type listener struct {
 	store syncmap.SyncMap[string, store]
@@ -70,9 +68,6 @@ type listener struct {
 }
 
 func NewListener(opts *pl.Opts[pl.IsProtocol_Protocol]) *listener {
-	if opts.Dialer == nil {
-		opts.Dialer = direct.Default
-	}
 	return &listener{opts: opts}
 }
 

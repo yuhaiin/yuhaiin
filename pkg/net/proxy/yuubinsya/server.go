@@ -15,7 +15,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
@@ -23,7 +23,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	quicgo "github.com/quic-go/quic-go"
 	"golang.org/x/exp/slog"
 )
@@ -32,6 +31,7 @@ type yuubinsya struct {
 	Config
 	Listener   net.Listener
 	handshaker handshaker
+	handler    proxy.Handler
 }
 
 type Type int
@@ -45,13 +45,12 @@ var (
 )
 
 type Config struct {
-	Dialer              proxy.Proxy
+	Handler             proxy.Handler
 	Host                string
 	Password            []byte
 	TlsConfig           *tls.Config
 	Type                Type
 	ForceDisableEncrypt bool
-	NatTable            *nat.Table
 }
 
 func (c Config) String() string {
@@ -67,6 +66,7 @@ func (c Config) String() string {
 func NewServer(config Config) *yuubinsya {
 	return &yuubinsya{
 		Config:     config,
+		handler:    config.Handler,
 		handshaker: NewHandshaker(!config.ForceDisableEncrypt && config.TlsConfig == nil, config.Password),
 	}
 }
@@ -141,7 +141,6 @@ func (y *yuubinsya) Start() (err error) {
 		}
 
 		go func() {
-			defer conn.Close()
 			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
 				log.Error("handle failed", slog.Any("from", conn.RemoteAddr()), slog.Any("err", err))
 			}
@@ -172,7 +171,22 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 
 	switch net {
 	case TCP:
-		return y.stream(c)
+		target, err := s5c.ResolveAddr(c)
+		if err != nil {
+			return fmt.Errorf("resolve addr failed: %w", err)
+		}
+
+		addr := target.Address(statistic.Type_tcp)
+
+		log.Debug("new tcp connect", "from", c.RemoteAddr(), "to", addr)
+
+		y.handler.Stream(context.TODO(), &proxy.StreamMeta{
+			Source:      c.RemoteAddr(),
+			Destination: addr,
+			Inbound:     c.LocalAddr(),
+			Src:         c,
+			Address:     addr,
+		})
 	case UDP:
 		return y.packet(c)
 	}
@@ -187,33 +201,8 @@ func (y *yuubinsya) Close() error {
 	return y.Listener.Close()
 }
 
-func (y *yuubinsya) stream(c net.Conn) error {
-	target, err := s5c.ResolveAddr(c)
-	if err != nil {
-		return fmt.Errorf("resolve addr failed: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-	defer cancel()
-	addr := target.Address(statistic.Type_tcp)
-	addr.WithValue(proxy.SourceKey{}, c.RemoteAddr())
-	addr.WithValue(proxy.DestinationKey{}, target)
-	addr.WithValue(proxy.InboundKey{}, c.LocalAddr())
-
-	log.Debug("new tcp connect", "from", c.RemoteAddr(), "to", addr)
-
-	conn, err := y.Dialer.Conn(ctx, addr)
-	if err != nil {
-		return fmt.Errorf("dial %v failed: %w", addr, err)
-	}
-	defer conn.Close()
-
-	relay.Relay(c, conn)
-
-	return nil
-}
-
 func (y *yuubinsya) packet(c net.Conn) error {
+	defer c.Close()
 	log.Debug("new udp connect", "from", c.RemoteAddr())
 	for {
 		if err := y.forwardPacket(c); err != nil {
@@ -253,12 +242,9 @@ func (y *yuubinsya) forwardPacket(c net.Conn) error {
 		src = &quic.QuicAddr{Addr: c.RemoteAddr(), ID: conn.StreamID()}
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-	defer cancel()
-
-	return y.Config.NatTable.Write(
-		ctx,
-		&nat.Packet{
+	y.Config.Handler.Packet(
+		context.TODO(),
+		&proxy.Packet{
 			Src:     src,
 			Dst:     addr.Address(statistic.Type_udp),
 			Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],
@@ -284,6 +270,7 @@ func (y *yuubinsya) forwardPacket(c net.Conn) error {
 				return len(buf), nil
 			},
 		})
+	return nil
 }
 
 func write403(conn net.Conn) {

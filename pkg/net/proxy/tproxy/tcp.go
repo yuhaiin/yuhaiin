@@ -10,8 +10,7 @@ import (
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	is "github.com/Asutorufa/yuhaiin/pkg/net/interfaces/server"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -60,7 +59,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 	return nil
 }
 
-func newTCPServer(h string, dialer proxy.Proxy) (is.Server, error) {
+func newTCPServer(h string, dialer proxy.Proxy) (proxy.Server, error) {
 	return NewTCPServer(h, func(c net.Conn) {
 		if err := handleTCP(c, dialer); err != nil {
 			log.Error("handleTCP failed", "err", err)

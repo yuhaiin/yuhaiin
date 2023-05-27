@@ -1,7 +1,6 @@
 package simplehttp
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"html/template"
@@ -53,7 +52,7 @@ func (nn *nodeHandler) Get(w http.ResponseWriter, r *http.Request) error {
 
 	hash := r.URL.Query().Get("hash")
 
-	n, err := nn.nm.Get(context.TODO(), &wrapperspb.StringValue{Value: hash})
+	n, err := nn.nm.Get(r.Context(), &wrapperspb.StringValue{Value: hash})
 	if err != nil {
 		return err
 	}
@@ -122,7 +121,7 @@ func (n *nodeHandler) Delete(w http.ResponseWriter, r *http.Request) error {
 		return errors.New("hash is empty")
 	}
 
-	_, err := n.nm.Remove(context.TODO(), &wrapperspb.StringValue{Value: hash})
+	_, err := n.nm.Remove(r.Context(), &wrapperspb.StringValue{Value: hash})
 	if err != nil {
 		return err
 	}
@@ -143,7 +142,7 @@ func (n *nodeHandler) Post(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err = n.nm.Save(context.TODO(), point)
+	_, err = n.nm.Save(r.Context(), point)
 	if err != nil {
 		return err
 	}
@@ -168,7 +167,7 @@ func (n *nodeHandler) Put(w http.ResponseWriter, r *http.Request) error {
 		req.Udp = true
 	}
 
-	_, err := n.nm.Use(context.TODO(), req)
+	_, err := n.nm.Use(r.Context(), req)
 	if err != nil {
 		return err
 	}

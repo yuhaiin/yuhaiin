@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,9 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/interfaces/proxy"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
@@ -112,7 +111,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 	tag := node.NewTag(filestore)
 
 	// make dns flow across all proxy chain
-	appDialer := &struct{ proxy.Proxy }{}
+	appDialer := &storeProxy{}
 
 	// local,remote,bootstrap dns
 	bootstrap := resolver.NewBootstrap(appDialer)
@@ -122,7 +121,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		ProxyDialer:    nodeService,
 		ProxyResolver:  resolver.NewRemote(appDialer),
 		BlockDialer:    reject.Default,
-		BLockResolver:  dns.ErrorDNS(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
+		BLockResolver:  proxy.ErrorResolver(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
 		DefaultMode:    bypass.Mode_proxy,
 	}
 
@@ -147,18 +146,12 @@ func Start(opt StartOpt) (StartResponse, error) {
 	opt.addObserver(dnsServer)
 
 	// give dns a dialer
-	appDialer.Proxy = stcs
+	appDialer.Proxy = fakedns
 
-	natTable := nat.NewTable(fakedns)
+	ss := inbound.NewHandler(fakedns)
 
 	// http/socks5/redir/tun server
-	listener := inbound.NewListener(
-		&listener.Opts[listener.IsProtocol_Protocol]{
-			Dialer:    fakedns,
-			DNSServer: dnsServer,
-			NatTable:  natTable,
-		},
-	)
+	listener := inbound.NewListener(&listener.Opts[listener.IsProtocol_Protocol]{DNSHandler: dnsServer, Handler: ss})
 	opt.addObserver(listener)
 
 	// http page
@@ -186,7 +179,7 @@ func Start(opt StartOpt) (StartResponse, error) {
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,
-		closers:      []io.Closer{stcs, listener, bootstrap, st.DirectResolver, st.ProxyResolver, dnsServer, db, natTable},
+		closers:      []io.Closer{stcs, listener, bootstrap, st.DirectResolver, st.ProxyResolver, dnsServer, db, ss},
 	}, nil
 }
 
@@ -209,43 +202,16 @@ func (pathGenerator) makeDir(s string) string {
 }
 func (p pathGenerator) Cache(dir string) string { return p.makeDir(filepath.Join(dir, "cache")) }
 
-/*
-      dial ip
-        ^
-        |
-+------------------+  +----------------------+
-|proxy/direct/block|->|local/remote/bootstrap|---------------+
-+------------------+  +----------------------+               |
-         ^                          ^                        |
-         |                          |                        |
-         +-----+        +-----------+                        |
-               |        |                                    |
-			   |        |                                    |
-         +-----------------+                                 |
-         |      shunt      |                                 |
-		 +-----------------+                                 |
-				  ^                                          |
-				  |                                          |
-		 +-----------------+                                 |
-		 |   fake  dns     |                                 |
-		 +-----------------+                                 |
-				^  ^                                         |
-                |  |                                         |
-         +------+  +-------+                                 |
-		 |                 |                                 |
-         |                 |                                 |
-+------------+   +--------------+                            |
-| dnsserver  |   |  statistic   |<---------------------------+
-+------------+   +--------------+
-	  ^					^
-	  |<-----+			|
-	  | 	 |   +--------------+
-	request	 +---|  listeners   |
-		    	 +--------------+
-						^
-						|
-						|
-						|
-					request
+type storeProxy struct{ proxy.Proxy }
 
-*/
+func (w *storeProxy) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	return w.Proxy.Conn(proxy.NewStore(ctx), addr)
+}
+
+func (w *storeProxy) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+	return w.Proxy.PacketConn(proxy.NewStore(ctx), addr)
+}
+
+func (w *storeProxy) Dispatch(ctx context.Context, addr proxy.Address) (proxy.Address, error) {
+	return w.Proxy.Dispatch(proxy.NewStore(ctx), addr)
+}

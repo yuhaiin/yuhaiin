@@ -1,7 +1,6 @@
 package simplehttp
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -64,7 +63,7 @@ func (l *latencyHandler) Get(w http.ResponseWriter, r *http.Request) error {
 		req.Requests = append(req.Requests, l.udp(r))
 	}
 
-	lt, err := l.nm.Latency(context.TODO(), req)
+	lt, err := l.nm.Latency(r.Context(), req)
 	if err != nil {
 		return err
 	}
