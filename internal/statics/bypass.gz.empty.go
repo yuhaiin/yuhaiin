@@ -1,6 +1,6 @@
 //go:build lite
 // +build lite
 
-package shunt
+package statics
 
 var BYPASS_DATA []byte

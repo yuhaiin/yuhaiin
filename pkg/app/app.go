@@ -12,11 +12,11 @@ import (
 	"time"
 
 	web "github.com/Asutorufa/yuhaiin/internal/http"
-	"github.com/Asutorufa/yuhaiin/internal/shunt"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/app/config"
 	"github.com/Asutorufa/yuhaiin/pkg/app/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/app/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/app/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/app/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -53,7 +53,7 @@ func (s *StartOpt) addObserver(observers ...any) {
 	}
 }
 
-type StartResponse struct {
+type App struct {
 	HttpListener net.Listener
 
 	Mux *http.ServeMux
@@ -63,7 +63,7 @@ type StartResponse struct {
 	closers []io.Closer
 }
 
-func (s *StartResponse) Close() error {
+func (s *App) Close() error {
 	for _, z := range s.closers {
 		z.Close()
 	}
@@ -86,15 +86,15 @@ func initBboltDB(path string) (*bbolt.DB, error) {
 	return db, err
 }
 
-func Start(opt StartOpt) (StartResponse, error) {
+func Start(opt StartOpt) (App, error) {
 	db, err := initBboltDB(PathGenerator.Cache(opt.ConfigPath))
 	if err != nil {
-		return StartResponse{}, fmt.Errorf("init bbolt cache failed: %w", err)
+		return App{}, fmt.Errorf("init bbolt cache failed: %w", err)
 	}
 
 	lis, err := net.Listen("tcp", opt.Host)
 	if err != nil {
-		return StartResponse{}, err
+		return App{}, err
 	}
 
 	fmt.Println(version.Art)
@@ -150,8 +150,8 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	ss := inbound.NewHandler(fakedns)
 
-	// http/socks5/redir/tun server
-	listener := inbound.NewListener(&listener.Opts[listener.IsProtocol_Protocol]{DNSHandler: dnsServer, Handler: ss})
+	// inbound server
+	listener := inbound.NewListener(dnsServer, ss)
 	opt.addObserver(listener)
 
 	// http page
@@ -168,14 +168,14 @@ func Start(opt StartOpt) (StartResponse, error) {
 
 	// grpc server
 	if opt.GRPCServer != nil {
-		opt.GRPCServer.RegisterService(&gc.ConfigDao_ServiceDesc, opt.Setting)
+		opt.GRPCServer.RegisterService(&gc.ConfigService_ServiceDesc, opt.Setting)
 		opt.GRPCServer.RegisterService(&gn.Node_ServiceDesc, nodeService)
 		opt.GRPCServer.RegisterService(&gn.Subscribe_ServiceDesc, subscribe)
 		opt.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, stcs)
 		opt.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, tag)
 	}
 
-	return StartResponse{
+	return App{
 		HttpListener: lis,
 		Mux:          mux,
 		Node:         nodeService,

@@ -67,8 +67,11 @@ type listener struct {
 	opts  *pl.Opts[pl.IsProtocol_Protocol]
 }
 
-func NewListener(opts *pl.Opts[pl.IsProtocol_Protocol]) *listener {
-	return &listener{opts: opts}
+func NewListener(dnsHandler proxy.DNSHandler, handler proxy.Handler) *listener {
+	return &listener{opts: &pl.Opts[pl.IsProtocol_Protocol]{
+		DNSHandler: dnsHandler,
+		Handler:    handler,
+	}}
 }
 
 func (l *listener) Update(current *pc.Setting) {

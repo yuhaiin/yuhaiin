@@ -6,7 +6,7 @@ import "google/protobuf/empty.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/service";
 
-service config_dao {
+service config_service {
   rpc load(google.protobuf.Empty) returns (yuhaiin.config.setting);
   rpc save(yuhaiin.config.setting) returns (google.protobuf.Empty);
 }

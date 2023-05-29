@@ -1,11 +1,11 @@
 //go:build !lite
 // +build !lite
 
-package shunt
+package statics
 
 import (
 	_ "embed"
 )
 
-//go:embed statics/bypass.gz
+//go:embed bypass.gz
 var BYPASS_DATA []byte
