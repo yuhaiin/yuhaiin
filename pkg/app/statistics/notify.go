@@ -4,6 +4,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -18,7 +19,7 @@ func (n *notify) register(s gs.Connections_NotifyServer, conns ...connection) ui
 	s.Send(&gs.NotifyData{
 		Data: &gs.NotifyData_NotifyNewConnections{
 			NotifyNewConnections: &gs.NotifyNewConnections{
-				Connections: n.icsToConnections(conns...),
+				Connections: slice.To(conns, func(c connection) *statistic.Connection { return c.Info() }),
 			},
 		},
 	})
@@ -35,7 +36,7 @@ func (n *notify) pubNewConns(conns ...connection) {
 	var cons []*statistic.Connection
 	n.notifier.Range(func(key uint64, value gs.Connections_NotifyServer) bool {
 		if cons == nil {
-			cons = n.icsToConnections(conns...)
+			cons = slice.To(conns, func(c connection) *statistic.Connection { return c.Info() })
 		}
 
 		value.Send(&gs.NotifyData{
@@ -48,16 +49,6 @@ func (n *notify) pubNewConns(conns ...connection) {
 
 		return true
 	})
-}
-
-func (n *notify) icsToConnections(conns ...connection) []*statistic.Connection {
-	cons := make([]*statistic.Connection, 0, len(conns))
-
-	for _, o := range conns {
-		cons = append(cons, o.Info())
-	}
-
-	return cons
 }
 
 func (n *notify) pubRemoveConns(ids ...uint64) {

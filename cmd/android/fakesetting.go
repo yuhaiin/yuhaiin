@@ -157,7 +157,7 @@ func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 }
 
 type fakeSettings struct {
-	gc.UnimplementedConfigDaoServer
+	gc.UnimplementedConfigServiceServer
 	setting *pc.Setting
 }
 

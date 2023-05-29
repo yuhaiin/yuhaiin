@@ -117,14 +117,15 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 				continue
 			}
 
-			destinationIP, dok := netip.AddrFromSlice([]byte(ip.DestinationAddress()))
-			sourceIP, sok := netip.AddrFromSlice([]byte(ip.SourceAddress()))
+			dst, src := ip.DestinationAddress(), ip.SourceAddress()
+
+			destinationIP, dok := netip.AddrFromSlice((&dst).AsSlice())
+			sourceIP, sok := netip.AddrFromSlice((&src).AsSlice())
 			if !dok || !sok {
 				continue
 			}
 
-			destinationIP = destinationIP.Unmap()
-			sourceIP = sourceIP.Unmap()
+			destinationIP, sourceIP = destinationIP.Unmap(), sourceIP.Unmap()
 
 			if !destinationIP.IsGlobalUnicast() {
 				continue
@@ -150,9 +151,9 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 						continue
 					}
 
-					ip.SetDestinationAddress(tcpip.Address(tup.SourceAddr.Addr().AsSlice()))
+					ip.SetDestinationAddress(tcpip.AddrFromSlice(tup.SourceAddr.Addr().AsSlice()))
 					t.SetDestinationPort(tup.SourceAddr.Port())
-					ip.SetSourceAddress(tcpip.Address(tup.DestinationAddr.Addr().AsSlice()))
+					ip.SetSourceAddress(tcpip.AddrFromSlice(tup.DestinationAddr.Addr().AsSlice()))
 					t.SetSourcePort(tup.DestinationAddr.Port())
 				} else {
 					tup := tuple{
@@ -169,9 +170,9 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 						port = tab.newConn(tup)
 					}
 
-					ip.SetDestinationAddress(tcpip.Address(gateway.AsSlice()))
+					ip.SetDestinationAddress(tcpip.AddrFromSlice(gateway.AsSlice()))
 					t.SetDestinationPort(gatewayPort)
-					ip.SetSourceAddress(tcpip.Address(portal.AsSlice()))
+					ip.SetSourceAddress(tcpip.AddrFromSlice(portal.AsSlice()))
 					t.SetSourcePort(port)
 				}
 

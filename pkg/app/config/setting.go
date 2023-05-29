@@ -19,7 +19,7 @@ import (
 )
 
 type Setting interface {
-	gc.ConfigDaoServer
+	gc.ConfigServiceServer
 	AddObserver(Observer)
 }
 
@@ -32,7 +32,7 @@ type ObserverFunc func(*config.Setting)
 func (o ObserverFunc) Update(s *config.Setting) { o(s) }
 
 type setting struct {
-	gc.UnimplementedConfigDaoServer
+	gc.UnimplementedConfigServiceServer
 	current *config.Setting
 	path    string
 

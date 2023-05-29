@@ -81,6 +81,7 @@ type Store interface {
 	Add(k, v any) Store
 	Get(k any) (any, bool)
 	Range(func(k, v any) bool)
+	Map() map[any]any
 }
 
 type storeKey struct{}
@@ -119,6 +120,7 @@ type emptyStore struct{}
 func (e *emptyStore) Add(k, v any) Store      { return e }
 func (*emptyStore) Get(k any) (any, bool)     { return nil, false }
 func (*emptyStore) Range(func(k, v any) bool) {}
+func (s *emptyStore) Map() map[any]any        { return map[any]any{} }
 
 type store struct {
 	mu    sync.RWMutex
@@ -135,6 +137,15 @@ func (s *store) Add(key, value any) Store {
 	s.store[key] = value
 
 	return s
+}
+
+func (s *store) Map() map[any]any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.store == nil {
+		return map[any]any{}
+	}
+	return s.store
 }
 
 func (s *store) Get(key any) (any, bool) {

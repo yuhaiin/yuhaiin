@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/internal/statics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
@@ -20,7 +21,7 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	reader, err = os.Open(path)
 	if err != nil {
 		log.Error("open bypass file failed, fallback to use internal bypass data", slog.String("filepath", path), slog.Any("err", err))
-		reader, _ = gzip.NewReader(bytes.NewReader(BYPASS_DATA))
+		reader, _ = gzip.NewReader(bytes.NewReader(statics.BYPASS_DATA))
 	}
 	defer reader.Close()
 

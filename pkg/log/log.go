@@ -82,7 +82,7 @@ func NewSLogger(depth int) Logger {
 		Writer: os.Stdout,
 		depth:  1 + depth,
 	}
-	h := slog.HandlerOptions{
+	h := &slog.HandlerOptions{
 		AddSource: true,
 		Level:     s,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
@@ -100,7 +100,7 @@ func NewSLogger(depth int) Logger {
 		},
 	}
 
-	s.Logger = slog.New(h.NewTextHandler(s))
+	s.Logger = slog.New(slog.NewTextHandler(s, h))
 	return s
 
 }

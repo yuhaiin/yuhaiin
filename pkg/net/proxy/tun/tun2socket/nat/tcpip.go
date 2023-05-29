@@ -270,8 +270,8 @@ func (u *UDP) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 			FragmentOffset: 0,
 			TTL:            64,
 			Protocol:       uint8(header.UDPProtocolNumber),
-			SrcAddr:        gtcpip.Address(local.Addr().AsSlice()),
-			DstAddr:        gtcpip.Address(remote.Addr().AsSlice()),
+			SrcAddr:        gtcpip.AddrFromSlice(local.Addr().AsSlice()),
+			DstAddr:        gtcpip.AddrFromSlice(remote.Addr().AsSlice()),
 		})
 
 		ip = ipv4
@@ -284,8 +284,8 @@ func (u *UDP) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 		ipv6.Encode(&header.IPv6Fields{
 			TransportProtocol: header.UDPProtocolNumber,
 			PayloadLength:     udpTotalLength,
-			SrcAddr:           gtcpip.Address(local.Addr().AsSlice()),
-			DstAddr:           gtcpip.Address(remote.Addr().AsSlice()),
+			SrcAddr:           gtcpip.AddrFromSlice(local.Addr().AsSlice()),
+			DstAddr:           gtcpip.AddrFromSlice(remote.Addr().AsSlice()),
 		})
 
 		ip = ipv6

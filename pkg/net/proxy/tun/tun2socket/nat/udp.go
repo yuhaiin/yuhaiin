@@ -100,8 +100,8 @@ func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 			FragmentOffset: 0,
 			TTL:            64,
 			Protocol:       uint8(header.UDPProtocolNumber),
-			SrcAddr:        tcpip.Address(local.Addr().AsSlice()),
-			DstAddr:        tcpip.Address(remote.Addr().AsSlice()),
+			SrcAddr:        tcpip.AddrFromSlice(local.Addr().AsSlice()),
+			DstAddr:        tcpip.AddrFromSlice(remote.Addr().AsSlice()),
 		})
 
 		ip = ipv4
@@ -114,8 +114,8 @@ func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 		ipv6.Encode(&header.IPv6Fields{
 			TransportProtocol: header.UDPProtocolNumber,
 			PayloadLength:     udpTotalLength,
-			SrcAddr:           tcpip.Address(local.Addr().AsSlice()),
-			DstAddr:           tcpip.Address(remote.Addr().AsSlice()),
+			SrcAddr:           tcpip.AddrFromSlice(local.Addr().AsSlice()),
+			DstAddr:           tcpip.AddrFromSlice(remote.Addr().AsSlice()),
 		})
 
 		ip = ipv6

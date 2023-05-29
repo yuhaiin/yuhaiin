@@ -16,7 +16,7 @@ import (
 
 type configHandler struct {
 	emptyHTTP
-	cf grpcconfig.ConfigDaoServer
+	cf grpcconfig.ConfigServiceServer
 }
 
 func (cc *configHandler) Get(w http.ResponseWriter, r *http.Request) error {

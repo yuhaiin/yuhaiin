@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
-	"github.com/Asutorufa/yuhaiin/internal/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/app/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
