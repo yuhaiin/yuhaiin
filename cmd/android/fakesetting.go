@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/app/config"
+	"github.com/Asutorufa/yuhaiin/pkg/components/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"

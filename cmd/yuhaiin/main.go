@@ -9,12 +9,12 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/version"
-	"github.com/Asutorufa/yuhaiin/pkg/app"
-	"github.com/Asutorufa/yuhaiin/pkg/app/config"
+	"github.com/Asutorufa/yuhaiin/pkg/components/config"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -43,33 +43,41 @@ func main() {
 	setting := config.NewConfig(app.PathGenerator.Config(*savepath))
 	grpcserver := newGrpcServer()
 
-	resp := yerror.Must(
-		app.Start(
-			app.StartOpt{
-				ConfigPath:    *savepath,
-				Host:          *host,
-				Setting:       setting,
-				GRPCServer:    grpcserver,
-				ProcessDumper: processDumper,
-			},
-		))
-	defer resp.Close()
+	app.Start(
+		app.StartOpt{
+			ConfigPath:    *savepath,
+			Host:          *host,
+			Setting:       setting,
+			GRPCServer:    grpcserver,
+			ProcessDumper: processDumper,
+		},
+	)
+	defer app.Close()
 
-	// listen system signal
-	signChannel := make(chan os.Signal, 1)
-	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	errChan := make(chan error)
+
 	go func() {
-		_ = (<-signChannel).String() != "" && resp.HttpListener != nil && resp.HttpListener.Close() != nil
-	}()
-
-	yerror.Must(struct{}{},
 		// h2c for grpc insecure mode
-		http.Serve(resp.HttpListener, h2c.NewHandler(http.HandlerFunc(
+		errChan <- http.Serve(app.HttpListener, h2c.NewHandler(http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 					grpcserver.ServeHTTP(w, r)
 				} else {
-					resp.Mux.ServeHTTP(w, r)
+					app.Mux.ServeHTTP(w, r)
 				}
-			}), &http2.Server{})))
+			}), &http2.Server{}))
+	}()
+
+	// listen system signal
+	signChannel := make(chan os.Signal)
+	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	select {
+	case err := <-errChan:
+		log.Error("http server error", "err", err)
+	case <-signChannel:
+		if app.HttpListener != nil {
+			app.HttpListener.Close()
+		}
+	}
 }
