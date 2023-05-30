@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/app/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"

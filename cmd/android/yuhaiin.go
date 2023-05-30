@@ -9,17 +9,15 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/app"
+	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/node"
 )
 
 // GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -target=android/amd64,android/arm64 -ldflags='-s -w' -trimpath -v -o yuhaiin.aar ./
 
 type App struct {
-	nodes *node.Nodes
-	lis   *http.Server
+	lis *http.Server
 
 	mu      sync.Mutex
 	started atomic.Bool
@@ -39,7 +37,7 @@ func (a *App) Start(opt *Opts) error {
 
 		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
-		resp, err := app.Start(
+		err := app.Start(
 			app.StartOpt{
 				ConfigPath:    opt.Savepath,
 				Setting:       fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
@@ -50,12 +48,9 @@ func (a *App) Start(opt *Opts) error {
 			errChan <- err
 			return
 		}
-		defer resp.Close()
+		defer app.Close()
 
-		a.nodes = resp.Node
-		lis := &http.Server{
-			Handler: resp.Mux,
-		}
+		lis := &http.Server{Handler: app.Mux}
 		defer lis.Close()
 
 		a.lis = lis
@@ -65,7 +60,7 @@ func (a *App) Start(opt *Opts) error {
 		close(errChan)
 		defer opt.CloseFallback.Close()
 
-		a.lis.Serve(resp.HttpListener)
+		a.lis.Serve(app.HttpListener)
 	}()
 
 	return <-errChan
@@ -96,10 +91,10 @@ func (a *App) Running() bool { return a.started.Load() }
 
 func (a *App) SaveNewBypass(link, dir string) error {
 	var hc func(*http.Request) (*http.Response, error)
-	if a.started.Load() && a.nodes == nil {
+	if a.started.Load() && app.Node == nil {
 		hc = http.DefaultClient.Do
 	} else {
-		hc = a.nodes.Do
+		hc = app.Node.Do
 	}
 
 	req, err := http.NewRequest(http.MethodGet, link, nil)

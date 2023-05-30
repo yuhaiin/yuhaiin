@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/http/bootstrap"
 	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
-	"github.com/Asutorufa/yuhaiin/pkg/app/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"

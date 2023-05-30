@@ -15,7 +15,7 @@ type DnsServer struct {
 	resolver   proxy.Resolver
 }
 
-func NewDNSServer(resolver proxy.Resolver) proxy.DNSHandler {
+func NewDNSServer(resolver proxy.Resolver) *DnsServer {
 	return &DnsServer{proxy.EmptyDNSServer, "", resolver}
 }
 
