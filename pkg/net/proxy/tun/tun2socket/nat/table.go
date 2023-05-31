@@ -2,7 +2,8 @@ package nat
 
 import (
 	"container/list"
-	"net/netip"
+
+	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 const (
@@ -10,25 +11,27 @@ const (
 	portLength = 4096
 )
 
-var zeroTuple = tuple{}
+var zeroTuple = Tuple{}
 
-type tuple struct {
-	SourceAddr      netip.AddrPort
-	DestinationAddr netip.AddrPort
+type Tuple struct {
+	SourceAddr      tcpip.Address
+	SourcePort      uint16
+	DestinationAddr tcpip.Address
+	DestinationPort uint16
 }
 
 type binding struct {
-	tuple  tuple
+	tuple  Tuple
 	offset uint16
 }
 
 type table struct {
-	tuples    map[tuple]*list.Element
+	tuples    map[Tuple]*list.Element
 	ports     [portLength]*list.Element
 	available *list.List
 }
 
-func (t *table) tupleOf(port uint16) tuple {
+func (t *table) tupleOf(port uint16) Tuple {
 	offset := port - portBegin
 	if offset > portLength {
 		return zeroTuple
@@ -41,7 +44,7 @@ func (t *table) tupleOf(port uint16) tuple {
 	return elm.Value.(*binding).tuple
 }
 
-func (t *table) portOf(tuple tuple) uint16 {
+func (t *table) portOf(tuple Tuple) uint16 {
 	elm := t.tuples[tuple]
 	if elm == nil {
 		return 0
@@ -52,7 +55,7 @@ func (t *table) portOf(tuple tuple) uint16 {
 	return portBegin + elm.Value.(*binding).offset
 }
 
-func (t *table) newConn(tuple tuple) uint16 {
+func (t *table) newConn(tuple Tuple) uint16 {
 	elm := t.available.Back()
 	b := elm.Value.(*binding)
 
@@ -67,14 +70,14 @@ func (t *table) newConn(tuple tuple) uint16 {
 
 func newTable() *table {
 	result := &table{
-		tuples:    make(map[tuple]*list.Element, portLength),
+		tuples:    make(map[Tuple]*list.Element, portLength),
 		ports:     [portLength]*list.Element{},
 		available: list.New(),
 	}
 
 	for idx := range result.ports {
 		result.ports[idx] = result.available.PushFront(&binding{
-			tuple:  tuple{},
+			tuple:  Tuple{},
 			offset: uint16(idx),
 		})
 	}

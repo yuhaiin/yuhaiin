@@ -11,9 +11,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 func New(o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
@@ -35,7 +36,7 @@ func New(o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
 
 	handler := &handler{
 		listener:     lis,
-		portal:       portal,
+		portal:       tcpip.AddrFromSlice(portal.AsSlice()),
 		DnsHijacking: o.Protocol.Tun.DnsHijacking,
 		Mtu:          o.Protocol.Tun.Mtu,
 		handler:      o.Handler,
@@ -54,7 +55,7 @@ type handler struct {
 	DnsHijacking bool
 	Mtu          int32
 	listener     *Tun2Socket
-	portal       netip.Addr
+	portal       tcpip.Address
 	handler      proxy.Handler
 	DNSHandler   proxy.DNSHandler
 }
@@ -104,13 +105,13 @@ func (h *handler) udp(server proxy.Handler) {
 
 func (h *handler) handleTCP(conn net.Conn) error {
 	// lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()  // source
-	rAddrPort := conn.RemoteAddr().(*net.TCPAddr).AddrPort() // dst
+	rAddrPort := conn.RemoteAddr().(*net.TCPAddr) // dst
 
-	if rAddrPort.Addr().IsLoopback() {
+	if rAddrPort.IP.IsLoopback() {
 		return nil
 	}
 
-	if h.isHandleDNS(rAddrPort) {
+	if h.isHandleDNS(tcpip.AddrFromSlice(rAddrPort.IP), uint16(rAddrPort.Port)) {
 		return h.DNSHandler.HandleTCP(context.TODO(), conn)
 	}
 
@@ -118,7 +119,7 @@ func (h *handler) handleTCP(conn net.Conn) error {
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
-		Address:     proxy.ParseAddrPort(statistic.Type_tcp, rAddrPort),
+		Address:     proxy.ParseTCPAddress(rAddrPort),
 	})
 
 	return nil
@@ -127,26 +128,32 @@ func (h *handler) handleTCP(conn net.Conn) error {
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
 func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket, buf []byte) error {
-	n, src, dst, err := lis.UDP().ReadFrom(buf)
+	n, tuple, err := lis.UDP().ReadFrom(buf)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
 	}
 
 	zbuf := buf[:n]
 
-	if h.isHandleDNS(dst) {
+	if h.isHandleDNS(tuple.DestinationAddr, tuple.DestinationPort) {
 		resp, err := h.DNSHandler.Do(context.TODO(), zbuf)
 		if err != nil {
 			return err
 		}
-		_, err = lis.UDP().WriteTo(resp, dst, src)
+		_, err = lis.UDP().WriteTo(resp, tuple)
 		return err
 	}
 
 	server.Packet(context.TODO(),
 		&proxy.Packet{
-			Src:     net.UDPAddrFromAddrPort(src),
-			Dst:     proxy.ParseAddrPort(statistic.Type_udp, dst),
+			Src: &net.UDPAddr{
+				IP:   net.IP(tuple.SourceAddr.AsSlice()),
+				Port: int(tuple.SourcePort),
+			},
+			Dst: proxy.ParseUDPAddr(&net.UDPAddr{
+				IP:   net.IP(tuple.DestinationAddr.AsSlice()),
+				Port: int(tuple.DestinationPort),
+			}),
 			Payload: zbuf,
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
 				address, err := proxy.ParseSysAddr(addr)
@@ -154,20 +161,25 @@ func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket, buf []byte) e
 					return 0, err
 				}
 
-				daddr, err := address.AddrPort(context.TODO())
+				daddr, err := address.IP(context.TODO())
 				if err != nil {
 					return 0, err
 				}
 
-				return lis.UDP().WriteTo(b, daddr, src)
+				return lis.UDP().WriteTo(b, nat.Tuple{
+					DestinationAddr: tcpip.AddrFromSlice(daddr),
+					DestinationPort: address.Port().Port(),
+					SourceAddr:      tuple.SourceAddr,
+					SourcePort:      tuple.SourcePort,
+				})
 			},
 		},
 	)
 	return nil
 }
 
-func (h *handler) isHandleDNS(addr netip.AddrPort) bool {
-	if addr.Port() == 53 && (h.DnsHijacking || addr.Addr() == h.portal) {
+func (h *handler) isHandleDNS(addr tcpip.Address, port uint16) bool {
+	if port == 53 && (h.DnsHijacking || addr == h.portal) {
 		return true
 	}
 	return false

@@ -42,7 +42,7 @@ func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *
 
 	tcp := &TCP{
 		listener: listener,
-		portal:   portal,
+		portal:   portal.AsSlice(),
 		table:    tab,
 	}
 
@@ -110,17 +110,20 @@ func Start(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *
 					if tup == zeroTuple {
 						continue
 					}
-
-					ip.SetSourceIP(tup.DestinationAddr.Addr())
-					ip.SetDestinationIP(tup.SourceAddr.Addr())
-					t.SetDestinationPort(tup.SourceAddr.Port())
-					t.SetSourcePort(tup.DestinationAddr.Port())
+					src, _ := netip.AddrFromSlice(tup.DestinationAddr.AsSlice())
+					dst, _ := netip.AddrFromSlice(tup.SourceAddr.AsSlice())
+					ip.SetSourceIP(src)
+					ip.SetDestinationIP(dst)
+					t.SetDestinationPort(tup.SourcePort)
+					t.SetSourcePort(tup.DestinationPort)
 
 					ip.DecTimeToLive()
 				} else {
-					tup := tuple{
-						SourceAddr:      netip.AddrPortFrom(sourceIP, sourcePort),
-						DestinationAddr: netip.AddrPortFrom(destinationIP, destinationPort),
+					tup := Tuple{
+						SourcePort:      sourcePort,
+						DestinationPort: destinationPort,
+						SourceAddr:      gtcpip.AddrFromSlice(sourceIP.AsSlice()),
+						DestinationAddr: gtcpip.AddrFromSlice(destinationIP.AsSlice()),
 					}
 
 					port := tab.portOf(tup)

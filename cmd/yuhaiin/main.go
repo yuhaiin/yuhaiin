@@ -16,8 +16,6 @@ import (
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 )
 
@@ -59,14 +57,14 @@ func main() {
 
 	go func() {
 		// h2c for grpc insecure mode
-		errChan <- http.Serve(app.HttpListener, h2c.NewHandler(http.HandlerFunc(
+		errChan <- http.Serve(app.HttpListener, http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 					grpcserver.ServeHTTP(w, r)
 				} else {
 					app.Mux.ServeHTTP(w, r)
 				}
-			}), &http2.Server{}))
+			}))
 	}()
 
 	// listen system signal

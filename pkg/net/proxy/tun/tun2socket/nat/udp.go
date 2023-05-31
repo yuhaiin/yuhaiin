@@ -4,19 +4,16 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"net/netip"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
 type callv2 struct {
-	buf         []byte
-	n           int
-	source      netip.AddrPort
-	destination netip.AddrPort
+	buf   []byte
+	n     int
+	tuple Tuple
 }
 type UDPv2 struct {
 	closed  bool
@@ -27,15 +24,15 @@ type UDPv2 struct {
 	channel chan *callv2
 }
 
-func (u *UDPv2) ReadFrom(buf []byte) (int, netip.AddrPort, netip.AddrPort, error) {
+func (u *UDPv2) ReadFrom(buf []byte) (int, Tuple, error) {
 	c, ok := <-u.channel
 	if !ok {
-		return -1, netip.AddrPort{}, netip.AddrPort{}, net.ErrClosed
+		return -1, Tuple{}, net.ErrClosed
 	}
 
 	defer pool.PutBytes(c.buf)
 
-	return copy(buf, c.buf[:c.n]), c.source, c.destination, nil
+	return copy(buf, c.buf[:c.n]), c.tuple, nil
 }
 
 func (u *UDPv2) Close() error {
@@ -50,7 +47,7 @@ func (u *UDPv2) Close() error {
 	return nil
 }
 
-func (u *UDPv2) handleUDPPacket(source, destination netip.AddrPort, payload []byte) {
+func (u *UDPv2) handleUDPPacket(tuple Tuple, payload []byte) {
 	u.queueMu.Lock()
 	defer u.queueMu.Unlock()
 
@@ -61,14 +58,13 @@ func (u *UDPv2) handleUDPPacket(source, destination netip.AddrPort, payload []by
 	buf := pool.GetBytes(u.mtu)
 
 	u.channel <- &callv2{
-		n:           copy(buf, payload),
-		buf:         buf,
-		source:      source,
-		destination: destination,
+		n:     copy(buf, payload),
+		buf:   buf,
+		tuple: tuple,
 	}
 }
 
-func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
+func (u *UDPv2) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	if u.closed {
 		return 0, net.ErrClosed
 	}
@@ -80,14 +76,10 @@ func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 		return 0, net.InvalidAddrError("invalid ip version")
 	}
 
-	if !local.Addr().IsValid() || !remote.Addr().IsValid() {
-		return 0, net.InvalidAddrError("invalid src or dst address")
-	}
-
 	udpTotalLength := header.UDPMinimumSize + uint16(len(buf))
 	var ip IP
 	var totalLength uint16
-	if remote.Addr().Unmap().Is4() {
+	if tuple.SourceAddr.Len() == 4 {
 		if totalLength = header.IPv4MinimumSize + udpTotalLength; int(u.mtu) < int(totalLength) {
 			return 0, net.InvalidAddrError("ip packet total length large than mtu")
 		}
@@ -100,8 +92,8 @@ func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 			FragmentOffset: 0,
 			TTL:            64,
 			Protocol:       uint8(header.UDPProtocolNumber),
-			SrcAddr:        tcpip.AddrFromSlice(local.Addr().AsSlice()),
-			DstAddr:        tcpip.AddrFromSlice(remote.Addr().AsSlice()),
+			SrcAddr:        tuple.DestinationAddr,
+			DstAddr:        tuple.SourceAddr,
 		})
 
 		ip = ipv4
@@ -114,8 +106,8 @@ func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 		ipv6.Encode(&header.IPv6Fields{
 			TransportProtocol: header.UDPProtocolNumber,
 			PayloadLength:     udpTotalLength,
-			SrcAddr:           tcpip.AddrFromSlice(local.Addr().AsSlice()),
-			DstAddr:           tcpip.AddrFromSlice(remote.Addr().AsSlice()),
+			SrcAddr:           tuple.DestinationAddr,
+			DstAddr:           tuple.SourceAddr,
 		})
 
 		ip = ipv6
@@ -123,8 +115,8 @@ func (u *UDPv2) WriteTo(buf []byte, local, remote netip.AddrPort) (int, error) {
 
 	udp := header.UDP(ip.Payload())
 	udp.Encode(&header.UDPFields{
-		SrcPort: local.Port(),
-		DstPort: remote.Port(),
+		SrcPort: tuple.DestinationPort,
+		DstPort: tuple.SourcePort,
 		Length:  udpTotalLength,
 	})
 	copy(udp.Payload(), buf)
