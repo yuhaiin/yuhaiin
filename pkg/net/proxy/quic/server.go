@@ -15,7 +15,7 @@ import (
 
 type Server struct {
 	packetConn net.PacketConn
-	quic.EarlyListener
+	*quic.EarlyListener
 	tlsConfig *tls.Config
 
 	mu       sync.RWMutex
