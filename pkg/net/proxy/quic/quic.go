@@ -44,10 +44,18 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 			return nil, err
 		}
 
+		tlsConfig := protocol.ParseTLSConfig(config.Quic.Tls)
+		if tlsConfig == nil {
+			tlsConfig = &tls.Config{}
+		}
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = uaddr.IP.String()
+		}
+
 		c := &Client{
 			host:      uaddr,
 			dialer:    dialer,
-			tlsConfig: protocol.ParseTLSConfig(config.Quic.Tls),
+			tlsConfig: tlsConfig,
 			quicConfig: &quic.Config{
 				MaxIdleTimeout:  20 * time.Second,
 				KeepAlivePeriod: 20 * time.Second * 2 / 5,
@@ -55,10 +63,6 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 			},
 
 			udpMap: make(map[uint64]chan packet),
-		}
-
-		if c.tlsConfig == nil {
-			c.tlsConfig = &tls.Config{}
 		}
 
 		addr, err := proxy.ParseAddress(statistic.Type_udp, config.Quic.Host)
@@ -83,7 +87,7 @@ func (c *Client) initSession(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	session, err := quic.DialEarly(conn, c.host, c.host.String(), c.tlsConfig, c.quicConfig)
+	session, err := quic.DialEarly(ctx, conn, c.host, c.tlsConfig, c.quicConfig)
 	if err != nil {
 		return err
 	}

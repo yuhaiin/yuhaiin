@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -43,7 +44,7 @@ func main() {
 	setting := config.NewConfig(app.PathGenerator.Config(*savepath))
 	grpcserver := newGrpcServer()
 
-	app.Start(
+	yerror.Must(struct{}{}, app.Start(
 		app.StartOpt{
 			ConfigPath:    *savepath,
 			Host:          *host,
@@ -51,7 +52,7 @@ func main() {
 			GRPCServer:    grpcserver,
 			ProcessDumper: processDumper,
 		},
-	)
+	))
 	defer app.Close()
 
 	errChan := make(chan error)

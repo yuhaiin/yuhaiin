@@ -40,6 +40,10 @@ func NewDoQ(config Config) (proxy.Resolver, error) {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
+	if config.Servername == "" {
+		config.Servername = addr.Hostname()
+	}
+
 	d := &doq{dialer: config.Dialer, host: addr, servername: config.Servername}
 
 	d.client = NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
@@ -135,11 +139,10 @@ func (d *doq) initSession(ctx context.Context) error {
 		d.conn = conn
 	}
 
-	session, err := quic.DialEarlyContext(
+	session, err := quic.DialEarly(
 		ctx,
 		d.conn,
 		d.host,
-		d.host.String(),
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},
 			ServerName: d.servername,
