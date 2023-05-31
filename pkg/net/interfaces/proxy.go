@@ -123,7 +123,7 @@ func ParseAddressPort(network statistic.Type, addr string, port Port) (ad Addres
 
 func ParseTCPAddress(ad *net.TCPAddr) Address {
 	return &IPAddrPort{
-		addr:     newAddr(statistic.Type_udp),
+		addr:     newAddr(statistic.Type_tcp),
 		addrPort: ad.AddrPort(),
 	}
 }

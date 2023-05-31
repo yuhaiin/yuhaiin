@@ -34,6 +34,9 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 		return nil, nil, err
 	}
 
+	tcpipPortal := tcpip.AddrFromSlice(portal.AsSlice())
+	tcpipGateway := tcpip.AddrFromSlice(gateway.AsSlice())
+
 	log.Info("new tun2socket gvisor tcp server", "host", listener.Addr())
 
 	if mtu <= 0 {
@@ -54,7 +57,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 
 	tcp := &TCP{
 		listener: listener,
-		portal:   portal,
+		portal:   portal.AsSlice(),
 		table:    tab,
 	}
 
@@ -119,15 +122,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 
 			dst, src := ip.DestinationAddress(), ip.SourceAddress()
 
-			destinationIP, dok := netip.AddrFromSlice((&dst).AsSlice())
-			sourceIP, sok := netip.AddrFromSlice((&src).AsSlice())
-			if !dok || !sok {
-				continue
-			}
-
-			destinationIP, sourceIP = destinationIP.Unmap(), sourceIP.Unmap()
-
-			if !destinationIP.IsGlobalUnicast() {
+			if !net.IP(dst.AsSlice()).IsGlobalUnicast() {
 				continue
 			}
 
@@ -141,8 +136,8 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 				sourcePort := t.SourcePort()
 				destinationPort := t.DestinationPort()
 
-				if destinationIP == portal {
-					if sourceIP != gateway || sourcePort != gatewayPort {
+				if dst == tcpipPortal {
+					if src != tcpipGateway || sourcePort != gatewayPort {
 						continue
 					}
 
@@ -151,14 +146,16 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 						continue
 					}
 
-					ip.SetDestinationAddress(tcpip.AddrFromSlice(tup.SourceAddr.Addr().AsSlice()))
-					t.SetDestinationPort(tup.SourceAddr.Port())
-					ip.SetSourceAddress(tcpip.AddrFromSlice(tup.DestinationAddr.Addr().AsSlice()))
-					t.SetSourcePort(tup.DestinationAddr.Port())
+					ip.SetDestinationAddress(tup.SourceAddr)
+					t.SetDestinationPort(tup.SourcePort)
+					ip.SetSourceAddress(tup.DestinationAddr)
+					t.SetSourcePort(tup.DestinationPort)
 				} else {
-					tup := tuple{
-						SourceAddr:      netip.AddrPortFrom(sourceIP, sourcePort),
-						DestinationAddr: netip.AddrPortFrom(destinationIP, destinationPort),
+					tup := Tuple{
+						SourceAddr:      src,
+						SourcePort:      sourcePort,
+						DestinationAddr: dst,
+						DestinationPort: destinationPort,
 					}
 
 					port := tab.portOf(tup)
@@ -170,9 +167,9 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 						port = tab.newConn(tup)
 					}
 
-					ip.SetDestinationAddress(tcpip.AddrFromSlice(gateway.AsSlice()))
+					ip.SetDestinationAddress(tcpipGateway)
 					t.SetDestinationPort(gatewayPort)
-					ip.SetSourceAddress(tcpip.AddrFromSlice(portal.AsSlice()))
+					ip.SetSourceAddress(tcpipPortal)
 					t.SetSourcePort(port)
 				}
 
@@ -213,10 +210,12 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 
 			case header.UDPProtocolNumber:
 				u := header.UDP(ip.Payload())
-				udp.handleUDPPacket(
-					netip.AddrPortFrom(sourceIP, u.SourcePort()),
-					netip.AddrPortFrom(destinationIP, u.DestinationPort()),
-					u.Payload())
+				udp.handleUDPPacket(Tuple{
+					SourceAddr:      src,
+					SourcePort:      u.SourcePort(),
+					DestinationAddr: dst,
+					DestinationPort: u.DestinationPort(),
+				}, u.Payload())
 				fallthrough
 
 			default:
