@@ -25,6 +25,8 @@ type Simple struct {
 
 	index      int
 	updateTime time.Time
+
+	timeout time.Duration
 }
 
 func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
@@ -44,16 +46,31 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 			addrs = append(addrs, proxy.ParseAddressPort(0, v.GetHost(), proxy.ParsePort(v.GetPort())))
 		}
 
+		timeout := time.Duration(0)
+
+		if c.Simple.Timeout > 0 {
+			timeout = time.Millisecond * time.Duration(c.Simple.Timeout)
+		}
+
 		return &Simple{
 			addrs:        addrs,
 			packetDirect: c.Simple.PacketConnDirect,
 			tlsConfig:    tls,
 			serverNames:  servernames,
+			timeout:      timeout,
 		}, nil
 	}
 }
 
 func (c *Simple) dial(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+	var cancel context.CancelFunc
+	if c.timeout > 0 {
+		ctx, cancel = context.WithTimeout(context.TODO(), c.timeout)
+	} else {
+		ctx, cancel = context.WithTimeout(ctx, time.Second*3)
+	}
+	defer cancel()
+
 	ip, err := addr.IP(ctx)
 	if err != nil {
 		return nil, err
@@ -81,15 +98,11 @@ func (c *Simple) Conn(ctx context.Context, d proxy.Address) (net.Conn, error) {
 
 	if conn == nil {
 		for i, addr := range c.addrs {
-			ctx, cancel := context.WithTimeout(ctx, time.Second*4)
 			con, er := c.dial(ctx, addr)
 			if er != nil {
 				err = errors.Join(err, er)
-				cancel()
 				continue
 			}
-
-			cancel()
 
 			conn = con
 			c.index = i

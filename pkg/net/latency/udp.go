@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/components/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -22,7 +23,7 @@ func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.TODO(), inbound.Timeout)
 	defer cancel()
 
 	_, err = d.LookupIP(ctx, target)
@@ -48,7 +49,7 @@ func DNSOverQuic(p proxy.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.TODO(), inbound.Timeout)
 	defer cancel()
 
 	_, err = d.LookupIP(ctx, target)
