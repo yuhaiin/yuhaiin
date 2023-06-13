@@ -24,7 +24,7 @@ func HTTP(p proxy.Proxy, target string) (time.Duration, error) {
 	defer tr.CloseIdleConnections()
 
 	start := time.Now()
-	resp, err := (&http.Client{Transport: tr, Timeout: 4 * time.Second}).Get(target)
+	resp, err := http.Get(target)
 	if err != nil {
 		return 0, err
 	}
