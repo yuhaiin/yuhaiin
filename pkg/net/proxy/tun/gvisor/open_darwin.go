@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/sys/unix"
-	buffer "gvisor.dev/gvisor/pkg/bufferv2"
+	buffer "gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
