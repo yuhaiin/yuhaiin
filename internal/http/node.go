@@ -3,21 +3,17 @@ package simplehttp
 import (
 	"encoding/json"
 	"errors"
-	"html/template"
 	"io"
 	"net/http"
 
-	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type nodeHandler struct {
-	emptyHTTP
 	nm grpcnode.NodeServer
 }
 
@@ -38,13 +34,6 @@ var protocolsMapping = map[string]*protocol.Protocol{
 
 func (nn *nodeHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	page := r.URL.Query().Get("page")
-	if page == "new_node" {
-		return nn.newNode(w, r)
-	}
-
-	if page == "template" {
-		return nn.templates(w, r)
-	}
 
 	if page == "generate_template" {
 		return nn.generateTemplates(w, r)
@@ -64,28 +53,6 @@ func (nn *nodeHandler) Get(w http.ResponseWriter, r *http.Request) error {
 
 	w.Write(data)
 	return nil
-}
-
-func (n *nodeHandler) newNode(w http.ResponseWriter, r *http.Request) error {
-	return TPS.BodyExecute(w, nil, tps.NEW_NODE)
-}
-
-func (n *nodeHandler) templates(w http.ResponseWriter, r *http.Request) error {
-	str := pool.GetBuffer()
-	defer pool.PutBuffer(str)
-
-	str.WriteString("TEMPLATE")
-
-	for k, v := range protocolsMapping {
-		b, _ := protojson.MarshalOptions{Indent: "  ", EmitUnpopulated: true}.Marshal(v)
-		str.WriteString("<hr/>")
-		str.WriteString(k)
-		str.WriteString("<pre>")
-		str.Write(b)
-		str.WriteString("</pre>")
-	}
-
-	return TPS.BodyExecute(w, template.HTML(str.Bytes()), tps.EMPTY_BODY)
 }
 
 func (n *nodeHandler) generateTemplates(w http.ResponseWriter, r *http.Request) error {

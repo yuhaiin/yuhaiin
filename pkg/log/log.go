@@ -93,7 +93,12 @@ func NewSLogger(depth int) Logger {
 
 			// Remove the directory from the source's filename.
 			if a.Key == slog.SourceKey {
-				a.Value = slog.StringValue(filepath.Base(a.Value.String()))
+				source, ok := a.Value.Any().(*slog.Source)
+				if ok {
+					source.Function = ""
+					source.File = filepath.Base(source.File)
+					a.Value = slog.AnyValue(source)
+				}
 			}
 
 			return a

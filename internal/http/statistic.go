@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"google.golang.org/grpc/metadata"
@@ -16,7 +15,6 @@ import (
 )
 
 type conn struct {
-	emptyHTTP
 	stt gs.ConnectionsServer
 }
 
@@ -37,10 +35,6 @@ func (c *conn) Delete(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (c *conn) Get(w http.ResponseWriter, r *http.Request) error {
-	return TPS.BodyExecute(w, nil, tps.STATISTIC)
-}
-
 func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
 	return websocket.ServeHTTP(w, r, cc.handler)
 }
@@ -59,10 +53,13 @@ func (cc *conn) handler(ctx context.Context, c *websocket.Conn) error {
 		return err
 	}
 
-	cctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go cc.stt.Notify(&emptypb.Empty{}, &connectionsNotifyServer{cctx, c})
+	go func() {
+		defer cancel()
+		cc.stt.Notify(&emptypb.Empty{}, &connectionsNotifyServer{ctx, c})
+	}()
 
 	ticker := time.NewTicker(time.Duration(t) * time.Millisecond)
 	defer ticker.Stop()

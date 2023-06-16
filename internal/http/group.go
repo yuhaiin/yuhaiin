@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sort"
 
-	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
@@ -17,7 +16,6 @@ import (
 )
 
 type groupHandler struct {
-	emptyHTTP
 	nm snode.NodeServer
 }
 
@@ -27,17 +25,8 @@ func (g *groupHandler) Get(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if group == "" {
-		return g.groupList(w, r, ns)
-	} else {
-		return g.group(w, r, ns, group)
-	}
-}
 
-func (g *groupHandler) groupList(w http.ResponseWriter, r *http.Request, ns *node.Manager) error {
-	groups := maps.Keys(ns.GroupsV2)
-	sort.Strings(groups)
-	return TPS.BodyExecute(w, groups, tps.GROUP_LIST)
+	return g.group(w, r, ns, group)
 }
 
 func (g *groupHandler) group(w http.ResponseWriter, r *http.Request, ns *node.Manager, group string) error {
@@ -54,14 +43,30 @@ func (g *groupHandler) group(w http.ResponseWriter, r *http.Request, ns *node.Ma
 	return nil
 }
 
+func (g *groupHandler) GroupList(w http.ResponseWriter, r *http.Request) error {
+	ns, err := g.nm.Manager(r.Context(), &wrapperspb.StringValue{})
+	if err != nil {
+		return err
+	}
+	groups := maps.Keys(ns.GroupsV2)
+	sort.Strings(groups)
+
+	data, err := json.Marshal(groups)
+	if err != nil {
+		return err
+	}
+
+	w.Write(data)
+	return nil
+}
+
 type tag struct {
-	emptyHTTP
 	nm snode.NodeServer
 	ts snode.TagServer
 	st *shunt.Shunt
 }
 
-func (t *tag) Get(w http.ResponseWriter, r *http.Request) error {
+func (t *tag) List(w http.ResponseWriter, r *http.Request) error {
 	m, err := t.nm.Manager(r.Context(), &wrapperspb.StringValue{})
 	if err != nil {
 		return err
@@ -93,12 +98,16 @@ func (t *tag) Get(w http.ResponseWriter, r *http.Request) error {
 		groups[k] = v.NodesV2
 	}
 
-	gs, _ := json.Marshal(groups)
+	gs, err := json.Marshal(map[string]any{
+		"tags":   tags,
+		"groups": groups,
+	})
+	if err != nil {
+		return err
+	}
 
-	return TPS.BodyExecute(w, map[string]any{
-		"Tags":      tags,
-		"GroupJSON": string(gs),
-	}, tps.TAG)
+	_, err = w.Write(gs)
+	return err
 }
 
 func (t *tag) Post(w http.ResponseWriter, r *http.Request) error {
