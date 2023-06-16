@@ -10,7 +10,6 @@ import (
 )
 
 type latencyHandler struct {
-	emptyHTTP
 	nm grpcnode.NodeServer
 }
 

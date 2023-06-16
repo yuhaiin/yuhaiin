@@ -1,20 +1,19 @@
 package simplehttp
 
 import (
-	"html/template"
-	"io"
+	"embed"
+	"io/fs"
 	"net/http"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/internal/http/bootstrap"
-	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	sstatistic "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
+
+//go:embed build
+var front embed.FS
 
 var debug func(*http.ServeMux)
 
@@ -35,95 +34,122 @@ func Httpserver(o HttpServerOption) {
 		debug(mux)
 	}
 
-	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte{}) })
-	mux.Handle("/config", &handler{&configHandler{cf: o.Config}})
-	mux.Handle("/conn", &handler{&conn{stt: o.Connections}})
-	mux.Handle("/node", &handler{&nodeHandler{nm: o.NodeServer}})
-	mux.Handle("/sub", &handler{&subHandler{nm: o.Subscribe}})
-	mux.Handle("/group", &handler{&groupHandler{nm: o.NodeServer}})
-	mux.Handle("/latency", &handler{&latencyHandler{nm: o.NodeServer}})
-	mux.Handle("/tag", &handler{&tag{nm: o.NodeServer, ts: o.Tag, st: o.Shunt}})
-	mux.Handle("/bootstrap/", http.StripPrefix("/bootstrap", http.FileServer(http.FS(bootstrap.Bootstrap))))
-	mux.Handle("/", &handler{&rootHandler{nm: o.NodeServer}})
-}
+	root, _ := fs.Sub(front, "build")
+	fs := http.FileServer(http.FS(root))
 
-var TPS = &templates{}
+	handlers := Handler{}
 
-type templates struct {
-	store syncmap.SyncMap[string, *template.Template]
-}
-
-func (t *templates) Execute(w io.Writer, data any, patterns ...string) error {
-	key := strings.Join(patterns, "")
-	z, ok := t.store.Load(key)
-	if !ok {
-		var err error
-		z, err = template.ParseFS(tps.Pages, patterns...)
-		if err != nil {
-			return err
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/yuhaiin") {
+			r.URL.Path = "/"
 		}
 
-		t.store.Store(key, z)
-	}
-
-	return z.Execute(w, data)
-}
-
-func (t *templates) BodyExecute(w io.Writer, data any, pattern string) error {
-	return t.Execute(w, data, tps.FRAME, pattern)
-}
-
-type HTTP interface {
-	Get(http.ResponseWriter, *http.Request) error
-	Post(http.ResponseWriter, *http.Request) error
-	Put(http.ResponseWriter, *http.Request) error
-	Delete(http.ResponseWriter, *http.Request) error
-	Patch(http.ResponseWriter, *http.Request) error
-	Websocket(http.ResponseWriter, *http.Request) error
-}
-
-var _ http.Handler = (*handler)(nil)
-
-type handler struct {
-	HTTP
-}
-
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
-	log.Info("new http request", "method", r.Method, "url", r.URL)
-
-	var err error
-	switch r.Method {
-	case http.MethodGet:
-		if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" &&
-			strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") {
-			err = h.Websocket(w, r)
+		if r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/static") {
+			fs.ServeHTTP(w, r)
 		} else {
-			err = h.Get(w, r)
+			handlers.ServeHTTP(w, r)
 		}
-	case http.MethodPost:
-		err = h.Post(w, r)
-	case http.MethodPut:
-		err = h.Put(w, r)
-	case http.MethodDelete:
-		err = h.Delete(w, r)
-	case http.MethodPatch:
-		err = h.Patch(w, r)
+	}))
+
+	conn := &conn{stt: o.Connections}
+	group := &groupHandler{nm: o.NodeServer}
+	sub := &subHandler{nm: o.Subscribe}
+	tag := &tag{nm: o.NodeServer, ts: o.Tag, st: o.Shunt}
+	config := &configHandler{cf: o.Config}
+	node := &nodeHandler{nm: o.NodeServer}
+	rh := &rootHandler{nm: o.NodeServer}
+	latency := &latencyHandler{nm: o.NodeServer}
+
+	var routes = map[string]map[string]func(http.ResponseWriter, *http.Request) error{
+		"GET": {
+			"/grouplist":   group.GroupList,
+			"/group":       group.Get,
+			"/sublist":     sub.GetLinkList,
+			"/taglist":     tag.List,
+			"/config/json": config.Config,
+			"/node/now":    rh.NodeNow,
+			"/node":        node.Get,
+			"/latency":     latency.Get,
+		},
+		"POST": {
+			"/config": config.Post,
+			"/node":   node.Post,
+			"/sub":    sub.Post,
+			"/tag":    tag.Post,
+		},
+		"DELETE": {
+			"/conn": conn.Delete,
+			"/node": node.Delete,
+			"/sub":  sub.Delete,
+			"/tag":  tag.Delete,
+		},
+		"PUT": {
+			"/node": node.Put,
+		},
+		"PATCH": {
+			"/sub": sub.Patch,
+		},
+		"WS": {
+			"/conn": conn.Websocket,
+		},
 	}
 
-	if err != nil {
+	for method, v := range routes {
+		for path, handler := range v {
+			handlers.Handle(method, path, handler)
+		}
+	}
+}
+
+type Handler struct {
+	handlers map[string]map[string]func(http.ResponseWriter, *http.Request) error
+}
+
+func (h *Handler) Handle(method, pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+	if h.handlers == nil {
+		h.handlers = make(map[string]map[string]func(http.ResponseWriter, *http.Request) error)
+	}
+
+	path, ok := h.handlers[pattern]
+	if !ok {
+		path = make(map[string]func(http.ResponseWriter, *http.Request) error)
+		h.handlers[pattern] = path
+	}
+
+	path[method] = handler
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.handlers == nil {
+		return
+	}
+
+	p, ok := h.handlers[r.URL.Path]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	method := r.Method
+
+	if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" &&
+		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") {
+		method = "WS"
+	}
+
+	m, ok := p[method]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
+	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	if err := m(w, r); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
-
-var _ HTTP = (*emptyHTTP)(nil)
-
-type emptyHTTP struct{}
-
-func (emptyHTTP) Get(w http.ResponseWriter, r *http.Request) error       { return nil }
-func (emptyHTTP) Post(w http.ResponseWriter, r *http.Request) error      { return nil }
-func (emptyHTTP) Delete(w http.ResponseWriter, r *http.Request) error    { return nil }
-func (emptyHTTP) Put(w http.ResponseWriter, r *http.Request) error       { return nil }
-func (emptyHTTP) Patch(w http.ResponseWriter, r *http.Request) error     { return nil }
-func (emptyHTTP) Websocket(w http.ResponseWriter, r *http.Request) error { return nil }

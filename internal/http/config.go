@@ -3,11 +3,7 @@ package simplehttp
 import (
 	"io"
 	"net/http"
-	"runtime"
-	"strings"
-	"unsafe"
 
-	tps "github.com/Asutorufa/yuhaiin/internal/http/templates"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -15,11 +11,10 @@ import (
 )
 
 type configHandler struct {
-	emptyHTTP
 	cf grpcconfig.ConfigServiceServer
 }
 
-func (cc *configHandler) Get(w http.ResponseWriter, r *http.Request) error {
+func (cc *configHandler) Config(w http.ResponseWriter, r *http.Request) error {
 	c, err := cc.cf.Load(r.Context(), &emptypb.Empty{})
 	if err != nil {
 		return err
@@ -30,10 +25,8 @@ func (cc *configHandler) Get(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	return TPS.BodyExecute(w, map[string]any{
-		"Config": unsafe.String(&data[0], len(data)),
-		"GOOS":   strings.ToLower(runtime.GOOS),
-	}, tps.CONFIG)
+	_, err = w.Write(data)
+	return err
 }
 
 func (c *configHandler) Post(w http.ResponseWriter, r *http.Request) error {

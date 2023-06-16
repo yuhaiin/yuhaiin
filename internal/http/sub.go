@@ -8,11 +8,11 @@ import (
 
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type subHandler struct {
-	emptyHTTP
 	nm grpcnode.SubscribeServer
 }
 
@@ -40,19 +40,23 @@ func (s *subHandler) Post(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (s *subHandler) Get(w http.ResponseWriter, r *http.Request) error {
+func (s *subHandler) GetLinkList(w http.ResponseWriter, r *http.Request) error {
 	links, err := s.nm.Get(r.Context(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
 
-	ls := make([]string, 0, len(links.Links))
-	for v := range links.Links {
-		ls = append(ls, v)
-	}
-	sort.Strings(ls)
+	linksValue := maps.Values(links.Links)
 
-	return TPS.BodyExecute(w, map[string]any{"LS": ls, "Links": links.Links}, "sub.html")
+	sort.Slice(linksValue, func(i, j int) bool { return linksValue[i].Name < linksValue[j].Name })
+
+	data, err := json.Marshal(linksValue)
+	if err != nil {
+		return err
+	}
+
+	w.Write(data)
+	return nil
 }
 
 func (s *subHandler) Delete(w http.ResponseWriter, r *http.Request) error {
