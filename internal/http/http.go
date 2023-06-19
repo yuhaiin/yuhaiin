@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	config "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	sstatistic "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"golang.org/x/exp/slog"
 )
 
 //go:embed build
@@ -40,6 +42,7 @@ func Httpserver(o HttpServerOption) {
 	handlers := Handler{}
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Debug("http new request", slog.String("method", r.Method), slog.String("path", r.URL.String()))
 		if strings.HasPrefix(r.URL.Path, "/yuhaiin") {
 			r.URL.Path = "/"
 		}
@@ -135,6 +138,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" &&
 		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") {
 		method = "WS"
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
+	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	if method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
 	}
 
 	m, ok := p[method]
