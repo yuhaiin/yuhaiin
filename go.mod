@@ -13,7 +13,7 @@ require (
 	golang.org/x/sys v0.9.0
 	golang.org/x/time v0.3.0
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224
-	google.golang.org/grpc v1.56.0
+	google.golang.org/grpc v1.56.1
 	google.golang.org/protobuf v1.30.0
 	gvisor.dev/gvisor v0.0.0-20230614011150-2ccb90afa11e
 )
