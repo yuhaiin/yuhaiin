@@ -14,11 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-type conn struct {
-	stt gs.ConnectionsServer
-}
-
-func (c *conn) Delete(w http.ResponseWriter, r *http.Request) error {
+func (c *HandlerImpl) CloseConn(w http.ResponseWriter, r *http.Request) error {
 	id := r.URL.Query().Get("id")
 
 	i, err := strconv.ParseUint(id, 10, 64)
@@ -31,15 +27,15 @@ func (c *conn) Delete(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	w.Write([]byte("OK"))
-	return nil
+	_, err = w.Write([]byte("OK"))
+	return err
 }
 
-func (cc *conn) Websocket(w http.ResponseWriter, r *http.Request) error {
+func (cc *HandlerImpl) ConnWebsocket(w http.ResponseWriter, r *http.Request) error {
 	return websocket.ServeHTTP(w, r, cc.handler)
 }
 
-func (cc *conn) handler(ctx context.Context, c *websocket.Conn) error {
+func (cc *HandlerImpl) handler(ctx context.Context, c *websocket.Conn) error {
 	defer c.Close()
 
 	var tickerStr string
@@ -86,7 +82,7 @@ func (cc *conn) handler(ctx context.Context, c *websocket.Conn) error {
 	}
 }
 
-func (cc *conn) sendFlow(ctx context.Context, wsConn *websocket.Conn) error {
+func (cc *HandlerImpl) sendFlow(ctx context.Context, wsConn *websocket.Conn) error {
 	total, err := cc.stt.Total(ctx, &emptypb.Empty{})
 	if err != nil {
 		return err
