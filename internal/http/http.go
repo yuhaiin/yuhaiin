@@ -2,6 +2,9 @@ package simplehttp
 
 import (
 	"embed"
+	"encoding/json"
+	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -12,6 +15,8 @@ import (
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	sstatistic "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"golang.org/x/exp/slog"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 //go:embed build
@@ -54,46 +59,46 @@ func Httpserver(o HttpServerOption) {
 		}
 	}))
 
-	conn := &conn{stt: o.Connections}
-	group := &groupHandler{nm: o.NodeServer}
-	sub := &subHandler{nm: o.Subscribe}
-	tag := &tag{nm: o.NodeServer, ts: o.Tag, st: o.Shunt}
-	config := &configHandler{cf: o.Config}
-	node := &nodeHandler{nm: o.NodeServer}
-	rh := &rootHandler{nm: o.NodeServer}
-	latency := &latencyHandler{nm: o.NodeServer}
+	handlersImpl := &HandlerImpl{
+		cf:  o.Config,
+		nm:  o.NodeServer,
+		ts:  o.Tag,
+		st:  o.Shunt,
+		sb:  o.Subscribe,
+		stt: o.Connections,
+	}
 
 	var routes = map[string]map[string]func(http.ResponseWriter, *http.Request) error{
 		"GET": {
-			"/grouplist":   group.GroupList,
-			"/group":       group.Get,
-			"/sublist":     sub.GetLinkList,
-			"/taglist":     tag.List,
-			"/config/json": config.Config,
-			"/node/now":    rh.NodeNow,
-			"/node":        node.Get,
-			"/latency":     latency.Get,
+			"/grouplist":   handlersImpl.GroupList,
+			"/group":       handlersImpl.Groups,
+			"/sublist":     handlersImpl.GetLinkList,
+			"/taglist":     handlersImpl.TagList,
+			"/config/json": handlersImpl.Config,
+			"/node/now":    handlersImpl.NodeNow,
+			"/node":        handlersImpl.GetNode,
+			"/latency":     handlersImpl.Get,
 		},
 		"POST": {
-			"/config": config.Post,
-			"/node":   node.Post,
-			"/sub":    sub.Post,
-			"/tag":    tag.Post,
+			"/config": handlersImpl.Post,
+			"/node":   handlersImpl.SaveNode,
+			"/sub":    handlersImpl.SaveLink,
+			"/tag":    handlersImpl.SaveTag,
 		},
 		"DELETE": {
-			"/conn": conn.Delete,
-			"/node": node.Delete,
-			"/sub":  sub.Delete,
-			"/tag":  tag.Delete,
+			"/conn": handlersImpl.CloseConn,
+			"/node": handlersImpl.DeleteNOde,
+			"/sub":  handlersImpl.DeleteLink,
+			"/tag":  handlersImpl.DeleteTag,
 		},
 		"PUT": {
-			"/node": node.Put,
+			"/node": handlersImpl.AddNode,
 		},
 		"PATCH": {
-			"/sub": sub.Patch,
+			"/sub": handlersImpl.PatchLink,
 		},
 		"WS": {
-			"/conn": conn.Websocket,
+			"/conn": handlersImpl.ConnWebsocket,
 		},
 	}
 
@@ -166,4 +171,55 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := m(w, r); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message, opts ...func(*protojson.MarshalOptions)) error {
+	marshaler := protojson.MarshalOptions{}
+
+	for _, f := range opts {
+		f(&marshaler)
+	}
+
+	bytes, err := marshaler.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("marshal proto failed: %w", err)
+	}
+
+	_, err = w.Write(bytes)
+	return err
+}
+
+func MarshalJsonAndWrite(w http.ResponseWriter, data interface{}) error {
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(bytes)
+	return err
+}
+
+func UnmarshalProtoFromRequest(r *http.Request, data proto.Message, opts ...func(*protojson.UnmarshalOptions)) error {
+	unmarshaler := protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}
+
+	for _, f := range opts {
+		f(&unmarshaler)
+	}
+
+	bytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	return unmarshaler.Unmarshal(bytes, data)
+}
+
+func UnmarshalJsonFromRequest(r *http.Request, data interface{}) error {
+	bytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bytes, data)
 }

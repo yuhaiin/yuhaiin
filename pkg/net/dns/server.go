@@ -88,11 +88,10 @@ func (d *dnsServer) startUDP() (err error) {
 				data, err := d.handle(ctx, buf[:n])
 				if err != nil {
 					log.Error("dns server handle data failed", slog.Any("err", err))
-					return
-				}
-
-				if _, err = d.listener.WriteTo(data, addr); err != nil {
-					log.Error("write dns response to client failed", slog.Any("err", err))
+				} else {
+					if _, err = d.listener.WriteTo(data, addr); err != nil {
+						log.Error("write dns response to client failed", slog.Any("err", err))
+					}
 				}
 			}
 		}()
