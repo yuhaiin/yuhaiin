@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (c *HandlerImpl) CloseConn(w http.ResponseWriter, r *http.Request) error {
+func (c *HttpServerOption) CloseConn(w http.ResponseWriter, r *http.Request) error {
 	id := r.URL.Query().Get("id")
 
 	i, err := strconv.ParseUint(id, 10, 64)
@@ -22,7 +22,7 @@ func (c *HandlerImpl) CloseConn(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err = c.stt.CloseConn(r.Context(), &gs.ConnectionsId{Ids: []uint64{i}})
+	_, err = c.Connections.CloseConn(r.Context(), &gs.ConnectionsId{Ids: []uint64{i}})
 	if err != nil {
 		return err
 	}
@@ -31,11 +31,11 @@ func (c *HandlerImpl) CloseConn(w http.ResponseWriter, r *http.Request) error {
 	return err
 }
 
-func (cc *HandlerImpl) ConnWebsocket(w http.ResponseWriter, r *http.Request) error {
+func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request) error {
 	return websocket.ServeHTTP(w, r, cc.handler)
 }
 
-func (cc *HandlerImpl) handler(ctx context.Context, c *websocket.Conn) error {
+func (cc *HttpServerOption) handler(ctx context.Context, c *websocket.Conn) error {
 	defer c.Close()
 
 	var tickerStr string
@@ -54,7 +54,7 @@ func (cc *HandlerImpl) handler(ctx context.Context, c *websocket.Conn) error {
 
 	go func() {
 		defer cancel()
-		cc.stt.Notify(&emptypb.Empty{}, &connectionsNotifyServer{ctx, c})
+		cc.Connections.Notify(&emptypb.Empty{}, &connectionsNotifyServer{ctx, c})
 	}()
 
 	ticker := time.NewTicker(time.Duration(t) * time.Millisecond)
@@ -82,8 +82,8 @@ func (cc *HandlerImpl) handler(ctx context.Context, c *websocket.Conn) error {
 	}
 }
 
-func (cc *HandlerImpl) sendFlow(ctx context.Context, wsConn *websocket.Conn) error {
-	total, err := cc.stt.Total(ctx, &emptypb.Empty{})
+func (cc *HttpServerOption) sendFlow(ctx context.Context, wsConn *websocket.Conn) error {
+	total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
 	if err != nil {
 		return err
 	}

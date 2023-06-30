@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.Asutorufa.yuhaiin</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/yuhaiin_darwin_amd64v3</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/etc/yuhaiin</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+
+</dict>
+</plist>

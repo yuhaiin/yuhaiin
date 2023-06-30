@@ -9,3 +9,5 @@ import (
 
 //go:embed bypass.gz
 var BYPASS_DATA []byte
+
+//go:generate go run generate.go

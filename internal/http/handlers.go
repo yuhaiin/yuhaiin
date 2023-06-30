@@ -8,9 +8,7 @@ import (
 	"runtime"
 	"sort"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcconfig "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
@@ -18,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
-	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -26,17 +23,8 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type HandlerImpl struct {
-	cf  grpcconfig.ConfigServiceServer
-	nm  snode.NodeServer
-	ts  snode.TagServer
-	st  *shunt.Shunt
-	sb  grpcnode.SubscribeServer
-	stt gs.ConnectionsServer
-}
-
-func (cc *HandlerImpl) Config(w http.ResponseWriter, r *http.Request) error {
-	c, err := cc.cf.Load(r.Context(), &emptypb.Empty{})
+func (cc *HttpServerOption) GetConfig(w http.ResponseWriter, r *http.Request) error {
+	c, err := cc.Config.Load(r.Context(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
@@ -45,13 +33,13 @@ func (cc *HandlerImpl) Config(w http.ResponseWriter, r *http.Request) error {
 	return MarshalProtoAndWrite(w, c, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true })
 }
 
-func (c *HandlerImpl) Post(w http.ResponseWriter, r *http.Request) error {
+func (c *HttpServerOption) SaveConfig(w http.ResponseWriter, r *http.Request) error {
 	config := &config.Setting{}
 	if err := UnmarshalProtoFromRequest(r, config); err != nil {
 		return err
 	}
 
-	if _, err := c.cf.Save(r.Context(), config); err != nil {
+	if _, err := c.Config.Save(r.Context(), config); err != nil {
 		return err
 	}
 
@@ -59,9 +47,9 @@ func (c *HandlerImpl) Post(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (g *HandlerImpl) Groups(w http.ResponseWriter, r *http.Request) error {
+func (g *HttpServerOption) GetGroups(w http.ResponseWriter, r *http.Request) error {
 	group := r.URL.Query().Get("name")
-	ns, err := g.nm.Manager(r.Context(), &wrapperspb.StringValue{})
+	ns, err := g.NodeServer.Manager(r.Context(), &wrapperspb.StringValue{})
 	if err != nil {
 		return err
 	}
@@ -73,8 +61,8 @@ func (g *HandlerImpl) Groups(w http.ResponseWriter, r *http.Request) error {
 	return MarshalJsonAndWrite(w, z.NodesV2)
 }
 
-func (g *HandlerImpl) GroupList(w http.ResponseWriter, r *http.Request) error {
-	ns, err := g.nm.Manager(r.Context(), &wrapperspb.StringValue{})
+func (g *HttpServerOption) GroupList(w http.ResponseWriter, r *http.Request) error {
+	ns, err := g.NodeServer.Manager(r.Context(), &wrapperspb.StringValue{})
 	if err != nil {
 		return err
 	}
@@ -84,8 +72,8 @@ func (g *HandlerImpl) GroupList(w http.ResponseWriter, r *http.Request) error {
 	return MarshalJsonAndWrite(w, groups)
 }
 
-func (t *HandlerImpl) TagList(w http.ResponseWriter, r *http.Request) error {
-	m, err := t.nm.Manager(r.Context(), &wrapperspb.StringValue{})
+func (t *HttpServerOption) TagList(w http.ResponseWriter, r *http.Request) error {
+	m, err := t.NodeServer.Manager(r.Context(), &wrapperspb.StringValue{})
 	if err != nil {
 		return err
 	}
@@ -104,7 +92,7 @@ func (t *HandlerImpl) TagList(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	for _, v := range t.st.Tags() {
+	for _, v := range t.Shunt.Tags() {
 		if _, ok := tags[v]; !ok {
 			tags[v] = tag{}
 		}
@@ -122,7 +110,7 @@ func (t *HandlerImpl) TagList(w http.ResponseWriter, r *http.Request) error {
 	})
 }
 
-func (t *HandlerImpl) SaveTag(w http.ResponseWriter, r *http.Request) error {
+func (t *HttpServerOption) SaveTag(w http.ResponseWriter, r *http.Request) error {
 	z := make(map[string]string)
 	if err := UnmarshalJsonFromRequest(r, &z); err != nil {
 		return err
@@ -133,7 +121,7 @@ func (t *HandlerImpl) SaveTag(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("unknown tag type: %v", z["type"])
 	}
 
-	_, err := t.ts.Save(r.Context(), &snode.SaveTagReq{
+	_, err := t.Tag.Save(r.Context(), &snode.SaveTagReq{
 		Tag:  z["tag"],
 		Hash: z["hash"],
 		Type: pt.Type(tYPE),
@@ -141,12 +129,12 @@ func (t *HandlerImpl) SaveTag(w http.ResponseWriter, r *http.Request) error {
 	return err
 }
 
-func (t *HandlerImpl) DeleteTag(w http.ResponseWriter, r *http.Request) error {
-	_, err := t.ts.Remove(r.Context(), &wrapperspb.StringValue{Value: r.URL.Query().Get("tag")})
+func (t *HttpServerOption) DeleteTag(w http.ResponseWriter, r *http.Request) error {
+	_, err := t.Tag.Remove(r.Context(), &wrapperspb.StringValue{Value: r.URL.Query().Get("tag")})
 	return err
 }
 
-func (l *HandlerImpl) udp(r *http.Request) *latency.Request {
+func (l *HttpServerOption) udp(r *http.Request) *latency.Request {
 	hash := r.URL.Query().Get("hash")
 	return &latency.Request{
 		Id:   "udp",
@@ -168,7 +156,7 @@ func (l *HandlerImpl) udp(r *http.Request) *latency.Request {
 	}
 }
 
-func (l *HandlerImpl) tcp(r *http.Request) *latency.Request {
+func (l *HttpServerOption) tcp(r *http.Request) *latency.Request {
 	hash := r.URL.Query().Get("hash")
 	return &latency.Request{
 		Id:   "tcp",
@@ -183,7 +171,7 @@ func (l *HandlerImpl) tcp(r *http.Request) *latency.Request {
 	}
 }
 
-func (l *HandlerImpl) Get(w http.ResponseWriter, r *http.Request) error {
+func (l *HttpServerOption) GetLatency(w http.ResponseWriter, r *http.Request) error {
 	t := r.URL.Query().Get("type")
 
 	req := &latency.Requests{}
@@ -195,7 +183,7 @@ func (l *HandlerImpl) Get(w http.ResponseWriter, r *http.Request) error {
 		req.Requests = append(req.Requests, l.udp(r))
 	}
 
-	lt, err := l.nm.Latency(r.Context(), req)
+	lt, err := l.NodeServer.Latency(r.Context(), req)
 	if err != nil {
 		return err
 	}
@@ -216,7 +204,7 @@ func (l *HandlerImpl) Get(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (s *HandlerImpl) SaveLink(w http.ResponseWriter, r *http.Request) error {
+func (s *HttpServerOption) SaveLink(w http.ResponseWriter, r *http.Request) error {
 	name := r.URL.Query().Get("name")
 	link := r.URL.Query().Get("link")
 
@@ -224,7 +212,7 @@ func (s *HandlerImpl) SaveLink(w http.ResponseWriter, r *http.Request) error {
 		return errors.New("name or link is empty")
 	}
 
-	_, err := s.sb.Save(r.Context(), &grpcnode.SaveLinkReq{
+	_, err := s.Subscribe.Save(r.Context(), &grpcnode.SaveLinkReq{
 		Links: []*subscribe.Link{
 			{
 				Name: name,
@@ -240,8 +228,8 @@ func (s *HandlerImpl) SaveLink(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (s *HandlerImpl) GetLinkList(w http.ResponseWriter, r *http.Request) error {
-	links, err := s.sb.Get(r.Context(), &emptypb.Empty{})
+func (s *HttpServerOption) GetLinkList(w http.ResponseWriter, r *http.Request) error {
+	links, err := s.Subscribe.Get(r.Context(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
@@ -253,7 +241,7 @@ func (s *HandlerImpl) GetLinkList(w http.ResponseWriter, r *http.Request) error 
 	return MarshalJsonAndWrite(w, linksValue)
 }
 
-func (s *HandlerImpl) DeleteLink(w http.ResponseWriter, r *http.Request) error {
+func (s *HttpServerOption) DeleteLink(w http.ResponseWriter, r *http.Request) error {
 	data := r.URL.Query().Get("links")
 	if data == "" {
 		w.WriteHeader(http.StatusOK)
@@ -266,7 +254,7 @@ func (s *HandlerImpl) DeleteLink(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.sb.Remove(r.Context(), &grpcnode.LinkReq{Names: names})
+	_, err := s.Subscribe.Remove(r.Context(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}
@@ -275,7 +263,7 @@ func (s *HandlerImpl) DeleteLink(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (s *HandlerImpl) PatchLink(w http.ResponseWriter, r *http.Request) error {
+func (s *HttpServerOption) PatchLink(w http.ResponseWriter, r *http.Request) error {
 	data := r.URL.Query().Get("links")
 	if data == "" {
 		w.WriteHeader(http.StatusOK)
@@ -287,7 +275,7 @@ func (s *HandlerImpl) PatchLink(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	_, err := s.sb.Update(r.Context(), &grpcnode.LinkReq{Names: names})
+	_, err := s.Subscribe.Update(r.Context(), &grpcnode.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}
@@ -296,8 +284,8 @@ func (s *HandlerImpl) PatchLink(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (z *HandlerImpl) NodeNow(w http.ResponseWriter, r *http.Request) error {
-	point, err := z.nm.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_tcp})
+func (z *HttpServerOption) NodeNow(w http.ResponseWriter, r *http.Request) error {
+	point, err := z.NodeServer.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_tcp})
 	if err != nil {
 		return err
 	}
@@ -306,7 +294,7 @@ func (z *HandlerImpl) NodeNow(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	point, err = z.nm.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_udp})
+	point, err = z.NodeServer.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_udp})
 	if err != nil {
 		return err
 	}
@@ -340,9 +328,10 @@ var protocolsMapping = map[string]*protocol.Protocol{
 	"socks5":       {Protocol: &protocol.Protocol_Socks5{}},
 	"http":         {Protocol: &protocol.Protocol_Http{}},
 	"direct":       {Protocol: &protocol.Protocol_Direct{}},
+	"yuubinsya":    {Protocol: &protocol.Protocol_Yuubinsya{Yuubinsya: &protocol.Yuubinsya{}}},
 }
 
-func (nn *HandlerImpl) GetNode(w http.ResponseWriter, r *http.Request) error {
+func (nn *HttpServerOption) GetNode(w http.ResponseWriter, r *http.Request) error {
 	page := r.URL.Query().Get("page")
 
 	if page == "generate_template" {
@@ -351,7 +340,7 @@ func (nn *HandlerImpl) GetNode(w http.ResponseWriter, r *http.Request) error {
 
 	hash := r.URL.Query().Get("hash")
 
-	n, err := nn.nm.Get(r.Context(), &wrapperspb.StringValue{Value: hash})
+	n, err := nn.NodeServer.Get(r.Context(), &wrapperspb.StringValue{Value: hash})
 	if err != nil {
 		return err
 	}
@@ -359,7 +348,7 @@ func (nn *HandlerImpl) GetNode(w http.ResponseWriter, r *http.Request) error {
 	return MarshalProtoAndWrite(w, n, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true })
 }
 
-func (n *HandlerImpl) generateTemplates(w http.ResponseWriter, r *http.Request) error {
+func (n *HttpServerOption) generateTemplates(w http.ResponseWriter, r *http.Request) error {
 	node := &point.Point{
 		Hash:      "",
 		Name:      "new node",
@@ -380,13 +369,13 @@ func (n *HandlerImpl) generateTemplates(w http.ResponseWriter, r *http.Request) 
 	return MarshalProtoAndWrite(w, node, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true; mo.Indent = " " })
 }
 
-func (n *HandlerImpl) DeleteNOde(w http.ResponseWriter, r *http.Request) error {
+func (n *HttpServerOption) DeleteNOde(w http.ResponseWriter, r *http.Request) error {
 	hash := r.URL.Query().Get("hash")
 	if hash == "" {
 		return errors.New("hash is empty")
 	}
 
-	_, err := n.nm.Remove(r.Context(), &wrapperspb.StringValue{Value: hash})
+	_, err := n.NodeServer.Remove(r.Context(), &wrapperspb.StringValue{Value: hash})
 	if err != nil {
 		return err
 	}
@@ -395,12 +384,12 @@ func (n *HandlerImpl) DeleteNOde(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (n *HandlerImpl) SaveNode(w http.ResponseWriter, r *http.Request) error {
+func (n *HttpServerOption) SaveNode(w http.ResponseWriter, r *http.Request) error {
 	point := &point.Point{}
 	if err := UnmarshalProtoFromRequest(r, point); err != nil {
 		return err
 	}
-	if _, err := n.nm.Save(r.Context(), point); err != nil {
+	if _, err := n.NodeServer.Save(r.Context(), point); err != nil {
 		return err
 	}
 
@@ -408,7 +397,7 @@ func (n *HandlerImpl) SaveNode(w http.ResponseWriter, r *http.Request) error {
 	return err
 }
 
-func (n *HandlerImpl) AddNode(w http.ResponseWriter, r *http.Request) error {
+func (n *HttpServerOption) AddNode(w http.ResponseWriter, r *http.Request) error {
 	hash := r.URL.Query().Get("hash")
 	net := r.URL.Query().Get("net")
 
@@ -424,7 +413,7 @@ func (n *HandlerImpl) AddNode(w http.ResponseWriter, r *http.Request) error {
 		req.Udp = true
 	}
 
-	_, err := n.nm.Use(r.Context(), req)
+	_, err := n.NodeServer.Use(r.Context(), req)
 	if err != nil {
 		return err
 	}
