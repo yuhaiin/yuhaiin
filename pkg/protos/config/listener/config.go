@@ -1,14 +1,17 @@
 package listener
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"math/rand"
+	"net"
 	"reflect"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/exp/slog"
 )
@@ -87,23 +90,32 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 		return tlsConfig, nil
 	}
 
-	serverNameCertificateMap := make(map[string]*tls.Certificate, len(t.ServerNameCertificate))
+	searcher := mapper.NewMapper[*tls.Certificate]()
 
 	for c, v := range t.ServerNameCertificate {
+		if c == "" {
+			continue
+		}
+
 		cert, err := v.X509KeyPair()
 		if err != nil {
 			log.Warn("key pair failed", "cert", v.Cert, "err", err)
 			continue
 		}
 
-		serverNameCertificateMap[c] = &cert
+		if net.ParseIP(c) == nil && c[0] != '*' {
+			c = "*." + c
+		}
+
+		searcher.Insert(c, &cert)
 	}
 
 	tlsConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		for c, v := range serverNameCertificateMap {
-			if strings.HasSuffix(chi.ServerName, c) {
-				return v, nil
-			}
+		addr := proxy.ParseAddressPort(statistic.Type_tcp, chi.ServerName, proxy.EmptyPort)
+		addr.WithResolver(mapper.SkipResolve, false)
+		v, ok := searcher.Search(context.TODO(), addr)
+		if ok {
+			return v, nil
 		}
 
 		if len(tlsConfig.Certificates) > 0 {
@@ -117,7 +129,6 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 }
 
 func (c *Certificate) X509KeyPair() (tls.Certificate, error) {
-
 	if c.CertFilePath != "" && c.KeyFilePath != "" {
 		r, err := tls.LoadX509KeyPair(c.CertFilePath, c.KeyFilePath)
 		if err != nil {

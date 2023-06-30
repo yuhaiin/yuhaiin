@@ -44,6 +44,8 @@ func (x *Combine[T]) Insert(str string, mark T) {
 
 var ErrSkipResolve = errors.New("skip resolve domain")
 
+var SkipResolve = proxy.ErrorResolver(func(domain string) error { return ErrSkipResolve })
+
 func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok bool) {
 	if addr.Type() == proxy.IP {
 		return x.cidr.SearchIP(yerror.Must(addr.IP(ctx)))

@@ -209,11 +209,9 @@ func (s *Shunt) resolver(m bypass.Mode) proxy.Resolver {
 	}
 }
 
-var skipResolve = proxy.ErrorResolver(func(domain string) error { return mapper.ErrSkipResolve })
-
 func (s *Shunt) Resolver(ctx context.Context, domain string) proxy.Resolver {
 	host := proxy.ParseAddressPort(0, domain, proxy.EmptyPort)
-	host.WithResolver(skipResolve, true)
+	host.WithResolver(mapper.SkipResolve, true)
 	return s.resolver(s.mapper.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
 }
 
