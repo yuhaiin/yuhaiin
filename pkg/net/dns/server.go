@@ -25,10 +25,57 @@ type dnsServer struct {
 	resolver    proxy.Resolver
 	listener    net.PacketConn
 	tcpListener net.Listener
+
+	reqChan   chan dnsRequest
+	doneCtx   context.Context
+	cancelCtx func()
+}
+
+type dnsRequest struct {
+	payload   []byte
+	writeBack func([]byte) error
 }
 
 func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
-	d := &dnsServer{server: server, resolver: process}
+	ctx, cancel := context.WithCancel(context.TODO())
+
+	d := &dnsServer{
+		server:    server,
+		resolver:  process,
+		reqChan:   make(chan dnsRequest),
+		doneCtx:   ctx,
+		cancelCtx: cancel,
+	}
+
+	do := func(req dnsRequest) error {
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*7)
+		defer cancel()
+
+		data, err := d.handle(ctx, req.payload)
+		if err != nil {
+			return err
+		}
+		return req.writeBack(data)
+	}
+
+	procs := runtime.GOMAXPROCS(0)
+	if procs < 4 {
+		procs = 4
+	}
+	for i := 0; i < procs; i++ {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case req := <-d.reqChan:
+					if err := do(req); err != nil {
+						log.Error("dns server handle failed", "err", err)
+					}
+				}
+			}
+		}()
+	}
 
 	if server == "" {
 		log.Warn("dns server is empty, skip to listen tcp and udp")
@@ -49,6 +96,8 @@ func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
 }
 
 func (d *dnsServer) Close() error {
+	d.cancelCtx()
+
 	if d.listener != nil {
 		d.listener.Close()
 	}
@@ -67,35 +116,35 @@ func (d *dnsServer) startUDP() (err error) {
 
 	log.Info("new udp dns server", "host", d.server)
 
-	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go func() {
-			defer d.Close()
+	go func() {
+		defer d.Close()
+		for {
 			buf := pool.GetBytes(nat.MaxSegmentSize)
-			defer pool.PutBytes(buf)
-			for {
-				n, addr, err := d.listener.ReadFrom(buf)
-				if err != nil {
-					if e, ok := err.(net.Error); ok && e.Temporary() {
-						continue
-					}
-					log.Error("dns udp server handle failed", "err", err)
-					return
+			n, addr, err := d.listener.ReadFrom(buf)
+			if err != nil {
+				pool.PutBytes(buf)
+				if e, ok := err.(net.Error); ok && e.Temporary() {
+					continue
 				}
-
-				ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
-				defer cancel()
-
-				data, err := d.handle(ctx, buf[:n])
-				if err != nil {
-					log.Error("dns server handle data failed", slog.Any("err", err))
-				} else {
-					if _, err = d.listener.WriteTo(data, addr); err != nil {
-						log.Error("write dns response to client failed", slog.Any("err", err))
-					}
-				}
+				log.Error("dns udp server handle failed", "err", err)
+				return
 			}
-		}()
-	}
+
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+			defer cancel()
+
+			err = d.Do(ctx, buf[:n], func(b []byte) error {
+				defer pool.PutBytes(buf)
+				if _, err = d.listener.WriteTo(b, addr); err != nil {
+					return fmt.Errorf("write dns response to client failed: %w", err)
+				}
+				return nil
+			})
+			if err != nil {
+				log.Error("dns server handle data failed", slog.Any("err", err))
+			}
+		}
+	}()
 
 	return nil
 }
@@ -122,10 +171,7 @@ func (d *dnsServer) startTCP() (err error) {
 		go func() {
 			defer conn.Close()
 
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
-			defer cancel()
-
-			if err := d.HandleTCP(ctx, conn); err != nil {
+			if err := d.HandleTCP(context.TODO(), conn); err != nil {
 				log.Error("handle dns tcp failed", "err", err)
 			}
 		}()
@@ -139,43 +185,49 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 	}
 
 	data := pool.GetBytes(int(length))
-	defer pool.PutBytes(data)
 
 	n, err := io.ReadFull(c, data[:length])
 	if err != nil {
+		pool.PutBytes(data)
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
-	data, err = d.handle(ctx, data[:n])
-	if err != nil {
-		return fmt.Errorf("dns server handle failed: %w", err)
-	}
-
-	if err = binary.Write(c, binary.BigEndian, uint16(len(data))); err != nil {
-		return fmt.Errorf("dns server write length failed: %w", err)
-	}
-	_, err = c.Write(data)
-	return err
+	return d.Do(ctx, data[:n], func(b []byte) error {
+		defer pool.PutBytes(data)
+		if err = binary.Write(c, binary.BigEndian, uint16(len(b))); err != nil {
+			return fmt.Errorf("dns server write length failed: %w", err)
+		}
+		_, err = c.Write(b)
+		return err
+	})
 }
 
 func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 	buf := pool.GetBytes(nat.MaxSegmentSize)
-	defer pool.PutBytes(buf)
 
 	n, addr, err := l.ReadFrom(buf)
 	if err != nil {
+		pool.PutBytes(buf)
 		return err
 	}
 
-	data, err := d.handle(ctx, buf[:n])
-	if err != nil {
-		return fmt.Errorf("dns server handle failed: %w", err)
-	}
-	_, err = l.WriteTo(data, addr)
-	return err
+	return d.Do(ctx, buf[:n], func(b []byte) error {
+		defer pool.PutBytes(buf)
+		_, err = l.WriteTo(b, addr)
+		return err
+	})
 }
 
-func (d *dnsServer) Do(ctx context.Context, b []byte) ([]byte, error) { return d.handle(ctx, b) }
+func (d *dnsServer) Do(ctx context.Context, b []byte, writeBack func([]byte) error) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-d.doneCtx.Done():
+		return io.EOF
+	case d.reqChan <- dnsRequest{b, writeBack}:
+		return nil
+	}
+}
 
 func (d *dnsServer) handle(ctx context.Context, raw []byte) ([]byte, error) {
 	var parse dnsmessage.Parser

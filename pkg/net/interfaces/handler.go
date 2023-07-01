@@ -43,14 +43,14 @@ type DNSHandler interface {
 	Server
 	HandleUDP(context.Context, net.PacketConn) error
 	HandleTCP(context.Context, net.Conn) error
-	Do(context.Context, []byte) ([]byte, error)
+	Do(context.Context, []byte, func([]byte) error) error
 }
 
 var EmptyDNSServer DNSHandler = &emptyHandler{}
 
 type emptyHandler struct{}
 
-func (e *emptyHandler) Close() error                                    { return nil }
-func (e *emptyHandler) HandleUDP(context.Context, net.PacketConn) error { return io.EOF }
-func (e *emptyHandler) HandleTCP(context.Context, net.Conn) error       { return io.EOF }
-func (e *emptyHandler) Do(context.Context, []byte) ([]byte, error)      { return nil, io.EOF }
+func (e *emptyHandler) Close() error                                         { return nil }
+func (e *emptyHandler) HandleUDP(context.Context, net.PacketConn) error      { return io.EOF }
+func (e *emptyHandler) HandleTCP(context.Context, net.Conn) error            { return io.EOF }
+func (e *emptyHandler) Do(context.Context, []byte, func([]byte) error) error { return io.EOF }

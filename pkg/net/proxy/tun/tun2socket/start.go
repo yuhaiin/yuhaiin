@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"runtime"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -44,9 +43,7 @@ func New(o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
 	}
 
 	go handler.tcp()
-	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go handler.udp(o.Handler)
-	}
+	go handler.udp(o.Handler)
 
 	return lis, nil
 }
@@ -87,10 +84,8 @@ func (h *handler) tcp() {
 func (h *handler) udp(server proxy.Handler) {
 	lis := h.listener
 	defer lis.UDP().Close()
-	buf := pool.GetBytes(h.Mtu)
-	defer pool.PutBytes(buf)
 	for {
-		if err := h.handleUDP(server, lis, buf); err != nil {
+		if err := h.handleUDP(server, lis); err != nil {
 			if errors.Is(err, proxy.ErrBlocked) {
 				log.Debug(err.Error())
 			} else {
@@ -127,7 +122,9 @@ func (h *handler) handleTCP(conn net.Conn) error {
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
-func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket, buf []byte) error {
+func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket) error {
+	buf := pool.GetBytes(h.Mtu)
+
 	n, tuple, err := lis.UDP().ReadFrom(buf)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
@@ -136,14 +133,14 @@ func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket, buf []byte) e
 	zbuf := buf[:n]
 
 	if h.isHandleDNS(tuple.DestinationAddr, tuple.DestinationPort) {
-		resp, err := h.DNSHandler.Do(context.TODO(), zbuf)
-		if err != nil {
+		return h.DNSHandler.Do(context.TODO(), zbuf, func(b []byte) error {
+			defer pool.PutBytes(buf)
+			_, err := lis.UDP().WriteTo(b, tuple)
 			return err
-		}
-		_, err = lis.UDP().WriteTo(resp, tuple)
-		return err
+		})
 	}
 
+	defer pool.PutBytes(buf)
 	server.Packet(context.TODO(),
 		&proxy.Packet{
 			Src: &net.UDPAddr{
