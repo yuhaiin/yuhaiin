@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils"
 )
 
 type client struct {
@@ -100,7 +102,7 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 
 	header := http.Header{}
 
-	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0")
+	header.Set("User-Agent", utils.UserAgents[rand.Intn(utils.UserAgentLength)])
 	header.Set("Sec-Fetch-Dest", "websocket")
 	header.Set("Sec-Fetch-Mode", "websocket")
 	header.Set("Pragma", "no-cache")

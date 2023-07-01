@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -32,27 +31,24 @@ func (s *Socks5) newUDPServer(handler proxy.Handler) error {
 	u := &udpServer{PacketConn: l, handler: handler}
 	s.udpServer = u
 
-	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go func() {
-			defer s.Close()
+	go func() {
+		defer s.Close()
 
-			buf := pool.GetBytes(nat.MaxSegmentSize)
-			defer pool.PutBytes(buf)
+		buf := pool.GetBytes(nat.MaxSegmentSize)
+		defer pool.PutBytes(buf)
 
-			for {
-				n, src, err := u.PacketConn.ReadFrom(buf)
-				if err != nil {
-					log.Error("read udp request failed, stop socks5 server", slog.Any("err", err))
-					return
-				}
-
-				if err := u.handle(buf[:n], src); err != nil && !errors.Is(err, net.ErrClosed) {
-					log.Error("handle udp request failed", "err", err)
-				}
+		for {
+			n, src, err := u.PacketConn.ReadFrom(buf)
+			if err != nil {
+				log.Error("read udp request failed, stop socks5 server", slog.Any("err", err))
+				return
 			}
 
-		}()
-	}
+			if err := u.handle(buf[:n], src); err != nil && !errors.Is(err, net.ErrClosed) {
+				log.Error("handle udp request failed", "err", err)
+			}
+		}
+	}()
 
 	return nil
 }

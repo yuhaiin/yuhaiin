@@ -3,6 +3,7 @@ package inbound
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -14,15 +15,48 @@ import (
 var Timeout = time.Second * 20
 
 type handler struct {
-	dialer proxy.Proxy
-	table  *nat.Table
+	dialer     proxy.Proxy
+	table      *nat.Table
+	packetChan chan struct {
+		ctx    context.Context
+		packet *proxy.Packet
+	}
+
+	doneCtx   context.Context
+	cancelCtx func()
 }
 
 func NewHandler(dialer proxy.Proxy) *handler {
-	return &handler{
+	ctx, cancel := context.WithCancel(context.Background())
+	h := &handler{
 		dialer: dialer,
 		table:  nat.NewTable(dialer),
+		packetChan: make(chan struct {
+			ctx    context.Context
+			packet *proxy.Packet
+		}),
+		doneCtx:   ctx,
+		cancelCtx: cancel,
 	}
+
+	procs := runtime.GOMAXPROCS(0)
+	if procs < 4 {
+		procs = 4
+	}
+	for i := 0; i < procs; i++ {
+		go func() {
+			for {
+				select {
+				case pack := <-h.packetChan:
+					h.packet(pack.ctx, pack.packet)
+				case <-h.doneCtx.Done():
+					return
+				}
+			}
+		}()
+	}
+
+	return h
 }
 
 func (s *handler) Stream(ctx context.Context, meta *proxy.StreamMeta) {
@@ -58,8 +92,18 @@ func (s *handler) stream(ctx context.Context, meta *proxy.StreamMeta) error {
 	relay.Relay(meta.Src, remote)
 	return nil
 }
-
 func (s *handler) Packet(ctx context.Context, pack *proxy.Packet) {
+	select {
+	case s.packetChan <- struct {
+		ctx    context.Context
+		packet *proxy.Packet
+	}{ctx, pack}:
+
+	case <-s.doneCtx.Done():
+	}
+}
+
+func (s *handler) packet(ctx context.Context, pack *proxy.Packet) {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 
@@ -70,4 +114,7 @@ func (s *handler) Packet(ctx context.Context, pack *proxy.Packet) {
 	}
 }
 
-func (s *handler) Close() error { return s.table.Close() }
+func (s *handler) Close() error {
+	s.cancelCtx()
+	return s.table.Close()
+}
