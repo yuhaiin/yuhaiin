@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/mdlayher/netlink v1.7.2
-	github.com/quic-go/quic-go v0.36.0
+	github.com/quic-go/quic-go v0.36.1
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.10.0
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
