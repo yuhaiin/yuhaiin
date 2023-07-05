@@ -9,8 +9,7 @@ import (
 	"sort"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	grpcnode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	snode "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
+	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -121,7 +120,7 @@ func (t *HttpServerOption) SaveTag(w http.ResponseWriter, r *http.Request) error
 		return fmt.Errorf("unknown tag type: %v", z["type"])
 	}
 
-	_, err := t.Tag.Save(r.Context(), &snode.SaveTagReq{
+	_, err := t.Tag.Save(r.Context(), &gn.SaveTagReq{
 		Tag:  z["tag"],
 		Hash: z["hash"],
 		Type: pt.Type(tYPE),
@@ -212,7 +211,7 @@ func (s *HttpServerOption) SaveLink(w http.ResponseWriter, r *http.Request) erro
 		return errors.New("name or link is empty")
 	}
 
-	_, err := s.Subscribe.Save(r.Context(), &grpcnode.SaveLinkReq{
+	_, err := s.Subscribe.Save(r.Context(), &gn.SaveLinkReq{
 		Links: []*subscribe.Link{
 			{
 				Name: name,
@@ -254,7 +253,7 @@ func (s *HttpServerOption) DeleteLink(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	_, err := s.Subscribe.Remove(r.Context(), &grpcnode.LinkReq{Names: names})
+	_, err := s.Subscribe.Remove(r.Context(), &gn.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}
@@ -275,7 +274,7 @@ func (s *HttpServerOption) PatchLink(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 
-	_, err := s.Subscribe.Update(r.Context(), &grpcnode.LinkReq{Names: names})
+	_, err := s.Subscribe.Update(r.Context(), &gn.LinkReq{Names: names})
 	if err != nil {
 		return err
 	}
@@ -285,7 +284,7 @@ func (s *HttpServerOption) PatchLink(w http.ResponseWriter, r *http.Request) err
 }
 
 func (z *HttpServerOption) NodeNow(w http.ResponseWriter, r *http.Request) error {
-	point, err := z.NodeServer.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_tcp})
+	point, err := z.NodeServer.Now(r.Context(), &gn.NowReq{Net: gn.NowReq_tcp})
 	if err != nil {
 		return err
 	}
@@ -294,7 +293,7 @@ func (z *HttpServerOption) NodeNow(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	point, err = z.NodeServer.Now(r.Context(), &grpcnode.NowReq{Net: grpcnode.NowReq_udp})
+	point, err = z.NodeServer.Now(r.Context(), &gn.NowReq{Net: gn.NowReq_udp})
 	if err != nil {
 		return err
 	}
@@ -401,7 +400,7 @@ func (n *HttpServerOption) AddNode(w http.ResponseWriter, r *http.Request) error
 	hash := r.URL.Query().Get("hash")
 	net := r.URL.Query().Get("net")
 
-	req := &grpcnode.UseReq{Hash: hash}
+	req := &gn.UseReq{Hash: hash}
 
 	switch net {
 	case "tcp":

@@ -14,7 +14,7 @@ TUN_NAME=$(jq -r '(.server.servers.tun.tun.name) | split("tun://")[] | split("fd
 TUN_NAME=${TUN_NAME:-yuhaiin}
 
 PREFIX_ADDR=$(jq -r '(.server.servers.tun.tun.gateway)' ${CONFIG_FILE})
-PREFIX_ADDR=${PREFIX:-172.19.0.1}
+PREFIX_ADDR=${PREFIX_ADDR:-172.19.0.1}
 MASK_SIZE=${MASK_SIZE:-24}
 
 PREFIX=${PREFIX_ADDR}/${MASK_SIZE}
