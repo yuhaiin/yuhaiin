@@ -2,11 +2,20 @@ package utils
 
 import (
 	_ "net/url"
+	"runtime"
 	_ "unsafe"
 )
 
 //go:linkname GetScheme net/url.getScheme
 func GetScheme(ur string) (scheme, etc string, err error)
+
+var Procs = func() int {
+	procs := runtime.GOMAXPROCS(0)
+	if procs < 4 {
+		return 4
+	}
+	return procs
+}()
 
 var UserAgentLength = len(UserAgents)
 

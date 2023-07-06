@@ -3,12 +3,12 @@ package inbound
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -34,27 +34,21 @@ func NewHandler(dialer proxy.Proxy) *handler {
 		packetChan: make(chan struct {
 			ctx    context.Context
 			packet *proxy.Packet
-		}),
+		}, utils.Procs),
 		doneCtx:   ctx,
 		cancelCtx: cancel,
 	}
 
-	procs := runtime.GOMAXPROCS(0)
-	if procs < 4 {
-		procs = 4
-	}
-	for i := 0; i < procs; i++ {
-		go func() {
-			for {
-				select {
-				case pack := <-h.packetChan:
-					h.packet(pack.ctx, pack.packet)
-				case <-h.doneCtx.Done():
-					return
-				}
+	go func() {
+		for {
+			select {
+			case pack := <-h.packetChan:
+				go h.packet(pack.ctx, pack.packet)
+			case <-h.doneCtx.Done():
+				return
 			}
-		}()
-	}
+		}
+	}()
 
 	return h
 }
