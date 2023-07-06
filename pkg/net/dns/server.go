@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"runtime"
 	"strings"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/exp/slog"
 	"golang.org/x/net/dns/dnsmessage"
@@ -42,7 +42,7 @@ func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
 	d := &dnsServer{
 		server:    server,
 		resolver:  process,
-		reqChan:   make(chan dnsRequest),
+		reqChan:   make(chan dnsRequest, utils.Procs),
 		doneCtx:   ctx,
 		cancelCtx: cancel,
 	}
@@ -58,24 +58,18 @@ func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
 		return req.writeBack(data)
 	}
 
-	procs := runtime.GOMAXPROCS(0)
-	if procs < 4 {
-		procs = 4
-	}
-	for i := 0; i < procs; i++ {
-		go func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case req := <-d.reqChan:
-					if err := do(req); err != nil {
-						log.Error("dns server handle failed", "err", err)
-					}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case req := <-d.reqChan:
+				if err := do(req); err != nil {
+					log.Error("dns server handle failed", "err", err)
 				}
 			}
-		}()
-	}
+		}
+	}()
 
 	if server == "" {
 		log.Warn("dns server is empty, skip to listen tcp and udp")
