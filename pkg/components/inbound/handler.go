@@ -45,6 +45,7 @@ func NewHandler(dialer proxy.Proxy) *handler {
 			case pack := <-h.packetChan:
 				go h.packet(pack.ctx, pack.packet)
 			case <-h.doneCtx.Done():
+				close(h.packetChan)
 				return
 			}
 		}
@@ -88,12 +89,12 @@ func (s *handler) stream(ctx context.Context, meta *proxy.StreamMeta) error {
 }
 func (s *handler) Packet(ctx context.Context, pack *proxy.Packet) {
 	select {
-	case s.packetChan <- struct {
-		ctx    context.Context
-		packet *proxy.Packet
-	}{ctx, pack}:
-
 	case <-s.doneCtx.Done():
+	default:
+		s.packetChan <- struct {
+			ctx    context.Context
+			packet *proxy.Packet
+		}{ctx, pack}
 	}
 }
 

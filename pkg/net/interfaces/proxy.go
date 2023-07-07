@@ -189,7 +189,11 @@ func newAddr(net statistic.Type) *addr {
 }
 
 func (d *addr) WithResolver(resolver Resolver, canCover bool) bool {
-	if !d.resolverCanCover {
+	if resolver == nil {
+		return false
+	}
+
+	if d.resolver != nil && !d.resolverCanCover {
 		return false
 	}
 
