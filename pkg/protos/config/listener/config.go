@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"reflect"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
@@ -66,15 +67,8 @@ func CreateServer(opts *Opts[IsProtocol_Protocol]) (proxy.Server, error) {
 	return conn(opts)
 }
 
-func ParseTLS(t *TlsConfig) (*tls.Config, error) {
-	if t == nil {
-		return nil, nil
-	}
-
-	tlsConfig := &tls.Config{
-		Certificates: make([]tls.Certificate, 0, len(t.Certificates)),
-		NextProtos:   t.NextProtos,
-	}
+func (t *TlsConfig) ParseCertificates() []tls.Certificate {
+	r := make([]tls.Certificate, 0, len(t.Certificates))
 
 	for _, c := range t.Certificates {
 		cert, err := c.X509KeyPair()
@@ -83,14 +77,18 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 			continue
 		}
 
-		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
+		r = append(r, cert)
 	}
 
-	if len(t.ServerNameCertificate) == 0 {
-		return tlsConfig, nil
+	if len(r) == 0 {
+		return nil
 	}
 
-	searcher := mapper.NewMapper[*tls.Certificate]()
+	return r
+}
+
+func (t *TlsConfig) ParseServerNameCertificate() *mapper.Combine[*tls.Certificate] {
+	var searcher *mapper.Combine[*tls.Certificate]
 
 	for c, v := range t.ServerNameCertificate {
 		if c == "" {
@@ -107,25 +105,14 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 			c = "*." + c
 		}
 
+		if searcher == nil {
+			searcher = mapper.NewMapper[*tls.Certificate]()
+		}
+
 		searcher.Insert(c, &cert)
 	}
 
-	tlsConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		addr := proxy.ParseAddressPort(statistic.Type_tcp, chi.ServerName, proxy.EmptyPort)
-		addr.WithResolver(mapper.SkipResolve, false)
-		v, ok := searcher.Search(context.TODO(), addr)
-		if ok {
-			return v, nil
-		}
-
-		if len(tlsConfig.Certificates) > 0 {
-			return &tlsConfig.Certificates[rand.Intn(len(tlsConfig.Certificates))], nil
-		}
-
-		return nil, fmt.Errorf("can't find certificate for %s", chi.ServerName)
-	}
-
-	return tlsConfig, nil
+	return searcher
 }
 
 func (c *Certificate) X509KeyPair() (tls.Certificate, error) {
@@ -139,4 +126,64 @@ func (c *Certificate) X509KeyPair() (tls.Certificate, error) {
 	}
 
 	return tls.X509KeyPair(c.Cert, c.Key)
+}
+
+type TlsConfigManager struct {
+	t           *TlsConfig
+	tlsConfig   *tls.Config
+	searcher    *mapper.Combine[*tls.Certificate]
+	refreshTime time.Time
+}
+
+func NewTlsConfigManager(t *TlsConfig) *TlsConfigManager {
+	tm := &TlsConfigManager{
+		t:           t,
+		searcher:    t.ParseServerNameCertificate(),
+		refreshTime: time.Now(),
+	}
+
+	tm.Refresh()
+
+	return tm
+}
+
+func (t *TlsConfigManager) Refresh() {
+	if t.tlsConfig == nil {
+		t.tlsConfig = &tls.Config{
+			NextProtos: t.t.NextProtos,
+			GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				if t.refreshTime.Add(time.Hour * 24).After(time.Now()) {
+					t.Refresh()
+				}
+
+				if t.searcher != nil {
+					addr := proxy.ParseAddressPort(statistic.Type_tcp, chi.ServerName, proxy.EmptyPort)
+					addr.WithResolver(mapper.SkipResolve, false)
+					v, ok := t.searcher.Search(context.TODO(), addr)
+					if ok {
+						return v, nil
+					}
+				}
+
+				if t.tlsConfig.Certificates != nil {
+					return &t.tlsConfig.Certificates[rand.Intn(len(t.tlsConfig.Certificates))], nil
+				}
+
+				return nil, fmt.Errorf("can't find certificate for %s", chi.ServerName)
+			},
+		}
+	}
+
+	t.tlsConfig.Certificates = t.t.ParseCertificates()
+	t.searcher = t.t.ParseServerNameCertificate()
+}
+
+func ParseTLS(t *TlsConfig) (*tls.Config, error) {
+	if t == nil {
+		return nil, nil
+	}
+
+	tm := NewTlsConfigManager(t)
+
+	return tm.tlsConfig, nil
 }
