@@ -64,10 +64,13 @@ func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
 			case <-ctx.Done():
 				return
 			case req := <-d.reqChan:
-				if err := do(req); err != nil {
-					log.Error("dns server handle failed", "err", err)
-				}
+				go func() {
+					if err := do(req); err != nil {
+						log.Error("dns server handle failed", "err", err)
+					}
+				}()
 			}
+
 		}
 	}()
 
@@ -144,7 +147,7 @@ func (d *dnsServer) startUDP() (err error) {
 func (d *dnsServer) startTCP() (err error) {
 	defer d.Close()
 
-	d.tcpListener, err = net.Listen("tcp", d.server)
+	d.tcpListener, err = dialer.ListenContext(context.TODO(), "tcp", d.server)
 	if err != nil {
 		return fmt.Errorf("dns tcp server listen failed: %w", err)
 	}

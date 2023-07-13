@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
@@ -79,7 +80,7 @@ func TestConn(t *testing.T) {
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				switch network {
 				default:
-					return net.Dial(network, addr)
+					return dialer.DialContext(ctx, network, addr)
 				case "tcp":
 					ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
 					if err != nil {

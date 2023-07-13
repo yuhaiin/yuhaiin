@@ -29,10 +29,10 @@ type Config struct {
 }
 
 // NewClient creates a new WebSocket client connection over rwc.
-func NewClient(config *Config, SecWebSocketKey string, header http.Header, rwc net.Conn, handshake func(*http.Response) error) (ws *Conn, err error) {
+func (config *Config) NewClient(SecWebSocketKey string, header http.Header, rwc net.Conn, handshake func(*http.Response) error) (ws *Conn, err error) {
 	br := newBufioReader(rwc)
 	bw := newBufioWriterSize(rwc, 4096)
-	err = hybiClientHandshake(config, SecWebSocketKey, header, br, bw, handshake)
+	err = config.hybiClientHandshake(SecWebSocketKey, header, br, bw, handshake)
 	if err != nil {
 		return
 	}
@@ -53,7 +53,7 @@ func newBufioWriterSize(w io.Writer, size int) *bufio.Writer
 func putBufioWriter(br *bufio.Writer)
 
 // Client handshake described in draft-ietf-hybi-thewebsocket-protocol-17
-func hybiClientHandshake(config *Config, SecWebSocketKey string, header http.Header, br *bufio.Reader, bw *bufio.Writer, handshake func(*http.Response) error) (err error) {
+func (config *Config) hybiClientHandshake(SecWebSocketKey string, header http.Header, br *bufio.Reader, bw *bufio.Writer, handshake func(*http.Response) error) (err error) {
 	fmt.Fprintf(bw, "GET %s HTTP/1.1\r\n", config.Path)
 
 	// According to RFC 6874, an HTTP client, proxy, or other

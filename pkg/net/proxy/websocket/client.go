@@ -114,7 +114,7 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 	}
 
 	var earlyDataSupport bool
-	conn, err := websocket.NewClient(e.config, SecWebSocketKey,
+	conn, err := e.config.NewClient(SecWebSocketKey,
 		header, e.Conn, func(r *http.Response) error {
 			earlyDataSupport = r.Header.Get("early_data") == "true"
 			return nil
