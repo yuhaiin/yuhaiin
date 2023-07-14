@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -43,7 +42,7 @@ func setDeadline(rw io.ReadWriteCloser) {
 }
 
 func Copy(dst io.Writer, src io.Reader) (err error) {
-	buf := pool.GetBytes(nat.MaxSegmentSize)
+	buf := pool.GetBytes(4096)
 	defer pool.PutBytes(buf)
 	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
 	_, err = io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf)

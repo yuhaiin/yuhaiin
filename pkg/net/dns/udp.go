@@ -42,8 +42,8 @@ func (u *udp) Close() error {
 func (u *udp) handleResponse() {
 	defer u.Close()
 
+	buf := make([]byte, nat.MaxSegmentSize)
 	for {
-		buf := make([]byte, nat.MaxSegmentSize)
 		n, _, err := u.packetConn.ReadFrom(buf)
 		if err != nil {
 			return
@@ -58,7 +58,7 @@ func (u *udp) handleResponse() {
 			continue
 		}
 
-		c.Send(buf[:n])
+		c.Send(append([]byte(nil), buf[:n]...))
 	}
 }
 
