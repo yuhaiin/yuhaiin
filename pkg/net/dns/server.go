@@ -127,14 +127,15 @@ func (d *dnsServer) startUDP() (err error) {
 				return
 			}
 
-			err = d.Do(context.TODO(), buf[:n], func(b []byte) error {
+			writeBack := func(b []byte) error {
 				defer pool.PutBytes(buf)
 				if _, err = d.listener.WriteTo(b, addr); err != nil {
 					return fmt.Errorf("write dns response to client failed: %w", err)
 				}
 				return nil
-			})
-			if err != nil {
+			}
+
+			if err = d.Do(context.TODO(), buf[:n], writeBack); err != nil {
 				log.Error("dns server handle data failed", slog.Any("err", err))
 			}
 
@@ -206,11 +207,13 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 		return err
 	}
 
-	return d.Do(context.TODO(), buf[:n], func(b []byte) error {
+	writeBack := func(b []byte) error {
 		defer pool.PutBytes(buf)
 		_, err = l.WriteTo(b, addr)
 		return err
-	})
+	}
+
+	return d.Do(context.TODO(), buf[:n], writeBack)
 }
 
 func (d *dnsServer) Do(ctx context.Context, b []byte, writeBack func([]byte) error) error {

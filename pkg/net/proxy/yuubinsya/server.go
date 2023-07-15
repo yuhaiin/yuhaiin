@@ -18,6 +18,7 @@ import (
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
@@ -42,6 +43,7 @@ var (
 	QUIC      Type = 3
 	WEBSOCKET Type = 4
 	GRPC      Type = 5
+	HTTP2     Type = 6
 )
 
 type Config struct {
@@ -113,6 +115,8 @@ func (y *yuubinsya) Server() (net.Listener, error) {
 		tcpListener = websocket.NewServer(tcpListener)
 	case GRPC:
 		tcpListener = grpc.NewGrpc(tcpListener)
+	case HTTP2:
+		tcpListener = http2.NewHttp2(tcpListener)
 	}
 	return tcpListener, nil
 }

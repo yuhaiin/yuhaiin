@@ -5,17 +5,17 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/quic-go/quic-go"
 )
 
 type Server struct {
 	packetConn net.PacketConn
-	*quic.EarlyListener
+	*quic.Listener
 	tlsConfig *tls.Config
 
 	mu       sync.RWMutex
@@ -31,11 +31,12 @@ func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 	}
 
 	var err error
-	s.EarlyListener, err = quic.ListenEarly(s.packetConn, s.tlsConfig, &quic.Config{
+	s.Listener, err = quic.Listen(s.packetConn, s.tlsConfig, &quic.Config{
 		MaxIncomingStreams: 2048,
 		KeepAlivePeriod:    0,
 		MaxIdleTimeout:     60 * time.Second,
 		EnableDatagrams:    true,
+		Allow0RTT:          true,
 	})
 	if err != nil {
 		return nil, err
@@ -43,7 +44,9 @@ func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 
 	go func() {
 		defer s.Close()
-		s.server()
+		if err := s.server(); err != nil {
+			log.Error("quic server failed:", "err", err)
+		}
 	}()
 
 	return s, nil
@@ -58,8 +61,8 @@ func (s *Server) Close() error {
 
 	var err error
 
-	if s.EarlyListener != nil {
-		if er := s.EarlyListener.Close(); er != nil {
+	if s.Listener != nil {
+		if er := s.Listener.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 
@@ -92,7 +95,7 @@ func (s *Server) server() error {
 			return net.ErrClosed
 		}
 
-		conn, err := s.EarlyListener.Accept(context.TODO())
+		conn, err := s.Listener.Accept(context.TODO())
 		if err != nil {
 			return err
 		}
@@ -133,7 +136,7 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 			break
 		}
 
-		log.Println("new quic conn from", conn.RemoteAddr(), "id", stream.StreamID())
+		log.Info("new quic conn from", conn.RemoteAddr(), "id", stream.StreamID())
 
 		s.connChan <- &interConn{
 			Stream: stream,

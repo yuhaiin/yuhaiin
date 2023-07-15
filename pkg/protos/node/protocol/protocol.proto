@@ -21,6 +21,7 @@ message protocol {
     reject reject = 13 [ json_name = "reject" ];
     yuubinsya yuubinsya = 14 [ json_name = "yuubinsya" ];
     grpc grpc = 15 [ json_name = "grpc" ];
+    http2 http2 = 16 [ json_name = "http2" ];
   }
 }
 
@@ -53,6 +54,8 @@ message shadowsocksr {
   string protoparam = 8 [ json_name = "protoparam" ];
 }
 
+message http2 { string host = 1 [ json_name = "host" ]; }
+
 message vmess {
   // uuid
   string uuid = 1 [ json_name = "id" ];
@@ -80,7 +83,7 @@ message websocket {
 message grpc { tls_config tls = 1 [ json_name = "tls" ]; }
 
 message quic {
-  string host = 2 [ json_name = "host" ];
+  // string host = 2 [ json_name = "host" ];
   tls_config tls = 1 [ json_name = "tls" ];
 }
 
