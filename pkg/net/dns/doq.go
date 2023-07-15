@@ -114,6 +114,18 @@ func (d *doq) Close() error {
 	return nil
 }
 
+type DOQWrapConn struct {
+	net.PacketConn
+}
+
+func (d *DOQWrapConn) LocalAddr() net.Addr { return &doqWrapLocalAddr{d.PacketConn.LocalAddr()} }
+
+// doqWrapLocalAddr make doq packetConn local addr is different, otherwise the quic-go will panic
+// see: https://github.com/quic-go/quic-go/issues/3727
+type doqWrapLocalAddr struct{ net.Addr }
+
+func (a *doqWrapLocalAddr) Network() string { return "DNSoverQUIC" }
+
 func (d *doq) initSession(ctx context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -141,7 +153,7 @@ func (d *doq) initSession(ctx context.Context) error {
 
 	session, err := quic.DialEarly(
 		ctx,
-		d.conn,
+		&DOQWrapConn{d.conn},
 		d.host,
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},

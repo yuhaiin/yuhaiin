@@ -40,6 +40,10 @@ func init() {
 		case *pl.Yuubinsya_Grpc:
 			Type = yuubinsya.GRPC
 			tlsConfig, err = pl.ParseTLS(p.Grpc.GetTls())
+		case *pl.Yuubinsya_Http2:
+			Type = yuubinsya.HTTP2
+			tlsConfig, err = pl.ParseTLS(p.Http2.GetTls())
+
 		}
 		if err != nil {
 			return nil, err

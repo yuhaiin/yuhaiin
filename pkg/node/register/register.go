@@ -5,6 +5,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
@@ -42,6 +43,7 @@ func init() {
 	})
 	protocol.RegisterProtocol(yuubinsya.New)
 	protocol.RegisterProtocol(grpc.New)
+	protocol.RegisterProtocol(http2.NewClient)
 }
 
 func Dialer(p *point.Point) (r proxy.Proxy, err error) {

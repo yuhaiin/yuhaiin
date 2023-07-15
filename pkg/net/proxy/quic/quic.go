@@ -7,11 +7,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -23,8 +23,6 @@ import (
 
 type Client struct {
 	proxy.EmptyDispatch
-	host *net.UDPAddr
-	addr proxy.Address
 
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
@@ -39,21 +37,14 @@ type Client struct {
 
 func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
-		uaddr, err := net.ResolveUDPAddr("udp", config.Quic.Host)
-		if err != nil {
-			return nil, err
-		}
+		log.Debug("new quic", "config", config)
 
 		tlsConfig := protocol.ParseTLSConfig(config.Quic.Tls)
 		if tlsConfig == nil {
 			tlsConfig = &tls.Config{}
 		}
-		if tlsConfig.ServerName == "" {
-			tlsConfig.ServerName = uaddr.IP.String()
-		}
 
 		c := &Client{
-			host:      uaddr,
 			dialer:    dialer,
 			tlsConfig: tlsConfig,
 			quicConfig: &quic.Config{
@@ -64,13 +55,6 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 
 			udpMap: make(map[uint64]chan packet),
 		}
-
-		addr, err := proxy.ParseAddress(statistic.Type_udp, config.Quic.Host)
-		if err != nil {
-			return nil, err
-		}
-
-		c.addr = addr
 
 		return c, nil
 	}
@@ -83,14 +67,17 @@ func (c *Client) initSession(ctx context.Context) error {
 	if c.session != nil {
 		return nil
 	}
-	conn, err := c.dialer.PacketConn(ctx, c.addr)
+
+	conn, err := c.dialer.PacketConn(ctx, proxy.EmptyAddr)
 	if err != nil {
 		return err
 	}
-	session, err := quic.DialEarly(ctx, conn, c.host, c.tlsConfig, c.quicConfig)
+
+	session, err := quic.Dial(ctx, conn, &net.UDPAddr{IP: net.IPv4zero}, c.tlsConfig, c.quicConfig)
 	if err != nil {
 		return err
 	}
+
 	go func() {
 		select {
 		case <-session.Context().Done():
@@ -98,7 +85,7 @@ func (c *Client) initSession(ctx context.Context) error {
 			defer c.sessionMu.Unlock()
 			session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 			conn.Close()
-			log.Println("session closed")
+			log.Debug("session closed")
 			c.session = nil
 		}
 	}()
@@ -111,7 +98,7 @@ func (c *Client) initSession(ctx context.Context) error {
 			}
 
 			if err = c.handleDatagrams(b); err != nil {
-				log.Println("handle datagrams failed:", err)
+				log.Debug("handle datagrams failed:", "err", err)
 			}
 		}
 	}()
@@ -148,10 +135,11 @@ func (c *Client) handleDatagrams(b []byte) error {
 
 func (c *Client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
 	if err := c.initSession(ctx); err != nil {
+		log.Error("init session failed:", "err", err)
 		return nil, err
 	}
 
-	stream, err := c.session.OpenStreamSync(ctx)
+	stream, err := c.session.OpenStream()
 	if err != nil {
 		return nil, err
 	}
