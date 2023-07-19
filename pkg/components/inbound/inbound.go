@@ -2,14 +2,20 @@ package inbound
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -25,25 +31,46 @@ func init() {
 		var Type yuubinsya.Type
 		var err error
 		var tlsConfig *tls.Config
+		var listener func(net.Listener) (net.Listener, error)
 		switch p := o.Protocol.Yuubinsya.Protocol.(type) {
 		case *pl.Yuubinsya_Normal:
 			Type = yuubinsya.RAW_TCP
 		case *pl.Yuubinsya_Tls:
 			Type = yuubinsya.TLS
 			tlsConfig, err = pl.ParseTLS(p.Tls.GetTls())
+
 		case *pl.Yuubinsya_Quic:
 			Type = yuubinsya.QUIC
 			tlsConfig, err = pl.ParseTLS(p.Quic.GetTls())
 		case *pl.Yuubinsya_Websocket:
 			Type = yuubinsya.WEBSOCKET
+			listener = func(l net.Listener) (net.Listener, error) { return websocket.NewServer(l), nil }
 			tlsConfig, err = pl.ParseTLS(p.Websocket.GetTls())
 		case *pl.Yuubinsya_Grpc:
 			Type = yuubinsya.GRPC
+			listener = func(l net.Listener) (net.Listener, error) { return grpc.NewServer(l), nil }
 			tlsConfig, err = pl.ParseTLS(p.Grpc.GetTls())
 		case *pl.Yuubinsya_Http2:
 			Type = yuubinsya.HTTP2
+			listener = func(l net.Listener) (net.Listener, error) { return http2.NewServer(l), nil }
 			tlsConfig, err = pl.ParseTLS(p.Http2.GetTls())
+		case *pl.Yuubinsya_Reality:
+			Type = yuubinsya.REALITY
+			privateKey, er := base64.RawURLEncoding.DecodeString(p.Reality.PrivateKey)
+			if er != nil {
+				err = er
+				break
+			}
 
+			listener = func(l net.Listener) (net.Listener, error) {
+				return reality.NewServer(l, reality.ServerConfig{
+					ShortID:     p.Reality.ShortId,
+					ServerNames: p.Reality.ServerName,
+					Dest:        p.Reality.Dest,
+					PrivateKey:  privateKey,
+					Debug:       p.Reality.Debug,
+				})
+			}
 		}
 		if err != nil {
 			return nil, err
@@ -56,6 +83,7 @@ func init() {
 			Type:                Type,
 			ForceDisableEncrypt: o.Protocol.Yuubinsya.ForceDisableEncrypt,
 			Handler:             o.Handler,
+			NewListener:         listener,
 		})
 		go s.Start()
 		return s, nil

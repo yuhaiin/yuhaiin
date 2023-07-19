@@ -25,7 +25,7 @@ type Server struct {
 	closed   bool
 }
 
-func NewHttp2(lis net.Listener) *Server {
+func NewServer(lis net.Listener) *Server {
 	h := &Server{
 		listener: lis,
 		connChan: make(chan net.Conn, 20),

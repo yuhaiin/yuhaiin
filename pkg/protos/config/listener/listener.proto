@@ -61,6 +61,7 @@ message yuubinsya {
     websocket websocket = 6 [ json_name = "websocket" ];
     grpc grpc = 7 [ json_name = "grpc" ];
     http2 http2 = 9 [ json_name = "http2" ];
+    reality reality = 10 [ json_name = "reality" ];
   }
 }
 
@@ -70,6 +71,13 @@ message quic { tls_config tls = 1 [ json_name = "tls" ]; };
 message tls { tls_config tls = 1 [ json_name = "tls" ]; };
 message grpc { tls_config tls = 1 [ json_name = "tls" ]; };
 message http2 { tls_config tls = 1 [ json_name = "tls" ]; };
+message reality {
+  repeated string short_id = 1 [ json_name = "short_id" ];
+  repeated string server_name = 2 [ json_name = "server_name" ];
+  string dest = 3 [ json_name = "dest" ];
+  string private_key = 4 [ json_name = "private_key" ];
+  bool debug = 5 [ json_name = "debug" ];
+}
 
 message tls_config {
   repeated certificate certificates = 1 [ json_name = "certificates" ];

@@ -114,9 +114,7 @@ func (d *doq) Close() error {
 	return nil
 }
 
-type DOQWrapConn struct {
-	net.PacketConn
-}
+type DOQWrapConn struct{ net.PacketConn }
 
 func (d *DOQWrapConn) LocalAddr() net.Addr { return &doqWrapLocalAddr{d.PacketConn.LocalAddr()} }
 

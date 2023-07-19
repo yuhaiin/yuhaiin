@@ -22,6 +22,7 @@ message protocol {
     yuubinsya yuubinsya = 14 [ json_name = "yuubinsya" ];
     grpc grpc = 15 [ json_name = "grpc" ];
     http2 http2 = 16 [ json_name = "http2" ];
+    reality reality = 17 [ json_name = "reality" ];
   }
 }
 
@@ -85,6 +86,13 @@ message grpc { tls_config tls = 1 [ json_name = "tls" ]; }
 message quic {
   // string host = 2 [ json_name = "host" ];
   tls_config tls = 1 [ json_name = "tls" ];
+}
+
+message reality {
+  string server_name = 1 [ json_name = "server_name" ];
+  string public_key = 2 [ json_name = "public_key" ];
+  string short_id = 3 [ json_name = "short_id" ];
+  bool debug = 4 [ json_name = "debug" ];
 }
 
 message obfs_http {
