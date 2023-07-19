@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/static/css/main.c9167014.css",
-    "main.js": "/static/js/main.9b1c001d.js",
+    "main.js": "/static/js/main.b46c202f.js",
     "static/js/27.5b60be63.chunk.js": "/static/js/27.5b60be63.chunk.js",
     "static/media/bootstrap-icons.woff?": "/static/media/bootstrap-icons.4753c5ba57962b4d7bf8.woff",
     "static/media/bootstrap-icons.woff2?": "/static/media/bootstrap-icons.6d63d0501e5ed7b79dab.woff2",
@@ -9,6 +9,6 @@
   },
   "entrypoints": [
     "static/css/main.c9167014.css",
-    "static/js/main.9b1c001d.js"
+    "static/js/main.b46c202f.js"
   ]
 }

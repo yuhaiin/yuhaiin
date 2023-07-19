@@ -17,11 +17,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	quicgo "github.com/quic-go/quic-go"
@@ -44,6 +41,7 @@ var (
 	WEBSOCKET Type = 4
 	GRPC      Type = 5
 	HTTP2     Type = 6
+	REALITY   Type = 7
 )
 
 type Config struct {
@@ -53,6 +51,8 @@ type Config struct {
 	TlsConfig           *tls.Config
 	Type                Type
 	ForceDisableEncrypt bool
+
+	NewListener func(net.Listener) (net.Listener, error)
 }
 
 func (c Config) String() string {
@@ -110,15 +110,11 @@ func (y *yuubinsya) Server() (net.Listener, error) {
 		tcpListener = tls.NewListener(tcpListener, y.TlsConfig)
 	}
 
-	switch y.Type {
-	case WEBSOCKET:
-		tcpListener = websocket.NewServer(tcpListener)
-	case GRPC:
-		tcpListener = grpc.NewGrpc(tcpListener)
-	case HTTP2:
-		tcpListener = http2.NewHttp2(tcpListener)
+	if y.NewListener != nil {
+		tcpListener, err = y.NewListener(tcpListener)
 	}
-	return tcpListener, nil
+
+	return tcpListener, err
 }
 
 func (y *yuubinsya) Start() (err error) {

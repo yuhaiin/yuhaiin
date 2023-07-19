@@ -147,7 +147,7 @@ func (c *Client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
 	return &interConn{
 		Stream: stream,
 		local:  c.session.LocalAddr(),
-		remote: c.session.RemoteAddr(),
+		remote: s,
 	}, nil
 }
 

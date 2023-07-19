@@ -19,7 +19,7 @@ type Grpc struct {
 	Server   *grpc.Server
 }
 
-func NewGrpc(lis net.Listener) *Grpc {
+func NewServer(lis net.Listener) *Grpc {
 	g := NewGrpcNoServer()
 	g.listener = lis
 	go g.Server.Serve(lis)

@@ -146,7 +146,6 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 
 		s.mu.RUnlock()
 	}
-
 }
 
 /*

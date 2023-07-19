@@ -87,6 +87,7 @@ func (s *handler) stream(ctx context.Context, meta *proxy.StreamMeta) error {
 	relay.Relay(meta.Src, remote)
 	return nil
 }
+
 func (s *handler) Packet(ctx context.Context, pack *proxy.Packet) {
 	select {
 	case <-s.doneCtx.Done():
