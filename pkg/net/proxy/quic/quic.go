@@ -92,7 +92,7 @@ func (c *Client) initSession(ctx context.Context) error {
 
 	go func() {
 		for {
-			b, err := session.ReceiveMessage()
+			b, err := session.ReceiveMessage(context.Background())
 			if err != nil {
 				break
 			}
