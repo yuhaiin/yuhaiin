@@ -72,16 +72,18 @@ func (ws *Conn) Read(msg []byte) (n int, err error) {
 		}
 
 		if ws.Frame == nil {
-			ws.rio.Unlock()
-			_, ws.Frame, err = ws.NextFrameReader()
-			ws.rio.Lock()
+			_, ws.Frame, err = ws.nextFrameReader()
 			if err != nil {
 				return 0, err
 			}
 		}
 
 		n, err = ws.Frame.Read(msg)
-		if err != io.EOF {
+		if err == nil || n != 0 {
+			return n, err
+		}
+
+		if !errors.Is(err, io.EOF) {
 			return n, err
 		}
 
@@ -90,29 +92,29 @@ func (ws *Conn) Read(msg []byte) (n int, err error) {
 
 }
 
-func (ws *Conn) DiscardReader() error {
+func (ws *Conn) NextFrameReader(handle func(*Header, io.Reader) error) error {
 	ws.rio.Lock()
 	defer ws.rio.Unlock()
 
-	if ws.closed {
-		return net.ErrClosed
+	if ws.Frame != nil {
+		relay.Copy(io.Discard, ws.Frame)
+		ws.Frame = nil
 	}
 
-	if ws.Frame != nil {
-		_, err := io.Copy(io.Discard, ws.Frame)
-		if err != nil {
-			return err
-		}
-		ws.Frame = nil
+	h, r, err := ws.nextFrameReader()
+	if err != nil {
+		return err
+	}
+	defer relay.Copy(io.Discard, r)
+
+	if err := handle(h, r); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (ws *Conn) NextFrameReader() (*Header, io.Reader, error) {
-	ws.rio.Lock()
-	defer ws.rio.Unlock()
-
+func (ws *Conn) nextFrameReader() (*Header, io.Reader, error) {
 	for {
 		if ws.closed {
 			return nil, nil, net.ErrClosed
