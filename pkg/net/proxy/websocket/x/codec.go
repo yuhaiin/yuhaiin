@@ -32,31 +32,25 @@ func (cd Codec) Send(ws *Conn, v any) (err error) {
 // limit, ErrFrameTooLarge is returned; in this case frame is not read off wire
 // completely. The next call to Receive would read and discard leftover data of
 // previous oversized frame before processing next frame.
-func (cd Codec) Receive(ws *Conn, v any) (err error) {
-	if err = ws.DiscardReader(); err != nil {
-		return err
-	}
+func (cd Codec) Receive(ws *Conn, v any) error {
+	return ws.NextFrameReader(func(header *Header, frame io.Reader) error {
+		if header.payloadLength > int64(DefaultMaxPayloadBytes) {
+			// payload size exceeds limit, no need to call Unmarshal
+			//
+			// set frameReader to current oversized frame so that
+			// the next call to this function can drain leftover
+			// data before processing the next frame
+			ws.Frame = frame
+			return errors.New("websocket: frame payload size exceeds limit")
+		}
 
-	header, frame, err := ws.NextFrameReader()
-	if err != nil {
-		return err
-	}
+		data, err := io.ReadAll(frame)
+		if err != nil {
+			return err
+		}
+		return cd.Unmarshal(data, header.opcode, v)
+	})
 
-	if header.payloadLength > int64(DefaultMaxPayloadBytes) {
-		// payload size exceeds limit, no need to call Unmarshal
-		//
-		// set frameReader to current oversized frame so that
-		// the next call to this function can drain leftover
-		// data before processing the next frame
-		ws.Frame = frame
-		return errors.New("websocket: frame payload size exceeds limit")
-	}
-
-	data, err := io.ReadAll(frame)
-	if err != nil {
-		return err
-	}
-	return cd.Unmarshal(data, header.opcode, v)
 }
 
 func marshal(v any) (msg []byte, _ opcode, err error) {
