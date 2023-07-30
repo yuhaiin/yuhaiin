@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
@@ -65,7 +64,7 @@ func (l *Lock) Payload() (string, error) {
 		}
 		return "", fmt.Errorf("read lock file failed: %w", err)
 	}
-	return *(*string)(unsafe.Pointer(&s)), nil
+	return string(s), nil
 }
 
 func (l *Lock) UnLock() (erra error) {

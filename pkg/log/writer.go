@@ -3,39 +3,38 @@ package log
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/exp/slog"
 )
 
 var _ io.Writer = new(FileWriter)
 
 type FileWriter struct {
-	path  string
-	timer *time.Ticker
-	w     *os.File
-	log   *log.Logger
+	path logPath
+	w    *os.File
+	log  *slog.Logger
 
 	mu sync.RWMutex
+
+	savedSize atomic.Uint64
 }
 
 func NewLogWriter(file string) *FileWriter {
 	return &FileWriter{
-		path:  file,
-		timer: time.NewTicker(1),
-		log:   log.New(os.Stderr, "[log]: ", 0),
+		path: NewPath(file),
+		log: slog.New(slog.NewTextHandler(os.Stderr,
+			&slog.HandlerOptions{AddSource: true, Level: slog.LevelDebug})),
 	}
 }
 
 func (f *FileWriter) Close() error {
-	if f.timer != nil {
-		f.timer.Stop()
-	}
-
 	if f.w != nil {
 		return f.w.Close()
 	}
@@ -44,82 +43,96 @@ func (f *FileWriter) Close() error {
 }
 
 func (f *FileWriter) Write(p []byte) (n int, err error) {
-	select {
-	case <-f.timer.C:
-		f.timer.Reset(time.Hour)
-		fs, err := os.Stat(f.path)
-		if err != nil {
-			f.log.Println(err)
-			break
-		}
-
-		if fs.Size() < int64(maxSize) {
-			f.log.Println("checked logs' file is not over 1 MB, break")
-			break
-		}
-
-		f.log.Println("checked logs' file over 1 MB, rename old logs")
-
-		f.mu.Lock()
-		if f.w != nil {
-			f.w.Close()
-			f.w = nil
-		}
-
-		err = os.Rename(f.path, fmt.Sprintf("%s_%d", f.path, time.Now().Unix()))
-		if err != nil {
-			f.log.Println(err)
-		}
-		f.removeOldFile()
-		f.mu.Unlock()
-	default:
-	}
-
 	f.mu.RLock()
-	defer f.mu.RUnlock()
 	if f.w == nil {
-		f.w, err = os.OpenFile(f.path, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+		f.w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 		if err != nil {
-			f.log.Println(err)
+			f.log.Error("open file failed:", "err", err)
+			f.mu.RUnlock()
 			return 0, err
 		}
 	}
 
-	return f.w.Write(p)
+	n, err = f.w.Write(p)
+	f.mu.RUnlock()
+
+	if int(f.savedSize.Add(uint64(n))) >= maxSize {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		f.savedSize.Store(0)
+
+		f.w.Close()
+		f.w = nil
+
+		err = os.Rename(f.path.FullPath(""), f.path.FullPath(time.Now().String()))
+		if err != nil {
+			f.log.Error("rename file failed:", "err", err)
+		}
+
+		f.removeOldFile()
+	}
+
+	return n, err
 }
 
 func (f *FileWriter) removeOldFile() {
-	dir, filename := filepath.Split(f.path)
-	files, err := os.ReadDir(dir)
+	files, err := os.ReadDir(f.path.dir)
 	if err != nil {
-		f.log.Println(err)
+		f.log.Error("read dir failed:", "err", err)
 		return
 	}
 
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Name() < files[j].Name()
-	})
+	if len(files) <= maxFile+1 {
+		return
+	}
 
-	logfiles := make([]string, 0, len(files))
+	sort.Slice(files, func(i, j int) bool { return files[i].Name() > files[j].Name() })
 
+	count := 0
 	for _, file := range files {
-		if file.Name() == filename || !strings.HasPrefix(file.Name(), filename) {
+		if !(strings.HasPrefix(file.Name(), f.path.base+"_") && strings.HasSuffix(file.Name(), f.path.ext)) {
 			continue
 		}
 
-		logfiles = append(logfiles, file.Name())
-	}
+		count++
 
-	if len(logfiles) <= maxFile {
-		return
-	}
-
-	for _, name := range logfiles[:len(logfiles)-maxFile] {
-		if err = os.Remove(filepath.Join(dir, name)); err != nil {
-			f.log.Printf("remove log file %s failed: %v\n", name, err)
+		if count <= 5 {
 			continue
 		}
 
-		f.log.Println("remove log file", name)
+		name := filepath.Join(f.path.dir, file.Name())
+
+		err = os.Remove(name)
+		if err != nil {
+			f.log.Error("remove log file failed:", "file", name, "err", err)
+		} else {
+			f.log.Debug("remove log file", name)
+		}
 	}
+
 }
+
+type logPath struct {
+	ext  string
+	base string
+	dir  string
+}
+
+func NewPath(path string) logPath {
+	dir := filepath.Dir(path)
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(filepath.Base(path), ext)
+
+	return logPath{ext, base, dir}
+}
+
+func (l logPath) FullPath(suffix string) string {
+	if suffix != "" {
+		suffix = "_" + suffix
+	}
+
+	return filepath.Join(l.dir, fmt.Sprint(l.base, suffix, l.ext))
+}
+
+func (l *logPath) FullName(suffix string) string { return fmt.Sprint(l.base, suffix, l.ext) }

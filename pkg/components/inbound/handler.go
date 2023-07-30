@@ -14,13 +14,15 @@ import (
 
 var Timeout = time.Second * 20
 
+type packetChan struct {
+	ctx    context.Context
+	packet *proxy.Packet
+}
+
 type handler struct {
 	dialer     proxy.Proxy
 	table      *nat.Table
-	packetChan chan struct {
-		ctx    context.Context
-		packet *proxy.Packet
-	}
+	packetChan chan packetChan
 
 	doneCtx   context.Context
 	cancelCtx func()
@@ -29,14 +31,11 @@ type handler struct {
 func NewHandler(dialer proxy.Proxy) *handler {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &handler{
-		dialer: dialer,
-		table:  nat.NewTable(dialer),
-		packetChan: make(chan struct {
-			ctx    context.Context
-			packet *proxy.Packet
-		}, utils.Procs),
-		doneCtx:   ctx,
-		cancelCtx: cancel,
+		dialer:     dialer,
+		table:      nat.NewTable(dialer),
+		packetChan: make(chan packetChan, utils.Procs),
+		doneCtx:    ctx,
+		cancelCtx:  cancel,
 	}
 
 	go func() {
@@ -92,10 +91,7 @@ func (s *handler) Packet(ctx context.Context, pack *proxy.Packet) {
 	select {
 	case <-s.doneCtx.Done():
 	default:
-		s.packetChan <- struct {
-			ctx    context.Context
-			packet *proxy.Packet
-		}{ctx, pack}
+		s.packetChan <- packetChan{ctx, pack}
 	}
 }
 
