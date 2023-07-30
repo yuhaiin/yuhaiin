@@ -2,7 +2,6 @@ package http2
 
 import (
 	"context"
-	"log"
 	"testing"
 
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
@@ -42,7 +41,7 @@ func TestClient(t *testing.T) {
 		t.FailNow()
 	}
 
-	log.Println("start write bbbb")
+	t.Log("start write bbbb")
 	_, err = conn.Write([]byte("bbbb"))
 	if err != nil {
 		t.Error(err)

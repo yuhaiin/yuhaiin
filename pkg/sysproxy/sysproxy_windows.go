@@ -4,12 +4,13 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
 	"unsafe"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 // use github.com/Asutorufa/winproxy/c to generate dll
@@ -71,13 +72,13 @@ func getdll() (*syscall.LazyDLL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("expertDLL failed: %w", err)
 	}
-	log.Println("use windows proxy dll file:", dll)
+	log.Info("use windows proxy dll file", "dll", dll)
 	return syscall.NewLazyDLL(dll), nil
 }
 
 func SetSysProxy(http, _ string) {
 	if err := setSysProxy(http, ""); err != nil {
-		log.Println("set system proxy failed:", err)
+		log.Error("set system proxy failed:", "err", err)
 	}
 }
 
@@ -94,7 +95,7 @@ func setSysProxy(http, _ string) error {
 		return fmt.Errorf("can't find switch_system_proxy: %w", err)
 	}
 	r1, _, err := sw.Call(1)
-	log.Println(r1, "switch_system_proxy:", err)
+	log.Debug("switch_system_proxy:", "r1", r1, "err", err)
 
 	setserver := d.NewProc("set_system_proxy_server")
 	if err := setserver.Find(); err != nil {
@@ -105,7 +106,7 @@ func setSysProxy(http, _ string) error {
 		return fmt.Errorf("can't convert host: %w", err)
 	}
 	r1, _, err = setserver.Call(host)
-	log.Println(r1, "set_system_proxy_server:", err)
+	log.Debug("set_system_proxy_server:", "r1", r1, "err", err)
 
 	setbypass := d.NewProc("set_system_proxy_bypass_list")
 	if err := setbypass.Find(); err != nil {
@@ -116,13 +117,13 @@ func setSysProxy(http, _ string) error {
 		return fmt.Errorf("can't convert bypasslist to ptr: %w", err)
 	}
 	r1, _, err = setbypass.Call(bypass)
-	log.Println(r1, "set_system_proxy_bypass_list:", err)
+	log.Debug("set_system_proxy_bypass_list:", "r1", r1, "err", err)
 	return nil
 }
 
 func UnsetSysProxy() {
 	if err := unsetSysProxy(); err != nil {
-		log.Println("unset wystem proxy failed:", err)
+		log.Error("unset wystem proxy failed:", "err", err)
 	}
 }
 
@@ -136,7 +137,7 @@ func unsetSysProxy() error {
 		return fmt.Errorf("can't find switch_system_proxy: %w", err)
 	}
 	r1, _, err := sw.Call(0)
-	log.Println(r1, "switch_system_proxy:", err)
+	log.Debug("switch_system_proxy:", "r1", r1, "err", err)
 	return nil
 }
 

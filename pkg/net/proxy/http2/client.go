@@ -5,13 +5,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -89,7 +89,7 @@ func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error)
 			r.Close()
 			w.Close()
 			respr.Close()
-			log.Println("http2 do request failed:", err)
+			log.Error("http2 do request failed:", "err", err)
 			return
 		}
 

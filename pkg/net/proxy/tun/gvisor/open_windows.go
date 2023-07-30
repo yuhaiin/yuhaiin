@@ -2,9 +2,9 @@ package tun
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wintun"
@@ -54,7 +54,7 @@ func (w *winWriter) Write(b []byte) tcpip.Error {
 		return nil
 	}
 
-	log.Println("allocate send packet failed: ", err)
+	log.Error("allocate send packet failed: ", "err", err)
 
 	switch err {
 	case windows.ERROR_HANDLE_EOF:
@@ -99,7 +99,7 @@ func (w *winInbound) stop() {
 func (w *winInbound) dispatch() (bool, tcpip.Error) {
 	packet, err := w.session.ReceivePacket()
 	if err != nil {
-		log.Println("receive packet failed: ", err)
+		log.Error("receive packet failed", "err", err)
 		return false, &tcpip.ErrAborted{}
 	}
 	defer w.session.ReleaseReceivePacket(packet)

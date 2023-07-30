@@ -9,7 +9,7 @@ require (
 	github.com/xtls/reality v0.0.0-20230613075828-e07c3b04b983
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.11.0
-	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
+	golang.org/x/exp v0.0.0-20230728194245-b0cb94b80691
 	golang.org/x/mobile v0.0.0-20230531173138-3c911d8e3eda
 	golang.org/x/net v0.12.0
 	golang.org/x/sys v0.10.0

@@ -1,7 +1,6 @@
 package node
 
 import (
-	"log"
 	"reflect"
 	"testing"
 
@@ -16,7 +15,7 @@ func TestDelete(t *testing.T) {
 			continue
 		}
 
-		log.Println(i, a[:i], a[i:])
+		t.Log(i, a[:i], a[i:])
 		a = append(a[:i], a[i+1:]...)
 		break
 	}
