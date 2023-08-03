@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip/link/tun"
 )
@@ -21,7 +21,7 @@ func openDevice(name string) (io.ReadWriteCloser, error) {
 }
 
 func Open(name string) (fd int, err error) {
-	scheme, name, err := utils.GetScheme(name)
+	scheme, name, err := net.GetScheme(name)
 	if err != nil {
 		return 0, fmt.Errorf("get scheme failed: %w", err)
 	}

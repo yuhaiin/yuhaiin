@@ -13,7 +13,7 @@ import (
 
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
+	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -86,7 +86,7 @@ func NewDoH(config Config) (proxy.Resolver, error) {
 
 // https://tools.ietf.org/html/rfc8484
 func getUrlAndHost(host string) string {
-	scheme, rest, _ := utils.GetScheme(host)
+	scheme, rest, _ := ynet.GetScheme(host)
 	if scheme == "" {
 		host = "https://" + host
 	}

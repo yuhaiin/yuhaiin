@@ -43,16 +43,26 @@ func (f *FileWriter) Close() error {
 }
 
 func (f *FileWriter) Write(p []byte) (n int, err error) {
-	f.mu.RLock()
+
 	if f.w == nil {
+		f.mu.Lock()
 		f.w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+		f.mu.Unlock()
+
 		if err != nil {
 			f.log.Error("open file failed:", "err", err)
-			f.mu.RUnlock()
 			return 0, err
 		}
+
+		f.mu.RLock()
+		stat, err := f.w.Stat()
+		if err == nil {
+			f.savedSize.Store(uint64(stat.Size()))
+		}
+		f.mu.RUnlock()
 	}
 
+	f.mu.RLock()
 	n, err = f.w.Write(p)
 	f.mu.RUnlock()
 
@@ -65,7 +75,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 		f.w.Close()
 		f.w = nil
 
-		err = os.Rename(f.path.FullPath(""), f.path.FullPath(time.Now().String()))
+		err = os.Rename(f.path.FullPath(""), f.path.FullPath(time.Now().Format(time.RFC3339)))
 		if err != nil {
 			f.log.Error("rename file failed:", "err", err)
 		}
@@ -83,7 +93,7 @@ func (f *FileWriter) removeOldFile() {
 		return
 	}
 
-	if len(files) <= maxFile+1 {
+	if len(files) <= maxFile {
 		return
 	}
 
@@ -107,7 +117,7 @@ func (f *FileWriter) removeOldFile() {
 		if err != nil {
 			f.log.Error("remove log file failed:", "file", name, "err", err)
 		} else {
-			f.log.Debug("remove log file", name)
+			f.log.Debug("remove log file", "file", name)
 		}
 	}
 

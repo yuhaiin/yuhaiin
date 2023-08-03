@@ -14,8 +14,8 @@ jobs:
       fail-fast: false
       matrix:
         arch: [amd64, amd64v3]
-        os: [[linux, ""], [darwin, ""], [windows, ".exe"]]
-        cmd: [yuhaiin, dnsrelay]
+        os: [[linux, ""], [linux_lite, ""], [darwin, ""], [windows, ".exe"]]
+        cmd: [yuhaiin]
 
     steps:
     - uses: actions/checkout@v3

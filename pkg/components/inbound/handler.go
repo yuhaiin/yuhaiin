@@ -8,8 +8,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 var Timeout = time.Second * 20
@@ -33,7 +33,7 @@ func NewHandler(dialer proxy.Proxy) *handler {
 	h := &handler{
 		dialer:     dialer,
 		table:      nat.NewTable(dialer),
-		packetChan: make(chan packetChan, utils.Procs),
+		packetChan: make(chan packetChan, system.Procs),
 		doneCtx:    ctx,
 		cancelCtx:  cancel,
 	}
