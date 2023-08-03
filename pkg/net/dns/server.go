@@ -14,8 +14,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/exp/slog"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -42,7 +42,7 @@ func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
 	d := &dnsServer{
 		server:    server,
 		resolver:  process,
-		reqChan:   make(chan dnsRequest, utils.Procs),
+		reqChan:   make(chan dnsRequest, system.Procs),
 		doneCtx:   ctx,
 		cancelCtx: cancel,
 	}

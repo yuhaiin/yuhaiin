@@ -103,10 +103,7 @@ func (t *HttpServerOption) TagList(w http.ResponseWriter, r *http.Request) error
 		groups[k] = v.NodesV2
 	}
 
-	return MarshalJsonAndWrite(w, map[string]any{
-		"tags":   tags,
-		"groups": groups,
-	})
+	return MarshalJsonAndWrite(w, map[string]any{"tags": tags, "groups": groups})
 }
 
 func (t *HttpServerOption) SaveTag(w http.ResponseWriter, r *http.Request) error {
@@ -302,16 +299,7 @@ func (z *HttpServerOption) NodeNow(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	data, err := json.Marshal(map[string]string{
-		"tcp": string(tcpData),
-		"udp": string(udpData),
-	})
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(data)
-	return err
+	return MarshalJsonAndWrite(w, map[string]string{"tcp": string(tcpData), "udp": string(udpData)})
 }
 
 var protocolsMapping = map[string]*protocol.Protocol{

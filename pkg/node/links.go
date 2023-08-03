@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"golang.org/x/exp/slog"
 )
 
@@ -148,7 +148,7 @@ func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
 	t := l.Type
 
 	if t == subscribe.Type_reserve {
-		scheme, _, _ := utils.GetScheme(string(str))
+		scheme, _, _ := net.GetScheme(string(str))
 		t = schemeTypeMap[scheme]
 	}
 

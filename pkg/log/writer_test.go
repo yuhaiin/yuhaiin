@@ -19,9 +19,17 @@ func TestExt(t *testing.T) {
 
 	sort.Slice(f, func(i, j int) bool { return f[i].Name() > f[j].Name() })
 
+	count := 0
 	for _, v := range f {
-		if strings.HasPrefix(v.Name(), "yuhaiin_") && strings.HasSuffix(v.Name(), "") {
-			t.Log(v.Name())
+		if !(strings.HasPrefix(v.Name(), "yuhaiin_") && strings.HasSuffix(v.Name(), "log")) {
+			continue
 		}
+		count++
+
+		if count <= 5 {
+			continue
+		}
+
+		t.Log(v.Name(), count)
 	}
 }

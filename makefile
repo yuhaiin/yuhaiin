@@ -50,7 +50,11 @@ vet:
 yuhaiin_linux:
 	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin_linux_amd64 $(YUHAIIN)
 	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin_linux_amd64v3 $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite" -o yuhaiin_linux_lite_amdv3 $(YUHAIIN)
+
+.PHONY: yuhaiin_linux_lite
+yuhaiin_linux_lite:
+	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite" -o yuhaiin_linux_lite_amd64 $(YUHAIIN)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite" -o yuhaiin_linux_lite_amd64v3 $(YUHAIIN)
 
 .PHONY: yuhaiin_windows
 yuhaiin_windows:

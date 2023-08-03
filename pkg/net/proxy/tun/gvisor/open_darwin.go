@@ -7,7 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/sys/unix"
 	buffer "gvisor.dev/gvisor/pkg/buffer"
@@ -17,7 +17,7 @@ import (
 )
 
 func open(name string, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
-	scheme, name, err := utils.GetScheme(name)
+	scheme, name, err := net.GetScheme(name)
 	if err != nil {
 		return nil, fmt.Errorf("get scheme failed: %w", err)
 	}
