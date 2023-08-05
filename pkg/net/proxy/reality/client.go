@@ -137,9 +137,13 @@ func (e *RealityClient) ClientHandshake(ctx context.Context, conn net.Conn) (net
 		log.Debug("REALITY", "hello.sessionId[:16]", hello.SessionId[:16])
 	}
 
-	authKey := uConn.HandshakeState.State13.EcdheParams.SharedKey(e.publicKey)
-	if authKey == nil {
-		return nil, fmt.Errorf("nil auth_key")
+	peerKey, err := uConn.HandshakeState.State13.EcdheKey.Curve().NewPublicKey(e.publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("new ecdhe public key failed: %w", err)
+	}
+	authKey, err := uConn.HandshakeState.State13.EcdheKey.ECDH(peerKey)
+	if err != nil {
+		return nil, fmt.Errorf("ecdh key failed: %w", err)
 	}
 	verifier.authKey = authKey
 	_, err = hkdf.New(sha256.New, authKey, hello.Random[:20], []byte("REALITY")).Read(authKey)
