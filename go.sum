@@ -45,8 +45,8 @@ github.com/quic-go/qtls-go1-20 v0.3.1 h1:O4BLOM3hwfVF3AcktIylQXyl7Yi2iBNVy5QsV+y
 github.com/quic-go/qtls-go1-20 v0.3.1/go.mod h1:X9Nh97ZL80Z+bX/gUXMbipO6OxdiDi58b/fMC9mAL+k=
 github.com/quic-go/quic-go v0.37.2 h1:lFTYNpXNc5nfkCMfQ9nFCSa+IZAB9OgxFHbWzwxjU+o=
 github.com/quic-go/quic-go v0.37.2/go.mod h1:YsbH1r4mSHPJcLF4k4zruUkLBqctEMBDR6VPvcYjIsU=
-github.com/refraction-networking/utls v1.3.3 h1:f/TBLX7KBciRyFH3bwupp+CE4fzoYKCirhdRcC490sw=
-github.com/refraction-networking/utls v1.3.3/go.mod h1:DlecWW1LMlMJu+9qpzzQqdHDT/C2LAe03EdpLUz/RL8=
+github.com/refraction-networking/utls v1.4.0 h1:eRlOMplB02JBNniqRVvI6gglfjiKkeOuB3xKevey7PM=
+github.com/refraction-networking/utls v1.4.0/go.mod h1:JkUIj+Pc8eyFB0z+A4RJRZmoT43ajjFZWVMXuZQ8BEQ=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
