@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
-	"golang.org/x/exp/slog"
 )
 
 func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {

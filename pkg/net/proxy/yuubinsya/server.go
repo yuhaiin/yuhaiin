@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -22,7 +23,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	quicgo "github.com/quic-go/quic-go"
-	"golang.org/x/exp/slog"
 )
 
 type yuubinsya struct {

@@ -1,8 +1,9 @@
 package yerror
 
 import (
+	"log/slog"
+
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"golang.org/x/exp/slog"
 )
 
 func Must[T any](v T, err error) T {

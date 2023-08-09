@@ -3,6 +3,7 @@ package log
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,8 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/exp/slog"
 )
 
 var _ io.Writer = new(FileWriter)

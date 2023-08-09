@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
-	"golang.org/x/exp/slog"
 )
 
 type Server struct {

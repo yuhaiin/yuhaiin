@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -14,7 +15,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/exp/constraints"
-	"golang.org/x/exp/slog"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -70,9 +70,6 @@ func (e errProxy) Conn(context.Context, Address) (net.Conn, error)             {
 func (e errProxy) PacketConn(context.Context, Address) (net.PacketConn, error) { return nil, e.error }
 
 func PaseNetwork(s string) statistic.Type { return statistic.Type(statistic.Type_value[s]) }
-
-type resolverKey struct{}
-type resolverCanCoverKey struct{}
 
 func Value[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
 	z, ok := s.Value(k)
