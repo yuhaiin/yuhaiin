@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
-	"golang.org/x/exp/slog"
 )
 
 func init() {

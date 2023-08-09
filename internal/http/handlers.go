@@ -42,7 +42,6 @@ func (c *HttpServerOption) SaveConfig(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return nil
 }
 
@@ -220,7 +219,6 @@ func (s *HttpServerOption) SaveLink(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return nil
 }
 
@@ -255,7 +253,6 @@ func (s *HttpServerOption) DeleteLink(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return nil
 }
 
@@ -276,7 +273,6 @@ func (s *HttpServerOption) PatchLink(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return nil
 }
 
@@ -367,7 +363,6 @@ func (n *HttpServerOption) DeleteNOde(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return nil
 }
 
@@ -405,6 +400,5 @@ func (n *HttpServerOption) AddNode(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return nil
 }

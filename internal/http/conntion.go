@@ -27,7 +27,6 @@ func (c *HttpServerOption) CloseConn(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 
-	_, err = w.Write([]byte("OK"))
 	return err
 }
 

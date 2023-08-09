@@ -3,12 +3,12 @@ package node
 import (
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
-	"golang.org/x/exp/slices"
 )
 
 type manager struct {

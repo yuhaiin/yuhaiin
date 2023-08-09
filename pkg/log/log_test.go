@@ -3,7 +3,7 @@ package log
 import (
 	"testing"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 func TestLog(t *testing.T) {

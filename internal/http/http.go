@@ -1,11 +1,14 @@
 package simplehttp
 
 import (
+	"bufio"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 
@@ -15,7 +18,6 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
-	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -106,7 +108,42 @@ func (h Handler) Handle(method, pattern string, handler func(http.ResponseWriter
 	path[pattern] = handler
 }
 
-func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+type wrapResponseWriter struct {
+	http.ResponseWriter
+	writed bool
+}
+
+func (w *wrapResponseWriter) Write(b []byte) (int, error) {
+	if !w.writed {
+		w.writed = true
+	}
+
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *wrapResponseWriter) WriteHeader(s int) {
+	if !w.writed {
+		w.writed = true
+	}
+
+	w.ResponseWriter.WriteHeader(s)
+}
+
+func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+
+	w.writed = true
+
+	return h.Hijack()
+}
+
+func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
+
+	w := &wrapResponseWriter{ow, false}
+
 	method := r.Method
 
 	if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" &&
@@ -137,8 +174,11 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := handler(w, r); err != nil {
+	err := handler(w, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	} else if !w.writed {
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

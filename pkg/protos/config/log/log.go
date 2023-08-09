@@ -1,6 +1,6 @@
 package log
 
-import "golang.org/x/exp/slog"
+import "log/slog"
 
 func (l LogLevel) SLogLevel() slog.Level {
 	switch l {

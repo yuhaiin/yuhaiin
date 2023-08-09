@@ -3,6 +3,7 @@ package mapper
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -10,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
-	"golang.org/x/exp/slog"
 )
 
 type Combine[T any] struct {

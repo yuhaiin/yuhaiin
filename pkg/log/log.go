@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
-	"golang.org/x/exp/slog"
 )
 
 //go:generate protoc --go_out=. --go_opt=paths=source_relative log.proto
