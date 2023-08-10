@@ -106,7 +106,7 @@ func (f *FileWriter) removeOldFile() {
 
 		count++
 
-		if count <= 5 {
+		if count <= maxFile {
 			continue
 		}
 
