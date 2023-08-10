@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/mdlayher/netlink v1.7.2
-	github.com/quic-go/quic-go v0.37.2-0.20230809122639-10d11149625a
+	github.com/quic-go/quic-go v0.37.4
 	github.com/refraction-networking/utls v1.4.1
 	github.com/xtls/reality v0.0.0-20230613075828-e07c3b04b983
 	go.etcd.io/bbolt v1.3.7
