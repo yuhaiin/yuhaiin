@@ -1,7 +1,7 @@
 package register
 
 import (
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
@@ -23,7 +23,7 @@ import (
 
 func init() {
 	protocol.RegisterProtocol(func(*protocol.Protocol_None) protocol.WrapProxy {
-		return func(p proxy.Proxy) (proxy.Proxy, error) { return p, nil }
+		return func(p netapi.Proxy) (netapi.Proxy, error) { return p, nil }
 	})
 	// simple not wrap conn, it will use system dialer
 	protocol.RegisterProtocol(simple.New)
@@ -37,10 +37,10 @@ func init() {
 	protocol.RegisterProtocol(s5c.New)
 	protocol.RegisterProtocol(httpproxy.NewClient)
 	protocol.RegisterProtocol(func(*protocol.Protocol_Direct) protocol.WrapProxy {
-		return func(proxy.Proxy) (proxy.Proxy, error) { return direct.Default, nil }
+		return func(netapi.Proxy) (netapi.Proxy, error) { return direct.Default, nil }
 	})
 	protocol.RegisterProtocol(func(*protocol.Protocol_Reject) protocol.WrapProxy {
-		return func(proxy.Proxy) (proxy.Proxy, error) { return reject.Default, nil }
+		return func(netapi.Proxy) (netapi.Proxy, error) { return reject.Default, nil }
 	})
 	protocol.RegisterProtocol(yuubinsya.New)
 	protocol.RegisterProtocol(grpc.New)
@@ -48,7 +48,7 @@ func init() {
 	protocol.RegisterProtocol(reality.NewRealityClient)
 }
 
-func Dialer(p *point.Point) (r proxy.Proxy, err error) {
+func Dialer(p *point.Point) (r netapi.Proxy, err error) {
 	r = direct.Default
 	for _, v := range p.Protocols {
 		r, err = protocol.Wrap(v.Protocol)(r)

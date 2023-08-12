@@ -17,10 +17,10 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-func newUDPServer(host string, dialer proxy.Proxy) (proxy.Server, error) {
+func newUDPServer(host string, dialer netapi.Proxy) (netapi.Server, error) {
 	return NewUDPServer(host,
 		UDPWithListenConfig(net.ListenConfig{Control: controlUDP}),
 		UDPWithListenFunc(func(pc net.PacketConn) error { return handleUDP(pc, dialer) }))
@@ -60,7 +60,7 @@ func controlUDP(network, address string, c syscall.RawConn) error {
 	return nil
 }
 
-func handleUDP(l net.PacketConn, p proxy.Proxy) error {
+func handleUDP(l net.PacketConn, p netapi.Proxy) error {
 	u := l.(*net.UDPConn)
 
 	var tempDelay time.Duration
@@ -99,7 +99,7 @@ func handleUDP(l net.PacketConn, p proxy.Proxy) error {
 	}
 }
 
-func handleSingleUDPReq(oob, b []byte, addr *net.UDPAddr, p proxy.Proxy) error {
+func handleSingleUDPReq(oob, b []byte, addr *net.UDPAddr, p netapi.Proxy) error {
 
 	msgs, err := syscall.ParseSocketControlMessage(oob)
 	if err != nil {
@@ -142,7 +142,7 @@ func handleSingleUDPReq(oob, b []byte, addr *net.UDPAddr, p proxy.Proxy) error {
 		return fmt.Errorf("unable to obtain original destination: %w", err)
 	}
 
-	conn, err := p.PacketConn(context.TODO(), proxy.ParseUDPAddr(addr))
+	conn, err := p.PacketConn(context.TODO(), netapi.ParseUDPAddr(addr))
 	if err != nil {
 		return fmt.Errorf("get packet conn failed: %w", err)
 	}

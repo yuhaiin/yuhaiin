@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"testing"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
@@ -53,7 +53,7 @@ func TestVmess(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
+				ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}

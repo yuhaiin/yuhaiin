@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -95,17 +95,17 @@ func newHTTPObfs(conn net.Conn, host string, port string) net.Conn {
 	}
 }
 
-var _ proxy.Proxy = (*httpOBFS)(nil)
+var _ netapi.Proxy = (*httpOBFS)(nil)
 
 type httpOBFS struct {
 	host string
 	port string
 
-	proxy.Proxy
+	netapi.Proxy
 }
 
 func NewHTTPOBFS(config *protocol.Protocol_ObfsHttp) protocol.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		return &httpOBFS{
 			host:  config.ObfsHttp.Host,
 			port:  config.ObfsHttp.Port,
@@ -114,7 +114,7 @@ func NewHTTPOBFS(config *protocol.Protocol_ObfsHttp) protocol.WrapProxy {
 	}
 }
 
-func (h *httpOBFS) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+func (h *httpOBFS) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	conn, err := h.Proxy.Conn(ctx, s)
 	if err != nil {
 		return nil, err

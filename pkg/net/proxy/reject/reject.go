@@ -6,26 +6,26 @@ import (
 	"net"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
-var _ proxy.Proxy = (*reject)(nil)
+var _ netapi.Proxy = (*reject)(nil)
 
-type rejectImmediately struct{ proxy.EmptyDispatch }
+type rejectImmediately struct{ netapi.EmptyDispatch }
 
-func (rejectImmediately) Conn(_ context.Context, addr proxy.Address) (net.Conn, error) {
-	return nil, proxy.NewBlockError(statistic.Type_tcp, addr.Hostname())
+func (rejectImmediately) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) {
+	return nil, netapi.NewBlockError(statistic.Type_tcp, addr.Hostname())
 }
-func (rejectImmediately) PacketConn(_ context.Context, addr proxy.Address) (net.PacketConn, error) {
-	return nil, proxy.NewBlockError(statistic.Type_udp, addr.Hostname())
+func (rejectImmediately) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
+	return nil, netapi.NewBlockError(statistic.Type_udp, addr.Hostname())
 }
 
 type reject struct {
 	cache         *lru.LRU[string, object]
 	max, internal int
-	proxy.EmptyDispatch
+	netapi.EmptyDispatch
 }
 
 type object struct {
@@ -36,11 +36,11 @@ type object struct {
 
 var Default = rejectImmediately{}
 
-func NewReject(maxDelay, interval int) proxy.Proxy {
+func NewReject(maxDelay, interval int) netapi.Proxy {
 	return &reject{cache: lru.NewLru(lru.WithCapacity[string, object](100)), max: maxDelay, internal: interval}
 }
 
-func (r *reject) delay(addr proxy.Address) time.Duration {
+func (r *reject) delay(addr netapi.Address) time.Duration {
 	if r.max == 0 {
 		return 0
 	}
@@ -63,10 +63,10 @@ func (r *reject) delay(addr proxy.Address) time.Duration {
 	return z.delay
 }
 
-func (r *reject) Conn(_ context.Context, addr proxy.Address) (net.Conn, error) {
+func (r *reject) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) {
 	return nil, fmt.Errorf("blocked address tcp[%v], delay %v", addr, r.delay(addr))
 }
 
-func (r *reject) PacketConn(_ context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (r *reject) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
 	return nil, fmt.Errorf("blocked address udp[%v]. delay %v", addr, r.delay(addr))
 }

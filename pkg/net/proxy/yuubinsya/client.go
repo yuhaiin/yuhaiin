@@ -9,8 +9,8 @@ import (
 	"net"
 	"sync"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -18,13 +18,13 @@ import (
 )
 
 type Client struct {
-	proxy.Proxy
+	netapi.Proxy
 
 	handshaker handshaker
 }
 
 func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
-	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
+	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		c := &Client{
 			dialer,
 			NewHandshaker(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password)),
@@ -34,7 +34,7 @@ func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	}
 }
 
-func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	conn, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
@@ -49,11 +49,11 @@ func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error)
 	return newConn(hconn, addr, c.handshaker), nil
 }
 
-func (c *Client) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	/*
 		see (&yuubinsya{}).StartQUIC()
 		if c.quic {
-			return c.proxy.PacketConn(addr)
+			return c.netapi.PacketConn(addr)
 		}
 	*/
 
@@ -77,14 +77,14 @@ type PacketConn struct {
 	net.Conn
 
 	handshaker handshaker
-	addr       proxy.Address
+	addr       netapi.Address
 
 	hmux sync.Mutex
 	rmux sync.Mutex
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
-	taddr, err := proxy.ParseSysAddr(addr)
+	taddr, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
@@ -168,11 +168,11 @@ type Conn struct {
 
 	net.Conn
 
-	addr       proxy.Address
+	addr       netapi.Address
 	handshaker handshaker
 }
 
-func newConn(con net.Conn, addr proxy.Address, handshaker handshaker) net.Conn {
+func newConn(con net.Conn, addr netapi.Address, handshaker handshaker) net.Conn {
 	return &Conn{
 		Conn:       con,
 		addr:       addr,

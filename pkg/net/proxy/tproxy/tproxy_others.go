@@ -6,9 +6,9 @@ package tproxy
 import (
 	"fmt"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-func NewServer(string, proxy.Proxy) (proxy.Server, error) {
+func NewServer(string, netapi.Proxy) (netapi.Server, error) {
 	return nil, fmt.Errorf("tproxy only support linux")
 }

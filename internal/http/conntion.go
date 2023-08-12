@@ -15,18 +15,12 @@ import (
 )
 
 func (c *HttpServerOption) CloseConn(w http.ResponseWriter, r *http.Request) error {
-	id := r.URL.Query().Get("id")
-
-	i, err := strconv.ParseUint(id, 10, 64)
+	i, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64)
 	if err != nil {
 		return err
 	}
 
 	_, err = c.Connections.CloseConn(r.Context(), &gs.ConnectionsId{Ids: []uint64{i}})
-	if err != nil {
-		return err
-	}
-
 	return err
 }
 

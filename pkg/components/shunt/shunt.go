@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -42,12 +42,12 @@ type Shunt struct {
 }
 
 type Opts struct {
-	DirectDialer   proxy.Proxy
-	DirectResolver proxy.Resolver
-	ProxyDialer    proxy.Proxy
-	ProxyResolver  proxy.Resolver
-	BlockDialer    proxy.Proxy
-	BLockResolver  proxy.Resolver
+	DirectDialer   netapi.Proxy
+	DirectResolver netapi.Resolver
+	ProxyDialer    netapi.Proxy
+	ProxyResolver  netapi.Resolver
+	BlockDialer    netapi.Proxy
+	BLockResolver  netapi.Resolver
 	DefaultMode    bypass.Mode
 }
 
@@ -108,7 +108,7 @@ func (s *Shunt) Update(c *pc.Setting) {
 
 func (s *Shunt) Tags() []string { return s.tags }
 
-func (s *Shunt) Conn(ctx context.Context, host proxy.Address) (net.Conn, error) {
+func (s *Shunt) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	mode, host := s.dispatch(ctx, s.config.Tcp, host)
 
 	conn, err := s.dialer(mode).Conn(ctx, host)
@@ -119,7 +119,7 @@ func (s *Shunt) Conn(ctx context.Context, host proxy.Address) (net.Conn, error) 
 	return conn, nil
 }
 
-func (s *Shunt) PacketConn(ctx context.Context, host proxy.Address) (net.PacketConn, error) {
+func (s *Shunt) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	mode, host := s.dispatch(ctx, s.config.Udp, host)
 
 	conn, err := s.dialer(mode).PacketConn(ctx, host)
@@ -130,17 +130,17 @@ func (s *Shunt) PacketConn(ctx context.Context, host proxy.Address) (net.PacketC
 	return conn, nil
 }
 
-func (s *Shunt) Dispatch(ctx context.Context, host proxy.Address) (proxy.Address, error) {
+func (s *Shunt) Dispatch(ctx context.Context, host netapi.Address) (netapi.Address, error) {
 	_, addr := s.dispatch(ctx, bypass.Mode_bypass, host)
 	return addr, nil
 }
 
-func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host proxy.Address) (bypass.Mode, proxy.Address) {
+func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (bypass.Mode, netapi.Address) {
 	// get mode from upstream specified
 
-	store := proxy.StoreFromContext(ctx)
+	store := netapi.StoreFromContext(ctx)
 
-	mode, ok := proxy.Get[bypass.Mode](ctx, ForceModeKey{})
+	mode, ok := netapi.Get[bypass.Mode](ctx, ForceModeKey{})
 	if !ok {
 		mode = bypass.Mode_bypass
 	}
@@ -156,7 +156,6 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host prox
 
 		// get tag from bypass rule
 		if tag := fields.GetTag(); len(tag) != 0 {
-
 			store.Add(node.TagKey{}, tag)
 		}
 
@@ -168,7 +167,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host prox
 	store.Add(modeMarkKey{}, mode)
 	host.WithResolver(s.resolver(mode), true)
 
-	if s.resolveProxy && host.Type() == proxy.DOMAIN && mode == bypass.Mode_proxy {
+	if s.resolveProxy && host.Type() == netapi.DOMAIN && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := host.IP(ctx)
 		if err == nil {
@@ -183,7 +182,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host prox
 	return mode, host
 }
 
-func (s *Shunt) dialer(m bypass.Mode) proxy.Proxy {
+func (s *Shunt) dialer(m bypass.Mode) netapi.Proxy {
 	switch m {
 	case bypass.Mode_block:
 		return s.BlockDialer
@@ -196,7 +195,7 @@ func (s *Shunt) dialer(m bypass.Mode) proxy.Proxy {
 	}
 }
 
-func (s *Shunt) resolver(m bypass.Mode) proxy.Resolver {
+func (s *Shunt) resolver(m bypass.Mode) netapi.Resolver {
 	switch m {
 	case bypass.Mode_block:
 		return s.BLockResolver
@@ -209,8 +208,8 @@ func (s *Shunt) resolver(m bypass.Mode) proxy.Resolver {
 	}
 }
 
-func (s *Shunt) Resolver(ctx context.Context, domain string) proxy.Resolver {
-	host := proxy.ParseAddressPort(0, domain, proxy.EmptyPort)
+func (s *Shunt) Resolver(ctx context.Context, domain string) netapi.Resolver {
+	host := netapi.ParseAddressPort(0, domain, netapi.EmptyPort)
 	host.WithResolver(mapper.SkipResolve, true)
 	return s.resolver(s.mapper.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
 }

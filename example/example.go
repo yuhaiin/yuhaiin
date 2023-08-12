@@ -8,7 +8,7 @@ import (
 	"net"
 	"net/http"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -42,7 +42,7 @@ func main() {
 	c := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				add, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
+				add, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}

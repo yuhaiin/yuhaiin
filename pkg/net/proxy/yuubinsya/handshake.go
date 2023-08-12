@@ -14,7 +14,7 @@ import (
 	"net"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/crypto/chacha20"
@@ -24,7 +24,7 @@ import (
 type handshaker interface {
 	handshakeServer(net.Conn) (net.Conn, error)
 	handshakeClient(net.Conn) (net.Conn, error)
-	streamHeader(buf *bytes.Buffer, addr proxy.Address)
+	streamHeader(buf *bytes.Buffer, addr netapi.Address)
 	packetHeader(*bytes.Buffer)
 	parseHeader(net.Conn) (Net, error)
 }
@@ -32,7 +32,7 @@ type handshaker interface {
 // plainHandshaker bytes is password
 type plainHandshaker [sha256.Size]byte
 
-func (password plainHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
+func (password plainHandshaker) streamHeader(buf *bytes.Buffer, addr netapi.Address) {
 	buf.WriteByte(byte(TCP))
 	buf.Write(password[:])
 	s5c.ParseAddrWriter(addr, buf)
@@ -73,7 +73,7 @@ type encryptedHandshaker struct {
 	password []byte
 }
 
-func (t *encryptedHandshaker) streamHeader(buf *bytes.Buffer, addr proxy.Address) {
+func (t *encryptedHandshaker) streamHeader(buf *bytes.Buffer, addr netapi.Address) {
 	buf.Write([]byte{byte(TCP)})
 	s5c.ParseAddrWriter(addr, buf)
 }

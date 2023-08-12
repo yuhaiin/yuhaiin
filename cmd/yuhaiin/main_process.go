@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
@@ -19,8 +19,8 @@ func init() {
 
 type processDumperImpl struct{}
 
-func (processDumperImpl) ProcessName(network string, src, _ proxy.Address) (string, error) {
-	if src.Type() != proxy.IP {
+func (processDumperImpl) ProcessName(network string, src, _ netapi.Address) (string, error) {
+	if src.Type() != netapi.IP {
 		return "", fmt.Errorf("source address is not ip")
 	}
 	return netlink.FindProcessName(network, yerror.Ignore(src.IP(context.TODO())), src.Port().Port())

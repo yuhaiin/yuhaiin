@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -53,8 +53,8 @@ type handler struct {
 	Mtu          int32
 	listener     *Tun2Socket
 	portal       tcpip.Address
-	handler      proxy.Handler
-	DNSHandler   proxy.DNSHandler
+	handler      netapi.Handler
+	DNSHandler   netapi.DNSHandler
 }
 
 func (h *handler) tcp() {
@@ -70,7 +70,7 @@ func (h *handler) tcp() {
 
 		go func() {
 			if err = h.handleTCP(conn); err != nil {
-				if errors.Is(err, proxy.ErrBlocked) {
+				if errors.Is(err, netapi.ErrBlocked) {
 					log.Debug(err.Error())
 				} else {
 					log.Error("handle tcp failed", "err", err)
@@ -81,12 +81,12 @@ func (h *handler) tcp() {
 	}
 }
 
-func (h *handler) udp(server proxy.Handler) {
+func (h *handler) udp(server netapi.Handler) {
 	lis := h.listener
 	defer lis.UDP().Close()
 	for {
 		if err := h.handleUDP(server, lis); err != nil {
-			if errors.Is(err, proxy.ErrBlocked) {
+			if errors.Is(err, netapi.ErrBlocked) {
 				log.Debug(err.Error())
 			} else {
 				log.Error("handle udp failed", "err", err)
@@ -110,11 +110,11 @@ func (h *handler) handleTCP(conn net.Conn) error {
 		return h.DNSHandler.HandleTCP(context.TODO(), conn)
 	}
 
-	h.handler.Stream(context.TODO(), &proxy.StreamMeta{
+	h.handler.Stream(context.TODO(), &netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
-		Address:     proxy.ParseTCPAddress(rAddrPort),
+		Address:     netapi.ParseTCPAddress(rAddrPort),
 	})
 
 	return nil
@@ -122,7 +122,7 @@ func (h *handler) handleTCP(conn net.Conn) error {
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
-func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket) error {
+func (h *handler) handleUDP(server netapi.Handler, lis *Tun2Socket) error {
 	buf := pool.GetBytes(h.Mtu)
 
 	n, tuple, err := lis.UDP().ReadFrom(buf)
@@ -142,18 +142,18 @@ func (h *handler) handleUDP(server proxy.Handler, lis *Tun2Socket) error {
 
 	defer pool.PutBytes(buf)
 	server.Packet(context.TODO(),
-		&proxy.Packet{
+		&netapi.Packet{
 			Src: &net.UDPAddr{
 				IP:   net.IP(tuple.SourceAddr.AsSlice()),
 				Port: int(tuple.SourcePort),
 			},
-			Dst: proxy.ParseUDPAddr(&net.UDPAddr{
+			Dst: netapi.ParseUDPAddr(&net.UDPAddr{
 				IP:   net.IP(tuple.DestinationAddr.AsSlice()),
 				Port: int(tuple.DestinationPort),
 			}),
 			Payload: zbuf,
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
-				address, err := proxy.ParseSysAddr(addr)
+				address, err := netapi.ParseSysAddr(addr)
 				if err != nil {
 					return 0, err
 				}

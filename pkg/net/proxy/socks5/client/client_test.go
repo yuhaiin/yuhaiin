@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
@@ -15,7 +15,7 @@ import (
 func TestUDP(t *testing.T) {
 	p := Dial("127.0.0.1", "1080", "", "")
 
-	packet, err := p.PacketConn(context.TODO(), proxy.ParseAddressPort(statistic.Type_udp, "0.0.0.0", proxy.EmptyPort))
+	packet, err := p.PacketConn(context.TODO(), netapi.ParseAddressPort(statistic.Type_udp, "0.0.0.0", netapi.EmptyPort))
 	assert.NoError(t, err)
 	defer packet.Close()
 

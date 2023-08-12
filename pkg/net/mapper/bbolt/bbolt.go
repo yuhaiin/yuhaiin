@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -124,7 +124,7 @@ func (d *bboltDomain) Insert(domain string, mark []byte) {
 	}
 }
 
-func (d *bboltDomain) Search(domain proxy.Address) (mark []byte, ok bool) {
+func (d *bboltDomain) Search(domain netapi.Address) (mark []byte, ok bool) {
 	err := d.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte{'r', 'o', 'o', 't'})
 		if b != nil {

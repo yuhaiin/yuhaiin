@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDoh3(t *testing.T) {
-	proxy.Bootstrap = &proxy.System{DisableIPv6: true}
+	netapi.Bootstrap = &netapi.System{DisableIPv6: true}
 
 	configMap := map[string]Config{
 		"cloudflare": {

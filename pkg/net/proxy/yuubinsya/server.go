@@ -16,8 +16,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -29,7 +29,7 @@ type yuubinsya struct {
 	Config
 	Listener   net.Listener
 	handshaker handshaker
-	handler    proxy.Handler
+	handler    netapi.Handler
 }
 
 type Type int
@@ -45,7 +45,7 @@ var (
 )
 
 type Config struct {
-	Handler             proxy.Handler
+	Handler             netapi.Handler
 	Host                string
 	Password            []byte
 	TlsConfig           *tls.Config
@@ -180,7 +180,7 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 
 		log.Debug("new tcp connect", "from", c.RemoteAddr(), "to", addr)
 
-		y.handler.Stream(context.TODO(), &proxy.StreamMeta{
+		y.handler.Stream(context.TODO(), &netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
 			Destination: addr,
 			Inbound:     c.LocalAddr(),
@@ -244,12 +244,12 @@ func (y *yuubinsya) forwardPacket(c net.Conn) error {
 
 	y.Config.Handler.Packet(
 		context.TODO(),
-		&proxy.Packet{
+		&netapi.Packet{
 			Src:     src,
 			Dst:     addr.Address(statistic.Type_udp),
 			Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],
 			WriteBack: func(buf []byte, from net.Addr) (int, error) {
-				addr, err := proxy.ParseSysAddr(from)
+				addr, err := netapi.ParseSysAddr(from)
 				if err != nil {
 					return 0, err
 				}

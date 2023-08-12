@@ -7,9 +7,9 @@ import (
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/domain"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
@@ -44,10 +44,10 @@ func (x *Combine[T]) Insert(str string, mark T) {
 
 var ErrSkipResolve = errors.New("skip resolve domain")
 
-var SkipResolve = proxy.ErrorResolver(func(domain string) error { return ErrSkipResolve })
+var SkipResolve = netapi.ErrorResolver(func(domain string) error { return ErrSkipResolve })
 
-func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok bool) {
-	if addr.Type() == proxy.IP {
+func (x *Combine[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
+	if addr.Type() == netapi.IP {
 		return x.cidr.SearchIP(yerror.Must(addr.IP(ctx)))
 	}
 
@@ -64,7 +64,7 @@ func (x *Combine[T]) Search(ctx context.Context, addr proxy.Address) (mark T, ok
 	return
 }
 
-func (x *Combine[T]) SearchWithDefault(ctx context.Context, addr proxy.Address, defaultT T) T {
+func (x *Combine[T]) SearchWithDefault(ctx context.Context, addr netapi.Address, defaultT T) T {
 	t, ok := x.Search(ctx, addr)
 	if ok {
 		return t

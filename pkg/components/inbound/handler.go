@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
@@ -16,11 +16,11 @@ var Timeout = time.Second * 20
 
 type packetChan struct {
 	ctx    context.Context
-	packet *proxy.Packet
+	packet *netapi.Packet
 }
 
 type handler struct {
-	dialer     proxy.Proxy
+	dialer     netapi.Proxy
 	table      *nat.Table
 	packetChan chan packetChan
 
@@ -28,7 +28,7 @@ type handler struct {
 	cancelCtx func()
 }
 
-func NewHandler(dialer proxy.Proxy) *handler {
+func NewHandler(dialer netapi.Proxy) *handler {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &handler{
 		dialer:     dialer,
@@ -53,7 +53,7 @@ func NewHandler(dialer proxy.Proxy) *handler {
 	return h
 }
 
-func (s *handler) Stream(ctx context.Context, meta *proxy.StreamMeta) {
+func (s *handler) Stream(ctx context.Context, meta *netapi.StreamMeta) {
 	go func() {
 		if err := s.stream(ctx, meta); err != nil {
 			log.Error("stream", "error", err)
@@ -61,20 +61,20 @@ func (s *handler) Stream(ctx context.Context, meta *proxy.StreamMeta) {
 	}()
 }
 
-func (s *handler) stream(ctx context.Context, meta *proxy.StreamMeta) error {
+func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 
-	ctx = proxy.NewStore(ctx)
+	ctx = netapi.NewStore(ctx)
 	defer meta.Src.Close()
 
 	dst := meta.Address
-	store := proxy.StoreFromContext(ctx)
+	store := netapi.StoreFromContext(ctx)
 
-	store.Add(proxy.SourceKey{}, meta.Source).
-		Add(proxy.DestinationKey{}, meta.Destination)
+	store.Add(netapi.SourceKey{}, meta.Source).
+		Add(netapi.DestinationKey{}, meta.Destination)
 	if meta.Inbound != nil {
-		store.Add(proxy.InboundKey{}, meta.Inbound)
+		store.Add(netapi.InboundKey{}, meta.Inbound)
 	}
 
 	remote, err := s.dialer.Conn(ctx, dst)
@@ -87,7 +87,7 @@ func (s *handler) stream(ctx context.Context, meta *proxy.StreamMeta) error {
 	return nil
 }
 
-func (s *handler) Packet(ctx context.Context, pack *proxy.Packet) {
+func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	select {
 	case <-s.doneCtx.Done():
 	default:
@@ -95,11 +95,11 @@ func (s *handler) Packet(ctx context.Context, pack *proxy.Packet) {
 	}
 }
 
-func (s *handler) packet(ctx context.Context, pack *proxy.Packet) {
+func (s *handler) packet(ctx context.Context, pack *netapi.Packet) {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 
-	ctx = proxy.NewStore(ctx)
+	ctx = netapi.NewStore(ctx)
 
 	if err := s.table.Write(ctx, pack); err != nil {
 		log.Error("packet", "error", err)

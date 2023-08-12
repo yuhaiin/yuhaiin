@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/net/http2"
@@ -20,19 +20,19 @@ import (
 
 type Client struct {
 	client *http.Client
-	proxy.Proxy
+	netapi.Proxy
 	host string
 }
 
 func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 
 		transport := &http2.Transport{
 			DisableCompression: true,
 			AllowHTTP:          true,
 			ReadIdleTimeout:    time.Second * 20,
 			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-				address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
+				address, err := netapi.ParseAddress(statistic.Type_tcp, addr)
 				if err != nil {
 					return nil, err
 				}
@@ -57,7 +57,7 @@ func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
 	}
 }
 
-func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	r, w := net.Pipe()
 
 	req, err := http.NewRequest(http.MethodPost, "https://"+c.host, r)

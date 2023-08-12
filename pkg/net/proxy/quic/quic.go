@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -22,11 +22,11 @@ import (
 )
 
 type Client struct {
-	proxy.EmptyDispatch
+	netapi.EmptyDispatch
 
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
-	dialer     proxy.Proxy
+	dialer     netapi.Proxy
 	session    quic.Connection
 	sessionMu  sync.Mutex
 
@@ -36,7 +36,7 @@ type Client struct {
 }
 
 func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
-	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
+	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		log.Debug("new quic", "config", config)
 
 		tlsConfig := protocol.ParseTLSConfig(config.Quic.Tls)
@@ -68,7 +68,7 @@ func (c *Client) initSession(ctx context.Context) error {
 		return nil
 	}
 
-	conn, err := c.dialer.PacketConn(ctx, proxy.EmptyAddr)
+	conn, err := c.dialer.PacketConn(ctx, netapi.EmptyAddr)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (c *Client) handleDatagrams(b []byte) error {
 	return nil
 }
 
-func (c *Client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	if err := c.initSession(ctx); err != nil {
 		log.Error("init session failed:", "err", err)
 		return nil, err
@@ -151,7 +151,7 @@ func (c *Client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
 	}, nil
 }
 
-func (c *Client) PacketConn(ctx context.Context, host proxy.Address) (net.PacketConn, error) {
+func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	if err := c.initSession(ctx); err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func (x *interPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		return 0, net.ErrClosed
 	}
 
-	ad, err := proxy.ParseSysAddr(addr)
+	ad, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, err
 	}

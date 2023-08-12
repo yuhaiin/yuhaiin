@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	nd "github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
@@ -136,7 +136,7 @@ func CheckBootstrapDns(pa *pd.Dns) error {
 		return err
 	}
 
-	if addr.Type() != proxy.IP {
+	if addr.Type() != netapi.IP {
 		return fmt.Errorf("dns bootstrap host is only support ip address")
 	}
 

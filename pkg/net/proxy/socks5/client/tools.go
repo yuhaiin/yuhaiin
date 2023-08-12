@@ -7,17 +7,17 @@ import (
 	"io"
 	"net"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
-func Dial(host, port, user, password string) proxy.Proxy {
-	addr, err := proxy.ParseAddress(statistic.Type_tcp, net.JoinHostPort(host, port))
+func Dial(host, port, user, password string) netapi.Proxy {
+	addr, err := netapi.ParseAddress(statistic.Type_tcp, net.JoinHostPort(host, port))
 	if err != nil {
-		return proxy.NewErrProxy(err)
+		return netapi.NewErrProxy(err)
 	}
 	p, _ := New(&protocol.Protocol_Socks5{
 		Socks5: &protocol.Socks5{
@@ -34,10 +34,10 @@ func Dial(host, port, user, password string) proxy.Proxy {
 	return p
 }
 
-func ParseAddr(addr proxy.Address) ADDR {
+func ParseAddr(addr netapi.Address) ADDR {
 	var buf []byte
 	switch addr.Type() {
-	case proxy.IP:
+	case netapi.IP:
 		ip, _ := addr.AddrPort(context.TODO())
 		if ip.Addr().Is4() {
 			buf = make([]byte, 1+4+2)
@@ -48,7 +48,7 @@ func ParseAddr(addr proxy.Address) ADDR {
 		}
 		copy(buf[1:], ip.Addr().AsSlice())
 
-	case proxy.DOMAIN:
+	case netapi.DOMAIN:
 		fallthrough
 	default:
 		buf = make([]byte, 1+1+len(addr.Hostname())+2)
@@ -62,9 +62,9 @@ func ParseAddr(addr proxy.Address) ADDR {
 	return buf
 }
 
-func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
+func ParseAddrWriter(addr netapi.Address, buf io.Writer) {
 	switch addr.Type() {
-	case proxy.IP:
+	case netapi.IP:
 		if ip := yerror.Must(addr.IP(context.TODO())).To4(); ip != nil {
 			buf.Write([]byte{0x01})
 			buf.Write(ip)
@@ -72,7 +72,7 @@ func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 			buf.Write([]byte{0x04})
 			buf.Write(yerror.Must(addr.IP(context.TODO())).To16())
 		}
-	case proxy.DOMAIN:
+	case netapi.DOMAIN:
 		fallthrough
 	default:
 		buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
@@ -83,9 +83,9 @@ func ParseAddrWriter(addr proxy.Address, buf io.Writer) {
 
 type ADDR []byte
 
-func (a ADDR) Address(network statistic.Type) proxy.Address {
+func (a ADDR) Address(network statistic.Type) netapi.Address {
 	if len(a) == 0 {
-		return proxy.EmptyAddr
+		return netapi.EmptyAddr
 	}
 
 	var hostname string
@@ -97,7 +97,7 @@ func (a ADDR) Address(network statistic.Type) proxy.Address {
 	}
 	port := binary.BigEndian.Uint16(a[len(a)-2:])
 
-	return proxy.ParseAddressPort(network, hostname, proxy.ParsePort(port))
+	return netapi.ParseAddressPort(network, hostname, netapi.ParsePort(port))
 }
 
 func ResolveAddr(r io.Reader) (ADDR, error) {

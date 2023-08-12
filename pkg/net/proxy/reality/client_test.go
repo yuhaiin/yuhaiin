@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -33,7 +33,7 @@ func TestClient(t *testing.T) {
 	pp, err = c(pp)
 	assert.NoError(t, err)
 
-	conn, err := pp.Conn(context.Background(), proxy.EmptyAddr)
+	conn, err := pp.Conn(context.Background(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 	defer conn.Close()
 

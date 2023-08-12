@@ -1,15 +1,9 @@
 package net
 
 import (
-	"io"
 	_ "net/url"
 	_ "unsafe"
 )
-
-type nopWriteCloser struct{ io.Writer }
-
-func NopWriteCloser(w io.Writer) io.WriteCloser { return &nopWriteCloser{w} }
-func (w *nopWriteCloser) Close() error          { return nil }
 
 //go:linkname GetScheme net/url.getScheme
 func GetScheme(ur string) (scheme, etc string, err error)

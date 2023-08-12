@@ -8,7 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
@@ -17,15 +17,15 @@ import (
 type Fakedns struct {
 	enabled  bool
 	fake     *dns.FakeDNS
-	dialer   proxy.Proxy
-	upstream proxy.Resolver
+	dialer   netapi.Proxy
+	upstream netapi.Resolver
 	cache    *cache.Cache
 
 	// current dns client(fake/upstream)
-	proxy.Resolver
+	netapi.Resolver
 }
 
-func NewFakeDNS(dialer proxy.Proxy, upstream proxy.Resolver, bbolt *cache.Cache) *Fakedns {
+func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, bbolt *cache.Cache) *Fakedns {
 	return &Fakedns{
 		fake:     dns.NewFakeDNS(upstream, yerror.Ignore(netip.ParsePrefix("10.2.0.1/24")), bbolt),
 		dialer:   dialer,
@@ -52,11 +52,11 @@ func (f *Fakedns) Update(c *pc.Setting) {
 	}
 }
 
-func (f *Fakedns) Dispatch(ctx context.Context, addr proxy.Address) (proxy.Address, error) {
+func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
 	return f.dialer.Dispatch(ctx, f.dispatchAddr(ctx, addr))
 }
 
-func (f *Fakedns) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (f *Fakedns) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	c, err := f.dialer.Conn(ctx, f.dispatchAddr(ctx, addr))
 	if err != nil {
 		return nil, fmt.Errorf("connect tcp to %s failed: %w", addr, err)
@@ -65,7 +65,7 @@ func (f *Fakedns) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error
 	return c, nil
 }
 
-func (f *Fakedns) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (f *Fakedns) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	c, err := f.dialer.PacketConn(ctx, f.dispatchAddr(ctx, addr))
 	if err != nil {
 		return nil, fmt.Errorf("connect udp to %s failed: %w", addr, err)
@@ -78,14 +78,14 @@ func (f *Fakedns) PacketConn(ctx context.Context, addr proxy.Address) (net.Packe
 	return c, nil
 }
 
-func (f *Fakedns) dispatchAddr(ctx context.Context, addr proxy.Address) proxy.Address {
-	if f.enabled && addr.Type() == proxy.IP {
+func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
+	if f.enabled && addr.Type() == netapi.IP {
 		t, ok := f.fake.GetDomainFromIP(yerror.Ignore(addr.AddrPort(ctx)).Addr())
 		if ok {
 			r := addr.OverrideHostname(t)
-			proxy.StoreFromContext(ctx).
-				Add(proxy.FakeIPKey{}, addr).
-				Add(proxy.CurrentKey{}, r)
+			netapi.StoreFromContext(ctx).
+				Add(netapi.FakeIPKey{}, addr).
+				Add(netapi.CurrentKey{}, r)
 			return r
 		}
 	}
@@ -94,11 +94,11 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr proxy.Address) proxy.Ad
 
 type dispatchPacketConn struct {
 	net.PacketConn
-	dispatch func(context.Context, proxy.Address) proxy.Address
+	dispatch func(context.Context, netapi.Address) netapi.Address
 }
 
 func (f *dispatchPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	z, err := proxy.ParseSysAddr(addr)
+	z, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, fmt.Errorf("parse addr failed: %w", err)
 	}

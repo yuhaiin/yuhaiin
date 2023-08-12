@@ -23,13 +23,10 @@ import (
 )
 
 func (cc *HttpServerOption) GetConfig(w http.ResponseWriter, r *http.Request) error {
-	c, err := cc.Config.Load(r.Context(), &emptypb.Empty{})
-	if err != nil {
-		return err
-	}
-
-	w.Header().Set("Core-OS", runtime.GOOS)
-	return MarshalProtoAndWrite(w, c, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true })
+	return WhenNoError(cc.Config.Load(r.Context(), &emptypb.Empty{})).Do(func(t *config.Setting) error {
+		w.Header().Set("Core-OS", runtime.GOOS)
+		return MarshalProtoAndWrite(w, t, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true })
+	})
 }
 
 func (c *HttpServerOption) SaveConfig(w http.ResponseWriter, r *http.Request) error {
@@ -38,11 +35,8 @@ func (c *HttpServerOption) SaveConfig(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	if _, err := c.Config.Save(r.Context(), config); err != nil {
-		return err
-	}
-
-	return nil
+	_, err := c.Config.Save(r.Context(), config)
+	return err
 }
 
 func (g *HttpServerOption) GetGroups(w http.ResponseWriter, r *http.Request) error {
@@ -215,11 +209,7 @@ func (s *HttpServerOption) SaveLink(w http.ResponseWriter, r *http.Request) erro
 			},
 		},
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (s *HttpServerOption) GetLinkList(w http.ResponseWriter, r *http.Request) error {

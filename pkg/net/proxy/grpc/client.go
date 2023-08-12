@@ -8,15 +8,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type client struct {
-	proxy.Proxy
+	netapi.Proxy
 
 	clientConn *grpc.ClientConn
 	client     StreamClient
@@ -29,7 +30,7 @@ type client struct {
 }
 
 func New(config *protocol.Protocol_Grpc) protocol.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		return &client{
 			Proxy:     p,
 			count:     &atomic.Int64{},
@@ -49,7 +50,7 @@ func (c *client) initClient() error {
 
 	var tlsOption grpc.DialOption
 	if c.tlsConfig == nil {
-		tlsOption = grpc.WithInsecure()
+		tlsOption = grpc.WithTransportCredentials(insecure.NewCredentials())
 	} else {
 		tlsOption = grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig))
 	}
@@ -67,7 +68,7 @@ func (c *client) initClient() error {
 		grpc.WithInitialWindowSize(65536),
 		tlsOption,
 		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return c.Proxy.Conn(ctx, proxy.EmptyAddr)
+			return c.Proxy.Conn(ctx, netapi.EmptyAddr)
 		}))
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func (c *client) close() {
 	c.mu.Unlock()
 }
 
-func (c *client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	if err := c.initClient(); err != nil {
 		return nil, err
 	}

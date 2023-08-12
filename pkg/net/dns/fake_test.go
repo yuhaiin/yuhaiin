@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"testing"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
@@ -61,7 +61,7 @@ func TestPtr(t *testing.T) {
 	t.Log(f.GetFakeIPForDomain("aass"))
 
 	z := &FakeDNS{
-		Resolver:   proxy.ErrorResolver(func(domain string) error { return errors.New("err") }),
+		Resolver:   netapi.ErrorResolver(func(domain string) error { return errors.New("err") }),
 		FakeIPPool: NewFakeIPPool(zz, nil),
 	}
 

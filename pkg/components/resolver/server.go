@@ -3,24 +3,24 @@ package resolver
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
-var _ proxy.DNSHandler = (*DnsServer)(nil)
+var _ netapi.DNSHandler = (*DnsServer)(nil)
 
 type DnsServer struct {
-	proxy.DNSHandler
+	netapi.DNSHandler
 	serverHost string
-	resolver   proxy.Resolver
+	resolver   netapi.Resolver
 }
 
-func NewDNSServer(resolver proxy.Resolver) *DnsServer {
-	return &DnsServer{proxy.EmptyDNSServer, "", resolver}
+func NewDNSServer(resolver netapi.Resolver) *DnsServer {
+	return &DnsServer{netapi.EmptyDNSServer, "", resolver}
 }
 
 func (a *DnsServer) Update(s *pc.Setting) {
-	if a.serverHost == s.Dns.Server && a.DNSHandler != proxy.EmptyDNSServer {
+	if a.serverHost == s.Dns.Server && a.DNSHandler != netapi.EmptyDNSServer {
 		return
 	}
 

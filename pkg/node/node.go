@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
@@ -19,11 +19,11 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-var _ proxy.Proxy = (*Nodes)(nil)
+var _ netapi.Proxy = (*Nodes)(nil)
 
 type Nodes struct {
 	gn.UnimplementedNodeServer
-	proxy.EmptyDispatch
+	netapi.EmptyDispatch
 
 	fileStore *FileStore
 }
@@ -103,7 +103,7 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 
 			var t *durationpb.Duration
 			z, ok := s.Protocol.Protocol.(interface {
-				Latency(proxy.Proxy) (*durationpb.Duration, error)
+				Latency(netapi.Proxy) (*durationpb.Duration, error)
 			})
 			if ok {
 				t, err = z.Latency(px)
@@ -123,10 +123,10 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 }
 
 func (n *Nodes) outbound() *outbound { return n.fileStore.outbound() }
-func (n *Nodes) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (n *Nodes) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	return n.outbound().Conn(ctx, addr)
 }
-func (n *Nodes) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (n *Nodes) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	return n.outbound().PacketConn(ctx, addr)
 }
 func (n *Nodes) manager() *manager                            { return n.fileStore.manager() }

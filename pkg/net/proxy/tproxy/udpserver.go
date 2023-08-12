@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 type udpserver struct {
@@ -41,7 +41,7 @@ func UDPWithHandle(f func(req io.Reader) (resp io.ReadCloser, err error)) func(u
 	}
 }
 
-func NewUDPServer(host string, opt ...func(u *udpOpt)) (proxy.Server, error) {
+func NewUDPServer(host string, opt ...func(u *udpOpt)) (netapi.Server, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host not defined")
 	}

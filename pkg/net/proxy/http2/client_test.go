@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
@@ -35,7 +35,7 @@ func TestClient(t *testing.T) {
 		t.FailNow()
 	}
 
-	conn, err := p.Conn(context.TODO(), proxy.EmptyAddr)
+	conn, err := p.Conn(context.TODO(), netapi.EmptyAddr)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

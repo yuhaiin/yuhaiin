@@ -8,7 +8,7 @@ import (
 
 func Must[T any](v T, err error) T {
 	if err != nil {
-		log.Output(2, slog.LevelError, "must error", "err", err)
+		log.Output(1, slog.LevelError, "must error", "err", err)
 		panic(err)
 	}
 	return v
@@ -16,7 +16,7 @@ func Must[T any](v T, err error) T {
 
 func Ignore[T any](v T, err error) T {
 	if err != nil {
-		log.Output(2, slog.LevelWarn, "ignore error", "err", err)
+		log.Output(1, slog.LevelWarn, "ignore error", "err", err)
 	}
 	return v
 }

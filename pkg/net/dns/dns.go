@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -27,12 +27,12 @@ type Config struct {
 	Name       string
 	Host       string
 	Servername string
-	Dialer     proxy.Proxy
+	Dialer     netapi.Proxy
 }
 
-var dnsMap syncmap.SyncMap[pd.Type, func(Config) (proxy.Resolver, error)]
+var dnsMap syncmap.SyncMap[pd.Type, func(Config) (netapi.Resolver, error)]
 
-func New(config Config) (proxy.Resolver, error) {
+func New(config Config) (netapi.Resolver, error) {
 	f, ok := dnsMap.Load(config.Type)
 	if !ok {
 		return nil, fmt.Errorf("no dns type %v process found", config.Type)
@@ -44,13 +44,13 @@ func New(config Config) (proxy.Resolver, error) {
 	return f(config)
 }
 
-func Register(tYPE pd.Type, f func(Config) (proxy.Resolver, error)) {
+func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}
 }
 
-var _ proxy.Resolver = (*client)(nil)
+var _ netapi.Resolver = (*client)(nil)
 
 type client struct {
 	cache  *lru.LRU[string, []net.IP]

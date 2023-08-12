@@ -20,7 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/components/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
@@ -167,14 +167,14 @@ func RegisterGrpcService(sub gn.SubscribeServer, conns gs.ConnectionsServer, tag
 	so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, tag)
 }
 
-func NewShuntOpt(local, remote proxy.Resolver) shunt.Opts {
+func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
 	return shunt.Opts{
 		DirectDialer:   direct.Default,
 		DirectResolver: local,
 		ProxyDialer:    Node,
 		ProxyResolver:  remote,
 		BlockDialer:    reject.Default,
-		BLockResolver:  proxy.ErrorResolver(func(domain string) error { return proxy.NewBlockError(-2, domain) }),
+		BLockResolver:  netapi.ErrorResolver(func(domain string) error { return netapi.NewBlockError(-2, domain) }),
 		DefaultMode:    bypass.Mode_proxy,
 	}
 }
@@ -210,16 +210,16 @@ func (pathGenerator) makeDir(s string) string {
 }
 func (p pathGenerator) Cache(dir string) string { return p.makeDir(filepath.Join(dir, "cache")) }
 
-type storeProxy struct{ proxy.Proxy }
+type storeProxy struct{ netapi.Proxy }
 
-func (w *storeProxy) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
-	return w.Proxy.Conn(proxy.NewStore(ctx), addr)
+func (w *storeProxy) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	return w.Proxy.Conn(netapi.NewStore(ctx), addr)
 }
 
-func (w *storeProxy) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
-	return w.Proxy.PacketConn(proxy.NewStore(ctx), addr)
+func (w *storeProxy) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+	return w.Proxy.PacketConn(netapi.NewStore(ctx), addr)
 }
 
-func (w *storeProxy) Dispatch(ctx context.Context, addr proxy.Address) (proxy.Address, error) {
-	return w.Proxy.Dispatch(proxy.NewStore(ctx), addr)
+func (w *storeProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
+	return w.Proxy.Dispatch(netapi.NewStore(ctx), addr)
 }

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -42,9 +42,9 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 				return
 			}
 
-			addr := proxy.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
+			addr := netapi.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
 
-			opt.Handler.Stream(context.TODO(), &proxy.StreamMeta{
+			opt.Handler.Stream(context.TODO(), &netapi.StreamMeta{
 				Source:      local.RemoteAddr(),
 				Destination: addr,
 				Src:         local,

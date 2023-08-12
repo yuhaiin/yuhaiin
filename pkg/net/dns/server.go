@@ -13,8 +13,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
@@ -22,7 +22,7 @@ import (
 
 type dnsServer struct {
 	server      string
-	resolver    proxy.Resolver
+	resolver    netapi.Resolver
 	listener    net.PacketConn
 	tcpListener net.Listener
 
@@ -36,7 +36,7 @@ type dnsRequest struct {
 	writeBack func([]byte) error
 }
 
-func NewDnsServer(server string, process proxy.Resolver) proxy.DNSHandler {
+func NewDnsServer(server string, process netapi.Resolver) netapi.DNSHandler {
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	d := &dnsServer{
@@ -295,7 +295,7 @@ func (d *dnsServer) handleAOrAAAA(ctx context.Context, reqMsg *reqMsg) ([]byte, 
 		noIPFound := errors.Is(err, ErrNoIPFound)
 
 		if !noIPFound && !errors.Is(err, ErrCondEmptyResponse) {
-			if errors.Is(err, proxy.ErrBlocked) {
+			if errors.Is(err, netapi.ErrBlocked) {
 				log.Debug(err.Error())
 			} else {
 				log.Error("lookup domain failed", slog.String("domain", reqMsg.question.Name.String()), slog.Any("err", err))

@@ -9,7 +9,7 @@
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Inbound
-  - yuubinsya(experimental)
+  - yuubinsya(experimental), Reqlity, HTTP2, Quic, Websocket, gRPC, TLS
   - Socks5, HTTP, Linux/Mac Redir
   - TUN
     - [gvisor(Symmetric NAT)](https://github.com/google/gvisor)
@@ -18,7 +18,7 @@
   - yuubinsya(experimental)
   - Socks5, HTTP, TCP
   - Shadowsocksr, Shadowsocks, Vmess, trojan  
-  - Websocket, Quic, obfs-http  
+  - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS  
 - support DNS:
   - DNS, EDNS
   - FakeDNS

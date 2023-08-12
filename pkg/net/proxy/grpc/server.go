@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	grpc "google.golang.org/grpc"
 )
@@ -44,7 +44,7 @@ func (g *Grpc) Addr() net.Addr {
 		return g.listener.Addr()
 	}
 
-	return proxy.EmptyAddr
+	return netapi.EmptyAddr
 }
 
 func (g *Grpc) Close() error {

@@ -7,7 +7,7 @@ import (
 	"net"
 	"strings"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -17,13 +17,13 @@ import (
 // Shadowsocks shadowsocks
 type Shadowsocks struct {
 	cipher core.Cipher
-	p      proxy.Proxy
-	proxy.EmptyDispatch
+	p      netapi.Proxy
+	netapi.EmptyDispatch
 }
 
 func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
 	c := config.Shadowsocks
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		cipher, err := core.PickCipher(strings.ToUpper(c.Method), nil, c.Password)
 		if err != nil {
 			return nil, err
@@ -34,7 +34,7 @@ func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
 }
 
 // Conn .
-func (s *Shadowsocks) Conn(ctx context.Context, addr proxy.Address) (conn net.Conn, err error) {
+func (s *Shadowsocks) Conn(ctx context.Context, addr netapi.Address) (conn net.Conn, err error) {
 	conn, err = s.p.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial to %s failed: %w", addr, err)
@@ -53,7 +53,7 @@ func (s *Shadowsocks) Conn(ctx context.Context, addr proxy.Address) (conn net.Co
 }
 
 // PacketConn .
-func (s *Shadowsocks) PacketConn(ctx context.Context, tar proxy.Address) (net.PacketConn, error) {
+func (s *Shadowsocks) PacketConn(ctx context.Context, tar netapi.Address) (net.PacketConn, error) {
 	pc, err := s.p.PacketConn(ctx, tar)
 	if err != nil {
 		return nil, fmt.Errorf("create packet conn failed")
@@ -81,7 +81,7 @@ func (v *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 }
 
 func (v *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	ad, err := proxy.ParseSysAddr(addr)
+	ad, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, err
 	}

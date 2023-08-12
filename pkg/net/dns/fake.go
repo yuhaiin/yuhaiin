@@ -10,20 +10,20 @@ import (
 	"sync"
 	"unsafe"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-var _ proxy.Resolver = (*FakeDNS)(nil)
+var _ netapi.Resolver = (*FakeDNS)(nil)
 
 type FakeDNS struct {
-	proxy.Resolver
+	netapi.Resolver
 	*FakeIPPool
 }
 
-func NewFakeDNS(upStreamDo proxy.Resolver, ipRange netip.Prefix, bbolt *cache.Cache) *FakeDNS {
+func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, bbolt *cache.Cache) *FakeDNS {
 	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt)}
 }
 

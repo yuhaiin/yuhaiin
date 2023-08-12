@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -21,7 +21,7 @@ func init() {
 	Register(pd.Type_doh, NewDoH)
 }
 
-func NewDoH(config Config) (proxy.Resolver, error) {
+func NewDoH(config Config) (netapi.Resolver, error) {
 	req, err := getRequest(config.Host)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func NewDoH(config Config) (proxy.Resolver, error) {
 		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
 			switch network {
 			case "tcp", "tcp4", "tcp6":
-				addr, err := proxy.ParseAddress(proxy.PaseNetwork(network), host)
+				addr, err := netapi.ParseAddress(netapi.PaseNetwork(network), host)
 				if err != nil {
 					return nil, fmt.Errorf("doh parse address failed: %w", err)
 				}

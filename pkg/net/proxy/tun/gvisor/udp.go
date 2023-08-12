@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -20,7 +20,7 @@ import (
 )
 
 func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
-	handle := func(ctx context.Context, srcpconn net.PacketConn, dst proxy.Address) error {
+	handle := func(ctx context.Context, srcpconn net.PacketConn, dst netapi.Address) error {
 		buf := pool.GetBytes(opt.Protocol.Tun.Mtu)
 		defer pool.PutBytes(buf)
 
@@ -37,12 +37,12 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 
 			opt.Handler.Packet(
 				ctx,
-				&proxy.Packet{
+				&netapi.Packet{
 					Src:     src,
 					Dst:     dst,
 					Payload: buf[:n],
 					WriteBack: func(b []byte, addr net.Addr) (int, error) {
-						from, err := proxy.ParseSysAddr(addr)
+						from, err := netapi.ParseSysAddr(addr)
 						if err != nil {
 							return 0, err
 						}
@@ -84,8 +84,8 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 				return
 			}
 
-			dst := proxy.ParseAddressPort(statistic.Type_udp, id.LocalAddress.String(), proxy.ParsePort(id.LocalPort))
-			if opt.Protocol.Tun.SkipMulticast && dst.Type() == proxy.IP {
+			dst := netapi.ParseAddressPort(statistic.Type_udp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
+			if opt.Protocol.Tun.SkipMulticast && dst.Type() == netapi.IP {
 				if ip, _ := dst.IP(context.TODO()); !ip.IsGlobalUnicast() {
 					buf := pool.GetBytes(1024)
 					defer pool.PutBytes(buf)

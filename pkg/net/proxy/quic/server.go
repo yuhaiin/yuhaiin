@@ -170,7 +170,7 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 			DestinationAddress: addr.Address(statistic.Type_udp),
 			Payload:            b[2+len(addr):],
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
-				add, err := proxy.ParseSysAddr(addr)
+				add, err := netapi.ParseSysAddr(addr)
 				if err != nil {
 					return 0, err
 				}
