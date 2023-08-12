@@ -10,17 +10,17 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 type Simple struct {
-	proxy.EmptyDispatch
+	netapi.EmptyDispatch
 
 	packetDirect bool
 	tlsConfig    *tls.Config
-	addrs        []proxy.Address
+	addrs        []netapi.Address
 	serverNames  []string
 
 	index      int
@@ -30,7 +30,7 @@ type Simple struct {
 }
 
 func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		var servernames []string
 		tls := protocol.ParseTLSConfig(c.Simple.Tls)
 		if tls != nil {
@@ -40,10 +40,10 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 			servernames = c.Simple.Tls.ServerNames
 		}
 
-		var addrs []proxy.Address
-		addrs = append(addrs, proxy.ParseAddressPort(0, c.Simple.GetHost(), proxy.ParsePort(c.Simple.GetPort())))
+		var addrs []netapi.Address
+		addrs = append(addrs, netapi.ParseAddressPort(0, c.Simple.GetHost(), netapi.ParsePort(c.Simple.GetPort())))
 		for _, v := range c.Simple.GetAlternateHost() {
-			addrs = append(addrs, proxy.ParseAddressPort(0, v.GetHost(), proxy.ParsePort(v.GetPort())))
+			addrs = append(addrs, netapi.ParseAddressPort(0, v.GetHost(), netapi.ParsePort(v.GetPort())))
 		}
 
 		timeout := time.Duration(0)
@@ -62,7 +62,7 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 	}
 }
 
-func (c *Simple) dial(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	var cancel context.CancelFunc
 	if c.timeout > 0 {
 		ctx, cancel = context.WithTimeout(context.TODO(), c.timeout)
@@ -84,7 +84,7 @@ func (c *Simple) dial(ctx context.Context, addr proxy.Address) (net.Conn, error)
 	return con, nil
 }
 
-func (c *Simple) Conn(ctx context.Context, d proxy.Address) (net.Conn, error) {
+func (c *Simple) Conn(ctx context.Context, d netapi.Address) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 
@@ -132,7 +132,7 @@ func (c *Simple) Conn(ctx context.Context, d proxy.Address) (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *Simple) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	if c.packetDirect {
 		return direct.Default.PacketConn(ctx, addr)
 	}

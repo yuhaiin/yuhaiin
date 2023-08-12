@@ -12,7 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -22,10 +22,10 @@ type server struct {
 	username, password string
 	inbound            net.Addr
 	reverseProxy       *httputil.ReverseProxy
-	handler            proxy.Handler
+	handler            netapi.Handler
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Http]) (proxy.Server, error) {
+func NewServer(o *listener.Opts[*listener.Protocol_Http]) (netapi.Server, error) {
 	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Http.Host)
 	if err != nil {
 		return nil, err
@@ -46,20 +46,20 @@ func NewServer(o *listener.Opts[*listener.Protocol_Http]) (proxy.Server, error) 
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
+			address, err := netapi.ParseAddress(statistic.Type_tcp, addr)
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
 
 			remoteAddr, _ := ctx.Value(remoteKey{}).(string)
 
-			source, err := proxy.ParseAddress(statistic.Type_tcp, remoteAddr)
+			source, err := netapi.ParseAddress(statistic.Type_tcp, remoteAddr)
 			if err != nil {
-				source = proxy.ParseAddressPort(statistic.Type_tcp, remoteAddr, proxy.EmptyPort)
+				source = netapi.ParseAddressPort(statistic.Type_tcp, remoteAddr, netapi.EmptyPort)
 			}
 
 			local, remote := net.Pipe()
-			o.Handler.Stream(ctx, &proxy.StreamMeta{
+			o.Handler.Stream(ctx, &netapi.StreamMeta{
 				Source:      source,
 				Inbound:     h.inbound,
 				Destination: address,
@@ -129,7 +129,7 @@ func (h *server) connect(w http.ResponseWriter, req *http.Request) error {
 		host = net.JoinHostPort(host, "80")
 	}
 
-	dst, err := proxy.ParseAddress(statistic.Type_tcp, host)
+	dst, err := netapi.ParseAddress(statistic.Type_tcp, host)
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		return fmt.Errorf("parse address failed: %w", err)
@@ -147,12 +147,12 @@ func (h *server) connect(w http.ResponseWriter, req *http.Request) error {
 		return fmt.Errorf("hijack failed: %w", err)
 	}
 
-	source, err := proxy.ParseAddress(statistic.Type_tcp, req.RemoteAddr)
+	source, err := netapi.ParseAddress(statistic.Type_tcp, req.RemoteAddr)
 	if err != nil {
-		source = proxy.ParseAddressPort(statistic.Type_tcp, req.RemoteAddr, proxy.EmptyPort)
+		source = netapi.ParseAddressPort(statistic.Type_tcp, req.RemoteAddr, netapi.EmptyPort)
 	}
 
-	h.handler.Stream(context.TODO(), &proxy.StreamMeta{
+	h.handler.Stream(context.TODO(), &netapi.StreamMeta{
 		Inbound:     h.inbound,
 		Source:      source,
 		Src:         client,
@@ -180,7 +180,7 @@ func verifyUserPass(user, key string, client net.Conn, req *http.Request) error 
 }
 
 type HTTP struct {
-	dialer             proxy.Proxy
+	dialer             netapi.Proxy
 	username, password string
 }
 
@@ -188,14 +188,14 @@ func (h *HTTP) dial(conn net.Conn, addr string) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 	defer cancel()
 
-	address, err := proxy.ParseAddress(statistic.Type_tcp, addr)
+	address, err := netapi.ParseAddress(statistic.Type_tcp, addr)
 	if err != nil {
 		return nil, fmt.Errorf("parse address failed: %w", err)
 	}
 
 	address.WithValue(proxy.InboundKey{}, conn.LocalAddr())
-	address.WithValue(proxy.SourceKey{}, conn.RemoteAddr())
-	address.WithValue(proxy.DestinationKey{}, address)
+	address.WithValue(netapi.SourceKey{}, conn.RemoteAddr())
+	address.WithValue(netapi.DestinationKey{}, address)
 
 	return h.dialer.Conn(ctx, address)
 }

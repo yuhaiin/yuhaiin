@@ -5,7 +5,7 @@ import (
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -121,7 +121,7 @@ func (u *uidDumper) GetUidInfo(uid int32) (string, error) {
 	return r, nil
 }
 
-func (a *uidDumper) ProcessName(networks string, src, dst proxy.Address) (string, error) {
+func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (string, error) {
 	var network int32
 	switch networks {
 	case "tcp":

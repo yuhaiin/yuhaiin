@@ -8,7 +8,7 @@ import (
 	"io"
 	"net"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -39,13 +39,13 @@ type client struct {
 	password string
 
 	hostname string
-	proxy.EmptyDispatch
-	dialer proxy.Proxy
+	netapi.EmptyDispatch
+	dialer netapi.Proxy
 }
 
 // New returns a new Socks5 client
 func New(config *protocol.Protocol_Socks5) protocol.WrapProxy {
-	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
+	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		return &client{
 			dialer:   dialer,
 			username: config.Socks5.User,
@@ -55,7 +55,7 @@ func New(config *protocol.Protocol_Socks5) protocol.WrapProxy {
 	}
 }
 
-func (s *client) Conn(ctx context.Context, host proxy.Address) (net.Conn, error) {
+func (s *client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %w", err)
@@ -133,7 +133,7 @@ const (
 	IPv6   byte = 0x04
 )
 
-func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd CMD, address proxy.Address) (target proxy.Address, err error) {
+func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd CMD, address netapi.Address) (target netapi.Address, err error) {
 	req := pool.GetBuffer()
 	defer pool.PutBuffer(req)
 
@@ -160,14 +160,14 @@ func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd CMD, address
 
 	addr := add.Address(statistic.Type_tcp)
 
-	if addr.Type() == proxy.IP && yerror.Must(addr.IP(ctx)).IsUnspecified() {
-		addr = proxy.ParseAddressPort(statistic.Type_tcp, s.hostname, addr.Port())
+	if addr.Type() == netapi.IP && yerror.Must(addr.IP(ctx)).IsUnspecified() {
+		addr = netapi.ParseAddressPort(statistic.Type_tcp, s.hostname, addr.Port())
 	}
 
 	return addr, nil
 }
 
-func (s *client) PacketConn(ctx context.Context, host proxy.Address) (net.PacketConn, error) {
+func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp failed: %w", err)
@@ -204,10 +204,10 @@ func (s *client) PacketConn(ctx context.Context, host proxy.Address) (net.Packet
 type socks5PacketConn struct {
 	net.PacketConn
 	tcp    net.Conn
-	server proxy.Address
+	server netapi.Address
 }
 
-func newSocks5PacketConn(local net.PacketConn, tcp net.Conn, target proxy.Address) net.PacketConn {
+func newSocks5PacketConn(local net.PacketConn, tcp net.Conn, target netapi.Address) net.PacketConn {
 	return &socks5PacketConn{local, tcp, target}
 }
 
@@ -217,7 +217,7 @@ func (s *socks5PacketConn) Close() error {
 }
 
 func (s *socks5PacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
-	ad, err := proxy.ParseSysAddr(addr)
+	ad, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, fmt.Errorf("parse addr failed: %w", err)
 	}

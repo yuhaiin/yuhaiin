@@ -11,7 +11,7 @@ import (
 	"net"
 	"sync"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -32,7 +32,7 @@ const (
 
 var crlf = []byte{'\r', '\n'}
 
-func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr proxy.Address) (err error) {
+func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr netapi.Address) (err error) {
 	buf := pool.GetBuffer()
 	defer pool.PutBuffer(buf)
 
@@ -48,13 +48,13 @@ func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr proxy.Address) (er
 
 // modified from https://github.com/p4gefau1t/trojan-go/blob/master/tunnel/trojan/client.go
 type Client struct {
-	proxy proxy.Proxy
-	proxy.EmptyDispatch
+	proxy netapi.Proxy
+	netapi.EmptyDispatch
 	password []byte
 }
 
 func New(config *protocol.Protocol_Trojan) protocol.WrapProxy {
-	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
+	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		return &Client{
 			password: hexSha224([]byte(config.Trojan.Password)),
 			proxy:    dialer,
@@ -62,7 +62,7 @@ func New(config *protocol.Protocol_Trojan) protocol.WrapProxy {
 	}
 }
 
-func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	conn, err := c.proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (c *Client) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error)
 	return conn, nil
 }
 
-func (c *Client) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	conn, err := c.proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
@@ -91,12 +91,12 @@ type PacketConn struct {
 	net.Conn
 
 	remain int
-	addr   proxy.Address
+	addr   netapi.Address
 	mux    sync.Mutex
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
-	taddr, err := proxy.ParseSysAddr(addr)
+	taddr, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}

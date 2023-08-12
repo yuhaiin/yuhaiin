@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
@@ -18,11 +18,11 @@ import (
 
 type client struct {
 	wsConfig *websocket.Config
-	proxy.Proxy
+	netapi.Proxy
 }
 
 func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
-	return func(dialer proxy.Proxy) (proxy.Proxy, error) {
+	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 
 		return &client{
 			&websocket.Config{
@@ -35,7 +35,7 @@ func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
 	}
 }
 
-func (c *client) Conn(ctx context.Context, h proxy.Address) (net.Conn, error) {
+func (c *client) Conn(ctx context.Context, h netapi.Address) (net.Conn, error) {
 	conn, err := c.Proxy.Conn(ctx, h)
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial failed: %w", err)

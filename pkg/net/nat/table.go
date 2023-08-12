@@ -11,24 +11,24 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 var MaxSegmentSize = (1 << 16) - 1
 
-func NewTable(dialer proxy.Proxy) *Table {
+func NewTable(dialer netapi.Proxy) *Table {
 	return &Table{dialer: dialer}
 }
 
 type Table struct {
-	dialer proxy.Proxy
+	dialer netapi.Proxy
 	cache  syncmap.SyncMap[string, *SourceTable]
 	mu     syncmap.SyncMap[string, *sync.Cond]
 }
 
-func (u *Table) write(ctx context.Context, pkt *proxy.Packet, key string) (bool, error) {
+func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool, error) {
 	t, ok := u.cache.Load(key)
 	if !ok {
 		return false, nil
@@ -61,7 +61,7 @@ func (u *Table) write(ctx context.Context, pkt *proxy.Packet, key string) (bool,
 	return true, err
 }
 
-func (u *Table) Write(ctx context.Context, pkt *proxy.Packet) error {
+func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	key := pkt.Src.String()
 
 	ok, err := u.write(ctx, pkt, key)
@@ -87,9 +87,9 @@ func (u *Table) Write(ctx context.Context, pkt *proxy.Packet) error {
 	defer u.mu.Delete(key)
 	defer cond.Broadcast()
 
-	proxy.StoreFromContext(ctx).
-		Add(proxy.SourceKey{}, pkt.Src).
-		Add(proxy.DestinationKey{}, pkt.Dst)
+	netapi.StoreFromContext(ctx).
+		Add(netapi.SourceKey{}, pkt.Src).
+		Add(netapi.DestinationKey{}, pkt.Dst)
 
 	dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 	if err != nil {
@@ -117,7 +117,7 @@ func (u *Table) Write(ctx context.Context, pkt *proxy.Packet) error {
 	return nil
 }
 
-func (u *Table) writeBack(pkt *proxy.Packet, table *SourceTable) error {
+func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 	data := pool.GetBytes(MaxSegmentSize)
 	defer pool.PutBytes(data)
 
@@ -157,6 +157,6 @@ func (u *Table) Close() error {
 
 type SourceTable struct {
 	dstPacketConn   net.PacketConn
-	originAddrStore syncmap.SyncMap[string, proxy.Address]
+	originAddrStore syncmap.SyncMap[string, netapi.Address]
 	udpAddrStore    syncmap.SyncMap[string, *net.UDPAddr]
 }

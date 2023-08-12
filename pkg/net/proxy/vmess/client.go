@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -124,16 +124,16 @@ func NewClient(uuidStr, security string, alterID int) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) NewConn(rc net.Conn, dst proxy.Address) (net.Conn, error) {
+func (c *Client) NewConn(rc net.Conn, dst netapi.Address) (net.Conn, error) {
 	return c.newConn(rc, CmdTCP, dst)
 }
 
-func (c *Client) NewPacketConn(rc net.Conn, dst proxy.Address) (net.PacketConn, error) {
+func (c *Client) NewPacketConn(rc net.Conn, dst netapi.Address) (net.PacketConn, error) {
 	return c.newConn(rc, CmdUDP, dst)
 }
 
 // NewConn .
-func (c *Client) newConn(rc net.Conn, cmd CMD, dst proxy.Address) (*Conn, error) {
+func (c *Client) newConn(rc net.Conn, cmd CMD, dst netapi.Address) (*Conn, error) {
 	conn := &Conn{
 		isAead:   c.isAead,
 		user:     c.users[rand.Intn(len(c.users))],
@@ -384,7 +384,7 @@ func (c *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
 }
 
 func (c *Conn) WriteTo(b []byte, target net.Addr) (int, error) {
-	t, err := proxy.ParseSysAddr(target)
+	t, err := netapi.ParseSysAddr(target)
 	if err != nil {
 		return 0, err
 	}

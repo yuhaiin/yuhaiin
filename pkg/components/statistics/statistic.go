@@ -7,7 +7,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -24,7 +24,7 @@ import (
 type Connections struct {
 	gs.UnimplementedConnectionsServer
 
-	proxy.Proxy
+	netapi.Proxy
 	idSeed id.IDGenerator
 
 	connStore syncmap.SyncMap[uint64, connection]
@@ -35,7 +35,7 @@ type Connections struct {
 	notify notify
 }
 
-func NewConnStore(cache *cache.Cache, dialer proxy.Proxy, processDumper listener.ProcessDumper) *Connections {
+func NewConnStore(cache *cache.Cache, dialer netapi.Proxy, processDumper listener.ProcessDumper) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
@@ -96,7 +96,7 @@ func (c *Connections) Remove(id uint64) {
 		log.Debug("close conn",
 			"id", z.ID(),
 			"addr", z.Info().Addr,
-			"s0urce", z.Info().Extra[(proxy.SourceKey{}).String()],
+			"s0urce", z.Info().Extra[(netapi.SourceKey{}).String()],
 			"outbound", getRemote(z))
 	}
 
@@ -113,7 +113,7 @@ func (c *Connections) storeConnection(o connection) {
 		"outbound", o.Info().Extra["Outbound"])
 }
 
-func (c *Connections) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	process := c.DumpProcess(ctx, addr)
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
@@ -135,11 +135,10 @@ func getRemote(con any) string {
 	return ""
 }
 
-func getRealAddr(store proxy.Store, addr proxy.Address) string {
+func getRealAddr(store netapi.Store, addr netapi.Address) string {
 	z, ok := store.Get(shunt.DOMAIN_MARK_KEY{})
 	if ok {
-		s, ok := convert.ToString(z)
-		if ok {
+		if s, ok := convert.ToString(z); ok {
 			return s
 		}
 	}
@@ -147,8 +146,8 @@ func getRealAddr(store proxy.Store, addr proxy.Address) string {
 	return addr.String()
 }
 
-func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr proxy.Address) *statistic.Connection {
-	store := proxy.StoreFromContext(ctx)
+func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
+	store := netapi.StoreFromContext(ctx)
 
 	connection := &statistic.Connection{
 		Id:   c.idSeed.Generate(),
@@ -166,7 +165,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 	return connection
 }
 
-func (c *Connections) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	process := c.DumpProcess(ctx, addr)
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
@@ -178,26 +177,26 @@ func (c *Connections) Conn(ctx context.Context, addr proxy.Address) (net.Conn, e
 	return z, nil
 }
 
-func (c *Connections) DumpProcess(ctx context.Context, addr proxy.Address) (s string) {
+func (c *Connections) DumpProcess(ctx context.Context, addr netapi.Address) (s string) {
 	if c.processDumper == nil {
 		return
 	}
 
-	store := proxy.StoreFromContext(ctx)
+	store := netapi.StoreFromContext(ctx)
 
-	source, ok := store.Get(proxy.SourceKey{})
+	source, ok := store.Get(netapi.SourceKey{})
 	if !ok {
 		return
 	}
 
 	var dst any
 	if goos.IsAndroid == 1 {
-		dst, ok = store.Get(proxy.InboundKey{})
+		dst, ok = store.Get(netapi.InboundKey{})
 		if !ok {
-			dst, ok = store.Get(proxy.DestinationKey{})
+			dst, ok = store.Get(netapi.DestinationKey{})
 		}
 	} else {
-		dst, ok = store.Get(proxy.DestinationKey{})
+		dst, ok = store.Get(netapi.DestinationKey{})
 	}
 	if !ok {
 		return

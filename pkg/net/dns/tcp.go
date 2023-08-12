@@ -9,7 +9,7 @@ import (
 	"net/netip"
 	"strings"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
@@ -18,13 +18,13 @@ func init() {
 	Register(pdns.Type_tcp, NewTCP)
 }
 
-func NewTCP(config Config) (proxy.Resolver, error) {
+func NewTCP(config Config) (netapi.Resolver, error) {
 	return newTCP(config, "53", nil)
 }
 
 // ParseAddr
 // host eg: cloudflare-dns.com, https://cloudflare-dns.com, 1.1.1.1:853
-func ParseAddr(netType statistic.Type, host, defaultPort string) (proxy.Address, error) {
+func ParseAddr(netType statistic.Type, host, defaultPort string) (netapi.Address, error) {
 	if i := strings.Index(host, "://"); i != -1 {
 		host = host[i+3:]
 	}
@@ -47,7 +47,7 @@ func ParseAddr(netType statistic.Type, host, defaultPort string) (proxy.Address,
 		host = net.JoinHostPort(host, defaultPort)
 	}
 
-	addr, err := proxy.ParseAddress(netType, host)
+	addr, err := netapi.ParseAddress(netType, host)
 	if err != nil {
 		return nil, fmt.Errorf("parse address failed: %w", err)
 	}

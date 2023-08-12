@@ -25,7 +25,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/crypto/hkdf"
@@ -33,8 +33,8 @@ import (
 )
 
 type RealityClient struct {
-	proxy.EmptyDispatch
-	proxy     proxy.Proxy
+	netapi.EmptyDispatch
+	proxy     netapi.Proxy
 	utls      *utls.Config
 	publicKey []byte
 	shortID   [8]byte
@@ -44,7 +44,7 @@ type RealityClient struct {
 }
 
 func NewRealityClient(config *protocol.Protocol_Reality) protocol.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		publicKey, err := base64.RawURLEncoding.DecodeString(config.Reality.PublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("decode public_key failed: %w", err)
@@ -72,7 +72,7 @@ func NewRealityClient(config *protocol.Protocol_Reality) protocol.WrapProxy {
 	}
 }
 
-func (e *RealityClient) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (e *RealityClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	con, err := e.proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (e *RealityClient) Conn(ctx context.Context, addr proxy.Address) (net.Conn,
 	return conn, nil
 }
 
-func (e *RealityClient) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (e *RealityClient) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	return e.proxy.PacketConn(ctx, addr)
 }
 

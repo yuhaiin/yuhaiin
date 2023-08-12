@@ -7,14 +7,14 @@ import (
 	"net/http"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-func HTTP(p proxy.Proxy, target string) (time.Duration, error) {
+func HTTP(p netapi.Proxy, target string) (time.Duration, error) {
 	tr := &http.Transport{
 		DisableKeepAlives: true,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
+			ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}

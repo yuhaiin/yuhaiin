@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
@@ -34,7 +34,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func New(o *listener.Opts[*listener.Protocol_Tun]) (proxy.Server, error) {
+func New(o *listener.Opts[*listener.Protocol_Tun]) (netapi.Server, error) {
 	opt := o.Protocol.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500

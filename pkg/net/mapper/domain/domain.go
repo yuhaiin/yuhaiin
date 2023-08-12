@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 type Domain[T any] struct {
@@ -29,7 +29,7 @@ func (d *Domain[T]) Insert(domain string, mark T) {
 	}
 }
 
-func (d *Domain[T]) Search(domain proxy.Address) (mark T, ok bool) {
+func (d *Domain[T]) Search(domain netapi.Address) (mark T, ok bool) {
 	r := newDomainReader(domain.Hostname())
 
 	mark, ok = search(d.Root, r)

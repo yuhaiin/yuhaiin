@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -36,7 +36,7 @@ func controlTCP(c syscall.RawConn) error {
 	return nil
 }
 
-func handleTCP(c net.Conn, p proxy.Proxy) error {
+func handleTCP(c net.Conn, p netapi.Proxy) error {
 	z, ok := c.(interface{ SyscallConn() syscall.RawConn })
 	if !ok {
 		return fmt.Errorf("not a syscall.Conn")
@@ -46,7 +46,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 		return fmt.Errorf("controlTCP failed: %w", err)
 	}
 
-	addr, err := proxy.ParseSysAddr(c.LocalAddr())
+	addr, err := netapi.ParseSysAddr(c.LocalAddr())
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
@@ -59,7 +59,7 @@ func handleTCP(c net.Conn, p proxy.Proxy) error {
 	return nil
 }
 
-func newTCPServer(h string, dialer proxy.Proxy) (proxy.Server, error) {
+func newTCPServer(h string, dialer netapi.Proxy) (netapi.Server, error) {
 	return NewTCPServer(h, func(c net.Conn) {
 		if err := handleTCP(c, dialer); err != nil {
 			log.Error("handleTCP failed", "err", err)

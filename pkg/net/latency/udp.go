@@ -6,11 +6,11 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
-func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
+func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := dns.New(dns.Config{
 		Type:   pdns.Type_udp,
 		Host:   host,
@@ -34,7 +34,7 @@ func DNS(p proxy.Proxy, host, target string) (time.Duration, error) {
 	return time.Since(start), nil
 }
 
-func DNSOverQuic(p proxy.Proxy, host, target string) (time.Duration, error) {
+func DNSOverQuic(p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := dns.New(
 		dns.Config{
 			Type:   pdns.Type_doq,

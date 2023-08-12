@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -109,7 +109,7 @@ func (b *bufChan) Close() {
 	close(b.bufChan)
 }
 
-func NewDoU(config Config) (proxy.Resolver, error) {
+func NewDoU(config Config) (netapi.Resolver, error) {
 	addr, err := ParseAddr(statistic.Type_udp, config.Host, "53")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)

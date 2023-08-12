@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"testing"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestXxx(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 
-	s5c.ParseAddrWriter(proxy.ParseAddressPort(0, "www.baidu.com", proxy.EmptyPort), b)
+	s5c.ParseAddrWriter(netapi.ParseAddressPort(0, "www.baidu.com", netapi.EmptyPort), b)
 	size := b.Len()
 
 	b.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})

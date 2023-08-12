@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -41,7 +41,7 @@ func ExampleNew() {
 	})
 
 	var err error
-	var conn proxy.Proxy
+	var conn netapi.Proxy
 	for _, wrap := range []protocol.WrapProxy{simple, ws, ss} {
 		conn, err = wrap(conn)
 		if err != nil {
@@ -82,7 +82,7 @@ func TestConn(t *testing.T) {
 				default:
 					return dialer.DialContext(ctx, network, addr)
 				case "tcp":
-					ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
+					ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
 					if err != nil {
 						return nil, fmt.Errorf("parse address failed: %v", err)
 					}
@@ -118,7 +118,7 @@ func TestUDPConn(t *testing.T) {
 		})(p)
 	assert.NoError(t, err)
 
-	ad, _ := proxy.ParseAddress(statistic.Type_udp, "223.5.5.5:53")
+	ad, _ := netapi.ParseAddress(statistic.Type_udp, "223.5.5.5:53")
 	c, err := s.PacketConn(context.TODO(), ad)
 	assert.NoError(t, err)
 

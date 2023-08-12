@@ -6,16 +6,16 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-type direct struct{ proxy.EmptyDispatch }
+type direct struct{ netapi.EmptyDispatch }
 
-var Default proxy.Proxy = NewDirect()
+var Default netapi.Proxy = NewDirect()
 
-func NewDirect() proxy.Proxy { return &direct{} }
+func NewDirect() netapi.Proxy { return &direct{} }
 
-func (d *direct) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	ip, err := s.IP(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get ip failed: %w", err)
@@ -23,7 +23,7 @@ func (d *direct) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
 	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), s.Port().String()))
 }
 
-func (d *direct) PacketConn(context.Context, proxy.Address) (net.PacketConn, error) {
+func (d *direct) PacketConn(context.Context, netapi.Address) (net.PacketConn, error) {
 	p, err := dialer.ListenPacket("udp", "")
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
@@ -37,7 +37,7 @@ type PacketConn struct{ net.PacketConn }
 func (p *PacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 	udpAddr, ok := addr.(*net.UDPAddr)
 	if !ok {
-		a, err := proxy.ParseSysAddr(addr)
+		a, err := netapi.ParseSysAddr(addr)
 		if err != nil {
 			return 0, err
 		}

@@ -10,8 +10,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -19,10 +19,10 @@ import (
 
 type udpServer struct {
 	net.PacketConn
-	handler proxy.Handler
+	handler netapi.Handler
 }
 
-func (s *Socks5) newUDPServer(handler proxy.Handler) error {
+func (s *Socks5) newUDPServer(handler netapi.Handler) error {
 	l, err := dialer.ListenPacket("udp", s.addr)
 	if err != nil {
 		return fmt.Errorf("listen udp failed: %w", err)
@@ -61,12 +61,12 @@ func (u *udpServer) handle(buf []byte, src net.Addr) error {
 
 	u.handler.Packet(
 		context.TODO(),
-		&proxy.Packet{
+		&netapi.Packet{
 			Src:     src,
 			Dst:     addr.Address(statistic.Type_udp),
 			Payload: buf[3+len(addr):],
 			WriteBack: func(b []byte, source net.Addr) (int, error) {
-				sourceAddr, err := proxy.ParseSysAddr(source)
+				sourceAddr, err := netapi.ParseSysAddr(source)
 				if err != nil {
 					return 0, err
 				}

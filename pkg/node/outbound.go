@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
@@ -20,7 +20,7 @@ type outbound struct {
 	manager  *manager
 	UDP, TCP *point.Point
 
-	lruCache *lru.LRU[string, proxy.Proxy]
+	lruCache *lru.LRU[string, netapi.Proxy]
 }
 
 func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
@@ -28,7 +28,7 @@ func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
 		manager:  mamanager,
 		UDP:      udp,
 		TCP:      tcp,
-		lruCache: lru.NewLru(lru.WithCapacity[string, proxy.Proxy](35)),
+		lruCache: lru.NewLru(lru.WithCapacity[string, netapi.Proxy](35)),
 	}
 }
 
@@ -44,7 +44,7 @@ type TagKey struct{}
 
 func (TagKey) String() string { return "Tag" }
 
-func (o *outbound) Conn(ctx context.Context, host proxy.Address) (_ net.Conn, err error) {
+func (o *outbound) Conn(ctx context.Context, host netapi.Address) (_ net.Conn, err error) {
 	if tc := o.tagConn(ctx, host); tc != nil {
 		return tc.Conn(ctx, host)
 	}
@@ -59,12 +59,12 @@ func (o *outbound) Conn(ctx context.Context, host proxy.Address) (_ net.Conn, er
 		o.lruCache.Add(o.TCP.Hash, p)
 	}
 
-	proxy.StoreFromContext(ctx).Add(HashKey{}, o.TCP.Hash)
+	netapi.StoreFromContext(ctx).Add(HashKey{}, o.TCP.Hash)
 
 	return p.Conn(ctx, host)
 }
 
-func (o *outbound) PacketConn(ctx context.Context, host proxy.Address) (_ net.PacketConn, err error) {
+func (o *outbound) PacketConn(ctx context.Context, host netapi.Address) (_ net.PacketConn, err error) {
 	if tc := o.tagConn(ctx, host); tc != nil {
 		return tc.PacketConn(ctx, host)
 	}
@@ -79,7 +79,7 @@ func (o *outbound) PacketConn(ctx context.Context, host proxy.Address) (_ net.Pa
 		o.lruCache.Add(o.UDP.Hash, p)
 	}
 
-	proxy.StoreFromContext(ctx).Add(HashKey{}, o.UDP.Hash)
+	netapi.StoreFromContext(ctx).Add(HashKey{}, o.UDP.Hash)
 	return p.PacketConn(ctx, host)
 }
 
@@ -87,9 +87,9 @@ type HashKey struct{}
 
 func (HashKey) String() string { return "Hash" }
 
-func (o *outbound) tagConn(ctx context.Context, host proxy.Address) proxy.Proxy {
+func (o *outbound) tagConn(ctx context.Context, host netapi.Address) netapi.Proxy {
 
-	tag, ok := proxy.Get[string](ctx, TagKey{})
+	tag, ok := netapi.Get[string](ctx, TagKey{})
 	if !ok {
 		return nil
 	}
@@ -125,7 +125,7 @@ _retry:
 		o.lruCache.Add(hash, v)
 	}
 
-	proxy.StoreFromContext(ctx).Add(HashKey{}, hash)
+	netapi.StoreFromContext(ctx).Add(HashKey{}, hash)
 	return v
 }
 
@@ -136,7 +136,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
+				ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}

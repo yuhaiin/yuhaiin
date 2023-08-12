@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/quic-go/quic-go/http3"
@@ -16,7 +16,7 @@ func init() {
 	Register(dns.Type_doh3, NewDoH3)
 }
 
-func NewDoH3(config Config) (proxy.Resolver, error) {
+func NewDoH3(config Config) (netapi.Resolver, error) {
 	tr := &http3.RoundTripper{}
 
 	req, err := getRequest(config.Host)

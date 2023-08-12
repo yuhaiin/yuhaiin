@@ -7,11 +7,11 @@ import (
 	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-type WrapProxy func(p proxy.Proxy) (proxy.Proxy, error)
+type WrapProxy func(p netapi.Proxy) (netapi.Proxy, error)
 
 var execProtocol syncmap.SyncMap[reflect.Type, func(isProtocol_Protocol) WrapProxy]
 
@@ -75,7 +75,7 @@ func ParseTLSConfig(t *TlsConfig) *tls.Config {
 }
 
 func ErrConn(err error) WrapProxy {
-	return func(proxy.Proxy) (proxy.Proxy, error) {
+	return func(netapi.Proxy) (netapi.Proxy, error) {
 		return nil, err
 	}
 }

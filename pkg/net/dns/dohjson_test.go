@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"testing"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 )
 
 func TestDNSJson(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		ad, err := proxy.ParseAddress(proxy.PaseNetwork(network), addr)
+		ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
 		if err != nil {
 			return nil, fmt.Errorf("parse address failed: %w", err)
 		}

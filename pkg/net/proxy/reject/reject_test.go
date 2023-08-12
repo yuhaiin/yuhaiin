@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 func TestReject(t *testing.T) {
 	r := NewReject(5, 15)
 
-	addr := proxy.ParseAddressPort(0, "www.baidu.com", proxy.ParsePort(0))
+	addr := netapi.ParseAddressPort(0, "www.baidu.com", netapi.ParsePort(0))
 	z := time.Millisecond * 300
 	for {
 		if z >= time.Second*10 {

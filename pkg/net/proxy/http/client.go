@@ -9,22 +9,22 @@ import (
 	"net/http"
 	"net/url"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 type client struct {
-	proxy.Proxy
+	netapi.Proxy
 	user, password string
 }
 
 func NewClient(config *protocol.Protocol_Http) protocol.WrapProxy {
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		return &client{Proxy: p, user: config.Http.User, password: config.Http.Password}, nil
 	}
 }
 
-func (c *client) Conn(ctx context.Context, s proxy.Address) (net.Conn, error) {
+func (c *client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	conn, err := c.Proxy.Conn(ctx, s)
 	if err != nil {
 		return nil, fmt.Errorf("dialer conn failed: %w", err)

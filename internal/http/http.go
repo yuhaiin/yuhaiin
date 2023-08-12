@@ -232,3 +232,18 @@ func UnmarshalJsonFromRequest(r *http.Request, data interface{}) error {
 	}
 	return json.Unmarshal(bytes, data)
 }
+
+type wne[T any] struct {
+	t   T
+	err error
+}
+
+func WhenNoError[T any](t T, err error) *wne[T] { return &wne[T]{t, err} }
+
+func (w *wne[T]) Do(f func(T) error) error {
+	if w.err != nil {
+		return w.err
+	}
+
+	return f(w.t)
+}

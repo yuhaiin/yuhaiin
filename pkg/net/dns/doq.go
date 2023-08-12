@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -25,16 +25,16 @@ func init() {
 type doq struct {
 	conn       net.PacketConn
 	connection quic.Connection
-	host       proxy.Address
+	host       netapi.Address
 	servername string
-	dialer     proxy.PacketProxy
+	dialer     netapi.PacketProxy
 
 	mu sync.RWMutex
 
 	*client
 }
 
-func NewDoQ(config Config) (proxy.Resolver, error) {
+func NewDoQ(config Config) (netapi.Resolver, error) {
 	addr, err := ParseAddr(statistic.Type_udp, config.Host, "784")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)

@@ -9,7 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -40,7 +40,7 @@ func (s *Socks5) newTCPServer() error {
 
 			go func() {
 				if err := s.handle(conn); err != nil {
-					if errors.Is(err, proxy.ErrBlocked) {
+					if errors.Is(err, netapi.ErrBlocked) {
 						log.Debug(err.Error())
 					} else {
 						log.Error("socks5 server handle failed", "err", err)
@@ -127,14 +127,14 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return nil
 }
 
-func handshake2(client net.Conn, f proxy.Handler, buf []byte) error {
+func handshake2(client net.Conn, f netapi.Handler, buf []byte) error {
 	// socks5 second handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
 	}
 
 	if buf[0] != 0x05 { // ver
-		writeHandshake2(client, s5c.NoAcceptableMethods, proxy.EmptyAddr)
+		writeHandshake2(client, s5c.NoAcceptableMethods, netapi.EmptyAddr)
 		return fmt.Errorf("no acceptable method: %d", buf[0])
 	}
 
@@ -150,13 +150,13 @@ func handshake2(client net.Conn, f proxy.Handler, buf []byte) error {
 
 		addr := adr.Address(statistic.Type_tcp)
 
-		caddr, err := proxy.ParseSysAddr(client.LocalAddr())
+		caddr, err := netapi.ParseSysAddr(client.LocalAddr())
 		if err != nil {
 			return fmt.Errorf("parse local addr failed: %w", err)
 		}
 		writeHandshake2(client, s5c.Succeeded, caddr) // response to connect successful
 
-		f.Stream(context.TODO(), &proxy.StreamMeta{
+		f.Stream(context.TODO(), &netapi.StreamMeta{
 			Source:      client.RemoteAddr(),
 			Destination: addr,
 			Inbound:     client.LocalAddr(),
@@ -171,22 +171,22 @@ func handshake2(client net.Conn, f proxy.Handler, buf []byte) error {
 		fallthrough
 
 	default:
-		writeHandshake2(client, s5c.CommandNotSupport, proxy.EmptyAddr)
+		writeHandshake2(client, s5c.CommandNotSupport, netapi.EmptyAddr)
 		return fmt.Errorf("not Support Method %d", buf[1])
 	}
 
 	if err != nil {
-		writeHandshake2(client, s5c.HostUnreachable, proxy.EmptyAddr)
+		writeHandshake2(client, s5c.HostUnreachable, netapi.EmptyAddr)
 	}
 	return err
 }
 
 func handleUDP(client net.Conn) error {
-	laddr, err := proxy.ParseSysAddr(client.LocalAddr())
+	laddr, err := netapi.ParseSysAddr(client.LocalAddr())
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	writeHandshake2(client, s5c.Succeeded, proxy.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
+	writeHandshake2(client, s5c.Succeeded, netapi.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
 	relay.Copy(io.Discard, client)
 	return nil
 }
@@ -196,7 +196,7 @@ func writeHandshake1(conn net.Conn, errREP byte) error {
 	return err
 }
 
-func writeHandshake2(conn net.Conn, errREP byte, addr proxy.Address) error {
+func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, s5c.ParseAddr(addr)...))
 	return err
 }
@@ -205,7 +205,7 @@ type Socks5 struct {
 	udpServer *udpServer
 	lis       net.Listener
 
-	handler  proxy.Handler
+	handler  netapi.Handler
 	addr     string
 	username string
 	password string
@@ -229,7 +229,7 @@ func (s *Socks5) Close() error {
 	return err
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (proxy.Server, error) {
+func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (netapi.Server, error) {
 	s := &Socks5{
 		handler:  o.Handler,
 		addr:     o.Protocol.Socks5.Host,

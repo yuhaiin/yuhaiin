@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/internal/statistics"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	bolt "go.etcd.io/bbolt"
@@ -40,7 +40,7 @@ func TestBBlotDomainMatcherSearch(t *testing.T) {
 	insert("*.miui.com", "miui")
 
 	search := func(s string) string {
-		res, _ := root.Search(proxy.ParseAddressSplit("", s, 0))
+		res, _ := root.Search(netapi.ParseAddressSplit("", s, 0))
 		return string(res)
 	}
 	assert.Equal(t, "test_baidu", search("www.baidu.com"))

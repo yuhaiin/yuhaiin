@@ -16,4 +16,5 @@ func TestLogger(t *testing.T) {
 	z := NewSLogger(0)
 
 	z.Info("zzz")
+	z.Output(0, slog.LevelInfo, "xxx")
 }

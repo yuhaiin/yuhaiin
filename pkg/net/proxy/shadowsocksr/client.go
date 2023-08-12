@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
@@ -14,20 +14,20 @@ import (
 	protocols "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
-var _ proxy.Proxy = (*Shadowsocksr)(nil)
+var _ netapi.Proxy = (*Shadowsocksr)(nil)
 
 type Shadowsocksr struct {
-	proxy.EmptyDispatch
+	netapi.EmptyDispatch
 
 	protocol *protocol.Protocol
 	obfs     *obfs.Obfs
 	cipher   *cipher.Cipher
-	dial     proxy.Proxy
+	dial     netapi.Proxy
 }
 
 func New(config *protocols.Protocol_Shadowsocksr) protocols.WrapProxy {
 	c := config.Shadowsocksr
-	return func(p proxy.Proxy) (proxy.Proxy, error) {
+	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		cipher, err := cipher.NewCipher(c.Method, c.Password)
 		if err != nil {
 			return nil, fmt.Errorf("new cipher failed: %w", err)
@@ -54,7 +54,7 @@ func New(config *protocols.Protocol_Shadowsocksr) protocols.WrapProxy {
 	}
 }
 
-func (s *Shadowsocksr) Conn(ctx context.Context, addr proxy.Address) (net.Conn, error) {
+func (s *Shadowsocksr) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	c, err := s.dial.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
@@ -90,7 +90,7 @@ func (s *Shadowsocksr) Conn(ctx context.Context, addr proxy.Address) (net.Conn, 
 	return conn, nil
 }
 
-func (s *Shadowsocksr) PacketConn(ctx context.Context, addr proxy.Address) (net.PacketConn, error) {
+func (s *Shadowsocksr) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	c, err := s.dial.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get packet conn failed: %w", err)

@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -61,7 +61,7 @@ func (g *Server) Addr() net.Addr {
 		return g.listener.Addr()
 	}
 
-	return proxy.EmptyAddr
+	return netapi.EmptyAddr
 }
 
 func (h *Server) Close() error {

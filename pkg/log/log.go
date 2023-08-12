@@ -66,7 +66,7 @@ func Info(msg string, v ...any)  { DefaultLogger.Info(msg, v...) }
 func Warn(msg string, v ...any)  { DefaultLogger.Warn(msg, v...) }
 func Error(msg string, v ...any) { DefaultLogger.Error(msg, v...) }
 func Output(depth int, lev slog.Level, format string, v ...any) {
-	DefaultLogger.Output(depth+1, lev, format, v...)
+	DefaultLogger.Output(depth, lev, format, v...)
 }
 
 type slogger struct {
@@ -109,25 +109,12 @@ func NewSLogger(depth int) Logger {
 	return s
 
 }
-func (l *slogger) SetLevel(z slog.Level) { l.level = z }
-func (l *slogger) Level() slog.Level     { return l.level }
-
-func (l *slogger) Debug(msg string, v ...any) {
-	l.log(slog.LevelDebug, msg, v...)
-}
-
-func (l *slogger) Info(msg string, v ...any) {
-	l.log(slog.LevelInfo, msg, v...)
-}
-
-func (l *slogger) Warn(msg string, v ...any) {
-	l.log(slog.LevelWarn, msg, v...)
-}
-
-func (l *slogger) Error(msg string, v ...any) {
-	l.log(slog.LevelError, msg, v...)
-}
-
+func (l *slogger) SetLevel(z slog.Level)      { l.level = z }
+func (l *slogger) Level() slog.Level          { return l.level }
+func (l *slogger) Debug(msg string, v ...any) { l.Output(1, slog.LevelDebug, msg, v...) }
+func (l *slogger) Info(msg string, v ...any)  { l.Output(1, slog.LevelInfo, msg, v...) }
+func (l *slogger) Warn(msg string, v ...any)  { l.Output(1, slog.LevelWarn, msg, v...) }
+func (l *slogger) Error(msg string, v ...any) { l.Output(1, slog.LevelError, msg, v...) }
 func (l *slogger) Output(depth int, level slog.Level, msg string, v ...any) {
 	ctx := context.Background()
 
@@ -136,13 +123,11 @@ func (l *slogger) Output(depth int, level slog.Level, msg string, v ...any) {
 	}
 
 	var pcs [1]uintptr
-	runtime.Callers(l.depth+depth, pcs[:]) // skip [Callers, Infof]
+	runtime.Callers(l.depth+depth+1, pcs[:]) // skip [Callers, Infof]
 	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
 	r.Add(v...)
 
 	_ = l.Logger.Handler().Handle(ctx, r)
 }
-
-func (l *slogger) log(level slog.Level, msg string, v ...any) { l.Output(3, level, msg, v...) }
 
 func (l *slogger) SetOutput(w io.Writer) { l.Writer = w }

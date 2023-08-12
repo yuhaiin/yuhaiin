@@ -8,7 +8,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
@@ -27,7 +27,7 @@ func init() {
 	pl.RegisterProtocol(httpproxy.NewServer)
 	pl.RegisterProtocol(ss.NewServer)
 	pl.RegisterProtocol(tun.NewTun)
-	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (proxy.Server, error) {
+	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (netapi.Server, error) {
 		var Type yuubinsya.Type
 		var err error
 		var tlsConfig *tls.Config
@@ -92,14 +92,14 @@ func init() {
 
 type store struct {
 	config proto.Message
-	server proxy.Server
+	server netapi.Server
 }
 type listener struct {
 	store syncmap.SyncMap[string, store]
 	opts  *pl.Opts[pl.IsProtocol_Protocol]
 }
 
-func NewListener(dnsHandler proxy.DNSHandler, handler proxy.Handler) *listener {
+func NewListener(dnsHandler netapi.DNSHandler, handler netapi.Handler) *listener {
 	return &listener{opts: &pl.Opts[pl.IsProtocol_Protocol]{
 		DNSHandler: dnsHandler,
 		Handler:    handler,
@@ -110,8 +110,7 @@ func (l *listener) Update(current *pc.Setting) {
 	l.opts.IPv6 = current.Ipv6
 
 	l.store.Range(func(key string, v store) bool {
-		z, ok := current.Server.Servers[key]
-		if !ok || !z.GetEnabled() {
+		if z, ok := current.Server.Servers[key]; !ok || !z.GetEnabled() {
 			v.server.Close()
 			l.store.Delete(key)
 		}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 // Atyp is vmess addr type
@@ -22,15 +22,15 @@ const (
 type address struct {
 	atyp Atyp
 	addr []byte
-	proxy.Address
+	netapi.Address
 }
 
 // ParseAddr parses the address in string s
-func ParseAddr(s proxy.Address) (address, error) {
+func ParseAddr(s netapi.Address) (address, error) {
 	var atyp Atyp
 	var addr []byte
 
-	if s.Type() == proxy.DOMAIN {
+	if s.Type() == netapi.DOMAIN {
 		atyp = AtypDomain
 		addr = make([]byte, len(s.Hostname())+1)
 		addr[0] = byte(len(s.Hostname()))

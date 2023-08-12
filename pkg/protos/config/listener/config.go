@@ -11,15 +11,15 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	proxy "github.com/Asutorufa/yuhaiin/pkg/net/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(*Opts[IsProtocol_Protocol]) (proxy.Server, error)]
+var execProtocol syncmap.SyncMap[reflect.Type, func(*Opts[IsProtocol_Protocol]) (netapi.Server, error)]
 
-func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (proxy.Server, error)) {
+func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (netapi.Server, error)) {
 	if wrap == nil {
 		return
 	}
@@ -27,14 +27,14 @@ func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (proxy.Server, 
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(p *Opts[IsProtocol_Protocol]) (proxy.Server, error) {
+		func(p *Opts[IsProtocol_Protocol]) (netapi.Server, error) {
 			return wrap(CovertOpts(p, func(p IsProtocol_Protocol) T { return p.(T) }))
 		},
 	)
 }
 
 type ProcessDumper interface {
-	ProcessName(network string, src, dst proxy.Address) (string, error)
+	ProcessName(network string, src, dst netapi.Address) (string, error)
 }
 
 type Opts[T isProtocol_Protocol] struct {
@@ -42,8 +42,8 @@ type Opts[T isProtocol_Protocol] struct {
 
 	Protocol T
 
-	DNSHandler proxy.DNSHandler
-	Handler    proxy.Handler
+	DNSHandler netapi.DNSHandler
+	Handler    netapi.Handler
 }
 
 type IsProtocol_Protocol interface {
@@ -59,7 +59,7 @@ func CovertOpts[T1, T2 isProtocol_Protocol](o *Opts[T1], f func(t T1) T2) *Opts[
 	}
 }
 
-func CreateServer(opts *Opts[IsProtocol_Protocol]) (proxy.Server, error) {
+func CreateServer(opts *Opts[IsProtocol_Protocol]) (netapi.Server, error) {
 	conn, ok := execProtocol.Load(reflect.TypeOf(opts.Protocol))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", opts.Protocol)
@@ -157,7 +157,7 @@ func (t *TlsConfigManager) Refresh() {
 				}
 
 				if t.searcher != nil {
-					addr := proxy.ParseAddressPort(statistic.Type_tcp, chi.ServerName, proxy.EmptyPort)
+					addr := netapi.ParseAddressPort(statistic.Type_tcp, chi.ServerName, netapi.EmptyPort)
 					addr.WithResolver(mapper.SkipResolve, false)
 					v, ok := t.searcher.Search(context.TODO(), addr)
 					if ok {
