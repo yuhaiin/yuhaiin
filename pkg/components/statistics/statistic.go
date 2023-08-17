@@ -40,13 +40,11 @@ func NewConnStore(cache *cache.Cache, dialer netapi.Proxy, processDumper listene
 		dialer = direct.Default
 	}
 
-	c := &Connections{
+	return &Connections{
 		Proxy:         dialer,
 		processDumper: processDumper,
 		Cache:         NewCache(cache),
 	}
-
-	return c
 }
 
 func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
@@ -110,7 +108,8 @@ func (c *Connections) storeConnection(o connection) {
 		"id", o.ID(),
 		"addr", o.Info().Addr,
 		"network", o.Info().Type.ConnType,
-		"outbound", o.Info().Extra["Outbound"])
+		"outbound", o.Info().Extra["Outbound"],
+	)
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

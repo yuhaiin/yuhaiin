@@ -74,6 +74,4 @@ func (c *Conn) RemoteAddr() net.Addr {
 	}
 }
 
-func (c *Conn) RawConn() (net.Conn, bool) {
-	return c.Conn, true
-}
+func (c *Conn) RawConn() (net.Conn, bool) { return c.Conn, true }

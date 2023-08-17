@@ -392,3 +392,15 @@ func (n *HttpServerOption) AddNode(w http.ResponseWriter, r *http.Request) error
 
 	return nil
 }
+
+func (n *HttpServerOption) SaveBypass(w http.ResponseWriter, r *http.Request) error {
+	req := struct {
+		Url string `json:"url"`
+	}{}
+	if err := UnmarshalJsonFromRequest(r, &req); err != nil {
+		return err
+	}
+
+	_, err := n.Tools.SaveRemoteBypassFile(r.Context(), &wrapperspb.StringValue{Value: req.Url})
+	return err
+}

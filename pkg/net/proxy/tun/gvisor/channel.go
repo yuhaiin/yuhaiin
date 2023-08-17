@@ -153,3 +153,6 @@ func (*Endpoint) ARPHardwareType() header.ARPHardwareType { return header.ARPHar
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
 func (*Endpoint) AddHeader(stack.PacketBufferPtr) {}
+
+// ParseHeader implements stack.LinkEndpoint.ParseHeader.
+func (*Endpoint) ParseHeader(stack.PacketBufferPtr) bool { return true }
