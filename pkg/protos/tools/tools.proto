@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package yuhaiin.tools;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/tools";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+service tools {
+  // req: url
+  rpc save_remote_bypass_file(google.protobuf.StringValue)
+      returns (google.protobuf.Empty);
+}

@@ -20,3 +20,6 @@ package protos
 //go:generate protoc --go_out=. --go_opt=paths=source_relative config/bypass/bypass.proto
 //go:generate protoc --go_out=. --go_opt=paths=source_relative config/dns/dns.proto
 //go:generate protoc --go_out=. --go_opt=paths=source_relative config/listener/listener.proto
+
+// tools
+//go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative tools/tools.proto

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -129,5 +128,4 @@ func (n *Nodes) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error)
 func (n *Nodes) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	return n.outbound().PacketConn(ctx, addr)
 }
-func (n *Nodes) manager() *manager                            { return n.fileStore.manager() }
-func (n *Nodes) Do(req *http.Request) (*http.Response, error) { return n.outbound().Do(req) }
+func (n *Nodes) manager() *manager { return n.fileStore.manager() }

@@ -17,6 +17,7 @@ import (
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -35,6 +36,7 @@ type HttpServerOption struct {
 	Tag         gn.TagServer
 	Connections gs.ConnectionsServer
 	Config      gc.ConfigServiceServer
+	Tools       gt.ToolsServer
 }
 
 func (o *HttpServerOption) Routers() Handler {
@@ -54,6 +56,7 @@ func (o *HttpServerOption) Routers() Handler {
 			"/node":   o.SaveNode,
 			"/sub":    o.SaveLink,
 			"/tag":    o.SaveTag,
+			"/byass":  o.SaveBypass,
 		},
 		"DELETE": {
 			"/conn": o.CloseConn,

@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/components/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/components/statistics"
+	"github.com/Asutorufa/yuhaiin/pkg/components/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -30,6 +31,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"go.etcd.io/bbolt"
@@ -42,6 +44,7 @@ var (
 	so           *StartOpt
 	HttpListener net.Listener
 	Node         *node.Nodes
+	Tools        *tools.Tools
 	closers      []io.Closer
 )
 
@@ -82,6 +85,7 @@ func Close() error {
 	HttpListener = nil
 	Node = nil
 	closers = nil
+	Tools = nil
 	return nil
 }
 
@@ -147,6 +151,8 @@ func Start(opt StartOpt) error {
 	ss := AddComponent(inbound.NewHandler(fakedns))
 	// inbound server
 	_ = AddComponent(inbound.NewListener(dnsServer, ss))
+	// tools
+	Tools = tools.NewTools(fakedns, opt.Setting)
 	// http page
 	web.Httpserver(NewHttpOption(subscribe, stcs, tag, st))
 	// grpc server
@@ -165,6 +171,7 @@ func RegisterGrpcService(sub gn.SubscribeServer, conns gs.ConnectionsServer, tag
 	so.GRPCServer.RegisterService(&gn.Subscribe_ServiceDesc, sub)
 	so.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, conns)
 	so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, tag)
+	so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, Tools)
 }
 
 func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
@@ -188,6 +195,7 @@ func NewHttpOption(sub gn.SubscribeServer, conns gs.ConnectionsServer, tag gn.Ta
 		Config:      so.Setting,
 		Tag:         tag,
 		Shunt:       st,
+		Tools:       Tools,
 	}
 }
 
