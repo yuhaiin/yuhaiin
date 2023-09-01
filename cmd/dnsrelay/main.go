@@ -55,13 +55,13 @@ func handle(local net.PacketConn, buf []byte, n int, form, target net.Addr) erro
 	}
 	defer l.Close()
 
-	l.SetWriteDeadline(time.Now().Add(time.Minute))
+	_ = l.SetWriteDeadline(time.Now().Add(time.Minute))
 	_, err = l.WriteTo(buf[:n], target)
 	if err != nil {
 		return err
 	}
 
-	l.SetReadDeadline(time.Now().Add(time.Minute))
+	_ = l.SetReadDeadline(time.Now().Add(time.Minute))
 	n, _, err = l.ReadFrom(buf)
 	if err != nil {
 		return err

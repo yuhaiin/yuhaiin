@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -103,15 +104,22 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 }
 
 func (d *doq) Close() error {
+	var err error
 	if d.connection != nil {
-		d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+		er := d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+		if er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 
 	if d.conn != nil {
-		d.conn.Close()
+		er := d.conn.Close()
+		if er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 
-	return nil
+	return err
 }
 
 type DOQWrapConn struct{ net.PacketConn }
@@ -131,7 +139,7 @@ func (d *doq) initSession(ctx context.Context) error {
 	if d.connection != nil {
 		select {
 		case <-d.connection.Context().Done():
-			d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+			_ = d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
 			if d.conn != nil {
 				d.conn.Close()
 				d.conn = nil

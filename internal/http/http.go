@@ -41,7 +41,7 @@ type HttpServerOption struct {
 
 func (o *HttpServerOption) Routers() Handler {
 	return Handler{
-		"GET": {
+		http.MethodGet: {
 			"/grouplist":   o.GroupList,
 			"/group":       o.GetGroups,
 			"/sublist":     o.GetLinkList,
@@ -51,23 +51,23 @@ func (o *HttpServerOption) Routers() Handler {
 			"/node":        o.GetNode,
 			"/latency":     o.GetLatency,
 		},
-		"POST": {
+		http.MethodPost: {
 			"/config": o.SaveConfig,
 			"/node":   o.SaveNode,
 			"/sub":    o.SaveLink,
 			"/tag":    o.SaveTag,
 			"/byass":  o.SaveBypass,
 		},
-		"DELETE": {
+		http.MethodDelete: {
 			"/conn": o.CloseConn,
 			"/node": o.DeleteNOde,
 			"/sub":  o.DeleteLink,
 			"/tag":  o.DeleteTag,
 		},
-		"PUT": {
+		http.MethodPut: {
 			"/node": o.AddNode,
 		},
-		"PATCH": {
+		http.MethodPatch: {
 			"/sub": o.PatchLink,
 		},
 		"WS": {

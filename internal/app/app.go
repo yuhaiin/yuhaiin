@@ -45,6 +45,7 @@ var (
 	HttpListener net.Listener
 	Node         *node.Nodes
 	Tools        *tools.Tools
+	DB           *bbolt.DB
 	closers      []io.Closer
 )
 
@@ -89,7 +90,7 @@ func Close() error {
 	return nil
 }
 
-func initBboltDB(path string) (*bbolt.DB, error) {
+func OpenBboltDB(path string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second * 2})
 	switch err {
 	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
@@ -103,14 +104,16 @@ func initBboltDB(path string) (*bbolt.DB, error) {
 	return db, err
 }
 
-func Start(opt StartOpt) error {
+func Start(opt StartOpt) (err error) {
 	so = &opt
 
-	db, err := initBboltDB(PathGenerator.Cache(so.ConfigPath))
-	if err != nil {
-		return fmt.Errorf("init bbolt cache failed: %w", err)
+	if DB == nil {
+		DB, err = OpenBboltDB(PathGenerator.Cache(so.ConfigPath))
+		if err != nil {
+			return fmt.Errorf("init bbolt cache failed: %w", err)
+		}
+		AddCloser(DB)
 	}
-	AddCloser(db)
 
 	HttpListener, err = net.Listen("tcp", so.Host)
 	if err != nil {
@@ -140,10 +143,10 @@ func Start(opt StartOpt) error {
 	// bypass dialer and dns request
 	st := AddComponent(shunt.NewShunt(NewShuntOpt(local, remote)))
 	// connections' statistic & flow data
-	stcs := AddComponent(statistics.NewConnStore(cache.NewCache(db, "flow_data"), st, so.ProcessDumper))
+	stcs := AddComponent(statistics.NewConnStore(cache.NewCache(DB, "flow_data"), st, so.ProcessDumper))
 	hosts := AddComponent(resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddComponent(resolver.NewFakeDNS(hosts, hosts, cache.NewCache(db, "fakedns_cache")))
+	fakedns := AddComponent(resolver.NewFakeDNS(hosts, hosts, cache.NewCache(DB, "fakedns_cache")))
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(resolver.NewDNSServer(fakedns))
 	// give dns a dialer

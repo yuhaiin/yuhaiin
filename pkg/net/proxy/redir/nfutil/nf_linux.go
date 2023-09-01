@@ -13,7 +13,7 @@ func GetOrigDst(c *net.TCPConn, ipv6 bool) (*net.TCPAddr, error) {
 		return nil, err
 	}
 	var addr *net.TCPAddr
-	rc.Control(func(fd uintptr) {
+	err = rc.Control(func(fd uintptr) {
 		if ipv6 {
 			addr, err = ipv6_getorigdst(fd)
 		} else {

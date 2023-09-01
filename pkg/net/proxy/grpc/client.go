@@ -124,7 +124,7 @@ func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	var retried bool
 
 _retry:
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 	con, err := c.client.Conn(ctx)
 	if err != nil {
 		cancel()
@@ -143,7 +143,7 @@ _retry:
 		laddr: caddr{},
 		close: func() {
 			cancel()
-			con.CloseSend()
+			_ = con.CloseSend()
 			c.clientCountSub()
 		},
 		raddr: addr,

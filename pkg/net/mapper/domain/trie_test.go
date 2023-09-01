@@ -23,6 +23,7 @@ func TestAl(t *testing.T) {
 
 	t.Log(unsafe.Sizeof(zstr), unsafe.Sizeof(zmap), len(zmap), getRealSizeOf(zstr), getRealSizeOf(zmap))
 }
+
 func getRealSizeOf(v any) int {
 	b := new(bytes.Buffer)
 	if err := gob.NewEncoder(b).Encode(v); err != nil {
