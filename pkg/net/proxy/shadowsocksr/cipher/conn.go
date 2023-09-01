@@ -2,9 +2,9 @@ package cipher
 
 import (
 	"crypto/cipher"
+	"crypto/rand"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"

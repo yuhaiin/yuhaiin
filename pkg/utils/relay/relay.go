@@ -31,13 +31,13 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 
 func setDeadline(rw io.ReadWriteCloser) {
 	if r, ok := rw.(interface{ CloseWrite() error }); ok {
-		r.CloseWrite()
+		_ = r.CloseWrite()
 		return
 	}
 	if r, ok := rw.(interface{ SetReadDeadline(time.Time) error }); ok {
-		r.SetReadDeadline(time.Now())
+		_ = r.SetReadDeadline(time.Now())
 	} else {
-		rw.Close()
+		_ = rw.Close()
 	}
 }
 

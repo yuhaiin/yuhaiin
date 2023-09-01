@@ -32,7 +32,7 @@ func NewDoH3(config Config) (netapi.Resolver, error) {
 
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			relay.Copy(io.Discard, resp.Body) // from v2fly
+			_ = relay.Copy(io.Discard, resp.Body) // from v2fly
 			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 		return io.ReadAll(resp.Body)

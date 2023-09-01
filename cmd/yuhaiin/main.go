@@ -68,7 +68,7 @@ func main() {
 	}()
 
 	// listen system signal
-	signChannel := make(chan os.Signal)
+	signChannel := make(chan os.Signal, 1)
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	select {

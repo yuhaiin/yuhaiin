@@ -122,7 +122,7 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 	defer pool.PutBytes(data)
 
 	for {
-		table.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
+		_ = table.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
 		n, from, err := table.dstPacketConn.ReadFrom(data)
 		if err != nil {
 			if ne, ok := err.(net.Error); (ok && ne.Timeout()) || errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {

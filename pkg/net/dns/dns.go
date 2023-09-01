@@ -162,7 +162,11 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 	key := domain + reqType.String()
 
 	if ips, expire, ok := c.cache.LoadExpireTime(key); ok {
-		return ips, uint32(expire.Sub(time.Now()).Seconds()), nil
+		se := time.Until(expire).Seconds()
+		if se < 0 {
+			se = 0
+		}
+		return ips, uint32(se), nil
 	}
 
 	cond, ok := c.cond.LoadOrStore(key, &recordCond{Cond: sync.NewCond(&sync.Mutex{})})
@@ -204,10 +208,10 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 	return ips, ttl, nil
 }
 
-func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
+func (c *client) newRequest(domain string, reqType dnsmessage.Type) (uint16, []byte, error) {
 	name, err := dnsmessage.NewName(domain + ".")
 	if err != nil {
-		return nil, 0, fmt.Errorf("parse domain failed: %w", err)
+		return 0, nil, fmt.Errorf("parse domain failed: %w", err)
 	}
 	req := dnsmessage.Message{
 		Header: dnsmessage.Header{
@@ -232,6 +236,15 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 
 	d, err := req.Pack()
 	if err != nil {
+		return 0, nil, fmt.Errorf("pack dns message failed: %w", err)
+	}
+
+	return req.ID, d, nil
+}
+
+func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
+	id, d, err := c.newRequest(domain, reqType)
+	if err != nil {
 		return nil, 0, fmt.Errorf("pack dns message failed: %w", err)
 	}
 
@@ -247,7 +260,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 		return nil, 0, err
 	}
 
-	if resp.ID != req.ID {
+	if resp.ID != id {
 		return nil, 0, fmt.Errorf("id not match")
 	}
 
@@ -255,66 +268,48 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 		return nil, 0, fmt.Errorf("rCode (%v) not success", resp.RCode)
 	}
 
-	p.SkipAllQuestions()
+	if err := p.SkipAllQuestions(); err != nil {
+		return nil, 0, fmt.Errorf("skip all questions failed: %w", err)
+	}
+
+	answers, err := p.AllAnswers()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(answers) == 0 {
+		return nil, 0, ErrNoIPFound
+	}
 
 	var ttl uint32
-	ips := make([]net.IP, 0)
+	ips := make([]net.IP, 0, len(answers))
 
-	for {
-		ip, ttL, err := resolveAOrAAAA(p, reqType)
-		if err != nil {
-			if errors.Is(err, dnsmessage.ErrSectionDone) {
-				break
+	for _, v := range answers {
+		switch x := v.Body.(type) {
+		case *dnsmessage.AResource:
+			if reqType == dnsmessage.TypeA {
+				ttl = v.Header.TTL
+				ips = append(ips, net.IP(x.A[:]))
 			}
+		case *dnsmessage.AAAAResource:
+			if reqType == dnsmessage.TypeAAAA {
+				ttl = v.Header.TTL
+				ips = append(ips, net.IP(x.AAAA[:]))
+			}
+		}
+	}
 
-			return nil, 0, err
-		}
-		if ip == nil {
-			continue
-		}
-
-		// All Resources in a set should have the same TTL (RFC 2181 Section 5.2).
-		if ttl == 0 || ttL < ttl {
-			ttl = ttL
-		}
-		ips = append(ips, ip)
+	if ttl > 600 {
+		ttl = 600
 	}
 
 	if len(ips) == 0 {
 		return nil, 0, ErrNoIPFound
 	}
+
 	return ips, ttl, nil
 }
 
 var ErrNoIPFound = errors.New("no ip found")
 
 func (c *client) Close() error { return nil }
-
-func resolveAOrAAAA(p *dnsmessage.Parser, reqType dnsmessage.Type) (net.IP, uint32, error) {
-	header, err := p.AnswerHeader()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	switch {
-	case header.Type == dnsmessage.TypeA && reqType == dnsmessage.TypeA:
-		body, err := p.AResource()
-		if err != nil {
-			return nil, 0, err
-		}
-		return net.IP(body.A[:]), header.TTL, nil
-	case header.Type == dnsmessage.TypeAAAA && reqType == dnsmessage.TypeAAAA:
-		body, err := p.AAAAResource()
-		if err != nil {
-			return nil, 0, err
-		}
-		return net.IP(body.AAAA[:]), header.TTL, nil
-	default:
-		err = p.SkipAnswer()
-		if err != nil {
-			return nil, 0, err
-		}
-	}
-
-	return nil, 0, nil
-}

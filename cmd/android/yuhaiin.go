@@ -69,7 +69,7 @@ func (a *App) Stop() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if !a.started.Load() {
+	if !a.Running() {
 		return nil
 	}
 
@@ -80,7 +80,7 @@ func (a *App) Stop() error {
 		}
 	}
 
-	for a.started.Load() {
+	for a.Running() {
 	}
 
 	return nil
@@ -89,7 +89,7 @@ func (a *App) Stop() error {
 func (a *App) Running() bool { return a.started.Load() }
 
 func (a *App) SaveNewBypass(link string) error {
-	if a.started.Load() && app.Tools == nil {
+	if !a.Running() || app.Tools == nil {
 		return fmt.Errorf("proxy service is not start")
 	}
 

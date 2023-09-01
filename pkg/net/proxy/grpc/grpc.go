@@ -83,7 +83,7 @@ func (c *conn) RemoteAddr() net.Addr { return c.raddr }
 func (c *conn) SetDeadline(t time.Time) error {
 	if c.deadline == nil {
 		if !t.IsZero() {
-			c.deadline = time.AfterFunc(t.Sub(time.Now()), func() { c.Close() })
+			c.deadline = time.AfterFunc(time.Until(t), func() { c.Close() })
 		}
 		return nil
 	}
@@ -91,7 +91,7 @@ func (c *conn) SetDeadline(t time.Time) error {
 	if t.IsZero() {
 		c.deadline.Stop()
 	} else {
-		c.deadline.Reset(t.Sub(time.Now()))
+		c.deadline.Reset(time.Until(t))
 	}
 
 	return nil

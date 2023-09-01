@@ -79,15 +79,13 @@ func (c *Client) initSession(ctx context.Context) error {
 	}
 
 	go func() {
-		select {
-		case <-session.Context().Done():
-			c.sessionMu.Lock()
-			defer c.sessionMu.Unlock()
-			session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-			conn.Close()
-			log.Debug("session closed")
-			c.session = nil
-		}
+		<-session.Context().Done()
+		c.sessionMu.Lock()
+		defer c.sessionMu.Unlock()
+		_ = session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+		conn.Close()
+		log.Debug("session closed")
+		c.session = nil
 	}()
 
 	go func() {
@@ -184,7 +182,7 @@ func (c *interConn) Close() error {
 
 	var err error
 	if er := c.Stream.Close(); er != nil {
-		errors.Join(err, er)
+		err = errors.Join(err, er)
 	}
 
 	return err

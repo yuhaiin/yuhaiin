@@ -20,7 +20,7 @@ func (c *Cache) Get(k []byte) (v []byte) {
 		return nil
 	}
 
-	c.db.View(func(tx *bbolt.Tx) error {
+	_ = c.db.View(func(tx *bbolt.Tx) error {
 		bk := tx.Bucket(c.bucketName)
 		if bk == nil {
 			return nil
@@ -39,14 +39,13 @@ func (c *Cache) Put(k, v []byte) {
 		return
 	}
 
-	c.db.Batch(func(tx *bbolt.Tx) error {
+	_ = c.db.Batch(func(tx *bbolt.Tx) error {
 		bk, err := tx.CreateBucketIfNotExists(c.bucketName)
 		if err != nil {
 			return err
 		}
 
-		bk.Put(k, v)
-		return nil
+		return bk.Put(k, v)
 	})
 }
 
@@ -54,7 +53,7 @@ func (c *Cache) Delete(k ...[]byte) {
 	if c.db == nil {
 		return
 	}
-	c.db.Batch(func(tx *bbolt.Tx) error {
+	_ = c.db.Batch(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(c.bucketName)
 		if b == nil {
 			return nil
@@ -65,7 +64,9 @@ func (c *Cache) Delete(k ...[]byte) {
 				continue
 			}
 
-			b.Delete(kk)
+			if err := b.Delete(kk); err != nil {
+				return err
+			}
 		}
 
 		return nil
