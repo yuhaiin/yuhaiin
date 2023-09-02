@@ -46,8 +46,8 @@ type httpSimplePost struct {
 	userAgentIndex   int
 	methodGet        bool // true for get, false for post
 
-	buf  []byte
-	wbuf [pool.DefaultSize / 4]byte
+	buf []byte
+	// wbuf [pool.DefaultSize / 4]byte
 	net.Conn
 
 	param simpleParam

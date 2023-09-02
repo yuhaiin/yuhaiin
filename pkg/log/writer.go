@@ -42,7 +42,6 @@ func (f *FileWriter) Close() error {
 }
 
 func (f *FileWriter) Write(p []byte) (n int, err error) {
-
 	if f.w == nil {
 		f.mu.Lock()
 		f.w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
@@ -74,7 +73,8 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 		f.w.Close()
 		f.w = nil
 
-		err = os.Rename(f.path.FullPath(""), f.path.FullPath(time.Now().Format(time.RFC3339)))
+		err = os.Rename(f.path.FullPath(""),
+			f.path.FullPath(strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", ".")))
 		if err != nil {
 			f.log.Error("rename file failed:", "err", err)
 		}

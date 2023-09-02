@@ -3,17 +3,14 @@ package config
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	nd "github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -33,8 +30,8 @@ func (o ObserverFunc) Update(s *config.Setting) { o(s) }
 
 type setting struct {
 	gc.UnimplementedConfigServiceServer
-	current *config.Setting
-	path    string
+
+	db *jsondb.DB[*config.Setting]
 
 	os []Observer
 
@@ -42,46 +39,34 @@ type setting struct {
 }
 
 func NewConfig(path string) Setting {
-	data, err := os.ReadFile(path)
-	data = SetDefault(data, defaultConfig(path))
-
-	if err != nil {
-		log.Error("read config file failed", "err", err)
-		os.WriteFile(path, data, os.ModePerm)
-	}
-
-	var pa config.Setting
-	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, &pa)
-	if err != nil {
-		log.Error("unmarshal config file failed", "err", err)
-	}
-
-	return &setting{current: &pa, path: path}
+	return &setting{db: jsondb.Open[*config.Setting](path, defaultSetting(path))}
 }
 
 func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.current, nil
+	return c.db.Data, nil
 }
 
 func (c *setting) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	err := save(s, c.path)
-	if err != nil {
-		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %w", err)
+	if err := CheckBootstrapDns(s.Dns.Bootstrap); err != nil {
+		return &emptypb.Empty{}, err
 	}
 
-	c.current = proto.Clone(s).(*config.Setting)
+	c.db.Data = proto.Clone(s).(*config.Setting)
+	if err := c.db.Save(); err != nil {
+		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %w", err)
+	}
 
 	wg := sync.WaitGroup{}
 	for i := range c.os {
 		wg.Add(1)
 		go func(o Observer) {
 			defer wg.Done()
-			o.Update(proto.Clone(c.current).(*config.Setting))
+			o.Update(proto.Clone(c.db.Data).(*config.Setting))
 		}(c.os[i])
 	}
 	wg.Wait()
@@ -97,37 +82,7 @@ func (c *setting) AddObserver(o Observer) {
 	defer c.mu.Unlock()
 
 	c.os = append(c.os, o)
-	o.Update(c.current)
-}
-
-func save(pa *config.Setting, dir string) error {
-	_, err := os.Stat(dir)
-	if err != nil && os.IsNotExist(err) {
-		err = os.MkdirAll(filepath.Dir(dir), os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("make dir failed: %w", err)
-		}
-	}
-
-	if err = check(pa); err != nil {
-		return err
-	}
-
-	data, err := protojson.MarshalOptions{Multiline: true, Indent: "\t", EmitUnpopulated: true}.Marshal(pa)
-	if err != nil {
-		return fmt.Errorf("marshal setting failed: %w", err)
-	}
-
-	return os.WriteFile(dir, data, os.ModePerm)
-}
-
-func check(pa *config.Setting) error {
-	err := CheckBootstrapDns(pa.Dns.Bootstrap)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	o.Update(c.db.Data)
 }
 
 func CheckBootstrapDns(pa *pd.Dns) error {

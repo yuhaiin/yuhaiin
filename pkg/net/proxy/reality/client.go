@@ -27,6 +27,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/net/http2"
@@ -193,7 +194,7 @@ func realityClientFallback(uConn net.Conn, serverName string, fingerprint utls.C
 	if err != nil {
 		return
 	}
-	_, _ = io.Copy(io.Discard, response.Body)
+	_, _ = relay.Copy(io.Discard, response.Body)
 	response.Body.Close()
 }
 

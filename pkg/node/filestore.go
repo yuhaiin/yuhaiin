@@ -1,23 +1,15 @@
 package node
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"path"
-	"sync"
-
-	"github.com/Asutorufa/yuhaiin/pkg/components/config"
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
-	"google.golang.org/protobuf/encoding/protojson"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 )
 
-func load(path string) *node.Node {
-	defaultNode, _ := protojson.Marshal(&node.Node{
+func load(path string) *jsondb.DB[*node.Node] {
+	defaultNode := &node.Node{
 		Tcp:   &point.Point{},
 		Udp:   &point.Point{},
 		Links: map[string]*subscribe.Link{},
@@ -26,49 +18,26 @@ func load(path string) *node.Node {
 			Nodes:    map[string]*point.Point{},
 			Tags:     map[string]*pt.Tags{},
 		},
-	})
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		log.Error("read node file failed", "err", err)
 	}
 
-	data = config.SetDefault(data, defaultNode)
-
-	no := &node.Node{}
-	if err = (protojson.UnmarshalOptions{DiscardUnknown: true, AllowPartial: true}).Unmarshal(data, no); err != nil {
-		log.Error("unmarshal node file failed", "err", err)
-	}
-
-	return no
-}
-
-func (n *FileStore) toNode() *node.Node {
-	return &node.Node{
-		Tcp:     n.outBound.TCP,
-		Udp:     n.outBound.UDP,
-		Links:   n.links.Links(),
-		Manager: n.manAger.GetManager(),
-	}
+	return jsondb.Open[*node.Node](path, defaultNode)
 }
 
 type FileStore struct {
-	mu   sync.RWMutex
-	path string
-
+	db       *jsondb.DB[*node.Node]
 	manAger  *manager
 	outBound *outbound
 	links    *link
 }
 
 func NewFileStore(path string) *FileStore {
-	f := &FileStore{path: path}
+	f := &FileStore{
+		db: load(path),
+	}
 
-	no := f.Load()
-
-	f.manAger = NewManager(no.Manager)
-	f.outBound = NewOutbound(no.Tcp, no.Udp, f.manAger)
-	f.links = NewLink(f.outBound, f.manAger, no.Links)
+	f.manAger = NewManager(f.db.Data.Manager)
+	f.outBound = NewOutbound(f.db, f.manAger)
+	f.links = NewLink(f.db, f.outBound, f.manAger)
 
 	return f
 }
@@ -76,34 +45,4 @@ func NewFileStore(path string) *FileStore {
 func (f *FileStore) outbound() *outbound { return f.outBound }
 func (f *FileStore) link() *link         { return f.links }
 func (f *FileStore) manager() *manager   { return f.manAger }
-
-func (n *FileStore) Load() *node.Node {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	return load(n.path)
-}
-
-func (n *FileStore) Save() error {
-	_, err := os.Stat(path.Dir(n.path))
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-
-		err = os.MkdirAll(path.Dir(n.path), os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("make config dir failed: %w", err)
-		}
-	}
-
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	dataBytes, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(n.toNode())
-	if err != nil {
-		return fmt.Errorf("marshal file failed: %w", err)
-	}
-
-	return os.WriteFile(n.path, dataBytes, os.ModePerm)
-}
+func (n *FileStore) Save() error         { return n.db.Save() }

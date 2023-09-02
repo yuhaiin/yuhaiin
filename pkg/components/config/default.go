@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -9,11 +8,10 @@ import (
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func defaultConfig(path string) []byte {
-	defaultValue := &config.Setting{
+func defaultSetting(path string) *config.Setting {
+	return &config.Setting{
 		Ipv6:         false,
 		NetInterface: "",
 		SystemProxy: &config.SystemProxy{
@@ -126,38 +124,5 @@ func defaultConfig(path string) []byte {
 				},
 			},
 		},
-	}
-
-	data, _ := protojson.Marshal(defaultValue)
-	return data
-}
-
-func SetDefault(targetJSON, defaultJSON []byte) []byte {
-	m1 := make(map[string]any)
-	def := make(map[string]any)
-
-	json.Unmarshal(targetJSON, &m1)
-	json.Unmarshal(defaultJSON, &def)
-
-	setDefault(m1, def)
-
-	data, _ := json.Marshal(m1)
-	return data
-}
-
-func setDefault(m1, md map[string]any) {
-	for k, v := range md {
-		j1, ok := m1[k]
-		if !ok {
-			m1[k] = v
-			continue
-		}
-
-		z1, ok1 := j1.(map[string]any)
-		d1, ok2 := v.(map[string]any)
-
-		if ok1 && ok2 {
-			setDefault(z1, d1)
-		}
 	}
 }

@@ -1,7 +1,13 @@
 package net
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+)
 
 func TestGetScheme(t *testing.T) {
-	t.Log(GetScheme("http://www.baidu.com/dns-query"))
+	scheme, _, err := GetScheme("http://www.baidu.com/dns-query")
+	assert.NoError(t, err)
+	assert.Equal(t, "http", scheme)
 }

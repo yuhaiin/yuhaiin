@@ -11,32 +11,24 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
 type outbound struct {
-	manager  *manager
-	UDP, TCP *point.Point
+	manager *manager
+	db      *jsondb.DB[*node.Node]
 
 	lruCache *lru.LRU[string, netapi.Proxy]
 }
 
-func NewOutbound(tcp, udp *point.Point, mamanager *manager) *outbound {
+func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
 	return &outbound{
 		manager:  mamanager,
-		UDP:      udp,
-		TCP:      tcp,
+		db:       db,
 		lruCache: lru.NewLru(lru.WithCapacity[string, netapi.Proxy](35)),
-	}
-}
-
-func (o *outbound) Save(p *point.Point, udp bool) {
-	if udp {
-		o.UDP = p
-	} else {
-		o.TCP = p
 	}
 }
 
@@ -49,17 +41,19 @@ func (o *outbound) Conn(ctx context.Context, host netapi.Address) (_ net.Conn, e
 		return tc.Conn(ctx, host)
 	}
 
-	p, ok := o.lruCache.Load(o.TCP.Hash)
+	tcp := o.db.Data.Tcp
+
+	p, ok := o.lruCache.Load(tcp.Hash)
 	if !ok {
-		p, err = register.Dialer(o.TCP)
+		p, err = register.Dialer(tcp)
 		if err != nil {
 			return nil, err
 		}
 
-		o.lruCache.Add(o.TCP.Hash, p)
+		o.lruCache.Add(tcp.Hash, p)
 	}
 
-	netapi.StoreFromContext(ctx).Add(HashKey{}, o.TCP.Hash)
+	netapi.StoreFromContext(ctx).Add(HashKey{}, tcp.Hash)
 
 	return p.Conn(ctx, host)
 }
@@ -69,17 +63,19 @@ func (o *outbound) PacketConn(ctx context.Context, host netapi.Address) (_ net.P
 		return tc.PacketConn(ctx, host)
 	}
 
-	p, ok := o.lruCache.Load(o.UDP.Hash)
+	udp := o.db.Data.Udp
+
+	p, ok := o.lruCache.Load(udp.Hash)
 	if !ok {
-		p, err = register.Dialer(o.UDP)
+		p, err = register.Dialer(udp)
 		if err != nil {
 			return nil, err
 		}
 
-		o.lruCache.Add(o.UDP.Hash, p)
+		o.lruCache.Add(udp.Hash, p)
 	}
 
-	netapi.StoreFromContext(ctx).Add(HashKey{}, o.UDP.Hash)
+	netapi.StoreFromContext(ctx).Add(HashKey{}, udp.Hash)
 	return p.PacketConn(ctx, host)
 }
 

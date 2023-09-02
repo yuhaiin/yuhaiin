@@ -76,6 +76,14 @@ func init() {
 			n.Ps = n.Remark
 		}
 
+		if n.Host == "" {
+			n.Host = net.JoinHostPort(n.Address, fmt.Sprint(n.Port))
+		}
+
+		if n.HeaderType == "" {
+			n.HeaderType = n.Type
+		}
+
 		port, err := strconv.ParseUint(fmt.Sprint(n.Port), 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("vmess port is not a number: %w", err)
@@ -88,9 +96,23 @@ func init() {
 			},
 		}
 
-		if n.HeaderType == "" {
-			n.HeaderType = n.Type
+		if n.Tls == "tls" {
+			if n.Sni == "" {
+				n.Sni, _, err = net.SplitHostPort(n.Host)
+				if err != nil {
+					log.Warn("split host and port failed", "err", err)
+					n.Sni = n.Host
+				}
+			}
+
+			simple.Simple.Tls = &protocol.TlsConfig{
+				ServerNames:        []string{n.Sni},
+				InsecureSkipVerify: !n.VerifyCert,
+				Enable:             true,
+				CaCert:             nil,
+			}
 		}
+
 		switch n.HeaderType {
 		case "none":
 		default:
@@ -100,26 +122,6 @@ func init() {
 		var netProtocol *protocol.Protocol
 		switch n.Net {
 		case "ws":
-			if n.Host == "" {
-				n.Host = net.JoinHostPort(n.Address, fmt.Sprint(n.Port))
-			}
-
-			if n.Tls == "tls" {
-				if n.Sni == "" {
-					n.Sni, _, err = net.SplitHostPort(n.Host)
-					if err != nil {
-						log.Warn("split host and port failed", "err", err)
-						n.Sni = n.Host
-					}
-				}
-				simple.Simple.Tls = &protocol.TlsConfig{
-					ServerNames:        []string{n.Sni},
-					InsecureSkipVerify: !n.VerifyCert,
-					Enable:             true,
-					CaCert:             nil,
-				}
-			}
-
 			netProtocol = &protocol.Protocol{
 				Protocol: &protocol.Protocol_Websocket{
 					Websocket: &protocol.Websocket{

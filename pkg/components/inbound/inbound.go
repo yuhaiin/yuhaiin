@@ -94,6 +94,7 @@ type store struct {
 	config proto.Message
 	server netapi.Server
 }
+
 type listener struct {
 	store syncmap.SyncMap[string, store]
 	opts  *pl.Opts[pl.IsProtocol_Protocol]

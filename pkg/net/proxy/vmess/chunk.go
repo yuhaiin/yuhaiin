@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 type writer interface {
@@ -19,7 +20,7 @@ type connWriter struct {
 }
 
 func (c *connWriter) ReadFrom(r io.Reader) (int64, error) {
-	return io.Copy(c.Conn, r)
+	return relay.Copy(c.Conn, r)
 }
 
 const (

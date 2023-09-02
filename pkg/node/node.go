@@ -31,9 +31,9 @@ func NewNodes(fileStore *FileStore) *Nodes { return &Nodes{fileStore: fileStore}
 
 func (n *Nodes) Now(_ context.Context, r *gn.NowReq) (*point.Point, error) {
 	if r.Net == gn.NowReq_udp {
-		return n.outbound().UDP, nil
+		return n.fileStore.db.Data.Udp, nil
 	} else {
-		return n.outbound().TCP, nil
+		return n.fileStore.db.Data.Tcp, nil
 	}
 }
 
@@ -63,10 +63,10 @@ func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
 	}
 
 	if s.Tcp {
-		n.outbound().Save(p, false)
+		n.fileStore.db.Data.Tcp = p
 	}
 	if s.Udp {
-		n.outbound().Save(p, true)
+		n.fileStore.db.Data.Udp = p
 	}
 
 	err = n.fileStore.Save()
@@ -121,11 +121,10 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 	return resp, nil
 }
 
-func (n *Nodes) outbound() *outbound { return n.fileStore.outbound() }
 func (n *Nodes) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	return n.outbound().Conn(ctx, addr)
+	return n.fileStore.outbound().Conn(ctx, addr)
 }
 func (n *Nodes) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return n.outbound().PacketConn(ctx, addr)
+	return n.fileStore.outbound().PacketConn(ctx, addr)
 }
 func (n *Nodes) manager() *manager { return n.fileStore.manager() }
