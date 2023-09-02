@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/hmac"
+	crand "crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"strings"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 type tlsAuthData struct {
@@ -117,18 +118,18 @@ func (t *tls12TicketAuth) Encode(data []byte) ([]byte, error) {
 					l = len(data) - start
 					packData(&t.buffer, data[start:start+l])
 				}
-				_, _ = io.Copy(&t.sendSaver, &t.buffer)
+				_, _ = relay.Copy(&t.sendSaver, &t.buffer)
 			}
 			return []byte{}, nil
 		}
 		hmacData := make([]byte, 43)
 		handshakeFinish := []byte("\x14\x03\x03\x00\x01\x01\x16\x03\x03\x00\x20")
 		copy(hmacData, handshakeFinish)
-		rand.Read(hmacData[11:33])
+		crand.Read(hmacData[11:33])
 		h := t.hmacSHA1(hmacData[:33])
 		copy(hmacData[33:], h)
 		t.buffer.Write(hmacData)
-		_, _ = io.Copy(&t.buffer, &t.sendSaver)
+		_, _ = relay.Copy(&t.buffer, &t.sendSaver)
 		t.handshakeStatus = 8
 		return t.buffer.Bytes(), nil
 	case 0:

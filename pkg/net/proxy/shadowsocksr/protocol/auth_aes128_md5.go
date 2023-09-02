@@ -8,7 +8,6 @@ import (
 	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
-	"io"
 	"math"
 	"math/big"
 	"math/rand"
@@ -20,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
@@ -84,7 +84,7 @@ func (a *authAES128) packData(wbuf *bytes.Buffer, data []byte, fullDataSize int)
 	}
 
 	// 4~rand length+4, rand number
-	if _, err := io.CopyN(wbuf, crand.Reader, int64(randLength)); err != nil {
+	if _, err := relay.CopyN(wbuf, crand.Reader, int64(randLength)); err != nil {
 		log.Error("copy rand bytes failed", "err", err)
 	}
 
@@ -202,7 +202,7 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	wbuf.Write(a.uid[:])
 	wbuf.Write(encrypt.Bytes())
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
-	io.CopyN(wbuf, crand.Reader, int64(randLength))
+	relay.CopyN(wbuf, crand.Reader, int64(randLength))
 	wbuf.Write(data)
 	start := wbuf.Len() - outLength + 4
 	wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes()[start:], hmacBuf)[:4])

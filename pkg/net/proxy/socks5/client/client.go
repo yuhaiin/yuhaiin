@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
@@ -194,7 +195,7 @@ func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	pc = newSocks5PacketConn(pc, conn, addr)
 
 	go func() {
-		io.Copy(io.Discard, conn)
+		_, _ = relay.Copy(io.Discard, conn)
 		pc.Close()
 	}()
 

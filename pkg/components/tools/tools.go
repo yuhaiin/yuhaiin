@@ -62,5 +62,6 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 	}
 	defer f.Close()
 
-	return &emptypb.Empty{}, relay.Copy(f, resp.Body)
+	_, err = relay.Copy(f, resp.Body)
+	return &emptypb.Empty{}, err
 }

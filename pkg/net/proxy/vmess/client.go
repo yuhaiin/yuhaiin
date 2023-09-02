@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -146,7 +147,7 @@ func (c *Client) newConn(rc net.Conn, cmd CMD, dst netapi.Address) (*Conn, error
 	}
 
 	randBytes := make([]byte, 33)
-	rand.Read(randBytes)
+	_, _ = crand.Read(randBytes)
 
 	copy(conn.reqBodyIV[:], randBytes[:16])
 	copy(conn.reqBodyKey[:], randBytes[16:32])
@@ -201,7 +202,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	buf.WriteByte(c.CMD.Byte()) // cmd
 
 	// target
-	binary.Write(buf, binary.BigEndian, uint16(c.addr.Port().Port())) // port
+	_ = binary.Write(buf, binary.BigEndian, uint16(c.addr.Port().Port())) // port
 
 	buf.WriteByte(byte(c.addr.atyp)) // atyp
 	buf.Write(c.addr.addr)           // addr

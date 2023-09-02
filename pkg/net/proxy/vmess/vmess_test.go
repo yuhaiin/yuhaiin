@@ -11,12 +11,12 @@ import (
 
 func TestChaCHa20Poly1305(t *testing.T) {
 	key := make([]byte, chacha20poly1305.KeySize)
-	rand.Read(key)
+	_, _ = rand.Read(key)
 	aead, err := chacha20poly1305.New(key)
 	assert.NoError(t, err)
 
 	none := make([]byte, aead.NonceSize())
-	rand.Read(none)
+	_, _ = rand.Read(none)
 
 	plaintext := []byte("hello world")
 

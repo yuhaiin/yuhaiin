@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -12,8 +13,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
 )
 
@@ -21,20 +24,21 @@ type link struct {
 	outbound *outbound
 	manager  *manager
 
-	links map[string]*subscribe.Link
-	mu    sync.RWMutex
+	db *jsondb.DB[*node.Node]
+
+	mu sync.RWMutex
 }
 
-func NewLink(outbound *outbound, manager *manager, links map[string]*subscribe.Link) *link {
-	return &link{outbound: outbound, manager: manager, links: links}
+func NewLink(db *jsondb.DB[*node.Node], outbound *outbound, manager *manager) *link {
+	return &link{outbound: outbound, manager: manager, db: db}
 }
 
 func (l *link) Save(ls []*subscribe.Link) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.links == nil {
-		l.links = make(map[string]*subscribe.Link)
+	if l.db.Data.Links == nil {
+		l.db.Data.Links = make(map[string]*subscribe.Link)
 	}
 
 	for _, z := range ls {
@@ -43,7 +47,7 @@ func (l *link) Save(ls []*subscribe.Link) {
 		if err == nil {
 			l.addNode(node) // link is a node
 		} else {
-			l.links[z.Name] = z // link is a subscription
+			l.db.Data.Links[z.Name] = z // link is a subscription
 		}
 
 	}
@@ -54,44 +58,60 @@ func (l *link) Delete(names []string) {
 	defer l.mu.Unlock()
 
 	for _, z := range names {
-		delete(l.links, z)
+		delete(l.db.Data.Links, z)
 	}
 }
 
-func (l *link) Links() map[string]*subscribe.Link { return l.links }
+func (l *link) Links() map[string]*subscribe.Link { return l.db.Data.Links }
 
-func (n *link) Update(names []string) {
-	if n.links == nil {
-		n.links = make(map[string]*subscribe.Link)
+func (l *link) Update(names []string) {
+	if l.db.Data.Links == nil {
+		l.db.Data.Links = make(map[string]*subscribe.Link)
 	}
 
 	wg := sync.WaitGroup{}
-	for _, l := range names {
-		l, ok := n.links[l]
+	for _, str := range names {
+		link, ok := l.db.Data.Links[str]
 		if !ok {
 			continue
 		}
 
 		wg.Add(1)
-		go func(l *subscribe.Link) {
+		go func(link *subscribe.Link) {
 			defer wg.Done()
-			if err := n.update(n.outbound.Do, l); err != nil {
+			if err := l.update(l.outbound.Do, link); err != nil {
 				log.Error("get one link failed", "err", err)
 			}
-		}(l)
+		}(link)
 	}
 
 	wg.Wait()
 
-	oo := n.outbound.UDP
-	if p, ok := n.manager.GetNodeByName(oo.Group, oo.Name); ok {
-		n.outbound.Save(p, true)
+	oo := l.db.Data.Udp
+	if p, ok := l.manager.GetNodeByName(oo.Group, oo.Name); ok {
+		l.db.Data.Udp = p
 	}
 
-	oo = n.outbound.TCP
-	if p, ok := n.manager.GetNodeByName(oo.Group, oo.Name); ok {
-		n.outbound.Save(p, false)
+	oo = l.db.Data.Tcp
+	if p, ok := l.manager.GetNodeByName(oo.Group, oo.Name); ok {
+		l.db.Data.Tcp = p
 	}
+}
+
+type trimBase64Reader struct {
+	r io.Reader
+}
+
+func (t *trimBase64Reader) Read(b []byte) (int, error) {
+	n, err := t.r.Read(b)
+
+	if n > 0 {
+		if i := bytes.IndexByte(b[:n], '='); i > 0 {
+			n = i
+		}
+	}
+
+	return n, err
 }
 
 func (n *link) update(do func(*http.Request) (*http.Response, error), link *subscribe.Link) error {
@@ -108,28 +128,24 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 	}
 	defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("read body failed: %w", err)
-	}
-
-	dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(body)))
-	if _, err = base64.RawStdEncoding.Decode(dst, bytes.TrimRight(body, "=")); err != nil {
-		return fmt.Errorf("decode body failed: %w, body: %v", err, string(body))
-	}
-
 	n.manager.DeleteRemoteNodes(link.Name)
 
-	for _, x := range bytes.Split(dst, []byte("\n")) {
-		node, err := parseUrl(x, link)
+	base64r := base64.NewDecoder(base64.RawStdEncoding, &trimBase64Reader{res.Body})
+	scanner := bufio.NewScanner(base64r)
+	for scanner.Scan() {
+		if len(scanner.Bytes()) == 0 {
+			continue
+		}
+
+		node, err := parseUrl(scanner.Bytes(), link)
 		if err != nil {
-			log.Error("parse url failed", slog.String("url", string(x)), slog.Any("err", err))
+			log.Error("parse url failed", slog.String("url", scanner.Text()), slog.Any("err", err))
 		} else {
 			n.addNode(node)
 		}
 	}
 
-	return nil
+	return scanner.Err()
 }
 
 func (n *link) addNode(node *point.Point) {

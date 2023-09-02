@@ -2,7 +2,6 @@ package assert
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
 	"runtime"
 	"testing"
@@ -11,7 +10,7 @@ import (
 func NoError(t testing.TB, err error) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		fmt.Printf("%s:%d: %v\n", file, line, err)
+		t.Logf("%s:%d: %v\n", file, line, err)
 		t.FailNow()
 	}
 }
@@ -19,13 +18,13 @@ func NoError(t testing.TB, err error) {
 func Equal[T comparable](t testing.TB, expected, actual T) {
 	if expected != actual {
 		_, file, line, _ := runtime.Caller(1)
-		fmt.Printf("%s:%d: expected %v, but got %v\n", file, line, expected, actual)
+		t.Logf("%s:%d: expected %v, but got %v\n", file, line, expected, actual)
 	}
 }
 func MustEqual[T comparable](t testing.TB, expected, actual T) {
 	if expected != actual {
 		_, file, line, _ := runtime.Caller(1)
-		fmt.Printf("%s:%d: expected %v, but got %v\n", file, line, expected, actual)
+		t.Logf("%s:%d: expected %v, but got %v\n", file, line, expected, actual)
 		t.FailNow()
 	}
 }

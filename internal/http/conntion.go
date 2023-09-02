@@ -8,8 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -25,67 +28,71 @@ func (c *HttpServerOption) CloseConn(w http.ResponseWriter, r *http.Request) err
 }
 
 func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request) error {
-	return websocket.ServeHTTP(w, r, cc.handler)
-}
+	return websocket.ServeHTTP(w, r, func(ctx context.Context, c *websocket.Conn) error {
+		defer c.Close()
 
-func (cc *HttpServerOption) handler(ctx context.Context, c *websocket.Conn) error {
-	defer c.Close()
+		var ticker int
+		err := websocket.JSON.Receive(c, &ticker)
+		if err != nil {
+			return err
+		}
+		if ticker <= 0 {
+			ticker = 2000
+		}
 
-	var tickerStr string
-	err := websocket.Message.Receive(c, &tickerStr)
-	if err != nil {
-		return err
-	}
-
-	t, err := strconv.ParseInt(tickerStr, 10, 0)
-	if err != nil {
-		return err
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
+		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		cc.Connections.Notify(&emptypb.Empty{}, &connectionsNotifyServer{ctx, c})
-	}()
 
-	ticker := time.NewTicker(time.Duration(t) * time.Millisecond)
-	defer ticker.Stop()
+		go func() {
+			defer cancel()
+			err := cc.Connections.Notify(&emptypb.Empty{},
+				&connectionsNotifyServer{ctx, c})
+			if err != nil {
+				log.Warn("connections notify failed", "err", err)
+			}
+		}()
 
-	go func() {
-		io.Copy(io.Discard, c)
-		cancel()
-	}()
+		go func() {
+			_, _ = relay.Copy(io.Discard, c)
+			cancel()
+		}()
 
-	if err = cc.sendFlow(ctx, c); err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-
-		case <-ticker.C:
-			if err = cc.sendFlow(ctx, c); err != nil {
+		sendFlow := func() error {
+			total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
+			if err != nil {
 				return err
 			}
+			return websocket.JSON.Send(c, &connectPacket{0, nil, nil, total})
 		}
-	}
-}
 
-func (cc *HttpServerOption) sendFlow(ctx context.Context, wsConn *websocket.Conn) error {
-	total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
-	if err != nil {
-		return err
-	}
-	return websocket.JSON.Send(wsConn, map[string]any{"type": 0, "flow": total})
+		if err = sendFlow(); err != nil {
+			return err
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+
+			case <-time.After(time.Duration(ticker) * time.Millisecond):
+				if err = sendFlow(); err != nil {
+					return err
+				}
+			}
+		}
+	})
 }
 
 type connectionsNotifyServer struct {
 	ctx    context.Context
 	wsConn *websocket.Conn
+}
+
+type connectPacket struct {
+	Type        int                     `json:"type"`
+	RemoveIDs   []uint64                `json:"remove_ids,omitempty"`
+	Connections []*statistic.Connection `json:"connections,omitempty"`
+	Flow        *gs.TotalFlow           `json:"flow,omitempty"`
 }
 
 func (x *connectionsNotifyServer) Send(m *gs.NotifyData) error {
@@ -102,11 +109,11 @@ func (x *connectionsNotifyServer) getData(m *gs.NotifyData) any {
 		if len(cs) > 1 {
 			sort.Slice(cs, func(i, j int) bool { return cs[i].Id <= cs[j].Id })
 		}
-		return map[string]any{"type": 1, "data": cs}
+		return &connectPacket{1, nil, cs, nil}
 	}
 
 	if m.GetNotifyRemoveConnections() != nil && m.GetNotifyRemoveConnections().Ids != nil {
-		return map[string]any{"type": 2, "data": m.GetNotifyRemoveConnections().Ids}
+		return &connectPacket{2, m.GetNotifyRemoveConnections().Ids, nil, nil}
 	}
 	return nil
 }

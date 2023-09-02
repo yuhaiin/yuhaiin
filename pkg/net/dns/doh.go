@@ -66,7 +66,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 			defer resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				_ = relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
+				_, _ = relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
 				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 			}
 

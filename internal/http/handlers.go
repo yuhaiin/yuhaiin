@@ -188,9 +188,8 @@ func (l *HttpServerOption) GetLatency(w http.ResponseWriter, r *http.Request) er
 		return errors.New("test latency timeout or can't connect")
 	}
 
-	w.Write([]byte(tt.AsDuration().String()))
-
-	return nil
+	_, err = w.Write([]byte(tt.AsDuration().String()))
+	return err
 }
 
 func (s *HttpServerOption) SaveLink(w http.ResponseWriter, r *http.Request) error {

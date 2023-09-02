@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 // copy from https://github.com/v2fly/v2ray-core/tree/054e6679830885c94cc37d27ab2aa96b5b37e019/proxy/vmess/aead
@@ -63,11 +64,11 @@ func CreateAuthID(cmdKey []byte, time int64) [16]byte {
 	buf := pool.GetBuffer()
 	defer pool.PutBuffer(buf)
 
-	binary.Write(buf, binary.BigEndian, time)
+	_ = binary.Write(buf, binary.BigEndian, time)
 	var zero uint32
-	io.CopyN(buf, rand3.Reader, 4)
+	_, _ = relay.CopyN(buf, rand3.Reader, 4)
 	zero = crc32.ChecksumIEEE(buf.Bytes())
-	binary.Write(buf, binary.BigEndian, zero)
+	_ = binary.Write(buf, binary.BigEndian, zero)
 	aesBlock := NewCipherFromKey(cmdKey)
 	if buf.Len() != 16 {
 		panic("Size unexpected")
@@ -98,7 +99,7 @@ func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
 
 	aeadPayloadLengthSerializeBuffer := bytes.NewBuffer(nil)
 	headerPayloadDataLen := uint16(len(data))
-	binary.Write(aeadPayloadLengthSerializeBuffer, binary.BigEndian, headerPayloadDataLen)
+	_ = binary.Write(aeadPayloadLengthSerializeBuffer, binary.BigEndian, headerPayloadDataLen)
 	aeadPayloadLengthSerializedByte := aeadPayloadLengthSerializeBuffer.Bytes()
 
 	var payloadHeaderLengthAEADEncrypted []byte
@@ -199,7 +200,7 @@ func OpenVMessAEADHeader(key [16]byte, authid [16]byte, data io.Reader) ([]byte,
 
 	var length uint16
 
-	binary.Read(bytes.NewReader(decryptedAEADHeaderLengthPayloadResult), binary.BigEndian, &length)
+	_ = binary.Read(bytes.NewReader(decryptedAEADHeaderLengthPayloadResult), binary.BigEndian, &length)
 
 	var decryptedAEADHeaderPayloadR []byte
 
@@ -265,7 +266,7 @@ func DecodeResponseHeader(responseBodyKey, responseBodyIV []byte, reader net.Con
 	if decryptedResponseHeaderLengthBinaryBuffer, err := aeadResponseHeaderLengthEncryptionAEAD.Open(nil, aeadResponseHeaderLengthEncryptionIV, aeadEncryptedResponseHeaderLength[:], nil); err != nil {
 		return nil, fmt.Errorf("decrypt response header length failed: %w", err)
 	} else {
-		binary.Read(bytes.NewReader(decryptedResponseHeaderLengthBinaryBuffer), binary.BigEndian, &decryptedResponseHeaderLengthBinaryDeserializeBuffer)
+		_ = binary.Read(bytes.NewReader(decryptedResponseHeaderLengthBinaryBuffer), binary.BigEndian, &decryptedResponseHeaderLengthBinaryDeserializeBuffer)
 		decryptedResponseHeaderLength = int(decryptedResponseHeaderLengthBinaryDeserializeBuffer)
 	}
 

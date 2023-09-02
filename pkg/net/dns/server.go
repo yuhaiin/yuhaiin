@@ -16,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -25,54 +24,13 @@ type dnsServer struct {
 	resolver    netapi.Resolver
 	listener    net.PacketConn
 	tcpListener net.Listener
-
-	reqChan   chan dnsRequest
-	doneCtx   context.Context
-	cancelCtx func()
-}
-
-type dnsRequest struct {
-	payload   []byte
-	writeBack func([]byte) error
 }
 
 func NewDnsServer(server string, process netapi.Resolver) netapi.DNSHandler {
-	ctx, cancel := context.WithCancel(context.TODO())
-
 	d := &dnsServer{
-		server:    server,
-		resolver:  process,
-		reqChan:   make(chan dnsRequest, system.Procs),
-		doneCtx:   ctx,
-		cancelCtx: cancel,
+		server:   server,
+		resolver: process,
 	}
-
-	do := func(req dnsRequest) error {
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second*7)
-		defer cancel()
-
-		data, err := d.handle(ctx, req.payload)
-		if err != nil {
-			return err
-		}
-		return req.writeBack(data)
-	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case req := <-d.reqChan:
-				go func() {
-					if err := do(req); err != nil {
-						log.Error("dns server handle failed", "err", err)
-					}
-				}()
-			}
-
-		}
-	}()
 
 	if server == "" {
 		log.Warn("dns server is empty, skip to listen tcp and udp")
@@ -93,8 +51,6 @@ func NewDnsServer(server string, process netapi.Resolver) netapi.DNSHandler {
 }
 
 func (d *dnsServer) Close() error {
-	d.cancelCtx()
-
 	if d.listener != nil {
 		d.listener.Close()
 	}
@@ -127,17 +83,18 @@ func (d *dnsServer) startUDP() (err error) {
 				return
 			}
 
-			writeBack := func(b []byte) error {
-				defer pool.PutBytes(buf)
-				if _, err = d.listener.WriteTo(b, addr); err != nil {
-					return fmt.Errorf("write dns response to client failed: %w", err)
+			go func() {
+				err := d.Do(context.TODO(), buf[:n], func(b []byte) error {
+					defer pool.PutBytes(buf)
+					if _, err = d.listener.WriteTo(b, addr); err != nil {
+						return fmt.Errorf("write dns response to client failed: %w", err)
+					}
+					return nil
+				})
+				if err != nil {
+					log.Error("dns server handle data failed", slog.Any("err", err))
 				}
-				return nil
-			}
-
-			if err = d.Do(context.TODO(), buf[:n], writeBack); err != nil {
-				log.Error("dns server handle data failed", slog.Any("err", err))
-			}
+			}()
 
 		}
 	}()
@@ -207,24 +164,29 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 		return err
 	}
 
-	writeBack := func(b []byte) error {
-		defer pool.PutBytes(buf)
-		_, err = l.WriteTo(b, addr)
-		return err
-	}
+	go func() {
+		err := d.Do(context.TODO(), buf[:n], func(b []byte) error {
+			defer pool.PutBytes(buf)
+			_, err = l.WriteTo(b, addr)
+			return err
+		})
+		if err != nil {
+			log.Error("dns server handle data failed", slog.Any("err", err))
+		}
+	}()
 
-	return d.Do(context.TODO(), buf[:n], writeBack)
+	return nil
 }
 
 func (d *dnsServer) Do(ctx context.Context, b []byte, writeBack func([]byte) error) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-d.doneCtx.Done():
-		return io.EOF
-	case d.reqChan <- dnsRequest{payload: b, writeBack: writeBack}:
-		return nil
+	ctx, cancel := context.WithTimeout(ctx, time.Second*7)
+	defer cancel()
+
+	data, err := d.handle(ctx, b)
+	if err != nil {
+		return err
 	}
+	return writeBack(data)
 }
 
 func (d *dnsServer) handle(ctx context.Context, raw []byte) ([]byte, error) {

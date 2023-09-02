@@ -30,7 +30,7 @@ func TestUDP(t *testing.T) {
 	buf := make([]byte, nat.MaxSegmentSize)
 
 	for {
-		packet.SetReadDeadline(time.Now().Add(time.Second * 5))
+		_ = packet.SetReadDeadline(time.Now().Add(time.Second * 5))
 
 		n, src, err := packet.ReadFrom(buf)
 		assert.NoError(t, err)

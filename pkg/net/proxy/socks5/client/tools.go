@@ -66,19 +66,19 @@ func ParseAddrWriter(addr netapi.Address, buf io.Writer) {
 	switch addr.Type() {
 	case netapi.IP:
 		if ip := yerror.Must(addr.IP(context.TODO())).To4(); ip != nil {
-			buf.Write([]byte{0x01})
-			buf.Write(ip)
+			_, _ = buf.Write([]byte{0x01})
+			_, _ = buf.Write(ip)
 		} else {
-			buf.Write([]byte{0x04})
-			buf.Write(yerror.Must(addr.IP(context.TODO())).To16())
+			_, _ = buf.Write([]byte{0x04})
+			_, _ = buf.Write(yerror.Must(addr.IP(context.TODO())).To16())
 		}
 	case netapi.DOMAIN:
 		fallthrough
 	default:
-		buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
-		buf.Write([]byte(addr.Hostname()))
+		_, _ = buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
+		_, _ = buf.Write([]byte(addr.Hostname()))
 	}
-	binary.Write(buf, binary.BigEndian, addr.Port().Port())
+	_ = binary.Write(buf, binary.BigEndian, addr.Port().Port())
 }
 
 type ADDR []byte
