@@ -32,7 +32,7 @@ type Shunt struct {
 	resolveProxy bool
 	modifiedTime int64
 
-	config *bypass.Config
+	config *bypass.BypassConfig
 	mapper *mapper.Combine[bypass.ModeEnum]
 	mu     sync.RWMutex
 
@@ -58,7 +58,7 @@ func NewShunt(opt Opts) *Shunt {
 
 	return &Shunt{
 		mapper: mapper.NewMapper[bypass.ModeEnum](),
-		config: &bypass.Config{
+		config: &bypass.BypassConfig{
 			Tcp: bypass.Mode_bypass,
 			Udp: bypass.Mode_bypass,
 		},

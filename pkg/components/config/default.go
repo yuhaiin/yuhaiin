@@ -20,7 +20,7 @@ func defaultSetting(path string) *config.Setting {
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		},
-		Bypass: &bypass.Config{
+		Bypass: &bypass.BypassConfig{
 			Tcp:        bypass.Mode_bypass,
 			Udp:        bypass.Mode_bypass,
 			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
@@ -44,7 +44,7 @@ func defaultSetting(path string) *config.Setting {
 				},
 			},
 		},
-		Dns: &pd.Config{
+		Dns: &pd.DnsConfig{
 			ResolveRemoteDomain: false,
 			Server:              "127.0.0.1:5353",
 			Fakedns:             false,
@@ -68,7 +68,7 @@ func defaultSetting(path string) *config.Setting {
 			Level: pl.LogLevel_debug,
 			Save:  true,
 		},
-		Server: &listener.Config{
+		Server: &listener.InboundConfig{
 			Servers: map[string]*listener.Protocol{
 				"http": {
 					Name:    "http",

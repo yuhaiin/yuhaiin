@@ -11,7 +11,7 @@ enum mode {
   block = 3;
 }
 
-message config {
+message bypass_config {
   mode tcp = 3 [ json_name = "tcp" ];
   mode udp = 4 [ json_name = "udp" ];
   string bypass_file = 2 [ json_name = "bypass_file" ];

@@ -36,7 +36,7 @@ func TestCheckDNS(t *testing.T) {
 func TestMergeDefault(t *testing.T) {
 	src := &config.Setting{
 		Ipv6: false,
-		Dns: &dns.Config{
+		Dns: &dns.DnsConfig{
 			Remote: &dns.Dns{
 				Host:          "xxxx",
 				Type:          dns.Type_udp,

@@ -111,7 +111,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	for b.Len() > 0 {
 		data := b.Next(nat.MaxSegmentSize)
 		w.Write(s5Addr)
-		binary.Write(w, binary.BigEndian, uint16(len(data)))
+		_ = binary.Write(w, binary.BigEndian, uint16(len(data)))
 		w.Write(data)
 
 		n, err := c.Conn.Write(w.Bytes())

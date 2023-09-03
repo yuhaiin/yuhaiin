@@ -96,7 +96,7 @@ _retry:
 		return nil
 	}
 
-	if t.Type == pt.Type_mirror {
+	if t.Type == pt.TagType_mirror {
 		if tag == t.Hash[0] {
 			return nil
 		}

@@ -137,7 +137,7 @@ func (y *yuubinsya) Start() (err error) {
 		}
 
 		if c, ok := conn.(interface{ SetKeepAlive(bool) error }); ok {
-			c.SetKeepAlive(true)
+			_ = c.SetKeepAlive(true)
 		}
 
 		go func() {
@@ -296,5 +296,5 @@ func write403(conn net.Conn) {
 	t.Header.Add("date", time.Now().UTC().Format(time.RFC1123))
 	t.Header.Add("server", "openresty")
 
-	t.Write(conn)
+	_ = t.Write(conn)
 }

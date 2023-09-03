@@ -13,7 +13,7 @@ import "node/latency/latency.proto";
 import "node/tag/tag.proto";
 
 service node {
-  rpc now(now_req) returns (yuhaiin.point.point);
+  rpc now(google.protobuf.Empty) returns (now_resp);
   // use req is hash string of point
   rpc use(use_req) returns (yuhaiin.point.point);
 
@@ -25,21 +25,26 @@ service node {
   rpc latency(yuhaiin.latency.requests) returns (yuhaiin.latency.response);
 }
 
+message now_resp {
+  yuhaiin.point.point tcp = 1 [ json_name = "tcp" ];
+  yuhaiin.point.point udp = 2 [ json_name = "udp" ];
+}
+
 message use_req {
   bool tcp = 1 [ json_name = "tcp" ];
   bool udp = 2 [ json_name = "udp" ];
   string hash = 3 [ json_name = "hash" ];
 }
 
-message now_req {
-  enum net_type {
-    reserve = 0;
-    tcp = 1;
-    udp = 2;
-  }
+// message now_req {
+//   enum net_type {
+//     reserve = 0;
+//     tcp = 1;
+//     udp = 2;
+//   }
 
-  net_type net = 1 [ json_name = "type" ];
-}
+//   net_type net = 1 [ json_name = "type" ];
+// }
 
 service subscribe {
   rpc save(save_link_req) returns (google.protobuf.Empty);
@@ -63,6 +68,6 @@ service tag {
 
 message save_tag_req {
   string tag = 1 [ json_name = "tag" ];
-  yuhaiin.tag.type type = 3 [ json_name = "type" ];
+  yuhaiin.tag.tag_type type = 3 [ json_name = "type" ];
   string hash = 2 [ json_name = "hash" ];
 }
