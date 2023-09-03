@@ -3,7 +3,11 @@ package websocket
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -131,3 +135,45 @@ Trivial usage:
 	websocket.JSON.Send(ws, data)
 */
 var JSON = Codec{jsonMarshal, jsonUnmarshal}
+
+func protoMarshal(v any) (msg []byte, payloadType opcode, err error) {
+	m, ok := v.(proto.Message)
+	if !ok {
+		return nil, 0, fmt.Errorf("data is not proto message")
+	}
+
+	msg, err = proto.Marshal(m)
+	return msg, opBinary, err
+}
+
+func protoUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
+	m, ok := v.(proto.Message)
+	if !ok {
+		return fmt.Errorf("data is not proto message")
+	}
+
+	return proto.Unmarshal(msg, m)
+}
+
+var PROTO = Codec{protoMarshal, protoUnmarshal}
+
+func protoJsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
+	m, ok := v.(proto.Message)
+	if !ok {
+		return nil, 0, fmt.Errorf("data is not proto message")
+	}
+
+	msg, err = protojson.Marshal(m)
+	return msg, opBinary, err
+}
+
+func protoJsonUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
+	m, ok := v.(proto.Message)
+	if !ok {
+		return fmt.Errorf("data is not proto message")
+	}
+
+	return protojson.Unmarshal(msg, m)
+}
+
+var PROTOJSON = Codec{protoJsonMarshal, protoJsonUnmarshal}

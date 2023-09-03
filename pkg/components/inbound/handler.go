@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -56,7 +57,11 @@ func NewHandler(dialer netapi.Proxy) *handler {
 func (s *handler) Stream(ctx context.Context, meta *netapi.StreamMeta) {
 	go func() {
 		if err := s.stream(ctx, meta); err != nil {
-			log.Error("stream", "error", err)
+			if errors.Is(err, netapi.ErrBlocked) {
+				log.Debug("blocked", "msg", err)
+			} else {
+				log.Error("stream", "error", err)
+			}
 		}
 	}()
 }

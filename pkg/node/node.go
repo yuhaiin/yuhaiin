@@ -29,12 +29,11 @@ type Nodes struct {
 
 func NewNodes(fileStore *FileStore) *Nodes { return &Nodes{fileStore: fileStore} }
 
-func (n *Nodes) Now(_ context.Context, r *gn.NowReq) (*point.Point, error) {
-	if r.Net == gn.NowReq_udp {
-		return n.fileStore.db.Data.Udp, nil
-	} else {
-		return n.fileStore.db.Data.Tcp, nil
-	}
+func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
+	return &gn.NowResp{
+		Tcp: n.fileStore.db.Data.Tcp,
+		Udp: n.fileStore.db.Data.Udp,
+	}, nil
 }
 
 func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point, error) {

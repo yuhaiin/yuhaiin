@@ -42,14 +42,14 @@ type HttpServerOption struct {
 func (o *HttpServerOption) Routers() Handler {
 	return Handler{
 		http.MethodGet: {
-			"/grouplist":   o.GroupList,
-			"/group":       o.GetGroups,
-			"/sublist":     o.GetLinkList,
-			"/taglist":     o.TagList,
-			"/config/json": o.GetConfig,
-			"/node/now":    o.NodeNow,
-			"/node":        o.GetNode,
-			"/latency":     o.GetLatency,
+			"/grouplist": o.GroupList,
+			"/group":     o.GetGroups,
+			"/sublist":   o.GetLinkList,
+			"/taglist":   o.TagList,
+			"/config":    o.GetConfig,
+			"/node/now":  o.NodeNow,
+			"/node":      o.GetNode,
+			"/latency":   o.GetLatency,
 		},
 		http.MethodPost: {
 			"/config": o.SaveConfig,
@@ -154,6 +154,17 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 		method = "WS"
 	}
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
+	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	if method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	methods, ok := h[method]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
@@ -166,17 +177,6 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
-	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-	if method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	err := handler(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -185,7 +185,7 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message, opts ...func(*protojson.MarshalOptions)) error {
+func MarshalProtoJsonAndWrite(w http.ResponseWriter, data proto.Message, opts ...func(*protojson.MarshalOptions)) error {
 	marshaler := protojson.MarshalOptions{}
 
 	for _, f := range opts {
@@ -193,6 +193,16 @@ func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message, opts ...fun
 	}
 
 	bytes, err := marshaler.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("marshal proto failed: %w", err)
+	}
+
+	_, err = w.Write(bytes)
+	return err
+}
+
+func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message) error {
+	bytes, err := proto.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("marshal proto failed: %w", err)
 	}
@@ -211,7 +221,7 @@ func MarshalJsonAndWrite(w http.ResponseWriter, data interface{}) error {
 	return err
 }
 
-func UnmarshalProtoFromRequest(r *http.Request, data proto.Message, opts ...func(*protojson.UnmarshalOptions)) error {
+func UnmarshalProtoJsonFromRequest(r *http.Request, data proto.Message, opts ...func(*protojson.UnmarshalOptions)) error {
 	unmarshaler := protojson.UnmarshalOptions{
 		DiscardUnknown: true,
 	}
@@ -226,6 +236,15 @@ func UnmarshalProtoFromRequest(r *http.Request, data proto.Message, opts ...func
 	}
 
 	return unmarshaler.Unmarshal(bytes, data)
+}
+
+func UnmarshalProtoFromRequest(r *http.Request, data proto.Message) error {
+	bytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	return proto.Unmarshal(bytes, data)
 }
 
 func UnmarshalJsonFromRequest(r *http.Request, data interface{}) error {

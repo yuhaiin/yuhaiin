@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -25,13 +24,13 @@ import (
 func (cc *HttpServerOption) GetConfig(w http.ResponseWriter, r *http.Request) error {
 	return WhenNoError(cc.Config.Load(r.Context(), &emptypb.Empty{})).Do(func(t *config.Setting) error {
 		w.Header().Set("Core-OS", runtime.GOOS)
-		return MarshalProtoAndWrite(w, t, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true })
+		return MarshalProtoAndWrite(w, t)
 	})
 }
 
 func (c *HttpServerOption) SaveConfig(w http.ResponseWriter, r *http.Request) error {
 	config := &config.Setting{}
-	if err := UnmarshalProtoFromRequest(r, config); err != nil {
+	if err := UnmarshalProtoJsonFromRequest(r, config); err != nil {
 		return err
 	}
 
@@ -70,33 +69,13 @@ func (t *HttpServerOption) TagList(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	type tag struct {
-		Hash string `json:"hash"`
-		Type string `json:"type"`
-	}
-
-	tags := make(map[string]tag)
-
-	for k, v := range m.Tags {
-		tags[k] = tag{
-			Hash: v.GetHash()[0],
-			Type: v.Type.String(),
-		}
-	}
-
 	for _, v := range t.Shunt.Tags() {
-		if _, ok := tags[v]; !ok {
-			tags[v] = tag{}
+		if _, ok := m.Tags[v]; !ok {
+			m.Tags[v] = &pt.Tags{}
 		}
 	}
 
-	groups := make(map[string]map[string]string)
-
-	for k, v := range m.GroupsV2 {
-		groups[k] = v.NodesV2
-	}
-
-	return MarshalJsonAndWrite(w, map[string]any{"tags": tags, "groups": groups})
+	return MarshalProtoAndWrite(w, m)
 }
 
 func (t *HttpServerOption) SaveTag(w http.ResponseWriter, r *http.Request) error {
@@ -105,16 +84,17 @@ func (t *HttpServerOption) SaveTag(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	tYPE, ok := pt.Type_value[z["type"]]
+	tYPE, ok := pt.TagType_value[z["type"]]
 	if !ok {
 		return fmt.Errorf("unknown tag type: %v", z["type"])
 	}
 
-	_, err := t.Tag.Save(r.Context(), &gn.SaveTagReq{
-		Tag:  z["tag"],
-		Hash: z["hash"],
-		Type: pt.Type(tYPE),
-	})
+	_, err := t.Tag.Save(r.Context(),
+		&gn.SaveTagReq{
+			Tag:  z["tag"],
+			Hash: z["hash"],
+			Type: pt.TagType(tYPE),
+		})
 	return err
 }
 
@@ -193,21 +173,12 @@ func (l *HttpServerOption) GetLatency(w http.ResponseWriter, r *http.Request) er
 }
 
 func (s *HttpServerOption) SaveLink(w http.ResponseWriter, r *http.Request) error {
-	name := r.URL.Query().Get("name")
-	link := r.URL.Query().Get("link")
-
-	if name == "" || link == "" {
-		return errors.New("name or link is empty")
+	var req gn.SaveLinkReq
+	if err := UnmarshalProtoFromRequest(r, &req); err != nil {
+		return err
 	}
 
-	_, err := s.Subscribe.Save(r.Context(), &gn.SaveLinkReq{
-		Links: []*subscribe.Link{
-			{
-				Name: name,
-				Url:  link,
-			},
-		},
-	})
+	_, err := s.Subscribe.Save(r.Context(), &req)
 	return err
 }
 
@@ -217,74 +188,36 @@ func (s *HttpServerOption) GetLinkList(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	linksValue := maps.Values(links.Links)
-
-	sort.Slice(linksValue, func(i, j int) bool { return linksValue[i].Name < linksValue[j].Name })
-
-	return MarshalJsonAndWrite(w, linksValue)
+	return MarshalProtoAndWrite(w, links)
 }
 
 func (s *HttpServerOption) DeleteLink(w http.ResponseWriter, r *http.Request) error {
-	data := r.URL.Query().Get("links")
-	if data == "" {
-		w.WriteHeader(http.StatusOK)
-		return nil
-	}
-
-	var names []string
-
-	if err := json.Unmarshal([]byte(data), &names); err != nil {
+	var req gn.LinkReq
+	if err := UnmarshalProtoFromRequest(r, &req); err != nil {
 		return err
 	}
 
-	_, err := s.Subscribe.Remove(r.Context(), &gn.LinkReq{Names: names})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := s.Subscribe.Remove(r.Context(), &req)
+	return err
 }
 
 func (s *HttpServerOption) PatchLink(w http.ResponseWriter, r *http.Request) error {
-	data := r.URL.Query().Get("links")
-	if data == "" {
-		w.WriteHeader(http.StatusOK)
-		return nil
-	}
-
-	var names []string
-	if err := json.Unmarshal([]byte(data), &names); err != nil {
+	var req gn.LinkReq
+	if err := UnmarshalProtoFromRequest(r, &req); err != nil {
 		return err
 	}
 
-	_, err := s.Subscribe.Update(r.Context(), &gn.LinkReq{Names: names})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := s.Subscribe.Update(r.Context(), &req)
+	return err
 }
 
 func (z *HttpServerOption) NodeNow(w http.ResponseWriter, r *http.Request) error {
-	point, err := z.NodeServer.Now(r.Context(), &gn.NowReq{Net: gn.NowReq_tcp})
-	if err != nil {
-		return err
-	}
-	tcpData, err := protojson.MarshalOptions{Indent: "  "}.Marshal(point)
+	now, err := z.NodeServer.Now(r.Context(), &emptypb.Empty{})
 	if err != nil {
 		return err
 	}
 
-	point, err = z.NodeServer.Now(r.Context(), &gn.NowReq{Net: gn.NowReq_udp})
-	if err != nil {
-		return err
-	}
-	udpData, err := protojson.MarshalOptions{Indent: "  "}.Marshal(point)
-	if err != nil {
-		return err
-	}
-
-	return MarshalJsonAndWrite(w, map[string]string{"tcp": string(tcpData), "udp": string(udpData)})
+	return MarshalProtoAndWrite(w, now)
 }
 
 var protocolsMapping = map[string]*protocol.Protocol{
@@ -317,7 +250,7 @@ func (nn *HttpServerOption) GetNode(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	return MarshalProtoAndWrite(w, n, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true })
+	return MarshalProtoJsonAndWrite(w, n, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true })
 }
 
 func (n *HttpServerOption) generateTemplates(w http.ResponseWriter, r *http.Request) error {
@@ -338,7 +271,7 @@ func (n *HttpServerOption) generateTemplates(w http.ResponseWriter, r *http.Requ
 		node.Protocols = append(node.Protocols, protocolsMapping[v])
 	}
 
-	return MarshalProtoAndWrite(w, node, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true; mo.Indent = " " })
+	return MarshalProtoJsonAndWrite(w, node, func(mo *protojson.MarshalOptions) { mo.EmitUnpopulated = true; mo.Indent = " " })
 }
 
 func (n *HttpServerOption) DeleteNOde(w http.ResponseWriter, r *http.Request) error {
@@ -357,7 +290,7 @@ func (n *HttpServerOption) DeleteNOde(w http.ResponseWriter, r *http.Request) er
 
 func (n *HttpServerOption) SaveNode(w http.ResponseWriter, r *http.Request) error {
 	point := &point.Point{}
-	if err := UnmarshalProtoFromRequest(r, point); err != nil {
+	if err := UnmarshalProtoJsonFromRequest(r, point); err != nil {
 		return err
 	}
 	if _, err := n.NodeServer.Save(r.Context(), point); err != nil {
