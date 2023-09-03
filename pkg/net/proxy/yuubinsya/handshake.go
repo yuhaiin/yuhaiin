@@ -227,7 +227,9 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *
 	if salt != nil {
 		copy(buf.salt(), salt) // server: sign with client salt
 	} else {
-		rand.Read(buf.salt()) // client: read random bytes to salt
+		if _, err = rand.Read(buf.salt()); err != nil { // client: read random bytes to salt
+			return nil, nil, fmt.Errorf("read salt from rand failed: %w", err)
+		}
 	}
 
 	copy(buf.publickey(), pk.PublicKey().Bytes())
@@ -247,7 +249,9 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *
 	copy(buf.signature(), signature)
 
 	if salt != nil {
-		rand.Read(buf.salt()) // server: read random bytes to padding
+		if _, err := rand.Read(buf.salt()); err != nil { // server: read random bytes to padding
+			return nil, nil, fmt.Errorf("read salt from rand failed: %w", err)
+		}
 	}
 
 	if _, err = conn.Write(buf.Bytes()); err != nil {

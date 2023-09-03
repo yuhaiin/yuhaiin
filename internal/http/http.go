@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
@@ -23,7 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-//go:embed build
+//go:embed all:build
 var front embed.FS
 
 var debug func(*http.ServeMux)
@@ -42,14 +43,14 @@ type HttpServerOption struct {
 func (o *HttpServerOption) Routers() Handler {
 	return Handler{
 		http.MethodGet: {
-			"/grouplist":   o.GroupList,
-			"/group":       o.GetGroups,
-			"/sublist":     o.GetLinkList,
-			"/taglist":     o.TagList,
-			"/config/json": o.GetConfig,
-			"/node/now":    o.NodeNow,
-			"/node":        o.GetNode,
-			"/latency":     o.GetLatency,
+			"/grouplist": o.GroupList,
+			"/group":     o.GetGroups,
+			"/sublist":   o.GetLinkList,
+			"/taglist":   o.TagList,
+			"/config":    o.GetConfig,
+			"/node/now":  o.NodeNow,
+			"/node":      o.GetNode,
+			"/latency":   o.GetLatency,
 		},
 		http.MethodPost: {
 			"/config": o.SaveConfig,
@@ -81,18 +82,35 @@ func Httpserver(o HttpServerOption) {
 		debug(o.Mux)
 	}
 
-	fs := http.FileServer(http.FS(yerror.Ignore(fs.Sub(front, "build"))))
+	hfs := http.FileServer(http.FS(yerror.Ignore(fs.Sub(front, "build"))))
 
 	handlers := o.Routers()
 
 	o.Mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Debug("http new request", slog.String("method", r.Method), slog.String("path", r.URL.String()))
+		log.Debug("http new request",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.String()))
+
 		if strings.HasPrefix(r.URL.Path, "/yuhaiin") {
 			r.URL.Path = "/"
 		}
 
-		if r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/static") {
-			fs.ServeHTTP(w, r)
+		if strings.HasPrefix(r.URL.Path, "/docs") {
+			if filepath.Ext(r.URL.Path) == "" {
+				r.URL.Path = "/"
+			}
+		}
+
+		if r.URL.Path == "/" ||
+			strings.HasPrefix(r.URL.Path, "/static") ||
+			strings.HasPrefix(r.URL.Path, "/_next") ||
+			strings.HasPrefix(r.URL.Path, "/docs") ||
+			strings.HasPrefix(r.URL.Path, "/404.html") ||
+			strings.HasPrefix(r.URL.Path, "/index.txt") {
+			fmt.Println(r.URL.Path)
+
+			w.Header().Set("Content-Encoding", "gzip")
+			hfs.ServeHTTP(w, r)
 		} else {
 			handlers.ServeHTTP(w, r)
 		}
@@ -154,6 +172,17 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 		method = "WS"
 	}
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
+	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	if method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	methods, ok := h[method]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
@@ -166,17 +195,6 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, PATCH, OPTIONS, HEAD")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Token")
-	w.Header().Set("Access-Control-Expose-Headers", "Access-Control-Allow-Headers, Token")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-	if method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	err := handler(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -185,7 +203,7 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message, opts ...func(*protojson.MarshalOptions)) error {
+func MarshalProtoJsonAndWrite(w http.ResponseWriter, data proto.Message, opts ...func(*protojson.MarshalOptions)) error {
 	marshaler := protojson.MarshalOptions{}
 
 	for _, f := range opts {
@@ -193,6 +211,16 @@ func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message, opts ...fun
 	}
 
 	bytes, err := marshaler.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("marshal proto failed: %w", err)
+	}
+
+	_, err = w.Write(bytes)
+	return err
+}
+
+func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message) error {
+	bytes, err := proto.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("marshal proto failed: %w", err)
 	}
@@ -211,7 +239,7 @@ func MarshalJsonAndWrite(w http.ResponseWriter, data interface{}) error {
 	return err
 }
 
-func UnmarshalProtoFromRequest(r *http.Request, data proto.Message, opts ...func(*protojson.UnmarshalOptions)) error {
+func UnmarshalProtoJsonFromRequest(r *http.Request, data proto.Message, opts ...func(*protojson.UnmarshalOptions)) error {
 	unmarshaler := protojson.UnmarshalOptions{
 		DiscardUnknown: true,
 	}
@@ -226,6 +254,15 @@ func UnmarshalProtoFromRequest(r *http.Request, data proto.Message, opts ...func
 	}
 
 	return unmarshaler.Unmarshal(bytes, data)
+}
+
+func UnmarshalProtoFromRequest(r *http.Request, data proto.Message) error {
+	bytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	return proto.Unmarshal(bytes, data)
 }
 
 func UnmarshalJsonFromRequest(r *http.Request, data interface{}) error {

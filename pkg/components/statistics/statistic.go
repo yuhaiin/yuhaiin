@@ -56,14 +56,14 @@ func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) er
 	return s.Context().Err()
 }
 
-func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.ConnectionsInfo, error) {
-	return &gs.ConnectionsInfo{
+func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.NotifyNewConnections, error) {
+	return &gs.NotifyNewConnections{
 		Connections: slice.To(c.connStore.ValueSlice(),
 			func(c connection) *statistic.Connection { return c.Info() }),
 	}, nil
 }
 
-func (c *Connections) CloseConn(_ context.Context, x *gs.ConnectionsId) (*emptypb.Empty, error) {
+func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections) (*emptypb.Empty, error) {
 	for _, x := range x.Ids {
 		if z, ok := c.connStore.Load(x); ok {
 			z.Close()

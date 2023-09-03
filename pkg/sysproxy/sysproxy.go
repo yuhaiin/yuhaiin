@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var server *listener.Config
+var server *listener.InboundConfig
 
 func Update(path string) func(s *cb.Setting) {
 	return func(s *cb.Setting) {

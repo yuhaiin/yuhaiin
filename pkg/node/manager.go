@@ -127,7 +127,7 @@ func (m *manager) DeleteNode(hash string) {
 	}
 }
 
-func (m *manager) AddTag(tag string, t pt.Type, hash string) {
+func (m *manager) AddTag(tag string, t pt.TagType, hash string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -137,9 +137,9 @@ func (m *manager) AddTag(tag string, t pt.Type, hash string) {
 
 	var ok bool
 	switch t {
-	case pt.Type_node:
+	case pt.TagType_node:
 		_, ok = m.Manager.Nodes[hash]
-	case pt.Type_mirror:
+	case pt.TagType_mirror:
 		if tag == hash {
 			ok = false
 		} else {

@@ -20,7 +20,7 @@ type tag struct {
 func NewTag(f *FileStore) gn.TagServer { return &tag{manager: f.manAger, fileStore: f} }
 
 func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
-	if r.Type == pt.Type_mirror && r.Tag == r.Hash {
+	if r.Type == pt.TagType_mirror && r.Tag == r.Hash {
 		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")
 	}
 

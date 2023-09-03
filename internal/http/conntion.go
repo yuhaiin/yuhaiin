@@ -4,8 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"sort"
-	"strconv"
+	"slices"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -18,12 +17,11 @@ import (
 )
 
 func (c *HttpServerOption) CloseConn(w http.ResponseWriter, r *http.Request) error {
-	i, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64)
-	if err != nil {
+	var req gs.NotifyRemoveConnections
+	if err := UnmarshalProtoFromRequest(r, &req); err != nil {
 		return err
 	}
-
-	_, err = c.Connections.CloseConn(r.Context(), &gs.ConnectionsId{Ids: []uint64{i}})
+	_, err := c.Connections.CloseConn(r.Context(), &req)
 	return err
 }
 
@@ -62,7 +60,7 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				return err
 			}
-			return websocket.JSON.Send(c, &connectPacket{0, nil, nil, total})
+			return websocket.PROTO.Send(c, &gs.NotifyData{Data: &gs.NotifyData_TotalFlow{TotalFlow: total}})
 		}
 
 		if err = sendFlow(); err != nil {
@@ -88,34 +86,17 @@ type connectionsNotifyServer struct {
 	wsConn *websocket.Conn
 }
 
-type connectPacket struct {
-	Type        int                     `json:"type"`
-	RemoveIDs   []uint64                `json:"remove_ids,omitempty"`
-	Connections []*statistic.Connection `json:"connections,omitempty"`
-	Flow        *gs.TotalFlow           `json:"flow,omitempty"`
-}
-
 func (x *connectionsNotifyServer) Send(m *gs.NotifyData) error {
-	if mm := x.getData(m); mm != nil {
-		return websocket.JSON.Send(x.wsConn, mm)
+	if cs := m.GetNotifyNewConnections(); cs != nil {
+		slices.SortFunc(cs.Connections, func(a, b *statistic.Connection) int {
+			if a.Id <= b.Id {
+				return -1
+			} else {
+				return 1
+			}
+		})
 	}
-
-	return nil
-}
-
-func (x *connectionsNotifyServer) getData(m *gs.NotifyData) any {
-	if m.GetNotifyNewConnections() != nil && m.GetNotifyNewConnections().Connections != nil {
-		cs := m.GetNotifyNewConnections().Connections
-		if len(cs) > 1 {
-			sort.Slice(cs, func(i, j int) bool { return cs[i].Id <= cs[j].Id })
-		}
-		return &connectPacket{1, nil, cs, nil}
-	}
-
-	if m.GetNotifyRemoveConnections() != nil && m.GetNotifyRemoveConnections().Ids != nil {
-		return &connectPacket{2, m.GetNotifyRemoveConnections().Ids, nil, nil}
-	}
-	return nil
+	return websocket.PROTO.Send(x.wsConn, m)
 }
 func (x *connectionsNotifyServer) Context() context.Context     { return x.ctx }
 func (x *connectionsNotifyServer) SetHeader(metadata.MD) error  { return nil }

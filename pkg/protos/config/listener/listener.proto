@@ -16,7 +16,7 @@ message protocol {
   }
 }
 
-message config { map<string, protocol> servers = 5 [ json_name = "servers" ]; }
+message inbound_config { map<string, protocol> servers = 5 [ json_name = "servers" ]; }
 
 message http {
   string host = 1 [ json_name = "host" ];

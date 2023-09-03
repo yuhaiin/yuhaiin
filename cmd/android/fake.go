@@ -27,7 +27,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 	log.Info("fake setting config", "data", string(opts))
 	settings := &pc.Setting{
 		Ipv6: opt.IPv6,
-		Dns: &dns.Config{
+		Dns: &dns.DnsConfig{
 			Server:              opt.DNS.Server,
 			Fakedns:             opt.DNS.Fakedns,
 			FakednsIpRange:      opt.DNS.FakednsIpRange,
@@ -53,7 +53,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			},
 		},
 		SystemProxy: &pc.SystemProxy{},
-		Server: &listener.Config{
+		Server: &listener.InboundConfig{
 			Servers: map[string]*listener.Protocol{
 				"socks5": {
 					Name:    "socks5",
@@ -91,7 +91,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			},
 		},
 
-		Bypass: &bypass.Config{
+		Bypass: &bypass.BypassConfig{
 			Tcp:          bypass.Mode(opt.Bypass.TCP),
 			Udp:          bypass.Mode(opt.Bypass.UDP),
 			BypassFile:   filepath.Join(filepath.Dir(path), "yuhaiin.conf"),

@@ -21,7 +21,7 @@ type Ed25519 struct {
 func NewEd25519(hash Hash, key []byte) Signer {
 	r := hkdf.New(hash.New, key, make([]byte, hash.Size()), []byte("ed25519-signature"))
 	seed := make([]byte, ed25519.SeedSize)
-	io.ReadFull(r, seed)
+	_, _ = io.ReadFull(r, seed)
 
 	return &Ed25519{ed25519.NewKeyFromSeed(seed)}
 }

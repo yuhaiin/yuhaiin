@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -33,7 +34,7 @@ func NewDnsServer(server string, process netapi.Resolver) netapi.DNSHandler {
 	}
 
 	if server == "" {
-		log.Warn("dns server is empty, skip to listen tcp and udp")
+		log.Info("dns server is empty, skip to listen tcp and udp")
 		return d
 	}
 
@@ -69,23 +70,26 @@ func (d *dnsServer) startUDP() (err error) {
 
 	log.Info("new udp dns server", "host", d.server)
 
-	go func() {
-		defer d.Close()
-		for {
+	for i := 0; i < system.Procs; i++ {
+		go func() {
 			buf := pool.GetBytes(nat.MaxSegmentSize)
-			n, addr, err := d.listener.ReadFrom(buf)
-			if err != nil {
-				pool.PutBytes(buf)
-				if e, ok := err.(net.Error); ok && e.Temporary() {
-					continue
-				}
-				log.Error("dns udp server handle failed", "err", err)
-				return
-			}
+			defer pool.PutBytes(buf)
+			defer d.Close()
 
-			go func() {
-				err := d.Do(context.TODO(), buf[:n], func(b []byte) error {
-					defer pool.PutBytes(buf)
+			for {
+				n, addr, err := d.listener.ReadFrom(buf)
+				if err != nil {
+					if e, ok := err.(net.Error); ok && e.Temporary() {
+						continue
+					}
+
+					if !errors.Is(err, net.ErrClosed) {
+						log.Error("dns udp server handle failed", "err", err)
+					}
+					return
+				}
+
+				err = d.Do(context.TODO(), buf[:n], func(b []byte) error {
 					if _, err = d.listener.WriteTo(b, addr); err != nil {
 						return fmt.Errorf("write dns response to client failed: %w", err)
 					}
@@ -94,10 +98,10 @@ func (d *dnsServer) startUDP() (err error) {
 				if err != nil {
 					log.Error("dns server handle data failed", slog.Any("err", err))
 				}
-			}()
 
-		}
-	}()
+			}
+		}()
+	}
 
 	return nil
 }
@@ -138,15 +142,14 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 	}
 
 	data := pool.GetBytes(int(length))
+	defer pool.PutBytes(data)
 
 	n, err := io.ReadFull(c, data[:length])
 	if err != nil {
-		pool.PutBytes(data)
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
 	return d.Do(ctx, data[:n], func(b []byte) error {
-		defer pool.PutBytes(data)
 		if err = binary.Write(c, binary.BigEndian, uint16(len(b))); err != nil {
 			return fmt.Errorf("dns server write length failed: %w", err)
 		}
@@ -157,25 +160,17 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 
 func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 	buf := pool.GetBytes(nat.MaxSegmentSize)
+	defer pool.PutBytes(buf)
 
 	n, addr, err := l.ReadFrom(buf)
 	if err != nil {
-		pool.PutBytes(buf)
 		return err
 	}
 
-	go func() {
-		err := d.Do(context.TODO(), buf[:n], func(b []byte) error {
-			defer pool.PutBytes(buf)
-			_, err = l.WriteTo(b, addr)
-			return err
-		})
-		if err != nil {
-			log.Error("dns server handle data failed", slog.Any("err", err))
-		}
-	}()
-
-	return nil
+	return d.Do(context.TODO(), buf[:n], func(b []byte) error {
+		_, err = l.WriteTo(b, addr)
+		return err
+	})
 }
 
 func (d *dnsServer) Do(ctx context.Context, b []byte, writeBack func([]byte) error) error {
