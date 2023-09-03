@@ -13,7 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
-func SetSysProxy(http, socks5 string) {
+func SetSysProxy(_, http, socks5 string) {
 	var httpHostname, httpPort string
 	var socks5Hostname, socks5Port string
 
@@ -104,7 +104,7 @@ func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 	return nil
 }
 
-func UnsetSysProxy() {
+func UnsetSysProxy(string) {
 	if err := gnomeUnsetSysProxy(); err != nil {
 		log.Error("unset gnome proxy failed", "err", err)
 	}

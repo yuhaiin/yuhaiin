@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 	"unsafe"
@@ -50,25 +49,8 @@ func strPtr(s string) (uintptr, error) {
 	return uintptr(unsafe.Pointer(b)), nil
 }
 
-func getExecPath() (string, error) {
-	file, err := exec.LookPath(os.Args[0])
-	if err != nil {
-		return "", err
-	}
-	execPath, err := filepath.Abs(file)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Dir(execPath), nil
-}
-
-func getdll() (*syscall.LazyDLL, error) {
-	execPath, err := getExecPath()
-	if err != nil {
-		return nil, err
-	}
-
-	dll, err := expertDLL(execPath)
+func getdll(path string) (*syscall.LazyDLL, error) {
+	dll, err := expertDLL(path)
 	if err != nil {
 		return nil, fmt.Errorf("expertDLL failed: %w", err)
 	}
@@ -76,17 +58,17 @@ func getdll() (*syscall.LazyDLL, error) {
 	return syscall.NewLazyDLL(dll), nil
 }
 
-func SetSysProxy(http, _ string) {
-	if err := setSysProxy(http, ""); err != nil {
+func SetSysProxy(path, http, _ string) {
+	if err := setSysProxy(path, http, ""); err != nil {
 		log.Error("set system proxy failed:", "err", err)
 	}
 }
 
-func setSysProxy(http, _ string) error {
+func setSysProxy(path, http, _ string) error {
 	if http == "" {
 		return nil
 	}
-	d, err := getdll()
+	d, err := getdll(path)
 	if err != nil {
 		return fmt.Errorf("get proxy dll failed: %w", err)
 	}
@@ -122,14 +104,14 @@ func setSysProxy(http, _ string) error {
 	return nil
 }
 
-func UnsetSysProxy() {
-	if err := unsetSysProxy(); err != nil {
+func UnsetSysProxy(path string) {
+	if err := unsetSysProxy(path); err != nil {
 		log.Error("unset wystem proxy failed:", "err", err)
 	}
 }
 
-func unsetSysProxy() error {
-	d, err := getdll()
+func unsetSysProxy(path string) error {
+	d, err := getdll(path)
 	if err != nil {
 		return fmt.Errorf("get proxy dll failed: %w", err)
 	}

@@ -12,25 +12,27 @@ import (
 
 var server *listener.Config
 
-func Update(s *cb.Setting) {
-	if proto.Equal(server, s.Server) {
-		return
-	}
-	UnsetSysProxy()
-	var http, socks5 string
+func Update(path string) func(s *cb.Setting) {
+	return func(s *cb.Setting) {
+		if proto.Equal(server, s.Server) {
+			return
+		}
+		UnsetSysProxy(path)
+		var http, socks5 string
 
-	for _, v := range s.Server.Servers {
-		if v.GetHttp() != nil && s.SystemProxy.Http {
-			http = v.GetHttp().GetHost()
+		for _, v := range s.Server.Servers {
+			if v.GetHttp() != nil && s.SystemProxy.Http {
+				http = v.GetHttp().GetHost()
+			}
+
+			if v.GetSocks5() != nil && s.SystemProxy.Socks5 {
+				socks5 = v.GetSocks5().GetHost()
+			}
 		}
 
-		if v.GetSocks5() != nil && s.SystemProxy.Socks5 {
-			socks5 = v.GetSocks5().GetHost()
-		}
+		SetSysProxy(path, replaceUnspecified(http), replaceUnspecified(socks5))
+		server = s.Server
 	}
-
-	SetSysProxy(replaceUnspecified(http), replaceUnspecified(socks5))
-	server = s.Server
 }
 
 func replaceUnspecified(s string) string {
@@ -48,6 +50,6 @@ func replaceUnspecified(s string) string {
 	return s
 }
 
-func Unset() {
-	UnsetSysProxy()
+func Unset(path string) {
+	UnsetSysProxy(path)
 }
