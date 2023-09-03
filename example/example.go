@@ -55,7 +55,7 @@ func main() {
 	}
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(resp.Body)
+	_, _ = buf.ReadFrom(resp.Body)
 	defer resp.Body.Close()
 	log.Println(buf.String())
 }

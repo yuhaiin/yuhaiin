@@ -1,6 +1,6 @@
 package scripts
 
-import _ "golang.org/x/mobile/bind/seq"
+import _ "golang.org/x/mobile/bind"
 
 // windows exe icon and describe
 // windres from minGW64 https://sourceforge.net/projects/mingw-w64/files/mingw-w64/mingw-w64-release/

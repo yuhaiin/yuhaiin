@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
-func SetSysProxy(http, socks5 string) {
+func SetSysProxy(_, http, socks5 string) {
 	var httpHostname, httpPort string
 	var socks5Hostname, socks5Port string
 
@@ -54,7 +54,7 @@ func SetSysProxy(http, socks5 string) {
 
 }
 
-func UnsetSysProxy() {
+func UnsetSysProxy(string) {
 	networksetup := "/usr/sbin/networksetup"
 
 	services, err := getServices(networksetup)

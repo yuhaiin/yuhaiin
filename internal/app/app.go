@@ -79,7 +79,12 @@ func Close() error {
 		z.Close()
 	}
 	log.Close()
-	sysproxy.Unset()
+
+	var path string
+	if so != nil {
+		path = so.ConfigPath
+	}
+	sysproxy.Unset(path)
 
 	Mux = http.NewServeMux()
 	so = nil
@@ -120,11 +125,12 @@ func Start(opt StartOpt) (err error) {
 		return err
 	}
 
+	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath)) }))
+
 	fmt.Println(version.Art)
 	log.Info("config", "path", so.ConfigPath, "grpc&http host", so.Host)
 
-	so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update))
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath)) }))
+	so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update(so.ConfigPath)))
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
 	filestore := node.NewFileStore(PathGenerator.Node(so.ConfigPath))
@@ -214,7 +220,7 @@ func (p pathGenerator) Log(dir string) string {
 }
 func (pathGenerator) makeDir(s string) string {
 	if _, err := os.Stat(s); errors.Is(err, os.ErrNotExist) {
-		os.MkdirAll(filepath.Dir(s), os.ModePerm)
+		_ = os.MkdirAll(filepath.Dir(s), os.ModePerm)
 	}
 
 	return s
