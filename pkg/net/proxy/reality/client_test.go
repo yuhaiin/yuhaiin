@@ -37,7 +37,7 @@ func TestClient(t *testing.T) {
 	assert.NoError(t, err)
 	defer conn.Close()
 
-	conn.Write([]byte("aaa"))
+	_, _ = conn.Write([]byte("aaa"))
 
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)

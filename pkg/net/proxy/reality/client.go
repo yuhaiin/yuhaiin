@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -137,8 +138,8 @@ func (e *RealityClient) ClientHandshake(ctx context.Context, conn net.Conn) (net
 	if e.Deubg {
 		log.Debug("REALITY", "hello.sessionId[:16]", hello.SessionId[:16])
 	}
-
-	peerKey, err := uConn.HandshakeState.State13.EcdheKey.Curve().NewPublicKey(e.publicKey)
+	peerKey, err := ecdh.X25519().NewPublicKey(e.publicKey)
+	// peerKey, err := uConn.HandshakeState.State13.EcdheKey.Curve().NewPublicKey(e.publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("new ecdhe public key failed: %w", err)
 	}

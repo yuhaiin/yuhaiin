@@ -4,24 +4,25 @@ go 1.21
 
 require (
 	github.com/mdlayher/netlink v1.7.2
-	github.com/quic-go/quic-go v0.38.0
-	github.com/refraction-networking/utls v1.4.3
-	github.com/xtls/reality v0.0.0-20230613075828-e07c3b04b983
+	github.com/quic-go/quic-go v0.38.1
+	github.com/refraction-networking/utls v1.5.3
+	github.com/xtls/reality v0.0.0-20230828171259-e426190d57f6
 	go.etcd.io/bbolt v1.3.7
-	golang.org/x/crypto v0.12.0
-	golang.org/x/exp v0.0.0-20230728194245-b0cb94b80691
-	golang.org/x/mobile v0.0.0-20230531173138-3c911d8e3eda
-	golang.org/x/net v0.14.0
-	golang.org/x/sys v0.11.0
+	golang.org/x/crypto v0.13.0
+	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
+	golang.org/x/mobile v0.0.0-20230906132913-2077a3224571
+	golang.org/x/net v0.15.0
+	golang.org/x/sys v0.12.0
 	golang.org/x/time v0.3.0
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2
-	google.golang.org/grpc v1.57.0
+	google.golang.org/grpc v1.58.0
 	google.golang.org/protobuf v1.31.0
 	gvisor.dev/gvisor v0.0.0-20230816013119-dd9e0aa7ca02
 )
 
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/gaukas/godicttls v0.0.4 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/golang/mock v1.6.0 // indirect
@@ -35,10 +36,10 @@ require (
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	github.com/pires/go-proxyproto v0.6.2 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
-	github.com/quic-go/qtls-go1-20 v0.3.2 // indirect
-	golang.org/x/mod v0.11.0 // indirect
-	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/text v0.12.0 // indirect
-	golang.org/x/tools v0.9.1 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
+	github.com/quic-go/qtls-go1-20 v0.3.3 // indirect
+	golang.org/x/mod v0.12.0 // indirect
+	golang.org/x/sync v0.3.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/tools v0.13.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 )
