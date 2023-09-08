@@ -3,14 +3,12 @@ package simplehttp
 import (
 	"bufio"
 	"embed"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
@@ -20,12 +18,12 @@ import (
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
-//go:embed all:build
+//go:embed all:out
 var front embed.FS
+var frontDir = "out"
 
 var debug func(*http.ServeMux)
 
@@ -43,33 +41,31 @@ type HttpServerOption struct {
 func (o *HttpServerOption) Routers() Handler {
 	return Handler{
 		http.MethodGet: {
-			"/grouplist": o.GroupList,
-			"/group":     o.GetGroups,
-			"/sublist":   o.GetLinkList,
-			"/taglist":   o.TagList,
-			"/config":    o.GetConfig,
-			"/node/now":  o.NodeNow,
-			"/node":      o.GetNode,
-			"/latency":   o.GetLatency,
+			"/sublist":  o.GetLinkList,
+			"/nodes":    o.Manager,
+			"/config":   o.GetConfig,
+			"/node/now": o.NodeNow,
 		},
 		http.MethodPost: {
-			"/config": o.SaveConfig,
-			"/node":   o.SaveNode,
-			"/sub":    o.SaveLink,
-			"/tag":    o.SaveTag,
-			"/byass":  o.SaveBypass,
+			"/config":  o.SaveConfig,
+			"/sub":     o.SaveLink,
+			"/tag":     o.SaveTag,
+			"/node":    o.GetNode,
+			"/byass":   o.SaveBypass,
+			"/latency": o.GetLatency,
 		},
 		http.MethodDelete: {
 			"/conn": o.CloseConn,
-			"/node": o.DeleteNOde,
+			"/node": o.DeleteNode,
 			"/sub":  o.DeleteLink,
 			"/tag":  o.DeleteTag,
 		},
 		http.MethodPut: {
-			"/node": o.AddNode,
+			"/node": o.UseNode,
 		},
 		http.MethodPatch: {
-			"/sub": o.PatchLink,
+			"/sub":  o.PatchLink,
+			"/node": o.SaveNode,
 		},
 		"WS": {
 			"/conn": o.ConnWebsocket,
@@ -77,38 +73,54 @@ func (o *HttpServerOption) Routers() Handler {
 	}
 }
 
+func GetFrontMapping() map[string]bool {
+	dirs, err := front.ReadDir(frontDir)
+	if err != nil {
+		return make(map[string]bool)
+	}
+
+	mapp := make(map[string]bool, len(dirs))
+	for _, v := range dirs {
+		mapp[v.Name()] = true
+	}
+
+	mapp["/"] = true
+
+	return mapp
+}
+
+func getPathPrefix(str string) string {
+	if str == "/" {
+		return "/"
+	}
+
+	rs := strings.SplitN(str, "/", 3)
+	if len(rs) < 2 {
+		return ""
+	}
+
+	return rs[1]
+}
+
 func Httpserver(o HttpServerOption) {
 	if debug != nil {
 		debug(o.Mux)
 	}
 
-	hfs := http.FileServer(http.FS(yerror.Ignore(fs.Sub(front, "build"))))
+	hfs := http.FileServer(http.FS(
+		yerror.Ignore(fs.Sub(front, frontDir))))
+
+	frontPrefixMapping := GetFrontMapping()
 
 	handlers := o.Routers()
 
 	o.Mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		log.Debug("http new request",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.String()))
 
-		if strings.HasPrefix(r.URL.Path, "/yuhaiin") {
-			r.URL.Path = "/"
-		}
-
-		if strings.HasPrefix(r.URL.Path, "/docs") {
-			if filepath.Ext(r.URL.Path) == "" {
-				r.URL.Path = "/"
-			}
-		}
-
-		if r.URL.Path == "/" ||
-			strings.HasPrefix(r.URL.Path, "/static") ||
-			strings.HasPrefix(r.URL.Path, "/_next") ||
-			strings.HasPrefix(r.URL.Path, "/docs") ||
-			strings.HasPrefix(r.URL.Path, "/404.html") ||
-			strings.HasPrefix(r.URL.Path, "/index.txt") {
-			fmt.Println(r.URL.Path)
-
+		if frontPrefixMapping[getPathPrefix(r.URL.Path)] {
 			w.Header().Set("Content-Encoding", "gzip")
 			hfs.ServeHTTP(w, r)
 		} else {
@@ -203,22 +215,6 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func MarshalProtoJsonAndWrite(w http.ResponseWriter, data proto.Message, opts ...func(*protojson.MarshalOptions)) error {
-	marshaler := protojson.MarshalOptions{}
-
-	for _, f := range opts {
-		f(&marshaler)
-	}
-
-	bytes, err := marshaler.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("marshal proto failed: %w", err)
-	}
-
-	_, err = w.Write(bytes)
-	return err
-}
-
 func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message) error {
 	bytes, err := proto.Marshal(data)
 	if err != nil {
@@ -229,33 +225,6 @@ func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message) error {
 	return err
 }
 
-func MarshalJsonAndWrite(w http.ResponseWriter, data interface{}) error {
-	bytes, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(bytes)
-	return err
-}
-
-func UnmarshalProtoJsonFromRequest(r *http.Request, data proto.Message, opts ...func(*protojson.UnmarshalOptions)) error {
-	unmarshaler := protojson.UnmarshalOptions{
-		DiscardUnknown: true,
-	}
-
-	for _, f := range opts {
-		f(&unmarshaler)
-	}
-
-	bytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-
-	return unmarshaler.Unmarshal(bytes, data)
-}
-
 func UnmarshalProtoFromRequest(r *http.Request, data proto.Message) error {
 	bytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -263,14 +232,6 @@ func UnmarshalProtoFromRequest(r *http.Request, data proto.Message) error {
 	}
 
 	return proto.Unmarshal(bytes, data)
-}
-
-func UnmarshalJsonFromRequest(r *http.Request, data interface{}) error {
-	bytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(bytes, data)
 }
 
 type wne[T any] struct {

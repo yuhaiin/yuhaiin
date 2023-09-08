@@ -46,6 +46,9 @@ func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point,
 }
 
 func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
+	if p.Name == "" || p.Group == "" {
+		return &point.Point{}, fmt.Errorf("add point name or group is empty")
+	}
 	n.manager().DeleteNode(p.Hash)
 	n.manager().AddNode(p)
 	return p, n.fileStore.Save()
