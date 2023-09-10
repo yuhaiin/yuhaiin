@@ -38,6 +38,9 @@ func (t *HttpServerOption) Manager(w http.ResponseWriter, r *http.Request) error
 
 	for _, v := range t.Shunt.Tags() {
 		if _, ok := m.Tags[v]; !ok {
+			if m.Tags == nil {
+				m.Tags = map[string]*pt.Tags{}
+			}
 			m.Tags[v] = &pt.Tags{}
 		}
 	}
