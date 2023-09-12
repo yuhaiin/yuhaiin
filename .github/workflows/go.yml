@@ -8,7 +8,32 @@ on:
 
 jobs:
 
+  web:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '>=1.21.0'
+
+    - name: clone
+      run: |
+        cd internal/http
+        git clone --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git out
+        rm -rf out/.git out/.nojekyll
+        go run -v compress.go
+
+    - name: Cache Front Out
+      id: cache-front-out
+      uses: actions/cache@v3
+      with:
+        path: internal/http/out
+        key: cache-front-out
+
   build:
+    needs: [web]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,17 +50,24 @@ jobs:
       with:
         go-version: '>=1.21.0'
 
+    - name: Cache Front Out
+      id: cache-front-out
+      uses: actions/cache@v3
+      with:
+        path: internal/http/out
+        key: cache-front-out
+
     # - name: Set up Upx
     #   run: |
     #     sudo apt update
     #     sudo apt install -y upx
 
+        # if [ ${{ matrix.os[0] }} != "darwin" ]; then
+          # upx --lzma --best ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
+        # fi
     - name: Build
       run: |
         make ${{ matrix.cmd }}_${{ matrix.os[0] }}
-        if [ ${{ matrix.os[0] }} != "darwin" ]; then
-          upx --lzma --best ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
-        fi
 
     - name: upload_${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}
       uses: actions/upload-artifact@v3
