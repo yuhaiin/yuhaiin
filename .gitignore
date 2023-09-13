@@ -19,3 +19,4 @@ cmd/quic_test/
 cmd/yuubinsya/config.json
 /dnsrelay_*
 /example/example
+/internal/http/out

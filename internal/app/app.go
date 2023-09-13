@@ -148,6 +148,7 @@ func Start(opt StartOpt) (err error) {
 	remote := AddComponent(resolver.NewRemote(appDialer))
 	// bypass dialer and dns request
 	st := AddComponent(shunt.NewShunt(NewShuntOpt(local, remote)))
+	Node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
 	stcs := AddComponent(statistics.NewConnStore(cache.NewCache(DB, "flow_data"), st, so.ProcessDumper))
 	hosts := AddComponent(resolver.NewHosts(stcs, st))

@@ -13,6 +13,7 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -25,9 +26,14 @@ type Nodes struct {
 	netapi.EmptyDispatch
 
 	fileStore *FileStore
+	ruleTags  func() []string
 }
 
-func NewNodes(fileStore *FileStore) *Nodes { return &Nodes{fileStore: fileStore} }
+func NewNodes(fileStore *FileStore) *Nodes {
+	return &Nodes{fileStore: fileStore}
+}
+
+func (n *Nodes) SetRuleTags(f func() []string) { n.ruleTags = f }
 
 func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
 	return &gn.NowResp{
@@ -54,8 +60,22 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 	return p, n.fileStore.Save()
 }
 
-func (n *Nodes) Manager(context.Context, *wrapperspb.StringValue) (*node.Manager, error) {
-	return n.manager().GetManager(), nil
+func (n *Nodes) Manager(context.Context, *emptypb.Empty) (*node.Manager, error) {
+	m := n.manager().GetManager()
+
+	if m.Tags == nil {
+		m.Tags = map[string]*pt.Tags{}
+	}
+
+	if n.ruleTags != nil {
+		for _, v := range n.ruleTags() {
+			if _, ok := m.Tags[v]; !ok {
+				m.Tags[v] = &pt.Tags{}
+			}
+		}
+	}
+
+	return m, nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {

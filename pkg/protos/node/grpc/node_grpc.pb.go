@@ -43,7 +43,7 @@ type NodeClient interface {
 	Get(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*point.Point, error)
 	Save(ctx context.Context, in *point.Point, opts ...grpc.CallOption) (*point.Point, error)
 	Remove(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	Manager(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*node.Manager, error)
+	Manager(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*node.Manager, error)
 	Latency(ctx context.Context, in *latency.Requests, opts ...grpc.CallOption) (*latency.Response, error)
 }
 
@@ -100,7 +100,7 @@ func (c *nodeClient) Remove(ctx context.Context, in *wrapperspb.StringValue, opt
 	return out, nil
 }
 
-func (c *nodeClient) Manager(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*node.Manager, error) {
+func (c *nodeClient) Manager(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*node.Manager, error) {
 	out := new(node.Manager)
 	err := c.cc.Invoke(ctx, Node_Manager_FullMethodName, in, out, opts...)
 	if err != nil {
@@ -128,7 +128,7 @@ type NodeServer interface {
 	Get(context.Context, *wrapperspb.StringValue) (*point.Point, error)
 	Save(context.Context, *point.Point) (*point.Point, error)
 	Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
-	Manager(context.Context, *wrapperspb.StringValue) (*node.Manager, error)
+	Manager(context.Context, *emptypb.Empty) (*node.Manager, error)
 	Latency(context.Context, *latency.Requests) (*latency.Response, error)
 	mustEmbedUnimplementedNodeServer()
 }
@@ -152,7 +152,7 @@ func (UnimplementedNodeServer) Save(context.Context, *point.Point) (*point.Point
 func (UnimplementedNodeServer) Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Remove not implemented")
 }
-func (UnimplementedNodeServer) Manager(context.Context, *wrapperspb.StringValue) (*node.Manager, error) {
+func (UnimplementedNodeServer) Manager(context.Context, *emptypb.Empty) (*node.Manager, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Manager not implemented")
 }
 func (UnimplementedNodeServer) Latency(context.Context, *latency.Requests) (*latency.Response, error) {
@@ -262,7 +262,7 @@ func _Node_Remove_Handler(srv interface{}, ctx context.Context, dec func(interfa
 }
 
 func _Node_Manager_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrapperspb.StringValue)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func _Node_Manager_Handler(srv interface{}, ctx context.Context, dec func(interf
 		FullMethod: Node_Manager_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).Manager(ctx, req.(*wrapperspb.StringValue))
+		return srv.(NodeServer).Manager(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
