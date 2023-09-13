@@ -16,15 +16,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (c *HttpServerOption) CloseConn(w http.ResponseWriter, r *http.Request) error {
-	var req gs.NotifyRemoveConnections
-	if err := UnmarshalProtoFromRequest(r, &req); err != nil {
-		return err
-	}
-	_, err := c.Connections.CloseConn(r.Context(), &req)
-	return err
-}
-
 func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request) error {
 	return websocket.ServeHTTP(w, r, func(ctx context.Context, c *websocket.Conn) error {
 		defer c.Close()

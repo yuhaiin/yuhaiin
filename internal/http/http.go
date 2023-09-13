@@ -2,13 +2,15 @@ package simplehttp
 
 import (
 	"bufio"
-	"embed"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
+	"reflect"
+	"runtime"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
@@ -19,10 +21,9 @@ import (
 	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-//go:embed all:out
-var front embed.FS
 var frontDir = "out"
 
 var debug func(*http.ServeMux)
@@ -41,31 +42,34 @@ type HttpServerOption struct {
 func (o *HttpServerOption) Routers() Handler {
 	return Handler{
 		http.MethodGet: {
-			"/sublist":  o.GetLinkList,
-			"/nodes":    o.Manager,
-			"/config":   o.GetConfig,
-			"/node/now": o.NodeNow,
+			"/sublist": GrpcToHttp(o.Subscribe.Get),
+			"/nodes":   GrpcToHttp(o.NodeServer.Manager),
+			"/config": func(w http.ResponseWriter, r *http.Request) error {
+				w.Header().Set("Core-OS", runtime.GOOS)
+				return GrpcToHttp(o.Config.Load)(w, r)
+			},
+			"/node/now": GrpcToHttp(o.NodeServer.Now),
 		},
 		http.MethodPost: {
-			"/config":  o.SaveConfig,
-			"/sub":     o.SaveLink,
-			"/tag":     o.SaveTag,
-			"/node":    o.GetNode,
-			"/byass":   o.SaveBypass,
-			"/latency": o.GetLatency,
+			"/config":  GrpcToHttp(o.Config.Save),
+			"/sub":     GrpcToHttp(o.Subscribe.Save),
+			"/tag":     GrpcToHttp(o.Tag.Save),
+			"/node":    GrpcToHttp(o.NodeServer.Get),
+			"/byass":   GrpcToHttp(o.Tools.SaveRemoteBypassFile),
+			"/latency": GrpcToHttp(o.NodeServer.Latency),
 		},
 		http.MethodDelete: {
-			"/conn": o.CloseConn,
-			"/node": o.DeleteNode,
-			"/sub":  o.DeleteLink,
-			"/tag":  o.DeleteTag,
+			"/conn": GrpcToHttp(o.Connections.CloseConn),
+			"/node": GrpcToHttp(o.NodeServer.Remove),
+			"/sub":  GrpcToHttp(o.Subscribe.Remove),
+			"/tag":  GrpcToHttp(o.Tag.Remove),
 		},
 		http.MethodPut: {
-			"/node": o.UseNode,
+			"/node": GrpcToHttp(o.NodeServer.Use),
 		},
 		http.MethodPatch: {
-			"/sub":  o.PatchLink,
-			"/node": o.SaveNode,
+			"/sub":  GrpcToHttp(o.Subscribe.Update),
+			"/node": GrpcToHttp(o.NodeServer.Save),
 		},
 		"WS": {
 			"/conn": o.ConnWebsocket,
@@ -116,25 +120,29 @@ func Httpserver(o HttpServerOption) {
 
 	o.Mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		log.Debug("http new request",
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.String()))
-
 		if frontPrefixMapping[getPathPrefix(r.URL.Path)] {
 			w.Header().Set("Content-Encoding", "gzip")
 			hfs.ServeHTTP(w, r)
 		} else {
 			handlers.ServeHTTP(w, r)
 		}
+
+		log.Debug("http new request",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.String()),
+			slog.String("remoteAddr", r.RemoteAddr),
+		)
+
 	}))
 }
 
-type Handler map[string]map[string]func(http.ResponseWriter, *http.Request) error
+type ServeHTTP func(http.ResponseWriter, *http.Request) error
+type Handler map[string]map[string]ServeHTTP
 
-func (h Handler) Handle(method, pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+func (h Handler) Handle(method, pattern string, handler ServeHTTP) {
 	path, ok := h[method]
 	if !ok {
-		path = make(map[string]func(http.ResponseWriter, *http.Request) error)
+		path = make(map[string]ServeHTTP)
 		h[method] = path
 	}
 
@@ -174,7 +182,6 @@ func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
-
 	w := &wrapResponseWriter{ow, false}
 
 	method := r.Method
@@ -215,36 +222,60 @@ func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func MarshalProtoAndWrite(w http.ResponseWriter, data proto.Message) error {
-	bytes, err := proto.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("marshal proto failed: %w", err)
-	}
-
-	_, err = w.Write(bytes)
-	return err
+func getTypeValue[T any]() T {
+	var t T
+	return t
 }
 
-func UnmarshalProtoFromRequest(r *http.Request, data proto.Message) error {
-	bytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
+var typeEmpty = reflect.TypeOf(&emptypb.Empty{})
+
+func GrpcToHttp[req, resp proto.Message](function func(context.Context, req) (resp, error)) func(http.ResponseWriter, *http.Request) error {
+	reqType := reflect.TypeOf(getTypeValue[req]())
+	respType := reflect.TypeOf(getTypeValue[resp]())
+	newPr := reflect.New(reqType.Elem()).Interface().(req).ProtoReflect()
+
+	var unmarshalProto func(*http.Request, req) error
+	if reqType == typeEmpty {
+		unmarshalProto = func(r1 *http.Request, r2 req) error { return nil }
+	} else {
+		unmarshalProto = func(r1 *http.Request, r2 req) error {
+			bytes, err := io.ReadAll(r1.Body)
+			if err != nil {
+				return err
+			}
+
+			return proto.Unmarshal(bytes, r2)
+		}
 	}
 
-	return proto.Unmarshal(bytes, data)
-}
+	var marshalProto func(http.ResponseWriter, resp) error
 
-type wne[T any] struct {
-	t   T
-	err error
-}
+	if respType == typeEmpty {
+		marshalProto = func(w http.ResponseWriter, r resp) error { return nil }
+	} else {
+		marshalProto = func(w http.ResponseWriter, r resp) error {
+			bytes, err := proto.Marshal(r)
+			if err != nil {
+				return fmt.Errorf("marshal proto failed: %w", err)
+			}
 
-func WhenNoError[T any](t T, err error) *wne[T] { return &wne[T]{t, err} }
-
-func (w *wne[T]) Do(f func(T) error) error {
-	if w.err != nil {
-		return w.err
+			_, err = w.Write(bytes)
+			return err
+		}
 	}
 
-	return f(w.t)
+	return func(w http.ResponseWriter, r *http.Request) error {
+		pr := newPr.New().Interface().(req)
+
+		if err := unmarshalProto(r, pr); err != nil {
+			return err
+		}
+
+		resp, err := function(r.Context(), pr)
+		if err != nil {
+			return err
+		}
+
+		return marshalProto(w, resp)
+	}
 }

@@ -20,7 +20,7 @@ service node {
   rpc get(google.protobuf.StringValue) returns (yuhaiin.point.point);
   rpc save(yuhaiin.point.point) returns (yuhaiin.point.point);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
-  rpc manager(google.protobuf.StringValue) returns (yuhaiin.node.manager);
+  rpc manager(google.protobuf.Empty) returns (yuhaiin.node.manager);
 
   rpc latency(yuhaiin.latency.requests) returns (yuhaiin.latency.response);
 }
