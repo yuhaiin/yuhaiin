@@ -21,7 +21,13 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	reader, err = os.Open(path)
 	if err != nil {
 		log.Error("open bypass file failed, fallback to use internal bypass data", slog.String("filepath", path), slog.Any("err", err))
-		reader, _ = gzip.NewReader(bytes.NewReader(statics.BYPASS_DATA))
+		if len(statics.BYPASS_DATA) == 0 {
+			return
+		}
+		reader, err = gzip.NewReader(bytes.NewReader(statics.BYPASS_DATA))
+		if err != nil {
+			return
+		}
 	}
 	defer reader.Close()
 

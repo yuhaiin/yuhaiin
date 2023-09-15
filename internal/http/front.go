@@ -1,5 +1,5 @@
-//go:build !lite
-// +build !lite
+//go:build page
+// +build page
 
 package simplehttp
 
