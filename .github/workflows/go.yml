@@ -8,6 +8,31 @@ on:
 
 jobs:
 
+  rule:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '>=1.21.0'
+    
+    - name: download rule
+      run: |
+        cd internal/statics
+        curl https://raw.githubusercontent.com/yuhaiin/yuhaiin/ACL/yuhaiin/yuhaiin.conf -o bypass.conf
+        go run generate.go
+        echo ${PWD}
+        ls
+
+    - name: Cache Rule
+      id: cache-rule
+      uses: actions/cache@v3
+      with:
+        path: internal/statics/bypass.gz
+        key: cache-rule
+
   web:
     runs-on: ubuntu-latest
     steps:
@@ -24,6 +49,8 @@ jobs:
         git clone --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git out
         rm -rf out/.git out/.nojekyll
         go run -v compress.go
+        echo ${PWD}
+        ls
 
     - name: Cache Front Out
       id: cache-front-out
@@ -33,7 +60,7 @@ jobs:
         key: cache-front-out
 
   build:
-    needs: [web]
+    needs: [web,rule]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -56,6 +83,13 @@ jobs:
       with:
         path: internal/http/out
         key: cache-front-out
+    
+    - name: Cache Rule
+      id: cache-rule
+      uses: actions/cache@v3
+      with:
+        path: internal/statics/bypass.gz
+        key: cache-rule
 
     # - name: Set up Upx
     #   run: |

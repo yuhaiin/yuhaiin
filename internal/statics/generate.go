@@ -5,12 +5,11 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"os"
 )
 
 func main() {
-	data, err := os.ReadFile(fmt.Sprintf("%s/Documents/Programming/ACL/yuhaiin/yuhaiin.conf", os.Getenv("HOME")))
+	data, err := os.ReadFile("bypass.conf")
 	if err != nil {
 		panic(err)
 	}

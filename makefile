@@ -48,8 +48,8 @@ vet:
 
 .PHONY: yuhaiin_linux
 yuhaiin_linux:
-	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin_linux_amd64 $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" -o yuhaiin_linux_amd64v3 $(YUHAIIN)
+	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" -o yuhaiin_linux_amd64 $(YUHAIIN)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" -o yuhaiin_linux_amd64v3 $(YUHAIIN)
 
 .PHONY: yuhaiin_linux_lite
 yuhaiin_linux_lite:
@@ -58,18 +58,18 @@ yuhaiin_linux_lite:
 
 .PHONY: yuhaiin_windows
 yuhaiin_windows:
-	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_windows_amd64.exe $(YUHAIIN)
-	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_windows_amd64v3.exe $(YUHAIIN)
+	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page"  -o yuhaiin_windows_amd64.exe $(YUHAIIN)
+	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o yuhaiin_windows_amd64v3.exe $(YUHAIIN)
 
 .PHONY: yuhaiin_darwin
 yuhaiin_darwin:
-	$(DARWIN_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_darwin_amd64 $(YUHAIIN)
-	$(DARWIN_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o yuhaiin_darwin_amd64v3 $(YUHAIIN)
+	$(DARWIN_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o yuhaiin_darwin_amd64 $(YUHAIIN)
+	$(DARWIN_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o yuhaiin_darwin_amd64v3 $(YUHAIIN)
 
 .PHONY: yuhaiin_android
 yuhaiin_android:
-	$(ANDROID_ARM64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
-	$(ANDROID_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
+	$(ANDROID_ARM64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
+	$(ANDROID_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
 
 .PHONY: yuhaiin_mipsle
 yuhaiin_mipsle:
