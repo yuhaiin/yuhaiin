@@ -21,12 +21,24 @@ func Update(path string) func(s *cb.Setting) {
 		var http, socks5 string
 
 		for _, v := range s.Server.Servers {
-			if v.GetHttp() != nil && s.SystemProxy.Http {
-				http = v.GetHttp().GetHost()
+			if s.SystemProxy.Http {
+				if v.GetEnabled() && v.GetHttp() != nil {
+					http = v.GetHttp().GetHost()
+				}
+
+				if v.GetEnabled() && v.GetMix() != nil {
+					http = v.GetMix().GetHost()
+				}
 			}
 
-			if v.GetSocks5() != nil && s.SystemProxy.Socks5 {
-				socks5 = v.GetSocks5().GetHost()
+			if s.SystemProxy.Socks5 {
+				if v.GetEnabled() && v.GetSocks5() != nil {
+					socks5 = v.GetSocks5().GetHost()
+				}
+
+				if v.GetEnabled() && v.GetMix() != nil {
+					socks5 = v.GetMix().GetHost()
+				}
 			}
 		}
 

@@ -31,6 +31,10 @@ func NewServer(o *listener.Opts[*listener.Protocol_Http]) (netapi.Server, error)
 		return nil, err
 	}
 
+	return NewServerWithListener(lis, o), nil
+}
+
+func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Http]) netapi.Server {
 	h := &server{
 		username: o.Protocol.Http.Username,
 		password: o.Protocol.Http.Password,
@@ -92,7 +96,7 @@ func NewServer(o *listener.Opts[*listener.Protocol_Http]) (netapi.Server, error)
 			log.Error("http serve failed:", err)
 		}
 	}()
-	return lis, nil
+	return lis
 }
 
 //go:linkname parseBasicAuth net/http.parseBasicAuth

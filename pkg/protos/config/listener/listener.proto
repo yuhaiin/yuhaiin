@@ -13,6 +13,7 @@ message protocol {
     redir redir = 5 [ json_name = "redir" ];
     tun tun = 6 [ json_name = "tun" ];
     yuubinsya yuubinsya = 7 [ json_name = "yuubinsya" ];
+    mixed mix = 8 [json_name = "mixed" ];
   }
 }
 
@@ -25,6 +26,12 @@ message http {
 }
 
 message socks5 {
+  string host = 1 [ json_name = "host" ];
+  string username = 3 [ json_name = "username" ];
+  string password = 4 [ json_name = "password" ];
+}
+
+message mixed {
   string host = 1 [ json_name = "host" ];
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];

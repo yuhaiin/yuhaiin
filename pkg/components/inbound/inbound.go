@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
@@ -26,6 +27,7 @@ import (
 func init() {
 	pl.RegisterProtocol(httpproxy.NewServer)
 	pl.RegisterProtocol(ss.NewServer)
+	pl.RegisterProtocol(mixed.NewServer)
 	pl.RegisterProtocol(tun.NewTun)
 	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (netapi.Server, error) {
 		var Type yuubinsya.Type

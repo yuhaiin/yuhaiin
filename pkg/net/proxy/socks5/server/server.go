@@ -17,12 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func (s *Socks5) newTCPServer() error {
-	lis, err := dialer.ListenContext(context.TODO(), "tcp", s.addr)
-	if err != nil {
-		return err
-	}
-
+func (s *Socks5) newTCPServer(lis net.Listener) {
 	s.lis = lis
 
 	go func() {
@@ -50,8 +45,6 @@ func (s *Socks5) newTCPServer() error {
 
 		}
 	}()
-
-	return nil
 }
 
 func (s *Socks5) handle(client net.Conn) (err error) {
@@ -229,7 +222,7 @@ func (s *Socks5) Close() error {
 	return err
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (netapi.Server, error) {
+func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks5]) (netapi.Server, error) {
 	s := &Socks5{
 		handler:  o.Handler,
 		addr:     o.Protocol.Socks5.Host,
@@ -242,12 +235,16 @@ func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (netapi.Server, erro
 		s.Close()
 		return nil, fmt.Errorf("new udp server failed: %w", err)
 	}
-
-	err = s.newTCPServer()
-	if err != nil {
-		s.Close()
-		return nil, fmt.Errorf("new tcp server failed: %w", err)
-	}
+	s.newTCPServer(lis)
 
 	return s, nil
+}
+
+func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (netapi.Server, error) {
+	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Socks5.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewServerWithListener(lis, o)
 }

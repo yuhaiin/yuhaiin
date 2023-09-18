@@ -70,9 +70,18 @@ func defaultSetting(path string) *config.Setting {
 		},
 		Server: &listener.InboundConfig{
 			Servers: map[string]*listener.Protocol{
+				"mixed": {
+					Name:    "mixed",
+					Enabled: true,
+					Protocol: &listener.Protocol_Mix{
+						Mix: &listener.Mixed{
+							Host: "127.0.0.1:1080",
+						},
+					},
+				},
 				"http": {
 					Name:    "http",
-					Enabled: true,
+					Enabled: false,
 					Protocol: &listener.Protocol_Http{
 						Http: &listener.Http{
 							Host: "127.0.0.1:8188",
@@ -81,7 +90,7 @@ func defaultSetting(path string) *config.Setting {
 				},
 				"socks5": {
 					Name:    "socks5",
-					Enabled: true,
+					Enabled: false,
 					Protocol: &listener.Protocol_Socks5{
 						Socks5: &listener.Socks5{
 							Host: "127.0.0.1:1080",
