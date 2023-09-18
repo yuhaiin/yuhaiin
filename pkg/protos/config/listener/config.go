@@ -187,3 +187,22 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 
 	return tm.tlsConfig, nil
 }
+
+func (m *Protocol_Mix) HTTP() *Protocol_Http {
+	return &Protocol_Http{
+		Http: &Http{
+			Host:     m.Mix.Host,
+			Username: m.Mix.Username,
+			Password: m.Mix.Password,
+		},
+	}
+}
+func (m *Protocol_Mix) SOCKS5() *Protocol_Socks5 {
+	return &Protocol_Socks5{
+		Socks5: &Socks5{
+			Host:     m.Mix.Host,
+			Username: m.Mix.Username,
+			Password: m.Mix.Password,
+		},
+	}
+}

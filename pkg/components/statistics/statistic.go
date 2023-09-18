@@ -94,7 +94,7 @@ func (c *Connections) Remove(id uint64) {
 		log.Debug("close conn",
 			"id", z.ID(),
 			"addr", z.Info().Addr,
-			"s0urce", z.Info().Extra[(netapi.SourceKey{}).String()],
+			"src", z.Info().Extra[(netapi.SourceKey{}).String()],
 			"outbound", getRemote(z))
 	}
 

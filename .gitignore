@@ -20,3 +20,5 @@ cmd/yuubinsya/config.json
 /dnsrelay_*
 /example/example
 /internal/http/out
+/internal/statics/bypass.conf
+/internal/statics/bypass.gz
