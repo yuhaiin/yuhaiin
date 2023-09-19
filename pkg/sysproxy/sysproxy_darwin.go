@@ -4,27 +4,21 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"net"
 	"os/exec"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
-func SetSysProxy(_, http, socks5 string) {
-	var httpHostname, httpPort string
-	var socks5Hostname, socks5Port string
-
-	if http == "" && socks5 == "" {
+func SetSysProxy(_, httpHostname, httpPort, socks5Hostname, socks5Port string) {
+	if httpHostname == "" && socks5Hostname == "" {
 		return
 	}
 
-	if http != "" {
-		httpHostname, httpPort, _ = net.SplitHostPort(http)
+	if httpHostname != "" {
 		log.Debug("set http system proxy", "hostname", httpHostname, "port", httpPort)
 	}
-	if socks5 != "" {
-		socks5Hostname, socks5Port, _ = net.SplitHostPort(socks5)
+	if socks5Hostname != "" {
 		log.Debug("set socks5 system proxy", "hostname", socks5Hostname, "port", socks5Port)
 	}
 
@@ -37,14 +31,14 @@ func SetSysProxy(_, http, socks5 string) {
 	}
 
 	for _, service := range services {
-		if http != "" {
+		if httpHostname != "" {
 			_ = exec.Command(networksetup, "-setwebproxystate", service, "on").Run()
 			_ = exec.Command(networksetup, "-setsecurewebproxystate", service, "on").Run()
 			_ = exec.Command(networksetup, "-setwebproxy", service, httpHostname, httpPort).Run()
 			_ = exec.Command(networksetup, "-setsecurewebproxy", service, httpHostname, httpPort).Run()
 		}
 
-		if socks5 != "" {
+		if socks5Hostname != "" {
 			_ = exec.Command(networksetup, "-setsocksfirewallproxystate", service, "on").Run()
 			_ = exec.Command(networksetup, "-setsocksfirewallproxy", service, socks5Hostname, socks5Port).Run()
 		}

@@ -21,7 +21,7 @@ func Update(path string) func(s *cb.Setting) {
 		var http, socks5 string
 
 		for _, v := range s.Server.Servers {
-			if s.SystemProxy.Http {
+			if s.SystemProxy.Http && http == "" {
 				if v.GetEnabled() && v.GetHttp() != nil {
 					http = v.GetHttp().GetHost()
 				}
@@ -31,7 +31,7 @@ func Update(path string) func(s *cb.Setting) {
 				}
 			}
 
-			if s.SystemProxy.Socks5 {
+			if s.SystemProxy.Socks5 && socks5 == "" {
 				if v.GetEnabled() && v.GetSocks5() != nil {
 					socks5 = v.GetSocks5().GetHost()
 				}
@@ -40,26 +40,39 @@ func Update(path string) func(s *cb.Setting) {
 					socks5 = v.GetMix().GetHost()
 				}
 			}
+
+			if (s.SystemProxy.Socks5 && socks5 != "") && (s.SystemProxy.Http && http != "") {
+				break
+			}
 		}
 
-		SetSysProxy(path, replaceUnspecified(http), replaceUnspecified(socks5))
+		hh, hp := replaceUnspecified(http)
+		sh, sp := replaceUnspecified(socks5)
+		SetSysProxy(path, hh, hp, sh, sp)
 		server = s.Server
 	}
 }
 
-func replaceUnspecified(s string) string {
+func replaceUnspecified(s string) (string, string) {
+	if s == "" {
+		return "", ""
+	}
+	host, port, err := net.SplitHostPort(s)
+	if err == nil && host == "" {
+		return "127.0.0.1", port
+	}
+
 	if ip, err := netip.ParseAddrPort(s); err == nil {
 		if ip.Addr().IsUnspecified() {
 			if ip.Addr().Is6() {
-				return net.JoinHostPort(net.IPv6loopback.String(), strconv.Itoa(int(ip.Port())))
+				return net.IPv6loopback.String(), strconv.Itoa(int(ip.Port()))
 			} else {
-				return net.JoinHostPort("127.0.0.1", strconv.Itoa(int(ip.Port())))
-
+				return "127.0.0.1", strconv.Itoa(int(ip.Port()))
 			}
 		}
 	}
 
-	return s
+	return host, port
 }
 
 func Unset(path string) {

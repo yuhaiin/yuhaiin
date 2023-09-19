@@ -49,6 +49,10 @@ func buffPool(size int) *sync.Pool {
 }
 
 func (pool) GetBytes(size int) []byte {
+	if size == 0 {
+		return nil
+	}
+
 	l := bits.Len(uint(size)) - 1
 	if size != 1<<l {
 		size = 1 << (l + 1)
@@ -57,6 +61,10 @@ func (pool) GetBytes(size int) []byte {
 }
 
 func (pool) PutBytes(b []byte) {
+	if len(b) == 0 {
+		return
+	}
+
 	l := bits.Len(uint(len(b))) - 1
 	buffPool(1 << l).Put(b) //lint:ignore SA6002 ignore temporarily
 }

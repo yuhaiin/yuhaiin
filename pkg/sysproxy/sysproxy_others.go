@@ -3,5 +3,5 @@
 
 package sysproxy
 
-func SetSysProxy(_, _, _ string) {}
-func UnsetSysProxy(string)       {}
+func SetSysProxy(_, _, _, _, _ string) {}
+func UnsetSysProxy(string)             {}

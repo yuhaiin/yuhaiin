@@ -14,7 +14,6 @@ import (
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/convert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -189,12 +188,8 @@ func (c *Connections) DumpProcess(ctx context.Context, addr netapi.Address) (s s
 	}
 
 	var dst any
-	if goos.IsAndroid == 1 {
-		dst, ok = store.Get(netapi.InboundKey{})
-		if !ok {
-			dst, ok = store.Get(netapi.DestinationKey{})
-		}
-	} else {
+	dst, ok = store.Get(netapi.InboundKey{})
+	if !ok {
 		dst, ok = store.Get(netapi.DestinationKey{})
 	}
 	if !ok {

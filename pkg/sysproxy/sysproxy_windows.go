@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -58,8 +59,8 @@ func getdll(path string) (*syscall.LazyDLL, error) {
 	return syscall.NewLazyDLL(dll), nil
 }
 
-func SetSysProxy(path, http, _ string) {
-	if err := setSysProxy(path, http, ""); err != nil {
+func SetSysProxy(path, hh, hp, _, _ string) {
+	if err := setSysProxy(path, net.JoinHostPort(hh, hp), ""); err != nil {
 		log.Error("set system proxy failed:", "err", err)
 	}
 }
