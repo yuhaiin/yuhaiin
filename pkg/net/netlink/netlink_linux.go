@@ -1,22 +1,14 @@
-// netlink
-// copy from https://github.com/Dreamacro/clash/blob/master/component/process/process_linux.go
 package netlink
 
 import (
 	"bytes"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
-	"syscall"
-	"unicode"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/mdlayher/netlink"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -37,167 +29,113 @@ Finding the right line in /proc/net/tcp isn't difficult, and then you can get th
 Finding the process requires you to scan all processes, looking for one which refers this inode number. I know no better way.
 */
 
-const (
-	SOCK_DIAG_BY_FAMILY  = 20
-	inetDiagRequestSize  = int(unsafe.Sizeof(inetDiagRequest{}))
-	inetDiagResponseSize = int(unsafe.Sizeof(inetDiagResponse{}))
-)
+func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (string, error) {
+	var addr, remote net.Addr
 
-type inetDiagRequest struct {
-	Family   byte
-	Protocol byte
-	Ext      byte
-	Pad      byte
-	States   uint32
-
-	SrcPort [2]byte
-	DstPort [2]byte
-	Src     [16]byte
-	Dst     [16]byte
-	If      uint32
-	Cookie  [2]uint32
-}
-
-type inetDiagResponse struct {
-	Family  byte
-	State   byte
-	Timer   byte
-	ReTrans byte
-
-	SrcPort [2]byte
-	DstPort [2]byte
-	Src     [16]byte
-	Dst     [16]byte
-	If      uint32
-	Cookie  [2]uint32
-
-	Expires uint32
-	RQueue  uint32
-	WQueue  uint32
-	UID     uint32
-	INode   uint32
-}
-
-func FindProcessName(network string, ip net.IP, srcPort uint16) (string, error) {
-	inode, uid, err := resolveSocketByNetlink(network, ip, srcPort)
-	if err != nil {
-		return "", err
-	}
-
-	return resolveProcessNameByProcSearch(inode, uid)
-}
-
-func resolveSocketByNetlink(network string, ip net.IP, srcPort uint16) (uint32, uint32, error) {
-	request := &inetDiagRequest{
-		States: 0xffffffff,
-		Cookie: [2]uint32{0xffffffff, 0xffffffff},
-	}
-
-	if ip.To4() != nil {
-		request.Family = unix.AF_INET
-	} else {
-		request.Family = unix.AF_INET6
+	if to.IsUnspecified() {
+		if ip.To4() != nil {
+			to = net.IPv4(127, 0, 0, 1)
+		} else {
+			to = net.IPv6loopback
+		}
 	}
 
 	if strings.HasPrefix(network, "tcp") {
-		request.Protocol = unix.IPPROTO_TCP
-	} else if strings.HasPrefix(network, "udp") {
-		request.Protocol = unix.IPPROTO_UDP
-	} else {
-		return 0, 0, errors.New("err invalid network")
+		addr = &net.TCPAddr{IP: ip, Port: int(srcPort)}
+		remote = &net.TCPAddr{IP: to, Port: int(toPort)}
 	}
 
-	if v4 := ip.To4(); v4 != nil {
-		copy(request.Src[:], v4)
-	} else {
-		copy(request.Src[:], ip)
+	if strings.HasPrefix(network, "udp") {
+		addr = &net.UDPAddr{IP: ip, Port: int(srcPort)}
+		remote = &net.UDPAddr{IP: to, Port: int(toPort)}
 	}
 
-	binary.BigEndian.PutUint16(request.SrcPort[:], uint16(srcPort))
-
-	conn, err := netlink.Dial(unix.NETLINK_SOCK_DIAG, nil)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer conn.Close()
-
-	message := netlink.Message{
-		Header: netlink.Header{
-			Type:  SOCK_DIAG_BY_FAMILY,
-			Flags: unix.NLM_F_REQUEST | unix.NLM_F_DUMP,
-		},
-		Data: (*(*[inetDiagRequestSize]byte)(unsafe.Pointer(request)))[:],
-	}
-
-	messages, err := conn.Execute(message)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if len(messages) > 2 {
-		return 0, 0, fmt.Errorf("multiple (%d) matching sockets", len(messages))
-	}
-
-	if len(messages) == 0 {
-		return 0, 0, fmt.Errorf("message is empty")
-	}
-
-	if len(messages[0].Data) < inetDiagResponseSize {
-		return 0, 0, fmt.Errorf("socket data short read (%d); want %d", len(messages[0].Data), inetDiagResponseSize)
-	}
-
-	response := (*inetDiagResponse)(unsafe.Pointer(&messages[0].Data[0]))
-	return response.INode, response.UID, nil
-}
-
-func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
-	files, err := os.ReadDir("/proc")
+	st, err := netlink.SocketGet(addr, remote)
 	if err != nil {
 		return "", err
 	}
 
-	buffer := pool.GetBytes(unix.PathMax)
-	defer pool.PutBytes(buffer)
-	socket := fmt.Appendf(nil, "socket:[%d]", inode)
+	return resolveProcessNameByProcSearch(st.INode, st.UID)
+}
 
-	for _, f := range files {
-		if !f.IsDir() || !isPid(f.Name()) {
+func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
+	procDir, err := os.Open("/proc")
+	if err != nil {
+		return "", err
+	}
+	defer procDir.Close()
+
+	pids, err := procDir.Readdirnames(-1)
+	if err != nil {
+		return "", err
+	}
+
+	expectedSocketName := fmt.Appendf(nil, "socket:[%d]", inode)
+
+	pathBuffer := pool.GetBuffer()
+	defer pool.PutBuffer(pathBuffer)
+
+	readlinkBuffer := pool.GetBytesV2(32)
+	defer pool.PutBytesV2(readlinkBuffer)
+
+	pathBuffer.WriteString("/proc/")
+
+	for _, pid := range pids {
+		if !isPid(pid) {
 			continue
 		}
 
-		info, err := f.Info()
+		pathBuffer.Truncate(len("/proc/"))
+		pathBuffer.WriteString(pid)
+
+		stat := &unix.Stat_t{}
+		err = unix.Stat(pathBuffer.String(), stat)
 		if err != nil {
-			return "", err
-		}
-		if info.Sys().(*syscall.Stat_t).Uid != uid {
 			continue
 		}
 
-		processPath := filepath.Join("/proc", f.Name())
-		fdPath := filepath.Join(processPath, "fd")
+		if stat.Uid != uid {
+			continue
+		}
 
-		fds, err := os.ReadDir(fdPath)
+		pathBuffer.WriteString("/fd/")
+		fdsPrefixLength := pathBuffer.Len()
+
+		fdDir, err := os.Open(pathBuffer.String())
+		if err != nil {
+			continue
+		}
+
+		fds, err := fdDir.Readdirnames(-1)
+		fdDir.Close()
 		if err != nil {
 			continue
 		}
 
 		for _, fd := range fds {
-			n, err := unix.Readlink(filepath.Join(fdPath, fd.Name()), buffer)
+			pathBuffer.Truncate(fdsPrefixLength)
+			pathBuffer.WriteString(fd)
+
+			n, err := unix.Readlink(pathBuffer.String(), readlinkBuffer.Bytes())
 			if err != nil {
 				continue
 			}
 
-			if bytes.Equal(buffer[:n], socket) {
-				return os.Readlink(filepath.Join(processPath, "exe"))
+			if bytes.Equal(readlinkBuffer.Bytes()[:n], expectedSocketName) {
+				return os.Readlink("/proc/" + pid + "/exe")
 			}
 		}
 	}
 
-	return "", fmt.Errorf("process of uid(%d),inode(%d) not found", uid, inode)
+	return "", fmt.Errorf("inode %d of uid %d not found", inode, uid)
 }
 
-func isPid(s string) bool {
-	return strings.IndexFunc(s, func(r rune) bool {
-		return !unicode.IsDigit(r)
-	}) == -1
+func isPid(name string) bool {
+	for _, c := range name {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+
+	return true
 }

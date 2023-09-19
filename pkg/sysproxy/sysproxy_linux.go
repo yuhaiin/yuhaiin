@@ -5,7 +5,6 @@ package sysproxy
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,20 +12,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
-func SetSysProxy(_, http, socks5 string) {
-	var httpHostname, httpPort string
-	var socks5Hostname, socks5Port string
-
-	if http == "" && socks5 == "" {
-		return
-	}
-
-	if http != "" {
-		httpHostname, httpPort, _ = net.SplitHostPort(http)
+func SetSysProxy(_, httpHostname, httpPort, socks5Hostname, socks5Port string) {
+	if httpHostname != "" {
 		log.Debug("set http system proxy", "hostname", httpHostname, "port", httpPort)
 	}
-	if socks5 != "" {
-		socks5Hostname, socks5Port, _ = net.SplitHostPort(socks5)
+	if socks5Hostname != "" {
 		log.Debug("set socks5 system proxy", "hostname", socks5Hostname, "port", socks5Port)
 	}
 

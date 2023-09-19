@@ -55,20 +55,11 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		SystemProxy: &pc.SystemProxy{},
 		Server: &listener.InboundConfig{
 			Servers: map[string]*listener.Protocol{
-				"socks5": {
-					Name:    "socks5",
-					Enabled: opt.Socks5 != "",
-					Protocol: &listener.Protocol_Socks5{
-						Socks5: &listener.Socks5{
-							Host: opt.Socks5,
-						},
-					},
-				},
-				"http": {
-					Name:    "http",
+				"mix": {
+					Name:    "mix",
 					Enabled: opt.Http != "",
-					Protocol: &listener.Protocol_Http{
-						Http: &listener.Http{
+					Protocol: &listener.Protocol_Mix{
+						Mix: &listener.Mixed{
 							Host: opt.Http,
 						},
 					},
