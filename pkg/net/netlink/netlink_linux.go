@@ -4,8 +4,6 @@ package netlink
 
 import (
 	"bytes"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -13,10 +11,9 @@ import (
 	"strings"
 	"syscall"
 	"unicode"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/mdlayher/netlink"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -37,117 +34,52 @@ Finding the right line in /proc/net/tcp isn't difficult, and then you can get th
 Finding the process requires you to scan all processes, looking for one which refers this inode number. I know no better way.
 */
 
-const (
-	SOCK_DIAG_BY_FAMILY  = 20
-	inetDiagRequestSize  = int(unsafe.Sizeof(inetDiagRequest{}))
-	inetDiagResponseSize = int(unsafe.Sizeof(inetDiagResponse{}))
-)
-
-type inetDiagRequest struct {
-	Family   byte
-	Protocol byte
-	Ext      byte
-	Pad      byte
-	States   uint32
-
-	SrcPort [2]byte
-	DstPort [2]byte
-	Src     [16]byte
-	Dst     [16]byte
-	If      uint32
-	Cookie  [2]uint32
-}
-
-type inetDiagResponse struct {
-	Family  byte
-	State   byte
-	Timer   byte
-	ReTrans byte
-
-	SrcPort [2]byte
-	DstPort [2]byte
-	Src     [16]byte
-	Dst     [16]byte
-	If      uint32
-	Cookie  [2]uint32
-
-	Expires uint32
-	RQueue  uint32
-	WQueue  uint32
-	UID     uint32
-	INode   uint32
-}
-
 func FindProcessName(network string, ip net.IP, srcPort uint16) (string, error) {
-	inode, uid, err := resolveSocketByNetlink(network, ip, srcPort)
+	isv6 := ip.To4() == nil
+	var addr, remote net.Addr
+
+	if strings.HasPrefix(network, "tcp") {
+		addr = &net.TCPAddr{
+			IP:   ip,
+			Port: int(srcPort),
+		}
+		if isv6 {
+			remote = &net.TCPAddr{
+				IP:   net.IPv6zero,
+				Port: 0,
+			}
+		} else {
+			remote = &net.TCPAddr{
+				IP:   net.IPv4zero,
+				Port: 0,
+			}
+		}
+	}
+
+	if strings.HasPrefix(network, "udp") {
+		addr = &net.UDPAddr{
+			IP:   ip,
+			Port: int(srcPort),
+		}
+		if isv6 {
+			remote = &net.UDPAddr{
+				IP:   net.IPv6zero,
+				Port: 0,
+			}
+		} else {
+			remote = &net.UDPAddr{
+				IP:   net.IPv4zero,
+				Port: 0,
+			}
+		}
+	}
+
+	st, err := netlink.SocketGet(addr, remote)
 	if err != nil {
 		return "", err
 	}
 
-	return resolveProcessNameByProcSearch(inode, uid)
-}
-
-func resolveSocketByNetlink(network string, ip net.IP, srcPort uint16) (uint32, uint32, error) {
-	request := &inetDiagRequest{
-		States: 0xffffffff,
-		Cookie: [2]uint32{0xffffffff, 0xffffffff},
-	}
-
-	if ip.To4() != nil {
-		request.Family = unix.AF_INET
-	} else {
-		request.Family = unix.AF_INET6
-	}
-
-	if strings.HasPrefix(network, "tcp") {
-		request.Protocol = unix.IPPROTO_TCP
-	} else if strings.HasPrefix(network, "udp") {
-		request.Protocol = unix.IPPROTO_UDP
-	} else {
-		return 0, 0, errors.New("err invalid network")
-	}
-
-	if v4 := ip.To4(); v4 != nil {
-		copy(request.Src[:], v4)
-	} else {
-		copy(request.Src[:], ip)
-	}
-
-	binary.BigEndian.PutUint16(request.SrcPort[:], uint16(srcPort))
-
-	conn, err := netlink.Dial(unix.NETLINK_SOCK_DIAG, nil)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer conn.Close()
-
-	message := netlink.Message{
-		Header: netlink.Header{
-			Type:  SOCK_DIAG_BY_FAMILY,
-			Flags: unix.NLM_F_REQUEST | unix.NLM_F_DUMP,
-		},
-		Data: (*(*[inetDiagRequestSize]byte)(unsafe.Pointer(request)))[:],
-	}
-
-	messages, err := conn.Execute(message)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if len(messages) > 2 {
-		return 0, 0, fmt.Errorf("multiple (%d) matching sockets", len(messages))
-	}
-
-	if len(messages) == 0 {
-		return 0, 0, fmt.Errorf("message is empty")
-	}
-
-	if len(messages[0].Data) < inetDiagResponseSize {
-		return 0, 0, fmt.Errorf("socket data short read (%d); want %d", len(messages[0].Data), inetDiagResponseSize)
-	}
-
-	response := (*inetDiagResponse)(unsafe.Pointer(&messages[0].Data[0]))
-	return response.INode, response.UID, nil
+	return resolveProcessNameByProcSearch(st.INode, st.UID)
 }
 
 func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
