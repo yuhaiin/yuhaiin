@@ -82,7 +82,7 @@ func (s *Shunt) Update(c *pc.Setting) {
 	s.config = c.Bypass
 
 	if diff {
-		s.mapper.Clear()
+		s.mapper.Clear() //nolint:errcheck
 		s.tags = nil
 		s.modifiedTime = modifiedTime
 		rangeRule(s.config.BypassFile, func(s1 string, s2 bypass.ModeEnum) {

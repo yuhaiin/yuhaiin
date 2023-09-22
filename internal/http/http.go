@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"reflect"
 	"runtime"
 	"strings"
@@ -19,7 +20,6 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -77,20 +77,46 @@ func (o *HttpServerOption) Routers() Handler {
 	}
 }
 
-func GetFrontMapping() map[string]bool {
-	dirs, err := front.ReadDir(frontDir)
+func wrapFS(fs fs.FS, gzip bool) http.Handler {
+	hfs := http.FileServer(http.FS(fs))
+	if !gzip {
+		return hfs
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Encoding", "gzip")
+		hfs.ServeHTTP(w, r)
+	})
+}
+
+func GetFront() (http.Handler, map[string]bool) {
+	var ffs fs.FS
+	var gzip bool
+	edir := os.Getenv("EXTERNAL_WEB")
+	if edir != "" {
+		ffs = os.DirFS(edir)
+		gzip = false
+	} else {
+		ffs, _ = fs.Sub(front, frontDir)
+		gzip = true
+	}
+
+	if ffs == nil {
+		return wrapFS(front, false), make(map[string]bool)
+	}
+
+	dirs, err := fs.Glob(ffs, "*")
 	if err != nil {
-		return make(map[string]bool)
+		return wrapFS(front, false), make(map[string]bool)
 	}
 
-	mapp := make(map[string]bool, len(dirs))
+	mapp := make(map[string]bool, len(dirs)+1)
 	for _, v := range dirs {
-		mapp[v.Name()] = true
+		mapp[v] = true
 	}
-
 	mapp["/"] = true
 
-	return mapp
+	return wrapFS(ffs, gzip), mapp
 }
 
 func getPathPrefix(str string) string {
@@ -111,17 +137,12 @@ func Httpserver(o HttpServerOption) {
 		debug(o.Mux)
 	}
 
-	hfs := http.FileServer(http.FS(
-		yerror.Ignore(fs.Sub(front, frontDir))))
-
-	frontPrefixMapping := GetFrontMapping()
-
+	hfs, frontPrefixMapping := GetFront()
 	handlers := o.Routers()
 
 	o.Mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		if frontPrefixMapping[getPathPrefix(r.URL.Path)] {
-			w.Header().Set("Content-Encoding", "gzip")
 			hfs.ServeHTTP(w, r)
 		} else {
 			handlers.ServeHTTP(w, r)
