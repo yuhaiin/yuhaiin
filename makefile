@@ -2,8 +2,14 @@ MODULE := github.com/Asutorufa/yuhaiin
 
 BUILD_COMMIT  := $(shell git rev-parse --short HEAD)
 BUILD_VERSION := $(shell git describe --abbrev=0 --tags HEAD)
-BUILD_ARCH	:= $(shell uname -a)
-BUILD_TIME	:= $(shell date)
+ifeq ($(OS),Windows_NT)
+	BUILD_ARCH	:= Windows_NT
+	BUILD_TIME	:= $(shell powershell Get-Date)
+else
+	BUILD_ARCH	:= $(shell uname -a)
+	BUILD_TIME	:= $(shell date)
+endif
+
 CGO_ENABLED := 0
 
 GO=$(shell command -v go | head -n1)

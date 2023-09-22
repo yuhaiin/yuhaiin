@@ -71,20 +71,6 @@ func (e errProxy) PacketConn(context.Context, Address) (net.PacketConn, error) {
 
 func PaseNetwork(s string) statistic.Type { return statistic.Type(statistic.Type_value[s]) }
 
-func Value[T any](s interface{ Value(any) (any, bool) }, k any, Default T) T {
-	z, ok := s.Value(k)
-	if !ok {
-		return Default
-	}
-
-	x, ok := z.(T)
-	if !ok {
-		return Default
-	}
-
-	return x
-}
-
 func ParseAddress(network statistic.Type, addr string) (ad Address, _ error) {
 	hostname, portstr, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -257,7 +243,6 @@ func (d *DomainAddr) AddrPort(ctx context.Context) (netip.AddrPort, error) {
 func (d *DomainAddr) Port() Port { return d.port }
 func (d *DomainAddr) Type() Type { return DOMAIN }
 func (d *DomainAddr) lookupIP(ctx context.Context) (net.IP, error) {
-
 	if d.preferIPv6 {
 		ips, _, err := d.Resolver().Record(ctx, d.hostname, dnsmessage.TypeAAAA)
 		if err == nil {

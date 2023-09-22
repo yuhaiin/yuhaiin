@@ -26,11 +26,16 @@ func main() {
 	ver := flag.Bool("v", false, "show version")
 	host := flag.String("host", "127.0.0.1:50051", "gRPC and http listen host")
 	savepath := flag.String("path", pc.DefaultConfigDir(), "save data path")
+	externalweb := flag.String("eweb", "", "external web page")
 	flag.Parse()
 
 	if *ver {
 		fmt.Print(version.String())
 		return
+	}
+
+	if *externalweb != "" && os.Getenv("EXTERNAL_WEB") == "" {
+		os.Setenv("EXTERNAL_WEB", *externalweb)
 	}
 
 	/*
