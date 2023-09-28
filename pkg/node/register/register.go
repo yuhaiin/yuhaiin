@@ -13,6 +13,7 @@ import (
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
@@ -46,6 +47,7 @@ func init() {
 	protocol.RegisterProtocol(grpc.New)
 	protocol.RegisterProtocol(http2.NewClient)
 	protocol.RegisterProtocol(reality.NewRealityClient)
+	protocol.RegisterProtocol(tls.New)
 }
 
 func Dialer(p *point.Point) (r netapi.Proxy, err error) {

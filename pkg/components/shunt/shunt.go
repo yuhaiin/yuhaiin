@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"golang.org/x/exp/maps"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -32,13 +33,14 @@ type Shunt struct {
 	resolveProxy bool
 	modifiedTime int64
 
-	config *bypass.BypassConfig
-	mapper *mapper.Combine[bypass.ModeEnum]
-	mu     sync.RWMutex
+	config       *bypass.BypassConfig
+	mapper       *mapper.Combine[bypass.ModeEnum]
+	customMapper *mapper.Combine[bypass.ModeEnum]
+	mu           sync.RWMutex
 
 	Opts
 
-	tags []string
+	tags map[string]struct{}
 }
 
 type Opts struct {
@@ -57,12 +59,14 @@ func NewShunt(opt Opts) *Shunt {
 	}
 
 	return &Shunt{
-		mapper: mapper.NewMapper[bypass.ModeEnum](),
+		mapper:       mapper.NewMapper[bypass.ModeEnum](),
+		customMapper: mapper.NewMapper[bypass.ModeEnum](),
 		config: &bypass.BypassConfig{
 			Tcp: bypass.Mode_bypass,
 			Udp: bypass.Mode_bypass,
 		},
 		Opts: opt,
+		tags: make(map[string]struct{}),
 	}
 }
 
@@ -83,30 +87,32 @@ func (s *Shunt) Update(c *pc.Setting) {
 
 	if diff {
 		s.mapper.Clear() //nolint:errcheck
-		s.tags = nil
+		s.tags = make(map[string]struct{})
 		s.modifiedTime = modifiedTime
 		rangeRule(s.config.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
 			s.mapper.Insert(s1, s2)
 			if s2.GetTag() != "" {
-				s.tags = append(s.tags, s2.GetTag())
+				s.tags[s2.GetTag()] = struct{}{}
 			}
 		})
 	}
+
+	s.customMapper.Clear() //nolint:errcheck
 
 	for _, v := range c.Bypass.CustomRuleV3 {
 		mark := v.ToModeEnum()
 
 		if mark.GetTag() != "" {
-			s.tags = append(s.tags, mark.GetTag())
+			s.tags[mark.GetTag()] = struct{}{}
 		}
 
 		for _, hostname := range v.Hostname {
-			s.mapper.Insert(hostname, mark)
+			s.customMapper.Insert(hostname, mark)
 		}
 	}
 }
 
-func (s *Shunt) Tags() []string { return s.tags }
+func (s *Shunt) Tags() []string { return maps.Keys(s.tags) }
 
 func (s *Shunt) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	mode, host := s.dispatch(ctx, s.config.Tcp, host)
@@ -135,6 +141,20 @@ func (s *Shunt) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 	return addr, nil
 }
 
+func (s *Shunt) SearchWithDefault(ctx context.Context, addr netapi.Address, defaultT bypass.ModeEnum) bypass.ModeEnum {
+	mode, ok := s.customMapper.Search(ctx, addr)
+	if ok {
+		return mode
+	}
+
+	mode, ok = s.mapper.Search(ctx, addr)
+	if ok {
+		return mode
+	}
+
+	return defaultT
+}
+
 func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (bypass.Mode, netapi.Address) {
 	// get mode from upstream specified
 
@@ -151,7 +171,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	} else {
 		// get mode from bypass rule
 		host.WithResolver(s.resolver(s.DefaultMode), true)
-		fields := s.mapper.SearchWithDefault(ctx, host, s.DefaultMode)
+		fields := s.SearchWithDefault(ctx, host, s.DefaultMode)
 		mode = fields.Mode()
 
 		// get tag from bypass rule
@@ -211,7 +231,7 @@ func (s *Shunt) resolver(m bypass.Mode) netapi.Resolver {
 func (s *Shunt) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort(0, domain, netapi.EmptyPort)
 	host.WithResolver(mapper.SkipResolve, true)
-	return s.resolver(s.mapper.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
+	return s.resolver(s.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
 }
 
 func (f *Shunt) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {

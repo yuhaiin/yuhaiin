@@ -23,6 +23,7 @@ message protocol {
     grpc grpc = 15 [ json_name = "grpc" ];
     http2 http2 = 16 [ json_name = "http2" ];
     reality reality = 17 [ json_name = "reality" ];
+    tls_config tls = 18 [ json_name = "tls" ];
   }
 }
 
@@ -109,7 +110,7 @@ message simple {
   repeated host alternate_host = 5 [ json_name = "alternate_host" ];
   // udp will write to every packet target instead of only write to host:port
   bool packet_conn_direct = 3 [ json_name = "packet_conn_direct" ];
-  tls_config tls = 4 [ json_name = "tls" ];
+  tls_config tls = 4 [ json_name = "tls", deprecated=true ];
 }
 
 message tls_config {

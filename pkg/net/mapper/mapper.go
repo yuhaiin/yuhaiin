@@ -64,6 +64,29 @@ func (x *Combine[T]) Search(ctx context.Context, addr netapi.Address) (mark T, o
 	return
 }
 
+func (x *Combine[T]) Remove(str string) {
+	if str == "" {
+		return
+	}
+
+	ipNet, err := netip.ParsePrefix(str)
+	if err == nil {
+		x.cidr.RemoveCIDR(ipNet)
+		return
+	}
+
+	if ip, err := netip.ParseAddr(str); err == nil {
+		mask := 128
+		if ip.Is4() {
+			mask = 32
+		}
+		x.cidr.RemoveIP(ip, mask)
+		return
+	}
+
+	x.domain.Remove(str)
+}
+
 func (x *Combine[T]) SearchWithDefault(ctx context.Context, addr netapi.Address, defaultT T) T {
 	t, ok := x.Search(ctx, addr)
 	if ok {

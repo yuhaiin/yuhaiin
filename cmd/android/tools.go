@@ -1,6 +1,13 @@
 package yuhaiin
 
-import "net"
+import (
+	"bufio"
+	"bytes"
+	"errors"
+	"io"
+	"net"
+	"strings"
+)
 
 type CIDR struct {
 	IP   string
@@ -16,4 +23,58 @@ func ParseCIDR(s string) (*CIDR, error) {
 	mask, _ := ipNet.Mask.Size()
 	ip := ipNet.IP.String()
 	return &CIDR{IP: ip, Mask: int32(mask)}, nil
+}
+
+var v4DefaultMask = net.CIDRMask(32, 32)
+var v6DefaultMask = net.CIDRMask(128, 128)
+
+type AddRoute interface {
+	Add(*CIDR)
+}
+
+func AddRulesCidr(process AddRoute, rules string) {
+	r := bufio.NewReader(strings.NewReader(rules))
+	for {
+		line, _, err := r.ReadLine()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			continue
+		}
+
+		z := bytes.FieldsFunc(line, func(r rune) bool { return r == ',' })
+		if len(z) == 0 {
+			continue
+		}
+
+		_, cidr, err := net.ParseCIDR(string(z[0]))
+		if err != nil {
+			ip := net.ParseIP(string(z[0]))
+			if ip == nil {
+				continue
+			}
+
+			var mask []byte
+			if ip.To4() != nil {
+				mask = v4DefaultMask
+			} else {
+				mask = v6DefaultMask
+			}
+
+			cidr = &net.IPNet{
+				IP:   ip,
+				Mask: mask,
+			}
+		}
+
+		mask, _ := cidr.Mask.Size()
+		ip := cidr.IP.String()
+
+		process.Add(&CIDR{
+			IP:   ip,
+			Mask: int32(mask),
+		})
+	}
 }

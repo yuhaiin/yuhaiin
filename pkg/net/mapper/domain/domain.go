@@ -42,6 +42,22 @@ func (d *Domain[T]) Search(domain netapi.Address) (mark T, ok bool) {
 	return search(d.WildcardRoot, r)
 }
 
+func (d *Domain[T]) Remove(domain string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if len(domain) == 0 {
+		return
+	}
+
+	r := newDomainReader(domain)
+	if domain[0] == '*' {
+		remove(d.WildcardRoot, r)
+	} else {
+		remove(d.Root, r)
+	}
+}
+
 func (d *Domain[T]) Marshal() ([]byte, error) {
 	return json.MarshalIndent(d, "", "  ")
 }

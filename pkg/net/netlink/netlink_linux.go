@@ -32,14 +32,6 @@ Finding the process requires you to scan all processes, looking for one which re
 func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (string, error) {
 	var addr, remote net.Addr
 
-	if to.IsUnspecified() {
-		if ip.To4() != nil {
-			to = net.IPv4(127, 0, 0, 1)
-		} else {
-			to = net.IPv6loopback
-		}
-	}
-
 	if strings.HasPrefix(network, "tcp") {
 		addr = &net.TCPAddr{IP: ip, Port: int(srcPort)}
 		remote = &net.TCPAddr{IP: to, Port: int(toPort)}

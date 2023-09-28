@@ -53,6 +53,7 @@ func search[T any](node *domainNode[T], domain *domainReader) (resp T, ok bool) 
 		}
 
 		node = node.rChild(domain.str())
+
 		if node.Symbol != 0 {
 			if node.Symbol == wildcard {
 				resp, ok = node.Mark, true
@@ -84,4 +85,59 @@ func insert[T any](node *domainNode[T], z *domainReader, mark T) {
 
 		z.next()
 	}
+}
+
+type deleteElement[T any] struct {
+	str  string
+	node *domainNode[T]
+}
+
+func remove[T any](node *domainNode[T], domain *domainReader) {
+	// fmt.Println("remove", domain.domain)
+
+	var nodes []*deleteElement[T]
+
+	nodes = append(nodes, &deleteElement[T]{
+		str:  "root",
+		node: node,
+	})
+
+	for domain.hasNext() && node != nil {
+		if !node.childExist(domain.str()) {
+			if domain.str() == "*" && node.Symbol == wildcard {
+				break
+			}
+			return
+		}
+
+		node = node.rChild(domain.str())
+		nodes = append(nodes, &deleteElement[T]{
+			str:  domain.str(),
+			node: node,
+		})
+		domain.next()
+	}
+
+	if node.Symbol == 0 {
+		return
+	}
+
+	for i := len(nodes) - 1; i >= 0; i-- {
+		if len(nodes[i].node.Child) != 0 {
+			if i == len(nodes)-1 {
+				nodes[i].node.Symbol = 0
+			}
+			break
+		}
+
+		if len(nodes[i].node.Child) == 0 {
+			if i-1 > 0 {
+				delete(nodes[i-1].node.Child, nodes[i].str)
+			}
+		}
+	}
+
+	// for _, v := range nodes {
+	// 	fmt.Println(v.str, len(v.node.Child), maps.Keys(v.node.Child))
+	// }
 }

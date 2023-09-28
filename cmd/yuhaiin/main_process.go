@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -24,7 +25,17 @@ func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (s
 		return "", fmt.Errorf("source or destination address is not ip")
 	}
 
-	return netlink.FindProcessName(network,
-		yerror.Ignore(src.IP(context.TODO())), src.Port().Port(),
-		yerror.Ignore(dst.IP(context.TODO())), dst.Port().Port())
+	ip := yerror.Ignore(src.IP(context.TODO()))
+	to := yerror.Ignore(dst.IP(context.TODO()))
+
+	if to.IsUnspecified() {
+		if ip.To4() != nil {
+			to = net.IPv4(127, 0, 0, 1)
+		} else {
+			to = net.IPv6loopback
+		}
+	}
+
+	return netlink.FindProcessName(network, ip, src.Port().Port(),
+		to, dst.Port().Port())
 }

@@ -62,5 +62,10 @@ out:
 	return
 }
 
+// Search search from trie tree
+func (t *Trie[T]) Remove(ip net.IP) {
+	//TODO
+}
+
 // NewTrieTree create a new trie tree
 func NewTrieTree[T any]() Trie[T] { return Trie[T]{} }
