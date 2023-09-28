@@ -69,11 +69,8 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return fmt.Errorf("client to proxy failed: %w", err)
 	}
 	if ok {
-		// log.Debugln("nat table use **old** udp addr write to:", pkt.Dst, "from", pkt.Src)
 		return nil
 	}
-
-	// log.Debugln("nat table write to:", pkt.Dst, "from", pkt.Src)
 
 	cond, ok := u.mu.LoadOrStore(key, sync.NewCond(&sync.Mutex{}))
 	if ok {
@@ -131,8 +128,6 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 
 			return fmt.Errorf("read from proxy failed: %w", err)
 		}
-
-		// log.Debugln("nat table read data length:", n, "from", from, "dst:", pkt.Dst, "fakeIP:", pkt.Dst, "maybe write to:", pkt.Src)
 
 		if addr, ok := table.originAddrStore.Load(from.String()); ok {
 			// TODO: maybe two dst(fake ip) have same uaddr, need help
