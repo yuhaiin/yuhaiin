@@ -22,6 +22,13 @@ func (c *Cidr[T]) Insert(cidr string, mark T) error {
 	return nil
 }
 
+func (c *Cidr[T]) RemoveCIDR(ipNet netip.Prefix) {
+	//TODO
+}
+func (c *Cidr[T]) RemoveIP(ipNet netip.Addr, maskSIze int) {
+	//TODO
+}
+
 func (c *Cidr[T]) InsertCIDR(ipNet netip.Prefix, mark T) {
 	if ipNet.Addr().Is4() {
 		c.v4CidrTrie.Insert(ipNet.Addr().AsSlice(), ipNet.Bits(), mark)
