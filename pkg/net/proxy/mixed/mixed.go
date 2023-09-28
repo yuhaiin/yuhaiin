@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
@@ -19,8 +20,9 @@ import (
 type Mixed struct {
 	lis net.Listener
 
-	httpserver   netapi.Server
-	socks5server netapi.Server
+	httpserver    netapi.Server
+	socks5server  netapi.Server
+	socks4aserver netapi.Server
 }
 
 func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) {
@@ -31,6 +33,7 @@ func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) 
 
 	socksCL := newChanListener(lis)
 	httpCL := newChanListener(lis)
+	socks4aCL := newChanListener(lis)
 
 	ss, err := s5s.NewServerWithListener(socksCL,
 		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks5 { return l.SOCKS5() }))
@@ -38,16 +41,20 @@ func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) 
 		lis.Close()
 		socksCL.Close()
 		httpCL.Close()
+		socks4aCL.Close()
 		return nil, err
 	}
 
 	hs := httpproxy.NewServerWithListener(httpCL,
 		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Http { return l.HTTP() }))
 
-	m := &Mixed{lis, hs, ss}
+	socks4a := socks4a.NewServerWithListener(socks4aCL,
+		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks4A { return l.SOCKS4A() }))
+
+	m := &Mixed{lis, hs, ss, socks4a}
 
 	go func() {
-		if err := m.handle(socksCL, httpCL); err != nil {
+		if err := m.handle(socksCL, socks4aCL, httpCL); err != nil {
 			log.Debug("mixed handle failed", "err", err)
 		}
 	}()
@@ -70,8 +77,9 @@ func (m *Mixed) Close() error {
 	return err
 }
 
-func (m *Mixed) handle(socks5, http *chanListener) error {
+func (m *Mixed) handle(socks5, socks4a, http *chanListener) error {
 	defer socks5.Close()
+	defer socks4a.Close()
 	defer http.Close()
 
 	for {
@@ -93,9 +101,12 @@ func (m *Mixed) handle(socks5, http *chanListener) error {
 
 		conn = &mixedConn{protocol[0], conn}
 
-		if protocol[0] == 0x05 {
+		switch protocol[0] {
+		case 0x05:
 			socks5.NewConn(conn)
-		} else {
+		case 0x04:
+			socks4a.NewConn(conn)
+		default:
 			http.NewConn(conn)
 		}
 	}

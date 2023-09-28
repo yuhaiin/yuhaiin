@@ -197,12 +197,22 @@ func (m *Protocol_Mix) HTTP() *Protocol_Http {
 		},
 	}
 }
+
 func (m *Protocol_Mix) SOCKS5() *Protocol_Socks5 {
 	return &Protocol_Socks5{
 		Socks5: &Socks5{
 			Host:     m.Mix.Host,
 			Username: m.Mix.Username,
 			Password: m.Mix.Password,
+		},
+	}
+}
+
+func (m *Protocol_Mix) SOCKS4A() *Protocol_Socks4A {
+	return &Protocol_Socks4A{
+		Socks4A: &Socks4A{
+			Host:     m.Mix.Host,
+			Username: m.Mix.Username,
 		},
 	}
 }
