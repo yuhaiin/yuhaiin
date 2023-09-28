@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -70,54 +71,87 @@ func handshake1(client net.Conn, user, key string, buf []byte) error {
 	}
 
 	if buf[0] != 0x05 { // ver
-		writeHandshake1(client, s5c.NoAcceptableMethods)
-		return fmt.Errorf("no acceptable method: %d", buf[0])
+		err := writeHandshake1(client, s5c.NoAcceptableMethods)
+		return fmt.Errorf("no acceptable method: %d, resp err: %w", buf[0], err)
 	}
 
 	nMethods := int(buf[1])
 
 	if nMethods > len(buf) {
-		writeHandshake1(client, s5c.NoAcceptableMethods)
-		return fmt.Errorf("nMethods length of methods out of buf")
+		err := writeHandshake1(client, s5c.NoAcceptableMethods)
+		return fmt.Errorf("nMethods length of methods out of buf, resp err: %w", err)
 	}
 
 	if _, err := io.ReadFull(client, buf[:nMethods]); err != nil {
 		return fmt.Errorf("read methods failed: %w", err)
 	}
 
-	needVerify := user != "" || key != ""
+	noNeedVerify := user == "" && key == ""
+	userAndPasswordSupport := false
 
 	for _, v := range buf[:nMethods] { // range all supported methods
-		if !needVerify && v == s5c.NoAuthenticationRequired {
+		if v == s5c.NoAuthenticationRequired && noNeedVerify {
 			return writeHandshake1(client, s5c.NoAuthenticationRequired)
 		}
 
-		if needVerify && v == s5c.UserAndPassword {
-			return verifyUserPass(client, user, key)
+		if v == s5c.UserAndPassword {
+			userAndPasswordSupport = true
 		}
 	}
 
-	writeHandshake1(client, s5c.NoAcceptableMethods)
+	if userAndPasswordSupport {
+		return verifyUserPass(client, user, key)
+	}
 
-	return fmt.Errorf("no acceptable authentication methods: [length: %d, method:%v]", nMethods, buf[:nMethods])
+	err := writeHandshake1(client, s5c.NoAcceptableMethods)
+
+	return fmt.Errorf("no acceptable authentication methods: [length: %d, method:%v], response err: %w", nMethods, buf[:nMethods], err)
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
-	b := pool.GetBytes(pool.DefaultSize)
-	defer pool.PutBytes(b)
-	// get username and password
-	_, err := client.Read(b[:])
-	if err != nil {
+	if err := writeHandshake1(client, s5c.UserAndPassword); err != nil {
 		return err
 	}
-	username := b[2 : 2+b[1]]
-	password := b[3+b[1] : 3+b[1]+b[2+b[1]]]
-	if user != string(username) || key != string(password) {
-		writeHandshake1(client, 0x01)
-		return fmt.Errorf("verify username and password failed")
+
+	b := pool.GetBytes(pool.DefaultSize)
+	defer pool.PutBytes(b)
+
+	if _, err := io.ReadFull(client, b[:2]); err != nil {
+		return fmt.Errorf("read ver and user name length failed: %w", err)
 	}
-	writeHandshake1(client, 0x00)
-	return nil
+
+	// if b[0] != 0x01 {
+	// 	return fmt.Errorf("unknown ver: %d", b[0])
+	// }
+
+	usernameLength := int(b[1])
+
+	if _, err := io.ReadFull(client, b[2:2+usernameLength]); err != nil {
+		return fmt.Errorf("read username failed: %w", err)
+	}
+
+	username := b[2 : 2+usernameLength]
+
+	if _, err := io.ReadFull(client, b[2+usernameLength:2+usernameLength+1]); err != nil {
+		return fmt.Errorf("read password length failed: %w", err)
+	}
+
+	passwordLength := int(b[2+usernameLength])
+
+	if _, err := io.ReadFull(client, b[2+usernameLength+1:2+usernameLength+1+passwordLength]); err != nil {
+		return fmt.Errorf("read password failed: %w", err)
+	}
+
+	password := b[2+usernameLength+1 : 2+usernameLength+1+passwordLength]
+
+	if (len(user) > 0 && (usernameLength <= 0 || user != unsafe.String(&username[0], usernameLength))) ||
+		(len(key) > 0 && (passwordLength <= 0 || key != unsafe.String(&password[0], passwordLength))) {
+		_, err := client.Write([]byte{1, 1})
+		return fmt.Errorf("verify username and password failed, resp err: %w", err)
+	}
+
+	_, err := client.Write([]byte{1, 0})
+	return err
 }
 
 func handshake2(client net.Conn, f netapi.Handler, buf []byte) error {
@@ -127,8 +161,8 @@ func handshake2(client net.Conn, f netapi.Handler, buf []byte) error {
 	}
 
 	if buf[0] != 0x05 { // ver
-		writeHandshake2(client, s5c.NoAcceptableMethods, netapi.EmptyAddr)
-		return fmt.Errorf("no acceptable method: %d", buf[0])
+		err := writeHandshake2(client, s5c.NoAcceptableMethods, netapi.EmptyAddr)
+		return fmt.Errorf("no acceptable method: %d, resp err: %w", buf[0], err)
 	}
 
 	var err error
@@ -147,7 +181,10 @@ func handshake2(client net.Conn, f netapi.Handler, buf []byte) error {
 		if err != nil {
 			return fmt.Errorf("parse local addr failed: %w", err)
 		}
-		writeHandshake2(client, s5c.Succeeded, caddr) // response to connect successful
+		err = writeHandshake2(client, s5c.Succeeded, caddr) // response to connect successful
+		if err != nil {
+			return err
+		}
 
 		f.Stream(context.TODO(), &netapi.StreamMeta{
 			Source:      client.RemoteAddr(),
@@ -164,12 +201,12 @@ func handshake2(client net.Conn, f netapi.Handler, buf []byte) error {
 		fallthrough
 
 	default:
-		writeHandshake2(client, s5c.CommandNotSupport, netapi.EmptyAddr)
-		return fmt.Errorf("not Support Method %d", buf[1])
+		err := writeHandshake2(client, s5c.CommandNotSupport, netapi.EmptyAddr)
+		return fmt.Errorf("not Support Method %d, resp err: %w", buf[1], err)
 	}
 
 	if err != nil {
-		writeHandshake2(client, s5c.HostUnreachable, netapi.EmptyAddr)
+		_ = writeHandshake2(client, s5c.HostUnreachable, netapi.EmptyAddr)
 	}
 	return err
 }
@@ -179,8 +216,11 @@ func handleUDP(client net.Conn) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	writeHandshake2(client, s5c.Succeeded, netapi.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
-	relay.Copy(io.Discard, client)
+	err = writeHandshake2(client, s5c.Succeeded, netapi.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
+	if err != nil {
+		return err
+	}
+	_, _ = relay.Copy(io.Discard, client)
 	return nil
 }
 
