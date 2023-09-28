@@ -10,10 +10,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
-	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
+	hp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
@@ -25,9 +26,10 @@ import (
 )
 
 func init() {
-	pl.RegisterProtocol(httpproxy.NewServer)
+	pl.RegisterProtocol(hp.NewServer)
 	pl.RegisterProtocol(ss.NewServer)
 	pl.RegisterProtocol(mixed.NewServer)
+	pl.RegisterProtocol(socks4a.NewServer)
 	pl.RegisterProtocol(tun.NewTun)
 	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (netapi.Server, error) {
 		var Type yuubinsya.Type
@@ -87,7 +89,7 @@ func init() {
 			Handler:             o.Handler,
 			NewListener:         listener,
 		})
-		go s.Start()
+		go s.Start() //nolint:errcheck
 		return s, nil
 	})
 }

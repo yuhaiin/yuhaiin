@@ -10,7 +10,7 @@
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Inbound
   - yuubinsya(experimental), Reqlity, HTTP2, Quic, Websocket, gRPC, TLS
-  - Socks5, HTTP, Linux/Mac Redir
+  - Socks5, Socks4A, HTTP, Linux/Mac Redir
   - TUN
     - [gvisor(Symmetric NAT)](https://github.com/google/gvisor)
     - tun2socket(hijack tun TCP to a local TCP listener)
