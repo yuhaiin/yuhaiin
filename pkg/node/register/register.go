@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -48,6 +49,7 @@ func init() {
 	protocol.RegisterProtocol(http2.NewClient)
 	protocol.RegisterProtocol(reality.NewRealityClient)
 	protocol.RegisterProtocol(tls.New)
+	protocol.RegisterProtocol(wireguard.New)
 }
 
 func Dialer(p *point.Point) (r netapi.Proxy, err error) {

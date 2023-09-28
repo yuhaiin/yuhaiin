@@ -24,6 +24,7 @@ message protocol {
     http2 http2 = 16 [ json_name = "http2" ];
     reality reality = 17 [ json_name = "reality" ];
     tls_config tls = 18 [ json_name = "tls" ];
+    wireguard wireguard = 19 [ json_name = "wireguard" ];
   }
 }
 
@@ -130,4 +131,22 @@ message reject {}
 message host {
   string host = 1 [ json_name = "host" ];
   int32 port = 2 [ json_name = "port" ];
+}
+
+
+message wireguard_peer_config {
+    string public_key = 1;
+    string pre_shared_key = 2;
+    string endpoint = 3;
+    int32 keep_alive = 4;
+    repeated string allowed_ips = 5;
+}
+
+message wireguard {
+    string secret_key = 1;
+    repeated string endpoint = 2;
+    repeated wireguard_peer_config peers = 3;
+    int32 mtu = 4;
+    int32 num_workers = 5;
+    bytes reserved = 6;
 }
