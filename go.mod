@@ -42,3 +42,5 @@ require (
 )
 
 replace github.com/vishvananda/netlink => github.com/yuhaiin/netlink v0.0.0-20230919144802-e22cd926ecf5
+
+replace go.etcd.io/bbolt => github.com/monkeyWie/bbolt v0.0.0-20230922022106-f3bb36466ac6
