@@ -31,7 +31,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: internal/statics/bypass.gz
-        key: cache-rule
+        key: cache-rule-${{ github.run_id }}-${{ github.run_attempt }}
 
   web:
     runs-on: ubuntu-latest
@@ -46,9 +46,10 @@ jobs:
     - name: clone
       run: |
         cd internal/http
-        git clone --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git out
+        git clone -b main --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git out
+        cd out && git branch -v && cd ..
         rm -rf out/.git out/.nojekyll
-        go run -v compress.go
+        go run compress.go
         echo ${PWD}
         ls
 
@@ -57,7 +58,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: internal/http/out
-        key: cache-front-out
+        key: cache-front-out-${{ github.run_id }}-${{ github.run_attempt }}
 
   build:
     needs: [web,rule]
@@ -82,14 +83,14 @@ jobs:
       uses: actions/cache@v3
       with:
         path: internal/http/out
-        key: cache-front-out
+        key: cache-front-out-${{ github.run_id }}-${{ github.run_attempt }}
     
     - name: Cache Rule
       id: cache-rule
       uses: actions/cache@v3
       with:
         path: internal/statics/bypass.gz
-        key: cache-rule
+        key: cache-rule-${{ github.run_id }}-${{ github.run_attempt }}
 
     # - name: Set up Upx
     #   run: |

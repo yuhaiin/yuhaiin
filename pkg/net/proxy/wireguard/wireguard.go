@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
@@ -446,10 +447,10 @@ func makeVirtualTun(h *protocol.Wireguard) (*Net, error) {
 		},
 		&device.Logger{
 			Verbosef: func(format string, args ...any) {
-				log.Debug(fmt.Sprintf(format, args...))
+				log.Output(2, slog.LevelDebug, fmt.Sprintf(format, args...))
 			},
 			Errorf: func(format string, args ...any) {
-				log.Error(fmt.Sprintf(format, args...))
+				log.Output(2, slog.LevelError, fmt.Sprintf(format, args...))
 			},
 		})
 
