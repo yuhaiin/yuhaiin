@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/quic-go/quic-go v0.39.0
-	github.com/refraction-networking/utls v1.5.3
+	github.com/refraction-networking/utls v1.5.4
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/xtls/reality v0.0.0-20230828171259-e426190d57f6
 	go.etcd.io/bbolt v1.3.7
