@@ -20,7 +20,7 @@ import (
 
 func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
 	bootstrap := wrap(func(b *dnsWrap, c *pc.Setting) {
-		if proto.Equal(b.config, c.Dns.Bootstrap) {
+		if proto.Equal(b.config, c.Dns.Bootstrap) && b.ipv6 == c.GetIpv6() {
 			return
 		}
 
@@ -30,6 +30,7 @@ func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
 		}
 
 		b.config = c.Dns.Bootstrap
+		b.ipv6 = c.GetIpv6()
 		b.Close()
 
 		z, err := newDNS("BOOTSTRAP", c.GetIpv6(), b.config,
@@ -53,11 +54,12 @@ func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
 
 func NewLocal(dl netapi.Proxy) netapi.Resolver {
 	return wrap(func(l *dnsWrap, c *pc.Setting) {
-		if proto.Equal(l.config, c.Dns.Local) {
+		if proto.Equal(l.config, c.Dns.Local) && l.ipv6 == c.GetIpv6() {
 			return
 		}
 
 		l.config = c.Dns.Local
+		l.ipv6 = c.GetIpv6()
 		l.Close()
 		z, err := newDNS("LOCALDNS", c.GetIpv6(), l.config, &dialer{
 			Proxy: dl,
@@ -76,11 +78,12 @@ func NewLocal(dl netapi.Proxy) netapi.Resolver {
 
 func NewRemote(dl netapi.Proxy) netapi.Resolver {
 	return wrap(func(r *dnsWrap, c *pc.Setting) {
-		if proto.Equal(r.config, c.Dns.Remote) {
+		if proto.Equal(r.config, c.Dns.Remote) && r.ipv6 == c.GetIpv6() {
 			return
 		}
 
 		r.config = c.Dns.Remote
+		r.ipv6 = c.GetIpv6()
 		r.Close()
 		z, err := newDNS("REMOTEDNS", c.GetIpv6(), r.config,
 			&dialer{
@@ -99,6 +102,7 @@ func NewRemote(dl netapi.Proxy) netapi.Resolver {
 }
 
 type dnsWrap struct {
+	ipv6   bool
 	config *pd.Dns
 	dns    netapi.Resolver
 

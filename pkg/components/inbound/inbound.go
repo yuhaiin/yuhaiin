@@ -112,7 +112,7 @@ func NewListener(dnsHandler netapi.DNSHandler, handler netapi.Handler) *listener
 }
 
 func (l *listener) Update(current *pc.Setting) {
-	l.opts.IPv6 = current.Ipv6
+	l.opts.IPv6 = current.GetIpv6()
 
 	l.store.Range(func(key string, v store) bool {
 		if z, ok := current.Server.Servers[key]; !ok || !z.GetEnabled() {

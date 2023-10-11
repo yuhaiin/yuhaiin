@@ -79,8 +79,8 @@ func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol
 		Transport:  tr,
 		BufferPool: pool.ReverseProxyBuffer{},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			if !errors.Is(err, context.Canceled) {
-				log.Error("http: proxy error: ", err)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				log.Error("http: proxy error: ", "err", err)
 			}
 			w.WriteHeader(http.StatusBadGateway)
 		},
