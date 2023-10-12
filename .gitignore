@@ -8,3 +8,4 @@
 /internal/http/out
 /internal/statics/bypass.conf
 /internal/statics/bypass.gz
+/cmd/socat/socat
