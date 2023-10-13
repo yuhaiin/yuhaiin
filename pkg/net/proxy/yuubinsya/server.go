@@ -92,7 +92,7 @@ func (y *yuubinsya) Server() (net.Listener, error) {
 		if err != nil {
 			return nil, err
 		}
-		quicListener, err := quic.NewServer(packetConn, y.TlsConfig)
+		quicListener, err := quic.NewServer(packetConn, y.TlsConfig, y.handler)
 		if err != nil {
 			packetConn.Close()
 			return nil, err
@@ -188,7 +188,15 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 			Address:     addr,
 		})
 	case UDP:
-		return y.packet(c)
+		return func() error {
+			defer c.Close()
+			log.Debug("new udp connect", "from", c.RemoteAddr())
+			for {
+				if err := y.forwardPacket(c); err != nil {
+					return fmt.Errorf("handle packet request failed: %w", err)
+				}
+			}
+		}()
 	}
 
 	return nil
@@ -201,40 +209,21 @@ func (y *yuubinsya) Close() error {
 	return y.Listener.Close()
 }
 
-func (y *yuubinsya) packet(c net.Conn) error {
-	defer c.Close()
-	log.Debug("new udp connect", "from", c.RemoteAddr())
-	for {
-		if err := y.forwardPacket(c); err != nil {
-			return fmt.Errorf("handle packet request failed: %w", err)
-		}
-	}
-}
-
 func (y *yuubinsya) forwardPacket(c net.Conn) error {
-	buf := pool.GetBytesV2(5 + 255 + 2 + nat.MaxSegmentSize)
-	defer pool.PutBytesV2(buf)
-
-	n, err := c.Read(buf.Bytes()[:4+255+2])
-	if err != nil {
-		return fmt.Errorf("read addr and length failed: %w", err)
-	}
-
-	addr, err := s5c.ResolveAddrBytes(buf.Bytes()[:4+255])
+	addr, err := s5c.ResolveAddr(c)
 	if err != nil {
 		return err
 	}
 
-	length := binary.BigEndian.Uint16(buf.Bytes()[len(addr):])
+	var length uint16
+	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
+		return err
+	}
 
-	if remain := int(length) + len(addr) + 2 - n; remain > 0 {
-		if remain > len(buf.Bytes())-n {
-			return fmt.Errorf("packet too large")
-		}
+	bufv2 := pool.GetBytesV2(length)
 
-		if _, err = io.ReadFull(c, buf.Bytes()[n:n+remain]); err != nil {
-			return err
-		}
+	if _, err = io.ReadFull(c, bufv2.Bytes()); err != nil {
+		return err
 	}
 
 	src := c.RemoteAddr()
@@ -247,8 +236,10 @@ func (y *yuubinsya) forwardPacket(c net.Conn) error {
 		&netapi.Packet{
 			Src:     src,
 			Dst:     addr.Address(statistic.Type_udp),
-			Payload: buf.Bytes()[len(addr)+2 : int(length)+len(addr)+2],
+			Payload: bufv2.Bytes(),
 			WriteBack: func(buf []byte, from net.Addr) (int, error) {
+				defer pool.PutBytesV2(bufv2)
+
 				addr, err := netapi.ParseSysAddr(from)
 				if err != nil {
 					return 0, err
