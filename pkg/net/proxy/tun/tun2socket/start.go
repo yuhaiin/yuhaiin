@@ -123,24 +123,23 @@ func (h *handler) handleTCP(conn net.Conn) error {
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
 func (h *handler) handleUDP(server netapi.Handler, lis *Tun2Socket) error {
-	buf := pool.GetBytes(h.Mtu)
+	buf := pool.GetBytesV2(h.Mtu)
 
-	n, tuple, err := lis.UDP().ReadFrom(buf)
+	n, tuple, err := lis.UDP().ReadFrom(buf.Bytes())
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
 	}
 
-	zbuf := buf[:n]
+	zbuf := buf.Bytes()[:n]
 
 	if h.isHandleDNS(tuple.DestinationAddr, tuple.DestinationPort) {
 		return h.DNSHandler.Do(context.TODO(), zbuf, func(b []byte) error {
-			defer pool.PutBytes(buf)
+			defer pool.PutBytesV2(buf)
 			_, err := lis.UDP().WriteTo(b, tuple)
 			return err
 		})
 	}
 
-	defer pool.PutBytes(buf)
 	server.Packet(context.TODO(),
 		&netapi.Packet{
 			Src: &net.UDPAddr{
@@ -153,6 +152,7 @@ func (h *handler) handleUDP(server netapi.Handler, lis *Tun2Socket) error {
 			}),
 			Payload: zbuf,
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
+				defer pool.PutBytesV2(buf)
 				address, err := netapi.ParseSysAddr(addr)
 				if err != nil {
 					return 0, err

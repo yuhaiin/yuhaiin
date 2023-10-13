@@ -21,12 +21,11 @@ import (
 
 func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *udp.Forwarder {
 	handle := func(ctx context.Context, srcpconn net.PacketConn, dst netapi.Address) error {
-		buf := pool.GetBytes(opt.Protocol.Tun.Mtu)
-		defer pool.PutBytes(buf)
+		buf := pool.GetBytesV2(opt.Protocol.Tun.Mtu)
 
 		for {
 			srcpconn.SetReadDeadline(time.Now().Add(time.Minute))
-			n, src, err := srcpconn.ReadFrom(buf)
+			n, src, err := srcpconn.ReadFrom(buf.Bytes())
 			if err != nil {
 				if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
 					return nil /* ignore I/O timeout & EOF */
@@ -40,8 +39,9 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 				&netapi.Packet{
 					Src:     src,
 					Dst:     dst,
-					Payload: buf[:n],
+					Payload: buf.Bytes()[:n],
 					WriteBack: func(b []byte, addr net.Addr) (int, error) {
+						defer pool.PutBytesV2(buf)
 						from, err := netapi.ParseSysAddr(addr)
 						if err != nil {
 							return 0, err

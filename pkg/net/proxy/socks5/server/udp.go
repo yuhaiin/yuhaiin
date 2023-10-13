@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -34,47 +33,43 @@ func (s *Socks5) newUDPServer(handler netapi.Handler) error {
 	go func() {
 		defer s.Close()
 
-		buf := pool.GetBytes(nat.MaxSegmentSize)
-		defer pool.PutBytes(buf)
+		buf := pool.GetBytesV2(nat.MaxSegmentSize)
 
 		for {
-			n, src, err := u.PacketConn.ReadFrom(buf)
+			n, src, err := u.PacketConn.ReadFrom(buf.Bytes())
 			if err != nil {
 				log.Error("read udp request failed, stop socks5 server", slog.Any("err", err))
 				return
 			}
 
-			if err := u.handle(buf[:n], src); err != nil && !errors.Is(err, net.ErrClosed) {
-				log.Error("handle udp request failed", "err", err)
+			addr, err := s5c.ResolveAddr(bytes.NewReader(buf.Bytes()[3:n]))
+			if err != nil {
+				log.Error("resolve addr failed", "err", err)
+				continue
 			}
+
+			u.handler.Packet(
+				context.TODO(),
+				&netapi.Packet{
+					Src:     src,
+					Dst:     addr.Address(statistic.Type_udp),
+					Payload: buf.Bytes()[3+len(addr) : n],
+					WriteBack: func(b []byte, source net.Addr) (int, error) {
+						defer pool.PutBytesV2(buf)
+
+						sourceAddr, err := netapi.ParseSysAddr(source)
+						if err != nil {
+							return 0, err
+						}
+						b = bytes.Join([][]byte{{0, 0, 0}, s5c.ParseAddr(sourceAddr), b}, nil)
+
+						return u.PacketConn.WriteTo(b, src)
+					},
+				},
+			)
+
 		}
 	}()
 
-	return nil
-}
-
-func (u *udpServer) handle(buf []byte, src net.Addr) error {
-	addr, err := s5c.ResolveAddr(bytes.NewReader(buf[3:]))
-	if err != nil {
-		return fmt.Errorf("resolve addr failed: %w", err)
-	}
-
-	u.handler.Packet(
-		context.TODO(),
-		&netapi.Packet{
-			Src:     src,
-			Dst:     addr.Address(statistic.Type_udp),
-			Payload: buf[3+len(addr):],
-			WriteBack: func(b []byte, source net.Addr) (int, error) {
-				sourceAddr, err := netapi.ParseSysAddr(source)
-				if err != nil {
-					return 0, err
-				}
-				b = bytes.Join([][]byte{{0, 0, 0}, s5c.ParseAddr(sourceAddr), b}, nil)
-
-				return u.PacketConn.WriteTo(b, src)
-			},
-		},
-	)
 	return nil
 }
