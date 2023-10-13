@@ -207,9 +207,7 @@ func (tun *netTun) WriteNotify() {
 	tun.incomingPacket <- view
 }
 
-func (tun *netTun) Flush() error {
-	return nil
-}
+func (tun *netTun) Flush() error { return nil }
 
 func (tun *netTun) Close() error {
 	tun.stack.RemoveNIC(1)
@@ -227,9 +225,7 @@ func (tun *netTun) Close() error {
 	return nil
 }
 
-func (tun *netTun) MTU() (int, error) {
-	return tun.mtu, nil
-}
+func (tun *netTun) MTU() (int, error) { return tun.mtu, nil }
 
 func convertToFullAddr(endpoint netip.AddrPort) (tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
 	var protoNumber tcpip.NetworkProtocolNumber
@@ -321,13 +317,8 @@ func (net *Net) ListenUDP(laddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	return net.DialUDP(laddr, nil)
 }
 
-func (n *Net) HasV4() bool {
-	return n.hasV4
-}
-
-func (n *Net) HasV6() bool {
-	return n.hasV6
-}
+func (n *Net) HasV4() bool { return n.hasV4 }
+func (n *Net) HasV6() bool { return n.hasV6 }
 
 func IsDomainName(s string) bool {
 	l := len(s)

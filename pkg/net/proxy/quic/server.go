@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/quic-go/quic-go"
 )
 
@@ -21,13 +22,16 @@ type Server struct {
 	mu       sync.RWMutex
 	connChan chan *interConn
 	closed   bool
+
+	handler netapi.Handler
 }
 
-func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error) {
+func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config, handler netapi.Handler) (*Server, error) {
 	s := &Server{
 		packetConn: packetConn,
 		tlsConfig:  tlsConfig,
 		connChan:   make(chan *interConn, 10),
+		handler:    handler,
 	}
 
 	var err error
@@ -105,25 +109,40 @@ func (s *Server) server() error {
 }
 
 func (s *Server) listenQuicConnection(conn quic.Connection) {
-	defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-	/*
-		because of https://github.com/quic-go/quic-go/blob/5b72f4c900f209b5705bb0959399d59e495a2c6e/internal/protocol/params.go#L137
-		MaxDatagramFrameSize Too short, here use stream trans udp data until quic-go will auto frag lager frame
-			// udp
-			go func() {
-				for {
-					data, err := conn.ReceiveMessage()
+	defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "") // nolint:errcheck
+	// because of https://github.com/quic-go/quic-go/blob/5b72f4c900f209b5705bb0959399d59e495a2c6e/internal/protocol/params.go#L137
+	// MaxDatagramFrameSize Too short, here use stream trans udp data until quic-go will auto frag lager frame
+	// udp
+	go func() {
+		conn := NewConnectionPacketConn(context.Background(), conn)
+		for {
+			id, data, addr, err := conn.Receive()
+			if err != nil {
+				log.Error("receive message failed:", "err", err)
+				break
+			}
+
+			address, err := netapi.ParseSysAddr(addr)
+			if err != nil {
+				log.Error("parse address failed:", "err", err)
+				continue
+			}
+			s.handler.Packet(conn.conn.Context(), &netapi.Packet{
+				Src:     &QuicAddr{Addr: conn.conn.RemoteAddr(), ID: quic.StreamID(id)},
+				Dst:     address,
+				Payload: data,
+				WriteBack: func(b []byte, addr net.Addr) (int, error) {
+					err := conn.Write(b, id, addr)
 					if err != nil {
-						log.Println("receive message failed:", err)
-						break
+						return 0, err
 					}
 
-					if err = y.handleQuicDatagram(data, conn); err != nil {
-						log.Println("handle datagram failed:", err)
-					}
-				}
-			}()
-	*/
+					return len(b), nil
+				},
+			})
+		}
+	}()
+
 	for {
 		stream, err := conn.AcceptStream(context.TODO())
 		if err != nil {
@@ -138,60 +157,12 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 
 		log.Info("new quic conn from", conn.RemoteAddr(), "id", stream.StreamID())
 
-		s.connChan <- &interConn{
-			Stream: stream,
-			local:  conn.LocalAddr(),
-			remote: conn.RemoteAddr(),
-		}
+		s.connChan <- &interConn{Stream: stream, local: conn.LocalAddr(), remote: conn.RemoteAddr()}
 
 		s.mu.RUnlock()
 	}
 }
 
-/*
-	func (s *Server) handleQuicDatagram(b []byte, session quic.Connection) error {
-		if len(b) <= 5 {
-			return fmt.Errorf("invalid datagram")
-		}
-
-		id := binary.BigEndian.Uint16(b[:2])
-		addr, err := s5c.ResolveAddr(bytes.NewBuffer(b[2:]))
-		if err != nil {
-			return err
-		}
-
-		log.Println("new udp from", session.RemoteAddr(), "id", id, "to", addr.Address(statistic.Type_udp))
-
-		return c.nat.Write(&nat.Packet{
-			SourceAddress: &QuicAddr{
-				addr: session.RemoteAddr(),
-				id:   quic.StreamID(id),
-			},
-			DestinationAddress: addr.Address(statistic.Type_udp),
-			Payload:            b[2+len(addr):],
-			WriteBack: func(b []byte, addr net.Addr) (int, error) {
-				add, err := netapi.ParseSysAddr(addr)
-				if err != nil {
-					return 0, err
-				}
-
-				buf := pool.GetBuffer()
-				defer pool.PutBuffer(buf)
-
-				binary.Write(buf, binary.BigEndian, id)
-				s5c.ParseAddrWriter(add, buf)
-				buf.Write(b)
-
-				// log.Println("write back to", session.RemoteAddr(), "id", id)
-				if err = session.SendMessage(buf.Bytes()); err != nil {
-					return 0, err
-				}
-
-				return len(b), nil
-			},
-		})
-	}
-*/
 type QuicAddr struct {
 	Addr net.Addr
 	ID   quic.StreamID

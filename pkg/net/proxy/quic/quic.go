@@ -1,10 +1,8 @@
 package quic
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -13,22 +11,20 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
 )
 
 type Client struct {
 	netapi.EmptyDispatch
 
-	tlsConfig  *tls.Config
-	quicConfig *quic.Config
-	dialer     netapi.Proxy
-	session    quic.Connection
-	sessionMu  sync.Mutex
+	tlsConfig   *tls.Config
+	quicConfig  *quic.Config
+	dialer      netapi.Proxy
+	session     quic.Connection
+	fragSession *ConnectionPacketConn
+	sessionMu   sync.Mutex
 
 	id     id.IDGenerator
 	udpMap map[uint64]chan packet
@@ -61,11 +57,23 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 }
 
 func (c *Client) initSession(ctx context.Context) error {
+	if c.session != nil {
+		select {
+		case <-c.session.Context().Done():
+		default:
+			return nil
+		}
+	}
+
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
 
 	if c.session != nil {
-		return nil
+		select {
+		case <-c.session.Context().Done():
+		default:
+			return nil
+		}
 	}
 
 	conn, err := c.dialer.PacketConn(ctx, netapi.EmptyAddr)
@@ -79,54 +87,39 @@ func (c *Client) initSession(ctx context.Context) error {
 	}
 
 	go func() {
-		<-session.Context().Done()
-		c.sessionMu.Lock()
-		defer c.sessionMu.Unlock()
-		_ = session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-		conn.Close()
-		log.Debug("session closed")
-		c.session = nil
-	}()
+		defer log.Debug("session closed")
+		defer conn.Close()                                                          //nolint:errcheck
+		defer c.session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "") //nolint:errcheck
 
-	go func() {
+		conn := NewConnectionPacketConn(context.Background(), c.session)
+
 		for {
-			b, err := session.ReceiveMessage(context.Background())
+			id, b, addr, err := conn.Receive()
 			if err != nil {
 				break
 			}
 
-			if err = c.handleDatagrams(b); err != nil {
+			if err = c.handleDatagrams(id, addr, b); err != nil {
 				log.Debug("handle datagrams failed:", "err", err)
 			}
 		}
 	}()
 
 	c.session = session
+	c.fragSession = NewConnectionPacketConn(ctx, session)
 	return nil
 }
 
-func (c *Client) handleDatagrams(b []byte) error {
-	if len(b) <= 5 {
-		return fmt.Errorf("invalid data")
-	}
-
-	id := binary.BigEndian.Uint16(b[:2])
-	addr, err := s5c.ResolveAddr(bytes.NewBuffer(b[2:]))
-	if err != nil {
-		return err
-	}
-
+func (c *Client) handleDatagrams(id uint16, addr net.Addr, b []byte) error {
 	c.udpMu.RLock()
+	defer c.udpMu.RUnlock()
+
 	x, ok := c.udpMap[uint64(id)]
 	if !ok {
 		return fmt.Errorf("unknown udp id: %d, %v", id, b[:2])
 	}
 
-	x <- packet{
-		data: b[2+len(addr):],
-		addr: addr.Address(statistic.Type_udp),
-	}
-	c.udpMu.RUnlock()
+	x <- packet{data: b, addr: addr}
 
 	return nil
 }
@@ -163,7 +156,7 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 
 	return &interPacketConn{
 		c:       c,
-		session: c.session,
+		session: c.fragSession,
 		msgChan: msgChan,
 		id:      uint16(id),
 	}, nil
@@ -197,7 +190,7 @@ type packet struct {
 	addr net.Addr
 }
 type interPacketConn struct {
-	session quic.Connection
+	session *ConnectionPacketConn
 	msgChan chan packet
 	id      uint16
 
@@ -227,21 +220,10 @@ func (x *interPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		return 0, net.ErrClosed
 	}
 
-	ad, err := netapi.ParseSysAddr(addr)
+	err = x.session.Write(p, x.id, addr)
 	if err != nil {
 		return 0, err
 	}
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
-
-	binary.Write(buf, binary.BigEndian, x.id)
-	s5c.ParseAddrWriter(ad, buf)
-	buf.Write(p)
-
-	if err = x.session.SendMessage(buf.Bytes()); err != nil {
-		return 0, err
-	}
-
 	return len(p), nil
 }
 
@@ -261,13 +243,13 @@ func (x *interPacketConn) Close() error {
 }
 
 func (x *interPacketConn) LocalAddr() net.Addr {
-	return x.session.LocalAddr()
+	return x.session.conn.LocalAddr()
 }
 
 func (x *interPacketConn) SetDeadline(t time.Time) error {
 	if x.deadline == nil {
 		if !t.IsZero() {
-			x.deadline = time.AfterFunc(t.Sub(time.Now()), func() { x.Close() })
+			x.deadline = time.AfterFunc(time.Until(t), func() { x.Close() })
 		}
 		return nil
 	}
@@ -275,7 +257,7 @@ func (x *interPacketConn) SetDeadline(t time.Time) error {
 	if t.IsZero() {
 		x.deadline.Stop()
 	} else {
-		x.deadline.Reset(t.Sub(time.Now()))
+		x.deadline.Reset(time.Until(t))
 	}
 	return nil
 }
