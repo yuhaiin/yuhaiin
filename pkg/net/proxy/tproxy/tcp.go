@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 package tproxy
 
 import (
@@ -10,9 +7,15 @@ import (
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
+
+func init() {
+	dialer.DefaultMarkSymbol = func(socket int32) bool {
+		return dialer.LinuxMarkSymbol(socket, 0xff) == nil
+	}
+}
 
 func controlTCP(c syscall.RawConn) error {
 	var fn = func(s uintptr) {
@@ -36,33 +39,38 @@ func controlTCP(c syscall.RawConn) error {
 	return nil
 }
 
-func handleTCP(c net.Conn, p netapi.Proxy) error {
-	z, ok := c.(interface{ SyscallConn() syscall.RawConn })
+func handleTCP(c net.Conn, p netapi.Handler, dnsHandler netapi.DNSHandler) error {
+	z, ok := c.(interface {
+		SyscallConn() (syscall.RawConn, error)
+	})
 	if !ok {
 		return fmt.Errorf("not a syscall.Conn")
 	}
 
-	if err := controlTCP(z.SyscallConn()); err != nil {
+	sysConn, err := z.SyscallConn()
+	if err != nil {
+		return err
+	}
+
+	if err := controlTCP(sysConn); err != nil {
 		return fmt.Errorf("controlTCP failed: %w", err)
 	}
 
-	addr, err := netapi.ParseSysAddr(c.LocalAddr())
+	target, err := netapi.ParseSysAddr(c.LocalAddr())
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
-	r, err := p.Conn(context.TODO(), addr)
-	if err != nil {
-		return fmt.Errorf("get conn failed: %w", err)
+	if isHandleDNS(target.Port().Port()) {
+		return dnsHandler.HandleTCP(context.Background(), c)
 	}
 
-	relay.Relay(c, r)
-	return nil
-}
+	p.Stream(context.TODO(), &netapi.StreamMeta{
+		Source:      c.RemoteAddr(),
+		Destination: c.LocalAddr(),
+		Inbound:     c.RemoteAddr(),
 
-func newTCPServer(h string, dialer netapi.Proxy) (netapi.Server, error) {
-	return NewTCPServer(h, func(c net.Conn) {
-		if err := handleTCP(c, dialer); err != nil {
-			log.Error("handleTCP failed", "err", err)
-		}
+		Src:     c,
+		Address: target,
 	})
+	return nil
 }

@@ -19,6 +19,15 @@ func ListenContext(ctx context.Context, network string, address string) (net.Lis
 		Listen(ctx, network, address)
 }
 
+func ListenContextWithOptions(ctx context.Context, network string, address string, opts *Options) (net.Listener, error) {
+	return (&net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			return setSocketOptions(network, address, c, opts)
+		},
+	}).
+		Listen(ctx, network, address)
+}
+
 func DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	return DialContextWithOptions(ctx, network, address, &Options{
 		InterfaceName:  DefaultInterfaceName,

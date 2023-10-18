@@ -1,0 +1,20 @@
+#! /bin/sh
+ 	
+LAN_IPS=${LAN_IPS:-"192.168.2.145 192.168.122.27"}
+
+ip rule add fwmark 1 table 100
+ip route add local 0.0.0.0/0 dev lo table 100
+
+
+iptables -t mangle -N YUHAAIN_TPROXY
+iptables -t mangle -A YUHAAIN_TPROXY -d 224.0.0.0/4 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY -d 255.255.255.255/32 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY -d 172.16.0.0/16 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY -d 127.0.0.1/32 -j RETURN
+for addr in ${LAN_IPS}; do
+    logger "add lan $addr"
+    iptables -t mangle -A YUHAAIN_TPROXY -p tcp -s ${addr} -j TPROXY --on-ip 127.0.0.1 --on-port 8083 --tproxy-mark 1
+    iptables -t mangle -A YUHAAIN_TPROXY -p udp -s ${addr} -j TPROXY --on-ip 127.0.0.1 --on-port 8083 --tproxy-mark 1
+done
+
+iptables -t mangle -A PREROUTING -j YUHAAIN_TPROXY

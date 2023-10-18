@@ -13,12 +13,15 @@ message protocol {
     redir redir = 5 [ json_name = "redir" ];
     tun tun = 6 [ json_name = "tun" ];
     yuubinsya yuubinsya = 7 [ json_name = "yuubinsya" ];
-    mixed mix = 8 [json_name = "mixed" ];
+    mixed mix = 8 [ json_name = "mixed" ];
     socks4a socks4a = 9 [ json_name = "socks4a" ];
+    tproxy tproxy = 10 [ json_name = "tproxy" ];
   }
 }
 
-message inbound_config { map<string, protocol> servers = 5 [ json_name = "servers" ]; }
+message inbound_config {
+  map<string, protocol> servers = 5 [ json_name = "servers" ];
+}
 
 message http {
   string host = 1 [ json_name = "host" ];
@@ -32,7 +35,6 @@ message socks5 {
   string password = 4 [ json_name = "password" ];
 }
 
-
 message socks4a {
   string host = 1 [ json_name = "host" ];
   string username = 2 [ json_name = "username" ];
@@ -45,6 +47,8 @@ message mixed {
 }
 
 message redir { string host = 1 [ json_name = "host" ]; }
+
+message tproxy { string host = 1 [ json_name = "host" ]; }
 
 message tun {
   // name of the tun device

@@ -1,32 +1,18 @@
-//go:build linux
-// +build linux
-
 package tproxy
 
 import (
-	"bytes"
-	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"golang.org/x/sys/unix"
 )
 
-func newUDPServer(host string, dialer netapi.Proxy) (netapi.Server, error) {
-	return NewUDPServer(host,
-		UDPWithListenConfig(net.ListenConfig{Control: controlUDP}),
-		UDPWithListenFunc(func(pc net.PacketConn) error { return handleUDP(pc, dialer) }))
-}
-
-func controlUDP(network, address string, c syscall.RawConn) error {
+func controlUDP(c syscall.RawConn) error {
 	var fn = func(s uintptr) {
 		err := syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT, 1)
 		if err != nil {
@@ -58,113 +44,6 @@ func controlUDP(network, address string, c syscall.RawConn) error {
 	}
 
 	return nil
-}
-
-func handleUDP(l net.PacketConn, p netapi.Proxy) error {
-	u := l.(*net.UDPConn)
-
-	var tempDelay time.Duration
-	for {
-		oob := make([]byte, 1024)
-		b := make([]byte, 1024)
-		n, oobn, _, addr, err := u.ReadMsgUDP(b, oob)
-		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				if tempDelay == 0 {
-					tempDelay = 5 * time.Millisecond
-				} else {
-					tempDelay *= 2
-				}
-
-				if max := 1 * time.Second; tempDelay > max {
-					tempDelay = max
-				}
-
-				log.Warn(fmt.Sprintf("tcp sever: Accept failed retrying in %v", tempDelay), "err", err)
-				time.Sleep(tempDelay)
-				continue
-			}
-			if errors.Is(err, net.ErrClosed) {
-				log.Error("checked udp server closed", "err", err)
-			} else {
-				log.Error("udp server accept failed", "err", err)
-			}
-			return fmt.Errorf("read msg udp failed: %w", err)
-		}
-
-		err = handleSingleUDPReq(oob[:oobn], b[:n], addr, p)
-		if err != nil {
-			log.Error("handle single udp req failed", "err", err)
-		}
-	}
-}
-
-func handleSingleUDPReq(oob, b []byte, addr *net.UDPAddr, p netapi.Proxy) error {
-
-	msgs, err := syscall.ParseSocketControlMessage(oob)
-	if err != nil {
-		return fmt.Errorf("parsing socket control message: %w", err)
-	}
-
-	var originalDst *net.UDPAddr
-	for _, msg := range msgs {
-		if msg.Header.Level == syscall.SOL_IP && msg.Header.Type == syscall.IP_RECVORIGDSTADDR {
-			originalDstRaw := &syscall.RawSockaddrInet4{}
-			if err = binary.Read(bytes.NewReader(msg.Data), binary.LittleEndian, originalDstRaw); err != nil {
-				return fmt.Errorf("reading original destination address: %w", err)
-			}
-
-			switch originalDstRaw.Family {
-			case syscall.AF_INET:
-				pp := (*syscall.RawSockaddrInet4)(unsafe.Pointer(originalDstRaw))
-				p := (*[2]byte)(unsafe.Pointer(&pp.Port))
-				originalDst = &net.UDPAddr{
-					IP:   net.IPv4(pp.Addr[0], pp.Addr[1], pp.Addr[2], pp.Addr[3]),
-					Port: int(p[0])<<8 + int(p[1]),
-				}
-
-			case syscall.AF_INET6:
-				pp := (*syscall.RawSockaddrInet6)(unsafe.Pointer(originalDstRaw))
-				p := (*[2]byte)(unsafe.Pointer(&pp.Port))
-				originalDst = &net.UDPAddr{
-					IP:   net.IP(pp.Addr[:]),
-					Port: int(p[0])<<8 + int(p[1]),
-					Zone: strconv.Itoa(int(pp.Scope_id)),
-				}
-
-			default:
-				return fmt.Errorf("original destination is an unsupported network family")
-			}
-		}
-	}
-
-	if originalDst == nil {
-		return fmt.Errorf("unable to obtain original destination: %w", err)
-	}
-
-	conn, err := p.PacketConn(context.TODO(), netapi.ParseUDPAddr(addr))
-	if err != nil {
-		return fmt.Errorf("get packet conn failed: %w", err)
-	}
-	defer conn.Close()
-
-	_, err = conn.WriteTo(b, originalDst)
-	if err != nil {
-		return fmt.Errorf("write data to remote server failed: %w", err)
-	}
-
-	n, _, err := conn.ReadFrom(b)
-	if err != nil {
-		return fmt.Errorf("read data from remote server failed: %w", err)
-	}
-
-	local, err := DialUDP("udp", originalDst, addr)
-	if err != nil {
-		return fmt.Errorf("dial local udp failed: %w", err)
-	}
-
-	_, err = local.Write(b[:n])
-	return err
 }
 
 // DialUDP connects to the remote address raddr on the network net,
@@ -233,9 +112,13 @@ func udpAddrToSocketAddr(addr *net.UDPAddr) (syscall.Sockaddr, error) {
 		ip := [16]byte{}
 		copy(ip[:], addr.IP.To16())
 
-		zoneID, err := strconv.ParseUint(addr.Zone, 10, 32)
-		if err != nil {
-			return nil, err
+		var zoneID uint64
+		if addr.Zone != "" {
+			var err error
+			zoneID, err = strconv.ParseUint(addr.Zone, 10, 32)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return &syscall.SockaddrInet6{Addr: ip, Port: addr.Port, ZoneId: uint32(zoneID)}, nil
@@ -258,4 +141,89 @@ func udpAddrFamily(net string, laddr, raddr *net.UDPAddr) int {
 		return syscall.AF_INET
 	}
 	return syscall.AF_INET6
+}
+
+//credit: https://github.com/LiamHaworth/go-tproxy/blob/master/tproxy_udp.go ,  which is under MIT License
+
+// ListenUDP will construct a new UDP listener
+// socket with the Linux IP_TRANSPARENT option
+// set on the underlying socket
+func ListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
+	listener, err := net.ListenUDP(network, laddr)
+	if err != nil {
+		return nil, err
+	}
+
+	fileDescriptorSource, err := listener.File()
+	if err != nil {
+		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("get file descriptor: %s", err)}
+	}
+	defer fileDescriptorSource.Close()
+
+	fileDescriptor := int(fileDescriptorSource.Fd())
+	if err = syscall.SetsockoptInt(fileDescriptor, syscall.SOL_IP, syscall.IP_TRANSPARENT, 1); err != nil {
+		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("set socket option: IP_TRANSPARENT: %s", err)}
+	}
+
+	if err = syscall.SetsockoptInt(fileDescriptor, syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR, 1); err != nil {
+		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("set socket option: IP_RECVORIGDSTADDR: %s", err)}
+	}
+
+	return listener, nil
+}
+
+// ReadFromUDP reads a UDP packet from c, copying the payload into b.
+// It returns the number of bytes copied into b and the return address
+// that was on the packet.
+//
+// Out-of-band data is also read in so that the original destination
+// address can be identified and parsed.
+func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstAddr *net.UDPAddr, err error) {
+	oob := make([]byte, 1024)
+	var oobn int
+	n, oobn, _, srcAddr, err = conn.ReadMsgUDP(b, oob)
+	if err != nil {
+		return
+	}
+
+	msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
+	if err != nil {
+		err = fmt.Errorf("parsing socket control message: %s", err)
+		return
+	}
+
+	//from golang.org/x/sys/unix/sockcmsg_linux.go ParseOrigDstAddr
+
+	for _, m := range msgs {
+
+		switch {
+		case m.Header.Level == syscall.SOL_IP && m.Header.Type == syscall.IP_ORIGDSTADDR:
+			pp := (*syscall.RawSockaddrInet4)(unsafe.Pointer(&m.Data[0]))
+
+			p := (*[2]byte)(unsafe.Pointer(&pp.Port))
+
+			dstAddr = &net.UDPAddr{
+				IP:   net.IPv4(pp.Addr[0], pp.Addr[1], pp.Addr[2], pp.Addr[3]),
+				Port: int(p[0])<<8 + int(p[1]),
+			}
+
+		case m.Header.Level == syscall.SOL_IPV6 && m.Header.Type == unix.IPV6_ORIGDSTADDR:
+			pp := (*syscall.RawSockaddrInet6)(unsafe.Pointer(&m.Data[0]))
+			p := (*[2]byte)(unsafe.Pointer(&pp.Port))
+			dstAddr = &net.UDPAddr{
+				IP:   net.IP(pp.Addr[:]),
+				Port: int(p[0])<<8 + int(p[1]),
+				Zone: strconv.Itoa(int(pp.Scope_id)),
+			}
+
+		}
+
+	}
+
+	if dstAddr == nil {
+		err = fmt.Errorf("unable to obtain original destination: %v", err)
+		return
+	}
+
+	return
 }
