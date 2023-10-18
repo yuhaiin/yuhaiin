@@ -158,7 +158,7 @@ func Start(opt StartOpt) (err error) {
 	dnsServer := AddComponent(resolver.NewDNSServer(fakedns))
 	// give dns a dialer
 	appDialer.Proxy = fakedns
-	ss := AddComponent(inbound.NewHandler(fakedns))
+	ss := AddComponent(inbound.NewHandler(fakedns, dnsServer))
 	// inbound server
 	_ = AddComponent(inbound.NewListener(dnsServer, ss))
 	// tools

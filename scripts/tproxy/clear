@@ -1,0 +1,12 @@
+#! /bin/sh
+
+iptables -t mangle -D PREROUTING -j YUHAAIN_TPROXY
+iptables -t mangle -D OUTPUT -j YUHAAIN_TPROXY_OUTPUT
+
+iptables -t mangle -F YUHAAIN_TPROXY
+iptables -t mangle -F YUHAAIN_TPROXY_OUTPUT
+iptables -t mangle -X YUHAAIN_TPROXY
+iptables -t mangle -X YUHAAIN_TPROXY_OUTPUT
+
+ip rule del fwmark 1 table 100
+ip route del local 0.0.0.0/0 dev lo table 100

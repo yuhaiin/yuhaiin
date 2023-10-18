@@ -22,6 +22,7 @@ type packetChan struct {
 
 type handler struct {
 	dialer     netapi.Proxy
+	dnsHandler netapi.DNSHandler
 	table      *nat.Table
 	packetChan chan packetChan
 
@@ -29,7 +30,7 @@ type handler struct {
 	cancelCtx func()
 }
 
-func NewHandler(dialer netapi.Proxy) *handler {
+func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSHandler) *handler {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &handler{
 		dialer:     dialer,
@@ -37,6 +38,7 @@ func NewHandler(dialer netapi.Proxy) *handler {
 		packetChan: make(chan packetChan, system.Procs),
 		doneCtx:    ctx,
 		cancelCtx:  cancel,
+		dnsHandler: dnsHandler,
 	}
 
 	go func() {
@@ -103,6 +105,8 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 func (s *handler) packet(ctx context.Context, pack *netapi.Packet) {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
+
+	// TODO hijacking dns
 
 	ctx = netapi.NewStore(ctx)
 

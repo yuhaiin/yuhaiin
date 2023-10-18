@@ -1,0 +1,26 @@
+#! /bin/sh
+
+ip rule add fwmark 1 table 100
+ip route add local 0.0.0.0/0 dev lo table 100
+
+
+iptables -t mangle -N YUHAAIN_TPROXY
+iptables -t mangle -A YUHAAIN_TPROXY -d 224.0.0.0/4 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY -d 255.255.255.255/32 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY -d 172.16.0.0/16 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY -d 127.0.0.1/32 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY -p tcp -d 1.1.1.1 --dport 443 -j TPROXY --on-ip 127.0.0.1 --on-port 8083 --tproxy-mark 1
+iptables -t mangle -A YUHAAIN_TPROXY -p udp -d 1.1.1.1 --dport 53 -j TPROXY --on-ip 127.0.0.1 --on-port 8083 --tproxy-mark 1
+
+
+iptables -t mangle -N YUHAAIN_TPROXY_OUTPUT
+iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 224.0.0.0/4 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 255.255.255.255/32 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 172.16.0.0/16 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 127.0.0.1/32 -j RETURN
+iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -p tcp -d 1.1.1.1 --dport 443 -j MARK --set-mark 1
+iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -p udp -d 1.1.1.1 --dport 53 -j MARK --set-mark 1
+
+
+iptables -t mangle -A PREROUTING -j YUHAAIN_TPROXY
+iptables -t mangle -A OUTPUT -j YUHAAIN_TPROXY_OUTPUT
