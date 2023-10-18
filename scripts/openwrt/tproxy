@@ -1,0 +1,79 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2007-2012 OpenWrt.org
+
+START=99
+
+USE_PROCD=1
+PROG=${HOME}/yuhaiin_mipsle
+
+HOST=${HOST:-0.0.0.0:50051}
+CONFIG_PATH=${YUHAIIN_CONFIG_PATH:-${HOME}/yuhaiin}
+CONFIG_FILE=${CONFIG_PATH}/config.json
+
+TPROXY_PORT=$(jq -r '(.server.servers.tproxy.tproxy.host) | split(":")[1]' ${CONFIG_FILE})
+TPROXY_PORT=${TPROXY_PORT:-8083}
+
+TABLE=${TABLE:-233}
+LAN_IPS=${LAN_IPS:-"192.168.2.145 192.168.122.27"}
+
+
+clear() {
+    iptables -t mangle -D PREROUTING -j YUHAAIN_TPROXY
+    #iptables -t mangle -D OUTPUT -j YUHAAIN_TPROXY_OUTPUT
+
+    iptables -t mangle -F YUHAAIN_TPROXY
+    #iptables -t mangle -F YUHAAIN_TPROXY_OUTPUT
+    iptables -t mangle -X YUHAAIN_TPROXY
+    #iptables -t mangle -X YUHAAIN_TPROXY_OUTPUT
+
+    ip rule del fwmark 1 table 100
+    ip route del local 0.0.0.0/0 dev lo table 100
+}
+
+start_service() {
+    procd_open_instance yuhaiin
+    procd_set_param command $PROG -host $HOST -path $CONFIG_PATH
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+
+    clear
+    
+    ip rule add fwmark 1 table 100
+    ip route add local 0.0.0.0/0 dev lo table 100
+
+    iptables -t mangle -N YUHAAIN_TPROXY
+    iptables -t mangle -A YUHAAIN_TPROXY -d 224.0.0.0/4 -j RETURN
+    iptables -t mangle -A YUHAAIN_TPROXY -d 255.255.255.255/32 -j RETURN
+    iptables -t mangle -A YUHAAIN_TPROXY -d 172.16.0.0/16 -j RETURN
+    iptables -t mangle -A YUHAAIN_TPROXY -d 127.0.0.1/32 -j RETURN
+    for addr in ${LAN_IPS}; do
+        logger "add lan $addr"
+        iptables -t mangle -A YUHAAIN_TPROXY -p tcp -s ${addr} -j TPROXY --on-port ${TPROXY_PORT} --tproxy-mark 1
+        iptables -t mangle -A YUHAAIN_TPROXY -p udp -s ${addr} -j TPROXY --on-port ${TPROXY_PORT} --tproxy-mark 1
+    done
+
+
+    # iptables -t mangle -N YUHAAIN_TPROXY_OUTPUT
+    # iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 224.0.0.0/4 -j RETURN
+    # iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 255.255.255.255/32 -j RETURN
+    # iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 172.16.0.0/16 -j RETURN
+    # iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -d 127.0.0.1/32 -j RETURN
+    # iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -p tcp -d 1.1.1.1 --dport 443 -j MARK --set-mark 1
+    # iptables -t mangle -A YUHAAIN_TPROXY_OUTPUT -p udp -d 1.1.1.1 --dport 53 -j MARK --set-mark 1
+
+
+    iptables -t mangle -A PREROUTING -j YUHAAIN_TPROXY
+    # iptables -t mangle -A OUTPUT -j YUHAAIN_TPROXY_OUTPUT
+    procd_close_instance
+}
+
+stop_service() {
+    procd_send_signal $PROG
+
+    clear
+}
+
+restart_service() {
+    stop
+    start
+}

@@ -1,0 +1,6 @@
+#! /bin/sh
+
+ip rule del fwmark 1 table 100
+ip route del local 0.0.0.0/0 dev lo table 100
+
+nft delete table ip yuhaiin

@@ -10,13 +10,13 @@
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Inbound
   - yuubinsya(experimental), Reqlity, HTTP2, Quic, Websocket, gRPC, TLS
-  - Socks5, Socks4A, HTTP, Linux/Mac Redir
-  - TUN
+  - Socks5, Socks4A, HTTP
+  - TUN, Linux/Mac Redir, Tproxy
     - [gvisor(Symmetric NAT)](https://github.com/google/gvisor)
     - tun2socket(hijack tun TCP to a local TCP listener)
 - Outbound
   - yuubinsya(experimental)
-  - Socks5, HTTP, TCP
+  - Socks5, HTTP, TCP, Wireguard
   - Shadowsocksr, Shadowsocks, Vmess, trojan  
   - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS  
 - support DNS:
