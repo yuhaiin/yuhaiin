@@ -26,8 +26,11 @@ func (c *Cache) Get(k []byte) (v []byte) {
 			return nil
 		}
 
-		v = bk.Get(k)
-
+		vv := bk.Get(k)
+		if vv != nil {
+			v = make([]byte, len(vv))
+			copy(v, vv)
+		}
 		return nil
 	})
 
