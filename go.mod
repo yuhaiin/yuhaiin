@@ -7,7 +7,7 @@ require (
 	github.com/refraction-networking/utls v1.5.4
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/xtls/reality v0.0.0-20231010003020-da6c695a34db
-	go.etcd.io/bbolt v1.3.7-0.20231019094556-233156a53aeb
+	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.14.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/mobile v0.0.0-20231006135142-2b44d11868fe
