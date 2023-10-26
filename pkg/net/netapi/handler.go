@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"net"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Server interface {
@@ -32,7 +34,7 @@ type Packet struct {
 	Src       net.Addr
 	Dst       Address
 	WriteBack func(b []byte, addr net.Addr) (int, error)
-	Payload   []byte
+	Payload   *pool.Bytes
 }
 
 type PacketHandler interface {

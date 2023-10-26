@@ -57,14 +57,23 @@ type client struct {
 	send   func(context.Context, []byte) ([]byte, error)
 	config Config
 	subnet []dnsmessage.Resource
-	cond   syncmap.SyncMap[string, *recordCond]
+	// cond   syncmap.SyncMap[string, *recordCond]
+
+	chanStore syncmap.SyncMap[string, *recordContext]
 }
 
-type recordCond struct {
-	*sync.Cond
+type recordContext struct {
+	context.Context
+
 	ips []net.IP
 	ttl uint32
 }
+
+// type recordCond struct {
+// 	*sync.Cond
+// 	ips []net.IP
+// 	ttl uint32
+// }
 
 func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)) *client {
 	c := &client{
@@ -169,11 +178,12 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 		return ips, uint32(se), nil
 	}
 
-	cond, ok := c.cond.LoadOrStore(key, &recordCond{Cond: sync.NewCond(&sync.Mutex{})})
+	rCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cond, ok := c.chanStore.LoadOrStore(key, &recordContext{Context: rCtx})
 	if ok {
-		cond.L.Lock()
-		cond.Wait()
-		cond.L.Unlock()
+		<-cond.Context.Done()
 
 		if len(cond.ips) != 0 {
 			return cond.ips, cond.ttl, nil
@@ -181,10 +191,7 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 		return nil, 0, ErrCondEmptyResponse
 	}
 
-	defer func() {
-		c.cond.Delete(key)
-		cond.Broadcast()
-	}()
+	defer c.chanStore.Delete(key)
 
 	ips, ttl, err := c.lookupIP(ctx, domain, reqType)
 	if err != nil {
