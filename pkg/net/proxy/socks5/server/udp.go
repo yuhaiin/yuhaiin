@@ -48,15 +48,15 @@ func (s *Socks5) newUDPServer(handler netapi.Handler) error {
 				continue
 			}
 
+			buf.ResetSize(3+len(addr), n)
+
 			u.handler.Packet(
 				context.TODO(),
 				&netapi.Packet{
 					Src:     src,
 					Dst:     addr.Address(statistic.Type_udp),
-					Payload: buf.Bytes()[3+len(addr) : n],
+					Payload: buf,
 					WriteBack: func(b []byte, source net.Addr) (int, error) {
-						defer pool.PutBytesV2(buf)
-
 						sourceAddr, err := netapi.ParseSysAddr(source)
 						if err != nil {
 							return 0, err

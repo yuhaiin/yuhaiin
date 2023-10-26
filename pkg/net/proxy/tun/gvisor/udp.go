@@ -34,14 +34,15 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 				return err
 			}
 
+			buf.ResetSize(0, n)
+
 			opt.Handler.Packet(
 				ctx,
 				&netapi.Packet{
 					Src:     src,
 					Dst:     dst,
-					Payload: buf.Bytes()[:n],
+					Payload: buf,
 					WriteBack: func(b []byte, addr net.Addr) (int, error) {
-						defer pool.PutBytesV2(buf)
 						from, err := netapi.ParseSysAddr(addr)
 						if err != nil {
 							return 0, err

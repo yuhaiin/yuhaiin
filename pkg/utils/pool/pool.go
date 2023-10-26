@@ -80,14 +80,26 @@ func (pool) PutBuffer(b *bytes.Buffer) {
 }
 
 type Bytes struct {
-	once sync.Once
-	buf  []byte
-	size int
+	once  sync.Once
+	buf   []byte
+	start int
+	end   int
 }
 
-func (b *Bytes) Bytes() []byte          { return b.buf[:b.size] }
-func (b *Bytes) After(index int) []byte { return b.buf[index:b.size] }
+func (b *Bytes) Bytes() []byte          { return b.buf[b.start:b.end] }
+func (b *Bytes) After(index int) []byte { return b.buf[b.start+index : b.end] }
+func (b *Bytes) ResetSize(start, end int) {
+	if end <= len(b.buf) {
+		b.end = end
+	}
+
+	if start >= 0 && start <= end {
+		b.start = start
+	}
+}
+
+func NewBytesV2(b []byte) *Bytes { return &Bytes{sync.Once{}, b, 0, len(b)} }
 func GetBytesV2[T constraints.Integer](size T) *Bytes {
-	return &Bytes{sync.Once{}, GetBytes(size), int(size)}
+	return &Bytes{sync.Once{}, GetBytes(size), 0, int(size)}
 }
 func PutBytesV2(b *Bytes) { b.once.Do(func() { PutBytes(b.buf) }) }

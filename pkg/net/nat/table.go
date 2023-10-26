@@ -56,8 +56,8 @@ func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool
 		}
 	}
 
-	_, err := t.dstPacketConn.WriteTo(pkt.Payload, uaddr)
-	t.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
+	_, err := t.dstPacketConn.WriteTo(pkt.Payload.Bytes(), uaddr)
+	_ = t.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
 	return true, err
 }
 
@@ -69,6 +69,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return fmt.Errorf("client to proxy failed: %w", err)
 	}
 	if ok {
+		pool.PutBytesV2(pkt.Payload)
 		return nil
 	}
 
@@ -78,11 +79,13 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		cond.Wait()
 		_, err := u.write(ctx, pkt, key)
 		cond.L.Unlock()
+		pool.PutBytesV2(pkt.Payload)
 		return err
 	}
 
 	defer u.mu.Delete(key)
 	defer cond.Broadcast()
+	defer pool.PutBytesV2(pkt.Payload)
 
 	netapi.StoreFromContext(ctx).
 		Add(netapi.SourceKey{}, pkt.Src).
@@ -98,8 +101,6 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	if _, err = u.write(ctx, pkt, key); err != nil {
 		return fmt.Errorf("write data to remote failed: %w", err)
 	}
-
-	pkt.Payload = nil
 
 	go func() {
 		defer func() {

@@ -236,10 +236,8 @@ func (y *yuubinsya) forwardPacket(c net.Conn) error {
 		&netapi.Packet{
 			Src:     src,
 			Dst:     addr.Address(statistic.Type_udp),
-			Payload: bufv2.Bytes(),
+			Payload: bufv2,
 			WriteBack: func(buf []byte, from net.Addr) (int, error) {
-				defer pool.PutBytesV2(bufv2)
-
 				addr, err := netapi.ParseSysAddr(from)
 				if err != nil {
 					return 0, err

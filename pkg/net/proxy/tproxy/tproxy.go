@@ -110,9 +110,11 @@ func newUDP(host string, handler netapi.Handler, dnsHandler netapi.DNSHandler, h
 				break
 			}
 
+			buf.ResetSize(0, n)
+
 			if isHandleDNS(uint16(dst.Port)) && hijackDNS {
 				go func() {
-					err := dnsHandler.Do(context.TODO(), buf.Bytes()[:n], func(b []byte) error {
+					err := dnsHandler.Do(context.TODO(), buf.Bytes(), func(b []byte) error {
 						defer pool.PutBytesV2(buf)
 						back, err := DialUDP("udp", dst, src)
 						if err != nil {
@@ -133,7 +135,7 @@ func newUDP(host string, handler netapi.Handler, dnsHandler netapi.DNSHandler, h
 			handler.Packet(context.TODO(), &netapi.Packet{
 				Src:     src,
 				Dst:     dstAddr,
-				Payload: buf.Bytes()[:n],
+				Payload: buf,
 				WriteBack: func(b []byte, addr net.Addr) (int, error) {
 					defer pool.PutBytesV2(buf)
 

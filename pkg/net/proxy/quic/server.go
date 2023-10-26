@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
 )
 
@@ -127,10 +128,11 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 				log.Error("parse address failed:", "err", err)
 				continue
 			}
+
 			s.handler.Packet(conn.conn.Context(), &netapi.Packet{
 				Src:     &QuicAddr{Addr: conn.conn.RemoteAddr(), ID: quic.StreamID(id)},
 				Dst:     address,
-				Payload: data,
+				Payload: pool.NewBytesV2(data),
 				WriteBack: func(b []byte, addr net.Addr) (int, error) {
 					err := conn.Write(b, id, addr)
 					if err != nil {
