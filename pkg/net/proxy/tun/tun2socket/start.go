@@ -133,8 +133,7 @@ func (h *handler) handleUDP(server netapi.Handler, lis *Tun2Socket) error {
 	buf.ResetSize(0, n)
 
 	if h.isHandleDNS(tuple.DestinationAddr, tuple.DestinationPort) {
-		return h.DNSHandler.Do(context.TODO(), buf.Bytes(), func(b []byte) error {
-			defer pool.PutBytesV2(buf)
+		return h.DNSHandler.Do(context.TODO(), buf, func(b []byte) error {
 			_, err := lis.UDP().WriteTo(b, tuple)
 			return err
 		})

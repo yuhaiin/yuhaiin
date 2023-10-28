@@ -114,8 +114,7 @@ func newUDP(host string, handler netapi.Handler, dnsHandler netapi.DNSHandler, h
 
 			if isHandleDNS(uint16(dst.Port)) && hijackDNS {
 				go func() {
-					err := dnsHandler.Do(context.TODO(), buf.Bytes(), func(b []byte) error {
-						defer pool.PutBytesV2(buf)
+					err := dnsHandler.Do(context.TODO(), buf, func(b []byte) error {
 						back, err := DialUDP("udp", dst, src)
 						if err != nil {
 							return fmt.Errorf("udp server dial failed: %w", err)
