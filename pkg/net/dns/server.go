@@ -72,13 +72,14 @@ func (d *dnsServer) startUDP() (err error) {
 
 	for i := 0; i < system.Procs; i++ {
 		go func() {
-			buf := pool.GetBytes(nat.MaxSegmentSize)
-			defer pool.PutBytes(buf)
 			defer d.Close()
 
 			for {
-				n, addr, err := d.listener.ReadFrom(buf)
+				buf := pool.GetBytesV2(nat.MaxSegmentSize)
+				n, addr, err := d.listener.ReadFrom(buf.Bytes())
 				if err != nil {
+					pool.PutBytesV2(buf)
+
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						continue
 					}
@@ -89,7 +90,9 @@ func (d *dnsServer) startUDP() (err error) {
 					return
 				}
 
-				err = d.Do(context.TODO(), buf[:n], func(b []byte) error {
+				buf.ResetSize(0, n)
+
+				err = d.Do(context.TODO(), buf, func(b []byte) error {
 					if _, err = d.listener.WriteTo(b, addr); err != nil {
 						return fmt.Errorf("write dns response to client failed: %w", err)
 					}
@@ -141,15 +144,14 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 		return fmt.Errorf("read dns length failed: %w", err)
 	}
 
-	data := pool.GetBytes(int(length))
-	defer pool.PutBytes(data)
+	data := pool.GetBytesV2(int(length))
 
-	n, err := io.ReadFull(c, data[:length])
+	_, err := io.ReadFull(c, data.Bytes())
 	if err != nil {
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
-	return d.Do(ctx, data[:n], func(b []byte) error {
+	return d.Do(ctx, data, func(b []byte) error {
 		if err = binary.Write(c, binary.BigEndian, uint16(len(b))); err != nil {
 			return fmt.Errorf("dns server write length failed: %w", err)
 		}
@@ -159,25 +161,27 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 }
 
 func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
-	buf := pool.GetBytes(nat.MaxSegmentSize)
-	defer pool.PutBytes(buf)
+	buf := pool.GetBytesV2(nat.MaxSegmentSize)
 
-	n, addr, err := l.ReadFrom(buf)
+	n, addr, err := l.ReadFrom(buf.Bytes())
 	if err != nil {
 		return err
 	}
 
-	return d.Do(context.TODO(), buf[:n], func(b []byte) error {
+	buf.ResetSize(0, n)
+
+	return d.Do(context.TODO(), buf, func(b []byte) error {
 		_, err = l.WriteTo(b, addr)
 		return err
 	})
 }
 
-func (d *dnsServer) Do(ctx context.Context, b []byte, writeBack func([]byte) error) error {
+func (d *dnsServer) Do(ctx context.Context, b *pool.Bytes, writeBack func([]byte) error) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*7)
 	defer cancel()
 
-	data, err := d.handle(ctx, b)
+	defer pool.PutBytesV2(b)
+	data, err := d.handle(ctx, b.Bytes())
 	if err != nil {
 		return err
 	}
