@@ -118,7 +118,7 @@ func NewConnectionPacketConn(ctx context.Context, conn quic.Connection) *Connect
 
 func (c *ConnectionPacketConn) Receive() (uint16, []byte, net.Addr, error) {
 _retry:
-	data, err := c.conn.ReceiveMessage(c.ctx)
+	data, err := c.conn.ReceiveDatagram(c.ctx)
 	if err != nil {
 		return 0, nil, nil, err
 	}
@@ -151,7 +151,7 @@ func (c *ConnectionPacketConn) Write(b []byte, id uint16, addr net.Addr) error {
 	datas := c.frag.Split(b, int(MaxDatagramFrameSize))
 
 	for _, v := range datas {
-		if err := c.conn.SendMessage(v); err != nil {
+		if err := c.conn.SendDatagram(v); err != nil {
 			return err
 		}
 	}
