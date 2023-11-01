@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -35,32 +36,40 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 		ServerName: config.Servername,
 	}
 
-	roundTripper := &http.Transport{
-		TLSClientConfig:   tlsConfig,
-		ForceAttemptHTTP2: true,
-		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
-			switch network {
-			case "tcp", "tcp4", "tcp6":
-				addr, err := netapi.ParseAddress(netapi.PaseNetwork(network), host)
-				if err != nil {
-					return nil, fmt.Errorf("doh parse address failed: %w", err)
-				}
+	newRoundTripper := func() *http.Transport {
+		return &http.Transport{
+			TLSClientConfig:   tlsConfig,
+			ForceAttemptHTTP2: true,
+			DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
+				switch network {
+				case "tcp", "tcp4", "tcp6":
+					addr, err := netapi.ParseAddress(netapi.PaseNetwork(network), host)
+					if err != nil {
+						return nil, fmt.Errorf("doh parse address failed: %w", err)
+					}
 
-				return config.Dialer.Conn(ctx, addr)
-			default:
-				return nil, fmt.Errorf("unsupported network: %s", network)
-			}
-		},
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+					return config.Dialer.Conn(ctx, addr)
+				default:
+					return nil, fmt.Errorf("unsupported network: %s", network)
+				}
+			},
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
 	}
+
+	roundTripper := atomic.Pointer[http.Transport]{}
+	roundTripper.Store(newRoundTripper())
 
 	return NewClient(config,
 		func(ctx context.Context, b []byte) ([]byte, error) {
-			resp, err := roundTripper.RoundTrip(req.Clone(ctx, b))
+			rt := roundTripper.Load()
+			resp, err := rt.RoundTrip(req.Clone(ctx, b))
 			if err != nil {
+				rt.CloseIdleConnections()
+				roundTripper.Store(newRoundTripper()) // https://github.com/golang/go/issues/30702
 				return nil, fmt.Errorf("doh post failed: %w", err)
 			}
 			defer resp.Body.Close()
