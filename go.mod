@@ -3,7 +3,7 @@ module github.com/Asutorufa/yuhaiin
 go 1.21
 
 require (
-	github.com/quic-go/quic-go v0.39.3
+	github.com/quic-go/quic-go v0.40.0
 	github.com/refraction-networking/utls v1.5.4
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/xtls/reality v0.0.0-20231010003020-da6c695a34db
@@ -33,7 +33,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.13.0 // indirect
 	github.com/pires/go-proxyproto v0.7.0 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
-	github.com/quic-go/qtls-go1-20 v0.3.4 // indirect
+	github.com/quic-go/qtls-go1-20 v0.4.1 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/mock v0.3.0 // indirect
 	golang.org/x/mod v0.13.0 // indirect
