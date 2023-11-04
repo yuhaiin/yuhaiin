@@ -20,15 +20,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	quicgo "github.com/quic-go/quic-go"
 )
 
-type yuubinsya struct {
+type server struct {
 	Config
 	Listener   net.Listener
-	handshaker handshaker
+	handshaker entity.Handshaker
 	handler    netapi.Handler
 }
 
@@ -65,8 +66,8 @@ func (c Config) String() string {
 	`, c.Host, c.Password, c.Type)
 }
 
-func NewServer(config Config) *yuubinsya {
-	return &yuubinsya{
+func NewServer(config Config) *server {
+	return &server{
 		Config:     config,
 		handler:    config.Handler,
 		handshaker: NewHandshaker(!config.ForceDisableEncrypt && config.TlsConfig == nil, config.Password),
@@ -86,7 +87,7 @@ func (l *listener) Close() error {
 	return l.Listener.Close()
 }
 
-func (y *yuubinsya) Server() (net.Listener, error) {
+func (y *server) Server() (net.Listener, error) {
 	if y.Type == QUIC {
 		packetConn, err := dialer.ListenPacket("udp", y.Host)
 		if err != nil {
@@ -117,7 +118,7 @@ func (y *yuubinsya) Server() (net.Listener, error) {
 	return tcpListener, err
 }
 
-func (y *yuubinsya) Start() (err error) {
+func (y *server) Start() (err error) {
 	if y.Listener, err = y.Server(); err != nil {
 		return
 	}
@@ -148,29 +149,20 @@ func (y *yuubinsya) Start() (err error) {
 	}
 }
 
-type Net byte
-
-var (
-	TCP Net = 66
-	UDP Net = 77
-)
-
-func (n Net) Unknown() bool { return n != TCP && n != UDP }
-
-func (y *yuubinsya) handle(conn net.Conn) error {
-	c, err := y.handshaker.handshakeServer(conn)
+func (y *server) handle(conn net.Conn) error {
+	c, err := y.handshaker.HandshakeServer(conn)
 	if err != nil {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	net, err := y.handshaker.parseHeader(c)
+	net, err := y.handshaker.ParseHeader(c)
 	if err != nil {
 		write403(conn)
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
 	switch net {
-	case TCP:
+	case entity.TCP:
 		target, err := s5c.ResolveAddr(c)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
@@ -187,7 +179,7 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 			Src:         c,
 			Address:     addr,
 		})
-	case UDP:
+	case entity.UDP:
 		return func() error {
 			defer c.Close()
 			log.Debug("new udp connect", "from", c.RemoteAddr())
@@ -202,14 +194,14 @@ func (y *yuubinsya) handle(conn net.Conn) error {
 	return nil
 }
 
-func (y *yuubinsya) Close() error {
+func (y *server) Close() error {
 	if y.Listener == nil {
 		return nil
 	}
 	return y.Listener.Close()
 }
 
-func (y *yuubinsya) forwardPacket(c net.Conn) error {
+func (y *server) forwardPacket(c net.Conn) error {
 	addr, err := s5c.ResolveAddr(c)
 	if err != nil {
 		return err

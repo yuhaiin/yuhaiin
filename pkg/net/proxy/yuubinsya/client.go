@@ -12,20 +12,21 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-type Client struct {
+type client struct {
 	netapi.Proxy
 
-	handshaker handshaker
+	handshaker entity.Handshaker
 }
 
 func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		c := &Client{
+		c := &client{
 			dialer,
 			NewHandshaker(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password)),
 		}
@@ -34,13 +35,13 @@ func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	}
 }
 
-func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	conn, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 
-	hconn, err := c.handshaker.handshakeClient(conn)
+	hconn, err := c.handshaker.HandshakeClient(conn)
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -49,7 +50,7 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	return newConn(hconn, addr, c.handshaker), nil
 }
 
-func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	/*
 		see (&yuubinsya{}).StartQUIC()
 		if c.quic {
@@ -62,12 +63,12 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	hconn, err := c.handshaker.handshakeClient(conn)
+	hconn, err := c.handshaker.HandshakeClient(conn)
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
-	return &PacketConn{Conn: hconn, handshaker: c.handshaker}, nil
+	return newPacketConn(hconn, c.handshaker), nil
 }
 
 type PacketConn struct {
@@ -76,11 +77,15 @@ type PacketConn struct {
 
 	net.Conn
 
-	handshaker handshaker
+	handshaker entity.Handshaker
 	addr       netapi.Address
 
 	hmux sync.Mutex
 	rmux sync.Mutex
+}
+
+func newPacketConn(conn net.Conn, handshaker entity.Handshaker) net.PacketConn {
+	return &PacketConn{Conn: conn, handshaker: handshaker}
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
@@ -96,7 +101,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	if !c.headerWrote {
 		c.hmux.Lock()
 		if !c.headerWrote {
-			c.handshaker.packetHeader(w)
+			c.handshaker.PacketHeader(w)
 			defer func() {
 				c.headerWrote = true
 				c.hmux.Unlock()
@@ -169,10 +174,10 @@ type Conn struct {
 	net.Conn
 
 	addr       netapi.Address
-	handshaker handshaker
+	handshaker entity.Handshaker
 }
 
-func newConn(con net.Conn, addr netapi.Address, handshaker handshaker) net.Conn {
+func newConn(con net.Conn, addr netapi.Address, handshaker entity.Handshaker) net.Conn {
 	return &Conn{
 		Conn:       con,
 		addr:       addr,
@@ -190,7 +195,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 	buf := pool.GetBuffer()
 	defer pool.PutBuffer(buf)
 
-	c.handshaker.streamHeader(buf, c.addr)
+	c.handshaker.StreamHeader(buf, c.addr)
 	buf.Write(b)
 
 	if n, err := c.Conn.Write(buf.Bytes()); err != nil {

@@ -6,11 +6,11 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/internal"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	ycrypto "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 )
 
-// payloadSizeMask is the maximum size of payload in bytes.
-const payloadSizeMask = 0x3FFF // 16*1024 - 1
+// payloadSizeMax is the maximum size of payload in bytes.
+const payloadSizeMax = 0x3FFF // 16*1024 - 1
 
 type streamConn struct {
 	net.Conn
@@ -33,7 +33,7 @@ func (c *streamConn) initReader() error {
 		return ErrRepeatedSalt
 	}
 
-	c.r = yuubinsya.NewReader(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMask)
+	c.r = ycrypto.NewReader(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMax)
 	return nil
 }
 
@@ -60,7 +60,7 @@ func (c *streamConn) initWriter() error {
 		return err
 	}
 	internal.AddSalt(salt)
-	c.w = yuubinsya.NewWriter(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMask)
+	c.w = ycrypto.NewWriter(c.Conn, make([]byte, aead.NonceSize()), aead, payloadSizeMax)
 	return nil
 }
 
