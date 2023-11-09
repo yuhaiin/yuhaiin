@@ -27,7 +27,7 @@ import (
 
 func init() {
 	pl.RegisterProtocol(hp.NewServer)
-	pl.RegisterProtocol(ss.NewServer)
+	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Socks5]) (netapi.Server, error) { return ss.NewServer(o, true) })
 	pl.RegisterProtocol(mixed.NewServer)
 	pl.RegisterProtocol(socks4a.NewServer)
 	pl.RegisterProtocol(tun.NewTun)

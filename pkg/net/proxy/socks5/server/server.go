@@ -57,7 +57,7 @@ func (s *Socks5) handle(client net.Conn) (err error) {
 		return fmt.Errorf("first hand failed: %w", err)
 	}
 
-	if err = handshake2(client, s.handler, b); err != nil {
+	if err = handshake2(client, s.handler, b, s.UDP); err != nil {
 		return fmt.Errorf("second hand failed: %w", err)
 	}
 
@@ -154,7 +154,7 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return err
 }
 
-func handshake2(client net.Conn, f netapi.Handler, buf []byte) error {
+func handshake2(client net.Conn, f netapi.Handler, buf []byte, udp bool) error {
 	// socks5 second handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
@@ -195,7 +195,11 @@ func handshake2(client net.Conn, f netapi.Handler, buf []byte) error {
 		})
 
 	case s5c.Udp: // udp
-		err = handleUDP(client)
+		if udp {
+			err = handleUDP(client)
+			break
+		}
+		fallthrough
 
 	case s5c.Bind: // bind request
 		fallthrough
@@ -235,6 +239,7 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 }
 
 type Socks5 struct {
+	UDP       bool
 	udpServer *udpServer
 	lis       net.Listener
 
@@ -262,29 +267,33 @@ func (s *Socks5) Close() error {
 	return err
 }
 
-func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks5]) (netapi.Server, error) {
+func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks5], udp bool) (netapi.Server, error) {
 	s := &Socks5{
+		UDP:      udp,
 		handler:  o.Handler,
 		addr:     o.Protocol.Socks5.Host,
 		username: o.Protocol.Socks5.Username,
 		password: o.Protocol.Socks5.Password,
 	}
 
-	err := s.newUDPServer(o.Handler)
-	if err != nil {
-		s.Close()
-		return nil, fmt.Errorf("new udp server failed: %w", err)
+	if udp {
+		err := s.newUDPServer(o.Handler)
+		if err != nil {
+			s.Close()
+			return nil, fmt.Errorf("new udp server failed: %w", err)
+		}
 	}
+
 	s.newTCPServer(lis)
 
 	return s, nil
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Socks5]) (netapi.Server, error) {
+func NewServer(o *listener.Opts[*listener.Protocol_Socks5], udp bool) (netapi.Server, error) {
 	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Socks5.Host)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewServerWithListener(lis, o)
+	return NewServerWithListener(lis, o, udp)
 }

@@ -36,7 +36,7 @@ func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) 
 	socks4aCL := newChanListener(lis)
 
 	ss, err := s5s.NewServerWithListener(socksCL,
-		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks5 { return l.SOCKS5() }))
+		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks5 { return l.SOCKS5() }), true)
 	if err != nil {
 		lis.Close()
 		socksCL.Close()
