@@ -93,9 +93,13 @@ func TestDOH(t *testing.T) {
 			IPv6:   true,
 			Dialer: s5Dialer,
 		},
+		"tuna": {
+			Type: dns.Type_doh,
+			Host: "https://101.6.6.6:8443/dns-query",
+		},
 	}
 
-	d, err := New(configMap["google"])
+	d, err := New(configMap["dns.pub"])
 	assert.NoError(t, err)
 
 	t.Log(d.LookupIP(context.TODO(), "plasma"))

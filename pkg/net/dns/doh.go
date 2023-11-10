@@ -14,6 +14,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -24,6 +25,17 @@ func init() {
 
 func NewDoH(config Config) (netapi.Resolver, error) {
 	req, err := getRequest(config.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	host := req.r.Host
+	_, port, err := net.SplitHostPort(req.r.Host)
+	if err != nil || port == "" {
+		host = net.JoinHostPort(host, "443")
+	}
+
+	addr, err := netapi.ParseAddress(statistic.Type_tcp, host)
 	if err != nil {
 		return nil, err
 	}
@@ -41,17 +53,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 			TLSClientConfig:   tlsConfig,
 			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
-				switch network {
-				case "tcp", "tcp4", "tcp6":
-					addr, err := netapi.ParseAddress(netapi.PaseNetwork(network), host)
-					if err != nil {
-						return nil, fmt.Errorf("doh parse address failed: %w", err)
-					}
-
-					return config.Dialer.Conn(ctx, addr)
-				default:
-					return nil, fmt.Errorf("unsupported network: %s", network)
-				}
+				return config.Dialer.Conn(ctx, addr)
 			},
 			MaxIdleConns:          100,
 			IdleConnTimeout:       90 * time.Second,
