@@ -19,7 +19,7 @@ import (
 )
 
 func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
-	bootstrap := wrap(func(b *dnsWrap, c *pc.Setting) {
+	bootstrap := wrap("BOOTSTRAP", func(b *dnsWrap, c *pc.Setting) {
 		if proto.Equal(b.config, c.Dns.Bootstrap) && b.ipv6 == c.GetIpv6() {
 			return
 		}
@@ -53,7 +53,7 @@ func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
 }
 
 func NewLocal(dl netapi.Proxy) netapi.Resolver {
-	return wrap(func(l *dnsWrap, c *pc.Setting) {
+	return wrap("LOCALDNS", func(l *dnsWrap, c *pc.Setting) {
 		if proto.Equal(l.config, c.Dns.Local) && l.ipv6 == c.GetIpv6() {
 			return
 		}
@@ -77,7 +77,7 @@ func NewLocal(dl netapi.Proxy) netapi.Resolver {
 }
 
 func NewRemote(dl netapi.Proxy) netapi.Resolver {
-	return wrap(func(r *dnsWrap, c *pc.Setting) {
+	return wrap("REMOTEDNS", func(r *dnsWrap, c *pc.Setting) {
 		if proto.Equal(r.config, c.Dns.Remote) && r.ipv6 == c.GetIpv6() {
 			return
 		}
@@ -104,25 +104,26 @@ func NewRemote(dl netapi.Proxy) netapi.Resolver {
 type dnsWrap struct {
 	ipv6   bool
 	config *pd.Dns
+	name   string
 	dns    netapi.Resolver
 
 	update func(*dnsWrap, *pc.Setting)
 }
 
-func wrap(update func(*dnsWrap, *pc.Setting)) *dnsWrap {
-	return &dnsWrap{update: update}
+func wrap(name string, update func(*dnsWrap, *pc.Setting)) *dnsWrap {
+	return &dnsWrap{update: update, name: name}
 }
 
 func (d *dnsWrap) Update(c *pc.Setting) { d.update(d, c) }
 
 func (d *dnsWrap) LookupIP(ctx context.Context, host string) ([]net.IP, error) {
 	if d.dns == nil {
-		return nil, fmt.Errorf("dns not initialized")
+		return nil, fmt.Errorf("%s dns not initialized", d.name)
 	}
 
 	ips, err := d.dns.LookupIP(ctx, host)
 	if err != nil {
-		return nil, fmt.Errorf("localdns lookup failed: %w", err)
+		return nil, fmt.Errorf("%s lookup failed: %w", d.name, err)
 	}
 
 	return ips, nil
@@ -130,7 +131,7 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string) ([]net.IP, error) {
 
 func (d *dnsWrap) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
 	if d.dns == nil {
-		return nil, 0, fmt.Errorf("dns not initialized")
+		return nil, 0, fmt.Errorf("%s dns not initialized", d.name)
 	}
 
 	return d.dns.Record(ctx, domain, t)
@@ -146,7 +147,7 @@ func (d *dnsWrap) Close() error {
 
 func (d *dnsWrap) Do(ctx context.Context, addr string, r []byte) ([]byte, error) {
 	if d.dns == nil {
-		return nil, fmt.Errorf("dns not initialized")
+		return nil, fmt.Errorf("%s dns not initialized", d.name)
 	}
 
 	return d.dns.Do(ctx, addr, r)
