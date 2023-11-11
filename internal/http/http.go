@@ -55,7 +55,7 @@ func (o *HttpServerOption) Routers() Handler {
 			"/sub":     GrpcToHttp(o.Subscribe.Save),
 			"/tag":     GrpcToHttp(o.Tag.Save),
 			"/node":    GrpcToHttp(o.NodeServer.Get),
-			"/byass":   GrpcToHttp(o.Tools.SaveRemoteBypassFile),
+			"/bypass":  GrpcToHttp(o.Tools.SaveRemoteBypassFile),
 			"/latency": GrpcToHttp(o.NodeServer.Latency),
 		},
 		http.MethodDelete: {
