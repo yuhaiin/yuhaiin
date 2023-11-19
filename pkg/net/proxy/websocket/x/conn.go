@@ -162,7 +162,7 @@ func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
 	}
 
 	if frameHeader.masked {
-		binary.Read(rand.Reader, binary.BigEndian, &frameHeader.maskKey)
+		_ = binary.Read(rand.Reader, binary.BigEndian, &frameHeader.maskKey)
 	}
 
 	if err := writeFrameHeader(frameHeader, ws.Rw, ws.writeHeaderBuf[:]); err != nil {

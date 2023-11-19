@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -9,6 +10,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
+
+func TestV(t *testing.T) {
+	t.Log(netip.AddrFrom16(netip.AddrFrom4([4]byte{192, 168, 2, 245}).As16()))
+}
 
 func TestDoQ(t *testing.T) {
 	netapi.Bootstrap = &netapi.System{DisableIPv6: true}

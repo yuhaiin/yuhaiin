@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"strings"
 	_ "unsafe"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // Config is a WebSocket configuration
@@ -30,8 +32,8 @@ type Config struct {
 
 // NewClient creates a new WebSocket client connection over rwc.
 func (config *Config) NewClient(SecWebSocketKey string, header http.Header, rwc net.Conn, handshake func(*http.Response) error) (ws *Conn, err error) {
-	br := newBufioReader(rwc)
-	bw := newBufioWriterSize(rwc, 4096)
+	br := bufio.NewReaderSize(rwc, pool.DefaultSize)
+	bw := newBufioWriterSize(rwc, pool.DefaultSize)
 	err = config.hybiClientHandshake(SecWebSocketKey, header, br, bw, handshake)
 	if err != nil {
 		return

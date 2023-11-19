@@ -93,7 +93,7 @@ func ParseAddressPort(network statistic.Type, addr string, port Port) (ad Addres
 	if addr, err := netip.ParseAddr(addr); err == nil {
 		return &IPAddrPort{
 			addr:     base,
-			addrPort: netip.AddrPortFrom(addr, port.Port()),
+			addrPort: netip.AddrPortFrom(addr.Unmap(), port.Port()),
 		}
 	}
 
@@ -105,16 +105,18 @@ func ParseAddressPort(network statistic.Type, addr string, port Port) (ad Addres
 }
 
 func ParseTCPAddress(ad *net.TCPAddr) Address {
+	addrPort := ad.AddrPort()
 	return &IPAddrPort{
 		addr:     newAddr(statistic.Type_tcp),
-		addrPort: ad.AddrPort(),
+		addrPort: netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port()),
 	}
 }
 
 func ParseUDPAddr(ad *net.UDPAddr) Address {
+	addrPort := ad.AddrPort()
 	return &IPAddrPort{
 		addr:     newAddr(statistic.Type_udp),
-		addrPort: ad.AddrPort(),
+		addrPort: netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port()),
 	}
 }
 
@@ -123,7 +125,7 @@ func ParseIPAddr(ad *net.IPAddr) Address {
 	addr.WithZone(ad.Zone)
 	return &IPAddrPort{
 		addr:     newAddr(statistic.Type_ip),
-		addrPort: netip.AddrPortFrom(addr, 0),
+		addrPort: netip.AddrPortFrom(addr.Unmap(), 0),
 	}
 }
 

@@ -1,6 +1,8 @@
 package tproxy
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -9,6 +11,11 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	cl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/sys/unix"
 )
 
@@ -172,6 +179,8 @@ func ListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
 	return listener, nil
 }
 
+var errContinue = errors.New("continue")
+
 // ReadFromUDP reads a UDP packet from c, copying the payload into b.
 // It returns the number of bytes copied into b and the return address
 // that was on the packet.
@@ -188,7 +197,7 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstA
 
 	msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
 	if err != nil {
-		err = fmt.Errorf("parsing socket control message: %s", err)
+		err = fmt.Errorf("%w parsing socket control message: %s", errContinue, err)
 		return
 	}
 
@@ -221,9 +230,133 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstA
 	}
 
 	if dstAddr == nil {
-		err = fmt.Errorf("unable to obtain original destination: %v", err)
+		err = fmt.Errorf("%w unable to obtain original destination: %v (src: %v)", errContinue, err, srcAddr)
 		return
 	}
 
 	return
+}
+
+type udpserver struct {
+	lis net.PacketConn
+}
+
+func (u *udpserver) Close() error {
+	return u.lis.Close()
+}
+
+func isHandleDNS(port uint16) bool {
+	return port == 53
+}
+
+func newUDP(opt *cl.Opts[*cl.Protocol_Tproxy]) (*udpserver, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", opt.Protocol.Tproxy.GetHost())
+	if err != nil {
+		return nil, err
+	}
+	lis, err := dialer.ListenPacketWithOptions("udp", udpAddr.String(), &dialer.Options{
+		MarkSymbol: func(socket int32) bool {
+			return dialer.LinuxMarkSymbol(socket, 0xff) == nil
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	udpLis, ok := lis.(*net.UDPConn)
+	if !ok {
+		lis.Close()
+		return nil, fmt.Errorf("listen is not udplistener")
+	}
+
+	sysConn, err := udpLis.SyscallConn()
+	if err != nil {
+		lis.Close()
+		return nil, err
+	}
+
+	err = controlUDP(sysConn)
+	if err != nil {
+		lis.Close()
+		return nil, err
+	}
+
+	log.Info("new tproxy udp server", "host", lis.LocalAddr())
+
+	s := &udpserver{lis: lis}
+
+	go func() {
+		for {
+			buf := pool.GetBytesV2(nat.MaxSegmentSize)
+			n, src, dst, err := ReadFromUDP(udpLis, buf.Bytes())
+			if err != nil {
+				pool.PutBytesV2(buf)
+				log.Error("start udp server failed", "err", err)
+				if !errors.Is(err, errContinue) {
+					break
+				}
+				continue
+			}
+
+			buf.ResetSize(0, n)
+
+			if isHandleDNS(uint16(dst.Port)) && opt.Protocol.Tproxy.GetDnsHijacking() {
+				go func() {
+					ctx := context.TODO()
+					if opt.Protocol.Tproxy.GetForceFakeip() {
+						ctx = context.WithValue(ctx, netapi.ForceFakeIP{}, true)
+					}
+
+					err := opt.DNSHandler.Do(ctx, buf, func(b []byte) error {
+						back, err := DialUDP("udp", dst, src)
+						if err != nil {
+							return fmt.Errorf("udp server dial failed: %w", err)
+						}
+						defer back.Close()
+						_, err = back.Write(b)
+						return err
+					})
+					if err != nil {
+						log.Error("udp server handle DnsHijacking failed", "err", err)
+					}
+				}()
+				continue
+			}
+
+			dstAddr, _ := netapi.ParseSysAddr(dst)
+			opt.Handler.Packet(context.TODO(), &netapi.Packet{
+				Src:     src,
+				Dst:     dstAddr,
+				Payload: buf,
+				WriteBack: func(b []byte, addr net.Addr) (int, error) {
+					defer pool.PutBytesV2(buf)
+
+					ad, err := netapi.ParseSysAddr(addr)
+					if err != nil {
+						return 0, err
+					}
+
+					uaddr, err := ad.UDPAddr(context.Background())
+					if err != nil {
+						return 0, err
+					}
+
+					back, err := DialUDP("udp", uaddr, src)
+					if err != nil {
+						return 0, fmt.Errorf("udp server dial failed: %w", err)
+					}
+					defer back.Close()
+
+					n, err := back.Write(b)
+					if err != nil {
+						return 0, err
+					}
+
+					return n, nil
+				},
+			})
+		}
+	}()
+
+	return s, nil
 }

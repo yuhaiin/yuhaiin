@@ -1,16 +1,18 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.21
+go 1.21.1
+
+toolchain go1.21.4
 
 require (
 	github.com/quic-go/quic-go v0.40.0
 	github.com/refraction-networking/utls v1.5.4
 	github.com/vishvananda/netlink v1.2.1-beta.2
-	github.com/xtls/reality v0.0.0-20231010003020-da6c695a34db
+	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.8
 	golang.org/x/crypto v0.15.0
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/mobile v0.0.0-20231006135142-2b44d11868fe
+	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
+	golang.org/x/mobile v0.0.0-20231108233038-35478a0c49da
 	golang.org/x/net v0.18.0
 	golang.org/x/sys v0.14.0
 	golang.org/x/time v0.4.0
@@ -18,7 +20,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20231018191413-24ea13351eb7
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
-	gvisor.dev/gvisor v0.0.0-20231020174304-b8a429915ff1
+	gvisor.dev/gvisor v0.0.0-20231116050414-019eb8be3703
 )
 
 require (
@@ -36,9 +38,9 @@ require (
 	github.com/quic-go/qtls-go1-20 v0.4.1 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/mock v0.3.0 // indirect
-	golang.org/x/mod v0.13.0 // indirect
+	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.14.0 // indirect
+	golang.org/x/tools v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231016165738-49dd2c1f3d0b // indirect
 )
 

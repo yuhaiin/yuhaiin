@@ -3,4 +3,7 @@
 ip rule del fwmark 1 table 100
 ip route del local 0.0.0.0/0 dev lo table 100
 
-nft delete table ip yuhaiin
+ip -6 rule del fwmark 1 table 100
+ip -6 route del local ::/0 dev lo table 100
+
+nft delete table inet yuhaiin

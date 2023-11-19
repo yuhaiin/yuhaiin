@@ -30,9 +30,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	utls "github.com/refraction-networking/utls"
+	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/net/http2"
 )
+
+//go:linkname aesgcmPreferred github.com/refraction-networking/utls.aesgcmPreferred
+func aesgcmPreferred(ciphers []uint16) bool
 
 type RealityClient struct {
 	netapi.EmptyDispatch
@@ -152,9 +156,16 @@ func (e *RealityClient) ClientHandshake(ctx context.Context, conn net.Conn) (net
 	if err != nil {
 		return nil, err
 	}
-	aesBlock, _ := aes.NewCipher(authKey)
-	aesGcmCipher, _ := cipher.NewGCM(aesBlock)
-	aesGcmCipher.Seal(hello.SessionId[:0], hello.Random[20:], hello.SessionId[:16], hello.Raw)
+
+	var aead cipher.AEAD
+	if aesgcmPreferred(hello.CipherSuites) {
+		block, _ := aes.NewCipher(authKey)
+		aead, _ = cipher.NewGCM(block)
+	} else {
+		aead, _ = chacha20poly1305.New(authKey)
+	}
+
+	aead.Seal(hello.SessionId[:0], hello.Random[20:], hello.SessionId[:16], hello.Raw)
 	copy(hello.Raw[39:], hello.SessionId)
 
 	if e.Deubg {

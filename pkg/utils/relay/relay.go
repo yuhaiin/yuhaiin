@@ -42,7 +42,7 @@ func setDeadline(rw io.ReadWriteCloser) {
 }
 
 func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
-	buf := pool.GetBytes(4096)
+	buf := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(buf)
 	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
 	return io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf)
