@@ -9,6 +9,8 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
+type ForceFakeIP struct{}
+
 type Resolver interface {
 	LookupIP(ctx context.Context, domain string) ([]net.IP, error)
 	Record(ctx context.Context, domain string, _ dnsmessage.Type) (_ []net.IP, ttl uint32, err error)

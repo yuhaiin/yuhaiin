@@ -51,6 +51,7 @@ message redir { string host = 1 [ json_name = "host" ]; }
 message tproxy {
   string host = 1 [ json_name = "host" ];
   bool dns_hijacking = 2 [ json_name = "dns_hijacking" ];
+  bool force_fakeip = 3 [ json_name = "force_fakeip" ];
 }
 
 message tun {
@@ -60,6 +61,7 @@ message tun {
   int32 mtu = 2 [ json_name = "mtu" ];
   string gateway = 3 [ json_name = "gateway" ];
   bool dns_hijacking = 4 [ json_name = "dns_hijacking" ];
+  bool force_fakeip = 9 [ json_name = "force_fakeip" ];
   bool skip_multicast = 6 [ json_name = "skip_multicast" ];
   enum endpoint_driver {
     fdbased = 0;

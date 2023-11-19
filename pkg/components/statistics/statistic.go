@@ -208,7 +208,7 @@ func (c *Connections) DumpProcess(ctx context.Context, addr netapi.Address) (s s
 
 	process, err := c.processDumper.ProcessName(addr.Network(), sourceAddr, dstAddr)
 	if err != nil {
-		log.Warn("dump process failed", "err", err)
+		// log.Warn("dump process failed", "err", err)
 		return
 	}
 

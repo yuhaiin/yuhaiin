@@ -154,6 +154,10 @@ func NewFakeIPPool(prefix netip.Prefix, bbolt *cache.Cache) *FakeIPPool {
 }
 
 func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
+	if z, ok := n.domainToIP.Load(s); ok {
+		return z
+	}
+
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -184,8 +188,10 @@ func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
 }
 
 func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
+	if !n.prefix.Contains(ip) {
+		return "", false
+	}
+
 	return n.domainToIP.ReverseLoad(ip.Unmap())
 }
 

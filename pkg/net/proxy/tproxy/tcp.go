@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	cl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
 func init() {
@@ -39,7 +40,7 @@ func controlTCP(c syscall.RawConn) error {
 	return nil
 }
 
-func handleTCP(c net.Conn, p netapi.Handler, dnsHandler netapi.DNSHandler, hijackDNS bool) error {
+func (t *tcpserver) handleTCP(c net.Conn) error {
 	z, ok := c.(interface {
 		SyscallConn() (syscall.RawConn, error)
 	})
@@ -60,17 +61,85 @@ func handleTCP(c net.Conn, p netapi.Handler, dnsHandler netapi.DNSHandler, hijac
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
-	if isHandleDNS(target.Port().Port()) && hijackDNS {
-		return dnsHandler.HandleTCP(context.Background(), c)
+
+	if isHandleDNS(target.Port().Port()) && t.hijackDNS {
+		defer c.Close()
+		ctx := context.TODO()
+		if t.fakeip {
+			ctx = context.WithValue(ctx, netapi.ForceFakeIP{}, true)
+		}
+
+		return t.dns.HandleTCP(ctx, c)
 	}
 
-	p.Stream(context.TODO(), &netapi.StreamMeta{
+	t.dialer.Stream(context.TODO(), &netapi.StreamMeta{
 		Source:      c.RemoteAddr(),
 		Destination: c.LocalAddr(),
-		Inbound:     c.RemoteAddr(),
+		Inbound:     t.lis.Addr(),
 
 		Src:     c,
 		Address: target,
 	})
 	return nil
+}
+
+type tcpserver struct {
+	hijackDNS bool
+	fakeip    bool
+	dialer    netapi.Handler
+	dns       netapi.DNSHandler
+	lis       net.Listener
+}
+
+func (t *tcpserver) Close() error { return t.lis.Close() }
+
+func newTCP(opt *cl.Opts[*cl.Protocol_Tproxy]) (*tcpserver, error) {
+	lis, err := dialer.ListenContextWithOptions(context.TODO(), "tcp", opt.Protocol.Tproxy.GetHost(), &dialer.Options{
+		MarkSymbol: func(socket int32) bool {
+			return dialer.LinuxMarkSymbol(socket, 0xff) == nil
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := lis.(*net.TCPListener).SyscallConn()
+	if err != nil {
+		lis.Close()
+		return nil, err
+	}
+
+	err = controlTCP(f)
+	if err != nil {
+		lis.Close()
+		return nil, err
+	}
+
+	t := &tcpserver{
+		dialer:    opt.Handler,
+		dns:       opt.DNSHandler,
+		hijackDNS: opt.Protocol.Tproxy.GetDnsHijacking(),
+		fakeip:    opt.Protocol.Tproxy.GetForceFakeip(),
+		lis:       lis,
+	}
+
+	log.Info("new tproxy tcp server", "host", lis.Addr())
+
+	go func() {
+		for {
+			conn, err := lis.Accept()
+			if err != nil {
+				log.Error("tcp server accept failed", "err", err)
+				break
+			}
+
+			go func() {
+				if err := t.handleTCP(conn); err != nil {
+					log.Error("tcp server handle failed", "err", err)
+				}
+			}()
+		}
+	}()
+
+	return t, nil
 }
