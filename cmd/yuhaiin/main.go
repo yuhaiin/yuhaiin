@@ -64,11 +64,11 @@ func main() {
 
 	go func() {
 		// h2c for grpc insecure mode
-		errChan <- http.Serve(app.HttpListener, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		errChan <- http.Serve(app.App.HttpListener, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 				grpcserver.ServeHTTP(w, r)
 			} else {
-				app.Mux.ServeHTTP(w, r)
+				app.App.Mux.ServeHTTP(w, r)
 			}
 		}), &http2.Server{}))
 	}()
@@ -81,8 +81,8 @@ func main() {
 	case err := <-errChan:
 		log.Error("http server error", "err", err)
 	case <-signChannel:
-		if app.HttpListener != nil {
-			app.HttpListener.Close()
+		if app.App.HttpListener != nil {
+			app.App.HttpListener.Close()
 		}
 	}
 }

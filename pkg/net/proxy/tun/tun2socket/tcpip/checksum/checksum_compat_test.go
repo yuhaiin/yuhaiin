@@ -3,9 +3,11 @@ package checksum
 import (
 	"crypto/rand"
 	"fmt"
+	"io"
 	mrand "math/rand"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 )
 
@@ -60,4 +62,12 @@ func TestXxx(t *testing.T) {
 	sum = CheckSumCombine(uint32(sum), z[16:])
 
 	t.Log(sum)
+}
+
+func TestChecksum(t *testing.T) {
+	buf := make([]byte, nat.MaxSegmentSize)
+	io.ReadFull(rand.Reader, buf)
+
+	t.Log(checksum.Checksum(buf, 0))
+	t.Log(CheckSumCombine(0, buf))
 }

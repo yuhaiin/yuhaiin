@@ -7,8 +7,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
@@ -37,7 +37,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 	tcpipPortal := tcpip.AddrFromSlice(portal.AsSlice())
 	tcpipGateway := tcpip.AddrFromSlice(gateway.AsSlice())
 
-	log.Info("new tun2socket gvisor tcp server", "host", listener.Addr())
+	log.Info("new tun2socket tcp server", "host", listener.Addr())
 
 	if mtu <= 0 {
 		mtu = int32(nat.MaxSegmentSize)
@@ -127,7 +127,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 			}
 
 			var tp TransportProtocol
-			var pseudoHeaderSum uint32
+			var pseudoHeaderSum uint16
 
 			switch protocol {
 			case header.TCPProtocolNumber:
@@ -173,7 +173,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 					t.SetSourcePort(port)
 				}
 
-				pseudoHeaderSum = PseudoHeaderSum(ip, raw, protocol)
+				pseudoHeaderSum = header.PseudoHeaderChecksum(protocol, ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
 				tp = t
 
 			case header.ICMPv4ProtocolNumber:
@@ -205,7 +205,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 				ip.SetDestinationAddress(ip.SourceAddress())
 				ip.SetSourceAddress(destination)
 
-				pseudoHeaderSum = PseudoHeaderSum(ip, raw, protocol)
+				pseudoHeaderSum = header.PseudoHeaderChecksum(protocol, ip.SourceAddress(), ip.DestinationAddress(), uint16(len(i)))
 				tp = i
 
 			case header.UDPProtocolNumber:
@@ -234,29 +234,11 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 	return tcp, udp, nil
 }
 
-func resetCheckSum(ip IP, tp TransportProtocol, pseudoHeaderSum uint32) {
+func resetCheckSum(ip IP, tp TransportProtocol, pseudoHeaderSum uint16) {
 	if ip, ok := ip.(header.IPv4); ok {
 		ip.SetChecksum(0)
-		ip.SetChecksum(^checksum.CheckSumCombine(0, ip[:ip.HeaderLength()]))
+		ip.SetChecksum(^checksum.Checksum(ip[:ip.HeaderLength()], 0))
 	}
 	tp.SetChecksum(0)
-	tp.SetChecksum(^checksum.CheckSumCombine(pseudoHeaderSum, ip.Payload()))
-}
-
-// PseudoHeaderChecksum calculates the pseudo-header checksum for the given
-// destination protocol and network address. Pseudo-headers are needed by
-// transport layers when calculating their own checksum.
-func PseudoHeaderSum(ip IP, ipRaw []byte, protocol tcpip.TransportProtocolNumber) uint32 {
-	var sum uint32
-	if _, ok := ip.(header.IPv4); ok {
-		sum = checksum.Sum(ipRaw[12:header.IPv4MinimumSize]) // src address + dst address
-	} else {
-		sum = checksum.Sum(ipRaw[8:header.IPv6FixedHeaderSize]) // src address + dst address
-	}
-	// Add the length portion of the checksum to the pseudo-checksum.
-	payloadLen := ip.PayloadLength()
-	sum += checksum.Sum([]byte{byte(payloadLen >> 8), byte(payloadLen)})
-	sum += checksum.Sum([]byte{0, byte(protocol)})
-
-	return sum
+	tp.SetChecksum(^checksum.Checksum(ip.Payload(), pseudoHeaderSum))
 }

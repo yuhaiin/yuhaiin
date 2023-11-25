@@ -41,22 +41,6 @@ func controlTCP(c syscall.RawConn) error {
 }
 
 func (t *tcpserver) handleTCP(c net.Conn) error {
-	z, ok := c.(interface {
-		SyscallConn() (syscall.RawConn, error)
-	})
-	if !ok {
-		return fmt.Errorf("not a syscall.Conn")
-	}
-
-	sysConn, err := z.SyscallConn()
-	if err != nil {
-		return err
-	}
-
-	if err := controlTCP(sysConn); err != nil {
-		return fmt.Errorf("controlTCP failed: %w", err)
-	}
-
 	target, err := netapi.ParseSysAddr(c.LocalAddr())
 	if err != nil {
 		return fmt.Errorf("parse local addr failed: %w", err)

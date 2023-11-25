@@ -16,27 +16,19 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-type udpServer struct {
-	net.PacketConn
-	handler netapi.Handler
-}
-
-func (s *Socks5) newUDPServer(handler netapi.Handler) error {
-	l, err := dialer.ListenPacket("udp", s.addr)
+func NewUDPServer(addr string, handler netapi.Handler) (net.PacketConn, error) {
+	l, err := dialer.ListenPacket("udp", addr)
 	if err != nil {
-		return fmt.Errorf("listen udp failed: %w", err)
+		return nil, fmt.Errorf("listen udp failed: %w", err)
 	}
 
-	u := &udpServer{PacketConn: l, handler: handler}
-	s.udpServer = u
-
 	go func() {
-		defer s.Close()
+		defer l.Close()
 
 		buf := pool.GetBytesV2(nat.MaxSegmentSize)
 
 		for {
-			n, src, err := u.PacketConn.ReadFrom(buf.Bytes())
+			n, src, err := l.ReadFrom(buf.Bytes())
 			if err != nil {
 				log.Error("read udp request failed, stop socks5 server", slog.Any("err", err))
 				return
@@ -50,7 +42,7 @@ func (s *Socks5) newUDPServer(handler netapi.Handler) error {
 
 			buf.ResetSize(3+len(addr), n)
 
-			u.handler.Packet(
+			handler.Packet(
 				context.TODO(),
 				&netapi.Packet{
 					Src:     src,
@@ -63,7 +55,7 @@ func (s *Socks5) newUDPServer(handler netapi.Handler) error {
 						}
 						b = bytes.Join([][]byte{{0, 0, 0}, s5c.ParseAddr(sourceAddr), b}, nil)
 
-						return u.PacketConn.WriteTo(b, src)
+						return l.WriteTo(b, src)
 					},
 				},
 			)
@@ -71,5 +63,5 @@ func (s *Socks5) newUDPServer(handler netapi.Handler) error {
 		}
 	}()
 
-	return nil
+	return l, nil
 }

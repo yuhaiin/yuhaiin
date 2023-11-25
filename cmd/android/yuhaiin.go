@@ -49,7 +49,7 @@ func (a *App) Start(opt *Opts) error {
 		}
 		defer app.Close()
 
-		lis := &http.Server{Handler: app.Mux}
+		lis := &http.Server{Handler: app.App.Mux}
 		defer lis.Close()
 
 		a.lis = lis
@@ -59,7 +59,7 @@ func (a *App) Start(opt *Opts) error {
 		close(errChan)
 		defer opt.CloseFallback.Close()
 
-		a.lis.Serve(app.HttpListener)
+		a.lis.Serve(app.App.HttpListener)
 	}()
 
 	return <-errChan
@@ -89,10 +89,10 @@ func (a *App) Stop() error {
 func (a *App) Running() bool { return a.started.Load() }
 
 func (a *App) SaveNewBypass(link string) error {
-	if !a.Running() || app.Tools == nil {
+	if !a.Running() || app.App.Tools == nil {
 		return fmt.Errorf("proxy service is not start")
 	}
 
-	_, err := app.Tools.SaveRemoteBypassFile(context.TODO(), &wrapperspb.StringValue{Value: link})
+	_, err := app.App.Tools.SaveRemoteBypassFile(context.TODO(), &wrapperspb.StringValue{Value: link})
 	return err
 }

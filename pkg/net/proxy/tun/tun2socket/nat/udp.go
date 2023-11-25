@@ -121,6 +121,7 @@ func (u *UDPv2) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	})
 	copy(udp.Payload(), buf)
 
-	resetCheckSum(ip, udp, PseudoHeaderSum(ip, ipBuf, header.UDPProtocolNumber))
+	pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber, ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
+	resetCheckSum(ip, udp /*PseudoHeaderSum(ip, ipBuf, header.UDPProtocolNumber)*/, pseudoSum)
 	return u.device.Write(ipBuf[:totalLength])
 }

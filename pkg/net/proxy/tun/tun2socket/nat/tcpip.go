@@ -3,6 +3,7 @@
 
 package nat
 
+/*
 import (
 	"io"
 	"math/rand"
@@ -381,3 +382,4 @@ func (u *UDP) WriteToTCPIP(buf []byte, local, remote netip.AddrPort) (int, error
 
 	return u.device.Write(ipBuf[:ip.TotalLen()])
 }
+*/
