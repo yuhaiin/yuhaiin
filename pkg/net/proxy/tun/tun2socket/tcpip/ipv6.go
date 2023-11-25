@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/checksum"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/tcpip/checksum"
 )
 
 const (

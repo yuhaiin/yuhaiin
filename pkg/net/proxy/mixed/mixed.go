@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -20,9 +19,22 @@ import (
 type Mixed struct {
 	lis net.Listener
 
-	httpserver    netapi.Server
-	socks5server  netapi.Server
-	socks4aserver netapi.Server
+	http      *httpproxy.HandleServer
+	socks5    *s5s.Socks5
+	socks5UDP net.PacketConn
+	socks4a   *socks4a.Server
+}
+
+func optToHTTP(o *listener.Opts[*listener.Protocol_Mix]) *listener.Opts[*listener.Protocol_Http] {
+	return listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Http { return l.HTTP() })
+}
+
+func optToSocks5(o *listener.Opts[*listener.Protocol_Mix]) *listener.Opts[*listener.Protocol_Socks5] {
+	return listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks5 { return l.SOCKS5() })
+}
+
+func optToSocks4A(o *listener.Opts[*listener.Protocol_Mix]) *listener.Opts[*listener.Protocol_Socks4A] {
+	return listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks4A { return l.SOCKS4A() })
 }
 
 func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) {
@@ -31,30 +43,21 @@ func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) 
 		return nil, fmt.Errorf("new listener failed: %w", err)
 	}
 
-	socksCL := newChanListener(lis)
-	httpCL := newChanListener(lis)
-	socks4aCL := newChanListener(lis)
-
-	ss, err := s5s.NewServerWithListener(socksCL,
-		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks5 { return l.SOCKS5() }), true)
+	s5UDP, err := s5s.NewUDPServer(o.Protocol.Mix.Host, o.Handler)
 	if err != nil {
-		lis.Close()
-		socksCL.Close()
-		httpCL.Close()
-		socks4aCL.Close()
 		return nil, err
 	}
 
-	hs := httpproxy.NewServerWithListener(httpCL,
-		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Http { return l.HTTP() }))
-
-	socks4a := socks4a.NewServerWithListener(socks4aCL,
-		listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks4A { return l.SOCKS4A() }))
-
-	m := &Mixed{lis, hs, ss, socks4a}
+	m := &Mixed{
+		lis,
+		httpproxy.NewServerHandler(optToHTTP(o), lis.Addr()),
+		s5s.NewServerHandler(optToSocks5(o), true),
+		s5UDP,
+		socks4a.NewServerHandler(optToSocks4A(o)),
+	}
 
 	go func() {
-		if err := m.handle(socksCL, socks4aCL, httpCL); err != nil {
+		if err := m.handle(); err != nil {
 			log.Debug("mixed handle failed", "err", err)
 		}
 	}()
@@ -63,25 +66,17 @@ func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) 
 }
 
 func (m *Mixed) Close() error {
-	var err error
-	if er := m.lis.Close(); er != nil {
-		err = errors.Join(err, er)
+	if m.http != nil {
+		_ = m.http.Close()
 	}
-	if er := m.httpserver.Close(); er != nil {
-		err = errors.Join(err, er)
-	}
-	if er := m.socks5server.Close(); er != nil {
-		err = errors.Join(err, er)
+	if m.socks5UDP != nil {
+		_ = m.socks5UDP.Close()
 	}
 
-	return err
+	return m.lis.Close()
 }
 
-func (m *Mixed) handle(socks5, socks4a, http *chanListener) error {
-	defer socks5.Close()
-	defer socks4a.Close()
-	defer http.Close()
-
+func (m *Mixed) handle() error {
 	for {
 		conn, err := m.lis.Accept()
 		if err != nil {
@@ -93,76 +88,44 @@ func (m *Mixed) handle(socks5, socks4a, http *chanListener) error {
 			return err
 		}
 
-		protocol := make([]byte, 1)
-		if _, err := io.ReadFull(conn, protocol); err != nil {
-			conn.Close()
-			continue
-		}
+		go func() {
+			protocol := make([]byte, 1)
+			if _, err := io.ReadFull(conn, protocol); err != nil {
+				conn.Close()
+				return
+			}
 
-		conn = &mixedConn{protocol[0], conn}
+			conn = newMultipleReaderConn(conn, io.MultiReader(&net.Buffers{protocol}, conn))
 
-		switch protocol[0] {
-		case 0x05:
-			socks5.NewConn(conn)
-		case 0x04:
-			socks4a.NewConn(conn)
-		default:
-			http.NewConn(conn)
-		}
+			switch protocol[0] {
+			case 0x05:
+				err = m.socks5.Handle(conn)
+			case 0x04:
+				err = m.socks4a.Handle(conn)
+			default:
+				err = m.http.Handle(conn)
+			}
+
+			if err != nil {
+				if errors.Is(err, netapi.ErrBlocked) {
+					log.Debug(err.Error())
+				} else {
+					log.Error("mixed handle failed", "err", err)
+				}
+			}
+		}()
 	}
 }
 
-type chanListener struct {
-	mu     sync.Mutex
-	closed bool
-	net.Listener
-	channel chan net.Conn
-}
-
-func newChanListener(lis net.Listener) *chanListener {
-	return &chanListener{
-		Listener: lis,
-		channel:  make(chan net.Conn)}
-}
-
-func (c *chanListener) Accept() (net.Conn, error) {
-	conn, ok := <-c.channel
-	if !ok {
-		return nil, net.ErrClosed
-	}
-
-	return conn, nil
-}
-
-func (c *chanListener) NewConn(conn net.Conn) { c.channel <- conn }
-
-func (c *chanListener) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	close(c.channel)
-	return c.Listener.Close()
-}
-
-type mixedConn struct {
-	protocol byte
+type multipleReaderConn struct {
 	net.Conn
+	mr io.Reader
 }
 
-func (r *mixedConn) Read(b []byte) (int, error) {
-	if len(b) == 0 {
-		return 0, nil
-	}
+func newMultipleReaderConn(c net.Conn, r io.Reader) *multipleReaderConn {
+	return &multipleReaderConn{c, r}
+}
 
-	if r.protocol != 0 {
-		b[0] = r.protocol
-		n, err := r.Conn.Read(b[1:])
-		r.protocol = 0
-		return n + 1, err
-	}
-
-	return r.Conn.Read(b)
+func (m *multipleReaderConn) Read(b []byte) (int, error) {
+	return m.mr.Read(b)
 }

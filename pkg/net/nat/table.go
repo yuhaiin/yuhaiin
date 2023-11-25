@@ -7,12 +7,12 @@ import (
 	"io"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -25,7 +25,8 @@ func NewTable(dialer netapi.Proxy) *Table {
 type Table struct {
 	dialer netapi.Proxy
 	cache  syncmap.SyncMap[string, *SourceTable]
-	mu     syncmap.SyncMap[string, *sync.Cond]
+
+	sf singleflight.Group[struct{}]
 }
 
 func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool, error) {
@@ -62,6 +63,8 @@ func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
+	defer pool.PutBytesV2(pkt.Payload)
+
 	key := pkt.Src.String()
 
 	ok, err := u.write(ctx, pkt, key)
@@ -69,48 +72,41 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return fmt.Errorf("client to proxy failed: %w", err)
 	}
 	if ok {
-		pool.PutBytesV2(pkt.Payload)
 		return nil
 	}
 
-	cond, ok := u.mu.LoadOrStore(key, sync.NewCond(&sync.Mutex{}))
-	if ok {
-		cond.L.Lock()
-		cond.Wait()
-		_, err := u.write(ctx, pkt, key)
-		cond.L.Unlock()
-		pool.PutBytesV2(pkt.Payload)
+	_, err = u.sf.Do(key, func() (struct{}, error) {
+		netapi.StoreFromContext(ctx).
+			Add(netapi.SourceKey{}, pkt.Src).
+			Add(netapi.DestinationKey{}, pkt.Dst)
+
+		dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
+		if err != nil {
+			return struct{}{}, fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
+		}
+
+		table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
+
+		go func() {
+			defer func() {
+				dstpconn.Close()
+				u.cache.Delete(key)
+			}()
+			if err := u.writeBack(pkt, table); err != nil && !errors.Is(err, net.ErrClosed) {
+				log.Error("remote to local failed", "err", err)
+			}
+		}()
+
+		return struct{}{}, nil
+	})
+
+	if err != nil {
 		return err
 	}
-
-	defer u.mu.Delete(key)
-	defer cond.Broadcast()
-	defer pool.PutBytesV2(pkt.Payload)
-
-	netapi.StoreFromContext(ctx).
-		Add(netapi.SourceKey{}, pkt.Src).
-		Add(netapi.DestinationKey{}, pkt.Dst)
-
-	dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
-	if err != nil {
-		return fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
-	}
-
-	table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
 
 	if _, err = u.write(ctx, pkt, key); err != nil {
 		return fmt.Errorf("write data to remote failed: %w", err)
 	}
-
-	go func() {
-		defer func() {
-			dstpconn.Close()
-			u.cache.Delete(key)
-		}()
-		if err := u.writeBack(pkt, table); err != nil && !errors.Is(err, net.ErrClosed) {
-			log.Error("remote to local failed", "err", err)
-		}
-	}()
 
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -23,8 +24,9 @@ type Simple struct {
 	addrs        []netapi.Address
 	serverNames  []string
 
-	index      int
+	index      atomic.Uint32
 	updateTime time.Time
+	refresh    atomic.Bool
 
 	timeout time.Duration
 }
@@ -88,37 +90,33 @@ func (c *Simple) Conn(ctx context.Context, d netapi.Address) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 
-	if c.index != 0 && !c.updateTime.IsZero() {
-		if time.Since(c.updateTime) <= time.Minute*10 {
-			conn, _ = c.dial(ctx, c.addrs[c.index])
-		} else {
-			c.updateTime = time.Time{}
+	index := c.index.Load()
+
+	if index == 0 {
+		conn, err = c.dialGroup(ctx)
+	} else {
+		conn, err = c.dial(ctx, c.addrs[index])
+
+		if time.Since(c.updateTime) > time.Minute*15 && c.refresh.CompareAndSwap(false, true) {
+			go func() {
+				defer c.refresh.Store(false)
+				con, err := c.dialGroup(ctx)
+				if err != nil {
+					return
+				}
+				con.Close()
+			}()
 		}
 	}
 
-	if conn == nil {
-		for i, addr := range c.addrs {
-			con, er := c.dial(ctx, addr)
-			if er != nil {
-				err = errors.Join(err, er)
-				continue
-			}
-
-			conn = con
-			c.index = i
-
-			if i != 0 {
-				c.updateTime = time.Now()
-			}
-			break
-		}
-	}
-
-	if conn == nil {
+	if err != nil {
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}
 
-	conn.(*net.TCPConn).SetKeepAlive(true)
+	tconn, ok := conn.(*net.TCPConn)
+	if ok {
+		_ = tconn.SetKeepAlive(true)
+	}
 
 	if c.tlsConfig != nil {
 		tlsConfig := c.tlsConfig
@@ -127,6 +125,33 @@ func (c *Simple) Conn(ctx context.Context, d netapi.Address) (net.Conn, error) {
 			tlsConfig.ServerName = c.serverNames[rand.Intn(sl)]
 		}
 		conn = tls.Client(conn, tlsConfig)
+	}
+
+	return conn, nil
+}
+
+func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
+	var err error
+	var conn net.Conn
+
+	for i, addr := range c.addrs {
+		con, er := c.dial(ctx, addr)
+		if er != nil {
+			err = errors.Join(err, er)
+			continue
+		}
+
+		conn = con
+		c.index.Store(uint32(i))
+
+		if i != 0 {
+			c.updateTime = time.Now()
+		}
+		break
+	}
+
+	if conn == nil {
+		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}
 
 	return conn, nil

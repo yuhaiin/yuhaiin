@@ -35,7 +35,7 @@ func (s *Socks5) newTCPServer(lis net.Listener) {
 			}
 
 			go func() {
-				if err := s.handle(conn); err != nil {
+				if err := s.Handle(conn); err != nil {
 					if errors.Is(err, netapi.ErrBlocked) {
 						log.Debug(err.Error())
 					} else {
@@ -48,7 +48,7 @@ func (s *Socks5) newTCPServer(lis net.Listener) {
 	}()
 }
 
-func (s *Socks5) handle(client net.Conn) (err error) {
+func (s *Socks5) Handle(client net.Conn) (err error) {
 	b := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(b)
 
@@ -240,11 +240,10 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 
 type Socks5 struct {
 	UDP       bool
-	udpServer *udpServer
+	udpServer net.PacketConn
 	lis       net.Listener
 
 	handler  netapi.Handler
-	addr     string
 	username string
 	password string
 }
@@ -267,17 +266,23 @@ func (s *Socks5) Close() error {
 	return err
 }
 
-func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks5], udp bool) (netapi.Server, error) {
-	s := &Socks5{
-		UDP:      udp,
+func NewServerHandler(o *listener.Opts[*listener.Protocol_Socks5], udp bool) *Socks5 {
+	return &Socks5{
 		handler:  o.Handler,
-		addr:     o.Protocol.Socks5.Host,
 		username: o.Protocol.Socks5.Username,
 		password: o.Protocol.Socks5.Password,
+		UDP:      udp,
 	}
+}
+
+func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks5], udp bool) (netapi.Server, error) {
+	s := NewServerHandler(o, udp)
+
+	s.UDP = udp
 
 	if udp {
-		err := s.newUDPServer(o.Handler)
+		var err error
+		s.udpServer, err = NewUDPServer(o.Protocol.Socks5.Host, o.Handler)
 		if err != nil {
 			s.Close()
 			return nil, fmt.Errorf("new udp server failed: %w", err)

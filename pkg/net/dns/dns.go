@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -53,27 +54,17 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 var _ netapi.Resolver = (*client)(nil)
 
 type client struct {
-	cache  *lru.LRU[string, []net.IP]
-	send   func(context.Context, []byte) ([]byte, error)
-	config Config
-	subnet []dnsmessage.Resource
-	// cond   syncmap.SyncMap[string, *recordCond]
-
-	chanStore syncmap.SyncMap[string, *recordContext]
+	cache        *lru.LRU[string, []net.IP]
+	send         func(context.Context, []byte) ([]byte, error)
+	config       Config
+	subnet       []dnsmessage.Resource
+	singleflight singleflight.Group[*recordContext]
 }
 
 type recordContext struct {
-	context.Context
-
 	ips []net.IP
 	ttl uint32
 }
-
-// type recordCond struct {
-// 	*sync.Cond
-// 	ips []net.IP
-// 	ttl uint32
-// }
 
 func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)) *client {
 	c := &client{
@@ -178,41 +169,31 @@ func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.T
 		return ips, uint32(se), nil
 	}
 
-	rCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	cond, ok := c.chanStore.LoadOrStore(key, &recordContext{Context: rCtx})
-	if ok {
-		<-cond.Context.Done()
-
-		if len(cond.ips) != 0 {
-			return cond.ips, cond.ttl, nil
+	record, err := c.singleflight.Do(key, func() (*recordContext, error) {
+		ips, ttl, err := c.lookupIP(ctx, domain, reqType)
+		if err != nil {
+			return nil, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
 		}
-		return nil, 0, ErrCondEmptyResponse
-	}
 
-	defer c.chanStore.Delete(key)
+		log.Debug(
+			"resolve domain",
+			"resolver", c.config.Name,
+			"host", domain,
+			"type", reqType,
+			"ips", ips,
+			"ttl", ttl,
+		)
 
-	ips, ttl, err := c.lookupIP(ctx, domain, reqType)
+		c.cache.Add(key, ips, lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
+
+		return &recordContext{ips, ttl}, nil
+	})
+
 	if err != nil {
-		return ips, ttl, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
+		return nil, 0, err
 	}
 
-	cond.ips = ips
-	cond.ttl = ttl
-
-	log.Debug(
-		"resolve domain",
-		"resolver", c.config.Name,
-		"host", domain,
-		"type", reqType,
-		"ips", ips,
-		"ttl", ttl,
-	)
-
-	c.cache.Add(key, ips, lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
-
-	return ips, ttl, nil
+	return record.ips, record.ttl, nil
 }
 
 func (c *client) newRequest(domain string, reqType dnsmessage.Type) (uint16, []byte, error) {

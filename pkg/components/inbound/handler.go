@@ -10,48 +10,22 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 var Timeout = time.Second * 20
-
-type packetChan struct {
-	ctx    context.Context
-	packet *netapi.Packet
-}
 
 type handler struct {
 	dialer     netapi.Proxy
 	dnsHandler netapi.DNSHandler
 	table      *nat.Table
-	packetChan chan packetChan
-
-	doneCtx   context.Context
-	cancelCtx func()
 }
 
 func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSHandler) *handler {
-	ctx, cancel := context.WithCancel(context.Background())
 	h := &handler{
 		dialer:     dialer,
 		table:      nat.NewTable(dialer),
-		packetChan: make(chan packetChan, system.Procs),
-		doneCtx:    ctx,
-		cancelCtx:  cancel,
 		dnsHandler: dnsHandler,
 	}
-
-	go func() {
-		for {
-			select {
-			case pack := <-h.packetChan:
-				go h.packet(pack.ctx, pack.packet)
-			case <-h.doneCtx.Done():
-				close(h.packetChan)
-				return
-			}
-		}
-	}()
 
 	return h
 }
@@ -95,27 +69,18 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 }
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
-	select {
-	case <-s.doneCtx.Done():
-	default:
-		s.packetChan <- packetChan{ctx, pack}
-	}
+	go func() {
+		ctx, cancel := context.WithTimeout(ctx, Timeout)
+		defer cancel()
+
+		// TODO hijacking dns
+
+		ctx = netapi.NewStore(ctx)
+
+		if err := s.table.Write(ctx, pack); err != nil {
+			log.Error("packet", "error", err)
+		}
+	}()
 }
 
-func (s *handler) packet(ctx context.Context, pack *netapi.Packet) {
-	ctx, cancel := context.WithTimeout(ctx, Timeout)
-	defer cancel()
-
-	// TODO hijacking dns
-
-	ctx = netapi.NewStore(ctx)
-
-	if err := s.table.Write(ctx, pack); err != nil {
-		log.Error("packet", "error", err)
-	}
-}
-
-func (s *handler) Close() error {
-	s.cancelCtx()
-	return s.table.Close()
-}
+func (s *handler) Close() error { return s.table.Close() }

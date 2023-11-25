@@ -4,8 +4,10 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type Server interface {
@@ -59,3 +61,49 @@ func (e *emptyHandler) Do(_ context.Context, b *pool.Bytes, _ func([]byte) error
 	pool.PutBytesV2(b)
 	return io.EOF
 }
+
+type ChannelListener struct {
+	mu      sync.RWMutex
+	closed  bool
+	channel chan net.Conn
+	addr    net.Addr
+}
+
+func NewChannelListener(addr net.Addr) *ChannelListener {
+	return &ChannelListener{
+		addr:    addr,
+		channel: make(chan net.Conn, system.Procs)}
+}
+
+func (c *ChannelListener) Accept() (net.Conn, error) {
+	conn, ok := <-c.channel
+	if !ok {
+		return nil, net.ErrClosed
+	}
+
+	return conn, nil
+}
+
+func (c *ChannelListener) NewConn(conn net.Conn) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed {
+		return
+	}
+
+	c.channel <- conn
+}
+
+func (c *ChannelListener) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	close(c.channel)
+	return nil
+}
+
+func (c *ChannelListener) Addr() net.Addr { return c.addr }

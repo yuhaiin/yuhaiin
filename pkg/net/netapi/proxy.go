@@ -74,7 +74,7 @@ func PaseNetwork(s string) statistic.Type { return statistic.Type(statistic.Type
 func ParseAddress(network statistic.Type, addr string) (ad Address, _ error) {
 	hostname, portstr, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Error("split host port failed", "err", err)
+		log.Error("split host port failed", "err", err, "addr", addr)
 		hostname = addr
 		portstr = "0"
 	}

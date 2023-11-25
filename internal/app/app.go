@@ -38,16 +38,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-var (
-	Mux = http.NewServeMux()
+var App = app{Mux: http.NewServeMux()}
 
+type app struct {
+	Mux          *http.ServeMux
 	so           *StartOpt
 	HttpListener net.Listener
 	Node         *node.Nodes
 	Tools        *tools.Tools
 	DB           *bbolt.DB
 	closers      []io.Closer
-)
+}
 
 type StartOpt struct {
 	ConfigPath string
@@ -60,38 +61,35 @@ type StartOpt struct {
 
 func AddComponent[T any](t T) T {
 	if z, ok := any(t).(config.Observer); ok {
-		so.Setting.AddObserver(z)
+		App.so.Setting.AddObserver(z)
 	}
 
 	if z, ok := any(t).(io.Closer); ok {
-		closers = append(closers, z)
+		App.closers = append(App.closers, z)
 	}
 
 	return t
 }
 
 func AddCloser(z io.Closer) {
-	closers = append(closers, z)
+	App.closers = append(App.closers, z)
 }
 
 func Close() error {
-	for _, z := range closers {
-		z.Close()
+	if i := len(App.closers) - 1; i >= 0 {
+		App.closers[i].Close()
 	}
+
 	log.Close()
 
 	var path string
-	if so != nil {
-		path = so.ConfigPath
+	if App.so != nil {
+		path = App.so.ConfigPath
 	}
 	sysproxy.Unset(path)
 
-	Mux = http.NewServeMux()
-	so = nil
-	HttpListener = nil
-	Node = nil
-	closers = nil
-	Tools = nil
+	App = app{Mux: http.NewServeMux()}
+
 	return nil
 }
 
@@ -110,32 +108,33 @@ func OpenBboltDB(path string) (*bbolt.DB, error) {
 }
 
 func Start(opt StartOpt) (err error) {
-	so = &opt
+	App.so = &opt
 
-	if DB == nil {
-		DB, err = OpenBboltDB(PathGenerator.Cache(so.ConfigPath))
+	if App.DB == nil {
+		App.DB, err = OpenBboltDB(PathGenerator.Cache(App.so.ConfigPath))
 		if err != nil {
 			return fmt.Errorf("init bbolt cache failed: %w", err)
 		}
-		AddCloser(DB)
+		AddCloser(App.DB)
 	}
 
-	HttpListener, err = net.Listen("tcp", so.Host)
+	App.HttpListener, err = net.Listen("tcp", App.so.Host)
 	if err != nil {
 		return err
 	}
+	AddCloser(App.HttpListener)
 
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath)) }))
+	App.so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(App.so.ConfigPath)) }))
 
 	fmt.Println(version.Art)
-	log.Info("config", "path", so.ConfigPath, "grpc&http host", so.Host)
+	log.Info("config", "path", App.so.ConfigPath, "grpc&http host", App.so.Host)
 
-	so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update(so.ConfigPath)))
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
+	App.so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update(App.so.ConfigPath)))
+	App.so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
-	filestore := node.NewFileStore(PathGenerator.Node(so.ConfigPath))
+	filestore := node.NewFileStore(PathGenerator.Node(App.so.ConfigPath))
 	// proxy access point/endpoint
-	Node = node.NewNodes(filestore)
+	App.Node = node.NewNodes(filestore)
 	subscribe := node.NewSubscribe(filestore)
 	tag := node.NewTag(filestore)
 
@@ -148,12 +147,12 @@ func Start(opt StartOpt) (err error) {
 	remote := AddComponent(resolver.NewRemote(appDialer))
 	// bypass dialer and dns request
 	st := AddComponent(shunt.NewShunt(NewShuntOpt(local, remote)))
-	Node.SetRuleTags(st.Tags)
+	App.Node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
-	stcs := AddComponent(statistics.NewConnStore(cache.NewCache(DB, "flow_data"), st, so.ProcessDumper))
+	stcs := AddComponent(statistics.NewConnStore(cache.NewCache(App.DB, "flow_data"), st, App.so.ProcessDumper))
 	hosts := AddComponent(resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddComponent(resolver.NewFakeDNS(hosts, hosts, cache.NewCache(DB, "fakedns_cache")))
+	fakedns := AddComponent(resolver.NewFakeDNS(hosts, hosts, cache.NewCache(App.DB, "fakedns_cache")))
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(resolver.NewDNSServer(fakedns))
 	// give dns a dialer
@@ -162,7 +161,7 @@ func Start(opt StartOpt) (err error) {
 	// inbound server
 	_ = AddComponent(inbound.NewListener(dnsServer, ss))
 	// tools
-	Tools = tools.NewTools(fakedns, opt.Setting)
+	App.Tools = tools.NewTools(fakedns, opt.Setting)
 	// http page
 	web.Httpserver(NewHttpOption(subscribe, stcs, tag, st))
 	// grpc server
@@ -172,23 +171,23 @@ func Start(opt StartOpt) (err error) {
 }
 
 func RegisterGrpcService(sub gn.SubscribeServer, conns gs.ConnectionsServer, tag gn.TagServer) {
-	if so.GRPCServer == nil {
+	if App.so.GRPCServer == nil {
 		return
 	}
 
-	so.GRPCServer.RegisterService(&gc.ConfigService_ServiceDesc, so.Setting)
-	so.GRPCServer.RegisterService(&gn.Node_ServiceDesc, Node)
-	so.GRPCServer.RegisterService(&gn.Subscribe_ServiceDesc, sub)
-	so.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, conns)
-	so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, tag)
-	so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, Tools)
+	App.so.GRPCServer.RegisterService(&gc.ConfigService_ServiceDesc, App.so.Setting)
+	App.so.GRPCServer.RegisterService(&gn.Node_ServiceDesc, App.Node)
+	App.so.GRPCServer.RegisterService(&gn.Subscribe_ServiceDesc, sub)
+	App.so.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, conns)
+	App.so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, tag)
+	App.so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, App.Tools)
 }
 
 func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
 	return shunt.Opts{
 		DirectDialer:   direct.Default,
 		DirectResolver: local,
-		ProxyDialer:    Node,
+		ProxyDialer:    App.Node,
 		ProxyResolver:  remote,
 		BlockDialer:    reject.Default,
 		BLockResolver:  netapi.ErrorResolver(func(domain string) error { return netapi.NewBlockError(-2, domain) }),
@@ -198,14 +197,14 @@ func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
 
 func NewHttpOption(sub gn.SubscribeServer, conns gs.ConnectionsServer, tag gn.TagServer, st *shunt.Shunt) web.HttpServerOption {
 	return web.HttpServerOption{
-		Mux:         Mux,
-		NodeServer:  Node,
+		Mux:         App.Mux,
+		NodeServer:  App.Node,
 		Subscribe:   sub,
 		Connections: conns,
-		Config:      so.Setting,
+		Config:      App.so.Setting,
 		Tag:         tag,
 		Shunt:       st,
-		Tools:       Tools,
+		Tools:       App.Tools,
 	}
 }
 

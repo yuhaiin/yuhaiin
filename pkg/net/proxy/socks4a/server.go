@@ -147,15 +147,23 @@ func (s *Server) Server() {
 	}
 }
 
-func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks4A]) netapi.Server {
+func NewServerHandler(o *listener.Opts[*listener.Protocol_Socks4A]) *Server {
+	return &Server{
+		handler:    o.Handler,
+		usernameID: o.Protocol.Socks4A.Username,
+	}
+}
+
+func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks4A], start bool) netapi.Server {
 	s := &Server{
 		handler:    o.Handler,
 		usernameID: o.Protocol.Socks4A.Username,
 		lis:        lis,
 	}
 
-	go s.Server()
-
+	if start {
+		go s.Server()
+	}
 	return s
 }
 
@@ -165,5 +173,5 @@ func NewServer(o *listener.Opts[*listener.Protocol_Socks4A]) (netapi.Server, err
 		return nil, err
 	}
 
-	return NewServerWithListener(lis, o), nil
+	return NewServerWithListener(lis, o, true), nil
 }

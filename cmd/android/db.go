@@ -16,7 +16,7 @@ func InitDB(path string) {
 		panic(err)
 	}
 
-	app.DB = db
+	app.App.DB = db
 }
 
 type Cache struct {
@@ -25,7 +25,7 @@ type Cache struct {
 
 func NewCache(name string) *Cache {
 	return &Cache{
-		cache: cache.NewCache(app.DB, fmt.Sprintf("android_%s", name)),
+		cache: cache.NewCache(app.App.DB, fmt.Sprintf("android_%s", name)),
 	}
 }
 
@@ -34,7 +34,7 @@ func (c *Cache) Get(k string) string { return string(c.cache.Get([]byte(k))) }
 func (c *Cache) Delete(k string)     { c.cache.Delete([]byte(k)) }
 
 func DeleteCache(name string) {
-	_ = app.DB.Batch(func(tx *bbolt.Tx) error {
+	_ = app.App.DB.Batch(func(tx *bbolt.Tx) error {
 		return tx.DeleteBucket([]byte(name))
 	})
 }
