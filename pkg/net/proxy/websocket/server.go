@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"log/slog"
@@ -10,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 )
 
@@ -30,7 +30,9 @@ func NewServer(lis net.Listener) *Server {
 
 	go func() {
 		defer s.Close()
-		s.server.Serve(lis)
+		if err := s.server.Serve(lis); err != nil {
+			log.Error("websocket serve failed:", "err", err)
+		}
 	}()
 
 	return s
@@ -69,7 +71,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var earlyData *bytes.Buffer
+	var earlyData [][]byte
 	wsconn, err := websocket.NewServerConn(w, req, func(r *websocket.Request) error {
 		if r.Request.Header.Get("early_data") == "base64" {
 			data, err := base64.RawStdEncoding.DecodeString(r.SecWebSocketKey)
@@ -77,7 +79,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				return err
 			}
 
-			earlyData = bytes.NewBuffer(data)
+			earlyData = append(earlyData, data)
 
 			r.Header = http.Header{}
 			r.Header.Add("early_data", "true")
@@ -90,25 +92,5 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if earlyData == nil {
-		s.connChan <- wsconn
-	} else {
-		s.connChan <- &Conn{wsconn, earlyData}
-	}
-}
-
-type Conn struct {
-	*websocket.Conn
-	buf *bytes.Buffer
-}
-
-func (c *Conn) Read(b []byte) (int, error) {
-	if c.buf != nil {
-		if c.buf.Len() > 0 {
-			return c.buf.Read(b)
-		}
-		c.buf = nil
-	}
-
-	return c.Conn.Read(b)
+	s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData...)
 }

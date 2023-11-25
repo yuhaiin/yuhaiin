@@ -69,7 +69,11 @@ func (pool) PutBytes(b []byte) {
 	buffPool(1 << l).Put(b) //lint:ignore SA6002 ignore temporarily
 }
 
-var bufpool = sync.Pool{New: func() any { return bytes.NewBuffer(nil) }}
+var bufpool = sync.Pool{New: func() any {
+	buffer := bytes.NewBuffer(make([]byte, DefaultSize))
+	buffer.Reset()
+	return buffer
+}}
 
 func (pool) GetBuffer() *bytes.Buffer { return bufpool.Get().(*bytes.Buffer) }
 func (pool) PutBuffer(b *bytes.Buffer) {

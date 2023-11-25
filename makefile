@@ -1,7 +1,7 @@
 MODULE := github.com/Asutorufa/yuhaiin
 
 BUILD_COMMIT  := $(shell git rev-parse --short HEAD)
-BUILD_VERSION := $(shell git describe --abbrev=0 --tags HEAD)
+BUILD_VERSION := $(shell git describe --tags)
 ifeq ($(OS),Windows_NT)
 	BUILD_ARCH	:= Windows_NT
 	BUILD_TIME	:= $(shell powershell Get-Date)
