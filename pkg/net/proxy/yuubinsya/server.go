@@ -170,8 +170,6 @@ func (y *server) handle(conn net.Conn) error {
 
 		addr := target.Address(statistic.Type_tcp)
 
-		log.Debug("new tcp connect", "from", c.RemoteAddr(), "to", addr)
-
 		y.handler.Stream(context.TODO(), &netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
 			Destination: addr,

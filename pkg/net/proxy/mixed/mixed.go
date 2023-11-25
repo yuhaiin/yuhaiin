@@ -95,7 +95,7 @@ func (m *Mixed) handle() error {
 				return
 			}
 
-			conn = newMultipleReaderConn(conn, io.MultiReader(&net.Buffers{protocol}, conn))
+			conn = netapi.NewPrefixBytesConn(conn, protocol)
 
 			switch protocol[0] {
 			case 0x05:
@@ -115,17 +115,4 @@ func (m *Mixed) handle() error {
 			}
 		}()
 	}
-}
-
-type multipleReaderConn struct {
-	net.Conn
-	mr io.Reader
-}
-
-func newMultipleReaderConn(c net.Conn, r io.Reader) *multipleReaderConn {
-	return &multipleReaderConn{c, r}
-}
-
-func (m *multipleReaderConn) Read(b []byte) (int, error) {
-	return m.mr.Read(b)
 }
