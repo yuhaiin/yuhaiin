@@ -10,12 +10,12 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.8
-	golang.org/x/crypto v0.15.0
+	golang.org/x/crypto v0.16.0
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 	golang.org/x/mobile v0.0.0-20231108233038-35478a0c49da
-	golang.org/x/net v0.18.0
+	golang.org/x/net v0.19.0
 	golang.org/x/sync v0.5.0
-	golang.org/x/sys v0.14.0
+	golang.org/x/sys v0.15.0
 	golang.org/x/time v0.4.0
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2
 	golang.zx2c4.com/wireguard v0.0.0-20231018191413-24ea13351eb7
