@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -139,7 +138,10 @@ func Start(opt StartOpt) (err error) {
 	tag := node.NewTag(filestore)
 
 	// make dns flow across all proxy chain
-	appDialer := &storeProxy{}
+	dynamicProxy := netapi.NewDynamicProxy(direct.Default)
+
+	// wrap netapi.Store to context for every connection
+	appDialer := netapi.NewWrapStoreProxy(dynamicProxy)
 
 	// local,remote,bootstrap dns
 	_ = AddComponent(resolver.NewBootstrap(appDialer))
@@ -155,8 +157,8 @@ func Start(opt StartOpt) (err error) {
 	fakedns := AddComponent(resolver.NewFakeDNS(hosts, hosts, cache.NewCache(App.DB, "fakedns_cache")))
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(resolver.NewDNSServer(fakedns))
-	// give dns a dialer
-	appDialer.Proxy = fakedns
+	// make dns flow across all proxy chain
+	dynamicProxy.Set(fakedns)
 	ss := AddComponent(inbound.NewHandler(fakedns, dnsServer))
 	// inbound server
 	_ = AddComponent(inbound.NewListener(dnsServer, ss))
@@ -226,17 +228,3 @@ func (pathGenerator) makeDir(s string) string {
 	return s
 }
 func (p pathGenerator) Cache(dir string) string { return p.makeDir(filepath.Join(dir, "cache")) }
-
-type storeProxy struct{ netapi.Proxy }
-
-func (w *storeProxy) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	return w.Proxy.Conn(netapi.NewStore(ctx), addr)
-}
-
-func (w *storeProxy) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return w.Proxy.PacketConn(netapi.NewStore(ctx), addr)
-}
-
-func (w *storeProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
-	return w.Proxy.Dispatch(netapi.NewStore(ctx), addr)
-}
