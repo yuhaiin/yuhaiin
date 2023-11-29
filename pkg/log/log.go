@@ -48,7 +48,7 @@ func Set(config *protolog.Logcat, path string) {
 
 	if config.Save && writer == nil {
 		writer = NewLogWriter(path)
-		logger.SetOutput(io.MultiWriter(os.Stdout, writer))
+		logger.SetOutput(io.MultiWriter(os.Stderr, writer))
 	}
 }
 

@@ -25,6 +25,7 @@ message protocol {
     reality reality = 17 [ json_name = "reality" ];
     tls_config tls = 18 [ json_name = "tls" ];
     wireguard wireguard = 19 [ json_name = "wireguard" ];
+    mux mux = 20 [ json_name = "mux" ];
   }
 }
 
@@ -111,7 +112,7 @@ message simple {
   repeated host alternate_host = 5 [ json_name = "alternate_host" ];
   // udp will write to every packet target instead of only write to host:port
   bool packet_conn_direct = 3 [ json_name = "packet_conn_direct" ];
-  tls_config tls = 4 [ json_name = "tls", deprecated=true ];
+  tls_config tls = 4 [ json_name = "tls", deprecated = true ];
 }
 
 message tls_config {
@@ -133,20 +134,21 @@ message host {
   int32 port = 2 [ json_name = "port" ];
 }
 
-
 message wireguard_peer_config {
-    string public_key = 1;
-    string pre_shared_key = 2;
-    string endpoint = 3;
-    int32 keep_alive = 4;
-    repeated string allowed_ips = 5;
+  string public_key = 1;
+  string pre_shared_key = 2;
+  string endpoint = 3;
+  int32 keep_alive = 4;
+  repeated string allowed_ips = 5;
 }
 
 message wireguard {
-    string secret_key = 1;
-    repeated string endpoint = 2;
-    repeated wireguard_peer_config peers = 3;
-    int32 mtu = 4;
-    int32 num_workers = 5;
-    bytes reserved = 6;
+  string secret_key = 1;
+  repeated string endpoint = 2;
+  repeated wireguard_peer_config peers = 3;
+  int32 mtu = 4;
+  int32 num_workers = 5;
+  bytes reserved = 6;
 }
+
+message mux { int32 concurrency = 1 [ json_name = "concurrency" ]; }

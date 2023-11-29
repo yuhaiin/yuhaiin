@@ -76,6 +76,7 @@ message yuubinsya {
   string host = 1 [ json_name = "host" ];
   string password = 2 [ json_name = "password" ];
   bool force_disable_encrypt = 8 [ json_name = "force_disable_encrypt" ];
+  bool mux = 11 [ json_name = "mux" ];
   message protocol_normal {};
   oneof protocol {
     normal normal = 3 [ json_name = "normal" ];

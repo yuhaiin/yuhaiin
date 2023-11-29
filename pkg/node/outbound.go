@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -43,19 +44,33 @@ func (o *outbound) Conn(ctx context.Context, host netapi.Address) (_ net.Conn, e
 
 	tcp := o.db.Data.Tcp
 
-	p, ok := o.lruCache.Load(tcp.Hash)
-	if !ok {
-		p, err = register.Dialer(tcp)
-		if err != nil {
-			return nil, err
-		}
-
-		o.lruCache.Add(tcp.Hash, p)
+	p, err := o.GetDialer(tcp)
+	if err != nil {
+		return nil, err
 	}
 
 	netapi.StoreFromContext(ctx).Add(HashKey{}, tcp.Hash)
 
 	return p.Conn(ctx, host)
+}
+
+func (o *outbound) GetDialer(p *point.Point) (netapi.Proxy, error) {
+	if p.Hash == "" {
+		return register.Dialer(p)
+	}
+
+	var err error
+	r, ok := o.lruCache.Load(p.Hash)
+	if !ok {
+		r, err = register.Dialer(p)
+		if err != nil {
+			return nil, err
+		}
+
+		o.lruCache.Add(p.Hash, r)
+	}
+
+	return r, nil
 }
 
 func (o *outbound) PacketConn(ctx context.Context, host netapi.Address) (_ net.PacketConn, err error) {
@@ -65,14 +80,9 @@ func (o *outbound) PacketConn(ctx context.Context, host netapi.Address) (_ net.P
 
 	udp := o.db.Data.Udp
 
-	p, ok := o.lruCache.Load(udp.Hash)
-	if !ok {
-		p, err = register.Dialer(udp)
-		if err != nil {
-			return nil, err
-		}
-
-		o.lruCache.Add(udp.Hash, p)
+	p, err := o.GetDialer(udp)
+	if err != nil {
+		return nil, err
 	}
 
 	netapi.StoreFromContext(ctx).Add(HashKey{}, udp.Hash)

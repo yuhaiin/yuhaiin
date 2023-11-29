@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/mux"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	hp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
@@ -78,6 +79,20 @@ func init() {
 		}
 		if err != nil {
 			return nil, err
+		}
+
+		if o.Protocol.Yuubinsya.Mux {
+			old := listener
+			listener = func(l net.Listener) (net.Listener, error) {
+				if old != nil {
+					l, err = old(l)
+					if err != nil {
+						return nil, err
+					}
+				}
+
+				return mux.NewServer(l), nil
+			}
 		}
 
 		s := yuubinsya.NewServer(yuubinsya.Config{

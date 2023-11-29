@@ -5,6 +5,7 @@ go 1.21.1
 toolchain go1.21.4
 
 require (
+	github.com/libp2p/go-yamux/v4 v4.0.1
 	github.com/quic-go/quic-go v0.40.0
 	github.com/refraction-networking/utls v1.5.4
 	github.com/vishvananda/netlink v1.2.1-beta.2
@@ -16,7 +17,7 @@ require (
 	golang.org/x/net v0.19.0
 	golang.org/x/sync v0.5.0
 	golang.org/x/sys v0.15.0
-	golang.org/x/time v0.4.0
+	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2
 	golang.zx2c4.com/wireguard v0.0.0-20231018191413-24ea13351eb7
 	google.golang.org/grpc v1.59.0
@@ -33,6 +34,7 @@ require (
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/pprof v0.0.0-20230926050212-f7f687d19a98 // indirect
 	github.com/klauspost/compress v1.17.1 // indirect
+	github.com/libp2p/go-buffer-pool v0.0.2 // indirect
 	github.com/onsi/ginkgo/v2 v2.13.0 // indirect
 	github.com/pires/go-proxyproto v0.7.0 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect

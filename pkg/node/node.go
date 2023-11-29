@@ -8,7 +8,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
@@ -117,7 +116,7 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 				return
 			}
 
-			px, err := register.Dialer(p)
+			px, err := n.fileStore.outbound().GetDialer(p)
 			if err != nil {
 				return
 			}

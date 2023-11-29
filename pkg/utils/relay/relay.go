@@ -8,6 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/libp2p/go-yamux/v4"
 )
 
 // Relay pipe
@@ -15,13 +16,19 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		if _, err := Copy(rw2, rw1); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
+		if _, err := Copy(rw2, rw1); err != nil &&
+			!errors.Is(err, io.EOF) &&
+			!errors.Is(err, os.ErrDeadlineExceeded) &&
+			!errors.Is(err, yamux.ErrTimeout) {
 			log.Error("relay rw1 -> rw2 failed", "err", err)
 		}
 		setDeadline(rw2) // make another Copy exit
 	}()
 
-	if _, err := Copy(rw1, rw2); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
+	if _, err := Copy(rw1, rw2); err != nil &&
+		!errors.Is(err, io.EOF) &&
+		!errors.Is(err, os.ErrDeadlineExceeded) &&
+		!errors.Is(err, yamux.ErrTimeout) {
 		log.Error("relay rw2 -> rw1 failed", "err", err)
 	}
 	setDeadline(rw1)

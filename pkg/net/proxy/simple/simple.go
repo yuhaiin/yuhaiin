@@ -2,10 +2,8 @@ package simple
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net"
 	"sync/atomic"
 	"time"
@@ -13,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -20,28 +19,15 @@ type Simple struct {
 	netapi.EmptyDispatch
 
 	packetDirect bool
-	tlsConfig    *tls.Config
 	addrs        []netapi.Address
-	serverNames  []string
-
-	index      atomic.Uint32
-	updateTime time.Time
-	refresh    atomic.Bool
-
-	timeout time.Duration
+	refresh      atomic.Bool
+	index        atomic.Uint32
+	updateTime   time.Time
+	timeout      time.Duration
 }
 
 func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		var servernames []string
-		tls := protocol.ParseTLSConfig(c.Simple.Tls)
-		if tls != nil {
-			if !tls.InsecureSkipVerify && tls.ServerName == "" {
-				tls.ServerName = c.Simple.GetHost()
-			}
-			servernames = c.Simple.Tls.ServerNames
-		}
-
 		var addrs []netapi.Address
 		addrs = append(addrs, netapi.ParseAddressPort(0, c.Simple.GetHost(), netapi.ParsePort(c.Simple.GetPort())))
 		for _, v := range c.Simple.GetAlternateHost() {
@@ -54,13 +40,13 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 			timeout = time.Millisecond * time.Duration(c.Simple.Timeout)
 		}
 
-		return &Simple{
+		simple := &Simple{
 			addrs:        addrs,
 			packetDirect: c.Simple.PacketConnDirect,
-			tlsConfig:    tls,
-			serverNames:  servernames,
 			timeout:      timeout,
-		}, nil
+		}
+
+		return tls.New(&protocol.Protocol_Tls{Tls: c.Simple.Tls})(simple)
 	}
 }
 
@@ -116,15 +102,6 @@ func (c *Simple) Conn(ctx context.Context, d netapi.Address) (net.Conn, error) {
 	tconn, ok := conn.(*net.TCPConn)
 	if ok {
 		_ = tconn.SetKeepAlive(true)
-	}
-
-	if c.tlsConfig != nil {
-		tlsConfig := c.tlsConfig
-		if sl := len(c.serverNames); sl > 1 {
-			tlsConfig = tlsConfig.Clone()
-			tlsConfig.ServerName = c.serverNames[rand.Intn(sl)]
-		}
-		conn = tls.Client(conn, tlsConfig)
 	}
 
 	return conn, nil

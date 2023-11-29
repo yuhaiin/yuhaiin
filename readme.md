@@ -14,11 +14,13 @@
   - TUN, Linux/Mac Redir, Tproxy
     - [gvisor(Symmetric NAT)](https://github.com/google/gvisor)
     - tun2socket(hijack tun TCP to a local TCP listener)
+  - yamux  
 - Outbound
   - yuubinsya(experimental)
   - Socks5, HTTP, TCP, Wireguard
   - Shadowsocksr, Shadowsocks, Vmess, trojan  
   - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS  
+  - yamux  
 - support DNS:
   - DNS, EDNS
   - FakeDNS

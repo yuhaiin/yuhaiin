@@ -3,7 +3,6 @@ package websocket
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -135,11 +134,16 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 }
 
 func (c *earlyConn) SetDeadline(t time.Time) error {
+	c.setDeadline(t)
+	return c.Conn.SetDeadline(t)
+}
+
+func (c *earlyConn) setDeadline(t time.Time) {
 	if c.deadline == nil {
 		if !t.IsZero() {
 			c.deadline = time.AfterFunc(time.Until(t), func() { c.handshakeDone() })
 		}
-		return nil
+		return
 	}
 
 	if t.IsZero() {
@@ -147,32 +151,14 @@ func (c *earlyConn) SetDeadline(t time.Time) error {
 	} else {
 		c.deadline.Reset(time.Until(t))
 	}
-
-	return c.Conn.SetDeadline(t)
 }
 
 func (c *earlyConn) SetReadDeadline(t time.Time) error {
-	var err error
-	if er := c.SetDeadline(t); er != nil {
-		err = errors.Join(err, er)
-	}
-
-	if er := c.Conn.SetReadDeadline(t); er != nil {
-		err = errors.Join(err, er)
-	}
-
-	return err
+	c.setDeadline(t)
+	return c.Conn.SetReadDeadline(t)
 }
 
 func (c *earlyConn) SetWriteDeadline(t time.Time) error {
-	var err error
-	if er := c.SetDeadline(t); er != nil {
-		err = errors.Join(err, er)
-	}
-
-	if er := c.Conn.SetWriteDeadline(t); er != nil {
-		err = errors.Join(err, er)
-	}
-
-	return err
+	c.setDeadline(t)
+	return c.Conn.SetWriteDeadline(t)
 }
