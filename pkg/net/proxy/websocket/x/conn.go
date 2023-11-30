@@ -147,12 +147,8 @@ func (ws *Conn) nextFrameReader() (*Header, io.Reader, error) {
 func (ws *Conn) Write(msg []byte) (n int, err error) { return ws.WriteMsg(msg, ws.PayloadType) }
 
 func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
-	ws.wio.Lock()
-	defer ws.wio.Unlock()
-
-	if ws.closed {
-		return 0, net.ErrClosed
-	}
+	buf := pool.GetBuffer()
+	defer pool.PutBuffer(buf)
 
 	frameHeader := Header{
 		fin:           true,
@@ -165,46 +161,46 @@ func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
 		_ = binary.Read(rand.Reader, binary.BigEndian, &frameHeader.maskKey)
 	}
 
-	if err := writeFrameHeader(frameHeader, ws.Rw, ws.writeHeaderBuf[:]); err != nil {
+	if err := writeFrameHeader(frameHeader, buf, ws.writeHeaderBuf[:]); err != nil {
 		return 0, err
 	}
 
+	headerLength := buf.Len()
+
+	buf.Write(msg)
+
 	if frameHeader.masked {
-		buf := pool.GetBytesV2(len(msg))
-		defer pool.PutBytesV2(buf)
-
-		copy(buf.Bytes(), msg)
-
-		msg = buf.Bytes()
-		mask(frameHeader.maskKey, msg)
+		mask(frameHeader.maskKey, buf.Bytes()[headerLength:])
 	}
 
-	n, err := ws.Rw.Write(msg)
+	ws.wio.Lock()
+	defer ws.wio.Unlock()
+
+	n, err := ws.Rw.Write(buf.Bytes())
 	if err != nil {
 		return n, err
 	}
 
-	return n, ws.Rw.Flush()
+	if err := ws.Rw.Flush(); err != nil {
+		return n, err
+	}
+
+	return int(frameHeader.payloadLength), nil
 }
 
 func (ws *Conn) handleFrame(header *Header, frame io.Reader) (io.Reader, error) {
-	if ws.closed {
-		return nil, net.ErrClosed
+	if ws.IsServer && !header.masked {
+		// client --> server
+		// The client MUST mask all frames sent to the server.
+		ws.WriteClose(closeStatusProtocolError)
+		return nil, io.EOF
+	} else if !ws.IsServer && header.masked {
+		// server --> client
+		// The server MUST NOT mask all frames.
+		ws.WriteClose(closeStatusProtocolError)
+		return nil, io.EOF
 	}
 
-	if ws.IsServer {
-		// The client MUST mask all frames sent to the server.
-		if !header.masked {
-			ws.WriteClose(closeStatusProtocolError)
-			return nil, io.EOF
-		}
-	} else {
-		// The server MUST NOT mask all frames.
-		if header.masked {
-			ws.WriteClose(closeStatusProtocolError)
-			return nil, io.EOF
-		}
-	}
 	switch header.opcode {
 	case opContinuation:
 		header.opcode = ws.LastPayloadType
@@ -246,7 +242,9 @@ func (ws *Conn) Close() error {
 	}
 
 	ws.closed = true
+
 	err := ws.WriteClose(ws.DefaultCloseStatus)
+
 	if err1 := ws.RawConn.Close(); err1 != nil {
 		err = errors.Join(err, err1)
 	}

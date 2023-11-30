@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Request struct {
@@ -50,6 +48,7 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 			return
 		}
 	}
+
 	err = hs.AcceptHandshake(w)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -63,7 +62,6 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 		return nil, err
 	}
 
-	buf.Writer = newBufioWriterSize(rwc, pool.DefaultSize)
 	return newConn(buf, rwc, true), nil
 }
 

@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/ring"
 	"github.com/libp2p/go-yamux/v4"
 )
 
@@ -34,6 +33,9 @@ func init() {
 	// Effectively disable the incoming streams limit.
 	// This is now dynamically limited by the resource manager.
 	config.MaxIncomingStreams = math.MaxUint32
+	// Disable keepalive, we don't need it
+	// tcp keepalive will used in underlying conn
+	config.EnableKeepAlive = false
 }
 
 type connEntry struct {
@@ -43,7 +45,7 @@ type connEntry struct {
 
 type MuxClient struct {
 	netapi.Proxy
-	ring atomic.Pointer[ring.Ring[*connEntry]]
+	selector *randomSelector
 }
 
 func NewClient(config *protocol.Protocol_Mux) protocol.WrapProxy {
@@ -52,16 +54,14 @@ func NewClient(config *protocol.Protocol_Mux) protocol.WrapProxy {
 			config.Mux.Concurrency = 1
 		}
 
-		if config.Mux.Concurrency > 8 {
-			config.Mux.Concurrency = 8
+		if config.Mux.Concurrency > 16 {
+			config.Mux.Concurrency = 16
 		}
 
 		c := &MuxClient{
-			Proxy: dialer,
-			ring:  atomic.Pointer[ring.Ring[*connEntry]]{},
+			Proxy:    dialer,
+			selector: NewRandomSelector(int(config.Mux.Concurrency)),
 		}
-
-		c.ring.Store(ring.NewRing[*connEntry](int(config.Mux.Concurrency), func() *connEntry { return &connEntry{} }))
 
 		return c, nil
 	}
@@ -82,12 +82,10 @@ func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 }
 
 func (m *MuxClient) nexSession(ctx context.Context) (*IdleSession, error) {
-	entry := m.ring.Swap(m.ring.Load().Next()).Value()
+	entry := m.selector.Select()
 
-	session := entry.session
-
-	if session != nil && !session.IsClosed() {
-		return session, nil
+	if entry.session != nil && !entry.session.IsClosed() {
+		return entry.session, nil
 	}
 
 	entry.mu.Lock()
@@ -195,3 +193,23 @@ type MuxAddr struct {
 
 func (q *MuxAddr) String() string  { return fmt.Sprint(q.Addr, q.ID) }
 func (q *MuxAddr) Network() string { return "yamux" }
+
+type randomSelector struct {
+	content []*connEntry
+}
+
+func NewRandomSelector(cap int) *randomSelector {
+	content := make([]*connEntry, cap)
+
+	for i := 0; i < cap; i++ {
+		content[i] = &connEntry{}
+	}
+
+	return &randomSelector{
+		content: content,
+	}
+}
+
+func (s *randomSelector) Select() *connEntry {
+	return s.content[rand.Intn(len(s.content))]
+}

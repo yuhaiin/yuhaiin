@@ -7,25 +7,21 @@ import (
 )
 
 func ListenContext(ctx context.Context, network string, address string) (net.Listener, error) {
-	return (&net.ListenConfig{
-		Control: func(network, address string, c syscall.RawConn) error {
-			return setSocketOptions(network, address, c, &Options{
-				InterfaceName:  DefaultInterfaceName,
-				InterfaceIndex: DefaultInterfaceIndex,
-				MarkSymbol:     DefaultMarkSymbol,
-			})
-		},
-	}).
-		Listen(ctx, network, address)
+	return ListenContextWithOptions(ctx, network, address, &Options{
+		InterfaceName:  DefaultInterfaceName,
+		InterfaceIndex: DefaultInterfaceIndex,
+		MarkSymbol:     DefaultMarkSymbol,
+	})
 }
 
 func ListenContextWithOptions(ctx context.Context, network string, address string, opts *Options) (net.Listener, error) {
-	return (&net.ListenConfig{
+	config := &net.ListenConfig{
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
-	}).
-		Listen(ctx, network, address)
+	}
+	config.SetMultipathTCP(true)
+	return config.Listen(ctx, network, address)
 }
 
 func DialContext(ctx context.Context, network, address string) (net.Conn, error) {
@@ -42,6 +38,7 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
+	d.SetMultipathTCP(true)
 	return d.DialContext(ctx, network, address)
 }
 

@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -101,7 +102,7 @@ const maxControlPayload = 125
 
 // writeFrameHeader writes the bytes of the header to w.
 // See https://tools.ietf.org/html/rfc6455#section-5.2
-func writeFrameHeader(h Header, w bufioReadWriter, buf []byte) (err error) {
+func writeFrameHeader(h Header, w *bytes.Buffer, buf []byte) (err error) {
 	var b byte
 	if h.fin {
 		b |= 1 << 7
