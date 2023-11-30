@@ -1,6 +1,8 @@
 package mux
 
 import (
+	"errors"
+	"io"
 	"net"
 	"sync"
 
@@ -59,7 +61,9 @@ func (m *MuxServer) Run() error {
 			for {
 				c, err := session.AcceptStream()
 				if err != nil {
-					log.Error("yamux accept error", "err", err)
+					if !errors.Is(err, io.EOF) {
+						log.Error("yamux accept error", "err", err)
+					}
 					return
 				}
 
