@@ -1,7 +1,6 @@
 package register
 
 import (
-	"github.com/Asutorufa/yuhaiin/pkg/net/mux"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
@@ -51,7 +50,6 @@ func init() {
 	protocol.RegisterProtocol(reality.NewRealityClient)
 	protocol.RegisterProtocol(tls.New)
 	protocol.RegisterProtocol(wireguard.New)
-	protocol.RegisterProtocol(mux.NewClient)
 }
 
 func Dialer(p *point.Point) (r netapi.Proxy, err error) {

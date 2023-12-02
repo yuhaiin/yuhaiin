@@ -8,7 +8,6 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/mux"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	hp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
@@ -91,7 +90,7 @@ func init() {
 					}
 				}
 
-				return mux.NewServer(l), nil
+				return http2.NewServer(l), nil
 			}
 		}
 

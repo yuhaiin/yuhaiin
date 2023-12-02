@@ -54,6 +54,7 @@ func NewClient(config *protocol.Protocol_Mux) protocol.WrapProxy {
 			config.Mux.Concurrency = 1
 		}
 
+		// TODO: remove underlying connection limit
 		if config.Mux.Concurrency > 16 {
 			config.Mux.Concurrency = 16
 		}
