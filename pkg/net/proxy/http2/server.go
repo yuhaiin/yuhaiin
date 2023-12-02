@@ -7,9 +7,9 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/net/http2"
@@ -31,7 +31,7 @@ func NewServer(lis net.Listener) *Server {
 		connChan: make(chan net.Conn, 20),
 	}
 	h2s := &http2.Server{
-		IdleTimeout: time.Second * 20,
+		IdleTimeout: time.Minute,
 	}
 
 	h.server = &http.Server{
@@ -41,7 +41,9 @@ func NewServer(lis net.Listener) *Server {
 
 	go func() {
 		defer h.Close()
-		h.server.Serve(lis)
+		if err := h.server.Serve(lis); err != nil {
+			log.Error("http2 serve failed:", "err", err)
+		}
 	}()
 
 	return h
@@ -81,13 +83,18 @@ func (h *Server) Close() error {
 }
 
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
-	fw := &flushWriter{w, atomic.Bool{}}
-	h.connChan <- &http2Conn{fw, r.Body, h.Addr(), &addr{h.id.Generate()}, nil}
+	fw := newFlushWriter(w)
+	h.connChan <- &http2Conn{
+		fw,
+		r.Body,
+		h.Addr(),
+		&addr{r.RemoteAddr, h.id.Generate()},
+		nil,
+	}
 	<-r.Context().Done()
 	fw.Close()
 }
@@ -95,24 +102,45 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 var _ net.Conn = (*http2Conn)(nil)
 
 type flushWriter struct {
-	w    io.Writer
-	done atomic.Bool
+	w      io.Writer
+	flush  http.Flusher
+	mu     sync.Mutex
+	closed bool
+}
+
+func newFlushWriter(w io.Writer) *flushWriter {
+	fw := &flushWriter{
+		w: w,
+	}
+
+	if f, ok := w.(http.Flusher); ok {
+		fw.flush = f
+	}
+
+	return fw
 }
 
 func (fw *flushWriter) Write(p []byte) (n int, err error) {
-	if fw.done.Load() {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+
+	if fw.closed {
 		return 0, net.ErrClosed
 	}
 
 	n, err = fw.w.Write(p)
-	if f, ok := fw.w.(http.Flusher); ok && err == nil {
-		f.Flush()
+	if err == nil && fw.flush != nil {
+		fw.flush.Flush()
 	}
+
 	return
 }
 
 func (fw *flushWriter) Close() error {
-	fw.done.Store(true)
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+
+	fw.closed = true
 	return nil
 }
 
@@ -138,7 +166,7 @@ func (h *http2Conn) RemoteAddr() net.Addr { return h.remoteAddr }
 func (c *http2Conn) SetDeadline(t time.Time) error {
 	if c.deadline == nil {
 		if !t.IsZero() {
-			c.deadline = time.AfterFunc(t.Sub(time.Now()), func() { c.Close() })
+			c.deadline = time.AfterFunc(time.Until(t), func() { c.Close() })
 		}
 		return nil
 	}
@@ -146,7 +174,7 @@ func (c *http2Conn) SetDeadline(t time.Time) error {
 	if t.IsZero() {
 		c.deadline.Stop()
 	} else {
-		c.deadline.Reset(t.Sub(time.Now()))
+		c.deadline.Reset(time.Until(t))
 	}
 
 	return nil
@@ -155,8 +183,9 @@ func (c *http2Conn) SetReadDeadline(t time.Time) error  { return c.SetDeadline(t
 func (c *http2Conn) SetWriteDeadline(t time.Time) error { return c.SetDeadline(t) }
 
 type addr struct {
-	id uint64
+	addr string
+	id   uint64
 }
 
 func (addr) Network() string  { return "http2" }
-func (a addr) String() string { return fmt.Sprintf("http2://%d", a.id) }
+func (a addr) String() string { return fmt.Sprintf("http2://%s-%d", a.addr, a.id) }

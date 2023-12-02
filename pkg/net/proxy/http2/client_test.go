@@ -2,14 +2,40 @@ package http2
 
 import (
 	"context"
+	"io"
+	"os"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestClient(t *testing.T) {
+	lis, err := dialer.ListenContext(context.TODO(), "tcp", "127.0.0.1:8082")
+	assert.NoError(t, err)
+	defer lis.Close()
+
+	lis = NewServer(lis)
+
+	go func() {
+		for {
+			conn, err := lis.Accept()
+			if err != nil {
+				t.Error(err)
+				break
+			}
+
+			go func() {
+				defer conn.Close()
+
+				io.Copy(io.MultiWriter(os.Stdout, conn), conn)
+			}()
+		}
+	}()
+
 	sm := simple.New(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
 			Host: "127.0.0.1",
@@ -45,6 +71,7 @@ func TestClient(t *testing.T) {
 	_, err = conn.Write([]byte("bbbb"))
 	if err != nil {
 		t.Error(err)
+		return
 	}
 
 	buf := make([]byte, 1024)

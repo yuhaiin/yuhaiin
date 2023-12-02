@@ -3,10 +3,10 @@ package http2
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -14,63 +14,40 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/net/http2"
 )
 
 type Client struct {
-	client *http.Client
+	client *http2.Transport
 	netapi.Proxy
-	host string
 }
 
 func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-
 		transport := &http2.Transport{
 			DisableCompression: true,
 			AllowHTTP:          true,
-			ReadIdleTimeout:    time.Second * 20,
+			ReadIdleTimeout:    time.Second * 5,
 			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-				address, err := netapi.ParseAddress(statistic.Type_tcp, addr)
-				if err != nil {
-					return nil, err
-				}
-				conn, err := p.Conn(ctx, address)
-				if err != nil {
-					return nil, fmt.Errorf("http2 dial tls context failed: %w", err)
-				}
-
-				return conn, nil
+				return p.Conn(ctx, netapi.EmptyAddr)
 			},
 		}
 
-		client := &http.Client{
-			Transport: transport,
-		}
-
-		if config.Http2.Host == "" {
-			config.Http2.Host = "www.example.com"
-		}
-
-		return &Client{client, p, config.Http2.Host}, nil
+		return &Client{transport, p}, nil
 	}
 }
 
 func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	r, w := net.Pipe()
 
-	req, err := http.NewRequest(http.MethodPost, "https://"+c.host, r)
-	if err != nil {
-		return nil, err
+	req := &http.Request{
+		Method:     http.MethodConnect,
+		Body:       r,
+		URL:        &url.URL{Scheme: "https", Host: "localhost"},
+		Proto:      "HTTP/2.0",
+		ProtoMajor: 2,
+		ProtoMinor: 0,
 	}
-
-	req.Proto = "HTTP/2"
-	req.ProtoMajor = 2
-	req.ProtoMinor = 0
-
-	// Disable any compression method from server.
-	req.Header.Set("Accept-Encoding", "identity")
 
 	respr := &readCloser{
 		wait: make(chan struct{}),
@@ -84,11 +61,10 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	}
 
 	go func() {
-		resp, err := c.client.Do(req)
+		resp, err := c.client.RoundTrip(req)
 		if err != nil {
 			r.Close()
-			w.Close()
-			respr.Close()
+			h2conn.Close()
 			log.Error("http2 do request failed:", "err", err)
 			return
 		}
