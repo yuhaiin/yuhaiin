@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -33,6 +34,7 @@ func (a *App) Start(opt *Opts) error {
 	errChan := make(chan error)
 
 	go func() {
+		defer a.started.Store(false)
 
 		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
@@ -54,7 +56,6 @@ func (a *App) Start(opt *Opts) error {
 
 		a.lis = lis
 		a.started.Store(true)
-		defer a.started.Store(false)
 
 		close(errChan)
 		defer opt.CloseFallback.Close()
@@ -81,6 +82,7 @@ func (a *App) Stop() error {
 	}
 
 	for a.Running() {
+		runtime.Gosched()
 	}
 
 	return nil
