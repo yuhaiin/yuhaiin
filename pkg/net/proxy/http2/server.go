@@ -1,7 +1,7 @@
 package http2
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -13,37 +13,48 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 type Server struct {
-	mu       sync.Mutex
-	server   *http.Server
-	listener net.Listener
-	connChan chan net.Conn
-	id       id.IDGenerator
-	closed   bool
+	mu        sync.Mutex
+	listener  net.Listener
+	connChan  chan net.Conn
+	id        id.IDGenerator
+	closedCtx context.Context
+	close     context.CancelFunc
 }
 
 func NewServer(lis net.Listener) *Server {
-	h := &Server{
-		listener: lis,
-		connChan: make(chan net.Conn, 20),
-	}
-	h2s := &http2.Server{
-		IdleTimeout: time.Minute,
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 
-	h.server = &http.Server{
-		Handler:           h2c.NewHandler(h, h2s),
-		ReadHeaderTimeout: time.Second * 4,
+	h := &Server{
+		listener:  lis,
+		connChan:  make(chan net.Conn, 20),
+		closedCtx: ctx,
+		close:     cancel,
 	}
 
 	go func() {
 		defer h.Close()
-		if err := h.server.Serve(lis); err != nil {
-			log.Error("http2 serve failed:", "err", err)
+
+		for {
+			conn, err := lis.Accept()
+			if err != nil {
+				log.Error("accept failed:", "err", err)
+				return
+			}
+
+			go func() {
+				defer conn.Close()
+				(&http2.Server{
+					IdleTimeout: time.Minute,
+				}).ServeConn(conn, &http2.ServeConnOpts{
+					Handler: h,
+					Context: h.closedCtx,
+				})
+			}()
 		}
+
 	}()
 
 	return h
@@ -69,16 +80,16 @@ func (g *Server) Addr() net.Addr {
 func (h *Server) Close() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.closed {
+
+	select {
+	case <-h.closedCtx.Done():
 		return nil
+	default:
 	}
 
-	err := h.server.Close()
-	if er := h.listener.Close(); er != nil {
-		err = errors.Join(err, er)
-	}
+	err := h.listener.Close()
 	close(h.connChan)
-	h.closed = true
+	h.close()
 	return err
 }
 
@@ -88,14 +99,21 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 	fw := newFlushWriter(w)
-	h.connChan <- &http2Conn{
+
+	conn := &http2Conn{
 		fw,
 		r.Body,
 		h.Addr(),
 		&addr{r.RemoteAddr, h.id.Generate()},
 		nil,
 	}
-	<-r.Context().Done()
+	h.connChan <- conn
+
+	select {
+	case <-r.Context().Done():
+	case <-h.closedCtx.Done():
+		conn.Close()
+	}
 	fw.Close()
 }
 

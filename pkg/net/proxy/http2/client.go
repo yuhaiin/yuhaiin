@@ -3,7 +3,9 @@ package http2
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,12 +16,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/net/http2"
 )
 
 type Client struct {
-	client *http2.Transport
+	client *clientConnPool
 	netapi.Proxy
+
+	idg id.IDGenerator
 }
 
 func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
@@ -27,17 +32,91 @@ func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
 		transport := &http2.Transport{
 			DisableCompression: true,
 			AllowHTTP:          true,
-			ReadIdleTimeout:    time.Second * 5,
+			ReadIdleTimeout:    time.Second * 30,
 			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 				return p.Conn(ctx, netapi.EmptyAddr)
 			},
 		}
 
-		return &Client{transport, p}, nil
+		cpool := &clientConnPool{
+			dialer:    p,
+			transport: transport,
+			conns:     [8]*entry{{}, {}, {}, {}, {}, {}, {}, {}},
+		}
+
+		transport.ConnPool = cpool
+
+		return &Client{
+			cpool,
+			p,
+			id.IDGenerator{},
+		}, nil
 	}
 }
 
-func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+type entry struct {
+	mu   sync.Mutex
+	raw  net.Conn
+	conn *http2.ClientConn
+}
+type clientConnPool struct {
+	dialer    netapi.Proxy
+	transport *http2.Transport
+	conns     [8]*entry
+}
+
+func (c *clientConnPool) getClientConn() (net.Conn, *http2.ClientConn, error) {
+	conn := c.conns[rand.Intn(8)]
+
+	cc := conn.conn
+
+	if cc != nil {
+		state := cc.State()
+		if !state.Closed && !state.Closing {
+			return conn.raw, cc, nil
+		}
+	}
+
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+
+	if conn.conn != nil {
+		state := conn.conn.State()
+		if !state.Closed && !state.Closing {
+			return conn.raw, conn.conn, nil
+		}
+	}
+
+	rawConn, err := c.dialer.Conn(context.TODO(), netapi.EmptyAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+	cc, err = c.transport.NewClientConn(rawConn)
+	if err != nil {
+		rawConn.Close()
+		return nil, nil, err
+	}
+
+	conn.conn = cc
+	conn.raw = rawConn
+
+	return rawConn, cc, nil
+}
+func (c *clientConnPool) GetClientConn(*http.Request, string) (*http2.ClientConn, error) {
+	_, cc, err := c.getClientConn()
+	return cc, err
+}
+func (c *clientConnPool) MarkDead(conn *http2.ClientConn) {
+	conn.Close()
+	conn.Shutdown(context.Background())
+}
+
+func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error) {
+	raw, clientConn, err := c.client.getClientConn()
+	if err != nil {
+		return nil, fmt.Errorf("http2 get client conn failed: %w", err)
+	}
+
 	r, w := net.Pipe()
 
 	req := &http.Request{
@@ -56,12 +135,12 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 	h2conn := &http2Conn{
 		w:          w,
 		r:          respr,
-		localAddr:  caddr{},
-		remoteAddr: addr,
+		localAddr:  addr{addr: raw.LocalAddr().String(), id: c.idg.Generate()},
+		remoteAddr: raw.RemoteAddr(),
 	}
 
 	go func() {
-		resp, err := c.client.RoundTrip(req)
+		resp, err := clientConn.RoundTrip(req)
 		if err != nil {
 			r.Close()
 			h2conn.Close()
@@ -74,11 +153,6 @@ func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 
 	return h2conn, nil
 }
-
-type caddr struct{}
-
-func (caddr) Network() string { return "tcp" }
-func (caddr) String() string  { return "http2" }
 
 type readCloser struct {
 	mu   sync.Mutex
@@ -119,14 +193,14 @@ func (r *readCloser) Read(b []byte) (int, error) {
 	if r.rc == nil {
 		<-r.wait
 		if r.rc == nil {
-			return 0, net.ErrClosed
+			return 0, io.EOF
 		}
 	}
 
 	n, err := r.rc.Read(b)
 	if err != nil {
 		if strings.Contains(err.Error(), "http2: response body closed") {
-			err = net.ErrClosed
+			err = io.EOF
 		}
 
 		return n, err

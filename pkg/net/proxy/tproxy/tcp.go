@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -46,6 +47,14 @@ func (t *tcpserver) handleTCP(c net.Conn) error {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
 
+	addrPort, err := target.AddrPort(context.TODO())
+	if err == nil {
+		if addrPort.Addr().Unmap() == t.lisAddr.Addr().Unmap() &&
+			addrPort.Port() == t.lisAddr.Port() {
+			return fmt.Errorf("local addr and remote addr are same")
+		}
+	}
+
 	if isHandleDNS(target.Port().Port()) && t.hijackDNS {
 		defer c.Close()
 		ctx := context.TODO()
@@ -73,6 +82,8 @@ type tcpserver struct {
 	dialer    netapi.Handler
 	dns       netapi.DNSHandler
 	lis       net.Listener
+
+	lisAddr netip.AddrPort
 }
 
 func (t *tcpserver) Close() error { return t.lis.Close() }
@@ -105,6 +116,7 @@ func newTCP(opt *cl.Opts[*cl.Protocol_Tproxy]) (*tcpserver, error) {
 		hijackDNS: opt.Protocol.Tproxy.GetDnsHijacking(),
 		fakeip:    opt.Protocol.Tproxy.GetForceFakeip(),
 		lis:       lis,
+		lisAddr:   lis.Addr().(*net.TCPAddr).AddrPort(),
 	}
 
 	log.Info("new tproxy tcp server", "host", lis.Addr())

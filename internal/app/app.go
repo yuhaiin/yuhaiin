@@ -75,8 +75,8 @@ func AddCloser(z io.Closer) {
 }
 
 func Close() error {
-	if i := len(App.closers) - 1; i >= 0 {
-		App.closers[i].Close()
+	for _, v := range App.closers {
+		v.Close()
 	}
 
 	log.Close()
