@@ -64,13 +64,6 @@ func (s *Server) Accept() (net.Conn, error) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.closed {
-		return
-	}
-
 	var earlyData [][]byte
 	wsconn, err := websocket.NewServerConn(w, req, func(r *websocket.Request) error {
 		if r.Request.Header.Get("early_data") == "base64" {
@@ -89,6 +82,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	})
 	if err != nil {
 		log.Error("new websocket server conn failed", slog.Any("from", req.RemoteAddr), slog.Any("err", err))
+		return
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
 		return
 	}
 
