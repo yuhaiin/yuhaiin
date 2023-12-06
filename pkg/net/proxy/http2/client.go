@@ -65,7 +65,7 @@ type clientConnPool struct {
 	conns     [8]*entry
 }
 
-func (c *clientConnPool) getClientConn() (net.Conn, *http2.ClientConn, error) {
+func (c *clientConnPool) getClientConn(ctx context.Context) (net.Conn, *http2.ClientConn, error) {
 	conn := c.conns[rand.Intn(8)]
 
 	cc := conn.conn
@@ -87,7 +87,7 @@ func (c *clientConnPool) getClientConn() (net.Conn, *http2.ClientConn, error) {
 		}
 	}
 
-	rawConn, err := c.dialer.Conn(context.TODO(), netapi.EmptyAddr)
+	rawConn, err := c.dialer.Conn(ctx, netapi.EmptyAddr)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,7 +103,7 @@ func (c *clientConnPool) getClientConn() (net.Conn, *http2.ClientConn, error) {
 	return rawConn, cc, nil
 }
 func (c *clientConnPool) GetClientConn(*http.Request, string) (*http2.ClientConn, error) {
-	_, cc, err := c.getClientConn()
+	_, cc, err := c.getClientConn(context.TODO())
 	return cc, err
 }
 func (c *clientConnPool) MarkDead(conn *http2.ClientConn) {
@@ -112,25 +112,14 @@ func (c *clientConnPool) MarkDead(conn *http2.ClientConn) {
 }
 
 func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error) {
-	raw, clientConn, err := c.client.getClientConn()
+	raw, clientConn, err := c.client.getClientConn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("http2 get client conn failed: %w", err)
 	}
 
-	r, w := net.Pipe()
+	r, w := io.Pipe()
 
-	req := &http.Request{
-		Method:     http.MethodConnect,
-		Body:       r,
-		URL:        &url.URL{Scheme: "https", Host: "localhost"},
-		Proto:      "HTTP/2.0",
-		ProtoMajor: 2,
-		ProtoMinor: 0,
-	}
-
-	respr := &readCloser{
-		wait: make(chan struct{}),
-	}
+	respr := newReadCloser()
 
 	h2conn := &http2Conn{
 		w:          w,
@@ -140,7 +129,11 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 	}
 
 	go func() {
-		resp, err := clientConn.RoundTrip(req)
+		resp, err := clientConn.RoundTrip(&http.Request{
+			Method: http.MethodConnect,
+			Body:   r,
+			URL:    &url.URL{Scheme: "https", Host: "localhost"},
+		})
 		if err != nil {
 			r.Close()
 			h2conn.Close()
@@ -155,38 +148,29 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 }
 
 type readCloser struct {
-	mu   sync.Mutex
 	rc   io.ReadCloser
+	once sync.Once
 	wait chan struct{}
 }
 
-func (r *readCloser) Close() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func newReadCloser() *readCloser {
+	return &readCloser{wait: make(chan struct{})}
+}
 
+func (r *readCloser) Close() error {
 	if r.rc != nil {
 		return r.rc.Close()
 	}
 
-	select {
-	case <-r.wait:
-	default:
-		close(r.wait)
-	}
-
+	r.once.Do(func() { close(r.wait) })
 	return nil
 }
 
 func (r *readCloser) SetReadCloser(rc io.ReadCloser) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	select {
-	case <-r.wait:
-	default:
+	r.once.Do(func() {
 		r.rc = rc
 		close(r.wait)
-	}
+	})
 }
 
 func (r *readCloser) Read(b []byte) (int, error) {

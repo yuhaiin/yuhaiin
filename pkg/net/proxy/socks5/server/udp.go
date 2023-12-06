@@ -25,9 +25,9 @@ func NewUDPServer(addr string, handler netapi.Handler) (net.PacketConn, error) {
 	go func() {
 		defer l.Close()
 
-		buf := pool.GetBytesV2(nat.MaxSegmentSize)
-
 		for {
+			buf := pool.GetBytesV2(nat.MaxSegmentSize)
+
 			n, src, err := l.ReadFrom(buf.Bytes())
 			if err != nil {
 				log.Error("read udp request failed, stop socks5 server", slog.Any("err", err))
