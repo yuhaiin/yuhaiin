@@ -205,5 +205,5 @@ type addr struct {
 	id   uint64
 }
 
-func (addr) Network() string  { return "http2" }
+func (addr) Network() string  { return "tcp" }
 func (a addr) String() string { return fmt.Sprintf("http2://%s-%d", a.addr, a.id) }
