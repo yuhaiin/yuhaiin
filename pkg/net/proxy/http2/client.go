@@ -5,26 +5,23 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"golang.org/x/net/http2"
 )
 
 type Client struct {
 	client *clientConnPool
 	netapi.Proxy
-
-	idg id.IDGenerator
 }
 
 func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
@@ -38,18 +35,26 @@ func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
 			},
 		}
 
+		if config.Http2.Concurrency < 1 {
+			config.Http2.Concurrency = 1
+		}
+
 		cpool := &clientConnPool{
 			dialer:    p,
 			transport: transport,
-			conns:     [8]*entry{{}, {}, {}, {}, {}, {}, {}, {}},
+			conns:     make([]*entry, config.Http2.Concurrency),
+			max:       uint64(config.Http2.Concurrency),
+		}
+
+		for i := range cpool.conns {
+			cpool.conns[i] = &entry{}
 		}
 
 		transport.ConnPool = cpool
 
 		return &Client{
-			cpool,
-			p,
-			id.IDGenerator{},
+			client: cpool,
+			Proxy:  p,
 		}, nil
 	}
 }
@@ -62,18 +67,22 @@ type entry struct {
 type clientConnPool struct {
 	dialer    netapi.Proxy
 	transport *http2.Transport
-	conns     [8]*entry
+	conns     []*entry
+
+	max     uint64
+	current atomic.Uint64
 }
 
-func (c *clientConnPool) getClientConn(ctx context.Context) (net.Conn, *http2.ClientConn, error) {
-	conn := c.conns[rand.Intn(8)]
+func (c *clientConnPool) getClientConn(ctx context.Context) (uint64, net.Conn, *http2.ClientConn, error) {
+	nowNumber := c.current.Add(1)
+	conn := c.conns[nowNumber%(c.max)]
 
 	cc := conn.conn
 
 	if cc != nil {
 		state := cc.State()
 		if !state.Closed && !state.Closing {
-			return conn.raw, cc, nil
+			return nowNumber, conn.raw, cc, nil
 		}
 	}
 
@@ -83,36 +92,38 @@ func (c *clientConnPool) getClientConn(ctx context.Context) (net.Conn, *http2.Cl
 	if conn.conn != nil {
 		state := conn.conn.State()
 		if !state.Closed && !state.Closing {
-			return conn.raw, conn.conn, nil
+			return nowNumber, conn.raw, conn.conn, nil
 		}
 	}
 
 	rawConn, err := c.dialer.Conn(ctx, netapi.EmptyAddr)
 	if err != nil {
-		return nil, nil, err
+		return nowNumber, nil, nil, err
 	}
 	cc, err = c.transport.NewClientConn(rawConn)
 	if err != nil {
 		rawConn.Close()
-		return nil, nil, err
+		return nowNumber, nil, nil, err
 	}
 
 	conn.conn = cc
 	conn.raw = rawConn
 
-	return rawConn, cc, nil
+	return nowNumber, rawConn, cc, nil
 }
+
 func (c *clientConnPool) GetClientConn(*http.Request, string) (*http2.ClientConn, error) {
-	_, cc, err := c.getClientConn(context.TODO())
+	_, _, cc, err := c.getClientConn(context.TODO())
 	return cc, err
 }
+
 func (c *clientConnPool) MarkDead(conn *http2.ClientConn) {
-	conn.Close()
-	conn.Shutdown(context.Background())
+	_ = conn.Close()
+	_ = conn.Shutdown(context.Background())
 }
 
 func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error) {
-	raw, clientConn, err := c.client.getClientConn(ctx)
+	id, raw, clientConn, err := c.client.getClientConn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("http2 get client conn failed: %w", err)
 	}
@@ -124,7 +135,7 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 	h2conn := &http2Conn{
 		w:          w,
 		r:          respr,
-		localAddr:  addr{addr: raw.LocalAddr().String(), id: c.idg.Generate()},
+		localAddr:  addr{addr: raw.LocalAddr().String(), id: id},
 		remoteAddr: raw.RemoteAddr(),
 	}
 
@@ -149,12 +160,13 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 
 type readCloser struct {
 	rc   io.ReadCloser
-	once sync.Once
-	wait chan struct{}
+	ctx  context.Context
+	done context.CancelFunc
 }
 
 func newReadCloser() *readCloser {
-	return &readCloser{wait: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &readCloser{ctx: ctx, done: cancel}
 }
 
 func (r *readCloser) Close() error {
@@ -162,20 +174,18 @@ func (r *readCloser) Close() error {
 		return r.rc.Close()
 	}
 
-	r.once.Do(func() { close(r.wait) })
+	r.done()
 	return nil
 }
 
 func (r *readCloser) SetReadCloser(rc io.ReadCloser) {
-	r.once.Do(func() {
-		r.rc = rc
-		close(r.wait)
-	})
+	r.rc = rc
+	r.done()
 }
 
 func (r *readCloser) Read(b []byte) (int, error) {
 	if r.rc == nil {
-		<-r.wait
+		<-r.ctx.Done()
 		if r.rc == nil {
 			return 0, io.EOF
 		}

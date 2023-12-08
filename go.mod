@@ -1,8 +1,6 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.21.1
-
-toolchain go1.21.4
+go 1.21.5
 
 require (
 	github.com/libp2p/go-yamux/v4 v4.0.1

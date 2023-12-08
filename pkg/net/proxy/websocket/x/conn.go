@@ -31,8 +31,6 @@ type Conn struct {
 	LastPayloadType opcode
 	PayloadType     opcode
 
-	DefaultCloseStatus int
-
 	readHeaderBuf  [8]byte
 	writeHeaderBuf [8]byte
 
@@ -40,20 +38,19 @@ type Conn struct {
 	wio     sync.Mutex
 	closeMu sync.Mutex
 
-	Rw    *struct{ bufioReadWriter }
+	Rw    *dynamicReadWriter
 	Frame io.Reader
 
 	RawConn net.Conn
 }
 
 // newConn creates a new WebSocket connection speaking hybi draft protocol.
-func newConn(buf bufioReadWriter, rwc net.Conn, isServer bool) *Conn {
+func newConn(buf *bufio.ReadWriter, rwc net.Conn, isServer bool) *Conn {
 	return &Conn{
-		IsServer:           isServer,
-		Rw:                 &struct{ bufioReadWriter }{buf},
-		RawConn:            rwc,
-		PayloadType:        opText,
-		DefaultCloseStatus: closeStatusNormal,
+		IsServer:    isServer,
+		Rw:          newDynamicReadWriter(!isServer, buf),
+		RawConn:     rwc,
+		PayloadType: opText,
 	}
 }
 
@@ -97,7 +94,7 @@ func (ws *Conn) NextFrameReader(handle func(*Header, io.Reader) error) error {
 	defer ws.rio.Unlock()
 
 	if ws.Frame != nil {
-		relay.Copy(io.Discard, ws.Frame)
+		_, _ = relay.Copy(io.Discard, ws.Frame)
 		ws.Frame = nil
 	}
 
@@ -105,7 +102,7 @@ func (ws *Conn) NextFrameReader(handle func(*Header, io.Reader) error) error {
 	if err != nil {
 		return err
 	}
-	defer relay.Copy(io.Discard, r)
+	defer r.Close()
 
 	if err := handle(h, r); err != nil {
 		return err
@@ -114,7 +111,7 @@ func (ws *Conn) NextFrameReader(handle func(*Header, io.Reader) error) error {
 	return nil
 }
 
-func (ws *Conn) nextFrameReader() (*Header, io.Reader, error) {
+func (ws *Conn) nextFrameReader() (*Header, io.ReadCloser, error) {
 	for {
 		if ws.closed {
 			return nil, nil, net.ErrClosed
@@ -188,7 +185,7 @@ func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
 	return int(frameHeader.payloadLength), nil
 }
 
-func (ws *Conn) handleFrame(header *Header, frame io.Reader) (io.Reader, error) {
+func (ws *Conn) handleFrame(header *Header, frame io.ReadCloser) (io.ReadCloser, error) {
 	if ws.IsServer && !header.masked {
 		// client --> server
 		// The client MUST mask all frames sent to the server.
@@ -214,7 +211,7 @@ func (ws *Conn) handleFrame(header *Header, frame io.Reader) (io.Reader, error) 
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 			return nil, err
 		}
-		relay.Copy(io.Discard, frame)
+		_ = frame.Close()
 		if header.opcode == opPing {
 			if _, err := ws.WritePong(b[:n]); err != nil {
 				return nil, err
@@ -234,6 +231,10 @@ func (ws *Conn) WritePong(msg []byte) (n int, err error) { return ws.WriteMsg(ms
 
 // Close implements the io.Closer interface.
 func (ws *Conn) Close() error {
+	if ws.closed {
+		return nil
+	}
+
 	ws.closeMu.Lock()
 	defer ws.closeMu.Unlock()
 
@@ -243,20 +244,13 @@ func (ws *Conn) Close() error {
 
 	ws.closed = true
 
-	err := ws.WriteClose(ws.DefaultCloseStatus)
+	err := ws.WriteClose(closeStatusNormal)
+
+	_ = ws.Rw.Close()
 
 	if err1 := ws.RawConn.Close(); err1 != nil {
 		err = errors.Join(err, err1)
 	}
-
-	if !ws.IsServer {
-		if z, ok := ws.Rw.bufioReadWriter.(*bufio.ReadWriter); ok {
-			putBufioReader(z.Reader)
-			putBufioWriter(z.Writer)
-		}
-	}
-
-	ws.Rw.bufioReadWriter = &ErrorBufioReadWriter{net.ErrClosed}
 
 	return err
 }
@@ -281,4 +275,9 @@ func (frame *frameReader) Read(msg []byte) (n int, err error) {
 		frame.maskKey = mask(frame.maskKey, msg[:n])
 	}
 	return n, err
+}
+
+func (f *frameReader) Close() error {
+	_, err := relay.Copy(io.Discard, f.reader)
+	return err
 }

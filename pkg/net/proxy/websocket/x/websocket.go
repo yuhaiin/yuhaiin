@@ -12,9 +12,11 @@
 package websocket // import "golang.org/x/net/websocket"
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"encoding/base64"
-	"io"
+	"net"
+	"sync"
 	"unsafe"
 )
 
@@ -79,21 +81,88 @@ var (
 	ErrNotSupported         = &ProtocolError{"not supported"}
 )
 
-type bufioReadWriter interface {
-	io.Writer
-	io.Reader
-	ReadByte() (byte, error)
-	WriteByte(byte) error
-	Flush() error
+type dynamicReadWriter struct {
+	closed bool
+	client bool
+	mu     sync.RWMutex
+	bw     *bufio.ReadWriter
 }
 
-type ErrorBufioReadWriter struct{ error }
+func newDynamicReadWriter(client bool, bw *bufio.ReadWriter) *dynamicReadWriter {
+	return &dynamicReadWriter{
+		client: client,
+		bw:     bw,
+	}
+}
 
-func (b *ErrorBufioReadWriter) WriteByte(byte) error      { return b.error }
-func (b *ErrorBufioReadWriter) Flush() error              { return b.error }
-func (b *ErrorBufioReadWriter) Write([]byte) (int, error) { return 0, b.error }
-func (b *ErrorBufioReadWriter) Read([]byte) (int, error)  { return 0, b.error }
-func (b *ErrorBufioReadWriter) ReadByte() (byte, error)   { return 0, b.error }
+func (rw *dynamicReadWriter) Write(p []byte) (n int, err error) {
+	rw.mu.RLock()
+	defer rw.mu.RUnlock()
+
+	if rw.closed {
+		return 0, net.ErrClosed
+	}
+
+	return rw.bw.Write(p)
+}
+
+func (rw *dynamicReadWriter) Read(p []byte) (n int, err error) {
+	rw.mu.RLock()
+	defer rw.mu.RUnlock()
+
+	if rw.closed {
+		return 0, net.ErrClosed
+	}
+
+	return rw.bw.Read(p)
+}
+
+func (rw *dynamicReadWriter) ReadByte() (byte, error) {
+	rw.mu.RLock()
+	defer rw.mu.RUnlock()
+
+	if rw.closed {
+		return 0, net.ErrClosed
+	}
+
+	return rw.bw.ReadByte()
+}
+
+func (rw *dynamicReadWriter) WriteByte(b byte) error {
+	rw.mu.RLock()
+	defer rw.mu.RUnlock()
+
+	if rw.closed {
+		return net.ErrClosed
+	}
+
+	return rw.bw.WriteByte(b)
+}
+
+func (rw *dynamicReadWriter) Flush() error {
+	rw.mu.RLock()
+	defer rw.mu.RUnlock()
+
+	if rw.closed {
+		return net.ErrClosed
+	}
+
+	return rw.bw.Flush()
+}
+
+func (rw *dynamicReadWriter) Close() error {
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+
+	rw.closed = true
+
+	if rw.client {
+		putBufioReader(rw.bw.Reader)
+		putBufioWriter(rw.bw.Writer)
+	}
+
+	return nil
+}
 
 // getNonceAccept computes the base64-encoded SHA-1 of the concatenation of
 // the nonce ("Sec-WebSocket-Key" value) with the websocket GUID string.
