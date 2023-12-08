@@ -58,7 +58,7 @@ message shadowsocksr {
   string protoparam = 8 [ json_name = "protoparam" ];
 }
 
-message http2 { string host = 1 [ json_name = "host" ]; }
+message http2 { int32 concurrency = 1 [ json_name = "concurrency" ]; }
 
 message vmess {
   // uuid

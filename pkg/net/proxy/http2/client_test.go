@@ -31,7 +31,7 @@ func TestClient(t *testing.T) {
 			go func() {
 				defer conn.Close()
 
-				io.Copy(io.MultiWriter(os.Stdout, conn), conn)
+				_, _ = io.Copy(io.MultiWriter(os.Stdout, conn), conn)
 			}()
 		}
 	}()
@@ -45,7 +45,7 @@ func TestClient(t *testing.T) {
 
 	c := NewClient(&protocol.Protocol_Http2{
 		Http2: &protocol.Http2{
-			Host: "www.github.com",
+			Concurrency: 1,
 		},
 	})
 
@@ -95,4 +95,10 @@ func TestClient(t *testing.T) {
 	}
 
 	t.Log(string(buf[:n]))
+}
+
+func TestXxx(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		t.Log(i % 2)
+	}
 }
