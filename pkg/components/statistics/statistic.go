@@ -31,7 +31,7 @@ type Connections struct {
 	processDumper listener.ProcessDumper
 	Cache         *Cache
 
-	notify notify
+	notify *notify
 }
 
 func NewConnStore(cache *cache.Cache, dialer netapi.Proxy, processDumper listener.ProcessDumper) *Connections {
@@ -43,6 +43,7 @@ func NewConnStore(cache *cache.Cache, dialer netapi.Proxy, processDumper listene
 		Proxy:         dialer,
 		processDumper: processDumper,
 		Cache:         NewCache(cache),
+		notify:        newNotify(),
 	}
 }
 
@@ -72,6 +73,7 @@ func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections
 }
 
 func (c *Connections) Close() error {
+	c.notify.Close()
 	c.connStore.Range(func(key uint64, v connection) bool {
 		v.Close()
 		return true

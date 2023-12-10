@@ -14,8 +14,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// GOPROXY=https://goproxy.cn,direct ANDROID_HOME=/mnt/data/ide/idea-Android-sdk/Sdk/ ANDROID_NDK_HOME=/mnt/dataHDD/android-ndk/android-ndk-r23b gomobile bind -target=android/amd64,android/arm64 -ldflags='-s -w' -trimpath -v -o yuhaiin.aar ./
-
 type App struct {
 	lis *http.Server
 

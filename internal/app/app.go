@@ -58,22 +58,32 @@ type StartOpt struct {
 	GRPCServer    *grpc.Server
 }
 
-func AddComponent[T any](t T) T {
+func AddComponent[T any](name string, t T) T {
 	if z, ok := any(t).(config.Observer); ok {
 		App.so.Setting.AddObserver(z)
 	}
 
 	if z, ok := any(t).(io.Closer); ok {
-		App.closers = append(App.closers, z)
+		AddCloser(name, z)
 	}
 
 	return t
 }
 
-func AddCloser(z io.Closer) {
-	App.closers = append(App.closers, z)
+func AddCloser(name string, z io.Closer) {
+	App.closers = append(App.closers, &moduleCloser{z, name})
 }
 
+type moduleCloser struct {
+	io.Closer
+	name string
+}
+
+func (m *moduleCloser) Close() error {
+	log.Info("close", "module", m.name)
+	defer log.Info("closed", "module", m.name)
+	return m.Closer.Close()
+}
 func Close() error {
 	for _, v := range App.closers {
 		v.Close()
@@ -114,14 +124,14 @@ func Start(opt StartOpt) (err error) {
 		if err != nil {
 			return fmt.Errorf("init bbolt cache failed: %w", err)
 		}
-		AddCloser(App.DB)
+		AddCloser("bbolt_db", App.DB)
 	}
 
 	App.HttpListener, err = net.Listen("tcp", App.so.Host)
 	if err != nil {
 		return err
 	}
-	AddCloser(App.HttpListener)
+	AddCloser("http_listener", App.HttpListener)
 
 	App.so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(App.so.ConfigPath)) }))
 
@@ -144,24 +154,24 @@ func Start(opt StartOpt) (err error) {
 	appDialer := netapi.NewWrapStoreProxy(dynamicProxy)
 
 	// local,remote,bootstrap dns
-	_ = AddComponent(resolver.NewBootstrap(appDialer))
-	local := AddComponent(resolver.NewLocal(appDialer))
-	remote := AddComponent(resolver.NewRemote(appDialer))
+	_ = AddComponent("bootstrap_dns", resolver.NewBootstrap(appDialer))
+	local := AddComponent("local_dns", resolver.NewLocal(appDialer))
+	remote := AddComponent("remote_dns", resolver.NewRemote(appDialer))
 	// bypass dialer and dns request
-	st := AddComponent(shunt.NewShunt(NewShuntOpt(local, remote)))
+	st := AddComponent("shunt", shunt.NewShunt(NewShuntOpt(local, remote)))
 	App.Node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
-	stcs := AddComponent(statistics.NewConnStore(cache.NewCache(App.DB, "flow_data"), st, App.so.ProcessDumper))
-	hosts := AddComponent(resolver.NewHosts(stcs, st))
+	stcs := AddComponent("statistic", statistics.NewConnStore(cache.NewCache(App.DB, "flow_data"), st, App.so.ProcessDumper))
+	hosts := AddComponent("hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddComponent(resolver.NewFakeDNS(hosts, hosts, cache.NewCache(App.DB, "fakedns_cache")))
+	fakedns := AddComponent("fakedns", resolver.NewFakeDNS(hosts, hosts, cache.NewCache(App.DB, "fakedns_cache")))
 	// dns server/tun dns hijacking handler
-	dnsServer := AddComponent(resolver.NewDNSServer(fakedns))
+	dnsServer := AddComponent("dnsServer", resolver.NewDNSServer(fakedns))
 	// make dns flow across all proxy chain
 	dynamicProxy.Set(fakedns)
-	ss := AddComponent(inbound.NewHandler(fakedns, dnsServer))
+	ss := AddComponent("inbound_handler", inbound.NewHandler(fakedns, dnsServer))
 	// inbound server
-	_ = AddComponent(inbound.NewListener(dnsServer, ss))
+	_ = AddComponent("inbound_listener", inbound.NewListener(dnsServer, ss))
 	// tools
 	App.Tools = tools.NewTools(fakedns, opt.Setting)
 	// http page

@@ -204,6 +204,7 @@ func (ws *Conn) handleFrame(header *Header, frame io.ReadCloser) (io.ReadCloser,
 	case opText, opBinary:
 		ws.LastPayloadType = header.opcode
 	case opClose:
+		ws.Close()
 		return nil, io.EOF
 	case opPing, opPong:
 		b := make([]byte, maxControlFramePayloadLength)
@@ -244,15 +245,9 @@ func (ws *Conn) Close() error {
 
 	ws.closed = true
 
-	err := ws.WriteClose(closeStatusNormal)
-
 	_ = ws.Rw.Close()
 
-	if err1 := ws.RawConn.Close(); err1 != nil {
-		err = errors.Join(err, err1)
-	}
-
-	return err
+	return ws.RawConn.Close()
 }
 
 func (ws *Conn) LocalAddr() net.Addr                { return ws.RawConn.LocalAddr() }

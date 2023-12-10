@@ -13,8 +13,7 @@ type ForceFakeIP struct{}
 
 type Resolver interface {
 	LookupIP(ctx context.Context, domain string) ([]net.IP, error)
-	Record(ctx context.Context, domain string, _ dnsmessage.Type) (_ []net.IP, ttl uint32, err error)
-	Do(ctx context.Context, domain string, raw []byte) ([]byte, error)
+	Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error)
 	io.Closer
 }
 
@@ -25,11 +24,10 @@ type ErrorResolver func(domain string) error
 func (e ErrorResolver) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
 	return nil, e(domain)
 }
-func (e ErrorResolver) Record(_ context.Context, domain string, _ dnsmessage.Type) ([]net.IP, uint32, error) {
-	return nil, 0, e(domain)
+func (e ErrorResolver) Close() error { return nil }
+func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	return dnsmessage.Message{}, e(req.Name.String())
 }
-func (e ErrorResolver) Do(context.Context, string, []byte) ([]byte, error) { return nil, e("") }
-func (e ErrorResolver) Close() error                                       { return nil }
 
 var Bootstrap Resolver = &System{}
 
@@ -44,24 +42,7 @@ func (d *System) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 	}
 	return net.DefaultResolver.LookupIP(ctx, network, domain)
 }
-
-func (d *System) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
-	var req string
-	if t == dnsmessage.TypeAAAA {
-		req = "ip6"
-	} else {
-		req = "ip4"
-	}
-
-	ips, err := net.DefaultResolver.LookupIP(ctx, req, domain)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return ips, 60, nil
+func (d *System) Raw(context.Context, dnsmessage.Question) (dnsmessage.Message, error) {
+	return dnsmessage.Message{}, fmt.Errorf("system dns not support")
 }
-
 func (d *System) Close() error { return nil }
-func (d *System) Do(context.Context, string, []byte) ([]byte, error) {
-	return nil, fmt.Errorf("system dns not support")
-}

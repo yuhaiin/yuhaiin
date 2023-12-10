@@ -3,11 +3,13 @@ package dns
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"log/slog"
+	"math"
 	"math/rand"
 	"net"
 	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
@@ -54,23 +57,18 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 var _ netapi.Resolver = (*client)(nil)
 
 type client struct {
-	cache        *lru.LRU[string, []net.IP]
-	send         func(context.Context, []byte) ([]byte, error)
-	config       Config
-	subnet       []dnsmessage.Resource
-	singleflight singleflight.Group[*recordContext]
-}
-
-type recordContext struct {
-	ips []net.IP
-	ttl uint32
+	send            func(context.Context, []byte) ([]byte, error)
+	config          Config
+	subnet          []dnsmessage.Resource
+	rawStore        *lru.LRU[Req, dnsmessage.Message]
+	rawSingleflight singleflight.Group[Req, dnsmessage.Message]
 }
 
 func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)) *client {
 	c := &client{
-		send:   send,
-		config: config,
-		cache:  lru.NewLru(lru.WithCapacity[string, []net.IP](100)),
+		send:     send,
+		config:   config,
+		rawStore: lru.NewLru(lru.WithCapacity[Req, dnsmessage.Message](1024)),
 	}
 
 	if !config.Subnet.IsValid() {
@@ -119,14 +117,6 @@ func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)
 	return c
 }
 
-func (c *client) Do(ctx context.Context, _ string, b []byte) ([]byte, error) {
-	if c.send == nil {
-		return nil, fmt.Errorf("no dns process function")
-	}
-
-	return c.send(ctx, b)
-}
-
 func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	var aaaaerr error
 	var aaaa []net.IP
@@ -136,11 +126,11 @@ func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			aaaa, _, aaaaerr = c.Record(ctx, domain, dnsmessage.TypeAAAA)
+			aaaa, aaaaerr = c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 		}()
 	}
 
-	resp, _, aerr := c.Record(ctx, domain, dnsmessage.TypeA)
+	resp, aerr := c.lookupIP(ctx, domain, dnsmessage.TypeA)
 
 	if c.config.IPv6 {
 		wg.Wait()
@@ -156,148 +146,144 @@ func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 	return resp, nil
 }
 
-var ErrCondEmptyResponse = errors.New("can't get response from cond")
+type Req struct {
+	Name dnsmessage.Name
+	Type dnsmessage.Type
+}
 
-func (c *client) Record(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
-	key := domain + reqType.String()
+func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	key := Req{Name: req.Name, Type: req.Type}
 
-	if ips, expire, ok := c.cache.LoadExpireTime(key); ok {
-		se := time.Until(expire).Seconds()
-		if se < 0 {
-			se = 0
-		}
-		return ips, uint32(se), nil
+	msg, ok := c.rawStore.Load(key)
+	if ok {
+		return msg, nil
 	}
 
-	record, err := c.singleflight.Do(key, func() (*recordContext, error) {
-		ips, ttl, err := c.lookupIP(ctx, domain, reqType)
-		if err != nil {
-			return nil, fmt.Errorf("lookup %s, %v failed: %w", domain, reqType, err)
+	msg, err, _ := c.rawSingleflight.Do(key, func() (dnsmessage.Message, error) {
+		send := c.send
+
+		if send == nil {
+			return dnsmessage.Message{}, fmt.Errorf("no dns process function")
 		}
 
-		log.Debug(
-			"resolve domain",
-			"resolver", c.config.Name,
-			"host", domain,
-			"type", reqType,
-			"ips", ips,
-			"ttl", ttl,
-		)
+		reqMsg := dnsmessage.Message{
+			Header: dnsmessage.Header{
+				ID:                 uint16(rand.Intn(math.MaxUint16)),
+				Response:           false,
+				OpCode:             0,
+				Authoritative:      false,
+				Truncated:          false,
+				RecursionDesired:   true,
+				RecursionAvailable: false,
+				RCode:              0,
+			},
+			Questions:   []dnsmessage.Question{req},
+			Additionals: c.subnet,
+		}
 
-		c.cache.Add(key, ips, lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
+		buf := pool.GetBytes(pool.DefaultSize)
+		defer pool.PutBytes(buf)
 
-		return &recordContext{ips, ttl}, nil
+		bytes, err := reqMsg.AppendPack(buf[:0])
+		if err != nil {
+			return dnsmessage.Message{}, err
+		}
+
+		resp, err := send(ctx, bytes)
+		if err != nil {
+			return dnsmessage.Message{}, err
+		}
+
+		if err = msg.Unpack(resp); err != nil {
+			return dnsmessage.Message{}, err
+		}
+
+		if msg.ID != reqMsg.ID {
+			return dnsmessage.Message{}, fmt.Errorf("id not match")
+		}
+
+		ttl := uint32(600)
+		if len(msg.Answers) > 0 {
+			ttl = msg.Answers[0].Header.TTL
+		}
+
+		args := []any{
+			slog.String("resolver", c.config.Name),
+			slog.Any("host", req.Name),
+			slog.Any("type", req.Type),
+			slog.Any("code", msg.RCode),
+			slog.Any("ttl", ttl),
+		}
+
+		log.Debug("resolve domain", args...)
+
+		c.rawStore.Add(key, msg, lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
+
+		return msg, nil
 	})
 
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return record.ips, record.ttl, nil
+	return msg, err
 }
 
-func (c *client) newRequest(domain string, reqType dnsmessage.Type) (uint16, []byte, error) {
-	name, err := dnsmessage.NewName(domain + ".")
+func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, error) {
+	if !strings.HasSuffix(domain, ".") {
+		domain += "."
+	}
+
+	name, err := dnsmessage.NewName(domain)
 	if err != nil {
-		return 0, nil, fmt.Errorf("parse domain failed: %w", err)
-	}
-	req := dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:                 uint16(rand.Intn(65535)),
-			Response:           false,
-			OpCode:             0,
-			Authoritative:      false,
-			Truncated:          false,
-			RecursionDesired:   true,
-			RecursionAvailable: false,
-			RCode:              0,
-		},
-		Questions: []dnsmessage.Question{
-			{
-				Name:  name,
-				Type:  reqType,
-				Class: dnsmessage.ClassINET,
-			},
-		},
-		Additionals: c.subnet,
+		return nil, fmt.Errorf("parse domain failed: %w", err)
 	}
 
-	d, err := req.Pack()
+	msg, err := c.Raw(ctx, dnsmessage.Question{
+		Name:  name,
+		Type:  reqType,
+		Class: dnsmessage.ClassINET,
+	})
 	if err != nil {
-		return 0, nil, fmt.Errorf("pack dns message failed: %w", err)
+		return nil, fmt.Errorf("send dns message failed: %w", err)
 	}
 
-	return req.ID, d, nil
-}
-
-func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, uint32, error) {
-	id, d, err := c.newRequest(domain, reqType)
-	if err != nil {
-		return nil, 0, fmt.Errorf("pack dns message failed: %w", err)
+	if msg.Header.RCode != dnsmessage.RCodeSuccess {
+		return nil, &dnsErrCode{code: msg.Header.RCode}
 	}
 
-	d, err = c.Do(ctx, "", d)
-	if err != nil {
-		return nil, 0, fmt.Errorf("send dns message failed: %w", err)
-	}
+	ips := make([]net.IP, 0, len(msg.Answers))
 
-	p := &dnsmessage.Parser{}
-
-	resp, err := p.Start(d)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	if resp.ID != id {
-		return nil, 0, fmt.Errorf("id not match")
-	}
-
-	if resp.RCode != dnsmessage.RCodeSuccess {
-		return nil, 0, fmt.Errorf("rCode (%v) not success", resp.RCode)
-	}
-
-	if err := p.SkipAllQuestions(); err != nil {
-		return nil, 0, fmt.Errorf("skip all questions failed: %w", err)
-	}
-
-	answers, err := p.AllAnswers()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	if len(answers) == 0 {
-		return nil, 0, ErrNoIPFound
-	}
-
-	var ttl uint32
-	ips := make([]net.IP, 0, len(answers))
-
-	for _, v := range answers {
+	for _, v := range msg.Answers {
 		switch x := v.Body.(type) {
 		case *dnsmessage.AResource:
 			if reqType == dnsmessage.TypeA {
-				ttl = v.Header.TTL
 				ips = append(ips, net.IP(x.A[:]))
 			}
 		case *dnsmessage.AAAAResource:
 			if reqType == dnsmessage.TypeAAAA {
-				ttl = v.Header.TTL
 				ips = append(ips, net.IP(x.AAAA[:]))
 			}
 		}
 	}
 
-	if ttl > 600 {
-		ttl = 600
-	}
-
 	if len(ips) == 0 {
-		return nil, 0, ErrNoIPFound
+		return nil, &dnsErrCode{code: dnsmessage.RCodeSuccess}
 	}
 
-	return ips, ttl, nil
+	return ips, nil
 }
 
-var ErrNoIPFound = errors.New("no ip found")
-
 func (c *client) Close() error { return nil }
+
+type dnsErrCode struct {
+	code dnsmessage.RCode
+}
+
+func (d dnsErrCode) Error() string {
+	return d.code.String()
+}
+
+func (d *dnsErrCode) As(err any) bool {
+	dd, ok := err.(*dnsErrCode)
+
+	dd.code = d.code
+
+	return ok
+}

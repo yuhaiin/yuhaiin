@@ -33,7 +33,7 @@ func (t *TCP) Accept() (net.Conn, error) {
 	}
 
 	_ = c.SetKeepAlive(false)
-	_ = c.SetLinger(0)
+	// _ = c.SetLinger(0)
 
 	sys, err := c.SyscallConn()
 	if err == nil {

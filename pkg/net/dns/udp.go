@@ -2,11 +2,12 @@ package dns
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -128,7 +129,7 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 	_retry:
 		_, ok := udp.bufChanMap.Load([2]byte(req[:2]))
 		if ok {
-			rand.Read(req[:2])
+			binary.BigEndian.PutUint16(req[0:2], uint16(rand.Intn(math.MaxUint16)))
 			goto _retry
 		}
 
@@ -149,8 +150,8 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 		}
 
 		select {
-		case <-time.After(time.Second * 10):
-			return nil, fmt.Errorf("timeout")
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case data := <-bchan.bufChan:
 			data[0] = id[0]
 			data[1] = id[1]

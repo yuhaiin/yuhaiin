@@ -55,11 +55,8 @@ func (f *Fakedns) LookupIP(ctx context.Context, domain string) ([]net.IP, error)
 	return f.resolver(ctx).LookupIP(ctx, domain)
 }
 
-func (f *Fakedns) Record(ctx context.Context, domain string, t dnsmessage.Type) (_ []net.IP, ttl uint32, err error) {
-	return f.resolver(ctx).Record(ctx, domain, t)
-}
-func (f *Fakedns) Do(ctx context.Context, domain string, raw []byte) ([]byte, error) {
-	return f.resolver(ctx).Do(ctx, domain, raw)
+func (f *Fakedns) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	return f.resolver(ctx).Raw(ctx, req)
 }
 
 func (f *Fakedns) Close() error { return f.upstream.Close() }

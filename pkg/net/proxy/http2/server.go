@@ -107,14 +107,18 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		&addr{r.RemoteAddr, h.id.Generate()},
 		nil,
 	}
-	h.connChan <- conn
+
+	select {
+	case h.connChan <- conn:
+	case <-h.closedCtx.Done():
+	}
 
 	select {
 	case <-r.Context().Done():
 	case <-h.closedCtx.Done():
-		conn.Close()
 	}
-	fw.Close()
+
+	_ = conn.Close()
 }
 
 var _ net.Conn = (*http2Conn)(nil)
@@ -155,9 +159,6 @@ func (fw *flushWriter) Write(p []byte) (n int, err error) {
 }
 
 func (fw *flushWriter) Close() error {
-	fw.mu.Lock()
-	defer fw.mu.Unlock()
-
 	fw.closed = true
 	return nil
 }

@@ -26,7 +26,7 @@ type Table struct {
 	dialer netapi.Proxy
 	cache  syncmap.SyncMap[string, *SourceTable]
 
-	sf singleflight.Group[struct{}]
+	sf singleflight.Group[string, struct{}]
 }
 
 func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool, error) {
@@ -75,7 +75,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return nil
 	}
 
-	_, err = u.sf.Do(key, func() (struct{}, error) {
+	_, err, _ = u.sf.Do(key, func() (struct{}, error) {
 		netapi.StoreFromContext(ctx).
 			Add(netapi.SourceKey{}, pkt.Src).
 			Add(netapi.DestinationKey{}, pkt.Dst)

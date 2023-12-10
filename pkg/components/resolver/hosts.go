@@ -2,8 +2,8 @@ package resolver
 
 import (
 	"context"
-	"errors"
 	"net"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -92,24 +92,68 @@ func (h *Hosts) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	return h.resolver.LookupIP(ctx, addr.Hostname())
 }
 
-func (h *Hosts) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
-	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort(0, domain, netapi.EmptyPort))
-	if addr.Type() == netapi.IP {
-		if t == dnsmessage.TypeAAAA {
-			return []net.IP{yerror.Ignore(addr.IP(ctx)).To16()}, 600, nil
-		}
-
-		if t == dnsmessage.TypeA && yerror.Ignore(addr.IP(ctx)).To4() != nil {
-			return []net.IP{yerror.Ignore(addr.IP(ctx)).To4()}, 600, nil
-		}
-		return nil, 0, errors.New("here not include ipv6 hosts")
+func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort(0, strings.TrimSuffix(req.Name.String(), "."), netapi.EmptyPort))
+	if req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypeA {
+		return h.resolver.Raw(ctx, req)
 	}
 
-	return h.resolver.Record(ctx, addr.Hostname(), t)
-}
+	if addr.Type() != netapi.IP {
+		name, err := dnsmessage.NewName(addr.Hostname() + ".")
+		if err != nil {
+			return dnsmessage.Message{}, err
+		}
+		req.Name = name
+		return h.resolver.Raw(ctx, req)
+	}
 
-func (h *Hosts) Do(ctx context.Context, addr string, b []byte) ([]byte, error) {
-	return h.resolver.Do(ctx, addr, b)
+	msg := dnsmessage.Message{
+		Header: dnsmessage.Header{
+			ID:                 0,
+			Response:           true,
+			Authoritative:      false,
+			RecursionDesired:   false,
+			RCode:              dnsmessage.RCodeSuccess,
+			RecursionAvailable: false,
+		},
+		Questions: []dnsmessage.Question{
+			{
+				Name:  req.Name,
+				Type:  req.Type,
+				Class: dnsmessage.ClassINET,
+			},
+		},
+	}
+
+	if req.Type == dnsmessage.TypeAAAA {
+		msg.Answers = []dnsmessage.Resource{
+			{
+				Header: dnsmessage.ResourceHeader{
+					Name:  req.Name,
+					Class: dnsmessage.ClassINET,
+					TTL:   600,
+					Type:  dnsmessage.TypeAAAA,
+				},
+				Body: &dnsmessage.AAAAResource{AAAA: [16]byte(yerror.Ignore(addr.IP(ctx)).To16())},
+			},
+		}
+	}
+
+	if req.Type == dnsmessage.TypeA {
+		msg.Answers = []dnsmessage.Resource{
+			{
+				Header: dnsmessage.ResourceHeader{
+					Name:  req.Name,
+					Class: dnsmessage.ClassINET,
+					TTL:   600,
+					Type:  dnsmessage.TypeA,
+				},
+				Body: &dnsmessage.AResource{A: [4]byte(yerror.Ignore(addr.IP(ctx)).To4())},
+			},
+		}
+	}
+
+	return msg, nil
 }
 
 func (h *Hosts) Close() error { return nil }
