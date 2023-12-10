@@ -151,6 +151,8 @@ func (rw *dynamicReadWriter) Flush() error {
 }
 
 func (rw *dynamicReadWriter) Close() error {
+	rw.closed = true
+
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
 

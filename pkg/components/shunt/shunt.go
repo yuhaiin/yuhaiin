@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -237,10 +238,9 @@ func (s *Shunt) Resolver(ctx context.Context, domain string) netapi.Resolver {
 func (f *Shunt) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
 	return f.Resolver(ctx, domain).LookupIP(ctx, domain)
 }
-func (f *Shunt) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
-	return f.Resolver(ctx, domain).Record(ctx, domain, t)
+
+func (f *Shunt) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	return f.Resolver(ctx, strings.TrimSuffix(req.Name.String(), ".")).Raw(ctx, req)
 }
-func (f *Shunt) Do(ctx context.Context, addr string, b []byte) ([]byte, error) {
-	return f.Resolver(ctx, addr).Do(ctx, addr, b)
-}
+
 func (f *Shunt) Close() error { return nil }

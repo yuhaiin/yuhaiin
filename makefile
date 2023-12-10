@@ -80,21 +80,6 @@ yuhaiin_android:
 .PHONY: yuhaiin_mipsle
 yuhaiin_mipsle:
 	$(LINUX_MIPSLE) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite" -o yuhaiin_mipsle $(YUHAIIN)
-	
-.PHONY: dnsrelay_linux
-dnsrelay_linux:
-	$(LINUX_AMD64) $(GO_BUILD_CMD) -o dnsrelay_linux_amd64 $(DNSRELAY)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -o dnsrelay_linux_amd64v3 $(DNSRELAY)
-
-.PHONY: dnsrelay_windows
-dnsrelay_windows:
-	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -o dnsrelay_windows_amd64.exe $(DNSRELAY)
-	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -o dnsrelay_windows_amd64v3.exe $(DNSRELAY)
-
-.PHONY: dnsrelay_darwin
-dnsrelay_darwin:
-	$(DARWIN_AMD64) $(GO_BUILD_CMD) -o dnsrelay_darwin_amd64 $(DNSRELAY)
-	$(DARWIN_AMD64v3) $(GO_BUILD_CMD) -o dnsrelay_darwin_amd64v3 $(DNSRELAY)
 
 .PHONY: install
 install: build cli

@@ -4,12 +4,10 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"google.golang.org/grpc/metadata"
@@ -29,13 +27,18 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 			ticker = 2000
 		}
 
+		msgChan := make(chan *gs.NotifyData, 20)
+		defer close(msgChan)
+
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		cns := &connectionsNotifyServer{ctx, msgChan}
+
 		go func() {
 			defer cancel()
-			err := cc.Connections.Notify(&emptypb.Empty{},
-				&connectionsNotifyServer{ctx, c})
+			err := cc.Connections.Notify(&emptypb.Empty{}, cns)
+
 			if err != nil {
 				log.Warn("connections notify failed", "err", err)
 			}
@@ -63,6 +66,11 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 			case <-ctx.Done():
 				return nil
 
+			case m := <-cns.msgChan:
+				if err = websocket.PROTO.Send(c, m); err != nil {
+					return err
+				}
+
 			case <-time.After(time.Duration(ticker) * time.Millisecond):
 				if err = sendFlow(); err != nil {
 					return err
@@ -73,25 +81,24 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 }
 
 type connectionsNotifyServer struct {
-	ctx    context.Context
-	wsConn *websocket.Conn
+	ctx     context.Context
+	msgChan chan *gs.NotifyData
 }
 
 func (x *connectionsNotifyServer) Send(m *gs.NotifyData) error {
-	if cs := m.GetNotifyNewConnections(); cs != nil {
-		slices.SortFunc(cs.Connections, func(a, b *statistic.Connection) int {
-			if a.Id <= b.Id {
-				return -1
-			} else {
-				return 1
-			}
-		})
+	select {
+	case <-x.ctx.Done():
+		return x.ctx.Err()
+	default:
+		x.msgChan <- m
 	}
-	return websocket.PROTO.Send(x.wsConn, m)
+
+	return nil
 }
+
 func (x *connectionsNotifyServer) Context() context.Context     { return x.ctx }
 func (x *connectionsNotifyServer) SetHeader(metadata.MD) error  { return nil }
 func (x *connectionsNotifyServer) SendHeader(metadata.MD) error { return nil }
 func (x *connectionsNotifyServer) SetTrailer(metadata.MD)       {}
-func (x *connectionsNotifyServer) SendMsg(m interface{}) error  { return nil }
-func (x *connectionsNotifyServer) RecvMsg(m interface{}) error  { return nil }
+func (x *connectionsNotifyServer) SendMsg(m any) error          { return nil }
+func (x *connectionsNotifyServer) RecvMsg(m any) error          { return nil }

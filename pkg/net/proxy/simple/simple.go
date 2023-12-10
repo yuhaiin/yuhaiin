@@ -72,7 +72,7 @@ func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error
 	return con, nil
 }
 
-func (c *Simple) Conn(ctx context.Context, d netapi.Address) (net.Conn, error) {
+func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 

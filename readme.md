@@ -61,11 +61,6 @@ Reference:
 - [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
 - [mzz2017/shadowsocksR](https://github.com/mzz2017/shadowsocksR)  
 - [shadowsocks/go-shadowsocks2](https://github.com/shadowsocks/go-shadowsocks2)  
-- [therecipe/qt](https://github.com/therecipe/qt)  
-- [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)  
-- [breakwa11/shadowsokcsr](https://github.com/shadowsocksr-backup/shadowsocksr)  
-- [akkariiin/shadowsocksrr](https://github.com/shadowsocksrr/shadowsocksr/tree/akkariiin/dev)  
-- [v2ray-plugin](https://github.com/shadowsocks/v2ray-plugin)  
 - [vmess-client](https://github.com/gitsrc/vmess-client)  
 
 </details>

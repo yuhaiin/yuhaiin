@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -13,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/exp/constraints"
-	"golang.org/x/net/dns/dnsmessage"
 )
 
 func PaseNetwork(s string) statistic.Type { return statistic.Type(statistic.Type_value[s]) }
@@ -193,12 +191,13 @@ func (d *DomainAddr) Port() Port { return d.port }
 func (d *DomainAddr) Type() Type { return DOMAIN }
 func (d *DomainAddr) lookupIP(ctx context.Context) (net.IP, error) {
 	if d.preferIPv6 {
-		ips, _, err := d.Resolver().Record(ctx, d.hostname, dnsmessage.TypeAAAA)
-		if err == nil {
-			return ips[rand.Intn(len(ips))], nil
-		} else {
-			log.Warn("resolve ipv6 failed, fallback to ipv4", slog.String("domain", d.hostname), slog.Any("err", err))
-		}
+		// TODO
+		// ips, _, err := d.Resolver().Record(ctx, d.hostname, dnsmessage.TypeAAAA)
+		// if err == nil {
+		// 	return ips[rand.Intn(len(ips))], nil
+		// } else {
+		// 	log.Warn("resolve ipv6 failed, fallback to ipv4", slog.String("domain", d.hostname), slog.Any("err", err))
+		// }
 	}
 
 	ips, err := d.Resolver().LookupIP(ctx, d.hostname)

@@ -10,15 +10,6 @@ type EmptyDispatch struct{}
 
 func (EmptyDispatch) Dispatch(_ context.Context, a Address) (Address, error) { return a, nil }
 
-var DiscardProxy Proxy = &Discard{}
-
-type Discard struct{ EmptyDispatch }
-
-func (Discard) Conn(context.Context, Address) (net.Conn, error) { return DiscardNetConn, nil }
-func (Discard) PacketConn(context.Context, Address) (net.PacketConn, error) {
-	return DiscardNetPacketConn, nil
-}
-
 type errProxy struct {
 	EmptyDispatch
 	error

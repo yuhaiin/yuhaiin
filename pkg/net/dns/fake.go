@@ -31,14 +31,73 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
 	return []net.IP{f.FakeIPPool.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
-func (f *FakeDNS) Record(_ context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
-	ip := f.FakeIPPool.GetFakeIPForDomain(domain)
-
-	if t == dnsmessage.TypeA && !ip.Is4() {
-		return nil, 0, fmt.Errorf("fake ip pool is ipv6, except ipv4")
+func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	if req.Type != dnsmessage.TypeA && req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypePTR {
+		return f.Resolver.Raw(ctx, req)
 	}
 
-	return []net.IP{ip.AsSlice()}, 60, nil
+	newAnswer := func(resource dnsmessage.ResourceBody) dnsmessage.Message {
+		msg := dnsmessage.Message{
+			Header: dnsmessage.Header{
+				ID:                 0,
+				Response:           true,
+				Authoritative:      false,
+				RecursionDesired:   false,
+				RCode:              dnsmessage.RCodeSuccess,
+				RecursionAvailable: false,
+			},
+			Questions: []dnsmessage.Question{
+				{
+					Name:  req.Name,
+					Type:  req.Type,
+					Class: dnsmessage.ClassINET,
+				},
+			},
+		}
+
+		answer := dnsmessage.Resource{
+			Header: dnsmessage.ResourceHeader{
+				Name:  req.Name,
+				Class: dnsmessage.ClassINET,
+				TTL:   600,
+				Type:  req.Type,
+			},
+			Body: resource,
+		}
+
+		msg.Answers = append(msg.Answers, answer)
+
+		return msg
+	}
+
+	if req.Type == dnsmessage.TypePTR {
+		domain, err := f.LookupPtr(req.Name.String())
+		if err != nil {
+			return f.Resolver.Raw(ctx, req)
+		}
+
+		msg := newAnswer(&dnsmessage.PTRResource{
+			PTR: dnsmessage.MustNewName(domain + "."),
+		})
+
+		return msg, nil
+	}
+
+	ip := f.FakeIPPool.GetFakeIPForDomain(strings.TrimSuffix(req.Name.String(), "."))
+
+	if req.Type == dnsmessage.TypeA && !ip.Is4() {
+		return dnsmessage.Message{}, fmt.Errorf("fake ip pool is ipv6, except ipv4")
+	}
+
+	if req.Type == dnsmessage.TypeAAAA {
+		return newAnswer(&dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
+	}
+
+	if req.Type == dnsmessage.TypeA {
+		return newAnswer(&dnsmessage.AResource{A: ip.As4()}), nil
+	}
+
+	return f.Resolver.Raw(ctx, req)
 }
 
 var hex = map[byte]byte{

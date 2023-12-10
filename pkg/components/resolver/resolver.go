@@ -129,12 +129,17 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string) ([]net.IP, error) {
 	return ips, nil
 }
 
-func (d *dnsWrap) Record(ctx context.Context, domain string, t dnsmessage.Type) ([]net.IP, uint32, error) {
+func (d *dnsWrap) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
 	if d.dns == nil {
-		return nil, 0, fmt.Errorf("%s dns not initialized", d.name)
+		return dnsmessage.Message{}, fmt.Errorf("%s dns not initialized", d.name)
 	}
 
-	return d.dns.Record(ctx, domain, t)
+	msg, err := d.dns.Raw(ctx, req)
+	if err != nil {
+		return dnsmessage.Message{}, fmt.Errorf("%s do raw dns request failed: %w", d.name, err)
+	}
+
+	return msg, nil
 }
 
 func (d *dnsWrap) Close() error {
@@ -143,14 +148,6 @@ func (d *dnsWrap) Close() error {
 	}
 
 	return nil
-}
-
-func (d *dnsWrap) Do(ctx context.Context, addr string, r []byte) ([]byte, error) {
-	if d.dns == nil {
-		return nil, fmt.Errorf("%s dns not initialized", d.name)
-	}
-
-	return d.dns.Do(ctx, addr, r)
 }
 
 func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer netapi.Proxy) (netapi.Resolver, error) {
