@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/http2"
 )
 
@@ -47,7 +48,8 @@ func NewServer(lis net.Listener) *Server {
 			go func() {
 				defer conn.Close()
 				(&http2.Server{
-					IdleTimeout: time.Minute,
+					IdleTimeout:      time.Minute,
+					MaxReadFrameSize: pool.DefaultSize,
 				}).ServeConn(conn, &http2.ServeConnOpts{
 					Handler: h,
 					Context: h.closedCtx,
@@ -101,6 +103,7 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fw := newFlushWriter(w)
 
 	conn := &http2Conn{
+		nil,
 		fw,
 		r.Body,
 		h.Addr(),
@@ -164,8 +167,10 @@ func (fw *flushWriter) Close() error {
 }
 
 type http2Conn struct {
-	w io.WriteCloser
-	r io.ReadCloser
+	piper *io.PipeReader
+
+	pipew io.WriteCloser
+	r     io.ReadCloser
 
 	localAddr  net.Addr
 	remoteAddr net.Addr
@@ -174,9 +179,12 @@ type http2Conn struct {
 }
 
 func (h *http2Conn) Read(b []byte) (int, error)  { return h.r.Read(b) }
-func (h *http2Conn) Write(b []byte) (int, error) { return h.w.Write(b) }
+func (h *http2Conn) Write(b []byte) (int, error) { return h.pipew.Write(b) }
 func (h *http2Conn) Close() error {
-	h.w.Close()
+	if h.piper != nil {
+		h.piper.CloseWithError(io.EOF)
+	}
+	h.pipew.Close()
 	return h.r.Close()
 }
 func (h *http2Conn) LocalAddr() net.Addr  { return h.localAddr }

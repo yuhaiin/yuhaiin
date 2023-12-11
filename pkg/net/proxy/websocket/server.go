@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"log/slog"
@@ -17,14 +18,18 @@ type Server struct {
 	net.Listener
 	server   *http.Server
 	connChan chan net.Conn
-	closed   bool
+	closeCtx context.Context
+	close    context.CancelFunc
 	mu       sync.RWMutex
 }
 
 func NewServer(lis net.Listener) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		Listener: lis,
 		connChan: make(chan net.Conn, 20),
+		closeCtx: ctx,
+		close:    cancel,
 	}
 	s.server = &http.Server{Handler: s}
 
@@ -41,26 +46,34 @@ func NewServer(lis net.Listener) *Server {
 func (s *Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+
+	select {
+	case <-s.closeCtx.Done():
 		return nil
+	default:
 	}
 
+	s.close()
 	err := s.server.Close()
 	if er := s.Listener.Close(); er != nil {
 		err = errors.Join(err, er)
 	}
 	close(s.connChan)
-	s.closed = true
 	return err
 }
 
 func (s *Server) Accept() (net.Conn, error) {
-	conn, ok := <-s.connChan
-	if !ok {
+	select {
+	case conn, ok := <-s.connChan:
+		if !ok {
+			return nil, net.ErrClosed
+		}
+
+		return conn, nil
+
+	case <-s.closeCtx.Done():
 		return nil, net.ErrClosed
 	}
-
-	return conn, nil
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -88,8 +101,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.closed {
+	select {
+	case <-s.closeCtx.Done():
 		return
+	default:
 	}
 
 	s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData...)
