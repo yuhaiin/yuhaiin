@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/http2"
 )
 
@@ -26,31 +27,20 @@ type Client struct {
 
 func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		transport := &http2.Transport{
-			DisableCompression: true,
-			AllowHTTP:          true,
-			ReadIdleTimeout:    time.Second * 30,
-			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-				return p.Conn(ctx, netapi.EmptyAddr)
-			},
-		}
 
 		if config.Http2.Concurrency < 1 {
 			config.Http2.Concurrency = 1
 		}
 
 		cpool := &clientConnPool{
-			dialer:    p,
-			transport: transport,
-			conns:     make([]*entry, config.Http2.Concurrency),
-			max:       uint64(config.Http2.Concurrency),
+			dialer: p,
+			conns:  make([]*entry, config.Http2.Concurrency),
+			max:    uint64(config.Http2.Concurrency),
 		}
 
 		for i := range cpool.conns {
 			cpool.conns[i] = &entry{}
 		}
-
-		transport.ConnPool = cpool
 
 		return &Client{
 			client: cpool,
@@ -64,17 +54,18 @@ type entry struct {
 	raw  net.Conn
 	conn *http2.ClientConn
 }
+
 type clientConnPool struct {
-	dialer    netapi.Proxy
-	transport *http2.Transport
-	conns     []*entry
+	dialer netapi.Proxy
+	conns  []*entry
 
 	max     uint64
 	current atomic.Uint64
 }
 
-func (c *clientConnPool) getClientConn(ctx context.Context) (uint64, net.Conn, *http2.ClientConn, error) {
+func (c *clientConnPool) OpenStream(ctx context.Context) (uint64, net.Conn, *http2.ClientConn, error) {
 	nowNumber := c.current.Add(1)
+
 	conn := c.conns[nowNumber%(c.max)]
 
 	cc := conn.conn
@@ -100,7 +91,18 @@ func (c *clientConnPool) getClientConn(ctx context.Context) (uint64, net.Conn, *
 	if err != nil {
 		return nowNumber, nil, nil, err
 	}
-	cc, err = c.transport.NewClientConn(rawConn)
+
+	transport := &http2.Transport{
+		DisableCompression: true,
+		AllowHTTP:          true,
+		ReadIdleTimeout:    time.Second * 30,
+		MaxReadFrameSize:   pool.DefaultSize,
+		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+			return rawConn, nil
+		},
+	}
+
+	cc, err = transport.NewClientConn(rawConn)
 	if err != nil {
 		rawConn.Close()
 		return nowNumber, nil, nil, err
@@ -112,18 +114,8 @@ func (c *clientConnPool) getClientConn(ctx context.Context) (uint64, net.Conn, *
 	return nowNumber, rawConn, cc, nil
 }
 
-func (c *clientConnPool) GetClientConn(*http.Request, string) (*http2.ClientConn, error) {
-	_, _, cc, err := c.getClientConn(context.TODO())
-	return cc, err
-}
-
-func (c *clientConnPool) MarkDead(conn *http2.ClientConn) {
-	_ = conn.Close()
-	_ = conn.Shutdown(context.Background())
-}
-
 func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error) {
-	id, raw, clientConn, err := c.client.getClientConn(ctx)
+	id, raw, clientConn, err := c.client.OpenStream(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("http2 get client conn failed: %w", err)
 	}
@@ -133,7 +125,8 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 	respr := newReadCloser()
 
 	h2conn := &http2Conn{
-		w:          w,
+		piper:      r,
+		pipew:      w,
 		r:          respr,
 		localAddr:  addr{addr: raw.LocalAddr().String(), id: id},
 		remoteAddr: raw.RemoteAddr(),
@@ -146,7 +139,7 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 			URL:    &url.URL{Scheme: "https", Host: "localhost"},
 		})
 		if err != nil {
-			r.Close()
+			r.CloseWithError(err)
 			h2conn.Close()
 			log.Error("http2 do request failed:", "err", err)
 			return
