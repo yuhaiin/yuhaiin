@@ -1,11 +1,13 @@
 package nat
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
@@ -29,7 +31,7 @@ type TransportProtocol interface {
 }
 
 func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *UDPv2, error) {
-	listener, err := net.ListenTCP("tcp", nil)
+	listener, err := dialer.ListenContextWithOptions(context.Background(), "tcp", "", &dialer.Options{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -56,7 +58,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 	}
 
 	tcp := &TCP{
-		listener: listener,
+		listener: listener.(*net.TCPListener),
 		portal:   portal.AsSlice(),
 		table:    tab,
 	}

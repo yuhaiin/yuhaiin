@@ -152,33 +152,6 @@ func udpAddrFamily(net string, laddr, raddr *net.UDPAddr) int {
 
 //credit: https://github.com/LiamHaworth/go-tproxy/blob/master/tproxy_udp.go ,  which is under MIT License
 
-// ListenUDP will construct a new UDP listener
-// socket with the Linux IP_TRANSPARENT option
-// set on the underlying socket
-func ListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
-	listener, err := net.ListenUDP(network, laddr)
-	if err != nil {
-		return nil, err
-	}
-
-	fileDescriptorSource, err := listener.File()
-	if err != nil {
-		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("get file descriptor: %s", err)}
-	}
-	defer fileDescriptorSource.Close()
-
-	fileDescriptor := int(fileDescriptorSource.Fd())
-	if err = syscall.SetsockoptInt(fileDescriptor, syscall.SOL_IP, syscall.IP_TRANSPARENT, 1); err != nil {
-		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("set socket option: IP_TRANSPARENT: %s", err)}
-	}
-
-	if err = syscall.SetsockoptInt(fileDescriptor, syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR, 1); err != nil {
-		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("set socket option: IP_RECVORIGDSTADDR: %s", err)}
-	}
-
-	return listener, nil
-}
-
 var errContinue = errors.New("continue")
 
 // ReadFromUDP reads a UDP packet from c, copying the payload into b.

@@ -65,7 +65,7 @@ func (ws *Conn) Read(msg []byte) (n int, err error) {
 
 	for {
 		if ws.closed {
-			return 0, net.ErrClosed
+			return 0, io.EOF
 		}
 
 		if ws.Frame == nil {
@@ -114,7 +114,7 @@ func (ws *Conn) NextFrameReader(handle func(*Header, io.Reader) error) error {
 func (ws *Conn) nextFrameReader() (*Header, io.ReadCloser, error) {
 	for {
 		if ws.closed {
-			return nil, nil, net.ErrClosed
+			return nil, nil, io.EOF
 		}
 
 		header, err := readFrameHeader(ws.Rw, ws.readHeaderBuf[:])
@@ -245,9 +245,11 @@ func (ws *Conn) Close() error {
 
 	ws.closed = true
 
+	err := ws.RawConn.Close()
+
 	_ = ws.Rw.Close()
 
-	return ws.RawConn.Close()
+	return err
 }
 
 func (ws *Conn) LocalAddr() net.Addr                { return ws.RawConn.LocalAddr() }

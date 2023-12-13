@@ -25,6 +25,8 @@ type Server struct {
 	closed   bool
 
 	handler netapi.Handler
+
+	once sync.Once
 }
 
 func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config, handler netapi.Handler) (*Server, error) {
@@ -58,29 +60,30 @@ func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config, handler netapi.
 }
 
 func (s *Server) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return nil
-	}
-
 	var err error
 
-	if s.Listener != nil {
-		if er := s.Listener.Close(); er != nil {
-			err = errors.Join(err, er)
+	s.once.Do(func() {
+		s.closed = true
+
+		if s.Listener != nil {
+			if er := s.Listener.Close(); er != nil {
+				err = errors.Join(err, er)
+			}
+
 		}
 
-	}
-
-	if s.packetConn != nil {
-		if er := s.packetConn.Close(); er != nil {
-			err = errors.Join(err, er)
+		if s.packetConn != nil {
+			if er := s.packetConn.Close(); er != nil {
+				err = errors.Join(err, er)
+			}
 		}
-	}
 
-	close(s.connChan)
-	s.closed = true
+		log.Info("start close quic conn chan")
+		s.mu.Lock()
+		close(s.connChan)
+		s.mu.Unlock()
+		log.Info("closed quic conn chan")
+	})
 
 	return err
 }

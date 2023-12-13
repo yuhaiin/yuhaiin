@@ -22,9 +22,24 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			opts.MarkSymbol(int32(fd))
 		}
 
-		host, _, _ := net.SplitHostPort(address)
-		if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {
-			return
+		if isTCPSocket(network) && !opts.listener {
+			// https://github.com/golang/go/issues/48622
+			/*
+				TCP_KEEPIDLE=180
+				TCP_KEEPINTVL=15
+				TCP_KEEPCNT=2
+			*/
+			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, int(15))
+			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, int(180))
+			_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
+			// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 0)
+		}
+
+		if (opts.InterfaceName == "" && opts.InterfaceIndex != 0) || opts.InterfaceName != "" {
+			host, _, _ := net.SplitHostPort(address)
+			if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {
+				return
+			}
 		}
 
 		if opts.InterfaceName == "" && opts.InterfaceIndex != 0 {
@@ -39,6 +54,7 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 				return
 			}
 		}
+
 	})
 
 	if innerErr != nil {
