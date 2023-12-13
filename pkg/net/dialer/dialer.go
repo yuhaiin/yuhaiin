@@ -15,6 +15,8 @@ func ListenContext(ctx context.Context, network string, address string) (net.Lis
 }
 
 func ListenContextWithOptions(ctx context.Context, network string, address string, opts *Options) (net.Listener, error) {
+	opts.listener = true
+
 	config := &net.ListenConfig{
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
@@ -34,6 +36,16 @@ func DialContext(ctx context.Context, network, address string) (net.Conn, error)
 
 func DialContextWithOptions(ctx context.Context, network, address string, opts *Options) (net.Conn, error) {
 	d := &net.Dialer{
+		// Setting a negative value here prevents the Go stdlib from overriding
+		// the values of TCP keepalive time and interval. It also prevents the
+		// Go stdlib from enabling TCP keepalives by default.
+		KeepAlive: -1,
+		// This method is called after the underlying network socket is created,
+		// but before dialing the socket (or calling its connect() method). The
+		// combination of unconditionally enabling TCP keepalives here, and
+		// disabling the overriding of TCP keepalive parameters by setting the
+		// KeepAlive field to a negative value above, results in OS defaults for
+		// the TCP keealive interval and time parameters.
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
@@ -52,10 +64,21 @@ func ListenPacket(network, address string) (net.PacketConn, error) {
 
 func ListenPacketWithOptions(network, address string, opts *Options) (net.PacketConn, error) {
 	lc := &net.ListenConfig{
+		// Setting a negative value here prevents the Go stdlib from overriding
+		// the values of TCP keepalive time and interval. It also prevents the
+		// Go stdlib from enabling TCP keepalives by default.
+		KeepAlive: -1,
+		// This method is called after the underlying network socket is created,
+		// but before dialing the socket (or calling its connect() method). The
+		// combination of unconditionally enabling TCP keepalives here, and
+		// disabling the overriding of TCP keepalive parameters by setting the
+		// KeepAlive field to a negative value above, results in OS defaults for
+		// the TCP keealive interval and time parameters.
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
+	lc.SetMultipathTCP(true)
 	return lc.ListenPacket(context.Background(), network, address)
 }
 
@@ -81,6 +104,8 @@ type Options struct {
 	// socket. Changing the mark can be used for mark-based routing
 	// without netfilter or for packet filtering.
 	MarkSymbol func(socket int32) bool
+
+	listener bool
 }
 
 func isTCPSocket(network string) bool {

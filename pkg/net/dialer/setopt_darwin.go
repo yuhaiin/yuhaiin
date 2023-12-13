@@ -7,6 +7,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// syscall.TCP_KEEPINTVL is missing on some darwin architectures.
+const sysTCP_KEEPINTVL = 0x101
+
 func setSocketOptions(network, address string, c syscall.RawConn, opts *Options) (err error) {
 	if opts == nil || !isTCPSocket(network) && !isUDPSocket(network) {
 		return
@@ -14,6 +17,12 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 
 	var innerErr error
 	err = c.Control(func(fd uintptr) {
+		if isTCPSocket(network) {
+			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, sysTCP_KEEPINTVL, int(15))
+			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPALIVE, int(180))
+			_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
+		}
+
 		host, _, _ := net.SplitHostPort(address)
 		if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {
 			return

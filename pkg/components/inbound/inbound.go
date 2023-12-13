@@ -175,6 +175,8 @@ func (l *listener) start(name string, config *pl.Protocol) error {
 
 func (l *listener) Close() error {
 	l.store.Range(func(key string, value store) bool {
+		log.Info("start close server", "name", key)
+		defer log.Info("closed server", "name", key)
 		value.server.Close()
 		l.store.Delete(key)
 		return true

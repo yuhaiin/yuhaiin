@@ -15,7 +15,7 @@ import (
 	"bufio"
 	"crypto/sha1"
 	"encoding/base64"
-	"net"
+	"io"
 	"sync"
 	"unsafe"
 )
@@ -86,6 +86,7 @@ type dynamicReadWriter struct {
 	client bool
 	mu     sync.RWMutex
 	bw     *bufio.ReadWriter
+	once   sync.Once
 }
 
 func newDynamicReadWriter(client bool, bw *bufio.ReadWriter) *dynamicReadWriter {
@@ -96,72 +97,96 @@ func newDynamicReadWriter(client bool, bw *bufio.ReadWriter) *dynamicReadWriter 
 }
 
 func (rw *dynamicReadWriter) Write(p []byte) (n int, err error) {
+	if rw.closed {
+		return 0, io.ErrClosedPipe
+	}
+
 	rw.mu.RLock()
 	defer rw.mu.RUnlock()
 
 	if rw.closed {
-		return 0, net.ErrClosed
+		return 0, io.ErrClosedPipe
 	}
 
 	return rw.bw.Write(p)
 }
 
 func (rw *dynamicReadWriter) Read(p []byte) (n int, err error) {
+	if rw.closed {
+		return 0, io.EOF
+	}
+
 	rw.mu.RLock()
 	defer rw.mu.RUnlock()
 
 	if rw.closed {
-		return 0, net.ErrClosed
+		return 0, io.EOF
 	}
 
 	return rw.bw.Read(p)
 }
 
 func (rw *dynamicReadWriter) ReadByte() (byte, error) {
+	if rw.closed {
+		return 0, io.EOF
+	}
+
 	rw.mu.RLock()
 	defer rw.mu.RUnlock()
 
 	if rw.closed {
-		return 0, net.ErrClosed
+		return 0, io.EOF
 	}
 
 	return rw.bw.ReadByte()
 }
 
 func (rw *dynamicReadWriter) WriteByte(b byte) error {
+	if rw.closed {
+		return io.ErrClosedPipe
+	}
+
 	rw.mu.RLock()
 	defer rw.mu.RUnlock()
 
 	if rw.closed {
-		return net.ErrClosed
+		return io.ErrClosedPipe
 	}
 
 	return rw.bw.WriteByte(b)
 }
 
 func (rw *dynamicReadWriter) Flush() error {
+	if rw.closed {
+		return io.ErrClosedPipe
+	}
+
 	rw.mu.RLock()
 	defer rw.mu.RUnlock()
 
 	if rw.closed {
-		return net.ErrClosed
+		return io.ErrClosedPipe
 	}
 
 	return rw.bw.Flush()
 }
 
 func (rw *dynamicReadWriter) Close() error {
+	if rw.closed {
+		return nil
+	}
+
 	rw.closed = true
 
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
 
-	rw.closed = true
-
-	if rw.client {
-		putBufioReader(rw.bw.Reader)
-		putBufioWriter(rw.bw.Writer)
-	}
+	rw.once.Do(func() {
+		if rw.client {
+			putBufioReader(rw.bw.Reader)
+			putBufioWriter(rw.bw.Writer)
+		}
+	})
 
 	return nil
 }

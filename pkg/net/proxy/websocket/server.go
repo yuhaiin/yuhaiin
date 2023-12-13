@@ -21,6 +21,9 @@ type Server struct {
 	closeCtx context.Context
 	close    context.CancelFunc
 	mu       sync.RWMutex
+
+	closed bool
+	once   sync.Once
 }
 
 func NewServer(lis net.Listener) *Server {
@@ -44,21 +47,22 @@ func NewServer(lis net.Listener) *Server {
 }
 
 func (s *Server) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	var err error
+	s.once.Do(func() {
+		s.close()
+		err = s.server.Close()
+		if er := s.Listener.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 
-	select {
-	case <-s.closeCtx.Done():
-		return nil
-	default:
-	}
+		log.Info("start close websocket conn chan")
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.closed = true
+		close(s.connChan)
+		log.Info("closed websocket conn chan")
+	})
 
-	s.close()
-	err := s.server.Close()
-	if er := s.Listener.Close(); er != nil {
-		err = errors.Join(err, er)
-	}
-	close(s.connChan)
 	return err
 }
 
@@ -98,13 +102,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	select {
+	case <-s.closeCtx.Done():
+		_ = wsconn.Close()
+		return
+	default:
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	select {
-	case <-s.closeCtx.Done():
+	if s.closed {
+		_ = wsconn.Close()
 		return
-	default:
 	}
 
 	s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData...)

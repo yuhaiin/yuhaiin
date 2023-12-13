@@ -22,7 +22,8 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 			!errors.Is(err, yamux.ErrTimeout) {
 			log.Error("relay rw1 -> rw2 failed", "err", err)
 		}
-		setDeadline(rw2) // make another Copy exit
+		closeWrite(rw2) // make another Copy exit
+		closeRead(rw1)
 	}()
 
 	if _, err := Copy(rw1, rw2); err != nil &&
@@ -31,18 +32,26 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 		!errors.Is(err, yamux.ErrTimeout) {
 		log.Error("relay rw2 -> rw1 failed", "err", err)
 	}
-	setDeadline(rw1)
+	closeWrite(rw1)
+	closeRead(rw2)
 
 	<-wait
 }
 
-func setDeadline(rw io.ReadWriteCloser) {
+func closeRead(rw io.ReadWriteCloser) {
+	if cr, ok := rw.(interface{ CloseRead() error }); ok {
+		_ = cr.CloseRead()
+	}
+}
+
+func closeWrite(rw io.ReadWriteCloser) {
 	if r, ok := rw.(interface{ CloseWrite() error }); ok {
 		_ = r.CloseWrite()
 		return
 	}
+
 	if r, ok := rw.(interface{ SetReadDeadline(time.Time) error }); ok {
-		_ = r.SetReadDeadline(time.Now())
+		_ = r.SetReadDeadline(time.Now().Add(time.Second * 10))
 	} else {
 		_ = rw.Close()
 	}

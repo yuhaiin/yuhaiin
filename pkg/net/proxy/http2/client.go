@@ -135,7 +135,7 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 	go func() {
 		resp, err := clientConn.RoundTrip(&http.Request{
 			Method: http.MethodConnect,
-			Body:   r,
+			Body:   &wrapPipeReaderClose{r},
 			URL:    &url.URL{Scheme: "https", Host: "localhost"},
 		})
 		if err != nil {
@@ -195,3 +195,9 @@ func (r *readCloser) Read(b []byte) (int, error) {
 
 	return n, nil
 }
+
+type wrapPipeReaderClose struct {
+	*io.PipeReader
+}
+
+func (w *wrapPipeReaderClose) Close() error { return w.PipeReader.CloseWithError(io.EOF) }

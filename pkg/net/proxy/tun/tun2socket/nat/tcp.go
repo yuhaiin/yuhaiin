@@ -32,15 +32,26 @@ func (t *TCP) Accept() (net.Conn, error) {
 		return nil, net.InvalidAddrError("unknown remote addr")
 	}
 
-	_ = c.SetKeepAlive(false)
-	// _ = c.SetLinger(0)
+	// _ = c.SetKeepAlive(false)
 
-	sys, err := c.SyscallConn()
-	if err == nil {
-		_ = sys.Control(func(fd uintptr) {
-			setSocketOptions(fd)
-		})
-	}
+	/*
+			sys, err := c.SyscallConn()
+			if err == nil {
+				_ = sys.Control(func(fd uintptr) {
+					setSocketOptions(fd)
+				})
+			}
+
+			https://www.kernel.org/doc/Documentation/networking/udplite.txt
+		  	3) Disabling the Checksum Computation
+		  	On both sender and receiver, checksumming will always be performed
+		  	and cannot be disabled using SO_NO_CHECK. Thus
+		        setsockopt(sockfd, SOL_SOCKET, SO_NO_CHECK,  ... );
+		  	will always will be ignored, while the value of
+		        getsockopt(sockfd, SOL_SOCKET, SO_NO_CHECK, &value, ...);
+		  	is meaningless (as in TCP). Packets with a zero checksum field are
+		  	illegal (cf. RFC 3828, sec. 3.1) and will be silently discarded.
+	*/
 
 	return &Conn{
 		Conn:  c,
