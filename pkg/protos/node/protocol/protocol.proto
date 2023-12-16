@@ -26,6 +26,7 @@ message protocol {
     tls_config tls = 18 [ json_name = "tls" ];
     wireguard wireguard = 19 [ json_name = "wireguard" ];
     mux mux = 20 [ json_name = "mux" ];
+    drop drop = 21 [ json_name = "drop" ];
   }
 }
 
@@ -128,6 +129,8 @@ message tls_config {
 message direct {}
 
 message reject {}
+
+message drop {}
 
 message host {
   string host = 1 [ json_name = "host" ];

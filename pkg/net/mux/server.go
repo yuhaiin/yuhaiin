@@ -72,7 +72,7 @@ func (m *MuxServer) Run() error {
 					return
 				}
 
-				m.connChan <- &muxConn{c}
+				m.connChan <- &muxConn{MuxConn: c}
 				m.mu.RUnlock()
 			}
 		}()

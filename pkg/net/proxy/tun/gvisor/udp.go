@@ -70,7 +70,7 @@ func udpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *u
 			return
 		}
 
-		local := gonet.NewUDPConn(s, &wq, ep)
+		local := gonet.NewUDPConn(&wq, ep)
 
 		go func(local net.PacketConn, id stack.TransportEndpointID) {
 			defer local.Close()

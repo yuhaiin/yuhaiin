@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -50,11 +49,11 @@ func closeWrite(rw io.ReadWriteCloser) {
 		return
 	}
 
-	if r, ok := rw.(interface{ SetReadDeadline(time.Time) error }); ok {
-		_ = r.SetReadDeadline(time.Now().Add(time.Second * 10))
-	} else {
-		_ = rw.Close()
-	}
+	// if r, ok := rw.(interface{ SetReadDeadline(time.Time) error }); ok {
+	// _ = r.SetReadDeadline(time.Now().Add(time.Second * 10))
+	// } else {
+	_ = rw.Close()
+	// }
 }
 
 func Copy(dst io.Writer, src io.Reader) (n int64, err error) {

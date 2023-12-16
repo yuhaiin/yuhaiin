@@ -54,11 +54,6 @@ func NewClient(config *protocol.Protocol_Mux) protocol.WrapProxy {
 			config.Mux.Concurrency = 1
 		}
 
-		// TODO: remove underlying connection limit
-		if config.Mux.Concurrency > 16 {
-			config.Mux.Concurrency = 16
-		}
-
 		c := &MuxClient{
 			Proxy:    dialer,
 			selector: NewRandomSelector(int(config.Mux.Concurrency)),
@@ -79,7 +74,7 @@ func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, fmt.Errorf("yamux open error: %w", err)
 	}
 
-	return conn, nil
+	return &muxConn{conn}, nil
 }
 
 func (m *MuxClient) nexSession(ctx context.Context) (*IdleSession, error) {
@@ -176,13 +171,18 @@ func (i *IdleSession) Open(ctx context.Context) (net.Conn, error) {
 	return i.Session.Open(ctx)
 }
 
+type MuxConn interface {
+	net.Conn
+	StreamID() uint32
+}
+
 type muxConn struct {
-	*yamux.Stream
+	MuxConn // must not *yamux.Stream, the close write is not a really close write
 }
 
 func (m *muxConn) RemoteAddr() net.Addr {
 	return &MuxAddr{
-		Addr: m.Stream.RemoteAddr(),
+		Addr: m.MuxConn.RemoteAddr(),
 		ID:   m.StreamID(),
 	}
 }
