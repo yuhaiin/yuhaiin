@@ -58,3 +58,11 @@ func TestMux(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestMuxConn(t *testing.T) {
+	var rw io.ReadWriteCloser = &muxConn{}
+
+	if _, ok := rw.(interface{ CloseWrite() error }); ok {
+		t.Log(ok)
+	}
+}

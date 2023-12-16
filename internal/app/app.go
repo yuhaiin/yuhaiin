@@ -22,7 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -201,7 +201,7 @@ func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
 		DirectResolver: local,
 		ProxyDialer:    App.Node,
 		ProxyResolver:  remote,
-		BlockDialer:    reject.Default,
+		BlockDialer:    drop.Drop,
 		BLockResolver:  netapi.ErrorResolver(func(domain string) error { return netapi.NewBlockError(-2, domain) }),
 		DefaultMode:    bypass.Mode_proxy,
 	}

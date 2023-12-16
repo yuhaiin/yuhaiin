@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"sync"
@@ -63,8 +64,9 @@ func NewServer(lis net.Listener) *Server {
 				}()
 
 				(&http2.Server{
-					IdleTimeout:      time.Minute,
-					MaxReadFrameSize: pool.DefaultSize,
+					MaxConcurrentStreams: math.MaxUint32,
+					IdleTimeout:          time.Minute,
+					MaxReadFrameSize:     pool.DefaultSize,
 					NewWriteScheduler: func() http2.WriteScheduler {
 						return http2.NewRandomWriteScheduler()
 					},

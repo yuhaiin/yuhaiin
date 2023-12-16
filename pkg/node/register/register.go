@@ -1,8 +1,10 @@
 package register
 
 import (
+	"github.com/Asutorufa/yuhaiin/pkg/net/mux"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
@@ -50,6 +52,10 @@ func init() {
 	protocol.RegisterProtocol(reality.NewRealityClient)
 	protocol.RegisterProtocol(tls.New)
 	protocol.RegisterProtocol(wireguard.New)
+	protocol.RegisterProtocol(mux.NewClient)
+	protocol.RegisterProtocol(func(*protocol.Protocol_Drop) protocol.WrapProxy {
+		return func(netapi.Proxy) (netapi.Proxy, error) { return drop.Drop, nil }
+	})
 }
 
 func Dialer(p *point.Point) (r netapi.Proxy, err error) {

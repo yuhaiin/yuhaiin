@@ -66,16 +66,19 @@ func (s *Server) Close() error {
 		s.closed = true
 
 		if s.Listener != nil {
+			log.Info("start close quic underlying listener")
 			if er := s.Listener.Close(); er != nil {
 				err = errors.Join(err, er)
 			}
-
+			log.Info("closed quic underlying listener")
 		}
 
 		if s.packetConn != nil {
+			log.Info("start close quic underlying packet conn")
 			if er := s.packetConn.Close(); er != nil {
 				err = errors.Join(err, er)
 			}
+			log.Info("closed quic underlying packet conn")
 		}
 
 		log.Info("start close quic conn chan")
