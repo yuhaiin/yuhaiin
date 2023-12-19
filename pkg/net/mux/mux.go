@@ -2,6 +2,7 @@ package mux
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -185,6 +186,15 @@ func (m *muxConn) RemoteAddr() net.Addr {
 		Addr: m.MuxConn.RemoteAddr(),
 		ID:   m.StreamID(),
 	}
+}
+
+func (m *muxConn) Read(p []byte) (n int, err error) {
+	n, err = m.MuxConn.Read(p)
+	if errors.Is(err, yamux.ErrStreamReset) || errors.Is(err, yamux.ErrStreamClosed) {
+		err = io.EOF
+	}
+
+	return
 }
 
 type MuxAddr struct {

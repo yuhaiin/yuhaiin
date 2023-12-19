@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -13,8 +14,44 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
 )
+
+type packetChan struct {
+	ch     chan packet
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func newPacketChan() *packetChan {
+	ctx, cancel := context.WithCancel(context.TODO())
+	return &packetChan{
+		ch:     make(chan packet, 30),
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}
+
+func (p *packetChan) Close() {
+	p.cancel()
+}
+
+func (p *packetChan) Recv() (packet, error) {
+	select {
+	case <-p.ctx.Done():
+		return packet{}, io.EOF
+	case pkt := <-p.ch:
+		return pkt, nil
+	}
+}
+
+func (p *packetChan) Send(pkt packet) {
+	select {
+	case <-p.ctx.Done():
+	case p.ch <- pkt:
+	}
+}
 
 type Client struct {
 	netapi.EmptyDispatch
@@ -27,8 +64,7 @@ type Client struct {
 	sessionMu   sync.Mutex
 
 	id     id.IDGenerator
-	udpMap map[uint64]chan packet
-	udpMu  sync.RWMutex
+	udpMap syncmap.SyncMap[uint64, *packetChan]
 }
 
 func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
@@ -48,8 +84,6 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 				KeepAlivePeriod: 20 * time.Second * 2 / 5,
 				EnableDatagrams: true,
 			},
-
-			udpMap: make(map[uint64]chan packet),
 		}
 
 		return c, nil
@@ -110,16 +144,13 @@ func (c *Client) initSession(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) handleDatagrams(id uint16, addr net.Addr, b []byte) error {
-	c.udpMu.RLock()
-	defer c.udpMu.RUnlock()
-
-	x, ok := c.udpMap[uint64(id)]
+func (c *Client) handleDatagrams(id uint64, addr net.Addr, b []byte) error {
+	x, ok := c.udpMap.Load(id)
 	if !ok {
 		return fmt.Errorf("unknown udp id: %d, %v", id, b[:2])
 	}
 
-	x <- packet{data: b, addr: addr}
+	x.Send(packet{data: b, addr: addr})
 
 	return nil
 }
@@ -148,17 +179,13 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	}
 
 	id := c.id.Generate()
-	msgChan := make(chan packet, 30)
-
-	c.udpMu.Lock()
-	c.udpMap[id] = msgChan
-	c.udpMu.Unlock()
-
+	msgChan := newPacketChan()
+	c.udpMap.Store(id, msgChan)
 	return &interPacketConn{
 		c:       c,
 		session: c.fragSession,
 		msgChan: msgChan,
-		id:      uint16(id),
+		id:      id,
 	}, nil
 }
 
@@ -191,35 +218,25 @@ type packet struct {
 }
 type interPacketConn struct {
 	session *ConnectionPacketConn
-	msgChan chan packet
-	id      uint16
+	msgChan *packetChan
+	id      uint64
 
 	c *Client
-
-	closed bool
 
 	deadline *time.Timer
 }
 
 func (x *interPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	if x.closed {
-		return 0, nil, net.ErrClosed
+	msg, err := x.msgChan.Recv()
+	if err != nil {
+		return 0, nil, err
 	}
 
-	msg, ok := <-x.msgChan
-	if !ok {
-		return 0, nil, net.ErrClosed
-	}
 	n = copy(p, msg.data)
-
 	return n, msg.addr, nil
 }
 
 func (x *interPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	if x.closed {
-		return 0, net.ErrClosed
-	}
-
 	err = x.session.Write(p, x.id, addr)
 	if err != nil {
 		return 0, err
@@ -228,17 +245,8 @@ func (x *interPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 }
 
 func (x *interPacketConn) Close() error {
-	x.c.udpMu.Lock()
-	defer x.c.udpMu.Unlock()
-
-	if x.closed {
-		return nil
-	}
-
-	delete(x.c.udpMap, uint64(x.id))
-	close(x.msgChan)
-	x.closed = true
-
+	x.c.udpMap.Delete(uint64(x.id))
+	x.msgChan.Close()
 	return nil
 }
 

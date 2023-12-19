@@ -1,10 +1,10 @@
 package mux
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/libp2p/go-yamux/v4"
@@ -12,14 +12,17 @@ import (
 
 type MuxServer struct {
 	net.Listener
-	mu       sync.RWMutex
-	closed   bool
+	ctx      context.Context
+	cancel   context.CancelFunc
 	connChan chan net.Conn
 }
 
 func NewServer(lis net.Listener) *MuxServer {
+	ctx, cancel := context.WithCancel(context.TODO())
 	mux := &MuxServer{
 		Listener: lis,
+		ctx:      ctx,
+		cancel:   cancel,
 		connChan: make(chan net.Conn, 1024),
 	}
 
@@ -33,12 +36,12 @@ func NewServer(lis net.Listener) *MuxServer {
 }
 
 func (m *MuxServer) Accept() (net.Conn, error) {
-	conn, ok := <-m.connChan
-	if !ok {
-		return nil, net.ErrClosed
+	select {
+	case conn := <-m.connChan:
+		return conn, nil
+	case <-m.ctx.Done():
+		return nil, m.ctx.Err()
 	}
-
-	return conn, nil
 }
 
 func (m *MuxServer) Run() error {
@@ -67,28 +70,17 @@ func (m *MuxServer) Run() error {
 					return
 				}
 
-				m.mu.RLock()
-				if m.closed {
+				select {
+				case <-m.ctx.Done():
 					return
+				case m.connChan <- &muxConn{MuxConn: c}:
 				}
-
-				m.connChan <- &muxConn{MuxConn: c}
-				m.mu.RUnlock()
 			}
 		}()
 	}
 }
 
 func (m *MuxServer) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.closed {
-		return nil
-	}
-
-	m.closed = true
-	close(m.connChan)
-
+	m.cancel()
 	return m.Listener.Close()
 }

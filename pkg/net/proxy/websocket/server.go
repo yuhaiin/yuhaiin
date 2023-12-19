@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -20,10 +19,6 @@ type Server struct {
 	connChan chan net.Conn
 	closeCtx context.Context
 	close    context.CancelFunc
-	mu       sync.RWMutex
-
-	closed bool
-	once   sync.Once
 }
 
 func NewServer(lis net.Listener) *Server {
@@ -48,33 +43,19 @@ func NewServer(lis net.Listener) *Server {
 
 func (s *Server) Close() error {
 	var err error
-	s.once.Do(func() {
-		s.close()
-		err = s.server.Close()
-		if er := s.Listener.Close(); er != nil {
-			err = errors.Join(err, er)
-		}
-
-		log.Info("start close websocket conn chan")
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.closed = true
-		close(s.connChan)
-		log.Info("closed websocket conn chan")
-	})
+	s.close()
+	err = s.server.Close()
+	if er := s.Listener.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
 
 	return err
 }
 
 func (s *Server) Accept() (net.Conn, error) {
 	select {
-	case conn, ok := <-s.connChan:
-		if !ok {
-			return nil, net.ErrClosed
-		}
-
+	case conn := <-s.connChan:
 		return conn, nil
-
 	case <-s.closeCtx.Done():
 		return nil, net.ErrClosed
 	}
@@ -106,16 +87,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case <-s.closeCtx.Done():
 		_ = wsconn.Close()
 		return
-	default:
+	case s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData...):
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.closed {
-		_ = wsconn.Close()
-		return
-	}
-
-	s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData...)
 }

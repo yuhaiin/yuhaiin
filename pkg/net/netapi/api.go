@@ -87,12 +87,7 @@ type Store interface {
 type storeKey struct{}
 
 func StoreFromContext(ctx context.Context) Store {
-	s := ctx.Value(storeKey{})
-	if s == nil {
-		return &emptyStore{}
-	}
-
-	store, ok := s.(Store)
+	store, ok := ctx.Value(storeKey{}).(Store)
 	if !ok {
 		return &emptyStore{}
 	}
@@ -131,6 +126,20 @@ func Get[T any](ctx context.Context, k any) (t T, _ bool) {
 	t, ok = v.(T)
 
 	return t, ok
+}
+
+func GetDefault[T any](ctx context.Context, k any, Default T) T {
+	v, ok := StoreFromContext(ctx).Get(k)
+	if !ok {
+		return Default
+	}
+
+	t, ok := v.(T)
+	if !ok {
+		return Default
+	}
+
+	return t
 }
 
 type emptyStore struct{}

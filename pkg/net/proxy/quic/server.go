@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -20,19 +19,20 @@ type Server struct {
 	*quic.Listener
 	tlsConfig *tls.Config
 
-	mu       sync.RWMutex
+	ctx      context.Context
+	cancel   context.CancelFunc
 	connChan chan *interConn
-	closed   bool
 
 	handler netapi.Handler
-
-	once sync.Once
 }
 
 func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config, handler netapi.Handler) (*Server, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		packetConn: packetConn,
 		tlsConfig:  tlsConfig,
+		ctx:        ctx,
+		cancel:     cancel,
 		connChan:   make(chan *interConn, 10),
 		handler:    handler,
 	}
@@ -62,51 +62,28 @@ func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config, handler netapi.
 func (s *Server) Close() error {
 	var err error
 
-	s.once.Do(func() {
-		s.closed = true
-
-		if s.Listener != nil {
-			log.Info("start close quic underlying listener")
-			if er := s.Listener.Close(); er != nil {
-				err = errors.Join(err, er)
-			}
-			log.Info("closed quic underlying listener")
+	s.cancel()
+	if s.packetConn != nil {
+		if er := s.packetConn.Close(); er != nil {
+			err = errors.Join(err, er)
 		}
-
-		if s.packetConn != nil {
-			log.Info("start close quic underlying packet conn")
-			if er := s.packetConn.Close(); er != nil {
-				err = errors.Join(err, er)
-			}
-			log.Info("closed quic underlying packet conn")
-		}
-
-		log.Info("start close quic conn chan")
-		s.mu.Lock()
-		close(s.connChan)
-		s.mu.Unlock()
-		log.Info("closed quic conn chan")
-	})
+	}
 
 	return err
 }
 
 func (s *Server) Accept() (net.Conn, error) {
-	conn, ok := <-s.connChan
-	if !ok {
-		return nil, net.ErrClosed
+	select {
+	case conn := <-s.connChan:
+		return conn, nil
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
 	}
-
-	return conn, nil
 }
 
 func (s *Server) server() error {
 	for {
-		if s.closed {
-			return net.ErrClosed
-		}
-
-		conn, err := s.Listener.Accept(context.TODO())
+		conn, err := s.Listener.Accept(s.ctx)
 		if err != nil {
 			return err
 		}
@@ -152,22 +129,17 @@ func (s *Server) listenQuicConnection(conn quic.Connection) {
 	}()
 
 	for {
-		stream, err := conn.AcceptStream(context.TODO())
+		stream, err := conn.AcceptStream(s.ctx)
 		if err != nil {
 			break
 		}
 
-		s.mu.RLock()
-		if s.closed {
-			s.mu.RUnlock()
-			break
+		select {
+		case <-s.ctx.Done():
+			return
+		case s.connChan <- &interConn{Stream: stream, local: conn.LocalAddr(), remote: conn.RemoteAddr()}:
+			log.Info("new quic conn from", conn.RemoteAddr(), "id", stream.StreamID())
 		}
-
-		log.Info("new quic conn from", conn.RemoteAddr(), "id", stream.StreamID())
-
-		s.connChan <- &interConn{Stream: stream, local: conn.LocalAddr(), remote: conn.RemoteAddr()}
-
-		s.mu.RUnlock()
 	}
 }
 

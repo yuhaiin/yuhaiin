@@ -116,7 +116,7 @@ func NewConnectionPacketConn(ctx context.Context, conn quic.Connection) *Connect
 	return &ConnectionPacketConn{ctx: ctx, conn: conn, frag: Frag{}}
 }
 
-func (c *ConnectionPacketConn) Receive() (uint16, []byte, net.Addr, error) {
+func (c *ConnectionPacketConn) Receive() (uint64, []byte, net.Addr, error) {
 _retry:
 	data, err := c.conn.ReceiveDatagram(c.ctx)
 	if err != nil {
@@ -128,7 +128,7 @@ _retry:
 		goto _retry
 	}
 
-	id := binary.BigEndian.Uint16(buf[:2])
+	id := binary.BigEndian.Uint64(buf[:8])
 
 	addr, err := s5c.ResolveAddrBytes(buf[2:])
 	if err != nil {
@@ -138,7 +138,7 @@ _retry:
 	return id, buf[2+len(addr):], addr.Address(statistic.Type_udp), nil
 }
 
-func (c *ConnectionPacketConn) Write(b []byte, id uint16, addr net.Addr) error {
+func (c *ConnectionPacketConn) Write(b []byte, id uint64, addr net.Addr) error {
 	ad, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func (c *ConnectionPacketConn) Write(b []byte, id uint16, addr net.Addr) error {
 
 	ADDR := s5c.ParseAddr(ad)
 
-	b = append(append(binary.BigEndian.AppendUint16(nil, id), ADDR...), b...)
+	b = append(append(binary.BigEndian.AppendUint64(nil, id), ADDR...), b...)
 
 	datas := c.frag.Split(b, int(MaxDatagramFrameSize))
 
