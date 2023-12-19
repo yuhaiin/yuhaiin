@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -63,46 +62,42 @@ func (e *emptyHandler) Do(_ context.Context, b *pool.Bytes, _ func([]byte) error
 }
 
 type ChannelListener struct {
-	mu      sync.RWMutex
-	closed  bool
+	ctx     context.Context
+	cancel  context.CancelFunc
 	channel chan net.Conn
 	addr    net.Addr
 }
 
 func NewChannelListener(addr net.Addr) *ChannelListener {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ChannelListener{
 		addr:    addr,
+		ctx:     ctx,
+		cancel:  cancel,
 		channel: make(chan net.Conn, system.Procs)}
 }
 
 func (c *ChannelListener) Accept() (net.Conn, error) {
-	conn, ok := <-c.channel
-	if !ok {
-		return nil, net.ErrClosed
-	}
+	select {
+	case <-c.ctx.Done():
+		return nil, c.ctx.Err()
 
-	return conn, nil
+	case conn := <-c.channel:
+		return conn, nil
+	}
 }
 
 func (c *ChannelListener) NewConn(conn net.Conn) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.closed {
-		return
+	select {
+	case <-c.ctx.Done():
+		conn.Close()
+	case c.channel <- conn:
 	}
 
-	c.channel <- conn
 }
 
 func (c *ChannelListener) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	close(c.channel)
+	c.cancel()
 	return nil
 }
 

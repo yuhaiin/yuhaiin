@@ -51,11 +51,7 @@ func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*
 	// 	mtu:    mtu,
 	// }
 
-	udp := &UDPv2{
-		device:  device,
-		mtu:     mtu,
-		channel: make(chan *callv2, 80),
-	}
+	udp := NewUDPv2(mtu, device)
 
 	tcp := &TCP{
 		listener: listener.(*net.TCPListener),

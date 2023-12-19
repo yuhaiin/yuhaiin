@@ -19,18 +19,14 @@ import (
 )
 
 type Server struct {
-	mu        sync.RWMutex
 	listener  net.Listener
 	id        id.IDGenerator
 	closedCtx context.Context
 	close     context.CancelFunc
 
 	connChan chan net.Conn
-	closed   bool
 
 	conns syncmap.SyncMap[string, net.Conn]
-
-	once sync.Once
 }
 
 func NewServer(lis net.Listener) *Server {
@@ -84,10 +80,7 @@ func NewServer(lis net.Listener) *Server {
 
 func (h *Server) Accept() (net.Conn, error) {
 	select {
-	case conn, ok := <-h.connChan:
-		if !ok {
-			return nil, net.ErrClosed
-		}
+	case conn := <-h.connChan:
 		return conn, nil
 	case <-h.closedCtx.Done():
 		return nil, net.ErrClosed
@@ -103,28 +96,15 @@ func (g *Server) Addr() net.Addr {
 }
 
 func (h *Server) Close() error {
-	if h.closed {
-		return nil
-	}
-
 	var err error
-	h.once.Do(func() {
-		h.close()
-		log.Info("start close http2 underlying listener")
-		err = h.listener.Close()
-		log.Info("closed http2 underlying listener")
+	h.close()
+	log.Info("start close http2 underlying listener")
+	err = h.listener.Close()
+	log.Info("closed http2 underlying listener")
 
-		h.conns.Range(func(key string, conn net.Conn) bool {
-			_ = conn.Close()
-			return true
-		})
-
-		log.Info("start close http2 conn chan")
-		h.mu.Lock()
-		h.closed = true
-		close(h.connChan)
-		h.mu.Unlock()
-		log.Info("closed http2 conn chan")
+	h.conns.Range(func(key string, conn net.Conn) bool {
+		_ = conn.Close()
+		return true
 	})
 
 	return err
@@ -153,16 +133,8 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case <-h.closedCtx.Done():
 		return
-	default:
+	case h.connChan <- conn:
 	}
-
-	h.mu.RLock()
-	if h.closed {
-		h.mu.RUnlock()
-		return
-	}
-	h.connChan <- conn
-	h.mu.RUnlock()
 
 	select {
 	case <-r.Context().Done():

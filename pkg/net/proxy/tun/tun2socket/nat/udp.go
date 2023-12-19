@@ -1,10 +1,10 @@
 package nat
 
 import (
+	"context"
 	"io"
 	"math/rand"
 	"net"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -16,57 +16,60 @@ type callv2 struct {
 	tuple Tuple
 }
 type UDPv2 struct {
-	closed  bool
 	mtu     int32
 	device  io.Writer
-	queueMu sync.Mutex
-
+	ctx     context.Context
+	cancel  context.CancelFunc
 	channel chan *callv2
 }
 
-func (u *UDPv2) ReadFrom(buf []byte) (int, Tuple, error) {
-	c, ok := <-u.channel
-	if !ok {
-		return -1, Tuple{}, net.ErrClosed
+func NewUDPv2(mtu int32, device io.Writer) *UDPv2 {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &UDPv2{
+		mtu:     mtu,
+		device:  device,
+		ctx:     ctx,
+		cancel:  cancel,
+		channel: make(chan *callv2, 250),
 	}
+}
 
-	defer pool.PutBytes(c.buf)
+func (u *UDPv2) ReadFrom(buf []byte) (int, Tuple, error) {
+	select {
+	case <-u.ctx.Done():
+		return 0, Tuple{}, net.ErrClosed
+	case c := <-u.channel:
+		defer pool.PutBytes(c.buf)
 
-	return copy(buf, c.buf[:c.n]), c.tuple, nil
+		return copy(buf, c.buf[:c.n]), c.tuple, nil
+	}
 }
 
 func (u *UDPv2) Close() error {
-	u.queueMu.Lock()
-	defer u.queueMu.Unlock()
-
-	if !u.closed {
-		u.closed = true
-		close(u.channel)
-	}
-
+	u.cancel()
 	return nil
 }
 
 func (u *UDPv2) handleUDPPacket(tuple Tuple, payload []byte) {
-	u.queueMu.Lock()
-	defer u.queueMu.Unlock()
-
-	if u.closed {
-		return
-	}
-
 	buf := pool.GetBytes(u.mtu)
 
-	u.channel <- &callv2{
+	select {
+	case u.channel <- &callv2{
 		n:     copy(buf, payload),
 		buf:   buf,
 		tuple: tuple,
+	}:
+
+	case <-u.ctx.Done():
+		return
 	}
 }
 
 func (u *UDPv2) WriteTo(buf []byte, tuple Tuple) (int, error) {
-	if u.closed {
+	select {
+	case <-u.ctx.Done():
 		return 0, net.ErrClosed
+	default:
 	}
 
 	ipBuf := pool.GetBytes(u.mtu)

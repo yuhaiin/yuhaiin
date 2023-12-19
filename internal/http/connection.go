@@ -27,13 +27,10 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 			ticker = 2000
 		}
 
-		msgChan := make(chan *gs.NotifyData, 20)
-		defer close(msgChan)
-
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		cns := &connectionsNotifyServer{ctx, msgChan}
+		cns := &connectionsNotifyServer{ctx, make(chan *gs.NotifyData, 20)}
 
 		go func() {
 			defer cancel()
@@ -89,8 +86,7 @@ func (x *connectionsNotifyServer) Send(m *gs.NotifyData) error {
 	select {
 	case <-x.ctx.Done():
 		return x.ctx.Err()
-	default:
-		x.msgChan <- m
+	case x.msgChan <- m:
 	}
 
 	return nil

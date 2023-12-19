@@ -7,12 +7,12 @@ import (
 	"math"
 	"math/rand"
 	"net"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -23,29 +23,29 @@ func init() {
 
 type udp struct {
 	*client
-
-	packetConn net.PacketConn
-	mu         sync.Mutex
+	id         id.IDGenerator
+	packetConn syncmap.SyncMap[uint64, net.PacketConn]
 	bufChanMap syncmap.SyncMap[[2]byte, *bufChan]
 }
 
 func (u *udp) Close() error {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	if u.packetConn != nil {
-		err := u.packetConn.Close()
-		u.packetConn = nil
-		return err
-	}
+	u.packetConn.Range(func(id uint64, conn net.PacketConn) bool {
+		conn.Close()
+		u.packetConn.Delete(id)
+		return true
+	})
 	return nil
 }
 
-func (u *udp) handleResponse() {
-	defer u.Close()
+func (u *udp) handleResponse(id uint64, packet net.PacketConn) {
+	defer func() {
+		u.packetConn.Delete(id)
+		packet.Close()
+	}()
 
 	buf := make([]byte, nat.MaxSegmentSize)
 	for {
-		n, _, err := u.packetConn.ReadFrom(buf)
+		n, _, err := packet.ReadFrom(buf)
 		if err != nil {
 			return
 		}
@@ -64,10 +64,14 @@ func (u *udp) handleResponse() {
 }
 
 func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	if u.packetConn != nil {
-		return u.packetConn, nil
+	var conn net.PacketConn
+	u.packetConn.Range(func(id uint64, c net.PacketConn) bool {
+		conn = c
+		return false
+	})
+
+	if conn != nil {
+		return conn, nil
 	}
 
 	addr, err := ParseAddr(statistic.Type_udp, u.config.Host, "53")
@@ -75,40 +79,32 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	conn, err := u.config.Dialer.PacketConn(ctx, addr)
+	conn, err = u.config.Dialer.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get packetConn failed: %w", err)
 	}
 
-	u.packetConn = conn
-	go u.handleResponse()
+	id := u.id.Generate()
+	u.packetConn.Store(id, conn)
+	go u.handleResponse(id, conn)
 
 	return conn, nil
 }
 
 type bufChan struct {
-	closed  bool
-	mu      sync.Mutex
+	ctx     context.Context
+	cancel  context.CancelFunc
 	bufChan chan []byte
 }
 
 func (b *bufChan) Send(buf []byte) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.closed {
-		return
+	select {
+	case b.bufChan <- buf:
+	case <-b.ctx.Done():
 	}
-	b.bufChan <- buf
 }
 
-func (b *bufChan) Close() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b.closed = true
-	close(b.bufChan)
-}
+func (b *bufChan) Close() { b.cancel() }
 
 func NewDoU(config Config) (netapi.Resolver, error) {
 	addr, err := ParseAddr(statistic.Type_udp, config.Host, "53")
@@ -133,7 +129,10 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 			goto _retry
 		}
 
-		bchan, _ := udp.bufChanMap.LoadOrStore([2]byte(req[:2]), &bufChan{bufChan: make(chan []byte)})
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		bchan, _ := udp.bufChanMap.LoadOrStore([2]byte(req[:2]), &bufChan{bufChan: make(chan []byte), ctx: ctx, cancel: cancel})
 		defer func() {
 			udp.bufChanMap.Delete([2]byte(req[:2]))
 			bchan.Close()

@@ -161,15 +161,13 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	store := netapi.StoreFromContext(ctx)
 
-	mode, ok := netapi.Get[bypass.Mode](ctx, ForceModeKey{})
-	if !ok {
-		mode = bypass.Mode_bypass
-	}
+	mode := netapi.GetDefault[bypass.Mode](
+		ctx,
+		ForceModeKey{},
+		networkMode, // get mode from network(tcp/udp) rule
+	)
 
-	if mode == bypass.Mode_bypass && networkMode != bypass.Mode_bypass {
-		// get mode from network(tcp/udp) rule
-		mode = networkMode
-	} else {
+	if mode == bypass.Mode_bypass {
 		// get mode from bypass rule
 		host.WithResolver(s.resolver(s.DefaultMode), true)
 		fields := s.SearchWithDefault(ctx, host, s.DefaultMode)
