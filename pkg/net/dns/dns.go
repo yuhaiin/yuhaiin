@@ -57,18 +57,18 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 var _ netapi.Resolver = (*client)(nil)
 
 type client struct {
-	send            func(context.Context, []byte) ([]byte, error)
+	do              func(context.Context, []byte) ([]byte, error)
 	config          Config
 	subnet          []dnsmessage.Resource
-	rawStore        *lru.LRU[Req, dnsmessage.Message]
-	rawSingleflight singleflight.Group[Req, dnsmessage.Message]
+	rawStore        *lru.LRU[dnsmessage.Question, dnsmessage.Message]
+	rawSingleflight singleflight.Group[dnsmessage.Question, dnsmessage.Message]
 }
 
-func NewClient(config Config, send func(context.Context, []byte) ([]byte, error)) *client {
+func NewClient(config Config, do func(context.Context, []byte) ([]byte, error)) *client {
 	c := &client{
-		send:     send,
+		do:       do,
 		config:   config,
-		rawStore: lru.NewLru(lru.WithCapacity[Req, dnsmessage.Message](1024)),
+		rawStore: lru.NewLru(lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](1024)),
 	}
 
 	if !config.Subnet.IsValid() {
@@ -146,21 +146,18 @@ func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 	return resp, nil
 }
 
-type Req struct {
-	Name dnsmessage.Name
-	Type dnsmessage.Type
-}
-
 func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	key := Req{Name: req.Name, Type: req.Type}
+	if req.Class == 0 {
+		req.Class = dnsmessage.ClassINET
+	}
 
-	msg, ok := c.rawStore.Load(key)
+	msg, ok := c.rawStore.Load(req)
 	if ok {
 		return msg, nil
 	}
 
-	msg, err, _ := c.rawSingleflight.Do(key, func() (dnsmessage.Message, error) {
-		send := c.send
+	msg, err, _ := c.rawSingleflight.Do(req, func() (dnsmessage.Message, error) {
+		send := c.do
 
 		if send == nil {
 			return dnsmessage.Message{}, fmt.Errorf("no dns process function")
@@ -177,7 +174,9 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 				RecursionAvailable: false,
 				RCode:              0,
 			},
-			Questions:   []dnsmessage.Question{req},
+			Questions: []dnsmessage.Question{
+				req,
+			},
 			Additionals: c.subnet,
 		}
 
@@ -217,7 +216,8 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 
 		log.Debug("resolve domain", args...)
 
-		c.rawStore.Add(key, msg, lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
+		c.rawStore.Add(req, msg,
+			lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
 
 		return msg, nil
 	})
@@ -251,15 +251,15 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	ips := make([]net.IP, 0, len(msg.Answers))
 
 	for _, v := range msg.Answers {
-		switch x := v.Body.(type) {
-		case *dnsmessage.AResource:
-			if reqType == dnsmessage.TypeA {
-				ips = append(ips, net.IP(x.A[:]))
-			}
-		case *dnsmessage.AAAAResource:
-			if reqType == dnsmessage.TypeAAAA {
-				ips = append(ips, net.IP(x.AAAA[:]))
-			}
+		if v.Header.Type != reqType {
+			continue
+		}
+
+		switch v.Header.Type {
+		case dnsmessage.TypeA:
+			ips = append(ips, net.IP(v.Body.(*dnsmessage.AResource).A[:]))
+		case dnsmessage.TypeAAAA:
+			ips = append(ips, net.IP(v.Body.(*dnsmessage.AAAAResource).AAAA[:]))
 		}
 	}
 
