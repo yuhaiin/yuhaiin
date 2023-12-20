@@ -86,7 +86,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	select {
 	case <-s.closeCtx.Done():
 		_ = wsconn.Close()
-		return
 	case s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData...):
 	}
 }
