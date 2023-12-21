@@ -26,9 +26,8 @@ func New(cf *protocol.Protocol_Websocket) protocol.WrapProxy {
 
 		return &client{
 			&websocket.Config{
-				Host:      cf.Websocket.Host,
-				Path:      getNormalizedPath(cf.Websocket.Path),
-				OriginUrl: cf.Websocket.Host,
+				Host: cf.Websocket.Host,
+				Path: getNormalizedPath(cf.Websocket.Path),
 			},
 			dialer,
 		}, nil
@@ -100,22 +99,24 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 
 	defer e.handshakeDone()
 
-	header := http.Header{}
-
-	header.Set("User-Agent", ynet.UserAgents[rand.Intn(ynet.UserAgentLength)])
-	header.Set("Sec-Fetch-Dest", "websocket")
-	header.Set("Sec-Fetch-Mode", "websocket")
-	header.Set("Pragma", "no-cache")
 	var SecWebSocketKey string
-
 	if len(b) != 0 && len(b) <= 2048 {
-		header.Set("early_data", "base64")
 		SecWebSocketKey = base64.RawStdEncoding.EncodeToString(b)
 	}
 
 	var earlyDataSupport bool
-	conn, err := e.config.NewClient(SecWebSocketKey,
-		header, e.Conn, func(r *http.Response) error {
+	conn, err := e.config.NewClient(SecWebSocketKey, e.Conn,
+		func(r *http.Request) error {
+			r.Header.Set("User-Agent", ynet.UserAgents[rand.Intn(ynet.UserAgentLength)])
+			r.Header.Set("Sec-Fetch-Dest", "websocket")
+			r.Header.Set("Sec-Fetch-Mode", "websocket")
+			r.Header.Set("Pragma", "no-cache")
+			if SecWebSocketKey != "" {
+				r.Header.Set("early_data", "base64")
+			}
+			return nil
+		},
+		func(r *http.Response) error {
 			earlyDataSupport = r.Header.Get("early_data") == "true"
 			return nil
 		})

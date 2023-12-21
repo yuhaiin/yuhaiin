@@ -31,14 +31,15 @@ type Config struct {
 }
 
 // NewClient creates a new WebSocket client connection over rwc.
-func (config *Config) NewClient(SecWebSocketKey string, header http.Header, rwc net.Conn, handshake func(*http.Response) error) (ws *Conn, err error) {
+func (config *Config) NewClient(SecWebSocketKey string, rwc net.Conn, request func(*http.Request) error, handshake func(*http.Response) error) (ws *Conn, err error) {
 	br := bufio.NewReaderSize(rwc, pool.DefaultSize)
 	bw := newBufioWriterSize(rwc, pool.DefaultSize)
-	err = config.hybiClientHandshake(SecWebSocketKey, header, br, bw, handshake)
+	brw := bufio.NewReadWriter(br, bw)
+	err = config.hybiClientHandshake(SecWebSocketKey, brw, request, handshake)
 	if err != nil {
 		return
 	}
-	ws = newConn(bufio.NewReadWriter(br, bw), rwc, false)
+	ws = newConn(brw, rwc, false)
 	return
 }
 
@@ -55,16 +56,7 @@ func newBufioWriterSize(w io.Writer, size int) *bufio.Writer
 func putBufioWriter(br *bufio.Writer)
 
 // Client handshake described in draft-ietf-hybi-thewebsocket-protocol-17
-func (config *Config) hybiClientHandshake(SecWebSocketKey string, header http.Header, br *bufio.Reader, bw *bufio.Writer, handshake func(*http.Response) error) (err error) {
-	fmt.Fprintf(bw, "GET %s HTTP/1.1\r\n", config.Path)
-
-	// According to RFC 6874, an HTTP client, proxy, or other
-	// intermediary must remove any IPv6 zone identifier attached
-	// to an outgoing URI.
-	fmt.Fprintf(bw, "Host: %s\r\n", removeZone(config.Host))
-	bw.WriteString("Upgrade: websocket\r\n")
-	bw.WriteString("Connection: Upgrade\r\n")
-
+func (config *Config) hybiClientHandshake(SecWebSocketKey string, brw *bufio.ReadWriter, request func(*http.Request) error, handshake func(*http.Response) error) (err error) {
 	var nonce string
 	if SecWebSocketKey != "" {
 		nonce = SecWebSocketKey
@@ -72,28 +64,33 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, header http.He
 		nonce = generateNonce()
 	}
 
-	fmt.Fprintf(bw, "Sec-WebSocket-Key: %s\r\n", nonce)
-	fmt.Fprintf(bw, "Origin: %s\r\n", config.OriginUrl)
-
-	fmt.Fprintf(bw, "Sec-WebSocket-Version: %s\r\n", SupportedProtocolVersion)
-	if len(config.Protocol) > 0 {
-		fmt.Fprintf(bw, "Sec-WebSocket-Protocol: %s\r\n", strings.Join(config.Protocol, ", "))
+	req, err := http.NewRequest(http.MethodGet, "http://"+config.Host+config.Path, http.NoBody)
+	if err != nil {
+		return err
 	}
-
-	if header != nil {
-		// TODO(ukai): send Sec-WebSocket-Extensions.
-		err = header.WriteSubset(bw, handshakeHeader)
-		if err != nil {
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	if config.OriginUrl != "" {
+		req.Header.Set("Origin", config.OriginUrl)
+	}
+	req.Header.Set("Sec-WebSocket-Key", nonce)
+	req.Header.Set("Sec-WebSocket-Version", SupportedProtocolVersion)
+	for _, p := range config.Protocol {
+		req.Header.Add("Sec-WebSocket-Protocol", p)
+	}
+	if request != nil {
+		if err := request(req); err != nil {
 			return err
 		}
 	}
-
-	bw.WriteString("\r\n")
-	if err = bw.Flush(); err != nil {
+	if err := req.Write(brw); err != nil {
+		return err
+	}
+	if err = brw.Flush(); err != nil {
 		return err
 	}
 
-	resp, err := http.ReadResponse(br, &http.Request{Method: "GET"})
+	resp, err := http.ReadResponse(brw.Reader, req)
 	if err != nil {
 		return err
 	}
@@ -148,21 +145,4 @@ func generateNonce() string {
 		panic(err)
 	}
 	return base64.StdEncoding.EncodeToString(key)
-}
-
-// removeZone removes IPv6 zone identifier from host.
-// E.g., "[fe80::1%en0]:8080" to "[fe80::1]:8080"
-func removeZone(host string) string {
-	if !strings.HasPrefix(host, "[") {
-		return host
-	}
-	i := strings.LastIndex(host, "]")
-	if i < 0 {
-		return host
-	}
-	j := strings.LastIndex(host[:i], "%")
-	if j < 0 {
-		return host
-	}
-	return host[:j] + host[i:]
 }
