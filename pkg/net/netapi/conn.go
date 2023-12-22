@@ -1,6 +1,7 @@
 package netapi
 
 import (
+	"bufio"
 	"io"
 	"net"
 	"runtime"
@@ -9,12 +10,26 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
+type multipleReaderTCPConn struct {
+	*net.TCPConn
+	mr io.Reader
+}
+
+func (m *multipleReaderTCPConn) Read(b []byte) (int, error) {
+	return m.mr.Read(b)
+}
+
 type multipleReaderConn struct {
 	net.Conn
 	mr io.Reader
 }
 
-func NewMultipleReaderConn(c net.Conn, r io.Reader) *multipleReaderConn {
+func NewMultipleReaderConn(c net.Conn, r io.Reader) net.Conn {
+	tc, ok := c.(*net.TCPConn)
+	if ok {
+		return &multipleReaderTCPConn{tc, r}
+	}
+
 	return &multipleReaderConn{c, r}
 }
 
@@ -29,6 +44,25 @@ func NewPrefixBytesConn(c net.Conn, prefix ...[]byte) net.Conn {
 
 	buf := net.Buffers(prefix)
 	return NewMultipleReaderConn(c, io.MultiReader(&buf, c))
+}
+
+func MergeBufioReaderConn(c net.Conn, r *bufio.Reader) (net.Conn, error) {
+	if r.Buffered() <= 0 {
+		return c, nil
+	}
+
+	data, err := r.Peek(r.Buffered())
+	if err != nil {
+		return nil, err
+	}
+
+	return NewPrefixBytesConn(c, copyByte(data)), nil
+}
+
+func copyByte(b []byte) []byte {
+	c := make([]byte, len(b))
+	copy(c, b)
+	return c
 }
 
 type LogConn struct {

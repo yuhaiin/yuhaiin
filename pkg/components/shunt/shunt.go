@@ -229,7 +229,7 @@ func (s *Shunt) resolver(m bypass.Mode) netapi.Resolver {
 
 func (s *Shunt) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort(0, domain, netapi.EmptyPort)
-	host.WithResolver(mapper.SkipResolve, true)
+	host.WithResolver(mapper.SkipResolver, true)
 	return s.resolver(s.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
 }
 

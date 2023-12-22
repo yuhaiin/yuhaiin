@@ -192,14 +192,8 @@ func (w *wrapResponseWriter) WriteHeader(s int) {
 }
 
 func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	h, ok := w.ResponseWriter.(http.Hijacker)
-	if !ok {
-		return nil, nil, http.ErrNotSupported
-	}
-
 	w.writed = true
-
-	return h.Hijack()
+	return http.NewResponseController(w.ResponseWriter).Hijack()
 }
 
 func (h Handler) ServeHTTP(ow http.ResponseWriter, r *http.Request) {

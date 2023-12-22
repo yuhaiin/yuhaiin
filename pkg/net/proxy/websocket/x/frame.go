@@ -7,6 +7,8 @@ import (
 	"io"
 	"math"
 	"math/bits"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 // opcode represents a WebSocket opcode.
@@ -46,7 +48,7 @@ type Header struct {
 
 // readFrameHeader reads a header from the reader.
 // See https://tools.ietf.org/html/rfc6455#section-5.2.
-func readFrameHeader(r *dynamicReadWriter, readBuf []byte) (h Header, err error) {
+func readFrameHeader(r *netapi.Reader, readBuf []byte) (h Header, err error) {
 	b, err := r.ReadByte()
 	if err != nil {
 		return Header{}, err

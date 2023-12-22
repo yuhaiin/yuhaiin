@@ -15,7 +15,7 @@ import (
 	"strings"
 	_ "unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 // Config is a WebSocket configuration
@@ -32,14 +32,11 @@ type Config struct {
 
 // NewClient creates a new WebSocket client connection over rwc.
 func (config *Config) NewClient(SecWebSocketKey string, rwc net.Conn, request func(*http.Request) error, handshake func(*http.Response) error) (ws *Conn, err error) {
-	br := bufio.NewReaderSize(rwc, pool.DefaultSize)
-	bw := newBufioWriterSize(rwc, pool.DefaultSize)
-	brw := bufio.NewReadWriter(br, bw)
-	err = config.hybiClientHandshake(SecWebSocketKey, brw, request, handshake)
+	rwc, err = config.hybiClientHandshake(SecWebSocketKey, rwc, request, handshake)
 	if err != nil {
 		return
 	}
-	ws = newConn(brw, rwc, false)
+	ws = newConn(rwc, false)
 	return
 }
 
@@ -56,7 +53,7 @@ func newBufioWriterSize(w io.Writer, size int) *bufio.Writer
 func putBufioWriter(br *bufio.Writer)
 
 // Client handshake described in draft-ietf-hybi-thewebsocket-protocol-17
-func (config *Config) hybiClientHandshake(SecWebSocketKey string, brw *bufio.ReadWriter, request func(*http.Request) error, handshake func(*http.Response) error) (err error) {
+func (config *Config) hybiClientHandshake(SecWebSocketKey string, conn net.Conn, request func(*http.Request) error, handshake func(*http.Response) error) (net.Conn, error) {
 	var nonce string
 	if SecWebSocketKey != "" {
 		nonce = SecWebSocketKey
@@ -66,7 +63,7 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, brw *bufio.Rea
 
 	req, err := http.NewRequest(http.MethodGet, "http://"+config.Host+config.Path, http.NoBody)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Connection", "Upgrade")
@@ -80,46 +77,46 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, brw *bufio.Rea
 	}
 	if request != nil {
 		if err := request(req); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	if err := req.Write(brw); err != nil {
-		return err
-	}
-	if err = brw.Flush(); err != nil {
-		return err
+	if err := req.Write(conn); err != nil {
+		return nil, err
 	}
 
-	resp, err := http.ReadResponse(brw.Reader, req)
+	reader := newBufioReader(conn)
+	defer putBufioReader(reader)
+
+	resp, err := http.ReadResponse(reader, req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if resp.StatusCode != http.StatusSwitchingProtocols {
-		return ErrBadStatus
+		return nil, ErrBadStatus
 	}
 	if strings.ToLower(resp.Header.Get("Upgrade")) != "websocket" || strings.ToLower(resp.Header.Get("Connection")) != "upgrade" {
-		return ErrBadUpgrade
+		return nil, ErrBadUpgrade
 	}
 
 	if resp.Header.Get("Sec-WebSocket-Accept") != getNonceAccept(nonce) {
-		return ErrChallengeResponse
+		return nil, ErrChallengeResponse
 	}
 
 	if resp.Header.Get("Sec-WebSocket-Extensions") != "" {
-		return ErrUnsupportedExtensions
+		return nil, ErrUnsupportedExtensions
 	}
 
 	if err = verifySubprotocol(config.Protocol, resp); err != nil {
-		return err
+		return nil, err
 	}
 
 	if handshake != nil {
 		if err = handshake(resp); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return netapi.MergeBufioReaderConn(conn, reader)
 }
 
 func verifySubprotocol(subprotos []string, resp *http.Response) error {

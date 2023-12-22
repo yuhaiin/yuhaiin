@@ -42,9 +42,9 @@ func (x *Combine[T]) Insert(str string, mark T) {
 
 }
 
-var ErrSkipResolve = errors.New("skip resolve domain")
+var ErrSkipResolver = errors.New("skip resolve domain")
 
-var SkipResolve = netapi.ErrorResolver(func(domain string) error { return ErrSkipResolve })
+var SkipResolver = netapi.ErrorResolver(func(domain string) error { return ErrSkipResolver })
 
 func (x *Combine[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
 	if addr.Type() == netapi.IP {
@@ -57,7 +57,7 @@ func (x *Combine[T]) Search(ctx context.Context, addr netapi.Address) (mark T, o
 
 	if ips, err := addr.IP(ctx); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
-	} else if !errors.Is(err, ErrSkipResolve) {
+	} else if !errors.Is(err, ErrSkipResolver) {
 		log.Warn("dns lookup failed, skip match ip", slog.Any("addr", addr), slog.Any("err", err))
 	}
 

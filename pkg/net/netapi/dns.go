@@ -46,3 +46,56 @@ func (d *System) Raw(context.Context, dnsmessage.Question) (dnsmessage.Message, 
 	return dnsmessage.Message{}, fmt.Errorf("system dns not support")
 }
 func (d *System) Close() error { return nil }
+
+type DNSErrCode struct {
+	code dnsmessage.RCode
+}
+
+func NewDNSErrCode(code dnsmessage.RCode) *DNSErrCode {
+	return &DNSErrCode{
+		code: code,
+	}
+}
+
+func (d *DNSErrCode) Code() dnsmessage.RCode {
+	return d.code
+}
+
+func (d DNSErrCode) Error() string {
+	return d.code.String()
+}
+
+func (d *DNSErrCode) As(err any) bool {
+	dd, ok := err.(*DNSErrCode)
+
+	dd.code = d.code
+
+	return ok
+}
+
+type DropResolver struct{}
+
+func (e DropResolver) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
+	return nil, NewDNSErrCode(dnsmessage.RCodeSuccess)
+}
+
+func (e DropResolver) Close() error { return nil }
+func (e DropResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	return dnsmessage.Message{
+		Header: dnsmessage.Header{
+			ID:                 0,
+			Response:           true,
+			Authoritative:      false,
+			RecursionDesired:   false,
+			RCode:              dnsmessage.RCodeSuccess,
+			RecursionAvailable: false,
+		},
+		Questions: []dnsmessage.Question{
+			{
+				Name:  req.Name,
+				Type:  req.Type,
+				Class: dnsmessage.ClassINET,
+			},
+		},
+	}, nil
+}

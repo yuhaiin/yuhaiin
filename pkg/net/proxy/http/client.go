@@ -59,16 +59,19 @@ func (c *client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("status code not ok: %d", resp.StatusCode)
 	}
 
-	return &clientConn{Conn: conn, resp: resp, bufioReader: bufioReader}, nil
+	conn, err = netapi.MergeBufioReaderConn(conn, bufioReader)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("merge bufio reader conn failed: %w", err)
+	}
+
+	return &clientConn{Conn: conn, resp: resp}, nil
 }
 
 type clientConn struct {
 	net.Conn
-	resp        *http.Response
-	bufioReader *bufio.Reader
+	resp *http.Response
 }
-
-func (c *clientConn) Read(b []byte) (int, error) { return c.bufioReader.Read(b) }
 
 func (c *clientConn) Close() error {
 	c.resp.Body.Close()

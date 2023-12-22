@@ -37,7 +37,7 @@ func (cd Codec) Send(ws *Conn, v any) (err error) {
 // completely. The next call to Receive would read and discard leftover data of
 // previous oversized frame before processing next frame.
 func (cd Codec) Receive(ws *Conn, v any) error {
-	return ws.NextFrameReader(func(header *Header, frame io.Reader) error {
+	return ws.NextFrameReader(func(header *Header, frame io.ReadCloser) error {
 		if header.payloadLength > int64(DefaultMaxPayloadBytes) {
 			// payload size exceeds limit, no need to call Unmarshal
 			//

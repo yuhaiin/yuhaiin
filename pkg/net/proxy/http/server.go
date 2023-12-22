@@ -150,15 +150,9 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 
 	w.WriteHeader(http.StatusOK)
 
-	hj, ok := w.(http.Hijacker)
-	if !ok {
-		return errors.New("http.ResponseWriter does not implement http.Hijacker")
-	}
-
-	client, _, err := hj.Hijack()
+	client, _, err := http.NewResponseController(w).Hijack()
 	if err != nil {
 		return fmt.Errorf("hijack failed: %w", err)
-
 	}
 
 	source, err := netapi.ParseAddress(statistic.Type_tcp, req.RemoteAddr)

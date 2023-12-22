@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -27,9 +28,9 @@ func ExampleNew() {
 }
 
 func TestErrCode(t *testing.T) {
-	z := fmt.Errorf("test: %w , %w", errors.New("a"), &dnsErrCode{code: dnsmessage.RCodeFormatError})
+	z := fmt.Errorf("test: %w , %w", errors.New("a"), netapi.NewDNSErrCode(dnsmessage.RCodeRefused))
 
-	x := &dnsErrCode{}
+	x := &netapi.DNSErrCode{}
 
 	fmt.Println(errors.As(z, x))
 	t.Log(x)
