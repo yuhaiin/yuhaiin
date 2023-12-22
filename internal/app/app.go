@@ -202,7 +202,7 @@ func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
 		ProxyDialer:    App.Node,
 		ProxyResolver:  remote,
 		BlockDialer:    drop.Drop,
-		BLockResolver:  netapi.ErrorResolver(func(domain string) error { return netapi.NewBlockError(-2, domain) }),
+		BLockResolver:  netapi.DropResolver{},
 		DefaultMode:    bypass.Mode_proxy,
 	}
 }

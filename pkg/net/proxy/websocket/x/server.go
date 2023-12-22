@@ -6,10 +6,11 @@ package websocket
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 type Request struct {
@@ -20,12 +21,6 @@ type Request struct {
 }
 
 func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Request) error) (conn *Conn, err error) {
-	hj, ok := w.(http.Hijacker)
-	if !ok {
-		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
-		return nil, errors.New("http.ResponseWriter does not implement http.Hijacker")
-	}
-
 	var hs = &ServerHandshaker{
 		Request: &Request{
 			Request: req,
@@ -37,7 +32,7 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 			w.Header().Set("Sec-WebSocket-Version", SupportedProtocolVersion)
 		}
 		w.WriteHeader(code)
-		w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
@@ -55,14 +50,26 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 		return
 	}
 
-	rwc, buf, err := hj.Hijack()
+	rwc, buf, err := http.NewResponseController(w).Hijack()
 	if err != nil {
 		err = fmt.Errorf("failed to hijack connection: %w", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, err
 	}
 
-	return newConn(buf, rwc, true), nil
+	if err := buf.Writer.Flush(); err != nil {
+		return nil, err
+	}
+
+	rwc, err = netapi.MergeBufioReaderConn(rwc, buf.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	putBufioReader(buf.Reader)
+	putBufioWriter(buf.Writer)
+
+	return newConn(rwc, true), nil
 }
 
 // A HybiServerHandshaker performs a server handshake using hybi draft protocol.

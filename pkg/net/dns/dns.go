@@ -245,7 +245,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if msg.Header.RCode != dnsmessage.RCodeSuccess {
-		return nil, &dnsErrCode{code: msg.Header.RCode}
+		return nil, netapi.NewDNSErrCode(msg.Header.RCode)
 	}
 
 	ips := make([]net.IP, 0, len(msg.Answers))
@@ -264,26 +264,10 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if len(ips) == 0 {
-		return nil, &dnsErrCode{code: dnsmessage.RCodeSuccess}
+		return nil, netapi.NewDNSErrCode(dnsmessage.RCodeSuccess)
 	}
 
 	return ips, nil
 }
 
 func (c *client) Close() error { return nil }
-
-type dnsErrCode struct {
-	code dnsmessage.RCode
-}
-
-func (d dnsErrCode) Error() string {
-	return d.code.String()
-}
-
-func (d *dnsErrCode) As(err any) bool {
-	dd, ok := err.(*dnsErrCode)
-
-	dd.code = d.code
-
-	return ok
-}

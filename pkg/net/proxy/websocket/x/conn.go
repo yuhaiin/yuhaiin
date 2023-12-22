@@ -8,7 +8,6 @@ package websocket
 // http://tools.ietf.org/html/draft-ietf-hybi-thewebsocketprotocol-17
 
 import (
-	"bufio"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -17,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -26,7 +26,6 @@ import (
 // Multiple goroutines may invoke methods on a Conn simultaneously.
 type Conn struct {
 	IsServer bool
-	closed   bool
 
 	LastPayloadType opcode
 	PayloadType     opcode
@@ -34,23 +33,20 @@ type Conn struct {
 	readHeaderBuf  [8]byte
 	writeHeaderBuf [8]byte
 
-	rio     sync.Mutex
-	wio     sync.Mutex
-	closeMu sync.Mutex
+	rio sync.Mutex
+	wio sync.Mutex
 
-	Rw    *dynamicReadWriter
-	Frame io.Reader
+	Frame io.ReadCloser
 
 	RawConn net.Conn
 }
 
 // newConn creates a new WebSocket connection speaking hybi draft protocol.
-func newConn(buf *bufio.ReadWriter, rwc net.Conn, isServer bool) *Conn {
+func newConn(rwc net.Conn, isServer bool) *Conn {
 	return &Conn{
 		IsServer:    isServer,
-		Rw:          newDynamicReadWriter(!isServer, buf),
 		RawConn:     rwc,
-		PayloadType: opText,
+		PayloadType: opBinary,
 	}
 }
 
@@ -64,10 +60,6 @@ func (ws *Conn) Read(msg []byte) (n int, err error) {
 	defer ws.rio.Unlock()
 
 	for {
-		if ws.closed {
-			return 0, io.EOF
-		}
-
 		if ws.Frame == nil {
 			_, ws.Frame, err = ws.nextFrameReader()
 			if err != nil {
@@ -89,12 +81,12 @@ func (ws *Conn) Read(msg []byte) (n int, err error) {
 
 }
 
-func (ws *Conn) NextFrameReader(handle func(*Header, io.Reader) error) error {
+func (ws *Conn) NextFrameReader(handle func(*Header, io.ReadCloser) error) error {
 	ws.rio.Lock()
 	defer ws.rio.Unlock()
 
 	if ws.Frame != nil {
-		_, _ = relay.Copy(io.Discard, ws.Frame)
+		_ = ws.Frame.Close()
 		ws.Frame = nil
 	}
 
@@ -113,11 +105,7 @@ func (ws *Conn) NextFrameReader(handle func(*Header, io.Reader) error) error {
 
 func (ws *Conn) nextFrameReader() (*Header, io.ReadCloser, error) {
 	for {
-		if ws.closed {
-			return nil, nil, io.EOF
-		}
-
-		header, err := readFrameHeader(ws.Rw, ws.readHeaderBuf[:])
+		header, err := readFrameHeader(netapi.NewReader(ws.RawConn), ws.readHeaderBuf[:])
 		if err != nil {
 			return nil, nil, err
 		}
@@ -125,7 +113,7 @@ func (ws *Conn) nextFrameReader() (*Header, io.ReadCloser, error) {
 		frame := &frameReader{
 			masked:  header.masked,
 			maskKey: header.maskKey,
-			reader:  io.LimitReader(ws.Rw, header.payloadLength),
+			reader:  io.LimitReader(ws.RawConn, header.payloadLength),
 		}
 
 		frameReader, err := ws.handleFrame(&header, frame)
@@ -171,14 +159,9 @@ func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
 	}
 
 	ws.wio.Lock()
-	defer ws.wio.Unlock()
-
-	n, err := ws.Rw.Write(buf.Bytes())
+	n, err := ws.RawConn.Write(buf.Bytes())
+	ws.wio.Unlock()
 	if err != nil {
-		return n, err
-	}
-
-	if err := ws.Rw.Flush(); err != nil {
 		return n, err
 	}
 
@@ -232,24 +215,7 @@ func (ws *Conn) WritePong(msg []byte) (n int, err error) { return ws.WriteMsg(ms
 
 // Close implements the io.Closer interface.
 func (ws *Conn) Close() error {
-	if ws.closed {
-		return nil
-	}
-
-	ws.closeMu.Lock()
-	defer ws.closeMu.Unlock()
-
-	if ws.closed {
-		return nil
-	}
-
-	ws.closed = true
-
-	err := ws.RawConn.Close()
-
-	_ = ws.Rw.Close()
-
-	return err
+	return ws.RawConn.Close()
 }
 
 func (ws *Conn) LocalAddr() net.Addr                { return ws.RawConn.LocalAddr() }
