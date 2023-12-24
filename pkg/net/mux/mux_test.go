@@ -19,7 +19,7 @@ func TestMux(t *testing.T) {
 	assert.NoError(t, err)
 	defer lis.Close()
 
-	ms := NewServer(lis)
+	ms := newServer(lis)
 	defer ms.Close()
 
 	wg := sync.WaitGroup{}

@@ -1,13 +1,10 @@
 package tun
 
 import (
-	"context"
-	"net"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -17,8 +14,8 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *tcp.Forwarder {
-	return tcp.NewForwarder(s, defaultWndSize, maxConnAttempts, func(r *tcp.ForwarderRequest) {
+func (t *tunServer) tcpForwarder() *tcp.Forwarder {
+	return tcp.NewForwarder(t.stack, defaultWndSize, maxConnAttempts, func(r *tcp.ForwarderRequest) {
 		wq := new(waiter.Queue)
 		id := r.ID()
 
@@ -30,27 +27,23 @@ func tcpForwarder(s *stack.Stack, opt *listener.Opts[*listener.Protocol_Tun]) *t
 		}
 		r.Complete(false)
 
-		if err = setSocketOptions(s, ep); err != nil {
+		if err = setSocketOptions(t.stack, ep); err != nil {
 			log.Error("set socket options failed", "err", err)
 		}
 
-		go func(local net.Conn, id stack.TransportEndpointID) {
-			if IsHandleDNS(opt, id.LocalAddress.String(), id.LocalPort) {
-				if err := opt.DNSHandler.HandleTCP(context.TODO(), local); err != nil {
-					log.Error("dns handle tcp failed", "err", err)
-				}
-				return
-			}
+		addr := netapi.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
+		local := gonet.NewTCPConn(wq, ep)
 
-			addr := netapi.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
-
-			opt.Handler.Stream(context.TODO(), &netapi.StreamMeta{
-				Source:      local.RemoteAddr(),
-				Destination: addr,
-				Src:         local,
-				Address:     addr,
-			})
-		}(gonet.NewTCPConn(wq, ep), id)
+		select {
+		case <-t.ctx.Done():
+			return
+		case t.tcpChannel <- &netapi.StreamMeta{
+			Source:      local.RemoteAddr(),
+			Destination: addr,
+			Src:         local,
+			Address:     addr,
+		}:
+		}
 	})
 }
 

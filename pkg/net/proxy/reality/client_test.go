@@ -14,7 +14,7 @@ func TestClient(t *testing.T) {
 	sm := simple.New(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
 			Host: "127.0.0.1",
-			Port: 8888,
+			Port: 2096,
 		},
 	})
 
@@ -22,7 +22,7 @@ func TestClient(t *testing.T) {
 		&protocol.Protocol_Reality{
 			Reality: &protocol.Reality{
 				ServerName: "www.baidu.com",
-				ShortId:    "",
+				ShortId:    "123456",
 				PublicKey:  "SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8",
 			},
 		},

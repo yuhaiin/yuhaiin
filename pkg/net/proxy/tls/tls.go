@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -57,4 +58,19 @@ func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 
 func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	return t.dialer.PacketConn(ctx, addr)
+}
+
+func init() {
+	listener.RegisterTransport(NewServer)
+}
+
+func NewServer(c *listener.Transport_Tls) func(listener.InboundI) (listener.InboundI, error) {
+	config, err := listener.ParseTLS(c.Tls.Tls)
+	if err != nil {
+		return listener.ErrorTransportFunc(err)
+	}
+
+	return func(ii listener.InboundI) (listener.InboundI, error) {
+		return listener.NewWrapListener(tls.NewListener(ii, config), ii), nil
+	}
 }

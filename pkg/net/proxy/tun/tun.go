@@ -1,23 +1,20 @@
 package tun
 
 import (
-	"fmt"
-
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
-func NewTun(o *listener.Opts[*listener.Protocol_Tun]) (s netapi.Server, err error) {
-	if o.Protocol.Tun.Driver == listener.Tun_system_gvisor {
-		s, err = tun2socket.New(o)
-	} else {
-		s, err = tun.New(o)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("open tun device failed: %w", err)
-	}
+func init() {
+	listener.RegisterProtocol2(NewTun)
+}
 
-	return s, nil
+func NewTun(o *listener.Inbound_Tun) func(listener.InboundI) (s netapi.ProtocolServer, err error) {
+	if o.Tun.Driver == listener.Tun_system_gvisor {
+		return tun2socket.New(o)
+	} else {
+		return tun.New(o)
+	}
 }

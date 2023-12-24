@@ -18,7 +18,7 @@ func TestClient(t *testing.T) {
 	assert.NoError(t, err)
 	defer lis.Close()
 
-	lis = NewServer(lis)
+	lis = newServer(lis)
 
 	go func() {
 		for {

@@ -13,6 +13,12 @@ type Server interface {
 	io.Closer
 }
 
+type ProtocolServer interface {
+	Server
+	AcceptStream() (*StreamMeta, error)
+	AcceptPacket() (*Packet, error)
+}
+
 type Handler interface {
 	StreamHandler
 	PacketHandler

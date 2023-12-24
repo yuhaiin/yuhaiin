@@ -16,45 +16,75 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
-func New(o *listener.Opts[*listener.Protocol_Tun]) (*Tun2Socket, error) {
-	gateway, gerr := netip.ParseAddr(o.Protocol.Tun.Gateway)
-	portal, perr := netip.ParseAddr(o.Protocol.Tun.Portal)
-	if gerr != nil || perr != nil {
-		return nil, fmt.Errorf("gateway or portal is invalid")
+func New(o *listener.Inbound_Tun) func(listener.InboundI) (netapi.ProtocolServer, error) {
+	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+		gateway, gerr := netip.ParseAddr(o.Tun.Gateway)
+		portal, perr := netip.ParseAddr(o.Tun.Portal)
+		if gerr != nil || perr != nil {
+			return nil, fmt.Errorf("gateway or portal is invalid")
+		}
+
+		device, err := openDevice(o.Tun.Name)
+		if err != nil {
+			return nil, fmt.Errorf("open tun device failed: %w", err)
+		}
+
+		lis, err := StartTun2SocketGvisor(device, gateway, portal, o.Tun.Mtu)
+		if err != nil {
+			return nil, err
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		handler := &handler{
+			listener:   lis,
+			portal:     tcpip.AddrFromSlice(portal.AsSlice()),
+			Mtu:        o.Tun.Mtu,
+			ctx:        ctx,
+			close:      cancel,
+			tcpChannel: make(chan *netapi.StreamMeta, 100),
+			udpChannel: make(chan *netapi.Packet, 100),
+		}
+
+		go handler.tcp()
+		go handler.udp()
+
+		return handler, nil
 	}
-
-	device, err := openDevice(o.Protocol.Tun.Name)
-	if err != nil {
-		return nil, fmt.Errorf("open tun device failed: %w", err)
-	}
-
-	lis, err := StartTun2SocketGvisor(device, gateway, portal, o.Protocol.Tun.Mtu)
-	if err != nil {
-		return nil, err
-	}
-
-	handler := &handler{
-		listener:     lis,
-		portal:       tcpip.AddrFromSlice(portal.AsSlice()),
-		DnsHijacking: o.Protocol.Tun.DnsHijacking,
-		Mtu:          o.Protocol.Tun.Mtu,
-		handler:      o.Handler,
-		DNSHandler:   o.DNSHandler,
-	}
-
-	go handler.tcp()
-	go handler.udp(o.Handler)
-
-	return lis, nil
 }
 
 type handler struct {
-	DnsHijacking bool
-	Mtu          int32
-	listener     *Tun2Socket
-	portal       tcpip.Address
-	handler      netapi.Handler
-	DNSHandler   netapi.DNSHandler
+	Mtu      int32
+	listener *Tun2Socket
+	portal   tcpip.Address
+
+	ctx   context.Context
+	close context.CancelFunc
+
+	tcpChannel chan *netapi.StreamMeta
+	udpChannel chan *netapi.Packet
+}
+
+func (s *handler) AcceptStream() (*netapi.StreamMeta, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case meta := <-s.tcpChannel:
+		return meta, nil
+	}
+}
+
+func (s *handler) AcceptPacket() (*netapi.Packet, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case packet := <-s.udpChannel:
+		return packet, nil
+	}
+}
+
+func (h *handler) Close() error {
+	h.close()
+	return h.listener.Close()
 }
 
 func (h *handler) tcp() {
@@ -81,11 +111,11 @@ func (h *handler) tcp() {
 	}
 }
 
-func (h *handler) udp(server netapi.Handler) {
+func (h *handler) udp() {
 	lis := h.listener
 	defer lis.UDP().Close()
 	for {
-		if err := h.handleUDP(server, lis); err != nil {
+		if err := h.handleUDP(); err != nil {
 			if errors.Is(err, netapi.ErrBlocked) {
 				log.Debug(err.Error())
 			} else {
@@ -106,76 +136,64 @@ func (h *handler) handleTCP(conn net.Conn) error {
 		return nil
 	}
 
-	if h.isHandleDNS(tcpip.AddrFromSlice(rAddrPort.IP), uint16(rAddrPort.Port)) {
-		return h.DNSHandler.HandleTCP(context.TODO(), conn)
-	}
-
-	h.handler.Stream(context.TODO(), &netapi.StreamMeta{
+	select {
+	case <-h.ctx.Done():
+		return h.ctx.Err()
+	case h.tcpChannel <- &netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
 		Address:     netapi.ParseTCPAddress(rAddrPort),
-	})
-
+	}:
+	}
 	return nil
 }
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
-func (h *handler) handleUDP(server netapi.Handler, lis *Tun2Socket) error {
+func (h *handler) handleUDP() error {
 	buf := pool.GetBytesV2(h.Mtu)
 
-	n, tuple, err := lis.UDP().ReadFrom(buf.Bytes())
+	n, tuple, err := h.listener.UDP().ReadFrom(buf.Bytes())
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
 	}
 
 	buf.ResetSize(0, n)
 
-	if h.isHandleDNS(tuple.DestinationAddr, tuple.DestinationPort) {
-		return h.DNSHandler.Do(context.TODO(), buf, func(b []byte) error {
-			_, err := lis.UDP().WriteTo(b, tuple)
-			return err
-		})
-	}
-
-	server.Packet(context.TODO(),
-		&netapi.Packet{
-			Src: &net.UDPAddr{
-				IP:   net.IP(tuple.SourceAddr.AsSlice()),
-				Port: int(tuple.SourcePort),
-			},
-			Dst: netapi.ParseUDPAddr(&net.UDPAddr{
-				IP:   net.IP(tuple.DestinationAddr.AsSlice()),
-				Port: int(tuple.DestinationPort),
-			}),
-			Payload: buf,
-			WriteBack: func(b []byte, addr net.Addr) (int, error) {
-				address, err := netapi.ParseSysAddr(addr)
-				if err != nil {
-					return 0, err
-				}
-
-				daddr, err := address.IP(context.TODO())
-				if err != nil {
-					return 0, err
-				}
-
-				return lis.UDP().WriteTo(b, nat.Tuple{
-					DestinationAddr: tcpip.AddrFromSlice(daddr),
-					DestinationPort: address.Port().Port(),
-					SourceAddr:      tuple.SourceAddr,
-					SourcePort:      tuple.SourcePort,
-				})
-			},
+	select {
+	case <-h.ctx.Done():
+		return h.ctx.Err()
+	case h.udpChannel <- &netapi.Packet{
+		Src: &net.UDPAddr{
+			IP:   net.IP(tuple.SourceAddr.AsSlice()),
+			Port: int(tuple.SourcePort),
 		},
-	)
-	return nil
-}
+		Dst: netapi.ParseUDPAddr(&net.UDPAddr{
+			IP:   net.IP(tuple.DestinationAddr.AsSlice()),
+			Port: int(tuple.DestinationPort),
+		}),
+		Payload: buf,
+		WriteBack: func(b []byte, addr net.Addr) (int, error) {
+			address, err := netapi.ParseSysAddr(addr)
+			if err != nil {
+				return 0, err
+			}
 
-func (h *handler) isHandleDNS(addr tcpip.Address, port uint16) bool {
-	if port == 53 && (h.DnsHijacking || addr == h.portal) {
-		return true
+			daddr, err := address.IP(context.TODO())
+			if err != nil {
+				return 0, err
+			}
+
+			return h.listener.UDP().WriteTo(b, nat.Tuple{
+				DestinationAddr: tcpip.AddrFromSlice(daddr),
+				DestinationPort: address.Port().Port(),
+				SourceAddr:      tuple.SourceAddr,
+				SourcePort:      tuple.SourcePort,
+			})
+		},
+	}:
 	}
-	return false
+
+	return nil
 }

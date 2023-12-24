@@ -1,157 +1,326 @@
 package inbound
 
 import (
-	"crypto/tls"
-	"encoding/base64"
+	"context"
 	"errors"
 	"fmt"
-	"net"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/mux"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
-	hp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
-	ss "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
+
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/mux"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 
 func init() {
-	pl.RegisterProtocol(hp.NewServer)
-	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Socks5]) (netapi.Server, error) { return ss.NewServer(o, true) })
-	pl.RegisterProtocol(mixed.NewServer)
-	pl.RegisterProtocol(socks4a.NewServer)
-	pl.RegisterProtocol(tun.NewTun)
-	pl.RegisterProtocol(func(o *pl.Opts[*pl.Protocol_Yuubinsya]) (netapi.Server, error) {
-		var Type yuubinsya.Type
-		var err error
-		var tlsConfig *tls.Config
-		var listener func(net.Listener) (net.Listener, error)
-		switch p := o.Protocol.Yuubinsya.Protocol.(type) {
-		case *pl.Yuubinsya_Normal:
-			Type = yuubinsya.RAW_TCP
-		case *pl.Yuubinsya_Tls:
-			Type = yuubinsya.TLS
-			tlsConfig, err = pl.ParseTLS(p.Tls.GetTls())
+	pl.RegisterProtocol(func(o *pl.Protocol_Http) (netapi.ProtocolServer, error) {
+		return pl.Listen(&pl.Inbound{
+			Network: &pl.Inbound_Tcpudp{
+				Tcpudp: &pl.Tcpudp{
+					Host: o.Http.Host,
+				},
+			},
+			Protocol: &pl.Inbound_Http{
+				Http: o.Http,
+			},
+		})
+	})
+	pl.RegisterProtocol(func(o *pl.Protocol_Mix) (netapi.ProtocolServer, error) {
+		return pl.Listen(&pl.Inbound{
+			Network: &pl.Inbound_Tcpudp{
+				Tcpudp: &pl.Tcpudp{
+					Host: o.Mix.Host,
+				},
+			},
+			Protocol: &pl.Inbound_Mix{
+				Mix: o.Mix,
+			},
+		})
+	})
+	pl.RegisterProtocol(func(o *pl.Protocol_Socks4A) (netapi.ProtocolServer, error) {
+		return pl.Listen(&pl.Inbound{
+			Network: &pl.Inbound_Tcpudp{
+				Tcpudp: &pl.Tcpudp{
+					Host: o.Socks4A.Host,
+				},
+			},
+			Protocol: &pl.Inbound_Socks4A{
+				Socks4A: o.Socks4A,
+			},
+		})
+	})
+	pl.RegisterProtocol(func(o *pl.Protocol_Socks5) (netapi.ProtocolServer, error) {
+		o.Socks5.Udp = true
+		return pl.Listen(&pl.Inbound{
+			Network: &pl.Inbound_Tcpudp{
+				Tcpudp: &pl.Tcpudp{
+					Host: o.Socks5.Host,
+				},
+			},
+			Protocol: &pl.Inbound_Socks5{
+				Socks5: o.Socks5,
+			},
+		})
+	})
+	pl.RegisterProtocol(func(o *pl.Protocol_Tun) (netapi.ProtocolServer, error) {
+		return tun.NewTun(&pl.Inbound_Tun{Tun: o.Tun})(nil)
+	})
+	pl.RegisterProtocol(func(o *pl.Protocol_Yuubinsya) (netapi.ProtocolServer, error) {
+		inbound := &pl.Inbound{
+			Network: &pl.Inbound_Tcpudp{
+				Tcpudp: &pl.Tcpudp{
+					Host: o.Yuubinsya.Host,
+				},
+			},
+			Protocol: &pl.Inbound_Yuubinsya{
+				Yuubinsya: o.Yuubinsya,
+			},
+		}
 
+		switch p := o.Yuubinsya.Protocol.(type) {
+		case *pl.Yuubinsya_Normal:
+
+		case *pl.Yuubinsya_Tls:
+			inbound.Transport = append(inbound.Transport, &pl.Transport{
+				Transport: &pl.Transport_Tls{
+					Tls: p.Tls,
+				},
+			})
 		case *pl.Yuubinsya_Quic:
-			Type = yuubinsya.QUIC
-			tlsConfig, err = pl.ParseTLS(p.Quic.GetTls())
-		case *pl.Yuubinsya_Websocket:
-			Type = yuubinsya.WEBSOCKET
-			listener = func(l net.Listener) (net.Listener, error) { return websocket.NewServer(l), nil }
-			tlsConfig, err = pl.ParseTLS(p.Websocket.GetTls())
-		case *pl.Yuubinsya_Grpc:
-			Type = yuubinsya.GRPC
-			listener = func(l net.Listener) (net.Listener, error) { return grpc.NewServer(l), nil }
-			tlsConfig, err = pl.ParseTLS(p.Grpc.GetTls())
-		case *pl.Yuubinsya_Http2:
-			Type = yuubinsya.HTTP2
-			listener = func(l net.Listener) (net.Listener, error) { return http2.NewServer(l), nil }
-			tlsConfig, err = pl.ParseTLS(p.Http2.GetTls())
-		case *pl.Yuubinsya_Reality:
-			Type = yuubinsya.REALITY
-			privateKey, er := base64.RawURLEncoding.DecodeString(p.Reality.PrivateKey)
-			if er != nil {
-				err = er
-				break
+			inbound.Network = &pl.Inbound_Quic{
+				Quic: &pl.Quic2{
+					Host: o.Yuubinsya.Host,
+					Tls:  p.Quic.GetTls(),
+				},
 			}
 
-			listener = func(l net.Listener) (net.Listener, error) {
-				return reality.NewServer(l, reality.ServerConfig{
-					ShortID:     p.Reality.ShortId,
-					ServerNames: p.Reality.ServerName,
-					Dest:        p.Reality.Dest,
-					PrivateKey:  privateKey,
-					Debug:       p.Reality.Debug,
+		case *pl.Yuubinsya_Websocket:
+			if p.Websocket.Tls != nil {
+				inbound.Transport = append(inbound.Transport, &pl.Transport{
+					Transport: &pl.Transport_Tls{
+						Tls: &pl.Tls{
+							Tls: p.Websocket.Tls,
+						},
+					},
 				})
 			}
-		}
-		if err != nil {
-			return nil, err
-		}
+			inbound.Transport = append(inbound.Transport,
+				&pl.Transport{
+					Transport: &pl.Transport_Websocket{
+						Websocket: p.Websocket,
+					},
+				})
+		case *pl.Yuubinsya_Grpc:
 
-		if o.Protocol.Yuubinsya.Mux {
-			old := listener
-			listener = func(l net.Listener) (net.Listener, error) {
-				if old != nil {
-					l, err = old(l)
-					if err != nil {
-						return nil, err
-					}
-				}
-
-				return mux.NewServer(l), nil
+			if p.Grpc.Tls != nil {
+				inbound.Transport = append(inbound.Transport, &pl.Transport{
+					Transport: &pl.Transport_Tls{
+						Tls: &pl.Tls{
+							Tls: p.Grpc.Tls,
+						},
+					},
+				})
 			}
+			inbound.Transport = append(inbound.Transport,
+				&pl.Transport{
+					Transport: &pl.Transport_Grpc{
+						Grpc: p.Grpc,
+					},
+				})
+		case *pl.Yuubinsya_Http2:
+
+			if p.Http2.Tls != nil {
+				inbound.Transport = append(inbound.Transport, &pl.Transport{
+					Transport: &pl.Transport_Tls{
+						Tls: &pl.Tls{
+							Tls: p.Http2.Tls,
+						},
+					},
+				})
+			}
+			inbound.Transport = append(inbound.Transport,
+				&pl.Transport{
+					Transport: &pl.Transport_Http2{
+						Http2: p.Http2,
+					},
+				})
+
+		case *pl.Yuubinsya_Reality:
+			inbound.Transport = append(inbound.Transport, &pl.Transport{
+				Transport: &pl.Transport_Reality{
+					Reality: p.Reality,
+				},
+			})
 		}
 
-		s := yuubinsya.NewServer(yuubinsya.Config{
-			Host:                o.Protocol.Yuubinsya.Host,
-			Password:            []byte(o.Protocol.Yuubinsya.Password),
-			TlsConfig:           tlsConfig,
-			Type:                Type,
-			ForceDisableEncrypt: o.Protocol.Yuubinsya.ForceDisableEncrypt,
-			Handler:             o.Handler,
-			NewListener:         listener,
-		})
-		go s.Start() //nolint:errcheck
-		return s, nil
+		if o.Yuubinsya.Mux {
+			inbound.Transport = append(inbound.Transport, &pl.Transport{
+				Transport: &pl.Transport_Mux{
+					Mux: &pl.Mux{},
+				},
+			})
+		}
+
+		return pl.Listen(inbound)
 	})
 }
 
 type store struct {
 	config proto.Message
-	server netapi.Server
+	server netapi.ProtocolServer
 }
 
 type listener struct {
 	store syncmap.SyncMap[string, store]
-	opts  *pl.Opts[pl.IsProtocol_Protocol]
+
+	handler    netapi.Handler
+	dnsHandler netapi.DNSHandler
+
+	ctx   context.Context
+	close context.CancelFunc
+
+	tcpChannel chan *netapi.StreamMeta
+	udpChannel chan *netapi.Packet
+
+	hijackDNS bool
+	fakeip    bool
 }
 
 func NewListener(dnsHandler netapi.DNSHandler, handler netapi.Handler) *listener {
-	return &listener{opts: &pl.Opts[pl.IsProtocol_Protocol]{
-		DNSHandler: dnsHandler,
-		Handler:    handler,
-	}}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	l := &listener{
+		handler:    handler,
+		dnsHandler: dnsHandler,
+		ctx:        ctx,
+		close:      cancel,
+		tcpChannel: make(chan *netapi.StreamMeta, 100),
+		udpChannel: make(chan *netapi.Packet, 100),
+
+		hijackDNS: true,
+		fakeip:    true,
+	}
+
+	go l.tcp()
+	go l.udp()
+
+	return l
 }
 
-func (l *listener) Update(current *pc.Setting) {
-	l.opts.IPv6 = current.GetIpv6()
-
-	l.store.Range(func(key string, v store) bool {
-		if z, ok := current.Server.Servers[key]; !ok || !z.GetEnabled() {
-			v.server.Close()
-			l.store.Delete(key)
-		}
-
-		return true
-	})
-
-	for k, v := range current.Server.Servers {
-		if err := l.start(k, v); err != nil {
-			if errors.Is(err, errServerDisabled) {
-				log.Debug(err.Error())
-			} else {
-				log.Error(fmt.Sprintf("start %s failed", k), "err", err)
+func (l *listener) tcp() {
+	for {
+		select {
+		case <-l.ctx.Done():
+			return
+		case stream := <-l.tcpChannel:
+			if stream.Address.Port().Port() == 53 && l.hijackDNS {
+				if err := l.dnsHandler.HandleTCP(l.ctx, stream.Src); err != nil {
+					log.Error("tcp server handle DnsHijacking failed", "err", err)
+				}
+				continue
 			}
+
+			l.handler.Stream(l.ctx, stream)
 		}
 	}
 }
 
+func (l *listener) udp() {
+	for {
+		select {
+		case <-l.ctx.Done():
+			return
+		case packet := <-l.udpChannel:
+			if packet.Dst.Port().Port() == 53 && l.hijackDNS {
+				go func() {
+					ctx := l.ctx
+					if l.fakeip {
+						ctx = context.WithValue(l.ctx, netapi.ForceFakeIP{}, true)
+					}
+
+					err := l.dnsHandler.Do(ctx, packet.Payload, func(b []byte) error {
+						_, err := packet.WriteBack(b, packet.Dst)
+						return err
+					})
+					if err != nil {
+						log.Error("udp server handle DnsHijacking failed", "err", err)
+					}
+				}()
+
+				continue
+			}
+
+			l.handler.Packet(l.ctx, packet)
+		}
+	}
+}
+
+func (l *listener) Update(current *pc.Setting) {
+	// TODO
+	// l.hijackDNS = current.Server.HijackDns
+	// l.fakeip = current.Server.HijackDnsFakeip
+
+	l.store.Range(func(key string, v store) bool {
+		var close bool = true
+		if strings.HasPrefix(key, "server-") {
+			z1, ok1 := current.Server.Servers[strings.TrimPrefix(key, "server-")]
+			close = !ok1 || !z1.Enabled
+		} else if strings.HasPrefix(key, "inbound-") {
+			z2, ok2 := current.Server.Inbounds[strings.TrimPrefix(key, "inbound-")]
+			close = !ok2 || !z2.Enabled
+		}
+
+		if close {
+			v.server.Close()
+			l.store.Delete(key)
+		}
+		return true
+	})
+
+	start := func(name string, enabled bool, config proto.Message, start func() (netapi.ProtocolServer, error)) {
+		err := l.start(name, enabled, config, start)
+		if err != nil {
+			if errors.Is(err, errServerDisabled) {
+				log.Debug(err.Error())
+			} else {
+				log.Error(fmt.Sprintf("start %s failed", name), "err", err)
+			}
+		}
+	}
+
+	for k, v := range current.Server.Servers {
+		start("server-"+k, v.Enabled, v,
+			func() (netapi.ProtocolServer, error) { return pl.CreateServer(v.Protocol) })
+
+	}
+
+	for k, v := range current.Server.Inbounds {
+		start("inbound-"+k, v.Enabled, v,
+			func() (netapi.ProtocolServer, error) { return pl.Listen(v) })
+
+	}
+
+}
+
 var errServerDisabled = errors.New("disabled")
 
-func (l *listener) start(name string, config *pl.Protocol) error {
+func (l *listener) start(name string, enabled bool, config proto.Message, start func() (netapi.ProtocolServer, error)) error {
 	v, ok := l.store.Load(name)
 	if ok {
 		if proto.Equal(v.config, config) {
@@ -161,20 +330,57 @@ func (l *listener) start(name string, config *pl.Protocol) error {
 		l.store.Delete(name)
 	}
 
-	if !config.Enabled {
-		return fmt.Errorf("server %s %w", config.Name, errServerDisabled)
+	if !enabled {
+		return fmt.Errorf("server %s %w", name, errServerDisabled)
 	}
 
-	server, err := pl.CreateServer(pl.CovertOpts(l.opts, func(pl.IsProtocol_Protocol) pl.IsProtocol_Protocol { return config.Protocol }))
+	server, err := start()
 	if err != nil {
 		return fmt.Errorf("create server %s failed: %w", name, err)
 	}
+
+	l.startForward(server)
 
 	l.store.Store(name, store{config, server})
 	return nil
 }
 
+func (l *listener) startForward(server netapi.ProtocolServer) {
+	go func() {
+		for {
+			stream, err := server.AcceptStream()
+			if err != nil {
+				log.Error("accept stream failed", "err", err)
+				return
+			}
+
+			select {
+			case <-l.ctx.Done():
+				return
+			case l.tcpChannel <- stream:
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			packet, err := server.AcceptPacket()
+			if err != nil {
+				log.Error("accept packet failed", "err", err)
+				return
+			}
+
+			select {
+			case <-l.ctx.Done():
+				return
+			case l.udpChannel <- packet:
+			}
+		}
+	}()
+}
+
 func (l *listener) Close() error {
+	l.close()
 	l.store.Range(func(key string, value store) bool {
 		log.Info("start close server", "name", key)
 		defer log.Info("closed server", "name", key)

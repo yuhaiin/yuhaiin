@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
 )
@@ -26,7 +28,30 @@ type Server struct {
 	handler netapi.Handler
 }
 
-func NewServer(packetConn net.PacketConn, tlsConfig *tls.Config, handler netapi.Handler) (*Server, error) {
+func init() {
+	listener.RegisterNetwork(NewServer)
+}
+
+func NewServer(c *listener.Inbound_Quic) (listener.InboundI, error) {
+	packetConn, err := dialer.ListenPacket("udp", c.Quic.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConfig, err := listener.ParseTLS(c.Quic.Tls)
+	if err != nil {
+		return nil, err
+	}
+
+	lis, err := newServer(packetConn, tlsConfig, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return listener.NewEmptyPacketInbound(lis), nil
+}
+
+func newServer(packetConn net.PacketConn, tlsConfig *tls.Config, handler netapi.Handler) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		packetConn: packetConn,
@@ -94,39 +119,41 @@ func (s *Server) server() error {
 
 func (s *Server) listenQuicConnection(conn quic.Connection) {
 	defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "") // nolint:errcheck
-	// because of https://github.com/quic-go/quic-go/blob/5b72f4c900f209b5705bb0959399d59e495a2c6e/internal/protocol/params.go#L137
-	// MaxDatagramFrameSize Too short, here use stream trans udp data until quic-go will auto frag lager frame
-	// udp
-	go func() {
-		conn := NewConnectionPacketConn(context.Background(), conn)
-		for {
-			id, data, addr, err := conn.Receive()
-			if err != nil {
-				log.Error("receive message failed:", "err", err)
-				break
+	if s.handler != nil {
+		// because of https://github.com/quic-go/quic-go/blob/5b72f4c900f209b5705bb0959399d59e495a2c6e/internal/protocol/params.go#L137
+		// MaxDatagramFrameSize Too short, here use stream trans udp data until quic-go will auto frag lager frame
+		// udp
+		go func() {
+			conn := NewConnectionPacketConn(context.Background(), conn)
+			for {
+				id, data, addr, err := conn.Receive()
+				if err != nil {
+					log.Error("receive message failed:", "err", err)
+					break
+				}
+
+				address, err := netapi.ParseSysAddr(addr)
+				if err != nil {
+					log.Error("parse address failed:", "err", err)
+					continue
+				}
+
+				s.handler.Packet(conn.conn.Context(), &netapi.Packet{
+					Src:     &QuicAddr{Addr: conn.conn.RemoteAddr(), ID: quic.StreamID(id)},
+					Dst:     address,
+					Payload: pool.NewBytesV2(data),
+					WriteBack: func(b []byte, addr net.Addr) (int, error) {
+						err := conn.Write(b, id, addr)
+						if err != nil {
+							return 0, err
+						}
+
+						return len(b), nil
+					},
+				})
 			}
-
-			address, err := netapi.ParseSysAddr(addr)
-			if err != nil {
-				log.Error("parse address failed:", "err", err)
-				continue
-			}
-
-			s.handler.Packet(conn.conn.Context(), &netapi.Packet{
-				Src:     &QuicAddr{Addr: conn.conn.RemoteAddr(), ID: quic.StreamID(id)},
-				Dst:     address,
-				Payload: pool.NewBytesV2(data),
-				WriteBack: func(b []byte, addr net.Addr) (int, error) {
-					err := conn.Write(b, id, addr)
-					if err != nil {
-						return 0, err
-					}
-
-					return len(b), nil
-				},
-			})
-		}
-	}()
+		}()
+	}
 
 	for {
 		stream, err := conn.AcceptStream(s.ctx)

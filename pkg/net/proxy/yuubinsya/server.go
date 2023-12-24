@@ -3,7 +3,6 @@ package yuubinsya
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -15,130 +14,63 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
+	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	quicgo "github.com/quic-go/quic-go"
 )
 
 type server struct {
-	Config
 	Listener   net.Listener
 	handshaker entity.Handshaker
-	handler    netapi.Handler
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	tcpChannel chan *netapi.StreamMeta
+	udpChannel chan *netapi.Packet
 }
 
-type Type int
-
-var (
-	RAW_TCP   Type = 1
-	TLS       Type = 2
-	QUIC      Type = 3
-	WEBSOCKET Type = 4
-	GRPC      Type = 5
-	HTTP2     Type = 6
-	REALITY   Type = 7
-)
-
-type Config struct {
-	Handler             netapi.Handler
-	Host                string
-	Password            []byte
-	TlsConfig           *tls.Config
-	Type                Type
-	ForceDisableEncrypt bool
-
-	NewListener func(net.Listener) (net.Listener, error)
+func init() {
+	pl.RegisterProtocol2(NewServer)
 }
 
-func (c Config) String() string {
-	return fmt.Sprintf(`
-	{
-		"host": "%s",
-		"password": "%s",
-		"type": %d,
-	}
-	`, c.Host, c.Password, c.Type)
-}
+func NewServer(config *pl.Inbound_Yuubinsya) func(pl.InboundI) (netapi.ProtocolServer, error) {
 
-func NewServer(config Config) *server {
-	return &server{
-		Config:     config,
-		handler:    config.Handler,
-		handshaker: NewHandshaker(!config.ForceDisableEncrypt && config.TlsConfig == nil, config.Password),
-	}
-}
-
-type listener struct {
-	net.Listener
-	closer []io.Closer
-}
-
-func (l *listener) Close() error {
-	for _, v := range l.closer {
-		v.Close()
-	}
-
-	return l.Listener.Close()
-}
-
-func (y *server) Server() (net.Listener, error) {
-	if y.Type == QUIC {
-		packetConn, err := dialer.ListenPacket("udp", y.Host)
-		if err != nil {
-			return nil, err
-		}
-		quicListener, err := quic.NewServer(packetConn, y.TlsConfig, y.handler)
-		if err != nil {
-			packetConn.Close()
-			return nil, err
+	return func(ii pl.InboundI) (netapi.ProtocolServer, error) {
+		ctx, cancel := context.WithCancel(context.TODO())
+		s := &server{
+			Listener:   ii,
+			handshaker: NewHandshaker(!config.Yuubinsya.ForceDisableEncrypt, []byte(config.Yuubinsya.Password)),
+			ctx:        ctx,
+			cancel:     cancel,
+			tcpChannel: make(chan *netapi.StreamMeta, 100),
+			udpChannel: make(chan *netapi.Packet, 100),
 		}
 
-		return &listener{quicListener, []io.Closer{packetConn}}, nil
-	}
+		go func() {
+			if err := s.Start(); err != nil {
+				log.Error("yuubinsya server failed:", "err", err)
+			}
+		}()
 
-	tcpListener, err := dialer.ListenContext(context.TODO(), "tcp", y.Host)
-	if err != nil {
-		return nil, err
+		return s, nil
 	}
-
-	if y.TlsConfig != nil {
-		tcpListener = tls.NewListener(tcpListener, y.TlsConfig)
-	}
-
-	if y.NewListener != nil {
-		tcpListener, err = y.NewListener(tcpListener)
-	}
-
-	return tcpListener, err
 }
 
 func (y *server) Start() (err error) {
-	if y.Listener, err = y.Server(); err != nil {
-		return
-	}
-	defer y.Listener.Close()
-
-	log.Info("new yuubinsya server", "type", y.Type, "host", y.Listener.Addr())
+	log.Info("new yuubinsya server", "host", y.Listener.Addr())
 
 	for {
 		conn, err := y.Listener.Accept()
 		if err != nil {
 			log.Error("accept failed", "err", err)
-
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				continue
-			}
 			return err
-		}
-
-		if c, ok := conn.(interface{ SetKeepAlive(bool) error }); ok {
-			_ = c.SetKeepAlive(true)
 		}
 
 		go func() {
@@ -170,13 +102,17 @@ func (y *server) handle(conn net.Conn) error {
 
 		addr := target.Address(statistic.Type_tcp)
 
-		y.handler.Stream(context.TODO(), &netapi.StreamMeta{
+		select {
+		case <-y.ctx.Done():
+			return y.ctx.Err()
+		case y.tcpChannel <- &netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
 			Destination: addr,
 			Inbound:     c.LocalAddr(),
 			Src:         c,
 			Address:     addr,
-		})
+		}:
+		}
 	case entity.UDP:
 		return func() error {
 			defer c.Close()
@@ -221,35 +157,54 @@ func (y *server) forwardPacket(c net.Conn) error {
 		src = &quic.QuicAddr{Addr: c.RemoteAddr(), ID: conn.StreamID()}
 	}
 
-	y.Config.Handler.Packet(
-		context.TODO(),
-		&netapi.Packet{
-			Src:     src,
-			Dst:     addr.Address(statistic.Type_udp),
-			Payload: bufv2,
-			WriteBack: func(buf []byte, from net.Addr) (int, error) {
-				addr, err := netapi.ParseSysAddr(from)
-				if err != nil {
-					return 0, err
-				}
+	select {
+	case <-y.ctx.Done():
+		return y.ctx.Err()
+	case y.udpChannel <- &netapi.Packet{
+		Src:     src,
+		Dst:     addr.Address(statistic.Type_udp),
+		Payload: bufv2,
+		WriteBack: func(buf []byte, from net.Addr) (int, error) {
+			addr, err := netapi.ParseSysAddr(from)
+			if err != nil {
+				return 0, err
+			}
 
-				s5Addr := s5c.ParseAddr(addr)
+			s5Addr := s5c.ParseAddr(addr)
 
-				buffer := pool.GetBytesV2(len(s5Addr) + 2 + nat.MaxSegmentSize)
-				defer pool.PutBytesV2(buffer)
+			buffer := pool.GetBytesV2(len(s5Addr) + 2 + nat.MaxSegmentSize)
+			defer pool.PutBytesV2(buffer)
 
-				copy(buffer.Bytes(), s5Addr)
-				binary.BigEndian.PutUint16(buffer.Bytes()[len(s5Addr):], uint16(len(buf)))
-				copy(buffer.Bytes()[len(s5Addr)+2:], buf)
+			copy(buffer.Bytes(), s5Addr)
+			binary.BigEndian.PutUint16(buffer.Bytes()[len(s5Addr):], uint16(len(buf)))
+			copy(buffer.Bytes()[len(s5Addr)+2:], buf)
 
-				if _, err := c.Write(buffer.Bytes()[:len(s5Addr)+2+len(buf)]); err != nil {
-					return 0, err
-				}
+			if _, err := c.Write(buffer.Bytes()[:len(s5Addr)+2+len(buf)]); err != nil {
+				return 0, err
+			}
 
-				return len(buf), nil
-			},
-		})
+			return len(buf), nil
+		},
+	}:
+	}
 	return nil
+}
+
+func (y *server) AcceptStream() (*netapi.StreamMeta, error) {
+	select {
+	case <-y.ctx.Done():
+		return nil, y.ctx.Err()
+	case meta := <-y.tcpChannel:
+		return meta, nil
+	}
+}
+func (y *server) AcceptPacket() (*netapi.Packet, error) {
+	select {
+	case <-y.ctx.Done():
+		return nil, y.ctx.Err()
+	case packet := <-y.udpChannel:
+		return packet, nil
+	}
 }
 
 func write403(conn net.Conn) {

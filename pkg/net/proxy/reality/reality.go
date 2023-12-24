@@ -1,35 +1,24 @@
 package reality
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/xtls/reality"
 )
-
-type Server struct {
-	net.Listener
-}
 
 /*
 Private key: CKr8-tipwbEwwDa97S3Rwqzs9L8AlcLOCZJah1zjLlw
 Public key: SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8
 */
 
-type ServerConfig struct {
-	ShortID     []string // "0123456789abcdef", ""
-	ServerNames []string
-	Dest        string
-	PrivateKey  []byte
-	Debug       bool
-}
+func ShortIDMap(s *listener.Transport_Reality) (map[[8]byte]bool, error) {
+	maps := make(map[[8]byte]bool, len(s.Reality.ShortId))
 
-func (s *ServerConfig) ShortIDMap() (map[[8]byte]bool, error) {
-	maps := make(map[[8]byte]bool, len(s.ShortID))
-
-	for _, v := range s.ShortID {
+	for _, v := range s.Reality.ShortId {
 		var id [8]byte
 		length, err := hex.Decode(id[:], []byte(v))
 		if err != nil {
@@ -46,32 +35,42 @@ func (s *ServerConfig) ShortIDMap() (map[[8]byte]bool, error) {
 	return maps, nil
 }
 
-func (s *ServerConfig) ServerNameMap() map[string]bool {
-	maps := make(map[string]bool, len(s.ServerNames))
+func ServerNameMap(s *listener.Transport_Reality) map[string]bool {
+	maps := make(map[string]bool, len(s.Reality.ServerName))
 
-	for _, v := range s.ServerNames {
+	for _, v := range s.Reality.ServerName {
 		maps[v] = true
 	}
 
 	return maps
 }
 
-func NewServer(lis net.Listener, config ServerConfig) (*Server, error) {
-	ids, err := config.ShortIDMap()
+func NewServer(config *listener.Transport_Reality) func(listener.InboundI) (listener.InboundI, error) {
+	privateKey, err := base64.RawURLEncoding.DecodeString(config.Reality.PrivateKey)
 	if err != nil {
-		return nil, err
+		return listener.ErrorTransportFunc(err)
 	}
 
-	return &Server{
-		reality.NewListener(lis, &reality.Config{
+	ids, err := ShortIDMap(config)
+	if err != nil {
+		return listener.ErrorTransportFunc(err)
+	}
+
+	return func(ii listener.InboundI) (listener.InboundI, error) {
+		return listener.NewWrapListener(reality.NewListener(ii, &reality.Config{
 			DialContext:            dialer.DialContext,
-			Show:                   config.Debug,
+			Show:                   config.Reality.Debug,
 			Type:                   "tcp",
 			ShortIds:               ids,
-			ServerNames:            config.ServerNameMap(),
-			Dest:                   config.Dest,
-			PrivateKey:             config.PrivateKey,
+			ServerNames:            ServerNameMap(config),
+			Dest:                   config.Reality.Dest,
+			PrivateKey:             privateKey,
 			SessionTicketsDisabled: true,
-		}),
-	}, nil
+		}), ii), nil
+
+	}
+}
+
+func init() {
+	listener.RegisterTransport(NewServer)
 }

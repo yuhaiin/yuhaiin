@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	grpc "google.golang.org/grpc"
 )
@@ -19,7 +20,17 @@ type Grpc struct {
 	Server   *grpc.Server
 }
 
-func NewServer(lis net.Listener) *Grpc {
+func init() {
+	listener.RegisterTransport(NewServer)
+}
+
+func NewServer(c *listener.Transport_Grpc) func(listener.InboundI) (listener.InboundI, error) {
+	return func(ii listener.InboundI) (listener.InboundI, error) {
+		return listener.NewWrapListener(newServer(ii), ii), nil
+	}
+}
+
+func newServer(lis net.Listener) *Grpc {
 	g := NewGrpcNoServer()
 	g.listener = lis
 	go g.Server.Serve(lis)

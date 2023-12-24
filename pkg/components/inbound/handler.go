@@ -73,8 +73,6 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 		ctx, cancel := context.WithTimeout(ctx, Timeout)
 		defer cancel()
 
-		// TODO hijacking dns
-
 		ctx = netapi.NewStore(ctx)
 
 		if err := s.table.Write(ctx, pack); err != nil {
