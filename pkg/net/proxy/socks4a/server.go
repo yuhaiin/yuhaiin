@@ -12,7 +12,6 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -27,7 +26,11 @@ const (
 type Server struct {
 	lis        net.Listener
 	usernameID string
-	handler    netapi.Handler
+
+	ctx   context.Context
+	close context.CancelFunc
+
+	tcpChannel chan *netapi.StreamMeta
 }
 
 func (s *Server) Handle(conn net.Conn) error {
@@ -37,13 +40,18 @@ func (s *Server) Handle(conn net.Conn) error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	s.handler.Stream(context.TODO(), &netapi.StreamMeta{
+	select {
+	case <-s.ctx.Done():
+		return s.ctx.Err()
+	case s.tcpChannel <- &netapi.StreamMeta{
 		Source:      conn.RemoteAddr(),
 		Destination: addr,
 		Inbound:     conn.LocalAddr(),
 		Src:         conn,
 		Address:     addr,
-	})
+	}:
+	}
+
 	return nil
 }
 
@@ -114,6 +122,8 @@ func readData(conn net.Conn) ([]byte, error) {
 }
 
 func (s *Server) Close() error {
+	s.close()
+
 	if s.lis != nil {
 		return s.lis.Close()
 	}
@@ -147,31 +157,36 @@ func (s *Server) Server() {
 	}
 }
 
-func NewServerHandler(o *listener.Opts[*listener.Protocol_Socks4A]) *Server {
-	return &Server{
-		handler:    o.Handler,
-		usernameID: o.Protocol.Socks4A.Username,
+func (s *Server) AcceptPacket() (*netapi.Packet, error) {
+	return nil, io.EOF
+}
+
+func (s *Server) AcceptStream() (*netapi.StreamMeta, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case meta := <-s.tcpChannel:
+		return meta, nil
 	}
 }
 
-func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks4A], start bool) netapi.Server {
-	s := &Server{
-		handler:    o.Handler,
-		usernameID: o.Protocol.Socks4A.Username,
-		lis:        lis,
-	}
+func init() {
+	listener.RegisterProtocol2(NewServer)
+}
 
-	if start {
+func NewServer(o *listener.Inbound_Socks4A) func(listener.InboundI) (netapi.ProtocolServer, error) {
+	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+		ctx, cancel := context.WithCancel(context.TODO())
+		s := &Server{
+			usernameID: o.Socks4A.Username,
+			lis:        ii,
+			ctx:        ctx,
+			close:      cancel,
+			tcpChannel: make(chan *netapi.StreamMeta, 100),
+		}
+
 		go s.Server()
-	}
-	return s
-}
 
-func NewServer(o *listener.Opts[*listener.Protocol_Socks4A]) (netapi.Server, error) {
-	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Socks4A.Host)
-	if err != nil {
-		return nil, err
+		return s, nil
 	}
-
-	return NewServerWithListener(lis, o, true), nil
 }

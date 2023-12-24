@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/libp2p/go-yamux/v4"
 )
 
@@ -17,7 +18,17 @@ type MuxServer struct {
 	connChan chan net.Conn
 }
 
-func NewServer(lis net.Listener) *MuxServer {
+func init() {
+	listener.RegisterTransport(NewServer)
+}
+
+func NewServer(config *listener.Transport_Mux) func(listener.InboundI) (listener.InboundI, error) {
+	return func(ii listener.InboundI) (listener.InboundI, error) {
+		return listener.NewWrapListener(newServer(ii), ii), nil
+	}
+}
+
+func newServer(lis net.Listener) *MuxServer {
 	ctx, cancel := context.WithCancel(context.TODO())
 	mux := &MuxServer{
 		Listener: lis,

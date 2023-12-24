@@ -12,6 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -29,7 +30,17 @@ type Server struct {
 	conns syncmap.SyncMap[string, net.Conn]
 }
 
-func NewServer(lis net.Listener) *Server {
+func init() {
+	listener.RegisterTransport(NewServer)
+}
+
+func NewServer(c *listener.Transport_Http2) func(listener.InboundI) (listener.InboundI, error) {
+	return func(ii listener.InboundI) (listener.InboundI, error) {
+		return listener.NewWrapListener(newServer(ii), ii), nil
+	}
+}
+
+func newServer(lis net.Listener) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	h := &Server{

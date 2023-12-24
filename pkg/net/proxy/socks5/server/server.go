@@ -9,7 +9,6 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -18,13 +17,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func (s *Socks5) newTCPServer(lis net.Listener) {
-	s.lis = lis
-
+func (s *Socks5) startTCPServer() {
 	go func() {
 		defer s.Close()
 		for {
-			conn, err := lis.Accept()
+			conn, err := s.lis.Accept()
 			if err != nil {
 				log.Error("socks5 accept failed", "err", err)
 
@@ -52,19 +49,19 @@ func (s *Socks5) Handle(client net.Conn) (err error) {
 	b := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(b)
 
-	err = handshake1(client, s.username, s.password, b)
+	err = s.handshake1(client, b)
 	if err != nil {
 		return fmt.Errorf("first hand failed: %w", err)
 	}
 
-	if err = handshake2(client, s.handler, b, s.UDP); err != nil {
+	if err = s.handshake2(client, b); err != nil {
 		return fmt.Errorf("second hand failed: %w", err)
 	}
 
 	return
 }
 
-func handshake1(client net.Conn, user, key string, buf []byte) error {
+func (s *Socks5) handshake1(client net.Conn, buf []byte) error {
 	//socks5 first handshake
 	if _, err := io.ReadFull(client, buf[:2]); err != nil {
 		return fmt.Errorf("read first handshake failed: %w", err)
@@ -86,7 +83,7 @@ func handshake1(client net.Conn, user, key string, buf []byte) error {
 		return fmt.Errorf("read methods failed: %w", err)
 	}
 
-	noNeedVerify := user == "" && key == ""
+	noNeedVerify := s.username == "" && s.password == ""
 	userAndPasswordSupport := false
 
 	for _, v := range buf[:nMethods] { // range all supported methods
@@ -100,7 +97,7 @@ func handshake1(client net.Conn, user, key string, buf []byte) error {
 	}
 
 	if userAndPasswordSupport {
-		return verifyUserPass(client, user, key)
+		return verifyUserPass(client, s.username, s.password)
 	}
 
 	err := writeHandshake1(client, s5c.NoAcceptableMethods)
@@ -154,7 +151,7 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return err
 }
 
-func handshake2(client net.Conn, f netapi.Handler, buf []byte, udp bool) error {
+func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
 	// socks5 second handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
@@ -186,16 +183,20 @@ func handshake2(client net.Conn, f netapi.Handler, buf []byte, udp bool) error {
 			return err
 		}
 
-		f.Stream(context.TODO(), &netapi.StreamMeta{
+		select {
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case s.tcpChannel <- &netapi.StreamMeta{
 			Source:      client.RemoteAddr(),
 			Destination: addr,
 			Inbound:     client.LocalAddr(),
 			Src:         client,
 			Address:     addr,
-		})
+		}:
+		}
 
 	case s5c.Udp: // udp
-		if udp {
+		if s.udp {
 			err = handleUDP(client)
 			break
 		}
@@ -239,66 +240,63 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 }
 
 type Socks5 struct {
-	UDP       bool
-	udpServer net.PacketConn
-	lis       net.Listener
-
-	handler  netapi.Handler
+	udp      bool
+	lis      listener.InboundI
 	username string
 	password string
+
+	ctx   context.Context
+	close context.CancelFunc
+
+	tcpChannel chan *netapi.StreamMeta
+	udpChannel chan *netapi.Packet
 }
 
 func (s *Socks5) Close() error {
-	var err error
-
-	if s.udpServer != nil {
-		if er := s.udpServer.Close(); er != nil {
-			err = errors.Join(err, er)
-		}
-	}
-
-	if s.lis != nil {
-		if er := s.lis.Close(); er != nil {
-			err = errors.Join(err, er)
-		}
-	}
-
-	return err
+	s.close()
+	return s.lis.Close()
 }
 
-func NewServerHandler(o *listener.Opts[*listener.Protocol_Socks5], udp bool) *Socks5 {
-	return &Socks5{
-		handler:  o.Handler,
-		username: o.Protocol.Socks5.Username,
-		password: o.Protocol.Socks5.Password,
-		UDP:      udp,
+func (s *Socks5) AcceptStream() (*netapi.StreamMeta, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case meta := <-s.tcpChannel:
+		return meta, nil
 	}
 }
 
-func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Socks5], udp bool) (netapi.Server, error) {
-	s := NewServerHandler(o, udp)
-
-	s.UDP = udp
-
-	if udp {
-		var err error
-		s.udpServer, err = NewUDPServer(o.Protocol.Socks5.Host, o.Handler)
-		if err != nil {
-			s.Close()
-			return nil, fmt.Errorf("new udp server failed: %w", err)
-		}
+func (s *Socks5) AcceptPacket() (*netapi.Packet, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case packet := <-s.udpChannel:
+		return packet, nil
 	}
-
-	s.newTCPServer(lis)
-
-	return s, nil
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Socks5], udp bool) (netapi.Server, error) {
-	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Socks5.Host)
-	if err != nil {
-		return nil, err
-	}
+func init() {
+	listener.RegisterProtocol2(NewServer)
+}
 
-	return NewServerWithListener(lis, o, udp)
+func NewServer(o *listener.Inbound_Socks5) func(listener.InboundI) (netapi.ProtocolServer, error) {
+	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+		ctx, cancel := context.WithCancel(context.TODO())
+		s := &Socks5{
+			udp:        o.Socks5.Udp,
+			username:   o.Socks5.Username,
+			password:   o.Socks5.Password,
+			lis:        ii,
+			ctx:        ctx,
+			close:      cancel,
+			tcpChannel: make(chan *netapi.StreamMeta, 100),
+			udpChannel: make(chan *netapi.Packet, 100),
+		}
+
+		if s.udp {
+			s.startUDPServer()
+		}
+		s.startTCPServer()
+		return s, nil
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -17,9 +18,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(*Opts[IsProtocol_Protocol]) (netapi.Server, error)]
+var execProtocol syncmap.SyncMap[reflect.Type, func(isProtocol_Protocol) (netapi.ProtocolServer, error)]
 
-func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (netapi.Server, error)) {
+func RegisterProtocol[T isProtocol_Protocol](wrap func(T) (netapi.ProtocolServer, error)) {
 	if wrap == nil {
 		return
 	}
@@ -27,44 +28,22 @@ func RegisterProtocol[T isProtocol_Protocol](wrap func(*Opts[T]) (netapi.Server,
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(p *Opts[IsProtocol_Protocol]) (netapi.Server, error) {
-			return wrap(CovertOpts(p, func(p IsProtocol_Protocol) T { return p.(T) }))
+		func(p isProtocol_Protocol) (netapi.ProtocolServer, error) {
+			return wrap(p.(T))
 		},
 	)
 }
 
-type ProcessDumper interface {
-	ProcessName(network string, src, dst netapi.Address) (string, error)
-}
-
-type Opts[T isProtocol_Protocol] struct {
-	IPv6 bool
-
-	Protocol T
-
-	DNSHandler netapi.DNSHandler
-	Handler    netapi.Handler
-}
-
-type IsProtocol_Protocol interface {
-	isProtocol_Protocol
-}
-
-func CovertOpts[T1, T2 isProtocol_Protocol](o *Opts[T1], f func(t T1) T2) *Opts[T2] {
-	return &Opts[T2]{
-		DNSHandler: o.DNSHandler,
-		IPv6:       o.IPv6,
-		Protocol:   f(o.Protocol),
-		Handler:    o.Handler,
-	}
-}
-
-func CreateServer(opts *Opts[IsProtocol_Protocol]) (netapi.Server, error) {
-	conn, ok := execProtocol.Load(reflect.TypeOf(opts.Protocol))
+func CreateServer(opts isProtocol_Protocol) (netapi.ProtocolServer, error) {
+	conn, ok := execProtocol.Load(reflect.TypeOf(opts))
 	if !ok {
-		return nil, fmt.Errorf("protocol %v is not support", opts.Protocol)
+		return nil, fmt.Errorf("protocol %v is not support", opts)
 	}
 	return conn(opts)
+}
+
+type ProcessDumper interface {
+	ProcessName(network string, src, dst netapi.Address) (string, error)
 }
 
 func (t *TlsConfig) ParseCertificates() []tls.Certificate {
@@ -215,4 +194,172 @@ func (m *Protocol_Mix) SOCKS4A() *Protocol_Socks4A {
 			Username: m.Mix.Username,
 		},
 	}
+}
+
+var networkStore syncmap.SyncMap[reflect.Type, func(isInbound_Network) (InboundI, error)]
+
+func init() {
+	RegisterNetwork(func(o *Inbound_Empty) (InboundI, error) { return nil, nil })
+}
+
+func RegisterNetwork[T isInbound_Network](wrap func(T) (InboundI, error)) {
+	if wrap == nil {
+		return
+	}
+
+	var z T
+	networkStore.Store(
+		reflect.TypeOf(z),
+		func(p isInbound_Network) (InboundI, error) {
+			return wrap(p.(T))
+		},
+	)
+}
+
+func Network(config isInbound_Network) (InboundI, error) {
+	nc, ok := networkStore.Load(reflect.TypeOf(config))
+	if !ok {
+		return nil, fmt.Errorf("network %v is not support", config)
+	}
+
+	return nc(config)
+}
+
+var transportStore syncmap.SyncMap[reflect.Type, func(isTransport_Transport) func(InboundI) (InboundI, error)]
+
+func RegisterTransport[T isTransport_Transport](wrap func(T) func(InboundI) (InboundI, error)) {
+	if wrap == nil {
+		return
+	}
+
+	var z T
+	transportStore.Store(
+		reflect.TypeOf(z),
+		func(p isTransport_Transport) func(InboundI) (InboundI, error) {
+			return wrap(p.(T))
+		},
+	)
+}
+
+func Transports(lis InboundI, protocols []*Transport) (InboundI, error) {
+	var err error
+	for _, v := range protocols {
+		fn, ok := transportStore.Load(reflect.TypeOf(v.Transport))
+		if !ok {
+			return nil, fmt.Errorf("transport %v is not support", v.Transport)
+		}
+
+		lis, err = fn(v.Transport)(lis)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return lis, nil
+}
+
+type InboundI interface {
+	net.Listener
+	InboundPacket
+}
+
+type InboundPacket interface {
+	ReadFrom(p []byte) (n int, addr net.Addr, err error)
+	WriteTo(p []byte, addr net.Addr) (n int, err error)
+}
+
+type WrapListener struct {
+	InboundI
+	lis net.Listener
+}
+
+func NewWrapListener(lis net.Listener, inbound InboundI) *WrapListener {
+	return &WrapListener{
+		InboundI: inbound,
+		lis:      lis,
+	}
+}
+
+func (w *WrapListener) Accept() (net.Conn, error) {
+	return w.lis.Accept()
+}
+
+func (w *WrapListener) Close() error {
+	w.lis.Close()
+	return w.InboundI.Close()
+}
+
+func (w *WrapListener) Addr() net.Addr {
+	return w.lis.Addr()
+}
+
+type EmptyPacketInbound struct {
+	net.Listener
+}
+
+func NewEmptyPacketInbound(lis net.Listener) InboundI {
+	return &EmptyPacketInbound{
+		Listener: lis,
+	}
+}
+
+func (EmptyPacketInbound) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	return 0, nil, io.EOF
+}
+
+func (EmptyPacketInbound) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	return 0, io.ErrClosedPipe
+}
+
+func ErrorTransportFunc(err error) func(InboundI) (InboundI, error) {
+	return func(ii InboundI) (InboundI, error) {
+		return nil, err
+	}
+}
+
+var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(InboundI) (netapi.ProtocolServer, error)]
+
+func RegisterProtocol2[T isInbound_Protocol](wrap func(T) func(InboundI) (netapi.ProtocolServer, error)) {
+	if wrap == nil {
+		return
+	}
+
+	var z T
+	protocolStore.Store(
+		reflect.TypeOf(z),
+		func(p isInbound_Protocol) func(InboundI) (netapi.ProtocolServer, error) {
+			return wrap(p.(T))
+		},
+	)
+}
+
+func Protocols(lis InboundI, config isInbound_Protocol) (netapi.ProtocolServer, error) {
+	nc, ok := protocolStore.Load(reflect.TypeOf(config))
+	if !ok {
+		return nil, fmt.Errorf("protocol %v is not support", config)
+	}
+
+	return nc(config)(lis)
+}
+
+func Listen(config *Inbound) (netapi.ProtocolServer, error) {
+	lis, err := Network(config.Network)
+	if err != nil {
+		return nil, err
+	}
+
+	tl, err := Transports(lis, config.Transport)
+	if err != nil {
+		_ = lis.Close()
+		return nil, err
+	}
+
+	pl, err := Protocols(tl, config.Protocol)
+	if err != nil {
+		_ = tl.Close()
+		_ = lis.Close()
+		return nil, err
+	}
+
+	return pl, nil
 }

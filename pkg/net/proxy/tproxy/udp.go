@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	cl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/sys/unix"
 )
@@ -210,22 +209,10 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstA
 	return
 }
 
-type udpserver struct {
-	lis net.PacketConn
-}
-
-func (u *udpserver) Close() error {
-	return u.lis.Close()
-}
-
-func isHandleDNS(port uint16) bool {
-	return port == 53
-}
-
-func newUDP(opt *cl.Opts[*cl.Protocol_Tproxy]) (*udpserver, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", opt.Protocol.Tproxy.GetHost())
+func (t *Tproxy) newUDP() error {
+	udpAddr, err := net.ResolveUDPAddr("udp", t.host)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	lis, err := dialer.ListenPacketWithOptions("udp", udpAddr.String(), &dialer.Options{
 		MarkSymbol: func(socket int32) bool {
@@ -233,30 +220,30 @@ func newUDP(opt *cl.Opts[*cl.Protocol_Tproxy]) (*udpserver, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	udpLis, ok := lis.(*net.UDPConn)
 	if !ok {
 		lis.Close()
-		return nil, fmt.Errorf("listen is not udplistener")
+		return fmt.Errorf("listen is not udplistener")
 	}
 
 	sysConn, err := udpLis.SyscallConn()
 	if err != nil {
 		lis.Close()
-		return nil, err
+		return err
 	}
 
 	err = controlUDP(sysConn)
 	if err != nil {
 		lis.Close()
-		return nil, err
+		return err
 	}
 
 	log.Info("new tproxy udp server", "host", lis.LocalAddr())
 
-	s := &udpserver{lis: lis}
+	t.udp = lis
 
 	go func() {
 		for {
@@ -273,31 +260,13 @@ func newUDP(opt *cl.Opts[*cl.Protocol_Tproxy]) (*udpserver, error) {
 
 			buf.ResetSize(0, n)
 
-			if isHandleDNS(uint16(dst.Port)) && opt.Protocol.Tproxy.GetDnsHijacking() {
-				go func() {
-					ctx := context.TODO()
-					if opt.Protocol.Tproxy.GetForceFakeip() {
-						ctx = context.WithValue(ctx, netapi.ForceFakeIP{}, true)
-					}
-
-					err := opt.DNSHandler.Do(ctx, buf, func(b []byte) error {
-						back, err := DialUDP("udp", dst, src)
-						if err != nil {
-							return fmt.Errorf("udp server dial failed: %w", err)
-						}
-						defer back.Close()
-						_, err = back.Write(b)
-						return err
-					})
-					if err != nil {
-						log.Error("udp server handle DnsHijacking failed", "err", err)
-					}
-				}()
-				continue
-			}
-
 			dstAddr, _ := netapi.ParseSysAddr(dst)
-			opt.Handler.Packet(context.TODO(), &netapi.Packet{
+
+			select {
+			case <-t.ctx.Done():
+				return
+
+			case t.udpChannel <- &netapi.Packet{
 				Src:     src,
 				Dst:     dstAddr,
 				Payload: buf,
@@ -327,9 +296,10 @@ func newUDP(opt *cl.Opts[*cl.Protocol_Tproxy]) (*udpserver, error) {
 
 					return n, nil
 				},
-			})
+			}:
+			}
 		}
 	}()
 
-	return s, nil
+	return nil
 }

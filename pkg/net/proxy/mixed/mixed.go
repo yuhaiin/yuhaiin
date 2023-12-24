@@ -2,13 +2,10 @@ package mixed
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
@@ -19,61 +16,106 @@ import (
 type Mixed struct {
 	lis net.Listener
 
-	http      *httpproxy.HandleServer
-	socks5    *s5s.Socks5
-	socks5UDP net.PacketConn
-	socks4a   *socks4a.Server
+	ctx   context.Context
+	close context.CancelFunc
+
+	s5c *netapi.ChannelListener
+	s5  netapi.ProtocolServer
+
+	s4c *netapi.ChannelListener
+	s4  netapi.ProtocolServer
+
+	httpc *netapi.ChannelListener
+	http  netapi.ProtocolServer
+
+	tcpChannel chan *netapi.StreamMeta
+	udpChannel chan *netapi.Packet
 }
 
-func optToHTTP(o *listener.Opts[*listener.Protocol_Mix]) *listener.Opts[*listener.Protocol_Http] {
-	return listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Http { return l.HTTP() })
+func init() {
+	listener.RegisterProtocol2(NewServer)
 }
 
-func optToSocks5(o *listener.Opts[*listener.Protocol_Mix]) *listener.Opts[*listener.Protocol_Socks5] {
-	return listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks5 { return l.SOCKS5() })
-}
-
-func optToSocks4A(o *listener.Opts[*listener.Protocol_Mix]) *listener.Opts[*listener.Protocol_Socks4A] {
-	return listener.CovertOpts(o, func(l *listener.Protocol_Mix) *listener.Protocol_Socks4A { return l.SOCKS4A() })
-}
-
-func NewServer(o *listener.Opts[*listener.Protocol_Mix]) (netapi.Server, error) {
-	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Mix.Host)
-	if err != nil {
-		return nil, fmt.Errorf("new listener failed: %w", err)
-	}
-
-	s5UDP, err := s5s.NewUDPServer(o.Protocol.Mix.Host, o.Handler)
-	if err != nil {
-		return nil, err
-	}
-
-	m := &Mixed{
-		lis,
-		httpproxy.NewServerHandler(optToHTTP(o), lis.Addr()),
-		s5s.NewServerHandler(optToSocks5(o), true),
-		s5UDP,
-		socks4a.NewServerHandler(optToSocks4A(o)),
-	}
-
-	go func() {
-		if err := m.handle(); err != nil {
-			log.Debug("mixed handle failed", "err", err)
+func NewServer(o *listener.Inbound_Mix) func(lis listener.InboundI) (netapi.ProtocolServer, error) {
+	return func(lis listener.InboundI) (netapi.ProtocolServer, error) {
+		var err error
+		ctx, cancel := context.WithCancel(context.Background())
+		mix := &Mixed{
+			lis:        lis,
+			ctx:        ctx,
+			close:      cancel,
+			tcpChannel: make(chan *netapi.StreamMeta, 100),
+			udpChannel: make(chan *netapi.Packet, 100),
 		}
-	}()
 
-	return m, nil
+		mix.s5c = netapi.NewChannelListener(lis.Addr())
+		mix.s5, err = s5s.NewServer(&listener.Inbound_Socks5{
+			Socks5: &listener.Socks5{
+				Host:     o.Mix.Host,
+				Username: o.Mix.Username,
+				Password: o.Mix.Password,
+				Udp:      true,
+			},
+		})(listener.NewWrapListener(mix.s5c, lis))
+		if err != nil {
+			mix.Close()
+			return nil, err
+		}
+		mix.NewChanInbound(mix.s5)
+
+		mix.s4c = netapi.NewChannelListener(lis.Addr())
+		mix.s4, err = socks4a.NewServer(&listener.Inbound_Socks4A{
+			Socks4A: &listener.Socks4A{
+				Host:     o.Mix.Host,
+				Username: o.Mix.Username,
+			},
+		})(listener.NewWrapListener(mix.s4c, lis))
+		if err != nil {
+			mix.Close()
+			return nil, err
+		}
+		mix.NewChanInbound(mix.s4)
+
+		mix.httpc = netapi.NewChannelListener(lis.Addr())
+		mix.http, err = httpproxy.NewServer(&listener.Inbound_Http{
+			Http: &listener.Http{
+				Host:     o.Mix.Host,
+				Username: o.Mix.Username,
+				Password: o.Mix.Password,
+			},
+		})(listener.NewWrapListener(mix.httpc, lis))
+		if err != nil {
+			mix.Close()
+			return nil, err
+		}
+		mix.NewChanInbound(mix.http)
+
+		go func() {
+			defer mix.Close()
+			if err := mix.handle(); err != nil {
+				log.Debug("mixed handle failed", "err", err)
+			}
+		}()
+
+		return mix, nil
+	}
 }
 
 func (m *Mixed) Close() error {
-	if m.http != nil {
-		_ = m.http.Close()
-	}
-	if m.socks5UDP != nil {
-		_ = m.socks5UDP.Close()
-	}
-
+	m.close()
+	noneNilClose(m.s5c)
+	noneNilClose(m.s5)
+	noneNilClose(m.s4c)
+	noneNilClose(m.s4)
+	noneNilClose(m.httpc)
+	noneNilClose(m.http)
 	return m.lis.Close()
+}
+
+func noneNilClose(i io.Closer) {
+	if i != nil {
+		_ = i.Close()
+	}
 }
 
 func (m *Mixed) handle() error {
@@ -99,20 +141,62 @@ func (m *Mixed) handle() error {
 
 			switch protocol[0] {
 			case 0x05:
-				err = m.socks5.Handle(conn)
+				m.s5c.NewConn(conn)
 			case 0x04:
-				err = m.socks4a.Handle(conn)
+				m.s4c.NewConn(conn)
 			default:
-				err = m.http.Handle(conn)
-			}
-
-			if err != nil {
-				if errors.Is(err, netapi.ErrBlocked) {
-					log.Debug(err.Error())
-				} else {
-					log.Error("mixed handle failed", "err", err)
-				}
+				m.httpc.NewConn(conn)
 			}
 		}()
 	}
+}
+
+func (s *Mixed) AcceptStream() (*netapi.StreamMeta, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case meta := <-s.tcpChannel:
+		return meta, nil
+	}
+}
+
+func (s *Mixed) AcceptPacket() (*netapi.Packet, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case packet := <-s.udpChannel:
+		return packet, nil
+	}
+}
+
+func (m *Mixed) NewChanInbound(s netapi.ProtocolServer) {
+	go func() {
+		for {
+			stream, err := s.AcceptStream()
+			if err != nil {
+				return
+			}
+
+			select {
+			case <-m.ctx.Done():
+				return
+			case m.tcpChannel <- stream:
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			packet, err := s.AcceptPacket()
+			if err != nil {
+				return
+			}
+
+			select {
+			case <-m.ctx.Done():
+				return
+			case m.udpChannel <- packet:
+			}
+		}
+	}()
 }

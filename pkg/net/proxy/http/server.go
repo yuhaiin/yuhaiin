@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 	_ "unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -23,24 +23,25 @@ type Server struct {
 	username, password string
 	inbound            net.Addr
 	reverseProxy       *httputil.ReverseProxy
-	handler            netapi.Handler
+
+	ctx   context.Context
+	close context.CancelFunc
+
+	tcpChannel chan *netapi.StreamMeta
+
+	lis listener.InboundI
 }
 
-func NewServer(o *listener.Opts[*listener.Protocol_Http]) (netapi.Server, error) {
-	lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Protocol.Http.Host)
-	if err != nil {
-		return nil, err
-	}
+func newServer(o *listener.Inbound_Http, inbound net.Addr) *Server {
+	ctx, cancel := context.WithCancel(context.TODO())
 
-	return NewServerWithListener(lis, o), nil
-}
-
-func newServer(o *listener.Opts[*listener.Protocol_Http], inbound net.Addr) *Server {
 	h := &Server{
-		username: o.Protocol.Http.Username,
-		password: o.Protocol.Http.Password,
-		handler:  o.Handler,
-		inbound:  inbound,
+		username:   o.Http.Username,
+		password:   o.Http.Password,
+		inbound:    inbound,
+		ctx:        ctx,
+		close:      cancel,
+		tcpChannel: make(chan *netapi.StreamMeta, 100),
 	}
 
 	type remoteKey struct{}
@@ -64,13 +65,18 @@ func newServer(o *listener.Opts[*listener.Protocol_Http], inbound net.Addr) *Ser
 			}
 
 			local, remote := net.Pipe()
-			o.Handler.Stream(ctx, &netapi.StreamMeta{
+
+			select {
+			case <-h.ctx.Done():
+				return nil, h.ctx.Err()
+			case h.tcpChannel <- &netapi.StreamMeta{
 				Source:      source,
 				Inbound:     h.inbound,
 				Destination: address,
 				Src:         local,
 				Address:     address,
-			})
+			}:
+			}
 
 			return remote, nil
 		},
@@ -92,18 +98,6 @@ func newServer(o *listener.Opts[*listener.Protocol_Http], inbound net.Addr) *Ser
 	}
 
 	return h
-}
-
-func NewServerWithListener(lis net.Listener, o *listener.Opts[*listener.Protocol_Http]) netapi.Server {
-	h := newServer(o, lis.Addr())
-
-	go func() {
-		defer lis.Close()
-		if err := http.Serve(lis, h); err != nil {
-			log.Error("http serve failed:", err)
-		}
-	}()
-	return lis
 }
 
 //go:linkname parseBasicAuth net/http.parseBasicAuth
@@ -160,27 +154,57 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 		source = netapi.ParseAddressPort(statistic.Type_tcp, req.RemoteAddr, netapi.EmptyPort)
 	}
 
-	h.handler.Stream(context.TODO(), &netapi.StreamMeta{
+	select {
+	case <-h.ctx.Done():
+		return h.ctx.Err()
+	case h.tcpChannel <- &netapi.StreamMeta{
 		Inbound:     h.inbound,
 		Source:      source,
 		Src:         client,
 		Destination: dst,
 		Address:     dst,
-	})
+	}:
+	}
 	return nil
 }
 
-type HandleServer struct {
-	netapi.Server
-	chanLis *netapi.ChannelListener
+func (s *Server) AcceptPacket() (*netapi.Packet, error) {
+	return nil, io.EOF
 }
 
-func NewServerHandler(o *listener.Opts[*listener.Protocol_Http], inbound net.Addr) *HandleServer {
-	cl := netapi.NewChannelListener(inbound)
-
-	return &HandleServer{NewServerWithListener(cl, o), cl}
+func (s *Server) AcceptStream() (*netapi.StreamMeta, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case meta := <-s.tcpChannel:
+		return meta, nil
+	}
 }
-func (h *HandleServer) Handle(c net.Conn) error {
-	h.chanLis.NewConn(c)
+
+func (s *Server) Close() error {
+	s.close()
+	if s.lis != nil {
+		return s.lis.Close()
+	}
+
 	return nil
+}
+
+func init() {
+	listener.RegisterProtocol2(NewServer)
+}
+
+func NewServer(o *listener.Inbound_Http) func(listener.InboundI) (netapi.ProtocolServer, error) {
+	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+		s := newServer(o, ii.Addr())
+
+		go func() {
+			defer ii.Close()
+			if err := http.Serve(ii, s); err != nil {
+				log.Error("http serve failed:", err)
+			}
+		}()
+
+		return s, nil
+	}
 }

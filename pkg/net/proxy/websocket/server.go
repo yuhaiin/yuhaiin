@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
 type Server struct {
@@ -21,7 +22,17 @@ type Server struct {
 	close    context.CancelFunc
 }
 
-func NewServer(lis net.Listener) *Server {
+func init() {
+	listener.RegisterTransport(NewServer)
+}
+
+func NewServer(c *listener.Transport_Websocket) func(listener.InboundI) (listener.InboundI, error) {
+	return func(ii listener.InboundI) (listener.InboundI, error) {
+		return listener.NewWrapListener(newServer(ii), ii), nil
+	}
+}
+
+func newServer(lis net.Listener) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		Listener: lis,
