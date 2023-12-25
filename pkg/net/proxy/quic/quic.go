@@ -18,59 +18,25 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-type packetChan struct {
-	ch     chan packet
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-func newPacketChan() *packetChan {
-	ctx, cancel := context.WithCancel(context.TODO())
-	return &packetChan{
-		ch:     make(chan packet, 30),
-		ctx:    ctx,
-		cancel: cancel,
-	}
-}
-
-func (p *packetChan) Close() {
-	p.cancel()
-}
-
-func (p *packetChan) Recv() (packet, error) {
-	select {
-	case <-p.ctx.Done():
-		return packet{}, io.EOF
-	case pkt := <-p.ch:
-		return pkt, nil
-	}
-}
-
-func (p *packetChan) Send(pkt packet) {
-	select {
-	case <-p.ctx.Done():
-	case p.ch <- pkt:
-	}
-}
-
 type Client struct {
 	netapi.EmptyDispatch
 
-	tlsConfig   *tls.Config
-	quicConfig  *quic.Config
-	dialer      netapi.Proxy
-	session     quic.Connection
-	fragSession *ConnectionPacketConn
-	sessionMu   sync.Mutex
+	tlsConfig  *tls.Config
+	quicConfig *quic.Config
+	dialer     netapi.Proxy
 
-	id     id.IDGenerator
-	udpMap syncmap.SyncMap[uint64, *packetChan]
+	session     quic.Connection
+	sessionMu   sync.Mutex
+	sessionUnix int64
+
+	packetConn *ConnectionPacketConn
+	natMap     syncmap.SyncMap[uint64, chan []byte]
+
+	idg id.IDGenerator
 }
 
 func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		log.Debug("new quic", "config", config)
-
 		tlsConfig := protocol.ParseTLSConfig(config.Quic.Tls)
 		if tlsConfig == nil {
 			tlsConfig = &tls.Config{}
@@ -120,38 +86,27 @@ func (c *Client) initSession(ctx context.Context) error {
 		return err
 	}
 
-	go func() {
-		defer log.Debug("session closed")
-		defer conn.Close()                                                          //nolint:errcheck
-		defer c.session.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "") //nolint:errcheck
-
-		conn := NewConnectionPacketConn(context.Background(), c.session)
-
-		for {
-			id, b, addr, err := conn.Receive()
-			if err != nil {
-				break
-			}
-
-			if err = c.handleDatagrams(id, addr, b); err != nil {
-				log.Debug("handle datagrams failed:", "err", err)
-			}
-		}
-	}()
+	pconn := NewConnectionPacketConn(context.TODO(), session)
 
 	c.session = session
-	c.fragSession = NewConnectionPacketConn(ctx, session)
-	return nil
-}
+	c.packetConn = pconn
+	c.sessionUnix = time.Now().Unix()
 
-func (c *Client) handleDatagrams(id uint64, addr net.Addr, b []byte) error {
-	x, ok := c.udpMap.Load(id)
-	if !ok {
-		return fmt.Errorf("unknown udp id: %d, %v", id, b[:2])
-	}
+	go func() {
+		for {
+			id, data, err := pconn.Receive()
+			if err != nil {
+				return
+			}
 
-	x.Send(packet{data: b, addr: addr})
+			cchan, ok := c.natMap.Load(id)
+			if !ok {
+				continue
+			}
 
+			cchan <- data
+		}
+	}()
 	return nil
 }
 
@@ -167,9 +122,9 @@ func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	}
 
 	return &interConn{
-		Stream: stream,
-		local:  c.session.LocalAddr(),
-		remote: s,
+		Stream:  stream,
+		session: c.session,
+		time:    c.sessionUnix,
 	}, nil
 }
 
@@ -178,14 +133,15 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	id := c.id.Generate()
-	msgChan := newPacketChan()
-	c.udpMap.Store(id, msgChan)
-	return &interPacketConn{
+	id := c.idg.Generate()
+	cchan := make(chan []byte, 10)
+	c.natMap.Store(id, cchan)
+
+	return &clientPacketConn{
 		c:       c,
-		session: c.fragSession,
-		msgChan: msgChan,
+		session: c.packetConn,
 		id:      id,
+		msg:     cchan,
 	}, nil
 }
 
@@ -193,8 +149,20 @@ var _ net.Conn = (*interConn)(nil)
 
 type interConn struct {
 	quic.Stream
-	local  net.Addr
-	remote net.Addr
+	session quic.Connection
+	time    int64
+}
+
+func (c *interConn) Read(p []byte) (n int, err error) {
+	n, err = c.Stream.Read(p)
+
+	if err != nil {
+		qe, ok := err.(*quic.StreamError)
+		if ok && qe.ErrorCode == quic.StreamErrorCode(quic.NoError) {
+			err = io.EOF
+		}
+	}
+	return
 }
 
 func (c *interConn) Close() error {
@@ -208,53 +176,77 @@ func (c *interConn) Close() error {
 	return err
 }
 
-func (c *interConn) LocalAddr() net.Addr { return c.local }
-
-func (c *interConn) RemoteAddr() net.Addr { return c.remote }
-
-type packet struct {
-	data []byte
-	addr net.Addr
+func (c *interConn) LocalAddr() net.Addr {
+	return &QuicAddr{
+		Addr: c.session.LocalAddr(),
+		ID:   c.Stream.StreamID(),
+		time: c.time,
+	}
 }
-type interPacketConn struct {
+
+func (c *interConn) RemoteAddr() net.Addr {
+	return &QuicAddr{
+		Addr: c.session.RemoteAddr(),
+		ID:   c.Stream.StreamID(),
+		time: c.time,
+	}
+}
+
+type QuicAddr struct {
+	Addr net.Addr
+	ID   quic.StreamID
+	time int64
+}
+
+func (q *QuicAddr) String() string {
+	if q.time == 0 {
+		return fmt.Sprint(q.Addr, q.ID)
+	}
+	return fmt.Sprint(q.Addr, q.time, q.ID)
+}
+
+func (q *QuicAddr) Network() string { return "quic" }
+
+type clientPacketConn struct {
+	c       *Client
 	session *ConnectionPacketConn
-	msgChan *packetChan
 	id      uint64
 
-	c *Client
-
+	msg      chan []byte
 	deadline *time.Timer
 }
 
-func (x *interPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	msg, err := x.msgChan.Recv()
-	if err != nil {
-		return 0, nil, err
+func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
+	msg, ok := <-x.msg
+	if !ok {
+		return 0, nil, io.EOF
 	}
 
-	n = copy(p, msg.data)
-	return n, msg.addr, nil
+	n = copy(p, msg)
+	return n, x.session.conn.RemoteAddr(), nil
 }
 
-func (x *interPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	err = x.session.Write(p, x.id, addr)
+func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
+	err = x.session.Write(p, x.id)
 	if err != nil {
 		return 0, err
 	}
 	return len(p), nil
 }
 
-func (x *interPacketConn) Close() error {
-	x.c.udpMap.Delete(uint64(x.id))
-	x.msgChan.Close()
+func (x *clientPacketConn) Close() error {
+	x.c.natMap.Delete(x.id)
 	return nil
 }
 
-func (x *interPacketConn) LocalAddr() net.Addr {
-	return x.session.conn.LocalAddr()
+func (x *clientPacketConn) LocalAddr() net.Addr {
+	return &QuicAddr{
+		Addr: x.session.conn.LocalAddr(),
+		ID:   quic.StreamID(x.id),
+	}
 }
 
-func (x *interPacketConn) SetDeadline(t time.Time) error {
+func (x *clientPacketConn) SetDeadline(t time.Time) error {
 	if x.deadline == nil {
 		if !t.IsZero() {
 			x.deadline = time.AfterFunc(time.Until(t), func() { x.Close() })
@@ -269,5 +261,5 @@ func (x *interPacketConn) SetDeadline(t time.Time) error {
 	}
 	return nil
 }
-func (x *interPacketConn) SetReadDeadline(t time.Time) error  { return x.SetDeadline(t) }
-func (x *interPacketConn) SetWriteDeadline(t time.Time) error { return x.SetDeadline(t) }
+func (x *clientPacketConn) SetReadDeadline(t time.Time) error  { return x.SetDeadline(t) }
+func (x *clientPacketConn) SetWriteDeadline(t time.Time) error { return x.SetDeadline(t) }

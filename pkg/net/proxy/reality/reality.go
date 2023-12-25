@@ -1,11 +1,13 @@
 package reality
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/xtls/reality"
 )
@@ -45,7 +47,7 @@ func ServerNameMap(s *listener.Transport_Reality) map[string]bool {
 	return maps
 }
 
-func NewServer(config *listener.Transport_Reality) func(listener.InboundI) (listener.InboundI, error) {
+func NewServer(config *listener.Transport_Reality) func(netapi.Listener) (netapi.Listener, error) {
 	privateKey, err := base64.RawURLEncoding.DecodeString(config.Reality.PrivateKey)
 	if err != nil {
 		return listener.ErrorTransportFunc(err)
@@ -56,8 +58,12 @@ func NewServer(config *listener.Transport_Reality) func(listener.InboundI) (list
 		return listener.ErrorTransportFunc(err)
 	}
 
-	return func(ii listener.InboundI) (listener.InboundI, error) {
-		return listener.NewWrapListener(reality.NewListener(ii, &reality.Config{
+	return func(ii netapi.Listener) (netapi.Listener, error) {
+		lis, err := ii.Stream(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+		return listener.NewWrapListener(reality.NewListener(lis, &reality.Config{
 			DialContext:            dialer.DialContext,
 			Show:                   config.Reality.Debug,
 			Type:                   "tcp",

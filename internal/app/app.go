@@ -169,9 +169,8 @@ func Start(opt StartOpt) (err error) {
 	dnsServer := AddComponent("dnsServer", resolver.NewDNSServer(fakedns))
 	// make dns flow across all proxy chain
 	dynamicProxy.Set(fakedns)
-	ss := AddComponent("inbound_handler", inbound.NewHandler(fakedns, dnsServer))
 	// inbound server
-	_ = AddComponent("inbound_listener", inbound.NewListener(dnsServer, ss))
+	_ = AddComponent("inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
 	App.Tools = tools.NewTools(fakedns, opt.Setting)
 	// http page

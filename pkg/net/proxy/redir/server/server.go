@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
@@ -37,14 +36,16 @@ func (r *redir) AcceptPacket() (*netapi.Packet, error) {
 	return nil, io.EOF
 }
 
-func NewServer(o *listener.Inbound_Redir) func(listener.InboundI) (netapi.ProtocolServer, error) {
-	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
-		lis, err := dialer.ListenContext(context.TODO(), "tcp", o.Redir.Host)
+func NewServer(o *listener.Inbound_Redir) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		lis, err := ii.Stream(ctx)
 		if err != nil {
+			cancel()
 			return nil, err
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
 		t := &redir{
 			lis:        lis,
 			ctx:        ctx,

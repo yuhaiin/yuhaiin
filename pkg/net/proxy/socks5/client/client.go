@@ -192,7 +192,7 @@ func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("listen udp failed: %w", err)
 	}
 
-	pc = newSocks5PacketConn(pc, conn, addr)
+	pc = NewSocks5PacketConn(pc, conn, addr)
 
 	go func() {
 		_, _ = relay.Copy(io.Discard, conn)
@@ -208,12 +208,14 @@ type socks5PacketConn struct {
 	server netapi.Address
 }
 
-func newSocks5PacketConn(local net.PacketConn, tcp net.Conn, target netapi.Address) net.PacketConn {
+func NewSocks5PacketConn(local net.PacketConn, tcp net.Conn, target netapi.Address) net.PacketConn {
 	return &socks5PacketConn{local, tcp, target}
 }
 
 func (s *socks5PacketConn) Close() error {
-	s.tcp.Close()
+	if s.tcp != nil {
+		s.tcp.Close()
+	}
 	return s.PacketConn.Close()
 }
 

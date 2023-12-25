@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -91,7 +90,7 @@ func DialUDP(network string, laddr *net.UDPAddr, raddr *net.UDPAddr) (*net.UDPCo
 		return nil, &net.OpError{Op: "dial", Err: fmt.Errorf("socket connect: %w", err)}
 	}
 
-	fdFile := os.NewFile(uintptr(fileDescriptor), fmt.Sprintf("net-udp-dial-%s", raddr.String()))
+	fdFile := os.NewFile(uintptr(fileDescriptor), "net-udp-dial-"+raddr.String())
 	defer fdFile.Close()
 
 	remoteConn, err := net.FileConn(fdFile)
@@ -109,15 +108,9 @@ func DialUDP(network string, laddr *net.UDPAddr, raddr *net.UDPAddr) (*net.UDPCo
 func udpAddrToSocketAddr(addr *net.UDPAddr) (syscall.Sockaddr, error) {
 	switch {
 	case addr.IP.To4() != nil:
-		ip := [4]byte{}
-		copy(ip[:], addr.IP.To4())
-
-		return &syscall.SockaddrInet4{Addr: ip, Port: addr.Port}, nil
+		return &syscall.SockaddrInet4{Addr: [4]byte(addr.IP.To4()), Port: addr.Port}, nil
 
 	default:
-		ip := [16]byte{}
-		copy(ip[:], addr.IP.To16())
-
 		var zoneID uint64
 		if addr.Zone != "" {
 			var err error
@@ -127,7 +120,7 @@ func udpAddrToSocketAddr(addr *net.UDPAddr) (syscall.Sockaddr, error) {
 			}
 		}
 
-		return &syscall.SockaddrInet6{Addr: ip, Port: addr.Port, ZoneId: uint32(zoneID)}, nil
+		return &syscall.SockaddrInet6{Addr: [16]byte(addr.IP.To16()), Port: addr.Port, ZoneId: uint32(zoneID)}, nil
 	}
 }
 
@@ -210,15 +203,7 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstA
 }
 
 func (t *Tproxy) newUDP() error {
-	udpAddr, err := net.ResolveUDPAddr("udp", t.host)
-	if err != nil {
-		return err
-	}
-	lis, err := dialer.ListenPacketWithOptions("udp", udpAddr.String(), &dialer.Options{
-		MarkSymbol: func(socket int32) bool {
-			return dialer.LinuxMarkSymbol(socket, 0xff) == nil
-		},
-	})
+	lis, err := t.lis.Packet(t.ctx)
 	if err != nil {
 		return err
 	}
@@ -243,9 +228,9 @@ func (t *Tproxy) newUDP() error {
 
 	log.Info("new tproxy udp server", "host", lis.LocalAddr())
 
-	t.udp = lis
-
 	go func() {
+		defer lis.Close()
+
 		for {
 			buf := pool.GetBytesV2(nat.MaxSegmentSize)
 			n, src, dst, err := ReadFromUDP(udpLis, buf.Bytes())

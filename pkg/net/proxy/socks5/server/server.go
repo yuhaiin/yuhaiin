@@ -17,11 +17,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func (s *Socks5) startTCPServer() {
+func (s *Socks5) startTCPServer() error {
+	lis, err := s.lis.Stream(s.ctx)
+	if err != nil {
+		return err
+	}
 	go func() {
 		defer s.Close()
+		defer lis.Close()
+
 		for {
-			conn, err := s.lis.Accept()
+			conn, err := lis.Accept()
 			if err != nil {
 				log.Error("socks5 accept failed", "err", err)
 
@@ -43,6 +49,8 @@ func (s *Socks5) startTCPServer() {
 
 		}
 	}()
+
+	return nil
 }
 
 func (s *Socks5) Handle(client net.Conn) (err error) {
@@ -241,7 +249,7 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 
 type Socks5 struct {
 	udp      bool
-	lis      listener.InboundI
+	lis      netapi.Listener
 	username string
 	password string
 
@@ -279,8 +287,8 @@ func init() {
 	listener.RegisterProtocol2(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Socks5) func(listener.InboundI) (netapi.ProtocolServer, error) {
-	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		s := &Socks5{
 			udp:        o.Socks5.Udp,
@@ -294,9 +302,16 @@ func NewServer(o *listener.Inbound_Socks5) func(listener.InboundI) (netapi.Proto
 		}
 
 		if s.udp {
-			s.startUDPServer()
+			if err := s.startUDPServer(); err != nil {
+				return nil, err
+			}
 		}
-		s.startTCPServer()
+
+		if err := s.startTCPServer(); err != nil {
+			s.Close()
+			return nil, err
+		}
+
 		return s, nil
 	}
 }

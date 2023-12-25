@@ -4,13 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"net"
 	"sync"
 	"sync/atomic"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/quic-go/quic-go"
 )
 
@@ -116,11 +112,11 @@ func NewConnectionPacketConn(ctx context.Context, conn quic.Connection) *Connect
 	return &ConnectionPacketConn{ctx: ctx, conn: conn, frag: Frag{}}
 }
 
-func (c *ConnectionPacketConn) Receive() (uint64, []byte, net.Addr, error) {
+func (c *ConnectionPacketConn) Receive() (uint64, []byte, error) {
 _retry:
 	data, err := c.conn.ReceiveDatagram(c.ctx)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	buf := c.frag.Merge(data)
@@ -130,23 +126,11 @@ _retry:
 
 	id := binary.BigEndian.Uint64(buf[:8])
 
-	addr, err := s5c.ResolveAddrBytes(buf[2:])
-	if err != nil {
-		return 0, nil, nil, err
-	}
-
-	return id, buf[2+len(addr):], addr.Address(statistic.Type_udp), nil
+	return id, buf[8:], nil
 }
 
-func (c *ConnectionPacketConn) Write(b []byte, id uint64, addr net.Addr) error {
-	ad, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return err
-	}
-
-	ADDR := s5c.ParseAddr(ad)
-
-	b = append(append(binary.BigEndian.AppendUint64(nil, id), ADDR...), b...)
+func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
+	b = append(binary.BigEndian.AppendUint64(nil, id), b...)
 
 	datas := c.frag.Split(b, int(MaxDatagramFrameSize))
 

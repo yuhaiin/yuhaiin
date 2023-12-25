@@ -64,13 +64,17 @@ func init() {
 	listener.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Transport_Tls) func(listener.InboundI) (listener.InboundI, error) {
+func NewServer(c *listener.Transport_Tls) func(netapi.Listener) (netapi.Listener, error) {
 	config, err := listener.ParseTLS(c.Tls.Tls)
 	if err != nil {
 		return listener.ErrorTransportFunc(err)
 	}
 
-	return func(ii listener.InboundI) (listener.InboundI, error) {
-		return listener.NewWrapListener(tls.NewListener(ii, config), ii), nil
+	return func(ii netapi.Listener) (netapi.Listener, error) {
+		lis, err := ii.Stream(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+		return listener.NewWrapListener(tls.NewListener(lis, config), ii), nil
 	}
 }

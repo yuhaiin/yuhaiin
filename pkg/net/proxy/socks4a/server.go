@@ -174,12 +174,17 @@ func init() {
 	listener.RegisterProtocol2(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Socks4A) func(listener.InboundI) (netapi.ProtocolServer, error) {
-	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+func NewServer(o *listener.Inbound_Socks4A) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+		lis, err := ii.Stream(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+
 		ctx, cancel := context.WithCancel(context.TODO())
 		s := &Server{
 			usernameID: o.Socks4A.Username,
-			lis:        ii,
+			lis:        lis,
 			ctx:        ctx,
 			close:      cancel,
 			tcpChannel: make(chan *netapi.StreamMeta, 100),

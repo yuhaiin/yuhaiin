@@ -51,7 +51,7 @@ func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool
 
 		t.udpAddrStore.Store(dst, uaddr)
 
-		if uaddr.String() != pkt.Dst.String() {
+		if pkt.Dst.Type() == netapi.IP && uaddr.String() != pkt.Dst.String() {
 			// TODO: maybe two dst(fake ip) have same uaddr, need help
 			t.originAddrStore.LoadOrStore(uaddr.String(), pkt.Dst)
 		}

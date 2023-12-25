@@ -2,8 +2,6 @@ package tproxy
 
 import (
 	"context"
-	"errors"
-	"net"
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -12,12 +10,9 @@ import (
 )
 
 type Tproxy struct {
-	host string
-
-	lis net.Listener
+	lis netapi.Listener
 
 	lisAddr netip.AddrPort
-	udp     net.PacketConn
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -30,16 +25,16 @@ func init() {
 	listener.RegisterProtocol2(NewTproxy)
 }
 
-func NewTproxy(opt *cl.Inbound_Tproxy) func(cl.InboundI) (netapi.ProtocolServer, error) {
-	return func(ii cl.InboundI) (netapi.ProtocolServer, error) {
+func NewTproxy(opt *cl.Inbound_Tproxy) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		t := &Tproxy{
-			host:       opt.Tproxy.Host,
 			ctx:        ctx,
 			cancel:     cancel,
 			udpChannel: make(chan *netapi.Packet, 100),
 			tcpChannel: make(chan *netapi.StreamMeta, 100),
+			lis:        ii,
 		}
 
 		if err := t.newTCP(); err != nil {
@@ -56,23 +51,8 @@ func NewTproxy(opt *cl.Inbound_Tproxy) func(cl.InboundI) (netapi.ProtocolServer,
 }
 
 func (t *Tproxy) Close() error {
-	var err error
-
 	t.cancel()
-
-	if t.udp != nil {
-		if er := t.udp.Close(); er != nil {
-			err = errors.Join(err, er)
-		}
-	}
-
-	if t.lis != nil {
-		if er := t.lis.Close(); er != nil {
-			err = errors.Join(err, er)
-		}
-	}
-
-	return err
+	return t.lis.Close()
 }
 
 func (s *Tproxy) AcceptStream() (*netapi.StreamMeta, error) {

@@ -16,8 +16,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
-func New(o *listener.Inbound_Tun) func(listener.InboundI) (netapi.ProtocolServer, error) {
-	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
 		gateway, gerr := netip.ParseAddr(o.Tun.Gateway)
 		portal, perr := netip.ParseAddr(o.Tun.Portal)
 		if gerr != nil || perr != nil {

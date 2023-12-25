@@ -13,15 +13,16 @@ type Server interface {
 	io.Closer
 }
 
+type Listener interface {
+	Stream(context.Context) (net.Listener, error)
+	Packet(context.Context) (net.PacketConn, error)
+	Server
+}
+
 type ProtocolServer interface {
 	Server
 	AcceptStream() (*StreamMeta, error)
 	AcceptPacket() (*Packet, error)
-}
-
-type Handler interface {
-	StreamHandler
-	PacketHandler
 }
 
 type StreamMeta struct {
@@ -33,19 +34,13 @@ type StreamMeta struct {
 	Address Address
 }
 
-type StreamHandler interface {
-	Stream(ctx context.Context, _ *StreamMeta)
-}
+type WriteBack func(b []byte, addr net.Addr) (int, error)
 
 type Packet struct {
 	Src       net.Addr
 	Dst       Address
-	WriteBack func(b []byte, addr net.Addr) (int, error)
+	WriteBack WriteBack
 	Payload   *pool.Bytes
-}
-
-type PacketHandler interface {
-	Packet(ctx context.Context, pack *Packet)
 }
 
 type DNSHandler interface {
