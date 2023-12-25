@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 func init() {
@@ -59,7 +60,7 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 	case t.tcpChannel <- &netapi.StreamMeta{
 		Source:      c.RemoteAddr(),
 		Destination: c.LocalAddr(),
-		Inbound:     t.lis.Addr(),
+		Inbound:     netapi.ParseAddrPort(statistic.Type_tcp, t.lisAddr),
 
 		Src:     c,
 		Address: target,
@@ -70,16 +71,18 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 }
 
 func (t *Tproxy) newTCP() error {
-	lis, err := dialer.ListenContextWithOptions(context.TODO(), "tcp", t.host, &dialer.Options{
-		MarkSymbol: func(socket int32) bool {
-			return dialer.LinuxMarkSymbol(socket, 0xff) == nil
-		},
-	})
+	lis, err := t.lis.Stream(t.ctx)
 	if err != nil {
 		return err
 	}
 
-	f, err := lis.(*net.TCPListener).SyscallConn()
+	tcpLis, ok := lis.(*net.TCPListener)
+	if !ok {
+		lis.Close()
+		return fmt.Errorf("listen is not tcp listener")
+	}
+
+	f, err := tcpLis.SyscallConn()
 	if err != nil {
 		lis.Close()
 		return err
@@ -93,7 +96,6 @@ func (t *Tproxy) newTCP() error {
 
 	log.Info("new tproxy tcp server", "host", lis.Addr())
 
-	t.lis = lis
 	t.lisAddr = lis.Addr().(*net.TCPAddr).AddrPort()
 
 	go func() {

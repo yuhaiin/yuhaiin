@@ -29,7 +29,7 @@ type Server struct {
 
 	tcpChannel chan *netapi.StreamMeta
 
-	lis listener.InboundI
+	lis net.Listener
 }
 
 func newServer(o *listener.Inbound_Http, inbound net.Addr) *Server {
@@ -194,13 +194,18 @@ func init() {
 	listener.RegisterProtocol2(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Http) func(listener.InboundI) (netapi.ProtocolServer, error) {
-	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
-		s := newServer(o, ii.Addr())
+func NewServer(o *listener.Inbound_Http) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+		lis, err := ii.Stream(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+
+		s := newServer(o, lis.Addr())
 
 		go func() {
 			defer ii.Close()
-			if err := http.Serve(ii, s); err != nil {
+			if err := http.Serve(lis, s); err != nil {
 				log.Error("http serve failed:", err)
 			}
 		}()

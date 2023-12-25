@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -167,42 +166,13 @@ func ParseTLS(t *TlsConfig) (*tls.Config, error) {
 	return tm.tlsConfig, nil
 }
 
-func (m *Protocol_Mix) HTTP() *Protocol_Http {
-	return &Protocol_Http{
-		Http: &Http{
-			Host:     m.Mix.Host,
-			Username: m.Mix.Username,
-			Password: m.Mix.Password,
-		},
-	}
-}
-
-func (m *Protocol_Mix) SOCKS5() *Protocol_Socks5 {
-	return &Protocol_Socks5{
-		Socks5: &Socks5{
-			Host:     m.Mix.Host,
-			Username: m.Mix.Username,
-			Password: m.Mix.Password,
-		},
-	}
-}
-
-func (m *Protocol_Mix) SOCKS4A() *Protocol_Socks4A {
-	return &Protocol_Socks4A{
-		Socks4A: &Socks4A{
-			Host:     m.Mix.Host,
-			Username: m.Mix.Username,
-		},
-	}
-}
-
-var networkStore syncmap.SyncMap[reflect.Type, func(isInbound_Network) (InboundI, error)]
+var networkStore syncmap.SyncMap[reflect.Type, func(isInbound_Network) (netapi.Listener, error)]
 
 func init() {
-	RegisterNetwork(func(o *Inbound_Empty) (InboundI, error) { return nil, nil })
+	RegisterNetwork(func(o *Inbound_Empty) (netapi.Listener, error) { return nil, nil })
 }
 
-func RegisterNetwork[T isInbound_Network](wrap func(T) (InboundI, error)) {
+func RegisterNetwork[T isInbound_Network](wrap func(T) (netapi.Listener, error)) {
 	if wrap == nil {
 		return
 	}
@@ -210,13 +180,13 @@ func RegisterNetwork[T isInbound_Network](wrap func(T) (InboundI, error)) {
 	var z T
 	networkStore.Store(
 		reflect.TypeOf(z),
-		func(p isInbound_Network) (InboundI, error) {
+		func(p isInbound_Network) (netapi.Listener, error) {
 			return wrap(p.(T))
 		},
 	)
 }
 
-func Network(config isInbound_Network) (InboundI, error) {
+func Network(config isInbound_Network) (netapi.Listener, error) {
 	nc, ok := networkStore.Load(reflect.TypeOf(config))
 	if !ok {
 		return nil, fmt.Errorf("network %v is not support", config)
@@ -225,9 +195,9 @@ func Network(config isInbound_Network) (InboundI, error) {
 	return nc(config)
 }
 
-var transportStore syncmap.SyncMap[reflect.Type, func(isTransport_Transport) func(InboundI) (InboundI, error)]
+var transportStore syncmap.SyncMap[reflect.Type, func(isTransport_Transport) func(netapi.Listener) (netapi.Listener, error)]
 
-func RegisterTransport[T isTransport_Transport](wrap func(T) func(InboundI) (InboundI, error)) {
+func RegisterTransport[T isTransport_Transport](wrap func(T) func(netapi.Listener) (netapi.Listener, error)) {
 	if wrap == nil {
 		return
 	}
@@ -235,13 +205,13 @@ func RegisterTransport[T isTransport_Transport](wrap func(T) func(InboundI) (Inb
 	var z T
 	transportStore.Store(
 		reflect.TypeOf(z),
-		func(p isTransport_Transport) func(InboundI) (InboundI, error) {
+		func(p isTransport_Transport) func(netapi.Listener) (netapi.Listener, error) {
 			return wrap(p.(T))
 		},
 	)
 }
 
-func Transports(lis InboundI, protocols []*Transport) (InboundI, error) {
+func Transports(lis netapi.Listener, protocols []*Transport) (netapi.Listener, error) {
 	var err error
 	for _, v := range protocols {
 		fn, ok := transportStore.Load(reflect.TypeOf(v.Transport))
@@ -258,68 +228,54 @@ func Transports(lis InboundI, protocols []*Transport) (InboundI, error) {
 	return lis, nil
 }
 
-type InboundI interface {
-	net.Listener
-	InboundPacket
-}
-
-type InboundPacket interface {
-	ReadFrom(p []byte) (n int, addr net.Addr, err error)
-	WriteTo(p []byte, addr net.Addr) (n int, err error)
-}
-
 type WrapListener struct {
-	InboundI
+	netapi.Listener
 	lis net.Listener
 }
 
-func NewWrapListener(lis net.Listener, inbound InboundI) *WrapListener {
+func NewWrapListener(lis net.Listener, inbound netapi.Listener) *WrapListener {
 	return &WrapListener{
-		InboundI: inbound,
+		Listener: inbound,
 		lis:      lis,
 	}
 }
 
-func (w *WrapListener) Accept() (net.Conn, error) {
-	return w.lis.Accept()
+func (w *WrapListener) Stream(ctx context.Context) (net.Listener, error) {
+	return w.lis, nil
 }
 
 func (w *WrapListener) Close() error {
 	w.lis.Close()
-	return w.InboundI.Close()
-}
-
-func (w *WrapListener) Addr() net.Addr {
-	return w.lis.Addr()
+	return w.Listener.Close()
 }
 
 type EmptyPacketInbound struct {
 	net.Listener
 }
 
-func NewEmptyPacketInbound(lis net.Listener) InboundI {
+func NewEmptyPacketInbound(lis net.Listener) netapi.Listener {
 	return &EmptyPacketInbound{
 		Listener: lis,
 	}
 }
 
-func (EmptyPacketInbound) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	return 0, nil, io.EOF
+func (e *EmptyPacketInbound) Stream(ctx context.Context) (net.Listener, error) {
+	return e.Listener, nil
 }
 
-func (EmptyPacketInbound) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	return 0, io.ErrClosedPipe
+func (EmptyPacketInbound) Packet(context.Context) (net.PacketConn, error) {
+	return nil, fmt.Errorf("not support")
 }
 
-func ErrorTransportFunc(err error) func(InboundI) (InboundI, error) {
-	return func(ii InboundI) (InboundI, error) {
+func ErrorTransportFunc(err error) func(netapi.Listener) (netapi.Listener, error) {
+	return func(ii netapi.Listener) (netapi.Listener, error) {
 		return nil, err
 	}
 }
 
-var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(InboundI) (netapi.ProtocolServer, error)]
+var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(netapi.Listener) (netapi.ProtocolServer, error)]
 
-func RegisterProtocol2[T isInbound_Protocol](wrap func(T) func(InboundI) (netapi.ProtocolServer, error)) {
+func RegisterProtocol2[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (netapi.ProtocolServer, error)) {
 	if wrap == nil {
 		return
 	}
@@ -327,13 +283,13 @@ func RegisterProtocol2[T isInbound_Protocol](wrap func(T) func(InboundI) (netapi
 	var z T
 	protocolStore.Store(
 		reflect.TypeOf(z),
-		func(p isInbound_Protocol) func(InboundI) (netapi.ProtocolServer, error) {
+		func(p isInbound_Protocol) func(netapi.Listener) (netapi.ProtocolServer, error) {
 			return wrap(p.(T))
 		},
 	)
 }
 
-func Protocols(lis InboundI, config isInbound_Protocol) (netapi.ProtocolServer, error) {
+func Protocols(lis netapi.Listener, config isInbound_Protocol) (netapi.ProtocolServer, error) {
 	nc, ok := protocolStore.Load(reflect.TypeOf(config))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", config)

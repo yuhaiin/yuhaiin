@@ -36,9 +36,13 @@ func init() {
 	listener.RegisterProtocol2(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Mix) func(lis listener.InboundI) (netapi.ProtocolServer, error) {
-	return func(lis listener.InboundI) (netapi.ProtocolServer, error) {
-		var err error
+func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+		lis, err := ii.Stream(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+
 		ctx, cancel := context.WithCancel(context.Background())
 		mix := &Mixed{
 			lis:        lis,
@@ -56,7 +60,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis listener.InboundI) (netapi.Prot
 				Password: o.Mix.Password,
 				Udp:      true,
 			},
-		})(listener.NewWrapListener(mix.s5c, lis))
+		})(listener.NewWrapListener(mix.s5c, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err
@@ -69,7 +73,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis listener.InboundI) (netapi.Prot
 				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
 			},
-		})(listener.NewWrapListener(mix.s4c, lis))
+		})(listener.NewWrapListener(mix.s4c, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err
@@ -83,7 +87,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis listener.InboundI) (netapi.Prot
 				Username: o.Mix.Username,
 				Password: o.Mix.Password,
 			},
-		})(listener.NewWrapListener(mix.httpc, lis))
+		})(listener.NewWrapListener(mix.httpc, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err

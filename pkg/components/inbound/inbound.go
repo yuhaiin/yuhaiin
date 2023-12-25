@@ -8,7 +8,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -24,6 +23,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
@@ -189,8 +189,7 @@ type store struct {
 type listener struct {
 	store syncmap.SyncMap[string, store]
 
-	handler    netapi.Handler
-	dnsHandler netapi.DNSHandler
+	handler *handler
 
 	ctx   context.Context
 	close context.CancelFunc
@@ -202,12 +201,11 @@ type listener struct {
 	fakeip    bool
 }
 
-func NewListener(dnsHandler netapi.DNSHandler, handler netapi.Handler) *listener {
+func NewListener(dnsHandler netapi.DNSHandler, dialer netapi.Proxy) *listener {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	l := &listener{
-		handler:    handler,
-		dnsHandler: dnsHandler,
+		handler:    NewHandler(dialer, dnsHandler),
 		ctx:        ctx,
 		close:      cancel,
 		tcpChannel: make(chan *netapi.StreamMeta, 100),
@@ -230,7 +228,7 @@ func (l *listener) tcp() {
 			return
 		case stream := <-l.tcpChannel:
 			if stream.Address.Port().Port() == 53 && l.hijackDNS {
-				if err := l.dnsHandler.HandleTCP(l.ctx, stream.Src); err != nil {
+				if err := l.handler.dnsHandler.HandleTCP(l.ctx, stream.Src); err != nil {
 					log.Error("tcp server handle DnsHijacking failed", "err", err)
 				}
 				continue
@@ -254,7 +252,7 @@ func (l *listener) udp() {
 						ctx = context.WithValue(l.ctx, netapi.ForceFakeIP{}, true)
 					}
 
-					err := l.dnsHandler.Do(ctx, packet.Payload, func(b []byte) error {
+					err := l.handler.dnsHandler.Do(ctx, packet.Payload, func(b []byte) error {
 						_, err := packet.WriteBack(b, packet.Dst)
 						return err
 					})
@@ -388,5 +386,5 @@ func (l *listener) Close() error {
 		l.store.Delete(key)
 		return true
 	})
-	return nil
+	return l.handler.Close()
 }

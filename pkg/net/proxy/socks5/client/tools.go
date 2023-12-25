@@ -127,24 +127,3 @@ func ResolveAddr(r io.Reader) (ADDR, error) {
 
 	return addr, nil
 }
-
-func ResolveAddrBytes(buf []byte) (ADDR, error) {
-	if len(buf) <= 4 {
-		return nil, fmt.Errorf("unable to read addr type, data too short")
-	}
-
-	var addr ADDR
-
-	switch buf[0] {
-	case IPv4:
-		addr = buf[:1+4+2]
-	case IPv6:
-		addr = buf[:1+16+2]
-	case Domain:
-		addr = buf[:1+1+buf[1]+2]
-	default:
-		return nil, fmt.Errorf("unknown addr type: %d", buf[0])
-	}
-
-	return addr, nil
-}

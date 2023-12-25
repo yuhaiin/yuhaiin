@@ -24,9 +24,14 @@ func init() {
 	listener.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Transport_Grpc) func(listener.InboundI) (listener.InboundI, error) {
-	return func(ii listener.InboundI) (listener.InboundI, error) {
-		return listener.NewWrapListener(newServer(ii), ii), nil
+func NewServer(c *listener.Transport_Grpc) func(netapi.Listener) (netapi.Listener, error) {
+	return func(ii netapi.Listener) (netapi.Listener, error) {
+		lis, err := ii.Stream(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+
+		return listener.NewWrapListener(newServer(lis), ii), nil
 	}
 }
 

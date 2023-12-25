@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 
@@ -15,7 +16,8 @@ type Server struct {
 	net.PacketConn
 
 	host string
-	mu   sync.Mutex
+	pmu  sync.Mutex
+	smu  sync.Mutex
 }
 
 func (s *Server) Close() error {
@@ -41,8 +43,8 @@ func (s *Server) initPacketConn() error {
 		return nil
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.pmu.Lock()
+	defer s.pmu.Unlock()
 
 	if s.PacketConn != nil {
 		return nil
@@ -58,31 +60,46 @@ func (s *Server) initPacketConn() error {
 	return nil
 }
 
-func (s *Server) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	if err := s.initPacketConn(); err != nil {
-		return 0, nil, err
+func (s *Server) initStream() error {
+	if s.Listener != nil {
+		return nil
 	}
 
-	return s.PacketConn.ReadFrom(p)
-}
-func (s *Server) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	if err := s.initPacketConn(); err != nil {
-		return 0, err
+	s.smu.Lock()
+	defer s.smu.Unlock()
+
+	if s.Listener != nil {
+		return nil
 	}
 
-	return s.PacketConn.WriteTo(p, addr)
-}
-
-func NewServer(c *listener.Inbound_Tcpudp) (listener.InboundI, error) {
-	lis, err := dialer.ListenContext(context.TODO(), "tcp", c.Tcpudp.Host)
+	lis, err := dialer.ListenContext(context.TODO(), "tcp", s.host)
 	if err != nil {
+		return err
+	}
+
+	s.Listener = lis
+
+	return nil
+}
+
+func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
+	if err := s.initPacketConn(); err != nil {
 		return nil, err
 	}
 
-	return &Server{
-		Listener: lis,
-		host:     c.Tcpudp.Host,
-	}, nil
+	return s.PacketConn, nil
+}
+
+func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
+	if err := s.initStream(); err != nil {
+		return nil, err
+	}
+
+	return s.Listener, nil
+}
+
+func NewServer(c *listener.Inbound_Tcpudp) (netapi.Listener, error) {
+	return &Server{host: c.Tcpudp.Host}, nil
 }
 
 func init() {

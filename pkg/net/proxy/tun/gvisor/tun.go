@@ -60,8 +60,8 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-func New(o *listener.Inbound_Tun) func(listener.InboundI) (netapi.ProtocolServer, error) {
-	return func(ii listener.InboundI) (netapi.ProtocolServer, error) {
+func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
 		opt := o.Tun
 		if opt.Mtu <= 0 {
 			opt.Mtu = 1500

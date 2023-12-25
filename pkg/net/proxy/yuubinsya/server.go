@@ -1,7 +1,6 @@
 package yuubinsya
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -9,24 +8,21 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	quicgo "github.com/quic-go/quic-go"
 )
 
 type server struct {
-	Listener   net.Listener
+	Listener   netapi.Listener
 	handshaker entity.Handshaker
 
 	ctx    context.Context
@@ -40,9 +36,8 @@ func init() {
 	pl.RegisterProtocol2(NewServer)
 }
 
-func NewServer(config *pl.Inbound_Yuubinsya) func(pl.InboundI) (netapi.ProtocolServer, error) {
-
-	return func(ii pl.InboundI) (netapi.ProtocolServer, error) {
+func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.ProtocolServer, error) {
+	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		s := &server{
 			Listener:   ii,
@@ -54,7 +49,13 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(pl.InboundI) (netapi.ProtocolS
 		}
 
 		go func() {
-			if err := s.Start(); err != nil {
+			if err := s.startUDP(); err != nil {
+				log.Error("yuubinsya server failed:", "err", err)
+			}
+		}()
+
+		go func() {
+			if err := s.startTCP(); err != nil {
 				log.Error("yuubinsya server failed:", "err", err)
 			}
 		}()
@@ -63,11 +64,29 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(pl.InboundI) (netapi.ProtocolS
 	}
 }
 
-func (y *server) Start() (err error) {
-	log.Info("new yuubinsya server", "host", y.Listener.Addr())
+func (y *server) startUDP() error {
+	packet, err := y.Listener.Packet(y.ctx)
+	if err != nil {
+		return err
+	}
+	defer packet.Close()
+
+	s5s.StartUDPServer(y.ctx, packet, y.udpChannel)
+
+	return nil
+}
+
+func (y *server) startTCP() (err error) {
+	lis, err := y.Listener.Stream(y.ctx)
+	if err != nil {
+		return err
+	}
+	defer lis.Close()
+
+	log.Info("new yuubinsya server", "host", lis.Addr())
 
 	for {
-		conn, err := y.Listener.Accept()
+		conn, err := lis.Accept()
 		if err != nil {
 			log.Error("accept failed", "err", err)
 			return err
@@ -89,7 +108,6 @@ func (y *server) handle(conn net.Conn) error {
 
 	net, err := y.handshaker.ParseHeader(c)
 	if err != nil {
-		write403(conn)
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
@@ -152,16 +170,11 @@ func (y *server) forwardPacket(c net.Conn) error {
 		return err
 	}
 
-	src := c.RemoteAddr()
-	if conn, ok := c.(interface{ StreamID() quicgo.StreamID }); ok {
-		src = &quic.QuicAddr{Addr: c.RemoteAddr(), ID: conn.StreamID()}
-	}
-
 	select {
 	case <-y.ctx.Done():
 		return y.ctx.Err()
 	case y.udpChannel <- &netapi.Packet{
-		Src:     src,
+		Src:     c.RemoteAddr(),
 		Dst:     addr.Address(statistic.Type_udp),
 		Payload: bufv2,
 		WriteBack: func(buf []byte, from net.Addr) (int, error) {
@@ -205,30 +218,4 @@ func (y *server) AcceptPacket() (*netapi.Packet, error) {
 	case packet := <-y.udpChannel:
 		return packet, nil
 	}
-}
-
-func write403(conn net.Conn) {
-	data := []byte(`<html>
-<head><title>403 Forbidden</title></head>
-<body>
-<center><h1>403 Forbidden</h1></center>
-<hr><center>openresty</center>
-</body>
-</html>`)
-	t := http.Response{
-		Status:        http.StatusText(http.StatusForbidden),
-		StatusCode:    http.StatusForbidden,
-		Body:          io.NopCloser(bytes.NewBuffer(data)),
-		Header:        http.Header{},
-		Proto:         "HTTP/2",
-		ProtoMajor:    2,
-		ProtoMinor:    2,
-		ContentLength: int64(len(data)),
-	}
-
-	t.Header.Add("content-type", "text/html")
-	t.Header.Add("date", time.Now().UTC().Format(time.RFC1123))
-	t.Header.Add("server", "openresty")
-
-	_ = t.Write(conn)
 }

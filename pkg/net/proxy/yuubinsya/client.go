@@ -21,6 +21,8 @@ import (
 type client struct {
 	netapi.Proxy
 
+	overTCP bool
+
 	handshaker entity.Handshaker
 }
 
@@ -28,6 +30,7 @@ func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		c := &client{
 			dialer,
+			config.Yuubinsya.UdpOverStream,
 			NewHandshaker(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password)),
 		}
 
@@ -57,6 +60,15 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			return c.netapi.PacketConn(addr)
 		}
 	*/
+
+	if !c.overTCP {
+		packet, err := c.Proxy.PacketConn(ctx, addr)
+		if err != nil {
+			return nil, err
+		}
+
+		return s5c.NewSocks5PacketConn(packet, nil, addr), nil
+	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
