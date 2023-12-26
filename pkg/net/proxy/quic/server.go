@@ -48,9 +48,13 @@ func NewServer(c *listener.Inbound_Quic) (netapi.Listener, error) {
 }
 
 func newServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error) {
-	lis, err := quic.Listen(packetConn, tlsConfig, &quic.Config{
+	tr := quic.Transport{
+		Conn:               packetConn,
+		ConnectionIDLength: 12,
+	}
+	lis, err := tr.Listen(tlsConfig, &quic.Config{
 		MaxIncomingStreams: 2048,
-		KeepAlivePeriod:    0,
+		KeepAlivePeriod:    45 * time.Second,
 		MaxIdleTimeout:     60 * time.Second,
 		EnableDatagrams:    true,
 		Allow0RTT:          true,
@@ -131,7 +135,7 @@ func (s *Server) listenQuicConnection(conn quic.Connection) error {
 
 	raddr := conn.RemoteAddr()
 
-	packetConn := NewConnectionPacketConn(s.ctx, conn)
+	packetConn := NewConnectionPacketConn(conn)
 
 	s.natMap.Store(raddr.String(), packetConn)
 	defer s.natMap.Delete(raddr.String())
@@ -141,7 +145,7 @@ func (s *Server) listenQuicConnection(conn quic.Connection) error {
 	// udp
 	go func() {
 		for {
-			id, data, err := packetConn.Receive()
+			id, data, err := packetConn.Receive(s.ctx)
 			if err != nil {
 				log.Error("receive message failed:", "err", err)
 				return

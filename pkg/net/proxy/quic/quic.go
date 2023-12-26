@@ -3,7 +3,6 @@ package quic
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
@@ -33,10 +33,25 @@ type Client struct {
 	natMap     syncmap.SyncMap[uint64, chan []byte]
 
 	idg id.IDGenerator
+
+	host      *net.UDPAddr
+	asNetwork bool
 }
 
 func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
+
+		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
+
+		if config.Quic.AsNetwork {
+			addr, err := net.ResolveUDPAddr("udp", config.Quic.Host)
+			if err != nil {
+				return nil, err
+			}
+
+			host = addr
+		}
+
 		tlsConfig := protocol.ParseTLSConfig(config.Quic.Tls)
 		if tlsConfig == nil {
 			tlsConfig = &tls.Config{}
@@ -46,10 +61,13 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 			dialer:    dialer,
 			tlsConfig: tlsConfig,
 			quicConfig: &quic.Config{
-				MaxIdleTimeout:  20 * time.Second,
-				KeepAlivePeriod: 20 * time.Second * 2 / 5,
-				EnableDatagrams: true,
+				MaxIncomingStreams: 2048,
+				MaxIdleTimeout:     60 * time.Second,
+				KeepAlivePeriod:    45 * time.Second,
+				EnableDatagrams:    true,
 			},
+			asNetwork: config.Quic.AsNetwork,
+			host:      host,
 		}
 
 		return c, nil
@@ -76,17 +94,29 @@ func (c *Client) initSession(ctx context.Context) error {
 		}
 	}
 
-	conn, err := c.dialer.PacketConn(ctx, netapi.EmptyAddr)
+	var conn net.PacketConn
+	var err error
+
+	if c.asNetwork {
+		conn, err = dialer.ListenPacket("udp", "")
+	} else {
+		conn, err = c.dialer.PacketConn(ctx, netapi.EmptyAddr)
+	}
 	if err != nil {
 		return err
 	}
 
-	session, err := quic.Dial(ctx, conn, &net.UDPAddr{IP: net.IPv4zero}, c.tlsConfig, c.quicConfig)
+	tr := quic.Transport{
+		Conn:               conn,
+		ConnectionIDLength: 12,
+	}
+
+	session, err := tr.DialEarly(ctx, c.host, c.tlsConfig, c.quicConfig)
 	if err != nil {
 		return err
 	}
 
-	pconn := NewConnectionPacketConn(context.TODO(), session)
+	pconn := NewConnectionPacketConn(session)
 
 	c.session = session
 	c.packetConn = pconn
@@ -94,7 +124,7 @@ func (c *Client) initSession(ctx context.Context) error {
 
 	go func() {
 		for {
-			id, data, err := pconn.Receive()
+			id, data, err := pconn.Receive(context.TODO())
 			if err != nil {
 				return
 			}
@@ -156,7 +186,18 @@ type interConn struct {
 func (c *interConn) Read(p []byte) (n int, err error) {
 	n, err = c.Stream.Read(p)
 
-	if err != nil {
+	if err != nil && err != io.EOF {
+		qe, ok := err.(*quic.StreamError)
+		if ok && qe.ErrorCode == quic.StreamErrorCode(quic.NoError) {
+			err = io.EOF
+		}
+	}
+	return
+}
+
+func (c *interConn) Write(p []byte) (n int, err error) {
+	n, err = c.Stream.Write(p)
+	if err != nil && err != io.EOF {
 		qe, ok := err.(*quic.StreamError)
 		if ok && qe.ErrorCode == quic.StreamErrorCode(quic.NoError) {
 			err = io.EOF
@@ -166,14 +207,7 @@ func (c *interConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *interConn) Close() error {
-	c.Stream.CancelRead(0)
-
-	var err error
-	if er := c.Stream.Close(); er != nil {
-		err = errors.Join(err, er)
-	}
-
-	return err
+	return c.Stream.Close()
 }
 
 func (c *interConn) LocalAddr() net.Addr {

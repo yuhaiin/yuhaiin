@@ -1,11 +1,11 @@
 package quic
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -70,33 +70,25 @@ func TestQuic(t *testing.T) {
 		n, addr, err := spc.ReadFrom(buf)
 		assert.NoError(t, err)
 
-		t.Log(string(buf[:n]), addr)
+		t.Log(string(buf[:n]), addr, bytes.Equal(buf[:n], append(cert, cert...)))
 	}()
-
-	p, err := simple.New(
-		&protocol.Protocol_Simple{
-			Simple: &protocol.Simple{
-				Host: "127.0.0.1",
-				Port: 1090,
-			},
-		},
-	)(nil)
-	assert.NoError(t, err)
 
 	qc, err := New(&protocol.Protocol_Quic{
 		Quic: &protocol.Quic{
+			Host:      "localhost:1090",
+			AsNetwork: true,
 			Tls: &protocol.TlsConfig{
 				Enable:             true,
 				InsecureSkipVerify: true,
 			},
 		},
-	})(p)
+	})(nil)
 	assert.NoError(t, err)
 
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 
-	_, err = pc.WriteTo(cert, nil)
+	_, err = pc.WriteTo(append(cert, cert...), nil)
 	assert.NoError(t, err)
 
 	<-ctx.Done()

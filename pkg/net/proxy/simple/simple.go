@@ -101,9 +101,9 @@ func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 
 	// tconn, ok := conn.(*net.TCPConn)
 	// if ok {
-		// _ = tconn.SetKeepAlive(true)
-		// https://github.com/golang/go/issues/48622
-		// _ = tconn.SetKeepAlivePeriod(time.Minute * 3)
+	// _ = tconn.SetKeepAlive(true)
+	// https://github.com/golang/go/issues/48622
+	// _ = tconn.SetKeepAlivePeriod(time.Minute * 3)
 	// }
 
 	return conn, nil

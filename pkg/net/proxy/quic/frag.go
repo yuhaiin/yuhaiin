@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
 )
 
@@ -14,48 +15,79 @@ import (
 var MaxDatagramFrameSize int64 = 1200 - 3
 
 type Frag struct {
-	SplitID atomic.Uint64
+	SplitID  atomic.Uint64
+	mergeMap syncmap.SyncMap[uint64, *MergeFrag]
 
-	mu       sync.Mutex
-	mergeMap map[uint64]*MergeFrag
-}
-
-type FragData struct {
-	PacketID uint64
-	Total    uint16
-	Current  uint16
+	timer *time.Timer
 }
 
 type MergeFrag struct {
-	Count uint16
+	Count uint32
+	Total uint32
 	Data  [][]byte
+	time  time.Time
+}
+
+func (f *Frag) close() {
+	if f.timer != nil {
+		f.timer.Stop()
+	}
+}
+
+func (f *Frag) collect(ctx context.Context) {
+	if f.timer == nil {
+		f.timer = time.NewTimer(60 * time.Second)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			f.close()
+			return
+
+		case <-f.timer.C:
+			now := time.Now()
+			f.mergeMap.Range(func(id uint64, v *MergeFrag) bool {
+				if now.Sub(v.time) > 30*time.Second {
+					f.mergeMap.Delete(id)
+				}
+				return true
+			})
+		}
+	}
 }
 
 func (f *Frag) Merge(buf []byte) []byte {
-	bb := bytes.NewBuffer(buf)
-	frag := FragData{}
-	binary.Read(bb, binary.BigEndian, &frag) //nolint:errcheck
+	fh := fragFrame(buf)
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.mergeMap == nil {
-		f.mergeMap = make(map[uint64]*MergeFrag)
+	if fh.Type() == FragmentTypeSingle {
+		return buf[1:]
 	}
 
-	mf, ok := f.mergeMap[frag.PacketID]
+	total := fh.Total()
+	index := fh.Current()
+	id := fh.ID()
+
+	mf, ok := f.mergeMap.Load(id)
+
+	if fh.Type() != FragmentTypeSplit || total == 0 || index >= total || (ok && uint32(total) != mf.Total) {
+		f.mergeMap.Delete(id)
+		return nil
+	}
+
 	if !ok {
-		mf = &MergeFrag{
-			Data: make([][]byte, frag.Total),
-		}
-		f.mergeMap[frag.PacketID] = mf
+		mf, _ = f.mergeMap.LoadOrStore(id, &MergeFrag{
+			Data:  make([][]byte, total),
+			Total: uint32(total),
+			time:  time.Now(),
+		})
 	}
 
-	mf.Count++
-	mf.Data[frag.Current] = bb.Bytes()
+	current := atomic.AddUint32(&mf.Count, 1)
+	mf.Data[index] = fh.Payload()
 
-	if mf.Count == frag.Total {
-		delete(f.mergeMap, frag.PacketID)
+	if current == mf.Total {
+		f.mergeMap.Delete(id)
 		return bytes.Join(mf.Data, []byte{})
 	}
 
@@ -67,16 +99,20 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 		return nil
 	}
 
-	id := f.SplitID.Add(1)
+	if len(buf) < maxSize-1 {
+		return [][]byte{append([]byte{byte(FragmentTypeSingle)}, buf...)}
+	}
 
-	maxSize = maxSize - 8 - 2 - 2
+	maxSize = maxSize - 8 - 2 - 2 - 1
 
 	frames := len(buf) / maxSize
 	if len(buf)%maxSize != 0 {
 		frames++
 	}
 
-	var datas [][]byte
+	var datas [][]byte = make([][]byte, 0, frames)
+
+	id := f.SplitID.Add(1)
 
 	for i := 0; i < frames; i++ {
 		var frame []byte
@@ -86,35 +122,26 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 			frame = buf[i*maxSize : (i+1)*maxSize]
 		}
 
-		f := FragData{
-			PacketID: id,
-			Total:    uint16(frames),
-			Current:  uint16(i),
-		}
-
-		buf := bytes.NewBuffer(nil)
-		binary.Write(buf, binary.BigEndian, f) //nolint:errcheck
-		buf.Write(frame)
-
-		datas = append(datas, buf.Bytes())
+		datas = append(datas, NewFragFrame(FragmentTypeSplit, id, uint16(frames), uint16(i), frame))
 	}
 
 	return datas
 }
 
 type ConnectionPacketConn struct {
-	ctx  context.Context
 	conn quic.Connection
-	frag Frag
+	frag *Frag
 }
 
-func NewConnectionPacketConn(ctx context.Context, conn quic.Connection) *ConnectionPacketConn {
-	return &ConnectionPacketConn{ctx: ctx, conn: conn, frag: Frag{}}
+func NewConnectionPacketConn(conn quic.Connection) *ConnectionPacketConn {
+	frag := &Frag{}
+	go frag.collect(conn.Context())
+	return &ConnectionPacketConn{conn: conn, frag: frag}
 }
 
-func (c *ConnectionPacketConn) Receive() (uint64, []byte, error) {
+func (c *ConnectionPacketConn) Receive(ctx context.Context) (uint64, []byte, error) {
 _retry:
-	data, err := c.conn.ReceiveDatagram(c.ctx)
+	data, err := c.conn.ReceiveDatagram(ctx)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -130,7 +157,13 @@ _retry:
 }
 
 func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
-	b = append(binary.BigEndian.AppendUint64(nil, id), b...)
+	b = bytes.Join(
+		[][]byte{
+			binary.BigEndian.AppendUint64(make([]byte, 0, 8), id),
+			b,
+		},
+		nil,
+	)
 
 	datas := c.frag.Split(b, int(MaxDatagramFrameSize))
 
@@ -141,4 +174,76 @@ func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
 	}
 
 	return nil
+}
+
+type FragType uint8
+
+const (
+	FragmentTypeSplit FragType = iota + 1
+	FragmentTypeSingle
+)
+
+type fragFrame []byte
+
+func NewFragFrame(t FragType, id uint64, total uint16, current uint16, payload []byte) fragFrame {
+	buf := make([]byte, 1+8+2+2+len(payload))
+	buf[0] = byte(t)
+	binary.BigEndian.PutUint64(buf[1:], id)
+	binary.BigEndian.PutUint16(buf[1+8:], total)
+	binary.BigEndian.PutUint16(buf[1+8+2:], current)
+	copy(buf[1+8+2+2:], payload)
+
+	return buf
+}
+
+func (f fragFrame) Type() FragType {
+	if len(f) < 1 {
+		return 0
+	}
+
+	return FragType(f[0])
+}
+
+func (f fragFrame) ID() uint64 {
+	if len(f) < 1+8 {
+		return 0
+	}
+
+	return binary.BigEndian.Uint64(f[1:])
+}
+
+func (f fragFrame) Total() uint16 {
+	if len(f) < 1+8+2 {
+		return 0
+	}
+
+	return binary.BigEndian.Uint16(f[1+8:])
+}
+
+func (f fragFrame) Current() uint16 {
+	if len(f) < 1+8+2+2 {
+		return 0
+	}
+
+	return binary.BigEndian.Uint16(f[1+8+2:])
+}
+
+func (f fragFrame) Payload() []byte {
+	return f[1+8+2+2:]
+}
+
+func (f fragFrame) SetType(t FragType) {
+	f[0] = byte(t)
+}
+
+func (f fragFrame) SetID(id uint64) {
+	binary.BigEndian.PutUint64(f[1:], id)
+}
+
+func (f fragFrame) SetTotal(total uint16) {
+	binary.BigEndian.PutUint16(f[1+8:], total)
+}
+
+func (f fragFrame) SetCurrent(current uint16) {
+	binary.BigEndian.PutUint16(f[1+8+2:], current)
 }
