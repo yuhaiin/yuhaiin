@@ -89,8 +89,9 @@ message websocket {
 message grpc { tls_config tls = 1 [ json_name = "tls" ]; }
 
 message quic {
-  // string host = 2 [ json_name = "host" ];
+  string host = 2 [ json_name = "host" ];
   tls_config tls = 1 [ json_name = "tls" ];
+  bool as_network = 3 [ json_name = "as_network" ];
 }
 
 message reality {
