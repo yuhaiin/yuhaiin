@@ -202,8 +202,8 @@ type MuxAddr struct {
 	ID   uint32
 }
 
-func (q *MuxAddr) String() string  { return fmt.Sprint(q.Addr, q.ID) }
-func (q *MuxAddr) Network() string { return "yamux" }
+func (q *MuxAddr) String() string  { return fmt.Sprintf("yamux://%d@%v", q.ID, q.Addr) }
+func (q *MuxAddr) Network() string { return "tcp" }
 
 type randomSelector struct {
 	content []*connEntry

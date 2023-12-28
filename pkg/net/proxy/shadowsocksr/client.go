@@ -6,11 +6,11 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/cipher"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/obfs"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	protocols "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -82,7 +82,7 @@ func (s *Shadowsocksr) Conn(ctx context.Context, addr netapi.Address) (net.Conn,
 		c.Close()
 		return nil, fmt.Errorf("protocol stream failed: %w", err)
 	}
-	if _, err := conn.Write(s5c.ParseAddr(addr)); err != nil {
+	if _, err := conn.Write(tools.ParseAddr(addr)); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("write target failed: %w", err)
 	}
@@ -102,5 +102,5 @@ func (s *Shadowsocksr) PacketConn(ctx context.Context, addr netapi.Address) (net
 		return nil, fmt.Errorf("protocol packet failed: %w", err)
 	}
 
-	return shadowsocks.NewPacketConn(proto), nil
+	return yuubinsya.NewAuthPacketConn(proto, nil, netapi.EmptyAddr, nil, false), nil
 }

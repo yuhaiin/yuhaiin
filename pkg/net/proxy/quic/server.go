@@ -193,6 +193,7 @@ type serverPacketConn struct {
 func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	select {
 	case <-x.Server.ctx.Done():
+		x.cancel()
 		return 0, nil, x.ctx.Err()
 	case <-x.ctx.Done():
 		return 0, nil, io.EOF

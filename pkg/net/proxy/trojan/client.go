@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -39,7 +39,7 @@ func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr netapi.Address) (e
 	buf.Write(c.password)
 	buf.Write(crlf)
 	buf.WriteByte(byte(cmd))
-	s5c.ParseAddrWriter(addr, buf)
+	tools.ParseAddrWriter(addr, buf)
 	buf.Write(crlf)
 
 	_, err = conn.Write(buf.Bytes())
@@ -104,7 +104,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	w := pool.GetBuffer()
 	defer pool.PutBuffer(w)
 
-	s5c.ParseAddrWriter(taddr, w)
+	tools.ParseAddrWriter(taddr, w)
 	addrSize := w.Len()
 
 	b := bytes.NewBuffer(payload)
@@ -148,7 +148,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		return n, c.addr, err
 	}
 
-	addr, err := s5c.ResolveAddr(c.Conn)
+	addr, err := tools.ResolveAddr(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}

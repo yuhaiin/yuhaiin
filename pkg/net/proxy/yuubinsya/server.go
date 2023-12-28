@@ -11,10 +11,8 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
-	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -30,6 +28,8 @@ type server struct {
 
 	tcpChannel chan *netapi.StreamMeta
 	udpChannel chan *netapi.Packet
+
+	packetAuth Auth
 }
 
 func init() {
@@ -38,6 +38,11 @@ func init() {
 
 func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.ProtocolServer, error) {
 	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+		auth, err := NewAuth(!config.Yuubinsya.ForceDisableEncrypt, []byte(config.Yuubinsya.Password))
+		if err != nil {
+			return nil, err
+		}
+
 		ctx, cancel := context.WithCancel(context.TODO())
 		s := &server{
 			Listener:   ii,
@@ -46,6 +51,7 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Proto
 			cancel:     cancel,
 			tcpChannel: make(chan *netapi.StreamMeta, 100),
 			udpChannel: make(chan *netapi.Packet, 100),
+			packetAuth: auth,
 		}
 
 		go func() {
@@ -71,7 +77,7 @@ func (y *server) startUDP() error {
 	}
 	defer packet.Close()
 
-	s5s.StartUDPServer(y.ctx, packet, y.udpChannel)
+	StartUDPServer(y.ctx, packet, y.udpChannel, y.packetAuth, true)
 
 	return nil
 }
@@ -113,7 +119,7 @@ func (y *server) handle(conn net.Conn) error {
 
 	switch net {
 	case entity.TCP:
-		target, err := s5c.ResolveAddr(c)
+		target, err := tools.ResolveAddr(c)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
@@ -154,7 +160,7 @@ func (y *server) Close() error {
 }
 
 func (y *server) forwardPacket(c net.Conn) error {
-	addr, err := s5c.ResolveAddr(c)
+	addr, err := tools.ResolveAddr(c)
 	if err != nil {
 		return err
 	}
@@ -183,16 +189,20 @@ func (y *server) forwardPacket(c net.Conn) error {
 				return 0, err
 			}
 
-			s5Addr := s5c.ParseAddr(addr)
+			buffer := pool.GetBuffer()
+			defer pool.PutBuffer(buffer)
 
-			buffer := pool.GetBytesV2(len(s5Addr) + 2 + nat.MaxSegmentSize)
-			defer pool.PutBytesV2(buffer)
+			tools.ParseAddrWriter(addr, buffer)
+			err = binary.Write(buffer, binary.BigEndian, uint16(len(buf)))
+			if err != nil {
+				return 0, err
+			}
+			_, err = buffer.Write(buf)
+			if err != nil {
+				return 0, err
+			}
 
-			copy(buffer.Bytes(), s5Addr)
-			binary.BigEndian.PutUint16(buffer.Bytes()[len(s5Addr):], uint16(len(buf)))
-			copy(buffer.Bytes()[len(s5Addr)+2:], buf)
-
-			if _, err := c.Write(buffer.Bytes()[:len(s5Addr)+2+len(buf)]); err != nil {
+			if _, err := c.Write(buffer.Bytes()); err != nil {
 				return 0, err
 			}
 

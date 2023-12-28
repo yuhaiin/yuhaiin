@@ -3,13 +3,15 @@ package yuubinsya
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 	ycrypto "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -21,7 +23,7 @@ type plainHandshaker [sha256.Size]byte
 func (password plainHandshaker) StreamHeader(buf *bytes.Buffer, addr netapi.Address) {
 	buf.WriteByte(byte(entity.TCP))
 	buf.Write(password[:])
-	s5c.ParseAddrWriter(addr, buf)
+	tools.ParseAddrWriter(addr, buf)
 }
 
 func (password plainHandshaker) PacketHeader(buf *bytes.Buffer) {
@@ -42,7 +44,7 @@ func (password plainHandshaker) ParseHeader(c net.Conn) (entity.Net, error) {
 		return 0, fmt.Errorf("unknown network: %d", net)
 	}
 
-	if !bytes.Equal(z.Bytes()[1:], password[:]) {
+	if subtle.ConstantTimeCompare(z.Bytes()[1:], password[:]) == 0 {
 		return 0, errors.New("password is incorrect")
 	}
 
@@ -52,15 +54,29 @@ func (password plainHandshaker) ParseHeader(c net.Conn) (entity.Net, error) {
 func (plainHandshaker) HandshakeServer(conn net.Conn) (net.Conn, error) { return conn, nil }
 func (plainHandshaker) HandshakeClient(conn net.Conn) (net.Conn, error) { return conn, nil }
 
-func NewHandshaker(encrypted bool, password []byte) entity.Handshaker {
+func salt(password []byte) []byte {
 	h := sha256.New()
 	h.Write(password)
 	h.Write([]byte("+s@1t"))
-	hash := h.Sum(nil)
+	return h.Sum(nil)
+}
+
+func NewHandshaker(encrypted bool, password []byte) entity.Handshaker {
+	hash := salt(password)
 
 	if !encrypted {
 		return plainHandshaker(hash)
 	}
 
 	return ycrypto.NewHandshaker(hash, password)
+}
+
+func NewAuth(crypt bool, password []byte) (Auth, error) {
+	password = salt(password)
+
+	if !crypt {
+		return NewPlainAuth(password), nil
+	}
+
+	return crypto.GetAuth(password)
 }
