@@ -18,13 +18,17 @@ func HTTP(p netapi.Proxy, target string) (time.Duration, error) {
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
+
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+
 			return p.Conn(ctx, ad)
 		},
 	}
 	defer tr.CloseIdleConnections()
 
 	start := time.Now()
-	resp, err := (&http.Client{Transport: tr}).Get(target)
+	resp, err := (&http.Client{Transport: tr, Timeout: timeout}).Get(target)
 	if err != nil {
 		return 0, err
 	}

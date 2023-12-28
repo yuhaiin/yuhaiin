@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
+
+var timeout = 5 * time.Second
 
 func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := dns.New(dns.Config{
@@ -23,7 +24,7 @@ func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), inbound.Timeout)
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 
 	_, err = d.LookupIP(ctx, target)
@@ -49,7 +50,7 @@ func DNSOverQuic(p netapi.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), inbound.Timeout)
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 
 	_, err = d.LookupIP(ctx, target)

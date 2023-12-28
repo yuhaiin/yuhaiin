@@ -1,4 +1,4 @@
-package client
+package tools
 
 import (
 	"context"
@@ -8,31 +8,38 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
-func Dial(host, port, user, password string) netapi.Proxy {
-	addr, err := netapi.ParseAddress(statistic.Type_tcp, net.JoinHostPort(host, port))
-	if err != nil {
-		return netapi.NewErrProxy(err)
-	}
-	p, _ := New(&protocol.Protocol_Socks5{
-		Socks5: &protocol.Socks5{
-			Hostname: host,
-			User:     user,
-			Password: password,
-		}})(yerror.Must(simple.New(&protocol.Protocol_Simple{
-		Simple: &protocol.Simple{
-			Host:             addr.Hostname(),
-			Port:             int32(addr.Port().Port()),
-			PacketConnDirect: true,
-		},
-	})(nil)))
-	return p
-}
+const (
+	NoAuthenticationRequired = 0x00
+	Gssapi                   = 0x01
+	UserAndPassword          = 0x02
+	NoAcceptableMethods      = 0xff
+
+	Succeeded                     = 0x00
+	SocksServerFailure            = 0x01
+	ConnectionNotAllowedByRuleset = 0x02
+	NetworkUnreachable            = 0x03
+	HostUnreachable               = 0x04
+	ConnectionRefused             = 0x05
+	TTLExpired                    = 0x06
+	CommandNotSupport             = 0x07
+	AddressTypeNotSupport         = 0x08
+)
+
+type CMD byte
+
+const (
+	Connect CMD = 0x01
+	Bind    CMD = 0x02
+	Udp     CMD = 0x03
+
+	IPv4   byte = 0x01
+	Domain byte = 0x03
+	IPv6   byte = 0x04
+)
 
 func ParseAddr(addr netapi.Address) ADDR {
 	var buf []byte

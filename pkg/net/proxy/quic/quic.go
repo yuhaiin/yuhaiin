@@ -26,11 +26,12 @@ type Client struct {
 	dialer     netapi.Proxy
 
 	session     quic.Connection
+	underlying  net.PacketConn
 	sessionMu   sync.Mutex
 	sessionUnix int64
 
 	packetConn *ConnectionPacketConn
-	natMap     syncmap.SyncMap[uint64, chan []byte]
+	natMap     syncmap.SyncMap[uint64, *clientPacketConn]
 
 	idg id.IDGenerator
 
@@ -94,6 +95,10 @@ func (c *Client) initSession(ctx context.Context) error {
 		}
 	}
 
+	if c.underlying != nil {
+		_ = c.underlying.Close()
+	}
+
 	var conn net.PacketConn
 	var err error
 
@@ -111,13 +116,15 @@ func (c *Client) initSession(ctx context.Context) error {
 		ConnectionIDLength: 12,
 	}
 
-	session, err := tr.DialEarly(ctx, c.host, c.tlsConfig, c.quicConfig)
+	session, err := tr.Dial(ctx, c.host, c.tlsConfig, c.quicConfig)
 	if err != nil {
+		_ = conn.Close()
 		return err
 	}
 
 	pconn := NewConnectionPacketConn(session)
 
+	c.underlying = conn
 	c.session = session
 	c.packetConn = pconn
 	c.sessionUnix = time.Now().Unix()
@@ -134,7 +141,12 @@ func (c *Client) initSession(ctx context.Context) error {
 				continue
 			}
 
-			cchan <- data
+			select {
+			case <-session.Context().Done():
+				return
+			case <-cchan.ctx.Done():
+			case cchan.msg <- data:
+			}
 		}
 	}()
 	return nil
@@ -146,7 +158,7 @@ func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	stream, err := c.session.OpenStream()
+	stream, err := c.session.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -163,16 +175,19 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	id := c.idg.Generate()
-	cchan := make(chan []byte, 10)
-	c.natMap.Store(id, cchan)
+	ctx, cancel := context.WithCancel(context.TODO())
 
-	return &clientPacketConn{
+	cp := &clientPacketConn{
 		c:       c,
+		ctx:     ctx,
+		cancel:  cancel,
 		session: c.packetConn,
-		id:      id,
-		msg:     cchan,
-	}, nil
+		id:      c.idg.Generate(),
+		msg:     make(chan []byte, 20),
+	}
+	c.natMap.Store(cp.id, cp)
+
+	return cp, nil
 }
 
 var _ net.Conn = (*interConn)(nil)
@@ -234,33 +249,45 @@ type QuicAddr struct {
 
 func (q *QuicAddr) String() string {
 	if q.time == 0 {
-		return fmt.Sprint(q.Addr, q.ID)
+		return fmt.Sprintf("quic://%d@%v", q.ID, q.Addr)
 	}
-	return fmt.Sprint(q.Addr, q.time, q.ID)
+	return fmt.Sprintf("quic://%d-%d@%v", q.time, q.ID, q.Addr)
 }
 
-func (q *QuicAddr) Network() string { return "quic" }
+func (q *QuicAddr) Network() string { return "udp" }
 
 type clientPacketConn struct {
 	c       *Client
 	session *ConnectionPacketConn
 	id      uint64
 
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	msg      chan []byte
 	deadline *time.Timer
 }
 
 func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
-	msg, ok := <-x.msg
-	if !ok {
+	select {
+	case <-x.session.Context().Done():
+		x.Close()
 		return 0, nil, io.EOF
+	case <-x.ctx.Done():
+		return 0, nil, io.EOF
+	case msg := <-x.msg:
+		n = copy(p, msg)
+		return n, x.session.conn.RemoteAddr(), nil
 	}
-
-	n = copy(p, msg)
-	return n, x.session.conn.RemoteAddr(), nil
 }
 
 func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
+	select {
+	case <-x.ctx.Done():
+		return 0, io.EOF
+	default:
+	}
+
 	err = x.session.Write(p, x.id)
 	if err != nil {
 		return 0, err
@@ -269,6 +296,7 @@ func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
 }
 
 func (x *clientPacketConn) Close() error {
+	x.cancel()
 	x.c.natMap.Delete(x.id)
 	return nil
 }
@@ -281,6 +309,12 @@ func (x *clientPacketConn) LocalAddr() net.Addr {
 }
 
 func (x *clientPacketConn) SetDeadline(t time.Time) error {
+	select {
+	case <-x.ctx.Done():
+		return io.EOF
+	default:
+	}
+
 	if x.deadline == nil {
 		if !t.IsZero() {
 			x.deadline = time.AfterFunc(time.Until(t), func() { x.Close() })

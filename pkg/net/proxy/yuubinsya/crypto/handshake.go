@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/crypto/chacha20"
@@ -30,7 +30,7 @@ type encryptedHandshaker struct {
 
 func (t *encryptedHandshaker) StreamHeader(buf *bytes.Buffer, addr netapi.Address) {
 	buf.Write([]byte{byte(entity.TCP)})
-	s5c.ParseAddrWriter(addr, buf)
+	tools.ParseAddrWriter(addr, buf)
 }
 func (t *encryptedHandshaker) PacketHeader(buf *bytes.Buffer) { buf.Write([]byte{byte(entity.UDP)}) }
 

@@ -101,5 +101,5 @@ type addr struct {
 	id uint64
 }
 
-func (addr) Network() string  { return "grpc" }
+func (addr) Network() string  { return "tcp" }
 func (a addr) String() string { return fmt.Sprintf("grpc://%d", a.id) }

@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -76,14 +76,14 @@ func (s *Socks5) handshake1(client net.Conn, buf []byte) error {
 	}
 
 	if buf[0] != 0x05 { // ver
-		err := writeHandshake1(client, s5c.NoAcceptableMethods)
+		err := writeHandshake1(client, tools.NoAcceptableMethods)
 		return fmt.Errorf("no acceptable method: %d, resp err: %w", buf[0], err)
 	}
 
 	nMethods := int(buf[1])
 
 	if nMethods > len(buf) {
-		err := writeHandshake1(client, s5c.NoAcceptableMethods)
+		err := writeHandshake1(client, tools.NoAcceptableMethods)
 		return fmt.Errorf("nMethods length of methods out of buf, resp err: %w", err)
 	}
 
@@ -95,11 +95,11 @@ func (s *Socks5) handshake1(client net.Conn, buf []byte) error {
 	userAndPasswordSupport := false
 
 	for _, v := range buf[:nMethods] { // range all supported methods
-		if v == s5c.NoAuthenticationRequired && noNeedVerify {
-			return writeHandshake1(client, s5c.NoAuthenticationRequired)
+		if v == tools.NoAuthenticationRequired && noNeedVerify {
+			return writeHandshake1(client, tools.NoAuthenticationRequired)
 		}
 
-		if v == s5c.UserAndPassword {
+		if v == tools.UserAndPassword {
 			userAndPasswordSupport = true
 		}
 	}
@@ -108,13 +108,13 @@ func (s *Socks5) handshake1(client net.Conn, buf []byte) error {
 		return verifyUserPass(client, s.username, s.password)
 	}
 
-	err := writeHandshake1(client, s5c.NoAcceptableMethods)
+	err := writeHandshake1(client, tools.NoAcceptableMethods)
 
 	return fmt.Errorf("no acceptable authentication methods: [length: %d, method:%v], response err: %w", nMethods, buf[:nMethods], err)
 }
 
 func verifyUserPass(client net.Conn, user, key string) error {
-	if err := writeHandshake1(client, s5c.UserAndPassword); err != nil {
+	if err := writeHandshake1(client, tools.UserAndPassword); err != nil {
 		return err
 	}
 
@@ -166,16 +166,16 @@ func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
 	}
 
 	if buf[0] != 0x05 { // ver
-		err := writeHandshake2(client, s5c.NoAcceptableMethods, netapi.EmptyAddr)
+		err := writeHandshake2(client, tools.NoAcceptableMethods, netapi.EmptyAddr)
 		return fmt.Errorf("no acceptable method: %d, resp err: %w", buf[0], err)
 	}
 
 	var err error
 
-	switch s5c.CMD(buf[1]) { // mode
-	case s5c.Connect:
-		var adr s5c.ADDR
-		adr, err = s5c.ResolveAddr(client)
+	switch tools.CMD(buf[1]) { // mode
+	case tools.Connect:
+		var adr tools.ADDR
+		adr, err = tools.ResolveAddr(client)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
@@ -186,7 +186,7 @@ func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
 		if err != nil {
 			return fmt.Errorf("parse local addr failed: %w", err)
 		}
-		err = writeHandshake2(client, s5c.Succeeded, caddr) // response to connect successful
+		err = writeHandshake2(client, tools.Succeeded, caddr) // response to connect successful
 		if err != nil {
 			return err
 		}
@@ -203,23 +203,23 @@ func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
 		}:
 		}
 
-	case s5c.Udp: // udp
+	case tools.Udp: // udp
 		if s.udp {
 			err = handleUDP(client)
 			break
 		}
 		fallthrough
 
-	case s5c.Bind: // bind request
+	case tools.Bind: // bind request
 		fallthrough
 
 	default:
-		err := writeHandshake2(client, s5c.CommandNotSupport, netapi.EmptyAddr)
+		err := writeHandshake2(client, tools.CommandNotSupport, netapi.EmptyAddr)
 		return fmt.Errorf("not Support Method %d, resp err: %w", buf[1], err)
 	}
 
 	if err != nil {
-		_ = writeHandshake2(client, s5c.HostUnreachable, netapi.EmptyAddr)
+		_ = writeHandshake2(client, tools.HostUnreachable, netapi.EmptyAddr)
 	}
 	return err
 }
@@ -229,7 +229,7 @@ func handleUDP(client net.Conn) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	err = writeHandshake2(client, s5c.Succeeded, netapi.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
+	err = writeHandshake2(client, tools.Succeeded, netapi.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,7 @@ func writeHandshake1(conn net.Conn, errREP byte) error {
 }
 
 func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
-	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, s5c.ParseAddr(addr)...))
+	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, tools.ParseAddr(addr)...))
 	return err
 }
 

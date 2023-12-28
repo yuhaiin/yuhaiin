@@ -139,6 +139,10 @@ func NewConnectionPacketConn(conn quic.Connection) *ConnectionPacketConn {
 	return &ConnectionPacketConn{conn: conn, frag: frag}
 }
 
+func (c *ConnectionPacketConn) Context() context.Context {
+	return c.conn.Context()
+}
+
 func (c *ConnectionPacketConn) Receive(ctx context.Context) (uint64, []byte, error) {
 _retry:
 	data, err := c.conn.ReceiveDatagram(ctx)

@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +8,9 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -16,22 +18,25 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
-const (
-	NoAuthenticationRequired = 0x00
-	Gssapi                   = 0x01
-	UserAndPassword          = 0x02
-	NoAcceptableMethods      = 0xff
-
-	Succeeded                     = 0x00
-	SocksServerFailure            = 0x01
-	ConnectionNotAllowedByRuleset = 0x02
-	NetworkUnreachable            = 0x03
-	HostUnreachable               = 0x04
-	ConnectionRefused             = 0x05
-	TTLExpired                    = 0x06
-	CommandNotSupport             = 0x07
-	AddressTypeNotSupport         = 0x08
-)
+func Dial(host, port, user, password string) netapi.Proxy {
+	addr, err := netapi.ParseAddress(statistic.Type_tcp, net.JoinHostPort(host, port))
+	if err != nil {
+		return netapi.NewErrProxy(err)
+	}
+	p, _ := New(&protocol.Protocol_Socks5{
+		Socks5: &protocol.Socks5{
+			Hostname: host,
+			User:     user,
+			Password: password,
+		}})(yerror.Must(simple.New(&protocol.Protocol_Simple{
+		Simple: &protocol.Simple{
+			Host:             addr.Hostname(),
+			Port:             int32(addr.Port().Port()),
+			PacketConnDirect: true,
+		},
+	})(nil)))
+	return p
+}
 
 // https://tools.ietf.org/html/rfc1928
 // client socks5 client
@@ -68,7 +73,7 @@ func (s *client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error
 		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
-	_, err = s.handshake2(ctx, conn, Connect, host)
+	_, err = s.handshake2(ctx, conn, tools.Connect, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %w", err)
@@ -78,7 +83,7 @@ func (s *client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error
 }
 
 func (s *client) handshake1(conn net.Conn) error {
-	_, err := conn.Write([]byte{0x05, 0x02, NoAuthenticationRequired, UserAndPassword})
+	_, err := conn.Write([]byte{0x05, 0x02, tools.NoAuthenticationRequired, tools.UserAndPassword})
 	if err != nil {
 		return fmt.Errorf("write sock5 header failed: %w", err)
 	}
@@ -94,9 +99,9 @@ func (s *client) handshake1(conn net.Conn) error {
 	}
 
 	switch header[1] {
-	case NoAuthenticationRequired:
+	case tools.NoAuthenticationRequired:
 		return nil
-	case UserAndPassword: // username and password
+	case tools.UserAndPassword: // username and password
 		req := pool.GetBuffer()
 		defer pool.PutBuffer(req)
 
@@ -122,24 +127,12 @@ func (s *client) handshake1(conn net.Conn) error {
 	return fmt.Errorf("unsupported Authentication methods: %d", header[1])
 }
 
-type CMD byte
-
-const (
-	Connect CMD = 0x01
-	Bind    CMD = 0x02
-	Udp     CMD = 0x03
-
-	IPv4   byte = 0x01
-	Domain byte = 0x03
-	IPv6   byte = 0x04
-)
-
-func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd CMD, address netapi.Address) (target netapi.Address, err error) {
+func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
 	req := pool.GetBuffer()
 	defer pool.PutBuffer(req)
 
 	req.Write([]byte{0x05, byte(cmd), 0x00})
-	req.Write(ParseAddr(address))
+	req.Write(tools.ParseAddr(address))
 
 	if _, err = conn.Write(req.Bytes()); err != nil {
 		return nil, err
@@ -150,11 +143,11 @@ func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd CMD, address
 		return nil, err
 	}
 
-	if header[0] != 0x05 || header[1] != Succeeded {
+	if header[0] != 0x05 || header[1] != tools.Succeeded {
 		return nil, fmt.Errorf("socks5 second handshake failed, data: %v", header[:2])
 	}
 
-	add, err := ResolveAddr(conn)
+	add, err := tools.ResolveAddr(conn)
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
@@ -180,7 +173,7 @@ func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
-	addr, err := s.handshake2(ctx, conn, Udp, host)
+	addr, err := s.handshake2(ctx, conn, tools.Udp, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %w", err)
@@ -192,7 +185,7 @@ func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("listen udp failed: %w", err)
 	}
 
-	pc = NewSocks5PacketConn(pc, conn, addr)
+	pc = yuubinsya.NewAuthPacketConn(pc, conn, addr, nil, true)
 
 	go func() {
 		_, _ = relay.Copy(io.Discard, conn)
@@ -200,51 +193,6 @@ func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	}()
 
 	return pc, nil
-}
-
-type socks5PacketConn struct {
-	net.PacketConn
-	tcp    net.Conn
-	server netapi.Address
-}
-
-func NewSocks5PacketConn(local net.PacketConn, tcp net.Conn, target netapi.Address) net.PacketConn {
-	return &socks5PacketConn{local, tcp, target}
-}
-
-func (s *socks5PacketConn) Close() error {
-	if s.tcp != nil {
-		s.tcp.Close()
-	}
-	return s.PacketConn.Close()
-}
-
-func (s *socks5PacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
-	ad, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return 0, fmt.Errorf("parse addr failed: %w", err)
-	}
-	return s.PacketConn.WriteTo(bytes.Join([][]byte{{0, 0, 0}, ParseAddr(ad), p}, []byte{}), s.server)
-}
-
-func (s *socks5PacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
-	n, addr, err := s.PacketConn.ReadFrom(p)
-	if err != nil {
-		return 0, addr, fmt.Errorf("read from remote failed: %w", err)
-	}
-
-	adr, err := ResolveAddr(bytes.NewReader(p[3:n]))
-	if err != nil {
-		return 0, addr, fmt.Errorf("resolve addr failed: %w", err)
-	}
-
-	prefix := 3 + len(adr)
-
-	if n < prefix {
-		return 0, addr, fmt.Errorf("slice out of range, get: %d less %d", n, prefix)
-	}
-
-	return copy(p[0:], p[prefix:n]), adr.Address(statistic.Type_udp), nil
 }
 
 // The client connects to the server, and sends a version

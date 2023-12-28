@@ -11,7 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -24,14 +24,21 @@ type client struct {
 	overTCP bool
 
 	handshaker entity.Handshaker
+	packetAuth Auth
 }
 
 func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
+		auth, err := NewAuth(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password))
+		if err != nil {
+			return nil, err
+		}
+
 		c := &client{
 			dialer,
 			config.Yuubinsya.UdpOverStream,
 			NewHandshaker(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password)),
+			auth,
 		}
 
 		return c, nil
@@ -54,20 +61,13 @@ func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error
 }
 
 func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	/*
-		see (&yuubinsya{}).StartQUIC()
-		if c.quic {
-			return c.netapi.PacketConn(addr)
-		}
-	*/
-
 	if !c.overTCP {
 		packet, err := c.Proxy.PacketConn(ctx, addr)
 		if err != nil {
 			return nil, err
 		}
 
-		return s5c.NewSocks5PacketConn(packet, nil, addr), nil
+		return NewAuthPacketConn(packet, nil, addr, c.packetAuth, true), nil
 	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)
@@ -105,7 +105,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
-	s5Addr := s5c.ParseAddr(taddr)
+	s5Addr := tools.ParseAddr(taddr)
 
 	w := pool.GetBuffer()
 	defer pool.PutBuffer(w)
@@ -158,7 +158,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		return n, c.addr, err
 	}
 
-	addr, err := s5c.ResolveAddr(c.Conn)
+	addr, err := tools.ResolveAddr(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
