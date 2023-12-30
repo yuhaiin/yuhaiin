@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
@@ -34,7 +33,7 @@ func main() {
 		},
 	}
 
-	pro, err := register.Dialer(node)
+	pro, err := point.Dialer(node)
 	if err != nil {
 		panic(err)
 	}

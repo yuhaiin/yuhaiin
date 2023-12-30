@@ -14,7 +14,7 @@ import (
 )
 
 func TestWireguard(t *testing.T) {
-	r, err := New(&protocol.Protocol_Wireguard{
+	r, err := NewClient(&protocol.Protocol_Wireguard{
 		Wireguard: &protocol.Wireguard{
 			SecretKey: "OD0YfReLPYBSL/vV+1JSBPpeBurGFLNA4wQCfD+yDFA=",
 			Endpoint: []string{

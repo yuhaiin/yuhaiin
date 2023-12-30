@@ -83,7 +83,7 @@ message yuubinsya {
 message websocket {
   string host = 1 [ json_name = "host" ];
   string path = 2 [ json_name = "path" ];
-  bool tls_enabled = 4 [ json_name = "tls_enabled" ];
+  bool tls_enabled = 4 [ json_name = "tls_enabled", deprecated = true ];
 }
 
 message grpc { tls_config tls = 1 [ json_name = "tls" ]; }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
@@ -30,7 +29,7 @@ func TestTrojan(t *testing.T) {
 
 	err := protojson.Unmarshal([]byte(``), p)
 	assert.NoError(t, err)
-	z, err := register.Dialer(p)
+	z, err := point.Dialer(p)
 	assert.NoError(t, err)
 
 	dns, err := dns.NewDoU(dns.Config{Host: "1.1.1.1:53", Dialer: z})

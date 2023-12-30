@@ -44,7 +44,7 @@ func init() {
 			Port: int32(port),
 		}
 
-		var plugin *protocol.Protocol
+		var plugin []*protocol.Protocol
 		pluginopts := parseOpts(ssUrl.Query().Get("plugin"))
 		switch {
 		case pluginopts["obfs-local"] == "true":
@@ -52,37 +52,35 @@ func init() {
 		case pluginopts["v2ray"] == "true":
 			plugin, err = parseV2ray(pluginopts, simple)
 		default:
-			plugin = &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("parse plugin failed: %w", err)
 		}
 
+		protocols := append([]*protocol.Protocol{
+			{
+				Protocol: &protocol.Protocol_Simple{
+					Simple: simple,
+				},
+			},
+		}, plugin...)
+
 		return &point.Point{
 			Origin: point.Origin_remote,
 			Name:   "[ss]" + ssUrl.Fragment,
-			Protocols: []*protocol.Protocol{
-				{
-					Protocol: &protocol.Protocol_Simple{
-						Simple: simple,
+			Protocols: append(protocols, &protocol.Protocol{
+				Protocol: &protocol.Protocol_Shadowsocks{
+					Shadowsocks: &protocol.Shadowsocks{
+						Method:   method,
+						Password: password,
 					},
 				},
-				plugin,
-				{
-					Protocol: &protocol.Protocol_Shadowsocks{
-						Shadowsocks: &protocol.Shadowsocks{
-							Method:   method,
-							Password: password,
-						},
-					},
-				},
-			},
+			}),
 		}, nil
-
 	})
 }
 
-func parseV2ray(store map[string]string, simple *protocol.Simple) (*protocol.Protocol, error) {
+func parseV2ray(store map[string]string, simple *protocol.Simple) ([]*protocol.Protocol, error) {
 	// fastOpen := false
 	// path := "/"
 	// host := "cloudfront.com"
@@ -108,29 +106,33 @@ func parseV2ray(store map[string]string, simple *protocol.Simple) (*protocol.Pro
 
 	switch store["mode"] {
 	case "websocket":
-		if store["tls"] == "true" {
-			simple.Tls = &protocol.TlsConfig{
-				ServerNames: []string{ns},
-				Enable:      store["tls"] == "true",
-				CaCert:      [][]byte{cert},
-			}
-		}
-		return &protocol.Protocol{
-			Protocol: &protocol.Protocol_Websocket{
-				Websocket: &protocol.Websocket{
-					Host:       store["host"],
-					Path:       store["path"],
-					TlsEnabled: simple.Tls != nil,
+		var protocols []*protocol.Protocol
+		protocols = append(protocols, &protocol.Protocol{
+			Protocol: &protocol.Protocol_Tls{
+				Tls: &protocol.TlsConfig{
+					ServerNames: []string{ns},
+					Enable:      store["tls"] == "true",
+					CaCert:      [][]byte{cert},
 				},
 			},
-		}, nil
+		})
+		return append(protocols, &protocol.Protocol{
+			Protocol: &protocol.Protocol_Websocket{
+				Websocket: &protocol.Websocket{
+					Host: store["host"],
+					Path: store["path"],
+				},
+			},
+		}), nil
 	case "quic":
-		return &protocol.Protocol{
-			Protocol: &protocol.Protocol_Quic{
-				Quic: &protocol.Quic{
-					Tls: &protocol.TlsConfig{
-						ServerNames: []string{ns},
-						CaCert:      [][]byte{cert},
+		return []*protocol.Protocol{
+			{
+				Protocol: &protocol.Protocol_Quic{
+					Quic: &protocol.Quic{
+						Tls: &protocol.TlsConfig{
+							ServerNames: []string{ns},
+							CaCert:      [][]byte{cert},
+						},
 					},
 				},
 			},
@@ -140,20 +142,21 @@ func parseV2ray(store map[string]string, simple *protocol.Simple) (*protocol.Pro
 	return nil, fmt.Errorf("unsupported mode: %v", store["mode"])
 }
 
-func parseObfs(args map[string]string) (*protocol.Protocol, error) {
+func parseObfs(args map[string]string) ([]*protocol.Protocol, error) {
 	hostname, port, err := net.SplitHostPort(args["obfs-host"])
 	if err != nil {
 		return nil, err
 	}
-	return &protocol.Protocol{
-		Protocol: &protocol.Protocol_ObfsHttp{
-			ObfsHttp: &protocol.ObfsHttp{
-				Host: hostname,
-				Port: port,
+	return []*protocol.Protocol{
+		{
+			Protocol: &protocol.Protocol_ObfsHttp{
+				ObfsHttp: &protocol.ObfsHttp{
+					Host: hostname,
+					Port: port,
+				},
 			},
 		},
 	}, nil
-
 }
 
 func parseOpts(options string) map[string]string {

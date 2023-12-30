@@ -8,24 +8,11 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
-
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/mux"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 )
 
 func init() {

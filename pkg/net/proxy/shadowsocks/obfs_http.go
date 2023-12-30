@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -104,7 +105,11 @@ type httpOBFS struct {
 	netapi.Proxy
 }
 
-func NewHTTPOBFS(config *protocol.Protocol_ObfsHttp) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewHTTPOBFS)
+}
+
+func NewHTTPOBFS(config *protocol.Protocol_ObfsHttp) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		return &httpOBFS{
 			host:  config.ObfsHttp.Host,

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
@@ -32,6 +34,12 @@ type object struct {
 	times int8
 	time  time.Time
 	delay time.Duration
+}
+
+func init() {
+	point.RegisterProtocol(func(*protocol.Protocol_Reject) point.WrapProxy {
+		return func(netapi.Proxy) (netapi.Proxy, error) { return Default, nil }
+	})
 }
 
 var Default = rejectImmediately{}

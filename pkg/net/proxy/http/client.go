@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -18,7 +19,11 @@ type client struct {
 	user, password string
 }
 
-func NewClient(config *protocol.Protocol_Http) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Http) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		return &client{Proxy: p, user: config.Http.User, password: config.Http.Password}, nil
 	}

@@ -7,9 +7,17 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
+
+func init() {
+	point.RegisterProtocol(func(*protocol.Protocol_Drop) point.WrapProxy {
+		return func(netapi.Proxy) (netapi.Proxy, error) { return Drop, nil }
+	})
+}
 
 var Drop = &drop{
 	lru: lru.NewLru[string, time.Duration](

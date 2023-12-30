@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -26,7 +27,11 @@ type Simple struct {
 	timeout      time.Duration
 }
 
-func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		var addrs []netapi.Address
 		addrs = append(addrs, netapi.ParseAddressPort(0, c.Simple.GetHost(), netapi.ParsePort(c.Simple.GetPort())))
@@ -46,7 +51,7 @@ func New(c *protocol.Protocol_Simple) protocol.WrapProxy {
 			timeout:      timeout,
 		}
 
-		return tls.New(&protocol.Protocol_Tls{Tls: c.Simple.Tls})(simple)
+		return tls.NewClient(&protocol.Protocol_Tls{Tls: c.Simple.Tls})(simple)
 	}
 }
 

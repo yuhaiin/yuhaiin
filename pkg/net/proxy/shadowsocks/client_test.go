@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -20,20 +21,20 @@ import (
 )
 
 func ExampleNew() {
-	simple := simple.New(&protocol.Protocol_Simple{
+	simple := simple.NewClient(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
 			Host:             "127.0.0.1",
 			Port:             1080,
 			PacketConnDirect: false,
 		},
 	})
-	ws := websocket.New(&protocol.Protocol_Websocket{
+	ws := websocket.NewClient(&protocol.Protocol_Websocket{
 		Websocket: &protocol.Websocket{
 			Host: "localhost",
 		},
 	})
 
-	ss := New(&protocol.Protocol_Shadowsocks{
+	ss := NewClient(&protocol.Protocol_Shadowsocks{
 		Shadowsocks: &protocol.Shadowsocks{
 			Method:   "aes-128-gcm",
 			Password: "test",
@@ -42,7 +43,7 @@ func ExampleNew() {
 
 	var err error
 	var conn netapi.Proxy
-	for _, wrap := range []protocol.WrapProxy{simple, ws, ss} {
+	for _, wrap := range []point.WrapProxy{simple, ws, ss} {
 		conn, err = wrap(conn)
 		if err != nil {
 			panic(err)
@@ -51,16 +52,16 @@ func ExampleNew() {
 }
 
 func TestConn(t *testing.T) {
-	p := yerror.Must(simple.New(
+	p := yerror.Must(simple.NewClient(
 		&protocol.Protocol_Simple{
 			Simple: &protocol.Simple{
 				Host: "127.0.0.1",
 				Port: 1080,
 			},
 		})(nil))
-	z, err := websocket.New(&protocol.Protocol_Websocket{Websocket: &protocol.Websocket{Host: "localhost:1090"}})(p)
+	z, err := websocket.NewClient(&protocol.Protocol_Websocket{Websocket: &protocol.Websocket{Host: "localhost:1090"}})(p)
 	assert.NoError(t, err)
-	z, err = New(
+	z, err = NewClient(
 		&protocol.Protocol_Shadowsocks{
 			Shadowsocks: &protocol.Shadowsocks{
 				Method:   "aes-128-gcm",
@@ -102,14 +103,14 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p := yerror.Must(simple.New(
+	p := yerror.Must(simple.NewClient(
 		&protocol.Protocol_Simple{
 			Simple: &protocol.Simple{
 				Host: "127.0.0.1",
 				Port: 1090,
 			},
 		})(nil))
-	s, err := New(
+	s, err := NewClient(
 		&protocol.Protocol_Shadowsocks{
 			Shadowsocks: &protocol.Shadowsocks{
 				Method:   "aes-128-gcm",

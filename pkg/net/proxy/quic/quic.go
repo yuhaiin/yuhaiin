@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -39,7 +40,11 @@ type Client struct {
 	asNetwork bool
 }
 
-func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 
 		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
@@ -53,7 +58,7 @@ func New(config *protocol.Protocol_Quic) protocol.WrapProxy {
 			host = addr
 		}
 
-		tlsConfig := protocol.ParseTLSConfig(config.Quic.Tls)
+		tlsConfig := point.ParseTLSConfig(config.Quic.Tls)
 		if tlsConfig == nil {
 			tlsConfig = &tls.Config{}
 		}

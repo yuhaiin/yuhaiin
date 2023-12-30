@@ -36,7 +36,7 @@ func TestMux(t *testing.T) {
 		t.Log(string(data))
 	}()
 
-	p, err := simple.New(&protocol.Protocol_Simple{
+	p, err := simple.NewClient(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
 			Host: "127.0.0.1",
 			Port: 4431,
