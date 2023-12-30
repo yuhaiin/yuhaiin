@@ -13,6 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -53,7 +54,11 @@ type Client struct {
 	password []byte
 }
 
-func New(config *protocol.Protocol_Trojan) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Trojan) point.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		return &Client{
 			password: hexSha224([]byte(config.Trojan.Password)),

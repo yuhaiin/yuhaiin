@@ -24,6 +24,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -366,7 +367,11 @@ type Wireguard struct {
 	net *Net
 }
 
-func New(conf *protocol.Protocol_Wireguard) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(conf *protocol.Protocol_Wireguard) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		net, err := makeVirtualTun(conf.Wireguard)
 		if err != nil {

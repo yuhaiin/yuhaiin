@@ -11,7 +11,7 @@ import (
 )
 
 func TestClient(t *testing.T) {
-	sm := simple.New(&protocol.Protocol_Simple{
+	sm := simple.NewClient(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
 			Host: "127.0.0.1",
 			Port: 2096,

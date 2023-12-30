@@ -27,6 +27,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	utls "github.com/refraction-networking/utls"
@@ -49,7 +50,11 @@ type RealityClient struct {
 	Deubg bool
 }
 
-func NewRealityClient(config *protocol.Protocol_Reality) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewRealityClient)
+}
+
+func NewRealityClient(config *protocol.Protocol_Reality) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		publicKey, err := base64.RawURLEncoding.DecodeString(config.Reality.PublicKey)
 		if err != nil {

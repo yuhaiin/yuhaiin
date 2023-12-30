@@ -15,6 +15,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/http2"
@@ -25,7 +26,11 @@ type Client struct {
 	netapi.Proxy
 }
 
-func NewClient(config *protocol.Protocol_Http2) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Http2) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 
 		if config.Http2.Concurrency < 1 {

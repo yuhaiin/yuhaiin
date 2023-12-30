@@ -7,12 +7,13 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -23,23 +24,26 @@ func init() {
 
 type udp struct {
 	*client
-	id         id.IDGenerator
-	packetConn syncmap.SyncMap[uint64, net.PacketConn]
 	bufChanMap syncmap.SyncMap[[2]byte, *bufChan]
+	sf         singleflight.Group[uint64, net.PacketConn]
+	packetConn net.PacketConn
+	mu         sync.RWMutex
 }
 
 func (u *udp) Close() error {
-	u.packetConn.Range(func(id uint64, conn net.PacketConn) bool {
-		conn.Close()
-		u.packetConn.Delete(id)
-		return true
-	})
+	if u.packetConn != nil {
+		u.packetConn.Close()
+		u.packetConn = nil
+	}
 	return nil
 }
 
-func (u *udp) handleResponse(id uint64, packet net.PacketConn) {
+func (u *udp) handleResponse(packet net.PacketConn) {
 	defer func() {
-		u.packetConn.Delete(id)
+		u.mu.Lock()
+		u.packetConn = nil
+		u.mu.Unlock()
+
 		packet.Close()
 	}()
 
@@ -64,31 +68,34 @@ func (u *udp) handleResponse(id uint64, packet net.PacketConn) {
 }
 
 func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
-	var conn net.PacketConn
-	u.packetConn.Range(func(id uint64, c net.PacketConn) bool {
-		conn = c
-		return false
+	if u.packetConn != nil {
+		return u.packetConn, nil
+	}
+
+	conn, err, _ := u.sf.Do(0, func() (net.PacketConn, error) {
+		if u.packetConn != nil {
+			_ = u.packetConn.Close()
+		}
+
+		addr, err := ParseAddr(statistic.Type_udp, u.config.Host, "53")
+		if err != nil {
+			return nil, fmt.Errorf("parse addr failed: %w", err)
+		}
+
+		conn, err := u.config.Dialer.PacketConn(ctx, addr)
+		if err != nil {
+			return nil, fmt.Errorf("get packetConn failed: %w", err)
+		}
+
+		u.mu.Lock()
+		u.packetConn = conn
+		u.mu.Unlock()
+
+		go u.handleResponse(conn)
+		return conn, nil
 	})
 
-	if conn != nil {
-		return conn, nil
-	}
-
-	addr, err := ParseAddr(statistic.Type_udp, u.config.Host, "53")
-	if err != nil {
-		return nil, fmt.Errorf("parse addr failed: %w", err)
-	}
-
-	conn, err = u.config.Dialer.PacketConn(ctx, addr)
-	if err != nil {
-		return nil, fmt.Errorf("get packetConn failed: %w", err)
-	}
-
-	id := u.id.Generate()
-	u.packetConn.Store(id, conn)
-	go u.handleResponse(id, conn)
-
-	return conn, nil
+	return conn, err
 }
 
 type bufChan struct {
@@ -145,6 +152,7 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 
 		_, err = packetConn.WriteTo(req, udpAddr)
 		if err != nil {
+			_ = packetConn.Close()
 			return nil, err
 		}
 

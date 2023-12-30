@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -16,13 +17,17 @@ type Vmess struct {
 	netapi.Proxy
 }
 
-func New(config *protocol.Protocol_Vmess) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Vmess) point.WrapProxy {
 	alterID, err := strconv.Atoi(config.Vmess.AlterId)
 	if err != nil {
-		return protocol.ErrConn(fmt.Errorf("convert AlterId to int failed: %w", err))
+		return point.ErrConn(fmt.Errorf("convert AlterId to int failed: %w", err))
 	}
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		client, err := NewClient(config.Vmess.Uuid, config.Vmess.Security, alterID)
+		client, err := newClient(config.Vmess.Uuid, config.Vmess.Security, alterID)
 		if err != nil {
 			return nil, fmt.Errorf("new vmess client failed: %w", err)
 		}

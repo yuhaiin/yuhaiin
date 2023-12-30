@@ -73,7 +73,7 @@ func TestQuic(t *testing.T) {
 		t.Log(string(buf[:n]), addr, bytes.Equal(buf[:n], append(cert, cert...)))
 	}()
 
-	qc, err := New(&protocol.Protocol_Quic{
+	qc, err := NewClient(&protocol.Protocol_Quic{
 		Quic: &protocol.Quic{
 			Host:      "localhost:1090",
 			AsNetwork: true,

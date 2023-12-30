@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/node/register"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
@@ -56,13 +55,13 @@ func (o *outbound) Conn(ctx context.Context, host netapi.Address) (_ net.Conn, e
 
 func (o *outbound) GetDialer(p *point.Point) (netapi.Proxy, error) {
 	if p.Hash == "" {
-		return register.Dialer(p)
+		return point.Dialer(p)
 	}
 
 	var err error
 	r, ok := o.lruCache.Load(p.Hash)
 	if !ok {
-		r, err = register.Dialer(p)
+		r, err = point.Dialer(p)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +123,7 @@ _retry:
 		}
 
 		var err error
-		v, err = register.Dialer(p)
+		v, err = point.Dialer(p)
 		if err != nil {
 			return nil
 		}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -19,10 +20,14 @@ type Tls struct {
 	dialer      netapi.Proxy
 }
 
-func New(c *protocol.Protocol_Tls) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(c *protocol.Protocol_Tls) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		var serverNames []string
-		tls := protocol.ParseTLSConfig(c.Tls)
+		tls := point.ParseTLSConfig(c.Tls)
 		if tls != nil {
 			// if !tls.InsecureSkipVerify && tls.ServerName == "" {
 			// 	tls.ServerName = c.Simple.GetHost()

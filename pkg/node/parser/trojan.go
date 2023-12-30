@@ -26,6 +26,11 @@ func init() {
 			return nil, errors.New("invalid port")
 		}
 
+		var servername []string
+		if u.Query().Get("sni") != "" {
+			servername = []string{u.Query().Get("sni")}
+		}
+
 		p := &point.Point{
 			Name:   "[trojan]" + u.Fragment,
 			Origin: point.Origin_remote,
@@ -35,9 +40,14 @@ func init() {
 						Simple: &protocol.Simple{
 							Host: u.Hostname(),
 							Port: int32(port),
-							Tls: &protocol.TlsConfig{
-								Enable: true,
-							},
+						},
+					},
+				},
+				{
+					Protocol: &protocol.Protocol_Tls{
+						Tls: &protocol.TlsConfig{
+							Enable:      true,
+							ServerNames: servername,
 						},
 					},
 				},
@@ -52,9 +62,6 @@ func init() {
 			},
 		}
 
-		if u.Query().Get("sni") != "" {
-			p.Protocols[0].GetSimple().Tls.ServerNames = []string{u.Query().Get("sni")}
-		}
 		return p, nil
 	})
 }

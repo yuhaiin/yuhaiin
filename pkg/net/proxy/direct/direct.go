@@ -7,9 +7,17 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
 type direct struct{ netapi.EmptyDispatch }
+
+func init() {
+	point.RegisterProtocol(func(*protocol.Protocol_Direct) point.WrapProxy {
+		return func(netapi.Proxy) (netapi.Proxy, error) { return Default, nil }
+	})
+}
 
 var Default netapi.Proxy = NewDirect()
 

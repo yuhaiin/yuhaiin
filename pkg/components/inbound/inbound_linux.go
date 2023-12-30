@@ -5,8 +5,6 @@ package inbound
 
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tproxy"
 	cl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 )
 

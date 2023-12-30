@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -23,12 +24,12 @@ func Dial(host, port, user, password string) netapi.Proxy {
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
-	p, _ := New(&protocol.Protocol_Socks5{
+	p, _ := NewClient(&protocol.Protocol_Socks5{
 		Socks5: &protocol.Socks5{
 			Hostname: host,
 			User:     user,
 			Password: password,
-		}})(yerror.Must(simple.New(&protocol.Protocol_Simple{
+		}})(yerror.Must(simple.NewClient(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
 			Host:             addr.Hostname(),
 			Port:             int32(addr.Port().Port()),
@@ -49,8 +50,12 @@ type client struct {
 	dialer netapi.Proxy
 }
 
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
 // New returns a new Socks5 client
-func New(config *protocol.Protocol_Socks5) protocol.WrapProxy {
+func NewClient(config *protocol.Protocol_Socks5) point.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		return &client{
 			dialer:   dialer,

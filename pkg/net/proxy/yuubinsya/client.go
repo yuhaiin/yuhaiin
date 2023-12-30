@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -27,7 +28,11 @@ type client struct {
 	packetAuth Auth
 }
 
-func New(config *protocol.Protocol_Yuubinsya) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Yuubinsya) point.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		auth, err := NewAuth(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password))
 		if err != nil {

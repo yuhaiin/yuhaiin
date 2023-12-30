@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
@@ -20,7 +21,11 @@ type Shadowsocks struct {
 	netapi.EmptyDispatch
 }
 
-func New(config *protocol.Protocol_Shadowsocks) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Shadowsocks) point.WrapProxy {
 	c := config.Shadowsocks
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		cipher, err := core.PickCipher(strings.ToUpper(c.Method), nil, c.Password)

@@ -96,6 +96,8 @@ func init() {
 			},
 		}
 
+		tlsProtocol := &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
+
 		if n.Tls == "tls" {
 			if n.Sni == "" {
 				n.Sni, _, err = net.SplitHostPort(n.Host)
@@ -105,11 +107,16 @@ func init() {
 				}
 			}
 
-			simple.Simple.Tls = &protocol.TlsConfig{
-				ServerNames:        []string{n.Sni},
-				InsecureSkipVerify: !n.VerifyCert,
-				Enable:             true,
-				CaCert:             nil,
+			tlsProtocol = &protocol.Protocol{
+				Protocol: &protocol.Protocol_Tls{
+					Tls: &protocol.TlsConfig{
+
+						ServerNames:        []string{n.Sni},
+						InsecureSkipVerify: !n.VerifyCert,
+						Enable:             true,
+						CaCert:             nil,
+					},
+				},
 			}
 		}
 
@@ -125,9 +132,8 @@ func init() {
 			netProtocol = &protocol.Protocol{
 				Protocol: &protocol.Protocol_Websocket{
 					Websocket: &protocol.Websocket{
-						Host:       n.Host,
-						Path:       n.Path,
-						TlsEnabled: simple.Simple.Tls != nil,
+						Host: n.Host,
+						Path: n.Path,
 					},
 				},
 			}
@@ -144,6 +150,7 @@ func init() {
 				{
 					Protocol: simple,
 				},
+				tlsProtocol,
 				netProtocol,
 				{
 					Protocol: &protocol.Protocol_Vmess{

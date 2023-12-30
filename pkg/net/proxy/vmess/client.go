@@ -83,7 +83,7 @@ type Conn struct {
 }
 
 // NewClient .
-func NewClient(uuidStr, security string, alterID int) (*Client, error) {
+func newClient(uuidStr, security string, alterID int) (*Client, error) {
 	uuid, err := StrToUUID(uuidStr)
 	if err != nil {
 		return nil, err

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -29,12 +30,16 @@ type client struct {
 	mu        sync.Mutex
 }
 
-func New(config *protocol.Protocol_Grpc) protocol.WrapProxy {
+func init() {
+	point.RegisterProtocol(NewClient)
+}
+
+func NewClient(config *protocol.Protocol_Grpc) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		return &client{
 			Proxy:     p,
 			count:     &atomic.Int64{},
-			tlsConfig: protocol.ParseTLSConfig(config.Grpc.Tls),
+			tlsConfig: point.ParseTLSConfig(config.Grpc.Tls),
 		}, nil
 	}
 }
