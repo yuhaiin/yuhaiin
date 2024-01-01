@@ -53,9 +53,9 @@ func newServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 		ConnectionIDLength: 12,
 	}
 	lis, err := tr.Listen(tlsConfig, &quic.Config{
-		MaxIncomingStreams: 2048,
-		KeepAlivePeriod:    45 * time.Second,
-		MaxIdleTimeout:     60 * time.Second,
+		MaxIncomingStreams: 1 << 60,
+		KeepAlivePeriod:    15 * time.Second,
+		MaxIdleTimeout:     30 * time.Second,
 		EnableDatagrams:    true,
 		Allow0RTT:          true,
 	})

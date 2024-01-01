@@ -67,10 +67,9 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 			dialer:    dialer,
 			tlsConfig: tlsConfig,
 			quicConfig: &quic.Config{
-				MaxIncomingStreams: 2048,
-				MaxIdleTimeout:     60 * time.Second,
-				KeepAlivePeriod:    45 * time.Second,
-				EnableDatagrams:    true,
+				KeepAlivePeriod: 15 * time.Second,
+				MaxIdleTimeout:  30 * time.Second,
+				EnableDatagrams: true,
 			},
 			asNetwork: config.Quic.AsNetwork,
 			host:      host,
@@ -188,7 +187,7 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		cancel:  cancel,
 		session: c.packetConn,
 		id:      c.idg.Generate(),
-		msg:     make(chan []byte, 20),
+		msg:     make(chan []byte, 64),
 	}
 	c.natMap.Store(cp.id, cp)
 

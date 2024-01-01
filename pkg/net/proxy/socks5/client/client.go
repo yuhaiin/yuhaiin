@@ -31,9 +31,8 @@ func Dial(host, port, user, password string) netapi.Proxy {
 			Password: password,
 		}})(yerror.Must(simple.NewClient(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
-			Host:             addr.Hostname(),
-			Port:             int32(addr.Port().Port()),
-			PacketConnDirect: true,
+			Host: addr.Hostname(),
+			Port: int32(addr.Port().Port()),
 		},
 	})(nil)))
 	return p
@@ -184,7 +183,7 @@ func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
-	pc, err := s.dialer.PacketConn(ctx, addr)
+	pc, err := s.dialer.PacketConn(context.WithValue(ctx, simple.PacketDirectKey{}, true), addr)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("listen udp failed: %w", err)

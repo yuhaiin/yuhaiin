@@ -23,9 +23,8 @@ import (
 func ExampleNew() {
 	simple := simple.NewClient(&protocol.Protocol_Simple{
 		Simple: &protocol.Simple{
-			Host:             "127.0.0.1",
-			Port:             1080,
-			PacketConnDirect: false,
+			Host: "127.0.0.1",
+			Port: 1080,
 		},
 	})
 	ws := websocket.NewClient(&protocol.Protocol_Websocket{
