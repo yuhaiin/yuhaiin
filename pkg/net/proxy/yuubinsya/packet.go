@@ -21,14 +21,14 @@ import (
 type authPacketConn struct {
 	net.PacketConn
 	tcp    net.Conn
-	server netapi.Address
+	server net.Addr
 
 	auth Auth
 
 	prefix bool
 }
 
-func NewAuthPacketConn(local net.PacketConn, tcp net.Conn, target netapi.Address, auth Auth, prefix bool) *authPacketConn {
+func NewAuthPacketConn(local net.PacketConn, tcp net.Conn, target net.Addr, auth Auth, prefix bool) *authPacketConn {
 	return &authPacketConn{local, tcp, target, auth, prefix}
 }
 

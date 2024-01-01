@@ -3,6 +3,7 @@ package relay
 import (
 	"errors"
 	"io"
+	"net"
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -18,7 +19,8 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 		if _, err := Copy(rw2, rw1); err != nil &&
 			!errors.Is(err, io.EOF) &&
 			!errors.Is(err, os.ErrDeadlineExceeded) &&
-			!errors.Is(err, yamux.ErrTimeout) {
+			!errors.Is(err, yamux.ErrTimeout) &&
+			!errors.Is(err, net.ErrClosed) {
 			log.Error("relay rw1 -> rw2 failed", "err", err)
 		}
 		closeWrite(rw2) // make another Copy exit
@@ -28,7 +30,8 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 	if _, err := Copy(rw1, rw2); err != nil &&
 		!errors.Is(err, io.EOF) &&
 		!errors.Is(err, os.ErrDeadlineExceeded) &&
-		!errors.Is(err, yamux.ErrTimeout) {
+		!errors.Is(err, yamux.ErrTimeout) &&
+		!errors.Is(err, net.ErrClosed) {
 		log.Error("relay rw2 -> rw1 failed", "err", err)
 	}
 	closeWrite(rw1)
@@ -50,7 +53,7 @@ func closeWrite(rw io.ReadWriteCloser) {
 	}
 
 	// if r, ok := rw.(interface{ SetReadDeadline(time.Time) error }); ok {
-	// _ = r.SetReadDeadline(time.Now().Add(time.Second * 10))
+	// 	_ = r.SetReadDeadline(time.Now())
 	// } else {
 	_ = rw.Close()
 	// }

@@ -7,39 +7,62 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Hosts struct {
-	hosts    syncmap.SyncMap[string, netapi.Address]
+	hosts    map[string]*hostsEntry
 	dialer   netapi.Proxy
 	resolver netapi.Resolver
 }
 
+type hostsEntry struct {
+	V       netapi.Address
+	portMap map[uint16]netapi.Address
+}
+
 func NewHosts(dialer netapi.Proxy, resolver netapi.Resolver) *Hosts {
-	return &Hosts{dialer: dialer, resolver: resolver}
+	return &Hosts{dialer: dialer, resolver: resolver, hosts: map[string]*hostsEntry{}}
 }
 
 func (h *Hosts) Update(c *config.Setting) {
-	h.hosts = syncmap.SyncMap[string, netapi.Address]{}
+	store := map[string]*hostsEntry{}
 
 	for k, v := range c.Dns.Hosts {
 		_, _, e1 := net.SplitHostPort(k)
 		_, _, e2 := net.SplitHostPort(v)
 
 		if e1 == nil && e2 == nil {
-			addr, err := netapi.ParseAddress(0, v)
-			if err == nil {
-				h.hosts.Store(k, addr)
+			kaddr, err1 := netapi.ParseAddress(0, k)
+			addr, err2 := netapi.ParseAddress(0, v)
+			if err1 == nil && err2 == nil && kaddr.Port().Port() != 0 && addr.Port().Port() != 0 {
+				v, ok := store[kaddr.Hostname()]
+				if !ok {
+					v = &hostsEntry{}
+					store[kaddr.Hostname()] = v
+				}
+
+				if v.portMap == nil {
+					v.portMap = map[uint16]netapi.Address{}
+				}
+
+				v.portMap[kaddr.Port().Port()] = addr
 			}
 		}
 
 		if e1 != nil && e2 != nil {
-			h.hosts.Store(k, netapi.ParseAddressPort(0, v, netapi.EmptyPort))
+			he, ok := store[k]
+			if !ok {
+				he = &hostsEntry{}
+				store[k] = he
+			}
+
+			he.V = netapi.ParseAddressPort(0, v, netapi.EmptyPort)
 		}
 	}
+
+	h.hosts = store
 }
 
 func (h *Hosts) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Address, error) {
@@ -59,28 +82,32 @@ func (h *Hosts) PacketConn(ctx context.Context, addr netapi.Address) (net.Packet
 	return &dispatchPacketConn{c, h.dispatchAddr}, nil
 }
 
-type hostsKey struct{}
-
-func (hostsKey) String() string { return "Hosts" }
-
 func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
-	z, ok := h.hosts.Load(addr.Hostname())
-	if ok {
-		netapi.StoreFromContext(ctx).
-			Add(hostsKey{}, addr.Hostname()).
-			Add(netapi.CurrentKey{}, addr)
-		return addr.OverrideHostname(z.Hostname())
+	v, ok := h.hosts[addr.Hostname()]
+	if !ok {
+		return addr
 	}
 
-	z, ok = h.hosts.Load(addr.String())
-	if ok {
-		store := netapi.StoreFromContext(ctx)
-		store.Add(hostsKey{}, addr.String())
-		addr = addr.OverrideHostname(z.Hostname()).OverridePort(z.Port())
-		store.Add(netapi.CurrentKey{}, addr)
+	if v.portMap != nil {
+		z, ok := v.portMap[addr.Port().Port()]
+		if ok {
+			store := netapi.StoreFromContext(ctx)
+			store.Add("Hosts", addr.String())
+			addr = addr.OverrideHostname(z.Hostname()).OverridePort(z.Port())
+			store.Add(netapi.CurrentKey{}, addr)
+			return addr
+		}
 	}
 
-	return addr
+	if v.V == nil {
+		return addr
+	}
+
+	netapi.StoreFromContext(ctx).
+		Add("Hosts", addr.Hostname()).
+		Add(netapi.CurrentKey{}, addr)
+	return addr.OverrideHostname(v.V.Hostname())
+
 }
 
 func (h *Hosts) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {

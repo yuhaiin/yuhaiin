@@ -19,12 +19,11 @@ import (
 type Simple struct {
 	netapi.EmptyDispatch
 
-	packetDirect bool
-	addrs        []netapi.Address
-	refresh      atomic.Bool
-	index        atomic.Uint32
-	updateTime   time.Time
-	timeout      time.Duration
+	addrs      []netapi.Address
+	refresh    atomic.Bool
+	index      atomic.Uint32
+	updateTime time.Time
+	timeout    time.Duration
 }
 
 func init() {
@@ -46,9 +45,8 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 		}
 
 		simple := &Simple{
-			addrs:        addrs,
-			packetDirect: c.Simple.PacketConnDirect,
-			timeout:      timeout,
+			addrs:   addrs,
+			timeout: timeout,
 		}
 
 		return tls.NewClient(&protocol.Protocol_Tls{Tls: c.Simple.Tls})(simple)
@@ -141,8 +139,10 @@ func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 	return conn, nil
 }
 
+type PacketDirectKey struct{}
+
 func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	if c.packetDirect {
+	if ctx.Value(PacketDirectKey{}) != true {
 		return direct.Default.PacketConn(ctx, addr)
 	}
 
@@ -167,6 +167,7 @@ type packetConn struct {
 func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	return p.PacketConn.WriteTo(b, p.addr)
 }
+
 func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	z, _, err := p.PacketConn.ReadFrom(b)
 	return z, p.addr, err

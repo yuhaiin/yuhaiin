@@ -19,9 +19,8 @@ func main() {
 			{
 				Protocol: &protocol.Protocol_Simple{
 					Simple: &protocol.Simple{
-						Host:             "127.0.0.1",
-						Port:             1080,
-						PacketConnDirect: true,
+						Host: "127.0.0.1",
+						Port: 1080,
 					},
 				},
 			},
