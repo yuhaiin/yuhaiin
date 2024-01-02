@@ -36,8 +36,7 @@ type Client struct {
 
 	idg id.IDGenerator
 
-	host      *net.UDPAddr
-	asNetwork bool
+	host *net.UDPAddr
 }
 
 func init() {
@@ -49,7 +48,7 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 
 		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
 
-		if config.Quic.AsNetwork {
+		if config.Quic.Host != "" {
 			addr, err := net.ResolveUDPAddr("udp", config.Quic.Host)
 			if err != nil {
 				return nil, err
@@ -63,6 +62,10 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 			tlsConfig = &tls.Config{}
 		}
 
+		if point.IsInitProxy(dialer) {
+			dialer = nil
+		}
+
 		c := &Client{
 			dialer:    dialer,
 			tlsConfig: tlsConfig,
@@ -71,8 +74,7 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 				MaxIdleTimeout:  30 * time.Second,
 				EnableDatagrams: true,
 			},
-			asNetwork: config.Quic.AsNetwork,
-			host:      host,
+			host: host,
 		}
 
 		return c, nil
@@ -106,7 +108,7 @@ func (c *Client) initSession(ctx context.Context) error {
 	var conn net.PacketConn
 	var err error
 
-	if c.asNetwork {
+	if c.dialer == nil {
 		conn, err = dialer.ListenPacket("udp", "")
 	} else {
 		conn, err = c.dialer.PacketConn(ctx, netapi.EmptyAddr)

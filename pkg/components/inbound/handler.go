@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/sniffy"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -18,6 +21,8 @@ type handler struct {
 	dialer     netapi.Proxy
 	dnsHandler netapi.DNSHandler
 	table      *nat.Table
+
+	sniffer *sniffy.Sniffier[bypass.Mode]
 }
 
 func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSHandler) *handler {
@@ -25,6 +30,7 @@ func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSHandler) *handler {
 		dialer:     dialer,
 		table:      nat.NewTable(dialer),
 		dnsHandler: dnsHandler,
+		sniffer:    sniffy.New(),
 	}
 
 	return h
@@ -58,6 +64,15 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 		store.Add(netapi.InboundKey{}, meta.Inbound)
 	}
 
+	src, mode, name, ok := s.sniffer.Stream(meta.Src)
+	if ok {
+		store.
+			Add("Protocol", name).
+			Add(shunt.ForceModeKey{}, mode)
+	}
+
+	meta.Src = src
+
 	remote, err := s.dialer.Conn(ctx, dst)
 	if err != nil {
 		return fmt.Errorf("dial %s failed: %w", dst, err)
@@ -70,10 +85,19 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	go func() {
+		store := netapi.StoreFromContext(ctx)
+
 		ctx, cancel := context.WithTimeout(ctx, Timeout)
 		defer cancel()
 
 		ctx = netapi.NewStore(ctx)
+
+		mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())
+		if ok {
+			store.
+				Add("Protocol", name).
+				Add(shunt.ForceModeKey{}, mode)
+		}
 
 		if err := s.table.Write(ctx, pack); err != nil {
 			log.Error("packet", "error", err)
