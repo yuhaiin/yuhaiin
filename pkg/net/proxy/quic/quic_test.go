@@ -75,8 +75,7 @@ func TestQuic(t *testing.T) {
 
 	qc, err := NewClient(&protocol.Protocol_Quic{
 		Quic: &protocol.Quic{
-			Host:      "localhost:1090",
-			AsNetwork: true,
+			Host: "localhost:1090",
 			Tls: &protocol.TlsConfig{
 				Enable:             true,
 				InsecureSkipVerify: true,

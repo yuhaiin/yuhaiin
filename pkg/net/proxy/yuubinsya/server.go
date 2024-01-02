@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -107,6 +108,7 @@ func (y *server) startTCP() (err error) {
 }
 
 func (y *server) handle(conn net.Conn) error {
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	c, err := y.handshaker.HandshakeServer(conn)
 	if err != nil {
 		return fmt.Errorf("handshake failed: %w", err)
@@ -117,12 +119,16 @@ func (y *server) handle(conn net.Conn) error {
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
+	_ = conn.SetReadDeadline(time.Time{})
+
 	switch net {
 	case entity.TCP:
+		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		target, err := tools.ResolveAddr(c)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
+		_ = conn.SetReadDeadline(time.Time{})
 
 		addr := target.Address(statistic.Type_tcp)
 
@@ -160,6 +166,8 @@ func (y *server) Close() error {
 }
 
 func (y *server) forwardPacket(c net.Conn) error {
+	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
+
 	addr, err := tools.ResolveAddr(c)
 	if err != nil {
 		return err
@@ -175,6 +183,8 @@ func (y *server) forwardPacket(c net.Conn) error {
 	if _, err = io.ReadFull(c, bufv2.Bytes()); err != nil {
 		return err
 	}
+
+	_ = c.SetReadDeadline(time.Time{})
 
 	select {
 	case <-y.ctx.Done():

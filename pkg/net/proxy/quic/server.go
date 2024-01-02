@@ -88,6 +88,11 @@ func (s *Server) Close() error {
 	var err error
 
 	s.cancel()
+	if s.Listener != nil {
+		if er := s.Listener.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
 	if s.packetConn != nil {
 		if er := s.packetConn.Close(); er != nil {
 			err = errors.Join(err, er)

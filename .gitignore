@@ -9,3 +9,4 @@
 /internal/statics/bypass.conf
 /internal/statics/bypass.gz
 /cmd/socat/socat
+/cmd/benchmark/benchmark
