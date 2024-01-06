@@ -5,11 +5,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -113,8 +113,7 @@ func (s *Server) Accept() (net.Conn, error) {
 }
 
 func (s *Server) Packet(context.Context) (net.PacketConn, error) {
-	ctx, cancel := context.WithCancel(s.ctx)
-	return &serverPacketConn{Server: s, ctx: ctx, cancel: cancel}, nil
+	return newServerPacketConn(s), nil
 }
 
 func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
@@ -193,16 +192,28 @@ type serverPacketConn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	deadline *time.Timer
+	deadline *deadline.PipeDeadline
+}
+
+func newServerPacketConn(s *Server) *serverPacketConn {
+	ctx, cancel := context.WithCancel(s.ctx)
+	return &serverPacketConn{
+		Server:   s,
+		ctx:      ctx,
+		cancel:   cancel,
+		deadline: deadline.NewPipe(),
+	}
 }
 
 func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	select {
 	case <-x.Server.ctx.Done():
 		x.cancel()
-		return 0, nil, x.ctx.Err()
+		return 0, nil, x.Server.ctx.Err()
 	case <-x.ctx.Done():
-		return 0, nil, io.EOF
+		return 0, nil, x.ctx.Err()
+	case <-x.deadline.ReadContext().Done():
+		return 0, nil, x.deadline.ReadContext().Err()
 	case msg := <-x.packetChan:
 		n = copy(p, msg.msg)
 		return n, &QuicAddr{Addr: msg.src, ID: quic.StreamID(msg.id)}, nil
@@ -212,9 +223,11 @@ func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) 
 func (x *serverPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	select {
 	case <-x.Server.ctx.Done():
-		return 0, x.ctx.Err()
+		return 0, x.Server.ctx.Err()
 	case <-x.ctx.Done():
-		return 0, io.EOF
+		return 0, x.ctx.Err()
+	case <-x.deadline.WriteContext().Done():
+		return 0, x.deadline.WriteContext().Err()
 	default:
 	}
 
@@ -236,20 +249,30 @@ func (x *serverPacketConn) LocalAddr() net.Addr {
 }
 
 func (x *serverPacketConn) SetDeadline(t time.Time) error {
-	if x.deadline == nil {
-		if !t.IsZero() {
-			x.deadline = time.AfterFunc(time.Until(t), func() { x.cancel() })
-		}
-		return nil
+	select {
+	case <-x.Server.ctx.Done():
+		return x.Server.ctx.Err()
+	case <-x.ctx.Done():
+		return x.ctx.Err()
+	default:
 	}
 
-	if t.IsZero() {
-		x.deadline.Stop()
-	} else {
-		x.deadline.Reset(time.Until(t))
-	}
+	x.deadline.SetDeadline(t)
 	return nil
 }
 
-func (x *serverPacketConn) SetReadDeadline(t time.Time) error  { return x.SetDeadline(t) }
-func (x *serverPacketConn) SetWriteDeadline(t time.Time) error { return x.SetDeadline(t) }
+func (x *serverPacketConn) SetReadDeadline(t time.Time) error {
+	x.deadline.SetReadDeadline(t)
+	return nil
+}
+
+func (x *serverPacketConn) SetWriteDeadline(t time.Time) error {
+	x.deadline.SetWriteDeadline(t)
+	return nil
+}
+
+func (x *serverPacketConn) Close() error {
+	x.cancel()
+	x.deadline.Close()
+	return x.Server.Close()
+}

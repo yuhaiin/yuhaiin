@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -135,6 +136,14 @@ func (c *Client) Conn(ctx context.Context, add netapi.Address) (net.Conn, error)
 		r:          respr,
 		localAddr:  addr{addr: raw.LocalAddr().String(), id: id},
 		remoteAddr: raw.RemoteAddr(),
+		deadline: deadline.NewPipe(
+			deadline.WithReadClose(func() {
+				_ = respr.Close()
+			}),
+			deadline.WithWriteClose(func() {
+				_ = w.CloseWithError(io.EOF)
+			}),
+		),
 	}
 
 	go func() {
