@@ -53,11 +53,12 @@ func newServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 		ConnectionIDLength: 12,
 	}
 	lis, err := tr.Listen(tlsConfig, &quic.Config{
-		MaxIncomingStreams: 1 << 60,
-		KeepAlivePeriod:    15 * time.Second,
-		MaxIdleTimeout:     30 * time.Second,
-		EnableDatagrams:    true,
-		Allow0RTT:          true,
+		MaxIncomingStreams:    1 << 60,
+		KeepAlivePeriod:       0,
+		MaxIdleTimeout:        60 * time.Second,
+		EnableDatagrams:       true,
+		Allow0RTT:             true,
+		MaxIncomingUniStreams: -1,
 	})
 	if err != nil {
 		return nil, err

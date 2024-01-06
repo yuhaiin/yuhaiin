@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
@@ -22,9 +23,8 @@ import (
 type Client struct {
 	netapi.EmptyDispatch
 
-	tlsConfig  *tls.Config
-	quicConfig *quic.Config
-	dialer     netapi.Proxy
+	tlsConfig *tls.Config
+	dialer    netapi.Proxy
 
 	session     quic.Connection
 	underlying  net.PacketConn
@@ -49,12 +49,13 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
 
 		if config.Quic.Host != "" {
-			addr, err := net.ResolveUDPAddr("udp", config.Quic.Host)
-			if err != nil {
-				return nil, err
+			addr, err := netapi.ParseAddress(statistic.Type_udp, config.Quic.Host)
+			if err == nil {
+				uaddr, err := addr.UDPAddr(context.TODO())
+				if err == nil {
+					host = uaddr
+				}
 			}
-
-			host = addr
 		}
 
 		tlsConfig := point.ParseTLSConfig(config.Quic.Tls)
@@ -69,12 +70,7 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 		c := &Client{
 			dialer:    dialer,
 			tlsConfig: tlsConfig,
-			quicConfig: &quic.Config{
-				KeepAlivePeriod: 15 * time.Second,
-				MaxIdleTimeout:  30 * time.Second,
-				EnableDatagrams: true,
-			},
-			host: host,
+			host:      host,
 		}
 
 		return c, nil
@@ -122,7 +118,14 @@ func (c *Client) initSession(ctx context.Context) error {
 		ConnectionIDLength: 12,
 	}
 
-	session, err := tr.Dial(ctx, c.host, c.tlsConfig, c.quicConfig)
+	session, err := tr.Dial(ctx, c.host,
+		c.tlsConfig,
+		&quic.Config{
+			KeepAlivePeriod: 30 * time.Second,
+			MaxIdleTimeout:  60 * time.Second,
+			EnableDatagrams: true,
+		},
+	)
 	if err != nil {
 		_ = conn.Close()
 		return err
@@ -164,7 +167,7 @@ func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	stream, err := c.session.OpenStreamSync(ctx)
+	stream, err := c.session.OpenStream()
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +231,7 @@ func (c *interConn) Write(p []byte) (n int, err error) {
 }
 
 func (c *interConn) Close() error {
+	c.Stream.CancelRead(0)
 	return c.Stream.Close()
 }
 

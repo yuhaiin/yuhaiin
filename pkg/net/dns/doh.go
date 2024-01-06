@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
 
 func init() {
@@ -48,30 +49,52 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 		ServerName: config.Servername,
 	}
 
-	newRoundTripper := func() *http.Transport {
-		return &http.Transport{
-			TLSClientConfig:   tlsConfig,
-			ForceAttemptHTTP2: true,
-			DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
-				return config.Dialer.Conn(ctx, addr)
-			},
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		}
+	type transportStore struct {
+		transport *http.Transport
+		time      time.Time
 	}
 
-	roundTripper := atomic.Pointer[http.Transport]{}
-	roundTripper.Store(newRoundTripper())
+	roundTripper := atomic.Pointer[transportStore]{}
+
+	var sf singleflight.Group[struct{}, struct{}]
+
+	refreshRoundTripper := func() {
+		rt := roundTripper.Load()
+		if rt != nil {
+			if time.Since(rt.time) <= time.Second*5 {
+				return
+			}
+
+			rt.transport.CloseIdleConnections()
+		}
+
+		_, _, _ = sf.Do(struct{}{}, func() (struct{}, error) {
+			roundTripper.Store(&transportStore{
+				transport: &http.Transport{
+					TLSClientConfig:   tlsConfig,
+					ForceAttemptHTTP2: true,
+					DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
+						return config.Dialer.Conn(ctx, addr)
+					},
+					MaxIdleConns:          100,
+					IdleConnTimeout:       90 * time.Second,
+					TLSHandshakeTimeout:   10 * time.Second,
+					ExpectContinueTimeout: 1 * time.Second,
+				},
+				time: time.Now(),
+			})
+
+			return struct{}{}, nil
+		})
+	}
+
+	refreshRoundTripper()
 
 	return NewClient(config,
 		func(ctx context.Context, b []byte) ([]byte, error) {
-			rt := roundTripper.Load()
-			resp, err := rt.RoundTrip(req.Clone(ctx, b))
+			resp, err := roundTripper.Load().transport.RoundTrip(req.Clone(ctx, b))
 			if err != nil {
-				rt.CloseIdleConnections()
-				roundTripper.Store(newRoundTripper()) // https://github.com/golang/go/issues/30702
+				refreshRoundTripper() // https://github.com/golang/go/issues/30702
 				return nil, fmt.Errorf("doh post failed: %w", err)
 			}
 			defer resp.Body.Close()

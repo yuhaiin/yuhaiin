@@ -215,7 +215,9 @@ func (l *listener) tcp() {
 			return
 		case stream := <-l.tcpChannel:
 			if stream.Address.Port().Port() == 53 && l.hijackDNS {
-				if err := l.handler.dnsHandler.HandleTCP(l.ctx, stream.Src); err != nil {
+				err := l.handler.dnsHandler.HandleTCP(l.ctx, stream.Src)
+				_ = stream.Src.Close()
+				if err != nil {
 					log.Error("tcp server handle DnsHijacking failed", "err", err)
 				}
 				continue
