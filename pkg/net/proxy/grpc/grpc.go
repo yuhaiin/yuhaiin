@@ -77,6 +77,7 @@ func (c *conn) Close() error {
 	c.closed = true
 	return nil
 }
+
 func (c *conn) LocalAddr() net.Addr  { return c.laddr }
 func (c *conn) RemoteAddr() net.Addr { return c.raddr }
 

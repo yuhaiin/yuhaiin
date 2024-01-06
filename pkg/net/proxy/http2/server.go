@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
@@ -139,7 +140,14 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Body,
 		h.Addr(),
 		&addr{r.RemoteAddr, h.id.Generate()},
-		nil,
+		deadline.NewPipe(
+			// deadline.WithReadClose(func() {
+			// _ = r.Body.Close()
+			// }),
+			deadline.WithWriteClose(func() {
+				_ = fw.Close()
+			}),
+		),
 	}
 	defer conn.Close()
 
@@ -212,10 +220,16 @@ type http2Conn struct {
 	localAddr  net.Addr
 	remoteAddr net.Addr
 
-	deadline *time.Timer
+	deadline *deadline.PipeDeadline
 }
 
 func (h *http2Conn) Read(b []byte) (int, error) {
+	select {
+	case <-h.deadline.ReadContext().Done():
+		return 0, h.deadline.ReadContext().Err()
+	default:
+	}
+
 	n, err := h.r.Read(b)
 	if err != nil {
 		if he, ok := err.(http2.StreamError); h.server && ok {
@@ -230,7 +244,16 @@ func (h *http2Conn) Read(b []byte) (int, error) {
 	return n, err
 }
 
-func (h *http2Conn) Write(b []byte) (int, error) { return h.pipew.Write(b) }
+func (h *http2Conn) Write(b []byte) (int, error) {
+	select {
+	case <-h.deadline.WriteContext().Done():
+		return 0, h.deadline.WriteContext().Err()
+	default:
+	}
+
+	return h.pipew.Write(b)
+}
+
 func (h *http2Conn) Close() error {
 	if h.piper != nil {
 		h.piper.CloseWithError(io.EOF)
@@ -242,6 +265,8 @@ func (h *http2Conn) Close() error {
 		return h.r.Close()
 	}
 
+	_ = h.deadline.Close()
+
 	return nil
 }
 
@@ -249,23 +274,19 @@ func (h *http2Conn) LocalAddr() net.Addr  { return h.localAddr }
 func (h *http2Conn) RemoteAddr() net.Addr { return h.remoteAddr }
 
 func (c *http2Conn) SetDeadline(t time.Time) error {
-	if c.deadline == nil {
-		if !t.IsZero() {
-			c.deadline = time.AfterFunc(time.Until(t), func() { c.Close() })
-		}
-		return nil
-	}
-
-	if t.IsZero() {
-		c.deadline.Stop()
-	} else {
-		c.deadline.Reset(time.Until(t))
-	}
-
+	c.deadline.SetDeadline(t)
 	return nil
 }
-func (c *http2Conn) SetReadDeadline(t time.Time) error  { return c.SetDeadline(t) }
-func (c *http2Conn) SetWriteDeadline(t time.Time) error { return c.SetDeadline(t) }
+
+func (c *http2Conn) SetReadDeadline(t time.Time) error {
+	c.deadline.SetReadDeadline(t)
+	return nil
+}
+
+func (c *http2Conn) SetWriteDeadline(t time.Time) error {
+	c.deadline.SetWriteDeadline(t)
+	return nil
+}
 
 type addr struct {
 	addr string

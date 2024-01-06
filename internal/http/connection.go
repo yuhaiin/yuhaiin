@@ -46,17 +46,28 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 			cancel()
 		}()
 
-		sendFlow := func() error {
-			total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
-			if err != nil {
-				return err
-			}
-			return websocket.PROTO.Send(c, &gs.NotifyData{Data: &gs.NotifyData_TotalFlow{TotalFlow: total}})
-		}
+		go func() {
+			timer := time.NewTicker(time.Duration(ticker) * time.Millisecond)
+			defer timer.Stop()
 
-		if err = sendFlow(); err != nil {
-			return err
-		}
+			for {
+				select {
+				case <-timer.C:
+					total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
+					if err == nil {
+						_ = cns.Send(&gs.NotifyData{
+							Data: &gs.NotifyData_TotalFlow{
+								TotalFlow: total,
+							},
+						},
+						)
+					}
+
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 
 		for {
 			select {
@@ -65,11 +76,6 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 
 			case m := <-cns.msgChan:
 				if err = websocket.PROTO.Send(c, m); err != nil {
-					return err
-				}
-
-			case <-time.After(time.Duration(ticker) * time.Millisecond):
-				if err = sendFlow(); err != nil {
 					return err
 				}
 			}

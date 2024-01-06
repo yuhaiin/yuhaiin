@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
@@ -187,12 +188,13 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	cp := &clientPacketConn{
-		c:       c,
-		ctx:     ctx,
-		cancel:  cancel,
-		session: c.packetConn,
-		id:      c.idg.Generate(),
-		msg:     make(chan []byte, 64),
+		c:        c,
+		ctx:      ctx,
+		cancel:   cancel,
+		session:  c.packetConn,
+		id:       c.idg.Generate(),
+		msg:      make(chan []byte, 64),
+		deadline: deadline.NewPipe(),
 	}
 	c.natMap.Store(cp.id, cp)
 
@@ -274,17 +276,20 @@ type clientPacketConn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	msg      chan []byte
-	deadline *time.Timer
+	msg chan []byte
+
+	deadline *deadline.PipeDeadline
 }
 
 func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 	select {
 	case <-x.session.Context().Done():
 		x.Close()
-		return 0, nil, io.EOF
+		return 0, nil, x.session.Context().Err()
+	case <-x.deadline.ReadContext().Done():
+		return 0, nil, x.deadline.ReadContext().Err()
 	case <-x.ctx.Done():
-		return 0, nil, io.EOF
+		return 0, nil, x.ctx.Err()
 	case msg := <-x.msg:
 		n = copy(p, msg)
 		return n, x.session.conn.RemoteAddr(), nil
@@ -294,7 +299,9 @@ func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
 	select {
 	case <-x.ctx.Done():
-		return 0, io.EOF
+		return 0, x.ctx.Err()
+	case <-x.deadline.WriteContext().Done():
+		return 0, x.deadline.WriteContext().Err()
 	default:
 	}
 
@@ -307,6 +314,7 @@ func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
 
 func (x *clientPacketConn) Close() error {
 	x.cancel()
+	x.deadline.Close()
 	x.c.natMap.Delete(x.id)
 	return nil
 }
@@ -325,19 +333,16 @@ func (x *clientPacketConn) SetDeadline(t time.Time) error {
 	default:
 	}
 
-	if x.deadline == nil {
-		if !t.IsZero() {
-			x.deadline = time.AfterFunc(time.Until(t), func() { x.Close() })
-		}
-		return nil
-	}
-
-	if t.IsZero() {
-		x.deadline.Stop()
-	} else {
-		x.deadline.Reset(time.Until(t))
-	}
+	x.deadline.SetDeadline(t)
 	return nil
 }
-func (x *clientPacketConn) SetReadDeadline(t time.Time) error  { return x.SetDeadline(t) }
-func (x *clientPacketConn) SetWriteDeadline(t time.Time) error { return x.SetDeadline(t) }
+
+func (x *clientPacketConn) SetReadDeadline(t time.Time) error {
+	x.deadline.SetReadDeadline(t)
+	return nil
+}
+
+func (x *clientPacketConn) SetWriteDeadline(t time.Time) error {
+	x.deadline.SetWriteDeadline(t)
+	return nil
+}
