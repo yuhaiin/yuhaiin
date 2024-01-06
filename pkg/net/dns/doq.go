@@ -48,16 +48,17 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 	d := &doq{dialer: config.Dialer, host: addr, servername: config.Servername}
 
 	d.client = NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
-		err := d.initSession(ctx)
+		session, err := d.initSession(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("init session failed: %w", err)
 		}
 
 		d.mu.RLock()
-		con, err := d.connection.OpenStreamSync(ctx)
+		con, err := session.OpenStreamSync(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("open stream failed: %w", err)
 		}
+		defer con.Close()
 		defer d.mu.RUnlock()
 
 		err = con.SetWriteDeadline(time.Now().Add(time.Second * 4))
@@ -132,7 +133,18 @@ type doqWrapLocalAddr struct{ net.Addr }
 
 func (a *doqWrapLocalAddr) Network() string { return "DNSoverQUIC" }
 
-func (d *doq) initSession(ctx context.Context) error {
+func (d *doq) initSession(ctx context.Context) (quic.Connection, error) {
+	connection := d.connection
+
+	if connection != nil {
+		select {
+		case <-connection.Context().Done():
+			_ = connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+		default:
+			return connection, nil
+		}
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -140,24 +152,26 @@ func (d *doq) initSession(ctx context.Context) error {
 		select {
 		case <-d.connection.Context().Done():
 			_ = d.connection.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
-			if d.conn != nil {
-				d.conn.Close()
-				d.conn = nil
-			}
+
 		default:
-			return nil
+			return d.connection, nil
 		}
+	}
+
+	if d.conn != nil {
+		d.conn.Close()
+		d.conn = nil
 	}
 
 	if d.conn == nil {
 		conn, err := d.dialer.PacketConn(ctx, d.host)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		d.conn = conn
 	}
 
-	session, err := quic.DialEarly(
+	session, err := quic.Dial(
 		ctx,
 		&DOQWrapConn{d.conn},
 		d.host,
@@ -170,11 +184,12 @@ func (d *doq) initSession(ctx context.Context) error {
 			MaxIdleTimeout:       time.Second * 5,
 		})
 	if err != nil {
-		return fmt.Errorf("quic dial failed: %w", err)
+		_ = d.conn.Close()
+		return nil, fmt.Errorf("quic dial failed: %w", err)
 	}
 
 	d.connection = session
-	return nil
+	return session, nil
 }
 
 var TlsProtos = []string{"doq-i02"}

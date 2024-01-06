@@ -70,6 +70,7 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 			Add("Protocol", name).
 			Add(shunt.ForceModeKey{}, mode)
 	}
+	defer src.Close()
 
 	meta.Src = src
 
