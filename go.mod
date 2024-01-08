@@ -5,7 +5,7 @@ go 1.21.5
 require (
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20231213140704-4c5812896512
 	github.com/quic-go/quic-go v0.40.1-0.20240105102142-0a922b4e7d13
-	github.com/refraction-networking/utls v1.6.0
+	github.com/refraction-networking/utls v1.6.1
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.8
