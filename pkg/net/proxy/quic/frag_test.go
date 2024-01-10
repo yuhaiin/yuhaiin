@@ -18,7 +18,7 @@ Adda
 	w7dd9uyDlVMFmHiNBlVDeLxMPJCyO7O13ktYY6td
 	irtlS23Zr1qium5zAjrmk6eV4igiewV4AagcBnB9ydSEcf`)
 
-	datas := f.Split(x, 17)
+	datas := f.Split(x, 50)
 
 	t.Log(len(datas), len(x))
 
