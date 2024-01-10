@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"math"
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
 )
@@ -61,7 +63,7 @@ func (f *Frag) Merge(buf []byte) []byte {
 	fh := fragFrame(buf)
 
 	if fh.Type() == FragmentTypeSingle {
-		return buf[1:]
+		return fh.Payload()
 	}
 
 	total := fh.Total()
@@ -95,7 +97,9 @@ func (f *Frag) Merge(buf []byte) []byte {
 }
 
 func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
-	if maxSize <= 12 {
+	headerSize := 1 + 8 + 1 + 1
+
+	if maxSize <= headerSize {
 		return nil
 	}
 
@@ -103,14 +107,19 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 		return [][]byte{append([]byte{byte(FragmentTypeSingle)}, buf...)}
 	}
 
-	maxSize = maxSize - 8 - 2 - 2 - 1
+	maxSize = maxSize - headerSize
 
 	frames := len(buf) / maxSize
 	if len(buf)%maxSize != 0 {
 		frames++
 	}
 
-	var datas [][]byte = make([][]byte, 0, frames)
+	if frames > math.MaxUint8 {
+		log.Error("too many frames", "frames", frames)
+		return nil
+	}
+
+	var frameArray [][]byte = make([][]byte, 0, frames)
 
 	id := f.SplitID.Add(1)
 
@@ -122,10 +131,10 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 			frame = buf[i*maxSize : (i+1)*maxSize]
 		}
 
-		datas = append(datas, NewFragFrame(FragmentTypeSplit, id, uint16(frames), uint16(i), frame))
+		frameArray = append(frameArray, NewFragFrame(FragmentTypeSplit, id, uint8(frames), uint8(i), frame))
 	}
 
-	return datas
+	return frameArray
 }
 
 type ConnectionPacketConn struct {
@@ -189,13 +198,14 @@ const (
 
 type fragFrame []byte
 
-func NewFragFrame(t FragType, id uint64, total uint16, current uint16, payload []byte) fragFrame {
-	buf := make([]byte, 1+8+2+2+len(payload))
+func NewFragFrame(t FragType, id uint64, total, current uint8, payload []byte) fragFrame {
+	buf := make([]byte, 1+8+1+1+len(payload))
+
 	buf[0] = byte(t)
 	binary.BigEndian.PutUint64(buf[1:], id)
-	binary.BigEndian.PutUint16(buf[1+8:], total)
-	binary.BigEndian.PutUint16(buf[1+8+2:], current)
-	copy(buf[1+8+2+2:], payload)
+	buf[1+8+1-1] = total
+	buf[1+8+1+1-1] = current
+	copy(buf[1+8+1+1:], payload)
 
 	return buf
 }
@@ -216,38 +226,30 @@ func (f fragFrame) ID() uint64 {
 	return binary.BigEndian.Uint64(f[1:])
 }
 
-func (f fragFrame) Total() uint16 {
-	if len(f) < 1+8+2 {
+func (f fragFrame) Total() uint8 {
+	if len(f) < 1+8+1 {
 		return 0
 	}
 
-	return binary.BigEndian.Uint16(f[1+8:])
+	return f[1+8+1-1]
 }
 
-func (f fragFrame) Current() uint16 {
-	if len(f) < 1+8+2+2 {
+func (f fragFrame) Current() uint8 {
+	if len(f) < 1+8+1+1 {
 		return 0
 	}
 
-	return binary.BigEndian.Uint16(f[1+8+2:])
+	return f[1+8+1+1-1]
 }
 
 func (f fragFrame) Payload() []byte {
-	return f[1+8+2+2:]
-}
+	if f.Type() == FragmentTypeSingle {
+		return f[1:]
+	}
 
-func (f fragFrame) SetType(t FragType) {
-	f[0] = byte(t)
-}
+	if len(f) < 1+8+1+1 {
+		return nil
+	}
 
-func (f fragFrame) SetID(id uint64) {
-	binary.BigEndian.PutUint64(f[1:], id)
-}
-
-func (f fragFrame) SetTotal(total uint16) {
-	binary.BigEndian.PutUint16(f[1+8:], total)
-}
-
-func (f fragFrame) SetCurrent(current uint16) {
-	binary.BigEndian.PutUint16(f[1+8+2:], current)
+	return f[1+8+1+1:]
 }

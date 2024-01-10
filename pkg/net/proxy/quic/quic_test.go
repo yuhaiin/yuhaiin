@@ -42,7 +42,7 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfFPJ3xA3HtR6OR11
 func TestQuic(t *testing.T) {
 	s, err := NewServer(&listener.Inbound_Quic{
 		Quic: &listener.Quic2{
-			Host: "localhost:1090",
+			Host: "127.0.0.1:1090",
 			Tls: &listener.TlsConfig{
 				Certificates: []*listener.Certificate{
 					{
@@ -75,7 +75,7 @@ func TestQuic(t *testing.T) {
 
 	qc, err := NewClient(&protocol.Protocol_Quic{
 		Quic: &protocol.Quic{
-			Host: "localhost:1090",
+			Host: "127.0.0.1:1090",
 			Tls: &protocol.TlsConfig{
 				Enable:             true,
 				InsecureSkipVerify: true,
