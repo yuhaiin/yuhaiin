@@ -176,8 +176,8 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 		return
 	}
 
-	encrypt := pool.GetBytesV2(16)
-	defer pool.PutBytesV2(encrypt)
+	encrypt := pool.GetBytesBuffer(16)
+	defer pool.PutBytesBuffer(encrypt)
 
 	a.info.Auth.nextAuth()
 	binary.LittleEndian.PutUint32(encrypt.Bytes(), uint32(time.Now().Unix()))
@@ -247,8 +247,8 @@ func (a *authAES128) DecryptStream(rbuf *bytes.Buffer, data []byte) (int, error)
 
 	keyLen := len(a.userKey) + 4
 
-	key := pool.GetBytesV2(keyLen)
-	defer pool.PutBytesV2(key)
+	key := pool.GetBytesBuffer(keyLen)
+	defer pool.PutBytesBuffer(key)
 
 	copy(key.Bytes(), a.userKey)
 

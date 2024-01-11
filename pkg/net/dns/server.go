@@ -74,10 +74,10 @@ func (d *dnsServer) startUDP() (err error) {
 			defer d.Close()
 
 			for {
-				buf := pool.GetBytesV2(nat.MaxSegmentSize)
+				buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
 				n, addr, err := d.listener.ReadFrom(buf.Bytes())
 				if err != nil {
-					pool.PutBytesV2(buf)
+					pool.PutBytesBuffer(buf)
 
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						continue
@@ -143,7 +143,7 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 		return fmt.Errorf("read dns length failed: %w", err)
 	}
 
-	data := pool.GetBytesV2(int(length))
+	data := pool.GetBytesBuffer(int(length))
 
 	_, err := io.ReadFull(c, data.Bytes())
 	if err != nil {
@@ -160,7 +160,7 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 }
 
 func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
-	buf := pool.GetBytesV2(nat.MaxSegmentSize)
+	buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
 
 	n, addr, err := l.ReadFrom(buf.Bytes())
 	if err != nil {
@@ -179,7 +179,7 @@ func (d *dnsServer) Do(ctx context.Context, b *pool.Bytes, writeBack func([]byte
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	defer pool.PutBytesV2(b)
+	defer pool.PutBytesBuffer(b)
 
 	var parse dnsmessage.Parser
 	header, err := parse.Start(b.Bytes())

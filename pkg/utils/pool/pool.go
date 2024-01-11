@@ -18,7 +18,7 @@ type Pool interface {
 	PutBuffer(b *bytes.Buffer)
 }
 
-const DefaultSize = 16 * 0x400
+const DefaultSize = 20 * 0x400
 
 var DefaultPool Pool = &pool{}
 
@@ -83,6 +83,14 @@ func (pool) PutBuffer(b *bytes.Buffer) {
 	}
 }
 
+type MultipleBytes []*Bytes
+
+func (m MultipleBytes) Drop() {
+	for _, v := range m {
+		PutBytesBuffer(v)
+	}
+}
+
 type Bytes struct {
 	once  sync.Once
 	buf   []byte
@@ -102,8 +110,16 @@ func (b *Bytes) ResetSize(start, end int) {
 	}
 }
 
-func NewBytesV2(b []byte) *Bytes { return &Bytes{sync.Once{}, b, 0, len(b)} }
-func GetBytesV2[T constraints.Integer](size T) *Bytes {
-	return &Bytes{sync.Once{}, GetBytes(size), 0, int(size)}
+func (b *Bytes) Len() int { return b.end - b.start }
+
+func NewBytesBuffer(b []byte) *Bytes { return &Bytes{sync.Once{}, b, 0, len(b)} }
+
+func GetBytesBuffer[T constraints.Integer](size T) *Bytes {
+	realSize := int(size)
+	if realSize < DefaultSize {
+		realSize = DefaultSize
+	}
+
+	return &Bytes{sync.Once{}, GetBytes(realSize), 0, int(size)}
 }
-func PutBytesV2(b *Bytes) { b.once.Do(func() { PutBytes(b.buf) }) }
+func PutBytesBuffer(b *Bytes) { b.once.Do(func() { PutBytes(b.buf) }) }

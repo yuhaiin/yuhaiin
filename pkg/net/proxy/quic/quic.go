@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
 )
@@ -193,7 +194,7 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		cancel:   cancel,
 		session:  c.packetConn,
 		id:       c.idg.Generate(),
-		msg:      make(chan []byte, 64),
+		msg:      make(chan *pool.Bytes, 64),
 		deadline: deadline.NewPipe(),
 	}
 	c.natMap.Store(cp.id, cp)
@@ -276,7 +277,7 @@ type clientPacketConn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	msg chan []byte
+	msg chan *pool.Bytes
 
 	deadline *deadline.PipeDeadline
 }
@@ -291,7 +292,9 @@ func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 	case <-x.ctx.Done():
 		return 0, nil, x.ctx.Err()
 	case msg := <-x.msg:
-		n = copy(p, msg)
+		defer pool.PutBytesBuffer(msg)
+
+		n = copy(p, msg.Bytes())
 		return n, x.session.conn.RemoteAddr(), nil
 	}
 }

@@ -232,10 +232,10 @@ func (t *Tproxy) newUDP() error {
 		defer lis.Close()
 
 		for {
-			buf := pool.GetBytesV2(nat.MaxSegmentSize)
+			buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
 			n, src, dst, err := ReadFromUDP(udpLis, buf.Bytes())
 			if err != nil {
-				pool.PutBytesV2(buf)
+				pool.PutBytesBuffer(buf)
 				log.Error("start udp server failed", "err", err)
 				if !errors.Is(err, errContinue) {
 					break
@@ -256,7 +256,7 @@ func (t *Tproxy) newUDP() error {
 				Dst:     dstAddr,
 				Payload: buf,
 				WriteBack: func(b []byte, addr net.Addr) (int, error) {
-					defer pool.PutBytesV2(buf)
+					defer pool.PutBytesBuffer(buf)
 
 					ad, err := netapi.ParseSysAddr(addr)
 					if err != nil {

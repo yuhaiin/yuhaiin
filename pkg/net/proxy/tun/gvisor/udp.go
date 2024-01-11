@@ -20,7 +20,7 @@ import (
 
 func (t *tunServer) udpForwarder() *udp.Forwarder {
 	handle := func(ctx context.Context, srcpconn net.PacketConn, dst netapi.Address) error {
-		buf := pool.GetBytesV2(t.mtu)
+		buf := pool.GetBytesBuffer(t.mtu)
 
 		for {
 			srcpconn.SetReadDeadline(time.Now().Add(time.Minute))

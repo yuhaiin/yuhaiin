@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
 )
@@ -182,7 +183,7 @@ func (s *Server) listenQuicConnection(conn quic.Connection) error {
 }
 
 type serverMsg struct {
-	msg []byte
+	msg *pool.Bytes
 	src net.Addr
 	id  uint64
 }
@@ -215,7 +216,9 @@ func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) 
 	case <-x.deadline.ReadContext().Done():
 		return 0, nil, x.deadline.ReadContext().Err()
 	case msg := <-x.packetChan:
-		n = copy(p, msg.msg)
+		defer pool.PutBytesBuffer(msg.msg)
+
+		n = copy(p, msg.msg.Bytes())
 		return n, &QuicAddr{Addr: msg.src, ID: quic.StreamID(msg.id)}, nil
 	}
 }

@@ -58,7 +58,7 @@ func (e *emptyHandler) Close() error                                    { return
 func (e *emptyHandler) HandleUDP(context.Context, net.PacketConn) error { return io.EOF }
 func (e *emptyHandler) HandleTCP(context.Context, net.Conn) error       { return io.EOF }
 func (e *emptyHandler) Do(_ context.Context, b *pool.Bytes, _ func([]byte) error) error {
-	pool.PutBytesV2(b)
+	pool.PutBytesBuffer(b)
 	return io.EOF
 }
 

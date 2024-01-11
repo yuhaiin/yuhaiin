@@ -22,9 +22,10 @@ Adda
 
 	t.Log(len(datas), len(x))
 
-	for _, v := range datas {
-		if x := f.Merge(v); x != nil {
-			t.Log(string(x))
+	for i, v := range datas {
+		t.Log(i, v.Len())
+		if x := f.Merge(v.Bytes()); x != nil {
+			t.Log(string(x.Bytes()))
 		}
 	}
 }
