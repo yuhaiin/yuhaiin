@@ -67,8 +67,8 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 	pathBuffer := pool.GetBuffer()
 	defer pool.PutBuffer(pathBuffer)
 
-	readlinkBuffer := pool.GetBytesV2(32)
-	defer pool.PutBytesV2(readlinkBuffer)
+	readlinkBuffer := pool.GetBytesBuffer(32)
+	defer pool.PutBytesBuffer(readlinkBuffer)
 
 	pathBuffer.WriteString("/proc/")
 

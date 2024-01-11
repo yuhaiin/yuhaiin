@@ -1,6 +1,6 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.21.5
+go 1.21.6
 
 require (
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20231213140704-4c5812896512
@@ -10,7 +10,7 @@ require (
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.8
 	golang.org/x/crypto v0.18.0
-	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
+	golang.org/x/exp v0.0.0-20240110193028-0dcbfd608b1e
 	golang.org/x/mobile v0.0.0-20231127183840-76ac6878050a
 	golang.org/x/net v0.20.0
 	golang.org/x/sys v0.16.0

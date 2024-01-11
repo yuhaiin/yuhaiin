@@ -189,7 +189,7 @@ func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, err
 func StartUDPServer(ctx context.Context, packet net.PacketConn, channel chan *netapi.Packet, auth Auth, prefix bool) {
 	p := NewAuthPacketConn(packet, nil, nil, auth, prefix)
 	for {
-		buf := pool.GetBytesV2(nat.MaxSegmentSize)
+		buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
 
 		n, dst, src, err := p.readFrom(buf.Bytes())
 		if err != nil {

@@ -32,8 +32,8 @@ func (password plainHandshaker) PacketHeader(buf *bytes.Buffer) {
 }
 
 func (password plainHandshaker) ParseHeader(c net.Conn) (entity.Net, error) {
-	z := pool.GetBytesV2(ycrypto.Sha256.Size() + 1)
-	defer pool.PutBytesV2(z)
+	z := pool.GetBytesBuffer(ycrypto.Sha256.Size() + 1)
+	defer pool.PutBytesBuffer(z)
 
 	if _, err := io.ReadFull(c, z.Bytes()); err != nil {
 		return 0, fmt.Errorf("read net type failed: %w", err)

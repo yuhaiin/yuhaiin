@@ -63,7 +63,7 @@ func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
-	defer pool.PutBytesV2(pkt.Payload)
+	defer pool.PutBytesBuffer(pkt.Payload)
 
 	key := pkt.Src.String()
 

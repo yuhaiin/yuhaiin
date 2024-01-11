@@ -56,8 +56,8 @@ func (s *Server) Handle(conn net.Conn) error {
 }
 
 func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
-	buf := pool.GetBytesV2(8)
-	defer pool.PutBytesV2(buf)
+	buf := pool.GetBytesBuffer(8)
+	defer pool.PutBytesBuffer(buf)
 
 	if _, err := io.ReadFull(conn, buf.Bytes()); err != nil {
 		return nil, err

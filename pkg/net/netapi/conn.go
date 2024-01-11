@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type multipleReaderTCPConn struct {
@@ -37,13 +38,36 @@ func (m *multipleReaderConn) Read(b []byte) (int, error) {
 	return m.mr.Read(b)
 }
 
-func NewPrefixBytesConn(c net.Conn, prefix ...[]byte) net.Conn {
+type prefixBytesConn struct {
+	buffers []*pool.Bytes
+	net.Conn
+}
+
+func (p *prefixBytesConn) Close() error {
+	err := p.Conn.Close()
+	for _, v := range p.buffers {
+		pool.PutBytesBuffer(v)
+	}
+	return err
+}
+
+func NewPrefixBytesConn(c net.Conn, prefix ...*pool.Bytes) net.Conn {
 	if len(prefix) == 0 {
 		return c
 	}
 
-	buf := net.Buffers(prefix)
-	return NewMultipleReaderConn(c, io.MultiReader(&buf, c))
+	buf := net.Buffers(nil)
+
+	for _, v := range prefix {
+		buf = append(buf, v.Bytes())
+	}
+
+	conn := NewMultipleReaderConn(c, io.MultiReader(&buf, c))
+
+	return &prefixBytesConn{
+		buffers: prefix,
+		Conn:    conn,
+	}
 }
 
 func MergeBufioReaderConn(c net.Conn, r *bufio.Reader) (net.Conn, error) {
@@ -56,12 +80,12 @@ func MergeBufioReaderConn(c net.Conn, r *bufio.Reader) (net.Conn, error) {
 		return nil, err
 	}
 
-	return NewPrefixBytesConn(c, copyByte(data)), nil
+	return NewPrefixBytesConn(c, copyBytes(data)), nil
 }
 
-func copyByte(b []byte) []byte {
-	c := make([]byte, len(b))
-	copy(c, b)
+func copyBytes(b []byte) *pool.Bytes {
+	c := pool.GetBytesBuffer(len(b))
+	copy(c.Bytes(), b)
 	return c
 }
 

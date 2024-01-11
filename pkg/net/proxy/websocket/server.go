@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Server struct {
@@ -77,15 +78,19 @@ func (s *Server) Accept() (net.Conn, error) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	var earlyData [][]byte
+	var earlyData []*pool.Bytes
 	wsconn, err := websocket.NewServerConn(w, req, func(r *websocket.Request) error {
 		if r.Request.Header.Get("early_data") == "base64" {
-			data, err := base64.RawStdEncoding.DecodeString(r.SecWebSocketKey)
+
+			buf := pool.GetBytesBuffer(base64.RawStdEncoding.DecodedLen(len(r.SecWebSocketKey)))
+			n, err := base64.RawStdEncoding.Decode(buf.Bytes(), []byte(r.SecWebSocketKey))
 			if err != nil {
 				return err
 			}
 
-			earlyData = append(earlyData, data)
+			buf.ResetSize(0, n)
+
+			earlyData = append(earlyData, buf)
 
 			r.Header = http.Header{}
 			r.Header.Add("early_data", "true")

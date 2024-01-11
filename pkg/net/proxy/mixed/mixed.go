@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Mixed struct {
@@ -135,15 +136,19 @@ func (m *Mixed) handle() error {
 		}
 
 		go func() {
-			protocol := make([]byte, 1)
-			if _, err := io.ReadFull(conn, protocol); err != nil {
+			protocol := pool.GetBytesBuffer(pool.DefaultSize)
+
+			n, err := conn.Read(protocol.Bytes())
+			if err != nil || n <= 0 {
 				conn.Close()
 				return
 			}
 
+			protocol.ResetSize(0, n)
+
 			conn = netapi.NewPrefixBytesConn(conn, protocol)
 
-			switch protocol[0] {
+			switch protocol.Bytes()[0] {
 			case 0x05:
 				m.s5c.NewConn(conn)
 			case 0x04:

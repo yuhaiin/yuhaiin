@@ -67,8 +67,8 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 			return nil, fmt.Errorf("set write deadline failed: %w", err)
 		}
 
-		buf := pool.GetBytesV2(2 + len(b))
-		defer pool.PutBytesV2(buf)
+		buf := pool.GetBytesBuffer(2 + len(b))
+		defer pool.PutBytesBuffer(buf)
 
 		binary.BigEndian.PutUint16(buf.Bytes()[:2], uint16(len(b)))
 

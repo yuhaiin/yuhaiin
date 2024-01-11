@@ -64,19 +64,19 @@ func (s *Sniffier[T]) Packet(b []byte) (T, string, bool) {
 }
 
 func (s *Sniffier[T]) Stream(c net.Conn) (net.Conn, T, string, bool) {
-	buf := pool.GetBytesV2(pool.DefaultSize)
+	buf := pool.GetBytesBuffer(pool.DefaultSize)
 
 	n, _ := c.Read(buf.Bytes())
 
 	var t T
 	if n <= 0 {
-		pool.PutBytesV2(buf)
+		pool.PutBytesBuffer(buf)
 		return c, t, "", false
 	}
 
 	buf.ResetSize(0, n)
 
-	c = newConn(c, buf)
+	c = netapi.NewPrefixBytesConn(c, buf)
 
 	for _, ck := range s.streamChecker {
 		t, ok := ck.checker(buf.Bytes())
@@ -86,22 +86,4 @@ func (s *Sniffier[T]) Stream(c net.Conn) (net.Conn, T, string, bool) {
 	}
 
 	return c, t, "", false
-}
-
-type conn struct {
-	net.Conn
-
-	buf *pool.Bytes
-}
-
-func newConn(c net.Conn, buf *pool.Bytes) net.Conn {
-	return &conn{
-		Conn: netapi.NewPrefixBytesConn(c, buf.Bytes()),
-		buf:  buf,
-	}
-}
-
-func (c *conn) Close() error {
-	pool.PutBytesV2(c.buf)
-	return c.Conn.Close()
 }

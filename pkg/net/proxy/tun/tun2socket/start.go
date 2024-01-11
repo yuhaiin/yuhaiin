@@ -152,7 +152,7 @@ func (h *handler) handleTCP(conn net.Conn) error {
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
 func (h *handler) handleUDP() error {
-	buf := pool.GetBytesV2(h.Mtu)
+	buf := pool.GetBytesBuffer(h.Mtu)
 
 	n, tuple, err := h.listener.UDP().ReadFrom(buf.Bytes())
 	if err != nil {

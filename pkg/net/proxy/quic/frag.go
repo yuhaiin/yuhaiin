@@ -1,7 +1,6 @@
 package quic
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"math"
@@ -9,12 +8,13 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
 )
 
 // https://github.com/quic-go/quic-go/blob/49e588a6a9905446e49d382d78115e6e960b1144/internal/protocol/params.go#L134
-var MaxDatagramFrameSize int64 = 1200 - 3
+var MaxDatagramFrameSize int64 = 1200
 
 type Frag struct {
 	SplitID  atomic.Uint64
@@ -24,10 +24,11 @@ type Frag struct {
 }
 
 type MergeFrag struct {
-	Count uint32
-	Total uint32
-	Data  [][]byte
-	time  time.Time
+	Count    uint32
+	Total    uint32
+	TotalLen uint32
+	Data     [][]byte
+	time     time.Time
 }
 
 func (f *Frag) close() {
@@ -59,11 +60,11 @@ func (f *Frag) collect(ctx context.Context) {
 	}
 }
 
-func (f *Frag) Merge(buf []byte) []byte {
+func (f *Frag) Merge(buf []byte) *pool.Bytes {
 	fh := fragFrame(buf)
 
 	if fh.Type() == FragmentTypeSingle {
-		return fh.Payload()
+		return pool.NewBytesBuffer(fh.Payload())
 	}
 
 	total := fh.Total()
@@ -86,17 +87,25 @@ func (f *Frag) Merge(buf []byte) []byte {
 	}
 
 	current := atomic.AddUint32(&mf.Count, 1)
+	atomic.AddUint32(&mf.TotalLen, uint32(len(fh.Payload())))
 	mf.Data[index] = fh.Payload()
 
 	if current == mf.Total {
 		f.mergeMap.Delete(id)
-		return bytes.Join(mf.Data, []byte{})
+
+		buf := pool.GetBytesBuffer(mf.TotalLen)
+
+		offset := 0
+		for _, v := range mf.Data {
+			offset += copy(buf.Bytes()[offset:], v)
+		}
+		return buf
 	}
 
 	return nil
 }
 
-func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
+func (f *Frag) Split(buf []byte, maxSize int) pool.MultipleBytes {
 	headerSize := 1 + 8 + 1 + 1
 
 	if maxSize <= headerSize {
@@ -104,7 +113,10 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 	}
 
 	if len(buf) < maxSize-1 {
-		return [][]byte{append([]byte{byte(FragmentTypeSingle)}, buf...)}
+		b := pool.GetBytesBuffer(1 + len(buf))
+		b.Bytes()[0] = byte(FragmentTypeSingle)
+		copy(b.Bytes()[1:], buf)
+		return pool.MultipleBytes{b}
 	}
 
 	maxSize = maxSize - headerSize
@@ -119,7 +131,7 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 		return nil
 	}
 
-	var frameArray [][]byte = make([][]byte, 0, frames)
+	var frameArray pool.MultipleBytes = make(pool.MultipleBytes, 0, frames)
 
 	id := f.SplitID.Add(1)
 
@@ -131,7 +143,7 @@ func (f *Frag) Split(buf []byte, maxSize int) [][]byte {
 			frame = buf[i*maxSize : (i+1)*maxSize]
 		}
 
-		frameArray = append(frameArray, NewFragFrame(FragmentTypeSplit, id, uint8(frames), uint8(i), frame))
+		frameArray = append(frameArray, NewFragFrameBytesBuffer(FragmentTypeSplit, id, uint8(frames), uint8(i), frame))
 	}
 
 	return frameArray
@@ -152,7 +164,7 @@ func (c *ConnectionPacketConn) Context() context.Context {
 	return c.conn.Context()
 }
 
-func (c *ConnectionPacketConn) Receive(ctx context.Context) (uint64, []byte, error) {
+func (c *ConnectionPacketConn) Receive(ctx context.Context) (uint64, *pool.Bytes, error) {
 _retry:
 	data, err := c.conn.ReceiveDatagram(ctx)
 	if err != nil {
@@ -164,24 +176,24 @@ _retry:
 		goto _retry
 	}
 
-	id := binary.BigEndian.Uint64(buf[:8])
+	id := binary.BigEndian.Uint64(buf.Bytes()[:8])
 
-	return id, buf[8:], nil
+	buf.ResetSize(8, buf.Len())
+
+	return id, buf, nil
 }
 
 func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
-	b = bytes.Join(
-		[][]byte{
-			binary.BigEndian.AppendUint64(make([]byte, 0, 8), id),
-			b,
-		},
-		nil,
-	)
+	buf := pool.GetBytesBuffer(8 + len(b))
 
-	datas := c.frag.Split(b, int(MaxDatagramFrameSize))
+	binary.BigEndian.PutUint64(buf.Bytes()[:8], id)
+	copy(buf.Bytes()[8:], b)
 
-	for _, v := range datas {
-		if err := c.conn.SendDatagram(v); err != nil {
+	buffers := c.frag.Split(buf.Bytes(), int(MaxDatagramFrameSize))
+	defer buffers.Drop()
+
+	for _, v := range buffers {
+		if err := c.conn.SendDatagram(v.Bytes()); err != nil {
 			return err
 		}
 	}
@@ -200,14 +212,22 @@ type fragFrame []byte
 
 func NewFragFrame(t FragType, id uint64, total, current uint8, payload []byte) fragFrame {
 	buf := make([]byte, 1+8+1+1+len(payload))
+	putFragFrame(buf, t, id, total, current, payload)
+	return buf
+}
 
+func NewFragFrameBytesBuffer(t FragType, id uint64, total, current uint8, payload []byte) *pool.Bytes {
+	buf := pool.GetBytesBuffer(1 + 8 + 1 + 1 + len(payload))
+	putFragFrame(buf.Bytes(), t, id, total, current, payload)
+	return buf
+}
+
+func putFragFrame(buf []byte, t FragType, id uint64, total, current uint8, payload []byte) {
 	buf[0] = byte(t)
 	binary.BigEndian.PutUint64(buf[1:], id)
 	buf[1+8+1-1] = total
 	buf[1+8+1+1-1] = current
 	copy(buf[1+8+1+1:], payload)
-
-	return buf
 }
 
 func (f fragFrame) Type() FragType {

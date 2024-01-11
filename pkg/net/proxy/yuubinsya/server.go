@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -146,9 +148,12 @@ func (y *server) handle(conn net.Conn) error {
 	case entity.UDP:
 		return func() error {
 			defer c.Close()
+			r := websocket.NewBufioReader(c)
+			defer websocket.PutBufioReader(r)
+
 			log.Debug("new udp connect", "from", c.RemoteAddr())
 			for {
-				if err := y.forwardPacket(c); err != nil {
+				if err := y.forwardPacket(r, c); err != nil {
 					return fmt.Errorf("handle packet request failed: %w", err)
 				}
 			}
@@ -165,22 +170,25 @@ func (y *server) Close() error {
 	return y.Listener.Close()
 }
 
-func (y *server) forwardPacket(c net.Conn) error {
+func (y *server) forwardPacket(r *bufio.Reader, c net.Conn) error {
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-	addr, err := tools.ResolveAddr(c)
+	addr, err := tools.ResolveAddr(r)
 	if err != nil {
 		return err
 	}
 
-	var length uint16
-	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
+	ld, err := r.Peek(2)
+	if err != nil {
 		return err
 	}
+	_, _ = r.Discard(2)
 
-	bufv2 := pool.GetBytesV2(length)
+	length := binary.BigEndian.Uint16(ld)
 
-	if _, err = io.ReadFull(c, bufv2.Bytes()); err != nil {
+	buf := pool.GetBytesBuffer(length)
+
+	if _, err = io.ReadFull(r, buf.Bytes()); err != nil {
 		return err
 	}
 
@@ -192,7 +200,7 @@ func (y *server) forwardPacket(c net.Conn) error {
 	case y.udpChannel <- &netapi.Packet{
 		Src:     c.RemoteAddr(),
 		Dst:     addr.Address(statistic.Type_udp),
-		Payload: bufv2,
+		Payload: buf,
 		WriteBack: func(buf []byte, from net.Addr) (int, error) {
 			addr, err := netapi.ParseSysAddr(from)
 			if err != nil {
