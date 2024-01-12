@@ -20,9 +20,9 @@ func TestDNSJson(t *testing.T) {
 		}
 		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(ctx, ad)
 	}
-	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
-	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "i0.hdslb.com", nil))
-	t.Log(DOHJsonAPI("https://rubyfish.cn/dns-query", "cm.bilibili.com", nil))
+	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
+	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))
+	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "cm.bilibili.com", nil))
 	t.Log(DOHJsonAPI("https://dns.google/resolve", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://dns.google/resolve", "i0.hdslb.com", dialContext))
 }

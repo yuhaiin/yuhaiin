@@ -14,7 +14,9 @@ import (
 )
 
 // https://github.com/quic-go/quic-go/blob/49e588a6a9905446e49d382d78115e6e960b1144/internal/protocol/params.go#L134
-var MaxDatagramFrameSize int64 = 1200
+// the minium depend on DataLenPresent, the minium need minus 3
+// see: https://github.com/quic-go/quic-go/blob/1e874896cd39adc02663be4d77ade701b333df5a/internal/wire/datagram_frame.go#L62
+var MaxDatagramFrameSize int64 = 1200 - 3
 
 type Frag struct {
 	SplitID  atomic.Uint64
@@ -113,10 +115,7 @@ func (f *Frag) Split(buf []byte, maxSize int) pool.MultipleBytes {
 	}
 
 	if len(buf) < maxSize-1 {
-		b := pool.GetBytesBuffer(1 + len(buf))
-		b.Bytes()[0] = byte(FragmentTypeSingle)
-		copy(b.Bytes()[1:], buf)
-		return pool.MultipleBytes{b}
+		return pool.MultipleBytes{NewFragFrameBytesBuffer(FragmentTypeSingle, 0, 1, 0, buf)}
 	}
 
 	maxSize = maxSize - headerSize
@@ -211,18 +210,34 @@ const (
 type fragFrame []byte
 
 func NewFragFrame(t FragType, id uint64, total, current uint8, payload []byte) fragFrame {
-	buf := make([]byte, 1+8+1+1+len(payload))
+	var buf []byte
+	if t == FragmentTypeSingle {
+		buf = make([]byte, 1+len(payload))
+	} else {
+		buf = make([]byte, 1+8+1+1+len(payload))
+	}
 	putFragFrame(buf, t, id, total, current, payload)
 	return buf
 }
 
 func NewFragFrameBytesBuffer(t FragType, id uint64, total, current uint8, payload []byte) *pool.Bytes {
-	buf := pool.GetBytesBuffer(1 + 8 + 1 + 1 + len(payload))
+	var buf *pool.Bytes
+	if t == FragmentTypeSingle {
+		buf = pool.GetBytesBuffer(1 + len(payload))
+	} else {
+		buf = pool.GetBytesBuffer(1 + 8 + 1 + 1 + len(payload))
+	}
 	putFragFrame(buf.Bytes(), t, id, total, current, payload)
 	return buf
 }
 
 func putFragFrame(buf []byte, t FragType, id uint64, total, current uint8, payload []byte) {
+	if t == FragmentTypeSingle {
+		buf[0] = byte(t)
+		copy(buf[1:], payload)
+		return
+	}
+
 	buf[0] = byte(t)
 	binary.BigEndian.PutUint64(buf[1:], id)
 	buf[1+8+1-1] = total

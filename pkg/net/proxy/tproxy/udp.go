@@ -256,8 +256,6 @@ func (t *Tproxy) newUDP() error {
 				Dst:     dstAddr,
 				Payload: buf,
 				WriteBack: func(b []byte, addr net.Addr) (int, error) {
-					defer pool.PutBytesBuffer(buf)
-
 					ad, err := netapi.ParseSysAddr(addr)
 					if err != nil {
 						return 0, err

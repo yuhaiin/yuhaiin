@@ -146,9 +146,6 @@ func (s *Server) listenQuicConnection(conn quic.Connection) error {
 	s.natMap.Store(raddr.String(), packetConn)
 	defer s.natMap.Delete(raddr.String())
 
-	// because of https://github.com/quic-go/quic-go/blob/5b72f4c900f209b5705bb0959399d59e495a2c6e/internal/protocol/params.go#L137
-	// MaxDatagramFrameSize Too short, here use stream trans udp data until quic-go will auto frag lager frame
-	// udp
 	go func() {
 		for {
 			id, data, err := packetConn.Receive(s.ctx)
