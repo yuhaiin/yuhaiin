@@ -133,7 +133,12 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 	host := req.URL.Host
 	if req.URL.Port() == "" {
-		host = net.JoinHostPort(host, "80")
+		switch req.URL.Scheme {
+		case "http":
+			host = net.JoinHostPort(host, "80")
+		case "https":
+			host = net.JoinHostPort(host, "443")
+		}
 	}
 
 	dst, err := netapi.ParseAddress(statistic.Type_tcp, host)
