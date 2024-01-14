@@ -2,11 +2,11 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -149,8 +149,8 @@ func verifyUserPass(client net.Conn, user, key string) error {
 
 	password := b[2+usernameLength+1 : 2+usernameLength+1+passwordLength]
 
-	if (len(user) > 0 && (usernameLength <= 0 || user != unsafe.String(&username[0], usernameLength))) ||
-		(len(key) > 0 && (passwordLength <= 0 || key != unsafe.String(&password[0], passwordLength))) {
+	if (len(user) > 0 && subtle.ConstantTimeCompare([]byte(user), username) != 1) ||
+		(len(key) > 0 && subtle.ConstantTimeCompare([]byte(key), password) != 1) {
 		_, err := client.Write([]byte{1, 1})
 		return fmt.Errorf("verify username and password failed, resp err: %w", err)
 	}

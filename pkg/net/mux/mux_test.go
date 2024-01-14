@@ -44,7 +44,11 @@ func TestMux(t *testing.T) {
 	})(nil)
 	assert.NoError(t, err)
 
-	p, err = NewClient(nil)(p)
+	p, err = NewClient(&protocol.Protocol_Mux{
+		Mux: &protocol.Mux{
+			Concurrency: 1,
+		},
+	})(p)
 	assert.NoError(t, err)
 
 	conn, err := p.Conn(context.TODO(), netapi.EmptyAddr)
@@ -57,12 +61,4 @@ func TestMux(t *testing.T) {
 	conn.Close()
 
 	wg.Wait()
-}
-
-func TestMuxConn(t *testing.T) {
-	var rw io.ReadWriteCloser = &muxConn{}
-
-	if _, ok := rw.(interface{ CloseWrite() error }); ok {
-		t.Log(ok)
-	}
 }

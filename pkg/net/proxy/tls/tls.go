@@ -15,9 +15,8 @@ import (
 type Tls struct {
 	netapi.EmptyDispatch
 
-	tlsConfig   *tls.Config
-	serverNames []string
-	dialer      netapi.Proxy
+	tlsConfig []*tls.Config
+	dialer    netapi.Proxy
 }
 
 func init() {
@@ -26,19 +25,28 @@ func init() {
 
 func NewClient(c *protocol.Protocol_Tls) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		var serverNames []string
+		var tlsConfigs []*tls.Config
 		tls := point.ParseTLSConfig(c.Tls)
 		if tls != nil {
 			// if !tls.InsecureSkipVerify && tls.ServerName == "" {
 			// 	tls.ServerName = c.Simple.GetHost()
 			// }
-			serverNames = c.Tls.ServerNames
+
+			tlsConfigs = append(tlsConfigs, tls)
+
+			if len(c.Tls.ServerNames) > 1 {
+				for _, v := range c.Tls.ServerNames[1:] {
+					tc := tls.Clone()
+					tc.ServerName = v
+
+					tlsConfigs = append(tlsConfigs, tc)
+				}
+			}
 		}
 
 		return &Tls{
-			tlsConfig:   tls,
-			serverNames: serverNames,
-			dialer:      p,
+			tlsConfig: tlsConfigs,
+			dialer:    p,
 		}, nil
 	}
 }
@@ -49,16 +57,12 @@ func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	if t.tlsConfig == nil {
+	length := len(t.tlsConfig)
+	if length == 0 {
 		return c, nil
 	}
 
-	tlsConfig := t.tlsConfig
-	if sl := len(t.serverNames); sl > 1 {
-		tlsConfig = tlsConfig.Clone()
-		tlsConfig.ServerName = t.serverNames[rand.Intn(sl)]
-	}
-	return tls.Client(c, tlsConfig), nil
+	return tls.Client(c, t.tlsConfig[rand.Intn(length)]), nil
 }
 
 func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -80,6 +84,6 @@ func NewServer(c *listener.Transport_Tls) func(netapi.Listener) (netapi.Listener
 		if err != nil {
 			return nil, err
 		}
-		return listener.NewWrapListener(tls.NewListener(lis, config), ii), nil
+		return netapi.ListenWrap(tls.NewListener(lis, config), ii), nil
 	}
 }
