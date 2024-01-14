@@ -1,21 +1,16 @@
 package yuubinsya
 
 import (
-	"bufio"
 	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -57,17 +52,8 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Proto
 			packetAuth: auth,
 		}
 
-		go func() {
-			if err := s.startUDP(); err != nil {
-				log.Error("yuubinsya server failed:", "err", err)
-			}
-		}()
-
-		go func() {
-			if err := s.startTCP(); err != nil {
-				log.Error("yuubinsya server failed:", "err", err)
-			}
-		}()
+		go log.IfErr("yuubinsya udp server", s.startUDP)
+		go log.IfErr("yuubinsya tcp server", s.startTCP)
 
 		return s, nil
 	}
@@ -97,20 +83,14 @@ func (y *server) startTCP() (err error) {
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			log.Error("accept failed", "err", err)
 			return err
 		}
 
-		go func() {
-			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrDeadlineExceeded) {
-				log.Error("handle failed", slog.Any("from", conn.RemoteAddr()), slog.Any("err", err))
-			}
-		}()
+		go log.IfErr("yuubinsya tcp handle", func() error { return y.handle(conn) }, io.EOF, os.ErrDeadlineExceeded)
 	}
 }
 
 func (y *server) handle(conn net.Conn) error {
-	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	c, err := y.handshaker.HandshakeServer(conn)
 	if err != nil {
 		return fmt.Errorf("handshake failed: %w", err)
@@ -121,16 +101,12 @@ func (y *server) handle(conn net.Conn) error {
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
-	_ = conn.SetReadDeadline(time.Time{})
-
 	switch net {
 	case entity.TCP:
-		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		target, err := tools.ResolveAddr(c)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
-		_ = conn.SetReadDeadline(time.Time{})
 
 		addr := target.Address(statistic.Type_tcp)
 
@@ -147,14 +123,37 @@ func (y *server) handle(conn net.Conn) error {
 		}
 	case entity.UDP:
 		return func() error {
-			defer c.Close()
-			r := websocket.NewBufioReader(c)
-			defer websocket.PutBufioReader(r)
+			packetConn := newPacketConn(c, y.handshaker, true)
+			defer packetConn.Close()
 
-			log.Debug("new udp connect", "from", c.RemoteAddr())
+			log.Debug("new udp connect", "from", packetConn.RemoteAddr())
+
 			for {
-				if err := y.forwardPacket(r, c); err != nil {
-					return fmt.Errorf("handle packet request failed: %w", err)
+				buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+
+				n, raddr, err := packetConn.ReadFrom(buf.Bytes())
+				if err != nil {
+					pool.PutBytesBuffer(buf)
+					return err
+				}
+
+				buf.ResetSize(0, n)
+
+				addr, err := netapi.ParseSysAddr(raddr)
+				if err != nil {
+					pool.PutBytesBuffer(buf)
+					return err
+				}
+
+				select {
+				case <-y.ctx.Done():
+					return y.ctx.Err()
+				case y.udpChannel <- &netapi.Packet{
+					Src:       packetConn.RemoteAddr(),
+					Dst:       addr,
+					Payload:   buf,
+					WriteBack: packetConn.WriteTo,
+				}:
 				}
 			}
 		}()
@@ -168,67 +167,6 @@ func (y *server) Close() error {
 		return nil
 	}
 	return y.Listener.Close()
-}
-
-func (y *server) forwardPacket(r *bufio.Reader, c net.Conn) error {
-	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
-
-	addr, err := tools.ResolveAddr(r)
-	if err != nil {
-		return err
-	}
-
-	ld, err := r.Peek(2)
-	if err != nil {
-		return err
-	}
-	_, _ = r.Discard(2)
-
-	length := binary.BigEndian.Uint16(ld)
-
-	buf := pool.GetBytesBuffer(length)
-
-	if _, err = io.ReadFull(r, buf.Bytes()); err != nil {
-		return err
-	}
-
-	_ = c.SetReadDeadline(time.Time{})
-
-	select {
-	case <-y.ctx.Done():
-		return y.ctx.Err()
-	case y.udpChannel <- &netapi.Packet{
-		Src:     c.RemoteAddr(),
-		Dst:     addr.Address(statistic.Type_udp),
-		Payload: buf,
-		WriteBack: func(buf []byte, from net.Addr) (int, error) {
-			addr, err := netapi.ParseSysAddr(from)
-			if err != nil {
-				return 0, err
-			}
-
-			buffer := pool.GetBuffer()
-			defer pool.PutBuffer(buffer)
-
-			tools.ParseAddrWriter(addr, buffer)
-			err = binary.Write(buffer, binary.BigEndian, uint16(len(buf)))
-			if err != nil {
-				return 0, err
-			}
-			_, err = buffer.Write(buf)
-			if err != nil {
-				return 0, err
-			}
-
-			if _, err := c.Write(buffer.Bytes()); err != nil {
-				return 0, err
-			}
-
-			return len(buf), nil
-		},
-	}:
-	}
-	return nil
 }
 
 func (y *server) AcceptStream() (*netapi.StreamMeta, error) {

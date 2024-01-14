@@ -33,7 +33,7 @@ func NewServer(c *listener.Transport_Websocket) func(netapi.Listener) (netapi.Li
 		if err != nil {
 			return nil, err
 		}
-		return listener.NewWrapListener(newServer(lis), ii), nil
+		return netapi.ListenWrap(newServer(lis), ii), nil
 	}
 }
 
@@ -49,9 +49,7 @@ func newServer(lis net.Listener) *Server {
 
 	go func() {
 		defer s.Close()
-		if err := s.server.Serve(lis); err != nil {
-			log.Error("websocket serve failed:", "err", err)
-		}
+		log.IfErr("websocket serve", func() error { return s.server.Serve(lis) })
 	}()
 
 	return s

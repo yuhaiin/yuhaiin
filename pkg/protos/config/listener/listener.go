@@ -228,45 +228,6 @@ func Transports(lis netapi.Listener, protocols []*Transport) (netapi.Listener, e
 	return lis, nil
 }
 
-type WrapListener struct {
-	netapi.Listener
-	lis net.Listener
-}
-
-func NewWrapListener(lis net.Listener, inbound netapi.Listener) *WrapListener {
-	return &WrapListener{
-		Listener: inbound,
-		lis:      lis,
-	}
-}
-
-func (w *WrapListener) Stream(ctx context.Context) (net.Listener, error) {
-	return w.lis, nil
-}
-
-func (w *WrapListener) Close() error {
-	w.lis.Close()
-	return w.Listener.Close()
-}
-
-type EmptyPacketInbound struct {
-	net.Listener
-}
-
-func NewEmptyPacketInbound(lis net.Listener) netapi.Listener {
-	return &EmptyPacketInbound{
-		Listener: lis,
-	}
-}
-
-func (e *EmptyPacketInbound) Stream(ctx context.Context) (net.Listener, error) {
-	return e.Listener, nil
-}
-
-func (EmptyPacketInbound) Packet(context.Context) (net.PacketConn, error) {
-	return nil, fmt.Errorf("not support")
-}
-
 func ErrorTransportFunc(err error) func(netapi.Listener) (netapi.Listener, error) {
 	return func(ii netapi.Listener) (netapi.Listener, error) {
 		return nil, err

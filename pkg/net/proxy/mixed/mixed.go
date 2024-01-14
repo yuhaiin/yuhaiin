@@ -61,7 +61,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Protoc
 				Password: o.Mix.Password,
 				Udp:      true,
 			},
-		})(listener.NewWrapListener(mix.s5c, ii))
+		})(netapi.ListenWrap(mix.s5c, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err
@@ -74,7 +74,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Protoc
 				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
 			},
-		})(listener.NewWrapListener(mix.s4c, ii))
+		})(netapi.ListenWrap(mix.s4c, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err
@@ -88,7 +88,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Protoc
 				Username: o.Mix.Username,
 				Password: o.Mix.Password,
 			},
-		})(listener.NewWrapListener(mix.httpc, ii))
+		})(netapi.ListenWrap(mix.httpc, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
@@ -31,26 +32,24 @@ func NewServer(c *listener.Transport_Grpc) func(netapi.Listener) (netapi.Listene
 			return nil, err
 		}
 
-		return listener.NewWrapListener(newServer(lis), ii), nil
+		return netapi.ListenWrap(NewGrpcNoServer(lis), ii), nil
 	}
 }
 
-func newServer(lis net.Listener) *Grpc {
-	g := NewGrpcNoServer()
-	g.listener = lis
-	go g.Server.Serve(lis)
-	return g
-}
-
-func NewGrpcNoServer() *Grpc {
+func NewGrpcNoServer(lis net.Listener) *Grpc {
 	s := grpc.NewServer()
 
 	g := &Grpc{
 		connChan: make(chan *conn, 30),
 		Server:   s,
+		listener: lis,
 	}
 
 	s.RegisterService(&Stream_ServiceDesc, g)
+
+	if lis != nil {
+		go log.IfErr("grpc serve", func() error { return s.Serve(lis) })
+	}
 
 	return g
 }

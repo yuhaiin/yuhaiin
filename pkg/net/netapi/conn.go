@@ -105,6 +105,7 @@ func (l *LogConn) Read(b []byte) (int, error) {
 
 	return n, err
 }
+
 func (l *LogConn) SetDeadline(t time.Time) error {
 	_, file, line, _ := runtime.Caller(3)
 	log.Info("set deadline", "time", t, "line", line, "file", file, "time", t)

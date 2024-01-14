@@ -24,7 +24,7 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 			log.Error("relay rw1 -> rw2 failed", "err", err)
 		}
 		closeWrite(rw2) // make another Copy exit
-		closeRead(rw1)
+		// closeRead(rw1)
 	}()
 
 	if _, err := Copy(rw1, rw2); err != nil &&
@@ -35,7 +35,7 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 		log.Error("relay rw2 -> rw1 failed", "err", err)
 	}
 	closeWrite(rw1)
-	closeRead(rw2)
+	// closeRead(rw2)
 
 	<-wait
 }

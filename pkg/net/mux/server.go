@@ -30,7 +30,7 @@ func NewServer(config *listener.Transport_Mux) func(netapi.Listener) (netapi.Lis
 			return nil, err
 		}
 
-		return listener.NewWrapListener(newServer(lis), ii), nil
+		return netapi.ListenWrap(newServer(lis), ii), nil
 	}
 }
 
@@ -43,11 +43,7 @@ func newServer(lis net.Listener) *MuxServer {
 		connChan: make(chan net.Conn, 1024),
 	}
 
-	go func() {
-		if err := mux.Run(); err != nil {
-			log.Error("yamux server error", "err", err)
-		}
-	}()
+	go log.IfErr("yamux server", mux.Run, net.ErrClosed)
 
 	return mux
 }

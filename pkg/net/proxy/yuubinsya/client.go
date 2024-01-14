@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -12,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -85,7 +87,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		conn.Close()
 		return nil, err
 	}
-	return newPacketConn(hconn, c.handshaker), nil
+	return newPacketConn(hconn, c.handshaker, false), nil
 }
 
 type PacketConn struct {
@@ -99,10 +101,17 @@ type PacketConn struct {
 
 	hmux sync.Mutex
 	rmux sync.Mutex
+
+	r *bufio.Reader
 }
 
-func newPacketConn(conn net.Conn, handshaker entity.Handshaker) net.PacketConn {
-	return &PacketConn{Conn: conn, handshaker: handshaker}
+func newPacketConn(conn net.Conn, handshaker entity.Handshaker, server bool) *PacketConn {
+	return &PacketConn{
+		Conn:        conn,
+		handshaker:  handshaker,
+		headerWrote: server,
+		r:           websocket.NewBufioReader(conn),
+	}
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
@@ -158,21 +167,26 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 			readLength = c.remain
 		}
 
-		n, err := c.Conn.Read(payload[:readLength])
+		n, err := c.r.Read(payload[:readLength])
 		c.remain -= n
 		return n, c.addr, err
 	}
 
-	addr, err := tools.ResolveAddr(c.Conn)
+	addr, err := tools.ResolveAddr(c.r)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
+
 	c.addr = addr.Address(statistic.Type_udp)
 
-	var length uint16
-	if err = binary.Read(c.Conn, binary.BigEndian, &length); err != nil {
+	lengthBytes, err := c.r.Peek(2)
+	if err != nil {
 		return 0, nil, fmt.Errorf("read length failed: %w", err)
 	}
+
+	_, _ = c.r.Discard(2)
+
+	length := binary.BigEndian.Uint16(lengthBytes)
 
 	plen := len(payload)
 	if int(length) < plen {
@@ -181,8 +195,13 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		c.remain = int(length) - plen
 	}
 
-	n, err = io.ReadFull(c.Conn, payload[:plen])
+	n, err = io.ReadFull(c.r, payload[:plen])
 	return n, c.addr, err
+}
+
+func (c *PacketConn) Close() error {
+	websocket.PutBufioReader(c.r)
+	return c.Conn.Close()
 }
 
 type Conn struct {

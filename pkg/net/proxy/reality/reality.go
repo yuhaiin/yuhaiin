@@ -63,7 +63,7 @@ func NewServer(config *listener.Transport_Reality) func(netapi.Listener) (netapi
 		if err != nil {
 			return nil, err
 		}
-		return listener.NewWrapListener(reality.NewListener(lis, &reality.Config{
+		return netapi.ListenWrap(reality.NewListener(lis, &reality.Config{
 			DialContext:            dialer.DialContext,
 			Show:                   config.Reality.Debug,
 			Type:                   "tcp",

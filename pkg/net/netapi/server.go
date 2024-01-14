@@ -2,6 +2,7 @@ package netapi
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 
@@ -103,3 +104,42 @@ func (c *ChannelListener) Close() error {
 }
 
 func (c *ChannelListener) Addr() net.Addr { return c.addr }
+
+type WrapListener struct {
+	Listener
+	lis net.Listener
+}
+
+func ListenWrap(lis net.Listener, inbound Listener) *WrapListener {
+	return &WrapListener{
+		Listener: inbound,
+		lis:      lis,
+	}
+}
+
+func (w *WrapListener) Stream(ctx context.Context) (net.Listener, error) {
+	return w.lis, nil
+}
+
+func (w *WrapListener) Close() error {
+	w.lis.Close()
+	return w.Listener.Close()
+}
+
+type EmptyPacketListener struct {
+	net.Listener
+}
+
+func NewEmptyPacketListener(lis net.Listener) Listener {
+	return &EmptyPacketListener{
+		Listener: lis,
+	}
+}
+
+func (e *EmptyPacketListener) Stream(ctx context.Context) (net.Listener, error) {
+	return e.Listener, nil
+}
+
+func (EmptyPacketListener) Packet(context.Context) (net.PacketConn, error) {
+	return nil, fmt.Errorf("not support")
+}

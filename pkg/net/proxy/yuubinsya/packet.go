@@ -198,6 +198,8 @@ func StartUDPServer(ctx context.Context, packet net.PacketConn, channel chan *ne
 			if errors.Is(err, ErrNet) {
 				return
 			}
+
+			continue
 		}
 
 		buf.ResetSize(0, n)
