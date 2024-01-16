@@ -162,12 +162,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	defer c.rmux.Unlock()
 
 	if c.remain > 0 {
-		readLength := len(payload)
-		if c.remain < readLength {
-			readLength = c.remain
-		}
-
-		n, err := c.r.Read(payload[:readLength])
+		n, err := c.r.Read(payload[:min(len(payload), c.remain)])
 		c.remain -= n
 		return n, c.addr, err
 	}
@@ -188,20 +183,11 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 
 	length := binary.BigEndian.Uint16(lengthBytes)
 
-	plen := len(payload)
-	if int(length) < plen {
-		plen = int(length)
-	} else {
-		c.remain = int(length) - plen
-	}
+	readlen := min(len(payload), int(length))
+	c.remain = int(length) - readlen
 
-	n, err = io.ReadFull(c.r, payload[:plen])
+	n, err = io.ReadFull(c.r, payload[:readlen])
 	return n, c.addr, err
-}
-
-func (c *PacketConn) Close() error {
-	websocket.PutBufioReader(c.r)
-	return c.Conn.Close()
 }
 
 type Conn struct {

@@ -10,6 +10,8 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+var MaxSegmentSize = (1 << 16) - 1
+
 type Pool interface {
 	GetBytes(size int) []byte
 	PutBytes(b []byte)
