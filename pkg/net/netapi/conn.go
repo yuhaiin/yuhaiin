@@ -126,3 +126,21 @@ func (l *LogConn) SetWriteDeadline(t time.Time) error {
 
 	return l.Conn.SetWriteDeadline(t)
 }
+
+func ReadFrom(pc net.PacketConn) (*pool.Bytes, Address, error) {
+	b := pool.GetBytesBuffer(pool.MaxSegmentSize)
+	n, saddr, err := pc.ReadFrom(b.Bytes())
+	if err != nil {
+		pool.PutBytesBuffer(b)
+		return nil, nil, err
+	}
+	b.ResetSize(0, n)
+
+	addr, err := ParseSysAddr(saddr)
+	if err != nil {
+		pool.PutBytesBuffer(b)
+		return nil, nil, err
+	}
+
+	return b, addr, nil
+}

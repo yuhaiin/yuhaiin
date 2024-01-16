@@ -8,13 +8,11 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type server struct {
@@ -129,19 +127,8 @@ func (y *server) handle(conn net.Conn) error {
 			log.Debug("new udp connect", "from", packetConn.RemoteAddr())
 
 			for {
-				buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
-
-				n, raddr, err := packetConn.ReadFrom(buf.Bytes())
+				buf, addr, err := netapi.ReadFrom(packetConn)
 				if err != nil {
-					pool.PutBytesBuffer(buf)
-					return err
-				}
-
-				buf.ResetSize(0, n)
-
-				addr, err := netapi.ParseSysAddr(raddr)
-				if err != nil {
-					pool.PutBytesBuffer(buf)
 					return err
 				}
 

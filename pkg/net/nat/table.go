@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var MaxSegmentSize = (1 << 16) - 1
+var MaxSegmentSize = pool.MaxSegmentSize
 
 func NewTable(dialer netapi.Proxy) *Table {
 	return &Table{dialer: dialer}
