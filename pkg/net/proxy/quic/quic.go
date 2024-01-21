@@ -79,12 +79,12 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 	}
 }
 
-func (c *Client) initSession(ctx context.Context) error {
+func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 	if c.session != nil {
 		select {
 		case <-c.session.Context().Done():
 		default:
-			return nil
+			return c.session, nil
 		}
 	}
 
@@ -95,7 +95,7 @@ func (c *Client) initSession(ctx context.Context) error {
 		select {
 		case <-c.session.Context().Done():
 		default:
-			return nil
+			return c.session, nil
 		}
 	}
 
@@ -112,7 +112,7 @@ func (c *Client) initSession(ctx context.Context) error {
 		conn, err = c.dialer.PacketConn(ctx, netapi.EmptyAddr)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tr := quic.Transport{
@@ -130,7 +130,7 @@ func (c *Client) initSession(ctx context.Context) error {
 	)
 	if err != nil {
 		_ = conn.Close()
-		return err
+		return nil, err
 	}
 
 	pconn := NewConnectionPacketConn(session)
@@ -160,29 +160,32 @@ func (c *Client) initSession(ctx context.Context) error {
 			}
 		}
 	}()
-	return nil
+	return session, nil
 }
 
 func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
-	if err := c.initSession(ctx); err != nil {
+	session, err := c.initSession(ctx)
+	if err != nil {
 		log.Error("init session failed:", "err", err)
 		return nil, err
 	}
 
-	stream, err := c.session.OpenStream()
+	stream, err := session.OpenStreamSync(ctx)
 	if err != nil {
+		_ = session.CloseWithError(0, "")
 		return nil, err
 	}
 
 	return &interConn{
 		Stream:  stream,
-		session: c.session,
+		session: session,
 		time:    c.sessionUnix,
 	}, nil
 }
 
 func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
-	if err := c.initSession(ctx); err != nil {
+	_, err := c.initSession(ctx)
+	if err != nil {
 		return nil, err
 	}
 

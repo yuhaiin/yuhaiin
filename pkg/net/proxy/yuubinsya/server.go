@@ -10,14 +10,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 type server struct {
 	Listener   netapi.Listener
-	handshaker entity.Handshaker
+	handshaker crypto.Handshaker
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -41,8 +41,12 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Proto
 
 		ctx, cancel := context.WithCancel(context.TODO())
 		s := &server{
-			Listener:   ii,
-			handshaker: NewHandshaker(!config.Yuubinsya.ForceDisableEncrypt, []byte(config.Yuubinsya.Password)),
+			Listener: ii,
+			handshaker: NewHandshaker(
+				true,
+				!config.Yuubinsya.ForceDisableEncrypt,
+				[]byte(config.Yuubinsya.Password),
+			),
 			ctx:        ctx,
 			cancel:     cancel,
 			tcpChannel: make(chan *netapi.StreamMeta, 100),
@@ -89,18 +93,18 @@ func (y *server) startTCP() (err error) {
 }
 
 func (y *server) handle(conn net.Conn) error {
-	c, err := y.handshaker.HandshakeServer(conn)
+	c, err := y.handshaker.Handshake(conn)
 	if err != nil {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	net, err := y.handshaker.ParseHeader(c)
+	net, err := y.handshaker.DecodeHeader(c)
 	if err != nil {
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
 	switch net {
-	case entity.TCP:
+	case crypto.TCP:
 		target, err := tools.ResolveAddr(c)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
@@ -119,7 +123,7 @@ func (y *server) handle(conn net.Conn) error {
 			Address:     addr,
 		}:
 		}
-	case entity.UDP:
+	case crypto.UDP:
 		return func() error {
 			packetConn := newPacketConn(c, y.handshaker, true)
 			defer packetConn.Close()

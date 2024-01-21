@@ -114,14 +114,8 @@ type TlsConfigManager struct {
 }
 
 func NewTlsConfigManager(t *TlsConfig) *TlsConfigManager {
-	tm := &TlsConfigManager{
-		t:           t,
-		searcher:    t.ParseServerNameCertificate(),
-		refreshTime: time.Now(),
-	}
-
+	tm := &TlsConfigManager{t: t}
 	tm.Refresh()
-
 	return tm
 }
 
@@ -130,7 +124,7 @@ func (t *TlsConfigManager) Refresh() {
 		t.tlsConfig = &tls.Config{
 			NextProtos: t.t.NextProtos,
 			GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if t.refreshTime.Add(time.Hour * 24).After(time.Now()) {
+				if time.Since(t.refreshTime) > time.Hour*24 { // refresh every day
 					t.Refresh()
 				}
 
@@ -154,6 +148,7 @@ func (t *TlsConfigManager) Refresh() {
 
 	t.tlsConfig.Certificates = t.t.ParseCertificates()
 	t.searcher = t.t.ParseServerNameCertificate()
+	t.refreshTime = time.Now()
 }
 
 func ParseTLS(t *TlsConfig) (*tls.Config, error) {

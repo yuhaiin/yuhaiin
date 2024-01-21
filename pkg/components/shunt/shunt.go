@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"golang.org/x/exp/maps"
 	"golang.org/x/net/dns/dnsmessage"
+	"google.golang.org/protobuf/proto"
 )
 
 type modeMarkKey struct{}
@@ -31,8 +33,8 @@ func (IP_MARK_KEY) String() string { return "IP" }
 type ForceModeKey struct{}
 
 type Shunt struct {
-	resolveProxy bool
-	modifiedTime int64
+	resolveDomain bool
+	modifiedTime  int64
 
 	config       *bypass.BypassConfig
 	mapper       *mapper.Combine[bypass.ModeEnum]
@@ -75,22 +77,38 @@ func (s *Shunt) Update(c *pc.Setting) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.resolveProxy = c.Dns.ResolveRemoteDomain
+	s.resolveDomain = c.Dns.ResolveRemoteDomain
+
+	if !slices.EqualFunc(
+		s.config.CustomRuleV3,
+		c.Bypass.CustomRuleV3,
+		func(mc1, mc2 *bypass.ModeConfig) bool { return proto.Equal(mc1, mc2) },
+	) {
+		s.customMapper.Clear() //nolint:errcheck
+
+		for _, v := range c.Bypass.CustomRuleV3 {
+			mark := v.ToModeEnum()
+
+			if mark.GetTag() != "" {
+				s.tags[mark.GetTag()] = struct{}{}
+			}
+
+			for _, hostname := range v.Hostname {
+				s.customMapper.Insert(hostname, mark)
+			}
+		}
+	}
 
 	modifiedTime := s.modifiedTime
 	if stat, err := os.Stat(c.Bypass.BypassFile); err == nil {
 		modifiedTime = stat.ModTime().Unix()
 	}
 
-	diff := (s.config == nil && c != nil) || s.config.BypassFile != c.Bypass.BypassFile || s.modifiedTime != modifiedTime
-
-	s.config = c.Bypass
-
-	if diff {
+	if s.config.BypassFile != c.Bypass.BypassFile || s.modifiedTime != modifiedTime {
 		s.mapper.Clear() //nolint:errcheck
 		s.tags = make(map[string]struct{})
 		s.modifiedTime = modifiedTime
-		rangeRule(s.config.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
+		rangeRule(c.Bypass.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
 			s.mapper.Insert(s1, s2)
 			if s2.GetTag() != "" {
 				s.tags[s2.GetTag()] = struct{}{}
@@ -98,19 +116,7 @@ func (s *Shunt) Update(c *pc.Setting) {
 		})
 	}
 
-	s.customMapper.Clear() //nolint:errcheck
-
-	for _, v := range c.Bypass.CustomRuleV3 {
-		mark := v.ToModeEnum()
-
-		if mark.GetTag() != "" {
-			s.tags[mark.GetTag()] = struct{}{}
-		}
-
-		for _, hostname := range v.Hostname {
-			s.customMapper.Insert(hostname, mark)
-		}
-	}
+	s.config = c.Bypass
 }
 
 func (s *Shunt) Tags() []string { return maps.Keys(s.tags) }
@@ -186,7 +192,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	store.Add(modeMarkKey{}, mode)
 	host.WithResolver(s.resolver(mode), true)
 
-	if s.resolveProxy && host.Type() == netapi.DOMAIN && mode == bypass.Mode_proxy {
+	if s.resolveDomain && host.Type() == netapi.DOMAIN && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := host.IP(ctx)
 		if err == nil {
