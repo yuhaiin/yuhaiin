@@ -15,32 +15,35 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/crypto/chacha20"
 	"golang.org/x/crypto/hkdf"
 )
 
 type encryptedHandshaker struct {
+	server bool
+
 	signer   Signer
 	hash     Hash
 	aead     Aead
 	password []byte
 }
 
-func (t *encryptedHandshaker) StreamHeader(buf *bytes.Buffer, addr netapi.Address) {
-	buf.Write([]byte{byte(entity.TCP)})
-	tools.ParseAddrWriter(addr, buf)
-}
-func (t *encryptedHandshaker) PacketHeader(buf *bytes.Buffer) { buf.Write([]byte{byte(entity.UDP)}) }
+func (t *encryptedHandshaker) EncodeHeader(net Net, buf *bytes.Buffer, addr netapi.Address) {
+	buf.Write([]byte{byte(net)})
 
-func (t *encryptedHandshaker) ParseHeader(c net.Conn) (entity.Net, error) {
+	if net == TCP {
+		tools.ParseAddrWriter(addr, buf)
+	}
+}
+
+func (t *encryptedHandshaker) DecodeHeader(c net.Conn) (Net, error) {
 	z := make([]byte, 1)
 
 	if _, err := io.ReadFull(c, z); err != nil {
 		return 0, fmt.Errorf("read net type failed: %w", err)
 	}
-	net := entity.Net(z[0])
+	net := Net(z[0])
 
 	if net.Unknown() {
 		return 0, fmt.Errorf("unknown network")
@@ -49,7 +52,15 @@ func (t *encryptedHandshaker) ParseHeader(c net.Conn) (entity.Net, error) {
 	return net, nil
 }
 
-func (h *encryptedHandshaker) HandshakeClient(conn net.Conn) (net.Conn, error) {
+func (h *encryptedHandshaker) Handshake(conn net.Conn) (net.Conn, error) {
+	if h.server {
+		return h.handshakeServer(conn)
+	}
+
+	return h.handshakeClient(conn)
+}
+
+func (h *encryptedHandshaker) handshakeClient(conn net.Conn) (net.Conn, error) {
 	header := newHeader(h)
 	defer header.Def()
 
@@ -89,7 +100,7 @@ func (h *encryptedHandshaker) HandshakeClient(conn net.Conn) (net.Conn, error) {
 	return NewConn(conn, rnonce, wnonce, raead, waead), nil
 }
 
-func (h *encryptedHandshaker) HandshakeServer(conn net.Conn) (net.Conn, error) {
+func (h *encryptedHandshaker) handshakeServer(conn net.Conn) (net.Conn, error) {
 	header := newHeader(h)
 	defer header.Def()
 
@@ -265,12 +276,13 @@ func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error
 	return nil
 }
 
-func NewHandshaker(hash []byte, password []byte) entity.Handshaker {
+func NewHandshaker(server bool, hash []byte, password []byte) *encryptedHandshaker {
 	// sha256-hkdf-ecdh-ed25519-chacha20poly1305
 	return &encryptedHandshaker{
 		signer:   NewEd25519(Sha256, hash),
 		hash:     Sha256,
 		aead:     Chacha20poly1305,
 		password: password,
+		server:   server,
 	}
 }

@@ -13,32 +13,29 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 	ycrypto "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/entity"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // plainHandshaker bytes is password
 type plainHandshaker [sha256.Size]byte
 
-func (password plainHandshaker) StreamHeader(buf *bytes.Buffer, addr netapi.Address) {
-	buf.WriteByte(byte(entity.TCP))
+func (password plainHandshaker) EncodeHeader(net crypto.Net, buf *bytes.Buffer, addr netapi.Address) {
+	buf.WriteByte(byte(net))
 	buf.Write(password[:])
-	tools.ParseAddrWriter(addr, buf)
+
+	if net == crypto.TCP {
+		tools.ParseAddrWriter(addr, buf)
+	}
 }
 
-func (password plainHandshaker) PacketHeader(buf *bytes.Buffer) {
-	buf.WriteByte(byte(entity.UDP))
-	buf.Write(password[:])
-}
-
-func (password plainHandshaker) ParseHeader(c net.Conn) (entity.Net, error) {
+func (password plainHandshaker) DecodeHeader(c net.Conn) (crypto.Net, error) {
 	z := pool.GetBytesBuffer(ycrypto.Sha256.Size() + 1)
 	defer pool.PutBytesBuffer(z)
 
 	if _, err := io.ReadFull(c, z.Bytes()); err != nil {
 		return 0, fmt.Errorf("read net type failed: %w", err)
 	}
-	net := entity.Net(z.Bytes()[0])
+	net := crypto.Net(z.Bytes()[0])
 
 	if net.Unknown() {
 		return 0, fmt.Errorf("unknown network: %d", net)
@@ -51,8 +48,7 @@ func (password plainHandshaker) ParseHeader(c net.Conn) (entity.Net, error) {
 	return net, nil
 }
 
-func (plainHandshaker) HandshakeServer(conn net.Conn) (net.Conn, error) { return conn, nil }
-func (plainHandshaker) HandshakeClient(conn net.Conn) (net.Conn, error) { return conn, nil }
+func (plainHandshaker) Handshake(conn net.Conn) (net.Conn, error) { return conn, nil }
 
 func salt(password []byte) []byte {
 	h := sha256.New()
@@ -61,14 +57,14 @@ func salt(password []byte) []byte {
 	return h.Sum(nil)
 }
 
-func NewHandshaker(encrypted bool, password []byte) entity.Handshaker {
+func NewHandshaker(server bool, encrypted bool, password []byte) crypto.Handshaker {
 	hash := salt(password)
 
 	if !encrypted {
 		return plainHandshaker(hash)
 	}
 
-	return ycrypto.NewHandshaker(hash, password)
+	return ycrypto.NewHandshaker(server, hash, password)
 }
 
 func NewAuth(crypt bool, password []byte) (Auth, error) {

@@ -20,7 +20,8 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	var err error
 	reader, err = os.Open(path)
 	if err != nil {
-		log.Error("open bypass file failed, fallback to use internal bypass data", slog.String("filepath", path), slog.Any("err", err))
+		log.Error("open bypass file failed, fallback to use internal bypass data",
+			slog.String("filepath", path), slog.Any("err", err))
 		if len(statics.BYPASS_DATA) == 0 {
 			return
 		}
@@ -32,6 +33,7 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	defer reader.Close()
 
 	br := bufio.NewScanner(reader)
+
 	for br.Scan() {
 		fields := bytes.Fields(yerror.Ignore2(bytes.Cut(br.Bytes(), []byte{'#'})))
 		if len(fields) < 2 {
