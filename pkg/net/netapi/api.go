@@ -96,6 +96,11 @@ func StoreFromContext(ctx context.Context) Store {
 }
 
 func NewStore(ctx context.Context) context.Context {
+	_, ok := ctx.Value(storeKey{}).(Store)
+	if ok {
+		return ctx
+	}
+
 	return context.WithValue(ctx, storeKey{}, &store{store: make(map[any]any)})
 }
 
