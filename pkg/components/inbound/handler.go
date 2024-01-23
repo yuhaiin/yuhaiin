@@ -86,12 +86,12 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	go func() {
-		store := netapi.StoreFromContext(ctx)
-
 		ctx, cancel := context.WithTimeout(ctx, Timeout)
 		defer cancel()
 
 		ctx = netapi.NewStore(ctx)
+
+		store := netapi.StoreFromContext(ctx)
 
 		mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())
 		if ok {

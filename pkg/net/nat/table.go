@@ -2,7 +2,6 @@ package nat
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -26,14 +25,10 @@ type Table struct {
 	dialer netapi.Proxy
 	cache  syncmap.SyncMap[string, *SourceTable]
 
-	sf singleflight.Group[string, struct{}]
+	sf singleflight.Group[string, *SourceTable]
 }
 
-func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool, error) {
-	t, ok := u.cache.Load(key)
-	if !ok {
-		return false, nil
-	}
+func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) error {
 
 	dst := pkt.Dst.String()
 
@@ -41,17 +36,17 @@ func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool
 	if !ok {
 		addr, err := u.dialer.Dispatch(ctx, pkt.Dst)
 		if err != nil {
-			return true, fmt.Errorf("dispatch addr failed: %w", err)
+			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
 
 		uaddr, err = addr.UDPAddr(ctx)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		t.udpAddrStore.Store(dst, uaddr)
 
-		if pkt.Dst.Type() == netapi.IP && uaddr.String() != pkt.Dst.String() {
+		if uaddr.String() != dst {
 			// TODO: maybe two dst(fake ip) have same uaddr, need help
 			t.originAddrStore.LoadOrStore(uaddr.String(), pkt.Dst)
 		}
@@ -59,7 +54,7 @@ func (u *Table) write(ctx context.Context, pkt *netapi.Packet, key string) (bool
 
 	_, err := t.dstPacketConn.WriteTo(pkt.Payload.Bytes(), uaddr)
 	_ = t.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
-	return true, err
+	return err
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
@@ -67,22 +62,24 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 
 	key := pkt.Src.String()
 
-	ok, err := u.write(ctx, pkt, key)
-	if err != nil {
-		return fmt.Errorf("client to proxy failed: %w", err)
-	}
+	t, ok := u.cache.Load(key)
 	if ok {
+		err := u.write(ctx, t, pkt)
+		if err != nil {
+			return fmt.Errorf("client to proxy failed: %w", err)
+		}
+
 		return nil
 	}
 
-	_, err, _ = u.sf.Do(key, func() (struct{}, error) {
+	t, err, _ := u.sf.Do(key, func() (*SourceTable, error) {
 		netapi.StoreFromContext(ctx).
 			Add(netapi.SourceKey{}, pkt.Src).
 			Add(netapi.DestinationKey{}, pkt.Dst)
 
 		dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 		if err != nil {
-			return struct{}{}, fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
+			return nil, fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
 		}
 
 		table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
@@ -92,19 +89,22 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 				dstpconn.Close()
 				u.cache.Delete(key)
 			}()
-			if err := u.writeBack(pkt, table); err != nil && !errors.Is(err, net.ErrClosed) {
-				log.Error("remote to local failed", "err", err)
-			}
+
+			log.IfErr("udp remote to local",
+				func() error { return u.writeBack(pkt, table) },
+				net.ErrClosed,
+				io.EOF,
+				os.ErrDeadlineExceeded,
+			)
 		}()
 
-		return struct{}{}, nil
+		return table, nil
 	})
-
 	if err != nil {
 		return err
 	}
 
-	if _, err = u.write(ctx, pkt, key); err != nil {
+	if err = u.write(ctx, t, pkt); err != nil {
 		return fmt.Errorf("write data to remote failed: %w", err)
 	}
 
@@ -119,10 +119,6 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 		_ = table.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
 		n, from, err := table.dstPacketConn.ReadFrom(data)
 		if err != nil {
-			if ne, ok := err.(net.Error); (ok && ne.Timeout()) || errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {
-				return nil /* ignore I/O timeout & EOF */
-			}
-
 			return fmt.Errorf("read from proxy failed: %w", err)
 		}
 
