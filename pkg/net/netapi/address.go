@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -106,10 +107,10 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 }
 
 type addr struct {
-	network          statistic.Type
-	resolverCanCover bool
-	preferIPv6       bool
-	resolver         Resolver
+	network    statistic.Type
+	src        AddressSrc
+	preferIPv6 bool
+	resolver   Resolver
 }
 
 func newAddr(net statistic.Type) *addr {
@@ -118,18 +119,20 @@ func newAddr(net statistic.Type) *addr {
 	}
 }
 
-func (d *addr) WithResolver(resolver Resolver, canCover bool) bool {
+func (d *addr) SetSrc(src AddressSrc) {
+	d.src = src
+}
+
+func (d *addr) SetResolver(resolver Resolver) {
 	if resolver == nil {
-		return false
+		return
 	}
 
-	if d.resolver != nil && !d.resolverCanCover {
-		return false
+	if d.resolver != nil && d.src == AddressSrcDNS {
+		return
 	}
 
 	d.resolver = resolver
-	d.resolverCanCover = canCover
-	return true
 }
 
 func (d *addr) Resolver() Resolver {
@@ -174,7 +177,7 @@ func (d *DomainAddr) IP(ctx context.Context) (net.IP, error) {
 		return nil, fmt.Errorf("resolve address %s failed: %w", d.hostname, err)
 	}
 
-	return ip, nil
+	return ip[rand.Intn(len(ip))], nil
 }
 
 func (d *DomainAddr) AddrPort(ctx context.Context) (netip.AddrPort, error) {
@@ -189,23 +192,24 @@ func (d *DomainAddr) AddrPort(ctx context.Context) (netip.AddrPort, error) {
 
 func (d *DomainAddr) Port() Port { return d.port }
 func (d *DomainAddr) Type() Type { return DOMAIN }
-func (d *DomainAddr) lookupIP(ctx context.Context) (net.IP, error) {
-	// if d.preferIPv6 {
-	// TODO
-	// ips, _, err := d.Resolver().Record(ctx, d.hostname, dnsmessage.TypeAAAA)
-	// if err == nil {
-	// 	return ips[rand.Intn(len(ips))], nil
-	// } else {
-	// 	log.Warn("resolve ipv6 failed, fallback to ipv4", slog.String("domain", d.hostname), slog.Any("err", err))
-	// }
-	// }
+func (d *DomainAddr) lookupIP(ctx context.Context) ([]net.IP, error) {
+	if d.preferIPv6 {
+		ips, err := d.Resolver().LookupIP(ctx, d.hostname, func(li *LookupIPOption) {
+			li.OnlyAAAA = true
+		})
+		if err == nil {
+			return ips, nil
+		} else {
+			log.Warn("resolve ipv6 failed, fallback to ipv4", slog.String("domain", d.hostname), slog.Any("err", err))
+		}
+	}
 
 	ips, err := d.Resolver().LookupIP(ctx, d.hostname)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address failed: %w", err)
 	}
 
-	return ips[rand.Intn(len(ips))], nil
+	return ips, nil
 }
 
 func (d *DomainAddr) UDPAddr(ctx context.Context) (*net.UDPAddr, error) {
@@ -214,7 +218,7 @@ func (d *DomainAddr) UDPAddr(ctx context.Context) (*net.UDPAddr, error) {
 		return nil, fmt.Errorf("resolve udp address %s failed: %w", d.hostname, err)
 	}
 
-	return &net.UDPAddr{IP: ip, Port: int(d.port.Port())}, nil
+	return &net.UDPAddr{IP: ip[rand.Intn(len(ip))], Port: int(d.port.Port())}, nil
 }
 
 func (d *DomainAddr) TCPAddr(ctx context.Context) (*net.TCPAddr, error) {
@@ -223,7 +227,7 @@ func (d *DomainAddr) TCPAddr(ctx context.Context) (*net.TCPAddr, error) {
 		return nil, fmt.Errorf("resolve tcp address %s failed: %w", d.hostname, err)
 	}
 
-	return &net.TCPAddr{IP: ip, Port: int(d.port.Port())}, nil
+	return &net.TCPAddr{IP: ip[rand.Intn(len(ip))], Port: int(d.port.Port())}, nil
 }
 
 func (d *DomainAddr) OverrideHostname(s string) Address {
@@ -287,7 +291,8 @@ func (d emptyAddr) Port() Port                                    { return Empty
 func (d emptyAddr) Network() string                               { return "" }
 func (d emptyAddr) NetworkType() statistic.Type                   { return 0 }
 func (d emptyAddr) Type() Type                                    { return EMPTY }
-func (d emptyAddr) WithResolver(Resolver, bool) bool              { return false }
+func (d emptyAddr) SetSrc(AddressSrc)                             {}
+func (d emptyAddr) SetResolver(Resolver)                          {}
 func (d emptyAddr) PreferIPv6(bool)                               {}
 func (d emptyAddr) UDPAddr(context.Context) (*net.UDPAddr, error) { return nil, errors.New("empty") }
 func (d emptyAddr) TCPAddr(context.Context) (*net.TCPAddr, error) { return nil, errors.New("empty") }

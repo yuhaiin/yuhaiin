@@ -117,12 +117,19 @@ func NewClient(config Config, do func(context.Context, []byte) ([]byte, error)) 
 	return c
 }
 
-func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
+func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+
+	opt := &netapi.LookupIPOption{}
+
+	for _, optf := range opts {
+		optf(opt)
+	}
+
 	var aaaaerr error
 	var aaaa []net.IP
 	var wg sync.WaitGroup
 
-	if c.config.IPv6 {
+	if c.config.IPv6 || opt.OnlyAAAA {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -130,13 +137,21 @@ func (c *client) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 		}()
 	}
 
-	resp, aerr := c.lookupIP(ctx, domain, dnsmessage.TypeA)
+	var resp []net.IP
+	var aerr error
+	if !opt.OnlyAAAA {
+		resp, aerr = c.lookupIP(ctx, domain, dnsmessage.TypeA)
+	}
 
-	if c.config.IPv6 {
+	if c.config.IPv6 || opt.OnlyAAAA {
 		wg.Wait()
 		if aaaaerr == nil {
 			resp = append(resp, aaaa...)
 		}
+	}
+
+	if opt.OnlyAAAA && aaaaerr != nil {
+		return nil, fmt.Errorf("lookup aaaa ip failed: %w", aaaaerr)
 	}
 
 	if aerr != nil && (!c.config.IPv6 || aaaaerr != nil) {

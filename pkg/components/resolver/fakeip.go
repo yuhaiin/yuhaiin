@@ -51,8 +51,8 @@ func (f *Fakedns) resolver(ctx context.Context) netapi.Resolver {
 	return f.upstream
 }
 
-func (f *Fakedns) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
-	return f.resolver(ctx).LookupIP(ctx, domain)
+func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+	return f.resolver(ctx).LookupIP(ctx, domain, opts...)
 }
 
 func (f *Fakedns) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {

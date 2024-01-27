@@ -13,7 +13,7 @@ import (
 )
 
 func TestDOH(t *testing.T) {
-	netapi.Bootstrap = &netapi.System{DisableIPv6: true}
+	netapi.Bootstrap = &netapi.SystemResolver{DisableIPv6: true}
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
 	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")

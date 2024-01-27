@@ -175,7 +175,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	if mode == bypass.Mode_bypass {
 		// get mode from bypass rule
-		host.WithResolver(s.resolver(s.DefaultMode), true)
+		host.SetResolver(s.resolver(s.DefaultMode))
 		fields := s.SearchWithDefault(ctx, host, s.DefaultMode)
 		mode = fields.Mode()
 
@@ -190,7 +190,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	}
 
 	store.Add(modeMarkKey{}, mode)
-	host.WithResolver(s.resolver(mode), true)
+	host.SetResolver(s.resolver(mode))
 
 	if s.resolveDomain && host.Type() == netapi.DOMAIN && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
@@ -235,12 +235,12 @@ func (s *Shunt) resolver(m bypass.Mode) netapi.Resolver {
 
 func (s *Shunt) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort(0, domain, netapi.EmptyPort)
-	host.WithResolver(mapper.SkipResolver, true)
+	host.SetResolver(mapper.SkipResolver)
 	return s.resolver(s.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
 }
 
-func (f *Shunt) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
-	return f.Resolver(ctx, domain).LookupIP(ctx, domain)
+func (f *Shunt) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+	return f.Resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
 func (f *Shunt) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {

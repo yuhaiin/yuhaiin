@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestXxx(t *testing.T) {
+func TestFrag(t *testing.T) {
 	f := Frag{}
 
 	x := []byte(`

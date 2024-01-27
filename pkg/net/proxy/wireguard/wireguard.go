@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -71,11 +72,19 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 		mtu:            mtu,
 	}
 
+	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // TCP SACK is disabled by default
+	tcpipErr := dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabledOpt)
+	if tcpipErr != nil {
+		return nil, nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
+	}
+
 	dev.ep.AddNotify(dev)
-	tcpipErr := dev.stack.CreateNIC(1, dev.ep)
+
+	tcpipErr = dev.stack.CreateNIC(1, dev.ep)
 	if tcpipErr != nil {
 		return nil, nil, fmt.Errorf("CreateNIC: %v", tcpipErr)
 	}
+
 	for _, ip := range localAddresses {
 		var protoNumber tcpip.NetworkProtocolNumber
 		if ip.Addr().Is4() {
@@ -107,6 +116,11 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 	}
 	if dev.hasV6 {
 		dev.stack.AddRoute(tcpip.Route{Destination: header.IPv6EmptySubnet, NIC: 1})
+	}
+
+	opt := tcpip.CongestionControlOption("cubic")
+	if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
+		return nil, nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
 	}
 
 	dev.events <- tun.EventUp
@@ -172,14 +186,11 @@ func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
 }
 
 func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
-	amount := 0
 	for _, buf := range buffers {
 		packet := buf[offset:]
 		if len(packet) == 0 {
 			continue
 		}
-
-		amount++
 
 		pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(packet)})
 		var networkProtocol tcpip.NetworkProtocolNumber
@@ -188,12 +199,14 @@ func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
 			networkProtocol = header.IPv4ProtocolNumber
 		case header.IPv6Version:
 			networkProtocol = header.IPv6ProtocolNumber
+		default:
+			return 0, syscall.EAFNOSUPPORT
 		}
 
 		tun.ep.InjectInbound(networkProtocol, pkb)
 	}
 
-	return amount, nil
+	return len(buffers), nil
 }
 
 func (tun *netTun) WriteNotify() {
@@ -321,47 +334,6 @@ func (net *Net) ListenUDP(laddr *net.UDPAddr) (*gonet.UDPConn, error) {
 func (n *Net) HasV4() bool { return n.hasV4 }
 func (n *Net) HasV6() bool { return n.hasV6 }
 
-func IsDomainName(s string) bool {
-	l := len(s)
-	if l == 0 || l > 254 || l == 254 && s[l-1] != '.' {
-		return false
-	}
-	last := byte('.')
-	nonNumeric := false
-	partlen := 0
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		default:
-			return false
-		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
-			nonNumeric = true
-			partlen++
-		case '0' <= c && c <= '9':
-			partlen++
-		case c == '-':
-			if last == '.' {
-				return false
-			}
-			partlen++
-			nonNumeric = true
-		case c == '.':
-			if last == '.' || last == '-' {
-				return false
-			}
-			if partlen > 63 || partlen == 0 {
-				return false
-			}
-			partlen = 0
-		}
-		last = c
-	}
-	if last == '-' || partlen > 63 {
-		return false
-	}
-	return nonNumeric
-}
-
 type Wireguard struct {
 	netapi.EmptyDispatch
 	net *Net
@@ -437,10 +409,7 @@ func makeVirtualTun(h *protocol.Wireguard) (*Net, error) {
 	// dev := device.NewDevice(tun, conn.NewDefaultBind(), nil /* device.NewLogger(device.LogLevelVerbose, "") */)
 	dev := device.NewDevice(
 		tun,
-		&netBindClient{
-			workers:  int(h.GetNumWorkers()),
-			reserved: h.GetReserved(),
-		},
+		newNetBindClient(int(h.GetNumWorkers()), h.GetReserved()),
 		&device.Logger{
 			Verbosef: func(format string, args ...any) {
 				log.Output(2, slog.LevelDebug, fmt.Sprintf(format, args...))
@@ -492,29 +461,38 @@ type netBindClient struct {
 	readQueue chan *netReadInfo
 }
 
+func newNetBindClient(worker int, reserved []byte) *netBindClient {
+	return &netBindClient{
+		workers:  worker,
+		reserved: reserved,
+	}
+}
+
 func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
-	ipStr, port, _, err := splitAddrPort(s)
+	ipStr, port, err := net.SplitHostPort(s)
 	if err != nil {
 		return nil, err
 	}
 
-	var addr net.IP
-	if IsDomainName(ipStr) {
+	portNum, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return nil, err
+	}
+
+	ip, err := netip.ParseAddr(ipStr)
+	if err != nil {
 		ips, err := netapi.Bootstrap.LookupIP(context.TODO(), ipStr)
 		if err != nil {
 			return nil, err
 		}
-		addr = ips[0]
-	} else {
-		addr = net.ParseIP(ipStr)
-	}
-	if addr == nil {
-		return nil, errors.New("failed to parse ip: " + ipStr)
+		var ok bool
+		ip, ok = netip.AddrFromSlice(ips[0])
+		if !ok {
+			return nil, errors.New("failed to parse ip: " + ipStr)
+		}
 	}
 
-	ip, _ := netip.AddrFromSlice(addr)
-
-	return &netEndpoint{dst: netip.AddrPortFrom(ip.Unmap(), port)}, nil
+	return &netEndpoint{dst: netip.AddrPortFrom(ip.Unmap(), uint16(portNum))}, nil
 }
 
 func (bind *netBindClient) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
@@ -523,6 +501,8 @@ func (bind *netBindClient) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error
 	bind.readQueue = make(chan *netReadInfo)
 
 	fun := func(packets [][]byte, sizes []int, eps []conn.Endpoint) (cap int, err error) {
+		defer func() { _ = recover() }()
+
 		r := &netReadInfo{
 			buff: packets[0],
 		}
@@ -545,7 +525,7 @@ func (bind *netBindClient) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error
 		arr[i] = fun
 	}
 
-	return arr, 0, nil
+	return arr, uport, nil
 }
 
 func (bind *netBindClient) Close() error {
@@ -571,7 +551,7 @@ func (bind *netBindClient) connectTo(endpoint *netEndpoint) error {
 
 	go func(readQueue <-chan *netReadInfo, endpoint *netEndpoint) {
 		for {
-			v, ok := <-readQueue
+			v, ok := <-bind.readQueue
 			if !ok {
 				return
 			}
@@ -673,43 +653,4 @@ type netReadInfo struct {
 	bytes    int
 	endpoint conn.Endpoint
 	err      error
-}
-
-func splitAddrPort(s string) (ip string, port uint16, v6 bool, err error) {
-	i := stringsLastIndexByte(s, ':')
-	if i == -1 {
-		return "", 0, false, errors.New("not an ip:port")
-	}
-
-	ip = s[:i]
-	portStr := s[i+1:]
-	if len(ip) == 0 {
-		return "", 0, false, errors.New("no IP")
-	}
-	if len(portStr) == 0 {
-		return "", 0, false, errors.New("no port")
-	}
-	port64, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		return "", 0, false, errors.New("invalid port " + strconv.Quote(portStr) + " parsing " + strconv.Quote(s))
-	}
-	port = uint16(port64)
-	if ip[0] == '[' {
-		if len(ip) < 2 || ip[len(ip)-1] != ']' {
-			return "", 0, false, errors.New("missing ]")
-		}
-		ip = ip[1 : len(ip)-1]
-		v6 = true
-	}
-
-	return ip, port, v6, nil
-}
-
-func stringsLastIndexByte(s string, b byte) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
 }

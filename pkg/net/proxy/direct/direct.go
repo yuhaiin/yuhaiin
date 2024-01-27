@@ -17,6 +17,8 @@ func init() {
 	point.RegisterProtocol(func(*protocol.Protocol_Direct) point.WrapProxy {
 		return func(netapi.Proxy) (netapi.Proxy, error) { return Default, nil }
 	})
+
+	point.InitProxy = Default
 }
 
 var Default netapi.Proxy = NewDirect()

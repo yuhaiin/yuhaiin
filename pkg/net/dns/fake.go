@@ -27,7 +27,7 @@ func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, bbolt *cache.C
 	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt)}
 }
 
-func (f *FakeDNS) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
+func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	return []net.IP{f.FakeIPPool.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
