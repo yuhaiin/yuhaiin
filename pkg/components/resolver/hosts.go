@@ -110,13 +110,13 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 
 }
 
-func (h *Hosts) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
+func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort(0, domain, netapi.EmptyPort))
 	if addr.Type() == netapi.IP {
 		return []net.IP{yerror.Ignore(addr.IP(ctx))}, nil
 	}
 
-	return h.resolver.LookupIP(ctx, addr.Hostname())
+	return h.resolver.LookupIP(ctx, addr.Hostname(), opts...)
 }
 
 func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {

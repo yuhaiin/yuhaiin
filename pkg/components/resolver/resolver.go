@@ -38,7 +38,8 @@ func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
 				Proxy: dl,
 				addr: func(ctx context.Context, addr netapi.Address) {
 					netapi.StoreFromContext(ctx).Add(shunt.ForceModeKey{}, bypass.Mode_direct)
-					addr.WithResolver(&netapi.System{DisableIPv6: !c.GetIpv6()}, false)
+					addr.SetResolver(netapi.NewSystemResolver(c.GetIpv6()))
+					addr.SetSrc(netapi.AddressSrcDNS)
 				}},
 		)
 		if err != nil {
@@ -65,7 +66,8 @@ func NewLocal(dl netapi.Proxy) netapi.Resolver {
 			Proxy: dl,
 			addr: func(ctx context.Context, addr netapi.Address) {
 				// force to use bootstrap dns, otherwise will dns query cycle
-				addr.WithResolver(netapi.Bootstrap, false)
+				addr.SetResolver(netapi.Bootstrap)
+				addr.SetSrc(netapi.AddressSrcDNS)
 			},
 		})
 		if err != nil {
@@ -90,7 +92,8 @@ func NewRemote(dl netapi.Proxy) netapi.Resolver {
 				Proxy: dl,
 				addr: func(ctx context.Context, addr netapi.Address) {
 					// force to use bootstrap dns, otherwise will dns query cycle
-					addr.WithResolver(netapi.Bootstrap, false)
+					addr.SetResolver(netapi.Bootstrap)
+					addr.SetSrc(netapi.AddressSrcDNS)
 				},
 			})
 		if err != nil {
@@ -116,12 +119,12 @@ func wrap(name string, update func(*dnsWrap, *pc.Setting)) *dnsWrap {
 
 func (d *dnsWrap) Update(c *pc.Setting) { d.update(d, c) }
 
-func (d *dnsWrap) LookupIP(ctx context.Context, host string) ([]net.IP, error) {
+func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	if d.dns == nil {
 		return nil, fmt.Errorf("%s dns not initialized", d.name)
 	}
 
-	ips, err := d.dns.LookupIP(ctx, host)
+	ips, err := d.dns.LookupIP(ctx, host, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("%s lookup failed: %w", d.name, err)
 	}

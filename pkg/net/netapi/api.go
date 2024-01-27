@@ -52,6 +52,13 @@ const (
 	EMPTY  Type = 4
 )
 
+type AddressSrc int32
+
+const (
+	AddressSrcEmpty AddressSrc = 0
+	AddressSrcDNS   AddressSrc = 1
+)
+
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
@@ -68,9 +75,9 @@ type Address interface {
 
 	net.Addr
 
-	// WithResolver will use call IP(), IPHost(), UDPAddr(), TCPAddr()
-	// return the current resolver is applied, if can't apply return false
-	WithResolver(_ Resolver, canCover bool) bool
+	SetSrc(AddressSrc)
+	// SetResolver will use call IP(), IPHost(), UDPAddr(), TCPAddr()
+	SetResolver(_ Resolver)
 	PreferIPv6(b bool)
 	// OverrideHostname clone address(exclude Values) and change hostname
 	OverrideHostname(string) Address

@@ -10,7 +10,7 @@ import (
 )
 
 func TestDoh3(t *testing.T) {
-	netapi.Bootstrap = &netapi.System{DisableIPv6: true}
+	netapi.Bootstrap = &netapi.SystemResolver{DisableIPv6: true}
 
 	configMap := map[string]Config{
 		"cloudflare": {

@@ -11,11 +11,26 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
+
+func (s *Socks5) startUDPServer() error {
+	packet, err := s.lis.Packet(s.ctx)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		defer packet.Close()
+		yuubinsya.StartUDPServer(s.ctx, packet, s.udpChannel, nil, true)
+	}()
+
+	return nil
+}
 
 func (s *Socks5) startTCPServer() error {
 	lis, err := s.lis.Stream(s.ctx)

@@ -6,11 +6,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"runtime/pprof"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/version"
@@ -63,22 +60,22 @@ func main() {
 	))
 	defer app.Close()
 
-	_ = os.Rename(filepath.Join(*savepath, "pbo.pprof"),
-		filepath.Join(*savepath, fmt.Sprintf("pbo_%d.pprof", time.Now().Unix())))
-	f, err := os.Create(filepath.Join(*savepath, "pbo.pprof"))
-	if err == nil {
-		defer f.Close() // error handling omitted for example
-		// runtime.SetCPUProfileRate(100)
-		if err := pprof.StartCPUProfile(f); err == nil {
-			log.Debug("start pprof")
-			defer pprof.StopCPUProfile()
-		} else {
-			f.Close()
-			log.Error(err.Error())
-		}
-	} else {
-		log.Error(err.Error())
-	}
+	// _ = os.Rename(filepath.Join(*savepath, "pbo.pprof"),
+	// 	filepath.Join(*savepath, fmt.Sprintf("pbo_%d.pprof", time.Now().Unix())))
+	// f, err := os.Create(filepath.Join(*savepath, "pbo.pprof"))
+	// if err == nil {
+	// 	defer f.Close() // error handling omitted for example
+	// 	// runtime.SetCPUProfileRate(100)
+	// 	if err := pprof.StartCPUProfile(f); err == nil {
+	// 		log.Debug("start pprof")
+	// 		defer pprof.StopCPUProfile()
+	// 	} else {
+	// 		f.Close()
+	// 		log.Error(err.Error())
+	// 	}
+	// } else {
+	// 	log.Error(err.Error())
+	// }
 
 	errChan := make(chan error)
 

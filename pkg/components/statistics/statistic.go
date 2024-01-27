@@ -129,7 +129,11 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 func getRemote(con any) string {
 	r, ok := con.(interface{ RemoteAddr() net.Addr })
 	if ok {
-		return r.RemoteAddr().String()
+		// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
+		// gvisor TCPConn will return nil remoteAddr
+		if addr := r.RemoteAddr(); addr != nil {
+			return addr.String()
+		}
 	}
 
 	return ""

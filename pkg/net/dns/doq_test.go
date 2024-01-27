@@ -11,7 +11,7 @@ import (
 )
 
 func TestDoQ(t *testing.T) {
-	netapi.Bootstrap = &netapi.System{DisableIPv6: true}
+	netapi.Bootstrap = &netapi.SystemResolver{DisableIPv6: true}
 
 	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")
 

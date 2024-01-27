@@ -9,10 +9,14 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
+type LookupIPOption struct {
+	OnlyAAAA bool
+}
+
 type ForceFakeIP struct{}
 
 type Resolver interface {
-	LookupIP(ctx context.Context, domain string) ([]net.IP, error)
+	LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error)
 	Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error)
 	io.Closer
 }
@@ -21,7 +25,7 @@ var _ Resolver = (*ErrorResolver)(nil)
 
 type ErrorResolver func(domain string) error
 
-func (e ErrorResolver) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
+func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
 	return nil, e(domain)
 }
 func (e ErrorResolver) Close() error { return nil }
@@ -29,11 +33,15 @@ func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessa
 	return dnsmessage.Message{}, e(req.Name.String())
 }
 
-var Bootstrap Resolver = &System{}
+var Bootstrap Resolver = &SystemResolver{}
 
-type System struct{ DisableIPv6 bool }
+type SystemResolver struct{ DisableIPv6 bool }
 
-func (d *System) LookupIP(ctx context.Context, domain string) ([]net.IP, error) {
+func NewSystemResolver(ipv6 bool) *SystemResolver {
+	return &SystemResolver{!ipv6}
+}
+
+func (d *SystemResolver) LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
 	var network string
 	if d.DisableIPv6 {
 		network = "ip4"
@@ -42,10 +50,10 @@ func (d *System) LookupIP(ctx context.Context, domain string) ([]net.IP, error) 
 	}
 	return net.DefaultResolver.LookupIP(ctx, network, domain)
 }
-func (d *System) Raw(context.Context, dnsmessage.Question) (dnsmessage.Message, error) {
+func (d *SystemResolver) Raw(context.Context, dnsmessage.Question) (dnsmessage.Message, error) {
 	return dnsmessage.Message{}, fmt.Errorf("system dns not support")
 }
-func (d *System) Close() error { return nil }
+func (d *SystemResolver) Close() error { return nil }
 
 type DNSErrCode struct {
 	code dnsmessage.RCode
@@ -75,7 +83,7 @@ func (d *DNSErrCode) As(err any) bool {
 
 type DropResolver struct{}
 
-func (e DropResolver) LookupIP(_ context.Context, domain string) ([]net.IP, error) {
+func (e DropResolver) LookupIP(_ context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
 	return nil, NewDNSErrCode(dnsmessage.RCodeSuccess)
 }
 
