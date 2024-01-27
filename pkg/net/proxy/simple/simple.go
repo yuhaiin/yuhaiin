@@ -142,7 +142,7 @@ func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 type PacketDirectKey struct{}
 
 func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	if ctx.Value(PacketDirectKey{}) != true {
+	if ctx.Value(PacketDirectKey{}) == true {
 		return direct.Default.PacketConn(ctx, addr)
 	}
 
