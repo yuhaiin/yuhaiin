@@ -57,6 +57,7 @@ func (t *tunServer) Close() error {
 		t.stack.RemoveNIC(t.nicID)
 		t.stack.Destroy()
 	}
+	t.cancel()
 	return nil
 }
 

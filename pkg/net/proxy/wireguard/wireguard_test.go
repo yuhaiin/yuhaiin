@@ -20,9 +20,8 @@ func TestWireguard(t *testing.T) {
 			Endpoint: []string{
 				"10.0.0.2/32",
 			},
-			Mtu:        1500,
-			NumWorkers: 6,
-			Reserved:   []byte{0, 0, 0},
+			Mtu:      1500,
+			Reserved: []byte{0, 0, 0},
 			Peers: []*protocol.WireguardPeerConfig{
 				{
 					PublicKey: "2HWI3cW1HlAyQk1xiu+4QBL1KISMxSo4VQgCz+wCjmo=",

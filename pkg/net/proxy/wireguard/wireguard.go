@@ -10,333 +10,35 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
-	"net/netip"
-	"os"
-	"strconv"
-	"strings"
 	"sync"
-	"syscall"
+	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
-	"gvisor.dev/gvisor/pkg/buffer"
-	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"gvisor.dev/gvisor/pkg/tcpip/header"
-	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
-	"gvisor.dev/gvisor/pkg/tcpip/stack"
-	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
-	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
-
-type netTun struct {
-	ep             *channel.Endpoint
-	stack          *stack.Stack
-	events         chan tun.Event
-	incomingPacket chan *buffer.View
-	mtu            int
-	hasV4, hasV6   bool
-}
-
-type Net netTun
-
-func base64ToHex(s string) string {
-	data, _ := base64.StdEncoding.DecodeString(s)
-	return hex.EncodeToString(data)
-}
-
-func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, error) {
-	opts := stack.Options{
-		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
-		HandleLocal:        true,
-	}
-	dev := &netTun{
-		ep:             channel.New(1024, uint32(mtu), ""),
-		stack:          stack.New(opts),
-		events:         make(chan tun.Event, 10),
-		incomingPacket: make(chan *buffer.View),
-		mtu:            mtu,
-	}
-
-	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // TCP SACK is disabled by default
-	tcpipErr := dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabledOpt)
-	if tcpipErr != nil {
-		return nil, nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
-	}
-
-	dev.ep.AddNotify(dev)
-
-	tcpipErr = dev.stack.CreateNIC(1, dev.ep)
-	if tcpipErr != nil {
-		return nil, nil, fmt.Errorf("CreateNIC: %v", tcpipErr)
-	}
-
-	for _, ip := range localAddresses {
-		var protoNumber tcpip.NetworkProtocolNumber
-		if ip.Addr().Is4() {
-			protoNumber = ipv4.ProtocolNumber
-		} else if ip.Addr().Is6() {
-			protoNumber = ipv6.ProtocolNumber
-		}
-
-		protoAddr := tcpip.ProtocolAddress{
-			AddressWithPrefix: tcpip.AddressWithPrefix{
-				Address:   tcpip.AddrFromSlice(ip.Addr().Unmap().AsSlice()),
-				PrefixLen: ip.Bits(),
-			},
-			Protocol: protoNumber,
-		}
-
-		tcpipErr := dev.stack.AddProtocolAddress(1, protoAddr, stack.AddressProperties{})
-		if tcpipErr != nil {
-			return nil, nil, fmt.Errorf("AddProtocolAddress(%v): %v", ip, tcpipErr)
-		}
-		if ip.Addr().Is4() {
-			dev.hasV4 = true
-		} else if ip.Addr().Is6() {
-			dev.hasV6 = true
-		}
-	}
-	if dev.hasV4 {
-		dev.stack.AddRoute(tcpip.Route{Destination: header.IPv4EmptySubnet, NIC: 1})
-	}
-	if dev.hasV6 {
-		dev.stack.AddRoute(tcpip.Route{Destination: header.IPv6EmptySubnet, NIC: 1})
-	}
-
-	opt := tcpip.CongestionControlOption("cubic")
-	if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
-		return nil, nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
-	}
-
-	dev.events <- tun.EventUp
-	return dev, (*Net)(dev), nil
-}
-
-// convert endpoint string to netip.Addr
-func parseEndpoints(conf *protocol.Wireguard) ([]netip.Prefix, error) {
-	endpoints := make([]netip.Prefix, 0, len(conf.Endpoint))
-	for _, str := range conf.Endpoint {
-		// var addr netip.Addr
-		if strings.Contains(str, "/") {
-			prefix, err := netip.ParsePrefix(str)
-			if err != nil {
-				return nil, err
-			}
-			endpoints = append(endpoints, prefix)
-		} else {
-			var err error
-			addr, err := netip.ParseAddr(str)
-			if err != nil {
-				return nil, err
-			}
-
-			if addr.Is4() {
-				endpoints = append(endpoints, netip.PrefixFrom(addr, 32))
-			} else {
-				endpoints = append(endpoints, netip.PrefixFrom(addr, 128))
-			}
-		}
-	}
-
-	return endpoints, nil
-}
-
-func (tun *netTun) Name() (string, error) {
-	return "go", nil
-}
-
-func (tun *netTun) File() *os.File {
-	return nil
-}
-
-func (tun *netTun) Events() <-chan tun.Event {
-	return tun.events
-}
-
-func (tun *netTun) BatchSize() int { return 1 }
-
-func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
-	view, ok := <-tun.incomingPacket
-	if !ok {
-		return 0, os.ErrClosed
-	}
-
-	var err error
-	size[0], err = view.Read(buf[0][offset:])
-	if err != nil {
-		return 0, err
-	}
-
-	return 1, nil
-}
-
-func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
-	for _, buf := range buffers {
-		packet := buf[offset:]
-		if len(packet) == 0 {
-			continue
-		}
-
-		pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(packet)})
-		var networkProtocol tcpip.NetworkProtocolNumber
-		switch header.IPVersion(packet) {
-		case header.IPv4Version:
-			networkProtocol = header.IPv4ProtocolNumber
-		case header.IPv6Version:
-			networkProtocol = header.IPv6ProtocolNumber
-		default:
-			return 0, syscall.EAFNOSUPPORT
-		}
-
-		tun.ep.InjectInbound(networkProtocol, pkb)
-	}
-
-	return len(buffers), nil
-}
-
-func (tun *netTun) WriteNotify() {
-	pkt := tun.ep.Read()
-	if pkt == nil {
-		return
-	}
-
-	view := pkt.ToView()
-	pkt.DecRef()
-
-	tun.incomingPacket <- view
-}
-
-func (tun *netTun) Flush() error { return nil }
-
-func (tun *netTun) Close() error {
-	tun.stack.RemoveNIC(1)
-
-	if tun.events != nil {
-		close(tun.events)
-	}
-
-	tun.ep.Close()
-
-	if tun.incomingPacket != nil {
-		close(tun.incomingPacket)
-	}
-
-	return nil
-}
-
-func (tun *netTun) MTU() (int, error) { return tun.mtu, nil }
-
-func convertToFullAddr(endpoint netip.AddrPort) (tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
-	var protoNumber tcpip.NetworkProtocolNumber
-	if endpoint.Addr().Is4() {
-		protoNumber = ipv4.ProtocolNumber
-	} else {
-		protoNumber = ipv6.ProtocolNumber
-	}
-	return tcpip.FullAddress{
-		NIC:  1,
-		Addr: tcpip.AddrFromSlice(endpoint.Addr().Unmap().AsSlice()),
-		Port: endpoint.Port(),
-	}, protoNumber
-}
-
-func (net *Net) DialContextTCPAddrPort(ctx context.Context, addr netip.AddrPort) (*gonet.TCPConn, error) {
-	fa, pn := convertToFullAddr(addr)
-	return gonet.DialContextTCP(ctx, net.stack, fa, pn)
-}
-
-func (net *Net) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
-	if addr == nil {
-		return net.DialContextTCPAddrPort(ctx, netip.AddrPort{})
-	}
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	return net.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(ip, uint16(addr.Port)))
-}
-
-func (net *Net) DialTCPAddrPort(addr netip.AddrPort) (*gonet.TCPConn, error) {
-	fa, pn := convertToFullAddr(addr)
-	return gonet.DialTCP(net.stack, fa, pn)
-}
-
-func (net *Net) DialTCP(addr *net.TCPAddr) (*gonet.TCPConn, error) {
-	if addr == nil {
-		return net.DialTCPAddrPort(netip.AddrPort{})
-	}
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	return net.DialTCPAddrPort(netip.AddrPortFrom(ip, uint16(addr.Port)))
-}
-
-func (net *Net) ListenTCPAddrPort(addr netip.AddrPort) (*gonet.TCPListener, error) {
-	fa, pn := convertToFullAddr(addr)
-	return gonet.ListenTCP(net.stack, fa, pn)
-}
-
-func (net *Net) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
-	if addr == nil {
-		return net.ListenTCPAddrPort(netip.AddrPort{})
-	}
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	return net.ListenTCPAddrPort(netip.AddrPortFrom(ip, uint16(addr.Port)))
-}
-
-func (net *Net) DialUDPAddrPort(laddr, raddr netip.AddrPort) (*gonet.UDPConn, error) {
-	var lfa, rfa *tcpip.FullAddress
-	var pn tcpip.NetworkProtocolNumber
-	if laddr.IsValid() || laddr.Port() > 0 {
-		var addr tcpip.FullAddress
-		addr, pn = convertToFullAddr(laddr)
-		lfa = &addr
-	}
-	if raddr.IsValid() || raddr.Port() > 0 {
-		var addr tcpip.FullAddress
-		addr, pn = convertToFullAddr(raddr)
-		rfa = &addr
-	}
-	return gonet.DialUDP(net.stack, lfa, rfa, pn)
-}
-
-func (net *Net) ListenUDPAddrPort(laddr netip.AddrPort) (*gonet.UDPConn, error) {
-	return net.DialUDPAddrPort(laddr, netip.AddrPort{})
-}
-
-func (net *Net) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
-	var la, ra netip.AddrPort
-	if laddr != nil {
-		ip, _ := netip.AddrFromSlice(laddr.IP)
-		la = netip.AddrPortFrom(ip, uint16(laddr.Port))
-	}
-	if raddr != nil {
-		ip, _ := netip.AddrFromSlice(raddr.IP)
-		ra = netip.AddrPortFrom(ip, uint16(raddr.Port))
-	}
-	return net.DialUDPAddrPort(la, ra)
-}
-
-func (net *Net) ListenUDP(laddr *net.UDPAddr) (*gonet.UDPConn, error) {
-	return net.DialUDP(laddr, nil)
-}
-
-func (n *Net) HasV4() bool { return n.hasV4 }
-func (n *Net) HasV6() bool { return n.hasV6 }
 
 type Wireguard struct {
 	netapi.EmptyDispatch
-	net *Net
+	net  *Net
+	bind *netBindClient
+
+	conf *protocol.Wireguard
+	mu   sync.Mutex
+
+	count atomic.Int64
+
+	lastNewConn time.Time
+	idleTimeout time.Duration
+
+	device *device.Device
 }
 
 func init() {
@@ -345,71 +47,186 @@ func init() {
 
 func NewClient(conf *protocol.Protocol_Wireguard) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		net, err := makeVirtualTun(conf.Wireguard)
-		if err != nil {
-			return nil, err
+
+		if conf.Wireguard.IdleTimeout == 0 {
+			conf.Wireguard.IdleTimeout = 60 * 5
+		}
+		if conf.Wireguard.IdleTimeout <= 30 {
+			conf.Wireguard.IdleTimeout = 30
 		}
 
-		return &Wireguard{net: net}, nil
+		return &Wireguard{
+			conf:        conf.Wireguard,
+			idleTimeout: time.Duration(conf.Wireguard.IdleTimeout) * time.Second,
+		}, nil
 	}
+}
+
+func (w *Wireguard) collect() {
+	readyClose := false
+
+	for {
+		time.Sleep(w.idleTimeout)
+
+		br := func() bool {
+			w.mu.Lock()
+			defer w.mu.Unlock()
+
+			log.Debug("wireguard check idle timeout")
+
+			if w.count.Load() > 0 {
+				readyClose = false
+				return false
+			}
+
+			if !w.lastNewConn.IsZero() && time.Since(w.lastNewConn) < time.Minute {
+				readyClose = false
+				return false
+			}
+
+			if readyClose {
+				log.Debug("wireguard closing")
+				if w.device != nil {
+					w.device.Close()
+					w.device = nil
+				}
+
+				if w.bind != nil {
+					w.bind.Close()
+					w.bind = nil
+				}
+				log.Debug("wireguard closed")
+				w.net = nil
+				return true
+			}
+
+			log.Debug("wireguard ready to close")
+
+			readyClose = true
+			return false
+		}()
+
+		if br {
+			break
+		}
+	}
+}
+
+func (w *Wireguard) initNet() (*Net, error) {
+	net := w.net
+	if net != nil {
+		return net, nil
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.net != nil {
+		return w.net, nil
+	}
+
+	dev, bind, net, err := makeVirtualTun(w.conf)
+	if err != nil {
+		return nil, err
+	}
+
+	w.device = dev
+	w.net = net
+	w.bind = bind
+	go w.collect()
+
+	return net, nil
 }
 
 func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	net, err := w.initNet()
+	if err != nil {
+		return nil, err
+	}
+
 	addrPort, err := addr.AddrPort(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return w.net.DialContextTCPAddrPort(ctx, addrPort)
+
+	conn, err := net.DialContextTCPAddrPort(ctx, addrPort)
+	if err != nil {
+		return nil, err
+	}
+
+	w.count.Add(1)
+	w.lastNewConn = time.Now()
+
+	return &wrapGoNetTcpConn{w, conn}, nil
+}
+
+type wrapGoNetTcpConn struct {
+	wireguard *Wireguard
+	*gonet.TCPConn
+}
+
+func (w *wrapGoNetTcpConn) Close() error {
+	w.wireguard.count.Add(-1)
+	return w.TCPConn.Close()
 }
 
 func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	addrPort, err := addr.AddrPort(ctx)
+	net, err := w.initNet()
 	if err != nil {
 		return nil, err
 	}
 
-	goUC, err := w.net.DialUDPAddrPort(netip.AddrPort{}, addrPort)
+	goUC, err := net.ListenUDP(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &wrapGoNetUdpConn{ctx: ctx, UDPConn: goUC}, nil
+	w.count.Add(1)
+	w.lastNewConn = time.Now()
+
+	return &wrapGoNetUdpConn{w, goUC}, nil
 }
 
 type wrapGoNetUdpConn struct {
-	ctx context.Context
+	wireguard *Wireguard
 	*gonet.UDPConn
 }
 
+func (w *wrapGoNetUdpConn) Close() error {
+	w.wireguard.count.Add(-1)
+	return w.UDPConn.Close()
+}
+
 func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
-	ad, err := netapi.ParseSysAddr(addr)
+	a, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return 0, err
 	}
 
-	uaddr, err := ad.UDPAddr(w.ctx)
+	udpAddr, err := a.UDPAddr(context.TODO())
 	if err != nil {
 		return 0, err
 	}
 
-	return w.UDPConn.WriteTo(buf, uaddr)
+	return w.UDPConn.WriteTo(buf, udpAddr)
 }
 
 // creates a tun interface on netstack given a configuration
-func makeVirtualTun(h *protocol.Wireguard) (*Net, error) {
+func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *Net, error) {
 	endpoints, err := parseEndpoints(h)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	tun, tnet, err := CreateNetTUN(endpoints, int(h.Mtu))
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
+	bind := newNetBindClient(h.GetReserved())
 	// dev := device.NewDevice(tun, conn.NewDefaultBind(), nil /* device.NewLogger(device.LogLevelVerbose, "") */)
 	dev := device.NewDevice(
 		tun,
-		newNetBindClient(int(h.GetNumWorkers()), h.GetReserved()),
+		bind,
 		&device.Logger{
 			Verbosef: func(format string, args ...any) {
 				log.Output(2, slog.LevelDebug, fmt.Sprintf(format, args...))
@@ -421,15 +238,22 @@ func makeVirtualTun(h *protocol.Wireguard) (*Net, error) {
 
 	err = dev.IpcSet(createIPCRequest(h))
 	if err != nil {
-		return nil, err
+		dev.Close()
+		return nil, nil, nil, err
 	}
 
 	err = dev.Up()
 	if err != nil {
-		return nil, err
+		dev.Close()
+		return nil, nil, nil, err
 	}
 
-	return tnet, nil
+	return dev, bind, tnet, nil
+}
+
+func base64ToHex(s string) string {
+	data, _ := base64.StdEncoding.DecodeString(s)
+	return hex.EncodeToString(data)
 }
 
 // serialize the config into an IPC request
@@ -453,204 +277,4 @@ func createIPCRequest(conf *protocol.Wireguard) string {
 	}
 
 	return request.String()[:request.Len()]
-}
-
-type netBindClient struct {
-	workers   int
-	reserved  []byte
-	readQueue chan *netReadInfo
-}
-
-func newNetBindClient(worker int, reserved []byte) *netBindClient {
-	return &netBindClient{
-		workers:  worker,
-		reserved: reserved,
-	}
-}
-
-func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
-	ipStr, port, err := net.SplitHostPort(s)
-	if err != nil {
-		return nil, err
-	}
-
-	portNum, err := strconv.ParseUint(port, 10, 16)
-	if err != nil {
-		return nil, err
-	}
-
-	ip, err := netip.ParseAddr(ipStr)
-	if err != nil {
-		ips, err := netapi.Bootstrap.LookupIP(context.TODO(), ipStr)
-		if err != nil {
-			return nil, err
-		}
-		var ok bool
-		ip, ok = netip.AddrFromSlice(ips[0])
-		if !ok {
-			return nil, errors.New("failed to parse ip: " + ipStr)
-		}
-	}
-
-	return &netEndpoint{dst: netip.AddrPortFrom(ip.Unmap(), uint16(portNum))}, nil
-}
-
-func (bind *netBindClient) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
-	// log.Info(fmt.Sprintf("open port %d", uport))
-
-	bind.readQueue = make(chan *netReadInfo)
-
-	fun := func(packets [][]byte, sizes []int, eps []conn.Endpoint) (cap int, err error) {
-		defer func() { _ = recover() }()
-
-		r := &netReadInfo{
-			buff: packets[0],
-		}
-
-		r.waiter.Add(1)
-		bind.readQueue <- r
-		r.waiter.Wait() // wait read goroutine done, or we will miss the result
-
-		sizes[0] = r.bytes
-		eps[0] = r.endpoint
-		return 1, r.err
-	}
-
-	workers := bind.workers
-	if workers <= 0 {
-		workers = 1
-	}
-	arr := make([]conn.ReceiveFunc, workers)
-	for i := 0; i < workers; i++ {
-		arr[i] = fun
-	}
-
-	return arr, uport, nil
-}
-
-func (bind *netBindClient) Close() error {
-	if bind.readQueue != nil {
-		close(bind.readQueue)
-	}
-	return nil
-}
-
-func (bind *netBindClient) connectTo(endpoint *netEndpoint) error {
-	endpoint.lock.Lock()
-	defer endpoint.lock.Unlock()
-
-	if endpoint.conn != nil {
-		return nil
-	}
-
-	c, err := dialer.DialContext(context.Background(), "udp", endpoint.dst.String())
-	if err != nil {
-		return err
-	}
-	endpoint.conn = c
-
-	go func(readQueue <-chan *netReadInfo, endpoint *netEndpoint) {
-		for {
-			v, ok := <-bind.readQueue
-			if !ok {
-				return
-			}
-
-			go func() {
-				i, err := c.Read(v.buff)
-
-				if i > 3 {
-					v.buff[1] = 0
-					v.buff[2] = 0
-					v.buff[3] = 0
-				}
-
-				v.bytes = i
-				v.endpoint = endpoint
-				v.err = err
-				v.waiter.Done()
-				if err != nil && errors.Is(err, io.EOF) {
-					endpoint.lock.Lock()
-					endpoint.conn = nil
-					endpoint.lock.Unlock()
-					return
-				}
-			}()
-		}
-	}(bind.readQueue, endpoint)
-
-	return nil
-}
-
-func (bind *netBindClient) Send(buffs [][]byte, endpoint conn.Endpoint) error {
-	var err error
-
-	// log.Info(fmt.Sprintf("send to %s", endpoint.DstToString()))
-
-	nend, ok := endpoint.(*netEndpoint)
-	if !ok {
-		return conn.ErrWrongEndpointType
-	}
-
-	conn := nend.conn
-
-	if conn == nil {
-	_retry:
-		err = bind.connectTo(nend)
-		if err != nil {
-			return err
-		}
-		if conn = nend.conn; conn == nil {
-			goto _retry
-		}
-	}
-
-	for _, buff := range buffs {
-		if len(buff) > 3 && len(bind.reserved) == 3 {
-			copy(buff[1:], bind.reserved)
-		}
-
-		_, err = conn.Write(buff)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (bind *netBindClient) SetMark(mark uint32) error { return nil }
-func (bind *netBindClient) BatchSize() int            { return 1 }
-
-type netEndpoint struct {
-	lock sync.Mutex
-	dst  netip.AddrPort
-	conn net.Conn
-}
-
-func (*netEndpoint) ClearSrc()           {}
-func (e *netEndpoint) DstIP() netip.Addr { return e.dst.Addr() }
-func (e *netEndpoint) SrcIP() netip.Addr { return netip.Addr{} }
-func (e *netEndpoint) DstToBytes() []byte {
-	var dat []byte
-	if e.dst.Addr().Is4() {
-		dat = e.dst.Addr().Unmap().AsSlice()
-	} else {
-		dat = e.dst.Addr().AsSlice()
-	}
-	dat = append(dat, byte(e.dst.Port()), byte(e.dst.Port()>>8))
-	return dat
-}
-func (e *netEndpoint) DstToString() string { return e.dst.String() }
-func (e *netEndpoint) SrcToString() string { return "" }
-
-type netReadInfo struct {
-	// status
-	waiter sync.WaitGroup
-	// param
-	buff []byte
-	// result
-	bytes    int
-	endpoint conn.Endpoint
-	err      error
 }

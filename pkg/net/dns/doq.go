@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/net/http2"
@@ -123,15 +124,27 @@ func (d *doq) Close() error {
 	return err
 }
 
-type DOQWrapConn struct{ net.PacketConn }
+type DOQWrapConn struct {
+	net.PacketConn
+	localAddrSalt string
+}
 
-func (d *DOQWrapConn) LocalAddr() net.Addr { return &doqWrapLocalAddr{d.PacketConn.LocalAddr()} }
+func (d *DOQWrapConn) LocalAddr() net.Addr {
+	return &doqWrapLocalAddr{d.PacketConn.LocalAddr(), d.localAddrSalt}
+}
 
 // doqWrapLocalAddr make doq packetConn local addr is different, otherwise the quic-go will panic
 // see: https://github.com/quic-go/quic-go/issues/3727
-type doqWrapLocalAddr struct{ net.Addr }
+type doqWrapLocalAddr struct {
+	net.Addr
+	salt string
+}
 
-func (a *doqWrapLocalAddr) Network() string { return "DNSoverQUIC" }
+func (a *doqWrapLocalAddr) String() string {
+	return fmt.Sprintf("doq://%s-%s", a.Addr.String(), a.salt)
+}
+
+var doqIgGenerate = id.IDGenerator{}
 
 func (d *doq) initSession(ctx context.Context) (quic.Connection, error) {
 	connection := d.connection
@@ -173,7 +186,7 @@ func (d *doq) initSession(ctx context.Context) (quic.Connection, error) {
 
 	session, err := quic.Dial(
 		ctx,
-		&DOQWrapConn{d.conn},
+		&DOQWrapConn{d.conn, fmt.Sprint(doqIgGenerate.Generate())},
 		d.host,
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},

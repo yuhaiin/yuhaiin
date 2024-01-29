@@ -28,7 +28,7 @@ func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
 	return &outbound{
 		manager:  mamanager,
 		db:       db,
-		lruCache: lru.NewLru(lru.WithCapacity[string, netapi.Proxy](35)),
+		lruCache: lru.NewLru(lru.WithCapacity[string, netapi.Proxy](200)),
 	}
 }
 
@@ -36,12 +36,21 @@ type TagKey struct{}
 
 func (TagKey) String() string { return "Tag" }
 
+func (o *outbound) getNowPoint(p *point.Point) *point.Point {
+	pp, ok := o.manager.GetNodeByName(p.Group, p.Name)
+	if ok {
+		return pp
+	}
+
+	return p
+}
+
 func (o *outbound) Conn(ctx context.Context, host netapi.Address) (_ net.Conn, err error) {
 	if tc := o.tagConn(ctx, host); tc != nil {
 		return tc.Conn(ctx, host)
 	}
 
-	tcp := o.db.Data.Tcp
+	tcp := o.getNowPoint(o.db.Data.Tcp)
 
 	p, err := o.GetDialer(tcp)
 	if err != nil {
@@ -77,7 +86,7 @@ func (o *outbound) PacketConn(ctx context.Context, host netapi.Address) (_ net.P
 		return tc.PacketConn(ctx, host)
 	}
 
-	udp := o.db.Data.Udp
+	udp := o.getNowPoint(o.db.Data.Udp)
 
 	p, err := o.GetDialer(udp)
 	if err != nil {

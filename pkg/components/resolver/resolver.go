@@ -179,11 +179,13 @@ type dialer struct {
 }
 
 func (d *dialer) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	ctx = netapi.NewStore(ctx)
 	d.addr(ctx, addr)
 	return d.Proxy.Conn(ctx, addr)
 }
 
 func (d *dialer) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+	ctx = netapi.NewStore(ctx)
 	d.addr(ctx, addr)
 	return d.Proxy.PacketConn(ctx, addr)
 }

@@ -90,7 +90,6 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 		defer cancel()
 
 		ctx = netapi.NewStore(ctx)
-
 		store := netapi.StoreFromContext(ctx)
 
 		mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())

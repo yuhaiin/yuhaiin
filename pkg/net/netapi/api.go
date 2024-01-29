@@ -96,37 +96,16 @@ type storeKey struct{}
 func StoreFromContext(ctx context.Context) Store {
 	store, ok := ctx.Value(storeKey{}).(Store)
 	if !ok {
-		return &emptyStore{}
+		return EmptyStore
 	}
 
 	return store
 }
 
 func NewStore(ctx context.Context) context.Context {
-	_, ok := ctx.Value(storeKey{}).(Store)
-	if ok {
-		return ctx
-	}
-
+	// ! it must return new context with store
+	// ! otherwise dns across proxy will use same store with proxy
 	return context.WithValue(ctx, storeKey{}, &store{store: make(map[any]any)})
-}
-
-type storeProxy struct{ Proxy }
-
-func NewWrapStoreProxy(p Proxy) Proxy {
-	return &storeProxy{p}
-}
-
-func (w *storeProxy) Conn(ctx context.Context, addr Address) (net.Conn, error) {
-	return w.Proxy.Conn(NewStore(ctx), addr)
-}
-
-func (w *storeProxy) PacketConn(ctx context.Context, addr Address) (net.PacketConn, error) {
-	return w.Proxy.PacketConn(NewStore(ctx), addr)
-}
-
-func (w *storeProxy) Dispatch(ctx context.Context, addr Address) (Address, error) {
-	return w.Proxy.Dispatch(NewStore(ctx), addr)
 }
 
 func Get[T any](ctx context.Context, k any) (t T, _ bool) {
@@ -153,6 +132,8 @@ func GetDefault[T any](ctx context.Context, k any, Default T) T {
 
 	return t
 }
+
+var EmptyStore = &emptyStore{}
 
 type emptyStore struct{}
 
