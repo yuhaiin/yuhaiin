@@ -174,13 +174,10 @@ func Start(opt StartOpt) (err error) {
 	// make dns flow across all proxy chain
 	dynamicProxy := netapi.NewDynamicProxy(direct.Default)
 
-	// wrap netapi.Store to context for every connection
-	appDialer := netapi.NewWrapStoreProxy(dynamicProxy)
-
 	// local,remote,bootstrap dns
-	_ = AddComponent("bootstrap_dns", resolver.NewBootstrap(appDialer))
-	local := AddComponent("local_dns", resolver.NewLocal(appDialer))
-	remote := AddComponent("remote_dns", resolver.NewRemote(appDialer))
+	_ = AddComponent("bootstrap_dns", resolver.NewBootstrap(dynamicProxy))
+	local := AddComponent("local_dns", resolver.NewLocal(dynamicProxy))
+	remote := AddComponent("remote_dns", resolver.NewRemote(dynamicProxy))
 	// bypass dialer and dns request
 	st := AddComponent("shunt", shunt.NewShunt(NewShuntOpt(local, remote)))
 	App.Node.SetRuleTags(st.Tags)
@@ -194,7 +191,8 @@ func Start(opt StartOpt) (err error) {
 	// make dns flow across all proxy chain
 	dynamicProxy.Set(fakedns)
 	// inbound server
-	_ = AddComponent("inbound_listener", inbound.NewListener(dnsServer, fakedns))
+	_ = AddComponent("inbound_listener",
+		inbound.NewListener(dnsServer, fakedns))
 	// tools
 	App.Tools = tools.NewTools(fakedns, opt.Setting)
 	// http page

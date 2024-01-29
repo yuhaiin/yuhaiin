@@ -151,8 +151,8 @@ message wireguard {
   repeated string endpoint = 2;
   repeated wireguard_peer_config peers = 3;
   int32 mtu = 4;
-  int32 num_workers = 5;
   bytes reserved = 6;
+  int32 idle_timeout = 7;
 }
 
 message mux { int32 concurrency = 1 [ json_name = "concurrency" ]; }
