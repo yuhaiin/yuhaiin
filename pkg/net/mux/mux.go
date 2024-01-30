@@ -45,6 +45,16 @@ type connEntry struct {
 	session *IdleSession
 }
 
+func (c *connEntry) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	err := c.session.Close()
+	c.session = nil
+
+	return err
+}
+
 type MuxClient struct {
 	netapi.Proxy
 	selector *randomSelector
@@ -77,6 +87,7 @@ func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 
 	conn, err := session.OpenStream(ctx)
 	if err != nil {
+		session.Close()
 		return nil, fmt.Errorf("yamux open error: %w", err)
 	}
 
@@ -86,8 +97,10 @@ func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 func (m *MuxClient) nexSession(ctx context.Context) (*IdleSession, error) {
 	entry := m.selector.Select()
 
-	if entry.session != nil && !entry.session.IsClosed() {
-		return entry.session, nil
+	session := entry.session
+
+	if session != nil && !session.IsClosed() {
+		return session, nil
 	}
 
 	entry.mu.Lock()
@@ -227,5 +240,6 @@ func NewRandomSelector(cap int) *randomSelector {
 }
 
 func (s *randomSelector) Select() *connEntry {
-	return s.content[rand.Intn(len(s.content))]
+	index := rand.Intn(len(s.content))
+	return s.content[index]
 }

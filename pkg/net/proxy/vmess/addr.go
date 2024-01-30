@@ -30,7 +30,7 @@ func ParseAddr(s netapi.Address) (address, error) {
 	var atyp Atyp
 	var addr []byte
 
-	if s.Type() == netapi.DOMAIN {
+	if s.Type() == netapi.FQDN {
 		atyp = AtypDomain
 		addr = make([]byte, len(s.Hostname())+1)
 		addr[0] = byte(len(s.Hostname()))

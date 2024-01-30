@@ -192,7 +192,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	store.Add(modeMarkKey{}, mode)
 	host.SetResolver(s.resolver(mode))
 
-	if s.resolveDomain && host.Type() == netapi.DOMAIN && mode == bypass.Mode_proxy {
+	if s.resolveDomain && host.IsFqdn() && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := host.IP(ctx)
 		if err == nil {

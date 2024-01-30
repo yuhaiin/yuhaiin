@@ -30,29 +30,27 @@ type Table struct {
 
 func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) error {
 
-	dst := pkt.Dst.String()
+	realAddr, err := u.dialer.Dispatch(ctx, pkt.Dst)
+	if err != nil {
+		return fmt.Errorf("dispatch addr failed: %w", err)
+	}
 
-	uaddr, ok := t.udpAddrStore.Load(dst)
-	if !ok {
-		addr, err := u.dialer.Dispatch(ctx, pkt.Dst)
-		if err != nil {
-			return fmt.Errorf("dispatch addr failed: %w", err)
-		}
+	uaddr, err := realAddr.UDPAddr(ctx)
+	if err != nil {
+		return err
+	}
 
-		uaddr, err = addr.UDPAddr(ctx)
-		if err != nil {
-			return err
-		}
-
-		t.udpAddrStore.Store(dst, uaddr)
-
-		if uaddr.String() != dst {
+	if !pkt.Dst.IsFqdn() {
+		addrPort, _ := pkt.Dst.AddrPort(ctx)
+		uaddrPort := uaddr.AddrPort()
+		// map fakeip/hosts
+		if uaddrPort.Addr().Compare(addrPort.Addr()) != 0 || uaddrPort.Port() != addrPort.Port() {
 			// TODO: maybe two dst(fake ip) have same uaddr, need help
 			t.originAddrStore.LoadOrStore(uaddr.String(), pkt.Dst)
 		}
 	}
 
-	_, err := t.dstPacketConn.WriteTo(pkt.Payload.Bytes(), uaddr)
+	_, err = t.dstPacketConn.WriteTo(pkt.Payload.Bytes(), uaddr)
 	_ = t.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
 	return err
 }
@@ -146,5 +144,4 @@ func (u *Table) Close() error {
 type SourceTable struct {
 	dstPacketConn   net.PacketConn
 	originAddrStore syncmap.SyncMap[string, netapi.Address]
-	udpAddrStore    syncmap.SyncMap[string, *net.UDPAddr]
 }
