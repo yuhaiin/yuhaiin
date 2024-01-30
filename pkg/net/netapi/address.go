@@ -190,8 +190,9 @@ func (d *DomainAddr) AddrPort(ctx context.Context) (netip.AddrPort, error) {
 	return netip.AddrPortFrom(addr, d.port.Port()), nil
 }
 
-func (d *DomainAddr) Port() Port { return d.port }
-func (d *DomainAddr) Type() Type { return DOMAIN }
+func (d *DomainAddr) Port() Port   { return d.port }
+func (d *DomainAddr) Type() Type   { return FQDN }
+func (d *DomainAddr) IsFqdn() bool { return true }
 func (d *DomainAddr) lookupIP(ctx context.Context) ([]net.IP, error) {
 	if d.preferIPv6 {
 		ips, err := d.Resolver().LookupIP(ctx, d.hostname, func(li *LookupIPOption) {
@@ -255,6 +256,7 @@ func (d *IPAddrPort) AddrPort(context.Context) (netip.AddrPort, error) { return 
 func (d *IPAddrPort) IP(context.Context) (net.IP, error)               { return d.addrPort.Addr().AsSlice(), nil }
 func (d *IPAddrPort) Port() Port                                       { return ParsePort(d.addrPort.Port()) }
 func (d *IPAddrPort) Type() Type                                       { return IP }
+func (d *IPAddrPort) IsFqdn() bool                                     { return false }
 func (d *IPAddrPort) UDPAddr(context.Context) (*net.UDPAddr, error) {
 	return &net.UDPAddr{
 		IP:   d.addrPort.Addr().AsSlice(),
@@ -291,6 +293,7 @@ func (d emptyAddr) Port() Port                                    { return Empty
 func (d emptyAddr) Network() string                               { return "" }
 func (d emptyAddr) NetworkType() statistic.Type                   { return 0 }
 func (d emptyAddr) Type() Type                                    { return EMPTY }
+func (d emptyAddr) IsFqdn() bool                                  { return false }
 func (d emptyAddr) SetSrc(AddressSrc)                             {}
 func (d emptyAddr) SetResolver(Resolver)                          {}
 func (d emptyAddr) PreferIPv6(bool)                               {}

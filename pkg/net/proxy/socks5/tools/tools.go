@@ -55,7 +55,7 @@ func ParseAddr(addr netapi.Address) ADDR {
 		}
 		copy(buf[1:], ip.Addr().AsSlice())
 
-	case netapi.DOMAIN:
+	case netapi.FQDN:
 		fallthrough
 	default:
 		buf = make([]byte, 1+1+len(addr.Hostname())+2)
@@ -79,7 +79,7 @@ func ParseAddrWriter(addr netapi.Address, buf io.Writer) {
 			_, _ = buf.Write([]byte{0x04})
 			_, _ = buf.Write(yerror.Must(addr.IP(context.TODO())).To16())
 		}
-	case netapi.DOMAIN:
+	case netapi.FQDN:
 		fallthrough
 	default:
 		_, _ = buf.Write([]byte{0x03, byte(len(addr.Hostname()))})

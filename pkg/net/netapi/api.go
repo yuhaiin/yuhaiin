@@ -32,8 +32,8 @@ type Type uint8
 
 func (t Type) String() string {
 	switch t {
-	case DOMAIN:
-		return "DOMAIN"
+	case FQDN:
+		return "FQDN"
 	case IP:
 		return "IP"
 	case UNIX:
@@ -46,10 +46,10 @@ func (t Type) String() string {
 }
 
 const (
-	DOMAIN Type = 1
-	IP     Type = 2
-	UNIX   Type = 3
-	EMPTY  Type = 4
+	FQDN  Type = 1
+	IP    Type = 2
+	UNIX  Type = 3
+	EMPTY Type = 4
 )
 
 type AddressSrc int32
@@ -82,6 +82,8 @@ type Address interface {
 	// OverrideHostname clone address(exclude Values) and change hostname
 	OverrideHostname(string) Address
 	OverridePort(Port) Address
+
+	IsFqdn() bool
 }
 
 type Store interface {
