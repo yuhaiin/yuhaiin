@@ -60,7 +60,7 @@ yuhaiin_linux:
 .PHONY: yuhaiin_linux_lite
 yuhaiin_linux_lite:
 	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite,debug" -o yuhaiin_linux_lite_amd64 $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite,debugo" -o yuhaiin_linux_lite_amd64v3 $(YUHAIIN)
+	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite,debug" -o yuhaiin_linux_lite_amd64v3 $(YUHAIIN)
 
 .PHONY: yuhaiin_windows
 yuhaiin_windows:

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -38,6 +38,8 @@ func init() {
 	// Disable keepalive, we don't need it
 	// tcp keepalive will used in underlying conn
 	config.EnableKeepAlive = false
+
+	config.ConnectionWriteTimeout = 4*time.Second + time.Second/2
 }
 
 type connEntry struct {
@@ -57,7 +59,7 @@ func (c *connEntry) Close() error {
 
 type MuxClient struct {
 	netapi.Proxy
-	selector *randomSelector
+	selector *rangeSelector
 }
 
 func init() {
@@ -72,7 +74,7 @@ func NewClient(config *protocol.Protocol_Mux) point.WrapProxy {
 
 		c := &MuxClient{
 			Proxy:    dialer,
-			selector: NewRandomSelector(int(config.Mux.Concurrency)),
+			selector: NewRangeSelector(int(config.Mux.Concurrency)),
 		}
 
 		return c, nil
@@ -80,7 +82,7 @@ func NewClient(config *protocol.Protocol_Mux) point.WrapProxy {
 }
 
 func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	session, err := m.nexSession(ctx)
+	session, err := m.nextSession(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +96,7 @@ func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 	return &muxConn{conn}, nil
 }
 
-func (m *MuxClient) nexSession(ctx context.Context) (*IdleSession, error) {
+func (m *MuxClient) nextSession(ctx context.Context) (*IdleSession, error) {
 	entry := m.selector.Select()
 
 	session := entry.session
@@ -127,17 +129,21 @@ func (m *MuxClient) nexSession(ctx context.Context) (*IdleSession, error) {
 }
 
 type IdleSession struct {
-	mu    sync.Mutex
-	timer *time.Timer
 	*yamux.Session
+
+	lastStreamTime *atomic.Pointer[time.Time]
 }
 
 func NewIdleSession(session *yamux.Session, IdleTimeout time.Duration) *IdleSession {
 	s := &IdleSession{
-		Session: session,
+		Session:        session,
+		lastStreamTime: &atomic.Pointer[time.Time]{},
 	}
 
+	s.updateLatestStreamTime()
+
 	go func() {
+		readyClose := false
 		ticker := time.NewTicker(IdleTimeout)
 		defer ticker.Stop()
 
@@ -147,18 +153,21 @@ func NewIdleSession(session *yamux.Session, IdleTimeout time.Duration) *IdleSess
 				return
 			case <-ticker.C:
 				if session.NumStreams() != 0 {
+					readyClose = false
 					continue
 				}
 
-				s.mu.Lock()
-				if s.timer == nil && session.NumStreams() == 0 {
-					s.timer = time.AfterFunc(IdleTimeout, func() {
-						if session.NumStreams() == 0 {
-							session.Close()
-						}
-					})
+				if time.Since(*s.lastStreamTime.Load()) < IdleTimeout {
+					readyClose = false
+					continue
 				}
-				s.mu.Unlock()
+
+				if readyClose {
+					session.Close()
+					return
+				}
+
+				readyClose = true
 			}
 		}
 	}()
@@ -166,27 +175,18 @@ func NewIdleSession(session *yamux.Session, IdleTimeout time.Duration) *IdleSess
 	return s
 }
 
-func (i *IdleSession) stopTimer() {
-	if i.timer != nil {
-		i.mu.Lock()
-		defer i.mu.Unlock()
-
-		if i.timer == nil {
-			return
-		}
-
-		i.timer.Stop()
-		i.timer = nil
-	}
+func (i *IdleSession) updateLatestStreamTime() {
+	now := time.Now()
+	i.lastStreamTime.Store(&now)
 }
 
 func (i *IdleSession) OpenStream(ctx context.Context) (*yamux.Stream, error) {
-	i.stopTimer()
+	i.updateLatestStreamTime()
 	return i.Session.OpenStream(ctx)
 }
 
 func (i *IdleSession) Open(ctx context.Context) (net.Conn, error) {
-	i.stopTimer()
+	i.updateLatestStreamTime()
 	return i.Session.Open(ctx)
 }
 
@@ -208,8 +208,10 @@ func (m *muxConn) RemoteAddr() net.Addr {
 
 func (m *muxConn) Read(p []byte) (n int, err error) {
 	n, err = m.MuxConn.Read(p)
-	if errors.Is(err, yamux.ErrStreamReset) || errors.Is(err, yamux.ErrStreamClosed) {
-		err = io.EOF
+	if err != nil {
+		if errors.Is(err, yamux.ErrStreamReset) || errors.Is(err, yamux.ErrStreamClosed) {
+			err = io.EOF
+		}
 	}
 
 	return
@@ -223,23 +225,25 @@ type MuxAddr struct {
 func (q *MuxAddr) String() string  { return fmt.Sprintf("yamux://%d@%v", q.ID, q.Addr) }
 func (q *MuxAddr) Network() string { return "tcp" }
 
-type randomSelector struct {
+type rangeSelector struct {
 	content []*connEntry
+	cap     uint64
+	count   atomic.Uint64
 }
 
-func NewRandomSelector(cap int) *randomSelector {
+func NewRangeSelector(cap int) *rangeSelector {
 	content := make([]*connEntry, cap)
 
 	for i := 0; i < cap; i++ {
 		content[i] = &connEntry{}
 	}
 
-	return &randomSelector{
+	return &rangeSelector{
 		content: content,
+		cap:     uint64(cap),
 	}
 }
 
-func (s *randomSelector) Select() *connEntry {
-	index := rand.Intn(len(s.content))
-	return s.content[index]
+func (s *rangeSelector) Select() *connEntry {
+	return s.content[s.count.Add(1)%s.cap]
 }

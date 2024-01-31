@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-func TestXxx(t *testing.T) {
+func TestEcdh(t *testing.T) {
 	c1, err := ecdh.P384().GenerateKey(rand.Reader)
 	assert.NoError(t, err)
 	c2, err := ecdh.P384().GenerateKey(rand.Reader)
@@ -46,7 +46,7 @@ func TestXxx(t *testing.T) {
 	t.Log(signature, len(signature))
 }
 
-func TestXx2x(t *testing.T) {
+func TestChacha20(t *testing.T) {
 	a, err := chacha20poly1305.New(make([]byte, chacha20poly1305.KeySize))
 	assert.NoError(t, err)
 
@@ -58,7 +58,7 @@ func TestXx2x(t *testing.T) {
 
 }
 
-func Test3(t *testing.T) {
+func TestHkdf(t *testing.T) {
 	// Underlying hash function for HMAC.
 	hash := sha256.New
 	// Cryptographically secure master secret.

@@ -20,4 +20,4 @@ func NewBlockError(network statistic.Type, hostname string) error {
 func (e *errorBlockedImpl) Error() string {
 	return fmt.Sprintf("blocked address %v[%s]", e.network, e.h)
 }
-func (e *errorBlockedImpl) Is(err error) bool { return errors.Is(err, ErrBlocked) }
+func (e *errorBlockedImpl) Is(err error) bool { return err == ErrBlocked }

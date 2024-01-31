@@ -20,7 +20,7 @@ type Pool interface {
 	PutBuffer(b *bytes.Buffer)
 }
 
-const DefaultSize = 20 * 0x400
+const DefaultSize = 10 * 0x400
 
 var DefaultPool Pool = &pool{}
 
@@ -117,11 +117,8 @@ func (b *Bytes) Len() int { return b.end - b.start }
 func NewBytesBuffer(b []byte) *Bytes { return &Bytes{sync.Once{}, b, 0, len(b)} }
 
 func GetBytesBuffer[T constraints.Integer](size T) *Bytes {
-	realSize := int(size)
-	if realSize < DefaultSize {
-		realSize = DefaultSize
-	}
-
-	return &Bytes{sync.Once{}, GetBytes(realSize), 0, int(size)}
+	return &Bytes{sync.Once{},
+		GetBytes(size), 0, int(size)}
 }
+
 func PutBytesBuffer(b *Bytes) { b.once.Do(func() { PutBytes(b.buf) }) }

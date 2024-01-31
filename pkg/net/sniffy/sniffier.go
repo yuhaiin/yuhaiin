@@ -59,8 +59,7 @@ func (s *Sniffier[T]) Packet(b []byte) (T, string, bool) {
 		}
 	}
 
-	var t T
-	return t, "", false
+	return *new(T), "", false
 }
 
 func (s *Sniffier[T]) Stream(c net.Conn) (net.Conn, T, string, bool) {
@@ -68,10 +67,9 @@ func (s *Sniffier[T]) Stream(c net.Conn) (net.Conn, T, string, bool) {
 
 	n, _ := c.Read(buf.Bytes())
 
-	var t T
 	if n <= 0 {
 		pool.PutBytesBuffer(buf)
-		return c, t, "", false
+		return c, *new(T), "", false
 	}
 
 	buf.ResetSize(0, n)
@@ -85,5 +83,5 @@ func (s *Sniffier[T]) Stream(c net.Conn) (net.Conn, T, string, bool) {
 		}
 	}
 
-	return c, t, "", false
+	return c, *new(T), "", false
 }
