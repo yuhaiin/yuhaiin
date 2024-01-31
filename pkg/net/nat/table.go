@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"time"
 
@@ -29,28 +30,35 @@ type Table struct {
 }
 
 func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) error {
+	key := pkt.Dst.String()
 
-	realAddr, err := u.dialer.Dispatch(ctx, pkt.Dst)
-	if err != nil {
-		return fmt.Errorf("dispatch addr failed: %w", err)
-	}
+	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
+	uaddr, ok := t.udpAddrCache.Load(key)
+	if !ok {
+		realAddr, err := u.dialer.Dispatch(ctx, pkt.Dst)
+		if err != nil {
+			return fmt.Errorf("dispatch addr failed: %w", err)
+		}
 
-	uaddr, err := realAddr.UDPAddr(ctx)
-	if err != nil {
-		return err
-	}
+		uaddr, err = realAddr.UDPAddr(ctx)
+		if err != nil {
+			return err
+		}
 
-	if !pkt.Dst.IsFqdn() {
-		addrPort, _ := pkt.Dst.AddrPort(ctx)
-		uaddrPort := uaddr.AddrPort()
-		// map fakeip/hosts
-		if uaddrPort.Addr().Compare(addrPort.Addr()) != 0 || uaddrPort.Port() != addrPort.Port() {
-			// TODO: maybe two dst(fake ip) have same uaddr, need help
-			t.originAddrStore.LoadOrStore(uaddr.String(), pkt.Dst)
+		t.udpAddrCache.LoadOrStore(key, uaddr)
+
+		if !pkt.Dst.IsFqdn() {
+			addrPort, _ := pkt.Dst.AddrPort(ctx)
+			uaddrPort := uaddr.AddrPort()
+			// map fakeip/hosts
+			if uaddrPort.Addr().Compare(addrPort.Addr()) != 0 || uaddrPort.Port() != addrPort.Port() {
+				// TODO: maybe two dst(fake ip) have same uaddr, need help
+				t.originAddrStore.LoadOrStore(addrPort, pkt.Dst)
+			}
 		}
 	}
 
-	_, err = t.dstPacketConn.WriteTo(pkt.Payload.Bytes(), uaddr)
+	_, err := t.dstPacketConn.WriteTo(pkt.Payload.Bytes(), uaddr)
 	_ = t.dstPacketConn.SetReadDeadline(time.Now().Add(time.Minute))
 	return err
 }
@@ -80,12 +88,13 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			return nil, fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
 		}
 
-		table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
+		table, _ := u.cache.LoadOrStore(key,
+			&SourceTable{dstPacketConn: dstpconn})
 
 		go func() {
 			defer func() {
-				dstpconn.Close()
 				u.cache.Delete(key)
+				dstpconn.Close()
 			}()
 
 			log.IfErr("udp remote to local",
@@ -120,9 +129,17 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 			return fmt.Errorf("read from proxy failed: %w", err)
 		}
 
-		if addr, ok := table.originAddrStore.Load(from.String()); ok {
-			// TODO: maybe two dst(fake ip) have same uaddr, need help
-			from = addr
+		faddr, err := netapi.ParseSysAddr(from)
+		if err != nil {
+			return fmt.Errorf("parse addr failed: %w", err)
+		}
+
+		if !faddr.IsFqdn() {
+			addrPort, _ := faddr.AddrPort(context.TODO())
+			if addr, ok := table.originAddrStore.Load(addrPort); ok {
+				// TODO: maybe two dst(fake ip) have same uaddr, need help
+				from = addr
+			}
 		}
 
 		// write back to client with source address
@@ -143,5 +160,6 @@ func (u *Table) Close() error {
 
 type SourceTable struct {
 	dstPacketConn   net.PacketConn
-	originAddrStore syncmap.SyncMap[string, netapi.Address]
+	originAddrStore syncmap.SyncMap[netip.AddrPort, netapi.Address]
+	udpAddrCache    syncmap.SyncMap[string, *net.UDPAddr]
 }

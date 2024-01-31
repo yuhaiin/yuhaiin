@@ -21,8 +21,6 @@ var MaxDatagramFrameSize int64 = 1200 - 3
 type Frag struct {
 	SplitID  atomic.Uint64
 	mergeMap syncmap.SyncMap[uint64, *MergeFrag]
-
-	timer *time.Timer
 }
 
 type MergeFrag struct {
@@ -33,24 +31,16 @@ type MergeFrag struct {
 	time     time.Time
 }
 
-func (f *Frag) close() {
-	if f.timer != nil {
-		f.timer.Stop()
-	}
-}
-
 func (f *Frag) collect(ctx context.Context) {
-	if f.timer == nil {
-		f.timer = time.NewTimer(60 * time.Second)
-	}
+	timer := time.NewTimer(60 * time.Second)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			f.close()
 			return
 
-		case <-f.timer.C:
+		case <-timer.C:
 			now := time.Now()
 			f.mergeMap.Range(func(id uint64, v *MergeFrag) bool {
 				if now.Sub(v.time) > 30*time.Second {
@@ -184,6 +174,7 @@ _retry:
 
 func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
 	buf := pool.GetBytesBuffer(8 + len(b))
+	defer pool.PutBytesBuffer(buf)
 
 	binary.BigEndian.PutUint64(buf.Bytes()[:8], id)
 	copy(buf.Bytes()[8:], b)
