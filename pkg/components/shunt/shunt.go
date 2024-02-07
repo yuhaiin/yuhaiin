@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -37,8 +37,8 @@ type Shunt struct {
 	modifiedTime  int64
 
 	config       *bypass.BypassConfig
-	mapper       *mapper.Combine[bypass.ModeEnum]
-	customMapper *mapper.Combine[bypass.ModeEnum]
+	mapper       *trie.Trie[bypass.ModeEnum]
+	customMapper *trie.Trie[bypass.ModeEnum]
 	mu           sync.RWMutex
 
 	Opts
@@ -62,8 +62,8 @@ func NewShunt(opt Opts) *Shunt {
 	}
 
 	return &Shunt{
-		mapper:       mapper.NewMapper[bypass.ModeEnum](),
-		customMapper: mapper.NewMapper[bypass.ModeEnum](),
+		mapper:       trie.NewTrie[bypass.ModeEnum](),
+		customMapper: trie.NewTrie[bypass.ModeEnum](),
 		config: &bypass.BypassConfig{
 			Tcp: bypass.Mode_bypass,
 			Udp: bypass.Mode_bypass,
@@ -235,7 +235,7 @@ func (s *Shunt) resolver(m bypass.Mode) netapi.Resolver {
 
 func (s *Shunt) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort(0, domain, netapi.EmptyPort)
-	host.SetResolver(mapper.SkipResolver)
+	host.SetResolver(trie.SkipResolver)
 	return s.resolver(s.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
 }
 

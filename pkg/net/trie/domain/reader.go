@@ -2,28 +2,28 @@ package domain
 
 import "strings"
 
-type domainReader struct {
+type fqdnReader struct {
 	domain   string
 	aft, pre int
 }
 
-func newDomainReader(domain string) *domainReader {
-	return &domainReader{
+func newReader(domain string) *fqdnReader {
+	return &fqdnReader{
 		domain: domain,
 		aft:    len(domain),
 		pre:    strings.LastIndexByte(domain, '.') + 1,
 	}
 }
 
-func (d *domainReader) hasNext() bool {
+func (d *fqdnReader) hasNext() bool {
 	return d.aft >= 0
 }
 
-func (d *domainReader) last() bool {
+func (d *fqdnReader) last() bool {
 	return d.pre == 0
 }
 
-func (d *domainReader) next() bool {
+func (d *fqdnReader) next() bool {
 	d.aft = d.pre - 1
 	if d.aft < 0 {
 		return false
@@ -32,14 +32,14 @@ func (d *domainReader) next() bool {
 	return true
 }
 
-func (d *domainReader) reset() {
+func (d *fqdnReader) reset() {
 	d.aft = len(d.domain)
 	d.pre = strings.LastIndexByte(d.domain, '.') + 1
 }
 
 var valueEmpty = string([]byte{0x03})
 
-func (d *domainReader) str() string {
+func (d *fqdnReader) str() string {
 	if d.pre == d.aft {
 		return valueEmpty
 	}

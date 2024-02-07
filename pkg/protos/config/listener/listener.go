@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/mapper"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -65,8 +65,8 @@ func (t *TlsConfig) ParseCertificates() []tls.Certificate {
 	return r
 }
 
-func (t *TlsConfig) ParseServerNameCertificate() *mapper.Combine[*tls.Certificate] {
-	var searcher *mapper.Combine[*tls.Certificate]
+func (t *TlsConfig) ParseServerNameCertificate() *trie.Trie[*tls.Certificate] {
+	var searcher *trie.Trie[*tls.Certificate]
 
 	for c, v := range t.ServerNameCertificate {
 		if c == "" {
@@ -84,7 +84,7 @@ func (t *TlsConfig) ParseServerNameCertificate() *mapper.Combine[*tls.Certificat
 		}
 
 		if searcher == nil {
-			searcher = mapper.NewMapper[*tls.Certificate]()
+			searcher = trie.NewTrie[*tls.Certificate]()
 		}
 
 		searcher.Insert(c, &cert)
@@ -109,7 +109,7 @@ func (c *Certificate) X509KeyPair() (tls.Certificate, error) {
 type TlsConfigManager struct {
 	t           *TlsConfig
 	tlsConfig   *tls.Config
-	searcher    *mapper.Combine[*tls.Certificate]
+	searcher    *trie.Trie[*tls.Certificate]
 	refreshTime time.Time
 }
 
@@ -131,7 +131,7 @@ func (t *TlsConfigManager) Refresh() {
 				if t.searcher != nil {
 					addr := netapi.ParseAddressPort(statistic.Type_tcp,
 						chi.ServerName, netapi.EmptyPort)
-					addr.SetResolver(mapper.SkipResolver)
+					addr.SetResolver(trie.SkipResolver)
 					addr.SetSrc(netapi.AddressSrcDNS)
 					v, ok := t.searcher.Search(context.TODO(), addr)
 					if ok {

@@ -1,4 +1,4 @@
-package mapper
+package trie
 
 import (
 	"context"
@@ -7,18 +7,18 @@ import (
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/cidr"
-	"github.com/Asutorufa/yuhaiin/pkg/net/mapper/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
-type Combine[T any] struct {
+type Trie[T any] struct {
 	cidr   *cidr.Cidr[T]
-	domain *domain.Domain[T]
+	domain *domain.Fqdn[T]
 }
 
-func (x *Combine[T]) Insert(str string, mark T) {
+func (x *Trie[T]) Insert(str string, mark T) {
 	if str == "" {
 		return
 	}
@@ -39,14 +39,13 @@ func (x *Combine[T]) Insert(str string, mark T) {
 	}
 
 	x.domain.Insert(str, mark)
-
 }
 
 var ErrSkipResolver = errors.New("skip resolve domain")
 
 var SkipResolver = netapi.ErrorResolver(func(domain string) error { return ErrSkipResolver })
 
-func (x *Combine[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
+func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
 	if addr.Type() == netapi.IP {
 		return x.cidr.SearchIP(yerror.Must(addr.IP(ctx)))
 	}
@@ -64,7 +63,7 @@ func (x *Combine[T]) Search(ctx context.Context, addr netapi.Address) (mark T, o
 	return
 }
 
-func (x *Combine[T]) Remove(str string) {
+func (x *Trie[T]) Remove(str string) {
 	if str == "" {
 		return
 	}
@@ -87,7 +86,7 @@ func (x *Combine[T]) Remove(str string) {
 	x.domain.Remove(str)
 }
 
-func (x *Combine[T]) SearchWithDefault(ctx context.Context, addr netapi.Address, defaultT T) T {
+func (x *Trie[T]) SearchWithDefault(ctx context.Context, addr netapi.Address, defaultT T) T {
 	t, ok := x.Search(ctx, addr)
 	if ok {
 		return t
@@ -96,12 +95,12 @@ func (x *Combine[T]) SearchWithDefault(ctx context.Context, addr netapi.Address,
 	return defaultT
 }
 
-func (x *Combine[T]) Clear() error {
+func (x *Trie[T]) Clear() error {
 	x.cidr = cidr.NewCidrMapper[T]()
 	x.domain = domain.NewDomainMapper[T]()
 	return nil
 }
 
-func NewMapper[T any]() *Combine[T] {
-	return &Combine[T]{cidr: cidr.NewCidrMapper[T](), domain: domain.NewDomainMapper[T]()}
+func NewTrie[T any]() *Trie[T] {
+	return &Trie[T]{cidr: cidr.NewCidrMapper[T](), domain: domain.NewDomainMapper[T]()}
 }

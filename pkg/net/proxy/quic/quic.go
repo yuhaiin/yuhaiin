@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -80,11 +79,13 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 }
 
 func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
-	if c.session != nil {
+	session := c.session
+
+	if session != nil {
 		select {
-		case <-c.session.Context().Done():
+		case <-session.Context().Done():
 		default:
-			return c.session, nil
+			return session, nil
 		}
 	}
 
@@ -120,7 +121,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 		ConnectionIDLength: 12,
 	}
 
-	session, err := tr.Dial(ctx, c.host,
+	session, err = tr.Dial(ctx, c.host,
 		c.tlsConfig,
 		&quic.Config{
 			KeepAlivePeriod: 30 * time.Second,
@@ -166,7 +167,6 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 	session, err := c.initSession(ctx)
 	if err != nil {
-		log.Error("init session failed:", "err", err)
 		return nil, err
 	}
 
