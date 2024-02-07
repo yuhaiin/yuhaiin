@@ -50,18 +50,24 @@ func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request
 			timer := time.NewTicker(time.Duration(ticker) * time.Millisecond)
 			defer timer.Stop()
 
+			send := func() {
+				total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
+				if err == nil {
+					_ = cns.Send(&gs.NotifyData{
+						Data: &gs.NotifyData_TotalFlow{
+							TotalFlow: total,
+						},
+					},
+					)
+				}
+			}
+
+			send()
+
 			for {
 				select {
 				case <-timer.C:
-					total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
-					if err == nil {
-						_ = cns.Send(&gs.NotifyData{
-							Data: &gs.NotifyData_TotalFlow{
-								TotalFlow: total,
-							},
-						},
-						)
-					}
+					send()
 
 				case <-ctx.Done():
 					return

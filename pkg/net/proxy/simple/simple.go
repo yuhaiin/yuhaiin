@@ -19,6 +19,8 @@ import (
 type Simple struct {
 	netapi.EmptyDispatch
 
+	p netapi.Proxy
+
 	addrs      []netapi.Address
 	refresh    atomic.Bool
 	index      atomic.Uint32
@@ -47,6 +49,7 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 		simple := &Simple{
 			addrs:   addrs,
 			timeout: timeout,
+			p:       p,
 		}
 
 		return tls.NewClient(&protocol.Protocol_Tls{Tls: c.Simple.Tls})(simple)
@@ -61,6 +64,10 @@ func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error
 		ctx, cancel = context.WithTimeout(ctx, time.Second*3)
 	}
 	defer cancel()
+
+	if c.p != point.InitProxy {
+		return c.p.Conn(ctx, addr)
+	}
 
 	ip, err := addr.IP(ctx)
 	if err != nil {
@@ -144,6 +151,10 @@ type PacketDirectKey struct{}
 func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	if ctx.Value(PacketDirectKey{}) == true {
 		return direct.Default.PacketConn(ctx, addr)
+	}
+
+	if c.p != point.InitProxy {
+		return c.p.PacketConn(ctx, addr)
 	}
 
 	conn, err := dialer.ListenPacket("udp", "")
