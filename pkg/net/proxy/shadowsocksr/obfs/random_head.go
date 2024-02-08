@@ -1,7 +1,8 @@
 package obfs
 
 import (
-	"math/rand"
+	crand "crypto/rand"
+	"math/rand/v2"
 	"net"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -36,9 +37,9 @@ func (r *randomHead) encode(data []byte) (encodedData []byte) {
 		return
 	}
 
-	size := rand.Intn(96) + 8
+	size := rand.IntN(96) + 8
 	encodedData = make([]byte, size)
-	rand.Read(encodedData)
+	_, _ = crand.Read(encodedData)
 	ssr.SetCRC32(encodedData, size)
 	r.dataBuffer = append(r.dataBuffer, data...)
 	r.hasSentHeader = true

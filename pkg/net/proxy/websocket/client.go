@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"sync"
@@ -112,7 +112,7 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 	var earlyDataSupport bool
 	conn, err := e.config.NewClient(SecWebSocketKey, e.Conn,
 		func(r *http.Request) error {
-			r.Header.Set("User-Agent", ynet.UserAgents[rand.Intn(ynet.UserAgentLength)])
+			r.Header.Set("User-Agent", ynet.UserAgents[rand.IntN(ynet.UserAgentLength)])
 			r.Header.Set("Sec-Fetch-Dest", "websocket")
 			r.Header.Set("Sec-Fetch-Mode", "websocket")
 			r.Header.Set("Pragma", "no-cache")

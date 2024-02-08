@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"strconv"
@@ -177,7 +177,7 @@ func (d *DomainAddr) IP(ctx context.Context) (net.IP, error) {
 		return nil, fmt.Errorf("resolve address %s failed: %w", d.hostname, err)
 	}
 
-	return ip[rand.Intn(len(ip))], nil
+	return ip[rand.IntN(len(ip))], nil
 }
 
 func (d *DomainAddr) AddrPort(ctx context.Context) (netip.AddrPort, error) {
@@ -219,7 +219,7 @@ func (d *DomainAddr) UDPAddr(ctx context.Context) (*net.UDPAddr, error) {
 		return nil, fmt.Errorf("resolve udp address %s failed: %w", d.hostname, err)
 	}
 
-	return &net.UDPAddr{IP: ip[rand.Intn(len(ip))], Port: int(d.port.Port())}, nil
+	return &net.UDPAddr{IP: ip[rand.IntN(len(ip))], Port: int(d.port.Port())}, nil
 }
 
 func (d *DomainAddr) TCPAddr(ctx context.Context) (*net.TCPAddr, error) {
@@ -228,7 +228,7 @@ func (d *DomainAddr) TCPAddr(ctx context.Context) (*net.TCPAddr, error) {
 		return nil, fmt.Errorf("resolve tcp address %s failed: %w", d.hostname, err)
 	}
 
-	return &net.TCPAddr{IP: ip[rand.Intn(len(ip))], Port: int(d.port.Port())}, nil
+	return &net.TCPAddr{IP: ip[rand.IntN(len(ip))], Port: int(d.port.Port())}, nil
 }
 
 func (d *DomainAddr) OverrideHostname(s string) Address {

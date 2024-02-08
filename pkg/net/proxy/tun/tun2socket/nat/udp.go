@@ -3,7 +3,7 @@ package nat
 import (
 	"context"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"

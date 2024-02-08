@@ -3,7 +3,7 @@ package tls
 import (
 	"context"
 	"crypto/tls"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -62,7 +62,7 @@ func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 		return c, nil
 	}
 
-	return tls.Client(c, t.tlsConfig[rand.Intn(length)]), nil
+	return tls.Client(c, t.tlsConfig[rand.IntN(length)]), nil
 }
 
 func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

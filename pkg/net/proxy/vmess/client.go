@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"runtime"
 	"strings"
@@ -134,7 +134,7 @@ func (c *Client) NewPacketConn(rc net.Conn, dst netapi.Address) (net.PacketConn,
 func (c *Client) newConn(rc net.Conn, cmd CMD, dst netapi.Address) (*Conn, error) {
 	conn := &Conn{
 		isAead:   c.isAead,
-		user:     c.users[rand.Intn(len(c.users))],
+		user:     c.users[rand.IntN(len(c.users))],
 		opt:      c.opt,
 		security: c.security,
 		CMD:      cmd,
@@ -194,7 +194,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	buf.WriteByte(c.opt)       // Opt
 
 	// pLen and Sec
-	paddingLen := rand.Intn(16)
+	paddingLen := rand.IntN(16)
 	buf.WriteByte(byte(paddingLen<<4) | c.security) // P(4bit) and Sec(4bit)
 
 	buf.WriteByte(0) // reserved
@@ -210,7 +210,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	// padding
 	if paddingLen > 0 {
 		padding := make([]byte, paddingLen)
-		rand.Read(padding)
+		crand.Read(padding)
 		buf.Write(padding)
 	}
 

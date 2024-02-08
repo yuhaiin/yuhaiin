@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"strings"
@@ -180,7 +180,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 
 		reqMsg := dnsmessage.Message{
 			Header: dnsmessage.Header{
-				ID:                 uint16(rand.Intn(math.MaxUint16)),
+				ID:                 uint16(rand.UintN(math.MaxUint16)),
 				Response:           false,
 				OpCode:             0,
 				Authoritative:      false,

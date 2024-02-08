@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"strings"
 
@@ -56,7 +56,7 @@ type httpSimplePost struct {
 // newHttpSimple create a http_simple object
 func newHttpSimple(conn net.Conn, info Obfs) net.Conn {
 	t := &httpSimplePost{
-		userAgentIndex: rand.Intn(len(requestUserAgent)),
+		userAgentIndex: rand.IntN(len(requestUserAgent)),
 		methodGet:      true,
 		Conn:           conn,
 		Obfs:           info,
@@ -70,7 +70,7 @@ func newHttpSimple(conn net.Conn, info Obfs) net.Conn {
 func (t *httpSimplePost) boundary() (ret string) {
 	set := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	for i := 0; i < 32; i++ {
-		ret = fmt.Sprintf("%s%c", ret, set[rand.Intn(len(set))])
+		ret = fmt.Sprintf("%s%c", ret, set[rand.IntN(len(set))])
 	}
 	return
 }
@@ -105,7 +105,7 @@ func (s *simpleParam) getRandHost(host string) string {
 	if len(s.hosts) == 0 {
 		return host
 	}
-	return s.hosts[rand.Intn(len(s.hosts))]
+	return s.hosts[rand.IntN(len(s.hosts))]
 }
 
 func (t *httpSimplePost) encode(data []byte) []byte {
@@ -116,7 +116,7 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 	dataLength := len(data)
 	headSize := t.IVSize() + 30
 	if dataLength-headSize > 64 {
-		headSize = headSize + rand.Intn(64)
+		headSize = headSize + rand.IntN(64)
 	} else {
 		headSize = dataLength
 	}
@@ -130,7 +130,7 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 		buf.WriteString("POST /")
 	}
 
-	randPathIndex := rand.Intn(len(requestPath)/2) * 2
+	randPathIndex := rand.IntN(len(requestPath)/2) * 2
 
 	buf.WriteString(requestPath[randPathIndex])
 	buf.WriteString(t.data2URLEncode(data[:headSize]))

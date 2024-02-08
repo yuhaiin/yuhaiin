@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sync"
 
@@ -132,7 +132,7 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 	_retry:
 		_, ok := udp.bufChanMap.Load([2]byte(req[:2]))
 		if ok {
-			binary.BigEndian.PutUint16(req[0:2], uint16(rand.Intn(math.MaxUint16)))
+			binary.BigEndian.PutUint16(req[0:2], uint16(rand.UintN(math.MaxUint16)))
 			goto _retry
 		}
 

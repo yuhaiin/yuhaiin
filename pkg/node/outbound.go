@@ -3,7 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
@@ -122,7 +122,7 @@ _retry:
 		goto _retry
 	}
 
-	hash := t.Hash[rand.Intn(len(t.Hash))]
+	hash := t.Hash[rand.IntN(len(t.Hash))]
 
 	v, ok := o.lruCache.Load(hash)
 	if !ok {

@@ -7,10 +7,10 @@ import (
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
+	crand "crypto/rand"
 	"crypto/rc4"
 	"encoding/base64"
 	"encoding/binary"
-	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -104,11 +104,11 @@ func (a *authChainA) packData(outData []byte, data []byte, randLength int) {
 	{
 		if dataLength > 0 {
 			randPart1Length := getRandStartPos(&a.randomClient, randLength)
-			rand.Read(outData[2 : 2+randPart1Length])
+			crand.Read(outData[2 : 2+randPart1Length])
 			a.encrypter.XORKeyStream(outData[2+randPart1Length:], data)
-			rand.Read(outData[2+randPart1Length+dataLength : outLength])
+			crand.Read(outData[2+randPart1Length+dataLength : outLength])
 		} else {
-			rand.Read(outData[2 : 2+randLength])
+			crand.Read(outData[2 : 2+randLength])
 		}
 	}
 
@@ -142,7 +142,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 
 	// first 12 bytes
 	{
-		rand.Read(outData[:4])
+		crand.Read(outData[:4])
 		a.lastClientHash = a.hmac.HMAC(key, outData[:4], nil)
 		copy(outData[4:], a.lastClientHash[:8])
 	}
@@ -160,7 +160,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 				}
 			}
 			if a.userKey == nil {
-				rand.Read(a.uid[:])
+				crand.Read(a.uid[:])
 
 				a.userKeyLen = len(a.Key())
 				a.userKey = make([]byte, len(a.Key()))
@@ -304,7 +304,7 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 			}
 		}
 		if a.userKey == nil {
-			rand.Read(a.uid[:])
+			crand.Read(a.uid[:])
 
 			a.userKeyLen = len(a.Key())
 			a.userKey = make([]byte, len(a.Key()))
@@ -312,7 +312,7 @@ func (a *authChainA) EncryptPacket(b []byte) ([]byte, error) {
 		}
 	}
 	authData := make([]byte, 3)
-	rand.Read(authData)
+	crand.Read(authData)
 
 	md5Data := a.hmac.HMAC(a.userKey, authData, nil)
 	randDataLength := udpGetRandLength(md5Data, &a.randomClient)
