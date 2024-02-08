@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"reflect"
 	"time"
@@ -140,7 +140,7 @@ func (t *TlsConfigManager) Refresh() {
 				}
 
 				if t.tlsConfig.Certificates != nil {
-					return &t.tlsConfig.Certificates[rand.Intn(len(t.tlsConfig.Certificates))], nil
+					return &t.tlsConfig.Certificates[rand.IntN(len(t.tlsConfig.Certificates))], nil
 				}
 
 				return nil, fmt.Errorf("can't find certificate for %s", chi.ServerName)

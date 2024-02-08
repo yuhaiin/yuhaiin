@@ -2,8 +2,9 @@ package protocol
 
 import (
 	"bytes"
+	crand "crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"strings"
 	"sync"
@@ -51,7 +52,7 @@ func (a *AuthData) nextAuth() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.clientID = make([]byte, 8)
-	rand.Read(a.clientID)
+	crand.Read(a.clientID)
 	a.connectionID.Store(rand.Uint32() & 0xFFFFFF)
 }
 

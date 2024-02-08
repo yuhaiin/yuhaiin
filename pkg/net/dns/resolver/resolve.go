@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"strings"
 
@@ -40,7 +40,7 @@ var (
 
 func creatRequest(domain string, reqType reqType, arCount bool) []byte {
 	data := bytes.NewBuffer(nil)
-	data.Write([]byte{byte(rand.Intn(255)), byte(rand.Intn(255))}) // id
+	data.Write([]byte{byte(rand.UintN(255)), byte(rand.UintN(255))}) // id
 	// qr 0, opcode 0000, aa 0, tc 0, rd 1 => 1 byte, ra 0, z 000, rCode 0000 => 1 byte
 	data.Write([]byte{0b0<<7 + 0b0000<<3 + 0b0<<2 + 0b0<<1 + 0b1, 0b0<<7 + 0b000<<4 + 0b0000})
 	data.Write([]byte{0b00000000, 0b00000001}) // qdCount: request number => bit: 00000000 00000001 -> 01

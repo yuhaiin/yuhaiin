@@ -3,8 +3,9 @@ package protocol
 import (
 	"bytes"
 	"crypto"
+	crand "crypto/rand"
 	"encoding/binary"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
@@ -23,9 +24,9 @@ func (a *authSHA1v4) packData(data []byte) (outData []byte) {
 
 	if dataLength <= 1300 {
 		if dataLength > 400 {
-			randLength += rand.Intn(128)
+			randLength += rand.IntN(128)
 		} else {
-			randLength += rand.Intn(1024)
+			randLength += rand.IntN(1024)
 		}
 	}
 
@@ -60,9 +61,9 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	randLength := 1
 	if dataLength <= 1300 {
 		if dataLength > 400 {
-			randLength += rand.Intn(128)
+			randLength += rand.IntN(128)
 		} else {
-			randLength += rand.Intn(1024)
+			randLength += rand.IntN(1024)
 		}
 	}
 	dataOffset := randLength + 4 + 2
@@ -84,7 +85,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	// 2~6, crc of out length+salt+key
 	binary.LittleEndian.PutUint32(outData[2:], crc32)
 	// 6~rand length+6, rand numbers
-	rand.Read(outData[dataOffset-randLength : dataOffset])
+	crand.Read(outData[dataOffset-randLength : dataOffset])
 	// 6, rand length
 	if randLength < 128 {
 		outData[6] = byte(randLength & 0xFF)

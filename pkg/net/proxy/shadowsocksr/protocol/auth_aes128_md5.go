@@ -10,7 +10,7 @@ import (
 	"encoding/binary"
 	"math"
 	"math/big"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"time"
@@ -111,7 +111,7 @@ func (a *authAES128) initUserKey() {
 	}
 
 	if a.userKey == nil {
-		rand.Read(a.uid[:])
+		crand.Read(a.uid[:])
 		a.userKey = make([]byte, len(a.info.Key()))
 		copy(a.userKey, a.info.Key())
 	}
@@ -145,11 +145,11 @@ func (a *authAES128) rndDataLen(bufSize, fullBufSize int) int {
 			return trapezoidRandomFLoat(revLen+a.info.TcpMss, -0.3)
 		}
 
-		return rand.Intn(32)
+		return rand.IntN(32)
 	}
 
 	if bufSize > 900 {
-		return rand.Intn(revLen)
+		return rand.IntN(revLen)
 	}
 
 	return trapezoidRandomFLoat(revLen, -0.3)
@@ -163,9 +163,9 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 
 	var randLength int
 	if dataLength > 400 {
-		randLength = rand.Intn(512)
+		randLength = rand.IntN(512)
 	} else {
-		randLength = rand.Intn(1024)
+		randLength = rand.IntN(1024)
 	}
 
 	outLength := 7 + 4 + 16 + 4 + dataLength + randLength + 4
@@ -202,7 +202,7 @@ func (a *authAES128) packAuthData(wbuf *bytes.Buffer, data []byte) {
 	wbuf.Write(a.uid[:])
 	wbuf.Write(encrypt.Bytes())
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-20:], hmacBuf)[:4])
-	relay.CopyN(wbuf, crand.Reader, int64(randLength))
+	_, _ = relay.CopyN(wbuf, crand.Reader, int64(randLength))
 	wbuf.Write(data)
 	start := wbuf.Len() - outLength + 4
 	wbuf.Write(a.hmac.HMAC(a.userKey, wbuf.Bytes()[start:], hmacBuf)[:4])
@@ -216,7 +216,7 @@ func (a *authAES128) EncryptStream(wbuf *bytes.Buffer, data []byte) (err error) 
 	}
 
 	if !a.hasSentHeader {
-		authLen := GetHeadSize(data, 30) + rand.Intn(32)
+		authLen := GetHeadSize(data, 30) + rand.IntN(32)
 		if authLen > dataLen {
 			authLen = dataLen
 		}
