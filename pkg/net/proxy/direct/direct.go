@@ -18,7 +18,7 @@ func init() {
 		return func(netapi.Proxy) (netapi.Proxy, error) { return Default, nil }
 	})
 
-	point.InitProxy = Default
+	point.SetBootstrap(Default)
 }
 
 var Default netapi.Proxy = NewDirect()
@@ -52,10 +52,12 @@ func (p *PacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 			return 0, err
 		}
 
-		udpAddr, err = a.UDPAddr(context.TODO())
-		if err != nil {
-			return 0, err
+		ur := a.UDPAddr(context.TODO())
+		if ur.Err != nil {
+			return 0, ur.Err
 		}
+
+		udpAddr = ur.V
 	}
 
 	return p.PacketConn.WriteTo(b, udpAddr)

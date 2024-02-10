@@ -261,12 +261,13 @@ func (t *Tproxy) newUDP() error {
 						return 0, err
 					}
 
-					uaddr, err := ad.UDPAddr(context.Background())
-					if err != nil {
-						return 0, err
+					ur := ad.UDPAddr(context.Background())
+
+					if ur.Err != nil {
+						return 0, ur.Err
 					}
 
-					back, err := DialUDP("udp", uaddr, src)
+					back, err := DialUDP("udp", ur.V, src)
 					if err != nil {
 						return 0, fmt.Errorf("udp server dial failed: %w", err)
 					}

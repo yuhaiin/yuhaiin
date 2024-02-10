@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -50,7 +51,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 	}
 
 	type transportStore struct {
-		transport *http.Transport
+		transport *transport
 		time      time.Time
 	}
 
@@ -65,12 +66,12 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 				return
 			}
 
-			rt.transport.CloseIdleConnections()
+			rt.transport.Close()
 		}
 
 		_, _, _ = sf.Do(struct{}{}, func() (struct{}, error) {
 			roundTripper.Store(&transportStore{
-				transport: &http.Transport{
+				transport: newTransport(&http.Transport{
 					TLSClientConfig:   tlsConfig,
 					ForceAttemptHTTP2: true,
 					DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
@@ -80,7 +81,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 					IdleConnTimeout:       90 * time.Second,
 					TLSHandshakeTimeout:   10 * time.Second,
 					ExpectContinueTimeout: 1 * time.Second,
-				},
+				}),
 				time: time.Now(),
 			})
 
@@ -162,4 +163,43 @@ func (p *post) Clone(ctx context.Context, body []byte) *http.Request {
 	}
 
 	return req
+}
+
+type transport struct {
+	*http.Transport
+
+	mu          sync.Mutex
+	conns       []net.Conn
+	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+func newTransport(p *http.Transport) *transport {
+	t := &transport{}
+
+	t.dialContext = p.DialContext
+	p.DialContext = t.DialContext
+
+	t.Transport = p
+
+	return t
+}
+
+func (t *transport) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	conn, err := t.dialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	t.mu.Lock()
+	t.conns = append(t.conns, conn)
+	t.mu.Unlock()
+
+	return conn, nil
+}
+
+func (t *transport) Close() {
+	for _, v := range t.conns {
+		_ = v.Close()
+	}
+	t.Transport.CloseIdleConnections()
 }

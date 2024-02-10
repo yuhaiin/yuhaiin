@@ -65,7 +65,7 @@ func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error
 	}
 	defer cancel()
 
-	if c.p != point.InitProxy {
+	if c.p != nil && !point.IsBootstrap(c.p) {
 		return c.p.Conn(ctx, addr)
 	}
 
@@ -153,7 +153,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return direct.Default.PacketConn(ctx, addr)
 	}
 
-	if c.p != point.InitProxy {
+	if c.p != nil && !point.IsBootstrap(c.p) {
 		return c.p.PacketConn(ctx, addr)
 	}
 
@@ -161,13 +161,13 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	if err != nil {
 		return nil, err
 	}
+	ur := c.addrs[0].UDPAddr(ctx)
 
-	uaddr, err := c.addrs[0].UDPAddr(ctx)
-	if err != nil {
-		return nil, err
+	if ur.Err != nil {
+		return nil, ur.Err
 	}
 
-	return &packetConn{conn, uaddr}, nil
+	return &packetConn{conn, ur.V}, nil
 }
 
 type packetConn struct {

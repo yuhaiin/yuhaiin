@@ -52,9 +52,8 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 		if config.Quic.Host != "" {
 			addr, err := netapi.ParseAddress(statistic.Type_udp, config.Quic.Host)
 			if err == nil {
-				uaddr, err := addr.UDPAddr(context.TODO())
-				if err == nil {
-					host = uaddr
+				if ur := addr.UDPAddr(context.TODO()); ur.Err == nil {
+					host = ur.V
 				}
 			}
 		}
@@ -64,7 +63,7 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 			tlsConfig = &tls.Config{}
 		}
 
-		if point.IsInitProxy(dialer) {
+		if point.IsBootstrap(dialer) {
 			dialer = nil
 		}
 
@@ -288,18 +287,36 @@ type clientPacketConn struct {
 func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 	select {
 	case <-x.session.Context().Done():
-		x.Close()
-		return 0, nil, x.session.Context().Err()
+		return x.read(p, func() error {
+			x.Close()
+			return x.session.Context().Err()
+		})
 	case <-x.deadline.ReadContext().Done():
-		return 0, nil, x.deadline.ReadContext().Err()
+		return x.read(p, x.deadline.ReadContext().Err)
 	case <-x.ctx.Done():
-		return 0, nil, x.ctx.Err()
+		return x.read(p, x.ctx.Err)
 	case msg := <-x.msg:
 		defer pool.PutBytesBuffer(msg)
 
 		n = copy(p, msg.Bytes())
 		return n, x.session.conn.RemoteAddr(), nil
 	}
+}
+
+func (x *clientPacketConn) read(p []byte, err func() error) (n int, _ net.Addr, _ error) {
+	if len(x.msg) > 0 {
+		select {
+		case msg := <-x.msg:
+			defer pool.PutBytesBuffer(msg)
+
+			n = copy(p, msg.Bytes())
+			return n, x.session.conn.RemoteAddr(), nil
+		default:
+			return 0, nil, err()
+		}
+	}
+
+	return 0, nil, err()
 }
 
 func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {

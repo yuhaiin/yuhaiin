@@ -59,14 +59,28 @@ const (
 	AddressSrcDNS   AddressSrc = 1
 )
 
+type Result[T any] struct {
+	V   T
+	Err error
+}
+
+func NewErrResult[T any](err error) Result[T] {
+	return Result[T]{Err: err}
+}
+
+func NewResult[T any](v T) Result[T] {
+	return Result[T]{V: v}
+}
+
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
+	IPs(context.Context) ([]net.IP, error)
 	// IP return net.IP, if address is ip else resolve the domain and return one of ips
 	IP(context.Context) (net.IP, error)
-	AddrPort(context.Context) (netip.AddrPort, error)
-	UDPAddr(context.Context) (*net.UDPAddr, error)
-	TCPAddr(context.Context) (*net.TCPAddr, error)
+	AddrPort(context.Context) Result[netip.AddrPort]
+	UDPAddr(context.Context) Result[*net.UDPAddr]
+	TCPAddr(context.Context) Result[*net.TCPAddr]
 	// Port return port of address
 	Port() Port
 	// Type return type of address, domain or ip

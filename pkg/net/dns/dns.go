@@ -3,6 +3,7 @@ package dns
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -10,7 +11,6 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -125,40 +125,35 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 		optf(opt)
 	}
 
-	var aaaaerr error
+	// only ipv6
+	if opt.OnlyAAAA {
+		return c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
+	}
+
+	// only ipv4
+	if !c.config.IPv6 {
+		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
+	}
+
+	aaaaerr := make(chan error)
 	var aaaa []net.IP
-	var wg sync.WaitGroup
 
-	if c.config.IPv6 || opt.OnlyAAAA {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			aaaa, aaaaerr = c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
-		}()
-	}
-
-	var resp []net.IP
-	var aerr error
-	if !opt.OnlyAAAA {
-		resp, aerr = c.lookupIP(ctx, domain, dnsmessage.TypeA)
-	}
-
-	if c.config.IPv6 || opt.OnlyAAAA {
-		wg.Wait()
-		if aaaaerr == nil {
-			resp = append(resp, aaaa...)
+	go func() {
+		var err error
+		aaaa, err = c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
+		if err != nil {
+			aaaaerr <- fmt.Errorf("lookup ipv6 failed: %w", err)
 		}
+		aaaaerr <- nil
+	}()
+
+	resp, aerr := c.lookupIP(ctx, domain, dnsmessage.TypeA)
+
+	if err := <-aaaaerr; err != nil && aerr != nil {
+		return nil, errors.Join(err, fmt.Errorf("lookup ipv4 failed: %w", aerr))
 	}
 
-	if opt.OnlyAAAA && aaaaerr != nil {
-		return nil, fmt.Errorf("lookup aaaa ip failed: %w", aaaaerr)
-	}
-
-	if aerr != nil && (!c.config.IPv6 || aaaaerr != nil) {
-		return nil, fmt.Errorf("lookup ip failed: aaaa: %w, a: %w", aaaaerr, aerr)
-	}
-
-	return resp, nil
+	return append(resp, aaaa...), nil
 }
 
 func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {

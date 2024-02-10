@@ -84,7 +84,6 @@ yuhaiin_mipsle:
 .PHONY: install
 install: build cli
 	install -s -b -v -m 644 yuhaiin ${HOME}/.local/bin/yuhaiin
-	install -s -b -v -m 644 yh ${HOME}/.local/bin/yh
 	install -b -v -m 644 scripts/systemd/yuhaiin.service ${HOME}/.config/systemd/user/yuhaiin.service
 	echo "add ${HOME}/.local/bin to PATH env"
 

@@ -2,7 +2,6 @@ package mux
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -89,7 +88,7 @@ func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 
 	conn, err := session.OpenStream(ctx)
 	if err != nil {
-		session.Close()
+		session.closed = true
 		return nil, fmt.Errorf("yamux open error: %w", err)
 	}
 
@@ -129,6 +128,7 @@ func (m *MuxClient) nextSession(ctx context.Context) (*IdleSession, error) {
 }
 
 type IdleSession struct {
+	closed bool
 	*yamux.Session
 
 	lastStreamTime *atomic.Pointer[time.Time]
@@ -190,6 +190,14 @@ func (i *IdleSession) Open(ctx context.Context) (net.Conn, error) {
 	return i.Session.Open(ctx)
 }
 
+func (i *IdleSession) IsClosed() bool {
+	if i.closed {
+		return true
+	}
+
+	return i.Session.IsClosed()
+}
+
 type MuxConn interface {
 	net.Conn
 	StreamID() uint32
@@ -206,16 +214,16 @@ func (m *muxConn) RemoteAddr() net.Addr {
 	}
 }
 
-func (m *muxConn) Read(p []byte) (n int, err error) {
-	n, err = m.MuxConn.Read(p)
-	if err != nil {
-		if errors.Is(err, yamux.ErrStreamReset) || errors.Is(err, yamux.ErrStreamClosed) {
-			err = io.EOF
-		}
-	}
+// func (m *muxConn) Read(p []byte) (n int, err error) {
+// 	n, err = m.MuxConn.Read(p)
+// 	if err != nil {
+// 		if errors.Is(err, yamux.ErrStreamReset) || errors.Is(err, yamux.ErrStreamClosed) {
+// 			err = io.EOF
+// 		}
+// 	}
 
-	return
-}
+// 	return
+// }
 
 type MuxAddr struct {
 	Addr net.Addr
