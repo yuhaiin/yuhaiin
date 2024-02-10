@@ -20,7 +20,7 @@ func init() {
 }
 
 func Dialer(p *Point) (r netapi.Proxy, err error) {
-	r = InitProxy
+	r = bootstrapProxy
 
 	for _, v := range p.Protocols {
 		r, err = Wrap(v.Protocol)(r)
@@ -102,6 +102,14 @@ func ErrConn(err error) WrapProxy {
 	}
 }
 
-var InitProxy = netapi.NewErrProxy(errors.New("init proxy"))
+var bootstrapProxy = netapi.NewErrProxy(errors.New("bootstrap proxy"))
 
-func IsInitProxy(p netapi.Proxy) bool { return p == InitProxy }
+func IsBootstrap(p netapi.Proxy) bool { return p == bootstrapProxy }
+
+func SetBootstrap(p netapi.Proxy) {
+	if p == nil {
+		return
+	}
+
+	bootstrapProxy = p
+}

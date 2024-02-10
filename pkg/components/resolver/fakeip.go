@@ -87,7 +87,7 @@ func (f *Fakedns) PacketConn(ctx context.Context, addr netapi.Address) (net.Pack
 
 func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
 	if addr.Type() == netapi.IP {
-		t, ok := f.fake.GetDomainFromIP(yerror.Ignore(addr.AddrPort(ctx)).Addr())
+		t, ok := f.fake.GetDomainFromIP(addr.AddrPort(ctx).V.Addr())
 		if ok {
 			r := addr.OverrideHostname(t)
 			netapi.StoreFromContext(ctx).

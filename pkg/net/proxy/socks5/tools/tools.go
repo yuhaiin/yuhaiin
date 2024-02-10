@@ -45,7 +45,7 @@ func ParseAddr(addr netapi.Address) ADDR {
 	var buf []byte
 	switch addr.Type() {
 	case netapi.IP:
-		ip, _ := addr.AddrPort(context.TODO())
+		ip := addr.AddrPort(context.TODO()).V
 		if ip.Addr().Is4() {
 			buf = make([]byte, 1+4+2)
 			buf[0] = 0x01

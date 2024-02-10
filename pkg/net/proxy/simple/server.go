@@ -15,9 +15,10 @@ type Server struct {
 	net.Listener
 	net.PacketConn
 
-	host string
-	pmu  sync.Mutex
-	smu  sync.Mutex
+	control listener.TcpUdpControl
+	host    string
+	pmu     sync.Mutex
+	smu     sync.Mutex
 }
 
 func (s *Server) Close() error {
@@ -83,6 +84,10 @@ func (s *Server) initStream() error {
 }
 
 func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
+	if s.control == listener.TcpUdpControl_disable_udp {
+		return nil, errors.ErrUnsupported
+	}
+
 	if err := s.initPacketConn(); err != nil {
 		return nil, err
 	}
@@ -91,6 +96,10 @@ func (s *Server) Packet(ctx context.Context) (net.PacketConn, error) {
 }
 
 func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
+	if s.control == listener.TcpUdpControl_disable_tcp {
+		return nil, errors.ErrUnsupported
+	}
+
 	if err := s.initStream(); err != nil {
 		return nil, err
 	}
@@ -99,7 +108,10 @@ func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
 }
 
 func NewServer(c *listener.Inbound_Tcpudp) (netapi.Listener, error) {
-	return &Server{host: c.Tcpudp.Host}, nil
+	return &Server{
+		host:    c.Tcpudp.Host,
+		control: c.Tcpudp.Control,
+	}, nil
 }
 
 func init() {

@@ -46,12 +46,8 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
 
-	addrPort, err := target.AddrPort(context.TODO())
-	if err == nil {
-		if addrPort.Addr().Unmap() == t.lisAddr.Addr().Unmap() &&
-			addrPort.Port() == t.lisAddr.Port() {
-			return fmt.Errorf("local addr and remote addr are same")
-		}
+	if addrPort := target.AddrPort(context.TODO()); addrPort.Err == nil && addrPort.V.Compare(t.lisAddr) == 0 {
+		return fmt.Errorf("local addr and remote addr are same")
 	}
 
 	select {

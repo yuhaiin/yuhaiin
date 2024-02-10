@@ -117,10 +117,12 @@ func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.End
 			return 0, err
 		}
 
-		addrPort, err = naddr.AddrPort(context.Background())
-		if err != nil {
-			return 0, err
+		ar := naddr.AddrPort(context.Background())
+		if ar.Err != nil {
+			return 0, ar.Err
 		}
+
+		addrPort = ar.V
 	}
 
 	eps[0] = Endpoint(addrPort)

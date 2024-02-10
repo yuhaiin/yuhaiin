@@ -60,7 +60,16 @@ message empty {}
 
 message mux {}
 
-message tcpudp { string host = 1 [ json_name = "host" ]; }
+enum tcp_udp_control {
+  tcp_udp_control_all = 0;
+  disable_tcp = 1;
+  disable_udp = 2;
+}
+
+message tcpudp {
+  string host = 1 [ json_name = "host" ];
+  tcp_udp_control control = 2 [ json_name = "control" ];
+}
 
 message quic2 {
   string host = 1 [ json_name = "host" ];

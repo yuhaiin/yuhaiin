@@ -20,7 +20,8 @@ func init() {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
-					Host: o.Http.Host,
+					Host:    o.Http.Host,
+					Control: pl.TcpUdpControl_disable_udp,
 				},
 			},
 			Protocol: &pl.Inbound_Http{
@@ -44,7 +45,8 @@ func init() {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
-					Host: o.Socks4A.Host,
+					Host:    o.Socks4A.Host,
+					Control: pl.TcpUdpControl_disable_udp,
 				},
 			},
 			Protocol: &pl.Inbound_Socks4A{
@@ -72,7 +74,8 @@ func init() {
 		inbound := &pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
-					Host: o.Yuubinsya.Host,
+					Host:    o.Yuubinsya.Host,
+					Control: pl.TcpUdpControl_disable_udp,
 				},
 			},
 			Protocol: &pl.Inbound_Yuubinsya{

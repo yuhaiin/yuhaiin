@@ -13,18 +13,22 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type Tools struct {
 	tools.UnimplementedToolsServer
-	setting config.Setting
-	dialer  netapi.Proxy
+	setting  config.Setting
+	dialer   netapi.Proxy
+	callback func(*pc.Setting)
 }
 
-func NewTools(dialer netapi.Proxy, setting config.Setting) *Tools {
+func NewTools(dialer netapi.Proxy, setting config.Setting, callback func(st *pc.Setting)) *Tools {
 	return &Tools{
-		setting: setting,
-		dialer:  dialer,
+		setting:  setting,
+		dialer:   dialer,
+		callback: callback,
 	}
 }
 
@@ -60,8 +64,13 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 
 	_, err = relay.Copy(f, resp.Body)
+	_ = f.Close()
+
+	if err == nil {
+		t.callback(st)
+	}
+
 	return &emptypb.Empty{}, err
 }

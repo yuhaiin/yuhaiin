@@ -144,12 +144,13 @@ func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	addrPort, err := addr.AddrPort(ctx)
-	if err != nil {
-		return nil, err
+	addrPort := addr.AddrPort(ctx)
+
+	if addrPort.Err != nil {
+		return nil, addrPort.Err
 	}
 
-	conn, err := net.DialContextTCPAddrPort(ctx, addrPort)
+	conn, err := net.DialContextTCPAddrPort(ctx, addrPort.V)
 	if err != nil {
 		return nil, err
 	}
@@ -203,12 +204,13 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 
-	udpAddr, err := a.UDPAddr(context.TODO())
-	if err != nil {
-		return 0, err
+	ur := a.UDPAddr(context.TODO())
+
+	if ur.Err != nil {
+		return 0, ur.Err
 	}
 
-	return w.UDPConn.WriteTo(buf, udpAddr)
+	return w.UDPConn.WriteTo(buf, ur.V)
 }
 
 // creates a tun interface on netstack given a configuration

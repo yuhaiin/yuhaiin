@@ -40,20 +40,20 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) e
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
 
-		uaddr, err = realAddr.UDPAddr(ctx)
-		if err != nil {
-			return err
+		ur := realAddr.UDPAddr(ctx)
+		if ur.Err != nil {
+			return ur.Err
 		}
+
+		uaddr = ur.V
 
 		t.udpAddrCache.LoadOrStore(key, uaddr)
 
 		if !pkt.Dst.IsFqdn() {
-			addrPort, _ := pkt.Dst.AddrPort(ctx)
-			uaddrPort := uaddr.AddrPort()
 			// map fakeip/hosts
-			if uaddrPort.Addr().Compare(addrPort.Addr()) != 0 || uaddrPort.Port() != addrPort.Port() {
+			if uaddrPort := uaddr.AddrPort(); uaddrPort.Compare(pkt.Dst.AddrPort(ctx).V) != 0 {
 				// TODO: maybe two dst(fake ip) have same uaddr, need help
-				t.originAddrStore.LoadOrStore(addrPort, pkt.Dst)
+				t.originAddrStore.LoadOrStore(uaddrPort, pkt.Dst)
 			}
 		}
 	}
@@ -92,17 +92,14 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			&SourceTable{dstPacketConn: dstpconn})
 
 		go func() {
-			defer func() {
-				u.cache.Delete(key)
-				dstpconn.Close()
-			}()
-
 			log.IfErr("udp remote to local",
 				func() error { return u.writeBack(pkt, table) },
 				net.ErrClosed,
 				io.EOF,
 				os.ErrDeadlineExceeded,
 			)
+			u.cache.Delete(key)
+			dstpconn.Close()
 		}()
 
 		return table, nil
@@ -135,8 +132,7 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 		}
 
 		if !faddr.IsFqdn() {
-			addrPort, _ := faddr.AddrPort(context.TODO())
-			if addr, ok := table.originAddrStore.Load(addrPort); ok {
+			if addr, ok := table.originAddrStore.Load(faddr.AddrPort(context.TODO()).V); ok {
 				// TODO: maybe two dst(fake ip) have same uaddr, need help
 				from = addr
 			}

@@ -145,12 +145,12 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 			bchan.Close()
 		}()
 
-		udpAddr, err := addr.UDPAddr(ctx)
-		if err != nil {
-			return nil, err
+		udpAddr := addr.UDPAddr(ctx)
+		if udpAddr.Err != nil {
+			return nil, udpAddr.Err
 		}
 
-		_, err = packetConn.WriteTo(req, udpAddr)
+		_, err = packetConn.WriteTo(req, udpAddr.V)
 		if err != nil {
 			_ = packetConn.Close()
 			return nil, err

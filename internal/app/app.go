@@ -194,7 +194,7 @@ func Start(opt StartOpt) (err error) {
 	_ = AddComponent("inbound_listener",
 		inbound.NewListener(dnsServer, fakedns))
 	// tools
-	App.Tools = tools.NewTools(fakedns, opt.Setting)
+	App.Tools = tools.NewTools(fakedns, opt.Setting, st.Update)
 	// http page
 	web.Httpserver(NewHttpOption(subscribe, stcs, tag, st))
 	// grpc server
