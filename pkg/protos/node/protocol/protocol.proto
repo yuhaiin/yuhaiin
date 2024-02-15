@@ -27,6 +27,7 @@ message protocol {
     wireguard wireguard = 19 [ json_name = "wireguard" ];
     mux mux = 20 [ json_name = "mux" ];
     drop drop = 21 [ json_name = "drop" ];
+    vless vless = 22 [ json_name = "vless" ];
   }
 }
 
@@ -68,6 +69,8 @@ message vmess {
   string alter_id = 2 [ json_name = "aid" ];
   string security = 3 [ json_name = "security" ];
 }
+
+message vless { string uuid = 1 [ json_name = "uuid" ]; }
 
 message trojan {
   string password = 1 [ json_name = "password" ];

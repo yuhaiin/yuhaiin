@@ -1,36 +1,35 @@
 package vmess
 
 import (
-	"bytes"
 	"crypto/md5"
 	"encoding/binary"
-	"encoding/hex"
-	"errors"
-	"strings"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
 )
 
 // User of vmess client
 type User struct {
-	UUID   [16]byte
+	UUID   uuid.UUID
 	CmdKey [16]byte
 }
 
 // NewUser .
-func NewUser(uuid [16]byte) *User {
+func NewUser(uuid uuid.UUID) *User {
 	u := &User{UUID: uuid}
 	copy(u.CmdKey[:], GetKey(uuid))
 	return u
 }
 
-func nextID(oldID [16]byte) (newID [16]byte) {
+func nextID(oldID uuid.UUID) (newID uuid.UUID) {
 	md5hash := md5.New()
-	md5hash.Write(oldID[:])
+	md5hash.Write(oldID.Bytes())
 	md5hash.Write([]byte("16167dc8-16b6-4e6d-b8bb-65dd68113a81"))
+	var buf [16]byte
 	for {
-		md5hash.Sum(newID[:0])
-		if !bytes.Equal(oldID[:], newID[:]) {
-			return
+		md5hash.Sum(buf[:0])
+		if newId := uuid.FromStd(buf[:]); newId.IsValid() && newId != oldID {
+			return newId
 		}
 		md5hash.Write([]byte("533eff8a-4113-4b10-b5ce-0f5d76b98cd2"))
 	}
@@ -50,22 +49,11 @@ func (u *User) GenAlterIDUsers(alterID int) []*User {
 	return users
 }
 
-// StrToUUID converts string to uuid.
-// s fomat: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
-func StrToUUID(s string) (uuid [16]byte, err error) {
-	b := []byte(strings.Replace(s, "-", "", -1))
-	if len(b) != 32 {
-		return uuid, errors.New("invalid UUID: " + s)
-	}
-	_, err = hex.Decode(uuid[:], b)
-	return
-}
-
 // GetKey returns the key of AES-128-CFB encrypter
 // Key：MD5(UUID + []byte('c48619fe-8f02-49e0-b9e9-edf763e17e21'))
-func GetKey(uuid [16]byte) []byte {
+func GetKey(uuid uuid.UUID) []byte {
 	md5hash := md5.New()
-	md5hash.Write(uuid[:])
+	md5hash.Write(uuid.Bytes())
 	md5hash.Write([]byte("c48619fe-8f02-49e0-b9e9-edf763e17e21"))
 	return md5hash.Sum(nil)
 }

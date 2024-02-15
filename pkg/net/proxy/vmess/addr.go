@@ -2,8 +2,6 @@ package vmess
 
 import (
 	"context"
-	"fmt"
-	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
@@ -19,38 +17,25 @@ const (
 	AtypIP6    Atyp = 3
 )
 
-type address struct {
-	atyp Atyp
-	addr []byte
-	netapi.Address
-}
+type address struct{ netapi.Address }
 
-// ParseAddr parses the address in string s
-func ParseAddr(s netapi.Address) (address, error) {
-	var atyp Atyp
-	var addr []byte
-
-	if s.Type() == netapi.FQDN {
-		atyp = AtypDomain
-		addr = make([]byte, len(s.Hostname())+1)
-		addr[0] = byte(len(s.Hostname()))
-		copy(addr[1:], s.Hostname())
-	} else {
-		ip, err := s.IP(context.TODO())
-		if err != nil {
-			return address{}, fmt.Errorf("invalid addr: %w", err)
-		}
-
-		if ip4 := ip.To4(); ip4 != nil {
-			addr = make([]byte, net.IPv4len)
-			atyp = AtypIP4
-			copy(addr[:], ip4)
-		} else {
-			addr = make([]byte, net.IPv6len)
-			atyp = AtypIP6
-			copy(addr[:], ip.To16())
-		}
+func (a address) Type() Atyp {
+	if a.IsFqdn() {
+		return AtypDomain
 	}
 
-	return address{atyp, addr, s}, nil
+	if a.AddrPort(context.Background()).V.Addr().Is6() {
+		return AtypIP6
+	}
+
+	return AtypIP4
+}
+
+func (a address) Bytes() []byte {
+
+	if a.IsFqdn() {
+		return append([]byte{byte(len(a.Hostname()))}, []byte(a.Hostname())...)
+	}
+
+	return a.AddrPort(context.Background()).V.Addr().AsSlice()
 }

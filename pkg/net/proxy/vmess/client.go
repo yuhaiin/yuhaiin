@@ -21,6 +21,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -84,7 +86,7 @@ type Conn struct {
 
 // NewClient .
 func newClient(uuidStr, security string, alterID int) (*Client, error) {
-	uuid, err := StrToUUID(uuidStr)
+	uuid, err := uuid.ParseStd(uuidStr)
 	if err != nil {
 		return nil, err
 	}
@@ -138,12 +140,7 @@ func (c *Client) newConn(rc net.Conn, cmd CMD, dst netapi.Address) (*Conn, error
 		opt:      c.opt,
 		security: c.security,
 		CMD:      cmd,
-	}
-
-	var err error
-	conn.addr, err = ParseAddr(dst)
-	if err != nil {
-		return nil, fmt.Errorf("parse target address failed: %w", err)
+		addr:     address{dst},
 	}
 
 	randBytes := make([]byte, 33)
@@ -204,14 +201,12 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	// target
 	_ = binary.Write(buf, binary.BigEndian, uint16(c.addr.Port().Port())) // port
 
-	buf.WriteByte(byte(c.addr.atyp)) // atyp
-	buf.Write(c.addr.addr)           // addr
+	buf.WriteByte(byte(c.addr.Type())) // atyp
+	buf.Write(c.addr.Bytes())          // addr
 
 	// padding
 	if paddingLen > 0 {
-		padding := make([]byte, paddingLen)
-		crand.Read(padding)
-		buf.Write(padding)
+		_, _ = relay.CopyN(buf, crand.Reader, int64(paddingLen))
 	}
 
 	// F
@@ -231,7 +226,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 		abuf := new(bytes.Buffer)
 		ts := make([]byte, 8)
 		binary.BigEndian.PutUint64(ts, uint64(now.Unix()))
-		abuf.Write(ssr.Hmac(crypto.MD5, c.user.UUID[:], ts, nil))
+		abuf.Write(ssr.Hmac(crypto.MD5, c.user.UUID.Bytes(), ts, nil))
 		abuf.Write(buf.Bytes())
 		return abuf.Bytes(), nil
 	}
