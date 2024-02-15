@@ -18,7 +18,7 @@
 - Outbound
   - yuubinsya(experimental)
   - Socks5, HTTP, TCP, Wireguard
-  - Shadowsocksr, Shadowsocks, Vmess, trojan  
+  - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
   - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS  
   - yamux  
 - support DNS:

@@ -139,10 +139,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	defer c.mux.Unlock()
 
 	if c.remain > 0 {
-		z := len(payload)
-		if c.remain < z {
-			z = c.remain
-		}
+		z := min(len(payload), c.remain)
 
 		n, err := c.Conn.Read(payload[:z])
 		if err != nil {
@@ -173,12 +170,8 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		return 0, nil, fmt.Errorf("read crlf failed: %w", err)
 	}
 
-	plen := len(payload)
-	if int(length) < plen {
-		plen = int(length)
-	} else {
-		c.remain = int(length) - plen
-	}
+	plen := min(int(length), len(payload))
+	c.remain = int(length) - plen
 
 	n, err = io.ReadFull(c.Conn, payload[:plen])
 	return n, c.addr, err

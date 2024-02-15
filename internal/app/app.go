@@ -55,6 +55,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vless"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/vmess"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
