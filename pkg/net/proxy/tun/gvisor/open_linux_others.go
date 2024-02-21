@@ -13,11 +13,11 @@ import (
 )
 
 func openFD(fd, mtu int, driver listener.TunEndpointDriver) (stack.LinkEndpoint, error) {
-	ce := NewEndpoint(newFDWriter(fd), uint32(mtu), "")
-	r, err := newReadVDispatcher(fd, ce)
+	w, err := newFDWriter(fd)
 	if err != nil {
-		return nil, fmt.Errorf("create readv dispatcher failed: %w", err)
+		return nil, fmt.Errorf("create writev dispatcher failed: %w", err)
 	}
-	ce.SetInbound(r)
+
+	ce := NewEndpoint(w, uint32(mtu), "")
 	return ce, nil
 }

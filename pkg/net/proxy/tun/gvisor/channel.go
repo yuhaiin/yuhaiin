@@ -23,7 +23,6 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -31,16 +30,13 @@ import (
 
 type writer interface {
 	Write([]byte) tcpip.Error
-	WritePackets(stack.PacketBufferList) (int, tcpip.Error)
+	// WritePackets(stack.PacketBufferList) (int, tcpip.Error)
+	WritePacket(pkt stack.PacketBufferPtr) tcpip.Error
+	dispatch(e stack.NetworkDispatcher, mtu uint32) (bool, tcpip.Error)
 	io.Closer
 }
 
-type inbound interface {
-	stop()
-	dispatch() (bool, tcpip.Error)
-}
-
-var _ stack.InjectableLinkEndpoint = (*Endpoint)(nil)
+var _ stack.LinkEndpoint = (*Endpoint)(nil)
 
 // Endpoint is link layer endpoint that stores outbound packets in a channel
 // and allows injection of inbound packets.
@@ -48,11 +44,10 @@ type Endpoint struct {
 	wg  sync.WaitGroup
 	mtu uint32
 
-	dispatcher         stack.NetworkDispatcher
-	linkAddr           tcpip.LinkAddress
-	LinkEPCapabilities stack.LinkEndpointCapabilities
-	writer             writer
-	inbound            inbound
+	linkAddr tcpip.LinkAddress
+	writer   writer
+
+	attached bool
 }
 
 // New creates a new channel endpoint.
@@ -64,27 +59,11 @@ func NewEndpoint(w writer, mtu uint32, linkAddr tcpip.LinkAddress) *Endpoint {
 	}
 }
 
-func (e *Endpoint) SetInbound(i inbound) { e.inbound = i }
-
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
 func (e *Endpoint) Close() {
-	e.inbound.stop()
 	e.wg.Wait()
 	e.writer.Close()
-}
-
-// InjectInbound injects an inbound packet.
-func (e *Endpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) {
-	e.dispatcher.DeliverNetworkPacket(protocol, pkt)
-}
-
-// InjectOutbound writes a fully formed outbound packet directly to the
-// link.
-//
-// dest is used by endpoints with multiple raw destinations.
-func (e *Endpoint) InjectOutbound(dest tcpip.Address, packet *buffer.View) tcpip.Error {
-	return e.writer.Write(packet.AsSlice())
 }
 
 // Attach saves the stack network-layer dispatcher for use later when packets
@@ -92,16 +71,16 @@ func (e *Endpoint) InjectOutbound(dest tcpip.Address, packet *buffer.View) tcpip
 func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 	if dispatcher == nil && e.IsAttached() {
 		e.Close()
-		e.dispatcher = nil
+		e.attached = false
 	}
 
 	if dispatcher != nil && !e.IsAttached() {
-		e.dispatcher = dispatcher
+		e.attached = true
 		e.wg.Add(1)
 		go func() {
 			defer e.wg.Done()
 			for {
-				cont, err := e.inbound.dispatch()
+				cont, err := e.writer.dispatch(dispatcher, e.MTU())
 				if err != nil || !cont {
 					log.Debug("dispatch exit", "err", err)
 					break
@@ -109,13 +88,10 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 			}
 		}()
 	}
-
 }
 
 // IsAttached implements stack.LinkEndpoint.IsAttached.
-func (e *Endpoint) IsAttached() bool {
-	return e.dispatcher != nil
-}
+func (e *Endpoint) IsAttached() bool { return e.attached }
 
 // MTU implements stack.LinkEndpoint.MTU. It returns the value initialized
 // during construction.
@@ -124,9 +100,7 @@ func (e *Endpoint) MTU() uint32 {
 }
 
 // Capabilities implements stack.LinkEndpoint.Capabilities.
-func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities {
-	return e.LinkEPCapabilities
-}
+func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities { return 0 }
 
 // MaxHeaderLength returns the maximum size of the link layer header. Given it
 // doesn't have a header, it just returns 0.
@@ -142,7 +116,18 @@ func (e *Endpoint) LinkAddress() tcpip.LinkAddress {
 // WritePackets stores outbound packets into the channel.
 // Multiple concurrent calls are permitted.
 func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
-	return e.writer.WritePackets(pkts)
+	n := 0
+	for _, pkt := range pkts.AsSlice() {
+		if err := e.writer.WritePacket(pkt); err != nil {
+			if _, ok := err.(*tcpip.ErrNoBufferSpace); !ok && n == 0 {
+				return 0, err
+			}
+			break
+		}
+		n++
+	}
+
+	return n, nil
 }
 
 // Wait implements stack.LinkEndpoint.Wait.

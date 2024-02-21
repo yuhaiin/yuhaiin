@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"time"
 
@@ -19,10 +20,10 @@ import (
 )
 
 func (t *tunServer) udpForwarder() *udp.Forwarder {
-	handle := func(ctx context.Context, srcpconn net.PacketConn, dst netapi.Address) error {
-		buf := pool.GetBytesBuffer(t.mtu)
-
+	handle := func(ctx context.Context, srcpconn *gonet.UDPConn, dst netapi.Address) error {
 		for {
+			buf := pool.GetBytesBuffer(t.mtu)
+
 			srcpconn.SetReadDeadline(time.Now().Add(time.Minute))
 			n, src, err := srcpconn.ReadFrom(buf.Bytes())
 			if err != nil {
@@ -40,7 +41,6 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 				return t.ctx.Err()
 
 			case t.udpChannel <- &netapi.Packet{
-
 				Src:     src,
 				Dst:     dst,
 				Payload: buf,
@@ -57,6 +57,7 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 					if from.String() != dst.String() {
 						return 0, nil
 					}
+
 					return srcpconn.WriteTo(b, src)
 				},
 			}:
@@ -74,13 +75,18 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 
 		local := gonet.NewUDPConn(&wq, ep)
 
-		go func(local net.PacketConn, id stack.TransportEndpointID) {
+		go func(local *gonet.UDPConn, id stack.TransportEndpointID) {
 			defer local.Close()
 
 			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
 			defer cancel()
 
-			dst := netapi.ParseAddressPort(statistic.Type_udp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
+			addr, ok := netip.AddrFromSlice(id.LocalAddress.AsSlice())
+			if !ok {
+				return
+			}
+
+			dst := netapi.ParseAddrPort(statistic.Type_udp, netip.AddrPortFrom(addr, id.LocalPort))
 
 			if err := handle(ctx, local, dst); err != nil && !errors.Is(err, os.ErrClosed) {
 				log.Error("handle udp request failed", "err", err)

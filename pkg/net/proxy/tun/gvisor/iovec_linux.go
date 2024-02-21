@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !windows && !darwin
-// +build !windows,!darwin
-
 package tun
 
 import (
@@ -146,14 +143,11 @@ type readVDispatcher struct {
 	// fd is the file descriptor used to send and receive packets.
 	fd int
 
-	// e is the endpoint this dispatcher is attached to.
-	e stack.InjectableLinkEndpoint
-
 	// buf is the iovec buffer that contains the packet contents.
 	buf *iovecBuffer
 }
 
-func newReadVDispatcher(fd int, e stack.InjectableLinkEndpoint) (*readVDispatcher, error) {
+func newReadVDispatcher(fd int) (*readVDispatcher, error) {
 	stopFd, err := newStopFd()
 	if err != nil {
 		return nil, err
@@ -161,7 +155,6 @@ func newReadVDispatcher(fd int, e stack.InjectableLinkEndpoint) (*readVDispatche
 	d := &readVDispatcher{
 		stopFd: stopFd,
 		fd:     fd,
-		e:      e,
 	}
 	d.buf = newIovecBuffer(BufConfig)
 	return d, nil
@@ -173,7 +166,7 @@ func (d *readVDispatcher) stop() {
 }
 
 // dispatch reads one packet from the file descriptor and dispatches it.
-func (d *readVDispatcher) dispatch() (bool, tcpip.Error) {
+func (d *readVDispatcher) dispatch(e stack.NetworkDispatcher, mtu uint32) (bool, tcpip.Error) {
 	n, err := rawfile.BlockingReadvUntilStopped(d.efd, d.fd, d.buf.nextIovecs())
 	if n <= 0 || err != nil {
 		return false, err
@@ -193,6 +186,7 @@ func (d *readVDispatcher) dispatch() (bool, tcpip.Error) {
 	if !ok {
 		return true, nil
 	}
+
 	switch header.IPVersion(h) {
 	case header.IPv4Version:
 		p = header.IPv4ProtocolNumber
@@ -202,7 +196,7 @@ func (d *readVDispatcher) dispatch() (bool, tcpip.Error) {
 		return true, nil
 	}
 
-	d.e.InjectInbound(p, pkt)
+	e.DeliverNetworkPacket(p, pkt)
 
 	return true, nil
 }
