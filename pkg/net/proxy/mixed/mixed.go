@@ -118,6 +118,14 @@ func (m *Mixed) Close() error {
 }
 
 func noneNilClose(i io.Closer) {
+	if c, ok := i.(*netapi.ChannelListener); ok {
+		if c != nil {
+			_ = c.Close()
+		}
+
+		return
+	}
+
 	if i != nil {
 		_ = i.Close()
 	}

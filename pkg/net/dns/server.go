@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
+	"golang.org/x/sync/semaphore"
 )
 
 type dnsServer struct {
@@ -24,12 +25,15 @@ type dnsServer struct {
 	resolver    netapi.Resolver
 	listener    net.PacketConn
 	tcpListener net.Listener
+
+	sf *semaphore.Weighted
 }
 
 func NewDnsServer(server string, process netapi.Resolver) netapi.DNSHandler {
 	d := &dnsServer{
 		server:   server,
 		resolver: process,
+		sf:       semaphore.NewWeighted(200),
 	}
 
 	if server == "" {
@@ -89,17 +93,26 @@ func (d *dnsServer) startUDP() (err error) {
 					return
 				}
 
+				err = d.sf.Acquire(context.TODO(), 1)
+				if err != nil {
+					pool.PutBytesBuffer(buf)
+					continue
+				}
+
 				buf.ResetSize(0, n)
 
-				err = d.Do(context.TODO(), buf, func(b []byte) error {
-					if _, err = d.listener.WriteTo(b, addr); err != nil {
-						return fmt.Errorf("write dns response to client failed: %w", err)
+				go func() {
+					defer d.sf.Release(1)
+					err := d.Do(context.TODO(), buf, func(b []byte) error {
+						if _, err = d.listener.WriteTo(b, addr); err != nil {
+							return fmt.Errorf("write dns response to client failed: %w", err)
+						}
+						return nil
+					})
+					if err != nil {
+						log.Error("dns server handle data failed", slog.Any("err", err))
 					}
-					return nil
-				})
-				if err != nil {
-					log.Error("dns server handle data failed", slog.Any("err", err))
-				}
+				}()
 
 			}
 		}()
