@@ -13,6 +13,7 @@ require (
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
 	golang.org/x/mobile v0.0.0-20240213143359-d1f7d3436075
 	golang.org/x/net v0.21.0
+	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.17.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2

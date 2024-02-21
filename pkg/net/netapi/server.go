@@ -95,7 +95,6 @@ func (c *ChannelListener) NewConn(conn net.Conn) {
 		conn.Close()
 	case c.channel <- conn:
 	}
-
 }
 
 func (c *ChannelListener) Close() error {
