@@ -10,6 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -24,7 +25,12 @@ func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, 
 			return nil, fmt.Errorf("gateway or portal is invalid")
 		}
 
-		device, err := openDevice(o.Tun.Name)
+		sc, err := tun.ParseTunScheme(o.Tun.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		device, err := tun.OpenWriter(sc, int(o.Tun.Mtu))
 		if err != nil {
 			return nil, fmt.Errorf("open tun device failed: %w", err)
 		}

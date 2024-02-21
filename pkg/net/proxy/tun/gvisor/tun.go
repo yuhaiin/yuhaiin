@@ -72,7 +72,12 @@ func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, 
 			return nil, fmt.Errorf("gateway is empty")
 		}
 
-		ep, err := open(opt.Name, opt.GetDriver(), int(opt.Mtu))
+		sc, err := ParseTunScheme(opt.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		ep, err := open(sc, opt.GetDriver(), int(opt.Mtu))
 		if err != nil {
 			return nil, fmt.Errorf("open tun failed: %w", err)
 		}
