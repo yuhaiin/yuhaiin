@@ -44,3 +44,5 @@ require (
 )
 
 replace github.com/vishvananda/netlink => github.com/yuhaiin/netlink v0.0.0-20240213150240-f91d720181db
+
+replace golang.zx2c4.com/wintun => ./internal/wintun

@@ -41,6 +41,18 @@ func (d *Fqdn[T]) Search(domain netapi.Address) (mark T, ok bool) {
 
 	return search(d.WildcardRoot, r)
 }
+func (d *Fqdn[T]) SearchString(domain string) (mark T, ok bool) {
+	r := newReader(domain)
+
+	mark, ok = search(d.Root, r)
+	if ok {
+		return
+	}
+
+	r.reset()
+
+	return search(d.WildcardRoot, r)
+}
 
 func (d *Fqdn[T]) Remove(domain string) {
 	d.mu.Lock()

@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
-func SetSysProxy(_, httpHostname, httpPort, socks5Hostname, socks5Port string) {
+func SetSysProxy(httpHostname, httpPort, socks5Hostname, socks5Port string) {
 	if httpHostname == "" && socks5Hostname == "" {
 		return
 	}
@@ -48,7 +48,7 @@ func SetSysProxy(_, httpHostname, httpPort, socks5Hostname, socks5Port string) {
 
 }
 
-func UnsetSysProxy(string) {
+func UnsetSysProxy() {
 	networksetup := "/usr/sbin/networksetup"
 
 	services, err := getServices(networksetup)

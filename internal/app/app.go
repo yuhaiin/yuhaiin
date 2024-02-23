@@ -116,11 +116,7 @@ func Close() error {
 
 	log.Close()
 
-	var path string
-	if App.so != nil {
-		path = App.so.ConfigPath
-	}
-	sysproxy.Unset(path)
+	sysproxy.Unset()
 
 	App = app{Mux: http.NewServeMux()}
 
@@ -163,7 +159,7 @@ func Start(opt StartOpt) (err error) {
 	fmt.Println(version.Art)
 	log.Info("config", "path", App.so.ConfigPath, "grpc&http host", App.so.Host)
 
-	App.so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update(App.so.ConfigPath)))
+	App.so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update()))
 	App.so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
 	filestore := node.NewFileStore(PathGenerator.Node(App.so.ConfigPath))

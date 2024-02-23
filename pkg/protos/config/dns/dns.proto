@@ -25,6 +25,7 @@ message dns_config {
   string server = 4 [ json_name = "server" ];
   bool fakedns = 5 [ json_name = "fakedns" ];
   string fakedns_ip_range = 6 [ json_name = "fakedns_ip_range" ];
+  repeated string fakedns_whitelist = 9 [ json_name = "fakedns_whitelist" ];
   bool resolve_remote_domain = 7 [ json_name = "resolve_remote_domain" ];
   dns remote = 1 [ json_name = "remote" ];
   dns local = 2 [ json_name = "local" ];

@@ -32,7 +32,7 @@ func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
 	}
 
 	var iwc io.ReadWriteCloser
-	switch sc.Name {
+	switch sc.Scheme {
 	case "fd":
 		iwc = os.NewFile(uintptr(sc.Fd), strconv.Itoa(sc.Fd))
 	case "tun":
