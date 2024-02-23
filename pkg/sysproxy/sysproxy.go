@@ -11,13 +11,16 @@ import (
 )
 
 var server *listener.InboundConfig
+var system *cb.SystemProxy
 
-func Update(path string) func(s *cb.Setting) {
+func Update() func(s *cb.Setting) {
 	return func(s *cb.Setting) {
-		if proto.Equal(server, s.Server) {
+		if proto.Equal(server, s.Server) &&
+			proto.Equal(system, s.SystemProxy) {
 			return
 		}
-		UnsetSysProxy(path)
+
+		UnsetSysProxy()
 		var http, socks5 string
 
 		for _, v := range s.Server.Servers {
@@ -41,15 +44,18 @@ func Update(path string) func(s *cb.Setting) {
 				}
 			}
 
-			if (s.SystemProxy.Socks5 && socks5 != "") && (s.SystemProxy.Http && http != "") {
+			if (!s.SystemProxy.Socks5 || (s.SystemProxy.Socks5 && socks5 != "")) &&
+				(!s.SystemProxy.Http || (s.SystemProxy.Http && http != "")) {
 				break
 			}
 		}
 
 		hh, hp := replaceUnspecified(http)
 		sh, sp := replaceUnspecified(socks5)
-		SetSysProxy(path, hh, hp, sh, sp)
+
+		SetSysProxy(hh, hp, sh, sp)
 		server = s.Server
+		system = s.SystemProxy
 	}
 }
 
@@ -75,6 +81,6 @@ func replaceUnspecified(s string) (string, string) {
 	return host, port
 }
 
-func Unset(path string) {
-	UnsetSysProxy(path)
+func Unset() {
+	UnsetSysProxy()
 }

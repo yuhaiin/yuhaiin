@@ -62,8 +62,8 @@ func NewEndpoint(w writer, mtu uint32, linkAddr tcpip.LinkAddress) *Endpoint {
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
 func (e *Endpoint) Close() {
-	e.wg.Wait()
 	e.writer.Close()
+	e.wg.Wait()
 }
 
 // Attach saves the stack network-layer dispatcher for use later when packets

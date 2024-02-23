@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
@@ -21,19 +24,36 @@ type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
 	cache    *cache.Cache
+
+	whitelistSlice []string
+	whitelist      *domain.Fqdn[struct{}]
 }
 
 func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, bbolt *cache.Cache) *Fakedns {
 	return &Fakedns{
-		fake:     dns.NewFakeDNS(upstream, yerror.Ignore(netip.ParsePrefix("10.2.0.1/24")), bbolt),
-		dialer:   dialer,
-		upstream: upstream,
-		cache:    bbolt,
+		fake:      dns.NewFakeDNS(upstream, yerror.Ignore(netip.ParsePrefix("10.2.0.1/24")), bbolt),
+		dialer:    dialer,
+		upstream:  upstream,
+		cache:     bbolt,
+		whitelist: domain.NewDomainMapper[struct{}](),
 	}
 }
 
 func (f *Fakedns) Update(c *pc.Setting) {
 	f.enabled = c.Dns.Fakedns
+
+	if !slices.Equal(c.Dns.FakednsWhitelist, f.whitelistSlice) {
+		log.Info("update fakedns whitelist", "old", f.whitelistSlice, "new", c.Dns.FakednsWhitelist)
+
+		d := domain.NewDomainMapper[struct{}]()
+
+		for _, v := range c.Dns.FakednsWhitelist {
+			d.Insert(v, struct{}{})
+		}
+
+		f.whitelist = d
+		f.whitelistSlice = c.Dns.FakednsWhitelist
+	}
 
 	ipRange, err := netip.ParsePrefix(c.Dns.FakednsIpRange)
 	if err != nil {
@@ -43,8 +63,12 @@ func (f *Fakedns) Update(c *pc.Setting) {
 	}
 }
 
-func (f *Fakedns) resolver(ctx context.Context) netapi.Resolver {
+func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 	if f.enabled || ctx.Value(netapi.ForceFakeIP{}) == true {
+		if _, ok := f.whitelist.SearchString(strings.TrimSuffix(domain, ".")); ok {
+			return f.upstream
+		}
+
 		return f.fake
 	}
 
@@ -52,11 +76,11 @@ func (f *Fakedns) resolver(ctx context.Context) netapi.Resolver {
 }
 
 func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
-	return f.resolver(ctx).LookupIP(ctx, domain, opts...)
+	return f.resolver(ctx, domain).LookupIP(ctx, domain, opts...)
 }
 
 func (f *Fakedns) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	return f.resolver(ctx).Raw(ctx, req)
+	return f.resolver(ctx, req.Name.String()).Raw(ctx, req)
 }
 
 func (f *Fakedns) Close() error { return f.upstream.Close() }

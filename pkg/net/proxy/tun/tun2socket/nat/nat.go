@@ -31,7 +31,12 @@ type TransportProtocol interface {
 }
 
 func StartGvisor(device io.ReadWriter, gateway, portal netip.Addr, mtu int32) (*TCP, *UDPv2, error) {
-	listener, err := dialer.ListenContextWithOptions(context.Background(), "tcp", "", &dialer.Options{})
+	listener, err := dialer.ListenContextWithOptions(
+		context.Background(),
+		"tcp",
+		"",
+		&dialer.Options{},
+	)
 	if err != nil {
 		return nil, nil, err
 	}

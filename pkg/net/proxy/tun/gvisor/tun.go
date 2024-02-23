@@ -3,6 +3,7 @@ package tun
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -23,6 +24,7 @@ type tunServer struct {
 	mtu   int32
 	nicID tcpip.NICID
 	stack *stack.Stack
+	ep    stack.LinkEndpoint
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -50,15 +52,20 @@ func (s *tunServer) AcceptPacket() (*netapi.Packet, error) {
 }
 
 func (t *tunServer) Close() error {
+
+	var err error
+	if ep, ok := t.ep.(io.Closer); ok {
+		err = ep.Close()
+	}
+
 	if t.stack != nil {
 		t.stack.RemoveRoutes(func(r tcpip.Route) bool {
 			return true
 		})
-		t.stack.RemoveNIC(t.nicID)
 		t.stack.Destroy()
 	}
 	t.cancel()
-	return nil
+	return err
 }
 
 func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
@@ -107,6 +114,7 @@ func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, 
 			mtu:        opt.Mtu,
 			nicID:      nicID,
 			stack:      s,
+			ep:         ep,
 			ctx:        ctx,
 			cancel:     cancel,
 			tcpChannel: make(chan *netapi.StreamMeta, 100),

@@ -49,6 +49,10 @@ func defaultSetting(path string) *config.Setting {
 			Server:              "127.0.0.1:5353",
 			Fakedns:             false,
 			FakednsIpRange:      "10.0.2.1/24",
+			FakednsWhitelist: []string{
+				"*.msftncsi.com",
+				"*.msftconnecttest.com",
+			},
 			Local: &pd.Dns{
 				Host: "223.5.5.5",
 				Type: pd.Type_doh,
