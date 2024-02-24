@@ -66,6 +66,10 @@ func (e *Endpoint) Close() {
 	e.wg.Wait()
 }
 
+func (e *Endpoint) Writer() writer {
+	return e.writer
+}
+
 // Attach saves the stack network-layer dispatcher for use later when packets
 // are injected.
 func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {

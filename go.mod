@@ -17,6 +17,7 @@ require (
 	golang.org/x/sys v0.17.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
+	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.62.0
 	google.golang.org/protobuf v1.32.0
 	gvisor.dev/gvisor v0.0.0-20240214013857-570f0fa29ba0
@@ -45,4 +46,4 @@ require (
 
 replace github.com/vishvananda/netlink => github.com/yuhaiin/netlink v0.0.0-20240213150240-f91d720181db
 
-replace golang.zx2c4.com/wintun => ./internal/wintun
+replace golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e

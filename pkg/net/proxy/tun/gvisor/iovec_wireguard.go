@@ -30,8 +30,6 @@ func (w *wgWriter) Write(b []byte) tcpip.Error {
 }
 
 func (w *wgWriter) WritePacket(pkt stack.PacketBufferPtr) tcpip.Error {
-	// defer pkt.DecRef()
-
 	buf := pkt.ToBuffer()
 	defer buf.Release()
 
@@ -121,3 +119,5 @@ func (t *wgTun) Write(packet []byte) (int, error) {
 func (t *wgTun) Close() error {
 	return t.nt.Close()
 }
+
+func (t *wgTun) Device() wun.Device { return t.nt }

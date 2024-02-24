@@ -2,9 +2,11 @@ package tun
 
 import (
 	"fmt"
+	"net/netip"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
+	wun "golang.zx2c4.com/wireguard/tun"
 )
 
 type TunScheme struct {
@@ -43,3 +45,16 @@ func ParseTunScheme(str string) (TunScheme, error) {
 		Fd:     fd,
 	}, nil
 }
+
+type Opt struct {
+	Device    wun.Device
+	Scheme    TunScheme
+	Portal    netip.Addr
+	Gateway   netip.Addr
+	PortalV6  netip.Addr
+	GatewayV6 netip.Addr
+
+	Mtu int32
+}
+
+var Preload func(Opt) error

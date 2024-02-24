@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
+	wun "golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -68,6 +70,34 @@ func (t *tunServer) Close() error {
 	return err
 }
 
+func parseOpt(ep stack.LinkEndpoint, o *listener.Inbound_Tun, sc TunScheme) (Opt, error) {
+	we, ok := ep.(*Endpoint)
+	if !ok {
+		return Opt{}, fmt.Errorf("invalid endpoint type")
+	}
+	writer := we.Writer()
+	wgWriter, ok := writer.(*wgWriter)
+	if !ok {
+		return Opt{}, fmt.Errorf("invalid writer type")
+	}
+	dev, ok := wgWriter.file.(interface{ Device() wun.Device })
+	if !ok {
+		return Opt{}, fmt.Errorf("invalid device type")
+	}
+	gateway, gerr := netip.ParseAddr(o.Tun.Gateway)
+	portal, perr := netip.ParseAddr(o.Tun.Portal)
+	if gerr != nil || perr != nil {
+		return Opt{}, fmt.Errorf("gateway or portal is invalid")
+	}
+
+	return Opt{
+		Device:  dev.Device(),
+		Scheme:  sc,
+		Portal:  portal,
+		Gateway: gateway,
+		Mtu:     o.Tun.Mtu,
+	}, nil
+}
 func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
 	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
 		opt := o.Tun
@@ -87,6 +117,16 @@ func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, 
 		ep, err := open(sc, opt.GetDriver(), int(opt.Mtu))
 		if err != nil {
 			return nil, fmt.Errorf("open tun failed: %w", err)
+		}
+
+		if Preload != nil {
+			opt, err := parseOpt(ep, o, sc)
+			if err == nil {
+				log.Debug("preload tun device", "name", sc.Name, "mtu", opt.Mtu, "portal", opt.Portal)
+				if err = Preload(opt); err != nil {
+					log.Warn("preload failed", "err", err)
+				}
+			}
 		}
 
 		log.Debug("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal)
