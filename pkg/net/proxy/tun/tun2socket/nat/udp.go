@@ -2,6 +2,7 @@ package nat
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -11,8 +12,7 @@ import (
 )
 
 type callv2 struct {
-	buf   []byte
-	n     int
+	buf   *pool.Bytes
 	tuple Tuple
 }
 type UDPv2 struct {
@@ -39,9 +39,9 @@ func (u *UDPv2) ReadFrom(buf []byte) (int, Tuple, error) {
 	case <-u.ctx.Done():
 		return 0, Tuple{}, net.ErrClosed
 	case c := <-u.channel:
-		defer pool.PutBytes(c.buf)
+		defer pool.PutBytesBuffer(c.buf)
 
-		return copy(buf, c.buf[:c.n]), c.tuple, nil
+		return copy(buf, c.buf.Bytes()), c.tuple, nil
 	}
 }
 
@@ -51,17 +51,9 @@ func (u *UDPv2) Close() error {
 }
 
 func (u *UDPv2) handleUDPPacket(tuple Tuple, payload []byte) {
-	buf := pool.GetBytes(u.mtu)
-
 	select {
-	case u.channel <- &callv2{
-		n:     copy(buf, payload),
-		buf:   buf,
-		tuple: tuple,
-	}:
-
+	case u.channel <- &callv2{pool.GetBytesBuffer(u.mtu).Copy(payload), tuple}:
 	case <-u.ctx.Done():
-		return
 	}
 }
 
@@ -75,8 +67,8 @@ func (u *UDPv2) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	ipBuf := pool.GetBytes(u.mtu)
 	defer pool.PutBytes(ipBuf)
 
-	if len(buf) > 0xffff {
-		return 0, net.InvalidAddrError("invalid ip version")
+	if len(buf) > 0xffff { // ip packet max length
+		return 0, fmt.Errorf("udp packet too large: %d", len(buf))
 	}
 
 	udpTotalLength := header.UDPMinimumSize + uint16(len(buf))
@@ -84,7 +76,7 @@ func (u *UDPv2) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	var totalLength uint16
 	if tuple.SourceAddr.Len() == 4 {
 		if totalLength = header.IPv4MinimumSize + udpTotalLength; int(u.mtu) < int(totalLength) {
-			return 0, net.InvalidAddrError("ip packet total length large than mtu")
+			return 0, fmt.Errorf("ip packet total length large than mtu")
 		}
 
 		ipv4 := header.IPv4(ipBuf)
@@ -102,7 +94,7 @@ func (u *UDPv2) WriteTo(buf []byte, tuple Tuple) (int, error) {
 		ip = ipv4
 	} else {
 		if totalLength = header.IPv6MinimumSize + udpTotalLength; int(u.mtu) < int(totalLength) {
-			return 0, net.InvalidAddrError("ip packet total length large than mtu")
+			return 0, fmt.Errorf("ip packet total length large than mtu")
 		}
 
 		ipv6 := header.IPv6(ipBuf)
@@ -124,7 +116,8 @@ func (u *UDPv2) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	})
 	copy(udp.Payload(), buf)
 
-	pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber, ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
-	resetCheckSum(ip, udp /*PseudoHeaderSum(ip, ipBuf, header.UDPProtocolNumber)*/, pseudoSum)
+	pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber,
+		ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
+	resetCheckSum(ip, udp, pseudoSum)
 	return u.device.Write(ipBuf[:totalLength])
 }

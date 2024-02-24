@@ -48,18 +48,16 @@ type Nat struct {
 }
 
 func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, mtu int32) (*Nat, error) {
-	if tun.Preload != nil {
-		dev, ok := device.(interface{ Device() wun.Device })
-		if ok {
-			if err := tun.Preload(tun.Opt{
-				Device:  dev.Device(),
-				Scheme:  tc,
-				Portal:  portal,
-				Gateway: gateway,
-				Mtu:     mtu,
-			}); err != nil {
-				log.Warn("preload failed", "err", err)
-			}
+	dev, ok := device.(interface{ Device() wun.Device })
+	if ok {
+		if err := tun.Route(tun.Opt{
+			Device:  dev.Device(),
+			Scheme:  tc,
+			Portal:  portal,
+			Gateway: gateway,
+			Mtu:     mtu,
+		}); err != nil {
+			log.Warn("preload failed", "err", err)
 		}
 	}
 
@@ -75,13 +73,6 @@ func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, m
 	}
 
 	tab := newTable()
-	// udp := &UDP{
-	// 	device: device,
-	// 	mtu:    mtu,
-	// }
-
-	// broadcast := net.IP{0, 0, 0, 0}
-	// binary.BigEndian.PutUint32(broadcast, binary.BigEndian.Uint32(gateway.To4())|^binary.BigEndian.Uint32(net.IP(network.Mask).To4()))
 
 	nat := &Nat{
 		portal:      tcpip.AddrFromSlice(portal.AsSlice()),
@@ -97,6 +88,9 @@ func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, m
 		UDPv2: NewUDPv2(mtu, device),
 	}
 
+	subnet := tcpip.AddressWithPrefix{Address: nat.portal, PrefixLen: 24}.Subnet()
+	broadcast := subnet.Broadcast()
+
 	go func() {
 		defer nat.Close()
 
@@ -110,77 +104,34 @@ func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, m
 
 			raw := buf[:n]
 
-			var ip IP
-			var protocol tcpip.TransportProtocolNumber
-
-			switch header.IPVersion(raw) {
-			case header.IPv4Version:
-				ipv4 := header.IPv4(raw)
-
-				if !ipv4.IsValid(int(ipv4.TotalLength())) {
-					continue
-				}
-
-				if ipv4.More() {
-					continue
-				}
-
-				if ipv4.FragmentOffset() != 0 {
-					continue
-				}
-
-				protocol = tcpip.TransportProtocolNumber(ipv4.Protocol())
-
-				ip = ipv4
-
-			case header.IPv6Version:
-				ipv6 := header.IPv6(raw)
-
-				if ipv6.HopLimit() == 0x00 {
-					continue
-				}
-
-				protocol = tcpip.TransportProtocolNumber(ipv6.NextHeader())
-
-				ip = ipv6
-
-			default:
+			ip, protocol, ok := nat.processIP(raw)
+			if !ok {
 				continue
 			}
 
 			if ip.PayloadLength() > uint16(len(raw)) {
-				log.Warn("payload length too large", "length", ip.PayloadLength(), "raw length", len(raw))
+				log.Warn("ip payload length too large", "length", ip.PayloadLength(), "raw length", len(raw))
 				continue
 			}
 
 			dst, src := ip.DestinationAddress(), ip.SourceAddress()
 
-			if !net.IP(dst.AsSlice()).IsGlobalUnicast() {
+			if !net.IP(dst.AsSlice()).IsGlobalUnicast() || dst.Equal(broadcast) {
 				continue
 			}
 
 			var tp TransportProtocol
 			var pseudoHeaderSum uint16
-			var ok bool
 
 			switch protocol {
 			case header.TCPProtocolNumber:
 				tp, pseudoHeaderSum, ok = nat.processTCP(ip, src, dst)
-				if !ok {
-					continue
-				}
 
 			case header.ICMPv4ProtocolNumber:
 				tp, pseudoHeaderSum, ok = processICMP(ip)
-				if !ok {
-					continue
-				}
 
 			case header.ICMPv6ProtocolNumber:
 				tp, pseudoHeaderSum, ok = processICMPv6(ip)
-				if !ok {
-					continue
-				}
 
 			case header.UDPProtocolNumber:
 				u := header.UDP(ip.Payload())
@@ -197,6 +148,10 @@ func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, m
 				continue
 			}
 
+			if !ok {
+				continue
+			}
+
 			resetCheckSum(ip, tp, pseudoHeaderSum)
 
 			if _, err = device.Write(raw); err != nil {
@@ -207,6 +162,38 @@ func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, m
 	}()
 
 	return nat, nil
+}
+
+func (n *Nat) processIP(raw []byte) (IP, tcpip.TransportProtocolNumber, bool) {
+	switch header.IPVersion(raw) {
+	case header.IPv4Version:
+		ipv4 := header.IPv4(raw)
+
+		if !ipv4.IsValid(int(ipv4.TotalLength())) {
+			return nil, 0, false
+		}
+
+		if ipv4.More() {
+			return nil, 0, false
+		}
+
+		if ipv4.FragmentOffset() != 0 {
+			return nil, 0, false
+		}
+
+		return ipv4, tcpip.TransportProtocolNumber(ipv4.Protocol()), true
+
+	case header.IPv6Version:
+		ipv6 := header.IPv6(raw)
+
+		if ipv6.HopLimit() == 0x00 {
+			return nil, 0, false
+		}
+
+		return ipv6, tcpip.TransportProtocolNumber(ipv6.NextHeader()), true
+	}
+
+	return nil, 0, false
 }
 
 func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, pseudoHeaderSum uint16, _ bool) {

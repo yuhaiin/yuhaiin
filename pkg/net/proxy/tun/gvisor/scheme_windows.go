@@ -9,7 +9,7 @@ import (
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
-func SetAddress(opt Opt) error {
+func route(opt Opt) error {
 	tt, ok := opt.Device.(*wun.NativeTun)
 	if !ok {
 		return fmt.Errorf("not a native tun device")
@@ -95,5 +95,5 @@ func SetAddress(opt Opt) error {
 }
 
 func init() {
-	Preload = SetAddress
+	Route = route
 }

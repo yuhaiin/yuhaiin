@@ -81,43 +81,52 @@ func (w *wgWriter) dispatch(e stack.NetworkDispatcher, mtu uint32) (bool, tcpip.
 }
 
 type wgTun struct {
-	rMutex sync.Mutex
-	wMutex sync.Mutex
-	rSizes []int
-	rBuffs [][]byte
-	wBuffs [][]byte
 	offset int
-
-	nt wun.Device
+	nt     wun.Device
 }
 
 func newWgTun(device wun.Device) *wgTun {
 	return &wgTun{
 		offset: offset,
-		rSizes: make([]int, 1),
-		rBuffs: make([][]byte, 1),
-		wBuffs: make([][]byte, 1),
 		nt:     device,
 	}
 }
 
+var (
+	bufferPool = sync.Pool{New: func() any { return make([][]byte, 1) }}
+	sizePool   = sync.Pool{New: func() any { return make([]int, 1) }}
+)
+
+func getBuffer(b []byte) [][]byte {
+	buf := bufferPool.Get().([][]byte)
+	buf[0] = b
+
+	return buf
+}
+
+func putBuffer(buffs [][]byte) {
+	buffs[0] = nil
+	bufferPool.Put(buffs)
+}
+
+func getSize() []int { return sizePool.Get().([]int) }
+
 func (t *wgTun) Read(packet []byte) (int, error) {
-	t.rMutex.Lock()
-	defer t.rMutex.Unlock()
-	t.rBuffs[0] = packet
-	_, err := t.nt.Read(t.rBuffs, t.rSizes, t.offset)
-	return t.rSizes[0], err
+	size := getSize()
+	defer sizePool.Put(size)
+	buffs := getBuffer(packet)
+	defer putBuffer(buffs)
+
+	_, err := t.nt.Read(buffs, size, t.offset)
+	return size[0], err
 }
 
 func (t *wgTun) Write(packet []byte) (int, error) {
-	t.wMutex.Lock()
-	defer t.wMutex.Unlock()
-	t.wBuffs[0] = packet
-	return t.nt.Write(t.wBuffs, t.offset)
+	buffs := getBuffer(packet)
+	defer putBuffer(buffs)
+
+	return t.nt.Write(buffs, t.offset)
 }
 
-func (t *wgTun) Close() error {
-	return t.nt.Close()
-}
-
+func (t *wgTun) Close() error       { return t.nt.Close() }
 func (t *wgTun) Device() wun.Device { return t.nt }
