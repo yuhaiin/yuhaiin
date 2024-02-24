@@ -1,26 +1,21 @@
 package tun
 
 import (
+	"crypto/md5"
 	"fmt"
 	"io"
+	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"golang.org/x/sys/windows"
 	wun "golang.zx2c4.com/wireguard/tun"
-	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-var (
+const (
 	offset = 0
 )
 
-func open(sc TunScheme, _ listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
-	iwc, err := OpenWriter(sc, mtu)
-	if err != nil {
-		return nil, fmt.Errorf("open tun failed: %w", err)
-	}
-
-	endpoint := NewEndpoint(&wgWriter{iwc}, uint32(mtu), "")
-	return endpoint, nil
+func init() {
+	wun.WintunTunnelType = "yuhaiin"
 }
 
 func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
@@ -28,10 +23,19 @@ func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
 		return nil, fmt.Errorf("invalid tun: %v", sc)
 	}
 
-	device, err := wun.CreateTUN(sc.Name, mtu)
+	device, err := wun.CreateTUNWithRequestedGUID(sc.Name, generateGUIDByDeviceName(sc.Name), mtu)
 	if err != nil {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
 
 	return newWgTun(device), nil
+}
+
+func generateGUIDByDeviceName(name string) *windows.GUID {
+	hash := md5.New()
+	hash.Write([]byte("wintun"))
+	hash.Write([]byte("yuhaiin"))
+	hash.Write([]byte(name))
+	sum := hash.Sum(nil)
+	return (*windows.GUID)(unsafe.Pointer(&sum[0]))
 }

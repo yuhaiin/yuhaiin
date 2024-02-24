@@ -143,8 +143,9 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 		aaaa, err = c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 		if err != nil {
 			aaaaerr <- fmt.Errorf("lookup ipv6 failed: %w", err)
+		} else {
+			aaaaerr <- nil
 		}
-		aaaaerr <- nil
 	}()
 
 	resp, aerr := c.lookupIP(ctx, domain, dnsmessage.TypeA)

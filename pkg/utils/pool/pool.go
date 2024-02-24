@@ -112,6 +112,11 @@ func (b *Bytes) ResetSize(start, end int) {
 	}
 }
 
+func (b *Bytes) Copy(byte []byte) *Bytes {
+	b.end = b.start + copy(b.Bytes(), byte)
+	return b
+}
+
 func (b *Bytes) Len() int { return b.end - b.start }
 
 func NewBytesBuffer(b []byte) *Bytes { return &Bytes{sync.Once{}, b, 0, len(b)} }

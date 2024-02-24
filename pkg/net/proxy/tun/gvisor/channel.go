@@ -30,7 +30,6 @@ import (
 
 type writer interface {
 	Write([]byte) tcpip.Error
-	// WritePackets(stack.PacketBufferList) (int, tcpip.Error)
 	WritePacket(pkt stack.PacketBufferPtr) tcpip.Error
 	dispatch(e stack.NetworkDispatcher, mtu uint32) (bool, tcpip.Error)
 	io.Closer
@@ -44,18 +43,16 @@ type Endpoint struct {
 	wg  sync.WaitGroup
 	mtu uint32
 
-	linkAddr tcpip.LinkAddress
-	writer   writer
+	writer writer
 
 	attached bool
 }
 
 // New creates a new channel endpoint.
-func NewEndpoint(w writer, mtu uint32, linkAddr tcpip.LinkAddress) *Endpoint {
+func NewEndpoint(w writer, mtu uint32) *Endpoint {
 	return &Endpoint{
-		mtu:      mtu,
-		linkAddr: linkAddr,
-		writer:   w,
+		mtu:    mtu,
+		writer: w,
 	}
 }
 
@@ -108,14 +105,10 @@ func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities { return 0 }
 
 // MaxHeaderLength returns the maximum size of the link layer header. Given it
 // doesn't have a header, it just returns 0.
-func (*Endpoint) MaxHeaderLength() uint16 {
-	return 0
-}
+func (*Endpoint) MaxHeaderLength() uint16 { return 0 }
 
 // LinkAddress returns the link address of this endpoint.
-func (e *Endpoint) LinkAddress() tcpip.LinkAddress {
-	return e.linkAddr
-}
+func (e *Endpoint) LinkAddress() tcpip.LinkAddress { return "" }
 
 // WritePackets stores outbound packets into the channel.
 // Multiple concurrent calls are permitted.

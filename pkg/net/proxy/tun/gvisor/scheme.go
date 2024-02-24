@@ -57,4 +57,4 @@ type Opt struct {
 	Mtu int32
 }
 
-var Preload func(Opt) error
+var Route func(Opt) error = func(o Opt) error { return nil }

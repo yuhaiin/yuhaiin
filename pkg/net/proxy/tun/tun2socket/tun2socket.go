@@ -14,7 +14,6 @@ import (
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/goos"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -52,6 +51,7 @@ func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, 
 
 		nat, err := nat.Start(device, sc, gateway, portal, o.Tun.Mtu)
 		if err != nil {
+			device.Close()
 			return nil, err
 		}
 
@@ -93,14 +93,9 @@ func (s *Tun2socket) AcceptPacket() (*netapi.Packet, error) {
 
 func (h *Tun2socket) Close() error {
 	h.close()
-
 	_ = h.nat.TCP.Close()
 	_ = h.nat.UDPv2.Close()
-
-	if goos.IsAndroid == 0 {
-		return h.device.Close()
-	}
-	return nil
+	return h.device.Close()
 }
 
 func (h *Tun2socket) tcpLoop() {

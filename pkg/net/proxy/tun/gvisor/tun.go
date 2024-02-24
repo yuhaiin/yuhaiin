@@ -98,6 +98,7 @@ func parseOpt(ep stack.LinkEndpoint, o *listener.Inbound_Tun, sc TunScheme) (Opt
 		Mtu:     o.Tun.Mtu,
 	}, nil
 }
+
 func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
 	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
 		opt := o.Tun
@@ -114,18 +115,16 @@ func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, 
 			return nil, err
 		}
 
-		ep, err := open(sc, opt.GetDriver(), int(opt.Mtu))
+		ep, err := Open(sc, opt.GetDriver(), int(opt.Mtu))
 		if err != nil {
 			return nil, fmt.Errorf("open tun failed: %w", err)
 		}
 
-		if Preload != nil {
-			opt, err := parseOpt(ep, o, sc)
-			if err == nil {
-				log.Debug("preload tun device", "name", sc.Name, "mtu", opt.Mtu, "portal", opt.Portal)
-				if err = Preload(opt); err != nil {
-					log.Warn("preload failed", "err", err)
-				}
+		routeOpt, err := parseOpt(ep, o, sc)
+		if err == nil {
+			log.Debug("preload tun device", "name", sc.Name, "mtu", opt.Mtu, "portal", opt.Portal)
+			if err = Route(routeOpt); err != nil {
+				log.Warn("preload failed", "err", err)
 			}
 		}
 
