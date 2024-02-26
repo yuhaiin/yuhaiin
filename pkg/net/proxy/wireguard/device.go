@@ -3,18 +3,19 @@ package wireguard
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
-	"syscall"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	gun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.zx2c4.com/wireguard/tun"
-	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
-	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -23,12 +24,11 @@ import (
 )
 
 type netTun struct {
-	ep             *channel.Endpoint
-	stack          *stack.Stack
-	events         chan tun.Event
-	incomingPacket chan *buffer.View
-	mtu            int
-	hasV4, hasV6   bool
+	ep           *gun.Endpoint
+	stack        *stack.Stack
+	events       chan tun.Event
+	hasV4, hasV6 bool
+	dev          *pipeReadWritePacket
 }
 
 type Net netTun
@@ -39,12 +39,13 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
 		HandleLocal:        true,
 	}
+
+	rwc := newPipeReadWritePacket(context.TODO(), mtu)
 	dev := &netTun{
-		ep:             channel.New(1024, uint32(mtu), ""),
-		stack:          stack.New(opts),
-		events:         make(chan tun.Event, 10),
-		incomingPacket: make(chan *buffer.View),
-		mtu:            mtu,
+		ep:     gun.NewEndpoint(rwc, uint32(mtu)),
+		dev:    rwc,
+		stack:  stack.New(opts),
+		events: make(chan tun.Event, 10),
 	}
 
 	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // TCP SACK is disabled by default
@@ -52,8 +53,6 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 	if tcpipErr != nil {
 		return nil, nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
 	}
-
-	dev.ep.AddNotify(dev)
 
 	tcpipErr = dev.stack.CreateNIC(1, dev.ep)
 	if tcpipErr != nil {
@@ -86,6 +85,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 			dev.hasV6 = true
 		}
 	}
+
 	if dev.hasV4 {
 		dev.stack.AddRoute(tcpip.Route{Destination: header.IPv4EmptySubnet, NIC: 1})
 	}
@@ -141,54 +141,37 @@ func (tun *netTun) Events() <-chan tun.Event {
 func (tun *netTun) BatchSize() int { return 1 }
 
 func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
-	view, ok := <-tun.incomingPacket
-	if !ok {
-		return 0, os.ErrClosed
-	}
-
 	var err error
-	size[0], err = view.Read(buf[0][offset:])
+	size[0], err = tun.dev.ReadPipe1(buf[0][offset:])
+
 	if err != nil {
 		return 0, err
 	}
 
 	return 1, nil
+
 }
 
 func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
+	n := 0
 	for _, buf := range buffers {
 		packet := buf[offset:]
 		if len(packet) == 0 {
 			continue
 		}
 
-		pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(packet)})
-		var networkProtocol tcpip.NetworkProtocolNumber
-		switch header.IPVersion(packet) {
-		case header.IPv4Version:
-			networkProtocol = header.IPv4ProtocolNumber
-		case header.IPv6Version:
-			networkProtocol = header.IPv6ProtocolNumber
-		default:
-			return 0, syscall.EAFNOSUPPORT
+		err := tun.dev.WritePipe2(packet)
+		if err != nil {
+			if n > 0 {
+				return n, nil
+			}
+			return 0, err
 		}
 
-		tun.ep.InjectInbound(networkProtocol, pkb)
+		n++
 	}
 
-	return len(buffers), nil
-}
-
-func (tun *netTun) WriteNotify() {
-	pkt := tun.ep.Read()
-	if pkt == nil {
-		return
-	}
-
-	view := pkt.ToView()
-	pkt.DecRef()
-
-	tun.incomingPacket <- view
+	return n, nil
 }
 
 func (tun *netTun) Flush() error { return nil }
@@ -202,14 +185,10 @@ func (tun *netTun) Close() error {
 
 	tun.ep.Close()
 
-	if tun.incomingPacket != nil {
-		close(tun.incomingPacket)
-	}
-
 	return nil
 }
 
-func (tun *netTun) MTU() (int, error) { return tun.mtu, nil }
+func (tun *netTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }
 
 func convertToFullAddr(endpoint netip.AddrPort) (tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
 	var protoNumber tcpip.NetworkProtocolNumber
@@ -312,3 +291,68 @@ func (net *Net) ListenUDP(laddr *net.UDPAddr) (*gonet.UDPConn, error) {
 
 func (n *Net) HasV4() bool { return n.hasV4 }
 func (n *Net) HasV6() bool { return n.hasV6 }
+
+type pipeReadWritePacket struct {
+	mtu    int
+	pipe1  chan *pool.Bytes
+	pipe2  chan *pool.Bytes
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func newPipeReadWritePacket(ctx context.Context, mtu int) *pipeReadWritePacket {
+	if mtu <= 0 {
+		mtu = nat.MaxSegmentSize
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	return &pipeReadWritePacket{
+		mtu:    mtu,
+		pipe1:  make(chan *pool.Bytes, 100),
+		pipe2:  make(chan *pool.Bytes, 100),
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}
+
+func (p *pipeReadWritePacket) WritePipe2(b []byte) error {
+	select {
+	case p.pipe2 <- pool.GetBytesBuffer(p.mtu).Copy(b):
+		return nil
+	case <-p.ctx.Done():
+		return io.ErrClosedPipe
+	}
+}
+
+func (p *pipeReadWritePacket) Read(b []byte) (int, error) {
+	select {
+	case <-p.ctx.Done():
+		return 0, io.EOF
+	case bb := <-p.pipe2:
+		defer pool.PutBytesBuffer(bb)
+		return copy(b, bb.Bytes()), nil
+	}
+}
+
+func (p *pipeReadWritePacket) ReadPipe1(b []byte) (int, error) {
+	select {
+	case <-p.ctx.Done():
+		return 0, io.EOF
+	case bb := <-p.pipe1:
+		defer pool.PutBytesBuffer(bb)
+		return copy(b, bb.Bytes()), nil
+	}
+}
+
+func (p *pipeReadWritePacket) Write(b []byte) (int, error) {
+	select {
+	case p.pipe1 <- pool.GetBytesBuffer(p.mtu).Copy(b):
+		return len(b), nil
+	case <-p.ctx.Done():
+		return 0, io.ErrClosedPipe
+	}
+}
+
+func (p *pipeReadWritePacket) Close() error {
+	p.cancel()
+	return nil
+}

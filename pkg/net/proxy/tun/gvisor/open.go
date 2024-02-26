@@ -19,7 +19,7 @@ func Open(sc TunScheme, driver listener.TunEndpointDriver, mtu int) (_ stack.Lin
 	if err != nil {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
-	return NewEndpoint(&wgWriter{w}, uint32(mtu)), nil
+	return NewEndpoint(w, uint32(mtu)), nil
 }
 
 type hiddenCloser struct {

@@ -30,7 +30,7 @@ func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
 		if err != nil {
 			return nil, fmt.Errorf("create tun failed: %w", err)
 		}
-		iwc = newWgTun(device)
+		iwc = newWgReadWriteCloser(device)
 	}
 
 	return iwc, nil

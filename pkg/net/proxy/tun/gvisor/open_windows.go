@@ -28,7 +28,7 @@ func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
 
-	return newWgTun(device), nil
+	return newWgReadWriteCloser(device), nil
 }
 
 func generateGUIDByDeviceName(name string) *windows.GUID {

@@ -75,12 +75,7 @@ func parseOpt(ep stack.LinkEndpoint, o *listener.Inbound_Tun, sc TunScheme) (Opt
 	if !ok {
 		return Opt{}, fmt.Errorf("invalid endpoint type")
 	}
-	writer := we.Writer()
-	wgWriter, ok := writer.(*wgWriter)
-	if !ok {
-		return Opt{}, fmt.Errorf("invalid writer type")
-	}
-	dev, ok := wgWriter.file.(interface{ Device() wun.Device })
+	dev, ok := we.Writer().(interface{ Device() wun.Device })
 	if !ok {
 		return Opt{}, fmt.Errorf("invalid device type")
 	}
