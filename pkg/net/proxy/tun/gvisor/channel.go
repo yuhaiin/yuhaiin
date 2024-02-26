@@ -23,17 +23,12 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
-
-type writer interface {
-	Write([]byte) tcpip.Error
-	WritePacket(pkt stack.PacketBufferPtr) tcpip.Error
-	dispatch(e stack.NetworkDispatcher, mtu uint32) (bool, tcpip.Error)
-	io.Closer
-}
 
 var _ stack.LinkEndpoint = (*Endpoint)(nil)
 
@@ -43,28 +38,28 @@ type Endpoint struct {
 	wg  sync.WaitGroup
 	mtu uint32
 
-	writer writer
+	dev io.ReadWriteCloser
 
 	attached bool
 }
 
 // New creates a new channel endpoint.
-func NewEndpoint(w writer, mtu uint32) *Endpoint {
+func NewEndpoint(w io.ReadWriteCloser, mtu uint32) *Endpoint {
 	return &Endpoint{
-		mtu:    mtu,
-		writer: w,
+		mtu: mtu,
+		dev: w,
 	}
 }
 
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
 func (e *Endpoint) Close() {
-	e.writer.Close()
+	e.dev.Close()
 	e.wg.Wait()
 }
 
-func (e *Endpoint) Writer() writer {
-	return e.writer
+func (e *Endpoint) Writer() io.ReadWriteCloser {
+	return e.dev
 }
 
 // Attach saves the stack network-layer dispatcher for use later when packets
@@ -81,11 +76,36 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 		go func() {
 			defer e.wg.Done()
 			for {
-				cont, err := e.writer.dispatch(dispatcher, e.MTU())
-				if err != nil || !cont {
-					log.Debug("dispatch exit", "err", err)
+
+				buf := pool.GetBytes(e.mtu)
+				defer pool.PutBytes(buf)
+
+				n, err := e.dev.Read(buf)
+				if err != nil {
 					break
 				}
+
+				if n == 0 {
+					continue
+				}
+
+				pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+					Payload: buffer.MakeWithData(buf[:n]),
+				})
+				defer pkt.DecRef()
+
+				var p tcpip.NetworkProtocolNumber
+
+				switch header.IPVersion(buf) {
+				case header.IPv4Version:
+					p = header.IPv4ProtocolNumber
+				case header.IPv6Version:
+					p = header.IPv6ProtocolNumber
+				default:
+					continue
+				}
+
+				dispatcher.DeliverNetworkPacket(p, pkt)
 			}
 		}()
 	}
@@ -96,9 +116,7 @@ func (e *Endpoint) IsAttached() bool { return e.attached }
 
 // MTU implements stack.LinkEndpoint.MTU. It returns the value initialized
 // during construction.
-func (e *Endpoint) MTU() uint32 {
-	return e.mtu
-}
+func (e *Endpoint) MTU() uint32 { return e.mtu }
 
 // Capabilities implements stack.LinkEndpoint.Capabilities.
 func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities { return 0 }
@@ -115,9 +133,10 @@ func (e *Endpoint) LinkAddress() tcpip.LinkAddress { return "" }
 func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
 	n := 0
 	for _, pkt := range pkts.AsSlice() {
-		if err := e.writer.WritePacket(pkt); err != nil {
-			if _, ok := err.(*tcpip.ErrNoBufferSpace); !ok && n == 0 {
-				return 0, err
+		if _, er := e.dev.Write(pkt.ToView().AsSlice()); er != nil {
+			log.Error("write packet failed", "err", er)
+			if n == 0 {
+				return 0, &tcpip.ErrClosedForSend{}
 			}
 			break
 		}

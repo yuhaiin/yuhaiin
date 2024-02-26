@@ -61,6 +61,8 @@ func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, m
 		}
 	}
 
+	// device = newWrapWithOffset(device)
+
 	listener, err := dialer.ListenContextWithOptions(context.Background(), "tcp", "", &dialer.Options{})
 	if err != nil {
 		return nil, err
@@ -324,3 +326,32 @@ func resetCheckSum(ip IP, tp TransportProtocol, pseudoHeaderSum uint16) {
 	tp.SetChecksum(0)
 	tp.SetChecksum(^checksum.Checksum(ip.Payload(), pseudoHeaderSum))
 }
+
+// type wrapWithOffset struct {
+// 	io.ReadWriter
+// }
+
+// func newWrapWithOffset(w io.ReadWriter) io.ReadWriter {
+// 	if tun.Offset < 0 {
+// 		return w
+// 	}
+
+// 	return &wrapWithOffset{w}
+// }
+
+// func (w *wrapWithOffset) Write(b []byte) (int, error) {
+// 	buf := pool.GetBytesBuffer(tun.Offset + len(b))
+// 	defer pool.PutBytesBuffer(buf)
+
+// 	for i := range buf.Bytes()[:tun.Offset] {
+// 		buf.Bytes()[i] = 0
+// 	}
+// 	copy(buf.Bytes()[tun.Offset:], b)
+
+// 	n, err := w.ReadWriter.Write(buf.Bytes())
+// 	if err != nil {
+// 		return 0, err
+// 	}
+
+// 	return n - tun.Offset, nil
+// }
