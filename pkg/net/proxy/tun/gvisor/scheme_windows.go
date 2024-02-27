@@ -19,18 +19,18 @@ func route(opt Opt) error {
 
 	if opt.Portal.IsValid() {
 		err := luid.SetIPAddressesForFamily(winipcfg.AddressFamily(windows.AF_INET), []netip.Prefix{
-			netip.PrefixFrom(opt.Portal, 24),
+			opt.Portal,
 		})
 		if err != nil {
 			return err
 		}
 
-		err = luid.SetDNS(winipcfg.AddressFamily(windows.AF_INET), []netip.Addr{opt.Gateway}, nil)
+		err = luid.SetDNS(winipcfg.AddressFamily(windows.AF_INET), []netip.Addr{opt.Portal.Addr().Next()}, nil)
 		if err != nil {
 			return err
 		}
 
-		err = luid.AddRoute(netip.PrefixFrom(netip.AddrFrom4([4]byte{0, 0, 0, 0}), 0), opt.Portal, 1)
+		err = luid.AddRoute(netip.PrefixFrom(netip.AddrFrom4([4]byte{0, 0, 0, 0}), 0), opt.Portal.Addr(), 1)
 		if err != nil {
 			return err
 		}
@@ -56,18 +56,18 @@ func route(opt Opt) error {
 
 	if opt.PortalV6.IsValid() {
 		err := luid.SetIPAddressesForFamily(winipcfg.AddressFamily(windows.AF_INET6), []netip.Prefix{
-			netip.PrefixFrom(opt.PortalV6, 64),
+			opt.PortalV6,
 		})
 		if err != nil {
 			return err
 		}
 
-		err = luid.SetDNS(winipcfg.AddressFamily(windows.AF_INET6), []netip.Addr{opt.GatewayV6}, nil)
+		err = luid.SetDNS(winipcfg.AddressFamily(windows.AF_INET6), []netip.Addr{opt.PortalV6.Addr().Next()}, nil)
 		if err != nil {
 			return err
 		}
 
-		err = luid.AddRoute(netip.PrefixFrom(netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}), 0), opt.PortalV6, 1)
+		err = luid.AddRoute(netip.PrefixFrom(netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}), 0), opt.PortalV6.Addr(), 1)
 		if err != nil {
 			return err
 		}

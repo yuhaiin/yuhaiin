@@ -1339,14 +1339,16 @@ type Tun struct {
 
 	// name of the tun device
 	// eg: tun://tun0, fd://123
-	Name          string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Mtu           int32             `protobuf:"varint,2,opt,name=mtu,proto3" json:"mtu,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Mtu  int32  `protobuf:"varint,2,opt,name=mtu,proto3" json:"mtu,omitempty"`
+	// Deprecated: Marked as deprecated in config/listener/listener.proto.
 	Gateway       string            `protobuf:"bytes,3,opt,name=gateway,proto3" json:"gateway,omitempty"`
 	DnsHijacking  bool              `protobuf:"varint,4,opt,name=dns_hijacking,proto3" json:"dns_hijacking,omitempty"`
 	ForceFakeip   bool              `protobuf:"varint,9,opt,name=force_fakeip,proto3" json:"force_fakeip,omitempty"`
 	SkipMulticast bool              `protobuf:"varint,6,opt,name=skip_multicast,proto3" json:"skip_multicast,omitempty"`
 	Driver        TunEndpointDriver `protobuf:"varint,7,opt,name=driver,proto3,enum=yuhaiin.listener.TunEndpointDriver" json:"driver,omitempty"`
 	Portal        string            `protobuf:"bytes,8,opt,name=portal,proto3" json:"portal,omitempty"`
+	Route         *Route            `protobuf:"bytes,10,opt,name=route,proto3" json:"route,omitempty"`
 }
 
 func (x *Tun) Reset() {
@@ -1395,6 +1397,7 @@ func (x *Tun) GetMtu() int32 {
 	return 0
 }
 
+// Deprecated: Marked as deprecated in config/listener/listener.proto.
 func (x *Tun) GetGateway() string {
 	if x != nil {
 		return x.Gateway
@@ -1437,6 +1440,68 @@ func (x *Tun) GetPortal() string {
 	return ""
 }
 
+func (x *Tun) GetRoute() *Route {
+	if x != nil {
+		return x.Route
+	}
+	return nil
+}
+
+type Route struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Routes   []string `protobuf:"bytes,1,rep,name=routes,proto3" json:"routes,omitempty"`
+	Excludes []string `protobuf:"bytes,2,rep,name=excludes,proto3" json:"excludes,omitempty"`
+}
+
+func (x *Route) Reset() {
+	*x = Route{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_config_listener_listener_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Route) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Route) ProtoMessage() {}
+
+func (x *Route) ProtoReflect() protoreflect.Message {
+	mi := &file_config_listener_listener_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Route.ProtoReflect.Descriptor instead.
+func (*Route) Descriptor() ([]byte, []int) {
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *Route) GetRoutes() []string {
+	if x != nil {
+		return x.Routes
+	}
+	return nil
+}
+
+func (x *Route) GetExcludes() []string {
+	if x != nil {
+		return x.Excludes
+	}
+	return nil
+}
+
 type Yuubinsya struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1462,7 +1527,7 @@ type Yuubinsya struct {
 func (x *Yuubinsya) Reset() {
 	*x = Yuubinsya{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[15]
+		mi := &file_config_listener_listener_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1475,7 +1540,7 @@ func (x *Yuubinsya) String() string {
 func (*Yuubinsya) ProtoMessage() {}
 
 func (x *Yuubinsya) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[15]
+	mi := &file_config_listener_listener_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1488,7 +1553,7 @@ func (x *Yuubinsya) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Yuubinsya.ProtoReflect.Descriptor instead.
 func (*Yuubinsya) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{15}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{16}
 }
 
 // Deprecated: Marked as deprecated in config/listener/listener.proto.
@@ -1645,7 +1710,7 @@ type Normal struct {
 func (x *Normal) Reset() {
 	*x = Normal{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[16]
+		mi := &file_config_listener_listener_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1658,7 +1723,7 @@ func (x *Normal) String() string {
 func (*Normal) ProtoMessage() {}
 
 func (x *Normal) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[16]
+	mi := &file_config_listener_listener_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1671,7 +1736,7 @@ func (x *Normal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Normal.ProtoReflect.Descriptor instead.
 func (*Normal) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{16}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{17}
 }
 
 type Websocket struct {
@@ -1686,7 +1751,7 @@ type Websocket struct {
 func (x *Websocket) Reset() {
 	*x = Websocket{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[17]
+		mi := &file_config_listener_listener_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1699,7 +1764,7 @@ func (x *Websocket) String() string {
 func (*Websocket) ProtoMessage() {}
 
 func (x *Websocket) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[17]
+	mi := &file_config_listener_listener_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1712,7 +1777,7 @@ func (x *Websocket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Websocket.ProtoReflect.Descriptor instead.
 func (*Websocket) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{17}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{18}
 }
 
 // Deprecated: Marked as deprecated in config/listener/listener.proto.
@@ -1734,7 +1799,7 @@ type Quic struct {
 func (x *Quic) Reset() {
 	*x = Quic{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[18]
+		mi := &file_config_listener_listener_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1747,7 +1812,7 @@ func (x *Quic) String() string {
 func (*Quic) ProtoMessage() {}
 
 func (x *Quic) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[18]
+	mi := &file_config_listener_listener_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +1825,7 @@ func (x *Quic) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Quic.ProtoReflect.Descriptor instead.
 func (*Quic) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{18}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Quic) GetTls() *TlsConfig {
@@ -1781,7 +1846,7 @@ type Tls struct {
 func (x *Tls) Reset() {
 	*x = Tls{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[19]
+		mi := &file_config_listener_listener_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1794,7 +1859,7 @@ func (x *Tls) String() string {
 func (*Tls) ProtoMessage() {}
 
 func (x *Tls) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[19]
+	mi := &file_config_listener_listener_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1807,7 +1872,7 @@ func (x *Tls) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tls.ProtoReflect.Descriptor instead.
 func (*Tls) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{19}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Tls) GetTls() *TlsConfig {
@@ -1829,7 +1894,7 @@ type Grpc struct {
 func (x *Grpc) Reset() {
 	*x = Grpc{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[20]
+		mi := &file_config_listener_listener_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1842,7 +1907,7 @@ func (x *Grpc) String() string {
 func (*Grpc) ProtoMessage() {}
 
 func (x *Grpc) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[20]
+	mi := &file_config_listener_listener_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1855,7 +1920,7 @@ func (x *Grpc) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Grpc.ProtoReflect.Descriptor instead.
 func (*Grpc) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{20}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{21}
 }
 
 // Deprecated: Marked as deprecated in config/listener/listener.proto.
@@ -1878,7 +1943,7 @@ type Http2 struct {
 func (x *Http2) Reset() {
 	*x = Http2{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[21]
+		mi := &file_config_listener_listener_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1891,7 +1956,7 @@ func (x *Http2) String() string {
 func (*Http2) ProtoMessage() {}
 
 func (x *Http2) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[21]
+	mi := &file_config_listener_listener_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1904,7 +1969,7 @@ func (x *Http2) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Http2.ProtoReflect.Descriptor instead.
 func (*Http2) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{21}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{22}
 }
 
 // Deprecated: Marked as deprecated in config/listener/listener.proto.
@@ -1930,7 +1995,7 @@ type Reality struct {
 func (x *Reality) Reset() {
 	*x = Reality{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[22]
+		mi := &file_config_listener_listener_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1943,7 +2008,7 @@ func (x *Reality) String() string {
 func (*Reality) ProtoMessage() {}
 
 func (x *Reality) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[22]
+	mi := &file_config_listener_listener_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1956,7 +2021,7 @@ func (x *Reality) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Reality.ProtoReflect.Descriptor instead.
 func (*Reality) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{22}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Reality) GetShortId() []string {
@@ -2007,7 +2072,7 @@ type TlsConfig struct {
 func (x *TlsConfig) Reset() {
 	*x = TlsConfig{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[23]
+		mi := &file_config_listener_listener_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2020,7 +2085,7 @@ func (x *TlsConfig) String() string {
 func (*TlsConfig) ProtoMessage() {}
 
 func (x *TlsConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[23]
+	mi := &file_config_listener_listener_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2033,7 +2098,7 @@ func (x *TlsConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TlsConfig.ProtoReflect.Descriptor instead.
 func (*TlsConfig) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{23}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *TlsConfig) GetCertificates() []*Certificate {
@@ -2071,7 +2136,7 @@ type Certificate struct {
 func (x *Certificate) Reset() {
 	*x = Certificate{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[24]
+		mi := &file_config_listener_listener_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2084,7 +2149,7 @@ func (x *Certificate) String() string {
 func (*Certificate) ProtoMessage() {}
 
 func (x *Certificate) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[24]
+	mi := &file_config_listener_listener_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2097,7 +2162,7 @@ func (x *Certificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificate.ProtoReflect.Descriptor instead.
 func (*Certificate) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{24}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Certificate) GetCert() []byte {
@@ -2137,7 +2202,7 @@ type YuubinsyaProtocolNormal struct {
 func (x *YuubinsyaProtocolNormal) Reset() {
 	*x = YuubinsyaProtocolNormal{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_config_listener_listener_proto_msgTypes[27]
+		mi := &file_config_listener_listener_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2150,7 +2215,7 @@ func (x *YuubinsyaProtocolNormal) String() string {
 func (*YuubinsyaProtocolNormal) ProtoMessage() {}
 
 func (x *YuubinsyaProtocolNormal) ProtoReflect() protoreflect.Message {
-	mi := &file_config_listener_listener_proto_msgTypes[27]
+	mi := &file_config_listener_listener_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2163,7 +2228,7 @@ func (x *YuubinsyaProtocolNormal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use YuubinsyaProtocolNormal.ProtoReflect.Descriptor instead.
 func (*YuubinsyaProtocolNormal) Descriptor() ([]byte, []int) {
-	return file_config_listener_listener_proto_rawDescGZIP(), []int{15, 0}
+	return file_config_listener_listener_proto_rawDescGZIP(), []int{16, 0}
 }
 
 var File_config_listener_listener_proto protoreflect.FileDescriptor
@@ -2338,28 +2403,35 @@ var file_config_listener_listener_proto_rawDesc = []byte{
 	0x0d, 0x64, 0x6e, 0x73, 0x5f, 0x68, 0x69, 0x6a, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67, 0x12, 0x22,
 	0x0a, 0x0c, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x66, 0x61, 0x6b, 0x65, 0x69, 0x70, 0x18, 0x03,
 	0x20, 0x01, 0x28, 0x08, 0x52, 0x0c, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x66, 0x61, 0x6b, 0x65,
-	0x69, 0x70, 0x22, 0xce, 0x02, 0x0a, 0x03, 0x74, 0x75, 0x6e, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61,
+	0x69, 0x70, 0x22, 0x81, 0x03, 0x0a, 0x03, 0x74, 0x75, 0x6e, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61,
 	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x10,
 	0x0a, 0x03, 0x6d, 0x74, 0x75, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x03, 0x6d, 0x74, 0x75,
-	0x12, 0x18, 0x0a, 0x07, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x07, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x12, 0x24, 0x0a, 0x0d, 0x64, 0x6e,
-	0x73, 0x5f, 0x68, 0x69, 0x6a, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28,
-	0x08, 0x52, 0x0d, 0x64, 0x6e, 0x73, 0x5f, 0x68, 0x69, 0x6a, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67,
-	0x12, 0x22, 0x0a, 0x0c, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x66, 0x61, 0x6b, 0x65, 0x69, 0x70,
-	0x18, 0x09, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0c, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x66, 0x61,
-	0x6b, 0x65, 0x69, 0x70, 0x12, 0x26, 0x0a, 0x0e, 0x73, 0x6b, 0x69, 0x70, 0x5f, 0x6d, 0x75, 0x6c,
-	0x74, 0x69, 0x63, 0x61, 0x73, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0e, 0x73, 0x6b,
-	0x69, 0x70, 0x5f, 0x6d, 0x75, 0x6c, 0x74, 0x69, 0x63, 0x61, 0x73, 0x74, 0x12, 0x3d, 0x0a, 0x06,
-	0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x25, 0x2e, 0x79,
-	0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72, 0x2e,
-	0x74, 0x75, 0x6e, 0x2e, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x5f, 0x64, 0x72, 0x69,
-	0x76, 0x65, 0x72, 0x52, 0x06, 0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x12, 0x16, 0x0a, 0x06, 0x70,
-	0x6f, 0x72, 0x74, 0x61, 0x6c, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x70, 0x6f, 0x72,
-	0x74, 0x61, 0x6c, 0x22, 0x3e, 0x0a, 0x0f, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x5f,
-	0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x12, 0x0b, 0x0a, 0x07, 0x66, 0x64, 0x62, 0x61, 0x73, 0x65,
-	0x64, 0x10, 0x00, 0x12, 0x0b, 0x0a, 0x07, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x10, 0x01,
-	0x12, 0x11, 0x0a, 0x0d, 0x73, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x5f, 0x67, 0x76, 0x69, 0x73, 0x6f,
-	0x72, 0x10, 0x02, 0x22, 0xa2, 0x04, 0x0a, 0x09, 0x79, 0x75, 0x75, 0x62, 0x69, 0x6e, 0x73, 0x79,
+	0x12, 0x1c, 0x0a, 0x07, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x09, 0x42, 0x02, 0x18, 0x01, 0x52, 0x07, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x12, 0x24,
+	0x0a, 0x0d, 0x64, 0x6e, 0x73, 0x5f, 0x68, 0x69, 0x6a, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67, 0x18,
+	0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0d, 0x64, 0x6e, 0x73, 0x5f, 0x68, 0x69, 0x6a, 0x61, 0x63,
+	0x6b, 0x69, 0x6e, 0x67, 0x12, 0x22, 0x0a, 0x0c, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x66, 0x61,
+	0x6b, 0x65, 0x69, 0x70, 0x18, 0x09, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0c, 0x66, 0x6f, 0x72, 0x63,
+	0x65, 0x5f, 0x66, 0x61, 0x6b, 0x65, 0x69, 0x70, 0x12, 0x26, 0x0a, 0x0e, 0x73, 0x6b, 0x69, 0x70,
+	0x5f, 0x6d, 0x75, 0x6c, 0x74, 0x69, 0x63, 0x61, 0x73, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x08,
+	0x52, 0x0e, 0x73, 0x6b, 0x69, 0x70, 0x5f, 0x6d, 0x75, 0x6c, 0x74, 0x69, 0x63, 0x61, 0x73, 0x74,
+	0x12, 0x3d, 0x0a, 0x06, 0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0e,
+	0x32, 0x25, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e, 0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65,
+	0x6e, 0x65, 0x72, 0x2e, 0x74, 0x75, 0x6e, 0x2e, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74,
+	0x5f, 0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x52, 0x06, 0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x12,
+	0x16, 0x0a, 0x06, 0x70, 0x6f, 0x72, 0x74, 0x61, 0x6c, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x70, 0x6f, 0x72, 0x74, 0x61, 0x6c, 0x12, 0x2d, 0x0a, 0x05, 0x72, 0x6f, 0x75, 0x74, 0x65,
+	0x18, 0x0a, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x79, 0x75, 0x68, 0x61, 0x69, 0x69, 0x6e,
+	0x2e, 0x6c, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x65, 0x72, 0x2e, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x52,
+	0x05, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x22, 0x3e, 0x0a, 0x0f, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69,
+	0x6e, 0x74, 0x5f, 0x64, 0x72, 0x69, 0x76, 0x65, 0x72, 0x12, 0x0b, 0x0a, 0x07, 0x66, 0x64, 0x62,
+	0x61, 0x73, 0x65, 0x64, 0x10, 0x00, 0x12, 0x0b, 0x0a, 0x07, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65,
+	0x6c, 0x10, 0x01, 0x12, 0x11, 0x0a, 0x0d, 0x73, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x5f, 0x67, 0x76,
+	0x69, 0x73, 0x6f, 0x72, 0x10, 0x02, 0x22, 0x3b, 0x0a, 0x05, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x12,
+	0x16, 0x0a, 0x06, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52,
+	0x06, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x73, 0x12, 0x1a, 0x0a, 0x08, 0x65, 0x78, 0x63, 0x6c, 0x75,
+	0x64, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x08, 0x65, 0x78, 0x63, 0x6c, 0x75,
+	0x64, 0x65, 0x73, 0x22, 0xa2, 0x04, 0x0a, 0x09, 0x79, 0x75, 0x75, 0x62, 0x69, 0x6e, 0x73, 0x79,
 	0x61, 0x12, 0x16, 0x0a, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42,
 	0x02, 0x18, 0x01, 0x52, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x70, 0x61, 0x73,
 	0x73, 0x77, 0x6f, 0x72, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x70, 0x61, 0x73,
@@ -2476,7 +2548,7 @@ func file_config_listener_listener_proto_rawDescGZIP() []byte {
 }
 
 var file_config_listener_listener_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_config_listener_listener_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_config_listener_listener_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_config_listener_listener_proto_goTypes = []interface{}{
 	(TcpUdpControl)(0),              // 0: yuhaiin.listener.tcp_udp_control
 	(TunEndpointDriver)(0),          // 1: yuhaiin.listener.tun.endpoint_driver
@@ -2495,27 +2567,28 @@ var file_config_listener_listener_proto_goTypes = []interface{}{
 	(*Redir)(nil),                   // 14: yuhaiin.listener.redir
 	(*Tproxy)(nil),                  // 15: yuhaiin.listener.tproxy
 	(*Tun)(nil),                     // 16: yuhaiin.listener.tun
-	(*Yuubinsya)(nil),               // 17: yuhaiin.listener.yuubinsya
-	(*Normal)(nil),                  // 18: yuhaiin.listener.normal
-	(*Websocket)(nil),               // 19: yuhaiin.listener.websocket
-	(*Quic)(nil),                    // 20: yuhaiin.listener.quic
-	(*Tls)(nil),                     // 21: yuhaiin.listener.tls
-	(*Grpc)(nil),                    // 22: yuhaiin.listener.grpc
-	(*Http2)(nil),                   // 23: yuhaiin.listener.http2
-	(*Reality)(nil),                 // 24: yuhaiin.listener.reality
-	(*TlsConfig)(nil),               // 25: yuhaiin.listener.tls_config
-	(*Certificate)(nil),             // 26: yuhaiin.listener.certificate
-	nil,                             // 27: yuhaiin.listener.inbound_config.ServersEntry
-	nil,                             // 28: yuhaiin.listener.inbound_config.InboundsEntry
-	(*YuubinsyaProtocolNormal)(nil), // 29: yuhaiin.listener.yuubinsya.protocol_normal
-	nil,                             // 30: yuhaiin.listener.tls_config.ServerNameCertificateEntry
+	(*Route)(nil),                   // 17: yuhaiin.listener.route
+	(*Yuubinsya)(nil),               // 18: yuhaiin.listener.yuubinsya
+	(*Normal)(nil),                  // 19: yuhaiin.listener.normal
+	(*Websocket)(nil),               // 20: yuhaiin.listener.websocket
+	(*Quic)(nil),                    // 21: yuhaiin.listener.quic
+	(*Tls)(nil),                     // 22: yuhaiin.listener.tls
+	(*Grpc)(nil),                    // 23: yuhaiin.listener.grpc
+	(*Http2)(nil),                   // 24: yuhaiin.listener.http2
+	(*Reality)(nil),                 // 25: yuhaiin.listener.reality
+	(*TlsConfig)(nil),               // 26: yuhaiin.listener.tls_config
+	(*Certificate)(nil),             // 27: yuhaiin.listener.certificate
+	nil,                             // 28: yuhaiin.listener.inbound_config.ServersEntry
+	nil,                             // 29: yuhaiin.listener.inbound_config.InboundsEntry
+	(*YuubinsyaProtocolNormal)(nil), // 30: yuhaiin.listener.yuubinsya.protocol_normal
+	nil,                             // 31: yuhaiin.listener.tls_config.ServerNameCertificateEntry
 }
 var file_config_listener_listener_proto_depIdxs = []int32{
 	10, // 0: yuhaiin.listener.protocol.http:type_name -> yuhaiin.listener.http
 	11, // 1: yuhaiin.listener.protocol.socks5:type_name -> yuhaiin.listener.socks5
 	14, // 2: yuhaiin.listener.protocol.redir:type_name -> yuhaiin.listener.redir
 	16, // 3: yuhaiin.listener.protocol.tun:type_name -> yuhaiin.listener.tun
-	17, // 4: yuhaiin.listener.protocol.yuubinsya:type_name -> yuhaiin.listener.yuubinsya
+	18, // 4: yuhaiin.listener.protocol.yuubinsya:type_name -> yuhaiin.listener.yuubinsya
 	13, // 5: yuhaiin.listener.protocol.mix:type_name -> yuhaiin.listener.mixed
 	12, // 6: yuhaiin.listener.protocol.socks4a:type_name -> yuhaiin.listener.socks4a
 	15, // 7: yuhaiin.listener.protocol.tproxy:type_name -> yuhaiin.listener.tproxy
@@ -2525,46 +2598,47 @@ var file_config_listener_listener_proto_depIdxs = []int32{
 	4,  // 11: yuhaiin.listener.inbound.transport:type_name -> yuhaiin.listener.transport
 	10, // 12: yuhaiin.listener.inbound.http:type_name -> yuhaiin.listener.http
 	11, // 13: yuhaiin.listener.inbound.socks5:type_name -> yuhaiin.listener.socks5
-	17, // 14: yuhaiin.listener.inbound.yuubinsya:type_name -> yuhaiin.listener.yuubinsya
+	18, // 14: yuhaiin.listener.inbound.yuubinsya:type_name -> yuhaiin.listener.yuubinsya
 	13, // 15: yuhaiin.listener.inbound.mix:type_name -> yuhaiin.listener.mixed
 	12, // 16: yuhaiin.listener.inbound.socks4a:type_name -> yuhaiin.listener.socks4a
 	15, // 17: yuhaiin.listener.inbound.tproxy:type_name -> yuhaiin.listener.tproxy
 	14, // 18: yuhaiin.listener.inbound.redir:type_name -> yuhaiin.listener.redir
 	16, // 19: yuhaiin.listener.inbound.tun:type_name -> yuhaiin.listener.tun
-	18, // 20: yuhaiin.listener.transport.normal:type_name -> yuhaiin.listener.normal
-	21, // 21: yuhaiin.listener.transport.tls:type_name -> yuhaiin.listener.tls
+	19, // 20: yuhaiin.listener.transport.normal:type_name -> yuhaiin.listener.normal
+	22, // 21: yuhaiin.listener.transport.tls:type_name -> yuhaiin.listener.tls
 	6,  // 22: yuhaiin.listener.transport.mux:type_name -> yuhaiin.listener.mux
-	23, // 23: yuhaiin.listener.transport.http2:type_name -> yuhaiin.listener.http2
-	19, // 24: yuhaiin.listener.transport.websocket:type_name -> yuhaiin.listener.websocket
-	22, // 25: yuhaiin.listener.transport.grpc:type_name -> yuhaiin.listener.grpc
-	24, // 26: yuhaiin.listener.transport.reality:type_name -> yuhaiin.listener.reality
+	24, // 23: yuhaiin.listener.transport.http2:type_name -> yuhaiin.listener.http2
+	20, // 24: yuhaiin.listener.transport.websocket:type_name -> yuhaiin.listener.websocket
+	23, // 25: yuhaiin.listener.transport.grpc:type_name -> yuhaiin.listener.grpc
+	25, // 26: yuhaiin.listener.transport.reality:type_name -> yuhaiin.listener.reality
 	0,  // 27: yuhaiin.listener.tcpudp.control:type_name -> yuhaiin.listener.tcp_udp_control
-	25, // 28: yuhaiin.listener.quic2.tls:type_name -> yuhaiin.listener.tls_config
-	27, // 29: yuhaiin.listener.inbound_config.servers:type_name -> yuhaiin.listener.inbound_config.ServersEntry
-	28, // 30: yuhaiin.listener.inbound_config.inbounds:type_name -> yuhaiin.listener.inbound_config.InboundsEntry
+	26, // 28: yuhaiin.listener.quic2.tls:type_name -> yuhaiin.listener.tls_config
+	28, // 29: yuhaiin.listener.inbound_config.servers:type_name -> yuhaiin.listener.inbound_config.ServersEntry
+	29, // 30: yuhaiin.listener.inbound_config.inbounds:type_name -> yuhaiin.listener.inbound_config.InboundsEntry
 	1,  // 31: yuhaiin.listener.tun.driver:type_name -> yuhaiin.listener.tun.endpoint_driver
-	18, // 32: yuhaiin.listener.yuubinsya.normal:type_name -> yuhaiin.listener.normal
-	21, // 33: yuhaiin.listener.yuubinsya.tls:type_name -> yuhaiin.listener.tls
-	20, // 34: yuhaiin.listener.yuubinsya.quic:type_name -> yuhaiin.listener.quic
-	19, // 35: yuhaiin.listener.yuubinsya.websocket:type_name -> yuhaiin.listener.websocket
-	22, // 36: yuhaiin.listener.yuubinsya.grpc:type_name -> yuhaiin.listener.grpc
-	23, // 37: yuhaiin.listener.yuubinsya.http2:type_name -> yuhaiin.listener.http2
-	24, // 38: yuhaiin.listener.yuubinsya.reality:type_name -> yuhaiin.listener.reality
-	25, // 39: yuhaiin.listener.websocket.tls:type_name -> yuhaiin.listener.tls_config
-	25, // 40: yuhaiin.listener.quic.tls:type_name -> yuhaiin.listener.tls_config
-	25, // 41: yuhaiin.listener.tls.tls:type_name -> yuhaiin.listener.tls_config
-	25, // 42: yuhaiin.listener.grpc.tls:type_name -> yuhaiin.listener.tls_config
-	25, // 43: yuhaiin.listener.http2.tls:type_name -> yuhaiin.listener.tls_config
-	26, // 44: yuhaiin.listener.tls_config.certificates:type_name -> yuhaiin.listener.certificate
-	30, // 45: yuhaiin.listener.tls_config.server_name_certificate:type_name -> yuhaiin.listener.tls_config.ServerNameCertificateEntry
-	2,  // 46: yuhaiin.listener.inbound_config.ServersEntry.value:type_name -> yuhaiin.listener.protocol
-	3,  // 47: yuhaiin.listener.inbound_config.InboundsEntry.value:type_name -> yuhaiin.listener.inbound
-	26, // 48: yuhaiin.listener.tls_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.listener.certificate
-	49, // [49:49] is the sub-list for method output_type
-	49, // [49:49] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	17, // 32: yuhaiin.listener.tun.route:type_name -> yuhaiin.listener.route
+	19, // 33: yuhaiin.listener.yuubinsya.normal:type_name -> yuhaiin.listener.normal
+	22, // 34: yuhaiin.listener.yuubinsya.tls:type_name -> yuhaiin.listener.tls
+	21, // 35: yuhaiin.listener.yuubinsya.quic:type_name -> yuhaiin.listener.quic
+	20, // 36: yuhaiin.listener.yuubinsya.websocket:type_name -> yuhaiin.listener.websocket
+	23, // 37: yuhaiin.listener.yuubinsya.grpc:type_name -> yuhaiin.listener.grpc
+	24, // 38: yuhaiin.listener.yuubinsya.http2:type_name -> yuhaiin.listener.http2
+	25, // 39: yuhaiin.listener.yuubinsya.reality:type_name -> yuhaiin.listener.reality
+	26, // 40: yuhaiin.listener.websocket.tls:type_name -> yuhaiin.listener.tls_config
+	26, // 41: yuhaiin.listener.quic.tls:type_name -> yuhaiin.listener.tls_config
+	26, // 42: yuhaiin.listener.tls.tls:type_name -> yuhaiin.listener.tls_config
+	26, // 43: yuhaiin.listener.grpc.tls:type_name -> yuhaiin.listener.tls_config
+	26, // 44: yuhaiin.listener.http2.tls:type_name -> yuhaiin.listener.tls_config
+	27, // 45: yuhaiin.listener.tls_config.certificates:type_name -> yuhaiin.listener.certificate
+	31, // 46: yuhaiin.listener.tls_config.server_name_certificate:type_name -> yuhaiin.listener.tls_config.ServerNameCertificateEntry
+	2,  // 47: yuhaiin.listener.inbound_config.ServersEntry.value:type_name -> yuhaiin.listener.protocol
+	3,  // 48: yuhaiin.listener.inbound_config.InboundsEntry.value:type_name -> yuhaiin.listener.inbound
+	27, // 49: yuhaiin.listener.tls_config.ServerNameCertificateEntry.value:type_name -> yuhaiin.listener.certificate
+	50, // [50:50] is the sub-list for method output_type
+	50, // [50:50] is the sub-list for method input_type
+	50, // [50:50] is the sub-list for extension type_name
+	50, // [50:50] is the sub-list for extension extendee
+	0,  // [0:50] is the sub-list for field type_name
 }
 
 func init() { file_config_listener_listener_proto_init() }
@@ -2754,7 +2828,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Yuubinsya); i {
+			switch v := v.(*Route); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2766,7 +2840,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Normal); i {
+			switch v := v.(*Yuubinsya); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2778,7 +2852,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Websocket); i {
+			switch v := v.(*Normal); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2790,7 +2864,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Quic); i {
+			switch v := v.(*Websocket); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2802,7 +2876,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Tls); i {
+			switch v := v.(*Quic); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2814,7 +2888,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Grpc); i {
+			switch v := v.(*Tls); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2826,7 +2900,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Http2); i {
+			switch v := v.(*Grpc); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2838,7 +2912,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Reality); i {
+			switch v := v.(*Http2); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2850,7 +2924,7 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TlsConfig); i {
+			switch v := v.(*Reality); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2862,6 +2936,18 @@ func file_config_listener_listener_proto_init() {
 			}
 		}
 		file_config_listener_listener_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TlsConfig); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_config_listener_listener_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Certificate); i {
 			case 0:
 				return &v.state
@@ -2873,7 +2959,7 @@ func file_config_listener_listener_proto_init() {
 				return nil
 			}
 		}
-		file_config_listener_listener_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
+		file_config_listener_listener_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*YuubinsyaProtocolNormal); i {
 			case 0:
 				return &v.state
@@ -2918,7 +3004,7 @@ func file_config_listener_listener_proto_init() {
 		(*Transport_Grpc)(nil),
 		(*Transport_Reality)(nil),
 	}
-	file_config_listener_listener_proto_msgTypes[15].OneofWrappers = []interface{}{
+	file_config_listener_listener_proto_msgTypes[16].OneofWrappers = []interface{}{
 		(*Yuubinsya_Normal)(nil),
 		(*Yuubinsya_Tls)(nil),
 		(*Yuubinsya_Quic)(nil),
@@ -2933,7 +3019,7 @@ func file_config_listener_listener_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_config_listener_listener_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   29,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

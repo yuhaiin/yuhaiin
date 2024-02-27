@@ -71,7 +71,6 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 						Tun: &listener.Tun{
 							Name:          fmt.Sprintf("fd://%d", opt.TUN.FD),
 							Mtu:           opt.TUN.MTU,
-							Gateway:       opt.TUN.Gateway,
 							Portal:        opt.TUN.Portal,
 							DnsHijacking:  opt.TUN.DNSHijacking,
 							SkipMulticast: true,

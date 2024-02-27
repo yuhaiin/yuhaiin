@@ -47,21 +47,18 @@ type Nat struct {
 	tab *table
 }
 
-func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, mtu int32) (*Nat, error) {
+func Start(device io.ReadWriter, tc tun.TunScheme, portal netip.Prefix, mtu int32) (*Nat, error) {
 	dev, ok := device.(interface{ Device() wun.Device })
 	if ok {
 		if err := tun.Route(tun.Opt{
-			Device:  dev.Device(),
-			Scheme:  tc,
-			Portal:  portal,
-			Gateway: gateway,
-			Mtu:     mtu,
+			Device: dev.Device(),
+			Scheme: tc,
+			Portal: portal,
+			Mtu:    mtu,
 		}); err != nil {
 			log.Warn("preload failed", "err", err)
 		}
 	}
-
-	// device = newWrapWithOffset(device)
 
 	listener, err := dialer.ListenContextWithOptions(context.Background(), "tcp", "", &dialer.Options{})
 	if err != nil {
@@ -77,14 +74,14 @@ func Start(device io.ReadWriter, tc tun.TunScheme, gateway, portal netip.Addr, m
 	tab := newTable()
 
 	nat := &Nat{
-		portal:      tcpip.AddrFromSlice(portal.AsSlice()),
-		gateway:     tcpip.AddrFromSlice(gateway.AsSlice()),
+		portal:      tcpip.AddrFromSlice(portal.Addr().AsSlice()),
+		gateway:     tcpip.AddrFromSlice(portal.Addr().Next().AsSlice()),
 		gatewayPort: uint16(listener.Addr().(*net.TCPAddr).Port),
 		mtu:         mtu,
 		tab:         tab,
 		TCP: &TCP{
 			listener: listener.(*net.TCPListener),
-			portal:   gateway.AsSlice(),
+			portal:   portal.Addr().Next().AsSlice(),
 			table:    tab,
 		},
 		UDPv2: NewUDPv2(mtu, device),
@@ -326,32 +323,3 @@ func resetCheckSum(ip IP, tp TransportProtocol, pseudoHeaderSum uint16) {
 	tp.SetChecksum(0)
 	tp.SetChecksum(^checksum.Checksum(ip.Payload(), pseudoHeaderSum))
 }
-
-// type wrapWithOffset struct {
-// 	io.ReadWriter
-// }
-
-// func newWrapWithOffset(w io.ReadWriter) io.ReadWriter {
-// 	if tun.Offset < 0 {
-// 		return w
-// 	}
-
-// 	return &wrapWithOffset{w}
-// }
-
-// func (w *wrapWithOffset) Write(b []byte) (int, error) {
-// 	buf := pool.GetBytesBuffer(tun.Offset + len(b))
-// 	defer pool.PutBytesBuffer(buf)
-
-// 	for i := range buf.Bytes()[:tun.Offset] {
-// 		buf.Bytes()[i] = 0
-// 	}
-// 	copy(buf.Bytes()[tun.Offset:], b)
-
-// 	n, err := w.ReadWriter.Write(buf.Bytes())
-// 	if err != nil {
-// 		return 0, err
-// 	}
-
-// 	return n - tun.Offset, nil
-// }

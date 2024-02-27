@@ -43,8 +43,11 @@ func (t *wgReadWriteCloser) Read(packet []byte) (int, error) {
 	defer t.rmu.Unlock()
 
 	_, err := t.nt.Read(t.rbuf, t.rsize, offset)
+	if err != nil {
+		return 0, err
+	}
 
-	n := copy(packet, t.rbuf[0][offset:t.rsize[0]])
+	n := copy(packet, t.rbuf[0][offset:t.rsize[0]+offset])
 	return n, err
 }
 
