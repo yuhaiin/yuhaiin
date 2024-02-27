@@ -79,18 +79,22 @@ func parseOpt(ep stack.LinkEndpoint, o *listener.Inbound_Tun, sc TunScheme) (Opt
 	if !ok {
 		return Opt{}, fmt.Errorf("invalid device type")
 	}
-	gateway, gerr := netip.ParseAddr(o.Tun.Gateway)
-	portal, perr := netip.ParseAddr(o.Tun.Portal)
-	if gerr != nil || perr != nil {
-		return Opt{}, fmt.Errorf("gateway or portal is invalid")
+	portal, err := netip.ParsePrefix(o.Tun.Portal)
+	if err != nil {
+
+		addr, err := netip.ParseAddr(o.Tun.Portal)
+		if err != nil {
+			return Opt{}, fmt.Errorf("portal is invalid")
+		}
+
+		portal = netip.PrefixFrom(addr, 24)
 	}
 
 	return Opt{
-		Device:  dev.Device(),
-		Scheme:  sc,
-		Portal:  portal,
-		Gateway: gateway,
-		Mtu:     o.Tun.Mtu,
+		Device: dev.Device(),
+		Scheme: sc,
+		Portal: portal,
+		Mtu:    o.Tun.Mtu,
 	}, nil
 }
 
@@ -226,7 +230,7 @@ const (
 
 	// tcpCongestionControl is the congestion control algorithm used by
 	// stack. ccReno is the default option in gVisor stack.
-	tcpCongestionControlAlgorithm = "reno" // "reno" or "cubic"
+	tcpCongestionControlAlgorithm = "cubic" // "reno" or "cubic"
 
 	// tcpDelayEnabled is the value used by stack to enable or disable
 	// tcp delay option. Disable Nagle's algorithm here by default.

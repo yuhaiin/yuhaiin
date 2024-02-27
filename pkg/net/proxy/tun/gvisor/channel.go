@@ -76,7 +76,6 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 		go func() {
 			defer e.wg.Done()
 			for {
-
 				buf := pool.GetBytes(e.mtu)
 				defer pool.PutBytes(buf)
 

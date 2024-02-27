@@ -1,12 +1,9 @@
 package tun
 
 import (
-	"context"
-	"errors"
 	"io"
 	"net"
 	"net/netip"
-	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -20,51 +17,6 @@ import (
 )
 
 func (t *tunServer) udpForwarder() *udp.Forwarder {
-	handle := func(ctx context.Context, srcpconn *gonet.UDPConn, dst netapi.Address) error {
-		for {
-			buf := pool.GetBytesBuffer(t.mtu)
-
-			srcpconn.SetReadDeadline(time.Now().Add(time.Minute))
-			n, src, err := srcpconn.ReadFrom(buf.Bytes())
-			if err != nil {
-				if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
-					return nil /* ignore I/O timeout & EOF */
-				}
-
-				return err
-			}
-
-			buf.ResetSize(0, n)
-
-			select {
-			case <-t.ctx.Done():
-				return t.ctx.Err()
-
-			case t.udpChannel <- &netapi.Packet{
-				Src:     src,
-				Dst:     dst,
-				Payload: buf,
-				WriteBack: func(b []byte, addr net.Addr) (int, error) {
-					from, err := netapi.ParseSysAddr(addr)
-					if err != nil {
-						return 0, err
-					}
-
-					// Symmetric NAT
-					// gVisor udp.NewForwarder only support Symmetric NAT,
-					// can't set source in udp header
-					// TODO: rewrite HandlePacket() to support full cone NAT
-					if from.String() != dst.String() {
-						return 0, nil
-					}
-
-					return srcpconn.WriteTo(b, src)
-				},
-			}:
-			}
-		}
-	}
-
 	return udp.NewForwarder(t.stack, func(fr *udp.ForwarderRequest) {
 		var wq waiter.Queue
 		ep, err := fr.CreateEndpoint(&wq)
@@ -78,9 +30,6 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 		go func(local *gonet.UDPConn, id stack.TransportEndpointID) {
 			defer local.Close()
 
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second*5)
-			defer cancel()
-
 			addr, ok := netip.AddrFromSlice(id.LocalAddress.AsSlice())
 			if !ok {
 				return
@@ -88,8 +37,54 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 
 			dst := netapi.ParseAddrPort(statistic.Type_udp, netip.AddrPortFrom(addr, id.LocalPort))
 
-			if err := handle(ctx, local, dst); err != nil && !errors.Is(err, os.ErrClosed) {
-				log.Error("handle udp request failed", "err", err)
+			for {
+				buf := pool.GetBytesBuffer(t.mtu)
+
+				_ = local.SetReadDeadline(time.Now().Add(time.Minute))
+				n, src, err := local.ReadFrom(buf.Bytes())
+				if err != nil {
+					if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
+						return /* ignore I/O timeout & EOF */
+					}
+
+					log.Error("read udp failed:", "err", err)
+					return
+				}
+
+				buf.ResetSize(0, n)
+
+				select {
+				case <-t.ctx.Done():
+					return
+
+				case t.udpChannel <- &netapi.Packet{
+					Src:     src,
+					Dst:     dst,
+					Payload: buf,
+					WriteBack: func(b []byte, addr net.Addr) (int, error) {
+						from, err := netapi.ParseSysAddr(addr)
+						if err != nil {
+							return 0, err
+						}
+
+						// Symmetric NAT
+						// gVisor udp.NewForwarder only support Symmetric NAT,
+						// can't set source in udp header
+						// TODO: rewrite HandlePacket() to support full cone NAT
+						if from.String() != dst.String() {
+							return 0, nil
+						}
+
+						n, err := local.WriteTo(b, src)
+						if err != nil {
+							return n, err
+						}
+
+						_ = local.SetReadDeadline(time.Now().Add(time.Minute))
+						return n, nil
+					},
+				}:
+				}
 			}
 
 		}(local, fr.ID())

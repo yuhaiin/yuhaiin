@@ -121,7 +121,7 @@ message tun {
   // eg: tun://tun0, fd://123
   string name = 1 [ json_name = "name" ];
   int32 mtu = 2 [ json_name = "mtu" ];
-  string gateway = 3 [ json_name = "gateway" ];
+  string gateway = 3 [ json_name = "gateway", deprecated = true ];
   bool dns_hijacking = 4 [ json_name = "dns_hijacking" ];
   bool force_fakeip = 9 [ json_name = "force_fakeip" ];
   bool skip_multicast = 6 [ json_name = "skip_multicast" ];
@@ -132,6 +132,12 @@ message tun {
   }
   endpoint_driver driver = 7 [ json_name = "driver" ];
   string portal = 8 [ json_name = "portal" ];
+  route route = 10 [ json_name = "route" ];
+}
+
+message route {
+  repeated string routes = 1 [ json_name = "routes" ];
+  repeated string excludes = 2 [ json_name = "excludes" ];
 }
 
 message yuubinsya {

@@ -47,12 +47,10 @@ func ParseTunScheme(str string) (TunScheme, error) {
 }
 
 type Opt struct {
-	Device    wun.Device
-	Scheme    TunScheme
-	Portal    netip.Addr
-	Gateway   netip.Addr
-	PortalV6  netip.Addr
-	GatewayV6 netip.Addr
+	Device   wun.Device
+	Scheme   TunScheme
+	Portal   netip.Prefix
+	PortalV6 netip.Prefix
 
 	Mtu int32
 }

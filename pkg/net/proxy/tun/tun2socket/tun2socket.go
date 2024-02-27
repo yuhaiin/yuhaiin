@@ -33,10 +33,14 @@ type Tun2socket struct {
 
 func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
 	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
-		gateway, gerr := netip.ParseAddr(o.Tun.Gateway)
-		portal, perr := netip.ParseAddr(o.Tun.Portal)
-		if gerr != nil || perr != nil {
-			return nil, fmt.Errorf("gateway or portal is invalid")
+		portal, err := netip.ParsePrefix(o.Tun.Portal)
+		if err != nil {
+			addr, err := netip.ParseAddr(o.Tun.Portal)
+			if err != nil {
+				return nil, fmt.Errorf("gateway or portal is invalid")
+			}
+
+			portal = netip.PrefixFrom(addr, 24)
 		}
 
 		sc, err := tun.ParseTunScheme(o.Tun.Name)
@@ -49,7 +53,7 @@ func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, 
 			return nil, fmt.Errorf("open tun device failed: %w", err)
 		}
 
-		nat, err := nat.Start(device, sc, gateway, portal, o.Tun.Mtu)
+		nat, err := nat.Start(device, sc, portal, o.Tun.Mtu)
 		if err != nil {
 			device.Close()
 			return nil, err

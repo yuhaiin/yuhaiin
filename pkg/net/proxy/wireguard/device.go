@@ -126,19 +126,10 @@ func parseEndpoints(conf *protocol.Wireguard) ([]netip.Prefix, error) {
 	return endpoints, nil
 }
 
-func (tun *netTun) Name() (string, error) {
-	return "go", nil
-}
-
-func (tun *netTun) File() *os.File {
-	return nil
-}
-
-func (tun *netTun) Events() <-chan tun.Event {
-	return tun.events
-}
-
-func (tun *netTun) BatchSize() int { return 1 }
+func (tun *netTun) Name() (string, error)    { return "go", nil }
+func (tun *netTun) File() *os.File           { return nil }
+func (tun *netTun) Events() <-chan tun.Event { return tun.events }
+func (tun *netTun) BatchSize() int           { return 1 }
 
 func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
 	var err error

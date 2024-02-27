@@ -28,7 +28,7 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			return
 		}
 
-		if opts.InterfaceIndex == 0 && opts.InterfaceName != "" {
+		if !opts.listener && opts.InterfaceIndex == 0 && opts.InterfaceName != "" {
 			if iface, err := net.InterfaceByName(opts.InterfaceName); err == nil {
 				opts.InterfaceIndex = iface.Index
 			}

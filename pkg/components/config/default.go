@@ -117,8 +117,7 @@ func defaultSetting(path string) *config.Setting {
 						Tun: &listener.Tun{
 							Name:          "tun://tun0",
 							Mtu:           9000,
-							Gateway:       "172.19.0.1",
-							Portal:        "172.19.0.2",
+							Portal:        "172.19.0.1/24",
 							DnsHijacking:  true,
 							SkipMulticast: true,
 						},
