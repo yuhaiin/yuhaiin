@@ -52,8 +52,8 @@ github.com/yuhaiin/netlink v0.0.0-20240213150240-f91d720181db h1:bHq8rtu4ag8QaX3
 github.com/yuhaiin/netlink v0.0.0-20240213150240-f91d720181db/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
-go.etcd.io/bbolt v1.3.8 h1:xs88BrvEv273UsB79e0hcVrlUWmS0a8upikMFhSyAtA=
-go.etcd.io/bbolt v1.3.8/go.mod h1:N9Mkw9X8x5fupy0IKsmuqVtoGDyxsaDlbk4Rd05IAQw=
+go.etcd.io/bbolt v1.3.9 h1:8x7aARPEXiXbHmtUwAIv7eV2fQFHrLLavdiJ3uzJXoI=
+go.etcd.io/bbolt v1.3.9/go.mod h1:zaO32+Ti0PK1ivdPtgMESzuzL2VPoIG1PCQNvOdo/dE=
 go.uber.org/mock v0.3.0 h1:3mUxI1No2/60yUYax92Pt8eNOEecx2D3lcXZh2NEZJo=
 go.uber.org/mock v0.3.0/go.mod h1:a6FSlNadKUHUa9IP5Vyt1zh4fC7uAwxMutEAscFbkZc=
 golang.org/x/crypto v0.19.0 h1:ENy+Az/9Y1vSrlrvBSyna3PITt4tiZLf7sgCjZBX7Wo=
