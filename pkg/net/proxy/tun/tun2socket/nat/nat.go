@@ -3,15 +3,13 @@ package nat
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
-	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
-	wun "golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -37,66 +35,62 @@ type Nat struct {
 	*TCP
 	*UDPv2
 
-	portal      tcpip.Address
-	gateway     tcpip.Address
+	address     tcpip.Address
+	protal      tcpip.Address
 	gatewayPort uint16
-	portalV6    tcpip.Address
-	gatewayV6   tcpip.Address
+	addressV6   tcpip.Address
+	protalV6    tcpip.Address
 	mtu         int32
 
 	tab *table
 }
 
-func Start(device io.ReadWriter, tc tun.TunScheme, portal netip.Prefix, mtu int32) (*Nat, error) {
-	dev, ok := device.(interface{ Device() wun.Device })
-	if ok {
-		if err := tun.Route(tun.Opt{
-			Device: dev.Device(),
-			Scheme: tc,
-			Portal: portal,
-			Mtu:    mtu,
-		}); err != nil {
-			log.Warn("preload failed", "err", err)
-		}
-	}
-
+func Start(opt *tun.Opt) (*Nat, error) {
 	listener, err := dialer.ListenContextWithOptions(context.Background(), "tcp", "", &dialer.Options{})
 	if err != nil {
 		return nil, err
 	}
 
-	log.Info("new tun2socket tcp server", "host", listener.Addr())
+	log.Info("new tun2socket tcp server", "host", listener.Addr(), "portal", opt.V4Address(), "gateway", opt.V4Address().Addr().Next())
 
-	if mtu <= 0 {
-		mtu = int32(nat.MaxSegmentSize)
+	err = netlink.Route(opt.Options)
+	if err != nil {
+		log.Warn("set route failed", "err", err)
+	}
+
+	if opt.MTU <= 0 {
+		opt.MTU = nat.MaxSegmentSize
 	}
 
 	tab := newTable()
 
 	nat := &Nat{
-		portal:      tcpip.AddrFromSlice(portal.Addr().AsSlice()),
-		gateway:     tcpip.AddrFromSlice(portal.Addr().Next().AsSlice()),
+		address:     tcpip.AddrFromSlice(opt.V4Address().Addr().AsSlice()),
+		protal:      tcpip.AddrFromSlice(opt.V4Address().Addr().Next().AsSlice()),
 		gatewayPort: uint16(listener.Addr().(*net.TCPAddr).Port),
-		mtu:         mtu,
+		mtu:         int32(opt.MTU),
 		tab:         tab,
 		TCP: &TCP{
 			listener: listener.(*net.TCPListener),
-			portal:   portal.Addr().Next().AsSlice(),
+			portal:   opt.V4Address().Addr().Next().AsSlice(),
 			table:    tab,
 		},
-		UDPv2: NewUDPv2(mtu, device),
+		UDPv2: NewUDPv2(int32(opt.MTU), opt.Writer),
 	}
 
-	subnet := tcpip.AddressWithPrefix{Address: nat.portal, PrefixLen: 24}.Subnet()
+	subnet := tcpip.AddressWithPrefix{Address: nat.address, PrefixLen: opt.V4Address().Bits()}.Subnet()
 	broadcast := subnet.Broadcast()
+	if broadcast.Equal(nat.address) || broadcast.Equal(nat.protal) {
+		broadcast = tcpip.AddrFrom4([4]byte{255, 255, 255, 255})
+	}
 
 	go func() {
 		defer nat.Close()
 
-		buf := make([]byte, mtu)
+		buf := make([]byte, opt.MTU)
 
 		for {
-			n, err := device.Read(buf)
+			n, err := opt.Writer.Read(buf)
 			if err != nil {
 				return
 			}
@@ -153,7 +147,7 @@ func Start(device io.ReadWriter, tc tun.TunScheme, portal netip.Prefix, mtu int3
 
 			resetCheckSum(ip, tp, pseudoHeaderSum)
 
-			if _, err = device.Write(raw); err != nil {
+			if _, err = opt.Writer.Write(raw); err != nil {
 				log.Error("write tcp raw to tun device failed", "err", err)
 			}
 
@@ -202,30 +196,32 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 	sourcePort := t.SourcePort()
 	destinationPort := t.DestinationPort()
 
-	var portal, gateway tcpip.Address
+	var address, protal tcpip.Address
 
 	if _, ok := ip.(header.IPv4); ok {
-		portal = n.portal
-		gateway = n.gateway
+		address = n.address
+		protal = n.protal
 	} else {
-		portal = n.portalV6
-		gateway = n.gatewayV6
+		address = n.addressV6
+		protal = n.protalV6
 	}
 
-	if portal.Unspecified() || gateway.Unspecified() {
+	if address.Unspecified() || protal.Unspecified() {
 		return nil, 0, false
 	}
 
-	if src == portal && sourcePort == n.gatewayPort {
-		tup := n.tab.tupleOf(destinationPort)
-		if tup == zeroTuple {
-			return nil, 0, false
-		}
+	if dst.Equal(protal) {
+		if src == address && sourcePort == n.gatewayPort {
+			tup := n.tab.tupleOf(destinationPort)
+			if tup == zeroTuple {
+				return nil, 0, false
+			}
 
-		ip.SetDestinationAddress(tup.SourceAddr)
-		t.SetDestinationPort(tup.SourcePort)
-		ip.SetSourceAddress(tup.DestinationAddr)
-		t.SetSourcePort(tup.DestinationPort)
+			ip.SetDestinationAddress(tup.SourceAddr)
+			t.SetDestinationPort(tup.SourcePort)
+			ip.SetSourceAddress(tup.DestinationAddr)
+			t.SetSourcePort(tup.DestinationPort)
+		}
 	} else {
 		tup := Tuple{
 			SourceAddr:      src,
@@ -243,9 +239,9 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 			port = n.tab.newConn(tup)
 		}
 
-		ip.SetDestinationAddress(portal)
+		ip.SetDestinationAddress(address)
 		t.SetDestinationPort(n.gatewayPort)
-		ip.SetSourceAddress(gateway)
+		ip.SetSourceAddress(protal)
 		t.SetSourcePort(port)
 	}
 

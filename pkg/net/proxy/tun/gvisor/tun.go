@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
-	wun "golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -70,146 +69,111 @@ func (t *tunServer) Close() error {
 	return err
 }
 
-func parseOpt(ep stack.LinkEndpoint, o *listener.Inbound_Tun, sc TunScheme) (Opt, error) {
-	we, ok := ep.(*Endpoint)
-	if !ok {
-		return Opt{}, fmt.Errorf("invalid endpoint type")
-	}
-	dev, ok := we.Writer().(interface{ Device() wun.Device })
-	if !ok {
-		return Opt{}, fmt.Errorf("invalid device type")
-	}
-	portal, err := netip.ParsePrefix(o.Tun.Portal)
-	if err != nil {
-
-		addr, err := netip.ParseAddr(o.Tun.Portal)
-		if err != nil {
-			return Opt{}, fmt.Errorf("portal is invalid")
-		}
-
-		portal = netip.PrefixFrom(addr, 24)
-	}
-
-	return Opt{
-		Device: dev.Device(),
-		Scheme: sc,
-		Portal: portal,
-		Mtu:    o.Tun.Mtu,
-	}, nil
+type Opt struct {
+	*listener.Inbound_Tun
+	*netlink.Options
 }
 
-func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
-	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
-		opt := o.Tun
-		if opt.Mtu <= 0 {
-			opt.Mtu = 1500
-		}
-
-		if opt.Portal == "" {
-			return nil, fmt.Errorf("gateway is empty")
-		}
-
-		sc, err := ParseTunScheme(opt.Name)
-		if err != nil {
-			return nil, err
-		}
-
-		ep, err := Open(sc, opt.GetDriver(), int(opt.Mtu))
-		if err != nil {
-			return nil, fmt.Errorf("open tun failed: %w", err)
-		}
-
-		routeOpt, err := parseOpt(ep, o, sc)
-		if err == nil {
-			log.Debug("preload tun device", "name", sc.Name, "mtu", opt.Mtu, "portal", opt.Portal)
-			if err = Route(routeOpt); err != nil {
-				log.Warn("preload failed", "err", err)
-			}
-		}
-
-		log.Debug("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal)
-
-		stackOption := stack.Options{
-			NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
-			TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
-		}
-		// if o.IPv6 {
-		stackOption.NetworkProtocols = append(stackOption.NetworkProtocols, ipv6.NewProtocol)
-		stackOption.TransportProtocols = append(stackOption.TransportProtocols, icmp.NewProtocol6)
-		// }
-
-		s := stack.New(stackOption)
-
-		// Generate unique NIC id.
-		nicID := tcpip.NICID(s.UniqueID())
-		if er := s.CreateNIC(nicID, ep); er != nil {
-			ep.Attach(nil)
-			return nil, fmt.Errorf("create nic failed: %v", er)
-		}
-
-		ctx, cancel := context.WithCancel(context.TODO())
-		t := &tunServer{
-			mtu:        opt.Mtu,
-			nicID:      nicID,
-			stack:      s,
-			ep:         ep,
-			ctx:        ctx,
-			cancel:     cancel,
-			tcpChannel: make(chan *netapi.StreamMeta, 100),
-			udpChannel: make(chan *netapi.Packet, 100),
-		}
-
-		s.SetSpoofing(nicID, true)
-		s.SetPromiscuousMode(nicID, true)
-		s.SetRouteTable([]tcpip.Route{
-			{Destination: header.IPv4EmptySubnet, NIC: nicID},
-			{Destination: header.IPv6EmptySubnet, NIC: nicID},
-		})
-		ttlopt := tcpip.DefaultTTLOption(defaultTimeToLive)
-		s.SetNetworkProtocolOption(ipv4.ProtocolNumber, &ttlopt)
-		s.SetNetworkProtocolOption(ipv6.ProtocolNumber, &ttlopt)
-
-		s.SetForwardingDefaultAndAllNICs(ipv4.ProtocolNumber, ipForwardingEnabled)
-		s.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, ipForwardingEnabled)
-
-		s.SetICMPBurst(icmpBurst)
-		s.SetICMPLimit(icmpLimit)
-
-		rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
-			Min:     tcp.MinBufferSize,
-			Default: pool.DefaultSize,
-			Max:     tcp.MaxBufferSize,
-		}
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &rcvOpt)
-
-		sndOpt := tcpip.TCPSendBufferSizeRangeOption{
-			Min:     tcp.MinBufferSize,
-			Default: pool.DefaultSize,
-			Max:     tcp.MaxBufferSize,
-		}
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
-
-		opt2 := tcpip.CongestionControlOption(tcpCongestionControlAlgorithm)
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt2)
-
-		opt3 := tcpip.TCPDelayEnabled(tcpDelayEnabled)
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt3)
-
-		sOpt := tcpip.TCPSACKEnabled(tcpSACKEnabled)
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &sOpt)
-
-		mOpt := tcpip.TCPModerateReceiveBufferOption(tcpModerateReceiveBufferEnabled)
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &mOpt)
-
-		tr := tcpRecovery
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &tr)
-
-		s.SetTransportProtocolHandler(tcp.ProtocolNumber, t.tcpForwarder().HandlePacket)
-
-		s.SetTransportProtocolHandler(udp.ProtocolNumber, t.udpForwarder().HandlePacket)
-
-		return t, nil
+func New(o *Opt) (netapi.ProtocolServer, error) {
+	opt := o.Tun
+	if opt.Mtu <= 0 {
+		opt.Mtu = 1500
 	}
+
+	ep, err := Open(o.Interface, opt.GetDriver(), int(opt.Mtu))
+	if err != nil {
+		return nil, fmt.Errorf("open tun failed: %w", err)
+	}
+
+	o.Endpoint = ep
+
+	log.Debug("preload tun device", "name", o.Interface, "mtu", opt.Mtu, "portal", opt.Portal)
+	if err = netlink.Route(o.Options); err != nil {
+		log.Warn("preload failed", "err", err)
+	}
+
+	log.Debug("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal)
+
+	stackOption := stack.Options{
+		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
+		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
+	}
+	// if o.IPv6 {
+	stackOption.NetworkProtocols = append(stackOption.NetworkProtocols, ipv6.NewProtocol)
+	stackOption.TransportProtocols = append(stackOption.TransportProtocols, icmp.NewProtocol6)
+	// }
+
+	s := stack.New(stackOption)
+
+	// Generate unique NIC id.
+	nicID := tcpip.NICID(s.UniqueID())
+	if er := s.CreateNIC(nicID, ep); er != nil {
+		ep.Attach(nil)
+		return nil, fmt.Errorf("create nic failed: %v", er)
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	t := &tunServer{
+		mtu:        opt.Mtu,
+		nicID:      nicID,
+		stack:      s,
+		ep:         ep,
+		ctx:        ctx,
+		cancel:     cancel,
+		tcpChannel: make(chan *netapi.StreamMeta, 100),
+		udpChannel: make(chan *netapi.Packet, 100),
+	}
+
+	s.SetSpoofing(nicID, true)
+	s.SetPromiscuousMode(nicID, true)
+	s.SetRouteTable([]tcpip.Route{
+		{Destination: header.IPv4EmptySubnet, NIC: nicID},
+		{Destination: header.IPv6EmptySubnet, NIC: nicID},
+	})
+	ttlopt := tcpip.DefaultTTLOption(defaultTimeToLive)
+	s.SetNetworkProtocolOption(ipv4.ProtocolNumber, &ttlopt)
+	s.SetNetworkProtocolOption(ipv6.ProtocolNumber, &ttlopt)
+
+	s.SetForwardingDefaultAndAllNICs(ipv4.ProtocolNumber, ipForwardingEnabled)
+	s.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, ipForwardingEnabled)
+
+	s.SetICMPBurst(icmpBurst)
+	s.SetICMPLimit(icmpLimit)
+
+	rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
+		Min:     tcp.MinBufferSize,
+		Default: pool.DefaultSize,
+		Max:     tcp.MaxBufferSize,
+	}
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &rcvOpt)
+
+	sndOpt := tcpip.TCPSendBufferSizeRangeOption{
+		Min:     tcp.MinBufferSize,
+		Default: pool.DefaultSize,
+		Max:     tcp.MaxBufferSize,
+	}
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
+
+	opt2 := tcpip.CongestionControlOption(tcpCongestionControlAlgorithm)
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt2)
+
+	opt3 := tcpip.TCPDelayEnabled(tcpDelayEnabled)
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt3)
+
+	sOpt := tcpip.TCPSACKEnabled(tcpSACKEnabled)
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sOpt)
+
+	mOpt := tcpip.TCPModerateReceiveBufferOption(tcpModerateReceiveBufferEnabled)
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &mOpt)
+
+	tr := tcpRecovery
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tr)
+
+	s.SetTransportProtocolHandler(tcp.ProtocolNumber, t.tcpForwarder().HandlePacket)
+
+	s.SetTransportProtocolHandler(udp.ProtocolNumber, t.udpForwarder().HandlePacket)
+
+	return t, nil
 }
 
 const (

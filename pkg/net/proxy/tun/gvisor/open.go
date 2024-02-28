@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 var openFD func(fd, mtu int) (stack.LinkEndpoint, error)
 
-func Open(sc TunScheme, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
+func Open(sc netlink.TunScheme, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
 	if sc.Scheme == "fd" && driver == listener.Tun_fdbased && openFD != nil {
 		return openFD(sc.Fd, mtu)
 	}

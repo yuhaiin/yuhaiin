@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	wun "golang.zx2c4.com/wireguard/tun"
 )
 
@@ -11,7 +12,7 @@ const (
 	offset = 0
 )
 
-func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
 	var err error
 	var device wun.Device
 	switch sc.Scheme {

@@ -3,12 +3,16 @@ package nat
 import (
 	"net"
 	"time"
+
+	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 type TCP struct {
-	listener *net.TCPListener
-	portal   net.IP
-	table    *table
+	listener  *net.TCPListener
+	address   tcpip.Address
+	addressV6 tcpip.Address
+	portal    net.IP
+	table     *table
 }
 
 type Conn struct {
@@ -32,6 +36,15 @@ func (t *TCP) Accept() (net.Conn, error) {
 		return nil, net.InvalidAddrError("unknown remote addr")
 	}
 
+	if tup.DestinationAddr.Len() == 4 {
+		if tup.DestinationAddr.Equal(t.address) {
+			tup.DestinationAddr = tcpip.AddrFrom4([4]byte{127, 0, 0, 1})
+		}
+	} else {
+		if tup.DestinationAddr.Equal(t.addressV6) {
+			tup.DestinationAddr = tcpip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+		}
+	}
 	/*
 			sys, err := c.SyscallConn()
 			if err == nil {

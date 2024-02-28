@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/netip"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/nat"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -31,50 +29,35 @@ type Tun2socket struct {
 	udpChannel chan *netapi.Packet
 }
 
-func New(o *listener.Inbound_Tun) func(netapi.Listener) (netapi.ProtocolServer, error) {
-	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
-		portal, err := netip.ParsePrefix(o.Tun.Portal)
-		if err != nil {
-			addr, err := netip.ParseAddr(o.Tun.Portal)
-			if err != nil {
-				return nil, fmt.Errorf("gateway or portal is invalid")
-			}
-
-			portal = netip.PrefixFrom(addr, 24)
-		}
-
-		sc, err := tun.ParseTunScheme(o.Tun.Name)
-		if err != nil {
-			return nil, err
-		}
-
-		device, err := tun.OpenWriter(sc, int(o.Tun.Mtu))
-		if err != nil {
-			return nil, fmt.Errorf("open tun device failed: %w", err)
-		}
-
-		nat, err := nat.Start(device, sc, portal, o.Tun.Mtu)
-		if err != nil {
-			device.Close()
-			return nil, err
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		handler := &Tun2socket{
-			nat:        nat,
-			device:     device,
-			Mtu:        o.Tun.Mtu,
-			ctx:        ctx,
-			close:      cancel,
-			tcpChannel: make(chan *netapi.StreamMeta, 100),
-			udpChannel: make(chan *netapi.Packet, 100),
-		}
-
-		go handler.tcpLoop()
-		go handler.udpLoop()
-
-		return handler, nil
+func New(o *tun.Opt) (netapi.ProtocolServer, error) {
+	device, err := tun.OpenWriter(o.Interface, int(o.Tun.Mtu))
+	if err != nil {
+		return nil, fmt.Errorf("open tun device failed: %w", err)
 	}
+
+	o.Writer = device
+
+	nat, err := nat.Start(o)
+	if err != nil {
+		device.Close()
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	handler := &Tun2socket{
+		nat:        nat,
+		device:     device,
+		Mtu:        o.Tun.Mtu,
+		ctx:        ctx,
+		close:      cancel,
+		tcpChannel: make(chan *netapi.StreamMeta, 100),
+		udpChannel: make(chan *netapi.Packet, 100),
+	}
+
+	go handler.tcpLoop()
+	go handler.udpLoop()
+
+	return handler, nil
 }
 
 func (s *Tun2socket) AcceptStream() (*netapi.StreamMeta, error) {

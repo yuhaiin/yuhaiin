@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"golang.org/x/sys/unix"
 	wun "golang.zx2c4.com/wireguard/tun"
 )
@@ -16,7 +17,7 @@ const (
 	offset = 4
 )
 
-func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
 	if len(sc.Name) >= unix.IFNAMSIZ {
 		return nil, fmt.Errorf("interface name too long: %s", sc.Name)
 	}
