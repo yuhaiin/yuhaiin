@@ -6,6 +6,7 @@ import (
 	"io"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"golang.org/x/sys/windows"
 	wun "golang.zx2c4.com/wireguard/tun"
 )
@@ -18,7 +19,7 @@ func init() {
 	wun.WintunTunnelType = "yuhaiin"
 }
 
-func OpenWriter(sc TunScheme, mtu int) (io.ReadWriteCloser, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
 	if sc.Scheme != "tun" {
 		return nil, fmt.Errorf("invalid tun: %v", sc)
 	}

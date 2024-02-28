@@ -8,7 +8,7 @@ import (
 
 const (
 	portBegin  = 30000
-	portLength = 4096
+	portLength = 10240
 )
 
 var zeroTuple = Tuple{}

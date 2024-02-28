@@ -1,13 +1,38 @@
-package tun
+package netlink
 
 import (
 	"fmt"
+	"io"
 	"net/netip"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
-	wun "golang.zx2c4.com/wireguard/tun"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
+
+type Options struct {
+	Endpoint     stack.LinkEndpoint
+	Writer       io.ReadWriteCloser
+	Interface    TunScheme
+	Inet6Address []netip.Prefix
+	Inet4Address []netip.Prefix
+	Routes       []netip.Prefix
+	MTU          int
+}
+
+func (o *Options) V4Address() netip.Prefix {
+	if len(o.Inet4Address) > 0 {
+		return o.Inet4Address[0]
+	}
+	return netip.Prefix{}
+}
+
+func (o *Options) V6Address() netip.Prefix {
+	if len(o.Inet6Address) > 0 {
+		return o.Inet6Address[0]
+	}
+	return netip.Prefix{}
+}
 
 type TunScheme struct {
 	Fd     int
@@ -45,14 +70,3 @@ func ParseTunScheme(str string) (TunScheme, error) {
 		Fd:     fd,
 	}, nil
 }
-
-type Opt struct {
-	Device   wun.Device
-	Scheme   TunScheme
-	Portal   netip.Prefix
-	PortalV6 netip.Prefix
-
-	Mtu int32
-}
-
-var Route func(Opt) error = func(o Opt) error { return nil }
