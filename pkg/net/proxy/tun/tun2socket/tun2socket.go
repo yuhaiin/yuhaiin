@@ -22,11 +22,7 @@ type Tun2socket struct {
 	device io.Closer
 	nat    *nat.Nat
 
-	ctx   context.Context
-	close context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
-	udpChannel chan *netapi.Packet
+	*netapi.ChannelProtocolServer
 }
 
 func New(o *tun.Opt) (netapi.ProtocolServer, error) {
@@ -43,15 +39,11 @@ func New(o *tun.Opt) (netapi.ProtocolServer, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	handler := &Tun2socket{
-		nat:        nat,
-		device:     device,
-		Mtu:        o.Tun.Mtu,
-		ctx:        ctx,
-		close:      cancel,
-		tcpChannel: make(chan *netapi.StreamMeta, 100),
-		udpChannel: make(chan *netapi.Packet, 100),
+		nat:                   nat,
+		device:                device,
+		Mtu:                   o.Tun.Mtu,
+		ChannelProtocolServer: netapi.NewChannelProtocolServer(),
 	}
 
 	go handler.tcpLoop()
@@ -60,26 +52,8 @@ func New(o *tun.Opt) (netapi.ProtocolServer, error) {
 	return handler, nil
 }
 
-func (s *Tun2socket) AcceptStream() (*netapi.StreamMeta, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case meta := <-s.tcpChannel:
-		return meta, nil
-	}
-}
-
-func (s *Tun2socket) AcceptPacket() (*netapi.Packet, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case packet := <-s.udpChannel:
-		return packet, nil
-	}
-}
-
 func (h *Tun2socket) Close() error {
-	h.close()
+	h.ChannelProtocolServer.Close()
 	_ = h.nat.TCP.Close()
 	_ = h.nat.UDPv2.Close()
 	return h.device.Close()
@@ -133,16 +107,13 @@ func (h *Tun2socket) handleTCP(conn net.Conn) error {
 		return nil
 	}
 
-	select {
-	case <-h.ctx.Done():
-		return h.ctx.Err()
-	case h.tcpChannel <- &netapi.StreamMeta{
+	h.NewStream(&netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
 		Address:     netapi.ParseTCPAddress(rAddrPort),
-	}:
-	}
+	})
+
 	return nil
 }
 
@@ -158,10 +129,7 @@ func (h *Tun2socket) handleUDP() error {
 
 	buf.ResetSize(0, n)
 
-	select {
-	case <-h.ctx.Done():
-		return h.ctx.Err()
-	case h.udpChannel <- &netapi.Packet{
+	h.NewPacket(&netapi.Packet{
 		Src: &net.UDPAddr{
 			IP:   net.IP(tuple.SourceAddr.AsSlice()),
 			Port: int(tuple.SourcePort),
@@ -189,8 +157,6 @@ func (h *Tun2socket) handleUDP() error {
 				SourcePort:      tuple.SourcePort,
 			})
 		},
-	}:
-	}
-
+	})
 	return nil
 }

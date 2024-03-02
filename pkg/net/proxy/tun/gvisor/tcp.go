@@ -34,15 +34,13 @@ func (t *tunServer) tcpForwarder() *tcp.Forwarder {
 		addr := netapi.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
 		local := gonet.NewTCPConn(wq, ep)
 
-		select {
-		case <-t.ctx.Done():
-			return
-		case t.tcpChannel <- &netapi.StreamMeta{
+		if !t.NewStream(&netapi.StreamMeta{
 			Source:      local.RemoteAddr(),
 			Destination: addr,
 			Src:         local,
 			Address:     addr,
-		}:
+		}) {
+			return
 		}
 	})
 }

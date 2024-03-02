@@ -142,3 +142,63 @@ func (e *EmptyPacketListener) Stream(ctx context.Context) (net.Listener, error) 
 func (EmptyPacketListener) Packet(context.Context) (net.PacketConn, error) {
 	return nil, fmt.Errorf("not support")
 }
+
+type ChannelProtocolServer struct {
+	packetChan chan *Packet
+	streamChan chan *StreamMeta
+	ctx        context.Context
+	cancel     context.CancelFunc
+}
+
+func NewChannelProtocolServer() *ChannelProtocolServer {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &ChannelProtocolServer{
+		packetChan: make(chan *Packet, 100),
+		streamChan: make(chan *StreamMeta, 100),
+		ctx:        ctx,
+		cancel:     cancel,
+	}
+}
+
+func (s *ChannelProtocolServer) AcceptPacket() (*Packet, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case p := <-s.packetChan:
+		return p, nil
+	}
+}
+
+func (s *ChannelProtocolServer) AcceptStream() (*StreamMeta, error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case p := <-s.streamChan:
+		return p, nil
+	}
+}
+
+func (s *ChannelProtocolServer) Close() error {
+	s.cancel()
+	return nil
+}
+
+func (s *ChannelProtocolServer) NewPacket(packet *Packet) bool {
+	select {
+	case <-s.ctx.Done():
+		return false
+	case s.packetChan <- packet:
+		return true
+	}
+}
+
+func (s *ChannelProtocolServer) NewStream(stream *StreamMeta) bool {
+	select {
+	case <-s.ctx.Done():
+		return false
+	case s.streamChan <- stream:
+		return true
+	}
+}
+
+func (s *ChannelProtocolServer) Context() context.Context { return s.ctx }

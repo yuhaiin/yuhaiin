@@ -1,7 +1,6 @@
 package yuubinsya
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -19,17 +18,13 @@ type server struct {
 	Listener   netapi.Listener
 	handshaker crypto.Handshaker
 
-	ctx    context.Context
-	cancel context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
-	udpChannel chan *netapi.Packet
+	*netapi.ChannelProtocolServer
 
 	packetAuth Auth
 }
 
 func init() {
-	pl.RegisterProtocol2(NewServer)
+	pl.RegisterProtocol(NewServer)
 }
 
 func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.ProtocolServer, error) {
@@ -39,7 +34,6 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Proto
 			return nil, err
 		}
 
-		ctx, cancel := context.WithCancel(context.TODO())
 		s := &server{
 			Listener: ii,
 			handshaker: NewHandshaker(
@@ -47,11 +41,9 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Proto
 				!config.Yuubinsya.ForceDisableEncrypt,
 				[]byte(config.Yuubinsya.Password),
 			),
-			ctx:        ctx,
-			cancel:     cancel,
-			tcpChannel: make(chan *netapi.StreamMeta, 100),
-			udpChannel: make(chan *netapi.Packet, 100),
-			packetAuth: auth,
+
+			ChannelProtocolServer: netapi.NewChannelProtocolServer(),
+			packetAuth:            auth,
 		}
 
 		go log.IfErr("yuubinsya udp server", s.startUDP)
@@ -62,19 +54,19 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Proto
 }
 
 func (y *server) startUDP() error {
-	packet, err := y.Listener.Packet(y.ctx)
+	packet, err := y.Listener.Packet(y.Context())
 	if err != nil {
 		return err
 	}
 	defer packet.Close()
 
-	StartUDPServer(y.ctx, packet, y.udpChannel, y.packetAuth, true)
+	StartUDPServer(packet, y.NewPacket, y.packetAuth, true)
 
 	return nil
 }
 
 func (y *server) startTCP() (err error) {
-	lis, err := y.Listener.Stream(y.ctx)
+	lis, err := y.Listener.Stream(y.Context())
 	if err != nil {
 		return err
 	}
@@ -112,17 +104,16 @@ func (y *server) handle(conn net.Conn) error {
 
 		addr := target.Address(statistic.Type_tcp)
 
-		select {
-		case <-y.ctx.Done():
-			return y.ctx.Err()
-		case y.tcpChannel <- &netapi.StreamMeta{
+		if !y.NewStream(&netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
 			Destination: addr,
 			Inbound:     c.LocalAddr(),
 			Src:         c,
 			Address:     addr,
-		}:
+		}) {
+			return nil
 		}
+
 	case crypto.UDP:
 		return func() error {
 			packetConn := newPacketConn(c, y.handshaker, true)
@@ -135,16 +126,13 @@ func (y *server) handle(conn net.Conn) error {
 				if err != nil {
 					return err
 				}
-
-				select {
-				case <-y.ctx.Done():
-					return y.ctx.Err()
-				case y.udpChannel <- &netapi.Packet{
+				if !y.NewPacket(&netapi.Packet{
 					Src:       packetConn.RemoteAddr(),
 					Dst:       addr,
 					Payload:   buf,
 					WriteBack: packetConn.WriteTo,
-				}:
+				}) {
+					return nil
 				}
 			}
 		}()
@@ -158,21 +146,4 @@ func (y *server) Close() error {
 		return nil
 	}
 	return y.Listener.Close()
-}
-
-func (y *server) AcceptStream() (*netapi.StreamMeta, error) {
-	select {
-	case <-y.ctx.Done():
-		return nil, y.ctx.Err()
-	case meta := <-y.tcpChannel:
-		return meta, nil
-	}
-}
-func (y *server) AcceptPacket() (*netapi.Packet, error) {
-	select {
-	case <-y.ctx.Done():
-		return nil, y.ctx.Err()
-	case packet := <-y.udpChannel:
-		return packet, nil
-	}
 }

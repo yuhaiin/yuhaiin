@@ -24,24 +24,17 @@ type Server struct {
 	inbound            net.Addr
 	reverseProxy       *httputil.ReverseProxy
 
-	ctx   context.Context
-	close context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
+	*netapi.ChannelProtocolServer
 
 	lis net.Listener
 }
 
 func newServer(o *listener.Inbound_Http, inbound net.Addr) *Server {
-	ctx, cancel := context.WithCancel(context.TODO())
-
 	h := &Server{
-		username:   o.Http.Username,
-		password:   o.Http.Password,
-		inbound:    inbound,
-		ctx:        ctx,
-		close:      cancel,
-		tcpChannel: make(chan *netapi.StreamMeta, 100),
+		username:              o.Http.Username,
+		password:              o.Http.Password,
+		inbound:               inbound,
+		ChannelProtocolServer: netapi.NewChannelProtocolServer(),
 	}
 
 	type remoteKey struct{}
@@ -66,16 +59,14 @@ func newServer(o *listener.Inbound_Http, inbound net.Addr) *Server {
 
 			local, remote := net.Pipe()
 
-			select {
-			case <-h.ctx.Done():
-				return nil, h.ctx.Err()
-			case h.tcpChannel <- &netapi.StreamMeta{
+			if !h.NewStream(&netapi.StreamMeta{
 				Source:      source,
 				Inbound:     h.inbound,
 				Destination: address,
 				Src:         local,
 				Address:     address,
-			}:
+			}) {
+				return nil, io.EOF
 			}
 
 			return remote, nil
@@ -159,17 +150,16 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 		source = netapi.ParseAddressPort(statistic.Type_tcp, req.RemoteAddr, netapi.EmptyPort)
 	}
 
-	select {
-	case <-h.ctx.Done():
-		return h.ctx.Err()
-	case h.tcpChannel <- &netapi.StreamMeta{
-		Inbound:     h.inbound,
+	if !h.NewStream(&netapi.StreamMeta{
 		Source:      source,
-		Src:         client,
+		Inbound:     h.inbound,
 		Destination: dst,
+		Src:         client,
 		Address:     dst,
-	}:
+	}) {
+		return io.EOF
 	}
+
 	return nil
 }
 
@@ -177,17 +167,8 @@ func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 	return nil, io.EOF
 }
 
-func (s *Server) AcceptStream() (*netapi.StreamMeta, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case meta := <-s.tcpChannel:
-		return meta, nil
-	}
-}
-
 func (s *Server) Close() error {
-	s.close()
+	s.ChannelProtocolServer.Close()
 	if s.lis != nil {
 		return s.lis.Close()
 	}
@@ -196,7 +177,7 @@ func (s *Server) Close() error {
 }
 
 func init() {
-	listener.RegisterProtocol2(NewServer)
+	listener.RegisterProtocol(NewServer)
 }
 
 func NewServer(o *listener.Inbound_Http) func(netapi.Listener) (netapi.ProtocolServer, error) {

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -19,21 +18,21 @@ import (
 )
 
 func (s *Socks5) startUDPServer() error {
-	packet, err := s.lis.Packet(s.ctx)
+	packet, err := s.lis.Packet(s.Context())
 	if err != nil {
 		return err
 	}
 
 	go func() {
 		defer packet.Close()
-		yuubinsya.StartUDPServer(s.ctx, packet, s.udpChannel, nil, true)
+		yuubinsya.StartUDPServer(packet, s.NewPacket, nil, true)
 	}()
 
 	return nil
 }
 
 func (s *Socks5) startTCPServer() error {
-	lis, err := s.lis.Stream(s.ctx)
+	lis, err := s.lis.Stream(s.Context())
 	if err != nil {
 		return err
 	}
@@ -206,17 +205,13 @@ func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
 			return err
 		}
 
-		select {
-		case <-s.ctx.Done():
-			return s.ctx.Err()
-		case s.tcpChannel <- &netapi.StreamMeta{
+		s.NewStream(&netapi.StreamMeta{
 			Source:      client.RemoteAddr(),
 			Destination: addr,
 			Inbound:     client.LocalAddr(),
 			Src:         client,
 			Address:     addr,
-		}:
-		}
+		})
 
 	case tools.Udp: // udp
 		if s.udp {
@@ -268,52 +263,26 @@ type Socks5 struct {
 	username string
 	password string
 
-	ctx   context.Context
-	close context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
-	udpChannel chan *netapi.Packet
+	*netapi.ChannelProtocolServer
 }
 
 func (s *Socks5) Close() error {
-	s.close()
+	s.ChannelProtocolServer.Close()
 	return s.lis.Close()
 }
 
-func (s *Socks5) AcceptStream() (*netapi.StreamMeta, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case meta := <-s.tcpChannel:
-		return meta, nil
-	}
-}
-
-func (s *Socks5) AcceptPacket() (*netapi.Packet, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case packet := <-s.udpChannel:
-		return packet, nil
-	}
-}
-
 func init() {
-	listener.RegisterProtocol2(NewServer)
+	listener.RegisterProtocol(NewServer)
 }
 
 func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener) (netapi.ProtocolServer, error) {
 	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
-		ctx, cancel := context.WithCancel(context.TODO())
 		s := &Socks5{
-			udp:        o.Socks5.Udp,
-			username:   o.Socks5.Username,
-			password:   o.Socks5.Password,
-			lis:        ii,
-			ctx:        ctx,
-			close:      cancel,
-			tcpChannel: make(chan *netapi.StreamMeta, 100),
-			udpChannel: make(chan *netapi.Packet, 100),
+			udp:                   o.Socks5.Udp,
+			username:              o.Socks5.Username,
+			password:              o.Socks5.Password,
+			lis:                   ii,
+			ChannelProtocolServer: netapi.NewChannelProtocolServer(),
 		}
 
 		if s.udp {

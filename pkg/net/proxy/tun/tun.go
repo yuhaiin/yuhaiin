@@ -1,6 +1,7 @@
 package tun
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 
@@ -12,14 +13,15 @@ import (
 )
 
 func init() {
-	listener.RegisterProtocol2(NewTun)
+	listener.RegisterProtocol(NewTun)
 }
 
 func NewTun(o *listener.Inbound_Tun) func(netapi.Listener) (s netapi.ProtocolServer, err error) {
 	return func(l netapi.Listener) (s netapi.ProtocolServer, err error) {
 		v4address, v4err := toPrefix(o.Tun.Portal)
-		if v4err != nil {
-			return nil, v4err
+		v6address, v6err := toPrefix(o.Tun.PortalV6)
+		if v4err != nil && v6err != nil {
+			return nil, errors.Join(v4err, v6err)
 		}
 
 		sc, err := netlink.ParseTunScheme(o.Tun.Name)
@@ -30,12 +32,20 @@ func NewTun(o *listener.Inbound_Tun) func(netapi.Listener) (s netapi.ProtocolSer
 		opt := &tun.Opt{
 			Inbound_Tun: o,
 			Options: &netlink.Options{
-				Interface:    sc,
-				MTU:          int(o.Tun.Mtu),
-				Inet4Address: []netip.Prefix{v4address},
-				Routes:       toRoutes(o.Tun.Route),
+				Interface: sc,
+				MTU:       int(o.Tun.Mtu),
+				Routes:    toRoutes(o.Tun.Route),
 			},
 		}
+
+		if v4address.IsValid() {
+			opt.Inet4Address = []netip.Prefix{v4address}
+		}
+
+		if v6address.IsValid() {
+			opt.Inet6Address = []netip.Prefix{v6address}
+		}
+
 		if o.Tun.Driver == listener.Tun_system_gvisor {
 			return tun2socket.New(opt)
 		} else {

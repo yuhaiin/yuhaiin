@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"io"
 	"net"
 
@@ -11,25 +10,13 @@ import (
 )
 
 type redir struct {
-	lis    net.Listener
-	ctx    context.Context
-	cancel context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
+	lis net.Listener
+	*netapi.ChannelProtocolServer
 }
 
 func (r *redir) Close() error {
-	r.cancel()
+	r.ChannelProtocolServer.Close()
 	return r.lis.Close()
-}
-
-func (r *redir) AcceptStream() (*netapi.StreamMeta, error) {
-	select {
-	case <-r.ctx.Done():
-		return nil, r.ctx.Err()
-	case meta := <-r.tcpChannel:
-		return meta, nil
-	}
 }
 
 func (r *redir) AcceptPacket() (*netapi.Packet, error) {
@@ -38,19 +25,16 @@ func (r *redir) AcceptPacket() (*netapi.Packet, error) {
 
 func NewServer(o *listener.Inbound_Redir) func(netapi.Listener) (netapi.ProtocolServer, error) {
 	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		lis, err := ii.Stream(ctx)
+		channel := netapi.NewChannelProtocolServer()
+		lis, err := ii.Stream(channel.Context())
 		if err != nil {
-			cancel()
+			channel.Close()
 			return nil, err
 		}
 
 		t := &redir{
-			lis:        lis,
-			ctx:        ctx,
-			cancel:     cancel,
-			tcpChannel: make(chan *netapi.StreamMeta, 100),
+			lis:                   lis,
+			ChannelProtocolServer: channel,
 		}
 
 		go func() {

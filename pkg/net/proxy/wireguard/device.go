@@ -51,11 +51,13 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // TCP SACK is disabled by default
 	tcpipErr := dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabledOpt)
 	if tcpipErr != nil {
+		dev.Close()
 		return nil, nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
 	}
 
 	tcpipErr = dev.stack.CreateNIC(1, dev.ep)
 	if tcpipErr != nil {
+		dev.Close()
 		return nil, nil, fmt.Errorf("CreateNIC: %v", tcpipErr)
 	}
 
@@ -77,6 +79,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 
 		tcpipErr := dev.stack.AddProtocolAddress(1, protoAddr, stack.AddressProperties{})
 		if tcpipErr != nil {
+			dev.Close()
 			return nil, nil, fmt.Errorf("AddProtocolAddress(%v): %v", ip, tcpipErr)
 		}
 		if ip.Addr().Is4() {
@@ -95,6 +98,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 
 	opt := tcpip.CongestionControlOption("cubic")
 	if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
+		dev.Close()
 		return nil, nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
 	}
 
@@ -168,14 +172,12 @@ func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
 func (tun *netTun) Flush() error { return nil }
 
 func (tun *netTun) Close() error {
-	tun.stack.RemoveNIC(1)
+	tun.stack.Destroy()
 
 	if tun.events != nil {
 		close(tun.events)
 	}
-
 	tun.ep.Close()
-
 	return nil
 }
 

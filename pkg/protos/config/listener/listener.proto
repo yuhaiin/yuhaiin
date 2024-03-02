@@ -132,6 +132,7 @@ message tun {
   }
   endpoint_driver driver = 7 [ json_name = "driver" ];
   string portal = 8 [ json_name = "portal" ];
+  string portal_v6 = 11 [ json_name = "portal_v6" ];
   route route = 10 [ json_name = "route" ];
 }
 

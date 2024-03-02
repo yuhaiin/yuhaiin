@@ -60,7 +60,7 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 	}
 	defer resp.Body.Close()
 
-	f, err := os.OpenFile(st.Bypass.BypassFile, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	f, err := os.OpenFile(st.Bypass.BypassFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}

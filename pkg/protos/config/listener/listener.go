@@ -19,7 +19,8 @@ import (
 
 var execProtocol syncmap.SyncMap[reflect.Type, func(isProtocol_Protocol) (netapi.ProtocolServer, error)]
 
-func RegisterProtocol[T isProtocol_Protocol](wrap func(T) (netapi.ProtocolServer, error)) {
+// Deprecated: RegisterProtocolDeprecated
+func RegisterProtocolDeprecated[T isProtocol_Protocol](wrap func(T) (netapi.ProtocolServer, error)) {
 	if wrap == nil {
 		return
 	}
@@ -233,7 +234,7 @@ func ErrorTransportFunc(err error) func(netapi.Listener) (netapi.Listener, error
 
 var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(netapi.Listener) (netapi.ProtocolServer, error)]
 
-func RegisterProtocol2[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (netapi.ProtocolServer, error)) {
+func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (netapi.ProtocolServer, error)) {
 	if wrap == nil {
 		return
 	}

@@ -81,7 +81,7 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 
 				n, err := e.dev.Read(buf)
 				if err != nil {
-					break
+					return
 				}
 
 				if n == 0 {
@@ -152,7 +152,7 @@ func (e *Endpoint) Wait() { e.wg.Wait() }
 func (*Endpoint) ARPHardwareType() header.ARPHardwareType { return header.ARPHardwareNone }
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
-func (*Endpoint) AddHeader(stack.PacketBufferPtr) {}
+func (*Endpoint) AddHeader(*stack.PacketBuffer) {}
 
 // ParseHeader implements stack.LinkEndpoint.ParseHeader.
-func (*Endpoint) ParseHeader(stack.PacketBufferPtr) bool { return true }
+func (*Endpoint) ParseHeader(*stack.PacketBuffer) bool { return true }

@@ -69,8 +69,8 @@ type DNS struct {
 type TUN struct {
 	FD           int32  `json:"fd"`
 	MTU          int32  `json:"mtu"`
-	Gateway      string `json:"gateway"`
 	Portal       string `json:"portal"`
+	PortalV6     string `json:"portal_v6"`
 	DNSHijacking bool   `json:"dns_hijacking"`
 	// Driver
 	// 0: fdbased

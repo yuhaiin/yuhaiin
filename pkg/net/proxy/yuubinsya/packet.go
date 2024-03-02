@@ -2,7 +2,6 @@ package yuubinsya
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"errors"
@@ -186,7 +185,7 @@ func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, err
 	return r[n+len(addr):], addr.Address(statistic.Type_udp), nil
 }
 
-func StartUDPServer(ctx context.Context, packet net.PacketConn, channel chan *netapi.Packet, auth Auth, prefix bool) {
+func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) bool, auth Auth, prefix bool) {
 	p := NewAuthPacketConn(packet, nil, nil, auth, prefix)
 	for {
 		buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
@@ -204,15 +203,13 @@ func StartUDPServer(ctx context.Context, packet net.PacketConn, channel chan *ne
 
 		buf.ResetSize(0, n)
 
-		select {
-		case <-ctx.Done():
-			return
-		case channel <- &netapi.Packet{
+		if !sendPacket(&netapi.Packet{
 			Src:       src,
 			Dst:       dst,
 			Payload:   buf,
 			WriteBack: func(b []byte, source net.Addr) (int, error) { return p.writeTo(b, source, src) },
-		}:
+		}) {
+			break
 		}
 	}
 }

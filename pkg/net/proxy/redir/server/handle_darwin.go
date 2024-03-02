@@ -12,15 +12,14 @@ func (r *redir) handle(req net.Conn) error {
 	if err != nil {
 		return err
 	}
-	select {
-	case <-r.ctx.Done():
-	case r.tcpChannel <- &netapi.StreamMeta{
+
+	r.NewStream(&netapi.StreamMeta{
 		Inbound:     r.lis.Addr(),
 		Source:      req.RemoteAddr(),
 		Destination: target,
 		Src:         req,
 		Address:     netapi.ParseTCPAddress(target),
-	}:
-	}
+	})
+
 	return nil
 }
