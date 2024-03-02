@@ -36,10 +36,10 @@ type Nat struct {
 	*UDPv2
 
 	address     tcpip.Address
-	protal      tcpip.Address
-	gatewayPort uint16
+	portal      tcpip.Address
 	addressV6   tcpip.Address
-	protalV6    tcpip.Address
+	portalV6    tcpip.Address
+	gatewayPort uint16
 	mtu         int32
 
 	tab *table
@@ -66,7 +66,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 
 	nat := &Nat{
 		address:     tcpip.AddrFromSlice(opt.V4Address().Addr().AsSlice()),
-		protal:      tcpip.AddrFromSlice(opt.V4Address().Addr().Next().AsSlice()),
+		portal:      tcpip.AddrFromSlice(opt.V4Address().Addr().Next().AsSlice()),
 		gatewayPort: uint16(listener.Addr().(*net.TCPAddr).Port),
 		mtu:         int32(opt.MTU),
 		tab:         tab,
@@ -80,7 +80,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 
 	subnet := tcpip.AddressWithPrefix{Address: nat.address, PrefixLen: opt.V4Address().Bits()}.Subnet()
 	broadcast := subnet.Broadcast()
-	if broadcast.Equal(nat.address) || broadcast.Equal(nat.protal) {
+	if broadcast.Equal(nat.address) || broadcast.Equal(nat.portal) {
 		broadcast = tcpip.AddrFrom4([4]byte{255, 255, 255, 255})
 	}
 
@@ -196,21 +196,21 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 	sourcePort := t.SourcePort()
 	destinationPort := t.DestinationPort()
 
-	var address, protal tcpip.Address
+	var address, portal tcpip.Address
 
 	if _, ok := ip.(header.IPv4); ok {
 		address = n.address
-		protal = n.protal
+		portal = n.portal
 	} else {
 		address = n.addressV6
-		protal = n.protalV6
+		portal = n.portalV6
 	}
 
-	if address.Unspecified() || protal.Unspecified() {
+	if address.Unspecified() || portal.Unspecified() {
 		return nil, 0, false
 	}
 
-	if dst.Equal(protal) {
+	if dst.Equal(portal) {
 		if src == address && sourcePort == n.gatewayPort {
 			tup := n.tab.tupleOf(destinationPort)
 			if tup == zeroTuple {
@@ -241,7 +241,7 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 
 		ip.SetDestinationAddress(address)
 		t.SetDestinationPort(n.gatewayPort)
-		ip.SetSourceAddress(protal)
+		ip.SetSourceAddress(portal)
 		t.SetSourcePort(port)
 	}
 

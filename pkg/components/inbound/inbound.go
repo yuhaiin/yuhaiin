@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	pl.RegisterProtocol(func(o *pl.Protocol_Http) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Http) (netapi.ProtocolServer, error) {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
@@ -29,7 +29,7 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocol(func(o *pl.Protocol_Mix) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Mix) (netapi.ProtocolServer, error) {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
@@ -41,7 +41,7 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocol(func(o *pl.Protocol_Socks4A) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Socks4A) (netapi.ProtocolServer, error) {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
@@ -54,7 +54,7 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocol(func(o *pl.Protocol_Socks5) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Socks5) (netapi.ProtocolServer, error) {
 		o.Socks5.Udp = true
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
@@ -67,10 +67,10 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocol(func(o *pl.Protocol_Tun) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Tun) (netapi.ProtocolServer, error) {
 		return tun.NewTun(&pl.Inbound_Tun{Tun: o.Tun})(nil)
 	})
-	pl.RegisterProtocol(func(o *pl.Protocol_Yuubinsya) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Yuubinsya) (netapi.ProtocolServer, error) {
 		inbound := &pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{

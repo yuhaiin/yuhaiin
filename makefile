@@ -64,8 +64,8 @@ yuhaiin_linux_lite:
 
 .PHONY: yuhaiin_windows
 yuhaiin_windows:
-	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page"  -o yuhaiin_windows_amd64.exe $(YUHAIIN)
-	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o yuhaiin_windows_amd64v3.exe $(YUHAIIN)
+	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page,debug"  -o yuhaiin_windows_amd64.exe $(YUHAIIN)
+	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page,debug" -o yuhaiin_windows_amd64v3.exe $(YUHAIIN)
 
 .PHONY: yuhaiin_darwin
 yuhaiin_darwin:

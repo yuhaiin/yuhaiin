@@ -92,11 +92,7 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, err
 
 func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
-		log.Debug("close conn",
-			"id", z.ID(),
-			"addr", z.Info().Addr,
-			"src", z.Info().Extra[(netapi.SourceKey{}).String()],
-			"outbound", getRemote(z))
+		log.Debug("close conn", "id", z.ID())
 	}
 
 	c.notify.pubRemoveConns(id)
@@ -108,6 +104,7 @@ func (c *Connections) storeConnection(o connection) {
 	log.Debug("new conn",
 		"id", o.ID(),
 		"addr", o.Info().Addr,
+		"src", o.Info().Extra[(netapi.SourceKey{}).String()],
 		"network", o.Info().Type.ConnType,
 		"outbound", o.Info().Extra["Outbound"],
 	)
@@ -214,7 +211,6 @@ func (c *Connections) DumpProcess(ctx context.Context, addr netapi.Address) (s s
 
 	process, err := c.processDumper.ProcessName(addr.Network(), sourceAddr, dstAddr)
 	if err != nil {
-		// log.Warn("dump process failed", "err", err)
 		return
 	}
 

@@ -27,10 +27,7 @@ type Server struct {
 	lis        net.Listener
 	usernameID string
 
-	ctx   context.Context
-	close context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
+	*netapi.ChannelProtocolServer
 }
 
 func (s *Server) Handle(conn net.Conn) error {
@@ -40,17 +37,13 @@ func (s *Server) Handle(conn net.Conn) error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	select {
-	case <-s.ctx.Done():
-		return s.ctx.Err()
-	case s.tcpChannel <- &netapi.StreamMeta{
+	s.NewStream(&netapi.StreamMeta{
 		Source:      conn.RemoteAddr(),
 		Destination: addr,
 		Inbound:     conn.LocalAddr(),
 		Src:         conn,
 		Address:     addr,
-	}:
-	}
+	})
 
 	return nil
 }
@@ -122,7 +115,7 @@ func readData(conn net.Conn) ([]byte, error) {
 }
 
 func (s *Server) Close() error {
-	s.close()
+	s.ChannelProtocolServer.Close()
 
 	if s.lis != nil {
 		return s.lis.Close()
@@ -161,17 +154,8 @@ func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 	return nil, io.EOF
 }
 
-func (s *Server) AcceptStream() (*netapi.StreamMeta, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case meta := <-s.tcpChannel:
-		return meta, nil
-	}
-}
-
 func init() {
-	listener.RegisterProtocol2(NewServer)
+	listener.RegisterProtocol(NewServer)
 }
 
 func NewServer(o *listener.Inbound_Socks4A) func(netapi.Listener) (netapi.ProtocolServer, error) {
@@ -181,13 +165,10 @@ func NewServer(o *listener.Inbound_Socks4A) func(netapi.Listener) (netapi.Protoc
 			return nil, err
 		}
 
-		ctx, cancel := context.WithCancel(context.TODO())
 		s := &Server{
-			usernameID: o.Socks4A.Username,
-			lis:        lis,
-			ctx:        ctx,
-			close:      cancel,
-			tcpChannel: make(chan *netapi.StreamMeta, 100),
+			usernameID:            o.Socks4A.Username,
+			lis:                   lis,
+			ChannelProtocolServer: netapi.NewChannelProtocolServer(),
 		}
 
 		go s.Server()

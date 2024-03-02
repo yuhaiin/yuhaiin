@@ -25,7 +25,7 @@ type notify struct {
 func newNotify() *notify {
 	ctx, cancel := context.WithCancel(context.Background())
 	n := &notify{
-		channel: make(chan *gs.NotifyData, 1024),
+		channel: make(chan *gs.NotifyData, 100),
 		closed:  ctx,
 		close:   cancel,
 	}
@@ -38,7 +38,7 @@ func newNotify() *notify {
 func (n *notify) register(s gs.Connections_NotifyServer, conns ...connection) uint64 {
 	id := n.notifierIDSeed.Generate()
 	n.notifier.Store(id, s)
-	s.Send(&gs.NotifyData{
+	_ = s.Send(&gs.NotifyData{
 		Data: &gs.NotifyData_NotifyNewConnections{
 			NotifyNewConnections: &gs.NotifyNewConnections{
 				Connections: slice.To(conns, func(c connection) *statistic.Connection { return c.Info() }),
@@ -58,7 +58,7 @@ func (n *notify) start() {
 			return
 		case d := <-n.channel:
 			n.notifier.Range(func(key uint64, value gs.Connections_NotifyServer) bool {
-				value.Send(d)
+				_ = value.Send(d)
 				return true
 			})
 		}

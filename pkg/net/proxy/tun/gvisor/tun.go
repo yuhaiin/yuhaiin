@@ -1,7 +1,6 @@
 package tun
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -27,29 +26,7 @@ type tunServer struct {
 	stack *stack.Stack
 	ep    stack.LinkEndpoint
 
-	ctx    context.Context
-	cancel context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
-	udpChannel chan *netapi.Packet
-}
-
-func (s *tunServer) AcceptStream() (*netapi.StreamMeta, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case meta := <-s.tcpChannel:
-		return meta, nil
-	}
-}
-
-func (s *tunServer) AcceptPacket() (*netapi.Packet, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case packet := <-s.udpChannel:
-		return packet, nil
-	}
+	*netapi.ChannelProtocolServer
 }
 
 func (t *tunServer) Close() error {
@@ -65,7 +42,7 @@ func (t *tunServer) Close() error {
 		})
 		t.stack.Destroy()
 	}
-	t.cancel()
+	t.ChannelProtocolServer.Close()
 	return err
 }
 
@@ -112,16 +89,12 @@ func New(o *Opt) (netapi.ProtocolServer, error) {
 		return nil, fmt.Errorf("create nic failed: %v", er)
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO())
 	t := &tunServer{
-		mtu:        opt.Mtu,
-		nicID:      nicID,
-		stack:      s,
-		ep:         ep,
-		ctx:        ctx,
-		cancel:     cancel,
-		tcpChannel: make(chan *netapi.StreamMeta, 100),
-		udpChannel: make(chan *netapi.Packet, 100),
+		mtu:                   opt.Mtu,
+		nicID:                 nicID,
+		stack:                 s,
+		ep:                    ep,
+		ChannelProtocolServer: netapi.NewChannelProtocolServer(),
 	}
 
 	s.SetSpoofing(nicID, true)
