@@ -122,7 +122,7 @@ message tun {
   string name = 1 [ json_name = "name" ];
   int32 mtu = 2 [ json_name = "mtu" ];
   string gateway = 3 [ json_name = "gateway", deprecated = true ];
-  bool dns_hijacking = 4 [ json_name = "dns_hijacking" ];
+  bool dns_hijacking = 4 [ json_name = "dns_hijacking", deprecated = true ];
   bool force_fakeip = 9 [ json_name = "force_fakeip" ];
   bool skip_multicast = 6 [ json_name = "skip_multicast" ];
   enum endpoint_driver {

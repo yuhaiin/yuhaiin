@@ -54,6 +54,8 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		},
 		SystemProxy: &pc.SystemProxy{},
 		Server: &listener.InboundConfig{
+			HijackDns:       opt.TUN.DNSHijacking,
+			HijackDnsFakeip: opt.DNS.Fakedns,
 			Servers: map[string]*listener.Protocol{
 				"mix": {
 					Name:    "mix",
@@ -73,7 +75,6 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 							Mtu:           opt.TUN.MTU,
 							Portal:        opt.TUN.Portal,
 							PortalV6:      opt.TUN.PortalV6,
-							DnsHijacking:  opt.TUN.DNSHijacking,
 							SkipMulticast: true,
 							Route:         &listener.Route{},
 							Driver:        listener.TunEndpointDriver(opt.TUN.Driver),

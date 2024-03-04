@@ -118,7 +118,6 @@ func defaultSetting(path string) *config.Setting {
 							Name:          "tun://tun0",
 							Mtu:           9000,
 							Portal:        "172.19.0.1/24",
-							DnsHijacking:  true,
 							SkipMulticast: true,
 						},
 					},
