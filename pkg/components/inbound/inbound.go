@@ -262,9 +262,8 @@ func (l *listener) udp() {
 }
 
 func (l *listener) Update(current *pc.Setting) {
-	// TODO
-	// l.hijackDNS = current.Server.HijackDns
-	// l.fakeip = current.Server.HijackDnsFakeip
+	l.hijackDNS = current.Server.HijackDns
+	l.fakeip = current.Server.HijackDnsFakeip
 
 	l.store.Range(func(key string, v store) bool {
 		var close bool = true
