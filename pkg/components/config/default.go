@@ -72,7 +72,10 @@ func defaultSetting(path string) *config.Setting {
 			Level: pl.LogLevel_debug,
 			Save:  true,
 		},
+
 		Server: &listener.InboundConfig{
+			HijackDns:       true,
+			HijackDnsFakeip: true,
 			Servers: map[string]*listener.Protocol{
 				"mixed": {
 					Name:    "mixed",

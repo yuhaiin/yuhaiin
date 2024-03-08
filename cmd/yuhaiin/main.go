@@ -26,7 +26,7 @@ var newGrpcServer = func() *grpc.Server { return nil }
 
 func main() {
 	ver := flag.Bool("v", false, "show version")
-	host := flag.String("host", "127.0.0.1:50051", "gRPC and http listen host")
+	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
 	savepath := flag.String("path", pc.DefaultConfigDir(), "save data path")
 	externalweb := flag.String("eweb", "", "external web page")
 	flag.Parse()
