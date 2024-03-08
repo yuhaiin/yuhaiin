@@ -74,3 +74,29 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 
 	return &emptypb.Empty{}, err
 }
+
+func (t *Tools) GetInterface(context.Context, *emptypb.Empty) (*tools.Interfaces, error) {
+	is := &tools.Interfaces{}
+	iis, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	for _, i := range iis {
+		if i.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		iif := &tools.Interface{
+			Name: i.Name,
+		}
+
+		addresses, err := i.Addrs()
+		if err == nil {
+			for _, a := range addresses {
+				iif.Addresses = append(iif.Addresses, a.String())
+			}
+		}
+		is.Interfaces = append(is.Interfaces, iif)
+	}
+
+	return is, nil
+}

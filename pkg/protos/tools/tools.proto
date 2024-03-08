@@ -11,4 +11,15 @@ service tools {
   // req: url
   rpc save_remote_bypass_file(google.protobuf.StringValue)
       returns (google.protobuf.Empty);
+
+  rpc get_interface(google.protobuf.Empty) returns (Interfaces);
+}
+
+message Interfaces {
+  repeated Interface interfaces = 1 [ json_name = "interfaces" ];
+}
+
+message Interface {
+  string name = 1 [ json_name = "name" ];
+  repeated string addresses = 2 [ json_name = "addresses" ];
 }

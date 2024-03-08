@@ -48,7 +48,8 @@ func (o *HttpServerOption) Routers() Handler {
 				w.Header().Set("Core-OS", runtime.GOOS)
 				return GrpcToHttp(o.Config.Load)(w, r)
 			},
-			"/node/now": GrpcToHttp(o.NodeServer.Now),
+			"/interfaces": GrpcToHttp(o.Tools.GetInterface),
+			"/node/now":   GrpcToHttp(o.NodeServer.Now),
 		},
 		http.MethodPost: {
 			"/config":  GrpcToHttp(o.Config.Save),
