@@ -35,26 +35,34 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) e
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
 	uaddr, ok := t.udpAddrCache.Load(key)
 	if !ok {
-		realAddr, err := u.dialer.Dispatch(ctx, pkt.Dst)
-		if err != nil {
-			return fmt.Errorf("dispatch addr failed: %w", err)
-		}
-
-		ur := realAddr.UDPAddr(ctx)
-		if ur.Err != nil {
-			return ur.Err
-		}
-
-		uaddr = ur.V
-
-		t.udpAddrCache.LoadOrStore(key, uaddr)
-
-		if !pkt.Dst.IsFqdn() {
-			// map fakeip/hosts
-			if uaddrPort := uaddr.AddrPort(); uaddrPort.Compare(pkt.Dst.AddrPort(ctx).V) != 0 {
-				// TODO: maybe two dst(fake ip) have same uaddr, need help
-				t.originAddrStore.LoadOrStore(uaddrPort, pkt.Dst)
+		var err error
+		uaddr, err, _ = t.sf.Do(key, func() (*net.UDPAddr, error) {
+			realAddr, err := u.dialer.Dispatch(ctx, pkt.Dst)
+			if err != nil {
+				return nil, fmt.Errorf("dispatch addr failed: %w", err)
 			}
+
+			ur := realAddr.UDPAddr(ctx)
+			if ur.Err != nil {
+				return nil, ur.Err
+			}
+
+			uaddr = ur.V
+
+			t.udpAddrCache.LoadOrStore(key, uaddr)
+
+			if !pkt.Dst.IsFqdn() {
+				// map fakeip/hosts
+				if uaddrPort := uaddr.AddrPort(); uaddrPort.Compare(pkt.Dst.AddrPort(ctx).V) != 0 {
+					// TODO: maybe two dst(fake ip) have same uaddr, need help
+					t.originAddrStore.LoadOrStore(uaddrPort, pkt.Dst)
+				}
+			}
+
+			return uaddr, nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 
@@ -158,4 +166,6 @@ type SourceTable struct {
 	dstPacketConn   net.PacketConn
 	originAddrStore syncmap.SyncMap[netip.AddrPort, netapi.Address]
 	udpAddrCache    syncmap.SyncMap[string, *net.UDPAddr]
+
+	sf singleflight.Group[string, *net.UDPAddr]
 }

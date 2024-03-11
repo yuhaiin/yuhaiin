@@ -103,6 +103,7 @@ func (c *clientConnPool) OpenStream(ctx context.Context) (uint64, net.Conn, *htt
 		AllowHTTP:          true,
 		ReadIdleTimeout:    time.Second * 30,
 		MaxReadFrameSize:   pool.DefaultSize,
+		IdleConnTimeout:    time.Minute,
 		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			return rawConn, nil
 		},
