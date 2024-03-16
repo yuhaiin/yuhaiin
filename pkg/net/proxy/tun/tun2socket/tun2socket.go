@@ -22,10 +22,10 @@ type Tun2socket struct {
 	device io.Closer
 	nat    *nat.Nat
 
-	*netapi.ChannelProtocolServer
+	*netapi.ChannelServer
 }
 
-func New(o *tun.Opt) (netapi.ProtocolServer, error) {
+func New(o *tun.Opt) (netapi.Accepter, error) {
 	device, err := tun.OpenWriter(o.Interface, int(o.Tun.Mtu))
 	if err != nil {
 		return nil, fmt.Errorf("open tun device failed: %w", err)
@@ -40,10 +40,10 @@ func New(o *tun.Opt) (netapi.ProtocolServer, error) {
 	}
 
 	handler := &Tun2socket{
-		nat:                   nat,
-		device:                device,
-		Mtu:                   o.Tun.Mtu,
-		ChannelProtocolServer: netapi.NewChannelProtocolServer(),
+		nat:           nat,
+		device:        device,
+		Mtu:           o.Tun.Mtu,
+		ChannelServer: netapi.NewChannelServer(),
 	}
 
 	go handler.tcpLoop()
@@ -53,7 +53,7 @@ func New(o *tun.Opt) (netapi.ProtocolServer, error) {
 }
 
 func (h *Tun2socket) Close() error {
-	h.ChannelProtocolServer.Close()
+	h.ChannelServer.Close()
 	_ = h.nat.TCP.Close()
 	_ = h.nat.UDPv2.Close()
 	return h.device.Close()
@@ -107,7 +107,7 @@ func (h *Tun2socket) handleTCP(conn net.Conn) error {
 		return nil
 	}
 
-	h.NewStream(&netapi.StreamMeta{
+	h.SendStream(&netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
@@ -129,7 +129,7 @@ func (h *Tun2socket) handleUDP() error {
 
 	buf.ResetSize(0, n)
 
-	h.NewPacket(&netapi.Packet{
+	h.SendPacket(&netapi.Packet{
 		Src: &net.UDPAddr{
 			IP:   net.IP(tuple.SourceAddr.AsSlice()),
 			Port: int(tuple.SourcePort),

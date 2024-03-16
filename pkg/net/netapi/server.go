@@ -2,7 +2,6 @@ package netapi
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 
@@ -20,7 +19,7 @@ type Listener interface {
 	Server
 }
 
-type ProtocolServer interface {
+type Accepter interface {
 	Server
 	AcceptStream() (*StreamMeta, error)
 	AcceptPacket() (*Packet, error)
@@ -104,55 +103,35 @@ func (c *ChannelListener) Close() error {
 
 func (c *ChannelListener) Addr() net.Addr { return c.addr }
 
-type WrapListener struct {
+type ListenerPatch struct {
 	Listener
 	lis net.Listener
 }
 
-func ListenWrap(lis net.Listener, inbound Listener) *WrapListener {
-	return &WrapListener{
+func PatchStream(lis net.Listener, inbound Listener) *ListenerPatch {
+	return &ListenerPatch{
 		Listener: inbound,
 		lis:      lis,
 	}
 }
 
-func (w *WrapListener) Stream(ctx context.Context) (net.Listener, error) {
-	return w.lis, nil
-}
+func (w *ListenerPatch) Stream(ctx context.Context) (net.Listener, error) { return w.lis, nil }
 
-func (w *WrapListener) Close() error {
+func (w *ListenerPatch) Close() error {
 	w.lis.Close()
 	return w.Listener.Close()
 }
 
-type EmptyPacketListener struct {
-	net.Listener
-}
-
-func NewEmptyPacketListener(lis net.Listener) Listener {
-	return &EmptyPacketListener{
-		Listener: lis,
-	}
-}
-
-func (e *EmptyPacketListener) Stream(ctx context.Context) (net.Listener, error) {
-	return e.Listener, nil
-}
-
-func (EmptyPacketListener) Packet(context.Context) (net.PacketConn, error) {
-	return nil, fmt.Errorf("not support")
-}
-
-type ChannelProtocolServer struct {
+type ChannelServer struct {
 	packetChan chan *Packet
 	streamChan chan *StreamMeta
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
 
-func NewChannelProtocolServer() *ChannelProtocolServer {
+func NewChannelServer() *ChannelServer {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ChannelProtocolServer{
+	return &ChannelServer{
 		packetChan: make(chan *Packet, 100),
 		streamChan: make(chan *StreamMeta, 100),
 		ctx:        ctx,
@@ -160,7 +139,7 @@ func NewChannelProtocolServer() *ChannelProtocolServer {
 	}
 }
 
-func (s *ChannelProtocolServer) AcceptPacket() (*Packet, error) {
+func (s *ChannelServer) AcceptPacket() (*Packet, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, s.ctx.Err()
@@ -169,7 +148,7 @@ func (s *ChannelProtocolServer) AcceptPacket() (*Packet, error) {
 	}
 }
 
-func (s *ChannelProtocolServer) AcceptStream() (*StreamMeta, error) {
+func (s *ChannelServer) AcceptStream() (*StreamMeta, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, s.ctx.Err()
@@ -178,27 +157,27 @@ func (s *ChannelProtocolServer) AcceptStream() (*StreamMeta, error) {
 	}
 }
 
-func (s *ChannelProtocolServer) Close() error {
+func (s *ChannelServer) Close() error {
 	s.cancel()
 	return nil
 }
 
-func (s *ChannelProtocolServer) NewPacket(packet *Packet) bool {
+func (s *ChannelServer) SendPacket(packet *Packet) error {
 	select {
 	case <-s.ctx.Done():
-		return false
+		return s.ctx.Err()
 	case s.packetChan <- packet:
-		return true
+		return nil
 	}
 }
 
-func (s *ChannelProtocolServer) NewStream(stream *StreamMeta) bool {
+func (s *ChannelServer) SendStream(stream *StreamMeta) error {
 	select {
 	case <-s.ctx.Done():
-		return false
+		return s.ctx.Err()
 	case s.streamChan <- stream:
-		return true
+		return nil
 	}
 }
 
-func (s *ChannelProtocolServer) Context() context.Context { return s.ctx }
+func (s *ChannelServer) Context() context.Context { return s.ctx }

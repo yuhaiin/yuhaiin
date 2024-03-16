@@ -21,20 +21,19 @@ import (
 
 type Server struct {
 	username, password string
-	inbound            net.Addr
 	reverseProxy       *httputil.ReverseProxy
 
-	*netapi.ChannelProtocolServer
+	*netapi.ChannelServer
 
 	lis net.Listener
 }
 
-func newServer(o *listener.Inbound_Http, inbound net.Addr) *Server {
+func newServer(o *listener.Inbound_Http, lis net.Listener) *Server {
 	h := &Server{
-		username:              o.Http.Username,
-		password:              o.Http.Password,
-		inbound:               inbound,
-		ChannelProtocolServer: netapi.NewChannelProtocolServer(),
+		username:      o.Http.Username,
+		password:      o.Http.Password,
+		lis:           lis,
+		ChannelServer: netapi.NewChannelServer(),
 	}
 
 	type remoteKey struct{}
@@ -59,13 +58,17 @@ func newServer(o *listener.Inbound_Http, inbound net.Addr) *Server {
 
 			local, remote := net.Pipe()
 
-			if !h.NewStream(&netapi.StreamMeta{
+			sm := &netapi.StreamMeta{
 				Source:      source,
-				Inbound:     h.inbound,
+				Inbound:     h.lis.Addr(),
 				Destination: address,
 				Src:         local,
 				Address:     address,
-			}) {
+			}
+
+			if h.SendStream(sm) != nil {
+				_ = local.Close()
+				_ = remote.Close()
 				return nil, io.EOF
 			}
 
@@ -150,17 +153,15 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 		source = netapi.ParseAddressPort(statistic.Type_tcp, req.RemoteAddr, netapi.EmptyPort)
 	}
 
-	if !h.NewStream(&netapi.StreamMeta{
+	sm := &netapi.StreamMeta{
 		Source:      source,
-		Inbound:     h.inbound,
+		Inbound:     h.lis.Addr(),
 		Destination: dst,
 		Src:         client,
 		Address:     dst,
-	}) {
-		return io.EOF
 	}
 
-	return nil
+	return h.SendStream(sm)
 }
 
 func (s *Server) AcceptPacket() (*netapi.Packet, error) {
@@ -168,7 +169,7 @@ func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 }
 
 func (s *Server) Close() error {
-	s.ChannelProtocolServer.Close()
+	s.ChannelServer.Close()
 	if s.lis != nil {
 		return s.lis.Close()
 	}
@@ -180,14 +181,14 @@ func init() {
 	listener.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Http) func(netapi.Listener) (netapi.ProtocolServer, error) {
-	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+func NewServer(o *listener.Inbound_Http) func(netapi.Listener) (netapi.Accepter, error) {
+	return func(ii netapi.Listener) (netapi.Accepter, error) {
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {
 			return nil, err
 		}
 
-		s := newServer(o, lis.Addr())
+		s := newServer(o, lis)
 
 		go func() {
 			defer ii.Close()

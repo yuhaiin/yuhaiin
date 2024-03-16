@@ -20,7 +20,7 @@ func init() {
 }
 
 var Drop = &drop{
-	lru: lru.NewLru[string, time.Duration](
+	lru: lru.NewLru(
 		lru.WithCapacity[string, time.Duration](512),
 		lru.WithExpireTimeout[string, time.Duration](time.Second*5),
 	),

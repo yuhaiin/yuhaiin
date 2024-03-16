@@ -10,7 +10,7 @@ require (
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.9
 	golang.org/x/crypto v0.21.0
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
+	golang.org/x/exp v0.0.0-20240314144324-c7f7c6466f7f
 	golang.org/x/mobile v0.0.0-20240213143359-d1f7d3436075
 	golang.org/x/net v0.22.1-0.20240308174206-57a6a7a86bc0
 	golang.org/x/sync v0.6.0
@@ -20,7 +20,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
-	gvisor.dev/gvisor v0.0.0-20240301005136-96d748d5c7c5
+	gvisor.dev/gvisor v0.0.0-20240315190121-2be91ac8c110
 )
 
 require (

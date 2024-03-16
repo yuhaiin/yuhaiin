@@ -13,18 +13,18 @@ type Tproxy struct {
 
 	lisAddr netip.AddrPort
 
-	*netapi.ChannelProtocolServer
+	*netapi.ChannelServer
 }
 
 func init() {
 	listener.RegisterProtocol(NewTproxy)
 }
 
-func NewTproxy(opt *cl.Inbound_Tproxy) func(netapi.Listener) (netapi.ProtocolServer, error) {
-	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+func NewTproxy(opt *cl.Inbound_Tproxy) func(netapi.Listener) (netapi.Accepter, error) {
+	return func(ii netapi.Listener) (netapi.Accepter, error) {
 		t := &Tproxy{
-			ChannelProtocolServer: netapi.NewChannelProtocolServer(),
-			lis:                   ii,
+			ChannelServer: netapi.NewChannelServer(),
+			lis:           ii,
 		}
 
 		if err := t.newTCP(); err != nil {
@@ -41,6 +41,6 @@ func NewTproxy(opt *cl.Inbound_Tproxy) func(netapi.Listener) (netapi.ProtocolSer
 }
 
 func (t *Tproxy) Close() error {
-	t.ChannelProtocolServer.Close()
+	t.ChannelServer.Close()
 	return t.lis.Close()
 }

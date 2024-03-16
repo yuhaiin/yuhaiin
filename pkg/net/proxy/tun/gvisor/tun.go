@@ -26,7 +26,7 @@ type tunServer struct {
 	stack *stack.Stack
 	ep    stack.LinkEndpoint
 
-	*netapi.ChannelProtocolServer
+	*netapi.ChannelServer
 }
 
 func (t *tunServer) Close() error {
@@ -42,7 +42,7 @@ func (t *tunServer) Close() error {
 		})
 		t.stack.Destroy()
 	}
-	t.ChannelProtocolServer.Close()
+	t.ChannelServer.Close()
 	return err
 }
 
@@ -51,7 +51,7 @@ type Opt struct {
 	*netlink.Options
 }
 
-func New(o *Opt) (netapi.ProtocolServer, error) {
+func New(o *Opt) (netapi.Accepter, error) {
 	opt := o.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500
@@ -90,11 +90,11 @@ func New(o *Opt) (netapi.ProtocolServer, error) {
 	}
 
 	t := &tunServer{
-		mtu:                   opt.Mtu,
-		nicID:                 nicID,
-		stack:                 s,
-		ep:                    ep,
-		ChannelProtocolServer: netapi.NewChannelProtocolServer(),
+		mtu:           opt.Mtu,
+		nicID:         nicID,
+		stack:         s,
+		ep:            ep,
+		ChannelServer: netapi.NewChannelServer(),
 	}
 
 	s.SetSpoofing(nicID, true)

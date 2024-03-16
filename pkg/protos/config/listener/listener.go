@@ -17,10 +17,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(isProtocol_Protocol) (netapi.ProtocolServer, error)]
+var execProtocol syncmap.SyncMap[reflect.Type, func(isProtocol_Protocol) (netapi.Accepter, error)]
 
 // Deprecated: RegisterProtocolDeprecated
-func RegisterProtocolDeprecated[T isProtocol_Protocol](wrap func(T) (netapi.ProtocolServer, error)) {
+func RegisterProtocolDeprecated[T isProtocol_Protocol](wrap func(T) (netapi.Accepter, error)) {
 	if wrap == nil {
 		return
 	}
@@ -28,13 +28,13 @@ func RegisterProtocolDeprecated[T isProtocol_Protocol](wrap func(T) (netapi.Prot
 	var z T
 	execProtocol.Store(
 		reflect.TypeOf(z),
-		func(p isProtocol_Protocol) (netapi.ProtocolServer, error) {
+		func(p isProtocol_Protocol) (netapi.Accepter, error) {
 			return wrap(p.(T))
 		},
 	)
 }
 
-func CreateServer(opts isProtocol_Protocol) (netapi.ProtocolServer, error) {
+func CreateServer(opts isProtocol_Protocol) (netapi.Accepter, error) {
 	conn, ok := execProtocol.Load(reflect.TypeOf(opts))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", opts)
@@ -232,9 +232,9 @@ func ErrorTransportFunc(err error) func(netapi.Listener) (netapi.Listener, error
 	}
 }
 
-var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(netapi.Listener) (netapi.ProtocolServer, error)]
+var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(netapi.Listener) (netapi.Accepter, error)]
 
-func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (netapi.ProtocolServer, error)) {
+func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (netapi.Accepter, error)) {
 	if wrap == nil {
 		return
 	}
@@ -242,13 +242,13 @@ func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (
 	var z T
 	protocolStore.Store(
 		reflect.TypeOf(z),
-		func(p isInbound_Protocol) func(netapi.Listener) (netapi.ProtocolServer, error) {
+		func(p isInbound_Protocol) func(netapi.Listener) (netapi.Accepter, error) {
 			return wrap(p.(T))
 		},
 	)
 }
 
-func Protocols(lis netapi.Listener, config isInbound_Protocol) (netapi.ProtocolServer, error) {
+func Protocols(lis netapi.Listener, config isInbound_Protocol) (netapi.Accepter, error) {
 	nc, ok := protocolStore.Load(reflect.TypeOf(config))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", config)
@@ -257,7 +257,7 @@ func Protocols(lis netapi.Listener, config isInbound_Protocol) (netapi.ProtocolS
 	return nc(config)(lis)
 }
 
-func Listen(config *Inbound) (netapi.ProtocolServer, error) {
+func Listen(config *Inbound) (netapi.Accepter, error) {
 	lis, err := Network(config.Network)
 	if err != nil {
 		return nil, err

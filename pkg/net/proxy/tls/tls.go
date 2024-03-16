@@ -84,6 +84,6 @@ func NewServer(c *listener.Transport_Tls) func(netapi.Listener) (netapi.Listener
 		if err != nil {
 			return nil, err
 		}
-		return netapi.ListenWrap(tls.NewListener(lis, config), ii), nil
+		return netapi.PatchStream(tls.NewListener(lis, config), ii), nil
 	}
 }

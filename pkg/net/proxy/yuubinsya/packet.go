@@ -185,7 +185,7 @@ func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, err
 	return r[n+len(addr):], addr.Address(statistic.Type_udp), nil
 }
 
-func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) bool, auth Auth, prefix bool) {
+func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) error, auth Auth, prefix bool) {
 	p := NewAuthPacketConn(packet, nil, nil, auth, prefix)
 	for {
 		buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
@@ -203,12 +203,14 @@ func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) bool,
 
 		buf.ResetSize(0, n)
 
-		if !sendPacket(&netapi.Packet{
+		err = sendPacket(&netapi.Packet{
 			Src:       src,
 			Dst:       dst,
 			Payload:   buf,
 			WriteBack: func(b []byte, source net.Addr) (int, error) { return p.writeTo(b, source, src) },
-		}) {
+		})
+
+		if err != nil {
 			break
 		}
 	}
