@@ -53,7 +53,7 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 
 				buf.ResetSize(0, n)
 
-				if !t.NewPacket(&netapi.Packet{
+				err = t.SendPacket(&netapi.Packet{
 					Src:     src,
 					Dst:     dst,
 					Payload: buf,
@@ -79,7 +79,8 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 						_ = local.SetReadDeadline(time.Now().Add(time.Minute))
 						return n, nil
 					},
-				}) {
+				})
+				if err != nil {
 					return
 				}
 			}

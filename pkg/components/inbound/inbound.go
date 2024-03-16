@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Http) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Http) (netapi.Accepter, error) {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
@@ -29,7 +29,7 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Mix) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Mix) (netapi.Accepter, error) {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
@@ -41,7 +41,7 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Socks4A) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Socks4A) (netapi.Accepter, error) {
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
@@ -54,7 +54,7 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Socks5) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Socks5) (netapi.Accepter, error) {
 		o.Socks5.Udp = true
 		return pl.Listen(&pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
@@ -67,10 +67,10 @@ func init() {
 			},
 		})
 	})
-	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Tun) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Tun) (netapi.Accepter, error) {
 		return tun.NewTun(&pl.Inbound_Tun{Tun: o.Tun})(nil)
 	})
-	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Yuubinsya) (netapi.ProtocolServer, error) {
+	pl.RegisterProtocolDeprecated(func(o *pl.Protocol_Yuubinsya) (netapi.Accepter, error) {
 		inbound := &pl.Inbound{
 			Network: &pl.Inbound_Tcpudp{
 				Tcpudp: &pl.Tcpudp{
@@ -173,7 +173,7 @@ func init() {
 
 type store struct {
 	config proto.Message
-	server netapi.ProtocolServer
+	server netapi.Accepter
 }
 
 type listener struct {
@@ -282,7 +282,7 @@ func (l *listener) Update(current *pc.Setting) {
 		return true
 	})
 
-	start := func(name string, enabled bool, config proto.Message, start func() (netapi.ProtocolServer, error)) {
+	start := func(name string, enabled bool, config proto.Message, start func() (netapi.Accepter, error)) {
 		err := l.start(name, enabled, config, start)
 		if err != nil {
 			if errors.Is(err, errServerDisabled) {
@@ -295,13 +295,13 @@ func (l *listener) Update(current *pc.Setting) {
 
 	for k, v := range current.Server.Servers {
 		start("server-"+k, v.Enabled, v,
-			func() (netapi.ProtocolServer, error) { return pl.CreateServer(v.Protocol) })
+			func() (netapi.Accepter, error) { return pl.CreateServer(v.Protocol) })
 
 	}
 
 	for k, v := range current.Server.Inbounds {
 		start("inbound-"+k, v.Enabled, v,
-			func() (netapi.ProtocolServer, error) { return pl.Listen(v) })
+			func() (netapi.Accepter, error) { return pl.Listen(v) })
 
 	}
 
@@ -309,7 +309,7 @@ func (l *listener) Update(current *pc.Setting) {
 
 var errServerDisabled = errors.New("disabled")
 
-func (l *listener) start(name string, enabled bool, config proto.Message, start func() (netapi.ProtocolServer, error)) error {
+func (l *listener) start(name string, enabled bool, config proto.Message, start func() (netapi.Accepter, error)) error {
 	v, ok := l.store.Load(name)
 	if ok {
 		if proto.Equal(v.config, config) {
@@ -334,7 +334,7 @@ func (l *listener) start(name string, enabled bool, config proto.Message, start 
 	return nil
 }
 
-func (l *listener) startForward(server netapi.ProtocolServer) {
+func (l *listener) startForward(server netapi.Accepter) {
 	go func() {
 		for {
 			stream, err := server.AcceptStream()

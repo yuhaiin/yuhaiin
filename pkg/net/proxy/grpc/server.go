@@ -32,7 +32,7 @@ func NewServer(c *listener.Transport_Grpc) func(netapi.Listener) (netapi.Listene
 			return nil, err
 		}
 
-		return netapi.ListenWrap(NewGrpcNoServer(lis), ii), nil
+		return netapi.PatchStream(NewGrpcNoServer(lis), ii), nil
 	}
 }
 

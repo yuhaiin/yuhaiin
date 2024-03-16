@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	cl.RegisterProtocolDeprecated(func(O *cl.Protocol_Redir) (netapi.ProtocolServer, error) {
+	cl.RegisterProtocolDeprecated(func(O *cl.Protocol_Redir) (netapi.Accepter, error) {
 		return cl.Listen(&cl.Inbound{
 			Network: &cl.Inbound_Tcpudp{
 				Tcpudp: &cl.Tcpudp{
@@ -21,7 +21,7 @@ func init() {
 			},
 		})
 	})
-	cl.RegisterProtocolDeprecated(func(o *cl.Protocol_Tproxy) (netapi.ProtocolServer, error) {
+	cl.RegisterProtocolDeprecated(func(o *cl.Protocol_Tproxy) (netapi.Accepter, error) {
 		return cl.Listen(&cl.Inbound{
 			Network: &cl.Inbound_Tcpudp{
 				Tcpudp: &cl.Tcpudp{

@@ -18,31 +18,31 @@ type Mixed struct {
 	lis net.Listener
 
 	s5c *netapi.ChannelListener
-	s5  netapi.ProtocolServer
+	s5  netapi.Accepter
 
 	s4c *netapi.ChannelListener
-	s4  netapi.ProtocolServer
+	s4  netapi.Accepter
 
 	httpc *netapi.ChannelListener
-	http  netapi.ProtocolServer
+	http  netapi.Accepter
 
-	*netapi.ChannelProtocolServer
+	*netapi.ChannelServer
 }
 
 func init() {
 	listener.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.ProtocolServer, error) {
-	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accepter, error) {
+	return func(ii netapi.Listener) (netapi.Accepter, error) {
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {
 			return nil, err
 		}
 
 		mix := &Mixed{
-			lis:                   lis,
-			ChannelProtocolServer: netapi.NewChannelProtocolServer(),
+			lis:           lis,
+			ChannelServer: netapi.NewChannelServer(),
 		}
 
 		mix.s5c = netapi.NewChannelListener(lis.Addr())
@@ -53,14 +53,14 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Protoc
 				Password: o.Mix.Password,
 				Udp:      true,
 			},
-		})(netapi.ListenWrap(mix.s5c, ii))
+		})(netapi.PatchStream(mix.s5c, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err
 		}
 		s5 := mix.s5.(*s5s.Socks5)
-		s5.ChannelProtocolServer.Close()
-		s5.ChannelProtocolServer = mix.ChannelProtocolServer
+		s5.ChannelServer.Close()
+		s5.ChannelServer = mix.ChannelServer
 
 		mix.s4c = netapi.NewChannelListener(lis.Addr())
 		mix.s4, err = socks4a.NewServer(&listener.Inbound_Socks4A{
@@ -68,14 +68,14 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Protoc
 				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
 			},
-		})(netapi.ListenWrap(mix.s4c, ii))
+		})(netapi.PatchStream(mix.s4c, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err
 		}
 		s4 := mix.s4.(*socks4a.Server)
-		s4.ChannelProtocolServer.Close()
-		s4.ChannelProtocolServer = mix.ChannelProtocolServer
+		s4.ChannelServer.Close()
+		s4.ChannelServer = mix.ChannelServer
 
 		mix.httpc = netapi.NewChannelListener(lis.Addr())
 		mix.http, err = httpproxy.NewServer(&listener.Inbound_Http{
@@ -84,14 +84,14 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Protoc
 				Username: o.Mix.Username,
 				Password: o.Mix.Password,
 			},
-		})(netapi.ListenWrap(mix.httpc, ii))
+		})(netapi.PatchStream(mix.httpc, ii))
 		if err != nil {
 			mix.Close()
 			return nil, err
 		}
 		http := mix.http.(*httpproxy.Server)
-		http.ChannelProtocolServer.Close()
-		http.ChannelProtocolServer = mix.ChannelProtocolServer
+		http.ChannelServer.Close()
+		http.ChannelServer = mix.ChannelServer
 
 		go func() {
 			defer mix.Close()
@@ -105,7 +105,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Protoc
 }
 
 func (m *Mixed) Close() error {
-	m.ChannelProtocolServer.Close()
+	m.ChannelServer.Close()
 	noneNilClose(m.s5c)
 	noneNilClose(m.s5)
 	noneNilClose(m.s4c)

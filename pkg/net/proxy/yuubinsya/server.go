@@ -18,7 +18,7 @@ type server struct {
 	Listener   netapi.Listener
 	handshaker crypto.Handshaker
 
-	*netapi.ChannelProtocolServer
+	*netapi.ChannelServer
 
 	packetAuth Auth
 }
@@ -27,8 +27,8 @@ func init() {
 	pl.RegisterProtocol(NewServer)
 }
 
-func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.ProtocolServer, error) {
-	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accepter, error) {
+	return func(ii netapi.Listener) (netapi.Accepter, error) {
 		auth, err := NewAuth(!config.Yuubinsya.ForceDisableEncrypt, []byte(config.Yuubinsya.Password))
 		if err != nil {
 			return nil, err
@@ -42,8 +42,8 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Proto
 				[]byte(config.Yuubinsya.Password),
 			),
 
-			ChannelProtocolServer: netapi.NewChannelProtocolServer(),
-			packetAuth:            auth,
+			ChannelServer: netapi.NewChannelServer(),
+			packetAuth:    auth,
 		}
 
 		go log.IfErr("yuubinsya udp server", s.startUDP)
@@ -60,7 +60,7 @@ func (y *server) startUDP() error {
 	}
 	defer packet.Close()
 
-	StartUDPServer(packet, y.NewPacket, y.packetAuth, true)
+	StartUDPServer(packet, y.SendPacket, y.packetAuth, true)
 
 	return nil
 }
@@ -104,38 +104,36 @@ func (y *server) handle(conn net.Conn) error {
 
 		addr := target.Address(statistic.Type_tcp)
 
-		if !y.NewStream(&netapi.StreamMeta{
+		return y.SendStream(&netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
 			Destination: addr,
 			Inbound:     c.LocalAddr(),
 			Src:         c,
 			Address:     addr,
-		}) {
-			return nil
-		}
+		})
 
 	case crypto.UDP:
-		return func() error {
-			packetConn := newPacketConn(c, y.handshaker, true)
-			defer packetConn.Close()
+		pc := newPacketConn(c, y.handshaker, true)
+		defer pc.Close()
 
-			log.Debug("new udp connect", "from", packetConn.RemoteAddr())
+		log.Debug("new udp connect", "from", pc.RemoteAddr())
 
-			for {
-				buf, addr, err := netapi.ReadFrom(packetConn)
-				if err != nil {
-					return err
-				}
-				if !y.NewPacket(&netapi.Packet{
-					Src:       packetConn.RemoteAddr(),
-					Dst:       addr,
-					Payload:   buf,
-					WriteBack: packetConn.WriteTo,
-				}) {
-					return nil
-				}
+		for {
+			buf, addr, err := netapi.ReadFrom(pc)
+			if err != nil {
+				return err
 			}
-		}()
+			err = y.SendPacket(&netapi.Packet{
+				Src:       pc.RemoteAddr(),
+				Dst:       addr,
+				Payload:   buf,
+				WriteBack: pc.WriteTo,
+			})
+
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

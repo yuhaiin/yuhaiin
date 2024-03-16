@@ -50,7 +50,7 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 		return fmt.Errorf("local addr and remote addr are same")
 	}
 
-	t.NewStream(&netapi.StreamMeta{
+	t.SendStream(&netapi.StreamMeta{
 		Source:      c.RemoteAddr(),
 		Destination: c.LocalAddr(),
 		Inbound:     netapi.ParseAddrPort(statistic.Type_tcp, t.lisAddr),

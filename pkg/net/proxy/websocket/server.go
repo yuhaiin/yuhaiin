@@ -33,7 +33,7 @@ func NewServer(c *listener.Transport_Websocket) func(netapi.Listener) (netapi.Li
 		if err != nil {
 			return nil, err
 		}
-		return netapi.ListenWrap(newServer(lis), ii), nil
+		return netapi.PatchStream(newServer(lis), ii), nil
 	}
 }
 

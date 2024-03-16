@@ -30,7 +30,7 @@ func NewServer(config *listener.Transport_Mux) func(netapi.Listener) (netapi.Lis
 			return nil, err
 		}
 
-		return netapi.ListenWrap(newServer(lis), ii), nil
+		return netapi.PatchStream(newServer(lis), ii), nil
 	}
 }
 

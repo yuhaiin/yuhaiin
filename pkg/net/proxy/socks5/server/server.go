@@ -25,7 +25,7 @@ func (s *Socks5) startUDPServer() error {
 
 	go func() {
 		defer packet.Close()
-		yuubinsya.StartUDPServer(packet, s.NewPacket, nil, true)
+		yuubinsya.StartUDPServer(packet, s.SendPacket, nil, true)
 	}()
 
 	return nil
@@ -205,7 +205,7 @@ func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
 			return err
 		}
 
-		s.NewStream(&netapi.StreamMeta{
+		return s.SendStream(&netapi.StreamMeta{
 			Source:      client.RemoteAddr(),
 			Destination: addr,
 			Inbound:     client.LocalAddr(),
@@ -263,11 +263,11 @@ type Socks5 struct {
 	username string
 	password string
 
-	*netapi.ChannelProtocolServer
+	*netapi.ChannelServer
 }
 
 func (s *Socks5) Close() error {
-	s.ChannelProtocolServer.Close()
+	s.ChannelServer.Close()
 	return s.lis.Close()
 }
 
@@ -275,14 +275,14 @@ func init() {
 	listener.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener) (netapi.ProtocolServer, error) {
-	return func(ii netapi.Listener) (netapi.ProtocolServer, error) {
+func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener) (netapi.Accepter, error) {
+	return func(ii netapi.Listener) (netapi.Accepter, error) {
 		s := &Socks5{
-			udp:                   o.Socks5.Udp,
-			username:              o.Socks5.Username,
-			password:              o.Socks5.Password,
-			lis:                   ii,
-			ChannelProtocolServer: netapi.NewChannelProtocolServer(),
+			udp:           o.Socks5.Udp,
+			username:      o.Socks5.Username,
+			password:      o.Socks5.Password,
+			lis:           ii,
+			ChannelServer: netapi.NewChannelServer(),
 		}
 
 		if s.udp {

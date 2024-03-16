@@ -247,7 +247,7 @@ func (t *Tproxy) newUDP() error {
 
 			dstAddr, _ := netapi.ParseSysAddr(dst)
 
-			if !t.NewPacket(&netapi.Packet{
+			err = t.SendPacket(&netapi.Packet{
 				Src:     src,
 				Dst:     dstAddr,
 				Payload: buf,
@@ -276,7 +276,9 @@ func (t *Tproxy) newUDP() error {
 
 					return n, nil
 				},
-			}) {
+			})
+
+			if err != nil {
 				return
 			}
 		}
