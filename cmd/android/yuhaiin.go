@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -49,7 +50,10 @@ func (a *App) Start(opt *Opts) error {
 		}
 		defer app.Close()
 
-		lis := &http.Server{Handler: app.App.Mux}
+		lis := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
+			app.App.Mux.ServeHTTP(w, r)
+		})}
 		defer lis.Close()
 
 		a.lis = lis
