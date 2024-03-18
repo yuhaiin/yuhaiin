@@ -82,6 +82,8 @@ func main() {
 	go func() {
 		// h2c for grpc insecure mode
 		errChan <- http.Serve(app.App.HttpListener, h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
+
 			if grpcserver != nil && r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 				grpcserver.ServeHTTP(w, r)
 			} else {

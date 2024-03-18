@@ -51,7 +51,7 @@ jobs:
         git clone -b main --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git out
         cd out && git branch -v && cd ..
         rm -rf out/.git out/.nojekyll
-        go run compress.go
+        go run generate.go
         echo ${PWD}
         ls
 
