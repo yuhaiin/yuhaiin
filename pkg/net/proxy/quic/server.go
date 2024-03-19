@@ -56,7 +56,7 @@ func newServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 	lis, err := tr.Listen(tlsConfig, &quic.Config{
 		MaxIncomingStreams:    1 << 60,
 		KeepAlivePeriod:       0,
-		MaxIdleTimeout:        60 * time.Second,
+		MaxIdleTimeout:        3 * time.Minute,
 		EnableDatagrams:       true,
 		Allow0RTT:             true,
 		MaxIncomingUniStreams: -1,
@@ -129,16 +129,22 @@ func (s *Server) server() error {
 		}
 
 		go func() {
-			if err := s.listenQuicConnection(conn); err != nil {
+			defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "") // nolint:errcheck
+
+			go func() {
+				if err := s.listenDatagram(conn); err != nil {
+					log.Error("listen datagram failed:", "err", err)
+				}
+			}()
+
+			if err := s.listenStream(conn); err != nil {
 				log.Error("listen quic connection failed:", "err", err)
 			}
 		}()
 	}
 }
 
-func (s *Server) listenQuicConnection(conn quic.Connection) error {
-	defer conn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "") // nolint:errcheck
-
+func (s *Server) listenDatagram(conn quic.Connection) error {
 	raddr := conn.RemoteAddr()
 
 	packetConn := NewConnectionPacketConn(conn)
@@ -146,22 +152,20 @@ func (s *Server) listenQuicConnection(conn quic.Connection) error {
 	s.natMap.Store(raddr.String(), packetConn)
 	defer s.natMap.Delete(raddr.String())
 
-	go func() {
-		for {
-			id, data, err := packetConn.Receive(s.ctx)
-			if err != nil {
-				log.Error("receive message failed:", "err", err)
-				return
-			}
-
-			select {
-			case <-s.ctx.Done():
-				return
-			case s.packetChan <- serverMsg{msg: data, src: raddr, id: id}:
-			}
+	for {
+		id, data, err := packetConn.Receive(s.ctx)
+		if err != nil {
+			return err
 		}
-	}()
 
+		select {
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case s.packetChan <- serverMsg{msg: data, src: raddr, id: id}:
+		}
+	}
+}
+func (s *Server) listenStream(conn quic.Connection) error {
 	for {
 		stream, err := conn.AcceptStream(s.ctx)
 		if err != nil {

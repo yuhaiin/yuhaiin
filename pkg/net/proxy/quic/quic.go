@@ -99,6 +99,10 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 		}
 	}
 
+	if c.session != nil {
+		_ = c.session.CloseWithError(0, "")
+	}
+
 	if c.underlying != nil {
 		_ = c.underlying.Close()
 	}
@@ -124,7 +128,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 		c.tlsConfig,
 		&quic.Config{
 			KeepAlivePeriod: 30 * time.Second,
-			MaxIdleTimeout:  60 * time.Second,
+			MaxIdleTimeout:  3 * time.Minute,
 			EnableDatagrams: true,
 		},
 	)
@@ -137,8 +141,10 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 
 	c.underlying = conn
 	c.session = session
-	c.packetConn = pconn
 	c.sessionUnix = time.Now().Unix()
+
+	// Datagram
+	c.packetConn = pconn
 
 	go func() {
 		for {
