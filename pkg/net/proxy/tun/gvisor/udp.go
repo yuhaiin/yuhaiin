@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -40,7 +41,7 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 			for {
 				buf := pool.GetBytesBuffer(t.mtu)
 
-				_ = local.SetReadDeadline(time.Now().Add(time.Minute))
+				_ = local.SetReadDeadline(time.Now().Add(nat.IdleTImeout))
 				n, src, err := local.ReadFrom(buf.Bytes())
 				if err != nil {
 					if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
@@ -76,7 +77,7 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 							return n, err
 						}
 
-						_ = local.SetReadDeadline(time.Now().Add(time.Minute))
+						_ = local.SetReadDeadline(time.Now().Add(nat.IdleTImeout))
 						return n, nil
 					},
 				})

@@ -91,6 +91,7 @@ func (c *clientConnPool) OpenStream(ctx context.Context) (uint64, net.Conn, *htt
 		if !state.Closed && !state.Closing {
 			return nowNumber, conn.raw, conn.conn, nil
 		}
+		_ = conn.conn.Close()
 	}
 
 	rawConn, err := c.dialer.Conn(ctx, netapi.EmptyAddr)
@@ -103,7 +104,7 @@ func (c *clientConnPool) OpenStream(ctx context.Context) (uint64, net.Conn, *htt
 		AllowHTTP:          true,
 		ReadIdleTimeout:    time.Second * 30,
 		MaxReadFrameSize:   pool.DefaultSize,
-		IdleConnTimeout:    time.Minute,
+		IdleConnTimeout:    time.Minute * 3,
 		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			return rawConn, nil
 		},

@@ -57,7 +57,7 @@ func (o *HttpServerOption) ServeHTTP(mux *http.ServeMux) {
 		"DELETE /sub":  GrpcToHttp(o.Subscribe.Remove),
 		"DELETE /tag":  GrpcToHttp(o.Tag.Remove),
 
-		"PUT  /node": GrpcToHttp(o.NodeServer.Use),
+		"PUT /node": GrpcToHttp(o.NodeServer.Use),
 
 		"PATCH /sub":  GrpcToHttp(o.Subscribe.Update),
 		"PATCH /node": GrpcToHttp(o.NodeServer.Save),
