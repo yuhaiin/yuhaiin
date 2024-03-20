@@ -66,6 +66,23 @@ func defaultSetting(path string) *config.Setting {
 				Host: "223.5.5.5",
 				Type: pd.Type_udp,
 			},
+			LocalV2:  "local",
+			RemoteV2: "remote",
+			Resolver: map[string]*pd.Dns{
+				"local": {
+					Host: "223.5.5.5",
+					Type: pd.Type_doh,
+				},
+				"remote": {
+					Host:   "dns.google",
+					Type:   pd.Type_doh,
+					Subnet: "223.5.5.5",
+				},
+				"bootstrap": {
+					Host: "223.5.5.5",
+					Type: pd.Type_udp,
+				},
+			},
 			Hosts: map[string]string{"example.com": "example.com"},
 		},
 		Logcat: &pl.Logcat{

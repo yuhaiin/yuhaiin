@@ -1,4 +1,4 @@
-package client
+package socks5
 
 import (
 	"context"
@@ -39,8 +39,8 @@ func Dial(host, port, user, password string) netapi.Proxy {
 }
 
 // https://tools.ietf.org/html/rfc1928
-// client socks5 client
-type client struct {
+// Client socks5 Client
+type Client struct {
 	username string
 	password string
 
@@ -56,7 +56,7 @@ func init() {
 // New returns a new Socks5 client
 func NewClient(config *protocol.Protocol_Socks5) point.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		return &client{
+		return &Client{
 			dialer:   dialer,
 			username: config.Socks5.User,
 			password: config.Socks5.Password,
@@ -65,7 +65,7 @@ func NewClient(config *protocol.Protocol_Socks5) point.WrapProxy {
 	}
 }
 
-func (s *client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
+func (s *Client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %w", err)
@@ -86,7 +86,7 @@ func (s *client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error
 	return conn, nil
 }
 
-func (s *client) handshake1(conn net.Conn) error {
+func (s *Client) handshake1(conn net.Conn) error {
 	_, err := conn.Write([]byte{0x05, 0x02, tools.NoAuthenticationRequired, tools.UserAndPassword})
 	if err != nil {
 		return fmt.Errorf("write sock5 header failed: %w", err)
@@ -106,10 +106,11 @@ func (s *client) handshake1(conn net.Conn) error {
 	case tools.NoAuthenticationRequired:
 		return nil
 	case tools.UserAndPassword: // username and password
-		req := pool.GetBuffer()
-		defer pool.PutBuffer(req)
+		req := pool.GetBytesWriter(pool.DefaultSize)
+		defer req.Free()
 
-		req.Write([]byte{0x01, byte(len(s.username))})
+		req.WriteByte(0x01)
+		req.WriteByte(byte(len(s.username)))
 		req.WriteString(s.username)
 		req.WriteByte(byte(len(s.password)))
 		req.WriteString(s.password)
@@ -131,12 +132,14 @@ func (s *client) handshake1(conn net.Conn) error {
 	return fmt.Errorf("unsupported Authentication methods: %d", header[1])
 }
 
-func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
-	req := pool.GetBuffer()
-	defer pool.PutBuffer(req)
+func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
+	req := pool.GetBytesWriter(pool.DefaultSize)
+	defer req.Free()
 
-	req.Write([]byte{0x05, byte(cmd), 0x00})
-	req.Write(tools.ParseAddr(address))
+	req.WriteByte(0x05)
+	req.WriteByte(byte(cmd))
+	req.WriteByte(0x00)
+	tools.EncodeAddr(address, req)
 
 	if _, err = conn.Write(req.Bytes()); err != nil {
 		return nil, err
@@ -165,7 +168,7 @@ func (s *client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, a
 	return addr, nil
 }
 
-func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
+func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp failed: %w", err)
@@ -189,7 +192,7 @@ func (s *client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("listen udp failed: %w", err)
 	}
 
-	pc = yuubinsya.NewAuthPacketConn(pc, conn, addr, nil, true)
+	pc = yuubinsya.NewAuthPacketConn(pc).WithTcpConn(conn).WithTarget(addr).WithPrefix(true)
 
 	go func() {
 		_, _ = relay.Copy(io.Discard, conn)

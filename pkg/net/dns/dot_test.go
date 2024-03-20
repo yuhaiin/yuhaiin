@@ -5,7 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
@@ -18,7 +18,7 @@ func TestDOT(t *testing.T) {
 			Host:   "8.8.8.8",
 			Subnet: s,
 			IPv6:   true,
-			Dialer: s5c.Dial("127.0.0.1", "1080", "", ""),
+			Dialer: socks5.Dial("127.0.0.1", "1080", "", ""),
 		},
 		"ali": {
 			Type:   dns.Type_dot,

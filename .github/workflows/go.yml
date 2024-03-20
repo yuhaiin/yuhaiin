@@ -3,6 +3,7 @@ name: Go
 on:
   push:
     branches: [ main ]
+    tags: [ v* ]
   pull_request:
     branches: [ main ]
 
@@ -61,6 +62,69 @@ jobs:
       with:
         path: internal/http/out
         key: cache-front-out-${{ github.run_id }}-${{ github.run_attempt }}
+
+  package:
+    needs: [web,rule]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+      
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: '0'
+          fetch-tags: 'true'
+
+      - name: Cache Front Out
+        id: cache-front-out
+        uses: actions/cache@v4
+        with:
+          path: internal/http/out
+          key: cache-front-out-${{ github.run_id }}-${{ github.run_attempt }}
+    
+      - name: Cache Rule
+        id: cache-rule
+        uses: actions/cache@v4
+        with:
+          path: internal/statics/bypass.gz
+          key: cache-rule-${{ github.run_id }}-${{ github.run_attempt }}
+     
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=true
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - # Add support for more platforms with QEMU (optional)
+        # https://github.com/docker/setup-qemu-action
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          file: cmd/yuhaiin/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   build:
     needs: [web,rule]

@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/libp2p/go-yamux/v4"
 )
 
@@ -39,6 +40,8 @@ func init() {
 	config.EnableKeepAlive = false
 
 	config.ConnectionWriteTimeout = 4*time.Second + time.Second/2
+
+	relay.AppendIgnoreError(yamux.ErrStreamReset)
 }
 
 type connEntry struct {

@@ -47,11 +47,11 @@ func (vc *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
 }
 
 func (vc *Conn) WriteTo(b []byte, target net.Addr) (int, error) {
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	buf := pool.GetBytesWriter(2 + len(b))
+	defer buf.Free()
 
 	_ = binary.Write(buf, binary.BigEndian, uint16(len(b)))
-	buf.Write(b)
+	_, _ = buf.Write(b)
 
 	_, err := vc.Write(buf.Bytes())
 	return len(b), err
@@ -70,12 +70,12 @@ func (vc *Conn) Read(b []byte) (int, error) {
 }
 
 func (vc *Conn) sendRequest() error {
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	buf := pool.GetBytesWriter(pool.DefaultSize)
+	defer buf.Free()
 
-	buf.WriteByte(Version)   // protocol version
-	buf.Write(vc.id.Bytes()) // 16 bytes of uuid
-	buf.WriteByte(0)         // addon data length. 0 means no addon data
+	buf.WriteByte(Version)          // protocol version
+	_, _ = buf.Write(vc.id.Bytes()) // 16 bytes of uuid
+	buf.WriteByte(0)                // addon data length. 0 means no addon data
 
 	// Command
 	if vc.udp {
@@ -100,7 +100,7 @@ func (vc *Conn) sendRequest() error {
 			buf.WriteByte(AtypIPv4)
 		}
 
-		buf.Write(addrPort.AsSlice())
+		_, _ = buf.Write(addrPort.AsSlice())
 	}
 
 	_, err := vc.Conn.Write(buf.Bytes())

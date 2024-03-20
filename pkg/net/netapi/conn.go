@@ -39,15 +39,13 @@ func (m *multipleReaderConn) Read(b []byte) (int, error) {
 }
 
 type prefixBytesConn struct {
-	buffers []*pool.Bytes
+	buffers pool.MultipleBytes
 	net.Conn
 }
 
 func (p *prefixBytesConn) Close() error {
 	err := p.Conn.Close()
-	for _, v := range p.buffers {
-		pool.PutBytesBuffer(v)
-	}
+	p.buffers.Free()
 	return err
 }
 
@@ -80,13 +78,7 @@ func MergeBufioReaderConn(c net.Conn, r *bufio.Reader) (net.Conn, error) {
 		return nil, err
 	}
 
-	return NewPrefixBytesConn(c, copyBytes(data)), nil
-}
-
-func copyBytes(b []byte) *pool.Bytes {
-	c := pool.GetBytesBuffer(len(b))
-	copy(c.Bytes(), b)
-	return c
+	return NewPrefixBytesConn(c, pool.GetBytesBuffer(len(data)).Copy(data)), nil
 }
 
 type LogConn struct {
@@ -129,16 +121,15 @@ func (l *LogConn) SetWriteDeadline(t time.Time) error {
 
 func ReadFrom(pc net.PacketConn) (*pool.Bytes, Address, error) {
 	b := pool.GetBytesBuffer(pool.MaxSegmentSize)
-	n, saddr, err := pc.ReadFrom(b.Bytes())
+	_, saddr, err := b.ReadFromPacket(pc)
 	if err != nil {
-		pool.PutBytesBuffer(b)
+		b.Free()
 		return nil, nil, err
 	}
-	b.ResetSize(0, n)
 
 	addr, err := ParseSysAddr(saddr)
 	if err != nil {
-		pool.PutBytesBuffer(b)
+		b.Free()
 		return nil, nil, err
 	}
 

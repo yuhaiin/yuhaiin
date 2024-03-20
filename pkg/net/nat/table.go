@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var IdleTImeout = time.Minute * 3
+var IdleTimeout = time.Minute * 3
 var MaxSegmentSize = pool.MaxSegmentSize
 
 func NewTable(dialer netapi.Proxy) *Table {
@@ -68,12 +68,12 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) e
 	}
 
 	_, err := t.dstPacketConn.WriteTo(pkt.Payload.Bytes(), uaddr)
-	_ = t.dstPacketConn.SetReadDeadline(time.Now().Add(IdleTImeout))
+	_ = t.dstPacketConn.SetReadDeadline(time.Now().Add(IdleTimeout))
 	return err
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
-	defer pool.PutBytesBuffer(pkt.Payload)
+	defer pkt.Payload.Free()
 
 	key := pkt.Src.String()
 
@@ -129,7 +129,7 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 	defer pool.PutBytes(data)
 
 	for {
-		_ = table.dstPacketConn.SetReadDeadline(time.Now().Add(IdleTImeout))
+		_ = table.dstPacketConn.SetReadDeadline(time.Now().Add(IdleTimeout))
 		n, from, err := table.dstPacketConn.ReadFrom(data)
 		if err != nil {
 			return fmt.Errorf("read from proxy failed: %w", err)

@@ -79,9 +79,9 @@ func (d *dnsServer) startUDP() (err error) {
 
 			for {
 				buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
-				n, addr, err := d.listener.ReadFrom(buf.Bytes())
+				_, addr, err := buf.ReadFromPacket(d.listener)
 				if err != nil {
-					pool.PutBytesBuffer(buf)
+					buf.Free()
 
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						continue
@@ -95,11 +95,9 @@ func (d *dnsServer) startUDP() (err error) {
 
 				err = d.sf.Acquire(context.TODO(), 1)
 				if err != nil {
-					pool.PutBytesBuffer(buf)
+					buf.Free()
 					continue
 				}
-
-				buf.ResetSize(0, n)
 
 				go func() {
 					defer d.sf.Release(1)
@@ -175,12 +173,10 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 	buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
 
-	n, addr, err := l.ReadFrom(buf.Bytes())
+	_, addr, err := buf.ReadFromPacket(l)
 	if err != nil {
 		return err
 	}
-
-	buf.ResetSize(0, n)
 
 	return d.Do(context.TODO(), buf, func(b []byte) error {
 		_, err = l.WriteTo(b, addr)
@@ -192,7 +188,7 @@ func (d *dnsServer) Do(ctx context.Context, b *pool.Bytes, writeBack func([]byte
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	defer pool.PutBytesBuffer(b)
+	defer b.Free()
 
 	var parse dnsmessage.Parser
 	header, err := parse.Start(b.Bytes())

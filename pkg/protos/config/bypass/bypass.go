@@ -21,8 +21,6 @@ func (m Mode) Unknown() bool {
 func (Mode) GetTag() string                      { return "" }
 func (Mode) GetResolveStrategy() ResolveStrategy { return ResolveStrategy_default }
 
-func (m *ModeConfig) Unknown() bool { return m.Mode.Unknown() }
-
 func (f *ModeConfig) StoreKV(fs [][]byte) {
 	for _, x := range fs {
 		i := bytes.IndexByte(x, '=')

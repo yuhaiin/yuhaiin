@@ -52,6 +52,10 @@ all: yuhaiin_linux yuhaiin_windows yuhaiin_darwin dnsrelay_linux dnsrelay_window
 vet:
 	$(GO) vet $(shell go list ./... | grep -v '/scripts/' | grep -v 'pkg/net/proxy/tun/tun2socket/checksum')
 
+.PHONY: yuhaiin
+yuhaiin:
+	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" -o yuhaiin $(YUHAIIN)
+
 .PHONY: yuhaiin_linux
 yuhaiin_linux:
 	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" -o yuhaiin_linux_amd64 $(YUHAIIN)

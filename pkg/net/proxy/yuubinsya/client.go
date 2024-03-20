@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -26,8 +26,8 @@ type client struct {
 
 	overTCP bool
 
-	handshaker crypto.Handshaker
-	packetAuth Auth
+	handshaker types.Handshaker
+	packetAuth types.Auth
 }
 
 func init() {
@@ -78,7 +78,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			return nil, err
 		}
 
-		return NewAuthPacketConn(packet, nil, addr, c.packetAuth, true), nil
+		return NewAuthPacketConn(packet).WithTarget(addr).WithAuth(c.packetAuth).WithPrefix(true), nil
 	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)
@@ -100,7 +100,7 @@ type PacketConn struct {
 
 	net.Conn
 
-	handshaker crypto.Handshaker
+	handshaker types.Handshaker
 	addr       netapi.Address
 
 	hmux sync.Mutex
@@ -109,7 +109,7 @@ type PacketConn struct {
 	r *bufio.Reader
 }
 
-func newPacketConn(conn net.Conn, handshaker crypto.Handshaker, server bool) *PacketConn {
+func newPacketConn(conn net.Conn, handshaker types.Handshaker, server bool) *PacketConn {
 	return &PacketConn{
 		Conn:        conn,
 		handshaker:  handshaker,
@@ -123,7 +123,9 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
+
 	s5Addr := tools.ParseAddr(taddr)
+	defer s5Addr.Free()
 
 	w := pool.GetBuffer()
 	defer pool.PutBuffer(w)
@@ -131,7 +133,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	if !c.headerWrote {
 		c.hmux.Lock()
 		if !c.headerWrote {
-			c.handshaker.EncodeHeader(crypto.UDP, w, netapi.EmptyAddr)
+			c.handshaker.EncodeHeader(types.UDP, w, netapi.EmptyAddr)
 			defer func() {
 				c.headerWrote = true
 				c.hmux.Unlock()
@@ -145,7 +147,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 
 	for b.Len() > 0 {
 		data := b.Next(nat.MaxSegmentSize)
-		w.Write(s5Addr)
+		w.Write(s5Addr.Bytes.Bytes())
 		_ = binary.Write(w, binary.BigEndian, uint16(len(data)))
 		w.Write(data)
 
@@ -200,10 +202,10 @@ type Conn struct {
 	net.Conn
 
 	addr       netapi.Address
-	handshaker crypto.Handshaker
+	handshaker types.Handshaker
 }
 
-func newConn(con net.Conn, addr netapi.Address, handshaker crypto.Handshaker) net.Conn {
+func newConn(con net.Conn, addr netapi.Address, handshaker types.Handshaker) net.Conn {
 	return &Conn{
 		Conn:       con,
 		addr:       addr,
@@ -218,11 +220,11 @@ func (c *Conn) Write(b []byte) (int, error) {
 
 	c.headerWrote = true
 
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	buf := pool.GetBytesWriter(pool.DefaultSize + len(b))
+	defer buf.Free()
 
-	c.handshaker.EncodeHeader(crypto.TCP, buf, c.addr)
-	buf.Write(b)
+	c.handshaker.EncodeHeader(types.TCP, buf, c.addr)
+	_, _ = buf.Write(b)
 
 	if n, err := c.Conn.Write(buf.Bytes()); err != nil {
 		return n, err

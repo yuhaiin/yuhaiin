@@ -1,4 +1,4 @@
-package httpproxy
+package http
 
 import (
 	"bufio"

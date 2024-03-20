@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"bytes"
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/rand"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/crypto/chacha20"
 	"golang.org/x/crypto/hkdf"
@@ -23,27 +23,27 @@ import (
 type encryptedHandshaker struct {
 	server bool
 
-	signer   Signer
-	hash     Hash
-	aead     Aead
+	signer   types.Signer
+	hash     types.Hash
+	aead     types.Aead
 	password []byte
 }
 
-func (t *encryptedHandshaker) EncodeHeader(net Net, buf *bytes.Buffer, addr netapi.Address) {
-	buf.Write([]byte{byte(net)})
+func (t *encryptedHandshaker) EncodeHeader(net types.Protocol, buf types.Buffer, addr netapi.Address) {
+	_, _ = buf.Write([]byte{byte(net)})
 
-	if net == TCP {
-		tools.ParseAddrWriter(addr, buf)
+	if net == types.TCP {
+		tools.EncodeAddr(addr, buf)
 	}
 }
 
-func (t *encryptedHandshaker) DecodeHeader(c net.Conn) (Net, error) {
+func (t *encryptedHandshaker) DecodeHeader(c net.Conn) (types.Protocol, error) {
 	z := make([]byte, 1)
 
 	if _, err := io.ReadFull(c, z); err != nil {
 		return 0, fmt.Errorf("read net type failed: %w", err)
 	}
-	net := Net(z[0])
+	net := types.Protocol(z[0])
 
 	if net.Unknown() {
 		return 0, fmt.Errorf("unknown network")
@@ -251,7 +251,7 @@ func (h *header) salt() []byte {
 func (h *header) saltTimeSignature() []byte {
 	return h.Bytes()[h.th.signer.SignatureSize():]
 }
-func (h *header) Def() { defer pool.PutBytesBuffer(h.bytes) }
+func (h *header) Def() { defer h.bytes.Free() }
 
 func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error {
 	nonce := make([]byte, chacha20.NonceSize)

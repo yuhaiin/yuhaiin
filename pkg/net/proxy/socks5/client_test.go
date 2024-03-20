@@ -1,4 +1,4 @@
-package client
+package socks5
 
 import (
 	"context"

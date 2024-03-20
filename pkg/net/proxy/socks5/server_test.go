@@ -1,4 +1,4 @@
-package server
+package socks5
 
 import (
 	"bytes"
@@ -13,12 +13,12 @@ func TestResolveAddr(t *testing.T) {
 	port := netapi.ParsePort(443)
 
 	x := tools.ParseAddr(netapi.ParseAddressPort(statistic.Type_tcp, "www.baidu.com", port))
-	t.Log(tools.ResolveAddr(bytes.NewBuffer(x)))
+	t.Log(tools.ResolveAddr(bytes.NewBuffer(x.Bytes.Bytes())))
 
 	x = tools.ParseAddr(netapi.ParseAddressPort(statistic.Type_tcp, "127.0.0.1", port))
-	t.Log(x[0], x[1], x[2], x[3], x[4], x[3:], x[:3], x[:])
-	t.Log(tools.ResolveAddr(bytes.NewBuffer(x)))
+	// t.Log(x[0], x[1], x[2], x[3], x[4], x[3:], x[:3], x[:])
+	t.Log(tools.ResolveAddr(bytes.NewBuffer(x.Bytes.Bytes())))
 
 	x = tools.ParseAddr(netapi.ParseAddressPort(statistic.Type_tcp, "[ff::ff]", port))
-	t.Log(tools.ResolveAddr(bytes.NewBuffer(x)))
+	t.Log(tools.ResolveAddr(bytes.NewBuffer(x.Bytes.Bytes())))
 }

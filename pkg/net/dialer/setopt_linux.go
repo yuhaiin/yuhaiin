@@ -22,7 +22,11 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			opts.MarkSymbol(int32(fd))
 		}
 
-		if isTCPSocket(network) && !opts.listener {
+		if opts.listener {
+			return
+		}
+
+		if isTCPSocket(network) {
 			// https://github.com/golang/go/issues/48622
 			/*
 				TCP_KEEPIDLE=180

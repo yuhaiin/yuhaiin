@@ -22,9 +22,11 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	if err != nil {
 		log.Error("open bypass file failed, fallback to use internal bypass data",
 			slog.String("filepath", path), slog.Any("err", err))
+
 		if len(statics.BYPASS_DATA) == 0 {
 			return
 		}
+
 		reader, err = gzip.NewReader(bytes.NewReader(statics.BYPASS_DATA))
 		if err != nil {
 			return
@@ -40,19 +42,29 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 			continue
 		}
 
-		fs := bytes.FieldsFunc(fields[1], func(r rune) bool { return r == ',' })
-		f := &bypass.ModeConfig{
-			Mode: bypass.Mode(bypass.Mode_value[strings.ToLower(string(fs[0]))]),
-		}
+		hostname := strings.ToLower(string(fields[0]))
+		args := fields[1]
 
-		if f.Unknown() {
+		fs := bytes.FieldsFunc(args, func(r rune) bool { return r == ',' })
+
+		if len(fs) < 1 {
 			continue
 		}
 
-		if f.Mode == bypass.Mode_proxy {
+		modestr := strings.ToLower(string(fs[0]))
+
+		mode := bypass.Mode(bypass.Mode_value[modestr])
+
+		if mode.Unknown() {
+			continue
+		}
+
+		f := &bypass.ModeConfig{Mode: mode}
+
+		if mode == bypass.Mode_proxy {
 			f.StoreKV(fs[1:])
 		}
 
-		ranger(strings.ToLower(string(fields[0])), f.ToModeEnum())
+		ranger(hostname, f.ToModeEnum())
 	}
 }

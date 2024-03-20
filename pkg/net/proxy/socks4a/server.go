@@ -37,20 +37,18 @@ func (s *Server) Handle(conn net.Conn) error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	s.SendStream(&netapi.StreamMeta{
+	return s.SendStream(&netapi.StreamMeta{
 		Source:      conn.RemoteAddr(),
 		Destination: addr,
 		Inbound:     conn.LocalAddr(),
 		Src:         conn,
 		Address:     addr,
 	})
-
-	return nil
 }
 
 func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 	buf := pool.GetBytesBuffer(8)
-	defer pool.PutBytesBuffer(buf)
+	defer buf.Free()
 
 	if _, err := io.ReadFull(conn, buf.Bytes()); err != nil {
 		return nil, err

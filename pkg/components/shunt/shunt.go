@@ -167,7 +167,7 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	store := netapi.StoreFromContext(ctx)
 
-	mode := netapi.GetDefault[bypass.Mode](
+	mode := netapi.GetDefault(
 		ctx,
 		ForceModeKey{},
 		networkMode, // get mode from network(tcp/udp) rule

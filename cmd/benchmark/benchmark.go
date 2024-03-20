@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -31,7 +31,7 @@ func main() {
 		panic(err)
 	}
 
-	p := client.Dial(sh, sp, "", "")
+	p := socks5.Dial(sh, sp, "", "")
 
 	for {
 		conn, err := lis.Accept()

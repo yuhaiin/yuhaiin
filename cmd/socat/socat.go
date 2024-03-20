@@ -9,14 +9,14 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func main() {
 	target := flag.String("t", "", "target, -t www.example.com:22")
-	socks5 := flag.String("s", "127.0.0.1:1080", "socks5 server host, -s 127.0.0.1:1080")
+	s5 := flag.String("s", "127.0.0.1:1080", "socks5 server host, -s 127.0.0.1:1080")
 	flag.Parse()
 
 	addr, err := netapi.ParseAddress(statistic.Type_tcp, *target)
@@ -24,12 +24,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	host, port, err := net.SplitHostPort(*socks5)
+	host, port, err := net.SplitHostPort(*s5)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	conn, err := s5c.Dial(host, port, "", "").Conn(context.TODO(), addr)
+	conn, err := socks5.Dial(host, port, "", "").Conn(context.TODO(), addr)
 	if err != nil {
 		log.Fatal(err)
 	}

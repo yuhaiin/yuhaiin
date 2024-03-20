@@ -87,7 +87,11 @@ func (s *Shadowsocksr) Conn(ctx context.Context, addr netapi.Address) (net.Conn,
 		c.Close()
 		return nil, fmt.Errorf("protocol stream failed: %w", err)
 	}
-	if _, err := conn.Write(tools.ParseAddr(addr)); err != nil {
+
+	adr := tools.ParseAddr(addr)
+	defer adr.Free()
+
+	if _, err := conn.Write(adr.Bytes.Bytes()); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("write target failed: %w", err)
 	}
@@ -107,5 +111,5 @@ func (s *Shadowsocksr) PacketConn(ctx context.Context, addr netapi.Address) (net
 		return nil, fmt.Errorf("protocol packet failed: %w", err)
 	}
 
-	return yuubinsya.NewAuthPacketConn(proto, nil, netapi.EmptyAddr, nil, false), nil
+	return yuubinsya.NewAuthPacketConn(proto), nil
 }

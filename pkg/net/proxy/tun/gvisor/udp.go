@@ -41,8 +41,8 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 			for {
 				buf := pool.GetBytesBuffer(t.mtu)
 
-				_ = local.SetReadDeadline(time.Now().Add(nat.IdleTImeout))
-				n, src, err := local.ReadFrom(buf.Bytes())
+				_ = local.SetReadDeadline(time.Now().Add(nat.IdleTimeout))
+				_, src, err := buf.ReadFromPacket(local)
 				if err != nil {
 					if ne, ok := err.(net.Error); (ok && ne.Timeout()) || err == io.EOF {
 						return /* ignore I/O timeout & EOF */
@@ -51,8 +51,6 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 					log.Error("read udp failed:", "err", err)
 					return
 				}
-
-				buf.ResetSize(0, n)
 
 				err = t.SendPacket(&netapi.Packet{
 					Src:     src,
@@ -77,7 +75,7 @@ func (t *tunServer) udpForwarder() *udp.Forwarder {
 							return n, err
 						}
 
-						_ = local.SetReadDeadline(time.Now().Add(nat.IdleTImeout))
+						_ = local.SetReadDeadline(time.Now().Add(nat.IdleTimeout))
 						return n, nil
 					},
 				})

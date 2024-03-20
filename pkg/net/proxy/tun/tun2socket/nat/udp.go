@@ -39,7 +39,7 @@ func (u *UDPv2) ReadFrom(buf []byte) (int, Tuple, error) {
 	case <-u.ctx.Done():
 		return 0, Tuple{}, net.ErrClosed
 	case c := <-u.channel:
-		defer pool.PutBytesBuffer(c.buf)
+		defer c.buf.Free()
 
 		return copy(buf, c.buf.Bytes()), c.tuple, nil
 	}

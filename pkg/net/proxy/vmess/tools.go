@@ -61,13 +61,12 @@ func KDF16(key []byte, path ...string) []byte {
 }
 
 func CreateAuthID(cmdKey []byte, time int64) [16]byte {
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	buf := pool.GetBytesWriter(pool.DefaultSize)
+	defer buf.Free()
 
 	_ = binary.Write(buf, binary.BigEndian, time)
-	var zero uint32
 	_, _ = relay.CopyN(buf, rand3.Reader, 4)
-	zero = crc32.ChecksumIEEE(buf.Bytes())
+	zero := crc32.ChecksumIEEE(buf.Bytes())
 	_ = binary.Write(buf, binary.BigEndian, zero)
 	aesBlock := NewCipherFromKey(cmdKey)
 	if buf.Len() != 16 {

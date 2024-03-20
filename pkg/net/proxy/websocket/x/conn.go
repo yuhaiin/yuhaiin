@@ -132,8 +132,6 @@ func (ws *Conn) nextFrameReader() (*Header, io.ReadCloser, error) {
 func (ws *Conn) Write(msg []byte) (n int, err error) { return ws.WriteMsg(msg, ws.PayloadType) }
 
 func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
 
 	frameHeader := Header{
 		fin:           true,
@@ -146,13 +144,16 @@ func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
 		_ = binary.Read(rand.Reader, binary.BigEndian, &frameHeader.maskKey)
 	}
 
+	buf := pool.GetBytesWriter(pool.DefaultSize + len(msg))
+	defer buf.Free()
+
 	if err := writeFrameHeader(frameHeader, buf, ws.writeHeaderBuf[:]); err != nil {
 		return 0, err
 	}
 
 	headerLength := buf.Len()
 
-	buf.Write(msg)
+	_, _ = buf.Write(msg)
 
 	if frameHeader.masked {
 		mask(frameHeader.maskKey, buf.Bytes()[headerLength:])

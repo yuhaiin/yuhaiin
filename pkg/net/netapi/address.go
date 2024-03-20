@@ -33,21 +33,23 @@ func ParseAddress(network statistic.Type, addr string) (ad Address, _ error) {
 	return ParseAddressPort(network, hostname, port), nil
 }
 
-func ParseAddressPort(network statistic.Type, addr string, port Port) (ad Address) {
-	base := newAddr(network)
+func ParseDomainPort(network statistic.Type, addr string, port Port) (ad Address) {
+	return &DomainAddr{
+		hostname: addr,
+		port:     port,
+		addr:     newAddr(network),
+	}
+}
 
+func ParseAddressPort(network statistic.Type, addr string, port Port) (ad Address) {
 	if addr, err := netip.ParseAddr(addr); err == nil {
 		return &IPAddrPort{
-			addr:     base,
+			addr:     newAddr(network),
 			addrPort: netip.AddrPortFrom(addr.Unmap(), port.Port()),
 		}
 	}
 
-	return &DomainAddr{
-		hostname: addr,
-		port:     port,
-		addr:     base,
-	}
+	return ParseDomainPort(network, addr, port)
 }
 
 func ParseTCPAddress(ad *net.TCPAddr) Address {
