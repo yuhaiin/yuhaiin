@@ -7,9 +7,9 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	httpproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
-	s5s "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/server"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
@@ -46,7 +46,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accept
 		}
 
 		mix.s5c = netapi.NewChannelListener(lis.Addr())
-		mix.s5, err = s5s.NewServer(&listener.Inbound_Socks5{
+		mix.s5, err = socks5.NewServer(&listener.Inbound_Socks5{
 			Socks5: &listener.Socks5{
 				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
@@ -58,7 +58,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accept
 			mix.Close()
 			return nil, err
 		}
-		s5 := mix.s5.(*s5s.Socks5)
+		s5 := mix.s5.(*socks5.Server)
 		s5.ChannelServer.Close()
 		s5.ChannelServer = mix.ChannelServer
 
@@ -78,7 +78,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accept
 		s4.ChannelServer = mix.ChannelServer
 
 		mix.httpc = netapi.NewChannelListener(lis.Addr())
-		mix.http, err = httpproxy.NewServer(&listener.Inbound_Http{
+		mix.http, err = http.NewServer(&listener.Inbound_Http{
 			Http: &listener.Http{
 				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
@@ -89,7 +89,7 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accept
 			mix.Close()
 			return nil, err
 		}
-		http := mix.http.(*httpproxy.Server)
+		http := mix.http.(*http.Server)
 		http.ChannelServer.Close()
 		http.ChannelServer = mix.ChannelServer
 
@@ -144,13 +144,11 @@ func (m *Mixed) handle() error {
 		go func() {
 			protocol := pool.GetBytesBuffer(pool.DefaultSize)
 
-			n, err := conn.Read(protocol.Bytes())
+			n, err := protocol.ReadFrom(conn)
 			if err != nil || n <= 0 {
 				conn.Close()
 				return
 			}
-
-			protocol.ResetSize(0, n)
 
 			conn = netapi.NewPrefixBytesConn(conn, protocol)
 

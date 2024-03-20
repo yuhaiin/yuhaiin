@@ -1,4 +1,4 @@
-package server
+package socks5
 
 import (
 	"crypto/subtle"
@@ -17,7 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
-func (s *Socks5) startUDPServer() error {
+func (s *Server) startUDPServer() error {
 	packet, err := s.lis.Packet(s.Context())
 	if err != nil {
 		return err
@@ -31,7 +31,7 @@ func (s *Socks5) startUDPServer() error {
 	return nil
 }
 
-func (s *Socks5) startTCPServer() error {
+func (s *Server) startTCPServer() error {
 	lis, err := s.lis.Stream(s.Context())
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (s *Socks5) startTCPServer() error {
 	return nil
 }
 
-func (s *Socks5) Handle(client net.Conn) (err error) {
+func (s *Server) Handle(client net.Conn) (err error) {
 	b := pool.GetBytes(pool.DefaultSize)
 	defer pool.PutBytes(b)
 
@@ -83,7 +83,7 @@ func (s *Socks5) Handle(client net.Conn) (err error) {
 	return
 }
 
-func (s *Socks5) handshake1(client net.Conn, buf []byte) error {
+func (s *Server) handshake1(client net.Conn, buf []byte) error {
 	//socks5 first handshake
 	if _, err := io.ReadFull(client, buf[:2]); err != nil {
 		return fmt.Errorf("read first handshake failed: %w", err)
@@ -173,7 +173,7 @@ func verifyUserPass(client net.Conn, user, key string) error {
 	return err
 }
 
-func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
+func (s *Server) handshake2(client net.Conn, buf []byte) error {
 	// socks5 second handshake
 	if _, err := io.ReadFull(client, buf[:3]); err != nil {
 		return fmt.Errorf("read second handshake failed: %w", err)
@@ -188,11 +188,12 @@ func (s *Socks5) handshake2(client net.Conn, buf []byte) error {
 
 	switch tools.CMD(buf[1]) { // mode
 	case tools.Connect:
-		var adr tools.ADDR
+		var adr *tools.Addr
 		adr, err = tools.ResolveAddr(client)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
+		defer adr.Free()
 
 		addr := adr.Address(statistic.Type_tcp)
 
@@ -253,11 +254,13 @@ func writeHandshake1(conn net.Conn, errREP byte) error {
 }
 
 func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
-	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, tools.ParseAddr(addr)...))
+	adr := tools.ParseAddr(addr)
+	defer adr.Free()
+	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, adr.Bytes.Bytes()...))
 	return err
 }
 
-type Socks5 struct {
+type Server struct {
 	udp      bool
 	lis      netapi.Listener
 	username string
@@ -266,7 +269,7 @@ type Socks5 struct {
 	*netapi.ChannelServer
 }
 
-func (s *Socks5) Close() error {
+func (s *Server) Close() error {
 	s.ChannelServer.Close()
 	return s.lis.Close()
 }
@@ -277,7 +280,7 @@ func init() {
 
 func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener) (netapi.Accepter, error) {
 	return func(ii netapi.Listener) (netapi.Accepter, error) {
-		s := &Socks5{
+		s := &Server{
 			udp:           o.Socks5.Udp,
 			username:      o.Socks5.Username,
 			password:      o.Socks5.Password,

@@ -321,7 +321,7 @@ func (p *pipeReadWritePacket) Read(b []byte) (int, error) {
 	case <-p.ctx.Done():
 		return 0, io.EOF
 	case bb := <-p.pipe2:
-		defer pool.PutBytesBuffer(bb)
+		defer bb.Free()
 		return copy(b, bb.Bytes()), nil
 	}
 }
@@ -331,7 +331,7 @@ func (p *pipeReadWritePacket) ReadPipe1(b []byte) (int, error) {
 	case <-p.ctx.Done():
 		return 0, io.EOF
 	case bb := <-p.pipe1:
-		defer pool.PutBytesBuffer(bb)
+		defer bb.Free()
 		return copy(b, bb.Bytes()), nil
 	}
 }

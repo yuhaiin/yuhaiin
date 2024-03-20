@@ -107,14 +107,12 @@ func (h *Tun2socket) handleTCP(conn net.Conn) error {
 		return nil
 	}
 
-	h.SendStream(&netapi.StreamMeta{
+	return h.SendStream(&netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
 		Address:     netapi.ParseTCPAddress(rAddrPort),
 	})
-
-	return nil
 }
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
@@ -127,9 +125,9 @@ func (h *Tun2socket) handleUDP() error {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
 	}
 
-	buf.ResetSize(0, n)
+	buf.Refactor(0, n)
 
-	h.SendPacket(&netapi.Packet{
+	return h.SendPacket(&netapi.Packet{
 		Src: &net.UDPAddr{
 			IP:   net.IP(tuple.SourceAddr.AsSlice()),
 			Port: int(tuple.SourcePort),
@@ -158,5 +156,4 @@ func (h *Tun2socket) handleUDP() error {
 			})
 		},
 	})
-	return nil
 }

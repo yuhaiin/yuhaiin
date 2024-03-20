@@ -5,11 +5,6 @@ import (
 	"hash"
 )
 
-type Hash interface {
-	New() hash.Hash
-	Size() int
-}
-
 var Sha256 = sha256Hash{}
 
 type sha256Hash struct{}

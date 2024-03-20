@@ -5,7 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
@@ -13,7 +13,7 @@ import (
 func TestUDP(t *testing.T) {
 
 	subnet, _ := netip.ParsePrefix("223.5.5.0/24")
-	s5Dialer := s5c.Dial("127.0.0.1", "1080", "", "")
+	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 	configMap := map[string]Config{
 		"cloudflare": {
 			Type:   dns.Type_udp,

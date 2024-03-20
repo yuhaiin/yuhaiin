@@ -17,7 +17,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	mRand "math/rand/v2"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"reflect"
@@ -206,7 +206,7 @@ func realityClientFallback(uConn net.Conn, serverName string, fingerprint utls.C
 	}
 	request, _ := http.NewRequest("GET", "https://"+serverName, nil)
 	request.Header.Set("User-Agent", fingerprint.Client)
-	request.AddCookie(&http.Cookie{Name: "padding", Value: strings.Repeat("0", mRand.IntN(32)+30)})
+	request.AddCookie(&http.Cookie{Name: "padding", Value: strings.Repeat("0", rand.IntN(32)+30)})
 	response, err := client.Do(request)
 	if err != nil {
 		return

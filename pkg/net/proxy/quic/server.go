@@ -53,14 +53,17 @@ func newServer(packetConn net.PacketConn, tlsConfig *tls.Config) (*Server, error
 		Conn:               packetConn,
 		ConnectionIDLength: 12,
 	}
-	lis, err := tr.Listen(tlsConfig, &quic.Config{
+
+	config := &quic.Config{
 		MaxIncomingStreams:    1 << 60,
 		KeepAlivePeriod:       0,
 		MaxIdleTimeout:        3 * time.Minute,
 		EnableDatagrams:       true,
 		Allow0RTT:             true,
 		MaxIncomingUniStreams: -1,
-	})
+	}
+
+	lis, err := tr.Listen(tlsConfig, config)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +187,7 @@ func (s *Server) listenStream(conn quic.Connection) error {
 }
 
 type serverMsg struct {
-	msg *pool.Bytes
+	msg *pool.Buffer
 	src net.Addr
 	id  uint64
 }
@@ -217,7 +220,7 @@ func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) 
 	case <-x.deadline.ReadContext().Done():
 		return 0, nil, x.deadline.ReadContext().Err()
 	case msg := <-x.packetChan:
-		defer pool.PutBytesBuffer(msg.msg)
+		defer msg.msg.Free()
 
 		n = copy(p, msg.msg.Bytes())
 		return n, &QuicAddr{Addr: msg.src, ID: quic.StreamID(msg.id)}, nil

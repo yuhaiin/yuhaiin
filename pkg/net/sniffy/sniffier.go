@@ -65,14 +65,12 @@ func (s *Sniffier[T]) Packet(b []byte) (T, string, bool) {
 func (s *Sniffier[T]) Stream(c net.Conn) (net.Conn, T, string, bool) {
 	buf := pool.GetBytesBuffer(pool.DefaultSize)
 
-	n, _ := c.Read(buf.Bytes())
+	n, _ := buf.ReadFrom(c)
 
 	if n <= 0 {
-		pool.PutBytesBuffer(buf)
+		buf.Free()
 		return c, *new(T), "", false
 	}
-
-	buf.ResetSize(0, n)
 
 	c = netapi.NewPrefixBytesConn(c, buf)
 

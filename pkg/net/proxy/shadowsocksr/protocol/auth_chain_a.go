@@ -135,7 +135,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	encrypt := make([]byte, 20)
 	t := time.Now().Unix()
 	binary.LittleEndian.PutUint32(encrypt[:4], uint32(t))
-	copy(encrypt[4:8], a.Protocol.Auth.clientID)
+	copy(encrypt[4:8], a.Protocol.Auth.clientID[:])
 	binary.LittleEndian.PutUint32(encrypt[8:], a.Protocol.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))
 	binary.LittleEndian.PutUint16(encrypt[14:16], 0)

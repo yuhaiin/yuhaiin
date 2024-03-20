@@ -2,9 +2,12 @@ package pool
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math/bits"
+	"net"
 	"net/http/httputil"
 	"sync"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/exp/constraints"
@@ -85,11 +88,19 @@ func (pool) PutBuffer(b *bytes.Buffer) {
 	}
 }
 
+type MultipleBuffer []*Buffer
+
+func (m MultipleBuffer) Free() {
+	for _, v := range m {
+		v.Free()
+	}
+}
+
 type MultipleBytes []*Bytes
 
-func (m MultipleBytes) Drop() {
+func (m MultipleBytes) Free() {
 	for _, v := range m {
-		PutBytesBuffer(v)
+		v.Free()
 	}
 }
 
@@ -101,8 +112,9 @@ type Bytes struct {
 }
 
 func (b *Bytes) Bytes() []byte          { return b.buf[b.start:b.end] }
+func (b *Bytes) String() string         { return string(b.Bytes()) }
 func (b *Bytes) After(index int) []byte { return b.buf[b.start+index : b.end] }
-func (b *Bytes) ResetSize(start, end int) {
+func (b *Bytes) Refactor(start, end int) *Bytes {
 	if end <= len(b.buf) {
 		b.end = end
 	}
@@ -110,6 +122,8 @@ func (b *Bytes) ResetSize(start, end int) {
 	if start >= 0 && start <= end {
 		b.start = start
 	}
+
+	return b
 }
 
 func (b *Bytes) Copy(byte []byte) *Bytes {
@@ -119,6 +133,39 @@ func (b *Bytes) Copy(byte []byte) *Bytes {
 
 func (b *Bytes) Len() int { return b.end - b.start }
 
+func (b *Bytes) ReadFrom(c net.Conn) (int, error) {
+	n, err := c.Read(b.Bytes())
+	if err != nil {
+		return n, err
+	}
+
+	b.end = n
+
+	return n, err
+}
+
+func (b *Bytes) AsWriter() *Buffer {
+	b.start = 0
+	b.end = 0
+
+	return &Buffer{b}
+}
+
+func (b *Bytes) ReadFromPacket(pc net.PacketConn) (int, net.Addr, error) {
+	n, addr, err := pc.ReadFrom(b.Bytes())
+	if err != nil {
+		return n, addr, err
+	}
+
+	b.end = n
+
+	return n, addr, err
+}
+
+func (b *Bytes) Free() {
+	putBytesBuffer(b)
+}
+
 func NewBytesBuffer(b []byte) *Bytes { return &Bytes{sync.Once{}, b, 0, len(b)} }
 
 func GetBytesBuffer[T constraints.Integer](size T) *Bytes {
@@ -126,4 +173,133 @@ func GetBytesBuffer[T constraints.Integer](size T) *Bytes {
 		GetBytes(size), 0, int(size)}
 }
 
-func PutBytesBuffer(b *Bytes) { b.once.Do(func() { PutBytes(b.buf) }) }
+func putBytesBuffer(b *Bytes) { b.once.Do(func() { PutBytes(b.buf) }) }
+
+func GetBytesWriter[T constraints.Integer](size T) *Buffer {
+	b := &Bytes{sync.Once{},
+		GetBytes(size), 0, 0}
+	return &Buffer{b}
+}
+
+type Buffer struct {
+	b *Bytes
+}
+
+func NewBuffer(b []byte) *Buffer { return &Buffer{NewBytesBuffer(b)} }
+
+func (b *Buffer) freeSlice() []byte {
+	return b.b.buf[b.b.end:]
+}
+
+func (b *Buffer) WriteUint16(v uint16) {
+	if len(b.freeSlice()) < 2 {
+		return
+	}
+
+	binary.BigEndian.PutUint16(b.freeSlice(), v)
+	b.b.end += 2
+}
+
+func (b *Buffer) WriteLittleEndianUint16(v uint16) {
+	if len(b.freeSlice()) < 2 {
+		return
+	}
+
+	binary.LittleEndian.PutUint16(b.freeSlice(), v)
+	b.b.end += 2
+}
+
+func (b *Buffer) WriteUint32(v uint32) {
+	if len(b.freeSlice()) < 4 {
+		return
+	}
+
+	binary.BigEndian.PutUint32(b.freeSlice(), v)
+	b.b.end += 4
+}
+func (b *Buffer) WriteLittleEndianUint32(v uint32) {
+	if len(b.freeSlice()) < 4 {
+		return
+	}
+
+	binary.LittleEndian.PutUint32(b.freeSlice(), v)
+	b.b.end += 4
+}
+
+func (b *Buffer) WriteUint64(v uint64) {
+	if len(b.freeSlice()) < 8 {
+		return
+	}
+
+	binary.BigEndian.PutUint64(b.freeSlice(), v)
+	b.b.end += 8
+}
+
+func (b *Buffer) WriteLittleEndianUint64(v uint64) {
+	if len(b.freeSlice()) < 8 {
+		return
+	}
+
+	binary.LittleEndian.PutUint64(b.freeSlice(), v)
+	b.b.end += 8
+}
+
+func (b *Buffer) Write(bb []byte) (int, error) {
+	n := copy(b.freeSlice(), bb)
+	b.b.end += n
+	return n, nil
+}
+
+func (b *Buffer) WriteString(s string) {
+	_, _ = b.Write(unsafe.Slice(unsafe.StringData(s), len(s)))
+}
+
+func (b *Buffer) WriteByte(v byte) error {
+	_, err := b.Write([]byte{v})
+	return err
+}
+
+func (b *Buffer) ReadFrom(c net.Conn) (int, error) {
+	return b.b.ReadFrom(c)
+}
+
+func (b *Buffer) ReadFromPacket(pc net.PacketConn) (int, net.Addr, error) {
+	return b.b.ReadFromPacket(pc)
+}
+
+func (b *Buffer) Len() int      { return b.b.Len() }
+func (b *Buffer) Bytes() []byte { return b.b.Bytes() }
+
+func (b *Buffer) String() string { return b.b.String() }
+
+func (b *Buffer) Truncate(n int) {
+	if n <= 0 {
+		b.b.start = 0
+		b.b.end = 0
+		return
+	}
+
+	if n >= b.b.end {
+		return
+	}
+
+	b.b.end = n
+}
+
+func (b *Buffer) Discard(n int) []byte {
+	if n > b.b.end-b.b.start {
+		x := b.Bytes()
+		b.b.start = b.b.end
+		return x
+	}
+
+	x := b.b.buf[b.b.start : b.b.start+n]
+	b.b.start += n
+	return x
+}
+
+func (b *Buffer) Unwrap() *Bytes { return b.b }
+
+func (b *Buffer) Free() {
+	putBytesBuffer(b.b)
+}

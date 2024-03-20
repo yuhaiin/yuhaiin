@@ -1,19 +1,13 @@
-package yuubinsya
+package plain
 
-import "crypto/cipher"
-
-type Auth interface {
-	cipher.AEAD
-	KeySize() int
-	Key() []byte
-}
+import "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 
 type plainAuth struct {
 	password    []byte
 	passwordLen int
 }
 
-func NewPlainAuth(password []byte) Auth {
+func NewAuth(password []byte) types.Auth {
 	return &plainAuth{
 		password:    password,
 		passwordLen: len(password),

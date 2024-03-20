@@ -15,6 +15,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -104,7 +105,7 @@ func (c *clientConnPool) OpenStream(ctx context.Context) (uint64, net.Conn, *htt
 		AllowHTTP:          true,
 		ReadIdleTimeout:    time.Second * 30,
 		MaxReadFrameSize:   pool.DefaultSize,
-		IdleConnTimeout:    time.Minute * 3,
+		IdleConnTimeout:    nat.IdleTimeout,
 		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			return rawConn, nil
 		},

@@ -35,7 +35,7 @@ func (e *errorProtocol) DecryptPacket(data []byte) ([]byte, error) { return nil,
 func (e *errorProtocol) GetOverhead() int                          { return 0 }
 
 type AuthData struct {
-	clientID     []byte
+	clientID     [4]byte
 	connectionID atomic.Uint32
 
 	mu sync.Mutex
@@ -44,15 +44,14 @@ type AuthData struct {
 func NewAuth() *AuthData { return &AuthData{} }
 
 func (a *AuthData) nextAuth() {
-	if a.connectionID.Load() <= 0xFF000000 && a.clientID != nil {
+	if a.connectionID.Load() <= 0xFF000000 && a.connectionID.Load() != 0 {
 		a.connectionID.Add(1)
 		return
 	}
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.clientID = make([]byte, 8)
-	crand.Read(a.clientID)
+	crand.Read(a.clientID[:])
 	a.connectionID.Store(rand.Uint32() & 0xFFFFFF)
 }
 

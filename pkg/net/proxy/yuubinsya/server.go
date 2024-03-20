@@ -10,17 +10,19 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 type server struct {
-	Listener   netapi.Listener
-	handshaker crypto.Handshaker
+	listener   netapi.Listener
+	handshaker types.Handshaker
 
 	*netapi.ChannelServer
 
-	packetAuth Auth
+	packetAuth types.Auth
 }
 
 func init() {
@@ -35,7 +37,7 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accep
 		}
 
 		s := &server{
-			Listener: ii,
+			listener: ii,
 			handshaker: NewHandshaker(
 				true,
 				!config.Yuubinsya.ForceDisableEncrypt,
@@ -54,7 +56,7 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accep
 }
 
 func (y *server) startUDP() error {
-	packet, err := y.Listener.Packet(y.Context())
+	packet, err := y.listener.Packet(y.Context())
 	if err != nil {
 		return err
 	}
@@ -66,7 +68,7 @@ func (y *server) startUDP() error {
 }
 
 func (y *server) startTCP() (err error) {
-	lis, err := y.Listener.Stream(y.Context())
+	lis, err := y.listener.Stream(y.Context())
 	if err != nil {
 		return err
 	}
@@ -96,7 +98,7 @@ func (y *server) handle(conn net.Conn) error {
 	}
 
 	switch net {
-	case crypto.TCP:
+	case types.TCP:
 		target, err := tools.ResolveAddr(c)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
@@ -112,7 +114,7 @@ func (y *server) handle(conn net.Conn) error {
 			Address:     addr,
 		})
 
-	case crypto.UDP:
+	case types.UDP:
 		pc := newPacketConn(c, y.handshaker, true)
 		defer pc.Close()
 
@@ -140,8 +142,28 @@ func (y *server) handle(conn net.Conn) error {
 }
 
 func (y *server) Close() error {
-	if y.Listener == nil {
+	if y.listener == nil {
 		return nil
 	}
-	return y.Listener.Close()
+	return y.listener.Close()
+}
+
+func NewHandshaker(server bool, encrypted bool, password []byte) types.Handshaker {
+	hash := types.Salt(password)
+
+	if !encrypted {
+		return plain.Handshaker(hash)
+	}
+
+	return crypto.NewHandshaker(server, hash, password)
+}
+
+func NewAuth(crypt bool, password []byte) (types.Auth, error) {
+	password = types.Salt(password)
+
+	if !crypt {
+		return plain.NewAuth(password), nil
+	}
+
+	return crypto.GetAuth(password)
 }

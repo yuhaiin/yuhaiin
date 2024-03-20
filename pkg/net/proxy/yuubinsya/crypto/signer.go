@@ -5,20 +5,15 @@ import (
 	"crypto/ed25519"
 	"io"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"golang.org/x/crypto/hkdf"
 )
-
-type Signer interface {
-	Sign(rand io.Reader, digest []byte) (signature []byte, err error)
-	SignatureSize() int
-	Verify(message, sig []byte) bool
-}
 
 type Ed25519 struct {
 	privatekey ed25519.PrivateKey
 }
 
-func NewEd25519(hash Hash, key []byte) Signer {
+func NewEd25519(hash types.Hash, key []byte) types.Signer {
 	r := hkdf.New(hash.New, key, make([]byte, hash.Size()), []byte("ed25519-signature"))
 	seed := make([]byte, ed25519.SeedSize)
 	_, _ = io.ReadFull(r, seed)

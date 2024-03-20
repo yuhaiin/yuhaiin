@@ -13,13 +13,11 @@ func (r *redir) handle(req net.Conn) error {
 		return err
 	}
 
-	r.SendStream(&netapi.StreamMeta{
+	return r.SendStream(&netapi.StreamMeta{
 		Inbound:     r.lis.Addr(),
 		Source:      req.RemoteAddr(),
 		Destination: target,
 		Src:         req,
 		Address:     netapi.ParseTCPAddress(target),
 	})
-
-	return nil
 }

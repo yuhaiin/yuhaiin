@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -124,14 +125,13 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 		ConnectionIDLength: 12,
 	}
 
-	session, err = tr.Dial(ctx, c.host,
-		c.tlsConfig,
-		&quic.Config{
-			KeepAlivePeriod: 30 * time.Second,
-			MaxIdleTimeout:  3 * time.Minute,
-			EnableDatagrams: true,
-		},
-	)
+	config := &quic.Config{
+		KeepAlivePeriod: 30 * time.Second,
+		MaxIdleTimeout:  nat.IdleTimeout,
+		EnableDatagrams: true,
+	}
+
+	session, err = tr.Dial(ctx, c.host, c.tlsConfig, config)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -147,6 +147,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 	c.packetConn = pconn
 
 	go func() {
+		defer session.CloseWithError(0, "")
 		for {
 			id, data, err := pconn.Receive(context.TODO())
 			if err != nil {
@@ -202,7 +203,7 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		cancel:   cancel,
 		session:  c.packetConn,
 		id:       c.idg.Generate(),
-		msg:      make(chan *pool.Bytes, 64),
+		msg:      make(chan *pool.Buffer, 64),
 		deadline: deadline.NewPipe(),
 	}
 	c.natMap.Store(cp.id, cp)
@@ -285,7 +286,7 @@ type clientPacketConn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	msg chan *pool.Bytes
+	msg chan *pool.Buffer
 
 	deadline *deadline.PipeDeadline
 }
@@ -302,7 +303,7 @@ func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 	case <-x.ctx.Done():
 		return x.read(p, x.ctx.Err)
 	case msg := <-x.msg:
-		defer pool.PutBytesBuffer(msg)
+		defer msg.Free()
 
 		n = copy(p, msg.Bytes())
 		return n, x.session.conn.RemoteAddr(), nil
@@ -313,12 +314,11 @@ func (x *clientPacketConn) read(p []byte, err func() error) (n int, _ net.Addr, 
 	if len(x.msg) > 0 {
 		select {
 		case msg := <-x.msg:
-			defer pool.PutBytesBuffer(msg)
+			defer msg.Free()
 
 			n = copy(p, msg.Bytes())
 			return n, x.session.conn.RemoteAddr(), nil
 		default:
-			return 0, nil, err()
 		}
 	}
 
@@ -331,6 +331,8 @@ func (x *clientPacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
 		return 0, x.ctx.Err()
 	case <-x.deadline.WriteContext().Done():
 		return 0, x.deadline.WriteContext().Err()
+	case <-x.session.Context().Done():
+		return 0, x.session.Context().Err()
 	default:
 	}
 

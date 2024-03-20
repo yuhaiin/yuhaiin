@@ -86,7 +86,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				return err
 			}
 
-			buf.ResetSize(0, n)
+			buf.Refactor(0, n)
 
 			earlyData = append(earlyData, buf)
 

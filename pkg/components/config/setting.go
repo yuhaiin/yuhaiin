@@ -39,7 +39,7 @@ type setting struct {
 }
 
 func NewConfig(path string) Setting {
-	return &setting{db: jsondb.Open[*config.Setting](path, defaultSetting(path))}
+	return &setting{db: jsondb.Open(path, defaultSetting(path))}
 }
 
 func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {

@@ -68,12 +68,13 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 			return nil, fmt.Errorf("set write deadline failed: %w", err)
 		}
 
-		buf := pool.GetBytesBuffer(2 + len(b))
-		defer pool.PutBytesBuffer(buf)
+		buf := pool.GetBytesWriter(2 + len(b))
+		defer buf.Free()
 
-		binary.BigEndian.PutUint16(buf.Bytes()[:2], uint16(len(b)))
+		buf.WriteUint16(uint16(len(b)))
+		_, _ = buf.Write(b)
 
-		if _, err = con.Write(append(buf.Bytes()[:2], b...)); err != nil {
+		if _, err = con.Write(buf.Bytes()); err != nil {
 			con.Close()
 			return nil, fmt.Errorf("write dns req failed: %w", err)
 		}

@@ -34,14 +34,14 @@ const (
 var crlf = []byte{'\r', '\n'}
 
 func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr netapi.Address) (err error) {
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	buf := pool.GetBytesWriter(pool.DefaultSize)
+	defer buf.Free()
 
-	buf.Write(c.password)
-	buf.Write(crlf)
+	_, _ = buf.Write(c.password)
+	_, _ = buf.Write(crlf)
 	buf.WriteByte(byte(cmd))
-	tools.ParseAddrWriter(addr, buf)
-	buf.Write(crlf)
+	tools.EncodeAddr(addr, buf)
+	_, _ = buf.Write(crlf)
 
 	_, err = conn.Write(buf.Bytes())
 	return
@@ -109,7 +109,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	w := pool.GetBuffer()
 	defer pool.PutBuffer(w)
 
-	tools.ParseAddrWriter(taddr, w)
+	tools.EncodeAddr(taddr, w)
 	addrSize := w.Len()
 
 	b := bytes.NewBuffer(payload)

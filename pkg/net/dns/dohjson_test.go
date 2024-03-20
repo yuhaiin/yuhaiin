@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	s5c "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/client"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 )
 
 func TestDNSJson(t *testing.T) {
@@ -18,7 +18,7 @@ func TestDNSJson(t *testing.T) {
 		if err != nil {
 			return nil, fmt.Errorf("parse address failed: %w", err)
 		}
-		return s5c.Dial("127.0.0.1", "1080", "", "").Conn(ctx, ad)
+		return socks5.Dial("127.0.0.1", "1080", "", "").Conn(ctx, ad)
 	}
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))

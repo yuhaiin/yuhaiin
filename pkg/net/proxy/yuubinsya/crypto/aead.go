@@ -12,13 +12,6 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-type Aead interface {
-	New([]byte) (cipher.AEAD, error)
-	KeySize() int
-	NonceSize() int
-	Name() []byte
-}
-
 var Chacha20poly1305 = chacha20poly1305Aead{}
 
 type chacha20poly1305Aead struct{}

@@ -63,7 +63,8 @@ func NewServer(config *listener.Transport_Reality) func(netapi.Listener) (netapi
 		if err != nil {
 			return nil, err
 		}
-		return netapi.PatchStream(reality.NewListener(lis, &reality.Config{
+
+		config := &reality.Config{
 			DialContext:            dialer.DialContext,
 			Show:                   config.Reality.Debug,
 			Type:                   "tcp",
@@ -72,7 +73,11 @@ func NewServer(config *listener.Transport_Reality) func(netapi.Listener) (netapi
 			Dest:                   config.Reality.Dest,
 			PrivateKey:             privateKey,
 			SessionTicketsDisabled: true,
-		}), ii), nil
+		}
+
+		lis = reality.NewListener(lis, config)
+
+		return netapi.PatchStream(lis, ii), nil
 
 	}
 }

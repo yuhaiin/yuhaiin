@@ -8,32 +8,45 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/libp2p/go-yamux/v4"
 )
+
+var ignoreError = []error{
+	io.EOF,
+	os.ErrDeadlineExceeded,
+	net.ErrClosed,
+}
+
+func logE(msg string, err error) {
+	if err == nil {
+		return
+	}
+
+	for _, e := range ignoreError {
+		if errors.Is(err, e) {
+			return
+		}
+	}
+
+	log.Error(msg, "err", err)
+}
+
+func AppendIgnoreError(err error) {
+	ignoreError = append(ignoreError, err)
+}
 
 // Relay pipe
 func Relay(rw1, rw2 io.ReadWriteCloser) {
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		if _, err := Copy(rw2, rw1); err != nil &&
-			!errors.Is(err, io.EOF) &&
-			!errors.Is(err, os.ErrDeadlineExceeded) &&
-			!errors.Is(err, yamux.ErrTimeout) &&
-			!errors.Is(err, net.ErrClosed) {
-			log.Error("relay rw1 -> rw2 failed", "err", err)
-		}
+		_, err := Copy(rw2, rw1)
+		logE("relay rw1 -> rw2", err)
 		closeWrite(rw2) // make another Copy exit
 		// closeRead(rw1)
 	}()
 
-	if _, err := Copy(rw1, rw2); err != nil &&
-		!errors.Is(err, io.EOF) &&
-		!errors.Is(err, os.ErrDeadlineExceeded) &&
-		!errors.Is(err, yamux.ErrTimeout) &&
-		!errors.Is(err, net.ErrClosed) {
-		log.Error("relay rw2 -> rw1 failed", "err", err)
-	}
+	_, err := Copy(rw1, rw2)
+	logE("relay rw2 -> rw1", err)
 	closeWrite(rw1)
 	// closeRead(rw2)
 
@@ -52,11 +65,7 @@ func closeWrite(rw io.ReadWriteCloser) {
 		return
 	}
 
-	// if r, ok := rw.(interface{ SetReadDeadline(time.Time) error }); ok {
-	// 	_ = r.SetReadDeadline(time.Now())
-	// } else {
 	_ = rw.Close()
-	// }
 }
 
 func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
@@ -67,6 +76,10 @@ func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
 }
 
 func CopyN(dst io.Writer, src io.Reader, n int64) (written int64, err error) {
+	if n <= 0 {
+		return 0, nil
+	}
+
 	written, err = Copy(dst, io.LimitReader(src, n))
 	if written == n {
 		return n, nil
