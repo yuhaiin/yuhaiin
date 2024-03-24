@@ -20,38 +20,33 @@ var _ netapi.Resolver = (*FakeDNS)(nil)
 
 type FakeDNS struct {
 	netapi.Resolver
-	*FakeIPPool
+	ipv4 *FakeIPPool
+	ipv6 *FakeIPPool
 }
 
-func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, bbolt *cache.Cache) *FakeDNS {
-	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt)}
+func NewFakeDNS(
+	upStreamDo netapi.Resolver,
+	ipRange netip.Prefix,
+	ipv6Range netip.Prefix,
+	bbolt, bboltv6 *cache.Cache,
+) *FakeDNS {
+	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt), NewFakeIPPool(ipv6Range, bboltv6)}
 }
 
 func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
-	return []net.IP{f.FakeIPPool.GetFakeIPForDomain(domain).AsSlice()}, nil
+	opt := &netapi.LookupIPOption{}
+	for _, optf := range opts {
+		optf(opt)
+	}
+
+	if opt.OnlyAAAA {
+		return []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
+	}
+
+	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
 func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	if req.Type == dnsmessage.TypeAAAA {
-		return dnsmessage.Message{
-			Header: dnsmessage.Header{
-				ID:                 0,
-				Response:           true,
-				Authoritative:      false,
-				RecursionDesired:   false,
-				RCode:              dnsmessage.RCodeSuccess,
-				RecursionAvailable: false,
-			},
-			Questions: []dnsmessage.Question{
-				{
-					Name:  req.Name,
-					Type:  req.Type,
-					Class: dnsmessage.ClassINET,
-				},
-			},
-		}, nil
-	}
-
 	if req.Type != dnsmessage.TypeA && req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypePTR {
 		return f.Resolver.Raw(ctx, req)
 	}
@@ -102,22 +97,25 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 		return msg, nil
 	}
-
-	ip := f.FakeIPPool.GetFakeIPForDomain(strings.TrimSuffix(req.Name.String(), "."))
-
-	if req.Type == dnsmessage.TypeA && !ip.Is4() {
-		return dnsmessage.Message{}, fmt.Errorf("fake ip pool is ipv6, except ipv4")
-	}
-
 	if req.Type == dnsmessage.TypeAAAA {
+		ip := f.ipv6.GetFakeIPForDomain(strings.TrimSuffix(req.Name.String(), "."))
 		return newAnswer(&dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
 	}
 
 	if req.Type == dnsmessage.TypeA {
+		ip := f.ipv4.GetFakeIPForDomain(strings.TrimSuffix(req.Name.String(), "."))
 		return newAnswer(&dnsmessage.AResource{A: ip.As4()}), nil
 	}
 
 	return f.Resolver.Raw(ctx, req)
+}
+
+func (f *FakeDNS) GetDomainFromIP(ip netip.Addr) (string, bool) {
+	if ip.Unmap().Is6() {
+		return f.ipv6.GetDomainFromIP(ip)
+	} else {
+		return f.ipv4.GetDomainFromIP(ip)
+	}
 }
 
 var hex = map[byte]byte{
@@ -188,12 +186,17 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 		return "", fmt.Errorf("parse netip.Addr from bytes failed")
 	}
 
-	r, ok := f.FakeIPPool.GetDomainFromIP(ipAddr.Unmap())
-	if !ok {
-		return "", fmt.Errorf("not found %s[%s] ptr", ip, name)
+	r, ok := f.ipv4.GetDomainFromIP(ipAddr.Unmap())
+	if ok {
+		return r, nil
 	}
 
-	return r, nil
+	r, ok = f.ipv6.GetDomainFromIP(ipAddr.Unmap())
+	if ok {
+		return r, nil
+	}
+
+	return r, fmt.Errorf("ptr not found")
 }
 
 func (f *FakeDNS) Close() error { return nil }

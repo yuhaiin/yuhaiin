@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/vishvananda/netlink"
@@ -30,20 +29,41 @@ Finding the process requires you to scan all processes, looking for one which re
 */
 
 func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (string, error) {
-	var addr, remote net.Addr
+	var addr net.Addr
+	var remote []net.Addr
 
-	if strings.HasPrefix(network, "tcp") {
+	if len(network) < 3 {
+		return "", fmt.Errorf("ErrInvalidNetwork: %s", network)
+	}
+
+	network = network[0:3]
+
+	switch network {
+	case "tcp":
 		addr = &net.TCPAddr{IP: ip, Port: int(srcPort)}
-		remote = &net.TCPAddr{IP: to, Port: int(toPort)}
-	}
-
-	if strings.HasPrefix(network, "udp") {
+		remote = []net.Addr{&net.TCPAddr{IP: to, Port: int(toPort)}}
+	case "udp":
 		addr = &net.UDPAddr{IP: ip, Port: int(srcPort)}
-		remote = &net.UDPAddr{IP: to, Port: int(toPort)}
+		remote = []net.Addr{
+			// &net.UDPAddr{IP: to, Port: int(toPort)},
+			&net.UDPAddr{IP: net.IPv6zero, Port: 0},
+			&net.UDPAddr{IP: net.IPv4zero, Port: 0},
+		}
+	default:
+		return "", fmt.Errorf("ErrInvalidNetwork: %s", network)
 	}
 
-	st, err := netlink.SocketGet(addr, remote)
-	if err != nil {
+	var st *netlink.Socket
+	var err error
+
+	for _, r := range remote {
+		st, err = netlink.SocketGet(addr, r)
+		if err == nil {
+			break
+		}
+	}
+
+	if st == nil {
 		return "", err
 	}
 

@@ -51,7 +51,10 @@ func Start(opt *tun.Opt) (*Nat, error) {
 		return nil, err
 	}
 
-	log.Info("new tun2socket tcp server", "host", listener.Addr(), "portal", opt.V4Address(), "gateway", opt.V4Address().Addr().Next())
+	log.Info("new tun2socket tcp server", "host", listener.Addr(),
+		"gateway", opt.V4Address(), "portal", opt.V4Address().Addr().Next(),
+		"gatewayv6", opt.V6Address(), "portalv6", opt.V6Address().Addr().Next(),
+	)
 
 	err = netlink.Route(opt.Options)
 	if err != nil {
@@ -67,12 +70,15 @@ func Start(opt *tun.Opt) (*Nat, error) {
 	nat := &Nat{
 		address:     tcpip.AddrFromSlice(opt.V4Address().Addr().AsSlice()),
 		portal:      tcpip.AddrFromSlice(opt.V4Address().Addr().Next().AsSlice()),
+		addressV6:   tcpip.AddrFromSlice(opt.V6Address().Addr().AsSlice()),
+		portalV6:    tcpip.AddrFromSlice(opt.V6Address().Addr().Next().AsSlice()),
 		gatewayPort: uint16(listener.Addr().(*net.TCPAddr).Port),
 		mtu:         int32(opt.MTU),
 		tab:         tab,
 		TCP: &TCP{
 			listener: listener.(*net.TCPListener),
 			portal:   opt.V4Address().Addr().Next().AsSlice(),
+			portalv6: opt.V6Address().Addr().Next().AsSlice(),
 			table:    tab,
 		},
 		UDPv2: NewUDPv2(int32(opt.MTU), opt.Writer),
