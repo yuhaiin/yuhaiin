@@ -178,7 +178,7 @@ func Start(opt StartOpt) (err error) {
 	st := AddComponent("shunt", shunt.NewShunt(NewShuntOpt(local, remote)))
 	App.Node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
-	stcs := AddComponent("statistic", statistics.NewConnStore(cache.NewCache(App.DB, "flow_data"), st, App.so.ProcessDumper))
+	stcs := AddComponent("statistic", statistics.NewConnStore(cache.NewCache(App.DB, "flow_data"), st))
 	hosts := AddComponent("hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
 	fakedns := AddComponent("fakedns", resolver.NewFakeDNS(hosts, hosts, cache.NewCache(App.DB, "fakedns_cache")))
@@ -221,6 +221,7 @@ func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
 		BlockDialer:    drop.Drop,
 		BLockResolver:  netapi.DropResolver{},
 		DefaultMode:    bypass.Mode_proxy,
+		ProcessDumper:  App.so.ProcessDumper,
 	}
 }
 

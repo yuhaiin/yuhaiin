@@ -6,7 +6,6 @@ COPY . .
 
 RUN set -x\
     && apk add --no-cache make git\
-    && git config --global --add safe.directory '*'\
     && make yuhaiin
 
 FROM docker.io/library/alpine:latest
