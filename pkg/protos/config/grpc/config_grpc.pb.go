@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	ConfigService_Load_FullMethodName = "/yuhaiin.protos.config.service.config_service/load"
 	ConfigService_Save_FullMethodName = "/yuhaiin.protos.config.service.config_service/save"
+	ConfigService_Info_FullMethodName = "/yuhaiin.protos.config.service.config_service/info"
 )
 
 // ConfigServiceClient is the client API for ConfigService service.
@@ -31,6 +32,7 @@ const (
 type ConfigServiceClient interface {
 	Load(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*config.Setting, error)
 	Save(ctx context.Context, in *config.Setting, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Info(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*config.Info, error)
 }
 
 type configServiceClient struct {
@@ -59,12 +61,22 @@ func (c *configServiceClient) Save(ctx context.Context, in *config.Setting, opts
 	return out, nil
 }
 
+func (c *configServiceClient) Info(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*config.Info, error) {
+	out := new(config.Info)
+	err := c.cc.Invoke(ctx, ConfigService_Info_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConfigServiceServer is the server API for ConfigService service.
 // All implementations must embed UnimplementedConfigServiceServer
 // for forward compatibility
 type ConfigServiceServer interface {
 	Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 	Save(context.Context, *config.Setting) (*emptypb.Empty, error)
+	Info(context.Context, *emptypb.Empty) (*config.Info, error)
 	mustEmbedUnimplementedConfigServiceServer()
 }
 
@@ -77,6 +89,9 @@ func (UnimplementedConfigServiceServer) Load(context.Context, *emptypb.Empty) (*
 }
 func (UnimplementedConfigServiceServer) Save(context.Context, *config.Setting) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Save not implemented")
+}
+func (UnimplementedConfigServiceServer) Info(context.Context, *emptypb.Empty) (*config.Info, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Info not implemented")
 }
 func (UnimplementedConfigServiceServer) mustEmbedUnimplementedConfigServiceServer() {}
 
@@ -127,6 +142,24 @@ func _ConfigService_Save_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ConfigService_Info_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServiceServer).Info(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConfigService_Info_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServiceServer).Info(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ConfigService_ServiceDesc is the grpc.ServiceDesc for ConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -141,6 +174,10 @@ var ConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "save",
 			Handler:    _ConfigService_Save_Handler,
+		},
+		{
+			MethodName: "info",
+			Handler:    _ConfigService_Info_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

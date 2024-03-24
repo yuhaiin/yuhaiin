@@ -162,9 +162,11 @@ func newFakeSetting(setting *pc.Setting) *fakeSettings {
 func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*pc.Setting, error) {
 	return w.setting, nil
 }
-
 func (w *fakeSettings) Save(ctx context.Context, in *pc.Setting) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
+}
+func (c *fakeSettings) Info(context.Context, *emptypb.Empty) (*pc.Info, error) {
+	return config.Info(), nil
 }
 
 func (w *fakeSettings) AddObserver(o config.Observer) {

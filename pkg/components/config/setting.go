@@ -3,8 +3,11 @@ package config
 import (
 	"context"
 	"fmt"
+	"runtime"
+	"runtime/debug"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	nd "github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -40,6 +43,30 @@ type setting struct {
 
 func NewConfig(path string) Setting {
 	return &setting{db: jsondb.Open(path, defaultSetting(path))}
+}
+
+func (c *setting) Info(context.Context, *emptypb.Empty) (*config.Info, error) { return Info(), nil }
+
+func Info() *config.Info {
+	var build []string
+	info, ok := debug.ReadBuildInfo()
+	if ok {
+		for _, v := range info.Settings {
+			build = append(build, fmt.Sprintf("%s=%s", v.Key, v.Value))
+		}
+	}
+
+	return &config.Info{
+		Version:   version.Version,
+		Commit:    version.GitCommit,
+		BuildTime: version.BuildTime,
+		GoVersion: runtime.Version(),
+		Platform:  runtime.GOOS + "/" + runtime.GOARCH,
+		Compiler:  runtime.Compiler,
+		Arch:      runtime.GOARCH,
+		Os:        runtime.GOOS,
+		Build:     build,
+	}
 }
 
 func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {

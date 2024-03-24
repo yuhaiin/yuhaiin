@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
@@ -36,12 +35,10 @@ type HttpServerOption struct {
 
 func (o *HttpServerOption) ServeHTTP(mux *http.ServeMux) {
 	for k, b := range map[string]func(http.ResponseWriter, *http.Request) error{
-		"GET /sublist": GrpcToHttp(o.Subscribe.Get),
-		"GET /nodes":   GrpcToHttp(o.NodeServer.Manager),
-		"GET /config": func(w http.ResponseWriter, r *http.Request) error {
-			w.Header().Set("Core-OS", runtime.GOOS)
-			return GrpcToHttp(o.Config.Load)(w, r)
-		},
+		"GET /sublist":    GrpcToHttp(o.Subscribe.Get),
+		"GET /nodes":      GrpcToHttp(o.NodeServer.Manager),
+		"GET /config":     GrpcToHttp(o.Config.Load),
+		"GET /info":       GrpcToHttp(o.Config.Info),
 		"GET /interfaces": GrpcToHttp(o.Tools.GetInterface),
 		"GET /node/now":   GrpcToHttp(o.NodeServer.Now),
 
