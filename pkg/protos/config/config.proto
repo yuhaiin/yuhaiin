@@ -23,3 +23,15 @@ message system_proxy {
   bool http = 2 [ json_name = "http" ];
   bool socks5 = 3 [ json_name = "socks5" ];
 }
+
+message info {
+  string version = 1 [ json_name = "version" ];
+  string commit = 2 [ json_name = "commit" ];
+  string build_time = 3 [ json_name = "build_time" ];
+  string go_version = 4 [ json_name = "go_version" ];
+  string arch = 5 [ json_name = "arch" ];
+  string platform = 6 [ json_name = "platform" ];
+  string os = 7 [ json_name = "os" ];
+  string compiler = 8 [ json_name = "compiler" ];
+  repeated string build = 9 [ json_name = "build" ];
+}
