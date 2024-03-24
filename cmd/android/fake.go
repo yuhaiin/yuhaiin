@@ -31,6 +31,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			Server:              opt.DNS.Server,
 			Fakedns:             opt.DNS.Fakedns,
 			FakednsIpRange:      opt.DNS.FakednsIpRange,
+			FakednsIpv6Range:    opt.DNS.FakednsIpv6Range,
 			ResolveRemoteDomain: opt.DNS.ResolveRemoteDomain,
 			Hosts:               make(map[string]string),
 			Remote: &dns.Dns{

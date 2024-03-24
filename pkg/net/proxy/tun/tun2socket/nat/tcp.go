@@ -12,6 +12,7 @@ type TCP struct {
 	address   tcpip.Address
 	addressV6 tcpip.Address
 	portal    net.IP
+	portalv6  net.IP
 	table     *table
 }
 
@@ -30,7 +31,7 @@ func (t *TCP) Accept() (net.Conn, error) {
 	addr := c.RemoteAddr().(*net.TCPAddr)
 
 	tup := t.table.tupleOf(uint16(addr.Port))
-	if !t.portal.Equal(addr.IP) || tup == zeroTuple {
+	if (!t.portal.Equal(addr.IP) && !t.portalv6.Equal(addr.IP)) || tup == zeroTuple {
 		_ = c.Close()
 
 		return nil, net.InvalidAddrError("unknown remote addr")

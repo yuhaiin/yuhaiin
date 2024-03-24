@@ -44,6 +44,7 @@ type DNSSetting struct {
 	Server              string `json:"server"`
 	Fakedns             bool   `json:"fakedns"`
 	FakednsIpRange      string `json:"fakedns_ip_range"`
+	FakednsIpv6Range    string `json:"fakedns_ipv6_range"`
 	ResolveRemoteDomain bool   `json:"resolve_remote_domain"`
 	Remote              *DNS   `json:"remote"`
 	Local               *DNS   `json:"local"`

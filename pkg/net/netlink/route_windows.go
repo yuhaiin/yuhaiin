@@ -3,8 +3,10 @@ package netlink
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/netip"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"golang.org/x/sys/windows"
 	wun "golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
@@ -34,64 +36,57 @@ func Route(opt *Options) error {
 
 	luid := winipcfg.LUID(tt.LUID())
 
-	for _, v := range opt.Inet4Address {
-		err := luid.SetIPAddressesForFamily(winipcfg.AddressFamily(windows.AF_INET), []netip.Prefix{v})
-		if err != nil {
-			return err
+	V4Address := opt.V4Address()
+	if V4Address.IsValid() {
+		if err := setAddress(luid, winipcfg.AddressFamily(windows.AF_INET), V4Address, opt.MTU); err != nil {
+			log.Error("set ipv4 address failed", slog.Any("err", err))
 		}
-
-		err = luid.SetDNS(winipcfg.AddressFamily(windows.AF_INET), []netip.Addr{v.Addr().Next()}, nil)
-		if err != nil {
-			return err
-		}
-
-		err = luid.AddRoute(netip.PrefixFrom(netip.AddrFrom4([4]byte{0, 0, 0, 0}), 0), v.Addr(), 1)
-		if err != nil {
-			return err
-		}
-
-		inetIf, err := luid.IPInterface(winipcfg.AddressFamily(windows.AF_INET))
-		if err != nil {
-			return err
-		}
-
-		err = setInetIf(inetIf, opt.MTU)
-		if err != nil {
-			return err
-		}
-		break
 	}
 
-	for _, v := range opt.Inet6Address {
-		err := luid.SetIPAddressesForFamily(winipcfg.AddressFamily(windows.AF_INET6), []netip.Prefix{v})
-		if err != nil {
-			return err
+	v6Address := opt.V6Address()
+	if v6Address.IsValid() {
+		if err := setAddress(luid, winipcfg.AddressFamily(windows.AF_INET6), v6Address, opt.MTU); err != nil {
+			log.Error("set ipv6 address failed", slog.Any("err", err))
 		}
+	}
 
-		err = luid.SetDNS(winipcfg.AddressFamily(windows.AF_INET6), []netip.Addr{v.Addr().Next()}, nil)
-		if err != nil {
-			return err
+	var err error
+	for _, v := range opt.Routes {
+		if v.Addr().Is4() && opt.V4Address().IsValid() {
+			err = luid.AddRoute(v, V4Address.Addr(), 1)
+		} else if opt.V6Address().IsValid() {
+			err = luid.AddRoute(v, v6Address.Addr(), 1)
 		}
-
-		err = luid.AddRoute(netip.PrefixFrom(netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}), 0), v.Addr(), 1)
 		if err != nil {
-			return err
-		}
-
-		inetIf, err := luid.IPInterface(winipcfg.AddressFamily(windows.AF_INET6))
-		if err != nil {
-			return err
-		}
-
-		err = setInetIf(inetIf, opt.MTU)
-		if err != nil {
-			return err
+			log.Error("add route failed", slog.Any("err", err))
 		}
 	}
 
 	return nil
 }
 
+func setAddress(luid winipcfg.LUID, family winipcfg.AddressFamily, address netip.Prefix, mtu int) error {
+	err := luid.SetIPAddressesForFamily(family, []netip.Prefix{address})
+	if err != nil {
+		return err
+	}
+
+	err = luid.SetDNS(family, []netip.Addr{address.Addr().Next()}, nil)
+	if err != nil {
+		return err
+	}
+
+	inetIf, err := luid.IPInterface(family)
+	if err != nil {
+		return err
+	}
+
+	err = setInetIf(inetIf, mtu)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 func setInetIf(inetIf *winipcfg.MibIPInterfaceRow, mtu int) error {
 	inetIf.ForwardingEnabled = true
 	inetIf.RouterDiscoveryBehavior = winipcfg.RouterDiscoveryDisabled
@@ -102,5 +97,4 @@ func setInetIf(inetIf *winipcfg.MibIPInterfaceRow, mtu int) error {
 	inetIf.UseAutomaticMetric = false
 	inetIf.Metric = 0
 	return inetIf.Set()
-
 }

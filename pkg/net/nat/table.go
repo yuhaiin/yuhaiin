@@ -2,6 +2,7 @@ package nat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -132,6 +133,9 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 		_ = table.dstPacketConn.SetReadDeadline(time.Now().Add(IdleTimeout))
 		n, from, err := table.dstPacketConn.ReadFrom(data)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+				return nil
+			}
 			return fmt.Errorf("read from proxy failed: %w", err)
 		}
 

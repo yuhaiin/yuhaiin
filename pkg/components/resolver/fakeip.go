@@ -24,17 +24,22 @@ type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
 	cache    *cache.Cache
+	cachev6  *cache.Cache
 
 	whitelistSlice []string
 	whitelist      *domain.Fqdn[struct{}]
 }
 
-func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, bbolt *cache.Cache) *Fakedns {
+func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, bbolt, bboltv6 *cache.Cache) *Fakedns {
 	return &Fakedns{
-		fake:      dns.NewFakeDNS(upstream, yerror.Ignore(netip.ParsePrefix("10.2.0.1/24")), bbolt),
+		fake: dns.NewFakeDNS(upstream,
+			yerror.Ignore(netip.ParsePrefix("10.2.0.1/24")),
+			yerror.Ignore(netip.ParsePrefix("fc00::/64")),
+			bbolt, bboltv6),
 		dialer:    dialer,
 		upstream:  upstream,
 		cache:     bbolt,
+		cachev6:   bboltv6,
 		whitelist: domain.NewDomainMapper[struct{}](),
 	}
 }
@@ -55,12 +60,23 @@ func (f *Fakedns) Update(c *pc.Setting) {
 		f.whitelistSlice = c.Dns.FakednsWhitelist
 	}
 
-	ipRange, err := netip.ParsePrefix(c.Dns.FakednsIpRange)
-	if err != nil {
-		log.Error("parse fakedns ip range failed", "err", err)
-	} else {
-		f.fake = dns.NewFakeDNS(f.upstream, ipRange, f.cache)
+	ipRange, er4 := netip.ParsePrefix(c.Dns.FakednsIpRange)
+	if er4 != nil {
+		log.Error("parse fakedns ip range failed", "err", er4)
+		ipRange, _ = netip.ParsePrefix("10.2.0.1/24")
 	}
+
+	ipv6Range, er6 := netip.ParsePrefix(c.Dns.FakednsIpv6Range)
+	if er6 != nil {
+		log.Error("parse fakedns PreferIPv6 range failed", "err", er6)
+		ipv6Range, _ = netip.ParsePrefix("fc00::/64")
+	}
+
+	if er4 != nil && er6 != nil {
+		return
+	}
+
+	f.fake = dns.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.cache, f.cachev6)
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {

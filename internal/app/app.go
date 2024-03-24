@@ -181,7 +181,7 @@ func Start(opt StartOpt) (err error) {
 	stcs := AddComponent("statistic", statistics.NewConnStore(cache.NewCache(App.DB, "flow_data"), st))
 	hosts := AddComponent("hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddComponent("fakedns", resolver.NewFakeDNS(hosts, hosts, cache.NewCache(App.DB, "fakedns_cache")))
+	fakedns := AddComponent("fakedns", resolver.NewFakeDNS(hosts, hosts, cache.NewCache(App.DB, "fakedns_cache"), cache.NewCache(App.DB, "fakedns_cachev6")))
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent("dnsServer", resolver.NewDNSServer(fakedns))
 	// make dns flow across all proxy chain

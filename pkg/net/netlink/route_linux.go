@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -64,7 +65,7 @@ func Route(opt *Options) error {
 		}
 		err = netlink.RouteAdd(&r)
 		if err != nil {
-			return fmt.Errorf("unable to add route: %w", err)
+			log.Error("add route error", "err", err)
 		}
 	}
 
@@ -103,18 +104,18 @@ func Route(opt *Options) error {
 			it.Family = unix.AF_INET
 			err = netlink.RuleAdd(it)
 			if err != nil {
-				return fmt.Errorf("unable to add rule: %w", err)
+				log.Error("unable to add ipv4 rule", "err", err)
 			}
 		}
 
 		if len(opt.Inet6Address) > 0 {
 			it := netlink.NewRule()
-			it.Priority = 30001
+			it.Priority = 30002
 			it.Table = int(tableIndex)
 			it.Family = unix.AF_INET6
 			err = netlink.RuleAdd(it)
 			if err != nil {
-				return fmt.Errorf("unable to add rule: %w", err)
+				log.Error("unable to add ipv6 rule", "err", err)
 			}
 		}
 	}

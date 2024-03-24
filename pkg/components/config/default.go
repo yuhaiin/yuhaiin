@@ -48,10 +48,12 @@ func defaultSetting(path string) *config.Setting {
 			ResolveRemoteDomain: false,
 			Server:              "127.0.0.1:5353",
 			Fakedns:             false,
-			FakednsIpRange:      "10.0.2.1/24",
+			FakednsIpRange:      "10.0.2.1/16",
+			FakednsIpv6Range:    "fc00::/64",
 			FakednsWhitelist: []string{
 				"*.msftncsi.com",
 				"*.msftconnecttest.com",
+				"ping.archlinux.org",
 			},
 			Local: &pd.Dns{
 				Host: "223.5.5.5",
@@ -138,7 +140,15 @@ func defaultSetting(path string) *config.Setting {
 							Name:          "tun://tun0",
 							Mtu:           9000,
 							Portal:        "172.19.0.1/24",
+							PortalV6:      "fdfe:dcba:9876::1/64",
 							SkipMulticast: true,
+							Driver:        listener.Tun_system_gvisor,
+							Route: &listener.Route{
+								Routes: []string{
+									"10.0.2.1/16",
+									"fc00::/64",
+								},
+							},
 						},
 					},
 				},
