@@ -32,6 +32,26 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 }
 
 func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	if req.Type == dnsmessage.TypeAAAA {
+		return dnsmessage.Message{
+			Header: dnsmessage.Header{
+				ID:                 0,
+				Response:           true,
+				Authoritative:      false,
+				RecursionDesired:   false,
+				RCode:              dnsmessage.RCodeSuccess,
+				RecursionAvailable: false,
+			},
+			Questions: []dnsmessage.Question{
+				{
+					Name:  req.Name,
+					Type:  req.Type,
+					Class: dnsmessage.ClassINET,
+				},
+			},
+		}, nil
+	}
+
 	if req.Type != dnsmessage.TypeA && req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypePTR {
 		return f.Resolver.Raw(ctx, req)
 	}

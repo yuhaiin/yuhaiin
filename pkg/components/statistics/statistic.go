@@ -2,14 +2,12 @@ package statistics
 
 import (
 	"context"
-	"fmt"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
@@ -28,22 +26,20 @@ type Connections struct {
 
 	connStore syncmap.SyncMap[uint64, connection]
 
-	processDumper listener.ProcessDumper
-	Cache         *Cache
+	Cache *Cache
 
 	notify *notify
 }
 
-func NewConnStore(cache *cache.Cache, dialer netapi.Proxy, processDumper listener.ProcessDumper) *Connections {
+func NewConnStore(cache *cache.Cache, dialer netapi.Proxy) *Connections {
 	if dialer == nil {
 		dialer = direct.Default
 	}
 
 	return &Connections{
-		Proxy:         dialer,
-		processDumper: processDumper,
-		Cache:         NewCache(cache),
-		notify:        newNotify(),
+		Proxy:  dialer,
+		Cache:  NewCache(cache),
+		notify: newNotify(),
 	}
 }
 
@@ -111,10 +107,9 @@ func (c *Connections) storeConnection(o connection) {
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	process := c.DumpProcess(ctx, addr)
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial packet conn (%s) failed: %w", process, err)
+		return nil, err
 	}
 
 	z := &packetConn{con, c.getConnection(ctx, con, addr), c}
@@ -167,53 +162,12 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 }
 
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	process := c.DumpProcess(ctx, addr)
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial conn (%s) failed: %w", process, err)
+		return nil, err
 	}
 
 	z := &conn{con, c.getConnection(ctx, con, addr), c}
 	c.storeConnection(z)
 	return z, nil
-}
-
-func (c *Connections) DumpProcess(ctx context.Context, addr netapi.Address) (s string) {
-	if c.processDumper == nil {
-		return
-	}
-
-	store := netapi.StoreFromContext(ctx)
-
-	source, ok := store.Get(netapi.SourceKey{})
-	if !ok {
-		return
-	}
-
-	var dst any
-	dst, ok = store.Get(netapi.InboundKey{})
-	if !ok {
-		dst, ok = store.Get(netapi.DestinationKey{})
-	}
-	if !ok {
-		return
-	}
-
-	sourceAddr, err := convert.ToProxyAddress(addr.NetworkType(), source)
-	if err != nil {
-		return
-	}
-
-	dstAddr, err := convert.ToProxyAddress(addr.NetworkType(), dst)
-	if err != nil {
-		return
-	}
-
-	process, err := c.processDumper.ProcessName(addr.Network(), sourceAddr, dstAddr)
-	if err != nil {
-		return
-	}
-
-	store.Add("Process", process)
-	return process
 }

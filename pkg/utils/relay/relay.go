@@ -3,8 +3,6 @@ package relay
 import (
 	"errors"
 	"io"
-	"net"
-	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -12,8 +10,8 @@ import (
 
 var ignoreError = []error{
 	io.EOF,
-	os.ErrDeadlineExceeded,
-	net.ErrClosed,
+	// os.ErrDeadlineExceeded,
+	// net.ErrClosed,
 }
 
 func logE(msg string, err error) {

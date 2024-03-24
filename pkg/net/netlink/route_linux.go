@@ -5,7 +5,6 @@ package netlink
 
 import (
 	"fmt"
-	"math/rand/v2"
 	"net"
 	"syscall"
 	"unsafe"
@@ -26,7 +25,7 @@ func Route(opt *Options) error {
 
 	err = netlink.LinkSetMTU(link, opt.MTU)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to set MTU: %w", err)
 	}
 
 	for _, address := range append(opt.Inet4Address, opt.Inet6Address...) {
@@ -37,28 +36,35 @@ func Route(opt *Options) error {
 
 		err = netlink.AddrAdd(link, addr)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to add address: %w", err)
 		}
 	}
 
 	if err = netlink.LinkSetUp(link); err != nil {
-		return err
+		return fmt.Errorf("unable to set link up: %w", err)
 	}
 
-	tableIndex := rand.Uint32()
+	var tableIndex int = 63
+	// for {
+	// 	tableIndex = int(rand.Uint32())
+	// 	routeList, fErr := netlink.RouteListFiltered(netlink.FAMILY_ALL, &netlink.Route{Table: tableIndex}, netlink.RT_FILTER_TABLE)
+	// 	if len(routeList) == 0 || fErr != nil {
+	// 		break
+	// 	}
+	// }
 
 	for _, route := range opt.Routes {
 		r := netlink.Route{
-			LinkIndex: link.Attrs().Index,
 			Dst: &net.IPNet{
-				IP:   route.Addr().AsSlice(),
+				IP:   route.Masked().Addr().AsSlice(),
 				Mask: net.CIDRMask(route.Bits(), route.Addr().BitLen()),
 			},
-			Table: int(tableIndex),
+			LinkIndex: link.Attrs().Index,
+			Table:     int(tableIndex),
 		}
 		err = netlink.RouteAdd(&r)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to add route: %w", err)
 		}
 	}
 
@@ -97,7 +103,7 @@ func Route(opt *Options) error {
 			it.Family = unix.AF_INET
 			err = netlink.RuleAdd(it)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to add rule: %w", err)
 			}
 		}
 
@@ -108,7 +114,7 @@ func Route(opt *Options) error {
 			it.Family = unix.AF_INET6
 			err = netlink.RuleAdd(it)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to add rule: %w", err)
 			}
 		}
 	}

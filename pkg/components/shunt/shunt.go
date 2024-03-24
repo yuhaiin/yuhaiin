@@ -15,6 +15,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/convert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/exp/maps"
 	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/protobuf/proto"
@@ -39,7 +42,10 @@ type Shunt struct {
 	config       *bypass.BypassConfig
 	mapper       *trie.Trie[bypass.ModeEnum]
 	customMapper *trie.Trie[bypass.ModeEnum]
-	mu           sync.RWMutex
+
+	processMapper syncmap.SyncMap[string, bypass.Mode]
+
+	mu sync.RWMutex
 
 	Opts
 
@@ -54,6 +60,7 @@ type Opts struct {
 	BlockDialer    netapi.Proxy
 	BLockResolver  netapi.Resolver
 	DefaultMode    bypass.Mode
+	ProcessDumper  listener.ProcessDumper
 }
 
 func NewShunt(opt Opts) *Shunt {
@@ -85,6 +92,7 @@ func (s *Shunt) Update(c *pc.Setting) {
 		func(mc1, mc2 *bypass.ModeConfig) bool { return proto.Equal(mc1, mc2) },
 	) {
 		s.customMapper.Clear() //nolint:errcheck
+		s.processMapper = syncmap.SyncMap[string, bypass.Mode]{}
 
 		for _, v := range c.Bypass.CustomRuleV3 {
 			mark := v.ToModeEnum()
@@ -94,7 +102,11 @@ func (s *Shunt) Update(c *pc.Setting) {
 			}
 
 			for _, hostname := range v.Hostname {
-				s.customMapper.Insert(hostname, mark)
+				if strings.HasPrefix(hostname, "process:") {
+					s.processMapper.Store(hostname[8:], mark.Mode())
+				} else {
+					s.customMapper.Insert(hostname, mark)
+				}
 			}
 		}
 	}
@@ -109,7 +121,13 @@ func (s *Shunt) Update(c *pc.Setting) {
 		s.tags = make(map[string]struct{})
 		s.modifiedTime = modifiedTime
 		rangeRule(c.Bypass.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
-			s.mapper.Insert(s1, s2)
+
+			if strings.HasPrefix(s1, "process:") {
+				s.processMapper.Store(s1[8:], s2.Mode())
+			} else {
+				s.mapper.Insert(s1, s2)
+			}
+
 			if s2.GetTag() != "" {
 				s.tags[s2.GetTag()] = struct{}{}
 			}
@@ -163,15 +181,23 @@ func (s *Shunt) SearchWithDefault(ctx context.Context, addr netapi.Address, defa
 }
 
 func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (bypass.Mode, netapi.Address) {
-	// get mode from upstream specified
+	var mode bypass.Mode
 
+	process := s.DumpProcess(ctx, host)
+	if process != "" {
+		mode, _ = s.processMapper.Load(process)
+	}
+
+	// get mode from upstream specified
 	store := netapi.StoreFromContext(ctx)
 
-	mode := netapi.GetDefault(
-		ctx,
-		ForceModeKey{},
-		networkMode, // get mode from network(tcp/udp) rule
-	)
+	if mode == bypass.Mode_bypass {
+		mode = netapi.GetDefault(
+			ctx,
+			ForceModeKey{},
+			networkMode, // get mode from network(tcp/udp) rule
+		)
+	}
 
 	if mode == bypass.Mode_bypass {
 		// get mode from bypass rule
@@ -248,3 +274,53 @@ func (f *Shunt) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 }
 
 func (f *Shunt) Close() error { return nil }
+
+func (c *Shunt) DumpProcess(ctx context.Context, addr netapi.Address) (s string) {
+	if c.ProcessDumper == nil {
+		return
+	}
+
+	store := netapi.StoreFromContext(ctx)
+
+	source, ok := store.Get(netapi.SourceKey{})
+	if !ok {
+		return
+	}
+
+	var dst []any
+	ds, ok := store.Get(netapi.InboundKey{})
+	if ok {
+		dst = append(dst, ds)
+	}
+	ds, ok = store.Get(netapi.DestinationKey{})
+	if ok {
+		dst = append(dst, ds)
+	}
+
+	if len(dst) == 0 {
+		return
+	}
+
+	sourceAddr, err := convert.ToProxyAddress(addr.NetworkType(), source)
+	if err != nil {
+		return
+	}
+
+	for _, d := range dst {
+		dst, err := convert.ToProxyAddress(addr.NetworkType(), d)
+		if err != nil {
+			continue
+		}
+
+		process, err := c.ProcessDumper.ProcessName(addr.Network(), sourceAddr, dst)
+		if err != nil {
+			log.Error("get process name failed", "err", err)
+			continue
+		}
+
+		store.Add("Process", process)
+		return process
+	}
+
+	return ""
+}
