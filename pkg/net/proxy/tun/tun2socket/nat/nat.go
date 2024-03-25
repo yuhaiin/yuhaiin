@@ -25,6 +25,7 @@ type IP interface {
 	SetDestinationAddress(tcpip.Address)
 	SetChecksum(v uint16)
 	PayloadLength() uint16
+	TransportProtocol() tcpip.TransportProtocolNumber
 }
 
 type TransportProtocol interface {
@@ -42,7 +43,7 @@ type Nat struct {
 	gatewayPort uint16
 	mtu         int32
 
-	tab *table
+	tab *tableSplit
 }
 
 func Start(opt *tun.Opt) (*Nat, error) {
@@ -103,8 +104,8 @@ func Start(opt *tun.Opt) (*Nat, error) {
 
 			raw := buf[:n]
 
-			ip, protocol, ok := nat.processIP(raw)
-			if !ok {
+			ip := nat.processIP(raw)
+			if ip == nil {
 				continue
 			}
 
@@ -121,8 +122,9 @@ func Start(opt *tun.Opt) (*Nat, error) {
 
 			var tp TransportProtocol
 			var pseudoHeaderSum uint16
+			var ok bool
 
-			switch protocol {
+			switch ip.TransportProtocol() {
 			case header.TCPProtocolNumber:
 				tp, pseudoHeaderSum, ok = nat.processTCP(ip, src, dst)
 
@@ -163,36 +165,36 @@ func Start(opt *tun.Opt) (*Nat, error) {
 	return nat, nil
 }
 
-func (n *Nat) processIP(raw []byte) (IP, tcpip.TransportProtocolNumber, bool) {
+func (n *Nat) processIP(raw []byte) IP {
 	switch header.IPVersion(raw) {
 	case header.IPv4Version:
 		ipv4 := header.IPv4(raw)
 
 		if !ipv4.IsValid(int(ipv4.TotalLength())) {
-			return nil, 0, false
+			return nil
 		}
 
 		if ipv4.More() {
-			return nil, 0, false
+			return nil
 		}
 
 		if ipv4.FragmentOffset() != 0 {
-			return nil, 0, false
+			return nil
 		}
 
-		return ipv4, tcpip.TransportProtocolNumber(ipv4.Protocol()), true
+		return ipv4
 
 	case header.IPv6Version:
 		ipv6 := header.IPv6(raw)
 
 		if ipv6.HopLimit() == 0x00 {
-			return nil, 0, false
+			return nil
 		}
 
-		return ipv6, tcpip.TransportProtocolNumber(ipv6.NextHeader()), true
+		return ipv6
 	}
 
-	return nil, 0, false
+	return nil
 }
 
 func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, pseudoHeaderSum uint16, _ bool) {
@@ -218,7 +220,7 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 
 	if dst.Equal(portal) {
 		if src == address && sourcePort == n.gatewayPort {
-			tup := n.tab.tupleOf(destinationPort)
+			tup := n.tab.tupleOf(destinationPort, dst.Len() == 16)
 			if tup == zeroTuple {
 				return nil, 0, false
 			}

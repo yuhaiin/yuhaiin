@@ -1,14 +1,10 @@
 package nat
 
 import (
-	"container/list"
+	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"gvisor.dev/gvisor/pkg/tcpip"
-)
-
-const (
-	portBegin  = 30000
-	portLength = 10240
 )
 
 var zeroTuple = Tuple{}
@@ -20,67 +16,67 @@ type Tuple struct {
 	DestinationPort uint16
 }
 
-type binding struct {
-	tuple  Tuple
-	offset uint16
+type tableSplit struct {
+	v6 table
+	v4 table
+}
+
+func (t *tableSplit) tupleOf(port uint16, ipv6 bool) Tuple {
+	if ipv6 {
+		return t.v6.tupleOf(port, true)
+	}
+
+	return t.v4.tupleOf(port, false)
+}
+
+func (t *tableSplit) portOf(tuple Tuple) uint16 {
+	if tuple.SourceAddr.Len() == 16 {
+		return t.v6.portOf(tuple)
+	}
+
+	return t.v4.portOf(tuple)
+}
+
+func (t *tableSplit) newConn(tuple Tuple) uint16 {
+	if tuple.SourceAddr.Len() == 16 {
+		return t.v6.newConn(tuple)
+	}
+
+	return t.v4.newConn(tuple)
 }
 
 type table struct {
-	tuples    map[Tuple]*list.Element
-	ports     [portLength]*list.Element
-	available *list.List
+	tuples syncmap.SyncMap[Tuple, uint16]
+	ports  syncmap.SyncMap[uint16, Tuple]
+
+	mu    sync.Mutex
+	index uint16
 }
 
-func (t *table) tupleOf(port uint16) Tuple {
-	offset := port - portBegin
-	if offset > portLength {
-		return zeroTuple
-	}
-
-	elm := t.ports[offset]
-
-	t.available.MoveToFront(elm)
-
-	return elm.Value.(*binding).tuple
+func (t *table) tupleOf(port uint16, _ bool) Tuple {
+	p, _ := t.ports.Load(port)
+	return p
 }
 
 func (t *table) portOf(tuple Tuple) uint16 {
-	elm := t.tuples[tuple]
-	if elm == nil {
-		return 0
-	}
-
-	t.available.MoveToFront(elm)
-
-	return portBegin + elm.Value.(*binding).offset
+	p, _ := t.tuples.Load(tuple)
+	return p
 }
 
 func (t *table) newConn(tuple Tuple) uint16 {
-	elm := t.available.Back()
-	b := elm.Value.(*binding)
+	t.mu.Lock()
+	var newPort uint16
+	if t.index == 0 {
+		newPort = 10000
+	} else {
+		newPort = t.index
+	}
+	t.index = newPort + 1
+	t.ports.Store(newPort, tuple)
+	t.tuples.Store(tuple, newPort)
+	defer t.mu.Unlock()
 
-	delete(t.tuples, b.tuple)
-	t.tuples[tuple] = elm
-	b.tuple = tuple
-
-	t.available.MoveToFront(elm)
-
-	return portBegin + b.offset
+	return newPort
 }
 
-func newTable() *table {
-	result := &table{
-		tuples:    make(map[Tuple]*list.Element, portLength),
-		ports:     [portLength]*list.Element{},
-		available: list.New(),
-	}
-
-	for idx := range result.ports {
-		result.ports[idx] = result.available.PushFront(&binding{
-			tuple:  Tuple{},
-			offset: uint16(idx),
-		})
-	}
-
-	return result
-}
+func newTable() *tableSplit { return &tableSplit{} }
