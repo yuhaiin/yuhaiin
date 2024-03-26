@@ -8,6 +8,8 @@ import (
 	"os"
 )
 
+//go:generate go run generate.go
+
 func main() {
 	data, err := os.ReadFile("bypass.conf")
 	if err != nil {

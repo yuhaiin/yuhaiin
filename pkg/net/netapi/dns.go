@@ -75,8 +75,9 @@ func (d DNSErrCode) Error() string {
 
 func (d *DNSErrCode) As(err any) bool {
 	dd, ok := err.(*DNSErrCode)
-
-	dd.code = d.code
+	if ok {
+		dd.code = d.code
+	}
 
 	return ok
 }

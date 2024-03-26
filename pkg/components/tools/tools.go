@@ -9,12 +9,11 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/config"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 type Tools struct {
