@@ -34,7 +34,7 @@ type TransportProtocol interface {
 
 type Nat struct {
 	*TCP
-	*UDPv2
+	*UDP
 
 	address     tcpip.Address
 	portal      tcpip.Address
@@ -82,7 +82,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 			portalv6: opt.V6Address().Addr().Next().AsSlice(),
 			table:    tab,
 		},
-		UDPv2: NewUDPv2(int32(opt.MTU), opt.Writer),
+		UDP: NewUDPv2(int32(opt.MTU), opt.Writer),
 	}
 
 	subnet := tcpip.AddressWithPrefix{Address: nat.address, PrefixLen: opt.V4Address().Bits()}.Subnet()
@@ -136,7 +136,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 
 			case header.UDPProtocolNumber:
 				u := header.UDP(ip.Payload())
-				nat.UDPv2.handleUDPPacket(Tuple{
+				nat.UDP.handleUDPPacket(Tuple{
 					SourceAddr:      src,
 					SourcePort:      u.SourcePort(),
 					DestinationAddr: dst,
@@ -265,8 +265,8 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 func (n *Nat) Close() error {
 	var err error
 
-	if n.UDPv2 != nil {
-		if er := n.UDPv2.Close(); er != nil {
+	if n.UDP != nil {
+		if er := n.UDP.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
 	}

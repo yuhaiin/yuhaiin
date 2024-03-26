@@ -9,7 +9,7 @@ on:
 
 jobs:
 
-  rule:
+  download_web_and_rule:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -22,49 +22,26 @@ jobs:
     
     - name: download rule
       run: |
-        cd internal/statics
-        curl https://raw.githubusercontent.com/yuhaiin/yuhaiin/ACL/yuhaiin/yuhaiin.conf -o bypass.conf
-        go run generate.go
-        echo ${PWD}
-        ls
+        curl https://raw.githubusercontent.com/yuhaiin/yuhaiin/ACL/yuhaiin/yuhaiin.conf -o internal/statics/bypass.conf
+        go generate -x -v internal/statics/generate.go
 
-    - name: Cache Rule
-      id: cache-rule
-      uses: actions/cache@v4
-      with:
-        path: internal/statics/bypass.gz
-        key: cache-rule-${{ github.run_id }}-${{ github.run_attempt }}
-
-  web:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        check-latest: true
-        go-version-file: 'go.mod'
-
-    - name: clone
+    - name: clone web
       run: |
-        cd internal/http
-        git clone -b main --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git out
-        cd out && git branch -v && cd ..
-        rm -rf out/.git out/.nojekyll
-        go run generate.go
-        echo ${PWD}
-        ls
+        git clone -b main --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git internal/http/out
+        rm -rf internal/http/out/.git internal/http/out/.nojekyll
+        go generate -x -v internal/http/generate.go
 
-    - name: Cache Front Out
-      id: cache-front-out
+    - name: web rule cache
+      id: cache-front-rule
       uses: actions/cache@v4
       with:
-        path: internal/http/out
-        key: cache-front-out-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          internal/statics/bypass.gz
+          internal/http/out
+        key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
 
   package:
-    needs: [web,rule]
+    needs: [download_web_and_rule]
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -76,20 +53,15 @@ jobs:
           fetch-depth: '0'
           fetch-tags: 'true'
 
-      - name: Cache Front Out
-        id: cache-front-out
+      - name: web rule cache
+        id: cache-front-rule
         uses: actions/cache@v4
         with:
-          path: internal/http/out
-          key: cache-front-out-${{ github.run_id }}-${{ github.run_attempt }}
-    
-      - name: Cache Rule
-        id: cache-rule
-        uses: actions/cache@v4
-        with:
-          path: internal/statics/bypass.gz
-          key: cache-rule-${{ github.run_id }}-${{ github.run_attempt }}
-     
+          path: |
+            internal/statics/bypass.gz
+            internal/http/out
+          key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -127,7 +99,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   build:
-    needs: [web,rule]
+    needs: [download_web_and_rule]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -148,19 +120,14 @@ jobs:
         check-latest: true
         go-version-file: 'go.mod'
 
-    - name: Cache Front Out
-      id: cache-front-out
+    - name: web rule cache
+      id: cache-front-rule
       uses: actions/cache@v4
       with:
-        path: internal/http/out
-        key: cache-front-out-${{ github.run_id }}-${{ github.run_attempt }}
-    
-    - name: Cache Rule
-      id: cache-rule
-      uses: actions/cache@v4
-      with:
-        path: internal/statics/bypass.gz
-        key: cache-rule-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          internal/statics/bypass.gz
+          internal/http/out
+        key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
 
     # - name: Set up Upx
     #   run: |

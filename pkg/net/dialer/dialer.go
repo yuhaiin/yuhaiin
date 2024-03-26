@@ -59,6 +59,7 @@ func ListenPacket(network, address string) (net.PacketConn, error) {
 		InterfaceName:  DefaultInterfaceName,
 		InterfaceIndex: DefaultInterfaceIndex,
 		MarkSymbol:     DefaultMarkSymbol,
+		listener:       true,
 	})
 }
 

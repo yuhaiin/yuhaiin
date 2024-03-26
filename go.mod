@@ -10,8 +10,8 @@ require (
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.9
 	golang.org/x/crypto v0.21.0
-	golang.org/x/exp v0.0.0-20240314144324-c7f7c6466f7f
-	golang.org/x/mobile v0.0.0-20240213143359-d1f7d3436075
+	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
+	golang.org/x/mobile v0.0.0-20240320162201-c76e57eead38
 	golang.org/x/net v0.22.1-0.20240308174206-57a6a7a86bc0
 	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.18.0
@@ -20,7 +20,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
-	gvisor.dev/gvisor v0.0.0-20240315190121-2be91ac8c110
+	gvisor.dev/gvisor v0.0.0-20240325235503-b1e227737fd6
 )
 
 require (
@@ -37,13 +37,13 @@ require (
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/mock v0.4.0 // indirect
-	golang.org/x/mod v0.15.0 // indirect
+	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.18.0 // indirect
+	golang.org/x/tools v0.19.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
 )
 
-replace github.com/vishvananda/netlink => github.com/yuhaiin/netlink v0.0.0-20240213150240-f91d720181db
+replace github.com/vishvananda/netlink => github.com/yuhaiin/netlink v0.0.0-20240326143811-2c8409c9dea9
 
 replace golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e

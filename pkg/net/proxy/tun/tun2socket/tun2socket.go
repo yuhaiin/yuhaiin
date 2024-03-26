@@ -55,7 +55,7 @@ func New(o *tun.Opt) (netapi.Accepter, error) {
 func (h *Tun2socket) Close() error {
 	h.ChannelServer.Close()
 	_ = h.nat.TCP.Close()
-	_ = h.nat.UDPv2.Close()
+	_ = h.nat.UDP.Close()
 	return h.device.Close()
 }
 
@@ -84,7 +84,7 @@ func (h *Tun2socket) tcpLoop() {
 }
 
 func (h *Tun2socket) udpLoop() {
-	defer h.nat.UDPv2.Close()
+	defer h.nat.UDP.Close()
 	for {
 		if err := h.handleUDP(); err != nil {
 			if errors.Is(err, netapi.ErrBlocked) {
@@ -120,7 +120,7 @@ var errUDPAccept = errors.New("tun2socket udp accept failed")
 func (h *Tun2socket) handleUDP() error {
 	buf := pool.GetBytesBuffer(h.Mtu)
 
-	n, tuple, err := h.nat.UDPv2.ReadFrom(buf.Bytes())
+	n, tuple, err := h.nat.UDP.ReadFrom(buf.Bytes())
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
 	}
@@ -148,7 +148,11 @@ func (h *Tun2socket) handleUDP() error {
 				return 0, err
 			}
 
-			return h.nat.UDPv2.WriteTo(b, nat.Tuple{
+			if tuple.SourceAddr.Len() == 16 {
+				daddr = daddr.To16()
+			}
+
+			return h.nat.UDP.WriteTo(b, nat.Tuple{
 				DestinationAddr: tcpip.AddrFromSlice(daddr),
 				DestinationPort: address.Port().Port(),
 				SourceAddr:      tuple.SourceAddr,

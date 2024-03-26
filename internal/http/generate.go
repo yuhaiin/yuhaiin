@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
-//go:generate go run compress.go
+//go:generate go run generate.go
 
 func main() {
 	if err := compress("out"); err != nil {
