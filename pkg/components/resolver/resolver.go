@@ -19,26 +19,25 @@ import (
 )
 
 func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
-	bootstrap := wrap("BOOTSTRAP", func(b *dnsWrap, c *pc.Setting) {
-		if proto.Equal(b.config, c.Dns.Bootstrap) && b.ipv6 == c.GetIpv6() {
+	bootstrap := wrap("BOOTSTRAP", func(b *dnsWrap, c *pd.DnsConfig) {
+		if proto.Equal(b.config, c.Bootstrap) {
 			return
 		}
 
-		if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
+		if err := config.CheckBootstrapDns(c.Bootstrap); err != nil {
 			log.Error("check bootstrap dns failed", "err", err)
 			return
 		}
 
-		b.config = c.Dns.Bootstrap
-		b.ipv6 = c.GetIpv6()
+		b.config = c.Bootstrap
 		b.Close()
 
-		z, err := newDNS("BOOTSTRAP", c.GetIpv6(), b.config,
+		z, err := newDNS("BOOTSTRAP", b.config,
 			&dialer{
 				Proxy: dl,
 				addr: func(ctx context.Context, addr netapi.Address) {
 					netapi.StoreFromContext(ctx).Add(shunt.ForceModeKey{}, bypass.Mode_direct)
-					addr.SetResolver(netapi.NewSystemResolver(c.GetIpv6()))
+					addr.SetResolver(netapi.NewSystemResolver())
 					addr.SetSrc(netapi.AddressSrcDNS)
 				}},
 		)
@@ -54,15 +53,14 @@ func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
 }
 
 func NewLocal(dl netapi.Proxy) netapi.Resolver {
-	return wrap("LOCALDNS", func(l *dnsWrap, c *pc.Setting) {
-		if proto.Equal(l.config, c.Dns.Local) && l.ipv6 == c.GetIpv6() {
+	return wrap("LOCALDNS", func(l *dnsWrap, c *pd.DnsConfig) {
+		if proto.Equal(l.config, c.Local) {
 			return
 		}
 
-		l.config = c.Dns.Local
-		l.ipv6 = c.GetIpv6()
+		l.config = c.Local
 		l.Close()
-		z, err := newDNS("LOCALDNS", c.GetIpv6(), l.config, &dialer{
+		z, err := newDNS("LOCALDNS", l.config, &dialer{
 			Proxy: dl,
 			addr: func(ctx context.Context, addr netapi.Address) {
 				// force to use bootstrap dns, otherwise will dns query cycle
@@ -79,15 +77,15 @@ func NewLocal(dl netapi.Proxy) netapi.Resolver {
 }
 
 func NewRemote(dl netapi.Proxy) netapi.Resolver {
-	return wrap("REMOTEDNS", func(r *dnsWrap, c *pc.Setting) {
-		if proto.Equal(r.config, c.Dns.Remote) && r.ipv6 == c.GetIpv6() {
+	return wrap("REMOTEDNS", func(r *dnsWrap, c *pd.DnsConfig) {
+		if proto.Equal(r.config, c.Remote) {
 			return
 		}
 
-		r.config = c.Dns.Remote
-		r.ipv6 = c.GetIpv6()
+		r.config = c.Remote
 		r.Close()
-		z, err := newDNS("REMOTEDNS", c.GetIpv6(), r.config,
+
+		z, err := newDNS("REMOTEDNS", r.config,
 			&dialer{
 				Proxy: dl,
 				addr: func(ctx context.Context, addr netapi.Address) {
@@ -110,21 +108,34 @@ type dnsWrap struct {
 	name   string
 	dns    netapi.Resolver
 
-	update func(*dnsWrap, *pc.Setting)
+	update func(*dnsWrap, *pd.DnsConfig)
 }
 
-func wrap(name string, update func(*dnsWrap, *pc.Setting)) *dnsWrap {
+func wrap(name string, update func(*dnsWrap, *pd.DnsConfig)) *dnsWrap {
 	return &dnsWrap{update: update, name: name}
 }
 
-func (d *dnsWrap) Update(c *pc.Setting) { d.update(d, c) }
+func (d *dnsWrap) Update(c *pc.Setting) {
+	d.ipv6 = c.GetIpv6()
+	d.update(d, c.Dns)
+}
 
 func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	if d.dns == nil {
 		return nil, fmt.Errorf("%s dns not initialized", d.name)
 	}
 
-	ips, err := d.dns.LookupIP(ctx, host, opts...)
+	opt := func(opt *netapi.LookupIPOption) {
+		if d.ipv6 {
+			opt.AAAA = true
+		}
+
+		for _, o := range opts {
+			o(opt)
+		}
+	}
+
+	ips, err := d.dns.LookupIP(ctx, host, opt)
 	if err != nil {
 		return nil, fmt.Errorf("%s lookup failed: %w", d.name, err)
 	}
@@ -153,7 +164,7 @@ func (d *dnsWrap) Close() error {
 	return nil
 }
 
-func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer netapi.Proxy) (netapi.Resolver, error) {
+func newDNS(name string, dc *pd.Dns, dialer netapi.Proxy) (netapi.Resolver, error) {
 	subnet, err := netip.ParsePrefix(dc.Subnet)
 	if err != nil {
 		p, err := netip.ParseAddr(dc.Subnet)
@@ -168,7 +179,6 @@ func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer netapi.Proxy) (netapi.Res
 			Host:       dc.Host,
 			Servername: dc.TlsServername,
 			Subnet:     subnet,
-			IPv6:       ipv6,
 			Dialer:     dialer,
 		})
 }

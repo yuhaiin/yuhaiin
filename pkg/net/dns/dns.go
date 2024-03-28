@@ -26,7 +26,6 @@ import (
 
 type Config struct {
 	Type       pd.Type
-	IPv6       bool
 	Subnet     netip.Prefix
 	Name       string
 	Host       string
@@ -119,19 +118,21 @@ func NewClient(config Config, do func(context.Context, []byte) ([]byte, error)) 
 
 func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 
-	opt := &netapi.LookupIPOption{}
+	opt := &netapi.LookupIPOption{
+		A: true,
+	}
 
 	for _, optf := range opts {
 		optf(opt)
 	}
 
 	// only ipv6
-	if opt.OnlyAAAA {
+	if opt.AAAA && !opt.A {
 		return c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 	}
 
 	// only ipv4
-	if !c.config.IPv6 {
+	if opt.A && !opt.AAAA {
 		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
 	}
 

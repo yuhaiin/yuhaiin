@@ -29,6 +29,7 @@ message protocol {
 message request {
   string id = 3 [ json_name = "id" ];
   string hash = 1 [ json_name = "hash" ];
+  bool ipv6 = 4 [ json_name = "ipv6" ];
   protocol protocol = 2 [ json_name = "protocol" ];
 }
 

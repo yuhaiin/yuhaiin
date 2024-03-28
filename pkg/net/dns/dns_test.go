@@ -22,7 +22,6 @@ func ExampleNew() {
 		Name:       "cloudflare",
 		Host:       "cloudflare-dns.com",
 		Servername: "cloudflare-dns.com",
-		IPv6:       true,
 		Subnet:     subnet,
 	})
 }

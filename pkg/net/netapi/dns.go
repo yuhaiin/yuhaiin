@@ -10,7 +10,8 @@ import (
 )
 
 type LookupIPOption struct {
-	OnlyAAAA bool
+	AAAA bool
+	A    bool
 }
 
 type ForceFakeIP struct{}
@@ -35,19 +36,31 @@ func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessa
 
 var Bootstrap Resolver = &SystemResolver{}
 
-type SystemResolver struct{ DisableIPv6 bool }
+type SystemResolver struct{}
 
-func NewSystemResolver(ipv6 bool) *SystemResolver {
-	return &SystemResolver{!ipv6}
+func NewSystemResolver() *SystemResolver {
+	return &SystemResolver{}
 }
 
 func (d *SystemResolver) LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
-	var network string
-	if d.DisableIPv6 {
-		network = "ip4"
-	} else {
-		network = "ip"
+	network := "ip"
+
+	opt := &LookupIPOption{
+		A: true,
 	}
+
+	for _, o := range opts {
+		o(opt)
+	}
+
+	if opt.AAAA && !opt.A {
+		network = "ip6"
+	}
+
+	if opt.A && !opt.AAAA {
+		network = "ip4"
+	}
+
 	return net.DefaultResolver.LookupIP(ctx, network, domain)
 }
 func (d *SystemResolver) Raw(context.Context, dnsmessage.Question) (dnsmessage.Message, error) {

@@ -10,13 +10,12 @@ import (
 )
 
 func TestDoh3(t *testing.T) {
-	netapi.Bootstrap = &netapi.SystemResolver{DisableIPv6: true}
+	netapi.Bootstrap = &netapi.SystemResolver{}
 
 	configMap := map[string]Config{
 		"cloudflare": {
 			Type: dns.Type_doh3,
 			Host: "cloudflare-dns.com",
-			IPv6: true,
 		},
 	}
 

@@ -17,26 +17,22 @@ func TestDOT(t *testing.T) {
 			Type:   dns.Type_dot,
 			Host:   "8.8.8.8",
 			Subnet: s,
-			IPv6:   true,
 			Dialer: socks5.Dial("127.0.0.1", "1080", "", ""),
 		},
 		"ali": {
 			Type:   dns.Type_dot,
 			Host:   "223.5.5.5",
 			Subnet: s,
-			IPv6:   true,
 		},
 		"dnspub": {
 			Type:   dns.Type_dot,
 			Host:   "dot.pub:853",
 			Subnet: s,
-			IPv6:   true,
 		},
 		"360": {
 			Type:   dns.Type_dot,
 			Host:   "dot.360.cn:853",
 			Subnet: s,
-			IPv6:   true,
 		},
 	}
 

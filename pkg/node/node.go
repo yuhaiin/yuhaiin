@@ -102,6 +102,31 @@ func (n *Nodes) Remove(_ context.Context, s *wrapperspb.StringValue) (*emptypb.E
 	return &emptypb.Empty{}, n.fileStore.Save()
 }
 
+type latencyDialer struct {
+	netapi.Proxy
+	ipv6 bool
+}
+
+func (w *latencyDialer) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
+	if w.ipv6 {
+		a.PreferIPv6(true)
+	} else {
+		a.PreferIPv4(true)
+	}
+
+	return w.Proxy.Conn(ctx, a)
+}
+
+func (w *latencyDialer) PacketConn(ctx context.Context, a netapi.Address) (net.PacketConn, error) {
+	if w.ipv6 {
+		a.PreferIPv6(true)
+	} else {
+		a.PreferIPv4(true)
+	}
+
+	return w.Proxy.PacketConn(ctx, a)
+}
+
 func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Response, error) {
 	resp := &latency.Response{IdLatencyMap: make(map[string]*durationpb.Duration)}
 	var mu sync.Mutex
@@ -120,6 +145,8 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 			if err != nil {
 				return
 			}
+
+			px = &latencyDialer{Proxy: px, ipv6: s.GetIpv6()}
 
 			var t *durationpb.Duration
 			z, ok := s.Protocol.Protocol.(interface {

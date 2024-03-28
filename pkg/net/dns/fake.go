@@ -39,11 +39,15 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 		optf(opt)
 	}
 
-	if opt.OnlyAAAA {
+	if opt.AAAA && !opt.A {
 		return []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
 	}
 
-	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}, nil
+	if opt.A && !opt.AAAA {
+		return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}, nil
+	}
+
+	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice(), f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
 func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {

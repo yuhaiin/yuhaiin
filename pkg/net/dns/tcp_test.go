@@ -17,7 +17,6 @@ func TestTCP(t *testing.T) {
 			Type:   dns.Type_tcp,
 			Host:   "114.114.114.114",
 			Subnet: subnet,
-			IPv6:   true,
 		},
 	}
 
