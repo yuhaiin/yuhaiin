@@ -13,7 +13,7 @@ import (
 )
 
 func TestDOH(t *testing.T) {
-	netapi.Bootstrap = &netapi.SystemResolver{DisableIPv6: true}
+	netapi.Bootstrap = &netapi.SystemResolver{}
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
@@ -22,7 +22,6 @@ func TestDOH(t *testing.T) {
 		"google": {
 			Type:   dns.Type_doh,
 			Host:   "dns.google",
-			IPv6:   true,
 			Subnet: s,
 			Dialer: s5Dialer,
 		},
@@ -30,32 +29,27 @@ func TestDOH(t *testing.T) {
 			Type:       dns.Type_doh,
 			Host:       "103.2.57.5",
 			Servername: "public.dns.iij.jp",
-			IPv6:       true,
 			Subnet:     s,
 		},
 		"cloudflare": {
 			Type:   dns.Type_doh,
 			Host:   "cloudflare-dns.com",
 			Subnet: s,
-			IPv6:   true,
 			Dialer: s5Dialer,
 		},
 		"quad9": {
 			Type:   dns.Type_doh,
 			Host:   "9.9.9.9",
 			Subnet: s,
-			IPv6:   true,
 		},
 		"a.passcloud": {
 			Type:   dns.Type_doh,
 			Host:   "a.passcloud.xyz",
 			Subnet: s,
-			IPv6:   true,
 		},
 		"adguard": {
 			Type: dns.Type_doh,
 			Host: "https://unfiltered.adguard-dns.com/dns-query",
-			IPv6: true,
 		},
 		"ali": {
 			Type:   dns.Type_doh,
@@ -66,32 +60,27 @@ func TestDOH(t *testing.T) {
 			Type:   dns.Type_doh,
 			Host:   "dns.pub",
 			Subnet: s,
-			IPv6:   true,
 		},
 		"sm2.dnspub": {
 			Type:   dns.Type_doh,
 			Host:   "sm2.doh.pub",
 			Subnet: s,
-			IPv6:   true,
 		},
 		"360": {
 			Type:   dns.Type_doh,
 			Host:   "doh.360.cn",
 			Subnet: s,
-			IPv6:   true,
 		},
 		"dnssb": {
 			Type:   dns.Type_doh,
 			Host:   "doh.dns.sb",
 			Subnet: s,
-			IPv6:   true,
 			Dialer: s5Dialer,
 		},
 		"opendns": {
 			Type:   dns.Type_doh,
 			Host:   "doh.opendns.com",
 			Subnet: s,
-			IPv6:   true,
 			Dialer: s5Dialer,
 		},
 		"tuna": {

@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
-	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -43,31 +42,25 @@ type Shunt struct {
 	mapper       *trie.Trie[bypass.ModeEnum]
 	customMapper *trie.Trie[bypass.ModeEnum]
 
-	processMapper syncmap.SyncMap[string, bypass.Mode]
+	processMapper syncmap.SyncMap[string, bypass.ModeEnum]
+	ProcessDumper listener.ProcessDumper
 
 	mu sync.RWMutex
 
-	Opts
+	r Resolver
+	d Dialer
 
 	tags map[string]struct{}
 }
 
-type Opts struct {
-	DirectDialer   netapi.Proxy
-	DirectResolver netapi.Resolver
-	ProxyDialer    netapi.Proxy
-	ProxyResolver  netapi.Resolver
-	BlockDialer    netapi.Proxy
-	BLockResolver  netapi.Resolver
-	DefaultMode    bypass.Mode
-	ProcessDumper  listener.ProcessDumper
+type Resolver interface {
+	Get(str string) netapi.Resolver
+}
+type Dialer interface {
+	Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error)
 }
 
-func NewShunt(opt Opts) *Shunt {
-	if opt.DefaultMode != bypass.Mode_block && opt.DefaultMode != bypass.Mode_direct && opt.DefaultMode != bypass.Mode_proxy {
-		opt.DefaultMode = bypass.Mode_proxy
-	}
-
+func NewShunt(d Dialer, r Resolver, ProcessDumper listener.ProcessDumper) *Shunt {
 	return &Shunt{
 		mapper:       trie.NewTrie[bypass.ModeEnum](),
 		customMapper: trie.NewTrie[bypass.ModeEnum](),
@@ -75,8 +68,10 @@ func NewShunt(opt Opts) *Shunt {
 			Tcp: bypass.Mode_bypass,
 			Udp: bypass.Mode_bypass,
 		},
-		Opts: opt,
-		tags: make(map[string]struct{}),
+		r:             r,
+		d:             d,
+		ProcessDumper: ProcessDumper,
+		tags:          make(map[string]struct{}),
 	}
 }
 
@@ -92,7 +87,7 @@ func (s *Shunt) Update(c *pc.Setting) {
 		func(mc1, mc2 *bypass.ModeConfig) bool { return proto.Equal(mc1, mc2) },
 	) {
 		s.customMapper.Clear() //nolint:errcheck
-		s.processMapper = syncmap.SyncMap[string, bypass.Mode]{}
+		s.processMapper = syncmap.SyncMap[string, bypass.ModeEnum]{}
 
 		for _, v := range c.Bypass.CustomRuleV3 {
 			mark := v.ToModeEnum()
@@ -103,7 +98,7 @@ func (s *Shunt) Update(c *pc.Setting) {
 
 			for _, hostname := range v.Hostname {
 				if strings.HasPrefix(hostname, "process:") {
-					s.processMapper.Store(hostname[8:], mark.Mode())
+					s.processMapper.Store(hostname[8:], mark)
 				} else {
 					s.customMapper.Insert(hostname, mark)
 				}
@@ -121,7 +116,6 @@ func (s *Shunt) Update(c *pc.Setting) {
 		s.tags = make(map[string]struct{})
 		s.modifiedTime = modifiedTime
 		rangeRule(c.Bypass.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
-
 			if strings.HasPrefix(s1, "process:") {
 				s.processMapper.Store(s1[8:], s2.Mode())
 			} else {
@@ -142,7 +136,12 @@ func (s *Shunt) Tags() []string { return maps.Keys(s.tags) }
 func (s *Shunt) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	mode, host := s.dispatch(ctx, s.config.Tcp, host)
 
-	conn, err := s.dialer(mode).Conn(ctx, host)
+	p, err := s.d.Get(ctx, "tcp", mode.Mode().String(), mode.GetTag())
+	if err != nil {
+		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+	}
+
+	conn, err := p.Conn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -153,7 +152,12 @@ func (s *Shunt) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 func (s *Shunt) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	mode, host := s.dispatch(ctx, s.config.Udp, host)
 
-	conn, err := s.dialer(mode).PacketConn(ctx, host)
+	p, err := s.d.Get(ctx, "udp", mode.Mode().String(), mode.GetTag())
+	if err != nil {
+		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+	}
+
+	conn, err := p.PacketConn(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
 	}
@@ -166,7 +170,7 @@ func (s *Shunt) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 	return addr, nil
 }
 
-func (s *Shunt) SearchWithDefault(ctx context.Context, addr netapi.Address, defaultT bypass.ModeEnum) bypass.ModeEnum {
+func (s *Shunt) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum {
 	mode, ok := s.customMapper.Search(ctx, addr)
 	if ok {
 		return mode
@@ -177,21 +181,24 @@ func (s *Shunt) SearchWithDefault(ctx context.Context, addr netapi.Address, defa
 		return mode
 	}
 
-	return defaultT
+	return bypass.Mode_proxy
 }
 
-func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (bypass.Mode, netapi.Address) {
-	var mode bypass.Mode
+func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (bypass.ModeEnum, netapi.Address) {
+	var mode bypass.ModeEnum = bypass.Mode_bypass
 
 	process := s.DumpProcess(ctx, host)
 	if process != "" {
-		mode, _ = s.processMapper.Load(process)
+		m, ok := s.processMapper.Load(process)
+		if ok {
+			mode = m
+		}
 	}
 
 	// get mode from upstream specified
 	store := netapi.StoreFromContext(ctx)
 
-	if mode == bypass.Mode_bypass {
+	if mode.Mode() == bypass.Mode_bypass {
 		mode = netapi.GetDefault(
 			ctx,
 			ForceModeKey{},
@@ -199,24 +206,17 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 		)
 	}
 
-	if mode == bypass.Mode_bypass {
+	if mode.Mode() == bypass.Mode_bypass {
 		// get mode from bypass rule
-		host.SetResolver(s.resolver(s.DefaultMode))
-		fields := s.SearchWithDefault(ctx, host, s.DefaultMode)
-		mode = fields.Mode()
-
-		// get tag from bypass rule
-		if tag := fields.GetTag(); len(tag) != 0 {
-			store.Add(node.TagKey{}, tag)
-		}
-
-		if fields.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6 {
+		host.SetResolver(s.r.Get(""))
+		mode = s.Search(ctx, host)
+		if mode.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6 {
 			host.PreferIPv6(true)
 		}
 	}
 
-	store.Add(modeMarkKey{}, mode)
-	host.SetResolver(s.resolver(mode))
+	store.Add(modeMarkKey{}, mode.Mode())
+	host.SetResolver(s.r.Get(mode.Mode().String()))
 
 	if s.resolveDomain && host.IsFqdn() && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
@@ -233,36 +233,10 @@ func (s *Shunt) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	return mode, host
 }
 
-func (s *Shunt) dialer(m bypass.Mode) netapi.Proxy {
-	switch m {
-	case bypass.Mode_block:
-		return s.BlockDialer
-	case bypass.Mode_direct:
-		return s.DirectDialer
-	case bypass.Mode_proxy:
-		return s.ProxyDialer
-	default:
-		return s.dialer(s.DefaultMode)
-	}
-}
-
-func (s *Shunt) resolver(m bypass.Mode) netapi.Resolver {
-	switch m {
-	case bypass.Mode_block:
-		return s.BLockResolver
-	case bypass.Mode_direct:
-		return s.DirectResolver
-	case bypass.Mode_proxy:
-		return s.ProxyResolver
-	default:
-		return s.resolver(s.DefaultMode)
-	}
-}
-
 func (s *Shunt) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort(0, domain, netapi.EmptyPort)
 	host.SetResolver(trie.SkipResolver)
-	return s.resolver(s.SearchWithDefault(ctx, host, s.DefaultMode).Mode())
+	return s.r.Get(s.Search(ctx, host).Mode().String())
 }
 
 func (f *Shunt) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {

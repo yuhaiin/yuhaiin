@@ -112,6 +112,7 @@ type addr struct {
 	network    statistic.Type
 	src        AddressSrc
 	preferIPv6 bool
+	preferIPv4 bool
 	resolver   Resolver
 }
 
@@ -148,6 +149,7 @@ func (d *addr) Resolver() Resolver {
 func (d *addr) Network() string             { return d.network.String() }
 func (d *addr) NetworkType() statistic.Type { return d.network }
 func (d *addr) PreferIPv6(b bool)           { d.preferIPv6 = b }
+func (d *addr) PreferIPv4(b bool)           { d.preferIPv4 = b }
 func (d *addr) overrideHostname(s string, port Port) Address {
 	if addr, err := netip.ParseAddr(s); err == nil {
 		return &IPAddrPort{
@@ -201,9 +203,16 @@ func (d *DomainAddr) Port() Port   { return d.port }
 func (d *DomainAddr) Type() Type   { return FQDN }
 func (d *DomainAddr) IsFqdn() bool { return true }
 func (d *DomainAddr) lookupIP(ctx context.Context) ([]net.IP, error) {
-	if d.preferIPv6 {
+	if d.preferIPv6 || d.preferIPv4 {
 		ips, err := d.Resolver().LookupIP(ctx, d.hostname, func(li *LookupIPOption) {
-			li.OnlyAAAA = true
+			if d.preferIPv6 {
+				li.AAAA = true
+				li.A = false
+			}
+			if d.preferIPv4 {
+				li.A = true
+				li.AAAA = false
+			}
 		})
 		if err == nil {
 			return ips, nil
@@ -300,6 +309,7 @@ func (d emptyAddr) IsFqdn() bool                { return false }
 func (d emptyAddr) SetSrc(AddressSrc)           {}
 func (d emptyAddr) SetResolver(Resolver)        {}
 func (d emptyAddr) PreferIPv6(bool)             {}
+func (d emptyAddr) PreferIPv4(bool)             {}
 func (d emptyAddr) UDPAddr(context.Context) Result[*net.UDPAddr] {
 	return NewErrResult[*net.UDPAddr](errors.New("empty"))
 }

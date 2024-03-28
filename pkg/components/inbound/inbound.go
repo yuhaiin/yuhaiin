@@ -249,7 +249,11 @@ func (l *listener) udp() {
 						return err
 					})
 					if err != nil {
-						log.Error("udp server handle DnsHijacking failed", "err", err)
+						if errors.Is(err, netapi.ErrBlocked) {
+							log.Debug("blocked", "msg", err)
+						} else {
+							log.Error("udp server handle DnsHijacking failed", "err", err)
+						}
 					}
 				}()
 

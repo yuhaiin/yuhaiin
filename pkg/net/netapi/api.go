@@ -93,6 +93,7 @@ type Address interface {
 	// SetResolver will use call IP(), IPHost(), UDPAddr(), TCPAddr()
 	SetResolver(_ Resolver)
 	PreferIPv6(b bool)
+	PreferIPv4(b bool)
 	// OverrideHostname clone address(exclude Values) and change hostname
 	OverrideHostname(string) Address
 	OverridePort(Port) Address

@@ -106,6 +106,7 @@ func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 	}
 
 	if err != nil {
+		c.index.Store(0)
 		return nil, fmt.Errorf("simple dial failed: %w", err)
 	}
 

@@ -12,37 +12,48 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-var _ netapi.Proxy = (*Nodes)(nil)
-
 type Nodes struct {
 	gn.UnimplementedNodeServer
-	netapi.EmptyDispatch
 
-	fileStore *FileStore
-	ruleTags  func() []string
+	ruleTags func() []string
+
+	db       *jsondb.DB[*node.Node]
+	manager  *manager
+	outBound *outbound
+	links    *link
 }
 
-func NewNodes(fileStore *FileStore) *Nodes {
-	return &Nodes{fileStore: fileStore}
+func NewNodes(path string) *Nodes {
+	f := &Nodes{
+		db: load(path),
+	}
+
+	f.manager = NewManager(f.db.Data.Manager)
+	f.outBound = NewOutbound(f.db, f.manager)
+	f.links = NewLink(f.db, f.outBound, f.manager)
+
+	return f
 }
 
 func (n *Nodes) SetRuleTags(f func() []string) { n.ruleTags = f }
 
 func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
 	return &gn.NowResp{
-		Tcp: n.fileStore.db.Data.Tcp,
-		Udp: n.fileStore.db.Data.Udp,
+		Tcp: n.db.Data.Tcp,
+		Udp: n.db.Data.Udp,
 	}, nil
 }
 
 func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point, error) {
-	p, ok := n.manager().GetNode(s.Value)
+	p, ok := n.manager.GetNode(s.Value)
 	if !ok {
 		return &point.Point{}, fmt.Errorf("node not found")
 	}
@@ -54,13 +65,13 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 	if p.Name == "" || p.Group == "" {
 		return &point.Point{}, fmt.Errorf("add point name or group is empty")
 	}
-	n.manager().DeleteNode(p.Hash)
-	n.manager().AddNode(p)
-	return p, n.fileStore.Save()
+	n.manager.DeleteNode(p.Hash)
+	n.manager.AddNode(p)
+	return p, n.db.Save()
 }
 
 func (n *Nodes) Manager(context.Context, *emptypb.Empty) (*node.Manager, error) {
-	m := n.manager().GetManager()
+	m := n.manager.GetManager()
 
 	if m.Tags == nil {
 		m.Tags = map[string]*pt.Tags{}
@@ -84,13 +95,13 @@ func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
 	}
 
 	if s.Tcp {
-		n.fileStore.db.Data.Tcp = p
+		n.db.Data.Tcp = p
 	}
 	if s.Udp {
-		n.fileStore.db.Data.Udp = p
+		n.db.Data.Udp = p
 	}
 
-	err = n.fileStore.Save()
+	err = n.db.Save()
 	if err != nil {
 		return p, fmt.Errorf("save config failed: %w", err)
 	}
@@ -98,8 +109,33 @@ func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
 }
 
 func (n *Nodes) Remove(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	n.manager().DeleteNode(s.Value)
-	return &emptypb.Empty{}, n.fileStore.Save()
+	n.manager.DeleteNode(s.Value)
+	return &emptypb.Empty{}, n.db.Save()
+}
+
+type latencyDialer struct {
+	netapi.Proxy
+	ipv6 bool
+}
+
+func (w *latencyDialer) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
+	if w.ipv6 {
+		a.PreferIPv6(true)
+	} else {
+		a.PreferIPv4(true)
+	}
+
+	return w.Proxy.Conn(ctx, a)
+}
+
+func (w *latencyDialer) PacketConn(ctx context.Context, a netapi.Address) (net.PacketConn, error) {
+	if w.ipv6 {
+		a.PreferIPv6(true)
+	} else {
+		a.PreferIPv4(true)
+	}
+
+	return w.Proxy.PacketConn(ctx, a)
 }
 
 func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Response, error) {
@@ -116,10 +152,12 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 				return
 			}
 
-			px, err := n.fileStore.outbound().GetDialer(p)
+			px, err := n.outBound.GetDialer(p)
 			if err != nil {
 				return
 			}
+
+			px = &latencyDialer{Proxy: px, ipv6: s.GetIpv6()}
 
 			var t *durationpb.Duration
 			z, ok := s.Protocol.Protocol.(interface {
@@ -142,10 +180,19 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 	return resp, nil
 }
 
-func (n *Nodes) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	return n.fileStore.outbound().Conn(ctx, addr)
+func (n *Nodes) Outbound() *outbound { return n.outBound }
+
+func load(path string) *jsondb.DB[*node.Node] {
+	defaultNode := &node.Node{
+		Tcp:   &point.Point{},
+		Udp:   &point.Point{},
+		Links: map[string]*subscribe.Link{},
+		Manager: &node.Manager{
+			GroupsV2: map[string]*node.Nodes{},
+			Nodes:    map[string]*point.Point{},
+			Tags:     map[string]*pt.Tags{},
+		},
+	}
+
+	return jsondb.Open[*node.Node](path, defaultNode)
 }
-func (n *Nodes) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return n.fileStore.outbound().PacketConn(ctx, addr)
-}
-func (n *Nodes) manager() *manager { return n.fileStore.manager() }

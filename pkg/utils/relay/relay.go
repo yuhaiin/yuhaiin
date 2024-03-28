@@ -41,13 +41,13 @@ func Relay(rw1, rw2 io.ReadWriteCloser) {
 		_, err := Copy(rw2, rw1)
 		logE("relay rw1 -> rw2", err)
 		closeWrite(rw2) // make another Copy exit
-		// closeRead(rw1)
+		closeRead(rw1)
 	}()
 
 	_, err := Copy(rw1, rw2)
 	logE("relay rw2 -> rw1", err)
 	closeWrite(rw1)
-	// closeRead(rw2)
+	closeRead(rw2)
 
 	<-wait
 }

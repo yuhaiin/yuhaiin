@@ -46,8 +46,8 @@ func WithCapacity[K comparable, V any](capacity uint) func(*LRU[K, V]) {
 	}
 }
 
-// NewLru create new lru cache
-func NewLru[K comparable, V any](options ...Option[K, V]) *LRU[K, V] {
+// New create new lru cache
+func New[K comparable, V any](options ...Option[K, V]) *LRU[K, V] {
 	l := &LRU[K, V]{
 		list: synclist.New[*lruEntry[K, V]](),
 	}

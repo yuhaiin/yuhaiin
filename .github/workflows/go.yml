@@ -2,43 +2,42 @@ name: Go
 
 on:
   push:
-    branches: [ main ]
-    tags: [ v* ]
+    branches: [main]
+    tags: [v*]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-
   download_web_and_rule:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        check-latest: true
-        go-version-file: 'go.mod'
-    
-    - name: download rule
-      run: |
-        curl https://raw.githubusercontent.com/yuhaiin/yuhaiin/ACL/yuhaiin/yuhaiin.conf -o internal/statics/bypass.conf
-        go generate -x -v internal/statics/generate.go
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          check-latest: true
+          go-version-file: "go.mod"
 
-    - name: clone web
-      run: |
-        git clone -b main --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git internal/http/out
-        rm -rf internal/http/out/.git internal/http/out/.nojekyll
-        go generate -x -v internal/http/generate.go
+      - name: download rule
+        run: |
+          curl https://raw.githubusercontent.com/yuhaiin/yuhaiin/ACL/yuhaiin/yuhaiin.conf -o internal/statics/bypass.conf
+          go generate -x -v internal/statics/generate.go
 
-    - name: web rule cache
-      id: cache-front-rule
-      uses: actions/cache@v4
-      with:
-        path: |
-          internal/statics/bypass.gz
-          internal/http/out
-        key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: clone web
+        run: |
+          git clone -b main --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git internal/http/out
+          rm -rf internal/http/out/.git internal/http/out/.nojekyll
+          go generate -x -v internal/http/generate.go
+
+      - name: web rule cache
+        id: cache-front-rule
+        uses: actions/cache@v4
+        with:
+          path: |
+            internal/statics/bypass.gz
+            internal/http/out
+          key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
 
   package:
     needs: [download_web_and_rule]
@@ -46,12 +45,12 @@ jobs:
     permissions:
       packages: write
       contents: read
-      
+
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
-          fetch-tags: 'true'
+          fetch-depth: "0"
+          fetch-tags: "true"
 
       - name: web rule cache
         id: cache-front-rule
@@ -84,7 +83,7 @@ jobs:
         # https://github.com/docker/setup-qemu-action
         name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-        
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -104,46 +103,69 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, amd64v3]
-        os: [[linux, ""], [linux_lite, ""], [darwin, ""], [windows, ".exe"]]
-        cmd: [yuhaiin]
+        env:
+          [
+            [linux, "amd64"],
+            [linux, "amd64v3"],
+            [linux, "arm64"],
+            [linux, "mipsle"],
+            [android, "arm64"],
+            [darwin, "amd64"],
+            [darwin, "amd64v3"],
+            [darwin, "arm64"],
+            [freebsd, "amd64"],
+            [freebsd, "amd64v3"],
+            [freebsd, "arm64"],
+            [openbsd, "amd64"],
+            [openbsd, "amd64v3"],
+            [openbsd, "arm64"],
+            [windows, "amd64"],
+            [windows, "amd64v3"],
+            [windows, "arm64"],
+          ]
+        cmd: [yuhaiin, yuhaiin_lite]
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: '0'
-        fetch-tags: 'true'
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+          fetch-tags: "true"
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        check-latest: true
-        go-version-file: 'go.mod'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          check-latest: true
+          go-version-file: "go.mod"
 
-    - name: web rule cache
-      id: cache-front-rule
-      uses: actions/cache@v4
-      with:
-        path: |
-          internal/statics/bypass.gz
-          internal/http/out
-        key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: web rule cache
+        id: cache-front-rule
+        uses: actions/cache@v4
+        with:
+          path: |
+            internal/statics/bypass.gz
+            internal/http/out
+          key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
 
-    # - name: Set up Upx
-    #   run: |
-    #     sudo apt update
-    #     sudo apt install -y upx
+      # - name: Set up Upx
+      #   run: |
+      #     sudo apt update
+      #     sudo apt install -y upx
 
-        # if [ ${{ matrix.os[0] }} != "darwin" ]; then
-          # upx --lzma --best ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
-        # fi
-    - name: Build
-      run: |
-        make ${{ matrix.cmd }}_${{ matrix.os[0] }}
+      # if [ ${{ matrix.os[0] }} != "darwin" ]; then
+      # upx --lzma --best ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
+      # fi
+      - name: Build
+        env:
+          GOOS: ${{ matrix.env[0] }}
+          GOARCH: ${{ matrix.env[1] == 'amd64v3' && 'amd64' || matrix.env[1] }}
+          GOAMD64: ${{ matrix.env[1] == 'amd64v3' && 'v3' || '' }}
+          GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
+        run: |
+          make ${{ matrix.cmd }}
 
-    - name: upload_${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}
-        path: |
-          ${{ matrix.cmd }}_${{ matrix.os[0] }}_${{ matrix.arch }}${{ matrix.os[1] }}
+      - name: upload_${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}
+          path: |
+            ${{ matrix.cmd == 'yuhaiin_lite' && 'yuhaiin' || matrix.cmd }}${{ matrix.env[0] == 'windows' && '.exe' || '' }}

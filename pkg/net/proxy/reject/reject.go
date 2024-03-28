@@ -45,7 +45,7 @@ func init() {
 var Default = rejectImmediately{}
 
 func NewReject(maxDelay, interval int) netapi.Proxy {
-	return &reject{cache: lru.NewLru(lru.WithCapacity[string, object](100)), max: maxDelay, internal: interval}
+	return &reject{cache: lru.New(lru.WithCapacity[string, object](100)), max: maxDelay, internal: interval}
 }
 
 func (r *reject) delay(addr netapi.Address) time.Duration {

@@ -19,28 +19,24 @@ func TestUDP(t *testing.T) {
 			Type:   dns.Type_udp,
 			Host:   "one.one.one.one",
 			Subnet: subnet,
-			IPv6:   true,
 			Dialer: s5Dialer,
 		},
 		"google": {
 			Type:   dns.Type_udp,
 			Host:   "8.8.8.8",
 			Subnet: subnet,
-			IPv6:   true,
 			Dialer: s5Dialer,
 		},
 		"114": {
 			Type:   dns.Type_udp,
 			Host:   "114.114.114.114",
 			Subnet: subnet,
-			IPv6:   true,
 		},
 		"nextdns": {
 			Type:   dns.Type_udp,
 			Host:   "45.90.28.30",
 			Subnet: subnet,
 			Dialer: s5Dialer,
-			IPv6:   true,
 		},
 	}
 

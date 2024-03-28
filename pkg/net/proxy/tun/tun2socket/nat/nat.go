@@ -205,13 +205,10 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 	destinationPort := t.DestinationPort()
 
 	var address, portal tcpip.Address
-
 	if _, ok := ip.(header.IPv4); ok {
-		address = n.address
-		portal = n.portal
+		address, portal = n.address, n.portal
 	} else {
-		address = n.addressV6
-		portal = n.portalV6
+		address, portal = n.addressV6, n.portalV6
 	}
 
 	if address.Unspecified() || portal.Unspecified() {
@@ -239,13 +236,13 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 		}
 
 		port := n.tab.portOf(tup)
-		if port == 0 {
-			if t.Flags() != header.TCPFlagSyn {
-				return nil, 0, false
-			}
+		// if port == 0 {
+		// 	if t.Flags() != header.TCPFlagSyn {
+		// 		return nil, 0, false
+		// 	}
 
-			port = n.tab.newConn(tup)
-		}
+		// 	port = n.tab.newConn(tup)
+		// }
 
 		ip.SetDestinationAddress(address)
 		t.SetDestinationPort(n.gatewayPort)

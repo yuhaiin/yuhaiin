@@ -6,7 +6,7 @@ require (
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
 	github.com/quic-go/quic-go v0.42.0
 	github.com/refraction-networking/utls v1.6.3
-	github.com/vishvananda/netlink v1.2.1-beta.2
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240329163344-d237ee16c317
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.9
 	golang.org/x/crypto v0.21.0
@@ -43,7 +43,5 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
 )
-
-replace github.com/vishvananda/netlink => github.com/yuhaiin/netlink v0.0.0-20240326143811-2c8409c9dea9
 
 replace golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e

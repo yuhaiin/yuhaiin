@@ -1,4 +1,4 @@
-from docker.io/library/golang:alpine as builder
+FROM docker.io/library/golang:alpine as builder
 
 WORKDIR /yuhaiin
 

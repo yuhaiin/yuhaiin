@@ -10,6 +10,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
@@ -28,7 +30,7 @@ func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
 	return &outbound{
 		manager:  mamanager,
 		db:       db,
-		lruCache: lru.NewLru(lru.WithCapacity[string, netapi.Proxy](200)),
+		lruCache: lru.New(lru.WithCapacity[string, netapi.Proxy](200)),
 	}
 }
 
@@ -43,23 +45,6 @@ func (o *outbound) getNowPoint(p *point.Point) *point.Point {
 	}
 
 	return p
-}
-
-func (o *outbound) Conn(ctx context.Context, host netapi.Address) (_ net.Conn, err error) {
-	if tc := o.tagConn(ctx, host); tc != nil {
-		return tc.Conn(ctx, host)
-	}
-
-	tcp := o.getNowPoint(o.db.Data.Tcp)
-
-	p, err := o.GetDialer(tcp)
-	if err != nil {
-		return nil, err
-	}
-
-	netapi.StoreFromContext(ctx).Add(HashKey{}, tcp.Hash)
-
-	return p.Conn(ctx, host)
 }
 
 func (o *outbound) GetDialer(p *point.Point) (netapi.Proxy, error) {
@@ -81,49 +66,52 @@ func (o *outbound) GetDialer(p *point.Point) (netapi.Proxy, error) {
 	return r, nil
 }
 
-func (o *outbound) PacketConn(ctx context.Context, host netapi.Address) (_ net.PacketConn, err error) {
-	if tc := o.tagConn(ctx, host); tc != nil {
-		return tc.PacketConn(ctx, host)
-	}
-
-	udp := o.getNowPoint(o.db.Data.Udp)
-
-	p, err := o.GetDialer(udp)
-	if err != nil {
-		return nil, err
-	}
-
-	netapi.StoreFromContext(ctx).Add(HashKey{}, udp.Hash)
-	return p.PacketConn(ctx, host)
-}
-
 type HashKey struct{}
 
 func (HashKey) String() string { return "Hash" }
 
-func (o *outbound) tagConn(ctx context.Context, host netapi.Address) netapi.Proxy {
-
-	tag, ok := netapi.Get[string](ctx, TagKey{})
-	if !ok {
-		return nil
-	}
-
-_retry:
-	t, ok := o.manager.ExistTag(tag)
-	if !ok || len(t.Hash) <= 0 {
-		return nil
-	}
-
-	if t.Type == pt.TagType_mirror {
-		if tag == t.Hash[0] {
-			return nil
+func (o *outbound) Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error) {
+	if tag != "" {
+		netapi.StoreFromContext(ctx).Add(TagKey{}, tag)
+		if hash := o.tagConn(tag); hash != "" {
+			p := o.GetDialerByHash(ctx, hash)
+			if p != nil {
+				return p, nil
+			}
 		}
-		tag = t.Hash[0]
-		goto _retry
 	}
 
-	hash := t.Hash[rand.IntN(len(t.Hash))]
+	switch str {
+	case bypass.Mode_direct.String():
+		return direct.Default, nil
+	case bypass.Mode_block.String():
+		return drop.Drop, nil
+	}
 
+	if len(network) < 3 {
+		return nil, fmt.Errorf("invalid network: %s", network)
+	}
+
+	var point *point.Point
+	switch network[:3] {
+	case "tcp":
+		point = o.getNowPoint(o.db.Data.Tcp)
+	case "udp":
+		point = o.getNowPoint(o.db.Data.Udp)
+	default:
+		return nil, fmt.Errorf("invalid network: %s", network)
+	}
+
+	p, err := o.GetDialer(point)
+	if err != nil {
+		return nil, err
+	}
+
+	netapi.StoreFromContext(ctx).Add(HashKey{}, point.Hash)
+	return p, nil
+}
+
+func (o *outbound) GetDialerByHash(ctx context.Context, hash string) netapi.Proxy {
 	v, ok := o.lruCache.Load(hash)
 	if !ok {
 		p, ok := o.manager.GetNode(hash)
@@ -136,6 +124,7 @@ _retry:
 		if err != nil {
 			return nil
 		}
+
 		o.lruCache.Add(hash, v)
 	}
 
@@ -143,8 +132,31 @@ _retry:
 	return v
 }
 
+func (o *outbound) tagConn(tag string) string {
+_retry:
+	t, ok := o.manager.ExistTag(tag)
+	if !ok || len(t.Hash) <= 0 {
+		return ""
+	}
+
+	if t.Type == pt.TagType_mirror {
+		if tag == t.Hash[0] {
+			return ""
+		}
+		tag = t.Hash[0]
+		goto _retry
+	}
+
+	hash := t.Hash[rand.IntN(len(t.Hash))]
+
+	return hash
+}
+
 func (o *outbound) Do(req *http.Request) (*http.Response, error) {
-	f := o.Conn
+	f, err := o.Get(req.Context(), "tcp", bypass.Mode_proxy.String(), "")
+	if err != nil {
+		return nil, err
+	}
 
 	c := &http.Client{
 		Timeout: time.Minute * 2,
@@ -155,7 +167,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}
 
-				return f(ctx, ad)
+				return f.Conn(ctx, ad)
 			},
 		},
 	}
@@ -165,7 +177,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 		return r, nil
 	}
 
-	f = direct.Default.Conn
+	f = direct.Default
 
 	return c.Do(req)
 }

@@ -45,7 +45,9 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 		hostname := strings.ToLower(string(fields[0]))
 		args := fields[1]
 
-		fs := bytes.FieldsFunc(args, func(r rune) bool { return r == ',' })
+		fs := bytes.FieldsFunc(args, func(r rune) bool {
+			return r == ','
+		})
 
 		if len(fs) < 1 {
 			continue
@@ -60,11 +62,7 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 		}
 
 		f := &bypass.ModeConfig{Mode: mode}
-
-		if mode == bypass.Mode_proxy {
-			f.StoreKV(fs[1:])
-		}
-
+		f.StoreKV(fs[1:])
 		ranger(hostname, f.ToModeEnum())
 	}
 }

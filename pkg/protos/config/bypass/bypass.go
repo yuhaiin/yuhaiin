@@ -41,39 +41,20 @@ func (f *ModeConfig) StoreKV(fs [][]byte) {
 }
 
 func (f *ModeConfig) ToModeEnum() ModeEnum {
-	if f.Mode != Mode_proxy || (f.ResolveStrategy == ResolveStrategy_default && f.Tag == "") {
+	if f.ResolveStrategy == ResolveStrategy_default && f.Tag == "" {
 		return f.Mode
 	}
 
-	if f.ResolveStrategy != ResolveStrategy_default && f.Tag != "" {
-		return &modeConfig{f.Tag, f.ResolveStrategy}
-	}
-
-	if f.ResolveStrategy != ResolveStrategy_default {
-		return f.ResolveStrategy
-	}
-
-	return Tag(f.Tag)
+	return &modeConfig{f.Mode, f.Tag, f.ResolveStrategy}
 }
 
 type modeConfig struct {
+	mode            Mode
 	Tag             string
 	ResolveStrategy ResolveStrategy
 }
 
-func (m modeConfig) Mode() Mode                          { return Mode_proxy }
+func (m modeConfig) Mode() Mode                          { return m.mode }
 func (m modeConfig) GetTag() string                      { return m.Tag }
 func (modeConfig) Unknown() bool                         { return false }
 func (m modeConfig) GetResolveStrategy() ResolveStrategy { return m.ResolveStrategy }
-
-func (ResolveStrategy) GetTag() string                        { return "" }
-func (ResolveStrategy) Mode() Mode                            { return Mode_proxy }
-func (ResolveStrategy) Unknown() bool                         { return false }
-func (r ResolveStrategy) GetResolveStrategy() ResolveStrategy { return r }
-
-type Tag string
-
-func (f Tag) GetTag() string                    { return string(f) }
-func (Tag) Mode() Mode                          { return Mode_proxy }
-func (Tag) Unknown() bool                       { return false }
-func (Tag) GetResolveStrategy() ResolveStrategy { return ResolveStrategy_default }

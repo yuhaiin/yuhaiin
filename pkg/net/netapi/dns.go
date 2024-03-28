@@ -6,11 +6,13 @@ import (
 	"io"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type LookupIPOption struct {
-	OnlyAAAA bool
+	AAAA bool
+	A    bool
 }
 
 type ForceFakeIP struct{}
@@ -33,22 +35,50 @@ func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessa
 	return dnsmessage.Message{}, e(req.Name.String())
 }
 
-var Bootstrap Resolver = &SystemResolver{}
+var InternetResolver Resolver = NewSystemResolver("8.8.8.8:53", "1.1.1.1:53", "223.5.5.5:53", "114.114.114.114:53")
 
-type SystemResolver struct{ DisableIPv6 bool }
+var Bootstrap Resolver = InternetResolver
 
-func NewSystemResolver(ipv6 bool) *SystemResolver {
-	return &SystemResolver{!ipv6}
+type SystemResolver struct {
+	resolver *net.Resolver
+}
+
+func NewSystemResolver(host ...string) *SystemResolver {
+	return &SystemResolver{
+		resolver: &net.Resolver{
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				for _, h := range host {
+					conn, err := dialer.DialContext(ctx, network, h)
+					if err == nil {
+						return conn, nil
+					}
+				}
+				return nil, fmt.Errorf("system dailer failed")
+			},
+		},
+	}
 }
 
 func (d *SystemResolver) LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
-	var network string
-	if d.DisableIPv6 {
-		network = "ip4"
-	} else {
-		network = "ip"
+	network := "ip"
+
+	opt := &LookupIPOption{
+		A: true,
 	}
-	return net.DefaultResolver.LookupIP(ctx, network, domain)
+
+	for _, o := range opts {
+		o(opt)
+	}
+
+	if opt.AAAA && !opt.A {
+		network = "ip6"
+	}
+
+	if opt.A && !opt.AAAA {
+		network = "ip4"
+	}
+
+	return d.resolver.LookupIP(ctx, network, domain)
 }
 func (d *SystemResolver) Raw(context.Context, dnsmessage.Question) (dnsmessage.Message, error) {
 	return dnsmessage.Message{}, fmt.Errorf("system dns not support")

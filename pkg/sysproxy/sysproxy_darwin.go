@@ -1,3 +1,6 @@
+//go:build !lite
+// +build !lite
+
 package sysproxy
 
 import (
