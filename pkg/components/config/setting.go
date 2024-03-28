@@ -8,10 +8,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
-	nd "github.com/Asutorufa/yuhaiin/pkg/net/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/proto"
@@ -79,10 +76,6 @@ func (c *setting) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, er
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if err := CheckBootstrapDns(s.Dns.Bootstrap); err != nil {
-		return &emptypb.Empty{}, err
-	}
-
 	c.db.Data = proto.Clone(s).(*config.Setting)
 	if err := c.db.Save(); err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %w", err)
@@ -110,17 +103,4 @@ func (c *setting) AddObserver(o Observer) {
 
 	c.os = append(c.os, o)
 	o.Update(c.db.Data)
-}
-
-func CheckBootstrapDns(pa *pd.Dns) error {
-	addr, err := nd.ParseAddr(0, pa.Host, "443")
-	if err != nil {
-		return err
-	}
-
-	if addr.Type() != netapi.IP {
-		return fmt.Errorf("dns bootstrap host is only support ip address")
-	}
-
-	return nil
 }

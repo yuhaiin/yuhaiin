@@ -1,9 +1,10 @@
 package nat
 
 import (
+	"math"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
@@ -17,8 +18,8 @@ type Tuple struct {
 }
 
 type tableSplit struct {
-	v6 table
-	v4 table
+	v6 *table
+	v4 *table
 }
 
 func (t *tableSplit) tupleOf(port uint16, ipv6 bool) Tuple {
@@ -31,52 +32,61 @@ func (t *tableSplit) tupleOf(port uint16, ipv6 bool) Tuple {
 
 func (t *tableSplit) portOf(tuple Tuple) uint16 {
 	if tuple.SourceAddr.Len() == 16 {
-		return t.v6.portOf(tuple)
-	}
-
-	return t.v4.portOf(tuple)
-}
-
-func (t *tableSplit) newConn(tuple Tuple) uint16 {
-	if tuple.SourceAddr.Len() == 16 {
+		if port := t.v6.portOf(tuple); port != 0 {
+			return port
+		}
 		return t.v6.newConn(tuple)
 	}
 
+	if port := t.v4.portOf(tuple); port != 0 {
+		return port
+	}
 	return t.v4.newConn(tuple)
 }
 
 type table struct {
-	tuples syncmap.SyncMap[Tuple, uint16]
-	ports  syncmap.SyncMap[uint16, Tuple]
+	lru *lru.LRU[Tuple, uint16]
 
 	mu    sync.Mutex
 	index uint16
 }
 
+func newTableBase() *table {
+	return &table{
+		lru: lru.New(lru.WithCapacity[Tuple, uint16](math.MaxUint16 - 10001)),
+	}
+}
+
 func (t *table) tupleOf(port uint16, _ bool) Tuple {
-	p, _ := t.ports.Load(port)
+	p, _ := t.lru.ReverseLoad(port)
 	return p
 }
 
 func (t *table) portOf(tuple Tuple) uint16 {
-	p, _ := t.tuples.Load(tuple)
+	p, _ := t.lru.Load(tuple)
 	return p
 }
 
 func (t *table) newConn(tuple Tuple) uint16 {
 	t.mu.Lock()
-	var newPort uint16
-	if t.index == 0 {
-		newPort = 10000
-	} else {
-		newPort = t.index
+	newPort, ok := t.lru.LastPopValue()
+	if !ok {
+		if t.index == 0 {
+			newPort = 10000
+		} else {
+			newPort = t.index
+		}
+		t.index = newPort + 1
 	}
-	t.index = newPort + 1
-	t.ports.Store(newPort, tuple)
-	t.tuples.Store(tuple, newPort)
+	t.lru.Add(tuple, newPort)
 	defer t.mu.Unlock()
 
 	return newPort
 }
 
-func newTable() *tableSplit { return &tableSplit{} }
+func newTable() *tableSplit {
+	return &tableSplit{
+		v6: newTableBase(),
+		v4: newTableBase(),
+	}
+}

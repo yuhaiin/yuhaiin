@@ -22,10 +22,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
@@ -161,21 +159,18 @@ func Start(opt StartOpt) (err error) {
 	App.so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update()))
 	App.so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 
-	filestore := node.NewFileStore(PathGenerator.Node(App.so.ConfigPath))
 	// proxy access point/endpoint
-	App.Node = node.NewNodes(filestore)
-	subscribe := node.NewSubscribe(filestore)
-	tag := node.NewTag(filestore)
+	App.Node = node.NewNodes(PathGenerator.Node(App.so.ConfigPath))
+	subscribe := App.Node.Subscribe()
+	tag := App.Node.Tag()
 
 	// make dns flow across all proxy chain
 	dynamicProxy := netapi.NewDynamicProxy(direct.Default)
 
 	// local,remote,bootstrap dns
-	_ = AddComponent("bootstrap_dns", resolver.NewBootstrap(dynamicProxy))
-	local := AddComponent("local_dns", resolver.NewLocal(dynamicProxy))
-	remote := AddComponent("remote_dns", resolver.NewRemote(dynamicProxy))
+	dns := AddComponent("resolver", resolver.NewResolver(dynamicProxy))
 	// bypass dialer and dns request
-	st := AddComponent("shunt", shunt.NewShunt(NewShuntOpt(local, remote)))
+	st := AddComponent("shunt", shunt.NewShunt(App.Node.Outbound(), dns, opt.ProcessDumper))
 	App.Node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
 	stcs := AddComponent("statistic", statistics.NewConnStore(cache.NewCache(App.DB, "flow_data"), st))
@@ -210,19 +205,6 @@ func RegisterGrpcService(sub gn.SubscribeServer, conns gs.ConnectionsServer, tag
 	App.so.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, conns)
 	App.so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, tag)
 	App.so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, App.Tools)
-}
-
-func NewShuntOpt(local, remote netapi.Resolver) shunt.Opts {
-	return shunt.Opts{
-		DirectDialer:   direct.Default,
-		DirectResolver: local,
-		ProxyDialer:    App.Node,
-		ProxyResolver:  remote,
-		BlockDialer:    drop.Drop,
-		BLockResolver:  netapi.DropResolver{},
-		DefaultMode:    bypass.Mode_proxy,
-		ProcessDumper:  App.so.ProcessDumper,
-	}
 }
 
 func NewHttpOption(sub gn.SubscribeServer, conns gs.ConnectionsServer, tag gn.TagServer, st *shunt.Shunt) web.HttpServerOption {

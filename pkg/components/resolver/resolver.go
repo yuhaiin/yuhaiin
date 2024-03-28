@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/config"
 	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
@@ -14,117 +13,151 @@ import (
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/protobuf/proto"
 )
 
-func NewBootstrap(dl netapi.Proxy) netapi.Resolver {
-	bootstrap := wrap("BOOTSTRAP", func(b *dnsWrap, c *pc.Setting) {
-		if proto.Equal(b.config, c.Dns.Bootstrap) && b.ipv6 == c.GetIpv6() {
-			return
+type Entry struct {
+	Resolver netapi.Resolver
+	Config   *pd.Dns
+}
+
+type Resolver struct {
+	ipv6            bool
+	dialer          netapi.Proxy
+	bootstrapConfig *pd.Dns
+	store           syncmap.SyncMap[string, *Entry]
+}
+
+func NewResolver(dialer netapi.Proxy) *Resolver {
+	return &Resolver{dialer: dialer}
+}
+
+func (r *Resolver) Get(str string) netapi.Resolver {
+	if str != "" {
+		z, ok := r.store.Load(str)
+		if ok {
+			return z.Resolver
 		}
+	}
 
-		if err := config.CheckBootstrapDns(c.Dns.Bootstrap); err != nil {
-			log.Error("check bootstrap dns failed", "err", err)
-			return
-		}
+	z, ok := r.store.Load(bypass.Mode_proxy.String())
+	if ok {
+		return z.Resolver
+	}
 
-		b.config = c.Dns.Bootstrap
-		b.ipv6 = c.GetIpv6()
-		b.Close()
+	return netapi.Bootstrap
+}
 
-		z, err := newDNS("BOOTSTRAP", c.GetIpv6(), b.config,
+func (r *Resolver) Close() error {
+	r.store.Range(func(k string, v *Entry) bool {
+		v.Resolver.Close()
+		return true
+	})
+
+	r.store = syncmap.SyncMap[string, *Entry]{}
+
+	return nil
+}
+
+func (r *Resolver) GetIPv6() bool {
+	return r.ipv6
+}
+
+func (r *Resolver) Update(c *pc.Setting) {
+	c.Dns.Resolver = map[string]*pd.Dns{
+		bypass.Mode_direct.String(): c.Dns.Local,
+		bypass.Mode_proxy.String():  c.Dns.Remote,
+		bypass.Mode_block.String():  {Type: pd.Type_reserve},
+	}
+
+	if !proto.Equal(r.bootstrapConfig, c.Dns.Bootstrap) {
+		z, err := newDNS("BOOTSTRAP", c.Dns.Bootstrap,
 			&dialer{
-				Proxy: dl,
+				Proxy: r.dialer,
 				addr: func(ctx context.Context, addr netapi.Address) {
+					netapi.StoreFromContext(ctx).Add("Component", "Resolver BOOTSTRAP")
 					netapi.StoreFromContext(ctx).Add(shunt.ForceModeKey{}, bypass.Mode_direct)
-					addr.SetResolver(netapi.NewSystemResolver(c.GetIpv6()))
+					addr.SetResolver(netapi.InternetResolver)
 					addr.SetSrc(netapi.AddressSrcDNS)
-				}},
-		)
+				}}, r)
 		if err != nil {
 			log.Error("get bootstrap dns failed", "err", err)
 		} else {
-			b.dns = z
+			old := netapi.Bootstrap
+			netapi.Bootstrap = z
+			old.Close()
 		}
-	})
-	netapi.Bootstrap = bootstrap
+	}
 
-	return bootstrap
-}
-
-func NewLocal(dl netapi.Proxy) netapi.Resolver {
-	return wrap("LOCALDNS", func(l *dnsWrap, c *pc.Setting) {
-		if proto.Equal(l.config, c.Dns.Local) && l.ipv6 == c.GetIpv6() {
-			return
+	for k, v := range c.Dns.Resolver {
+		entry, ok := r.store.Load(k)
+		if ok && proto.Equal(entry.Config, v) {
+			continue
 		}
 
-		l.config = c.Dns.Local
-		l.ipv6 = c.GetIpv6()
-		l.Close()
-		z, err := newDNS("LOCALDNS", c.GetIpv6(), l.config, &dialer{
-			Proxy: dl,
+		if entry != nil {
+			if err := entry.Resolver.Close(); err != nil {
+				log.Error("close dns resolver failed", "key", k, "err", err)
+			}
+		}
+
+		r.store.Delete(k)
+
+		z, err := newDNS(k, v, &dialer{
+			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
+				netapi.StoreFromContext(ctx).Add("Component", "Resolver "+k)
 				// force to use bootstrap dns, otherwise will dns query cycle
 				addr.SetResolver(netapi.Bootstrap)
 				addr.SetSrc(netapi.AddressSrcDNS)
 			},
-		})
+		}, r)
 		if err != nil {
 			log.Error("get local dns failed", "err", err)
 		} else {
-			l.dns = z
-		}
-	})
-}
-
-func NewRemote(dl netapi.Proxy) netapi.Resolver {
-	return wrap("REMOTEDNS", func(r *dnsWrap, c *pc.Setting) {
-		if proto.Equal(r.config, c.Dns.Remote) && r.ipv6 == c.GetIpv6() {
-			return
-		}
-
-		r.config = c.Dns.Remote
-		r.ipv6 = c.GetIpv6()
-		r.Close()
-		z, err := newDNS("REMOTEDNS", c.GetIpv6(), r.config,
-			&dialer{
-				Proxy: dl,
-				addr: func(ctx context.Context, addr netapi.Address) {
-					// force to use bootstrap dns, otherwise will dns query cycle
-					addr.SetResolver(netapi.Bootstrap)
-					addr.SetSrc(netapi.AddressSrcDNS)
-				},
+			r.store.Store(k, &Entry{
+				Resolver: z,
+				Config:   v,
 			})
-		if err != nil {
-			log.Error("get remote dns failed", "err", err)
-		} else {
-			r.dns = z
 		}
+	}
+
+	r.store.Range(func(key string, value *Entry) bool {
+		_, ok := c.Dns.Resolver[key]
+		if !ok {
+			if err := value.Resolver.Close(); err != nil {
+				log.Error("close dns resolver failed", "key", key, "err", err)
+			}
+			r.store.Delete(key)
+		}
+		return true
 	})
 }
 
 type dnsWrap struct {
-	ipv6   bool
-	config *pd.Dns
-	name   string
-	dns    netapi.Resolver
-
-	update func(*dnsWrap, *pc.Setting)
+	name string
+	dns  netapi.Resolver
+	v6   *Resolver
 }
 
-func wrap(name string, update func(*dnsWrap, *pc.Setting)) *dnsWrap {
-	return &dnsWrap{update: update, name: name}
+func wrap(name string, dns netapi.Resolver, v6 *Resolver) *dnsWrap {
+	return &dnsWrap{name: name, dns: dns, v6: v6}
 }
-
-func (d *dnsWrap) Update(c *pc.Setting) { d.update(d, c) }
 
 func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
-	if d.dns == nil {
-		return nil, fmt.Errorf("%s dns not initialized", d.name)
+	opt := func(opt *netapi.LookupIPOption) {
+		if d.v6.GetIPv6() {
+			opt.AAAA = true
+		}
+
+		for _, o := range opts {
+			o(opt)
+		}
 	}
 
-	ips, err := d.dns.LookupIP(ctx, host, opts...)
+	ips, err := d.dns.LookupIP(ctx, host, opt)
 	if err != nil {
 		return nil, fmt.Errorf("%s lookup failed: %w", d.name, err)
 	}
@@ -133,10 +166,6 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netap
 }
 
 func (d *dnsWrap) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	if d.dns == nil {
-		return dnsmessage.Message{}, fmt.Errorf("%s dns not initialized", d.name)
-	}
-
 	msg, err := d.dns.Raw(ctx, req)
 	if err != nil {
 		return dnsmessage.Message{}, fmt.Errorf("%s do raw dns request failed: %w", d.name, err)
@@ -153,7 +182,7 @@ func (d *dnsWrap) Close() error {
 	return nil
 }
 
-func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer netapi.Proxy) (netapi.Resolver, error) {
+func newDNS(name string, dc *pd.Dns, dialer netapi.Proxy, v6 *Resolver) (netapi.Resolver, error) {
 	subnet, err := netip.ParsePrefix(dc.Subnet)
 	if err != nil {
 		p, err := netip.ParseAddr(dc.Subnet)
@@ -161,16 +190,20 @@ func newDNS(name string, ipv6 bool, dc *pd.Dns, dialer netapi.Proxy) (netapi.Res
 			subnet = netip.PrefixFrom(p, p.BitLen())
 		}
 	}
-	return dns.New(
+	r, err := dns.New(
 		dns.Config{
 			Type:       dc.Type,
 			Name:       name,
 			Host:       dc.Host,
 			Servername: dc.TlsServername,
 			Subnet:     subnet,
-			IPv6:       ipv6,
 			Dialer:     dialer,
 		})
+	if err != nil {
+		return nil, err
+	}
+
+	return wrap(name, r, v6), nil
 }
 
 type dialer struct {

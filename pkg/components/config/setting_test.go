@@ -10,29 +10,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func TestCheckDNS(t *testing.T) {
-	z := &dns.Dns{
-		Host: "example.com",
-	}
-
-	t.Log(CheckBootstrapDns(z))
-
-	z.Host = "1.1.1.1"
-	t.Log(CheckBootstrapDns(z))
-
-	z.Host = "1.1.1.1:53"
-	t.Log(CheckBootstrapDns(z))
-
-	z.Host = "ff::ff"
-	t.Log(CheckBootstrapDns(z))
-
-	z.Host = "[ff::ff]:53"
-	t.Log(CheckBootstrapDns(z))
-
-	z.Host = "1.1.1.1/dns-query"
-	t.Log(CheckBootstrapDns(z))
-}
-
 func TestMergeDefault(t *testing.T) {
 	src := &config.Setting{
 		Ipv6: false,

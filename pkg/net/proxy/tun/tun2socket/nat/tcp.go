@@ -22,7 +22,7 @@ type TCP struct {
 }
 
 type Conn struct {
-	net.Conn
+	*net.TCPConn
 	tuple Tuple
 }
 
@@ -76,8 +76,8 @@ func (t *TCP) Accept() (net.Conn, error) {
 	*/
 
 	return &Conn{
-		Conn:  c,
-		tuple: tup,
+		TCPConn: c,
+		tuple:   tup,
 	}, nil
 }
 
@@ -91,6 +91,11 @@ func (t *TCP) Addr() net.Addr {
 
 func (t *TCP) SetDeadline(time time.Time) error {
 	return t.listener.SetDeadline(time)
+}
+
+func (c *Conn) Close() error {
+	_ = c.TCPConn.SetLinger(0)
+	return c.TCPConn.Close()
 }
 
 func (c *Conn) LocalAddr() net.Addr {
@@ -107,4 +112,4 @@ func (c *Conn) RemoteAddr() net.Addr {
 	}
 }
 
-func (c *Conn) RawConn() (net.Conn, bool) { return c.Conn, true }
+func (c *Conn) RawConn() (net.Conn, bool) { return c.TCPConn, true }

@@ -92,7 +92,7 @@ func (e *RealityClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn
 	conn, err := e.ClientHandshake(ctx, con)
 	if err != nil {
 		con.Close()
-		return nil, err
+		return nil, fmt.Errorf("handshake failed: %w", err)
 	}
 
 	return conn, nil

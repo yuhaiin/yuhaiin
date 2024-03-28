@@ -39,11 +39,15 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 		optf(opt)
 	}
 
-	if opt.OnlyAAAA {
+	if opt.AAAA && !opt.A {
 		return []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
 	}
 
-	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}, nil
+	if opt.A && !opt.AAAA {
+		return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}, nil
+	}
+
+	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice(), f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
 func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
@@ -290,7 +294,7 @@ func newFakeLru(size uint, bbolt *cache.Cache) *fakeLru {
 	z := &fakeLru{Size: size, bbolt: bbolt}
 
 	if size > 0 {
-		z.LRU = lru.NewLru(
+		z.LRU = lru.New(
 			lru.WithCapacity[string, netip.Addr](size),
 			lru.WithOnRemove(func(s string, v netip.Addr) { bbolt.Delete([]byte(s), v.AsSlice()) }),
 		)

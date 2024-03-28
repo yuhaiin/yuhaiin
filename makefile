@@ -45,45 +45,40 @@ test:
 	@echo "test"
 	@echo ${GO_CMD}
 
-.PHONY: all
-all: yuhaiin_linux yuhaiin_windows yuhaiin_darwin dnsrelay_linux dnsrelay_windows dnsrelay_darwin
-
 .PHONY: vet
 vet:
 	$(GO) vet $(shell go list ./... | grep -v '/scripts/' | grep -v 'pkg/net/proxy/tun/tun2socket/checksum')
 
 .PHONY: yuhaiin
 yuhaiin:
-	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" -o yuhaiin $(YUHAIIN)
+	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" $(YUHAIIN)
 
-.PHONY: yuhaiin_linux
-yuhaiin_linux:
-	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" -o yuhaiin_linux_amd64 $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" -o yuhaiin_linux_amd64v3 $(YUHAIIN)
 
-.PHONY: yuhaiin_linux_lite
-yuhaiin_linux_lite:
-	$(LINUX_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite,debug" -o yuhaiin_linux_lite_amd64 $(YUHAIIN)
-	$(LINUX_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite,debug" -o yuhaiin_linux_lite_amd64v3 $(YUHAIIN)
+.PHONY: yuhaiin_lite
+yuhaiin_lite:
+	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page,lite" $(YUHAIIN)
 
-.PHONY: yuhaiin_windows
-yuhaiin_windows:
-	$(WINDOWS_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page,debug"  -o yuhaiin_windows_amd64.exe $(YUHAIIN)
-	$(WINDOWS_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page,debug" -o yuhaiin_windows_amd64v3.exe $(YUHAIIN)
+define build 
+	$(eval OS := $(word 2,$(subst -, ,$@)))
+	$(eval ARCH := $(word 3,$(subst -, ,$@)))
+	$(eval MODE := $(word 4,$(subst -, ,$@)))
+	$(if $(findstring amd64v3,$(ARCH)),$(eval AMD64V3 := v3),)
+	$(if $(findstring amd64v3,$(ARCH)),$(eval ARCH := amd64),)
+	$(if $(findstring mipsle,$(ARCH)),$(eval MIPS := softfloat),)
+	$(if $(findstring lite,$(MODE)),$(eval SUFFIX := _lite),)
+	$(if $(findstring windows,$(OS)),$(eval SUFFIX := $(addsuffix .exe,$(SUFFIX))),)
+	$(info OS: $(OS), ARCH: $(ARCH), MODE: $(word 4,$(subst -, ,$@)))
+endef
 
-.PHONY: yuhaiin_darwin
-yuhaiin_darwin:
-	$(DARWIN_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o yuhaiin_darwin_amd64 $(YUHAIIN)
-	$(DARWIN_AMD64v3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o yuhaiin_darwin_amd64v3 $(YUHAIIN)
+.PHONY: yuhaiin-%
+yuhaiin-%:
+	$(build)
+	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags 'debug,page,$(MODE)' -o yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX) $(YUHAIIN)
 
 .PHONY: yuhaiin_android
 yuhaiin_android:
 	$(ANDROID_ARM64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
 	$(ANDROID_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
-
-.PHONY: yuhaiin_mipsle
-yuhaiin_mipsle:
-	$(LINUX_MIPSLE) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "lite" -o yuhaiin_mipsle $(YUHAIIN)
 
 .PHONY: install
 install: build cli
