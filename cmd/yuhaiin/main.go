@@ -21,36 +21,64 @@ import (
 	"google.golang.org/grpc"
 )
 
+var install = func(args []string) error { panic("not implement") }
+var uninstall = func(args []string) error { panic("not implement") }
+var restart = func(args []string) error {
+	if err := stop(args); err != nil {
+		return err
+	}
+	return start(args)
+}
+var stop = func(args []string) error { panic("not implement") }
+var start = func(args []string) error { panic("not implement") }
+var showVersion = func(args []string) error { fmt.Print(version.String()); return nil }
+
+var subCommand = map[string]*func(args []string) error{
+	"install":   &install,
+	"uninstall": &uninstall,
+	"restart":   &restart,
+	"version":   &showVersion,
+	"-v":        &showVersion,
+	"start":     &start,
+	"stop":      &stop,
+}
+
 var processDumper netapi.ProcessDumper
-var newGrpcServer = func() *grpc.Server { return nil }
 
 func main() {
-	ver := flag.Bool("v", false, "show version")
 	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
-	savepath := flag.String("path", pc.DefaultConfigDir(), "save data path")
-	externalweb := flag.String("eweb", "", "external web page")
+	path := flag.String("path", pc.DefaultConfigDir(), "save data path")
+	webdir := flag.String("eweb", "", "external web page")
 	flag.Parse()
 
-	if *ver {
-		fmt.Print(version.String())
-		return
+	if len(os.Args) > 1 {
+		if x, ok := subCommand[strings.ToLower(os.Args[1])]; ok {
+			var args []string
+			for _, v := range os.Args[1:] {
+				if v == "install" || v == "uninstall" || v == "restart" {
+					continue
+				}
+
+				args = append(args, v)
+			}
+
+			if err := (*x)(args); err != nil {
+				log.Error(err.Error())
+				panic(err)
+			}
+			return
+		}
 	}
 
-	if *externalweb != "" && os.Getenv("EXTERNAL_WEB") == "" {
-		os.Setenv("EXTERNAL_WEB", *externalweb)
+	if *webdir != "" && os.Getenv("EXTERNAL_WEB") == "" {
+		os.Setenv("EXTERNAL_WEB", *webdir)
 	}
 
-	/*
-		bbolt will create db file lock, so here is useless
-		lock := yerror.Must(lockfile.NewLock(app.PathGenerator.Lock(*savepath), *host))
-		defer lock.UnLock()
-	*/
-
-	setting := config.NewConfig(app.PathGenerator.Config(*savepath))
-	grpcserver := newGrpcServer()
+	setting := config.NewConfig(app.PathGenerator.Config(*path))
+	grpcserver := grpc.NewServer()
 
 	app, err := app.Start(appapi.Start{
-		ConfigPath:    *savepath,
+		ConfigPath:    *path,
 		Host:          *host,
 		Setting:       setting,
 		GRPCServer:    grpcserver,
@@ -98,6 +126,10 @@ func main() {
 	signChannel := make(chan os.Signal, 1)
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
+	run(app, errChan, signChannel)
+}
+
+var run = func(app *appapi.Components, errChan chan error, signChannel chan os.Signal) {
 	select {
 	case err := <-errChan:
 		log.Error("http server error", "err", err)

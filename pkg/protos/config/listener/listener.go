@@ -17,29 +17,201 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(isProtocol_Protocol) (netapi.Accepter, error)]
+func (v *Protocol) ToInbound() *Inbound {
+	switch o := v.Protocol.(type) {
+	case *Protocol_Http:
+		return &Inbound{
+			Enabled: v.Enabled,
+			Name:    v.Name,
+			Network: &Inbound_Tcpudp{
+				Tcpudp: &Tcpudp{
+					Host:    o.Http.Host,
+					Control: TcpUdpControl_disable_udp,
+				},
+			},
+			Protocol: &Inbound_Http{Http: o.Http},
+		}
 
-// Deprecated: RegisterProtocolDeprecated
-func RegisterProtocolDeprecated[T isProtocol_Protocol](wrap func(T) (netapi.Accepter, error)) {
-	if wrap == nil {
-		return
+	case *Protocol_Mix:
+		return &Inbound{
+			Enabled: v.Enabled,
+			Name:    v.Name,
+			Network: &Inbound_Tcpudp{
+				Tcpudp: &Tcpudp{
+					Host: o.Mix.Host,
+				},
+			},
+			Protocol: &Inbound_Mix{Mix: o.Mix},
+		}
+
+	case *Protocol_Socks4A:
+		return &Inbound{
+			Enabled: v.Enabled,
+			Name:    v.Name,
+			Network: &Inbound_Tcpudp{
+				Tcpudp: &Tcpudp{
+					Host:    o.Socks4A.Host,
+					Control: TcpUdpControl_disable_udp,
+				},
+			},
+			Protocol: &Inbound_Socks4A{Socks4A: o.Socks4A},
+		}
+
+	case *Protocol_Socks5:
+		o.Socks5.Udp = true
+		return &Inbound{
+			Enabled: v.Enabled,
+			Name:    v.Name,
+			Network: &Inbound_Tcpudp{
+				Tcpudp: &Tcpudp{
+					Host: o.Socks5.Host,
+				},
+			},
+			Protocol: &Inbound_Socks5{
+				Socks5: o.Socks5,
+			},
+		}
+
+	case *Protocol_Tun:
+		return &Inbound{
+			Enabled:  v.Enabled,
+			Name:     v.Name,
+			Network:  &Inbound_Empty{Empty: &Empty{}},
+			Protocol: &Inbound_Tun{Tun: o.Tun},
+		}
+
+	case *Protocol_Yuubinsya:
+		inbound := &Inbound{
+			Enabled: v.Enabled,
+			Name:    v.Name,
+			Network: &Inbound_Tcpudp{
+				Tcpudp: &Tcpudp{
+					Host:    o.Yuubinsya.Host,
+					Control: TcpUdpControl_disable_udp,
+				},
+			},
+			Protocol: &Inbound_Yuubinsya{
+				Yuubinsya: o.Yuubinsya,
+			},
+		}
+
+		switch p := o.Yuubinsya.Protocol.(type) {
+		case *Yuubinsya_Normal:
+
+		case *Yuubinsya_Tls:
+			inbound.Transport = append(inbound.Transport, &Transport{
+				Transport: &Transport_Tls{
+					Tls: p.Tls,
+				},
+			})
+		case *Yuubinsya_Quic:
+			inbound.Network = &Inbound_Quic{
+				Quic: &Quic2{
+					Host: o.Yuubinsya.Host,
+					Tls:  p.Quic.GetTls(),
+				},
+			}
+
+		case *Yuubinsya_Websocket:
+			if p.Websocket.Tls != nil {
+				inbound.Transport = append(inbound.Transport, &Transport{
+					Transport: &Transport_Tls{
+						Tls: &Tls{
+							Tls: p.Websocket.Tls,
+						},
+					},
+				})
+			}
+			inbound.Transport = append(inbound.Transport,
+				&Transport{
+					Transport: &Transport_Websocket{
+						Websocket: p.Websocket,
+					},
+				})
+		case *Yuubinsya_Grpc:
+
+			if p.Grpc.Tls != nil {
+				inbound.Transport = append(inbound.Transport, &Transport{
+					Transport: &Transport_Tls{
+						Tls: &Tls{
+							Tls: p.Grpc.Tls,
+						},
+					},
+				})
+			}
+			inbound.Transport = append(inbound.Transport,
+				&Transport{
+					Transport: &Transport_Grpc{
+						Grpc: p.Grpc,
+					},
+				})
+		case *Yuubinsya_Http2:
+
+			if p.Http2.Tls != nil {
+				inbound.Transport = append(inbound.Transport, &Transport{
+					Transport: &Transport_Tls{
+						Tls: &Tls{
+							Tls: p.Http2.Tls,
+						},
+					},
+				})
+			}
+			inbound.Transport = append(inbound.Transport,
+				&Transport{
+					Transport: &Transport_Http2{
+						Http2: p.Http2,
+					},
+				})
+
+		case *Yuubinsya_Reality:
+			inbound.Transport = append(inbound.Transport, &Transport{
+				Transport: &Transport_Reality{
+					Reality: p.Reality,
+				},
+			})
+		}
+
+		if o.Yuubinsya.Mux {
+			inbound.Transport = append(inbound.Transport, &Transport{
+				Transport: &Transport_Mux{
+					Mux: &Mux{},
+				},
+			})
+		}
+
+		return inbound
+
+	case *Protocol_Redir:
+		return &Inbound{
+			Enabled: v.Enabled,
+			Name:    v.Name,
+			Network: &Inbound_Tcpudp{
+				Tcpudp: &Tcpudp{
+					Host: o.Redir.Host,
+				},
+			},
+			Protocol: &Inbound_Redir{
+				Redir: o.Redir,
+			},
+		}
+
+	case *Protocol_Tproxy:
+		return &Inbound{
+			Enabled: v.Enabled,
+			Name:    v.Name,
+			Network: &Inbound_Tcpudp{
+				Tcpudp: &Tcpudp{
+					Host: o.Tproxy.Host,
+				},
+			},
+			Protocol: &Inbound_Tproxy{
+				Tproxy: o.Tproxy,
+			},
+		}
+
+	default:
+		return nil
 	}
-
-	var z T
-	execProtocol.Store(
-		reflect.TypeOf(z),
-		func(p isProtocol_Protocol) (netapi.Accepter, error) {
-			return wrap(p.(T))
-		},
-	)
-}
-
-func CreateServer(opts isProtocol_Protocol) (netapi.Accepter, error) {
-	conn, ok := execProtocol.Load(reflect.TypeOf(opts))
-	if !ok {
-		return nil, fmt.Errorf("protocol %v is not support", opts)
-	}
-	return conn(opts)
 }
 
 func (t *TlsConfig) ParseCertificates() []tls.Certificate {

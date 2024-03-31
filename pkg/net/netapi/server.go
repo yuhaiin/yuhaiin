@@ -43,14 +43,14 @@ type Packet struct {
 	Payload   *pool.Bytes
 }
 
-type DNSHandler interface {
+type DNSServer interface {
 	Server
 	HandleUDP(context.Context, net.PacketConn) error
 	HandleTCP(context.Context, net.Conn) error
 	Do(context.Context, *pool.Bytes, func([]byte) error) error
 }
 
-var EmptyDNSServer DNSHandler = &emptyHandler{}
+var EmptyDNSServer DNSServer = &emptyHandler{}
 
 type emptyHandler struct{}
 
