@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/convert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/exp/maps"
@@ -43,7 +42,7 @@ type Shunt struct {
 	customMapper *trie.Trie[bypass.ModeEnum]
 
 	processMapper syncmap.SyncMap[string, bypass.ModeEnum]
-	ProcessDumper listener.ProcessDumper
+	ProcessDumper netapi.ProcessDumper
 
 	mu sync.RWMutex
 
@@ -60,7 +59,7 @@ type Dialer interface {
 	Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error)
 }
 
-func NewShunt(d Dialer, r Resolver, ProcessDumper listener.ProcessDumper) *Shunt {
+func NewShunt(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Shunt {
 	return &Shunt{
 		mapper:       trie.NewTrie[bypass.ModeEnum](),
 		customMapper: trie.NewTrie[bypass.ModeEnum](),

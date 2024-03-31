@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
@@ -14,79 +15,81 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (cc *HttpServerOption) ConnWebsocket(w http.ResponseWriter, r *http.Request) error {
-	return websocket.ServeHTTP(w, r, func(ctx context.Context, c *websocket.Conn) error {
-		defer c.Close()
+func ConnWebsocket(cc *appapi.Components) func(w http.ResponseWriter, r *http.Request) error {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		return websocket.ServeHTTP(w, r, func(ctx context.Context, c *websocket.Conn) error {
+			defer c.Close()
 
-		var ticker int
-		err := websocket.JSON.Receive(c, &ticker)
-		if err != nil {
-			return err
-		}
-		if ticker <= 0 {
-			ticker = 2000
-		}
-
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		cns := &connectionsNotifyServer{ctx, make(chan *gs.NotifyData, 20)}
-
-		go func() {
-			defer cancel()
-			err := cc.Connections.Notify(&emptypb.Empty{}, cns)
-
+			var ticker int
+			err := websocket.JSON.Receive(c, &ticker)
 			if err != nil {
-				log.Warn("connections notify failed", "err", err)
+				return err
 			}
-		}()
+			if ticker <= 0 {
+				ticker = 2000
+			}
 
-		go func() {
-			_, _ = relay.Copy(io.Discard, c)
-			cancel()
-		}()
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
 
-		go func() {
-			timer := time.NewTicker(time.Duration(ticker) * time.Millisecond)
-			defer timer.Stop()
+			cns := &connectionsNotifyServer{ctx, make(chan *gs.NotifyData, 20)}
 
-			send := func() {
-				total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
-				if err == nil {
-					_ = cns.Send(&gs.NotifyData{
-						Data: &gs.NotifyData_TotalFlow{
-							TotalFlow: total,
-						},
-					},
-					)
+			go func() {
+				defer cancel()
+				err := cc.Connections.Notify(&emptypb.Empty{}, cns)
+
+				if err != nil {
+					log.Warn("connections notify failed", "err", err)
 				}
-			}
+			}()
 
-			send()
+			go func() {
+				_, _ = relay.Copy(io.Discard, c)
+				cancel()
+			}()
+
+			go func() {
+				timer := time.NewTicker(time.Duration(ticker) * time.Millisecond)
+				defer timer.Stop()
+
+				send := func() {
+					total, err := cc.Connections.Total(ctx, &emptypb.Empty{})
+					if err == nil {
+						_ = cns.Send(&gs.NotifyData{
+							Data: &gs.NotifyData_TotalFlow{
+								TotalFlow: total,
+							},
+						},
+						)
+					}
+				}
+
+				send()
+
+				for {
+					select {
+					case <-timer.C:
+						send()
+
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
 
 			for {
 				select {
-				case <-timer.C:
-					send()
-
 				case <-ctx.Done():
-					return
+					return nil
+
+				case m := <-cns.msgChan:
+					if err = websocket.PROTO.Send(c, m); err != nil {
+						return err
+					}
 				}
 			}
-		}()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-
-			case m := <-cns.msgChan:
-				if err = websocket.PROTO.Send(c, m); err != nil {
-					return err
-				}
-			}
-		}
-	})
+		})
+	}
 }
 
 type connectionsNotifyServer struct {

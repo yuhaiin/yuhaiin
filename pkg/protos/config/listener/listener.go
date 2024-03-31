@@ -42,10 +42,6 @@ func CreateServer(opts isProtocol_Protocol) (netapi.Accepter, error) {
 	return conn(opts)
 }
 
-type ProcessDumper interface {
-	ProcessName(network string, src, dst netapi.Address) (string, error)
-}
-
 func (t *TlsConfig) ParseCertificates() []tls.Certificate {
 	r := make([]tls.Certificate, 0, len(t.Certificates))
 

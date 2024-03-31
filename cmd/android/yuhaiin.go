@@ -10,12 +10,14 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
+	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type App struct {
+	app *appapi.Components
 	lis *http.Server
 
 	mu      sync.Mutex
@@ -37,8 +39,8 @@ func (a *App) Start(opt *Opts) error {
 
 		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
 
-		err := app.Start(
-			app.StartOpt{
+		app, err := app.Start(
+			appapi.Start{
 				ConfigPath:    opt.Savepath,
 				Setting:       fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
 				Host:          opt.Host,
@@ -50,9 +52,11 @@ func (a *App) Start(opt *Opts) error {
 		}
 		defer app.Close()
 
+		a.app = app
+
 		lis := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
-			app.App.Mux.ServeHTTP(w, r)
+			app.Mux.ServeHTTP(w, r)
 		})}
 		defer lis.Close()
 
@@ -62,7 +66,9 @@ func (a *App) Start(opt *Opts) error {
 		close(errChan)
 		defer opt.CloseFallback.Close()
 
-		a.lis.Serve(app.App.HttpListener)
+		if err := a.lis.Serve(app.HttpListener); err != nil {
+			log.Error("yuhaiin serve failed", "err", err)
+		}
 	}()
 
 	return <-errChan
@@ -87,16 +93,19 @@ func (a *App) Stop() error {
 		runtime.Gosched()
 	}
 
+	a.app = nil
+	a.lis = nil
+
 	return nil
 }
 
 func (a *App) Running() bool { return a.started.Load() }
 
 func (a *App) SaveNewBypass(link string) error {
-	if !a.Running() || app.App.Tools == nil {
+	if !a.Running() || a.app == nil || a.app.Tools == nil {
 		return fmt.Errorf("proxy service is not start")
 	}
 
-	_, err := app.App.Tools.SaveRemoteBypassFile(context.TODO(), &wrapperspb.StringValue{Value: link})
+	_, err := a.app.Tools.SaveRemoteBypassFile(context.TODO(), &wrapperspb.StringValue{Value: link})
 	return err
 }

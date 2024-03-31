@@ -9,6 +9,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
+type ProcessDumper interface {
+	ProcessName(network string, src, dst Address) (string, error)
+}
+
 type Proxy interface {
 	StreamProxy
 	PacketProxy
