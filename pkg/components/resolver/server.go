@@ -7,10 +7,10 @@ import (
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
-var _ netapi.DNSHandler = (*DnsServer)(nil)
+var _ netapi.DNSServer = (*DnsServer)(nil)
 
 type DnsServer struct {
-	netapi.DNSHandler
+	netapi.DNSServer
 	serverHost string
 	resolver   netapi.Resolver
 }
@@ -20,16 +20,16 @@ func NewDNSServer(resolver netapi.Resolver) *DnsServer {
 }
 
 func (a *DnsServer) Update(s *pc.Setting) {
-	if a.serverHost == s.Dns.Server && a.DNSHandler != netapi.EmptyDNSServer {
+	if a.serverHost == s.Dns.Server && a.DNSServer != netapi.EmptyDNSServer {
 		return
 	}
 
-	if a.DNSHandler != nil {
-		if err := a.DNSHandler.Close(); err != nil {
+	if a.DNSServer != nil {
+		if err := a.DNSServer.Close(); err != nil {
 			log.Error("close dns server failed", "err", err)
 		}
 	}
 
-	a.DNSHandler = dns.NewDnsServer(s.Dns.Server, a.resolver)
+	a.DNSServer = dns.NewServer(s.Dns.Server, a.resolver)
 	a.serverHost = s.Dns.Server
 }

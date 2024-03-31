@@ -16,6 +16,15 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+func Server(o *appapi.Components) {
+	if debug != nil {
+		debug(o.Mux)
+	}
+
+	HandleFront(o.Mux)
+	ServeHTTP(o)
+}
+
 var debug func(*http.ServeMux)
 
 func ServeHTTP(o *appapi.Components) {
@@ -102,15 +111,6 @@ func HandleFront(mux *http.ServeMux) {
 	for _, v := range dirs {
 		mux.Handle(fmt.Sprintf("GET %s/", v), handler)
 	}
-}
-
-func Httpserver(o *appapi.Components) {
-	if debug != nil {
-		debug(o.Mux)
-	}
-
-	HandleFront(o.Mux)
-	ServeHTTP(o)
 }
 
 type wrapResponseWriter struct {

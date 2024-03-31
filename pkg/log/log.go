@@ -24,6 +24,7 @@ type Logger interface {
 }
 
 var DefaultLogger Logger = NewSLogger(1)
+var OutputStderr bool = true
 
 var writer *FileWriter
 var mu sync.Mutex
@@ -31,6 +32,7 @@ var mu sync.Mutex
 func Set(config *protolog.Logcat, path string) {
 	mu.Lock()
 	defer mu.Unlock()
+
 	if logger, ok := DefaultLogger.(interface{ SetLevel(l slog.Level) }); ok {
 		logger.SetLevel(config.Level.SLogLevel())
 	}
@@ -48,7 +50,11 @@ func Set(config *protolog.Logcat, path string) {
 
 	if config.Save && writer == nil {
 		writer = NewLogWriter(path)
-		logger.SetOutput(io.MultiWriter(os.Stderr, writer))
+		if OutputStderr {
+			logger.SetOutput(io.MultiWriter(writer, os.Stderr))
+		} else {
+			logger.SetOutput(writer)
+		}
 	}
 }
 
@@ -58,6 +64,7 @@ func Close() error {
 	if writer != nil {
 		writer.Close()
 	}
+
 	return nil
 }
 

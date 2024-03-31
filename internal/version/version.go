@@ -14,7 +14,7 @@ _____.___.     .__           .__.__
  / ______|____/|___|  (____  /__|__|___|  /
  \/                 \/     \/           \/ 
  `
-	AppName = "ユハイイン" // 郵便配達員　ゆうびんはいたついん
+	AppName = "Yuhaiin" // ユハイイン 郵便配達員　ゆうびんはいたついん
 	// Version can be set at link time by executing
 	// the command: `git describe --abbrev=0 --tags HEAD`
 	Version string

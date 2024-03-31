@@ -44,7 +44,7 @@ func (f *FileWriter) Close() error {
 func (f *FileWriter) Write(p []byte) (n int, err error) {
 	if f.w == nil {
 		f.mu.Lock()
-		f.w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+		f.w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 		f.mu.Unlock()
 
 		if err != nil {

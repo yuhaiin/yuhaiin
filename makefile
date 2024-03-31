@@ -68,9 +68,9 @@ define build
 	$(if $(filter amd64v3, $(ARCH)),$(eval ARCH := amd64),)
 	$(if $(filter mipsle, $(ARCH)),$(eval MIPS := softfloat),)
 	$(if $(filter lite, $(MODE)),$(eval SUFFIX := _lite),)
-	$(if $(filter windows, $(OS)),$(eval SUFFIX := $(addsuffix .exe,$(SUFFIX))),)
+	$(if $(filter windows, $(OS)),$(if $(SUFFIX), $(eval SUFFIX := $(addsuffix .exe, $(SUFFIX))), $(eval SUFFIX := .exe)),)
 
-	$(info OS: $(OS), ARCH: $(ARCH), MODE: $(MODE))
+	$(info OS: $(OS), ARCH: $(ARCH), MODE: $(if $(MODE),$(MODE),full), SUFFIX: $(SUFFIX))
 endef
 
 .PHONY: yuhaiin-%

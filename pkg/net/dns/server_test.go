@@ -12,7 +12,7 @@ func TestServer(t *testing.T) {
 	z, err := New(Config{Type: dns.Type_doh, Host: "223.5.5.5"})
 	assert.NoError(t, err)
 
-	s := NewDnsServer("127.0.0.1:5353", z)
+	s := NewServer("127.0.0.1:5353", z)
 	defer s.Close()
 	time.Sleep(time.Minute * 5)
 }

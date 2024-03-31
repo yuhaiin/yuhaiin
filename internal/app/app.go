@@ -96,7 +96,9 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	}
 	so.AddCloser("http_listener", httpListener)
 
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath)) }))
+	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
+		log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath))
+	}))
 
 	fmt.Println(version.Art)
 	log.Info("config", "path", so.ConfigPath, "grpc&http host", so.Host)
@@ -146,7 +148,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	}
 
 	// http page
-	web.Httpserver(app)
+	web.Server(app)
 	// grpc server
 	app.RegisterGrpcService()
 

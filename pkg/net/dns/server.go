@@ -29,7 +29,7 @@ type dnsServer struct {
 	sf *semaphore.Weighted
 }
 
-func NewDnsServer(server string, process netapi.Resolver) netapi.DNSHandler {
+func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 	d := &dnsServer{
 		server:   server,
 		resolver: process,

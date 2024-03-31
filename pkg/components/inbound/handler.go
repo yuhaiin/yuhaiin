@@ -19,13 +19,13 @@ var Timeout = time.Second * 20
 
 type handler struct {
 	dialer     netapi.Proxy
-	dnsHandler netapi.DNSHandler
+	dnsHandler netapi.DNSServer
 	table      *nat.Table
 
 	sniffer *sniffy.Sniffier[bypass.Mode]
 }
 
-func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSHandler) *handler {
+func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
 	h := &handler{
 		dialer:     dialer,
 		table:      nat.NewTable(dialer),

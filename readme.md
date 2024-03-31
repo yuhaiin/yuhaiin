@@ -38,6 +38,7 @@
 - icon from プロ生ちゃん. アイコンがプロ生ちゃんから、ご注意ください。  
 
 ```shell
+make yuhaiin
 # host: grpc and http listen address, default: 127.0.0.1:50051
 # path: Store application data path, default:
 #   linux ~/.config/yuhaiin/, windows %APPDATA%/yuhaiin/
