@@ -11,58 +11,43 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
-	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
-	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
-	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var debug func(*http.ServeMux)
 
-type HttpServerOption struct {
-	Mux         *http.ServeMux
-	Shunt       *shunt.Shunt
-	NodeServer  gn.NodeServer
-	Subscribe   gn.SubscribeServer
-	Tag         gn.TagServer
-	Connections gs.ConnectionsServer
-	Config      gc.ConfigServiceServer
-	Tools       gt.ToolsServer
-}
-
-func (o *HttpServerOption) ServeHTTP(mux *http.ServeMux) {
+func ServeHTTP(o *appapi.Components) {
 	for k, b := range map[string]func(http.ResponseWriter, *http.Request) error{
 		"GET /sublist":    GrpcToHttp(o.Subscribe.Get),
-		"GET /nodes":      GrpcToHttp(o.NodeServer.Manager),
-		"GET /config":     GrpcToHttp(o.Config.Load),
-		"GET /info":       GrpcToHttp(o.Config.Info),
+		"GET /nodes":      GrpcToHttp(o.Node.Manager),
+		"GET /config":     GrpcToHttp(o.Setting.Load),
+		"GET /info":       GrpcToHttp(o.Setting.Info),
 		"GET /interfaces": GrpcToHttp(o.Tools.GetInterface),
-		"GET /node/now":   GrpcToHttp(o.NodeServer.Now),
+		"GET /node/now":   GrpcToHttp(o.Node.Now),
 
-		"POST /config":  GrpcToHttp(o.Config.Save),
+		"POST /config":  GrpcToHttp(o.Setting.Save),
 		"POST /sub":     GrpcToHttp(o.Subscribe.Save),
 		"POST /tag":     GrpcToHttp(o.Tag.Save),
-		"POST /node":    GrpcToHttp(o.NodeServer.Get),
+		"POST /node":    GrpcToHttp(o.Node.Get),
 		"POST /bypass":  GrpcToHttp(o.Tools.SaveRemoteBypassFile),
-		"POST /latency": GrpcToHttp(o.NodeServer.Latency),
+		"POST /latency": GrpcToHttp(o.Node.Latency),
 
 		"DELETE /conn": GrpcToHttp(o.Connections.CloseConn),
-		"DELETE /node": GrpcToHttp(o.NodeServer.Remove),
+		"DELETE /node": GrpcToHttp(o.Node.Remove),
 		"DELETE /sub":  GrpcToHttp(o.Subscribe.Remove),
 		"DELETE /tag":  GrpcToHttp(o.Tag.Remove),
 
-		"PUT /node": GrpcToHttp(o.NodeServer.Use),
+		"PUT /node": GrpcToHttp(o.Node.Use),
 
 		"PATCH /sub":  GrpcToHttp(o.Subscribe.Update),
-		"PATCH /node": GrpcToHttp(o.NodeServer.Save),
+		"PATCH /node": GrpcToHttp(o.Node.Save),
 
 		// WEBSOCKET
-		"GET /conn": o.ConnWebsocket,
+		"GET /conn": ConnWebsocket(o),
 	} {
-		mux.Handle(k, http.HandlerFunc(func(ow http.ResponseWriter, r *http.Request) {
+		o.Mux.Handle(k, http.HandlerFunc(func(ow http.ResponseWriter, r *http.Request) {
 			cross(ow)
 			w := &wrapResponseWriter{ow, false}
 			err := b(w, r)
@@ -119,13 +104,13 @@ func HandleFront(mux *http.ServeMux) {
 	}
 }
 
-func Httpserver(o HttpServerOption) {
+func Httpserver(o *appapi.Components) {
 	if debug != nil {
 		debug(o.Mux)
 	}
 
 	HandleFront(o.Mux)
-	o.ServeHTTP(o.Mux)
+	ServeHTTP(o)
 }
 
 type wrapResponseWriter struct {

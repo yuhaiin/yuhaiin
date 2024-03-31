@@ -59,15 +59,18 @@ yuhaiin_lite:
 	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page,lite" $(YUHAIIN)
 
 define build 
-	$(eval OS := $(word 2,$(subst -, ,$@)))
-	$(eval ARCH := $(word 3,$(subst -, ,$@)))
-	$(eval MODE := $(word 4,$(subst -, ,$@)))
-	$(if $(findstring amd64v3,$(ARCH)),$(eval AMD64V3 := v3),)
-	$(if $(findstring amd64v3,$(ARCH)),$(eval ARCH := amd64),)
-	$(if $(findstring mipsle,$(ARCH)),$(eval MIPS := softfloat),)
-	$(if $(findstring lite,$(MODE)),$(eval SUFFIX := _lite),)
-	$(if $(findstring windows,$(OS)),$(eval SUFFIX := $(addsuffix .exe,$(SUFFIX))),)
-	$(info OS: $(OS), ARCH: $(ARCH), MODE: $(word 4,$(subst -, ,$@)))
+	$(eval ARGS := $(subst -, ,$@))
+	$(eval OS := $(word 2, $(ARGS)))
+	$(eval ARCH := $(word 3, $(ARGS)))
+	$(eval MODE := $(word 4, $(ARGS)))
+
+	$(if $(filter amd64v3, $(ARCH)),$(eval AMD64V3 := v3),)
+	$(if $(filter amd64v3, $(ARCH)),$(eval ARCH := amd64),)
+	$(if $(filter mipsle, $(ARCH)),$(eval MIPS := softfloat),)
+	$(if $(filter lite, $(MODE)),$(eval SUFFIX := _lite),)
+	$(if $(filter windows, $(OS)),$(eval SUFFIX := $(addsuffix .exe,$(SUFFIX))),)
+
+	$(info OS: $(OS), ARCH: $(ARCH), MODE: $(MODE))
 endef
 
 .PHONY: yuhaiin-%

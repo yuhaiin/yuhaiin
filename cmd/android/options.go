@@ -6,7 +6,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -101,7 +100,7 @@ type uidDumper struct {
 	cache syncmap.SyncMap[int32, string]
 }
 
-func NewUidDumper(ud UidDumper) listener.ProcessDumper {
+func NewUidDumper(ud UidDumper) netapi.ProcessDumper {
 	if ud == nil {
 		return nil
 	}
