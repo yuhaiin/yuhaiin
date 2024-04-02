@@ -55,6 +55,8 @@ func ServeHTTP(o *appapi.Components) {
 
 		// WEBSOCKET
 		"GET /conn": ConnWebsocket(o),
+
+		"OPTIONS /": func(w http.ResponseWriter, r *http.Request) error { return nil },
 	} {
 		o.Mux.Handle(k, http.HandlerFunc(func(ow http.ResponseWriter, r *http.Request) {
 			cross(ow)

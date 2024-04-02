@@ -36,16 +36,6 @@ message use_req {
   string hash = 3 [ json_name = "hash" ];
 }
 
-// message now_req {
-//   enum net_type {
-//     reserve = 0;
-//     tcp = 1;
-//     udp = 2;
-//   }
-
-//   net_type net = 1 [ json_name = "type" ];
-// }
-
 service subscribe {
   rpc save(save_link_req) returns (google.protobuf.Empty);
   rpc remove(link_req) returns (google.protobuf.Empty);

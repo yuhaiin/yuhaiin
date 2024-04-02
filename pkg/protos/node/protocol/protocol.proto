@@ -84,9 +84,10 @@ message yuubinsya {
 }
 
 message websocket {
+  reserved 4;
+  reserved "tls_enabled";
   string host = 1 [ json_name = "host" ];
   string path = 2 [ json_name = "path" ];
-  bool tls_enabled = 4 [ json_name = "tls_enabled", deprecated = true ];
 }
 
 message grpc { tls_config tls = 1 [ json_name = "tls" ]; }
@@ -111,13 +112,14 @@ message obfs_http {
 message none {}
 
 message simple {
+  reserved 4;
+  reserved "tls";
   string host = 1 [ json_name = "host" ];
   int32 port = 2 [ json_name = "port" ];
   uint64 timeout = 6 [ json_name = "timeout" ];
   repeated host alternate_host = 5 [ json_name = "alternate_host" ];
   // udp will write to every packet target instead of only write to host:port
   // bool packet_conn_direct = 3 [ json_name = "packet_conn_direct" ];
-  tls_config tls = 4 [ json_name = "tls", deprecated = true ];
 }
 
 message tls_config {
@@ -130,7 +132,7 @@ message tls_config {
   repeated string next_protos = 5 [ json_name = "next_protos" ];
 }
 
-message direct {}
+message direct { uint64 timeout = 1 [ json_name = "timeout" ]; }
 
 message reject {}
 

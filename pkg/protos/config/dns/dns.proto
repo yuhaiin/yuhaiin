@@ -34,6 +34,4 @@ message dns_config {
   map<string, string> hosts = 8 [ json_name = "hosts" ];
 
   map<string, dns> resolver = 10 [ json_name = "resolver" ];
-  string local_v2 = 11 [ json_name = "local_v2" ];
-  string remote_v2 = 12 [ json_name = "remote_v2" ];
 }

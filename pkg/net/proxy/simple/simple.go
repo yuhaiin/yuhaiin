@@ -11,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
@@ -40,10 +39,10 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 			addrs = append(addrs, netapi.ParseAddressPort(0, v.GetHost(), netapi.ParsePort(v.GetPort())))
 		}
 
-		timeout := time.Duration(0)
+		timeout := time.Second * 3
 
 		if c.Simple.Timeout > 0 {
-			timeout = time.Millisecond * time.Duration(c.Simple.Timeout)
+			timeout = time.Second * time.Duration(c.Simple.Timeout)
 		}
 
 		simple := &Simple{
@@ -52,17 +51,12 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 			p:       p,
 		}
 
-		return tls.NewClient(&protocol.Protocol_Tls{Tls: c.Simple.Tls})(simple)
+		return simple, nil
 	}
 }
 
 func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	var cancel context.CancelFunc
-	if c.timeout > 0 {
-		ctx, cancel = context.WithTimeout(context.TODO(), c.timeout)
-	} else {
-		ctx, cancel = context.WithTimeout(ctx, time.Second*3)
-	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.timeout)
 	defer cancel()
 
 	if c.p != nil && !point.IsBootstrap(c.p) {

@@ -60,25 +60,21 @@ func defaultSetting(path string) *config.Setting {
 				Type: pd.Type_doh,
 			},
 			Remote: &pd.Dns{
-				Host:   "dns.google",
-				Type:   pd.Type_doh,
-				Subnet: "223.5.5.5",
+				Host: "dns.google",
+				Type: pd.Type_doh,
 			},
 			Bootstrap: &pd.Dns{
 				Host: "223.5.5.5",
 				Type: pd.Type_udp,
 			},
-			LocalV2:  "local",
-			RemoteV2: "remote",
 			Resolver: map[string]*pd.Dns{
 				"local": {
 					Host: "223.5.5.5",
 					Type: pd.Type_doh,
 				},
 				"remote": {
-					Host:   "dns.google",
-					Type:   pd.Type_doh,
-					Subnet: "223.5.5.5",
+					Host: "dns.google",
+					Type: pd.Type_doh,
 				},
 				"bootstrap": {
 					Host: "223.5.5.5",
@@ -120,15 +116,6 @@ func defaultSetting(path string) *config.Setting {
 					Protocol: &listener.Protocol_Socks5{
 						Socks5: &listener.Socks5{
 							Host: "127.0.0.1:1080",
-						},
-					},
-				},
-				"redir": {
-					Name:    "redir",
-					Enabled: false,
-					Protocol: &listener.Protocol_Redir{
-						Redir: &listener.Redir{
-							Host: "127.0.0.1:8088",
 						},
 					},
 				},
