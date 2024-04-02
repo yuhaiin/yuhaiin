@@ -27,8 +27,8 @@ enum resolve_strategy {
 }
 
 message mode_config {
-  repeated string hostname = 3 [ json_name = "hostname" ];
   mode mode = 1 [ json_name = "mode" ];
   string tag = 2 [ json_name = "tag" ];
+  repeated string hostname = 3 [ json_name = "hostname" ];
   resolve_strategy resolve_strategy = 4 [ json_name = "resolve_strategy" ];
 }
