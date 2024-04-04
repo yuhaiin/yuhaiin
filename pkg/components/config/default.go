@@ -91,38 +91,25 @@ func defaultSetting(path string) *config.Setting {
 		Server: &listener.InboundConfig{
 			HijackDns:       true,
 			HijackDnsFakeip: true,
-			Servers: map[string]*listener.Protocol{
+			Inbounds: map[string]*listener.Inbound{
 				"mixed": {
 					Name:    "mixed",
 					Enabled: true,
-					Protocol: &listener.Protocol_Mix{
-						Mix: &listener.Mixed{
-							Host: "127.0.0.1:1080",
+					Network: &listener.Inbound_Tcpudp{
+						Tcpudp: &listener.Tcpudp{
+							Host:    "127.0.0.1:1080",
+							Control: listener.TcpUdpControl_tcp_udp_control_all,
 						},
 					},
-				},
-				"http": {
-					Name:    "http",
-					Enabled: false,
-					Protocol: &listener.Protocol_Http{
-						Http: &listener.Http{
-							Host: "127.0.0.1:8188",
-						},
-					},
-				},
-				"socks5": {
-					Name:    "socks5",
-					Enabled: false,
-					Protocol: &listener.Protocol_Socks5{
-						Socks5: &listener.Socks5{
-							Host: "127.0.0.1:1080",
-						},
+					Protocol: &listener.Inbound_Mix{
+						Mix: &listener.Mixed{},
 					},
 				},
 				"tun": {
 					Name:    "tun",
 					Enabled: false,
-					Protocol: &listener.Protocol_Tun{
+					Network: &listener.Inbound_Empty{Empty: &listener.Empty{}},
+					Protocol: &listener.Inbound_Tun{
 						Tun: &listener.Tun{
 							Name:          "tun://tun0",
 							Mtu:           9000,
@@ -142,15 +129,20 @@ func defaultSetting(path string) *config.Setting {
 				"yuubinsya": {
 					Name:    "yuubinsya",
 					Enabled: false,
-					Protocol: &listener.Protocol_Yuubinsya{
+					Network: &listener.Inbound_Tcpudp{
+						Tcpudp: &listener.Tcpudp{
+							Host:    "127.0.0.1:40501",
+							Control: listener.TcpUdpControl_disable_udp,
+						},
+					},
+					Protocol: &listener.Inbound_Yuubinsya{
 						Yuubinsya: &listener.Yuubinsya{
-							Host:     "127.0.0.1:40501",
-							Password: "123",
-							Protocol: &listener.Yuubinsya_Normal{Normal: &listener.Normal{}},
+							Password: "password",
 						},
 					},
 				},
 			},
+			Servers: map[string]*listener.Protocol{},
 		},
 	}
 }

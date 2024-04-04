@@ -20,10 +20,10 @@ message protocol {
 }
 
 message inbound {
+  reserved 17;
+  reserved "IPv6";
   string name = 13 [ json_name = "name" ];
   bool enabled = 14 [ json_name = "enabled" ];
-  bool IPv6 = 17 [ json_name = "IPv6" ];
-
   oneof network {
     empty empty = 21 [ json_name = "empty" ];
     tcpudp tcpudp = 15 [ json_name = "tcpudp" ];

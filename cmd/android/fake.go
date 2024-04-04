@@ -57,20 +57,25 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		Server: &listener.InboundConfig{
 			HijackDns:       opt.TUN.DNSHijacking,
 			HijackDnsFakeip: opt.DNS.Fakedns,
-			Servers: map[string]*listener.Protocol{
+			Inbounds: map[string]*listener.Inbound{
 				"mix": {
 					Name:    "mix",
 					Enabled: opt.Http != "",
-					Protocol: &listener.Protocol_Mix{
-						Mix: &listener.Mixed{
-							Host: opt.Http,
+					Network: &listener.Inbound_Tcpudp{
+						Tcpudp: &listener.Tcpudp{
+							Host:    opt.Http,
+							Control: listener.TcpUdpControl_tcp_udp_control_all,
 						},
+					},
+					Protocol: &listener.Inbound_Mix{
+						Mix: &listener.Mixed{},
 					},
 				},
 				"tun": {
 					Name:    "tun",
 					Enabled: true,
-					Protocol: &listener.Protocol_Tun{
+					Network: &listener.Inbound_Empty{Empty: &listener.Empty{}},
+					Protocol: &listener.Inbound_Tun{
 						Tun: &listener.Tun{
 							Name:          fmt.Sprintf("fd://%d", opt.TUN.FD),
 							Mtu:           opt.TUN.MTU,
