@@ -35,14 +35,6 @@ type Config struct {
 
 var dnsMap syncmap.SyncMap[pd.Type, func(Config) (netapi.Resolver, error)]
 
-func init() {
-	Register(pd.Type_reserve, func(c Config) (netapi.Resolver, error) {
-		return netapi.ErrorResolver(func(domain string) error {
-			return fmt.Errorf("%w: %s", netapi.ErrBlocked, domain)
-		}), nil
-	})
-}
-
 func New(config Config) (netapi.Resolver, error) {
 	f, ok := dnsMap.Load(config.Type)
 	if !ok {
