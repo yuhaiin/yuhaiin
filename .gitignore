@@ -10,3 +10,4 @@
 /internal/statics/bypass.gz
 /cmd/socat/socat
 /cmd/benchmark/benchmark
+/copy_front.sh

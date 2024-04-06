@@ -34,8 +34,16 @@ func NewResolver(dialer netapi.Proxy) *Resolver {
 	return &Resolver{dialer: dialer}
 }
 
+var errorResolver = netapi.ErrorResolver(func(domain string) error {
+	return fmt.Errorf("%w: %s", netapi.ErrBlocked, domain)
+})
+var blockStr = bypass.Mode_block.String()
+
 func (r *Resolver) Get(str string) netapi.Resolver {
 	if str != "" {
+		if str == blockStr {
+			return errorResolver
+		}
 		z, ok := r.store.Load(str)
 		if ok {
 			return z.Resolver
@@ -69,7 +77,6 @@ func (r *Resolver) Update(c *pc.Setting) {
 	c.Dns.Resolver = map[string]*pd.Dns{
 		bypass.Mode_direct.String(): c.Dns.Local,
 		bypass.Mode_proxy.String():  c.Dns.Remote,
-		bypass.Mode_block.String():  {Type: pd.Type_reserve},
 	}
 
 	if !proto.Equal(r.bootstrapConfig, c.Dns.Bootstrap) {

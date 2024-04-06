@@ -19,7 +19,6 @@ import (
 
 func init() {
 	Register(pdns.Type_udp, NewDoU)
-	Register(pdns.Type_reserve, NewDoU)
 }
 
 type udp struct {
