@@ -74,7 +74,12 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	udpTotalLength := header.UDPMinimumSize + uint16(len(buf))
 	var ip IP
 	var totalLength uint16
-	if tuple.SourceAddr.Len() == 4 && tuple.DestinationAddr.Len() == 4 {
+
+	if tuple.SourceAddr.Len() == 4 {
+		if tuple.DestinationAddr.To4().Unspecified() {
+			return 0, fmt.Errorf("send IPv6 packet to IPv4 connection")
+		}
+
 		if totalLength = header.IPv4MinimumSize + udpTotalLength; int(u.mtu) < int(totalLength) {
 			return 0, fmt.Errorf("ip packet total length large than mtu")
 		}
@@ -116,8 +121,14 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	})
 	copy(udp.Payload(), buf)
 
-	pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber,
-		ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
-	resetCheckSum(ip, udp, pseudoSum)
+	// On IPv4, UDP checksum is optional, and a zero value indicates the
+	// transmitter skipped the checksum generation (RFC768).
+	// On IPv6, UDP checksum is not optional (RFC2460 Section 8.1).
+	if tuple.SourceAddr.Len() == 16 {
+		pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber,
+			ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
+		resetCheckSum(ip, udp, pseudoSum)
+	}
+
 	return u.device.Write(ipBuf[:totalLength])
 }

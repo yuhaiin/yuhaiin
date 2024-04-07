@@ -74,37 +74,31 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 		e.attached = true
 		e.wg.Add(1)
 		go func() {
+			buf := pool.GetBytes(e.mtu)
+			defer pool.PutBytes(buf)
 			defer e.wg.Done()
 			for {
-				buf := pool.GetBytes(e.mtu)
-				defer pool.PutBytes(buf)
-
 				n, err := e.dev.Read(buf)
 				if err != nil {
 					return
 				}
 
-				if n == 0 {
-					continue
-				}
-
-				pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-					Payload: buffer.MakeWithData(buf[:n]),
-				})
-				defer pkt.DecRef()
-
 				var p tcpip.NetworkProtocolNumber
-
 				switch header.IPVersion(buf) {
 				case header.IPv4Version:
 					p = header.IPv4ProtocolNumber
 				case header.IPv6Version:
 					p = header.IPv6ProtocolNumber
 				default:
+					_, _ = e.dev.Write(buf[:n])
 					continue
 				}
 
+				pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+					Payload: buffer.MakeWithData(buf[:n]),
+				})
 				dispatcher.DeliverNetworkPacket(p, pkt)
+				pkt.DecRef()
 			}
 		}()
 	}
@@ -118,7 +112,10 @@ func (e *Endpoint) IsAttached() bool { return e.attached }
 func (e *Endpoint) MTU() uint32 { return e.mtu }
 
 // Capabilities implements stack.LinkEndpoint.Capabilities.
-func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities { return 0 }
+func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities {
+	return stack.CapabilityRXChecksumOffload
+	// return 0
+}
 
 // MaxHeaderLength returns the maximum size of the link layer header. Given it
 // doesn't have a header, it just returns 0.
@@ -132,7 +129,10 @@ func (e *Endpoint) LinkAddress() tcpip.LinkAddress { return "" }
 func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
 	n := 0
 	for _, pkt := range pkts.AsSlice() {
-		if _, er := e.dev.Write(pkt.ToView().AsSlice()); er != nil {
+		view := pkt.ToView()
+		_, er := e.dev.Write(view.AsSlice())
+		view.Release()
+		if er != nil {
 			log.Error("write packet failed", "err", er)
 			if n == 0 {
 				return 0, &tcpip.ErrClosedForSend{}

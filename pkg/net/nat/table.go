@@ -98,8 +98,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			return nil, fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
 		}
 
-		table, _ := u.cache.LoadOrStore(key,
-			&SourceTable{dstPacketConn: dstpconn})
+		table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
 
 		go func() {
 			log.IfErr("udp remote to local",

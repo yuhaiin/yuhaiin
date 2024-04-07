@@ -24,7 +24,8 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
 		return nil, fmt.Errorf("invalid tun: %v", sc)
 	}
 
-	device, err := wun.CreateTUNWithRequestedGUID(sc.Name, generateGUIDByDeviceName(sc.Name), mtu)
+	device, err := wun.CreateTUNWithRequestedGUID(sc.Name,
+		generateGUIDByDeviceName(sc.Name), mtu)
 	if err != nil {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}

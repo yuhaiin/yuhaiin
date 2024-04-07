@@ -34,15 +34,12 @@ func (t *tunServer) tcpForwarder() *tcp.Forwarder {
 		addr := netapi.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
 		local := gonet.NewTCPConn(wq, ep)
 
-		er := t.SendStream(&netapi.StreamMeta{
+		_ = t.SendStream(&netapi.StreamMeta{
 			Source:      local.RemoteAddr(),
 			Destination: addr,
 			Src:         local,
 			Address:     addr,
 		})
-		if er != nil {
-			return
-		}
 	})
 }
 

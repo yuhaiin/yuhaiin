@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"golang.zx2c4.com/wireguard/tun"
 	wun "golang.zx2c4.com/wireguard/tun"
 	gun "gvisor.dev/gvisor/pkg/tcpip/link/tun"
 )
@@ -20,7 +19,6 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
 	var device wun.Device
 	switch sc.Scheme {
 	case "tun":
-
 		device, err = createTUN(sc.Name, mtu)
 	case "fd":
 		device, _, err = wun.CreateUnmonitoredTUNFromFD(sc.Fd)
@@ -34,12 +32,12 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
 	return newWgReadWriteCloser(device), nil
 }
 
-func createTUN(name string, mtu int) (tun.Device, error) {
+func createTUN(name string, mtu int) (wun.Device, error) {
 	nfd, err := gun.Open(name)
 	if err != nil {
 		return nil, fmt.Errorf("create tun: %w", err)
 	}
 
 	fd := os.NewFile(uintptr(nfd), "/dev/net/tun")
-	return tun.CreateTUNFromFile(fd, mtu)
+	return wun.CreateTUNFromFile(fd, mtu)
 }
