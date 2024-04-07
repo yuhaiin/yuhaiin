@@ -12,7 +12,7 @@
   - yuubinsya(experimental), Reqlity, HTTP2, Quic, Websocket, gRPC, TLS
   - Socks5, Socks4A, HTTP
   - TUN, Linux/Mac Redir, Tproxy
-    - [gvisor(Symmetric NAT)](https://github.com/google/gvisor)
+    - [gvisor](https://github.com/google/gvisor)
     - tun2socket(hijack tun TCP to a local TCP listener)
   - yamux  
 - Outbound

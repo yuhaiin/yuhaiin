@@ -21,7 +21,6 @@ import (
 )
 
 type tunServer struct {
-	mtu   int32
 	nicID tcpip.NICID
 	stack *stack.Stack
 	ep    stack.LinkEndpoint
@@ -64,7 +63,8 @@ func New(o *Opt) (netapi.Accepter, error) {
 
 	o.Endpoint = ep
 
-	log.Debug("preload tun device", "name", o.Interface, "mtu", opt.Mtu, "portal", opt.Portal)
+	log.Info("preload tun device", "name", o.Interface, "mtu", opt.Mtu, "portal", opt.Portal)
+
 	if err = netlink.Route(o.Options); err != nil {
 		log.Warn("preload failed", "err", err)
 	}
@@ -72,13 +72,15 @@ func New(o *Opt) (netapi.Accepter, error) {
 	log.Debug("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal)
 
 	stackOption := stack.Options{
-		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
+		NetworkProtocols: []stack.NetworkProtocolFactory{
+			ipv4.NewProtocol,
+			ipv6.NewProtocol,
+		},
+		TransportProtocols: []stack.TransportProtocolFactory{
+			tcp.NewProtocol, udp.NewProtocol,
+			icmp.NewProtocol4, icmp.NewProtocol6,
+		},
 	}
-	// if o.IPv6 {
-	stackOption.NetworkProtocols = append(stackOption.NetworkProtocols, ipv6.NewProtocol)
-	stackOption.TransportProtocols = append(stackOption.TransportProtocols, icmp.NewProtocol6)
-	// }
 
 	s := stack.New(stackOption)
 
@@ -90,7 +92,6 @@ func New(o *Opt) (netapi.Accepter, error) {
 	}
 
 	t := &tunServer{
-		mtu:           opt.Mtu,
 		nicID:         nicID,
 		stack:         s,
 		ep:            ep,
@@ -116,14 +117,14 @@ func New(o *Opt) (netapi.Accepter, error) {
 	rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
 		Default: pool.DefaultSize,
-		Max:     tcp.MaxBufferSize,
+		Max:     pool.DefaultSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &rcvOpt)
 
 	sndOpt := tcpip.TCPSendBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
 		Default: pool.DefaultSize,
-		Max:     tcp.MaxBufferSize,
+		Max:     pool.DefaultSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
 
@@ -144,7 +145,8 @@ func New(o *Opt) (netapi.Accepter, error) {
 
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, t.tcpForwarder().HandlePacket)
 
-	s.SetTransportProtocolHandler(udp.ProtocolNumber, t.udpForwarder().HandlePacket)
+	// s.SetTransportProtocolHandler(udp.ProtocolNumber, t.udpForwarder().HandlePacket)
+	s.SetTransportProtocolHandler(udp.ProtocolNumber, t.HandleUDPPacket)
 
 	return t, nil
 }
@@ -167,7 +169,7 @@ const (
 
 	// tcpCongestionControl is the congestion control algorithm used by
 	// stack. ccReno is the default option in gVisor stack.
-	tcpCongestionControlAlgorithm = "cubic" // "reno" or "cubic"
+	tcpCongestionControlAlgorithm = "reno" // "reno" or "cubic"
 
 	// tcpDelayEnabled is the value used by stack to enable or disable
 	// tcp delay option. Disable Nagle's algorithm here by default.
