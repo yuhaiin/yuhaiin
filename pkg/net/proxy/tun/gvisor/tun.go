@@ -3,12 +3,12 @@ package tun
 import (
 	"fmt"
 	"io"
+	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/time/rate"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -99,6 +99,10 @@ func New(o *Opt) (netapi.Accepter, error) {
 	}
 
 	s.SetSpoofing(nicID, true)
+	// By default the netstack NIC will only accept packets for the IPs
+	// registered to it. Since in some cases we dynamically register IPs
+	// based on the packets that arrive, the NIC needs to accept all
+	// incoming packets.
 	s.SetPromiscuousMode(nicID, true)
 	s.SetRouteTable([]tcpip.Route{
 		{Destination: header.IPv4EmptySubnet, NIC: nicID},
@@ -116,18 +120,20 @@ func New(o *Opt) (netapi.Accepter, error) {
 
 	rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
-		Default: pool.DefaultSize,
-		Max:     pool.DefaultSize,
+		Default: tcp.DefaultReceiveBufferSize,
+		Max:     tcp.MaxBufferSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &rcvOpt)
 
 	sndOpt := tcpip.TCPSendBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
-		Default: pool.DefaultSize,
-		Max:     pool.DefaultSize,
+		Default: tcp.DefaultSendBufferSize,
+		Max:     tcp.MaxBufferSize,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
 
+	// https://github.com/google/gvisor/issues/6113
+	// I meet this issue, but it's already fix?
 	opt2 := tcpip.CongestionControlOption(tcpCongestionControlAlgorithm)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt2)
 
@@ -151,7 +157,7 @@ func New(o *Opt) (netapi.Accepter, error) {
 	return t, nil
 }
 
-const (
+var (
 	// defaultTimeToLive specifies the default TTL used by stack.
 	defaultTimeToLive uint8 = 64
 
@@ -169,7 +175,7 @@ const (
 
 	// tcpCongestionControl is the congestion control algorithm used by
 	// stack. ccReno is the default option in gVisor stack.
-	tcpCongestionControlAlgorithm = "reno" // "reno" or "cubic"
+	tcpCongestionControlAlgorithm = "cubic" // "reno" or "cubic"
 
 	// tcpDelayEnabled is the value used by stack to enable or disable
 	// tcp delay option. Disable Nagle's algorithm here by default.
@@ -186,3 +192,15 @@ const (
 	// tcpRecovery is the loss detection algorithm used by TCP.
 	tcpRecovery = tcpip.TCPRACKLossDetection
 )
+
+func init() {
+	if runtime.GOOS == "windows" {
+		// See https://github.com/tailscale/tailscale/issues/9707
+		// Windows w/RACK performs poorly. ACKs do not appear to be handled in a
+		// timely manner, leading to spurious retransmissions and a reduced
+		// congestion window.
+		//
+		// https://github.com/google/gvisor/issues/9778
+		tcpRecovery = tcpip.TCPRecovery(0)
+	}
+}

@@ -19,11 +19,10 @@
 package tun
 
 import (
-	"io"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -38,13 +37,13 @@ type Endpoint struct {
 	wg  sync.WaitGroup
 	mtu uint32
 
-	dev io.ReadWriteCloser
+	dev netlink.Writer
 
 	attached bool
 }
 
 // New creates a new channel endpoint.
-func NewEndpoint(w io.ReadWriteCloser, mtu uint32) *Endpoint {
+func NewEndpoint(w netlink.Writer, mtu uint32) *Endpoint {
 	return &Endpoint{
 		mtu: mtu,
 		dev: w,
@@ -58,7 +57,7 @@ func (e *Endpoint) Close() {
 	e.wg.Wait()
 }
 
-func (e *Endpoint) Writer() io.ReadWriteCloser {
+func (e *Endpoint) Writer() netlink.Writer {
 	return e.dev
 }
 
@@ -74,33 +73,46 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 		e.attached = true
 		e.wg.Add(1)
 		go func() {
-			buf := pool.GetBytes(e.mtu)
-			defer pool.PutBytes(buf)
 			defer e.wg.Done()
-			for {
-				n, err := e.dev.Read(buf)
-				if err != nil {
-					return
-				}
-
-				var p tcpip.NetworkProtocolNumber
-				switch header.IPVersion(buf) {
-				case header.IPv4Version:
-					p = header.IPv4ProtocolNumber
-				case header.IPv6Version:
-					p = header.IPv6ProtocolNumber
-				default:
-					_, _ = e.dev.Write(buf[:n])
-					continue
-				}
-
-				pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-					Payload: buffer.MakeWithData(buf[:n]),
-				})
-				dispatcher.DeliverNetworkPacket(p, pkt)
-				pkt.DecRef()
-			}
+			e.dispatchLoop(dispatcher)
 		}()
+	}
+}
+
+func (e *Endpoint) dispatchLoop(dispatcher stack.NetworkDispatcher) {
+	bufs := make([][]byte, e.dev.BatchSize())
+	size := make([]int, e.dev.BatchSize())
+
+	for i := range bufs {
+		bufs[i] = make([]byte, e.mtu)
+	}
+
+	for {
+		n, err := e.dev.Read(bufs, size)
+		if err != nil {
+			return
+		}
+
+		for i := range n {
+			buf := bufs[i][:size[i]]
+
+			var p tcpip.NetworkProtocolNumber
+			switch header.IPVersion(buf) {
+			case header.IPv4Version:
+				p = header.IPv4ProtocolNumber
+			case header.IPv6Version:
+				p = header.IPv6ProtocolNumber
+			default:
+				_, _ = e.dev.Write([][]byte{buf})
+				continue
+			}
+
+			pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+				Payload: buffer.MakeWithData(buf),
+			})
+			dispatcher.DeliverNetworkPacket(p, pkt)
+			pkt.DecRef()
+		}
 	}
 }
 
@@ -114,7 +126,6 @@ func (e *Endpoint) MTU() uint32 { return e.mtu }
 // Capabilities implements stack.LinkEndpoint.Capabilities.
 func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities {
 	return stack.CapabilityRXChecksumOffload
-	// return 0
 }
 
 // MaxHeaderLength returns the maximum size of the link layer header. Given it
@@ -127,19 +138,19 @@ func (e *Endpoint) LinkAddress() tcpip.LinkAddress { return "" }
 // WritePackets stores outbound packets into the channel.
 // Multiple concurrent calls are permitted.
 func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
-	n := 0
+	bufs := [][]byte{}
 	for _, pkt := range pkts.AsSlice() {
 		view := pkt.ToView()
-		_, er := e.dev.Write(view.AsSlice())
-		view.Release()
-		if er != nil {
-			log.Error("write packet failed", "err", er)
-			if n == 0 {
-				return 0, &tcpip.ErrClosedForSend{}
-			}
-			break
+		defer view.Release()
+		bufs = append(bufs, view.AsSlice())
+	}
+
+	n, er := e.dev.Write(bufs)
+	if er != nil {
+		log.Error("write packet failed", "err", er)
+		if n == 0 {
+			return 0, &tcpip.ErrClosedForSend{}
 		}
-		n++
 	}
 
 	return n, nil

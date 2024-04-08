@@ -4,7 +4,6 @@ package tun
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 
@@ -17,22 +16,21 @@ const (
 	offset = 4
 )
 
-func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
 	if len(sc.Name) >= unix.IFNAMSIZ {
 		return nil, fmt.Errorf("interface name too long: %s", sc.Name)
 	}
 
-	var iwc io.ReadWriteCloser
+	var device wun.Device
+	var err error
 	switch sc.Scheme {
 	case "fd":
-		iwc = newHiddenCloser(os.NewFile(uintptr(sc.Fd), strconv.Itoa(sc.Fd)))
+		device, err = wun.CreateTUNFromFile(os.NewFile(uintptr(sc.Fd), strconv.Itoa(sc.Fd)), mtu)
 	case "tun":
-		device, err := wun.CreateTUN(sc.Name, mtu)
-		if err != nil {
-			return nil, fmt.Errorf("create tun failed: %w", err)
-		}
-		iwc = newWgReadWriteCloser(device)
+		device, err = wun.CreateTUN(sc.Name, mtu)
 	}
-
-	return iwc, nil
+	if err != nil {
+		return nil, fmt.Errorf("create tun failed: %w", err)
+	}
+	return newWgReadWriteCloser(device), nil
 }
