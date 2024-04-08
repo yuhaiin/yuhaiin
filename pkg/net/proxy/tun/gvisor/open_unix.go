@@ -17,12 +17,12 @@ const (
 	offset = 4
 )
 
-func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
 	if len(sc.Name) >= unix.IFNAMSIZ {
 		return nil, fmt.Errorf("interface name too long: %s", sc.Name)
 	}
 
-	var iwc io.ReadWriteCloser
+	var iwc netlink.Writer
 	switch sc.Scheme {
 	case "fd":
 		iwc = newHiddenCloser(os.NewFile(uintptr(sc.Fd), strconv.Itoa(sc.Fd)))
@@ -36,3 +36,38 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
 
 	return iwc, nil
 }
+
+type hiddenCloser struct {
+	io.ReadWriteCloser
+}
+
+func newHiddenCloser(rwc io.ReadWriteCloser) netlink.Writer {
+	return &hiddenCloser{rwc}
+}
+
+func (h *hiddenCloser) BatchSize() int { return 1 }
+
+func (h *hiddenCloser) Write(bufs [][]byte) (int, error) {
+	for i := range bufs {
+		_, err := h.ReadWriteCloser.Write(bufs[i])
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return len(bufs), nil
+}
+func (h *hiddenCloser) Read(bufs [][]byte, sizes []int) (n int, err error) {
+	if len(bufs) == 0 {
+		return 0, nil
+	}
+	n, err = h.ReadWriteCloser.Read(bufs[0])
+	if err != nil {
+		return 0, err
+	}
+
+	sizes[0] = n
+
+	return
+}
+func (h *hiddenCloser) Close() error { return nil }

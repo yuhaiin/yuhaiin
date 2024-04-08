@@ -2,7 +2,6 @@ package netlink
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"net/netip"
 
@@ -16,7 +15,7 @@ func Route(opt *Options) error {
 	var device wun.Device
 
 	if opt.Writer == nil && opt.Endpoint != nil {
-		if w, ok := opt.Endpoint.(interface{ Writer() io.ReadWriteCloser }); ok {
+		if w, ok := opt.Endpoint.(interface{ Writer() Writer }); ok {
 			opt.Writer = w.Writer()
 		}
 	}

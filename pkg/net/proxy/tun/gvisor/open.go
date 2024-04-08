@@ -2,18 +2,17 @@ package tun
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-var openFD func(fd, mtu int) (stack.LinkEndpoint, error)
+var openFD func(sc netlink.TunScheme, mtu int) (stack.LinkEndpoint, error)
 
 func Open(sc netlink.TunScheme, driver listener.TunEndpointDriver, mtu int) (_ stack.LinkEndpoint, err error) {
-	if sc.Scheme == "fd" && driver == listener.Tun_fdbased && openFD != nil {
-		return openFD(sc.Fd, mtu)
+	if driver == listener.Tun_fdbased && openFD != nil {
+		return openFD(sc, mtu)
 	}
 
 	w, err := OpenWriter(sc, mtu)
@@ -22,13 +21,3 @@ func Open(sc netlink.TunScheme, driver listener.TunEndpointDriver, mtu int) (_ s
 	}
 	return NewEndpoint(w, uint32(mtu)), nil
 }
-
-type hiddenCloser struct {
-	io.ReadWriteCloser
-}
-
-func newHiddenCloser(rwc io.ReadWriteCloser) io.ReadWriteCloser {
-	return &hiddenCloser{rwc}
-}
-
-func (h *hiddenCloser) Close() error { return nil }

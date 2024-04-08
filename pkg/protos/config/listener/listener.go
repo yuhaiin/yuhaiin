@@ -439,8 +439,12 @@ func Listen(config *Inbound) (netapi.Accepter, error) {
 
 	pl, err := Protocols(tl, config.Protocol)
 	if err != nil {
-		_ = tl.Close()
-		_ = lis.Close()
+		if tl != nil {
+			_ = tl.Close()
+		}
+		if lis != nil {
+			_ = lis.Close()
+		}
 		return nil, err
 	}
 

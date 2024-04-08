@@ -316,13 +316,18 @@ func (p *pipeReadWritePacket) WritePipe2(b []byte) error {
 	}
 }
 
-func (p *pipeReadWritePacket) Read(b []byte) (int, error) {
+func (p *pipeReadWritePacket) Read(b [][]byte, size []int) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+
 	select {
 	case <-p.ctx.Done():
 		return 0, io.EOF
 	case bb := <-p.pipe2:
 		defer bb.Free()
-		return copy(b, bb.Bytes()), nil
+		size[0] = copy(b[0], bb.Bytes())
+		return 1, nil
 	}
 }
 
@@ -336,16 +341,23 @@ func (p *pipeReadWritePacket) ReadPipe1(b []byte) (int, error) {
 	}
 }
 
-func (p *pipeReadWritePacket) Write(b []byte) (int, error) {
-	select {
-	case p.pipe1 <- pool.GetBytesBuffer(p.mtu).Copy(b):
-		return len(b), nil
-	case <-p.ctx.Done():
-		return 0, io.ErrClosedPipe
+func (p *pipeReadWritePacket) Write(b [][]byte) (int, error) {
+	for _, bb := range b {
+		select {
+		case p.pipe1 <- pool.GetBytesBuffer(p.mtu).Copy(bb):
+			return len(b), nil
+		case <-p.ctx.Done():
+			return 0, io.ErrClosedPipe
+		}
 	}
+
+	return len(b), nil
 }
 
 func (p *pipeReadWritePacket) Close() error {
 	p.cancel()
 	return nil
 }
+
+func (p *pipeReadWritePacket) BatchSize() int { return 1 }
+func (p *pipeReadWritePacket) Prefix() int    { return 0 }

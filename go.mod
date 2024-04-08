@@ -20,7 +20,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.63.0
 	google.golang.org/protobuf v1.33.0
-	gvisor.dev/gvisor v0.0.0-20240331093445-9d995324d058
+	gvisor.dev/gvisor v0.0.0-20240408222746-2add41f7629a
 )
 
 require (
