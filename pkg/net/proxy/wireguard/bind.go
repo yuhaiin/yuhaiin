@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
-	"golang.zx2c4.com/wireguard/conn"
+	"github.com/tailscale/wireguard-go/conn"
 )
 
 var _ conn.Endpoint = (*Endpoint)(nil)

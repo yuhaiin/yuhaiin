@@ -1,21 +1,19 @@
 package tun
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
-	wun "golang.zx2c4.com/wireguard/tun"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	wun "github.com/tailscale/wireguard-go/tun"
 )
 
 type wgReadWriteCloser struct {
 	nt wun.Device
 
-	wmu   sync.Mutex
-	rmu   sync.Mutex
-	wbuf  [][]byte
-	rbuf  [][]byte
-	rsize []int
-	mtu   int
+	mtu int
 }
 
 func newWgReadWriteCloser(device wun.Device) *wgReadWriteCloser {
@@ -26,43 +24,105 @@ func newWgReadWriteCloser(device wun.Device) *wgReadWriteCloser {
 	wrwc := &wgReadWriteCloser{
 		nt:  device,
 		mtu: mtu,
-
-		wbuf:  make([][]byte, 1),
-		rbuf:  make([][]byte, 1),
-		rsize: make([]int, 1),
 	}
-
-	wrwc.wbuf[0] = make([]byte, offset+mtu)
-	wrwc.rbuf[0] = make([]byte, offset+mtu)
 
 	return wrwc
 }
 
-func (t *wgReadWriteCloser) Read(packet []byte) (int, error) {
-	t.rmu.Lock()
-	defer t.rmu.Unlock()
+func (t *wgReadWriteCloser) Read(bufs [][]byte, sizes []int) (n int, err error) {
+	if offset == 0 && t.nt.BatchSize() == 1 {
+		return t.nt.Read(bufs, sizes, offset)
+	}
 
-	_, err := t.nt.Read(t.rbuf, t.rsize, offset)
+	buffers := getBuffer(t.nt.BatchSize(), offset+t.mtu+10)
+	defer putBuffer(buffers)
+	size := buffPool(t.nt.BatchSize(), true).Get().([]int)
+	defer buffPool(t.nt.BatchSize(), true).Put(size)
+
+	count, err := t.nt.Read(buffers, size, offset)
 	if err != nil {
 		return 0, err
 	}
 
-	n := copy(packet, t.rbuf[0][offset:t.rsize[0]+offset])
-	return n, err
+	if count > len(bufs) {
+		return 0, fmt.Errorf("buffer %d is smaller than recevied: %d", len(bufs), count)
+	}
+
+	for i := range bufs {
+		copy(bufs[i], buffers[i][offset:size[i]+offset])
+		sizes[i] = size[i]
+	}
+
+	return count, err
 }
 
-func (t *wgReadWriteCloser) Write(packet []byte) (int, error) {
-	t.wmu.Lock()
-	defer t.wmu.Unlock()
+func (t *wgReadWriteCloser) Write(bufs [][]byte) (int, error) {
+	if offset == 0 && t.nt.BatchSize() == 1 {
+		return t.nt.Write(bufs, offset)
+	}
 
-	copy(t.wbuf[0][offset:], packet)
+	buffers := getBuffer(len(bufs), offset+t.mtu+10)
+	defer putBuffer(buffers)
 
-	_, err := t.nt.Write(t.wbuf, offset)
+	for i := range bufs {
+		copy(buffers[i][offset:], bufs[i])
+	}
+
+	_, err := t.nt.Write(buffers, offset)
 	if err != nil {
 		return 0, err
 	}
-	return len(packet), nil
+
+	return len(bufs), nil
 }
 
 func (t *wgReadWriteCloser) Close() error       { return t.nt.Close() }
 func (t *wgReadWriteCloser) Device() wun.Device { return t.nt }
+func (t *wgReadWriteCloser) BatchSize() int     { return t.Device().BatchSize() }
+
+type poolType struct {
+	batch int
+	size  bool
+}
+
+var poolMap syncmap.SyncMap[poolType, *sync.Pool]
+
+func buffPool(batch int, size bool) *sync.Pool {
+	t := poolType{batch, size}
+	if v, ok := poolMap.Load(t); ok {
+		return v
+	}
+
+	var p *sync.Pool
+
+	if size {
+		p = &sync.Pool{
+			New: func() any {
+				return make([]int, batch)
+			},
+		}
+	} else {
+		p = &sync.Pool{New: func() any {
+			return make([][]byte, batch)
+		}}
+	}
+	poolMap.Store(t, p)
+	return p
+}
+
+func getBuffer(batch, size int) [][]byte {
+	bufs := buffPool(batch, false).Get().([][]byte)
+
+	for i := range bufs {
+		bufs[i] = pool.GetBytes(size)
+	}
+
+	return bufs
+}
+
+func putBuffer(bufs [][]byte) {
+	for i := range bufs {
+		pool.PutBytes(bufs[i])
+	}
+	buffPool(len(bufs), false).Put(bufs)
+}

@@ -12,12 +12,19 @@ import (
 
 type Options struct {
 	Endpoint     stack.LinkEndpoint
-	Writer       io.ReadWriteCloser
+	Writer       Writer
 	Interface    TunScheme
 	Inet6Address []netip.Prefix
 	Inet4Address []netip.Prefix
 	Routes       []netip.Prefix
 	MTU          int
+}
+
+type Writer interface {
+	BatchSize() int
+	Write(bufs [][]byte) (int, error)
+	Read(bufs [][]byte, sizes []int) (n int, err error)
+	io.Closer
 }
 
 func (o *Options) V4Address() netip.Prefix {

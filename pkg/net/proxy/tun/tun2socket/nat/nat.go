@@ -94,68 +94,85 @@ func Start(opt *tun.Opt) (*Nat, error) {
 	go func() {
 		defer nat.Close()
 
-		buf := make([]byte, opt.MTU)
+		sizes := make([]int, opt.Writer.BatchSize())
+		bufs := make([][]byte, opt.Writer.BatchSize())
+		for i := range bufs {
+			bufs[i] = make([]byte, opt.MTU)
+		}
+
+		wbufs := make([][]byte, opt.Writer.BatchSize())
 
 		for {
-			n, err := opt.Writer.Read(buf)
+			n, err := opt.Writer.Read(bufs, sizes)
 			if err != nil {
+				log.Error("tun device read failed", "err", err)
 				return
 			}
 
-			raw := buf[:n]
+			wbufs = wbufs[:0]
 
-			ip := nat.processIP(raw)
-			if ip == nil {
+			for i := range n {
+				raw := bufs[i][:sizes[i]]
+
+				ip := nat.processIP(raw)
+				if ip == nil {
+					continue
+				}
+
+				if ip.PayloadLength() > uint16(len(raw)) {
+					log.Warn("ip payload length too large", "length", ip.PayloadLength(), "raw length", len(raw))
+					continue
+				}
+
+				dst, src := ip.DestinationAddress(), ip.SourceAddress()
+
+				if !net.IP(dst.AsSlice()).IsGlobalUnicast() || dst.Equal(broadcast) {
+					continue
+				}
+
+				var tp TransportProtocol
+				var pseudoHeaderSum uint16
+				var ok bool
+
+				switch ip.TransportProtocol() {
+				case header.TCPProtocolNumber:
+					tp, pseudoHeaderSum, ok = nat.processTCP(ip, src, dst)
+
+				case header.ICMPv4ProtocolNumber:
+					tp, pseudoHeaderSum, ok = processICMP(ip)
+
+				case header.ICMPv6ProtocolNumber:
+					tp, pseudoHeaderSum, ok = processICMPv6(ip)
+
+				case header.UDPProtocolNumber:
+					u := header.UDP(ip.Payload())
+					nat.UDP.handleUDPPacket(Tuple{
+						SourceAddr:      src,
+						SourcePort:      u.SourcePort(),
+						DestinationAddr: dst,
+						DestinationPort: u.DestinationPort(),
+					}, u.Payload())
+
+					continue
+
+				default:
+					continue
+				}
+
+				if !ok {
+					continue
+				}
+
+				resetCheckSum(ip, tp, pseudoHeaderSum)
+
+				wbufs = append(wbufs, raw)
+			}
+
+			if len(wbufs) == 0 {
 				continue
 			}
 
-			if ip.PayloadLength() > uint16(len(raw)) {
-				log.Warn("ip payload length too large", "length", ip.PayloadLength(), "raw length", len(raw))
-				continue
-			}
-
-			dst, src := ip.DestinationAddress(), ip.SourceAddress()
-
-			if !net.IP(dst.AsSlice()).IsGlobalUnicast() || dst.Equal(broadcast) {
-				continue
-			}
-
-			var tp TransportProtocol
-			var pseudoHeaderSum uint16
-			var ok bool
-
-			switch ip.TransportProtocol() {
-			case header.TCPProtocolNumber:
-				tp, pseudoHeaderSum, ok = nat.processTCP(ip, src, dst)
-
-			case header.ICMPv4ProtocolNumber:
-				tp, pseudoHeaderSum, ok = processICMP(ip)
-
-			case header.ICMPv6ProtocolNumber:
-				tp, pseudoHeaderSum, ok = processICMPv6(ip)
-
-			case header.UDPProtocolNumber:
-				u := header.UDP(ip.Payload())
-				nat.UDP.handleUDPPacket(Tuple{
-					SourceAddr:      src,
-					SourcePort:      u.SourcePort(),
-					DestinationAddr: dst,
-					DestinationPort: u.DestinationPort(),
-				}, u.Payload())
-
-				continue
-
-			default:
-				continue
-			}
-
-			if !ok {
-				continue
-			}
-
-			resetCheckSum(ip, tp, pseudoHeaderSum)
-
-			if _, err = opt.Writer.Write(raw); err != nil {
+			if _, err = opt.Writer.Write(wbufs); err != nil {
 				log.Error("write tcp raw to tun device failed", "err", err)
 			}
 
