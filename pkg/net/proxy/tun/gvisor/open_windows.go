@@ -3,12 +3,11 @@ package tun
 import (
 	"crypto/md5"
 	"fmt"
-	"io"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	wun "github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/sys/windows"
-	wun "golang.zx2c4.com/wireguard/tun"
 )
 
 const (
@@ -19,7 +18,7 @@ func init() {
 	wun.WintunTunnelType = "yuhaiin"
 }
 
-func OpenWriter(sc netlink.TunScheme, mtu int) (io.ReadWriteCloser, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
 	if sc.Scheme != "tun" {
 		return nil, fmt.Errorf("invalid tun: %v", sc)
 	}

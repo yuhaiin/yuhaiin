@@ -3,10 +3,10 @@ package nat
 import (
 	"context"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
@@ -17,13 +17,13 @@ type call struct {
 }
 type UDP struct {
 	mtu     int32
-	device  io.Writer
+	device  netlink.Writer
 	ctx     context.Context
 	cancel  context.CancelFunc
 	channel chan *call
 }
 
-func NewUDPv2(mtu int32, device io.Writer) *UDP {
+func NewUDPv2(mtu int32, device netlink.Writer) *UDP {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &UDP{
 		mtu:     mtu,
@@ -121,14 +121,14 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	})
 	copy(udp.Payload(), buf)
 
-	// On IPv4, UDP checksum is optional, and a zero value indicates the
-	// transmitter skipped the checksum generation (RFC768).
-	// On IPv6, UDP checksum is not optional (RFC2460 Section 8.1).
-	if tuple.SourceAddr.Len() == 16 {
-		pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber,
-			ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
-		resetCheckSum(ip, udp, pseudoSum)
+	pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber,
+		ip.SourceAddress(), ip.DestinationAddress(), ip.PayloadLength())
+	resetCheckSum(ip, udp, pseudoSum)
+
+	_, err := u.device.Write([][]byte{ipBuf[:totalLength]})
+	if err != nil {
+		return 0, err
 	}
 
-	return u.device.Write(ipBuf[:totalLength])
+	return len(buf), nil
 }

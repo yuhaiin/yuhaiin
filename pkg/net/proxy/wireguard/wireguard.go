@@ -21,7 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"golang.zx2c4.com/wireguard/device"
+	"github.com/tailscale/wireguard-go/device"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
 

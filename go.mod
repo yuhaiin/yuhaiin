@@ -5,7 +5,8 @@ go 1.22.0
 require (
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
 	github.com/quic-go/quic-go v0.42.0
-	github.com/refraction-networking/utls v1.6.3
+	github.com/refraction-networking/utls v1.6.4
+	github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240329163344-d237ee16c317
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.9
@@ -16,11 +17,10 @@ require (
 	golang.org/x/sync v0.7.0
 	golang.org/x/sys v0.19.0
 	golang.org/x/time v0.5.0
-	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	google.golang.org/grpc v1.63.0
+	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
-	gvisor.dev/gvisor v0.0.0-20240331093445-9d995324d058
+	gvisor.dev/gvisor v0.0.0-20240408222746-2add41f7629a
 )
 
 require (

@@ -23,7 +23,7 @@ type Pool interface {
 	PutBuffer(b *bytes.Buffer)
 }
 
-const DefaultSize = 10 * 0x400
+const DefaultSize = 16 * 0x400
 
 var DefaultPool Pool = &pool{}
 

@@ -109,7 +109,7 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 		return true
 	}
 
-	f.SendPacket(&netapi.Packet{
+	_ = f.SendPacket(&netapi.Packet{
 		Src:     netapi.ParseAddrPort(statistic.Type_udp, netip.AddrPortFrom(srcAddr, srcPort)),
 		Dst:     netapi.ParseAddrPort(statistic.Type_udp, netip.AddrPortFrom(dstAddr, dstPort)),
 		Payload: buf.Unwrap(),
