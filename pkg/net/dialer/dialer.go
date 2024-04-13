@@ -6,6 +6,13 @@ import (
 	"syscall"
 )
 
+// UDP socket read/write buffer size (7MB). The value of 7MB is chosen as it is
+// the max supported by a default configuration of macOS. Some platforms will
+// silently clamp the value to other maximums, such as linux clamping to
+// net.core.{r,w}mem_max (see _linux.go for additional implementation that works
+// around this limitation)
+const SocketBufferSize = 7 << 20
+
 func ListenContext(ctx context.Context, network string, address string) (net.Listener, error) {
 	return ListenContextWithOptions(ctx, network, address, &Options{
 		InterfaceName:  DefaultInterfaceName,

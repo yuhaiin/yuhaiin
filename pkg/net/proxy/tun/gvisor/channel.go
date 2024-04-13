@@ -37,13 +37,13 @@ type Endpoint struct {
 	wg  sync.WaitGroup
 	mtu uint32
 
-	dev netlink.Writer
+	dev netlink.Tun
 
 	attached bool
 }
 
 // New creates a new channel endpoint.
-func NewEndpoint(w netlink.Writer, mtu uint32) *Endpoint {
+func NewEndpoint(w netlink.Tun, mtu uint32) *Endpoint {
 	return &Endpoint{
 		mtu: mtu,
 		dev: w,
@@ -52,12 +52,13 @@ func NewEndpoint(w netlink.Writer, mtu uint32) *Endpoint {
 
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
-func (e *Endpoint) Close() {
+func (e *Endpoint) Close() error {
 	e.dev.Close()
 	e.wg.Wait()
+	return nil
 }
 
-func (e *Endpoint) Writer() netlink.Writer {
+func (e *Endpoint) Writer() netlink.Tun {
 	return e.dev
 }
 
@@ -74,14 +75,14 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 		e.wg.Add(1)
 		go func() {
 			defer e.wg.Done()
-			e.dispatchLoop(dispatcher)
+			e.attachForward(dispatcher)
 		}()
 	}
 }
 
-func (e *Endpoint) dispatchLoop(dispatcher stack.NetworkDispatcher) {
-	bufs := make([][]byte, e.dev.BatchSize())
-	size := make([]int, e.dev.BatchSize())
+func (e *Endpoint) attachForward(dispatcher stack.NetworkDispatcher) {
+	bufs := make([][]byte, e.dev.Tun().BatchSize())
+	size := make([]int, e.dev.Tun().BatchSize())
 
 	for i := range bufs {
 		bufs[i] = make([]byte, e.mtu)
@@ -89,10 +90,6 @@ func (e *Endpoint) dispatchLoop(dispatcher stack.NetworkDispatcher) {
 
 	for {
 		n, err := e.dev.Read(bufs, size)
-		if err != nil {
-			return
-		}
-
 		for i := range n {
 			buf := bufs[i][:size[i]]
 
@@ -103,7 +100,6 @@ func (e *Endpoint) dispatchLoop(dispatcher stack.NetworkDispatcher) {
 			case header.IPv6Version:
 				p = header.IPv6ProtocolNumber
 			default:
-				_, _ = e.dev.Write([][]byte{buf})
 				continue
 			}
 
@@ -113,6 +109,10 @@ func (e *Endpoint) dispatchLoop(dispatcher stack.NetworkDispatcher) {
 				})
 			dispatcher.DeliverNetworkPacket(p, pkt)
 			pkt.DecRef()
+		}
+		if err != nil {
+			log.Error("dev read failed", "err", err)
+			return
 		}
 	}
 }

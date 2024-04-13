@@ -16,7 +16,7 @@ const (
 	offset = 4
 )
 
-func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 	if len(sc.Name) >= unix.IFNAMSIZ {
 		return nil, fmt.Errorf("interface name too long: %s", sc.Name)
 	}
@@ -32,5 +32,5 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
-	return newWgReadWriteCloser(device), nil
+	return NewDevice(device, offset), nil
 }

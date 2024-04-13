@@ -30,17 +30,24 @@ type tunServer struct {
 
 func (t *tunServer) Close() error {
 
+	log.Debug("start close tun server")
+
+	log.Debug("start close endpoint")
 	var err error
 	if ep, ok := t.ep.(io.Closer); ok {
 		err = ep.Close()
 	}
 
+	log.Debug("start close stack")
 	if t.stack != nil {
+		log.Debug("start remove routes")
 		t.stack.RemoveRoutes(func(r tcpip.Route) bool {
 			return true
 		})
+		log.Debug("start destroy stack")
 		t.stack.Destroy()
 	}
+	log.Debug("start close tun channel server")
 	t.ChannelServer.Close()
 	return err
 }

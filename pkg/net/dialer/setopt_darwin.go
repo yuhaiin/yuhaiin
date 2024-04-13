@@ -17,6 +17,11 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 
 	var innerErr error
 	err = c.Control(func(fd uintptr) {
+		if opts.listener {
+			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_RCVBUF, SocketBufferSize)
+			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_SNDBUF, SocketBufferSize)
+		}
+
 		if isTCPSocket(network) {
 			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, sysTCP_KEEPINTVL, int(15))
 			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPALIVE, int(180))

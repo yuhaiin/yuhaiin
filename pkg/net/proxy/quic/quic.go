@@ -126,7 +126,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 	}
 
 	config := &quic.Config{
-		KeepAlivePeriod: 30 * time.Second,
+		KeepAlivePeriod: 15 * time.Second,
 		MaxIdleTimeout:  nat.IdleTimeout,
 		EnableDatagrams: true,
 	}
