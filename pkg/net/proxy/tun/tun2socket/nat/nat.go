@@ -3,6 +3,7 @@ package nat
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -14,23 +15,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
-
-var _ IP = (header.IPv4)(nil)
-
-type IP interface {
-	Payload() []byte
-	SourceAddress() tcpip.Address
-	DestinationAddress() tcpip.Address
-	SetSourceAddress(tcpip.Address)
-	SetDestinationAddress(tcpip.Address)
-	SetChecksum(v uint16)
-	PayloadLength() uint16
-	TransportProtocol() tcpip.TransportProtocolNumber
-}
-
-type TransportProtocol interface {
-	SetChecksum(v uint16)
-}
 
 type Nat struct {
 	*TCP
@@ -94,13 +78,13 @@ func Start(opt *tun.Opt) (*Nat, error) {
 	go func() {
 		defer nat.Close()
 
-		sizes := make([]int, opt.Writer.BatchSize())
-		bufs := make([][]byte, opt.Writer.BatchSize())
+		sizes := make([]int, opt.Writer.Tun().BatchSize())
+		bufs := make([][]byte, opt.Writer.Tun().BatchSize())
 		for i := range bufs {
 			bufs[i] = make([]byte, opt.MTU)
 		}
 
-		wbufs := make([][]byte, opt.Writer.BatchSize())
+		wbufs := make([][]byte, opt.Writer.Tun().BatchSize())
 
 		for {
 			n, err := opt.Writer.Read(bufs, sizes)
@@ -112,6 +96,10 @@ func Start(opt *tun.Opt) (*Nat, error) {
 			wbufs = wbufs[:0]
 
 			for i := range n {
+				if sizes[i] < header.IPv4MinimumSize {
+					continue
+				}
+
 				raw := bufs[i][:sizes[i]]
 
 				ip := nat.processIP(raw)
@@ -119,8 +107,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 					continue
 				}
 
-				if ip.PayloadLength() > uint16(len(raw)) {
-					log.Warn("ip payload length too large", "length", ip.PayloadLength(), "raw length", len(raw))
+				if len(ip.Payload()) > len(raw) {
 					continue
 				}
 
@@ -130,7 +117,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 					continue
 				}
 
-				var tp TransportProtocol
+				var tp header.Transport
 				var pseudoHeaderSum uint16
 				var ok bool
 
@@ -146,12 +133,17 @@ func Start(opt *tun.Opt) (*Nat, error) {
 
 				case header.UDPProtocolNumber:
 					u := header.UDP(ip.Payload())
-					nat.UDP.handleUDPPacket(Tuple{
-						SourceAddr:      src,
-						SourcePort:      u.SourcePort(),
-						DestinationAddr: dst,
-						DestinationPort: u.DestinationPort(),
-					}, u.Payload())
+					if u.Length() == 0 {
+						continue
+					}
+
+					nat.UDP.handleUDPPacket(
+						Tuple{
+							SourceAddr:      src,
+							SourcePort:      u.SourcePort(),
+							DestinationAddr: dst,
+							DestinationPort: u.DestinationPort(),
+						}, u.Payload())
 
 					continue
 
@@ -182,7 +174,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 	return nat, nil
 }
 
-func (n *Nat) processIP(raw []byte) IP {
+func (n *Nat) processIP(raw []byte) header.Network {
 	switch header.IPVersion(raw) {
 	case header.IPv4Version:
 		ipv4 := header.IPv4(raw)
@@ -214,8 +206,7 @@ func (n *Nat) processIP(raw []byte) IP {
 	return nil
 }
 
-func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, pseudoHeaderSum uint16, _ bool) {
-
+func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Transport, pseudoHeaderSum uint16, _ bool) {
 	t := header.TCP(ip.Payload())
 
 	sourcePort := t.SourcePort()
@@ -231,19 +222,16 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 	if address.Unspecified() || portal.Unspecified() {
 		return nil, 0, false
 	}
-
-	if dst.Equal(portal) {
-		if src == address && sourcePort == n.gatewayPort {
-			tup := n.tab.tupleOf(destinationPort, dst.Len() == 16)
-			if tup == zeroTuple {
-				return nil, 0, false
-			}
-
-			ip.SetDestinationAddress(tup.SourceAddr)
-			t.SetDestinationPort(tup.SourcePort)
-			ip.SetSourceAddress(tup.DestinationAddr)
-			t.SetSourcePort(tup.DestinationPort)
+	if src == address && sourcePort == n.gatewayPort {
+		tup := n.tab.tupleOf(destinationPort, dst.Len() == 16)
+		if tup == zeroTuple {
+			return nil, 0, false
 		}
+
+		ip.SetDestinationAddress(tup.SourceAddr)
+		t.SetDestinationPort(tup.SourcePort)
+		ip.SetSourceAddress(tup.DestinationAddr)
+		t.SetSourcePort(tup.DestinationPort)
 	} else {
 		tup := Tuple{
 			SourceAddr:      src,
@@ -253,14 +241,6 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 		}
 
 		port := n.tab.portOf(tup)
-		// if port == 0 {
-		// 	if t.Flags() != header.TCPFlagSyn {
-		// 		return nil, 0, false
-		// 	}
-
-		// 	port = n.tab.newConn(tup)
-		// }
-
 		ip.SetDestinationAddress(address)
 		t.SetDestinationPort(n.gatewayPort)
 		ip.SetSourceAddress(portal)
@@ -270,7 +250,7 @@ func (n *Nat) processTCP(ip IP, src, dst tcpip.Address) (_ TransportProtocol, ps
 	pseudoHeaderSum = header.PseudoHeaderChecksum(header.TCPProtocolNumber,
 		ip.SourceAddress(),
 		ip.DestinationAddress(),
-		ip.PayloadLength(),
+		uint16(len(ip.Payload())),
 	)
 
 	return t, pseudoHeaderSum, true
@@ -294,7 +274,7 @@ func (n *Nat) Close() error {
 	return err
 }
 
-func processICMP(ip IP) (_ TransportProtocol, pseudoHeaderSum uint16, _ bool) {
+func processICMP(ip header.Network) (_ header.Transport, pseudoHeaderSum uint16, _ bool) {
 	i := header.ICMPv4(ip.Payload())
 
 	if i.Type() != header.ICMPv4Echo || i.Code() != 0 {
@@ -312,7 +292,7 @@ func processICMP(ip IP) (_ TransportProtocol, pseudoHeaderSum uint16, _ bool) {
 	return i, pseudoHeaderSum, true
 }
 
-func processICMPv6(ip IP) (_ TransportProtocol, pseudoHeaderSum uint16, _ bool) {
+func processICMPv6(ip header.Network) (_ header.Transport, pseudoHeaderSum uint16, _ bool) {
 	i := header.ICMPv6(ip.Payload())
 
 	if i.Type() != header.ICMPv6EchoRequest || i.Code() != 0 {
@@ -333,11 +313,41 @@ func processICMPv6(ip IP) (_ TransportProtocol, pseudoHeaderSum uint16, _ bool) 
 	return i, pseudoHeaderSum, true
 }
 
-func resetCheckSum(ip IP, tp TransportProtocol, pseudoHeaderSum uint16) {
+func resetCheckSum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
+	resetIPCheckSum(ip)
+	resetTransportCheckSum(ip, tp, pseudoHeaderSum)
+}
+
+func resetIPCheckSum(ip header.Network) {
 	if ip, ok := ip.(header.IPv4); ok {
 		ip.SetChecksum(0)
-		ip.SetChecksum(^checksum.Checksum(ip[:ip.HeaderLength()], 0))
+		sum := ip.CalculateChecksum()
+		ip.SetChecksum(^sum)
 	}
+}
+
+func resetTransportCheckSum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
 	tp.SetChecksum(0)
-	tp.SetChecksum(^checksum.Checksum(ip.Payload(), pseudoHeaderSum))
+	sum := checksum.Checksum(ip.Payload(), pseudoHeaderSum)
+
+	//https://datatracker.ietf.org/doc/html/rfc768
+	//
+	// If the computed  checksum  is zero,  it is transmitted  as all ones (the
+	// equivalent  in one's complement  arithmetic).   An all zero  transmitted
+	// checksum  value means that the transmitter  generated  no checksum  (for
+	// debugging or for higher level protocols that don't care).
+	//
+	// https://datatracker.ietf.org/doc/html/rfc8200
+	// Unlike IPv4, the default behavior when UDP packets are
+	//  originated by an IPv6 node is that the UDP checksum is not
+	//  optional.  That is, whenever originating a UDP packet, an IPv6
+	//  node must compute a UDP checksum over the packet and the
+	//  pseudo-header, and, if that computation yields a result of
+	//  zero, it must be changed to hex FFFF for placement in the UDP
+	//  header.  IPv6 receivers must discard UDP packets containing a
+	//  zero checksum and should log the error.
+	if ip.TransportProtocol() != header.UDPProtocolNumber || sum != math.MaxUint16 {
+		sum = ^sum
+	}
+	tp.SetChecksum(sum)
 }

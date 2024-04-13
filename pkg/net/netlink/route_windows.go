@@ -15,17 +15,13 @@ func Route(opt *Options) error {
 	var device wun.Device
 
 	if opt.Writer == nil && opt.Endpoint != nil {
-		if w, ok := opt.Endpoint.(interface{ Writer() Writer }); ok {
+		if w, ok := opt.Endpoint.(interface{ Writer() Tun }); ok {
 			opt.Writer = w.Writer()
 		}
 	}
 
 	if opt.Writer != nil {
-		dev, ok := opt.Writer.(interface{ Device() wun.Device })
-		if !ok {
-			return fmt.Errorf("invalid device type")
-		}
-		device = dev.Device()
+		device = opt.Writer.Tun()
 	}
 
 	tt, ok := device.(*wun.NativeTun)
@@ -86,6 +82,7 @@ func setAddress(luid winipcfg.LUID, family winipcfg.AddressFamily, address netip
 	}
 	return nil
 }
+
 func setInetIf(inetIf *winipcfg.MibIPInterfaceRow, mtu int) error {
 	inetIf.ForwardingEnabled = true
 	inetIf.RouterDiscoveryBehavior = winipcfg.RouterDiscoveryDisabled

@@ -2,12 +2,14 @@ package netlink
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
 	"syscall"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
 )
@@ -74,22 +76,14 @@ func Route(options *Options) error {
 		}
 	}
 
-	for _, route := range options.Routes {
-		if route.Addr().Is4() {
-			if len(options.Inet4Address) <= 0 {
-				continue
-			}
-			if err := addRoute(route, options.V4Address().Addr()); err != nil {
-				return err
-			}
-		} else {
-			if len(options.Inet6Address) <= 0 {
-				continue
-			}
-			if err := addRoute(route, options.V6Address().Addr()); err != nil {
-				return err
-			}
+	var err error
+	for _, v := range options.Routes {
+		if v.Addr().Is4() && options.V4Address().IsValid() {
+			err = addRoute(v, options.V4Address().Addr())
+		} else if options.V6Address().IsValid() {
+			err = addRoute(v, options.V6Address().Addr())
 		}
+		log.Error("add route failed", slog.Any("err", err))
 	}
 
 	return nil

@@ -3,15 +3,12 @@ package wireguard
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/netip"
 	"os"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	gun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -28,7 +25,7 @@ type netTun struct {
 	stack        *stack.Stack
 	events       chan tun.Event
 	hasV4, hasV6 bool
-	dev          *pipeReadWritePacket
+	dev          *gun.ChannelTun
 }
 
 type Net netTun
@@ -40,12 +37,12 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 		HandleLocal:        true,
 	}
 
-	rwc := newPipeReadWritePacket(context.TODO(), mtu)
+	rwc := gun.NewChannelTun(context.TODO(), mtu)
 	dev := &netTun{
-		ep:     gun.NewEndpoint(rwc, uint32(mtu)),
+		ep:     gun.NewEndpoint(gun.NewDevice(rwc, 0), uint32(mtu)),
 		dev:    rwc,
 		stack:  stack.New(opts),
-		events: make(chan tun.Event, 10),
+		events: make(chan tun.Event, 1),
 	}
 
 	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // TCP SACK is disabled by default
@@ -96,11 +93,11 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 		dev.stack.AddRoute(tcpip.Route{Destination: header.IPv6EmptySubnet, NIC: 1})
 	}
 
-	// opt := tcpip.CongestionControlOption("reno")
-	// if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
-	// 	dev.Close()
-	// 	return nil, nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
-	// }
+	opt := tcpip.CongestionControlOption("cubic")
+	if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
+		dev.Close()
+		return nil, nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
+	}
 
 	dev.events <- tun.EventUp
 	return dev, (*Net)(dev), nil
@@ -137,8 +134,7 @@ func (tun *netTun) BatchSize() int           { return 1 }
 
 func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
 	var err error
-	size[0], err = tun.dev.ReadPipe1(buf[0][offset:])
-
+	size[0], err = tun.dev.Inbound(buf[0][offset:])
 	if err != nil {
 		return 0, err
 	}
@@ -155,7 +151,7 @@ func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
 			continue
 		}
 
-		err := tun.dev.WritePipe2(packet)
+		err := tun.dev.Outbound(packet)
 		if err != nil {
 			if n > 0 {
 				return n, nil
@@ -178,6 +174,7 @@ func (tun *netTun) Close() error {
 		close(tun.events)
 	}
 	tun.ep.Close()
+	tun.dev.Close()
 	return nil
 }
 
@@ -284,80 +281,3 @@ func (net *Net) ListenUDP(laddr *net.UDPAddr) (*gonet.UDPConn, error) {
 
 func (n *Net) HasV4() bool { return n.hasV4 }
 func (n *Net) HasV6() bool { return n.hasV6 }
-
-type pipeReadWritePacket struct {
-	mtu    int
-	pipe1  chan *pool.Bytes
-	pipe2  chan *pool.Bytes
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-func newPipeReadWritePacket(ctx context.Context, mtu int) *pipeReadWritePacket {
-	if mtu <= 0 {
-		mtu = nat.MaxSegmentSize
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	return &pipeReadWritePacket{
-		mtu:    mtu,
-		pipe1:  make(chan *pool.Bytes, 100),
-		pipe2:  make(chan *pool.Bytes, 100),
-		ctx:    ctx,
-		cancel: cancel,
-	}
-}
-
-func (p *pipeReadWritePacket) WritePipe2(b []byte) error {
-	select {
-	case p.pipe2 <- pool.GetBytesBuffer(p.mtu).Copy(b):
-		return nil
-	case <-p.ctx.Done():
-		return io.ErrClosedPipe
-	}
-}
-
-func (p *pipeReadWritePacket) Read(b [][]byte, size []int) (int, error) {
-	if len(b) == 0 {
-		return 0, nil
-	}
-
-	select {
-	case <-p.ctx.Done():
-		return 0, io.EOF
-	case bb := <-p.pipe2:
-		defer bb.Free()
-		size[0] = copy(b[0], bb.Bytes())
-		return 1, nil
-	}
-}
-
-func (p *pipeReadWritePacket) ReadPipe1(b []byte) (int, error) {
-	select {
-	case <-p.ctx.Done():
-		return 0, io.EOF
-	case bb := <-p.pipe1:
-		defer bb.Free()
-		return copy(b, bb.Bytes()), nil
-	}
-}
-
-func (p *pipeReadWritePacket) Write(b [][]byte) (int, error) {
-	for _, bb := range b {
-		select {
-		case p.pipe1 <- pool.GetBytesBuffer(p.mtu).Copy(bb):
-			return len(b), nil
-		case <-p.ctx.Done():
-			return 0, io.ErrClosedPipe
-		}
-	}
-
-	return len(b), nil
-}
-
-func (p *pipeReadWritePacket) Close() error {
-	p.cancel()
-	return nil
-}
-
-func (p *pipeReadWritePacket) BatchSize() int { return 1 }
-func (p *pipeReadWritePacket) Prefix() int    { return 0 }

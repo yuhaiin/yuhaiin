@@ -18,7 +18,7 @@ func init() {
 	wun.WintunTunnelType = "yuhaiin"
 }
 
-func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 	if sc.Scheme != "tun" {
 		return nil, fmt.Errorf("invalid tun: %v", sc)
 	}
@@ -29,7 +29,7 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
 
-	return newWgReadWriteCloser(device), nil
+	return NewDevice(device, offset), nil
 }
 
 func generateGUIDByDeviceName(name string) *windows.GUID {

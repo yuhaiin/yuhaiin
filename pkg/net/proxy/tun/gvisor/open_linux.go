@@ -13,7 +13,7 @@ const (
 	offset = 0
 )
 
-func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
+func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 	var err error
 	var device wun.Device
 	switch sc.Scheme {
@@ -37,7 +37,7 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Writer, error) {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
 
-	return newWgReadWriteCloser(device), nil
+	return NewDevice(device, offset), nil
 }
 
 type wrapGsoDevice struct {

@@ -3,6 +3,7 @@ package pool
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"math/bits"
 	"net"
 	"net/http/httputil"
@@ -13,7 +14,7 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
-var MaxSegmentSize = (1 << 16) - 1
+var MaxSegmentSize = math.MaxUint16
 
 type Pool interface {
 	GetBytes(size int) []byte

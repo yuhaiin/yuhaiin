@@ -4,6 +4,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
@@ -31,6 +32,9 @@ func (t *TCP) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	_ = c.SetWriteBuffer(dialer.SocketBufferSize)
+	_ = c.SetReadBuffer(dialer.SocketBufferSize)
 
 	addr := c.RemoteAddr().(*net.TCPAddr)
 
@@ -94,7 +98,6 @@ func (t *TCP) SetDeadline(time time.Time) error {
 }
 
 func (c *Conn) Close() error {
-	_ = c.TCPConn.SetLinger(0)
 	return c.TCPConn.Close()
 }
 
