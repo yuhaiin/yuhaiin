@@ -186,9 +186,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 				RecursionAvailable: false,
 				RCode:              0,
 			},
-			Questions: []dnsmessage.Question{
-				req,
-			},
+			Questions:   []dnsmessage.Question{req},
 			Additionals: c.subnet,
 		}
 

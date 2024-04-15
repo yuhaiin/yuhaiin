@@ -83,7 +83,9 @@ func Route(options *Options) error {
 		} else if options.V6Address().IsValid() {
 			err = addRoute(v, options.V6Address().Addr())
 		}
-		log.Error("add route failed", slog.Any("err", err))
+		if err != nil {
+			log.Error("add route failed", slog.Any("err", err))
+		}
 	}
 
 	return nil

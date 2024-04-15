@@ -36,7 +36,7 @@ func init() {
 
 func NewClient(config *protocol.Protocol_Yuubinsya) point.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		auth, err := NewAuth(config.Yuubinsya.GetEncrypted(), []byte(config.Yuubinsya.Password))
+		auth, err := NewAuth(config.Yuubinsya.GetUdpEncrypt(), []byte(config.Yuubinsya.Password))
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +46,7 @@ func NewClient(config *protocol.Protocol_Yuubinsya) point.WrapProxy {
 			config.Yuubinsya.UdpOverStream,
 			NewHandshaker(
 				false,
-				config.Yuubinsya.GetEncrypted(),
+				config.Yuubinsya.GetTcpEncrypt(),
 				[]byte(config.Yuubinsya.Password),
 			),
 			auth,

@@ -142,9 +142,12 @@ message route {
 }
 
 message yuubinsya {
+  reserved 8;
+  reserved "force_disable_encrypt";
   string host = 1 [ json_name = "host", deprecated = true ];
   string password = 2 [ json_name = "password" ];
-  bool force_disable_encrypt = 8 [ json_name = "force_disable_encrypt" ];
+  bool tcp_encrypt = 12 [ json_name = "tcp_encrypt" ];
+  bool udp_encrypt = 13 [ json_name = "udp_encrypt" ];
   bool mux = 11 [ json_name = "mux" ];
   message protocol_normal {};
   oneof protocol {

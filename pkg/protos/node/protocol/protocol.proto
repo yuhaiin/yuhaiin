@@ -78,8 +78,11 @@ message trojan {
 }
 
 message yuubinsya {
+  reserved 2;
+  reserved "encrypted";
   string password = 1 [ json_name = "password" ];
-  bool encrypted = 2 [ json_name = "encrypted" ];
+  bool tcp_encrypt = 4 [ json_name = "tcp_encrypt" ];
+  bool udp_encrypt = 5 [ json_name = "udp_encrypt" ];
   bool udp_over_stream = 3 [ json_name = "udp_over_stream" ];
 }
 
