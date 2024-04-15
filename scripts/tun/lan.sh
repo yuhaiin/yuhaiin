@@ -9,7 +9,7 @@ TUN_NAME=${TUN_NAME:-tun0}
 
 sudo ip route flush table ${TABLE}
 
-sudo ip route replace default dev tun0 table ${TABLE}
+sudo ip route replace default dev ${TUN_NAME} table ${TABLE}
 
 for lan in ${LAN_IPS}; do
     sudo ip rule add from ${lan} lookup ${TABLE} priority 30000

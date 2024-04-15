@@ -31,7 +31,7 @@ func init() {
 
 func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accepter, error) {
 	return func(ii netapi.Listener) (netapi.Accepter, error) {
-		auth, err := NewAuth(!config.Yuubinsya.ForceDisableEncrypt, []byte(config.Yuubinsya.Password))
+		auth, err := NewAuth(config.Yuubinsya.GetUdpEncrypt(), []byte(config.Yuubinsya.Password))
 		if err != nil {
 			return nil, err
 		}
@@ -40,7 +40,7 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accep
 			listener: ii,
 			handshaker: NewHandshaker(
 				true,
-				!config.Yuubinsya.ForceDisableEncrypt,
+				config.Yuubinsya.GetTcpEncrypt(),
 				[]byte(config.Yuubinsya.Password),
 			),
 

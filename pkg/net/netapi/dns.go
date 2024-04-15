@@ -111,30 +111,3 @@ func (d *DNSErrCode) As(err any) bool {
 
 	return ok
 }
-
-type DropResolver struct{}
-
-func (e DropResolver) LookupIP(_ context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
-	return nil, NewDNSErrCode(dnsmessage.RCodeSuccess)
-}
-
-func (e DropResolver) Close() error { return nil }
-func (e DropResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	return dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:                 0,
-			Response:           true,
-			Authoritative:      false,
-			RecursionDesired:   false,
-			RCode:              dnsmessage.RCodeSuccess,
-			RecursionAvailable: false,
-		},
-		Questions: []dnsmessage.Question{
-			{
-				Name:  req.Name,
-				Type:  req.Type,
-				Class: dnsmessage.ClassINET,
-			},
-		},
-	}, nil
-}
