@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"golang.org/x/exp/constraints"
 )
@@ -339,4 +340,22 @@ func ParsePortStr(p string) (Port, error) {
 	}
 
 	return PortUint16(pt), nil
+}
+
+func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
+	if !addr.IsFqdn() {
+		return dialer.DialContext(ctx, "tcp", addr.String())
+	}
+
+	ips, err := addr.IPs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
+	for _, i := range rand.Perm(len(ips)) {
+		tcpAddress = append(tcpAddress, &net.TCPAddr{IP: ips[i], Port: int(addr.Port().Port())})
+	}
+
+	return dialer.DialHappyEyeballs(ctx, tcpAddress)
 }
