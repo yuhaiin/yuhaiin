@@ -24,7 +24,6 @@ type Simple struct {
 	refresh    atomic.Bool
 	index      atomic.Uint32
 	updateTime time.Time
-	timeout    time.Duration
 }
 
 func init() {
@@ -39,16 +38,9 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 			addrs = append(addrs, netapi.ParseAddressPort(0, v.GetHost(), netapi.ParsePort(v.GetPort())))
 		}
 
-		timeout := time.Second * 3
-
-		if c.Simple.Timeout > 0 {
-			timeout = time.Second * time.Duration(c.Simple.Timeout)
-		}
-
 		simple := &Simple{
-			addrs:   addrs,
-			timeout: timeout,
-			p:       p,
+			addrs: addrs,
+			p:     p,
 		}
 
 		return simple, nil
@@ -56,24 +48,11 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 }
 
 func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.timeout)
-	defer cancel()
-
 	if c.p != nil && !point.IsBootstrap(c.p) {
 		return c.p.Conn(ctx, addr)
 	}
 
-	ip, err := addr.IP(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	con, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), addr.Port().String()))
-	if err != nil {
-		return nil, err
-	}
-
-	return con, nil
+	return netapi.DialHappyEyeballs(ctx, addr)
 }
 
 func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
@@ -119,7 +98,15 @@ func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 	var conn net.Conn
 
 	for i, addr := range c.addrs {
-		con, er := c.dial(ctx, addr)
+		dialCtx, cancel, er := dialer.PartialDeadlineCtx(ctx, len(c.addrs)-i)
+		if er != nil {
+			// Ran out of time.
+			err = errors.Join(err, er)
+			break
+		}
+		defer cancel()
+
+		con, er := c.dial(dialCtx, addr)
 		if er != nil {
 			err = errors.Join(err, er)
 			continue
