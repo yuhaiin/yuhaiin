@@ -21,7 +21,6 @@ type Simple struct {
 	p netapi.Proxy
 
 	addrs      []netapi.Address
-	refresh    atomic.Bool
 	index      atomic.Uint32
 	updateTime time.Time
 }
@@ -47,7 +46,14 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 	}
 }
 
-func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+func (c *Simple) dial(ctx context.Context, addr netapi.Address, length int) (net.Conn, error) {
+	ctx, cancel, er := dialer.PartialDeadlineCtx(ctx, length)
+	if er != nil {
+		// Ran out of time.
+		return nil, er
+	}
+	defer cancel()
+
 	if c.p != nil && !point.IsBootstrap(c.p) {
 		return c.p.Conn(ctx, addr)
 	}
@@ -56,57 +62,44 @@ func (c *Simple) dial(ctx context.Context, addr netapi.Address) (net.Conn, error
 }
 
 func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
-	var conn net.Conn
-	var err error
-
-	index := c.index.Load()
-
-	if index == 0 {
-		conn, err = c.dialGroup(ctx)
-	} else {
-		conn, err = c.dial(ctx, c.addrs[index])
-
-		if time.Since(c.updateTime) > time.Minute*15 && c.refresh.CompareAndSwap(false, true) {
-			go func() {
-				defer c.refresh.Store(false)
-				con, err := c.dialGroup(ctx)
-				if err != nil {
-					return
-				}
-				con.Close()
-			}()
-		}
-	}
-
-	if err != nil {
-		c.index.Store(0)
-		return nil, fmt.Errorf("simple dial failed: %w", err)
-	}
-
+	return c.dialGroup(ctx)
 	// tconn, ok := conn.(*net.TCPConn)
 	// if ok {
 	// _ = tconn.SetKeepAlive(true)
 	// https://github.com/golang/go/issues/48622
 	// _ = tconn.SetKeepAlivePeriod(time.Minute * 3)
 	// }
-
-	return conn, nil
 }
 
 func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 	var err error
 	var conn net.Conn
 
-	for i, addr := range c.addrs {
-		dialCtx, cancel, er := dialer.PartialDeadlineCtx(ctx, len(c.addrs)-i)
-		if er != nil {
-			// Ran out of time.
-			err = errors.Join(err, er)
-			break
-		}
-		defer cancel()
+	lastIndex := c.index.Load()
+	index := lastIndex
+	if lastIndex != 0 && time.Since(c.updateTime) > time.Minute*15 {
+		index = 0
+	}
 
-		con, er := c.dial(dialCtx, addr)
+	length := len(c.addrs)
+
+	conn, err = c.dial(ctx, c.addrs[index], length)
+	if err == nil {
+		if lastIndex != 0 && index == 0 {
+			c.index.Store(0)
+		}
+
+		return conn, nil
+	}
+
+	for i, addr := range c.addrs {
+		if i == int(index) {
+			continue
+		}
+
+		length--
+
+		con, er := c.dial(ctx, addr, length)
 		if er != nil {
 			err = errors.Join(err, er)
 			continue
@@ -143,7 +136,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	if err != nil {
 		return nil, err
 	}
-	ur := c.addrs[0].UDPAddr(ctx)
+	ur := c.addrs[c.index.Load()].UDPAddr(ctx)
 
 	if ur.Err != nil {
 		return nil, ur.Err
