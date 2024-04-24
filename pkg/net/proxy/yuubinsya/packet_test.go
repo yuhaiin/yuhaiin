@@ -1,7 +1,7 @@
 package yuubinsya
 
 import (
-	"bytes"
+	"math/rand/v2"
 	"net"
 	"testing"
 
@@ -9,15 +9,26 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
+
+var letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randSeq(n int) []byte {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letters[rand.IntN(len(letters))]
+	}
+	return b
+}
 
 func TestEncode(t *testing.T) {
 	auth, err := crypto.GetAuth([]byte("test"))
 	assert.NoError(t, err)
 
-	buf := bytes.NewBuffer(nil)
+	buf := pool.GetBytesWriter(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		[]byte("ssxscsddfscscdsvfsdc sdcs"), auth, true))
+		randSeq(rand.IntN(1000)), auth, true))
 
 	t.Log(buf.Bytes())
 
@@ -28,10 +39,10 @@ func TestEncode(t *testing.T) {
 
 	plainauth := plain.NewAuth([]byte{1, 2, 3, 4, 5})
 
-	buf = bytes.NewBuffer(nil)
+	buf = pool.GetBytesWriter(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		[]byte("ssxscsddfscscdsvfsdc sdcs"), plainauth, true))
+		randSeq(rand.IntN(1000)), plainauth, true))
 
 	t.Log(buf.Bytes())
 
@@ -40,10 +51,10 @@ func TestEncode(t *testing.T) {
 
 	t.Log(data, addr)
 
-	buf = bytes.NewBuffer(nil)
+	buf = pool.GetBytesWriter(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		[]byte("ssxscsddfscscdsvfsdc sdcs"), nil, false))
+		randSeq(rand.IntN(1000)), nil, false))
 
 	t.Log(buf.Bytes())
 

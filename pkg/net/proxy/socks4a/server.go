@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/netip"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -79,12 +78,9 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		target = netapi.ParseAddressPort(statistic.Type_tcp, string(host), netapi.ParsePort(port))
 	} else {
-		addr, _ := netip.AddrFromSlice(dstAddr)
-
-		target = netapi.ParseAddrPort(statistic.Type_tcp, netip.AddrPortFrom(addr, port))
+		target = netapi.ParseIPAddrPort(statistic.Type_tcp, dstAddr, int(port))
 	}
 
 	_, _ = conn.Write([]byte{0, 90})

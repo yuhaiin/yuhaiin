@@ -25,7 +25,11 @@ func init() {
 
 func NewClient(config *protocol.Protocol_Http) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		return &client{Proxy: p, user: config.Http.User, password: config.Http.Password}, nil
+		return &client{
+			Proxy:    p,
+			user:     config.Http.User,
+			password: config.Http.Password,
+		}, nil
 	}
 }
 

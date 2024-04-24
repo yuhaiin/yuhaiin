@@ -251,6 +251,15 @@ func (b *Buffer) Write(bb []byte) (int, error) {
 	return n, nil
 }
 
+func (b *Buffer) Advance(i int) {
+	free := len(b.freeSlice())
+	if free < i {
+		b.b.end += free
+	} else {
+		b.b.end += i
+	}
+}
+
 func (b *Buffer) WriteString(s string) {
 	_, _ = b.Write(unsafe.Slice(unsafe.StringData(s), len(s)))
 }

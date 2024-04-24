@@ -17,6 +17,12 @@ type wgDevice struct {
 	wun.Device
 	mtu    int
 	offset int
+
+	rmu      sync.Mutex
+	wmu      sync.Mutex
+	wbuffers [][]byte
+	rbuffers [][]byte
+	rsize    []int
 }
 
 func NewDevice(device wun.Device, offset int) *wgDevice {
@@ -28,6 +34,10 @@ func NewDevice(device wun.Device, offset int) *wgDevice {
 		Device: device,
 		mtu:    mtu,
 		offset: offset,
+
+		wbuffers: getBuffer(device.BatchSize(), offset+mtu+10),
+		rbuffers: getBuffer(device.BatchSize(), offset+mtu+10),
+		rsize:    buffPool(device.BatchSize(), true).Get().([]int),
 	}
 
 	return wrwc
@@ -38,12 +48,10 @@ func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
 		return t.Device.Read(bufs, sizes, t.offset)
 	}
 
-	buffers := getBuffer(t.BatchSize(), t.offset+t.mtu+10)
-	defer putBuffer(buffers)
-	size := buffPool(t.BatchSize(), true).Get().([]int)
-	defer buffPool(t.BatchSize(), true).Put(size)
+	t.rmu.Lock()
+	defer t.rmu.Unlock()
 
-	count, err := t.Device.Read(buffers, size, t.offset)
+	count, err := t.Device.Read(t.rbuffers, t.rsize, t.offset)
 	if err != nil {
 		return 0, err
 	}
@@ -52,9 +60,9 @@ func (t *wgDevice) Read(bufs [][]byte, sizes []int) (n int, err error) {
 		return 0, fmt.Errorf("buffer %d is smaller than recevied: %d", len(bufs), count)
 	}
 
-	for i := range bufs {
-		copy(bufs[i], buffers[i][t.offset:size[i]+t.offset])
-		sizes[i] = size[i]
+	for i := range count {
+		copy(bufs[i], t.rbuffers[i][t.offset:t.rsize[i]+t.offset])
+		sizes[i] = t.rsize[i]
 	}
 
 	return count, err
@@ -65,14 +73,22 @@ func (t *wgDevice) Write(bufs [][]byte) (int, error) {
 		return t.Device.Write(bufs, t.offset)
 	}
 
-	buffers := getBuffer(len(bufs), t.offset+t.mtu+10)
-	defer putBuffer(buffers)
-
-	for i := range bufs {
-		copy(buffers[i][t.offset:], bufs[i])
+	if len(bufs) > len(t.wbuffers) {
+		return 0, fmt.Errorf("buffer %d is larger than recevied: %d", len(t.wbuffers), len(bufs))
 	}
 
-	_, err := t.Device.Write(buffers, t.offset)
+	t.wmu.Lock()
+	defer t.wmu.Unlock()
+
+	buffs := buffPool(len(bufs), false).Get().([][]byte)
+	defer buffPool(len(bufs), false).Put(buffs)
+
+	for i := range bufs {
+		n := copy(t.wbuffers[i][t.offset:], bufs[i])
+		buffs[i] = t.wbuffers[i][:n+t.offset]
+	}
+
+	_, err := t.Device.Write(buffs, t.offset)
 	if err != nil {
 		return 0, err
 	}

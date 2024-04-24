@@ -54,27 +54,29 @@ func ParseAddressPort(network statistic.Type, addr string, port Port) (ad Addres
 }
 
 func ParseTCPAddress(ad *net.TCPAddr) Address {
-	addrPort := ad.AddrPort()
-	return &IPAddrPort{
-		addr:     newAddr(statistic.Type_tcp),
-		addrPort: netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port()),
+	return &IPAddr{
+		addr: newAddr(statistic.Type_tcp),
+		ip:   ad.IP,
+		port: ad.Port,
+		zone: ad.Zone,
 	}
 }
 
 func ParseUDPAddr(ad *net.UDPAddr) Address {
-	addrPort := ad.AddrPort()
-	return &IPAddrPort{
-		addr:     newAddr(statistic.Type_udp),
-		addrPort: netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port()),
+	return &IPAddr{
+		addr: newAddr(statistic.Type_udp),
+		ip:   ad.IP,
+		port: ad.Port,
+		zone: ad.Zone,
 	}
 }
 
 func ParseIPAddr(ad *net.IPAddr) Address {
-	addr, _ := netip.AddrFromSlice(ad.IP)
-	addr.WithZone(ad.Zone)
-	return &IPAddrPort{
-		addr:     newAddr(statistic.Type_ip),
-		addrPort: netip.AddrPortFrom(addr.Unmap(), 0),
+	return &IPAddr{
+		addr: newAddr(statistic.Type_ip),
+		ip:   ad.IP,
+		port: 0,
+		zone: ad.Zone,
 	}
 }
 
@@ -83,6 +85,14 @@ func ParseUnixAddr(ad *net.UnixAddr) Address {
 		hostname: ad.Name,
 		port:     EmptyPort,
 		addr:     newAddr(statistic.Type_unix),
+	}
+}
+
+func ParseIPAddrPort(net statistic.Type, ip net.IP, port int) Address {
+	return &IPAddr{
+		addr: newAddr(net),
+		ip:   ip,
+		port: port,
 	}
 }
 
@@ -257,6 +267,41 @@ func (d *DomainAddr) OverridePort(p Port) Address {
 		hostname: d.Hostname(),
 		addr:     d.addr,
 		port:     p,
+	}
+}
+
+type IPAddr struct {
+	ip   net.IP
+	port int
+	zone string
+	*addr
+}
+
+func (d *IPAddr) String() string   { return net.JoinHostPort(d.ip.String(), strconv.Itoa(d.port)) }
+func (d *IPAddr) Hostname() string { return d.ip.String() }
+func (d *IPAddr) AddrPort(context.Context) Result[netip.AddrPort] {
+	addr, _ := netip.AddrFromSlice(d.ip)
+	return NewResult(netip.AddrPortFrom(addr, uint16(d.port)))
+}
+func (d *IPAddr) IPs(context.Context) ([]net.IP, error) {
+	return []net.IP{d.ip}, nil
+}
+func (d *IPAddr) IP(context.Context) (net.IP, error) { return d.ip, nil }
+func (d *IPAddr) Port() Port                         { return ParsePort(d.port) }
+func (d *IPAddr) Type() Type                         { return IP }
+func (d *IPAddr) IsFqdn() bool                       { return false }
+func (d *IPAddr) UDPAddr(context.Context) Result[*net.UDPAddr] {
+	return NewResult(&net.UDPAddr{IP: d.ip, Port: d.port, Zone: d.zone})
+}
+func (d *IPAddr) TCPAddr(context.Context) Result[*net.TCPAddr] {
+	return NewResult(&net.TCPAddr{IP: d.ip, Port: d.port, Zone: d.zone})
+}
+func (d *IPAddr) OverrideHostname(s string) Address { return d.overrideHostname(s, d.Port()) }
+func (d *IPAddr) OverridePort(p Port) Address {
+	return &IPAddr{
+		addr: d.addr,
+		ip:   d.ip,
+		port: int(p.Port()),
 	}
 }
 

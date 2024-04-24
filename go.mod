@@ -7,7 +7,7 @@ require (
 	github.com/quic-go/quic-go v0.42.0
 	github.com/refraction-networking/utls v1.6.4
 	github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240329163344-d237ee16c317
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240411215012-578e95cc3190
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	go.etcd.io/bbolt v1.3.9
 	golang.org/x/crypto v0.22.0
@@ -20,7 +20,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
-	gvisor.dev/gvisor v0.0.0-20240408222746-2add41f7629a
+	gvisor.dev/gvisor v0.0.0-20240420021641-b12088a5ac74
 )
 
 require (

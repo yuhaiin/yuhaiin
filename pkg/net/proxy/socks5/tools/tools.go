@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -75,8 +74,7 @@ func (a *Addr) Address(network statistic.Type) netapi.Address {
 
 	switch a.Bytes.Bytes()[0] {
 	case IPv4, IPv6:
-		addrPort, _ := netip.AddrFromSlice(a.Bytes.Bytes()[1 : a.Len()-2])
-		return netapi.ParseAddrPort(network, netip.AddrPortFrom(addrPort, port))
+		return netapi.ParseIPAddrPort(network, a.Bytes.Bytes()[1:a.Len()-2], int(port))
 	case Domain:
 		hostname := string(a.Bytes.Bytes()[2 : a.Len()-2])
 		return netapi.ParseDomainPort(network, hostname, netapi.ParsePort(port))

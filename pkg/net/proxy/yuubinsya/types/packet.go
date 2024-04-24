@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
-func EncodePacket(w Buffer, addr net.Addr, buf []byte, auth Auth, prefix bool) error {
+func EncodePacket(w PacketBuffer, addr net.Addr, buf []byte, auth Auth, prefix bool) error {
 	ad, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return fmt.Errorf("parse addr failed: %w", err)
@@ -20,10 +20,7 @@ func EncodePacket(w Buffer, addr net.Addr, buf []byte, auth Auth, prefix bool) e
 
 	if auth != nil {
 		if auth.NonceSize() > 0 {
-			_, err = w.Write(make([]byte, auth.NonceSize()))
-			if err != nil {
-				return err
-			}
+			w.Advance(auth.NonceSize())
 
 			_, err = rand.Read(w.Bytes())
 			if err != nil {
@@ -57,7 +54,7 @@ func EncodePacket(w Buffer, addr net.Addr, buf []byte, auth Auth, prefix bool) e
 		return nil
 	}
 
-	_, _ = w.Write(make([]byte, auth.Overhead()))
+	w.Advance(auth.Overhead())
 
 	if auth.NonceSize() > 0 {
 		nonce := w.Bytes()[:auth.NonceSize()]
