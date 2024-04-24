@@ -4,19 +4,12 @@ package yuhaiin.listener;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener";
 
-message protocol {
-  string name = 1 [ json_name = "name" ];
-  bool enabled = 2 [ json_name = "enabled" ];
-  oneof protocol {
-    http http = 3 [ json_name = "http" ];
-    socks5 socks5 = 4 [ json_name = "socks5" ];
-    redir redir = 5 [ json_name = "redir" ];
-    tun tun = 6 [ json_name = "tun" ];
-    yuubinsya yuubinsya = 7 [ json_name = "yuubinsya" ];
-    mixed mix = 8 [ json_name = "mixed" ];
-    socks4a socks4a = 9 [ json_name = "socks4a" ];
-    tproxy tproxy = 10 [ json_name = "tproxy" ];
-  }
+message inbound_config {
+  bool hijack_dns = 2 [ json_name = "hijack_dns" ];
+  bool hijack_dns_fakeip = 3 [ json_name = "hijack_dns_fakeip" ];
+  map<string, protocol> servers = 5
+      [ json_name = "servers", deprecated = true ];
+  map<string, inbound> inbounds = 1 [ json_name = "inbounds" ];
 }
 
 message inbound {
@@ -56,6 +49,22 @@ message transport {
   }
 }
 
+
+message protocol {
+  string name = 1 [ json_name = "name" ];
+  bool enabled = 2 [ json_name = "enabled" ];
+  oneof protocol {
+    http http = 3 [ json_name = "http" ];
+    socks5 socks5 = 4 [ json_name = "socks5" ];
+    redir redir = 5 [ json_name = "redir" ];
+    tun tun = 6 [ json_name = "tun" ];
+    yuubinsya yuubinsya = 7 [ json_name = "yuubinsya" ];
+    mixed mix = 8 [ json_name = "mixed" ];
+    socks4a socks4a = 9 [ json_name = "socks4a" ];
+    tproxy tproxy = 10 [ json_name = "tproxy" ];
+  }
+}
+
 message empty {}
 
 message mux {}
@@ -74,14 +83,6 @@ message tcpudp {
 message quic2 {
   string host = 1 [ json_name = "host" ];
   tls_config tls = 3 [ json_name = "tls" ];
-}
-
-message inbound_config {
-  bool hijack_dns = 2 [ json_name = "hijack_dns" ];
-  bool hijack_dns_fakeip = 3 [ json_name = "hijack_dns_fakeip" ];
-  map<string, protocol> servers = 5
-      [ json_name = "servers", deprecated = true ];
-  map<string, inbound> inbounds = 1 [ json_name = "inbounds" ];
 }
 
 message http {

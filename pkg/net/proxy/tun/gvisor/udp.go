@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -89,16 +88,6 @@ import (
 // }
 
 func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
-	srcAddr, ok := netip.AddrFromSlice(id.RemoteAddress.AsSlice())
-	if !ok {
-		return true
-	}
-
-	dstAddr, ok := netip.AddrFromSlice(id.LocalAddress.AsSlice())
-	if !ok {
-		return true
-	}
-
 	srcPort, dstPort := id.RemotePort, id.LocalPort
 
 	length := pkt.Data().Size()
@@ -110,8 +99,8 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 	}
 
 	_ = f.SendPacket(&netapi.Packet{
-		Src:     netapi.ParseAddrPort(statistic.Type_udp, netip.AddrPortFrom(srcAddr, srcPort)),
-		Dst:     netapi.ParseAddrPort(statistic.Type_udp, netip.AddrPortFrom(dstAddr, dstPort)),
+		Src:     netapi.ParseIPAddrPort(statistic.Type_udp, id.RemoteAddress.AsSlice(), int(srcPort)),
+		Dst:     netapi.ParseIPAddrPort(statistic.Type_udp, id.LocalAddress.AsSlice(), int(dstPort)),
 		Payload: buf.Unwrap(),
 		WriteBack: func(b []byte, addr net.Addr) (int, error) {
 			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)

@@ -14,6 +14,7 @@ enum mode {
 message bypass_config {
   mode tcp = 3 [ json_name = "tcp" ];
   mode udp = 4 [ json_name = "udp" ];
+  bool sniffy = 5 [ json_name = "sniffy" ];
   string bypass_file = 2 [ json_name = "bypass_file" ];
   repeated mode_config custom_rule_v3 = 7 [ json_name = "custom_rule_v3" ];
 }

@@ -43,8 +43,8 @@ github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKs
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272 h1:zwsem4CaamMdC3tFoTpzrsUSMDPV0K6rhnQdF7kXekQ=
 github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272/go.mod h1:BOm5fXUBFM+m9woLNBoxI9TaBXXhGNP50LX/TGIvGb4=
-github.com/vishvananda/netlink v1.2.1-beta.2.0.20240329163344-d237ee16c317 h1:eBhQLv+TIGGdSLJdTf+VK1LBDPMY9zaqNY0JtOiIy7s=
-github.com/vishvananda/netlink v1.2.1-beta.2.0.20240329163344-d237ee16c317/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
+github.com/vishvananda/netlink v1.2.1-beta.2.0.20240411215012-578e95cc3190 h1:G9ovFHG2n9BlIxcwYufO4UVMCS9WnjyvGvjRv0Ckbhk=
+github.com/vishvananda/netlink v1.2.1-beta.2.0.20240411215012-578e95cc3190/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
 github.com/vishvananda/netns v0.0.4 h1:Oeaw1EM2JMxD51g9uhtC0D7erkIjgmj8+JZc26m1YX8=
 github.com/vishvananda/netns v0.0.4/go.mod h1:SpkAiCQRtJ6TvvxPnOSyH3BMl6unz3xZlaprSwhNNJM=
@@ -90,5 +90,5 @@ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-gvisor.dev/gvisor v0.0.0-20240408222746-2add41f7629a h1:C88NESn1m/HfaDYpvzpeKWm1ePp3WuzsTJdvJmIHuUQ=
-gvisor.dev/gvisor v0.0.0-20240408222746-2add41f7629a/go.mod h1:NQHVAzMwvZ+Qe3ElSiHmq9RUm1MdNHpUZ52fiEqvn+0=
+gvisor.dev/gvisor v0.0.0-20240420021641-b12088a5ac74 h1:U1PbFN+oQ7iIh8U/xN5dHJ1wJ8OfuHA69alnFAJhzC0=
+gvisor.dev/gvisor v0.0.0-20240420021641-b12088a5ac74/go.mod h1:sxc3Uvk/vHcd3tj7/DHVBoR5wvWT/MmRq2pj7HRJnwU=

@@ -1,7 +1,7 @@
 package tproxy
 
 import (
-	"net/netip"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -11,7 +11,7 @@ import (
 type Tproxy struct {
 	lis netapi.Listener
 
-	lisAddr netip.AddrPort
+	lisAddr *net.TCPAddr
 
 	*netapi.ChannelServer
 }

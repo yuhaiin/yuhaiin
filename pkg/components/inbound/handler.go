@@ -22,15 +22,17 @@ type handler struct {
 	dnsHandler netapi.DNSServer
 	table      *nat.Table
 
-	sniffer *sniffy.Sniffier[bypass.Mode]
+	sniffyEnabled bool
+	sniffer       *sniffy.Sniffier[bypass.Mode]
 }
 
 func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
 	h := &handler{
-		dialer:     dialer,
-		table:      nat.NewTable(dialer),
-		dnsHandler: dnsHandler,
-		sniffer:    sniffy.New(),
+		dialer:        dialer,
+		table:         nat.NewTable(dialer),
+		dnsHandler:    dnsHandler,
+		sniffer:       sniffy.New(),
+		sniffyEnabled: true,
 	}
 
 	return h
@@ -64,15 +66,17 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 		store.Add(netapi.InboundKey{}, meta.Inbound)
 	}
 
-	src, mode, name, ok := s.sniffer.Stream(meta.Src)
-	if ok {
-		store.
-			Add("Protocol", name).
-			Add(shunt.ForceModeKey{}, mode)
-	}
-	defer src.Close()
+	if s.sniffyEnabled {
+		src, mode, name, ok := s.sniffer.Stream(meta.Src)
+		if ok {
+			store.
+				Add("Protocol", name).
+				Add(shunt.ForceModeKey{}, mode)
+		}
+		defer src.Close()
 
-	meta.Src = src
+		meta.Src = src
+	}
 
 	remote, err := s.dialer.Conn(ctx, dst)
 	if err != nil {
@@ -92,11 +96,13 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 		ctx = netapi.NewStore(ctx)
 		store := netapi.StoreFromContext(ctx)
 
-		mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())
-		if ok {
-			store.
-				Add("Protocol", name).
-				Add(shunt.ForceModeKey{}, mode)
+		if s.sniffyEnabled {
+			mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())
+			if ok {
+				store.
+					Add("Protocol", name).
+					Add(shunt.ForceModeKey{}, mode)
+			}
 		}
 
 		if err := s.table.Write(ctx, pack); err != nil {

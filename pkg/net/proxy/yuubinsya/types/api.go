@@ -26,6 +26,11 @@ type Buffer interface {
 	WriteByte(b byte) error
 }
 
+type PacketBuffer interface {
+	Buffer
+	Advance(int)
+}
+
 type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
 	EncodeHeader(Protocol, Buffer, netapi.Address)

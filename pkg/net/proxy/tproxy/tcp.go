@@ -46,20 +46,17 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
 
-	if addrPort := target.AddrPort(context.TODO()); addrPort.Err == nil && addrPort.V.Compare(t.lisAddr) == 0 {
+	if ip, err := target.IP(context.TODO()); err == nil && ip.Equal(t.lisAddr.IP) && target.Port().Port() == uint16(t.lisAddr.Port) {
 		return fmt.Errorf("local addr and remote addr are same")
 	}
 
-	t.SendStream(&netapi.StreamMeta{
+	return t.SendStream(&netapi.StreamMeta{
 		Source:      c.RemoteAddr(),
 		Destination: c.LocalAddr(),
-		Inbound:     netapi.ParseAddrPort(statistic.Type_tcp, t.lisAddr),
-
-		Src:     c,
-		Address: target,
+		Inbound:     netapi.ParseIPAddrPort(statistic.Type_tcp, t.lisAddr.IP, t.lisAddr.Port),
+		Src:         c,
+		Address:     target,
 	})
-
-	return nil
 }
 
 func (t *Tproxy) newTCP() error {
@@ -88,7 +85,7 @@ func (t *Tproxy) newTCP() error {
 
 	log.Info("new tproxy tcp server", "host", lis.Addr())
 
-	t.lisAddr = lis.Addr().(*net.TCPAddr).AddrPort()
+	t.lisAddr = lis.Addr().(*net.TCPAddr)
 
 	go func() {
 		for {
