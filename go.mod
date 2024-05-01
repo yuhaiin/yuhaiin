@@ -19,7 +19,7 @@ require (
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.63.2
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.34.0
 	gvisor.dev/gvisor v0.0.0-20240420021641-b12088a5ac74
 )
 
