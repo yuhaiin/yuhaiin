@@ -8,39 +8,8 @@ on:
     branches: [main]
 
 jobs:
-  download_web_and_rule:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          check-latest: true
-          go-version-file: "go.mod"
-
-      - name: download rule
-        run: |
-          curl https://raw.githubusercontent.com/yuhaiin/yuhaiin/ACL/yuhaiin/yuhaiin.conf -o internal/statics/bypass.conf
-          go generate -x -v internal/statics/generate.go
-
-      - name: clone web
-        run: |
-          git clone -b main --depth=1 https://github.com/yuhaiin/yuhaiin.github.io.git internal/http/out
-          rm -rf internal/http/out/.git internal/http/out/.nojekyll
-          go generate -x -v internal/http/generate.go
-
-      - name: web rule cache
-        id: cache-front-rule
-        uses: actions/cache@v4
-        with:
-          path: |
-            internal/statics/bypass.gz
-            internal/http/out
-          key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
-
   package:
-    needs: [download_web_and_rule]
+    needs: []
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -52,15 +21,6 @@ jobs:
           fetch-depth: "0"
           fetch-tags: "true"
 
-      - name: web rule cache
-        id: cache-front-rule
-        uses: actions/cache@v4
-        with:
-          path: |
-            internal/statics/bypass.gz
-            internal/http/out
-          key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
-
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -71,6 +31,17 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          check-latest: true
+          go-version-file: "go.mod"
+
+      - name: update dep
+        run: |
+          go get -v -u github.com/yuhaiin/kitte@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")
+          go get -v -u github.com/yuhaiin/yuhaiin.github.io@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -97,8 +68,44 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+  android:
+    needs: []
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+          fetch-tags: "true"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          check-latest: true
+          go-version-file: "go.mod"
+
+      - name: set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: build yuhaiin aar
+        run: |
+          go get -v -u github.com/yuhaiin/kitte@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")
+          go get -v -u github.com/yuhaiin/yuhaiin.github.io@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          gomobile init
+          make yuhaiin_android_aar
+
+      - name: upload_android_aar
+        uses: actions/upload-artifact@v4
+        with:
+          name: yuhaiin.aar
+          path: yuhaiin.aar
+
   build:
-    needs: [download_web_and_rule]
+    needs: []
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -137,15 +144,6 @@ jobs:
           check-latest: true
           go-version-file: "go.mod"
 
-      - name: web rule cache
-        id: cache-front-rule
-        uses: actions/cache@v4
-        with:
-          path: |
-            internal/statics/bypass.gz
-            internal/http/out
-          key: cache-front-rule-${{ github.run_id }}-${{ github.run_attempt }}
-
       # - name: Set up Upx
       #   run: |
       #     sudo apt update
@@ -161,6 +159,8 @@ jobs:
           GOAMD64: ${{ matrix.env[1] == 'amd64v3' && 'v3' || '' }}
           GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
         run: |
+          go get -v -u github.com/yuhaiin/kitte@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")
+          go get -v -u github.com/yuhaiin/yuhaiin.github.io@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")
           make ${{ matrix.cmd }}
 
       - name: upload_${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}

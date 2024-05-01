@@ -51,12 +51,12 @@ vet:
 
 .PHONY: yuhaiin
 yuhaiin:
-	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page" $(YUHAIIN)
+	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug" $(YUHAIIN)
 
 
 .PHONY: yuhaiin_lite
 yuhaiin_lite:
-	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,page,lite" $(YUHAIIN)
+	$(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "debug,lite" $(YUHAIIN)
 
 define build 
 	$(eval ARGS := $(subst -, ,$@))
@@ -76,12 +76,16 @@ endef
 .PHONY: yuhaiin-%
 yuhaiin-%:
 	$(build)
-	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags 'debug,page,$(MODE)' -o yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX) $(YUHAIIN)
+	GOOS=$(OS) GOARCH=$(ARCH) GOMIPS=$(MIPS) GOAMD64=$(AMD64V3) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags 'debug,$(MODE)' -o yuhaiin_$(OS)_$(ARCH)$(AMD64V3)$(SUFFIX) $(YUHAIIN)
 
 .PHONY: yuhaiin_android
 yuhaiin_android:
-	$(ANDROID_ARM64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
-	$(ANDROID_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -tags "page" -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
+	$(ANDROID_ARM64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o ./cmd/android/main/jniLibs/arm64-v8a/libyuhaiin.so -v ./cmd/android/main/...
+	$(ANDROID_AMD64) $(GO_BUILD_CMD) -pgo=./cmd/yuhaiin/yuhaiin.pprof -o ./cmd/android/main/jniLibs/x86_64/libyuhaiin.so -v ./cmd/android/main/...
+
+.PHONY: yuhaiin_android_aar
+yuhaiin_android_aar:
+	gomobile bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -trimpath -target="android/arm64,android/amd64" -androidapi 21 -o yuhaiin.aar -v ./cmd/android/
 
 .PHONY: install
 install: build cli

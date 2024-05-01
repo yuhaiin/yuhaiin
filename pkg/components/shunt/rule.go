@@ -3,16 +3,15 @@ package shunt
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"io"
 	"log/slog"
 	"os"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/internal/statics"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
+	"github.com/yuhaiin/kitte"
 )
 
 func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
@@ -23,14 +22,7 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 		log.Error("open bypass file failed, fallback to use internal bypass data",
 			slog.String("filepath", path), slog.Any("err", err))
 
-		if len(statics.BYPASS_DATA) == 0 {
-			return
-		}
-
-		reader, err = gzip.NewReader(bytes.NewReader(statics.BYPASS_DATA))
-		if err != nil {
-			return
-		}
+		reader = io.NopCloser(bytes.NewReader(kitte.Content))
 	}
 	defer reader.Close()
 
