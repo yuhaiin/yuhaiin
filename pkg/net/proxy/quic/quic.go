@@ -176,7 +176,7 @@ func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	stream, err := session.OpenStreamSync(ctx)
+	stream, err := session.OpenStream()
 	if err != nil {
 		_ = session.CloseWithError(0, "")
 		return nil, err
