@@ -12,6 +12,7 @@ import (
 	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
+	yf "github.com/yuhaiin/yuhaiin.github.io"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -86,11 +87,7 @@ func HandleFront(mux *http.ServeMux) {
 	if edir != "" {
 		ffs = os.DirFS(edir)
 	} else {
-		ffs, _ = fs.Sub(front, "out")
-	}
-
-	if ffs == nil {
-		return
+		ffs = yf.Content
 	}
 
 	dirs, err := fs.Glob(ffs, "*")
@@ -98,16 +95,7 @@ func HandleFront(mux *http.ServeMux) {
 		return
 	}
 
-	gzip := edir == ""
-
 	handler := http.FileServer(http.FS(ffs))
-	if gzip {
-		hfs := handler
-		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Encoding", "gzip")
-			hfs.ServeHTTP(w, r)
-		})
-	}
 
 	mux.Handle("GET /", handler)
 	for _, v := range dirs {

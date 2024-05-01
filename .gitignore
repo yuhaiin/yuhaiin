@@ -11,3 +11,4 @@
 /cmd/socat/socat
 /cmd/benchmark/benchmark
 /copy_front.sh
+/output
