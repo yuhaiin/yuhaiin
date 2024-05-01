@@ -46,7 +46,11 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 		config.Servername = addr.Hostname()
 	}
 
-	d := &doq{dialer: config.Dialer, host: addr, servername: config.Servername}
+	d := &doq{
+		dialer:     config.Dialer,
+		host:       addr,
+		servername: config.Servername,
+	}
 
 	d.client = NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
 		session, err := d.initSession(ctx)
@@ -55,7 +59,7 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 		}
 
 		d.mu.RLock()
-		con, err := session.OpenStreamSync(ctx)
+		con, err := session.OpenStream()
 		if err != nil {
 			return nil, fmt.Errorf("open stream failed: %w", err)
 		}
@@ -192,11 +196,7 @@ func (d *doq) initSession(ctx context.Context) (quic.Connection, error) {
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},
 			ServerName: d.servername,
-		},
-		&quic.Config{
-			HandshakeIdleTimeout: time.Second * 5,
-			MaxIdleTimeout:       time.Second * 5,
-		})
+		}, &quic.Config{})
 	if err != nil {
 		_ = d.conn.Close()
 		return nil, fmt.Errorf("quic dial failed: %w", err)
@@ -205,8 +205,3 @@ func (d *doq) initSession(ctx context.Context) (quic.Connection, error) {
 	d.connection = session
 	return session, nil
 }
-
-var TlsProtos = []string{"doq-i02"}
-
-// TlsProtosCompat stores alternative TLS protocols for experimental interoperability
-var TlsProtosCompat = []string{"doq-i02", "doq-i01", "doq-i00", "doq", "dq"}

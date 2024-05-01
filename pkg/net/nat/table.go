@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/netip"
 	"os"
 	"time"
 
@@ -27,8 +26,7 @@ func NewTable(dialer netapi.Proxy) *Table {
 type Table struct {
 	dialer netapi.Proxy
 	cache  syncmap.SyncMap[string, *SourceTable]
-
-	sf singleflight.Group[string, *SourceTable]
+	sf     singleflight.Group[string, *SourceTable]
 }
 
 func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) error {
@@ -55,9 +53,9 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet) e
 
 			if !pkt.Dst.IsFqdn() {
 				// map fakeip/hosts
-				if uaddrPort := uaddr.AddrPort(); uaddrPort.Compare(pkt.Dst.AddrPort(ctx).V) != 0 {
+				if uaddrStr := uaddr.String(); uaddrStr != key {
 					// TODO: maybe two dst(fake ip) have same uaddr, need help
-					t.originAddrStore.LoadOrStore(uaddrPort, pkt.Dst)
+					t.originAddrStore.LoadOrStore(uaddrStr, pkt.Dst)
 				}
 			}
 
@@ -80,12 +78,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 
 	t, ok := u.cache.Load(key)
 	if ok {
-		err := u.write(ctx, t, pkt)
-		if err != nil {
-			return fmt.Errorf("client to proxy failed: %w", err)
-		}
-
-		return nil
+		return u.write(ctx, t, pkt)
 	}
 
 	t, err, _ := u.sf.Do(key, func() (*SourceTable, error) {
@@ -146,7 +139,7 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 		}
 
 		if !faddr.IsFqdn() {
-			if addr, ok := table.originAddrStore.Load(faddr.AddrPort(context.TODO()).V); ok {
+			if addr, ok := table.originAddrStore.Load(faddr.String()); ok {
 				// TODO: maybe two dst(fake ip) have same uaddr, need help
 				from = addr
 			}
@@ -170,8 +163,7 @@ func (u *Table) Close() error {
 
 type SourceTable struct {
 	dstPacketConn   net.PacketConn
-	originAddrStore syncmap.SyncMap[netip.AddrPort, netapi.Address]
+	originAddrStore syncmap.SyncMap[string, netapi.Address]
 	udpAddrCache    syncmap.SyncMap[string, *net.UDPAddr]
-
-	sf singleflight.Group[string, *net.UDPAddr]
+	sf              singleflight.Group[string, *net.UDPAddr]
 }

@@ -60,7 +60,7 @@ func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 }
 
 func (s *authPacketConn) writeTo(p []byte, addr net.Addr, underlyingAddr net.Addr) (_ int, err error) {
-	buf := pool.GetBytesWriter(pool.DefaultSize + len(p))
+	buf := pool.GetBytesWriter(nat.MaxSegmentSize)
 	defer buf.Free()
 
 	err = types.EncodePacket(buf, addr, p, s.auth, s.prefix)
@@ -115,13 +115,16 @@ func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) error
 		buf.Refactor(0, n)
 
 		err = sendPacket(&netapi.Packet{
-			Src:       src,
-			Dst:       dst,
-			Payload:   buf,
-			WriteBack: func(b []byte, source net.Addr) (int, error) { return p.writeTo(b, source, src) },
+			Src:     src,
+			Dst:     dst,
+			Payload: buf,
+			WriteBack: func(b []byte, source net.Addr) (int, error) {
+				return p.writeTo(b, source, src)
+			},
 		})
 
 		if err != nil {
+			log.Error("send udp response failed", slog.Any("err", err))
 			break
 		}
 	}
