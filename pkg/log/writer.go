@@ -13,6 +13,16 @@ import (
 	"time"
 )
 
+var maxSize = 1024 * 1024
+var maxFile = 5
+
+func init() {
+	if os.Getenv("YUHAIIN_LITE") == "true" {
+		maxSize = 1024 * 256
+		maxFile = 0
+	}
+}
+
 var _ io.Writer = new(FileWriter)
 
 type FileWriter struct {

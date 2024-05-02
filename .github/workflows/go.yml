@@ -130,7 +130,7 @@ jobs:
             [windows, "amd64v3"],
             [windows, "arm64"],
           ]
-        cmd: [yuhaiin, yuhaiin_lite]
+        cmd: [yuhaiin]
 
     steps:
       - uses: actions/checkout@v4
