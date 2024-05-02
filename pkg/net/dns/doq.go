@@ -52,7 +52,7 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 		servername: config.Servername,
 	}
 
-	d.client = NewClient(config, func(ctx context.Context, b []byte) ([]byte, error) {
+	d.client = NewClient(config, func(ctx context.Context, b []byte) (*pool.Bytes, error) {
 		session, err := d.initSession(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("init session failed: %w", err)
@@ -99,8 +99,9 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 			return nil, fmt.Errorf("read dns response length failed: %w", err)
 		}
 
-		data := make([]byte, length)
-		_, err = io.ReadFull(con, data)
+		data := pool.GetBytesBuffer(int(length))
+
+		_, err = io.ReadFull(con, data.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("read dns server response failed: %w", err)
 		}

@@ -32,7 +32,7 @@ func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 	// GNOME
 	gsettings, err := exec.LookPath("gsettings")
 	if err != nil {
-		return fmt.Errorf("lookup gsettings failed: %w", err)
+		return nil
 	}
 	//https://wiki.archlinux.org/index.php/Proxy_server
 	//gsettings set org.gnome.system.proxy mode 'manual'
@@ -62,15 +62,14 @@ func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 }
 
 func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
-
 	// KDE
 	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
-		return fmt.Errorf("current session is not kde, skip set proxy")
+		return nil
 	}
 
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
-		return fmt.Errorf("lookup kwriteconfig5 failed: %w", err)
+		return nil
 	}
 
 	// kwriteconfig5 --file kioslaverc --group 'Proxy Settings' --key httpProxy "http://127.0.0.1 8188"
@@ -106,7 +105,7 @@ func UnsetSysProxy() {
 func gnomeUnsetSysProxy() error {
 	gsettings, err := exec.LookPath("gsettings")
 	if err != nil {
-		return fmt.Errorf("lookup gsetting failed: %w", err)
+		return nil
 	}
 
 	// GNOME
@@ -124,11 +123,11 @@ func gnomeUnsetSysProxy() error {
 
 func kdeUnsetSysProxy() error {
 	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
-		return fmt.Errorf("current session is not kde, skip set kde proxy")
+		return nil
 	}
 	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
 	if err != nil {
-		return fmt.Errorf("lookup kwriteconfig5 failed: %w", err)
+		return nil
 	}
 
 	// KDE
