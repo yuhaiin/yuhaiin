@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 func init() {
@@ -62,7 +64,7 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, 
 	}
 
 	return NewClient(config,
-		func(ctx context.Context, b []byte) ([]byte, error) {
+		func(ctx context.Context, b []byte) (*pool.Bytes, error) {
 			conn, err := config.Dialer.Conn(ctx, addr)
 			if err != nil {
 				return nil, fmt.Errorf("tcp dial failed: %w", err)
@@ -90,11 +92,11 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, 
 				return nil, fmt.Errorf("read data length from server failed: %w", err)
 			}
 
-			all := make([]byte, length)
-			n, err := conn.Read(all)
+			all := pool.GetBytesBuffer(int(length))
+			_, err = io.ReadFull(conn, all.Bytes())
 			if err != nil {
 				return nil, fmt.Errorf("read data from server failed: %w", err)
 			}
-			return all[:n], err
+			return all, err
 		}), nil
 }

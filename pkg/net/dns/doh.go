@@ -13,10 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
@@ -92,7 +94,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 	refreshRoundTripper()
 
 	return NewClient(config,
-		func(ctx context.Context, b []byte) ([]byte, error) {
+		func(ctx context.Context, b []byte) (*pool.Bytes, error) {
 			resp, err := roundTripper.Load().transport.RoundTrip(req.Clone(ctx, b))
 			if err != nil {
 				refreshRoundTripper() // https://github.com/golang/go/issues/30702
@@ -105,7 +107,15 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 			}
 
-			return io.ReadAll(resp.Body)
+			buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+
+			_, err = buf.ReadFull(resp.Body)
+			if err != nil {
+				buf.Free()
+				return nil, fmt.Errorf("doh post failed: %w", err)
+			}
+
+			return buf, nil
 
 			/*
 				* Get

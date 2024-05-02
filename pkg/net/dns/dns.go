@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -56,14 +57,14 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 var _ netapi.Resolver = (*client)(nil)
 
 type client struct {
-	do              func(context.Context, []byte) ([]byte, error)
+	do              func(context.Context, []byte) (*pool.Bytes, error)
 	config          Config
 	subnet          []dnsmessage.Resource
 	rawStore        *lru.LRU[dnsmessage.Question, dnsmessage.Message]
 	rawSingleflight singleflight.Group[dnsmessage.Question, dnsmessage.Message]
 }
 
-func NewClient(config Config, do func(context.Context, []byte) ([]byte, error)) *client {
+func NewClient(config Config, do func(context.Context, []byte) (*pool.Bytes, error)) *client {
 	c := &client{
 		do:       do,
 		config:   config,
@@ -190,7 +191,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 			Additionals: c.subnet,
 		}
 
-		buf := pool.GetBytes(pool.DefaultSize)
+		buf := pool.GetBytes(nat.MaxSegmentSize)
 		defer pool.PutBytes(buf)
 
 		bytes, err := reqMsg.AppendPack(buf[:0])
@@ -202,8 +203,9 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 		if err != nil {
 			return dnsmessage.Message{}, err
 		}
+		defer resp.Free()
 
-		if err = msg.Unpack(resp); err != nil {
+		if err = msg.Unpack(resp.Bytes()); err != nil {
 			return dnsmessage.Message{}, err
 		}
 

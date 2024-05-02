@@ -11,7 +11,6 @@ import (
 )
 
 func TestUDP(t *testing.T) {
-
 	subnet, _ := netip.ParsePrefix("223.5.5.0/24")
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 	configMap := map[string]Config{

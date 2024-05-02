@@ -3,6 +3,7 @@ package pool
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"math"
 	"math/bits"
 	"net"
@@ -134,15 +135,24 @@ func (b *Bytes) Copy(byte []byte) *Bytes {
 
 func (b *Bytes) Len() int { return b.end - b.start }
 
-func (b *Bytes) ReadFrom(c net.Conn) (int, error) {
+func (b *Bytes) ReadFrom(c io.Reader) (int64, error) {
 	n, err := c.Read(b.Bytes())
 	if err != nil {
-		return n, err
+		return int64(n), err
 	}
 
 	b.end = n
 
-	return n, err
+	return int64(n), err
+}
+
+func (b *Bytes) ReadFull(c io.Reader) (int64, error) {
+	n, err := io.ReadFull(c, b.Bytes())
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+
+	return int64(n), err
 }
 
 func (b *Bytes) AsWriter() *Buffer {
@@ -269,7 +279,7 @@ func (b *Buffer) WriteByte(v byte) error {
 	return err
 }
 
-func (b *Buffer) ReadFrom(c net.Conn) (int, error) {
+func (b *Buffer) ReadFrom(c io.Reader) (int64, error) {
 	return b.b.ReadFrom(c)
 }
 

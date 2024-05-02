@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -46,23 +47,26 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 		packet.Close()
 	}()
 
-	buf := make([]byte, nat.MaxSegmentSize)
 	for {
-		n, _, err := packet.ReadFrom(buf)
+		buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+		n, _, err := buf.ReadFromPacket(packet)
 		if err != nil {
+			buf.Free()
 			return
 		}
 
 		if n < 2 {
+			buf.Free()
 			continue
 		}
 
-		c, ok := u.bufChanMap.Load([2]byte(buf[:2]))
-		if !ok {
+		c, ok := u.bufChanMap.Load([2]byte(buf.Bytes()[:2]))
+		if !ok || c == nil {
+			buf.Free()
 			continue
 		}
 
-		c.Send(append([]byte(nil), buf[:n]...))
+		c.Send(buf)
 	}
 }
 
@@ -99,18 +103,16 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 
 type bufChan struct {
 	ctx     context.Context
-	cancel  context.CancelFunc
-	bufChan chan []byte
+	bufChan chan *pool.Bytes
 }
 
-func (b *bufChan) Send(buf []byte) {
+func (b *bufChan) Send(buf *pool.Bytes) {
 	select {
 	case b.bufChan <- buf:
 	case <-b.ctx.Done():
+		buf.Free()
 	}
 }
-
-func (b *bufChan) Close() { b.cancel() }
 
 func NewDoU(config Config) (netapi.Resolver, error) {
 	addr, err := ParseAddr(statistic.Type_udp, config.Host, "53")
@@ -120,7 +122,7 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 
 	udp := &udp{}
 
-	udp.client = NewClient(config, func(ctx context.Context, req []byte) ([]byte, error) {
+	udp.client = NewClient(config, func(ctx context.Context, req []byte) (*pool.Bytes, error) {
 
 		packetConn, err := udp.initPacketConn(ctx)
 		if err != nil {
@@ -128,21 +130,18 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 		}
 		id := [2]byte{req[0], req[1]}
 
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		bchan := &bufChan{bufChan: make(chan *pool.Bytes), ctx: ctx}
+
 	_retry:
-		_, ok := udp.bufChanMap.Load([2]byte(req[:2]))
+		_, ok := udp.bufChanMap.LoadOrStore([2]byte(req[:2]), bchan)
 		if ok {
 			binary.BigEndian.PutUint16(req[0:2], uint16(rand.UintN(math.MaxUint16)))
 			goto _retry
 		}
-
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		bchan, _ := udp.bufChanMap.LoadOrStore([2]byte(req[:2]), &bufChan{bufChan: make(chan []byte), ctx: ctx, cancel: cancel})
-		defer func() {
-			udp.bufChanMap.Delete([2]byte(req[:2]))
-			bchan.Close()
-		}()
+		defer udp.bufChanMap.Delete([2]byte(req[:2]))
 
 		udpAddr := addr.UDPAddr(ctx)
 		if udpAddr.Err != nil {
@@ -159,8 +158,8 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case data := <-bchan.bufChan:
-			data[0] = id[0]
-			data[1] = id[1]
+			data.Bytes()[0] = id[0]
+			data.Bytes()[1] = id[1]
 			return data, nil
 		}
 	})
