@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -15,7 +18,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/components/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -42,8 +47,6 @@ var subCommand = map[string]*func(args []string) error{
 	"start":     &start,
 	"stop":      &stop,
 }
-
-var processDumper netapi.ProcessDumper
 
 func main() {
 	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
@@ -82,7 +85,7 @@ func main() {
 		Host:          *host,
 		Setting:       setting,
 		GRPCServer:    grpcserver,
-		ProcessDumper: processDumper,
+		ProcessDumper: getPorcessDumper(),
 	})
 	if err != nil {
 		log.Error(err.Error())
@@ -138,4 +141,39 @@ var run = func(app *appapi.Components, errChan chan error, signChannel chan os.S
 			app.HttpListener.Close()
 		}
 	}
+}
+
+func getPorcessDumper() netapi.ProcessDumper {
+	if os.Getenv("YUHAIIN_LITE") == "true" {
+		return nil
+	}
+
+	switch runtime.GOOS {
+	case "linux", "darwin", "windows":
+		return processDumperImpl{}
+	}
+
+	return nil
+}
+
+type processDumperImpl struct{}
+
+func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (string, error) {
+	if src.Type() != netapi.IP || dst.Type() != netapi.IP {
+		return "", fmt.Errorf("source or destination address is not ip")
+	}
+
+	ip := yerror.Ignore(src.IP(context.TODO()))
+	to := yerror.Ignore(dst.IP(context.TODO()))
+
+	if to.IsUnspecified() {
+		if ip.To4() != nil {
+			to = net.IPv4(127, 0, 0, 1)
+		} else {
+			to = net.IPv6loopback
+		}
+	}
+
+	return netlink.FindProcessName(network, ip, src.Port().Port(),
+		to, dst.Port().Port())
 }

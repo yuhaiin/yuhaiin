@@ -1,5 +1,5 @@
-//go:build !android && !lite
-// +build !android,!lite
+//go:build !android
+// +build !android
 
 package sysproxy
 

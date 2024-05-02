@@ -1,5 +1,5 @@
-//go:build lite || (!linux && !windows && !android && !darwin)
-// +build lite !linux,!windows,!android,!darwin
+//go:build !linux && !windows && !android && !darwin
+// +build !linux,!windows,!android,!darwin
 
 package sysproxy
 
