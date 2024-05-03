@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -57,6 +58,53 @@ func ParseAddr(netType statistic.Type, host, defaultPort string) (netapi.Address
 	return addr, nil
 }
 
+func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *tls.Config, b *request) (*pool.Bytes, error) {
+	conn, err := config.Dialer.Conn(ctx, addr)
+	if err != nil {
+		return nil, fmt.Errorf("tcp dial failed: %w", err)
+	}
+	defer conn.Close()
+
+	if tlsConfig != nil {
+		conn = tls.Client(conn, tlsConfig)
+	}
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(5 * time.Second)
+	}
+
+	err = conn.SetDeadline(deadline)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("set deadline failed: %w", err)
+	}
+
+	// dns over tcp, prefix two bytes is request data's length
+	err = binary.Write(conn, binary.BigEndian, uint16(len(b.Question)))
+	if err != nil {
+		return nil, fmt.Errorf("write data length failed: %w", err)
+	}
+
+	_, err = conn.Write(b.Question)
+	if err != nil {
+		return nil, fmt.Errorf("write data failed: %w", err)
+	}
+
+	var length uint16
+	err = binary.Read(conn, binary.BigEndian, &length)
+	if err != nil {
+		return nil, fmt.Errorf("read data length from server failed: %w", err)
+	}
+
+	all := pool.GetBytesBuffer(int(length))
+	_, err = io.ReadFull(conn, all.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("read data from server failed: %w", err)
+	}
+	return all, nil
+}
+
 func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, error) {
 	addr, err := ParseAddr(statistic.Type_tcp, config.Host, defaultPort)
 	if err != nil {
@@ -64,39 +112,7 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, 
 	}
 
 	return NewClient(config,
-		func(ctx context.Context, b []byte) (*pool.Bytes, error) {
-			conn, err := config.Dialer.Conn(ctx, addr)
-			if err != nil {
-				return nil, fmt.Errorf("tcp dial failed: %w", err)
-			}
-			defer conn.Close()
-
-			if tlsConfig != nil {
-				conn = tls.Client(conn, tlsConfig)
-			}
-
-			// dns over tcp, prefix two bytes is request data's length
-			err = binary.Write(conn, binary.BigEndian, uint16(len(b)))
-			if err != nil {
-				return nil, fmt.Errorf("write data length failed: %w", err)
-			}
-
-			_, err = conn.Write(b)
-			if err != nil {
-				return nil, fmt.Errorf("write data failed: %w", err)
-			}
-
-			var length uint16
-			err = binary.Read(conn, binary.BigEndian, &length)
-			if err != nil {
-				return nil, fmt.Errorf("read data length from server failed: %w", err)
-			}
-
-			all := pool.GetBytesBuffer(int(length))
-			_, err = io.ReadFull(conn, all.Bytes())
-			if err != nil {
-				return nil, fmt.Errorf("read data from server failed: %w", err)
-			}
-			return all, err
+		func(ctx context.Context, b *request) (*pool.Bytes, error) {
+			return tcpDo(ctx, addr, config, tlsConfig, b)
 		}), nil
 }

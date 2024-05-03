@@ -26,8 +26,8 @@ func NewDoH3(config Config) (netapi.Resolver, error) {
 		return nil, fmt.Errorf("get request failed: %w", err)
 	}
 
-	return NewClient(config, func(ctx context.Context, b []byte) (*pool.Bytes, error) {
-		resp, err := tr.RoundTrip(req.Clone(ctx, b))
+	return NewClient(config, func(ctx context.Context, b *request) (*pool.Bytes, error) {
+		resp, err := tr.RoundTrip(req.Clone(ctx, b.Question))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)
 		}
