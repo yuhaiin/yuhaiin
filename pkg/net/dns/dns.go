@@ -56,65 +56,61 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 
 var _ netapi.Resolver = (*client)(nil)
 
+type request struct {
+	Truncated bool
+	Question  []byte
+}
+
 type client struct {
-	do              func(context.Context, []byte) (*pool.Bytes, error)
+	do              func(context.Context, *request) (*pool.Bytes, error)
 	config          Config
-	subnet          []dnsmessage.Resource
+	edns0           dnsmessage.Resource
 	rawStore        *lru.LRU[dnsmessage.Question, dnsmessage.Message]
 	rawSingleflight singleflight.Group[dnsmessage.Question, dnsmessage.Message]
 }
 
-func NewClient(config Config, do func(context.Context, []byte) (*pool.Bytes, error)) *client {
-	c := &client{
+func NewClient(config Config, do func(context.Context, *request) (*pool.Bytes, error)) *client {
+	var rh dnsmessage.ResourceHeader
+	_ = rh.SetEDNS0(nat.MaxSegmentSize, dnsmessage.RCodeSuccess, false)
+
+	optrbody := &dnsmessage.OPTResource{}
+	if config.Subnet.IsValid() {
+		// EDNS Subnet
+		optionData := bytes.NewBuffer(nil)
+
+		ip := config.Subnet.Masked().Addr()
+		if ip.Is6() { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
+			optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
+		} else {
+			optionData.Write([]byte{0b00000000, 0b00000001}) // family ipv4 1
+		}
+
+		mask := config.Subnet.Bits()
+		optionData.WriteByte(byte(mask)) // mask
+		optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
+
+		var i int // cut the ip bytes
+		if i = mask / 8; mask%8 != 0 {
+			i++
+		}
+
+		optionData.Write(ip.AsSlice()[:i]) // subnet IP
+
+		optrbody.Options = append(optrbody.Options, dnsmessage.Option{
+			Code: 8,
+			Data: optionData.Bytes(),
+		})
+	}
+
+	return &client{
 		do:       do,
 		config:   config,
 		rawStore: lru.New(lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](1024)),
-	}
-
-	if !config.Subnet.IsValid() {
-		return c
-	}
-
-	// EDNS Subnet
-	optionData := bytes.NewBuffer(nil)
-
-	ip := config.Subnet.Masked().Addr()
-	if ip.Is6() { // family https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
-		optionData.Write([]byte{0b00000000, 0b00000010}) // family ipv6 2
-	} else {
-		optionData.Write([]byte{0b00000000, 0b00000001}) // family ipv4 1
-	}
-
-	mask := config.Subnet.Bits()
-	optionData.WriteByte(byte(mask)) // mask
-	optionData.WriteByte(0b00000000) // 0 In queries, it MUST be set to 0.
-
-	var i int // cut the ip bytes
-	if i = mask / 8; mask%8 != 0 {
-		i++
-	}
-
-	optionData.Write(ip.AsSlice()[:i]) // subnet IP
-
-	c.subnet = []dnsmessage.Resource{
-		{
-			Header: dnsmessage.ResourceHeader{
-				Name:  dnsmessage.MustNewName("."),
-				Type:  41,
-				Class: 4096,
-				TTL:   0,
-			},
-			Body: &dnsmessage.OPTResource{
-				Options: []dnsmessage.Option{
-					{
-						Code: 8,
-						Data: optionData.Bytes(),
-					},
-				},
-			},
+		edns0: dnsmessage.Resource{
+			Header: rh,
+			Body:   optrbody,
 		},
 	}
-	return c
 }
 
 func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
@@ -137,7 +133,7 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
 	}
 
-	aaaaerr := make(chan error)
+	aaaaerr := make(chan error, 1)
 	var aaaa []net.IP
 
 	go func() {
@@ -188,7 +184,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 				RCode:              0,
 			},
 			Questions:   []dnsmessage.Question{req},
-			Additionals: c.subnet,
+			Additionals: []dnsmessage.Resource{c.edns0},
 		}
 
 		buf := pool.GetBytes(nat.MaxSegmentSize)
@@ -199,18 +195,35 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 			return dnsmessage.Message{}, err
 		}
 
-		resp, err := send(ctx, bytes)
-		if err != nil {
-			return dnsmessage.Message{}, err
-		}
-		defer resp.Free()
+		request := &request{Question: bytes}
 
-		if err = msg.Unpack(resp.Bytes()); err != nil {
-			return dnsmessage.Message{}, err
-		}
+		for _, v := range []bool{false, true} {
+			request.Truncated = v
 
-		if msg.ID != reqMsg.ID {
-			return dnsmessage.Message{}, fmt.Errorf("id not match")
+			resp, err := send(ctx, request)
+			if err != nil {
+				return dnsmessage.Message{}, err
+			}
+			defer resp.Free()
+
+			if err = msg.Unpack(resp.Bytes()); err != nil {
+				return dnsmessage.Message{}, err
+			}
+
+			if msg.ID != reqMsg.ID {
+				return dnsmessage.Message{}, fmt.Errorf("id not match")
+			}
+
+			if !msg.Truncated {
+				break
+			}
+
+			// If TC is set, the choice of records in the answer (if any)
+			// do not really matter much as the client is supposed to
+			// just discard the message and retry over TCP, anyway.
+			//
+			// https://serverfault.com/questions/991520/how-is-truncation-performed-in-dns-according-to-rfc-1035
+			log.Info("resolve domain retry by Truncated", "domain", req.Name, "type", req.Type)
 		}
 
 		ttl := uint32(600)
@@ -228,8 +241,10 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 
 		log.Debug("resolve domain", args...)
 
-		c.rawStore.Add(req, msg,
-			lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
+		if ttl > 1 {
+			c.rawStore.Add(req, msg,
+				lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
+		}
 
 		return msg, nil
 	})

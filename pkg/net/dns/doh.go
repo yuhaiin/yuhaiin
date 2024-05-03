@@ -94,8 +94,8 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 	refreshRoundTripper()
 
 	return NewClient(config,
-		func(ctx context.Context, b []byte) (*pool.Bytes, error) {
-			resp, err := roundTripper.Load().transport.RoundTrip(req.Clone(ctx, b))
+		func(ctx context.Context, b *request) (*pool.Bytes, error) {
+			resp, err := roundTripper.Load().transport.RoundTrip(req.Clone(ctx, b.Question))
 			if err != nil {
 				refreshRoundTripper() // https://github.com/golang/go/issues/30702
 				return nil, fmt.Errorf("doh post failed: %w", err)

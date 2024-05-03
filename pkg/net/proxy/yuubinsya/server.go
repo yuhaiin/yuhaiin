@@ -1,10 +1,10 @@
 package yuubinsya
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
-	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -82,7 +82,11 @@ func (y *server) startTCP() (err error) {
 			return err
 		}
 
-		go log.IfErr("yuubinsya tcp handle", func() error { return y.handle(conn) }, io.EOF, os.ErrDeadlineExceeded)
+		go func() {
+			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) {
+				log.Error("yuubinsya tcp handle failed", "err", err)
+			}
+		}()
 	}
 }
 

@@ -63,8 +63,15 @@ func (l *listener) tcp() {
 		case <-l.ctx.Done():
 			return
 		case stream := <-l.tcpChannel:
+
 			if stream.Address.Port().Port() == 53 && l.hijackDNS {
-				err := l.handler.dnsHandler.HandleTCP(l.ctx, stream.Src)
+				ctx := l.ctx
+				if l.fakeip {
+					ctx = context.WithValue(ctx,
+						netapi.ForceFakeIP{}, true)
+				}
+
+				err := l.handler.dnsHandler.HandleTCP(ctx, stream.Src)
 				_ = stream.Src.Close()
 				if err != nil {
 					if errors.Is(err, netapi.ErrBlocked) {
@@ -95,9 +102,12 @@ func (l *listener) udp() {
 							netapi.ForceFakeIP{}, true)
 					}
 
-					err := l.handler.dnsHandler.Do(ctx, packet.Payload, func(b []byte) error {
-						_, err := packet.WriteBack(b, packet.Dst)
-						return err
+					err := l.handler.dnsHandler.Do(ctx, &netapi.DNSRawRequest{
+						Question: packet.Payload,
+						WriteBack: func(b []byte) error {
+							_, err := packet.WriteBack(b, packet.Dst)
+							return err
+						},
 					})
 					if err != nil {
 						if errors.Is(err, netapi.ErrBlocked) {

@@ -2,10 +2,8 @@ package dns
 
 import (
 	"context"
-	"encoding/binary"
+	"crypto/rand"
 	"fmt"
-	"math"
-	"math/rand/v2"
 	"net"
 	"sync"
 
@@ -24,7 +22,7 @@ func init() {
 
 type udp struct {
 	*client
-	bufChanMap syncmap.SyncMap[[2]byte, *bufChan]
+	sender     syncmap.SyncMap[[2]byte, func(*pool.Bytes)]
 	sf         singleflight.Group[uint64, net.PacketConn]
 	packetConn net.PacketConn
 	mu         sync.RWMutex
@@ -60,13 +58,13 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 			continue
 		}
 
-		c, ok := u.bufChanMap.Load([2]byte(buf.Bytes()[:2]))
-		if !ok || c == nil {
+		send, ok := u.sender.Load([2]byte(buf.Bytes()[:2]))
+		if !ok || send == nil {
 			buf.Free()
 			continue
 		}
 
-		c.Send(buf)
+		send(buf)
 	}
 }
 
@@ -101,19 +99,6 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 	return conn, err
 }
 
-type bufChan struct {
-	ctx     context.Context
-	bufChan chan *pool.Bytes
-}
-
-func (b *bufChan) Send(buf *pool.Bytes) {
-	select {
-	case b.bufChan <- buf:
-	case <-b.ctx.Done():
-		buf.Free()
-	}
-}
-
 func NewDoU(config Config) (netapi.Resolver, error) {
 	addr, err := ParseAddr(statistic.Type_udp, config.Host, "53")
 	if err != nil {
@@ -122,33 +107,53 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 
 	udp := &udp{}
 
-	udp.client = NewClient(config, func(ctx context.Context, req []byte) (*pool.Bytes, error) {
+	udp.client = NewClient(config, func(ctx context.Context, req *request) (*pool.Bytes, error) {
+		if req.Truncated {
+			// If TC is set, the choice of records in the answer (if any)
+			// do not really matter much as the client is supposed to
+			// just discard the message and retry over TCP, anyway.
+			//
+			// https://serverfault.com/questions/991520/how-is-truncation-performed-in-dns-according-to-rfc-1035
+			return tcpDo(ctx, addr, config, nil, req)
+		}
 
 		packetConn, err := udp.initPacketConn(ctx)
 		if err != nil {
 			return nil, err
 		}
-		id := [2]byte{req[0], req[1]}
 
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		id := [2]byte{req.Question[0], req.Question[1]}
 
-		bchan := &bufChan{bufChan: make(chan *pool.Bytes), ctx: ctx}
+		respChan := make(chan *pool.Bytes, 1)
 
-	_retry:
-		_, ok := udp.bufChanMap.LoadOrStore([2]byte(req[:2]), bchan)
-		if ok {
-			binary.BigEndian.PutUint16(req[0:2], uint16(rand.UintN(math.MaxUint16)))
-			goto _retry
+		send := func(b *pool.Bytes) {
+			select {
+			case respChan <- b:
+			case <-ctx.Done():
+				b.Free()
+			}
 		}
-		defer udp.bufChanMap.Delete([2]byte(req[:2]))
+
+		for {
+			_, ok := udp.sender.LoadOrStore([2]byte(req.Question[:2]), send)
+			if !ok {
+				break
+			}
+
+			_, err = rand.Read(req.Question[0:2])
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		defer udp.sender.Delete([2]byte(req.Question[:2]))
 
 		udpAddr := addr.UDPAddr(ctx)
 		if udpAddr.Err != nil {
 			return nil, udpAddr.Err
 		}
 
-		_, err = packetConn.WriteTo(req, udpAddr.V)
+		_, err = packetConn.WriteTo(req.Question, udpAddr.V)
 		if err != nil {
 			_ = packetConn.Close()
 			return nil, err
@@ -157,7 +162,7 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case data := <-bchan.bufChan:
+		case data := <-respChan:
 			data.Bytes()[0] = id[0]
 			data.Bytes()[1] = id[1]
 			return data, nil
