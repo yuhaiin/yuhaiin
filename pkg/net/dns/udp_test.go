@@ -37,9 +37,15 @@ func TestUDP(t *testing.T) {
 			Subnet: subnet,
 			Dialer: s5Dialer,
 		},
+		"opendns": {
+			Type:   dns.Type_udp,
+			Host:   "208.67.222.222:5353",
+			Subnet: subnet,
+			Dialer: s5Dialer,
+		},
 	}
 
-	dns, err := New(configMap["google"])
+	dns, err := New(configMap["opendns"])
 	assert.NoError(t, err)
 
 	t.Log(dns.LookupIP(context.TODO(), "www.baidu.com"))

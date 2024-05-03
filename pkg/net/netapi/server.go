@@ -43,11 +43,17 @@ type Packet struct {
 	Payload   *pool.Bytes
 }
 
+type DNSRawRequest struct {
+	Question  *pool.Bytes
+	WriteBack func([]byte) error
+	Stream    bool
+}
+
 type DNSServer interface {
 	Server
 	HandleUDP(context.Context, net.PacketConn) error
 	HandleTCP(context.Context, net.Conn) error
-	Do(context.Context, *pool.Bytes, func([]byte) error) error
+	Do(context.Context, *DNSRawRequest) error
 }
 
 var EmptyDNSServer DNSServer = &emptyHandler{}
@@ -57,8 +63,8 @@ type emptyHandler struct{}
 func (e *emptyHandler) Close() error                                    { return nil }
 func (e *emptyHandler) HandleUDP(context.Context, net.PacketConn) error { return io.EOF }
 func (e *emptyHandler) HandleTCP(context.Context, net.Conn) error       { return io.EOF }
-func (e *emptyHandler) Do(_ context.Context, b *pool.Bytes, _ func([]byte) error) error {
-	b.Free()
+func (e *emptyHandler) Do(_ context.Context, b *DNSRawRequest) error {
+	b.Question.Free()
 	return io.EOF
 }
 

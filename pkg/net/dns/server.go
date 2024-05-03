@@ -101,11 +101,14 @@ func (d *dnsServer) startUDP() (err error) {
 
 				go func() {
 					defer d.sf.Release(1)
-					err := d.Do(context.TODO(), buf, func(b []byte) error {
-						if _, err = d.listener.WriteTo(b, addr); err != nil {
-							return fmt.Errorf("write dns response to client failed: %w", err)
-						}
-						return nil
+					err := d.Do(context.TODO(), &netapi.DNSRawRequest{
+						Question: buf,
+						WriteBack: func(b []byte) error {
+							if _, err = d.listener.WriteTo(b, addr); err != nil {
+								return fmt.Errorf("write dns response to client failed: %w", err)
+							}
+							return nil
+						},
 					})
 					if err != nil {
 						log.Error("dns server handle data failed", slog.Any("err", err))
@@ -148,6 +151,8 @@ func (d *dnsServer) startTCP() (err error) {
 	}
 }
 
+type TCPKey struct{}
+
 func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 	var length uint16
 	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
@@ -161,12 +166,16 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
-	return d.Do(ctx, data, func(b []byte) error {
-		if err = binary.Write(c, binary.BigEndian, uint16(len(b))); err != nil {
-			return fmt.Errorf("dns server write length failed: %w", err)
-		}
-		_, err = c.Write(b)
-		return err
+	return d.Do(ctx, &netapi.DNSRawRequest{
+		Question: data,
+		WriteBack: func(b []byte) error {
+			if err = binary.Write(c, binary.BigEndian, uint16(len(b))); err != nil {
+				return fmt.Errorf("dns server write length failed: %w", err)
+			}
+			_, err = c.Write(b)
+			return err
+		},
+		Stream: true,
 	})
 }
 
@@ -178,20 +187,23 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 		return err
 	}
 
-	return d.Do(context.TODO(), buf, func(b []byte) error {
-		_, err = l.WriteTo(b, addr)
-		return err
+	return d.Do(context.TODO(), &netapi.DNSRawRequest{
+		Question: buf,
+		WriteBack: func(b []byte) error {
+			_, err = l.WriteTo(b, addr)
+			return err
+		},
 	})
 }
 
-func (d *dnsServer) Do(ctx context.Context, b *pool.Bytes, writeBack func([]byte) error) error {
+func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	defer b.Free()
+	defer req.Question.Free()
 
 	var parse dnsmessage.Parser
-	header, err := parse.Start(b.Bytes())
+	header, err := parse.Start(req.Question.Bytes())
 	if err != nil {
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
@@ -216,5 +228,24 @@ func (d *dnsServer) Do(ctx context.Context, b *pool.Bytes, writeBack func([]byte
 		return err
 	}
 
-	return writeBack(bytes)
+	// TODO
+	// https://www.rfc-editor.org/rfc/rfc1035
+	// rfc1035 4.2.1
+	//
+	// Messages carried by UDP are restricted to 512 bytes (not counting the IP
+	// or UDP headers).  Longer messages are truncated and the TC bit is set in
+	// the header.
+	//
+	if len(bytes) > 512 && !msg.Truncated && !req.Stream {
+		msg.Truncated = true
+		msg.Answers = nil
+		msg.Authorities = nil
+		msg.Additionals = nil
+		bytes, err = msg.AppendPack(respBuf[:0])
+		if err != nil {
+			return err
+		}
+	}
+
+	return req.WriteBack(bytes)
 }

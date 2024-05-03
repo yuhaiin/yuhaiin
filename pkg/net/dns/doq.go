@@ -52,56 +52,56 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 		servername: config.Servername,
 	}
 
-	d.client = NewClient(config, func(ctx context.Context, b []byte) (*pool.Bytes, error) {
+	d.client = NewClient(config, func(ctx context.Context, b *request) (*pool.Bytes, error) {
 		session, err := d.initSession(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("init session failed: %w", err)
 		}
 
 		d.mu.RLock()
-		con, err := session.OpenStream()
+		conn, err := session.OpenStream()
 		if err != nil {
 			return nil, fmt.Errorf("open stream failed: %w", err)
 		}
-		defer con.Close()
+		defer conn.Close()
 		defer d.mu.RUnlock()
 
-		err = con.SetWriteDeadline(time.Now().Add(time.Second * 4))
-		if err != nil {
-			con.Close()
-			return nil, fmt.Errorf("set write deadline failed: %w", err)
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			deadline = time.Now().Add(time.Second * 5)
 		}
 
-		buf := pool.GetBytesWriter(2 + len(b))
+		err = conn.SetDeadline(deadline)
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("set deadline failed: %w", err)
+		}
+
+		buf := pool.GetBytesWriter(2 + len(b.Question))
 		defer buf.Free()
 
-		buf.WriteUint16(uint16(len(b)))
-		_, _ = buf.Write(b)
+		buf.WriteUint16(uint16(len(b.Question)))
+		_, _ = buf.Write(b.Question)
 
-		if _, err = con.Write(buf.Bytes()); err != nil {
-			con.Close()
+		if _, err = conn.Write(buf.Bytes()); err != nil {
+			conn.Close()
 			return nil, fmt.Errorf("write dns req failed: %w", err)
 		}
 
 		// close to make server io.EOF
-		if err = con.Close(); err != nil {
+		if err = conn.Close(); err != nil {
 			return nil, fmt.Errorf("close stream failed: %w", err)
 		}
 
-		err = con.SetReadDeadline(time.Now().Add(time.Second * 4))
-		if err != nil {
-			return nil, fmt.Errorf("set read deadline failed: %w", err)
-		}
-
 		var length uint16
-		err = binary.Read(con, binary.BigEndian, &length)
+		err = binary.Read(conn, binary.BigEndian, &length)
 		if err != nil {
 			return nil, fmt.Errorf("read dns response length failed: %w", err)
 		}
 
 		data := pool.GetBytesBuffer(int(length))
 
-		_, err = io.ReadFull(con, data.Bytes())
+		_, err = io.ReadFull(conn, data.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("read dns server response failed: %w", err)
 		}

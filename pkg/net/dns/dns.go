@@ -56,15 +56,20 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 
 var _ netapi.Resolver = (*client)(nil)
 
+type request struct {
+	Truncated bool
+	Question  []byte
+}
+
 type client struct {
-	do              func(context.Context, []byte) (*pool.Bytes, error)
+	do              func(context.Context, *request) (*pool.Bytes, error)
 	config          Config
 	subnet          []dnsmessage.Resource
 	rawStore        *lru.LRU[dnsmessage.Question, dnsmessage.Message]
 	rawSingleflight singleflight.Group[dnsmessage.Question, dnsmessage.Message]
 }
 
-func NewClient(config Config, do func(context.Context, []byte) (*pool.Bytes, error)) *client {
+func NewClient(config Config, do func(context.Context, *request) (*pool.Bytes, error)) *client {
 	c := &client{
 		do:       do,
 		config:   config,
@@ -137,7 +142,7 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
 	}
 
-	aaaaerr := make(chan error)
+	aaaaerr := make(chan error, 1)
 	var aaaa []net.IP
 
 	go func() {
@@ -199,7 +204,13 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 			return dnsmessage.Message{}, err
 		}
 
-		resp, err := send(ctx, bytes)
+		request := &request{
+			Question:  bytes,
+			Truncated: false,
+		}
+
+	_retry:
+		resp, err := send(ctx, request)
 		if err != nil {
 			return dnsmessage.Message{}, err
 		}
@@ -211,6 +222,17 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 
 		if msg.ID != reqMsg.ID {
 			return dnsmessage.Message{}, fmt.Errorf("id not match")
+		}
+
+		if msg.Truncated && !request.Truncated {
+			// If TC is set, the choice of records in the answer (if any)
+			// do not really matter much as the client is supposed to
+			// just discard the message and retry over TCP, anyway.
+			//
+			// https://serverfault.com/questions/991520/how-is-truncation-performed-in-dns-according-to-rfc-1035
+			request.Truncated = true
+			resp.Free()
+			goto _retry
 		}
 
 		ttl := uint32(600)
