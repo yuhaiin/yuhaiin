@@ -11,7 +11,7 @@ require (
 	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
 	github.com/yuhaiin/kitte v0.0.0-20240501160753-65f29bf79134
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240501154127-c3b31c97bef4
-	go.etcd.io/bbolt v1.3.9
+	go.etcd.io/bbolt v1.3.10
 	golang.org/x/crypto v0.22.0
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f
 	golang.org/x/mobile v0.0.0-20240404231514-09dbf07665ed
