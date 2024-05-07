@@ -12,12 +12,12 @@ require (
 	github.com/yuhaiin/kitte v0.0.0-20240501160753-65f29bf79134
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240501154127-c3b31c97bef4
 	go.etcd.io/bbolt v1.3.10
-	golang.org/x/crypto v0.22.0
+	golang.org/x/crypto v0.23.0
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f
 	golang.org/x/mobile v0.0.0-20240404231514-09dbf07665ed
 	golang.org/x/net v0.24.0
 	golang.org/x/sync v0.7.0
-	golang.org/x/sys v0.19.0
+	golang.org/x/sys v0.20.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.63.2
@@ -39,7 +39,7 @@ require (
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/tools v0.20.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
