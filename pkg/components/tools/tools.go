@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -32,7 +34,7 @@ func NewTools(dialer netapi.Proxy, setting config.Setting, callback func(st *pc.
 }
 
 func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	http := &http.Client{
+	hc := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				add, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
@@ -53,11 +55,16 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 		return nil, err
 	}
 
-	resp, err := http.Get(url.Value)
+	resp, err := hc.Get(url.Value)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("http status: %d, %s", resp.StatusCode, string(data))
+	}
 
 	f, err := os.OpenFile(st.Bypass.BypassFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.ModePerm)
 	if err != nil {

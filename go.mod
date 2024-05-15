@@ -6,15 +6,15 @@ require (
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
 	github.com/quic-go/quic-go v0.43.1
 	github.com/refraction-networking/utls v1.6.6
-	github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240411215012-578e95cc3190
-	github.com/xtls/reality v0.0.0-20231112171332-de1173cf2b19
+	github.com/tailscale/wireguard-go v0.0.0-20240429185444-03c5a0ccf754
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240425164735-856e190dd707
+	github.com/xtls/reality v0.0.0-20240429224917-ecc4401070cc
 	github.com/yuhaiin/kitte v0.0.0-20240501160753-65f29bf79134
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240501154127-c3b31c97bef4
 	go.etcd.io/bbolt v1.3.10
 	golang.org/x/crypto v0.23.0
-	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f
-	golang.org/x/mobile v0.0.0-20240404231514-09dbf07665ed
+	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
+	golang.org/x/mobile v0.0.0-20240506190922-a1a533f289d3
 	golang.org/x/net v0.25.0
 	golang.org/x/sync v0.7.0
 	golang.org/x/sys v0.20.0
@@ -22,7 +22,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.34.1
-	gvisor.dev/gvisor v0.0.0-20240420021641-b12088a5ac74
+	gvisor.dev/gvisor v0.0.0-20240510053728-238d193343f2
 )
 
 require (
@@ -40,7 +40,7 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
-	golang.org/x/tools v0.20.0 // indirect
+	golang.org/x/tools v0.21.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
 )

@@ -51,3 +51,12 @@ func (a *SyncMap[key, T2]) ValueSlice() (r []T2) {
 
 	return r
 }
+
+func (a *SyncMap[T1, T2]) Swap(x T1, b T2) (T2, bool) {
+	v, ok := a.data.Swap(x, b)
+	if ok {
+		return v.(T2), true
+	}
+
+	return *new(T2), false
+}
