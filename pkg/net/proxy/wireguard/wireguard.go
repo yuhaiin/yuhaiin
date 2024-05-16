@@ -35,7 +35,7 @@ type Wireguard struct {
 
 	count atomic.Int64
 
-	lastNewConn time.Time
+	timer       *time.Timer
 	idleTimeout time.Duration
 
 	device *device.Device
@@ -57,58 +57,8 @@ func NewClient(conf *protocol.Protocol_Wireguard) point.WrapProxy {
 
 		return &Wireguard{
 			conf:        conf.Wireguard,
-			idleTimeout: time.Duration(conf.Wireguard.IdleTimeout) * time.Second,
+			idleTimeout: time.Duration(conf.Wireguard.IdleTimeout) * time.Second * 2,
 		}, nil
-	}
-}
-
-func (w *Wireguard) collect() {
-	readyClose := false
-
-	for {
-		time.Sleep(w.idleTimeout)
-
-		br := func() bool {
-			w.mu.Lock()
-			defer w.mu.Unlock()
-
-			log.Debug("wireguard check idle timeout")
-
-			if w.count.Load() > 0 {
-				readyClose = false
-				return false
-			}
-
-			if !w.lastNewConn.IsZero() && time.Since(w.lastNewConn) < time.Minute {
-				readyClose = false
-				return false
-			}
-
-			if readyClose {
-				log.Debug("wireguard closing")
-				if w.device != nil {
-					w.device.Close()
-					w.device = nil
-				}
-
-				if w.bind != nil {
-					w.bind.Close()
-					w.bind = nil
-				}
-				log.Debug("wireguard closed")
-				w.net = nil
-				return true
-			}
-
-			log.Debug("wireguard ready to close")
-
-			readyClose = true
-			return false
-		}()
-
-		if br {
-			break
-		}
 	}
 }
 
@@ -133,7 +83,31 @@ func (w *Wireguard) initNet() (*Net, error) {
 	w.device = dev
 	w.net = net
 	w.bind = bind
-	go w.collect()
+
+	if w.timer != nil {
+		w.timer.Reset(w.idleTimeout)
+	} else {
+		w.timer = time.AfterFunc(w.idleTimeout, func() {
+			if w.count.Load() > 0 {
+				w.timer.Reset(w.idleTimeout)
+			} else {
+				w.mu.Lock()
+				log.Debug("wireguard closing")
+				if w.device != nil {
+					w.device.Close()
+					w.device = nil
+				}
+
+				if w.bind != nil {
+					w.bind.Close()
+					w.bind = nil
+				}
+				log.Debug("wireguard closed")
+				w.net = nil
+				w.mu.Unlock()
+			}
+		})
+	}
 
 	return net, nil
 }
@@ -156,7 +130,7 @@ func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 	}
 
 	w.count.Add(1)
-	w.lastNewConn = time.Now()
+	w.timer.Reset(w.idleTimeout)
 
 	return &wrapGoNetTcpConn{w, conn}, nil
 }
@@ -183,7 +157,7 @@ func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	}
 
 	w.count.Add(1)
-	w.lastNewConn = time.Now()
+	w.timer.Reset(w.idleTimeout)
 
 	return &wrapGoNetUdpConn{w, goUC}, nil
 }

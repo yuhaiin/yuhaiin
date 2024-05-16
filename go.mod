@@ -9,8 +9,8 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20240429185444-03c5a0ccf754
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240425164735-856e190dd707
 	github.com/xtls/reality v0.0.0-20240429224917-ecc4401070cc
-	github.com/yuhaiin/kitte v0.0.0-20240501160753-65f29bf79134
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240501154127-c3b31c97bef4
+	github.com/yuhaiin/kitte v0.0.0-20240515014533-69bd6d4301f5
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240516145209-b16a637c9c98
 	go.etcd.io/bbolt v1.3.10
 	golang.org/x/crypto v0.23.0
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842

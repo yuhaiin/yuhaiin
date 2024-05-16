@@ -222,6 +222,7 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 	if address.Unspecified() || portal.Unspecified() {
 		return nil, 0, false
 	}
+
 	if src == address && sourcePort == n.gatewayPort {
 		tup := n.tab.tupleOf(destinationPort, dst.Len() == 16)
 		if tup == zeroTuple {
