@@ -125,7 +125,7 @@ func (m *MuxClient) nextSession(ctx context.Context) (*IdleSession, error) {
 		return nil, fmt.Errorf("yamux client error: %w", err)
 	}
 
-	entry.session = NewIdleSession(yamuxSession, time.Minute)
+	entry.session = NewIdleSession(yamuxSession, time.Minute*2)
 
 	return entry.session, nil
 }
@@ -133,63 +133,34 @@ func (m *MuxClient) nextSession(ctx context.Context) (*IdleSession, error) {
 type IdleSession struct {
 	closed bool
 	*yamux.Session
-
-	lastStreamTime *atomic.Pointer[time.Time]
+	timer       *time.Timer
+	idleTimeout time.Duration
 }
 
 func NewIdleSession(session *yamux.Session, IdleTimeout time.Duration) *IdleSession {
 	s := &IdleSession{
-		Session:        session,
-		lastStreamTime: &atomic.Pointer[time.Time]{},
+		Session:     session,
+		idleTimeout: IdleTimeout,
 	}
 
-	s.updateLatestStreamTime()
-
-	go func() {
-		readyClose := false
-		ticker := time.NewTicker(IdleTimeout)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-session.CloseChan():
-				return
-			case <-ticker.C:
-				if session.NumStreams() != 0 {
-					readyClose = false
-					continue
-				}
-
-				if time.Since(*s.lastStreamTime.Load()) < IdleTimeout {
-					readyClose = false
-					continue
-				}
-
-				if readyClose {
-					session.Close()
-					return
-				}
-
-				readyClose = true
-			}
+	s.timer = time.AfterFunc(IdleTimeout, func() {
+		if session.NumStreams() != 0 {
+			s.timer.Reset(IdleTimeout)
+		} else {
+			session.Close()
 		}
-	}()
+	})
 
 	return s
 }
 
-func (i *IdleSession) updateLatestStreamTime() {
-	now := time.Now()
-	i.lastStreamTime.Store(&now)
-}
-
 func (i *IdleSession) OpenStream(ctx context.Context) (*yamux.Stream, error) {
-	i.updateLatestStreamTime()
+	i.timer.Reset(i.idleTimeout)
 	return i.Session.OpenStream(ctx)
 }
 
 func (i *IdleSession) Open(ctx context.Context) (net.Conn, error) {
-	i.updateLatestStreamTime()
+	i.timer.Reset(i.idleTimeout)
 	return i.Session.Open(ctx)
 }
 
@@ -199,6 +170,11 @@ func (i *IdleSession) IsClosed() bool {
 	}
 
 	return i.Session.IsClosed()
+}
+
+func (i *IdleSession) Close() error {
+	i.timer.Stop()
+	return i.Session.Close()
 }
 
 type MuxConn interface {
