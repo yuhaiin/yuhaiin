@@ -287,7 +287,7 @@ func (c *Shunt) DumpProcess(ctx context.Context, addr netapi.Address) (s string)
 
 		process, err := c.ProcessDumper.ProcessName(addr.Network(), sourceAddr, dst)
 		if err != nil {
-			log.Warn("get process name failed", "err", err)
+			// log.Warn("get process name failed", "err", err)
 			continue
 		}
 

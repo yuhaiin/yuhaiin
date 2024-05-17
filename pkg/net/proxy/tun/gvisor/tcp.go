@@ -21,7 +21,6 @@ func (t *tunServer) tcpForwarder() *tcp.Forwarder {
 
 		ep, err := r.CreateEndpoint(wq)
 		if err != nil {
-			log.Error("create endpoint failed", "err", err)
 			r.Complete(true)
 			return
 		}

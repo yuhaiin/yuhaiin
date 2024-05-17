@@ -26,7 +26,7 @@ type Connections struct {
 
 	connStore syncmap.SyncMap[uint64, connection]
 
-	Cache *Cache
+	Cache *TotalCache
 
 	notify *notify
 }
@@ -38,7 +38,7 @@ func NewConnStore(cache *cache.Cache, dialer netapi.Proxy) *Connections {
 
 	return &Connections{
 		Proxy:  dialer,
-		Cache:  NewCache(cache),
+		Cache:  NewTotalCache(cache),
 		notify: newNotify(),
 	}
 }

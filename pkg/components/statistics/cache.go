@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
 
 var (
@@ -14,57 +15,62 @@ var (
 	SyncThreshold int64 = 1024 * 1024 * 50 // bytes
 )
 
-type Cache struct {
+type TotalCache struct {
 	download atomic.Uint64
 	upload   atomic.Uint64
 
 	notSyncDownload atomic.Int64
 	notSyncUpload   atomic.Int64
+	sf              singleflight.Group[string, struct{}]
 
 	cache *cache.Cache
 }
 
-func NewCache(cache *cache.Cache) *Cache {
-	c := &Cache{
+func NewTotalCache(cache *cache.Cache) *TotalCache {
+	c := &TotalCache{
 		cache: cache,
 	}
 
-	if download := cache.Get(DownloadKey); download != nil {
+	if download := cache.Get(DownloadKey); len(download) >= 8 {
 		c.download.Store(binary.BigEndian.Uint64(download))
 	}
 
-	if upload := cache.Get(UploadKey); upload != nil {
+	if upload := cache.Get(UploadKey); len(upload) >= 8 {
 		c.upload.Store(binary.BigEndian.Uint64(upload))
 	}
 
 	return c
 }
 
-func (c *Cache) AddDownload(d uint64) {
-	c.download.Add(d)
-
+func (c *TotalCache) AddDownload(d uint64) {
 	z := c.notSyncDownload.Add(int64(d))
 	if z >= SyncThreshold {
-		c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Load()))
-		c.notSyncDownload.Add(-z)
+		_, _, _ = c.sf.Do(string(DownloadKey), func() (struct{}, error) {
+			c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(z))))
+			c.notSyncDownload.Add(-z)
+			return struct{}{}, nil
+		})
 	}
 }
 
-func (c *Cache) LoadDownload() uint64 { return c.download.Load() }
+func (c *TotalCache) LoadDownload() uint64 {
+	return c.download.Load() + uint64(c.notSyncDownload.Load())
+}
 
-func (c *Cache) AddUpload(d uint64) {
-	c.upload.Add(d)
-
+func (c *TotalCache) AddUpload(d uint64) {
 	z := c.notSyncUpload.Add(int64(d))
 	if z >= SyncThreshold {
-		c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Load()))
-		c.notSyncUpload.Add(-z)
+		_, _, _ = c.sf.Do(string(UploadKey), func() (struct{}, error) {
+			c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(z))))
+			c.notSyncUpload.Add(-z)
+			return struct{}{}, nil
+		})
 	}
 }
 
-func (c *Cache) LoadUpload() uint64 { return c.upload.Load() }
+func (c *TotalCache) LoadUpload() uint64 { return c.upload.Load() + uint64(c.notSyncUpload.Load()) }
 
-func (c *Cache) Close() {
-	c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Load()))
-	c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Load()))
+func (c *TotalCache) Close() {
+	c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(c.notSyncDownload.Load()))))
+	c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(c.notSyncUpload.Load()))))
 }

@@ -3,10 +3,8 @@ package trie
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
@@ -56,8 +54,6 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok b
 
 	if ips, err := addr.IP(ctx); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
-	} else if !errors.Is(err, ErrSkipResolver) {
-		log.Warn("dns lookup failed, skip match ip", slog.Any("addr", addr), slog.Any("err", err))
 	}
 
 	return
