@@ -2,8 +2,10 @@ package simplehttp
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
@@ -38,7 +40,9 @@ func ConnWebsocket(cc *appapi.Components) func(w http.ResponseWriter, r *http.Re
 				defer cancel()
 				err := cc.Connections.Notify(&emptypb.Empty{}, cns)
 
-				if err != nil {
+				if err != nil &&
+					!errors.Is(err, context.DeadlineExceeded) &&
+					!errors.Is(err, os.ErrDeadlineExceeded) {
 					log.Warn("connections notify failed", "err", err)
 				}
 			}()

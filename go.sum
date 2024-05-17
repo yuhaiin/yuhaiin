@@ -54,8 +54,8 @@ github.com/yuhaiin/kitte v0.0.0-20240515014533-69bd6d4301f5 h1:UAh9t/cpaU6HXTS73
 github.com/yuhaiin/kitte v0.0.0-20240515014533-69bd6d4301f5/go.mod h1:0d74gu+rHWWd1ZPn0fzNeM8/qzB0LjGmw7CaP/K1wvg=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240516145209-b16a637c9c98 h1:aCG61OP4ZtYSdJpq2quQNMSaChKkPmbXmnIicNKenrA=
-github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240516145209-b16a637c9c98/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240518175002-54f54a33a5ff h1:bgxCyoriGK0CDdIvn45ILrpfAamRLJ7u+iEJybSjsEY=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240518175002-54f54a33a5ff/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 go.etcd.io/bbolt v1.3.10 h1:+BqfJTcCzTItrop8mq/lbzL8wSGtj94UO/3U31shqG0=
 go.etcd.io/bbolt v1.3.10/go.mod h1:bK3UQLPJZly7IlNmV7uVHJDxfe5aK9Ll93e/74Y9oEQ=
 go.uber.org/mock v0.4.0 h1:VcM4ZOtdbR4f6VXfiOpwpVJDL6lCReaZ6mw31wqh7KU=

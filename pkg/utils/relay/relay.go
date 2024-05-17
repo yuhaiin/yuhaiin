@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
+	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -13,6 +15,7 @@ var ignoreError = []error{
 	io.EOF,
 	// os.ErrDeadlineExceeded,
 	net.ErrClosed,
+	syscall.ECONNRESET,
 }
 
 func logE(msg string, err error) {
@@ -24,6 +27,10 @@ func logE(msg string, err error) {
 		if errors.Is(err, e) {
 			return
 		}
+	}
+
+	if strings.HasSuffix(err.Error(), "connection reset by peer") {
+		return
 	}
 
 	log.Error(msg, "err", err)

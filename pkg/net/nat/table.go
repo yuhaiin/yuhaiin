@@ -94,12 +94,9 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
 
 		go func() {
-			log.IfErr("udp remote to local",
-				func() error { return u.writeBack(pkt, table) },
-				net.ErrClosed,
-				io.EOF,
-				os.ErrDeadlineExceeded,
-			)
+			if err := u.writeBack(pkt, table); err != nil {
+				log.Error("udp remote to local", "err", err)
+			}
 			u.cache.Delete(key)
 			dstpconn.Close()
 		}()
@@ -127,7 +124,8 @@ func (u *Table) writeBack(pkt *netapi.Packet, table *SourceTable) error {
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) ||
 				errors.Is(err, context.Canceled) ||
-				errors.Is(err, os.ErrDeadlineExceeded) {
+				errors.Is(err, os.ErrDeadlineExceeded) ||
+				errors.Is(err, io.EOF) {
 				return nil
 			}
 			return fmt.Errorf("read from proxy failed: %w", err)
