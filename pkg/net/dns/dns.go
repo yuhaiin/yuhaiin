@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -105,7 +106,7 @@ func NewClient(config Config, do func(context.Context, *request) (*pool.Bytes, e
 	return &client{
 		do:       do,
 		config:   config,
-		rawStore: lru.New(lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](1024)),
+		rawStore: lru.New(lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache)),
 		edns0: dnsmessage.Resource{
 			Header: rh,
 			Body:   optrbody,

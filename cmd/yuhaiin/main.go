@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/components/config"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -144,7 +145,7 @@ var run = func(app *appapi.Components, errChan chan error, signChannel chan os.S
 }
 
 func getPorcessDumper() netapi.ProcessDumper {
-	if os.Getenv("YUHAIIN_LITE") == "true" {
+	if !configuration.ProcessDumper {
 		return nil
 	}
 

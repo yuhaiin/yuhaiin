@@ -1,11 +1,11 @@
 package websocket
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 
+	"github.com/go-json-experiment/json"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )

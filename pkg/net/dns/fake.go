@@ -33,6 +33,14 @@ func NewFakeDNS(
 	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt), NewFakeIPPool(ipv6Range, bboltv6)}
 }
 
+func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
+	return ipRange.Masked() == f.ipv4.prefix.Masked() && ipv6Range.Masked() == f.ipv6.prefix.Masked()
+}
+
+func (f *FakeDNS) Contains(addr netip.Addr) bool {
+	return f.ipv4.prefix.Contains(addr) || f.ipv6.prefix.Contains(addr)
+}
+
 func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	opt := &netapi.LookupIPOption{}
 	for _, optf := range opts {

@@ -56,6 +56,7 @@ func (c *Cache) Delete(k ...[]byte) {
 	if c.db == nil {
 		return
 	}
+
 	_ = c.db.Batch(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(c.bucketName)
 		if b == nil {

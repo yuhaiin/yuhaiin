@@ -2,10 +2,13 @@ package dns
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+
+	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 )
 
 /*
@@ -90,36 +93,33 @@ type Answer struct {
 	Data    string `json:"data"`
 }
 
-func DOHJsonAPI(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS []net.IP, err error) {
-	doh := &DOHJson{}
-	var res *http.Response
+func DOHJsonAPI(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS *DOHJson, err error) {
+
+	hc := &http.Client{}
 	if proxy != nil {
-		tr := http.Transport{
-			DialContext: proxy,
-		}
-		newClient := &http.Client{Transport: &tr}
-		res, err = newClient.Get(DNSServer + "?ct=application/dns-json&name=" + domain + "&type=A")
-	} else {
-		res, err = http.Get(DNSServer + "?ct=application/dns-json&name=" + domain + "&type=A")
+		hc.Transport = &http.Transport{DialContext: proxy}
 	}
+
+	res, err := hc.Get(DNSServer + "?ct=application/dns-json&name=" + domain + "&type=A")
 	if err != nil {
 		return nil, err
 	}
-	body, err := io.ReadAll(res.Body)
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		data, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("status code: %d, data: %s", res.StatusCode, string(data))
+	}
+
+	doh := &DOHJson{}
+	err = json.UnmarshalDecode(jsontext.NewDecoder(res.Body), doh)
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(body, doh)
-	if err != nil {
-		return nil, err
-	}
+
 	if doh.Status != 0 {
-		return nil, err
+		return nil, fmt.Errorf("dns status code: %d", doh.Status)
 	}
-	for _, x := range doh.Answer {
-		if net.ParseIP(x.Data) != nil {
-			DNS = append(DNS, net.ParseIP(x.Data))
-		}
-	}
-	return DNS, nil
+
+	return doh, nil
 }
