@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/go-json-experiment/json v0.0.0-20240418180308-af2d5061e6c2
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
-	github.com/quic-go/quic-go v0.43.1
+	github.com/quic-go/quic-go v0.44.0
 	github.com/refraction-networking/utls v1.6.6
 	github.com/tailscale/wireguard-go v0.0.0-20240429185444-03c5a0ccf754
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240425164735-856e190dd707
@@ -23,7 +23,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.1
-	gvisor.dev/gvisor v0.0.0-20240510053728-238d193343f2
+	gvisor.dev/gvisor v0.0.0-20240520191732-48f6e5462ac2
 )
 
 require (
