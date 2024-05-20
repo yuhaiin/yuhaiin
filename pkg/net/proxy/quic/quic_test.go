@@ -67,10 +67,12 @@ func TestQuic(t *testing.T) {
 
 		buf := make([]byte, 65536)
 
-		n, addr, err := spc.ReadFrom(buf)
-		assert.NoError(t, err)
+		for range 2 {
+			n, addr, err := spc.ReadFrom(buf)
+			assert.NoError(t, err)
 
-		t.Log(string(buf[:n]), addr, bytes.Equal(buf[:n], append(cert, cert...)))
+			t.Log(string(buf[:n]), addr, bytes.Equal(buf[:n], append(cert, cert...)))
+		}
 	}()
 
 	qc, err := NewClient(&protocol.Protocol_Quic{
@@ -85,6 +87,9 @@ func TestQuic(t *testing.T) {
 	assert.NoError(t, err)
 
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
+	assert.NoError(t, err)
+
+	_, err = pc.WriteTo(append(cert, cert...), nil)
 	assert.NoError(t, err)
 
 	_, err = pc.WriteTo(append(cert, cert...), nil)

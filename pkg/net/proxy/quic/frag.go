@@ -13,11 +13,6 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-// https://github.com/quic-go/quic-go/blob/49e588a6a9905446e49d382d78115e6e960b1144/internal/protocol/params.go#L134
-// the minium depend on DataLenPresent, the minium need minus 3
-// see: https://github.com/quic-go/quic-go/blob/1e874896cd39adc02663be4d77ade701b333df5a/internal/wire/datagram_frame.go#L62
-var MaxDatagramFrameSize int64 = 1200 - 3
-
 type Frag struct {
 	SplitID  atomic.Uint64
 	mergeMap syncmap.SyncMap[uint64, *MergeFrag]
@@ -29,27 +24,6 @@ type MergeFrag struct {
 	TotalLen uint32
 	Data     [][]byte
 	time     time.Time
-}
-
-func (f *Frag) collect(ctx context.Context) {
-	timer := time.NewTimer(60 * time.Second)
-	defer timer.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case <-timer.C:
-			now := time.Now()
-			f.mergeMap.Range(func(id uint64, v *MergeFrag) bool {
-				if now.Sub(v.time) > 30*time.Second {
-					f.mergeMap.Delete(id)
-				}
-				return true
-			})
-		}
-	}
 }
 
 func (f *Frag) Merge(buf []byte) *pool.Buffer {
@@ -137,14 +111,35 @@ func (f *Frag) Split(buf []byte, maxSize int) pool.MultipleBuffer {
 }
 
 type ConnectionPacketConn struct {
-	conn quic.Connection
-	frag *Frag
+	MaxDatagramFrameSize *atomic.Int64
+	conn                 quic.Connection
+	frag                 *Frag
 }
 
 func NewConnectionPacketConn(conn quic.Connection) *ConnectionPacketConn {
 	frag := &Frag{}
-	go frag.collect(conn.Context())
-	return &ConnectionPacketConn{conn: conn, frag: frag}
+
+	var timer *time.Timer
+	timer = time.AfterFunc(time.Minute, func() {
+		select {
+		case <-conn.Context().Done():
+			return
+		default:
+			now := time.Now()
+			frag.mergeMap.Range(func(id uint64, v *MergeFrag) bool {
+				if now.Sub(v.time) > 30*time.Second {
+					frag.mergeMap.Delete(id)
+				}
+				return true
+			})
+			timer.Reset(time.Minute)
+		}
+	})
+
+	maxSize := &atomic.Int64{}
+	maxSize.Store(1280)
+
+	return &ConnectionPacketConn{conn: conn, frag: frag, MaxDatagramFrameSize: maxSize}
 }
 
 func (c *ConnectionPacketConn) Context() context.Context {
@@ -175,13 +170,29 @@ func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
 	buf.WriteUint64(id)
 	_, _ = buf.Write(b)
 
-	buffers := c.frag.Split(buf.Bytes(), int(MaxDatagramFrameSize))
+_retry:
+	buffers := c.frag.Split(buf.Bytes(), int(c.MaxDatagramFrameSize.Load()))
 	defer buffers.Free()
 
 	for _, v := range buffers {
-		if err := c.conn.SendDatagram(v.Bytes()); err != nil {
+		err := c.conn.SendDatagram(v.Bytes())
+		if err == nil {
+			continue
+		}
+
+		te, ok := err.(*quic.DatagramTooLargeError)
+		if !ok {
 			return err
 		}
+
+		if c.MaxDatagramFrameSize.Load() <= te.MaxDatagramPayloadSize {
+			return err
+		}
+
+		c.MaxDatagramFrameSize.Store(te.MaxDatagramPayloadSize)
+		buffers.Free()
+
+		goto _retry
 	}
 
 	return nil
@@ -227,17 +238,17 @@ func NewFragFrameBytesBuffer(t FragType, id uint64, total, current uint8, payloa
 }
 
 func putFragFrame(buf *pool.Buffer, t FragType, id uint64, total, current uint8, payload []byte) {
-	buf.WriteByte(byte(t))
+	_ = buf.WriteByte(byte(t))
 
 	if t == FragmentTypeSingle {
-		buf.Write(payload)
+		_, _ = buf.Write(payload)
 		return
 	}
 
 	buf.WriteUint64(id)
-	buf.WriteByte(total)
-	buf.WriteByte(current)
-	buf.Write(payload)
+	_ = buf.WriteByte(total)
+	_ = buf.WriteByte(current)
+	_, _ = buf.Write(payload)
 }
 
 func (f fragFrame) Type() FragType {
