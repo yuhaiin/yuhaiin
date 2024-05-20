@@ -11,17 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 )
-
-var maxSize = 1024 * 1024
-var maxFile = 5
-
-func init() {
-	if os.Getenv("YUHAIIN_LITE") == "true" {
-		maxSize = 1024 * 256
-		maxFile = 0
-	}
-}
 
 var _ io.Writer = new(FileWriter)
 
@@ -74,7 +66,7 @@ func (f *FileWriter) Write(p []byte) (n int, err error) {
 	n, err = f.w.Write(p)
 	f.mu.RUnlock()
 
-	if int(f.savedSize.Add(uint64(n))) >= maxSize {
+	if int(f.savedSize.Add(uint64(n))) >= configuration.LogNaxSize {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 
@@ -102,7 +94,7 @@ func (f *FileWriter) removeOldFile() {
 		return
 	}
 
-	if len(files) <= maxFile {
+	if len(files) <= configuration.LogMaxFile {
 		return
 	}
 
@@ -116,7 +108,7 @@ func (f *FileWriter) removeOldFile() {
 
 		count++
 
-		if count <= maxFile {
+		if count <= configuration.LogMaxFile {
 			continue
 		}
 

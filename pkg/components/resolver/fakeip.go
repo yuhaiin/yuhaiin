@@ -8,19 +8,24 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 type Fakedns struct {
-	enabled  bool
-	fake     *dns.FakeDNS
+	enabled        bool
+	inboundEnabled bool
+
+	fake *dns.FakeDNS
+
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
 	cache    *cache.Cache
@@ -31,11 +36,11 @@ type Fakedns struct {
 }
 
 func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, bbolt, bboltv6 *cache.Cache) *Fakedns {
+	ipv4Range := yerror.Ignore(netip.ParsePrefix("10.2.0.1/24"))
+	ipv6Range := yerror.Ignore(netip.ParsePrefix("fc00::/64"))
+
 	return &Fakedns{
-		fake: dns.NewFakeDNS(upstream,
-			yerror.Ignore(netip.ParsePrefix("10.2.0.1/24")),
-			yerror.Ignore(netip.ParsePrefix("fc00::/64")),
-			bbolt, bboltv6),
+		fake:      dns.NewFakeDNS(upstream, ipv4Range, ipv6Range, bbolt, bboltv6),
 		dialer:    dialer,
 		upstream:  upstream,
 		cache:     bbolt,
@@ -46,10 +51,9 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, bbolt, bboltv6 *c
 
 func (f *Fakedns) Update(c *pc.Setting) {
 	f.enabled = c.Dns.Fakedns
+	f.inboundEnabled = c.Server.HijackDnsFakeip
 
 	if !slices.Equal(c.Dns.FakednsWhitelist, f.whitelistSlice) {
-		log.Info("update fakedns whitelist", "old", f.whitelistSlice, "new", c.Dns.FakednsWhitelist)
-
 		d := domain.NewDomainMapper[struct{}]()
 
 		for _, v := range c.Dns.FakednsWhitelist {
@@ -60,19 +64,10 @@ func (f *Fakedns) Update(c *pc.Setting) {
 		f.whitelistSlice = c.Dns.FakednsWhitelist
 	}
 
-	ipRange, er4 := netip.ParsePrefix(c.Dns.FakednsIpRange)
-	if er4 != nil {
-		log.Error("parse fakedns ip range failed", "err", er4)
-		ipRange, _ = netip.ParsePrefix("10.2.0.1/24")
-	}
+	ipRange := configuration.GetFakeIPRange(c.Dns.FakednsIpRange, false)
+	ipv6Range := configuration.GetFakeIPRange(c.Dns.FakednsIpv6Range, true)
 
-	ipv6Range, er6 := netip.ParsePrefix(c.Dns.FakednsIpv6Range)
-	if er6 != nil {
-		log.Error("parse fakedns PreferIPv6 range failed", "err", er6)
-		ipv6Range, _ = netip.ParsePrefix("fc00::/64")
-	}
-
-	if er4 != nil && er6 != nil {
+	if f.fake.Equal(ipRange, ipv6Range) {
 		return
 	}
 
@@ -126,16 +121,29 @@ func (f *Fakedns) PacketConn(ctx context.Context, addr netapi.Address) (net.Pack
 }
 
 func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
-	if addr.Type() == netapi.IP {
-		t, ok := f.fake.GetDomainFromIP(addr.AddrPort(ctx).V.Addr())
-		if ok {
-			r := addr.OverrideHostname(t)
-			netapi.StoreFromContext(ctx).
-				Add(netapi.FakeIPKey{}, addr).
-				Add(netapi.CurrentKey{}, r)
-			return r
-		}
+	if addr.Type() != netapi.IP {
+		return addr
 	}
+	addrPort := addr.AddrPort(ctx).V.Addr()
+
+	if !f.fake.Contains(addrPort) {
+		return addr
+	}
+
+	store := netapi.StoreFromContext(ctx)
+
+	t, ok := f.fake.GetDomainFromIP(addrPort)
+	if ok {
+		r := addr.OverrideHostname(t)
+		store.Add(netapi.FakeIPKey{}, addr).Add(netapi.CurrentKey{}, r)
+		return r
+	}
+
+	if f.enabled || f.inboundEnabled {
+		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
+		store.Add(shunt.ForceModeKey{}, bypass.Mode_block)
+	}
+
 	return addr
 }
 

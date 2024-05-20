@@ -1,10 +1,11 @@
 package domain
 
 import (
-	"encoding/json"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 )
 
 type Fqdn[T any] struct {
@@ -71,7 +72,7 @@ func (d *Fqdn[T]) Remove(domain string) {
 }
 
 func (d *Fqdn[T]) Marshal() ([]byte, error) {
-	return json.MarshalIndent(d, "", "  ")
+	return json.Marshal(d, jsontext.WithIndent("\t"))
 }
 
 func (d *Fqdn[T]) Clear() error {

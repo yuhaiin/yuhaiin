@@ -3,9 +3,7 @@ package dns
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -20,25 +18,6 @@ func TestDNSJson(t *testing.T) {
 		}
 		return socks5.Dial("127.0.0.1", "1080", "", "").Conn(ctx, ad)
 	}
-	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "dict.hjenglish.com", dialContext))
-	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "i0.hdslb.com", nil))
-	t.Log(DOHJsonAPI("https://dns.rubyfish.cn/dns-query", "cm.bilibili.com", nil))
 	t.Log(DOHJsonAPI("https://dns.google/resolve", "dict.hjenglish.com", dialContext))
 	t.Log(DOHJsonAPI("https://dns.google/resolve", "i0.hdslb.com", dialContext))
-}
-
-func TestC(t *testing.T) {
-	req, _ := http.NewRequest("GET", "https://cloudflare-dns.com/dns-query"+"?dns="+"q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB", nil)
-	req.Header.Set("accept", "application/dns-message")
-	//res, err := http.Get("https://cloudflare-dns.com/dns-query"+"?dns="+base64.URLEncoding.EncodeToString([]byte("cm.bilibili.com")))
-	client := &http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		t.Log(err)
-	}
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		t.Log("Read error", err)
-	}
-	t.Log(string(body))
 }
