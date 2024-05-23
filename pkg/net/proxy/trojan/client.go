@@ -1,7 +1,6 @@
 package trojan
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -17,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 const (
@@ -95,9 +95,7 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 type PacketConn struct {
 	net.Conn
 
-	remain int
-	addr   netapi.Address
-	mux    sync.Mutex
+	mux sync.Mutex
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
@@ -110,25 +108,18 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	defer pool.PutBuffer(w)
 
 	tools.EncodeAddr(taddr, w)
-	addrSize := w.Len()
 
-	b := bytes.NewBuffer(payload)
+	payload = payload[:min(len(payload), MaxPacketSize)]
 
-	for b.Len() > 0 {
-		data := b.Next(MaxPacketSize)
+	_ = binary.Write(w, binary.BigEndian, uint16(len(payload)))
 
-		w.Truncate(addrSize)
+	w.Write(crlf) // crlf
 
-		binary.Write(w, binary.BigEndian, uint16(len(data)))
+	w.Write(payload)
 
-		w.Write(crlf) // crlf
-
-		w.Write(data)
-
-		_, err = c.Conn.Write(w.Bytes())
-		if err != nil {
-			return len(payload) - b.Len() + len(data), fmt.Errorf("write to %v failed: %w", addr, err)
-		}
+	_, err = c.Conn.Write(w.Bytes())
+	if err != nil {
+		return 0, err
 	}
 
 	return len(payload), nil
@@ -138,31 +129,14 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
-	if c.remain > 0 {
-		z := min(len(payload), c.remain)
-
-		n, err := c.Conn.Read(payload[:z])
-		if err != nil {
-			return 0, c.addr, err
-		}
-
-		c.remain -= n
-		return n, c.addr, err
-	}
-
 	addr, err := tools.ResolveAddr(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
 
-	c.addr = addr.Address(statistic.Type_udp)
-
 	var length uint16
 	if err = binary.Read(c.Conn, binary.BigEndian, &length); err != nil {
 		return 0, nil, fmt.Errorf("read length failed: %w", err)
-	}
-	if length > MaxPacketSize {
-		return 0, nil, fmt.Errorf("invalid packet size")
 	}
 
 	crlf := [2]byte{}
@@ -170,11 +144,13 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		return 0, nil, fmt.Errorf("read crlf failed: %w", err)
 	}
 
-	plen := min(int(length), len(payload))
-	c.remain = int(length) - plen
+	n, err = io.ReadFull(c.Conn, payload[:min(int(length), len(payload))])
 
-	n, err = io.ReadFull(c.Conn, payload[:plen])
-	return n, c.addr, err
+	if length > uint16(n) {
+		_, _ = relay.CopyN(io.Discard, c.Conn, int64(int(length)-n))
+	}
+
+	return n, addr.Address(statistic.Type_udp), err
 }
 
 func hexSha224(data []byte) []byte {

@@ -45,26 +45,26 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 		packet.Close()
 	}()
 
+	buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+	defer buf.Free()
+
 	for {
-		buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+		buf.Reset()
 		n, _, err := buf.ReadFromPacket(packet)
 		if err != nil {
-			buf.Free()
 			return
 		}
 
 		if n < 2 {
-			buf.Free()
 			continue
 		}
 
 		send, ok := u.sender.Load([2]byte(buf.Bytes()[:2]))
 		if !ok || send == nil {
-			buf.Free()
 			continue
 		}
 
-		send(buf)
+		send(pool.GetBytesBuffer(buf.Len()).Copy(buf.Bytes()))
 	}
 }
 

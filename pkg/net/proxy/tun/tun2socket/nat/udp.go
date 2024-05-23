@@ -18,6 +18,7 @@ type call struct {
 	buf   *pool.Bytes
 	tuple Tuple
 }
+
 type UDP struct {
 	mtu     int32
 	device  netlink.Tun
@@ -55,7 +56,7 @@ func (u *UDP) Close() error {
 
 func (u *UDP) handleUDPPacket(tuple Tuple, payload []byte) {
 	select {
-	case u.channel <- &call{pool.GetBytesBuffer(u.mtu).Copy(payload), tuple}:
+	case u.channel <- &call{pool.GetBytesBuffer(len(payload)).Copy(payload), tuple}:
 	case <-u.ctx.Done():
 	}
 }

@@ -17,7 +17,6 @@ require (
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
 	golang.org/x/mobile v0.0.0-20240506190922-a1a533f289d3
 	golang.org/x/net v0.25.0
-	golang.org/x/sync v0.7.0
 	golang.org/x/sys v0.20.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
@@ -40,6 +39,7 @@ require (
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/tools v0.21.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect

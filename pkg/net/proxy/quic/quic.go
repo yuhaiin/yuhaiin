@@ -145,7 +145,6 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 
 	// Datagram
 	c.packetConn = pconn
-
 	go func() {
 		defer session.CloseWithError(0, "")
 		for {
@@ -167,6 +166,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 			}
 		}
 	}()
+
 	return session, nil
 }
 
@@ -203,7 +203,7 @@ func (c *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		cancel:   cancel,
 		session:  c.packetConn,
 		id:       c.idg.Generate(),
-		msg:      make(chan *pool.Buffer, 64),
+		msg:      make(chan *pool.Buffer, 100),
 		deadline: deadline.NewPipe(),
 	}
 	c.natMap.Store(cp.id, cp)
@@ -306,6 +306,7 @@ func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 		defer msg.Free()
 
 		n = copy(p, msg.Bytes())
+
 		return n, x.session.conn.RemoteAddr(), nil
 	}
 }

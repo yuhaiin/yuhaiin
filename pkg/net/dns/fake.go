@@ -243,7 +243,7 @@ func NewFakeIPPool(prefix netip.Prefix, bbolt *cache.Cache) *FakeIPPool {
 	return &FakeIPPool{
 		prefix:     prefix,
 		current:    prefix.Addr().Prev(),
-		domainToIP: newFakeLru(lruSize, bbolt),
+		domainToIP: newFakeLru(lruSize, bbolt, prefix),
 	}
 }
 
@@ -292,14 +292,15 @@ func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 func (n *FakeIPPool) LRU() *lru.LRU[string, netip.Addr] { return n.domainToIP.LRU }
 
 type fakeLru struct {
-	LRU   *lru.LRU[string, netip.Addr]
-	bbolt *cache.Cache
+	iprange netip.Prefix
+	LRU     *lru.LRU[string, netip.Addr]
+	bbolt   *cache.Cache
 
 	Size uint
 }
 
-func newFakeLru(size uint, bbolt *cache.Cache) *fakeLru {
-	z := &fakeLru{Size: size, bbolt: bbolt}
+func newFakeLru(size uint, bbolt *cache.Cache, iprange netip.Prefix) *fakeLru {
+	z := &fakeLru{Size: size, bbolt: bbolt, iprange: iprange}
 
 	if size > 0 {
 		z.LRU = lru.New(
@@ -322,9 +323,11 @@ func (f *fakeLru) Load(host string) (netip.Addr, bool) {
 	}
 
 	if ip, ok := netip.AddrFromSlice(f.bbolt.Get(unsafe.Slice(unsafe.StringData(host), len(host)))); ok {
-		ip = ip.Unmap()
-		f.LRU.Add(host, ip)
-		return ip, true
+		if f.iprange.Contains(ip) {
+			ip = ip.Unmap()
+			f.LRU.Add(host, ip)
+			return ip, true
+		}
 	}
 
 	return netip.Addr{}, false
@@ -371,7 +374,9 @@ func (f *fakeLru) ReverseLoad(ip netip.Addr) (string, bool) {
 	}
 
 	if host = string(f.bbolt.Get(ip.AsSlice())); host != "" {
-		f.LRU.Add(host, ip)
+		if f.iprange.Contains(ip) {
+			f.LRU.Add(host, ip)
+		}
 		return host, true
 	}
 

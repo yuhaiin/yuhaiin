@@ -136,6 +136,12 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	if err != nil {
 		return nil, err
 	}
+
+	if uc, ok := conn.(*net.UDPConn); ok {
+		_ = uc.SetReadBuffer(64 * 1024)
+		_ = uc.SetWriteBuffer(64 * 1024)
+	}
+
 	ur := c.addrs[c.index.Load()].UDPAddr(ctx)
 
 	if ur.Err != nil {

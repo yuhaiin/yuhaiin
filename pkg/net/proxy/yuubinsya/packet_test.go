@@ -1,10 +1,16 @@
 package yuubinsya
 
 import (
+	"bytes"
+	crand "crypto/rand"
+	"io"
 	"math/rand/v2"
 	"net"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
@@ -22,44 +28,128 @@ func randSeq(n int) []byte {
 	return b
 }
 
+func TestENDcode(t *testing.T) {
+	wg := sync.WaitGroup{}
+	for range 100000 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			password := make([]byte, rand.IntN(1024))
+			_, err := io.ReadFull(crand.Reader, password)
+			assert.NoError(t, err)
+
+			dedata := make([]byte, rand.IntN(65535))
+			_, err = io.ReadFull(crand.Reader, dedata)
+			assert.NoError(t, err)
+
+			auth, err := crypto.GetAuth(password)
+			assert.NoError(t, err)
+
+			buf := pool.GetBytesWriter(pool.MaxSegmentSize)
+			assert.NoError(t, types.EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
+				dedata, auth, true))
+
+			dedata, addr, err := types.DecodePacket(buf.Bytes(), auth, true)
+			assert.NoError(t, err)
+
+			if !bytes.Equal(dedata, dedata) {
+				t.Error("dedata not equal", addr)
+				t.Fail()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+}
+
 func TestEncode(t *testing.T) {
-	auth, err := crypto.GetAuth([]byte("test"))
+	auth, err := crypto.GetAuth([]byte("testzxc"))
 	assert.NoError(t, err)
 
+	req := randSeq(rand.IntN(60000))
 	buf := pool.GetBytesWriter(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		randSeq(rand.IntN(1000)), auth, true))
+		req, auth, true))
 
-	t.Log(buf.Bytes())
+	// t.Log(buf.Bytes())
 
 	data, addr, err := types.DecodePacket(buf.Bytes(), auth, true)
 	assert.NoError(t, err)
 
-	t.Log(data, addr)
+	if bytes.Equal(req, data) {
+		t.Log("same", addr)
+	}
 
 	plainauth := plain.NewAuth([]byte{1, 2, 3, 4, 5})
 
+	req = randSeq(rand.IntN(60000))
 	buf = pool.GetBytesWriter(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		randSeq(rand.IntN(1000)), plainauth, true))
-
-	t.Log(buf.Bytes())
+		req, plainauth, true))
 
 	data, addr, err = types.DecodePacket(buf.Bytes(), plainauth, true)
 	assert.NoError(t, err)
 
-	t.Log(data, addr)
+	if bytes.Equal(req, data) {
+		t.Log("same", addr)
+	}
 
+	req = randSeq(rand.IntN(60000))
 	buf = pool.GetBytesWriter(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf,
-		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		randSeq(rand.IntN(1000)), nil, false))
-
-	t.Log(buf.Bytes())
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}, req, nil, false))
 
 	data, addr, err = types.DecodePacket(buf.Bytes(), nil, false)
 	assert.NoError(t, err)
 
-	t.Log(data, addr)
+	if bytes.Equal(req, data) {
+		t.Log("same", addr)
+	}
+}
+
+func TestPacket(t *testing.T) {
+	lis, err := net.ListenPacket("udp", "127.0.0.1:0")
+	assert.NoError(t, err)
+	defer lis.Close()
+
+	auth := plain.NewAuth([]byte("telnoinnoijuhbbikjonkndnfioe439423fldfksdjf9034jpjffjst"))
+
+	data := randSeq(rand.IntN(60000))
+
+	go StartUDPServer(lis, func(p *netapi.Packet) error {
+		_, err := p.WriteBack(p.Payload.Bytes(), p.Src)
+
+		t.Log(p.Payload.Len(), bytes.Equal(data, p.Payload.Bytes()), p.Dst.String(), p.Src.String(), err)
+
+		return nil
+	}, auth, true)
+
+	client, err := net.ListenPacket("udp", "127.0.0.1:0")
+	assert.NoError(t, err)
+	defer client.Close()
+
+	cc := NewAuthPacketConn(client).WithTarget(lis.LocalAddr()).WithAuth(auth).WithPrefix(true)
+
+	go func() {
+		for {
+			rdata := make([]byte, 65536)
+			n, addr, err := cc.ReadFrom(rdata)
+			assert.NoError(t, err)
+
+			t.Log(n, addr, bytes.Equal(rdata[:n], data))
+		}
+	}()
+
+	for range 50 {
+		go func() {
+			_, err := cc.WriteTo(data, lis.LocalAddr())
+			assert.NoError(t, err)
+		}()
+	}
+
+	time.Sleep(time.Second * 20)
 }

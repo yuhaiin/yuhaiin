@@ -128,6 +128,11 @@ func (b *Bytes) Refactor(start, end int) *Bytes {
 	return b
 }
 
+func (b *Bytes) Reset() {
+	b.start = 0
+	b.end = len(b.buf)
+}
+
 func (b *Bytes) Copy(byte []byte) *Bytes {
 	b.end = b.start + copy(b.Bytes(), byte)
 	return b
@@ -262,11 +267,26 @@ func (b *Buffer) Write(bb []byte) (int, error) {
 }
 
 func (b *Buffer) Advance(i int) {
+	if i <= 0 {
+		return
+	}
 	free := len(b.freeSlice())
 	if free < i {
 		b.b.end += free
 	} else {
 		b.b.end += i
+	}
+}
+
+func (b *Buffer) Retreat(i int) {
+	if i <= 0 {
+		return
+	}
+
+	if b.b.end < i {
+		b.b.end = 0
+	} else {
+		b.b.end -= i
 	}
 }
 

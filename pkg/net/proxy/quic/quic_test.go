@@ -3,12 +3,23 @@ package quic
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/binary"
+	"io"
+	mrand "math/rand/v2"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 var cert = []byte(`-----BEGIN CERTIFICATE-----
@@ -57,21 +68,21 @@ func TestQuic(t *testing.T) {
 
 	defer s.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	go func() {
-		defer cancel()
-
-		spc, err := s.Packet(ctx)
+		spc, err := s.Packet(context.TODO())
 		assert.NoError(t, err)
 
-		buf := make([]byte, 65536)
-
-		for range 2 {
+		for {
+			buf := make([]byte, 65536)
 			n, addr, err := spc.ReadFrom(buf)
-			assert.NoError(t, err)
+			if err != nil {
+				break
+			}
 
-			t.Log(string(buf[:n]), addr, bytes.Equal(buf[:n], append(cert, cert...)))
+			// go func() {
+			_, err = spc.WriteTo(buf[:n], addr)
+			assert.NoError(t, err)
+			// }()
 		}
 	}()
 
@@ -89,11 +100,150 @@ func TestQuic(t *testing.T) {
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
 	assert.NoError(t, err)
 
-	_, err = pc.WriteTo(append(cert, cert...), nil)
+	var wg sync.WaitGroup
+	id := atomic.Uint64{}
+	var idBytesMap syncmap.SyncMap[uint64, []byte]
+	for range 1000 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			length := mrand.IntN(nat.MaxSegmentSize - 1024)
+			data := make([]byte, length)
+			recevie := make([]byte, nat.MaxSegmentSize)
+
+			_, err := io.ReadFull(rand.Reader, data)
+			assert.NoError(t, err)
+
+			id := id.Add(1)
+
+			// defer fmt.Println(id)
+
+			idb := binary.BigEndian.AppendUint64(nil, uint64(id))
+
+			data = append(idb, data...)
+
+			idBytesMap.Store(uint64(id), data)
+
+			_, err = pc.WriteTo(data, nil)
+			assert.NoError(t, err)
+
+			n, _, err := pc.ReadFrom(recevie)
+			assert.NoError(t, err)
+
+			rid := binary.BigEndian.Uint64(recevie[:n])
+
+			data, ok := idBytesMap.Load(rid)
+			if !ok {
+				t.Error("not found")
+				t.Fail()
+			}
+
+			if !bytes.Equal(data, recevie[:n]) {
+				t.Error("not equal", len(data), n, data[:8], recevie[:8], rid)
+				t.Fail()
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestSimple(t *testing.T) {
+	s, err := simple.NewServer(&listener.Inbound_Tcpudp{
+		Tcpudp: &listener.Tcpudp{
+			Host:    "127.0.0.1:1090",
+			Control: listener.TcpUdpControl_tcp_udp_control_all,
+		},
+	})
 	assert.NoError(t, err)
 
-	_, err = pc.WriteTo(append(cert, cert...), nil)
+	defer s.Close()
+
+	go func() {
+		spc, err := s.Packet(context.TODO())
+		assert.NoError(t, err)
+
+		for range system.Procs {
+			go func() {
+				for {
+					buf := make([]byte, 65536)
+					n, addr, err := spc.ReadFrom(buf)
+					if err != nil {
+						break
+					}
+
+					// go func() {
+					_, err = spc.WriteTo(buf[:n], addr)
+					assert.NoError(t, err)
+					// }()
+				}
+			}()
+		}
+	}()
+
+	qc, err := simple.NewClient(&protocol.Protocol_Simple{
+		Simple: &protocol.Simple{
+			Host: "127.0.0.1",
+			Port: 1090,
+		},
+	})(nil)
 	assert.NoError(t, err)
 
-	<-ctx.Done()
+	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
+	assert.NoError(t, err)
+
+	id := atomic.Uint64{}
+	var idBytesMap syncmap.SyncMap[uint64, []byte]
+
+	go func() {
+
+		for {
+			recevie := make([]byte, nat.MaxSegmentSize)
+			n, _, err := pc.ReadFrom(recevie)
+			assert.NoError(t, err)
+
+			rid := binary.BigEndian.Uint64(recevie[:n])
+
+			data, ok := idBytesMap.LoadAndDelete(rid)
+			if !ok {
+				t.Error("not found")
+				t.Fail()
+			}
+
+			if !bytes.Equal(data, recevie[:n]) {
+				t.Error("not equal", len(data), n, data[:8], recevie[:8], rid)
+				t.Fail()
+			}
+		}
+	}()
+	for range 100 {
+		go func() {
+			length := mrand.IntN(1024)
+			data := make([]byte, length)
+
+			_, err := io.ReadFull(rand.Reader, data)
+			assert.NoError(t, err)
+
+			id := id.Add(1)
+
+			idb := binary.BigEndian.AppendUint64(nil, uint64(id))
+
+			data = append(idb, data...)
+
+			idBytesMap.Store(uint64(id), data)
+
+			_, err = pc.WriteTo(data, nil)
+			assert.NoError(t, err)
+
+		}()
+	}
+
+	time.Sleep(time.Second * 10)
+
+	idBytesMap.Range(func(key uint64, value []byte) bool {
+		t.Log(key, len(value))
+		return true
+	})
 }

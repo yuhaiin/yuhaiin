@@ -228,7 +228,7 @@ func (d *DomainAddr) lookupIP(ctx context.Context) ([]net.IP, error) {
 		if err == nil {
 			return ips, nil
 		} else {
-			log.Warn("resolve ipv6 failed, fallback to ipv4", slog.String("domain", d.hostname), slog.Any("err", err))
+			log.Warn("resolve failed, fallback to normal lookup", slog.String("domain", d.hostname), slog.Any("err", err))
 		}
 	}
 

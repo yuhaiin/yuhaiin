@@ -86,7 +86,6 @@ func ListenPacketWithOptions(network, address string, opts *Options) (net.Packet
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
-	lc.SetMultipathTCP(true)
 	return lc.ListenPacket(context.Background(), network, address)
 }
 

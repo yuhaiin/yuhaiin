@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 type Frag struct {
 	SplitID  atomic.Uint64
+	mu       sync.Mutex
 	mergeMap syncmap.SyncMap[uint64, *MergeFrag]
 }
 
@@ -45,24 +47,32 @@ func (f *Frag) Merge(buf []byte) *pool.Buffer {
 	}
 
 	if !ok {
-		mf, _ = f.mergeMap.LoadOrStore(id, &MergeFrag{
-			Data:  make([][]byte, total),
-			Total: uint32(total),
-			time:  time.Now(),
-		})
+		f.mu.Lock()
+
+		mf, ok = f.mergeMap.Load(id)
+		if !ok {
+			mf, _ = f.mergeMap.LoadOrStore(id, &MergeFrag{
+				Data:  make([][]byte, total),
+				Total: uint32(total),
+				time:  time.Now(),
+			})
+		}
+
+		f.mu.Unlock()
 	}
 
-	current := atomic.AddUint32(&mf.Count, 1)
-	atomic.AddUint32(&mf.TotalLen, uint32(len(fh.Payload())))
 	mf.Data[index] = fh.Payload()
+	atomic.AddUint32(&mf.TotalLen, uint32(len(fh.Payload())))
 
-	if current == mf.Total {
+	if atomic.AddUint32(&mf.Count, 1) == mf.Total {
 		f.mergeMap.Delete(id)
 
-		buf := pool.GetBytesWriter(mf.TotalLen)
+		buf := pool.GetBytesWriter(atomic.LoadUint32(&mf.TotalLen))
+
 		for _, v := range mf.Data {
 			_, _ = buf.Write(v)
 		}
+
 		return buf
 	}
 
@@ -135,7 +145,6 @@ func NewConnectionPacketConn(conn quic.Connection) *ConnectionPacketConn {
 			timer.Reset(time.Minute)
 		}
 	})
-
 	maxSize := &atomic.Int64{}
 	maxSize.Store(1280)
 
@@ -165,12 +174,14 @@ _retry:
 
 func (c *ConnectionPacketConn) Write(b []byte, id uint64) error {
 	buf := pool.GetBytesWriter(8 + len(b))
-	defer buf.Free()
 
 	buf.WriteUint64(id)
 	_, _ = buf.Write(b)
 
-_retry:
+	return c.write(buf, false)
+}
+
+func (c *ConnectionPacketConn) write(buf *pool.Buffer, retry bool) error {
 	buffers := c.frag.Split(buf.Bytes(), int(c.MaxDatagramFrameSize.Load()))
 	defer buffers.Free()
 
@@ -181,18 +192,15 @@ _retry:
 		}
 
 		te, ok := err.(*quic.DatagramTooLargeError)
-		if !ok {
-			return err
-		}
-
-		if c.MaxDatagramFrameSize.Load() <= te.MaxDatagramPayloadSize {
+		if !ok || retry {
 			return err
 		}
 
 		c.MaxDatagramFrameSize.Store(te.MaxDatagramPayloadSize)
+
 		buffers.Free()
 
-		goto _retry
+		return c.write(buf, true)
 	}
 
 	return nil

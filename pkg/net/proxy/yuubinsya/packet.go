@@ -60,6 +60,10 @@ func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
 }
 
 func (s *authPacketConn) writeTo(p []byte, addr net.Addr, underlyingAddr net.Addr) (_ int, err error) {
+	if len(p) > nat.MaxSegmentSize-types.AuthHeaderSize(s.auth, s.prefix) {
+		return 0, fmt.Errorf("packet too large: %d > %d", len(p), nat.MaxSegmentSize)
+	}
+
 	buf := pool.GetBytesWriter(nat.MaxSegmentSize)
 	defer buf.Free()
 
@@ -98,9 +102,11 @@ func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, erro
 
 func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) error, auth types.Auth, prefix bool) {
 	p := NewAuthPacketConn(packet).WithAuth(auth).WithPrefix(prefix)
-	for {
-		buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+	buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+	defer buf.Free()
 
+	for {
+		buf.Reset()
 		n, dst, src, err := p.readFrom(buf.Bytes())
 		if err != nil {
 			log.Error("read udp request failed", slog.Any("err", err))
@@ -117,7 +123,7 @@ func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) error
 		err = sendPacket(&netapi.Packet{
 			Src:     src,
 			Dst:     dst,
-			Payload: buf,
+			Payload: pool.GetBytesBuffer(buf.Len()).Copy(buf.Bytes()),
 			WriteBack: func(b []byte, source net.Addr) (int, error) {
 				return p.writeTo(b, source, src)
 			},

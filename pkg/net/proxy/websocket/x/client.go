@@ -40,11 +40,11 @@ func (config *Config) NewClient(SecWebSocketKey string, rwc net.Conn, request fu
 	return
 }
 
-//go:linkname NewBufioReader net/http.newBufioReader
-func NewBufioReader(r io.Reader) *bufio.Reader
+//go:linkname newBufioReader net/http.newBufioReader
+func newBufioReader(r io.Reader) *bufio.Reader
 
-//go:linkname PutBufioReader net/http.putBufioReader
-func PutBufioReader(br *bufio.Reader)
+//go:linkname putBufioReader net/http.putBufioReader
+func putBufioReader(br *bufio.Reader)
 
 //go:linkname newBufioWriterSize net/http.newBufioWriterSize
 func newBufioWriterSize(w io.Writer, size int) *bufio.Writer
@@ -84,8 +84,8 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, conn net.Conn,
 		return nil, err
 	}
 
-	reader := NewBufioReader(conn)
-	defer PutBufioReader(reader)
+	reader := newBufioReader(conn)
+	defer putBufioReader(reader)
 
 	resp, err := http.ReadResponse(reader, req)
 	if err != nil {

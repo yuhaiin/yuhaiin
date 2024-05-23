@@ -2,7 +2,6 @@ package yuubinsya
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -78,7 +76,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			return nil, err
 		}
 
-		return NewAuthPacketConn(packet).WithTarget(addr).WithAuth(c.packetAuth).WithPrefix(true), nil
+		return NewAuthPacketConn(packet).WithTarget(addr).WithAuth(c.packetAuth), nil
 	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)
@@ -96,12 +94,10 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 
 type PacketConn struct {
 	headerWrote bool
-	remain      int
 
 	net.Conn
 
 	handshaker types.Handshaker
-	addr       netapi.Address
 
 	hmux sync.Mutex
 	rmux sync.Mutex
@@ -114,7 +110,7 @@ func newPacketConn(conn net.Conn, handshaker types.Handshaker, server bool) *Pac
 		Conn:        conn,
 		handshaker:  handshaker,
 		headerWrote: server,
-		r:           websocket.NewBufioReader(conn),
+		r:           bufio.NewReaderSize(conn, nat.MaxSegmentSize*3),
 	}
 }
 
@@ -123,9 +119,6 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
-
-	s5Addr := tools.ParseAddr(taddr)
-	defer s5Addr.Free()
 
 	w := pool.GetBuffer()
 	defer pool.PutBuffer(w)
@@ -143,21 +136,15 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		}
 	}
 
-	b := bytes.NewBuffer(payload)
+	tools.EncodeAddr(taddr, w)
 
-	for b.Len() > 0 {
-		data := b.Next(nat.MaxSegmentSize)
-		w.Write(s5Addr.Bytes.Bytes())
-		_ = binary.Write(w, binary.BigEndian, uint16(len(data)))
-		w.Write(data)
+	payload = payload[:min(nat.MaxSegmentSize, len(payload))]
+	_ = binary.Write(w, binary.BigEndian, uint16(len(payload)))
+	w.Write(payload)
 
-		n, err := c.Conn.Write(w.Bytes())
-
-		w.Reset()
-
-		if err != nil {
-			return len(payload) - b.Len() + len(data) - n, fmt.Errorf("write to %v failed: %w", addr, err)
-		}
+	_, err = c.Conn.Write(w.Bytes())
+	if err != nil {
+		return 0, err
 	}
 
 	return len(payload), nil
@@ -167,18 +154,10 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	c.rmux.Lock()
 	defer c.rmux.Unlock()
 
-	if c.remain > 0 {
-		n, err := c.r.Read(payload[:min(len(payload), c.remain)])
-		c.remain -= n
-		return n, c.addr, err
-	}
-
 	addr, err := tools.ResolveAddr(c.r)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
-
-	c.addr = addr.Address(statistic.Type_udp)
 
 	lengthBytes, err := c.r.Peek(2)
 	if err != nil {
@@ -187,13 +166,13 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 
 	_, _ = c.r.Discard(2)
 
-	length := binary.BigEndian.Uint16(lengthBytes)
+	length := int(binary.BigEndian.Uint16(lengthBytes))
 
-	readlen := min(len(payload), int(length))
-	c.remain = int(length) - readlen
+	n, err = io.ReadFull(c.r, payload[:min(len(payload), length)])
 
-	n, err = io.ReadFull(c.r, payload[:readlen])
-	return n, c.addr, err
+	_, _ = c.r.Discard(length - n)
+
+	return n, addr.Address(statistic.Type_udp), err
 }
 
 type Conn struct {

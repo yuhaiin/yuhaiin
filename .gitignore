@@ -12,3 +12,5 @@
 /cmd/benchmark/benchmark
 /copy_front.sh
 /output
+/cmd/nat_test
+/tmp

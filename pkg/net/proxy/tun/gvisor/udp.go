@@ -98,9 +98,11 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 		return true
 	}
 
+	dst := netapi.ParseIPAddrPort(statistic.Type_udp, id.LocalAddress.AsSlice(), int(dstPort))
+
 	_ = f.SendPacket(&netapi.Packet{
 		Src:     netapi.ParseIPAddrPort(statistic.Type_udp, id.RemoteAddress.AsSlice(), int(srcPort)),
-		Dst:     netapi.ParseIPAddrPort(statistic.Type_udp, id.LocalAddress.AsSlice(), int(dstPort)),
+		Dst:     dst,
 		Payload: buf.Unwrap(),
 		WriteBack: func(b []byte, addr net.Addr) (int, error) {
 			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)
