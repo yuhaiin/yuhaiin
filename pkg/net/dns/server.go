@@ -17,7 +17,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
-	"golang.org/x/sync/semaphore"
 )
 
 type dnsServer struct {
@@ -25,15 +24,12 @@ type dnsServer struct {
 	resolver    netapi.Resolver
 	listener    net.PacketConn
 	tcpListener net.Listener
-
-	sf *semaphore.Weighted
 }
 
 func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 	d := &dnsServer{
 		server:   server,
 		resolver: process,
-		sf:       semaphore.NewWeighted(200),
 	}
 
 	if server == "" {
@@ -73,16 +69,17 @@ func (d *dnsServer) startUDP() (err error) {
 
 	log.Info("new udp dns server", "host", d.server)
 
-	for i := 0; i < system.Procs; i++ {
+	for range system.Procs {
 		go func() {
 			defer d.Close()
 
+			buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+			defer buf.Free()
+
 			for {
-				buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+				buf.Reset()
 				_, addr, err := buf.ReadFromPacket(d.listener)
 				if err != nil {
-					buf.Free()
-
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						continue
 					}
@@ -93,16 +90,9 @@ func (d *dnsServer) startUDP() (err error) {
 					return
 				}
 
-				err = d.sf.Acquire(context.TODO(), 1)
-				if err != nil {
-					buf.Free()
-					continue
-				}
-
-				go func() {
-					defer d.sf.Release(1)
+				go func(bytes *pool.Bytes) {
 					err := d.Do(context.TODO(), &netapi.DNSRawRequest{
-						Question: buf,
+						Question: bytes,
 						WriteBack: func(b []byte) error {
 							if _, err = d.listener.WriteTo(b, addr); err != nil {
 								return fmt.Errorf("write dns response to client failed: %w", err)
@@ -113,8 +103,7 @@ func (d *dnsServer) startUDP() (err error) {
 					if err != nil {
 						log.Error("dns server handle data failed", slog.Any("err", err))
 					}
-				}()
-
+				}(pool.GetBytesBuffer(buf.Len()).Copy(buf.Bytes()))
 			}
 		}()
 	}

@@ -127,15 +127,17 @@ func (h *Tun2socket) handleUDP() error {
 
 	buf.Refactor(0, n)
 
+	dst := netapi.ParseUDPAddr(&net.UDPAddr{
+		IP:   net.IP(tuple.DestinationAddr.AsSlice()),
+		Port: int(tuple.DestinationPort),
+	})
+
 	return h.SendPacket(&netapi.Packet{
 		Src: &net.UDPAddr{
 			IP:   net.IP(tuple.SourceAddr.AsSlice()),
 			Port: int(tuple.SourcePort),
 		},
-		Dst: netapi.ParseUDPAddr(&net.UDPAddr{
-			IP:   net.IP(tuple.DestinationAddr.AsSlice()),
-			Port: int(tuple.DestinationPort),
-		}),
+		Dst:     dst,
 		Payload: buf,
 		WriteBack: func(b []byte, addr net.Addr) (int, error) {
 			address, err := netapi.ParseSysAddr(addr)

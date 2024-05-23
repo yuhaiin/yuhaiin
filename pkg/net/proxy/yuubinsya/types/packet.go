@@ -61,7 +61,11 @@ func EncodePacket(w PacketBuffer, addr net.Addr, buf []byte, auth Auth, prefix b
 		data := w.Bytes()[auth.NonceSize() : w.Len()-auth.Overhead()]
 		cryptext := w.Bytes()[auth.NonceSize():]
 
-		auth.Seal(cryptext[:0], nonce, data, nil)
+		out := auth.Seal(cryptext[:0], nonce, data, nil)
+
+		if i := len(cryptext) - len(out); i > 0 {
+			w.Retreat(i)
+		}
 	}
 
 	return nil
@@ -78,7 +82,8 @@ func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, err
 			cryptext := r[auth.NonceSize():]
 			r = r[auth.NonceSize() : len(r)-auth.Overhead()]
 
-			_, err := auth.Open(r[:0], nonce, cryptext, nil)
+			var err error
+			r, err = auth.Open(r[:0], nonce, cryptext, nil)
 			if err != nil {
 				return nil, nil, err
 			}

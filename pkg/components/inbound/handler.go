@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniffy"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -89,26 +90,39 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 }
 
 func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
-	go func() {
-		ctx, cancel := context.WithTimeout(ctx, Timeout)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	defer cancel()
 
-		ctx = netapi.NewStore(ctx)
-		store := netapi.StoreFromContext(ctx)
+	ctx = netapi.NewStore(ctx)
+	store := netapi.StoreFromContext(ctx)
 
-		if s.sniffyEnabled {
-			mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())
-			if ok {
-				store.
-					Add("Protocol", name).
-					Add(shunt.ForceModeKey{}, mode)
+	if s.sniffyEnabled {
+		mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())
+		if ok {
+			store.
+				Add("Protocol", name).
+				Add(shunt.ForceModeKey{}, mode)
+		}
+	}
+
+	_, ok := pack.Src.(*quic.QuicAddr)
+	if !ok {
+		src, err := netapi.ParseSysAddr(pack.Src)
+		if err == nil && !src.IsFqdn() {
+			srcAddr := src.AddrPort(ctx).V.Addr()
+			if srcAddr.Unmap().Is4() {
+				pack.Dst.PreferIPv4(true)
+				pack.Dst.PreferIPv6(false)
+			} else {
+				pack.Dst.PreferIPv4(false)
+				pack.Dst.PreferIPv6(true)
 			}
 		}
+	}
 
-		if err := s.table.Write(ctx, pack); err != nil {
-			log.Error("packet", "error", err)
-		}
-	}()
+	if err := s.table.Write(ctx, pack); err != nil {
+		log.Error("packet", "error", err)
+	}
 }
 
 func (s *handler) Close() error { return s.table.Close() }

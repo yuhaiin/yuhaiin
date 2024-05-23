@@ -62,7 +62,7 @@ func (y *server) startUDP() error {
 	}
 	defer packet.Close()
 
-	StartUDPServer(packet, y.SendPacket, y.packetAuth, true)
+	StartUDPServer(packet, y.SendPacket, y.packetAuth, false)
 
 	return nil
 }

@@ -66,7 +66,7 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 		return nil, err
 	}
 
-	PutBufioReader(buf.Reader)
+	putBufioReader(buf.Reader)
 	putBufioWriter(buf.Writer)
 
 	return newConn(rwc, true), nil

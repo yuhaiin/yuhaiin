@@ -29,6 +29,7 @@ type Buffer interface {
 type PacketBuffer interface {
 	Buffer
 	Advance(int)
+	Retreat(i int)
 }
 
 type Handshaker interface {
@@ -59,6 +60,20 @@ type Auth interface {
 	cipher.AEAD
 	KeySize() int
 	Key() []byte
+}
+
+func AuthHeaderSize(auth Auth, prefix bool) int {
+	var a int
+
+	if auth != nil {
+		a = auth.NonceSize() + auth.KeySize() + auth.Overhead()
+	}
+
+	if prefix {
+		a += 3
+	}
+
+	return a
 }
 
 func Salt(password []byte) []byte {
