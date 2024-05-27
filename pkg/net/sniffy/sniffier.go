@@ -63,19 +63,18 @@ func (s *Sniffier[T]) Packet(b []byte) (T, string, bool) {
 }
 
 func (s *Sniffier[T]) Stream(c net.Conn) (net.Conn, T, string, bool) {
-	buf := pool.GetBytesBuffer(pool.DefaultSize)
+	buf := pool.GetBytes(pool.DefaultSize)
 
-	n, _ := buf.ReadFrom(c)
-
+	n, _ := c.Read(buf)
 	if n <= 0 {
-		buf.Free()
+		pool.PutBytes(buf)
 		return c, *new(T), "", false
 	}
 
-	c = netapi.NewPrefixBytesConn(c, buf)
+	c = netapi.NewPrefixBytesConn(c, buf[:n])
 
 	for _, ck := range s.streamChecker {
-		t, ok := ck.checker(buf.Bytes())
+		t, ok := ck.checker(buf[:n])
 		if ok {
 			return c, t, ck.name, ok
 		}

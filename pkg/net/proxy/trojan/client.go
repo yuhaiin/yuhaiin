@@ -34,8 +34,8 @@ const (
 var crlf = []byte{'\r', '\n'}
 
 func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr netapi.Address) (err error) {
-	buf := pool.GetBytesWriter(pool.DefaultSize)
-	defer buf.Free()
+	buf := pool.NewBufferSize(2048)
+	defer buf.Reset()
 
 	_, _ = buf.Write(c.password)
 	_, _ = buf.Write(crlf)
@@ -104,8 +104,8 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
 
-	w := pool.GetBuffer()
-	defer pool.PutBuffer(w)
+	w := pool.NewBufferSize(min(len(payload), MaxPacketSize) + 1024)
+	defer w.Reset()
 
 	tools.EncodeAddr(taddr, w)
 
@@ -133,6 +133,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
+	defer pool.PutBytes(addr)
 
 	var length uint16
 	if err = binary.Read(c.Conn, binary.BigEndian, &length); err != nil {

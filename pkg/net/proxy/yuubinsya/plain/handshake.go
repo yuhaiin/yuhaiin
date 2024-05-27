@@ -28,19 +28,19 @@ func (password Handshaker) EncodeHeader(net types.Protocol, buf types.Buffer, ad
 }
 
 func (password Handshaker) DecodeHeader(c net.Conn) (types.Protocol, error) {
-	z := pool.GetBytesBuffer(crypto.Sha256.Size() + 1)
-	defer z.Free()
+	buf := pool.GetBytes(crypto.Sha256.Size() + 1)
+	defer pool.PutBytes(buf)
 
-	if _, err := io.ReadFull(c, z.Bytes()); err != nil {
+	if _, err := io.ReadFull(c, buf); err != nil {
 		return 0, fmt.Errorf("read net type failed: %w", err)
 	}
-	net := types.Protocol(z.Bytes()[0])
+	net := types.Protocol(buf[0])
 
 	if net.Unknown() {
 		return 0, fmt.Errorf("unknown network: %d", net)
 	}
 
-	if subtle.ConstantTimeCompare(z.Bytes()[1:], password[:]) == 0 {
+	if subtle.ConstantTimeCompare(buf[1:], password[:]) == 0 {
 		return 0, errors.New("password is incorrect")
 	}
 

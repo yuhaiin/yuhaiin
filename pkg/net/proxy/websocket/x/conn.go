@@ -144,8 +144,8 @@ func (ws *Conn) WriteMsg(msg []byte, payloadType opcode) (int, error) {
 		_ = binary.Read(rand.Reader, binary.BigEndian, &frameHeader.maskKey)
 	}
 
-	buf := pool.GetBytesWriter(pool.DefaultSize + len(msg))
-	defer buf.Free()
+	buf := pool.NewBufferSize(pool.DefaultSize + len(msg))
+	defer buf.Reset()
 
 	if err := writeFrameHeader(frameHeader, buf, ws.writeHeaderBuf[:]); err != nil {
 		return 0, err

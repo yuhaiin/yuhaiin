@@ -63,14 +63,14 @@ type request struct {
 }
 
 type client struct {
-	do              func(context.Context, *request) (*pool.Bytes, error)
+	do              func(context.Context, *request) ([]byte, error)
 	config          Config
 	edns0           dnsmessage.Resource
 	rawStore        *lru.LRU[dnsmessage.Question, dnsmessage.Message]
 	rawSingleflight singleflight.Group[dnsmessage.Question, dnsmessage.Message]
 }
 
-func NewClient(config Config, do func(context.Context, *request) (*pool.Bytes, error)) *client {
+func NewClient(config Config, do func(context.Context, *request) ([]byte, error)) *client {
 	var rh dnsmessage.ResourceHeader
 	_ = rh.SetEDNS0(nat.MaxSegmentSize, dnsmessage.RCodeSuccess, false)
 
@@ -205,9 +205,9 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 			if err != nil {
 				return dnsmessage.Message{}, err
 			}
-			defer resp.Free()
+			defer pool.PutBytes(resp)
 
-			if err = msg.Unpack(resp.Bytes()); err != nil {
+			if err = msg.Unpack(resp); err != nil {
 				return dnsmessage.Message{}, err
 			}
 

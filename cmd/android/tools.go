@@ -3,8 +3,6 @@ package yuhaiin
 import (
 	"bufio"
 	"bytes"
-	"errors"
-	"io"
 	"net"
 	"strings"
 )
@@ -33,16 +31,9 @@ type AddRoute interface {
 }
 
 func AddRulesCidr(process AddRoute, rules string) {
-	r := bufio.NewReader(strings.NewReader(rules))
-	for {
-		line, _, err := r.ReadLine()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			continue
-		}
+	r := bufio.NewScanner(strings.NewReader(rules))
+	for r.Scan() {
+		line := r.Bytes()
 
 		z := bytes.FieldsFunc(line, func(r rune) bool { return r == ',' })
 		if len(z) == 0 {

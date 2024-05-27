@@ -46,23 +46,23 @@ func (s *Server) Handle(conn net.Conn) error {
 }
 
 func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
-	buf := pool.GetBytesBuffer(8)
-	defer buf.Free()
+	buf := pool.GetBytes(8)
+	defer pool.PutBytes(buf)
 
-	if _, err := io.ReadFull(conn, buf.Bytes()); err != nil {
+	if _, err := io.ReadFull(conn, buf); err != nil {
 		return nil, err
 	}
 
-	if buf.Bytes()[0] != 0x04 {
-		return nil, fmt.Errorf("unknown socks version: %d", buf.Bytes()[0])
+	if buf[0] != 0x04 {
+		return nil, fmt.Errorf("unknown socks version: %d", buf[0])
 	}
 
-	if buf.Bytes()[1] != CommandConnect {
-		return nil, fmt.Errorf("unsupported command: %d", buf.Bytes()[1])
+	if buf[1] != CommandConnect {
+		return nil, fmt.Errorf("unsupported command: %d", buf[1])
 	}
 
-	port := binary.BigEndian.Uint16(buf.Bytes()[2:4])
-	dstAddr := buf.Bytes()[4:8]
+	port := binary.BigEndian.Uint16(buf[2:4])
+	dstAddr := buf[4:8]
 	userId, err := readData(conn)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 	}
 
 	_, _ = conn.Write([]byte{0, 90})
-	_, _ = conn.Write(buf.Bytes()[2:8])
+	_, _ = conn.Write(buf[2:8])
 	return target, nil
 }
 

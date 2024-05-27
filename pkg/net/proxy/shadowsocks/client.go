@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // Shadowsocks shadowsocks
@@ -49,10 +50,10 @@ func (s *Shadowsocks) Conn(ctx context.Context, addr netapi.Address) (conn net.C
 	}
 
 	adr := tools.ParseAddr(addr)
-	defer adr.Free()
+	defer pool.PutBytes(adr)
 
 	conn = s.cipher.StreamConn(conn)
-	if _, err = conn.Write(adr.Bytes.Bytes()); err != nil {
+	if _, err = conn.Write(adr); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("shadowsocks write target failed: %w", err)
 	}

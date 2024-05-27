@@ -303,7 +303,7 @@ func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {
 	case <-x.ctx.Done():
 		return x.read(p, x.ctx.Err)
 	case msg := <-x.msg:
-		defer msg.Free()
+		defer msg.Reset()
 
 		n = copy(p, msg.Bytes())
 
@@ -315,7 +315,7 @@ func (x *clientPacketConn) read(p []byte, err func() error) (n int, _ net.Addr, 
 	if len(x.msg) > 0 {
 		select {
 		case msg := <-x.msg:
-			defer msg.Free()
+			defer msg.Reset()
 
 			n = copy(p, msg.Bytes())
 			return n, x.session.conn.RemoteAddr(), nil

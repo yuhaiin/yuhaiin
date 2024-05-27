@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"bytes"
 	"crypto"
 	crand "crypto/rand"
 	"encoding/binary"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type authSHA1v4 struct {
@@ -115,7 +115,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 	return outData
 }
 
-func (a *authSHA1v4) EncryptStream(buffer *bytes.Buffer, plainData []byte) (err error) {
+func (a *authSHA1v4) EncryptStream(buffer *pool.Buffer, plainData []byte) (err error) {
 	dataLength := len(plainData)
 	offset := 0
 	if !a.hasSentHeader && dataLength > 0 {
@@ -141,7 +141,7 @@ func (a *authSHA1v4) EncryptStream(buffer *bytes.Buffer, plainData []byte) (err 
 	return nil
 }
 
-func (a *authSHA1v4) DecryptStream(dst *bytes.Buffer, plainData []byte) (n int, err error) {
+func (a *authSHA1v4) DecryptStream(dst *pool.Buffer, plainData []byte) (n int, err error) {
 	dataLength := len(plainData)
 	plainLength := dataLength
 	for dataLength > 4 {

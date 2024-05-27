@@ -15,7 +15,7 @@ import (
 )
 
 type call struct {
-	buf   *pool.Bytes
+	buf   []byte
 	tuple Tuple
 }
 
@@ -43,9 +43,9 @@ func (u *UDP) ReadFrom(buf []byte) (int, Tuple, error) {
 	case <-u.ctx.Done():
 		return 0, Tuple{}, net.ErrClosed
 	case c := <-u.channel:
-		defer c.buf.Free()
+		defer pool.PutBytes(c.buf)
 
-		return copy(buf, c.buf.Bytes()), c.tuple, nil
+		return copy(buf, c.buf), c.tuple, nil
 	}
 }
 
@@ -55,9 +55,11 @@ func (u *UDP) Close() error {
 }
 
 func (u *UDP) handleUDPPacket(tuple Tuple, payload []byte) {
+	buf := pool.Clone(payload)
 	select {
-	case u.channel <- &call{pool.GetBytesBuffer(len(payload)).Copy(payload), tuple}:
+	case u.channel <- &call{buf, tuple}:
 	case <-u.ctx.Done():
+		pool.PutBytes(buf)
 	}
 }
 

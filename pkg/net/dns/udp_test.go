@@ -45,7 +45,7 @@ func TestUDP(t *testing.T) {
 		},
 	}
 
-	dns, err := New(configMap["opendns"])
+	dns, err := New(configMap["nextdns"])
 	assert.NoError(t, err)
 
 	t.Log(dns.LookupIP(context.TODO(), "www.baidu.com"))
