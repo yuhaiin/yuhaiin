@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -11,11 +12,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
+type notifierEntry struct {
+	s      gs.Connections_NotifyServer
+	cancel context.CancelCauseFunc
+}
+
 type notify struct {
 	mu sync.RWMutex
 
 	notifierIDSeed id.IDGenerator
-	notifier       syncmap.SyncMap[uint64, gs.Connections_NotifyServer]
+	notifier       syncmap.SyncMap[uint64, *notifierEntry]
 
 	channel chan *gs.NotifyData
 	closed  context.Context
@@ -25,7 +31,7 @@ type notify struct {
 func newNotify() *notify {
 	ctx, cancel := context.WithCancel(context.Background())
 	n := &notify{
-		channel: make(chan *gs.NotifyData, 100),
+		channel: make(chan *gs.NotifyData, 1000),
 		closed:  ctx,
 		close:   cancel,
 	}
@@ -35,17 +41,27 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s gs.Connections_NotifyServer, conns ...connection) uint64 {
+func (n *notify) register(s gs.Connections_NotifyServer, conns ...connection) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
-	n.notifier.Store(id, s)
-	_ = s.Send(&gs.NotifyData{
+	ctx, cancel := context.WithCancelCause(context.Background())
+
+	err := s.Send(&gs.NotifyData{
 		Data: &gs.NotifyData_NotifyNewConnections{
 			NotifyNewConnections: &gs.NotifyNewConnections{
 				Connections: slice.To(conns, func(c connection) *statistic.Connection { return c.Info() }),
 			},
 		},
 	})
-	return id
+	if err != nil {
+		cancel(fmt.Errorf("send notify error: %w", err))
+	} else {
+		n.notifier.Store(id, &notifierEntry{
+			s:      s,
+			cancel: cancel,
+		})
+	}
+
+	return id, ctx
 }
 
 func (n *notify) unregister(id uint64) { n.notifier.Delete(id) }
@@ -57,8 +73,10 @@ func (n *notify) start() {
 			close(n.channel)
 			return
 		case d := <-n.channel:
-			n.notifier.Range(func(key uint64, value gs.Connections_NotifyServer) bool {
-				_ = value.Send(d)
+			n.notifier.Range(func(key uint64, value *notifierEntry) bool {
+				if err := value.s.Send(d); err != nil {
+					value.cancel(fmt.Errorf("send notify error: %w", err))
+				}
 				return true
 			})
 		}
@@ -79,12 +97,15 @@ func (n *notify) pubNewConns(conns ...connection) {
 	default:
 	}
 
-	n.channel <- &gs.NotifyData{
+	select {
+	case <-n.closed.Done():
+	case n.channel <- &gs.NotifyData{
 		Data: &gs.NotifyData_NotifyNewConnections{
 			NotifyNewConnections: &gs.NotifyNewConnections{
 				Connections: slice.To(conns, func(c connection) *statistic.Connection { return c.Info() }),
 			},
 		},
+	}:
 	}
 }
 

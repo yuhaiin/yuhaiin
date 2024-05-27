@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type verifySHA1 struct {
@@ -31,7 +32,7 @@ func (v *verifySHA1) otaConnectAuth(data []byte) []byte {
 	return append(data, v.hmac.HMAC(append(v.IV, v.Key()...), data, nil)...)
 }
 
-func (v *verifySHA1) otaReqChunkAuth(buffer *bytes.Buffer, chunkId uint32, data []byte) {
+func (v *verifySHA1) otaReqChunkAuth(buffer *pool.Buffer, chunkId uint32, data []byte) {
 	nb := make([]byte, 2)
 	binary.BigEndian.PutUint16(nb, uint16(len(data)))
 	chunkIdBytes := make([]byte, 4)
@@ -55,7 +56,7 @@ func (v *verifySHA1) getAndIncreaseChunkId() (chunkId uint32) {
 	return
 }
 
-func (v *verifySHA1) EncryptStream(buffer *bytes.Buffer, data []byte) (err error) {
+func (v *verifySHA1) EncryptStream(buffer *pool.Buffer, data []byte) (err error) {
 	dataLength := len(data)
 	offset := 0
 	if !v.hasSentHeader {
@@ -79,7 +80,7 @@ func (v *verifySHA1) EncryptStream(buffer *bytes.Buffer, data []byte) (err error
 	return nil
 }
 
-func (v *verifySHA1) DecryptStream(dst *bytes.Buffer, data []byte) (int, error) {
+func (v *verifySHA1) DecryptStream(dst *pool.Buffer, data []byte) (int, error) {
 	return dst.Write(data)
 }
 

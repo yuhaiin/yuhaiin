@@ -52,7 +52,7 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 		servername: config.Servername,
 	}
 
-	d.client = NewClient(config, func(ctx context.Context, b *request) (*pool.Bytes, error) {
+	d.client = NewClient(config, func(ctx context.Context, b *request) ([]byte, error) {
 		session, err := d.initSession(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("init session failed: %w", err)
@@ -77,13 +77,13 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 			return nil, fmt.Errorf("set deadline failed: %w", err)
 		}
 
-		buf := pool.GetBytesWriter(2 + len(b.Question))
-		defer buf.Free()
+		buf := pool.GetBytes(2 + len(b.Question))
+		defer pool.PutBytes(buf)
 
-		buf.WriteUint16(uint16(len(b.Question)))
-		_, _ = buf.Write(b.Question)
+		binary.BigEndian.PutUint16(buf, uint16(len(b.Question)))
+		copy(buf[2:], b.Question)
 
-		if _, err = conn.Write(buf.Bytes()); err != nil {
+		if _, err = conn.Write(buf); err != nil {
 			conn.Close()
 			return nil, fmt.Errorf("write dns req failed: %w", err)
 		}
@@ -99,9 +99,9 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 			return nil, fmt.Errorf("read dns response length failed: %w", err)
 		}
 
-		data := pool.GetBytesBuffer(int(length))
+		data := pool.GetBytes(int(length))
 
-		_, err = io.ReadFull(conn, data.Bytes())
+		_, err = io.ReadFull(conn, data)
 		if err != nil {
 			return nil, fmt.Errorf("read dns server response failed: %w", err)
 		}

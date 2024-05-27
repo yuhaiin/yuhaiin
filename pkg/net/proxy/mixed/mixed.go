@@ -142,17 +142,20 @@ func (m *Mixed) handle() error {
 		}
 
 		go func() {
-			protocol := pool.GetBytesBuffer(pool.DefaultSize)
+			protocol := pool.GetBytes(pool.DefaultSize)
 
-			n, err := protocol.ReadFrom(conn)
+			n, err := conn.Read(protocol)
 			if err != nil || n <= 0 {
 				conn.Close()
+				pool.PutBytes(protocol)
 				return
 			}
 
+			protocol = protocol[:n]
+
 			conn = netapi.NewPrefixBytesConn(conn, protocol)
 
-			switch protocol.Bytes()[0] {
+			switch protocol[0] {
 			case 0x05:
 				m.s5c.NewConn(conn)
 			case 0x04:

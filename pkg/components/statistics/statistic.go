@@ -44,12 +44,17 @@ func NewConnStore(cache *cache.Cache, dialer netapi.Proxy) *Connections {
 }
 
 func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
-	id := c.notify.register(s, c.connStore.ValueSlice()...)
+	id, done := c.notify.register(s, c.connStore.ValueSlice()...)
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
-	<-s.Context().Done()
-	log.Debug("remove notify client", "id", id)
-	return s.Context().Err()
+	defer log.Debug("remove notify client", "id", id)
+
+	select {
+	case <-s.Context().Done():
+		return s.Context().Err()
+	case <-done.Done():
+		return done.Err()
+	}
 }
 
 func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.NotifyNewConnections, error) {

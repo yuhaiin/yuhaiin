@@ -5,14 +5,16 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-func EncodePacket(w PacketBuffer, addr net.Addr, buf []byte, auth Auth, prefix bool) error {
+func EncodePacket(w *pool.Buffer, addr net.Addr, buf []byte, auth Auth, prefix bool) error {
 	ad, err := netapi.ParseSysAddr(addr)
 	if err != nil {
 		return fmt.Errorf("parse addr failed: %w", err)
@@ -20,27 +22,16 @@ func EncodePacket(w PacketBuffer, addr net.Addr, buf []byte, auth Auth, prefix b
 
 	if auth != nil {
 		if auth.NonceSize() > 0 {
-			w.Advance(auth.NonceSize())
-
-			_, err = rand.Read(w.Bytes())
-			if err != nil {
-				return err
-			}
+			_, _ = w.ReadFrom(io.LimitReader(rand.Reader, int64(auth.NonceSize())))
 		}
 
 		if auth.KeySize() > 0 {
-			_, err = w.Write(auth.Key())
-			if err != nil {
-				return err
-			}
+			_, _ = w.Write(auth.Key())
 		}
 	}
 
 	if prefix {
-		_, err = w.Write([]byte{0, 0, 0})
-		if err != nil {
-			return err
-		}
+		_, _ = w.Write([]byte{0, 0, 0})
 	}
 
 	tools.EncodeAddr(ad, w)
@@ -61,11 +52,7 @@ func EncodePacket(w PacketBuffer, addr net.Addr, buf []byte, auth Auth, prefix b
 		data := w.Bytes()[auth.NonceSize() : w.Len()-auth.Overhead()]
 		cryptext := w.Bytes()[auth.NonceSize():]
 
-		out := auth.Seal(cryptext[:0], nonce, data, nil)
-
-		if i := len(cryptext) - len(out); i > 0 {
-			w.Retreat(i)
-		}
+		auth.Seal(cryptext[:0], nonce, data, nil)
 	}
 
 	return nil
@@ -116,7 +103,7 @@ func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, err
 	if err != nil {
 		return nil, nil, err
 	}
-	defer addr.Free()
+	defer pool.PutBytes(addr)
 
-	return r[n+addr.Len():], addr.Address(statistic.Type_udp), nil
+	return r[n+len(addr):], addr.Address(statistic.Type_udp), nil
 }

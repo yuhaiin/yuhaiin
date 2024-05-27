@@ -45,7 +45,7 @@ func (s *handler) Stream(ctx context.Context, meta *netapi.StreamMeta) {
 			if errors.Is(err, netapi.ErrBlocked) {
 				log.Debug("blocked", "msg", err)
 			} else {
-				log.Error("stream", "error", err)
+				log.Error("stream failed", "error", err)
 			}
 		}
 	}()
@@ -97,7 +97,7 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	store := netapi.StoreFromContext(ctx)
 
 	if s.sniffyEnabled {
-		mode, name, ok := s.sniffer.Packet(pack.Payload.Bytes())
+		mode, name, ok := s.sniffer.Packet(pack.Payload)
 		if ok {
 			store.
 				Add("Protocol", name).

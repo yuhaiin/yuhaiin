@@ -40,11 +40,20 @@ type Packet struct {
 	Src       net.Addr
 	Dst       Address
 	WriteBack WriteBack
-	Payload   *pool.Bytes
+	Payload   []byte
+}
+
+func (p *Packet) Clone() *Packet {
+	return &Packet{
+		Src:       p.Src,
+		Dst:       p.Dst,
+		WriteBack: p.WriteBack,
+		Payload:   pool.Clone(p.Payload),
+	}
 }
 
 type DNSRawRequest struct {
-	Question  *pool.Bytes
+	Question  []byte
 	WriteBack func([]byte) error
 	Stream    bool
 }
@@ -64,7 +73,7 @@ func (e *emptyHandler) Close() error                                    { return
 func (e *emptyHandler) HandleUDP(context.Context, net.PacketConn) error { return io.EOF }
 func (e *emptyHandler) HandleTCP(context.Context, net.Conn) error       { return io.EOF }
 func (e *emptyHandler) Do(_ context.Context, b *DNSRawRequest) error {
-	b.Question.Free()
+	pool.PutBytes(b.Question)
 	return io.EOF
 }
 
@@ -169,8 +178,10 @@ func (s *ChannelServer) Close() error {
 }
 
 func (s *ChannelServer) SendPacket(packet *Packet) error {
+	packet.Payload = pool.Clone(packet.Payload)
 	select {
 	case <-s.ctx.Done():
+		pool.PutBytes(packet.Payload)
 		return s.ctx.Err()
 	case s.packetChan <- packet:
 		return nil
