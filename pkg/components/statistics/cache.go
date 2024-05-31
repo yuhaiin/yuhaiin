@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
 
 var (
@@ -21,7 +20,8 @@ type TotalCache struct {
 
 	notSyncDownload atomic.Int64
 	notSyncUpload   atomic.Int64
-	sf              singleflight.Group[string, struct{}]
+	syncingDownload atomic.Bool
+	syncingUpload   atomic.Bool
 
 	cache *cache.Cache
 }
@@ -44,12 +44,10 @@ func NewTotalCache(cache *cache.Cache) *TotalCache {
 
 func (c *TotalCache) AddDownload(d uint64) {
 	z := c.notSyncDownload.Add(int64(d))
-	if z >= SyncThreshold {
-		_, _, _ = c.sf.Do(string(DownloadKey), func() (struct{}, error) {
-			c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(z))))
-			c.notSyncDownload.Add(-z)
-			return struct{}{}, nil
-		})
+	if z >= SyncThreshold && c.syncingDownload.CompareAndSwap(false, true) {
+		c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(z))))
+		c.notSyncDownload.Add(-z)
+		c.syncingDownload.Store(false)
 	}
 }
 
@@ -59,12 +57,10 @@ func (c *TotalCache) LoadDownload() uint64 {
 
 func (c *TotalCache) AddUpload(d uint64) {
 	z := c.notSyncUpload.Add(int64(d))
-	if z >= SyncThreshold {
-		_, _, _ = c.sf.Do(string(UploadKey), func() (struct{}, error) {
-			c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(z))))
-			c.notSyncUpload.Add(-z)
-			return struct{}{}, nil
-		})
+	if z >= SyncThreshold && c.syncingUpload.CompareAndSwap(false, true) {
+		c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(z))))
+		c.notSyncUpload.Add(-z)
+		c.syncingUpload.Store(false)
 	}
 }
 
