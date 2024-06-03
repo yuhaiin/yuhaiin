@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"golang.org/x/exp/constraints"
 )
 
@@ -387,6 +388,8 @@ func ParsePortStr(p string) (Port, error) {
 	return PortUint16(pt), nil
 }
 
+var happyEyeballsCache = lru.New(lru.WithCapacity[string, net.IP](512))
+
 func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
 	if !addr.IsFqdn() {
 		return dialer.DialContext(ctx, "tcp", addr.String())
@@ -397,10 +400,28 @@ func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
 		return nil, err
 	}
 
+	lastIP, ok := happyEyeballsCache.Load(addr.Hostname())
+
 	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
 	for _, i := range rand.Perm(len(ips)) {
-		tcpAddress = append(tcpAddress, &net.TCPAddr{IP: ips[i], Port: int(addr.Port().Port())})
+		if ok && lastIP.Equal(ips[i]) && len(tcpAddress) > 0 {
+			tmp := tcpAddress[0]
+			tcpAddress[0] = &net.TCPAddr{IP: ips[i], Port: tmp.Port}
+			tcpAddress = append(tcpAddress, tmp)
+		} else {
+			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: ips[i], Port: int(addr.Port().Port())})
+		}
 	}
 
-	return dialer.DialHappyEyeballs(ctx, tcpAddress)
+	conn, err := dialer.DialHappyEyeballs(ctx, tcpAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	connAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
+	if ok {
+		happyEyeballsCache.Add(addr.Hostname(), connAddr.IP)
+	}
+
+	return conn, nil
 }
