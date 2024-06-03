@@ -21,9 +21,10 @@ import (
 )
 
 type tunServer struct {
-	nicID tcpip.NICID
-	stack *stack.Stack
-	ep    stack.LinkEndpoint
+	nicID    tcpip.NICID
+	stack    *stack.Stack
+	ep       stack.LinkEndpoint
+	postDown func()
 
 	*netapi.ChannelServer
 }
@@ -49,6 +50,11 @@ func (t *tunServer) Close() error {
 	}
 	log.Debug("start close tun channel server")
 	t.ChannelServer.Close()
+
+	if t.postDown != nil {
+		t.postDown()
+	}
+
 	return err
 }
 
@@ -76,6 +82,8 @@ func New(o *Opt) (netapi.Accepter, error) {
 		log.Warn("preload failed", "err", err)
 	}
 
+	o.PostUp()
+
 	log.Debug("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal)
 
 	stackOption := stack.Options{
@@ -102,6 +110,7 @@ func New(o *Opt) (netapi.Accepter, error) {
 		nicID:         nicID,
 		stack:         s,
 		ep:            ep,
+		postDown:      o.PostDown,
 		ChannelServer: netapi.NewChannelServer(),
 	}
 

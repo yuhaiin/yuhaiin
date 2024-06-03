@@ -28,6 +28,8 @@ type Nat struct {
 	mtu         int32
 
 	tab *tableSplit
+
+	postDown func()
 }
 
 func Start(opt *tun.Opt) (*Nat, error) {
@@ -45,6 +47,8 @@ func Start(opt *tun.Opt) (*Nat, error) {
 	if err != nil {
 		log.Warn("set route failed", "err", err)
 	}
+
+	opt.PostUp()
 
 	if opt.MTU <= 0 {
 		opt.MTU = nat.MaxSegmentSize
@@ -66,7 +70,8 @@ func Start(opt *tun.Opt) (*Nat, error) {
 			portalv6: opt.V6Address().Addr().Next().AsSlice(),
 			table:    tab,
 		},
-		UDP: NewUDPv2(int32(opt.MTU), opt.Writer),
+		UDP:      NewUDPv2(int32(opt.MTU), opt.Writer),
+		postDown: opt.PostDown,
 	}
 
 	subnet := tcpip.AddressWithPrefix{Address: nat.address, PrefixLen: opt.V4Address().Bits()}.Subnet()
@@ -270,6 +275,10 @@ func (n *Nat) Close() error {
 		if er := n.TCP.Close(); er != nil {
 			err = errors.Join(err, er)
 		}
+	}
+
+	if n.postDown != nil {
+		n.postDown()
 	}
 
 	return err
