@@ -135,6 +135,8 @@ message tun {
   string portal = 8 [ json_name = "portal" ];
   string portal_v6 = 11 [ json_name = "portal_v6" ];
   route route = 10 [ json_name = "route" ];
+  repeated string post_up = 12 [ json_name = "post_up" ];
+  repeated string post_down = 13 [ json_name = "post_down" ];
 }
 
 message route {
