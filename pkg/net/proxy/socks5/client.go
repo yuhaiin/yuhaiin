@@ -109,10 +109,10 @@ func (s *Client) handshake1(conn net.Conn) error {
 		req := pool.GetBytesWriter(pool.DefaultSize)
 		defer req.Free()
 
-		req.WriteByte(0x01)
-		req.WriteByte(byte(len(s.username)))
+		_ = req.WriteByte(0x01)
+		_ = req.WriteByte(byte(len(s.username)))
 		req.WriteString(s.username)
-		req.WriteByte(byte(len(s.password)))
+		_ = req.WriteByte(byte(len(s.password)))
 		req.WriteString(s.password)
 
 		_, err = conn.Write(req.Bytes())
@@ -124,9 +124,12 @@ func (s *Client) handshake1(conn net.Conn) error {
 		if err != nil {
 			return fmt.Errorf("read auth data failed: %w", err)
 		}
-		if header[1] == 0x01 {
-			return errors.New("username or password not correct,socks5 handshake failed")
+
+		if header[1] != 0x00 {
+			return fmt.Errorf("username or password not correct, socks5 handshake failed: err_code: %d", header[1])
 		}
+
+		return nil
 	}
 
 	return fmt.Errorf("unsupported Authentication methods: %d", header[1])
@@ -136,9 +139,9 @@ func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, a
 	req := pool.GetBytesWriter(pool.DefaultSize)
 	defer req.Free()
 
-	req.WriteByte(0x05)
-	req.WriteByte(byte(cmd))
-	req.WriteByte(0x00)
+	_ = req.WriteByte(0x05)
+	_ = req.WriteByte(byte(cmd))
+	_ = req.WriteByte(0x00)
 	tools.EncodeAddr(address, req)
 
 	if _, err = conn.Write(req.Bytes()); err != nil {
@@ -151,7 +154,7 @@ func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, a
 	}
 
 	if header[0] != 0x05 || header[1] != tools.Succeeded {
-		return nil, fmt.Errorf("socks5 second handshake failed, data: %v", header[:2])
+		return nil, fmt.Errorf("socks5 second handshake failed: ver: %d, err_code: %d", header[0], header[1])
 	}
 
 	add, err := tools.ResolveAddr(conn)
