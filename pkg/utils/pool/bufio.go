@@ -17,7 +17,7 @@ func bufioReaderPool(size int) *sync.Pool {
 	}
 
 	p := &sync.Pool{New: func() any { return bufio.NewReaderSize(nil, size) }}
-	poolMap.Store(size, p)
+	bufioReaderPoolMap.Store(size, p)
 	return p
 }
 

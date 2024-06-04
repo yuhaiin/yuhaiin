@@ -76,19 +76,18 @@ func (s *Server) Accept() (net.Conn, error) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	var earlyData []*pool.Bytes
+	var earlyData []byte
 	wsconn, err := websocket.NewServerConn(w, req, func(r *websocket.Request) error {
 		if r.Request.Header.Get("early_data") == "base64" {
 
-			buf := pool.GetBytesBuffer(base64.RawStdEncoding.DecodedLen(len(r.SecWebSocketKey)))
-			n, err := base64.RawStdEncoding.Decode(buf.Bytes(), []byte(r.SecWebSocketKey))
+			earlyData = pool.GetBytes(base64.RawStdEncoding.DecodedLen(len(r.SecWebSocketKey)))
+			n, err := base64.RawStdEncoding.Decode(earlyData, []byte(r.SecWebSocketKey))
 			if err != nil {
+				pool.PutBytes(earlyData)
 				return err
 			}
 
-			buf.Refactor(0, n)
-
-			earlyData = append(earlyData, buf)
+			earlyData = earlyData[:n]
 
 			r.Header = http.Header{}
 			r.Header.Add("early_data", "true")
@@ -104,6 +103,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	select {
 	case <-s.closeCtx.Done():
 		_ = wsconn.Close()
-	case s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData...):
+	case s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData):
 	}
 }

@@ -91,7 +91,8 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 	srcPort, dstPort := id.RemotePort, id.LocalPort
 
 	length := pkt.Data().Size()
-	buf := pool.GetBytesWriter(length)
+	buf := pool.NewBufferSize(length)
+	defer buf.Reset()
 
 	_, err := pkt.Data().ReadTo(buf, true)
 	if err != nil {
@@ -103,7 +104,7 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 	_ = f.SendPacket(&netapi.Packet{
 		Src:     netapi.ParseIPAddrPort(statistic.Type_udp, id.RemoteAddress.AsSlice(), int(srcPort)),
 		Dst:     dst,
-		Payload: buf.Unwrap(),
+		Payload: buf.Bytes(),
 		WriteBack: func(b []byte, addr net.Addr) (int, error) {
 			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)
 		},

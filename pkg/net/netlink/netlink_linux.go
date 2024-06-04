@@ -84,11 +84,11 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 
 	expectedSocketName := fmt.Appendf(nil, "socket:[%d]", inode)
 
-	pathBuffer := pool.GetBuffer()
-	defer pool.PutBuffer(pathBuffer)
+	pathBuffer := pool.NewBufferSize(1024)
+	defer pathBuffer.Reset()
 
-	readlinkBuffer := pool.GetBytesBuffer(32)
-	defer readlinkBuffer.Free()
+	readlinkBuffer := pool.GetBytes(32)
+	defer pool.PutBytes(readlinkBuffer)
 
 	pathBuffer.WriteString("/proc/")
 
@@ -128,12 +128,12 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 			pathBuffer.Truncate(fdsPrefixLength)
 			pathBuffer.WriteString(fd)
 
-			n, err := unix.Readlink(pathBuffer.String(), readlinkBuffer.Bytes())
+			n, err := unix.Readlink(pathBuffer.String(), readlinkBuffer)
 			if err != nil {
 				continue
 			}
 
-			if bytes.Equal(readlinkBuffer.Bytes()[:n], expectedSocketName) {
+			if bytes.Equal(readlinkBuffer[:n], expectedSocketName) {
 				return os.Readlink("/proc/" + pid + "/exe")
 			}
 		}

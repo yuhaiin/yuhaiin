@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -61,58 +62,58 @@ func EncodeAddr(addr netapi.Address, buf io.Writer) {
 	_ = binary.Write(buf, binary.BigEndian, addr.Port().Port())
 }
 
-type Addr struct {
-	*pool.Bytes
-}
+type Addr []byte
 
-func (a *Addr) Address(network statistic.Type) netapi.Address {
-	if a.Len() == 0 {
+func (a Addr) Address(network statistic.Type) netapi.Address {
+	if len(a) == 0 {
 		return netapi.EmptyAddr
 	}
 
-	port := binary.BigEndian.Uint16(a.After(a.Len() - 2))
+	port := binary.BigEndian.Uint16(a[len(a)-2:])
 
-	switch a.Bytes.Bytes()[0] {
+	switch a[0] {
 	case IPv4, IPv6:
-		return netapi.ParseIPAddrPort(network, a.Bytes.Bytes()[1:a.Len()-2], int(port))
+		ip := make(net.IP, len(a[1:len(a)-2]))
+		copy(ip, a[1:len(a)-2])
+		return netapi.ParseIPAddrPort(network, ip, int(port))
 	case Domain:
-		hostname := string(a.Bytes.Bytes()[2 : a.Len()-2])
+		hostname := string(a[2 : len(a)-2])
 		return netapi.ParseDomainPort(network, hostname, netapi.ParsePort(port))
 	}
 
 	return netapi.EmptyAddr
 }
 
-func ResolveAddr(r io.Reader) (*Addr, error) {
+func ResolveAddr(r io.Reader) (Addr, error) {
 	var buf [2]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return nil, fmt.Errorf("unable to read addr type: %w", err)
 	}
 
-	addr := pool.GetBytesBuffer(1 + 255 + 2 + 1)
+	addr := pool.GetBytes(1 + 255 + 2 + 1)
 
 	switch buf[0] {
 	case IPv4:
-		addr.Refactor(0, 1+4+2)
+		addr = addr[:1+4+2]
 	case IPv6:
-		addr.Refactor(0, 1+16+2)
+		addr = addr[:1+16+2]
 	case Domain:
-		addr.Refactor(0, int(1+1+buf[1]+2))
+		addr = addr[:int(1+1+buf[1]+2)]
 	default:
 		return nil, fmt.Errorf("unknown addr type: %d", buf[0])
 	}
 
-	copy(addr.Bytes()[:2], buf[:])
+	copy(addr[:2], buf[:])
 
-	if _, err := io.ReadFull(r, addr.Bytes()[2:]); err != nil {
+	if _, err := io.ReadFull(r, addr[2:]); err != nil {
 		return nil, err
 	}
 
-	return &Addr{addr}, nil
+	return addr, nil
 }
 
-func ParseAddr(addr netapi.Address) *Addr {
-	buf := pool.GetBytesWriter(1 + 255 + 2 + 1)
+func ParseAddr(addr netapi.Address) Addr {
+	buf := pool.NewBufferSize(1 + 255 + 2 + 1)
 	EncodeAddr(addr, buf)
-	return &Addr{buf.Unwrap()}
+	return buf.Bytes()
 }

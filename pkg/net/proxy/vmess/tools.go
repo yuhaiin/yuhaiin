@@ -61,8 +61,8 @@ func KDF16(key []byte, path ...string) []byte {
 }
 
 func CreateAuthID(cmdKey []byte, time int64) [16]byte {
-	buf := pool.GetBytesWriter(pool.DefaultSize)
-	defer buf.Free()
+	buf := pool.NewBufferSize(2048)
+	defer buf.Reset()
 
 	_ = binary.Write(buf, binary.BigEndian, time)
 	_, _ = relay.CopyN(buf, rand3.Reader, 4)

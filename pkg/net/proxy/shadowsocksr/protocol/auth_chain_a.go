@@ -17,6 +17,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type authChainA struct {
@@ -215,7 +216,7 @@ func (a *authChainA) initRC4Cipher(key []byte) {
 	a.decrypter, _ = rc4.NewCipher(key)
 }
 
-func (a *authChainA) EncryptStream(wbuf *bytes.Buffer, plainData []byte) (err error) {
+func (a *authChainA) EncryptStream(wbuf *pool.Buffer, plainData []byte) (err error) {
 	dataLength := len(plainData)
 	offset := 0
 	if dataLength > 0 && !a.hasSentHeader {
@@ -246,7 +247,7 @@ func (a *authChainA) EncryptStream(wbuf *bytes.Buffer, plainData []byte) (err er
 	return nil
 }
 
-func (a *authChainA) DecryptStream(rbuf *bytes.Buffer, plainData []byte) (n int, err error) {
+func (a *authChainA) DecryptStream(rbuf *pool.Buffer, plainData []byte) (n int, err error) {
 	key := make([]byte, len(a.userKey)+4)
 	readlenth := 0
 	copy(key, a.userKey)

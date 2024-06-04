@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -39,26 +40,30 @@ func (m *multipleReaderConn) Read(b []byte) (int, error) {
 }
 
 type prefixBytesConn struct {
-	buffers pool.MultipleBytes
+	once    sync.Once
+	buffers [][]byte
 	net.Conn
 }
 
 func (p *prefixBytesConn) Close() error {
-	err := p.Conn.Close()
-	p.buffers.Free()
+	var err error
+
+	p.once.Do(func() {
+		err = p.Conn.Close()
+		for _, v := range p.buffers {
+			pool.PutBytes(v)
+		}
+	})
+
 	return err
 }
 
-func NewPrefixBytesConn(c net.Conn, prefix ...*pool.Bytes) net.Conn {
+func NewPrefixBytesConn(c net.Conn, prefix ...[]byte) net.Conn {
 	if len(prefix) == 0 {
 		return c
 	}
 
-	buf := net.Buffers(nil)
-
-	for _, v := range prefix {
-		buf = append(buf, v.Bytes())
-	}
+	buf := net.Buffers(prefix)
 
 	conn := NewMultipleReaderConn(c, io.MultiReader(&buf, c))
 
@@ -78,7 +83,7 @@ func MergeBufioReaderConn(c net.Conn, r *bufio.Reader) (net.Conn, error) {
 		return nil, err
 	}
 
-	return NewPrefixBytesConn(c, pool.GetBytesBuffer(len(data)).Copy(data)), nil
+	return NewPrefixBytesConn(c, pool.Clone(data)), nil
 }
 
 type LogConn struct {
@@ -117,21 +122,4 @@ func (l *LogConn) SetWriteDeadline(t time.Time) error {
 	log.Info("set write deadline", "time", t, "line", line, "file", file, "time", t)
 
 	return l.Conn.SetWriteDeadline(t)
-}
-
-func ReadFrom(pc net.PacketConn) (*pool.Bytes, Address, error) {
-	b := pool.GetBytesBuffer(pool.MaxSegmentSize)
-	_, saddr, err := b.ReadFromPacket(pc)
-	if err != nil {
-		b.Free()
-		return nil, nil, err
-	}
-
-	addr, err := ParseSysAddr(saddr)
-	if err != nil {
-		b.Free()
-		return nil, nil, err
-	}
-
-	return b, addr, nil
 }

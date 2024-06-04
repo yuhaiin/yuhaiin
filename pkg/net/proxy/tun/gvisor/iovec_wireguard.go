@@ -147,8 +147,8 @@ func putBuffer(bufs [][]byte) {
 
 type ChannelTun struct {
 	mtu      int
-	inbound  chan *pool.Bytes
-	outbound chan *pool.Bytes
+	inbound  chan []byte
+	outbound chan []byte
 	ctx      context.Context
 	cancel   context.CancelFunc
 	events   chan wun.Event
@@ -161,8 +161,8 @@ func NewChannelTun(ctx context.Context, mtu int) *ChannelTun {
 	ctx, cancel := context.WithCancel(ctx)
 	ct := &ChannelTun{
 		mtu:      mtu,
-		inbound:  make(chan *pool.Bytes, 10),
-		outbound: make(chan *pool.Bytes, 10),
+		inbound:  make(chan []byte, 10),
+		outbound: make(chan []byte, 10),
 		ctx:      ctx,
 		cancel:   cancel,
 		events:   make(chan wun.Event, 1),
@@ -174,10 +174,12 @@ func NewChannelTun(ctx context.Context, mtu int) *ChannelTun {
 }
 
 func (p *ChannelTun) Outbound(b []byte) error {
+	buf := pool.Clone(b)
 	select {
-	case p.outbound <- pool.GetBytesBuffer(p.mtu).Copy(b):
+	case p.outbound <- buf:
 		return nil
 	case <-p.ctx.Done():
+		pool.PutBytes(buf)
 		return io.ErrClosedPipe
 	}
 }
@@ -191,8 +193,8 @@ func (p *ChannelTun) Read(b [][]byte, size []int, offset int) (int, error) {
 	case <-p.ctx.Done():
 		return 0, io.EOF
 	case bb := <-p.outbound:
-		defer bb.Free()
-		size[0] = copy(b[0][offset:], bb.Bytes())
+		defer pool.PutBytes(bb)
+		size[0] = copy(b[0][offset:], bb)
 		return 1, nil
 	}
 }
@@ -202,17 +204,19 @@ func (p *ChannelTun) Inbound(b []byte) (int, error) {
 	case <-p.ctx.Done():
 		return 0, io.EOF
 	case bb := <-p.inbound:
-		defer bb.Free()
-		return copy(b, bb.Bytes()), nil
+		defer pool.PutBytes(bb)
+		return copy(b, bb), nil
 	}
 }
 
 func (p *ChannelTun) Write(b [][]byte, offset int) (int, error) {
 	for _, bb := range b {
+		b := pool.Clone(bb)
 		select {
-		case p.inbound <- pool.GetBytesBuffer(p.mtu).Copy(bb[offset:]):
+		case p.inbound <- b:
 			return len(b), nil
 		case <-p.ctx.Done():
+			pool.PutBytes(b)
 			return 0, io.ErrClosedPipe
 		}
 	}

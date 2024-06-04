@@ -73,12 +73,11 @@ func (d *dnsServer) startUDP() (err error) {
 		go func() {
 			defer d.Close()
 
-			buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
-			defer buf.Free()
+			buf := pool.GetBytes(nat.MaxSegmentSize)
+			defer pool.PutBytes(buf)
 
 			for {
-				buf.Reset()
-				_, addr, err := buf.ReadFromPacket(d.listener)
+				n, addr, err := d.listener.ReadFrom(buf)
 				if err != nil {
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						continue
@@ -90,9 +89,11 @@ func (d *dnsServer) startUDP() (err error) {
 					return
 				}
 
-				go func(bytes *pool.Bytes) {
+				go func(b []byte) {
+					defer pool.PutBytes(b)
+
 					err := d.Do(context.TODO(), &netapi.DNSRawRequest{
-						Question: bytes,
+						Question: b,
 						WriteBack: func(b []byte) error {
 							if _, err = d.listener.WriteTo(b, addr); err != nil {
 								return fmt.Errorf("write dns response to client failed: %w", err)
@@ -103,7 +104,7 @@ func (d *dnsServer) startUDP() (err error) {
 					if err != nil {
 						log.Error("dns server handle data failed", slog.Any("err", err))
 					}
-				}(pool.GetBytesBuffer(buf.Len()).Copy(buf.Bytes()))
+				}(pool.Clone(buf[:n]))
 			}
 		}()
 	}
@@ -148,9 +149,10 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 		return fmt.Errorf("read dns length failed: %w", err)
 	}
 
-	data := pool.GetBytesBuffer(int(length))
+	data := pool.GetBytes(int(length))
+	defer pool.PutBytes(data)
 
-	_, err := io.ReadFull(c, data.Bytes())
+	_, err := io.ReadFull(c, data)
 	if err != nil {
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
@@ -169,15 +171,16 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 }
 
 func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
-	buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+	buf := pool.GetBytes(nat.MaxSegmentSize)
+	defer pool.PutBytes(buf)
 
-	_, addr, err := buf.ReadFromPacket(l)
+	n, addr, err := l.ReadFrom(buf)
 	if err != nil {
 		return err
 	}
 
 	return d.Do(context.TODO(), &netapi.DNSRawRequest{
-		Question: buf,
+		Question: buf[:n],
 		WriteBack: func(b []byte) error {
 			_, err = l.WriteTo(b, addr)
 			return err
@@ -189,10 +192,8 @@ func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	defer req.Question.Free()
-
 	var parse dnsmessage.Parser
-	header, err := parse.Start(req.Question.Bytes())
+	header, err := parse.Start(req.Question)
 	if err != nil {
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}

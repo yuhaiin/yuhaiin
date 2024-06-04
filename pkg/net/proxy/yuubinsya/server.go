@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
@@ -14,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type server struct {
@@ -107,6 +109,7 @@ func (y *server) handle(conn net.Conn) error {
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
+		defer pool.PutBytes(target)
 
 		addr := target.Address(statistic.Type_tcp)
 
@@ -123,16 +126,24 @@ func (y *server) handle(conn net.Conn) error {
 		defer pc.Close()
 
 		log.Debug("new udp connect", "from", pc.RemoteAddr())
+		buf := pool.GetBytes(nat.MaxSegmentSize)
+		defer pool.PutBytes(buf)
 
 		for {
-			buf, addr, err := netapi.ReadFrom(pc)
+			n, addr, err := pc.ReadFrom(buf)
 			if err != nil {
 				return err
 			}
+
+			dst, err := netapi.ParseSysAddr(addr)
+			if err != nil {
+				continue
+			}
+
 			err = y.SendPacket(&netapi.Packet{
 				Src:       pc.RemoteAddr(),
-				Dst:       addr,
-				Payload:   buf,
+				Dst:       dst,
+				Payload:   buf[:n],
 				WriteBack: pc.WriteTo,
 			})
 

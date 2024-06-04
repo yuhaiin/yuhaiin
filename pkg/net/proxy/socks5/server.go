@@ -188,12 +188,12 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 
 	switch tools.CMD(buf[1]) { // mode
 	case tools.Connect:
-		var adr *tools.Addr
+		var adr tools.Addr
 		adr, err = tools.ResolveAddr(client)
 		if err != nil {
 			return fmt.Errorf("resolve addr failed: %w", err)
 		}
-		defer adr.Free()
+		defer pool.PutBytes(adr)
 
 		addr := adr.Address(statistic.Type_tcp)
 
@@ -255,8 +255,8 @@ func writeHandshake1(conn net.Conn, errREP byte) error {
 
 func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 	adr := tools.ParseAddr(addr)
-	defer adr.Free()
-	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, adr.Bytes.Bytes()...))
+	defer pool.PutBytes(adr)
+	_, err := conn.Write(append([]byte{0x05, errREP, 0x00}, adr...))
 	return err
 }
 

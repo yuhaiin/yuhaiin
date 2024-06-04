@@ -58,7 +58,7 @@ func ParseAddr(netType statistic.Type, host, defaultPort string) (netapi.Address
 	return addr, nil
 }
 
-func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *tls.Config, b *request) (*pool.Bytes, error) {
+func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *tls.Config, b *request) ([]byte, error) {
 	conn, err := config.Dialer.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial failed: %w", err)
@@ -97,8 +97,8 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 		return nil, fmt.Errorf("read data length from server failed: %w", err)
 	}
 
-	all := pool.GetBytesBuffer(int(length))
-	_, err = io.ReadFull(conn, all.Bytes())
+	all := pool.GetBytes(int(length))
+	_, err = io.ReadFull(conn, all)
 	if err != nil {
 		return nil, fmt.Errorf("read data from server failed: %w", err)
 	}
@@ -112,7 +112,7 @@ func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, 
 	}
 
 	return NewClient(config,
-		func(ctx context.Context, b *request) (*pool.Bytes, error) {
+		func(ctx context.Context, b *request) ([]byte, error) {
 			return tcpDo(ctx, addr, config, tlsConfig, b)
 		}), nil
 }

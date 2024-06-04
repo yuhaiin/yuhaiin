@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -26,7 +25,7 @@ func NewDoH3(config Config) (netapi.Resolver, error) {
 		return nil, fmt.Errorf("get request failed: %w", err)
 	}
 
-	return NewClient(config, func(ctx context.Context, b *request) (*pool.Bytes, error) {
+	return NewClient(config, func(ctx context.Context, b *request) ([]byte, error) {
 		resp, err := tr.RoundTrip(req.Clone(ctx, b.Question))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)
@@ -38,11 +37,15 @@ func NewDoH3(config Config) (netapi.Resolver, error) {
 			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
 		}
 
-		buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxLength {
+			return nil, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
+		}
 
-		_, err = buf.ReadFull(resp.Body)
+		buf := pool.GetBytes(resp.ContentLength)
+
+		_, err = io.ReadFull(resp.Body, buf)
 		if err != nil {
-			buf.Free()
+			pool.PutBytes(buf)
 			return nil, fmt.Errorf("doh3 post failed: %w", err)
 		}
 

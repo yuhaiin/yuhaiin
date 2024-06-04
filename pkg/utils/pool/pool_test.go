@@ -1,20 +1,18 @@
 package pool
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
-func TestBuffer(t *testing.T) {
-	buf := GetBytesWriter(DefaultSize)
-	defer buf.Free()
+func TestBytes(t *testing.T) {
+	b := GetBytes(1111)
+	t.Log(len(b), cap(b), fmt.Sprintf("%p", b))
 
-	_, _ = buf.Write([]byte("test"))
-	_ = buf.WriteByte('c')
-	buf.WriteString("test")
+	v := nextLogBase2(1111)
 
-	t.Log(buf.String())
+	t.Log(v, prevLogBase2(2048))
 
-	t.Log(string(buf.Discard(1)))
-	buf.Truncate(5)
-	t.Log(buf.String())
-	t.Log(string(buf.Discard(113)))
-	t.Log(buf.String())
+	PutBytes(b)
+	PutBytes(b)
 }

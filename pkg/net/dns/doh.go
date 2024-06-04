@@ -13,14 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 )
 
 func init() {
@@ -59,7 +57,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 
 	roundTripper := atomic.Pointer[transportStore]{}
 
-	var sf singleflight.Group[struct{}, struct{}]
+	var changing atomic.Bool
 
 	refreshRoundTripper := func() {
 		rt := roundTripper.Load()
@@ -71,7 +69,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 			rt.transport.Close()
 		}
 
-		_, _, _ = sf.Do(struct{}{}, func() (struct{}, error) {
+		if changing.CompareAndSwap(false, true) {
 			roundTripper.Store(&transportStore{
 				transport: newTransport(&http.Transport{
 					TLSClientConfig:   tlsConfig,
@@ -86,47 +84,49 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 				}),
 				time: time.Now(),
 			})
-
-			return struct{}{}, nil
-		})
+			changing.Store(false)
+		}
 	}
 
 	refreshRoundTripper()
 
-	return NewClient(config,
-		func(ctx context.Context, b *request) (*pool.Bytes, error) {
-			resp, err := roundTripper.Load().transport.RoundTrip(req.Clone(ctx, b.Question))
-			if err != nil {
-				refreshRoundTripper() // https://github.com/golang/go/issues/30702
-				return nil, fmt.Errorf("doh post failed: %w", err)
-			}
-			defer resp.Body.Close()
+	return NewClient(config, func(ctx context.Context, b *request) ([]byte, error) {
+		resp, err := roundTripper.Load().transport.RoundTrip(req.Clone(ctx, b.Question))
+		if err != nil {
+			refreshRoundTripper() // https://github.com/golang/go/issues/30702
+			return nil, fmt.Errorf("doh post failed: %w", err)
+		}
+		defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
-				_, _ = relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
-				return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
-			}
+		if resp.StatusCode != http.StatusOK {
+			_, _ = relay.Copy(io.Discard, resp.Body) // By consuming the whole body the TLS connection may be reused on the next request.
+			return nil, fmt.Errorf("doh post return code: %d", resp.StatusCode)
+		}
 
-			buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
+		if resp.ContentLength <= 0 || resp.ContentLength > pool.MaxLength {
+			return nil, fmt.Errorf("response content length is empty: %d", resp.ContentLength)
+		}
 
-			_, err = buf.ReadFull(resp.Body)
-			if err != nil {
-				buf.Free()
-				return nil, fmt.Errorf("doh post failed: %w", err)
-			}
+		buf := pool.GetBytes(resp.ContentLength)
 
-			return buf, nil
+		_, err = io.ReadFull(resp.Body, buf)
+		if err != nil {
+			pool.PutBytes(buf)
+			return nil, fmt.Errorf("doh post failed: %w", err)
+		}
 
-			/*
-				* Get
-				urls := fmt.Sprintf(
-					"%s?dns=%s",
-					url,
-					strings.TrimSuffix(base64.URLEncoding.EncodeToString(dReq), "="),
-				)
-				resp, err := httpClient.Get(urls)
-			*/
-		}), nil
+		return buf, nil
+
+		/*
+			* Get
+			urls := fmt.Sprintf(
+				"%s?dns=%s",
+				url,
+				strings.TrimSuffix(base64.URLEncoding.EncodeToString(dReq), "="),
+			)
+			resp, err := httpClient.Get(urls)
+		*/
+	}), nil
 }
 
 // https://tools.ietf.org/html/rfc8484
@@ -167,7 +167,7 @@ func getRequest(host string) (*post, error) {
 func (p *post) Clone(ctx context.Context, body []byte) *http.Request {
 	req := p.r.Clone(ctx)
 	req.ContentLength = int64(len(body))
-	req.Body = io.NopCloser(bytes.NewBuffer(body))
+	req.Body = io.NopCloser(bytes.NewReader(body))
 	req.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(body)), nil
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
@@ -96,6 +97,8 @@ func (l *listener) udp() {
 		case packet := <-l.udpChannel:
 			if l.hijackDNS && packet.Dst.Port().Port() == 53 {
 				go func() {
+					defer pool.PutBytes(packet.Payload)
+
 					ctx := context.WithValue(l.ctx, netapi.ForceFakeIP{}, l.fakeip)
 					dnsReq := &netapi.DNSRawRequest{
 						Question: packet.Payload,
@@ -118,6 +121,7 @@ func (l *listener) udp() {
 			}
 
 			l.handler.Packet(l.ctx, packet)
+			pool.PutBytes(packet.Payload)
 		}
 	}
 }
