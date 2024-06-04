@@ -3,26 +3,26 @@ module github.com/Asutorufa/yuhaiin
 go 1.22.0
 
 require (
-	github.com/go-json-experiment/json v0.0.0-20240418180308-af2d5061e6c2
+	github.com/go-json-experiment/json v0.0.0-20240524174822-2d9f40f7385b
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
 	github.com/quic-go/quic-go v0.44.0
 	github.com/refraction-networking/utls v1.6.6
 	github.com/tailscale/wireguard-go v0.0.0-20240429185444-03c5a0ccf754
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240425164735-856e190dd707
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240524165444-4d4ba1473f21
 	github.com/xtls/reality v0.0.0-20240429224917-ecc4401070cc
 	github.com/yuhaiin/kitte v0.0.0-20240515014533-69bd6d4301f5
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240518175002-54f54a33a5ff
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240603132443-404c784d941d
 	go.etcd.io/bbolt v1.3.10
 	golang.org/x/crypto v0.23.0
-	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
-	golang.org/x/mobile v0.0.0-20240506190922-a1a533f289d3
+	golang.org/x/exp v0.0.0-20240531132922-fd00a4e0eefc
+	golang.org/x/mobile v0.0.0-20240520174638-fa72addaaa1b
 	golang.org/x/net v0.25.0
 	golang.org/x/sys v0.20.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.1
-	gvisor.dev/gvisor v0.0.0-20240520191732-48f6e5462ac2
+	gvisor.dev/gvisor v0.0.0-20240601000839-2607065bd125
 )
 
 require (
