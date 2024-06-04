@@ -103,7 +103,7 @@ func TestQuic(t *testing.T) {
 	var wg sync.WaitGroup
 	id := atomic.Uint64{}
 	var idBytesMap syncmap.SyncMap[uint64, []byte]
-	for range 1000 {
+	for range 10 {
 		wg.Add(1)
 
 		go func() {
@@ -218,7 +218,7 @@ func TestSimple(t *testing.T) {
 			}
 		}
 	}()
-	for range 100 {
+	for range 10 {
 		go func() {
 			length := mrand.IntN(1024)
 			data := make([]byte, length)

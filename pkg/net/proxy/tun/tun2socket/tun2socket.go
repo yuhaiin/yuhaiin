@@ -84,9 +84,12 @@ func (h *Tun2socket) tcpLoop() {
 }
 
 func (h *Tun2socket) udpLoop() {
+	buf := pool.GetBytes(h.Mtu)
+	defer pool.PutBytes(buf)
+
 	defer h.nat.UDP.Close()
 	for {
-		if err := h.handleUDP(); err != nil {
+		if err := h.handleUDP(buf); err != nil {
 			if errors.Is(err, netapi.ErrBlocked) {
 				log.Debug(err.Error())
 			} else {
@@ -117,15 +120,11 @@ func (h *Tun2socket) handleTCP(conn net.Conn) error {
 
 var errUDPAccept = errors.New("tun2socket udp accept failed")
 
-func (h *Tun2socket) handleUDP() error {
-	buf := pool.GetBytesBuffer(h.Mtu)
-
-	n, tuple, err := h.nat.UDP.ReadFrom(buf.Bytes())
+func (h *Tun2socket) handleUDP(buf []byte) error {
+	n, tuple, err := h.nat.UDP.ReadFrom(buf)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUDPAccept, err)
 	}
-
-	buf.Refactor(0, n)
 
 	dst := netapi.ParseUDPAddr(&net.UDPAddr{
 		IP:   net.IP(tuple.DestinationAddr.AsSlice()),
@@ -138,7 +137,7 @@ func (h *Tun2socket) handleUDP() error {
 			Port: int(tuple.SourcePort),
 		},
 		Dst:     dst,
-		Payload: buf,
+		Payload: buf[:n],
 		WriteBack: func(b []byte, addr net.Addr) (int, error) {
 			address, err := netapi.ParseSysAddr(addr)
 			if err != nil {

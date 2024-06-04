@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"bytes"
 	crand "crypto/rand"
 	"fmt"
 	"math/rand/v2"
@@ -15,8 +14,8 @@ import (
 )
 
 type protocol interface {
-	EncryptStream(dst *bytes.Buffer, data []byte) error
-	DecryptStream(dst *bytes.Buffer, data []byte) (int, error)
+	EncryptStream(dst *pool.Buffer, data []byte) error
+	DecryptStream(dst *pool.Buffer, data []byte) (int, error)
 	EncryptPacket(data []byte) ([]byte, error)
 	DecryptPacket(data []byte) ([]byte, error)
 
@@ -25,9 +24,9 @@ type protocol interface {
 
 type errorProtocol struct{ error }
 
-func NewErrorProtocol(err error) protocol                                   { return &errorProtocol{err} }
-func (e *errorProtocol) EncryptStream(dst *bytes.Buffer, data []byte) error { return e.error }
-func (e *errorProtocol) DecryptStream(dst *bytes.Buffer, data []byte) (int, error) {
+func NewErrorProtocol(err error) protocol                                  { return &errorProtocol{err} }
+func (e *errorProtocol) EncryptStream(dst *pool.Buffer, data []byte) error { return e.error }
+func (e *errorProtocol) DecryptStream(dst *pool.Buffer, data []byte) (int, error) {
 	return 0, e.error
 }
 func (e *errorProtocol) EncryptPacket(data []byte) ([]byte, error) { return nil, e.error }
@@ -90,7 +89,7 @@ type conn struct {
 	protocol protocol
 	net.Conn
 
-	ciphertext, plaintext bytes.Buffer
+	ciphertext, plaintext pool.Buffer
 }
 
 func newConn(c net.Conn, p protocol) net.Conn {
@@ -123,8 +122,8 @@ func (c *conn) Read(b []byte) (n int, err error) {
 }
 
 func (c *conn) Write(b []byte) (n int, err error) {
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	buf := pool.NewBufferSize(len(b) + 1024)
+	defer buf.Reset()
 
 	if err = c.protocol.EncryptStream(buf, b); err != nil {
 		return 0, err

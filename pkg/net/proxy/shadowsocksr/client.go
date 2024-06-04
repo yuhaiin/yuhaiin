@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	protocols "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 var _ netapi.Proxy = (*Shadowsocksr)(nil)
@@ -89,9 +90,9 @@ func (s *Shadowsocksr) Conn(ctx context.Context, addr netapi.Address) (net.Conn,
 	}
 
 	adr := tools.ParseAddr(addr)
-	defer adr.Free()
+	defer pool.PutBytes(adr)
 
-	if _, err := conn.Write(adr.Bytes.Bytes()); err != nil {
+	if _, err := conn.Write(adr); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("write target failed: %w", err)
 	}

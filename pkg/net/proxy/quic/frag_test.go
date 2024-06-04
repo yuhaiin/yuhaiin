@@ -1,6 +1,7 @@
 package quic
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 )
@@ -35,9 +36,9 @@ Adda
 	t.Log(len(datas), len(x))
 
 	for i, v := range datas {
-		t.Log(i, v.Len())
-		if x := f.Merge(v.Bytes()); x != nil {
-			t.Log(string(x.Bytes()))
+		t.Log(i, len(v))
+		if xx := f.Merge(v); xx != nil {
+			t.Log(string(xx.Bytes()), bytes.Equal(xx.Bytes(), x))
 		}
 	}
 }

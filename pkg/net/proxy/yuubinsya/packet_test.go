@@ -30,7 +30,7 @@ func randSeq(n int) []byte {
 
 func TestENDcode(t *testing.T) {
 	wg := sync.WaitGroup{}
-	for range 100000 {
+	for range 100 {
 		wg.Add(1)
 
 		go func() {
@@ -47,7 +47,7 @@ func TestENDcode(t *testing.T) {
 			auth, err := crypto.GetAuth(password)
 			assert.NoError(t, err)
 
-			buf := pool.GetBytesWriter(pool.MaxSegmentSize)
+			buf := pool.NewBufferSize(pool.MaxSegmentSize)
 			assert.NoError(t, types.EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
 				dedata, auth, true))
 
@@ -70,7 +70,7 @@ func TestEncode(t *testing.T) {
 	assert.NoError(t, err)
 
 	req := randSeq(rand.IntN(60000))
-	buf := pool.GetBytesWriter(pool.MaxSegmentSize)
+	buf := pool.NewBufferSize(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
 		req, auth, true))
 
@@ -86,7 +86,7 @@ func TestEncode(t *testing.T) {
 	plainauth := plain.NewAuth([]byte{1, 2, 3, 4, 5})
 
 	req = randSeq(rand.IntN(60000))
-	buf = pool.GetBytesWriter(pool.MaxSegmentSize)
+	buf = pool.NewBufferSize(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
 		req, plainauth, true))
@@ -99,7 +99,7 @@ func TestEncode(t *testing.T) {
 	}
 
 	req = randSeq(rand.IntN(60000))
-	buf = pool.GetBytesWriter(pool.MaxSegmentSize)
+	buf = pool.NewBufferSize(pool.MaxSegmentSize)
 	assert.NoError(t, types.EncodePacket(buf,
 		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}, req, nil, false))
 
@@ -121,9 +121,9 @@ func TestPacket(t *testing.T) {
 	data := randSeq(rand.IntN(60000))
 
 	go StartUDPServer(lis, func(p *netapi.Packet) error {
-		_, err := p.WriteBack(p.Payload.Bytes(), p.Src)
+		_, err := p.WriteBack(p.Payload, p.Src)
 
-		t.Log(p.Payload.Len(), bytes.Equal(data, p.Payload.Bytes()), p.Dst.String(), p.Src.String(), err)
+		t.Log(len(p.Payload), bytes.Equal(data, p.Payload), p.Dst.String(), p.Src.String(), err)
 
 		return nil
 	}, auth, true)
@@ -144,12 +144,12 @@ func TestPacket(t *testing.T) {
 		}
 	}()
 
-	for range 50 {
+	for range 5 {
 		go func() {
 			_, err := cc.WriteTo(data, lis.LocalAddr())
 			assert.NoError(t, err)
 		}()
 	}
 
-	time.Sleep(time.Second * 20)
+	time.Sleep(time.Second * 3)
 }

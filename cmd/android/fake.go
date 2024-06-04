@@ -4,9 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 	"strings"
 
@@ -116,16 +114,9 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 	cache := map[string]*bypass.ModeConfig{}
 
-	r := bufio.NewReader(strings.NewReader(ruls))
-	for {
-		line, _, err := r.ReadLine()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			continue
-		}
+	r := bufio.NewScanner(strings.NewReader(ruls))
+	for r.Scan() {
+		line := r.Bytes()
 
 		z := bytes.FieldsFunc(line, func(r rune) bool { return r == ',' })
 		if len(z) == 0 {

@@ -47,8 +47,8 @@ func (vc *Conn) ReadFrom(b []byte) (int, net.Addr, error) {
 }
 
 func (vc *Conn) WriteTo(b []byte, target net.Addr) (int, error) {
-	buf := pool.GetBytesWriter(2 + len(b))
-	defer buf.Free()
+	buf := pool.NewBufferSize(2 + len(b))
+	defer buf.Reset()
 
 	_ = binary.Write(buf, binary.BigEndian, uint16(len(b)))
 	_, _ = buf.Write(b)
@@ -70,8 +70,8 @@ func (vc *Conn) Read(b []byte) (int, error) {
 }
 
 func (vc *Conn) sendRequest() error {
-	buf := pool.GetBytesWriter(pool.DefaultSize)
-	defer buf.Free()
+	buf := pool.NewBufferSize(2048)
+	defer buf.Reset()
 
 	buf.WriteByte(Version)          // protocol version
 	_, _ = buf.Write(vc.id.Bytes()) // 16 bytes of uuid

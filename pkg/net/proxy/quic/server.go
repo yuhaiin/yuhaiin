@@ -220,7 +220,7 @@ func (x *serverPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) 
 	case <-x.deadline.ReadContext().Done():
 		return 0, nil, x.deadline.ReadContext().Err()
 	case msg := <-x.packetChan:
-		defer msg.msg.Free()
+		defer msg.msg.Reset()
 
 		n = copy(p, msg.msg.Bytes())
 		return n, &QuicAddr{Addr: msg.src, ID: quic.StreamID(msg.id)}, nil

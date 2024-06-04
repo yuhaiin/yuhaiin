@@ -106,8 +106,8 @@ func (s *Client) handshake1(conn net.Conn) error {
 	case tools.NoAuthenticationRequired:
 		return nil
 	case tools.UserAndPassword: // username and password
-		req := pool.GetBytesWriter(pool.DefaultSize)
-		defer req.Free()
+		req := pool.NewBufferSize(pool.DefaultSize)
+		defer req.Reset()
 
 		_ = req.WriteByte(0x01)
 		_ = req.WriteByte(byte(len(s.username)))
@@ -136,8 +136,8 @@ func (s *Client) handshake1(conn net.Conn) error {
 }
 
 func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
-	req := pool.GetBytesWriter(pool.DefaultSize)
-	defer req.Free()
+	req := pool.NewBufferSize(pool.DefaultSize)
+	defer req.Reset()
 
 	_ = req.WriteByte(0x05)
 	_ = req.WriteByte(byte(cmd))
@@ -161,6 +161,7 @@ func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, a
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
+	defer pool.PutBytes(add)
 
 	addr := add.Address(statistic.Type_tcp)
 

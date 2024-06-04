@@ -3,6 +3,7 @@ package simplehttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -34,7 +35,7 @@ func ConnWebsocket(cc *appapi.Components) func(w http.ResponseWriter, r *http.Re
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			cns := &connectionsNotifyServer{ctx, make(chan *gs.NotifyData, 20)}
+			cns := &connectionsNotifyServer{ctx: ctx, msgChan: make(chan *gs.NotifyData, 100)}
 
 			go func() {
 				defer cancel()
@@ -105,6 +106,8 @@ func (x *connectionsNotifyServer) Send(m *gs.NotifyData) error {
 	select {
 	case <-x.ctx.Done():
 		return x.ctx.Err()
+	case <-time.After(time.Millisecond * 500):
+		return fmt.Errorf("send notify timeout")
 	case x.msgChan <- m:
 	}
 

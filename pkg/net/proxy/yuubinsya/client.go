@@ -1,7 +1,6 @@
 package yuubinsya
 
 import (
-	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 type client struct {
@@ -101,8 +101,6 @@ type PacketConn struct {
 
 	hmux sync.Mutex
 	rmux sync.Mutex
-
-	r *bufio.Reader
 }
 
 func newPacketConn(conn net.Conn, handshaker types.Handshaker, server bool) *PacketConn {
@@ -110,7 +108,6 @@ func newPacketConn(conn net.Conn, handshaker types.Handshaker, server bool) *Pac
 		Conn:        conn,
 		handshaker:  handshaker,
 		headerWrote: server,
-		r:           bufio.NewReaderSize(conn, nat.MaxSegmentSize*3),
 	}
 }
 
@@ -120,8 +117,8 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
 
-	w := pool.GetBuffer()
-	defer pool.PutBuffer(w)
+	w := pool.NewBufferSize(min(len(payload), nat.MaxSegmentSize) + 1024)
+	defer w.Reset()
 
 	if !c.headerWrote {
 		c.hmux.Lock()
@@ -140,7 +137,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 
 	payload = payload[:min(nat.MaxSegmentSize, len(payload))]
 	_ = binary.Write(w, binary.BigEndian, uint16(len(payload)))
-	w.Write(payload)
+	_, _ = w.Write(payload)
 
 	_, err = c.Conn.Write(w.Bytes())
 	if err != nil {
@@ -150,27 +147,36 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	return len(payload), nil
 }
 
+func readLength(r io.Reader) (uint16, error) {
+	lengthBytes := pool.GetBytes(2)
+	defer pool.PutBytes(lengthBytes)
+
+	_, err := io.ReadFull(r, lengthBytes)
+	if err != nil {
+		return 0, fmt.Errorf("read length failed: %w", err)
+	}
+
+	return binary.BigEndian.Uint16(lengthBytes), nil
+}
+
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	c.rmux.Lock()
 	defer c.rmux.Unlock()
 
-	addr, err := tools.ResolveAddr(c.r)
+	addr, err := tools.ResolveAddr(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
+	defer pool.PutBytes(addr)
 
-	lengthBytes, err := c.r.Peek(2)
+	length, err := readLength(c.Conn)
 	if err != nil {
 		return 0, nil, fmt.Errorf("read length failed: %w", err)
 	}
 
-	_, _ = c.r.Discard(2)
+	n, err = io.ReadFull(c.Conn, payload[:min(len(payload), int(length))])
 
-	length := int(binary.BigEndian.Uint16(lengthBytes))
-
-	n, err = io.ReadFull(c.r, payload[:min(len(payload), length)])
-
-	_, _ = c.r.Discard(length - n)
+	_, _ = relay.CopyN(io.Discard, c.Conn, int64(int(length)-n))
 
 	return n, addr.Address(statistic.Type_udp), err
 }
@@ -199,8 +205,8 @@ func (c *Conn) Write(b []byte) (int, error) {
 
 	c.headerWrote = true
 
-	buf := pool.GetBytesWriter(pool.DefaultSize + len(b))
-	defer buf.Free()
+	buf := pool.NewBufferSize(1024 + len(b))
+	defer buf.Reset()
 
 	c.handshaker.EncodeHeader(types.TCP, buf, c.addr)
 	_, _ = buf.Write(b)

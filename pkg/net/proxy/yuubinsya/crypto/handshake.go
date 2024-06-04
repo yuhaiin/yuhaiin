@@ -228,14 +228,14 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *
 }
 
 type header struct {
-	bytes *pool.Bytes
+	bytes []byte
 	th    *encryptedHandshaker
 }
 
 func newHeader(h *encryptedHandshaker) *header {
-	return &header{pool.GetBytesBuffer(h.hash.Size() + 8 + h.signer.SignatureSize() + 65), h}
+	return &header{pool.GetBytes(h.hash.Size() + 8 + h.signer.SignatureSize() + 65), h}
 }
-func (h *header) Bytes() []byte { return h.bytes.Bytes() }
+func (h *header) Bytes() []byte { return h.bytes }
 func (h *header) signature() []byte {
 	return h.Bytes()[:h.th.signer.SignatureSize()]
 }
@@ -251,7 +251,7 @@ func (h *header) salt() []byte {
 func (h *header) saltTimeSignature() []byte {
 	return h.Bytes()[h.th.signer.SignatureSize():]
 }
-func (h *header) Def() { defer h.bytes.Free() }
+func (h *header) Def() { defer pool.PutBytes(h.bytes) }
 
 func (h *encryptedHandshaker) encryptTime(password, salt, dst, src []byte) error {
 	nonce := make([]byte, chacha20.NonceSize)

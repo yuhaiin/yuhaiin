@@ -121,8 +121,8 @@ func (t *httpSimplePost) encode(data []byte) []byte {
 		headSize = dataLength
 	}
 
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
+	buf := pool.NewBuffer(nil)
+	defer buf.Reset()
 
 	if t.methodGet {
 		buf.WriteString("GET /")

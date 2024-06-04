@@ -22,7 +22,7 @@ func init() {
 
 type udp struct {
 	*client
-	sender     syncmap.SyncMap[[2]byte, func(*pool.Bytes)]
+	sender     syncmap.SyncMap[[2]byte, func([]byte)]
 	sf         singleflight.Group[uint64, net.PacketConn]
 	packetConn net.PacketConn
 	mu         sync.RWMutex
@@ -45,12 +45,11 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 		packet.Close()
 	}()
 
-	buf := pool.GetBytesBuffer(nat.MaxSegmentSize)
-	defer buf.Free()
+	buf := pool.GetBytes(nat.MaxSegmentSize)
+	defer pool.PutBytes(buf)
 
 	for {
-		buf.Reset()
-		n, _, err := buf.ReadFromPacket(packet)
+		n, _, err := packet.ReadFrom(buf)
 		if err != nil {
 			return
 		}
@@ -59,12 +58,12 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 			continue
 		}
 
-		send, ok := u.sender.Load([2]byte(buf.Bytes()[:2]))
+		send, ok := u.sender.Load([2]byte(buf[:2]))
 		if !ok || send == nil {
 			continue
 		}
 
-		send(pool.GetBytesBuffer(buf.Len()).Copy(buf.Bytes()))
+		send(buf[:n])
 	}
 }
 
@@ -107,7 +106,7 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 
 	udp := &udp{}
 
-	udp.client = NewClient(config, func(ctx context.Context, req *request) (*pool.Bytes, error) {
+	udp.client = NewClient(config, func(ctx context.Context, req *request) ([]byte, error) {
 		if req.Truncated {
 			// If TC is set, the choice of records in the answer (if any)
 			// do not really matter much as the client is supposed to
@@ -124,13 +123,14 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 
 		id := [2]byte{req.Question[0], req.Question[1]}
 
-		respChan := make(chan *pool.Bytes, 1)
+		respChan := make(chan []byte, 1)
 
-		send := func(b *pool.Bytes) {
+		send := func(buf []byte) {
+			b := pool.Clone(buf)
 			select {
 			case respChan <- b:
 			case <-ctx.Done():
-				b.Free()
+				pool.PutBytes(b)
 			}
 		}
 
@@ -163,8 +163,8 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case data := <-respChan:
-			data.Bytes()[0] = id[0]
-			data.Bytes()[1] = id[1]
+			data[0] = id[0]
+			data[1] = id[1]
 			return data, nil
 		}
 	})
