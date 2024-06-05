@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -71,7 +72,7 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 }
 
 func (n *Nodes) Manager(context.Context, *emptypb.Empty) (*node.Manager, error) {
-	m := n.manager.GetManager()
+	m := proto.Clone(n.manager.GetManager()).(*node.Manager)
 
 	if m.Tags == nil {
 		m.Tags = map[string]*pt.Tags{}

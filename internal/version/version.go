@@ -1,6 +1,8 @@
 package version
 
 import (
+	"fmt"
+	"io"
 	"runtime"
 	"strings"
 )
@@ -27,34 +29,23 @@ _____.___.     .__           .__.__
 	BuildTime string
 )
 
-func String() string {
+func init() {
 	if Version == "" {
 		Version = "Not Released Version"
 	}
+}
 
-	str := strings.Builder{}
+func Output[T io.Writer](w T) T {
+	fmt.Fprintln(w, AppName)
+	fmt.Fprintf(w, "version: %v\n", Version)
+	fmt.Fprintf(w, "commit: %v\n", GitCommit)
+	fmt.Fprintf(w, "platform: %v/%v\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(w, "build arch: %v\n", BuildArch)
+	fmt.Fprintf(w, "build time: %v\n", BuildTime)
+	fmt.Fprintf(w, "go version: %v\n", runtime.Version())
+	return w
+}
 
-	str.WriteString(AppName)
-	str.WriteByte('\n')
-	str.WriteString("version: ")
-	str.WriteString(Version)
-	str.WriteByte('\n')
-
-	str.WriteString("commit: ")
-	str.WriteString(GitCommit)
-	str.WriteByte('\n')
-
-	str.WriteString("build arch: ")
-	str.WriteString(BuildArch)
-	str.WriteByte('\n')
-
-	str.WriteString("build time: ")
-	str.WriteString(BuildTime)
-	str.WriteByte('\n')
-
-	str.WriteString("go version: ")
-	str.WriteString(runtime.Version())
-	str.WriteByte('\n')
-
-	return str.String()
+func String() string {
+	return Output(&strings.Builder{}).String()
 }

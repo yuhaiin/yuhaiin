@@ -16,7 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/components/config"
 	"github.com/Asutorufa/yuhaiin/pkg/components/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/components/resolver"
-	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/components/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/components/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -117,7 +117,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	// local,remote,bootstrap dns
 	dns := AddComponent(so, "resolver", resolver.NewResolver(dynamicProxy))
 	// bypass dialer and dns request
-	st := AddComponent(so, "shunt", shunt.NewShunt(node.Outbound(), dns, opt.ProcessDumper))
+	st := AddComponent(so, "shunt", route.NewRoute(node.Outbound(), dns, opt.ProcessDumper))
 	node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
 	stcs := AddComponent(so, "statistic", statistics.NewConnStore(cache.NewCache(db, "flow_data"), st))

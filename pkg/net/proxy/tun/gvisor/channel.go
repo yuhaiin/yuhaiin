@@ -19,7 +19,10 @@
 package tun
 
 import (
+	"errors"
+	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -40,6 +43,8 @@ type Endpoint struct {
 	dev netlink.Tun
 
 	attached bool
+
+	closed atomic.Bool
 }
 
 // New creates a new channel endpoint.
@@ -53,6 +58,7 @@ func NewEndpoint(w netlink.Tun, mtu uint32) *Endpoint {
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
 func (e *Endpoint) Close() error {
+	e.closed.Store(true)
 	e.dev.Close()
 	e.wg.Wait()
 	return nil
@@ -139,6 +145,10 @@ func (e *Endpoint) LinkAddress() tcpip.LinkAddress { return "" }
 // WritePackets stores outbound packets into the channel.
 // Multiple concurrent calls are permitted.
 func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
+	if e.closed.Load() {
+		return 0, &tcpip.ErrClosedForSend{}
+	}
+
 	bufs := [][]byte{}
 	for _, pkt := range pkts.AsSlice() {
 		view := pkt.ToView()
@@ -148,7 +158,9 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 
 	n, er := e.dev.Write(bufs)
 	if er != nil {
-		log.Error("write packet failed", "err", er)
+		if !errors.Is(er, os.ErrClosed) {
+			log.Error("write packet failed", "err", er)
+		}
 		if n == 0 {
 			return 0, &tcpip.ErrClosedForSend{}
 		}

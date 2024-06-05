@@ -87,7 +87,7 @@ func TestUsernamePassword(t *testing.T) {
 		for {
 			conn, err := accept.AcceptPacket()
 			assert.NoError(t, err)
-			t.Log(conn, string(conn.Payload.Bytes()))
+			t.Log(conn, string(conn.Payload))
 		}
 	}()
 
