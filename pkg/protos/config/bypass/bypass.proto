@@ -16,6 +16,7 @@ message bypass_config {
   mode udp = 4 [ json_name = "udp" ];
   bool sniffy = 5 [ json_name = "sniffy" ];
   string bypass_file = 2 [ json_name = "bypass_file" ];
+  udp_proxy_fqdn_strategy udp_proxy_fqdn = 6 [ json_name = "udp_proxy_fqdn" ];
   repeated mode_config custom_rule_v3 = 7 [ json_name = "custom_rule_v3" ];
 }
 
@@ -27,9 +28,19 @@ enum resolve_strategy {
   only_ipv6 = 4;
 }
 
+
+enum udp_proxy_fqdn_strategy {
+ udp_proxy_fqdn_strategy_default = 0;
+  resolve = 1;
+  skip_resolve = 2;
+}
+
 message mode_config {
+  reserved 5;
+  reserved "udp_proxy_fqdn";
   mode mode = 1 [ json_name = "mode" ];
   string tag = 2 [ json_name = "tag" ];
   repeated string hostname = 3 [ json_name = "hostname" ];
   resolve_strategy resolve_strategy = 4 [ json_name = "resolve_strategy" ];
+  udp_proxy_fqdn_strategy udp_proxy_fqdn_strategy = 6 [ json_name = "udp_proxy_fqdn_strategy" ];
 }

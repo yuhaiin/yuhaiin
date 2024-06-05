@@ -32,11 +32,12 @@ type Bypass struct {
 	// 0: bypass, 1: proxy, 2: direct, 3: block
 	TCP int32 `json:"tcp"`
 	// 0: bypass, 1: proxy, 2: direct, 3: block
-	UDP int32 `json:"udp"`
-
-	Block  string `json:"block"`
-	Proxy  string `json:"proxy"`
-	Direct string `json:"direct"`
+	UDP                int32  `json:"udp"`
+	Sniffy             bool   `json:"sniffy"`
+	UDPSkipResolveFqdn bool   `json:"udp_skip_resolve_fqdn"`
+	Block              string `json:"block"`
+	Proxy              string `json:"proxy"`
+	Direct             string `json:"direct"`
 }
 
 type DNSSetting struct {

@@ -37,7 +37,7 @@ var restart = func(args []string) error {
 }
 var stop = func(args []string) error { panic("not implement") }
 var start = func(args []string) error { panic("not implement") }
-var showVersion = func(args []string) error { fmt.Print(version.String()); return nil }
+var showVersion = func(args []string) error { version.Output(os.Stdout); return nil }
 
 var subCommand = map[string]*func(args []string) error{
 	"install":   &install,
