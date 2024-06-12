@@ -313,7 +313,13 @@ type IPAddrPort struct {
 	*addr
 }
 
-func (d *IPAddrPort) String() string                                  { return d.addrPort.String() }
+func (d *IPAddrPort) String() string {
+	if d.addrPort.Addr().Is4In6() {
+		return netip.AddrPortFrom(d.addrPort.Addr().Unmap(), d.addrPort.Port()).String()
+	}
+	return d.addrPort.String()
+}
+
 func (d *IPAddrPort) Hostname() string                                { return d.addrPort.Addr().String() }
 func (d *IPAddrPort) AddrPort(context.Context) Result[netip.AddrPort] { return NewResult(d.addrPort) }
 func (d *IPAddrPort) IPs(context.Context) ([]net.IP, error) {

@@ -91,6 +91,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		Bypass: &bypass.BypassConfig{
 			Tcp:          bypass.Mode(opt.Bypass.TCP),
 			Udp:          bypass.Mode(opt.Bypass.UDP),
+			Sniffy:       opt.Bypass.Sniffy,
 			BypassFile:   filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
 			CustomRuleV3: []*bypass.ModeConfig{},
 		},
@@ -103,6 +104,10 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 
 	if err := json.Unmarshal(opt.DNS.Hosts, &settings.Dns.Hosts); err != nil {
 		log.Warn("unmarshal hosts failed", "err", err)
+	}
+
+	if opt.Bypass.UDPSkipResolveFqdn {
+		settings.Bypass.UdpProxyFqdn = bypass.UdpProxyFqdnStrategy_skip_resolve
 	}
 
 	applyRule(settings, opt.Bypass.Proxy, bypass.Mode_proxy)

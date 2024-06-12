@@ -15,10 +15,10 @@ func NoError(t testing.TB, err error) {
 	}
 }
 
-func Equal[T comparable](t testing.TB, expected, actual T) {
+func Equal[T comparable](t testing.TB, expected, actual T, msgs ...any) {
 	if expected != actual {
 		_, file, line, _ := runtime.Caller(1)
-		t.Logf("%s:%d: expected %v, but got %v\n", file, line, expected, actual)
+		t.Logf("%s:%d: expected %v, but got %v, %v\n", file, line, expected, actual, msgs)
 	}
 }
 func MustEqual[T comparable](t testing.TB, expected, actual T) {

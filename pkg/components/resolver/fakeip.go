@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -141,7 +141,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 
 	if f.enabled || f.inboundEnabled {
 		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
-		store.Add(shunt.ForceModeKey{}, bypass.Mode_block)
+		store.Add(route.ForceModeKey{}, bypass.Mode_block)
 	}
 
 	return addr

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -137,7 +137,7 @@ func getRemote(con any) string {
 }
 
 func getRealAddr(store netapi.Store, addr netapi.Address) string {
-	z, ok := store.Get(shunt.DOMAIN_MARK_KEY{})
+	z, ok := store.Get(route.DOMAIN_MARK_KEY{})
 	if ok {
 		if s, ok := convert.ToString(z); ok {
 			return s

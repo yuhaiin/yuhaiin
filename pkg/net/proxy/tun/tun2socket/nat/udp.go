@@ -3,6 +3,7 @@ package nat
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand/v2"
 	"net"
@@ -82,9 +83,10 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	var ip header.Network
 	var totalLength uint16
 
-	if tuple.SourceAddr.Len() == 4 {
+	if tuple.SourceAddr.Len() == 4 && !tuple.DestinationAddr.To4().Unspecified() {
 		if tuple.DestinationAddr.To4().Unspecified() {
-			return 0, fmt.Errorf("send IPv6 packet to IPv4 connection")
+			// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", tuple.SourceAddr, tuple.DestinationAddr)
+			slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.String()), slog.String("dst", tuple.DestinationAddr.String()))
 		}
 
 		// no ipv4 options set, so ipv4 header size is IPv4MinimumSize

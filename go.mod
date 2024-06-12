@@ -11,7 +11,7 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240524165444-4d4ba1473f21
 	github.com/xtls/reality v0.0.0-20240429224917-ecc4401070cc
 	github.com/yuhaiin/kitte v0.0.0-20240515014533-69bd6d4301f5
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240603132443-404c784d941d
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240607130255-129165eda147
 	go.etcd.io/bbolt v1.3.10
 	golang.org/x/crypto v0.24.0
 	golang.org/x/exp v0.0.0-20240531132922-fd00a4e0eefc
@@ -21,8 +21,8 @@ require (
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.64.0
-	google.golang.org/protobuf v1.34.1
-	gvisor.dev/gvisor v0.0.0-20240601000839-2607065bd125
+	google.golang.org/protobuf v1.34.2
+	gvisor.dev/gvisor v0.0.0-20240607232048-44edc9b3c5c2
 )
 
 require (

@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -86,7 +86,7 @@ func (r *Resolver) Update(c *pc.Setting) {
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
 				netapi.StoreFromContext(ctx).Add("Component", "Resolver BOOTSTRAP")
-				netapi.StoreFromContext(ctx).Add(shunt.ForceModeKey{}, bypass.Mode_direct)
+				netapi.StoreFromContext(ctx).Add(route.ForceModeKey{}, bypass.Mode_direct)
 				addr.SetResolver(netapi.InternetResolver)
 				addr.SetSrc(netapi.AddressSrcDNS)
 			},

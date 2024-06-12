@@ -84,15 +84,8 @@ func (g *Grpc) Accept() (net.Conn, error) {
 
 func (s *Grpc) Conn(con Stream_ConnServer) error {
 	ctx, cancel := context.WithCancel(con.Context())
-	s.connChan <- &conn{
-		raw:   con,
-		raddr: &addr{s.id.Generate()},
-		laddr: s.Addr(),
-		close: cancel,
-	}
-
+	s.connChan <- newConn(con, s.Addr(), &addr{s.id.Generate()}, cancel)
 	<-ctx.Done()
-
 	return nil
 }
 
