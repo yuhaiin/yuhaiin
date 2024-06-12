@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/shunt"
+	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -72,7 +72,7 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 		if ok {
 			store.
 				Add("Protocol", name).
-				Add(shunt.ForceModeKey{}, mode)
+				Add(route.ForceModeKey{}, mode)
 		}
 		defer src.Close()
 
@@ -101,7 +101,7 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 		if ok {
 			store.
 				Add("Protocol", name).
-				Add(shunt.ForceModeKey{}, mode)
+				Add(route.ForceModeKey{}, mode)
 		}
 	}
 

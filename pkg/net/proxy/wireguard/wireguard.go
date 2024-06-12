@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -135,6 +136,18 @@ func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 	return &wrapGoNetTcpConn{w, conn}, nil
 }
 
+func processErr(err error) {
+	if err == nil {
+		return
+	}
+	nerr, ok := err.(*net.OpError)
+	if ok {
+		if nerr.Timeout() {
+			nerr.Err = os.ErrDeadlineExceeded
+		}
+	}
+}
+
 type wrapGoNetTcpConn struct {
 	wireguard *Wireguard
 	*gonet.TCPConn
@@ -143,6 +156,18 @@ type wrapGoNetTcpConn struct {
 func (w *wrapGoNetTcpConn) Close() error {
 	w.wireguard.count.Add(-1)
 	return w.TCPConn.Close()
+}
+
+func (w *wrapGoNetTcpConn) Read(b []byte) (int, error) {
+	n, err := w.TCPConn.Read(b)
+	processErr(err)
+	return n, err
+}
+
+func (w *wrapGoNetTcpConn) Write(b []byte) (int, error) {
+	n, err := w.TCPConn.Write(b)
+	processErr(err)
+	return n, err
 }
 
 func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -175,6 +200,7 @@ func (w *wrapGoNetUdpConn) Close() error {
 func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	a, err := netapi.ParseSysAddr(addr)
 	if err != nil {
+		processErr(err)
 		return 0, err
 	}
 
@@ -185,6 +211,12 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 	}
 
 	return w.UDPConn.WriteTo(buf, ur.V)
+}
+
+func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
+	n, addr, err := w.UDPConn.ReadFrom(buf)
+	processErr(err)
+	return n, addr, err
 }
 
 // creates a tun interface on netstack given a configuration

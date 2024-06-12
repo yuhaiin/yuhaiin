@@ -3,10 +3,15 @@ package grpc
 import (
 	"bytes"
 	"context"
+	"io"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -32,7 +37,27 @@ type conn struct {
 	closed bool
 	close  context.CancelFunc
 
-	deadline *time.Timer
+	deadline *deadline.PipeDeadline
+}
+
+func newConn(raw stream_conn, laddr, raddr net.Addr, close context.CancelFunc) *conn {
+	return &conn{
+		raw:   raw,
+		raddr: raddr,
+		laddr: laddr,
+		close: close,
+		deadline: deadline.NewPipe(
+			deadline.WithReadClose(close),
+			deadline.WithWriteClose(func() {
+				c, ok := raw.(grpc.ClientStream)
+				if ok {
+					_ = c.CloseSend()
+					return
+				}
+				close()
+			}),
+		),
+	}
 }
 
 func (c *conn) Read(b []byte) (int, error) {
@@ -45,6 +70,10 @@ func (c *conn) Read(b []byte) (int, error) {
 
 	data, err := c.raw.Recv()
 	if err != nil {
+		switch status.Convert(err).Code() {
+		case codes.DeadlineExceeded, codes.Canceled:
+			return 0, io.EOF
+		}
 		return 0, err
 	}
 
@@ -58,7 +87,12 @@ func (c *conn) Read(b []byte) (int, error) {
 }
 
 func (c *conn) Write(b []byte) (int, error) {
-	if err := c.raw.Send(&wrapperspb.BytesValue{Value: b}); err != nil {
+	err := c.raw.Send(&wrapperspb.BytesValue{Value: b})
+	if err != nil {
+		switch status.Convert(err).Code() {
+		case codes.DeadlineExceeded, codes.Canceled:
+			return 0, io.EOF
+		}
 		return 0, err
 	}
 
@@ -82,21 +116,15 @@ func (c *conn) LocalAddr() net.Addr  { return c.laddr }
 func (c *conn) RemoteAddr() net.Addr { return c.raddr }
 
 func (c *conn) SetDeadline(t time.Time) error {
-	if c.deadline == nil {
-		if !t.IsZero() {
-			c.deadline = time.AfterFunc(time.Until(t), func() { c.Close() })
-		}
-		return nil
-	}
-
-	if t.IsZero() {
-		c.deadline.Stop()
-	} else {
-		c.deadline.Reset(time.Until(t))
-	}
-
+	c.deadline.SetDeadline(t)
 	return nil
 }
 
-func (c *conn) SetReadDeadline(t time.Time) error  { return c.SetDeadline(t) }
-func (c *conn) SetWriteDeadline(t time.Time) error { return c.SetDeadline(t) }
+func (c *conn) SetReadDeadline(t time.Time) error {
+	c.deadline.SetReadDeadline(t)
+	return nil
+}
+func (c *conn) SetWriteDeadline(t time.Time) error {
+	c.deadline.SetWriteDeadline(t)
+	return nil
+}

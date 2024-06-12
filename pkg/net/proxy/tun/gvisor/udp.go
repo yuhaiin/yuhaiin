@@ -3,6 +3,7 @@ package tun
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"net"
 
@@ -112,8 +113,8 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 	return true
 }
 
-func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePort uint16, destination net.Addr) (int, error) {
-	daddr, err := netapi.ParseSysAddr(destination)
+func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePort uint16, from net.Addr) (int, error) {
+	daddr, err := netapi.ParseSysAddr(from)
 	if err != nil {
 		return 0, err
 	}
@@ -124,21 +125,22 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 
 	dip := daddr.AddrPort(context.TODO()).V
 
-	if sourceAddr.Len() == 4 && dip.Addr().Is6() {
-		return 0, fmt.Errorf("send IPv6 packet to IPv4 connection")
+	if sourceAddr.Len() == 4 && (dip.Addr().Is6() && !dip.Addr().Is4In6()) {
+		// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", sourceAddr, dip)
+		slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", sourceAddr.String()), slog.String("dst", dip.String()))
 	}
 
-	var addr tcpip.Address
+	var fromAddr tcpip.Address
 	var sourceNetwork tcpip.NetworkProtocolNumber
-	if sourceAddr.Len() == 16 {
-		addr = tcpip.AddrFrom16(dip.Addr().As16())
+	if sourceAddr.Len() == 16 || (dip.Addr().Is6() && !dip.Addr().Is4In6()) {
+		fromAddr = tcpip.AddrFrom16(dip.Addr().As16())
 		sourceNetwork = header.IPv6ProtocolNumber
 	} else {
-		addr = tcpip.AddrFrom4(dip.Addr().As4())
+		fromAddr = tcpip.AddrFrom4(dip.Addr().As4())
 		sourceNetwork = header.IPv4ProtocolNumber
 	}
 
-	route, gerr := w.stack.FindRoute(w.nicID, addr, sourceAddr, sourceNetwork, false)
+	route, gerr := w.stack.FindRoute(w.nicID, fromAddr, sourceAddr, sourceNetwork, false)
 	if gerr != nil {
 		return 0, fmt.Errorf("failed to find route: %v", gerr)
 	}

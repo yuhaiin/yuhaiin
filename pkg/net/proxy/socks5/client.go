@@ -105,15 +105,16 @@ func (s *Client) handshake1(conn net.Conn) error {
 	switch header[1] {
 	case tools.NoAuthenticationRequired:
 		return nil
+
 	case tools.UserAndPassword: // username and password
 		req := pool.NewBufferSize(pool.DefaultSize)
 		defer req.Reset()
 
 		_ = req.WriteByte(0x01)
 		_ = req.WriteByte(byte(len(s.username)))
-		req.WriteString(s.username)
+		_, _ = req.WriteString(s.username)
 		_ = req.WriteByte(byte(len(s.password)))
-		req.WriteString(s.password)
+		_, _ = req.WriteString(s.password)
 
 		_, err = conn.Write(req.Bytes())
 		if err != nil {
@@ -130,9 +131,10 @@ func (s *Client) handshake1(conn net.Conn) error {
 		}
 
 		return nil
-	}
 
-	return fmt.Errorf("unsupported Authentication methods: %d", header[1])
+	default:
+		return fmt.Errorf("unsupported Authentication methods: %d", header[1])
+	}
 }
 
 func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
