@@ -137,11 +137,12 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	process := s.DumpProcess(ctx, host)
 	if process != "" {
+		matchProcess := strings.TrimSuffix(process, " (deleted)")
 		for _, v := range []map[string]bypass.ModeEnum{
 			s.customTrie.processTrie,
 			s.trie.processTrie,
 		} {
-			if m, ok := v[process]; ok {
+			if m, ok := v[matchProcess]; ok {
 				mode = m
 				break
 			}
