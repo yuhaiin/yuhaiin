@@ -175,10 +175,13 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	}
 
 	n, err = io.ReadFull(c.Conn, payload[:min(len(payload), int(length))])
+	if err != nil {
+		return n, nil, fmt.Errorf("read data failed: %w", err)
+	}
 
 	_, _ = relay.CopyN(io.Discard, c.Conn, int64(int(length)-n))
 
-	return n, addr.Address(statistic.Type_udp), err
+	return n, addr.Address(statistic.Type_udp), nil
 }
 
 type Conn struct {

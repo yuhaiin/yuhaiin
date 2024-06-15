@@ -143,11 +143,10 @@ func (t *testPacketConn) LocalAddr() net.Addr {
 }
 
 func (t *testPacketConn) SetDeadline(time.Time) error {
-
 	return nil
 }
-func (t *testPacketConn) SetReadDeadline(time.Time) error {
 
+func (t *testPacketConn) SetReadDeadline(time.Time) error {
 	return nil
 }
 

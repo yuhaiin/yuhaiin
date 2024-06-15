@@ -127,7 +127,6 @@ func (s *SourceTable) runWriteBack(bc chan backPacket) error {
 }
 
 func (t *SourceTable) mapAddr(src net.Addr, dst netapi.Address) {
-
 	srcStr := src.String()
 	dstStr := dst.String()
 

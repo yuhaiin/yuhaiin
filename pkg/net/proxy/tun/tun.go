@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 )
 
 func init() {
@@ -60,10 +62,21 @@ func toRoutes(r *listener.Route) []netip.Prefix {
 	}
 
 	var x []netip.Prefix
-	for _, v := range r.Routes {
-		prefix, err := toPrefix(v)
+	add := func(s string) {
+		prefix, err := toPrefix(s)
 		if err == nil {
 			x = append(x, prefix)
+		}
+	}
+
+	for _, v := range r.Routes {
+		switch {
+		case strings.HasPrefix(v, "file:"):
+			if remain := strings.TrimPrefix(v, "file:"); remain != "" {
+				slice.RangeFileByLine(remain, func(s string) { add(s) })
+			}
+		default:
+			add(v)
 		}
 	}
 
