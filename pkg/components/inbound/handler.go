@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -55,24 +54,23 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 
-	ctx = netapi.NewStore(ctx)
+	ctx = netapi.WithContext(ctx)
 	defer meta.Src.Close()
 
 	dst := meta.Address
-	store := netapi.StoreFromContext(ctx)
+	store := netapi.GetContext(ctx)
 
-	store.Add(netapi.SourceKey{}, meta.Source).
-		Add(netapi.DestinationKey{}, meta.Destination)
+	store.Source = meta.Source
+	store.Destination = meta.Destination
 	if meta.Inbound != nil {
-		store.Add(netapi.InboundKey{}, meta.Inbound)
+		store.Inbound = meta.Inbound
 	}
 
 	if s.sniffyEnabled {
 		src, mode, name, ok := s.sniffer.Stream(meta.Src)
 		if ok {
-			store.
-				Add("Protocol", name).
-				Add(route.ForceModeKey{}, mode)
+			store.Protocol = name
+			store.ForceMode = mode
 		}
 		defer src.Close()
 
@@ -93,15 +91,14 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 
-	ctx = netapi.NewStore(ctx)
-	store := netapi.StoreFromContext(ctx)
+	ctx = netapi.WithContext(ctx)
+	store := netapi.GetContext(ctx)
 
 	if s.sniffyEnabled {
 		mode, name, ok := s.sniffer.Packet(pack.Payload)
 		if ok {
-			store.
-				Add("Protocol", name).
-				Add(route.ForceModeKey{}, mode)
+			store.Protocol = name
+			store.ForceMode = mode
 		}
 	}
 

@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -130,18 +129,19 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 		return addr
 	}
 
-	store := netapi.StoreFromContext(ctx)
+	store := netapi.GetContext(ctx)
 
 	t, ok := f.fake.GetDomainFromIP(addrPort)
 	if ok {
 		r := addr.OverrideHostname(t)
-		store.Add(netapi.FakeIPKey{}, addr).Add(netapi.CurrentKey{}, r)
+		store.FakeIP = addr
+		store.Current = r
 		return r
 	}
 
 	if f.enabled || f.inboundEnabled {
 		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
-		store.Add(route.ForceModeKey{}, bypass.Mode_block)
+		store.ForceMode = bypass.Mode_block
 	}
 
 	return addr

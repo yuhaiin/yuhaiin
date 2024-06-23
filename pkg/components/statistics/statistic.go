@@ -2,16 +2,16 @@ package statistics
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"reflect"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/convert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -105,7 +105,7 @@ func (c *Connections) storeConnection(o connection) {
 	log.Debug("new conn",
 		"id", o.ID(),
 		"addr", o.Info().Addr,
-		"src", o.Info().Extra[(netapi.SourceKey{}).String()],
+		"src", o.Info().Extra["Source"],
 		"network", o.Info().Type.ConnType,
 		"outbound", o.Info().Extra["Outbound"],
 	)
@@ -136,19 +136,16 @@ func getRemote(con any) string {
 	return ""
 }
 
-func getRealAddr(store netapi.Store, addr netapi.Address) string {
-	z, ok := store.Get(route.DOMAIN_MARK_KEY{})
-	if ok {
-		if s, ok := convert.ToString(z); ok {
-			return s
-		}
+func getRealAddr(store *netapi.Context, addr netapi.Address) string {
+	if store.DomainString != "" {
+		return store.DomainString
 	}
 
 	return addr.String()
 }
 
 func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
-	store := netapi.StoreFromContext(ctx)
+	store := netapi.GetContext(ctx)
 
 	connection := &statistic.Connection{
 		Id:   c.idSeed.Generate(),
@@ -157,7 +154,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 			ConnType:       addr.NetworkType(),
 			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]),
 		},
-		Extra: convert.ToStringMap(store),
+		Extra: toExtraMap(store),
 	}
 
 	if out := getRemote(conn); out != "" {
@@ -175,4 +172,44 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 	z := &conn{con, c.getConnection(ctx, con, addr), c}
 	c.storeConnection(z)
 	return z, nil
+}
+
+func toExtraMap(addr *netapi.Context) map[string]string {
+	values := reflect.ValueOf(*addr)
+	types := reflect.TypeOf(*addr)
+
+	maps := make(map[string]string)
+
+	for i := range values.NumField() {
+		v, ok := toString(values.Field(i))
+		if !ok {
+			continue
+		}
+
+		if v == "" {
+			continue
+		}
+
+		k := types.Field(i).Tag.Get("metrics")
+		if k == "" || k == "-" {
+			continue
+		}
+
+		maps[types.Field(i).Tag.Get("metrics")] = v
+	}
+
+	return maps
+}
+
+func toString(t reflect.Value) (string, bool) {
+	switch t.Kind() {
+	case reflect.String:
+		return t.String(), true
+	default:
+		if z, ok := t.Interface().(fmt.Stringer); ok {
+			return z.String(), true
+		}
+
+		return "", false
+	}
 }
