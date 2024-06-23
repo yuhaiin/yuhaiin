@@ -292,29 +292,30 @@ func (t *TlsConfigManager) Refresh() {
 	if t.tlsConfig == nil {
 		t.tlsConfig = &tls.Config{
 			NextProtos: t.t.NextProtos,
-			GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if time.Since(t.refreshTime) > time.Hour*24 { // refresh every day
-					t.Refresh()
-				}
-
-				if t.searcher != nil {
-					addr := netapi.ParseAddressPort(statistic.Type_tcp,
-						chi.ServerName, netapi.EmptyPort)
-					addr.SetResolver(trie.SkipResolver)
-					addr.SetSrc(netapi.AddressSrcDNS)
-					v, ok := t.searcher.Search(context.TODO(), addr)
-					if ok {
-						return v, nil
-					}
-				}
-
-				if t.tlsConfig.Certificates != nil {
-					return &t.tlsConfig.Certificates[rand.IntN(len(t.tlsConfig.Certificates))], nil
-				}
-
-				return nil, fmt.Errorf("can't find certificate for %s", chi.ServerName)
-			},
 		}
+	}
+
+	t.tlsConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		if time.Since(t.refreshTime) > time.Hour*24 { // refresh every day
+			t.Refresh()
+		}
+
+		if t.searcher != nil {
+			addr := netapi.ParseAddressPort(statistic.Type_tcp,
+				chi.ServerName, netapi.EmptyPort)
+			addr.SetResolver(trie.SkipResolver)
+			addr.SetSrc(netapi.AddressSrcDNS)
+			v, ok := t.searcher.Search(context.TODO(), addr)
+			if ok {
+				return v, nil
+			}
+		}
+
+		if t.tlsConfig.Certificates != nil {
+			return &t.tlsConfig.Certificates[rand.IntN(len(t.tlsConfig.Certificates))], nil
+		}
+
+		return nil, fmt.Errorf("can't find certificate for %s", chi.ServerName)
 	}
 
 	t.tlsConfig.Certificates = t.t.ParseCertificates()

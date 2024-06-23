@@ -91,10 +91,10 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 	if v.portMap != nil {
 		z, ok := v.portMap[addr.Port().Port()]
 		if ok {
-			store := netapi.StoreFromContext(ctx)
-			store.Add("Hosts", addr.String())
+			store := netapi.GetContext(ctx)
+			store.Hosts = addr
 			addr = addr.OverrideHostname(z.Hostname()).OverridePort(z.Port())
-			store.Add(netapi.CurrentKey{}, addr)
+			store.Current = addr
 			return addr
 		}
 	}
@@ -103,11 +103,11 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 		return addr
 	}
 
-	netapi.StoreFromContext(ctx).
-		Add("Hosts", addr.Hostname()).
-		Add(netapi.CurrentKey{}, addr)
-	return addr.OverrideHostname(v.V.Hostname())
+	store := netapi.GetContext(ctx)
+	store.Hosts = addr
+	store.Current = addr
 
+	return addr.OverrideHostname(v.V.Hostname())
 }
 
 func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {

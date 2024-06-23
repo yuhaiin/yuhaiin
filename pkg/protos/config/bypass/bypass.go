@@ -1,10 +1,5 @@
 package bypass
 
-import (
-	"bytes"
-	"strings"
-)
-
 type ModeEnum interface {
 	Mode() Mode
 	Unknown() bool
@@ -23,36 +18,6 @@ func (Mode) GetTag() string                      { return "" }
 func (Mode) GetResolveStrategy() ResolveStrategy { return ResolveStrategy_default }
 func (m Mode) UdpProxyFqdn() UdpProxyFqdnStrategy {
 	return UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default
-}
-
-func (f *ModeConfig) StoreKV(fs [][]byte) {
-	for _, x := range fs {
-		var k, v []byte
-		i := bytes.IndexByte(x, '=')
-		if i == -1 {
-			k = x
-			v = []byte("true")
-		} else {
-			k = x[:i]
-			v = x[i+1:]
-		}
-
-		key := strings.ToLower(string(k))
-		value := strings.ToLower(string(v))
-
-		switch key {
-		case "tag":
-			f.Tag = value
-		case "resolve_strategy":
-			f.ResolveStrategy = ResolveStrategy(ResolveStrategy_value[value])
-		case "udp_proxy_fqdn":
-			if value == "true" {
-				f.UdpProxyFqdnStrategy = UdpProxyFqdnStrategy_skip_resolve
-			} else {
-				f.UdpProxyFqdnStrategy = UdpProxyFqdnStrategy_resolve
-			}
-		}
-	}
 }
 
 func (f *ModeConfig) ToModeEnum() ModeEnum {

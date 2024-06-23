@@ -8,25 +8,11 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/convert"
 	"golang.org/x/net/dns/dnsmessage"
 )
-
-type modeMarkKey struct{}
-
-func (modeMarkKey) String() string { return "MODE" }
-
-type DOMAIN_MARK_KEY struct{}
-
-type IP_MARK_KEY struct{}
-
-func (IP_MARK_KEY) String() string { return "IP" }
-
-type ForceModeKey struct{}
 
 type routeTries struct {
 	trie        *trie.Trie[bypass.ModeEnum]
@@ -150,14 +136,14 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	}
 
 	// get mode from upstream specified
-	store := netapi.StoreFromContext(ctx)
+	store := netapi.GetContext(ctx)
 
 	if mode.Mode() == bypass.Mode_bypass {
-		mode = netapi.GetDefault(
-			ctx,
-			ForceModeKey{},
-			networkMode, // get mode from network(tcp/udp) rule
-		)
+		if bypass.Mode(store.ForceMode) != bypass.Mode_bypass {
+			mode = bypass.Mode(store.ForceMode)
+		} else {
+			mode = networkMode // get mode from network(tcp/udp) rule
+		}
 	}
 
 	if mode.Mode() == bypass.Mode_bypass {
@@ -170,19 +156,19 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	}
 
 	if s.skipResolve(mode) {
-		store.Add(nat.SkipResolveKey{}, true)
+		store.SkipResolve = true
 	}
 
-	store.Add(modeMarkKey{}, mode.Mode())
+	store.Mode = mode.Mode()
 	host.SetResolver(s.r.Get(mode.Mode().String()))
 
 	if s.resolveDomain && host.IsFqdn() && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := host.IP(ctx)
 		if err == nil {
-			store.Add(DOMAIN_MARK_KEY{}, host.String())
+			store.DomainString = host.String()
 			host = host.OverrideHostname(ip.String())
-			store.Add(IP_MARK_KEY{}, host.String())
+			store.IPString = host.String()
 		} else {
 			log.Warn("resolve remote domain failed", "err", err)
 		}
@@ -225,34 +211,28 @@ func (c *Route) DumpProcess(ctx context.Context, addr netapi.Address) (s string)
 		return
 	}
 
-	store := netapi.StoreFromContext(ctx)
+	store := netapi.GetContext(ctx)
 
-	source, ok := store.Get(netapi.SourceKey{})
-	if !ok {
-		return
+	var dst []net.Addr
+	if store.Inbound != nil {
+		dst = append(dst, store.Inbound)
 	}
 
-	var dst []any
-	ds, ok := store.Get(netapi.InboundKey{})
-	if ok {
-		dst = append(dst, ds)
-	}
-	ds, ok = store.Get(netapi.DestinationKey{})
-	if ok {
-		dst = append(dst, ds)
+	if store.Destination != nil {
+		dst = append(dst, store.Destination)
 	}
 
 	if len(dst) == 0 {
 		return
 	}
 
-	sourceAddr, err := convert.ToProxyAddress(addr.NetworkType(), source)
+	sourceAddr, err := netapi.ParseSysAddr(store.Source)
 	if err != nil {
 		return
 	}
 
 	for _, d := range dst {
-		dst, err := convert.ToProxyAddress(addr.NetworkType(), d)
+		dst, err := netapi.ParseSysAddr(d)
 		if err != nil {
 			continue
 		}
@@ -263,7 +243,7 @@ func (c *Route) DumpProcess(ctx context.Context, addr netapi.Address) (s string)
 			continue
 		}
 
-		store.Add("Process", process)
+		store.Process = process
 		return process
 	}
 
