@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/components/config"
+	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -117,7 +118,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 }
 
 func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
-	cache := map[string]*bypass.ModeConfig{}
+	cache := map[route.Args]*bypass.ModeConfig{}
 
 	r := bufio.NewScanner(strings.NewReader(ruls))
 	for r.Scan() {
@@ -128,26 +129,16 @@ func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 			continue
 		}
 
-		xx := &bypass.ModeConfig{Mode: mode}
+		xx := route.ParseArgs(mode, z[1:])
 
-		xx.StoreKV(z[1:])
-
-		var key string
-		if xx.GetMode() == bypass.Mode_proxy {
-			key = xx.GetMode().String() + xx.GetTag()
-		} else {
-			key = xx.GetMode().String()
+		zz, ok := cache[xx]
+		if !ok {
+			zz = xx.ToModeConfig(nil)
+			cache[xx] = zz
+			settings.Bypass.CustomRuleV3 = append(settings.Bypass.CustomRuleV3, zz)
 		}
 
-		zz, ok := cache[key]
-		if ok {
-			xx = zz
-		} else {
-			cache[key] = xx
-			settings.Bypass.CustomRuleV3 = append(settings.Bypass.CustomRuleV3, xx)
-		}
-
-		xx.Hostname = append(xx.Hostname, string(z[0]))
+		zz.Hostname = append(zz.Hostname, string(z[0]))
 	}
 }
 

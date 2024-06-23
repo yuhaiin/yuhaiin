@@ -34,10 +34,6 @@ func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
 	}
 }
 
-type TagKey struct{}
-
-func (TagKey) String() string { return "Tag" }
-
 func (o *outbound) getNowPoint(p *point.Point) *point.Point {
 	pp, ok := o.manager.GetNodeByName(p.Group, p.Name)
 	if ok {
@@ -71,8 +67,10 @@ type HashKey struct{}
 func (HashKey) String() string { return "Hash" }
 
 func (o *outbound) Get(ctx context.Context, network string, str string, tag string) (netapi.Proxy, error) {
+	store := netapi.GetContext(ctx)
+
 	if tag != "" {
-		netapi.StoreFromContext(ctx).Add(TagKey{}, tag)
+		store.Tag = tag
 		if hash := o.tagConn(tag); hash != "" {
 			p := o.GetDialerByHash(ctx, hash)
 			if p != nil {
@@ -107,7 +105,7 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 		return nil, err
 	}
 
-	netapi.StoreFromContext(ctx).Add(HashKey{}, point.Hash)
+	store.Hash = point.Hash
 	return p, nil
 }
 
@@ -128,7 +126,7 @@ func (o *outbound) GetDialerByHash(ctx context.Context, hash string) netapi.Prox
 		o.lruCache.Add(hash, v)
 	}
 
-	netapi.StoreFromContext(ctx).Add(HashKey{}, hash)
+	netapi.GetContext(ctx).Hash = hash
 	return v
 }
 

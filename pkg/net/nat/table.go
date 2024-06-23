@@ -29,8 +29,6 @@ type Table struct {
 	sf     singleflight.Group[string, *SourceTable]
 }
 
-type SkipResolveKey struct{}
-
 func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, background bool) error {
 	key := pkt.Dst.String()
 
@@ -52,7 +50,7 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, b
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
 		dispAddr = rAddr
-		skipFqdn, _ = netapi.StoreFromContext(ctx).Get(SkipResolveKey{})
+		skipFqdn = netapi.GetContext(ctx).SkipResolve
 
 		t.StoreDispatchAddr(key, rAddr, skipFqdn)
 	}
@@ -127,9 +125,9 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		ctx = context.WithoutCancel(ctx)
 
 		t, err, _ := u.sf.Do(key, func() (*SourceTable, error) {
-			netapi.StoreFromContext(ctx).
-				Add(netapi.SourceKey{}, pkt.Src).
-				Add(netapi.DestinationKey{}, pkt.Dst)
+			store := netapi.GetContext(ctx)
+			store.Source = pkt.Src
+			store.Destination = pkt.Dst
 
 			dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 			if err != nil {
