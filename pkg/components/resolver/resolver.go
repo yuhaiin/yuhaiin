@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -85,8 +84,9 @@ func (r *Resolver) Update(c *pc.Setting) {
 		dialer := &dialer{
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
-				netapi.StoreFromContext(ctx).Add("Component", "Resolver BOOTSTRAP")
-				netapi.StoreFromContext(ctx).Add(route.ForceModeKey{}, bypass.Mode_direct)
+				store := netapi.GetContext(ctx)
+				store.ForceMode = bypass.Mode_direct
+				store.Component = "Resolver BOOTSTRAP"
 				addr.SetResolver(netapi.InternetResolver)
 				addr.SetSrc(netapi.AddressSrcDNS)
 			},
@@ -118,7 +118,8 @@ func (r *Resolver) Update(c *pc.Setting) {
 		dialer := &dialer{
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
-				netapi.StoreFromContext(ctx).Add("Component", "Resolver "+k)
+				store := netapi.GetContext(ctx)
+				store.Component = "Resolver " + k
 				// force to use bootstrap dns, otherwise will dns query cycle
 				addr.SetResolver(netapi.Bootstrap)
 				addr.SetSrc(netapi.AddressSrcDNS)
@@ -224,13 +225,13 @@ type dialer struct {
 }
 
 func (d *dialer) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	ctx = netapi.NewStore(ctx)
+	ctx = netapi.WithContext(ctx)
 	d.addr(ctx, addr)
 	return d.Proxy.Conn(ctx, addr)
 }
 
 func (d *dialer) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	ctx = netapi.NewStore(ctx)
+	ctx = netapi.WithContext(ctx)
 	d.addr(ctx, addr)
 	return d.Proxy.PacketConn(ctx, addr)
 }

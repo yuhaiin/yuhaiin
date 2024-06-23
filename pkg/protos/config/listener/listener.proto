@@ -49,7 +49,6 @@ message transport {
   }
 }
 
-
 message protocol {
   string name = 1 [ json_name = "name" ];
   bool enabled = 2 [ json_name = "enabled" ];

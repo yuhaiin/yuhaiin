@@ -37,7 +37,7 @@ func TestTable(t *testing.T) {
 	} {
 		wg.Add(1)
 		ctx := context.Background()
-		ctx = netapi.NewStore(ctx)
+		ctx = netapi.WithContext(ctx)
 		err := table.Write(ctx, &netapi.Packet{
 			Src:     netapi.ParseAddressPort(statistic.Type_tcp, v, netapi.ParsePort(80)),
 			Dst:     netapi.ParseAddressPort(statistic.Type_tcp, v, netapi.ParsePort(80)),
@@ -81,10 +81,10 @@ func (t *testProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.A
 		return addr, nil
 	}
 
-	store := netapi.StoreFromContext(ctx)
+	store := netapi.GetContext(ctx)
 
 	if x == "www.google.com" {
-		store.Add(SkipResolveKey{}, true)
+		store.SkipResolve = true
 	}
 
 	return addr.OverrideHostname(x), nil
