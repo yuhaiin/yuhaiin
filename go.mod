@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/go-json-experiment/json v0.0.0-20240524174822-2d9f40f7385b
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
-	github.com/quic-go/quic-go v0.45.0
+	github.com/quic-go/quic-go v0.45.1
 	github.com/refraction-networking/utls v1.6.6
 	github.com/tailscale/wireguard-go v0.0.0-20240429185444-03c5a0ccf754
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240524165444-4d4ba1473f21
