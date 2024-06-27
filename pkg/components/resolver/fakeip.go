@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/netip"
 	"slices"
@@ -15,7 +14,6 @@ import (
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -35,8 +33,8 @@ type Fakedns struct {
 }
 
 func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, bbolt, bboltv6 *cache.Cache) *Fakedns {
-	ipv4Range := yerror.Ignore(netip.ParsePrefix("10.2.0.1/24"))
-	ipv6Range := yerror.Ignore(netip.ParsePrefix("fc00::/64"))
+	ipv4Range, _ := netip.ParsePrefix("10.2.0.1/24")
+	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
 
 	return &Fakedns{
 		fake:      dns.NewFakeDNS(upstream, ipv4Range, ipv6Range, bbolt, bboltv6),
@@ -74,7 +72,7 @@ func (f *Fakedns) Update(c *pc.Setting) {
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
-	if f.enabled || ctx.Value(netapi.ForceFakeIP{}) == true {
+	if f.enabled || netapi.GetContext(ctx).Resolver.ForceFakeIP {
 		if _, ok := f.whitelist.SearchString(strings.TrimSuffix(domain, ".")); ok {
 			return f.upstream
 		}
@@ -102,38 +100,32 @@ func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Add
 func (f *Fakedns) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	c, err := f.dialer.Conn(ctx, f.dispatchAddr(ctx, addr))
 	if err != nil {
-		return nil, fmt.Errorf("connect tcp to %s failed: %w", addr, err)
+		return nil, err
 	}
 
 	return c, nil
 }
 
 func (f *Fakedns) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	c, err := f.dialer.PacketConn(ctx, f.dispatchAddr(ctx, addr))
-	if err != nil {
-		return nil, fmt.Errorf("connect udp to %s failed: %w", addr, err)
-	}
-
-	c = &dispatchPacketConn{c, f.dispatchAddr}
-
-	return c, nil
+	return f.dialer.PacketConn(ctx, f.dispatchAddr(ctx, addr))
 }
 
 func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
-	if addr.Type() != netapi.IP {
+	if addr.IsFqdn() {
 		return addr
 	}
-	addrPort := addr.AddrPort(ctx).V.Addr()
 
-	if !f.fake.Contains(addrPort) {
+	addrPort, _ := netapi.ResolverAddrPort(ctx, addr)
+
+	if !f.fake.Contains(addrPort.Addr()) {
 		return addr
 	}
 
 	store := netapi.GetContext(ctx)
 
-	t, ok := f.fake.GetDomainFromIP(addrPort)
+	t, ok := f.fake.GetDomainFromIP(addrPort.Addr())
 	if ok {
-		r := addr.OverrideHostname(t)
+		r := netapi.ParseAddressPort(addr.Network(), t, addr.Port())
 		store.FakeIP = addr
 		store.Current = r
 		return r
@@ -145,18 +137,4 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 	}
 
 	return addr
-}
-
-type dispatchPacketConn struct {
-	net.PacketConn
-	dispatch func(context.Context, netapi.Address) netapi.Address
-}
-
-func (f *dispatchPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	z, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return 0, fmt.Errorf("parse addr failed: %w", err)
-	}
-
-	return f.PacketConn.WriteTo(b, f.dispatch(context.TODO(), z))
 }

@@ -2,7 +2,6 @@ package tun
 
 import (
 	"fmt"
-	"io"
 	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -34,10 +33,7 @@ func (t *tunServer) Close() error {
 	log.Debug("start close tun server")
 
 	log.Debug("start close endpoint")
-	var err error
-	if ep, ok := t.ep.(io.Closer); ok {
-		err = ep.Close()
-	}
+	t.ep.Close()
 
 	log.Debug("start close stack")
 	if t.stack != nil {
@@ -55,7 +51,7 @@ func (t *tunServer) Close() error {
 		t.postDown()
 	}
 
-	return err
+	return nil
 }
 
 type Opt struct {
@@ -76,16 +72,6 @@ func New(o *Opt) (netapi.Accepter, error) {
 
 	o.Endpoint = ep
 
-	log.Info("preload tun device", "name", o.Interface, "mtu", opt.Mtu, "portal", opt.Portal)
-
-	if err = netlink.Route(o.Options); err != nil {
-		log.Warn("preload failed", "err", err)
-	}
-
-	o.PostUp()
-
-	log.Debug("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal)
-
 	stackOption := stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -100,11 +86,19 @@ func New(o *Opt) (netapi.Accepter, error) {
 	s := stack.New(stackOption)
 
 	// Generate unique NIC id.
-	nicID := tcpip.NICID(s.UniqueID())
+	nicID := s.NextNICID()
 	if er := s.CreateNIC(nicID, ep); er != nil {
 		ep.Attach(nil)
 		return nil, fmt.Errorf("create nic failed: %v", er)
 	}
+
+	log.Info("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal, "nicID", nicID, "driver", opt.GetDriver())
+
+	if err = netlink.Route(o.Options); err != nil {
+		log.Warn("preload failed", "err", err)
+	}
+
+	o.PostUp()
 
 	t := &tunServer{
 		nicID:         nicID,

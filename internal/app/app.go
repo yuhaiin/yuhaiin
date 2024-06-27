@@ -129,8 +129,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	// make dns flow across all proxy chain
 	dynamicProxy.Set(fakedns)
 	// inbound server
-	_ = AddComponent(so, "inbound_listener",
-		inbound.NewListener(dnsServer, fakedns))
+	_ = AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
 	tools := tools.NewTools(fakedns, opt.Setting, st.Update)
 	mux := http.NewServeMux()

@@ -151,7 +151,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Id:   c.idSeed.Generate(),
 		Addr: getRealAddr(store, addr),
 		Type: &statistic.NetType{
-			ConnType:       addr.NetworkType(),
+			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]),
 			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]),
 		},
 		Extra: toExtraMap(store),
@@ -202,12 +202,18 @@ func toExtraMap(addr *netapi.Context) map[string]string {
 }
 
 func toString(t reflect.Value) (string, bool) {
+	if !t.IsValid() {
+		return "", false
+	}
+
 	switch t.Kind() {
 	case reflect.String:
 		return t.String(), true
 	default:
-		if z, ok := t.Interface().(fmt.Stringer); ok {
-			return z.String(), true
+		if t.CanInterface() {
+			if z, ok := t.Interface().(fmt.Stringer); ok {
+				return z.String(), true
+			}
 		}
 
 		return "", false

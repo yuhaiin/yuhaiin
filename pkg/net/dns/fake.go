@@ -38,6 +38,7 @@ func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
 }
 
 func (f *FakeDNS) Contains(addr netip.Addr) bool {
+	addr = addr.Unmap()
 	return f.ipv4.prefix.Contains(addr) || f.ipv6.prefix.Contains(addr)
 }
 
@@ -123,7 +124,8 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 }
 
 func (f *FakeDNS) GetDomainFromIP(ip netip.Addr) (string, bool) {
-	if ip.Unmap().Is6() {
+	ip = ip.Unmap()
+	if ip.Is6() {
 		return f.ipv6.GetDomainFromIP(ip)
 	} else {
 		return f.ipv4.GetDomainFromIP(ip)
@@ -141,38 +143,31 @@ var hex = map[byte]byte{
 	'7': 7,
 	'8': 8,
 	'9': 9,
-	'A': 10,
-	'a': 10,
-	'b': 11,
-	'B': 11,
-	'C': 12,
-	'c': 12,
-	'D': 13,
-	'd': 13,
-	'e': 14,
-	'E': 14,
-	'f': 15,
-	'F': 15,
+	'A': 10, 'a': 10,
+	'b': 11, 'B': 11,
+	'C': 12, 'c': 12,
+	'D': 13, 'd': 13,
+	'e': 14, 'E': 14,
+	'f': 15, 'F': 15,
 }
 
 func RetrieveIPFromPtr(name string) (net.IP, error) {
-	i := strings.Index(name, "ip6.arpa.")
-	if i != -1 && len(name[:i]) == 64 {
+	if strings.HasSuffix(name, "ip6.arpa.") && len(name)-9 == 64 {
 		var ip [16]byte
 		for i := range ip {
 			ip[i] = hex[name[62-i*4]]*16 + hex[name[62-i*4-2]]
 		}
-		return net.IP(ip[:]), nil
+		return ip[:], nil
 	}
 
-	if i = strings.Index(name, "in-addr.arpa."); i == -1 {
+	if !strings.HasSuffix(name, "in-addr.arpa.") {
 		return nil, fmt.Errorf("ptr format failed: %s", name)
 	}
 
 	var ip [4]byte
 	var dotCount uint8
 
-	for _, v := range name[:i] {
+	for _, v := range name[:len(name)-13] {
 		if dotCount > 3 {
 			break
 		}
@@ -184,7 +179,7 @@ func RetrieveIPFromPtr(name string) (net.IP, error) {
 		}
 	}
 
-	return net.IP(ip[:]), nil
+	return ip[:], nil
 }
 
 func (f *FakeDNS) LookupPtr(name string) (string, error) {
@@ -193,17 +188,16 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 		return "", err
 	}
 
-	ipAddr, ok := netip.AddrFromSlice(ip)
-	if !ok {
-		return "", fmt.Errorf("parse netip.Addr from bytes failed")
-	}
+	ipAddr, _ := netip.AddrFromSlice(ip)
+	ipAddr = ipAddr.Unmap()
 
-	r, ok := f.ipv4.GetDomainFromIP(ipAddr.Unmap())
-	if ok {
-		return r, nil
+	var r string
+	var ok bool
+	if ipAddr.Is6() {
+		r, ok = f.ipv6.GetDomainFromIP(ipAddr)
+	} else {
+		r, ok = f.ipv4.GetDomainFromIP(ipAddr)
 	}
-
-	r, ok = f.ipv6.GetDomainFromIP(ipAddr.Unmap())
 	if ok {
 		return r, nil
 	}
@@ -288,8 +282,6 @@ func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 
 	return n.domainToIP.ReverseLoad(ip.Unmap())
 }
-
-func (n *FakeIPPool) LRU() *lru.LRU[string, netip.Addr] { return n.domainToIP.LRU }
 
 type fakeLru struct {
 	iprange netip.Prefix

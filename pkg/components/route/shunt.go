@@ -148,26 +148,21 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	if mode.Mode() == bypass.Mode_bypass {
 		// get mode from bypass rule
-		host.SetResolver(s.r.Get(""))
+		store.Resolver.Resolver = s.r.Get("")
 		mode = s.Search(ctx, host)
-		if mode.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6 {
-			host.PreferIPv6(true)
-		}
+		store.Resolver.PreferIPv6 = mode.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6
 	}
 
-	if s.skipResolve(mode) {
-		store.SkipResolve = true
-	}
-
+	store.Resolver.SkipResolve = s.skipResolve(mode)
 	store.Mode = mode.Mode()
-	host.SetResolver(s.r.Get(mode.Mode().String()))
+	store.Resolver.Resolver = s.r.Get(mode.Mode().String())
 
 	if s.resolveDomain && host.IsFqdn() && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
-		ip, err := host.IP(ctx)
+		ip, err := netapi.ResolverIP(ctx, host)
 		if err == nil {
 			store.DomainString = host.String()
-			host = host.OverrideHostname(ip.String())
+			host = netapi.ParseIPAddrPort(host.Network(), ip, host.Port())
 			store.IPString = host.String()
 		} else {
 			log.Warn("resolve remote domain failed", "err", err)
@@ -191,8 +186,8 @@ func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
 }
 
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
-	host := netapi.ParseAddressPort(0, domain, netapi.EmptyPort)
-	host.SetResolver(trie.SkipResolver)
+	host := netapi.ParseAddressPort("", domain, 0)
+	netapi.GetContext(ctx).Resolver.Resolver = trie.SkipResolver
 	return s.r.Get(s.Search(ctx, host).Mode().String())
 }
 

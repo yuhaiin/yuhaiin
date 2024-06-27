@@ -256,13 +256,12 @@ func (t *Tproxy) newUDP() error {
 						return 0, err
 					}
 
-					ur := ad.UDPAddr(context.Background())
-
-					if ur.Err != nil {
-						return 0, ur.Err
+					ur, err := netapi.ResolveUDPAddr(context.Background(), ad)
+					if err != nil {
+						return 0, err
 					}
 
-					back, err := DialUDP("udp", ur.V, src)
+					back, err := DialUDP("udp", ur, src)
 					if err != nil {
 						return 0, fmt.Errorf("udp server dial failed: %w", err)
 					}

@@ -32,9 +32,9 @@ func init() {
 func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		var addrs []netapi.Address
-		addrs = append(addrs, netapi.ParseAddressPort(0, c.Simple.GetHost(), netapi.ParsePort(c.Simple.GetPort())))
+		addrs = append(addrs, netapi.ParseAddressPort("", c.Simple.GetHost(), uint16(c.Simple.GetPort())))
 		for _, v := range c.Simple.GetAlternateHost() {
-			addrs = append(addrs, netapi.ParseAddressPort(0, v.GetHost(), netapi.ParsePort(v.GetPort())))
+			addrs = append(addrs, netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort())))
 		}
 
 		simple := &Simple{
@@ -72,6 +72,8 @@ func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 }
 
 func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
+	ctx = netapi.WithContext(ctx)
+
 	var err error
 	var conn net.Conn
 
@@ -142,13 +144,14 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		_ = uc.SetWriteBuffer(64 * 1024)
 	}
 
-	ur := c.addrs[c.index.Load()].UDPAddr(ctx)
+	ctx = netapi.WithContext(ctx)
 
-	if ur.Err != nil {
-		return nil, ur.Err
+	ur, err := netapi.ResolveUDPAddr(ctx, c.addrs[c.index.Load()])
+	if err != nil {
+		return nil, err
 	}
 
-	return &packetConn{conn, ur.V}, nil
+	return &packetConn{conn, ur}, nil
 }
 
 type packetConn struct {

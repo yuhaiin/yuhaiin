@@ -13,7 +13,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/quic-go/quic-go"
@@ -37,7 +36,7 @@ type doq struct {
 }
 
 func NewDoQ(config Config) (netapi.Resolver, error) {
-	addr, err := ParseAddr(statistic.Type_udp, config.Host, "784")
+	addr, err := ParseAddr("udp", config.Host, "784")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}

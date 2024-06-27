@@ -1,25 +1,14 @@
 package netapi
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"log/slog"
-	"math/rand/v2"
 	"net"
 	"net/netip"
 	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
-	"golang.org/x/exp/constraints"
 )
 
-func PaseNetwork(s string) statistic.Type { return statistic.Type(statistic.Type_value[s]) }
-
-func ParseAddress(network statistic.Type, addr string) (ad Address, _ error) {
+func ParseAddress(network string, addr string) (ad Address, _ error) {
 	hostname, portstr, err := net.SplitHostPort(addr)
 	if err != nil {
 		log.Error("split host port failed", "err", err, "addr", addr)
@@ -27,81 +16,49 @@ func ParseAddress(network statistic.Type, addr string) (ad Address, _ error) {
 		portstr = "0"
 	}
 
-	port, err := ParsePortStr(portstr)
+	pt, err := strconv.ParseUint(portstr, 10, 16)
 	if err != nil {
-		return nil, fmt.Errorf("parse port failed: %w", err)
+		return nil, err
 	}
 
-	return ParseAddressPort(network, hostname, port), nil
+	return ParseAddressPort(network, hostname, uint16(pt)), nil
 }
 
-func ParseDomainPort(network statistic.Type, addr string, port Port) (ad Address) {
+func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
 	return &DomainAddr{
 		hostname: addr,
 		port:     port,
-		addr:     newAddr(network),
+		network:  network,
 	}
 }
 
-func ParseAddressPort(network statistic.Type, addr string, port Port) (ad Address) {
+func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 	if addr, err := netip.ParseAddr(addr); err == nil {
-		return &IPAddrPort{
-			addr:     newAddr(network),
-			addrPort: netip.AddrPortFrom(addr.Unmap(), port.Port()),
+		return &IPAddr{
+			network: network,
+			ip:      addr.Unmap(),
+			port:    port,
 		}
 	}
 
 	return ParseDomainPort(network, addr, port)
 }
 
-func ParseTCPAddress(ad *net.TCPAddr) Address {
+func ParseIPAddrPort(net string, ip net.IP, port uint16) Address {
 	return &IPAddr{
-		addr: newAddr(statistic.Type_tcp),
-		ip:   ad.IP,
-		port: ad.Port,
-		zone: ad.Zone,
+		network: net,
+		ip:      toAddrPort(ip, ""),
+		port:    port,
 	}
 }
-
-func ParseUDPAddr(ad *net.UDPAddr) Address {
-	return &IPAddr{
-		addr: newAddr(statistic.Type_udp),
-		ip:   ad.IP,
-		port: ad.Port,
-		zone: ad.Zone,
+func toAddrPort(ad net.IP, zone string) netip.Addr {
+	addr, _ := netip.AddrFromSlice(ad)
+	addr = addr.Unmap()
+	if zone != "" {
+		addr = addr.WithZone(zone)
 	}
-}
 
-func ParseIPAddr(ad *net.IPAddr) Address {
-	return &IPAddr{
-		addr: newAddr(statistic.Type_ip),
-		ip:   ad.IP,
-		port: 0,
-		zone: ad.Zone,
-	}
-}
-
-func ParseUnixAddr(ad *net.UnixAddr) Address {
-	return &DomainAddr{
-		hostname: ad.Name,
-		port:     EmptyPort,
-		addr:     newAddr(statistic.Type_unix),
-	}
-}
-
-func ParseIPAddrPort(net statistic.Type, ip net.IP, port int) Address {
-	return &IPAddr{
-		addr: newAddr(net),
-		ip:   ip,
-		port: port,
-	}
-}
-
-func ParseAddrPort(net statistic.Type, addrPort netip.AddrPort) Address {
-	return &IPAddrPort{
-		addrPort: addrPort,
-		addr:     newAddr(net),
-	}
+	return addr
 }
 
 func ParseSysAddr(ad net.Addr) (Address, error) {
@@ -109,325 +66,60 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 	case Address:
 		return ad, nil
 	case *net.TCPAddr:
-		return ParseTCPAddress(ad), nil
+		return &IPAddr{
+			network: ad.Network(),
+			ip:      toAddrPort(ad.IP, ad.Zone),
+			port:    uint16(ad.Port),
+		}, nil
 	case *net.UDPAddr:
-		return ParseUDPAddr(ad), nil
+		return &IPAddr{
+			network: ad.Network(),
+			ip:      toAddrPort(ad.IP, ad.Zone),
+			port:    uint16(ad.Port),
+		}, nil
 	case *net.IPAddr:
-		return ParseIPAddr(ad), nil
+		return &IPAddr{
+			network: ad.Network(),
+			ip:      toAddrPort(ad.IP, ad.Zone),
+			port:    0,
+		}, nil
 	case *net.UnixAddr:
-		return ParseUnixAddr(ad), nil
+		return &DomainAddr{
+			hostname: ad.Name,
+			network:  ad.Network(),
+		}, nil
 	}
-	return ParseAddress(PaseNetwork(ad.Network()), ad.String())
-}
-
-type addr struct {
-	network    statistic.Type
-	src        AddressSrc
-	preferIPv6 bool
-	preferIPv4 bool
-	resolver   Resolver
-}
-
-func newAddr(net statistic.Type) *addr {
-	return &addr{
-		network: net,
-	}
-}
-
-func (d *addr) SetSrc(src AddressSrc) {
-	d.src = src
-}
-
-func (d *addr) SetResolver(resolver Resolver) {
-	if resolver == nil {
-		return
-	}
-
-	if d.resolver != nil && d.src == AddressSrcDNS {
-		return
-	}
-
-	d.resolver = resolver
-}
-
-func (d *addr) Resolver() Resolver {
-	if d.resolver != nil {
-		return d.resolver
-	}
-
-	return Bootstrap
-}
-
-func (d *addr) Network() string             { return d.network.String() }
-func (d *addr) NetworkType() statistic.Type { return d.network }
-func (d *addr) PreferIPv6(b bool)           { d.preferIPv6 = b }
-func (d *addr) PreferIPv4(b bool)           { d.preferIPv4 = b }
-func (d *addr) overrideHostname(s string, port Port) Address {
-	if addr, err := netip.ParseAddr(s); err == nil {
-		return &IPAddrPort{
-			addr:     d,
-			addrPort: netip.AddrPortFrom(addr, port.Port()),
-		}
-	}
-
-	return &DomainAddr{
-		hostname: s,
-		addr:     d,
-		port:     port,
-	}
+	return ParseAddress(ad.Network(), ad.String())
 }
 
 var _ Address = (*DomainAddr)(nil)
 
 type DomainAddr struct {
-	*addr
-	port     Port
+	network  string
+	port     uint16
 	hostname string
 }
 
-func (d *DomainAddr) String() string   { return net.JoinHostPort(d.Hostname(), d.Port().String()) }
+func (d *DomainAddr) Network() string  { return d.network }
+func (d *DomainAddr) String() string   { return net.JoinHostPort(d.hostname, strconv.Itoa(int(d.port))) }
 func (d *DomainAddr) Hostname() string { return d.hostname }
-func (d *DomainAddr) IPs(ctx context.Context) ([]net.IP, error) {
-	return d.lookupIP(ctx)
-}
+func (d *DomainAddr) Port() uint16     { return d.port }
+func (d *DomainAddr) IsFqdn() bool     { return true }
 
-func (d *DomainAddr) IP(ctx context.Context) (net.IP, error) {
-	ip, err := d.lookupIP(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolve address %s failed: %w", d.hostname, err)
-	}
-
-	return ip[rand.IntN(len(ip))], nil
-}
-
-func (d *DomainAddr) AddrPort(ctx context.Context) Result[netip.AddrPort] {
-	ip, err := d.IP(ctx)
-	if err != nil {
-		return NewErrResult[netip.AddrPort](fmt.Errorf("resolve address %s failed: %w", d.hostname, err))
-	}
-
-	addr, _ := netip.AddrFromSlice(ip)
-
-	return NewResult(netip.AddrPortFrom(addr, d.port.Port()))
-}
-
-func (d *DomainAddr) Port() Port   { return d.port }
-func (d *DomainAddr) Type() Type   { return FQDN }
-func (d *DomainAddr) IsFqdn() bool { return true }
-func (d *DomainAddr) lookupIP(ctx context.Context) ([]net.IP, error) {
-	if d.preferIPv6 || d.preferIPv4 {
-		ips, err := d.Resolver().LookupIP(ctx, d.hostname, func(li *LookupIPOption) {
-			if d.preferIPv6 {
-				li.AAAA = true
-				li.A = false
-			}
-			if d.preferIPv4 {
-				li.A = true
-				li.AAAA = false
-			}
-		})
-		if err == nil {
-			return ips, nil
-		} else {
-			log.Warn("resolve failed, fallback to normal lookup", slog.String("domain", d.hostname), slog.Any("err", err))
-		}
-	}
-
-	ips, err := d.Resolver().LookupIP(ctx, d.hostname)
-	if err != nil {
-		return nil, fmt.Errorf("resolve address failed: %w", err)
-	}
-
-	return ips, nil
-}
-
-func (d *DomainAddr) UDPAddr(ctx context.Context) Result[*net.UDPAddr] {
-	ip, err := d.lookupIP(ctx)
-	if err != nil {
-		return NewErrResult[*net.UDPAddr](fmt.Errorf("resolve udp address %s failed: %w", d.hostname, err))
-	}
-
-	return NewResult(&net.UDPAddr{IP: ip[rand.IntN(len(ip))], Port: int(d.port.Port())})
-}
-
-func (d *DomainAddr) TCPAddr(ctx context.Context) Result[*net.TCPAddr] {
-	ip, err := d.lookupIP(ctx)
-	if err != nil {
-		return NewErrResult[*net.TCPAddr](fmt.Errorf("resolve tcp address %s failed: %w", d.hostname, err))
-	}
-
-	return NewResult(&net.TCPAddr{IP: ip[rand.IntN(len(ip))], Port: int(d.port.Port())})
-}
-
-func (d *DomainAddr) OverrideHostname(s string) Address {
-	return d.addr.overrideHostname(s, d.port)
-}
-
-func (d *DomainAddr) OverridePort(p Port) Address {
-	return &DomainAddr{
-		hostname: d.Hostname(),
-		addr:     d.addr,
-		port:     p,
-	}
-}
+var _ IPAddress = (*IPAddr)(nil)
 
 type IPAddr struct {
-	ip   net.IP
-	port int
-	zone string
-	*addr
+	network string
+	port    uint16
+	ip      netip.Addr
 }
 
-func (d *IPAddr) String() string   { return net.JoinHostPort(d.ip.String(), strconv.Itoa(d.port)) }
-func (d *IPAddr) Hostname() string { return d.ip.String() }
-func (d *IPAddr) AddrPort(context.Context) Result[netip.AddrPort] {
-	addr, _ := netip.AddrFromSlice(d.ip)
-	return NewResult(netip.AddrPortFrom(addr, uint16(d.port)))
-}
-func (d *IPAddr) IPs(context.Context) ([]net.IP, error) {
-	return []net.IP{d.ip}, nil
-}
-func (d *IPAddr) IP(context.Context) (net.IP, error) { return d.ip, nil }
-func (d *IPAddr) Port() Port                         { return ParsePort(d.port) }
-func (d *IPAddr) Type() Type                         { return IP }
-func (d *IPAddr) IsFqdn() bool                       { return false }
-func (d *IPAddr) UDPAddr(context.Context) Result[*net.UDPAddr] {
-	return NewResult(&net.UDPAddr{IP: d.ip, Port: d.port, Zone: d.zone})
-}
-func (d *IPAddr) TCPAddr(context.Context) Result[*net.TCPAddr] {
-	return NewResult(&net.TCPAddr{IP: d.ip, Port: d.port, Zone: d.zone})
-}
-func (d *IPAddr) OverrideHostname(s string) Address { return d.overrideHostname(s, d.Port()) }
-func (d *IPAddr) OverridePort(p Port) Address {
-	return &IPAddr{
-		addr: d.addr,
-		ip:   d.ip,
-		port: int(p.Port()),
-	}
-}
+func (d *IPAddr) Network() string      { return d.network }
+func (d *IPAddr) String() string       { return net.JoinHostPort(d.ip.String(), strconv.Itoa(int(d.port))) }
+func (d *IPAddr) Hostname() string     { return d.ip.String() }
+func (d *IPAddr) Port() uint16         { return d.port }
+func (d *IPAddr) IsFqdn() bool         { return false }
+func (d *IPAddr) IP() net.IP           { return d.ip.AsSlice() }
+func (d *IPAddr) WithZone(zone string) { d.ip = d.ip.WithZone(zone) }
 
-var _ Address = (*IPAddrPort)(nil)
-
-type IPAddrPort struct {
-	addrPort netip.AddrPort
-	*addr
-}
-
-func (d *IPAddrPort) String() string {
-	if d.addrPort.Addr().Is4In6() {
-		return netip.AddrPortFrom(d.addrPort.Addr().Unmap(), d.addrPort.Port()).String()
-	}
-	return d.addrPort.String()
-}
-
-func (d *IPAddrPort) Hostname() string                                { return d.addrPort.Addr().String() }
-func (d *IPAddrPort) AddrPort(context.Context) Result[netip.AddrPort] { return NewResult(d.addrPort) }
-func (d *IPAddrPort) IPs(context.Context) ([]net.IP, error) {
-	return []net.IP{d.addrPort.Addr().AsSlice()}, nil
-}
-func (d *IPAddrPort) IP(context.Context) (net.IP, error) { return d.addrPort.Addr().AsSlice(), nil }
-func (d *IPAddrPort) Port() Port                         { return ParsePort(d.addrPort.Port()) }
-func (d *IPAddrPort) Type() Type                         { return IP }
-func (d *IPAddrPort) IsFqdn() bool                       { return false }
-func (d *IPAddrPort) UDPAddr(context.Context) Result[*net.UDPAddr] {
-	return NewResult(&net.UDPAddr{IP: d.addrPort.Addr().AsSlice(), Port: int(d.addrPort.Port()), Zone: d.addrPort.Addr().Zone()})
-}
-func (d *IPAddrPort) TCPAddr(context.Context) Result[*net.TCPAddr] {
-	return NewResult(&net.TCPAddr{IP: d.addrPort.Addr().AsSlice(), Port: int(d.addrPort.Port()), Zone: d.addrPort.Addr().Zone()})
-}
-func (d *IPAddrPort) OverrideHostname(s string) Address { return d.overrideHostname(s, d.Port()) }
-func (d *IPAddrPort) OverridePort(p Port) Address {
-	return &IPAddrPort{
-		addr:     d.addr,
-		addrPort: netip.AddrPortFrom(d.addrPort.Addr(), p.Port()),
-	}
-}
-
-var EmptyAddr Address = &emptyAddr{}
-
-type emptyAddr struct{}
-
-func (d emptyAddr) String() string                        { return "" }
-func (d emptyAddr) Hostname() string                      { return "" }
-func (d emptyAddr) IPs(context.Context) ([]net.IP, error) { return nil, errors.New("empty") }
-func (d emptyAddr) IP(context.Context) (net.IP, error)    { return nil, errors.New("empty") }
-func (d emptyAddr) AddrPort(context.Context) Result[netip.AddrPort] {
-	return NewErrResult[netip.AddrPort](errors.New("empty"))
-}
-func (d emptyAddr) Port() Port                  { return EmptyPort }
-func (d emptyAddr) Network() string             { return "" }
-func (d emptyAddr) NetworkType() statistic.Type { return 0 }
-func (d emptyAddr) Type() Type                  { return EMPTY }
-func (d emptyAddr) IsFqdn() bool                { return false }
-func (d emptyAddr) SetSrc(AddressSrc)           {}
-func (d emptyAddr) SetResolver(Resolver)        {}
-func (d emptyAddr) PreferIPv6(bool)             {}
-func (d emptyAddr) PreferIPv4(bool)             {}
-func (d emptyAddr) UDPAddr(context.Context) Result[*net.UDPAddr] {
-	return NewErrResult[*net.UDPAddr](errors.New("empty"))
-}
-func (d emptyAddr) TCPAddr(context.Context) Result[*net.TCPAddr] {
-	return NewErrResult[*net.TCPAddr](errors.New("empty"))
-}
-func (d emptyAddr) IPHost(context.Context) (string, error) { return "", errors.New("empty") }
-func (d emptyAddr) WithValue(any, any)                     {}
-func (d emptyAddr) Value(any) (any, bool)                  { return nil, false }
-func (d emptyAddr) RangeValue(func(any, any) bool)         {}
-func (d emptyAddr) OverrideHostname(string) Address        { return d }
-func (d emptyAddr) OverridePort(Port) Address              { return d }
-
-type PortUint16 uint16
-
-func (p PortUint16) Port() uint16   { return uint16(p) }
-func (p PortUint16) String() string { return strconv.FormatUint(uint64(p), 10) }
-
-var EmptyPort Port = PortUint16(0)
-
-func ParsePort[T constraints.Integer](p T) Port { return PortUint16(p) }
-
-func ParsePortStr(p string) (Port, error) {
-	pt, err := strconv.ParseUint(p, 10, 16)
-	if err != nil {
-		return nil, err
-	}
-
-	return PortUint16(pt), nil
-}
-
-var happyEyeballsCache = lru.New(lru.WithCapacity[string, net.IP](512))
-
-func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
-	if !addr.IsFqdn() {
-		return dialer.DialContext(ctx, "tcp", addr.String())
-	}
-
-	ips, err := addr.IPs(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	lastIP, ok := happyEyeballsCache.Load(addr.Hostname())
-
-	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
-	for _, i := range rand.Perm(len(ips)) {
-		if ok && lastIP.Equal(ips[i]) && len(tcpAddress) > 0 {
-			tmp := tcpAddress[0]
-			tcpAddress[0] = &net.TCPAddr{IP: ips[i], Port: tmp.Port}
-			tcpAddress = append(tcpAddress, tmp)
-		} else {
-			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: ips[i], Port: int(addr.Port().Port())})
-		}
-	}
-
-	conn, err := dialer.DialHappyEyeballs(ctx, tcpAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	connAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
-	if ok {
-		happyEyeballsCache.Add(addr.Hostname(), connAddr.IP)
-	}
-
-	return conn, nil
-}
+var EmptyAddr Address = &DomainAddr{}

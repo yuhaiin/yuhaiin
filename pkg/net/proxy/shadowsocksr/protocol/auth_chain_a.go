@@ -13,11 +13,11 @@ import (
 	"encoding/binary"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type authChainA struct {
@@ -134,8 +134,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	copy(key[a.IVSize():], a.Key())
 
 	encrypt := make([]byte, 20)
-	t := time.Now().Unix()
-	binary.LittleEndian.PutUint32(encrypt[:4], uint32(t))
+	binary.LittleEndian.PutUint32(encrypt[:4], uint32(system.NowUnix()))
 	copy(encrypt[4:8], a.Protocol.Auth.clientID[:])
 	binary.LittleEndian.PutUint32(encrypt[8:], a.Protocol.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))

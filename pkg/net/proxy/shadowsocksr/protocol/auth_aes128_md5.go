@@ -13,14 +13,13 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 func NewAuthAES128MD5(info Protocol) protocol { return newAuthAES128(info, crypto.MD5) }
@@ -180,7 +179,7 @@ func (a *authAES128) packAuthData(wbuf *pool.Buffer, data []byte) {
 	defer encrypt.Reset()
 
 	a.info.Auth.nextAuth()
-	_ = binary.Write(encrypt, binary.LittleEndian, uint32(time.Now().Unix()))
+	_ = binary.Write(encrypt, binary.LittleEndian, uint32(system.NowUnix()))
 	_, _ = encrypt.Write(a.info.Auth.clientID[:])
 	_ = binary.Write(encrypt, binary.LittleEndian, a.info.Auth.connectionID.Load())
 	_ = binary.Write(encrypt, binary.LittleEndian, uint16(outLength))
@@ -196,8 +195,8 @@ func (a *authAES128) packAuthData(wbuf *pool.Buffer, data []byte) {
 
 	hmacBuf := pool.GetBytes(6)
 	defer pool.PutBytes(hmacBuf)
-
-	wbuf.WriteByte(byte(yerror.Ignore(crand.Int(crand.Reader, big.NewInt(256))).Uint64()))
+	bigInt, _ := crand.Int(crand.Reader, big.NewInt(256))
+	_ = wbuf.WriteByte(byte(bigInt.Uint64()))
 	wbuf.Write(a.hmac.HMAC(key, wbuf.Bytes()[wbuf.Len()-1:], hmacBuf)[:6])
 	wbuf.Write(a.uid[:])
 	wbuf.Write(encrypt.Bytes())

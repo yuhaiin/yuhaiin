@@ -10,11 +10,11 @@ import (
 	"math/rand/v2"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type tlsAuthData struct {
@@ -285,7 +285,7 @@ func (t *tls12TicketAuth) packAuthData() (outData []byte) {
 	outSize := 32
 	outData = make([]byte, outSize)
 
-	now := time.Now().Unix()
+	now := system.NowUnix()
 	binary.BigEndian.PutUint32(outData[0:4], uint32(now))
 
 	crand.Read(outData[4 : 4+18])

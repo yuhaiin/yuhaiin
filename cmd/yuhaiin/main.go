@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -21,7 +20,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -160,12 +158,12 @@ func getPorcessDumper() netapi.ProcessDumper {
 type processDumperImpl struct{}
 
 func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (string, error) {
-	if src.Type() != netapi.IP || dst.Type() != netapi.IP {
+	if src.IsFqdn() || dst.IsFqdn() {
 		return "", fmt.Errorf("source or destination address is not ip")
 	}
 
-	ip := yerror.Ignore(src.IP(context.TODO()))
-	to := yerror.Ignore(dst.IP(context.TODO()))
+	ip := src.(netapi.IPAddress).IP()
+	to := dst.(netapi.IPAddress).IP()
 
 	if to.IsUnspecified() {
 		if ip.To4() != nil {
@@ -175,6 +173,5 @@ func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (s
 		}
 	}
 
-	return netlink.FindProcessName(network, ip, src.Port().Port(),
-		to, dst.Port().Port())
+	return netlink.FindProcessName(network, ip, src.Port(), to, dst.Port())
 }

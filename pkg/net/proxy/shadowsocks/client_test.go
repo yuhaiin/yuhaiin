@@ -15,9 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func ExampleNew() {
@@ -51,13 +49,14 @@ func ExampleNew() {
 }
 
 func TestConn(t *testing.T) {
-	p := yerror.Must(simple.NewClient(
+	p, err := simple.NewClient(
 		&protocol.Protocol_Simple{
 			Simple: &protocol.Simple{
 				Host: "127.0.0.1",
 				Port: 1080,
 			},
-		})(nil))
+		})(nil)
+	assert.NoError(t, err)
 	z, err := websocket.NewClient(&protocol.Protocol_Websocket{Websocket: &protocol.Websocket{Host: "localhost:1090"}})(p)
 	assert.NoError(t, err)
 	z, err = NewClient(
@@ -82,7 +81,7 @@ func TestConn(t *testing.T) {
 				default:
 					return dialer.DialContext(ctx, network, addr)
 				case "tcp":
-					ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
+					ad, err := netapi.ParseAddress(network, addr)
 					if err != nil {
 						return nil, fmt.Errorf("parse address failed: %v", err)
 					}
@@ -102,13 +101,14 @@ func TestConn(t *testing.T) {
 }
 
 func TestUDPConn(t *testing.T) {
-	p := yerror.Must(simple.NewClient(
+	p, err := simple.NewClient(
 		&protocol.Protocol_Simple{
 			Simple: &protocol.Simple{
 				Host: "127.0.0.1",
 				Port: 1090,
 			},
-		})(nil))
+		})(nil)
+	assert.NoError(t, err)
 	s, err := NewClient(
 		&protocol.Protocol_Shadowsocks{
 			Shadowsocks: &protocol.Shadowsocks{
@@ -118,7 +118,7 @@ func TestUDPConn(t *testing.T) {
 		})(p)
 	assert.NoError(t, err)
 
-	ad, _ := netapi.ParseAddress(statistic.Type_udp, "223.5.5.5:53")
+	ad, _ := netapi.ParseAddress("udp", "223.5.5.5:53")
 	c, err := s.PacketConn(context.TODO(), ad)
 	assert.NoError(t, err)
 

@@ -8,7 +8,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 type Trie[T any] struct {
@@ -44,15 +43,15 @@ var ErrSkipResolver = errors.New("skip resolve domain")
 var SkipResolver = netapi.ErrorResolver(func(domain string) error { return ErrSkipResolver })
 
 func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok bool) {
-	if addr.Type() == netapi.IP {
-		return x.cidr.SearchIP(yerror.Must(addr.IP(ctx)))
+	if !addr.IsFqdn() {
+		return x.cidr.SearchIP(addr.(netapi.IPAddress).IP())
 	}
 
 	if mark, ok = x.domain.Search(addr); ok {
 		return
 	}
 
-	if ips, err := addr.IP(ctx); err == nil {
+	if ips, err := netapi.ResolverIP(ctx, addr); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
 	}
 
