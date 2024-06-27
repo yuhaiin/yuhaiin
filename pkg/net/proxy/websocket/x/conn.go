@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -105,7 +104,7 @@ func (ws *Conn) NextFrameReader(handle func(*Header, io.ReadCloser) error) error
 
 func (ws *Conn) nextFrameReader() (*Header, io.ReadCloser, error) {
 	for {
-		header, err := readFrameHeader(netapi.NewReader(ws.RawConn), ws.readHeaderBuf[:])
+		header, err := readFrameHeader(ws.RawConn, ws.readHeaderBuf[:])
 		if err != nil {
 			return nil, nil, err
 		}

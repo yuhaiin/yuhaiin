@@ -7,7 +7,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -34,9 +33,9 @@ func (h *Hosts) Update(c *config.Setting) {
 		_, _, e2 := net.SplitHostPort(v)
 
 		if e1 == nil && e2 == nil {
-			kaddr, err1 := netapi.ParseAddress(0, k)
-			addr, err2 := netapi.ParseAddress(0, v)
-			if err1 == nil && err2 == nil && kaddr.Port().Port() != 0 && addr.Port().Port() != 0 {
+			kaddr, err1 := netapi.ParseAddress("", k)
+			addr, err2 := netapi.ParseAddress("", v)
+			if err1 == nil && err2 == nil && kaddr.Port() != 0 && addr.Port() != 0 {
 				v, ok := store[kaddr.Hostname()]
 				if !ok {
 					v = &hostsEntry{}
@@ -47,7 +46,7 @@ func (h *Hosts) Update(c *config.Setting) {
 					v.portMap = map[uint16]netapi.Address{}
 				}
 
-				v.portMap[kaddr.Port().Port()] = addr
+				v.portMap[uint16(kaddr.Port())] = addr
 			}
 		}
 
@@ -58,7 +57,7 @@ func (h *Hosts) Update(c *config.Setting) {
 				store[k] = he
 			}
 
-			he.V = netapi.ParseAddressPort(0, v, netapi.EmptyPort)
+			he.V = netapi.ParseAddressPort("", v, 0)
 		}
 	}
 
@@ -75,11 +74,7 @@ func (h *Hosts) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error)
 }
 
 func (h *Hosts) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	c, err := h.dialer.PacketConn(ctx, h.dispatchAddr(ctx, addr))
-	if err != nil {
-		return nil, err
-	}
-	return &dispatchPacketConn{c, h.dispatchAddr}, nil
+	return h.dialer.PacketConn(ctx, h.dispatchAddr(ctx, addr))
 }
 
 func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
@@ -89,11 +84,11 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 	}
 
 	if v.portMap != nil {
-		z, ok := v.portMap[addr.Port().Port()]
+		z, ok := v.portMap[uint16(addr.Port())]
 		if ok {
 			store := netapi.GetContext(ctx)
 			store.Hosts = addr
-			addr = addr.OverrideHostname(z.Hostname()).OverridePort(z.Port())
+			addr = netapi.ParseAddressPort(addr.Network(), z.Hostname(), z.Port())
 			store.Current = addr
 			return addr
 		}
@@ -107,25 +102,25 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 	store.Hosts = addr
 	store.Current = addr
 
-	return addr.OverrideHostname(v.V.Hostname())
+	return netapi.ParseAddressPort(addr.Network(), v.V.Hostname(), addr.Port())
 }
 
 func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
-	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort(0, domain, netapi.EmptyPort))
-	if addr.Type() == netapi.IP {
-		return []net.IP{yerror.Ignore(addr.IP(ctx))}, nil
+	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort("", domain, 0))
+	if !addr.IsFqdn() {
+		return []net.IP{addr.(netapi.IPAddress).IP()}, nil
 	}
 
 	return h.resolver.LookupIP(ctx, addr.Hostname(), opts...)
 }
 
 func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort(0, strings.TrimSuffix(req.Name.String(), "."), netapi.EmptyPort))
+	addr := h.dispatchAddr(ctx, netapi.ParseAddressPort("", strings.TrimSuffix(req.Name.String(), "."), 0))
 	if req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypeA {
 		return h.resolver.Raw(ctx, req)
 	}
 
-	if addr.Type() != netapi.IP {
+	if addr.IsFqdn() {
 		name, err := dnsmessage.NewName(addr.Hostname() + ".")
 		if err != nil {
 			return dnsmessage.Message{}, err
@@ -161,7 +156,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 					TTL:   600,
 					Type:  dnsmessage.TypeAAAA,
 				},
-				Body: &dnsmessage.AAAAResource{AAAA: [16]byte(yerror.Ignore(addr.IP(ctx)).To16())},
+				Body: &dnsmessage.AAAAResource{AAAA: [16]byte(addr.(netapi.IPAddress).IP().To16())},
 			},
 		}
 	}
@@ -175,7 +170,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 					TTL:   600,
 					Type:  dnsmessage.TypeA,
 				},
-				Body: &dnsmessage.AResource{A: [4]byte(yerror.Ignore(addr.IP(ctx)).To4())},
+				Body: &dnsmessage.AResource{A: [4]byte(addr.(netapi.IPAddress).IP().To4())},
 			},
 		}
 	}

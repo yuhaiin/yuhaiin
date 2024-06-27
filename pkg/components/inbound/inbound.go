@@ -2,7 +2,6 @@ package inbound
 
 import (
 	"context"
-	"errors"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -68,17 +67,14 @@ func (l *listener) tcp() {
 		case <-l.ctx.Done():
 			return
 		case stream := <-l.tcpChannel:
-			if stream.Address.Port().Port() == 53 && l.hijackDNS {
+			if stream.Address.Port() == 53 && l.hijackDNS {
 				go func() {
-					ctx := context.WithValue(l.ctx, netapi.ForceFakeIP{}, l.fakeip)
+					ctx := netapi.WithContext(l.ctx)
+					ctx.Resolver.ForceFakeIP = l.fakeip
 					err := l.handler.dnsHandler.HandleTCP(ctx, stream.Src)
 					_ = stream.Src.Close()
 					if err != nil {
-						if errors.Is(err, netapi.ErrBlocked) {
-							log.Debug("blocked", "msg", err)
-						} else {
-							log.Error("tcp server handle DnsHijacking failed", "err", err)
-						}
+						log.Output(0, netapi.LogLevel(err), "tcp server handle DnsHijacking", "msg", err)
 					}
 				}()
 				continue
@@ -95,11 +91,12 @@ func (l *listener) udp() {
 		case <-l.ctx.Done():
 			return
 		case packet := <-l.udpChannel:
-			if l.hijackDNS && packet.Dst.Port().Port() == 53 {
+			if l.hijackDNS && packet.Dst.Port() == 53 {
 				go func() {
 					defer pool.PutBytes(packet.Payload)
 
-					ctx := context.WithValue(l.ctx, netapi.ForceFakeIP{}, l.fakeip)
+					ctx := netapi.WithContext(l.ctx)
+					ctx.Resolver.ForceFakeIP = l.fakeip
 					dnsReq := &netapi.DNSRawRequest{
 						Question: packet.Payload,
 						WriteBack: func(b []byte) error {
@@ -109,11 +106,7 @@ func (l *listener) udp() {
 					}
 					err := l.handler.dnsHandler.Do(ctx, dnsReq)
 					if err != nil {
-						if errors.Is(err, netapi.ErrBlocked) {
-							log.Debug("blocked", "msg", err)
-						} else {
-							log.Error("udp server handle DnsHijacking failed", "err", err)
-						}
+						log.Output(0, netapi.LogLevel(err), "udp server handle DnsHijacking", "msg", err)
 					}
 				}()
 

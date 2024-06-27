@@ -131,7 +131,7 @@ func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (strin
 		network = syscall.IPPROTO_UDP
 	}
 
-	uid, err := a.UidDumper.DumpUid(network, src.Hostname(), int32(src.Port().Port()), dst.Hostname(), int32(dst.Port().Port()))
+	uid, err := a.UidDumper.DumpUid(network, src.Hostname(), int32(src.Port()), dst.Hostname(), int32(dst.Port()))
 	if err != nil {
 		log.Error("dump uid error", "err", err)
 	}

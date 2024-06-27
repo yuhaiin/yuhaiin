@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"github.com/tailscale/wireguard-go/conn"
 )
 
@@ -21,9 +20,12 @@ type Endpoint netip.AddrPort
 func (e Endpoint) ClearSrc()           {}
 func (e Endpoint) SrcToString() string { return "" }
 func (e Endpoint) DstToString() string { return (netip.AddrPort)(e).String() }
-func (e Endpoint) DstToBytes() []byte  { return yerror.Ignore((netip.AddrPort)(e).MarshalBinary()) }
-func (e Endpoint) DstIP() netip.Addr   { return (netip.AddrPort)(e).Addr() }
-func (e Endpoint) SrcIP() netip.Addr   { return netip.Addr{} }
+func (e Endpoint) DstToBytes() []byte {
+	data, _ := (netip.AddrPort)(e).MarshalBinary()
+	return data
+}
+func (e Endpoint) DstIP() netip.Addr { return (netip.AddrPort)(e).Addr() }
+func (e Endpoint) SrcIP() netip.Addr { return netip.Addr{} }
 
 type netBindClient struct {
 	mu       sync.Mutex
@@ -117,12 +119,10 @@ func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.End
 			return 0, err
 		}
 
-		ar := naddr.AddrPort(context.Background())
-		if ar.Err != nil {
-			return 0, ar.Err
+		addrPort, err = netapi.ResolverAddrPort(context.Background(), naddr)
+		if err != nil {
+			return 0, err
 		}
-
-		addrPort = ar.V
 	}
 
 	eps[0] = Endpoint(addrPort)

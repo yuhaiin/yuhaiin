@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func TestRetrieveIPFromPtr(t *testing.T) {
@@ -16,7 +15,8 @@ func TestRetrieveIPFromPtr(t *testing.T) {
 
 func TestNetip(t *testing.T) {
 	t.Log(len("f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.f.f"))
-	t.Log(yerror.Ignore(netip.ParseAddr("2606:4700:20::681a:ffff")).As16())
+	addr, _ := netip.ParseAddr("2606:4700:20::681a:ffff")
+	t.Log(addr.As16())
 
 	z, err := netip.ParsePrefix("127.0.0.1/30")
 	assert.NoError(t, err)

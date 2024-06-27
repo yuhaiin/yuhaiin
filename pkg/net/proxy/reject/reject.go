@@ -2,6 +2,7 @@ package reject
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
@@ -18,10 +18,17 @@ var _ netapi.Proxy = (*reject)(nil)
 type rejectImmediately struct{ netapi.EmptyDispatch }
 
 func (rejectImmediately) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) {
-	return nil, netapi.NewBlockError(statistic.Type_tcp, addr.Hostname())
+	return nil, &net.OpError{
+		Op:   "block",
+		Net:  addr.Network(),
+		Addr: addr,
+		Err:  errors.New("blocked"),
+	}
 }
-func (rejectImmediately) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return nil, netapi.NewBlockError(statistic.Type_udp, addr.Hostname())
+
+func (r rejectImmediately) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
+	_, err := r.Conn(context.Background(), addr)
+	return nil, err
 }
 
 type reject struct {

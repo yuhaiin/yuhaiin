@@ -37,14 +37,14 @@ var _ stack.LinkEndpoint = (*Endpoint)(nil)
 // Endpoint is link layer endpoint that stores outbound packets in a channel
 // and allows injection of inbound packets.
 type Endpoint struct {
-	wg  sync.WaitGroup
-	mtu uint32
+	wg       sync.WaitGroup
+	attached bool
+	mtu      uint32
 
 	dev netlink.Tun
 
-	attached bool
-
-	closed atomic.Bool
+	closed   atomic.Bool
+	linkAddr tcpip.LinkAddress
 }
 
 // New creates a new channel endpoint.
@@ -57,11 +57,13 @@ func NewEndpoint(w netlink.Tun, mtu uint32) *Endpoint {
 
 // Close closes e. Further packet injections will return an error, and all pending
 // packets are discarded. Close may be called concurrently with WritePackets.
-func (e *Endpoint) Close() error {
+func (e *Endpoint) Close() {
+	if e.closed.Load() {
+		return
+	}
 	e.closed.Store(true)
 	e.dev.Close()
 	e.wg.Wait()
-	return nil
 }
 
 func (e *Endpoint) Writer() netlink.Tun {
@@ -140,7 +142,7 @@ func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities {
 func (*Endpoint) MaxHeaderLength() uint16 { return 0 }
 
 // LinkAddress returns the link address of this endpoint.
-func (e *Endpoint) LinkAddress() tcpip.LinkAddress { return "" }
+func (e *Endpoint) LinkAddress() tcpip.LinkAddress { return e.linkAddr }
 
 // WritePackets stores outbound packets into the channel.
 // Multiple concurrent calls are permitted.
@@ -180,3 +182,7 @@ func (*Endpoint) AddHeader(*stack.PacketBuffer) {}
 
 // ParseHeader implements stack.LinkEndpoint.ParseHeader.
 func (*Endpoint) ParseHeader(*stack.PacketBuffer) bool { return true }
+
+func (e *Endpoint) SetLinkAddress(addr tcpip.LinkAddress) { e.linkAddr = addr }
+
+func (e *Endpoint) SetMTU(mtu uint32) {}

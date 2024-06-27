@@ -7,6 +7,8 @@ import (
 	"io"
 	"math"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type SniffHeader struct{}
@@ -82,7 +84,7 @@ func SniffUTP(b []byte) (*SniffHeader, error) {
 	if err := binary.Read(buffer, binary.BigEndian, &timestamp); err != nil {
 		return nil, ErrNoClue
 	}
-	if math.Abs(float64(time.Now().UnixMicro()-int64(timestamp))) > float64(24*time.Hour) {
+	if math.Abs(float64(system.NowUnixMicro()-int64(timestamp))) > float64(24*time.Hour) {
 		return nil, errNotBittorrent
 	}
 

@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 	"github.com/yuhaiin/kitte"
 )
 
@@ -29,7 +28,8 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 	br := bufio.NewScanner(reader)
 
 	for br.Scan() {
-		fields := bytes.Fields(yerror.Ignore2(bytes.Cut(br.Bytes(), []byte{'#'})))
+		before, _, _ := bytes.Cut(br.Bytes(), []byte{'#'})
+		fields := bytes.Fields(before)
 		if len(fields) < 2 {
 			continue
 		}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -105,5 +104,5 @@ func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, err
 	}
 	defer pool.PutBytes(addr)
 
-	return r[n+len(addr):], addr.Address(statistic.Type_udp), nil
+	return r[n+len(addr):], addr.Address("udp"), nil
 }

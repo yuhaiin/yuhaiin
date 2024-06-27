@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -111,7 +110,7 @@ func (y *server) handle(conn net.Conn) error {
 		}
 		defer pool.PutBytes(target)
 
-		addr := target.Address(statistic.Type_tcp)
+		addr := target.Address("tcp")
 
 		return y.SendStream(&netapi.StreamMeta{
 			Source:      c.RemoteAddr(),

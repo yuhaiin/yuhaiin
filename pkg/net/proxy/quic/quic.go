@@ -15,10 +15,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/quic-go/quic-go"
 )
 
@@ -51,10 +51,11 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
 
 		if config.Quic.Host != "" {
-			addr, err := netapi.ParseAddress(statistic.Type_udp, config.Quic.Host)
+			addr, err := netapi.ParseAddress("udp", config.Quic.Host)
 			if err == nil {
-				if ur := addr.UDPAddr(context.TODO()); ur.Err == nil {
-					host = ur.V
+				host, err = netapi.ResolveUDPAddr(context.TODO(), addr)
+				if err != nil {
+					return nil, err
 				}
 			}
 		}
@@ -141,7 +142,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 
 	c.underlying = conn
 	c.session = session
-	c.sessionUnix = time.Now().Unix()
+	c.sessionUnix = system.NowUnix()
 
 	// Datagram
 	c.packetConn = pconn

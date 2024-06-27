@@ -9,7 +9,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -39,7 +38,7 @@ func TestWireguard(t *testing.T) {
 	hc := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				addrd, err := netapi.ParseAddress(statistic.Type_tcp, addr)
+				addrd, err := netapi.ParseAddress("tcp", addr)
 				if err != nil {
 					return nil, err
 				}

@@ -9,11 +9,11 @@ import (
 )
 
 func TestResolveAddr(t *testing.T) {
-	z := ParseAddr(netapi.ParseAddressPort(0, "a.com", netapi.ParsePort(51)))
+	z := ParseAddr(netapi.ParseAddressPort("", "a.com", 51))
 	t.Log(z)
 
 	addr, err := ResolveAddr(bytes.NewReader(z))
 	assert.NoError(t, err)
 	t.Log(addr)
-	t.Log(addr.Address(0))
+	t.Log(addr.Address(""))
 }

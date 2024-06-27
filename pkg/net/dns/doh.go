@@ -15,7 +15,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -37,7 +36,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 		host = net.JoinHostPort(host, "443")
 	}
 
-	addr, err := netapi.ParseAddress(statistic.Type_tcp, host)
+	addr, err := netapi.ParseAddress("tcp", host)
 	if err != nil {
 		return nil, err
 	}

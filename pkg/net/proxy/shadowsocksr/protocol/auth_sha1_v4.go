@@ -5,10 +5,10 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"math/rand/v2"
-	"time"
 
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type authSHA1v4 struct {
@@ -96,7 +96,7 @@ func (a *authSHA1v4) packAuthData(data []byte) (outData []byte) {
 		binary.BigEndian.PutUint16(outData[7:9], uint16(randLength&0xFFFF))
 	}
 	// rand length+6~rand length+10, time stamp
-	now := time.Now().Unix()
+	now := system.NowUnix()
 	binary.LittleEndian.PutUint32(outData[dataOffset:dataOffset+4], uint32(now))
 	// rand length+10~rand length+14, client ID
 	copy(outData[dataOffset+4:dataOffset+4+4], a.Auth.clientID[0:4])

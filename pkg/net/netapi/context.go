@@ -7,11 +7,19 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
 
+type ContextResolver struct {
+	PreferIPv6   bool
+	PreferIPv4   bool
+	SkipResolve  bool `metrics:"-"`
+	ForceFakeIP  bool `metrics:"-"`
+	Resolver     Resolver
+	ResolverSelf Resolver
+}
+
 type Context struct {
-	PreferIPv6  bool        `metrics:"-"`
-	SkipResolve bool        `metrics:"-"`
-	ForceMode   bypass.Mode `metrics:"-"`
-	Mode        bypass.Mode `metrics:"MODE"`
+	Resolver  ContextResolver `metrics:"-"`
+	ForceMode bypass.Mode     `metrics:"-"`
+	Mode      bypass.Mode     `metrics:"MODE"`
 
 	Source      net.Addr `metrics:"Source"`
 	Inbound     net.Addr `metrics:"Inbound"`
@@ -46,7 +54,7 @@ func (c *Context) Value(key any) any {
 
 type contextKey struct{}
 
-func WithContext(ctx context.Context) context.Context {
+func WithContext(ctx context.Context) *Context {
 	return &Context{
 		Context: ctx,
 	}

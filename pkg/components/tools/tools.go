@@ -37,7 +37,7 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 	hc := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				add, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
+				add, err := netapi.ParseAddress(network, addr)
 				if err != nil {
 					return nil, err
 				}

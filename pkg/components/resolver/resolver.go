@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -9,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -30,17 +32,29 @@ type Resolver struct {
 }
 
 func NewResolver(dialer netapi.Proxy) *Resolver {
+	netapi.InternetResolver, _ = dns.NewDoU(dns.Config{
+		Type:   pd.Type_udp,
+		Host:   "8.8.8.8:53",
+		Name:   "internet",
+		Dialer: direct.Default,
+	})
 	return &Resolver{dialer: dialer}
 }
 
 var errorResolver = netapi.ErrorResolver(func(domain string) error {
-	return fmt.Errorf("%w: %s", netapi.ErrBlocked, domain)
+	return &net.OpError{
+		Op:   "block",
+		Addr: netapi.ParseDomainPort("", domain, 0),
+		Err:  errors.New("blocked"),
+	}
 })
-var blockStr = bypass.Mode_block.String()
+
+var block = bypass.Mode_block.String()
+var proxy = bypass.Mode_proxy.String()
 
 func (r *Resolver) Get(str string) netapi.Resolver {
 	if str != "" {
-		if str == blockStr {
+		if str == block {
 			return errorResolver
 		}
 		z, ok := r.store.Load(str)
@@ -49,7 +63,7 @@ func (r *Resolver) Get(str string) netapi.Resolver {
 		}
 	}
 
-	z, ok := r.store.Load(bypass.Mode_proxy.String())
+	z, ok := r.store.Load(proxy)
 	if ok {
 		return z.Resolver
 	}
@@ -87,8 +101,7 @@ func (r *Resolver) Update(c *pc.Setting) {
 				store := netapi.GetContext(ctx)
 				store.ForceMode = bypass.Mode_direct
 				store.Component = "Resolver BOOTSTRAP"
-				addr.SetResolver(netapi.InternetResolver)
-				addr.SetSrc(netapi.AddressSrcDNS)
+				store.Resolver.ResolverSelf = netapi.InternetResolver
 			},
 		}
 		z, err := newDNS("BOOTSTRAP", c.Dns.Bootstrap, dialer, r)
@@ -121,8 +134,7 @@ func (r *Resolver) Update(c *pc.Setting) {
 				store := netapi.GetContext(ctx)
 				store.Component = "Resolver " + k
 				// force to use bootstrap dns, otherwise will dns query cycle
-				addr.SetResolver(netapi.Bootstrap)
-				addr.SetSrc(netapi.AddressSrcDNS)
+				store.Resolver.ResolverSelf = netapi.Bootstrap
 			},
 		}
 

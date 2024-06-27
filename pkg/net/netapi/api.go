@@ -2,10 +2,14 @@ package netapi
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type ProcessDumper interface {
@@ -26,80 +30,120 @@ type PacketProxy interface {
 	PacketConn(context.Context, Address) (net.PacketConn, error)
 }
 
-type Port interface {
-	Port() uint16
-	String() string
-}
-
-type Type uint8
-
-func (t Type) String() string {
-	switch t {
-	case FQDN:
-		return "FQDN"
-	case IP:
-		return "IP"
-	case UNIX:
-		return "UNIX"
-	case EMPTY:
-		return "EMPTY"
-	default:
-		return "UNKNOWN"
-	}
-}
-
-const (
-	FQDN  Type = 1
-	IP    Type = 2
-	UNIX  Type = 3
-	EMPTY Type = 4
-)
-
-type AddressSrc int32
-
-const (
-	AddressSrcEmpty AddressSrc = 0
-	AddressSrcDNS   AddressSrc = 1
-)
-
-type Result[T any] struct {
-	V   T
-	Err error
-}
-
-func NewErrResult[T any](err error) Result[T] {
-	return Result[T]{Err: err}
-}
-
-func NewResult[T any](v T) Result[T] {
-	return Result[T]{V: v}
-}
-
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
-	IPs(context.Context) ([]net.IP, error)
-	// IP return net.IP, if address is ip else resolve the domain and return one of ips
-	IP(context.Context) (net.IP, error)
-	AddrPort(context.Context) Result[netip.AddrPort]
-	UDPAddr(context.Context) Result[*net.UDPAddr]
-	TCPAddr(context.Context) Result[*net.TCPAddr]
 	// Port return port of address
-	Port() Port
-	// Type return type of address, domain or ip
-	Type() Type
-	NetworkType() statistic.Type
-
-	net.Addr
-
-	SetSrc(AddressSrc)
-	// SetResolver will use call IP(), IPHost(), UDPAddr(), TCPAddr()
-	SetResolver(_ Resolver)
-	PreferIPv6(b bool)
-	PreferIPv4(b bool)
-	// OverrideHostname clone address(exclude Values) and change hostname
-	OverrideHostname(string) Address
-	OverridePort(Port) Address
-
+	Port() uint16
+	// IsFqdn return true if address is FQDN
+	// not fqdn must impl IPAddress
 	IsFqdn() bool
+	net.Addr
+}
+
+type IPAddress interface {
+	Address
+	IP() net.IP
+	WithZone(zone string)
+}
+
+func ResolveUDPAddr(ctx context.Context, addr Address) (*net.UDPAddr, error) {
+	ip, err := ResolverIP(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &net.UDPAddr{IP: ip, Port: int(addr.Port())}, nil
+}
+
+func ResolveTCPAddr(ctx context.Context, addr Address) (*net.TCPAddr, error) {
+	ip, err := ResolverIP(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &net.TCPAddr{IP: ip, Port: int(addr.Port())}, nil
+}
+
+func ResolverAddrPort(ctx context.Context, addr Address) (netip.AddrPort, error) {
+	if !addr.IsFqdn() {
+		x, ok := addr.(*IPAddr)
+		if ok {
+			return netip.AddrPortFrom(x.ip, x.port), nil
+		}
+	}
+
+	ip, err := ResolverIP(ctx, addr)
+	if err != nil {
+		return netip.AddrPort{}, err
+	}
+
+	a, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return netip.AddrPort{}, fmt.Errorf("invalid ip %s", ip)
+	}
+	a = a.Unmap()
+	return netip.AddrPortFrom(a, uint16(addr.Port())), nil
+}
+
+func ResolverIP(ctx context.Context, addr Address) (net.IP, error) {
+	if !addr.IsFqdn() {
+		return addr.(IPAddress).IP(), nil
+	}
+
+	ips, err := LookupIP(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return ips[rand.IntN(len(ips))], nil
+}
+
+func LookupIP(ctx context.Context, addr Address) ([]net.IP, error) {
+	if !addr.IsFqdn() {
+		return []net.IP{addr.(IPAddress).IP()}, nil
+	}
+
+	netctx := GetContext(ctx)
+
+	resolver := Bootstrap
+	if netctx.Resolver.ResolverSelf != nil {
+		resolver = netctx.Resolver.ResolverSelf
+	} else if netctx.Resolver.Resolver != nil {
+		resolver = netctx.Resolver.Resolver
+	}
+
+	if netctx.Resolver.PreferIPv6 != netctx.Resolver.PreferIPv4 {
+		ips, err := resolver.LookupIP(ctx, addr.Hostname(), func(li *LookupIPOption) {
+			li.AAAA = netctx.Resolver.PreferIPv6
+			li.A = netctx.Resolver.PreferIPv4
+		})
+		if err == nil {
+			return ips, nil
+		} else {
+			log.Warn("resolve failed, fallback to normal lookup", slog.String("domain", addr.Hostname()), slog.Any("err", err))
+		}
+	}
+
+	ips, err := resolver.LookupIP(ctx, addr.Hostname())
+	if err != nil {
+		return nil, fmt.Errorf("resolve address(%v) failed: %w", addr, err)
+	}
+
+	return ips, nil
+}
+
+func IsBlockError(err error) bool {
+	netErr := &net.OpError{}
+
+	if errors.As(err, &netErr) {
+		return netErr.Op == "block"
+	}
+
+	return false
+}
+
+func LogLevel(err error) slog.Level {
+	if IsBlockError(err) {
+		return slog.LevelDebug
+	}
+
+	return slog.LevelError
 }

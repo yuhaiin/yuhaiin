@@ -2,7 +2,6 @@ package inbound
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -41,11 +40,7 @@ func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
 func (s *handler) Stream(ctx context.Context, meta *netapi.StreamMeta) {
 	go func() {
 		if err := s.stream(ctx, meta); err != nil {
-			if errors.Is(err, netapi.ErrBlocked) {
-				log.Debug("blocked", "msg", err)
-			} else {
-				log.Error("stream failed", "error", err)
-			}
+			log.Output(0, netapi.LogLevel(err), "inbound handler stream", "msg", err)
 		}
 	}()
 }
@@ -87,18 +82,17 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 	return nil
 }
 
-func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
-	ctx, cancel := context.WithTimeout(ctx, Timeout)
+func (s *handler) Packet(xctx context.Context, pack *netapi.Packet) {
+	xctx, cancel := context.WithTimeout(xctx, Timeout)
 	defer cancel()
 
-	ctx = netapi.WithContext(ctx)
-	store := netapi.GetContext(ctx)
+	ctx := netapi.WithContext(xctx)
 
 	if s.sniffyEnabled {
 		mode, name, ok := s.sniffer.Packet(pack.Payload)
 		if ok {
-			store.Protocol = name
-			store.ForceMode = mode
+			ctx.Protocol = name
+			ctx.ForceMode = mode
 		}
 	}
 
@@ -106,13 +100,10 @@ func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	if !ok {
 		src, err := netapi.ParseSysAddr(pack.Src)
 		if err == nil && !src.IsFqdn() {
-			srcAddr := src.AddrPort(ctx).V.Addr()
-			if srcAddr.Unmap().Is4() {
-				pack.Dst.PreferIPv4(true)
-				pack.Dst.PreferIPv6(false)
-			} else {
-				pack.Dst.PreferIPv4(false)
-				pack.Dst.PreferIPv6(true)
+			srcAddr, _ := netapi.ResolverAddrPort(ctx, src)
+			if srcAddr.Addr().Unmap().Is4() {
+				ctx.Resolver.PreferIPv4 = true
+				ctx.Resolver.PreferIPv6 = false
 			}
 		}
 	}
