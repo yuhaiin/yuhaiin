@@ -15,14 +15,14 @@ import (
 
 type wgDevice struct {
 	wun.Device
-	mtu    int
-	offset int
-
-	rmu      sync.Mutex
-	wmu      sync.Mutex
 	wbuffers [][]byte
 	rbuffers [][]byte
 	rsize    []int
+	mtu      int
+	offset   int
+
+	rmu sync.Mutex
+	wmu sync.Mutex
 }
 
 func NewDevice(device wun.Device, offset int) *wgDevice {
@@ -146,12 +146,12 @@ func putBuffer(bufs [][]byte) {
 }
 
 type ChannelTun struct {
-	mtu      int
+	ctx      context.Context
 	inbound  chan []byte
 	outbound chan []byte
-	ctx      context.Context
 	cancel   context.CancelFunc
 	events   chan wun.Event
+	mtu      int
 }
 
 func NewChannelTun(ctx context.Context, mtu int) *ChannelTun {

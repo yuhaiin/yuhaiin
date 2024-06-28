@@ -23,14 +23,14 @@ type outbound struct {
 	manager *manager
 	db      *jsondb.DB[*node.Node]
 
-	lruCache *lru.LRU[string, netapi.Proxy]
+	lruCache *lru.SyncLru[string, netapi.Proxy]
 }
 
 func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
 	return &outbound{
 		manager:  mamanager,
 		db:       db,
-		lruCache: lru.New(lru.WithCapacity[string, netapi.Proxy](200)),
+		lruCache: lru.NewSyncLru(lru.WithCapacityv2[string, netapi.Proxy](200)),
 	}
 }
 
@@ -160,7 +160,7 @@ func (o *outbound) Do(req *http.Request) (*http.Response, error) {
 		Timeout: time.Minute * 2,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
+				ad, err := netapi.ParseAddress(network, addr)
 				if err != nil {
 					return nil, fmt.Errorf("parse address failed: %w", err)
 				}

@@ -3,14 +3,12 @@ package dns
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"math/rand/v2"
 	"net"
 	"net/netip"
-	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -27,12 +25,12 @@ import (
 )
 
 type Config struct {
-	Type       pd.Type
+	Dialer     netapi.Proxy
 	Subnet     netip.Prefix
 	Name       string
 	Host       string
 	Servername string
-	Dialer     netapi.Proxy
+	Type       pd.Type
 }
 
 var dnsMap syncmap.SyncMap[pd.Type, func(Config) (netapi.Resolver, error)]
@@ -58,16 +56,16 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 var _ netapi.Resolver = (*client)(nil)
 
 type request struct {
-	Truncated bool
 	Question  []byte
+	Truncated bool
 }
 
 type client struct {
-	do              func(context.Context, *request) ([]byte, error)
-	config          Config
 	edns0           dnsmessage.Resource
-	rawStore        *lru.LRU[dnsmessage.Question, dnsmessage.Message]
-	rawSingleflight singleflight.Group[dnsmessage.Question, dnsmessage.Message]
+	do              func(context.Context, *request) ([]byte, error)
+	rawStore        *lru.SyncLru[dnsmessage.Question, dnsmessage.Message]
+	rawSingleflight singleflight.GroupSync[dnsmessage.Question, dnsmessage.Message]
+	config          Config
 }
 
 func NewClient(config Config, do func(context.Context, *request) ([]byte, error)) *client {
@@ -106,7 +104,7 @@ func NewClient(config Config, do func(context.Context, *request) ([]byte, error)
 	return &client{
 		do:       do,
 		config:   config,
-		rawStore: lru.New(lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache)),
+		rawStore: lru.NewSyncLru(lru.WithCapacityv2[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache)),
 		edns0: dnsmessage.Resource{
 			Header: rh,
 			Body:   optrbody,
@@ -124,14 +122,13 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 		optf(opt)
 	}
 
-	// only ipv6
-	if opt.AAAA && !opt.A {
-		return c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
-	}
-
-	// only ipv4
-	if opt.A && !opt.AAAA {
-		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
+	// only ipv6/ipv4
+	if opt.AAAA != opt.A {
+		t := dnsmessage.TypeAAAA
+		if opt.A {
+			t = dnsmessage.TypeA
+		}
+		return c.lookupIP(ctx, domain, t)
 	}
 
 	aaaaerr := make(chan error, 1)
@@ -140,17 +137,13 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	go func() {
 		var err error
 		aaaa, err = c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
-		if err != nil {
-			aaaaerr <- fmt.Errorf("lookup ipv6 failed: %w", err)
-		} else {
-			aaaaerr <- nil
-		}
+		aaaaerr <- err
 	}()
 
 	resp, aerr := c.lookupIP(ctx, domain, dnsmessage.TypeA)
 
 	if err := <-aaaaerr; err != nil && aerr != nil {
-		return nil, errors.Join(err, fmt.Errorf("lookup ipv4 failed: %w", aerr))
+		return nil, fmt.Errorf("ipv6: %w, ipv4: %w", err, aerr)
 	}
 
 	return append(resp, aaaa...), nil
@@ -224,7 +217,6 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 			// just discard the message and retry over TCP, anyway.
 			//
 			// https://serverfault.com/questions/991520/how-is-truncation-performed-in-dns-according-to-rfc-1035
-			log.Info("resolve domain retry by Truncated", "domain", req.Name, "type", req.Type)
 		}
 
 		ttl := uint32(600)
@@ -254,8 +246,13 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 }
 
 func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, error) {
-	if !strings.HasSuffix(domain, ".") {
+	if len(domain) == 0 {
+		return nil, fmt.Errorf("empty domain")
+	}
+
+	if domain[len(domain)-1] != '.' {
 		domain += "."
+
 	}
 
 	name, err := dnsmessage.NewName(domain)
@@ -273,7 +270,13 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if msg.Header.RCode != dnsmessage.RCodeSuccess {
-		return nil, netapi.NewDNSErrCode(msg.Header.RCode)
+		return nil, &net.DNSError{
+			Err:         msg.Header.RCode.String(),
+			Server:      c.config.Host,
+			Name:        domain,
+			IsNotFound:  true,
+			IsTemporary: true,
+		}
 	}
 
 	ips := make([]net.IP, 0, len(msg.Answers))
@@ -292,7 +295,13 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if len(ips) == 0 {
-		return nil, netapi.NewDNSErrCode(dnsmessage.RCodeSuccess)
+		return nil, &net.DNSError{
+			Err:         "no such host",
+			Server:      c.config.Host,
+			Name:        domain,
+			IsNotFound:  true,
+			IsTemporary: true,
+		}
 	}
 
 	return ips, nil

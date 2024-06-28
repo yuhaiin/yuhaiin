@@ -9,16 +9,14 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"golang.org/x/net/http2"
 )
 
 func init() {
@@ -37,7 +35,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 		host = net.JoinHostPort(host, "443")
 	}
 
-	addr, err := netapi.ParseAddress(statistic.Type_tcp, host)
+	addr, err := netapi.ParseAddress("tcp", host)
 	if err != nil {
 		return nil, err
 	}
@@ -50,50 +48,29 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 		ServerName: config.Servername,
 	}
 
-	type transportStore struct {
-		transport *transport
-		time      time.Time
+	tr := &http.Transport{
+		TLSClientConfig:   tlsConfig,
+		ForceAttemptHTTP2: true,
+		DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
+			return config.Dialer.Conn(ctx, addr)
+		},
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	roundTripper := atomic.Pointer[transportStore]{}
-
-	var changing atomic.Bool
-
-	refreshRoundTripper := func() {
-		rt := roundTripper.Load()
-		if rt != nil {
-			if time.Since(rt.time) <= time.Second*5 {
-				return
-			}
-
-			rt.transport.Close()
-		}
-
-		if changing.CompareAndSwap(false, true) {
-			roundTripper.Store(&transportStore{
-				transport: newTransport(&http.Transport{
-					TLSClientConfig:   tlsConfig,
-					ForceAttemptHTTP2: true,
-					DialContext: func(ctx context.Context, network, host string) (net.Conn, error) {
-						return config.Dialer.Conn(ctx, addr)
-					},
-					MaxIdleConns:          100,
-					IdleConnTimeout:       90 * time.Second,
-					TLSHandshakeTimeout:   10 * time.Second,
-					ExpectContinueTimeout: 1 * time.Second,
-				}),
-				time: time.Now(),
-			})
-			changing.Store(false)
-		}
+	tr2, err := http2.ConfigureTransports(tr)
+	if err != nil {
+		return nil, err
 	}
 
-	refreshRoundTripper()
+	tr2.ReadIdleTimeout = time.Second * 30 // https://github.com/golang/go/issues/30702
+	tr2.IdleConnTimeout = time.Second * 90
 
 	return NewClient(config, func(ctx context.Context, b *request) ([]byte, error) {
-		resp, err := roundTripper.Load().transport.RoundTrip(req.Clone(ctx, b.Question))
+		resp, err := tr.RoundTrip(req.Clone(ctx, b.Question))
 		if err != nil {
-			refreshRoundTripper() // https://github.com/golang/go/issues/30702
 			return nil, fmt.Errorf("doh post failed: %w", err)
 		}
 		defer resp.Body.Close()
@@ -173,43 +150,4 @@ func (p *post) Clone(ctx context.Context, body []byte) *http.Request {
 	}
 
 	return req
-}
-
-type transport struct {
-	*http.Transport
-
-	mu          sync.Mutex
-	conns       []net.Conn
-	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
-}
-
-func newTransport(p *http.Transport) *transport {
-	t := &transport{}
-
-	t.dialContext = p.DialContext
-	p.DialContext = t.DialContext
-
-	t.Transport = p
-
-	return t
-}
-
-func (t *transport) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	conn, err := t.dialContext(ctx, network, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	t.mu.Lock()
-	t.conns = append(t.conns, conn)
-	t.mu.Unlock()
-
-	return conn, nil
-}
-
-func (t *transport) Close() {
-	for _, v := range t.conns {
-		_ = v.Close()
-	}
-	t.Transport.CloseIdleConnections()
 }

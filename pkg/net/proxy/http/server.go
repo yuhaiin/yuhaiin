@@ -15,17 +15,16 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Server struct {
-	username, password string
-	reverseProxy       *httputil.ReverseProxy
+	lis          net.Listener
+	reverseProxy *httputil.ReverseProxy
 
 	*netapi.ChannelServer
 
-	lis net.Listener
+	username, password string
 }
 
 func newServer(o *listener.Inbound_Http, lis net.Listener) *Server {
@@ -44,16 +43,16 @@ func newServer(o *listener.Inbound_Http, lis net.Listener) *Server {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			address, err := netapi.ParseAddress(statistic.Type_tcp, addr)
+			address, err := netapi.ParseAddress(network, addr)
 			if err != nil {
 				return nil, fmt.Errorf("parse address failed: %w", err)
 			}
 
 			remoteAddr, _ := ctx.Value(remoteKey{}).(string)
 
-			source, err := netapi.ParseAddress(statistic.Type_tcp, remoteAddr)
+			source, err := netapi.ParseAddress(network, remoteAddr)
 			if err != nil {
-				source = netapi.ParseAddressPort(statistic.Type_tcp, remoteAddr, netapi.EmptyPort)
+				source = netapi.ParseAddressPort(network, remoteAddr, 0)
 			}
 
 			local, remote := net.Pipe()
@@ -135,7 +134,7 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 		}
 	}
 
-	dst, err := netapi.ParseAddress(statistic.Type_tcp, host)
+	dst, err := netapi.ParseAddress("tcp", host)
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		return fmt.Errorf("parse address failed: %w", err)
@@ -148,9 +147,9 @@ func (h *Server) connect(w http.ResponseWriter, req *http.Request) error {
 		return fmt.Errorf("hijack failed: %w", err)
 	}
 
-	source, err := netapi.ParseAddress(statistic.Type_tcp, req.RemoteAddr)
+	source, err := netapi.ParseAddress("tcp", req.RemoteAddr)
 	if err != nil {
-		source = netapi.ParseAddressPort(statistic.Type_tcp, req.RemoteAddr, netapi.EmptyPort)
+		source = netapi.ParseAddressPort("tcp", req.RemoteAddr, 0)
 	}
 
 	sm := &netapi.StreamMeta{

@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -25,20 +24,20 @@ import (
 //
 // Multiple goroutines may invoke methods on a Conn simultaneously.
 type Conn struct {
-	IsServer bool
+	Frame io.ReadCloser
 
-	LastPayloadType opcode
-	PayloadType     opcode
-
-	readHeaderBuf  [8]byte
-	writeHeaderBuf [8]byte
+	RawConn net.Conn
 
 	rio sync.Mutex
 	wio sync.Mutex
 
-	Frame io.ReadCloser
+	readHeaderBuf  [8]byte
+	writeHeaderBuf [8]byte
 
-	RawConn net.Conn
+	IsServer bool
+
+	LastPayloadType opcode
+	PayloadType     opcode
 }
 
 // newConn creates a new WebSocket connection speaking hybi draft protocol.
@@ -105,7 +104,7 @@ func (ws *Conn) NextFrameReader(handle func(*Header, io.ReadCloser) error) error
 
 func (ws *Conn) nextFrameReader() (*Header, io.ReadCloser, error) {
 	for {
-		header, err := readFrameHeader(netapi.NewReader(ws.RawConn), ws.readHeaderBuf[:])
+		header, err := readFrameHeader(ws.RawConn, ws.readHeaderBuf[:])
 		if err != nil {
 			return nil, nil, err
 		}

@@ -152,9 +152,9 @@ type CipherFactory interface {
 	DecryptStream(iv []byte) (cipher.Stream, error)
 }
 type cipherFactory struct {
+	stream func(key, iv []byte, decrypt bool) (cipher.Stream, error)
 	key    []byte
 	ivSize int
-	stream func(key, iv []byte, decrypt bool) (cipher.Stream, error)
 }
 
 func (c cipherFactory) IVSize() int { return c.ivSize }
@@ -166,23 +166,23 @@ func (c cipherFactory) DecryptStream(iv []byte) (cipher.Stream, error) {
 }
 
 func newCipherObserver(keySize, ivSize int, stream func(key, iv []byte, decrypt bool) (cipher.Stream, error)) struct {
-	KeySize int
 	Creator func(key []byte) CipherFactory
+	KeySize int
 } {
 	return struct {
-		KeySize int
 		Creator func(key []byte) CipherFactory
+		KeySize int
 	}{
 		KeySize: keySize,
 		Creator: func(key []byte) CipherFactory {
-			return cipherFactory{key, ivSize, stream}
+			return cipherFactory{stream, key, ivSize}
 		},
 	}
 }
 
 var StreamCipherMethod = map[string]struct {
-	KeySize int
 	Creator func(key []byte) CipherFactory
+	KeySize int
 }{
 	"aes-128-cfb":      newCipherObserver(16, 16, newAESCFBStream),
 	"aes-192-cfb":      newCipherObserver(24, 16, newAESCFBStream),

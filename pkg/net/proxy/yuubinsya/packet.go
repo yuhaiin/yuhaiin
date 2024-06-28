@@ -15,12 +15,12 @@ import (
 
 type authPacketConn struct {
 	net.PacketConn
-	tcp    net.Conn
-	server net.Addr
+	realTarget net.Addr
 
 	auth types.Auth
 
-	prefix bool
+	onClose func() error
+	prefix  bool
 }
 
 func NewAuthPacketConn(local net.PacketConn) *authPacketConn {
@@ -28,19 +28,25 @@ func NewAuthPacketConn(local net.PacketConn) *authPacketConn {
 }
 
 func (s *authPacketConn) Close() error {
-	if s.tcp != nil {
-		s.tcp.Close()
+	var err error
+	if s.onClose != nil {
+		if er := s.onClose(); er != nil {
+			err = errors.Join(err, er)
+		}
 	}
-	return s.PacketConn.Close()
+	if er := s.PacketConn.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+	return err
 }
 
-func (s *authPacketConn) WithTcpConn(tcp net.Conn) *authPacketConn {
-	s.tcp = tcp
+func (s *authPacketConn) WithOnClose(close func() error) *authPacketConn {
+	s.onClose = close
 	return s
 }
 
-func (s *authPacketConn) WithTarget(target net.Addr) *authPacketConn {
-	s.server = target
+func (s *authPacketConn) WithRealTarget(target net.Addr) *authPacketConn {
+	s.realTarget = target
 	return s
 }
 
@@ -50,18 +56,23 @@ func (s *authPacketConn) WithAuth(auth types.Auth) *authPacketConn {
 	return s
 }
 
-func (s *authPacketConn) WithPrefix(b bool) *authPacketConn {
+// Socks5 Prefix , append 0x0, 0x0, 0x0 to packet
+func (s *authPacketConn) WithSocks5Prefix(b bool) *authPacketConn {
 	s.prefix = b
 	return s
 }
 
 func (s *authPacketConn) WriteTo(p []byte, addr net.Addr) (_ int, err error) {
-	return s.writeTo(p, addr, s.server)
+	return s.writeTo(p, addr, s.realTarget)
 }
 
 func (s *authPacketConn) writeTo(p []byte, addr net.Addr, underlyingAddr net.Addr) (_ int, err error) {
 	if len(p) > nat.MaxSegmentSize-types.AuthHeaderSize(s.auth, s.prefix) {
 		return 0, fmt.Errorf("packet too large: %d > %d", len(p), nat.MaxSegmentSize)
+	}
+
+	if underlyingAddr == nil {
+		underlyingAddr = addr
 	}
 
 	buf := pool.NewBufferSize(len(p) + types.AuthHeaderSize(s.auth, s.prefix))
@@ -101,7 +112,7 @@ func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, erro
 }
 
 func StartUDPServer(packet net.PacketConn, sendPacket func(*netapi.Packet) error, auth types.Auth, prefix bool) {
-	p := NewAuthPacketConn(packet).WithAuth(auth).WithPrefix(prefix)
+	p := NewAuthPacketConn(packet).WithAuth(auth).WithSocks5Prefix(prefix)
 	buf := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(buf)
 

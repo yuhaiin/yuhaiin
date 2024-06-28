@@ -19,11 +19,11 @@ func doubleFNV(b []byte) (uint64, uint64) {
 }
 
 type BloomRing struct {
+	slots        []bloom.Filter
 	slotCapacity int
 	slotPosition int
 	slotCount    int
 	entryCounter int
-	slots        []bloom.Filter
 	mu           sync.RWMutex
 }
 

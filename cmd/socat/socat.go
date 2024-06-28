@@ -10,7 +10,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
@@ -19,7 +18,7 @@ func main() {
 	s5 := flag.String("s", "127.0.0.1:1080", "socks5 server host, -s 127.0.0.1:1080")
 	flag.Parse()
 
-	addr, err := netapi.ParseAddress(statistic.Type_tcp, *target)
+	addr, err := netapi.ParseAddress("tcp", *target)
 	if err != nil {
 		log.Fatal(err)
 	}

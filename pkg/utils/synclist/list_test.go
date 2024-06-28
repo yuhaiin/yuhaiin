@@ -3,7 +3,7 @@ package synclist
 import "testing"
 
 func TestSyncList(t *testing.T) {
-	l := New[int]()
+	l := NewSyncList[int]()
 
 	l.PushFront(0)
 	l.PushFront(-1)

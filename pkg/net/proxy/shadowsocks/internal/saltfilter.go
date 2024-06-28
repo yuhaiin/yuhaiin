@@ -35,8 +35,8 @@ func getSaltFilterSingleton() *BloomRing {
 			finalSlot     = float64(DefaultSFSlot)
 		)
 		for _, opt := range []struct {
-			ENVName string
 			Target  *float64
+			ENVName string
 		}{
 			{
 				ENVName: "CAPACITY",

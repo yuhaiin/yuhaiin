@@ -13,7 +13,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -27,7 +26,7 @@ func NewTCP(config Config) (netapi.Resolver, error) {
 
 // ParseAddr
 // host eg: cloudflare-dns.com, https://cloudflare-dns.com, 1.1.1.1:853
-func ParseAddr(netType statistic.Type, host, defaultPort string) (netapi.Address, error) {
+func ParseAddr(netType string, host, defaultPort string) (netapi.Address, error) {
 	if i := strings.Index(host, "://"); i != -1 {
 		host = host[i+3:]
 	}
@@ -106,7 +105,7 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 }
 
 func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, error) {
-	addr, err := ParseAddr(statistic.Type_tcp, config.Host, defaultPort)
+	addr, err := ParseAddr("tcp", config.Host, defaultPort)
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}

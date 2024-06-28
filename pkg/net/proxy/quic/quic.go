@@ -11,34 +11,36 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/quic-go/quic-go"
 )
 
 type Client struct {
 	netapi.EmptyDispatch
 
-	tlsConfig *tls.Config
-	dialer    netapi.Proxy
+	dialer netapi.Proxy
 
-	session     quic.Connection
-	underlying  net.PacketConn
-	sessionMu   sync.Mutex
-	sessionUnix int64
+	session    quic.Connection
+	underlying net.PacketConn
+
+	tlsConfig *tls.Config
 
 	packetConn *ConnectionPacketConn
-	natMap     syncmap.SyncMap[uint64, *clientPacketConn]
+
+	host   *net.UDPAddr
+	natMap syncmap.SyncMap[uint64, *clientPacketConn]
+
+	sessionUnix int64
 
 	idg id.IDGenerator
 
-	host *net.UDPAddr
+	sessionMu sync.Mutex
 }
 
 func init() {
@@ -51,10 +53,11 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
 
 		if config.Quic.Host != "" {
-			addr, err := netapi.ParseAddress(statistic.Type_udp, config.Quic.Host)
+			addr, err := netapi.ParseAddress("udp", config.Quic.Host)
 			if err == nil {
-				if ur := addr.UDPAddr(context.TODO()); ur.Err == nil {
-					host = ur.V
+				host, err = netapi.ResolveUDPAddr(context.TODO(), addr)
+				if err != nil {
+					return nil, err
 				}
 			}
 		}
@@ -126,9 +129,9 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 	}
 
 	config := &quic.Config{
-		KeepAlivePeriod: 15 * time.Second,
-		MaxIdleTimeout:  nat.IdleTimeout,
 		EnableDatagrams: true,
+		KeepAlivePeriod: time.Second * 15,
+		MaxIdleTimeout:  time.Second * 40,
 	}
 
 	session, err = tr.Dial(ctx, c.host, c.tlsConfig, config)
@@ -141,7 +144,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 
 	c.underlying = conn
 	c.session = session
-	c.sessionUnix = time.Now().Unix()
+	c.sessionUnix = system.NowUnix()
 
 	// Datagram
 	c.packetConn = pconn
@@ -279,16 +282,15 @@ func (q *QuicAddr) String() string {
 func (q *QuicAddr) Network() string { return "udp" }
 
 type clientPacketConn struct {
+	ctx     context.Context
 	c       *Client
 	session *ConnectionPacketConn
-	id      uint64
-
-	ctx    context.Context
-	cancel context.CancelFunc
+	cancel  context.CancelFunc
 
 	msg chan *pool.Buffer
 
 	deadline *deadline.PipeDeadline
+	id       uint64
 }
 
 func (x *clientPacketConn) ReadFrom(p []byte) (n int, _ net.Addr, err error) {

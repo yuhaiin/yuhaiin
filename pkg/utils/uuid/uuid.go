@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid/base58"
-	"github.com/go-json-experiment/json"
 )
 
 const (

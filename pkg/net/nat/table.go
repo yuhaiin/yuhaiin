@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -25,43 +26,40 @@ func NewTable(dialer netapi.Proxy) *Table {
 
 type Table struct {
 	dialer netapi.Proxy
+	sf     singleflight.GroupSync[string, *SourceTable]
 	cache  syncmap.SyncMap[string, *SourceTable]
-	sf     singleflight.Group[string, *SourceTable]
 }
 
-func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, background bool) error {
+func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, alreadyBackground bool) error {
 	key := pkt.Dst.String()
 
 	var err error
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
-	uuaddr, ok := t.LoadUDPAddr(key)
+	udpAddr, ok := loadSourceTableAddr[*net.UDPAddr](t, cacheTypeUDPAddr, key)
 	if ok {
-		_, err = t.WriteTo(pkt.Payload, uuaddr)
+		_, err = t.WriteTo(pkt.Payload, udpAddr)
 		pool.PutBytes(pkt.Payload)
 		return err
 	}
 
 	// cache fakeip/hosts/bypass address
 	// because domain bypass maybe resolve domain which is speed some time, so we cache it for a while
-	dispAddr, skipFqdn, ok := t.LoadDispatchAddr(key)
+	dstAddr, ok := loadSourceTableAddr[netapi.Address](t, cacheTypeDispatch, key)
 	if !ok {
-		rAddr, err := u.dialer.Dispatch(ctx, pkt.Dst)
+		dstAddr, err = u.dialer.Dispatch(ctx, pkt.Dst)
 		if err != nil {
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
-		dispAddr = rAddr
-		skipFqdn = netapi.GetContext(ctx).SkipResolve
-
-		t.StoreDispatchAddr(key, rAddr, skipFqdn)
+		t.storeAddr(cacheTypeDispatch, key, dstAddr)
 	}
 
 	// check is need resolve
-	if !dispAddr.IsFqdn() || skipFqdn == true {
-		_, err = t.WriteTo(pkt.Payload, dispAddr)
-		if err == nil {
-			t.mapAddr(dispAddr, pkt.Dst)
-		}
+	if !dstAddr.IsFqdn() || t.skipResolve {
+		_, err = t.WriteTo(pkt.Payload, dstAddr)
 		pool.PutBytes(pkt.Payload)
+		if err == nil {
+			t.mapAddr(dstAddr, pkt.Dst)
+		}
 		return err
 	}
 
@@ -72,16 +70,12 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, b
 	write := func(ctx context.Context) error {
 		defer pool.PutBytes(pkt.Payload)
 		var err error
-		uaddr, err, _ := t.sf.Do(key, func() (*net.UDPAddr, error) {
-			ur := dispAddr.UDPAddr(ctx)
-			if ur.Err != nil {
-				return nil, ur.Err
+		udpAddr, err, _ := t.sf.Do(key, func() (*net.UDPAddr, error) {
+			udpAddr, err := netapi.ResolveUDPAddr(ctx, dstAddr)
+			if err != nil {
+				return nil, err
 			}
-
-			udpAddr := ur.V
-
-			t.StoreUDPAddr(key, udpAddr)
-
+			t.storeAddr(cacheTypeUDPAddr, key, udpAddr)
 			t.mapAddr(udpAddr, pkt.Dst)
 			return udpAddr, nil
 		})
@@ -89,11 +83,11 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, b
 			return err
 		}
 
-		_, err = t.WriteTo(pkt.Payload, uaddr)
+		_, err = t.WriteTo(pkt.Payload, udpAddr)
 		return err
 	}
 
-	if background {
+	if alreadyBackground {
 		return write(ctx)
 	}
 
@@ -104,7 +98,7 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, b
 		defer cancel()
 
 		if err := write(ctx); err != nil {
-			log.Error("udp write to remote failed", "err", err)
+			log.Error("nat table write to remote", "err", err)
 		}
 	}()
 	return nil
@@ -113,11 +107,16 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, b
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	pkt = pkt.Clone()
 
-	key := pkt.Src.String()
+	var key string
+
+	if pkt.MigrateID != 0 {
+		key = strconv.FormatUint(pkt.MigrateID, 10)
+	} else {
+		key = pkt.Src.String()
+	}
 
 	t, ok := u.cache.Load(key)
-	if ok {
-		// t.writeBack.Store(&pkt.WriteBack)
+	if ok && t.connected.Load() {
 		return u.write(ctx, t, pkt, false)
 	}
 
@@ -128,22 +127,45 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			store := netapi.GetContext(ctx)
 			store.Source = pkt.Src
 			store.Destination = pkt.Dst
+			if t != nil {
+				store.UDPMigrateID = t.migrateID
+				if store.UDPMigrateID != 0 {
+					log.Info("set migrate id", "id", store.UDPMigrateID)
+				}
+			}
 
 			dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 			if err != nil {
 				return nil, fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
 			}
 
-			table, _ := u.cache.LoadOrStore(key, &SourceTable{dstPacketConn: dstpconn})
+			var table *SourceTable
+			if t != nil {
+				if t.stopTimer != nil {
+					t.stopTimer.Stop()
+				}
+				table = t
+				table.writeBack = pkt.WriteBack
+			} else {
+				table = &SourceTable{
+					dstPacketConn: dstpconn,
+					skipResolve:   store.Resolver.SkipResolve,
+					writeBack:     pkt.WriteBack,
+					migrateID:     store.UDPMigrateID,
+				}
+			}
 
-			table.writeBack.Store(&pkt.WriteBack)
+			table.migrateID = store.UDPMigrateID
+			table.connected.Store(true)
+
+			u.cache.Store(key, table)
 
 			go u.runWriteBack(key, dstpconn, table)
 
 			return table, nil
 		})
 		if err != nil {
-			log.Error("udp remote to local", "err", err)
+			log.Error("create source table", "err", err)
 			return
 		}
 
@@ -156,26 +178,36 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 }
 
 func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
-	defer u.cache.Delete(key)
-	defer table.dstPacketConn.Close()
-	defer p.Close()
+	defer func() {
+		table.stopTimer = time.AfterFunc(IdleTimeout, func() {
+			u.cache.Delete(key)
+		})
+
+		table.connected.Store(false)
+		p.Close()
+	}()
+	// defer u.cache.Delete(key)
+	// defer dstpc.Close()
+	// defer p.Close()
+	// defer table.connected.Store(false)
 
 	ch := make(chan backPacket, 250)
 	defer close(ch)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	go func() {
-		if err := table.runWriteBack(ch); err != nil {
-			log.Error("run write back failed", "err", err)
-			table.dstPacketConn.Close()
-		}
+		defer cancel()
+		table.runWriteBack(ch)
 	}()
 
 	data := pool.GetBytes(MaxSegmentSize)
 	defer pool.PutBytes(data)
 
 	for {
-		_ = table.dstPacketConn.SetReadDeadline(time.Now().Add(IdleTimeout))
-		n, from, err := table.dstPacketConn.ReadFrom(data)
+		_ = p.SetReadDeadline(time.Now().Add(IdleTimeout))
+		n, from, err := p.ReadFrom(data)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) ||
 				errors.Is(err, context.Canceled) ||
@@ -186,8 +218,11 @@ func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
 			log.Error("read from proxy failed", "err", err)
 			return
 		}
-
-		ch <- backPacket{from, pool.Clone(data[:n])}
+		select {
+		case ch <- backPacket{from, pool.Clone(data[:n])}:
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 

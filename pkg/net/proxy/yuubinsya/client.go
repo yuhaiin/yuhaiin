@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -22,10 +21,10 @@ import (
 type client struct {
 	netapi.Proxy
 
-	overTCP bool
-
 	handshaker types.Handshaker
 	packetAuth types.Auth
+
+	overTCP bool
 }
 
 func init() {
@@ -41,13 +40,13 @@ func NewClient(config *protocol.Protocol_Yuubinsya) point.WrapProxy {
 
 		c := &client{
 			dialer,
-			config.Yuubinsya.UdpOverStream,
 			NewHandshaker(
 				false,
 				config.Yuubinsya.GetTcpEncrypt(),
 				[]byte(config.Yuubinsya.Password),
 			),
 			auth,
+			config.Yuubinsya.UdpOverStream,
 		}
 
 		return c, nil
@@ -76,7 +75,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			return nil, err
 		}
 
-		return NewAuthPacketConn(packet).WithTarget(addr).WithAuth(c.packetAuth), nil
+		return NewAuthPacketConn(packet).WithRealTarget(addr).WithAuth(c.packetAuth), nil
 	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)
@@ -89,26 +88,58 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		conn.Close()
 		return nil, err
 	}
-	return newPacketConn(hconn, c.handshaker, false), nil
+	pc := newPacketConn(hconn, c.handshaker)
+
+	store := netapi.GetContext(ctx)
+
+	migrate, err := pc.Handshake(store.UDPMigrateID)
+	if err != nil {
+		pc.Close()
+		return nil, err
+	}
+
+	store.UDPMigrateID = migrate
+
+	return pc, nil
 }
 
 type PacketConn struct {
-	headerWrote bool
-
 	net.Conn
-
 	handshaker types.Handshaker
-
-	hmux sync.Mutex
-	rmux sync.Mutex
+	rmux       sync.Mutex
 }
 
-func newPacketConn(conn net.Conn, handshaker types.Handshaker, server bool) *PacketConn {
+func newPacketConn(conn net.Conn, handshaker types.Handshaker) *PacketConn {
 	return &PacketConn{
-		Conn:        conn,
-		handshaker:  handshaker,
-		headerWrote: server,
+		Conn:       conn,
+		handshaker: handshaker,
 	}
+}
+
+// Handshake Handshake
+// only used for client
+func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
+	protocol := types.UDPWithMigrateID
+	w := pool.NewBufferSize(1024)
+	defer w.Reset()
+	c.handshaker.EncodeHeader(types.Header{Protocol: protocol, MigrateID: migrateID}, w)
+	_, err := c.Conn.Write(w.Bytes())
+	if err != nil {
+		return 0, err
+	}
+
+	if protocol == types.UDPWithMigrateID {
+		id := pool.GetBytes(8)
+		defer pool.PutBytes(id)
+
+		if _, err := io.ReadFull(c, id); err != nil {
+			return 0, fmt.Errorf("read net type failed: %w", err)
+		}
+
+		return binary.BigEndian.Uint64(id), nil
+	}
+
+	return 0, nil
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
@@ -117,28 +148,12 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
 
-	w := pool.NewBufferSize(min(len(payload), nat.MaxSegmentSize) + 1024)
+	length := min(len(payload), nat.MaxSegmentSize)
+	w := pool.NewBufferSize(length + 1024)
 	defer w.Reset()
-
-	if !c.headerWrote {
-		c.hmux.Lock()
-		if !c.headerWrote {
-			c.handshaker.EncodeHeader(types.UDP, w, netapi.EmptyAddr)
-			defer func() {
-				c.headerWrote = true
-				c.hmux.Unlock()
-			}()
-		} else {
-			c.hmux.Unlock()
-		}
-	}
-
 	tools.EncodeAddr(taddr, w)
-
-	payload = payload[:min(nat.MaxSegmentSize, len(payload))]
-	_ = binary.Write(w, binary.BigEndian, uint16(len(payload)))
-	_, _ = w.Write(payload)
-
+	_ = binary.Write(w, binary.BigEndian, uint16(length))
+	_, _ = w.Write(payload[:length])
 	_, err = c.Conn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
@@ -147,16 +162,17 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	return len(payload), nil
 }
 
-func readLength(r io.Reader) (uint16, error) {
-	lengthBytes := pool.GetBytes(2)
-	defer pool.PutBytes(lengthBytes)
+func readLength(r io.Reader, lengthBytes []byte) (uint16, error) {
+	if len(lengthBytes) < 2 {
+		return 0, fmt.Errorf("read length failed: buf too short")
+	}
 
-	_, err := io.ReadFull(r, lengthBytes)
+	_, err := io.ReadFull(r, lengthBytes[:2])
 	if err != nil {
 		return 0, fmt.Errorf("read length failed: %w", err)
 	}
 
-	return binary.BigEndian.Uint16(lengthBytes), nil
+	return binary.BigEndian.Uint16(lengthBytes[:2]), nil
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
@@ -169,7 +185,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	}
 	defer pool.PutBytes(addr)
 
-	length, err := readLength(c.Conn)
+	length, err := readLength(c.Conn, payload)
 	if err != nil {
 		return 0, nil, fmt.Errorf("read length failed: %w", err)
 	}
@@ -181,16 +197,15 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 
 	_, _ = relay.CopyN(io.Discard, c.Conn, int64(int(length)-n))
 
-	return n, addr.Address(statistic.Type_udp), nil
+	return n, addr.Address("udp"), nil
 }
 
 type Conn struct {
-	headerWrote bool
-
 	net.Conn
 
-	addr       netapi.Address
-	handshaker types.Handshaker
+	addr        netapi.Address
+	handshaker  types.Handshaker
+	headerWrote bool
 }
 
 func newConn(con net.Conn, addr netapi.Address, handshaker types.Handshaker) net.Conn {
@@ -211,7 +226,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 	buf := pool.NewBufferSize(1024 + len(b))
 	defer buf.Reset()
 
-	c.handshaker.EncodeHeader(types.TCP, buf, c.addr)
+	c.handshaker.EncodeHeader(types.Header{Protocol: types.TCP, Addr: c.addr}, buf)
 	_, _ = buf.Write(b)
 
 	if n, err := c.Conn.Write(buf.Bytes()); err != nil {

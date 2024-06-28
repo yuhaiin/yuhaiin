@@ -4,6 +4,9 @@ import (
 	"context"
 	"net"
 	"sync"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
 type EmptyDispatch struct{}
@@ -20,8 +23,8 @@ func (e errProxy) Conn(context.Context, Address) (net.Conn, error)             {
 func (e errProxy) PacketConn(context.Context, Address) (net.PacketConn, error) { return nil, e.error }
 
 type DynamicProxy struct {
-	mu sync.RWMutex
 	p  Proxy
+	mu sync.RWMutex
 }
 
 func (d *DynamicProxy) Conn(ctx context.Context, a Address) (net.Conn, error) {
@@ -49,3 +52,41 @@ func (d *DynamicProxy) Set(p Proxy) {
 }
 
 func NewDynamicProxy(p Proxy) *DynamicProxy { return &DynamicProxy{p: p} }
+
+var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacityv2[string, net.IP](512))
+
+func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
+	if !addr.IsFqdn() {
+		return dialer.DialContext(ctx, "tcp", addr.String())
+	}
+
+	ips, err := LookupIP(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	lastIP, ok := happyEyeballsCache.Load(addr.Hostname())
+
+	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
+	for _, i := range ips {
+		if ok && lastIP.Equal(i) && len(tcpAddress) > 0 {
+			tmp := tcpAddress[0]
+			tcpAddress[0] = &net.TCPAddr{IP: i, Port: tmp.Port}
+			tcpAddress = append(tcpAddress, tmp)
+		} else {
+			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: i, Port: int(addr.Port())})
+		}
+	}
+
+	conn, err := dialer.DialHappyEyeballs(ctx, tcpAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	connAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
+	if ok {
+		happyEyeballsCache.Add(addr.Hostname(), connAddr.IP)
+	}
+
+	return conn, nil
+}

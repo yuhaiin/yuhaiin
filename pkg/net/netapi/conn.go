@@ -40,9 +40,9 @@ func (m *multipleReaderConn) Read(b []byte) (int, error) {
 }
 
 type prefixBytesConn struct {
-	once    sync.Once
-	buffers [][]byte
 	net.Conn
+	buffers [][]byte
+	once    sync.Once
 }
 
 func (p *prefixBytesConn) Close() error {

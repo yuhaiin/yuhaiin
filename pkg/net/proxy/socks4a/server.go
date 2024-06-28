@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -23,10 +21,10 @@ const (
 )
 
 type Server struct {
-	lis        net.Listener
-	usernameID string
+	lis net.Listener
 
 	*netapi.ChannelServer
+	usernameID string
 }
 
 func (s *Server) Handle(conn net.Conn) error {
@@ -78,9 +76,9 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 		if err != nil {
 			return nil, err
 		}
-		target = netapi.ParseAddressPort(statistic.Type_tcp, string(host), netapi.ParsePort(port))
+		target = netapi.ParseAddressPort("tcp", string(host), port)
 	} else {
-		target = netapi.ParseIPAddrPort(statistic.Type_tcp, dstAddr, int(port))
+		target = netapi.ParseIPAddrPort("tcp", dstAddr, port)
 	}
 
 	_, _ = conn.Write([]byte{0, 90})
@@ -133,11 +131,7 @@ func (s *Server) Server() {
 
 		go func() {
 			if err := s.Handle(conn); err != nil {
-				if errors.Is(err, netapi.ErrBlocked) {
-					log.Debug(err.Error())
-				} else {
-					log.Error("socks5 server handle failed", "err", err)
-				}
+				log.Output(0, netapi.LogLevel(err), "socks5 server handle", "msg", err)
 			}
 		}()
 

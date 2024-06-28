@@ -10,12 +10,12 @@ import (
 )
 
 type randomHead struct {
+	net.Conn
+	dataBuffer []byte
+
 	rawTransSent     bool
 	rawTransReceived bool
 	hasSentHeader    bool
-	dataBuffer       []byte
-
-	net.Conn
 }
 
 func newRandomHead(conn net.Conn, _ Obfs) net.Conn { return &randomHead{Conn: conn} }

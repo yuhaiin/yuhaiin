@@ -32,14 +32,16 @@ type Wireguard struct {
 	bind *netBindClient
 
 	conf *protocol.Wireguard
-	mu   sync.Mutex
+
+	timer *time.Timer
+
+	device *device.Device
 
 	count atomic.Int64
 
-	timer       *time.Timer
 	idleTimeout time.Duration
 
-	device *device.Device
+	mu sync.Mutex
 }
 
 func init() {
@@ -119,13 +121,12 @@ func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	addrPort := addr.AddrPort(ctx)
-
-	if addrPort.Err != nil {
-		return nil, addrPort.Err
+	addrPort, err := netapi.ResolverAddrPort(ctx, addr)
+	if err != nil {
+		return nil, err
 	}
 
-	conn, err := net.DialContextTCPAddrPort(ctx, addrPort.V)
+	conn, err := net.DialContextTCPAddrPort(ctx, addrPort)
 	if err != nil {
 		return nil, err
 	}
@@ -204,13 +205,12 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 
-	ur := a.UDPAddr(context.TODO())
-
-	if ur.Err != nil {
-		return 0, ur.Err
+	ur, err := netapi.ResolveUDPAddr(context.TODO(), a)
+	if err != nil {
+		return 0, err
 	}
 
-	return w.UDPConn.WriteTo(buf, ur.V)
+	return w.UDPConn.WriteTo(buf, ur)
 }
 
 func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {

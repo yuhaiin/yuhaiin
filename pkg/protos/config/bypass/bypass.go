@@ -26,16 +26,16 @@ func (f *ModeConfig) ToModeEnum() ModeEnum {
 	}
 
 	return &modeConfig{
-		f.Mode,
 		f.Tag,
+		f.Mode,
 		f.ResolveStrategy,
 		f.UdpProxyFqdnStrategy,
 	}
 }
 
 type modeConfig struct {
-	mode            Mode
 	Tag             string
+	mode            Mode
 	ResolveStrategy ResolveStrategy
 	udpProxyFqdn    UdpProxyFqdnStrategy
 }

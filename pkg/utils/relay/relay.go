@@ -3,8 +3,10 @@ package relay
 import (
 	"errors"
 	"io"
+	"log/slog"
 	"net"
-	"strings"
+	"os"
+	"reflect"
 	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -15,7 +17,60 @@ var ignoreError = []error{
 	io.EOF,
 	// os.ErrDeadlineExceeded,
 	net.ErrClosed,
-	syscall.ECONNRESET,
+}
+
+var ignoreSyscallErrno = map[syscall.Errno]bool{
+	// syscall.EPIPE:      true, // read: broken pipe
+	syscall.ECONNRESET: true, // connection reset by peer
+	10053:              true, // wsasend: An established connection was aborted by the software in your host machine." osSyscallErrType=syscall.Errno errInt=10053
+	10054:              true, // wsarecv: An existing connection was forcibly closed by the remote host." osSyscallErrType=syscall.Errno errInt=10054
+	10060:              true, // "wsarecv: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond." osSyscallErrType=syscall.Errno errInt=10060
+}
+
+func isIgnoreError(err error) ([]slog.Attr, bool) {
+	for _, e := range ignoreError {
+		if errors.Is(err, e) {
+			return nil, true
+		}
+	}
+
+	netOpErr := &net.OpError{}
+	if !errors.As(err, &netOpErr) {
+		return nil, false
+	}
+	switch netOpErr.Err.Error() {
+	// netOp.Err is a string error
+	//
+	// netOpErr="read tcp [fc00::1a]:443: connection reset by peer" netOpErrType=*errors.errorString
+	case syscall.ECONNRESET.Error():
+		return nil, true
+	}
+
+	args := []slog.Attr{
+		slog.Any("netOpErr", netOpErr),
+		slog.Any("netOpErrType", reflect.TypeOf(netOpErr.Err)),
+	}
+
+	osSyscallErr := &os.SyscallError{}
+	if !errors.As(netOpErr.Err, &osSyscallErr) {
+		return args, false
+	}
+
+	// the Is [syscall.Errno.Is] function of syscall.Errno only check a little error code
+	// so we check it by ourselves
+	errInt, ok := osSyscallErr.Err.(syscall.Errno)
+	if ok {
+		if ignoreSyscallErrno[errInt] {
+			return nil, true
+		}
+
+		args = append(args, slog.Any("osSyscallErrInt", errInt))
+	}
+
+	args = append(args, slog.Any("osSyscallErr", osSyscallErr))
+	args = append(args, slog.Any("osSyscallErrType", reflect.TypeOf(osSyscallErr.Err)))
+
+	return args, false
 }
 
 func logE(msg string, err error) {
@@ -23,17 +78,12 @@ func logE(msg string, err error) {
 		return
 	}
 
-	for _, e := range ignoreError {
-		if errors.Is(err, e) {
-			return
-		}
-	}
-
-	if strings.HasSuffix(err.Error(), "connection reset by peer") {
+	args, ok := isIgnoreError(err)
+	if ok {
 		return
 	}
 
-	log.Error(msg, "err", err)
+	log.Error(msg, append(args, slog.Any("err", err), slog.Any("errType", reflect.TypeOf(err))))
 }
 
 func AppendIgnoreError(err error) {

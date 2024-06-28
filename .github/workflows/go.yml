@@ -8,8 +8,19 @@ on:
     branches: [main]
 
 jobs:
+  get_version:
+    outputs:
+      kitte_version: ${{ steps.get-version.outputs.kitte_version }}
+      front_version: ${{ steps.get-version.outputs.front_version }}
+    runs-on: ubuntu-latest
+    steps:
+      - id: get-version
+        run: |
+          echo "kitte_version=$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")" >> $GITHUB_OUTPUT
+          echo "front_version=$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")" >> $GITHUB_OUTPUT
+
   package:
-    needs: []
+    needs: get_version
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -40,8 +51,8 @@ jobs:
 
       - name: update dep
         run: |
-          go get -v -u github.com/yuhaiin/kitte@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")
-          go get -v -u github.com/yuhaiin/yuhaiin.github.io@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")
+          go get -v -u github.com/yuhaiin/kitte@${{ needs.get_version.outputs.kitte_version }}
+          go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -69,7 +80,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   android:
-    needs: []
+    needs: get_version
     runs-on: ubuntu-latest
 
     steps:
@@ -92,8 +103,8 @@ jobs:
 
       - name: build yuhaiin aar
         run: |
-          go get -v -u github.com/yuhaiin/kitte@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")
-          go get -v -u github.com/yuhaiin/yuhaiin.github.io@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")
+          go get -v -u github.com/yuhaiin/kitte@${{ needs.get_version.outputs.kitte_version }}
+          go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
           make yuhaiin_android_aar
@@ -105,7 +116,7 @@ jobs:
           path: yuhaiin.aar
 
   build:
-    needs: []
+    needs: get_version
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -159,8 +170,8 @@ jobs:
           GOAMD64: ${{ matrix.env[1] == 'amd64v3' && 'v3' || '' }}
           GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
         run: |
-          go get -v -u github.com/yuhaiin/kitte@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")
-          go get -v -u github.com/yuhaiin/yuhaiin.github.io@$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")
+          go get -v -u github.com/yuhaiin/kitte@${{ needs.get_version.outputs.kitte_version }}
+          go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
           make ${{ matrix.cmd }}
 
       - name: upload_${{ matrix.cmd }}_${{ matrix.env[0] }}_${{ matrix.env[1] }}

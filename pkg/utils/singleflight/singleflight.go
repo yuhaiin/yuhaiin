@@ -54,25 +54,26 @@ func newPanicError(v any) error {
 
 // call is an in-flight or completed singleflight.Do call
 type call[T any] struct {
-	wg sync.WaitGroup
 
 	// These fields are written once before the WaitGroup is done
 	// and are only read after the WaitGroup is done.
 	val T
 	err error
 
+	chans []chan<- Result[T]
+	wg    sync.WaitGroup
+
 	// These fields are read and written with the singleflight
 	// mutex held before the WaitGroup is done, and are read but
 	// not written after the WaitGroup is done.
-	dups  int
-	chans []chan<- Result[T]
+	dups int
 }
 
 // Group represents a class of work and forms a namespace in
 // which units of work can be executed with duplicate suppression.
 type Group[K comparable, V any] struct {
-	mu sync.Mutex     // protects m
 	m  map[K]*call[V] // lazily initialized
+	mu sync.Mutex     // protects m
 }
 
 // Result holds the results of Do, so they can be passed

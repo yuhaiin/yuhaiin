@@ -10,9 +10,12 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	bolt "go.etcd.io/bbolt"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -28,9 +31,18 @@ func NewFakeDNS(
 	upStreamDo netapi.Resolver,
 	ipRange netip.Prefix,
 	ipv6Range netip.Prefix,
-	bbolt, bboltv6 *cache.Cache,
+	db *bolt.DB,
 ) *FakeDNS {
-	return &FakeDNS{upStreamDo, NewFakeIPPool(ipRange, bbolt), NewFakeIPPool(ipv6Range, bboltv6)}
+	return &FakeDNS{
+		upStreamDo,
+		NewFakeIPPool(ipRange, db),
+		NewFakeIPPool(ipv6Range, db),
+	}
+}
+
+func (f *FakeDNS) Flush() {
+	f.ipv4.Flush()
+	f.ipv6.Flush()
 }
 
 func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
@@ -38,6 +50,7 @@ func (f *FakeDNS) Equal(ipRange, ipv6Range netip.Prefix) bool {
 }
 
 func (f *FakeDNS) Contains(addr netip.Addr) bool {
+	addr = addr.Unmap()
 	return f.ipv4.prefix.Contains(addr) || f.ipv6.prefix.Contains(addr)
 }
 
@@ -109,13 +122,20 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 		return msg, nil
 	}
+
+	domain := unsafe.String(unsafe.SliceData(req.Name.Data[0:req.Name.Length-1]), req.Name.Length-1)
+
+	if net.ParseIP(domain) != nil {
+		return f.Resolver.Raw(ctx, req)
+	}
+
 	if req.Type == dnsmessage.TypeAAAA {
-		ip := f.ipv6.GetFakeIPForDomain(strings.TrimSuffix(req.Name.String(), "."))
+		ip := f.ipv6.GetFakeIPForDomain(domain)
 		return newAnswer(&dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
 	}
 
 	if req.Type == dnsmessage.TypeA {
-		ip := f.ipv4.GetFakeIPForDomain(strings.TrimSuffix(req.Name.String(), "."))
+		ip := f.ipv4.GetFakeIPForDomain(domain)
 		return newAnswer(&dnsmessage.AResource{A: ip.As4()}), nil
 	}
 
@@ -123,7 +143,8 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 }
 
 func (f *FakeDNS) GetDomainFromIP(ip netip.Addr) (string, bool) {
-	if ip.Unmap().Is6() {
+	ip = ip.Unmap()
+	if ip.Is6() {
 		return f.ipv6.GetDomainFromIP(ip)
 	} else {
 		return f.ipv4.GetDomainFromIP(ip)
@@ -141,40 +162,33 @@ var hex = map[byte]byte{
 	'7': 7,
 	'8': 8,
 	'9': 9,
-	'A': 10,
-	'a': 10,
-	'b': 11,
-	'B': 11,
-	'C': 12,
-	'c': 12,
-	'D': 13,
-	'd': 13,
-	'e': 14,
-	'E': 14,
-	'f': 15,
-	'F': 15,
+	'A': 10, 'a': 10,
+	'b': 11, 'B': 11,
+	'C': 12, 'c': 12,
+	'D': 13, 'd': 13,
+	'e': 14, 'E': 14,
+	'f': 15, 'F': 15,
 }
 
 func RetrieveIPFromPtr(name string) (net.IP, error) {
-	i := strings.Index(name, "ip6.arpa.")
-	if i != -1 && len(name[:i]) == 64 {
+	if strings.HasSuffix(name, "ip6.arpa.") && len(name)-9 == 64 {
 		var ip [16]byte
 		for i := range ip {
 			ip[i] = hex[name[62-i*4]]*16 + hex[name[62-i*4-2]]
 		}
-		return net.IP(ip[:]), nil
+		return ip[:], nil
 	}
 
-	if i = strings.Index(name, "in-addr.arpa."); i == -1 {
-		return nil, fmt.Errorf("ptr format failed: %s", name)
+	if !strings.HasSuffix(name, "in-addr.arpa.") {
+		return nil, fmt.Errorf("retrieve ip from  ptr failed: %s, maybe dns-sd request", name)
 	}
 
 	var ip [4]byte
 	var dotCount uint8
 
-	for _, v := range name[:i] {
+	for _, v := range name[:len(name)-13] {
 		if dotCount > 3 {
-			break
+			return nil, fmt.Errorf("retrieve ip from  ptr failed: %s, maybe dns-sd request", name)
 		}
 
 		if v == '.' {
@@ -184,7 +198,7 @@ func RetrieveIPFromPtr(name string) (net.IP, error) {
 		}
 	}
 
-	return net.IP(ip[:]), nil
+	return ip[:], nil
 }
 
 func (f *FakeDNS) LookupPtr(name string) (string, error) {
@@ -193,17 +207,16 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 		return "", err
 	}
 
-	ipAddr, ok := netip.AddrFromSlice(ip)
-	if !ok {
-		return "", fmt.Errorf("parse netip.Addr from bytes failed")
-	}
+	ipAddr, _ := netip.AddrFromSlice(ip)
+	ipAddr = ipAddr.Unmap()
 
-	r, ok := f.ipv4.GetDomainFromIP(ipAddr.Unmap())
-	if ok {
-		return r, nil
+	var r string
+	var ok bool
+	if ipAddr.Is6() {
+		r, ok = f.ipv6.GetDomainFromIP(ipAddr)
+	} else {
+		r, ok = f.ipv4.GetDomainFromIP(ipAddr)
 	}
-
-	r, ok = f.ipv6.GetDomainFromIP(ipAddr.Unmap())
 	if ok {
 		return r, nil
 	}
@@ -214,18 +227,15 @@ func (f *FakeDNS) LookupPtr(name string) (string, error) {
 func (f *FakeDNS) Close() error { return nil }
 
 type FakeIPPool struct {
-	prefix     netip.Prefix
 	current    netip.Addr
 	domainToIP *fakeLru
+
+	prefix netip.Prefix
 
 	mu sync.Mutex
 }
 
-func NewFakeIPPool(prefix netip.Prefix, bbolt *cache.Cache) *FakeIPPool {
-	if bbolt == nil {
-		bbolt = cache.NewCache(nil, "")
-	}
-
+func NewFakeIPPool(prefix netip.Prefix, db *bolt.DB) *FakeIPPool {
 	prefix = prefix.Masked()
 
 	lenSize := 32
@@ -243,8 +253,12 @@ func NewFakeIPPool(prefix netip.Prefix, bbolt *cache.Cache) *FakeIPPool {
 	return &FakeIPPool{
 		prefix:     prefix,
 		current:    prefix.Addr().Prev(),
-		domainToIP: newFakeLru(lruSize, bbolt, prefix),
+		domainToIP: newFakeLru(lruSize, db, prefix),
 	}
+}
+
+func (n *FakeIPPool) Flush() {
+	n.domainToIP.Flush()
 }
 
 func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
@@ -264,11 +278,22 @@ func (n *FakeIPPool) GetFakeIPForDomain(s string) netip.Addr {
 		return v
 	}
 
+	looped := false
+
 	for {
 		addr := n.current.Next()
 
 		if !n.prefix.Contains(addr) {
 			n.current = n.prefix.Addr().Prev()
+
+			if looped {
+				addr := n.current.Next()
+				n.current = addr
+				n.domainToIP.Add(s, addr)
+				return addr
+			}
+
+			looped = true
 			continue
 		}
 
@@ -289,25 +314,53 @@ func (n *FakeIPPool) GetDomainFromIP(ip netip.Addr) (string, bool) {
 	return n.domainToIP.ReverseLoad(ip.Unmap())
 }
 
-func (n *FakeIPPool) LRU() *lru.LRU[string, netip.Addr] { return n.domainToIP.LRU }
-
 type fakeLru struct {
+	bbolt cache.Cache
+
+	LRU     *lru.ReverseSyncLru[string, netip.Addr]
 	iprange netip.Prefix
-	LRU     *lru.LRU[string, netip.Addr]
-	bbolt   *cache.Cache
 
 	Size uint
 }
 
-func newFakeLru(size uint, bbolt *cache.Cache, iprange netip.Prefix) *fakeLru {
-	z := &fakeLru{Size: size, bbolt: bbolt, iprange: iprange}
+func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
+	var cache *bbolt.Nosync
+	if iprange.Addr().Unmap().Is6() {
+		cache = bbolt.NewNosyncCache(db, "fakedns_cachev6")
+	} else {
 
-	if size > 0 {
-		z.LRU = lru.New(
-			lru.WithCapacity[string, netip.Addr](size),
-			lru.WithOnRemove(func(s string, v netip.Addr) { bbolt.Delete([]byte(s), v.AsSlice()) }),
-		)
+		cache = bbolt.NewNosyncCache(db, "fakedns_cache")
 	}
+
+	z := &fakeLru{Size: size, bbolt: cache, iprange: iprange}
+
+	if size <= 0 {
+		return z
+	}
+
+	z.LRU = lru.NewSyncReverseLru(
+		lru.WithCapacityv2[string, netip.Addr](size),
+		lru.WithOnRemovev2(func(s string, v netip.Addr) {
+			cache.Delete([]byte(s), v.AsSlice())
+		}),
+	)
+
+	count := 0
+	cache.Range(func(key, value []byte) bool {
+		ip, ok := netip.AddrFromSlice(key)
+		if !ok {
+			return true
+		}
+
+		if iprange.Contains(ip) {
+			count++
+			z.LRU.Add(string(value), ip)
+		}
+
+		return true
+	})
+
+	log.Info("fakeip lru init", "get cache", count, "isIpv6", iprange.Addr().Unmap().Is6())
 
 	return z
 }
@@ -317,17 +370,9 @@ func (f *fakeLru) Load(host string) (netip.Addr, bool) {
 		return netip.Addr{}, false
 	}
 
-	z, ok := f.LRU.Load(host)
+	z, _, ok := f.LRU.LoadExpireTime(host)
 	if ok {
 		return z, ok
-	}
-
-	if ip, ok := netip.AddrFromSlice(f.bbolt.Get(unsafe.Slice(unsafe.StringData(host), len(host)))); ok {
-		if f.iprange.Contains(ip) {
-			ip = ip.Unmap()
-			f.LRU.Add(host, ip)
-			return ip, true
-		}
 	}
 
 	return netip.Addr{}, false
@@ -355,11 +400,6 @@ func (f *fakeLru) ValueExist(ip netip.Addr) bool {
 		return true
 	}
 
-	if host := f.bbolt.Get(ip.AsSlice()); host != nil {
-		f.LRU.Add(string(host), ip)
-		return true
-	}
-
 	return false
 }
 
@@ -374,9 +414,6 @@ func (f *fakeLru) ReverseLoad(ip netip.Addr) (string, bool) {
 	}
 
 	if host = string(f.bbolt.Get(ip.AsSlice())); host != "" {
-		if f.iprange.Contains(ip) {
-			f.LRU.Add(host, ip)
-		}
 		return host, true
 	}
 
@@ -388,4 +425,8 @@ func (f *fakeLru) LastPopValue() (netip.Addr, bool) {
 		return netip.Addr{}, false
 	}
 	return f.LRU.LastPopValue()
+}
+
+func (f *fakeLru) Flush() {
+	f.bbolt.Close()
 }

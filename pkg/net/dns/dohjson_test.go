@@ -12,7 +12,7 @@ import (
 
 func TestDNSJson(t *testing.T) {
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
+		ad, err := netapi.ParseAddress(network, addr)
 		if err != nil {
 			return nil, fmt.Errorf("parse address failed: %w", err)
 		}

@@ -21,7 +21,7 @@ func main() {
 		panic(err)
 	}
 
-	ta, err := netapi.ParseAddress(0, *t)
+	ta, err := netapi.ParseAddress("", *t)
 	if err != nil {
 		panic(err)
 	}

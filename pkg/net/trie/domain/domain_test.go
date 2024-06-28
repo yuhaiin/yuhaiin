@@ -14,7 +14,7 @@ func BenchmarkDomainMatcher_Search(b *testing.B) {
 	root.Insert("www.baidu.sub.com.cn", "test_baidu")
 	root.Insert("www.google.com", "test_google")
 
-	addr := netapi.ParseAddressPort(0, "www.baidu.sub.com.cn.net", netapi.ParsePort(0))
+	addr := netapi.ParseAddressPort("", "www.baidu.sub.com.cn.net", 0)
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
@@ -37,9 +37,12 @@ func TestDomainMatcherSearch(t *testing.T) {
 	root.Insert("*.dl.google.com", "google_dl")
 	root.Insert("api.sec.miui.*", "ad_miui")
 	root.Insert("*.miui.com", "miui")
+	root.Insert("*.x.*", "x_all")
+	root.Insert("*.x.com", "x_com")
+	root.Insert("www.x.*", "www_x")
 
 	search := func(s string) string {
-		res, _ := root.Search(netapi.ParseAddressPort(0, s, netapi.ParsePort(0)))
+		res, _ := root.Search(netapi.ParseAddressPort("", s, 0))
 		return res
 	}
 	assert.Equal(t, "test_baidu", search("www.baidu.com"))
@@ -55,4 +58,7 @@ func TestDomainMatcherSearch(t *testing.T) {
 	assert.Equal(t, "google", search("www.x.google.com"))
 	assert.Equal(t, "google_dl", search("dl.google.com"))
 	assert.Equal(t, "ad_miui", search("api.sec.miui.com"))
+	assert.Equal(t, "x_all", search("a.x.x.net"))
+	assert.Equal(t, "x_com", search("a.x.com"))
+	assert.Equal(t, "www_x", search("www.x.z"))
 }
