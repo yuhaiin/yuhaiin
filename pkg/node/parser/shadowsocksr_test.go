@@ -44,7 +44,7 @@ func TestConnectionSsr(t *testing.T) {
 	tt := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
+				ad, err := netapi.ParseAddress(network, addr)
 				assert.NoError(t, err)
 				return z.Conn(ctx, ad)
 			},

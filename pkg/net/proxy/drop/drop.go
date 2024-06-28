@@ -20,16 +20,16 @@ func init() {
 }
 
 var Drop = &drop{
-	lru: lru.New(
-		lru.WithCapacity[string, time.Duration](512),
-		lru.WithExpireTimeout[string, time.Duration](time.Second*5),
+	lru: lru.NewSyncLru(
+		lru.WithCapacityv2[string, time.Duration](512),
+		lru.WithExpireTimeoutv2[string, time.Duration](time.Second*5),
 	),
 	sf: &singleflight.Group[string, time.Duration]{},
 }
 
 type drop struct {
 	netapi.EmptyDispatch
-	lru *lru.LRU[string, time.Duration]
+	lru *lru.Lru[string, time.Duration]
 	sf  *singleflight.Group[string, time.Duration]
 }
 

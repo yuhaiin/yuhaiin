@@ -40,17 +40,19 @@ var (
 
 // HttpSimple http_simple obfs encapsulate
 type httpSimplePost struct {
-	Obfs
-	rawTransSent     bool
-	rawTransReceived bool
-	userAgentIndex   int
-	methodGet        bool // true for get, false for post
-
-	buf []byte
 	// wbuf [pool.DefaultSize / 4]byte
 	net.Conn
 
+	Obfs
+
 	param simpleParam
+
+	buf              []byte
+	userAgentIndex   int
+	rawTransSent     bool
+	rawTransReceived bool
+	methodGet        bool // true for get, false for post
+
 }
 
 // newHttpSimple create a http_simple object

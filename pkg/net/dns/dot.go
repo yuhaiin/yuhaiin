@@ -5,7 +5,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 func init() {
@@ -19,7 +18,7 @@ func NewDoT(config Config) (netapi.Resolver, error) {
 		return nil, err
 	}
 	if config.Servername == "" {
-		addr, err := ParseAddr(statistic.Type_tcp, config.Host, "853")
+		addr, err := ParseAddr("tcp", config.Host, "853")
 		if err != nil {
 			return nil, err
 		}

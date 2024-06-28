@@ -53,8 +53,8 @@ func (p *Packet) Clone() *Packet {
 }
 
 type DNSRawRequest struct {
-	Question  []byte
 	WriteBack func([]byte) error
+	Question  []byte
 	Stream    bool
 }
 

@@ -15,9 +15,9 @@ type Filter interface {
 
 // Classic Bloom Filter
 type classicFilter struct {
+	h func([]byte) (uint64, uint64)
 	b []byte
 	k int
-	h func([]byte) (uint64, uint64)
 }
 
 // New creates a classic Bloom Filter that is optimal for n entries and false positive rate of p.
@@ -53,8 +53,4 @@ func (f *classicFilter) Test(b []byte) bool {
 
 func (f *classicFilter) Size() int { return len(f.b) }
 
-func (f *classicFilter) Reset() {
-	for i := range f.b {
-		f.b[i] = 0
-	}
-}
+func (f *classicFilter) Reset() { clear(f.b) }

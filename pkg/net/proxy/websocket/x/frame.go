@@ -7,7 +7,6 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 )
 
@@ -46,10 +45,16 @@ type Header struct {
 	maskKey uint32
 }
 
+func ReadByte(r io.Reader) (byte, error) {
+	b := make([]byte, 1)
+	_, err := r.Read(b)
+	return b[0], err
+}
+
 // readFrameHeader reads a header from the reader.
 // See https://tools.ietf.org/html/rfc6455#section-5.2.
-func readFrameHeader(r *netapi.Reader, readBuf []byte) (h Header, err error) {
-	b, err := r.ReadByte()
+func readFrameHeader(r io.Reader, readBuf []byte) (h Header, err error) {
+	b, err := ReadByte(r)
 	if err != nil {
 		return Header{}, err
 	}
@@ -61,7 +66,7 @@ func readFrameHeader(r *netapi.Reader, readBuf []byte) (h Header, err error) {
 
 	h.opcode = opcode(b & 0xf)
 
-	b, err = r.ReadByte()
+	b, err = ReadByte(r)
 	if err != nil {
 		return Header{}, err
 	}

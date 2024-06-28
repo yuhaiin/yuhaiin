@@ -82,11 +82,10 @@ func IfErr(msg string, f func() error, ignoreErr ...error) {
 }
 
 type slogger struct {
-	depth int
-
 	io.Writer
-	level slog.Level
 	*slog.Logger
+	level slog.Level
+	depth int
 }
 
 func NewSLogger(depth int) Logger {

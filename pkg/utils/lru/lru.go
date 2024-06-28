@@ -2,6 +2,7 @@ package lru
 
 import (
 	"reflect"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/synclist"
@@ -14,17 +15,25 @@ type lruEntry[K, V any] struct {
 	expire time.Time
 }
 
+func (e *lruEntry[K, V]) Clone() *lruEntry[K, V] {
+	return &lruEntry[K, V]{
+		key:  e.key,
+		data: e.data,
+	}
+}
+
 // LRU Least Recently Used
 type LRU[K comparable, V any] struct {
-	capacity        uint
-	list            *synclist.SyncList[*lruEntry[K, V]]
-	mapping         syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
-	reverseMapping  syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
-	valueComparable bool
-	timeout         time.Duration
+	list *synclist.SyncList[*lruEntry[K, V]]
 
-	lastPopEntry *lruEntry[K, V]
-	onRemove     func(K, V)
+	lastPopEntry   atomic.Pointer[lruEntry[K, V]]
+	onRemove       func(K, V)
+	mapping        syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
+	reverseMapping syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
+	capacity       uint
+	timeout        time.Duration
+
+	valueComparable bool
 }
 type Option[K comparable, V any] func(*LRU[K, V])
 
@@ -116,11 +125,11 @@ func (l *LRU[K, V]) Add(key K, value V, opts ...AddOption) {
 		elem = l.list.PushFront(entry)
 	} else {
 		elem = l.list.Back()
-		l.lastPopEntry = &lruEntry[K, V]{
+		l.lastPopEntry.Store(&lruEntry[K, V]{
 			key:    elem.Value.key,
 			data:   elem.Value.data,
 			expire: elem.Value.expire,
-		}
+		})
 		l.delete(elem.Value)
 		l.list.MoveToFront(elem.SetValue(entry))
 	}
@@ -191,11 +200,12 @@ func (l *LRU[K, V]) ValueExist(key V) bool {
 }
 
 func (l *LRU[K, V]) LastPopValue() (v V, _ bool) {
-	if l.lastPopEntry == nil {
+	data := l.lastPopEntry.Load()
+	if data == nil {
 		return v, false
 	}
 
-	return l.lastPopEntry.data, true
+	return data.data, true
 }
 
 func (l *LRU[K, V]) Range(ranger func(K, V)) {

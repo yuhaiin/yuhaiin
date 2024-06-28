@@ -10,23 +10,22 @@ import (
 	"io"
 	"math"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20"
 	"golang.org/x/crypto/hkdf"
 )
 
 type encryptedHandshaker struct {
-	server bool
-
 	signer   types.Signer
 	hash     types.Hash
 	aead     types.Aead
 	password []byte
+	server   bool
 }
 
 func (t *encryptedHandshaker) EncodeHeader(net types.Protocol, buf types.Buffer, addr netapi.Address) {
@@ -172,7 +171,7 @@ func (h *encryptedHandshaker) receive(buf *header, conn net.Conn, salt []byte) (
 		return nil, nil, fmt.Errorf("decrypt time failed: %w", err)
 	}
 
-	if math.Abs(float64(time.Now().Unix()-int64(binary.BigEndian.Uint64(ttime)))) > 30 { // check time is in +-30s
+	if math.Abs(float64(system.NowUnix()-int64(binary.BigEndian.Uint64(ttime)))) > 30 { // check time is in +-30s
 		return nil, nil, errors.New("bad timestamp")
 	}
 
@@ -201,7 +200,7 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *
 	copy(buf.publickey(), pk.PublicKey().Bytes())
 
 	ttime = make([]byte, 8)
-	binary.BigEndian.PutUint64(ttime, uint64(time.Now().Unix()))
+	binary.BigEndian.PutUint64(ttime, uint64(system.NowUnix()))
 
 	if err = h.encryptTime(h.password, buf.salt(), buf.time(), ttime); err != nil {
 		return nil, nil, fmt.Errorf("encrypt time failed: %w", err)
@@ -228,12 +227,12 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *
 }
 
 type header struct {
-	bytes []byte
 	th    *encryptedHandshaker
+	bytes []byte
 }
 
 func newHeader(h *encryptedHandshaker) *header {
-	return &header{pool.GetBytes(h.hash.Size() + 8 + h.signer.SignatureSize() + 65), h}
+	return &header{h, pool.GetBytes(h.hash.Size() + 8 + h.signer.SignatureSize() + 65)}
 }
 func (h *header) Bytes() []byte { return h.bytes }
 func (h *header) signature() []byte {

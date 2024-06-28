@@ -1,16 +1,13 @@
 package tools
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 const (
@@ -43,28 +40,24 @@ const (
 )
 
 func EncodeAddr(addr netapi.Address, buf io.Writer) {
-	switch addr.Type() {
-	case netapi.IP:
-		if ip := yerror.Must(addr.IP(context.TODO())).To4(); ip != nil {
+	if addr.IsFqdn() {
+		_, _ = buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
+		_, _ = buf.Write([]byte(addr.Hostname()))
+	} else {
+		if ip := addr.(netapi.IPAddress).IP().To4(); ip != nil {
 			_, _ = buf.Write([]byte{0x01})
 			_, _ = buf.Write(ip)
 		} else {
 			_, _ = buf.Write([]byte{0x04})
-			_, _ = buf.Write(yerror.Must(addr.IP(context.TODO())).To16())
+			_, _ = buf.Write(addr.(netapi.IPAddress).IP().To16())
 		}
-
-	case netapi.FQDN:
-		fallthrough
-	default:
-		_, _ = buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
-		_, _ = buf.Write([]byte(addr.Hostname()))
 	}
-	_ = binary.Write(buf, binary.BigEndian, addr.Port().Port())
+	_ = binary.Write(buf, binary.BigEndian, addr.Port())
 }
 
 type Addr []byte
 
-func (a Addr) Address(network statistic.Type) netapi.Address {
+func (a Addr) Address(network string) netapi.Address {
 	if len(a) == 0 {
 		return netapi.EmptyAddr
 	}
@@ -75,10 +68,10 @@ func (a Addr) Address(network statistic.Type) netapi.Address {
 	case IPv4, IPv6:
 		ip := make(net.IP, len(a[1:len(a)-2]))
 		copy(ip, a[1:len(a)-2])
-		return netapi.ParseIPAddrPort(network, ip, int(port))
+		return netapi.ParseIPAddrPort(network, ip, port)
 	case Domain:
 		hostname := string(a[2 : len(a)-2])
-		return netapi.ParseDomainPort(network, hostname, netapi.ParsePort(port))
+		return netapi.ParseDomainPort(network, hostname, port)
 	}
 
 	return netapi.EmptyAddr

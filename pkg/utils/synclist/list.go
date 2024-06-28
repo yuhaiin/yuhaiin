@@ -94,3 +94,47 @@ func (s *SyncList[T]) Len() int {
 	defer s.mu.RUnlock()
 	return s.l.Len()
 }
+
+type List[T any] struct {
+	l *list.List
+}
+
+func NewList[T any]() *List[T] { return &List[T]{l: list.New()} }
+
+func (s *List[T]) MoveToFront(e *Element[T]) {
+	e.e.Value = e.Value
+	s.l.MoveToFront(e.e)
+}
+
+func (s *List[T]) PushFront(v T) *Element[T] {
+	return &Element[T]{e: s.l.PushFront(v), Value: v}
+}
+
+func (s *List[T]) PushBack(v T) *Element[T] {
+	return &Element[T]{e: s.l.PushBack(v), Value: v}
+}
+
+func (s *List[T]) Remove(e *Element[T]) T {
+	s.l.Remove(e.e)
+	return e.Value
+}
+
+func (s *List[T]) Back() *Element[T] {
+	b := s.l.Back()
+	if b == nil {
+		return nil
+	}
+	return &Element[T]{e: b, Value: b.Value.(T)}
+}
+
+func (s *List[T]) Front() *Element[T] {
+	b := s.l.Front()
+	if b == nil {
+		return nil
+	}
+	return &Element[T]{e: b, Value: b.Value.(T)}
+}
+
+func (s *List[T]) Len() int {
+	return s.l.Len()
+}

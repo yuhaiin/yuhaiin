@@ -20,10 +20,10 @@ import (
 )
 
 type dnsServer struct {
-	server      string
 	resolver    netapi.Resolver
 	listener    net.PacketConn
 	tcpListener net.Listener
+	server      string
 }
 
 func NewServer(server string, process netapi.Resolver) netapi.DNSServer {

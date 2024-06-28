@@ -16,21 +16,16 @@ import (
 )
 
 func init() {
-	install = installSystemDaemonWindows
-	uninstall = uninstallSystemDaemonWindows
-	stop = stopService
-	start = startService
-
 	if !isWindowsService() {
 		return
 	}
 
 	log.OutputStderr = false
-	run = runService
+	wait = runService
 }
 
-func runService(app *appapi.Components, errChan chan error, signChannel chan os.Signal) {
-	svc.Run(version.AppName, &service{
+func runService(app *appapi.Components, errChan chan error, signChannel chan os.Signal) error {
+	return svc.Run(version.AppName, &service{
 		app:         app,
 		errChan:     errChan,
 		signChannel: signChannel,
@@ -39,7 +34,7 @@ func runService(app *appapi.Components, errChan chan error, signChannel chan os.
 
 // copy from https://github.com/tailscale/tailscale/blob/main/cmd/tailscaled/install_windows.go
 
-func installSystemDaemonWindows(args []string) (err error) {
+func install(args []string) (err error) {
 	m, err := mgr.Connect()
 	if err != nil {
 		return fmt.Errorf("failed to connect to Windows service manager: %v", err)
@@ -95,7 +90,7 @@ func installSystemDaemonWindows(args []string) (err error) {
 	return service.Start(args...)
 }
 
-func uninstallSystemDaemonWindows(args []string) (ret error) {
+func uninstall(args []string) (ret error) {
 	// Remove file sharing from Windows shell (noop in non-windows)
 	// osshare.SetFileSharingEnabled(false, logger.Discard)
 
@@ -214,7 +209,7 @@ func cmdName(c svc.Cmd) string {
 	return fmt.Sprintf("Unknown-Service-Cmd-%d", c)
 }
 
-func stopService(args []string) error {
+func stop(args []string) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return err
@@ -253,7 +248,7 @@ func stopService(args []string) error {
 	return nil
 }
 
-func startService(args []string) error {
+func start(args []string) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return err
@@ -291,4 +286,11 @@ func getStopTimeout() time.Duration {
 		return defaultTimeout
 	}
 	return time.Millisecond * time.Duration(v)
+}
+
+func restart(args []string) error {
+	if err := stop(args); err != nil {
+		return err
+	}
+	return start(args)
 }

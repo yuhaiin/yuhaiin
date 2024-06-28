@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -21,11 +20,11 @@ func init() {
 }
 
 type udp struct {
-	*client
-	sender     syncmap.SyncMap[[2]byte, func([]byte)]
 	sf         singleflight.Group[uint64, net.PacketConn]
 	packetConn net.PacketConn
-	mu         sync.RWMutex
+	*client
+	sender syncmap.SyncMap[[2]byte, func([]byte)]
+	mu     sync.RWMutex
 }
 
 func (u *udp) Close() error {
@@ -77,7 +76,7 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 			_ = u.packetConn.Close()
 		}
 
-		addr, err := ParseAddr(statistic.Type_udp, u.config.Host, "53")
+		addr, err := ParseAddr("udp", u.config.Host, "53")
 		if err != nil {
 			return nil, fmt.Errorf("parse addr failed: %w", err)
 		}
@@ -99,7 +98,7 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 }
 
 func NewDoU(config Config) (netapi.Resolver, error) {
-	addr, err := ParseAddr(statistic.Type_udp, config.Host, "53")
+	addr, err := ParseAddr("udp", config.Host, "53")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
@@ -148,12 +147,12 @@ func NewDoU(config Config) (netapi.Resolver, error) {
 
 		defer udp.sender.Delete([2]byte(req.Question[:2]))
 
-		udpAddr := addr.UDPAddr(ctx)
-		if udpAddr.Err != nil {
-			return nil, udpAddr.Err
+		udpAddr, err := netapi.ResolveUDPAddr(ctx, addr)
+		if err != nil {
+			return nil, err
 		}
 
-		_, err = packetConn.WriteTo(req.Question, udpAddr.V)
+		_, err = packetConn.WriteTo(req.Question, udpAddr)
 		if err != nil {
 			_ = packetConn.Close()
 			return nil, err

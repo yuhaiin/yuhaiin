@@ -13,35 +13,37 @@ import (
 	"encoding/binary"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks/core"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type authChainA struct {
-	Protocol
-	randomClient ssr.Shift128plusContext
-	randomServer ssr.Shift128plusContext
-	recvID       uint32
-
 	encrypter      cipher.Stream
 	decrypter      cipher.Stream
-	hasSentHeader  bool
+	rnd            func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
+	salt           string
 	lastClientHash []byte
 	lastServerHash []byte
 	userKey        []byte
-	userKeyLen     int
-	uid            [4]byte
-	salt           string
-	hmac           ssr.HMAC
-	rnd            func(dataLength int, random *ssr.Shift128plusContext, lastHash []byte, dataSizeList, dataSizeList2 []int, overhead int) int
 	dataSizeList   []int
 	dataSizeList2  []int
-	chunkID        uint32
+	Protocol
+
+	randomClient ssr.Shift128plusContext
+	randomServer ssr.Shift128plusContext
+	userKeyLen   int
+	hmac         ssr.HMAC
 
 	overhead int
+	recvID   uint32
+
+	chunkID uint32
+
+	uid           [4]byte
+	hasSentHeader bool
 }
 
 func NewAuthChainA(info Protocol) protocol { return newAuthChain(info, authChainAGetRandLen) }
@@ -134,8 +136,7 @@ func (a *authChainA) packAuthData(data []byte) (outData []byte) {
 	copy(key[a.IVSize():], a.Key())
 
 	encrypt := make([]byte, 20)
-	t := time.Now().Unix()
-	binary.LittleEndian.PutUint32(encrypt[:4], uint32(t))
+	binary.LittleEndian.PutUint32(encrypt[:4], uint32(system.NowUnix()))
 	copy(encrypt[4:8], a.Protocol.Auth.clientID[:])
 	binary.LittleEndian.PutUint32(encrypt[8:], a.Protocol.Auth.connectionID.Load())
 	binary.LittleEndian.PutUint16(encrypt[12:], uint16(a.overhead))

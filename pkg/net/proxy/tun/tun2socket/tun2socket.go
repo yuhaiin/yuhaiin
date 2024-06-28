@@ -2,7 +2,6 @@ package tun2socket
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,12 +16,11 @@ import (
 )
 
 type Tun2socket struct {
-	Mtu int32
-
 	device io.Closer
 	nat    *nat.Nat
 
 	*netapi.ChannelServer
+	Mtu int32
 }
 
 func New(o *tun.Opt) (netapi.Accepter, error) {
@@ -72,11 +70,7 @@ func (h *Tun2socket) tcpLoop() {
 
 		go func() {
 			if err = h.handleTCP(conn); err != nil {
-				if errors.Is(err, netapi.ErrBlocked) {
-					log.Debug(err.Error())
-				} else {
-					log.Error("handle tcp failed", "err", err)
-				}
+				log.Output(0, netapi.LogLevel(err), "tun2socket tcp handle", "msg", err)
 			}
 		}()
 
@@ -89,13 +83,9 @@ func (h *Tun2socket) udpLoop() {
 
 	defer h.nat.UDP.Close()
 	for {
-		if err := h.handleUDP(buf); err != nil {
-			if errors.Is(err, netapi.ErrBlocked) {
-				log.Debug(err.Error())
-			} else {
-				log.Error("handle udp failed", "err", err)
-			}
-			if errors.Is(err, errUDPAccept) {
+		if exit, err := h.handleUDP(buf); err != nil {
+			log.Output(0, netapi.LogLevel(err), "tun2socket udp handle", "msg", err)
+			if exit {
 				return
 			}
 		}
@@ -110,28 +100,27 @@ func (h *Tun2socket) handleTCP(conn net.Conn) error {
 		return nil
 	}
 
+	addr, _ := netapi.ParseSysAddr(rAddrPort)
 	return h.SendStream(&netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
-		Address:     netapi.ParseTCPAddress(rAddrPort),
+		Address:     addr,
 	})
 }
 
-var errUDPAccept = errors.New("tun2socket udp accept failed")
-
-func (h *Tun2socket) handleUDP(buf []byte) error {
+func (h *Tun2socket) handleUDP(buf []byte) (bool, error) {
 	n, tuple, err := h.nat.UDP.ReadFrom(buf)
 	if err != nil {
-		return fmt.Errorf("%w: %v", errUDPAccept, err)
+		return true, err
 	}
 
-	dst := netapi.ParseUDPAddr(&net.UDPAddr{
+	dst, _ := netapi.ParseSysAddr(&net.UDPAddr{
 		IP:   net.IP(tuple.DestinationAddr.AsSlice()),
 		Port: int(tuple.DestinationPort),
 	})
 
-	return h.SendPacket(&netapi.Packet{
+	return false, h.SendPacket(&netapi.Packet{
 		Src: &net.UDPAddr{
 			IP:   net.IP(tuple.SourceAddr.AsSlice()),
 			Port: int(tuple.SourcePort),
@@ -144,7 +133,7 @@ func (h *Tun2socket) handleUDP(buf []byte) error {
 				return 0, err
 			}
 
-			daddr, err := address.IP(context.TODO())
+			daddr, err := netapi.ResolverIP(context.TODO(), address)
 			if err != nil {
 				return 0, err
 			}
@@ -155,7 +144,7 @@ func (h *Tun2socket) handleUDP(buf []byte) error {
 
 			return h.nat.UDP.WriteTo(b, nat.Tuple{
 				DestinationAddr: tcpip.AddrFromSlice(daddr),
-				DestinationPort: address.Port().Port(),
+				DestinationPort: uint16(address.Port()),
 				SourceAddr:      tuple.SourceAddr,
 				SourcePort:      tuple.SourcePort,
 			})

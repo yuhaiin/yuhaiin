@@ -97,6 +97,12 @@ var (
 )
 
 type Options struct {
+
+	// RoutingMark is the mark for each packet sent through this
+	// socket. Changing the mark can be used for mark-based routing
+	// without netfilter or for packet filtering.
+	MarkSymbol func(socket int32) bool
+
 	// InterfaceName is the name of interface/device to bind.
 	// If a socket is bound to an interface, only packets received
 	// from that particular interface are processed by the socket.
@@ -106,11 +112,6 @@ type Options struct {
 	// It is almost the same as InterfaceName except it uses the
 	// index of the interface instead of the name.
 	InterfaceIndex int
-
-	// RoutingMark is the mark for each packet sent through this
-	// socket. Changing the mark can be used for mark-based routing
-	// without netfilter or for packet filtering.
-	MarkSymbol func(socket int32) bool
 
 	listener bool
 }

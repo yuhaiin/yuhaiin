@@ -1,11 +1,15 @@
 package dns
 
 import (
+	"fmt"
 	"net/netip"
+	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
+	"go.etcd.io/bbolt"
 )
 
 func TestRetrieveIPFromPtr(t *testing.T) {
@@ -16,25 +20,60 @@ func TestRetrieveIPFromPtr(t *testing.T) {
 
 func TestNetip(t *testing.T) {
 	t.Log(len("f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.f.f"))
-	t.Log(yerror.Ignore(netip.ParseAddr("2606:4700:20::681a:ffff")).As16())
+	addr, _ := netip.ParseAddr("2606:4700:20::681a:ffff")
+	t.Log(addr.As16())
 
 	z, err := netip.ParsePrefix("127.0.0.1/30")
 	assert.NoError(t, err)
 
-	ff := NewFakeIPPool(z, nil)
+	nd, err := bbolt.Open("test.db", os.ModePerm, &bbolt.Options{})
+	assert.NoError(t, err)
+	defer nd.Close()
+
+	ff := NewFakeIPPool(z, nd)
+	defer ff.Flush()
+
+	ch := make(chan struct {
+		a  string
+		ip netip.Addr
+	}, 1000)
+
+	go func() {
+		for i := range ch {
+			t.Log(i.a, i.ip)
+		}
+	}()
 
 	getAndRev := func(a string) {
 		ip := ff.GetFakeIPForDomain(a)
-		host, _ := ff.GetDomainFromIP(ip)
-
-		t.Log(a, ip, host)
+		ch <- struct {
+			a  string
+			ip netip.Addr
+		}{
+			a, ip,
+		}
 	}
 
-	getAndRev("aa")
-	getAndRev("bb")
-	getAndRev("cc")
-	getAndRev("dd")
-	getAndRev("aa")
-	getAndRev("ee")
-	getAndRev("ff")
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		getAndRev(fmt.Sprint(1))
+	}()
+
+	now := time.Now()
+	for i := range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			getAndRev(fmt.Sprint(i))
+		}()
+	}
+
+	wg.Wait()
+	t.Log(time.Since(now))
+
+	// bbolt 630ms 673ms 624ms
+	// badger 130ms 112ms 103ms
 }

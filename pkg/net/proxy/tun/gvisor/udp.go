@@ -1,14 +1,12 @@
 package tun
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"math"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -100,10 +98,10 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 		return true
 	}
 
-	dst := netapi.ParseIPAddrPort(statistic.Type_udp, id.LocalAddress.AsSlice(), int(dstPort))
+	dst := netapi.ParseIPAddrPort("udp", id.LocalAddress.AsSlice(), dstPort)
 
 	_ = f.SendPacket(&netapi.Packet{
-		Src:     netapi.ParseIPAddrPort(statistic.Type_udp, id.RemoteAddress.AsSlice(), int(srcPort)),
+		Src:     netapi.ParseIPAddrPort("udp", id.RemoteAddress.AsSlice(), srcPort),
 		Dst:     dst,
 		Payload: buf.Bytes(),
 		WriteBack: func(b []byte, addr net.Addr) (int, error) {
@@ -123,7 +121,10 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 		return 0, fmt.Errorf("send FQDN packet")
 	}
 
-	dip := daddr.AddrPort(context.TODO()).V
+	dip, err := netapi.ResolverAddrPort(w.Context(), daddr)
+	if err != nil {
+		return 0, err
+	}
 
 	if sourceAddr.Len() == 4 && (dip.Addr().Is6() && !dip.Addr().Is4In6()) {
 		// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", sourceAddr, dip)

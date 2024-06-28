@@ -66,8 +66,8 @@ func Unpack(dst, pkt []byte, ciph Cipher) ([]byte, error) {
 type packetConn struct {
 	net.PacketConn
 	Cipher
-	sync.Mutex
 	buf []byte // write lock
+	sync.Mutex
 }
 
 // NewPacketConn wraps a net.PacketConn with cipher

@@ -8,8 +8,8 @@ var (
 
 type trie[T any] struct {
 	Value  T                   `json:"value"`
-	Symbol uint8               `json:"symbol"`
 	Child  map[string]*trie[T] `json:"child"`
+	Symbol uint8               `json:"symbol"`
 }
 
 func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {
@@ -92,8 +92,8 @@ func insert[T any](node *trie[T], z *fqdnReader, mark T) {
 }
 
 type deleteElement[T any] struct {
-	str  string
 	node *trie[T]
+	str  string
 }
 
 func remove[T any](node *trie[T], domain *fqdnReader) {
@@ -116,7 +116,7 @@ func remove[T any](node *trie[T], domain *fqdnReader) {
 		}
 
 		node = z
-		nodes = append(nodes, &deleteElement[T]{domain.str(), node})
+		nodes = append(nodes, &deleteElement[T]{node, domain.str()})
 		domain.next()
 	}
 

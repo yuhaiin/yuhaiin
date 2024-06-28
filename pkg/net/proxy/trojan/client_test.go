@@ -11,7 +11,7 @@ import (
 func TestXxx(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 
-	tools.EncodeAddr(netapi.ParseAddressPort(0, "www.baidu.com", netapi.EmptyPort), b)
+	tools.EncodeAddr(netapi.ParseAddressPort("", "www.baidu.com", 0), b)
 	size := b.Len()
 
 	b.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})

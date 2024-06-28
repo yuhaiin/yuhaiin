@@ -61,16 +61,16 @@ func getNormalizedPath(path string) string {
 }
 
 type earlyConn struct {
-	handclasp bool
-
 	net.Conn
-	config *websocket.Config
+	handshakeCtx context.Context
+	config       *websocket.Config
 
-	handshakeMu   sync.Mutex
-	handshakeCtx  context.Context
 	handshakeDone func()
 
 	deadline *time.Timer
+
+	handshakeMu sync.Mutex
+	handclasp   bool
 }
 
 func (e *earlyConn) Read(b []byte) (int, error) {
