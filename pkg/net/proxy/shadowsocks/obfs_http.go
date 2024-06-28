@@ -99,10 +99,9 @@ func newHTTPObfs(conn net.Conn, host string, port string) net.Conn {
 var _ netapi.Proxy = (*httpOBFS)(nil)
 
 type httpOBFS struct {
+	netapi.Proxy
 	host string
 	port string
-
-	netapi.Proxy
 }
 
 func init() {

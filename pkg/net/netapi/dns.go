@@ -15,24 +15,10 @@ type LookupIPOption struct {
 	A    bool
 }
 
-type ForceFakeIP struct{}
-
 type Resolver interface {
 	LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error)
 	Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error)
 	io.Closer
-}
-
-var _ Resolver = (*ErrorResolver)(nil)
-
-type ErrorResolver func(domain string) error
-
-func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
-	return nil, e(domain)
-}
-func (e ErrorResolver) Close() error { return nil }
-func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	return dnsmessage.Message{}, e(req.Name.String())
 }
 
 var InternetResolver Resolver = NewSystemResolver("8.8.8.8:53", "1.1.1.1:53", "223.5.5.5:53", "114.114.114.114:53")
@@ -60,54 +46,36 @@ func NewSystemResolver(host ...string) *SystemResolver {
 }
 
 func (d *SystemResolver) LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
-	network := "ip"
-
-	opt := &LookupIPOption{
-		A: true,
-	}
-
+	opt := &LookupIPOption{A: true}
 	for _, o := range opts {
 		o(opt)
 	}
 
-	if opt.AAAA && !opt.A {
-		network = "ip6"
-	}
-
-	if opt.A && !opt.AAAA {
-		network = "ip4"
+	network := "ip"
+	if opt.A != opt.AAAA {
+		if opt.AAAA {
+			network = "ip6"
+		} else {
+			network = "ip4"
+		}
 	}
 
 	return d.resolver.LookupIP(ctx, network, domain)
 }
+
 func (d *SystemResolver) Raw(context.Context, dnsmessage.Question) (dnsmessage.Message, error) {
 	return dnsmessage.Message{}, fmt.Errorf("system dns not support")
 }
 func (d *SystemResolver) Close() error { return nil }
 
-type DNSErrCode struct {
-	code dnsmessage.RCode
+var _ Resolver = (*ErrorResolver)(nil)
+
+type ErrorResolver func(domain string) error
+
+func (e ErrorResolver) LookupIP(_ context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
+	return nil, e(domain)
 }
-
-func NewDNSErrCode(code dnsmessage.RCode) *DNSErrCode {
-	return &DNSErrCode{
-		code: code,
-	}
-}
-
-func (d *DNSErrCode) Code() dnsmessage.RCode {
-	return d.code
-}
-
-func (d DNSErrCode) Error() string {
-	return d.code.String()
-}
-
-func (d *DNSErrCode) As(err any) bool {
-	dd, ok := err.(*DNSErrCode)
-	if ok {
-		dd.code = d.code
-	}
-
-	return ok
+func (e ErrorResolver) Close() error { return nil }
+func (e ErrorResolver) Raw(_ context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	return dnsmessage.Message{}, e(req.Name.String())
 }

@@ -22,8 +22,8 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 	var innerErr error
 	err = c.Control(func(fd uintptr) {
 		if opts.listener {
-			// _ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_RCVBUF, SocketBufferSize)
-			// _ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_SNDBUF, SocketBufferSize)
+			_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_RCVBUF, SocketBufferSize)
+			_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_SNDBUF, SocketBufferSize)
 		}
 
 		host, _, _ := net.SplitHostPort(address)

@@ -15,9 +15,9 @@ import (
 
 type Request struct {
 	Request         *http.Request
+	Header          http.Header
 	SecWebSocketKey string
 	Protocol        []string
-	Header          http.Header
 }
 
 func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Request) error) (conn *Conn, err error) {

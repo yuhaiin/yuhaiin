@@ -8,15 +8,15 @@ import (
 )
 
 var ObfsMethod = map[string]struct {
-	overhead int
 	stream   func(net.Conn, Obfs) net.Conn
+	overhead int
 }{
-	"http_post":              {0, newHttpPost},
-	"http_simple":            {0, newHttpSimple},
-	"plain":                  {0, newPlain},
-	"random_head":            {0, newRandomHead},
-	"tls1.2_ticket_auth":     {5, newTLS12TicketAuth},
-	"tls1.2_ticket_fastauth": {5, newTLS12TicketAuth},
+	"http_post":              {newHttpPost, 0},
+	"http_simple":            {newHttpSimple, 0},
+	"plain":                  {newPlain, 0},
+	"random_head":            {newRandomHead, 0},
+	"tls1.2_ticket_auth":     {newTLS12TicketAuth, 5},
+	"tls1.2_ticket_fastauth": {newTLS12TicketAuth, 5},
 }
 
 type Obfs struct {

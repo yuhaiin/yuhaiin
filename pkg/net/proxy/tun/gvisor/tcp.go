@@ -5,7 +5,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -30,7 +29,7 @@ func (t *tunServer) tcpForwarder() *tcp.Forwarder {
 			log.Error("set socket options failed", "err", err)
 		}
 
-		addr := netapi.ParseAddressPort(statistic.Type_tcp, id.LocalAddress.String(), netapi.ParsePort(id.LocalPort))
+		addr := netapi.ParseAddressPort("tcp", id.LocalAddress.String(), id.LocalPort)
 		local := gonet.NewTCPConn(wq, ep)
 
 		_ = t.SendStream(&netapi.StreamMeta{

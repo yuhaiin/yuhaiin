@@ -10,16 +10,16 @@ import (
 )
 
 type Opts struct {
+	CloseFallback Closer
+	Bypass        *Bypass     `json:"bypass"`
+	DNS           *DNSSetting `json:"dns"`
+	TUN           *TUN        `json:"tun"`
+	Log           *Log        `json:"log"`
 	Host          string      `json:"host"`
 	Savepath      string      `json:"savepath"`
 	Socks5        string      `json:"socks5"`
 	Http          string      `json:"http"`
 	IPv6          bool        `json:"ipv6"`
-	Bypass        *Bypass     `json:"bypass"`
-	DNS           *DNSSetting `json:"dns"`
-	TUN           *TUN        `json:"tun"`
-	Log           *Log        `json:"log"`
-	CloseFallback Closer
 }
 
 type Log struct {
@@ -29,31 +29,33 @@ type Log struct {
 }
 
 type Bypass struct {
+	Block  string `json:"block"`
+	Proxy  string `json:"proxy"`
+	Direct string `json:"direct"`
 	// 0: bypass, 1: proxy, 2: direct, 3: block
 	TCP int32 `json:"tcp"`
 	// 0: bypass, 1: proxy, 2: direct, 3: block
-	UDP                int32  `json:"udp"`
-	Sniffy             bool   `json:"sniffy"`
-	UDPSkipResolveFqdn bool   `json:"udp_skip_resolve_fqdn"`
-	Block              string `json:"block"`
-	Proxy              string `json:"proxy"`
-	Direct             string `json:"direct"`
+	UDP                int32 `json:"udp"`
+	Sniffy             bool  `json:"sniffy"`
+	UDPSkipResolveFqdn bool  `json:"udp_skip_resolve_fqdn"`
 }
 
 type DNSSetting struct {
-	Server              string `json:"server"`
-	Fakedns             bool   `json:"fakedns"`
-	FakednsIpRange      string `json:"fakedns_ip_range"`
-	FakednsIpv6Range    string `json:"fakedns_ipv6_range"`
-	ResolveRemoteDomain bool   `json:"resolve_remote_domain"`
 	Remote              *DNS   `json:"remote"`
 	Local               *DNS   `json:"local"`
 	Bootstrap           *DNS   `json:"bootstrap"`
+	Server              string `json:"server"`
+	FakednsIpRange      string `json:"fakedns_ip_range"`
+	FakednsIpv6Range    string `json:"fakedns_ipv6_range"`
 	Hosts               []byte `json:"hosts"`
+	Fakedns             bool   `json:"fakedns"`
+	ResolveRemoteDomain bool   `json:"resolve_remote_domain"`
 }
 
 type DNS struct {
-	Host string `json:"host"`
+	Host          string `json:"host"`
+	Subnet        string `json:"subnet"`
+	TlsServername string `json:"tls_servername"`
 	// Type
 	// 0: reserve
 	// 1: udp
@@ -62,25 +64,23 @@ type DNS struct {
 	// 4: dot
 	// 5: doq
 	// 6: doh3
-	Type          int32  `json:"type"`
-	Subnet        string `json:"subnet"`
-	TlsServername string `json:"tls_servername"`
+	Type int32 `json:"type"`
 }
 
 type TUN struct {
-	FD           int32  `json:"fd"`
-	MTU          int32  `json:"mtu"`
-	Portal       string `json:"portal"`
-	PortalV6     string `json:"portal_v6"`
-	DNSHijacking bool   `json:"dns_hijacking"`
+	UidDumper     UidDumper
+	SocketProtect SocketProtect
+	Portal        string `json:"portal"`
+	PortalV6      string `json:"portal_v6"`
+	FD            int32  `json:"fd"`
+	MTU           int32  `json:"mtu"`
 	// Driver
 	// 0: fdbased
 	// 1: channel
 	// 2: tun2socket
 	// 3: tun2socket_gvisor
-	Driver        int32 `json:"driver"`
-	UidDumper     UidDumper
-	SocketProtect SocketProtect
+	Driver       int32 `json:"driver"`
+	DNSHijacking bool  `json:"dns_hijacking"`
 }
 
 type UidDumper interface {
@@ -131,7 +131,7 @@ func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (strin
 		network = syscall.IPPROTO_UDP
 	}
 
-	uid, err := a.UidDumper.DumpUid(network, src.Hostname(), int32(src.Port().Port()), dst.Hostname(), int32(dst.Port().Port()))
+	uid, err := a.UidDumper.DumpUid(network, src.Hostname(), int32(src.Port()), dst.Hostname(), int32(dst.Port()))
 	if err != nil {
 		log.Error("dump uid error", "err", err)
 	}

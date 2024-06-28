@@ -13,14 +13,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestUDP(t *testing.T) {
 	p := Dial("127.0.0.1", "1080", "", "")
 
-	packet, err := p.PacketConn(context.TODO(), netapi.ParseAddressPort(statistic.Type_udp, "0.0.0.0", netapi.EmptyPort))
+	packet, err := p.PacketConn(context.TODO(), netapi.ParseAddressPort("udp", "0.0.0.0", 0))
 	assert.NoError(t, err)
 	defer packet.Close()
 
@@ -93,14 +92,14 @@ func TestUsernamePassword(t *testing.T) {
 
 	p := Dial("127.0.0.1", "1082", "test", "test")
 
-	stream, err := p.Conn(context.TODO(), netapi.ParseAddressPort(statistic.Type_tcp, "www.google.com", netapi.ParsePort(443)))
+	stream, err := p.Conn(context.TODO(), netapi.ParseAddressPort("tcp", "www.google.com", 443))
 	assert.NoError(t, err)
 	defer stream.Close()
 
 	_, err = stream.Write([]byte("GET / HTTP/1.1\r\nHost: www.google.com\r\n\r\n"))
 	assert.NoError(t, err)
 
-	packet, err := p.PacketConn(context.TODO(), netapi.ParseAddressPort(statistic.Type_udp, "0.0.0.0", netapi.EmptyPort))
+	packet, err := p.PacketConn(context.TODO(), netapi.ParseAddressPort("udp", "0.0.0.0", 0))
 	assert.NoError(t, err)
 	defer packet.Close()
 
@@ -116,7 +115,7 @@ func TestSC(t *testing.T) {
 	hc := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := netapi.ParseAddress(netapi.PaseNetwork(network), addr)
+				ad, err := netapi.ParseAddress(network, addr)
 				assert.NoError(t, err)
 				return p.Conn(ctx, ad)
 			},

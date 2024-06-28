@@ -4,9 +4,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/config"
-	"github.com/Asutorufa/yuhaiin/pkg/components/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
@@ -24,7 +24,7 @@ type Components struct {
 	*Start
 	HttpListener net.Listener
 	Node         *node.Nodes
-	Tools        *tools.Tools
+	Tools        *gt.Tools
 	Subscribe    gn.SubscribeServer
 	Connections  gs.ConnectionsServer
 	Tag          gn.TagServer
@@ -45,7 +45,9 @@ func (app *Components) RegisterGrpcService() {
 	so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, app.Tools)
 }
 func (a *Components) Close() error {
-	for _, v := range a.Start.closers {
+	closers := slices.Clone(a.closers)
+	slices.Reverse(closers)
+	for _, v := range closers {
 		v.Close()
 	}
 

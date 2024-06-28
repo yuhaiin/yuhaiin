@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/components/config"
-	"github.com/Asutorufa/yuhaiin/pkg/components/route"
+	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -17,7 +17,7 @@ import (
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
-	"github.com/go-json-experiment/json"
+	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 

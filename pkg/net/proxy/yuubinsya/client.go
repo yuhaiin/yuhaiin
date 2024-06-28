@@ -14,7 +14,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -22,10 +21,10 @@ import (
 type client struct {
 	netapi.Proxy
 
-	overTCP bool
-
 	handshaker types.Handshaker
 	packetAuth types.Auth
+
+	overTCP bool
 }
 
 func init() {
@@ -41,13 +40,13 @@ func NewClient(config *protocol.Protocol_Yuubinsya) point.WrapProxy {
 
 		c := &client{
 			dialer,
-			config.Yuubinsya.UdpOverStream,
 			NewHandshaker(
 				false,
 				config.Yuubinsya.GetTcpEncrypt(),
 				[]byte(config.Yuubinsya.Password),
 			),
 			auth,
+			config.Yuubinsya.UdpOverStream,
 		}
 
 		return c, nil
@@ -76,7 +75,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 			return nil, err
 		}
 
-		return NewAuthPacketConn(packet).WithTarget(addr).WithAuth(c.packetAuth), nil
+		return NewAuthPacketConn(packet).WithRealTarget(addr).WithAuth(c.packetAuth), nil
 	}
 
 	conn, err := c.Proxy.Conn(ctx, addr)
@@ -93,14 +92,13 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 }
 
 type PacketConn struct {
-	headerWrote bool
-
 	net.Conn
 
 	handshaker types.Handshaker
 
-	hmux sync.Mutex
-	rmux sync.Mutex
+	hmux        sync.Mutex
+	rmux        sync.Mutex
+	headerWrote bool
 }
 
 func newPacketConn(conn net.Conn, handshaker types.Handshaker, server bool) *PacketConn {
@@ -117,7 +115,8 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
 
-	w := pool.NewBufferSize(min(len(payload), nat.MaxSegmentSize) + 1024)
+	length := min(len(payload), nat.MaxSegmentSize)
+	w := pool.NewBufferSize(length + 1024)
 	defer w.Reset()
 
 	if !c.headerWrote {
@@ -135,9 +134,8 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 
 	tools.EncodeAddr(taddr, w)
 
-	payload = payload[:min(nat.MaxSegmentSize, len(payload))]
-	_ = binary.Write(w, binary.BigEndian, uint16(len(payload)))
-	_, _ = w.Write(payload)
+	_ = binary.Write(w, binary.BigEndian, uint16(length))
+	_, _ = w.Write(payload[:length])
 
 	_, err = c.Conn.Write(w.Bytes())
 	if err != nil {
@@ -181,16 +179,15 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 
 	_, _ = relay.CopyN(io.Discard, c.Conn, int64(int(length)-n))
 
-	return n, addr.Address(statistic.Type_udp), nil
+	return n, addr.Address("udp"), nil
 }
 
 type Conn struct {
-	headerWrote bool
-
 	net.Conn
 
-	addr       netapi.Address
-	handshaker types.Handshaker
+	addr        netapi.Address
+	handshaker  types.Handshaker
+	headerWrote bool
 }
 
 func newConn(con net.Conn, addr netapi.Address, handshaker types.Handshaker) net.Conn {

@@ -2,6 +2,7 @@ package lru
 
 import (
 	"reflect"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/synclist"
@@ -14,17 +15,27 @@ type lruEntry[K, V any] struct {
 	expire time.Time
 }
 
-// LRU Least Recently Used
-type LRU[K comparable, V any] struct {
-	capacity        uint
-	list            *synclist.SyncList[*lruEntry[K, V]]
-	mapping         syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
-	reverseMapping  syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
-	valueComparable bool
-	timeout         time.Duration
+func (e *lruEntry[K, V]) Clone() *lruEntry[K, V] {
+	return &lruEntry[K, V]{
+		key:  e.key,
+		data: e.data,
+	}
+}
 
-	lastPopEntry *lruEntry[K, V]
-	onRemove     func(K, V)
+// LRU Least Recently Used
+//
+// Deprecated: use SyncLru instead, it difficult to check thread safety
+type LRU[K comparable, V any] struct {
+	list *synclist.SyncList[*lruEntry[K, V]]
+
+	lastPopEntry   atomic.Pointer[lruEntry[K, V]]
+	onRemove       func(K, V)
+	mapping        syncmap.SyncMap[K, *synclist.Element[*lruEntry[K, V]]]
+	reverseMapping syncmap.SyncMap[V, *synclist.Element[*lruEntry[K, V]]]
+	capacity       uint
+	timeout        time.Duration
+
+	valueComparable bool
 }
 type Option[K comparable, V any] func(*LRU[K, V])
 
@@ -47,9 +58,11 @@ func WithCapacity[K comparable, V any](capacity uint) func(*LRU[K, V]) {
 }
 
 // New create new lru cache
+//
+// Deprecated: use SyncLru instead, it difficult to check thread safety
 func New[K comparable, V any](options ...Option[K, V]) *LRU[K, V] {
 	l := &LRU[K, V]{
-		list: synclist.New[*lruEntry[K, V]](),
+		list: synclist.NewSyncList[*lruEntry[K, V]](),
 	}
 
 	for _, o := range options {
@@ -116,11 +129,11 @@ func (l *LRU[K, V]) Add(key K, value V, opts ...AddOption) {
 		elem = l.list.PushFront(entry)
 	} else {
 		elem = l.list.Back()
-		l.lastPopEntry = &lruEntry[K, V]{
+		l.lastPopEntry.Store(&lruEntry[K, V]{
 			key:    elem.Value.key,
 			data:   elem.Value.data,
 			expire: elem.Value.expire,
-		}
+		})
 		l.delete(elem.Value)
 		l.list.MoveToFront(elem.SetValue(entry))
 	}
@@ -191,11 +204,12 @@ func (l *LRU[K, V]) ValueExist(key V) bool {
 }
 
 func (l *LRU[K, V]) LastPopValue() (v V, _ bool) {
-	if l.lastPopEntry == nil {
+	data := l.lastPopEntry.Load()
+	if data == nil {
 		return v, false
 	}
 
-	return l.lastPopEntry.data, true
+	return data.data, true
 }
 
 func (l *LRU[K, V]) Range(ranger func(K, V)) {

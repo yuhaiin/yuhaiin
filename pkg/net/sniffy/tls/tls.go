@@ -13,15 +13,16 @@ import (
 )
 
 type Conn struct {
-	addr     string
-	helloMsg bool
-	conn     net.Conn
-	ctx      context.Context
-	cancel   func()
+	conn   net.Conn
+	ctx    context.Context
+	cancel func()
 
-	tls       bool
 	dialer    func(ctx context.Context, network, addr string) (net.Conn, error)
 	tlsDialer func(ctx context.Context, network, addr string) (net.Conn, error)
+	addr      string
+	helloMsg  bool
+
+	tls bool
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
@@ -243,11 +244,11 @@ func readUint8LengthPrefixed(s *cryptobyte.String, out *[]byte) bool {
 }
 
 type clientHelloMsg struct {
-	vers               uint16
+	serverName         string
 	random             []byte
 	sessionId          []byte
 	compressionMethods []uint8
-	serverName         string
+	vers               uint16
 }
 
 func (m *clientHelloMsg) unmarshal(data []byte) bool {

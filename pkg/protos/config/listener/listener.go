@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -301,11 +300,10 @@ func (t *TlsConfigManager) Refresh() {
 		}
 
 		if t.searcher != nil {
-			addr := netapi.ParseAddressPort(statistic.Type_tcp,
-				chi.ServerName, netapi.EmptyPort)
-			addr.SetResolver(trie.SkipResolver)
-			addr.SetSrc(netapi.AddressSrcDNS)
-			v, ok := t.searcher.Search(context.TODO(), addr)
+			addr := netapi.ParseAddressPort("tcp", chi.ServerName, 0)
+			ctx := netapi.WithContext(context.TODO())
+			ctx.Resolver.ResolverSelf = trie.SkipResolver
+			v, ok := t.searcher.Search(ctx, addr)
 			if ok {
 				return v, nil
 			}

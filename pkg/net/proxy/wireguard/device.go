@@ -24,8 +24,8 @@ type netTun struct {
 	ep           *gun.Endpoint
 	stack        *stack.Stack
 	events       chan tun.Event
-	hasV4, hasV6 bool
 	dev          *gun.ChannelTun
+	hasV4, hasV6 bool
 }
 
 type Net netTun

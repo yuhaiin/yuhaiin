@@ -69,9 +69,7 @@ func (module *Module) copySections(address, size uintptr, oldHeaders *IMAGE_NT_H
 			// NOTE: On 64bit systems we truncate to 32bit here but expand again later when "PhysicalAddress" is used.
 			sections[i].SetPhysicalAddress((uint32)(dest & 0xffffffff))
 			dst := unsafe.Slice((*byte)(a2p(dest)), sectionSize)
-			for j := range dst {
-				dst[j] = 0
-			}
+			clear(dst)
 			continue
 		}
 

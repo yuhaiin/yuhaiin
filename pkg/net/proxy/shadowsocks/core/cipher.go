@@ -34,12 +34,12 @@ const (
 
 // List of AEAD ciphers: key size in bytes and constructor
 var aeadList = map[string]struct {
-	KeySize int
 	New     func([]byte) (shadowaead.Cipher, error)
+	KeySize int
 }{
-	aeadAes128Gcm:        {16, shadowaead.AESGCM},
-	aeadAes256Gcm:        {32, shadowaead.AESGCM},
-	aeadChacha20Poly1305: {32, shadowaead.Chacha20Poly1305},
+	aeadAes128Gcm:        {shadowaead.AESGCM, 16},
+	aeadAes256Gcm:        {shadowaead.AESGCM, 32},
+	aeadChacha20Poly1305: {shadowaead.Chacha20Poly1305, 32},
 }
 
 // ListCipher returns a list of available cipher names sorted alphabetically.

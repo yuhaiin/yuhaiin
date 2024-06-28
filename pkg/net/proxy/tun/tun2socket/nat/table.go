@@ -12,8 +12,8 @@ var zeroTuple = Tuple{}
 
 type Tuple struct {
 	SourceAddr      tcpip.Address
-	SourcePort      uint16
 	DestinationAddr tcpip.Address
+	SourcePort      uint16
 	DestinationPort uint16
 }
 
@@ -45,7 +45,7 @@ func (t *tableSplit) portOf(tuple Tuple) uint16 {
 }
 
 type table struct {
-	lru *lru.LRU[Tuple, uint16]
+	lru *lru.ReverseSyncLru[Tuple, uint16]
 
 	mu    sync.Mutex
 	index uint16
@@ -53,7 +53,7 @@ type table struct {
 
 func newTableBase() *table {
 	return &table{
-		lru: lru.New(lru.WithCapacity[Tuple, uint16](math.MaxUint16 - 10001)),
+		lru: lru.NewSyncReverseLru(lru.WithCapacityv2[Tuple, uint16](math.MaxUint16 - 10001)),
 	}
 }
 
