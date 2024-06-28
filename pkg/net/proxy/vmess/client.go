@@ -17,11 +17,11 @@ import (
 	"net"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -64,21 +64,23 @@ type Client struct {
 
 // Conn is a connection to vmess server
 type Conn struct {
-	user     *User
-	opt      byte
-	security byte
-
 	addr address
-
-	reqBodyIV   [16]byte
-	reqBodyKey  [16]byte
-	reqRespV    byte
-	respBodyIV  [16]byte
-	respBodyKey [16]byte
 
 	net.Conn
 	dataReader io.ReadCloser
 	dataWriter writer
+
+	user *User
+
+	reqBodyIV   [16]byte
+	reqBodyKey  [16]byte
+	respBodyIV  [16]byte
+	respBodyKey [16]byte
+
+	opt      byte
+	security byte
+
+	reqRespV byte
 
 	isAead bool
 	CMD    CMD
@@ -199,7 +201,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	buf.WriteByte(c.CMD.Byte()) // cmd
 
 	// target
-	_ = binary.Write(buf, binary.BigEndian, uint16(c.addr.Port().Port())) // port
+	_ = binary.Write(buf, binary.BigEndian, uint16(c.addr.Port())) // port
 
 	buf.WriteByte(byte(c.addr.Type())) // atyp
 	buf.Write(c.addr.Bytes())          // addr
@@ -215,7 +217,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	buf.Write(fnv1a.Sum(nil))
 
 	if !c.isAead {
-		now := time.Now().UTC()
+		now := system.NowUnix()
 		block, err := aes.NewCipher(c.user.CmdKey[:])
 		if err != nil {
 			return nil, err
@@ -225,7 +227,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 
 		abuf := new(bytes.Buffer)
 		ts := make([]byte, 8)
-		binary.BigEndian.PutUint64(ts, uint64(now.Unix()))
+		binary.BigEndian.PutUint64(ts, uint64(now))
 		abuf.Write(ssr.Hmac(crypto.MD5, c.user.UUID.Bytes(), ts, nil))
 		abuf.Write(buf.Bytes())
 		return abuf.Bytes(), nil

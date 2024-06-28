@@ -41,6 +41,7 @@ type Packet struct {
 	Dst       Address
 	WriteBack WriteBack
 	Payload   []byte
+	MigrateID uint64
 }
 
 func (p *Packet) Clone() *Packet {
@@ -49,12 +50,13 @@ func (p *Packet) Clone() *Packet {
 		Dst:       p.Dst,
 		WriteBack: p.WriteBack,
 		Payload:   pool.Clone(p.Payload),
+		MigrateID: p.MigrateID,
 	}
 }
 
 type DNSRawRequest struct {
-	Question  []byte
 	WriteBack func([]byte) error
+	Question  []byte
 	Stream    bool
 }
 

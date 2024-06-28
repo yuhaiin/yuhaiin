@@ -2,7 +2,6 @@ package socks5
 
 import (
 	"crypto/subtle"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -53,11 +51,7 @@ func (s *Server) startTCPServer() error {
 
 			go func() {
 				if err := s.Handle(conn); err != nil {
-					if errors.Is(err, netapi.ErrBlocked) {
-						log.Debug(err.Error())
-					} else {
-						log.Error("socks5 server handle failed", "err", err)
-					}
+					log.Output(0, netapi.LogLevel(err), "socks5 udp server handle", "msg", err)
 				}
 			}()
 
@@ -195,7 +189,7 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 		}
 		defer pool.PutBytes(adr)
 
-		addr := adr.Address(statistic.Type_tcp)
+		addr := adr.Address("tcp")
 
 		caddr, err := netapi.ParseSysAddr(client.LocalAddr())
 		if err != nil {
@@ -240,7 +234,7 @@ func handleUDP(client net.Conn) error {
 	if err != nil {
 		return fmt.Errorf("parse sys addr failed: %w", err)
 	}
-	err = writeHandshake2(client, tools.Succeeded, netapi.ParseAddressPort(statistic.Type_tcp, "0.0.0.0", laddr.Port()))
+	err = writeHandshake2(client, tools.Succeeded, netapi.ParseAddressPort("tcp", "0.0.0.0", uint16(laddr.Port())))
 	if err != nil {
 		return err
 	}
@@ -261,12 +255,13 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 }
 
 type Server struct {
-	udp      bool
-	lis      netapi.Listener
+	lis netapi.Listener
+
+	*netapi.ChannelServer
 	username string
 	password string
 
-	*netapi.ChannelServer
+	udp bool
 }
 
 func (s *Server) Close() error {

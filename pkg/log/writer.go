@@ -18,13 +18,14 @@ import (
 var _ io.Writer = new(FileWriter)
 
 type FileWriter struct {
-	path logPath
-	w    *os.File
-	log  *slog.Logger
+	w   *os.File
+	log *slog.Logger
 
-	mu sync.RWMutex
+	path logPath
 
 	savedSize atomic.Uint64
+
+	mu sync.RWMutex
 }
 
 func NewLogWriter(file string) *FileWriter {

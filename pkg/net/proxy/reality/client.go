@@ -30,6 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
@@ -141,7 +142,7 @@ func (e *RealityClient) ClientHandshake(ctx context.Context, conn net.Conn) (net
 	hello.SessionId[0] = 1
 	hello.SessionId[1] = 8
 	hello.SessionId[2] = 1
-	binary.BigEndian.PutUint32(hello.SessionId[4:], uint32(time.Now().Unix()))
+	binary.BigEndian.PutUint32(hello.SessionId[4:], uint32(system.NowUnix()))
 	copy(hello.SessionId[8:], e.shortID[:])
 
 	if e.Deubg {

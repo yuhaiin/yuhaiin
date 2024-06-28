@@ -43,9 +43,9 @@ func (o *Options) V6Address() netip.Prefix {
 }
 
 type TunScheme struct {
-	Fd     int
 	Scheme string
 	Name   string
+	Fd     int
 }
 
 func ParseTunScheme(str string) (TunScheme, error) {

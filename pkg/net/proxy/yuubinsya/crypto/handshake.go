@@ -10,46 +10,71 @@ import (
 	"io"
 	"math"
 	"net"
-	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/crypto/chacha20"
 	"golang.org/x/crypto/hkdf"
 )
 
 type encryptedHandshaker struct {
-	server bool
-
 	signer   types.Signer
 	hash     types.Hash
 	aead     types.Aead
 	password []byte
+	server   bool
 }
 
-func (t *encryptedHandshaker) EncodeHeader(net types.Protocol, buf types.Buffer, addr netapi.Address) {
-	_, _ = buf.Write([]byte{byte(net)})
+func (t *encryptedHandshaker) EncodeHeader(header types.Header, buf types.Buffer) {
+	_ = buf.WriteByte(byte(header.Protocol))
 
-	if net == types.TCP {
-		tools.EncodeAddr(addr, buf)
+	if header.Protocol == types.UDPWithMigrateID {
+		_ = binary.Write(buf, binary.BigEndian, header.MigrateID)
+	}
+
+	if header.Protocol == types.TCP {
+		tools.EncodeAddr(header.Addr, buf)
 	}
 }
 
-func (t *encryptedHandshaker) DecodeHeader(c net.Conn) (types.Protocol, error) {
-	z := make([]byte, 1)
+func (t *encryptedHandshaker) DecodeHeader(c net.Conn) (types.Header, error) {
+	buf := pool.GetBytes(8)
+	defer pool.PutBytes(buf)
 
-	if _, err := io.ReadFull(c, z); err != nil {
-		return 0, fmt.Errorf("read net type failed: %w", err)
+	if _, err := io.ReadFull(c, buf[:1]); err != nil {
+		return types.Header{}, fmt.Errorf("read net type failed: %w", err)
 	}
-	net := types.Protocol(z[0])
+	net := types.Protocol(buf[0])
 
 	if net.Unknown() {
-		return 0, fmt.Errorf("unknown network")
+		return types.Header{}, fmt.Errorf("unknown network")
 	}
 
-	return net, nil
+	header := types.Header{
+		Protocol: net,
+	}
+
+	if net == types.UDPWithMigrateID {
+		if _, err := io.ReadFull(c, buf); err != nil {
+			return types.Header{}, fmt.Errorf("read net type failed: %w", err)
+		}
+
+		header.MigrateID = binary.BigEndian.Uint64(buf)
+	}
+
+	if net == types.TCP {
+		target, err := tools.ResolveAddr(c)
+		if err != nil {
+			return types.Header{}, fmt.Errorf("resolve addr failed: %w", err)
+		}
+		defer pool.PutBytes(target)
+
+		header.Addr = target.Address("tcp")
+	}
+
+	return header, nil
 }
 
 func (h *encryptedHandshaker) Handshake(conn net.Conn) (net.Conn, error) {
@@ -172,7 +197,7 @@ func (h *encryptedHandshaker) receive(buf *header, conn net.Conn, salt []byte) (
 		return nil, nil, fmt.Errorf("decrypt time failed: %w", err)
 	}
 
-	if math.Abs(float64(time.Now().Unix()-int64(binary.BigEndian.Uint64(ttime)))) > 30 { // check time is in +-30s
+	if math.Abs(float64(system.NowUnix()-int64(binary.BigEndian.Uint64(ttime)))) > 30 { // check time is in +-30s
 		return nil, nil, errors.New("bad timestamp")
 	}
 
@@ -201,7 +226,7 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *
 	copy(buf.publickey(), pk.PublicKey().Bytes())
 
 	ttime = make([]byte, 8)
-	binary.BigEndian.PutUint64(ttime, uint64(time.Now().Unix()))
+	binary.BigEndian.PutUint64(ttime, uint64(system.NowUnix()))
 
 	if err = h.encryptTime(h.password, buf.salt(), buf.time(), ttime); err != nil {
 		return nil, nil, fmt.Errorf("encrypt time failed: %w", err)
@@ -228,12 +253,12 @@ func (h *encryptedHandshaker) send(buf *header, conn net.Conn, salt []byte) (_ *
 }
 
 type header struct {
-	bytes []byte
 	th    *encryptedHandshaker
+	bytes []byte
 }
 
 func newHeader(h *encryptedHandshaker) *header {
-	return &header{pool.GetBytes(h.hash.Size() + 8 + h.signer.SignatureSize() + 65), h}
+	return &header{h, pool.GetBytes(h.hash.Size() + 8 + h.signer.SignatureSize() + 65)}
 }
 func (h *header) Bytes() []byte { return h.bytes }
 func (h *header) signature() []byte {

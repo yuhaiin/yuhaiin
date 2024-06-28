@@ -2,6 +2,7 @@ package reject
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
@@ -18,22 +18,29 @@ var _ netapi.Proxy = (*reject)(nil)
 type rejectImmediately struct{ netapi.EmptyDispatch }
 
 func (rejectImmediately) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) {
-	return nil, netapi.NewBlockError(statistic.Type_tcp, addr.Hostname())
+	return nil, &net.OpError{
+		Op:   "block",
+		Net:  addr.Network(),
+		Addr: addr,
+		Err:  errors.New("blocked"),
+	}
 }
-func (rejectImmediately) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return nil, netapi.NewBlockError(statistic.Type_udp, addr.Hostname())
+
+func (r rejectImmediately) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
+	_, err := r.Conn(context.Background(), addr)
+	return nil, err
 }
 
 type reject struct {
-	cache         *lru.LRU[string, object]
-	max, internal int
 	netapi.EmptyDispatch
+	cache         *lru.SyncLru[string, object]
+	max, internal int
 }
 
 type object struct {
-	times int8
 	time  time.Time
 	delay time.Duration
+	times int8
 }
 
 func init() {
@@ -45,7 +52,7 @@ func init() {
 var Default = rejectImmediately{}
 
 func NewReject(maxDelay, interval int) netapi.Proxy {
-	return &reject{cache: lru.New(lru.WithCapacity[string, object](100)), max: maxDelay, internal: interval}
+	return &reject{cache: lru.NewSyncLru(lru.WithCapacityv2[string, object](100)), max: maxDelay, internal: interval}
 }
 
 func (r *reject) delay(addr netapi.Address) time.Duration {
@@ -67,7 +74,7 @@ func (r *reject) delay(addr netapi.Address) time.Duration {
 	}
 
 	time.Sleep(z.delay)
-	r.cache.Add(addr.Hostname(), object{z.times, time.Now(), z.delay})
+	r.cache.Add(addr.Hostname(), object{time.Now(), z.delay, z.times})
 	return z.delay
 }
 

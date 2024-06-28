@@ -15,17 +15,17 @@ import (
 )
 
 type Frag struct {
+	mergeMap syncmap.SyncMap[uint64, *MergeFrag]
 	SplitID  atomic.Uint64
 	mu       sync.Mutex
-	mergeMap syncmap.SyncMap[uint64, *MergeFrag]
 }
 
 type MergeFrag struct {
+	time     time.Time
+	Data     [][]byte
 	Count    uint32
 	Total    uint32
 	TotalLen uint32
-	Data     [][]byte
-	time     time.Time
 }
 
 func (f *Frag) Merge(buf []byte) *pool.Buffer {

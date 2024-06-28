@@ -1,7 +1,7 @@
 package nat
 
 import (
-	"context"
+	"errors"
 	"net"
 	"sync/atomic"
 	"time"
@@ -27,78 +27,38 @@ const (
 )
 
 type cacheKey struct {
-	Type cacheType
 	Addr string
-}
-
-type udpAddr struct {
-	addr *net.UDPAddr
-	netapi.Address
-}
-
-type dispatchAddr struct {
-	netapi.Address
-	skipFqdn any
-}
-
-func (u *udpAddr) UDPAddr(context.Context) netapi.Result[*net.UDPAddr] {
-	return netapi.NewResult(u.addr)
+	Type cacheType
 }
 
 type SourceTable struct {
 	dstPacketConn net.PacketConn
-
-	addrStore syncmap.SyncMap[cacheKey, netapi.Address]
-	sf        singleflight.Group[string, *net.UDPAddr]
-	writeBack atomic.Pointer[netapi.WriteBack]
+	sf            singleflight.GroupSync[string, *net.UDPAddr]
+	writeBack     netapi.WriteBack
+	addrStore     syncmap.SyncMap[cacheKey, net.Addr]
+	skipResolve   bool
+	migrateID     uint64
+	connected     atomic.Bool
+	stopTimer     *time.Timer
 }
 
-func (s *SourceTable) StoreUDPAddr(key string, addr *net.UDPAddr) {
-	s.addrStore.Store(cacheKey{cacheTypeUDPAddr, key},
-		&udpAddr{addr: addr, Address: netapi.EmptyAddr})
-}
-
-func (s *SourceTable) LoadUDPAddr(key string) (*net.UDPAddr, bool) {
-	addr, ok := s.addrStore.Load(cacheKey{cacheTypeUDPAddr, key})
+func loadSourceTableAddr[T net.Addr](s *SourceTable, t cacheType, key string) (T, bool) {
+	addr, ok := s.addrStore.Load(cacheKey{key, t})
 	if !ok {
-		return nil, false
+		return *new(T), false
 	}
-	x, ok := addr.(*udpAddr)
+	x, ok := addr.(T)
 	if !ok {
-		return nil, false
+		return *new(T), false
 	}
-
-	return x.addr, true
+	return x, true
 }
 
-func (s *SourceTable) StoreDispatchAddr(key string, addr netapi.Address, skipFqdn any) {
-	s.addrStore.Store(cacheKey{cacheTypeDispatch, key},
-		&dispatchAddr{Address: addr, skipFqdn: skipFqdn})
+func (s *SourceTable) storeAddr(t cacheType, key string, addr net.Addr) {
+	s.addrStore.Store(cacheKey{key, t}, addr)
 }
 
-func (s *SourceTable) LoadDispatchAddr(key string) (netapi.Address, any, bool) {
-	addr, ok := s.addrStore.Load(cacheKey{cacheTypeDispatch, key})
-	if !ok {
-		return netapi.EmptyAddr, false, false
-	}
-
-	x, ok := addr.(*dispatchAddr)
-	if !ok {
-		return netapi.EmptyAddr, false, false
-	}
-
-	return x.Address, x.skipFqdn, true
-}
-
-func (s *SourceTable) StoreOriginAddr(key string, addr netapi.Address) {
-	s.addrStore.Store(cacheKey{cacheTypeOrigin, key}, addr)
-}
-
-func (s *SourceTable) LoadOriginAddr(key string) (netapi.Address, bool) {
-	return s.addrStore.Load(cacheKey{cacheTypeOrigin, key})
-}
-
-func (s *SourceTable) runWriteBack(bc chan backPacket) error {
+func (s *SourceTable) runWriteBack(bc chan backPacket) {
 	for pkt := range bc {
 		faddr, err := netapi.ParseSysAddr(pkt.from)
 		if err != nil {
@@ -107,23 +67,25 @@ func (s *SourceTable) runWriteBack(bc chan backPacket) error {
 			continue
 		}
 
-		if addr, ok := s.LoadOriginAddr(faddr.String()); ok {
+		if addr, ok := loadSourceTableAddr[netapi.Address](s, cacheTypeOrigin, faddr.String()); ok {
 			// TODO: maybe two dst(fake ip) have same uaddr, need help
 			pkt.from = addr
 			// log.Info("map addr", "src", faddr, "dst", addr, "len", n)
 		}
 
 		// write back to client with source address
-		_, err = (*s.writeBack.Load())(pkt.buf, pkt.from)
+		_, err = s.writeBack(pkt.buf, pkt.from)
 		if err != nil {
 			pool.PutBytes(pkt.buf)
-			return err
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			log.Error("write back failed", "err", err)
+			continue
 		}
 
 		pool.PutBytes(pkt.buf)
 	}
-
-	return nil
 }
 
 func (t *SourceTable) mapAddr(src net.Addr, dst netapi.Address) {
@@ -134,7 +96,7 @@ func (t *SourceTable) mapAddr(src net.Addr, dst netapi.Address) {
 		return
 	}
 
-	t.StoreOriginAddr(srcStr, dst)
+	t.storeAddr(cacheTypeOrigin, srcStr, dst)
 }
 
 func (t *SourceTable) WriteTo(b []byte, addr net.Addr) (int, error) {

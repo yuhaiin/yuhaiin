@@ -15,11 +15,11 @@ var (
 
 type TCP struct {
 	listener  *net.TCPListener
-	address   tcpip.Address
-	addressV6 tcpip.Address
+	table     *tableSplit
 	portal    net.IP
 	portalv6  net.IP
-	table     *tableSplit
+	address   tcpip.Address
+	addressV6 tcpip.Address
 }
 
 type Conn struct {

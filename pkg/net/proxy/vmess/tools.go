@@ -13,10 +13,10 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 // copy from https://github.com/v2fly/v2ray-core/tree/054e6679830885c94cc37d27ab2aa96b5b37e019/proxy/vmess/aead
@@ -86,7 +86,7 @@ func NewCipherFromKey(cmdKey []byte) cipher.Block {
 }
 
 func SealVMessAEADHeader(key [16]byte, data []byte) []byte {
-	generatedAuthID := CreateAuthID(key[:], time.Now().Unix())
+	generatedAuthID := CreateAuthID(key[:], system.NowUnix())
 
 	connectionNonce := pool.GetBytes(8)
 	defer pool.PutBytes(connectionNonce)

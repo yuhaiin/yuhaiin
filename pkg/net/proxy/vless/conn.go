@@ -85,22 +85,22 @@ func (vc *Conn) sendRequest() error {
 	}
 
 	// Port AddrType Addr
-	_ = binary.Write(buf, binary.BigEndian, vc.dst.Port().Port())
+	_ = binary.Write(buf, binary.BigEndian, vc.dst.Port())
 
 	if vc.dst.IsFqdn() {
 		buf.WriteByte(AtypDomainName)
 		buf.WriteByte(byte(len(vc.dst.Hostname())))
 		buf.WriteString(vc.dst.Hostname())
 	} else {
-		addrPort := vc.dst.AddrPort(context.TODO()).V.Addr()
+		addrPort, _ := netapi.ResolverAddrPort(context.TODO(), vc.dst)
 
-		if addrPort.Is6() {
+		if addrPort.Addr().Is6() {
 			buf.WriteByte(AtypIPv6)
 		} else {
 			buf.WriteByte(AtypIPv4)
 		}
 
-		_, _ = buf.Write(addrPort.AsSlice())
+		_, _ = buf.Write(addrPort.Addr().AsSlice())
 	}
 
 	_, err := vc.Conn.Write(buf.Bytes())

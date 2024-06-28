@@ -6,8 +6,8 @@ type ac struct {
 
 type acNode struct {
 	fail *acNode
-	mark string
 	node map[rune]*acNode
+	mark string
 }
 
 func (a *ac) search(str string) []string {

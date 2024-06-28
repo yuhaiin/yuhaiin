@@ -18,11 +18,16 @@ func TestTCP(t *testing.T) {
 			Host:   "114.114.114.114",
 			Subnet: subnet,
 		},
+		"ali": {
+			Type:   dns.Type_tcp,
+			Host:   "223.5.5.5",
+			Subnet: subnet,
+		},
 	}
 
 	dns, err := New(configMap["114"])
 	assert.NoError(t, err)
 
-	t.Log(dns.LookupIP(context.TODO(), "baidu.com"))
-	t.Log(dns.LookupIP(context.TODO(), "google.com"))
+	t.Log(dns.LookupIP(context.TODO(), "www.baidu.com"))
+	t.Log(dns.LookupIP(context.TODO(), "www.google.com"))
 }

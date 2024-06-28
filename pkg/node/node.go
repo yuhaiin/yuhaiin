@@ -120,23 +120,23 @@ type latencyDialer struct {
 }
 
 func (w *latencyDialer) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
+	netctx := netapi.GetContext(ctx)
 	if w.ipv6 {
-		a.PreferIPv6(true)
+		netctx.Resolver.PreferIPv6 = true
 	} else {
-		a.PreferIPv4(true)
+		netctx.Resolver.PreferIPv4 = true
 	}
-
-	return w.Proxy.Conn(ctx, a)
+	return w.Proxy.Conn(netctx, a)
 }
 
 func (w *latencyDialer) PacketConn(ctx context.Context, a netapi.Address) (net.PacketConn, error) {
+	netctx := netapi.GetContext(ctx)
 	if w.ipv6 {
-		a.PreferIPv6(true)
+		netctx.Resolver.PreferIPv6 = true
 	} else {
-		a.PreferIPv4(true)
+		netctx.Resolver.PreferIPv4 = true
 	}
-
-	return w.Proxy.PacketConn(ctx, a)
+	return w.Proxy.PacketConn(netctx, a)
 }
 
 func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Response, error) {

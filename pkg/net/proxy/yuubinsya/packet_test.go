@@ -62,7 +62,6 @@ func TestENDcode(t *testing.T) {
 	}
 
 	wg.Wait()
-
 }
 
 func TestEncode(t *testing.T) {
@@ -132,7 +131,7 @@ func TestPacket(t *testing.T) {
 	assert.NoError(t, err)
 	defer client.Close()
 
-	cc := NewAuthPacketConn(client).WithTarget(lis.LocalAddr()).WithAuth(auth).WithPrefix(true)
+	cc := NewAuthPacketConn(client).WithRealTarget(lis.LocalAddr()).WithAuth(auth).WithSocks5Prefix(true)
 
 	go func() {
 		for {

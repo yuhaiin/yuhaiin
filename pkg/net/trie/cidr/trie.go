@@ -6,10 +6,10 @@ import (
 )
 
 type Trie[T any] struct {
-	last  bool
 	mark  T
 	left  *Trie[T] // 0
 	right *Trie[T] // 1
+	last  bool
 }
 
 // Insert insert node to tree

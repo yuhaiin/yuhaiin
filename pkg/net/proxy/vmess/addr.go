@@ -24,7 +24,8 @@ func (a address) Type() Atyp {
 		return AtypDomain
 	}
 
-	if a.AddrPort(context.Background()).V.Addr().Is6() {
+	addrPort, _ := netapi.ResolverAddrPort(context.Background(), a.Address)
+	if addrPort.Addr().Is6() {
 		return AtypIP6
 	}
 
@@ -32,10 +33,11 @@ func (a address) Type() Atyp {
 }
 
 func (a address) Bytes() []byte {
-
 	if a.IsFqdn() {
 		return append([]byte{byte(len(a.Hostname()))}, []byte(a.Hostname())...)
 	}
+	
+	addrPort, _ := netapi.ResolverAddrPort(context.Background(), a.Address)
 
-	return a.AddrPort(context.Background()).V.Addr().AsSlice()
+	return addrPort.Addr().AsSlice()
 }

@@ -14,11 +14,11 @@ import (
 
 type Grpc struct {
 	UnimplementedStreamServer
-	connChan chan *conn
-	id       id.IDGenerator
 
 	listener net.Listener
+	connChan chan *conn
 	Server   *grpc.Server
+	id       id.IDGenerator
 }
 
 func init() {

@@ -11,9 +11,10 @@ import (
 )
 
 type Lock struct {
+	lockFile *os.File
+
 	lockfile    string
 	payloadfile string
-	lockFile    *os.File
 
 	locked atomic.Bool
 }

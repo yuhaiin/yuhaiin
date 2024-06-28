@@ -39,6 +39,5 @@ func TestAddNode(t *testing.T) {
 	mg.DeleteNode("adada")
 
 	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.Manager)
-	// data2, _ := json.MarshalIndent(mg.Manager, "", " ")
 	t.Log(string(data))
 }

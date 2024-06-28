@@ -15,10 +15,11 @@ type Server struct {
 	net.Listener
 	net.PacketConn
 
+	host string
+	pmu  sync.Mutex
+	smu  sync.Mutex
+
 	control listener.TcpUdpControl
-	host    string
-	pmu     sync.Mutex
-	smu     sync.Mutex
 }
 
 func (s *Server) Close() error {

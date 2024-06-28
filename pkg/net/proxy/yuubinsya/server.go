@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -9,12 +10,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/crypto"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -98,34 +97,38 @@ func (y *server) handle(conn net.Conn) error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	net, err := y.handshaker.DecodeHeader(c)
+	header, err := y.handshaker.DecodeHeader(c)
 	if err != nil {
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
-	switch net {
+	switch header.Protocol {
 	case types.TCP:
-		target, err := tools.ResolveAddr(c)
-		if err != nil {
-			return fmt.Errorf("resolve addr failed: %w", err)
-		}
-		defer pool.PutBytes(target)
-
-		addr := target.Address(statistic.Type_tcp)
-
 		return y.SendStream(&netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
-			Destination: addr,
+			Destination: header.Addr,
 			Inbound:     c.LocalAddr(),
 			Src:         c,
-			Address:     addr,
+			Address:     header.Addr,
 		})
 
-	case types.UDP:
-		pc := newPacketConn(c, y.handshaker, true)
+	case types.UDP, types.UDPWithMigrateID:
+		if header.Protocol == types.UDPWithMigrateID {
+			if header.MigrateID == 0 {
+				header.MigrateID = nat.GenerateID(c.RemoteAddr())
+			}
+
+			err = binary.Write(c, binary.BigEndian, header.MigrateID)
+			if err != nil {
+				return fmt.Errorf("write migrate id failed: %w", err)
+			}
+		}
+
+		pc := newPacketConn(c, y.handshaker)
 		defer pc.Close()
 
-		log.Debug("new udp connect", "from", pc.RemoteAddr())
+		log.Debug("new udp connect", "from", c.RemoteAddr(), "migrate id", header.MigrateID)
+
 		buf := pool.GetBytes(nat.MaxSegmentSize)
 		defer pool.PutBytes(buf)
 
@@ -141,10 +144,11 @@ func (y *server) handle(conn net.Conn) error {
 			}
 
 			err = y.SendPacket(&netapi.Packet{
-				Src:       pc.RemoteAddr(),
+				Src:       c.RemoteAddr(),
 				Dst:       dst,
 				Payload:   buf[:n],
 				WriteBack: pc.WriteTo,
+				MigrateID: header.MigrateID,
 			})
 
 			if err != nil {

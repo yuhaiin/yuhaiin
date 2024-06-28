@@ -12,8 +12,9 @@ type CHmac interface {
 }
 
 type chmac struct {
-	opad, ipad   []byte
 	outer, inner hash.Hash
+
+	opad, ipad []byte
 
 	h crypto.Hash
 }

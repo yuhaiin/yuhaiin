@@ -3,7 +3,10 @@ package tun
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -30,6 +33,8 @@ func NewTun(o *listener.Inbound_Tun) func(netapi.Listener) (s netapi.Accepter, e
 		if err != nil {
 			return nil, err
 		}
+
+		sc.Name = checkTunName(sc)
 
 		opt := &tun.Opt{
 			Inbound_Tun: o,
@@ -95,4 +100,51 @@ func toPrefix(str string) (netip.Prefix, error) {
 	}
 
 	return netip.Prefix{}, fmt.Errorf("invalid IP address: %w", err)
+}
+
+func checkTunName(sc netlink.TunScheme) string {
+	if sc.Scheme != "tun" {
+		return sc.Name
+	}
+
+	ifces, err := net.Interfaces()
+	if err != nil {
+		return sc.Name
+	}
+
+	tunPrefix := "tun"
+	if runtime.GOOS == "windows" {
+		tunPrefix = "wintun"
+	} else if runtime.GOOS == "darwin" {
+		tunPrefix = "utun"
+
+		if !strings.HasPrefix(sc.Name, "utun") {
+			sc.Name = "utun0"
+		}
+	}
+
+	maxInt := -1
+	exist := false
+	for _, i := range ifces {
+		if i.Name == sc.Name {
+			exist = true
+		}
+
+		if !strings.HasPrefix(i.Name, tunPrefix) {
+			continue
+		}
+
+		n, err := strconv.Atoi(strings.TrimPrefix(i.Name, tunPrefix))
+		if err != nil {
+			continue
+		}
+		if n > maxInt {
+			maxInt = n
+		}
+	}
+
+	if exist {
+		sc.Name = fmt.Sprintf("%s%d", tunPrefix, maxInt+1)
+	}
+	return sc.Name
 }

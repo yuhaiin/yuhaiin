@@ -212,9 +212,7 @@ func (b *Buffer) Grow(n int) {
 
 func (b *Buffer) Advance(n int) {
 	wOff := b.grow(n)
-	for i := range n {
-		b.buf[wOff+i] = 0
-	}
+	clear(b.buf[wOff : wOff+n])
 }
 
 // Next is an alternative to `Read` that returns a byte slice instead of taking
@@ -318,3 +316,6 @@ func (b *Buffer) shrink() {
 		b.buf = newBuf[:l]
 	}
 }
+
+// just for impl WriteCloser
+func (b *Buffer) Close() error { return nil }

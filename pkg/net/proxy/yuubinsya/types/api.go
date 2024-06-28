@@ -10,14 +10,21 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
+type Header struct {
+	Protocol  Protocol
+	MigrateID uint64
+	Addr      netapi.Address
+}
+
 type Protocol byte
 
 var (
-	TCP Protocol = 66
-	UDP Protocol = 77
+	TCP              Protocol = 66
+	UDP              Protocol = 77
+	UDPWithMigrateID Protocol = 78
 )
 
-func (n Protocol) Unknown() bool { return n != TCP && n != UDP }
+func (n Protocol) Unknown() bool { return n != TCP && n != UDP && n != UDPWithMigrateID }
 
 type Buffer interface {
 	Len() int
@@ -34,8 +41,8 @@ type PacketBuffer interface {
 
 type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
-	EncodeHeader(Protocol, Buffer, netapi.Address)
-	DecodeHeader(net.Conn) (Protocol, error)
+	EncodeHeader(Header, Buffer)
+	DecodeHeader(net.Conn) (Header, error)
 }
 
 type Hash interface {
