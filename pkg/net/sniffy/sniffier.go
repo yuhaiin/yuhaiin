@@ -10,8 +10,8 @@ import (
 )
 
 type entry[T any] struct {
-	name    string
 	checker func([]byte) (T, bool)
+	name    string
 }
 
 type Sniffier[T any] struct {

@@ -4,6 +4,7 @@
 package sysproxy
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -61,13 +62,37 @@ func gnomeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 	return nil
 }
 
+func getKwriteconfig5() (string, error) {
+	var kwriteconfig5 string
+	var err error
+	for _, v := range []string{
+		"kwriteconfig6",
+		"kwriteconfig5",
+	} {
+		var er error
+		kwriteconfig5, er = exec.LookPath(v)
+		if er != nil {
+			err = errors.Join(err, er)
+			continue
+		}
+
+		break
+	}
+
+	if kwriteconfig5 == "" {
+		return "", err
+	}
+
+	return kwriteconfig5, nil
+}
+
 func kdeSetSysProxy(httpH, httpP, socks5H, socks5P string) error {
 	// KDE
 	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
 		return nil
 	}
 
-	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
+	kwriteconfig5, err := getKwriteconfig5()
 	if err != nil {
 		return nil
 	}
@@ -125,7 +150,8 @@ func kdeUnsetSysProxy() error {
 	if os.Getenv("XDG_SESSION_DESKTOP") != "KDE" {
 		return nil
 	}
-	kwriteconfig5, err := exec.LookPath("kwriteconfig5")
+
+	kwriteconfig5, err := getKwriteconfig5()
 	if err != nil {
 		return nil
 	}

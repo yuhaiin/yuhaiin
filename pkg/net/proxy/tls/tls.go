@@ -15,8 +15,9 @@ import (
 type Tls struct {
 	netapi.EmptyDispatch
 
+	dialer netapi.Proxy
+
 	tlsConfig []*tls.Config
-	dialer    netapi.Proxy
 }
 
 func init() {

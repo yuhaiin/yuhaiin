@@ -21,11 +21,11 @@ type call struct {
 }
 
 type UDP struct {
-	mtu     int32
 	device  netlink.Tun
 	ctx     context.Context
 	cancel  context.CancelFunc
 	channel chan *call
+	mtu     int32
 }
 
 func NewUDPv2(mtu int32, device netlink.Tun) *UDP {

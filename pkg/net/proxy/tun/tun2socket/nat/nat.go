@@ -20,16 +20,17 @@ type Nat struct {
 	*TCP
 	*UDP
 
-	address     tcpip.Address
-	portal      tcpip.Address
-	addressV6   tcpip.Address
-	portalV6    tcpip.Address
-	gatewayPort uint16
-	mtu         int32
-
 	tab *tableSplit
 
 	postDown func()
+
+	address   tcpip.Address
+	portal    tcpip.Address
+	addressV6 tcpip.Address
+	portalV6  tcpip.Address
+	mtu       int32
+
+	gatewayPort uint16
 }
 
 func Start(opt *tun.Opt) (*Nat, error) {

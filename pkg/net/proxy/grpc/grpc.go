@@ -27,17 +27,17 @@ var _ net.Conn = (*conn)(nil)
 type conn struct {
 	raw stream_conn
 
-	buf  *bytes.Reader
-	rmux sync.Mutex
-
 	raddr net.Addr
 	laddr net.Addr
 
-	mu     sync.Mutex
-	closed bool
-	close  context.CancelFunc
+	buf   *bytes.Reader
+	close context.CancelFunc
 
 	deadline *deadline.PipeDeadline
+	rmux     sync.Mutex
+
+	mu     sync.Mutex
+	closed bool
 }
 
 func newConn(raw stream_conn, laddr, raddr net.Addr, close context.CancelFunc) *conn {

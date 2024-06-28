@@ -32,13 +32,13 @@ var (
 
 type eDNSHeader struct {
 	DnsHeader   []byte
-	Name        [1]byte
+	Data        []byte
 	Type        [2]byte
 	PayloadSize [2]byte
+	Z           [2]byte
+	Name        [1]byte
 	ExtendRCode [1]byte
 	EDNSVersion [1]byte
-	Z           [2]byte
-	Data        []byte
 }
 
 func createEDNSRequ(header eDNSHeader) []byte {

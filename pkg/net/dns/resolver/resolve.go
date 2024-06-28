@@ -66,20 +66,20 @@ func creatRequest(domain string, reqType reqType, arCount bool) []byte {
 }
 
 type respHeader struct {
+	name     string
 	qdCount  int
 	anCount  int
 	nsCount  int
 	arCount  int
 	dnsType  reqType
 	isAnswer bool
-	name     string
 }
 
 type resolver struct {
-	i       int
 	request []byte
 	aswer   []byte
 	h       respHeader
+	i       int
 }
 
 func Resolve(req, answer []byte) (resp []net.IP, err error) {
@@ -431,8 +431,8 @@ func getName(c []byte, all []byte) (name string, size int, x []byte) {
 }
 
 type reader struct {
-	raw []byte
 	r   *bytes.Buffer
+	raw []byte
 }
 
 func newReader(raw []byte) *reader {

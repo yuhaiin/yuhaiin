@@ -13,40 +13,43 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func Dial(host, port, user, password string) netapi.Proxy {
-	addr, err := netapi.ParseAddress(statistic.Type_tcp, net.JoinHostPort(host, port))
+	addr, err := netapi.ParseAddress("tcp", net.JoinHostPort(host, port))
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
+	simple, err := simple.NewClient(&protocol.Protocol_Simple{
+		Simple: &protocol.Simple{
+			Host: addr.Hostname(),
+			Port: int32(addr.Port()),
+		},
+	})(nil)
+	if err != nil {
+		return netapi.NewErrProxy(err)
+	}
+
 	p, _ := NewClient(&protocol.Protocol_Socks5{
 		Socks5: &protocol.Socks5{
 			Hostname: host,
 			User:     user,
 			Password: password,
-		}})(yerror.Must(simple.NewClient(&protocol.Protocol_Simple{
-		Simple: &protocol.Simple{
-			Host: addr.Hostname(),
-			Port: int32(addr.Port().Port()),
-		},
-	})(nil)))
+		}})(simple)
 	return p
 }
 
 // https://tools.ietf.org/html/rfc1928
 // Client socks5 Client
 type Client struct {
+	netapi.EmptyDispatch
+	dialer   netapi.Proxy
 	username string
 	password string
 
 	hostname string
-	netapi.EmptyDispatch
-	dialer netapi.Proxy
 }
 
 func init() {
@@ -165,10 +168,10 @@ func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, a
 	}
 	defer pool.PutBytes(add)
 
-	addr := add.Address(statistic.Type_tcp)
+	addr := add.Address("tcp")
 
-	if addr.Type() == netapi.IP && yerror.Must(addr.IP(ctx)).IsUnspecified() {
-		addr = netapi.ParseAddressPort(statistic.Type_tcp, s.hostname, addr.Port())
+	if !addr.IsFqdn() && addr.(netapi.IPAddress).IP().IsUnspecified() {
+		addr = netapi.ParseAddressPort("tcp", s.hostname, uint16(addr.Port()))
 	}
 
 	return addr, nil

@@ -57,9 +57,9 @@ func NewClient(config *protocol.Protocol_Http2) point.WrapProxy {
 }
 
 type entry struct {
-	mu   sync.Mutex
 	raw  net.Conn
 	conn *http2.ClientConn
+	mu   sync.Mutex
 }
 
 type clientConnPool struct {

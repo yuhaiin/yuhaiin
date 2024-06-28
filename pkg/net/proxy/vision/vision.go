@@ -55,28 +55,29 @@ const xrayChunkSize = 8192
 
 type VisionConn struct {
 	net.Conn
-	reader   *bufio.Reader
-	writer   net.Conn
-	input    *bytes.Reader
-	rawInput *bytes.Buffer
-	netConn  net.Conn
+	writer  net.Conn
+	netConn net.Conn
 
-	userUUID               [16]byte
-	isTLS                  bool
+	remainingReader        io.Reader
+	reader                 *bufio.Reader
+	input                  *bytes.Reader
+	rawInput               *bytes.Buffer
 	numberOfPacketToFilter int
-	isTLS12orAbove         bool
-	remainingServerHello   int32
-	cipher                 uint16
-	enableXTLS             bool
-	isPadding              bool
-	directWrite            bool
-	writeUUID              bool
-	withinPaddingBuffers   bool
 	remainingContent       int
 	remainingPadding       int
-	currentCommand         byte
-	directRead             bool
-	remainingReader        io.Reader
+	remainingServerHello   int32
+	cipher                 uint16
+
+	userUUID             [16]byte
+	isTLS                bool
+	isTLS12orAbove       bool
+	enableXTLS           bool
+	isPadding            bool
+	directWrite          bool
+	writeUUID            bool
+	withinPaddingBuffers bool
+	currentCommand       byte
+	directRead           bool
 }
 
 func NewVisionConn(conn net.Conn, tlsConn net.Conn, userUUID [16]byte) (*VisionConn, error) {

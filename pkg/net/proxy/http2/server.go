@@ -22,13 +22,13 @@ import (
 
 type Server struct {
 	listener  net.Listener
-	id        id.IDGenerator
 	closedCtx context.Context
 	close     context.CancelFunc
 
 	connChan chan net.Conn
 
 	conns syncmap.SyncMap[string, net.Conn]
+	id    id.IDGenerator
 }
 
 func init() {
@@ -134,12 +134,11 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fw := newFlushWriter(w)
 
 	conn := &http2Conn{
-		true,
-		nil,
 		fw,
 		r.Body,
 		h.Addr(),
 		&addr{r.RemoteAddr, h.id.Generate()},
+		nil,
 		deadline.NewPipe(
 			// deadline.WithReadClose(func() {
 			// _ = r.Body.Close()
@@ -148,6 +147,7 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				_ = fw.Close()
 			}),
 		),
+		true,
 	}
 	defer conn.Close()
 
@@ -210,17 +210,16 @@ func (fw *flushWriter) Close() error {
 }
 
 type http2Conn struct {
-	server bool
-
-	piper *io.PipeReader
-
 	pipew io.WriteCloser
 	r     io.ReadCloser
 
 	localAddr  net.Addr
 	remoteAddr net.Addr
 
+	piper *io.PipeReader
+
 	deadline *deadline.PipeDeadline
+	server   bool
 }
 
 func (h *http2Conn) Read(b []byte) (int, error) {

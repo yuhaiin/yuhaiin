@@ -36,8 +36,8 @@ func hkdfSHA1(secret, salt, info, outkey []byte) {
 }
 
 type metaCipher struct {
-	psk      []byte
 	makeAEAD func(key []byte) (cipher.AEAD, error)
+	psk      []byte
 }
 
 func (a *metaCipher) KeySize() int { return len(a.psk) }

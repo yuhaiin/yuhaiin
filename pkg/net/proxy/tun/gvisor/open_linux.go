@@ -43,10 +43,10 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 
 type wrapGsoDevice struct {
 	wun.Device
-	mtu int
-
-	w        sync.Mutex
 	wbuffers [][]byte
+	mtu      int
+
+	w sync.Mutex
 }
 
 func newWrapGsoDevice(device wun.Device) *wrapGsoDevice {

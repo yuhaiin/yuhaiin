@@ -17,9 +17,9 @@ import (
 
 // Shadowsocks shadowsocks
 type Shadowsocks struct {
+	netapi.EmptyDispatch
 	cipher core.Cipher
 	p      netapi.Proxy
-	netapi.EmptyDispatch
 }
 
 func init() {

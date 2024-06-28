@@ -13,29 +13,29 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	web "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/version"
-	"github.com/Asutorufa/yuhaiin/pkg/components/config"
-	"github.com/Asutorufa/yuhaiin/pkg/components/inbound"
-	"github.com/Asutorufa/yuhaiin/pkg/components/resolver"
-	"github.com/Asutorufa/yuhaiin/pkg/components/route"
-	"github.com/Asutorufa/yuhaiin/pkg/components/statistics"
-	"github.com/Asutorufa/yuhaiin/pkg/components/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/config"
+	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/route"
+	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
+	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"go.etcd.io/bbolt"
 
-	_ "github.com/Asutorufa/yuhaiin/pkg/net/mux"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http2"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mux"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
@@ -120,17 +120,18 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	st := AddComponent(so, "shunt", route.NewRoute(node.Outbound(), dns, opt.ProcessDumper))
 	node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
-	stcs := AddComponent(so, "statistic", statistics.NewConnStore(cache.NewCache(db, "flow_data"), st))
+
+	flowCache := AddComponent(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
+	stcs := AddComponent(so, "statistic", statistics.NewConnStore(flowCache, st))
 	hosts := AddComponent(so, "hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
-	fakedns := AddComponent(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, cache.NewCache(db, "fakedns_cache"), cache.NewCache(db, "fakedns_cachev6")))
+	fakedns := AddComponent(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(so, "dnsServer", resolver.NewDNSServer(fakedns))
 	// make dns flow across all proxy chain
 	dynamicProxy.Set(fakedns)
 	// inbound server
-	_ = AddComponent(so, "inbound_listener",
-		inbound.NewListener(dnsServer, fakedns))
+	_ = AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
 	tools := tools.NewTools(fakedns, opt.Setting, st.Update)
 	mux := http.NewServeMux()

@@ -29,10 +29,10 @@ const (
 
 // DstAddr store destination address
 type DstAddr struct {
-	UDP      bool
-	AddrType byte
 	Addr     []byte
 	Port     uint
+	UDP      bool
+	AddrType byte
 }
 
 // Client is vless connection generator

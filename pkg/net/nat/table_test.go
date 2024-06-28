@@ -5,16 +5,13 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/netip"
 	"runtime"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func TestTable(t *testing.T) {
@@ -39,8 +36,8 @@ func TestTable(t *testing.T) {
 		ctx := context.Background()
 		ctx = netapi.WithContext(ctx)
 		err := table.Write(ctx, &netapi.Packet{
-			Src:     netapi.ParseAddressPort(statistic.Type_tcp, v, netapi.ParsePort(80)),
-			Dst:     netapi.ParseAddressPort(statistic.Type_tcp, v, netapi.ParsePort(80)),
+			Src:     netapi.ParseAddressPort("tcp", v, 80),
+			Dst:     netapi.ParseAddressPort("tcp", v, 80),
 			Payload: []byte("test"),
 			WriteBack: func(b []byte, addr net.Addr) (int, error) {
 				assert.Equal(t, addr.String(), net.JoinHostPort(v, "80"))
@@ -63,11 +60,24 @@ func (testProxy) Conn(context.Context, netapi.Address) (net.Conn, error) {
 	return nil, errors.ErrUnsupported
 }
 
-func (t *testProxy) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
+func (t *testProxy) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	var ip bool = true
 	if addr.Hostname() == "www.google.com" || addr.Hostname() == "10.0.0.2" {
 		ip = false
 	}
+
+	x, ok := t.addrMap[addr.Hostname()]
+	if ok {
+		store := netapi.GetContext(ctx)
+
+		if x == "www.google.com" {
+			store.Resolver.SkipResolve = true
+			store.FakeIP = addr
+			addr = netapi.ParseAddressPort(addr.Network(), x, addr.Port())
+			store.Current = addr
+		}
+	}
+
 	return &testPacketConn{saddr: netapi.EmptyAddr, t: t.t, ip: ip}, nil
 }
 
@@ -84,10 +94,11 @@ func (t *testProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.A
 	store := netapi.GetContext(ctx)
 
 	if x == "www.google.com" {
-		store.SkipResolve = true
+		store.Resolver.SkipResolve = true
+		addr = netapi.ParseAddressPort(addr.Network(), x, addr.Port())
 	}
 
-	return addr.OverrideHostname(x), nil
+	return netapi.ParseAddressPort(addr.Network(), x, addr.Port()), nil
 }
 
 type testPacketConn struct {
@@ -112,8 +123,7 @@ func (t *testPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 
 	t.read = true
 	if !t.saddr.IsFqdn() {
-		addr = netapi.ParseAddrPort(t.saddr.NetworkType(),
-			netip.AddrPortFrom(yerror.IgnoreAny(netip.AddrFromSlice(yerror.Ignore(t.saddr.IP(context.TODO())).To16())), 80))
+		addr = netapi.ParseIPAddrPort(t.saddr.Network(), t.saddr.(netapi.IPAddress).IP().To16(), 80)
 	}
 
 	t.t.Log(addr.String())

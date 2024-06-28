@@ -9,7 +9,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 )
 
 func init() {
@@ -46,14 +45,14 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
 
-	if ip, err := target.IP(context.TODO()); err == nil && ip.Equal(t.lisAddr.IP) && target.Port().Port() == uint16(t.lisAddr.Port) {
+	if ip, err := netapi.ResolverIP(context.TODO(), target); err == nil && ip.Equal(t.lisAddr.IP) && int(target.Port()) == t.lisAddr.Port {
 		return fmt.Errorf("local addr and remote addr are same")
 	}
 
 	return t.SendStream(&netapi.StreamMeta{
 		Source:      c.RemoteAddr(),
 		Destination: c.LocalAddr(),
-		Inbound:     netapi.ParseIPAddrPort(statistic.Type_tcp, t.lisAddr.IP, t.lisAddr.Port),
+		Inbound:     netapi.ParseIPAddrPort("tcp", t.lisAddr.IP, uint16(t.lisAddr.Port)),
 		Src:         c,
 		Address:     target,
 	})

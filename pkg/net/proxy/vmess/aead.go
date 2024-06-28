@@ -15,9 +15,9 @@ type aeadWriter struct {
 	io.Writer
 	cipher.AEAD
 	nonce []byte
-	buf   [lenSize + maxChunkSize]byte
-	count uint16
 	iv    []byte
+	count uint16
+	buf   [lenSize + maxChunkSize]byte
 }
 
 // AEADWriter returns a aead writer
@@ -79,10 +79,10 @@ var _ io.ReadCloser = &aeadReader{}
 type aeadReader struct {
 	io.Reader
 	cipher.AEAD
-	count uint16
-	iv    []byte
+	iv []byte
 
 	decrypted bytes.Buffer
+	count     uint16
 }
 
 // AEADReader returns a aead reader

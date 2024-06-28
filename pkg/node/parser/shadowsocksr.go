@@ -13,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/yerror"
 )
 
 func init() {
@@ -46,9 +45,13 @@ func init() {
 			log.Warn("parse shadowsocksr password failed", "err", err)
 		}
 
+		name, _ := base64.RawURLEncoding.DecodeString(query.Get("remarks"))
+
+		obfsparam, _ := base64.RawURLEncoding.DecodeString(query.Get("obfsparam"))
+		protoparam, _ := base64.RawURLEncoding.DecodeString(query.Get("protoparam"))
 		return &point.Point{
 			Origin: point.Origin_remote,
-			Name:   "[ssr]" + string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("remarks")))),
+			Name:   "[ssr]" + string(name),
 			Protocols: []*protocol.Protocol{
 				{
 					Protocol: &protocol.Protocol_Simple{
@@ -67,8 +70,8 @@ func init() {
 							Method:     x[3],
 							Obfs:       x[4],
 							Password:   string(password),
-							Obfsparam:  string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("obfsparam")))),
-							Protoparam: string(yerror.Ignore(base64.RawURLEncoding.DecodeString(query.Get("protoparam")))),
+							Obfsparam:  string(obfsparam),
+							Protoparam: string(protoparam),
 						},
 					},
 				},

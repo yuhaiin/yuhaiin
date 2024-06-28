@@ -60,3 +60,11 @@ func (a *SyncMap[T1, T2]) Swap(x T1, b T2) (T2, bool) {
 
 	return *new(T2), false
 }
+
+func (a *SyncMap[T1, T2]) CompareAndSwap(key T1, old T2, new T2) (swapped bool) {
+	return a.data.CompareAndSwap(key, old, new)
+}
+
+func (a *SyncMap[T1, T2]) CompareAndDelete(key T1, old T2) (deleted bool) {
+	return a.data.CompareAndDelete(key, old)
+}

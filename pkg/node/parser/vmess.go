@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,7 +13,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
-	"github.com/go-json-experiment/json"
 )
 
 func init() {
@@ -24,14 +24,15 @@ func init() {
 		//             2NjYy1kZGRkLWFhYS00NmExYWFhYWFhIiwiY2xhc3MiOjF9Cg
 
 		n := struct {
+			Port any `json:"port,omitempty"`
+			// alter id
+			AlterId any `json:"aid,omitempty"`
+
 			// address
 			Address string `json:"add,omitempty"`
-			Port    any    `json:"port,omitempty"`
 			// uuid
 			Uuid     string `json:"id,omitempty"`
 			Security string `json:"security,omitempty"`
-			// alter id
-			AlterId any `json:"aid,omitempty"`
 
 			// name
 			Ps     string `json:"ps,omitempty"`
@@ -44,9 +45,8 @@ func init() {
 			Type       string `json:"type,omitempty"`
 			HeaderType string `json:"headerType,omitempty"`
 
-			Tls        string `json:"tls,omitempty"`
-			Sni        string `json:"sni,omitempty"`
-			VerifyCert bool   `json:"verify_cert,omitempty"`
+			Tls string `json:"tls,omitempty"`
+			Sni string `json:"sni,omitempty"`
 
 			// 1)http host(cut up with (,) )
 			// 2)ws host
@@ -58,8 +58,9 @@ func init() {
 			// 3)QUIC key/Kcp seed
 			Path string `json:"path,omitempty"`
 
-			V     string `json:"v,omitempty"`
-			Class int64  `json:"class,omitempty"`
+			V          string `json:"v,omitempty"`
+			Class      int64  `json:"class,omitempty"`
+			VerifyCert bool   `json:"verify_cert,omitempty"`
 		}{}
 
 		data = bytes.TrimRight(bytes.TrimSpace(bytes.TrimPrefix(data, []byte("vmess://"))), "=")

@@ -2,13 +2,11 @@ package dns
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-
-	"github.com/go-json-experiment/json"
-	"github.com/go-json-experiment/json/jsontext"
 )
 
 /*
@@ -71,15 +69,15 @@ import (
 */
 
 type DOHJson struct {
+	EdnsClientSubnet string     `json:"edns_client_subnet"`
+	Question         []Question `json:"Question"`
+	Answer           []Answer   `json:"Answer"`
 	Status           int        `json:"status"`
 	TC               bool       `json:"TC"`
 	RD               bool       `json:"RD"`
 	RA               bool       `json:"RA"`
 	AD               bool       `json:"AD"`
 	CD               bool       `json:"CD"`
-	Question         []Question `json:"Question"`
-	Answer           []Answer   `json:"Answer"`
-	EdnsClientSubnet string     `json:"edns_client_subnet"`
 }
 type Question struct {
 	Name string `json:"name"`
@@ -87,10 +85,10 @@ type Question struct {
 }
 type Answer struct {
 	Name    string `json:"name"`
-	Type    int    `json:"type"`
-	TTL     int    `json:"TTL"`
 	Expires string `json:"Expires"`
 	Data    string `json:"data"`
+	Type    int    `json:"type"`
+	TTL     int    `json:"TTL"`
 }
 
 func DOHJsonAPI(DNSServer, domain string, proxy func(ctx context.Context, network, addr string) (net.Conn, error)) (DNS *DOHJson, err error) {
@@ -112,7 +110,7 @@ func DOHJsonAPI(DNSServer, domain string, proxy func(ctx context.Context, networ
 	}
 
 	doh := &DOHJson{}
-	err = json.UnmarshalDecode(jsontext.NewDecoder(res.Body), doh)
+	err = json.NewDecoder(res.Body).Decode(doh)
 	if err != nil {
 		return nil, err
 	}
