@@ -13,7 +13,7 @@ require (
 	github.com/yuhaiin/kitte v0.0.0-20240630081949-913c90f07b81
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240621164846-819a494a93dc
 	go.etcd.io/bbolt v1.3.10
-	golang.org/x/crypto v0.24.0
+	golang.org/x/crypto v0.25.0
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	golang.org/x/mobile v0.0.0-20240604190613-2782386b8afd
 	golang.org/x/net v0.26.0
