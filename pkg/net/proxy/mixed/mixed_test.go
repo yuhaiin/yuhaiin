@@ -7,6 +7,6 @@ import (
 )
 
 func TestNoneClose(t *testing.T) {
-	var x *netapi.ChannelListener
+	var x *netapi.ChannelStreamListener
 	noneNilClose(x)
 }

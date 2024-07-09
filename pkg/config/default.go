@@ -99,6 +99,9 @@ func defaultSetting(path string) *config.Setting {
 		Server: &listener.InboundConfig{
 			HijackDns:       true,
 			HijackDnsFakeip: true,
+			Sniff: &listener.Sniff{
+				Enabled: true,
+			},
 			Inbounds: map[string]*listener.Inbound{
 				"mixed": {
 					Name:    "mixed",

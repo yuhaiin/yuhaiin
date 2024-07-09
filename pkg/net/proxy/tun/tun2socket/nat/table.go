@@ -53,7 +53,7 @@ type table struct {
 
 func newTableBase() *table {
 	return &table{
-		lru: lru.NewSyncReverseLru(lru.WithCapacityv2[Tuple, uint16](math.MaxUint16 - 10001)),
+		lru: lru.NewSyncReverseLru(lru.WithCapacity[Tuple, uint16](math.MaxUint16 - 10001)),
 	}
 }
 

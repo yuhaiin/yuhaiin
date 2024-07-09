@@ -123,7 +123,7 @@ func (l *listener) udp() {
 func (l *listener) Update(current *pc.Setting) {
 	// l.hijackDNS = current.Server.HijackDns
 	l.fakeip = current.Server.HijackDnsFakeip
-	// l.handler.sniffyEnabled = current.GetBypass().GetSniffy()
+	l.handler.sniffyEnabled = current.GetServer().GetSniff().GetEnabled()
 
 	l.store.Range(func(key key, v entry) bool {
 		var z interface{ GetEnabled() bool }

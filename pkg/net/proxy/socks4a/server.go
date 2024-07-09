@@ -23,7 +23,7 @@ const (
 type Server struct {
 	lis net.Listener
 
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 	usernameID string
 }
 
@@ -107,7 +107,7 @@ func readData(conn net.Conn) ([]byte, error) {
 }
 
 func (s *Server) Close() error {
-	s.ChannelServer.Close()
+	s.ChannelAccepter.Close()
 
 	if s.lis != nil {
 		return s.lis.Close()
@@ -154,9 +154,9 @@ func NewServer(o *listener.Inbound_Socks4A) func(netapi.Listener) (netapi.Accept
 		}
 
 		s := &Server{
-			usernameID:    o.Socks4A.Username,
-			lis:           lis,
-			ChannelServer: netapi.NewChannelServer(),
+			usernameID:      o.Socks4A.Username,
+			lis:             lis,
+			ChannelAccepter: netapi.NewChannelAccepter(),
 		}
 
 		go s.Server()

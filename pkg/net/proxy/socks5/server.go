@@ -257,7 +257,7 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 type Server struct {
 	lis netapi.Listener
 
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 	username string
 	password string
 
@@ -265,7 +265,7 @@ type Server struct {
 }
 
 func (s *Server) Close() error {
-	s.ChannelServer.Close()
+	s.ChannelAccepter.Close()
 	return s.lis.Close()
 }
 
@@ -276,11 +276,11 @@ func init() {
 func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener) (netapi.Accepter, error) {
 	return func(ii netapi.Listener) (netapi.Accepter, error) {
 		s := &Server{
-			udp:           o.Socks5.Udp,
-			username:      o.Socks5.Username,
-			password:      o.Socks5.Password,
-			lis:           ii,
-			ChannelServer: netapi.NewChannelServer(),
+			udp:             o.Socks5.Udp,
+			username:        o.Socks5.Username,
+			password:        o.Socks5.Password,
+			lis:             ii,
+			ChannelAccepter: netapi.NewChannelAccepter(),
 		}
 
 		if s.udp {

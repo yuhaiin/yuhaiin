@@ -339,8 +339,8 @@ func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
 	}
 
 	z.LRU = lru.NewSyncReverseLru(
-		lru.WithCapacityv2[string, netip.Addr](size),
-		lru.WithOnRemovev2(func(s string, v netip.Addr) {
+		lru.WithCapacity[string, netip.Addr](size),
+		lru.WithOnRemove(func(s string, v netip.Addr) {
 			cache.Delete([]byte(s), v.AsSlice())
 		}),
 	)

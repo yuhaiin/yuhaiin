@@ -7,7 +7,7 @@ import (
 )
 
 func TestLru(t *testing.T) {
-	l := New(WithCapacity[string, string](4))
+	l := NewSyncReverseLru(WithCapacity[string, string](4))
 
 	l.Add("a", "a")
 	l.Add("b", "b")
@@ -41,7 +41,7 @@ func TestLru(t *testing.T) {
 }
 
 func BenchmarkNewLru(b *testing.B) {
-	l := New[string, string]()
+	l := NewSyncReverseLru[string, string]()
 
 	l.Add("a", "a")
 	l.Add("b", "b")

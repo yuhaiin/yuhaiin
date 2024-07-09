@@ -53,7 +53,7 @@ func (d *DynamicProxy) Set(p Proxy) {
 
 func NewDynamicProxy(p Proxy) *DynamicProxy { return &DynamicProxy{p: p} }
 
-var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacityv2[string, net.IP](512))
+var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[string, net.IP](512))
 
 func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
 	if !addr.IsFqdn() {

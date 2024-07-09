@@ -13,7 +13,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -70,7 +69,7 @@ type client struct {
 
 func NewClient(config Config, do func(context.Context, *request) ([]byte, error)) *client {
 	var rh dnsmessage.ResourceHeader
-	_ = rh.SetEDNS0(nat.MaxSegmentSize, dnsmessage.RCodeSuccess, false)
+	_ = rh.SetEDNS0(8192, dnsmessage.RCodeSuccess, false)
 
 	optrbody := &dnsmessage.OPTResource{}
 	if config.Subnet.IsValid() {
@@ -104,7 +103,7 @@ func NewClient(config Config, do func(context.Context, *request) ([]byte, error)
 	return &client{
 		do:       do,
 		config:   config,
-		rawStore: lru.NewSyncLru(lru.WithCapacityv2[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache)),
+		rawStore: lru.NewSyncLru(lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache)),
 		edns0: dnsmessage.Resource{
 			Header: rh,
 			Body:   optrbody,
@@ -181,7 +180,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 			Additionals: []dnsmessage.Resource{c.edns0},
 		}
 
-		buf := pool.GetBytes(nat.MaxSegmentSize)
+		buf := pool.GetBytes(8192)
 		defer pool.PutBytes(buf)
 
 		bytes, err := reqMsg.AppendPack(buf[:0])
@@ -236,7 +235,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 
 		if ttl > 1 {
 			c.rawStore.Add(req, msg,
-				lru.WithExpireTimeUnix(time.Now().Add(time.Duration(ttl)*time.Second)))
+				lru.WithExpireTime[dnsmessage.Question, dnsmessage.Message](time.Now().Add(time.Duration(ttl)*time.Second)))
 		}
 
 		return msg, nil

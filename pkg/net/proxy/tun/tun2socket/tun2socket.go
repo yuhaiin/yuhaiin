@@ -19,7 +19,7 @@ type Tun2socket struct {
 	device io.Closer
 	nat    *nat.Nat
 
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 	Mtu int32
 }
 
@@ -38,10 +38,10 @@ func New(o *tun.Opt) (netapi.Accepter, error) {
 	}
 
 	handler := &Tun2socket{
-		nat:           nat,
-		device:        device,
-		Mtu:           o.Tun.Mtu,
-		ChannelServer: netapi.NewChannelServer(),
+		nat:             nat,
+		device:          device,
+		Mtu:             o.Tun.Mtu,
+		ChannelAccepter: netapi.NewChannelAccepter(),
 	}
 
 	go handler.tcpLoop()
@@ -51,7 +51,7 @@ func New(o *tun.Opt) (netapi.Accepter, error) {
 }
 
 func (h *Tun2socket) Close() error {
-	h.ChannelServer.Close()
+	h.ChannelAccepter.Close()
 	_ = h.nat.TCP.Close()
 	_ = h.nat.UDP.Close()
 	return h.device.Close()

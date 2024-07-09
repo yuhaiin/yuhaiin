@@ -56,6 +56,9 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		Server: &listener.InboundConfig{
 			HijackDns:       opt.TUN.DNSHijacking,
 			HijackDnsFakeip: opt.DNS.Fakedns,
+			Sniff: &listener.Sniff{
+				Enabled: opt.Bypass.Sniffy,
+			},
 			Inbounds: map[string]*listener.Inbound{
 				"mix": {
 					Name:    "mix",
@@ -92,7 +95,6 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		Bypass: &bypass.BypassConfig{
 			Tcp:          bypass.Mode(opt.Bypass.TCP),
 			Udp:          bypass.Mode(opt.Bypass.UDP),
-			Sniffy:       opt.Bypass.Sniffy,
 			BypassFile:   filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
 			CustomRuleV3: []*bypass.ModeConfig{},
 		},

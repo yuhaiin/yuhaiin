@@ -13,7 +13,7 @@ type Tproxy struct {
 
 	lisAddr *net.TCPAddr
 
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 }
 
 func init() {
@@ -23,8 +23,8 @@ func init() {
 func NewTproxy(opt *cl.Inbound_Tproxy) func(netapi.Listener) (netapi.Accepter, error) {
 	return func(ii netapi.Listener) (netapi.Accepter, error) {
 		t := &Tproxy{
-			ChannelServer: netapi.NewChannelServer(),
-			lis:           ii,
+			ChannelAccepter: netapi.NewChannelAccepter(),
+			lis:             ii,
 		}
 
 		if err := t.newTCP(); err != nil {
@@ -41,6 +41,6 @@ func NewTproxy(opt *cl.Inbound_Tproxy) func(netapi.Listener) (netapi.Accepter, e
 }
 
 func (t *Tproxy) Close() error {
-	t.ChannelServer.Close()
+	t.ChannelAccepter.Close()
 	return t.lis.Close()
 }

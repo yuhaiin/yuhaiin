@@ -2,6 +2,7 @@ package netapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 
@@ -13,10 +14,42 @@ type Server interface {
 	io.Closer
 }
 
-type Listener interface {
-	Stream(context.Context) (net.Listener, error)
-	Packet(context.Context) (net.PacketConn, error)
+type PacketListener interface {
 	Server
+	Packet(context.Context) (net.PacketConn, error)
+}
+
+type StreamListener interface {
+	Server
+	Stream(context.Context) (net.Listener, error)
+}
+
+type Listener interface {
+	PacketListener
+	StreamListener
+	Server
+}
+
+type listener struct {
+	p PacketListener
+	s net.Listener
+}
+
+func NewListener(s net.Listener, p PacketListener) Listener            { return &listener{p: p, s: s} }
+func (w *listener) Packet(ctx context.Context) (net.PacketConn, error) { return w.p.Packet(ctx) }
+func (w *listener) Stream(ctx context.Context) (net.Listener, error)   { return w.s, nil }
+func (w *listener) Close() error {
+	var err error
+
+	if er := w.p.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
+	if er := w.s.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
+	return err
 }
 
 type Accepter interface {
@@ -67,35 +100,35 @@ type DNSServer interface {
 	Do(context.Context, *DNSRawRequest) error
 }
 
-var EmptyDNSServer DNSServer = &emptyHandler{}
+var EmptyDNSServer DNSServer = &emptyDNSServer{}
 
-type emptyHandler struct{}
+type emptyDNSServer struct{}
 
-func (e *emptyHandler) Close() error                                    { return nil }
-func (e *emptyHandler) HandleUDP(context.Context, net.PacketConn) error { return io.EOF }
-func (e *emptyHandler) HandleTCP(context.Context, net.Conn) error       { return io.EOF }
-func (e *emptyHandler) Do(_ context.Context, b *DNSRawRequest) error {
+func (e *emptyDNSServer) Close() error                                    { return nil }
+func (e *emptyDNSServer) HandleUDP(context.Context, net.PacketConn) error { return io.EOF }
+func (e *emptyDNSServer) HandleTCP(context.Context, net.Conn) error       { return io.EOF }
+func (e *emptyDNSServer) Do(_ context.Context, b *DNSRawRequest) error {
 	pool.PutBytes(b.Question)
 	return io.EOF
 }
 
-type ChannelListener struct {
+type ChannelStreamListener struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	channel chan net.Conn
 	addr    net.Addr
 }
 
-func NewChannelListener(addr net.Addr) *ChannelListener {
+func NewChannelStreamListener(addr net.Addr) *ChannelStreamListener {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ChannelListener{
+	return &ChannelStreamListener{
 		addr:    addr,
 		ctx:     ctx,
 		cancel:  cancel,
 		channel: make(chan net.Conn, system.Procs)}
 }
 
-func (c *ChannelListener) Accept() (net.Conn, error) {
+func (c *ChannelStreamListener) Accept() (net.Conn, error) {
 	select {
 	case <-c.ctx.Done():
 		return nil, c.ctx.Err()
@@ -105,7 +138,7 @@ func (c *ChannelListener) Accept() (net.Conn, error) {
 	}
 }
 
-func (c *ChannelListener) NewConn(conn net.Conn) {
+func (c *ChannelStreamListener) NewConn(conn net.Conn) {
 	select {
 	case <-c.ctx.Done():
 		conn.Close()
@@ -113,42 +146,23 @@ func (c *ChannelListener) NewConn(conn net.Conn) {
 	}
 }
 
-func (c *ChannelListener) Close() error {
+func (c *ChannelStreamListener) Close() error {
 	c.cancel()
 	return nil
 }
 
-func (c *ChannelListener) Addr() net.Addr { return c.addr }
+func (c *ChannelStreamListener) Addr() net.Addr { return c.addr }
 
-type ListenerPatch struct {
-	Listener
-	lis net.Listener
-}
-
-func PatchStream(lis net.Listener, inbound Listener) *ListenerPatch {
-	return &ListenerPatch{
-		Listener: inbound,
-		lis:      lis,
-	}
-}
-
-func (w *ListenerPatch) Stream(ctx context.Context) (net.Listener, error) { return w.lis, nil }
-
-func (w *ListenerPatch) Close() error {
-	w.lis.Close()
-	return w.Listener.Close()
-}
-
-type ChannelServer struct {
+type ChannelAccepter struct {
 	packetChan chan *Packet
 	streamChan chan *StreamMeta
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
 
-func NewChannelServer() *ChannelServer {
+func NewChannelAccepter() *ChannelAccepter {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ChannelServer{
+	return &ChannelAccepter{
 		packetChan: make(chan *Packet, 100),
 		streamChan: make(chan *StreamMeta, 100),
 		ctx:        ctx,
@@ -156,7 +170,7 @@ func NewChannelServer() *ChannelServer {
 	}
 }
 
-func (s *ChannelServer) AcceptPacket() (*Packet, error) {
+func (s *ChannelAccepter) AcceptPacket() (*Packet, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, s.ctx.Err()
@@ -165,7 +179,7 @@ func (s *ChannelServer) AcceptPacket() (*Packet, error) {
 	}
 }
 
-func (s *ChannelServer) AcceptStream() (*StreamMeta, error) {
+func (s *ChannelAccepter) AcceptStream() (*StreamMeta, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, s.ctx.Err()
@@ -174,12 +188,12 @@ func (s *ChannelServer) AcceptStream() (*StreamMeta, error) {
 	}
 }
 
-func (s *ChannelServer) Close() error {
+func (s *ChannelAccepter) Close() error {
 	s.cancel()
 	return nil
 }
 
-func (s *ChannelServer) SendPacket(packet *Packet) error {
+func (s *ChannelAccepter) SendPacket(packet *Packet) error {
 	packet.Payload = pool.Clone(packet.Payload)
 	select {
 	case <-s.ctx.Done():
@@ -190,7 +204,7 @@ func (s *ChannelServer) SendPacket(packet *Packet) error {
 	}
 }
 
-func (s *ChannelServer) SendStream(stream *StreamMeta) error {
+func (s *ChannelAccepter) SendStream(stream *StreamMeta) error {
 	select {
 	case <-s.ctx.Done():
 		return s.ctx.Err()
@@ -199,4 +213,4 @@ func (s *ChannelServer) SendStream(stream *StreamMeta) error {
 	}
 }
 
-func (s *ChannelServer) Context() context.Context { return s.ctx }
+func (s *ChannelAccepter) Context() context.Context { return s.ctx }

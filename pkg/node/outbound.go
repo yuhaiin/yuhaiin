@@ -30,7 +30,7 @@ func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
 	return &outbound{
 		manager:  mamanager,
 		db:       db,
-		lruCache: lru.NewSyncLru(lru.WithCapacityv2[string, netapi.Proxy](200)),
+		lruCache: lru.NewSyncLru(lru.WithCapacity[string, netapi.Proxy](200)),
 	}
 }
 
