@@ -39,6 +39,9 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 	if ok {
 		_, err = t.WriteTo(pkt.Payload, udpAddr)
 		pool.PutBytes(pkt.Payload)
+		if errors.Is(err, net.ErrClosed) {
+			return nil
+		}
 		return err
 	}
 
@@ -59,6 +62,9 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 		pool.PutBytes(pkt.Payload)
 		if err == nil {
 			t.mapAddr(dstAddr, pkt.Dst)
+		}
+		if errors.Is(err, net.ErrClosed) {
+			return nil
 		}
 		return err
 	}
@@ -84,6 +90,9 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 		}
 
 		_, err = t.WriteTo(pkt.Payload, udpAddr)
+		if errors.Is(err, net.ErrClosed) {
+			return nil
+		}
 		return err
 	}
 
@@ -98,6 +107,9 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 		defer cancel()
 
 		if err := write(ctx); err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
 			log.Error("nat table write to remote", "err", err)
 		}
 	}()

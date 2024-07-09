@@ -21,8 +21,8 @@ func Equal[T comparable](t testing.TB, expected, actual T, msgs ...any) {
 		t.Logf("%s:%d: expected %v, but got %v, %v\n", file, line, expected, actual, msgs)
 	}
 }
-func MustEqual[T comparable](t testing.TB, expected, actual T) {
-	if expected != actual {
+func MustEqual[T any](t testing.TB, expected, actual T) {
+	if !ObjectsAreEqual(expected, actual) {
 		_, file, line, _ := runtime.Caller(1)
 		t.Logf("%s:%d: expected %v, but got %v\n", file, line, expected, actual)
 		t.FailNow()

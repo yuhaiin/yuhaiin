@@ -41,7 +41,7 @@ func NewServer(c *listener.Transport_Http2) func(netapi.Listener) (netapi.Listen
 		if err != nil {
 			return nil, err
 		}
-		return netapi.PatchStream(newServer(lis), ii), nil
+		return netapi.NewListener(newServer(lis), ii), nil
 	}
 }
 

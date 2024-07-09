@@ -22,17 +22,17 @@ type Server struct {
 	lis          net.Listener
 	reverseProxy *httputil.ReverseProxy
 
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 
 	username, password string
 }
 
 func newServer(o *listener.Inbound_Http, lis net.Listener) *Server {
 	h := &Server{
-		username:      o.Http.Username,
-		password:      o.Http.Password,
-		lis:           lis,
-		ChannelServer: netapi.NewChannelServer(),
+		username:        o.Http.Username,
+		password:        o.Http.Password,
+		lis:             lis,
+		ChannelAccepter: netapi.NewChannelAccepter(),
 	}
 
 	type remoteKey struct{}
@@ -168,7 +168,7 @@ func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 }
 
 func (s *Server) Close() error {
-	s.ChannelServer.Close()
+	s.ChannelAccepter.Close()
 	if s.lis != nil {
 		return s.lis.Close()
 	}

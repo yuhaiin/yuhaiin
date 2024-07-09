@@ -77,7 +77,7 @@ func NewServer(config *listener.Transport_Reality) func(netapi.Listener) (netapi
 
 		lis = reality.NewListener(lis, config)
 
-		return netapi.PatchStream(lis, ii), nil
+		return netapi.NewListener(lis, ii), nil
 
 	}
 }

@@ -1,4 +1,4 @@
-package synclist
+package list
 
 import "testing"
 

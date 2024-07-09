@@ -21,8 +21,8 @@ func init() {
 
 var Drop = &drop{
 	lru: lru.NewSyncLru(
-		lru.WithCapacityv2[string, time.Duration](512),
-		lru.WithExpireTimeoutv2[string, time.Duration](time.Second*5),
+		lru.WithCapacity[string, time.Duration](512),
+		lru.WithExpireTimeout[string, time.Duration](time.Second*5),
 	),
 	sf: &singleflight.GroupSync[string, time.Duration]{},
 }

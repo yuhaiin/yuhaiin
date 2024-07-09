@@ -24,7 +24,7 @@ type tunServer struct {
 	stack    *stack.Stack
 	postDown func()
 
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 	nicID tcpip.NICID
 }
 
@@ -45,7 +45,7 @@ func (t *tunServer) Close() error {
 		t.stack.Destroy()
 	}
 	log.Debug("start close tun channel server")
-	t.ChannelServer.Close()
+	t.ChannelAccepter.Close()
 
 	if t.postDown != nil {
 		t.postDown()
@@ -101,11 +101,11 @@ func New(o *Opt) (netapi.Accepter, error) {
 	o.PostUp()
 
 	t := &tunServer{
-		nicID:         nicID,
-		stack:         s,
-		ep:            ep,
-		postDown:      o.PostDown,
-		ChannelServer: netapi.NewChannelServer(),
+		nicID:           nicID,
+		stack:           s,
+		ep:              ep,
+		postDown:        o.PostDown,
+		ChannelAccepter: netapi.NewChannelAccepter(),
 	}
 
 	s.SetSpoofing(nicID, true)

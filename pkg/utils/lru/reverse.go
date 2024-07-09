@@ -11,7 +11,7 @@ type ReverseSyncLru[K, V comparable] struct {
 	mu         sync.Mutex
 }
 
-func NewSyncReverseLru[K, V comparable](options ...Optionv2[K, V]) *ReverseSyncLru[K, V] {
+func NewSyncReverseLru[K, V comparable](options ...Option[K, V]) *ReverseSyncLru[K, V] {
 	x := &ReverseSyncLru[K, V]{
 		reverseMap: make(map[V]K),
 	}
@@ -28,7 +28,7 @@ func NewSyncReverseLru[K, V comparable](options ...Optionv2[K, V]) *ReverseSyncL
 	return x
 }
 
-func (l *ReverseSyncLru[K, V]) Add(key K, value V, opts ...AddOption) {
+func (l *ReverseSyncLru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 	l.mu.Lock()
 	_, ok := l.reverseMap[value]
 	if ok {
@@ -61,7 +61,7 @@ func (l *ReverseSyncLru[K, V]) Range(ranger func(K, V)) {
 	defer l.mu.Unlock()
 
 	for k, v := range l.lru.mapping {
-		ranger(k, v.Value.data)
+		ranger(k, v.Value().data)
 	}
 }
 

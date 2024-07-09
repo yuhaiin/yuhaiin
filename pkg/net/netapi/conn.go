@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -39,38 +38,32 @@ func (m *multipleReaderConn) Read(b []byte) (int, error) {
 	return m.mr.Read(b)
 }
 
-type prefixBytesConn struct {
+type PrefixBytesConn struct {
 	net.Conn
-	buffers [][]byte
-	once    sync.Once
+	buffers *buffers
 }
 
-func (p *prefixBytesConn) Close() error {
-	var err error
-
-	p.once.Do(func() {
-		err = p.Conn.Close()
-		for _, v := range p.buffers {
-			pool.PutBytes(v)
-		}
-	})
-
-	return err
+func (c *PrefixBytesConn) Close() error {
+	c.buffers.Close()
+	return c.Conn.Close()
 }
 
-func NewPrefixBytesConn(c net.Conn, prefix ...[]byte) net.Conn {
+func NewPrefixBytesConn(c net.Conn, onPop func([]byte), prefix ...[]byte) net.Conn {
 	if len(prefix) == 0 {
 		return c
 	}
 
-	buf := net.Buffers(prefix)
+	buf := make([][]byte, len(prefix))
+	copy(buf, prefix)
 
-	conn := NewMultipleReaderConn(c, io.MultiReader(&buf, c))
-
-	return &prefixBytesConn{
-		buffers: prefix,
-		Conn:    conn,
+	buffers := &buffers{
+		original: prefix,
+		buffers:  buf,
+		onPop:    onPop,
 	}
+
+	conn := NewMultipleReaderConn(c, io.MultiReader(buffers, c))
+	return &PrefixBytesConn{conn, buffers}
 }
 
 func MergeBufioReaderConn(c net.Conn, r *bufio.Reader) (net.Conn, error) {
@@ -83,7 +76,7 @@ func MergeBufioReaderConn(c net.Conn, r *bufio.Reader) (net.Conn, error) {
 		return nil, err
 	}
 
-	return NewPrefixBytesConn(c, pool.Clone(data)), nil
+	return NewPrefixBytesConn(c, func(b []byte) { pool.PutBytes(b) }, pool.Clone(data)), nil
 }
 
 type LogConn struct {
@@ -122,4 +115,63 @@ func (l *LogConn) SetWriteDeadline(t time.Time) error {
 	log.Info("set write deadline", "time", t, "line", line, "file", file, "time", t)
 
 	return l.Conn.SetWriteDeadline(t)
+}
+
+// buffers contains zero or more runs of bytes to write.
+//
+// On certain machines, for certain types of connections, this is
+// optimized into an OS-specific batch write operation (such as
+// "writev").
+type buffers struct {
+	original [][]byte
+	buffers  [][]byte
+	onPop    func([]byte)
+}
+
+// Read from the buffers.
+//
+// Read implements [io.Reader] for [buffers].
+//
+// Read modifies the slice v as well as v[i] for 0 <= i < len(v),
+// but does not modify v[i][j] for any i, j.
+func (v *buffers) Read(p []byte) (n int, err error) {
+	for len(p) > 0 && len(v.buffers) > 0 {
+		n0 := copy(p, v.buffers[0])
+		v.consume(int64(n0))
+		p = p[n0:]
+		n += n0
+	}
+	if len(v.buffers) == 0 {
+		err = io.EOF
+	}
+	return
+}
+
+func (v *buffers) consume(n int64) {
+	for len(v.buffers) > 0 {
+		ln0 := int64(len((v.buffers)[0]))
+		if ln0 > n {
+			(v.buffers)[0] = (v.buffers)[0][n:]
+			return
+		}
+		n -= ln0
+		v.buffers[0] = nil
+		popData := v.original[0]
+		if v.onPop != nil {
+			v.onPop(popData)
+		}
+		v.original = v.original[1:]
+		v.buffers = v.buffers[1:]
+	}
+}
+
+func (v *buffers) Close() {
+	x := v.original
+
+	v.original = nil
+	v.buffers = nil
+
+	for _, b := range x {
+		v.onPop(b)
+	}
 }

@@ -11,13 +11,13 @@ type SyncLru[K comparable, V any] struct {
 	mu sync.Mutex
 }
 
-func NewSyncLru[K comparable, V any](options ...Optionv2[K, V]) *SyncLru[K, V] {
+func NewSyncLru[K comparable, V any](options ...Option[K, V]) *SyncLru[K, V] {
 	return &SyncLru[K, V]{
 		lru: newLru(options...),
 	}
 }
 
-func (l *SyncLru[K, V]) Add(key K, value V, opts ...AddOption) {
+func (l *SyncLru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 	l.mu.Lock()
 	l.lru.Add(key, value, opts...)
 	l.mu.Unlock()
@@ -45,6 +45,6 @@ func (l *SyncLru[K, V]) Range(ranger func(K, V)) {
 	defer l.mu.Unlock()
 
 	for k, v := range l.lru.mapping {
-		ranger(k, v.Value.data)
+		ranger(k, v.Value().data)
 	}
 }

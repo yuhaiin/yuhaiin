@@ -21,7 +21,7 @@ type server struct {
 	listener   netapi.Listener
 	handshaker types.Handshaker
 
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 
 	packetAuth types.Auth
 }
@@ -45,8 +45,8 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accep
 				[]byte(config.Yuubinsya.Password),
 			),
 
-			ChannelServer: netapi.NewChannelServer(),
-			packetAuth:    auth,
+			ChannelAccepter: netapi.NewChannelAccepter(),
+			packetAuth:      auth,
 		}
 
 		go log.IfErr("yuubinsya udp server", s.startUDP)

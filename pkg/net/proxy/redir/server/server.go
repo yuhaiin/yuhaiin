@@ -11,11 +11,11 @@ import (
 
 type redir struct {
 	lis net.Listener
-	*netapi.ChannelServer
+	*netapi.ChannelAccepter
 }
 
 func (r *redir) Close() error {
-	r.ChannelServer.Close()
+	r.ChannelAccepter.Close()
 	return r.lis.Close()
 }
 
@@ -25,7 +25,7 @@ func (r *redir) AcceptPacket() (*netapi.Packet, error) {
 
 func NewServer(o *listener.Inbound_Redir) func(netapi.Listener) (netapi.Accepter, error) {
 	return func(ii netapi.Listener) (netapi.Accepter, error) {
-		channel := netapi.NewChannelServer()
+		channel := netapi.NewChannelAccepter()
 		lis, err := ii.Stream(channel.Context())
 		if err != nil {
 			channel.Close()
@@ -33,8 +33,8 @@ func NewServer(o *listener.Inbound_Redir) func(netapi.Listener) (netapi.Accepter
 		}
 
 		t := &redir{
-			lis:           lis,
-			ChannelServer: channel,
+			lis:             lis,
+			ChannelAccepter: channel,
 		}
 
 		go func() {

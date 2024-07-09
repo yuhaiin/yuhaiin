@@ -10,6 +10,7 @@ message inbound_config {
   map<string, protocol> servers = 5
       [ json_name = "servers", deprecated = true ];
   map<string, inbound> inbounds = 1 [ json_name = "inbounds" ];
+  sniff sniff = 4 [ json_name = "sniff" ];
 }
 
 message inbound {
@@ -192,4 +193,8 @@ message certificate {
 
   string cert_file_path = 3 [ json_name = "cert_file_path" ];
   string key_file_path = 4 [ json_name = "key_file_path" ];
+}
+
+message sniff {
+  bool enabled = 1 [ json_name = "enabled" ];
 }

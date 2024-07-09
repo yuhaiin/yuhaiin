@@ -9,7 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
-	"github.com/Asutorufa/yuhaiin/pkg/net/sniffy"
+	"github.com/Asutorufa/yuhaiin/pkg/net/sniff"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -21,7 +21,7 @@ type handler struct {
 	dnsHandler netapi.DNSServer
 	table      *nat.Table
 
-	sniffer *sniffy.Sniffier[bypass.Mode]
+	sniffer *sniff.Sniffier[bypass.Mode]
 
 	sniffyEnabled bool
 }
@@ -31,7 +31,7 @@ func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
 		dialer:        dialer,
 		table:         nat.NewTable(dialer),
 		dnsHandler:    dnsHandler,
-		sniffer:       sniffy.New(),
+		sniffer:       sniff.New(),
 		sniffyEnabled: true,
 	}
 
@@ -63,13 +63,8 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 	}
 
 	if s.sniffyEnabled {
-		src, mode, name, ok := s.sniffer.Stream(meta.Src)
-		if ok {
-			store.Protocol = name
-			store.ForceMode = mode
-		}
+		src := s.sniffer.Stream(store, meta.Src)
 		defer src.Close()
-
 		meta.Src = src
 	}
 
@@ -90,11 +85,7 @@ func (s *handler) Packet(xctx context.Context, pack *netapi.Packet) {
 	ctx := netapi.WithContext(xctx)
 
 	if s.sniffyEnabled {
-		mode, name, ok := s.sniffer.Packet(pack.Payload)
-		if ok {
-			ctx.Protocol = name
-			ctx.ForceMode = mode
-		}
+		s.sniffer.Packet(ctx, pack.Payload)
 	}
 
 	_, ok := pack.Src.(*quic.QuicAddr)

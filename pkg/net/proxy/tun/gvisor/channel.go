@@ -185,4 +185,5 @@ func (*Endpoint) ParseHeader(*stack.PacketBuffer) bool { return true }
 
 func (e *Endpoint) SetLinkAddress(addr tcpip.LinkAddress) { e.linkAddr = addr }
 
-func (e *Endpoint) SetMTU(mtu uint32) {}
+func (e *Endpoint) SetMTU(mtu uint32)       {}
+func (e *Endpoint) SetOnCloseAction(func()) {}

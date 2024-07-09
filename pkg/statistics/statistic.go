@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -216,7 +217,20 @@ func toString(t reflect.Value) (string, bool) {
 				return z.String(), true
 			}
 		}
-
-		return "", false
 	}
+
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		integer := t.Int()
+		if integer != 0 {
+			return strconv.FormatInt(t.Int(), 10), true
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		uinteger := t.Uint()
+		if uinteger != 0 {
+			return strconv.FormatUint(t.Uint(), 10), true
+		}
+	}
+
+	return "", false
 }

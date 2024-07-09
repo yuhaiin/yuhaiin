@@ -34,8 +34,10 @@ type Context struct {
 	Hash         string `metrics:"Hash"`
 
 	// sniffy
-	Protocol string `metrics:"Protocol"`
-	Process  string `metrics:"Process"`
+	Protocol      string `metrics:"Protocol"`
+	Process       string `metrics:"Process"`
+	TLSServerName string `metrics:"TLS Servername"`
+	HTTPHost      string `metrics:"HTTP Host"`
 
 	// dns resolver
 	Component string `metrics:"Component"`
@@ -43,7 +45,15 @@ type Context struct {
 	ForceMode bypass.Mode `metrics:"-"`
 	Mode      bypass.Mode `metrics:"MODE"`
 
-	UDPMigrateID uint64 `metrics:"UDPMigrateID"`
+	UDPMigrateID uint64 `metrics:"UDP MigrateID"`
+}
+
+func (c *Context) SniffHost() string {
+	if c.TLSServerName != "" {
+		return c.TLSServerName
+	}
+
+	return c.HTTPHost
 }
 
 func (c *Context) Value(key any) any {

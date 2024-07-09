@@ -33,7 +33,7 @@ func NewServer(c *listener.Transport_Websocket) func(netapi.Listener) (netapi.Li
 		if err != nil {
 			return nil, err
 		}
-		return netapi.PatchStream(newServer(lis), ii), nil
+		return netapi.NewListener(newServer(lis), ii), nil
 	}
 }
 
@@ -103,6 +103,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	select {
 	case <-s.closeCtx.Done():
 		_ = wsconn.Close()
-	case s.connChan <- netapi.NewPrefixBytesConn(wsconn, earlyData):
+	case s.connChan <- netapi.NewPrefixBytesConn(wsconn, func(b []byte) { pool.PutBytes(b) }, earlyData):
 	}
 }

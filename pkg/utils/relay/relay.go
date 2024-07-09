@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var ignoreError = []error{
@@ -20,14 +21,16 @@ var ignoreError = []error{
 }
 
 var ignoreSyscallErrno = map[syscall.Errno]bool{
-	// syscall.EPIPE:      true, // read: broken pipe
+	syscall.EPIPE:      true, // broken pipe
 	syscall.ECONNRESET: true, // connection reset by peer
+	syscall.ENOTCONN:   true, // transport endpoint is not connected
+	syscall.ETIMEDOUT:  true, // connection timed out
 	10053:              true, // wsasend: An established connection was aborted by the software in your host machine." osSyscallErrType=syscall.Errno errInt=10053
 	10054:              true, // wsarecv: An existing connection was forcibly closed by the remote host." osSyscallErrType=syscall.Errno errInt=10054
 	10060:              true, // "wsarecv: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond." osSyscallErrType=syscall.Errno errInt=10060
 }
 
-func isIgnoreError(err error) ([]slog.Attr, bool) {
+func isIgnoreError(err error) ([]any, bool) {
 	for _, e := range ignoreError {
 		if errors.Is(err, e) {
 			return nil, true
@@ -44,9 +47,11 @@ func isIgnoreError(err error) ([]slog.Attr, bool) {
 	// netOpErr="read tcp [fc00::1a]:443: connection reset by peer" netOpErrType=*errors.errorString
 	case syscall.ECONNRESET.Error():
 		return nil, true
+	case (&tcpip.ErrConnectionAborted{}).String(), (&tcpip.ErrAborted{}).String():
+		return nil, true
 	}
 
-	args := []slog.Attr{
+	args := []any{
 		slog.Any("netOpErr", netOpErr),
 		slog.Any("netOpErrType", reflect.TypeOf(netOpErr.Err)),
 	}
@@ -83,7 +88,7 @@ func logE(msg string, err error) {
 		return
 	}
 
-	log.Error(msg, append(args, slog.Any("err", err), slog.Any("errType", reflect.TypeOf(err))))
+	log.Error(msg, append(args, slog.Any("err", err), slog.Any("errType", reflect.TypeOf(err)))...)
 }
 
 func AppendIgnoreError(err error) {
@@ -125,7 +130,7 @@ func closeWrite(rw io.ReadWriteCloser) {
 }
 
 func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
-	buf := pool.GetBytes(pool.DefaultSize)
+	buf := pool.GetBytes(8192)
 	defer pool.PutBytes(buf)
 	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
 	return io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf)

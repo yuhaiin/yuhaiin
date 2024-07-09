@@ -50,7 +50,7 @@ func init() {
 		case pluginopts["obfs-local"] == "true":
 			plugin, err = parseObfs(pluginopts)
 		case pluginopts["v2ray"] == "true":
-			plugin, err = parseV2ray(pluginopts, simple)
+			plugin, err = parseV2ray(pluginopts)
 		default:
 		}
 		if err != nil {
@@ -80,7 +80,7 @@ func init() {
 	})
 }
 
-func parseV2ray(store map[string]string, simple *protocol.Simple) ([]*protocol.Protocol, error) {
+func parseV2ray(store map[string]string) ([]*protocol.Protocol, error) {
 	// fastOpen := false
 	// path := "/"
 	// host := "cloudfront.com"

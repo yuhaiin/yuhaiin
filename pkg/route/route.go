@@ -150,7 +150,11 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	if mode.Mode() == bypass.Mode_bypass {
 		// get mode from bypass rule
 		store.Resolver.Resolver = s.r.Get("")
-		mode = s.Search(ctx, host)
+		if !host.IsFqdn() && store.SniffHost() != "" {
+			mode = s.Search(ctx, netapi.ParseAddressPort(host.Network(), store.SniffHost(), host.Port()))
+		} else {
+			mode = s.Search(ctx, host)
+		}
 		store.Resolver.PreferIPv6 = mode.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6
 	}
 
