@@ -61,13 +61,24 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 	return d.DialContext(ctx, network, address)
 }
 
-func ListenPacket(network, address string) (net.PacketConn, error) {
-	return ListenPacketWithOptions(network, address, &Options{
+func WithListener() func(*Options) {
+	return func(opts *Options) {
+		opts.listener = true
+	}
+}
+
+func ListenPacket(network, address string, opts ...func(*Options)) (net.PacketConn, error) {
+	opt := &Options{
 		InterfaceName:  DefaultInterfaceName,
 		InterfaceIndex: DefaultInterfaceIndex,
 		MarkSymbol:     DefaultMarkSymbol,
-		listener:       true,
-	})
+	}
+
+	for _, o := range opts {
+		o(opt)
+	}
+
+	return ListenPacketWithOptions(network, address, opt)
 }
 
 func ListenPacketWithOptions(network, address string, opts *Options) (net.PacketConn, error) {

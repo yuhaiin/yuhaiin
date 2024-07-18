@@ -10,13 +10,11 @@ on:
 jobs:
   get_version:
     outputs:
-      kitte_version: ${{ steps.get-version.outputs.kitte_version }}
       front_version: ${{ steps.get-version.outputs.front_version }}
     runs-on: ubuntu-latest
     steps:
       - id: get-version
         run: |
-          echo "kitte_version=$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/kitte/commits/main")" >> $GITHUB_OUTPUT
           echo "front_version=$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")" >> $GITHUB_OUTPUT
 
   package:
@@ -51,7 +49,6 @@ jobs:
 
       - name: update dep
         run: |
-          go get -v -u github.com/yuhaiin/kitte@${{ needs.get_version.outputs.kitte_version }}
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
 
       - name: Login to GitHub Container Registry
@@ -103,7 +100,6 @@ jobs:
 
       - name: build yuhaiin aar
         run: |
-          go get -v -u github.com/yuhaiin/kitte@${{ needs.get_version.outputs.kitte_version }}
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
@@ -170,7 +166,6 @@ jobs:
           GOAMD64: ${{ matrix.env[1] == 'amd64v3' && 'v3' || '' }}
           GOMIPS: ${{ matrix.env[1] == 'mipsle' && 'softfloat' || '' }}
         run: |
-          go get -v -u github.com/yuhaiin/kitte@${{ needs.get_version.outputs.kitte_version }}
           go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
           make ${{ matrix.cmd }}
 

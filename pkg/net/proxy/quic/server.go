@@ -35,7 +35,7 @@ func init() {
 }
 
 func NewServer(c *listener.Inbound_Quic) (netapi.Listener, error) {
-	packetConn, err := dialer.ListenPacket("udp", c.Quic.Host)
+	packetConn, err := dialer.ListenPacket("udp", c.Quic.Host, dialer.WithListener())
 	if err != nil {
 		return nil, err
 	}

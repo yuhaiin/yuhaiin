@@ -2,7 +2,6 @@ package yuhaiin
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -124,9 +123,9 @@ func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 
 	r := bufio.NewScanner(strings.NewReader(ruls))
 	for r.Scan() {
-		line := r.Bytes()
+		line := r.Text()
 
-		z := bytes.FieldsFunc(line, func(r rune) bool { return r == ',' })
+		z := strings.FieldsFunc(line, func(r rune) bool { return r == ',' })
 		if len(z) == 0 {
 			continue
 		}
@@ -140,7 +139,7 @@ func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 			settings.Bypass.CustomRuleV3 = append(settings.Bypass.CustomRuleV3, zz)
 		}
 
-		zz.Hostname = append(zz.Hostname, string(z[0]))
+		zz.Hostname = append(zz.Hostname, z[0])
 	}
 }
 

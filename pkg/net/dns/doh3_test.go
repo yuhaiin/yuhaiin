@@ -17,9 +17,17 @@ func TestDoh3(t *testing.T) {
 			Type: dns.Type_doh3,
 			Host: "cloudflare-dns.com",
 		},
+		"ali": {
+			Type: dns.Type_doh3,
+			Host: "223.5.5.5",
+		},
+		"1.12.12.12": {
+			Type: dns.Type_doh3,
+			Host: "1.12.12.12",
+		},
 	}
 
-	c, err := New(configMap["cloudflare"])
+	c, err := New(configMap["ali"])
 	assert.NoError(t, err)
 
 	t.Log(c.LookupIP(context.TODO(), "www.google.com"))
