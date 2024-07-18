@@ -82,14 +82,6 @@ func run(args []string) error {
 	// listen system signal
 	signChannel := make(chan os.Signal, 1)
 	signal.Notify(signChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	select {
-	case err := <-errChan:
-		log.Error("http server error", "err", err)
-	case <-signChannel:
-		if app.HttpListener != nil {
-			app.HttpListener.Close()
-		}
-	}
 
 	return wait(app, errChan, signChannel)
 }

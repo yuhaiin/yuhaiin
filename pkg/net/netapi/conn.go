@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -126,6 +127,8 @@ type buffers struct {
 	original [][]byte
 	buffers  [][]byte
 	onPop    func([]byte)
+
+	mu sync.Mutex
 }
 
 // Read from the buffers.
@@ -135,6 +138,9 @@ type buffers struct {
 // Read modifies the slice v as well as v[i] for 0 <= i < len(v),
 // but does not modify v[i][j] for any i, j.
 func (v *buffers) Read(p []byte) (n int, err error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	for len(p) > 0 && len(v.buffers) > 0 {
 		n0 := copy(p, v.buffers[0])
 		v.consume(int64(n0))
@@ -149,16 +155,15 @@ func (v *buffers) Read(p []byte) (n int, err error) {
 
 func (v *buffers) consume(n int64) {
 	for len(v.buffers) > 0 {
-		ln0 := int64(len((v.buffers)[0]))
+		ln0 := int64(len(v.buffers[0]))
 		if ln0 > n {
-			(v.buffers)[0] = (v.buffers)[0][n:]
+			v.buffers[0] = v.buffers[0][n:]
 			return
 		}
 		n -= ln0
 		v.buffers[0] = nil
-		popData := v.original[0]
 		if v.onPop != nil {
-			v.onPop(popData)
+			v.onPop(v.original[0])
 		}
 		v.original = v.original[1:]
 		v.buffers = v.buffers[1:]
@@ -166,6 +171,9 @@ func (v *buffers) consume(n int64) {
 }
 
 func (v *buffers) Close() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	x := v.original
 
 	v.original = nil

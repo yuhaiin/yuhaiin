@@ -41,6 +41,7 @@ func defaultSetting(path string) *config.Setting {
 				{
 					Hostname: []string{
 						"223.5.5.5",
+						"file:" + filepath.Join(filepath.Dir(path), "CN.conf"),
 					},
 					Mode: bypass.Mode_direct,
 				},

@@ -62,7 +62,7 @@ func (d *dnsServer) Close() error {
 }
 
 func (d *dnsServer) startUDP() (err error) {
-	d.listener, err = dialer.ListenPacket("udp", d.server)
+	d.listener, err = dialer.ListenPacket("udp", d.server, dialer.WithListener())
 	if err != nil {
 		return fmt.Errorf("dns udp server listen failed: %w", err)
 	}

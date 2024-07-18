@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
 
 func TestPrefixConn(t *testing.T) {
@@ -20,5 +21,5 @@ func TestPrefixConn(t *testing.T) {
 	}, bytes...)
 	defer x.Close()
 
-	_, _ = io.Copy(io.Discard, x)
+	_, _ = relay.Copy(io.Discard, x)
 }
