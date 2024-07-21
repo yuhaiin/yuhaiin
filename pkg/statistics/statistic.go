@@ -2,10 +2,7 @@ package statistics
 
 import (
 	"context"
-	"fmt"
 	"net"
-	"reflect"
-	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -95,17 +92,17 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, err
 
 func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
-		log.Debug("close conn", "id", z.ID())
+		log.Debug("close conn", "id", z.Info().GetId())
 	}
 
 	c.notify.pubRemoveConns(id)
 }
 
 func (c *Connections) storeConnection(o connection) {
-	c.connStore.Store(o.ID(), o)
+	c.connStore.Store(o.Info().GetId(), o)
 	c.notify.pubNewConns(o)
 	log.Debug("new conn",
-		"id", o.ID(),
+		"id", o.Info().GetId(),
 		"addr", o.Info().Addr,
 		"src", o.Info().Extra["Source"],
 		"network", o.Info().Type.ConnType,
@@ -156,7 +153,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]),
 			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]),
 		},
-		Extra: toExtraMap(store),
+		Extra: store.Map(),
 	}
 
 	if out := getRemote(conn); out != "" {
@@ -174,63 +171,4 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 	z := &conn{con, c.getConnection(ctx, con, addr), c}
 	c.storeConnection(z)
 	return z, nil
-}
-
-func toExtraMap(addr *netapi.Context) map[string]string {
-	values := reflect.ValueOf(*addr)
-	types := reflect.TypeOf(*addr)
-
-	maps := make(map[string]string)
-
-	for i := range values.NumField() {
-		v, ok := toString(values.Field(i))
-		if !ok {
-			continue
-		}
-
-		if v == "" {
-			continue
-		}
-
-		k := types.Field(i).Tag.Get("metrics")
-		if k == "" || k == "-" {
-			continue
-		}
-
-		maps[types.Field(i).Tag.Get("metrics")] = v
-	}
-
-	return maps
-}
-
-func toString(t reflect.Value) (string, bool) {
-	if !t.IsValid() {
-		return "", false
-	}
-
-	switch t.Kind() {
-	case reflect.String:
-		return t.String(), true
-	default:
-		if t.CanInterface() {
-			if z, ok := t.Interface().(fmt.Stringer); ok {
-				return z.String(), true
-			}
-		}
-	}
-
-	switch t.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		integer := t.Int()
-		if integer != 0 {
-			return strconv.FormatInt(t.Int(), 10), true
-		}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		uinteger := t.Uint()
-		if uinteger != 0 {
-			return strconv.FormatUint(t.Uint(), 10), true
-		}
-	}
-
-	return "", false
 }

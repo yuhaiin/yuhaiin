@@ -13,11 +13,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type key struct {
-	name string
-	old  bool
-}
-
 type entry struct {
 	config *pl.Inbound
 	server netapi.Accepter
@@ -33,7 +28,7 @@ type listener struct {
 	tcpChannel chan *netapi.StreamMeta
 	udpChannel chan *netapi.Packet
 
-	store syncmap.SyncMap[key, entry]
+	store syncmap.SyncMap[string, entry]
 
 	hijackDNS bool
 	fakeip    bool
@@ -125,15 +120,8 @@ func (l *listener) Update(current *pc.Setting) {
 	l.fakeip = current.Server.HijackDnsFakeip
 	l.handler.sniffyEnabled = current.GetServer().GetSniff().GetEnabled()
 
-	l.store.Range(func(key key, v entry) bool {
-		var z interface{ GetEnabled() bool }
-		var ok bool
-		if key.old {
-			z, ok = current.Server.Servers[key.name]
-		} else {
-			z, ok = current.Server.Inbounds[key.name]
-		}
-
+	l.store.Range(func(key string, v entry) bool {
+		z, ok := current.Server.Inbounds[key]
 		if !ok || !z.GetEnabled() {
 			v.server.Close()
 			l.store.Delete(key)
@@ -142,16 +130,12 @@ func (l *listener) Update(current *pc.Setting) {
 		return true
 	})
 
-	for k, v := range current.Server.Servers {
-		l.start(key{k, true}, v.ToInbound())
-	}
-
 	for k, v := range current.Server.Inbounds {
-		l.start(key{k, false}, v)
+		l.start(k, v)
 	}
 }
 
-func (l *listener) start(key key, config *pl.Inbound) {
+func (l *listener) start(key string, config *pl.Inbound) {
 	if config == nil {
 		return
 	}
@@ -213,7 +197,7 @@ func (l *listener) start(key key, config *pl.Inbound) {
 
 func (l *listener) Close() error {
 	l.close()
-	l.store.Range(func(key key, value entry) bool {
+	l.store.Range(func(key string, value entry) bool {
 		log.Info("start close server", "name", key)
 		defer log.Info("closed server", "name", key)
 		value.server.Close()

@@ -2,7 +2,10 @@ package netapi
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"reflect"
+	"strconv"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
@@ -24,7 +27,6 @@ type Context struct {
 	Destination net.Addr `metrics:"Destination"`
 	FakeIP      net.Addr `metrics:"FakeIP"`
 	Hosts       net.Addr `metrics:"Hosts"`
-	Current     net.Addr `metrics:"Current"`
 
 	context.Context
 
@@ -46,6 +48,61 @@ type Context struct {
 	Mode      bypass.Mode `metrics:"MODE"`
 
 	UDPMigrateID uint64 `metrics:"UDP MigrateID"`
+}
+
+func (addr *Context) Map() map[string]string {
+	values := reflect.ValueOf(*addr)
+	types := reflect.TypeOf(*addr)
+
+	maps := make(map[string]string)
+
+	for i := range values.NumField() {
+		v, ok := toString(values.Field(i))
+		if !ok || v == "" {
+			continue
+		}
+
+		k := types.Field(i).Tag.Get("metrics")
+		if k == "" || k == "-" {
+			continue
+		}
+
+		maps[k] = v
+	}
+
+	return maps
+}
+
+func toString(t reflect.Value) (string, bool) {
+	if !t.IsValid() {
+		return "", false
+	}
+
+	switch t.Kind() {
+	case reflect.String:
+		return t.String(), true
+	default:
+		if t.CanInterface() {
+			if z, ok := t.Interface().(fmt.Stringer); ok {
+				return z.String(), true
+			}
+		}
+	}
+
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		integer := t.Int()
+		if integer != 0 {
+			return strconv.FormatInt(t.Int(), 10), true
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		uinteger := t.Uint()
+		if uinteger != 0 {
+			return strconv.FormatUint(t.Uint(), 10), true
+		}
+	}
+
+	return "", false
 }
 
 func (c *Context) SniffHost() string {

@@ -95,10 +95,8 @@ func (h *Hosts) PacketConn(ctx context.Context, addr netapi.Address) (net.Packet
 	return h.dialer.PacketConn(ctx, h.dispatchAddr(ctx, addr))
 }
 
-func (h *Hosts) setHosts(ctx context.Context, pre, addr netapi.Address) {
-	store := netapi.GetContext(ctx)
-	store.Hosts = pre
-	store.Current = addr
+func (h *Hosts) setHosts(ctx context.Context, pre netapi.Address) {
+	netapi.GetContext(ctx).Hosts = pre
 }
 
 func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
@@ -110,9 +108,8 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 	if v.portMap != nil {
 		z, ok := v.portMap[uint16(addr.Port())]
 		if ok {
-			current := netapi.ParseAddressPort(addr.Network(), z.Hostname(), z.Port())
-			h.setHosts(ctx, addr, current)
-			return current
+			h.setHosts(ctx, addr)
+			return netapi.ParseAddressPort(addr.Network(), z.Hostname(), z.Port())
 		}
 	}
 
@@ -121,17 +118,15 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 			// try system hosts
 			ips, _ := system.LookupStaticHost(addr.Hostname())
 			if len(ips) > 0 {
-				current := netapi.ParseAddressPort(addr.Network(), ips[0], addr.Port())
-				h.setHosts(ctx, addr, current)
-				return current
+				h.setHosts(ctx, addr)
+				return netapi.ParseAddressPort(addr.Network(), ips[0], addr.Port())
 			}
 		}
 		return addr
 	}
 
-	current := netapi.ParseAddressPort(addr.Network(), v.V.Hostname(), addr.Port())
-	h.setHosts(ctx, addr, current)
-	return current
+	h.setHosts(ctx, addr)
+	return netapi.ParseAddressPort(addr.Network(), v.V.Hostname(), addr.Port())
 }
 
 func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {

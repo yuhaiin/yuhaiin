@@ -48,7 +48,6 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accept
 		mix.s5c = netapi.NewChannelStreamListener(lis.Addr())
 		mix.s5, err = socks5.NewServer(&listener.Inbound_Socks5{
 			Socks5: &listener.Socks5{
-				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
 				Password: o.Mix.Password,
 				Udp:      true,
@@ -65,7 +64,6 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accept
 		mix.s4c = netapi.NewChannelStreamListener(lis.Addr())
 		mix.s4, err = socks4a.NewServer(&listener.Inbound_Socks4A{
 			Socks4A: &listener.Socks4A{
-				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
 			},
 		})(netapi.NewListener(mix.s4c, ii))
@@ -80,7 +78,6 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener) (netapi.Accept
 		mix.httpc = netapi.NewChannelStreamListener(lis.Addr())
 		mix.http, err = http.NewServer(&listener.Inbound_Http{
 			Http: &listener.Http{
-				Host:     o.Mix.Host,
 				Username: o.Mix.Username,
 				Password: o.Mix.Password,
 			},
