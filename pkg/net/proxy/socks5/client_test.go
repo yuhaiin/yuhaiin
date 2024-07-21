@@ -57,7 +57,6 @@ func TestUsernamePassword(t *testing.T) {
 		Socks5: &listener.Socks5{
 			Username: "test",
 			Password: "test",
-			Host:     "127.0.0.1:1082",
 			Udp:      true,
 		},
 	})(ss)

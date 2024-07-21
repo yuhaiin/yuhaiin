@@ -131,10 +131,8 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 
 	t, ok := f.fake.GetDomainFromIP(addrPort.Addr())
 	if ok {
-		r := netapi.ParseAddressPort(addr.Network(), t, addr.Port())
 		store.FakeIP = addr
-		store.Current = r
-		return r
+		return netapi.ParseAddressPort(addr.Network(), t, addr.Port())
 	}
 
 	if f.enabled || f.inboundEnabled {

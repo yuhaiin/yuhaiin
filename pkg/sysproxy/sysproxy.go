@@ -23,24 +23,20 @@ func Update() func(s *cb.Setting) {
 		UnsetSysProxy()
 		var http, socks5 string
 
-		for _, v := range s.Server.Servers {
+		for _, v := range s.Server.Inbounds {
 			if s.SystemProxy.Http && http == "" {
-				if v.GetEnabled() && v.GetHttp() != nil {
-					http = v.GetHttp().GetHost()
-				}
-
-				if v.GetEnabled() && v.GetMix() != nil {
-					http = v.GetMix().GetHost()
+				if v.GetEnabled() && v.GetTcpudp() != nil {
+					if v.GetHttp() != nil || v.GetMix() != nil {
+						http = v.GetTcpudp().GetHost()
+					}
 				}
 			}
 
 			if s.SystemProxy.Socks5 && socks5 == "" {
-				if v.GetEnabled() && v.GetSocks5() != nil {
-					socks5 = v.GetSocks5().GetHost()
-				}
-
-				if v.GetEnabled() && v.GetMix() != nil {
-					socks5 = v.GetMix().GetHost()
+				if v.GetEnabled() && v.GetTcpudp() != nil {
+					if v.GetSocks5() != nil || v.GetMix() != nil {
+						http = v.GetTcpudp().GetHost()
+					}
 				}
 			}
 

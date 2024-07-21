@@ -5,10 +5,10 @@ package yuhaiin.listener;
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener";
 
 message inbound_config {
+  reserved 5;
+  reserved "servers";
   bool hijack_dns = 2 [ json_name = "hijack_dns" ];
   bool hijack_dns_fakeip = 3 [ json_name = "hijack_dns_fakeip" ];
-  map<string, protocol> servers = 5
-      [ json_name = "servers", deprecated = true ];
   map<string, inbound> inbounds = 1 [ json_name = "inbounds" ];
   sniff sniff = 4 [ json_name = "sniff" ];
 }
@@ -21,7 +21,7 @@ message inbound {
   oneof network {
     empty empty = 21 [ json_name = "empty" ];
     tcpudp tcpudp = 15 [ json_name = "tcpudp" ];
-    quic2 quic = 16 [ json_name = "quic" ];
+    quic quic = 16 [ json_name = "quic" ];
   }
 
   repeated transport transport = 2 [ json_name = "transport" ];
@@ -80,31 +80,35 @@ message tcpudp {
   tcp_udp_control control = 2 [ json_name = "control" ];
 }
 
-message quic2 {
+message quic {
   string host = 1 [ json_name = "host" ];
   tls_config tls = 3 [ json_name = "tls" ];
 }
 
 message http {
-  string host = 1 [ json_name = "host", deprecated = true ];
+  reserved 1;
+  reserved "host";
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
 }
 
 message socks5 {
-  string host = 1 [ json_name = "host", deprecated = true ];
+  reserved 1;
+  reserved "host";
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
   bool udp = 5 [ json_name = "udp" ];
 }
 
 message socks4a {
-  string host = 1 [ json_name = "host", deprecated = true ];
+  reserved 1;
+  reserved "host";
   string username = 2 [ json_name = "username" ];
 }
 
 message mixed {
-  string host = 1 [ json_name = "host", deprecated = true ];
+  reserved 1;
+  reserved "host";
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
 }
@@ -118,12 +122,12 @@ message tproxy {
 }
 
 message tun {
+  reserved 3, 4;
+  reserved "gateway", "dns_hijacking";
   // name of the tun device
   // eg: tun://tun0, fd://123
   string name = 1 [ json_name = "name" ];
   int32 mtu = 2 [ json_name = "mtu" ];
-  string gateway = 3 [ json_name = "gateway", deprecated = true ];
-  bool dns_hijacking = 4 [ json_name = "dns_hijacking", deprecated = true ];
   bool force_fakeip = 9 [ json_name = "force_fakeip" ];
   bool skip_multicast = 6 [ json_name = "skip_multicast" ];
   enum endpoint_driver {
@@ -145,33 +149,34 @@ message route {
 }
 
 message yuubinsya {
-  reserved 8;
-  reserved "force_disable_encrypt";
-  string host = 1 [ json_name = "host", deprecated = true ];
+  reserved 1, 3, 4, 5, 6, 7, 8, 9, 10;
+  reserved "host", "force_disable_encrypt", "normal", "tls", "quic",
+      "websocket", "grpc", "http2", "reality";
   string password = 2 [ json_name = "password" ];
   bool tcp_encrypt = 12 [ json_name = "tcp_encrypt" ];
   bool udp_encrypt = 13 [ json_name = "udp_encrypt" ];
   bool mux = 11 [ json_name = "mux" ];
-  message protocol_normal {};
-  oneof protocol {
-    normal normal = 3 [ json_name = "normal", deprecated = true ];
-    tls tls = 4 [ json_name = "tls", deprecated = true ];
-    quic quic = 5 [ json_name = "quic", deprecated = true ];
-    websocket websocket = 6 [ json_name = "websocket", deprecated = true ];
-    grpc grpc = 7 [ json_name = "grpc", deprecated = true ];
-    http2 http2 = 9 [ json_name = "http2", deprecated = true ];
-    reality reality = 10 [ json_name = "reality", deprecated = true ];
-  }
 }
 
 message normal {};
+
 message websocket {
-  tls_config tls = 1 [ json_name = "tls", deprecated = true ];
+  reserved 1;
+  reserved "tls";
 };
-message quic { tls_config tls = 1 [ json_name = "tls" ]; };
+
 message tls { tls_config tls = 1 [ json_name = "tls" ]; };
-message grpc { tls_config tls = 1 [ json_name = "tls", deprecated = true ]; };
-message http2 { tls_config tls = 1 [ json_name = "tls", deprecated = true ]; };
+
+message grpc {
+  reserved 1;
+  reserved "tls";
+};
+
+message http2 {
+  reserved 1;
+  reserved "tls";
+};
+
 message reality {
   repeated string short_id = 1 [ json_name = "short_id" ];
   repeated string server_name = 2 [ json_name = "server_name" ];
@@ -195,6 +200,4 @@ message certificate {
   string key_file_path = 4 [ json_name = "key_file_path" ];
 }
 
-message sniff {
-  bool enabled = 1 [ json_name = "enabled" ];
-}
+message sniff { bool enabled = 1 [ json_name = "enabled" ]; }

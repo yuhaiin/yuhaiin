@@ -10,7 +10,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -78,20 +77,6 @@ func (c *setting) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, er
 	defer c.mu.Unlock()
 
 	c.db.Data = proto.Clone(s).(*config.Setting)
-	for k, v := range c.db.Data.Server.Servers {
-		key := "server-" + k
-		_, ok := c.db.Data.Server.Inbounds[key]
-		if ok {
-			continue
-		}
-
-		if c.db.Data.Server.Inbounds == nil {
-			c.db.Data.Server.Inbounds = make(map[string]*listener.Inbound)
-		}
-
-		c.db.Data.Server.Inbounds[key] = v.ToInbound()
-		delete(c.db.Data.Server.Servers, k)
-	}
 
 	if err := c.db.Save(); err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %w", err)

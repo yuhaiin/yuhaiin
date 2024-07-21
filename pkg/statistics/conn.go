@@ -11,7 +11,6 @@ type connection interface {
 	io.Closer
 	LocalAddr() net.Addr
 	Info() *statistic.Connection
-	ID() uint64
 }
 
 var _ connection = (*conn)(nil)
@@ -24,7 +23,7 @@ type conn struct {
 }
 
 func (s *conn) Close() error {
-	s.manager.Remove(s.ID())
+	s.manager.Remove(s.info.GetId())
 	return s.Conn.Close()
 }
 
@@ -41,7 +40,6 @@ func (s *conn) Read(b []byte) (n int, err error) {
 }
 
 func (s *conn) Info() *statistic.Connection { return s.info }
-func (s *conn) ID() uint64                  { return s.info.GetId() }
 
 var _ connection = (*packetConn)(nil)
 
@@ -53,10 +51,9 @@ type packetConn struct {
 }
 
 func (s *packetConn) Info() *statistic.Connection { return s.info }
-func (s *packetConn) ID() uint64                  { return s.info.GetId() }
 
 func (s *packetConn) Close() error {
-	s.manager.Remove(s.ID())
+	s.manager.Remove(s.info.GetId())
 	return s.PacketConn.Close()
 }
 

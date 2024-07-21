@@ -154,7 +154,6 @@ func defaultSetting(path string) *config.Setting {
 					},
 				},
 			},
-			Servers: map[string]*listener.Protocol{},
 		},
 	}
 }

@@ -73,8 +73,6 @@ func (t *testProxy) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		if x == "www.google.com" {
 			store.Resolver.SkipResolve = true
 			store.FakeIP = addr
-			addr = netapi.ParseAddressPort(addr.Network(), x, addr.Port())
-			store.Current = addr
 		}
 	}
 
