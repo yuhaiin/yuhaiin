@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
 
@@ -78,6 +79,7 @@ func NewTotalCache(cache cache.Cache) *TotalCache {
 
 func (c *TotalCache) AddDownload(d uint64) {
 	z := c.notSyncDownload.Add(int64(d))
+	metrics.Counter.AddDownload(int(d))
 	if z >= SyncThreshold {
 		select {
 		case c.trigger <- true:
@@ -91,6 +93,7 @@ func (c *TotalCache) LoadDownload() uint64 {
 }
 
 func (c *TotalCache) AddUpload(d uint64) {
+	metrics.Counter.AddUpload(int(d))
 	z := c.notSyncUpload.Add(int64(d))
 	if z >= SyncThreshold {
 		select {

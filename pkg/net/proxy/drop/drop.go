@@ -40,7 +40,7 @@ func (d *drop) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) 
 
 func (d *drop) waitTime(addr netapi.Address) time.Duration {
 	time, _, _ := d.sf.Do(addr.String(), func() (time.Duration, error) {
-		en, ok := d.lru.Load(addr.String())
+		en, ok := d.lru.LoadRefreshExpire(addr.String())
 		if ok {
 			if en == 0 {
 				en = time.Second

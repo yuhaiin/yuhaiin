@@ -13,6 +13,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -20,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -114,7 +116,7 @@ func NewClient(config Config, do func(context.Context, *request) ([]byte, error)
 func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 
 	opt := &netapi.LookupIPOption{
-		A: true,
+		Mode: netapi.ResolverModePreferIPv4,
 	}
 
 	for _, optf := range opts {
@@ -122,12 +124,11 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	}
 
 	// only ipv6/ipv4
-	if opt.AAAA != opt.A {
-		t := dnsmessage.TypeAAAA
-		if opt.A {
-			t = dnsmessage.TypeA
-		}
-		return c.lookupIP(ctx, domain, t)
+	switch opt.Mode {
+	case netapi.ResolverModePreferIPv4:
+		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
+	case netapi.ResolverModePreferIPv6:
+		return c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 	}
 
 	aaaaerr := make(chan error, 1)
@@ -149,6 +150,10 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 }
 
 func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	if !system.IsDomainName(req.Name.String()) {
+		return dnsmessage.Message{}, fmt.Errorf("invalid domain: %s", req.Name.String())
+	}
+
 	if req.Class == 0 {
 		req.Class = dnsmessage.ClassINET
 	}
@@ -251,7 +256,6 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 
 	if domain[len(domain)-1] != '.' {
 		domain += "."
-
 	}
 
 	name, err := dnsmessage.NewName(domain)
@@ -269,6 +273,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if msg.Header.RCode != dnsmessage.RCodeSuccess {
+		metrics.Counter.AddFailedDNS(domain, msg.Header.RCode, reqType)
 		return nil, &net.DNSError{
 			Err:         msg.Header.RCode.String(),
 			Server:      c.config.Host,
@@ -294,6 +299,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	}
 
 	if len(ips) == 0 {
+		metrics.Counter.AddFailedDNS(domain, dnsmessage.RCodeSuccess, reqType)
 		return nil, &net.DNSError{
 			Err:         "no such host",
 			Server:      c.config.Host,

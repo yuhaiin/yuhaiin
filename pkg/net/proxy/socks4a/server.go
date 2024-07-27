@@ -23,7 +23,7 @@ const (
 type Server struct {
 	lis net.Listener
 
-	*netapi.ChannelAccepter
+	handler    netapi.Handler
 	usernameID string
 }
 
@@ -34,13 +34,14 @@ func (s *Server) Handle(conn net.Conn) error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	return s.SendStream(&netapi.StreamMeta{
+	s.handler.HandleStream(&netapi.StreamMeta{
 		Source:      conn.RemoteAddr(),
 		Destination: addr,
 		Inbound:     conn.LocalAddr(),
 		Src:         conn,
 		Address:     addr,
 	})
+	return nil
 }
 
 func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
@@ -107,8 +108,6 @@ func readData(conn net.Conn) ([]byte, error) {
 }
 
 func (s *Server) Close() error {
-	s.ChannelAccepter.Close()
-
 	if s.lis != nil {
 		return s.lis.Close()
 	}
@@ -146,17 +145,17 @@ func init() {
 	listener.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Socks4A) func(netapi.Listener) (netapi.Accepter, error) {
-	return func(ii netapi.Listener) (netapi.Accepter, error) {
+func NewServer(o *listener.Inbound_Socks4A) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
+	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {
 			return nil, err
 		}
 
 		s := &Server{
-			usernameID:      o.Socks4A.Username,
-			lis:             lis,
-			ChannelAccepter: netapi.NewChannelAccepter(),
+			usernameID: o.Socks4A.Username,
+			lis:        lis,
+			handler:    handler,
 		}
 
 		go s.Server()

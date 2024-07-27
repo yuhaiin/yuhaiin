@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
@@ -73,6 +74,8 @@ func (f *Fakedns) Update(c *pc.Setting) {
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
+	metrics.Counter.AddDNSProcess(domain)
+
 	if f.enabled || netapi.GetContext(ctx).Resolver.ForceFakeIP {
 		if _, ok := f.whitelist.SearchString(strings.TrimSuffix(domain, ".")); ok {
 			return f.upstream

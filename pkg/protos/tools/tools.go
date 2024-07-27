@@ -19,8 +19,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/route"
-	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -85,7 +85,7 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 
 			before := route.TrimComment(text)
 
-			scheme, _, _ := ynet.GetScheme(before)
+			scheme, _, _ := system.GetScheme(before)
 			switch scheme {
 			case "file", "http", "https":
 				url, _, ok := route.SplitHostArgs(before)
@@ -139,7 +139,7 @@ func getFileHash(data []byte) string {
 }
 
 func get(hc *http.Client, rulepath string, url string, ff func(io.Reader) error) error {
-	scheme, etc, _ := ynet.GetScheme(url)
+	scheme, etc, _ := system.GetScheme(url)
 	switch scheme {
 	case "file":
 		file := strings.TrimPrefix(etc, "//")

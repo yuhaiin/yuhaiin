@@ -202,9 +202,9 @@ func ErrorTransportFunc(err error) func(netapi.Listener) (netapi.Listener, error
 	}
 }
 
-var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(netapi.Listener) (netapi.Accepter, error)]
+var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error)]
 
-func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (netapi.Accepter, error)) {
+func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error)) {
 	if wrap == nil {
 		return
 	}
@@ -212,22 +212,22 @@ func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener) (
 	var z T
 	protocolStore.Store(
 		reflect.TypeOf(z),
-		func(p isInbound_Protocol) func(netapi.Listener) (netapi.Accepter, error) {
+		func(p isInbound_Protocol) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
 			return wrap(p.(T))
 		},
 	)
 }
 
-func Protocols(lis netapi.Listener, config isInbound_Protocol) (netapi.Accepter, error) {
+func Protocols(lis netapi.Listener, config isInbound_Protocol, handler netapi.Handler) (netapi.Accepter, error) {
 	nc, ok := protocolStore.Load(reflect.TypeOf(config))
 	if !ok {
 		return nil, fmt.Errorf("protocol %v is not support", config)
 	}
 
-	return nc(config)(lis)
+	return nc(config)(lis, handler)
 }
 
-func Listen(config *Inbound) (netapi.Accepter, error) {
+func Listen(config *Inbound, handler netapi.Handler) (netapi.Accepter, error) {
 	lis, err := Network(config.Network)
 	if err != nil {
 		return nil, err
@@ -239,7 +239,7 @@ func Listen(config *Inbound) (netapi.Accepter, error) {
 		return nil, err
 	}
 
-	pl, err := Protocols(tl, config.Protocol)
+	pl, err := Protocols(tl, config.Protocol, handler)
 	if err != nil {
 		if tl != nil {
 			_ = tl.Close()

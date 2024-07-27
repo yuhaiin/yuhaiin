@@ -82,6 +82,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 	}
 
 	go func() {
+		defer tab.Close()
 		defer nat.Close()
 
 		sizes := make([]int, opt.Writer.Tun().BatchSize())

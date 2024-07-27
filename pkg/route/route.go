@@ -101,6 +101,12 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 }
 
 func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Address, error) {
+	store := netapi.GetContext(ctx)
+
+	if store.SkipRoute {
+		return host, nil
+	}
+
 	_, addr := s.dispatch(ctx, bypass.Mode_bypass, host)
 	return addr, nil
 }
@@ -123,18 +129,6 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	var mode bypass.ModeEnum = bypass.Mode_bypass
 
 	process := s.DumpProcess(ctx, host)
-	if process != "" {
-		matchProcess := strings.TrimSuffix(process, " (deleted)")
-		for _, v := range []map[string]bypass.ModeEnum{
-			s.customTrie.processTrie,
-			s.trie.processTrie,
-		} {
-			if m, ok := v[matchProcess]; ok {
-				mode = m
-				break
-			}
-		}
-	}
 
 	// get mode from upstream specified
 	store := netapi.GetContext(ctx)
@@ -155,7 +149,30 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 		} else {
 			mode = s.Search(ctx, host)
 		}
-		store.Resolver.PreferIPv6 = mode.GetResolveStrategy() == bypass.ResolveStrategy_prefer_ipv6
+
+		switch mode.GetResolveStrategy() {
+		case bypass.ResolveStrategy_only_ipv4, bypass.ResolveStrategy_prefer_ipv4:
+			store.Resolver.Mode = netapi.ResolverModePreferIPv4
+		case bypass.ResolveStrategy_only_ipv6, bypass.ResolveStrategy_prefer_ipv6:
+			store.Resolver.Mode = netapi.ResolverModePreferIPv6
+		}
+	}
+
+	if mode.Mode() != bypass.Mode_block {
+		if store.SniffMode != bypass.Mode_bypass {
+			mode = store.SniffMode
+		} else if process != "" {
+			matchProcess := strings.TrimSuffix(process, " (deleted)")
+			for _, v := range [...]map[string]bypass.ModeEnum{
+				s.customTrie.processTrie,
+				s.trie.processTrie,
+			} {
+				if m, ok := v[matchProcess]; ok {
+					mode = m
+					break
+				}
+			}
+		}
 	}
 
 	store.Resolver.SkipResolve = s.skipResolve(mode)

@@ -11,8 +11,7 @@ import (
 )
 
 type LookupIPOption struct {
-	AAAA bool
-	A    bool
+	Mode ResolverMode
 }
 
 type Resolver interface {
@@ -46,18 +45,18 @@ func NewSystemResolver(host ...string) *SystemResolver {
 }
 
 func (d *SystemResolver) LookupIP(ctx context.Context, domain string, opts ...func(*LookupIPOption)) ([]net.IP, error) {
-	opt := &LookupIPOption{A: true}
+	opt := &LookupIPOption{}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	network := "ip"
-	if opt.A != opt.AAAA {
-		if opt.AAAA {
-			network = "ip6"
-		} else {
-			network = "ip4"
-		}
+
+	switch opt.Mode {
+	case ResolverModePreferIPv4:
+		network = "ip4"
+	case ResolverModePreferIPv6:
+		network = "ip6"
 	}
 
 	return d.resolver.LookupIP(ctx, network, domain)

@@ -60,12 +60,11 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 		optf(opt)
 	}
 
-	if opt.AAAA && !opt.A {
-		return []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
-	}
-
-	if opt.A && !opt.AAAA {
+	switch opt.Mode {
+	case netapi.ResolverModePreferIPv4:
 		return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice()}, nil
+	case netapi.ResolverModePreferIPv6:
+		return []net.IP{f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
 	}
 
 	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice(), f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
@@ -370,7 +369,7 @@ func (f *fakeLru) Load(host string) (netip.Addr, bool) {
 		return netip.Addr{}, false
 	}
 
-	z, _, ok := f.LRU.LoadExpireTime(host)
+	z, ok := f.LRU.Load(host)
 	if ok {
 		return z, ok
 	}

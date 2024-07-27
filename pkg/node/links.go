@@ -17,7 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type link struct {
@@ -164,7 +164,7 @@ func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
 	t := l.Type
 
 	if t == subscribe.Type_reserve {
-		scheme, _, _ := net.GetScheme(string(str))
+		scheme, _, _ := system.GetScheme(string(str))
 		t = schemeTypeMap[scheme]
 	}
 

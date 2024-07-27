@@ -13,8 +13,6 @@ import (
 	protolog "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 )
 
-//go:generate protoc --go_out=. --go_opt=paths=source_relative log.proto
-
 type Logger interface {
 	Debug(string, ...any)
 	Info(string, ...any)
