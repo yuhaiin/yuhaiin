@@ -1,11 +1,13 @@
 package tun
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"math"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/buffer"
@@ -100,7 +102,7 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 
 	dst := netapi.ParseIPAddrPort("udp", id.LocalAddress.AsSlice(), dstPort)
 
-	_ = f.SendPacket(&netapi.Packet{
+	f.handler.HandlePacket(&netapi.Packet{
 		Src:     netapi.ParseIPAddrPort("udp", id.RemoteAddress.AsSlice(), srcPort),
 		Dst:     dst,
 		Payload: buf.Bytes(),
@@ -121,7 +123,10 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 		return 0, fmt.Errorf("send FQDN packet")
 	}
 
-	dip, err := netapi.ResolverAddrPort(w.Context(), daddr)
+	ctx, cancel := context.WithTimeout(context.Background(), configuration.Timeout)
+	defer cancel()
+
+	dip, err := netapi.ResolverAddrPort(ctx, daddr)
 	if err != nil {
 		return 0, err
 	}

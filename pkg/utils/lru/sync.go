@@ -35,6 +35,12 @@ func (l *SyncLru[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time, ok boo
 	return l.lru.LoadExpireTime(key)
 }
 
+func (l *SyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lru.LoadRefreshExpire(key)
+}
+
 func (l *SyncLru[K, V]) Load(key K) (v V, ok bool) {
 	v, _, ok = l.LoadExpireTime(key)
 	return

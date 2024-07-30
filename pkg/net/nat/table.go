@@ -10,7 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
@@ -26,7 +28,7 @@ func NewTable(dialer netapi.Proxy) *Table {
 
 type Table struct {
 	dialer netapi.Proxy
-	sf     singleflight.GroupSync[string, *SourceTable]
+	sf     singleflight.GroupNoblock[string, *SourceTable]
 	cache  syncmap.SyncMap[string, *SourceTable]
 }
 
@@ -45,15 +47,23 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 		return err
 	}
 
+	store := netapi.GetContext(ctx)
+	store.Resolver = t.resolver
+
 	// cache fakeip/hosts/bypass address
 	// because domain bypass maybe resolve domain which is speed some time, so we cache it for a while
 	dstAddr, ok := loadSourceTableAddr[netapi.Address](t, cacheTypeDispatch, key)
 	if !ok {
+		store.SkipRoute = true
+
 		dstAddr, err = u.dialer.Dispatch(ctx, pkt.Dst)
 		if err != nil {
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
-		t.storeAddr(cacheTypeDispatch, key, dstAddr)
+
+		if key != dstAddr.String() {
+			t.storeAddr(cacheTypeDispatch, key, dstAddr)
+		}
 	}
 
 	// check is need resolve
@@ -117,6 +127,8 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
+	metrics.Counter.AddSendUDPPacket()
+
 	pkt = pkt.Clone()
 
 	var key string
@@ -132,10 +144,18 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return u.write(ctx, t, pkt, false)
 	}
 
-	go func() {
-		ctx = context.WithoutCancel(ctx)
+	ctx = context.WithoutCancel(ctx)
 
-		t, err, _ := u.sf.Do(key, func() (*SourceTable, error) {
+	u.sf.DoBackground(
+		key,
+		func(st *SourceTable) {
+			ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+			defer cancel()
+			if err := u.write(ctx, st, pkt, true); err != nil {
+				log.Error("udp remote to local", "err", err)
+			}
+		},
+		func() (*SourceTable, bool) {
 			store := netapi.GetContext(ctx)
 			store.Source = pkt.Src
 			store.Destination = pkt.Dst
@@ -146,45 +166,34 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 				}
 			}
 
+			ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+			defer cancel()
+
 			dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 			if err != nil {
-				return nil, fmt.Errorf("dial %s failed: %w", pkt.Dst, err)
+				return nil, false
 			}
 
-			var table *SourceTable
+			var table *SourceTable = t
 			if t != nil {
-				if t.stopTimer != nil {
-					t.stopTimer.Stop()
+				if timer := t.stopTimer; timer != nil {
+					timer.Stop()
 				}
-				table = t
-				table.writeBack = pkt.WriteBack
 			} else {
-				table = &SourceTable{
-					dstPacketConn: dstpconn,
-					skipResolve:   store.Resolver.SkipResolve,
-					writeBack:     pkt.WriteBack,
-					migrateID:     store.UDPMigrateID,
-				}
+				table = &SourceTable{skipResolve: store.Resolver.SkipResolve}
 			}
 
+			table.writeBack = pkt.WriteBack
+			table.dstPacketConn = dstpconn
 			table.migrateID = store.UDPMigrateID
+			table.resolver = store.Resolver
 			table.connected.Store(true)
-
 			u.cache.Store(key, table)
 
 			go u.runWriteBack(key, dstpconn, table)
 
-			return table, nil
+			return table, true
 		})
-		if err != nil {
-			log.Error("create source table", "err", err)
-			return
-		}
-
-		if err = u.write(ctx, t, pkt, true); err != nil {
-			log.Error("udp remote to local", "err", err)
-		}
-	}()
 
 	return nil
 }
@@ -198,10 +207,6 @@ func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
 		table.connected.Store(false)
 		p.Close()
 	}()
-	// defer u.cache.Delete(key)
-	// defer dstpc.Close()
-	// defer p.Close()
-	// defer table.connected.Store(false)
 
 	ch := make(chan backPacket, 250)
 	defer close(ch)
@@ -230,6 +235,9 @@ func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
 			log.Error("read from proxy failed", "err", err)
 			return
 		}
+
+		metrics.Counter.AddReceiveUDPPacket()
+
 		select {
 		case ch <- backPacket{from, pool.Clone(data[:n])}:
 		case <-ctx.Done():

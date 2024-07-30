@@ -10,7 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
@@ -83,7 +83,7 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	case bypass.Mode_direct.String():
 		return direct.Default, nil
 	case bypass.Mode_block.String():
-		return drop.Drop, nil
+		return reject.Default, nil
 	}
 
 	if len(network) < 3 {

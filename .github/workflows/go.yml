@@ -17,65 +17,6 @@ jobs:
         run: |
           echo "front_version=$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")" >> $GITHUB_OUTPUT
 
-  package:
-    needs: get_version
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: "0"
-          fetch-tags: "true"
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          flavor: latest=true
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          check-latest: true
-          go-version-file: "go.mod"
-
-      - name: update dep
-        run: |
-          go get -v -u github.com/yuhaiin/yuhaiin.github.io@${{ needs.get_version.outputs.front_version }}
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - # Add support for more platforms with QEMU (optional)
-        # https://github.com/docker/setup-qemu-action
-        name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          file: cmd/yuhaiin/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
   android:
     needs: get_version
     runs-on: ubuntu-latest

@@ -24,8 +24,8 @@ type tunServer struct {
 	stack    *stack.Stack
 	postDown func()
 
-	*netapi.ChannelAccepter
-	nicID tcpip.NICID
+	handler netapi.Handler
+	nicID   tcpip.NICID
 }
 
 func (t *tunServer) Close() error {
@@ -45,7 +45,6 @@ func (t *tunServer) Close() error {
 		t.stack.Destroy()
 	}
 	log.Debug("start close tun channel server")
-	t.ChannelAccepter.Close()
 
 	if t.postDown != nil {
 		t.postDown()
@@ -57,6 +56,7 @@ func (t *tunServer) Close() error {
 type Opt struct {
 	*listener.Inbound_Tun
 	*netlink.Options
+	netapi.Handler
 }
 
 func New(o *Opt) (netapi.Accepter, error) {
@@ -101,11 +101,11 @@ func New(o *Opt) (netapi.Accepter, error) {
 	o.PostUp()
 
 	t := &tunServer{
-		nicID:           nicID,
-		stack:           s,
-		ep:              ep,
-		postDown:        o.PostDown,
-		ChannelAccepter: netapi.NewChannelAccepter(),
+		nicID:    nicID,
+		stack:    s,
+		ep:       ep,
+		postDown: o.PostDown,
+		handler:  o.Handler,
 	}
 
 	s.SetSpoofing(nicID, true)
@@ -142,8 +142,6 @@ func New(o *Opt) (netapi.Accepter, error) {
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
 
-	// https://github.com/google/gvisor/issues/6113
-	// I meet this issue, but it's already fix?
 	opt2 := tcpip.CongestionControlOption(tcpCongestionControlAlgorithm)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt2)
 

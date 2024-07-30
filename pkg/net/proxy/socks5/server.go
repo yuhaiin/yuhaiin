@@ -1,6 +1,7 @@
 package socks5
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -16,21 +17,21 @@ import (
 )
 
 func (s *Server) startUDPServer() error {
-	packet, err := s.lis.Packet(s.Context())
+	packet, err := s.lis.Packet(s.ctx)
 	if err != nil {
 		return err
 	}
 
 	go func() {
 		defer packet.Close()
-		yuubinsya.StartUDPServer(packet, s.SendPacket, nil, true)
+		yuubinsya.StartUDPServer(packet, s.handler.HandlePacket, nil, true)
 	}()
 
 	return nil
 }
 
 func (s *Server) startTCPServer() error {
-	lis, err := s.lis.Stream(s.Context())
+	lis, err := s.lis.Stream(s.ctx)
 	if err != nil {
 		return err
 	}
@@ -200,13 +201,14 @@ func (s *Server) handshake2(client net.Conn, buf []byte) error {
 			return err
 		}
 
-		return s.SendStream(&netapi.StreamMeta{
+		s.handler.HandleStream(&netapi.StreamMeta{
 			Source:      client.RemoteAddr(),
 			Destination: addr,
 			Inbound:     client.LocalAddr(),
 			Src:         client,
 			Address:     addr,
 		})
+		return nil
 
 	case tools.Udp: // udp
 		if s.udp {
@@ -257,15 +259,17 @@ func writeHandshake2(conn net.Conn, errREP byte, addr netapi.Address) error {
 type Server struct {
 	lis netapi.Listener
 
-	*netapi.ChannelAccepter
+	handler netapi.Handler
+	ctx     context.Context
+	cancel  context.CancelFunc
+
 	username string
 	password string
-
-	udp bool
+	udp      bool
 }
 
 func (s *Server) Close() error {
-	s.ChannelAccepter.Close()
+	s.cancel()
 	return s.lis.Close()
 }
 
@@ -273,14 +277,17 @@ func init() {
 	listener.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener) (netapi.Accepter, error) {
-	return func(ii netapi.Listener) (netapi.Accepter, error) {
+func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
+	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+		ctx, cancel := context.WithCancel(context.Background())
 		s := &Server{
-			udp:             o.Socks5.Udp,
-			username:        o.Socks5.Username,
-			password:        o.Socks5.Password,
-			lis:             ii,
-			ChannelAccepter: netapi.NewChannelAccepter(),
+			udp:      o.Socks5.Udp,
+			username: o.Socks5.Username,
+			password: o.Socks5.Password,
+			lis:      ii,
+			handler:  handler,
+			ctx:      ctx,
+			cancel:   cancel,
 		}
 
 		if s.udp {

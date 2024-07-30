@@ -3,11 +3,12 @@ module github.com/Asutorufa/yuhaiin
 go 1.22.0
 
 require (
-	github.com/google/pprof v0.0.0-20240625030939-27f56978b8b0
+	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
+	github.com/prometheus/client_golang v1.19.1
 	github.com/quic-go/quic-go v0.45.1
 	github.com/refraction-networking/utls v1.6.7
-	github.com/tailscale/wireguard-go v0.0.0-20240705152531-2f5d148bcfe1
+	github.com/tailscale/wireguard-go v0.0.0-20240724015428-60eeedfd624b
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240524165444-4d4ba1473f21
 	github.com/xtls/reality v0.0.0-20240712055506-48f0b2d5ed6d
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240721101322-5be00099c3cd
@@ -26,6 +27,8 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.0.6 // indirect
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect
@@ -33,6 +36,9 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.13.2 // indirect
 	github.com/pires/go-proxyproto v0.7.0 // indirect
+	github.com/prometheus/client_model v0.5.0 // indirect
+	github.com/prometheus/common v0.48.0 // indirect
+	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/mock v0.4.0 // indirect

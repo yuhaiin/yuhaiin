@@ -21,8 +21,8 @@ func init() {
 	listener.RegisterProtocol(NewTun)
 }
 
-func NewTun(o *listener.Inbound_Tun) func(netapi.Listener) (s netapi.Accepter, err error) {
-	return func(l netapi.Listener) (s netapi.Accepter, err error) {
+func NewTun(o *listener.Inbound_Tun) func(netapi.Listener, netapi.Handler) (s netapi.Accepter, err error) {
+	return func(l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
 		v4address, v4err := toPrefix(o.Tun.Portal)
 		v6address, v6err := toPrefix(o.Tun.PortalV6)
 		if v4err != nil && v6err != nil {
@@ -43,6 +43,7 @@ func NewTun(o *listener.Inbound_Tun) func(netapi.Listener) (s netapi.Accepter, e
 				MTU:       int(o.Tun.Mtu),
 				Routes:    toRoutes(o.Tun.Route),
 			},
+			Handler: handler,
 		}
 
 		if v4address.IsValid() {

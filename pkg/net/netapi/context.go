@@ -10,18 +10,38 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
 
+type ResolverMode int
+
+const (
+	ResolverModeNoSpecified ResolverMode = iota
+	ResolverModePreferIPv6
+	ResolverModePreferIPv4
+)
+
 type ContextResolver struct {
 	Resolver     Resolver
 	ResolverSelf Resolver
-	PreferIPv6   bool
-	PreferIPv4   bool
+	Mode         ResolverMode
 	SkipResolve  bool `metrics:"-"`
 	ForceFakeIP  bool `metrics:"-"`
 }
 
-type Context struct {
-	Resolver ContextResolver `metrics:"-"`
+func (r ContextResolver) Opts(reverse bool) []func(*LookupIPOption) {
+	switch r.Mode {
+	case ResolverModePreferIPv6, ResolverModePreferIPv4:
+		return []func(*LookupIPOption){func(li *LookupIPOption) {
+			if r.Mode == ResolverModePreferIPv4 || reverse {
+				li.Mode = ResolverModePreferIPv4
+			} else {
+				li.Mode = ResolverModePreferIPv6
+			}
+		}}
+	}
 
+	return nil
+}
+
+type Context struct {
 	Source      net.Addr `metrics:"Source"`
 	Inbound     net.Addr `metrics:"Inbound"`
 	Destination net.Addr `metrics:"Destination"`
@@ -44,10 +64,14 @@ type Context struct {
 	// dns resolver
 	Component string `metrics:"Component"`
 
-	ForceMode bypass.Mode `metrics:"-"`
-	Mode      bypass.Mode `metrics:"MODE"`
+	Resolver ContextResolver `metrics:"-"`
 
 	UDPMigrateID uint64 `metrics:"UDP MigrateID"`
+
+	ForceMode bypass.Mode `metrics:"-"`
+	SniffMode bypass.Mode `metrics:"-"`
+	Mode      bypass.Mode `metrics:"MODE"`
+	SkipRoute bool        `metrics:"-"`
 }
 
 func (addr *Context) Map() map[string]string {

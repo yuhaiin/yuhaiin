@@ -14,7 +14,7 @@ import (
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type client struct {
@@ -112,7 +112,7 @@ func (e *earlyConn) handshake(b []byte) (int, error) {
 	var earlyDataSupport bool
 	conn, err := e.config.NewClient(SecWebSocketKey, e.Conn,
 		func(r *http.Request) error {
-			r.Header.Set("User-Agent", ynet.UserAgents[rand.IntN(ynet.UserAgentLength)])
+			r.Header.Set("User-Agent", system.UserAgents[rand.IntN(system.UserAgentLength)])
 			r.Header.Set("Sec-Fetch-Dest", "websocket")
 			r.Header.Set("Sec-Fetch-Mode", "websocket")
 			r.Header.Set("Pragma", "no-cache")

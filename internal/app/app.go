@@ -27,6 +27,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
 
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -135,6 +136,8 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	// tools
 	tools := tools.NewTools(fakedns, opt.Setting, st.Update)
 	mux := http.NewServeMux()
+
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	app := &appapi.Components{
 		Start:        so,

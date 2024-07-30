@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
-
-var Timeout = time.Second * 20
 
 type handler struct {
 	dialer     netapi.Proxy
@@ -47,7 +48,7 @@ func (s *handler) Stream(ctx context.Context, meta *netapi.StreamMeta) {
 }
 
 func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
-	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
 	defer cancel()
 
 	ctx = netapi.WithContext(ctx)
@@ -62,6 +63,8 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 		store.Inbound = meta.Inbound
 	}
 
+	startNanoSeconds := system.CheapNowNano()
+
 	if s.sniffyEnabled {
 		src := s.sniffer.Stream(store, meta.Src)
 		defer src.Close()
@@ -70,16 +73,24 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 
 	remote, err := s.dialer.Conn(ctx, dst)
 	if err != nil {
-		return fmt.Errorf("dial %s failed: %w", dst, err)
+		sniff := store.SniffHost()
+		if sniff != "" {
+			sniff = fmt.Sprintf(" [sniff: %s]", sniff)
+		}
+		return fmt.Errorf("dial %s%s failed: %w", dst, sniff, err)
 	}
 	defer remote.Close()
+
+	endNanoSeconds := system.CheapNowNano()
+
+	metrics.Counter.AddStreamConnectDuration(time.Duration(endNanoSeconds - startNanoSeconds).Seconds())
 
 	relay.Relay(meta.Src, remote)
 	return nil
 }
 
 func (s *handler) Packet(xctx context.Context, pack *netapi.Packet) {
-	xctx, cancel := context.WithTimeout(xctx, Timeout)
+	xctx, cancel := context.WithTimeout(xctx, configuration.Timeout)
 	defer cancel()
 
 	ctx := netapi.WithContext(xctx)
@@ -94,8 +105,7 @@ func (s *handler) Packet(xctx context.Context, pack *netapi.Packet) {
 		if err == nil && !src.IsFqdn() {
 			srcAddr, _ := netapi.ResolverAddrPort(ctx, src)
 			if srcAddr.Addr().Unmap().Is4() {
-				ctx.Resolver.PreferIPv4 = true
-				ctx.Resolver.PreferIPv6 = false
+				ctx.Resolver.Mode = netapi.ResolverModePreferIPv4
 			}
 		}
 	}

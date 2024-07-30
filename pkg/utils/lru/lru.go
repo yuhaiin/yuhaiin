@@ -109,6 +109,10 @@ func (l *lru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 }
 
 func (l *lru[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time, ok bool) {
+	return l.loadExpireTime(key, false)
+}
+
+func (l *lru[K, V]) loadExpireTime(key K, refresh bool) (v V, expireTime time.Time, ok bool) {
 	node, ok := l.mapping[key]
 	if !ok {
 		return
@@ -124,8 +128,30 @@ func (l *lru[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time, ok bool) {
 		return v, expireTime, false
 	}
 
+	if refresh && l.timeout != 0 {
+		node.Value().expire = time.Now().Add(l.timeout)
+	}
+
 	l.list.MoveToFront(node)
 	return node.Value().data, node.Value().expire, true
+}
+
+func (l *lru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
+	v, _, ok = l.loadExpireTime(key, true)
+	return
+}
+
+func (l *lru[K, V]) ClearExpired() {
+	now := time.Now()
+	for k, v := range l.mapping {
+		if !v.Value().expire.IsZero() && now.After(v.Value().expire) {
+			delete(l.mapping, k)
+			if l.onRemove != nil {
+				l.onRemove(k, v.Value().data)
+			}
+			l.list.Remove(v)
+		}
+	}
 }
 
 // Delete delete a key from cache

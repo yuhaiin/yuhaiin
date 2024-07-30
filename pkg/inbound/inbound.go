@@ -9,7 +9,6 @@ import (
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -18,15 +17,14 @@ type entry struct {
 	server netapi.Accepter
 }
 
+var _ netapi.Handler = (*listener)(nil)
+
 type listener struct {
 	ctx context.Context
 
 	handler *handler
 
 	close context.CancelFunc
-
-	tcpChannel chan *netapi.StreamMeta
-	udpChannel chan *netapi.Packet
 
 	store syncmap.SyncMap[string, entry]
 
@@ -38,81 +36,60 @@ func NewListener(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *listener {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	l := &listener{
-		handler:    NewHandler(dialer, dnsHandler),
-		ctx:        ctx,
-		close:      cancel,
-		tcpChannel: make(chan *netapi.StreamMeta, 250),
-		udpChannel: make(chan *netapi.Packet, 250),
+		handler: NewHandler(dialer, dnsHandler),
+		ctx:     ctx,
+		close:   cancel,
 
 		hijackDNS: true,
 		fakeip:    true,
 	}
 
-	go l.tcp()
-
-	for range system.Procs {
-		go l.udp()
-	}
-
 	return l
 }
 
-func (l *listener) tcp() {
-	for {
-		select {
-		case <-l.ctx.Done():
-			return
-		case stream := <-l.tcpChannel:
-			if stream.Address.Port() == 53 && l.hijackDNS {
-				go func() {
-					ctx := netapi.WithContext(l.ctx)
-					ctx.Resolver.ForceFakeIP = l.fakeip
-					err := l.handler.dnsHandler.HandleTCP(ctx, stream.Src)
-					_ = stream.Src.Close()
-					if err != nil {
-						log.Output(0, netapi.LogLevel(err), "tcp server handle DnsHijacking", "msg", err)
-					}
-				}()
-				continue
-			}
-
-			l.handler.Stream(l.ctx, stream)
-		}
+func (l *listener) HandleStream(stream *netapi.StreamMeta) {
+	if !l.hijackDNS || stream.Address.Port() != 53 {
+		l.handler.Stream(l.ctx, stream)
+		return
 	}
+
+	go func() {
+		ctx := netapi.WithContext(l.ctx)
+		ctx.Resolver.ForceFakeIP = l.fakeip
+		err := l.handler.dnsHandler.HandleTCP(ctx, stream.Src)
+		_ = stream.Src.Close()
+		if err != nil {
+			log.Output(0, netapi.LogLevel(err), "tcp server handle DnsHijacking", "msg", err)
+		}
+	}()
 }
 
-func (l *listener) udp() {
-	for {
-		select {
-		case <-l.ctx.Done():
-			return
-		case packet := <-l.udpChannel:
-			if l.hijackDNS && packet.Dst.Port() == 53 {
-				go func() {
-					defer pool.PutBytes(packet.Payload)
+func (l *listener) HandlePacket(packet *netapi.Packet) {
+	packet.Payload = pool.Clone(packet.Payload)
 
-					ctx := netapi.WithContext(l.ctx)
-					ctx.Resolver.ForceFakeIP = l.fakeip
-					dnsReq := &netapi.DNSRawRequest{
-						Question: packet.Payload,
-						WriteBack: func(b []byte) error {
-							_, err := packet.WriteBack(b, packet.Dst)
-							return err
-						},
-					}
-					err := l.handler.dnsHandler.Do(ctx, dnsReq)
-					if err != nil {
-						log.Output(0, netapi.LogLevel(err), "udp server handle DnsHijacking", "msg", err)
-					}
-				}()
-
-				continue
-			}
-
-			l.handler.Packet(l.ctx, packet)
-			pool.PutBytes(packet.Payload)
-		}
+	if !l.hijackDNS || packet.Dst.Port() != 53 {
+		l.handler.Packet(l.ctx, packet)
+		pool.PutBytes(packet.Payload)
+		return
 	}
+
+	go func() {
+		defer pool.PutBytes(packet.Payload)
+
+		ctx := netapi.WithContext(l.ctx)
+		ctx.Resolver.ForceFakeIP = l.fakeip
+		dnsReq := &netapi.DNSRawRequest{
+			Question: packet.Payload,
+			WriteBack: func(b []byte) error {
+				_, err := packet.WriteBack(b, packet.Dst)
+				return err
+			},
+		}
+		err := l.handler.dnsHandler.Do(ctx, dnsReq)
+		if err != nil {
+			log.Output(0, netapi.LogLevel(err), "udp server handle DnsHijacking", "msg", err)
+		}
+	}()
 }
 
 func (l *listener) Update(current *pc.Setting) {
@@ -154,43 +131,11 @@ func (l *listener) start(key string, config *pl.Inbound) {
 		return
 	}
 
-	server, err := pl.Listen(config)
+	server, err := pl.Listen(config, l)
 	if err != nil {
 		log.Error("start server failed", "name", key, "err", err)
 		return
 	}
-
-	go func() {
-		for {
-			stream, err := server.AcceptStream()
-			if err != nil {
-				log.Error("accept stream failed", "err", err)
-				return
-			}
-
-			select {
-			case <-l.ctx.Done():
-				return
-			case l.tcpChannel <- stream:
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			packet, err := server.AcceptPacket()
-			if err != nil {
-				log.Error("accept packet failed", "err", err)
-				return
-			}
-
-			select {
-			case <-l.ctx.Done():
-				return
-			case l.udpChannel <- packet:
-			}
-		}
-	}()
 
 	l.store.Store(key, entry{config, server})
 }

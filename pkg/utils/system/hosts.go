@@ -10,3 +10,6 @@ func LookupStaticHost(host string) ([]string, string)
 
 //go:linkname LookupStaticAddr net.lookupStaticAddr
 func LookupStaticAddr(addr string) []string
+
+//go:linkname IsDomainName net.isDomainName
+func IsDomainName(string) bool

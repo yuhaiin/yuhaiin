@@ -203,7 +203,7 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstA
 }
 
 func (t *Tproxy) newUDP() error {
-	lis, err := t.lis.Packet(t.Context())
+	lis, err := t.lis.Packet(t.ctx)
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func (t *Tproxy) newUDP() error {
 
 			dstAddr, _ := netapi.ParseSysAddr(dst)
 
-			err = t.SendPacket(&netapi.Packet{
+			t.handler.HandlePacket(&netapi.Packet{
 				Src:     src,
 				Dst:     dstAddr,
 				Payload: buf[:n],
@@ -275,10 +275,6 @@ func (t *Tproxy) newUDP() error {
 					return n, nil
 				},
 			})
-
-			if err != nil {
-				return
-			}
 		}
 	}()
 

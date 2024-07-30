@@ -7,13 +7,13 @@ import (
 
 type ReverseSyncLru[K, V comparable] struct {
 	lru        *lru[K, V]
-	reverseMap map[V]K
+	reverseMap map[V]*K
 	mu         sync.Mutex
 }
 
 func NewSyncReverseLru[K, V comparable](options ...Option[K, V]) *ReverseSyncLru[K, V] {
 	x := &ReverseSyncLru[K, V]{
-		reverseMap: make(map[V]K),
+		reverseMap: make(map[V]*K),
 	}
 	x.lru = newLru(options...)
 
@@ -35,7 +35,7 @@ func (l *ReverseSyncLru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 		l.lru.Delete(key)
 	}
 	l.lru.Add(key, value, opts...)
-	l.reverseMap[value] = key
+	l.reverseMap[value] = &key
 	l.mu.Unlock()
 }
 
@@ -49,6 +49,12 @@ func (l *ReverseSyncLru[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time,
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.lru.LoadExpireTime(key)
+}
+
+func (l *ReverseSyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lru.LoadRefreshExpire(key)
 }
 
 func (l *ReverseSyncLru[K, V]) Load(key K) (v V, ok bool) {
@@ -74,9 +80,9 @@ func (l *ReverseSyncLru[K, V]) ReverseLoad(v V) (k K, ok bool) {
 		return k, false
 	}
 
-	l.lru.LoadExpireTime(node)
+	l.lru.LoadExpireTime(*node)
 
-	return node, true
+	return *node, true
 }
 
 func (l *ReverseSyncLru[K, V]) ValueExist(key V) bool {
@@ -94,4 +100,10 @@ func (l *ReverseSyncLru[K, V]) LastPopValue() (v V, _ bool) {
 		return x.data, true
 	}
 	return
+}
+
+func (l *ReverseSyncLru[K, V]) ClearExpired() {
+	l.mu.Lock()
+	l.lru.ClearExpired()
+	l.mu.Unlock()
 }

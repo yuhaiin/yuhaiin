@@ -68,7 +68,6 @@ func (w *wrapGsoDevice) Write(bufs [][]byte, offset int) (int, error) {
 	// https://github.com/WireGuard/wireguard-go/blob/12269c2761734b15625017d8565745096325392f/tun/offload_linux.go#L867
 	//
 	// virtioNetHdrLen = 10
-
 	if len(bufs) > len(w.wbuffers) {
 		return 0, fmt.Errorf("buffer %d is larger than recevied: %d", len(w.wbuffers), len(bufs))
 	}

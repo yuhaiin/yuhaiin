@@ -174,7 +174,9 @@ func wrap(name string, dns netapi.Resolver, v6 *Resolver) *dnsWrap {
 func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	opt := func(opt *netapi.LookupIPOption) {
 		if d.resolver.GetIPv6() {
-			opt.AAAA = true
+			opt.Mode = netapi.ResolverModeNoSpecified
+		} else {
+			opt.Mode = netapi.ResolverModePreferIPv4
 		}
 
 		for _, o := range opts {

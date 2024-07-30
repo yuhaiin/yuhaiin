@@ -52,10 +52,11 @@ func (w *listener) Close() error {
 	return err
 }
 
-type Accepter interface {
-	Server
-	AcceptStream() (*StreamMeta, error)
-	AcceptPacket() (*Packet, error)
+type Accepter interface{ Server }
+
+type Handler interface {
+	HandleStream(*StreamMeta)
+	HandlePacket(*Packet)
 }
 
 type StreamMeta struct {
@@ -152,65 +153,3 @@ func (c *ChannelStreamListener) Close() error {
 }
 
 func (c *ChannelStreamListener) Addr() net.Addr { return c.addr }
-
-type ChannelAccepter struct {
-	packetChan chan *Packet
-	streamChan chan *StreamMeta
-	ctx        context.Context
-	cancel     context.CancelFunc
-}
-
-func NewChannelAccepter() *ChannelAccepter {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &ChannelAccepter{
-		packetChan: make(chan *Packet, 100),
-		streamChan: make(chan *StreamMeta, 100),
-		ctx:        ctx,
-		cancel:     cancel,
-	}
-}
-
-func (s *ChannelAccepter) AcceptPacket() (*Packet, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case p := <-s.packetChan:
-		return p, nil
-	}
-}
-
-func (s *ChannelAccepter) AcceptStream() (*StreamMeta, error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case p := <-s.streamChan:
-		return p, nil
-	}
-}
-
-func (s *ChannelAccepter) Close() error {
-	s.cancel()
-	return nil
-}
-
-func (s *ChannelAccepter) SendPacket(packet *Packet) error {
-	packet.Payload = pool.Clone(packet.Payload)
-	select {
-	case <-s.ctx.Done():
-		pool.PutBytes(packet.Payload)
-		return s.ctx.Err()
-	case s.packetChan <- packet:
-		return nil
-	}
-}
-
-func (s *ChannelAccepter) SendStream(stream *StreamMeta) error {
-	select {
-	case <-s.ctx.Done():
-		return s.ctx.Err()
-	case s.streamChan <- stream:
-		return nil
-	}
-}
-
-func (s *ChannelAccepter) Context() context.Context { return s.ctx }

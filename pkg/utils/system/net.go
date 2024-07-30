@@ -1,4 +1,4 @@
-package net
+package system
 
 import (
 	_ "net/url"
