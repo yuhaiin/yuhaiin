@@ -13,9 +13,9 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	ynet "github.com/Asutorufa/yuhaiin/pkg/utils/net"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/http2"
 )
 
@@ -108,7 +108,7 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 
 // https://tools.ietf.org/html/rfc8484
 func getUrlAndHost(host string) string {
-	scheme, rest, _ := ynet.GetScheme(host)
+	scheme, rest, _ := system.GetScheme(host)
 	if scheme == "" {
 		host = "https://" + host
 	}

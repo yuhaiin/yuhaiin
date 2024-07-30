@@ -33,13 +33,14 @@ type cacheKey struct {
 
 type SourceTable struct {
 	dstPacketConn net.PacketConn
-	sf            singleflight.GroupSync[string, *net.UDPAddr]
 	writeBack     netapi.WriteBack
+	stopTimer     *time.Timer
+	sf            singleflight.GroupSync[string, *net.UDPAddr]
 	addrStore     syncmap.SyncMap[cacheKey, net.Addr]
-	skipResolve   bool
+	resolver      netapi.ContextResolver
 	migrateID     uint64
 	connected     atomic.Bool
-	stopTimer     *time.Timer
+	skipResolve   bool
 }
 
 func loadSourceTableAddr[T net.Addr](s *SourceTable, t cacheType, key string) (T, bool) {

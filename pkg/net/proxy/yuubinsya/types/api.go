@@ -11,9 +11,9 @@ import (
 )
 
 type Header struct {
-	Protocol  Protocol
-	MigrateID uint64
 	Addr      netapi.Address
+	MigrateID uint64
+	Protocol  Protocol
 }
 
 type Protocol byte

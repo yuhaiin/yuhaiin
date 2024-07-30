@@ -12,9 +12,9 @@ import (
 )
 
 type entry[T any] struct {
-	enabled bool
 	checker func(*netapi.Context, []byte) bool
 	name    string
+	enabled bool
 }
 
 type Sniffier[T any] struct {
@@ -56,7 +56,7 @@ func New() *Sniffier[bypass.Mode] {
 					_, err := bittorrent.SniffBittorrent(b)
 					if err == nil {
 						ctx.Protocol = "bittorrent"
-						ctx.ForceMode = bypass.Mode_direct
+						ctx.SniffMode = bypass.Mode_direct
 						return true
 					}
 
@@ -73,7 +73,7 @@ func New() *Sniffier[bypass.Mode] {
 					_, err := bittorrent.SniffUTP(b)
 					if err == nil {
 						ctx.Protocol = "bittorrent_utp"
-						ctx.ForceMode = bypass.Mode_direct
+						ctx.SniffMode = bypass.Mode_direct
 						return true
 					}
 

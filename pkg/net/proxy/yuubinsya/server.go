@@ -1,6 +1,7 @@
 package yuubinsya
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -21,22 +22,24 @@ type server struct {
 	listener   netapi.Listener
 	handshaker types.Handshaker
 
-	*netapi.ChannelAccepter
-
+	handler    netapi.Handler
 	packetAuth types.Auth
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 func init() {
 	pl.RegisterProtocol(NewServer)
 }
 
-func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accepter, error) {
-	return func(ii netapi.Listener) (netapi.Accepter, error) {
+func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
+	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 		auth, err := NewAuth(config.Yuubinsya.GetUdpEncrypt(), []byte(config.Yuubinsya.Password))
 		if err != nil {
 			return nil, err
 		}
 
+		ctx, cancel := context.WithCancel(context.Background())
 		s := &server{
 			listener: ii,
 			handshaker: NewHandshaker(
@@ -45,8 +48,10 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accep
 				[]byte(config.Yuubinsya.Password),
 			),
 
-			ChannelAccepter: netapi.NewChannelAccepter(),
-			packetAuth:      auth,
+			handler:    handler,
+			packetAuth: auth,
+			ctx:        ctx,
+			cancel:     cancel,
 		}
 
 		go log.IfErr("yuubinsya udp server", s.startUDP)
@@ -57,19 +62,19 @@ func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener) (netapi.Accep
 }
 
 func (y *server) startUDP() error {
-	packet, err := y.listener.Packet(y.Context())
+	packet, err := y.listener.Packet(y.ctx)
 	if err != nil {
 		return err
 	}
 	defer packet.Close()
 
-	StartUDPServer(packet, y.SendPacket, y.packetAuth, false)
+	StartUDPServer(packet, y.handler.HandlePacket, y.packetAuth, false)
 
 	return nil
 }
 
 func (y *server) startTCP() (err error) {
-	lis, err := y.listener.Stream(y.Context())
+	lis, err := y.listener.Stream(y.ctx)
 	if err != nil {
 		return err
 	}
@@ -104,13 +109,15 @@ func (y *server) handle(conn net.Conn) error {
 
 	switch header.Protocol {
 	case types.TCP:
-		return y.SendStream(&netapi.StreamMeta{
+		y.handler.HandleStream(&netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
 			Destination: header.Addr,
 			Inbound:     c.LocalAddr(),
 			Src:         c,
 			Address:     header.Addr,
 		})
+
+		return nil
 
 	case types.UDP, types.UDPWithMigrateID:
 		if header.Protocol == types.UDPWithMigrateID {
@@ -143,17 +150,13 @@ func (y *server) handle(conn net.Conn) error {
 				continue
 			}
 
-			err = y.SendPacket(&netapi.Packet{
+			y.handler.HandlePacket(&netapi.Packet{
 				Src:       c.RemoteAddr(),
 				Dst:       dst,
 				Payload:   buf[:n],
 				WriteBack: pc.WriteTo,
 				MigrateID: header.MigrateID,
 			})
-
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -161,6 +164,7 @@ func (y *server) handle(conn net.Conn) error {
 }
 
 func (y *server) Close() error {
+	y.cancel()
 	if y.listener == nil {
 		return nil
 	}

@@ -3,6 +3,7 @@ package configuration
 import (
 	"net/netip"
 	"os"
+	"time"
 )
 
 var Lite = os.Getenv("YUHAIIN_LITE") == "true"
@@ -14,6 +15,8 @@ var (
 	DNSCache = or[uint](1024, 256)
 
 	ProcessDumper = or(true, false)
+
+	Timeout = time.Second * 20
 )
 
 func or[T any](a, b T) T {

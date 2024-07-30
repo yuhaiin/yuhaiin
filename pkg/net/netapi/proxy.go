@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
@@ -56,6 +57,14 @@ func NewDynamicProxy(p Proxy) *DynamicProxy { return &DynamicProxy{p: p} }
 var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[string, net.IP](512))
 
 func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
+	c, err := dialHappyEyeballs(ctx, addr)
+	if err != nil {
+		metrics.Counter.AddTCPDialFailed(addr.String())
+	}
+	return c, err
+}
+
+func dialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
 	if !addr.IsFqdn() {
 		return dialer.DialContext(ctx, "tcp", addr.String())
 	}

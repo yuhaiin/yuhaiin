@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/Asutorufa/yuhaiin/pkg/utils/net"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	wun "github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -49,7 +49,7 @@ type TunScheme struct {
 }
 
 func ParseTunScheme(str string) (TunScheme, error) {
-	scheme, name, err := net.GetScheme(str)
+	scheme, name, err := system.GetScheme(str)
 	if err != nil {
 		return TunScheme{}, err
 	}

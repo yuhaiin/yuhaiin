@@ -31,3 +31,14 @@ func NowUnixMicro() int64 {
 	sec, nsec, _ := now()
 	return sec*1e6 + int64(nsec)/1e3
 }
+
+// Nanotime is runtime.nanotime.
+//
+//go:nosplit
+func CheapNowNano() int64 {
+	return nanotime()
+}
+
+//go:linkname nanotime runtime.nanotime
+//go:noescape
+func nanotime() int64

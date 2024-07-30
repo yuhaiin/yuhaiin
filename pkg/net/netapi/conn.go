@@ -124,9 +124,10 @@ func (l *LogConn) SetWriteDeadline(t time.Time) error {
 // optimized into an OS-specific batch write operation (such as
 // "writev").
 type buffers struct {
+	onPop func([]byte)
+
 	original [][]byte
 	buffers  [][]byte
-	onPop    func([]byte)
 
 	mu sync.Mutex
 }

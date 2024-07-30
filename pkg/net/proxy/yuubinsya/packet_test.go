@@ -119,12 +119,10 @@ func TestPacket(t *testing.T) {
 
 	data := randSeq(rand.IntN(60000))
 
-	go StartUDPServer(lis, func(p *netapi.Packet) error {
+	go StartUDPServer(lis, func(p *netapi.Packet) {
 		_, err := p.WriteBack(p.Payload, p.Src)
 
 		t.Log(len(p.Payload), bytes.Equal(data, p.Payload), p.Dst.String(), p.Src.String(), err)
-
-		return nil
 	}, auth, true)
 
 	client, err := net.ListenPacket("udp", "127.0.0.1:0")

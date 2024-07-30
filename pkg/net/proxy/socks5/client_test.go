@@ -43,6 +43,25 @@ func TestUDP(t *testing.T) {
 	}
 }
 
+type handler struct {
+	t *testing.T
+}
+
+func (h *handler) HandleStream(conn *netapi.StreamMeta) {
+	h.t.Log(conn)
+
+	go func() {
+		buf := make([]byte, 1024)
+		n, err := conn.Src.Read(buf)
+		assert.NoError(h.t, err)
+		h.t.Log(string(buf[:n]))
+		conn.Src.Close()
+	}()
+}
+
+func (h *handler) HandlePacket(conn *netapi.Packet) {
+	h.t.Log(conn, string(conn.Payload))
+}
 func TestUsernamePassword(t *testing.T) {
 	ss, err := simple.NewServer(&listener.Inbound_Tcpudp{
 		Tcpudp: &listener.Tcpudp{
@@ -59,35 +78,9 @@ func TestUsernamePassword(t *testing.T) {
 			Password: "test",
 			Udp:      true,
 		},
-	})(ss)
+	})(ss, &handler{t})
 	assert.NoError(t, err)
 	defer accept.Close()
-
-	go func() {
-		for {
-
-			conn, err := accept.AcceptStream()
-			assert.NoError(t, err)
-
-			t.Log(conn)
-
-			go func() {
-				buf := make([]byte, 1024)
-				n, err := conn.Src.Read(buf)
-				assert.NoError(t, err)
-				t.Log(string(buf[:n]))
-				conn.Src.Close()
-			}()
-		}
-	}()
-
-	go func() {
-		for {
-			conn, err := accept.AcceptPacket()
-			assert.NoError(t, err)
-			t.Log(conn, string(conn.Payload))
-		}
-	}()
 
 	p := Dial("127.0.0.1", "1082", "test", "test")
 

@@ -8,8 +8,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/netip"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type ProcessDumper interface {
@@ -110,19 +108,14 @@ func LookupIP(ctx context.Context, addr Address) ([]net.IP, error) {
 		resolver = netctx.Resolver.Resolver
 	}
 
-	if netctx.Resolver.PreferIPv6 != netctx.Resolver.PreferIPv4 {
-		ips, err := resolver.LookupIP(ctx, addr.Hostname(), func(li *LookupIPOption) {
-			li.AAAA = netctx.Resolver.PreferIPv6
-			li.A = netctx.Resolver.PreferIPv4
-		})
+	if netctx.Resolver.Mode != ResolverModeNoSpecified {
+		ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.Resolver.Opts(false)...)
 		if err == nil {
 			return ips, nil
-		} else {
-			log.Warn("resolve failed, fallback to normal lookup", slog.String("domain", addr.Hostname()), slog.Any("err", err))
 		}
 	}
 
-	ips, err := resolver.LookupIP(ctx, addr.Hostname())
+	ips, err := resolver.LookupIP(ctx, addr.Hostname(), netctx.Resolver.Opts(true)...)
 	if err != nil {
 		return nil, fmt.Errorf("resolve address(%v) failed: %w", addr, err)
 	}

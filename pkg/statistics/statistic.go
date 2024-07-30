@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -92,6 +93,7 @@ func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, err
 
 func (c *Connections) Remove(id uint64) {
 	if z, ok := c.connStore.LoadAndDelete(id); ok {
+		metrics.Counter.RemoveConnection(1)
 		log.Debug("close conn", "id", z.Info().GetId())
 	}
 
@@ -146,9 +148,14 @@ func getRealAddr(store *netapi.Context, addr netapi.Address) string {
 func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAddr() net.Addr }, addr netapi.Address) *statistic.Connection {
 	store := netapi.GetContext(ctx)
 
+	realAddr := getRealAddr(store, addr)
+
+	metrics.Counter.AddConnection(realAddr)
+
+	// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
 	connection := &statistic.Connection{
 		Id:   c.idSeed.Generate(),
-		Addr: getRealAddr(store, addr),
+		Addr: realAddr,
 		Type: &statistic.NetType{
 			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]),
 			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]),

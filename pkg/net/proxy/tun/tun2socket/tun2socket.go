@@ -19,8 +19,8 @@ type Tun2socket struct {
 	device io.Closer
 	nat    *nat.Nat
 
-	*netapi.ChannelAccepter
-	Mtu int32
+	handler netapi.Handler
+	Mtu     int32
 }
 
 func New(o *tun.Opt) (netapi.Accepter, error) {
@@ -38,10 +38,10 @@ func New(o *tun.Opt) (netapi.Accepter, error) {
 	}
 
 	handler := &Tun2socket{
-		nat:             nat,
-		device:          device,
-		Mtu:             o.Tun.Mtu,
-		ChannelAccepter: netapi.NewChannelAccepter(),
+		nat:     nat,
+		device:  device,
+		Mtu:     o.Tun.Mtu,
+		handler: o.Handler,
 	}
 
 	go handler.tcpLoop()
@@ -51,7 +51,6 @@ func New(o *tun.Opt) (netapi.Accepter, error) {
 }
 
 func (h *Tun2socket) Close() error {
-	h.ChannelAccepter.Close()
 	_ = h.nat.TCP.Close()
 	_ = h.nat.UDP.Close()
 	return h.device.Close()
@@ -68,12 +67,7 @@ func (h *Tun2socket) tcpLoop() {
 			continue
 		}
 
-		go func() {
-			if err = h.handleTCP(conn); err != nil {
-				log.Output(0, netapi.LogLevel(err), "tun2socket tcp handle", "msg", err)
-			}
-		}()
-
+		go h.handleTCP(conn)
 	}
 }
 
@@ -82,6 +76,7 @@ func (h *Tun2socket) udpLoop() {
 	defer pool.PutBytes(buf)
 
 	defer h.nat.UDP.Close()
+
 	for {
 		if exit, err := h.handleUDP(buf); err != nil {
 			log.Output(0, netapi.LogLevel(err), "tun2socket udp handle", "msg", err)
@@ -92,16 +87,16 @@ func (h *Tun2socket) udpLoop() {
 	}
 }
 
-func (h *Tun2socket) handleTCP(conn net.Conn) error {
+func (h *Tun2socket) handleTCP(conn net.Conn) {
 	// lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()  // source
 	rAddrPort := conn.RemoteAddr().(*net.TCPAddr) // dst
 
 	if rAddrPort.IP.IsLoopback() {
-		return nil
+		return
 	}
 
 	addr, _ := netapi.ParseSysAddr(rAddrPort)
-	return h.SendStream(&netapi.StreamMeta{
+	h.handler.HandleStream(&netapi.StreamMeta{
 		Source:      conn.LocalAddr(),
 		Destination: conn.RemoteAddr(),
 		Src:         conn,
@@ -120,7 +115,7 @@ func (h *Tun2socket) handleUDP(buf []byte) (bool, error) {
 		Port: int(tuple.DestinationPort),
 	})
 
-	return false, h.SendPacket(&netapi.Packet{
+	h.handler.HandlePacket(&netapi.Packet{
 		Src: &net.UDPAddr{
 			IP:   net.IP(tuple.SourceAddr.AsSlice()),
 			Port: int(tuple.SourcePort),
@@ -150,4 +145,6 @@ func (h *Tun2socket) handleUDP(buf []byte) (bool, error) {
 			})
 		},
 	})
+
+	return false, nil
 }
