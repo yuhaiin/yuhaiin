@@ -2,6 +2,7 @@ package wireguard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -39,7 +40,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 
 	rwc := gun.NewChannelTun(context.TODO(), mtu)
 	dev := &netTun{
-		ep:     gun.NewEndpoint(gun.NewDevice(rwc, 0), uint32(mtu)),
+		ep:     gun.NewEndpoint(gun.NewDevice(rwc, 0, mtu)),
 		dev:    rwc,
 		stack:  stack.New(opts),
 		events: make(chan tun.Event, 1),
@@ -180,103 +181,65 @@ func (tun *netTun) Close() error {
 
 func (tun *netTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }
 
-func convertToFullAddr(endpoint netip.AddrPort) (tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
+func (n *Net) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
 	var protoNumber tcpip.NetworkProtocolNumber
-	if endpoint.Addr().Is4() {
-		protoNumber = ipv4.ProtocolNumber
-	} else {
+	if ip.To4() == nil {
 		protoNumber = ipv6.ProtocolNumber
+	} else {
+		protoNumber = ipv4.ProtocolNumber
+		ip = ip.To4()
 	}
-	return tcpip.FullAddress{
-		NIC:  1,
-		Addr: tcpip.AddrFromSlice(endpoint.Addr().Unmap().AsSlice()),
-		Port: endpoint.Port(),
-	}, protoNumber
-}
 
-func (net *Net) DialContextTCPAddrPort(ctx context.Context, addr netip.AddrPort) (*gonet.TCPConn, error) {
-	fa, pn := convertToFullAddr(addr)
-	return gonet.DialContextTCP(ctx, net.stack, fa, pn)
+	return &tcpip.FullAddress{
+		NIC:  1,
+		Addr: tcpip.AddrFromSlice(ip),
+		Port: uint16(port),
+	}, protoNumber
 }
 
 func (net *Net) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
 	if addr == nil {
-		return net.DialContextTCPAddrPort(ctx, netip.AddrPort{})
+		return nil, errors.New("addr is nil")
 	}
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	return net.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(ip, uint16(addr.Port)))
-}
 
-func (net *Net) DialTCPAddrPort(addr netip.AddrPort) (*gonet.TCPConn, error) {
-	fa, pn := convertToFullAddr(addr)
-	return gonet.DialTCP(net.stack, fa, pn)
-}
+	gonetAddr, protoNumber := net.toFullAddr(addr.IP, addr.Port)
 
-func (net *Net) DialTCP(addr *net.TCPAddr) (*gonet.TCPConn, error) {
-	if addr == nil {
-		return net.DialTCPAddrPort(netip.AddrPort{})
-	}
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	return net.DialTCPAddrPort(netip.AddrPortFrom(ip, uint16(addr.Port)))
-}
-
-func (net *Net) ListenTCPAddrPort(addr netip.AddrPort) (*gonet.TCPListener, error) {
-	fa, pn := convertToFullAddr(addr)
-	return gonet.ListenTCP(net.stack, fa, pn)
+	return gonet.DialContextTCP(ctx, net.stack, *gonetAddr, protoNumber)
 }
 
 func (net *Net) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 	if addr == nil {
-		return net.ListenTCPAddrPort(netip.AddrPort{})
+		pn := ipv4.ProtocolNumber
+		if net.HasV6() {
+			pn = ipv6.ProtocolNumber
+		}
+		return gonet.ListenTCP(net.stack, tcpip.FullAddress{}, pn)
 	}
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	return net.ListenTCPAddrPort(netip.AddrPortFrom(ip, uint16(addr.Port)))
+
+	gonetAddr, protoNumber := net.toFullAddr(addr.IP, addr.Port)
+	return gonet.ListenTCP(net.stack, *gonetAddr, protoNumber)
 }
 
-func (net *Net) DialUDPAddrPort(laddr, raddr netip.AddrPort) (*gonet.UDPConn, error) {
-	var lfa, rfa *tcpip.FullAddress
+func (n *Net) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	var pn tcpip.NetworkProtocolNumber
-	if laddr.IsValid() || laddr.Port() > 0 {
-		var addr tcpip.FullAddress
-		addr, pn = convertToFullAddr(laddr)
-		lfa = &addr
+	var la, ra *tcpip.FullAddress
+	if laddr != nil && laddr.Port > 0 {
+		la, pn = n.toFullAddr(laddr.IP, laddr.Port)
 	}
-	if raddr.IsValid() || raddr.Port() > 0 {
-		var addr tcpip.FullAddress
-		addr, pn = convertToFullAddr(raddr)
-		rfa = &addr
+
+	if raddr != nil && raddr.Port > 0 {
+		ra, pn = n.toFullAddr(raddr.IP, raddr.Port)
 	}
 
 	if pn == 0 {
-		if net.HasV6() {
+		if n.HasV6() {
 			pn = ipv6.ProtocolNumber
 		} else {
 			pn = ipv4.ProtocolNumber
 		}
 	}
 
-	return gonet.DialUDP(net.stack, lfa, rfa, pn)
-}
-
-func (net *Net) ListenUDPAddrPort(laddr netip.AddrPort) (*gonet.UDPConn, error) {
-	return net.DialUDPAddrPort(laddr, netip.AddrPort{})
-}
-
-func (net *Net) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
-	var la, ra netip.AddrPort
-	if laddr != nil {
-		ip, _ := netip.AddrFromSlice(laddr.IP)
-		la = netip.AddrPortFrom(ip, uint16(laddr.Port))
-	}
-	if raddr != nil {
-		ip, _ := netip.AddrFromSlice(raddr.IP)
-		ra = netip.AddrPortFrom(ip, uint16(raddr.Port))
-	}
-	return net.DialUDPAddrPort(la, ra)
-}
-
-func (net *Net) ListenUDP(laddr *net.UDPAddr) (*gonet.UDPConn, error) {
-	return net.DialUDP(laddr, nil)
+	return gonet.DialUDP(n.stack, la, ra, pn)
 }
 
 func (n *Net) HasV4() bool { return n.hasV4 }

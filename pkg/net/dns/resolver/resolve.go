@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type reqType [2]byte
@@ -52,7 +53,7 @@ func creatRequest(domain string, reqType reqType, arCount bool) []byte {
 		data.Write([]byte{0b00000000, 0b00000000})
 	}
 
-	domain = domain + "." // domain: www.example.com => 3www7example3com <- last with 0
+	domain = system.AbsDomain(domain) // domain: www.example.com => 3www7example3com <- last with 0
 	for i := strings.IndexByte(domain, '.'); i != -1; i = strings.IndexByte(domain, '.') {
 		data.WriteByte(byte(i))
 		data.WriteString(domain[:i])

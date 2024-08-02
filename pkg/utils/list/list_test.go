@@ -16,7 +16,7 @@ func TestSyncList(t *testing.T) {
 		if b == nil {
 			break
 		}
-		t.Log(b.Value)
+		t.Log(b.Value())
 		b = b.Prev()
 	}
 
@@ -24,7 +24,7 @@ func TestSyncList(t *testing.T) {
 		if p == nil {
 			break
 		}
-		t.Log(p.Value)
+		t.Log(p.Value())
 		p = p.Next()
 	}
 }

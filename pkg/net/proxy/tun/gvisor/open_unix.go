@@ -32,5 +32,5 @@ func OpenWriter(sc netlink.TunScheme, mtu int) (netlink.Tun, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create tun failed: %w", err)
 	}
-	return NewDevice(device, offset), nil
+	return NewDevice(device, offset, mtu), nil
 }

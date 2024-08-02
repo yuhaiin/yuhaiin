@@ -26,6 +26,8 @@ type Tun interface {
 	Write(bufs [][]byte) (int, error)
 	Read(bufs [][]byte, sizes []int) (n int, err error)
 	io.Closer
+	Offset() int
+	MTU() int
 }
 
 func (o *Options) V4Address() netip.Prefix {

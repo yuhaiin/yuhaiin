@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -218,7 +219,7 @@ func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 }
 
 func (f *Route) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
-	return f.Resolver(ctx, strings.TrimSuffix(req.Name.String(), ".")).Raw(ctx, req)
+	return f.Resolver(ctx, system.RelDomain(req.Name.String())).Raw(ctx, req)
 }
 
 func (f *Route) Close() error { return nil }

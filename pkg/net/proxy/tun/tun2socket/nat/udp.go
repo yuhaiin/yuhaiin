@@ -9,6 +9,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	i4 "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -25,13 +26,11 @@ type UDP struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	channel chan *call
-	mtu     int32
 }
 
-func NewUDPv2(mtu int32, device netlink.Tun) *UDP {
+func NewUDP(device netlink.Tun) *UDP {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &UDP{
-		mtu:     mtu,
 		device:  device,
 		ctx:     ctx,
 		cancel:  cancel,
@@ -73,12 +72,14 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 
 	udpTotalLength := int(header.UDPMinimumSize) + len(buf)
 
-	if udpTotalLength > math.MaxUint16 || udpTotalLength > int(u.mtu) { // ip packet max length
+	if udpTotalLength > math.MaxUint16 || udpTotalLength > int(u.device.MTU()) { // ip packet max length
 		return 0, fmt.Errorf("udp packet too large: %d", len(buf))
 	}
 
-	ipBuf := pool.GetBytes(u.mtu)
-	defer pool.PutBytes(ipBuf)
+	tunBuf := pool.GetBytes(u.device.MTU() + u.device.Offset())
+	defer pool.PutBytes(tunBuf)
+
+	ipBuf := tunBuf[u.device.Offset():]
 
 	var ip header.Network
 	var totalLength uint16
@@ -131,7 +132,7 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	})
 	copy(udp.Payload(), buf)
 
-	resetIPCheckSum(ip)
+	tun.ResetIPChecksum(ip)
 
 	// On IPv4, UDP checksum is optional, and a zero value indicates the
 	// transmitter skipped the checksum generation (RFC768).
@@ -139,10 +140,10 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	if _, ok := ip.(header.IPv6); ok {
 		pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber,
 			ip.SourceAddress(), ip.DestinationAddress(), uint16(len(ip.Payload())))
-		resetTransportCheckSum(ip, udp, pseudoSum)
+		tun.ResetTransportChecksum(ip, udp, pseudoSum)
 	}
 
-	_, err := u.device.Write([][]byte{ipBuf[:totalLength]})
+	_, err := u.device.Write([][]byte{tunBuf[:totalLength+uint16(u.device.Offset())]})
 	if err != nil {
 		return 0, err
 	}
