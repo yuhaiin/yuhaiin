@@ -131,14 +131,14 @@ func New(o *Opt) (netapi.Accepter, error) {
 	rcvOpt := tcpip.TCPReceiveBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
 		Default: tcp.DefaultReceiveBufferSize,
-		Max:     tcp.MaxBufferSize,
+		Max:     8 << 20,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &rcvOpt)
 
 	sndOpt := tcpip.TCPSendBufferSizeRangeOption{
 		Min:     tcp.MinBufferSize,
 		Default: tcp.DefaultSendBufferSize,
-		Max:     tcp.MaxBufferSize,
+		Max:     6 << 20,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sndOpt)
 

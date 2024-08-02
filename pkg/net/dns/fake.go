@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	bolt "go.etcd.io/bbolt"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -55,6 +56,14 @@ func (f *FakeDNS) Contains(addr netip.Addr) bool {
 }
 
 func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+	if !system.IsDomainName(domain) {
+		return nil, &net.DNSError{
+			Name:       domain,
+			Err:        "no such host",
+			IsNotFound: true,
+		}
+	}
+
 	opt := &netapi.LookupIPOption{}
 	for _, optf := range opts {
 		optf(opt)
@@ -70,43 +79,51 @@ func (f *FakeDNS) LookupIP(_ context.Context, domain string, opts ...func(*netap
 	return []net.IP{f.ipv4.GetFakeIPForDomain(domain).AsSlice(), f.ipv6.GetFakeIPForDomain(domain).AsSlice()}, nil
 }
 
+func (f *FakeDNS) newAnswerMessage(req dnsmessage.Question, code dnsmessage.RCode, resource dnsmessage.ResourceBody) dnsmessage.Message {
+	msg := dnsmessage.Message{
+		Header: dnsmessage.Header{
+			ID:                 0,
+			Response:           true,
+			Authoritative:      false,
+			RecursionDesired:   false,
+			RCode:              code,
+			RecursionAvailable: false,
+		},
+		Questions: []dnsmessage.Question{
+			{
+				Name:  req.Name,
+				Type:  req.Type,
+				Class: dnsmessage.ClassINET,
+			},
+		},
+	}
+
+	if resource == nil {
+		return msg
+	}
+
+	answer := dnsmessage.Resource{
+		Header: dnsmessage.ResourceHeader{
+			Name:  req.Name,
+			Class: dnsmessage.ClassINET,
+			TTL:   600,
+			Type:  req.Type,
+		},
+		Body: resource,
+	}
+
+	msg.Answers = append(msg.Answers, answer)
+
+	return msg
+}
+
 func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
 	if req.Type != dnsmessage.TypeA && req.Type != dnsmessage.TypeAAAA && req.Type != dnsmessage.TypePTR {
 		return f.Resolver.Raw(ctx, req)
 	}
 
-	newAnswer := func(resource dnsmessage.ResourceBody) dnsmessage.Message {
-		msg := dnsmessage.Message{
-			Header: dnsmessage.Header{
-				ID:                 0,
-				Response:           true,
-				Authoritative:      false,
-				RecursionDesired:   false,
-				RCode:              dnsmessage.RCodeSuccess,
-				RecursionAvailable: false,
-			},
-			Questions: []dnsmessage.Question{
-				{
-					Name:  req.Name,
-					Type:  req.Type,
-					Class: dnsmessage.ClassINET,
-				},
-			},
-		}
-
-		answer := dnsmessage.Resource{
-			Header: dnsmessage.ResourceHeader{
-				Name:  req.Name,
-				Class: dnsmessage.ClassINET,
-				TTL:   600,
-				Type:  req.Type,
-			},
-			Body: resource,
-		}
-
-		msg.Answers = append(msg.Answers, answer)
-
-		return msg
+	if !system.IsDomainName(req.Name.String()) {
+		return f.newAnswerMessage(req, dnsmessage.RCodeNameError, nil), nil
 	}
 
 	if req.Type == dnsmessage.TypePTR {
@@ -115,9 +132,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 			return f.Resolver.Raw(ctx, req)
 		}
 
-		msg := newAnswer(&dnsmessage.PTRResource{
-			PTR: dnsmessage.MustNewName(domain + "."),
-		})
+		msg := f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.PTRResource{PTR: dnsmessage.MustNewName(system.AbsDomain(domain))})
 
 		return msg, nil
 	}
@@ -130,12 +145,12 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 
 	if req.Type == dnsmessage.TypeAAAA {
 		ip := f.ipv6.GetFakeIPForDomain(domain)
-		return newAnswer(&dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
+		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
 	}
 
 	if req.Type == dnsmessage.TypeA {
 		ip := f.ipv4.GetFakeIPForDomain(domain)
-		return newAnswer(&dnsmessage.AResource{A: ip.As4()}), nil
+		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AResource{A: ip.As4()}), nil
 	}
 
 	return f.Resolver.Raw(ctx, req)

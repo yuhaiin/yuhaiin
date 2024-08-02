@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/netip"
 	"slices"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -14,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"go.etcd.io/bbolt"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -77,7 +77,7 @@ func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 	metrics.Counter.AddDNSProcess(domain)
 
 	if f.enabled || netapi.GetContext(ctx).Resolver.ForceFakeIP {
-		if _, ok := f.whitelist.SearchString(strings.TrimSuffix(domain, ".")); ok {
+		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
 			return f.upstream
 		}
 

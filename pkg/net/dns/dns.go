@@ -254,9 +254,7 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 		return nil, fmt.Errorf("empty domain")
 	}
 
-	if domain[len(domain)-1] != '.' {
-		domain += "."
-	}
+	domain = system.AbsDomain(domain)
 
 	name, err := dnsmessage.NewName(domain)
 	if err != nil {

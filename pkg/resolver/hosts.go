@@ -3,7 +3,6 @@ package resolver
 import (
 	"context"
 	"net"
-	"strings"
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
@@ -179,9 +178,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 				continue
 			}
 
-			if !strings.HasSuffix(v, ".") {
-				v += "."
-			}
+			v = system.AbsDomain(v)
 
 			name, err := dnsmessage.NewName(v)
 			if err != nil {
@@ -218,7 +215,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 	addr = h.dispatchAddr(ctx, addr)
 
 	if addr.IsFqdn() {
-		name, err := dnsmessage.NewName(addr.Hostname() + ".")
+		name, err := dnsmessage.NewName(system.AbsDomain(addr.Hostname()))
 		if err != nil {
 			return dnsmessage.Message{}, err
 		}

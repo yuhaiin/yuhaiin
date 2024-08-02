@@ -3,7 +3,6 @@ package nat
 import (
 	"context"
 	"errors"
-	"math"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -12,7 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
@@ -28,7 +26,6 @@ type Nat struct {
 	portal    tcpip.Address
 	addressV6 tcpip.Address
 	portalV6  tcpip.Address
-	mtu       int32
 
 	gatewayPort uint16
 }
@@ -63,7 +60,6 @@ func Start(opt *tun.Opt) (*Nat, error) {
 		addressV6:   tcpip.AddrFromSlice(opt.V6Address().Addr().AsSlice()),
 		portalV6:    tcpip.AddrFromSlice(opt.V6Address().Addr().Next().AsSlice()),
 		gatewayPort: uint16(listener.Addr().(*net.TCPAddr).Port),
-		mtu:         int32(opt.MTU),
 		tab:         tab,
 		TCP: &TCP{
 			listener: listener.(*net.TCPListener),
@@ -71,7 +67,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 			portalv6: opt.V6Address().Addr().Next().AsSlice(),
 			table:    tab,
 		},
-		UDP:      NewUDPv2(int32(opt.MTU), opt.Writer),
+		UDP:      NewUDP(opt.Writer),
 		postDown: opt.PostDown,
 	}
 
@@ -85,10 +81,11 @@ func Start(opt *tun.Opt) (*Nat, error) {
 		defer tab.Close()
 		defer nat.Close()
 
+		offset := opt.Writer.Offset()
 		sizes := make([]int, opt.Writer.Tun().BatchSize())
 		bufs := make([][]byte, opt.Writer.Tun().BatchSize())
 		for i := range bufs {
-			bufs[i] = make([]byte, opt.MTU)
+			bufs[i] = make([]byte, opt.MTU+offset)
 		}
 
 		wbufs := make([][]byte, opt.Writer.Tun().BatchSize())
@@ -107,7 +104,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 					continue
 				}
 
-				raw := bufs[i][:sizes[i]]
+				raw := bufs[i][offset : sizes[i]+offset]
 
 				ip := nat.processIP(raw)
 				if ip == nil {
@@ -162,9 +159,9 @@ func Start(opt *tun.Opt) (*Nat, error) {
 					continue
 				}
 
-				resetCheckSum(ip, tp, pseudoHeaderSum)
+				tun.ResetChecksum(ip, tp, pseudoHeaderSum)
 
-				wbufs = append(wbufs, raw)
+				wbufs = append(wbufs, bufs[i][:sizes[i]+offset])
 			}
 
 			if len(wbufs) == 0 {
@@ -323,43 +320,4 @@ func processICMPv6(ip header.Network) (_ header.Transport, pseudoHeaderSum uint1
 	)
 
 	return i, pseudoHeaderSum, true
-}
-
-func resetCheckSum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
-	resetIPCheckSum(ip)
-	resetTransportCheckSum(ip, tp, pseudoHeaderSum)
-}
-
-func resetIPCheckSum(ip header.Network) {
-	if ip, ok := ip.(header.IPv4); ok {
-		ip.SetChecksum(0)
-		sum := ip.CalculateChecksum()
-		ip.SetChecksum(^sum)
-	}
-}
-
-func resetTransportCheckSum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
-	tp.SetChecksum(0)
-	sum := checksum.Checksum(ip.Payload(), pseudoHeaderSum)
-
-	//https://datatracker.ietf.org/doc/html/rfc768
-	//
-	// If the computed  checksum  is zero,  it is transmitted  as all ones (the
-	// equivalent  in one's complement  arithmetic).   An all zero  transmitted
-	// checksum  value means that the transmitter  generated  no checksum  (for
-	// debugging or for higher level protocols that don't care).
-	//
-	// https://datatracker.ietf.org/doc/html/rfc8200
-	// Unlike IPv4, the default behavior when UDP packets are
-	//  originated by an IPv6 node is that the UDP checksum is not
-	//  optional.  That is, whenever originating a UDP packet, an IPv6
-	//  node must compute a UDP checksum over the packet and the
-	//  pseudo-header, and, if that computation yields a result of
-	//  zero, it must be changed to hex FFFF for placement in the UDP
-	//  header.  IPv6 receivers must discard UDP packets containing a
-	//  zero checksum and should log the error.
-	if ip.TransportProtocol() != header.UDPProtocolNumber || sum != math.MaxUint16 {
-		sum = ^sum
-	}
-	tp.SetChecksum(sum)
 }

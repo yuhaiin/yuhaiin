@@ -19,5 +19,5 @@ func Open(sc netlink.TunScheme, driver listener.TunEndpointDriver, mtu int) (_ s
 	if err != nil {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
-	return NewEndpoint(w, uint32(mtu)), nil
+	return NewEndpoint(w), nil
 }

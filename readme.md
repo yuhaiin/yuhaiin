@@ -11,13 +11,13 @@
 - Inbound
   - yuubinsya(experimental), Reqlity, HTTP2, Quic, Websocket, gRPC, TLS
   - Socks5, Socks4A, HTTP
-  - TUN, Linux/Mac Redir, Tproxy
+  - TUN(gso,gro support), Linux/Mac Redir, Tproxy
     - [gvisor](https://github.com/google/gvisor)
     - tun2socket(hijack tun TCP to a local TCP listener)
   - yamux  
 - Outbound
   - yuubinsya(experimental)
-  - Socks5, HTTP, TCP, Wireguard
+  - Socks5, HTTP, TCP, [Wireguard](https://github.com/yuhaiin/yuhaiin/wiki/Wireguard)
   - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
   - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS  
   - yamux  
@@ -26,16 +26,15 @@
   - FakeDNS
   - DNS Server
   - DNS over UDP
-  - DNS over HTTPS(3)
+  - DNS over HTTPS(3)                       
   - DNS over Quic
   - DNS over TLS
   - DNS over TCP
 - Full cone NAT.
-- auto set Linux(KDE/Plasma,gnome),Windows Proxy  
-- [Rules](https://github.com/Asutorufa/yuhaiin/tree/ACL)  
-- [Docs](https://github.com/Asutorufa/yuhaiin/tree/main/docs)  
-- [Architecture](https://github.com/Asutorufa/yuhaiin/wiki/architecture)
-- icon from プロ生ちゃん. アイコンがプロ生ちゃんから、ご注意ください。  
+- auto set Linux(KDE/Plasma,Gnome),Windows,MacOS Proxy  
+- [Rules](https://github.com/yuhaiin/kitte)  
+- icon from プロ生ちゃん.  
+  アイコンはプロ生ちゃんからお借りしたものです、ご注意くださいますようお願い申し上げます。  
 
 ```shell
 make yuhaiin
@@ -45,7 +44,7 @@ make yuhaiin
 yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 ```
 
-![web_page2](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/web_page2.png)
+![web_page2](https://raw.githubusercontent.com/Asutorufa/yuhaiin/master/assets/img/web_page3.png)
 
 <details>
 <summary>Acknowledgement</summary>

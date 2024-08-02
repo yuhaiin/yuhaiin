@@ -121,12 +121,12 @@ func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	addrPort, err := netapi.ResolverAddrPort(ctx, addr)
+	addrPort, err := netapi.ResolveTCPAddr(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.DialContextTCPAddrPort(ctx, addrPort)
+	conn, err := net.DialContextTCP(ctx, addrPort)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		return nil, err
 	}
 
-	goUC, err := net.ListenUDP(nil)
+	goUC, err := net.DialUDP(nil, nil)
 	if err != nil {
 		return nil, err
 	}

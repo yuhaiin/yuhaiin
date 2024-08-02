@@ -20,19 +20,33 @@ package tun
 
 import (
 	"errors"
+	"math"
 	"os"
 	"sync"
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	"github.com/tailscale/wireguard-go/conn"
+	"github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+	"gvisor.dev/gvisor/pkg/tcpip/stack/gro"
 )
 
+func IsGSOEnabled(device tun.Device) bool {
+	// we can't get the value from the device
+	// so check the batch size
+	//
+	// see: https://github.com/WireGuard/wireguard-go/blob/12269c2761734b15625017d8565745096325392f/tun/tun_linux.go#L528C2-L543C4
+	return device.BatchSize() == conn.IdealBatchSize
+}
+
 var _ stack.LinkEndpoint = (*Endpoint)(nil)
+var _ stack.GSOEndpoint = (*Endpoint)(nil)
 
 // Endpoint is link layer endpoint that stores outbound packets in a channel
 // and allows injection of inbound packets.
@@ -41,18 +55,23 @@ type Endpoint struct {
 
 	linkAddr tcpip.LinkAddress
 	wg       sync.WaitGroup
-	mtu      uint32
 
 	closed   atomic.Bool
 	attached bool
+
+	gro gro.GRO
+	gso bool
 }
 
 // New creates a new channel endpoint.
-func NewEndpoint(w netlink.Tun, mtu uint32) *Endpoint {
-	return &Endpoint{
-		mtu: mtu,
+func NewEndpoint(w netlink.Tun) *Endpoint {
+	e := &Endpoint{
 		dev: w,
 	}
+
+	e.gso = e.SupportedGSO() == stack.HostGSOSupported
+	e.gro.Init(e.gso)
+	return e
 }
 
 // Close closes e. Further packet injections will return an error, and all pending
@@ -80,26 +99,32 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 
 	if dispatcher != nil && !e.IsAttached() {
 		e.attached = true
+		e.gro.Dispatcher = dispatcher
 		e.wg.Add(1)
 		go func() {
 			defer e.wg.Done()
-			e.attachForward(dispatcher)
+			defer e.gro.Flush()
+
+			e.Forward()
 		}()
 	}
 }
 
-func (e *Endpoint) attachForward(dispatcher stack.NetworkDispatcher) {
+func (e *Endpoint) Forward() {
 	bufs := make([][]byte, e.dev.Tun().BatchSize())
 	size := make([]int, e.dev.Tun().BatchSize())
 
+	offset := e.dev.Offset()
+
 	for i := range bufs {
-		bufs[i] = make([]byte, e.mtu)
+		bufs[i] = make([]byte, e.dev.MTU()+offset)
 	}
 
 	for {
 		n, err := e.dev.Read(bufs, size)
+
 		for i := range n {
-			buf := bufs[i][:size[i]]
+			buf := bufs[i][offset : size[i]+offset]
 
 			var p tcpip.NetworkProtocolNumber
 			switch header.IPVersion(buf) {
@@ -115,7 +140,9 @@ func (e *Endpoint) attachForward(dispatcher stack.NetworkDispatcher) {
 				stack.PacketBufferOptions{
 					Payload: buffer.MakeWithData(buf),
 				})
-			dispatcher.DeliverNetworkPacket(p, pkt)
+			pkt.NetworkProtocolNumber = p
+			pkt.RXChecksumValidated = true
+			e.gro.Enqueue(pkt)
 			pkt.DecRef()
 		}
 		if err != nil {
@@ -130,7 +157,7 @@ func (e *Endpoint) IsAttached() bool { return e.attached }
 
 // MTU implements stack.LinkEndpoint.MTU. It returns the value initialized
 // during construction.
-func (e *Endpoint) MTU() uint32 { return e.mtu }
+func (e *Endpoint) MTU() uint32 { return uint32(e.dev.MTU()) }
 
 // Capabilities implements stack.LinkEndpoint.Capabilities.
 func (e *Endpoint) Capabilities() stack.LinkEndpointCapabilities {
@@ -151,11 +178,26 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 		return 0, &tcpip.ErrClosedForSend{}
 	}
 
+	offset := e.dev.Offset()
+
 	bufs := [][]byte{}
 	for _, pkt := range pkts.AsSlice() {
-		view := pkt.ToView()
+		view := buffer.NewView(offset + pkt.Size())
+		_, _ = view.Write(make([]byte, offset))
+		_, _ = view.Write(pkt.NetworkHeader().Slice())
+		_, _ = view.Write(pkt.TransportHeader().Slice())
+		_, _ = pkt.Data().ReadTo(view, true)
 		defer view.Release()
-		bufs = append(bufs, view.AsSlice())
+
+		data := view.AsSlice()
+
+		if e.gso {
+			// reset checksum when tcp
+			// see: https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L915
+			// and https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L840
+			resetGSOChecksum(data[offset:], pkt)
+		}
+		bufs = append(bufs, data)
 	}
 
 	n, er := e.dev.Write(bufs)
@@ -187,3 +229,82 @@ func (e *Endpoint) SetLinkAddress(addr tcpip.LinkAddress) { e.linkAddr = addr }
 
 func (e *Endpoint) SetMTU(mtu uint32)       {}
 func (e *Endpoint) SetOnCloseAction(func()) {}
+
+func (e *Endpoint) GSOMaxSize() uint32 {
+	// This an increase from 32k returned by channel.Endpoint.GSOMaxSize() to
+	// 64k, which improves throughput.
+	if IsGSOEnabled(e.dev.Tun()) {
+		return (1 << 16) - 1
+	}
+
+	return 0
+}
+
+// SupportedGSO returns the supported segmentation offloading.
+func (e *Endpoint) SupportedGSO() stack.SupportedGSO {
+	if IsGSOEnabled(e.dev.Tun()) {
+		return stack.HostGSOSupported
+	}
+	return stack.GSONotSupported
+}
+
+func resetGSOChecksum(data []byte, pkt *stack.PacketBuffer) {
+	// see: https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L915
+	// and https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L840
+	if pkt.GSOOptions.Type == stack.GSONone || !pkt.GSOOptions.NeedsCsum {
+		return
+	}
+
+	if pkt.TransportProtocolNumber == header.TCPProtocolNumber {
+		var network header.Network
+		switch pkt.NetworkProtocolNumber {
+		case header.IPv4ProtocolNumber:
+			network = header.IPv4(data)
+		case header.IPv6ProtocolNumber:
+			network = header.IPv6(data)
+		default:
+			return
+		}
+		tcp := header.TCP(network.Payload())
+		ResetTransportChecksum(network, tcp, tcp.Checksum())
+	}
+}
+
+func ResetChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
+	ResetIPChecksum(ip)
+	ResetTransportChecksum(ip, tp, pseudoHeaderSum)
+}
+
+func ResetIPChecksum(ip header.Network) {
+	if ip, ok := ip.(header.IPv4); ok {
+		ip.SetChecksum(0)
+		sum := ip.CalculateChecksum()
+		ip.SetChecksum(^sum)
+	}
+}
+
+func ResetTransportChecksum(ip header.Network, tp header.Transport, pseudoHeaderSum uint16) {
+	tp.SetChecksum(0)
+	sum := checksum.Checksum(ip.Payload(), pseudoHeaderSum)
+
+	//https://datatracker.ietf.org/doc/html/rfc768
+	//
+	// If the computed  checksum  is zero,  it is transmitted  as all ones (the
+	// equivalent  in one's complement  arithmetic).   An all zero  transmitted
+	// checksum  value means that the transmitter  generated  no checksum  (for
+	// debugging or for higher level protocols that don't care).
+	//
+	// https://datatracker.ietf.org/doc/html/rfc8200
+	// Unlike IPv4, the default behavior when UDP packets are
+	//  originated by an IPv6 node is that the UDP checksum is not
+	//  optional.  That is, whenever originating a UDP packet, an IPv6
+	//  node must compute a UDP checksum over the packet and the
+	//  pseudo-header, and, if that computation yields a result of
+	//  zero, it must be changed to hex FFFF for placement in the UDP
+	//  header.  IPv6 receivers must discard UDP packets containing a
+	//  zero checksum and should log the error.
+	if ip.TransportProtocol() != header.UDPProtocolNumber || sum != math.MaxUint16 {
+		sum = ^sum
+	}
+	tp.SetChecksum(sum)
+}

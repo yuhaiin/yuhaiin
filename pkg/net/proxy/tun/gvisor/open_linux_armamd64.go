@@ -27,6 +27,9 @@ func init() {
 			})
 		case "tun":
 			// fdbased current not support gso, so open new tun direct instead of wireguard
+			//
+			// https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/link/fdbased/endpoint.go#L323
+			// check is socket, can't enable gso
 			dev, err := gun.Open(sc.Name)
 			if err != nil {
 				return nil, fmt.Errorf("create tun failed: %w", err)
