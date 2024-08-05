@@ -25,20 +25,18 @@ type netTun struct {
 	ep           *gun.Endpoint
 	stack        *stack.Stack
 	events       chan tun.Event
-	dev          *gun.ChannelTun
+	dev          *ChannelDevice
 	hasV4, hasV6 bool
 }
 
-type Net netTun
-
-func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, error) {
+func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 	opts := stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
 		HandleLocal:        true,
 	}
 
-	rwc := gun.NewChannelTun(context.TODO(), mtu)
+	rwc := NewChannelDevice(context.TODO(), mtu)
 	dev := &netTun{
 		ep:     gun.NewEndpoint(gun.NewDevice(rwc, 0, mtu)),
 		dev:    rwc,
@@ -50,13 +48,13 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 	tcpipErr := dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabledOpt)
 	if tcpipErr != nil {
 		dev.Close()
-		return nil, nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
+		return nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
 	}
 
 	tcpipErr = dev.stack.CreateNIC(1, dev.ep)
 	if tcpipErr != nil {
 		dev.Close()
-		return nil, nil, fmt.Errorf("CreateNIC: %v", tcpipErr)
+		return nil, fmt.Errorf("CreateNIC: %v", tcpipErr)
 	}
 
 	for _, ip := range localAddresses {
@@ -78,7 +76,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 		tcpipErr := dev.stack.AddProtocolAddress(1, protoAddr, stack.AddressProperties{})
 		if tcpipErr != nil {
 			dev.Close()
-			return nil, nil, fmt.Errorf("AddProtocolAddress(%v): %v", ip, tcpipErr)
+			return nil, fmt.Errorf("AddProtocolAddress(%v): %v", ip, tcpipErr)
 		}
 		if ip.Addr().Is4() {
 			dev.hasV4 = true
@@ -97,11 +95,11 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (tun.Device, *Net, err
 	opt := tcpip.CongestionControlOption("cubic")
 	if tcpipErr = dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); tcpipErr != nil {
 		dev.Close()
-		return nil, nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
+		return nil, fmt.Errorf("SetTransportProtocolOption(%d, &%T(%s)): %s", tcp.ProtocolNumber, opt, opt, tcpipErr)
 	}
 
 	dev.events <- tun.EventUp
-	return dev, (*Net)(dev), nil
+	return dev, nil
 }
 
 // convert endpoint string to netip.Addr
@@ -181,7 +179,7 @@ func (tun *netTun) Close() error {
 
 func (tun *netTun) MTU() (int, error) { return int(tun.ep.MTU()), nil }
 
-func (n *Net) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
+func (n *netTun) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
 	var protoNumber tcpip.NetworkProtocolNumber
 	if ip.To4() == nil {
 		protoNumber = ipv6.ProtocolNumber
@@ -197,7 +195,7 @@ func (n *Net) toFullAddr(ip net.IP, port int) (*tcpip.FullAddress, tcpip.Network
 	}, protoNumber
 }
 
-func (net *Net) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
+func (net *netTun) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.TCPConn, error) {
 	if addr == nil {
 		return nil, errors.New("addr is nil")
 	}
@@ -207,7 +205,7 @@ func (net *Net) DialContextTCP(ctx context.Context, addr *net.TCPAddr) (*gonet.T
 	return gonet.DialContextTCP(ctx, net.stack, *gonetAddr, protoNumber)
 }
 
-func (net *Net) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
+func (net *netTun) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 	if addr == nil {
 		pn := ipv4.ProtocolNumber
 		if net.HasV6() {
@@ -220,7 +218,7 @@ func (net *Net) ListenTCP(addr *net.TCPAddr) (*gonet.TCPListener, error) {
 	return gonet.ListenTCP(net.stack, *gonetAddr, protoNumber)
 }
 
-func (n *Net) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
+func (n *netTun) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	var pn tcpip.NetworkProtocolNumber
 	var la, ra *tcpip.FullAddress
 	if laddr != nil && laddr.Port > 0 {
@@ -242,5 +240,5 @@ func (n *Net) DialUDP(laddr, raddr *net.UDPAddr) (*gonet.UDPConn, error) {
 	return gonet.DialUDP(n.stack, la, ra, pn)
 }
 
-func (n *Net) HasV4() bool { return n.hasV4 }
-func (n *Net) HasV6() bool { return n.hasV6 }
+func (n *netTun) HasV4() bool { return n.hasV4 }
+func (n *netTun) HasV6() bool { return n.hasV6 }

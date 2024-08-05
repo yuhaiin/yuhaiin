@@ -28,13 +28,10 @@ import (
 
 type Wireguard struct {
 	netapi.EmptyDispatch
-	net  *Net
-	bind *netBindClient
-
-	conf *protocol.Wireguard
-
-	timer *time.Timer
-
+	net    *netTun
+	bind   *netBindClient
+	conf   *protocol.Wireguard
+	timer  *time.Timer
 	device *device.Device
 
 	count atomic.Int64
@@ -65,7 +62,7 @@ func NewClient(conf *protocol.Protocol_Wireguard) point.WrapProxy {
 	}
 }
 
-func (w *Wireguard) initNet() (*Net, error) {
+func (w *Wireguard) initNet() (*netTun, error) {
 	net := w.net
 	if net != nil {
 		return net, nil
@@ -220,12 +217,12 @@ func (w *wrapGoNetUdpConn) ReadFrom(buf []byte) (int, net.Addr, error) {
 }
 
 // creates a tun interface on netstack given a configuration
-func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *Net, error) {
+func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *netTun, error) {
 	endpoints, err := parseEndpoints(h)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	tun, tnet, err := CreateNetTUN(endpoints, int(h.Mtu))
+	tun, err := CreateNetTUN(endpoints, int(h.Mtu))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -256,7 +253,7 @@ func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *Net
 		return nil, nil, nil, err
 	}
 
-	return dev, bind, tnet, nil
+	return dev, bind, tun, nil
 }
 
 func base64ToHex(s string) string {

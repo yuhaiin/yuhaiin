@@ -20,6 +20,7 @@ var closedBufioReader = bufio.NewReaderSize(bytes.NewReader(nil), 10)
 
 type PacketConn struct {
 	net.Conn
+	closed     bool
 	bufior     *bufio.Reader
 	handshaker types.Handshaker
 	rmux       sync.Mutex
@@ -81,14 +82,21 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 }
 
 func (c *PacketConn) Close() error {
+	c.closed = true
+	err := c.Conn.Close()
+
 	c.rmux.Lock()
 	c.bufior = closedBufioReader
 	c.rmux.Unlock()
 
-	return c.Conn.Close()
+	return err
 }
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
+	if c.closed {
+		return 0, nil, net.ErrClosed
+	}
+
 	c.rmux.Lock()
 	defer c.rmux.Unlock()
 
