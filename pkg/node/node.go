@@ -16,7 +16,6 @@ import (
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -140,7 +139,7 @@ func (w *latencyDialer) PacketConn(ctx context.Context, a netapi.Address) (net.P
 }
 
 func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Response, error) {
-	resp := &latency.Response{IdLatencyMap: make(map[string]*durationpb.Duration)}
+	resp := &latency.Response{IdLatencyMap: make(map[string]*latency.Reply)}
 	var mu sync.Mutex
 
 	var wg sync.WaitGroup
@@ -160,15 +159,15 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 
 			px = &latencyDialer{Proxy: px, ipv6: s.GetIpv6()}
 
-			var t *durationpb.Duration
-			z, ok := s.Protocol.Protocol.(interface {
-				Latency(netapi.Proxy) (*durationpb.Duration, error)
-			})
-			if ok {
-				t, err = z.Latency(px)
-				if err != nil {
-					log.Error("latency failed", "err", err)
-				}
+			z, ok := s.Protocol.Protocol.(latency.Latencier)
+			if !ok {
+				return
+			}
+
+			t, err := z.Latency(px)
+			if err != nil {
+				log.Error("latency failed", "err", err)
+				return
 			}
 
 			mu.Lock()
