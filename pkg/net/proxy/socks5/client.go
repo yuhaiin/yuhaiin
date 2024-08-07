@@ -80,7 +80,7 @@ func (s *Client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error
 		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
-	_, err = s.handshake2(ctx, conn, tools.Connect, host)
+	_, err = s.handshake2(conn, tools.Connect, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %w", err)
@@ -140,7 +140,7 @@ func (s *Client) handshake1(conn net.Conn) error {
 	}
 }
 
-func (s *Client) handshake2(ctx context.Context, conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
+func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
 	req := pool.NewBufferSize(pool.DefaultSize)
 	defer req.Reset()
 
@@ -189,7 +189,7 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("first hand failed: %w", err)
 	}
 
-	addr, err := s.handshake2(ctx, conn, tools.Udp, host)
+	addr, err := s.handshake2(conn, tools.Udp, host)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("second hand failed: %w", err)

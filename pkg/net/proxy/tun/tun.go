@@ -11,6 +11,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -36,7 +37,7 @@ func NewTun(o *listener.Inbound_Tun) func(netapi.Listener, netapi.Handler) (s ne
 
 		sc.Name = checkTunName(sc)
 
-		opt := &tun.Opt{
+		opt := &device.Opt{
 			Inbound_Tun: o,
 			Options: &netlink.Options{
 				Interface: sc,

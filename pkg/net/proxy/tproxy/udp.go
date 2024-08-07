@@ -152,7 +152,7 @@ var errContinue = errors.New("continue")
 //
 // Out-of-band data is also read in so that the original destination
 // address can be identified and parsed.
-func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstAddr *net.UDPAddr, err error) {
+func ReadFromUDP(conn readMsgUdp, b []byte) (n int, srcAddr *net.UDPAddr, dstAddr *net.UDPAddr, err error) {
 	oob := make([]byte, 1024)
 	var oobn int
 	n, oobn, _, srcAddr, err = conn.ReadMsgUDP(b, oob)
@@ -202,16 +202,22 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (n int, srcAddr *net.UDPAddr, dstA
 	return
 }
 
+type readMsgUdp interface {
+	net.PacketConn
+	ReadMsgUDP(b, oob []byte) (n, oobn, flags int, addr *net.UDPAddr, err error)
+	SyscallConn() (syscall.RawConn, error)
+}
+
 func (t *Tproxy) newUDP() error {
 	lis, err := t.lis.Packet(t.ctx)
 	if err != nil {
 		return err
 	}
 
-	udpLis, ok := lis.(*net.UDPConn)
+	udpLis, ok := lis.(readMsgUdp)
 	if !ok {
 		lis.Close()
-		return fmt.Errorf("listen is not udplistener")
+		return fmt.Errorf("listen is not readMsgUdp")
 	}
 
 	sysConn, err := udpLis.SyscallConn()
@@ -249,8 +255,8 @@ func (t *Tproxy) newUDP() error {
 			t.handler.HandlePacket(&netapi.Packet{
 				Src:     src,
 				Dst:     dstAddr,
-				Payload: buf[:n],
-				WriteBack: func(b []byte, addr net.Addr) (int, error) {
+				Payload: pool.Clone(buf[:n]),
+				WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 					ad, err := netapi.ParseSysAddr(addr)
 					if err != nil {
 						return 0, err
@@ -273,7 +279,7 @@ func (t *Tproxy) newUDP() error {
 					}
 
 					return n, nil
-				},
+				}),
 			})
 		}
 	}()

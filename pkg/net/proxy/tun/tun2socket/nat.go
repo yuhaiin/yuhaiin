@@ -1,4 +1,4 @@
-package nat
+package tun2socket
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
@@ -30,7 +30,7 @@ type Nat struct {
 	gatewayPort uint16
 }
 
-func Start(opt *tun.Opt) (*Nat, error) {
+func Start(opt *device.Opt) (*Nat, error) {
 	listener, err := dialer.ListenContextWithOptions(context.Background(), "tcp", "", &dialer.Options{})
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func Start(opt *tun.Opt) (*Nat, error) {
 					continue
 				}
 
-				tun.ResetChecksum(ip, tp, pseudoHeaderSum)
+				device.ResetChecksum(ip, tp, pseudoHeaderSum)
 
 				wbufs = append(wbufs, bufs[i][:sizes[i]+offset])
 			}

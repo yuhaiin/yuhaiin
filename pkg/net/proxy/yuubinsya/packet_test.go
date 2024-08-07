@@ -120,7 +120,10 @@ func TestPacket(t *testing.T) {
 	data := randSeq(rand.IntN(60000))
 
 	go StartUDPServer(lis, func(p *netapi.Packet) {
-		_, err := p.WriteBack(p.Payload, p.Src)
+		err := p.WriteBack.WriteBatch(netapi.WriteBatchBuf{
+			Payload: p.Payload,
+			Addr:    p.Src,
+		})
 
 		t.Log(len(p.Payload), bytes.Equal(data, p.Payload), p.Dst.String(), p.Src.String(), err)
 	}, auth, true)

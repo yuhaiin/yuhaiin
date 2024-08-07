@@ -1,9 +1,10 @@
-package tun
+package gvisor
 
 import (
 	"fmt"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -15,7 +16,7 @@ func Open(sc netlink.TunScheme, driver listener.TunEndpointDriver, mtu int) (_ s
 		return openFD(sc, mtu)
 	}
 
-	w, err := OpenWriter(sc, mtu)
+	w, err := device.OpenWriter(sc, mtu)
 	if err != nil {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}

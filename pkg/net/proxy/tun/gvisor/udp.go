@@ -1,4 +1,4 @@
-package tun
+package gvisor
 
 import (
 	"context"
@@ -91,24 +91,20 @@ import (
 func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
 	srcPort, dstPort := id.RemotePort, id.LocalPort
 
-	length := pkt.Data().Size()
-	buf := pool.NewBufferSize(length)
-	defer buf.Reset()
+	buf := pool.NewBufferSize(pkt.Data().Size())
 
 	_, err := pkt.Data().ReadTo(buf, true)
 	if err != nil {
 		return true
 	}
 
-	dst := netapi.ParseIPAddrPort("udp", id.LocalAddress.AsSlice(), dstPort)
-
 	f.handler.HandlePacket(&netapi.Packet{
 		Src:     netapi.ParseIPAddrPort("udp", id.RemoteAddress.AsSlice(), srcPort),
-		Dst:     dst,
+		Dst:     netapi.ParseIPAddrPort("udp", id.LocalAddress.AsSlice(), dstPort),
 		Payload: buf.Bytes(),
-		WriteBack: func(b []byte, addr net.Addr) (int, error) {
+		WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)
-		},
+		}),
 	})
 	return true
 }

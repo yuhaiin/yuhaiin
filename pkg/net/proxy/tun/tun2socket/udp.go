@@ -1,83 +1,97 @@
-package nat
+package tun2socket
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"math"
 	"math/rand/v2"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	i4 "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	i6 "gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 )
 
-type call struct {
-	buf   []byte
-	tuple Tuple
-}
-
 type UDP struct {
-	device  netlink.Tun
-	ctx     context.Context
-	cancel  context.CancelFunc
-	channel chan *call
+	device       netlink.Tun
+	HandlePacket func(tuple Tuple, payload []byte)
+	closed       bool
 }
 
 func NewUDP(device netlink.Tun) *UDP {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &UDP{
-		device:  device,
-		ctx:     ctx,
-		cancel:  cancel,
-		channel: make(chan *call, 250),
-	}
-}
-
-func (u *UDP) ReadFrom(buf []byte) (int, Tuple, error) {
-	select {
-	case <-u.ctx.Done():
-		return 0, Tuple{}, net.ErrClosed
-	case c := <-u.channel:
-		defer pool.PutBytes(c.buf)
-
-		return copy(buf, c.buf), c.tuple, nil
-	}
+	return &UDP{device: device, HandlePacket: func(tuple Tuple, payload []byte) {}}
 }
 
 func (u *UDP) Close() error {
-	u.cancel()
+	u.closed = true
 	return nil
 }
 
 func (u *UDP) handleUDPPacket(tuple Tuple, payload []byte) {
-	buf := pool.Clone(payload)
-	select {
-	case u.channel <- &call{buf, tuple}:
-	case <-u.ctx.Done():
-		pool.PutBytes(buf)
+	if u.closed {
+		return
 	}
+	u.HandlePacket(tuple, payload)
 }
 
 func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
-	select {
-	case <-u.ctx.Done():
+	if u.closed {
 		return 0, net.ErrClosed
-	default:
 	}
 
+	tunBuf, err := u.processUDPPacket(buf, tuple)
+	if err != nil {
+		return 0, err
+	}
+	defer pool.PutBytes(tunBuf)
+
+	_, err = u.device.Write([][]byte{tunBuf})
+	return len(buf), err
+}
+
+type Batch struct {
+	Payload []byte
+	Tuple   Tuple
+}
+
+func (u *UDP) WriteBatch(batch []Batch) error {
+	if u.closed {
+		return net.ErrClosed
+	}
+
+	buffs := make([][]byte, 0, len(batch))
+
+	for _, b := range batch {
+		tunBuf, err := u.processUDPPacket(b.Payload, b.Tuple)
+		if err != nil {
+			log.Error("process udp packet failed:", "err", err)
+			continue
+		}
+		defer pool.PutBytes(tunBuf)
+
+		buffs = append(buffs, tunBuf)
+	}
+
+	if len(buffs) == 0 {
+		return nil
+	}
+
+	_, err := u.device.Write(buffs)
+	return err
+}
+
+func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
 	udpTotalLength := int(header.UDPMinimumSize) + len(buf)
 
 	if udpTotalLength > math.MaxUint16 || udpTotalLength > int(u.device.MTU()) { // ip packet max length
-		return 0, fmt.Errorf("udp packet too large: %d", len(buf))
+		return nil, fmt.Errorf("udp packet too large: %d", len(buf))
 	}
 
 	tunBuf := pool.GetBytes(u.device.MTU() + u.device.Offset())
-	defer pool.PutBytes(tunBuf)
 
 	ipBuf := tunBuf[u.device.Offset():]
 
@@ -132,7 +146,7 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	})
 	copy(udp.Payload(), buf)
 
-	tun.ResetIPChecksum(ip)
+	device.ResetIPChecksum(ip)
 
 	// On IPv4, UDP checksum is optional, and a zero value indicates the
 	// transmitter skipped the checksum generation (RFC768).
@@ -140,13 +154,8 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	if _, ok := ip.(header.IPv6); ok {
 		pseudoSum := header.PseudoHeaderChecksum(header.UDPProtocolNumber,
 			ip.SourceAddress(), ip.DestinationAddress(), uint16(len(ip.Payload())))
-		tun.ResetTransportChecksum(ip, udp, pseudoSum)
+		device.ResetTransportChecksum(ip, udp, pseudoSum)
 	}
 
-	_, err := u.device.Write([][]byte{tunBuf[:totalLength+uint16(u.device.Offset())]})
-	if err != nil {
-		return 0, err
-	}
-
-	return len(buf), nil
+	return tunBuf[:totalLength+uint16(u.device.Offset())], nil
 }

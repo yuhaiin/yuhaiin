@@ -1,4 +1,4 @@
-package tun
+package device
 
 import (
 	"fmt"

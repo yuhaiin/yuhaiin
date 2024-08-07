@@ -9,29 +9,28 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket/nat"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 type Tun2socket struct {
 	device io.Closer
-	nat    *nat.Nat
+	nat    *Nat
 
 	handler netapi.Handler
 	Mtu     int32
 }
 
-func New(o *tun.Opt) (netapi.Accepter, error) {
-	device, err := tun.OpenWriter(o.Interface, int(o.Tun.Mtu))
+func New(o *device.Opt) (netapi.Accepter, error) {
+	device, err := device.OpenWriter(o.Interface, int(o.Tun.Mtu))
 	if err != nil {
 		return nil, fmt.Errorf("open tun device failed: %w", err)
 	}
 
 	o.Writer = device
 
-	nat, err := nat.Start(o)
+	nat, err := Start(o)
 	if err != nil {
 		device.Close()
 		return nil, err
@@ -44,8 +43,8 @@ func New(o *tun.Opt) (netapi.Accepter, error) {
 		handler: o.Handler,
 	}
 
+	nat.UDP.HandlePacket = handler.handleUDP
 	go handler.tcpLoop()
-	go handler.udpLoop()
 
 	return handler, nil
 }
@@ -71,22 +70,6 @@ func (h *Tun2socket) tcpLoop() {
 	}
 }
 
-func (h *Tun2socket) udpLoop() {
-	buf := pool.GetBytes(h.Mtu)
-	defer pool.PutBytes(buf)
-
-	defer h.nat.UDP.Close()
-
-	for {
-		if exit, err := h.handleUDP(buf); err != nil {
-			log.Output(0, netapi.LogLevel(err), "tun2socket udp handle", "msg", err)
-			if exit {
-				return
-			}
-		}
-	}
-}
-
 func (h *Tun2socket) handleTCP(conn net.Conn) {
 	// lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()  // source
 	rAddrPort := conn.RemoteAddr().(*net.TCPAddr) // dst
@@ -104,47 +87,69 @@ func (h *Tun2socket) handleTCP(conn net.Conn) {
 	})
 }
 
-func (h *Tun2socket) handleUDP(buf []byte) (bool, error) {
-	n, tuple, err := h.nat.UDP.ReadFrom(buf)
+func (h *Tun2socket) handleUDP(tuple Tuple, buf []byte) {
+	h.handler.HandlePacket(&netapi.Packet{
+		Src: netapi.ParseIPAddrPort("udp",
+			net.IP(tuple.SourceAddr.AsSlice()), tuple.SourcePort),
+		Dst: netapi.ParseIPAddrPort("udp",
+			net.IP(tuple.DestinationAddr.AsSlice()), tuple.DestinationPort),
+		Payload:   pool.Clone(buf),
+		WriteBack: &WriteBack{h, tuple},
+	})
+}
+
+type WriteBack struct {
+	*Tun2socket
+	tuple Tuple
+}
+
+func (h *WriteBack) toTuple(addr net.Addr) (Tuple, error) {
+	address, err := netapi.ParseSysAddr(addr)
 	if err != nil {
-		return true, err
+		return Tuple{}, err
 	}
 
-	dst, _ := netapi.ParseSysAddr(&net.UDPAddr{
-		IP:   net.IP(tuple.DestinationAddr.AsSlice()),
-		Port: int(tuple.DestinationPort),
-	})
+	daddr, err := netapi.ResolverIP(context.TODO(), address)
+	if err != nil {
+		return Tuple{}, err
+	}
 
-	h.handler.HandlePacket(&netapi.Packet{
-		Src: &net.UDPAddr{
-			IP:   net.IP(tuple.SourceAddr.AsSlice()),
-			Port: int(tuple.SourcePort),
-		},
-		Dst:     dst,
-		Payload: buf[:n],
-		WriteBack: func(b []byte, addr net.Addr) (int, error) {
-			address, err := netapi.ParseSysAddr(addr)
-			if err != nil {
-				return 0, err
-			}
+	if h.tuple.SourceAddr.Len() == 16 {
+		daddr = daddr.To16()
+	}
 
-			daddr, err := netapi.ResolverIP(context.TODO(), address)
-			if err != nil {
-				return 0, err
-			}
+	return Tuple{
+		DestinationAddr: tcpip.AddrFromSlice(daddr),
+		DestinationPort: uint16(address.Port()),
+		SourceAddr:      h.tuple.SourceAddr,
+		SourcePort:      h.tuple.SourcePort,
+	}, nil
+}
 
-			if tuple.SourceAddr.Len() == 16 {
-				daddr = daddr.To16()
-			}
+func (h *WriteBack) WriteBack(b []byte, addr net.Addr) (int, error) {
+	tuple, err := h.toTuple(addr)
+	if err != nil {
+		return 0, err
+	}
 
-			return h.nat.UDP.WriteTo(b, nat.Tuple{
-				DestinationAddr: tcpip.AddrFromSlice(daddr),
-				DestinationPort: uint16(address.Port()),
-				SourceAddr:      tuple.SourceAddr,
-				SourcePort:      tuple.SourcePort,
-			})
-		},
-	})
+	return h.nat.UDP.WriteTo(b, tuple)
+}
 
-	return false, nil
+func (h *WriteBack) WriteBatch(bufs ...netapi.WriteBatchBuf) error {
+	batch := make([]Batch, 0, len(bufs))
+
+	for _, buf := range bufs {
+		tuple, err := h.toTuple(buf.Addr)
+		if err != nil {
+			log.Error("parse addr failed:", "err", err)
+			continue
+		}
+
+		batch = append(batch, Batch{
+			Payload: buf.Payload,
+			Tuple:   tuple,
+		})
+	}
+
+	return h.nat.UDP.WriteBatch(batch)
 }

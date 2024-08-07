@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-type SyncMap[key, value any] struct {
+type SyncMap[key comparable, value any] struct {
 	data sync.Map
 }
 

@@ -227,7 +227,11 @@ func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *net
 		return nil, nil, nil, err
 	}
 
-	bind := newNetBindClient(h.GetReserved())
+	reversed := [3]byte{}
+	if len(h.GetReserved()) == 3 {
+		copy(reversed[:], h.GetReserved())
+	}
+	bind := newNetBindClient(reversed)
 	// dev := device.NewDevice(tun, conn.NewDefaultBind(), nil /* device.NewLogger(device.LogLevelVerbose, "") */)
 	dev := device.NewDevice(
 		tun,

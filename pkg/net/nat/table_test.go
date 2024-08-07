@@ -39,11 +39,11 @@ func TestTable(t *testing.T) {
 			Src:     netapi.ParseAddressPort("tcp", v, 80),
 			Dst:     netapi.ParseAddressPort("tcp", v, 80),
 			Payload: []byte("test"),
-			WriteBack: func(b []byte, addr net.Addr) (int, error) {
+			WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 				assert.Equal(t, addr.String(), net.JoinHostPort(v, "80"))
 				wg.Done()
 				return 0, nil
-			},
+			}),
 		})
 		assert.NoError(t, err)
 	}

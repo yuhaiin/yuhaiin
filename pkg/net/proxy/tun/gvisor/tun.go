@@ -1,4 +1,4 @@
-package tun
+package gvisor
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"golang.org/x/time/rate"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -53,13 +53,7 @@ func (t *tunServer) Close() error {
 	return nil
 }
 
-type Opt struct {
-	*listener.Inbound_Tun
-	*netlink.Options
-	netapi.Handler
-}
-
-func New(o *Opt) (netapi.Accepter, error) {
+func New(o *device.Opt) (netapi.Accepter, error) {
 	opt := o.Tun
 	if opt.Mtu <= 0 {
 		opt.Mtu = 1500
