@@ -35,7 +35,7 @@ func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 }
 
 func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
-	p, err := dialer.ListenPacket("udp", "")
+	p, err := dialer.ListenPacket("udp", "", dialer.WithTryUpgradeToBatch())
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}

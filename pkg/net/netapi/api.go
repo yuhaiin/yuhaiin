@@ -36,6 +36,7 @@ type Address interface {
 	// IsFqdn return true if address is FQDN
 	// not fqdn must impl [IPAddress]
 	IsFqdn() bool
+	Equal(Address) bool
 	net.Addr
 }
 

@@ -40,7 +40,6 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 	udpAddr, ok := loadSourceTableAddr[*net.UDPAddr](t, cacheTypeUDPAddr, key)
 	if ok {
 		_, err = t.WriteTo(pkt.Payload, udpAddr)
-		pool.PutBytes(pkt.Payload)
 		if errors.Is(err, net.ErrClosed) {
 			return nil
 		}
@@ -61,7 +60,7 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
 
-		if key != dstAddr.String() {
+		if !pkt.Dst.Equal(dstAddr) {
 			t.storeAddr(cacheTypeDispatch, key, dstAddr)
 		}
 	}
@@ -69,7 +68,6 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 	// check is need resolve
 	if !dstAddr.IsFqdn() || t.skipResolve {
 		_, err = t.WriteTo(pkt.Payload, dstAddr)
-		pool.PutBytes(pkt.Payload)
 		if err == nil {
 			t.mapAddr(dstAddr, pkt.Dst)
 		}
@@ -84,7 +82,6 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 	//
 
 	write := func(ctx context.Context) error {
-		defer pool.PutBytes(pkt.Payload)
 		var err error
 		udpAddr, err, _ := t.sf.Do(key, func() (*net.UDPAddr, error) {
 			udpAddr, err := netapi.ResolveUDPAddr(ctx, dstAddr)
@@ -110,8 +107,11 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 		return write(ctx)
 	}
 
+	pkt.IncRef()
 	// if need resolve, make it run in background
 	go func() {
+		defer pkt.DecRef()
+
 		ctx = context.WithoutCancel(ctx)
 		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
@@ -129,8 +129,6 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	metrics.Counter.AddSendUDPPacket()
 
-	pkt = pkt.Clone()
-
 	var key string
 
 	if pkt.MigrateID != 0 {
@@ -146,9 +144,13 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 
 	ctx = context.WithoutCancel(ctx)
 
+	pkt.IncRef()
+
 	u.sf.DoBackground(
 		key,
 		func(st *SourceTable) {
+			defer pkt.DecRef()
+
 			ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
 			defer cancel()
 			if err := u.write(ctx, st, pkt, true); err != nil {

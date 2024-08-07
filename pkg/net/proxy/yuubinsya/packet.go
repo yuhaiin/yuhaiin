@@ -131,7 +131,7 @@ func StartUDPServer(packet net.PacketConn, handle func(*netapi.Packet), auth typ
 		handle(&netapi.Packet{
 			Src:     src,
 			Dst:     dst,
-			Payload: buf[:n],
+			Payload: pool.Clone(buf[:n]),
 			WriteBack: func(b []byte, source net.Addr) (int, error) {
 				return p.writeTo(b, source, src)
 			},

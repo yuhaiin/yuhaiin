@@ -44,8 +44,8 @@ func New(o *tun.Opt) (netapi.Accepter, error) {
 		handler: o.Handler,
 	}
 
+	nat.UDP.HandlePacket = handler.handleUDP
 	go handler.tcpLoop()
-	go handler.udpLoop()
 
 	return handler, nil
 }
@@ -71,22 +71,6 @@ func (h *Tun2socket) tcpLoop() {
 	}
 }
 
-func (h *Tun2socket) udpLoop() {
-	buf := pool.GetBytes(h.Mtu)
-	defer pool.PutBytes(buf)
-
-	defer h.nat.UDP.Close()
-
-	for {
-		if exit, err := h.handleUDP(buf); err != nil {
-			log.Output(0, netapi.LogLevel(err), "tun2socket udp handle", "msg", err)
-			if exit {
-				return
-			}
-		}
-	}
-}
-
 func (h *Tun2socket) handleTCP(conn net.Conn) {
 	// lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()  // source
 	rAddrPort := conn.RemoteAddr().(*net.TCPAddr) // dst
@@ -104,24 +88,13 @@ func (h *Tun2socket) handleTCP(conn net.Conn) {
 	})
 }
 
-func (h *Tun2socket) handleUDP(buf []byte) (bool, error) {
-	n, tuple, err := h.nat.UDP.ReadFrom(buf)
-	if err != nil {
-		return true, err
-	}
-
-	dst, _ := netapi.ParseSysAddr(&net.UDPAddr{
-		IP:   net.IP(tuple.DestinationAddr.AsSlice()),
-		Port: int(tuple.DestinationPort),
-	})
-
+func (h *Tun2socket) handleUDP(tuple nat.Tuple, buf []byte) {
 	h.handler.HandlePacket(&netapi.Packet{
-		Src: &net.UDPAddr{
-			IP:   net.IP(tuple.SourceAddr.AsSlice()),
-			Port: int(tuple.SourcePort),
-		},
-		Dst:     dst,
-		Payload: buf[:n],
+		Src: netapi.ParseIPAddrPort("udp",
+			net.IP(tuple.SourceAddr.AsSlice()), tuple.SourcePort),
+		Dst: netapi.ParseIPAddrPort("udp",
+			net.IP(tuple.DestinationAddr.AsSlice()), tuple.DestinationPort),
+		Payload: pool.Clone(buf),
 		WriteBack: func(b []byte, addr net.Addr) (int, error) {
 			address, err := netapi.ParseSysAddr(addr)
 			if err != nil {
@@ -145,6 +118,4 @@ func (h *Tun2socket) handleUDP(buf []byte) (bool, error) {
 			})
 		},
 	})
-
-	return false, nil
 }

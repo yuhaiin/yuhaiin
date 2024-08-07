@@ -52,7 +52,7 @@ func (s *Server) initPacketConn() error {
 		return nil
 	}
 
-	p, err := dialer.ListenPacket("udp", s.host, dialer.WithListener())
+	p, err := dialer.ListenPacket("udp", s.host, dialer.WithListener(), dialer.WithTryUpgradeToBatch())
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -76,16 +77,26 @@ type Packet struct {
 	WriteBack WriteBack
 	Payload   []byte
 	MigrateID uint64
+
+	payloadRef int
+	mu         sync.Mutex
 }
 
-func (p *Packet) Clone() *Packet {
-	return &Packet{
-		Src:       p.Src,
-		Dst:       p.Dst,
-		WriteBack: p.WriteBack,
-		Payload:   pool.Clone(p.Payload),
-		MigrateID: p.MigrateID,
+func (p *Packet) IncRef() {
+	p.mu.Lock()
+	p.payloadRef++
+	p.mu.Unlock()
+}
+
+func (p *Packet) DecRef() {
+	p.mu.Lock()
+	p.payloadRef--
+
+	// because ref count default is 0, so here no equal
+	if p.payloadRef < 0 {
+		pool.PutBytes(p.Payload)
 	}
+	p.mu.Unlock()
 }
 
 type DNSRawRequest struct {

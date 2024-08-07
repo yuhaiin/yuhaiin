@@ -1,7 +1,6 @@
 package nat
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"math"
@@ -16,60 +15,33 @@ import (
 	i6 "gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 )
 
-type call struct {
-	buf   []byte
-	tuple Tuple
-}
-
 type UDP struct {
-	device  netlink.Tun
-	ctx     context.Context
-	cancel  context.CancelFunc
-	channel chan *call
+	closed       bool
+	device       netlink.Tun
+	HandlePacket func(tuple Tuple, payload []byte)
 }
 
 func NewUDP(device netlink.Tun) *UDP {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &UDP{
-		device:  device,
-		ctx:     ctx,
-		cancel:  cancel,
-		channel: make(chan *call, 250),
-	}
-}
-
-func (u *UDP) ReadFrom(buf []byte) (int, Tuple, error) {
-	select {
-	case <-u.ctx.Done():
-		return 0, Tuple{}, net.ErrClosed
-	case c := <-u.channel:
-		defer pool.PutBytes(c.buf)
-
-		return copy(buf, c.buf), c.tuple, nil
-	}
+	return &UDP{device: device, HandlePacket: func(tuple Tuple, payload []byte) {}}
 }
 
 func (u *UDP) Close() error {
-	u.cancel()
+	u.closed = true
 	return nil
 }
 
 func (u *UDP) handleUDPPacket(tuple Tuple, payload []byte) {
-	buf := pool.Clone(payload)
-	select {
-	case u.channel <- &call{buf, tuple}:
-	case <-u.ctx.Done():
-		pool.PutBytes(buf)
+	if u.closed {
+		return
 	}
+	u.HandlePacket(tuple, payload)
 }
 
 func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
-	select {
-	case <-u.ctx.Done():
-		return 0, net.ErrClosed
-	default:
-	}
 
+	if u.closed {
+		return 0, net.ErrClosed
+	}
 	udpTotalLength := int(header.UDPMinimumSize) + len(buf)
 
 	if udpTotalLength > math.MaxUint16 || udpTotalLength > int(u.device.MTU()) { // ip packet max length
@@ -144,9 +116,5 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 	}
 
 	_, err := u.device.Write([][]byte{tunBuf[:totalLength+uint16(u.device.Offset())]})
-	if err != nil {
-		return 0, err
-	}
-
-	return len(buf), nil
+	return len(buf), err
 }

@@ -51,6 +51,7 @@ func ParseIPAddrPort(net string, ip net.IP, port uint16) Address {
 		port:    port,
 	}
 }
+
 func toAddrPort(ad net.IP, zone string) netip.Addr {
 	addr, _ := netip.AddrFromSlice(ad)
 	addr = addr.Unmap()
@@ -105,6 +106,13 @@ func (d *DomainAddr) String() string   { return net.JoinHostPort(d.hostname, str
 func (d *DomainAddr) Hostname() string { return d.hostname }
 func (d *DomainAddr) Port() uint16     { return d.port }
 func (d *DomainAddr) IsFqdn() bool     { return true }
+func (d *DomainAddr) Equal(o Address) bool {
+	x, ok := o.(*DomainAddr)
+	if !ok {
+		return false
+	}
+	return x.hostname == d.hostname && x.port == d.port
+}
 
 var _ IPAddress = (*IPAddr)(nil)
 
@@ -121,5 +129,12 @@ func (d *IPAddr) Port() uint16         { return d.port }
 func (d *IPAddr) IsFqdn() bool         { return false }
 func (d *IPAddr) IP() net.IP           { return d.ip.AsSlice() }
 func (d *IPAddr) WithZone(zone string) { d.ip = d.ip.WithZone(zone) }
+func (d *IPAddr) Equal(o Address) bool {
+	x, ok := o.(*IPAddr)
+	if !ok {
+		return false
+	}
+	return x.ip.Compare(d.ip) == 0 && x.port == d.port
+}
 
 var EmptyAddr Address = &DomainAddr{}

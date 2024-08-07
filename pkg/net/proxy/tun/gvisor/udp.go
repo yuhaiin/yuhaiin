@@ -91,9 +91,7 @@ import (
 func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
 	srcPort, dstPort := id.RemotePort, id.LocalPort
 
-	length := pkt.Data().Size()
-	buf := pool.NewBufferSize(length)
-	defer buf.Reset()
+	buf := pool.NewBufferSize(pkt.Data().Size())
 
 	_, err := pkt.Data().ReadTo(buf, true)
 	if err != nil {

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -x
+
+# gh run download 10269193323
+for file in ${PWD}/*;do
+    suffix=""
+    if [[ $file =~ "windows" ]]; then
+        suffix=".exe"
+    fi
+    mv $file ${file}_
+    mv ${file}_/yuhaiin${suffix} ${file}${suffix}
+    rm -rf ${file}_
+done

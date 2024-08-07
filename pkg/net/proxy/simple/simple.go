@@ -135,7 +135,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return c.p.PacketConn(ctx, addr)
 	}
 
-	conn, err := dialer.ListenPacket("udp", "")
+	conn, err := dialer.ListenPacket("udp", "", dialer.WithTryUpgradeToBatch())
 	if err != nil {
 		return nil, err
 	}
