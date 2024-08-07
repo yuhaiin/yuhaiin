@@ -1,6 +1,6 @@
 //go:build unix && !linux
 
-package tun
+package device
 
 import (
 	"fmt"

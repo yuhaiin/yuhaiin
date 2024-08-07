@@ -5,9 +5,11 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"runtime"
 	"strconv"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/tailscale/wireguard-go/conn"
@@ -28,12 +30,18 @@ func (e Endpoint) DstIP() netip.Addr { return (netip.AddrPort)(e).Addr() }
 func (e Endpoint) SrcIP() netip.Addr { return netip.Addr{} }
 
 type netBindClient struct {
-	conn     net.PacketConn
-	reserved []byte
+	conn     *Batch
+	reserved [3]byte
 	mu       sync.Mutex
 }
 
-func newNetBindClient(reserved []byte) *netBindClient { return &netBindClient{reserved: reserved} }
+func newNetBindClient(reserved [3]byte) *netBindClient {
+	nbc := &netBindClient{
+		reserved: reserved,
+	}
+
+	return nbc
+}
 
 func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 	addrPort, err := netip.ParseAddrPort(s)
@@ -75,7 +83,7 @@ func (bind *netBindClient) Close() error {
 	return nil
 }
 
-func (bind *netBindClient) connect() (net.PacketConn, error) {
+func (bind *netBindClient) connect() (*Batch, error) {
 	conn := bind.conn
 	if conn != nil {
 		return conn, nil
@@ -88,14 +96,14 @@ func (bind *netBindClient) connect() (net.PacketConn, error) {
 		return bind.conn, nil
 	}
 
-	conn, err := dialer.ListenPacket("udp", "")
+	pc, err := dialer.ListenPacket("udp", "")
 	if err != nil {
 		return nil, err
 	}
 
-	bind.conn = conn
+	bind.conn = NewIPv6Batch(bind.BatchSize(), pc)
 
-	return conn, nil
+	return bind.conn, nil
 }
 
 func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
@@ -104,34 +112,7 @@ func (bind *netBindClient) receive(packets [][]byte, sizes []int, eps []conn.End
 		return 0, err
 	}
 
-	n, addr, err := conn.ReadFrom(packets[0])
-	if err != nil {
-		return 0, err
-	}
-
-	var addrPort netip.AddrPort
-	uaddr, ok := addr.(*net.UDPAddr)
-	if ok {
-		addrPort = uaddr.AddrPort()
-	} else {
-		naddr, err := netapi.ParseSysAddr(addr)
-		if err != nil {
-			return 0, err
-		}
-
-		addrPort, err = netapi.ResolverAddrPort(context.Background(), naddr)
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	eps[0] = Endpoint(addrPort)
-	if n > 3 {
-		copy(packets[0][1:4], []byte{0, 0, 0})
-	}
-	sizes[0] = n
-
-	return 1, nil
+	return conn.ReadBatch(packets, sizes, eps)
 }
 
 func (bind *netBindClient) Send(buffs [][]byte, endpoint conn.Endpoint) error {
@@ -147,19 +128,24 @@ func (bind *netBindClient) Send(buffs [][]byte, endpoint conn.Endpoint) error {
 		return err
 	}
 
-	for _, buff := range buffs {
-		if len(buff) > 3 && len(bind.reserved) == 3 {
-			copy(buff[1:], bind.reserved)
-		}
+	// when use writemmsg, the reserved will make can't connect
+	// so current comment
+	//
+	// for _, buff := range buffs {
+	// 	if len(buff) > 3 {
+	// 		buff[1] = bind.reserved[0]
+	// 		buff[2] = bind.reserved[1]
+	// 		buff[3] = bind.reserved[2]
+	// 	}
+	// }
 
-		_, err = conn.WriteTo(buff, net.UDPAddrFromAddrPort(addr))
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return conn.WriteBatch(buffs, net.UDPAddrFromAddrPort(addr))
 }
 
 func (bind *netBindClient) SetMark(mark uint32) error { return nil }
-func (bind *netBindClient) BatchSize() int            { return 1 }
+func (bind *netBindClient) BatchSize() int {
+	if runtime.GOOS == "linux" {
+		return configuration.UDPBatchSize
+	}
+	return 1
+}

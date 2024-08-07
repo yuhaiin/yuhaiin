@@ -37,14 +37,10 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 
 	var err error
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
-	udpAddr, ok := loadSourceTableAddr[*net.UDPAddr](t, cacheTypeUDPAddr, key)
+	udpAddr, ok := t.addrStore.LoadUdp(key)
 	if ok {
-		_, err = t.WriteTo(pkt.Payload, udpAddr)
-		pool.PutBytes(pkt.Payload)
-		if errors.Is(err, net.ErrClosed) {
-			return nil
-		}
-		return err
+		// load from cache, so we don't need to map addr, pkt is nil
+		return t.WriteTo(pkt.Payload, udpAddr, nil)
 	}
 
 	store := netapi.GetContext(ctx)
@@ -52,7 +48,7 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 
 	// cache fakeip/hosts/bypass address
 	// because domain bypass maybe resolve domain which is speed some time, so we cache it for a while
-	dstAddr, ok := loadSourceTableAddr[netapi.Address](t, cacheTypeDispatch, key)
+	dstAddr, ok := t.addrStore.LoadDispatch(key)
 	if !ok {
 		store.SkipRoute = true
 
@@ -61,75 +57,41 @@ func (u *Table) write(ctx context.Context, t *SourceTable, pkt *netapi.Packet, a
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
 
-		if key != dstAddr.String() {
-			t.storeAddr(cacheTypeDispatch, key, dstAddr)
+		if !pkt.Dst.Equal(dstAddr) {
+			t.addrStore.StoreDispatch(key, dstAddr)
 		}
 	}
 
 	// check is need resolve
 	if !dstAddr.IsFqdn() || t.skipResolve {
-		_, err = t.WriteTo(pkt.Payload, dstAddr)
-		pool.PutBytes(pkt.Payload)
-		if err == nil {
-			t.mapAddr(dstAddr, pkt.Dst)
-		}
-		if errors.Is(err, net.ErrClosed) {
-			return nil
-		}
-		return err
+		return t.WriteTo(pkt.Payload, dstAddr, pkt)
 	}
 
-	//
-	// --------- proxy domain ------
-	//
-
-	write := func(ctx context.Context) error {
-		defer pool.PutBytes(pkt.Payload)
-		var err error
-		udpAddr, err, _ := t.sf.Do(key, func() (*net.UDPAddr, error) {
-			udpAddr, err := netapi.ResolveUDPAddr(ctx, dstAddr)
-			if err != nil {
-				return nil, err
-			}
-			t.storeAddr(cacheTypeUDPAddr, key, udpAddr)
-			t.mapAddr(udpAddr, pkt.Dst)
-			return udpAddr, nil
-		})
-		if err != nil {
-			return err
-		}
-
-		_, err = t.WriteTo(pkt.Payload, udpAddr)
-		if errors.Is(err, net.ErrClosed) {
-			return nil
-		}
-		return err
-	}
+	// domain
 
 	if alreadyBackground {
-		return write(ctx)
+		return t.resolveWrite(ctx, dstAddr, pkt)
 	}
 
+	pkt.IncRef()
 	// if need resolve, make it run in background
 	go func() {
+		defer pkt.DecRef()
+
 		ctx = context.WithoutCancel(ctx)
 		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
 
-		if err := write(ctx); err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return
-			}
+		if err := t.resolveWrite(ctx, dstAddr, pkt); err != nil {
 			log.Error("nat table write to remote", "err", err)
 		}
 	}()
+
 	return nil
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	metrics.Counter.AddSendUDPPacket()
-
-	pkt = pkt.Clone()
 
 	var key string
 
@@ -146,9 +108,13 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 
 	ctx = context.WithoutCancel(ctx)
 
+	pkt.IncRef()
+
 	u.sf.DoBackground(
 		key,
 		func(st *SourceTable) {
+			defer pkt.DecRef()
+
 			ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
 			defer cancel()
 			if err := u.write(ctx, st, pkt, true); err != nil {
@@ -171,6 +137,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 
 			dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
 			if err != nil {
+				pkt.DecRef()
 				return nil, false
 			}
 
@@ -208,7 +175,7 @@ func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
 		p.Close()
 	}()
 
-	ch := make(chan backPacket, 250)
+	ch := make(chan netapi.WriteBatchBuf, 250)
 	defer close(ch)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -239,7 +206,7 @@ func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
 		metrics.Counter.AddReceiveUDPPacket()
 
 		select {
-		case ch <- backPacket{from, pool.Clone(data[:n])}:
+		case ch <- netapi.WriteBatchBuf{Addr: table.parseAddr(from), Payload: pool.Clone(data[:n])}:
 		case <-ctx.Done():
 			return
 		}

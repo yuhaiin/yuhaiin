@@ -3,6 +3,7 @@ package dialer
 import (
 	"context"
 	"net"
+	"runtime"
 	"syscall"
 )
 
@@ -25,6 +26,7 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 	opts.listener = true
 
 	config := &net.ListenConfig{
+		KeepAlive: -1,
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
@@ -67,6 +69,12 @@ func WithListener() func(*Options) {
 	}
 }
 
+func WithTryUpgradeToBatch() func(*Options) {
+	return func(opts *Options) {
+		opts.tryUpgradeToBatch = true
+	}
+}
+
 func ListenPacket(network, address string, opts ...func(*Options)) (net.PacketConn, error) {
 	opt := &Options{
 		InterfaceName:  DefaultInterfaceName,
@@ -97,7 +105,19 @@ func ListenPacketWithOptions(network, address string, opts *Options) (net.Packet
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
-	return lc.ListenPacket(context.Background(), network, address)
+	pc, err := lc.ListenPacket(context.Background(), network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.tryUpgradeToBatch && runtime.GOOS == "linux" {
+		uc, ok := pc.(*net.UDPConn)
+		if ok {
+			pc = NewBatchPacketConn(uc)
+		}
+	}
+
+	return pc, nil
 }
 
 var (
@@ -124,7 +144,8 @@ type Options struct {
 	// index of the interface instead of the name.
 	InterfaceIndex int
 
-	listener bool
+	listener          bool
+	tryUpgradeToBatch bool
 }
 
 func isTCPSocket(network string) bool {

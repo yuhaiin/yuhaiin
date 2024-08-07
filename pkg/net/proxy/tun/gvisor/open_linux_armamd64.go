@@ -3,7 +3,7 @@
 
 // github.com/google/gvisor/pkg/tcpip/link/fdbased/mmap.go only support linux,amd64 linux,arm64
 // so add build tag for fdbased
-package tun
+package gvisor
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	vnetlink "github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
-	gun "gvisor.dev/gvisor/pkg/tcpip/link/tun"
+	"gvisor.dev/gvisor/pkg/tcpip/link/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
@@ -30,7 +30,7 @@ func init() {
 			//
 			// https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/link/fdbased/endpoint.go#L323
 			// check is socket, can't enable gso
-			dev, err := gun.Open(sc.Name)
+			dev, err := tun.Open(sc.Name)
 			if err != nil {
 				return nil, fmt.Errorf("create tun failed: %w", err)
 			}

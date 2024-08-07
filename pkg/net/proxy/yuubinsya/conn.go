@@ -9,6 +9,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -20,18 +21,19 @@ var closedBufioReader = bufio.NewReaderSize(bytes.NewReader(nil), 10)
 
 type PacketConn struct {
 	net.Conn
-	closed     bool
-	bufior     *bufio.Reader
 	handshaker types.Handshaker
+	bufior     *bufio.Reader
 	rmux       sync.Mutex
+	closed     bool
 }
 
 func newPacketConn(conn net.Conn, handshaker types.Handshaker) *PacketConn {
-	return &PacketConn{
+	x := &PacketConn{
 		Conn:       conn,
-		bufior:     pool.GetBufioReader(conn, 2500),
+		bufior:     pool.GetBufioReader(conn, 5000),
 		handshaker: handshaker,
 	}
+	return x
 }
 
 // Handshake Handshake
@@ -62,23 +64,54 @@ func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
-	taddr, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse addr: %w", err)
-	}
-
-	length := min(len(payload), nat.MaxSegmentSize)
-	w := pool.NewBufferSize(length + 1024)
+	w := pool.NewBufferSize(min(len(payload), nat.MaxSegmentSize) + 1024)
 	defer w.Reset()
-	tools.EncodeAddr(taddr, w)
-	_ = binary.Write(w, binary.BigEndian, uint16(length))
-	_, _ = w.Write(payload[:length])
+	err := c.payloadToBuffer(w, payload, addr)
+	if err != nil {
+		return 0, err
+	}
 	_, err = c.Conn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
 	}
-
 	return len(payload), nil
+}
+
+func (c *PacketConn) payloadToBuffer(w *pool.Buffer, payload []byte, addr net.Addr) error {
+	length := min(len(payload), nat.MaxSegmentSize)
+
+	taddr, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return fmt.Errorf("failed to parse addr: %w", err)
+	}
+
+	tools.EncodeAddr(taddr, w)
+	_ = binary.Write(w, binary.BigEndian, uint16(length))
+	_, _ = w.Write(payload[:length])
+
+	return nil
+}
+
+func (c *PacketConn) WriteBack(b []byte, addr net.Addr) (int, error) {
+	return c.WriteTo(b, addr)
+}
+
+func (c *PacketConn) WriteBatch(payloads ...netapi.WriteBatchBuf) error {
+	w := pool.NewBufferSize(20000)
+	defer w.Reset()
+
+	for _, p := range payloads {
+		err := c.payloadToBuffer(w, p.Payload, p.Addr)
+		if err != nil {
+			log.Error("payload to buffer failed", "err", err)
+		}
+	}
+
+	_, err := c.Conn.Write(w.Bytes())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *PacketConn) Close() error {
@@ -86,7 +119,9 @@ func (c *PacketConn) Close() error {
 	err := c.Conn.Close()
 
 	c.rmux.Lock()
+	bufio := c.bufior
 	c.bufior = closedBufioReader
+	pool.PutBufioReader(bufio)
 	c.rmux.Unlock()
 
 	return err
@@ -100,11 +135,10 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 	c.rmux.Lock()
 	defer c.rmux.Unlock()
 
-	addr, err := tools.ResolveAddr(c.bufior)
+	_, addr, err := tools.ReadAddr("udp", c.bufior)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
 	}
-	defer pool.PutBytes(addr)
 
 	l, err := c.bufior.Peek(2)
 	if err != nil {
@@ -124,7 +158,7 @@ func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
 		return n, nil, fmt.Errorf("discard data failed: %w", err)
 	}
 
-	return n, addr.Address("udp"), nil
+	return n, addr, nil
 }
 
 type Conn struct {

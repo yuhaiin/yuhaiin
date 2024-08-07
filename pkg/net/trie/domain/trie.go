@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"unique"
+)
+
 var (
 	_        uint8 = 0
 	last     uint8 = 1
@@ -7,15 +11,17 @@ var (
 )
 
 type trie[T any] struct {
-	Value  T                   `json:"value"`
-	Child  map[string]*trie[T] `json:"child"`
-	Symbol uint8               `json:"symbol"`
+	Value  T                                  `json:"value"`
+	Child  map[unique.Handle[string]]*trie[T] `json:"child"`
+	Symbol uint8                              `json:"symbol"`
 }
 
-func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {
+func (d *trie[T]) child(ss string, insert bool) (*trie[T], bool) {
+	s := unique.Make(ss)
+
 	if insert {
 		if d.Child == nil {
-			d.Child = make(map[string]*trie[T])
+			d.Child = make(map[unique.Handle[string]]*trie[T])
 		}
 
 		if d.Child[s] == nil {
@@ -134,7 +140,7 @@ func remove[T any](node *trie[T], domain *fqdnReader) {
 
 		if len(nodes[i].node.Child) == 0 {
 			if i-1 > 0 {
-				delete(nodes[i-1].node.Child, nodes[i].str)
+				delete(nodes[i-1].node.Child, unique.Make(nodes[i].str))
 			}
 		}
 	}

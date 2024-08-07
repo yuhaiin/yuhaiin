@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
@@ -68,7 +69,30 @@ type StreamMeta struct {
 	Address Address
 }
 
-type WriteBack func(b []byte, addr net.Addr) (int, error)
+type WriteBatchBuf struct {
+	Addr    net.Addr
+	Payload []byte
+}
+
+type WriteBack interface {
+	WriteBack(b []byte, addr net.Addr) (int, error)
+	WriteBatch(bufs ...WriteBatchBuf) error
+}
+
+type WriteBackFunc func(b []byte, addr net.Addr) (int, error)
+
+func (f WriteBackFunc) WriteBack(b []byte, addr net.Addr) (int, error) { return f(b, addr) }
+
+func (f WriteBackFunc) WriteBatch(bufs ...WriteBatchBuf) error {
+	var err error
+	for _, buf := range bufs {
+		_, er := f(buf.Payload, buf.Addr)
+		if er != nil {
+			err = errors.Join(err, er)
+		}
+	}
+	return err
+}
 
 type Packet struct {
 	Src       net.Addr
@@ -76,16 +100,26 @@ type Packet struct {
 	WriteBack WriteBack
 	Payload   []byte
 	MigrateID uint64
+
+	payloadRef int
+	mu         sync.Mutex
 }
 
-func (p *Packet) Clone() *Packet {
-	return &Packet{
-		Src:       p.Src,
-		Dst:       p.Dst,
-		WriteBack: p.WriteBack,
-		Payload:   pool.Clone(p.Payload),
-		MigrateID: p.MigrateID,
+func (p *Packet) IncRef() {
+	p.mu.Lock()
+	p.payloadRef++
+	p.mu.Unlock()
+}
+
+func (p *Packet) DecRef() {
+	p.mu.Lock()
+	p.payloadRef--
+
+	// because ref count default is 0, so here no equal
+	if p.payloadRef < 0 {
+		pool.PutBytes(p.Payload)
 	}
+	p.mu.Unlock()
 }
 
 type DNSRawRequest struct {

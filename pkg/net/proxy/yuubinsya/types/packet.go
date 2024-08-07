@@ -1,7 +1,6 @@
 package types
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
 	"fmt"
@@ -98,11 +97,10 @@ func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, err
 		return nil, nil, fmt.Errorf("packet is not enough")
 	}
 
-	addr, err := tools.ResolveAddr(bytes.NewReader(r[n:]))
+	an, addr, err := tools.DecodeAddr("udp", r[n:])
 	if err != nil {
 		return nil, nil, err
 	}
-	defer pool.PutBytes(addr)
 
-	return r[n+len(addr):], addr.Address("udp"), nil
+	return r[n+an:], addr, nil
 }

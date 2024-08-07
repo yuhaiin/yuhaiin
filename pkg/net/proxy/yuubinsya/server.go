@@ -153,8 +153,8 @@ func (y *server) handle(conn net.Conn) error {
 			y.handler.HandlePacket(&netapi.Packet{
 				Src:       c.RemoteAddr(),
 				Dst:       dst,
-				Payload:   buf[:n],
-				WriteBack: pc.WriteTo,
+				Payload:   pool.Clone(buf[:n]),
+				WriteBack: pc,
 				MigrateID: header.MigrateID,
 			})
 		}

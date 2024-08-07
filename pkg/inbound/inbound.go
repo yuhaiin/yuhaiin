@@ -7,7 +7,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
@@ -65,23 +64,23 @@ func (l *listener) HandleStream(stream *netapi.StreamMeta) {
 }
 
 func (l *listener) HandlePacket(packet *netapi.Packet) {
-	packet.Payload = pool.Clone(packet.Payload)
+	defer packet.DecRef()
 
 	if !l.hijackDNS || packet.Dst.Port() != 53 {
 		l.handler.Packet(l.ctx, packet)
-		pool.PutBytes(packet.Payload)
 		return
 	}
 
+	packet.IncRef()
 	go func() {
-		defer pool.PutBytes(packet.Payload)
+		defer packet.DecRef()
 
 		ctx := netapi.WithContext(l.ctx)
 		ctx.Resolver.ForceFakeIP = l.fakeip
 		dnsReq := &netapi.DNSRawRequest{
 			Question: packet.Payload,
 			WriteBack: func(b []byte) error {
-				_, err := packet.WriteBack(b, packet.Dst)
+				_, err := packet.WriteBack.WriteBack(b, packet.Dst)
 				return err
 			},
 		}

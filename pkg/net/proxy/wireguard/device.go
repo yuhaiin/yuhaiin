@@ -8,7 +8,8 @@ import (
 	"net/netip"
 	"os"
 
-	gun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/tailscale/wireguard-go/tun"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -22,7 +23,7 @@ import (
 )
 
 type netTun struct {
-	ep           *gun.Endpoint
+	ep           *gvisor.Endpoint
 	stack        *stack.Stack
 	events       chan tun.Event
 	dev          *ChannelDevice
@@ -38,7 +39,7 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 
 	rwc := NewChannelDevice(context.TODO(), mtu)
 	dev := &netTun{
-		ep:     gun.NewEndpoint(gun.NewDevice(rwc, 0, mtu)),
+		ep:     gvisor.NewEndpoint(device.NewDevice(rwc, 0, mtu)),
 		dev:    rwc,
 		stack:  stack.New(opts),
 		events: make(chan tun.Event, 1),

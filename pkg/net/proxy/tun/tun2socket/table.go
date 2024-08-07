@@ -1,4 +1,4 @@
-package nat
+package tun2socket
 
 import (
 	"math"

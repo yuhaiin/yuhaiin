@@ -1,13 +1,15 @@
 package domain
 
 import (
+	"fmt"
 	"testing"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDelete(t *testing.T) {
-	x := &trie[string]{Child: map[string]*trie[string]{}}
+	x := &trie[string]{Child: map[unique.Handle[string]]*trie[string]{}}
 	insert(x, newReader("www.baidu.com"), "baidu")
 	insert(x, newReader("www.google.com"), "google")
 	insert(x, newReader("www.twitter.com"), "twitter")
@@ -35,7 +37,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestTrieDomainMatcherSearch(t *testing.T) {
-	root := &trie[string]{Child: map[string]*trie[string]{}}
+	root := &trie[string]{Child: map[unique.Handle[string]]*trie[string]{}}
 	insert(root, newReader("*.baidu.com"), "sub_baidu_test")
 	insert(root, newReader("www.baidu.com"), "test_baidu")
 	insert(root, newReader("last.baidu.*"), "test_last_baidu")
@@ -73,4 +75,15 @@ func TestTrieDomainMatcherSearch(t *testing.T) {
 	assert.Equal(t, "x_all", search("a.x.x.net"))
 	assert.Equal(t, "x_com", search("a.x.com"))
 	assert.Equal(t, "www_x", search("www.x.z"))
+}
+
+func TestUnique(t *testing.T) {
+	a := unique.Make("abc")
+	b := unique.Make("abc")
+
+	m := map[unique.Handle[string]]string{
+		a: "a",
+	}
+
+	fmt.Println(m[b])
 }

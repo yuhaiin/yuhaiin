@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -44,12 +45,12 @@ func EncodeAddr(addr netapi.Address, buf io.Writer) {
 		_, _ = buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
 		_, _ = buf.Write([]byte(addr.Hostname()))
 	} else {
-		if ip := addr.(netapi.IPAddress).IP().To4(); ip != nil {
+		if ip := addr.(netapi.IPAddress).IP(); ip.To4() != nil {
 			_, _ = buf.Write([]byte{0x01})
-			_, _ = buf.Write(ip)
+			_, _ = buf.Write(ip.To4())
 		} else {
 			_, _ = buf.Write([]byte{0x04})
-			_, _ = buf.Write(addr.(netapi.IPAddress).IP().To16())
+			_, _ = buf.Write(ip.To16())
 		}
 	}
 	_ = binary.Write(buf, binary.BigEndian, addr.Port())
@@ -66,9 +67,7 @@ func (a Addr) Address(network string) netapi.Address {
 
 	switch a[0] {
 	case IPv4, IPv6:
-		ip := make(net.IP, len(a[1:len(a)-2]))
-		copy(ip, a[1:len(a)-2])
-		return netapi.ParseIPAddrPort(network, ip, port)
+		return netapi.ParseIPAddrPort(network, net.IP(a[1:len(a)-2]), port)
 	case Domain:
 		hostname := string(a[2 : len(a)-2])
 		return netapi.ParseDomainPort(network, hostname, port)
@@ -103,6 +102,83 @@ func ResolveAddr(r io.Reader) (Addr, error) {
 	}
 
 	return addr, nil
+}
+
+func DecodeAddr(network string, b []byte) (int, netapi.Address, error) {
+	if len(b) < 3 {
+		return 0, nil, io.ErrUnexpectedEOF
+	}
+
+	switch b[0] {
+	case IPv4:
+		return 1 + 4 + 2, netapi.ParseIPAddrPort(network, net.IP(b[1:5]), binary.BigEndian.Uint16(b[5:7])), nil
+	case IPv6:
+		return 1 + 16 + 2, netapi.ParseIPAddrPort(network, net.IP(b[1:17]), binary.BigEndian.Uint16(b[17:19])), nil
+	case Domain:
+		fmt.Println(b[1])
+
+		if len(b) < 2+int(b[1])+2 {
+			return 0, nil, io.ErrUnexpectedEOF
+		}
+		return 1 + 1 + int(b[1]) + 2, netapi.ParseDomainPort(network, string(b[2:2+int(b[1])]), binary.BigEndian.Uint16(b[1+1+int(b[1]):])), nil
+	default:
+		return 0, nil, fmt.Errorf("unknown addr type: %d", b[0])
+	}
+}
+
+func ReadAddr(network string, br *bufio.Reader) (int, netapi.Address, error) {
+	atype, err := br.ReadByte()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	switch atype {
+	case IPv4, IPv6:
+		var ipLen int
+		if atype == IPv4 {
+			ipLen = 4
+		} else {
+			ipLen = 16
+		}
+
+		ip, err := br.Peek(ipLen + 2)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		port := binary.BigEndian.Uint16(ip[ipLen:])
+		addr := netapi.ParseIPAddrPort(network, net.IP(ip[:ipLen]), port)
+
+		_, err = br.Discard(ipLen + 2)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		return 1 + ipLen + 2, addr, nil
+
+	case Domain:
+		domainLen, err := br.ReadByte()
+		if err != nil {
+			return 0, nil, err
+		}
+
+		domainBytes, err := br.Peek(int(domainLen) + 2)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		domain := string(domainBytes[:domainLen])
+		port := binary.BigEndian.Uint16(domainBytes[domainLen:])
+
+		_, err = br.Discard(int(domainLen) + 2)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		return 1 + 1 + int(domainLen) + 2, netapi.ParseDomainPort(network, domain, port), nil
+	}
+
+	return 0, nil, fmt.Errorf("unknown addr type: %d", atype)
 }
 
 func ParseAddr(addr netapi.Address) Addr {

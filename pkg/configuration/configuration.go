@@ -17,6 +17,8 @@ var (
 	ProcessDumper = or(true, false)
 
 	Timeout = time.Second * 20
+
+	UDPBatchSize = 8
 )
 
 func or[T any](a, b T) T {
