@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -262,7 +263,7 @@ func (t *Tproxy) newUDP() error {
 						return 0, err
 					}
 
-					ur, err := netapi.ResolveUDPAddr(context.Background(), ad)
+					ur, err := dialer.ResolveUDPAddr(context.Background(), ad)
 					if err != nil {
 						return 0, err
 					}

@@ -125,6 +125,7 @@ func (w *latencyDialer) Conn(ctx context.Context, a netapi.Address) (net.Conn, e
 	} else {
 		netctx.Resolver.Mode = netapi.ResolverModePreferIPv4
 	}
+
 	return w.Proxy.Conn(netctx, a)
 }
 
@@ -194,5 +195,5 @@ func load(path string) *jsondb.DB[*node.Node] {
 		},
 	}
 
-	return jsondb.Open[*node.Node](path, defaultNode)
+	return jsondb.Open(path, defaultNode)
 }

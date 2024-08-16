@@ -118,10 +118,9 @@ func (h *Server) Close() error {
 	err = h.listener.Close()
 	log.Info("closed http2 underlying listener")
 
-	h.conns.Range(func(key string, conn net.Conn) bool {
-		_ = conn.Close()
-		return true
-	})
+	for _, v := range h.conns.Range {
+		_ = v.Close()
+	}
 
 	return err
 }

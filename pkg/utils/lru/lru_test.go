@@ -2,6 +2,7 @@ package lru
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
@@ -38,6 +39,24 @@ func TestLru(t *testing.T) {
 	assert.Equal(t, true, l.ValueExist("c"))
 	assert.Equal(t, true, l.ValueExist("d"))
 	assert.Equal(t, true, l.ValueExist("e"))
+}
+
+func TestExpire(t *testing.T) {
+	l := NewSyncReverseLru(WithCapacity[string, string](4))
+
+	l.Add("a", "a", WithTimeout[string, string](time.Second))
+
+	_, ok := l.Load("a")
+	assert.Equal(t, true, ok)
+
+	time.Sleep(time.Second * 2)
+
+	_, expired, ok := l.LoadOptimistic("a")
+	assert.Equal(t, true, expired)
+	assert.Equal(t, true, ok)
+
+	_, ok = l.Load("a")
+	assert.Equal(t, false, ok)
 }
 
 func BenchmarkNewLru(b *testing.B) {

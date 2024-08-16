@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
@@ -92,7 +93,7 @@ func (vc *Conn) sendRequest() error {
 		buf.WriteByte(byte(len(vc.dst.Hostname())))
 		buf.WriteString(vc.dst.Hostname())
 	} else {
-		addrPort, _ := netapi.ResolverAddrPort(context.TODO(), vc.dst)
+		addrPort, _ := dialer.ResolverAddrPort(context.TODO(), vc.dst)
 
 		if addrPort.Addr().Is6() {
 			buf.WriteByte(AtypIPv6)

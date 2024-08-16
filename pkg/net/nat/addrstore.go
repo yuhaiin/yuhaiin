@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -35,7 +36,7 @@ func getAddrKey(addr netapi.Address) addrKey {
 			port:   addr.Port(),
 		}
 	} else {
-		addrPort, _ := netapi.ResolverAddrPort(context.Background(), addr)
+		addrPort, _ := dialer.ResolverAddrPort(context.Background(), addr)
 		return addrKey{
 			ip:   addrPort.Addr(),
 			port: addrPort.Port(),

@@ -96,57 +96,64 @@ func (l *listener) Update(current *pc.Setting) {
 	l.fakeip = current.Server.HijackDnsFakeip
 	l.handler.sniffyEnabled = current.GetServer().GetSniff().GetEnabled()
 
-	l.store.Range(func(key string, v entry) bool {
-		z, ok := current.Server.Inbounds[key]
-		if !ok || !z.GetEnabled() {
-			v.server.Close()
-			l.store.Delete(key)
+	for v := range l.diff(current.Server.Inbounds) {
+		if v.Rmoved || v.Modif {
+			v.Old.server.Close()
+			l.store.Delete(v.Key)
 		}
 
-		return true
-	})
+		if (v.Added || v.Modif) && v.New.GetEnabled() {
+			server, err := pl.Listen(v.New, l)
+			if err != nil {
+				log.Error("start server failed", "name", v.Key, "err", err)
+				continue
+			}
 
-	for k, v := range current.Server.Inbounds {
-		l.start(k, v)
+			l.store.Store(v.Key, entry{v.New, server})
+		}
 	}
 }
 
-func (l *listener) start(key string, config *pl.Inbound) {
-	if config == nil {
-		return
-	}
+type Diff struct {
+	Rmoved bool
+	Added  bool
+	Modif  bool
 
-	v, ok := l.store.Load(key)
-	if ok {
-		if proto.Equal(v.config, config) {
-			return
+	Key string
+	New *pl.Inbound
+	Old entry
+}
+
+func (l *listener) diff(newInbounds map[string]*pl.Inbound) func(f func(Diff) bool) {
+	return func(f func(Diff) bool) {
+		for k, v1 := range l.store.Range {
+			z, ok := newInbounds[k]
+			if !ok || !z.GetEnabled() {
+				f(Diff{Rmoved: true, Key: k, Old: v1})
+			}
 		}
-		v.server.Close()
-		l.store.Delete(key)
-	}
 
-	if !config.GetEnabled() {
-		log.Debug("server disabled", "name", key)
-		return
+		for k, v2 := range newInbounds {
+			if v2 == nil {
+				continue
+			}
+			v1, ok := l.store.Load(k)
+			if !ok {
+				f(Diff{Added: true, Key: k, New: v2})
+			} else if !proto.Equal(v1.config, v2) {
+				f(Diff{Modif: true, Key: k, Old: v1, New: v2})
+			}
+		}
 	}
-
-	server, err := pl.Listen(config, l)
-	if err != nil {
-		log.Error("start server failed", "name", key, "err", err)
-		return
-	}
-
-	l.store.Store(key, entry{config, server})
 }
 
 func (l *listener) Close() error {
 	l.close()
-	l.store.Range(func(key string, value entry) bool {
-		log.Info("start close server", "name", key)
-		defer log.Info("closed server", "name", key)
-		value.server.Close()
-		l.store.Delete(key)
-		return true
-	})
+	for k, v := range l.store.Range {
+		log.Info("start close server", "name", k)
+		v.server.Close()
+		l.store.Delete(k)
+		log.Info("closed server", "name", k)
+	}
 	return l.handler.Close()
 }

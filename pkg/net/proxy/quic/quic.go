@@ -48,14 +48,14 @@ func init() {
 }
 
 func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
-	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
+	return func(dd netapi.Proxy) (netapi.Proxy, error) {
 
 		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
 
 		if config.Quic.Host != "" {
 			addr, err := netapi.ParseAddress("udp", config.Quic.Host)
 			if err == nil {
-				host, err = netapi.ResolveUDPAddr(context.TODO(), addr)
+				host, err = dialer.ResolveUDPAddr(context.TODO(), addr)
 				if err != nil {
 					return nil, err
 				}
@@ -67,12 +67,12 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 			tlsConfig = &tls.Config{}
 		}
 
-		if point.IsBootstrap(dialer) {
-			dialer = nil
+		if point.IsBootstrap(dd) {
+			dd = nil
 		}
 
 		c := &Client{
-			dialer:    dialer,
+			dialer:    dd,
 			tlsConfig: tlsConfig,
 			host:      host,
 		}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
@@ -32,7 +33,7 @@ func TestTrojan(t *testing.T) {
 	z, err := point.Dialer(p)
 	assert.NoError(t, err)
 
-	dns, err := dns.NewDoU(dns.Config{Host: "1.1.1.1:53", Dialer: z})
+	dns, err := dns.New(dns.Config{Host: "1.1.1.1:53", Dialer: z, Type: pdns.Type_udp})
 	assert.NoError(t, err)
 	t.Log(dns.LookupIP(context.TODO(), "www.google.com"))
 

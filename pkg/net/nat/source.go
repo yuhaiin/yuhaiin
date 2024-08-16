@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
@@ -66,7 +67,9 @@ func (s *SourceTable) bumpWriteBuf(bc chan netapi.WriteBatchBuf) bool {
 	return true
 }
 
-func (s *SourceTable) runWriteBack(bc chan netapi.WriteBatchBuf) {
+// runWriteBackBump
+// ! it need more test for network quality and fair
+func (s *SourceTable) runWriteBackBump(bc chan netapi.WriteBatchBuf) {
 	for {
 		if !s.bumpWriteBuf(bc) {
 			return
@@ -77,6 +80,26 @@ func (s *SourceTable) runWriteBack(bc chan netapi.WriteBatchBuf) {
 		for i := range s.batchBufs {
 			pool.PutBytes(s.batchBufs[i].Payload)
 		}
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+
+			log.Error("write back failed", "err", err)
+		}
+	}
+}
+
+func (s *SourceTable) runWriteBack(bc chan netapi.WriteBatchBuf) {
+	for {
+		pkt, ok := <-bc
+		if !ok {
+			return
+		}
+
+		_, err := s.writeBack.WriteBack(pkt.Payload, pkt.Addr)
+		// write back to client with source address
+		pool.PutBytes(pkt.Payload)
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return
@@ -112,8 +135,8 @@ func (t *SourceTable) WriteTo(b []byte, realDst net.Addr, pkt *netapi.Packet) er
 
 func (t *SourceTable) resolveWrite(ctx context.Context, dstAddr netapi.Address, pkt *netapi.Packet) error {
 	key := pkt.Dst.String()
-	udpAddr, err, _ := t.sf.Do(key, func() (*net.UDPAddr, error) {
-		udpAddr, err := netapi.ResolveUDPAddr(ctx, dstAddr)
+	udpAddr, err, _ := t.sf.Do(ctx, key, func(ctx context.Context) (*net.UDPAddr, error) {
+		udpAddr, err := dialer.ResolveUDPAddr(ctx, dstAddr)
 		if err != nil {
 			return nil, err
 		}

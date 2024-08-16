@@ -3,14 +3,15 @@ package tun2socket
 import (
 	"net"
 	"time"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var (
-	loopback   = tcpip.AddrFrom4([4]byte{127, 0, 0, 1})
-	loopbackv6 = tcpip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+	loopback   = unique.Make(tcpip.AddrFrom4([4]byte{127, 0, 0, 1}))
+	loopbackv6 = unique.Make(tcpip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}))
 )
 
 type TCP struct {
@@ -55,9 +56,9 @@ func (t *TCP) Accept() (net.Conn, error) {
 		return nil, net.InvalidAddrError("unknown remote addr")
 	}
 
-	if tup.DestinationAddr.Len() == 4 && tup.DestinationAddr.Equal(t.address) {
+	if tup.DestinationAddr.Value().Len() == 4 && tup.DestinationAddr.Value().Equal(t.address) {
 		tup.DestinationAddr = loopback
-	} else if tup.DestinationAddr.Equal(t.addressV6) {
+	} else if tup.DestinationAddr.Value().Equal(t.addressV6) {
 		tup.DestinationAddr = loopbackv6
 	}
 	/*
@@ -102,15 +103,17 @@ func (c *Conn) Close() error {
 }
 
 func (c *Conn) LocalAddr() net.Addr {
+	src := c.tuple.SourceAddr.Value()
 	return &net.TCPAddr{
-		IP:   net.IP(c.tuple.SourceAddr.AsSlice()),
+		IP:   net.IP(src.AsSlice()),
 		Port: int(c.tuple.SourcePort),
 	}
 }
 
 func (c *Conn) RemoteAddr() net.Addr {
+	dst := c.tuple.DestinationAddr.Value()
 	return &net.TCPAddr{
-		IP:   net.IP(c.tuple.DestinationAddr.AsSlice()),
+		IP:   net.IP(dst.AsSlice()),
 		Port: int(c.tuple.DestinationPort),
 	}
 }

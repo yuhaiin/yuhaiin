@@ -23,7 +23,7 @@ func init() {
 	Register(pd.Type_doh, NewDoH)
 }
 
-func NewDoH(config Config) (netapi.Resolver, error) {
+func NewDoH(config Config) (Dialer, error) {
 	req, err := getRequest(config.Host)
 	if err != nil {
 		return nil, err
@@ -68,8 +68,8 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 	tr2.ReadIdleTimeout = time.Second * 30 // https://github.com/golang/go/issues/30702
 	tr2.IdleConnTimeout = time.Second * 90
 
-	return NewClient(config, func(ctx context.Context, b *request) ([]byte, error) {
-		resp, err := tr.RoundTrip(req.Clone(ctx, b.Question))
+	return DialerFunc(func(ctx context.Context, b *Request) (Response, error) {
+		resp, err := tr.RoundTrip(req.Clone(ctx, b.QuestionBytes))
 		if err != nil {
 			return nil, fmt.Errorf("doh post failed: %w", err)
 		}
@@ -89,10 +89,10 @@ func NewDoH(config Config) (netapi.Resolver, error) {
 		_, err = io.ReadFull(resp.Body, buf)
 		if err != nil {
 			pool.PutBytes(buf)
-			return nil, fmt.Errorf("doh post failed: %w", err)
+			return nil, fmt.Errorf("read http body failed: %w", err)
 		}
 
-		return buf, nil
+		return BytesResponse(buf), nil
 
 		/*
 			* Get

@@ -115,8 +115,6 @@ func DecodeAddr(network string, b []byte) (int, netapi.Address, error) {
 	case IPv6:
 		return 1 + 16 + 2, netapi.ParseIPAddrPort(network, net.IP(b[1:17]), binary.BigEndian.Uint16(b[17:19])), nil
 	case Domain:
-		fmt.Println(b[1])
-
 		if len(b) < 2+int(b[1])+2 {
 			return 0, nil, io.ErrUnexpectedEOF
 		}

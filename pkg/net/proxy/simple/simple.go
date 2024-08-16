@@ -13,17 +13,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type Simple struct {
+	p            netapi.Proxy
+	addrs        []netapi.Address
+	updateTime   atomic.Int64
+	index        atomic.Uint32
+	errCount     atomic.Uint32
+	nonBootstrap bool
 	netapi.EmptyDispatch
-
-	updateTime time.Time
-
-	p netapi.Proxy
-
-	addrs []netapi.Address
-	index atomic.Uint32
 }
 
 func init() {
@@ -39,40 +39,21 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 		}
 
 		simple := &Simple{
-			addrs: addrs,
-			p:     p,
+			addrs:        addrs,
+			p:            p,
+			nonBootstrap: p != nil && !point.IsBootstrap(p),
 		}
 
 		return simple, nil
 	}
 }
 
-func (c *Simple) dial(ctx context.Context, addr netapi.Address, length int) (net.Conn, error) {
-	ctx, cancel, er := dialer.PartialDeadlineCtx(ctx, length)
-	if er != nil {
-		// Ran out of time.
-		return nil, er
-	}
-	defer cancel()
-
-	if c.p != nil && !point.IsBootstrap(c.p) {
-		return c.p.Conn(ctx, addr)
-	}
-
-	return netapi.DialHappyEyeballs(ctx, addr)
-}
-
 func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
-	return c.dialGroup(ctx)
-	// tconn, ok := conn.(*net.TCPConn)
-	// if ok {
-	// _ = tconn.SetKeepAlive(true)
-	// https://github.com/golang/go/issues/48622
-	// _ = tconn.SetKeepAlivePeriod(time.Minute * 3)
-	// }
+	return c.dialHappyEyeballsv2(ctx)
+	// return c.dialGroup(ctx)
 }
 
-func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
+func (c *Simple) dialHappyEyeballsv1(ctx context.Context) (net.Conn, error) {
 	ctx = netapi.WithContext(ctx)
 
 	var err error
@@ -80,13 +61,24 @@ func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 
 	lastIndex := c.index.Load()
 	index := lastIndex
-	if lastIndex != 0 && time.Since(c.updateTime) > time.Minute*15 {
+	if lastIndex != 0 && time.Duration(system.CheapNowNano()-c.updateTime.Load()) > time.Minute*15 {
 		index = 0
 	}
 
 	length := len(c.addrs)
 
-	conn, err = c.dial(ctx, c.addrs[index], length)
+	dial := func(addr netapi.Address) (net.Conn, error) {
+		ctx, cancel, er := dialer.PartialDeadlineCtx(ctx, length)
+		if er != nil {
+			// Ran out of time.
+			return nil, er
+		}
+		defer cancel()
+
+		return c.dialSingle(ctx, addr)
+	}
+
+	conn, err = dial(c.addrs[index])
 	if err == nil {
 		if lastIndex != 0 && index == 0 {
 			c.index.Store(0)
@@ -102,7 +94,7 @@ func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 
 		length--
 
-		con, er := c.dial(ctx, addr, length)
+		con, er := dial(addr)
 		if er != nil {
 			err = errors.Join(err, er)
 			continue
@@ -112,7 +104,7 @@ func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 		c.index.Store(uint32(i))
 
 		if i != 0 {
-			c.updateTime = time.Now()
+			c.updateTime.Store(system.CheapNowNano())
 		}
 		break
 	}
@@ -124,6 +116,119 @@ func (c *Simple) dialGroup(ctx context.Context) (net.Conn, error) {
 	return conn, nil
 }
 
+func (c *Simple) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	if c.nonBootstrap {
+		return c.p.Conn(ctx, addr)
+	} else {
+		return dialer.DialHappyEyeballsv2(ctx, addr)
+	}
+}
+
+func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
+	if len(c.addrs) == 1 {
+		return c.dialSingle(ctx, c.addrs[0])
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	lastIndex := c.index.Load()
+	if lastIndex != 0 && time.Duration(system.CheapNowNano()-c.updateTime.Load()) > time.Minute*15 {
+		lastIndex = 0
+	}
+
+	type res struct {
+		c     net.Conn
+		err   error
+		index uint32
+	}
+	resc := make(chan res)           // must be unbuffered
+	failBoost := make(chan struct{}) // best effort send on dial failure
+
+	dial := func(index uint32, addr netapi.Address) {
+		conn, err := c.dialSingle(ctx, addr)
+		if err != nil {
+			// Best effort wake-up a pending dial.
+			// e.g. IPv4 dials failing quickly on an IPv6-only system.
+			// In that case we don't want to wait 300ms per IPv4 before
+			// we get to the IPv6 addresses.
+			select {
+			case failBoost <- struct{}{}:
+			default:
+			}
+
+			if index == 0 {
+				c.errCount.Add(1)
+			}
+		}
+
+		select {
+		case resc <- res{conn, err, index}:
+		case <-ctx.Done():
+			if conn != nil {
+				conn.Close()
+			}
+		}
+	}
+
+	go func() {
+		go dial(lastIndex, c.addrs[lastIndex])
+		for i, addr := range c.addrs {
+			if i == int(lastIndex) {
+				continue
+			}
+			timer := time.NewTimer(time.Millisecond * 650)
+			select {
+			case <-timer.C:
+			case <-failBoost:
+				timer.Stop()
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			}
+
+			go dial(uint32(i), addr)
+		}
+	}()
+
+	var firstErr error
+	var fails int
+	for {
+		select {
+		case r := <-resc:
+			if r.c != nil {
+				fmt.Println("got simple conn", "failed", fails, "local", r.c.LocalAddr(), "remote", r.c.RemoteAddr())
+
+				if lastIndex != r.index {
+					if r.index == 0 || (r.index != 0 && c.errCount.Load() > 3) {
+						c.index.Store(r.index)
+
+						if r.index == 0 {
+							c.errCount.Store(0)
+						}
+
+						if lastIndex == 0 {
+							c.updateTime.Store(system.CheapNowNano())
+						}
+					}
+				}
+
+				return r.c, nil
+			}
+			fails++
+			if firstErr == nil {
+				firstErr = r.err
+			}
+			if fails == len(c.addrs) {
+				return nil, firstErr
+			}
+
+		case <-ctx.Done():
+			return nil, fmt.Errorf("simple dial timeout: %w", errors.Join(firstErr, ctx.Err()))
+		}
+	}
+}
+
 type PacketDirectKey struct{}
 
 func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -131,7 +236,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return direct.Default.PacketConn(ctx, addr)
 	}
 
-	if c.p != nil && !point.IsBootstrap(c.p) {
+	if c.nonBootstrap {
 		return c.p.PacketConn(ctx, addr)
 	}
 
@@ -147,7 +252,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 
 	ctx = netapi.WithContext(ctx)
 
-	ur, err := netapi.ResolveUDPAddr(ctx, c.addrs[c.index.Load()])
+	ur, err := dialer.ResolveUDPAddr(ctx, c.addrs[c.index.Load()])
 	if err != nil {
 		return nil, err
 	}

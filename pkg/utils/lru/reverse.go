@@ -2,7 +2,6 @@ package lru
 
 import (
 	"sync"
-	"time"
 )
 
 type ReverseSyncLru[K, V comparable] struct {
@@ -45,12 +44,6 @@ func (l *ReverseSyncLru[K, V]) Delete(key K) {
 	l.mu.Unlock()
 }
 
-func (l *ReverseSyncLru[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time, ok bool) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.lru.LoadExpireTime(key)
-}
-
 func (l *ReverseSyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -58,8 +51,16 @@ func (l *ReverseSyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
 }
 
 func (l *ReverseSyncLru[K, V]) Load(key K) (v V, ok bool) {
-	v, _, ok = l.LoadExpireTime(key)
+	l.mu.Lock()
+	v, ok = l.lru.Load(key)
+	l.mu.Unlock()
 	return
+}
+
+func (l *ReverseSyncLru[K, V]) LoadOptimistic(key K) (v V, expired, ok bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lru.LoadOptimistic(key)
 }
 
 func (l *ReverseSyncLru[K, V]) Range(ranger func(K, V)) {
@@ -80,7 +81,7 @@ func (l *ReverseSyncLru[K, V]) ReverseLoad(v V) (k K, ok bool) {
 		return k, false
 	}
 
-	l.lru.LoadExpireTime(*node)
+	l.lru.Load(*node)
 
 	return *node, true
 }

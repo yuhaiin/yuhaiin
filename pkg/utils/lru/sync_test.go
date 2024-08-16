@@ -19,7 +19,7 @@ func TestSyncLru(t *testing.T) {
 		t.Log(s1, s2)
 	})
 
-	t.Log(lru.LoadExpireTime("a"))
+	t.Log(lru.Load("a"))
 
 	fmt.Println()
 	lru.Add("e", "e")

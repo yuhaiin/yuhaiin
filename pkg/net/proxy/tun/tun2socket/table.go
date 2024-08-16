@@ -4,6 +4,7 @@ import (
 	"math"
 	"sync"
 	"time"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -13,8 +14,8 @@ import (
 var zeroTuple = Tuple{}
 
 type Tuple struct {
-	SourceAddr      tcpip.Address
-	DestinationAddr tcpip.Address
+	SourceAddr      unique.Handle[tcpip.Address]
+	DestinationAddr unique.Handle[tcpip.Address]
 	SourcePort      uint16
 	DestinationPort uint16
 }
@@ -34,7 +35,7 @@ func (t *tableSplit) tupleOf(port uint16, ipv6 bool) Tuple {
 }
 
 func (t *tableSplit) portOf(tuple Tuple) uint16 {
-	if tuple.SourceAddr.Len() == 16 {
+	if tuple.SourceAddr.Value().Len() == 16 {
 		if port := t.v6.portOf(tuple); port != 0 {
 			return port
 		}
@@ -61,7 +62,7 @@ func newTableBase(expire time.Duration) *table {
 	return &table{
 		lru: lru.NewSyncReverseLru(
 			lru.WithCapacity[Tuple, uint16](uint(defaultTableSize)),
-			lru.WithExpireTimeout[Tuple, uint16](expire),
+			lru.WithDefaultTimeout[Tuple, uint16](expire),
 			lru.WithOnRemove(func(t Tuple, p uint16) { set.Push(p) }),
 		),
 		set: set,
@@ -97,7 +98,7 @@ func (t *table) newConn(tuple Tuple) uint16 {
 
 func (t *table) ClearExpired() { t.lru.ClearExpired() }
 
-var defaultExpire = 3 * time.Minute
+var defaultExpire = 18 * time.Minute
 
 func newTable() *tableSplit {
 	t := &tableSplit{

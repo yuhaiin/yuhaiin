@@ -31,7 +31,7 @@ func NewDirect() netapi.Proxy {
 }
 
 func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
-	return netapi.DialHappyEyeballs(ctx, s)
+	return dialer.DialHappyEyeballsv2(ctx, s)
 }
 
 func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketConn, error) {
@@ -40,15 +40,34 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}
 
-	return &PacketConn{context.WithoutCancel(ctx), p}, nil
+	return &UDPPacketConn{context.WithoutCancel(ctx), NewBufferPacketConn(p)}, nil
 }
 
-type PacketConn struct {
-	ctx context.Context
+type BufferPacketConn interface {
 	net.PacketConn
+	SetReadBuffer(int) error
+	SetWriteBuffer(int) error
 }
 
-func (p *PacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
+func NewBufferPacketConn(p net.PacketConn) BufferPacketConn {
+	x, ok := p.(BufferPacketConn)
+	if ok {
+		return x
+	}
+	return &bufferPacketConn{p}
+}
+
+type bufferPacketConn struct{ net.PacketConn }
+
+func (p *bufferPacketConn) SetReadBuffer(int) error  { return nil }
+func (p *bufferPacketConn) SetWriteBuffer(int) error { return nil }
+
+type UDPPacketConn struct {
+	ctx context.Context
+	BufferPacketConn
+}
+
+func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 	udpAddr, ok := addr.(*net.UDPAddr)
 	if !ok {
 		a, err := netapi.ParseSysAddr(addr)
@@ -71,11 +90,11 @@ func (p *PacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 
 		ctx, cancel := context.WithTimeout(p.ctx, time.Second*5)
 		defer cancel()
-		udpAddr, err = netapi.ResolveUDPAddr(ctx, a)
+		udpAddr, err = dialer.ResolveUDPAddr(ctx, a)
 		if err != nil {
 			return 0, err
 		}
 	}
 
-	return p.PacketConn.WriteTo(b, udpAddr)
+	return p.BufferPacketConn.WriteTo(b, udpAddr)
 }

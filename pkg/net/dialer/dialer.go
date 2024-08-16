@@ -3,8 +3,8 @@ package dialer
 import (
 	"context"
 	"net"
-	"runtime"
 	"syscall"
+	"time"
 )
 
 // UDP socket read/write buffer size (7MB). The value of 7MB is chosen as it is
@@ -13,6 +13,13 @@ import (
 // net.core.{r,w}mem_max (see _linux.go for additional implementation that works
 // around this limitation)
 const SocketBufferSize = 7 << 20
+
+var KeepAliveConfig = net.KeepAliveConfig{
+	Enable:   true,
+	Idle:     time.Second * 300,
+	Interval: time.Second * 20,
+	Count:    9,
+}
 
 func ListenContext(ctx context.Context, network string, address string) (net.Listener, error) {
 	return ListenContextWithOptions(ctx, network, address, &Options{
@@ -26,7 +33,7 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 	opts.listener = true
 
 	config := &net.ListenConfig{
-		KeepAlive: -1,
+		KeepAliveConfig: KeepAliveConfig,
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
@@ -48,7 +55,8 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		// Setting a negative value here prevents the Go stdlib from overriding
 		// the values of TCP keepalive time and interval. It also prevents the
 		// Go stdlib from enabling TCP keepalives by default.
-		KeepAlive: -1,
+		KeepAlive:       -1,
+		KeepAliveConfig: KeepAliveConfig,
 		// This method is called after the underlying network socket is created,
 		// but before dialing the socket (or calling its connect() method). The
 		// combination of unconditionally enabling TCP keepalives here, and
@@ -94,7 +102,8 @@ func ListenPacketWithOptions(network, address string, opts *Options) (net.Packet
 		// Setting a negative value here prevents the Go stdlib from overriding
 		// the values of TCP keepalive time and interval. It also prevents the
 		// Go stdlib from enabling TCP keepalives by default.
-		KeepAlive: -1,
+		KeepAlive:       -1,
+		KeepAliveConfig: KeepAliveConfig,
 		// This method is called after the underlying network socket is created,
 		// but before dialing the socket (or calling its connect() method). The
 		// combination of unconditionally enabling TCP keepalives here, and
@@ -110,12 +119,12 @@ func ListenPacketWithOptions(network, address string, opts *Options) (net.Packet
 		return nil, err
 	}
 
-	if opts.tryUpgradeToBatch && runtime.GOOS == "linux" {
-		uc, ok := pc.(*net.UDPConn)
-		if ok {
-			pc = NewBatchPacketConn(uc)
-		}
-	}
+	// if opts.tryUpgradeToBatch && runtime.GOOS == "linux" {
+	// 	uc, ok := pc.(*net.UDPConn)
+	// 	if ok {
+	// 		pc = NewBatchPacketConn(uc)
+	// 	}
+	// }
 
 	return pc, nil
 }

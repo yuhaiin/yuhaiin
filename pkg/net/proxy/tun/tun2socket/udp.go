@@ -98,10 +98,10 @@ func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
 	var ip header.Network
 	var totalLength uint16
 
-	if tuple.SourceAddr.Len() == 4 && !tuple.DestinationAddr.To4().Unspecified() {
-		if tuple.DestinationAddr.To4().Unspecified() {
+	if tuple.SourceAddr.Value().Len() == 4 && !tuple.DestinationAddr.Value().To4().Unspecified() {
+		if tuple.DestinationAddr.Value().To4().Unspecified() {
 			// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", tuple.SourceAddr, tuple.DestinationAddr)
-			slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.String()), slog.String("dst", tuple.DestinationAddr.String()))
+			slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.Value().String()), slog.String("dst", tuple.DestinationAddr.Value().String()))
 		}
 
 		// no ipv4 options set, so ipv4 header size is IPv4MinimumSize
@@ -115,8 +115,8 @@ func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
 			FragmentOffset: 0,
 			TTL:            i4.DefaultTTL,
 			Protocol:       uint8(header.UDPProtocolNumber),
-			SrcAddr:        tuple.DestinationAddr,
-			DstAddr:        tuple.SourceAddr,
+			SrcAddr:        tuple.DestinationAddr.Value(),
+			DstAddr:        tuple.SourceAddr.Value(),
 		})
 
 		ip = ipv4
@@ -128,8 +128,8 @@ func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
 		ipv6.Encode(&header.IPv6Fields{
 			TransportProtocol: header.UDPProtocolNumber,
 			PayloadLength:     uint16(udpTotalLength),
-			SrcAddr:           tuple.DestinationAddr,
-			DstAddr:           tuple.SourceAddr,
+			SrcAddr:           tuple.DestinationAddr.Value(),
+			DstAddr:           tuple.SourceAddr.Value(),
 			HopLimit:          i6.DefaultTTL,
 			TrafficClass:      0,
 		})

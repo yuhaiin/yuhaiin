@@ -2,13 +2,47 @@ package netapi
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"net"
 	"sync"
-
-	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
+
+type ProcessDumper interface {
+	ProcessName(network string, src, dst Address) (string, error)
+}
+
+type Proxy interface {
+	StreamProxy
+	PacketProxy
+	Dispatch(context.Context, Address) (Address, error)
+}
+
+type StreamProxy interface {
+	Conn(context.Context, Address) (net.Conn, error)
+}
+
+type PacketProxy interface {
+	PacketConn(context.Context, Address) (net.PacketConn, error)
+}
+
+func IsBlockError(err error) bool {
+	netErr := &net.OpError{}
+
+	if errors.As(err, &netErr) {
+		return netErr.Op == "block"
+	}
+
+	return false
+}
+
+func LogLevel(err error) slog.Level {
+	if IsBlockError(err) {
+		return slog.LevelDebug
+	}
+
+	return slog.LevelError
+}
 
 type EmptyDispatch struct{}
 
@@ -53,49 +87,3 @@ func (d *DynamicProxy) Set(p Proxy) {
 }
 
 func NewDynamicProxy(p Proxy) *DynamicProxy { return &DynamicProxy{p: p} }
-
-var happyEyeballsCache = lru.NewSyncLru(lru.WithCapacity[string, net.IP](512))
-
-func DialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
-	c, err := dialHappyEyeballs(ctx, addr)
-	if err != nil {
-		metrics.Counter.AddTCPDialFailed(addr.String())
-	}
-	return c, err
-}
-
-func dialHappyEyeballs(ctx context.Context, addr Address) (net.Conn, error) {
-	if !addr.IsFqdn() {
-		return dialer.DialContext(ctx, "tcp", addr.String())
-	}
-
-	ips, err := LookupIP(ctx, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	lastIP, ok := happyEyeballsCache.Load(addr.Hostname())
-
-	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
-	for _, i := range ips {
-		if ok && lastIP.Equal(i) && len(tcpAddress) > 0 {
-			tmp := tcpAddress[0]
-			tcpAddress[0] = &net.TCPAddr{IP: i, Port: tmp.Port}
-			tcpAddress = append(tcpAddress, tmp)
-		} else {
-			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: i, Port: int(addr.Port())})
-		}
-	}
-
-	conn, err := dialer.DialHappyEyeballs(ctx, tcpAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	connAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
-	if ok {
-		happyEyeballsCache.Add(addr.Hostname(), connAddr.IP)
-	}
-
-	return conn, nil
-}

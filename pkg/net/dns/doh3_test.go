@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDoh3(t *testing.T) {
-	netapi.Bootstrap = &netapi.SystemResolver{}
+	dialer.Bootstrap = &dialer.SystemResolver{}
 
 	configMap := map[string]Config{
 		"cloudflare": {
@@ -27,7 +27,7 @@ func TestDoh3(t *testing.T) {
 		},
 	}
 
-	c, err := New(configMap["ali"])
+	c, err := New(configMap["cloudflare"])
 	assert.NoError(t, err)
 
 	t.Log(c.LookupIP(context.TODO(), "www.google.com"))

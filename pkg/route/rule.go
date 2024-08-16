@@ -31,7 +31,7 @@ var deafultRule = `
 localhost DIRECT,tag=LAN
 `
 
-func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
+func rangeRule(path string) func(f func(string, bypass.ModeEnum) bool) {
 	var reader io.ReadCloser
 	var err error
 	reader, err = os.Open(path)
@@ -41,34 +41,44 @@ func rangeRule(path string, ranger func(string, bypass.ModeEnum)) {
 
 		reader = io.NopCloser(strings.NewReader(deafultRule))
 	}
-	defer reader.Close()
 
-	br := bufio.NewScanner(reader)
+	return func(f func(string, bypass.ModeEnum) bool) {
+		defer reader.Close()
 
-	for br.Scan() {
-		before := TrimComment(br.Text())
+		br := bufio.NewScanner(reader)
 
-		hostname, args, ok := SplitHostArgs(before)
-		if !ok {
-			continue
-		}
+		for br.Scan() {
+			before := TrimComment(br.Text())
 
-		mode, modeargs, ok := SplitModeArgs(args)
-		if !ok {
-			continue
-		}
+			hostname, args, ok := SplitHostArgs(before)
+			if !ok {
+				continue
+			}
 
-		modeEnum := ParseArgs(mode, modeargs).ToModeConfig(nil).ToModeEnum()
+			mode, modeargs, ok := SplitModeArgs(args)
+			if !ok {
+				continue
+			}
 
-		if strings.HasPrefix(hostname, "file:") {
+			modeEnum := ParseArgs(mode, modeargs).ToModeConfig(nil).ToModeEnum()
+
+			if !strings.HasPrefix(hostname, "file:") {
+				if !f(strings.ToLower(hostname), modeEnum) {
+					return
+				}
+				continue
+			}
+
 			file := hostname[5:]
 			if !filepath.IsAbs(file) {
 				file = filepath.Join(filepath.Dir(path), file)
 			}
 
-			slice.RangeFileByLine(file, func(x string) { ranger(x, modeEnum) })
-		} else {
-			ranger(strings.ToLower(hostname), modeEnum)
+			for x := range slice.RangeFileByLine(file) {
+				if !f(x, modeEnum) {
+					return
+				}
+			}
 		}
 	}
 }

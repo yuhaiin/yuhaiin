@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"unsafe"
@@ -165,54 +166,57 @@ func (f *FakeDNS) GetDomainFromIP(ip netip.Addr) (string, bool) {
 	}
 }
 
-var hex = map[byte]byte{
-	'0': 0,
-	'1': 1,
-	'2': 2,
-	'3': 3,
-	'4': 4,
-	'5': 5,
-	'6': 6,
-	'7': 7,
-	'8': 8,
-	'9': 9,
-	'A': 10, 'a': 10,
-	'b': 11, 'B': 11,
-	'C': 12, 'c': 12,
-	'D': 13, 'd': 13,
-	'e': 14, 'E': 14,
-	'f': 15, 'F': 15,
+// fromHexByte converts a single hexadecimal ASCII digit character into an
+// integer from 0 to 15.  For all other characters it returns 0xff.
+//
+// TODO(e.burkov):  This should be covered with tests after adding HasSuffixFold
+// into stringutil.
+func fromHexByte(c byte) (n byte) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0'
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10
+	default:
+		return 0xff
+	}
 }
 
+// ARPA reverse address domains.
+const (
+	arpaV4Suffix = ".in-addr.arpa."
+	arpaV6Suffix = ".ip6.arpa."
+
+	arpaV4MaxIPLen = len("000.000.000.000")
+	arpaV6MaxIPLen = len("0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0")
+
+	arpaV4SuffixLen = len(arpaV4Suffix)
+	arpaV6SuffixLen = len(arpaV6Suffix)
+)
+
 func RetrieveIPFromPtr(name string) (net.IP, error) {
-	if strings.HasSuffix(name, "ip6.arpa.") && len(name)-9 == 64 {
+	if strings.HasSuffix(name, arpaV6Suffix) && len(name)-arpaV6SuffixLen == arpaV6MaxIPLen {
 		var ip [16]byte
 		for i := range ip {
-			ip[i] = hex[name[62-i*4]]*16 + hex[name[62-i*4-2]]
+			ip[i] = fromHexByte(name[62-i*4])*16 + fromHexByte(name[62-i*4-2])
 		}
 		return ip[:], nil
 	}
 
-	if !strings.HasSuffix(name, "in-addr.arpa.") {
-		return nil, fmt.Errorf("retrieve ip from  ptr failed: %s, maybe dns-sd request", name)
+	if !strings.HasSuffix(name, arpaV4Suffix) {
+		return nil, fmt.Errorf("retrieve ip from ptr failed: %s", name)
 	}
 
-	var ip [4]byte
-	var dotCount uint8
-
-	for _, v := range name[:len(name)-13] {
-		if dotCount > 3 {
-			return nil, fmt.Errorf("retrieve ip from  ptr failed: %s, maybe dns-sd request", name)
-		}
-
-		if v == '.' {
-			dotCount++
-		} else {
-			ip[3-dotCount] = ip[3-dotCount]*10 + hex[byte(v)]
-		}
+	reverseIPv4, err := netip.ParseAddr(name[:len(name)-arpaV4SuffixLen])
+	if err != nil || !reverseIPv4.Is4() {
+		return nil, fmt.Errorf("retrieve ip from ptr failed: %s, %w", name, err)
 	}
 
-	return ip[:], nil
+	ipv4 := reverseIPv4.As4()
+	slices.Reverse(ipv4[:])
+	return ipv4[:], nil
 }
 
 func (f *FakeDNS) LookupPtr(name string) (string, error) {
@@ -360,19 +364,17 @@ func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
 	)
 
 	count := 0
-	cache.Range(func(key, value []byte) bool {
-		ip, ok := netip.AddrFromSlice(key)
+	for k, v := range cache.Range {
+		ip, ok := netip.AddrFromSlice(k)
 		if !ok {
-			return true
+			continue
 		}
 
 		if iprange.Contains(ip) {
 			count++
-			z.LRU.Add(string(value), ip)
+			z.LRU.Add(string(v), ip)
 		}
-
-		return true
-	})
+	}
 
 	log.Info("fakeip lru init", "get cache", count, "isIpv6", iprange.Addr().Unmap().Is6())
 

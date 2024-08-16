@@ -17,11 +17,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/tailscale/wireguard-go/device"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 )
@@ -37,6 +40,8 @@ type Wireguard struct {
 	count atomic.Int64
 
 	idleTimeout time.Duration
+
+	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
 
 	mu sync.Mutex
 }
@@ -55,10 +60,23 @@ func NewClient(conf *protocol.Protocol_Wireguard) point.WrapProxy {
 			conf.Wireguard.IdleTimeout = 30
 		}
 
-		return &Wireguard{
+		w := &Wireguard{
 			conf:        conf.Wireguard,
 			idleTimeout: time.Duration(conf.Wireguard.IdleTimeout) * time.Second * 2,
-		}, nil
+		}
+
+		w.happyDialer = &dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]{
+			DialContext: func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+				nt, err := w.initNet()
+				if err != nil {
+					return nil, err
+				}
+				return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
+			},
+			Cache: lru.NewSyncLru(lru.WithCapacity[unique.Handle[string], net.IP](512)),
+		}
+
+		return w, nil
 	}
 }
 
@@ -102,8 +120,10 @@ func (w *Wireguard) initNet() (*netTun, error) {
 					w.bind.Close()
 					w.bind = nil
 				}
-				log.Debug("wireguard closed")
+
 				w.net = nil
+
+				log.Debug("wireguard closed")
 				w.mu.Unlock()
 			}
 		})
@@ -113,25 +133,32 @@ func (w *Wireguard) initNet() (*netTun, error) {
 }
 
 func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	net, err := w.initNet()
-	if err != nil {
-		return nil, err
-	}
-
-	addrPort, err := netapi.ResolveTCPAddr(ctx, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.DialContextTCP(ctx, addrPort)
+	conn, err := w.happyDialer.DialHappyEyeballsv2(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 
 	w.count.Add(1)
 	w.timer.Reset(w.idleTimeout)
+	// net, err := w.initNet()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	return &wrapGoNetTcpConn{w, conn}, nil
+	// addrPort, err := dialer.ResolveTCPAddr(ctx, addr)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// conn, err := net.DialContextTCP(ctx, addrPort)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// w.count.Add(1)
+	// w.timer.Reset(w.idleTimeout)
+
+	return &wrapGoNetTcpConn{wireguard: w, TCPConn: conn}, nil
 }
 
 func processErr(err error) {
@@ -147,12 +174,13 @@ func processErr(err error) {
 }
 
 type wrapGoNetTcpConn struct {
+	once      sync.Once
 	wireguard *Wireguard
 	*gonet.TCPConn
 }
 
 func (w *wrapGoNetTcpConn) Close() error {
-	w.wireguard.count.Add(-1)
+	w.once.Do(func() { w.wireguard.count.Add(-1) })
 	return w.TCPConn.Close()
 }
 
@@ -182,16 +210,22 @@ func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	w.count.Add(1)
 	w.timer.Reset(w.idleTimeout)
 
-	return &wrapGoNetUdpConn{w, goUC}, nil
+	return &wrapGoNetUdpConn{
+		wireguard: w,
+		UDPConn:   goUC,
+		ctx:       context.WithoutCancel(ctx),
+	}, nil
 }
 
 type wrapGoNetUdpConn struct {
 	wireguard *Wireguard
 	*gonet.UDPConn
+	ctx  context.Context
+	once sync.Once
 }
 
 func (w *wrapGoNetUdpConn) Close() error {
-	w.wireguard.count.Add(-1)
+	w.once.Do(func() { w.wireguard.count.Add(-1) })
 	return w.UDPConn.Close()
 }
 
@@ -202,7 +236,7 @@ func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {
 		return 0, err
 	}
 
-	ur, err := netapi.ResolveUDPAddr(context.TODO(), a)
+	ur, err := dialer.ResolveUDPAddr(w.ctx, a)
 	if err != nil {
 		return 0, err
 	}
@@ -227,11 +261,7 @@ func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *net
 		return nil, nil, nil, err
 	}
 
-	reversed := [3]byte{}
-	if len(h.GetReserved()) == 3 {
-		copy(reversed[:], h.GetReserved())
-	}
-	bind := newNetBindClient(reversed)
+	bind := newNetBindClient(h.GetReserved())
 	// dev := device.NewDevice(tun, conn.NewDefaultBind(), nil /* device.NewLogger(device.LogLevelVerbose, "") */)
 	dev := device.NewDevice(
 		tun,

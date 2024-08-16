@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/netip"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
@@ -51,7 +52,7 @@ func (x *Trie[T]) Search(ctx context.Context, addr netapi.Address) (mark T, ok b
 		return
 	}
 
-	if ips, err := netapi.ResolverIP(ctx, addr); err == nil {
+	if ips, err := dialer.ResolverIP(ctx, addr); err == nil {
 		mark, ok = x.cidr.SearchIP(ips)
 	}
 

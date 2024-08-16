@@ -2,7 +2,6 @@ package lru
 
 import (
 	"sync"
-	"time"
 )
 
 type SyncLru[K comparable, V any] struct {
@@ -29,12 +28,6 @@ func (l *SyncLru[K, V]) Delete(key K) {
 	l.mu.Unlock()
 }
 
-func (l *SyncLru[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time, ok bool) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.lru.LoadExpireTime(key)
-}
-
 func (l *SyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -42,8 +35,15 @@ func (l *SyncLru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
 }
 
 func (l *SyncLru[K, V]) Load(key K) (v V, ok bool) {
-	v, _, ok = l.LoadExpireTime(key)
-	return
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lru.Load(key)
+}
+
+func (l *SyncLru[K, V]) LoadOptimistically(key K) (v V, expired, ok bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lru.LoadOptimistic(key)
 }
 
 func (l *SyncLru[K, V]) Range(ranger func(K, V)) {
@@ -53,4 +53,10 @@ func (l *SyncLru[K, V]) Range(ranger func(K, V)) {
 	for k, v := range l.lru.mapping {
 		ranger(k, v.Value().data)
 	}
+}
+
+func (l *SyncLru[K, V]) ClearExpired() {
+	l.mu.Lock()
+	l.lru.ClearExpired()
+	l.mu.Unlock()
 }

@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/buffer"
@@ -122,7 +123,7 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 	ctx, cancel := context.WithTimeout(context.Background(), configuration.Timeout)
 	defer cancel()
 
-	dip, err := netapi.ResolverAddrPort(ctx, daddr)
+	dip, err := dialer.ResolverAddrPort(ctx, daddr)
 	if err != nil {
 		return 0, err
 	}

@@ -47,8 +47,7 @@ func Open[T proto.Message](path string, defaultValue T) *DB[T] {
 }
 
 func MergeDefault(src, def protoreflect.Message) {
-	def.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-
+	for fd, v := range def.Range {
 		vi, vok := v.Interface().(protoreflect.Message)
 
 		if src.IsValid() && !src.Has(fd) && vok {
@@ -62,9 +61,7 @@ func MergeDefault(src, def protoreflect.Message) {
 		if sok && vok {
 			MergeDefault(svi, vi)
 		}
-
-		return true
-	})
+	}
 }
 
 func New[T proto.Message](t T, path string) *DB[T] { return &DB[T]{t, path} }

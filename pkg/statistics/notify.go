@@ -98,16 +98,15 @@ func (n *notify) start() {
 			return
 		}
 
-		n.notifier.Range(func(key uint64, value *notifierEntry) bool {
+		for _, value := range n.notifier.Range {
+		_loopNotifyDatas:
 			for _, d := range notifyDatas {
 				if err := value.s.Send(d); err != nil {
 					value.cancel(fmt.Errorf("send notify error: %w", err))
-					return true
+					break _loopNotifyDatas
 				}
 			}
-
-			return true
-		})
+		}
 
 		clear(newConns)
 		removeConns = removeConns[:0]

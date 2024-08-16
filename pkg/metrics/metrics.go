@@ -3,7 +3,6 @@ package metrics
 import (
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -18,6 +17,7 @@ type Metrics interface {
 	AddReceiveUDPPacket()
 	AddSendUDPPacket()
 	AddConnection(addr string)
+	AddBlockConnection(addr string)
 	RemoveConnection(n int)
 	AddStreamConnectDuration(t float64)
 	AddDNSProcess(domain string)
@@ -30,16 +30,17 @@ type Prometheus struct {
 	TotalUpload           prometheus.Counter
 	TotalReceiveUDPPacket prometheus.Counter
 	TotalSendUDPPacket    prometheus.Counter
-	TotalConnection       *prometheus.CounterVec
+	TotalConnection       prometheus.Counter
 	CurrentConnection     prometheus.Gauge
+	TotalBlockConnection  prometheus.Counter
 
 	StreamConnectDurationSeconds prometheus.Histogram
 	StreamConnectSummarySeconds  prometheus.Summary
 
-	DNSProcessTotal *prometheus.CounterVec
-	FiledDNSTotal   *prometheus.CounterVec
+	DNSProcessTotal prometheus.Counter
+	FiledDNSTotal   prometheus.Counter
 
-	TCPDialFailedTotal *prometheus.CounterVec
+	TCPDialFailedTotal prometheus.Counter
 }
 
 func NewPrometheus() *Prometheus {
@@ -71,14 +72,19 @@ func NewPrometheus() *Prometheus {
 			Help:        "The total number of udp send packets",
 			ConstLabels: labels,
 		}),
-		TotalConnection: promauto.NewCounterVec(prometheus.CounterOpts{
+		TotalConnection: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_connection_total",
 			Help:        "The total number of connections",
 			ConstLabels: labels,
-		}, []string{"address"}),
+		}),
 		CurrentConnection: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:        "yuhaiin_connection_current",
 			Help:        "The current number of connections",
+			ConstLabels: labels,
+		}),
+		TotalBlockConnection: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_block_connection_total",
+			Help:        "The total number of block connections",
 			ConstLabels: labels,
 		}),
 		StreamConnectDurationSeconds: promauto.NewHistogram(prometheus.HistogramOpts{
@@ -91,31 +97,22 @@ func NewPrometheus() *Prometheus {
 			Help:        "The summary of tcp connect",
 			ConstLabels: labels,
 		}),
-		DNSProcessTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+		DNSProcessTotal: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_dns_process_total",
 			Help:        "The total number of dns process",
 			ConstLabels: labels,
-		}, []string{"domain"}),
-		FiledDNSTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+		}),
+		FiledDNSTotal: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_dns_request_failed_total",
 			Help:        "The total number of dns request failed",
 			ConstLabels: labels,
-		}, []string{"domain", "rcode", "dns_type"}),
-		TCPDialFailedTotal: promauto.NewCounterVec(prometheus.CounterOpts{
+		}),
+		TCPDialFailedTotal: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_tcp_dial_failed_total",
 			Help:        "The total number of tcp dial failed",
 			ConstLabels: labels,
-		}, []string{"address"}),
+		}),
 	}
-
-	var timer *time.Timer
-	timer = time.AfterFunc(time.Hour*2, func() {
-		p.DNSProcessTotal.Reset()
-		p.FiledDNSTotal.Reset()
-		p.TotalConnection.Reset()
-		p.TCPDialFailedTotal.Reset()
-		timer.Reset(time.Hour * 2)
-	})
 
 	return p
 }
@@ -129,8 +126,12 @@ func (p *Prometheus) AddUpload(n int) {
 }
 
 func (p *Prometheus) AddConnection(addr string) {
-	p.TotalConnection.With(prometheus.Labels{"address": addr}).Inc()
+	p.TotalConnection.Inc()
 	p.CurrentConnection.Inc()
+}
+
+func (p *Prometheus) AddBlockConnection(addr string) {
+	p.TotalBlockConnection.Inc()
 }
 
 func (p *Prometheus) RemoveConnection(n int) {
@@ -143,19 +144,15 @@ func (p *Prometheus) AddStreamConnectDuration(t float64) {
 }
 
 func (p *Prometheus) AddDNSProcess(domain string) {
-	p.DNSProcessTotal.With(prometheus.Labels{"domain": domain}).Inc()
+	p.DNSProcessTotal.Inc()
 }
 
 func (p *Prometheus) AddFailedDNS(domain string, rcode dnsmessage.RCode, t dnsmessage.Type) {
-	p.FiledDNSTotal.With(prometheus.Labels{
-		"domain":   domain,
-		"rcode":    rcode.String(),
-		"dns_type": t.String(),
-	}).Inc()
+	p.FiledDNSTotal.Inc()
 }
 
 func (p *Prometheus) AddTCPDialFailed(addr string) {
-	p.TCPDialFailedTotal.With(prometheus.Labels{"address": addr}).Inc()
+	p.TCPDialFailedTotal.Inc()
 }
 
 func (p *Prometheus) AddReceiveUDPPacket() {

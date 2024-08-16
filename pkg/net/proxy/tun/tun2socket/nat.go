@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -31,7 +32,8 @@ type Nat struct {
 }
 
 func Start(opt *device.Opt) (*Nat, error) {
-	listener, err := dialer.ListenContextWithOptions(context.Background(), "tcp", "", &dialer.Options{})
+	listener, err := dialer.ListenContextWithOptions(context.Background(),
+		"tcp", "", &dialer.Options{})
 	if err != nil {
 		return nil, err
 	}
@@ -143,9 +145,9 @@ func Start(opt *device.Opt) (*Nat, error) {
 
 					nat.UDP.handleUDPPacket(
 						Tuple{
-							SourceAddr:      src,
+							SourceAddr:      unique.Make(src),
 							SourcePort:      u.SourcePort(),
-							DestinationAddr: dst,
+							DestinationAddr: unique.Make(dst),
 							DestinationPort: u.DestinationPort(),
 						}, u.Payload())
 
@@ -233,15 +235,15 @@ func (n *Nat) processTCP(ip header.Network, src, dst tcpip.Address) (_ header.Tr
 			return nil, 0, false
 		}
 
-		ip.SetDestinationAddress(tup.SourceAddr)
+		ip.SetDestinationAddress(tup.SourceAddr.Value())
 		t.SetDestinationPort(tup.SourcePort)
-		ip.SetSourceAddress(tup.DestinationAddr)
+		ip.SetSourceAddress(tup.DestinationAddr.Value())
 		t.SetSourcePort(tup.DestinationPort)
 	} else {
 		tup := Tuple{
-			SourceAddr:      src,
+			SourceAddr:      unique.Make(src),
 			SourcePort:      sourcePort,
-			DestinationAddr: dst,
+			DestinationAddr: unique.Make(dst),
 			DestinationPort: destinationPort,
 		}
 

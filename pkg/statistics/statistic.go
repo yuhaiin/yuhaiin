@@ -75,10 +75,10 @@ func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections
 
 func (c *Connections) Close() error {
 	c.notify.Close()
-	c.connStore.Range(func(key uint64, v connection) bool {
+
+	for _, v := range c.connStore.Range {
 		v.Close()
-		return true
-	})
+	}
 
 	c.Cache.Close()
 	return nil
