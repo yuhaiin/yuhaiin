@@ -22,11 +22,11 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_SNDBUF, SocketBufferSize)
 		}
 
-		if isTCPSocket(network) {
-			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, sysTCP_KEEPINTVL, int(15))
-			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPALIVE, int(180))
-			_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
-		}
+		// if isTCPSocket(network) {
+		// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, sysTCP_KEEPINTVL, int(15))
+		// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPALIVE, int(180))
+		// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
+		// }
 
 		host, _, _ := net.SplitHostPort(address)
 		if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {

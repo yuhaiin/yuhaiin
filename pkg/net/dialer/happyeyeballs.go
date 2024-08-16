@@ -3,9 +3,62 @@ package dialer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
+
+func DialHappyEyeballsv1(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	c, err := dialHappyEyeballs(ctx, addr)
+	if err != nil {
+		metrics.Counter.AddTCPDialFailed(addr.String())
+	}
+	return c, err
+}
+
+func dialHappyEyeballs(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	if !addr.IsFqdn() {
+		return DialContext(ctx, "tcp", addr.String())
+	}
+
+	ips, err := LookupIP(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	domainAddr, ok := addr.(netapi.DomainAddress)
+	if !ok {
+		return nil, fmt.Errorf("unexpected address type %T", addr)
+	}
+
+	lastIP, ok := happyEyeballsCache.Load(domainAddr.UniqueHostname())
+
+	tcpAddress := make([]*net.TCPAddr, 0, len(ips))
+	for _, i := range ips {
+		if ok && lastIP.Equal(i) && len(tcpAddress) > 0 {
+			tmp := tcpAddress[0]
+			tcpAddress[0] = &net.TCPAddr{IP: i, Port: tmp.Port}
+			tcpAddress = append(tcpAddress, tmp)
+		} else {
+			tcpAddress = append(tcpAddress, &net.TCPAddr{IP: i, Port: int(addr.Port())})
+		}
+	}
+
+	conn, err := DialHappyEyeballs(ctx, tcpAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	connAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
+	if ok {
+		happyEyeballsCache.Add(domainAddr.UniqueHostname(), connAddr.IP)
+	}
+
+	return conn, nil
+}
 
 // DialHappyEyeballs is a function that implements Happy Eyeballs algorithm for IPv4 and IPv6 addresses.
 // It divides given TCP addresses into primaries and fallbacks and then calls DialParallel function.
@@ -84,7 +137,12 @@ func DialParallel(ctx context.Context, primaries []*net.TCPAddr, fallbacks []*ne
 	go startRacer(primaryCtx, true)
 
 	// Start the timer for the fallback racer.
-	fallbackTimer := time.NewTimer(time.Millisecond * 300)
+	//
+	// rfc 8305 section 5
+	//  This delay is referred
+	//  to as the "Connection Attempt Delay".  One recommended value for a
+	//  default delay is 250 milliseconds.
+	fallbackTimer := time.NewTimer(time.Millisecond * 250)
 	defer fallbackTimer.Stop()
 
 	for {

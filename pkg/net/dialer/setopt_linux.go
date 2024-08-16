@@ -34,18 +34,18 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			return
 		}
 
-		if isTCPSocket(network) {
-			// https://github.com/golang/go/issues/48622
-			/*
-				TCP_KEEPIDLE=180
-				TCP_KEEPINTVL=15
-				TCP_KEEPCNT=2
-			*/
-			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, int(15))
-			// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, int(180))
-			_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
-			// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 0)
-		}
+		// if isTCPSocket(network) {
+		// https://github.com/golang/go/issues/48622
+		/*
+			TCP_KEEPIDLE=180
+			TCP_KEEPINTVL=15
+			TCP_KEEPCNT=2
+		*/
+		// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, int(15))
+		// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, int(180))
+		// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
+		// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 0)
+		// }
 
 		if (opts.InterfaceName == "" && opts.InterfaceIndex != 0) || opts.InterfaceName != "" {
 			host, _, _ := net.SplitHostPort(address)

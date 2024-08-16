@@ -8,8 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
@@ -189,7 +189,7 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 }
 
 func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
 	defer cancel()
 
 	var parse dnsmessage.Parser

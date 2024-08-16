@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"golang.org/x/sys/windows"
 )
 
@@ -15,7 +16,8 @@ const (
 )
 
 func setSocketOptions(network, address string, c syscall.RawConn, opts *Options) (err error) {
-	if opts == nil || !isTCPSocket(network) && !isUDPSocket(network) {
+	isUdp := isUDPSocket(network)
+	if opts == nil || !isTCPSocket(network) && !isUdp {
 		return
 	}
 
@@ -24,6 +26,30 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 		if opts.listener {
 			_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_RCVBUF, SocketBufferSize)
 			_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_SNDBUF, SocketBufferSize)
+		}
+
+		if isUdp {
+			// Similar to https://github.com/golang/go/issues/5834 (which involved
+			// WSAECONNRESET), Windows can return a WSAENETRESET error, even on UDP
+			// reads. Disable this.
+			const SIO_UDP_NETRESET = windows.IOC_IN | windows.IOC_VENDOR | 15
+			ret := uint32(0)
+			flag := uint32(0)
+			size := uint32(unsafe.Sizeof(flag))
+			ioctlErr := windows.WSAIoctl(
+				windows.Handle(fd),
+				SIO_UDP_NETRESET,               // iocc
+				(*byte)(unsafe.Pointer(&flag)), // inbuf
+				size,                           // cbif
+				nil,                            // outbuf
+				0,                              // cbob
+				&ret,                           // cbbr
+				nil,                            // overlapped
+				0,                              // completionRoutine
+			)
+			if ioctlErr != nil {
+				log.Error("trySetUDPSocketOptions: could not set SIO_UDP_NETRESET", "err", ioctlErr)
+			}
 		}
 
 		host, _, _ := net.SplitHostPort(address)

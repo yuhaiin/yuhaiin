@@ -5,7 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestDOH(t *testing.T) {
-	netapi.Bootstrap = &netapi.SystemResolver{}
+	dialer.Bootstrap = &dialer.SystemResolver{}
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
@@ -87,9 +87,13 @@ func TestDOH(t *testing.T) {
 			Type: dns.Type_doh,
 			Host: "https://101.6.6.6:8443/dns-query",
 		},
+		"controld": {
+			Type: dns.Type_doh,
+			Host: "https://freedns.controld.com/p0",
+		},
 	}
 
-	d, err := New(configMap["dns.pub"])
+	d, err := New(configMap["ali"])
 	assert.NoError(t, err)
 
 	t.Log(d.LookupIP(context.TODO(), "plasma"))

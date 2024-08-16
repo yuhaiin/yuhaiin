@@ -44,11 +44,9 @@ func (a *SyncMap[T1, T2]) Range(f func(key T1, value T2) bool) {
 }
 
 func (a *SyncMap[key, T2]) ValueSlice() (r []T2) {
-	a.data.Range(func(key, value any) bool {
-		r = append(r, value.(T2))
-		return true
-	})
-
+	for _, v := range a.data.Range {
+		r = append(r, v.(T2))
+	}
 	return r
 }
 
@@ -67,4 +65,60 @@ func (a *SyncMap[T1, T2]) CompareAndSwap(key T1, old T2, new T2) (swapped bool) 
 
 func (a *SyncMap[T1, T2]) CompareAndDelete(key T1, old T2) (deleted bool) {
 	return a.data.CompareAndDelete(key, old)
+}
+
+type Diff[K comparable, V any] struct {
+	Rmoved bool
+	Added  bool
+	Modif  bool
+
+	Key      K
+	OldValue V
+	NewValue V
+}
+
+func Differ[K comparable, V any](old, new *SyncMap[K, V], isSame func(v1, v2 V) bool) func(f func(Diff[K, V])) {
+	return func(f func(Diff[K, V])) {
+		for k, v1 := range old.Range {
+			v2, ok := new.Load(k)
+			if !ok {
+				f(Diff[K, V]{Rmoved: true, Key: k, OldValue: v1})
+				continue
+			}
+
+			if !isSame(v1, v2) {
+				f(Diff[K, V]{Modif: true, Key: k, OldValue: v1, NewValue: v2})
+			}
+		}
+
+		for k, v2 := range new.Range {
+			_, ok := old.Load(k)
+			if !ok {
+				f(Diff[K, V]{Added: true, Key: k, NewValue: v2})
+			}
+		}
+	}
+}
+
+func DiffMap[K comparable, V any](old, new map[K]V, isSame func(v1, v2 V) bool) func(f func(Diff[K, V])) {
+	return func(f func(Diff[K, V])) {
+		for k, v1 := range old {
+			v2, ok := new[k]
+			if !ok {
+				f(Diff[K, V]{Rmoved: true, Key: k, OldValue: v1})
+				continue
+			}
+
+			if !isSame(v1, v2) {
+				f(Diff[K, V]{Modif: true, Key: k, OldValue: v1, NewValue: v2})
+			}
+		}
+
+		for k, v2 := range new {
+			_, ok := old[k]
+			if !ok {
+				f(Diff[K, V]{Added: true, Key: k, NewValue: v2})
+			}
+		}
+	}
 }

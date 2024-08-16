@@ -9,7 +9,7 @@ import (
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 )
 
-var timeout = 5 * time.Second
+var timeout = 10 * time.Second
 
 func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := dns.New(dns.Config{

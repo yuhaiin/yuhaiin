@@ -25,6 +25,50 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
+type Request struct {
+	QuestionBytes []byte
+	Question      dnsmessage.Question
+	ID            uint16
+	Truncated     bool
+}
+
+type Response interface {
+	Msg() (dnsmessage.Message, error)
+	Release()
+}
+
+type BytesResponse []byte
+
+func (b BytesResponse) Msg() (msg dnsmessage.Message, err error) {
+	if err := msg.Unpack(b); err != nil {
+		return msg, err
+	}
+
+	return msg, nil
+}
+
+func (b BytesResponse) Release() { pool.PutBytes(b) }
+
+type MsgResponse dnsmessage.Message
+
+func (m MsgResponse) Msg() (msg dnsmessage.Message, err error) {
+	return dnsmessage.Message(m), nil
+}
+func (m MsgResponse) Release() {}
+
+type DialerFunc func(context.Context, *Request) (Response, error)
+
+func (f DialerFunc) Do(ctx context.Context, req *Request) (Response, error) {
+	return f(ctx, req)
+}
+
+func (f DialerFunc) Close() error { return nil }
+
+type Dialer interface {
+	Do(ctx context.Context, req *Request) (Response, error)
+	Close() error
+}
+
 type Config struct {
 	Dialer     netapi.Proxy
 	Subnet     netip.Prefix
@@ -34,7 +78,7 @@ type Config struct {
 	Type       pd.Type
 }
 
-var dnsMap syncmap.SyncMap[pd.Type, func(Config) (netapi.Resolver, error)]
+var dnsMap syncmap.SyncMap[pd.Type, func(Config) (Dialer, error)]
 
 func New(config Config) (netapi.Resolver, error) {
 	f, ok := dnsMap.Load(config.Type)
@@ -45,10 +89,15 @@ func New(config Config) (netapi.Resolver, error) {
 	if config.Dialer == nil {
 		config.Dialer = direct.Default
 	}
-	return f(config)
+	dialer, err := f(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClient(config, dialer), nil
 }
 
-func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
+func Register(tYPE pd.Type, f func(Config) (Dialer, error)) {
 	if f != nil {
 		dnsMap.Store(tYPE, f)
 	}
@@ -56,20 +105,16 @@ func Register(tYPE pd.Type, f func(Config) (netapi.Resolver, error)) {
 
 var _ netapi.Resolver = (*client)(nil)
 
-type request struct {
-	Question  []byte
-	Truncated bool
-}
-
 type client struct {
-	edns0           dnsmessage.Resource
-	do              func(context.Context, *request) ([]byte, error)
-	rawStore        *lru.SyncLru[dnsmessage.Question, dnsmessage.Message]
-	rawSingleflight singleflight.GroupSync[dnsmessage.Question, dnsmessage.Message]
-	config          Config
+	edns0             dnsmessage.Resource
+	dialer            Dialer
+	rawStore          *lru.SyncLru[dnsmessage.Question, dnsmessage.Message]
+	rawSingleflight   singleflight.GroupSync[dnsmessage.Question, dnsmessage.Message]
+	refreshBackground syncmap.SyncMap[dnsmessage.Question, struct{}]
+	config            Config
 }
 
-func NewClient(config Config, do func(context.Context, *request) ([]byte, error)) *client {
+func NewClient(config Config, dialer Dialer) *client {
 	var rh dnsmessage.ResourceHeader
 	_ = rh.SetEDNS0(8192, dnsmessage.RCodeSuccess, false)
 
@@ -102,19 +147,23 @@ func NewClient(config Config, do func(context.Context, *request) ([]byte, error)
 		})
 	}
 
-	return &client{
-		do:       do,
-		config:   config,
-		rawStore: lru.NewSyncLru(lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache)),
+	c := &client{
+		dialer: dialer,
+		config: config,
+		rawStore: lru.NewSyncLru(
+			lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache),
+			lru.WithDefaultTimeout[dnsmessage.Question, dnsmessage.Message](time.Second*600),
+		),
 		edns0: dnsmessage.Resource{
 			Header: rh,
 			Body:   optrbody,
 		},
 	}
+
+	return c
 }
 
 func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
-
 	opt := &netapi.LookupIPOption{
 		Mode: netapi.ResolverModePreferIPv4,
 	}
@@ -149,6 +198,91 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	return append(resp, aaaa...), nil
 }
 
+func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	dialer := c.dialer
+
+	reqMsg := dnsmessage.Message{
+		Header: dnsmessage.Header{
+			ID:                 uint16(rand.UintN(math.MaxUint16)),
+			Response:           false,
+			OpCode:             0,
+			Authoritative:      false,
+			Truncated:          false,
+			RecursionDesired:   true,
+			RecursionAvailable: false,
+			RCode:              0,
+		},
+		Questions:   []dnsmessage.Question{req},
+		Additionals: []dnsmessage.Resource{c.edns0},
+	}
+
+	buf := pool.GetBytes(8192)
+	defer pool.PutBytes(buf)
+
+	bytes, err := reqMsg.AppendPack(buf[:0])
+	if err != nil {
+		return dnsmessage.Message{}, err
+	}
+
+	request := &Request{
+		QuestionBytes: bytes,
+		Question:      req,
+		ID:            reqMsg.ID,
+	}
+
+	var msg dnsmessage.Message
+
+	for _, v := range []bool{false, true} {
+		request.Truncated = v
+
+		resp, err := dialer.Do(ctx, request)
+		if err != nil {
+			return dnsmessage.Message{}, err
+		}
+		defer resp.Release()
+
+		if msg, err = resp.Msg(); err != nil {
+			return dnsmessage.Message{}, err
+		}
+
+		if msg.ID != reqMsg.ID {
+			return dnsmessage.Message{}, fmt.Errorf("id not match")
+		}
+
+		if !msg.Truncated {
+			break
+		}
+
+		// If TC is set, the choice of records in the answer (if any)
+		// do not really matter much as the client is supposed to
+		// just discard the message and retry over TCP, anyway.
+		//
+		// https://serverfault.com/questions/991520/how-is-truncation-performed-in-dns-according-to-rfc-1035
+	}
+
+	ttl := uint32(600)
+	if len(msg.Answers) > 0 {
+		ttl = msg.Answers[0].Header.TTL
+	}
+
+	args := []any{
+		slog.String("resolver", c.config.Name),
+		slog.Any("host", req.Name),
+		slog.Any("type", req.Type),
+		slog.Any("code", msg.RCode),
+		slog.Any("ttl", ttl),
+	}
+
+	log.Debug("resolve domain", args...)
+
+	if ttl > 1 {
+		c.rawStore.Add(req, msg,
+			lru.WithTimeout[dnsmessage.Question, dnsmessage.Message](time.Duration(ttl)*time.Second))
+	}
+
+	return msg, nil
+}
+
 func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
 	if !system.IsDomainName(req.Name.String()) {
 		return dnsmessage.Message{}, fmt.Errorf("invalid domain: %s", req.Name.String())
@@ -158,95 +292,36 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 		req.Class = dnsmessage.ClassINET
 	}
 
-	msg, ok := c.rawStore.Load(req)
+	msg, expired, ok := c.rawStore.LoadOptimistically(req)
+	if !ok {
+		msg, err, _ := c.rawSingleflight.Do(ctx, req, func(ctx context.Context) (dnsmessage.Message, error) { return c.raw(ctx, req) })
+		return msg, err
+	}
+
+	if !expired {
+		return msg, nil
+	}
+
+	_, ok = c.refreshBackground.LoadOrStore(req, struct{}{})
 	if ok {
 		return msg, nil
 	}
 
-	msg, err, _ := c.rawSingleflight.Do(req, func() (dnsmessage.Message, error) {
-		send := c.do
+	// refresh expired response background
+	go func() {
+		defer c.refreshBackground.Delete(req)
 
-		if send == nil {
-			return dnsmessage.Message{}, fmt.Errorf("no dns process function")
-		}
+		ctx = context.WithoutCancel(ctx)
+		ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+		defer cancel()
 
-		reqMsg := dnsmessage.Message{
-			Header: dnsmessage.Header{
-				ID:                 uint16(rand.UintN(math.MaxUint16)),
-				Response:           false,
-				OpCode:             0,
-				Authoritative:      false,
-				Truncated:          false,
-				RecursionDesired:   true,
-				RecursionAvailable: false,
-				RCode:              0,
-			},
-			Questions:   []dnsmessage.Question{req},
-			Additionals: []dnsmessage.Resource{c.edns0},
-		}
-
-		buf := pool.GetBytes(8192)
-		defer pool.PutBytes(buf)
-
-		bytes, err := reqMsg.AppendPack(buf[:0])
+		_, err := c.raw(ctx, req)
 		if err != nil {
-			return dnsmessage.Message{}, err
+			log.Error("refresh domain background failed", "req", req, "err", err)
 		}
+	}()
 
-		request := &request{Question: bytes}
-
-		for _, v := range []bool{false, true} {
-			request.Truncated = v
-
-			resp, err := send(ctx, request)
-			if err != nil {
-				return dnsmessage.Message{}, err
-			}
-			defer pool.PutBytes(resp)
-
-			if err = msg.Unpack(resp); err != nil {
-				return dnsmessage.Message{}, err
-			}
-
-			if msg.ID != reqMsg.ID {
-				return dnsmessage.Message{}, fmt.Errorf("id not match")
-			}
-
-			if !msg.Truncated {
-				break
-			}
-
-			// If TC is set, the choice of records in the answer (if any)
-			// do not really matter much as the client is supposed to
-			// just discard the message and retry over TCP, anyway.
-			//
-			// https://serverfault.com/questions/991520/how-is-truncation-performed-in-dns-according-to-rfc-1035
-		}
-
-		ttl := uint32(600)
-		if len(msg.Answers) > 0 {
-			ttl = msg.Answers[0].Header.TTL
-		}
-
-		args := []any{
-			slog.String("resolver", c.config.Name),
-			slog.Any("host", req.Name),
-			slog.Any("type", req.Type),
-			slog.Any("code", msg.RCode),
-			slog.Any("ttl", ttl),
-		}
-
-		log.Debug("resolve domain", args...)
-
-		if ttl > 1 {
-			c.rawStore.Add(req, msg,
-				lru.WithExpireTime[dnsmessage.Question, dnsmessage.Message](time.Now().Add(time.Duration(ttl)*time.Second)))
-		}
-
-		return msg, nil
-	})
-
-	return msg, err
+	return msg, nil
 }
 
 func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, error) {
@@ -310,4 +385,4 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 	return ips, nil
 }
 
-func (c *client) Close() error { return nil }
+func (c *client) Close() error { return c.dialer.Close() }

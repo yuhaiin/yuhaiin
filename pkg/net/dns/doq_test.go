@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDoQ(t *testing.T) {
-	netapi.Bootstrap = &netapi.SystemResolver{}
+	dialer.Bootstrap = &dialer.SystemResolver{}
 
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 

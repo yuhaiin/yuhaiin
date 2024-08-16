@@ -6,8 +6,10 @@ import (
 	"io"
 	"net"
 	"time"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -88,11 +90,13 @@ func (h *Tun2socket) handleTCP(conn net.Conn) {
 }
 
 func (h *Tun2socket) handleUDP(tuple Tuple, buf []byte) {
+	src := tuple.SourceAddr.Value()
+	dst := tuple.DestinationAddr.Value()
 	h.handler.HandlePacket(&netapi.Packet{
 		Src: netapi.ParseIPAddrPort("udp",
-			net.IP(tuple.SourceAddr.AsSlice()), tuple.SourcePort),
+			net.IP(src.AsSlice()), tuple.SourcePort),
 		Dst: netapi.ParseIPAddrPort("udp",
-			net.IP(tuple.DestinationAddr.AsSlice()), tuple.DestinationPort),
+			net.IP(dst.AsSlice()), tuple.DestinationPort),
 		Payload:   pool.Clone(buf),
 		WriteBack: &WriteBack{h, tuple},
 	})
@@ -109,17 +113,17 @@ func (h *WriteBack) toTuple(addr net.Addr) (Tuple, error) {
 		return Tuple{}, err
 	}
 
-	daddr, err := netapi.ResolverIP(context.TODO(), address)
+	daddr, err := dialer.ResolverIP(context.TODO(), address)
 	if err != nil {
 		return Tuple{}, err
 	}
 
-	if h.tuple.SourceAddr.Len() == 16 {
+	if h.tuple.SourceAddr.Value().Len() == 16 {
 		daddr = daddr.To16()
 	}
 
 	return Tuple{
-		DestinationAddr: tcpip.AddrFromSlice(daddr),
+		DestinationAddr: unique.Make(tcpip.AddrFromSlice(daddr)),
 		DestinationPort: uint16(address.Port()),
 		SourceAddr:      h.tuple.SourceAddr,
 		SourcePort:      h.tuple.SourcePort,

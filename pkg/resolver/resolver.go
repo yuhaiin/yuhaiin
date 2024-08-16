@@ -8,6 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -31,14 +32,14 @@ type Resolver struct {
 	ipv6            bool
 }
 
-func NewResolver(dialer netapi.Proxy) *Resolver {
-	netapi.InternetResolver, _ = dns.NewDoU(dns.Config{
+func NewResolver(dd netapi.Proxy) *Resolver {
+	dialer.InternetResolver, _ = dns.New(dns.Config{
 		Type:   pd.Type_udp,
 		Host:   "8.8.8.8:53",
 		Name:   "internet",
 		Dialer: direct.Default,
 	})
-	return &Resolver{dialer: dialer}
+	return &Resolver{dialer: dd}
 }
 
 var errorResolver = netapi.ErrorResolver(func(domain string) error {
@@ -68,14 +69,13 @@ func (r *Resolver) Get(str string) netapi.Resolver {
 		return z.Resolver
 	}
 
-	return netapi.Bootstrap
+	return dialer.Bootstrap
 }
 
 func (r *Resolver) Close() error {
-	r.store.Range(func(k string, v *Entry) bool {
+	for _, v := range r.store.Range {
 		v.Resolver.Close()
-		return true
-	})
+	}
 
 	r.store = syncmap.SyncMap[string, *Entry]{}
 
@@ -95,21 +95,21 @@ func (r *Resolver) Update(c *pc.Setting) {
 	r.ipv6 = c.GetIpv6()
 
 	if !proto.Equal(r.bootstrapConfig, c.Dns.Bootstrap) {
-		dialer := &dialer{
+		dd := &dnsDialer{
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
 				store := netapi.GetContext(ctx)
 				store.ForceMode = bypass.Mode_direct
 				store.Component = "Resolver BOOTSTRAP"
-				store.Resolver.ResolverSelf = netapi.InternetResolver
+				store.Resolver.ResolverSelf = dialer.InternetResolver
 			},
 		}
-		z, err := newDNS("BOOTSTRAP", c.Dns.Bootstrap, dialer, r)
+		z, err := newDNS("BOOTSTRAP", c.Dns.Bootstrap, dd, r)
 		if err != nil {
 			log.Error("get bootstrap dns failed", "err", err)
 		} else {
-			old := netapi.Bootstrap
-			netapi.Bootstrap = z
+			old := dialer.Bootstrap
+			dialer.Bootstrap = z
 			old.Close()
 		}
 	}
@@ -128,13 +128,13 @@ func (r *Resolver) Update(c *pc.Setting) {
 
 		r.store.Delete(k)
 
-		dialer := &dialer{
+		dialer := &dnsDialer{
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
 				store := netapi.GetContext(ctx)
 				store.Component = "Resolver " + k
 				// force to use bootstrap dns, otherwise will dns query cycle
-				store.Resolver.ResolverSelf = netapi.Bootstrap
+				store.Resolver.ResolverSelf = dialer.Bootstrap
 			},
 		}
 
@@ -149,7 +149,7 @@ func (r *Resolver) Update(c *pc.Setting) {
 		}
 	}
 
-	r.store.Range(func(key string, value *Entry) bool {
+	for key, value := range r.store.Range {
 		_, ok := c.Dns.Resolver[key]
 		if !ok {
 			if err := value.Resolver.Close(); err != nil {
@@ -157,8 +157,7 @@ func (r *Resolver) Update(c *pc.Setting) {
 			}
 			r.store.Delete(key)
 		}
-		return true
-	})
+	}
 }
 
 type dnsWrap struct {
@@ -233,18 +232,18 @@ func newDNS(name string, dc *pd.Dns, dialer netapi.Proxy, resovler *Resolver) (n
 	return wrap(name, r, resovler), nil
 }
 
-type dialer struct {
+type dnsDialer struct {
 	netapi.Proxy
 	addr func(ctx context.Context, addr netapi.Address)
 }
 
-func (d *dialer) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+func (d *dnsDialer) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	ctx = netapi.WithContext(ctx)
 	d.addr(ctx, addr)
 	return d.Proxy.Conn(ctx, addr)
 }
 
-func (d *dialer) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+func (d *dnsDialer) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	ctx = netapi.WithContext(ctx)
 	d.addr(ctx, addr)
 	return d.Proxy.PacketConn(ctx, addr)

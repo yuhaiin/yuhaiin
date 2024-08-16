@@ -242,8 +242,7 @@ func TestSimple(t *testing.T) {
 
 	time.Sleep(time.Second * 10)
 
-	idBytesMap.Range(func(key uint64, value []byte) bool {
-		t.Log(key, len(value))
-		return true
-	})
+	for k, v := range idBytesMap.Range {
+		t.Log(k, len(v))
+	}
 }

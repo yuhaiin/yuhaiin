@@ -7,8 +7,10 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	sync "sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -48,59 +50,69 @@ func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
 		Ip: &IpResponse{},
 	}
 
-	for _, x := range []bool{false, true} {
-		hc := &http.Client{
-			Timeout: time.Second * 6,
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					add, err := netapi.ParseAddress(network, addr)
-					if err != nil {
-						return nil, err
-					}
+	wg := sync.WaitGroup{}
 
-					ip, err := netapi.Bootstrap.LookupIP(ctx, add.Hostname(), func(li *netapi.LookupIPOption) {
-						if x {
-							li.Mode = netapi.ResolverModePreferIPv6
-						} else {
-							li.Mode = netapi.ResolverModePreferIPv4
+	for _, isIPv6 := range []bool{false, true} {
+		wg.Add(1)
+
+		go func(isIPv6 bool) {
+			defer wg.Done()
+			hc := &http.Client{
+				Timeout: time.Second * 6,
+				Transport: &http.Transport{
+					DisableKeepAlives: true,
+					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						add, err := netapi.ParseAddress(network, addr)
+						if err != nil {
+							return nil, err
 						}
-					})
-					if err != nil {
-						return nil, err
-					}
 
-					return p.Conn(ctx, netapi.ParseIPAddrPort("tcp", ip[rand.IntN(len(ip))], add.Port()))
+						ip, err := dialer.Bootstrap.LookupIP(ctx, add.Hostname(), func(li *netapi.LookupIPOption) {
+							if isIPv6 {
+								li.Mode = netapi.ResolverModePreferIPv6
+							} else {
+								li.Mode = netapi.ResolverModePreferIPv4
+							}
+						})
+						if err != nil {
+							return nil, err
+						}
+
+						return p.Conn(ctx, netapi.ParseIPAddrPort("tcp", ip[rand.IntN(len(ip))], add.Port()))
+					},
 				},
-			},
-		}
+			}
 
-		req, err := http.NewRequest("GET", l.Ip.GetUrl(), nil)
-		if err != nil {
-			slog.Error("new request error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
-			continue
-		}
+			req, err := http.NewRequest("GET", l.Ip.GetUrl(), nil)
+			if err != nil {
+				slog.Error("new request error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
+				return
+			}
 
-		req.Header.Set("User-Agent", l.Ip.UserAgent)
+			req.Header.Set("User-Agent", l.Ip.UserAgent)
 
-		resp, err := hc.Do(req)
-		if err != nil {
-			slog.Error("get url error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
-			continue
-		}
+			resp, err := hc.Do(req)
+			if err != nil {
+				slog.Error("get url error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
+				return
+			}
 
-		data, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			slog.Error("read body error", slog.Any("err", err))
-			continue
-		}
+			data, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				slog.Error("read body error", slog.Any("err", err))
+				return
+			}
 
-		if !x {
-			reply.Ip.Ipv4 = string(data)
-		} else {
-			reply.Ip.Ipv6 = string(data)
-		}
+			if !isIPv6 {
+				reply.Ip.Ipv4 = string(data)
+			} else {
+				reply.Ip.Ipv6 = string(data)
+			}
+		}(isIPv6)
 	}
+
+	wg.Wait()
 
 	if reply.Ip.Ipv4 == "" && reply.Ip.Ipv6 == "" {
 		return nil, io.EOF

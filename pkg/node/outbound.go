@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
@@ -83,6 +84,7 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	case bypass.Mode_direct.String():
 		return direct.Default, nil
 	case bypass.Mode_block.String():
+		metrics.Counter.AddBlockConnection(str)
 		return reject.Default, nil
 	}
 

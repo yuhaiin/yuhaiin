@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -182,7 +183,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	if s.resolveDomain && host.IsFqdn() && mode == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
-		ip, err := netapi.ResolverIP(ctx, host)
+		ip, err := dialer.ResolverIP(ctx, host)
 		if err == nil {
 			store.DomainString = host.String()
 			host = netapi.ParseIPAddrPort(host.Network(), ip, host.Port())

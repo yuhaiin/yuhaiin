@@ -1,4 +1,4 @@
-package netapi
+package dialer
 
 import (
 	"context"
@@ -6,11 +6,12 @@ import (
 	"net"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestAddr(t *testing.T) {
-	addr, err := ParseAddress("udp", "[ff::ff%eth0]:53")
+	addr, err := netapi.ParseAddress("udp", "[ff::ff%eth0]:53")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +28,7 @@ func TestAddr(t *testing.T) {
 	z, _ := net.ResolveUDPAddr("udp", "[ff::ff%eth0]:53")
 	t.Log(z.String(), z.IP, z.Port, z.Zone)
 
-	addr, err = ParseAddress("tcp", "www.google.com:443")
+	addr, err = netapi.ParseAddress("tcp", "www.google.com:443")
 	assert.NoError(t, err)
 	t.Log(ResolveUDPAddr(context.TODO(), addr))
 }
@@ -36,11 +37,18 @@ func TestError(t *testing.T) {
 	x := &net.OpError{
 		Op:   "block",
 		Net:  "tcp",
-		Addr: EmptyAddr,
+		Addr: netapi.EmptyAddr,
 		Err:  net.UnknownNetworkError("unknown network"),
 	}
 
 	y := fmt.Errorf("x: %w", x)
 
-	assert.Equal(t, IsBlockError(y), true)
+	assert.Equal(t, netapi.IsBlockError(y), true)
+}
+
+func TestDial8305(t *testing.T) {
+	conn, err := DialHappyEyeballsv2(context.TODO(), netapi.ParseDomainPort("tcp", "www.google.com", 443))
+	assert.NoError(t, err)
+	defer conn.Close()
+	t.Log(conn.LocalAddr(), conn.RemoteAddr())
 }

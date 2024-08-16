@@ -45,9 +45,9 @@ func (s *Route) updateCustomRule(c *pc.Setting) {
 
 			switch scheme {
 			case "file":
-				slice.RangeFileByLine(remain, func(x string) {
+				for x := range slice.RangeFileByLine(remain) {
 					trie.trie.Insert(x, mark)
-				})
+				}
 
 			case "process":
 				trie.processTrie[remain] = mark
@@ -91,7 +91,7 @@ func (s *Route) updateRulefile(c *pc.Setting) {
 	trie := newRouteTires()
 	s.modifiedTime = modifiedTime
 
-	rangeRule(c.Bypass.BypassFile, func(s1 string, s2 bypass.ModeEnum) {
+	for s1, s2 := range rangeRule(c.Bypass.BypassFile) {
 		if strings.HasPrefix(s1, "process:") {
 			trie.processTrie[s1[8:]] = s2.Mode()
 		} else {
@@ -101,7 +101,7 @@ func (s *Route) updateRulefile(c *pc.Setting) {
 		if s2.GetTag() != "" {
 			trie.tags = append(trie.tags, s2.GetTag())
 		}
-	})
+	}
 
 	s.trie = trie
 }

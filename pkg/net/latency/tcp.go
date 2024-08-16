@@ -22,7 +22,12 @@ func HTTP(p netapi.Proxy, target string) (time.Duration, error) {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 
-			return p.Conn(ctx, ad)
+			c, err := p.Conn(ctx, ad)
+			if err != nil {
+				return nil, err
+			}
+
+			return c, nil
 		},
 	}
 	defer tr.CloseIdleConnections()

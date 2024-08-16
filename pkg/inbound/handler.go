@@ -8,6 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
@@ -103,7 +104,7 @@ func (s *handler) Packet(xctx context.Context, pack *netapi.Packet) {
 	if !ok {
 		src, err := netapi.ParseSysAddr(pack.Src)
 		if err == nil && !src.IsFqdn() {
-			srcAddr, _ := netapi.ResolverAddrPort(ctx, src)
+			srcAddr, _ := dialer.ResolverAddrPort(ctx, src)
 			if srcAddr.Addr().Unmap().Is4() {
 				ctx.Resolver.Mode = netapi.ResolverModePreferIPv4
 			}

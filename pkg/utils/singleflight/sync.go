@@ -1,6 +1,7 @@
 package singleflight
 
 import (
+	"context"
 	"runtime"
 	"sync/atomic"
 
@@ -34,14 +35,18 @@ type GroupSync[K comparable, V any] struct {
 // time. If a duplicate comes in, the duplicate caller waits for the
 // original to complete and receives the same results.
 // The return value shared indicates whether v was given to multiple callers.
-func (g *GroupSync[K, V]) Do(key K, fn func() (V, error)) (v V, err error, shared bool) {
+func (g *GroupSync[K, V]) Do(ctx context.Context, key K, fn func(context.Context) (V, error)) (v V, err error, shared bool) {
 	c, ok := g.m.Load(key)
 	if !ok {
 		c, ok = g.m.LoadOrStore(key, &callSync[V]{done: make(chan struct{})})
 	}
 	if ok {
 		c.dups.Add(1)
-		<-c.done
+		select {
+		case <-ctx.Done():
+			return v, ctx.Err(), false
+		case <-c.done:
+		}
 
 		if e, ok := c.err.(*panicError); ok {
 			panic(e)
@@ -51,12 +56,12 @@ func (g *GroupSync[K, V]) Do(key K, fn func() (V, error)) (v V, err error, share
 		return c.val, c.err, true
 	}
 
-	g.doCallSync(c, key, fn)
+	g.doCallSync(ctx, c, key, fn)
 	return c.val, c.err, c.dups.Load() > 0
 }
 
 // doCall handles the single call for a key.
-func (g *GroupSync[K, V]) doCallSync(c *callSync[V], key K, fn func() (V, error)) {
+func (g *GroupSync[K, V]) doCallSync(ctx context.Context, c *callSync[V], key K, fn func(context.Context) (V, error)) {
 	normalReturn := false
 	recovered := false
 
@@ -92,7 +97,7 @@ func (g *GroupSync[K, V]) doCallSync(c *callSync[V], key K, fn func() (V, error)
 			}
 		}()
 
-		c.val, c.err = fn()
+		c.val, c.err = fn(ctx)
 		normalReturn = true
 	}()
 

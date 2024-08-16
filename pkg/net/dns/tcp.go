@@ -20,7 +20,7 @@ func init() {
 	Register(pdns.Type_tcp, NewTCP)
 }
 
-func NewTCP(config Config) (netapi.Resolver, error) {
+func NewTCP(config Config) (Dialer, error) {
 	return newTCP(config, "53", nil)
 }
 
@@ -57,7 +57,7 @@ func ParseAddr(netType string, host, defaultPort string) (netapi.Address, error)
 	return addr, nil
 }
 
-func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *tls.Config, b *request) ([]byte, error) {
+func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *tls.Config, b *Request) (Response, error) {
 	conn, err := config.Dialer.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial failed: %w", err)
@@ -80,12 +80,12 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 	}
 
 	// dns over tcp, prefix two bytes is request data's length
-	err = binary.Write(conn, binary.BigEndian, uint16(len(b.Question)))
+	err = binary.Write(conn, binary.BigEndian, uint16(len(b.QuestionBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("write data length failed: %w", err)
 	}
 
-	_, err = conn.Write(b.Question)
+	_, err = conn.Write(b.QuestionBytes)
 	if err != nil {
 		return nil, fmt.Errorf("write data failed: %w", err)
 	}
@@ -101,17 +101,16 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 	if err != nil {
 		return nil, fmt.Errorf("read data from server failed: %w", err)
 	}
-	return all, nil
+	return BytesResponse(all), nil
 }
 
-func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (*client, error) {
+func newTCP(config Config, defaultPort string, tlsConfig *tls.Config) (Dialer, error) {
 	addr, err := ParseAddr("tcp", config.Host, defaultPort)
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
 	}
 
-	return NewClient(config,
-		func(ctx context.Context, b *request) ([]byte, error) {
-			return tcpDo(ctx, addr, config, tlsConfig, b)
-		}), nil
+	return DialerFunc(func(ctx context.Context, b *Request) (Response, error) {
+		return tcpDo(ctx, addr, config, tlsConfig, b)
+	}), nil
 }

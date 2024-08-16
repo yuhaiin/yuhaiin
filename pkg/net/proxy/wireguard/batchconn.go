@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/tailscale/wireguard-go/conn"
 	"golang.org/x/net/ipv4"
@@ -99,7 +100,7 @@ func (b *Batch) ReadBatch(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n in
 				return 0, err
 			}
 
-			addrPort, err = netapi.ResolverAddrPort(context.Background(), naddr)
+			addrPort, err = dialer.ResolverAddrPort(context.Background(), naddr)
 			if err != nil {
 				return 0, err
 			}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -29,13 +30,12 @@ type doq struct {
 	host       netapi.Address
 	dialer     netapi.PacketProxy
 
-	*client
 	servername string
 
 	mu sync.RWMutex
 }
 
-func NewDoQ(config Config) (netapi.Resolver, error) {
+func NewDoQ(config Config) (Dialer, error) {
 	addr, err := ParseAddr("udp", config.Host, "784")
 	if err != nil {
 		return nil, fmt.Errorf("parse addr failed: %w", err)
@@ -51,63 +51,64 @@ func NewDoQ(config Config) (netapi.Resolver, error) {
 		servername: config.Servername,
 	}
 
-	d.client = NewClient(config, func(ctx context.Context, b *request) ([]byte, error) {
-		session, err := d.initSession(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("init session failed: %w", err)
-		}
-
-		d.mu.RLock()
-		conn, err := session.OpenStream()
-		if err != nil {
-			return nil, fmt.Errorf("open stream failed: %w", err)
-		}
-		defer conn.Close()
-		defer d.mu.RUnlock()
-
-		deadline, ok := ctx.Deadline()
-		if !ok {
-			deadline = time.Now().Add(time.Second * 5)
-		}
-
-		err = conn.SetDeadline(deadline)
-		if err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("set deadline failed: %w", err)
-		}
-
-		buf := pool.GetBytes(2 + len(b.Question))
-		defer pool.PutBytes(buf)
-
-		binary.BigEndian.PutUint16(buf, uint16(len(b.Question)))
-		copy(buf[2:], b.Question)
-
-		if _, err = conn.Write(buf); err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("write dns req failed: %w", err)
-		}
-
-		// close to make server io.EOF
-		if err = conn.Close(); err != nil {
-			return nil, fmt.Errorf("close stream failed: %w", err)
-		}
-
-		var length uint16
-		err = binary.Read(conn, binary.BigEndian, &length)
-		if err != nil {
-			return nil, fmt.Errorf("read dns response length failed: %w", err)
-		}
-
-		data := pool.GetBytes(int(length))
-
-		_, err = io.ReadFull(conn, data)
-		if err != nil {
-			return nil, fmt.Errorf("read dns server response failed: %w", err)
-		}
-
-		return data, nil
-	})
 	return d, nil
+}
+
+func (d *doq) Do(ctx context.Context, b *Request) (Response, error) {
+	session, err := d.initSession(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("init session failed: %w", err)
+	}
+
+	conn, err := session.OpenStreamSync(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open stream failed: %w", err)
+	}
+	defer conn.Close()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(time.Second * 5)
+	}
+
+	err = conn.SetWriteDeadline(deadline)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("set deadline failed: %w", err)
+	}
+
+	buf := pool.GetBytes(2 + len(b.QuestionBytes))
+	defer pool.PutBytes(buf)
+
+	binary.BigEndian.PutUint16(buf, uint16(len(b.QuestionBytes)))
+	copy(buf[2:], b.QuestionBytes)
+
+	if _, err = conn.Write(buf); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("write dns req failed: %w", err)
+	}
+
+	// close to make server io.EOF
+	if err = conn.Close(); err != nil {
+		return nil, fmt.Errorf("close stream failed: %w", err)
+	}
+
+	_ = conn.SetReadDeadline(deadline)
+
+	var length uint16
+	err = binary.Read(conn, binary.BigEndian, &length)
+	if err != nil {
+		return nil, fmt.Errorf("read dns response length failed: %w", err)
+	}
+
+	data := pool.GetBytes(int(length))
+
+	_, err = io.ReadFull(conn, data)
+	if err != nil {
+		return nil, fmt.Errorf("read dns server response failed: %w", err)
+	}
+
+	return BytesResponse(data), nil
 }
 
 func (d *doq) Close() error {
@@ -129,13 +130,13 @@ func (d *doq) Close() error {
 	return err
 }
 
-type DOQWrapConn struct {
-	net.PacketConn
+type DOQBufferWrapConn struct {
+	direct.BufferPacketConn
 	localAddrSalt string
 }
 
-func (d *DOQWrapConn) LocalAddr() net.Addr {
-	return &doqWrapLocalAddr{d.PacketConn.LocalAddr(), d.localAddrSalt}
+func (d *DOQBufferWrapConn) LocalAddr() net.Addr {
+	return &doqWrapLocalAddr{d.BufferPacketConn.LocalAddr(), d.localAddrSalt}
 }
 
 // doqWrapLocalAddr make doq packetConn local addr is different, otherwise the quic-go will panic
@@ -191,12 +192,16 @@ func (d *doq) initSession(ctx context.Context) (quic.Connection, error) {
 
 	session, err := quic.Dial(
 		ctx,
-		&DOQWrapConn{d.conn, fmt.Sprint(doqIgGenerate.Generate())},
+		&DOQBufferWrapConn{
+			direct.NewBufferPacketConn(d.conn),
+			fmt.Sprint(doqIgGenerate.Generate())},
 		d.host,
 		&tls.Config{
 			NextProtos: []string{"http/1.1", "doq-i02", "doq-i01", "doq-i00", "doq", "dq", http2.NextProtoTLS},
 			ServerName: d.servername,
-		}, &quic.Config{})
+		},
+		&quic.Config{},
+	)
 	if err != nil {
 		_ = d.conn.Close()
 		return nil, fmt.Errorf("quic dial failed: %w", err)

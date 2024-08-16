@@ -80,7 +80,9 @@ func toRoutes(r *listener.Route) []netip.Prefix {
 		switch {
 		case strings.HasPrefix(v, "file:"):
 			if remain := strings.TrimPrefix(v, "file:"); remain != "" {
-				slice.RangeFileByLine(remain, func(s string) { add(s) })
+				for v := range slice.RangeFileByLine(remain) {
+					add(v)
+				}
 			}
 		default:
 			add(v)

@@ -16,7 +16,7 @@ var (
 
 	ProcessDumper = or(true, false)
 
-	Timeout = time.Second * 20
+	Timeout = time.Second * 40
 
 	UDPBatchSize = 8
 )

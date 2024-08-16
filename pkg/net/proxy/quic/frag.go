@@ -136,12 +136,11 @@ func NewConnectionPacketConn(conn quic.Connection) *ConnectionPacketConn {
 			return
 		default:
 			now := time.Now()
-			frag.mergeMap.Range(func(id uint64, v *MergeFrag) bool {
+			for id, v := range frag.mergeMap.Range {
 				if now.Sub(v.time) > 30*time.Second {
 					frag.mergeMap.Delete(id)
 				}
-				return true
-			})
+			}
 			timer.Reset(time.Minute)
 		}
 	})

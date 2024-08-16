@@ -183,7 +183,7 @@ func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
 
 	go func() {
 		defer cancel()
-		table.runWriteBack(ch)
+		table.runWriteBackBump(ch)
 	}()
 
 	data := pool.GetBytes(MaxSegmentSize)
@@ -214,10 +214,8 @@ func (u *Table) runWriteBack(key string, p net.PacketConn, table *SourceTable) {
 }
 
 func (u *Table) Close() error {
-	u.cache.Range(func(_ string, value *SourceTable) bool {
-		value.dstPacketConn.Close()
-		return true
-	})
-
+	for _, v := range u.cache.Range {
+		v.dstPacketConn.Close()
+	}
 	return nil
 }

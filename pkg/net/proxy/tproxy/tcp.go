@@ -45,7 +45,7 @@ func (t *Tproxy) handleTCP(c net.Conn) error {
 		return fmt.Errorf("parse local addr failed: %w", err)
 	}
 
-	if ip, err := netapi.ResolverIP(context.TODO(), target); err == nil && ip.Equal(t.lisAddr.IP) && int(target.Port()) == t.lisAddr.Port {
+	if ip, err := dialer.ResolverIP(context.TODO(), target); err == nil && ip.Equal(t.lisAddr.IP) && int(target.Port()) == t.lisAddr.Port {
 		return fmt.Errorf("local addr and remote addr are same")
 	}
 

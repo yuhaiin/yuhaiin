@@ -4,12 +4,13 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type lruEntry[K, V any] struct {
 	key    K
 	data   V
-	expire time.Time
+	expire int64
 }
 
 func (e *lruEntry[K, V]) Clone() *lruEntry[K, V] {
@@ -39,7 +40,7 @@ func WithOnRemove[K comparable, V any](f func(K, V)) func(*lru[K, V]) {
 	}
 }
 
-func WithExpireTimeout[K comparable, V any](t time.Duration) func(*lru[K, V]) {
+func WithDefaultTimeout[K comparable, V any](t time.Duration) func(*lru[K, V]) {
 	return func(l *lru[K, V]) {
 		l.timeout = t
 	}
@@ -67,9 +68,9 @@ func newLru[K comparable, V any](options ...Option[K, V]) *lru[K, V] {
 
 type AddOption[K, V any] func(*lruEntry[K, V])
 
-func WithExpireTime[K, V any](t time.Time) AddOption[K, V] {
+func WithTimeout[K, V any](t time.Duration) AddOption[K, V] {
 	return func(le *lruEntry[K, V]) {
-		le.expire = t
+		le.expire = system.CheapNowNano() + t.Nanoseconds()
 	}
 }
 
@@ -83,8 +84,8 @@ func (l *lru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 		z(entry)
 	}
 
-	if l.timeout != 0 && entry.expire.IsZero() {
-		entry.expire = time.Now().Add(l.timeout)
+	if l.timeout != 0 && entry.expire == 0 {
+		entry.expire = system.CheapNowNano() + l.timeout.Nanoseconds()
 	}
 
 	if elem, ok := l.mapping[key]; ok {
@@ -108,43 +109,52 @@ func (l *lru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 	l.mapping[key] = elem
 }
 
-func (l *lru[K, V]) LoadExpireTime(key K) (v V, expireTime time.Time, ok bool) {
-	return l.loadExpireTime(key, false)
+func (l *lru[K, V]) Load(key K) (v V, ok bool) {
+	v, _, ok = l.load(key, false, false)
+	return
 }
 
-func (l *lru[K, V]) loadExpireTime(key K, refresh bool) (v V, expireTime time.Time, ok bool) {
+func (l *lru[K, V]) LoadOptimistic(key K) (v V, expired, ok bool) {
+	return l.load(key, false, true)
+}
+
+func (l *lru[K, V]) load(key K, refresh, optimistic bool) (v V, expired, ok bool) {
 	node, ok := l.mapping[key]
 	if !ok {
 		return
 	}
 
-	if !node.Value().expire.IsZero() && time.Now().After(node.Value().expire) {
-		delete(l.mapping, node.Value().key)
-		if l.onRemove != nil {
-			l.onRemove(node.Value().key, node.Value().data)
-		}
+	if node.Value().expire != 0 && system.CheapNowNano()-node.Value().expire > 0 {
+		expired = true
 
-		l.list.Remove(node)
-		return v, expireTime, false
+		if !optimistic {
+			delete(l.mapping, node.Value().key)
+			if l.onRemove != nil {
+				l.onRemove(node.Value().key, node.Value().data)
+			}
+
+			l.list.Remove(node)
+			return v, true, false
+		}
 	}
 
 	if refresh && l.timeout != 0 {
-		node.Value().expire = time.Now().Add(l.timeout)
+		node.Value().expire = system.CheapNowNano() + l.timeout.Nanoseconds()
 	}
 
 	l.list.MoveToFront(node)
-	return node.Value().data, node.Value().expire, true
+	return node.Value().data, expired, true
 }
 
 func (l *lru[K, V]) LoadRefreshExpire(key K) (v V, ok bool) {
-	v, _, ok = l.loadExpireTime(key, true)
+	v, _, ok = l.load(key, false, false)
 	return
 }
 
 func (l *lru[K, V]) ClearExpired() {
-	now := time.Now()
+	now := system.CheapNowNano()
 	for k, v := range l.mapping {
-		if !v.Value().expire.IsZero() && now.After(v.Value().expire) {
+		if v.Value().expire != 0 && now-v.Value().expire > 0 {
 			delete(l.mapping, k)
 			if l.onRemove != nil {
 				l.onRemove(k, v.Value().data)

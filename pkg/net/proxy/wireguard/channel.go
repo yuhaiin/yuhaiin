@@ -26,8 +26,8 @@ func NewChannelDevice(ctx context.Context, mtu int) *ChannelDevice {
 	ctx, cancel := context.WithCancel(ctx)
 	ct := &ChannelDevice{
 		mtu:      mtu,
-		inbound:  make(chan []byte, 100),
-		outbound: make(chan []byte, 100),
+		inbound:  make(chan []byte, 250),
+		outbound: make(chan []byte, 250),
 		ctx:      ctx,
 		cancel:   cancel,
 		events:   make(chan wun.Event, 1),
