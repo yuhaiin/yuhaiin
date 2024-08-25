@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
@@ -12,6 +14,7 @@ import (
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -38,11 +41,13 @@ func (r *respBuf) setMsg(msg dnsmessage.Message) {
 }
 
 type udp struct {
-	packetConn net.PacketConn
-	addr       netapi.Address
-	sender     syncmap.SyncMap[reqKey, *respBuf]
-	config     Config
-	mu         sync.RWMutex
+	packetConn    net.PacketConn
+	addr          netapi.Address
+	sender        syncmap.SyncMap[reqKey, *respBuf]
+	config        Config
+	mu            sync.RWMutex
+	lastQueryTime atomic.Int64
+	timer         *time.Timer
 }
 
 func (u *udp) Close() error {
@@ -50,6 +55,9 @@ func (u *udp) Close() error {
 	if pc != nil {
 		pc.Close()
 		u.packetConn = nil
+	}
+	if u.timer != nil {
+		u.timer.Stop()
 	}
 	return nil
 }
@@ -94,6 +102,7 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 	pc := u.packetConn
 	u.mu.RUnlock()
 	if pc != nil {
+		u.lastQueryTime.Store(system.CheapNowNano())
 		return pc, nil
 	}
 
@@ -117,6 +126,20 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 	u.packetConn = conn
 
 	go u.handleResponse(conn)
+
+	u.timer = time.AfterFunc(time.Minute*10, func() {
+		if time.Duration(system.CheapNowNano()-u.lastQueryTime.Load()) < time.Minute*10 {
+			u.timer.Reset(time.Minute * 10)
+		} else {
+			u.mu.Lock()
+			packet := u.packetConn
+			u.packetConn = nil
+			u.mu.Unlock()
+			packet.Close()
+		}
+	})
+	u.lastQueryTime.Store(system.CheapNowNano())
+
 	return conn, nil
 }
 

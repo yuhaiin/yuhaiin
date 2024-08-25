@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"iter"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -124,7 +125,7 @@ type Diff struct {
 	Old entry
 }
 
-func (l *listener) diff(newInbounds map[string]*pl.Inbound) func(f func(Diff) bool) {
+func (l *listener) diff(newInbounds map[string]*pl.Inbound) iter.Seq[Diff] {
 	return func(f func(Diff) bool) {
 		for k, v1 := range l.store.Range {
 			z, ok := newInbounds[k]

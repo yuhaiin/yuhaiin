@@ -22,9 +22,12 @@ type TotalCache struct {
 	cache cache.Cache
 	ctx   context.Context
 
-	// trigger vaule is isDownload
 	// trigger to sync to disk
-	trigger  chan bool
+	triggerDownload  chan struct{}
+	triggerdDownload atomic.Bool
+	triggerUpload    chan struct{}
+	triggerdUpload   atomic.Bool
+
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 	download atomic.Uint64
@@ -37,10 +40,11 @@ type TotalCache struct {
 func NewTotalCache(cache cache.Cache) *TotalCache {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &TotalCache{
-		cache:   cache,
-		ctx:     ctx,
-		cancel:  cancel,
-		trigger: make(chan bool, 100),
+		cache:           cache,
+		ctx:             ctx,
+		cancel:          cancel,
+		triggerDownload: make(chan struct{}),
+		triggerUpload:   make(chan struct{}),
 	}
 
 	if download := cache.Get(DownloadKey); len(download) >= 8 {
@@ -60,16 +64,17 @@ func NewTotalCache(cache cache.Cache) *TotalCache {
 			select {
 			case <-c.ctx.Done():
 				return
-			case download := <-c.trigger:
-				if download {
-					notSyncDownload := c.notSyncDownload.Load()
-					c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(notSyncDownload))))
-					c.notSyncDownload.Add(-notSyncDownload)
-				} else {
-					notSyncUpload := c.notSyncUpload.Load()
-					c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(notSyncUpload))))
-					c.notSyncUpload.Add(-notSyncUpload)
-				}
+			case <-c.triggerDownload:
+				notSyncDownload := c.notSyncDownload.Load()
+				c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(notSyncDownload))))
+				c.notSyncDownload.Add(-notSyncDownload)
+				c.triggerdDownload.Store(false)
+
+			case <-c.triggerUpload:
+				notSyncUpload := c.notSyncUpload.Load()
+				c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(notSyncUpload))))
+				c.notSyncUpload.Add(-notSyncUpload)
+				c.triggerdUpload.Store(false)
 			}
 		}
 	}()
@@ -77,15 +82,21 @@ func NewTotalCache(cache cache.Cache) *TotalCache {
 	return c
 }
 
-func (c *TotalCache) AddDownload(d uint64) {
-	z := c.notSyncDownload.Add(int64(d))
-	metrics.Counter.AddDownload(int(d))
-	if z >= SyncThreshold {
+func (c *TotalCache) trigger(z int64, ch chan struct{}, atomic *atomic.Bool) {
+	if z >= SyncThreshold && !atomic.Load() {
 		select {
-		case c.trigger <- true:
+		case ch <- struct{}{}:
+			atomic.Store(true)
 		case <-c.ctx.Done():
+		default:
 		}
 	}
+}
+
+func (c *TotalCache) AddDownload(d uint64) {
+	metrics.Counter.AddDownload(int(d))
+	z := c.notSyncDownload.Add(int64(d))
+	c.trigger(z, c.triggerDownload, &c.triggerdDownload)
 }
 
 func (c *TotalCache) LoadDownload() uint64 {
@@ -95,12 +106,7 @@ func (c *TotalCache) LoadDownload() uint64 {
 func (c *TotalCache) AddUpload(d uint64) {
 	metrics.Counter.AddUpload(int(d))
 	z := c.notSyncUpload.Add(int64(d))
-	if z >= SyncThreshold {
-		select {
-		case c.trigger <- false:
-		case <-c.ctx.Done():
-		}
-	}
+	c.trigger(z, c.triggerUpload, &c.triggerdUpload)
 }
 
 func (c *TotalCache) LoadUpload() uint64 { return c.upload.Load() + uint64(c.notSyncUpload.Load()) }

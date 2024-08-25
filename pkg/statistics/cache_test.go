@@ -5,10 +5,16 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
 
-func TestAtomicCache(t *testing.T) {
-	download := atomic.Uint64{}
+func TestCache(t *testing.T) {
+	count := atomic.Uint64{}
+	cc := NewTotalCache(&cache.MockCache{
+		OnPut: func(k, v []byte) { count.Add(1) },
+	})
+	defer cc.Close()
 	wg := sync.WaitGroup{}
 
 	start := time.Now()
@@ -19,7 +25,7 @@ func TestAtomicCache(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := range 10000000 {
-				download.Add(uint64(i))
+				cc.AddDownload(uint64(i))
 			}
 		}()
 	}
@@ -27,34 +33,17 @@ func TestAtomicCache(t *testing.T) {
 	wg.Wait()
 
 	t.Log(time.Since(start))
+	t.Log(cc.LoadDownload(), count.Load(), cc.LoadDownload()/uint64(SyncThreshold))
 }
 
-func TestChannelCache(t *testing.T) {
-	download := uint64(0)
-	ch := make(chan uint64, 100)
-	wg := sync.WaitGroup{}
+func BenchmarkCache(b *testing.B) {
+	count := atomic.Uint64{}
+	cc := NewTotalCache(&cache.MockCache{
+		OnPut: func(k, v []byte) { count.Add(1) },
+	})
+	defer cc.Close()
 
-	start := time.Now()
-
-	for range 10 {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-			for i := range 10000000 {
-				ch <- uint64(i)
-			}
-		}()
+	for i := range b.N {
+		cc.AddDownload(uint64(i))
 	}
-
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	for v := range ch {
-		download += v
-	}
-
-	t.Log(time.Since(start))
 }

@@ -3,11 +3,10 @@ package route
 import (
 	"os"
 	"slices"
-	"strings"
+	"unique"
 
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -31,51 +30,27 @@ func (s *Route) updateCustomRule(c *pc.Setting) {
 	for _, v := range c.Bypass.CustomRuleV3 {
 		mark := v.ToModeEnum()
 
-		if mark.GetTag() != "" {
-			trie.tags = append(trie.tags, mark.GetTag())
+		if mark.Value().GetTag() != "" {
+			trie.tags = append(trie.tags, mark.Value().GetTag())
 		}
 
 		for _, hostname := range v.Hostname {
-			hostname, _, _ := strings.Cut(hostname, "#")
+			hostname = TrimComment(hostname)
 			scheme, remain := getScheme(hostname)
 
 			if remain == "" {
 				continue
 			}
 
-			switch scheme {
-			case "file":
-				for x := range slice.RangeFileByLine(remain) {
-					trie.trie.Insert(x, mark)
-				}
-
-			case "process":
-				trie.processTrie[remain] = mark
-			default:
-				trie.trie.Insert(remain, mark)
-			}
+			trie.insert(scheme, remain, mark)
 		}
 	}
 
 	if myPath != "" {
-		trie.processTrie[myPath] = bypass.Mode_block
+		trie.processTrie[myPath] = unique.Make(bypass.Block)
 	}
 
 	s.customTrie = trie
-}
-
-func getScheme(h string) (string, string) {
-	i := strings.Index(h, ":")
-	if i == -1 {
-		return "", h
-	}
-
-	switch h[:i] {
-	case "file", "process":
-		return h[:i], h[i+1:]
-	default:
-		return "", h
-	}
 }
 
 func (s *Route) updateRulefile(c *pc.Setting) {
@@ -91,15 +66,11 @@ func (s *Route) updateRulefile(c *pc.Setting) {
 	trie := newRouteTires()
 	s.modifiedTime = modifiedTime
 
-	for s1, s2 := range rangeRule(c.Bypass.BypassFile) {
-		if strings.HasPrefix(s1, "process:") {
-			trie.processTrie[s1[8:]] = s2.Mode()
-		} else {
-			trie.trie.Insert(s1, s2)
-		}
+	for s := range rangeRule(c.Bypass.BypassFile) {
+		trie.insert(s.Scheme, s.Hostname, s.ModeEnum)
 
-		if s2.GetTag() != "" {
-			trie.tags = append(trie.tags, s2.GetTag())
+		if s.ModeEnum.Value().GetTag() != "" {
+			trie.tags = append(trie.tags, s.ModeEnum.Value().GetTag())
 		}
 	}
 

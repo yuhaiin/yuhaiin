@@ -67,7 +67,7 @@ func (a Addr) Address(network string) netapi.Address {
 
 	switch a[0] {
 	case IPv4, IPv6:
-		return netapi.ParseIPAddrPort(network, net.IP(a[1:len(a)-2]), port)
+		return netapi.ParseIPAddr(network, net.IP(a[1:len(a)-2]), port)
 	case Domain:
 		hostname := string(a[2 : len(a)-2])
 		return netapi.ParseDomainPort(network, hostname, port)
@@ -111,9 +111,9 @@ func DecodeAddr(network string, b []byte) (int, netapi.Address, error) {
 
 	switch b[0] {
 	case IPv4:
-		return 1 + 4 + 2, netapi.ParseIPAddrPort(network, net.IP(b[1:5]), binary.BigEndian.Uint16(b[5:7])), nil
+		return 1 + 4 + 2, netapi.ParseIPAddr(network, net.IP(b[1:5]), binary.BigEndian.Uint16(b[5:7])), nil
 	case IPv6:
-		return 1 + 16 + 2, netapi.ParseIPAddrPort(network, net.IP(b[1:17]), binary.BigEndian.Uint16(b[17:19])), nil
+		return 1 + 16 + 2, netapi.ParseIPAddr(network, net.IP(b[1:17]), binary.BigEndian.Uint16(b[17:19])), nil
 	case Domain:
 		if len(b) < 2+int(b[1])+2 {
 			return 0, nil, io.ErrUnexpectedEOF
@@ -145,7 +145,7 @@ func ReadAddr(network string, br *bufio.Reader) (int, netapi.Address, error) {
 		}
 
 		port := binary.BigEndian.Uint16(ip[ipLen:])
-		addr := netapi.ParseIPAddrPort(network, net.IP(ip[:ipLen]), port)
+		addr := netapi.ParseIPAddr(network, net.IP(ip[:ipLen]), port)
 
 		_, err = br.Discard(ipLen + 2)
 		if err != nil {

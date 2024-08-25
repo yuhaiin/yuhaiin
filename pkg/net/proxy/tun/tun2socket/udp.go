@@ -11,19 +11,27 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	i4 "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	i6 "gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 )
 
+type UDPTuple struct {
+	SourceAddr      tcpip.Address
+	DestinationAddr tcpip.Address
+	SourcePort      uint16
+	DestinationPort uint16
+}
+
 type UDP struct {
 	device       netlink.Tun
-	HandlePacket func(tuple Tuple, payload []byte)
+	HandlePacket func(tuple UDPTuple, payload []byte)
 	closed       bool
 }
 
 func NewUDP(device netlink.Tun) *UDP {
-	return &UDP{device: device, HandlePacket: func(tuple Tuple, payload []byte) {}}
+	return &UDP{device: device, HandlePacket: func(tuple UDPTuple, payload []byte) {}}
 }
 
 func (u *UDP) Close() error {
@@ -31,14 +39,14 @@ func (u *UDP) Close() error {
 	return nil
 }
 
-func (u *UDP) handleUDPPacket(tuple Tuple, payload []byte) {
+func (u *UDP) handleUDPPacket(tuple UDPTuple, payload []byte) {
 	if u.closed {
 		return
 	}
 	u.HandlePacket(tuple, payload)
 }
 
-func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
+func (u *UDP) WriteTo(buf []byte, tuple UDPTuple) (int, error) {
 	if u.closed {
 		return 0, net.ErrClosed
 	}
@@ -55,7 +63,7 @@ func (u *UDP) WriteTo(buf []byte, tuple Tuple) (int, error) {
 
 type Batch struct {
 	Payload []byte
-	Tuple   Tuple
+	Tuple   UDPTuple
 }
 
 func (u *UDP) WriteBatch(batch []Batch) error {
@@ -84,7 +92,7 @@ func (u *UDP) WriteBatch(batch []Batch) error {
 	return err
 }
 
-func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
+func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
 	udpTotalLength := int(header.UDPMinimumSize) + len(buf)
 
 	if udpTotalLength > math.MaxUint16 || udpTotalLength > int(u.device.MTU()) { // ip packet max length
@@ -98,10 +106,12 @@ func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
 	var ip header.Network
 	var totalLength uint16
 
-	if tuple.SourceAddr.Value().Len() == 4 && !tuple.DestinationAddr.Value().To4().Unspecified() {
-		if tuple.DestinationAddr.Value().To4().Unspecified() {
+	dst4Unspecified := tuple.DestinationAddr.To4().Unspecified()
+
+	if tuple.SourceAddr.Len() == 4 && !dst4Unspecified {
+		if dst4Unspecified {
 			// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", tuple.SourceAddr, tuple.DestinationAddr)
-			slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.Value().String()), slog.String("dst", tuple.DestinationAddr.Value().String()))
+			slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.String()), slog.String("dst", tuple.DestinationAddr.String()))
 		}
 
 		// no ipv4 options set, so ipv4 header size is IPv4MinimumSize
@@ -115,8 +125,8 @@ func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
 			FragmentOffset: 0,
 			TTL:            i4.DefaultTTL,
 			Protocol:       uint8(header.UDPProtocolNumber),
-			SrcAddr:        tuple.DestinationAddr.Value(),
-			DstAddr:        tuple.SourceAddr.Value(),
+			SrcAddr:        tuple.DestinationAddr,
+			DstAddr:        tuple.SourceAddr,
 		})
 
 		ip = ipv4
@@ -128,8 +138,8 @@ func (u *UDP) processUDPPacket(buf []byte, tuple Tuple) ([]byte, error) {
 		ipv6.Encode(&header.IPv6Fields{
 			TransportProtocol: header.UDPProtocolNumber,
 			PayloadLength:     uint16(udpTotalLength),
-			SrcAddr:           tuple.DestinationAddr.Value(),
-			DstAddr:           tuple.SourceAddr.Value(),
+			SrcAddr:           tuple.DestinationAddr,
+			DstAddr:           tuple.SourceAddr,
 			HopLimit:          i6.DefaultTTL,
 			TrafficClass:      0,
 		})

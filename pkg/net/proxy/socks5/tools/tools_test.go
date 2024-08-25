@@ -23,7 +23,7 @@ func TestResolveAddr(t *testing.T) {
 func TestReadAddr(t *testing.T) {
 	z := ParseAddr(netapi.ParseAddressPort("", "a.com", 10051))
 	t.Log(z)
-	z2 := ParseAddr(netapi.ParseIPAddrPort("", net.ParseIP("ff::ff"), 10051))
+	z2 := ParseAddr(netapi.ParseIPAddr("", net.ParseIP("ff::ff"), 10051))
 
 	for _, z := range []Addr{z, z2} {
 		n, addr, err := ReadAddr("", bufio.NewReader(bytes.NewReader(z)))
@@ -36,7 +36,7 @@ func TestReadAddr(t *testing.T) {
 func TestDecodeAddr(t *testing.T) {
 	z := ParseAddr(netapi.ParseAddressPort("", "a.com", 10051))
 	t.Log(z)
-	z2 := ParseAddr(netapi.ParseIPAddrPort("", net.ParseIP("ff::ff"), 10051))
+	z2 := ParseAddr(netapi.ParseIPAddr("", net.ParseIP("ff::ff"), 10051))
 
 	for _, z := range []Addr{z, z2} {
 		n, addr, err := DecodeAddr("", z)

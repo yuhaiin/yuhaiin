@@ -1,31 +1,31 @@
 package gvisor
 
 import (
-	"net"
 	"testing"
+
+	"gvisor.dev/gvisor/pkg/buffer"
+	"gvisor.dev/gvisor/pkg/tcpip/header"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-func TestInterfaces(t *testing.T) {
-	z := make([][]byte, 100)
-	z = z[:0]
+func TestXxx(t *testing.T) {
 
-	z = append(z, []byte("ddd"))
+	packet := stack.NewPacketBuffer(stack.PacketBufferOptions{
+		ReserveHeaderBytes: header.UDPMinimumSize + int(60),
+		Payload:            buffer.MakeWithData([]byte("aaaaaaaaaaaaaaaa")),
+	})
+	defer packet.DecRef()
 
-	t.Log(z)
+	packet.TransportProtocolNumber = header.UDPProtocolNumber
+	udp := header.UDP(packet.TransportHeader().Push(header.UDPMinimumSize))
+	pLen := uint16(packet.Size())
+	udp.Encode(&header.UDPFields{
+		SrcPort: 1080,
+		DstPort: 1080,
+		Length:  pLen,
+	})
 
-	i := 0
-	for ; i < 10; i++ {
-		t.Log(i)
-	}
-
-	is, err := net.Interfaces()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log(is)
-
-	for _, i := range is {
-		t.Log(i.Name)
-	}
+	t.Log(packet.NetworkHeader().Slice())
+	t.Log(packet.TransportHeader().Slice())
+	t.Log(packet.Data().AsRange().ToSlice())
 }

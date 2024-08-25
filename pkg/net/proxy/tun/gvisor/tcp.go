@@ -29,7 +29,7 @@ func (t *tunServer) tcpForwarder() *tcp.Forwarder {
 			log.Error("set socket options failed", "err", err)
 		}
 
-		addr := netapi.ParseAddressPort("tcp", id.LocalAddress.String(), id.LocalPort)
+		addr := netapi.ParseIPAddr("tcp", id.LocalAddress.AsSlice(), id.LocalPort)
 		local := gonet.NewTCPConn(wq, ep)
 
 		t.handler.HandleStream(&netapi.StreamMeta{

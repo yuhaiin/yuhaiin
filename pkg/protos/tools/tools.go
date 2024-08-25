@@ -88,7 +88,7 @@ func (t *Tools) SaveRemoteBypassFile(ctx context.Context, url *wrapperspb.String
 			scheme, _, _ := system.GetScheme(before)
 			switch scheme {
 			case "file", "http", "https":
-				url, _, ok := route.SplitHostArgs(before)
+				_, url, _, ok := route.SplitHostArgs(before)
 				if !ok {
 					url = before
 				}

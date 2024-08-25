@@ -181,6 +181,10 @@ func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 		data := view.AsSlice()
 
 		if e.gso {
+			// TODO: should we split gso[tun.GSOSplit] by ourself? instead of reset checksum?
+			// it seems no problem now that we just reset checksum
+			// see https://github.com/tailscale/tailscale/blob/ff1d0aa027f9e8de36d8f4a4aba67f575534cd06/net/tstun/wrap.go#L1364
+			//
 			// reset checksum when tcp
 			// see: https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L915
 			// and https://github.com/google/gvisor/blob/ef1ca17e584230d9c70f31ac991549adede09839/pkg/tcpip/transport/tcp/connect.go#L840

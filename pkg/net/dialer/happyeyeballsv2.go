@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unique"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -315,7 +313,6 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 						}
 					}
 				}
-				log.Info("dial success", "addr", addr.Hostname(), "local", r.c.LocalAddr(), "remote", r.c.RemoteAddr(), "fails", fails, "type", reflect.TypeOf(r.c))
 				return r.c, nil
 			}
 			fails++

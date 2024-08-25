@@ -16,20 +16,6 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-type routeTries struct {
-	trie        *trie.Trie[bypass.ModeEnum]
-	processTrie map[string]bypass.ModeEnum
-	tags        []string
-}
-
-func newRouteTires() *routeTries {
-	return &routeTries{
-		trie:        trie.NewTrie[bypass.ModeEnum](),
-		processTrie: make(map[string]bypass.ModeEnum),
-		tags:        []string{},
-	}
-}
-
 type Route struct {
 	ProcessDumper netapi.ProcessDumper
 
@@ -116,19 +102,47 @@ func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum {
 	mode, ok := s.customTrie.trie.Search(ctx, addr)
 	if ok {
-		return mode
+		return mode.Value()
 	}
 
 	mode, ok = s.trie.trie.Search(ctx, addr)
 	if ok {
-		return mode
+		return mode.Value()
 	}
 
-	return bypass.Mode_proxy
+	return bypass.Proxy
+}
+
+func (s *Route) SearchProcess(ctx context.Context, process string) (bypass.ModeEnum, bool) {
+	matchProcess := strings.TrimSuffix(process, " (deleted)")
+	x, ok := s.customTrie.processTrie[matchProcess]
+	if ok {
+		return x.Value(), true
+	}
+
+	x, ok = s.trie.processTrie[matchProcess]
+	if ok {
+		return x.Value(), true
+	}
+
+	return bypass.Bypass, false
+}
+
+func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
+	if mode.Mode() != bypass.Mode_proxy {
+		return false
+	}
+
+	switch s.config.GetUdpProxyFqdn() {
+	case bypass.UdpProxyFqdnStrategy_skip_resolve:
+		return mode.UdpProxyFqdn() != bypass.UdpProxyFqdnStrategy_resolve
+	default:
+		return mode.UdpProxyFqdn() == bypass.UdpProxyFqdnStrategy_skip_resolve
+	}
 }
 
 func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (bypass.ModeEnum, netapi.Address) {
-	var mode bypass.ModeEnum = bypass.Mode_bypass
+	mode := bypass.Bypass
 
 	process := s.DumpProcess(ctx, host)
 
@@ -137,9 +151,9 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	if mode.Mode() == bypass.Mode_bypass {
 		if bypass.Mode(store.ForceMode) != bypass.Mode_bypass {
-			mode = bypass.Mode(store.ForceMode)
+			mode = bypass.Mode(store.ForceMode).ToModeEnum()
 		} else {
-			mode = networkMode // get mode from network(tcp/udp) rule
+			mode = networkMode.ToModeEnum() // get mode from network(tcp/udp) rule
 		}
 	}
 
@@ -162,17 +176,10 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	if mode.Mode() != bypass.Mode_block {
 		if store.SniffMode != bypass.Mode_bypass {
-			mode = store.SniffMode
+			mode = store.SniffMode.ToModeEnum()
 		} else if process != "" {
-			matchProcess := strings.TrimSuffix(process, " (deleted)")
-			for _, v := range [...]map[string]bypass.ModeEnum{
-				s.customTrie.processTrie,
-				s.trie.processTrie,
-			} {
-				if m, ok := v[matchProcess]; ok {
-					mode = m
-					break
-				}
+			if m, ok := s.SearchProcess(ctx, process); ok {
+				mode = m
 			}
 		}
 	}
@@ -181,12 +188,12 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	store.Mode = mode.Mode()
 	store.Resolver.Resolver = s.r.Get(mode.Mode().String())
 
-	if s.resolveDomain && host.IsFqdn() && mode == bypass.Mode_proxy {
+	if s.resolveDomain && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := dialer.ResolverIP(ctx, host)
 		if err == nil {
 			store.DomainString = host.String()
-			host = netapi.ParseIPAddrPort(host.Network(), ip, host.Port())
+			host = netapi.ParseIPAddr(host.Network(), ip, host.Port())
 			store.IPString = host.String()
 		} else {
 			log.Warn("resolve remote domain failed", "err", err)
@@ -194,19 +201,6 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	}
 
 	return mode, host
-}
-
-func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
-	if mode.Mode() != bypass.Mode_proxy {
-		return false
-	}
-
-	switch s.config.GetUdpProxyFqdn() {
-	case bypass.UdpProxyFqdnStrategy_skip_resolve:
-		return mode.UdpProxyFqdn() != bypass.UdpProxyFqdnStrategy_resolve
-	default:
-		return mode.UdpProxyFqdn() == bypass.UdpProxyFqdnStrategy_skip_resolve
-	}
 }
 
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"time"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -105,10 +106,23 @@ func Register(tYPE pd.Type, f func(Config) (Dialer, error)) {
 
 var _ netapi.Resolver = (*client)(nil)
 
+type CacheKey struct {
+	Name unique.Handle[string]
+	Type dnsmessage.Type
+}
+
+func (c CacheKey) FromQuestion(q dnsmessage.Question) CacheKey {
+	return CacheKey{
+		// can save memory with netapi.Domain, so use rel domain
+		Name: unique.Make(system.RelDomain(q.Name.String())),
+		Type: q.Type,
+	}
+}
+
 type client struct {
 	edns0             dnsmessage.Resource
 	dialer            Dialer
-	rawStore          *lru.SyncLru[dnsmessage.Question, dnsmessage.Message]
+	rawStore          *lru.SyncLru[CacheKey, dnsmessage.Message]
 	rawSingleflight   singleflight.GroupSync[dnsmessage.Question, dnsmessage.Message]
 	refreshBackground syncmap.SyncMap[dnsmessage.Question, struct{}]
 	config            Config
@@ -151,8 +165,8 @@ func NewClient(config Config, dialer Dialer) *client {
 		dialer: dialer,
 		config: config,
 		rawStore: lru.NewSyncLru(
-			lru.WithCapacity[dnsmessage.Question, dnsmessage.Message](configuration.DNSCache),
-			lru.WithDefaultTimeout[dnsmessage.Question, dnsmessage.Message](time.Second*600),
+			lru.WithCapacity[CacheKey, dnsmessage.Message](configuration.DNSCache),
+			lru.WithDefaultTimeout[CacheKey, dnsmessage.Message](time.Second*600),
 		),
 		edns0: dnsmessage.Resource{
 			Header: rh,
@@ -164,9 +178,7 @@ func NewClient(config Config, dialer Dialer) *client {
 }
 
 func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
-	opt := &netapi.LookupIPOption{
-		Mode: netapi.ResolverModePreferIPv4,
-	}
+	opt := &netapi.LookupIPOption{}
 
 	for _, optf := range opts {
 		optf(opt)
@@ -180,22 +192,22 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 		return c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 	}
 
-	aaaaerr := make(chan error, 1)
-	var aaaa []net.IP
+	aerr := make(chan error, 1)
+	var a []net.IP
 
 	go func() {
 		var err error
-		aaaa, err = c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
-		aaaaerr <- err
+		a, err = c.lookupIP(ctx, domain, dnsmessage.TypeA)
+		aerr <- err
 	}()
 
-	resp, aerr := c.lookupIP(ctx, domain, dnsmessage.TypeA)
+	resp, aaaaerr := c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 
-	if err := <-aaaaerr; err != nil && aerr != nil {
-		return nil, fmt.Errorf("ipv6: %w, ipv4: %w", err, aerr)
+	if err := <-aerr; err != nil && aaaaerr != nil {
+		return nil, fmt.Errorf("ipv6: %w, ipv4: %w", aaaaerr, err)
 	}
 
-	return append(resp, aaaa...), nil
+	return append(resp, a...), nil
 }
 
 func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
@@ -276,8 +288,9 @@ func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 	log.Debug("resolve domain", args...)
 
 	if ttl > 1 {
-		c.rawStore.Add(req, msg,
-			lru.WithTimeout[dnsmessage.Question, dnsmessage.Message](time.Duration(ttl)*time.Second))
+		msg.Questions = nil
+		c.rawStore.Add(CacheKey{}.FromQuestion(req), msg,
+			lru.WithTimeout[CacheKey, dnsmessage.Message](time.Duration(ttl)*time.Second))
 	}
 
 	return msg, nil
@@ -292,34 +305,34 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 		req.Class = dnsmessage.ClassINET
 	}
 
-	msg, expired, ok := c.rawStore.LoadOptimistically(req)
+	msg, expired, ok := c.rawStore.LoadOptimistically(CacheKey{}.FromQuestion(req))
 	if !ok {
-		msg, err, _ := c.rawSingleflight.Do(ctx, req, func(ctx context.Context) (dnsmessage.Message, error) { return c.raw(ctx, req) })
-		return msg, err
-	}
-
-	if !expired {
-		return msg, nil
-	}
-
-	_, ok = c.refreshBackground.LoadOrStore(req, struct{}{})
-	if ok {
-		return msg, nil
-	}
-
-	// refresh expired response background
-	go func() {
-		defer c.refreshBackground.Delete(req)
-
-		ctx = context.WithoutCancel(ctx)
-		ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
-		defer cancel()
-
-		_, err := c.raw(ctx, req)
+		var err error
+		msg, err, _ = c.rawSingleflight.Do(ctx, req, func(ctx context.Context) (dnsmessage.Message, error) { return c.raw(ctx, req) })
 		if err != nil {
-			log.Error("refresh domain background failed", "req", req, "err", err)
+			return dnsmessage.Message{}, err
 		}
-	}()
+	}
+
+	msg.Questions = []dnsmessage.Question{req}
+
+	if expired {
+		if _, ok = c.refreshBackground.LoadOrStore(req, struct{}{}); !ok {
+			// refresh expired response background
+			go func() {
+				defer c.refreshBackground.Delete(req)
+
+				ctx = context.WithoutCancel(ctx)
+				ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+				defer cancel()
+
+				_, err := c.raw(ctx, req)
+				if err != nil {
+					log.Error("refresh domain background failed", "req", req, "err", err)
+				}
+			}()
+		}
+	}
 
 	return msg, nil
 }

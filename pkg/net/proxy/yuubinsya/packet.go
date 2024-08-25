@@ -103,6 +103,7 @@ func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, erro
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("%w read from remote failed: %w", errNet, err)
 	}
+
 	buf, addr, err := types.DecodePacket(p[:n], s.auth, s.prefix)
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("decode packet failed: %w", err)

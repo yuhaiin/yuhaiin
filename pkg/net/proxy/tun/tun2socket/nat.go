@@ -143,13 +143,12 @@ func Start(opt *device.Opt) (*Nat, error) {
 						continue
 					}
 
-					nat.UDP.handleUDPPacket(
-						Tuple{
-							SourceAddr:      unique.Make(src),
-							SourcePort:      u.SourcePort(),
-							DestinationAddr: unique.Make(dst),
-							DestinationPort: u.DestinationPort(),
-						}, u.Payload())
+					nat.UDP.handleUDPPacket(UDPTuple{
+						SourceAddr:      src,
+						SourcePort:      u.SourcePort(),
+						DestinationAddr: dst,
+						DestinationPort: u.DestinationPort(),
+					}, u.Payload())
 
 					continue
 

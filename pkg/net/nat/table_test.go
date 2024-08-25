@@ -121,7 +121,7 @@ func (t *testPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 
 	t.read = true
 	if !t.saddr.IsFqdn() {
-		addr = netapi.ParseIPAddrPort(t.saddr.Network(), t.saddr.(netapi.IPAddress).IP().To16(), 80)
+		addr = netapi.ParseIPAddr(t.saddr.Network(), t.saddr.(netapi.IPAddress).IP().To16(), 80)
 	}
 
 	t.t.Log(addr.String())

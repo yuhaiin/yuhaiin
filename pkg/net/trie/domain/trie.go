@@ -103,8 +103,6 @@ type deleteElement[T any] struct {
 }
 
 func remove[T any](node *trie[T], domain *fqdnReader) {
-	// fmt.Println("remove", domain.domain)
-
 	nodes := []*deleteElement[T]{
 		{
 			str:  "root",
@@ -144,8 +142,4 @@ func remove[T any](node *trie[T], domain *fqdnReader) {
 			}
 		}
 	}
-
-	// for _, v := range nodes {
-	// 	fmt.Println(v.str, len(v.node.Child), maps.Keys(v.node.Child))
-	// }
 }

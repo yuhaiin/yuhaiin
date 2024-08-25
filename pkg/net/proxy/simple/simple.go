@@ -165,7 +165,7 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 		select {
 		case resc <- res{conn, err, index}:
 		case <-ctx.Done():
-			if conn != nil {
+			if err == nil {
 				conn.Close()
 			}
 		}
@@ -196,9 +196,7 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 	for {
 		select {
 		case r := <-resc:
-			if r.c != nil {
-				fmt.Println("got simple conn", "failed", fails, "local", r.c.LocalAddr(), "remote", r.c.RemoteAddr())
-
+			if r.err == nil {
 				if lastIndex != r.index {
 					if r.index == 0 || (r.index != 0 && c.errCount.Load() > 3) {
 						c.index.Store(r.index)
@@ -215,6 +213,7 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 
 				return r.c, nil
 			}
+
 			fails++
 			if firstErr == nil {
 				firstErr = r.err

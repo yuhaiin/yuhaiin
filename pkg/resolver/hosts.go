@@ -20,7 +20,7 @@ type Hosts struct {
 }
 
 type hostsEntry struct {
-	V       netapi.Address
+	Address netapi.Address
 	portMap map[uint16]netapi.Address
 }
 
@@ -70,7 +70,7 @@ func (h *Hosts) Update(c *config.Setting) {
 
 		if e1 != nil && e2 != nil {
 			addr := netapi.ParseAddressPort("", v, 0)
-			getEntry(k, false).V = addr
+			getEntry(k, false).Address = addr
 			if !addr.IsFqdn() {
 				ptrStore[v] = append(ptrStore[v], k)
 			}
@@ -112,20 +112,21 @@ func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Ad
 		}
 	}
 
-	if v.V == nil {
-		if addr.IsFqdn() {
-			// try system hosts
-			ips, _ := system.LookupStaticHost(addr.Hostname())
-			if len(ips) > 0 {
-				h.setHosts(ctx, addr)
-				return netapi.ParseAddressPort(addr.Network(), ips[0], addr.Port())
-			}
-		}
-		return addr
+	if v.Address != nil {
+		h.setHosts(ctx, addr)
+		return netapi.ParseAddressPort(addr.Network(), v.Address.Hostname(), addr.Port())
 	}
 
-	h.setHosts(ctx, addr)
-	return netapi.ParseAddressPort(addr.Network(), v.V.Hostname(), addr.Port())
+	if addr.IsFqdn() {
+		// try system hosts
+		ips, _ := system.LookupStaticHost(addr.Hostname())
+		if len(ips) > 0 {
+			h.setHosts(ctx, addr)
+			return netapi.ParseNetipAddr(addr.Network(), ips[0], addr.Port())
+		}
+	}
+
+	return addr
 }
 
 func (h *Hosts) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
@@ -166,7 +167,7 @@ func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 
 		ipstr := ip.String()
 
-		domains := append(h.ptrMap[ipstr], system.LookupStaticAddr(ipstr)...)
+		domains := append(h.ptrMap[ipstr], system.LookupStaticAddr(ip)...)
 		if len(domains) == 0 {
 			return h.resolver.Raw(ctx, req)
 		}

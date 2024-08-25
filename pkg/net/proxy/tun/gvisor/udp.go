@@ -100,8 +100,8 @@ func (f *tunServer) HandleUDPPacket(id stack.TransportEndpointID, pkt *stack.Pac
 	}
 
 	f.handler.HandlePacket(&netapi.Packet{
-		Src:     netapi.ParseIPAddrPort("udp", id.RemoteAddress.AsSlice(), srcPort),
-		Dst:     netapi.ParseIPAddrPort("udp", id.LocalAddress.AsSlice(), dstPort),
+		Src:     netapi.ParseIPAddr("udp", id.RemoteAddress.AsSlice(), srcPort),
+		Dst:     netapi.ParseIPAddr("udp", id.LocalAddress.AsSlice(), dstPort),
 		Payload: buf.Bytes(),
 		WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return f.WriteUDPBack(b, id.RemoteAddress, srcPort, addr)
@@ -129,7 +129,6 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 	}
 
 	if sourceAddr.Len() == 4 && (dip.Addr().Is6() && !dip.Addr().Is4In6()) {
-		// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", sourceAddr, dip)
 		slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", sourceAddr.String()), slog.String("dst", dip.String()))
 	}
 

@@ -5,7 +5,6 @@ import (
 	"time"
 	"unique"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
@@ -33,9 +32,6 @@ func (t *TCP) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	_ = c.SetWriteBuffer(dialer.SocketBufferSize)
-	_ = c.SetReadBuffer(dialer.SocketBufferSize)
 
 	addr := c.RemoteAddr().(*net.TCPAddr)
 
