@@ -1,12 +1,37 @@
 package system
 
 import (
-	_ "net/url"
-	_ "unsafe"
+	"errors"
 )
 
-//go:linkname GetScheme net/url.getScheme
-func GetScheme(ur string) (scheme, etc string, err error)
+// Maybe rawURL is of the form scheme:path.
+// (Scheme must be [a-zA-Z][a-zA-Z0-9+.-]*)
+// If so, return scheme, path; else return "", rawURL.
+//
+// copy from [net/url.getScheme]
+func GetScheme(rawURL string) (scheme, path string, err error) {
+	for i := 0; i < len(rawURL); i++ {
+		c := rawURL[i]
+		switch {
+		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':
+		// do nothing
+		case '0' <= c && c <= '9' || c == '+' || c == '-' || c == '.':
+			if i == 0 {
+				return "", rawURL, nil
+			}
+		case c == ':':
+			if i == 0 {
+				return "", "", errors.New("missing protocol scheme")
+			}
+			return rawURL[:i], rawURL[i+1:], nil
+		default:
+			// we have encountered an invalid character,
+			// so there is no valid scheme
+			return "", rawURL, nil
+		}
+	}
+	return "", rawURL, nil
+}
 
 var UserAgentLength = len(UserAgents)
 

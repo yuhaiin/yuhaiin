@@ -78,7 +78,7 @@ func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
 							return nil, err
 						}
 
-						return p.Conn(ctx, netapi.ParseIPAddrPort("tcp", ip[rand.IntN(len(ip))], add.Port()))
+						return p.Conn(ctx, netapi.ParseIPAddr("tcp", ip[rand.IntN(len(ip))], add.Port()))
 					},
 				},
 			}
@@ -121,4 +121,35 @@ func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
 	return &Reply{
 		Reply: reply,
 	}, nil
+}
+
+func (l *Protocol_Stun) Latency(p netapi.Proxy) (*Reply, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	replay := &Reply{
+		Reply: &Reply_Stun{
+			Stun: &StunResponse{},
+		},
+	}
+
+	if l.Stun.Tcp {
+		mappedAddr, err := latency.StunTCP(ctx, p, l.Stun.GetHost())
+		if err != nil {
+			return nil, err
+		}
+		replay.GetStun().MappedAddress = mappedAddr
+		return replay, nil
+	}
+
+	t, err := latency.Stun(ctx, p, l.Stun.GetHost())
+	if err != nil {
+		return nil, err
+	}
+
+	replay.GetStun().Mapping = NatType(t.MappingType)
+	replay.GetStun().Filtering = NatType(t.FilteringType)
+	replay.GetStun().MappedAddress = t.MappedAddr
+
+	return replay, nil
 }

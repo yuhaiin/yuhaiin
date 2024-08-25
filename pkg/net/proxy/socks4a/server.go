@@ -79,7 +79,7 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 		}
 		target = netapi.ParseAddressPort("tcp", string(host), port)
 	} else {
-		target = netapi.ParseIPAddrPort("tcp", dstAddr, port)
+		target = netapi.ParseIPAddr("tcp", dstAddr, port)
 	}
 
 	_, _ = conn.Write([]byte{0, 90})

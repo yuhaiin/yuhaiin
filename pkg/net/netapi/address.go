@@ -34,19 +34,19 @@ type DomainAddress interface {
 }
 
 func ParseAddress(network string, addr string) (ad Address, _ error) {
+	var port uint64
 	hostname, portstr, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Error("split host port failed", "err", err, "addr", addr)
+		log.Warn("split host port failed", "err", err, "addr", addr)
 		hostname = addr
-		portstr = "0"
+	} else {
+		port, err = strconv.ParseUint(portstr, 10, 16)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	pt, err := strconv.ParseUint(portstr, 10, 16)
-	if err != nil {
-		return nil, err
-	}
-
-	return ParseAddressPort(network, hostname, uint16(pt)), nil
+	return ParseAddressPort(network, hostname, uint16(port)), nil
 }
 
 func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
@@ -69,10 +69,18 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 	return ParseDomainPort(network, addr, port)
 }
 
-func ParseIPAddrPort(net string, ip net.IP, port uint16) Address {
+func ParseIPAddr(net string, ip net.IP, port uint16) Address {
 	return &IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
 		Addr:           toAddrPort(ip, ""),
+		port:           port,
+	}
+}
+
+func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
+	return &IPAddr{
+		AddressNetwork: ParseAddressNetwork(net),
+		Addr:           ip.Unmap(),
 		port:           port,
 	}
 }

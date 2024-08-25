@@ -102,7 +102,7 @@ func TestUsernamePassword(t *testing.T) {
 }
 
 func TestSC(t *testing.T) {
-	p := Dial("127.0.0.1", "1082", "username", "password")
+	p := Dial("127.0.0.1", "1080", "username", "password")
 
 	hc := &http.Client{
 		Transport: &http.Transport{

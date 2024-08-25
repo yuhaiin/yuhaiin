@@ -3,12 +3,15 @@ package route
 import (
 	"bufio"
 	"io"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 )
@@ -31,18 +34,23 @@ var deafultRule = `
 localhost DIRECT,tag=LAN
 `
 
-func rangeRule(path string) func(f func(string, bypass.ModeEnum) bool) {
-	var reader io.ReadCloser
-	var err error
-	reader, err = os.Open(path)
-	if err != nil {
-		log.Error("open bypass file failed, fallback to use internal bypass data",
-			slog.String("filepath", path), slog.Any("err", err))
+type Rule struct {
+	Scheme   string
+	Hostname string
+	ModeEnum unique.Handle[bypass.ModeEnum]
+}
 
-		reader = io.NopCloser(strings.NewReader(deafultRule))
-	}
+func rangeRule(path string) iter.Seq[Rule] {
+	return func(f func(Rule) bool) {
+		var reader io.ReadCloser
+		var err error
+		reader, err = os.Open(path)
+		if err != nil {
+			log.Error("open bypass file failed, fallback to use internal bypass data",
+				slog.String("filepath", path), slog.Any("err", err))
 
-	return func(f func(string, bypass.ModeEnum) bool) {
+			reader = io.NopCloser(strings.NewReader(deafultRule))
+		}
 		defer reader.Close()
 
 		br := bufio.NewScanner(reader)
@@ -50,34 +58,28 @@ func rangeRule(path string) func(f func(string, bypass.ModeEnum) bool) {
 		for br.Scan() {
 			before := TrimComment(br.Text())
 
-			hostname, args, ok := SplitHostArgs(before)
+			scheme, hostname, args, ok := SplitHostArgs(before)
 			if !ok {
 				continue
 			}
 
-			mode, modeargs, ok := SplitModeArgs(args)
+			modeEnum, ok := SplitModeArgs(args)
 			if !ok {
 				continue
 			}
 
-			modeEnum := ParseArgs(mode, modeargs).ToModeConfig(nil).ToModeEnum()
-
-			if !strings.HasPrefix(hostname, "file:") {
-				if !f(strings.ToLower(hostname), modeEnum) {
-					return
-				}
-				continue
+			r := Rule{
+				Scheme:   scheme,
+				ModeEnum: modeEnum,
+				Hostname: hostname,
 			}
 
-			file := hostname[5:]
-			if !filepath.IsAbs(file) {
-				file = filepath.Join(filepath.Dir(path), file)
+			if r.Scheme == "file" && !filepath.IsAbs(r.Hostname) {
+				r.Hostname = filepath.Join(filepath.Dir(path), r.Hostname)
 			}
 
-			for x := range slice.RangeFileByLine(file) {
-				if !f(x, modeEnum) {
-					return
-				}
+			if !f(r) {
+				return
 			}
 		}
 	}
@@ -92,23 +94,10 @@ type Args struct {
 
 // ParseArgs parse args
 // args: tag=tag,udp_proxy_fqdn,resolve_strategy=prefer_ipv6
-func ParseArgs(mode bypass.Mode, fs []string) Args {
+func ParseArgs(mode bypass.Mode, fs RawArgs) Args {
 	f := Args{Mode: mode}
 
-	for _, x := range fs {
-		var k, v string
-		i := strings.IndexByte(x, '=')
-		if i == -1 {
-			k = x
-			v = "true"
-		} else {
-			k = x[:i]
-			v = x[i+1:]
-		}
-
-		key := strings.ToLower(k)
-		value := strings.ToLower(v)
-
+	for key, value := range fs.Range {
 		switch key {
 		case "tag":
 			f.Tag = value
@@ -137,45 +126,44 @@ func (a Args) ToModeConfig(hostname []string) *bypass.ModeConfig {
 }
 
 func TrimComment(s string) string {
-	before, _, _ := strings.Cut(s, "#")
-	return before
-}
-
-func SplitHostArgs(s string) (hostname, args string, ok bool) {
-	if strings.HasPrefix(s, "file:") {
-		etc := s[5:]
-
-		if len(etc) == 0 {
-			return
-		}
-
-		if etc[0] == '"' || etc[0] == '\'' {
-			i := strings.IndexByte(etc[1:], etc[0])
-			if i == -1 {
-				return
-			}
-
-			hostname = "file:" + etc[1:i+1]
-			args = strings.TrimSpace(etc[i+2:])
-			ok = true
-			return
-		}
+	if i := strings.IndexByte(s, '#'); i != -1 {
+		return s[:i]
 	}
 
-	fields := strings.Fields(s)
+	return s
+}
 
-	if len(fields) < 2 {
+func SplitHostArgs(s string) (scheme, hostname, args string, ok bool) {
+	scheme, s = getScheme(s)
+
+	if len(s) == 0 {
 		return
 	}
 
-	hostname = fields[0]
-	args = strings.Join(fields[1:], " ")
-	ok = true
+	if s[0] == '"' || s[0] == '\'' {
+		i := strings.IndexByte(s[1:], s[0])
+		if i == -1 {
+			return
+		}
 
+		hostname = s[1 : i+1]
+		args = strings.TrimSpace(s[i+2:])
+		ok = true
+		return
+	}
+
+	i := strings.IndexByte(s, ' ')
+	if i == -1 {
+		return
+	}
+
+	hostname = s[:i]
+	args = strings.TrimSpace(s[i+1:])
+	ok = true
 	return
 }
 
-func SplitModeArgs(s string) (mode bypass.Mode, args []string, ok bool) {
+func SplitModeArgs(s string) (x unique.Handle[bypass.ModeEnum], ok bool) {
 	fs := strings.FieldsFunc(s, func(r rune) bool { return r == ',' })
 	if len(fs) < 1 {
 		return
@@ -183,14 +171,85 @@ func SplitModeArgs(s string) (mode bypass.Mode, args []string, ok bool) {
 
 	modestr := strings.ToLower(fs[0])
 
-	mode = bypass.Mode(bypass.Mode_value[modestr])
+	mode := bypass.Mode(bypass.Mode_value[modestr])
 
 	if mode.Unknown() {
 		return
 	}
 
-	args = fs[1:]
-	ok = true
+	return ParseArgs(mode, fs[1:]).ToModeConfig(nil).ToModeEnum(), true
+}
 
-	return
+type RawArgs []string
+
+func (a RawArgs) Range(f func(k, v string) bool) {
+	for i := 0; i < len(a); i++ {
+		x := a[i]
+
+		var k, v string
+		i := strings.IndexByte(x, '=')
+		if i == -1 {
+			k = x
+			v = "true"
+		} else {
+			k = x[:i]
+			v = x[i+1:]
+		}
+
+		if !f(strings.ToLower(k), strings.ToLower(v)) {
+			return
+		}
+	}
+}
+
+func getScheme(h string) (string, string) {
+	i := strings.Index(h, ":")
+	if i == -1 {
+		return "", h
+	}
+
+	switch h[:i] {
+	case "file", "process":
+		return h[:i], h[i+1:]
+	default:
+		return "", h
+	}
+}
+
+type routeTries struct {
+	trie        *trie.Trie[unique.Handle[bypass.ModeEnum]]
+	processTrie map[string]unique.Handle[bypass.ModeEnum]
+	tags        []string
+}
+
+func newRouteTires() *routeTries {
+	return &routeTries{
+		trie:        trie.NewTrie[unique.Handle[bypass.ModeEnum]](),
+		processTrie: make(map[string]unique.Handle[bypass.ModeEnum]),
+		tags:        []string{},
+	}
+}
+
+func (s *routeTries) insert(scheme, host string, mode unique.Handle[bypass.ModeEnum]) {
+	switch scheme {
+	case "file":
+		for x := range slice.RangeFileByLine(host) {
+			x = TrimComment(x)
+			if x == "" {
+				continue
+			}
+
+			scheme, hostname := getScheme(x)
+			if scheme == "file" && !filepath.IsAbs(hostname) {
+				hostname = filepath.Join(filepath.Dir(host), hostname)
+			}
+
+			s.insert(scheme, hostname, mode)
+		}
+
+	case "process":
+		s.processTrie[host] = mode
+	default:
+		s.trie.Insert(strings.ToLower(host), mode)
+	}
 }

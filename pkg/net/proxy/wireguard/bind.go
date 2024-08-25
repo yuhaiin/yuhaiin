@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"runtime"
 	"strconv"
 	"sync"
 
@@ -197,8 +196,6 @@ func (bind *netBindClient) Send(buffs [][]byte, endpoint conn.Endpoint) error {
 		return err
 	}
 
-	// it has too much problem when use udp batch at cloudflare-warp
-	// so current disable it
 	for _, buff := range buffs {
 		if len(buff) > 3 && len(bind.reserved) == 3 {
 			// the reserved only for cloudflare-warp
@@ -221,7 +218,7 @@ func (bind *netBindClient) SendBatch(buffs [][]byte, addr *net.UDPAddr) error {
 	}
 
 	// when use writemmsg, the reserved will make can't connect
-	// so current comment
+	// so current disabled
 	//
 	// if len(bind.reserved) == 3 {
 	// 	for _, buff := range buffs {
@@ -238,8 +235,11 @@ func (bind *netBindClient) SendBatch(buffs [][]byte, addr *net.UDPAddr) error {
 
 func (bind *netBindClient) SetMark(mark uint32) error { return nil }
 func (bind *netBindClient) BatchSize() int {
-	if runtime.GOOS == "linux" {
-		return 8
-	}
+	// batch write seem have many problem
+	// so current disabled
+	//
+	// if runtime.GOOS == "linux" {
+	// 	return 8
+	// }
 	return 1
 }

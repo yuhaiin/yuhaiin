@@ -9,9 +9,9 @@ require (
 	github.com/quic-go/quic-go v0.46.0
 	github.com/refraction-networking/utls v1.6.7
 	github.com/tailscale/wireguard-go v0.0.0-20240724015428-60eeedfd624b
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240806173335-3b7e16c5f836
+	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240712055506-48f0b2d5ed6d
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240820132017-5f65e05bc75b
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20240826143240-1abd5a1a38b9
 	go.etcd.io/bbolt v1.3.11
 	golang.org/x/crypto v0.26.0
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa

@@ -12,7 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
-	tun "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
@@ -58,7 +58,7 @@ func NewTun(o *listener.Inbound_Tun) func(netapi.Listener, netapi.Handler) (s ne
 		if o.Tun.Driver == listener.Tun_system_gvisor {
 			return tun2socket.New(opt)
 		} else {
-			return tun.New(opt)
+			return gvisor.New(opt)
 		}
 	}
 }
@@ -122,7 +122,7 @@ func checkTunName(sc netlink.TunScheme) string {
 	} else if runtime.GOOS == "darwin" {
 		tunPrefix = "utun"
 
-		if !strings.HasPrefix(sc.Name, "utun") {
+		if !strings.HasPrefix(sc.Name, tunPrefix) {
 			sc.Name = "utun0"
 		}
 	}

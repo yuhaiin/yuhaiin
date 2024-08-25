@@ -1,47 +1,68 @@
 package bypass
 
-type ModeEnum interface {
-	Mode() Mode
-	Unknown() bool
-	GetTag() string
-	GetResolveStrategy() ResolveStrategy
-	UdpProxyFqdn() UdpProxyFqdnStrategy
+import "unique"
+
+func (m Mode) ToModeEnum() ModeEnum {
+	switch m {
+	case Mode_proxy:
+		return Proxy
+	case Mode_direct:
+		return Direct
+	case Mode_block:
+		return Block
+	case Mode_bypass:
+		return Bypass
+	default:
+		return Bypass
+	}
 }
 
-func (m Mode) Mode() Mode { return m }
 func (m Mode) Unknown() bool {
 	_, ok := Mode_name[int32(m)]
 	return !ok
 }
 
-func (Mode) GetTag() string                      { return "" }
-func (Mode) GetResolveStrategy() ResolveStrategy { return ResolveStrategy_default }
-func (m Mode) UdpProxyFqdn() UdpProxyFqdnStrategy {
-	return UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default
-}
-
-func (f *ModeConfig) ToModeEnum() ModeEnum {
-	if f.ResolveStrategy == ResolveStrategy_default && f.Tag == "" && f.UdpProxyFqdnStrategy != 0 {
-		return f.Mode
-	}
-
-	return &modeConfig{
+func (f *ModeConfig) ToModeEnum() unique.Handle[ModeEnum] {
+	return unique.Make(ModeEnum{
 		f.Tag,
 		f.Mode,
 		f.ResolveStrategy,
 		f.UdpProxyFqdnStrategy,
-	}
+	})
 }
 
-type modeConfig struct {
+type ModeEnum struct {
 	Tag             string
 	mode            Mode
 	ResolveStrategy ResolveStrategy
 	udpProxyFqdn    UdpProxyFqdnStrategy
 }
 
-func (m modeConfig) Mode() Mode                          { return m.mode }
-func (m modeConfig) GetTag() string                      { return m.Tag }
-func (modeConfig) Unknown() bool                         { return false }
-func (m modeConfig) GetResolveStrategy() ResolveStrategy { return m.ResolveStrategy }
-func (m modeConfig) UdpProxyFqdn() UdpProxyFqdnStrategy  { return m.udpProxyFqdn }
+func (m ModeEnum) Mode() Mode                          { return m.mode }
+func (m ModeEnum) GetTag() string                      { return m.Tag }
+func (ModeEnum) Unknown() bool                         { return false }
+func (m ModeEnum) GetResolveStrategy() ResolveStrategy { return m.ResolveStrategy }
+func (m ModeEnum) UdpProxyFqdn() UdpProxyFqdnStrategy  { return m.udpProxyFqdn }
+
+var (
+	Proxy = ModeEnum{
+		mode:            Mode_proxy,
+		ResolveStrategy: ResolveStrategy_default,
+		udpProxyFqdn:    UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default,
+	}
+	Direct = ModeEnum{
+		mode:            Mode_direct,
+		ResolveStrategy: ResolveStrategy_default,
+		udpProxyFqdn:    UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default,
+	}
+	Block = ModeEnum{
+		mode:            Mode_block,
+		ResolveStrategy: ResolveStrategy_default,
+		udpProxyFqdn:    UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default,
+	}
+	Bypass = ModeEnum{
+		mode:            Mode_bypass,
+		ResolveStrategy: ResolveStrategy_default,
+		udpProxyFqdn:    UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default,
+	}
+)

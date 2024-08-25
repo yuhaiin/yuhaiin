@@ -34,9 +34,13 @@ func TestDoQ(t *testing.T) {
 			Host:   "dns.nextdns.io:853",
 			Dialer: s5Dialer,
 		},
+		"controld": {
+			Type: dns.Type_doq,
+			Host: "p0.freedns.controld.com:853",
+		},
 	}
 
-	d, err := New(configMap["nextdns"])
+	d, err := New(configMap["controld"])
 	assert.NoError(t, err)
 
 	defer d.Close()

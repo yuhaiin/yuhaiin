@@ -17,6 +17,7 @@ message setting {
   yuhaiin.dns.dns_config dns = 4 [ json_name = "dns" ];
   yuhaiin.listener.inbound_config server = 5 [ json_name = "server" ];
   yuhaiin.log.logcat logcat = 8 [ json_name = "logcat" ];
+  config_version config_version = 9 [ json_name = "config_version" ];
 }
 
 message system_proxy {
@@ -35,3 +36,5 @@ message info {
   string compiler = 8 [ json_name = "compiler" ];
   repeated string build = 9 [ json_name = "build" ];
 }
+
+message config_version { uint64 version = 1 [ json_name = "version" ]; }

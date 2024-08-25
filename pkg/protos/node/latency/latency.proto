@@ -28,12 +28,38 @@ message ip_response {
   string ipv6 = 2 [ json_name = "ipv6" ];
 }
 
+message stun {
+   string host = 1 [ json_name = "host" ];
+   bool tcp = 2 [ json_name = "tcp" ];
+}
+
+enum nat_type {
+  NAT_UNKNOWN = 0;
+  NAT_NO_RESULT = 1;
+  NAT_EndpointIndependentNoNAT = 2;
+  NAT_EndpointIndependent = 3;
+  NAT_AddressDependent = 4;
+  NAT_AddressAndPortDependent = 5;
+  NAT_ServerNotSupportChangePort = 6;
+}
+
+message stun_response {
+  string xor_mapped_address = 1 [ json_name = "xor_mapped_address" ];
+  string mapped_address = 2 [ json_name = "mapped_address" ];
+  string other_address = 3 [ json_name = "other_address" ];
+  string response_origin_address = 4 [ json_name = "response_origin_address" ];
+  string Software = 5 [ json_name = "Software" ];
+  nat_type Mapping = 6 [ json_name = "mapping" ];
+  nat_type Filtering = 7 [ json_name = "filtering" ];
+}
+
 message protocol {
   oneof protocol {
     http http = 1 [ json_name = "http" ];
     dns dns = 2 [ json_name = "dns" ];
     dns_over_quic dns_over_quic = 3 [ json_name = "dns_over_quic" ];
     ip ip = 4 [ json_name = "ip" ];
+    stun stun = 5 [ json_name = "stun" ];
   }
 }
 
@@ -54,5 +80,6 @@ message reply {
   oneof reply {
     google.protobuf.Duration latency = 1 [ json_name = "latency" ];
     ip_response ip = 2 [ json_name = "ip" ];
+    stun_response stun = 3 [ json_name = "stun" ];
   }
 }
