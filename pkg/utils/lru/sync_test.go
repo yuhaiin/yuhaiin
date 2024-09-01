@@ -31,9 +31,9 @@ func TestSyncLru(t *testing.T) {
 }
 
 func TestSyncReverseLru(t *testing.T) {
-	lru := NewSyncReverseLru(func(l *lru[string, string]) {
+	lru := NewSyncReverseLru(WithLruOptions(func(l *lru[string, string]) {
 		l.capacity = 4
-	})
+	}))
 
 	lru.Add("a", "a")
 	lru.Add("b", "b")

@@ -69,11 +69,11 @@ func Decode(data []byte, m *Message) error {
 //	Message, its fields, results of m.Get or any attribute a.GetFrom
 //	are valid only until Message.Raw is not modified.
 type Message struct {
-	Type          MessageType
-	Length        uint32 // len(Raw) not including header
-	TransactionID [TransactionIDSize]byte
 	Attributes    Attributes
 	Raw           []byte
+	Length        uint32 // len(Raw) not including header
+	Type          MessageType
+	TransactionID [TransactionIDSize]byte
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.

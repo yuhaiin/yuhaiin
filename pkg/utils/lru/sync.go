@@ -60,3 +60,9 @@ func (l *SyncLru[K, V]) ClearExpired() {
 	l.lru.ClearExpired()
 	l.mu.Unlock()
 }
+
+func (l *SyncLru[K, V]) Len() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lru.Len()
+}

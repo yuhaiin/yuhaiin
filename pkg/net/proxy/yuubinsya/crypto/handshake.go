@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"bufio"
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/rand"
@@ -39,42 +40,44 @@ func (t *encryptedHandshaker) EncodeHeader(header types.Header, buf types.Buffer
 	}
 }
 
-func (t *encryptedHandshaker) DecodeHeader(c net.Conn) (types.Header, error) {
-	buf := pool.GetBytes(8)
-	defer pool.PutBytes(buf)
+func (t *encryptedHandshaker) DecodeHeader(c pool.BufioConn) (types.Header, error) {
+	header := types.Header{}
 
-	if _, err := io.ReadFull(c, buf[:1]); err != nil {
-		return types.Header{}, fmt.Errorf("read net type failed: %w", err)
-	}
-	net := types.Protocol(buf[0])
-
-	if net.Unknown() {
-		return types.Header{}, fmt.Errorf("unknown network")
-	}
-
-	header := types.Header{
-		Protocol: net,
-	}
-
-	if net == types.UDPWithMigrateID {
-		if _, err := io.ReadFull(c, buf); err != nil {
-			return types.Header{}, fmt.Errorf("read net type failed: %w", err)
-		}
-
-		header.MigrateID = binary.BigEndian.Uint64(buf)
-	}
-
-	if net == types.TCP {
-		target, err := tools.ResolveAddr(c)
+	err := c.BufioRead(func(r *bufio.Reader) error {
+		netbyte, err := r.ReadByte()
 		if err != nil {
-			return types.Header{}, fmt.Errorf("resolve addr failed: %w", err)
+			return fmt.Errorf("read net type failed: %w", err)
 		}
-		defer pool.PutBytes(target)
 
-		header.Addr = target.Address("tcp")
-	}
+		header.Protocol = types.Protocol(netbyte)
 
-	return header, nil
+		if header.Protocol.Unknown() {
+			return fmt.Errorf("unknown network: %d", netbyte)
+		}
+
+		if header.Protocol == types.UDPWithMigrateID {
+			mirgateBytes, err := r.Peek(8)
+			if err != nil {
+				return fmt.Errorf("read migrate id failed: %w", err)
+			}
+
+			_, _ = r.Discard(8)
+
+			header.MigrateID = binary.BigEndian.Uint64(mirgateBytes)
+		}
+
+		if header.Protocol == types.TCP {
+			_, addr, err := tools.ReadAddr("tcp", r)
+			if err != nil {
+				return fmt.Errorf("read addr failed: %w", err)
+			}
+			header.Addr = addr
+		}
+
+		return nil
+	})
+
+	return header, err
 }
 
 func (h *encryptedHandshaker) Handshake(conn net.Conn) (net.Conn, error) {

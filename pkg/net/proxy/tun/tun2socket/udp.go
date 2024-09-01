@@ -7,7 +7,6 @@ import (
 	"math/rand/v2"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -66,31 +65,31 @@ type Batch struct {
 	Tuple   UDPTuple
 }
 
-func (u *UDP) WriteBatch(batch []Batch) error {
-	if u.closed {
-		return net.ErrClosed
-	}
+// func (u *UDP) WriteBatch(batch []Batch) error {
+// 	if u.closed {
+// 		return net.ErrClosed
+// 	}
 
-	buffs := make([][]byte, 0, len(batch))
+// 	buffs := make([][]byte, 0, len(batch))
 
-	for _, b := range batch {
-		tunBuf, err := u.processUDPPacket(b.Payload, b.Tuple)
-		if err != nil {
-			log.Error("process udp packet failed:", "err", err)
-			continue
-		}
-		defer pool.PutBytes(tunBuf)
+// 	for _, b := range batch {
+// 		tunBuf, err := u.processUDPPacket(b.Payload, b.Tuple)
+// 		if err != nil {
+// 			log.Error("process udp packet failed:", "err", err)
+// 			continue
+// 		}
+// 		defer pool.PutBytes(tunBuf)
 
-		buffs = append(buffs, tunBuf)
-	}
+// 		buffs = append(buffs, tunBuf)
+// 	}
 
-	if len(buffs) == 0 {
-		return nil
-	}
+// 	if len(buffs) == 0 {
+// 		return nil
+// 	}
 
-	_, err := u.device.Write(buffs)
-	return err
-}
+// 	_, err := u.device.Write(buffs)
+// 	return err
+// }
 
 func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
 	udpTotalLength := int(header.UDPMinimumSize) + len(buf)

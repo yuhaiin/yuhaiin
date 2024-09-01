@@ -1,11 +1,8 @@
 package nat
 
 import (
-	"context"
 	"net"
-	"net/netip"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
@@ -22,24 +19,3 @@ func (s *addrStore) StoreDispatch(key string, addr netapi.Address)  { s.distpatc
 func (s *addrStore) LoadUdp(key string) (*net.UDPAddr, bool)        { return s.udp.Load(key) }
 func (s *addrStore) LoadOrigin(key string) (netapi.Address, bool)   { return s.origin.Load(key) }
 func (s *addrStore) LoadDispatch(key string) (netapi.Address, bool) { return s.distpatch.Load(key) }
-
-type addrKey struct {
-	ip     netip.Addr
-	domain string
-	port   uint16
-}
-
-func getAddrKey(addr netapi.Address) addrKey {
-	if addr.IsFqdn() {
-		return addrKey{
-			domain: addr.Hostname(),
-			port:   addr.Port(),
-		}
-	} else {
-		addrPort, _ := dialer.ResolverAddrPort(context.Background(), addr)
-		return addrKey{
-			ip:   addrPort.Addr(),
-			port: addrPort.Port(),
-		}
-	}
-}

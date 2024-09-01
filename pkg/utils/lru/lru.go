@@ -25,11 +25,12 @@ func (e *lruEntry[K, V]) Clone() *lruEntry[K, V] {
 type lru[K comparable, V any] struct {
 	list *list.List[*lruEntry[K, V]]
 
-	lastPopEntry *lruEntry[K, V]
-	onRemove     func(K, V)
-	mapping      map[K]*list.Element[*lruEntry[K, V]]
-	capacity     uint
-	timeout      time.Duration
+	lastPopEntry  *lruEntry[K, V]
+	onRemove      func(K, V)
+	onValueUpdate func(old, new V)
+	mapping       map[K]*list.Element[*lruEntry[K, V]]
+	capacity      uint
+	timeout       time.Duration
 }
 
 type Option[K comparable, V any] func(*lru[K, V])
@@ -89,6 +90,9 @@ func (l *lru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 	}
 
 	if elem, ok := l.mapping[key]; ok {
+		if l.onValueUpdate != nil {
+			l.onValueUpdate(elem.Value().data, value)
+		}
 		l.list.MoveToFront(elem.SetValue(entry))
 		return
 	}
@@ -176,4 +180,8 @@ func (l *lru[K, V]) Delete(key K) {
 		l.onRemove(key, x.Value().data)
 	}
 	l.list.Remove(x)
+}
+
+func (l *lru[K, V]) Len() int {
+	return l.list.Len()
 }

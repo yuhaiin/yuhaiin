@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type client struct {
@@ -56,25 +57,27 @@ func (c *client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("write request failed: %w", err)
 	}
 
-	bufioReader := bufio.NewReader(conn)
-	resp, err := http.ReadResponse(bufioReader, req)
+	cconn := pool.NewBufioConnSize(conn, pool.DefaultSize)
+
+	var resp *http.Response
+	err = cconn.BufioRead(func(r *bufio.Reader) error {
+		resp, err = http.ReadResponse(r, req)
+		if err != nil {
+			return fmt.Errorf("read response failed: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("status code not ok: %d", resp.StatusCode)
+		}
+
+		return nil
+	})
 	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("read response failed: %w", err)
+		cconn.Close()
+		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		conn.Close()
-		return nil, fmt.Errorf("status code not ok: %d", resp.StatusCode)
-	}
-
-	conn, err = netapi.MergeBufioReaderConn(conn, bufioReader)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("merge bufio reader conn failed: %w", err)
-	}
-
-	return &clientConn{Conn: conn, resp: resp}, nil
+	return &clientConn{Conn: cconn, resp: resp}, nil
 }
 
 type clientConn struct {

@@ -50,8 +50,8 @@ func LookupStaticAddr(ip net.IP) []string {
 func IsDomainName(string) bool
 
 type byName struct {
-	addrs         []netip.Addr
 	canonicalName string
+	addrs         []netip.Addr
 }
 
 type Hosts struct {

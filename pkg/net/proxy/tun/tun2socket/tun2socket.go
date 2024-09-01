@@ -134,21 +134,21 @@ func (h *WriteBack) WriteBack(b []byte, addr net.Addr) (int, error) {
 	return h.nat.UDP.WriteTo(b, tuple)
 }
 
-func (h *WriteBack) WriteBatch(bufs ...netapi.WriteBatchBuf) error {
-	batch := make([]Batch, 0, len(bufs))
+// func (h *WriteBack) WriteBatch(bufs ...netapi.WriteBatchBuf) error {
+// 	batch := make([]Batch, 0, len(bufs))
 
-	for _, buf := range bufs {
-		tuple, err := h.toTuple(buf.Addr)
-		if err != nil {
-			log.Error("parse addr failed:", "err", err)
-			continue
-		}
+// 	for _, buf := range bufs {
+// 		tuple, err := h.toTuple(buf.Addr)
+// 		if err != nil {
+// 			log.Error("parse addr failed:", "err", err)
+// 			continue
+// 		}
 
-		batch = append(batch, Batch{
-			Payload: buf.Payload,
-			Tuple:   tuple,
-		})
-	}
+// 		batch = append(batch, Batch{
+// 			Payload: buf.Payload,
+// 			Tuple:   tuple,
+// 		})
+// 	}
 
-	return h.nat.UDP.WriteBatch(batch)
-}
+// 	return h.nat.UDP.WriteBatch(batch)
+// }

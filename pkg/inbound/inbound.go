@@ -59,7 +59,7 @@ func (l *listener) HandleStream(stream *netapi.StreamMeta) {
 		err := l.handler.dnsHandler.HandleTCP(ctx, stream.Src)
 		_ = stream.Src.Close()
 		if err != nil {
-			log.Output(0, netapi.LogLevel(err), "tcp server handle DnsHijacking", "msg", err)
+			log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err)
 		}
 	}()
 }
@@ -87,7 +87,7 @@ func (l *listener) HandlePacket(packet *netapi.Packet) {
 		}
 		err := l.handler.dnsHandler.Do(ctx, dnsReq)
 		if err != nil {
-			log.Output(0, netapi.LogLevel(err), "udp server handle DnsHijacking", "msg", err)
+			log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
 		}
 	}()
 }
@@ -116,13 +116,13 @@ func (l *listener) Update(current *pc.Setting) {
 }
 
 type Diff struct {
+	Old entry
+	New *pl.Inbound
+
+	Key    string
 	Rmoved bool
 	Added  bool
 	Modif  bool
-
-	Key string
-	New *pl.Inbound
-	Old entry
 }
 
 func (l *listener) diff(newInbounds map[string]*pl.Inbound) iter.Seq[Diff] {

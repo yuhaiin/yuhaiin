@@ -221,9 +221,9 @@ func sendRequest(req *stun.Message, conn net.PacketConn, addr net.Addr, timeout 
 }
 
 type StunResponse struct {
+	MappedAddr    string
 	MappingType   NatType
 	FilteringType NatType
-	MappedAddr    string
 }
 
 func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error) {

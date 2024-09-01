@@ -8,7 +8,7 @@ import (
 )
 
 func TestLru(t *testing.T) {
-	l := NewSyncReverseLru(WithCapacity[string, string](4))
+	l := NewSyncReverseLru(WithLruOptions(WithCapacity[string, string](4)))
 
 	l.Add("a", "a")
 	l.Add("b", "b")
@@ -42,7 +42,7 @@ func TestLru(t *testing.T) {
 }
 
 func TestExpire(t *testing.T) {
-	l := NewSyncReverseLru(WithCapacity[string, string](4))
+	l := NewSyncReverseLru(WithLruOptions(WithCapacity[string, string](4)))
 
 	l.Add("a", "a", WithTimeout[string, string](time.Second))
 

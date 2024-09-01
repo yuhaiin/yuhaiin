@@ -25,6 +25,15 @@ func (a *SyncMap[T1, T2]) LoadOrStore(key T1, value T2) (r T2, _ bool) {
 	return v.(T2), ok
 }
 
+func (a *SyncMap[T1, T2]) LoadOrCreate(key T1, f func() T2) (r T2, _ bool) {
+	v, ok := a.data.Load(key)
+	if !ok {
+		v = f()
+		v, ok = a.data.LoadOrStore(key, v)
+	}
+	return v.(T2), ok
+}
+
 func (a *SyncMap[T1, T2]) LoadAndDelete(key T1) (r T2, _ bool) {
 	v, ok := a.data.LoadAndDelete(key)
 	if !ok {
@@ -43,11 +52,10 @@ func (a *SyncMap[T1, T2]) Range(f func(key T1, value T2) bool) {
 	})
 }
 
-func (a *SyncMap[key, T2]) ValueSlice() (r []T2) {
-	for _, v := range a.data.Range {
-		r = append(r, v.(T2))
-	}
-	return r
+func (a *SyncMap[T1, T2]) RangeValues(f func(value T2) bool) {
+	a.data.Range(func(_, value any) bool {
+		return f(value.(T2))
+	})
 }
 
 func (a *SyncMap[T1, T2]) Swap(x T1, b T2) (T2, bool) {
@@ -67,14 +75,15 @@ func (a *SyncMap[T1, T2]) CompareAndDelete(key T1, old T2) (deleted bool) {
 	return a.data.CompareAndDelete(key, old)
 }
 
-type Diff[K comparable, V any] struct {
-	Rmoved bool
-	Added  bool
-	Modif  bool
+func (a *SyncMap[T1, T2]) Clear() { a.data.Clear() }
 
+type Diff[K comparable, V any] struct {
 	Key      K
 	OldValue V
 	NewValue V
+	Rmoved   bool
+	Added    bool
+	Modif    bool
 }
 
 func Differ[K comparable, V any](old, new *SyncMap[K, V], isSame func(v1, v2 V) bool) func(f func(Diff[K, V])) {

@@ -2,14 +2,11 @@ package yuubinsya
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
-	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -17,20 +14,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
-var closedBufioReader = bufio.NewReaderSize(bytes.NewReader(nil), 10)
-
 type PacketConn struct {
-	net.Conn
 	handshaker types.Handshaker
-	bufior     *bufio.Reader
-	rmux       sync.Mutex
-	closed     bool
+	pool.BufioConn
 }
 
-func newPacketConn(conn net.Conn, handshaker types.Handshaker) *PacketConn {
+func newPacketConn(conn pool.BufioConn, handshaker types.Handshaker) *PacketConn {
 	x := &PacketConn{
-		Conn:       conn,
-		bufior:     pool.GetBufioReader(conn, 5000),
+		BufioConn:  conn,
 		handshaker: handshaker,
 	}
 	return x
@@ -43,21 +34,25 @@ func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
 	w := pool.NewBufferSize(1024)
 	defer w.Reset()
 	c.handshaker.EncodeHeader(types.Header{Protocol: protocol, MigrateID: migrateID}, w)
-	_, err := c.Conn.Write(w.Bytes())
+	_, err := c.BufioConn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
 	}
 
 	if protocol == types.UDPWithMigrateID {
-		c.rmux.Lock()
-		defer c.rmux.Unlock()
+		var id uint64
+		err := c.BufioConn.BufioRead(func(r *bufio.Reader) error {
+			idbytes, err := r.Peek(8)
+			if err != nil {
+				return fmt.Errorf("read net type failed: %w", err)
+			}
+			_, _ = r.Discard(8)
+			id = binary.BigEndian.Uint64(idbytes)
 
-		id, err := c.bufior.Peek(8)
-		if err != nil {
-			return 0, fmt.Errorf("read net type failed: %w", err)
-		}
-		_, _ = c.bufior.Discard(8)
-		return binary.BigEndian.Uint64(id), nil
+			return nil
+		})
+
+		return id, err
 	}
 
 	return 0, nil
@@ -70,7 +65,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, err = c.Conn.Write(w.Bytes())
+	_, err = c.BufioConn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
 	}
@@ -96,69 +91,58 @@ func (c *PacketConn) WriteBack(b []byte, addr net.Addr) (int, error) {
 	return c.WriteTo(b, addr)
 }
 
-func (c *PacketConn) WriteBatch(payloads ...netapi.WriteBatchBuf) error {
-	w := pool.NewBufferSize(20000)
-	defer w.Reset()
+// func (c *PacketConn) WriteBatch(payloads ...netapi.WriteBatchBuf) error {
+// 	w := pool.NewBufferSize(20000)
+// 	defer w.Reset()
 
-	for _, p := range payloads {
-		err := c.payloadToBuffer(w, p.Payload, p.Addr)
-		if err != nil {
-			log.Error("payload to buffer failed", "err", err)
-		}
-	}
+// 	for _, p := range payloads {
+// 		err := c.payloadToBuffer(w, p.Payload, p.Addr)
+// 		if err != nil {
+// 			log.Error("payload to buffer failed", "err", err)
+// 		}
+// 	}
 
-	_, err := c.Conn.Write(w.Bytes())
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *PacketConn) Close() error {
-	c.closed = true
-	err := c.Conn.Close()
-
-	c.rmux.Lock()
-	bufio := c.bufior
-	c.bufior = closedBufioReader
-	pool.PutBufioReader(bufio)
-	c.rmux.Unlock()
-
-	return err
-}
+// 	_, err := c.BufioConn.Write(w.Bytes())
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
 func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
-	if c.closed {
-		return 0, nil, net.ErrClosed
-	}
+	var addr netapi.Address
+	err = c.BufioRead(func(r *bufio.Reader) error {
+		_, addr, err = tools.ReadAddr("udp", r)
+		if err != nil {
+			return fmt.Errorf("failed to resolve udp packet addr: %w", err)
+		}
 
-	c.rmux.Lock()
-	defer c.rmux.Unlock()
+		l, err := r.Peek(2)
+		if err != nil {
+			return fmt.Errorf("peek length failed: %w", err)
+		}
 
-	_, addr, err := tools.ReadAddr("udp", c.bufior)
-	if err != nil {
-		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
-	}
+		_, _ = r.Discard(2)
+		length := binary.BigEndian.Uint16(l)
 
-	l, err := c.bufior.Peek(2)
-	if err != nil {
-		return 0, nil, fmt.Errorf("peek length failed: %w", err)
-	}
+		offset := min(len(payload), int(length))
 
-	_, _ = c.bufior.Discard(2)
-	length := binary.BigEndian.Uint16(l)
+		n, err = io.ReadFull(r, payload[:offset])
+		if err != nil {
+			return fmt.Errorf("read data failed: %w", err)
+		}
 
-	n, err = io.ReadFull(c.bufior, payload[:min(len(payload), int(length))])
-	if err != nil {
-		return n, nil, fmt.Errorf("read data failed: %w", err)
-	}
+		if length > uint16(n) {
+			_, err = r.Discard(int(length) - n)
+			if err != nil {
+				return fmt.Errorf("discard data failed: %w", err)
+			}
+		}
 
-	_, err = c.bufior.Discard(int(length) - n)
-	if err != nil {
-		return n, nil, fmt.Errorf("discard data failed: %w", err)
-	}
+		return nil
+	})
 
-	return n, addr, nil
+	return n, addr, err
 }
 
 type Conn struct {
