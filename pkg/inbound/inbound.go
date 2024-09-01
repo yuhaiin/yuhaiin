@@ -3,7 +3,9 @@ package inbound
 import (
 	"context"
 	"iter"
+	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -28,82 +30,105 @@ type listener struct {
 
 	store syncmap.SyncMap[string, entry]
 
-	hijackDNS bool
-	fakeip    bool
+	hijackDNS atomic.Bool
+	fakeip    atomic.Bool
+
+	udpChannel chan *netapi.Packet
 }
 
 func NewListener(dnsHandler netapi.DNSServer, dialer netapi.Proxy) *listener {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	l := &listener{
-		handler: NewHandler(dialer, dnsHandler),
-		ctx:     ctx,
-		close:   cancel,
-
-		hijackDNS: true,
-		fakeip:    true,
+		handler:    NewHandler(dialer, dnsHandler),
+		ctx:        ctx,
+		close:      cancel,
+		udpChannel: make(chan *netapi.Packet, configuration.UDPChannelBufferSize),
 	}
+	l.hijackDNS.Store(true)
+	l.fakeip.Store(true)
+
+	go l.loopudp()
 
 	return l
 }
 
-func (l *listener) HandleStream(stream *netapi.StreamMeta) {
-	if !l.hijackDNS || stream.Address.Port() != 53 {
-		l.handler.Stream(l.ctx, stream)
-		return
-	}
+func (l *listener) isHandleDNS(port uint16) bool {
+	return l.hijackDNS.Load() && port == 53
+}
 
+func (l *listener) HandleStream(stream *netapi.StreamMeta) {
 	go func() {
+		if !l.isHandleDNS(stream.Address.Port()) {
+			l.handler.Stream(l.ctx, stream)
+			return
+		}
+
 		ctx := netapi.WithContext(l.ctx)
-		ctx.Resolver.ForceFakeIP = l.fakeip
+		ctx.Resolver.ForceFakeIP = l.fakeip.Load()
 		err := l.handler.dnsHandler.HandleTCP(ctx, stream.Src)
 		_ = stream.Src.Close()
 		if err != nil {
-			log.Output(0, netapi.LogLevel(err), "tcp server handle DnsHijacking", "msg", err)
+			log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err)
 		}
 	}()
 }
 
 func (l *listener) HandlePacket(packet *netapi.Packet) {
-	defer packet.DecRef()
-
-	if !l.hijackDNS || packet.Dst.Port() != 53 {
-		l.handler.Packet(l.ctx, packet)
-		return
+	select {
+	case l.udpChannel <- packet:
+	case <-l.ctx.Done():
+		packet.DecRef()
 	}
+}
 
-	packet.IncRef()
-	go func() {
-		defer packet.DecRef()
+func (l *listener) loopudp() {
+	for {
+		select {
+		case <-l.ctx.Done():
+			return
+		case packet := <-l.udpChannel:
+			l.handlePacket(packet)
+		}
+	}
+}
 
-		ctx := netapi.WithContext(l.ctx)
-		ctx.Resolver.ForceFakeIP = l.fakeip
-		dnsReq := &netapi.DNSRawRequest{
-			Question: packet.Payload,
-			WriteBack: func(b []byte) error {
-				_, err := packet.WriteBack.WriteBack(b, packet.Dst)
-				return err
-			},
-		}
-		err := l.handler.dnsHandler.Do(ctx, dnsReq)
-		if err != nil {
-			log.Output(0, netapi.LogLevel(err), "udp server handle DnsHijacking", "msg", err)
-		}
-	}()
+func (l *listener) handlePacket(packet *netapi.Packet) {
+	if !l.isHandleDNS(packet.Dst.Port()) {
+		l.handler.Packet(l.ctx, packet)
+		packet.DecRef()
+	} else {
+		go func() {
+			defer packet.DecRef()
+			ctx := netapi.WithContext(l.ctx)
+			ctx.Resolver.ForceFakeIP = l.fakeip.Load()
+			dnsReq := &netapi.DNSRawRequest{
+				Question: packet.Payload,
+				WriteBack: func(b []byte) error {
+					_, err := packet.WriteBack.WriteBack(b, packet.Dst)
+					return err
+				},
+			}
+			err := l.handler.dnsHandler.Do(ctx, dnsReq)
+			if err != nil {
+				log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
+			}
+		}()
+	}
 }
 
 func (l *listener) Update(current *pc.Setting) {
-	// l.hijackDNS = current.Server.HijackDns
-	l.fakeip = current.Server.HijackDnsFakeip
+	// l.hijackDNS.Store(current.Server.HijackDns)
+	l.fakeip.Store(current.Server.HijackDnsFakeip)
 	l.handler.sniffyEnabled = current.GetServer().GetSniff().GetEnabled()
 
 	for v := range l.diff(current.Server.Inbounds) {
-		if v.Rmoved || v.Modif {
+		if v.Rmoved || v.Modified {
 			v.Old.server.Close()
 			l.store.Delete(v.Key)
 		}
 
-		if (v.Added || v.Modif) && v.New.GetEnabled() {
+		if (v.Added || v.Modified) && v.New.GetEnabled() {
 			server, err := pl.Listen(v.New, l)
 			if err != nil {
 				log.Error("start server failed", "name", v.Key, "err", err)
@@ -116,13 +141,13 @@ func (l *listener) Update(current *pc.Setting) {
 }
 
 type Diff struct {
-	Rmoved bool
-	Added  bool
-	Modif  bool
-
-	Key string
-	New *pl.Inbound
 	Old entry
+	New *pl.Inbound
+
+	Key      string
+	Rmoved   bool
+	Added    bool
+	Modified bool
 }
 
 func (l *listener) diff(newInbounds map[string]*pl.Inbound) iter.Seq[Diff] {
@@ -142,7 +167,7 @@ func (l *listener) diff(newInbounds map[string]*pl.Inbound) iter.Seq[Diff] {
 			if !ok {
 				f(Diff{Added: true, Key: k, New: v2})
 			} else if !proto.Equal(v1.config, v2) {
-				f(Diff{Modif: true, Key: k, Old: v1, New: v2})
+				f(Diff{Modified: true, Key: k, Old: v1, New: v2})
 			}
 		}
 	}

@@ -15,3 +15,4 @@
 /cmd/nat_test
 /tmp
 pkg/protos/tools/tmp
+cmd/android/yuhaiin.db

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"runtime"
 	"sync"
@@ -41,9 +42,10 @@ func (a *App) Start(opt *Opts) error {
 
 		app, err := app.Start(
 			appapi.Start{
-				ConfigPath:    opt.Savepath,
-				Setting:       fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
-				Host:          opt.Host,
+				ConfigPath: opt.Savepath,
+				Setting:    fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
+				Host: net.JoinHostPort(ifOr(opt.MapStore.GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
+					fmt.Sprint(opt.MapStore.GetInt(YuhaiinPortKey))),
 				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),
 			})
 		if err != nil {

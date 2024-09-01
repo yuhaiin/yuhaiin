@@ -130,7 +130,7 @@ func (s *Server) Server() {
 
 		go func() {
 			if err := s.Handle(conn); err != nil {
-				log.Output(0, netapi.LogLevel(err), "socks5 server handle", "msg", err)
+				log.Select(netapi.LogLevel(err)).Print("socks5 server handle", "msg", err)
 			}
 		}()
 

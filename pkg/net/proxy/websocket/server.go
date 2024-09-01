@@ -103,6 +103,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	select {
 	case <-s.closeCtx.Done():
 		_ = wsconn.Close()
-	case s.connChan <- netapi.NewPrefixBytesConn(wsconn, func(b []byte) { pool.PutBytes(b) }, earlyData):
+	case s.connChan <- pool.NewBytesConn(wsconn, earlyData):
 	}
 }

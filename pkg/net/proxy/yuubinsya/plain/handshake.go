@@ -1,12 +1,12 @@
 package plain
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -32,50 +32,56 @@ func (password Handshaker) EncodeHeader(header types.Header, buf types.Buffer) {
 	}
 }
 
-func (password Handshaker) DecodeHeader(c net.Conn) (types.Header, error) {
-	buf := pool.GetBytes(crypto.Sha256.Size())
-	defer pool.PutBytes(buf)
+func (password Handshaker) DecodeHeader(c pool.BufioConn) (types.Header, error) {
+	header := types.Header{}
 
-	if _, err := io.ReadFull(c, buf[:1]); err != nil {
-		return types.Header{}, fmt.Errorf("read net type failed: %w", err)
-	}
-	net := types.Protocol(buf[0])
-
-	if net.Unknown() {
-		return types.Header{}, fmt.Errorf("unknown network")
-	}
-
-	header := types.Header{
-		Protocol: net,
-	}
-
-	if net == types.UDPWithMigrateID {
-		if _, err := io.ReadFull(c, buf[:8]); err != nil {
-			return types.Header{}, fmt.Errorf("read net type failed: %w", err)
-		}
-
-		header.MigrateID = binary.BigEndian.Uint64(buf[:8])
-	}
-
-	if _, err := io.ReadFull(c, buf); err != nil {
-		return types.Header{}, fmt.Errorf("read password failed: %w", err)
-	}
-
-	if subtle.ConstantTimeCompare(buf, password[:]) == 0 {
-		return header, errors.New("password is incorrect")
-	}
-
-	if net == types.TCP {
-		target, err := tools.ResolveAddr(c)
+	err := c.BufioRead(func(r *bufio.Reader) error {
+		netbyte, err := r.ReadByte()
 		if err != nil {
-			return types.Header{}, fmt.Errorf("resolve addr failed: %w", err)
+			return fmt.Errorf("read net type failed: %w", err)
 		}
-		defer pool.PutBytes(target)
 
-		header.Addr = target.Address("tcp")
-	}
+		header.Protocol = types.Protocol(netbyte)
 
-	return header, nil
+		if header.Protocol.Unknown() {
+			return fmt.Errorf("unknown network: %d", netbyte)
+		}
+
+		if header.Protocol == types.UDPWithMigrateID {
+			mirgateBytes, err := r.Peek(8)
+			if err != nil {
+				return fmt.Errorf("read migrate id failed: %w", err)
+			}
+
+			_, _ = r.Discard(8)
+
+			header.MigrateID = binary.BigEndian.Uint64(mirgateBytes)
+		}
+
+		passwordBuf, err := r.Peek(crypto.Sha256.Size())
+		if err != nil {
+			return fmt.Errorf("read password failed: %w", err)
+		}
+
+		_, _ = r.Discard(crypto.Sha256.Size())
+
+		if subtle.ConstantTimeCompare(passwordBuf, password[:]) == 0 {
+			return errors.New("password is incorrect")
+		}
+
+		if header.Protocol == types.TCP {
+			_, target, err := tools.ReadAddr("tcp", r)
+			if err != nil {
+				return fmt.Errorf("read addr failed: %w", err)
+			}
+
+			header.Addr = target
+		}
+
+		return nil
+	})
+
+	return header, err
 }
 
 func (Handshaker) Handshake(conn net.Conn) (net.Conn, error) { return conn, nil }

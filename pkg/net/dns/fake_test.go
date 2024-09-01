@@ -2,6 +2,7 @@ package dns
 
 import (
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"os"
 	"sync"
@@ -21,6 +22,8 @@ func TestRetrieveIPFromPtr(t *testing.T) {
 }
 
 func TestNetip(t *testing.T) {
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+
 	t.Log(len("f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.f.f.f"))
 	addr, _ := netip.ParseAddr("2606:4700:20::681a:ffff")
 	t.Log(addr.As16())

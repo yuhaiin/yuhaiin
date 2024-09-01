@@ -177,9 +177,9 @@ func (t AttrType) String() string {
 // contains comprehension-required attributes that are not
 // understood.
 type RawAttribute struct {
+	Value  []byte
 	Type   AttrType
 	Length uint16 // ignored while encoding
-	Value  []byte
 }
 
 // AddTo implements Setter, adding attribute as a.Type with a.Value and ignoring

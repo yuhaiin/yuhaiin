@@ -9,7 +9,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/exp/maps"
 )
@@ -43,14 +42,14 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s gs.Connections_NotifyServer, conns ...connection) (uint64, context.Context) {
+func (n *notify) register(s gs.Connections_NotifyServer, conns []*statistic.Connection) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
 
 	err := s.Send(&gs.NotifyData{
 		Data: &gs.NotifyData_NotifyNewConnections{
 			NotifyNewConnections: &gs.NotifyNewConnections{
-				Connections: slice.To(conns, func(c connection) *statistic.Connection { return c.Info() }),
+				Connections: conns,
 			},
 		},
 	})
@@ -147,7 +146,7 @@ func (n *notify) start() {
 	}
 }
 
-func (n *notify) pubNewConns(conns ...connection) {
+func (n *notify) pubNewConns(conns []*statistic.Connection) {
 	if len(conns) == 0 {
 		return
 	}
@@ -166,7 +165,7 @@ func (n *notify) pubNewConns(conns ...connection) {
 	case n.channel <- &gs.NotifyData{
 		Data: &gs.NotifyData_NotifyNewConnections{
 			NotifyNewConnections: &gs.NotifyNewConnections{
-				Connections: slice.To(conns, func(c connection) *statistic.Connection { return c.Info() }),
+				Connections: conns,
 			},
 		},
 	}:

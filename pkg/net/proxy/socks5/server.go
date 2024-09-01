@@ -52,7 +52,7 @@ func (s *Server) startTCPServer() error {
 
 			go func() {
 				if err := s.Handle(conn); err != nil {
-					log.Output(0, netapi.LogLevel(err), "socks5 udp server handle", "msg", err)
+					log.Select(netapi.LogLevel(err)).Print("socks5 tcp server handle", "msg", err)
 				}
 			}()
 

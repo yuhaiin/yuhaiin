@@ -277,15 +277,16 @@ func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 		ttl = msg.Answers[0].Header.TTL
 	}
 
-	args := []any{
-		slog.String("resolver", c.config.Name),
-		slog.Any("host", req.Name),
-		slog.Any("type", req.Type),
-		slog.Any("code", msg.RCode),
-		slog.Any("ttl", ttl),
-	}
-
-	log.Debug("resolve domain", args...)
+	log.Select(slog.LevelDebug).PrintFunc("resolve domain", func() []any {
+		args := []any{
+			slog.String("resolver", c.config.Name),
+			slog.Any("host", req.Name),
+			slog.Any("type", req.Type),
+			slog.Any("code", msg.RCode),
+			slog.Any("ttl", ttl),
+		}
+		return args
+	})
 
 	if ttl > 1 {
 		msg.Questions = nil

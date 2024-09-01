@@ -8,6 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type client struct {
@@ -80,7 +81,8 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		conn.Close()
 		return nil, err
 	}
-	pc := newPacketConn(hconn, c.handshaker)
+
+	pc := newPacketConn(pool.NewBufioConnSize(hconn, pool.DefaultSize), c.handshaker)
 
 	store := netapi.GetContext(ctx)
 

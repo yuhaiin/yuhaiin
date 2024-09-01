@@ -1,8 +1,10 @@
 package mixed
 
 import (
+	"bufio"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -126,20 +128,23 @@ func (m *Mixed) handle() error {
 		}
 
 		go func() {
-			protocol := pool.GetBytes(pool.DefaultSize)
+			conn := pool.NewBufioConnSize(conn, pool.DefaultSize)
 
-			n, err := conn.Read(protocol)
-			if err != nil || n <= 0 {
-				conn.Close()
-				pool.PutBytes(protocol)
+			var protocol byte
+			err := conn.BufioRead(func(r *bufio.Reader) error {
+				protocol, err = r.ReadByte()
+				if err == nil {
+					_ = r.UnreadByte()
+				}
+				return err
+			})
+			if err != nil {
+				_ = conn.Close()
+				slog.Error("peek protocol failed", "err", err)
 				return
 			}
 
-			protocol = protocol[:n]
-
-			conn = netapi.NewPrefixBytesConn(conn, func(b []byte) { pool.PutBytes(b) }, protocol)
-
-			switch protocol[0] {
+			switch protocol {
 			case 0x05:
 				m.s5c.NewConn(conn)
 			case 0x04:

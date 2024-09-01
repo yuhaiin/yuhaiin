@@ -23,18 +23,18 @@ type TotalCache struct {
 	ctx   context.Context
 
 	// trigger to sync to disk
-	triggerDownload  chan struct{}
-	triggerdDownload atomic.Bool
-	triggerUpload    chan struct{}
-	triggerdUpload   atomic.Bool
+	triggerDownload chan struct{}
+	triggerUpload   chan struct{}
 
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 	download atomic.Uint64
 	upload   atomic.Uint64
 
-	notSyncDownload atomic.Int64
-	notSyncUpload   atomic.Int64
+	notSyncDownload  atomic.Int64
+	notSyncUpload    atomic.Int64
+	triggerdDownload atomic.Bool
+	triggerdUpload   atomic.Bool
 }
 
 func NewTotalCache(cache cache.Cache) *TotalCache {

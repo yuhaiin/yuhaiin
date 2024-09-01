@@ -28,8 +28,8 @@ type reqKey struct {
 }
 
 type respBuf struct {
-	msg  dnsmessage.Message
 	done chan struct{}
+	msg  dnsmessage.Message
 	once sync.Once
 }
 
@@ -43,11 +43,11 @@ func (r *respBuf) setMsg(msg dnsmessage.Message) {
 type udp struct {
 	packetConn    net.PacketConn
 	addr          netapi.Address
+	timer         *time.Timer
 	sender        syncmap.SyncMap[reqKey, *respBuf]
 	config        Config
-	mu            sync.RWMutex
 	lastQueryTime atomic.Int64
-	timer         *time.Timer
+	mu            sync.RWMutex
 }
 
 func (u *udp) Close() error {
