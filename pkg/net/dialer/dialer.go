@@ -5,6 +5,8 @@ import (
 	"net"
 	"syscall"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 )
 
 // UDP socket read/write buffer size (7MB). The value of 7MB is chosen as it is
@@ -38,7 +40,9 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
-	config.SetMultipathTCP(true)
+	if configuration.MPTCP {
+		config.SetMultipathTCP(true)
+	}
 	return config.Listen(ctx, network, address)
 }
 
@@ -67,7 +71,9 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
-	d.SetMultipathTCP(true)
+	if configuration.MPTCP {
+		d.SetMultipathTCP(true)
+	}
 	return d.DialContext(ctx, network, address)
 }
 

@@ -4,6 +4,8 @@ import (
 	"net/netip"
 	"os"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 var Lite = os.Getenv("YUHAIIN_LITE") == "true"
@@ -16,9 +18,15 @@ var (
 
 	ProcessDumper = or(true, false)
 
-	Timeout = time.Second * 40
+	Timeout = time.Second * 20
+
+	SnifferBufferSize = pool.DefaultSize
 
 	UDPBatchSize = 8
+
+	MPTCP = false
+
+	UDPChannelBufferSize = 2500
 )
 
 func or[T any](a, b T) T {

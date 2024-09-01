@@ -23,4 +23,5 @@ func (m *MockCache) Put(k, v []byte) {
 func (m *MockCache) Delete(k ...[]byte)                          {}
 func (m *MockCache) Range(f func(key []byte, value []byte) bool) {}
 func (m *MockCache) Close() error                                { return nil }
+func (m *MockCache) NewCache(str string) Cache                   { return &MockCache{} }
 func NewMockCache() Cache                                        { return &MockCache{} }

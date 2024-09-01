@@ -11,60 +11,9 @@ import (
 
 type Opts struct {
 	CloseFallback Closer
-	Bypass        *Bypass     `json:"bypass"`
-	DNS           *DNSSetting `json:"dns"`
-	TUN           *TUN        `json:"tun"`
-	Log           *Log        `json:"log"`
-	Host          string      `json:"host"`
-	Savepath      string      `json:"savepath"`
-	Socks5        string      `json:"socks5"`
-	Http          string      `json:"http"`
-	IPv6          bool        `json:"ipv6"`
-}
-
-type Log struct {
-	SaveLogcat bool `json:"save_logcat"`
-	// 0:verbose, 1:debug, 2:info, 3:warning, 4:error, 5: fatal
-	LogLevel int32 `json:"log_level"`
-}
-
-type Bypass struct {
-	Block  string `json:"block"`
-	Proxy  string `json:"proxy"`
-	Direct string `json:"direct"`
-	// 0: bypass, 1: proxy, 2: direct, 3: block
-	TCP int32 `json:"tcp"`
-	// 0: bypass, 1: proxy, 2: direct, 3: block
-	UDP                int32 `json:"udp"`
-	Sniffy             bool  `json:"sniffy"`
-	UDPSkipResolveFqdn bool  `json:"udp_skip_resolve_fqdn"`
-}
-
-type DNSSetting struct {
-	Remote              *DNS   `json:"remote"`
-	Local               *DNS   `json:"local"`
-	Bootstrap           *DNS   `json:"bootstrap"`
-	Server              string `json:"server"`
-	FakednsIpRange      string `json:"fakedns_ip_range"`
-	FakednsIpv6Range    string `json:"fakedns_ipv6_range"`
-	Hosts               []byte `json:"hosts"`
-	Fakedns             bool   `json:"fakedns"`
-	ResolveRemoteDomain bool   `json:"resolve_remote_domain"`
-}
-
-type DNS struct {
-	Host          string `json:"host"`
-	Subnet        string `json:"subnet"`
-	TlsServername string `json:"tls_servername"`
-	// Type
-	// 0: reserve
-	// 1: udp
-	// 2: tcp
-	// 3: doh
-	// 4: dot
-	// 5: doq
-	// 6: doh3
-	Type int32 `json:"type"`
+	MapStore      *MapStore
+	TUN           *TUN   `json:"tun"`
+	Savepath      string `json:"savepath"`
 }
 
 type TUN struct {
@@ -74,13 +23,6 @@ type TUN struct {
 	PortalV6      string `json:"portal_v6"`
 	FD            int32  `json:"fd"`
 	MTU           int32  `json:"mtu"`
-	// Driver
-	// 0: fdbased
-	// 1: channel
-	// 2: tun2socket
-	// 3: tun2socket_gvisor
-	Driver       int32 `json:"driver"`
-	DNSHijacking bool  `json:"dns_hijacking"`
 }
 
 type UidDumper interface {

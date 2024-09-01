@@ -13,13 +13,12 @@ func (q *Set[T]) Push(x T) {
 	q.mu.Unlock()
 }
 
-func (self *Set[T]) Pop() (T, bool) {
+func (s *Set[T]) Pop() (T, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	self.mu.Lock()
-	defer self.mu.Unlock()
-
-	for k := range self.data {
-		delete(self.data, k)
+	for k := range s.data {
+		delete(s.data, k)
 		return k, true
 	}
 

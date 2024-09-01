@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -67,4 +68,33 @@ func (s *packetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	n, addr, err = s.PacketConn.ReadFrom(p)
 	s.manager.Cache.AddDownload(uint64(n))
 	return
+}
+
+func connToStatistic(c connection) *statistic.Connection { return c.Info() }
+
+func slogArgs(c connection) func() []any {
+	return func() []any {
+		info := c.Info()
+		attrs := []any{
+			slog.Any("id", info.GetId()),
+			slog.Any("addr", info.Addr),
+			slog.Any("src", info.Extra["Source"]),
+			slog.Any("network", info.Type.ConnType),
+			slog.Any("outbound", info.Extra["Outbound"]),
+		}
+
+		if info.Extra["Process"] != "" {
+			attrs = append(attrs, slog.Any("process", info.Extra["Process"]))
+		}
+
+		if info.Extra["FakeIP"] != "" {
+			attrs = append(attrs, slog.Any("fakeip", info.Extra["FakeIP"]))
+		}
+
+		if info.Extra["Hosts"] != "" {
+			attrs = append(attrs, slog.Any("hosts", info.Extra["Hosts"]))
+		}
+
+		return attrs
+	}
 }

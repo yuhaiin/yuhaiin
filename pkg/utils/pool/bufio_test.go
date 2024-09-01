@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"io"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestBufioReaderPool(t *testing.T) {
@@ -33,4 +35,19 @@ func TestBufioReaderPool(t *testing.T) {
 	PutBufioReader(r)
 
 	t.Log(bytes.Equal(cc, zz.Bytes()))
+}
+
+func TestXxx(t *testing.T) {
+	b := bytes.NewBuffer([]byte("dsadasdcxzczczasdasd"))
+
+	br := GetBufioReader(b, 1024)
+
+	n, err := br.Read([]byte{0x00})
+	assert.NoError(t, err)
+
+	t.Log(n, br.Buffered())
+
+	br.UnreadByte()
+
+	t.Log(n, br.Buffered())
 }

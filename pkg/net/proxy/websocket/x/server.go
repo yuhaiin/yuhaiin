@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Request struct {
@@ -61,15 +61,9 @@ func NewServerConn(w http.ResponseWriter, req *http.Request, handshake func(*Req
 		return nil, err
 	}
 
-	rwc, err = netapi.MergeBufioReaderConn(rwc, buf.Reader)
-	if err != nil {
-		return nil, err
-	}
-
-	putBufioReader(buf.Reader)
 	putBufioWriter(buf.Writer)
 
-	return newConn(rwc, true), nil
+	return newConn(pool.NewBufioConn(buf.Reader, rwc), true), nil
 }
 
 // A HybiServerHandshaker performs a server handshake using hybi draft protocol.

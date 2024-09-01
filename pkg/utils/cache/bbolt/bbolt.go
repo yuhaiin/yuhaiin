@@ -3,19 +3,20 @@ package bbolt
 import (
 	"errors"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"go.etcd.io/bbolt"
 )
 
 type Cache struct {
 	db *bbolt.DB
 
-	bucketName []byte
+	bucketName [][]byte
 }
 
 func NewCache(db *bbolt.DB, bucketName string) *Cache {
 	c := &Cache{
 		db:         db,
-		bucketName: []byte(bucketName),
+		bucketName: [][]byte{[]byte(bucketName)},
 	}
 
 	return c
@@ -27,7 +28,7 @@ func (c *Cache) Get(k []byte) (v []byte) {
 	}
 
 	_ = c.db.View(func(tx *bbolt.Tx) error {
-		bk := tx.Bucket(c.bucketName)
+		bk := c.existBucket(tx)
 		if bk == nil {
 			return nil
 		}
@@ -43,14 +44,43 @@ func (c *Cache) Get(k []byte) (v []byte) {
 	return v
 }
 
+func (c *Cache) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	bk := tx.Bucket(c.bucketName[0])
+	if bk == nil {
+		return nil
+	}
+
+	for _, v := range c.bucketName[1:] {
+		bk = bk.Bucket(v)
+		if bk == nil {
+			return nil
+		}
+	}
+
+	return bk
+}
+
 func (c *Cache) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
-	bk := tx.Bucket(c.bucketName)
+	bk := tx.Bucket(c.bucketName[0])
 	if bk == nil {
 		var err error
-		bk, err = tx.CreateBucketIfNotExists(c.bucketName)
+		bk, err = tx.CreateBucketIfNotExists(c.bucketName[0])
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	for _, v := range c.bucketName[1:] {
+		x := bk.Bucket(v)
+		if x == nil {
+			var err error
+			x, err = bk.CreateBucketIfNotExists(v)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		bk = x
 	}
 
 	return bk, nil
@@ -76,17 +106,18 @@ func (c *Cache) Delete(k ...[]byte) {
 	}
 
 	_ = c.db.Batch(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(c.bucketName)
+		bk := c.existBucket(tx)
+		if bk == nil {
+			return nil
+		}
 
 		for _, kk := range k {
 			if kk == nil {
 				continue
 			}
 
-			if b != nil {
-				if err := b.Delete(kk); err != nil {
-					return err
-				}
+			if err := bk.Delete(kk); err != nil {
+				return err
 			}
 		}
 
@@ -118,4 +149,11 @@ func (c *Cache) Range(f func(key []byte, value []byte) bool) {
 
 func (c *Cache) Close() error {
 	return nil
+}
+
+func (c *Cache) NewCache(str string) cache.Cache {
+	return &Cache{
+		db:         c.db,
+		bucketName: append(c.bucketName, []byte(str)),
+	}
 }

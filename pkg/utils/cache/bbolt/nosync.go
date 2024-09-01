@@ -28,7 +28,7 @@ type Nosync struct {
 	cache chan NoSynncEntry
 	close context.CancelFunc
 
-	bucketName []byte
+	bucketName [][]byte
 
 	wg sync.WaitGroup
 }
@@ -38,7 +38,7 @@ func NewNosyncCache(db *bbolt.DB, bucketName string) *Nosync {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Nosync{
 		db:         db,
-		bucketName: []byte(bucketName),
+		bucketName: [][]byte{[]byte(bucketName)},
 		cache:      make(chan NoSynncEntry, 150),
 		close:      cancel,
 		closed:     ctx,
@@ -75,7 +75,7 @@ func (c *Nosync) Get(k []byte) (v []byte) {
 	}
 
 	_ = c.db.View(func(tx *bbolt.Tx) error {
-		bk := tx.Bucket(c.bucketName)
+		bk := c.existBucket(tx)
 		if bk == nil {
 			return nil
 		}
@@ -91,16 +91,42 @@ func (c *Nosync) Get(k []byte) (v []byte) {
 	return v
 }
 
+func (c *Nosync) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	bk := tx.Bucket(c.bucketName[0])
+	if bk == nil {
+		return nil
+	}
+
+	for _, v := range c.bucketName[1:] {
+		bk = bk.Bucket(v)
+		if bk == nil {
+			return nil
+		}
+	}
+
+	return bk
+}
+
 func (c *Nosync) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
-	bk := tx.Bucket(c.bucketName)
+	bk := tx.Bucket(c.bucketName[0])
 	if bk == nil {
 		var err error
-		bk, err = tx.CreateBucketIfNotExists(c.bucketName)
+		bk, err = tx.CreateBucketIfNotExists(c.bucketName[0])
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	for _, v := range c.bucketName[1:] {
+		bk = bk.Bucket(v)
+		if bk == nil {
+			var err error
+			bk, err = bk.CreateBucketIfNotExists(v)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	return bk, nil
 }
 
@@ -186,17 +212,18 @@ func (c *Nosync) delete(k ...[]byte) {
 	}
 
 	_ = c.db.Batch(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(c.bucketName)
+		b := c.existBucket(tx)
+		if b == nil {
+			return nil
+		}
 
 		for _, kk := range k {
 			if kk == nil {
 				continue
 			}
 
-			if b != nil {
-				if err := b.Delete(kk); err != nil {
-					return err
-				}
+			if err := b.Delete(kk); err != nil {
+				return err
 			}
 		}
 

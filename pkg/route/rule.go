@@ -35,9 +35,9 @@ localhost DIRECT,tag=LAN
 `
 
 type Rule struct {
+	ModeEnum unique.Handle[bypass.ModeEnum]
 	Scheme   string
 	Hostname string
-	ModeEnum unique.Handle[bypass.ModeEnum]
 }
 
 func rangeRule(path string) iter.Seq[Rule] {

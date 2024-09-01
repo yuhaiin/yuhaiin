@@ -48,12 +48,12 @@ func Route(opt *Options) error {
 	var err error
 	for _, v := range opt.Routes {
 		if v.Addr().Is4() && opt.V4Address().IsValid() {
-			err = luid.AddRoute(v, V4Address.Addr(), 1)
+			err = luid.AddRoute(v.Masked(), V4Address.Addr(), 1)
 		} else if opt.V6Address().IsValid() {
-			err = luid.AddRoute(v, v6Address.Addr(), 1)
+			err = luid.AddRoute(v.Masked(), v6Address.Addr(), 1)
 		}
 		if err != nil {
-			log.Error("add route failed", slog.Any("err", err))
+			log.Error("add route failed", slog.Any("err", err), slog.Any("route", v.Masked()))
 		}
 	}
 

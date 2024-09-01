@@ -11,9 +11,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,11 +37,11 @@ type Wireguard struct {
 	timer  *time.Timer
 	device *device.Device
 
+	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
+
 	count atomic.Int64
 
 	idleTimeout time.Duration
-
-	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
 
 	mu sync.Mutex
 }
@@ -174,9 +174,9 @@ func processErr(err error) {
 }
 
 type wrapGoNetTcpConn struct {
-	once      sync.Once
 	wireguard *Wireguard
 	*gonet.TCPConn
+	once sync.Once
 }
 
 func (w *wrapGoNetTcpConn) Close() error {
@@ -268,10 +268,12 @@ func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *net
 		bind,
 		&device.Logger{
 			Verbosef: func(format string, args ...any) {
-				log.Output(2, slog.LevelDebug, fmt.Sprintf(format, args...))
+				_, file, line, _ := runtime.Caller(1)
+				log.Debug(fmt.Sprintf(format, args...), "file", file, "line", line)
 			},
 			Errorf: func(format string, args ...any) {
-				log.Output(2, slog.LevelError, fmt.Sprintf(format, args...))
+				_, file, line, _ := runtime.Caller(1)
+				log.Error(fmt.Sprintf(format, args...), "file", file, "line", line)
 			},
 		})
 

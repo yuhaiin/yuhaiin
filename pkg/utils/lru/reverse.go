@@ -5,16 +5,35 @@ import (
 )
 
 type ReverseSyncLru[K, V comparable] struct {
-	lru        *lru[K, V]
-	reverseMap map[V]*K
-	mu         sync.Mutex
+	lru            *lru[K, V]
+	reverseMap     map[V]*K
+	mu             sync.Mutex
+	onValueChanged func(old, new V)
 }
 
-func NewSyncReverseLru[K, V comparable](options ...Option[K, V]) *ReverseSyncLru[K, V] {
+type ReverseOption[K, V comparable] func(*ReverseSyncLru[K, V])
+
+func WithLruOptions[K, V comparable](options ...Option[K, V]) ReverseOption[K, V] {
+	return func(l *ReverseSyncLru[K, V]) {
+		l.lru = newLru(options...)
+	}
+}
+
+func WithOnValueChanged[K, V comparable](f func(old, new V)) ReverseOption[K, V] {
+	return func(l *ReverseSyncLru[K, V]) {
+		l.onValueChanged = f
+	}
+}
+
+func NewSyncReverseLru[K, V comparable](options ...ReverseOption[K, V]) *ReverseSyncLru[K, V] {
 	x := &ReverseSyncLru[K, V]{
 		reverseMap: make(map[V]*K),
+		lru:        newLru[K, V](),
 	}
-	x.lru = newLru(options...)
+
+	for _, o := range options {
+		o(x)
+	}
 
 	onRemove := x.lru.onRemove
 	x.lru.onRemove = func(k K, v V) {
@@ -24,17 +43,39 @@ func NewSyncReverseLru[K, V comparable](options ...Option[K, V]) *ReverseSyncLru
 		}
 	}
 
+	x.lru.onValueUpdate = func(old, new V) {
+		if old == new {
+			return
+		}
+
+		// remove updated values
+		// a.com 10.0.0.1
+		// a.com 10.0.0.2
+		//
+		// if not remove, the old value 10.0.0.1 will still be valid that exist in reverseMap
+
+		k, ok := x.reverseMap[old]
+		if ok {
+			delete(x.reverseMap, old)
+			x.reverseMap[new] = k
+			if x.onValueChanged != nil {
+				x.onValueChanged(old, new)
+			}
+		}
+	}
+
 	return x
 }
 
 func (l *ReverseSyncLru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 	l.mu.Lock()
-	_, ok := l.reverseMap[value]
+	k, ok := l.reverseMap[value]
 	if ok {
-		l.lru.Delete(key)
+		l.lru.Delete(*k)
 	}
 	l.lru.Add(key, value, opts...)
 	l.reverseMap[value] = &key
+
 	l.mu.Unlock()
 }
 
@@ -107,4 +148,10 @@ func (l *ReverseSyncLru[K, V]) ClearExpired() {
 	l.mu.Lock()
 	l.lru.ClearExpired()
 	l.mu.Unlock()
+}
+
+func (l *ReverseSyncLru[K, V]) Len() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lru.Len()
 }

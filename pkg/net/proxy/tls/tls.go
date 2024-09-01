@@ -15,9 +15,9 @@ import (
 type Tls struct {
 	netapi.EmptyDispatch
 
-	dialer netapi.Proxy
-
-	tlsConfig []*tls.Config
+	dialer       netapi.Proxy
+	tlsConfig    []*tls.Config
+	configLength int
 }
 
 func init() {
@@ -45,9 +45,14 @@ func NewClient(c *protocol.Protocol_Tls) point.WrapProxy {
 			}
 		}
 
+		if len(tlsConfigs) == 0 {
+			return p, nil
+		}
+
 		return &Tls{
-			tlsConfig: tlsConfigs,
-			dialer:    p,
+			tlsConfig:    tlsConfigs,
+			dialer:       p,
+			configLength: len(tlsConfigs),
 		}, nil
 	}
 }
@@ -58,12 +63,7 @@ func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 		return nil, err
 	}
 
-	length := len(t.tlsConfig)
-	if length == 0 {
-		return c, nil
-	}
-
-	return tls.Client(c, t.tlsConfig[rand.IntN(length)]), nil
+	return tls.Client(c, t.tlsConfig[rand.IntN(t.configLength)]), nil
 }
 
 func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

@@ -49,12 +49,19 @@ func (g *GroupNoblock[K, V]) DoBackground(key K, f func(V), fn func() (V, bool))
 
 		f(val)
 
-		c.fMu.Lock()
-		funcs := c.funcs
-		c.fMu.Unlock()
+		for {
+			c.fMu.Lock()
+			funcs := c.funcs
+			c.funcs = nil
+			c.fMu.Unlock()
 
-		for _, f := range funcs {
-			f(val)
+			if len(funcs) == 0 {
+				break
+			}
+
+			for _, f := range funcs {
+				f(val)
+			}
 		}
 	}()
 }
