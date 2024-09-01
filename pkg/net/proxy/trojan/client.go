@@ -1,6 +1,7 @@
 package trojan
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -8,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
@@ -38,7 +38,7 @@ func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr netapi.Address) (e
 
 	_, _ = buf.Write(c.password)
 	_, _ = buf.Write(crlf)
-	buf.WriteByte(byte(cmd))
+	_ = buf.WriteByte(byte(cmd))
 	tools.EncodeAddr(addr, buf)
 	_, _ = buf.Write(crlf)
 
@@ -88,13 +88,12 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		conn.Close()
 		return nil, fmt.Errorf("write header failed: %w", err)
 	}
-	return &PacketConn{Conn: conn}, nil
+
+	return &PacketConn{BufioConn: pool.NewBufioConnSize(conn, pool.DefaultSize)}, nil
 }
 
 type PacketConn struct {
-	net.Conn
-
-	mux sync.Mutex
+	pool.BufioConn
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
@@ -112,11 +111,10 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 
 	_ = binary.Write(w, binary.BigEndian, uint16(len(payload)))
 
-	w.Write(crlf) // crlf
+	_, _ = w.Write(crlf) // crlf
+	_, _ = w.Write(payload)
 
-	w.Write(payload)
-
-	_, err = c.Conn.Write(w.Bytes())
+	_, err = c.BufioConn.Write(w.Bytes())
 	if err != nil {
 		return 0, err
 	}
@@ -124,33 +122,31 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	return len(payload), nil
 }
 
-func (c *PacketConn) ReadFrom(payload []byte) (n int, _ net.Addr, err error) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
+func (c *PacketConn) ReadFrom(payload []byte) (n int, addr net.Addr, err error) {
+	err = c.BufioConn.BufioRead(func(r *bufio.Reader) error {
+		_, addr, err = tools.ReadAddr("udp", r)
+		if err != nil {
+			return fmt.Errorf("failed to resolve udp packet addr: %w", err)
+		}
 
-	addr, err := tools.ResolveAddr(c.Conn)
-	if err != nil {
-		return 0, nil, fmt.Errorf("failed to resolve udp packet addr: %w", err)
-	}
-	defer pool.PutBytes(addr)
+		// length + crlf
+		buf, err := r.Peek(4)
+		if err != nil {
+			return fmt.Errorf("failed to read length: %w", err)
+		}
 
-	var length uint16
-	if err = binary.Read(c.Conn, binary.BigEndian, &length); err != nil {
-		return 0, nil, fmt.Errorf("read length failed: %w", err)
-	}
+		length := binary.BigEndian.Uint16(buf[:2])
 
-	crlf := [2]byte{}
-	if _, err := io.ReadFull(c.Conn, crlf[:]); err != nil {
-		return 0, nil, fmt.Errorf("read crlf failed: %w", err)
-	}
+		n, err = io.ReadFull(r, payload[:min(int(length), len(payload))])
 
-	n, err = io.ReadFull(c.Conn, payload[:min(int(length), len(payload))])
+		if length > uint16(n) {
+			_, _ = relay.CopyN(io.Discard, r, int64(int(length)-n))
+		}
 
-	if length > uint16(n) {
-		_, _ = relay.CopyN(io.Discard, c.Conn, int64(int(length)-n))
-	}
+		return err
+	})
 
-	return n, addr.Address("udp"), err
+	return n, addr, err
 }
 
 func hexSha224(data []byte) []byte {

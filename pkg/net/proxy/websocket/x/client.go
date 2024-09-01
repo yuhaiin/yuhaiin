@@ -15,7 +15,7 @@ import (
 	"strings"
 	_ "unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 // Config is a WebSocket configuration
@@ -39,15 +39,6 @@ func (config *Config) NewClient(SecWebSocketKey string, rwc net.Conn, request fu
 	ws = newConn(rwc, false)
 	return
 }
-
-//go:linkname newBufioReader net/http.newBufioReader
-func newBufioReader(r io.Reader) *bufio.Reader
-
-//go:linkname putBufioReader net/http.putBufioReader
-func putBufioReader(br *bufio.Reader)
-
-//go:linkname newBufioWriterSize net/http.newBufioWriterSize
-func newBufioWriterSize(w io.Writer, size int) *bufio.Writer
 
 //go:linkname putBufioWriter net/http.putBufioWriter
 func putBufioWriter(br *bufio.Writer)
@@ -84,39 +75,44 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, conn net.Conn,
 		return nil, err
 	}
 
-	reader := newBufioReader(conn)
-	defer putBufioReader(reader)
+	reader := pool.NewBufioConnSize(conn, pool.DefaultSize)
 
-	resp, err := http.ReadResponse(reader, req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusSwitchingProtocols {
-		return nil, ErrBadStatus
-	}
-	if strings.ToLower(resp.Header.Get("Upgrade")) != "websocket" || strings.ToLower(resp.Header.Get("Connection")) != "upgrade" {
-		return nil, ErrBadUpgrade
-	}
-
-	if resp.Header.Get("Sec-WebSocket-Accept") != getNonceAccept(nonce) {
-		return nil, ErrChallengeResponse
-	}
-
-	if resp.Header.Get("Sec-WebSocket-Extensions") != "" {
-		return nil, ErrUnsupportedExtensions
-	}
-
-	if err = verifySubprotocol(config.Protocol, resp); err != nil {
-		return nil, err
-	}
-
-	if handshake != nil {
-		if err = handshake(resp); err != nil {
-			return nil, err
+	err = reader.BufioRead(func(r *bufio.Reader) error {
+		resp, err := http.ReadResponse(r, req)
+		if err != nil {
+			return err
 		}
-	}
 
-	return netapi.MergeBufioReaderConn(conn, reader)
+		if resp.StatusCode != http.StatusSwitchingProtocols {
+			return ErrBadStatus
+		}
+
+		if strings.ToLower(resp.Header.Get("Upgrade")) != "websocket" || strings.ToLower(resp.Header.Get("Connection")) != "upgrade" {
+			return ErrBadUpgrade
+		}
+
+		if resp.Header.Get("Sec-WebSocket-Accept") != getNonceAccept(nonce) {
+			return ErrChallengeResponse
+		}
+
+		if resp.Header.Get("Sec-WebSocket-Extensions") != "" {
+			return ErrUnsupportedExtensions
+		}
+
+		if err = verifySubprotocol(config.Protocol, resp); err != nil {
+			return err
+		}
+
+		if handshake != nil {
+			if err = handshake(resp); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return reader, err
 }
 
 func verifySubprotocol(subprotos []string, resp *http.Response) error {

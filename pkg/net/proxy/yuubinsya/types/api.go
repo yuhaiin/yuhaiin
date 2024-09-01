@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
 type Header struct {
@@ -42,7 +43,7 @@ type PacketBuffer interface {
 type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
 	EncodeHeader(Header, Buffer)
-	DecodeHeader(net.Conn) (Header, error)
+	DecodeHeader(pool.BufioConn) (Header, error)
 }
 
 type Hash interface {

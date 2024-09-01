@@ -61,9 +61,12 @@ func newTableBase(expire time.Duration) *table {
 	set := list.NewSet[uint16]()
 	return &table{
 		lru: lru.NewSyncReverseLru(
-			lru.WithCapacity[Tuple, uint16](uint(defaultTableSize)),
-			lru.WithDefaultTimeout[Tuple, uint16](expire),
-			lru.WithOnRemove(func(t Tuple, p uint16) { set.Push(p) }),
+			lru.WithLruOptions(
+				lru.WithCapacity[Tuple, uint16](uint(defaultTableSize)),
+				lru.WithDefaultTimeout[Tuple, uint16](expire),
+				lru.WithOnRemove(func(t Tuple, p uint16) { set.Push(p) }),
+			),
+			lru.WithOnValueChanged[Tuple](func(old, new uint16) { set.Push(old) }),
 		),
 		set: set,
 	}

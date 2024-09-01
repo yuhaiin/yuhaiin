@@ -8,12 +8,14 @@ import (
 	"math/rand/v2"
 	"net"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 func (t *TlsConfig) ParseCertificates() []tls.Certificate {
@@ -81,7 +83,8 @@ type TlsConfigManager struct {
 	t           *TlsConfig
 	tlsConfig   *tls.Config
 	searcher    *trie.Trie[*tls.Certificate]
-	refreshTime time.Time
+	refreshTime int64
+	mu          sync.Mutex
 }
 
 func NewTlsConfigManager(t *TlsConfig) *TlsConfigManager {
@@ -98,9 +101,11 @@ func (t *TlsConfigManager) Refresh() {
 	}
 
 	t.tlsConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		if time.Since(t.refreshTime) > time.Hour*24 { // refresh every day
+		t.mu.Lock()
+		if (system.CheapNowNano() - t.refreshTime) > (time.Hour * 24).Nanoseconds() { // refresh every day
 			t.Refresh()
 		}
+		t.mu.Unlock()
 
 		if t.searcher != nil {
 			addr := netapi.ParseAddressPort("tcp", chi.ServerName, 0)
@@ -121,7 +126,7 @@ func (t *TlsConfigManager) Refresh() {
 
 	t.tlsConfig.Certificates = t.t.ParseCertificates()
 	t.searcher = t.t.ParseServerNameCertificate()
-	t.refreshTime = time.Now()
+	t.refreshTime = system.CheapNowNano()
 }
 
 func ParseTLS(t *TlsConfig) (*tls.Config, error) {

@@ -33,19 +33,22 @@ func TestTable(t *testing.T) {
 		"114.114.114.114",
 	} {
 		wg.Add(1)
-		ctx := context.Background()
-		ctx = netapi.WithContext(ctx)
-		err := table.Write(ctx, &netapi.Packet{
-			Src:     netapi.ParseAddressPort("tcp", v, 80),
-			Dst:     netapi.ParseAddressPort("tcp", v, 80),
-			Payload: []byte("test"),
-			WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
-				assert.Equal(t, addr.String(), net.JoinHostPort(v, "80"))
-				wg.Done()
-				return 0, nil
-			}),
-		})
-		assert.NoError(t, err)
+
+		for range 10 {
+			ctx := context.Background()
+			ctx = netapi.WithContext(ctx)
+			err := table.Write(ctx, &netapi.Packet{
+				Src:     netapi.ParseAddressPort("tcp", v, 80),
+				Dst:     netapi.ParseAddressPort("tcp", v, 80),
+				Payload: []byte("test"),
+				WriteBack: netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+					assert.Equal(t, addr.String(), net.JoinHostPort(v, "80"))
+					wg.Done()
+					return 0, nil
+				}),
+			})
+			assert.NoError(t, err)
+		}
 	}
 
 	wg.Wait()

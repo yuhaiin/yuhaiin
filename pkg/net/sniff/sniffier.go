@@ -1,6 +1,7 @@
 package sniff
 
 import (
+	"bufio"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -95,22 +96,30 @@ func (s *Sniffier[T]) Packet(ctx *netapi.Context, b []byte) {
 	}
 }
 
-func (s *Sniffier[T]) Stream(ctx *netapi.Context, c net.Conn) net.Conn {
-	buf := pool.GetBytes(pool.MaxSegmentSize)
+func (s *Sniffier[T]) Stream(ctx *netapi.Context, cc net.Conn) net.Conn {
+	c := pool.NewBufioConnSize(cc, pool.MaxSegmentSize)
 
-	n, _ := c.Read(buf)
-	if n <= 0 {
-		pool.PutBytes(buf)
+	var buf []byte
+
+	_ = c.BufioRead(func(br *bufio.Reader) error {
+		n, _ := br.Read([]byte{0x00})
+		if n > 0 {
+			_ = br.UnreadByte()
+		}
+
+		buf, _ = br.Peek(br.Buffered())
+		return nil
+	})
+
+	if len(buf) == 0 {
 		return c
 	}
-
-	c = netapi.NewPrefixBytesConn(c, func(b []byte) { pool.PutBytes(b) }, buf[:n])
 
 	for _, ck := range s.streamChecker {
 		if !ck.enabled {
 			continue
 		}
-		if ck.checker(ctx, buf[:n]) {
+		if ck.checker(ctx, buf) {
 			return c
 		}
 	}

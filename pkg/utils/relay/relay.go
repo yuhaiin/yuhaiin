@@ -31,6 +31,10 @@ var ignoreSyscallErrno = map[syscall.Errno]bool{
 }
 
 func isIgnoreError(err error) ([]any, bool) {
+	if err == nil {
+		return nil, true
+	}
+
 	for _, e := range ignoreError {
 		if errors.Is(err, e) {
 			return nil, true
@@ -78,17 +82,16 @@ func isIgnoreError(err error) ([]any, bool) {
 	return args, false
 }
 
-func logE(msg string, err error) {
+func logE(msg string, err error, cargs ...any) {
 	if err == nil {
 		return
 	}
-
 	args, ok := isIgnoreError(err)
 	if ok {
-		return
+		log.Select(slog.LevelDebug).PrintFunc(msg, func() []any { return append(cargs, slog.Any("err", err)) })
+	} else {
+		log.Error(msg, append(cargs, append(args, slog.Any("err", err), slog.Any("errType", reflect.TypeOf(err)))...)...)
 	}
-
-	log.Error(msg, append(args, slog.Any("err", err), slog.Any("errType", reflect.TypeOf(err)))...)
 }
 
 func AppendIgnoreError(err error) {
@@ -96,18 +99,19 @@ func AppendIgnoreError(err error) {
 }
 
 // Relay pipe
-func Relay(rw1, rw2 io.ReadWriteCloser) {
+func Relay(rw1, rw2 io.ReadWriteCloser, logMsgs ...any) {
+	logMsgs = append(logMsgs, slog.Any("rw1_type", reflect.TypeOf(rw1)), slog.Any("rw2_type", reflect.TypeOf(rw2)))
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
 		_, err := Copy(rw2, rw1)
-		logE("relay rw1 -> rw2", err)
+		logE("relay rw1 -> rw2", err, logMsgs...)
 		closeWrite(rw2) // make another Copy exit
 		closeRead(rw1)
 	}()
 
 	_, err := Copy(rw1, rw2)
-	logE("relay rw2 -> rw1", err)
+	logE("relay rw2 -> rw1", err, logMsgs...)
 	closeWrite(rw1)
 	closeRead(rw2)
 

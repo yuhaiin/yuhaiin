@@ -29,12 +29,7 @@ type FakeDNS struct {
 	ipv6 *FakeIPPool
 }
 
-func NewFakeDNS(
-	upStreamDo netapi.Resolver,
-	ipRange netip.Prefix,
-	ipv6Range netip.Prefix,
-	db *bolt.DB,
-) *FakeDNS {
+func NewFakeDNS(upStreamDo netapi.Resolver, ipRange netip.Prefix, ipv6Range netip.Prefix, db *bolt.DB) *FakeDNS {
 	return &FakeDNS{
 		upStreamDo,
 		NewFakeIPPool(ipRange, db),
@@ -357,13 +352,17 @@ func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
 	}
 
 	z.LRU = lru.NewSyncReverseLru(
-		lru.WithCapacity[string, netip.Addr](size),
-		lru.WithOnRemove(func(s string, v netip.Addr) {
-			cache.Delete([]byte(s), v.AsSlice())
+		lru.WithLruOptions(
+			lru.WithCapacity[string, netip.Addr](size),
+			lru.WithOnRemove(func(s string, v netip.Addr) {
+				cache.Delete([]byte(s), v.AsSlice())
+			}),
+		),
+		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
+			cache.Delete(old.AsSlice())
 		}),
 	)
 
-	count := 0
 	for k, v := range cache.Range {
 		ip, ok := netip.AddrFromSlice(k)
 		if !ok {
@@ -371,12 +370,11 @@ func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
 		}
 
 		if iprange.Contains(ip) {
-			count++
 			z.LRU.Add(string(v), ip)
 		}
 	}
 
-	log.Info("fakeip lru init", "get cache", count, "isIpv6", iprange.Addr().Unmap().Is6())
+	log.Info("fakeip lru init", "get cache", z.LRU.Len(), "isIpv6", iprange.Addr().Unmap().Is6(), "capacity", size)
 
 	return z
 }
@@ -444,5 +442,7 @@ func (f *fakeLru) LastPopValue() (netip.Addr, bool) {
 }
 
 func (f *fakeLru) Flush() {
+	// no sync cache
+	// flush data to disk before close
 	f.bbolt.Close()
 }

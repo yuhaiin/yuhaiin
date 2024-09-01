@@ -1,8 +1,10 @@
 package pool
 
 import (
+	"io"
 	"math"
 	"math/bits"
+	"net"
 	"net/http/httputil"
 	"sync"
 
@@ -123,3 +125,69 @@ func (pool) PutBytes(b []byte) {
 // 		last:  fmt.Sprint(runtime.Caller(2)),
 // 	})
 // }
+
+type BytesReader struct {
+	index int
+	b     []byte
+	mu    sync.Mutex
+}
+
+func NewBytesReader(b []byte) *BytesReader {
+	return &BytesReader{
+		index: 0,
+		b:     b,
+	}
+}
+
+func (r *BytesReader) Read(b []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.b == nil || r.index >= len(r.b) {
+		if r.b != nil {
+			PutBytes(r.b)
+			r.b = nil
+		}
+		return 0, io.EOF
+	}
+
+	n := copy(b, r.b[r.index:])
+	r.index += n
+
+	return n, nil
+}
+
+type multipleReaderTCPConn struct {
+	*net.TCPConn
+	mr io.Reader
+}
+
+func (m *multipleReaderTCPConn) Read(b []byte) (int, error) {
+	return m.mr.Read(b)
+}
+
+type multipleReaderConn struct {
+	net.Conn
+	mr io.Reader
+}
+
+func newMultipleReaderConn(c net.Conn, r io.Reader) net.Conn {
+	tc, ok := c.(*net.TCPConn)
+	if ok {
+		return &multipleReaderTCPConn{tc, r}
+	}
+
+	return &multipleReaderConn{c, r}
+}
+
+func (m *multipleReaderConn) Read(b []byte) (int, error) {
+	return m.mr.Read(b)
+}
+
+func NewBytesConn(c net.Conn, bytes []byte) net.Conn {
+	if len(bytes) == 0 {
+		return c
+	}
+
+	return newMultipleReaderConn(c, io.MultiReader(NewBytesReader(bytes), c))
+}

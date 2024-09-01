@@ -3,6 +3,7 @@ package inbound
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -43,7 +44,7 @@ func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
 func (s *handler) Stream(ctx context.Context, meta *netapi.StreamMeta) {
 	go func() {
 		if err := s.stream(ctx, meta); err != nil {
-			log.Output(0, netapi.LogLevel(err), "inbound handler stream", "msg", err)
+			log.Select(netapi.LogLevel(err)).Print("inbound handler stream", "msg", err)
 		}
 	}()
 }
@@ -86,7 +87,7 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 
 	metrics.Counter.AddStreamConnectDuration(time.Duration(endNanoSeconds - startNanoSeconds).Seconds())
 
-	relay.Relay(meta.Src, remote)
+	relay.Relay(meta.Src, remote, slog.Any("dst", dst), slog.Any("src", store.Source), slog.Any("process", store.Process))
 	return nil
 }
 

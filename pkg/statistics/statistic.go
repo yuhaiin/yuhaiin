@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"log/slog"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -44,7 +45,7 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 }
 
 func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
-	id, done := c.notify.register(s, c.connStore.ValueSlice()...)
+	id, done := c.notify.register(s, slice.CollectTo(c.connStore.RangeValues, connToStatistic))
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
 	defer log.Debug("remove notify client", "id", id)
@@ -59,8 +60,7 @@ func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) er
 
 func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.NotifyNewConnections, error) {
 	return &gs.NotifyNewConnections{
-		Connections: slice.To(c.connStore.ValueSlice(),
-			func(c connection) *statistic.Connection { return c.Info() }),
+		Connections: slice.CollectTo(c.connStore.RangeValues, connToStatistic),
 	}, nil
 }
 
@@ -102,14 +102,8 @@ func (c *Connections) Remove(id uint64) {
 
 func (c *Connections) storeConnection(o connection) {
 	c.connStore.Store(o.Info().GetId(), o)
-	c.notify.pubNewConns(o)
-	log.Debug("new conn",
-		"id", o.Info().GetId(),
-		"addr", o.Info().Addr,
-		"src", o.Info().Extra["Source"],
-		"network", o.Info().Type.ConnType,
-		"outbound", o.Info().Extra["Outbound"],
-	)
+	c.notify.pubNewConns([]*statistic.Connection{connToStatistic(o)})
+	log.Select(slog.LevelDebug).PrintFunc("new conn", slogArgs(o))
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

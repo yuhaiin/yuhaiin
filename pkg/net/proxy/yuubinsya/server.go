@@ -97,10 +97,12 @@ func (y *server) startTCP() (err error) {
 }
 
 func (y *server) handle(conn net.Conn) error {
-	c, err := y.handshaker.Handshake(conn)
+	cc, err := y.handshaker.Handshake(conn)
 	if err != nil {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
+
+	c := pool.NewBufioConnSize(cc, pool.DefaultSize)
 
 	header, err := y.handshaker.DecodeHeader(c)
 	if err != nil {

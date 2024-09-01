@@ -7,12 +7,23 @@ import (
 	"strings"
 )
 
-func To[T, T2 any](from []T, f func(T) T2) []T2 {
+type ToFunc[T, T2 any] func(T) T2
+
+
+func To[T, T2 any](from []T, f ToFunc[T, T2]) []T2 {
 	to := make([]T2, len(from))
 	for i, v := range from {
 		to[i] = f(v)
 	}
 
+	return to
+}
+
+func CollectTo[T, T2 any](iter iter.Seq[T], f ToFunc[T, T2]) []T2 {
+	to := make([]T2, 0)
+	for v := range iter {
+		to = append(to, f(v))
+	}
 	return to
 }
 

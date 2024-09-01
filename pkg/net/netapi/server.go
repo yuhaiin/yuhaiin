@@ -76,23 +76,23 @@ type WriteBatchBuf struct {
 
 type WriteBack interface {
 	WriteBack(b []byte, addr net.Addr) (int, error)
-	WriteBatch(bufs ...WriteBatchBuf) error
+	// WriteBatch(bufs ...WriteBatchBuf) error
 }
 
 type WriteBackFunc func(b []byte, addr net.Addr) (int, error)
 
 func (f WriteBackFunc) WriteBack(b []byte, addr net.Addr) (int, error) { return f(b, addr) }
 
-func (f WriteBackFunc) WriteBatch(bufs ...WriteBatchBuf) error {
-	var err error
-	for _, buf := range bufs {
-		_, er := f(buf.Payload, buf.Addr)
-		if er != nil {
-			err = errors.Join(err, er)
-		}
-	}
-	return err
-}
+// func (f WriteBackFunc) WriteBatch(bufs ...WriteBatchBuf) error {
+// 	var err error
+// 	for _, buf := range bufs {
+// 		_, er := f(buf.Payload, buf.Addr)
+// 		if er != nil {
+// 			err = errors.Join(err, er)
+// 		}
+// 	}
+// 	return err
+// }
 
 type Packet struct {
 	Src       net.Addr
