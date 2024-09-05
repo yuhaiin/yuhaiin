@@ -16,7 +16,7 @@ require (
 	golang.org/x/crypto v0.27.0
 	golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e
 	golang.org/x/mobile v0.0.0-20240806205939-81131f6468ab
-	golang.org/x/net v0.28.0
+	golang.org/x/net v0.29.0
 	golang.org/x/sys v0.25.0
 	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
