@@ -15,7 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var IdleTimeout = time.Minute * 5
+var IdleTimeout = time.Minute * 3
 var MaxSegmentSize = pool.MaxSegmentSize
 
 func NewTable(dialer netapi.Proxy) *Table {
@@ -48,11 +48,16 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return nil
 	}
 
-	r, _ := u.sourceControl.LoadOrCreate(key, func() *SourceControl {
-		return NewSourceChan(u.dialer, func(sc *SourceControl) {
+	var tmpSource *SourceControl
+	r, ok := u.sourceControl.LoadOrCreate(key, func() *SourceControl {
+		tmpSource = NewSourceChan(u.dialer, func(sc *SourceControl) {
 			u.sourceControl.CompareAndDelete(key, sc)
 		})
+		return tmpSource
 	})
+	if ok && tmpSource != nil {
+		_ = tmpSource.Close()
+	}
 
 	return r.WritePacket(ctx, pkt)
 }

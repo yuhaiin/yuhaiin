@@ -3,6 +3,7 @@ package simplehttp
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -54,8 +56,9 @@ func ServeHTTP(o *appapi.Components) {
 		"PATCH /sub":  GrpcToHttp(o.Subscribe.Update),
 		"PATCH /node": GrpcToHttp(o.Node.Save),
 
+		"GET /flow/total": GrpcToHttp(o.Connections.Total),
 		// WEBSOCKET
-		"GET /conn": ConnWebsocket(o),
+		"GET /conn": GrpcServerStreamingToWebsocket(o.Connections.Notify),
 
 		"OPTIONS /": func(w http.ResponseWriter, r *http.Request) error { return nil },
 	} {
@@ -64,7 +67,15 @@ func ServeHTTP(o *appapi.Components) {
 			w := &wrapResponseWriter{ow, false}
 			err := b(w, r)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				if !w.writed {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+
+				if !errors.Is(err, context.DeadlineExceeded) &&
+					!errors.Is(err, os.ErrDeadlineExceeded) &&
+					!errors.Is(err, context.Canceled) {
+					log.Error("handle failed", "path", k, "err", err)
+				}
 			} else if !w.writed {
 				w.WriteHeader(http.StatusOK)
 			}

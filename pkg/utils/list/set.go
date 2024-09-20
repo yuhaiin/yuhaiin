@@ -34,7 +34,7 @@ func (q *Set[T]) Len() int {
 func (q *Set[T]) Clear() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.data = make(map[T]struct{})
+	clear(q.data)
 }
 
 func (q *Set[T]) Range(ranger func(T) bool) {

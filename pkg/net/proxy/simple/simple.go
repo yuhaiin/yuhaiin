@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,12 +17,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
+var refreshTimeout = int64(10 * time.Minute)
+
 type Simple struct {
 	p            netapi.Proxy
 	addrs        []netapi.Address
-	updateTime   atomic.Int64
+	refreshTime  atomic.Int64
 	index        atomic.Uint32
-	errCount     atomic.Uint32
+	errCount     durationCounter
 	nonBootstrap bool
 	netapi.EmptyDispatch
 }
@@ -50,70 +53,6 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 
 func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {
 	return c.dialHappyEyeballsv2(ctx)
-	// return c.dialGroup(ctx)
-}
-
-func (c *Simple) dialHappyEyeballsv1(ctx context.Context) (net.Conn, error) {
-	ctx = netapi.WithContext(ctx)
-
-	var err error
-	var conn net.Conn
-
-	lastIndex := c.index.Load()
-	index := lastIndex
-	if lastIndex != 0 && time.Duration(system.CheapNowNano()-c.updateTime.Load()) > time.Minute*15 {
-		index = 0
-	}
-
-	length := len(c.addrs)
-
-	dial := func(addr netapi.Address) (net.Conn, error) {
-		ctx, cancel, er := dialer.PartialDeadlineCtx(ctx, length)
-		if er != nil {
-			// Ran out of time.
-			return nil, er
-		}
-		defer cancel()
-
-		return c.dialSingle(ctx, addr)
-	}
-
-	conn, err = dial(c.addrs[index])
-	if err == nil {
-		if lastIndex != 0 && index == 0 {
-			c.index.Store(0)
-		}
-
-		return conn, nil
-	}
-
-	for i, addr := range c.addrs {
-		if i == int(index) {
-			continue
-		}
-
-		length--
-
-		con, er := dial(addr)
-		if er != nil {
-			err = errors.Join(err, er)
-			continue
-		}
-
-		conn = con
-		c.index.Store(uint32(i))
-
-		if i != 0 {
-			c.updateTime.Store(system.CheapNowNano())
-		}
-		break
-	}
-
-	if conn == nil {
-		return nil, fmt.Errorf("simple dial failed: %w", err)
-	}
-
-	return conn, nil
 }
 
 func (c *Simple) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn, error) {
@@ -132,21 +71,18 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	lastIndex := c.index.Load()
-	if lastIndex != 0 && time.Duration(system.CheapNowNano()-c.updateTime.Load()) > time.Minute*15 {
-		lastIndex = 0
-	}
+	lastIndex := c.lastIndex()
 
 	type res struct {
 		c     net.Conn
 		err   error
-		index uint32
+		index int
 	}
 	resc := make(chan res)           // must be unbuffered
 	failBoost := make(chan struct{}) // best effort send on dial failure
 
-	dial := func(index uint32, addr netapi.Address) {
-		conn, err := c.dialSingle(ctx, addr)
+	dial := func(index int) {
+		conn, err := c.dialSingle(ctx, c.addrs[index])
 		if err != nil {
 			// Best effort wake-up a pending dial.
 			// e.g. IPv4 dials failing quickly on an IPv6-only system.
@@ -158,7 +94,7 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 			}
 
 			if index == 0 {
-				c.errCount.Add(1)
+				c.errCount.Inc()
 			}
 		}
 
@@ -172,11 +108,12 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 	}
 
 	go func() {
-		go dial(lastIndex, c.addrs[lastIndex])
-		for i, addr := range c.addrs {
-			if i == int(lastIndex) {
+		go dial(lastIndex)
+		for i := range c.addrs {
+			if i == lastIndex {
 				continue
 			}
+
 			timer := time.NewTimer(time.Millisecond * 650)
 			select {
 			case <-timer.C:
@@ -187,7 +124,7 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 				return
 			}
 
-			go dial(uint32(i), addr)
+			go dial(i)
 		}
 	}()
 
@@ -197,20 +134,7 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 		select {
 		case r := <-resc:
 			if r.err == nil {
-				if lastIndex != r.index {
-					if r.index == 0 || (r.index != 0 && c.errCount.Load() > 3) {
-						c.index.Store(r.index)
-
-						if r.index == 0 {
-							c.errCount.Store(0)
-						}
-
-						if lastIndex == 0 {
-							c.updateTime.Store(system.CheapNowNano())
-						}
-					}
-				}
-
+				c.successIndex(lastIndex, r.index)
 				return r.c, nil
 			}
 
@@ -225,6 +149,35 @@ func (c *Simple) dialHappyEyeballsv2(ctx context.Context) (net.Conn, error) {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("simple dial timeout: %w", errors.Join(firstErr, ctx.Err()))
 		}
+	}
+}
+
+func (c *Simple) lastIndex() int {
+	lastIndex := c.index.Load()
+	if lastIndex != 0 && system.CheapNowNano()-c.refreshTime.Load() > refreshTimeout {
+		lastIndex = 0
+	}
+
+	return int(lastIndex)
+}
+
+func (c *Simple) successIndex(lastIndex, index int) {
+	if lastIndex == index {
+		return
+	}
+
+	if index != 0 && c.errCount.Get() <= 5 {
+		return
+	}
+
+	c.index.Store(uint32(index))
+
+	if index == 0 {
+		c.errCount.Reset()
+	}
+
+	if lastIndex == 0 {
+		c.refreshTime.Store(system.CheapNowNano())
 	}
 }
 
@@ -271,4 +224,37 @@ func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	z, _, err := p.PacketConn.ReadFrom(b)
 	return z, p.addr, err
+}
+
+type durationCounter struct {
+	mu       sync.RWMutex
+	count    int
+	lastTime int64
+}
+
+func (c *durationCounter) Inc() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := system.CheapNowNano()
+
+	if now-c.lastTime > int64(time.Second*5) {
+		c.count++
+		c.lastTime = now
+	}
+}
+
+func (c *durationCounter) Get() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.count
+}
+
+func (c *durationCounter) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.count = 0
+	c.lastTime = 0
 }
