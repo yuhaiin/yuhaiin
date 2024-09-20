@@ -3,14 +3,18 @@ package statistics
 import (
 	"context"
 	"fmt"
+	"iter"
+	"maps"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
-	"golang.org/x/exp/maps"
 )
 
 type notifierEntry struct {
@@ -18,23 +22,33 @@ type notifierEntry struct {
 	cancel context.CancelCauseFunc
 }
 
-type notify struct {
-	closed context.Context
+func (n *notifierEntry) Send(data *gs.NotifyData) error {
+	err := n.s.Send(data)
+	if err != nil {
+		n.cancel(fmt.Errorf("send notify error: %w", err))
+	}
 
-	channel  chan *gs.NotifyData
-	close    context.CancelFunc
+	return err
+}
+
+func (n *notifierEntry) Context() context.Context {
+	return n.s.Context()
+}
+
+type notify struct {
+	closed atomic.Bool
+
 	notifier syncmap.SyncMap[uint64, *notifierEntry]
 
+	notifyTrigger  chan struct{}
+	notifyStore    *notifyStore
 	notifierIDSeed id.IDGenerator
-	mu             sync.RWMutex
 }
 
 func newNotify() *notify {
-	ctx, cancel := context.WithCancel(context.Background())
 	n := &notify{
-		channel: make(chan *gs.NotifyData, 1000),
-		closed:  ctx,
-		close:   cancel,
+		notifyTrigger: make(chan struct{}, 1),
+		notifyStore:   newNotifyStore(),
 	}
 
 	go n.start()
@@ -42,24 +56,24 @@ func newNotify() *notify {
 	return n
 }
 
-func (n *notify) register(s gs.Connections_NotifyServer, conns []*statistic.Connection) (uint64, context.Context) {
+func (n *notify) register(s gs.Connections_NotifyServer, conns iter.Seq[connection]) (uint64, context.Context) {
 	id := n.notifierIDSeed.Generate()
 	ctx, cancel := context.WithCancelCause(context.Background())
 
-	err := s.Send(&gs.NotifyData{
+	ne := &notifierEntry{
+		s:      s,
+		cancel: cancel,
+	}
+
+	err := ne.Send(&gs.NotifyData{
 		Data: &gs.NotifyData_NotifyNewConnections{
 			NotifyNewConnections: &gs.NotifyNewConnections{
-				Connections: conns,
+				Connections: slice.CollectTo(conns, connToStatistic),
 			},
 		},
 	})
-	if err != nil {
-		cancel(fmt.Errorf("send notify error: %w", err))
-	} else {
-		n.notifier.Store(id, &notifierEntry{
-			s:      s,
-			cancel: cancel,
-		})
+	if err == nil {
+		n.notifier.Store(id, ne)
 	}
 
 	return id, ctx
@@ -67,138 +81,150 @@ func (n *notify) register(s gs.Connections_NotifyServer, conns []*statistic.Conn
 
 func (n *notify) unregister(id uint64) { n.notifier.Delete(id) }
 
-func (n *notify) start() {
-	newConns := map[uint64]*statistic.Connection{}
-	removeConns := make([]uint64, 0)
+func (n *notify) send() {
+	datas := n.notifyStore.dump()
 
-	send := func() {
-		var notifyDatas []*gs.NotifyData
-		if len(newConns) > 0 {
-			notifyDatas = append(notifyDatas, &gs.NotifyData{
-				Data: &gs.NotifyData_NotifyNewConnections{
-					NotifyNewConnections: &gs.NotifyNewConnections{
-						Connections: maps.Values(newConns),
-					},
-				},
-			})
-		}
+	for notifier := range n.notifier.RangeValues {
+	_loopNotifyDatas:
+		for _, data := range datas {
+			select {
+			case <-notifier.Context().Done():
+				continue
+			default:
+			}
 
-		if len(removeConns) > 0 {
-			notifyDatas = append(notifyDatas, &gs.NotifyData{
-				Data: &gs.NotifyData_NotifyRemoveConnections{
-					NotifyRemoveConnections: &gs.NotifyRemoveConnections{
-						Ids: removeConns,
-					},
-				},
-			})
-		}
-
-		if len(notifyDatas) == 0 {
-			return
-		}
-
-		for _, value := range n.notifier.Range {
-		_loopNotifyDatas:
-			for _, d := range notifyDatas {
-				if err := value.s.Send(d); err != nil {
-					value.cancel(fmt.Errorf("send notify error: %w", err))
-					break _loopNotifyDatas
-				}
+			err := notifier.Send(data)
+			if err != nil {
+				break _loopNotifyDatas
 			}
 		}
-
-		clear(newConns)
-		removeConns = removeConns[:0]
 	}
+}
 
+func (n *notify) start() {
 	ticker := time.NewTicker(time.Second * 2)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-n.closed.Done():
-			close(n.channel)
-			return
-
-		case d := <-n.channel:
-			switch d := d.Data.(type) {
-			case *gs.NotifyData_NotifyNewConnections:
-				for _, c := range d.NotifyNewConnections.Connections {
-					newConns[c.Id] = c
-				}
-			case *gs.NotifyData_NotifyRemoveConnections:
-				for _, id := range d.NotifyRemoveConnections.Ids {
-					if _, ok := newConns[id]; ok {
-						delete(newConns, id)
-					} else {
-						removeConns = append(removeConns, id)
-					}
-				}
+		case <-n.notifyTrigger:
+			if n.closed.Load() {
+				return
 			}
-
-			if len(newConns)+len(removeConns) >= 13 {
-				send()
-			}
+			n.send()
 
 		case <-ticker.C:
-			send()
+			if n.closed.Load() {
+				return
+			}
+			n.send()
 		}
 	}
 }
 
-func (n *notify) pubNewConns(conns []*statistic.Connection) {
-	if len(conns) == 0 {
-		return
-	}
-
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
+func (n *notify) trigger() {
 	select {
-	case <-n.closed.Done():
-		return
+	case n.notifyTrigger <- struct{}{}:
 	default:
-	}
-
-	select {
-	case <-n.closed.Done():
-	case n.channel <- &gs.NotifyData{
-		Data: &gs.NotifyData_NotifyNewConnections{
-			NotifyNewConnections: &gs.NotifyNewConnections{
-				Connections: conns,
-			},
-		},
-	}:
 	}
 }
 
-func (n *notify) pubRemoveConns(ids ...uint64) {
-	if len(ids) == 0 {
+func (n *notify) pubNewConn(conn connection) {
+	if n.closed.Load() {
 		return
 	}
 
-	n.mu.RLock()
-	defer n.mu.RUnlock()
+	if n.notifyStore.push(conn) > 13 {
+		n.trigger()
+	}
+}
 
-	select {
-	case <-n.closed.Done():
+func (n *notify) pubRemoveConn(id uint64) {
+	if n.closed.Load() {
 		return
-	default:
 	}
 
-	n.channel <- &gs.NotifyData{
-		Data: &gs.NotifyData_NotifyRemoveConnections{
-			NotifyRemoveConnections: &gs.NotifyRemoveConnections{
-				Ids: ids,
-			},
-		},
+	if n.notifyStore.remove(id) > 13 {
+		n.trigger()
 	}
 }
 
 func (n *notify) Close() error {
+	n.closed.Store(true)
+	return nil
+}
+
+type notifyStore struct {
+	mu          sync.RWMutex
+	length      uint64
+	removeStore *list.Set[uint64]
+	store       map[uint64]connection
+}
+
+func newNotifyStore() *notifyStore {
+	return &notifyStore{
+		store:       make(map[uint64]connection),
+		removeStore: list.NewSet[uint64](),
+	}
+}
+
+func (n *notifyStore) push(o connection) int {
+	n.mu.Lock()
+	n.store[o.Info().GetId()] = o
+	n.length++
+	len := n.length
+	n.mu.Unlock()
+
+	return int(len)
+}
+
+func (n *notifyStore) remove(id uint64) int {
+	n.mu.Lock()
+
+	_, ok := n.store[id]
+	if ok {
+		delete(n.store, id)
+		n.length--
+	} else {
+		n.length++
+		n.removeStore.Push(id)
+	}
+	len := n.length
+
+	n.mu.Unlock()
+
+	return int(len)
+}
+
+func (n *notifyStore) dump() (datas []*gs.NotifyData) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	n.close()
-	return nil
+	removeIDs := slices.Collect(n.removeStore.Range)
+	n.removeStore.Clear()
+	newConns := slice.CollectTo(maps.Values(n.store), connToStatistic)
+	clear(n.store)
+	n.length = 0
+
+	if len(removeIDs) > 0 {
+		datas = append(datas, &gs.NotifyData{
+			Data: &gs.NotifyData_NotifyRemoveConnections{
+				NotifyRemoveConnections: &gs.NotifyRemoveConnections{
+					Ids: removeIDs,
+				},
+			},
+		})
+	}
+
+	if len(newConns) > 0 {
+		datas = append(datas, &gs.NotifyData{
+			Data: &gs.NotifyData_NotifyNewConnections{
+				NotifyNewConnections: &gs.NotifyNewConnections{
+					Connections: newConns,
+				},
+			},
+		})
+	}
+
+	return
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
 type HappyEyeballsv2Cache interface {
@@ -209,6 +211,7 @@ func (h *happyEyeball) allFailed(ctx context.Context, fails int, firstErr error)
 type HappyEyeballsv2Dialer[T net.Conn] struct {
 	DialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
 	Cache       HappyEyeballsv2Cache
+	Avg         *Avg
 }
 
 var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
@@ -216,9 +219,14 @@ var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
 		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))))
 	},
 	Cache: happyEyeballsCache,
+	Avg:   NewAvg(),
 }
 
 func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr netapi.Address) (t T, err error) {
+	if h.Avg == nil {
+		h.Avg = NewAvg()
+	}
+
 	if !addr.IsFqdn() {
 		return h.DialContext(ctx, addr.(netapi.IPAddress).IP(), addr.Port())
 	}
@@ -252,13 +260,20 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 		first := true
 		for {
 			if !first {
-				// TODO use avg delay duration
-				//
 				// A simple implementation can have a fixed delay for how long to wait
 				// before starting the next connection attempt.  This delay is referred
 				// to as the "Connection Attempt Delay".  One recommended value for a
-				// default delay is 250 milliseconds.
-				timer := time.NewTimer(time.Millisecond * 300)
+				// default delay is 250 milliseconds. A more nuanced implementation's
+				// delay should correspond to the time when the previous attempt is
+				// sending its second TCP SYN, based on the TCP's retransmission timer
+				// [RFC6298].  If the client has historical RTT data gathered from other
+				// connections to the same host or prefix, it can use this information
+				// to influence its delay.  Note that this algorithm should only try to
+				// approximate the time of the first SYN retransmission, and not any
+				// further retransmissions that may be influenced by exponential timer
+				// back off.
+				slog.Info("use timer for delay", "avg", h.Avg.Get())
+				timer := time.NewTimer(h.Avg.Get())
 				select {
 				case <-timer.C:
 				case <-failBoost:
@@ -277,6 +292,8 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 			first = false
 
 			go func(ip net.IP) {
+				start := system.CheapNowNano()
+
 				c, err := h.DialContext(ctx, ip, addr.Port())
 				if err != nil {
 					// Best effort wake-up a pending dial.
@@ -287,7 +304,10 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 					case failBoost <- struct{}{}:
 					default:
 					}
+				} else {
+					h.Avg.Push(time.Duration(system.CheapNowNano() - start))
 				}
+
 				select {
 				case resc <- res{c, err}:
 				case <-ctx.Done():

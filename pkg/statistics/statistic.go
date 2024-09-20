@@ -45,7 +45,7 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 }
 
 func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) error {
-	id, done := c.notify.register(s, slice.CollectTo(c.connStore.RangeValues, connToStatistic))
+	id, done := c.notify.register(s, c.connStore.RangeValues)
 	defer c.notify.unregister(id)
 	log.Debug("new notify client", "id", id)
 	defer log.Debug("remove notify client", "id", id)
@@ -97,12 +97,12 @@ func (c *Connections) Remove(id uint64) {
 		log.Debug("close conn", "id", z.Info().GetId())
 	}
 
-	c.notify.pubRemoveConns(id)
+	c.notify.pubRemoveConn(id)
 }
 
 func (c *Connections) storeConnection(o connection) {
 	c.connStore.Store(o.Info().GetId(), o)
-	c.notify.pubNewConns([]*statistic.Connection{connToStatistic(o)})
+	c.notify.pubNewConn(o)
 	log.Select(slog.LevelDebug).PrintFunc("new conn", slogArgs(o))
 }
 

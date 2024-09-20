@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -45,10 +46,9 @@ type SourceControl struct {
 
 	addrStore addrStore
 	dialer    netapi.Proxy
-	stopTimer *time.Timer
+	stopTimer *stopTimer
 	context   Context
 	conn      *wrapConn
-	started   atomic.Bool
 }
 
 func NewSourceChan(dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
@@ -61,14 +61,15 @@ func NewSourceChan(dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceCo
 		dialer:   dialer,
 	}
 
+	s.stopTimer = NewStopTimer(IdleTimeout, func() { _ = s.Close() })
+	s.stopTimer.Start()
+	go s.run()
+
 	return s
 }
 
 func (u *SourceControl) Close() error {
-	if u.stopTimer != nil {
-		u.stopTimer.Stop()
-		u.stopTimer = nil
-	}
+	u.stopTimer.Stop()
 	u.close()
 	u.onRemove(u)
 	return nil
@@ -94,11 +95,6 @@ func (u *SourceControl) run() {
 }
 
 func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) error {
-	if !u.started.Load() && u.started.CompareAndSwap(false, true) {
-		u.stopTimer = time.AfterFunc(IdleTimeout, func() { _ = u.Close() })
-		go u.run()
-	}
-
 	pkt.IncRef()
 	select {
 	case <-u.ctx.Done():
@@ -148,11 +144,7 @@ func (u *SourceControl) newPacketConn(ctx context.Context, pkt *netapi.Packet) (
 		return nil, err
 	}
 
-	stopTimer := u.stopTimer
-	if stopTimer != nil {
-		stopTimer.Stop()
-		u.stopTimer = nil
-	}
+	u.stopTimer.Stop()
 	u.context = newContext(store)
 
 	conn := &wrapConn{PacketConn: dstpconn}
@@ -238,7 +230,7 @@ func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
 
 func (u *SourceControl) loopWriteBack(writeBack netapi.WriteBack, p *wrapConn, dst netapi.Address) {
 	defer func() {
-		u.stopTimer = time.AfterFunc(IdleTimeout, func() { _ = u.Close() })
+		u.stopTimer.Start()
 		p.Close()
 	}()
 
@@ -300,4 +292,36 @@ type wrapConn struct {
 func (w *wrapConn) Close() error {
 	w.closed.Store(true)
 	return w.PacketConn.Close()
+}
+
+type stopTimer struct {
+	timer *time.Timer
+	mu    sync.Mutex
+	do    func()
+	d     time.Duration
+}
+
+func NewStopTimer(duration time.Duration, do func()) *stopTimer {
+	return &stopTimer{do: do, d: duration}
+}
+
+func (s *stopTimer) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.timer != nil {
+		s.timer.Stop()
+		s.timer = nil
+	}
+}
+
+func (s *stopTimer) Start() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.timer == nil {
+		s.timer = time.AfterFunc(s.d, s.do)
+	} else {
+		s.timer.Reset(s.d)
+	}
 }

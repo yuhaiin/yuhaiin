@@ -74,6 +74,7 @@ func NewClient(conf *protocol.Protocol_Wireguard) point.WrapProxy {
 				return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 			},
 			Cache: lru.NewSyncLru(lru.WithCapacity[unique.Handle[string], net.IP](512)),
+			Avg:   dialer.NewAvg(),
 		}
 
 		return w, nil
@@ -277,7 +278,7 @@ func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *net
 			},
 		})
 
-	err = dev.IpcSet(createIPCRequest(h))
+	err = dev.IpcSetOperation(createIPCRequest(h))
 	if err != nil {
 		dev.Close()
 		return nil, nil, nil, err
@@ -298,24 +299,24 @@ func base64ToHex(s string) string {
 }
 
 // serialize the config into an IPC request
-func createIPCRequest(conf *protocol.Wireguard) string {
-	var request bytes.Buffer
+func createIPCRequest(conf *protocol.Wireguard) *bytes.Buffer {
+	request := bytes.NewBuffer(nil)
 
 	request.WriteString(fmt.Sprintf("private_key=%s\n", base64ToHex(conf.SecretKey)))
 
 	for _, peer := range conf.Peers {
-		request.WriteString(fmt.Sprintf("public_key=%s\nendpoint=%s\n", base64ToHex(peer.PublicKey), peer.Endpoint))
+		fmt.Fprintf(request, "public_key=%s\nendpoint=%s\n", base64ToHex(peer.PublicKey), peer.Endpoint)
 		if peer.KeepAlive != 0 {
-			request.WriteString(fmt.Sprintf("persistent_keepalive_interval=%d\n", peer.KeepAlive))
+			fmt.Fprintf(request, "persistent_keepalive_interval=%d\n", peer.KeepAlive)
 		}
 		if peer.PreSharedKey != "" {
-			request.WriteString(fmt.Sprintf("preshared_key=%s\n", base64ToHex(peer.PreSharedKey)))
+			fmt.Fprintf(request, "preshared_key=%s\n", base64ToHex(peer.PreSharedKey))
 		}
 
 		for _, ip := range peer.AllowedIps {
-			request.WriteString(fmt.Sprintf("allowed_ip=%s\n", ip))
+			fmt.Fprintf(request, "allowed_ip=%s\n", ip)
 		}
 	}
 
-	return request.String()[:request.Len()]
+	return request
 }
