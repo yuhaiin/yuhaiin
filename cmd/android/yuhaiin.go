@@ -7,13 +7,18 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/app"
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	service "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -68,12 +73,50 @@ func (a *App) Start(opt *Opts) error {
 		close(errChan)
 		defer opt.CloseFallback.Close()
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go a.notifyFlow(ctx, app, opt)
+
 		if err := a.lis.Serve(app.HttpListener); err != nil {
 			log.Error("yuhaiin serve failed", "err", err)
 		}
 	}()
 
 	return <-errChan
+}
+
+func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts) {
+	if opt.NotifySpped == nil || !opt.NotifySpped.NotifyEnable() {
+		return
+	}
+
+	ticker := time.NewTicker(time.Second * 2)
+	defer ticker.Stop()
+
+	var last *service.TotalFlow
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			flow, err := app.Connections.Total(ctx, &emptypb.Empty{})
+			if err != nil {
+				log.Error("get connections failed", "err", err)
+				continue
+			}
+
+			if last == nil {
+				last = flow
+				continue
+			}
+
+			dr := reduceUnit((flow.Download - last.Download) / 2)
+			ur := reduceUnit((flow.Upload - last.Upload) / 2)
+			download, upload := reduceUnit(flow.Download), reduceUnit(flow.Upload)
+			last = flow
+			opt.NotifySpped.Notify(flowString(download, upload, ur, dr))
+		}
+	}
 }
 
 func (a *App) Stop() error {
@@ -110,4 +153,22 @@ func (a *App) SaveNewBypass(link string) error {
 
 	_, err := a.app.Tools.SaveRemoteBypassFile(context.TODO(), &wrapperspb.StringValue{Value: link})
 	return err
+}
+
+func reduceUnit(v uint64) string {
+	x, unit := unit.ReducedUnit(float64(v))
+	return fmt.Sprintf("%.2f %v", x, unit)
+}
+
+func flowString(download, upload, ur, dr string) string {
+	totalMaxLen := "%" + strconv.Itoa(max(len(download), len(upload))) + "s"
+	rateMaxLen := "%" + strconv.Itoa(max(len(ur), len(dr))) + "s"
+
+	return fmt.Sprintf(
+		"Download("+totalMaxLen+"): "+rateMaxLen+"/S\n Upload ("+totalMaxLen+"): "+rateMaxLen+"/S",
+		download,
+		ur,
+		upload,
+		dr,
+	)
 }
