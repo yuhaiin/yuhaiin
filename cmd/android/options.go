@@ -11,6 +11,7 @@ import (
 
 type Opts struct {
 	CloseFallback Closer
+	NotifySpped   NotifySpped
 	MapStore      *MapStore
 	TUN           *TUN   `json:"tun"`
 	Savepath      string `json:"savepath"`
@@ -32,6 +33,11 @@ type UidDumper interface {
 
 type SocketProtect interface {
 	Protect(socket int32) bool
+}
+
+type NotifySpped interface {
+	NotifyEnable() bool
+	Notify(str string)
 }
 
 type Closer interface {
