@@ -1,89 +1,15 @@
 package route
 
 import (
-	"bufio"
-	"io"
-	"iter"
-	"log/slog"
-	"os"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"unique"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 )
-
-var deafultRule = `
-0.0.0.0/8 DIRECT,tag=LAN
-10.0.0.0/8 DIRECT,tag=LAN
-100.64.0.0/10 DIRECT,tag=LAN
-127.0.0.0/8 DIRECT,tag=LAN
-169.254.0.0/16 DIRECT,tag=LAN
-172.16.0.0/12 DIRECT,tag=LAN
-192.0.0.0/29 DIRECT,tag=LAN
-192.0.2.0/24 DIRECT,tag=LAN
-192.88.99.0/24 DIRECT,tag=LAN
-192.168.0.0/16 DIRECT,tag=LAN
-198.18.0.0/15 DIRECT,tag=LAN
-198.51.100.0/24 DIRECT,tag=LAN
-203.0.113.0/24 DIRECT,tag=LAN
-224.0.0.0/3 DIRECT,tag=LAN
-localhost DIRECT,tag=LAN
-`
-
-type Rule struct {
-	ModeEnum unique.Handle[bypass.ModeEnum]
-	Scheme   string
-	Hostname string
-}
-
-func rangeRule(path string) iter.Seq[Rule] {
-	return func(f func(Rule) bool) {
-		var reader io.ReadCloser
-		var err error
-		reader, err = os.Open(path)
-		if err != nil {
-			log.Error("open bypass file failed, fallback to use internal bypass data",
-				slog.String("filepath", path), slog.Any("err", err))
-
-			reader = io.NopCloser(strings.NewReader(deafultRule))
-		}
-		defer reader.Close()
-
-		br := bufio.NewScanner(reader)
-
-		for br.Scan() {
-			before := TrimComment(br.Text())
-
-			scheme, hostname, args, ok := SplitHostArgs(before)
-			if !ok {
-				continue
-			}
-
-			modeEnum, ok := SplitModeArgs(args)
-			if !ok {
-				continue
-			}
-
-			r := Rule{
-				Scheme:   scheme,
-				ModeEnum: modeEnum,
-				Hostname: hostname,
-			}
-
-			if r.Scheme == "file" && !filepath.IsAbs(r.Hostname) {
-				r.Hostname = filepath.Join(filepath.Dir(path), r.Hostname)
-			}
-
-			if !f(r) {
-				return
-			}
-		}
-	}
-}
 
 type Args struct {
 	Tag                  string
@@ -133,9 +59,7 @@ func TrimComment(s string) string {
 	return s
 }
 
-func SplitHostArgs(s string) (scheme, hostname, args string, ok bool) {
-	scheme, s = getScheme(s)
-
+func SplitHostArgs(s string) (uri *Uri, args string, ok bool) {
 	if len(s) == 0 {
 		return
 	}
@@ -146,20 +70,20 @@ func SplitHostArgs(s string) (scheme, hostname, args string, ok bool) {
 			return
 		}
 
-		hostname = s[1 : i+1]
+		uri = getScheme(s[1 : i+1])
 		args = strings.TrimSpace(s[i+2:])
 		ok = true
-		return
+	} else {
+		i := strings.IndexByte(s, ' ')
+		if i == -1 {
+			return
+		}
+
+		uri = getScheme(s[:i])
+		args = strings.TrimSpace(s[i+1:])
+		ok = true
 	}
 
-	i := strings.IndexByte(s, ' ')
-	if i == -1 {
-		return
-	}
-
-	hostname = s[:i]
-	args = strings.TrimSpace(s[i+1:])
-	ok = true
 	return
 }
 
@@ -174,7 +98,7 @@ func SplitModeArgs(s string) (x unique.Handle[bypass.ModeEnum], ok bool) {
 	mode := bypass.Mode(bypass.Mode_value[modestr])
 
 	if mode.Unknown() {
-		return
+		mode = bypass.Mode_proxy
 	}
 
 	return ParseArgs(mode, fs[1:]).ToModeConfig(nil).ToModeEnum(), true
@@ -202,54 +126,119 @@ func (a RawArgs) Range(f func(k, v string) bool) {
 	}
 }
 
-func getScheme(h string) (string, string) {
-	i := strings.Index(h, ":")
-	if i == -1 {
-		return "", h
+func getScheme(h string) *Uri {
+	h = TrimComment(h)
+
+	u, err := url.Parse(h)
+	if err != nil {
+		u = &url.URL{
+			Scheme: "default",
+			Host:   h,
+		}
+	}
+	switch u.Scheme {
+	case "file", "process", "http", "https":
+	default:
+		u = &url.URL{
+			Scheme: "default",
+			Host:   h,
+		}
 	}
 
-	switch h[:i] {
-	case "file", "process":
-		return h[:i], h[i+1:]
-	default:
-		return "", h
-	}
+	return &Uri{u}
 }
 
 type routeTries struct {
 	trie        *trie.Trie[unique.Handle[bypass.ModeEnum]]
 	processTrie map[string]unique.Handle[bypass.ModeEnum]
-	tags        []string
+	tagsMap     map[string]struct{}
 }
 
 func newRouteTires() *routeTries {
 	return &routeTries{
 		trie:        trie.NewTrie[unique.Handle[bypass.ModeEnum]](),
 		processTrie: make(map[string]unique.Handle[bypass.ModeEnum]),
-		tags:        []string{},
+		tagsMap:     make(map[string]struct{}),
 	}
 }
 
-func (s *routeTries) insert(scheme, host string, mode unique.Handle[bypass.ModeEnum]) {
-	switch scheme {
+func (s *routeTries) insert(uri *Uri, mode unique.Handle[bypass.ModeEnum]) {
+	if tag := mode.Value().GetTag(); tag != "" {
+		s.tagsMap[strings.ToLower(tag)] = struct{}{}
+	}
+
+	switch uri.Scheme() {
 	case "file":
-		for x := range slice.RangeFileByLine(host) {
-			x = TrimComment(x)
-			if x == "" {
-				continue
+		path := uri.Data()
+		for x := range slice.RangeFileByLine(path) {
+			uri := getScheme(x)
+			if uri.Scheme() == "file" && !filepath.IsAbs(uri.Data()) {
+				uri.SetData(filepath.Join(filepath.Dir(path), uri.Data()))
 			}
 
-			scheme, hostname := getScheme(x)
-			if scheme == "file" && !filepath.IsAbs(hostname) {
-				hostname = filepath.Join(filepath.Dir(host), hostname)
-			}
-
-			s.insert(scheme, hostname, mode)
+			s.insert(uri, mode)
 		}
 
 	case "process":
-		s.processTrie[host] = mode
+		s.processTrie[uri.Data()] = mode
 	default:
-		s.trie.Insert(strings.ToLower(host), mode)
+		if uri.Data() == "" {
+			return
+		}
+
+		s.trie.Insert(strings.ToLower(uri.Data()), mode)
 	}
+}
+
+type Uri struct {
+	uri *url.URL
+}
+
+func (u *Uri) Scheme() string {
+	return u.uri.Scheme
+}
+
+func (u *Uri) Data() string {
+	switch u.uri.Scheme {
+	case "file":
+		return filepath.Join(u.uri.Host, u.uri.Path)
+	case "http", "https":
+		return u.uri.String()
+	case "process":
+		if u.uri.Opaque != "" {
+			return u.uri.Opaque
+		}
+
+		return filepath.Join(u.uri.Host, u.uri.Path)
+	}
+
+	if u.uri.Host != "" {
+		return u.uri.Host
+	}
+
+	return u.uri.Path
+}
+
+func (u *Uri) SetData(str string) {
+	switch u.uri.Scheme {
+	case "file":
+		u.uri.Host = ""
+		u.uri.Path = str
+	case "http", "https":
+		nu, err := url.Parse(str)
+		if err == nil {
+			u.uri = nu
+		}
+	case "process":
+		u.uri.Opaque = str
+		u.uri.Path = ""
+		u.uri.Host = ""
+	default:
+		u.uri.Host = str
+		u.uri.Path = ""
+	}
+}
+
+func (u *Uri) String() string {
+	return u.Scheme() + "://" + u.Data()
 }

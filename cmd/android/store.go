@@ -232,6 +232,7 @@ var (
 	AppListKey       = "app_list"
 	LogLevelKey      = "Log Level"
 	RuleByPassUrlKey = "Rule Update Bypass"
+	RemoteRulesKey   = "remote_rules"
 	BlockKey         = "Block"
 	ProxyKey         = "Proxy"
 	DirectKey        = "Direct"
@@ -286,6 +287,7 @@ var (
 		LogLevelKey:      "info",
 
 		RuleByPassUrlKey: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
+		RemoteRulesKey:   "[]",
 		// rules
 		BlockKey:  "",
 		ProxyKey:  "",

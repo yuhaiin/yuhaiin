@@ -14,6 +14,7 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc"
@@ -29,6 +30,7 @@ type Components struct {
 	Connections  gs.ConnectionsServer
 	Tag          gn.TagServer
 	DB           *bbolt.DB
+	Rc           *route.RuleController
 }
 
 func (app *Components) RegisterGrpcService() {
@@ -43,7 +45,9 @@ func (app *Components) RegisterGrpcService() {
 	so.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, app.Connections)
 	so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, app.Tag)
 	so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, app.Tools)
+	so.GRPCServer.RegisterService(&gc.Bypass_ServiceDesc, app.Rc)
 }
+
 func (a *Components) Close() error {
 	closers := slices.Clone(a.closers)
 	slices.Reverse(closers)

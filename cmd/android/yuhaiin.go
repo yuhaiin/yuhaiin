@@ -19,7 +19,6 @@ import (
 	service "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type App struct {
@@ -147,11 +146,12 @@ func (a *App) Stop() error {
 func (a *App) Running() bool { return a.started.Load() }
 
 func (a *App) SaveNewBypass(link string) error {
-	if !a.Running() || a.app == nil || a.app.Tools == nil {
+	if !a.Running() || a.app == nil || a.app.Rc == nil {
 		return fmt.Errorf("proxy service is not start")
 	}
 
-	_, err := a.app.Tools.SaveRemoteBypassFile(context.TODO(), &wrapperspb.StringValue{Value: link})
+	a.app.Setting.(*fakeSettings).updateRemoteUrl(link)
+	_, err := a.app.Rc.Reload(context.TODO(), &emptypb.Empty{})
 	return err
 }
 
@@ -167,8 +167,8 @@ func flowString(download, upload, ur, dr string) string {
 	return fmt.Sprintf(
 		"Download("+totalMaxLen+"): "+rateMaxLen+"/S\n Upload ("+totalMaxLen+"): "+rateMaxLen+"/S",
 		download,
-		ur,
-		upload,
 		dr,
+		upload,
+		ur,
 	)
 }

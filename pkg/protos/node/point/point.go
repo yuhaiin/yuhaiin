@@ -87,11 +87,12 @@ func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
 	}
 
 	return &tls.Config{
-		ServerName:         servername,
-		RootCAs:            root,
-		NextProtos:         t.NextProtos,
-		InsecureSkipVerify: t.InsecureSkipVerify,
-		ClientSessionCache: tlsSessionCache,
+		ServerName:                     servername,
+		RootCAs:                        root,
+		NextProtos:                     t.NextProtos,
+		InsecureSkipVerify:             t.InsecureSkipVerify,
+		ClientSessionCache:             tlsSessionCache,
+		EncryptedClientHelloConfigList: t.EchConfig,
 		// SessionTicketsDisabled: true,
 	}
 }

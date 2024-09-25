@@ -2,13 +2,13 @@ package slice
 
 import (
 	"bufio"
+	"io"
 	"iter"
 	"os"
 	"strings"
 )
 
 type ToFunc[T, T2 any] func(T) T2
-
 
 func To[T, T2 any](from []T, f ToFunc[T, T2]) []T2 {
 	to := make([]T2, len(from))
@@ -33,9 +33,16 @@ func RangeFileByLine(path string) iter.Seq[string] {
 		if err != nil {
 			return
 		}
-		defer file.Close()
 
-		s := bufio.NewScanner(file)
+		RangeReaderByLine(file)(f)
+	}
+}
+
+func RangeReaderByLine(reader io.ReadCloser) iter.Seq[string] {
+	return func(f func(x string) bool) {
+		defer reader.Close()
+
+		s := bufio.NewScanner(reader)
 		for s.Scan() {
 			hostname := s.Text()
 

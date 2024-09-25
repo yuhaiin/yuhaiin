@@ -12,6 +12,7 @@ import (
 	"time"
 	"unique"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -208,6 +209,8 @@ func (h *happyEyeball) allFailed(ctx context.Context, fails int, firstErr error)
 	return nil
 }
 
+var DefaultIPv6PreferUnicastLocalAddr = false
+
 type HappyEyeballsv2Dialer[T net.Conn] struct {
 	DialContext func(ctx context.Context, ip net.IP, port uint16) (T, error)
 	Cache       HappyEyeballsv2Cache
@@ -216,7 +219,14 @@ type HappyEyeballsv2Dialer[T net.Conn] struct {
 
 var DefaultHappyEyeballsv2Dialer = &HappyEyeballsv2Dialer[net.Conn]{
 	DialContext: func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
-		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))))
+		return DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))), func(opts *Options) {
+			if DefaultIPv6PreferUnicastLocalAddr && opts.InterfaceName != "" || opts.InterfaceIndex != 0 {
+				if ip.IsGlobalUnicast() && !ip.IsPrivate() && ip.To4() == nil && ip.To16() != nil {
+					opts.LocalAddr = GetUnicastAddr(true, "tcp", opts.InterfaceName, opts.InterfaceIndex)
+					log.Info("happy eyeballs dialer prefer ipv6", slog.Any("localaddr", opts.LocalAddr))
+				}
+			}
+		})
 	},
 	Cache: happyEyeballsCache,
 	Avg:   NewAvg(),
@@ -392,4 +402,58 @@ func Interleave[S ~[]T, T any](a, b S) S {
 	ret = append(ret, a[i:]...)
 	ret = append(ret, b[i:]...)
 	return ret
+}
+
+func GetUnicastAddr(ipv6 bool, network string, name string, index int) net.Addr {
+	if len(network) < 3 {
+		return nil
+	}
+
+	var ifs *net.Interface
+	var err error
+
+	if name != "" {
+		ifs, err = net.InterfaceByName(name)
+	} else if index != 0 {
+		ifs, err = net.InterfaceByIndex(index)
+	} else {
+		return nil
+	}
+	if err != nil {
+		return nil
+	}
+
+	addrs, err := ifs.Addrs()
+	if err != nil {
+		return nil
+	}
+
+	for _, v := range addrs {
+		x, ok := v.(*net.IPNet)
+		if !ok || x.IP == nil {
+			continue
+		}
+
+		if ipv6 && x.IP.To4() != nil {
+			continue
+		} else if !ipv6 && x.IP.To4() == nil {
+			continue
+		}
+
+		if x.IP.IsGlobalUnicast() && !x.IP.IsPrivate() {
+
+			switch network[:3] {
+			case "tcp":
+				return &net.TCPAddr{
+					IP: x.IP,
+				}
+			case "udp":
+				return &net.UDPAddr{
+					IP: x.IP,
+				}
+			}
+		}
+	}
+
+	return nil
 }

@@ -11,7 +11,12 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-var InternetResolver netapi.Resolver = NewSystemResolver("8.8.8.8:53", "1.1.1.1:53", "223.5.5.5:53", "114.114.114.114:53")
+var InternetResolver netapi.Resolver = NewSystemResolver(
+	netapi.ParseAddressPort("udp", "8.8.8.8", 53),
+	netapi.ParseAddressPort("udp", "1.1.1.1", 53),
+	netapi.ParseAddressPort("udp", "223.5.5.5", 53),
+	netapi.ParseAddressPort("udp", "114.114.114.114", 53),
+)
 
 var Bootstrap netapi.Resolver = InternetResolver
 
@@ -19,12 +24,12 @@ type SystemResolver struct {
 	resolver *net.Resolver
 }
 
-func NewSystemResolver(host ...string) *SystemResolver {
+func NewSystemResolver(host ...netapi.Address) *SystemResolver {
 	return &SystemResolver{
 		resolver: &net.Resolver{
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				for _, h := range host {
-					conn, err := DialContext(ctx, network, h)
+					conn, err := DialHappyEyeballsv2(ctx, h)
 					if err == nil {
 						return conn, nil
 					}

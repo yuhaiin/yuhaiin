@@ -130,6 +130,7 @@ message tls_config {
   // next_protos ALPN Next Protocol
   // eg: h2, http/1.1
   repeated string next_protos = 5 [ json_name = "next_protos" ];
+  bytes ech_config = 7 [ json_name = "ech_config" ];
 }
 
 message direct {

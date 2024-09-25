@@ -10,13 +10,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func Server(o *appapi.Components) {
@@ -39,11 +37,16 @@ func ServeHTTP(o *appapi.Components) {
 		"GET /interfaces": GrpcToHttp(o.Tools.GetInterface),
 		"GET /node/now":   GrpcToHttp(o.Node.Now),
 
-		"POST /config":  GrpcToHttp(o.Setting.Save),
-		"POST /sub":     GrpcToHttp(o.Subscribe.Save),
-		"POST /tag":     GrpcToHttp(o.Tag.Save),
-		"POST /node":    GrpcToHttp(o.Node.Get),
-		"POST /bypass":  GrpcToHttp(o.Tools.SaveRemoteBypassFile),
+		"POST /config": GrpcToHttp(o.Setting.Save),
+		"POST /sub":    GrpcToHttp(o.Subscribe.Save),
+		"POST /tag":    GrpcToHttp(o.Tag.Save),
+		"POST /node":   GrpcToHttp(o.Node.Get),
+
+		"GET /bypass":         GrpcToHttp(o.Rc.Load),
+		"PATCH /bypass":       GrpcToHttp(o.Rc.Save),
+		"POST /bypass/reload": GrpcToHttp(o.Rc.Reload),
+		"POST /bypass/test":   GrpcToHttp(o.Rc.Test),
+
 		"POST /latency": GrpcToHttp(o.Node.Latency),
 
 		"DELETE /conn": GrpcToHttp(o.Connections.CloseConn),
@@ -134,54 +137,38 @@ func (w *wrapResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return http.NewResponseController(w.ResponseWriter).Hijack()
 }
 
-func GrpcToHttp[req, resp proto.Message](function func(context.Context, req) (resp, error)) func(http.ResponseWriter, *http.Request) error {
-	typeEmpty := reflect.TypeOf(&emptypb.Empty{})
-	reqType := reflect.TypeOf(*new(req))
-	respType := reflect.TypeOf(*new(resp))
-	newPr := reflect.New(reqType.Elem()).Interface().(req).ProtoReflect()
+type ProtoMsg[T any] interface {
+	proto.Message
+	*T
+}
 
-	var unmarshalProto func(*http.Request, req) error
-	if reqType == typeEmpty {
-		unmarshalProto = func(r1 *http.Request, r2 req) error { return nil }
-	} else {
-		unmarshalProto = func(r1 *http.Request, r2 req) error {
-			bytes, err := io.ReadAll(r1.Body)
+func GrpcToHttp[req ProtoMsg[T], resp ProtoMsg[T2], T, T2 any](function func(context.Context, req) (resp, error)) func(http.ResponseWriter, *http.Request) error {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		req := req(new(T))
+
+		if r.Method != http.MethodGet {
+			reqBytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				return err
 			}
 
-			return proto.Unmarshal(bytes, r2)
-		}
-	}
-
-	var marshalProto func(http.ResponseWriter, resp) error
-
-	if respType == typeEmpty {
-		marshalProto = func(w http.ResponseWriter, r resp) error { return nil }
-	} else {
-		marshalProto = func(w http.ResponseWriter, r resp) error {
-			bytes, err := proto.Marshal(r)
+			err = proto.Unmarshal(reqBytes, req)
 			if err != nil {
-				return fmt.Errorf("marshal proto failed: %w", err)
+				return err
 			}
-
-			_, err = w.Write(bytes)
-			return err
-		}
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) error {
-		pr := newPr.New().Interface().(req)
-
-		if err := unmarshalProto(r, pr); err != nil {
-			return err
 		}
 
-		resp, err := function(r.Context(), pr)
+		resp, err := function(r.Context(), req)
 		if err != nil {
 			return err
 		}
 
-		return marshalProto(w, resp)
+		respBytes, err := proto.Marshal(resp)
+		if err != nil {
+			return err
+		}
+
+		_, err = w.Write(respBytes)
+		return err
 	}
 }
