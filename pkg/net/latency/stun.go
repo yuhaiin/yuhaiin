@@ -241,7 +241,7 @@ func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error
 	}
 	defer pconn.Close()
 
-	mr, mt, err := Mapping(pconn, addr, time.Second*3)
+	mr, mt, err := Mapping(pconn, addr, time.Second*5)
 	if err != nil {
 		return StunResponse{}, err
 	}
@@ -249,7 +249,7 @@ func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error
 	var ft NatType = ServerNotSupportChangePort
 
 	if mt != ServerNotSupportChangePort {
-		ft, err = Filtering(pconn, addr, time.Second*3)
+		ft, err = Filtering(pconn, addr, time.Second*5)
 		if err != nil {
 			return StunResponse{}, err
 		}

@@ -46,12 +46,18 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 	return config.Listen(ctx, network, address)
 }
 
-func DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	return DialContextWithOptions(ctx, network, address, &Options{
+func DialContext(ctx context.Context, network, address string, opts ...func(*Options)) (net.Conn, error) {
+	opt := &Options{
 		InterfaceName:  DefaultInterfaceName,
 		InterfaceIndex: DefaultInterfaceIndex,
 		MarkSymbol:     DefaultMarkSymbol,
-	})
+	}
+
+	for _, o := range opts {
+		o(opt)
+	}
+
+	return DialContextWithOptions(ctx, network, address, opt)
 }
 
 func DialContextWithOptions(ctx context.Context, network, address string, opts *Options) (net.Conn, error) {
@@ -67,10 +73,12 @@ func DialContextWithOptions(ctx context.Context, network, address string, opts *
 		// disabling the overriding of TCP keepalive parameters by setting the
 		// KeepAlive field to a negative value above, results in OS defaults for
 		// the TCP keealive interval and time parameters.
+		LocalAddr: opts.LocalAddr,
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
+
 	if configuration.MPTCP {
 		d.SetMultipathTCP(true)
 	}
@@ -158,6 +166,8 @@ type Options struct {
 	// It is almost the same as InterfaceName except it uses the
 	// index of the interface instead of the name.
 	InterfaceIndex int
+
+	LocalAddr net.Addr
 
 	listener          bool
 	tryUpgradeToBatch bool

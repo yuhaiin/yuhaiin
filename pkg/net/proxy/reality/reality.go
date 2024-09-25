@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -65,7 +66,13 @@ func NewServer(config *listener.Transport_Reality) func(netapi.Listener) (netapi
 		}
 
 		config := &reality.Config{
-			DialContext:            dialer.DialContext,
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				addr, err := netapi.ParseAddress(network, address)
+				if err != nil {
+					return nil, err
+				}
+				return dialer.DialHappyEyeballsv2(ctx, addr)
+			},
 			Show:                   config.Reality.Debug,
 			Type:                   "tcp",
 			ShortIds:               ids,

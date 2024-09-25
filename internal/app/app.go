@@ -14,6 +14,7 @@ import (
 	web "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/config"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -106,6 +107,8 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update()))
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
+	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast() }))
+	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { configuration.IPv6.Store(s.GetIpv6()) }))
 
 	// proxy access point/endpoint
 	node := node.NewNodes(PathGenerator.Node(so.ConfigPath))
@@ -119,6 +122,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	dns := AddComponent(so, "resolver", resolver.NewResolver(dynamicProxy))
 	// bypass dialer and dns request
 	st := AddComponent(so, "shunt", route.NewRoute(node.Outbound(), dns, opt.ProcessDumper))
+	rc := route.NewRuleController(opt.Setting, st)
 	node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
 
@@ -134,7 +138,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	// inbound server
 	_ = AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
-	tools := tools.NewTools(fakedns, opt.Setting, st.Update)
+	tools := tools.NewTools()
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /metrics", promhttp.Handler())
@@ -149,6 +153,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Subscribe:    subscribe,
 		Connections:  stcs,
 		Tag:          tag,
+		Rc:           rc,
 	}
 
 	// http page
