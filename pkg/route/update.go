@@ -1,13 +1,23 @@
 package route
 
 import (
+	"context"
 	"os"
+	"path/filepath"
 	"slices"
+	"sync"
 	"unique"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var myPath string
@@ -16,10 +26,10 @@ func init() {
 	myPath, _ = os.Executable()
 }
 
-func (s *Route) updateCustomRule(c *pc.Setting) {
-	if slices.EqualFunc(
+func (s *Route) updateCustomRule(path string, c *bypass.Config, force bool) {
+	if !force && slices.EqualFunc(
 		s.config.CustomRuleV3,
-		c.Bypass.CustomRuleV3,
+		c.CustomRuleV3,
 		func(mc1, mc2 *bypass.ModeConfig) bool { return proto.Equal(mc1, mc2) },
 	) {
 		return
@@ -27,22 +37,31 @@ func (s *Route) updateCustomRule(c *pc.Setting) {
 
 	trie := newRouteTires()
 
-	for _, v := range c.Bypass.CustomRuleV3 {
+	for _, v := range c.CustomRuleV3 {
+		v.ErrorMsgs = make(map[string]string)
+
 		mark := v.ToModeEnum()
 
-		if mark.Value().GetTag() != "" {
-			trie.tags = append(trie.tags, mark.Value().GetTag())
-		}
-
 		for _, hostname := range v.Hostname {
-			hostname = TrimComment(hostname)
-			scheme, remain := getScheme(hostname)
+			scheme := getScheme(hostname)
 
-			if remain == "" {
-				continue
+			switch scheme.Scheme() {
+			case "http", "https":
+				r, err := getRemote(filepath.Join(path, "rules"), s, hostname, force)
+				if err != nil {
+					v.ErrorMsgs[hostname] = err.Error()
+					log.Error("get remote failed", "err", err, "url", hostname)
+					continue
+				}
+
+				for v := range slice.RangeReaderByLine(r) {
+					scheme := getScheme(v)
+
+					trie.insert(scheme, mark)
+				}
+			default:
+				trie.insert(scheme, mark)
 			}
-
-			trie.insert(scheme, remain, mark)
 		}
 	}
 
@@ -50,39 +69,96 @@ func (s *Route) updateCustomRule(c *pc.Setting) {
 		trie.processTrie[myPath] = unique.Make(bypass.Block)
 	}
 
-	s.customTrie = trie
+	s.customTrie.Store(trie)
 }
 
-func (s *Route) updateRulefile(c *pc.Setting) {
-	modifiedTime := s.modifiedTime
-	if stat, err := os.Stat(c.Bypass.BypassFile); err == nil {
-		modifiedTime = stat.ModTime().Unix()
-	}
-
-	if s.config.BypassFile == c.Bypass.BypassFile && s.modifiedTime == modifiedTime {
+func (s *Route) updateRules(path string, c *bypass.Config, force bool) {
+	if !force && slices.EqualFunc(
+		s.config.RemoteRules,
+		c.RemoteRules,
+		func(mc1, mc2 *bypass.RemoteRule) bool { return proto.Equal(mc1, mc2) },
+	) {
 		return
 	}
 
-	trie := newRouteTires()
-	s.modifiedTime = modifiedTime
-
-	for s := range rangeRule(c.Bypass.BypassFile) {
-		trie.insert(s.Scheme, s.Hostname, s.ModeEnum)
-
-		if s.ModeEnum.Value().GetTag() != "" {
-			trie.tags = append(trie.tags, s.ModeEnum.Value().GetTag())
-		}
-	}
-
-	s.trie = trie
+	s.trie.Store(parseTrie(filepath.Join(path, "rules"), s, c.RemoteRules, force))
 }
 
-func (s *Route) Update(c *pc.Setting) {
+func (s *Route) apply(path string, c *bypass.Config, force bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.resolveDomain = c.Dns.ResolveRemoteDomain
-	s.updateCustomRule(c)
-	s.updateRulefile(c)
-	s.config = c.Bypass
+	s.updateCustomRule(path, c, force)
+	s.updateRules(path, c, force)
+	s.config = c
+}
+
+type RuleController struct {
+	gc.UnimplementedBypassServer
+	mu    sync.RWMutex
+	route *Route
+	db    config.DB
+}
+
+func NewRuleController(db config.DB, r *Route) *RuleController {
+	_ = db.Batch(func(s *pc.Setting) error {
+		r.apply(db.Dir(), s.Bypass, false)
+		return nil
+	})
+
+	return &RuleController{
+		route: r,
+		db:    db,
+	}
+}
+
+func (s *RuleController) Load(ctx context.Context, empty *emptypb.Empty) (*bypass.Config, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.route.config, nil
+}
+
+func (s *RuleController) Save(ctx context.Context, config *bypass.Config) (*emptypb.Empty, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.route.apply(s.db.Dir(), config, false)
+
+	err := s.db.Batch(func(s *pc.Setting) error {
+		s.Bypass = config
+		return nil
+	})
+
+	return &emptypb.Empty{}, err
+}
+
+func (s *RuleController) Reload(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var config *bypass.Config
+
+	_ = s.db.Batch(func(s *pc.Setting) error {
+		config = s.Bypass
+		return nil
+	})
+
+	s.route.apply(s.db.Dir(), config, true)
+
+	return &emptypb.Empty{}, nil
+}
+
+func (s *RuleController) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.TestResponse, error) {
+	mode, addr, reason := s.route.dispatch(ctx, bypass.Mode_bypass, netapi.ParseAddressPort("", req.GetValue(), 0))
+
+	return &gc.TestResponse{
+		Mode: &bypass.ModeConfig{
+			Mode:            mode.Mode(),
+			Tag:             mode.GetTag(),
+			ResolveStrategy: mode.GetResolveStrategy(),
+		},
+		AfterAddr: addr.String(),
+		Reason:    reason,
+	}, nil
 }

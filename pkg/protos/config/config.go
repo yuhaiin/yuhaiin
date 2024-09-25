@@ -32,3 +32,8 @@ func DefaultConfigDir() (Path string) {
 	Path = filepath.Join(filepath.Dir(execPath), "config")
 	return
 }
+
+type DB interface {
+	Batch(f ...func(*Setting) error) error
+	Dir() string
+}

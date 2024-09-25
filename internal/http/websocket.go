@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"reflect"
 	"sync"
 	"time"
 
@@ -12,13 +11,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/proto"
 )
 
-func GrpcServerStreamingToWebsocket[T proto.Message, T2 any](function func(T, grpc.ServerStreamingServer[T2]) error) func(http.ResponseWriter, *http.Request) error {
-	reqType := reflect.TypeOf(*new(T))
-	newPr := reflect.New(reqType.Elem()).Interface().(T).ProtoReflect()
-
+func GrpcServerStreamingToWebsocket[req ProtoMsg[T], T any, T2 any](function func(req, grpc.ServerStreamingServer[T2]) error) func(http.ResponseWriter, *http.Request) error {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		return websocket.ServeHTTP(w, r, func(ctx context.Context, c *websocket.Conn) error {
 			defer c.Close()
@@ -26,8 +21,7 @@ func GrpcServerStreamingToWebsocket[T proto.Message, T2 any](function func(T, gr
 			ctx, cancel := context.WithCancelCause(ctx)
 			defer cancel(nil)
 
-			req := newPr.New().Interface().(T)
-
+			req := req(new(T))
 			err := websocket.PROTO.Receive(c, req)
 			if err != nil {
 				return err

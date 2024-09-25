@@ -187,10 +187,14 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	// only ipv6/ipv4
 	switch opt.Mode {
 	case netapi.ResolverModePreferIPv4:
+		slog.Info("lookup ipv4 only", "domain", domain)
 		return c.lookupIP(ctx, domain, dnsmessage.TypeA)
 	case netapi.ResolverModePreferIPv6:
+		slog.Info("lookup ipv6 only", "domain", domain)
 		return c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 	}
+
+	slog.Info("lookup ipv4 and ipv6", "domain", domain)
 
 	aerr := make(chan error, 1)
 	var a []net.IP
