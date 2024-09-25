@@ -28,11 +28,34 @@ func defaultSetting(path string) *config.Setting {
 			// linux system set socks5 will make firfox websocket can't connect
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		},
-		Bypass: &bypass.BypassConfig{
-			Tcp:        bypass.Mode_bypass,
-			Udp:        bypass.Mode_bypass,
-			BypassFile: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+		Bypass: &bypass.Config{
+			Tcp: bypass.Mode_bypass,
+			Udp: bypass.Mode_bypass,
 			CustomRuleV3: []*bypass.ModeConfig{
+				{
+					Mode: bypass.Mode_direct,
+					Tag:  "LAN",
+					Hostname: []string{
+						"0.0.0.0/8",
+						"10.0.0.0/8",
+						"100.64.0.0/10",
+						"127.0.0.1/8",
+						"169.254.0.0/16",
+						"172.16.0.0/12",
+						"192.0.0.0/29",
+						"192.0.2.0/24",
+						"192.88.99.0/24",
+						"192.168.0.0/16",
+						"198.18.0.0/15",
+						"198.51.100.0/24",
+						"203.0.113.0/24",
+						"224.0.0.0/3",
+						"fc00::/7",
+						"fe80::/10",
+						"ff00::/8",
+						"localhost",
+					},
+				},
 				{
 					Hostname: []string{"dns.google"},
 					Mode:     bypass.Mode_proxy,
@@ -52,13 +75,32 @@ func defaultSetting(path string) *config.Setting {
 					Mode: bypass.Mode_block,
 				},
 			},
+			RemoteRules: []*bypass.RemoteRule{
+				{
+					Enabled: false,
+					Name:    "default",
+					Object: &bypass.RemoteRule_File{
+						File: &bypass.RemoteRuleFile{
+							Path: filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
+						},
+					},
+				},
+				{
+					Enabled: false,
+					Name:    "default_remote",
+					Object: &bypass.RemoteRule_Http{
+						Http: &bypass.RemoteRuleHttp{
+							Url: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
+						},
+					},
+				},
+			},
 		},
 		Dns: &pd.DnsConfig{
-			ResolveRemoteDomain: false,
-			Server:              "127.0.0.1:5353",
-			Fakedns:             false,
-			FakednsIpRange:      "10.0.2.1/16",
-			FakednsIpv6Range:    "fc00::/64",
+			Server:           "127.0.0.1:5353",
+			Fakedns:          false,
+			FakednsIpRange:   "10.0.2.1/16",
+			FakednsIpv6Range: "fc00::/64",
 			FakednsWhitelist: []string{
 				"*.msftncsi.com",
 				"*.msftconnecttest.com",

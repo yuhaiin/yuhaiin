@@ -10,10 +10,11 @@ import "config/listener/listener.proto";
 
 message setting {
   bool ipv6 = 7 [ json_name = "ipv6" ];
+  bool ipv6_local_addr_prefer_unicast = 10 [ json_name = "ipv6_local_addr_prefer_unicast" ];
   // net_interface, eg: eth0
   string net_interface = 6 [ json_name = "net_interface" ];
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
-  yuhaiin.bypass.bypass_config bypass = 2 [ json_name = "bypass" ];
+  yuhaiin.bypass.config bypass = 2 [ json_name = "bypass" ];
   yuhaiin.dns.dns_config dns = 4 [ json_name = "dns" ];
   yuhaiin.listener.inbound_config server = 5 [ json_name = "server" ];
   yuhaiin.log.logcat logcat = 8 [ json_name = "logcat" ];

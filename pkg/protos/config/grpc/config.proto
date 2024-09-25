@@ -2,7 +2,9 @@ syntax = "proto3";
 package yuhaiin.protos.config.service;
 
 import "config/config.proto";
+import "config/bypass/bypass.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/service";
 
@@ -10,4 +12,17 @@ service config_service {
   rpc load(google.protobuf.Empty) returns (yuhaiin.config.setting);
   rpc save(yuhaiin.config.setting) returns (google.protobuf.Empty);
   rpc info(google.protobuf.Empty) returns (yuhaiin.config.info);
+}
+
+message test_response {
+  yuhaiin.bypass.mode_config mode = 1 [ json_name = "mode" ];
+  string reason = 2 [ json_name = "reason" ];
+  string after_addr = 3 [ json_name = "after_addr" ];
+}
+
+service bypass {
+  rpc load(google.protobuf.Empty) returns (yuhaiin.bypass.config);
+  rpc save(yuhaiin.bypass.config) returns (google.protobuf.Empty);
+  rpc reload(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc test(google.protobuf.StringValue) returns (test_response);
 }

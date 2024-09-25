@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"encoding/base64"
 	"net/netip"
 	"testing"
 
@@ -93,7 +94,7 @@ func TestDOH(t *testing.T) {
 		},
 	}
 
-	d, err := New(configMap["ali"])
+	d, err := New(configMap["cloudflare"])
 	assert.NoError(t, err)
 
 	t.Log(d.LookupIP(context.TODO(), "plasma"))
@@ -122,6 +123,20 @@ func TestDOH(t *testing.T) {
 		Name: dnsmessage.MustNewName("www.google.com."),
 		Type: dnsmessage.TypeA,
 	}))
+	resp, err := d.Raw(context.TODO(), dnsmessage.Question{
+		Name: dnsmessage.MustNewName("defo.ie."),
+		Type: 65,
+	})
+	assert.NoError(t, err)
+	data := resp.Answers[0].Body.(*dnsmessage.UnknownResource).Data
+	https, err := unpackHTTPSResource(data, 0, uint16(len(data)))
+	assert.NoError(t, err)
+	t.Log(https.GoString())
+	for _, v := range https.Params {
+		if v.Key == ParamECHConfig {
+			t.Log(base64.StdEncoding.EncodeToString(v.Value))
+		}
+	}
 }
 
 func TestGetURL(t *testing.T) {

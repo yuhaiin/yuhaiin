@@ -68,10 +68,11 @@ type Context struct {
 
 	UDPMigrateID uint64 `metrics:"UDP MigrateID"`
 
-	ForceMode bypass.Mode `metrics:"-"`
-	SniffMode bypass.Mode `metrics:"-"`
-	Mode      bypass.Mode `metrics:"MODE"`
-	SkipRoute bool        `metrics:"-"`
+	ForceMode  bypass.Mode `metrics:"-"`
+	SniffMode  bypass.Mode `metrics:"-"`
+	Mode       bypass.Mode `metrics:"MODE"`
+	ModeReason string      `metrics:"MODE Reason"`
+	SkipRoute  bool        `metrics:"-"`
 }
 
 func (addr *Context) Map() map[string]string {

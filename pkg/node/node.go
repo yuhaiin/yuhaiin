@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"iter"
 	"net"
 	"sync"
 
@@ -23,7 +24,7 @@ import (
 type Nodes struct {
 	gn.UnimplementedNodeServer
 
-	ruleTags func() []string
+	ruleTags func() iter.Seq[string]
 
 	db       *jsondb.DB[*node.Node]
 	manager  *manager
@@ -43,7 +44,7 @@ func NewNodes(path string) *Nodes {
 	return f
 }
 
-func (n *Nodes) SetRuleTags(f func() []string) { n.ruleTags = f }
+func (n *Nodes) SetRuleTags(f func() iter.Seq[string]) { n.ruleTags = f }
 
 func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
 	return &gn.NowResp{
@@ -78,7 +79,7 @@ func (n *Nodes) Manager(context.Context, *emptypb.Empty) (*node.Manager, error) 
 	}
 
 	if n.ruleTags != nil {
-		for _, v := range n.ruleTags() {
+		for v := range n.ruleTags() {
 			if _, ok := m.Tags[v]; !ok {
 				m.Tags[v] = &pt.Tags{}
 			}

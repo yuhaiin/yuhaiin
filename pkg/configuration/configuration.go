@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -27,6 +28,8 @@ var (
 	MPTCP = false
 
 	UDPChannelBufferSize = 2500
+
+	IPv6 = atomicx.NewValue(true)
 )
 
 func or[T any](a, b T) T {

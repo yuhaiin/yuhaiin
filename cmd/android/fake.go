@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 	"github.com/Asutorufa/yuhaiin/pkg/route"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -39,12 +40,11 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 	settings := &pc.Setting{
 		Ipv6: opt.MapStore.GetBoolean(IPv6Key),
 		Dns: &dns.DnsConfig{
-			Server:              ifOr(opt.MapStore.GetInt(DNSPortKey) == 0, "", net.JoinHostPort(listenHost, fmt.Sprint(opt.MapStore.GetInt(DNSPortKey)))),
-			Fakedns:             opt.MapStore.GetString(FakeDNSCIDRKey) != "" || opt.MapStore.GetString(FakeDNSv6CIDRKey) != "",
-			FakednsIpRange:      opt.MapStore.GetString(FakeDNSCIDRKey),
-			FakednsIpv6Range:    opt.MapStore.GetString(FakeDNSv6CIDRKey),
-			ResolveRemoteDomain: opt.MapStore.GetBoolean(RemoteDNSResolveDomainKey),
-			Hosts:               make(map[string]string),
+			Server:           ifOr(opt.MapStore.GetInt(DNSPortKey) == 0, "", net.JoinHostPort(listenHost, fmt.Sprint(opt.MapStore.GetInt(DNSPortKey)))),
+			Fakedns:          opt.MapStore.GetString(FakeDNSCIDRKey) != "" || opt.MapStore.GetString(FakeDNSv6CIDRKey) != "",
+			FakednsIpRange:   opt.MapStore.GetString(FakeDNSCIDRKey),
+			FakednsIpv6Range: opt.MapStore.GetString(FakeDNSv6CIDRKey),
+			Hosts:            make(map[string]string),
 			Remote: &dns.Dns{
 				Host:          opt.MapStore.GetString(RemoteDNSHostKey),
 				Type:          dns.Type(dns.Type_value[opt.MapStore.GetString(RemoteDNSTypeKey)]),
@@ -104,11 +104,22 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			},
 		},
 
-		Bypass: &bypass.BypassConfig{
-			Tcp:          bypass.Mode(bypass.Mode_value[opt.MapStore.GetString(TCPBypassKey)]),
-			Udp:          bypass.Mode(bypass.Mode_value[opt.MapStore.GetString(UDPBypassKey)]),
-			BypassFile:   filepath.Join(filepath.Dir(path), "yuhaiin.conf"),
-			CustomRuleV3: []*bypass.ModeConfig{},
+		Bypass: &bypass.Config{
+			Tcp:            bypass.Mode(bypass.Mode_value[opt.MapStore.GetString(TCPBypassKey)]),
+			Udp:            bypass.Mode(bypass.Mode_value[opt.MapStore.GetString(UDPBypassKey)]),
+			CustomRuleV3:   []*bypass.ModeConfig{},
+			ResolveLocally: opt.MapStore.GetBoolean(RemoteDNSResolveDomainKey),
+			RemoteRules: []*bypass.RemoteRule{
+				{
+					Enabled: true,
+					Name:    "remote",
+					Object: &bypass.RemoteRule_Http{
+						Http: &bypass.RemoteRuleHttp{
+							Url: opt.MapStore.GetString(RuleByPassUrlKey),
+						},
+					},
+				},
+			},
 		},
 
 		Logcat: &pl.Logcat{
@@ -128,7 +139,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 	applyRule(settings, opt.MapStore.GetString(ProxyKey), bypass.Mode_proxy)
 	applyRule(settings, opt.MapStore.GetString(BlockKey), bypass.Mode_block)
 	applyRule(settings, opt.MapStore.GetString(DirectKey), bypass.Mode_direct)
-	return newFakeSetting(settings)
+	return newFakeSetting(settings, filepath.Dir(path))
 }
 
 func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
@@ -159,10 +170,11 @@ func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 type fakeSettings struct {
 	gc.UnimplementedConfigServiceServer
 	setting *pc.Setting
+	dir     string
 }
 
-func newFakeSetting(setting *pc.Setting) *fakeSettings {
-	return &fakeSettings{setting: setting}
+func newFakeSetting(setting *pc.Setting, dir string) *fakeSettings {
+	return &fakeSettings{setting: setting, dir: dir}
 }
 
 func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*pc.Setting, error) {
@@ -179,4 +191,23 @@ func (w *fakeSettings) AddObserver(o config.Observer) {
 	if o != nil {
 		o.Update(w.setting)
 	}
+}
+
+// android batch read only
+func (w *fakeSettings) Batch(f ...func(*pc.Setting) error) error {
+	config := proto.Clone(w.setting).(*pc.Setting)
+
+	for i := range f {
+		if err := f[i](config); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *fakeSettings) Dir() string { return w.dir }
+
+func (w *fakeSettings) updateRemoteUrl(url string) {
+	w.setting.Bypass.RemoteRules[0].GetHttp().Url = url
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"google.golang.org/protobuf/proto"
@@ -16,6 +17,7 @@ import (
 )
 
 type Setting interface {
+	config.DB
 	gc.ConfigServiceServer
 	AddObserver(Observer)
 }
@@ -39,7 +41,25 @@ type setting struct {
 }
 
 func NewConfig(path string) Setting {
-	return &setting{db: jsondb.Open(path, defaultSetting(path))}
+	s := &setting{db: jsondb.Open(path, defaultSetting(path))}
+	s.migrate()
+	return s
+}
+
+func (c *setting) migrate() {
+	if c.db.Data.Bypass.BypassFile != "" {
+		c.db.Data.Bypass.RemoteRules = append(c.db.Data.Bypass.RemoteRules, &bypass.RemoteRule{
+			Enabled: true,
+			Name:    "old_bypass_file",
+			Object: &bypass.RemoteRule_File{
+				File: &bypass.RemoteRuleFile{
+					Path: c.db.Data.Bypass.BypassFile,
+				},
+			},
+		})
+
+		c.db.Data.Bypass.BypassFile = ""
+	}
 }
 
 func (c *setting) Info(context.Context, *emptypb.Empty) (*config.Info, error) { return Info(), nil }
@@ -76,7 +96,9 @@ func (c *setting) Save(_ context.Context, s *config.Setting) (*emptypb.Empty, er
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.db.Data = proto.Clone(s).(*config.Setting)
+	x := proto.Clone(s).(*config.Setting)
+	x.Bypass = c.db.Data.Bypass
+	c.db.Data = x
 
 	if err := c.db.Save(); err != nil {
 		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %w", err)
@@ -105,3 +127,29 @@ func (c *setting) AddObserver(o Observer) {
 	c.os = append(c.os, o)
 	o.Update(c.db.Data)
 }
+
+func (c *setting) Batch(f ...func(*config.Setting) error) error {
+	if len(f) == 0 {
+		return nil
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	config := proto.Clone(c.db.Data).(*config.Setting)
+	for i := range f {
+		if err := f[i](config); err != nil {
+			return err
+		}
+	}
+
+	if proto.Equal(c.db.Data, config) {
+		return nil
+	}
+
+	c.db.Data = config
+
+	return c.db.Save()
+}
+
+func (c *setting) Dir() string { return c.db.Dir() }

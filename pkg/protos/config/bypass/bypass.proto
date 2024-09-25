@@ -11,12 +11,15 @@ enum mode {
   block = 3;
 }
 
-message bypass_config {
+message config {
   mode tcp = 3 [ json_name = "tcp" ];
   mode udp = 4 [ json_name = "udp" ];
-  string bypass_file = 2 [ json_name = "bypass_file" ];
+  string bypass_file = 2 [ json_name = "bypass_file", deprecated = true ];
   udp_proxy_fqdn_strategy udp_proxy_fqdn = 6 [ json_name = "udp_proxy_fqdn" ];
   repeated mode_config custom_rule_v3 = 7 [ json_name = "custom_rule_v3" ];
+  repeated remote_rule remote_rules = 8 [ json_name = "remote_rules" ];
+  // resolve domain locally
+  bool resolve_locally = 9 [ json_name = "resolve_locally" ];
 }
 
 enum resolve_strategy {
@@ -27,9 +30,8 @@ enum resolve_strategy {
   only_ipv6 = 4;
 }
 
-
 enum udp_proxy_fqdn_strategy {
- udp_proxy_fqdn_strategy_default = 0;
+  udp_proxy_fqdn_strategy_default = 0;
   resolve = 1;
   skip_resolve = 2;
 }
@@ -41,5 +43,27 @@ message mode_config {
   string tag = 2 [ json_name = "tag" ];
   repeated string hostname = 3 [ json_name = "hostname" ];
   resolve_strategy resolve_strategy = 4 [ json_name = "resolve_strategy" ];
-  udp_proxy_fqdn_strategy udp_proxy_fqdn_strategy = 6 [ json_name = "udp_proxy_fqdn_strategy" ];
+  udp_proxy_fqdn_strategy udp_proxy_fqdn_strategy = 6
+      [ json_name = "udp_proxy_fqdn_strategy" ];
+  map<string, string> error_msgs = 7 [ json_name = "error_msg" ];
+}
+
+message remote_rule {
+  bool enabled = 1 [ json_name = "enabled" ];
+  string name = 2 [ json_name = "name" ];
+  oneof object {
+    remote_rule_file file = 3 [ json_name = "file" ];
+    remote_rule_http http = 4 [ json_name = "http" ];
+  }
+  // error message when rules can't get from remote
+  string error_msg = 5 [ json_name = "error_msg" ];
+  mode_config default_mode = 6 [ json_name = "default_mode" ];
+}
+
+message remote_rule_file { string path = 1 [ json_name = "path" ]; }
+
+message remote_rule_http {
+  string url = 1 [ json_name = "url" ];
+  // method of http request, default: GET
+  string method = 2 [ json_name = "method" ];
 }

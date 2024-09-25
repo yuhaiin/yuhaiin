@@ -192,7 +192,23 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return c.p.PacketConn(ctx, addr)
 	}
 
-	conn, err := dialer.ListenPacket("udp", "", dialer.WithTryUpgradeToBatch())
+	ctx = netapi.WithContext(ctx)
+
+	ur, err := dialer.ResolveUDPAddr(ctx, c.addrs[c.index.Load()])
+	if err != nil {
+		return nil, err
+	}
+
+	var localAddr string
+	if dialer.DefaultIPv6PreferUnicastLocalAddr && dialer.DefaultInterfaceName != "" && dialer.DefaultInterfaceIndex != 0 {
+		if ur.IP.IsGlobalUnicast() && !ur.IP.IsPrivate() && ur.IP.To4() == nil && ur.IP.To16() != nil {
+			if addr := dialer.GetUnicastAddr(true, "udp", dialer.DefaultInterfaceName, dialer.DefaultInterfaceIndex); addr != nil {
+				localAddr = addr.String()
+			}
+		}
+	}
+
+	conn, err := dialer.ListenPacket("udp", localAddr, dialer.WithTryUpgradeToBatch())
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +216,6 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	if uc, ok := conn.(*net.UDPConn); ok {
 		_ = uc.SetReadBuffer(64 * 1024)
 		_ = uc.SetWriteBuffer(64 * 1024)
-	}
-
-	ctx = netapi.WithContext(ctx)
-
-	ur, err := dialer.ResolveUDPAddr(ctx, c.addrs[c.index.Load()])
-	if err != nil {
-		return nil, err
 	}
 
 	return &packetConn{conn, ur}, nil

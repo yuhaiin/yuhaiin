@@ -7,7 +7,7 @@ package jsondb
 
 import (
 	"os"
-	"reflect"
+	"path/filepath"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -25,8 +25,11 @@ type DB[T proto.Message] struct {
 
 // Open opens the database at path, creating it with a zero value if
 // necessary.
-func Open[T proto.Message](path string, defaultValue T) *DB[T] {
-	val := reflect.New(reflect.TypeOf(defaultValue).Elem()).Interface().(T)
+func Open[T interface {
+	proto.Message
+	*A
+}, A any](path string, defaultValue T) *DB[T] {
+	val := T(new(A))
 
 	bs, err := os.ReadFile(path)
 	if err == nil {
@@ -64,7 +67,7 @@ func MergeDefault(src, def protoreflect.Message) {
 	}
 }
 
-func New[T proto.Message](t T, path string) *DB[T] { return &DB[T]{t, path} }
+func (db *DB[T]) Dir() string { return filepath.Dir(db.path) }
 
 // Save writes db.Data back to disk.
 func (db *DB[T]) Save() error {
