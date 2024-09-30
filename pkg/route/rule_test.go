@@ -1,8 +1,10 @@
 package route
 
 import (
+	"context"
 	"testing"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
@@ -98,4 +100,22 @@ func TestSplitHostArgs(t *testing.T) {
 	assert.Equal(t, true, ok)
 	assert.Equal(t, "file:///a/b/c/xlog/test.log", u.String())
 	assert.Equal(t, "DIRECT,tag=LAN", args)
+}
+
+func TestRouteTrie(t *testing.T) {
+	r := newRouteTires()
+
+	for _, v := range []string{
+		"100.64.0.0/10 PROXY,tag=lan",
+		"100.64.0.0/10 PROXY,tag=tailscale",
+	} {
+		u, mode, err := parseLine(v)
+		assert.NoError(t, err)
+
+		r.insert(u, mode)
+	}
+
+	m, ok := r.trie.Search(context.Background(), netapi.ParseAddressPort("", "100.112.64.102", 80))
+	assert.MustEqual(t, true, ok)
+	assert.MustEqual(t, "tailscale", m.Value().GetTag())
 }
