@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -51,7 +52,7 @@ func NewTun(o *listener.Inbound_Tun) func(netapi.Listener, netapi.Handler) (s ne
 			opt.Inet4Address = []netip.Prefix{v4address}
 		}
 
-		if v6address.IsValid() {
+		if v6address.IsValid() && configuration.IPv6.Load() {
 			opt.Inet6Address = []netip.Prefix{v6address}
 		}
 

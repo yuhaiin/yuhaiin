@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -66,15 +67,17 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 
 	o.Endpoint = ep
 
+	networkProtocols := []stack.NetworkProtocolFactory{ipv4.NewProtocol}
+	transportProtocols := []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4}
+
+	if configuration.IPv6.Load() {
+		networkProtocols = append(networkProtocols, ipv6.NewProtocol)
+		transportProtocols = append(transportProtocols, icmp.NewProtocol6)
+	}
+
 	stackOption := stack.Options{
-		NetworkProtocols: []stack.NetworkProtocolFactory{
-			ipv4.NewProtocol,
-			ipv6.NewProtocol,
-		},
-		TransportProtocols: []stack.TransportProtocolFactory{
-			tcp.NewProtocol, udp.NewProtocol,
-			icmp.NewProtocol4, icmp.NewProtocol6,
-		},
+		NetworkProtocols:   networkProtocols,
+		TransportProtocols: transportProtocols,
 	}
 
 	s := stack.New(stackOption)
@@ -108,16 +111,24 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 	// based on the packets that arrive, the NIC needs to accept all
 	// incoming packets.
 	s.SetPromiscuousMode(nicID, true)
-	s.SetRouteTable([]tcpip.Route{
+	routes := []tcpip.Route{
 		{Destination: header.IPv4EmptySubnet, NIC: nicID},
-		{Destination: header.IPv6EmptySubnet, NIC: nicID},
-	})
+	}
+	if configuration.IPv6.Load() {
+		routes = append(routes, tcpip.Route{Destination: header.IPv6EmptySubnet, NIC: nicID})
+	}
+	s.SetRouteTable(routes)
 	ttlopt := tcpip.DefaultTTLOption(defaultTimeToLive)
 	s.SetNetworkProtocolOption(ipv4.ProtocolNumber, &ttlopt)
-	s.SetNetworkProtocolOption(ipv6.ProtocolNumber, &ttlopt)
+
+	if configuration.IPv6.Load() {
+		s.SetNetworkProtocolOption(ipv6.ProtocolNumber, &ttlopt)
+	}
 
 	s.SetForwardingDefaultAndAllNICs(ipv4.ProtocolNumber, ipForwardingEnabled)
-	s.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, ipForwardingEnabled)
+	if configuration.IPv6.Load() {
+		s.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, ipForwardingEnabled)
+	}
 
 	s.SetICMPBurst(icmpBurst)
 	s.SetICMPLimit(icmpLimit)

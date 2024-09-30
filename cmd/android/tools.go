@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"net"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type CIDR struct {
@@ -62,6 +64,11 @@ func AddRulesCidr(process AddRoute, rules string) {
 
 		mask, _ := cidr.Mask.Size()
 		ip := cidr.IP.String()
+
+		log.Info("try add route", "addr", &CIDR{
+			IP:   ip,
+			Mask: int32(mask),
+		})
 
 		process.Add(&CIDR{
 			IP:   ip,
