@@ -11,6 +11,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
@@ -140,6 +141,10 @@ func (f *FakeDNS) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.
 	}
 
 	if req.Type == dnsmessage.TypeAAAA {
+		if !configuration.IPv6.Load() {
+			return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, nil), nil
+		}
+
 		ip := f.ipv6.GetFakeIPForDomain(domain)
 		return f.newAnswerMessage(req, dnsmessage.RCodeSuccess, &dnsmessage.AAAAResource{AAAA: ip.As16()}), nil
 	}

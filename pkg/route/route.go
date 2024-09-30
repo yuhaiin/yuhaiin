@@ -29,7 +29,6 @@ type Route struct {
 	trie       *atomicx.Value[*routeTries]
 
 	config *bypass.Config
-	ipv6   bool
 
 	mu sync.RWMutex
 }
