@@ -6,6 +6,7 @@ import (
 	"net"
 	"unique"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
@@ -111,6 +112,13 @@ func Start(opt *device.Opt) (*Nat, error) {
 				ip := nat.processIP(raw)
 				if ip == nil {
 					continue
+				}
+
+				if !configuration.IPv6.Load() {
+					_, ok := ip.(header.IPv6)
+					if ok {
+						continue
+					}
 				}
 
 				if len(ip.Payload()) > len(raw) {
