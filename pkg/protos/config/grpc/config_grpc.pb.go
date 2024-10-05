@@ -201,10 +201,11 @@ var ConfigService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	Bypass_Load_FullMethodName   = "/yuhaiin.protos.config.service.bypass/load"
-	Bypass_Save_FullMethodName   = "/yuhaiin.protos.config.service.bypass/save"
-	Bypass_Reload_FullMethodName = "/yuhaiin.protos.config.service.bypass/reload"
-	Bypass_Test_FullMethodName   = "/yuhaiin.protos.config.service.bypass/test"
+	Bypass_Load_FullMethodName         = "/yuhaiin.protos.config.service.bypass/load"
+	Bypass_Save_FullMethodName         = "/yuhaiin.protos.config.service.bypass/save"
+	Bypass_Reload_FullMethodName       = "/yuhaiin.protos.config.service.bypass/reload"
+	Bypass_Test_FullMethodName         = "/yuhaiin.protos.config.service.bypass/test"
+	Bypass_BlockHistory_FullMethodName = "/yuhaiin.protos.config.service.bypass/block_history"
 )
 
 // BypassClient is the client API for Bypass service.
@@ -215,6 +216,7 @@ type BypassClient interface {
 	Save(ctx context.Context, in *bypass.Config, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Reload(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Test(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*TestResponse, error)
+	BlockHistory(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*BlockHistoryList, error)
 }
 
 type bypassClient struct {
@@ -265,6 +267,16 @@ func (c *bypassClient) Test(ctx context.Context, in *wrapperspb.StringValue, opt
 	return out, nil
 }
 
+func (c *bypassClient) BlockHistory(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*BlockHistoryList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BlockHistoryList)
+	err := c.cc.Invoke(ctx, Bypass_BlockHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BypassServer is the server API for Bypass service.
 // All implementations must embed UnimplementedBypassServer
 // for forward compatibility.
@@ -273,6 +285,7 @@ type BypassServer interface {
 	Save(context.Context, *bypass.Config) (*emptypb.Empty, error)
 	Reload(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	Test(context.Context, *wrapperspb.StringValue) (*TestResponse, error)
+	BlockHistory(context.Context, *emptypb.Empty) (*BlockHistoryList, error)
 	mustEmbedUnimplementedBypassServer()
 }
 
@@ -294,6 +307,9 @@ func (UnimplementedBypassServer) Reload(context.Context, *emptypb.Empty) (*empty
 }
 func (UnimplementedBypassServer) Test(context.Context, *wrapperspb.StringValue) (*TestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Test not implemented")
+}
+func (UnimplementedBypassServer) BlockHistory(context.Context, *emptypb.Empty) (*BlockHistoryList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockHistory not implemented")
 }
 func (UnimplementedBypassServer) mustEmbedUnimplementedBypassServer() {}
 func (UnimplementedBypassServer) testEmbeddedByValue()                {}
@@ -388,6 +404,24 @@ func _Bypass_Test_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Bypass_BlockHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BypassServer).BlockHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Bypass_BlockHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BypassServer).BlockHistory(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Bypass_ServiceDesc is the grpc.ServiceDesc for Bypass service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -410,6 +444,10 @@ var Bypass_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "test",
 			Handler:    _Bypass_Test_Handler,
+		},
+		{
+			MethodName: "block_history",
+			Handler:    _Bypass_BlockHistory_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

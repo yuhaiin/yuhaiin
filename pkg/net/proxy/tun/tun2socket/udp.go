@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -110,7 +111,7 @@ func (u *UDP) processUDPPacket(buf []byte, tuple UDPTuple) ([]byte, error) {
 	if tuple.SourceAddr.Len() == 4 && !dst4Unspecified {
 		if dst4Unspecified {
 			// return 0, fmt.Errorf("send IPv6 packet to IPv4 connection: src: %v, dst: %v", tuple.SourceAddr, tuple.DestinationAddr)
-			slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.String()), slog.String("dst", tuple.DestinationAddr.String()))
+			log.Warn("send IPv6 packet to IPv4 connection", slog.String("src", tuple.SourceAddr.String()), slog.String("dst", tuple.DestinationAddr.String()))
 		}
 
 		// no ipv4 options set, so ipv4 header size is IPv4MinimumSize

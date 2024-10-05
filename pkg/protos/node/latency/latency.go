@@ -10,6 +10,7 @@ import (
 	sync "sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -85,7 +86,7 @@ func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
 
 			req, err := http.NewRequest("GET", l.Ip.GetUrl(), nil)
 			if err != nil {
-				slog.Error("new request error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
+				log.Error("new request error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
 				return
 			}
 
@@ -93,14 +94,14 @@ func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
 
 			resp, err := hc.Do(req)
 			if err != nil {
-				slog.Error("get url error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
+				log.Error("get url error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
 				return
 			}
 
 			data, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if err != nil {
-				slog.Error("read body error", slog.Any("err", err))
+				log.Error("read body error", slog.Any("err", err))
 				return
 			}
 
