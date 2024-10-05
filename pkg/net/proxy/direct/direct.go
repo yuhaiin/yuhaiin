@@ -78,7 +78,7 @@ func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 		// _, file, line, _ := runtime.Caller(2)
 		// _, file3, line3, _ := runtime.Caller(3)
 		// _, file2, line2, _ := runtime.Caller(4)
-		// slog.Info("---------------------------------direct proxy dns",
+		// log.Info("---------------------------------direct proxy dns",
 		// 	"fqdn", a.String(),
 		// 	"skip", netapi.GetContext(p.ctx).Resolver.SkipResolve,
 		// 	"mode", netapi.GetContext(p.ctx).Mode,

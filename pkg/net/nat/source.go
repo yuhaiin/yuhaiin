@@ -20,7 +20,7 @@ import (
 )
 
 type waitPacket struct {
-	ctx context.Context
+	ctx *netapi.Context
 	pkt *netapi.Packet
 }
 
@@ -100,7 +100,7 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 	case <-u.ctx.Done():
 		pkt.DecRef()
 		return u.ctx.Err()
-	case u.ch <- waitPacket{ctx, pkt}:
+	case u.ch <- waitPacket{netapi.GetContext(ctx), pkt}:
 		return nil
 	case <-ctx.Done():
 		pkt.DecRef()
@@ -108,8 +108,11 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 	}
 }
 
-func (u *SourceControl) handle(ctx context.Context, pkt *netapi.Packet) error {
-	ctx = context.WithoutCancel(ctx)
+func (u *SourceControl) handle(ctx *netapi.Context, pkt *netapi.Packet) error {
+	_, ok := ctx.Deadline()
+	if ok {
+		ctx.Context = context.WithoutCancel(ctx.Context)
+	}
 
 	conn := u.conn
 
@@ -127,16 +130,13 @@ func (u *SourceControl) handle(ctx context.Context, pkt *netapi.Packet) error {
 	return u.write(ctx, pkt, conn)
 }
 
-func (u *SourceControl) newPacketConn(ctx context.Context, pkt *netapi.Packet) (*wrapConn, error) {
-	store := netapi.GetContext(ctx)
-	store.Source = pkt.Src
-	store.Destination = pkt.Dst
+func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet) (*wrapConn, error) {
 	store.UDPMigrateID = u.context.migrateID
 	if store.UDPMigrateID != 0 {
 		log.Info("set migrate id", "id", store.UDPMigrateID)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+	ctx, cancel := context.WithTimeout(store, configuration.Timeout)
 	defer cancel()
 
 	dstpconn, err := u.dialer.PacketConn(ctx, pkt.Dst)
@@ -153,7 +153,7 @@ func (u *SourceControl) newPacketConn(ctx context.Context, pkt *netapi.Packet) (
 	return conn, nil
 }
 
-func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.PacketConn) error {
+func (t *SourceControl) write(store *netapi.Context, pkt *netapi.Packet, conn net.PacketConn) error {
 	key := pkt.Dst.String()
 
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
@@ -163,17 +163,17 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 		return t.WriteTo(pkt.Payload, udpAddr, nil, conn)
 	}
 
-	store := netapi.GetContext(ctx)
 	store.Resolver = t.context.resolver
 
 	// cache fakeip/hosts/bypass address
 	// for fullcone nat, we as much as possible write to same address
 	dstAddr, ok := t.addrStore.LoadDispatch(key)
 	if !ok {
+		// we route at [SourceControl.newPacketConn], here is skip
 		store.SkipRoute = true
 
 		var err error
-		dstAddr, err = t.dialer.Dispatch(ctx, pkt.Dst)
+		dstAddr, err = t.dialer.Dispatch(store, pkt.Dst)
 		if err != nil {
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
@@ -188,7 +188,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 		return t.WriteTo(pkt.Payload, dstAddr, pkt.Dst, conn)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	ctx, cancel := context.WithTimeout(store, time.Second*5)
 	defer cancel()
 
 	udpAddr, err := dialer.ResolveUDPAddr(ctx, dstAddr)

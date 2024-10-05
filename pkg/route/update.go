@@ -2,9 +2,11 @@ package route
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"unique"
 
@@ -150,7 +152,16 @@ func (s *RuleController) Reload(ctx context.Context, empty *emptypb.Empty) (*emp
 }
 
 func (s *RuleController) Test(ctx context.Context, req *wrapperspb.StringValue) (*gc.TestResponse, error) {
-	mode, addr, reason := s.route.dispatch(ctx, bypass.Mode_bypass, netapi.ParseAddressPort("", req.GetValue(), 0))
+	addr := netapi.ParseAddressPort("", req.GetValue(), 0)
+	host, portstr, err := net.SplitHostPort(req.GetValue())
+	if err == nil {
+		port, err := strconv.ParseUint(portstr, 10, 16)
+		if err == nil {
+			addr = netapi.ParseAddressPort(host, host, uint16(port))
+		}
+	}
+
+	mode, addr, reason := s.route.dispatch(ctx, bypass.Mode_bypass, addr)
 
 	return &gc.TestResponse{
 		Mode: &bypass.ModeConfig{
@@ -160,5 +171,12 @@ func (s *RuleController) Test(ctx context.Context, req *wrapperspb.StringValue) 
 		},
 		AfterAddr: addr.String(),
 		Reason:    reason,
+	}, nil
+}
+
+func (s *RuleController) BlockHistory(context.Context, *emptypb.Empty) (*gc.BlockHistoryList, error) {
+	return &gc.BlockHistoryList{
+		Objects:            s.route.RejectHistory.Get(),
+		DumpProcessEnabled: s.route.ProcessDumper != nil,
 	}, nil
 }

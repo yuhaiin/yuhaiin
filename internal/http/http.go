@@ -42,10 +42,11 @@ func ServeHTTP(o *appapi.Components) {
 		"POST /tag":    GrpcToHttp(o.Tag.Save),
 		"POST /node":   GrpcToHttp(o.Node.Get),
 
-		"GET /bypass":         GrpcToHttp(o.Rc.Load),
-		"PATCH /bypass":       GrpcToHttp(o.Rc.Save),
-		"POST /bypass/reload": GrpcToHttp(o.Rc.Reload),
-		"POST /bypass/test":   GrpcToHttp(o.Rc.Test),
+		"GET /bypass":               GrpcToHttp(o.Rc.Load),
+		"PATCH /bypass":             GrpcToHttp(o.Rc.Save),
+		"POST /bypass/reload":       GrpcToHttp(o.Rc.Reload),
+		"POST /bypass/test":         GrpcToHttp(o.Rc.Test),
+		"GET /bypass/block_history": GrpcToHttp(o.Rc.BlockHistory),
 
 		"POST /latency": GrpcToHttp(o.Node.Latency),
 
