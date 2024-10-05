@@ -282,7 +282,7 @@ func (h *HappyEyeballsv2Dialer[T]) DialHappyEyeballsv2(ctx context.Context, addr
 				// approximate the time of the first SYN retransmission, and not any
 				// further retransmissions that may be influenced by exponential timer
 				// back off.
-				slog.Info("use timer for delay", "avg", h.Avg.Get())
+				// log.Info("use timer for delay", "avg", h.Avg.Get())
 				timer := time.NewTimer(h.Avg.Get())
 				select {
 				case <-timer.C:

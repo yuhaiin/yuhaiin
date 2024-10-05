@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -111,7 +110,7 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodConnect:
 		if err := h.connect(w, r); err != nil {
-			slog.Error("connect failed", "err", err)
+			log.Error("connect failed", "err", err)
 		}
 	default:
 		h.reverseProxy.ServeHTTP(w, r)

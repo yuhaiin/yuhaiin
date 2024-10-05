@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"log/slog"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -140,7 +139,7 @@ func (m *Mixed) handle() error {
 			})
 			if err != nil {
 				_ = conn.Close()
-				slog.Error("peek protocol failed", "err", err)
+				log.Error("peek protocol failed", "err", err)
 				return
 			}
 

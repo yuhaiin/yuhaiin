@@ -57,17 +57,24 @@ func (l *listener) isHandleDNS(port uint16) bool {
 	return l.hijackDNS.Load() && port == 53
 }
 
-func (l *listener) HandleStream(stream *netapi.StreamMeta) {
+func (l *listener) HandleStream(meta *netapi.StreamMeta) {
 	go func() {
-		if !l.isHandleDNS(stream.Address.Port()) {
-			l.handler.Stream(l.ctx, stream)
+		ctx := netapi.WithContext(l.ctx)
+		ctx.Source = meta.Source
+		ctx.Destination = meta.Destination
+		if meta.Inbound != nil {
+			ctx.Inbound = meta.Inbound
+		}
+
+		if !l.isHandleDNS(meta.Address.Port()) {
+			l.handler.Stream(ctx, meta)
 			return
 		}
 
-		ctx := netapi.WithContext(l.ctx)
 		ctx.Resolver.ForceFakeIP = l.fakeip.Load()
-		err := l.handler.dnsHandler.HandleTCP(ctx, stream.Src)
-		_ = stream.Src.Close()
+
+		err := l.handler.dnsHandler.HandleTCP(ctx, meta.Src)
+		_ = meta.Src.Close()
 		if err != nil {
 			log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err)
 		}
@@ -94,13 +101,16 @@ func (l *listener) loopudp() {
 }
 
 func (l *listener) handlePacket(packet *netapi.Packet) {
+	ctx := netapi.WithContext(l.ctx)
+	ctx.Source = packet.Src
+	ctx.Destination = packet.Dst
+
 	if !l.isHandleDNS(packet.Dst.Port()) {
-		l.handler.Packet(l.ctx, packet)
+		l.handler.Packet(ctx, packet)
 		packet.DecRef()
 	} else {
 		go func() {
 			defer packet.DecRef()
-			ctx := netapi.WithContext(l.ctx)
 			ctx.Resolver.ForceFakeIP = l.fakeip.Load()
 			dnsReq := &netapi.DNSRawRequest{
 				Question: packet.Payload,

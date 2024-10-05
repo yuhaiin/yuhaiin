@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -129,7 +130,7 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 	}
 
 	if sourceAddr.Len() == 4 && (dip.Addr().Is6() && !dip.Addr().Is4In6()) {
-		slog.Warn("send IPv6 packet to IPv4 connection", slog.String("src", sourceAddr.String()), slog.String("dst", dip.String()))
+		log.Warn("send IPv6 packet to IPv4 connection", slog.String("src", sourceAddr.String()), slog.String("dst", dip.String()))
 	}
 
 	var fromAddr tcpip.Address

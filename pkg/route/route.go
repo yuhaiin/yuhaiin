@@ -30,6 +30,8 @@ type Route struct {
 
 	config *bypass.Config
 
+	RejectHistory
+
 	mu sync.RWMutex
 }
 
@@ -76,6 +78,10 @@ func (s *Route) Tags() iter.Seq[string] {
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
 	mode, host, _ := s.dispatch(ctx, s.config.Tcp, host)
 
+	if mode.Mode() == bypass.Mode_block {
+		s.RejectHistory.Push(ctx, "tcp", host.String())
+	}
+
 	p, err := s.d.Get(ctx, "tcp", mode.Mode().String(), mode.GetTag())
 	if err != nil {
 		return nil, fmt.Errorf("dial %s failed: %w", host, err)
@@ -91,6 +97,10 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	mode, host, _ := s.dispatch(ctx, s.config.Udp, host)
+
+	if mode.Mode() == bypass.Mode_block {
+		s.RejectHistory.Push(ctx, "udp", host.String())
+	}
 
 	p, err := s.d.Get(ctx, "udp", mode.Mode().String(), mode.GetTag())
 	if err != nil {
@@ -159,7 +169,7 @@ func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
 }
 
 func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (mode bypass.ModeEnum, addr netapi.Address, reason string) {
-	process := s.DumpProcess(ctx, host)
+	process := s.dumpProcess(ctx, host.Network())
 
 	// get mode from upstream specified
 	store := netapi.GetContext(ctx)
@@ -231,7 +241,12 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort("", domain, 0)
 	netapi.GetContext(ctx).Resolver.Resolver = trie.SkipResolver
-	return s.r.Get(s.Search(ctx, host).Mode().String())
+	mode := s.Search(ctx, host)
+	if mode.Mode() == bypass.Mode_block {
+		s.dumpProcess(ctx, "udp", "tcp")
+		s.RejectHistory.Push(ctx, "dns", domain)
+	}
+	return s.r.Get(mode.Mode().String())
 }
 
 func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
@@ -244,7 +259,7 @@ func (f *Route) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 
 func (f *Route) Close() error { return nil }
 
-func (c *Route) DumpProcess(ctx context.Context, addr netapi.Address) (s string) {
+func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s string) {
 	if c.ProcessDumper == nil {
 		return
 	}
@@ -275,14 +290,16 @@ func (c *Route) DumpProcess(ctx context.Context, addr netapi.Address) (s string)
 			continue
 		}
 
-		process, err := c.ProcessDumper.ProcessName(addr.Network(), sourceAddr, dst)
-		if err != nil {
-			// log.Warn("get process name failed", "err", err)
-			continue
-		}
+		for _, network := range networks {
+			process, err := c.ProcessDumper.ProcessName(network, sourceAddr, dst)
+			if err != nil {
+				// log.Warn("get process name failed", "err", err)
+				continue
+			}
 
-		store.Process = process
-		return process
+			store.Process = process
+			return process
+		}
 	}
 
 	return ""
