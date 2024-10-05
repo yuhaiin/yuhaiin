@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
@@ -55,7 +56,7 @@ func NewTotalCache(cache cache.Cache) *TotalCache {
 		c.upload.Store(binary.BigEndian.Uint64(upload))
 	}
 
-	slog.Info("get total cache", slog.Any("download", c.download.Load()), slog.Any("upload", c.upload.Load()))
+	log.Info("get total cache", slog.Any("download", c.download.Load()), slog.Any("upload", c.upload.Load()))
 
 	c.wg.Add(1)
 	go func() {

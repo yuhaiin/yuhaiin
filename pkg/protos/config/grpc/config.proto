@@ -5,6 +5,7 @@ import "config/config.proto";
 import "config/bypass/bypass.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/service";
 
@@ -20,9 +21,22 @@ message test_response {
   string after_addr = 3 [ json_name = "after_addr" ];
 }
 
+message block_history {
+  string protocol = 1 [ json_name = "protocol" ];
+  string host = 2 [ json_name = "host" ];
+  google.protobuf.Timestamp time = 3 [ json_name = "time" ];
+  string process = 4 [ json_name = "process" ];
+}
+
+message block_history_list {
+  repeated block_history objects = 1 [ json_name = "objects" ];
+  bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
+}
+
 service bypass {
   rpc load(google.protobuf.Empty) returns (yuhaiin.bypass.config);
   rpc save(yuhaiin.bypass.config) returns (google.protobuf.Empty);
   rpc reload(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc test(google.protobuf.StringValue) returns (test_response);
+  rpc block_history(google.protobuf.Empty) returns (block_history_list);
 }

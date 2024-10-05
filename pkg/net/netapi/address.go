@@ -1,6 +1,7 @@
 package netapi
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 	"strconv"
@@ -96,6 +97,10 @@ func toAddrPort(ad net.IP, zone string) netip.Addr {
 }
 
 func ParseSysAddr(ad net.Addr) (Address, error) {
+	if ad == nil {
+		return nil, fmt.Errorf("invalid address")
+	}
+
 	switch ad := ad.(type) {
 	case Address:
 		return ad, nil

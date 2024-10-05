@@ -41,27 +41,19 @@ func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
 	return h
 }
 
-func (s *handler) Stream(ctx context.Context, meta *netapi.StreamMeta) {
+func (s *handler) Stream(ctx *netapi.Context, meta *netapi.StreamMeta) {
 	if err := s.stream(ctx, meta); err != nil {
 		log.Select(netapi.LogLevel(err)).Print("inbound handler stream", "msg", err)
 	}
 }
 
-func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
-	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
+func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
+	ctx, cancel := context.WithTimeout(store, configuration.Timeout)
 	defer cancel()
 
-	ctx = netapi.WithContext(ctx)
 	defer meta.Src.Close()
 
 	dst := meta.Address
-	store := netapi.GetContext(ctx)
-
-	store.Source = meta.Source
-	store.Destination = meta.Destination
-	if meta.Inbound != nil {
-		store.Inbound = meta.Inbound
-	}
 
 	startNanoSeconds := system.CheapNowNano()
 
@@ -89,28 +81,29 @@ func (s *handler) stream(ctx context.Context, meta *netapi.StreamMeta) error {
 	return nil
 }
 
-func (s *handler) Packet(xctx context.Context, pack *netapi.Packet) {
-	xctx, cancel := context.WithTimeout(xctx, time.Second*6)
-	defer cancel()
-
-	ctx := netapi.WithContext(xctx)
-
+func (s *handler) Packet(store *netapi.Context, pack *netapi.Packet) {
 	if s.sniffyEnabled {
-		s.sniffer.Packet(ctx, pack.Payload)
+		s.sniffer.Packet(store, pack.Payload)
 	}
 
 	_, ok := pack.Src.(*quic.QuicAddr)
 	if !ok {
 		src, err := netapi.ParseSysAddr(pack.Src)
 		if err == nil && !src.IsFqdn() {
-			srcAddr, _ := dialer.ResolverAddrPort(ctx, src)
+			xctx, cancel := context.WithTimeout(store, time.Second*6)
+			srcAddr, _ := dialer.ResolverAddrPort(xctx, src)
+			cancel()
 			if srcAddr.Addr().Unmap().Is4() {
-				ctx.Resolver.Mode = netapi.ResolverModePreferIPv4
+				store.Resolver.Mode = netapi.ResolverModePreferIPv4
 			}
 		}
 	}
 
-	if err := s.table.Write(ctx, pack); err != nil {
+	// after 1.5s, we assume the network is congesting, just drop the packet
+	xctx, cancel := context.WithTimeout(store, time.Millisecond*1500)
+	defer cancel()
+
+	if err := s.table.Write(xctx, pack); err != nil {
 		log.Error("packet", "error", err)
 	}
 }

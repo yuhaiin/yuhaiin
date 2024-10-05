@@ -15,6 +15,7 @@ import (
 	"time"
 	"unique"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
@@ -70,7 +71,7 @@ func (r *routeParser) Trie() {
 		rc, err := r.getReader(rule)
 		if err != nil {
 			rule.ErrorMsg = err.Error()
-			slog.Error("get reader failed", slog.Any("err", err), slog.Any("rule", rule))
+			log.Error("get reader failed", slog.Any("err", err), slog.Any("rule", rule))
 			continue
 		}
 
