@@ -197,5 +197,6 @@ func defaultSetting(path string) *config.Setting {
 				},
 			},
 		},
+		Platform: &config.Platform{},
 	}
 }

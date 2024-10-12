@@ -50,10 +50,11 @@ func ServeHTTP(o *appapi.Components) {
 
 		"POST /latency": GrpcToHttp(o.Node.Latency),
 
-		"DELETE /conn": GrpcToHttp(o.Connections.CloseConn),
-		"DELETE /node": GrpcToHttp(o.Node.Remove),
-		"DELETE /sub":  GrpcToHttp(o.Subscribe.Remove),
-		"DELETE /tag":  GrpcToHttp(o.Tag.Remove),
+		"DELETE /conn":             GrpcToHttp(o.Connections.CloseConn),
+		"GET /conn/failed_history": GrpcToHttp(o.Connections.FailedHistory),
+		"DELETE /node":             GrpcToHttp(o.Node.Remove),
+		"DELETE /sub":              GrpcToHttp(o.Subscribe.Remove),
+		"DELETE /tag":              GrpcToHttp(o.Tag.Remove),
 
 		"PUT /node": GrpcToHttp(o.Node.Use),
 

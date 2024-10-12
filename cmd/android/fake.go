@@ -126,6 +126,9 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			Level: pl.LogLevel(pl.LogLevel_value[opt.MapStore.GetString(LogLevelKey)]),
 			Save:  opt.MapStore.GetBoolean(SaveLogcatKey),
 		},
+		Platform: &pc.Platform{
+			AndroidApp: true,
+		},
 	}
 
 	if err := json.Unmarshal([]byte(opt.MapStore.GetString(HostsKey)), &settings.Dns.Hosts); err != nil {

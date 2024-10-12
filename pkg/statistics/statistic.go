@@ -30,6 +30,8 @@ type Connections struct {
 	connStore syncmap.SyncMap[uint64, connection]
 
 	idSeed id.IDGenerator
+
+	his FailedHistory
 }
 
 func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
@@ -109,6 +111,7 @@ func (c *Connections) storeConnection(o connection) {
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
+		c.his.Push(ctx, err, "udp", addr)
 		return nil, err
 	}
 
@@ -166,10 +169,15 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
+		c.his.Push(ctx, err, "tcp", addr)
 		return nil, err
 	}
 
 	z := &conn{con, c.getConnection(ctx, con, addr), c}
 	c.storeConnection(z)
 	return z, nil
+}
+
+func (c *Connections) FailedHistory(context.Context, *emptypb.Empty) (*gs.FailedHistoryList, error) {
+	return c.his.Get(), nil
 }
