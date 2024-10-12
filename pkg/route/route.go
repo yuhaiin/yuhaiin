@@ -2,7 +2,6 @@ package route
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"net"
 	"strings"
@@ -84,12 +83,12 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 
 	p, err := s.d.Get(ctx, "tcp", mode.Mode().String(), mode.GetTag())
 	if err != nil {
-		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+		return nil, netapi.NewDialError("tcp", err, host)
 	}
 
 	conn, err := p.Conn(ctx, host)
 	if err != nil {
-		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+		return nil, netapi.NewDialError("tcp", err, host)
 	}
 
 	return conn, nil
@@ -104,12 +103,12 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 
 	p, err := s.d.Get(ctx, "udp", mode.Mode().String(), mode.GetTag())
 	if err != nil {
-		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+		return nil, netapi.NewDialError("udp", err, host)
 	}
 
 	conn, err := p.PacketConn(ctx, host)
 	if err != nil {
-		return nil, fmt.Errorf("dial %s failed: %w", host, err)
+		return nil, netapi.NewDialError("udp", err, host)
 	}
 
 	return conn, nil

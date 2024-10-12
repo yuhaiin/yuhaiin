@@ -2,6 +2,7 @@ package netapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -164,4 +165,66 @@ func GetContext(ctx context.Context) *Context {
 	}
 
 	return v
+}
+
+func NewDialError(network string, err error, addr net.Addr) *DialError {
+	ne := &DialError{}
+	if errors.As(err, &ne) {
+		return ne
+	}
+
+	return &DialError{
+		Op:   "dial",
+		Net:  network,
+		Err:  err,
+		Addr: addr,
+	}
+}
+
+// OpError is the error type usually returned by functions in the net
+// package. It describes the operation, network type, and address of
+// an error.
+type DialError struct {
+	// Op is the operation which caused the error, such as
+	// "read" or "write".
+	Op string
+
+	// Net is the network type on which this error occurred,
+	// such as "tcp" or "udp6".
+	Net string
+
+	Sniff string
+
+	// Addr is the network address for which this error occurred.
+	// For local operations, like Listen or SetDeadline, Addr is
+	// the address of the local endpoint being manipulated.
+	// For operations involving a remote network connection, like
+	// Dial, Read, or Write, Addr is the remote address of that
+	// connection.
+	Addr net.Addr
+
+	// Err is the error that occurred during the operation.
+	// The Error method panics if the error is nil.
+	Err error
+}
+
+func (e *DialError) Unwrap() error { return e.Err }
+
+func (e *DialError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	s := e.Op
+	if e.Sniff != "" {
+		s += " [sniffed " + e.Sniff + "]"
+	}
+	if e.Net != "" {
+		s += " " + e.Net
+	}
+	if e.Addr != nil {
+		s += " "
+		s += e.Addr.String()
+	}
+	s += ": " + e.Err.Error()
+	return s
 }

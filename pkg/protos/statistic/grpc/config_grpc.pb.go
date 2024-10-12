@@ -20,10 +20,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Connections_Conns_FullMethodName     = "/yuhaiin.protos.statistic.service.connections/conns"
-	Connections_CloseConn_FullMethodName = "/yuhaiin.protos.statistic.service.connections/close_conn"
-	Connections_Total_FullMethodName     = "/yuhaiin.protos.statistic.service.connections/total"
-	Connections_Notify_FullMethodName    = "/yuhaiin.protos.statistic.service.connections/notify"
+	Connections_Conns_FullMethodName         = "/yuhaiin.protos.statistic.service.connections/conns"
+	Connections_CloseConn_FullMethodName     = "/yuhaiin.protos.statistic.service.connections/close_conn"
+	Connections_Total_FullMethodName         = "/yuhaiin.protos.statistic.service.connections/total"
+	Connections_Notify_FullMethodName        = "/yuhaiin.protos.statistic.service.connections/notify"
+	Connections_FailedHistory_FullMethodName = "/yuhaiin.protos.statistic.service.connections/failed_history"
 )
 
 // ConnectionsClient is the client API for Connections service.
@@ -34,6 +35,7 @@ type ConnectionsClient interface {
 	CloseConn(ctx context.Context, in *NotifyRemoveConnections, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Total(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TotalFlow, error)
 	Notify(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NotifyData], error)
+	FailedHistory(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*FailedHistoryList, error)
 }
 
 type connectionsClient struct {
@@ -93,6 +95,16 @@ func (c *connectionsClient) Notify(ctx context.Context, in *emptypb.Empty, opts 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Connections_NotifyClient = grpc.ServerStreamingClient[NotifyData]
 
+func (c *connectionsClient) FailedHistory(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*FailedHistoryList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FailedHistoryList)
+	err := c.cc.Invoke(ctx, Connections_FailedHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConnectionsServer is the server API for Connections service.
 // All implementations must embed UnimplementedConnectionsServer
 // for forward compatibility.
@@ -101,6 +113,7 @@ type ConnectionsServer interface {
 	CloseConn(context.Context, *NotifyRemoveConnections) (*emptypb.Empty, error)
 	Total(context.Context, *emptypb.Empty) (*TotalFlow, error)
 	Notify(*emptypb.Empty, grpc.ServerStreamingServer[NotifyData]) error
+	FailedHistory(context.Context, *emptypb.Empty) (*FailedHistoryList, error)
 	mustEmbedUnimplementedConnectionsServer()
 }
 
@@ -122,6 +135,9 @@ func (UnimplementedConnectionsServer) Total(context.Context, *emptypb.Empty) (*T
 }
 func (UnimplementedConnectionsServer) Notify(*emptypb.Empty, grpc.ServerStreamingServer[NotifyData]) error {
 	return status.Errorf(codes.Unimplemented, "method Notify not implemented")
+}
+func (UnimplementedConnectionsServer) FailedHistory(context.Context, *emptypb.Empty) (*FailedHistoryList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FailedHistory not implemented")
 }
 func (UnimplementedConnectionsServer) mustEmbedUnimplementedConnectionsServer() {}
 func (UnimplementedConnectionsServer) testEmbeddedByValue()                     {}
@@ -209,6 +225,24 @@ func _Connections_Notify_Handler(srv interface{}, stream grpc.ServerStream) erro
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Connections_NotifyServer = grpc.ServerStreamingServer[NotifyData]
 
+func _Connections_FailedHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConnectionsServer).FailedHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Connections_FailedHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConnectionsServer).FailedHistory(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Connections_ServiceDesc is the grpc.ServiceDesc for Connections service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -227,6 +261,10 @@ var Connections_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "total",
 			Handler:    _Connections_Total_Handler,
+		},
+		{
+			MethodName: "failed_history",
+			Handler:    _Connections_FailedHistory_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

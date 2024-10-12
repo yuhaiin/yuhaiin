@@ -42,7 +42,7 @@ func NewClient(config *protocol.Protocol_Shadowsocks) point.WrapProxy {
 func (s *Shadowsocks) Conn(ctx context.Context, addr netapi.Address) (conn net.Conn, err error) {
 	conn, err = s.p.Conn(ctx, addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial to %s failed: %w", addr, err)
+		return nil, netapi.NewDialError("tcp", err, addr)
 	}
 
 	if x, ok := conn.(*net.TCPConn); ok {

@@ -180,7 +180,7 @@ func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address
 func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
 	conn, err := s.dialer.Conn(ctx, host)
 	if err != nil {
-		return nil, fmt.Errorf("dial tcp failed: %w", err)
+		return nil, netapi.NewDialError("udp", err, host)
 	}
 
 	err = s.handshake1(conn)
