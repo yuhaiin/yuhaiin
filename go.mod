@@ -1,6 +1,6 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.23.1
+go 1.23.2
 
 require (
 	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134
@@ -11,7 +11,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20240905161824-799c1978fafc
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241006075132-861ce756bcce
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241013022324-13e03f2283a1
 	go.etcd.io/bbolt v1.3.11
 	golang.org/x/crypto v0.28.0
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6

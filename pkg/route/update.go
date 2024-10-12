@@ -175,8 +175,5 @@ func (s *RuleController) Test(ctx context.Context, req *wrapperspb.StringValue) 
 }
 
 func (s *RuleController) BlockHistory(context.Context, *emptypb.Empty) (*gc.BlockHistoryList, error) {
-	return &gc.BlockHistoryList{
-		Objects:            s.route.RejectHistory.Get(),
-		DumpProcessEnabled: s.route.ProcessDumper != nil,
-	}, nil
+	return s.route.RejectHistory.Get(), nil
 }

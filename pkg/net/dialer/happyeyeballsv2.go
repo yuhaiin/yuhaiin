@@ -114,7 +114,7 @@ _retry:
 		}
 		h.mu.Unlock()
 	} else {
-		h.dnsError = errors.Join(h.dnsError, err)
+		h.dnsError = MergeDnsError(h.dnsError, err)
 		if h.prefer && primary {
 			close(h.primaryDone)
 			primary = false
@@ -130,6 +130,25 @@ _retry:
 	} else {
 		close(h.fallbackDone)
 	}
+}
+
+func MergeDnsError(err1, err2 error) error {
+	de1 := &net.DNSError{}
+
+	if !errors.As(err1, &de1) {
+		return errors.Join(err1, err2)
+	}
+
+	de2 := &net.DNSError{}
+	if !errors.As(err2, &de2) {
+		return errors.Join(err1, err2)
+	}
+
+	if de1.Err == de2.Err {
+		return err1
+	}
+
+	return errors.Join(err1, err2)
 }
 
 func (h *happyEyeball) waitFirstDNS(ctx context.Context) (err error) {
