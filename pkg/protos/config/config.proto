@@ -10,7 +10,8 @@ import "config/listener/listener.proto";
 
 message setting {
   bool ipv6 = 7 [ json_name = "ipv6" ];
-  bool ipv6_local_addr_prefer_unicast = 10 [ json_name = "ipv6_local_addr_prefer_unicast" ];
+  bool ipv6_local_addr_prefer_unicast = 10
+      [ json_name = "ipv6_local_addr_prefer_unicast" ];
   // net_interface, eg: eth0
   string net_interface = 6 [ json_name = "net_interface" ];
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];
@@ -19,6 +20,7 @@ message setting {
   yuhaiin.listener.inbound_config server = 5 [ json_name = "server" ];
   yuhaiin.log.logcat logcat = 8 [ json_name = "logcat" ];
   config_version config_version = 9 [ json_name = "config_version" ];
+  platform platform = 11 [ json_name = "platform" ];
 }
 
 message system_proxy {
@@ -39,3 +41,5 @@ message info {
 }
 
 message config_version { uint64 version = 1 [ json_name = "version" ]; }
+
+message platform { bool android_app = 1 [ json_name = "android_app" ]; }

@@ -2,7 +2,6 @@ package inbound
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -65,11 +64,12 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	remote, err := s.dialer.Conn(ctx, dst)
 	if err != nil {
+		ne := netapi.NewDialError("tcp", err, dst)
 		sniff := store.SniffHost()
 		if sniff != "" {
-			sniff = fmt.Sprintf(" [sniff: %s]", sniff)
+			ne.Sniff = sniff
 		}
-		return fmt.Errorf("dial %s%s failed: %w", dst, sniff, err)
+		return ne
 	}
 	defer remote.Close()
 
