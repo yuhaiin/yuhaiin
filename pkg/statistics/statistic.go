@@ -31,7 +31,7 @@ type Connections struct {
 
 	idSeed id.IDGenerator
 
-	his FailedHistory
+	his *FailedHistory
 }
 
 func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
@@ -43,6 +43,7 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 		Proxy:  dialer,
 		Cache:  NewTotalCache(cache),
 		notify: newNotify(),
+		his:    NewFailedHistory(),
 	}
 }
 
