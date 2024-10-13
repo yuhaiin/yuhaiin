@@ -26,6 +26,7 @@ message block_history {
   string host = 2 [ json_name = "host" ];
   google.protobuf.Timestamp time = 3 [ json_name = "time" ];
   string process = 4 [ json_name = "process" ];
+  uint64 block_count = 5 [ json_name = "block_count" ];
 }
 
 message block_history_list {

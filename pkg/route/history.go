@@ -2,17 +2,34 @@ package route
 
 import (
 	"context"
-	"sync/atomic"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+type blockHistoryKey struct {
+	protocol string
+	host     string
+	process  string
+}
+
+type blockHistoryEntry struct {
+	*gc.BlockHistory
+	mu sync.Mutex
+}
+
 type RejectHistory struct {
-	count       atomic.Uint64
-	store       [1000]*gc.BlockHistory
+	store       *lru.SyncLru[blockHistoryKey, *blockHistoryEntry]
 	dumpProcess bool
+}
+
+func NewRejectHistory() *RejectHistory {
+	return &RejectHistory{
+		store: lru.NewSyncLru(lru.WithCapacity[blockHistoryKey, *blockHistoryEntry](1000)),
+	}
 }
 
 func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) {
@@ -22,18 +39,35 @@ func (h *RejectHistory) Push(ctx context.Context, protocol string, host string) 
 		h.dumpProcess = true
 	}
 
-	i := h.count.Add(1) % 1000
-	h.store[i] = &gc.BlockHistory{
-		Protocol: protocol,
-		Host:     host,
-		Time:     timestamppb.Now(),
-		Process:  store.Process,
+	key := blockHistoryKey{protocol, host, store.Process}
+	x, ok := h.store.LoadOrAdd(key, func() *blockHistoryEntry {
+		return &blockHistoryEntry{
+			BlockHistory: &gc.BlockHistory{
+				Protocol:   protocol,
+				Host:       host,
+				Time:       timestamppb.Now(),
+				Process:    store.Process,
+				BlockCount: 1,
+			},
+		}
+	})
+	if !ok {
+		return
 	}
+
+	x.mu.Lock()
+	x.Time = timestamppb.Now()
+	x.BlockCount++
+	x.mu.Unlock()
 }
 
 func (h *RejectHistory) Get() *gc.BlockHistoryList {
+	var objects []*gc.BlockHistory
+	for _, v := range h.store.Range {
+		objects = append(objects, v.BlockHistory)
+	}
 	return &gc.BlockHistoryList{
-		Objects:            h.store[:min(h.count.Load(), 1000)],
+		Objects:            objects,
 		DumpProcessEnabled: h.dumpProcess,
 	}
 }

@@ -15,9 +15,9 @@ func TestSyncLru(t *testing.T) {
 	lru.Add("c", "c")
 	lru.Add("d", "d")
 
-	lru.Range(func(s1, s2 string) {
-		t.Log(s1, s2)
-	})
+	for k, v := range lru.Range {
+		t.Log(k, v)
+	}
 
 	t.Log(lru.Load("a"))
 
@@ -25,9 +25,9 @@ func TestSyncLru(t *testing.T) {
 	lru.Add("e", "e")
 	lru.Add("f", "f")
 
-	lru.Range(func(s1, s2 string) {
-		t.Log(s1, s2)
-	})
+	for k, v := range lru.Range {
+		t.Log(k, v)
+	}
 }
 
 func TestSyncReverseLru(t *testing.T) {

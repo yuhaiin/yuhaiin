@@ -21,6 +21,20 @@ func (l *SyncLru[K, V]) Add(key K, value V, opts ...AddOption[K, V]) {
 	l.lru.Add(key, value, opts...)
 	l.mu.Unlock()
 }
+func (l *SyncLru[K, V]) LoadOrAdd(key K, value func() V, opts ...AddOption[K, V]) (v V, ok bool) {
+	l.mu.Lock()
+	v, ok = l.lru.Load(key)
+	if ok {
+		l.mu.Unlock()
+		return
+	}
+
+	v = value()
+	l.lru.Add(key, v, opts...)
+	l.mu.Unlock()
+
+	return
+}
 
 func (l *SyncLru[K, V]) Delete(key K) {
 	l.mu.Lock()
@@ -46,12 +60,14 @@ func (l *SyncLru[K, V]) LoadOptimistically(key K) (v V, expired, ok bool) {
 	return l.lru.LoadOptimistic(key)
 }
 
-func (l *SyncLru[K, V]) Range(ranger func(K, V)) {
+func (l *SyncLru[K, V]) Range(ranger func(K, V) bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	for k, v := range l.lru.mapping {
-		ranger(k, v.Value().data)
+		if !ranger(k, v.Value().data) {
+			return
+		}
 	}
 }
 

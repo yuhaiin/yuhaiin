@@ -44,6 +44,7 @@ message failed_history {
   string error = 3 [ json_name = "error" ];
   string process = 4 [ json_name = "process" ];
   google.protobuf.Timestamp time = 5 [ json_name = "time" ];
+  uint64 failed_count = 6 [ json_name = "failed_count" ];
 }
 
 message failed_history_list {
