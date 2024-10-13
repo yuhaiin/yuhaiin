@@ -29,7 +29,7 @@ type Route struct {
 
 	config *bypass.Config
 
-	RejectHistory
+	*RejectHistory
 
 	mu sync.RWMutex
 }
@@ -53,6 +53,7 @@ func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
 		r:             r,
 		d:             d,
 		ProcessDumper: ProcessDumper,
+		RejectHistory: NewRejectHistory(),
 	}
 }
 
