@@ -5,7 +5,7 @@ go 1.23.2
 require (
 	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.20.5
 	github.com/quic-go/quic-go v0.47.0
 	github.com/refraction-networking/utls v1.6.7
 	github.com/tailscale/wireguard-go v0.0.0-20240905161824-799c1978fafc
