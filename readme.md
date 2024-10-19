@@ -21,12 +21,13 @@
   - Shadowsocksr, Shadowsocks, Vmess, trojan, Vless  
   - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS  
   - yamux  
+  - reverse HTTP, reverse TCP
 - support DNS:
   - DNS, EDNS
   - FakeDNS
   - DNS Server
   - DNS over UDP
-  - DNS over HTTPS(3)                       
+  - DNS over HTTPS(3)
   - DNS over Quic
   - DNS over TLS
   - DNS over TCP

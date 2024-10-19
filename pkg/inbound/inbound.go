@@ -145,6 +145,8 @@ func (l *listener) Update(current *pc.Setting) {
 				continue
 			}
 
+			log.Info("start server", "name", v.Key)
+
 			l.store.Store(v.Key, entry{v.New, server})
 		}
 	}
