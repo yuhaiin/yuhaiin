@@ -41,6 +41,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reverse"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocks"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
@@ -83,7 +84,6 @@ func OpenBboltDB(path string) (*bbolt.DB, error) {
 }
 
 func Start(opt appapi.Start) (_ *appapi.Components, err error) {
-
 	so := &opt
 
 	db, err := OpenBboltDB(PathGenerator.Cache(so.ConfigPath))

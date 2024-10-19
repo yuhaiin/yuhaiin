@@ -90,7 +90,7 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 	readlinkBuffer := pool.GetBytes(32)
 	defer pool.PutBytes(readlinkBuffer)
 
-	pathBuffer.WriteString("/proc/")
+	_, _ = pathBuffer.WriteString("/proc/")
 
 	for _, pid := range pids {
 		if !isPid(pid) {
@@ -98,7 +98,7 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 		}
 
 		pathBuffer.Truncate(len("/proc/"))
-		pathBuffer.WriteString(pid)
+		_, _ = pathBuffer.WriteString(pid)
 
 		stat := &unix.Stat_t{}
 		err = unix.Stat(pathBuffer.String(), stat)
@@ -110,7 +110,7 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 			continue
 		}
 
-		pathBuffer.WriteString("/fd/")
+		_, _ = pathBuffer.WriteString("/fd/")
 		fdsPrefixLength := pathBuffer.Len()
 
 		fdDir, err := os.Open(pathBuffer.String())
@@ -126,7 +126,7 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 
 		for _, fd := range fds {
 			pathBuffer.Truncate(fdsPrefixLength)
-			pathBuffer.WriteString(fd)
+			_, _ = pathBuffer.WriteString(fd)
 
 			n, err := unix.Readlink(pathBuffer.String(), readlinkBuffer)
 			if err != nil {

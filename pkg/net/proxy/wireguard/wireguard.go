@@ -198,12 +198,12 @@ func (w *wrapGoNetTcpConn) Write(b []byte) (int, error) {
 }
 
 func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	net, err := w.initNet()
+	wnet, err := w.initNet()
 	if err != nil {
 		return nil, err
 	}
 
-	goUC, err := net.DialUDP(nil, nil)
+	goUC, err := wnet.DialUDP(nil, nil)
 	if err != nil {
 		return nil, err
 	}
