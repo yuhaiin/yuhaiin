@@ -7,7 +7,9 @@ import (
 	"io"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
@@ -49,7 +51,8 @@ type Client struct {
 	username string
 	password string
 
-	hostname string
+	hostname     string
+	overridePort uint16
 }
 
 func init() {
@@ -60,10 +63,11 @@ func init() {
 func NewClient(config *protocol.Protocol_Socks5) point.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		return &Client{
-			dialer:   dialer,
-			username: config.Socks5.User,
-			password: config.Socks5.Password,
-			hostname: config.Socks5.Hostname,
+			dialer:       dialer,
+			username:     config.Socks5.User,
+			password:     config.Socks5.Password,
+			hostname:     config.Socks5.Hostname,
+			overridePort: uint16(config.Socks5.OverridePort),
 		}, nil
 	}
 }
@@ -174,6 +178,10 @@ func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address
 		addr = netapi.ParseAddressPort("tcp", s.hostname, uint16(addr.Port()))
 	}
 
+	if s.overridePort != 0 {
+		addr = netapi.ParseAddressPort(addr.Network(), addr.Hostname(), s.overridePort)
+	}
+
 	return addr, nil
 }
 
@@ -195,7 +203,19 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 		return nil, fmt.Errorf("second hand failed: %w", err)
 	}
 
-	pc, err := s.dialer.PacketConn(context.WithValue(ctx, simple.PacketDirectKey{}, true), addr)
+	ctx = context.WithValue(ctx, simple.PacketDirectKey{}, true)
+
+	if !addr.IsFqdn() {
+		ip := addr.(netapi.IPAddress).IP()
+		if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() {
+			ctx = context.WithValue(ctx, direct.ListenPacketOptionsKey{}, func(opts *dialer.Options) {
+				opts.InterfaceIndex = 0
+				opts.InterfaceName = ""
+			})
+		}
+	}
+
+	pc, err := s.dialer.PacketConn(ctx, addr)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("listen udp failed: %w", err)

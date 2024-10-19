@@ -23,6 +23,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -134,7 +135,12 @@ func (e *Endpoint) Forward() {
 			e.gro.Enqueue(pkt)
 			pkt.DecRef()
 		}
+
 		if err != nil {
+			if errors.Is(err, syscall.ENOBUFS) {
+				continue
+			}
+
 			log.Error("dev read failed", "err", err)
 			return
 		}

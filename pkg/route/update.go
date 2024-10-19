@@ -3,12 +3,10 @@ package route
 import (
 	"context"
 	"net"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -21,12 +19,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
-
-var myPath string
-
-func init() {
-	myPath, _ = os.Executable()
-}
 
 func (s *Route) updateCustomRule(path string, c *bypass.Config, force bool) {
 	if !force && slices.EqualFunc(
@@ -65,10 +57,6 @@ func (s *Route) updateCustomRule(path string, c *bypass.Config, force bool) {
 				trie.insert(scheme, mark)
 			}
 		}
-	}
-
-	if myPath != "" {
-		trie.processTrie[myPath] = unique.Make(bypass.Block)
 	}
 
 	s.customTrie.Store(trie)

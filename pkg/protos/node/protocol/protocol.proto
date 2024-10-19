@@ -37,6 +37,7 @@ message socks5 {
   string user = 1 [ json_name = "user" ];
   string password = 2 [ json_name = "password" ];
   // TODO: add override hostname options
+  uint32 override_port = 4 [ json_name = "override_port" ];
 }
 
 message http {

@@ -35,6 +35,8 @@ message inbound {
     tproxy tproxy = 20 [ json_name = "tproxy" ];
     redir redir = 18 [ json_name = "redir" ];
     tun tun = 19 [ json_name = "tun" ];
+    reverse_http reverse_http = 22 [ json_name = "reverse_http" ];
+    reverse_tcp reverse_tcp = 23 [ json_name = "reverse_tcp" ];
   }
 }
 
@@ -47,21 +49,6 @@ message transport {
     websocket websocket = 6 [ json_name = "websocket" ];
     grpc grpc = 11 [ json_name = "grpc" ];
     reality reality = 10 [ json_name = "reality" ];
-  }
-}
-
-message protocol {
-  string name = 1 [ json_name = "name" ];
-  bool enabled = 2 [ json_name = "enabled" ];
-  oneof protocol {
-    http http = 3 [ json_name = "http" ];
-    socks5 socks5 = 4 [ json_name = "socks5" ];
-    redir redir = 5 [ json_name = "redir" ];
-    tun tun = 6 [ json_name = "tun" ];
-    yuubinsya yuubinsya = 7 [ json_name = "yuubinsya" ];
-    mixed mix = 8 [ json_name = "mixed" ];
-    socks4a socks4a = 9 [ json_name = "socks4a" ];
-    tproxy tproxy = 10 [ json_name = "tproxy" ];
   }
 }
 
@@ -201,3 +188,7 @@ message certificate {
 }
 
 message sniff { bool enabled = 1 [ json_name = "enabled" ]; }
+
+message reverse_http { string url = 1 [ json_name = "url" ]; }
+
+message reverse_tcp { string host = 1 [ json_name = "host" ]; }

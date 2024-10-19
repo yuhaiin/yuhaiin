@@ -12,7 +12,7 @@ var maxDuration = time.Second * 2
 var defaultDuration = time.Millisecond * 300
 
 type Avg struct {
-	ring    [100]*atomicx.Value[time.Duration]
+	ring    [100]*atomic.Pointer[time.Duration]
 	current atomic.Int64
 	count   atomic.Int64
 
@@ -25,7 +25,7 @@ func NewAvg() *Avg {
 	x.avg.Store(defaultDuration)
 
 	for i := range x.ring {
-		x.ring[i] = atomicx.NewValue(defaultDuration)
+		x.ring[i] = atomicx.NewPointer(&defaultDuration)
 	}
 
 	return x
@@ -34,7 +34,7 @@ func NewAvg() *Avg {
 func (a *Avg) Push(n time.Duration) {
 	i := a.current.Add(1) % 100
 
-	a.ring[i].Store(n)
+	a.ring[i].Store(&n)
 
 	x := a.count.Add(1)
 	if x > 25 && a.count.CompareAndSwap(x, 0) {
@@ -50,7 +50,7 @@ func (a *Avg) Avg() time.Duration {
 	var max, min, sum time.Duration
 
 	for _, u := range a.ring {
-		v := u.Load()
+		v := *u.Load()
 		if v > max || max == 0 {
 			max = v
 		}
