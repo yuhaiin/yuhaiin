@@ -100,21 +100,19 @@ func (h *Hosts) setHosts(ctx context.Context, pre netapi.Address) {
 
 func (h *Hosts) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.Address {
 	v, ok := h.hosts[addr.Hostname()]
-	if !ok {
-		return addr
-	}
-
-	if v.portMap != nil {
-		z, ok := v.portMap[uint16(addr.Port())]
-		if ok {
-			h.setHosts(ctx, addr)
-			return netapi.ParseAddressPort(addr.Network(), z.Hostname(), z.Port())
+	if ok {
+		if v.portMap != nil {
+			z, ok := v.portMap[uint16(addr.Port())]
+			if ok {
+				h.setHosts(ctx, addr)
+				return netapi.ParseAddressPort(addr.Network(), z.Hostname(), z.Port())
+			}
 		}
-	}
 
-	if v.Address != nil {
-		h.setHosts(ctx, addr)
-		return netapi.ParseAddressPort(addr.Network(), v.Address.Hostname(), addr.Port())
+		if v.Address != nil {
+			h.setHosts(ctx, addr)
+			return netapi.ParseAddressPort(addr.Network(), v.Address.Hostname(), addr.Port())
+		}
 	}
 
 	if addr.IsFqdn() {

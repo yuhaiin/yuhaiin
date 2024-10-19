@@ -6,6 +6,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -24,12 +25,13 @@ type Route struct {
 	r Resolver
 	d Dialer
 
-	customTrie *atomicx.Value[*routeTries]
-	trie       *atomicx.Value[*routeTries]
+	customTrie *atomic.Pointer[routeTries]
+	trie       *atomic.Pointer[routeTries]
 
-	config *bypass.Config
+	loopback LoopbackDetector
+	config   *bypass.Config
 
-	RejectHistory
+	*RejectHistory
 
 	mu sync.RWMutex
 }
@@ -44,8 +46,8 @@ type Dialer interface {
 
 func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
 	return &Route{
-		trie:       atomicx.NewValue(newRouteTires()),
-		customTrie: atomicx.NewValue(newRouteTires()),
+		trie:       atomicx.NewPointer(newRouteTires()),
+		customTrie: atomicx.NewPointer(newRouteTires()),
 		config: &bypass.Config{
 			Tcp: bypass.Mode_bypass,
 			Udp: bypass.Mode_bypass,
@@ -53,6 +55,7 @@ func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
 		r:             r,
 		d:             d,
 		ProcessDumper: ProcessDumper,
+		RejectHistory: NewRejectHistory(),
 	}
 }
 
@@ -139,8 +142,13 @@ func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum
 	return bypass.Proxy
 }
 
-func (s *Route) SearchProcess(ctx context.Context, process string) (bypass.ModeEnum, bool) {
+func (s *Route) SearchProcess(ctx *netapi.Context, process string) (bypass.ModeEnum, bool) {
 	matchProcess := strings.TrimSuffix(process, " (deleted)")
+
+	// if s.loopback.IsLoopback(matchProcess) {
+	// 	return bypass.Block, true
+	// }
+
 	x, ok := s.customTrie.Load().processTrie[matchProcess]
 	if ok {
 		return x.Value(), true
@@ -172,6 +180,12 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	// get mode from upstream specified
 	store := netapi.GetContext(ctx)
+
+	if s.loopback.Cycle(store, host) {
+		mode = bypass.Block
+		reason = "loopback cycle"
+		log.Warn("check loopback", "target", host, "inbound", store.Inbound)
+	}
 
 	if mode.Mode() == bypass.Mode_bypass {
 		if bypass.Mode(store.ForceMode) != bypass.Mode_bypass {
@@ -210,7 +224,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 		if store.SniffMode != bypass.Mode_bypass {
 			mode = store.SniffMode.ToModeEnum()
 		} else if process != "" {
-			if m, ok := s.SearchProcess(ctx, process); ok {
+			if m, ok := s.SearchProcess(store, process); ok {
 				reason = "process trie mode"
 				mode = m
 			}

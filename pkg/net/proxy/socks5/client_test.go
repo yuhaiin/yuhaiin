@@ -61,11 +61,14 @@ func (h *handler) HandleStream(conn *netapi.StreamMeta) {
 
 func (h *handler) HandlePacket(conn *netapi.Packet) {
 	h.t.Log(conn, string(conn.Payload))
+
+	conn.WriteBack.WriteBack(conn.Payload, conn.Src)
 }
+
 func TestUsernamePassword(t *testing.T) {
 	ss, err := simple.NewServer(&listener.Inbound_Tcpudp{
 		Tcpudp: &listener.Tcpudp{
-			Host:    "0.0.0.0:1082",
+			Host:    "0.0.0.0:1083",
 			Control: listener.TcpUdpControl_tcp_udp_control_all,
 		},
 	})
@@ -82,7 +85,7 @@ func TestUsernamePassword(t *testing.T) {
 	assert.NoError(t, err)
 	defer accept.Close()
 
-	p := Dial("127.0.0.1", "1082", "test", "test")
+	p := Dial("127.0.0.1", "1083", "test", "test")
 
 	stream, err := p.Conn(context.TODO(), netapi.ParseAddressPort("tcp", "www.google.com", 443))
 	assert.NoError(t, err)
@@ -98,11 +101,17 @@ func TestUsernamePassword(t *testing.T) {
 	_, err = packet.WriteTo([]byte("GET / HTTP/1.1\r\nHost: www.google.com\r\n\r\n"), &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53})
 	assert.NoError(t, err)
 
+	data := make([]byte, 1024)
+	n, src, err := packet.ReadFrom(data)
+	assert.NoError(t, err)
+
+	t.Log("read packet from", src, "data:", string(data[:n]))
+
 	time.Sleep(time.Second * 2)
 }
 
 func TestSC(t *testing.T) {
-	p := Dial("127.0.0.1", "1080", "username", "password")
+	p := Dial("127.0.0.1", "1082", "", "")
 
 	hc := &http.Client{
 		Transport: &http.Transport{
@@ -114,7 +123,7 @@ func TestSC(t *testing.T) {
 		},
 	}
 
-	resp, err := hc.Get("https://ip.sb")
+	resp, err := hc.Get("http://ip.sb")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 

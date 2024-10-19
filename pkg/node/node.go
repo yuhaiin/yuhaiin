@@ -126,7 +126,6 @@ func (w *latencyDialer) Conn(ctx context.Context, a netapi.Address) (net.Conn, e
 	} else {
 		netctx.Resolver.Mode = netapi.ResolverModePreferIPv4
 	}
-
 	return w.Proxy.Conn(netctx, a)
 }
 

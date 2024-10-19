@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -49,6 +50,7 @@ type SourceControl struct {
 	stopTimer *stopTimer
 	context   Context
 	conn      *wrapConn
+	wirteBack *atomicx.Value[netapi.WriteBack]
 }
 
 func NewSourceChan(dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
@@ -59,6 +61,9 @@ func NewSourceChan(dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceCo
 		ch:       make(chan waitPacket, 350),
 		onRemove: onRemove,
 		dialer:   dialer,
+		wirteBack: atomicx.NewValue[netapi.WriteBack](netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
+			return 0, errors.ErrUnsupported
+		})),
 	}
 
 	s.stopTimer = NewStopTimer(IdleTimeout, func() { _ = s.Close() })
@@ -115,6 +120,7 @@ func (u *SourceControl) handle(ctx *netapi.Context, pkt *netapi.Packet) error {
 	}
 
 	conn := u.conn
+	u.wirteBack.Store(pkt.WriteBack)
 
 	if conn == nil || conn.closed.Load() {
 		var err error
@@ -148,7 +154,8 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 	u.context = newContext(store)
 
 	conn := &wrapConn{PacketConn: dstpconn}
-	go u.loopWriteBack(pkt.WriteBack, conn, pkt.Dst)
+
+	go u.loopWriteBack(conn, pkt.Dst)
 
 	return conn, nil
 }
@@ -228,7 +235,7 @@ func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
 	t.addrStore.StoreOrigin(srcStr, dst)
 }
 
-func (u *SourceControl) loopWriteBack(writeBack netapi.WriteBack, p *wrapConn, dst netapi.Address) {
+func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 	defer func() {
 		u.stopTimer.Start()
 		p.Close()
@@ -251,7 +258,7 @@ func (u *SourceControl) loopWriteBack(writeBack netapi.WriteBack, p *wrapConn, d
 
 		metrics.Counter.AddReceiveUDPPacket()
 
-		_, err = writeBack.WriteBack(data[:n], u.parseAddr(from))
+		_, err = u.wirteBack.Load().WriteBack(data[:n], u.parseAddr(from))
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return
