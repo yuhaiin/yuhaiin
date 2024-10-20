@@ -4,18 +4,24 @@ import (
 	"context"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Tools struct {
 	UnimplementedToolsServer
+	db config.Setting
 }
 
-func NewTools() *Tools {
-	return &Tools{}
+func NewTools(db config.Setting) *Tools {
+	return &Tools{db: db}
 }
 
-func (t *Tools) GetInterface(context.Context, *emptypb.Empty) (*Interfaces, error) {
+func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces, error) {
+	if cf, err := t.db.Load(ctx, e); err == nil && cf.Platform.AndroidApp {
+		return &Interfaces{}, nil
+	}
+
 	is := &Interfaces{}
 	iis, err := net.Interfaces()
 	if err != nil {

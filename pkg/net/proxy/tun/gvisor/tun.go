@@ -2,6 +2,7 @@ package gvisor
 
 import (
 	"fmt"
+	"net/netip"
 	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -166,6 +167,29 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 
 	// s.SetTransportProtocolHandler(udp.ProtocolNumber, t.udpForwarder().HandlePacket)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, t.HandleUDPPacket)
+
+	addProtocolAddress := func(protocol tcpip.NetworkProtocolNumber, prefix netip.Prefix) {
+		s.AddProtocolAddress(nicID,
+			tcpip.ProtocolAddress{
+				Protocol: protocol,
+				AddressWithPrefix: tcpip.AddressWithPrefix{
+					Address:   tcpip.AddrFromSlice(prefix.Addr().AsSlice()),
+					PrefixLen: prefix.Bits(),
+				},
+			},
+			stack.AddressProperties{
+				PEB: stack.CanBePrimaryEndpoint,
+			},
+		)
+	}
+
+	for _, v := range o.Inet4Address {
+		addProtocolAddress(ipv4.ProtocolNumber, v)
+	}
+
+	for _, v := range o.Inet6Address {
+		addProtocolAddress(ipv6.ProtocolNumber, v)
+	}
 
 	return t, nil
 }

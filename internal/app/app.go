@@ -138,7 +138,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	// inbound server
 	_ = AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
-	tools := tools.NewTools()
+	tools := tools.NewTools(opt.Setting)
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /metrics", promhttp.Handler())

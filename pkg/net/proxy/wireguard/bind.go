@@ -117,7 +117,7 @@ func (bind *netBindClient) connect() (net.PacketConn, error) {
 		return bind.conn, nil
 	}
 
-	pc, err := dialer.ListenPacket("udp", "")
+	pc, err := dialer.ListenPacket(context.TODO(), "udp", "")
 	if err != nil {
 		return nil, err
 	}

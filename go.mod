@@ -6,12 +6,12 @@ require (
 	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
 	github.com/prometheus/client_golang v1.20.5
-	github.com/quic-go/quic-go v0.48.0
+	github.com/quic-go/quic-go v0.48.1
 	github.com/refraction-networking/utls v1.6.7
 	github.com/tailscale/wireguard-go v0.0.0-20240905161824-799c1978fafc
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241018113228-d4270665f473
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241026054331-6226ab1770f4
 	go.etcd.io/bbolt v1.3.11
 	golang.org/x/crypto v0.28.0
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6
