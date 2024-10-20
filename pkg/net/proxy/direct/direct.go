@@ -12,8 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
-type ListenPacketOptionsKey struct{}
-
 type direct struct{ netapi.EmptyDispatch }
 
 func init() {
@@ -41,12 +39,7 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		dialer.WithTryUpgradeToBatch(),
 	}
 
-	z, ok := ctx.Value(ListenPacketOptionsKey{}).(func(*dialer.Options))
-	if ok {
-		opts = append(opts, z)
-	}
-
-	p, err := dialer.ListenPacket("udp", "", opts...)
+	p, err := dialer.ListenPacket(ctx, "udp", "", opts...)
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}

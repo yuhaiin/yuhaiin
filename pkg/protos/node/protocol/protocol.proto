@@ -121,6 +121,7 @@ message simple {
   string host = 1 [ json_name = "host" ];
   int32 port = 2 [ json_name = "port" ];
   repeated host alternate_host = 5 [ json_name = "alternate_host" ];
+  string network_interface = 7 [ json_name = "network_interface" ];
 }
 
 message tls_config {

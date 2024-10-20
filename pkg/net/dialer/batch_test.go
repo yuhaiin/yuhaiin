@@ -1,6 +1,7 @@
 package dialer
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -10,13 +11,13 @@ import (
 )
 
 func TestPacketConn(t *testing.T) {
-	conn1, err := ListenPacketWithOptions("udp4", ":0", &Options{
+	conn1, err := ListenPacketWithOptions(context.TODO(), "udp4", ":0", &Options{
 		tryUpgradeToBatch: true,
 	})
 	assert.NoError(t, err)
 	defer conn1.Close()
 
-	conn2, err := ListenPacketWithOptions("udp4", ":0", &Options{
+	conn2, err := ListenPacketWithOptions(context.TODO(), "udp4", ":0", &Options{
 		tryUpgradeToBatch: true,
 	})
 	assert.NoError(t, err)

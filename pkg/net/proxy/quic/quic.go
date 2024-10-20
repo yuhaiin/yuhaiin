@@ -115,7 +115,7 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 	var err error
 
 	if c.dialer == nil {
-		conn, err = dialer.ListenPacket("udp", "")
+		conn, err = dialer.ListenPacket(ctx, "udp", "")
 	} else {
 		conn, err = c.dialer.PacketConn(ctx, netapi.EmptyAddr)
 	}

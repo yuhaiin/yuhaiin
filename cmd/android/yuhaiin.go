@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"runtime"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -89,9 +88,10 @@ func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts)
 		return
 	}
 
-	ticker := time.NewTicker(time.Second * 2)
+	ticker := time.NewTicker(time.Second*2 + time.Second/2)
 	defer ticker.Stop()
 
+	alreadyEmpty := false
 	var last *service.TotalFlow
 	for {
 		select {
@@ -111,6 +111,15 @@ func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts)
 
 			dr := reduceUnit((flow.Download - last.Download) / 2)
 			ur := reduceUnit((flow.Upload - last.Upload) / 2)
+			if dr == emptyRate && ur == emptyRate {
+				if alreadyEmpty {
+					continue
+				}
+				alreadyEmpty = true
+			} else if alreadyEmpty {
+				alreadyEmpty = false
+			}
+
 			download, upload := reduceUnit(flow.Download), reduceUnit(flow.Upload)
 			last = flow
 			opt.NotifySpped.Notify(flowString(download, upload, ur, dr))
@@ -155,17 +164,16 @@ func (a *App) SaveNewBypass(link string) error {
 	return err
 }
 
+var emptyRate = fmt.Sprintf("%.2f %v", 0.00, unit.B)
+
 func reduceUnit(v uint64) string {
 	x, unit := unit.ReducedUnit(float64(v))
 	return fmt.Sprintf("%.2f %v", x, unit)
 }
 
 func flowString(download, upload, ur, dr string) string {
-	totalMaxLen := "%" + strconv.Itoa(max(len(download), len(upload))) + "s"
-	rateMaxLen := "%" + strconv.Itoa(max(len(ur), len(dr))) + "s"
-
 	return fmt.Sprintf(
-		"Download("+totalMaxLen+"): "+rateMaxLen+"/S\n Upload ("+totalMaxLen+"): "+rateMaxLen+"/S",
+		"↓(%s): %s/S\n↑(%s): %s/S",
 		download,
 		dr,
 		upload,

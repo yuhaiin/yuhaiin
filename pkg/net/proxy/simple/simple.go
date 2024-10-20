@@ -26,6 +26,7 @@ type Simple struct {
 	index        atomic.Uint32
 	errCount     durationCounter
 	nonBootstrap bool
+	iface        string
 	netapi.EmptyDispatch
 }
 
@@ -45,6 +46,7 @@ func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
 			addrs:        addrs,
 			p:            p,
 			nonBootstrap: p != nil && !point.IsBootstrap(p),
+			iface:        c.Simple.GetNetworkInterface(),
 		}
 
 		return simple, nil
@@ -59,6 +61,9 @@ func (c *Simple) dialSingle(ctx context.Context, addr netapi.Address) (net.Conn,
 	if c.nonBootstrap {
 		return c.p.Conn(ctx, addr)
 	} else {
+		if c.iface != "" {
+			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
+		}
 		return dialer.DialHappyEyeballsv2(ctx, addr)
 	}
 }
@@ -185,6 +190,9 @@ type PacketDirectKey struct{}
 
 func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	if ctx.Value(PacketDirectKey{}) == true {
+		if c.iface != "" {
+			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
+		}
 		return direct.Default.PacketConn(ctx, addr)
 	}
 
@@ -208,7 +216,11 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		}
 	}
 
-	conn, err := dialer.ListenPacket("udp", localAddr, dialer.WithTryUpgradeToBatch())
+	if c.iface != "" {
+		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, c.iface)
+	}
+
+	conn, err := dialer.ListenPacket(ctx, "udp", localAddr, dialer.WithTryUpgradeToBatch())
 	if err != nil {
 		return nil, err
 	}
