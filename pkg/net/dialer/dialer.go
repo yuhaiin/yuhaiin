@@ -61,6 +61,12 @@ func DialContext(ctx context.Context, network, address string, opts ...func(*Opt
 }
 
 func DialContextWithOptions(ctx context.Context, network, address string, opts *Options) (net.Conn, error) {
+	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
+	if ok {
+		opts.InterfaceName = iface
+		opts.InterfaceIndex = 0
+	}
+
 	d := &net.Dialer{
 		// Setting a negative value here prevents the Go stdlib from overriding
 		// the values of TCP keepalive time and interval. It also prevents the
@@ -97,7 +103,7 @@ func WithTryUpgradeToBatch() func(*Options) {
 	}
 }
 
-func ListenPacket(network, address string, opts ...func(*Options)) (net.PacketConn, error) {
+func ListenPacket(ctx context.Context, network, address string, opts ...func(*Options)) (net.PacketConn, error) {
 	opt := &Options{
 		InterfaceName:  DefaultInterfaceName,
 		InterfaceIndex: DefaultInterfaceIndex,
@@ -108,10 +114,16 @@ func ListenPacket(network, address string, opts ...func(*Options)) (net.PacketCo
 		o(opt)
 	}
 
-	return ListenPacketWithOptions(network, address, opt)
+	return ListenPacketWithOptions(ctx, network, address, opt)
 }
 
-func ListenPacketWithOptions(network, address string, opts *Options) (net.PacketConn, error) {
+func ListenPacketWithOptions(ctx context.Context, network, address string, opts *Options) (net.PacketConn, error) {
+	iface, ok := ctx.Value(NetworkInterfaceKey{}).(string)
+	if ok {
+		opts.InterfaceName = iface
+		opts.InterfaceIndex = 0
+	}
+
 	lc := &net.ListenConfig{
 		// Setting a negative value here prevents the Go stdlib from overriding
 		// the values of TCP keepalive time and interval. It also prevents the
@@ -128,7 +140,7 @@ func ListenPacketWithOptions(network, address string, opts *Options) (net.Packet
 			return setSocketOptions(network, address, c, opts)
 		},
 	}
-	pc, err := lc.ListenPacket(context.Background(), network, address)
+	pc, err := lc.ListenPacket(ctx, network, address)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +154,8 @@ func ListenPacketWithOptions(network, address string, opts *Options) (net.Packet
 
 	return pc, nil
 }
+
+type NetworkInterfaceKey struct{}
 
 var (
 	DefaultInterfaceName  = ""

@@ -9,7 +9,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
@@ -208,10 +207,7 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	if !addr.IsFqdn() {
 		ip := addr.(netapi.IPAddress).IP()
 		if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() {
-			ctx = context.WithValue(ctx, direct.ListenPacketOptionsKey{}, func(opts *dialer.Options) {
-				opts.InterfaceIndex = 0
-				opts.InterfaceName = ""
-			})
+			ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, "")
 		}
 	}
 

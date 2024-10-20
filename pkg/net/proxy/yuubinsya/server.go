@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
@@ -90,6 +91,21 @@ func (y *server) startTCP() (err error) {
 
 		go func() {
 			if err := y.handle(conn); err != nil && !errors.Is(err, io.EOF) {
+				// [syscall.ETIMEDOUT] connection timed out
+				// UNIX® Network Programming book by Richard Stevens says the following..
+				// If the client TCP receives no response to its SYN segment, ETIMEDOUT is returned.
+				// 4.4BSD, for example, sends one SYN when connect is called, another 6 seconds later,
+				// and another 24 seconds later (p. 828 of TCPv2).
+				// If no response is received after a total of 75 seconds, the error is returned.
+				//
+				// maybe blow
+				//
+				// ETIMEDOUT is almost certainly a response to a previous send().
+				// send() is asynchronous. If it doesn't return -1,
+				// all that means is that data was transferred into the local socket send buffer.
+				// It is sent, or not sent, asynchronously,
+				// and if there was an error in that process it can only be delivered
+				// via the next system call: in this case, recv().
 				log.Error("yuubinsya tcp handle failed", "err", err)
 			}
 		}()
@@ -97,6 +113,8 @@ func (y *server) startTCP() (err error) {
 }
 
 func (y *server) handle(conn net.Conn) error {
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+
 	cc, err := y.handshaker.Handshake(conn)
 	if err != nil {
 		return fmt.Errorf("handshake failed: %w", err)
@@ -105,6 +123,7 @@ func (y *server) handle(conn net.Conn) error {
 	c := pool.NewBufioConnSize(cc, pool.DefaultSize)
 
 	header, err := y.handshaker.DecodeHeader(c)
+	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		return fmt.Errorf("parse header failed: %w", err)
 	}
@@ -144,7 +163,7 @@ func (y *server) handle(conn net.Conn) error {
 		for {
 			n, addr, err := pc.ReadFrom(buf)
 			if err != nil {
-				return err
+				return fmt.Errorf("read udp request failed: %w", err)
 			}
 
 			dst, err := netapi.ParseSysAddr(addr)

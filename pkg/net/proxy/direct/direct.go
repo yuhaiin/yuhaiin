@@ -12,13 +12,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 )
 
-type ListenPacketOptionsKey struct{}
-
-type direct struct{ netapi.EmptyDispatch }
+type direct struct {
+	netapi.EmptyDispatch
+	iface string
+}
 
 func init() {
 	point.RegisterProtocol(func(p *protocol.Protocol_Direct) point.WrapProxy {
 		return func(netapi.Proxy) (netapi.Proxy, error) {
+			if p.Direct.NetworkInterface != "" {
+				return &direct{iface: p.Direct.NetworkInterface}, nil
+			}
 			return Default, nil
 		}
 	})
@@ -33,6 +37,9 @@ func NewDirect() netapi.Proxy {
 }
 
 func (d *direct) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
+	if d.iface != "" {
+		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, d.iface)
+	}
 	return dialer.DialHappyEyeballsv2(ctx, s)
 }
 
@@ -41,12 +48,11 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 		dialer.WithTryUpgradeToBatch(),
 	}
 
-	z, ok := ctx.Value(ListenPacketOptionsKey{}).(func(*dialer.Options))
-	if ok {
-		opts = append(opts, z)
+	if d.iface != "" {
+		ctx = context.WithValue(ctx, dialer.NetworkInterfaceKey{}, d.iface)
 	}
 
-	p, err := dialer.ListenPacket("udp", "", opts...)
+	p, err := dialer.ListenPacket(ctx, "udp", "", opts...)
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}

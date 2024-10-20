@@ -3,6 +3,7 @@ package dns
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -208,10 +209,25 @@ func (c *client) LookupIP(ctx context.Context, domain string, opts ...func(*neta
 	resp, aaaaerr := c.lookupIP(ctx, domain, dnsmessage.TypeAAAA)
 
 	if err := <-aerr; err != nil && aaaaerr != nil {
-		return nil, fmt.Errorf("ipv6: %w, ipv4: %w", aaaaerr, err)
+		return nil, mergerError(err, aaaaerr)
 	}
 
 	return append(resp, a...), nil
+}
+
+func mergerError(i4err, i6err error) error {
+	i4e := &net.DNSError{}
+	i6e := &net.DNSError{}
+
+	if !errors.As(i4err, &i4e) || !errors.As(i6err, &i6e) {
+		return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
+	}
+
+	if i4e.Err == i6e.Err {
+		return i4e
+	}
+
+	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
 func (c *client) raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
