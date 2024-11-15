@@ -91,10 +91,13 @@ type RuleController struct {
 }
 
 func NewRuleController(db config.DB, r *Route) *RuleController {
-	_ = db.Batch(func(s *pc.Setting) error {
-		r.apply(db.Dir(), s.Bypass, false)
-		return nil
-	})
+	go func() {
+		// make it run in background, so it won't block the main thread
+		_ = db.Batch(func(s *pc.Setting) error {
+			r.apply(db.Dir(), s.Bypass, false)
+			return nil
+		})
+	}()
 
 	return &RuleController{
 		route: r,
