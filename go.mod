@@ -1,6 +1,6 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.23.2
+go 1.23.3
 
 require (
 	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134
@@ -14,8 +14,8 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241026054331-6226ab1770f4
 	go.etcd.io/bbolt v1.3.11
 	golang.org/x/crypto v0.29.0
-	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6
-	golang.org/x/mobile v0.0.0-20241004191011-08a83c5af9f8
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
+	golang.org/x/mobile v0.0.0-20241108191957-fa514ef75a0f
 	golang.org/x/net v0.31.0
 	golang.org/x/sys v0.27.0
 	golang.org/x/time v0.8.0
@@ -43,10 +43,10 @@ require (
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/mock v0.4.0 // indirect
-	golang.org/x/mod v0.21.0 // indirect
+	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/text v0.20.0 // indirect
-	golang.org/x/tools v0.26.0 // indirect
+	golang.org/x/tools v0.27.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 )
