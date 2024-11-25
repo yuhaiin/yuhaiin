@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/quic-go/quic-go v0.48.1
 	github.com/refraction-networking/utls v1.6.7
-	github.com/tailscale/wireguard-go v0.0.0-20240905161824-799c1978fafc
+	github.com/tailscale/wireguard-go v0.0.0-20241113014420-4e883d38c8d3
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241026054331-6226ab1770f4
@@ -22,7 +22,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.68.0
 	google.golang.org/protobuf v1.35.2
-	gvisor.dev/gvisor v0.0.0-20241009022347-94b16c128c1c
+	gvisor.dev/gvisor v0.0.0-20241120231458-0add1d20fa0c
 )
 
 require (
