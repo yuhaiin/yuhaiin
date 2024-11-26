@@ -6,7 +6,7 @@ require (
 	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134
 	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
 	github.com/prometheus/client_golang v1.20.5
-	github.com/quic-go/quic-go v0.48.1
+	github.com/quic-go/quic-go v0.48.2
 	github.com/refraction-networking/utls v1.6.7
 	github.com/tailscale/wireguard-go v0.0.0-20241113014420-4e883d38c8d3
 	github.com/vishvananda/netlink v1.3.0
