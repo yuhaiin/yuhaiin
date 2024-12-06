@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"errors"
+	"maps"
 
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
@@ -35,4 +36,20 @@ func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) 
 func (t *tag) Remove(_ context.Context, r *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	t.n.manager.DeleteTag(r.Value)
 	return &emptypb.Empty{}, t.n.db.Save()
+}
+
+func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, error) {
+	resp := &gn.TagsResponse{
+		Tags: maps.Clone(t.n.manager.GetTags()),
+	}
+
+	if t.n.ruleTags != nil {
+		for v := range t.n.ruleTags() {
+			if _, ok := resp.Tags[v]; !ok {
+				resp.Tags[v] = &pt.Tags{}
+			}
+		}
+	}
+
+	return resp, nil
 }

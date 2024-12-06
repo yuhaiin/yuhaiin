@@ -20,7 +20,7 @@ service node {
   rpc get(google.protobuf.StringValue) returns (yuhaiin.point.point);
   rpc save(yuhaiin.point.point) returns (yuhaiin.point.point);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
-  rpc manager(google.protobuf.Empty) returns (yuhaiin.node.manager);
+  rpc list(google.protobuf.Empty) returns (nodes_response);
 
   rpc latency(yuhaiin.latency.requests) returns (yuhaiin.latency.response);
 }
@@ -34,6 +34,10 @@ message use_req {
   bool tcp = 1 [ json_name = "tcp" ];
   bool udp = 2 [ json_name = "udp" ];
   string hash = 3 [ json_name = "hash" ];
+}
+
+message nodes_response {
+  map<string, yuhaiin.node.nodes> groups = 1 [ json_name = "groups" ];
 }
 
 service subscribe {
@@ -54,10 +58,14 @@ message get_links_resp {
 service tag {
   rpc save(save_tag_req) returns (google.protobuf.Empty);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+  rpc list(google.protobuf.Empty) returns (tags_response);
 }
 
 message save_tag_req {
   string tag = 1 [ json_name = "tag" ];
   yuhaiin.tag.tag_type type = 3 [ json_name = "type" ];
   string hash = 2 [ json_name = "hash" ];
+}
+message tags_response {
+  map<string, yuhaiin.tag.tags> tags = 1 [ json_name = "tags" ];
 }

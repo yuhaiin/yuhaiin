@@ -14,13 +14,12 @@ func init() {
 
 func NewTCPServer(o *listener.Inbound_ReverseTcp) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
 	target, err := netapi.ParseAddress("tcp", o.ReverseTcp.Host)
-	if err != nil {
-		return func(l netapi.Listener, h netapi.Handler) (netapi.Accepter, error) {
-			return nil, err
-		}
-	}
 
 	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+		if err != nil {
+			return nil, err
+		}
+
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {
 			return nil, err

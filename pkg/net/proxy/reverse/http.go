@@ -20,13 +20,12 @@ func init() {
 
 func NewHTTPServer(o *listener.Inbound_ReverseHttp) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
 	uri, err := url.Parse(o.ReverseHttp.Url)
-	if err != nil {
-		return func(l netapi.Listener, h netapi.Handler) (netapi.Accepter, error) {
-			return nil, err
-		}
-	}
 
 	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+		if err != nil {
+			return nil, err
+		}
+
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {
 			return nil, err

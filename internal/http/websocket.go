@@ -2,6 +2,7 @@ package simplehttp
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -24,7 +25,7 @@ func GrpcServerStreamingToWebsocket[req ProtoMsg[T], T any, T2 any](function fun
 			req := req(new(T))
 			err := websocket.PROTO.Receive(c, req)
 			if err != nil {
-				return err
+				return fmt.Errorf("read request failed: %w", err)
 			}
 
 			ws := newWebsocketServerServer[T2](ctx)

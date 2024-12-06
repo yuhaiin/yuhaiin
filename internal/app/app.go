@@ -154,6 +154,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Connections:  stcs,
 		Tag:          tag,
 		Rc:           rc,
+		Inbound:      config.NewInbound(opt.Setting),
 	}
 
 	// http page

@@ -28,6 +28,7 @@ type Components struct {
 	Tools        *gt.Tools
 	Subscribe    gn.SubscribeServer
 	Connections  gs.ConnectionsServer
+	Inbound      gc.InboundServer
 	Tag          gn.TagServer
 	DB           *bbolt.DB
 	Rc           *route.RuleController
@@ -40,6 +41,7 @@ func (app *Components) RegisterGrpcService() {
 	}
 
 	so.GRPCServer.RegisterService(&gc.ConfigService_ServiceDesc, so.Setting)
+	so.GRPCServer.RegisterService(&gc.Inbound_ServiceDesc, app.Inbound)
 	so.GRPCServer.RegisterService(&gn.Node_ServiceDesc, app.Node)
 	so.GRPCServer.RegisterService(&gn.Subscribe_ServiceDesc, app.Subscribe)
 	so.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, app.Connections)

@@ -84,7 +84,8 @@ func (a *App) Start(opt *Opts) error {
 }
 
 func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts) {
-	if opt.NotifySpped == nil || !opt.NotifySpped.NotifyEnable() {
+	if !opt.MapStore.GetBoolean(NetworkSpeedKey) ||
+		opt.NotifySpped == nil || !opt.NotifySpped.NotifyEnable() {
 		return
 	}
 
@@ -173,7 +174,7 @@ func reduceUnit(v uint64) string {
 
 func flowString(download, upload, ur, dr string) string {
 	return fmt.Sprintf(
-		"↓(%s): %s/S\n↑(%s): %s/S",
+		"↓(%s): %s/S ↑(%s): %s/S",
 		download,
 		dr,
 		upload,
