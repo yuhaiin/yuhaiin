@@ -3,6 +3,7 @@ package yuhaiin
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -38,11 +39,15 @@ func initDB() *cb.Cache {
 
 	log.Info("init global db", "path", dbPath)
 
+	if err := os.MkdirAll(filepath.Dir(dbPath), os.ModePerm); err != nil {
+		panic(fmt.Errorf("make dir failed: %w", err))
+	}
+
 	odb, err := bbolt.Open(dbPath, os.ModePerm, &bbolt.Options{
 		Timeout: time.Second * 2,
 	})
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("open db failed: %w", err))
 	}
 
 	db = cb.NewCache(odb, "yuhaiin")
@@ -218,6 +223,7 @@ var (
 	AllowLanKey     = "allow_lan"
 	AppendHTTPProxy = "Append HTTP Proxy to VPN"
 	IPv6Key         = "ipv6"
+	NetworkSpeedKey = "network_speed"
 	AutoConnectKey  = "auto_connect"
 	PerAppKey       = "per_app"
 	AppBypassKey    = "app_bypass"
@@ -268,6 +274,7 @@ var (
 		AllowLanKey:               0,
 		AppendHTTPProxy:           0,
 		IPv6Key:                   1,
+		NetworkSpeedKey:           0,
 		AutoConnectKey:            0,
 		PerAppKey:                 0,
 		AppBypassKey:              0,

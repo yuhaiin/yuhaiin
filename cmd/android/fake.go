@@ -180,11 +180,18 @@ func newFakeSetting(setting *pc.Setting, dir string) *fakeSettings {
 	return &fakeSettings{setting: setting, dir: dir}
 }
 
+func (w *fakeSettings) View(f func(*pc.Setting) error) error {
+	return f(w.setting)
+}
+func (w *fakeSettings) Update(f func(*pc.Setting) error) error {
+	return fmt.Errorf("android not support update settings in web ui")
+}
+
 func (w *fakeSettings) Load(ctx context.Context, in *emptypb.Empty) (*pc.Setting, error) {
 	return w.setting, nil
 }
 func (w *fakeSettings) Save(ctx context.Context, in *pc.Setting) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, fmt.Errorf("android not support update settings in web ui")
 }
 func (c *fakeSettings) Info(context.Context, *emptypb.Empty) (*pc.Info, error) {
 	return config.Info(), nil

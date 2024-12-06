@@ -16,7 +16,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -71,22 +70,10 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 	return p, n.db.Save()
 }
 
-func (n *Nodes) Manager(context.Context, *emptypb.Empty) (*node.Manager, error) {
-	m := proto.Clone(n.manager.GetManager()).(*node.Manager)
-
-	if m.Tags == nil {
-		m.Tags = map[string]*pt.Tags{}
-	}
-
-	if n.ruleTags != nil {
-		for v := range n.ruleTags() {
-			if _, ok := m.Tags[v]; !ok {
-				m.Tags[v] = &pt.Tags{}
-			}
-		}
-	}
-
-	return m, nil
+func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
+	return &gn.NodesResponse{
+		Groups: n.manager.GetGroupsV2(),
+	}, nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {

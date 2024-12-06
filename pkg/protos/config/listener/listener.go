@@ -201,12 +201,6 @@ func Transports(lis netapi.Listener, protocols []*Transport) (netapi.Listener, e
 	return lis, nil
 }
 
-func ErrorTransportFunc(err error) func(netapi.Listener) (netapi.Listener, error) {
-	return func(ii netapi.Listener) (netapi.Listener, error) {
-		return nil, err
-	}
-}
-
 var protocolStore syncmap.SyncMap[reflect.Type, func(isInbound_Protocol) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error)]
 
 func RegisterProtocol[T isInbound_Protocol](wrap func(T) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error)) {

@@ -197,7 +197,12 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	}
 
 	if c.nonBootstrap {
-		return c.p.PacketConn(ctx, addr)
+		conn, err := c.p.PacketConn(ctx, c.addrs[c.index.Load()])
+		if err != nil {
+			return nil, err
+		}
+
+		return &packetConn{conn, c.addrs[c.index.Load()]}, nil
 	}
 
 	ctx = netapi.WithContext(ctx)
@@ -235,7 +240,7 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 
 type packetConn struct {
 	net.PacketConn
-	addr *net.UDPAddr
+	addr net.Addr
 }
 
 func (p *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {

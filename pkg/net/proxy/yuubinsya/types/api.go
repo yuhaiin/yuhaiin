@@ -17,11 +17,13 @@ type Header struct {
 	Protocol  Protocol
 }
 
+// Protocol network type
 type Protocol byte
 
 var (
-	TCP              Protocol = 66
-	UDP              Protocol = 77
+	TCP Protocol = 66
+	UDP Protocol = 77
+	// UDPWithMigrateID udp with migrate support
 	UDPWithMigrateID Protocol = 78
 )
 

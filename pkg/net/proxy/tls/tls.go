@@ -76,11 +76,12 @@ func init() {
 
 func NewServer(c *listener.Transport_Tls) func(netapi.Listener) (netapi.Listener, error) {
 	config, err := listener.ParseTLS(c.Tls.Tls)
-	if err != nil {
-		return listener.ErrorTransportFunc(err)
-	}
 
 	return func(ii netapi.Listener) (netapi.Listener, error) {
+		if err != nil {
+			return nil, err
+		}
+
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {
 			return nil, err
