@@ -30,17 +30,33 @@ var debug func(*http.ServeMux)
 
 func ServeHTTP(o *appapi.Components) {
 	for k, b := range map[string]func(http.ResponseWriter, *http.Request) error{
-		"GET /sublist":    GrpcToHttp(o.Subscribe.Get),
-		"GET /nodes":      GrpcToHttp(o.Node.Manager),
-		"GET /config":     GrpcToHttp(o.Setting.Load),
 		"GET /info":       GrpcToHttp(o.Setting.Info),
 		"GET /interfaces": GrpcToHttp(o.Tools.GetInterface),
 		"GET /node/now":   GrpcToHttp(o.Node.Now),
 
-		"POST /config": GrpcToHttp(o.Setting.Save),
+		"GET /sublist": GrpcToHttp(o.Subscribe.Get),
+		"PATCH /sub":   GrpcToHttp(o.Subscribe.Update),
 		"POST /sub":    GrpcToHttp(o.Subscribe.Save),
-		"POST /tag":    GrpcToHttp(o.Tag.Save),
-		"POST /node":   GrpcToHttp(o.Node.Get),
+		"DELETE /sub":  GrpcToHttp(o.Subscribe.Remove),
+
+		"GET /config":  GrpcToHttp(o.Setting.Load),
+		"POST /config": GrpcToHttp(o.Setting.Save),
+
+		"GET /tags":   GrpcToHttp(o.Tag.List),
+		"DELETE /tag": GrpcToHttp(o.Tag.Remove),
+		"POST /tag":   GrpcToHttp(o.Tag.Save),
+
+		"GET /nodes":    GrpcToHttp(o.Node.List),
+		"POST /node":    GrpcToHttp(o.Node.Get),
+		"PATCH /node":   GrpcToHttp(o.Node.Save),
+		"DELETE /node":  GrpcToHttp(o.Node.Remove),
+		"PUT /node":     GrpcToHttp(o.Node.Use),
+		"POST /latency": GrpcToHttp(o.Node.Latency),
+
+		"GET /inbounds":   GrpcToHttp(o.Inbound.List),
+		"POST /inbound":   GrpcToHttp(o.Inbound.Get),
+		"PATCH /inbound":  GrpcToHttp(o.Inbound.Save),
+		"DELETE /inbound": GrpcToHttp(o.Inbound.Remove),
 
 		"GET /bypass":               GrpcToHttp(o.Rc.Load),
 		"PATCH /bypass":             GrpcToHttp(o.Rc.Save),
@@ -48,18 +64,8 @@ func ServeHTTP(o *appapi.Components) {
 		"POST /bypass/test":         GrpcToHttp(o.Rc.Test),
 		"GET /bypass/block_history": GrpcToHttp(o.Rc.BlockHistory),
 
-		"POST /latency": GrpcToHttp(o.Node.Latency),
-
 		"DELETE /conn":             GrpcToHttp(o.Connections.CloseConn),
 		"GET /conn/failed_history": GrpcToHttp(o.Connections.FailedHistory),
-		"DELETE /node":             GrpcToHttp(o.Node.Remove),
-		"DELETE /sub":              GrpcToHttp(o.Subscribe.Remove),
-		"DELETE /tag":              GrpcToHttp(o.Tag.Remove),
-
-		"PUT /node": GrpcToHttp(o.Node.Use),
-
-		"PATCH /sub":  GrpcToHttp(o.Subscribe.Update),
-		"PATCH /node": GrpcToHttp(o.Node.Save),
 
 		"GET /flow/total": GrpcToHttp(o.Connections.Total),
 		// WEBSOCKET

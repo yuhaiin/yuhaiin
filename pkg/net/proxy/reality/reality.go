@@ -49,17 +49,17 @@ func ServerNameMap(s *listener.Transport_Reality) map[string]bool {
 }
 
 func NewServer(config *listener.Transport_Reality) func(netapi.Listener) (netapi.Listener, error) {
+	var ids map[[8]byte]bool
 	privateKey, err := base64.RawURLEncoding.DecodeString(config.Reality.PrivateKey)
-	if err != nil {
-		return listener.ErrorTransportFunc(err)
-	}
-
-	ids, err := ShortIDMap(config)
-	if err != nil {
-		return listener.ErrorTransportFunc(err)
+	if err == nil {
+		ids, err = ShortIDMap(config)
 	}
 
 	return func(ii netapi.Listener) (netapi.Listener, error) {
+		if err != nil {
+			return nil, err
+		}
+
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {
 			return nil, err

@@ -145,9 +145,9 @@ func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum
 func (s *Route) SearchProcess(ctx *netapi.Context, process string) (bypass.ModeEnum, bool) {
 	matchProcess := strings.TrimSuffix(process, " (deleted)")
 
-	// if s.loopback.IsLoopback(matchProcess) {
-	// 	return bypass.Block, true
-	// }
+	if s.loopback.IsLoopback(matchProcess) {
+		return bypass.Block, true
+	}
 
 	x, ok := s.customTrie.Load().processTrie[matchProcess]
 	if ok {
@@ -200,7 +200,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	if mode.Mode() == bypass.Mode_bypass {
 		// get mode from bypass rule
 		store.Resolver.Resolver = s.r.Get("")
-		if !host.IsFqdn() && store.SniffHost() != "" {
+		if store.Hosts == nil && !host.IsFqdn() && store.SniffHost() != "" {
 			reason = "sniff host trie mode"
 			mode = s.Search(ctx, netapi.ParseAddressPort(host.Network(), store.SniffHost(), host.Port()))
 		} else {

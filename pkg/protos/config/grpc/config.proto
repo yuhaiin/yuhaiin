@@ -3,6 +3,7 @@ package yuhaiin.protos.config.service;
 
 import "config/config.proto";
 import "config/bypass/bypass.proto";
+import "config/listener/listener.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "google/protobuf/timestamp.proto";
@@ -40,4 +41,13 @@ service bypass {
   rpc reload(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc test(google.protobuf.StringValue) returns (test_response);
   rpc block_history(google.protobuf.Empty) returns (block_history_list);
+}
+
+message inbounds_response { repeated string names = 1 [ json_name = "names" ]; }
+
+service inbound {
+  rpc list(google.protobuf.Empty) returns (inbounds_response);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.listener.inbound);
+  rpc save(yuhaiin.listener.inbound) returns (yuhaiin.listener.inbound);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
 }
