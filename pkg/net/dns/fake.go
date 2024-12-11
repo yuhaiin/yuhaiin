@@ -360,23 +360,28 @@ func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
 		lru.WithLruOptions(
 			lru.WithCapacity[string, netip.Addr](size),
 			lru.WithOnRemove(func(s string, v netip.Addr) {
-				cache.Delete([]byte(s), v.AsSlice())
+				_ = cache.Delete([]byte(s), v.AsSlice())
 			}),
 		),
 		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
-			cache.Delete(old.AsSlice())
+			_ = cache.Delete(old.AsSlice())
 		}),
 	)
 
-	for k, v := range cache.Range {
+	err := cache.Range(func(k, v []byte) bool {
 		ip, ok := netip.AddrFromSlice(k)
 		if !ok {
-			continue
+			return true
 		}
 
 		if iprange.Contains(ip) {
 			z.LRU.Add(string(v), ip)
 		}
+
+		return true
+	})
+	if err != nil {
+		log.Error("fakeip range cache failed", "err", err)
 	}
 
 	log.Info("fakeip lru init", "get cache", z.LRU.Len(), "isIpv6", iprange.Addr().Unmap().Is6(), "capacity", size)
@@ -405,8 +410,8 @@ func (f *fakeLru) Add(host string, ip netip.Addr) {
 
 	if f.bbolt != nil {
 		host, ip := []byte(host), ip.AsSlice()
-		f.bbolt.Put(host, ip)
-		f.bbolt.Put(ip, host)
+		_ = f.bbolt.Put(host, ip)
+		_ = f.bbolt.Put(ip, host)
 	}
 }
 
@@ -432,7 +437,8 @@ func (f *fakeLru) ReverseLoad(ip netip.Addr) (string, bool) {
 		return host, ok
 	}
 
-	if host = string(f.bbolt.Get(ip.AsSlice())); host != "" {
+	v, _ := f.bbolt.Get(ip.AsSlice())
+	if host = string(v); host != "" {
 		return host, true
 	}
 

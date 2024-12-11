@@ -1,9 +1,12 @@
 package yuhaiin
 
 import (
+	"context"
 	"encoding/binary"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -11,21 +14,25 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/kv"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	cb "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"go.etcd.io/bbolt"
 )
 
 var dbPath string
-var db *cb.Cache
+var socketPath string
+var db cache.Cache
+var kvServer io.Closer
 var mu sync.Mutex
 
-func InitDB(path string) error {
+func InitDB(path string, sp string) error {
 	dbPath = filepath.Join(path, "yuhaiin.db")
+	socketPath = filepath.Join(sp, "kv.sock")
 	return nil
 }
 
-func initDB() *cb.Cache {
+func initKVStore() cache.Cache {
 	if db != nil {
 		return db
 	}
@@ -37,21 +44,160 @@ func initDB() *cb.Cache {
 		return db
 	}
 
-	log.Info("init global db", "path", dbPath)
-
-	if err := os.MkdirAll(filepath.Dir(dbPath), os.ModePerm); err != nil {
-		panic(fmt.Errorf("make dir failed: %w", err))
-	}
-
-	odb, err := bbolt.Open(dbPath, os.ModePerm, &bbolt.Options{
-		Timeout: time.Second * 2,
-	})
+	var err error
+	db, err = DoubleDial()
 	if err != nil {
-		panic(fmt.Errorf("open db failed: %w", err))
+		panic(fmt.Errorf("double dial failed: %w", err))
 	}
 
-	db = cb.NewCache(odb, "yuhaiin")
 	return db
+}
+
+type androidDB struct {
+	batch []string
+	store cache.Cache
+
+	mu sync.Mutex
+}
+
+func newAndroidDB() *androidDB {
+	s := initKVStore()
+	return &androidDB{
+		store: s,
+	}
+}
+
+func (a *androidDB) resetStore() {
+	mu.Lock()
+	db.Close()
+	db = nil
+	mu.Unlock()
+
+	s := initKVStore()
+
+	for _, v := range a.batch {
+		s = s.NewCache(v)
+	}
+
+	a.mu.Lock()
+	a.store = s
+	a.mu.Unlock()
+}
+
+func (a *androidDB) Put(k []byte, v []byte) error {
+	err := a.store.Put(k, v)
+	if err != nil {
+		a.resetStore()
+		return a.store.Put(k, v)
+	}
+
+	return nil
+}
+
+func (a *androidDB) Get(k []byte) ([]byte, error) {
+	b, err := a.store.Get(k)
+	if err != nil {
+		a.resetStore()
+		b, err = a.store.Get(k)
+	}
+	return b, err
+}
+
+func (a *androidDB) Delete(k ...[]byte) error {
+	err := a.store.Delete(k...)
+	if err != nil {
+		a.resetStore()
+		return a.store.Delete(k...)
+	}
+	return nil
+}
+
+func (a *androidDB) Range(f func(key []byte, value []byte) bool) error {
+	err := a.store.Range(f)
+	if err != nil {
+		a.resetStore()
+		return a.store.Range(f)
+	}
+	return nil
+}
+
+func (a *androidDB) Close() error {
+	return a.store.Close()
+}
+
+func (a *androidDB) NewCache(b string) cache.Cache {
+	return &androidDB{
+		batch: append(a.batch, b),
+		store: a.store.NewCache(b),
+	}
+}
+
+func DoubleDial() (cache.Cache, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type chStore struct {
+		store cache.Cache
+		err   error
+	}
+	ch := make(chan chStore)
+
+	sendData := func(s cache.Cache, err error) {
+		select {
+		case <-ctx.Done():
+			return
+		case ch <- chStore{
+			store: s,
+			err:   err,
+		}:
+		}
+	}
+
+	remain := 2
+
+	go func() {
+		log.Info("init global db", "path", dbPath)
+
+		if err := os.MkdirAll(filepath.Dir(dbPath), os.ModePerm); err != nil {
+			sendData(nil, fmt.Errorf("mkdir failed: %w", err))
+			return
+		}
+
+		odb, err := bbolt.Open(dbPath, os.ModePerm, &bbolt.Options{Timeout: time.Second * 2})
+		if err != nil {
+			sendData(nil, err)
+			return
+		}
+
+		cb := cb.NewCache(odb, "yuhaiin")
+
+		_ = os.Remove(socketPath)
+
+		s, err := kv.Start(socketPath, cb)
+		if err != nil {
+			log.Error("start kv server failed", slog.Any("err", err))
+		} else {
+			kvServer = s
+		}
+
+		sendData(cb, err)
+	}()
+
+	go func() { sendData(kv.NewClient(socketPath)) }()
+
+	var er error
+	for {
+		s := <-ch
+		remain--
+		if s.err != nil {
+			er = errors.Join(er, s.err)
+			if remain == 0 {
+				return nil, er
+			}
+			continue
+		}
+		return s.store, nil
+	}
 }
 
 type Store interface {
@@ -65,7 +211,6 @@ type Store interface {
 	GetBoolean(key string) bool
 	GetLong(key string) int64
 	GetFloat(key string) float32
-	Dump() []byte
 }
 
 type storeImpl struct {
@@ -88,44 +233,40 @@ func (s *storeImpl) initDB() {
 		return
 	}
 
-	s.db = initDB().NewCache(s.batch)
+	s.db = newAndroidDB().NewCache(s.batch)
 }
 
 func (s *storeImpl) PutString(key string, value string) {
 	s.initDB()
-	s.db.Put([]byte(key), []byte(value))
+	_ = s.db.Put([]byte(key), []byte(value))
 }
 
 func (s *storeImpl) PutInt(key string, value int32) {
 	s.initDB()
 	bytes := binary.NativeEndian.AppendUint32(nil, uint32(value))
-	s.db.Put([]byte(key), bytes)
+	_ = s.db.Put([]byte(key), bytes)
 }
 
 func (s *storeImpl) PutBoolean(key string, value bool) {
 	s.initDB()
-	if value {
-		s.db.Put([]byte(key), []byte{1})
-	} else {
-		s.db.Put([]byte(key), []byte{0})
-	}
+	_ = s.db.Put([]byte(key), ifOr(value, []byte{1}, []byte{0}))
 }
 
 func (s *storeImpl) PutLong(key string, value int64) {
 	s.initDB()
 	bytes := binary.NativeEndian.AppendUint64(nil, uint64(value))
-	s.db.Put([]byte(key), bytes)
+	_ = s.db.Put([]byte(key), bytes)
 }
 
 func (s *storeImpl) PutFloat(key string, value float32) {
 	s.initDB()
 	bytes := binary.NativeEndian.AppendUint32(nil, math.Float32bits(value))
-	s.db.Put([]byte(key), bytes)
+	_ = s.db.Put([]byte(key), bytes)
 }
 
 func (s *storeImpl) GetString(key string) string {
 	s.initDB()
-	bytes := s.db.Get([]byte(key))
+	bytes, _ := s.db.Get([]byte(key))
 	if bytes == nil {
 		return defaultStringValue[key]
 	}
@@ -134,7 +275,7 @@ func (s *storeImpl) GetString(key string) string {
 
 func (s *storeImpl) GetInt(key string) int32 {
 	s.initDB()
-	bytes := s.db.Get([]byte(key))
+	bytes, _ := s.db.Get([]byte(key))
 	if len(bytes) < 4 || bytes == nil {
 		return defaultIntValue[key]
 	}
@@ -145,7 +286,7 @@ func (s *storeImpl) GetInt(key string) int32 {
 
 func (s *storeImpl) GetBoolean(key string) bool {
 	s.initDB()
-	bytes := s.db.Get([]byte(key))
+	bytes, _ := s.db.Get([]byte(key))
 	if len(bytes) == 0 || bytes == nil {
 		return defaultBoolValue[key] == 1
 	}
@@ -155,7 +296,7 @@ func (s *storeImpl) GetBoolean(key string) bool {
 
 func (s *storeImpl) GetLong(key string) int64 {
 	s.initDB()
-	bytes := s.db.Get([]byte(key))
+	bytes, _ := s.db.Get([]byte(key))
 	if len(bytes) < 8 || bytes == nil {
 		return defaultLangValue[key]
 	}
@@ -164,25 +305,14 @@ func (s *storeImpl) GetLong(key string) int64 {
 
 	return int64(value)
 }
+
 func (s *storeImpl) GetFloat(key string) float32 {
 	s.initDB()
-	bytes := s.db.Get([]byte(key))
+	bytes, _ := s.db.Get([]byte(key))
 	if len(bytes) < 4 || bytes == nil {
 		return defaultFloatValue[key]
 	}
 	return math.Float32frombits(binary.NativeEndian.Uint32(bytes))
-}
-
-func (s *storeImpl) Dump() []byte {
-	s.initDB()
-	var data = map[string][]byte{}
-
-	for k, v := range s.db.Range {
-		data[string(k)] = v
-	}
-
-	bytes, _ := json.Marshal(data)
-	return bytes
 }
 
 func GetStore(prefix string) Store {
@@ -197,197 +327,9 @@ func CloseStore() {
 		db.Close()
 		db = nil
 	}
-}
 
-// func GetStores() []byte {
-// 	var stores []string
-// 	db.Range(func(k, v []byte) bool {
-// 		stores = append(stores, string(k))
-// 		return true
-// 	})
-
-// 	data, _ := json.Marshal(stores)
-// 	return data
-// }
-
-// func GetCurrentStore() string {
-// 	x := db.Get([]byte("CURRENT"))
-// 	if len(x) == 0 {
-// 		return "Default"
-// 	}
-
-// 	return string(x)
-// }
-
-var (
-	AllowLanKey     = "allow_lan"
-	AppendHTTPProxy = "Append HTTP Proxy to VPN"
-	IPv6Key         = "ipv6"
-	NetworkSpeedKey = "network_speed"
-	AutoConnectKey  = "auto_connect"
-	PerAppKey       = "per_app"
-	AppBypassKey    = "app_bypass"
-	UDPProxyFQDNKey = "UDP proxy FQDN"
-	SniffKey        = "Sniff"
-	SaveLogcatKey   = "save_logcat"
-
-	RouteKey         = "route"
-	FakeDNSCIDRKey   = "fake_dns_cidr"
-	FakeDNSv6CIDRKey = "fake_dnsv6_cidr"
-	TunDriverKey     = "Tun Driver"
-	AppListKey       = "app_list"
-	LogLevelKey      = "Log Level"
-	RuleByPassUrlKey = "Rule Update Bypass"
-	RemoteRulesKey   = "remote_rules"
-	BlockKey         = "Block"
-	ProxyKey         = "Proxy"
-	DirectKey        = "Direct"
-	TCPBypassKey     = "TCP"
-	UDPBypassKey     = "UDP"
-	HostsKey         = "hosts"
-
-	DNSPortKey     = "dns_port"
-	HTTPPortKey    = "http_port"
-	YuhaiinPortKey = "yuhaiin_port"
-
-	DNSHijackingKey = "dns_hijacking"
-
-	RemoteDNSHostKey          = "remote_dns_host"
-	RemoteDNSTypeKey          = "remote_dns_type"
-	RemoteDNSSubnetKey        = "remote_dns_subnet"
-	RemoteDNSTLSServerNameKey = "remote_dns_tls_server_name"
-	RemoteDNSResolveDomainKey = "remote_dns_resolve_domain"
-
-	LocalDNSHostKey          = "local_dns_host"
-	LocalDNSTypeKey          = "local_dns_type"
-	LocalDNSSubnetKey        = "local_dns_subnet"
-	LocalDNSTLSServerNameKey = "local_dns_tls_server_name"
-
-	BootstrapDNSHostKey          = "bootstrap_dns_host"
-	BootstrapDNSTypeKey          = "bootstrap_dns_type"
-	BootstrapDNSSubnetKey        = "bootstrap_dns_subnet"
-	BootstrapDNSTLSServerNameKey = "bootstrap_dns_tls_server_name"
-)
-
-var (
-	defaultBoolValue = map[string]byte{
-		AllowLanKey:               0,
-		AppendHTTPProxy:           0,
-		IPv6Key:                   1,
-		NetworkSpeedKey:           0,
-		AutoConnectKey:            0,
-		PerAppKey:                 0,
-		AppBypassKey:              0,
-		UDPProxyFQDNKey:           0,
-		SniffKey:                  1,
-		DNSHijackingKey:           1,
-		RemoteDNSResolveDomainKey: 0,
-		SaveLogcatKey:             0,
+	if kvServer != nil {
+		kvServer.Close()
+		kvServer = nil
 	}
-
-	defaultStringValue = map[string]string{
-		RouteKey:         "All (Default)",
-		FakeDNSCIDRKey:   "10.0.2.1/16",
-		FakeDNSv6CIDRKey: "fc00::/64",
-		TunDriverKey:     "system_gvisor",
-		AppListKey:       `["io.github.yuhaiin"]`,
-		LogLevelKey:      "info",
-
-		RuleByPassUrlKey: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
-		RemoteRulesKey:   "[]",
-		// rules
-		BlockKey:  "",
-		ProxyKey:  "",
-		DirectKey: "",
-
-		TCPBypassKey: "bypass",
-		UDPBypassKey: "bypass",
-
-		HostsKey: `{"example.com": "127.0.0.1"}`,
-
-		RemoteDNSHostKey:          "cloudflare.com",
-		RemoteDNSTypeKey:          "doh",
-		RemoteDNSSubnetKey:        "",
-		RemoteDNSTLSServerNameKey: "",
-
-		LocalDNSHostKey:          "1.1.1.1",
-		LocalDNSTypeKey:          "doh",
-		LocalDNSSubnetKey:        "",
-		LocalDNSTLSServerNameKey: "",
-
-		BootstrapDNSHostKey:          "1.1.1.1",
-		BootstrapDNSTypeKey:          "doh",
-		BootstrapDNSSubnetKey:        "",
-		BootstrapDNSTLSServerNameKey: "",
-	}
-
-	defaultIntValue = map[string]int32{
-		DNSPortKey:     0,
-		HTTPPortKey:    0,
-		YuhaiinPortKey: 3500,
-	}
-
-	defaultLangValue  = map[string]int64{}
-	defaultFloatValue = map[string]float32{}
-)
-
-type MapStore struct {
-	store map[string][]byte
-}
-
-func MapStoreFromJson(data []byte) *MapStore {
-	log.Info("[MapStoreFromJson]", "data", string(data))
-
-	store := &MapStore{store: map[string][]byte{}}
-
-	err := json.Unmarshal(data, &store.store)
-	if err != nil {
-		log.Error("[MapStoreFromJson]", "err", err)
-	}
-	return store
-}
-
-func (m *MapStore) GetString(key string) string {
-	x, ok := m.store[key]
-	if !ok {
-		return defaultStringValue[key]
-	}
-
-	return string(x)
-}
-
-func (m *MapStore) GetInt(key string) int32 {
-	x, ok := m.store[key]
-	if !ok {
-		return defaultIntValue[key]
-	}
-
-	return int32(binary.NativeEndian.Uint32(x))
-}
-
-func (m *MapStore) GetBoolean(key string) bool {
-	x, ok := m.store[key]
-	if !ok {
-		return defaultBoolValue[key] == 1
-	}
-
-	return x[0] == 1
-}
-
-func (m *MapStore) GetFloat(key string) float32 {
-	x, ok := m.store[key]
-	if !ok {
-		return defaultFloatValue[key]
-	}
-
-	return math.Float32frombits(binary.NativeEndian.Uint32(x))
-}
-
-func (m *MapStore) GetLong(key string) int64 {
-	x, ok := m.store[key]
-	if !ok {
-		return defaultLangValue[key]
-	}
-
-	return int64(binary.NativeEndian.Uint64(x))
 }

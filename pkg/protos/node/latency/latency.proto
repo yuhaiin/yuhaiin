@@ -28,9 +28,11 @@ message ip_response {
   string ipv6 = 2 [ json_name = "ipv6" ];
 }
 
+message error { string msg = 1 [ json_name = "msg" ]; }
+
 message stun {
-   string host = 1 [ json_name = "host" ];
-   bool tcp = 2 [ json_name = "tcp" ];
+  string host = 1 [ json_name = "host" ];
+  bool tcp = 2 [ json_name = "tcp" ];
 }
 
 enum nat_type {
@@ -81,5 +83,6 @@ message reply {
     google.protobuf.Duration latency = 1 [ json_name = "latency" ];
     ip_response ip = 2 [ json_name = "ip" ];
     stun_response stun = 3 [ json_name = "stun" ];
+    error error = 4 [ json_name = "error" ];
   }
 }

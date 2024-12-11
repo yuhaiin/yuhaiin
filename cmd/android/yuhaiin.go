@@ -47,8 +47,8 @@ func (a *App) Start(opt *Opts) error {
 			appapi.Start{
 				ConfigPath: opt.Savepath,
 				Setting:    fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
-				Host: net.JoinHostPort(ifOr(opt.MapStore.GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
-					fmt.Sprint(opt.MapStore.GetInt(YuhaiinPortKey))),
+				Host: net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
+					fmt.Sprint(GetStore("Default").GetInt(YuhaiinPortKey))),
 				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),
 			})
 		if err != nil {
@@ -84,7 +84,7 @@ func (a *App) Start(opt *Opts) error {
 }
 
 func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts) {
-	if !opt.MapStore.GetBoolean(NetworkSpeedKey) ||
+	if !GetStore("Default").GetBoolean(NetworkSpeedKey) ||
 		opt.NotifySpped == nil || !opt.NotifySpped.NotifyEnable() {
 		return
 	}

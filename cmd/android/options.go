@@ -12,7 +12,6 @@ import (
 type Opts struct {
 	CloseFallback Closer
 	NotifySpped   NotifySpped
-	MapStore      *MapStore
 	TUN           *TUN   `json:"tun"`
 	Savepath      string `json:"savepath"`
 }
