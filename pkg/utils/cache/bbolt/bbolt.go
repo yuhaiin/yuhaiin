@@ -22,12 +22,12 @@ func NewCache(db *bbolt.DB, bucketName string) *Cache {
 	return c
 }
 
-func (c *Cache) Get(k []byte) (v []byte) {
+func (c *Cache) Get(k []byte) (v []byte, err error) {
 	if c.db == nil {
-		return nil
+		return nil, nil
 	}
 
-	_ = c.db.View(func(tx *bbolt.Tx) error {
+	err = c.db.View(func(tx *bbolt.Tx) error {
 		bk := c.existBucket(tx)
 		if bk == nil {
 			return nil
@@ -41,7 +41,7 @@ func (c *Cache) Get(k []byte) (v []byte) {
 		return nil
 	})
 
-	return v
+	return v, err
 }
 
 func (c *Cache) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
@@ -86,12 +86,12 @@ func (c *Cache) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
 	return bk, nil
 }
 
-func (c *Cache) Put(k, v []byte) {
+func (c *Cache) Put(k, v []byte) error {
 	if c.db == nil {
-		return
+		return nil
 	}
 
-	_ = c.db.Batch(func(tx *bbolt.Tx) error {
+	return c.db.Batch(func(tx *bbolt.Tx) error {
 		bk, err := c.bucket(tx)
 		if err != nil {
 			return err
@@ -100,12 +100,12 @@ func (c *Cache) Put(k, v []byte) {
 	})
 }
 
-func (c *Cache) Delete(k ...[]byte) {
+func (c *Cache) Delete(k ...[]byte) error {
 	if c.db == nil {
-		return
+		return nil
 	}
 
-	_ = c.db.Batch(func(tx *bbolt.Tx) error {
+	return c.db.Batch(func(tx *bbolt.Tx) error {
 		bk := c.existBucket(tx)
 		if bk == nil {
 			return nil
@@ -125,12 +125,12 @@ func (c *Cache) Delete(k ...[]byte) {
 	})
 }
 
-func (c *Cache) Range(f func(key []byte, value []byte) bool) {
+func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
 	if c.db == nil {
-		return
+		return nil
 	}
 
-	_ = c.db.View(func(tx *bbolt.Tx) error {
+	return c.db.View(func(tx *bbolt.Tx) error {
 		bkt, err := c.bucket(tx)
 		if err != nil {
 			return err

@@ -30,54 +30,56 @@ func ifOr[T any](a bool, b, c T) T {
 }
 
 func fakeSetting(opt *Opts, path string) config.Setting {
+	store := GetStore("Default")
+
 	var listenHost string = "127.0.0.1"
-	if opt.MapStore.GetBoolean(AllowLanKey) {
+	if store.GetBoolean(AllowLanKey) {
 		listenHost = "0.0.0.0"
 	}
 
 	opts, _ := json.Marshal(opt)
 	log.Info("fake setting config", "data", string(opts))
 	settings := &pc.Setting{
-		Ipv6: opt.MapStore.GetBoolean(IPv6Key),
+		Ipv6: store.GetBoolean(IPv6Key),
 		Dns: &dns.DnsConfig{
-			Server:           ifOr(opt.MapStore.GetInt(DNSPortKey) == 0, "", net.JoinHostPort(listenHost, fmt.Sprint(opt.MapStore.GetInt(DNSPortKey)))),
-			Fakedns:          opt.MapStore.GetString(FakeDNSCIDRKey) != "" || opt.MapStore.GetString(FakeDNSv6CIDRKey) != "",
-			FakednsIpRange:   opt.MapStore.GetString(FakeDNSCIDRKey),
-			FakednsIpv6Range: opt.MapStore.GetString(FakeDNSv6CIDRKey),
+			Server:           ifOr(store.GetInt(DNSPortKey) == 0, "", net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(DNSPortKey)))),
+			Fakedns:          store.GetString(FakeDNSCIDRKey) != "" || store.GetString(FakeDNSv6CIDRKey) != "",
+			FakednsIpRange:   store.GetString(FakeDNSCIDRKey),
+			FakednsIpv6Range: store.GetString(FakeDNSv6CIDRKey),
 			Hosts:            make(map[string]string),
 			Remote: &dns.Dns{
-				Host:          opt.MapStore.GetString(RemoteDNSHostKey),
-				Type:          dns.Type(dns.Type_value[opt.MapStore.GetString(RemoteDNSTypeKey)]),
-				Subnet:        opt.MapStore.GetString(RemoteDNSSubnetKey),
-				TlsServername: opt.MapStore.GetString(RemoteDNSTLSServerNameKey),
+				Host:          store.GetString(RemoteDNSHostKey),
+				Type:          dns.Type(dns.Type_value[store.GetString(RemoteDNSTypeKey)]),
+				Subnet:        store.GetString(RemoteDNSSubnetKey),
+				TlsServername: store.GetString(RemoteDNSTLSServerNameKey),
 			},
 			Local: &dns.Dns{
-				Host:          opt.MapStore.GetString(LocalDNSHostKey),
-				Type:          dns.Type(dns.Type_value[opt.MapStore.GetString(LocalDNSTypeKey)]),
-				Subnet:        opt.MapStore.GetString(LocalDNSSubnetKey),
-				TlsServername: opt.MapStore.GetString(LocalDNSTLSServerNameKey),
+				Host:          store.GetString(LocalDNSHostKey),
+				Type:          dns.Type(dns.Type_value[store.GetString(LocalDNSTypeKey)]),
+				Subnet:        store.GetString(LocalDNSSubnetKey),
+				TlsServername: store.GetString(LocalDNSTLSServerNameKey),
 			},
 			Bootstrap: &dns.Dns{
-				Host:          opt.MapStore.GetString(BootstrapDNSHostKey),
-				Type:          dns.Type(dns.Type_value[opt.MapStore.GetString(BootstrapDNSTypeKey)]),
-				Subnet:        opt.MapStore.GetString(BootstrapDNSSubnetKey),
-				TlsServername: opt.MapStore.GetString(BootstrapDNSTLSServerNameKey),
+				Host:          store.GetString(BootstrapDNSHostKey),
+				Type:          dns.Type(dns.Type_value[store.GetString(BootstrapDNSTypeKey)]),
+				Subnet:        store.GetString(BootstrapDNSSubnetKey),
+				TlsServername: store.GetString(BootstrapDNSTLSServerNameKey),
 			},
 		},
 		SystemProxy: &pc.SystemProxy{},
 		Server: &listener.InboundConfig{
-			HijackDns: opt.MapStore.GetBoolean(DNSHijackingKey),
+			HijackDns: store.GetBoolean(DNSHijackingKey),
 			// HijackDnsFakeip: opt.DNS.Fakedns,
 			Sniff: &listener.Sniff{
-				Enabled: opt.MapStore.GetBoolean(SniffKey),
+				Enabled: store.GetBoolean(SniffKey),
 			},
 			Inbounds: map[string]*listener.Inbound{
 				"mix": {
 					Name:    "mix",
-					Enabled: opt.MapStore.GetInt(HTTPPortKey) != 0,
+					Enabled: store.GetInt(HTTPPortKey) != 0,
 					Network: &listener.Inbound_Tcpudp{
 						Tcpudp: &listener.Tcpudp{
-							Host:    net.JoinHostPort(listenHost, fmt.Sprint(opt.MapStore.GetInt(HTTPPortKey))),
+							Host:    net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(HTTPPortKey))),
 							Control: listener.TcpUdpControl_tcp_udp_control_all,
 						},
 					},
@@ -97,7 +99,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 							PortalV6:      opt.TUN.PortalV6,
 							SkipMulticast: true,
 							Route:         &listener.Route{},
-							Driver:        listener.TunEndpointDriver(listener.TunEndpointDriver_value[opt.MapStore.GetString(TunDriverKey)]),
+							Driver:        listener.TunEndpointDriver(listener.TunEndpointDriver_value[store.GetString(TunDriverKey)]),
 						},
 					},
 				},
@@ -105,17 +107,17 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		},
 
 		Bypass: &bypass.Config{
-			Tcp:            bypass.Mode(bypass.Mode_value[opt.MapStore.GetString(TCPBypassKey)]),
-			Udp:            bypass.Mode(bypass.Mode_value[opt.MapStore.GetString(UDPBypassKey)]),
+			Tcp:            bypass.Mode(bypass.Mode_value[store.GetString(TCPBypassKey)]),
+			Udp:            bypass.Mode(bypass.Mode_value[store.GetString(UDPBypassKey)]),
 			CustomRuleV3:   []*bypass.ModeConfig{},
-			ResolveLocally: opt.MapStore.GetBoolean(RemoteDNSResolveDomainKey),
+			ResolveLocally: store.GetBoolean(RemoteDNSResolveDomainKey),
 			RemoteRules: []*bypass.RemoteRule{
 				{
 					Enabled: true,
 					Name:    "remote",
 					Object: &bypass.RemoteRule_Http{
 						Http: &bypass.RemoteRuleHttp{
-							Url: opt.MapStore.GetString(RuleByPassUrlKey),
+							Url: store.GetString(RuleByPassUrlKey),
 						},
 					},
 				},
@@ -123,25 +125,25 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		},
 
 		Logcat: &pl.Logcat{
-			Level: pl.LogLevel(pl.LogLevel_value[opt.MapStore.GetString(LogLevelKey)]),
-			Save:  opt.MapStore.GetBoolean(SaveLogcatKey),
+			Level: pl.LogLevel(pl.LogLevel_value[store.GetString(LogLevelKey)]),
+			Save:  store.GetBoolean(SaveLogcatKey),
 		},
 		Platform: &pc.Platform{
 			AndroidApp: true,
 		},
 	}
 
-	if err := json.Unmarshal([]byte(opt.MapStore.GetString(HostsKey)), &settings.Dns.Hosts); err != nil {
+	if err := json.Unmarshal([]byte(store.GetString(HostsKey)), &settings.Dns.Hosts); err != nil {
 		log.Warn("unmarshal hosts failed", "err", err)
 	}
 
-	if opt.MapStore.GetBoolean(UDPProxyFQDNKey) {
+	if store.GetBoolean(UDPProxyFQDNKey) {
 		settings.Bypass.UdpProxyFqdn = bypass.UdpProxyFqdnStrategy_skip_resolve
 	}
 
-	applyRule(settings, opt.MapStore.GetString(ProxyKey), bypass.Mode_proxy)
-	applyRule(settings, opt.MapStore.GetString(BlockKey), bypass.Mode_block)
-	applyRule(settings, opt.MapStore.GetString(DirectKey), bypass.Mode_direct)
+	applyRule(settings, store.GetString(ProxyKey), bypass.Mode_proxy)
+	applyRule(settings, store.GetString(BlockKey), bypass.Mode_block)
+	applyRule(settings, store.GetString(DirectKey), bypass.Mode_direct)
 	return newFakeSetting(settings, filepath.Dir(path))
 }
 

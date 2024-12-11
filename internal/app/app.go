@@ -30,6 +30,7 @@ import (
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
+	bolterr "go.etcd.io/bbolt/errors"
 
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
@@ -72,7 +73,7 @@ func AddComponent[T any](a *appapi.Start, name string, t T) T {
 func OpenBboltDB(path string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{Timeout: time.Second * 2})
 	switch err {
-	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
+	case bolterr.ErrInvalid, bolterr.ErrChecksum, bolterr.ErrVersionMismatch:
 		if err = os.Remove(path); err != nil {
 			return nil, fmt.Errorf("remove invalid cache file failed: %w", err)
 		}

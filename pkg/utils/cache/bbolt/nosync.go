@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"go.etcd.io/bbolt"
 )
 
@@ -69,12 +70,12 @@ func NewNosyncCache(db *bbolt.DB, bucketName string) *Nosync {
 	return c
 }
 
-func (c *Nosync) Get(k []byte) (v []byte) {
+func (c *Nosync) Get(k []byte) (v []byte, err error) {
 	if c.db == nil {
-		return nil
+		return nil, nil
 	}
 
-	_ = c.db.View(func(tx *bbolt.Tx) error {
+	err = c.db.View(func(tx *bbolt.Tx) error {
 		bk := c.existBucket(tx)
 		if bk == nil {
 			return nil
@@ -88,7 +89,7 @@ func (c *Nosync) Get(k []byte) (v []byte) {
 		return nil
 	})
 
-	return v
+	return v, err
 }
 
 func (c *Nosync) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
@@ -130,43 +131,47 @@ func (c *Nosync) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
 	return bk, nil
 }
 
-func (c *Nosync) Put(k, v []byte) {
+func (c *Nosync) Put(k, v []byte) error {
 	if c.db == nil {
-		return
+		return nil
 	}
 
 	select {
 	case <-c.closed.Done():
-		return
+		return nil
 	case c.cache <- NoSynncEntry{
 		Type:  Put,
 		Keys:  [][]byte{k},
 		Value: v,
 	}:
 	}
+
+	return nil
 }
 
-func (c *Nosync) Delete(k ...[]byte) {
+func (c *Nosync) Delete(k ...[]byte) error {
 	if c.db == nil {
-		return
+		return nil
 	}
 
 	select {
 	case <-c.closed.Done():
-		return
+		return nil
 	case c.cache <- NoSynncEntry{
 		Type: Delete,
 		Keys: k,
 	}:
 	}
+
+	return nil
 }
 
-func (c *Nosync) Range(f func(key []byte, value []byte) bool) {
+func (c *Nosync) Range(f func(key []byte, value []byte) bool) error {
 	if c.db == nil {
-		return
+		return nil
 	}
 
-	_ = c.db.View(func(tx *bbolt.Tx) error {
+	return c.db.View(func(tx *bbolt.Tx) error {
 		bkt, err := c.bucket(tx)
 		if err != nil {
 			return err
@@ -204,6 +209,13 @@ func (c *Nosync) put(k, v []byte) {
 		}
 		return bk.Put(k, v)
 	})
+}
+
+// NewCache you must close every new cache for no sync
+func (c *Nosync) NewCache(bucketName string) cache.Cache {
+	cc := NewNosyncCache(c.db, bucketName)
+	cc.bucketName = append(c.bucketName, []byte(bucketName))
+	return cc
 }
 
 func (c *Nosync) delete(k ...[]byte) {

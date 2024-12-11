@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+// this is for android multiple process access bboltdb only
+package yuhaiin.kvstore;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/kv";
+
+import "google/protobuf/empty.proto";
+
+message element {
+  repeated string buckets = 1 [ json_name = "buckets" ];
+  bytes key = 2 [ json_name = "key" ];
+  bytes value = 3 [ json_name = "value" ];
+}
+
+message Keys {
+  repeated string buckets = 1 [ json_name = "buckets" ];
+  repeated bytes keys = 2 [ json_name = "keys" ];
+}
+
+service kvstore {
+  rpc Get(element) returns (element);
+  rpc Set(element) returns (google.protobuf.Empty);
+  rpc Delete(Keys) returns (google.protobuf.Empty);
+  rpc Range(element) returns (stream element);
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+}

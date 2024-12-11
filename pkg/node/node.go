@@ -153,13 +153,20 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 			}
 
 			t, err := z.Latency(px)
-			if err != nil {
-				log.Error("latency failed", "err", err)
-				return
-			}
 
 			mu.Lock()
-			resp.IdLatencyMap[s.Id] = t
+			if err != nil {
+				log.Error("latency failed", "err", err)
+				resp.IdLatencyMap[s.Id] = &latency.Reply{
+					Reply: &latency.Reply_Error{
+						Error: &latency.Error{
+							Msg: err.Error(),
+						},
+					},
+				}
+			} else {
+				resp.IdLatencyMap[s.Id] = t
+			}
 			mu.Unlock()
 		}(s)
 	}
