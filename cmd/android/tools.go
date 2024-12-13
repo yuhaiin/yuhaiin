@@ -32,8 +32,9 @@ type AddRoute interface {
 	Add(*CIDR)
 }
 
-func AddRulesCidr(process AddRoute, rules string) {
-	r := bufio.NewScanner(strings.NewReader(rules))
+func AddRulesCidr(process AddRoute) {
+	s := GetStore("Default")
+	r := bufio.NewScanner(strings.NewReader(s.GetString(RuleProxy) + "\n" + s.GetString(RuleBlock)))
 	for r.Scan() {
 		line := r.Bytes()
 

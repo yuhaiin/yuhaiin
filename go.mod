@@ -11,7 +11,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20241113014420-4e883d38c8d3
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241211133652-471a61062974
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241213164056-e5f28df75db2
 	// for fix https://github.com/etcd-io/bbolt/issues/840
 	go.etcd.io/bbolt v1.4.0-beta.0.0.20241204153925-22ac598c5e82
 	golang.org/x/crypto v0.31.0
@@ -21,7 +21,7 @@ require (
 	golang.org/x/sys v0.28.0
 	golang.org/x/time v0.8.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	google.golang.org/grpc v1.68.1
+	google.golang.org/grpc v1.69.0
 	google.golang.org/protobuf v1.35.2
 	gvisor.dev/gvisor v0.0.0-20241120231458-0add1d20fa0c
 )
@@ -49,7 +49,7 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.28.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53 // indirect
 )
 
 replace golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e

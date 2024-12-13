@@ -151,7 +151,7 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) NewCache(str string) cache.Cache {
+func (c *Cache) NewCache(str string) cache.RecursionCache {
 	return &Cache{
 		db:         c.db,
 		bucketName: append(c.bucketName, []byte(str)),

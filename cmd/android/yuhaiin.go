@@ -20,6 +20,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+//go:generate go run generate.go
+
 type App struct {
 	app *appapi.Components
 	lis *http.Server
@@ -48,7 +50,7 @@ func (a *App) Start(opt *Opts) error {
 				ConfigPath: opt.Savepath,
 				Setting:    fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
 				Host: net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
-					fmt.Sprint(GetStore("Default").GetInt(YuhaiinPortKey))),
+					fmt.Sprint(GetStore("Default").GetInt(NewYuhaiinPortKey))),
 				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),
 			})
 		if err != nil {

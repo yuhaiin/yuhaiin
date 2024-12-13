@@ -5,8 +5,12 @@ type Cache interface {
 	Put(k, v []byte) error
 	Delete(k ...[]byte) error
 	Close() error
-	NewCache(str string) Cache
 	Range(f func(key []byte, value []byte) bool) error
+}
+
+type RecursionCache interface {
+	Cache
+	NewCache(str string) RecursionCache
 }
 
 var _ Cache = (*MockCache)(nil)
