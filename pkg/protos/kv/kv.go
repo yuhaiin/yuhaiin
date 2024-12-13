@@ -190,7 +190,7 @@ func (c *KVStoreCli) Range(f func(key []byte, value []byte) bool) error {
 	return nil
 }
 
-func (c *KVStoreCli) NewCache(b string) cache.Cache {
+func (c *KVStoreCli) NewCache(b string) cache.RecursionCache {
 	return &KVStoreCli{
 		buckets:       append(c.buckets, b),
 		conn:          c.conn,
@@ -199,7 +199,6 @@ func (c *KVStoreCli) NewCache(b string) cache.Cache {
 }
 
 func NewClient(unixPath string) (*KVStoreCli, error) {
-	slog.Info("new kv client", "path", unixPath)
 	conn, err := grpc.NewClient(
 		"passthrough://"+unixPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

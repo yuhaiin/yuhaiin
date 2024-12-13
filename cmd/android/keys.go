@@ -1,111 +1,97 @@
 package yuhaiin
 
+import "encoding/json"
+
 var (
-	AllowLanKey     = "allow_lan"
-	AppendHTTPProxy = "Append HTTP Proxy to VPN"
-	IPv6Key         = "ipv6"
-	NetworkSpeedKey = "network_speed"
-	AutoConnectKey  = "auto_connect"
-	PerAppKey       = "per_app"
-	AppBypassKey    = "app_bypass"
-	UDPProxyFQDNKey = "UDP proxy FQDN"
-	SniffKey        = "Sniff"
-	SaveLogcatKey   = "save_logcat"
-
-	RouteKey         = "route"
-	FakeDNSCIDRKey   = "fake_dns_cidr"
-	FakeDNSv6CIDRKey = "fake_dnsv6_cidr"
-	TunDriverKey     = "Tun Driver"
-	AppListKey       = "app_list"
-	LogLevelKey      = "Log Level"
-	RuleByPassUrlKey = "Rule Update Bypass"
-	RemoteRulesKey   = "remote_rules"
-	BlockKey         = "Block"
-	ProxyKey         = "Proxy"
-	DirectKey        = "Direct"
-	TCPBypassKey     = "TCP"
-	UDPBypassKey     = "UDP"
-	HostsKey         = "hosts"
-
-	DNSPortKey     = "dns_port"
-	HTTPPortKey    = "http_port"
-	YuhaiinPortKey = "yuhaiin_port"
-
-	DNSHijackingKey = "dns_hijacking"
-
-	RemoteDNSHostKey          = "remote_dns_host"
-	RemoteDNSTypeKey          = "remote_dns_type"
-	RemoteDNSSubnetKey        = "remote_dns_subnet"
-	RemoteDNSTLSServerNameKey = "remote_dns_tls_server_name"
-	RemoteDNSResolveDomainKey = "remote_dns_resolve_domain"
-
-	LocalDNSHostKey          = "local_dns_host"
-	LocalDNSTypeKey          = "local_dns_type"
-	LocalDNSSubnetKey        = "local_dns_subnet"
-	LocalDNSTLSServerNameKey = "local_dns_tls_server_name"
-
-	BootstrapDNSHostKey          = "bootstrap_dns_host"
-	BootstrapDNSTypeKey          = "bootstrap_dns_type"
-	BootstrapDNSSubnetKey        = "bootstrap_dns_subnet"
-	BootstrapDNSTLSServerNameKey = "bootstrap_dns_tls_server_name"
+	NewHTTPPortKey    = "http_port"
+	NewYuhaiinPortKey = "yuhaiin_port"
+	NewHostsKey       = "hosts"
 )
 
 var (
 	defaultBoolValue = map[string]byte{
 		AllowLanKey:               0,
-		AppendHTTPProxy:           0,
-		IPv6Key:                   1,
+		AppendHttpProxyToVpnKey:   0,
+		Ipv6ProxyKey:              1,
 		NetworkSpeedKey:           0,
-		AutoConnectKey:            0,
-		PerAppKey:                 0,
-		AppBypassKey:              0,
-		UDPProxyFQDNKey:           0,
-		SniffKey:                  1,
-		DNSHijackingKey:           1,
-		RemoteDNSResolveDomainKey: 0,
-		SaveLogcatKey:             0,
+		AdvAutoConnectKey:         0,
+		AdvPerAppKey:              0,
+		AdvAppBypassKey:           0,
+		UdpProxyFqdn:              0,
+		Sniff:                     1,
+		DnsHijacking:              1,
+		RemoteDnsResolveDomainKey: 0,
+		SaveLogcat:                0,
 	}
 
+	disAllowAppList, _ = json.Marshal([]string{
+		// RCS/Jibe https://github.com/tailscale/tailscale/issues/2322
+		"com.google.android.apps.messaging",
+		// Android Auto https://github.com/tailscale/tailscale/issues/3828
+		"com.google.android.projection.gearhead",
+		// GoPro https://github.com/tailscale/tailscale/issues/2554
+		"com.gopro.smarty",
+		// Sonos https://github.com/tailscale/tailscale/issues/2548
+		"com.sonos.acr",
+		"com.sonos.acr2",
+		// Google Chromecast https://github.com/tailscale/tailscale/issues/3636
+		"com.google.android.apps.chromecast.app",
+		// Voicemail https://github.com/tailscale/tailscale/issues/13199
+		"com.samsung.attvvm",
+		"com.att.mobile.android.vvm",
+		"com.tmobile.vvm.application",
+		"com.metropcs.service.vvm",
+		"com.mizmowireless.vvm",
+		"com.vna.service.vvm",
+		"com.dish.vvm",
+		"com.comcast.modesto.vvm.client",
+		// Android Connectivity Service https://github.com/tailscale/tailscale/issues/14128
+		"com.google.android.apps.scone",
+
+		// myself
+		"io.github.yuhaiin",
+	})
+
 	defaultStringValue = map[string]string{
-		RouteKey:         "All (Default)",
-		FakeDNSCIDRKey:   "10.0.2.1/16",
-		FakeDNSv6CIDRKey: "fc00::/64",
-		TunDriverKey:     "system_gvisor",
-		AppListKey:       `["io.github.yuhaiin"]`,
-		LogLevelKey:      "info",
+		AdvRouteAll:         AdvRoutes[0],
+		AdvFakeDnsCidrKey:   "10.0.2.1/16",
+		AdvFakeDnsv6CidrKey: "fc00::/64",
+		AdvTunDriverKey:     TunDrivers[2],
+		AdvAppListKey:       string(disAllowAppList),
+		LogLevel:            LogLevels[2],
 
-		RuleByPassUrlKey: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
-		RemoteRulesKey:   "[]",
+		RuleUpdateBypassFile: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
+		// RemoteRulesKey:       "[]",
 		// rules
-		BlockKey:  "",
-		ProxyKey:  "",
-		DirectKey: "",
+		RuleBlock:  "",
+		RuleProxy:  "",
+		RuleDirect: "",
 
-		TCPBypassKey: "bypass",
-		UDPBypassKey: "bypass",
+		BypassTcp: AdvBypassMode[0],
+		BypassUdp: AdvBypassMode[0],
 
-		HostsKey: `{"example.com": "127.0.0.1"}`,
+		DnsHostsKey: `{"example.com": "127.0.0.1"}`,
 
-		RemoteDNSHostKey:          "cloudflare.com",
-		RemoteDNSTypeKey:          "doh",
-		RemoteDNSSubnetKey:        "",
-		RemoteDNSTLSServerNameKey: "",
+		RemoteDnsHostKey:          "cloudflare.com",
+		RemoteDnsTypeKey:          DnsTypes[2],
+		RemoteDnsSubnetKey:        "",
+		RemoteDnsTlsServerNameKey: "",
 
-		LocalDNSHostKey:          "1.1.1.1",
-		LocalDNSTypeKey:          "doh",
-		LocalDNSSubnetKey:        "",
-		LocalDNSTLSServerNameKey: "",
+		LocalDnsHostKey:          "1.1.1.1",
+		LocalDnsTypeKey:          DnsTypes[2],
+		LocalDnsSubnetKey:        "",
+		LocalDnsTlsServerNameKey: "",
 
-		BootstrapDNSHostKey:          "1.1.1.1",
-		BootstrapDNSTypeKey:          "doh",
-		BootstrapDNSSubnetKey:        "",
-		BootstrapDNSTLSServerNameKey: "",
+		BootstrapDnsHostKey:          "1.1.1.1",
+		BootstrapDnsTypeKey:          DnsTypes[2],
+		BootstrapDnsSubnetKey:        "",
+		BootstrapDnsTlsServerNameKey: "",
 	}
 
 	defaultIntValue = map[string]int32{
-		DNSPortKey:     0,
-		HTTPPortKey:    0,
-		YuhaiinPortKey: 3500,
+		AdvDnsPortKey:     0,
+		NewHTTPPortKey:    0,
+		NewYuhaiinPortKey: 3500,
 	}
 
 	defaultLangValue  = map[string]int64{}

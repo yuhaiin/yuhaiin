@@ -128,9 +128,6 @@ func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 }
 
 func (c *setting) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	err := c.Update(func(ss *config.Setting) error {
 		ss.Dns = s.Dns
 		ss.Ipv6 = s.Ipv6
