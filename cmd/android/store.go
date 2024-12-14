@@ -6,11 +6,16 @@ import (
 	"log/slog"
 	"math"
 	"path/filepath"
+	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/share"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"google.golang.org/protobuf/proto"
 )
 
 var dbPath string
@@ -32,6 +37,8 @@ type Store interface {
 	GetBoolean(key string) bool
 	GetLong(key string) int64
 	GetFloat(key string) float32
+	GetBytes(key string) []byte
+	PutBytes(key string, value []byte)
 	Close() error
 }
 
@@ -68,12 +75,21 @@ func (s *storeImpl) PutFloat(key string, value float32) {
 	_ = s.db.Put([]byte(key), bytes)
 }
 
+func (s *storeImpl) PutBytes(key string, value []byte) {
+	_ = s.db.Put([]byte(key), value)
+}
+
 func (s *storeImpl) GetString(key string) string {
 	bytes, _ := s.db.Get([]byte(key))
 	if bytes == nil {
 		return defaultStringValue[key]
 	}
 	return string(bytes)
+}
+
+func (s *storeImpl) GetBytes(key string) []byte {
+	bytes, _ := s.db.Get([]byte(key))
+	return bytes
 }
 
 func (s *storeImpl) GetInt(key string) int32 {
@@ -150,3 +166,57 @@ func CloseStore() {
 		return true
 	})
 }
+
+type bypassConfig struct {
+	mu      sync.Mutex
+	setting *bypass.Config
+}
+
+func newBypassDB() *bypassConfig {
+	return &bypassConfig{}
+}
+
+func (b *bypassConfig) initSetting() {
+	if b.setting != nil {
+		return
+	}
+
+	s := GetStore("Default").GetBytes("bypass_db")
+
+	config := config.DefaultSetting(b.Dir()).Bypass
+	if len(s) > 0 {
+		err := proto.Unmarshal(s, config)
+		if err != nil {
+			slog.Error("unmarshal failed", slog.Any("err", err))
+		}
+	}
+
+	b.setting = config
+}
+
+func (b *bypassConfig) Batch(f ...func(*pc.Setting) error) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.initSetting()
+
+	setting := &pc.Setting{
+		Bypass: b.setting,
+	}
+	for i := range f {
+		if err := f[i](setting); err != nil {
+			return err
+		}
+	}
+
+	s, err := proto.Marshal(setting.Bypass)
+	if err != nil {
+		return err
+	}
+
+	b.setting = setting.Bypass
+	GetStore("Default").PutBytes("bypass_db", s)
+	return nil
+}
+
+func (b *bypassConfig) Dir() string { return filepath.Dir(dbPath) }

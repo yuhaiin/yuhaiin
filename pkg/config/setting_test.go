@@ -23,7 +23,7 @@ func TestMergeDefault(t *testing.T) {
 		},
 	}
 
-	jsondb.MergeDefault(src.ProtoReflect(), defaultSetting("").ProtoReflect())
+	jsondb.MergeDefault(src.ProtoReflect(), DefaultSetting("").ProtoReflect())
 
 	data, err := protojson.MarshalOptions{Indent: "\t"}.Marshal(src)
 	assert.NoError(t, err)

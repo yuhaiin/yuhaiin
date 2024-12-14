@@ -123,7 +123,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	dns := AddComponent(so, "resolver", resolver.NewResolver(dynamicProxy))
 	// bypass dialer and dns request
 	st := AddComponent(so, "shunt", route.NewRoute(node.Outbound(), dns, opt.ProcessDumper))
-	rc := route.NewRuleController(opt.Setting, st)
+	rc := route.NewRuleController(opt.BypassConfig, st)
 	node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
 

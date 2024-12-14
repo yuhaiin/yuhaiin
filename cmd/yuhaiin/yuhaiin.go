@@ -47,6 +47,7 @@ func run(args []string) error {
 	app, err := app.Start(appapi.Start{
 		ConfigPath:    *path,
 		Host:          *host,
+		BypassConfig:  setting,
 		Setting:       setting,
 		GRPCServer:    grpcserver,
 		ProcessDumper: getPorcessDumper(),

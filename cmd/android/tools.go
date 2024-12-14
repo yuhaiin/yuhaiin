@@ -1,12 +1,11 @@
 package yuhaiin
 
 import (
-	"bufio"
-	"bytes"
 	"net"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
 
 type CIDR struct {
@@ -32,48 +31,52 @@ type AddRoute interface {
 	Add(*CIDR)
 }
 
-func AddRulesCidr(process AddRoute) {
-	s := GetStore("Default")
-	r := bufio.NewScanner(strings.NewReader(s.GetString(RuleProxy) + "\n" + s.GetString(RuleBlock)))
-	for r.Scan() {
-		line := r.Bytes()
+func AddRulesCidrv2(process AddRoute) {
+	bd := &bypass.Config{}
+	_ = newBypassDB().Batch(func(s *pc.Setting) error {
+		bd = s.Bypass
+		return nil
+	})
 
-		z := bytes.FieldsFunc(line, func(r rune) bool { return r == ',' })
-		if len(z) == 0 {
+	for _, v := range bd.CustomRuleV3 {
+
+		if v.Mode == bypass.Mode_direct && v.Tag == "" {
 			continue
 		}
 
-		_, cidr, err := net.ParseCIDR(string(z[0]))
-		if err != nil {
-			ip := net.ParseIP(string(z[0]))
-			if ip == nil {
-				continue
+		for _, hostname := range v.Hostname {
+			_, cidr, err := net.ParseCIDR(hostname)
+			if err != nil {
+				ip := net.ParseIP(hostname)
+				if ip == nil {
+					continue
+				}
+
+				var mask []byte
+				if ip.To4() != nil {
+					mask = v4DefaultMask
+				} else {
+					mask = v6DefaultMask
+				}
+
+				cidr = &net.IPNet{
+					IP:   ip,
+					Mask: mask,
+				}
 			}
 
-			var mask []byte
-			if ip.To4() != nil {
-				mask = v4DefaultMask
-			} else {
-				mask = v6DefaultMask
-			}
+			mask, _ := cidr.Mask.Size()
+			ip := cidr.IP.String()
 
-			cidr = &net.IPNet{
+			log.Info("try add route", "addr", &CIDR{
 				IP:   ip,
-				Mask: mask,
-			}
+				Mask: int32(mask),
+			}, "tag", v.Tag, "mode", v.Mode, "hostname", hostname)
+
+			process.Add(&CIDR{
+				IP:   ip,
+				Mask: int32(mask),
+			})
 		}
-
-		mask, _ := cidr.Mask.Size()
-		ip := cidr.IP.String()
-
-		log.Info("try add route", "addr", &CIDR{
-			IP:   ip,
-			Mask: int32(mask),
-		})
-
-		process.Add(&CIDR{
-			IP:   ip,
-			Mask: int32(mask),
-		})
 	}
 }
