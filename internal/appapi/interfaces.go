@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
@@ -65,9 +66,10 @@ func (a *Components) Close() error {
 }
 
 type Start struct {
-	ConfigPath string
-	Host       string
-	Setting    config.Setting
+	ConfigPath   string
+	Host         string
+	BypassConfig pc.DB
+	Setting      config.Setting
 
 	ProcessDumper netapi.ProcessDumper
 	GRPCServer    *grpc.Server

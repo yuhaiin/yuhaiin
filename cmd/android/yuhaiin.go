@@ -47,8 +47,9 @@ func (a *App) Start(opt *Opts) error {
 
 		app, err := app.Start(
 			appapi.Start{
-				ConfigPath: opt.Savepath,
-				Setting:    fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
+				ConfigPath:   opt.Savepath,
+				BypassConfig: newBypassDB(),
+				Setting:      fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
 				Host: net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
 					fmt.Sprint(GetStore("Default").GetInt(NewYuhaiinPortKey))),
 				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),

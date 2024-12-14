@@ -45,7 +45,7 @@ type setting struct {
 }
 
 func NewConfig(path string) Setting {
-	s := &setting{db: jsondb.Open(path, defaultSetting(path))}
+	s := &setting{db: jsondb.Open(path, DefaultSetting(path))}
 	s.migrate()
 	return s
 }

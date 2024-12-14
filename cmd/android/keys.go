@@ -17,8 +17,8 @@ var (
 		AdvAutoConnectKey:         0,
 		AdvPerAppKey:              0,
 		AdvAppBypassKey:           0,
-		UdpProxyFqdn:              0,
-		Sniff:                     1,
+		UdpProxyFqdnKey:           0,
+		SniffKey:                  1,
 		DnsHijacking:              1,
 		RemoteDnsResolveDomainKey: 0,
 		SaveLogcat:                0,
@@ -53,37 +53,37 @@ var (
 	})
 
 	defaultStringValue = map[string]string{
-		AdvRouteAll:         AdvRoutes[0],
+		AdvRouteKey:         AdvRoutes[0],
 		AdvFakeDnsCidrKey:   "10.0.2.1/16",
 		AdvFakeDnsv6CidrKey: "fc00::/64",
-		AdvTunDriverKey:     TunDrivers[2],
+		AdvTunDriverKey:     TunDriversValue[2],
 		AdvAppListKey:       string(disAllowAppList),
 		LogLevel:            LogLevels[2],
 
-		RuleUpdateBypassFile: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
+		RuleUpdateBypassFileKey: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
 		// RemoteRulesKey:       "[]",
 		// rules
 		RuleBlock:  "",
 		RuleProxy:  "",
 		RuleDirect: "",
 
-		BypassTcp: AdvBypassMode[0],
-		BypassUdp: AdvBypassMode[0],
+		BypassTcpKey: AdvBypassModeValue[0],
+		BypassUdpKey: AdvBypassModeValue[0],
 
 		DnsHostsKey: `{"example.com": "127.0.0.1"}`,
 
 		RemoteDnsHostKey:          "cloudflare.com",
-		RemoteDnsTypeKey:          DnsTypes[2],
+		RemoteDnsTypeKey:          DnsTypesValue[2],
 		RemoteDnsSubnetKey:        "",
 		RemoteDnsTlsServerNameKey: "",
 
 		LocalDnsHostKey:          "1.1.1.1",
-		LocalDnsTypeKey:          DnsTypes[2],
+		LocalDnsTypeKey:          DnsTypesValue[2],
 		LocalDnsSubnetKey:        "",
 		LocalDnsTlsServerNameKey: "",
 
 		BootstrapDnsHostKey:          "1.1.1.1",
-		BootstrapDnsTypeKey:          DnsTypes[2],
+		BootstrapDnsTypeKey:          DnsTypesValue[2],
 		BootstrapDnsSubnetKey:        "",
 		BootstrapDnsTlsServerNameKey: "",
 	}

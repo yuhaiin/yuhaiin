@@ -71,7 +71,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			HijackDns: store.GetBoolean(DnsHijacking),
 			// HijackDnsFakeip: opt.DNS.Fakedns,
 			Sniff: &listener.Sniff{
-				Enabled: store.GetBoolean(Sniff),
+				Enabled: store.GetBoolean(SniffKey),
 			},
 			Inbounds: map[string]*listener.Inbound{
 				"mix": {
@@ -106,24 +106,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			},
 		},
 
-		Bypass: &bypass.Config{
-			Tcp:            bypass.Mode(bypass.Mode_value[store.GetString(BypassTcp)]),
-			Udp:            bypass.Mode(bypass.Mode_value[store.GetString(BypassUdp)]),
-			CustomRuleV3:   []*bypass.ModeConfig{},
-			ResolveLocally: store.GetBoolean(RemoteDnsResolveDomainKey),
-			UdpProxyFqdn:   ifOr(store.GetBoolean(UdpProxyFqdn), bypass.UdpProxyFqdnStrategy_skip_resolve, bypass.UdpProxyFqdnStrategy_udp_proxy_fqdn_strategy_default),
-			RemoteRules: []*bypass.RemoteRule{
-				{
-					Enabled: true,
-					Name:    "remote",
-					Object: &bypass.RemoteRule_Http{
-						Http: &bypass.RemoteRuleHttp{
-							Url: store.GetString(RuleUpdateBypassFile),
-						},
-					},
-				},
-			},
-		},
+		Bypass: &bypass.Config{},
 
 		Logcat: &pl.Logcat{
 			Level: pl.LogLevel(pl.LogLevel_value[store.GetString(LogLevel)]),

@@ -11,7 +11,7 @@ import (
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
 )
 
-func defaultSetting(path string) *config.Setting {
+func DefaultSetting(path string) *config.Setting {
 	tunname := "tun0"
 	if runtime.GOOS == "darwin" {
 		tunname = "utun0"

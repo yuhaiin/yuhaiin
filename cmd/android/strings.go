@@ -3,168 +3,77 @@ package yuhaiin
 
 var (
 	AdvAppBypassKey              = `app_bypass`
-	AdvAppBypassSum              = `Enable this option to bypass selected apps instead of proxying them`
-	AdvAppBypassTitle            = `Bypass Mode`
 	AdvAppListKey                = `app_list`
-	AdvAppListSum                = `Select apps to apply or bypass the proxy`
-	AdvAppListTitle              = `App List`
 	AdvAutoConnectKey            = `auto_connect`
-	AdvAutoConnectTitle          = `Connect on Boot`
 	AdvDnsKey                    = `dns`
 	AdvDnsPortKey                = `dns_port`
-	AdvDnsPortTitle              = `DNS Port`
 	AdvFakeDnsCidrKey            = `fake_dns_cidr`
-	AdvFakeDnsCidrTitle          = `Fake DNS CIDR`
 	AdvFakeDnsv6CidrKey          = `fake_dnsv6_cidr`
-	AdvFakeDnsv6CidrTitle        = `Fake DNSv6 CIDR`
 	AdvNewAppListKey             = `new_app_list`
 	AdvPerAppKey                 = `per_app`
-	AdvPerAppTitle               = `Per-app Proxy`
 	AdvRouteKey                  = `route`
 	AdvRouteAll                  = `All (Default)`
 	AdvRouteNonChn               = `Non-Chinese IPs`
 	AdvRouteNonLocal             = `Non-Local IPs`
-	AdvRouteTitle                = `Route`
 	AdvTunDriverKey              = `Tun Driver`
-	AdvTunDriverTitle            = `Tun Driver`
-	Advanced                     = `Advanced`
 	AllowLanKey                  = `allow_lan`
-	AllowLanTitle                = `Allow Lan Connect`
-	AppName                      = `yuhaiin`
 	AppendHttpProxyToVpnKey      = `Append HTTP Proxy to VPN`
-	AppendHttpProxyToVpnTitle    = `Append HTTP Proxy to VPN`
 	AuthPasswordKey              = `password`
-	AuthPasswordTitle            = `Password`
 	AuthUsernameKey              = `username`
-	AuthUsernameTitle            = `Username`
 	AuthUserpwKey                = `auth_userpw`
-	AuthUserpwTitle              = `Username & Password Authentication`
-	Authentication               = `Authentication`
 	BootstrapDnsHostKey          = `bootstrap_dns_host`
 	BootstrapDnsSubnetKey        = `bootstrap_dns_subnet`
 	BootstrapDnsTlsServerNameKey = `bootstrap_dns_tls_server_name`
 	BootstrapDnsTypeKey          = `bootstrap_dns_type`
-	BypassBlock                  = `BLOCK`
 	BypassBlockValue             = `block`
-	BypassBypass                 = `BYPASS`
 	BypassBypassValue            = `bypass`
-	BypassDirect                 = `DIRECT`
 	BypassDirectValue            = `direct`
-	BypassProxy                  = `PROXY`
 	BypassProxyValue             = `proxy`
-	BypassTcp                    = `TCP`
-	BypassUdp                    = `UDP`
-	ChannelName                  = `Proxy active`
-	Connection                   = `Connection`
-	Debug                        = `Debug`
-	DnsBootstrapTitle            = `Bootstrap`
-	DnsDnsHijackingTitle         = `DNS Hijacking`
+	BypassTcpKey                 = `TCP`
+	BypassUdpKey                 = `UDP`
 	DnsHijacking                 = `dns_hijacking`
-	DnsHostTitle                 = `Host`
-	DnsHostsAddFrom              = `Add From`
 	DnsHostsKey                  = `hosts_key`
-	DnsHostsTitle                = `Hosts`
-	DnsLocalTitle                = `Local`
-	DnsRemoteTitle               = `Remote`
-	DnsResolveDomainTitle        = `Resolve Domain`
-	DnsSubnetTitle               = `Subnet`
-	DnsTlsServerNameTitle        = `TLS Server Name`
-	DnsTypeDoh                   = `DNS over HTTPS`
-	DnsTypeDoh3                  = `DNS over HTTPS3`
 	DnsTypeDoh3Value             = `doh3`
 	DnsTypeDohValue              = `doh`
-	DnsTypeDoq                   = `DNS over QUIC`
 	DnsTypeDoqValue              = `doq`
-	DnsTypeDot                   = `DNS over TLS`
 	DnsTypeDotValue              = `dot`
-	DnsTypeDotcp                 = `DNS over TCP`
 	DnsTypeDotcpValue            = `tcp`
-	DnsTypeDoudp                 = `DNS over UDP`
 	DnsTypeDoudpValue            = `udp`
-	DnsTypeTitle                 = `Type`
-	ErrAddProf                   = `Failed to add profile %s`
-	ErrDelProf                   = `Error deleting profile %s`
 	HttpServerPortKey            = `http_server_port`
-	HttpServerPortTitle          = `HTTP Port`
 	Ipv6ProxyKey                 = `ipv6`
-	Ipv6ProxySum                 = `Enable IPv6 forwarding. If the server supports IPv6, you can access IPv6 contents from
-        IPv4 network with this enabled.
-    `
-	Ipv6ProxyTitle            = `IPv6`
-	LocalDnsHostKey           = `local_dns_host`
-	LocalDnsProxyKey          = `local_dns_proxy`
-	LocalDnsSubnetKey         = `local_dns_subnet`
-	LocalDnsTlsServerNameKey  = `local_dns_tls_server_name`
-	LocalDnsTypeKey           = `local_dns_type`
-	LogLevel                  = `Log Level`
-	LogLevelDebug             = `debug`
-	LogLevelError             = `error`
-	LogLevelFatal             = `fatal`
-	LogLevelInfo              = `info`
-	LogLevelName              = `Log Level`
-	LogLevelVerbose           = `verbose`
-	LogLevelWarning           = `warning`
-	Logcat                    = `Logcat`
-	LogcatName                = `Logcat`
-	NavDnsSettings            = `DNS`
-	NetworkSpeedKey           = `network_speed`
-	NetworkSpeedSum           = `Show network speed in notification.`
-	NetworkSpeedTitle         = `Network Speed`
-	NewRule                   = `New Rule`
-	NotifyMsg                 = `Connected to %s`
-	OpenYuhaiinPage           = `open_yuhaiin_page`
-	PortsKey                  = `ports_key`
-	PortsTitle                = `Ports`
-	ProfAdd                   = `Add Profile`
-	ProfDefault               = `Default`
-	ProfDel                   = `Delete Profile`
-	ProfDelConfirm            = `Delete profile %s?`
-	ProfileKey                = `profile`
-	ProfileTitle              = `Profile`
-	RemoteDnsCategoryKey      = `remote_dns_category`
-	RemoteDnsHostKey          = `remote_dns_host`
-	RemoteDnsProxyKey         = `remote_dns_proxy`
-	RemoteDnsResolveDomainKey = `remote_dns_resolve_domain`
-	RemoteDnsSubnetKey        = `remote_dns_subnet`
-	RemoteDnsTlsServerNameKey = `remote_dns_tls_server_name`
-	RemoteDnsTypeKey          = `remote_dns_type`
-	Rule                      = `Rule`
-	RuleBlock                 = `Block`
-	RuleBlockTitle            = `Block`
-	RuleDirect                = `Direct`
-	RuleDirectTitle           = `Direct`
-	RuleProxy                 = `Proxy`
-	RuleProxyTitle            = `Proxy`
-	RuleUpdateBypassFile      = `Rule Update Bypass`
-	RuleUpdateBypassFileTitle = `Update Bypass`
-	SaveLogcat                = `save_logcat`
-	SaveLogcatName            = `Save Logcat`
-	SaveLogcatSummary         = `Save logcat to
-        Android/data/io.github.asutorufa.yuhaiin/files/yuhaiin/log.
-    `
-	Sniff                      = `Sniff`
-	Socks5ServerPortKey        = `socks5_server_port`
-	Socks5ServerPortTitle      = `Socks5 Port`
-	SwitchMain                 = `Switch on / off the proxy`
-	TunDriverChannel           = `gVisor Channel`
-	TunDriverChannelValue      = `channel`
-	TunDriverFdbased           = `gVisor Fdbased`
-	TunDriverFdbasedValue      = `fdbased`
-	TunDriverSystemGvisor      = `System`
-	TunDriverSystemGvisorValue = `system_gvisor`
-	UdpProxyFqdn               = `UDP proxy FQDN`
-	Yuhaiin                    = `Yuhaiin`
-	YuhaiinHostSummary         = `gRPC and HTTP listen port`
-	YuhaiinPortKey             = `yuhaiin_port`
-	YuhaiinPortTitle           = `Yuhaiin Port`
-	YuhaiinRunning             = `Yuhaiin Running`
-
-	AdvBypassMode = []string{
-		BypassBypass,
-		BypassDirect,
-		BypassProxy,
-		BypassBlock,
-	}
+	LocalDnsHostKey              = `local_dns_host`
+	LocalDnsProxyKey             = `local_dns_proxy`
+	LocalDnsSubnetKey            = `local_dns_subnet`
+	LocalDnsTlsServerNameKey     = `local_dns_tls_server_name`
+	LocalDnsTypeKey              = `local_dns_type`
+	LogLevel                     = `Log Level`
+	LogLevelDebug                = `debug`
+	LogLevelError                = `error`
+	LogLevelFatal                = `fatal`
+	LogLevelInfo                 = `info`
+	LogLevelVerbose              = `verbose`
+	LogLevelWarning              = `warning`
+	NetworkSpeedKey              = `network_speed`
+	PortsKey                     = `ports_key`
+	RemoteDnsCategoryKey         = `remote_dns_category`
+	RemoteDnsHostKey             = `remote_dns_host`
+	RemoteDnsProxyKey            = `remote_dns_proxy`
+	RemoteDnsResolveDomainKey    = `remote_dns_resolve_domain`
+	RemoteDnsSubnetKey           = `remote_dns_subnet`
+	RemoteDnsTlsServerNameKey    = `remote_dns_tls_server_name`
+	RemoteDnsTypeKey             = `remote_dns_type`
+	RuleBlock                    = `Block`
+	RuleDirect                   = `Direct`
+	RuleProxy                    = `Proxy`
+	RuleUpdateBypassFileKey      = `Rule Update Bypass`
+	SaveLogcat                   = `save_logcat`
+	SniffKey                     = `Sniff`
+	Socks5ServerPortKey          = `socks5_server_port`
+	TunDriverChannelValue        = `channel`
+	TunDriverFdbasedValue        = `fdbased`
+	TunDriverSystemGvisorValue   = `system_gvisor`
+	UdpProxyFqdnKey              = `UDP proxy FQDN`
+	YuhaiinPortKey               = `yuhaiin_port`
 
 	AdvBypassModeValue = []string{
 		BypassBypassValue,
@@ -177,15 +86,6 @@ var (
 		AdvRouteAll,
 		AdvRouteNonLocal,
 		AdvRouteNonChn,
-	}
-
-	DnsTypes = []string{
-		DnsTypeDoudp,
-		DnsTypeDotcp,
-		DnsTypeDoh,
-		DnsTypeDot,
-		DnsTypeDoq,
-		DnsTypeDoh3,
 	}
 
 	DnsTypesValue = []string{
@@ -204,12 +104,6 @@ var (
 		LogLevelWarning,
 		LogLevelError,
 		LogLevelFatal,
-	}
-
-	TunDrivers = []string{
-		TunDriverFdbased,
-		TunDriverChannel,
-		TunDriverSystemGvisor,
 	}
 
 	TunDriversValue = []string{
