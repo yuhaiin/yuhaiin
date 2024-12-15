@@ -25,6 +25,7 @@ const (
 	Connections_Total_FullMethodName         = "/yuhaiin.protos.statistic.service.connections/total"
 	Connections_Notify_FullMethodName        = "/yuhaiin.protos.statistic.service.connections/notify"
 	Connections_FailedHistory_FullMethodName = "/yuhaiin.protos.statistic.service.connections/failed_history"
+	Connections_AllHistory_FullMethodName    = "/yuhaiin.protos.statistic.service.connections/all_history"
 )
 
 // ConnectionsClient is the client API for Connections service.
@@ -36,6 +37,7 @@ type ConnectionsClient interface {
 	Total(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TotalFlow, error)
 	Notify(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NotifyData], error)
 	FailedHistory(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*FailedHistoryList, error)
+	AllHistory(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AllHistoryList, error)
 }
 
 type connectionsClient struct {
@@ -105,6 +107,16 @@ func (c *connectionsClient) FailedHistory(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
+func (c *connectionsClient) AllHistory(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AllHistoryList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AllHistoryList)
+	err := c.cc.Invoke(ctx, Connections_AllHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConnectionsServer is the server API for Connections service.
 // All implementations must embed UnimplementedConnectionsServer
 // for forward compatibility.
@@ -114,6 +126,7 @@ type ConnectionsServer interface {
 	Total(context.Context, *emptypb.Empty) (*TotalFlow, error)
 	Notify(*emptypb.Empty, grpc.ServerStreamingServer[NotifyData]) error
 	FailedHistory(context.Context, *emptypb.Empty) (*FailedHistoryList, error)
+	AllHistory(context.Context, *emptypb.Empty) (*AllHistoryList, error)
 	mustEmbedUnimplementedConnectionsServer()
 }
 
@@ -138,6 +151,9 @@ func (UnimplementedConnectionsServer) Notify(*emptypb.Empty, grpc.ServerStreamin
 }
 func (UnimplementedConnectionsServer) FailedHistory(context.Context, *emptypb.Empty) (*FailedHistoryList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FailedHistory not implemented")
+}
+func (UnimplementedConnectionsServer) AllHistory(context.Context, *emptypb.Empty) (*AllHistoryList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AllHistory not implemented")
 }
 func (UnimplementedConnectionsServer) mustEmbedUnimplementedConnectionsServer() {}
 func (UnimplementedConnectionsServer) testEmbeddedByValue()                     {}
@@ -243,6 +259,24 @@ func _Connections_FailedHistory_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Connections_AllHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConnectionsServer).AllHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Connections_AllHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConnectionsServer).AllHistory(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Connections_ServiceDesc is the grpc.ServiceDesc for Connections service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -265,6 +299,10 @@ var Connections_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "failed_history",
 			Handler:    _Connections_FailedHistory_Handler,
+		},
+		{
+			MethodName: "all_history",
+			Handler:    _Connections_AllHistory_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
