@@ -31,7 +31,8 @@ type Connections struct {
 
 	idSeed id.IDGenerator
 
-	his *FailedHistory
+	faildHistory *FailedHistory
+	history      *History
 }
 
 func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
@@ -40,10 +41,11 @@ func NewConnStore(cache cache.Cache, dialer netapi.Proxy) *Connections {
 	}
 
 	return &Connections{
-		Proxy:  dialer,
-		Cache:  NewTotalCache(cache),
-		notify: newNotify(),
-		his:    NewFailedHistory(),
+		Proxy:        dialer,
+		Cache:        NewTotalCache(cache),
+		notify:       newNotify(),
+		faildHistory: NewFailedHistory(),
+		history:      NewHistory(),
 	}
 }
 
@@ -106,13 +108,14 @@ func (c *Connections) Remove(id uint64) {
 func (c *Connections) storeConnection(o connection) {
 	c.connStore.Store(o.Info().GetId(), o)
 	c.notify.pubNewConn(o)
+	c.history.Push(o.Info())
 	log.Select(slog.LevelDebug).PrintFunc("new conn", slogArgs(o))
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
 	con, err := c.Proxy.PacketConn(ctx, addr)
 	if err != nil {
-		c.his.Push(ctx, err, "udp", addr)
+		c.faildHistory.Push(ctx, err, "udp", addr)
 		return nil, err
 	}
 
@@ -170,7 +173,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	con, err := c.Proxy.Conn(ctx, addr)
 	if err != nil {
-		c.his.Push(ctx, err, "tcp", addr)
+		c.faildHistory.Push(ctx, err, "tcp", addr)
 		return nil, err
 	}
 
@@ -180,5 +183,9 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 }
 
 func (c *Connections) FailedHistory(context.Context, *emptypb.Empty) (*gs.FailedHistoryList, error) {
-	return c.his.Get(), nil
+	return c.faildHistory.Get(), nil
+}
+
+func (c *Connections) AllHistory(context.Context, *emptypb.Empty) (*gs.AllHistoryList, error) {
+	return c.history.Get(), nil
 }

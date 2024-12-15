@@ -66,6 +66,7 @@ func ServeHTTP(o *appapi.Components) {
 
 		"DELETE /conn":             GrpcToHttp(o.Connections.CloseConn),
 		"GET /conn/failed_history": GrpcToHttp(o.Connections.FailedHistory),
+		"GET /conn/history":        GrpcToHttp(o.Connections.AllHistory),
 
 		"GET /flow/total": GrpcToHttp(o.Connections.Total),
 		// WEBSOCKET

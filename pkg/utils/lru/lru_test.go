@@ -72,3 +72,19 @@ func BenchmarkNewLru(b *testing.B) {
 		}
 	})
 }
+
+func TestRange(t *testing.T) {
+	l := NewSyncLru(func(l *lru[string, string]) {
+		l.capacity = 1000
+	})
+
+	l.Add("a", "a")
+	l.Add("b", "b")
+	l.Add("c", "c")
+	l.Add("d", "d")
+
+	l.Range(func(k, v string) bool {
+		t.Log(k, v)
+		return true
+	})
+}

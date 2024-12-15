@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,7 +31,7 @@ type FailedHistory struct {
 
 func NewFailedHistory() *FailedHistory {
 	return &FailedHistory{
-		store: lru.NewSyncLru[failedHistoryKey, *failedHistoryEntry](
+		store: lru.NewSyncLru(
 			lru.WithCapacity[failedHistoryKey, *failedHistoryEntry](1000),
 		),
 	}
@@ -88,6 +89,62 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 		objects = append(objects, v.FailedHistory)
 	}
 	return &gs.FailedHistoryList{
+		Objects:            objects,
+		DumpProcessEnabled: h.dumpProcess,
+	}
+}
+
+type History struct {
+	store       *lru.SyncLru[failedHistoryKey, *historyEntry]
+	dumpProcess bool
+}
+
+type historyEntry struct {
+	*gs.AllHistory
+	mu sync.Mutex
+}
+
+func NewHistory() *History {
+	return &History{
+		store: lru.NewSyncLru(
+			lru.WithCapacity[failedHistoryKey, *historyEntry](1000),
+		),
+	}
+}
+
+func (h *History) Push(c *statistic.Connection) {
+	key := failedHistoryKey{c.Type.ConnType.String(), c.Addr, c.Extra["Process"]}
+
+	if !h.dumpProcess && key.process != "" {
+		h.dumpProcess = true
+	}
+
+	x, ok := h.store.LoadOrAdd(key, func() *historyEntry {
+		return &historyEntry{
+			AllHistory: &gs.AllHistory{
+				Connection: c,
+				Count:      1,
+				Time:       timestamppb.Now(),
+			},
+		}
+	})
+
+	if !ok {
+		return
+	}
+
+	x.mu.Lock()
+	x.Count++
+	x.Time = timestamppb.Now()
+	x.mu.Unlock()
+}
+
+func (h *History) Get() *gs.AllHistoryList {
+	var objects []*gs.AllHistory
+	for _, v := range h.store.Range {
+		objects = append(objects, v.AllHistory)
+	}
+	return &gs.AllHistoryList{
 		Objects:            objects,
 		DumpProcessEnabled: h.dumpProcess,
 	}

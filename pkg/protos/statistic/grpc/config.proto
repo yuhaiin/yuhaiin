@@ -14,6 +14,7 @@ service connections {
   rpc total(google.protobuf.Empty) returns (total_flow);
   rpc notify(google.protobuf.Empty) returns (stream notify_data);
   rpc failed_history(google.protobuf.Empty) returns (failed_history_list);
+  rpc all_history(google.protobuf.Empty) returns (all_history_list);
 }
 
 message total_flow {
@@ -49,5 +50,16 @@ message failed_history {
 
 message failed_history_list {
   repeated failed_history objects = 1 [ json_name = "objects" ];
+  bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
+}
+
+message all_history {
+  yuhaiin.statistic.connection connection = 1 [ json_name = "connection" ];
+  uint64 count = 2 [ json_name = "count" ];
+  google.protobuf.Timestamp time = 3 [ json_name = "time" ];
+}
+
+message all_history_list {
+  repeated all_history objects = 1 [ json_name = "objects" ];
   bool dump_process_enabled = 2 [ json_name = "dump_process_enabled" ];
 }
