@@ -21,7 +21,7 @@ require (
 	golang.org/x/sys v0.28.0
 	golang.org/x/time v0.8.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	google.golang.org/grpc v1.69.0
+	google.golang.org/grpc v1.69.2
 	google.golang.org/protobuf v1.35.2
 	gvisor.dev/gvisor v0.0.0-20241120231458-0add1d20fa0c
 )
