@@ -3,6 +3,7 @@ package yuhaiin.protos.config.service;
 
 import "config/config.proto";
 import "config/bypass/bypass.proto";
+import "config/dns/dns.proto";
 import "config/listener/listener.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
@@ -49,5 +50,21 @@ service inbound {
   rpc list(google.protobuf.Empty) returns (inbounds_response);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.listener.inbound);
   rpc save(yuhaiin.listener.inbound) returns (yuhaiin.listener.inbound);
+  rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+}
+
+message resolve_list {
+  repeated string names = 1 [ json_name = "names" ]; 
+}
+
+message save_resolver {
+  string name = 1 [ json_name = "name" ];
+  yuhaiin.dns.dns resolver = 2 [ json_name = "resolver" ];
+}
+
+service resolver {
+  rpc list(google.protobuf.Empty) returns (resolve_list);
+  rpc get(google.protobuf.StringValue) returns (yuhaiin.dns.dns);
+  rpc save(save_resolver) returns (yuhaiin.dns.dns);
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
 }

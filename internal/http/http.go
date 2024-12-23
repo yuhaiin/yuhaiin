@@ -68,6 +68,11 @@ func ServeHTTP(o *appapi.Components) {
 		"GET /conn/failed_history": GrpcToHttp(o.Connections.FailedHistory),
 		"GET /conn/history":        GrpcToHttp(o.Connections.AllHistory),
 
+		"GET /resolvers":   GrpcToHttp(o.Resolver.List),
+		"POST /resolver":   GrpcToHttp(o.Resolver.Get),
+		"PATCH /resolver":  GrpcToHttp(o.Resolver.Save),
+		"DELETE /resolver": GrpcToHttp(o.Resolver.Remove),
+
 		"GET /flow/total": GrpcToHttp(o.Connections.Total),
 		// WEBSOCKET
 		"GET /conn": GrpcServerStreamingToWebsocket(o.Connections.Notify),

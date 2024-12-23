@@ -156,6 +156,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Tag:          tag,
 		Rc:           rc,
 		Inbound:      config.NewInbound(opt.Setting),
+		Resolver:     config.NewResolver(opt.Setting),
 	}
 
 	// http page
