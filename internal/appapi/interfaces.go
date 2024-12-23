@@ -30,6 +30,7 @@ type Components struct {
 	Subscribe    gn.SubscribeServer
 	Connections  gs.ConnectionsServer
 	Inbound      gc.InboundServer
+	Resolver     gc.ResolverServer
 	Tag          gn.TagServer
 	DB           *bbolt.DB
 	Rc           *route.RuleController
@@ -49,6 +50,7 @@ func (app *Components) RegisterGrpcService() {
 	so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, app.Tag)
 	so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, app.Tools)
 	so.GRPCServer.RegisterService(&gc.Bypass_ServiceDesc, app.Rc)
+	so.GRPCServer.RegisterService(&gc.Resolver_ServiceDesc, app.Resolver)
 }
 
 func (a *Components) Close() error {

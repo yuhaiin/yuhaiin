@@ -10,6 +10,7 @@ import (
 	context "context"
 	config "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	bypass "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	dns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	listener "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
@@ -665,6 +666,222 @@ var Inbound_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "remove",
 			Handler:    _Inbound_Remove_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "config/grpc/config.proto",
+}
+
+const (
+	Resolver_List_FullMethodName   = "/yuhaiin.protos.config.service.resolver/list"
+	Resolver_Get_FullMethodName    = "/yuhaiin.protos.config.service.resolver/get"
+	Resolver_Save_FullMethodName   = "/yuhaiin.protos.config.service.resolver/save"
+	Resolver_Remove_FullMethodName = "/yuhaiin.protos.config.service.resolver/remove"
+)
+
+// ResolverClient is the client API for Resolver service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ResolverClient interface {
+	List(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ResolveList, error)
+	Get(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*dns.Dns, error)
+	Save(ctx context.Context, in *SaveResolver, opts ...grpc.CallOption) (*dns.Dns, error)
+	Remove(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
+}
+
+type resolverClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewResolverClient(cc grpc.ClientConnInterface) ResolverClient {
+	return &resolverClient{cc}
+}
+
+func (c *resolverClient) List(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ResolveList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveList)
+	err := c.cc.Invoke(ctx, Resolver_List_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resolverClient) Get(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*dns.Dns, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(dns.Dns)
+	err := c.cc.Invoke(ctx, Resolver_Get_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resolverClient) Save(ctx context.Context, in *SaveResolver, opts ...grpc.CallOption) (*dns.Dns, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(dns.Dns)
+	err := c.cc.Invoke(ctx, Resolver_Save_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resolverClient) Remove(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Resolver_Remove_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ResolverServer is the server API for Resolver service.
+// All implementations must embed UnimplementedResolverServer
+// for forward compatibility.
+type ResolverServer interface {
+	List(context.Context, *emptypb.Empty) (*ResolveList, error)
+	Get(context.Context, *wrapperspb.StringValue) (*dns.Dns, error)
+	Save(context.Context, *SaveResolver) (*dns.Dns, error)
+	Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
+	mustEmbedUnimplementedResolverServer()
+}
+
+// UnimplementedResolverServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedResolverServer struct{}
+
+func (UnimplementedResolverServer) List(context.Context, *emptypb.Empty) (*ResolveList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedResolverServer) Get(context.Context, *wrapperspb.StringValue) (*dns.Dns, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedResolverServer) Save(context.Context, *SaveResolver) (*dns.Dns, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Save not implemented")
+}
+func (UnimplementedResolverServer) Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Remove not implemented")
+}
+func (UnimplementedResolverServer) mustEmbedUnimplementedResolverServer() {}
+func (UnimplementedResolverServer) testEmbeddedByValue()                  {}
+
+// UnsafeResolverServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ResolverServer will
+// result in compilation errors.
+type UnsafeResolverServer interface {
+	mustEmbedUnimplementedResolverServer()
+}
+
+func RegisterResolverServer(s grpc.ServiceRegistrar, srv ResolverServer) {
+	// If the following call pancis, it indicates UnimplementedResolverServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&Resolver_ServiceDesc, srv)
+}
+
+func _Resolver_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResolverServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Resolver_List_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResolverServer).List(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Resolver_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(wrapperspb.StringValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResolverServer).Get(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Resolver_Get_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResolverServer).Get(ctx, req.(*wrapperspb.StringValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Resolver_Save_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveResolver)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResolverServer).Save(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Resolver_Save_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResolverServer).Save(ctx, req.(*SaveResolver))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Resolver_Remove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(wrapperspb.StringValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResolverServer).Remove(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Resolver_Remove_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResolverServer).Remove(ctx, req.(*wrapperspb.StringValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Resolver_ServiceDesc is the grpc.ServiceDesc for Resolver service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Resolver_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "yuhaiin.protos.config.service.resolver",
+	HandlerType: (*ResolverServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "list",
+			Handler:    _Resolver_List_Handler,
+		},
+		{
+			MethodName: "get",
+			Handler:    _Resolver_Get_Handler,
+		},
+		{
+			MethodName: "save",
+			Handler:    _Resolver_Save_Handler,
+		},
+		{
+			MethodName: "remove",
+			Handler:    _Resolver_Remove_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -17,3 +17,4 @@
 pkg/protos/tools/tmp
 cmd/android/yuhaiin.db
 /cmd/android/strings.xml
+*.patch
