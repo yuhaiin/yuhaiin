@@ -2,7 +2,6 @@ package pool
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"io"
 	"math/bits"
@@ -12,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
-var ClosedBufioReader = bufio.NewReaderSize(bytes.NewReader(nil), 10)
+var ClosedBufioReader = bufio.NewReaderSize(emptyReader{}, 10)
 
 var bufioReaderPoolMap syncmap.SyncMap[int, *sync.Pool]
 
@@ -75,7 +74,8 @@ type BufioConn interface {
 }
 
 type bufioConn struct {
-	r *bufio.Reader
+	r      *bufio.Reader
+	closed bool
 	CloseWriteChecker
 	mu sync.Mutex
 }
@@ -86,7 +86,7 @@ func NewBufioConn(r *bufio.Reader, c net.Conn) BufioConn {
 		return xx
 	}
 
-	return &bufioConn{r, CloseWriteChecker{c}, sync.Mutex{}}
+	return &bufioConn{r, false, CloseWriteChecker{c}, sync.Mutex{}}
 }
 
 func NewBufioConnSize(c net.Conn, size int) BufioConn {
@@ -96,6 +96,10 @@ func NewBufioConnSize(c net.Conn, size int) BufioConn {
 func (c *bufioConn) Read(b []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return 0, io.EOF
+	}
+
 	return c.r.Read(b)
 }
 
@@ -103,9 +107,16 @@ func (c *bufioConn) Close() error {
 	err := c.CloseWriteChecker.Close()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+
+	c.closed = true
+
 	r := c.r
 	if r != ClosedBufioReader {
 		c.r = ClosedBufioReader
+		r.Reset(emptyReader{})
 		PutBufioReader(r)
 	}
 	return err
@@ -114,5 +125,13 @@ func (c *bufioConn) Close() error {
 func (c *bufioConn) BufioRead(f func(*bufio.Reader) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return io.EOF
+	}
+
 	return f(c.r)
 }
+
+type emptyReader struct{}
+
+func (e emptyReader) Read([]byte) (int, error) { return 0, io.EOF }

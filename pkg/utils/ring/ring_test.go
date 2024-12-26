@@ -3,7 +3,7 @@ package ring
 import "testing"
 
 func TestRing(t *testing.T) {
-	r := NewRing[int](9, func() int {
+	r := NewRing(9, func() int {
 		return 1
 	})
 

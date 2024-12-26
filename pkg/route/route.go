@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"net"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -142,19 +143,21 @@ func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum
 	return bypass.Proxy
 }
 
-func (s *Route) SearchProcess(ctx *netapi.Context, process string) (bypass.ModeEnum, bool) {
-	matchProcess := strings.TrimSuffix(process, " (deleted)")
+func (s *Route) SearchProcess(ctx *netapi.Context, process netapi.Process) (bypass.ModeEnum, bool) {
+	matchProcess := filepath.Clean(strings.TrimSuffix(process.Path, " (deleted)"))
 
-	if s.loopback.IsLoopback(matchProcess) {
+	matchProcess = convertVolumeName(matchProcess)
+
+	if s.loopback.IsLoopback(ctx, matchProcess, process.Pid) {
 		return bypass.Block, true
 	}
 
-	x, ok := s.customTrie.Load().processTrie[matchProcess]
+	x, ok := s.customTrie.Load().processTrie.SearchString(matchProcess)
 	if ok {
 		return x.Value(), true
 	}
 
-	x, ok = s.trie.Load().processTrie[matchProcess]
+	x, ok = s.trie.Load().processTrie.SearchString(matchProcess)
 	if ok {
 		return x.Value(), true
 	}
@@ -223,7 +226,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	if mode.Mode() != bypass.Mode_block {
 		if store.SniffMode != bypass.Mode_bypass {
 			mode = store.SniffMode.ToModeEnum()
-		} else if process != "" {
+		} else if process.Path != "" {
 			if m, ok := s.SearchProcess(store, process); ok {
 				reason = "process trie mode"
 				mode = m
@@ -272,7 +275,7 @@ func (f *Route) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Me
 
 func (f *Route) Close() error { return nil }
 
-func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s string) {
+func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s netapi.Process) {
 	if c.ProcessDumper == nil {
 		return
 	}
@@ -310,10 +313,24 @@ func (c *Route) dumpProcess(ctx context.Context, networks ...string) (s string) 
 				continue
 			}
 
-			store.Process = process
+			store.Process = process.Path
+			store.ProcessPid = process.Pid
+			store.ProcessUid = process.Uid
 			return process
 		}
 	}
 
-	return ""
+	return netapi.Process{}
+}
+
+func convertVolumeName(path string) string {
+	vn := filepath.VolumeName(path)
+	if vn == "" {
+		if len(path) > 0 && path[0] == filepath.Separator {
+			path = path[1:]
+		}
+		return path
+	}
+
+	return filepath.Join(vn, path[len(vn):])
 }

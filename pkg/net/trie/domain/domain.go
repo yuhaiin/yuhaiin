@@ -8,8 +8,9 @@ import (
 )
 
 type Fqdn[T any] struct {
-	Root *trie[T] `json:"root"`
-	mu   sync.Mutex
+	Root     *trie[T] `json:"root"`
+	separate byte
+	mu       sync.Mutex
 }
 
 func (d *Fqdn[T]) Insert(domain string, mark T) {
@@ -20,16 +21,16 @@ func (d *Fqdn[T]) Insert(domain string, mark T) {
 		return
 	}
 
-	r := newReader(domain)
+	r := newReader(domain, d.separate)
 	insert(d.Root, r, mark)
 }
 
 func (d *Fqdn[T]) Search(domain netapi.Address) (mark T, ok bool) {
-	return search(d.Root, newReader(domain.Hostname()))
+	return search(d.Root, newReader(domain.Hostname(), d.separate))
 }
 
 func (d *Fqdn[T]) SearchString(domain string) (mark T, ok bool) {
-	return search(d.Root, newReader(domain))
+	return search(d.Root, newReader(domain, d.separate))
 }
 
 func (d *Fqdn[T]) Remove(domain string) {
@@ -40,7 +41,7 @@ func (d *Fqdn[T]) Remove(domain string) {
 		return
 	}
 
-	r := newReader(domain)
+	r := newReader(domain, d.separate)
 	remove(d.Root, r)
 }
 
@@ -49,6 +50,13 @@ func (d *Fqdn[T]) Clear() error {
 	return nil
 }
 
+func (d *Fqdn[T]) SetSeparate(b byte) {
+	d.separate = b
+}
+
 func NewDomainMapper[T any]() *Fqdn[T] {
-	return &Fqdn[T]{Root: &trie[T]{Child: map[unique.Handle[string]]*trie[T]{}}}
+	return &Fqdn[T]{
+		Root:     &trie[T]{Child: map[unique.Handle[string]]*trie[T]{}},
+		separate: '.',
+	}
 }

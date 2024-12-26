@@ -10,9 +10,11 @@ import (
 )
 
 var myPath string
+var myPid uint
 
 func init() {
 	myPath, _ = os.Executable()
+	myPid = uint(os.Getpid())
 }
 
 type LoopbackDetector struct {
@@ -23,8 +25,26 @@ func NewLoopback() *LoopbackDetector {
 	return &LoopbackDetector{}
 }
 
-func (l *LoopbackDetector) IsLoopback(path string) bool {
-	return path == myPath
+func (l *LoopbackDetector) IsLoopback(ctx *netapi.Context, path string, pid uint) bool {
+	var True bool
+
+	// skip for test ownself latency?
+	if ctx.FakeIP == nil && ctx.Hosts == nil {
+		ad, err := netapi.ParseSysAddr(ctx.Destination)
+		if err == nil && ad.IsFqdn() {
+			return false
+		}
+	}
+
+	if myPath != "" {
+		True = True || path == myPath
+	}
+
+	if True && myPath != "" && pid != 0 && myPid != 0 {
+		True = True && pid == myPid
+	}
+
+	return True
 }
 
 func (l *LoopbackDetector) Cycle(meta *netapi.Context, addr netapi.Address) bool {

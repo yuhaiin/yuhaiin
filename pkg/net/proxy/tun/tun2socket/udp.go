@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"net"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -27,7 +28,7 @@ type UDPTuple struct {
 type UDP struct {
 	device       netlink.Tun
 	HandlePacket func(tuple UDPTuple, payload []byte)
-	closed       bool
+	closed       atomic.Bool
 }
 
 func NewUDP(device netlink.Tun) *UDP {
@@ -35,19 +36,19 @@ func NewUDP(device netlink.Tun) *UDP {
 }
 
 func (u *UDP) Close() error {
-	u.closed = true
+	u.closed.Store(true)
 	return nil
 }
 
 func (u *UDP) handleUDPPacket(tuple UDPTuple, payload []byte) {
-	if u.closed {
+	if u.closed.Load() {
 		return
 	}
 	u.HandlePacket(tuple, payload)
 }
 
 func (u *UDP) WriteTo(buf []byte, tuple UDPTuple) (int, error) {
-	if u.closed {
+	if u.closed.Load() {
 		return 0, net.ErrClosed
 	}
 

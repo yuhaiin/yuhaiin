@@ -35,3 +35,10 @@ message dns_config {
   map<string, string> hosts = 8 [ json_name = "hosts" ];
   map<string, dns> resolver = 10 [ json_name = "resolver" ];
 }
+
+message fakedns_config {
+  bool enabled = 1 [ json_name = "enabled" ];
+  string ipv4_range = 2 [ json_name = "ipv4_range" ];
+  string ipv6_range = 3 [ json_name = "ipv6_range" ];
+  repeated string whitelist = 4 [ json_name = "whitelist" ];
+}

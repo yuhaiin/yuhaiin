@@ -153,7 +153,6 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 
 	metrics.Counter.AddConnection(realAddr)
 
-	// https://github.com/google/gvisor/blob/a9bdef23522b5a2ff2a7ec07c3e0573885b46ecb/pkg/tcpip/adapters/gonet/gonet.go#L457
 	connection := &statistic.Connection{
 		Id:   c.idSeed.Generate(),
 		Addr: realAddr,

@@ -11,12 +11,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-func init() {
-	dialer.DefaultMarkSymbol = func(socket int32) bool {
-		return dialer.LinuxMarkSymbol(socket, 0xff) == nil
-	}
-}
-
 func controlTCP(c syscall.RawConn) error {
 	var fn = func(s uintptr) {
 		err := syscall.SetsockoptInt(int(s), syscall.SOL_IP, syscall.IP_TRANSPARENT, 1)

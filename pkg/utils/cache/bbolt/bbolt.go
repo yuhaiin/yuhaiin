@@ -60,9 +60,13 @@ func (c *Cache) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
 	return bk
 }
 
-func (c *Cache) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
+func (c *Cache) bucket(tx *bbolt.Tx, readOnly bool) (*bbolt.Bucket, error) {
 	bk := tx.Bucket(c.bucketName[0])
 	if bk == nil {
+		if readOnly {
+			return nil, cache.ErrBucketNotExist
+		}
+
 		var err error
 		bk, err = tx.CreateBucketIfNotExists(c.bucketName[0])
 		if err != nil {
@@ -73,6 +77,10 @@ func (c *Cache) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
 	for _, v := range c.bucketName[1:] {
 		x := bk.Bucket(v)
 		if x == nil {
+			if readOnly {
+				return nil, cache.ErrBucketNotExist
+			}
+
 			var err error
 			x, err = bk.CreateBucketIfNotExists(v)
 			if err != nil {
@@ -92,7 +100,7 @@ func (c *Cache) Put(k, v []byte) error {
 	}
 
 	return c.db.Batch(func(tx *bbolt.Tx) error {
-		bk, err := c.bucket(tx)
+		bk, err := c.bucket(tx, false)
 		if err != nil {
 			return err
 		}
@@ -131,7 +139,7 @@ func (c *Cache) Range(f func(key []byte, value []byte) bool) error {
 	}
 
 	return c.db.View(func(tx *bbolt.Tx) error {
-		bkt, err := c.bucket(tx)
+		bkt, err := c.bucket(tx, true)
 		if err != nil {
 			return err
 		}
