@@ -53,18 +53,25 @@ service inbound {
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
 }
 
-message resolve_list {
-  repeated string names = 1 [ json_name = "names" ]; 
-}
+message resolve_list { repeated string names = 1 [ json_name = "names" ]; }
 
 message save_resolver {
   string name = 1 [ json_name = "name" ];
   yuhaiin.dns.dns resolver = 2 [ json_name = "resolver" ];
 }
 
+message Hosts { map<string, string> hosts = 1 [ json_name = "hosts" ]; }
+
 service resolver {
   rpc list(google.protobuf.Empty) returns (resolve_list);
   rpc get(google.protobuf.StringValue) returns (yuhaiin.dns.dns);
   rpc save(save_resolver) returns (yuhaiin.dns.dns);
+  // the bootstrap can't be remove
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
+
+  rpc hosts(google.protobuf.Empty) returns (Hosts);
+  rpc save_hosts(Hosts) returns (google.protobuf.Empty);
+
+  rpc fakedns(google.protobuf.Empty) returns (yuhaiin.dns.fakedns_config);
+  rpc save_fakedns(yuhaiin.dns.fakedns_config) returns (google.protobuf.Empty);
 }

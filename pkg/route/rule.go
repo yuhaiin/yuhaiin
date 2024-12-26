@@ -7,6 +7,7 @@ import (
 	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 )
@@ -150,16 +151,20 @@ func getScheme(h string) *Uri {
 
 type routeTries struct {
 	trie        *trie.Trie[unique.Handle[bypass.ModeEnum]]
-	processTrie map[string]unique.Handle[bypass.ModeEnum]
+	processTrie *domain.Fqdn[unique.Handle[bypass.ModeEnum]]
 	tagsMap     map[string]struct{}
 }
 
 func newRouteTires() *routeTries {
-	return &routeTries{
+	r := &routeTries{
 		trie:        trie.NewTrie[unique.Handle[bypass.ModeEnum]](),
-		processTrie: make(map[string]unique.Handle[bypass.ModeEnum]),
+		processTrie: domain.NewDomainMapper[unique.Handle[bypass.ModeEnum]](),
 		tagsMap:     make(map[string]struct{}),
 	}
+
+	r.processTrie.SetSeparate(filepath.Separator)
+
+	return r
 }
 
 func (s *routeTries) insert(uri *Uri, mode unique.Handle[bypass.ModeEnum]) {
@@ -180,7 +185,7 @@ func (s *routeTries) insert(uri *Uri, mode unique.Handle[bypass.ModeEnum]) {
 		}
 
 	case "process":
-		s.processTrie[uri.Data()] = mode
+		s.processTrie.Insert(convertVolumeName(uri.Data()), mode)
 	default:
 		if uri.Data() == "" {
 			return

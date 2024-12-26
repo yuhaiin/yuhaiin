@@ -10,52 +10,52 @@ import (
 
 func TestDelete(t *testing.T) {
 	x := &trie[string]{Child: map[unique.Handle[string]]*trie[string]{}}
-	insert(x, newReader("www.baidu.com"), "baidu")
-	insert(x, newReader("www.google.com"), "google")
-	insert(x, newReader("www.twitter.com"), "twitter")
-	insert(x, newReader("www.x.twitter.com"), "twitter.x")
-	insert(x, newReader("*.x.com"), "*.x")
-	insert(x, newReader("www.xvv.*"), "xvv.*")
+	insert(x, newReader("www.baidu.com", '.'), "baidu")
+	insert(x, newReader("www.google.com", '.'), "google")
+	insert(x, newReader("www.twitter.com", '.'), "twitter")
+	insert(x, newReader("www.x.twitter.com", '.'), "twitter.x")
+	insert(x, newReader("*.x.com", '.'), "*.x")
+	insert(x, newReader("www.xvv.*", '.'), "xvv.*")
 
-	remove(x, newReader("www.baidu.com"))
+	remove(x, newReader("www.baidu.com", '.'))
 
-	t.Log(search(x, newReader("www.baidu.com")))
+	t.Log(search(x, newReader("www.baidu.com", '.')))
 
-	remove(x, newReader("www.twitter.com"))
-	remove(x, newReader("www.vv.x.com"))
+	remove(x, newReader("www.twitter.com", '.'))
+	remove(x, newReader("www.vv.x.com", '.'))
 
-	t.Log(search(x, newReader("www.twitter.com")))
-	t.Log(search(x, newReader("www.x.twitter.com")))
-	t.Log(search(x, newReader("www.vv.x.com")))
+	t.Log(search(x, newReader("www.twitter.com", '.')))
+	t.Log(search(x, newReader("www.x.twitter.com", '.')))
+	t.Log(search(x, newReader("www.vv.x.com", '.')))
 
-	remove(x, newReader("*.x.com"))
-	t.Log(search(x, newReader("www.vv.x.com")))
-	t.Log(search(x, newReader("www.xvv.com.cn")))
+	remove(x, newReader("*.x.com", '.'))
+	t.Log(search(x, newReader("www.vv.x.com", '.')))
+	t.Log(search(x, newReader("www.xvv.com.cn", '.')))
 
-	remove(x, newReader("www.xvv.*"))
-	t.Log(search(x, newReader("www.xvv.com.cn")))
+	remove(x, newReader("www.xvv.*", '.'))
+	t.Log(search(x, newReader("www.xvv.com.cn", '.')))
 }
 
 func TestTrieDomainMatcherSearch(t *testing.T) {
 	root := &trie[string]{Child: map[unique.Handle[string]]*trie[string]{}}
-	insert(root, newReader("*.baidu.com"), "sub_baidu_test")
-	insert(root, newReader("www.baidu.com"), "test_baidu")
-	insert(root, newReader("last.baidu.*"), "test_last_baidu")
-	insert(root, newReader("*.baidu.*"), "last_sub_baidu_test")
-	insert(root, newReader("spo.baidu.com"), "test_no_sub_baidu")
-	insert(root, newReader("www.google.com"), "test_google")
-	insert(root, newReader("music.111.com"), "1111")
-	insert(root, newReader("163.com"), "163")
-	insert(root, newReader("*.google.com"), "google")
-	insert(root, newReader("*.dl.google.com"), "google_dl")
-	insert(root, newReader("api.sec.miui.*"), "ad_miui")
-	insert(root, newReader("*.miui.com"), "miui")
-	insert(root, newReader("*.x.*"), "x_all")
-	insert(root, newReader("*.x.com"), "x_com")
-	insert(root, newReader("www.x.*"), "www_x")
+	insert(root, newReader("*.baidu.com", '.'), "sub_baidu_test")
+	insert(root, newReader("www.baidu.com", '.'), "test_baidu")
+	insert(root, newReader("last.baidu.*", '.'), "test_last_baidu")
+	insert(root, newReader("*.baidu.*", '.'), "last_sub_baidu_test")
+	insert(root, newReader("spo.baidu.com", '.'), "test_no_sub_baidu")
+	insert(root, newReader("www.google.com", '.'), "test_google")
+	insert(root, newReader("music.111.com", '.'), "1111")
+	insert(root, newReader("163.com", '.'), "163")
+	insert(root, newReader("*.google.com", '.'), "google")
+	insert(root, newReader("*.dl.google.com", '.'), "google_dl")
+	insert(root, newReader("api.sec.miui.*", '.'), "ad_miui")
+	insert(root, newReader("*.miui.com", '.'), "miui")
+	insert(root, newReader("*.x.*", '.'), "x_all")
+	insert(root, newReader("*.x.com", '.'), "x_com")
+	insert(root, newReader("www.x.*", '.'), "www_x")
 
 	search := func(s string) string {
-		res, _ := search(root, newReader(s))
+		res, _ := search(root, newReader(s, '.'))
 		return res
 	}
 

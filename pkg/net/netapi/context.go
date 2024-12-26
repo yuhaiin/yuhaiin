@@ -59,6 +59,8 @@ type Context struct {
 	// sniffy
 	Protocol      string `metrics:"Protocol"`
 	Process       string `metrics:"Process"`
+	ProcessPid    uint   `metrics:"Pid"`
+	ProcessUid    uint   `metrics:"Uid"`
 	TLSServerName string `metrics:"TLS Servername"`
 	HTTPHost      string `metrics:"HTTP Host"`
 

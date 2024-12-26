@@ -3,6 +3,7 @@ package sniff
 import (
 	"bufio"
 	"net"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -101,10 +102,11 @@ func (s *Sniffier[T]) Stream(ctx *netapi.Context, cc net.Conn) net.Conn {
 	c := pool.NewBufioConnSize(cc, configuration.SnifferBufferSize)
 
 	var buf []byte
-
 	_ = c.BufioRead(func(br *bufio.Reader) error {
-		n, _ := br.Read([]byte{0x00})
-		if n > 0 {
+		_ = c.SetReadDeadline(time.Now().Add(time.Millisecond * 55))
+		_, err := br.ReadByte()
+		_ = c.SetReadDeadline(time.Time{})
+		if err == nil {
 			_ = br.UnreadByte()
 		}
 

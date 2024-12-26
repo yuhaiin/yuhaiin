@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -342,15 +343,15 @@ type fakeLru struct {
 }
 
 func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
-	var cache *bbolt.Nosync
+	var bboltCache *bbolt.Nosync
 	if iprange.Addr().Unmap().Is6() {
-		cache = bbolt.NewNosyncCache(db, "fakedns_cachev6")
+		bboltCache = bbolt.NewNosyncCache(db, "fakedns_cachev6")
 	} else {
 
-		cache = bbolt.NewNosyncCache(db, "fakedns_cache")
+		bboltCache = bbolt.NewNosyncCache(db, "fakedns_cache")
 	}
 
-	z := &fakeLru{Size: size, bbolt: cache, iprange: iprange}
+	z := &fakeLru{Size: size, bbolt: bboltCache, iprange: iprange}
 
 	if size <= 0 {
 		return z
@@ -360,15 +361,15 @@ func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
 		lru.WithLruOptions(
 			lru.WithCapacity[string, netip.Addr](size),
 			lru.WithOnRemove(func(s string, v netip.Addr) {
-				_ = cache.Delete([]byte(s), v.AsSlice())
+				_ = bboltCache.Delete([]byte(s), v.AsSlice())
 			}),
 		),
 		lru.WithOnValueChanged[string](func(old, new netip.Addr) {
-			_ = cache.Delete(old.AsSlice())
+			_ = bboltCache.Delete(old.AsSlice())
 		}),
 	)
 
-	err := cache.Range(func(k, v []byte) bool {
+	err := bboltCache.Range(func(k, v []byte) bool {
 		ip, ok := netip.AddrFromSlice(k)
 		if !ok {
 			return true
@@ -380,7 +381,7 @@ func newFakeLru(size uint, db *bolt.DB, iprange netip.Prefix) *fakeLru {
 
 		return true
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, cache.ErrBucketNotExist) {
 		log.Error("fakeip range cache failed", "err", err)
 	}
 

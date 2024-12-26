@@ -114,9 +114,9 @@ func getPorcessDumper() netapi.ProcessDumper {
 
 type processDumperImpl struct{}
 
-func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (string, error) {
+func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (netapi.Process, error) {
 	if src.IsFqdn() || dst.IsFqdn() {
-		return "", fmt.Errorf("source or destination address is not ip")
+		return netapi.Process{}, fmt.Errorf("source or destination address is not ip")
 	}
 
 	ip := src.(netapi.IPAddress).IP()

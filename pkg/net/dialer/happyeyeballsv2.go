@@ -30,6 +30,7 @@ type happyEyeball struct {
 	addr netapi.DomainAddress
 
 	resolver                  netapi.Resolver
+	dnsErrorMu                sync.RWMutex
 	dnsError                  error
 	primaryDone, fallbackDone chan struct{}
 	remainWait                chan struct{}
@@ -37,7 +38,7 @@ type happyEyeball struct {
 
 	lastIp                    net.IP
 	primaryMode, fallbackMode netapi.ResolverMode
-	mu                        sync.Mutex
+	mu                        sync.RWMutex
 	allResponse               atomic.Int32
 
 	prefer bool
@@ -114,7 +115,9 @@ _retry:
 		}
 		h.mu.Unlock()
 	} else {
+		h.dnsErrorMu.Lock()
 		h.dnsError = MergeDnsError(h.dnsError, err)
+		h.dnsErrorMu.Unlock()
 		if h.prefer && primary {
 			close(h.primaryDone)
 			primary = false
@@ -177,10 +180,16 @@ func (h *happyEyeball) waitFirstDNS(ctx context.Context) (err error) {
 		select {
 		case <-h.remainWait:
 			if h.allResponse.Load() == 0 {
-				return fmt.Errorf("no ip found: %w", h.dnsError)
+				h.dnsErrorMu.RLock()
+				dnsError := h.dnsError
+				h.dnsErrorMu.RUnlock()
+				return fmt.Errorf("no ip found: %w", dnsError)
 			}
 		case <-ctx.Done():
-			return fmt.Errorf("wait first dns timeout: %w", errors.Join(h.dnsError, ctx.Err()))
+			h.dnsErrorMu.RLock()
+			dnsError := h.dnsError
+			h.dnsErrorMu.RUnlock()
+			return fmt.Errorf("wait first dns timeout: %w", errors.Join(dnsError, ctx.Err()))
 		}
 	}
 
@@ -188,7 +197,10 @@ func (h *happyEyeball) waitFirstDNS(ctx context.Context) (err error) {
 }
 
 func (h *happyEyeball) next(ctx context.Context) net.IP {
-	if len(h.ips) != 0 {
+	h.mu.RLock()
+	ipslen := len(h.ips)
+	h.mu.RUnlock()
+	if ipslen != 0 {
 		return h.nextIP()
 	}
 
@@ -197,8 +209,10 @@ func (h *happyEyeball) next(ctx context.Context) net.IP {
 		return nil
 	case <-h.remainWait:
 	}
-
-	if len(h.ips) == 0 {
+	h.mu.RLock()
+	ipslen = len(h.ips)
+	h.mu.RUnlock()
+	if ipslen == 0 {
 		return nil
 	}
 

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -28,12 +30,12 @@ Finding the right line in /proc/net/tcp isn't difficult, and then you can get th
 Finding the process requires you to scan all processes, looking for one which refers this inode number. I know no better way.
 */
 
-func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (string, error) {
+func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (netapi.Process, error) {
 	var addr net.Addr
 	var remote []net.Addr
 
 	if len(network) < 3 {
-		return "", fmt.Errorf("ErrInvalidNetwork: %s", network)
+		return netapi.Process{}, fmt.Errorf("ErrInvalidNetwork: %s", network)
 	}
 
 	network = network[0:3]
@@ -50,7 +52,7 @@ func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPor
 			&net.UDPAddr{IP: net.IPv4zero, Port: 0},
 		}
 	default:
-		return "", fmt.Errorf("ErrInvalidNetwork: %s", network)
+		return netapi.Process{}, fmt.Errorf("ErrInvalidNetwork: %s", network)
 	}
 
 	var st *netlink.Socket
@@ -64,22 +66,31 @@ func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPor
 	}
 
 	if st == nil {
-		return "", err
+		return netapi.Process{}, err
 	}
 
-	return resolveProcessNameByProcSearch(st.INode, st.UID)
+	name, pid, err := resolveProcessNameByProcSearch(st.INode, st.UID)
+	if err != nil {
+		return netapi.Process{}, err
+	}
+
+	return netapi.Process{
+		Path: name,
+		Uid:  uint(st.UID),
+		Pid:  pid,
+	}, nil
 }
 
-func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
+func resolveProcessNameByProcSearch(inode, uid uint32) (string, uint, error) {
 	procDir, err := os.Open("/proc")
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer procDir.Close()
 
 	pids, err := procDir.Readdirnames(-1)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	expectedSocketName := fmt.Appendf(nil, "socket:[%d]", inode)
@@ -92,13 +103,14 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 
 	_, _ = pathBuffer.WriteString("/proc/")
 
-	for _, pid := range pids {
-		if !isPid(pid) {
+	for _, pidstr := range pids {
+		pid, err := strconv.Atoi(pidstr)
+		if err != nil {
 			continue
 		}
 
 		pathBuffer.Truncate(len("/proc/"))
-		_, _ = pathBuffer.WriteString(pid)
+		_, _ = pathBuffer.WriteString(pidstr)
 
 		stat := &unix.Stat_t{}
 		err = unix.Stat(pathBuffer.String(), stat)
@@ -134,20 +146,11 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 			}
 
 			if bytes.Equal(readlinkBuffer[:n], expectedSocketName) {
-				return os.Readlink("/proc/" + pid + "/exe")
+				path, err := os.Readlink("/proc/" + pidstr + "/exe")
+				return path, uint(pid), err
 			}
 		}
 	}
 
-	return "", fmt.Errorf("inode %d of uid %d not found", inode, uid)
-}
-
-func isPid(name string) bool {
-	for _, c := range name {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-
-	return true
+	return "", 0, fmt.Errorf("inode %d of uid %d not found", inode, uid)
 }

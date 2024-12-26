@@ -1,8 +1,6 @@
 package dialer
 
 import (
-	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -23,8 +21,4 @@ func TestAvg(t *testing.T) {
 	assert.MustEqual(t, time.Millisecond*100, a.Avg())
 
 	t.Log(a.Get())
-}
-
-func TestXxx(t *testing.T) {
-	MergeDnsError(errors.Join(nil, fmt.Errorf("error")), nil)
 }

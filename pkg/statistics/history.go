@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
@@ -96,7 +97,7 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 
 type History struct {
 	store       *lru.SyncLru[failedHistoryKey, *historyEntry]
-	dumpProcess bool
+	dumpProcess atomic.Bool
 }
 
 type historyEntry struct {
@@ -115,8 +116,8 @@ func NewHistory() *History {
 func (h *History) Push(c *statistic.Connection) {
 	key := failedHistoryKey{c.Type.ConnType.String(), c.Addr, c.Extra["Process"]}
 
-	if !h.dumpProcess && key.process != "" {
-		h.dumpProcess = true
+	if !h.dumpProcess.Load() && key.process != "" {
+		h.dumpProcess.Store(true)
 	}
 
 	x, ok := h.store.LoadOrAdd(key, func() *historyEntry {
@@ -136,6 +137,7 @@ func (h *History) Push(c *statistic.Connection) {
 	x.mu.Lock()
 	x.Count++
 	x.Time = timestamppb.Now()
+	x.Connection = c
 	x.mu.Unlock()
 }
 
@@ -146,6 +148,6 @@ func (h *History) Get() *gs.AllHistoryList {
 	}
 	return &gs.AllHistoryList{
 		Objects:            objects,
-		DumpProcessEnabled: h.dumpProcess,
+		DumpProcessEnabled: h.dumpProcess.Load(),
 	}
 }

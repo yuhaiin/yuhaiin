@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/sys/windows"
 )
@@ -18,7 +19,7 @@ var (
 	procGetExtendedUdpTable = modIphlpapi.NewProc("GetExtendedUdpTable")
 )
 
-func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (string, error) {
+func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPort uint16) (netapi.Process, error) {
 	family := uint32(windows.AF_INET)
 	if ip.To4() == nil {
 		family = windows.AF_INET6
@@ -31,7 +32,7 @@ func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPor
 	case "udp":
 		protocol = windows.IPPROTO_UDP
 	default:
-		return "", errors.New("ErrInvalidNetwork")
+		return netapi.Process{}, errors.New("ErrInvalidNetwork")
 	}
 
 	saddr, _ := netip.AddrFromSlice(ip)
@@ -43,10 +44,18 @@ func FindProcessName(network string, ip net.IP, srcPort uint16, to net.IP, toPor
 		netip.AddrPortFrom(daddr, toPort),
 	)
 	if err != nil {
-		return "", err
+		return netapi.Process{}, err
 	}
 
-	return getExecPathFromPID(pid)
+	path, err := getExecPathFromPID(pid)
+	if err != nil {
+		return netapi.Process{}, err
+	}
+
+	return netapi.Process{
+		Path: path,
+		Pid:  uint(pid),
+	}, nil
 }
 
 func findPidByConnectionEndpoint(family uint32, protocol uint32, from netip.AddrPort, to netip.AddrPort) (uint32, error) {

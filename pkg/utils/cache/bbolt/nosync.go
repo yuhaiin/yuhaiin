@@ -108,9 +108,13 @@ func (c *Nosync) existBucket(tx *bbolt.Tx) *bbolt.Bucket {
 	return bk
 }
 
-func (c *Nosync) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
+func (c *Nosync) bucket(tx *bbolt.Tx, readOnly bool) (*bbolt.Bucket, error) {
 	bk := tx.Bucket(c.bucketName[0])
 	if bk == nil {
+		if readOnly {
+			return nil, cache.ErrBucketNotExist
+		}
+
 		var err error
 		bk, err = tx.CreateBucketIfNotExists(c.bucketName[0])
 		if err != nil {
@@ -121,6 +125,10 @@ func (c *Nosync) bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
 	for _, v := range c.bucketName[1:] {
 		bk = bk.Bucket(v)
 		if bk == nil {
+			if readOnly {
+				return nil, cache.ErrBucketNotExist
+			}
+
 			var err error
 			bk, err = bk.CreateBucketIfNotExists(v)
 			if err != nil {
@@ -172,7 +180,7 @@ func (c *Nosync) Range(f func(key []byte, value []byte) bool) error {
 	}
 
 	return c.db.View(func(tx *bbolt.Tx) error {
-		bkt, err := c.bucket(tx)
+		bkt, err := c.bucket(tx, true)
 		if err != nil {
 			return err
 		}
@@ -203,7 +211,7 @@ func (c *Nosync) put(k, v []byte) {
 	}
 
 	_ = c.db.Batch(func(tx *bbolt.Tx) error {
-		bk, err := c.bucket(tx)
+		bk, err := c.bucket(tx, false)
 		if err != nil {
 			return err
 		}

@@ -69,7 +69,7 @@ func (u *uidDumper) GetUidInfo(uid int32) (string, error) {
 	return r, nil
 }
 
-func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (string, error) {
+func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (netapi.Process, error) {
 	var network int32
 	switch networks {
 	case "tcp":
@@ -87,9 +87,12 @@ func (a *uidDumper) ProcessName(networks string, src, dst netapi.Address) (strin
 	if uid != 0 {
 		name, err = a.UidDumper.GetUidInfo(uid)
 		if err != nil {
-			return "", fmt.Errorf("get uid info error: %v", err)
+			return netapi.Process{}, fmt.Errorf("get uid info error: %v", err)
 		}
 	}
 
-	return fmt.Sprintf("%s(%d)", name, uid), nil
+	return netapi.Process{
+		Path: name,
+		Uid:  uint(uid),
+	}, nil
 }

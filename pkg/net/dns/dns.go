@@ -355,7 +355,7 @@ func (c *client) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.M
 		}
 	}
 
-	return msg, nil
+	return cloneMessage(msg), nil
 }
 
 func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage.Type) ([]net.IP, error) {
@@ -420,3 +420,32 @@ func (c *client) lookupIP(ctx context.Context, domain string, reqType dnsmessage
 }
 
 func (c *client) Close() error { return c.dialer.Close() }
+
+func cloneMessage(msg dnsmessage.Message) dnsmessage.Message {
+	n := dnsmessage.Message{
+		Header:      msg.Header,
+		Questions:   msg.Questions,
+		Answers:     make([]dnsmessage.Resource, 0, len(msg.Answers)),
+		Authorities: make([]dnsmessage.Resource, 0, len(msg.Authorities)),
+		Additionals: make([]dnsmessage.Resource, 0, len(msg.Additionals)),
+	}
+	for _, a := range msg.Answers {
+		n.Answers = append(n.Answers, dnsmessage.Resource{
+			Header: a.Header,
+			Body:   a.Body,
+		})
+	}
+	for _, a := range msg.Authorities {
+		n.Authorities = append(n.Authorities, dnsmessage.Resource{
+			Header: a.Header,
+			Body:   a.Body,
+		})
+	}
+	for _, a := range msg.Additionals {
+		n.Additionals = append(n.Additionals, dnsmessage.Resource{
+			Header: a.Header,
+			Body:   a.Body,
+		})
+	}
+	return n
+}

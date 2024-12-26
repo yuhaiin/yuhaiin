@@ -11,7 +11,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20241113014420-4e883d38c8d3
 	github.com/vishvananda/netlink v1.3.0
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241216135414-bec33bfa3c3f
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241228063326-4d85f8daaf9b
 	// for fix https://github.com/etcd-io/bbolt/issues/840
 	go.etcd.io/bbolt v1.4.0-beta.0.0.20241204153925-22ac598c5e82
 	golang.org/x/crypto v0.31.0
@@ -22,8 +22,8 @@ require (
 	golang.org/x/time v0.8.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.69.2
-	google.golang.org/protobuf v1.36.0
-	gvisor.dev/gvisor v0.0.0-20241120231458-0add1d20fa0c
+	google.golang.org/protobuf v1.36.1
+	gvisor.dev/gvisor v0.0.0-20241220022509-4690b2e35d70
 )
 
 require (

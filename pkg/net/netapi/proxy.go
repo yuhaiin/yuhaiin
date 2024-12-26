@@ -8,8 +8,14 @@ import (
 	"sync"
 )
 
+type Process struct {
+	Path string
+	Pid  uint
+	Uid  uint
+}
+
 type ProcessDumper interface {
-	ProcessName(network string, src, dst Address) (string, error)
+	ProcessName(network string, src, dst Address) (Process, error)
 }
 
 type Proxy interface {

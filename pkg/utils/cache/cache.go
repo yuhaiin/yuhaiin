@@ -1,5 +1,7 @@
 package cache
 
+import "errors"
+
 type Cache interface {
 	Get(k []byte) (v []byte, err error)
 	Put(k, v []byte) error
@@ -31,3 +33,5 @@ func (m *MockCache) Range(f func(key []byte, value []byte) bool) error { return 
 func (m *MockCache) Close() error                                      { return nil }
 func (m *MockCache) NewCache(str string) Cache                         { return &MockCache{} }
 func NewMockCache() Cache                                              { return &MockCache{} }
+
+var ErrBucketNotExist = errors.New("bucket not exist")

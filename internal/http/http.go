@@ -73,6 +73,12 @@ func ServeHTTP(o *appapi.Components) {
 		"PATCH /resolver":  GrpcToHttp(o.Resolver.Save),
 		"DELETE /resolver": GrpcToHttp(o.Resolver.Remove),
 
+		"GET /resolver/hosts":   GrpcToHttp(o.Resolver.Hosts),
+		"PATCH /resolver/hosts": GrpcToHttp(o.Resolver.SaveHosts),
+
+		"GET /resolver/fakedns":   GrpcToHttp(o.Resolver.Fakedns),
+		"PATCH /resolver/fakedns": GrpcToHttp(o.Resolver.SaveFakedns),
+
 		"GET /flow/total": GrpcToHttp(o.Connections.Total),
 		// WEBSOCKET
 		"GET /conn": GrpcServerStreamingToWebsocket(o.Connections.Notify),

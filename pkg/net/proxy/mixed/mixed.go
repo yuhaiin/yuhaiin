@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -131,7 +132,9 @@ func (m *Mixed) handle() error {
 
 			var protocol byte
 			err := conn.BufioRead(func(r *bufio.Reader) error {
+				_ = conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 				protocol, err = r.ReadByte()
+				_ = conn.SetReadDeadline(time.Time{})
 				if err == nil {
 					_ = r.UnreadByte()
 				}

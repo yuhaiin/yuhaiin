@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"golang.org/x/sys/unix"
 )
 
@@ -34,7 +35,7 @@ var structSize = func() int {
 	}
 }()
 
-func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16) (string, error) {
+func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16) (netapi.Process, error) {
 	var spath string
 	switch network {
 	case "tcp":
@@ -42,14 +43,14 @@ func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16)
 	case "udp":
 		spath = "net.inet.udp.pcblist_n"
 	default:
-		return "", fmt.Errorf("ErrInvalidNetwork: %s", network)
+		return netapi.Process{}, fmt.Errorf("ErrInvalidNetwork: %s", network)
 	}
 
 	isIPv4 := ip.To4() != nil
 
 	value, err := syscall.Sysctl(spath)
 	if err != nil {
-		return "", err
+		return netapi.Process{}, err
 	}
 
 	buf := []byte(value)
@@ -60,6 +61,7 @@ func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16)
 	}
 
 	var fallbackUDPProcess string
+	var fallbackUDPPid uint32
 	// skip the first xinpgen(24 bytes) block
 	for i := 24; i+itemSize <= len(buf); i += itemSize {
 		// offset of xinpcb_n and xsocket_n
@@ -92,20 +94,28 @@ func FindProcessName(network string, ip net.IP, port uint16, _ net.IP, _ uint16)
 		if ip.Equal(srcIP) {
 			// xsocket_n.so_last_pid
 			pid := readNativeUint32(buf[so+68 : so+72])
-			return getExecPathFromPID(pid)
+			path, err := getExecPathFromPID(pid)
+			return netapi.Process{
+				Path: path,
+				Pid:  uint(pid),
+			}, err
 		}
 
 		// udp packet connection may be not equal with srcIP
 		if network == "udp" && srcIP.IsUnspecified() && isIPv4 == srcIsIPv4 {
-			fallbackUDPProcess, _ = getExecPathFromPID(readNativeUint32(buf[so+68 : so+72]))
+			fallbackUDPPid = readNativeUint32(buf[so+68 : so+72])
+			fallbackUDPProcess, _ = getExecPathFromPID(fallbackUDPPid)
 		}
 	}
 
 	if network == "udp" && fallbackUDPProcess != "" {
-		return fallbackUDPProcess, nil
+		return netapi.Process{
+			Path: fallbackUDPProcess,
+			Pid:  uint(fallbackUDPPid),
+		}, nil
 	}
 
-	return "", fmt.Errorf("not found")
+	return netapi.Process{}, fmt.Errorf("not found")
 }
 
 func getExecPathFromPID(pid uint32) (string, error) {

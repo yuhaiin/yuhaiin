@@ -90,6 +90,7 @@ func (r *Resolver) Update(c *pc.Setting) {
 	c.Dns.Resolver = map[string]*pd.Dns{
 		bypass.Mode_direct.String(): c.Dns.Local,
 		bypass.Mode_proxy.String():  c.Dns.Remote,
+		"bootstrap":                 c.Dns.Bootstrap,
 	}
 
 	r.ipv6 = c.GetIpv6()
