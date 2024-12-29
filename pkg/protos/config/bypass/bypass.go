@@ -28,6 +28,7 @@ func (f *ModeConfig) ToModeEnum() unique.Handle[ModeEnum] {
 		f.Mode,
 		f.ResolveStrategy,
 		f.UdpProxyFqdnStrategy,
+		f.Resolver,
 	})
 }
 
@@ -36,6 +37,7 @@ type ModeEnum struct {
 	mode            Mode
 	ResolveStrategy ResolveStrategy
 	udpProxyFqdn    UdpProxyFqdnStrategy
+	resolver        string
 }
 
 func (m ModeEnum) Mode() Mode                          { return m.mode }
@@ -43,6 +45,7 @@ func (m ModeEnum) GetTag() string                      { return m.Tag }
 func (ModeEnum) Unknown() bool                         { return false }
 func (m ModeEnum) GetResolveStrategy() ResolveStrategy { return m.ResolveStrategy }
 func (m ModeEnum) UdpProxyFqdn() UdpProxyFqdnStrategy  { return m.udpProxyFqdn }
+func (m ModeEnum) Resolver() string                    { return m.resolver }
 
 var (
 	Proxy = ModeEnum{

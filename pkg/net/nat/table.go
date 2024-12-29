@@ -48,16 +48,11 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return nil
 	}
 
-	var tmpSource *SourceControl
-	r, ok := u.sourceControl.LoadOrCreate(key, func() *SourceControl {
-		tmpSource = NewSourceChan(u.dialer, func(sc *SourceControl) {
+	r, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, bool) {
+		return NewSourceChan(u.dialer, func(sc *SourceControl) {
 			u.sourceControl.CompareAndDelete(key, sc)
-		})
-		return tmpSource
+		}), true
 	})
-	if ok && tmpSource != nil {
-		_ = tmpSource.Close()
-	}
 
 	return r.WritePacket(ctx, pkt)
 }

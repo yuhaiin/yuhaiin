@@ -5,7 +5,8 @@ import (
 )
 
 type SyncMap[key comparable, value any] struct {
-	data sync.Map
+	data   sync.Map
+	single single
 }
 
 func (a *SyncMap[T1, T2]) Load(key T1) (r T2, _ bool) {
@@ -25,11 +26,22 @@ func (a *SyncMap[T1, T2]) LoadOrStore(key T1, value T2) (r T2, _ bool) {
 	return v.(T2), ok
 }
 
-func (a *SyncMap[T1, T2]) LoadOrCreate(key T1, f func() T2) (r T2, _ bool) {
+func (a *SyncMap[T1, T2]) LoadOrCreate(key T1, f func() (T2, bool)) (r T2, _ bool) {
 	v, ok := a.data.Load(key)
 	if !ok {
-		v = f()
-		v, ok = a.data.LoadOrStore(key, v)
+		a.single.Do(key, func() {
+			v, ok = a.data.Load(key)
+			if ok {
+				return
+			}
+
+			v, ok = f()
+			if !ok {
+				return
+			}
+
+			v, ok = a.data.LoadOrStore(key, v)
+		})
 	}
 	return v.(T2), ok
 }
@@ -130,4 +142,32 @@ func DiffMap[K comparable, V any](old, new map[K]V, isSame func(v1, v2 V) bool) 
 			}
 		}
 	}
+}
+
+type single struct {
+	mu    sync.Mutex
+	store map[any]*sync.Mutex
+}
+
+func (s *single) Do(key any, f func()) {
+	s.mu.Lock()
+	if s.store == nil {
+		s.store = make(map[any]*sync.Mutex)
+	}
+
+	mu, ok := s.store[key]
+	if !ok {
+		mu = &sync.Mutex{}
+		s.store[key] = mu
+		defer func() {
+			s.mu.Lock()
+			delete(s.store, key)
+			s.mu.Unlock()
+		}()
+	}
+	s.mu.Unlock()
+
+	mu.Lock()
+	f()
+	mu.Unlock()
 }
