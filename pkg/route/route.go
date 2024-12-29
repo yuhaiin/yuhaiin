@@ -38,7 +38,7 @@ type Route struct {
 }
 
 type Resolver interface {
-	Get(str string) netapi.Resolver
+	Get(resolver, fallback string) netapi.Resolver
 }
 
 type Dialer interface {
@@ -202,7 +202,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	if mode.Mode() == bypass.Mode_bypass {
 		// get mode from bypass rule
-		store.Resolver.Resolver = s.r.Get("")
+		store.Resolver.Resolver = s.r.Get("", "")
 		if store.Hosts == nil && !host.IsFqdn() && store.SniffHost() != "" {
 			reason = "sniff host trie mode"
 			mode = s.Search(ctx, netapi.ParseAddressPort(host.Network(), store.SniffHost(), host.Port()))
@@ -236,7 +236,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	store.Resolver.SkipResolve = s.skipResolve(mode)
 	store.Mode = mode.Mode()
-	store.Resolver.Resolver = s.r.Get(mode.Mode().String())
+	store.Resolver.Resolver = s.r.Get(mode.Resolver(), mode.Mode().String())
 	store.ModeReason = reason
 
 	if s.config.ResolveLocally && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
@@ -262,7 +262,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		s.dumpProcess(ctx, "udp", "tcp")
 		s.RejectHistory.Push(ctx, "dns", domain)
 	}
-	return s.r.Get(mode.Mode().String())
+	return s.r.Get(mode.Resolver(), mode.Mode().String())
 }
 
 func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
