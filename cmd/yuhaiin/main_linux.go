@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"syscall"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 )
 
@@ -18,12 +19,12 @@ func init() {
 		err := dialer.LinuxMarkSymbol(socket, 0x00000500)
 		if err != nil {
 			if errors.Is(err, syscall.EPERM) {
-				slog.Info("check mark symbol no permission, disable it")
+				log.Info("check mark symbol no permission, disable it")
 				disabledMark = true
 				return false
 			}
 
-			slog.Error("check mark symbol failed", slog.Any("err", err))
+			log.Error("check mark symbol failed", slog.Any("err", err))
 		}
 
 		return err == nil

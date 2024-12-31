@@ -187,7 +187,7 @@ func (b *bypassConfig) initSetting() {
 	if len(s) > 0 {
 		err := proto.Unmarshal(s, config)
 		if err != nil {
-			slog.Error("unmarshal failed", slog.Any("err", err))
+			log.Error("unmarshal failed", slog.Any("err", err))
 		}
 	}
 

@@ -34,7 +34,8 @@ type Route struct {
 
 	*RejectHistory
 
-	mu sync.RWMutex
+	matchers []*matcher
+	mu       sync.RWMutex
 }
 
 type Resolver interface {
@@ -46,7 +47,7 @@ type Dialer interface {
 }
 
 func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
-	return &Route{
+	rr := &Route{
 		trie:       atomicx.NewPointer(newRouteTires()),
 		customTrie: atomicx.NewPointer(newRouteTires()),
 		config: &bypass.Config{
@@ -58,6 +59,10 @@ func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
 		ProcessDumper: ProcessDumper,
 		RejectHistory: NewRejectHistory(),
 	}
+
+	rr.addMatchers()
+
+	return rr
 }
 
 func (s *Route) Tags() iter.Seq[string] {
@@ -79,13 +84,13 @@ func (s *Route) Tags() iter.Seq[string] {
 }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
-	mode, host, _ := s.dispatch(ctx, s.config.Tcp, host)
+	result := s.dispatch(ctx, s.config.Tcp, host)
 
-	if mode.Mode() == bypass.Mode_block {
+	if result.Mode.Mode() == bypass.Mode_block {
 		s.RejectHistory.Push(ctx, "tcp", host.String())
 	}
 
-	p, err := s.d.Get(ctx, "tcp", mode.Mode().String(), mode.GetTag())
+	p, err := s.d.Get(ctx, "tcp", result.Mode.Mode().String(), result.Mode.GetTag())
 	if err != nil {
 		return nil, netapi.NewDialError("tcp", err, host)
 	}
@@ -99,13 +104,13 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 }
 
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
-	mode, host, _ := s.dispatch(ctx, s.config.Udp, host)
+	result := s.dispatch(ctx, s.config.Udp, host)
 
-	if mode.Mode() == bypass.Mode_block {
+	if result.Mode.Mode() == bypass.Mode_block {
 		s.RejectHistory.Push(ctx, "udp", host.String())
 	}
 
-	p, err := s.d.Get(ctx, "udp", mode.Mode().String(), mode.GetTag())
+	p, err := s.d.Get(ctx, "udp", result.Mode.Mode().String(), result.Mode.GetTag())
 	if err != nil {
 		return nil, netapi.NewDialError("udp", err, host)
 	}
@@ -125,8 +130,8 @@ func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 		return host, nil
 	}
 
-	_, addr, _ := s.dispatch(ctx, bypass.Mode_bypass, host)
-	return addr, nil
+	result := s.dispatch(ctx, bypass.Mode_bypass, host)
+	return result.Addr, nil
 }
 
 func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum {
@@ -144,6 +149,10 @@ func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum
 }
 
 func (s *Route) SearchProcess(ctx *netapi.Context, process netapi.Process) (bypass.ModeEnum, bool) {
+	if process.Path == "" {
+		return bypass.Bypass, false
+	}
+
 	matchProcess := filepath.Clean(strings.TrimSuffix(process.Path, " (deleted)"))
 
 	matchProcess = convertVolumeName(matchProcess)
@@ -178,59 +187,93 @@ func (s *Route) skipResolve(mode bypass.ModeEnum) bool {
 	}
 }
 
-func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) (mode bypass.ModeEnum, addr netapi.Address, reason string) {
+type routeResult struct {
+	Mode   bypass.ModeEnum
+	Addr   netapi.Address
+	Reason string
+}
+
+type Object struct {
+	Ctx         *netapi.Context
+	NetowrkMode bypass.Mode
+	Host        netapi.Address
+}
+
+type matcher struct {
+	Name string
+	Func func(*Object) bypass.ModeEnum
+}
+
+func (s *Route) AddMatcher(name string, f func(*Object) bypass.ModeEnum) {
+	s.matchers = append(s.matchers, &matcher{Name: name, Func: f})
+}
+
+func (s *Route) addMatchers() {
+	s.AddMatcher("loopback cycle check", func(o *Object) bypass.ModeEnum {
+		if s.loopback.Cycle(o.Ctx, o.Host) {
+			return bypass.Block
+		}
+		return bypass.Bypass
+	})
+
+	s.AddMatcher("force mode", func(o *Object) bypass.ModeEnum { return bypass.Mode(o.Ctx.ForceMode).ToModeEnum() })
+
+	s.AddMatcher("network mode", func(o *Object) bypass.ModeEnum { return o.NetowrkMode.ToModeEnum() })
+
+	s.AddMatcher("normal mode", func(o *Object) bypass.ModeEnum {
+		var mode bypass.ModeEnum
+		// get mode from bypass rule
+		o.Ctx.Resolver.Resolver = s.r.Get("", "")
+		if o.Ctx.Hosts == nil && !o.Host.IsFqdn() && o.Ctx.SniffHost() != "" {
+			// reason = "sniff host trie mode"
+			mode = s.Search(o.Ctx, netapi.ParseAddressPort(o.Host.Network(), o.Ctx.SniffHost(), o.Host.Port()))
+		} else {
+			// reason = "normal host trie mode"
+			mode = s.Search(o.Ctx, o.Host)
+		}
+
+		switch mode.GetResolveStrategy() {
+		case bypass.ResolveStrategy_only_ipv4, bypass.ResolveStrategy_prefer_ipv4:
+			o.Ctx.Resolver.Mode = netapi.ResolverModePreferIPv4
+		case bypass.ResolveStrategy_only_ipv6, bypass.ResolveStrategy_prefer_ipv6:
+			o.Ctx.Resolver.Mode = netapi.ResolverModePreferIPv6
+		default:
+			if !configuration.IPv6.Load() {
+				o.Ctx.Resolver.Mode = netapi.ResolverModePreferIPv4
+			}
+		}
+
+		return mode
+	})
+}
+
+func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) routeResult {
+	var mode bypass.ModeEnum
+	var reason string
+
 	process := s.dumpProcess(ctx, host.Network())
 
 	// get mode from upstream specified
 	store := netapi.GetContext(ctx)
 
-	if s.loopback.Cycle(store, host) {
-		mode = bypass.Block
-		reason = "loopback cycle"
-		log.Warn("check loopback", "target", host, "inbound", store.Inbound)
+	object := &Object{
+		Ctx:         store,
+		NetowrkMode: networkMode,
+		Host:        host,
 	}
 
-	if mode.Mode() == bypass.Mode_bypass {
-		if bypass.Mode(store.ForceMode) != bypass.Mode_bypass {
-			reason = "context force mode"
-			mode = bypass.Mode(store.ForceMode).ToModeEnum()
-		} else {
-			reason = "network mode"
-			mode = networkMode.ToModeEnum() // get mode from network(tcp/udp) rule
-		}
-	}
-
-	if mode.Mode() == bypass.Mode_bypass {
-		// get mode from bypass rule
-		store.Resolver.Resolver = s.r.Get("", "")
-		if store.Hosts == nil && !host.IsFqdn() && store.SniffHost() != "" {
-			reason = "sniff host trie mode"
-			mode = s.Search(ctx, netapi.ParseAddressPort(host.Network(), store.SniffHost(), host.Port()))
-		} else {
-			reason = "normal host trie mode"
-			mode = s.Search(ctx, host)
-		}
-
-		switch mode.GetResolveStrategy() {
-		case bypass.ResolveStrategy_only_ipv4, bypass.ResolveStrategy_prefer_ipv4:
-			store.Resolver.Mode = netapi.ResolverModePreferIPv4
-		case bypass.ResolveStrategy_only_ipv6, bypass.ResolveStrategy_prefer_ipv6:
-			store.Resolver.Mode = netapi.ResolverModePreferIPv6
-		default:
-			if !configuration.IPv6.Load() {
-				store.Resolver.Mode = netapi.ResolverModePreferIPv4
-			}
+	for _, m := range s.matchers {
+		if mode = m.Func(object); !mode.Mode().Unspecified() {
+			reason = m.Name
+			break
 		}
 	}
 
 	if mode.Mode() != bypass.Mode_block {
-		if store.SniffMode != bypass.Mode_bypass {
-			mode = store.SniffMode.ToModeEnum()
-		} else if process.Path != "" {
-			if m, ok := s.SearchProcess(store, process); ok {
-				reason = "process trie mode"
-				mode = m
-			}
+		if m, ok := s.SearchProcess(store, process); ok {
+			mode, reason = m, "process trie mode"
+		} else if !store.SniffMode.Unspecified() {
+			mode, reason = store.SniffMode.ToModeEnum(), "sniff mode"
 		}
 	}
 
@@ -251,7 +294,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 		}
 	}
 
-	return mode, host, reason
+	return routeResult{mode, host, reason}
 }
 
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {

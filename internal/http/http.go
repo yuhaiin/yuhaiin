@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -124,17 +125,58 @@ func HandleFront(mux *http.ServeMux) {
 		ffs = yf.Content
 	}
 
-	dirs, err := fs.Glob(ffs, "*")
-	if err != nil {
-		return
-	}
+	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		f, err := ffs.Open(path)
+		if err != nil {
+			path = filepath.Join(path, "index.html")
+			f, err = ffs.Open(path)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+		}
+		_ = f.Close()
 
-	handler := http.FileServer(http.FS(ffs))
+		ext := filepath.Ext(path)
 
-	mux.Handle("GET /", handler)
-	for _, v := range dirs {
-		mux.Handle(fmt.Sprintf("GET %s/", v), handler)
-	}
+		var ctype string
+
+		switch ext {
+		case ".html":
+			ctype = "text/html"
+		case ".js":
+			ctype = "text/javascript"
+		case ".css":
+			ctype = "text/css"
+		case ".png":
+			ctype = "image/png"
+		case ".jpg":
+			ctype = "image/jpg"
+		case ".jpeg":
+			ctype = "image/jpeg"
+		case ".svg":
+			ctype = "image/svg+xml"
+		case ".ico":
+			ctype = "image/x-icon"
+		case ".gif":
+			ctype = "image/gif"
+		case ".webp":
+			ctype = "image/webp"
+		case ".json":
+			ctype = "application/json"
+		case ".wasm":
+			ctype = "application/wasm"
+		case ".txt":
+			ctype = "text/plain"
+		default:
+			ctype = "application/octet-stream"
+		}
+
+		w.Header().Set("Content-Type", ctype)
+
+		http.ServeFileFS(w, r, ffs, path)
+	}))
 }
 
 type wrapResponseWriter struct {
@@ -188,6 +230,7 @@ func GrpcToHttp[req ProtoMsg[T], resp ProtoMsg[T2], T, T2 any](function func(con
 			return err
 		}
 
+		w.Header().Set("Content-Type", "application/protobuf")
 		_, err = w.Write(respBytes)
 		return err
 	}

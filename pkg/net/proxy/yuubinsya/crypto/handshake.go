@@ -11,6 +11,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
@@ -81,6 +82,9 @@ func (t *encryptedHandshaker) DecodeHeader(c pool.BufioConn) (types.Header, erro
 }
 
 func (h *encryptedHandshaker) Handshake(conn net.Conn) (net.Conn, error) {
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
+
 	if h.server {
 		return h.handshakeServer(conn)
 	}

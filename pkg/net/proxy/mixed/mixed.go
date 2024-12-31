@@ -17,16 +17,15 @@ import (
 )
 
 type Mixed struct {
-	lis net.Listener
+	lis      net.Listener
+	defaultC *netapi.ChannelStreamListener
+	mchs     []*Matcher
+	closers  []io.Closer
+}
 
-	s5c *netapi.ChannelStreamListener
-	s5  netapi.Accepter
-
-	s4c *netapi.ChannelStreamListener
-	s4  netapi.Accepter
-
-	httpc *netapi.ChannelStreamListener
-	http  netapi.Accepter
+type Matcher struct {
+	match func(byte) bool
+	ch    *netapi.ChannelStreamListener
 }
 
 func init() {
@@ -41,44 +40,13 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener, handler netapi
 		}
 
 		mix := &Mixed{
-			lis: lis,
+			lis:      lis,
+			defaultC: netapi.NewChannelStreamListener(lis.Addr()),
 		}
 
-		mix.s5c = netapi.NewChannelStreamListener(lis.Addr())
-		mix.s5, err = socks5.NewServer(&listener.Inbound_Socks5{
-			Socks5: &listener.Socks5{
-				Username: o.Mix.Username,
-				Password: o.Mix.Password,
-				Udp:      true,
-			},
-		})(netapi.NewListener(mix.s5c, ii), handler)
-		if err != nil {
-			mix.Close()
-			return nil, err
-		}
-
-		mix.s4c = netapi.NewChannelStreamListener(lis.Addr())
-		mix.s4, err = socks4a.NewServer(&listener.Inbound_Socks4A{
-			Socks4A: &listener.Socks4A{
-				Username: o.Mix.Username,
-			},
-		})(netapi.NewListener(mix.s4c, ii), handler)
-		if err != nil {
-			mix.Close()
-			return nil, err
-		}
-
-		mix.httpc = netapi.NewChannelStreamListener(lis.Addr())
-		mix.http, err = http.NewServer(&listener.Inbound_Http{
-			Http: &listener.Http{
-				Username: o.Mix.Username,
-				Password: o.Mix.Password,
-			},
-		})(netapi.NewListener(mix.httpc, ii), handler)
-		if err != nil {
-			mix.Close()
-			return nil, err
-		}
+		mix.socks5(o, ii, handler)
+		mix.socks4(o, ii, handler)
+		mix.http(o, ii, handler)
 
 		go func() {
 			defer mix.Close()
@@ -92,27 +60,74 @@ func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener, handler netapi
 }
 
 func (m *Mixed) Close() error {
-	noneNilClose(m.s5c)
-	noneNilClose(m.s5)
-	noneNilClose(m.s4c)
-	noneNilClose(m.s4)
-	noneNilClose(m.httpc)
-	noneNilClose(m.http)
+	m.defaultC.Close()
+
+	for _, c := range m.mchs {
+		c.ch.Close()
+	}
+
+	for _, c := range m.closers {
+		c.Close()
+	}
 	return m.lis.Close()
 }
 
-func noneNilClose(i io.Closer) {
-	if c, ok := i.(*netapi.ChannelStreamListener); ok {
-		if c != nil {
-			_ = c.Close()
-		}
+func (m *Mixed) AddMatcher(match func(byte) bool) net.Listener {
+	ch := netapi.NewChannelStreamListener(m.lis.Addr())
+	m.mchs = append(m.mchs, &Matcher{
+		match: match,
+		ch:    ch,
+	})
+	return ch
+}
 
+func (m *Mixed) socks5(o *listener.Inbound_Mix, ii netapi.Listener, handler netapi.Handler) {
+	lis := m.AddMatcher(func(b byte) bool { return b == 0x05 })
+
+	s5, err := socks5.NewServer(&listener.Inbound_Socks5{
+		Socks5: &listener.Socks5{
+			Username: o.Mix.Username,
+			Password: o.Mix.Password,
+			Udp:      true,
+		},
+	})(netapi.NewListener(lis, ii), handler)
+	if err != nil {
+		log.Error("new socks5 server failed", "err", err)
 		return
 	}
 
-	if i != nil {
-		_ = i.Close()
+	m.closers = append(m.closers, s5)
+}
+
+func (m *Mixed) socks4(o *listener.Inbound_Mix, ii netapi.Listener, handler netapi.Handler) {
+	lis := m.AddMatcher(func(b byte) bool { return b == 0x04 })
+
+	s4, err := socks4a.NewServer(&listener.Inbound_Socks4A{
+		Socks4A: &listener.Socks4A{
+			Username: o.Mix.Username,
+		},
+	})(netapi.NewListener(lis, ii), handler)
+	if err != nil {
+		log.Error("new socks4 server failed", "err", err)
+		return
 	}
+
+	m.closers = append(m.closers, s4)
+}
+
+func (m *Mixed) http(o *listener.Inbound_Mix, ii netapi.Listener, handler netapi.Handler) {
+	http, err := http.NewServer(&listener.Inbound_Http{
+		Http: &listener.Http{
+			Username: o.Mix.Username,
+			Password: o.Mix.Password,
+		},
+	})(netapi.NewListener(m.defaultC, ii), handler)
+	if err != nil {
+		log.Error("new http server failed", "err", err)
+		return
+	}
+
+	m.closers = append(m.closers, http)
 }
 
 func (m *Mixed) handle() error {
@@ -146,14 +161,14 @@ func (m *Mixed) handle() error {
 				return
 			}
 
-			switch protocol {
-			case 0x05:
-				m.s5c.NewConn(conn)
-			case 0x04:
-				m.s4c.NewConn(conn)
-			default:
-				m.httpc.NewConn(conn)
+			for _, matcher := range m.mchs {
+				if matcher.match(protocol) {
+					matcher.ch.NewConn(conn)
+					return
+				}
 			}
+
+			m.defaultC.NewConn(conn)
 		}()
 	}
 }
