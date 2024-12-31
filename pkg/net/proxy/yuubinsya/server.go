@@ -113,7 +113,6 @@ func (y *server) startTCP() (err error) {
 }
 
 func (y *server) handle(conn net.Conn) error {
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 
 	cc, err := y.handshaker.Handshake(conn)
 	if err != nil {
@@ -122,6 +121,7 @@ func (y *server) handle(conn net.Conn) error {
 
 	c := pool.NewBufioConnSize(cc, pool.DefaultSize)
 
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 6))
 	header, err := y.handshaker.DecodeHeader(c)
 	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {

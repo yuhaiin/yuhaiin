@@ -152,16 +152,16 @@ func (s *RuleController) Test(ctx context.Context, req *wrapperspb.StringValue) 
 		}
 	}
 
-	mode, addr, reason := s.route.dispatch(ctx, bypass.Mode_bypass, addr)
+	result := s.route.dispatch(ctx, bypass.Mode_bypass, addr)
 
 	return &gc.TestResponse{
 		Mode: &bypass.ModeConfig{
-			Mode:            mode.Mode(),
-			Tag:             mode.GetTag(),
-			ResolveStrategy: mode.GetResolveStrategy(),
+			Mode:            result.Mode.Mode(),
+			Tag:             result.Mode.GetTag(),
+			ResolveStrategy: result.Mode.GetResolveStrategy(),
 		},
-		AfterAddr: addr.String(),
-		Reason:    reason,
+		AfterAddr: result.Addr.String(),
+		Reason:    result.Reason,
 	}, nil
 }
 

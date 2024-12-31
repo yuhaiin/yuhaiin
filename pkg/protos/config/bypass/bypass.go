@@ -22,6 +22,8 @@ func (m Mode) Unknown() bool {
 	return !ok
 }
 
+func (m Mode) Unspecified() bool { return m == Mode_bypass }
+
 func (f *ModeConfig) ToModeEnum() unique.Handle[ModeEnum] {
 	return unique.Make(ModeEnum{
 		f.Tag,
