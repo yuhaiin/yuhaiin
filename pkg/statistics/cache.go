@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 )
 
@@ -27,11 +26,12 @@ type TotalCache struct {
 	triggerDownload chan struct{}
 	triggerUpload   chan struct{}
 
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	download atomic.Uint64
-	upload   atomic.Uint64
-
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
+	lastDownload     atomic.Uint64
+	lastUpload       atomic.Uint64
+	download         atomic.Uint64
+	upload           atomic.Uint64
 	notSyncDownload  atomic.Int64
 	notSyncUpload    atomic.Int64
 	triggerdDownload atomic.Bool
@@ -49,14 +49,14 @@ func NewTotalCache(cache cache.Cache) *TotalCache {
 	}
 
 	if download, _ := cache.Get(DownloadKey); len(download) >= 8 {
-		c.download.Store(binary.BigEndian.Uint64(download))
+		c.lastDownload.Store(binary.BigEndian.Uint64(download))
 	}
 
 	if upload, _ := cache.Get(UploadKey); len(upload) >= 8 {
-		c.upload.Store(binary.BigEndian.Uint64(upload))
+		c.lastUpload.Store(binary.BigEndian.Uint64(upload))
 	}
 
-	log.Info("get total cache", slog.Any("download", c.download.Load()), slog.Any("upload", c.upload.Load()))
+	log.Info("get total cache", slog.Any("download", c.lastDownload.Load()), slog.Any("upload", c.lastUpload.Load()))
 
 	c.wg.Add(1)
 	go func() {
@@ -67,13 +67,13 @@ func NewTotalCache(cache cache.Cache) *TotalCache {
 				return
 			case <-c.triggerDownload:
 				notSyncDownload := c.notSyncDownload.Load()
-				_ = c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(notSyncDownload))))
+				_ = c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
 				c.notSyncDownload.Add(-notSyncDownload)
 				c.triggerdDownload.Store(false)
 
 			case <-c.triggerUpload:
 				notSyncUpload := c.notSyncUpload.Load()
-				_ = c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(notSyncUpload))))
+				_ = c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
 				c.notSyncUpload.Add(-notSyncUpload)
 				c.triggerdUpload.Store(false)
 			}
@@ -95,26 +95,34 @@ func (c *TotalCache) trigger(z int64, ch chan struct{}, atomic *atomic.Bool) {
 }
 
 func (c *TotalCache) AddDownload(d uint64) {
-	metrics.Counter.AddDownload(int(d))
 	z := c.notSyncDownload.Add(int64(d))
 	c.trigger(z, c.triggerDownload, &c.triggerdDownload)
 }
 
 func (c *TotalCache) LoadDownload() uint64 {
+	return c.lastDownload.Load() + c.download.Load() + uint64(c.notSyncDownload.Load())
+}
+
+func (c *TotalCache) LoadRunningDownload() uint64 {
 	return c.download.Load() + uint64(c.notSyncDownload.Load())
 }
 
 func (c *TotalCache) AddUpload(d uint64) {
-	metrics.Counter.AddUpload(int(d))
 	z := c.notSyncUpload.Add(int64(d))
 	c.trigger(z, c.triggerUpload, &c.triggerdUpload)
 }
 
-func (c *TotalCache) LoadUpload() uint64 { return c.upload.Load() + uint64(c.notSyncUpload.Load()) }
+func (c *TotalCache) LoadUpload() uint64 {
+	return c.lastUpload.Load() + c.upload.Load() + uint64(c.notSyncUpload.Load())
+}
+
+func (c *TotalCache) LoadRunningUpload() uint64 {
+	return c.upload.Load() + uint64(c.notSyncUpload.Load())
+}
 
 func (c *TotalCache) Close() {
 	c.cancel()
 	c.wg.Wait()
-	_ = c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.download.Add(uint64(c.notSyncDownload.Load()))))
-	_ = c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.upload.Add(uint64(c.notSyncUpload.Load()))))
+	_ = c.cache.Put(DownloadKey, binary.BigEndian.AppendUint64(nil, c.lastDownload.Load()+c.download.Add(uint64(c.notSyncDownload.Load()))))
+	_ = c.cache.Put(UploadKey, binary.BigEndian.AppendUint64(nil, c.lastUpload.Load()+c.upload.Add(uint64(c.notSyncUpload.Load()))))
 }

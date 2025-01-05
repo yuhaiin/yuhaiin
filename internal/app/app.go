@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -129,6 +130,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	flowCache := AddComponent(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
 	stcs := AddComponent(so, "statistic", statistics.NewConnStore(flowCache, st))
+	metrics.StartMetrics(stcs.Cache, metrics.NewPrometheus())
 	hosts := AddComponent(so, "hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
 	fakedns := AddComponent(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))

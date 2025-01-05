@@ -48,10 +48,10 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return nil
 	}
 
-	r, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, bool) {
+	r, _, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
 		return NewSourceChan(u.dialer, func(sc *SourceControl) {
 			u.sourceControl.CompareAndDelete(key, sc)
-		}), true
+		}), nil
 	})
 
 	return r.WritePacket(ctx, pkt)
