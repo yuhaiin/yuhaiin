@@ -20,6 +20,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	ssr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/utils"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
@@ -201,7 +202,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 	buf.WriteByte(c.CMD.Byte()) // cmd
 
 	// target
-	_ = binary.Write(buf, binary.BigEndian, uint16(c.addr.Port())) // port
+	_ = pool.BinaryWriteUint16(buf, binary.BigEndian, uint16(c.addr.Port())) // port
 
 	buf.WriteByte(byte(c.addr.Type())) // atyp
 	buf.Write(c.addr.Bytes())          // addr

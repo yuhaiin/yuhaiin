@@ -146,7 +146,7 @@ func (y *server) handle(conn net.Conn) error {
 				header.MigrateID = nat.GenerateID(c.RemoteAddr())
 			}
 
-			err = binary.Write(c, binary.BigEndian, header.MigrateID)
+			err = pool.BinaryWriteUint64(c, binary.BigEndian, header.MigrateID)
 			if err != nil {
 				return fmt.Errorf("write migrate id failed: %w", err)
 			}

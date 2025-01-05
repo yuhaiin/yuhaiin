@@ -2,7 +2,6 @@ package inbound
 
 import (
 	"context"
-	"iter"
 	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -132,13 +131,15 @@ func (l *listener) Update(current *pc.Setting) {
 	l.fakeip.Store(current.Server.HijackDnsFakeip)
 	l.handler.sniffyEnabled = current.GetServer().GetSniff().GetEnabled()
 
-	for v := range l.diff(current.Server.Inbounds) {
-		if v.Rmoved || v.Modified {
-			v.Old.server.Close()
-			l.store.Delete(v.Key)
-		}
+	diffs := l.diff(current.Server.Inbounds)
 
-		if (v.Added || v.Modified) && v.New.GetEnabled() {
+	for _, v := range append(diffs.Removed, diffs.Modified...) {
+		v.Old.server.Close()
+		l.store.Delete(v.Key)
+	}
+
+	for _, v := range append(diffs.Added, diffs.Modified...) {
+		if v.New.GetEnabled() {
 			server, err := pl.Listen(v.New, l)
 			if err != nil {
 				log.Error("start server failed", "name", v.Key, "err", err)
@@ -156,33 +157,38 @@ type Diff struct {
 	Old entry
 	New *pl.Inbound
 
-	Key      string
-	Rmoved   bool
-	Added    bool
-	Modified bool
+	Key string
 }
 
-func (l *listener) diff(newInbounds map[string]*pl.Inbound) iter.Seq[Diff] {
-	return func(f func(Diff) bool) {
-		for k, v1 := range l.store.Range {
-			z, ok := newInbounds[k]
-			if !ok || !z.GetEnabled() {
-				f(Diff{Rmoved: true, Key: k, Old: v1})
-			}
-		}
+type Diffs struct {
+	Removed  []Diff
+	Added    []Diff
+	Modified []Diff
+}
 
-		for k, v2 := range newInbounds {
-			if v2 == nil {
-				continue
-			}
-			v1, ok := l.store.Load(k)
-			if !ok {
-				f(Diff{Added: true, Key: k, New: v2})
-			} else if !proto.Equal(v1.config, v2) {
-				f(Diff{Modified: true, Key: k, Old: v1, New: v2})
-			}
+func (l *listener) diff(newInbounds map[string]*pl.Inbound) Diffs {
+	diffs := Diffs{}
+
+	for k, v1 := range l.store.Range {
+		z, ok := newInbounds[k]
+		if !ok || !z.GetEnabled() {
+			diffs.Removed = append(diffs.Removed, Diff{Key: k, Old: v1})
 		}
 	}
+
+	for k, v2 := range newInbounds {
+		if v2 == nil {
+			continue
+		}
+		v1, ok := l.store.Load(k)
+		if !ok {
+			diffs.Added = append(diffs.Added, Diff{Key: k, New: v2})
+		} else if !proto.Equal(v1.config, v2) {
+			diffs.Modified = append(diffs.Modified, Diff{Key: k, Old: v1, New: v2})
+		}
+	}
+
+	return diffs
 }
 
 func (l *listener) Close() error {

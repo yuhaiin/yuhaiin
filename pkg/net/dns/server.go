@@ -160,7 +160,7 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 	return d.Do(ctx, &netapi.DNSRawRequest{
 		Question: data,
 		WriteBack: func(b []byte) error {
-			if err = binary.Write(c, binary.BigEndian, uint16(len(b))); err != nil {
+			if err = pool.BinaryWriteUint16(c, binary.BigEndian, uint16(len(b))); err != nil {
 				return fmt.Errorf("dns server write length failed: %w", err)
 			}
 			_, err = c.Write(b)
