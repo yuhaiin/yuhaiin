@@ -33,7 +33,7 @@ func (t *encryptedHandshaker) EncodeHeader(header types.Header, buf types.Buffer
 	_ = buf.WriteByte(byte(header.Protocol))
 
 	if header.Protocol == types.UDPWithMigrateID {
-		_ = binary.Write(buf, binary.BigEndian, header.MigrateID)
+		_ = pool.BinaryWriteUint64(buf, binary.BigEndian, header.MigrateID)
 	}
 
 	if header.Protocol == types.TCP {

@@ -109,7 +109,7 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 
 	payload = payload[:min(len(payload), MaxPacketSize)]
 
-	_ = binary.Write(w, binary.BigEndian, uint16(len(payload)))
+	_ = pool.BinaryWriteUint16(w, binary.BigEndian, uint16(len(payload)))
 
 	_, _ = w.Write(crlf) // crlf
 	_, _ = w.Write(payload)
