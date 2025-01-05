@@ -80,7 +80,7 @@ func tcpDo(ctx context.Context, addr netapi.Address, config Config, tlsConfig *t
 	}
 
 	// dns over tcp, prefix two bytes is request data's length
-	err = binary.Write(conn, binary.BigEndian, uint16(len(b.QuestionBytes)))
+	err = pool.BinaryWriteUint16(conn, binary.BigEndian, uint16(len(b.QuestionBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("write data length failed: %w", err)
 	}

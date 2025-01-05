@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -42,8 +43,9 @@ const (
 
 func EncodeAddr(addr netapi.Address, buf io.Writer) {
 	if addr.IsFqdn() {
-		_, _ = buf.Write([]byte{0x03, byte(len(addr.Hostname()))})
-		_, _ = buf.Write([]byte(addr.Hostname()))
+		hostname := addr.Hostname()
+		_, _ = buf.Write([]byte{0x03, byte(len(hostname))})
+		_, _ = buf.Write(unsafe.Slice(unsafe.StringData(hostname), len(hostname)))
 	} else {
 		if ip := addr.(netapi.IPAddress).IP(); ip.To4() != nil {
 			_, _ = buf.Write([]byte{0x01})
@@ -53,7 +55,8 @@ func EncodeAddr(addr netapi.Address, buf io.Writer) {
 			_, _ = buf.Write(ip.To16())
 		}
 	}
-	_ = binary.Write(buf, binary.BigEndian, addr.Port())
+
+	_ = pool.BinaryWriteUint16(buf, binary.BigEndian, addr.Port())
 }
 
 type Addr []byte

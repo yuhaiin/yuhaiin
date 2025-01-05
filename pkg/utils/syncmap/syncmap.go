@@ -26,7 +26,7 @@ func (a *SyncMap[T1, T2]) LoadOrStore(key T1, value T2) (r T2, _ bool) {
 	return v.(T2), ok
 }
 
-func (a *SyncMap[T1, T2]) LoadOrCreate(key T1, f func() (T2, bool)) (r T2, _ bool) {
+func (a *SyncMap[T1, T2]) LoadOrCreate(key T1, f func() (T2, error)) (r T2, _ bool, err error) {
 	v, ok := a.data.Load(key)
 	if !ok {
 		a.single.Do(key, func() {
@@ -35,15 +35,15 @@ func (a *SyncMap[T1, T2]) LoadOrCreate(key T1, f func() (T2, bool)) (r T2, _ boo
 				return
 			}
 
-			v, ok = f()
-			if !ok {
+			v, err = f()
+			if err != nil {
 				return
 			}
 
 			v, ok = a.data.LoadOrStore(key, v)
 		})
 	}
-	return v.(T2), ok
+	return v.(T2), ok, err
 }
 
 func (a *SyncMap[T1, T2]) LoadAndDelete(key T1) (r T2, _ bool) {

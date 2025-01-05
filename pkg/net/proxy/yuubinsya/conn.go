@@ -82,7 +82,7 @@ func (c *PacketConn) payloadToBuffer(w *pool.Buffer, payload []byte, addr net.Ad
 	}
 
 	tools.EncodeAddr(taddr, w)
-	_ = binary.Write(w, binary.BigEndian, uint16(length))
+	_ = pool.BinaryWriteUint16(w, binary.BigEndian, uint16(length))
 	_, _ = w.Write(payload[:length])
 
 	return nil

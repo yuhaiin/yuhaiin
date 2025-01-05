@@ -51,7 +51,7 @@ func (vc *Conn) WriteTo(b []byte, target net.Addr) (int, error) {
 	buf := pool.NewBufferSize(2 + len(b))
 	defer buf.Reset()
 
-	_ = binary.Write(buf, binary.BigEndian, uint16(len(b)))
+	_ = pool.BinaryWriteUint16(buf, binary.BigEndian, uint16(len(b)))
 	_, _ = buf.Write(b)
 
 	_, err := vc.Write(buf.Bytes())
@@ -86,7 +86,7 @@ func (vc *Conn) sendRequest() error {
 	}
 
 	// Port AddrType Addr
-	_ = binary.Write(buf, binary.BigEndian, vc.dst.Port())
+	_ = pool.BinaryWriteUint16(buf, binary.BigEndian, vc.dst.Port())
 
 	if vc.dst.IsFqdn() {
 		buf.WriteByte(AtypDomainName)

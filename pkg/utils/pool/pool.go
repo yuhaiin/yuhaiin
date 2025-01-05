@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"encoding/binary"
 	"io"
 	"math"
 	"math/bits"
@@ -190,4 +191,24 @@ func NewBytesConn(c net.Conn, bytes []byte) net.Conn {
 	}
 
 	return newMultipleReaderConn(c, io.MultiReader(NewBytesReader(bytes), c))
+}
+
+func BinaryWriteUint16(w io.Writer, order binary.ByteOrder, v uint16) error {
+	buf := GetBytes(2)
+	defer PutBytes(buf)
+
+	order.PutUint16(buf, v)
+
+	_, err := w.Write(buf)
+	return err
+}
+
+func BinaryWriteUint64(w io.Writer, order binary.ByteOrder, v uint64) error {
+	buf := GetBytes(8)
+	defer PutBytes(buf)
+
+	order.PutUint64(buf, v)
+
+	_, err := w.Write(buf)
+	return err
 }

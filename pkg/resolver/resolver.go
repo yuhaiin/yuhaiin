@@ -136,10 +136,10 @@ func (r *Resolver) getResolver(str string) (*Entry, bool) {
 		return e, true
 	}
 
-	e, _ = r.store.LoadOrCreate(str, func() (*Entry, bool) {
+	e, _, err := r.store.LoadOrCreate(str, func() (*Entry, error) {
 		config, ok := r.resolvers.Load()[str]
 		if !ok {
-			return nil, false
+			return nil, fmt.Errorf("resolver %s not found", str)
 		}
 
 		dialer := &dnsDialer{
@@ -154,16 +154,16 @@ func (r *Resolver) getResolver(str string) (*Entry, bool) {
 
 		z, err := newDNS(str, config, dialer, r)
 		if err != nil {
-			return nil, false
+			return nil, err
 		}
 
 		return &Entry{
 			Resolver: z,
 			Config:   config,
-		}, true
+		}, nil
 	})
 
-	return e, e != nil
+	return e, err == nil
 }
 
 func (r *Resolver) GetIPv6() bool { return r.ipv6.Load() }

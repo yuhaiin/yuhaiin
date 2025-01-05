@@ -9,11 +9,37 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-var Counter Metrics = NewPrometheus()
+type FlowCounter interface {
+	LoadRunningDownload() uint64
+	LoadRunningUpload() uint64
+}
+
+func StartMetrics(c FlowCounter, counter Metrics) {
+	hostname, _ := os.Hostname()
+	labels := prometheus.Labels{
+		"hostname": hostname,
+		"os":       runtime.GOOS,
+		"arch":     runtime.GOARCH,
+	}
+
+	Counter = counter
+
+	promauto.NewCounterFunc(prometheus.CounterOpts{
+		Name:        "yuhaiin_download_bytes_total",
+		Help:        "The total number of download bytes",
+		ConstLabels: labels,
+	}, func() float64 { return float64(c.LoadRunningDownload()) })
+
+	promauto.NewCounterFunc(prometheus.CounterOpts{
+		Name:        "yuhaiin_upload_bytes_total",
+		Help:        "The total number of upload bytes",
+		ConstLabels: labels,
+	}, func() float64 { return float64(c.LoadRunningUpload()) })
+}
+
+var Counter Metrics = &EmptyMetrics{}
 
 type Metrics interface {
-	AddDownload(n int)
-	AddUpload(n int)
 	AddReceiveUDPPacket()
 	AddSendUDPPacket()
 	AddConnection(addr string)
@@ -25,9 +51,19 @@ type Metrics interface {
 	AddTCPDialFailed(addr string)
 }
 
+type EmptyMetrics struct{}
+
+func (m *EmptyMetrics) AddReceiveUDPPacket()                                                  {}
+func (m *EmptyMetrics) AddSendUDPPacket()                                                     {}
+func (m *EmptyMetrics) AddConnection(addr string)                                             {}
+func (m *EmptyMetrics) AddBlockConnection(addr string)                                        {}
+func (m *EmptyMetrics) RemoveConnection(n int)                                                {}
+func (m *EmptyMetrics) AddStreamConnectDuration(t float64)                                    {}
+func (m *EmptyMetrics) AddDNSProcess(domain string)                                           {}
+func (m *EmptyMetrics) AddFailedDNS(domain string, rcode dnsmessage.RCode, t dnsmessage.Type) {}
+func (m *EmptyMetrics) AddTCPDialFailed(addr string)                                          {}
+
 type Prometheus struct {
-	TotalDownload         prometheus.Counter
-	TotalUpload           prometheus.Counter
 	TotalReceiveUDPPacket prometheus.Counter
 	TotalSendUDPPacket    prometheus.Counter
 	TotalConnection       prometheus.Counter
@@ -52,16 +88,6 @@ func NewPrometheus() *Prometheus {
 	}
 
 	p := &Prometheus{
-		TotalDownload: promauto.NewCounter(prometheus.CounterOpts{
-			Name:        "yuhaiin_download_bytes_total",
-			Help:        "The total number of download bytes",
-			ConstLabels: labels,
-		}),
-		TotalUpload: promauto.NewCounter(prometheus.CounterOpts{
-			Name:        "yuhaiin_upload_bytes_total",
-			Help:        "The total number of upload bytes",
-			ConstLabels: labels,
-		}),
 		TotalReceiveUDPPacket: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_udp_receive_packets_total",
 			Help:        "The total number of udp receive packets",
@@ -115,14 +141,6 @@ func NewPrometheus() *Prometheus {
 	}
 
 	return p
-}
-
-func (p *Prometheus) AddDownload(n int) {
-	p.TotalDownload.Add(float64(n))
-}
-
-func (p *Prometheus) AddUpload(n int) {
-	p.TotalUpload.Add(float64(n))
 }
 
 func (p *Prometheus) AddConnection(addr string) {

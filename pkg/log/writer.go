@@ -23,9 +23,11 @@ type FileWriter struct {
 
 	path logPath
 
-	savedSize atomic.Uint64
+	savedSize atomic.Int64
 
 	mu sync.RWMutex
+
+	removeOldFileMu sync.Mutex
 }
 
 func NewLogWriter(file string) *FileWriter {
@@ -44,51 +46,81 @@ func (f *FileWriter) Close() error {
 	return nil
 }
 
-func (f *FileWriter) Write(p []byte) (n int, err error) {
-	if f.w == nil {
-		f.mu.Lock()
-		f.w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
-		f.mu.Unlock()
+func (f *FileWriter) initWriter() (io.Writer, error) {
+	f.mu.RLock()
+	w := f.w
+	f.mu.RUnlock()
 
-		if err != nil {
-			f.log.Error("open file failed:", "err", err)
-			return 0, err
-		}
+	if w != nil {
+		return w, nil
+	}
 
-		f.mu.RLock()
-		stat, err := f.w.Stat()
-		if err == nil {
-			f.savedSize.Store(uint64(stat.Size()))
-		}
-		f.mu.RUnlock()
+	f.mu.Lock()
+
+	if f.w != nil {
+		return f.w, nil
+	}
+
+	var err error
+	w, err = os.OpenFile(f.path.FullPath(""), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+	f.w = w
+	f.mu.Unlock()
+
+	if err != nil {
+		f.log.Error("open file failed:", "err", err)
+		return nil, err
 	}
 
 	f.mu.RLock()
-	n, err = f.w.Write(p)
+	stat, err := f.w.Stat()
+	if err == nil {
+		f.savedSize.Store(int64(stat.Size()))
+	}
 	f.mu.RUnlock()
 
-	if int(f.savedSize.Add(uint64(n))) >= configuration.LogNaxSize {
-		f.mu.Lock()
-		defer f.mu.Unlock()
+	return w, nil
+}
 
-		f.savedSize.Store(0)
+func (f *FileWriter) cycleNewFile() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-		f.w.Close()
-		f.w = nil
+	if int(f.savedSize.Load()) < configuration.LogNaxSize {
+		return
+	}
 
-		err = os.Rename(f.path.FullPath(""),
-			f.path.FullPath(strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", ".")))
-		if err != nil {
-			f.log.Error("rename file failed:", "err", err)
-		}
+	f.savedSize.Store(0)
 
-		f.removeOldFile()
+	f.w.Close()
+	f.w = nil
+
+	err := os.Rename(f.path.FullPath(""), f.path.FullPath(time.Now().Format("2006-01-02T15.04.05Z0700")))
+	if err != nil {
+		f.log.Error("rename file failed:", "err", err)
+	}
+
+	go f.removeOldFile()
+}
+
+func (f *FileWriter) Write(p []byte) (n int, err error) {
+	w, err := f.initWriter()
+	if err != nil {
+		return
+	}
+
+	n, err = w.Write(p)
+
+	if int(f.savedSize.Add(int64(n))) >= configuration.LogNaxSize {
+		f.cycleNewFile()
 	}
 
 	return n, err
 }
 
 func (f *FileWriter) removeOldFile() {
+	f.removeOldFileMu.Lock()
+	defer f.removeOldFileMu.Unlock()
+
 	files, err := os.ReadDir(f.path.dir)
 	if err != nil {
 		f.log.Error("read dir failed:", "err", err)
