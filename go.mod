@@ -19,7 +19,7 @@ require (
 	golang.org/x/mobile v0.0.0-20241204233305-ce44b2716d33
 	golang.org/x/net v0.33.0
 	golang.org/x/sys v0.28.0
-	golang.org/x/time v0.8.0
+	golang.org/x/time v0.9.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.69.2
 	google.golang.org/protobuf v1.36.1
