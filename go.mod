@@ -14,11 +14,11 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20241230111959-4a35cd0fcd57
 	// for fix https://github.com/etcd-io/bbolt/issues/840
 	go.etcd.io/bbolt v1.4.0-beta.0.0.20241204153925-22ac598c5e82
-	golang.org/x/crypto v0.31.0
+	golang.org/x/crypto v0.32.0
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
 	golang.org/x/mobile v0.0.0-20241204233305-ce44b2716d33
-	golang.org/x/net v0.33.0
-	golang.org/x/sys v0.28.0
+	golang.org/x/net v0.34.0
+	golang.org/x/sys v0.29.0
 	golang.org/x/time v0.8.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.69.2
