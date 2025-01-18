@@ -22,16 +22,13 @@ message dns {
 }
 
 message dns_config {
-  reserved "resolve_remote_domain";
-  reserved 7;
+  reserved "resolve_remote_domain", "local", "remote", "bootstrap";
+  reserved 7, 1, 2, 3;
   string server = 4 [ json_name = "server" ];
   bool fakedns = 5 [ json_name = "fakedns" ];
   string fakedns_ip_range = 6 [ json_name = "fakedns_ip_range" ];
   string fakedns_ipv6_range = 13 [ json_name = "fakedns_ipv6_range" ];
   repeated string fakedns_whitelist = 9 [ json_name = "fakedns_whitelist" ];
-  dns remote = 1 [ json_name = "remote" ];
-  dns local = 2 [ json_name = "local" ];
-  dns bootstrap = 3 [ json_name = "bootstrap" ];
   map<string, string> hosts = 8 [ json_name = "hosts" ];
   map<string, dns> resolver = 10 [ json_name = "resolver" ];
 }

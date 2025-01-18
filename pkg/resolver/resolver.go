@@ -6,20 +6,23 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	dr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	cd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
+	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type Entry struct {
@@ -31,10 +34,7 @@ type Resolver struct {
 	dialer          netapi.Proxy
 	bootstrapConfig *pd.Dns
 	store           syncmap.SyncMap[string, *Entry]
-	resolvers       *atomicx.Value[map[string]*pd.Dns]
-	ipv6            atomic.Bool
-	direct          *atomicx.Value[string]
-	proxy           *atomicx.Value[string]
+	resolvers       syncmap.SyncMap[string, *pd.Dns]
 }
 
 func NewResolver(dd netapi.Proxy) *Resolver {
@@ -45,10 +45,7 @@ func NewResolver(dd netapi.Proxy) *Resolver {
 		Dialer: dr.Default,
 	})
 	return &Resolver{
-		dialer:    dd,
-		resolvers: atomicx.NewValue(make(map[string]*pd.Dns)),
-		direct:    atomicx.NewValue(""),
-		proxy:     atomicx.NewValue(""),
+		dialer: dd,
 	}
 }
 
@@ -63,8 +60,6 @@ var errorResolver = &Entry{
 }
 
 var block = bypass.Mode_block.String()
-var proxy = bypass.Mode_proxy.String()
-var direct = bypass.Mode_direct.String()
 
 func (r *Resolver) getFallbackResolver(str, fallback string) *Entry {
 	if fallback == block {
@@ -82,22 +77,6 @@ func (r *Resolver) getFallbackResolver(str, fallback string) *Entry {
 		return nil
 	}
 
-	var network string
-	if fallback == proxy {
-		network = r.proxy.Load()
-	}
-
-	if fallback == direct {
-		network = r.direct.Load()
-	}
-
-	if network != "" {
-		z, ok := r.getResolver(network)
-		if ok {
-			return z
-		}
-	}
-
 	z, ok := r.getResolver(fallback)
 	if ok {
 		return z
@@ -109,11 +88,6 @@ func (r *Resolver) getFallbackResolver(str, fallback string) *Entry {
 func (r *Resolver) Get(str, fallback string) netapi.Resolver {
 	z := r.getFallbackResolver(str, fallback)
 	if z != nil {
-		return z.Resolver
-	}
-
-	z, ok := r.getResolver(proxy)
-	if ok {
 		return z.Resolver
 	}
 
@@ -137,7 +111,7 @@ func (r *Resolver) getResolver(str string) (*Entry, bool) {
 	}
 
 	e, _, err := r.store.LoadOrCreate(str, func() (*Entry, error) {
-		config, ok := r.resolvers.Load()[str]
+		config, ok := r.resolvers.Load(str)
 		if !ok {
 			return nil, fmt.Errorf("resolver %s not found", str)
 		}
@@ -166,23 +140,39 @@ func (r *Resolver) getResolver(str string) (*Entry, bool) {
 	return e, err == nil
 }
 
-func (r *Resolver) GetIPv6() bool { return r.ipv6.Load() }
-
-func (r *Resolver) Update(c *pc.Setting) {
-	if c.Dns.Resolver == nil {
-		c.Dns.Resolver = make(map[string]*pd.Dns)
+func (r *Resolver) Apply(name string, config *pd.Dns) {
+	if name == "" {
+		log.Warn("resolver name is empty")
+		return
 	}
 
-	c.Dns.Resolver["bootstrap"] = c.Dns.Bootstrap
-	c.Dns.Resolver[direct] = c.Dns.Local
-	c.Dns.Resolver[proxy] = c.Dns.Remote
+	ndns, ok := r.store.Load(name)
+	if ok && !proto.Equal(ndns.Config, config) {
+		r.store.Delete(name)
+		if err := ndns.Resolver.Close(); err != nil {
+			log.Error("close dns resolver failed", "key", name, "err", err)
+		}
+	}
 
-	r.direct.Store(c.Bypass.DirectResolver)
-	r.proxy.Store(c.Bypass.ProxyResolver)
-	r.ipv6.Store(c.GetIpv6())
-	r.resolvers.Store(c.Dns.Resolver)
+	r.resolvers.Store(name, config)
+}
 
-	if !proto.Equal(r.bootstrapConfig, c.Dns.Bootstrap) {
+func (r *Resolver) Delete(name string) {
+	r.resolvers.Delete(name)
+	ndns, ok := r.store.Load(name)
+	if !ok {
+		return
+	}
+
+	if err := ndns.Resolver.Close(); err != nil {
+		log.Error("close dns resolver failed", "key", name, "err", err)
+	}
+}
+
+func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
+	log.Debug("apply bootstrap dns", "config", c)
+
+	if !proto.Equal(r.bootstrapConfig, c) {
 		dd := &dnsDialer{
 			Proxy: r.dialer,
 			addr: func(ctx context.Context, addr netapi.Address) {
@@ -192,23 +182,14 @@ func (r *Resolver) Update(c *pc.Setting) {
 				store.Resolver.ResolverSelf = dialer.InternetResolver
 			},
 		}
-		z, err := newDNS("BOOTSTRAP", c.Dns.Bootstrap, dd, r)
+		z, err := newDNS("BOOTSTRAP", c, dd, r)
 		if err != nil {
 			log.Error("get bootstrap dns failed", "err", err)
 		} else {
 			old := dialer.Bootstrap
 			dialer.Bootstrap = z
 			old.Close()
-		}
-	}
-
-	for key, value := range r.store.Range {
-		ndns, ok := c.Dns.Resolver[key]
-		if !ok || !proto.Equal(value.Config, ndns) {
-			r.store.Delete(key)
-			if err := value.Resolver.Close(); err != nil {
-				log.Error("close dns resolver failed", "key", key, "err", err)
-			}
+			r.bootstrapConfig = c
 		}
 	}
 }
@@ -225,7 +206,7 @@ func wrap(name string, dns netapi.Resolver, v6 *Resolver) *dnsWrap {
 
 func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
 	opt := func(opt *netapi.LookupIPOption) {
-		if d.resolver.GetIPv6() {
+		if configuration.IPv6.Load() {
 			opt.Mode = netapi.ResolverModeNoSpecified
 		} else {
 			opt.Mode = netapi.ResolverModePreferIPv4
@@ -300,4 +281,161 @@ func (d *dnsDialer) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 	ctx = netapi.WithContext(ctx)
 	d.addr(ctx, addr)
 	return d.Proxy.PacketConn(ctx, addr)
+}
+
+type ResolverControl struct {
+	s config.DB
+	gc.UnimplementedResolverServer
+
+	hosts   *Hosts
+	fakedns *Fakedns
+	r       *Resolver
+}
+
+func NewResolverControl(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver) *ResolverControl {
+	r2 := &ResolverControl{s: s, hosts: hosts, fakedns: fakedns, r: r}
+
+	err := s.View(func(s *config.Setting) error {
+		for k, v := range s.Dns.Resolver {
+			if k == "bootstrap" {
+				r2.r.ApplyBootstrap(v)
+			}
+
+			r2.r.Apply(k, v)
+		}
+
+		r2.hosts.Apply(s.Dns.Hosts)
+
+		r2.fakedns.Apply(toFakednsConfig(s))
+		return nil
+	})
+	if err != nil {
+		log.Error("init resolver failed", "err", err)
+	}
+
+	return r2
+}
+
+func (r *ResolverControl) List(ctx context.Context, req *emptypb.Empty) (*gc.ResolveList, error) {
+	resp := &gc.ResolveList{}
+	err := r.s.View(func(s *config.Setting) error {
+		for k := range s.Dns.Resolver {
+			resp.Names = append(resp.Names, k)
+		}
+		return nil
+	})
+	return resp, err
+}
+
+func (r *ResolverControl) Get(ctx context.Context, req *wrapperspb.StringValue) (*cd.Dns, error) {
+	var dns *cd.Dns
+	err := r.s.View(func(s *config.Setting) error {
+		dns = s.Dns.Resolver[req.GetValue()]
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if dns == nil {
+		return nil, fmt.Errorf("resolver [%s] is not exist", req.GetValue())
+	}
+
+	return dns, nil
+}
+
+func (r *ResolverControl) Save(ctx context.Context, req *gc.SaveResolver) (*cd.Dns, error) {
+	if req.Name == "" {
+		return nil, fmt.Errorf("name is empty")
+	}
+
+	err := r.s.Batch(func(s *config.Setting) error {
+		s.Dns.Resolver[req.Name] = req.Resolver
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Name == "bootstrap" {
+		r.r.ApplyBootstrap(req.Resolver)
+	}
+
+	r.r.Apply(req.Name, req.Resolver)
+
+	return req.Resolver, err
+}
+
+func (r *ResolverControl) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	if req.Value == "bootstrap" {
+		return &emptypb.Empty{}, nil
+	}
+
+	err := r.s.Batch(func(s *config.Setting) error {
+		delete(s.Dns.Resolver, req.Value)
+		return nil
+	})
+
+	r.r.Delete(req.Value)
+
+	return &emptypb.Empty{}, err
+}
+
+func (r *ResolverControl) Hosts(ctx context.Context, _ *emptypb.Empty) (*gc.Hosts, error) {
+	hosts := map[string]string{}
+	err := r.s.View(func(s *config.Setting) error {
+		hosts = s.Dns.Hosts
+		return nil
+	})
+
+	return &gc.Hosts{Hosts: hosts}, err
+}
+
+func (r *ResolverControl) SaveHosts(ctx context.Context, req *gc.Hosts) (*emptypb.Empty, error) {
+	err := r.s.Batch(func(s *config.Setting) error {
+		s.Dns.Hosts = req.Hosts
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.hosts.Apply(req.Hosts)
+
+	return &emptypb.Empty{}, nil
+}
+
+func toFakednsConfig(s *config.Setting) *cd.FakednsConfig {
+	return &cd.FakednsConfig{
+		Enabled:   s.Dns.Fakedns,
+		Ipv4Range: s.Dns.FakednsIpRange,
+		Ipv6Range: s.Dns.FakednsIpv6Range,
+		Whitelist: s.Dns.FakednsWhitelist,
+	}
+}
+
+func (r *ResolverControl) Fakedns(context.Context, *emptypb.Empty) (*cd.FakednsConfig, error) {
+	var c *cd.FakednsConfig
+	err := r.s.View(func(s *config.Setting) error {
+		c = toFakednsConfig(s)
+		return nil
+	})
+	return c, err
+}
+
+func (r *ResolverControl) SaveFakedns(ctx context.Context, req *cd.FakednsConfig) (*emptypb.Empty, error) {
+	err := r.s.Batch(func(s *config.Setting) error {
+		s.Dns.Fakedns = req.Enabled
+		s.Dns.FakednsIpRange = req.Ipv4Range
+		s.Dns.FakednsIpv6Range = req.Ipv6Range
+		s.Dns.FakednsWhitelist = req.Whitelist
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.fakedns.Apply(req)
+
+	return &emptypb.Empty{}, err
 }

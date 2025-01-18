@@ -52,7 +52,7 @@ func (i *Inbound) Save(ctx context.Context, req *listener.Inbound) (*listener.In
 		return nil, fmt.Errorf("inbound name is empty")
 	}
 
-	err := i.s.Update(func(s *config.Setting) error {
+	err := i.s.Batch(func(s *config.Setting) error {
 		s.Server.Inbounds[req.Name] = req
 		return nil
 	})
@@ -60,7 +60,7 @@ func (i *Inbound) Save(ctx context.Context, req *listener.Inbound) (*listener.In
 }
 
 func (i *Inbound) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	err := i.s.Update(func(s *config.Setting) error {
+	err := i.s.Batch(func(s *config.Setting) error {
 		delete(s.Server.Inbounds, req.Value)
 		return nil
 	})

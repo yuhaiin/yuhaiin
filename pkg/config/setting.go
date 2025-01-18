@@ -21,9 +21,6 @@ type Setting interface {
 	config.DB
 	gc.ConfigServiceServer
 	AddObserver(Observer)
-
-	View(f func(*config.Setting) error) error
-	Update(f func(*config.Setting) error) error
 }
 
 type Observer interface {
@@ -90,22 +87,17 @@ func Info() *config.Info {
 	}
 }
 
-func (c *setting) View(f func(*config.Setting) error) error {
+func (c *setting) View(f ...func(*config.Setting) error) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return f(c.db.Data)
-}
 
-func (c *setting) Update(f func(*config.Setting) error) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	ss := c.db.Data
-	if err := f(ss); err != nil {
-		return err
+	for _, v := range f {
+		if err := v(c.db.Data); err != nil {
+			return err
+		}
 	}
 
-	_, err := c.save(context.Background(), ss)
-	return err
+	return nil
 }
 
 func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
@@ -128,7 +120,7 @@ func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 }
 
 func (c *setting) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, error) {
-	err := c.Update(func(ss *config.Setting) error {
+	err := c.Batch(func(ss *config.Setting) error {
 		ss.Dns = s.Dns
 		ss.Ipv6 = s.Ipv6
 		ss.Ipv6LocalAddrPreferUnicast = s.Ipv6LocalAddrPreferUnicast
@@ -145,28 +137,6 @@ func (c *setting) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, 
 	return &emptypb.Empty{}, err
 }
 
-func (c *setting) save(_ context.Context, s *config.Setting) (*emptypb.Empty, error) {
-	x := proto.Clone(s).(*config.Setting)
-	x.Bypass = c.db.Data.Bypass
-	c.db.Data = x
-
-	if err := c.db.Save(); err != nil {
-		return &emptypb.Empty{}, fmt.Errorf("save settings failed: %w", err)
-	}
-
-	wg := sync.WaitGroup{}
-	for i := range c.os {
-		wg.Add(1)
-		go func(o Observer) {
-			defer wg.Done()
-			o.Update(proto.Clone(c.db.Data).(*config.Setting))
-		}(c.os[i])
-	}
-	wg.Wait()
-
-	return &emptypb.Empty{}, nil
-}
-
 func (c *setting) AddObserver(o Observer) {
 	if o == nil {
 		return
@@ -175,7 +145,7 @@ func (c *setting) AddObserver(o Observer) {
 	defer c.mu.Unlock()
 
 	c.os = append(c.os, o)
-	o.Update(c.db.Data)
+	o.Update(proto.Clone(c.db.Data).(*config.Setting))
 }
 
 func (c *setting) Batch(f ...func(*config.Setting) error) error {
@@ -186,20 +156,28 @@ func (c *setting) Batch(f ...func(*config.Setting) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	config := proto.Clone(c.db.Data).(*config.Setting)
+	cf := proto.Clone(c.db.Data).(*config.Setting)
 	for i := range f {
-		if err := f[i](config); err != nil {
+		if err := f[i](cf); err != nil {
 			return err
 		}
 	}
 
-	if proto.Equal(c.db.Data, config) {
+	if proto.Equal(c.db.Data, cf) {
 		return nil
 	}
 
-	c.db.Data = config
+	c.db.Data = cf
 
-	return c.db.Save()
+	if err := c.db.Save(); err != nil {
+		return fmt.Errorf("save settings failed: %w", err)
+	}
+
+	for i := range c.os {
+		c.os[i].Update(proto.Clone(cf).(*config.Setting))
+	}
+
+	return nil
 }
 
 func (c *setting) Dir() string { return c.db.Dir() }

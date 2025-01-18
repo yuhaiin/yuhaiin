@@ -110,7 +110,10 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update()))
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast() }))
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { configuration.IPv6.Store(s.GetIpv6()) }))
+	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
+		configuration.IPv6.Store(s.GetIpv6())
+		configuration.FakeIPEnabled.Store(s.Dns.GetFakedns() || s.Server.GetHijackDnsFakeip())
+	}))
 
 	// proxy access point/endpoint
 	node := node.NewNodes(PathGenerator.Node(so.ConfigPath))
@@ -134,6 +137,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	hosts := AddComponent(so, "hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
 	fakedns := AddComponent(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))
+	resolverControl := resolver.NewResolverControl(so.Setting, hosts, fakedns, dns)
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(so, "dnsServer", resolver.NewDNSServer(fakedns))
 	// make dns flow across all proxy chain
@@ -158,7 +162,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Tag:          tag,
 		Rc:           rc,
 		Inbound:      config.NewInbound(opt.Setting),
-		Resolver:     config.NewResolver(opt.Setting),
+		Resolver:     resolverControl,
 	}
 
 	// http page

@@ -47,23 +47,26 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 			FakednsIpRange:   store.GetString(AdvFakeDnsCidrKey),
 			FakednsIpv6Range: store.GetString(AdvFakeDnsv6CidrKey),
 			Hosts:            store.GetStringMap(NewHostsKey),
-			Remote: &dns.Dns{
-				Host:          store.GetString(RemoteDnsHostKey),
-				Type:          dns.Type(dns.Type_value[store.GetString(RemoteDnsTypeKey)]),
-				Subnet:        store.GetString(RemoteDnsSubnetKey),
-				TlsServername: store.GetString(RemoteDnsTlsServerNameKey),
-			},
-			Local: &dns.Dns{
-				Host:          store.GetString(LocalDnsHostKey),
-				Type:          dns.Type(dns.Type_value[store.GetString(LocalDnsTypeKey)]),
-				Subnet:        store.GetString(LocalDnsSubnetKey),
-				TlsServername: store.GetString(LocalDnsTlsServerNameKey),
-			},
-			Bootstrap: &dns.Dns{
-				Host:          store.GetString(BootstrapDnsHostKey),
-				Type:          dns.Type(dns.Type_value[store.GetString(BootstrapDnsTypeKey)]),
-				Subnet:        store.GetString(BootstrapDnsSubnetKey),
-				TlsServername: store.GetString(BootstrapDnsTlsServerNameKey),
+
+			Resolver: map[string]*dns.Dns{
+				"direct": {
+					Host:          store.GetString(LocalDnsHostKey),
+					Type:          dns.Type(dns.Type_value[store.GetString(LocalDnsTypeKey)]),
+					Subnet:        store.GetString(LocalDnsSubnetKey),
+					TlsServername: store.GetString(LocalDnsTlsServerNameKey),
+				},
+				"proxy": {
+					Host:          store.GetString(RemoteDnsHostKey),
+					Type:          dns.Type(dns.Type_value[store.GetString(RemoteDnsTypeKey)]),
+					Subnet:        store.GetString(RemoteDnsSubnetKey),
+					TlsServername: store.GetString(RemoteDnsTlsServerNameKey),
+				},
+				"bootstrap": {
+					Host:          store.GetString(BootstrapDnsHostKey),
+					Type:          dns.Type(dns.Type_value[store.GetString(BootstrapDnsTypeKey)]),
+					Subnet:        store.GetString(BootstrapDnsSubnetKey),
+					TlsServername: store.GetString(BootstrapDnsTlsServerNameKey),
+				},
 			},
 		},
 		SystemProxy: &pc.SystemProxy{},
@@ -158,8 +161,15 @@ func newFakeSetting(setting *pc.Setting, dir string) *fakeSettings {
 	return &fakeSettings{setting: setting, dir: dir}
 }
 
-func (w *fakeSettings) View(f func(*pc.Setting) error) error {
-	return f(w.setting)
+func (w *fakeSettings) View(f ...func(*pc.Setting) error) error {
+
+	for i := range f {
+		if err := f[i](w.setting); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (w *fakeSettings) Update(f func(*pc.Setting) error) error {
