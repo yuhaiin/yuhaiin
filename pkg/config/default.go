@@ -29,8 +29,10 @@ func DefaultSetting(path string) *config.Setting {
 			// https://askubuntu.com/questions/890274/slack-desktop-client-on-16-04-behind-proxy-server
 		},
 		Bypass: &bypass.Config{
-			Tcp: bypass.Mode_bypass,
-			Udp: bypass.Mode_bypass,
+			Tcp:            bypass.Mode_bypass,
+			Udp:            bypass.Mode_bypass,
+			DirectResolver: "bootstrap",
+			ProxyResolver:  "bootstrap",
 			CustomRuleV3: []*bypass.ModeConfig{
 				{
 					Mode: bypass.Mode_direct,
@@ -106,29 +108,9 @@ func DefaultSetting(path string) *config.Setting {
 				"*.msftconnecttest.com",
 				"ping.archlinux.org",
 			},
-			Local: &pd.Dns{
-				Host: "223.5.5.5",
-				Type: pd.Type_doh,
-			},
-			Remote: &pd.Dns{
-				Host: "dns.google",
-				Type: pd.Type_doh,
-			},
-			Bootstrap: &pd.Dns{
-				Host: "223.5.5.5",
-				Type: pd.Type_udp,
-			},
 			Resolver: map[string]*pd.Dns{
-				"local": {
-					Host: "223.5.5.5",
-					Type: pd.Type_doh,
-				},
-				"remote": {
-					Host: "dns.google",
-					Type: pd.Type_doh,
-				},
 				"bootstrap": {
-					Host: "223.5.5.5",
+					Host: "8.8.8.8",
 					Type: pd.Type_udp,
 				},
 			},

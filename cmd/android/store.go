@@ -168,7 +168,7 @@ func CloseStore() {
 }
 
 type bypassConfig struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	setting *bypass.Config
 }
 
@@ -216,6 +216,25 @@ func (b *bypassConfig) Batch(f ...func(*pc.Setting) error) error {
 
 	b.setting = setting.Bypass
 	GetStore("Default").PutBytes("bypass_db", s)
+	return nil
+}
+
+func (b *bypassConfig) View(f ...func(*pc.Setting) error) error {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	b.initSetting()
+
+	setting := &pc.Setting{
+		Bypass: b.setting,
+	}
+
+	for i := range f {
+		if err := f[i](proto.Clone(setting).(*pc.Setting)); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

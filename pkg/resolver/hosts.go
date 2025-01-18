@@ -7,7 +7,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -33,7 +32,7 @@ func NewHosts(dialer netapi.Proxy, resolver netapi.Resolver) *Hosts {
 	}
 }
 
-func (h *Hosts) Update(c *config.Setting) {
+func (h *Hosts) Apply(hosts map[string]string) {
 	store := map[string]*hostsEntry{}
 	ptrStore := map[string][]string{}
 
@@ -51,7 +50,7 @@ func (h *Hosts) Update(c *config.Setting) {
 		return x
 	}
 
-	for k, v := range c.Dns.Hosts {
+	for k, v := range hosts {
 		if k == "" || v == "" {
 			continue
 		}

@@ -279,7 +279,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	store.Resolver.SkipResolve = s.skipResolve(mode)
 	store.Mode = mode.Mode()
-	store.Resolver.Resolver = s.r.Get(mode.Resolver(), mode.Mode().String())
+	store.Resolver.Resolver = s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
 	store.ModeReason = reason
 
 	if s.config.ResolveLocally && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
@@ -297,6 +297,17 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	return routeResult{mode, host, reason}
 }
 
+func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {
+	switch mode.Mode() {
+	case bypass.Mode_proxy:
+		return s.config.ProxyResolver
+	case bypass.Mode_direct:
+		return s.config.DirectResolver
+	}
+
+	return ""
+}
+
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 	host := netapi.ParseAddressPort("", domain, 0)
 	netapi.GetContext(ctx).Resolver.Resolver = trie.SkipResolver
@@ -305,7 +316,7 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		s.dumpProcess(ctx, "udp", "tcp")
 		s.RejectHistory.Push(ctx, "dns", domain)
 	}
-	return s.r.Get(mode.Resolver(), mode.Mode().String())
+	return s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
 }
 
 func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {

@@ -30,6 +30,8 @@ var (
 	UDPChannelBufferSize = 2500
 
 	IPv6 = atomicx.NewValue(true)
+	// resolver fake ip or inbound fake ip enable
+	FakeIPEnabled = atomicx.NewValue(false)
 )
 
 func or[T any](a, b T) T {

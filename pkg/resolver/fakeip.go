@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
@@ -12,8 +13,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	cd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"go.etcd.io/bbolt"
 	"golang.org/x/net/dns/dnsmessage"
@@ -28,8 +29,7 @@ type Fakedns struct {
 	whitelist *domain.Fqdn[struct{}]
 
 	whitelistSlice []string
-	enabled        bool
-	inboundEnabled bool
+	enabled        atomic.Bool
 }
 
 func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db *bbolt.DB) *Fakedns {
@@ -45,23 +45,22 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db *bbolt.DB) *Fa
 	}
 }
 
-func (f *Fakedns) Update(c *pc.Setting) {
-	f.enabled = c.Dns.Fakedns
-	f.inboundEnabled = c.Server.HijackDnsFakeip
+func (f *Fakedns) Apply(c *cd.FakednsConfig) {
+	f.enabled.Store(c.Enabled)
 
-	if !slices.Equal(c.Dns.FakednsWhitelist, f.whitelistSlice) {
+	if !slices.Equal(c.Whitelist, f.whitelistSlice) {
 		d := domain.NewDomainMapper[struct{}]()
 
-		for _, v := range c.Dns.FakednsWhitelist {
+		for _, v := range c.Whitelist {
 			d.Insert(v, struct{}{})
 		}
 
 		f.whitelist = d
-		f.whitelistSlice = c.Dns.FakednsWhitelist
+		f.whitelistSlice = c.Whitelist
 	}
 
-	ipRange := configuration.GetFakeIPRange(c.Dns.FakednsIpRange, false)
-	ipv6Range := configuration.GetFakeIPRange(c.Dns.FakednsIpv6Range, true)
+	ipRange := configuration.GetFakeIPRange(c.Ipv4Range, false)
+	ipv6Range := configuration.GetFakeIPRange(c.Ipv6Range, true)
 
 	if f.fake.Equal(ipRange, ipv6Range) {
 		return
@@ -77,7 +76,7 @@ func (f *Fakedns) Update(c *pc.Setting) {
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 	metrics.Counter.AddDNSProcess(domain)
 
-	if f.enabled || netapi.GetContext(ctx).Resolver.ForceFakeIP {
+	if f.enabled.Load() || netapi.GetContext(ctx).Resolver.ForceFakeIP {
 		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
 			return f.upstream
 		}
@@ -139,7 +138,7 @@ func (f *Fakedns) dispatchAddr(ctx context.Context, addr netapi.Address) netapi.
 		return netapi.ParseAddressPort(addr.Network(), t, addr.Port())
 	}
 
-	if f.enabled || f.inboundEnabled {
+	if configuration.FakeIPEnabled.Load() {
 		// block fakeip range to prevent infinite loop which taget ip is not found in fakeip cache
 		store.ForceMode = bypass.Mode_block
 	}
