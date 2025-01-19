@@ -16,51 +16,50 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/gvisor"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 )
 
 func init() {
-	listener.RegisterProtocol(NewTun)
+	register.RegisterProtocol(NewTun)
 }
 
-func NewTun(o *listener.Inbound_Tun) func(netapi.Listener, netapi.Handler) (s netapi.Accepter, err error) {
-	return func(l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
-		v4address, v4err := toPrefix(o.Tun.Portal)
-		v6address, v6err := toPrefix(o.Tun.PortalV6)
-		if v4err != nil && v6err != nil {
-			return nil, errors.Join(v4err, v6err)
-		}
+func NewTun(o *listener.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
+	v4address, v4err := toPrefix(o.GetPortal())
+	v6address, v6err := toPrefix(o.GetPortalV6())
+	if v4err != nil && v6err != nil {
+		return nil, errors.Join(v4err, v6err)
+	}
 
-		sc, err := netlink.ParseTunScheme(o.Tun.Name)
-		if err != nil {
-			return nil, err
-		}
+	sc, err := netlink.ParseTunScheme(o.GetName())
+	if err != nil {
+		return nil, err
+	}
 
-		sc.Name = checkTunName(sc)
+	sc.Name = checkTunName(sc)
 
-		opt := &device.Opt{
-			Inbound_Tun: o,
-			Options: &netlink.Options{
-				Interface: sc,
-				MTU:       int(o.Tun.Mtu),
-				Routes:    toRoutes(o.Tun.Route),
-			},
-			Handler: handler,
-		}
+	opt := &device.Opt{
+		Tun: o,
+		Options: &netlink.Options{
+			Interface: sc,
+			MTU:       int(o.GetMtu()),
+			Routes:    toRoutes(o.GetRoute()),
+		},
+		Handler: handler,
+	}
 
-		if v4address.IsValid() {
-			opt.Inet4Address = []netip.Prefix{v4address}
-		}
+	if v4address.IsValid() {
+		opt.Inet4Address = []netip.Prefix{v4address}
+	}
 
-		if v6address.IsValid() && configuration.IPv6.Load() {
-			opt.Inet6Address = []netip.Prefix{v6address}
-		}
+	if v6address.IsValid() && configuration.IPv6.Load() {
+		opt.Inet6Address = []netip.Prefix{v6address}
+	}
 
-		if o.Tun.Driver == listener.Tun_system_gvisor {
-			return tun2socket.New(opt)
-		} else {
-			return gvisor.New(opt)
-		}
+	if o.GetDriver() == listener.Tun_system_gvisor {
+		return tun2socket.New(opt)
+	} else {
+		return gvisor.New(opt)
 	}
 }
 
@@ -77,7 +76,7 @@ func toRoutes(r *listener.Route) []netip.Prefix {
 		}
 	}
 
-	for _, v := range r.Routes {
+	for _, v := range r.GetRoutes() {
 		switch {
 		case strings.HasPrefix(v, "file:"):
 			if remain := strings.TrimPrefix(v, "file:"); remain != "" {

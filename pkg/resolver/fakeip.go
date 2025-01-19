@@ -46,21 +46,21 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db *bbolt.DB) *Fa
 }
 
 func (f *Fakedns) Apply(c *cd.FakednsConfig) {
-	f.enabled.Store(c.Enabled)
+	f.enabled.Store(c.GetEnabled())
 
-	if !slices.Equal(c.Whitelist, f.whitelistSlice) {
+	if !slices.Equal(c.GetWhitelist(), f.whitelistSlice) {
 		d := domain.NewDomainMapper[struct{}]()
 
-		for _, v := range c.Whitelist {
+		for _, v := range c.GetWhitelist() {
 			d.Insert(v, struct{}{})
 		}
 
 		f.whitelist = d
-		f.whitelistSlice = c.Whitelist
+		f.whitelistSlice = c.GetWhitelist()
 	}
 
-	ipRange := configuration.GetFakeIPRange(c.Ipv4Range, false)
-	ipv6Range := configuration.GetFakeIPRange(c.Ipv6Range, true)
+	ipRange := configuration.GetFakeIPRange(c.GetIpv4Range(), false)
+	ipv6Range := configuration.GetFakeIPRange(c.GetIpv6Range(), true)
 
 	if f.fake.Equal(ipRange, ipv6Range) {
 		return
@@ -107,12 +107,7 @@ func (f *Fakedns) Dispatch(ctx context.Context, addr netapi.Address) (netapi.Add
 }
 
 func (f *Fakedns) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	c, err := f.dialer.Conn(ctx, f.dispatchAddr(ctx, addr))
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
+	return f.dialer.Conn(ctx, f.dispatchAddr(ctx, addr))
 }
 
 func (f *Fakedns) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {

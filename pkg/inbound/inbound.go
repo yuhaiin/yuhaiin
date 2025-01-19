@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"google.golang.org/protobuf/proto"
 )
@@ -128,10 +129,10 @@ func (l *listener) handlePacket(packet *netapi.Packet) {
 
 func (l *listener) Update(current *pc.Setting) {
 	// l.hijackDNS.Store(current.Server.HijackDns)
-	l.fakeip.Store(current.Server.HijackDnsFakeip)
+	l.fakeip.Store(current.GetServer().GetHijackDnsFakeip())
 	l.handler.sniffyEnabled = current.GetServer().GetSniff().GetEnabled()
 
-	diffs := l.diff(current.Server.Inbounds)
+	diffs := l.diff(current.GetServer().GetInbounds())
 
 	for _, v := range append(diffs.Removed, diffs.Modified...) {
 		v.Old.server.Close()
@@ -140,7 +141,7 @@ func (l *listener) Update(current *pc.Setting) {
 
 	for _, v := range append(diffs.Added, diffs.Modified...) {
 		if v.New.GetEnabled() {
-			server, err := pl.Listen(v.New, l)
+			server, err := register.Listen(v.New, l)
 			if err != nil {
 				log.Error("start server failed", "name", v.Key, "err", err)
 				continue

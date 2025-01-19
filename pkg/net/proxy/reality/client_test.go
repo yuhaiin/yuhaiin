@@ -8,25 +8,20 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestClient(t *testing.T) {
-	sm := simple.NewClient(&protocol.Protocol_Simple{
-		Simple: &protocol.Simple{
-			Host: "127.0.0.1",
-			Port: 2096,
-		},
-	})
+	sm := simple.NewClient(protocol.Simple_builder{
+		Host: proto.String("127.0.0.1"),
+		Port: proto.Int32(2096),
+	}.Build())
 
-	c := NewRealityClient(
-		&protocol.Protocol_Reality{
-			Reality: &protocol.Reality{
-				ServerName: "www.baidu.com",
-				ShortId:    "123456",
-				PublicKey:  "SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8",
-			},
-		},
-	)
+	c := NewRealityClient(protocol.Reality_builder{
+		ServerName: proto.String("www.baidu.com"),
+		ShortId:    proto.String("123456"),
+		PublicKey:  proto.String("SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8"),
+	}.Build())
 
 	pp, err := sm(nil)
 	assert.NoError(t, err)

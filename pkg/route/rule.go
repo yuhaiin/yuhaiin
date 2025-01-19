@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
+	"google.golang.org/protobuf/proto"
 )
 
 type Args struct {
@@ -43,13 +44,13 @@ func ParseArgs(mode bypass.Mode, fs RawArgs) Args {
 }
 
 func (a Args) ToModeConfig(hostname []string) *bypass.ModeConfig {
-	return &bypass.ModeConfig{
-		Mode:                 a.Mode,
-		Tag:                  a.Tag,
+	return (&bypass.ModeConfig_builder{
+		Mode:                 a.Mode.Enum(),
+		Tag:                  proto.String(a.Tag),
 		Hostname:             hostname,
-		ResolveStrategy:      a.ResolveStrategy,
-		UdpProxyFqdnStrategy: a.UdpProxyFqdnStrategy,
-	}
+		ResolveStrategy:      a.ResolveStrategy.Enum(),
+		UdpProxyFqdnStrategy: a.UdpProxyFqdnStrategy.Enum(),
+	}).Build()
 }
 
 func TrimComment(s string) string {

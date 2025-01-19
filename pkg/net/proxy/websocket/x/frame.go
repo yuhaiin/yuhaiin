@@ -16,8 +16,8 @@ type opcode byte
 // https://tools.ietf.org/html/rfc6455#section-11.8.
 const (
 	opContinuation opcode = iota
-	opText
-	opBinary
+	OpText
+	OpBinary
 	// 3 - 7 are reserved for further non-control frames.
 	_
 	_
@@ -44,6 +44,8 @@ type Header struct {
 	masked  bool
 	maskKey uint32
 }
+
+func (h *Header) ContentLength() int64 { return h.payloadLength }
 
 func ReadByte(r io.Reader) (byte, error) {
 	b := make([]byte, 1)

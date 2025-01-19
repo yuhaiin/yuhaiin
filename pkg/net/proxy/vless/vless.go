@@ -6,8 +6,8 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
 )
 
@@ -60,12 +60,12 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Protocol_Vless) point.WrapProxy {
+func NewClient(config *protocol.Vless) register.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		uid, err := uuid.ParseStd(config.Vless.GetUuid())
+		uid, err := uuid.ParseStd(config.GetUuid())
 		if err != nil {
 			return nil, err
 		}

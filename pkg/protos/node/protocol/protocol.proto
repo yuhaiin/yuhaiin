@@ -1,8 +1,10 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.protocol;
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol";
+option features.(pb.go).api_level = API_OPAQUE;
 
 message protocol {
   oneof protocol {
@@ -80,7 +82,7 @@ message trojan {
 
 message yuubinsya {
   reserved 2;
-  reserved "encrypted";
+  reserved encrypted;
   string password = 1 [ json_name = "password" ];
   bool tcp_encrypt = 4 [ json_name = "tcp_encrypt" ];
   bool udp_encrypt = 5 [ json_name = "udp_encrypt" ];
@@ -89,7 +91,7 @@ message yuubinsya {
 
 message websocket {
   reserved 4;
-  reserved "tls_enabled";
+  reserved tls_enabled;
   string host = 1 [ json_name = "host" ];
   string path = 2 [ json_name = "path" ];
 }
@@ -117,7 +119,7 @@ message none {}
 
 message simple {
   reserved 4, 6, 3;
-  reserved "tls", "timeout", "packet_conn_direct";
+  reserved tls, timeout, packet_conn_direct;
   string host = 1 [ json_name = "host" ];
   int32 port = 2 [ json_name = "port" ];
   repeated host alternate_host = 5 [ json_name = "alternate_host" ];
@@ -137,7 +139,7 @@ message tls_config {
 
 message direct {
   reserved 1;
-  reserved "timeout";
+  reserved timeout;
   string network_interface = 2 [ json_name = "network_interface" ];
 }
 

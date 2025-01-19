@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -36,7 +37,7 @@ func NewNodes(path string) *Nodes {
 		db: load(path),
 	}
 
-	f.manager = NewManager(f.db.Data.Manager)
+	f.manager = NewManager(f.db.Data.GetManager())
 	f.outBound = NewOutbound(f.db, f.manager)
 	f.links = NewLink(f.db, f.outBound, f.manager)
 
@@ -46,10 +47,10 @@ func NewNodes(path string) *Nodes {
 func (n *Nodes) SetRuleTags(f func() iter.Seq[string]) { n.ruleTags = f }
 
 func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
-	return &gn.NowResp{
-		Tcp: n.db.Data.Tcp,
-		Udp: n.db.Data.Udp,
-	}, nil
+	return gn.NowResp_builder{
+		Tcp: n.db.Data.GetTcp(),
+		Udp: n.db.Data.GetUdp(),
+	}.Build(), nil
 }
 
 func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point, error) {
@@ -62,31 +63,31 @@ func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point,
 }
 
 func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
-	if p.Name == "" || p.Group == "" {
+	if p.GetName() == "" || p.GetGroup() == "" {
 		return &point.Point{}, fmt.Errorf("add point name or group is empty")
 	}
-	n.manager.DeleteNode(p.Hash)
+	n.manager.DeleteNode(p.GetHash())
 	n.manager.AddNode(p)
 	return p, n.db.Save()
 }
 
 func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
-	return &gn.NodesResponse{
+	return gn.NodesResponse_builder{
 		Groups: n.manager.GetGroupsV2(),
-	}, nil
+	}.Build(), nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
-	p, err := n.Get(c, &wrapperspb.StringValue{Value: s.Hash})
+	p, err := n.Get(c, &wrapperspb.StringValue{Value: s.GetHash()})
 	if err != nil {
 		return &point.Point{}, fmt.Errorf("get node failed: %w", err)
 	}
 
-	if s.Tcp {
-		n.db.Data.Tcp = p
+	if s.GetTcp() {
+		n.db.Data.SetTcp(p)
 	}
-	if s.Udp {
-		n.db.Data.Udp = p
+	if s.GetUdp() {
+		n.db.Data.SetUdp(p)
 	}
 
 	err = n.db.Save()
@@ -127,11 +128,13 @@ func (w *latencyDialer) PacketConn(ctx context.Context, a netapi.Address) (net.P
 }
 
 func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Response, error) {
-	resp := &latency.Response{IdLatencyMap: make(map[string]*latency.Reply)}
+	resp := &latency.Response_builder{
+		IdLatencyMap: make(map[string]*latency.Reply),
+	}
 	var mu sync.Mutex
 
 	var wg sync.WaitGroup
-	for _, s := range req.Requests {
+	for _, s := range req.GetRequests() {
 		wg.Add(1)
 		go func(s *latency.Request) {
 			defer wg.Done()
@@ -147,47 +150,39 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 
 			px = &latencyDialer{Proxy: px, ipv6: s.GetIpv6()}
 
-			z, ok := s.Protocol.Protocol.(latency.Latencier)
-			if !ok {
-				return
-			}
-
-			t, err := z.Latency(px)
+			t, err := s.GetProtocol().Latency(px)
 
 			mu.Lock()
 			if err != nil {
 				log.Error("latency failed", "err", err)
-				resp.IdLatencyMap[s.Id] = &latency.Reply{
-					Reply: &latency.Reply_Error{
-						Error: &latency.Error{
-							Msg: err.Error(),
-						},
-					},
-				}
+				resp.IdLatencyMap[s.GetId()] = (&latency.Reply_builder{
+					Error: (&latency.Error_builder{Msg: proto.String(err.Error())}).Build(),
+				}).Build()
 			} else {
-				resp.IdLatencyMap[s.Id] = t
+				resp.IdLatencyMap[s.GetId()] = t
 			}
 			mu.Unlock()
 		}(s)
 	}
 
 	wg.Wait()
-	return resp, nil
+
+	return resp.Build(), nil
 }
 
 func (n *Nodes) Outbound() *outbound { return n.outBound }
 
 func load(path string) *jsondb.DB[*node.Node] {
-	defaultNode := &node.Node{
+	defaultNode := &node.Node_builder{
 		Tcp:   &point.Point{},
 		Udp:   &point.Point{},
 		Links: map[string]*subscribe.Link{},
-		Manager: &node.Manager{
+		Manager: (&node.Manager_builder{
 			GroupsV2: map[string]*node.Nodes{},
 			Nodes:    map[string]*point.Point{},
 			Tags:     map[string]*pt.Tags{},
-		},
+		}).Build(),
 	}
 
-	return jsondb.Open(path, defaultNode)
+	return jsondb.Open(path, defaultNode.Build())
 }

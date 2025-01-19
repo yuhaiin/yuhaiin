@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -24,7 +25,14 @@ func (s *Server) startUDPServer() error {
 
 	go func() {
 		defer packet.Close()
-		yuubinsya.StartUDPServer(packet, s.handler.HandlePacket, nil, true)
+		err := (&yuubinsya.UDPServer{
+			PacketConn: packet,
+			Handler:    s.handler.HandlePacket,
+			Prefix:     true,
+		}).Serve()
+		if err != nil {
+			log.Error("start udp server failed", "err", err)
+		}
 	}()
 
 	return nil
@@ -274,33 +282,31 @@ func (s *Server) Close() error {
 }
 
 func init() {
-	listener.RegisterProtocol(NewServer)
+	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Socks5) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
-	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-		ctx, cancel := context.WithCancel(context.Background())
-		s := &Server{
-			udp:      o.Socks5.Udp,
-			username: o.Socks5.Username,
-			password: o.Socks5.Password,
-			lis:      ii,
-			handler:  handler,
-			ctx:      ctx,
-			cancel:   cancel,
-		}
+func NewServer(o *listener.Socks5, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Server{
+		udp:      o.GetUdp(),
+		username: o.GetUsername(),
+		password: o.GetPassword(),
+		lis:      ii,
+		handler:  handler,
+		ctx:      ctx,
+		cancel:   cancel,
+	}
 
-		if s.udp {
-			if err := s.startUDPServer(); err != nil {
-				return nil, err
-			}
-		}
-
-		if err := s.startTCPServer(); err != nil {
-			s.Close()
+	if s.udp {
+		if err := s.startUDPServer(); err != nil {
 			return nil, err
 		}
-
-		return s, nil
 	}
+
+	if err := s.startTCPServer(); err != nil {
+		s.Close()
+		return nil, err
+	}
+
+	return s, nil
 }

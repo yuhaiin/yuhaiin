@@ -27,8 +27,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	utls "github.com/refraction-networking/utls"
@@ -52,12 +52,12 @@ type RealityClient struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewRealityClient)
+	register.RegisterPoint(NewRealityClient)
 }
 
-func NewRealityClient(config *protocol.Protocol_Reality) point.WrapProxy {
+func NewRealityClient(config *protocol.Reality) register.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		publicKey, err := base64.RawURLEncoding.DecodeString(config.Reality.PublicKey)
+		publicKey, err := base64.RawURLEncoding.DecodeString(config.GetPublicKey())
 		if err != nil {
 			return nil, fmt.Errorf("decode public_key failed: %w", err)
 		}
@@ -65,7 +65,7 @@ func NewRealityClient(config *protocol.Protocol_Reality) point.WrapProxy {
 			return nil, fmt.Errorf("invalid public_key")
 		}
 		var shortID [8]byte
-		decodedLen, err := hex.Decode(shortID[:], []byte(config.Reality.ShortId))
+		decodedLen, err := hex.Decode(shortID[:], []byte(config.GetShortId()))
 		if err != nil {
 			return nil, fmt.Errorf("decode short_id failed: %w", err)
 		}
@@ -75,11 +75,11 @@ func NewRealityClient(config *protocol.Protocol_Reality) point.WrapProxy {
 		return &RealityClient{
 			proxy: p,
 			utls: &utls.Config{
-				ServerName: config.Reality.ServerName,
+				ServerName: config.GetServerName(),
 			},
 			publicKey: publicKey,
 			shortID:   shortID,
-			Deubg:     config.Reality.Debug,
+			Deubg:     config.GetDebug(),
 		}, nil
 	}
 }

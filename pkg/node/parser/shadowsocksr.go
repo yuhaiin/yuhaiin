@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -49,33 +50,30 @@ func init() {
 
 		obfsparam, _ := base64.RawURLEncoding.DecodeString(query.Get("obfsparam"))
 		protoparam, _ := base64.RawURLEncoding.DecodeString(query.Get("protoparam"))
-		return &point.Point{
-			Origin: point.Origin_remote,
-			Name:   "[ssr]" + string(name),
+		return point.Point_builder{
+			Origin: point.Origin_remote.Enum(),
+			Name:   proto.String("[ssr]" + string(name)),
 			Protocols: []*protocol.Protocol{
-				{
-					Protocol: &protocol.Protocol_Simple{
-						Simple: &protocol.Simple{
-							Host: x[0],
-							Port: int32(port),
-						},
-					},
-				},
-				{
-					Protocol: &protocol.Protocol_Shadowsocksr{
-						Shadowsocksr: &protocol.Shadowsocksr{
-							Server:     x[0],
-							Port:       x[1],
-							Protocol:   x[2],
-							Method:     x[3],
-							Obfs:       x[4],
-							Password:   string(password),
-							Obfsparam:  string(obfsparam),
-							Protoparam: string(protoparam),
-						},
-					},
-				},
+				protocol.Protocol_builder{
+					Simple: protocol.Simple_builder{
+						Host: proto.String(x[0]),
+						Port: proto.Int32(int32(port)),
+					}.Build(),
+				}.Build(),
+
+				protocol.Protocol_builder{
+					Shadowsocksr: protocol.Shadowsocksr_builder{
+						Server:     proto.String(x[0]),
+						Port:       proto.String(x[1]),
+						Protocol:   proto.String(x[2]),
+						Method:     proto.String(x[3]),
+						Obfs:       proto.String(x[4]),
+						Password:   proto.String(string(password)),
+						Obfsparam:  proto.String(string(obfsparam)),
+						Protoparam: proto.String(string(protoparam)),
+					}.Build(),
+				}.Build(),
 			},
-		}, nil
+		}.Build(), nil
 	})
 }

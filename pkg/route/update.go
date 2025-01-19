@@ -22,8 +22,8 @@ import (
 
 func (s *Route) updateCustomRule(path string, c *bypass.Config, force bool) {
 	if !force && slices.EqualFunc(
-		s.config.CustomRuleV3,
-		c.CustomRuleV3,
+		s.config.GetCustomRuleV3(),
+		c.GetCustomRuleV3(),
 		func(mc1, mc2 *bypass.ModeConfig) bool { return proto.Equal(mc1, mc2) },
 	) {
 		return
@@ -31,19 +31,19 @@ func (s *Route) updateCustomRule(path string, c *bypass.Config, force bool) {
 
 	trie := newRouteTires()
 
-	for _, v := range c.CustomRuleV3 {
-		v.ErrorMsgs = make(map[string]string)
+	for _, v := range c.GetCustomRuleV3() {
+		v.SetErrorMsgs(make(map[string]string))
 
 		mark := v.ToModeEnum()
 
-		for _, hostname := range v.Hostname {
+		for _, hostname := range v.GetHostname() {
 			scheme := getScheme(hostname)
 
 			switch scheme.Scheme() {
 			case "http", "https":
 				r, err := getRemote(filepath.Join(path, "rules"), s, hostname, force)
 				if err != nil {
-					v.ErrorMsgs[hostname] = err.Error()
+					v.GetErrorMsgs()[hostname] = err.Error()
 					log.Error("get remote failed", "err", err, "url", hostname)
 					continue
 				}
@@ -64,14 +64,14 @@ func (s *Route) updateCustomRule(path string, c *bypass.Config, force bool) {
 
 func (s *Route) updateRules(path string, c *bypass.Config, force bool) {
 	if !force && slices.EqualFunc(
-		s.config.RemoteRules,
-		c.RemoteRules,
+		s.config.GetRemoteRules(),
+		c.GetRemoteRules(),
 		func(mc1, mc2 *bypass.RemoteRule) bool { return proto.Equal(mc1, mc2) },
 	) {
 		return
 	}
 
-	s.trie.Store(parseTrie(filepath.Join(path, "rules"), s, c.RemoteRules, force))
+	s.trie.Store(parseTrie(filepath.Join(path, "rules"), s, c.GetRemoteRules(), force))
 }
 
 func (s *Route) apply(path string, c *bypass.Config, force bool) {
@@ -94,7 +94,7 @@ func NewRuleController(db config.DB, r *Route) *RuleController {
 	go func() {
 		// make it run in background, so it won't block the main thread
 		_ = db.Batch(func(s *pc.Setting) error {
-			r.apply(db.Dir(), s.Bypass, false)
+			r.apply(db.Dir(), s.GetBypass(), false)
 			return nil
 		})
 	}()
@@ -119,7 +119,7 @@ func (s *RuleController) Save(ctx context.Context, config *bypass.Config) (*empt
 	s.route.apply(s.db.Dir(), config, false)
 
 	err := s.db.Batch(func(s *pc.Setting) error {
-		s.Bypass = config
+		s.SetBypass(config)
 		return nil
 	})
 
@@ -133,7 +133,7 @@ func (s *RuleController) Reload(ctx context.Context, empty *emptypb.Empty) (*emp
 	var config *bypass.Config
 
 	_ = s.db.Batch(func(s *pc.Setting) error {
-		config = s.Bypass
+		config = s.GetBypass()
 		return nil
 	})
 
@@ -154,15 +154,15 @@ func (s *RuleController) Test(ctx context.Context, req *wrapperspb.StringValue) 
 
 	result := s.route.dispatch(ctx, bypass.Mode_bypass, addr)
 
-	return &gc.TestResponse{
-		Mode: &bypass.ModeConfig{
-			Mode:            result.Mode.Mode(),
-			Tag:             result.Mode.GetTag(),
-			ResolveStrategy: result.Mode.GetResolveStrategy(),
-		},
-		AfterAddr: result.Addr.String(),
-		Reason:    result.Reason,
-	}, nil
+	return (&gc.TestResponse_builder{
+		Mode: (&bypass.ModeConfig_builder{
+			Mode:            result.Mode.Mode().Enum(),
+			Tag:             proto.String(result.Mode.GetTag()),
+			ResolveStrategy: result.Mode.GetResolveStrategy().Enum(),
+		}).Build(),
+		AfterAddr: proto.String(result.Addr.String()),
+		Reason:    proto.String(result.Reason),
+	}).Build(), nil
 }
 
 func (s *RuleController) BlockHistory(context.Context, *emptypb.Empty) (*gc.BlockHistoryList, error) {

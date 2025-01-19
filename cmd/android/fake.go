@@ -39,86 +39,80 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 
 	opts, _ := json.Marshal(opt)
 	log.Info("fake setting config", "data", string(opts))
-	settings := &pc.Setting{
-		Ipv6: store.GetBoolean(Ipv6ProxyKey),
-		Dns: &dns.DnsConfig{
-			Server:           ifOr(store.GetInt(AdvDnsPortKey) == 0, "", net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(AdvDnsPortKey)))),
-			Fakedns:          store.GetString(AdvFakeDnsCidrKey) != "" || store.GetString(AdvFakeDnsv6CidrKey) != "",
-			FakednsIpRange:   store.GetString(AdvFakeDnsCidrKey),
-			FakednsIpv6Range: store.GetString(AdvFakeDnsv6CidrKey),
+	settings := pc.Setting_builder{
+		Ipv6: proto.Bool(store.GetBoolean(Ipv6ProxyKey)),
+		Dns: dns.DnsConfig_builder{
+			Server:           proto.String(ifOr(store.GetInt(AdvDnsPortKey) == 0, "", net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(AdvDnsPortKey))))),
+			Fakedns:          proto.Bool(store.GetString(AdvFakeDnsCidrKey) != "" || store.GetString(AdvFakeDnsv6CidrKey) != ""),
+			FakednsIpRange:   proto.String(store.GetString(AdvFakeDnsCidrKey)),
+			FakednsIpv6Range: proto.String(store.GetString(AdvFakeDnsv6CidrKey)),
 			Hosts:            store.GetStringMap(NewHostsKey),
 
 			Resolver: map[string]*dns.Dns{
-				"direct": {
-					Host:          store.GetString(LocalDnsHostKey),
-					Type:          dns.Type(dns.Type_value[store.GetString(LocalDnsTypeKey)]),
-					Subnet:        store.GetString(LocalDnsSubnetKey),
-					TlsServername: store.GetString(LocalDnsTlsServerNameKey),
-				},
-				"proxy": {
-					Host:          store.GetString(RemoteDnsHostKey),
-					Type:          dns.Type(dns.Type_value[store.GetString(RemoteDnsTypeKey)]),
-					Subnet:        store.GetString(RemoteDnsSubnetKey),
-					TlsServername: store.GetString(RemoteDnsTlsServerNameKey),
-				},
-				"bootstrap": {
-					Host:          store.GetString(BootstrapDnsHostKey),
-					Type:          dns.Type(dns.Type_value[store.GetString(BootstrapDnsTypeKey)]),
-					Subnet:        store.GetString(BootstrapDnsSubnetKey),
-					TlsServername: store.GetString(BootstrapDnsTlsServerNameKey),
-				},
+				"direct": dns.Dns_builder{
+					Host:          proto.String(store.GetString(LocalDnsHostKey)),
+					Type:          dns.Type(dns.Type_value[store.GetString(LocalDnsTypeKey)]).Enum(),
+					Subnet:        proto.String(store.GetString(LocalDnsSubnetKey)),
+					TlsServername: proto.String(store.GetString(LocalDnsTlsServerNameKey)),
+				}.Build(),
+				"proxy": dns.Dns_builder{
+					Host:          proto.String(store.GetString(RemoteDnsHostKey)),
+					Type:          dns.Type(dns.Type_value[store.GetString(RemoteDnsTypeKey)]).Enum(),
+					Subnet:        proto.String(store.GetString(RemoteDnsSubnetKey)),
+					TlsServername: proto.String(store.GetString(RemoteDnsTlsServerNameKey)),
+				}.Build(),
+				"bootstrap": dns.Dns_builder{
+					Host:          proto.String(store.GetString(BootstrapDnsHostKey)),
+					Type:          dns.Type(dns.Type_value[store.GetString(BootstrapDnsTypeKey)]).Enum(),
+					Subnet:        proto.String(store.GetString(BootstrapDnsSubnetKey)),
+					TlsServername: proto.String(store.GetString(BootstrapDnsTlsServerNameKey)),
+				}.Build(),
 			},
-		},
+		}.Build(),
 		SystemProxy: &pc.SystemProxy{},
-		Server: &listener.InboundConfig{
-			HijackDns: store.GetBoolean(DnsHijacking),
+		Server: listener.InboundConfig_builder{
+			HijackDns: proto.Bool(store.GetBoolean(DnsHijacking)),
 			// HijackDnsFakeip: opt.DNS.Fakedns,
-			Sniff: &listener.Sniff{
-				Enabled: store.GetBoolean(SniffKey),
-			},
+			Sniff: listener.Sniff_builder{
+				Enabled: proto.Bool(store.GetBoolean(SniffKey)),
+			}.Build(),
 			Inbounds: map[string]*listener.Inbound{
-				"mix": {
-					Name:    "mix",
-					Enabled: store.GetInt(NewHTTPPortKey) != 0,
-					Network: &listener.Inbound_Tcpudp{
-						Tcpudp: &listener.Tcpudp{
-							Host:    net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey))),
-							Control: listener.TcpUdpControl_tcp_udp_control_all,
-						},
-					},
-					Protocol: &listener.Inbound_Mix{
-						Mix: &listener.Mixed{},
-					},
-				},
-				"tun": {
-					Name:    "tun",
-					Enabled: true,
-					Network: &listener.Inbound_Empty{Empty: &listener.Empty{}},
-					Protocol: &listener.Inbound_Tun{
-						Tun: &listener.Tun{
-							Name:          fmt.Sprintf("fd://%d", opt.TUN.FD),
-							Mtu:           opt.TUN.MTU,
-							Portal:        opt.TUN.Portal,
-							PortalV6:      opt.TUN.PortalV6,
-							SkipMulticast: true,
-							Route:         &listener.Route{},
-							Driver:        listener.TunEndpointDriver(listener.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]),
-						},
-					},
-				},
+				"mix": listener.Inbound_builder{
+					Name:    proto.String("mix"),
+					Enabled: proto.Bool(store.GetInt(NewHTTPPortKey) != 0),
+					Tcpudp: listener.Tcpudp_builder{
+						Host:    proto.String(net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(NewHTTPPortKey)))),
+						Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
+					}.Build(),
+					Mix: &listener.Mixed{},
+				}.Build(),
+				"tun": listener.Inbound_builder{
+					Name:    proto.String("tun"),
+					Enabled: proto.Bool(true),
+					Empty:   &listener.Empty{},
+					Tun: listener.Tun_builder{
+						Name:          proto.String(fmt.Sprintf("fd://%d", opt.TUN.FD)),
+						Mtu:           proto.Int32(opt.TUN.MTU),
+						Portal:        proto.String(opt.TUN.Portal),
+						PortalV6:      proto.String(opt.TUN.PortalV6),
+						SkipMulticast: proto.Bool(true),
+						Route:         &listener.Route{},
+						Driver:        listener.TunEndpointDriver(listener.TunEndpointDriver_value[store.GetString(AdvTunDriverKey)]).Enum(),
+					}.Build(),
+				}.Build(),
 			},
-		},
+		}.Build(),
 
 		Bypass: &bypass.Config{},
 
-		Logcat: &pl.Logcat{
-			Level: pl.LogLevel(pl.LogLevel_value[store.GetString(LogLevel)]),
-			Save:  store.GetBoolean(SaveLogcat),
-		},
-		Platform: &pc.Platform{
-			AndroidApp: true,
-		},
-	}
+		Logcat: pl.Logcat_builder{
+			Level: pl.LogLevel(pl.LogLevel_value[store.GetString(LogLevel)]).Enum(),
+			Save:  proto.Bool(store.GetBoolean(SaveLogcat)),
+		}.Build(),
+		Platform: pc.Platform_builder{
+			AndroidApp: proto.Bool(true),
+		}.Build(),
+	}.Build()
 
 	applyRule(settings, store.GetString(RuleProxy), bypass.Mode_proxy)
 	applyRule(settings, store.GetString(RuleBlock), bypass.Mode_block)
@@ -144,10 +138,10 @@ func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
 		if !ok {
 			zz = xx.ToModeConfig(nil)
 			cache[xx] = zz
-			settings.Bypass.CustomRuleV3 = append(settings.Bypass.CustomRuleV3, zz)
+			settings.GetBypass().SetCustomRuleV3(append(settings.GetBypass().GetCustomRuleV3(), zz))
 		}
 
-		zz.Hostname = append(zz.Hostname, z[0])
+		zz.SetHostname(append(zz.GetHostname(), z[0]))
 	}
 }
 
@@ -210,5 +204,5 @@ func (w *fakeSettings) Batch(f ...func(*pc.Setting) error) error {
 func (w *fakeSettings) Dir() string { return w.dir }
 
 func (w *fakeSettings) updateRemoteUrl(url string) {
-	w.setting.Bypass.RemoteRules[0].GetHttp().Url = url
+	w.setting.GetBypass().GetRemoteRules()[0].GetHttp().SetUrl(url)
 }

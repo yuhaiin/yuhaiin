@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -46,7 +47,7 @@ func TestVmess(t *testing.T) {
 	err := protojson.Unmarshal([]byte(``), z)
 	assert.NoError(t, err)
 
-	x, err := point.Dialer(z)
+	x, err := register.Dialer(z)
 	assert.NoError(t, err)
 
 	tt := &http.Client{

@@ -1,8 +1,10 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.log;
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/log";
+option features.(pb.go).api_level = API_OPAQUE;
 
 enum log_level {
   verbose = 0;

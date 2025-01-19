@@ -112,24 +112,31 @@ func (s *authPacketConn) readFrom(p []byte) (int, netapi.Address, net.Addr, erro
 	return copy(p[0:], buf), addr, rawAddr, nil
 }
 
-func StartUDPServer(packet net.PacketConn, handle func(*netapi.Packet), auth types.Auth, prefix bool) {
-	p := NewAuthPacketConn(packet).WithAuth(auth).WithSocks5Prefix(prefix)
+type UDPServer struct {
+	PacketConn net.PacketConn
+	Handler    func(*netapi.Packet)
+	Auth       types.Auth
+	Prefix     bool
+}
+
+func (s *UDPServer) Serve() error {
+	p := NewAuthPacketConn(s.PacketConn).WithAuth(s.Auth).WithSocks5Prefix(s.Prefix)
+
 	buf := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(buf)
 
 	for {
 		n, dst, src, err := p.readFrom(buf)
 		if err != nil {
-			log.Error("read udp request failed", slog.Any("err", err))
-
 			if errors.Is(err, errNet) {
-				return
+				return err
 			}
 
+			log.Warn("read udp request failed", slog.Any("err", err))
 			continue
 		}
 
-		handle(&netapi.Packet{
+		s.Handler(&netapi.Packet{
 			Src:     src,
 			Dst:     dst,
 			Payload: pool.Clone(buf[:n]),

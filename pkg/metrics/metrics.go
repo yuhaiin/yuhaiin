@@ -4,6 +4,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/net/dns/dnsmessage"
@@ -14,7 +15,16 @@ type FlowCounter interface {
 	LoadRunningUpload() uint64
 }
 
-func StartMetrics(c FlowCounter, counter Metrics) {
+type flowCounterEmpty struct{}
+
+func (c flowCounterEmpty) LoadRunningDownload() uint64 { return 0 }
+func (c flowCounterEmpty) LoadRunningUpload() uint64   { return 0 }
+
+var flowCounter = atomicx.NewValue(FlowCounter(flowCounterEmpty{}))
+
+func SetFlowCounter(c FlowCounter) { flowCounter.Store(c) }
+
+func init() {
 	hostname, _ := os.Hostname()
 	labels := prometheus.Labels{
 		"hostname": hostname,
@@ -22,19 +32,19 @@ func StartMetrics(c FlowCounter, counter Metrics) {
 		"arch":     runtime.GOARCH,
 	}
 
-	Counter = counter
+	Counter = NewPrometheus()
 
 	promauto.NewCounterFunc(prometheus.CounterOpts{
 		Name:        "yuhaiin_download_bytes_total",
 		Help:        "The total number of download bytes",
 		ConstLabels: labels,
-	}, func() float64 { return float64(c.LoadRunningDownload()) })
+	}, func() float64 { return float64(flowCounter.Load().LoadRunningDownload()) })
 
 	promauto.NewCounterFunc(prometheus.CounterOpts{
 		Name:        "yuhaiin_upload_bytes_total",
 		Help:        "The total number of upload bytes",
 		ConstLabels: labels,
-	}, func() float64 { return float64(c.LoadRunningUpload()) })
+	}, func() float64 { return float64(flowCounter.Load().LoadRunningUpload()) })
 }
 
 var Counter Metrics = &EmptyMetrics{}

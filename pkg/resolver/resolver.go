@@ -243,19 +243,19 @@ func (d *dnsWrap) Close() error {
 }
 
 func newDNS(name string, dc *pd.Dns, dialer netapi.Proxy, resovler *Resolver) (netapi.Resolver, error) {
-	subnet, err := netip.ParsePrefix(dc.Subnet)
+	subnet, err := netip.ParsePrefix(dc.GetSubnet())
 	if err != nil {
-		p, err := netip.ParseAddr(dc.Subnet)
+		p, err := netip.ParseAddr(dc.GetSubnet())
 		if err == nil {
 			subnet = netip.PrefixFrom(p, p.BitLen())
 		}
 	}
 	r, err := dns.New(
 		dns.Config{
-			Type:       dc.Type,
+			Type:       dc.GetType(),
 			Name:       name,
-			Host:       dc.Host,
-			Servername: dc.TlsServername,
+			Host:       dc.GetHost(),
+			Servername: dc.GetTlsServername(),
 			Subnet:     subnet,
 			Dialer:     dialer,
 		})
@@ -296,7 +296,7 @@ func NewResolverControl(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver
 	r2 := &ResolverControl{s: s, hosts: hosts, fakedns: fakedns, r: r}
 
 	err := s.View(func(s *config.Setting) error {
-		for k, v := range s.Dns.Resolver {
+		for k, v := range s.GetDns().GetResolver() {
 			if k == "bootstrap" {
 				r2.r.ApplyBootstrap(v)
 			}
@@ -304,7 +304,7 @@ func NewResolverControl(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver
 			r2.r.Apply(k, v)
 		}
 
-		r2.hosts.Apply(s.Dns.Hosts)
+		r2.hosts.Apply(s.GetDns().GetHosts())
 
 		r2.fakedns.Apply(toFakednsConfig(s))
 		return nil
@@ -319,8 +319,8 @@ func NewResolverControl(s config.DB, hosts *Hosts, fakedns *Fakedns, r *Resolver
 func (r *ResolverControl) List(ctx context.Context, req *emptypb.Empty) (*gc.ResolveList, error) {
 	resp := &gc.ResolveList{}
 	err := r.s.View(func(s *config.Setting) error {
-		for k := range s.Dns.Resolver {
-			resp.Names = append(resp.Names, k)
+		for k := range s.GetDns().GetResolver() {
+			resp.SetNames(append(resp.GetNames(), k))
 		}
 		return nil
 	})
@@ -330,7 +330,7 @@ func (r *ResolverControl) List(ctx context.Context, req *emptypb.Empty) (*gc.Res
 func (r *ResolverControl) Get(ctx context.Context, req *wrapperspb.StringValue) (*cd.Dns, error) {
 	var dns *cd.Dns
 	err := r.s.View(func(s *config.Setting) error {
-		dns = s.Dns.Resolver[req.GetValue()]
+		dns = s.GetDns().GetResolver()[req.GetValue()]
 		return nil
 	})
 	if err != nil {
@@ -345,25 +345,25 @@ func (r *ResolverControl) Get(ctx context.Context, req *wrapperspb.StringValue) 
 }
 
 func (r *ResolverControl) Save(ctx context.Context, req *gc.SaveResolver) (*cd.Dns, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, fmt.Errorf("name is empty")
 	}
 
 	err := r.s.Batch(func(s *config.Setting) error {
-		s.Dns.Resolver[req.Name] = req.Resolver
+		s.GetDns().GetResolver()[req.GetName()] = req.GetResolver()
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if req.Name == "bootstrap" {
-		r.r.ApplyBootstrap(req.Resolver)
+	if req.GetName() == "bootstrap" {
+		r.r.ApplyBootstrap(req.GetResolver())
 	}
 
-	r.r.Apply(req.Name, req.Resolver)
+	r.r.Apply(req.GetName(), req.GetResolver())
 
-	return req.Resolver, err
+	return req.GetResolver(), err
 }
 
 func (r *ResolverControl) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
@@ -372,7 +372,7 @@ func (r *ResolverControl) Remove(ctx context.Context, req *wrapperspb.StringValu
 	}
 
 	err := r.s.Batch(func(s *config.Setting) error {
-		delete(s.Dns.Resolver, req.Value)
+		delete(s.GetDns().GetResolver(), req.Value)
 		return nil
 	})
 
@@ -384,34 +384,34 @@ func (r *ResolverControl) Remove(ctx context.Context, req *wrapperspb.StringValu
 func (r *ResolverControl) Hosts(ctx context.Context, _ *emptypb.Empty) (*gc.Hosts, error) {
 	hosts := map[string]string{}
 	err := r.s.View(func(s *config.Setting) error {
-		hosts = s.Dns.Hosts
+		hosts = s.GetDns().GetHosts()
 		return nil
 	})
 
-	return &gc.Hosts{Hosts: hosts}, err
+	return (&gc.Hosts_builder{Hosts: hosts}).Build(), err
 }
 
 func (r *ResolverControl) SaveHosts(ctx context.Context, req *gc.Hosts) (*emptypb.Empty, error) {
 	err := r.s.Batch(func(s *config.Setting) error {
-		s.Dns.Hosts = req.Hosts
+		s.GetDns().SetHosts(req.GetHosts())
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	r.hosts.Apply(req.Hosts)
+	r.hosts.Apply(req.GetHosts())
 
 	return &emptypb.Empty{}, nil
 }
 
 func toFakednsConfig(s *config.Setting) *cd.FakednsConfig {
-	return &cd.FakednsConfig{
-		Enabled:   s.Dns.Fakedns,
-		Ipv4Range: s.Dns.FakednsIpRange,
-		Ipv6Range: s.Dns.FakednsIpv6Range,
-		Whitelist: s.Dns.FakednsWhitelist,
-	}
+	return (&cd.FakednsConfig_builder{
+		Enabled:   proto.Bool(s.GetDns().GetFakedns()),
+		Ipv4Range: proto.String(s.GetDns().GetFakednsIpRange()),
+		Ipv6Range: proto.String(s.GetDns().GetFakednsIpv6Range()),
+		Whitelist: s.GetDns().GetFakednsWhitelist(),
+	}).Build()
 }
 
 func (r *ResolverControl) Fakedns(context.Context, *emptypb.Empty) (*cd.FakednsConfig, error) {
@@ -425,10 +425,10 @@ func (r *ResolverControl) Fakedns(context.Context, *emptypb.Empty) (*cd.FakednsC
 
 func (r *ResolverControl) SaveFakedns(ctx context.Context, req *cd.FakednsConfig) (*emptypb.Empty, error) {
 	err := r.s.Batch(func(s *config.Setting) error {
-		s.Dns.Fakedns = req.Enabled
-		s.Dns.FakednsIpRange = req.Ipv4Range
-		s.Dns.FakednsIpv6Range = req.Ipv6Range
-		s.Dns.FakednsWhitelist = req.Whitelist
+		s.GetDns().SetFakedns(req.GetEnabled())
+		s.GetDns().SetFakednsIpRange(req.GetIpv4Range())
+		s.GetDns().SetFakednsIpv6Range(req.GetIpv6Range())
+		s.GetDns().SetFakednsWhitelist(req.GetWhitelist())
 		return nil
 	})
 	if err != nil {

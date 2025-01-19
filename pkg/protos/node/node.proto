@@ -1,12 +1,14 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.node;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node";
+option features.(pb.go).api_level = API_OPAQUE;
 
 import "node/point/point.proto";
 import "node/subscribe/subscribe.proto";
 import "node/tag/tag.proto";
+import "google/protobuf/go_features.proto";
 
 message node {
   yuhaiin.point.point tcp = 4 [ json_name = "tcp" ];

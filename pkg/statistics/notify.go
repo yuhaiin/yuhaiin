@@ -65,13 +65,11 @@ func (n *notify) register(s gs.Connections_NotifyServer, conns iter.Seq[connecti
 		cancel: cancel,
 	}
 
-	err := ne.Send(&gs.NotifyData{
-		Data: &gs.NotifyData_NotifyNewConnections{
-			NotifyNewConnections: &gs.NotifyNewConnections{
-				Connections: slice.CollectTo(conns, connToStatistic),
-			},
-		},
-	})
+	err := ne.Send((&gs.NotifyData_builder{
+		NotifyNewConnections: (&gs.NotifyNewConnections_builder{
+			Connections: slice.CollectTo(conns, connToStatistic),
+		}).Build(),
+	}).Build())
 	if err == nil {
 		n.notifier.Store(id, ne)
 	}
@@ -207,23 +205,19 @@ func (n *notifyStore) dump() (datas []*gs.NotifyData) {
 	n.length = 0
 
 	if len(removeIDs) > 0 {
-		datas = append(datas, &gs.NotifyData{
-			Data: &gs.NotifyData_NotifyRemoveConnections{
-				NotifyRemoveConnections: &gs.NotifyRemoveConnections{
-					Ids: removeIDs,
-				},
-			},
-		})
+		datas = append(datas, (&gs.NotifyData_builder{
+			NotifyRemoveConnections: (&gs.NotifyRemoveConnections_builder{
+				Ids: removeIDs,
+			}).Build(),
+		}).Build())
 	}
 
 	if len(newConns) > 0 {
-		datas = append(datas, &gs.NotifyData{
-			Data: &gs.NotifyData_NotifyNewConnections{
-				NotifyNewConnections: &gs.NotifyNewConnections{
-					Connections: newConns,
-				},
-			},
-		})
+		datas = append(datas, (&gs.NotifyData_builder{
+			NotifyNewConnections: (&gs.NotifyNewConnections_builder{
+				Connections: newConns,
+			}).Build(),
+		}).Build())
 	}
 
 	return

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/libp2p/go-yamux/v4"
 )
@@ -65,18 +65,18 @@ type MuxClient struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Protocol_Mux) point.WrapProxy {
+func NewClient(config *protocol.Mux) register.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		if config.Mux.Concurrency <= 0 {
-			config.Mux.Concurrency = 1
+		if config.GetConcurrency() <= 0 {
+			config.SetConcurrency(1)
 		}
 
 		c := &MuxClient{
 			Proxy:    dialer,
-			selector: NewRangeSelector(int(config.Mux.Concurrency)),
+			selector: NewRangeSelector(int(config.GetConcurrency())),
 		}
 
 		return c, nil

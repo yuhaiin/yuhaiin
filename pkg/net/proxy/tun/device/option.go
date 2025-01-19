@@ -10,17 +10,17 @@ import (
 )
 
 type Opt struct {
-	*listener.Inbound_Tun
+	*listener.Tun
 	*netlink.Options
 	netapi.Handler
 }
 
 func (o *Opt) PostDown() {
-	execPost(o.Inbound_Tun.Tun.PostDown)
+	execPost(o.Tun.GetPostDown())
 }
 
 func (o *Opt) PostUp() {
-	execPost(o.Inbound_Tun.Tun.PostUp)
+	execPost(o.Tun.GetPostUp())
 }
 
 func execPost(cmd []string) {

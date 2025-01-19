@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
@@ -36,7 +37,7 @@ func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
 }
 
 func (o *outbound) getNowPoint(p *point.Point) *point.Point {
-	pp, ok := o.manager.GetNodeByName(p.Group, p.Name)
+	pp, ok := o.manager.GetNodeByName(p.GetGroup(), p.GetName())
 	if ok {
 		return pp
 	}
@@ -45,19 +46,19 @@ func (o *outbound) getNowPoint(p *point.Point) *point.Point {
 }
 
 func (o *outbound) GetDialer(p *point.Point) (netapi.Proxy, error) {
-	if p.Hash == "" {
-		return point.Dialer(p)
+	if p.GetHash() == "" {
+		return register.Dialer(p)
 	}
 
 	var err error
-	r, ok := o.lruCache.Load(p.Hash)
+	r, ok := o.lruCache.Load(p.GetHash())
 	if !ok {
-		r, err = point.Dialer(p)
+		r, err = register.Dialer(p)
 		if err != nil {
 			return nil, err
 		}
 
-		o.lruCache.Add(p.Hash, r)
+		o.lruCache.Add(p.GetHash(), r)
 	}
 
 	return r, nil
@@ -95,9 +96,9 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	var point *point.Point
 	switch network[:3] {
 	case "tcp":
-		point = o.getNowPoint(o.db.Data.Tcp)
+		point = o.getNowPoint(o.db.Data.GetTcp())
 	case "udp":
-		point = o.getNowPoint(o.db.Data.Udp)
+		point = o.getNowPoint(o.db.Data.GetUdp())
 	default:
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
@@ -107,7 +108,7 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 		return nil, err
 	}
 
-	store.Hash = point.Hash
+	store.Hash = point.GetHash()
 	return p, nil
 }
 
@@ -120,7 +121,7 @@ func (o *outbound) GetDialerByHash(ctx context.Context, hash string) netapi.Prox
 		}
 
 		var err error
-		v, err = point.Dialer(p)
+		v, err = register.Dialer(p)
 		if err != nil {
 			return nil
 		}
@@ -135,19 +136,19 @@ func (o *outbound) GetDialerByHash(ctx context.Context, hash string) netapi.Prox
 func (o *outbound) tagConn(tag string) string {
 _retry:
 	t, ok := o.manager.ExistTag(tag)
-	if !ok || len(t.Hash) <= 0 {
+	if !ok || len(t.GetHash()) <= 0 {
 		return ""
 	}
 
-	if t.Type == pt.TagType_mirror {
-		if tag == t.Hash[0] {
+	if t.GetType() == pt.TagType_mirror {
+		if tag == t.GetHash()[0] {
 			return ""
 		}
-		tag = t.Hash[0]
+		tag = t.GetHash()[0]
 		goto _retry
 	}
 
-	hash := t.Hash[rand.IntN(len(t.Hash))]
+	hash := t.GetHash()[rand.IntN(len(t.GetHash()))]
 
 	return hash
 }

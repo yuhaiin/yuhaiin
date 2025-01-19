@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/libp2p/go-yamux/v4"
 )
 
@@ -20,18 +21,16 @@ type MuxServer struct {
 }
 
 func init() {
-	listener.RegisterTransport(NewServer)
+	register.RegisterTransport(NewServer)
 }
 
-func NewServer(config *listener.Transport_Mux) func(netapi.Listener) (netapi.Listener, error) {
-	return func(ii netapi.Listener) (netapi.Listener, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-
-		return netapi.NewListener(newServer(lis), ii), nil
+func NewServer(config *listener.Mux, ii netapi.Listener) (netapi.Listener, error) {
+	lis, err := ii.Stream(context.TODO())
+	if err != nil {
+		return nil, err
 	}
+
+	return netapi.NewListener(newServer(lis), ii), nil
 }
 
 func newServer(lis net.Listener) *MuxServer {

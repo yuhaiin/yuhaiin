@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -62,14 +63,14 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol string, ho
 	key := failedHistoryKey{protocol, getRealAddr(store, host), store.Process}
 	x, ok := h.store.LoadOrAdd(key, func() *failedHistoryEntry {
 		return &failedHistoryEntry{
-			FailedHistory: &gs.FailedHistory{
-				Protocol:    protocol,
-				Host:        getRealAddr(store, host),
-				Error:       err.Error(),
+			FailedHistory: (&gs.FailedHistory_builder{
+				Protocol:    proto.String(protocol),
+				Host:        proto.String(getRealAddr(store, host)),
+				Error:       proto.String(err.Error()),
 				Time:        timestamppb.Now(),
-				Process:     store.Process,
-				FailedCount: 1,
-			},
+				Process:     proto.String(store.Process),
+				FailedCount: proto.Uint64(1),
+			}).Build(),
 		}
 	})
 
@@ -78,9 +79,9 @@ func (h *FailedHistory) Push(ctx context.Context, err error, protocol string, ho
 	}
 
 	x.mu.Lock()
-	x.Time = timestamppb.Now()
-	x.FailedCount++
-	x.Error = err.Error()
+	x.SetTime(timestamppb.Now())
+	x.SetFailedCount(x.GetFailedCount() + 1)
+	x.SetError(err.Error())
 	x.mu.Unlock()
 }
 
@@ -89,10 +90,10 @@ func (h *FailedHistory) Get() *gs.FailedHistoryList {
 	for _, v := range h.store.Range {
 		objects = append(objects, v.FailedHistory)
 	}
-	return &gs.FailedHistoryList{
+	return proto.Clone(gs.FailedHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: h.dumpProcess,
-	}
+		DumpProcessEnabled: proto.Bool(h.dumpProcess),
+	}.Build()).(*gs.FailedHistoryList)
 }
 
 type History struct {
@@ -114,19 +115,20 @@ func NewHistory() *History {
 }
 
 func (h *History) Push(c *statistic.Connection) {
-	key := failedHistoryKey{c.Type.ConnType.String(), c.Addr, c.Extra["Process"]}
+	key := failedHistoryKey{c.GetType().GetConnType().String(), c.GetAddr(), c.GetExtra()["Process"]}
 
 	if !h.dumpProcess.Load() && key.process != "" {
 		h.dumpProcess.Store(true)
 	}
 
+	var count uint64 = 1
 	x, ok := h.store.LoadOrAdd(key, func() *historyEntry {
 		return &historyEntry{
-			AllHistory: &gs.AllHistory{
+			AllHistory: (&gs.AllHistory_builder{
 				Connection: c,
-				Count:      1,
+				Count:      &count,
 				Time:       timestamppb.Now(),
-			},
+			}).Build(),
 		}
 	})
 
@@ -135,9 +137,9 @@ func (h *History) Push(c *statistic.Connection) {
 	}
 
 	x.mu.Lock()
-	x.Count++
-	x.Time = timestamppb.Now()
-	x.Connection = c
+	x.SetCount(x.GetCount() + 1)
+	x.SetTime(timestamppb.Now())
+	x.SetConnection(c)
 	x.mu.Unlock()
 }
 
@@ -146,8 +148,8 @@ func (h *History) Get() *gs.AllHistoryList {
 	for _, v := range h.store.Range {
 		objects = append(objects, v.AllHistory)
 	}
-	return &gs.AllHistoryList{
+	return proto.Clone(gs.AllHistoryList_builder{
 		Objects:            objects,
-		DumpProcessEnabled: h.dumpProcess.Load(),
-	}
+		DumpProcessEnabled: proto.Bool(h.dumpProcess.Load()),
+	}.Build()).(*gs.AllHistoryList)
 }

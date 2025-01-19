@@ -1,10 +1,12 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.latency;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node/latency";
+option features.(pb.go).api_level = API_OPAQUE;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/go_features.proto";
 
 message http { string url = 1 [ json_name = "url" ]; }
 

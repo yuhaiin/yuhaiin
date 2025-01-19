@@ -12,10 +12,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
+	"google.golang.org/protobuf/proto"
 )
 
 func Dial(host, port, user, password string) netapi.Proxy {
@@ -23,22 +24,19 @@ func Dial(host, port, user, password string) netapi.Proxy {
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
-	simple, err := simple.NewClient(&protocol.Protocol_Simple{
-		Simple: &protocol.Simple{
-			Host: addr.Hostname(),
-			Port: int32(addr.Port()),
-		},
-	})(nil)
+	simple, err := simple.NewClient(protocol.Simple_builder{
+		Host: proto.String(addr.Hostname()),
+		Port: proto.Int32(int32(addr.Port())),
+	}.Build())(nil)
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
 
-	p, _ := NewClient(&protocol.Protocol_Socks5{
-		Socks5: &protocol.Socks5{
-			Hostname: host,
-			User:     user,
-			Password: password,
-		}})(simple)
+	p, _ := NewClient(protocol.Socks5_builder{
+		Hostname: proto.String(host),
+		User:     proto.String(user),
+		Password: proto.String(password),
+	}.Build())(simple)
 	return p
 }
 
@@ -55,18 +53,18 @@ type Client struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
 // New returns a new Socks5 client
-func NewClient(config *protocol.Protocol_Socks5) point.WrapProxy {
+func NewClient(config *protocol.Socks5) register.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 		return &Client{
 			dialer:       dialer,
-			username:     config.Socks5.User,
-			password:     config.Socks5.Password,
-			hostname:     config.Socks5.Hostname,
-			overridePort: uint16(config.Socks5.OverridePort),
+			username:     config.GetUser(),
+			password:     config.GetPassword(),
+			hostname:     config.GetHostname(),
+			overridePort: uint16(config.GetOverridePort()),
 		}, nil
 	}
 }

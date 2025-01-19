@@ -15,16 +15,16 @@ var system *cb.SystemProxy
 
 func Update() func(s *cb.Setting) {
 	return func(s *cb.Setting) {
-		if proto.Equal(server, s.Server) &&
-			proto.Equal(system, s.SystemProxy) {
+		if proto.Equal(server, s.GetServer()) &&
+			proto.Equal(system, s.GetSystemProxy()) {
 			return
 		}
 
 		UnsetSysProxy()
 		var http, socks5 string
 
-		for _, v := range s.Server.Inbounds {
-			if s.SystemProxy.Http && http == "" {
+		for _, v := range s.GetServer().GetInbounds() {
+			if s.GetSystemProxy().GetHttp() && http == "" {
 				if v.GetEnabled() && v.GetTcpudp() != nil {
 					if v.GetHttp() != nil || v.GetMix() != nil {
 						http = v.GetTcpudp().GetHost()
@@ -32,7 +32,7 @@ func Update() func(s *cb.Setting) {
 				}
 			}
 
-			if s.SystemProxy.Socks5 && socks5 == "" {
+			if s.GetSystemProxy().GetSocks5() && socks5 == "" {
 				if v.GetEnabled() && v.GetTcpudp() != nil {
 					if v.GetSocks5() != nil || v.GetMix() != nil {
 						http = v.GetTcpudp().GetHost()
@@ -40,8 +40,8 @@ func Update() func(s *cb.Setting) {
 				}
 			}
 
-			if (!s.SystemProxy.Socks5 || (s.SystemProxy.Socks5 && socks5 != "")) &&
-				(!s.SystemProxy.Http || (s.SystemProxy.Http && http != "")) {
+			if (!s.GetSystemProxy().GetSocks5() || (s.GetSystemProxy().GetSocks5() && socks5 != "")) &&
+				(!s.GetSystemProxy().GetHttp() || (s.GetSystemProxy().GetHttp() && http != "")) {
 				break
 			}
 		}
@@ -50,8 +50,8 @@ func Update() func(s *cb.Setting) {
 		sh, sp := replaceUnspecified(socks5)
 
 		SetSysProxy(hh, hp, sh, sp)
-		server = s.Server
-		system = s.SystemProxy
+		server = s.GetServer()
+		system = s.GetSystemProxy()
 	}
 }
 

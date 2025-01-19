@@ -6,8 +6,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -21,12 +21,12 @@ type client struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Protocol_Yuubinsya) point.WrapProxy {
+func NewClient(config *protocol.Yuubinsya) register.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		auth, err := NewAuth(config.Yuubinsya.GetUdpEncrypt(), []byte(config.Yuubinsya.Password))
+		auth, err := NewAuth(config.GetUdpEncrypt(), []byte(config.GetPassword()))
 		if err != nil {
 			return nil, err
 		}
@@ -35,11 +35,11 @@ func NewClient(config *protocol.Protocol_Yuubinsya) point.WrapProxy {
 			dialer,
 			NewHandshaker(
 				false,
-				config.Yuubinsya.GetTcpEncrypt(),
-				[]byte(config.Yuubinsya.Password),
+				config.GetTcpEncrypt(),
+				[]byte(config.GetPassword()),
 			),
 			auth,
-			config.Yuubinsya.UdpOverStream,
+			config.GetUdpOverStream(),
 		}
 
 		return c, nil

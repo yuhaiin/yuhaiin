@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
-	web "github.com/Asutorufa/yuhaiin/internal/http"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -112,7 +111,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast() }))
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
 		configuration.IPv6.Store(s.GetIpv6())
-		configuration.FakeIPEnabled.Store(s.Dns.GetFakedns() || s.Server.GetHijackDnsFakeip())
+		configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
 	}))
 
 	// proxy access point/endpoint
@@ -133,7 +132,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	flowCache := AddComponent(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
 	stcs := AddComponent(so, "statistic", statistics.NewConnStore(flowCache, st))
-	metrics.StartMetrics(stcs.Cache, metrics.NewPrometheus())
+	metrics.SetFlowCounter(stcs.Cache)
 	hosts := AddComponent(so, "hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
 	fakedns := AddComponent(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))
@@ -151,24 +150,22 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	app := &appapi.Components{
-		Start:        so,
-		Mux:          mux,
-		HttpListener: httpListener,
-		Tools:        tools,
-		Node:         node,
-		DB:           db,
-		Subscribe:    subscribe,
-		Connections:  stcs,
-		Tag:          tag,
-		Rc:           rc,
-		Inbound:      config.NewInbound(opt.Setting),
-		Resolver:     resolverControl,
+		Start:          so,
+		Mux:            mux,
+		HttpListener:   httpListener,
+		Tools:          tools,
+		Node:           node,
+		DB:             db,
+		Subscribe:      subscribe,
+		Connections:    stcs,
+		Tag:            tag,
+		RuleController: rc,
+		Inbound:        config.NewInbound(opt.Setting),
+		Resolver:       resolverControl,
 	}
 
-	// http page
-	web.Server(app)
-	// grpc server
-	app.RegisterGrpcService()
+	// grpc and http server
+	app.RegisterServer()
 
 	return app, nil
 }

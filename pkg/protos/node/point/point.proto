@@ -1,10 +1,12 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.point;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/node/point";
+option features.(pb.go).api_level = API_OPAQUE;
 
 import "node/protocol/protocol.proto";
+import "google/protobuf/go_features.proto";
 
 enum origin {
   reserve = 0;

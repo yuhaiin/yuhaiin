@@ -5,8 +5,8 @@ import (
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	cl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 type Tproxy struct {
@@ -19,31 +19,29 @@ type Tproxy struct {
 }
 
 func init() {
-	listener.RegisterProtocol(NewTproxy)
+	register.RegisterProtocol(NewTproxy)
 }
 
-func NewTproxy(opt *cl.Inbound_Tproxy) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
-	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-		ctx, cancel := context.WithCancel(context.Background())
+func NewTproxy(opt *cl.Tproxy, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 
-		t := &Tproxy{
-			lis:     ii,
-			handler: handler,
-			ctx:     ctx,
-			cancel:  cancel,
-		}
-
-		if err := t.newTCP(); err != nil {
-			return nil, err
-		}
-
-		if err := t.newUDP(); err != nil {
-			t.Close()
-			return nil, err
-		}
-
-		return t, nil
+	t := &Tproxy{
+		lis:     ii,
+		handler: handler,
+		ctx:     ctx,
+		cancel:  cancel,
 	}
+
+	if err := t.newTCP(); err != nil {
+		return nil, err
+	}
+
+	if err := t.newUDP(); err != nil {
+		t.Close()
+		return nil, err
+	}
+
+	return t, nil
 }
 
 func (t *Tproxy) Close() error {

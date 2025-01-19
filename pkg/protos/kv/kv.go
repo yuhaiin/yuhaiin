@@ -31,45 +31,54 @@ func NewKV(db *bbolt.Cache) *KV {
 func (k *KV) Get(ctx context.Context, e *Element) (*Element, error) {
 	c := k.db
 
-	for _, v := range e.Buckets {
+	for _, v := range e.GetBuckets() {
 		c = c.NewCache(v).(*bbolt.Cache)
 	}
 
-	var err error
-	e.Value, err = c.Get(e.Key)
+	v, err := c.Get(e.GetKey())
+	if err != nil {
+		return nil, err
+	}
+
+	e.SetValue(v)
+
 	return e, err
 }
 
 func (k *KV) Set(ctx context.Context, e *Element) (*emptypb.Empty, error) {
 	c := k.db
-	for _, v := range e.Buckets {
+	for _, v := range e.GetBuckets() {
 		c = c.NewCache(v).(*bbolt.Cache)
 	}
 
-	err := c.Put(e.Key, e.Value)
+	if len(e.GetKey()) == 0 {
+		return nil, fmt.Errorf("key is empty")
+	}
+
+	err := c.Put(e.GetKey(), e.GetValue())
 	return &emptypb.Empty{}, err
 }
 
 func (k *KV) Delete(ctx context.Context, req *Keys) (*emptypb.Empty, error) {
 	c := k.db
-	for _, v := range req.Buckets {
+	for _, v := range req.GetBuckets() {
 		c = c.NewCache(v).(*bbolt.Cache)
 	}
-	err := c.Delete(req.Keys...)
+	err := c.Delete(req.GetKeys()...)
 	return &emptypb.Empty{}, err
 }
 
 func (k *KV) Range(req *Element, s grpc.ServerStreamingServer[Element]) error {
 	c := k.db
-	for _, v := range req.Buckets {
+	for _, v := range req.GetBuckets() {
 		c = c.NewCache(v).(*bbolt.Cache)
 	}
 	return c.Range(func(k []byte, v []byte) bool {
-		err := s.Send(&Element{
-			Buckets: req.Buckets,
+		err := s.Send((&Element_builder{
+			Buckets: req.GetBuckets(),
 			Key:     k,
 			Value:   v,
-		})
+		}).Build())
 		if err != nil {
 			log.Error("failed to send", "err", err)
 			return false
@@ -124,23 +133,28 @@ func (c *KVStoreCli) Close() error {
 }
 
 func (c *KVStoreCli) Get(k []byte) ([]byte, error) {
-	resp, err := c.KvstoreClient.Get(context.Background(), &Element{
+	resp, err := c.KvstoreClient.Get(context.Background(), (&Element_builder{
 		Buckets: c.buckets,
 		Key:     k,
-	})
+	}).Build())
 	if err != nil {
 		log.Error("failed to get", "err", err)
 		return nil, err
 	}
 
-	return resp.Value, nil
+	if len(resp.GetValue()) == 0 {
+		return nil, nil
+	}
+
+	return resp.GetValue(), nil
 }
+
 func (c *KVStoreCli) Put(k []byte, v []byte) error {
-	_, err := c.KvstoreClient.Set(context.Background(), &Element{
+	_, err := c.KvstoreClient.Set(context.Background(), Element_builder{
 		Buckets: c.buckets,
 		Key:     k,
 		Value:   v,
-	})
+	}.Build())
 	if err != nil {
 		log.Error("failed to set", "err", err)
 		return err
@@ -150,10 +164,10 @@ func (c *KVStoreCli) Put(k []byte, v []byte) error {
 }
 
 func (c *KVStoreCli) Delete(k ...[]byte) error {
-	_, err := c.KvstoreClient.Delete(context.Background(), &Keys{
+	_, err := c.KvstoreClient.Delete(context.Background(), Keys_builder{
 		Buckets: c.buckets,
 		Keys:    k,
-	})
+	}.Build())
 	if err != nil {
 		log.Error("failed to delete", "err", err)
 		return err
@@ -162,9 +176,9 @@ func (c *KVStoreCli) Delete(k ...[]byte) error {
 }
 
 func (c *KVStoreCli) Range(f func(key []byte, value []byte) bool) error {
-	s, err := c.KvstoreClient.Range(context.TODO(), &Element{
+	s, err := c.KvstoreClient.Range(context.TODO(), Element_builder{
 		Buckets: c.buckets,
-	})
+	}.Build())
 	if err != nil {
 		log.Error("failed to range", "err", err)
 		return err
@@ -182,7 +196,7 @@ func (c *KVStoreCli) Range(f func(key []byte, value []byte) bool) error {
 			return err
 		}
 
-		if !f(resp.Key, resp.Value) {
+		if !f(resp.GetKey(), resp.GetValue()) {
 			break
 		}
 	}

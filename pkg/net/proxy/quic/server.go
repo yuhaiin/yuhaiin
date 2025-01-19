@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/quic-go/quic-go"
@@ -31,16 +32,16 @@ type Server struct {
 }
 
 func init() {
-	listener.RegisterNetwork(NewServer)
+	register.RegisterNetwork(NewServer)
 }
 
-func NewServer(c *listener.Inbound_Quic) (netapi.Listener, error) {
-	packetConn, err := dialer.ListenPacket(context.TODO(), "udp", c.Quic.Host, dialer.WithListener())
+func NewServer(c *listener.Quic) (netapi.Listener, error) {
+	packetConn, err := dialer.ListenPacket(context.TODO(), "udp", c.GetHost(), dialer.WithListener())
 	if err != nil {
 		return nil, err
 	}
 
-	tlsConfig, err := listener.ParseTLS(c.Quic.Tls)
+	tlsConfig, err := register.ParseTLS(c.GetTls())
 	if err != nil {
 		return nil, err
 	}

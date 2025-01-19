@@ -1,12 +1,14 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.listener;
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener";
+option features.(pb.go).api_level = API_OPAQUE;
 
 message inbound_config {
   reserved 5;
-  reserved "servers";
+  reserved servers;
   bool hijack_dns = 2 [ json_name = "hijack_dns" ];
   bool hijack_dns_fakeip = 3 [ json_name = "hijack_dns_fakeip" ];
   map<string, inbound> inbounds = 1 [ json_name = "inbounds" ];
@@ -15,7 +17,7 @@ message inbound_config {
 
 message inbound {
   reserved 17;
-  reserved "IPv6";
+  reserved IPv6;
   string name = 13 [ json_name = "name" ];
   bool enabled = 14 [ json_name = "enabled" ];
   oneof network {
@@ -37,6 +39,7 @@ message inbound {
     tun tun = 19 [ json_name = "tun" ];
     reverse_http reverse_http = 22 [ json_name = "reverse_http" ];
     reverse_tcp reverse_tcp = 23 [ json_name = "reverse_tcp" ];
+    empty none = 24 [ json_name = "none" ];
   }
 }
 
@@ -74,14 +77,14 @@ message quic {
 
 message http {
   reserved 1;
-  reserved "host";
+  reserved host;
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
 }
 
 message socks5 {
   reserved 1;
-  reserved "host";
+  reserved host;
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
   bool udp = 5 [ json_name = "udp" ];
@@ -89,13 +92,13 @@ message socks5 {
 
 message socks4a {
   reserved 1;
-  reserved "host";
+  reserved host;
   string username = 2 [ json_name = "username" ];
 }
 
 message mixed {
   reserved 1;
-  reserved "host";
+  reserved host;
   string username = 3 [ json_name = "username" ];
   string password = 4 [ json_name = "password" ];
 }
@@ -110,7 +113,7 @@ message tproxy {
 
 message tun {
   reserved 3, 4;
-  reserved "gateway", "dns_hijacking";
+  reserved gateway, dns_hijacking;
   // name of the tun device
   // eg: tun://tun0, fd://123
   string name = 1 [ json_name = "name" ];
@@ -137,8 +140,8 @@ message route {
 
 message yuubinsya {
   reserved 1, 3, 4, 5, 6, 7, 8, 9, 10;
-  reserved "host", "force_disable_encrypt", "normal", "tls", "quic",
-      "websocket", "grpc", "http2", "reality";
+  reserved host, force_disable_encrypt, normal, tls, quic, websocket, grpc,
+      http2, reality;
   string password = 2 [ json_name = "password" ];
   bool tcp_encrypt = 12 [ json_name = "tcp_encrypt" ];
   bool udp_encrypt = 13 [ json_name = "udp_encrypt" ];
@@ -149,19 +152,19 @@ message normal {};
 
 message websocket {
   reserved 1;
-  reserved "tls";
+  reserved tls;
 };
 
 message tls { tls_config tls = 1 [ json_name = "tls" ]; };
 
 message grpc {
   reserved 1;
-  reserved "tls";
+  reserved tls;
 };
 
 message http2 {
   reserved 1;
-  reserved "tls";
+  reserved tls;
 };
 
 message reality {

@@ -8,8 +8,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 type direct struct {
@@ -18,16 +18,16 @@ type direct struct {
 }
 
 func init() {
-	point.RegisterProtocol(func(p *protocol.Protocol_Direct) point.WrapProxy {
+	register.RegisterPoint(func(p *protocol.Direct) register.WrapProxy {
 		return func(netapi.Proxy) (netapi.Proxy, error) {
-			if p.Direct.NetworkInterface != "" {
-				return &direct{iface: p.Direct.NetworkInterface}, nil
+			if p.GetNetworkInterface() != "" {
+				return &direct{iface: p.GetNetworkInterface()}, nil
 			}
 			return Default, nil
 		}
 	})
 
-	point.SetBootstrap(Default)
+	register.SetBootstrap(Default)
 }
 
 var Default netapi.Proxy = NewDirect()

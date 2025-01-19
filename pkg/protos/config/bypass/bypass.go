@@ -26,11 +26,11 @@ func (m Mode) Unspecified() bool { return m == Mode_bypass }
 
 func (f *ModeConfig) ToModeEnum() unique.Handle[ModeEnum] {
 	return unique.Make(ModeEnum{
-		f.Tag,
-		f.Mode,
-		f.ResolveStrategy,
-		f.UdpProxyFqdnStrategy,
-		f.Resolver,
+		f.GetTag(),
+		f.GetMode(),
+		f.GetResolveStrategy(),
+		f.GetUdpProxyFqdnStrategy(),
+		f.GetResolver(),
 	})
 }
 

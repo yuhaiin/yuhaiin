@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestClient(t *testing.T) {
@@ -36,18 +37,14 @@ func TestClient(t *testing.T) {
 		}
 	}()
 
-	sm := simple.NewClient(&protocol.Protocol_Simple{
-		Simple: &protocol.Simple{
-			Host: "127.0.0.1",
-			Port: 8082,
-		},
-	})
+	sm := simple.NewClient(protocol.Simple_builder{
+		Host: proto.String("127.0.0.1"),
+		Port: proto.Int32(8082),
+	}.Build())
 
-	c := NewClient(&protocol.Protocol_Http2{
-		Http2: &protocol.Http2{
-			Concurrency: 1,
-		},
-	})
+	c := NewClient(protocol.Http2_builder{
+		Concurrency: proto.Int32(1),
+	}.Build())
 
 	p, err := sm(nil)
 	if err != nil {

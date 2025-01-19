@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -32,17 +33,15 @@ type Server struct {
 }
 
 func init() {
-	listener.RegisterTransport(NewServer)
+	register.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Transport_Http2) func(netapi.Listener) (netapi.Listener, error) {
-	return func(ii netapi.Listener) (netapi.Listener, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-		return netapi.NewListener(newServer(lis), ii), nil
+func NewServer(c *listener.Http2, ii netapi.Listener) (netapi.Listener, error) {
+	lis, err := ii.Stream(context.TODO())
+	if err != nil {
+		return nil, err
 	}
+	return netapi.NewListener(newServer(lis), ii), nil
 }
 
 func newServer(lis net.Listener) *Server {

@@ -75,24 +75,27 @@ func connToStatistic(c connection) *statistic.Connection { return c.Info() }
 func slogArgs(c connection) func() []any {
 	return func() []any {
 		info := c.Info()
+
+		extra := info.GetExtra()
+
 		attrs := []any{
 			slog.Any("id", info.GetId()),
-			slog.Any("addr", info.Addr),
-			slog.Any("src", info.Extra["Source"]),
-			slog.Any("network", info.Type.ConnType),
-			slog.Any("outbound", info.Extra["Outbound"]),
+			slog.Any("addr", info.GetAddr()),
+			slog.Any("src", extra["Source"]),
+			slog.Any("network", info.GetType().GetConnType()),
+			slog.Any("outbound", extra["Outbound"]),
 		}
 
-		if info.Extra["Process"] != "" {
-			attrs = append(attrs, slog.Any("process", info.Extra["Process"]))
+		if extra["Process"] != "" {
+			attrs = append(attrs, slog.Any("process", extra["Process"]))
 		}
 
-		if info.Extra["FakeIP"] != "" {
-			attrs = append(attrs, slog.Any("fakeip", info.Extra["FakeIP"]))
+		if extra["FakeIP"] != "" {
+			attrs = append(attrs, slog.Any("fakeip", extra["FakeIP"]))
 		}
 
-		if info.Extra["Hosts"] != "" {
-			attrs = append(attrs, slog.Any("hosts", info.Extra["Hosts"]))
+		if extra["Hosts"] != "" {
+			attrs = append(attrs, slog.Any("hosts", extra["Hosts"]))
 		}
 
 		return attrs

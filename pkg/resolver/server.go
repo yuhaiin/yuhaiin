@@ -20,7 +20,7 @@ func NewDNSServer(resolver netapi.Resolver) *DnsServer {
 }
 
 func (a *DnsServer) Update(s *pc.Setting) {
-	if a.serverHost == s.Dns.Server && a.DNSServer != netapi.EmptyDNSServer {
+	if a.serverHost == s.GetDns().GetServer() && a.DNSServer != netapi.EmptyDNSServer {
 		return
 	}
 
@@ -30,6 +30,6 @@ func (a *DnsServer) Update(s *pc.Setting) {
 		}
 	}
 
-	a.DNSServer = dns.NewServer(s.Dns.Server, a.resolver)
-	a.serverHost = s.Dns.Server
+	a.DNSServer = dns.NewServer(s.GetDns().GetServer(), a.resolver)
+	a.serverHost = s.GetDns().GetServer()
 }

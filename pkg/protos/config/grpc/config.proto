@@ -1,4 +1,5 @@
-syntax = "proto3";
+edition = "2023";
+
 package yuhaiin.protos.config.service;
 
 import "config/config.proto";
@@ -8,8 +9,10 @@ import "config/listener/listener.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/service";
+option features.(pb.go).api_level = API_OPAQUE;
 
 service config_service {
   rpc load(google.protobuf.Empty) returns (yuhaiin.config.setting);

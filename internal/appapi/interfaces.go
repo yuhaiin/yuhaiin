@@ -1,6 +1,7 @@
 package appapi
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -9,13 +10,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
-	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc"
@@ -25,32 +24,65 @@ type Components struct {
 	Mux *http.ServeMux
 	*Start
 	HttpListener net.Listener
-	Node         *node.Nodes
-	Tools        *gt.Tools
-	Subscribe    gn.SubscribeServer
-	Connections  gs.ConnectionsServer
-	Inbound      gc.InboundServer
-	Resolver     gc.ResolverServer
-	Tag          gn.TagServer
 	DB           *bbolt.DB
-	Rc           *route.RuleController
+
+	Node           gn.NodeServer
+	Tools          gt.ToolsServer
+	Subscribe      gn.SubscribeServer
+	Connections    gs.ConnectionsServer
+	Inbound        gc.InboundServer
+	Resolver       gc.ResolverServer
+	RuleController gc.BypassServer
+	Tag            gn.TagServer
 }
 
-func (app *Components) RegisterGrpcService() {
+func (app *Components) RegisterServer() {
 	so := app.Start
-	if so.GRPCServer == nil {
-		return
+
+	grpcServer := &grpcRegister{
+		s:   app.Start.GRPCServer,
+		app: app,
 	}
 
-	so.GRPCServer.RegisterService(&gc.ConfigService_ServiceDesc, so.Setting)
-	so.GRPCServer.RegisterService(&gc.Inbound_ServiceDesc, app.Inbound)
-	so.GRPCServer.RegisterService(&gn.Node_ServiceDesc, app.Node)
-	so.GRPCServer.RegisterService(&gn.Subscribe_ServiceDesc, app.Subscribe)
-	so.GRPCServer.RegisterService(&gs.Connections_ServiceDesc, app.Connections)
-	so.GRPCServer.RegisterService(&gn.Tag_ServiceDesc, app.Tag)
-	so.GRPCServer.RegisterService(&gt.Tools_ServiceDesc, app.Tools)
-	so.GRPCServer.RegisterService(&gc.Bypass_ServiceDesc, app.Rc)
-	so.GRPCServer.RegisterService(&gc.Resolver_ServiceDesc, app.Resolver)
+	gc.RegisterConfigServiceServer(grpcServer, so.Setting)
+	gc.RegisterBypassServer(grpcServer, app.RuleController)
+	gc.RegisterInboundServer(grpcServer, app.Inbound)
+	gc.RegisterResolverServer(grpcServer, app.Resolver)
+
+	gn.RegisterNodeServer(grpcServer, app.Node)
+	gn.RegisterSubscribeServer(grpcServer, app.Subscribe)
+	gn.RegisterTagServer(grpcServer, app.Tag)
+
+	gs.RegisterConnectionsServer(grpcServer, app.Connections)
+
+	gt.RegisterToolsServer(grpcServer, app.Tools)
+
+	RegisterHTTP(app)
+}
+
+type grpcRegister struct {
+	app *Components
+	s   *grpc.Server
+}
+
+func (g *grpcRegister) RegisterService(desc *grpc.ServiceDesc, impl any) {
+	if g.s != nil { // when android, g.s is nil
+		log.Info("register grpc service", "name", desc.ServiceName)
+		g.s.RegisterService(desc, impl)
+	}
+
+	for _, method := range desc.Methods {
+		path := fmt.Sprintf("POST /%s/%s", desc.ServiceName, method.MethodName)
+		log.Info("register http handler", "path", path)
+
+		HandleFunc(g.app, path, registerHTTP(impl, method.Handler))
+	}
+
+	for _, method := range desc.Streams {
+		path := fmt.Sprintf("GET /%s/%s", desc.ServiceName, method.StreamName)
+		log.Info("register websocket handler", "path", path)
+		HandleFunc(g.app, path, registerWebsocket(impl, method.Handler))
+	}
 }
 
 func (a *Components) Close() error {
