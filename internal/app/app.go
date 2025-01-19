@@ -130,7 +130,6 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	rc := route.NewRuleController(opt.BypassConfig, st)
 	node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
-
 	flowCache := AddComponent(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
 	stcs := AddComponent(so, "statistic", statistics.NewConnStore(flowCache, st))
 	metrics.StartMetrics(stcs.Cache, metrics.NewPrometheus())
