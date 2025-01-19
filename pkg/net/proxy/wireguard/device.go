@@ -140,7 +140,6 @@ func (tun *netTun) Read(buf [][]byte, size []int, offset int) (int, error) {
 	}
 
 	return 1, nil
-
 }
 
 func (tun *netTun) Write(buffers [][]byte, offset int) (int, error) {
