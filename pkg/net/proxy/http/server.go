@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -25,10 +26,10 @@ type Server struct {
 	username, password string
 }
 
-func newServer(o *listener.Inbound_Http, lis net.Listener, handler netapi.Handler) *Server {
+func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Server {
 	h := &Server{
-		username: o.Http.Username,
-		password: o.Http.Password,
+		username: o.GetUsername(),
+		password: o.GetPassword(),
 		lis:      lis,
 		handler:  handler,
 	}
@@ -171,25 +172,23 @@ func (s *Server) Close() error {
 }
 
 func init() {
-	listener.RegisterProtocol(NewServer)
+	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Http) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
-	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-
-		s := newServer(o, lis, handler)
-
-		go func() {
-			defer ii.Close()
-			if err := http.Serve(lis, s); err != nil {
-				log.Error("http serve failed:", err)
-			}
-		}()
-
-		return s, nil
+func NewServer(o *listener.Http, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	lis, err := ii.Stream(context.TODO())
+	if err != nil {
+		return nil, err
 	}
+
+	s := newServer(o, lis, handler)
+
+	go func() {
+		defer ii.Close()
+		if err := http.Serve(lis, s); err != nil {
+			log.Error("http serve failed:", err)
+		}
+	}()
+
+	return s, nil
 }

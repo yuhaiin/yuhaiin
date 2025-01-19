@@ -1,8 +1,10 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.bypass;
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass";
+option features.(pb.go).api_level = API_OPAQUE;
 
 enum mode {
   bypass = 0;
@@ -40,7 +42,7 @@ enum udp_proxy_fqdn_strategy {
 
 message mode_config {
   reserved 5;
-  reserved "udp_proxy_fqdn";
+  reserved udp_proxy_fqdn;
   mode mode = 1 [ json_name = "mode" ];
   string tag = 2 [ json_name = "tag" ];
   repeated string hostname = 3 [ json_name = "hostname" ];

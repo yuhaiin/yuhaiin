@@ -25,18 +25,18 @@ func NewInbound(s Setting) *Inbound {
 func (i *Inbound) List(ctx context.Context, req *emptypb.Empty) (*gc.InboundsResponse, error) {
 	names := []string{}
 	err := i.s.View(func(s *config.Setting) error {
-		names = slices.Collect(maps.Keys(s.Server.Inbounds))
+		names = slices.Collect(maps.Keys(s.GetServer().GetInbounds()))
 		return nil
 	})
 
-	return &gc.InboundsResponse{Names: names}, err
+	return gc.InboundsResponse_builder{Names: names}.Build(), err
 }
 
 func (i *Inbound) Get(ctx context.Context, req *wrapperspb.StringValue) (*listener.Inbound, error) {
 	resp := &listener.Inbound{}
 	err := i.s.View(func(s *config.Setting) error {
 		var ok bool
-		resp, ok = s.Server.Inbounds[req.Value]
+		resp, ok = s.GetServer().GetInbounds()[req.Value]
 		if !ok {
 			return fmt.Errorf("inbound %s not found", req.Value)
 		}
@@ -48,12 +48,12 @@ func (i *Inbound) Get(ctx context.Context, req *wrapperspb.StringValue) (*listen
 }
 
 func (i *Inbound) Save(ctx context.Context, req *listener.Inbound) (*listener.Inbound, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, fmt.Errorf("inbound name is empty")
 	}
 
 	err := i.s.Batch(func(s *config.Setting) error {
-		s.Server.Inbounds[req.Name] = req
+		s.GetServer().GetInbounds()[req.GetName()] = req
 		return nil
 	})
 	return req, err
@@ -61,7 +61,7 @@ func (i *Inbound) Save(ctx context.Context, req *listener.Inbound) (*listener.In
 
 func (i *Inbound) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	err := i.s.Batch(func(s *config.Setting) error {
-		delete(s.Server.Inbounds, req.Value)
+		delete(s.GetServer().GetInbounds(), req.Value)
 		return nil
 	})
 	return &emptypb.Empty{}, err

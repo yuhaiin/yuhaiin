@@ -105,8 +105,8 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 
 // convert endpoint string to netip.Addr
 func parseEndpoints(conf *protocol.Wireguard) ([]netip.Prefix, error) {
-	endpoints := make([]netip.Prefix, 0, len(conf.Endpoint))
-	for _, str := range conf.Endpoint {
+	endpoints := make([]netip.Prefix, 0, len(conf.GetEndpoint()))
+	for _, str := range conf.GetEndpoint() {
 		prefix, err := netip.ParsePrefix(str)
 		if err != nil {
 			addr, err := netip.ParseAddr(str)

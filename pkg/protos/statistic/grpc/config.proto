@@ -1,12 +1,14 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.protos.statistic.service;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/service";
+option features.(pb.go).api_level = API_OPAQUE;
 
 import "google/protobuf/empty.proto";
 import "statistic/config.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
 
 service connections {
   rpc conns(google.protobuf.Empty) returns (notify_new_connections);

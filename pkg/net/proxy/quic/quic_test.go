@@ -20,6 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
+	"google.golang.org/protobuf/proto"
 )
 
 var cert = []byte(`-----BEGIN CERTIFICATE-----
@@ -51,19 +52,17 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfFPJ3xA3HtR6OR11
 `)
 
 func TestQuic(t *testing.T) {
-	s, err := NewServer(&listener.Inbound_Quic{
-		Quic: &listener.Quic{
-			Host: "127.0.0.1:1090",
-			Tls: &listener.TlsConfig{
-				Certificates: []*listener.Certificate{
-					{
-						Cert: cert,
-						Key:  key,
-					},
-				},
+	s, err := NewServer(listener.Quic_builder{
+		Host: proto.String("127.0.0.1:1090"),
+		Tls: listener.TlsConfig_builder{
+			Certificates: []*listener.Certificate{
+				listener.Certificate_builder{
+					Cert: cert,
+					Key:  key,
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	assert.NoError(t, err)
 
 	defer s.Close()
@@ -86,15 +85,13 @@ func TestQuic(t *testing.T) {
 		}
 	}()
 
-	qc, err := NewClient(&protocol.Protocol_Quic{
-		Quic: &protocol.Quic{
-			Host: "127.0.0.1:1090",
-			Tls: &protocol.TlsConfig{
-				Enable:             true,
-				InsecureSkipVerify: true,
-			},
-		},
-	})(nil)
+	qc, err := NewClient(protocol.Quic_builder{
+		Host: proto.String("127.0.0.1:1090"),
+		Tls: protocol.TlsConfig_builder{
+			Enable:             proto.Bool(true),
+			InsecureSkipVerify: proto.Bool(true),
+		}.Build(),
+	}.Build())(nil)
 	assert.NoError(t, err)
 
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
@@ -151,12 +148,10 @@ func TestQuic(t *testing.T) {
 }
 
 func TestSimple(t *testing.T) {
-	s, err := simple.NewServer(&listener.Inbound_Tcpudp{
-		Tcpudp: &listener.Tcpudp{
-			Host:    "127.0.0.1:1090",
-			Control: listener.TcpUdpControl_tcp_udp_control_all,
-		},
-	})
+	s, err := simple.NewServer(listener.Tcpudp_builder{
+		Host:    proto.String("127.0.0.1:1090"),
+		Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
+	}.Build())
 	assert.NoError(t, err)
 
 	defer s.Close()
@@ -183,12 +178,10 @@ func TestSimple(t *testing.T) {
 		}
 	}()
 
-	qc, err := simple.NewClient(&protocol.Protocol_Simple{
-		Simple: &protocol.Simple{
-			Host: "127.0.0.1",
-			Port: 1090,
-		},
-	})(nil)
+	qc, err := simple.NewClient(protocol.Simple_builder{
+		Host: proto.String("127.0.0.1"),
+		Port: proto.Int32(1090),
+	}.Build())(nil)
 	assert.NoError(t, err)
 
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)

@@ -1,7 +1,7 @@
 //go:build debug
 // +build debug
 
-package simplehttp
+package appapi
 
 import (
 	"net/http"

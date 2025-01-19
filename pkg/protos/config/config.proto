@@ -1,12 +1,15 @@
-syntax = "proto3";
+edition = "2023";
+
 package yuhaiin.config;
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
+option features.(pb.go).api_level = API_OPAQUE;
 
 import "config/log/log.proto";
 import "config/bypass/bypass.proto";
 import "config/dns/dns.proto";
 import "config/listener/listener.proto";
+import "google/protobuf/go_features.proto";
 
 message setting {
   bool ipv6 = 7 [ json_name = "ipv6" ];

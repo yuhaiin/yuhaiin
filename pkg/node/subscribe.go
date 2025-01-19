@@ -28,10 +28,10 @@ func (s *Subscribe) Remove(_ context.Context, l *gn.LinkReq) (*emptypb.Empty, er
 }
 
 func (s *Subscribe) Update(_ context.Context, req *gn.LinkReq) (*emptypb.Empty, error) {
-	s.n.links.Update(req.Names)
+	s.n.links.Update(req.GetNames())
 	return &emptypb.Empty{}, s.n.db.Save()
 }
 
 func (s *Subscribe) Get(context.Context, *emptypb.Empty) (*gn.GetLinksResp, error) {
-	return &gn.GetLinksResp{Links: s.n.links.Links()}, nil
+	return gn.GetLinksResp_builder{Links: s.n.links.Links()}.Build(), nil
 }

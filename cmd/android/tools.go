@@ -34,17 +34,17 @@ type AddRoute interface {
 func AddRulesCidrv2(process AddRoute) {
 	bd := &bypass.Config{}
 	_ = newBypassDB().Batch(func(s *pc.Setting) error {
-		bd = s.Bypass
+		bd = s.GetBypass()
 		return nil
 	})
 
-	for _, v := range bd.CustomRuleV3 {
+	for _, v := range bd.GetCustomRuleV3() {
 
-		if v.Mode == bypass.Mode_direct && v.Tag == "" {
+		if v.GetMode() == bypass.Mode_direct && v.GetTag() == "" {
 			continue
 		}
 
-		for _, hostname := range v.Hostname {
+		for _, hostname := range v.GetHostname() {
 			_, cidr, err := net.ParseCIDR(hostname)
 			if err != nil {
 				ip := net.ParseIP(hostname)
@@ -71,7 +71,7 @@ func AddRulesCidrv2(process AddRoute) {
 			log.Info("try add route", "addr", &CIDR{
 				IP:   ip,
 				Mask: int32(mask),
-			}, "tag", v.Tag, "mode", v.Mode, "hostname", hostname)
+			}, "tag", v.GetTag(), "mode", v.GetMode(), "hostname", hostname)
 
 			process.Add(&CIDR{
 				IP:   ip,

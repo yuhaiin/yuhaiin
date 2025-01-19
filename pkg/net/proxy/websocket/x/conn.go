@@ -45,7 +45,7 @@ func newConn(rwc net.Conn, isServer bool) *Conn {
 	return &Conn{
 		IsServer:    isServer,
 		RawConn:     rwc,
-		PayloadType: opBinary,
+		PayloadType: OpBinary,
 	}
 }
 
@@ -184,7 +184,7 @@ func (ws *Conn) handleFrame(header *Header, frame io.ReadCloser) (io.ReadCloser,
 	switch header.opcode {
 	case opContinuation:
 		header.opcode = ws.LastPayloadType
-	case opText, opBinary:
+	case OpText, OpBinary:
 		ws.LastPayloadType = header.opcode
 	case opClose:
 		ws.Close()

@@ -50,10 +50,10 @@ func NewRoute(d Dialer, r Resolver, ProcessDumper netapi.ProcessDumper) *Route {
 	rr := &Route{
 		trie:       atomicx.NewPointer(newRouteTires()),
 		customTrie: atomicx.NewPointer(newRouteTires()),
-		config: &bypass.Config{
-			Tcp: bypass.Mode_bypass,
-			Udp: bypass.Mode_bypass,
-		},
+		config: (&bypass.Config_builder{
+			Tcp: bypass.Mode_bypass.Enum(),
+			Udp: bypass.Mode_bypass.Enum(),
+		}).Build(),
 		r:             r,
 		d:             d,
 		ProcessDumper: ProcessDumper,
@@ -84,7 +84,7 @@ func (s *Route) Tags() iter.Seq[string] {
 }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
-	result := s.dispatch(ctx, s.config.Tcp, host)
+	result := s.dispatch(ctx, s.config.GetTcp(), host)
 
 	if result.Mode.Mode() == bypass.Mode_block {
 		s.RejectHistory.Push(ctx, "tcp", host.String())
@@ -104,7 +104,7 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 }
 
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
-	result := s.dispatch(ctx, s.config.Udp, host)
+	result := s.dispatch(ctx, s.config.GetUdp(), host)
 
 	if result.Mode.Mode() == bypass.Mode_block {
 		s.RejectHistory.Push(ctx, "udp", host.String())
@@ -282,7 +282,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 	store.Resolver.Resolver = s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
 	store.ModeReason = reason
 
-	if s.config.ResolveLocally && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
+	if s.config.GetResolveLocally() && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
 		ip, err := dialer.ResolverIP(ctx, host)
 		if err == nil {
@@ -300,9 +300,9 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 func (s *Route) getResolverFallback(mode bypass.ModeEnum) string {
 	switch mode.Mode() {
 	case bypass.Mode_proxy:
-		return s.config.ProxyResolver
+		return s.config.GetProxyResolver()
 	case bypass.Mode_direct:
-		return s.config.DirectResolver
+		return s.config.GetDirectResolver()
 	}
 
 	return ""

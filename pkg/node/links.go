@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
+	"google.golang.org/protobuf/proto"
 )
 
 type link struct {
@@ -37,17 +38,16 @@ func (l *link) Save(ls []*subscribe.Link) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.db.Data.Links == nil {
-		l.db.Data.Links = make(map[string]*subscribe.Link)
+	if l.db.Data.GetLinks() == nil {
+		l.db.Data.SetLinks(make(map[string]*subscribe.Link))
 	}
 
 	for _, z := range ls {
-
-		node, err := parseUrl([]byte(z.Url), &subscribe.Link{Name: z.Name})
+		node, err := parseUrl([]byte(z.GetUrl()), subscribe.Link_builder{Name: proto.String(z.GetName())}.Build())
 		if err == nil {
 			l.addNode(node) // link is a node
 		} else {
-			l.db.Data.Links[z.Name] = z // link is a subscription
+			l.db.Data.GetLinks()[z.GetName()] = z // link is a subscription
 		}
 
 	}
@@ -58,20 +58,20 @@ func (l *link) Delete(names []string) {
 	defer l.mu.Unlock()
 
 	for _, z := range names {
-		delete(l.db.Data.Links, z)
+		delete(l.db.Data.GetLinks(), z)
 	}
 }
 
-func (l *link) Links() map[string]*subscribe.Link { return l.db.Data.Links }
+func (l *link) Links() map[string]*subscribe.Link { return l.db.Data.GetLinks() }
 
 func (l *link) Update(names []string) {
-	if l.db.Data.Links == nil {
-		l.db.Data.Links = make(map[string]*subscribe.Link)
+	if l.db.Data.GetLinks() == nil {
+		l.db.Data.SetLinks(make(map[string]*subscribe.Link))
 	}
 
 	wg := sync.WaitGroup{}
 	for _, str := range names {
-		link, ok := l.db.Data.Links[str]
+		link, ok := l.db.Data.GetLinks()[str]
 		if !ok {
 			continue
 		}
@@ -87,14 +87,14 @@ func (l *link) Update(names []string) {
 
 	wg.Wait()
 
-	oo := l.db.Data.Udp
-	if p, ok := l.manager.GetNodeByName(oo.Group, oo.Name); ok {
-		l.db.Data.Udp = p
+	oo := l.db.Data.GetUdp()
+	if p, ok := l.manager.GetNodeByName(oo.GetGroup(), oo.GetName()); ok {
+		l.db.Data.SetUdp(p)
 	}
 
-	oo = l.db.Data.Tcp
-	if p, ok := l.manager.GetNodeByName(oo.Group, oo.Name); ok {
-		l.db.Data.Tcp = p
+	oo = l.db.Data.GetTcp()
+	if p, ok := l.manager.GetNodeByName(oo.GetGroup(), oo.GetName()); ok {
+		l.db.Data.SetTcp(p)
 	}
 }
 
@@ -115,7 +115,7 @@ func (t *trimBase64Reader) Read(b []byte) (int, error) {
 }
 
 func (n *link) update(do func(*http.Request) (*http.Response, error), link *subscribe.Link) error {
-	req, err := http.NewRequest("GET", link.Url, nil)
+	req, err := http.NewRequest("GET", link.GetUrl(), nil)
 	if err != nil {
 		return fmt.Errorf("create request failed: %w", err)
 	}
@@ -124,11 +124,11 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 
 	res, err := do(req)
 	if err != nil {
-		return fmt.Errorf("get %s failed: %w", link.Name, err)
+		return fmt.Errorf("get %s failed: %w", link.GetName(), err)
 	}
 	defer res.Body.Close()
 
-	n.manager.DeleteRemoteNodes(link.Name)
+	n.manager.DeleteRemoteNodes(link.GetName())
 
 	base64r := base64.NewDecoder(base64.RawStdEncoding, &trimBase64Reader{res.Body})
 	scanner := bufio.NewScanner(base64r)
@@ -149,7 +149,7 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 }
 
 func (n *link) addNode(node *point.Point) {
-	n.manager.DeleteNode(node.Hash)
+	n.manager.DeleteNode(node.GetHash())
 	n.manager.AddNode(node)
 }
 
@@ -161,7 +161,7 @@ var schemeTypeMap = map[string]subscribe.Type{
 }
 
 func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
-	t := l.Type
+	t := l.GetType()
 
 	if t == subscribe.Type_reserve {
 		scheme, _, _ := system.GetScheme(string(str))
@@ -172,6 +172,6 @@ func parseUrl(str []byte, l *subscribe.Link) (no *point.Point, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse link data failed: %w", err)
 	}
-	no.Group = l.Name
+	no.SetGroup(l.GetName())
 	return no, nil
 }

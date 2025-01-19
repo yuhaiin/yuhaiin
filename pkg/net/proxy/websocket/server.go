@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -24,17 +25,15 @@ type Server struct {
 }
 
 func init() {
-	listener.RegisterTransport(NewServer)
+	register.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Transport_Websocket) func(netapi.Listener) (netapi.Listener, error) {
-	return func(ii netapi.Listener) (netapi.Listener, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-		return netapi.NewListener(newServer(lis), ii), nil
+func NewServer(c *listener.Websocket, ii netapi.Listener) (netapi.Listener, error) {
+	lis, err := ii.Stream(context.TODO())
+	if err != nil {
+		return nil, err
 	}
+	return netapi.NewListener(newServer(lis), ii), nil
 }
 
 func newServer(lis net.Listener) *Server {

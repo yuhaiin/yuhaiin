@@ -12,8 +12,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -44,16 +44,16 @@ type Client struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
+func NewClient(config *protocol.Quic) register.WrapProxy {
 	return func(dd netapi.Proxy) (netapi.Proxy, error) {
 
 		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
 
-		if config.Quic.Host != "" {
-			addr, err := netapi.ParseAddress("udp", config.Quic.Host)
+		if config.GetHost() != "" {
+			addr, err := netapi.ParseAddress("udp", config.GetHost())
 			if err == nil {
 				host, err = dialer.ResolveUDPAddr(context.TODO(), addr)
 				if err != nil {
@@ -62,12 +62,12 @@ func NewClient(config *protocol.Protocol_Quic) point.WrapProxy {
 			}
 		}
 
-		tlsConfig := point.ParseTLSConfig(config.Quic.Tls)
+		tlsConfig := register.ParseTLSConfig(config.GetTls())
 		if tlsConfig == nil {
 			tlsConfig = &tls.Config{}
 		}
 
-		if point.IsBootstrap(dd) {
+		if register.IsBootstrap(dd) {
 			dd = nil
 		}
 

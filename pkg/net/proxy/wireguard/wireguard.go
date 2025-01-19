@@ -22,8 +22,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/tailscale/wireguard-go/device"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -47,22 +47,22 @@ type Wireguard struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(conf *protocol.Protocol_Wireguard) point.WrapProxy {
+func NewClient(conf *protocol.Wireguard) register.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 
-		if conf.Wireguard.IdleTimeout == 0 {
-			conf.Wireguard.IdleTimeout = 60 * 5
+		if conf.GetIdleTimeout() == 0 {
+			conf.SetIdleTimeout(60 * 5)
 		}
-		if conf.Wireguard.IdleTimeout <= 30 {
-			conf.Wireguard.IdleTimeout = 30
+		if conf.GetIdleTimeout() <= 30 {
+			conf.SetIdleTimeout(30)
 		}
 
 		w := &Wireguard{
-			conf:        conf.Wireguard,
-			idleTimeout: time.Duration(conf.Wireguard.IdleTimeout) * time.Second * 2,
+			conf:        conf,
+			idleTimeout: time.Duration(conf.GetIdleTimeout()) * time.Second * 2,
 		}
 
 		w.happyDialer = &dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]{
@@ -257,7 +257,7 @@ func makeVirtualTun(h *protocol.Wireguard) (*device.Device, *netBindClient, *net
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	tun, err := CreateNetTUN(endpoints, int(h.Mtu))
+	tun, err := CreateNetTUN(endpoints, int(h.GetMtu()))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -302,18 +302,18 @@ func base64ToHex(s string) string {
 func createIPCRequest(conf *protocol.Wireguard) *bytes.Buffer {
 	request := bytes.NewBuffer(nil)
 
-	request.WriteString(fmt.Sprintf("private_key=%s\n", base64ToHex(conf.SecretKey)))
+	request.WriteString(fmt.Sprintf("private_key=%s\n", base64ToHex(conf.GetSecretKey())))
 
-	for _, peer := range conf.Peers {
-		fmt.Fprintf(request, "public_key=%s\nendpoint=%s\n", base64ToHex(peer.PublicKey), peer.Endpoint)
-		if peer.KeepAlive != 0 {
-			fmt.Fprintf(request, "persistent_keepalive_interval=%d\n", peer.KeepAlive)
+	for _, peer := range conf.GetPeers() {
+		fmt.Fprintf(request, "public_key=%s\nendpoint=%s\n", base64ToHex(peer.GetPublicKey()), peer.GetEndpoint())
+		if peer.GetKeepAlive() != 0 {
+			fmt.Fprintf(request, "persistent_keepalive_interval=%d\n", peer.GetKeepAlive())
 		}
-		if peer.PreSharedKey != "" {
-			fmt.Fprintf(request, "preshared_key=%s\n", base64ToHex(peer.PreSharedKey))
+		if peer.GetPreSharedKey() != "" {
+			fmt.Fprintf(request, "preshared_key=%s\n", base64ToHex(peer.GetPreSharedKey()))
 		}
 
-		for _, ip := range peer.AllowedIps {
+		for _, ip := range peer.GetAllowedIps() {
 			fmt.Fprintf(request, "allowed_ip=%s\n", ip)
 		}
 	}

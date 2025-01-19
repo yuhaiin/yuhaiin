@@ -13,28 +13,26 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"google.golang.org/protobuf/proto"
 )
 
 func main() {
-	node := &point.Point{
+	node := point.Point_builder{
 		Protocols: []*protocol.Protocol{
-			{
-				Protocol: &protocol.Protocol_Simple{
-					Simple: &protocol.Simple{
-						Host: "127.0.0.1",
-						Port: 1080,
-					},
-				},
-			},
-			{
-				Protocol: &protocol.Protocol_Socks5{
-					Socks5: &protocol.Socks5{},
-				},
-			},
+			protocol.Protocol_builder{
+				Simple: protocol.Simple_builder{
+					Host: proto.String("127.0.0.1"),
+					Port: proto.Int32(1080),
+				}.Build(),
+			}.Build(),
+			protocol.Protocol_builder{
+				Socks5: &protocol.Socks5{},
+			}.Build(),
 		},
 	}
 
-	pro, err := point.Dialer(node)
+	pro, err := register.Dialer(node.Build())
 	if err != nil {
 		panic(err)
 	}

@@ -13,10 +13,10 @@ import (
 )
 
 func TestMergeDefault(t *testing.T) {
-	src := &config.Setting{
-		Ipv6: false,
+	src := config.Setting_builder{
+		Ipv6: proto.Bool(false),
 		Dns:  &dns.DnsConfig{},
-	}
+	}.Build()
 
 	jsondb.MergeDefault(src.ProtoReflect(), DefaultSetting("").ProtoReflect())
 
@@ -27,20 +27,20 @@ func TestMergeDefault(t *testing.T) {
 }
 
 func TestXxx(t *testing.T) {
-	src := &config.Setting{
-		Ipv6: false,
-		Dns: &dns.DnsConfig{
+	src := config.Setting_builder{
+		Ipv6: proto.Bool(false),
+		Dns: dns.DnsConfig_builder{
 			Resolver: map[string]*pd.Dns{
 				"aaa": {},
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	cc := proto.Clone(src).(*config.Setting)
 
-	cc.Ipv6 = true
-	cc.Dns.Resolver["test"] = &pd.Dns{}
+	cc.SetIpv6(true)
+	cc.GetDns().GetResolver()["test"] = &pd.Dns{}
 
-	t.Log(src.Ipv6, src.Dns.Resolver)
-	t.Log(cc.Ipv6, cc.Dns.Resolver)
+	t.Log(src.GetIpv6(), src.GetDns().GetResolver())
+	t.Log(cc.GetIpv6(), cc.GetDns().GetResolver())
 }

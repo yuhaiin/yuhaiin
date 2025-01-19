@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -24,13 +25,13 @@ func TestParseTrojan(t *testing.T) {
 }
 
 func TestTrojan(t *testing.T) {
-	p := &point.Point{
+	p := point.Point_builder{
 		Protocols: []*protocol.Protocol{},
 	}
 
-	err := protojson.Unmarshal([]byte(``), p)
+	err := protojson.Unmarshal([]byte(``), p.Build())
 	assert.NoError(t, err)
-	z, err := point.Dialer(p)
+	z, err := register.Dialer(p.Build())
 	assert.NoError(t, err)
 
 	dns, err := dns.New(dns.Config{Host: "1.1.1.1:53", Dialer: z, Type: pdns.Type_udp})

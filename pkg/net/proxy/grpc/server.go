@@ -8,6 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	grpc "google.golang.org/grpc"
 )
@@ -22,18 +23,16 @@ type Grpc struct {
 }
 
 func init() {
-	listener.RegisterTransport(NewServer)
+	register.RegisterTransport(NewServer)
 }
 
-func NewServer(c *listener.Transport_Grpc) func(netapi.Listener) (netapi.Listener, error) {
-	return func(ii netapi.Listener) (netapi.Listener, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-
-		return netapi.NewListener(NewGrpcNoServer(lis), ii), nil
+func NewServer(c *listener.Grpc, ii netapi.Listener) (netapi.Listener, error) {
+	lis, err := ii.Stream(context.TODO())
+	if err != nil {
+		return nil, err
 	}
+
+	return netapi.NewListener(NewGrpcNoServer(lis), ii), nil
 }
 
 func NewGrpcNoServer(lis net.Listener) *Grpc {

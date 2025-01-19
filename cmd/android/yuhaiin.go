@@ -113,8 +113,8 @@ func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts)
 				continue
 			}
 
-			dr := reduceUnit((flow.Download - last.Download) / 2)
-			ur := reduceUnit((flow.Upload - last.Upload) / 2)
+			dr := reduceUnit((flow.GetDownload() - last.GetDownload()) / 2)
+			ur := reduceUnit((flow.GetUpload() - last.GetUpload()) / 2)
 			if dr == emptyRate && ur == emptyRate {
 				if alreadyEmpty {
 					continue
@@ -124,7 +124,7 @@ func (a *App) notifyFlow(ctx context.Context, app *appapi.Components, opt *Opts)
 				alreadyEmpty = false
 			}
 
-			download, upload := reduceUnit(flow.Download), reduceUnit(flow.Upload)
+			download, upload := reduceUnit(flow.GetDownload()), reduceUnit(flow.GetUpload())
 			last = flow
 			opt.NotifySpped.Notify(flowString(download, upload, ur, dr))
 		}
@@ -159,12 +159,12 @@ func (a *App) Stop() error {
 func (a *App) Running() bool { return a.started.Load() }
 
 func (a *App) SaveNewBypass(link string) error {
-	if !a.Running() || a.app == nil || a.app.Rc == nil {
+	if !a.Running() || a.app == nil || a.app.RuleController == nil {
 		return fmt.Errorf("proxy service is not start")
 	}
 
 	a.app.Setting.(*fakeSettings).updateRemoteUrl(link)
-	_, err := a.app.Rc.Reload(context.TODO(), &emptypb.Empty{})
+	_, err := a.app.RuleController.Reload(context.TODO(), &emptypb.Empty{})
 	return err
 }
 

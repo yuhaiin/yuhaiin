@@ -11,8 +11,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/shadowsocksr/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	protocols "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -28,29 +28,28 @@ type Shadowsocksr struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocols.Protocol_Shadowsocksr) point.WrapProxy {
-	c := config.Shadowsocksr
+func NewClient(c *protocols.Shadowsocksr) register.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		cipher, err := cipher.NewCipher(c.Method, c.Password)
+		cipher, err := cipher.NewCipher(c.GetMethod(), c.GetPassword())
 		if err != nil {
 			return nil, fmt.Errorf("new cipher failed: %w", err)
 		}
 
 		obfs := &obfs.Obfs{
-			Name:   c.Obfs,
-			Host:   c.Server,
-			Port:   c.Port,
-			Param:  c.Obfsparam,
+			Name:   c.GetObfs(),
+			Host:   c.GetServer(),
+			Port:   c.GetPort(),
+			Param:  c.GetObfsparam(),
 			Cipher: cipher,
 		}
 
 		protocol := &protocol.Protocol{
-			Name:         c.Protocol,
+			Name:         c.GetProtocol(),
 			Auth:         protocol.NewAuth(),
-			Param:        c.Protoparam,
+			Param:        c.GetProtoparam(),
 			TcpMss:       1460,
 			Cipher:       cipher,
 			ObfsOverhead: obfs.Overhead(),

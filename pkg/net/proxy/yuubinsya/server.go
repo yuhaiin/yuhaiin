@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/plain"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -30,36 +31,34 @@ type server struct {
 }
 
 func init() {
-	pl.RegisterProtocol(NewServer)
+	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(config *pl.Inbound_Yuubinsya) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
-	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-		auth, err := NewAuth(config.Yuubinsya.GetUdpEncrypt(), []byte(config.Yuubinsya.Password))
-		if err != nil {
-			return nil, err
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		s := &server{
-			listener: ii,
-			handshaker: NewHandshaker(
-				true,
-				config.Yuubinsya.GetTcpEncrypt(),
-				[]byte(config.Yuubinsya.Password),
-			),
-
-			handler:    handler,
-			packetAuth: auth,
-			ctx:        ctx,
-			cancel:     cancel,
-		}
-
-		go log.IfErr("yuubinsya udp server", s.startUDP)
-		go log.IfErr("yuubinsya tcp server", s.startTCP)
-
-		return s, nil
+func NewServer(config *pl.Yuubinsya, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	auth, err := NewAuth(config.GetUdpEncrypt(), []byte(config.GetPassword()))
+	if err != nil {
+		return nil, err
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &server{
+		listener: ii,
+		handshaker: NewHandshaker(
+			true,
+			config.GetTcpEncrypt(),
+			[]byte(config.GetPassword()),
+		),
+
+		handler:    handler,
+		packetAuth: auth,
+		ctx:        ctx,
+		cancel:     cancel,
+	}
+
+	go log.IfErr("yuubinsya udp server", s.startUDP)
+	go log.IfErr("yuubinsya tcp server", s.startTCP)
+
+	return s, nil
 }
 
 func (y *server) startUDP() error {
@@ -69,9 +68,11 @@ func (y *server) startUDP() error {
 	}
 	defer packet.Close()
 
-	StartUDPServer(packet, y.handler.HandlePacket, y.packetAuth, false)
-
-	return nil
+	return (&UDPServer{
+		PacketConn: packet,
+		Handler:    y.handler.HandlePacket,
+		Auth:       y.packetAuth,
+	}).Serve()
 }
 
 func (y *server) startTCP() (err error) {

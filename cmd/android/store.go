@@ -183,7 +183,7 @@ func (b *bypassConfig) initSetting() {
 
 	s := GetStore("Default").GetBytes("bypass_db")
 
-	config := config.DefaultSetting(b.Dir()).Bypass
+	config := config.DefaultSetting(b.Dir()).GetBypass()
 	if len(s) > 0 {
 		err := proto.Unmarshal(s, config)
 		if err != nil {
@@ -200,21 +200,21 @@ func (b *bypassConfig) Batch(f ...func(*pc.Setting) error) error {
 
 	b.initSetting()
 
-	setting := &pc.Setting{
+	setting := pc.Setting_builder{
 		Bypass: b.setting,
-	}
+	}.Build()
 	for i := range f {
 		if err := f[i](setting); err != nil {
 			return err
 		}
 	}
 
-	s, err := proto.Marshal(setting.Bypass)
+	s, err := proto.Marshal(setting.GetBypass())
 	if err != nil {
 		return err
 	}
 
-	b.setting = setting.Bypass
+	b.setting = setting.GetBypass()
 	GetStore("Default").PutBytes("bypass_db", s)
 	return nil
 }
@@ -225,9 +225,9 @@ func (b *bypassConfig) View(f ...func(*pc.Setting) error) error {
 
 	b.initSetting()
 
-	setting := &pc.Setting{
+	setting := pc.Setting_builder{
 		Bypass: b.setting,
-	}
+	}.Build()
 
 	for i := range f {
 		if err := f[i](proto.Clone(setting).(*pc.Setting)); err != nil {

@@ -12,8 +12,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
@@ -31,22 +31,22 @@ type Simple struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(c *protocol.Protocol_Simple) point.WrapProxy {
+func NewClient(c *protocol.Simple) register.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 		var addrs []netapi.Address
-		addrs = append(addrs, netapi.ParseAddressPort("", c.Simple.GetHost(), uint16(c.Simple.GetPort())))
-		for _, v := range c.Simple.GetAlternateHost() {
+		addrs = append(addrs, netapi.ParseAddressPort("", c.GetHost(), uint16(c.GetPort())))
+		for _, v := range c.GetAlternateHost() {
 			addrs = append(addrs, netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort())))
 		}
 
 		simple := &Simple{
 			addrs:        addrs,
 			p:            p,
-			nonBootstrap: p != nil && !point.IsBootstrap(p),
-			iface:        c.Simple.GetNetworkInterface(),
+			nonBootstrap: p != nil && !register.IsBootstrap(p),
+			iface:        c.GetNetworkInterface(),
 		}
 
 		return simple, nil

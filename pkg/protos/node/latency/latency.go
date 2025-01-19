@@ -2,12 +2,14 @@ package latency
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"math/rand/v2"
 	"net"
 	"net/http"
-	sync "sync"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -17,37 +19,47 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 )
 
-type Latencier interface {
-	Latency(netapi.Proxy) (*Reply, error)
-}
-
-func (l *Protocol_Http) Latency(p netapi.Proxy) (*Reply, error) {
-	t, err := latency.HTTP(p, l.Http.GetUrl())
-	return &Reply{
-		Reply: &Reply_Latency{Latency: durationpb.New(t)},
-	}, err
-}
-
-func (l *Protocol_Dns) Latency(p netapi.Proxy) (*Reply, error) {
-	t, err := latency.DNS(p, l.Dns.GetHost(), l.Dns.GetTargetDomain())
-	return &Reply{
-		Reply: &Reply_Latency{Latency: durationpb.New(t)},
-	}, err
-}
-
-func (l *Protocol_DnsOverQuic) Latency(p netapi.Proxy) (*Reply, error) {
-	t, err := latency.DNSOverQuic(p, l.DnsOverQuic.Host, l.DnsOverQuic.TargetDomain)
-	return &Reply{
-		Reply: &Reply_Latency{Latency: durationpb.New(t)},
-	}, err
-}
-
-func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
-	if l.Ip.UserAgent == "" {
-		l.Ip.UserAgent = "curl/7.54.1"
+func (l *Protocol) Latency(p netapi.Proxy) (*Reply, error) {
+	ref := l.ProtoReflect()
+	fields := ref.Descriptor().Oneofs().ByName("protocol")
+	f := ref.WhichOneof(fields)
+	if f == nil {
+		return nil, errors.ErrUnsupported
 	}
 
-	reply := &Reply_Ip{
+	v := ref.Get(f).Message().Interface()
+
+	z, ok := v.(interface {
+		Latency(p netapi.Proxy) (*Reply, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("protocol %v not support", v)
+	}
+
+	return z.Latency(p)
+}
+
+func (l *Http) Latency(p netapi.Proxy) (*Reply, error) {
+	t, err := latency.HTTP(p, l.GetUrl())
+	return (&Reply_builder{Latency: durationpb.New(t)}).Build(), err
+}
+
+func (l *Dns) Latency(p netapi.Proxy) (*Reply, error) {
+	t, err := latency.DNS(p, l.GetHost(), l.GetTargetDomain())
+	return (&Reply_builder{Latency: durationpb.New(t)}).Build(), err
+}
+
+func (l *DnsOverQuic) Latency(p netapi.Proxy) (*Reply, error) {
+	t, err := latency.DNSOverQuic(p, l.GetHost(), l.GetTargetDomain())
+	return (&Reply_builder{Latency: durationpb.New(t)}).Build(), err
+}
+
+func (l *Ip) Latency(p netapi.Proxy) (*Reply, error) {
+	if l.GetUserAgent() == "" {
+		l.SetUserAgent("curl/7.54.1")
+	}
+
+	reply := &Reply_builder{
 		Ip: &IpResponse{},
 	}
 
@@ -84,17 +96,17 @@ func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
 				},
 			}
 
-			req, err := http.NewRequest("GET", l.Ip.GetUrl(), nil)
+			req, err := http.NewRequest("GET", l.GetUrl(), nil)
 			if err != nil {
-				log.Error("new request error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
+				log.Error("new request error", slog.String("url", l.GetUrl()), slog.Any("err", err))
 				return
 			}
 
-			req.Header.Set("User-Agent", l.Ip.UserAgent)
+			req.Header.Set("User-Agent", l.GetUserAgent())
 
 			resp, err := hc.Do(req)
 			if err != nil {
-				log.Error("get url error", slog.String("url", l.Ip.GetUrl()), slog.Any("err", err))
+				log.Error("get url error", slog.String("url", l.GetUrl()), slog.Any("err", err))
 				return
 			}
 
@@ -106,51 +118,47 @@ func (l *Protocol_Ip) Latency(p netapi.Proxy) (*Reply, error) {
 			}
 
 			if !isIPv6 {
-				reply.Ip.Ipv4 = string(data)
+				reply.Ip.SetIpv4(string(data))
 			} else {
-				reply.Ip.Ipv6 = string(data)
+				reply.Ip.SetIpv6(string(data))
 			}
 		}(isIPv6)
 	}
 
 	wg.Wait()
 
-	if reply.Ip.Ipv4 == "" && reply.Ip.Ipv6 == "" {
+	if reply.Ip.GetIpv4() == "" && reply.Ip.GetIpv6() == "" {
 		return nil, io.EOF
 	}
 
-	return &Reply{
-		Reply: reply,
-	}, nil
+	return reply.Build(), nil
 }
 
-func (l *Protocol_Stun) Latency(p netapi.Proxy) (*Reply, error) {
+func (l *Stun) Latency(p netapi.Proxy) (*Reply, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	replay := &Reply{
-		Reply: &Reply_Stun{
-			Stun: &StunResponse{},
-		},
-	}
+	replay := (&Reply_builder{
+		Stun: &StunResponse{},
+	}).Build()
 
-	if l.Stun.Tcp {
-		mappedAddr, err := latency.StunTCP(ctx, p, l.Stun.GetHost())
+	if l.GetTcp() {
+		mappedAddr, err := latency.StunTCP(ctx, p, l.GetHost())
 		if err != nil {
 			return nil, err
 		}
-		replay.GetStun().MappedAddress = mappedAddr
+		replay.GetStun().SetMappedAddress(mappedAddr)
 		return replay, nil
 	}
 
-	t, err := latency.Stun(ctx, p, l.Stun.GetHost())
+	t, err := latency.Stun(ctx, p, l.GetHost())
 	if err != nil {
 		return nil, err
 	}
 
-	replay.GetStun().Mapping = NatType(t.MappingType)
-	replay.GetStun().Filtering = NatType(t.FilteringType)
-	replay.GetStun().MappedAddress = t.MappedAddr
+	replay.GetStun().SetMapping(NatType(t.MappingType))
+	replay.GetStun().SetFiltering(NatType(t.FilteringType))
+	replay.GetStun().SetMappedAddress(t.MappedAddr)
 
 	return replay, nil
 }

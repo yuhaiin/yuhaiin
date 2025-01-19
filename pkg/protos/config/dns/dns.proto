@@ -1,8 +1,10 @@
-syntax = "proto3";
+edition = "2023";
 
 package yuhaiin.dns;
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns";
+option features.(pb.go).api_level = API_OPAQUE;
 
 enum type {
   reserve = 0;
@@ -22,7 +24,7 @@ message dns {
 }
 
 message dns_config {
-  reserved "resolve_remote_domain", "local", "remote", "bootstrap";
+  reserved resolve_remote_domai, local, remote, bootstrap;
   reserved 7, 1, 2, 3;
   string server = 4 [ json_name = "server" ];
   bool fakedns = 5 [ json_name = "fakedns" ];

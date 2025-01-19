@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"google.golang.org/protobuf/proto"
 )
 
 type routeParser struct {
@@ -49,46 +50,44 @@ func getRemote(path string, proxy netapi.Proxy, url string, force bool) (io.Read
 		forceUpdate: force,
 	}
 
-	re, err := r.getReader(&bypass.RemoteRule{
-		Enabled: true,
-		Name:    url,
-		Object: &bypass.RemoteRule_Http{
-			Http: &bypass.RemoteRuleHttp{
-				Url: url,
-			},
-		},
-	})
+	re, err := r.getReader((&bypass.RemoteRule_builder{
+		Enabled: proto.Bool(true),
+		Name:    proto.String(url),
+		Http: (&bypass.RemoteRuleHttp_builder{
+			Url: proto.String(url),
+		}).Build(),
+	}).Build())
 
 	return re, err
 }
 
 func (r *routeParser) Trie() {
 	for _, rule := range r.rules {
-		if !rule.Enabled {
+		if !rule.GetEnabled() {
 			continue
 		}
 
 		rc, err := r.getReader(rule)
 		if err != nil {
-			rule.ErrorMsg = err.Error()
+			rule.SetErrorMsg(err.Error())
 			log.Error("get reader failed", slog.Any("err", err), slog.Any("rule", rule))
 			continue
 		}
 
-		rule.ErrorMsg = ""
+		rule.SetErrorMsg("")
 		r.insert(rc)
 	}
 }
 
 func (r *routeParser) getReader(rule *bypass.RemoteRule) (io.ReadCloser, error) {
 	path := ""
-	switch x := rule.Object.(type) {
-	case *bypass.RemoteRule_Http:
-		if x.Http.Url == "" {
+	switch rule.WhichObject() {
+	case bypass.RemoteRule_Http_case:
+		if rule.GetHttp().GetUrl() == "" {
 			return nil, fmt.Errorf("empty url")
 		}
 
-		path = filepath.Join(r.path, hexName(rule.Name, x.Http.Url))
+		path = filepath.Join(r.path, hexName(rule.GetName(), rule.GetHttp().GetUrl()))
 
 		updated := r.forceUpdate
 		if !updated {
@@ -98,17 +97,17 @@ func (r *routeParser) getReader(rule *bypass.RemoteRule) (io.ReadCloser, error) 
 		}
 
 		if updated {
-			if err := r.saveRemote(path, x.Http.Url); err != nil {
+			if err := r.saveRemote(path, rule.GetHttp().GetUrl()); err != nil {
 				return nil, fmt.Errorf("save remote failed: %w", err)
 			}
 		}
 
-	case *bypass.RemoteRule_File:
-		if x.File.Path == "" {
+	case bypass.RemoteRule_File_case:
+		if rule.GetFile().GetPath() == "" {
 			return nil, fmt.Errorf("empty path")
 		}
 
-		path = x.File.Path
+		path = rule.GetFile().GetPath()
 	}
 
 	f, err := os.Open(path)

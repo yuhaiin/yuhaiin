@@ -17,8 +17,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"golang.org/x/net/http2"
 )
@@ -29,20 +29,20 @@ type Client struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Protocol_Http2) point.WrapProxy {
+func NewClient(config *protocol.Http2) register.WrapProxy {
 	return func(p netapi.Proxy) (netapi.Proxy, error) {
 
-		if config.Http2.Concurrency < 1 {
-			config.Http2.Concurrency = 1
+		if config.GetConcurrency() < 1 {
+			config.SetConcurrency(1)
 		}
 
 		cpool := &clientConnPool{
 			dialer: p,
-			conns:  make([]*entry, config.Http2.Concurrency),
-			max:    uint64(config.Http2.Concurrency),
+			conns:  make([]*entry, config.GetConcurrency()),
+			max:    uint64(config.GetConcurrency()),
 		}
 
 		for i := range cpool.conns {

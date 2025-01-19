@@ -18,11 +18,11 @@ func NewTools(db config.Setting) *Tools {
 }
 
 func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces, error) {
-	if cf, err := t.db.Load(ctx, e); err == nil && cf.Platform.AndroidApp {
+	if cf, err := t.db.Load(ctx, e); err == nil && cf.GetPlatform().GetAndroidApp() {
 		return &Interfaces{}, nil
 	}
 
-	is := &Interfaces{}
+	is := &Interfaces_builder{}
 	iis, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -31,8 +31,8 @@ func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces
 		if i.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		iif := &Interface{
-			Name: i.Name,
+		iif := &Interface_builder{
+			Name: &i.Name,
 		}
 
 		addresses, err := i.Addrs()
@@ -41,8 +41,8 @@ func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces
 				iif.Addresses = append(iif.Addresses, a.String())
 			}
 		}
-		is.Interfaces = append(is.Interfaces, iif)
+		is.Interfaces = append(is.Interfaces, iif.Build())
 	}
 
-	return is, nil
+	return is.Build(), nil
 }

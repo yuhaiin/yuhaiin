@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -31,37 +32,31 @@ func init() {
 			servername = []string{u.Query().Get("sni")}
 		}
 
-		p := &point.Point{
-			Name:   "[trojan]" + u.Fragment,
-			Origin: point.Origin_remote,
+		p := point.Point_builder{
+			Name:   proto.String("[trojan]" + u.Fragment),
+			Origin: point.Origin_remote.Enum(),
 			Protocols: []*protocol.Protocol{
-				{
-					Protocol: &protocol.Protocol_Simple{
-						Simple: &protocol.Simple{
-							Host: u.Hostname(),
-							Port: int32(port),
-						},
-					},
-				},
-				{
-					Protocol: &protocol.Protocol_Tls{
-						Tls: &protocol.TlsConfig{
-							Enable:      true,
-							ServerNames: servername,
-						},
-					},
-				},
-				{
-					Protocol: &protocol.Protocol_Trojan{
-						Trojan: &protocol.Trojan{
-							Password: u.User.String(),
-							Peer:     u.Query().Get("peer"),
-						},
-					},
-				},
+				protocol.Protocol_builder{
+					Simple: protocol.Simple_builder{
+						Host: proto.String(u.Hostname()),
+						Port: proto.Int32(int32(port)),
+					}.Build(),
+				}.Build(),
+				protocol.Protocol_builder{
+					Tls: protocol.TlsConfig_builder{
+						Enable:      proto.Bool(true),
+						ServerNames: servername,
+					}.Build(),
+				}.Build(),
+				protocol.Protocol_builder{
+					Trojan: protocol.Trojan_builder{
+						Password: proto.String(u.User.String()),
+						Peer:     proto.String(u.Query().Get("peer")),
+					}.Build(),
+				}.Build(),
 			},
 		}
 
-		return p, nil
+		return p.Build(), nil
 	})
 }

@@ -23,7 +23,7 @@ func (r *redir) AcceptPacket() (*netapi.Packet, error) {
 	return nil, io.EOF
 }
 
-func NewServer(o *listener.Inbound_Redir) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
+func NewServer(o *listener.Redir) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
 	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 		lis, err := ii.Stream(context.TODO())
 		if err != nil {

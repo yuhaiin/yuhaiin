@@ -13,7 +13,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"google.golang.org/protobuf/proto"
 )
 
 type Mixed struct {
@@ -29,34 +31,32 @@ type Matcher struct {
 }
 
 func init() {
-	listener.RegisterProtocol(NewServer)
+	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Mix) func(lis netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-
-		mix := &Mixed{
-			lis:      lis,
-			defaultC: netapi.NewChannelStreamListener(lis.Addr()),
-		}
-
-		mix.socks5(o, ii, handler)
-		mix.socks4(o, ii, handler)
-		mix.http(o, ii, handler)
-
-		go func() {
-			defer mix.Close()
-			if err := mix.handle(); err != nil {
-				log.Debug("mixed handle failed", "err", err)
-			}
-		}()
-
-		return mix, nil
+func NewServer(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	lis, err := ii.Stream(context.TODO())
+	if err != nil {
+		return nil, err
 	}
+
+	mix := &Mixed{
+		lis:      lis,
+		defaultC: netapi.NewChannelStreamListener(lis.Addr()),
+	}
+
+	mix.socks5(o, ii, handler)
+	mix.socks4(o, ii, handler)
+	mix.http(o, ii, handler)
+
+	go func() {
+		defer mix.Close()
+		if err := mix.handle(); err != nil {
+			log.Debug("mixed handle failed", "err", err)
+		}
+	}()
+
+	return mix, nil
 }
 
 func (m *Mixed) Close() error {
@@ -81,16 +81,14 @@ func (m *Mixed) AddMatcher(match func(byte) bool) net.Listener {
 	return ch
 }
 
-func (m *Mixed) socks5(o *listener.Inbound_Mix, ii netapi.Listener, handler netapi.Handler) {
+func (m *Mixed) socks5(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) {
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x05 })
 
-	s5, err := socks5.NewServer(&listener.Inbound_Socks5{
-		Socks5: &listener.Socks5{
-			Username: o.Mix.Username,
-			Password: o.Mix.Password,
-			Udp:      true,
-		},
-	})(netapi.NewListener(lis, ii), handler)
+	s5, err := socks5.NewServer(listener.Socks5_builder{
+		Username: proto.String(o.GetUsername()),
+		Password: proto.String(o.GetPassword()),
+		Udp:      proto.Bool(true),
+	}.Build(), netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks5 server failed", "err", err)
 		return
@@ -99,14 +97,12 @@ func (m *Mixed) socks5(o *listener.Inbound_Mix, ii netapi.Listener, handler neta
 	m.closers = append(m.closers, s5)
 }
 
-func (m *Mixed) socks4(o *listener.Inbound_Mix, ii netapi.Listener, handler netapi.Handler) {
+func (m *Mixed) socks4(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) {
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x04 })
 
-	s4, err := socks4a.NewServer(&listener.Inbound_Socks4A{
-		Socks4A: &listener.Socks4A{
-			Username: o.Mix.Username,
-		},
-	})(netapi.NewListener(lis, ii), handler)
+	s4, err := socks4a.NewServer(listener.Socks4A_builder{
+		Username: proto.String(o.GetUsername()),
+	}.Build(), netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks4 server failed", "err", err)
 		return
@@ -115,13 +111,11 @@ func (m *Mixed) socks4(o *listener.Inbound_Mix, ii netapi.Listener, handler neta
 	m.closers = append(m.closers, s4)
 }
 
-func (m *Mixed) http(o *listener.Inbound_Mix, ii netapi.Listener, handler netapi.Handler) {
-	http, err := http.NewServer(&listener.Inbound_Http{
-		Http: &listener.Http{
-			Username: o.Mix.Username,
-			Password: o.Mix.Password,
-		},
-	})(netapi.NewListener(m.defaultC, ii), handler)
+func (m *Mixed) http(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) {
+	http, err := http.NewServer(listener.Http_builder{
+		Username: proto.String(o.GetUsername()),
+		Password: proto.String(o.GetPassword()),
+	}.Build(), netapi.NewListener(m.defaultC, ii), handler)
 	if err != nil {
 		log.Error("new http server failed", "err", err)
 		return

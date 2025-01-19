@@ -1,9 +1,12 @@
-syntax = "proto3";
+edition = "2023";
+
 package stream;
 
 import "google/protobuf/wrappers.proto";
+import "google/protobuf/go_features.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/net/proxy/grpc";
+option features.(pb.go).api_level = API_OPAQUE;
 
 service stream {
   rpc conn(stream google.protobuf.BytesValue)

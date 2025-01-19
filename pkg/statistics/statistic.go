@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -64,13 +65,13 @@ func (c *Connections) Notify(_ *emptypb.Empty, s gs.Connections_NotifyServer) er
 }
 
 func (c *Connections) Conns(context.Context, *emptypb.Empty) (*gs.NotifyNewConnections, error) {
-	return &gs.NotifyNewConnections{
+	return (&gs.NotifyNewConnections_builder{
 		Connections: slice.CollectTo(c.connStore.RangeValues, connToStatistic),
-	}, nil
+	}).Build(), nil
 }
 
 func (c *Connections) CloseConn(_ context.Context, x *gs.NotifyRemoveConnections) (*emptypb.Empty, error) {
-	for _, x := range x.Ids {
+	for _, x := range x.GetIds() {
 		if z, ok := c.connStore.Load(x); ok {
 			z.Close()
 		}
@@ -90,10 +91,10 @@ func (c *Connections) Close() error {
 }
 
 func (c *Connections) Total(context.Context, *emptypb.Empty) (*gs.TotalFlow, error) {
-	return &gs.TotalFlow{
-		Download: c.Cache.LoadDownload(),
-		Upload:   c.Cache.LoadUpload(),
-	}, nil
+	return (&gs.TotalFlow_builder{
+		Download: proto.Uint64(c.Cache.LoadDownload()),
+		Upload:   proto.Uint64(c.Cache.LoadUpload()),
+	}).Build(), nil
 }
 
 func (c *Connections) Remove(id uint64) {
@@ -153,20 +154,20 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 
 	metrics.Counter.AddConnection(realAddr)
 
-	connection := &statistic.Connection{
-		Id:   c.idSeed.Generate(),
-		Addr: realAddr,
-		Type: &statistic.NetType{
-			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]),
-			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]),
-		},
+	connection := &statistic.Connection_builder{
+		Id:   proto.Uint64(c.idSeed.Generate()),
+		Addr: proto.String(realAddr),
+		Type: (&statistic.NetType_builder{
+			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
+			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]).Enum(),
+		}).Build(),
 		Extra: store.Map(),
 	}
 
 	if out := getRemote(conn); out != "" {
 		connection.Extra["Outbound"] = out
 	}
-	return connection
+	return connection.Build()
 }
 
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

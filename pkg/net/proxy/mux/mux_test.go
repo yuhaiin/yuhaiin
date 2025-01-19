@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestMux(t *testing.T) {
@@ -36,19 +37,15 @@ func TestMux(t *testing.T) {
 		t.Log(string(data))
 	}()
 
-	p, err := simple.NewClient(&protocol.Protocol_Simple{
-		Simple: &protocol.Simple{
-			Host: "127.0.0.1",
-			Port: 4431,
-		},
-	})(nil)
+	p, err := simple.NewClient(protocol.Simple_builder{
+		Host: proto.String("127.0.0.1"),
+		Port: proto.Int32(4431),
+	}.Build())(nil)
 	assert.NoError(t, err)
 
-	p, err = NewClient(&protocol.Protocol_Mux{
-		Mux: &protocol.Mux{
-			Concurrency: 1,
-		},
-	})(p)
+	p, err = NewClient(protocol.Mux_builder{
+		Concurrency: proto.Int32(1),
+	}.Build())(p)
 	assert.NoError(t, err)
 
 	conn, err := p.Conn(context.TODO(), netapi.EmptyAddr)

@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -90,14 +91,14 @@ func init() {
 			return nil, fmt.Errorf("vmess port is not a number: %w", err)
 		}
 
-		simple := &protocol.Protocol_Simple{
-			Simple: &protocol.Simple{
-				Host: n.Address,
-				Port: int32(port),
-			},
+		simple := protocol.Protocol_builder{
+			Simple: protocol.Simple_builder{
+				Host: proto.String(n.Address),
+				Port: proto.Int32(int32(port)),
+			}.Build(),
 		}
 
-		tlsProtocol := &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
+		tlsProtocol := protocol.Protocol_builder{None: &protocol.None{}}.Build()
 
 		if n.Tls == "tls" {
 			if n.Sni == "" {
@@ -108,17 +109,14 @@ func init() {
 				}
 			}
 
-			tlsProtocol = &protocol.Protocol{
-				Protocol: &protocol.Protocol_Tls{
-					Tls: &protocol.TlsConfig{
-
-						ServerNames:        []string{n.Sni},
-						InsecureSkipVerify: !n.VerifyCert,
-						Enable:             true,
-						CaCert:             nil,
-					},
-				},
-			}
+			tlsProtocol = protocol.Protocol_builder{
+				Tls: protocol.TlsConfig_builder{
+					ServerNames:        []string{n.Sni},
+					InsecureSkipVerify: proto.Bool(!n.VerifyCert),
+					Enable:             proto.Bool(true),
+					CaCert:             nil,
+				}.Build(),
+			}.Build()
 		}
 
 		switch n.HeaderType {
@@ -130,39 +128,33 @@ func init() {
 		var netProtocol *protocol.Protocol
 		switch n.Net {
 		case "ws":
-			netProtocol = &protocol.Protocol{
-				Protocol: &protocol.Protocol_Websocket{
-					Websocket: &protocol.Websocket{
-						Host: n.Host,
-						Path: n.Path,
-					},
-				},
-			}
+			netProtocol = protocol.Protocol_builder{
+				Websocket: protocol.Websocket_builder{
+					Host: proto.String(n.Host),
+					Path: proto.String(n.Path),
+				}.Build(),
+			}.Build()
 		case "tcp":
-			netProtocol = &protocol.Protocol{Protocol: &protocol.Protocol_None{None: &protocol.None{}}}
+			netProtocol = protocol.Protocol_builder{None: &protocol.None{}}.Build()
 		default:
 			return nil, fmt.Errorf("vmess net is not supported: %v", n.Net)
 		}
 
-		return &point.Point{
-			Name:   "[vmess]" + n.Ps,
-			Origin: point.Origin_remote,
+		return point.Point_builder{
+			Name:   proto.String("[vmess]" + n.Ps),
+			Origin: point.Origin_remote.Enum(),
 			Protocols: []*protocol.Protocol{
-				{
-					Protocol: simple,
-				},
+				simple.Build(),
 				tlsProtocol,
 				netProtocol,
-				{
-					Protocol: &protocol.Protocol_Vmess{
-						Vmess: &protocol.Vmess{
-							Uuid:     n.Uuid,
-							AlterId:  fmt.Sprint(n.AlterId),
-							Security: n.Security,
-						},
-					},
-				},
+				protocol.Protocol_builder{
+					Vmess: protocol.Vmess_builder{
+						Uuid:     proto.String(n.Uuid),
+						AlterId:  proto.String(fmt.Sprint(n.AlterId)),
+						Security: proto.String(n.Security),
+					}.Build(),
+				}.Build(),
 			},
-		}, nil
+		}.Build(), nil
 	})
 }

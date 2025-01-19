@@ -54,15 +54,14 @@ func (cd Codec) Receive(ws *Conn, v any) error {
 		}
 		return cd.Unmarshal(data, header.opcode, v)
 	})
-
 }
 
 func marshal(v any) (msg []byte, _ opcode, err error) {
 	switch data := v.(type) {
 	case string:
-		return []byte(data), opText, nil
+		return []byte(data), OpText, nil
 	case []byte:
-		return data, opBinary, nil
+		return data, OpBinary, nil
 	}
 	return nil, 8, ErrNotSupported
 }
@@ -108,7 +107,7 @@ var Message = Codec{marshal, unmarshal}
 
 func jsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	msg, err = json.Marshal(v)
-	return msg, opText, err
+	return msg, OpText, err
 }
 
 func jsonUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
@@ -143,7 +142,7 @@ func protoMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	}
 
 	msg, err = proto.Marshal(m)
-	return msg, opBinary, err
+	return msg, OpBinary, err
 }
 
 func protoUnmarshal(msg []byte, payloadType opcode, v any) (err error) {
@@ -164,7 +163,7 @@ func protoJsonMarshal(v any) (msg []byte, payloadType opcode, err error) {
 	}
 
 	msg, err = protojson.Marshal(m)
-	return msg, opBinary, err
+	return msg, OpBinary, err
 }
 
 func protoJsonUnmarshal(msg []byte, payloadType opcode, v any) (err error) {

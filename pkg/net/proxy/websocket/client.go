@@ -12,8 +12,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	websocket "github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket/x"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 )
 
@@ -23,16 +23,16 @@ type client struct {
 }
 
 func init() {
-	point.RegisterProtocol(NewClient)
+	register.RegisterPoint(NewClient)
 }
 
-func NewClient(cf *protocol.Protocol_Websocket) point.WrapProxy {
+func NewClient(cf *protocol.Websocket) register.WrapProxy {
 	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
 
 		return &client{
 			&websocket.Config{
-				Host: cf.Websocket.Host,
-				Path: getNormalizedPath(cf.Websocket.Path),
+				Host: cf.GetHost(),
+				Path: getNormalizedPath(cf.GetPath()),
 			},
 			dialer,
 		}, nil

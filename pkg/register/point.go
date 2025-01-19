@@ -1,29 +1,41 @@
-package point
+package register
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	protocol "github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+func GetPointValue(i *protocol.Protocol) proto.Message {
+	ref := i.ProtoReflect()
+	fields := ref.Descriptor().Oneofs().ByName("protocol")
+	f := ref.WhichOneof(fields)
+	if f == nil {
+		return &protocol.None{}
+	}
+	return ref.Get(f).Message().Interface()
+}
+
 func init() {
-	RegisterProtocol(func(*protocol.Protocol_None) WrapProxy {
+	RegisterPoint(func(*protocol.None) WrapProxy {
 		return func(p netapi.Proxy) (netapi.Proxy, error) { return p, nil }
 	})
 }
 
-func Dialer(p *Point) (r netapi.Proxy, err error) {
+func Dialer(p *point.Point) (r netapi.Proxy, err error) {
 	r = bootstrapProxy
 
-	for _, v := range p.Protocols {
-		r, err = Wrap(v.Protocol)(r)
+	for _, v := range p.GetProtocols() {
+		r, err = Wrap(GetPointValue(v))(r)
 		if err != nil {
 			return
 		}
@@ -34,26 +46,25 @@ func Dialer(p *Point) (r netapi.Proxy, err error) {
 
 type WrapProxy func(p netapi.Proxy) (netapi.Proxy, error)
 
-var execProtocol syncmap.SyncMap[reflect.Type, func(protocol.IsProtocol_Protocol) WrapProxy]
+var execProtocol syncmap.SyncMap[protoreflect.FullName, func(proto.Message) WrapProxy]
 
-func RegisterProtocol[T protocol.IsProtocol_Protocol](wrap func(T) WrapProxy) {
+func RegisterPoint[T proto.Message](wrap func(T) WrapProxy) {
 	if wrap == nil {
 		return
 	}
 
-	var z T
 	execProtocol.Store(
-		reflect.TypeOf(z),
-		func(t protocol.IsProtocol_Protocol) WrapProxy { return wrap(t.(T)) },
+		(*new(T)).ProtoReflect().Descriptor().FullName(),
+		func(t proto.Message) WrapProxy { return wrap(t.(T)) },
 	)
 }
 
-func Wrap(p protocol.IsProtocol_Protocol) WrapProxy {
+func Wrap(p proto.Message) WrapProxy {
 	if p == nil {
 		return ErrConn(fmt.Errorf("value is nil: %v", p))
 	}
 
-	conn, ok := execProtocol.Load(reflect.TypeOf(p))
+	conn, ok := execProtocol.Load(p.ProtoReflect().Descriptor().FullName())
 	if !ok {
 		return ErrConn(fmt.Errorf("protocol %v is not support", p))
 	}
@@ -64,7 +75,7 @@ func Wrap(p protocol.IsProtocol_Protocol) WrapProxy {
 var tlsSessionCache = tls.NewLRUClientSessionCache(128)
 
 func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
-	if t == nil || !t.Enable {
+	if t == nil || !t.GetEnable() {
 		return nil
 	}
 
@@ -74,25 +85,30 @@ func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
 		root = x509.NewCertPool()
 	}
 
-	for i := range t.CaCert {
-		ok := root.AppendCertsFromPEM(t.CaCert[i])
+	for i := range t.GetCaCert() {
+		ok := root.AppendCertsFromPEM(t.GetCaCert()[i])
 		if !ok {
 			log.Error("add cert from pem failed.")
 		}
 	}
 
 	var servername string
-	if len(t.ServerNames) > 0 {
-		servername = t.ServerNames[0]
+	if len(t.GetServerNames()) > 0 {
+		servername = t.GetServerNames()[0]
+	}
+
+	echConfig := t.GetEchConfig()
+	if len(echConfig) == 0 {
+		echConfig = nil
 	}
 
 	return &tls.Config{
 		ServerName:                     servername,
 		RootCAs:                        root,
-		NextProtos:                     t.NextProtos,
-		InsecureSkipVerify:             t.InsecureSkipVerify,
+		NextProtos:                     t.GetNextProtos(),
+		InsecureSkipVerify:             t.GetInsecureSkipVerify(),
 		ClientSessionCache:             tlsSessionCache,
-		EncryptedClientHelloConfigList: t.EchConfig,
+		EncryptedClientHelloConfigList: echConfig,
 		// SessionTicketsDisabled: true,
 	}
 }

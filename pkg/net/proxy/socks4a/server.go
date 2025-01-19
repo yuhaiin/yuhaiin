@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -142,24 +143,22 @@ func (s *Server) AcceptPacket() (*netapi.Packet, error) {
 }
 
 func init() {
-	listener.RegisterProtocol(NewServer)
+	register.RegisterProtocol(NewServer)
 }
 
-func NewServer(o *listener.Inbound_Socks4A) func(netapi.Listener, netapi.Handler) (netapi.Accepter, error) {
-	return func(ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
-		lis, err := ii.Stream(context.TODO())
-		if err != nil {
-			return nil, err
-		}
-
-		s := &Server{
-			usernameID: o.Socks4A.Username,
-			lis:        lis,
-			handler:    handler,
-		}
-
-		go s.Server()
-
-		return s, nil
+func NewServer(o *listener.Socks4A, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
+	lis, err := ii.Stream(context.TODO())
+	if err != nil {
+		return nil, err
 	}
+
+	s := &Server{
+		usernameID: o.GetUsername(),
+		lis:        lis,
+		handler:    handler,
+	}
+
+	go s.Server()
+
+	return s, nil
 }

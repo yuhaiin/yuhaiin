@@ -48,18 +48,16 @@ func NewConfig(path string) Setting {
 }
 
 func (c *setting) migrate() {
-	if c.db.Data.Bypass.BypassFile != "" {
-		c.db.Data.Bypass.RemoteRules = append(c.db.Data.Bypass.RemoteRules, &bypass.RemoteRule{
-			Enabled: true,
-			Name:    "old_bypass_file",
-			Object: &bypass.RemoteRule_File{
-				File: &bypass.RemoteRuleFile{
-					Path: c.db.Data.Bypass.BypassFile,
-				},
-			},
-		})
+	if c.db.Data.GetBypass().GetBypassFile() != "" {
+		c.db.Data.GetBypass().SetRemoteRules(append(c.db.Data.GetBypass().GetRemoteRules(), bypass.RemoteRule_builder{
+			Enabled: proto.Bool(true),
+			Name:    proto.String("old_bypass_file"),
+			File: bypass.RemoteRuleFile_builder{
+				Path: proto.String(c.db.Data.GetBypass().GetBypassFile()),
+			}.Build(),
+		}.Build()))
 
-		c.db.Data.Bypass.BypassFile = ""
+		c.db.Data.GetBypass().SetBypassFile("")
 	}
 }
 
@@ -74,17 +72,17 @@ func Info() *config.Info {
 		}
 	}
 
-	return &config.Info{
-		Version:   version.Version,
-		Commit:    version.GitCommit,
-		BuildTime: version.BuildTime,
-		GoVersion: runtime.Version(),
-		Platform:  runtime.GOOS + "/" + runtime.GOARCH,
-		Compiler:  runtime.Compiler,
-		Arch:      runtime.GOARCH,
-		Os:        runtime.GOOS,
-		Build:     build,
-	}
+	return (&config.Info_builder{
+		Version:   proto.String(version.Version),
+		Commit:    proto.String(version.GitCommit),
+		BuildTime: proto.String(version.BuildTime),
+		GoVersion: proto.String(runtime.Version()),
+		Platform:  proto.String(runtime.GOOS + "/" + runtime.GOARCH),
+		Compiler:  proto.String(runtime.Compiler),
+		Arch:      proto.String(runtime.GOARCH),
+		Os:        proto.String(runtime.GOOS),
+		Build_:    build,
+	}).Build()
 }
 
 func (c *setting) View(f ...func(*config.Setting) error) error {
@@ -103,34 +101,33 @@ func (c *setting) View(f ...func(*config.Setting) error) error {
 func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return &config.Setting{
-		Dns:                        c.db.Data.Dns,
-		Ipv6:                       c.db.Data.Ipv6,
-		Ipv6LocalAddrPreferUnicast: c.db.Data.Ipv6LocalAddrPreferUnicast,
-		Logcat:                     c.db.Data.Logcat,
-		NetInterface:               c.db.Data.NetInterface,
-		SystemProxy:                c.db.Data.SystemProxy,
-		Server: &listener.InboundConfig{
-			HijackDns:       c.db.Data.Server.HijackDns,
-			HijackDnsFakeip: c.db.Data.Server.HijackDnsFakeip,
-			Sniff:           c.db.Data.Server.Sniff,
-		},
-		Platform: c.db.Data.Platform,
-	}, nil
+	return config.Setting_builder{
+		Dns:                        c.db.Data.GetDns(),
+		Ipv6:                       proto.Bool(c.db.Data.GetIpv6()),
+		Ipv6LocalAddrPreferUnicast: proto.Bool(c.db.Data.GetIpv6LocalAddrPreferUnicast()),
+		Logcat:                     c.db.Data.GetLogcat(),
+		NetInterface:               proto.String(c.db.Data.GetNetInterface()),
+		SystemProxy:                c.db.Data.GetSystemProxy(),
+		Server: listener.InboundConfig_builder{
+			HijackDns:       proto.Bool(c.db.Data.GetServer().GetHijackDns()),
+			HijackDnsFakeip: proto.Bool(c.db.Data.GetServer().GetHijackDnsFakeip()),
+			Sniff:           c.db.Data.GetServer().GetSniff(),
+		}.Build(),
+		Platform: c.db.Data.GetPlatform(),
+	}.Build(), nil
 }
 
 func (c *setting) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	err := c.Batch(func(ss *config.Setting) error {
-		ss.Dns = s.Dns
-		ss.Ipv6 = s.Ipv6
-		ss.Ipv6LocalAddrPreferUnicast = s.Ipv6LocalAddrPreferUnicast
-		ss.Logcat = s.Logcat
-		ss.NetInterface = s.NetInterface
-		ss.SystemProxy = s.SystemProxy
-		ss.Server.HijackDns = s.Server.HijackDns
-		ss.Server.HijackDnsFakeip = s.Server.HijackDnsFakeip
-		ss.Server.Sniff = s.Server.Sniff
-
+		ss.SetDns(s.GetDns())
+		ss.SetIpv6(s.GetIpv6())
+		ss.SetIpv6LocalAddrPreferUnicast(s.GetIpv6LocalAddrPreferUnicast())
+		ss.SetLogcat(s.GetLogcat())
+		ss.SetNetInterface(s.GetNetInterface())
+		ss.SetSystemProxy(s.GetSystemProxy())
+		ss.GetServer().SetHijackDns(s.GetServer().GetHijackDns())
+		ss.GetServer().SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
+		ss.GetServer().SetSniff(s.GetServer().GetSniff())
 		return nil
 	})
 

@@ -14,6 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestUDP(t *testing.T) {
@@ -66,22 +67,18 @@ func (h *handler) HandlePacket(conn *netapi.Packet) {
 }
 
 func TestUsernamePassword(t *testing.T) {
-	ss, err := simple.NewServer(&listener.Inbound_Tcpudp{
-		Tcpudp: &listener.Tcpudp{
-			Host:    "0.0.0.0:1083",
-			Control: listener.TcpUdpControl_tcp_udp_control_all,
-		},
-	})
+	ss, err := simple.NewServer(listener.Tcpudp_builder{
+		Host:    proto.String("0.0.0.0:1083"),
+		Control: listener.TcpUdpControl_tcp_udp_control_all.Enum(),
+	}.Build())
 	assert.NoError(t, err)
 	defer ss.Close()
 
-	accept, err := NewServer(&listener.Inbound_Socks5{
-		Socks5: &listener.Socks5{
-			Username: "test",
-			Password: "test",
-			Udp:      true,
-		},
-	})(ss, &handler{t})
+	accept, err := NewServer(listener.Socks5_builder{
+		Username: proto.String("test"),
+		Password: proto.String("test"),
+		Udp:      proto.Bool(true),
+	}.Build(), ss, &handler{t})
 	assert.NoError(t, err)
 	defer accept.Close()
 

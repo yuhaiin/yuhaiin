@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
 type Server struct {
@@ -108,13 +109,13 @@ func (s *Server) Stream(ctx context.Context) (net.Listener, error) {
 	return s.Listener, nil
 }
 
-func NewServer(c *listener.Inbound_Tcpudp) (netapi.Listener, error) {
+func NewServer(c *listener.Tcpudp) (netapi.Listener, error) {
 	return &Server{
-		host:    c.Tcpudp.Host,
-		control: c.Tcpudp.Control,
+		host:    c.GetHost(),
+		control: c.GetControl(),
 	}, nil
 }
 
 func init() {
-	listener.RegisterNetwork(NewServer)
+	register.RegisterNetwork(NewServer)
 }

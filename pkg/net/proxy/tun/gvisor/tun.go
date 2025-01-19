@@ -57,11 +57,11 @@ func (t *tunServer) Close() error {
 
 func New(o *device.Opt) (netapi.Accepter, error) {
 	opt := o.Tun
-	if opt.Mtu <= 0 {
-		opt.Mtu = 1500
+	if opt.GetMtu() <= 0 {
+		opt.SetMtu(1500)
 	}
 
-	ep, err := Open(o.Interface, opt.GetDriver(), int(opt.Mtu))
+	ep, err := Open(o.Interface, opt.GetDriver(), int(opt.GetMtu()))
 	if err != nil {
 		return nil, fmt.Errorf("open tun failed: %w", err)
 	}
@@ -90,7 +90,7 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 		return nil, fmt.Errorf("create nic failed: %v", er)
 	}
 
-	log.Info("new tun stack", "name", opt.Name, "mtu", opt.Mtu, "portal", opt.Portal, "nicID", nicID, "driver", opt.GetDriver())
+	log.Info("new tun stack", "name", opt.GetName(), "mtu", opt.GetMtu(), "portal", opt.GetPortal(), "nicID", nicID, "driver", opt.GetDriver())
 
 	if err = netlink.Route(o.Options); err != nil {
 		log.Warn("preload failed", "err", err)

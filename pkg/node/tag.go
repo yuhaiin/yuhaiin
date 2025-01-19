@@ -20,15 +20,15 @@ type tag struct {
 func (f *Nodes) Tag() gn.TagServer { return &tag{n: f} }
 
 func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
-	if r.Type == pt.TagType_mirror && r.Tag == r.Hash {
+	if r.GetType() == pt.TagType_mirror && r.GetTag() == r.GetHash() {
 		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")
 	}
 
-	if _, ok := t.n.manager.ExistTag(r.Tag); ok {
-		t.n.manager.DeleteTag(r.Tag)
+	if _, ok := t.n.manager.ExistTag(r.GetTag()); ok {
+		t.n.manager.DeleteTag(r.GetTag())
 	}
 
-	t.n.manager.AddTag(r.Tag, r.Type, r.Hash)
+	t.n.manager.AddTag(r.GetTag(), r.GetType(), r.GetHash())
 
 	return &emptypb.Empty{}, t.n.db.Save()
 }
@@ -39,7 +39,7 @@ func (t *tag) Remove(_ context.Context, r *wrapperspb.StringValue) (*emptypb.Emp
 }
 
 func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, error) {
-	resp := &gn.TagsResponse{
+	resp := gn.TagsResponse_builder{
 		Tags: maps.Clone(t.n.manager.GetTags()),
 	}
 
@@ -51,5 +51,5 @@ func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, err
 		}
 	}
 
-	return resp, nil
+	return resp.Build(), nil
 }
