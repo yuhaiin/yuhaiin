@@ -37,5 +37,5 @@ message connection {
   string addr = 1 [ json_name = "addr" ];
   uint64 id = 2 [ json_name = "id" ];
   net_type type = 3 [ json_name = "type" ];
-  map<string, string> extra = 4 [ json_name = "extra" ];
+  map<string, string> extra = 4 [ json_name = "extra", lazy = true ];
 }

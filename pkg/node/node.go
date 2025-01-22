@@ -59,7 +59,7 @@ func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point,
 		return &point.Point{}, fmt.Errorf("node not found")
 	}
 
-	return p, nil
+	return proto.Clone(p).(*point.Point), nil
 }
 
 func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
@@ -72,9 +72,9 @@ func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 }
 
 func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
-	return gn.NodesResponse_builder{
+	return proto.Clone(gn.NodesResponse_builder{
 		Groups: n.manager.GetGroupsV2(),
-	}.Build(), nil
+	}.Build()).(*gn.NodesResponse), nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {

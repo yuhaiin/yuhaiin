@@ -240,13 +240,15 @@ func Network(config proto.Message) (netapi.Listener, error) {
 
 func Transports(lis netapi.Listener, protocols []*listener.Transport) (netapi.Listener, error) {
 	var err error
-	for _, v := range protocols {
+	for _, protocol := range protocols {
+		v := GetTransportOneofValue(protocol)
+
 		fn, ok := transportStore.Load(v.ProtoReflect().Descriptor().FullName())
 		if !ok {
-			return nil, fmt.Errorf("transport %v is not support", GetTransportOneofValue(v))
+			return nil, fmt.Errorf("transport %v is not support", v)
 		}
 
-		lis, err = fn(GetTransportOneofValue(v), lis)
+		lis, err = fn(v, lis)
 		if err != nil {
 			return nil, err
 		}
