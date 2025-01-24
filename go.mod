@@ -22,7 +22,7 @@ require (
 	golang.org/x/time v0.9.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.69.4
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 	gvisor.dev/gvisor v0.0.0-20241220022509-4690b2e35d70
 )
 
