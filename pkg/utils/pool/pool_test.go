@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -47,4 +48,14 @@ func TestPrefixConn(t *testing.T) {
 	defer x.Close()
 
 	_, _ = io.Copy(os.Stdout, x)
+}
+
+func TestSize(t *testing.T) {
+	as := []string{}
+	for i := range 17 {
+		fmt.Println(1 << i)
+		as = append(as, fmt.Sprint(1<<i))
+	}
+
+	fmt.Println(strings.Join(as, ","))
 }

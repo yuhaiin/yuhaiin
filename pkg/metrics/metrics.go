@@ -56,6 +56,9 @@ var Counter Metrics = &EmptyMetrics{}
 type Metrics interface {
 	AddReceiveUDPPacket()
 	AddSendUDPPacket()
+	AddReceiveUDPDroppedPacket()
+	AddSendUDPDroppedPacket()
+	AddUDPPacketSize(size int)
 	AddConnection(addr string)
 	AddBlockConnection(addr string)
 	RemoveConnection(n int)
@@ -69,6 +72,9 @@ type EmptyMetrics struct{}
 
 func (m *EmptyMetrics) AddReceiveUDPPacket()                                                  {}
 func (m *EmptyMetrics) AddSendUDPPacket()                                                     {}
+func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()                                           {}
+func (m *EmptyMetrics) AddSendUDPDroppedPacket()                                              {}
+func (m *EmptyMetrics) AddUDPPacketSize(size int)                                             {}
 func (m *EmptyMetrics) AddConnection(addr string)                                             {}
 func (m *EmptyMetrics) AddBlockConnection(addr string)                                        {}
 func (m *EmptyMetrics) RemoveConnection(n int)                                                {}
@@ -78,11 +84,15 @@ func (m *EmptyMetrics) AddFailedDNS(domain string, rcode dnsmessage.RCode, t dns
 func (m *EmptyMetrics) AddTCPDialFailed(addr string)                                          {}
 
 type Prometheus struct {
-	TotalReceiveUDPPacket prometheus.Counter
-	TotalSendUDPPacket    prometheus.Counter
-	TotalConnection       prometheus.Counter
-	CurrentConnection     prometheus.Gauge
-	TotalBlockConnection  prometheus.Counter
+	TotalReceiveUDPPacket        prometheus.Counter
+	TotalSendUDPPacket           prometheus.Counter
+	TotalReceiveUDPDroppedPacket prometheus.Counter
+	TotalSendUDPDroppedPacket    prometheus.Counter
+	UDPPacketSize                prometheus.Histogram
+
+	TotalConnection      prometheus.Counter
+	CurrentConnection    prometheus.Gauge
+	TotalBlockConnection prometheus.Counter
 
 	StreamConnectDurationSeconds prometheus.Histogram
 	StreamConnectSummarySeconds  prometheus.Summary
@@ -110,6 +120,22 @@ func NewPrometheus() *Prometheus {
 		TotalSendUDPPacket: promauto.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_udp_send_packets_total",
 			Help:        "The total number of udp send packets",
+			ConstLabels: labels,
+		}),
+		TotalReceiveUDPDroppedPacket: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_udp_receive_dropped_packets_total",
+			Help:        "The total number of udp receive dropped packets",
+			ConstLabels: labels,
+		}),
+		TotalSendUDPDroppedPacket: promauto.NewCounter(prometheus.CounterOpts{
+			Name:        "yuhaiin_udp_send_dropped_packets_total",
+			Help:        "The total number of udp send dropped packets",
+			ConstLabels: labels,
+		}),
+		UDPPacketSize: promauto.NewHistogram(prometheus.HistogramOpts{
+			Name:        "yuhaiin_udp_packet_size_bytes",
+			Help:        "The size of udp packet",
+			Buckets:     []float64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536},
 			ConstLabels: labels,
 		}),
 		TotalConnection: promauto.NewCounter(prometheus.CounterOpts{
@@ -193,4 +219,16 @@ func (p *Prometheus) AddReceiveUDPPacket() {
 
 func (p *Prometheus) AddSendUDPPacket() {
 	p.TotalSendUDPPacket.Inc()
+}
+
+func (p *Prometheus) AddReceiveUDPDroppedPacket() {
+	p.TotalReceiveUDPDroppedPacket.Inc()
+}
+
+func (p *Prometheus) AddSendUDPDroppedPacket() {
+	p.TotalSendUDPDroppedPacket.Inc()
+}
+
+func (p *Prometheus) AddUDPPacketSize(size int) {
+	p.UDPPacketSize.Observe(float64(size))
 }

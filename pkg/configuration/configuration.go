@@ -23,7 +23,8 @@ var (
 
 	SnifferBufferSize = pool.DefaultSize
 
-	UDPBatchSize = 8
+	UDPBatchSize             = 8
+	MaxUDPUnprocessedPackets = 250
 
 	MPTCP = false
 
