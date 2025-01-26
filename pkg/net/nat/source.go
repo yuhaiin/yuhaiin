@@ -18,11 +18,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 )
 
 type waitPacket struct {
 	ctx *netapi.Context
 	pkt *netapi.Packet
+}
+
+type sentPacket struct {
+	buf []byte
+	src net.Addr
 }
 
 type Context struct {
@@ -40,9 +46,17 @@ func newContext(store *netapi.Context) Context {
 }
 
 type SourceControl struct {
-	ctx      context.Context
-	close    context.CancelFunc
-	ch       chan waitPacket
+	ctx   context.Context
+	close context.CancelFunc
+
+	sentPacketMx     sync.Mutex
+	sentPackets      ringbuffer.RingBuffer[waitPacket]
+	notifySentPacket chan struct{}
+
+	receivedPacketMx     sync.Mutex
+	receivedPackets      ringbuffer.RingBuffer[sentPacket]
+	notifyReceivedPacket chan struct{}
+
 	onRemove func(*SourceControl)
 
 	addrStore addrStore
@@ -56,15 +70,19 @@ type SourceControl struct {
 func NewSourceChan(dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &SourceControl{
-		ctx:      ctx,
-		close:    cancel,
-		ch:       make(chan waitPacket, 350),
-		onRemove: onRemove,
-		dialer:   dialer,
+		ctx:                  ctx,
+		close:                cancel,
+		notifySentPacket:     make(chan struct{}, 1),
+		notifyReceivedPacket: make(chan struct{}, 1),
+		onRemove:             onRemove,
+		dialer:               dialer,
 		wirteBack: atomicx.NewValue[netapi.WriteBack](netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return 0, errors.ErrUnsupported
 		})),
 	}
+
+	s.sentPackets.Init(8)
+	s.receivedPackets.Init(8)
 
 	s.stopTimer = NewStopTimer(IdleTimeout, func() { _ = s.Close() })
 	s.stopTimer.Start()
@@ -77,6 +95,23 @@ func (u *SourceControl) Close() error {
 	u.stopTimer.Stop()
 	u.close()
 	u.onRemove(u)
+
+	u.sentPacketMx.Lock()
+	defer u.sentPacketMx.Unlock()
+
+	for !u.sentPackets.Empty() {
+		pkt := u.sentPackets.PopFront()
+		pkt.pkt.DecRef()
+	}
+
+	u.receivedPacketMx.Lock()
+	defer u.receivedPacketMx.Unlock()
+
+	for !u.receivedPackets.Empty() {
+		pkt := u.receivedPackets.PopFront()
+		pool.PutBytes(pkt.buf)
+	}
+
 	return nil
 }
 
@@ -85,16 +120,8 @@ func (u *SourceControl) run() {
 		select {
 		case <-u.ctx.Done():
 			return
-		case pkt := <-u.ch:
-			if err := u.handle(pkt.ctx, pkt.pkt); err != nil {
-				if netapi.IsBlockError(err) {
-					u.Close()
-					pkt.pkt.DecRef()
-					return
-				}
-				log.Error("handle packet failed", "err", err)
-			}
-			pkt.pkt.DecRef()
+		case <-u.notifySentPacket:
+			u.handle()
 		}
 	}
 }
@@ -105,15 +132,67 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 	case <-u.ctx.Done():
 		pkt.DecRef()
 		return u.ctx.Err()
-	case u.ch <- waitPacket{netapi.GetContext(ctx), pkt}:
-		return nil
 	case <-ctx.Done():
 		pkt.DecRef()
 		return ctx.Err()
+
+	default:
+		u.sentPacketMx.Lock()
+		if u.sentPackets.Len() >= configuration.MaxUDPUnprocessedPackets {
+			u.sentPacketMx.Unlock()
+			metrics.Counter.AddSendUDPDroppedPacket()
+			return fmt.Errorf("ringbuffer is full, drop packet")
+		}
+
+		u.sentPackets.PushBack(waitPacket{netapi.GetContext(ctx), pkt})
+		u.sentPacketMx.Unlock()
+
+		select {
+		case u.notifySentPacket <- struct{}{}:
+		default:
+		}
+		return nil
 	}
 }
 
-func (u *SourceControl) handle(ctx *netapi.Context, pkt *netapi.Packet) error {
+func (u *SourceControl) handle() {
+	u.sentPacketMx.Lock()
+	numPackets := u.sentPackets.Len()
+	if numPackets == 0 {
+		u.sentPacketMx.Unlock()
+		return
+	}
+
+	var hasMorePackets bool
+
+	for i := 0; i < numPackets; i++ {
+		if i > 0 {
+			u.sentPacketMx.Lock()
+		}
+
+		hasMorePackets = !u.sentPackets.Empty()
+		if !hasMorePackets {
+			u.sentPacketMx.Unlock()
+			return
+		}
+
+		pkt := u.sentPackets.PopFront()
+		u.sentPacketMx.Unlock()
+
+		if err := u.handleOne(pkt.ctx, pkt.pkt); err != nil {
+			if netapi.IsBlockError(err) {
+				u.Close()
+				pkt.pkt.DecRef()
+				return
+			}
+			log.Error("handle packet failed", "err", err)
+		}
+
+		pkt.pkt.DecRef()
+	}
+}
+
+func (u *SourceControl) handleOne(ctx *netapi.Context, pkt *netapi.Packet) error {
 	_, ok := ctx.Deadline()
 	if ok {
 		ctx.Context = context.WithoutCancel(ctx.Context)
@@ -236,15 +315,67 @@ func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
 }
 
 func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
+	ctx, cancel := context.WithCancel(u.ctx)
+
 	defer func() {
+		cancel()
 		u.stopTimer.Start()
 		p.Close()
 	}()
 
-	data := pool.GetBytes(MaxSegmentSize)
-	defer pool.PutBytes(data)
+	go func() {
+	_loop:
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-u.ctx.Done():
+				p.Close()
+				return
+			case <-u.notifyReceivedPacket:
+				u.receivedPacketMx.Lock()
+				numPackets := u.receivedPackets.Len()
+
+				if numPackets == 0 {
+					u.receivedPacketMx.Unlock()
+					continue
+				}
+
+				writeBack := u.wirteBack.Load()
+
+				var hasMorePackets bool
+				for i := 0; i < numPackets; i++ {
+					if i > 0 {
+						u.receivedPacketMx.Lock()
+					}
+
+					hasMorePackets = !u.receivedPackets.Empty()
+					if !hasMorePackets {
+						u.receivedPacketMx.Unlock()
+						continue _loop
+					}
+
+					pkt := u.receivedPackets.PopFront()
+					u.receivedPacketMx.Unlock()
+
+					_, err := writeBack.WriteBack(pkt.buf, u.parseAddr(pkt.src))
+					pool.PutBytes(pkt.buf)
+
+					if err != nil {
+						if errors.Is(err, net.ErrClosed) {
+							p.Close()
+							return
+						}
+
+						log.Error("write back failed", "err", err)
+					}
+				}
+			}
+		}
+	}()
 
 	for {
+		data := pool.GetBytes(MaxSegmentSize)
 		_ = p.SetReadDeadline(time.Now().Add(IdleTimeout))
 		n, from, err := p.ReadFrom(data)
 		if err != nil {
@@ -253,18 +384,27 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 			} else {
 				log.Error("read from proxy failed", "err", err, "dst", dst)
 			}
+			pool.PutBytes(data)
 			return
 		}
 
 		metrics.Counter.AddReceiveUDPPacket()
+		metrics.Counter.AddUDPPacketSize(n)
 
-		_, err = u.wirteBack.Load().WriteBack(data[:n], u.parseAddr(from))
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return
-			}
+		u.receivedPacketMx.Lock()
+		if u.receivedPackets.Len() >= configuration.MaxUDPUnprocessedPackets {
+			u.receivedPacketMx.Unlock()
+			pool.PutBytes(data)
+			metrics.Counter.AddReceiveUDPDroppedPacket()
+			continue
+		}
 
-			log.Error("write back failed", "err", err)
+		u.receivedPackets.PushBack(sentPacket{data[:n], from})
+		u.receivedPacketMx.Unlock()
+
+		select {
+		case u.notifyReceivedPacket <- struct{}{}:
+		default:
 		}
 	}
 }

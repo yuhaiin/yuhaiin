@@ -99,11 +99,14 @@ func (s *handler) Packet(store *netapi.Context, pack *netapi.Packet) {
 		}
 	}
 
+	// ! because we use ringbuffer which can drop the packet if the buffer is full
+	// ! so here we assume the network is not congesting
+	//
 	// after 1.5s, we assume the network is congesting, just drop the packet
-	xctx, cancel := context.WithTimeout(store, time.Millisecond*1500)
-	defer cancel()
+	// xctx, cancel := context.WithTimeout(store, time.Millisecond*1500)
+	// defer cancel()
 
-	if err := s.table.Write(xctx, pack); err != nil {
+	if err := s.table.Write(store, pack); err != nil {
 		log.Error("packet", "error", err)
 	}
 }
