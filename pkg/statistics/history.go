@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/statistic"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
@@ -34,7 +35,7 @@ type FailedHistory struct {
 func NewFailedHistory() *FailedHistory {
 	return &FailedHistory{
 		store: lru.NewSyncLru(
-			lru.WithCapacity[failedHistoryKey, *failedHistoryEntry](1000),
+			lru.WithCapacity[failedHistoryKey, *failedHistoryEntry](configuration.HistorySize),
 		),
 	}
 }
@@ -109,13 +110,13 @@ type historyEntry struct {
 func NewHistory() *History {
 	return &History{
 		store: lru.NewSyncLru(
-			lru.WithCapacity[failedHistoryKey, *historyEntry](1000),
+			lru.WithCapacity[failedHistoryKey, *historyEntry](configuration.HistorySize),
 		),
 	}
 }
 
 func (h *History) Push(c *statistic.Connection) {
-	key := failedHistoryKey{c.GetType().GetConnType().String(), c.GetAddr(), c.GetExtra()["Process"]}
+	key := failedHistoryKey{c.GetType().GetConnType().String(), c.GetAddr(), c.GetProcess()}
 
 	if !h.dumpProcess.Load() && key.process != "" {
 		h.dumpProcess.Store(true)

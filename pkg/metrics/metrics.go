@@ -58,7 +58,8 @@ type Metrics interface {
 	AddSendUDPPacket()
 	AddReceiveUDPDroppedPacket()
 	AddSendUDPDroppedPacket()
-	AddUDPPacketSize(size int)
+	AddReceiveUDPPacketSize(size int)
+	AddSendUDPPacketSize(size int)
 	AddConnection(addr string)
 	AddBlockConnection(addr string)
 	RemoveConnection(n int)
@@ -74,7 +75,8 @@ func (m *EmptyMetrics) AddReceiveUDPPacket()                                    
 func (m *EmptyMetrics) AddSendUDPPacket()                                                     {}
 func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()                                           {}
 func (m *EmptyMetrics) AddSendUDPDroppedPacket()                                              {}
-func (m *EmptyMetrics) AddUDPPacketSize(size int)                                             {}
+func (m *EmptyMetrics) AddReceiveUDPPacketSize(size int)                                      {}
+func (m *EmptyMetrics) AddSendUDPPacketSize(size int)                                         {}
 func (m *EmptyMetrics) AddConnection(addr string)                                             {}
 func (m *EmptyMetrics) AddBlockConnection(addr string)                                        {}
 func (m *EmptyMetrics) RemoveConnection(n int)                                                {}
@@ -88,7 +90,8 @@ type Prometheus struct {
 	TotalSendUDPPacket           prometheus.Counter
 	TotalReceiveUDPDroppedPacket prometheus.Counter
 	TotalSendUDPDroppedPacket    prometheus.Counter
-	UDPPacketSize                prometheus.Histogram
+	UDPReceivePacketSize         prometheus.Histogram
+	UDPSendPacketSize            prometheus.Histogram
 
 	TotalConnection      prometheus.Counter
 	CurrentConnection    prometheus.Gauge
@@ -132,10 +135,16 @@ func NewPrometheus() *Prometheus {
 			Help:        "The total number of udp send dropped packets",
 			ConstLabels: labels,
 		}),
-		UDPPacketSize: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name:        "yuhaiin_udp_packet_size_bytes",
-			Help:        "The size of udp packet",
-			Buckets:     []float64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536},
+		UDPReceivePacketSize: promauto.NewHistogram(prometheus.HistogramOpts{
+			Name:        "yuhaiin_udp_receive_packet_size_bytes",
+			Help:        "The size of udp receive packet",
+			Buckets:     []float64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1500, 2048, 4096, 8192, 16384, 32768, 65536},
+			ConstLabels: labels,
+		}),
+		UDPSendPacketSize: promauto.NewHistogram(prometheus.HistogramOpts{
+			Name:        "yuhaiin_udp_send_packet_size_bytes",
+			Help:        "The size of udp send packet",
+			Buckets:     []float64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1500, 2048, 4096, 8192, 16384, 32768, 65536},
 			ConstLabels: labels,
 		}),
 		TotalConnection: promauto.NewCounter(prometheus.CounterOpts{
@@ -156,6 +165,7 @@ func NewPrometheus() *Prometheus {
 		StreamConnectDurationSeconds: promauto.NewHistogram(prometheus.HistogramOpts{
 			Name:        "yuhaiin_stream_connect_duration_seconds",
 			Help:        "The duration of tcp connect",
+			Buckets:     []float64{50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 2500, 3000, 5000, 10000},
 			ConstLabels: labels,
 		}),
 		StreamConnectSummarySeconds: promauto.NewSummary(prometheus.SummaryOpts{
@@ -229,6 +239,10 @@ func (p *Prometheus) AddSendUDPDroppedPacket() {
 	p.TotalSendUDPDroppedPacket.Inc()
 }
 
-func (p *Prometheus) AddUDPPacketSize(size int) {
-	p.UDPPacketSize.Observe(float64(size))
+func (p *Prometheus) AddReceiveUDPPacketSize(size int) {
+	p.UDPReceivePacketSize.Observe(float64(size))
+}
+
+func (p *Prometheus) AddSendUDPPacketSize(size int) {
+	p.UDPSendPacketSize.Observe(float64(size))
 }

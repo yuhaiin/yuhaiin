@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"syscall"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -135,7 +136,7 @@ func closeWrite(rw io.ReadWriteCloser) {
 }
 
 func Copy(dst io.Writer, src io.Reader) (n int64, err error) {
-	buf := pool.GetBytes(8192)
+	buf := pool.GetBytes(configuration.RelayBufferSize.Load())
 	defer pool.PutBytes(buf)
 	// to avoid using (*net.TCPConn).ReadFrom that will make new none-zero buf
 	return io.CopyBuffer(WriteOnlyWriter{dst}, ReadOnlyReader{src}, buf)

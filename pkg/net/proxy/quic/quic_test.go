@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
@@ -106,9 +106,9 @@ func TestQuic(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			length := mrand.IntN(nat.MaxSegmentSize - 1024)
+			length := mrand.IntN(pool.MaxSegmentSize - 1024)
 			data := make([]byte, length)
-			recevie := make([]byte, nat.MaxSegmentSize)
+			recevie := make([]byte, pool.MaxSegmentSize)
 
 			_, err := io.ReadFull(rand.Reader, data)
 			assert.NoError(t, err)
@@ -193,7 +193,7 @@ func TestSimple(t *testing.T) {
 	go func() {
 
 		for {
-			recevie := make([]byte, nat.MaxSegmentSize)
+			recevie := make([]byte, pool.MaxSegmentSize)
 			n, _, err := pc.ReadFrom(recevie)
 			assert.NoError(t, err)
 

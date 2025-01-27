@@ -37,7 +37,7 @@ func (t *encryptedHandshaker) EncodeHeader(header types.Header, buf types.Buffer
 	}
 
 	if header.Protocol == types.TCP {
-		tools.EncodeAddr(header.Addr, buf)
+		tools.WriteAddr(header.Addr, buf)
 	}
 }
 

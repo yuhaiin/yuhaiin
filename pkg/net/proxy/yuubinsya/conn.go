@@ -59,33 +59,28 @@ func (c *PacketConn) Handshake(migrateID uint64) (uint64, error) {
 }
 
 func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
-	w := pool.NewBufferSize(min(len(payload), nat.MaxSegmentSize) + 1024)
-	defer w.Reset()
-	err := c.payloadToBuffer(w, payload, addr)
-	if err != nil {
-		return 0, err
+	bufLen := len(payload)
+	if bufLen > nat.MaxSegmentSize {
+		return 0, fmt.Errorf("payload too large: %d > %d", bufLen, nat.MaxSegmentSize)
 	}
 
-	_, err = c.BufioConn.Write(w.Bytes())
+	taddr, err := netapi.ParseSysAddr(addr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse addr: %w", err)
+	}
+
+	buf := pool.GetBytes(bufLen + tools.MaxAddrLength + 2)
+	defer pool.PutBytes(buf)
+
+	addrLen := tools.EncodeAddr(taddr, buf)
+	binary.BigEndian.PutUint16(buf[addrLen:], uint16(bufLen))
+	copy(buf[addrLen+2:], payload)
+
+	_, err = c.BufioConn.Write(buf[:bufLen+addrLen+2])
 	if err != nil {
 		return 0, err
 	}
 	return len(payload), nil
-}
-
-func (c *PacketConn) payloadToBuffer(w *pool.Buffer, payload []byte, addr net.Addr) error {
-	length := min(len(payload), nat.MaxSegmentSize)
-
-	taddr, err := netapi.ParseSysAddr(addr)
-	if err != nil {
-		return fmt.Errorf("failed to parse addr: %w", err)
-	}
-
-	tools.EncodeAddr(taddr, w)
-	_ = pool.BinaryWriteUint16(w, binary.BigEndian, uint16(length))
-	_, _ = w.Write(payload[:length])
-
-	return nil
 }
 
 func (c *PacketConn) WriteBack(b []byte, addr net.Addr) (int, error) {

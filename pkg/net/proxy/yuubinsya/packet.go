@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -122,7 +123,7 @@ type UDPServer struct {
 func (s *UDPServer) Serve() error {
 	p := NewAuthPacketConn(s.PacketConn).WithAuth(s.Auth).WithSocks5Prefix(s.Prefix)
 
-	buf := pool.GetBytes(nat.MaxSegmentSize)
+	buf := pool.GetBytes(configuration.UDPBufferSize.Load() + types.MaxPacketHeaderSize(s.Auth, s.Prefix))
 	defer pool.PutBytes(buf)
 
 	for {

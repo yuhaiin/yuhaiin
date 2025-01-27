@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -57,7 +58,7 @@ func (c *client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {
 		return nil, fmt.Errorf("write request failed: %w", err)
 	}
 
-	cconn := pool.NewBufioConnSize(conn, pool.DefaultSize)
+	cconn := pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())
 
 	var resp *http.Response
 	err = cconn.BufioRead(func(r *bufio.Reader) error {

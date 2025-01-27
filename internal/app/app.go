@@ -28,6 +28,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/bbolt"
 	bolterr "go.etcd.io/bbolt/errors"
@@ -112,6 +113,15 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
 		configuration.IPv6.Store(s.GetIpv6())
 		configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
+		if advanced := s.GetAdvancedConfig(); advanced != nil {
+			if advanced.GetUdpBufferSize() > 2048 && advanced.GetUdpBufferSize() < 65535 {
+				configuration.UDPBufferSize.Store(int(advanced.GetUdpBufferSize()))
+			}
+
+			if advanced.GetRelayBufferSize() > 2048 && advanced.GetRelayBufferSize() < 65535 {
+				configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
+			}
+		}
 	}))
 
 	// proxy access point/endpoint
@@ -147,7 +157,11 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	tools := tools.NewTools(opt.Setting)
 	mux := http.NewServeMux()
 
-	mux.Handle("GET /metrics", promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
+		prometheus.DefaultRegisterer, promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+			DisableCompression: true,
+			EnableOpenMetrics:  true,
+		})))
 
 	app := &appapi.Components{
 		Start:          so,

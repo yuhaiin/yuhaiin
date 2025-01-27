@@ -25,6 +25,8 @@ var (
 
 	UDPBatchSize             = 8
 	MaxUDPUnprocessedPackets = 250
+	UDPBufferSize            = atomicx.NewValue(2048)
+	RelayBufferSize          = atomicx.NewValue(4096)
 
 	MPTCP = false
 
@@ -33,6 +35,8 @@ var (
 	IPv6 = atomicx.NewValue(true)
 	// resolver fake ip or inbound fake ip enable
 	FakeIPEnabled = atomicx.NewValue(false)
+
+	HistorySize = or[uint](1000, 500)
 )
 
 func or[T any](a, b T) T {

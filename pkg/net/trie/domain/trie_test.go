@@ -9,7 +9,7 @@ import (
 )
 
 func TestDelete(t *testing.T) {
-	x := &trie[string]{Child: map[unique.Handle[string]]*trie[string]{}}
+	x := &trie[string]{Child: map[string]*trie[string]{}}
 	insert(x, newReader("www.baidu.com", '.'), "baidu")
 	insert(x, newReader("www.google.com", '.'), "google")
 	insert(x, newReader("www.twitter.com", '.'), "twitter")
@@ -37,7 +37,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestTrieDomainMatcherSearch(t *testing.T) {
-	root := &trie[string]{Child: map[unique.Handle[string]]*trie[string]{}}
+	root := &trie[string]{Child: map[string]*trie[string]{}}
 	insert(root, newReader("*.baidu.com", '.'), "sub_baidu_test")
 	insert(root, newReader("www.baidu.com", '.'), "test_baidu")
 	insert(root, newReader("last.baidu.*", '.'), "test_last_baidu")

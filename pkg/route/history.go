@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
@@ -29,7 +30,7 @@ type RejectHistory struct {
 
 func NewRejectHistory() *RejectHistory {
 	return &RejectHistory{
-		store: lru.NewSyncLru(lru.WithCapacity[blockHistoryKey, *blockHistoryEntry](1000)),
+		store: lru.NewSyncLru(lru.WithCapacity[blockHistoryKey, *blockHistoryEntry](configuration.HistorySize)),
 	}
 }
 

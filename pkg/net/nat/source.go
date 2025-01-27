@@ -16,15 +16,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/ringbuffer"
 )
-
-type waitPacket struct {
-	ctx *netapi.Context
-	pkt *netapi.Packet
-}
 
 type sentPacket struct {
 	buf []byte
@@ -50,7 +46,7 @@ type SourceControl struct {
 	close context.CancelFunc
 
 	sentPacketMx     sync.Mutex
-	sentPackets      ringbuffer.RingBuffer[waitPacket]
+	sentPackets      ringbuffer.RingBuffer[*netapi.Packet]
 	notifySentPacket chan struct{}
 
 	receivedPacketMx     sync.Mutex
@@ -65,9 +61,11 @@ type SourceControl struct {
 	context   Context
 	conn      *wrapConn
 	wirteBack *atomicx.Value[netapi.WriteBack]
+
+	sniffer netapi.PacketSniffer
 }
 
-func NewSourceChan(dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
+func NewSourceChan(sniffer netapi.PacketSniffer, dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceControl {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &SourceControl{
 		ctx:                  ctx,
@@ -76,6 +74,7 @@ func NewSourceChan(dialer netapi.Proxy, onRemove func(*SourceControl)) *SourceCo
 		notifyReceivedPacket: make(chan struct{}, 1),
 		onRemove:             onRemove,
 		dialer:               dialer,
+		sniffer:              sniffer,
 		wirteBack: atomicx.NewValue[netapi.WriteBack](netapi.WriteBackFunc(func(b []byte, addr net.Addr) (int, error) {
 			return 0, errors.ErrUnsupported
 		})),
@@ -101,7 +100,7 @@ func (u *SourceControl) Close() error {
 
 	for !u.sentPackets.Empty() {
 		pkt := u.sentPackets.PopFront()
-		pkt.pkt.DecRef()
+		pkt.DecRef()
 	}
 
 	u.receivedPacketMx.Lock()
@@ -144,7 +143,7 @@ func (u *SourceControl) WritePacket(ctx context.Context, pkt *netapi.Packet) err
 			return fmt.Errorf("ringbuffer is full, drop packet")
 		}
 
-		u.sentPackets.PushBack(waitPacket{netapi.GetContext(ctx), pkt})
+		u.sentPackets.PushBack(pkt)
 		u.sentPacketMx.Unlock()
 
 		select {
@@ -179,36 +178,54 @@ func (u *SourceControl) handle() {
 		pkt := u.sentPackets.PopFront()
 		u.sentPacketMx.Unlock()
 
-		if err := u.handleOne(pkt.ctx, pkt.pkt); err != nil {
+		if err := u.handleOne(pkt); err != nil {
 			if netapi.IsBlockError(err) {
 				u.Close()
-				pkt.pkt.DecRef()
+				pkt.DecRef()
 				return
 			}
 			log.Error("handle packet failed", "err", err)
 		}
 
-		pkt.pkt.DecRef()
+		pkt.DecRef()
 	}
 }
 
-func (u *SourceControl) handleOne(ctx *netapi.Context, pkt *netapi.Packet) error {
-	_, ok := ctx.Deadline()
-	if ok {
-		ctx.Context = context.WithoutCancel(ctx.Context)
-	}
+func (u *SourceControl) handleOne(pkt *netapi.Packet) error {
+	ctx := u.ctx
 
+	// here is only one thread, so we don't need lock
 	conn := u.conn
-	u.wirteBack.Store(pkt.WriteBack)
 
 	if conn == nil || conn.closed.Load() {
 		var err error
 
-		conn, err = u.newPacketConn(ctx, pkt)
+		store := netapi.GetContext(ctx)
+		store.Source = pkt.Src
+		store.Destination = pkt.Dst
+
+		u.sniffer.Packet(store, pkt.Payload)
+
+		_, ok := pkt.Src.(*quic.QuicAddr)
+		if !ok {
+			src, err := netapi.ParseSysAddr(pkt.Src)
+			if err == nil && !src.IsFqdn() {
+				// here is only check none fqdn, so we don't need timeout
+				srcAddr, _ := dialer.ResolverAddrPort(store, src)
+				if srcAddr.Addr().Unmap().Is4() {
+					store.Resolver.Mode = netapi.ResolverModePreferIPv4
+				}
+			}
+		}
+
+		ctx = store
+
+		conn, err = u.newPacketConn(store, pkt)
 		if err != nil {
 			return err
 		}
 
+		u.wirteBack.Store(pkt.WriteBack)
 		u.conn = conn
 	}
 
@@ -239,7 +256,7 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 	return conn, nil
 }
 
-func (t *SourceControl) write(store *netapi.Context, pkt *netapi.Packet, conn net.PacketConn) error {
+func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.PacketConn) error {
 	key := pkt.Dst.String()
 
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
@@ -249,17 +266,15 @@ func (t *SourceControl) write(store *netapi.Context, pkt *netapi.Packet, conn ne
 		return t.WriteTo(pkt.Payload, udpAddr, nil, conn)
 	}
 
-	store.Resolver = t.context.resolver
-
 	// cache fakeip/hosts/bypass address
 	// for fullcone nat, we as much as possible write to same address
 	dstAddr, ok := t.addrStore.LoadDispatch(key)
 	if !ok {
 		// we route at [SourceControl.newPacketConn], here is skip
-		store.SkipRoute = true
+		ctx = context.WithValue(ctx, netapi.SkipRouteKey{}, true)
 
 		var err error
-		dstAddr, err = t.dialer.Dispatch(store, pkt.Dst)
+		dstAddr, err = t.dialer.Dispatch(ctx, pkt.Dst)
 		if err != nil {
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
@@ -273,6 +288,9 @@ func (t *SourceControl) write(store *netapi.Context, pkt *netapi.Packet, conn ne
 	if !dstAddr.IsFqdn() || t.context.skipResolve {
 		return t.WriteTo(pkt.Payload, dstAddr, pkt.Dst, conn)
 	}
+
+	store := netapi.GetContext(ctx)
+	store.Resolver = t.context.resolver
 
 	ctx, cancel := context.WithTimeout(store, time.Second*5)
 	defer cancel()
@@ -375,7 +393,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 	}()
 
 	for {
-		data := pool.GetBytes(MaxSegmentSize)
+		data := pool.GetBytes(configuration.UDPBufferSize.Load())
 		_ = p.SetReadDeadline(time.Now().Add(IdleTimeout))
 		n, from, err := p.ReadFrom(data)
 		if err != nil {
@@ -389,7 +407,7 @@ func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
 		}
 
 		metrics.Counter.AddReceiveUDPPacket()
-		metrics.Counter.AddUDPPacketSize(n)
+		metrics.Counter.AddReceiveUDPPacketSize(n)
 
 		u.receivedPacketMx.Lock()
 		if u.receivedPackets.Len() >= configuration.MaxUDPUnprocessedPackets {

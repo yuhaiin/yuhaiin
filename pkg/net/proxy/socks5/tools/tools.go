@@ -39,9 +39,12 @@ const (
 	IPv4   byte = 0x01
 	Domain byte = 0x03
 	IPv6   byte = 0x04
+
+	// MaxAddrLength  domainMaxLen + 0x03 + domainLen + portLen
+	MaxAddrLength = 255 + 1 + 1 + 2
 )
 
-func EncodeAddr(addr netapi.Address, buf io.Writer) {
+func WriteAddr(addr netapi.Address, buf io.Writer) {
 	if addr.IsFqdn() {
 		hostname := addr.Hostname()
 		_, _ = buf.Write([]byte{0x03, byte(len(hostname))})
@@ -57,6 +60,29 @@ func EncodeAddr(addr netapi.Address, buf io.Writer) {
 	}
 
 	_ = pool.BinaryWriteUint16(buf, binary.BigEndian, addr.Port())
+}
+
+func EncodeAddr(addr netapi.Address, buf []byte) int {
+	var offset int
+	if addr.IsFqdn() {
+		hostname := addr.Hostname()
+		buf[0] = 0x03
+		hlen := copy(buf[2:], hostname)
+		buf[1] = byte(hlen)
+		offset = 2 + hlen
+	} else {
+		if ip := addr.(netapi.IPAddress).IP(); ip.To4() != nil {
+			buf[0] = 0x01
+			offset = 1 + copy(buf[1:], ip.To4())
+		} else {
+			buf[0] = 0x04
+			offset = 1 + copy(buf[1:], ip.To16())
+		}
+	}
+
+	binary.BigEndian.PutUint16(buf[offset:], uint16(addr.Port()))
+
+	return offset + 2
 }
 
 type Addr []byte
@@ -85,7 +111,7 @@ func ResolveAddr(r io.Reader) (Addr, error) {
 		return nil, fmt.Errorf("unable to read addr type: %w", err)
 	}
 
-	addr := pool.GetBytes(1 + 255 + 2 + 1)
+	addr := pool.GetBytes(MaxAddrLength)
 
 	switch buf[0] {
 	case IPv4:
@@ -184,6 +210,6 @@ func ReadAddr(network string, br *bufio.Reader) (int, netapi.Address, error) {
 
 func ParseAddr(addr netapi.Address) Addr {
 	buf := pool.NewBufferSize(1 + 255 + 2 + 1)
-	EncodeAddr(addr, buf)
+	WriteAddr(addr, buf)
 	return buf.Bytes()
 }

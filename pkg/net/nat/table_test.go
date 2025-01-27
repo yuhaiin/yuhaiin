@@ -23,7 +23,7 @@ func TestTable(t *testing.T) {
 		},
 	}
 
-	table := NewTable(tp)
+	table := NewTable(&sinffer{}, tp)
 
 	for _, v := range []string{
 		"10.0.0.2",
@@ -49,6 +49,10 @@ func TestTable(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 }
+
+type sinffer struct{}
+
+func (sinffer) Packet(ctx *netapi.Context, pkt []byte) {}
 
 type testProxy struct {
 	t       *testing.T

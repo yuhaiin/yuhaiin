@@ -24,6 +24,12 @@ message setting {
   yuhaiin.log.logcat logcat = 8 [ json_name = "logcat" ];
   config_version config_version = 9 [ json_name = "config_version" ];
   platform platform = 11 [ json_name = "platform" ];
+  advanced_config advanced_config = 12 [ json_name = "advanced_config" ];
+}
+
+message advanced_config {
+  int32 udp_buffer_size = 1 [ json_name = "udp_buffer_size" ];
+  int32 relay_buffer_size = 2 [ json_name = "relay_buffer_size" ];
 }
 
 message system_proxy {

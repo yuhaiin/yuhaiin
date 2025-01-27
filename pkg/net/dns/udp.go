@@ -163,7 +163,7 @@ func (u *udp) Do(ctx context.Context, req *Request) (Response, error) {
 		Question: req.Question,
 	}
 
-	respBuf, ok := u.sender.LoadOrStore(reqKey, &respBuf{done: make(chan struct{})})
+	respBuf, ok, _ := u.sender.LoadOrCreate(reqKey, func() (*respBuf, error) { return &respBuf{done: make(chan struct{})}, nil })
 	if !ok {
 		defer u.sender.CompareAndDelete(reqKey, respBuf)
 

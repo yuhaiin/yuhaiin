@@ -76,26 +76,24 @@ func slogArgs(c connection) func() []any {
 	return func() []any {
 		info := c.Info()
 
-		extra := info.GetExtra()
-
 		attrs := []any{
 			slog.Any("id", info.GetId()),
 			slog.Any("addr", info.GetAddr()),
-			slog.Any("src", extra["Source"]),
+			slog.Any("src", info.GetSource()),
 			slog.Any("network", info.GetType().GetConnType()),
-			slog.Any("outbound", extra["Outbound"]),
+			slog.Any("outbound", info.GetOutbound()),
 		}
 
-		if extra["Process"] != "" {
-			attrs = append(attrs, slog.Any("process", extra["Process"]))
+		if info.HasProcess() {
+			attrs = append(attrs, slog.Any("process", info.GetProcess()))
 		}
 
-		if extra["FakeIP"] != "" {
-			attrs = append(attrs, slog.Any("fakeip", extra["FakeIP"]))
+		if info.HasFakeIp() {
+			attrs = append(attrs, slog.Any("fakeip", info.GetFakeIp()))
 		}
 
-		if extra["Hosts"] != "" {
-			attrs = append(attrs, slog.Any("hosts", extra["Hosts"]))
+		if info.HasHosts() {
+			attrs = append(attrs, slog.Any("hosts", info.GetHosts()))
 		}
 
 		return attrs

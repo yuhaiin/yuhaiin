@@ -2,6 +2,7 @@ edition = "2023";
 
 package yuhaiin.statistic;
 import "google/protobuf/go_features.proto";
+import "config/bypass/bypass.proto";
 
 option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/statistic";
 option features.(pb.go).api_level = API_OPAQUE;
@@ -34,8 +35,29 @@ message net_type {
 }
 
 message connection {
+  reserved 4;
+  reserved extra;
   string addr = 1 [ json_name = "addr" ];
   uint64 id = 2 [ json_name = "id" ];
   net_type type = 3 [ json_name = "type" ];
-  map<string, string> extra = 4 [ json_name = "extra", lazy = true ];
+  string source = 5 [ json_name = "source" ];
+  string inbound = 6 [ json_name = "inbound" ];
+  string outbound = 24 [ json_name = "outbound" ];
+  string destionation = 7 [ json_name = "destionation" ];
+  string fake_ip = 8 [ json_name = "fake_ip" ];
+  string hosts = 9 [ json_name = "hosts" ];
+  string domain = 10 [ json_name = "domain" ];
+  string ip = 11 [ json_name = "ip" ];
+  string tag = 12 [ json_name = "tag" ];
+  string hash = 13 [ json_name = "hash" ];
+  string protocol = 14 [ json_name = "protocol" ];
+  string process = 15 [ json_name = "process" ];
+  uint64 pid = 16 [ json_name = "pid" ];
+  uint64 uid = 17 [ json_name = "uid" ];
+  string tls_server_name = 18 [ json_name = "tls_server_name" ];
+  string http_host = 19 [ json_name = "http_host" ];
+  string component = 20 [ json_name = "component" ];
+  uint64 udp_migrate_id = 21 [ json_name = "udp_migrate_id" ];
+  yuhaiin.bypass.mode mode = 22 [ json_name = "mode" ];
+  string mode_reason = 23 [ json_name = "mode_reason" ];
 }

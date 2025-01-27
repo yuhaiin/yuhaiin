@@ -59,19 +59,22 @@ func (l *listener) isHandleDNS(port uint16) bool {
 
 func (l *listener) HandleStream(meta *netapi.StreamMeta) {
 	go func() {
-		ctx := netapi.WithContext(l.ctx)
-		ctx.Source = meta.Source
-		ctx.Destination = meta.Destination
+		store := netapi.WithContext(l.ctx)
+		store.Source = meta.Source
+		store.Destination = meta.Destination
 		if meta.Inbound != nil {
-			ctx.Inbound = meta.Inbound
+			store.Inbound = meta.Inbound
 		}
 
 		if !l.isHandleDNS(meta.Address.Port()) {
-			l.handler.Stream(ctx, meta)
+			l.handler.Stream(store, meta)
 			return
 		}
 
-		ctx.Resolver.ForceFakeIP = l.fakeip.Load()
+		var ctx context.Context = store
+		if l.fakeip.Load() {
+			ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
+		}
 
 		err := l.handler.dnsHandler.HandleTCP(ctx, meta.Src)
 		_ = meta.Src.Close()
@@ -101,17 +104,16 @@ func (l *listener) loopudp() {
 }
 
 func (l *listener) handlePacket(packet *netapi.Packet) {
-	ctx := netapi.WithContext(l.ctx)
-	ctx.Source = packet.Src
-	ctx.Destination = packet.Dst
 
 	if !l.isHandleDNS(packet.Dst.Port()) {
-		l.handler.Packet(ctx, packet)
+		// we only use [netapi.Context] at new PacketConn instead of every packet
+		// so here just pass [l.ctx]
+		l.handler.Packet(l.ctx, packet)
 		packet.DecRef()
 	} else {
 		go func() {
 			defer packet.DecRef()
-			ctx.Resolver.ForceFakeIP = l.fakeip.Load()
+
 			dnsReq := &netapi.DNSRawRequest{
 				Question: packet.Payload,
 				WriteBack: func(b []byte) error {
@@ -119,6 +121,12 @@ func (l *listener) handlePacket(packet *netapi.Packet) {
 					return err
 				},
 			}
+
+			ctx := l.ctx
+			if l.fakeip.Load() {
+				ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
+			}
+
 			err := l.handler.dnsHandler.Do(ctx, dnsReq)
 			if err != nil {
 				log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
@@ -130,7 +138,7 @@ func (l *listener) handlePacket(packet *netapi.Packet) {
 func (l *listener) Update(current *pc.Setting) {
 	// l.hijackDNS.Store(current.Server.HijackDns)
 	l.fakeip.Store(current.GetServer().GetHijackDnsFakeip())
-	l.handler.sniffyEnabled = current.GetServer().GetSniff().GetEnabled()
+	l.handler.sniffer.SetEnabled(current.GetServer().GetSniff().GetEnabled())
 
 	diffs := l.diff(current.GetServer().GetInbounds())
 
