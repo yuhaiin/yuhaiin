@@ -8,8 +8,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 )
 
-//go:generate go run github.com/Asutorufa/yuhaiin/cmd/gencontext/
-
 type ResolverMode int
 
 const (
@@ -23,7 +21,6 @@ type ContextResolver struct {
 	ResolverSelf Resolver
 	Mode         ResolverMode
 	SkipResolve  bool `metrics:"-"`
-	ForceFakeIP  bool `metrics:"-"`
 }
 
 func (r ContextResolver) Opts(reverse bool) []func(*LookupIPOption) {
@@ -74,7 +71,24 @@ type Context struct {
 	SniffMode  bypass.Mode `metrics:"-"`
 	Mode       bypass.Mode `metrics:"MODE"`
 	ModeReason string      `metrics:"MODE Reason"`
-	SkipRoute  bool        `metrics:"-"`
+}
+
+type SkipRouteKey struct{}
+type ForceFakeIPKey struct{}
+
+type PacketSniffer interface {
+	Packet(*Context, []byte)
+}
+
+type packetSinfferKey struct{}
+
+func WithPacketSniffer(ctx context.Context, sniffer PacketSniffer) context.Context {
+	return context.WithValue(ctx, packetSinfferKey{}, sniffer)
+}
+
+func GetPacketSniffer(ctx context.Context) (PacketSniffer, bool) {
+	p, ok := ctx.Value(packetSinfferKey{}).(PacketSniffer)
+	return p, ok
 }
 
 func (c *Context) SniffHost() string {

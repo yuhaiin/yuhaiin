@@ -108,7 +108,7 @@ func (c *bufioConn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
-		return nil
+		return err
 	}
 
 	c.closed = true

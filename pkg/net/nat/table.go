@@ -18,19 +18,20 @@ import (
 var IdleTimeout = time.Minute * 3
 var MaxSegmentSize = pool.MaxSegmentSize
 
-func NewTable(dialer netapi.Proxy) *Table {
-	return &Table{dialer: dialer}
+func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
+	return &Table{dialer: dialer, sinffer: sniffer}
 }
 
 type Table struct {
 	dialer        netapi.Proxy
+	sinffer       netapi.PacketSniffer
 	sourceControl syncmap.SyncMap[string, *SourceControl]
 	closed        atomic.Bool
 }
 
 func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	metrics.Counter.AddSendUDPPacket()
-	metrics.Counter.AddUDPPacketSize(len(pkt.Payload))
+	metrics.Counter.AddSendUDPPacketSize(len(pkt.Payload))
 
 	if u.closed.Load() {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
@@ -50,7 +51,7 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 	}
 
 	r, _, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {
-		return NewSourceChan(u.dialer, func(sc *SourceControl) {
+		return NewSourceChan(u.sinffer, u.dialer, func(sc *SourceControl) {
 			u.sourceControl.CompareAndDelete(key, sc)
 		}), nil
 	})

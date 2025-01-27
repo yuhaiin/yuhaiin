@@ -76,7 +76,7 @@ func (f *Fakedns) Apply(c *cd.FakednsConfig) {
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
 	metrics.Counter.AddDNSProcess(domain)
 
-	if f.enabled.Load() || netapi.GetContext(ctx).Resolver.ForceFakeIP {
+	if f.enabled.Load() || ctx.Value(netapi.ForceFakeIPKey{}) == true {
 		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
 			return f.upstream
 		}

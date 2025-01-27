@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
@@ -137,7 +138,7 @@ func (m *Mixed) handle() error {
 		}
 
 		go func() {
-			conn := pool.NewBufioConnSize(conn, pool.DefaultSize)
+			conn := pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())
 
 			var protocol byte
 			err := conn.BufioRead(func(r *bufio.Reader) error {

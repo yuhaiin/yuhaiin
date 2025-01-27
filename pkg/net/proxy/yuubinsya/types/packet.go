@@ -32,7 +32,7 @@ func EncodePacket(w *pool.Buffer, addr net.Addr, buf []byte, auth Auth, prefix b
 		_, _ = w.Write([]byte{0, 0, 0})
 	}
 
-	tools.EncodeAddr(ad, w)
+	tools.WriteAddr(ad, w)
 
 	_, err = w.Write(buf)
 	if err != nil {
@@ -54,6 +54,19 @@ func EncodePacket(w *pool.Buffer, addr net.Addr, buf []byte, auth Auth, prefix b
 	}
 
 	return nil
+}
+
+func MaxPacketHeaderSize(auth Auth, prefix bool) int {
+	size := tools.MaxAddrLength
+	if auth != nil {
+		size += auth.NonceSize() + auth.KeySize() + auth.Overhead()
+	}
+
+	if prefix {
+		size += 3
+	}
+
+	return size
 }
 
 func DecodePacket(r []byte, auth Auth, prefix bool) ([]byte, netapi.Address, error) {

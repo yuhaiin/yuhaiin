@@ -28,7 +28,7 @@ func (password Handshaker) EncodeHeader(header types.Header, buf types.Buffer) {
 	_, _ = buf.Write(password[:])
 
 	if header.Protocol == types.TCP {
-		tools.EncodeAddr(header.Addr, buf)
+		tools.WriteAddr(header.Addr, buf)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya/types"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -82,7 +83,7 @@ func (c *client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, err
 	}
 
-	pc := newPacketConn(pool.NewBufioConnSize(hconn, pool.DefaultSize), c.handshaker)
+	pc := newPacketConn(pool.NewBufioConnSize(hconn, configuration.UDPBufferSize.Load()), c.handshaker)
 
 	store := netapi.GetContext(ctx)
 

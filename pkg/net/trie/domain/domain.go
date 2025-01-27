@@ -2,7 +2,6 @@ package domain
 
 import (
 	"sync"
-	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
@@ -46,7 +45,7 @@ func (d *Fqdn[T]) Remove(domain string) {
 }
 
 func (d *Fqdn[T]) Clear() error {
-	d.Root = &trie[T]{Child: map[unique.Handle[string]]*trie[T]{}}
+	d.Root = &trie[T]{Child: map[string]*trie[T]{}}
 	return nil
 }
 
@@ -56,7 +55,7 @@ func (d *Fqdn[T]) SetSeparate(b byte) {
 
 func NewDomainMapper[T any]() *Fqdn[T] {
 	return &Fqdn[T]{
-		Root:     &trie[T]{Child: map[unique.Handle[string]]*trie[T]{}},
+		Root:     &trie[T]{Child: map[string]*trie[T]{}},
 		separate: '.',
 	}
 }

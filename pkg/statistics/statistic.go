@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 
@@ -161,13 +162,52 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 			ConnType:       statistic.Type(statistic.Type_value[addr.Network()]).Enum(),
 			UnderlyingType: statistic.Type(statistic.Type_value[conn.LocalAddr().Network()]).Enum(),
 		}).Build(),
-		Extra: store.Map(),
+		Source:       stringerOrNil(store.Source),
+		Inbound:      stringerOrNil(store.Inbound),
+		Outbound:     stringOrNil(getRemote(conn)),
+		Destionation: stringerOrNil(store.Destination),
+		FakeIp:       stringerOrNil(store.FakeIP),
+		Hosts:        stringerOrNil(store.Hosts),
+
+		Domain:   stringOrNil(store.DomainString),
+		Ip:       stringOrNil(store.IPString),
+		Tag:      stringOrNil(store.Tag),
+		Hash:     stringOrNil(store.Hash),
+		Protocol: stringOrNil(store.Protocol),
+		Process:  stringOrNil(store.Process),
+
+		TlsServerName: stringOrNil(store.TLSServerName),
+		HttpHost:      stringOrNil(store.HTTPHost),
+		Component:     stringOrNil(store.Component),
+		Mode:          store.Mode.Enum(),
+		ModeReason:    stringOrNil(store.ModeReason),
+		UdpMigrateId:  uint64OrNil(store.UDPMigrateID),
+		Pid:           uint64OrNil(uint64(store.ProcessPid)),
+		Uid:           uint64OrNil(uint64(store.ProcessUid)),
 	}
 
-	if out := getRemote(conn); out != "" {
-		connection.Extra["Outbound"] = out
-	}
 	return connection.Build()
+}
+
+func uint64OrNil(i uint64) *uint64 {
+	if i == 0 {
+		return nil
+	}
+	return proto.Uint64(i)
+}
+
+func stringOrNil(str string) *string {
+	if str == "" {
+		return nil
+	}
+	return proto.String(str)
+}
+
+func stringerOrNil(str fmt.Stringer) *string {
+	if str == nil {
+		return nil
+	}
+	return proto.String(str.String())
 }
 
 func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

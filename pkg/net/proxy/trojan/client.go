@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -33,16 +34,16 @@ const (
 var crlf = []byte{'\r', '\n'}
 
 func (c *Client) WriteHeader(conn net.Conn, cmd Command, addr netapi.Address) (err error) {
-	buf := pool.NewBufferSize(2048)
-	defer buf.Reset()
+	buf := pool.GetBytes(tools.MaxAddrLength + len(c.password) + len(crlf)*2 + 1)
+	defer pool.PutBytes(buf)
 
-	_, _ = buf.Write(c.password)
-	_, _ = buf.Write(crlf)
-	_ = buf.WriteByte(byte(cmd))
-	tools.EncodeAddr(addr, buf)
-	_, _ = buf.Write(crlf)
+	n := copy(buf, c.password)
+	n += copy(buf[n:], crlf)
+	n += copy(buf[n:], []byte{byte(cmd)})
+	n += tools.EncodeAddr(addr, buf[n:])
+	n += copy(buf[n:], crlf)
 
-	_, err = conn.Write(buf.Bytes())
+	_, err = conn.Write(buf[:n])
 	return
 }
 
@@ -89,7 +90,7 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		return nil, fmt.Errorf("write header failed: %w", err)
 	}
 
-	return &PacketConn{BufioConn: pool.NewBufioConnSize(conn, pool.DefaultSize)}, nil
+	return &PacketConn{BufioConn: pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())}, nil
 }
 
 type PacketConn struct {
@@ -102,19 +103,22 @@ func (c *PacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		return 0, fmt.Errorf("failed to parse addr: %w", err)
 	}
 
-	w := pool.NewBufferSize(min(len(payload), MaxPacketSize) + 1024)
-	defer w.Reset()
+	payloadLen := len(payload)
 
-	tools.EncodeAddr(taddr, w)
+	if payloadLen > MaxPacketSize {
+		return 0, fmt.Errorf("payload too large: %d > %d", payloadLen, MaxPacketSize)
+	}
 
-	payload = payload[:min(len(payload), MaxPacketSize)]
+	buf := pool.GetBytes(payloadLen + tools.MaxAddrLength + 2 + len(crlf))
+	defer pool.PutBytes(buf)
 
-	_ = pool.BinaryWriteUint16(w, binary.BigEndian, uint16(len(payload)))
+	n := tools.EncodeAddr(taddr, buf)
+	binary.BigEndian.PutUint16(buf[n:], uint16(payloadLen))
+	n += 2
+	n += copy(buf[n:], crlf)
+	n += copy(buf[n:], payload)
 
-	_, _ = w.Write(crlf) // crlf
-	_, _ = w.Write(payload)
-
-	_, err = c.BufioConn.Write(w.Bytes())
+	_, err = c.BufioConn.Write(buf[:n])
 	if err != nil {
 		return 0, err
 	}

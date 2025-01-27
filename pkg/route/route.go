@@ -124,9 +124,7 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 }
 
 func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Address, error) {
-	store := netapi.GetContext(ctx)
-
-	if store.SkipRoute {
+	if ctx.Value(netapi.SkipRouteKey{}) == true {
 		return host, nil
 	}
 

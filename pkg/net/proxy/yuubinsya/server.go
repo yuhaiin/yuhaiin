@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -120,7 +121,7 @@ func (y *server) handle(conn net.Conn) error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
-	c := pool.NewBufioConnSize(cc, pool.DefaultSize)
+	c := pool.NewBufioConnSize(cc, configuration.UDPBufferSize.Load())
 
 	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 6))
 	header, err := y.handshaker.DecodeHeader(c)
@@ -158,7 +159,7 @@ func (y *server) handle(conn net.Conn) error {
 
 		log.Debug("new udp connect", "from", c.RemoteAddr(), "migrate id", header.MigrateID)
 
-		buf := pool.GetBytes(nat.MaxSegmentSize)
+		buf := pool.GetBytes(configuration.UDPBufferSize.Load())
 		defer pool.PutBytes(buf)
 
 		for {

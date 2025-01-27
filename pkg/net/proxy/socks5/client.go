@@ -142,15 +142,15 @@ func (s *Client) handshake1(conn net.Conn) error {
 }
 
 func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address) (target netapi.Address, err error) {
-	req := pool.NewBufferSize(pool.DefaultSize)
-	defer req.Reset()
+	req := pool.GetBytes(tools.MaxAddrLength + 3)
+	defer pool.PutBytes(req)
 
-	_ = req.WriteByte(0x05)
-	_ = req.WriteByte(byte(cmd))
-	_ = req.WriteByte(0x00)
-	tools.EncodeAddr(address, req)
+	req[0] = 0x05
+	req[1] = byte(cmd)
+	req[2] = 0x00
+	addrLen := tools.EncodeAddr(address, req[3:])
 
-	if _, err = conn.Write(req.Bytes()); err != nil {
+	if _, err = conn.Write(req[:addrLen+3]); err != nil {
 		return nil, err
 	}
 
@@ -163,13 +163,13 @@ func (s *Client) handshake2(conn net.Conn, cmd tools.CMD, address netapi.Address
 		return nil, fmt.Errorf("socks5 second handshake failed: ver: %d, err_code: %d", header[0], header[1])
 	}
 
-	add, err := tools.ResolveAddr(conn)
+	socksAddr, err := tools.ResolveAddr(conn)
 	if err != nil {
 		return nil, fmt.Errorf("resolve addr failed: %w", err)
 	}
-	defer pool.PutBytes(add)
+	defer pool.PutBytes(socksAddr)
 
-	addr := add.Address("tcp")
+	addr := socksAddr.Address("tcp")
 
 	if !addr.IsFqdn() && addr.(netapi.IPAddress).IP().IsUnspecified() {
 		addr = netapi.ParseAddressPort("tcp", s.hostname, uint16(addr.Port()))

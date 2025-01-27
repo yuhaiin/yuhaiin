@@ -3,15 +3,15 @@ package inbound
 import (
 	"context"
 	"log/slog"
+	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/nat"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/sniff"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
@@ -23,18 +23,16 @@ type handler struct {
 	dnsHandler netapi.DNSServer
 	table      *nat.Table
 
-	sniffer *sniff.Sniffier[bypass.Mode]
-
-	sniffyEnabled bool
+	sniffer *controlSniffer
 }
 
 func NewHandler(dialer netapi.Proxy, dnsHandler netapi.DNSServer) *handler {
+	sniffer := newControlSniffer()
 	h := &handler{
-		dialer:        dialer,
-		table:         nat.NewTable(dialer),
-		dnsHandler:    dnsHandler,
-		sniffer:       sniff.New(),
-		sniffyEnabled: true,
+		dialer:     dialer,
+		table:      nat.NewTable(sniffer, dialer),
+		dnsHandler: dnsHandler,
+		sniffer:    sniffer,
 	}
 
 	return h
@@ -50,17 +48,12 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 	ctx, cancel := context.WithTimeout(store, configuration.Timeout)
 	defer cancel()
 
-	defer meta.Src.Close()
-
 	dst := meta.Address
 
 	startNanoSeconds := system.CheapNowNano()
 
-	if s.sniffyEnabled {
-		src := s.sniffer.Stream(store, meta.Src)
-		defer src.Close()
-		meta.Src = src
-	}
+	meta.Src = s.sniffer.Stream(store, meta.Src)
+	defer meta.Src.Close()
 
 	remote, err := s.dialer.Conn(ctx, dst)
 	if err != nil {
@@ -75,30 +68,13 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 
 	endNanoSeconds := system.CheapNowNano()
 
-	metrics.Counter.AddStreamConnectDuration(time.Duration(endNanoSeconds - startNanoSeconds).Seconds())
+	metrics.Counter.AddStreamConnectDuration(float64(time.Duration(endNanoSeconds - startNanoSeconds).Milliseconds()))
 
 	relay.Relay(meta.Src, remote, slog.Any("dst", dst), slog.Any("src", store.Source), slog.Any("process", store.Process))
 	return nil
 }
 
-func (s *handler) Packet(store *netapi.Context, pack *netapi.Packet) {
-	if s.sniffyEnabled {
-		s.sniffer.Packet(store, pack.Payload)
-	}
-
-	_, ok := pack.Src.(*quic.QuicAddr)
-	if !ok {
-		src, err := netapi.ParseSysAddr(pack.Src)
-		if err == nil && !src.IsFqdn() {
-			xctx, cancel := context.WithTimeout(store, time.Second*6)
-			srcAddr, _ := dialer.ResolverAddrPort(xctx, src)
-			cancel()
-			if srcAddr.Addr().Unmap().Is4() {
-				store.Resolver.Mode = netapi.ResolverModePreferIPv4
-			}
-		}
-	}
-
+func (s *handler) Packet(ctx context.Context, pack *netapi.Packet) {
 	// ! because we use ringbuffer which can drop the packet if the buffer is full
 	// ! so here we assume the network is not congesting
 	//
@@ -106,9 +82,37 @@ func (s *handler) Packet(store *netapi.Context, pack *netapi.Packet) {
 	// xctx, cancel := context.WithTimeout(store, time.Millisecond*1500)
 	// defer cancel()
 
-	if err := s.table.Write(store, pack); err != nil {
+	if err := s.table.Write(ctx, pack); err != nil {
 		log.Error("packet", "error", err)
 	}
 }
 
 func (s *handler) Close() error { return s.table.Close() }
+
+type controlSniffer struct {
+	enabled atomic.Bool
+	sniffer *sniff.Sniffier[bypass.Mode]
+}
+
+func newControlSniffer() *controlSniffer {
+	return &controlSniffer{
+		sniffer: sniff.New(),
+	}
+}
+
+func (u *controlSniffer) Packet(ctx *netapi.Context, b []byte) {
+	if u.enabled.Load() {
+		u.sniffer.Packet(ctx, b)
+	}
+}
+
+func (u *controlSniffer) Stream(ctx *netapi.Context, cc net.Conn) net.Conn {
+	if u.enabled.Load() {
+		return u.sniffer.Stream(ctx, cc)
+	}
+	return cc
+}
+
+func (c *controlSniffer) SetEnabled(enabled bool) {
+	c.enabled.Store(enabled)
+}

@@ -15,6 +15,7 @@ import (
 	"strings"
 	_ "unsafe"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -75,7 +76,7 @@ func (config *Config) hybiClientHandshake(SecWebSocketKey string, conn net.Conn,
 		return nil, err
 	}
 
-	reader := pool.NewBufioConnSize(conn, pool.DefaultSize)
+	reader := pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())
 
 	err = reader.BufioRead(func(r *bufio.Reader) error {
 		resp, err := http.ReadResponse(r, req)
