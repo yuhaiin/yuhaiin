@@ -30,7 +30,7 @@ func TestWireguard(t *testing.T) {
 				},
 			}.Build(),
 		},
-	}.Build())(nil)
+	}.Build(), nil)
 
 	assert.NoError(t, err)
 

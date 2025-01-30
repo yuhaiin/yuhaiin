@@ -108,14 +108,12 @@ func init() {
 	register.RegisterPoint(NewHTTPOBFS)
 }
 
-func NewHTTPOBFS(config *protocol.ObfsHttp) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		return &httpOBFS{
-			host:  config.GetHost(),
-			port:  config.GetPort(),
-			Proxy: p,
-		}, nil
-	}
+func NewHTTPOBFS(config *protocol.ObfsHttp, p netapi.Proxy) (netapi.Proxy, error) {
+	return &httpOBFS{
+		host:  config.GetHost(),
+		port:  config.GetPort(),
+		Proxy: p,
+	}, nil
 }
 
 func (h *httpOBFS) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {

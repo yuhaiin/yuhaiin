@@ -47,38 +47,35 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Quic) register.WrapProxy {
-	return func(dd netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
+	var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
 
-		var host *net.UDPAddr = &net.UDPAddr{IP: net.IPv4zero}
-
-		if config.GetHost() != "" {
-			addr, err := netapi.ParseAddress("udp", config.GetHost())
-			if err == nil {
-				host, err = dialer.ResolveUDPAddr(context.TODO(), addr)
-				if err != nil {
-					return nil, err
-				}
+	if config.GetHost() != "" {
+		addr, err := netapi.ParseAddress("udp", config.GetHost())
+		if err == nil {
+			host, err = dialer.ResolveUDPAddr(context.TODO(), addr)
+			if err != nil {
+				return nil, err
 			}
 		}
-
-		tlsConfig := register.ParseTLSConfig(config.GetTls())
-		if tlsConfig == nil {
-			tlsConfig = &tls.Config{}
-		}
-
-		if register.IsBootstrap(dd) {
-			dd = nil
-		}
-
-		c := &Client{
-			dialer:    dd,
-			tlsConfig: tlsConfig,
-			host:      host,
-		}
-
-		return c, nil
 	}
+
+	tlsConfig := register.ParseTLSConfig(config.GetTls())
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{}
+	}
+
+	if register.IsBootstrap(dd) {
+		dd = nil
+	}
+
+	c := &Client{
+		dialer:    dd,
+		tlsConfig: tlsConfig,
+		host:      host,
+	}
+
+	return c, nil
 }
 
 func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {

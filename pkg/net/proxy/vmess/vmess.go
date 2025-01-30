@@ -21,19 +21,18 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Vmess) register.WrapProxy {
+func NewClient(config *protocol.Vmess, p netapi.Proxy) (netapi.Proxy, error) {
 	alterID, err := strconv.Atoi(config.GetAlterId())
 	if err != nil {
-		return register.ErrConn(fmt.Errorf("convert AlterId to int failed: %w", err))
+		return nil, fmt.Errorf("convert AlterId to int failed: %w", err)
 	}
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		client, err := newClient(config.GetUuid(), config.GetSecurity(), alterID)
-		if err != nil {
-			return nil, fmt.Errorf("new vmess client failed: %w", err)
-		}
 
-		return &Vmess{client, p}, nil
+	client, err := newClient(config.GetUuid(), config.GetSecurity(), alterID)
+	if err != nil {
+		return nil, fmt.Errorf("new vmess client failed: %w", err)
 	}
+
+	return &Vmess{client, p}, nil
 }
 
 // Conn create a connection for host

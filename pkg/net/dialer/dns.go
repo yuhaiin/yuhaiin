@@ -6,7 +6,9 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/netip"
+	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -18,7 +20,50 @@ var InternetResolver netapi.Resolver = NewSystemResolver(
 	netapi.ParseAddressPort("udp", "114.114.114.114", 53),
 )
 
-var Bootstrap netapi.Resolver = InternetResolver
+var bootstrap = &bootstrapResolver{r: InternetResolver}
+
+type bootstrapResolver struct {
+	r  netapi.Resolver
+	mu sync.RWMutex
+}
+
+func (b *bootstrapResolver) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) ([]net.IP, error) {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+
+	return r.LookupIP(ctx, domain, opts...)
+}
+
+func (b *bootstrapResolver) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+
+	return r.Raw(ctx, req)
+}
+
+func (b *bootstrapResolver) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	err := b.r.Close()
+	b.r = InternetResolver
+
+	return err
+}
+
+func (b *bootstrapResolver) SetBootstrap(r netapi.Resolver) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.r.Close(); err != nil {
+		log.Warn("close bootstrap resolver failed", "err", err)
+	}
+
+	b.r = r
+}
+
+func Bootstrap() netapi.Resolver     { return bootstrap }
+func SetBootstrap(r netapi.Resolver) { bootstrap.SetBootstrap(r) }
 
 type SystemResolver struct {
 	resolver *net.Resolver
@@ -119,7 +164,7 @@ func LookupIP(ctx context.Context, addr netapi.Address) ([]net.IP, error) {
 
 	netctx := netapi.GetContext(ctx)
 
-	resolver := Bootstrap
+	resolver := Bootstrap()
 	if netctx.Resolver.ResolverSelf != nil {
 		resolver = netctx.Resolver.ResolverSelf
 	} else if netctx.Resolver.Resolver != nil {

@@ -68,19 +68,17 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Mux) register.WrapProxy {
-	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		if config.GetConcurrency() <= 0 {
-			config.SetConcurrency(1)
-		}
-
-		c := &MuxClient{
-			Proxy:    dialer,
-			selector: NewRangeSelector(int(config.GetConcurrency())),
-		}
-
-		return c, nil
+func NewClient(config *protocol.Mux, dialer netapi.Proxy) (netapi.Proxy, error) {
+	if config.GetConcurrency() <= 0 {
+		config.SetConcurrency(1)
 	}
+
+	c := &MuxClient{
+		Proxy:    dialer,
+		selector: NewRangeSelector(int(config.GetConcurrency())),
+	}
+
+	return c, nil
 }
 
 func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

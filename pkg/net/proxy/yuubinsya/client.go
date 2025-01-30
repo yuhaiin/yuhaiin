@@ -25,26 +25,24 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Yuubinsya) register.WrapProxy {
-	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		auth, err := NewAuth(config.GetUdpEncrypt(), []byte(config.GetPassword()))
-		if err != nil {
-			return nil, err
-		}
-
-		c := &client{
-			dialer,
-			NewHandshaker(
-				false,
-				config.GetTcpEncrypt(),
-				[]byte(config.GetPassword()),
-			),
-			auth,
-			config.GetUdpOverStream(),
-		}
-
-		return c, nil
+func NewClient(config *protocol.Yuubinsya, dialer netapi.Proxy) (netapi.Proxy, error) {
+	auth, err := NewAuth(config.GetUdpEncrypt(), []byte(config.GetPassword()))
+	if err != nil {
+		return nil, err
 	}
+
+	c := &client{
+		dialer,
+		NewHandshaker(
+			false,
+			config.GetTcpEncrypt(),
+			[]byte(config.GetPassword()),
+		),
+		auth,
+		config.GetUdpOverStream(),
+	}
+
+	return c, nil
 }
 
 func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

@@ -32,28 +32,25 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Http2) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-
-		if config.GetConcurrency() < 1 {
-			config.SetConcurrency(1)
-		}
-
-		cpool := &clientConnPool{
-			dialer: p,
-			conns:  make([]*entry, config.GetConcurrency()),
-			max:    uint64(config.GetConcurrency()),
-		}
-
-		for i := range cpool.conns {
-			cpool.conns[i] = &entry{}
-		}
-
-		return &Client{
-			client: cpool,
-			Proxy:  p,
-		}, nil
+func NewClient(config *protocol.Http2, p netapi.Proxy) (netapi.Proxy, error) {
+	if config.GetConcurrency() < 1 {
+		config.SetConcurrency(1)
 	}
+
+	cpool := &clientConnPool{
+		dialer: p,
+		conns:  make([]*entry, config.GetConcurrency()),
+		max:    uint64(config.GetConcurrency()),
+	}
+
+	for i := range cpool.conns {
+		cpool.conns[i] = &entry{}
+	}
+
+	return &Client{
+		client: cpool,
+		Proxy:  p,
+	}, nil
 }
 
 type entry struct {

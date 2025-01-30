@@ -1,0 +1,7 @@
+#!/bin/bash
+
+podman run -it --rm \
+    -v ${PWD}:/debug \
+    -p 50053:50051 \
+    localhost/ydebug:latest \
+    sh

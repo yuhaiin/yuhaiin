@@ -80,7 +80,7 @@ func (l *Ip) Latency(p netapi.Proxy) (*Reply, error) {
 							return nil, err
 						}
 
-						ip, err := dialer.Bootstrap.LookupIP(ctx, add.Hostname(), func(li *netapi.LookupIPOption) {
+						ip, err := dialer.Bootstrap().LookupIP(ctx, add.Hostname(), func(li *netapi.LookupIPOption) {
 							if isIPv6 {
 								li.Mode = netapi.ResolverModePreferIPv6
 							} else {

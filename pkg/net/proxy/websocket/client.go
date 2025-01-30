@@ -26,17 +26,14 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(cf *protocol.Websocket) register.WrapProxy {
-	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-
-		return &client{
-			&websocket.Config{
-				Host: cf.GetHost(),
-				Path: getNormalizedPath(cf.GetPath()),
-			},
-			dialer,
-		}, nil
-	}
+func NewClient(cf *protocol.Websocket, dialer netapi.Proxy) (netapi.Proxy, error) {
+	return &client{
+		&websocket.Config{
+			Host: cf.GetHost(),
+			Path: getNormalizedPath(cf.GetPath()),
+		},
+		dialer,
+	}, nil
 }
 
 func (c *client) Conn(ctx context.Context, h netapi.Address) (net.Conn, error) {

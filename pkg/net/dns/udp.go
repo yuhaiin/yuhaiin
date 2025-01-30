@@ -48,17 +48,26 @@ type udp struct {
 	config        Config
 	lastQueryTime atomic.Int64
 	mu            sync.RWMutex
+	closed        atomic.Bool
 }
 
 func (u *udp) Close() error {
+	u.mu.RLock()
+	u.closed.Store(true)
 	pc := u.packetConn
+	timer := u.timer
+	u.mu.RUnlock()
+
 	if pc != nil {
 		pc.Close()
 		u.packetConn = nil
 	}
-	if u.timer != nil {
-		u.timer.Stop()
+
+	if timer != nil {
+		timer.Stop()
+		u.timer = nil
 	}
+
 	return nil
 }
 
@@ -109,6 +118,10 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
+	if u.closed.Load() {
+		return nil, fmt.Errorf("udp resolver closed")
+	}
+
 	if u.packetConn != nil {
 		return u.packetConn, nil
 	}
@@ -135,9 +148,12 @@ func (u *udp) initPacketConn(ctx context.Context) (net.PacketConn, error) {
 			packet := u.packetConn
 			u.packetConn = nil
 			u.mu.Unlock()
-			packet.Close()
+			if packet != nil {
+				packet.Close()
+			}
 		}
 	})
+
 	u.lastQueryTime.Store(system.CheapNowNano())
 
 	return conn, nil

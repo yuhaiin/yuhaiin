@@ -12,20 +12,16 @@ import (
 )
 
 func TestClient(t *testing.T) {
-	sm := simple.NewClient(protocol.Simple_builder{
+	pp, err := simple.NewClient(protocol.Simple_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(2096),
-	}.Build())
-
-	c := NewRealityClient(protocol.Reality_builder{
+	}.Build(), nil)
+	assert.NoError(t, err)
+	pp, err = NewRealityClient(protocol.Reality_builder{
 		ServerName: proto.String("www.baidu.com"),
 		ShortId:    proto.String("123456"),
 		PublicKey:  proto.String("SOW7P-17ibm_-kz-QUQwGGyitSbsa5wOmRGAigGvDH8"),
-	}.Build())
-
-	pp, err := sm(nil)
-	assert.NoError(t, err)
-	pp, err = c(pp)
+	}.Build(), pp)
 	assert.NoError(t, err)
 
 	conn, err := pp.Conn(context.Background(), netapi.EmptyAddr)

@@ -30,6 +30,8 @@ import (
 func run(args []string) error {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
+	username := flag.String("u", "", "username")
+	password := flag.String("p", "", "password")
 	path := flag.String("path", pc.DefaultConfigDir(), "save data path")
 	webdir := flag.String("eweb", "", "external web page")
 	pprof := flag.Bool("pgo", false, "enables CPU profiling")
@@ -42,15 +44,26 @@ func run(args []string) error {
 	}
 
 	setting := config.NewConfig(app.PathGenerator.Config(*path))
-	grpcserver := grpc.NewServer()
+
+	var grpcOpts []grpc.ServerOption
+
+	var auth *appapi.Auth
+	if *username != "" || *password != "" {
+		auth = appapi.NewAuth(*username, *password)
+		grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(auth.GrpcAuth()))
+	}
+
+	grpcserver := grpc.NewServer(grpcOpts...)
 
 	app, err := app.Start(appapi.Start{
-		ConfigPath:    *path,
-		Host:          *host,
-		BypassConfig:  setting,
-		Setting:       setting,
-		GRPCServer:    grpcserver,
-		ProcessDumper: getPorcessDumper(),
+		ConfigPath:     *path,
+		Host:           *host,
+		Auth:           auth,
+		BypassConfig:   setting,
+		ResolverConfig: setting,
+		Setting:        setting,
+		GRPCServer:     grpcserver,
+		ProcessDumper:  getPorcessDumper(),
 	})
 	if err != nil {
 		return err

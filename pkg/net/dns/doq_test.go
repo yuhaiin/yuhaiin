@@ -11,7 +11,7 @@ import (
 )
 
 func TestDoQ(t *testing.T) {
-	dialer.Bootstrap = &dialer.SystemResolver{}
+	dialer.SetBootstrap(&dialer.SystemResolver{})
 
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 

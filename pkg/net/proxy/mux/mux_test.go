@@ -40,12 +40,12 @@ func TestMux(t *testing.T) {
 	p, err := simple.NewClient(protocol.Simple_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(4431),
-	}.Build())(nil)
+	}.Build(), nil)
 	assert.NoError(t, err)
 
 	p, err = NewClient(protocol.Mux_builder{
 		Concurrency: proto.Int32(1),
-	}.Build())(p)
+	}.Build(), p)
 	assert.NoError(t, err)
 
 	conn, err := p.Conn(context.TODO(), netapi.EmptyAddr)

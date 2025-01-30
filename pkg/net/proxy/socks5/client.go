@@ -27,7 +27,7 @@ func Dial(host, port, user, password string) netapi.Proxy {
 	simple, err := simple.NewClient(protocol.Simple_builder{
 		Host: proto.String(addr.Hostname()),
 		Port: proto.Int32(int32(addr.Port())),
-	}.Build())(nil)
+	}.Build(), nil)
 	if err != nil {
 		return netapi.NewErrProxy(err)
 	}
@@ -36,7 +36,7 @@ func Dial(host, port, user, password string) netapi.Proxy {
 		Hostname: proto.String(host),
 		User:     proto.String(user),
 		Password: proto.String(password),
-	}.Build())(simple)
+	}.Build(), simple)
 	return p
 }
 
@@ -57,16 +57,14 @@ func init() {
 }
 
 // New returns a new Socks5 client
-func NewClient(config *protocol.Socks5) register.WrapProxy {
-	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		return &Client{
-			dialer:       dialer,
-			username:     config.GetUser(),
-			password:     config.GetPassword(),
-			hostname:     config.GetHostname(),
-			overridePort: uint16(config.GetOverridePort()),
-		}, nil
-	}
+func NewClient(config *protocol.Socks5, dialer netapi.Proxy) (netapi.Proxy, error) {
+	return &Client{
+		dialer:       dialer,
+		username:     config.GetUser(),
+		password:     config.GetPassword(),
+		hostname:     config.GetHostname(),
+		overridePort: uint16(config.GetOverridePort()),
+	}, nil
 }
 
 func (s *Client) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {

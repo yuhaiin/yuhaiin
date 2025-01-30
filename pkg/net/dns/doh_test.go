@@ -14,7 +14,7 @@ import (
 )
 
 func TestDOH(t *testing.T) {
-	dialer.Bootstrap = &dialer.SystemResolver{}
+	dialer.SetBootstrap(&dialer.SystemResolver{})
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")

@@ -50,6 +50,7 @@ message connection {
   string ip = 11 [ json_name = "ip" ];
   string tag = 12 [ json_name = "tag" ];
   string hash = 13 [ json_name = "hash" ];
+  string node_name = 25 [ json_name = "node_name" ];
   string protocol = 14 [ json_name = "protocol" ];
   string process = 15 [ json_name = "process" ];
   uint64 pid = 16 [ json_name = "pid" ];

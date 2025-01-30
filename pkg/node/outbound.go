@@ -109,6 +109,7 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	}
 
 	store.Hash = point.GetHash()
+	store.NodeName = point.GetName()
 	return p, nil
 }
 

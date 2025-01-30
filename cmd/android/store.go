@@ -7,11 +7,11 @@ import (
 	"math"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/cache/share"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -167,23 +167,31 @@ func CloseStore() {
 	})
 }
 
-type bypassConfig struct {
-	mu      sync.RWMutex
-	setting *bypass.Config
+type configDB[T proto.Message] struct {
+	mu         sync.RWMutex
+	setting    T
+	inited     atomic.Bool
+	getDefault func(*pc.Setting) T
+	toSetting  func(T) *pc.Setting
+	dbName     string
 }
 
-func newBypassDB() *bypassConfig {
-	return &bypassConfig{}
+func newConfigDB[T proto.Message](dbName string, getDefault func(*pc.Setting) T, toSetting func(T) *pc.Setting) *configDB[T] {
+	return &configDB[T]{
+		getDefault: getDefault,
+		toSetting:  toSetting,
+		dbName:     dbName,
+	}
 }
 
-func (b *bypassConfig) initSetting() {
-	if b.setting != nil {
+func (b *configDB[T]) initSetting() {
+	if b.inited.Load() {
 		return
 	}
 
-	s := GetStore("Default").GetBytes("bypass_db")
+	s := GetStore("Default").GetBytes(b.dbName)
 
-	config := config.DefaultSetting(b.Dir()).GetBypass()
+	config := b.getDefault(config.DefaultSetting(b.Dir()))
 	if len(s) > 0 {
 		err := proto.Unmarshal(s, config)
 		if err != nil {
@@ -191,43 +199,40 @@ func (b *bypassConfig) initSetting() {
 		}
 	}
 
+	b.inited.Store(true)
 	b.setting = config
 }
 
-func (b *bypassConfig) Batch(f ...func(*pc.Setting) error) error {
+func (b *configDB[T]) Batch(f ...func(*pc.Setting) error) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.initSetting()
 
-	setting := pc.Setting_builder{
-		Bypass: b.setting,
-	}.Build()
+	setting := b.toSetting(b.setting)
 	for i := range f {
 		if err := f[i](setting); err != nil {
 			return err
 		}
 	}
 
-	s, err := proto.Marshal(setting.GetBypass())
+	s, err := proto.Marshal(b.getDefault(setting))
 	if err != nil {
 		return err
 	}
 
-	b.setting = setting.GetBypass()
-	GetStore("Default").PutBytes("bypass_db", s)
+	b.setting = b.getDefault(setting)
+	GetStore("Default").PutBytes(b.dbName, s)
 	return nil
 }
 
-func (b *bypassConfig) View(f ...func(*pc.Setting) error) error {
+func (b *configDB[T]) View(f ...func(*pc.Setting) error) error {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
 	b.initSetting()
 
-	setting := pc.Setting_builder{
-		Bypass: b.setting,
-	}.Build()
+	setting := b.toSetting(b.setting)
 
 	for i := range f {
 		if err := f[i](proto.Clone(setting).(*pc.Setting)); err != nil {
@@ -238,4 +243,4 @@ func (b *bypassConfig) View(f ...func(*pc.Setting) error) error {
 	return nil
 }
 
-func (b *bypassConfig) Dir() string { return filepath.Dir(dbPath) }
+func (b *configDB[T]) Dir() string { return filepath.Dir(dbPath) }

@@ -1,10 +1,12 @@
 package register
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -26,8 +28,11 @@ func GetPointValue(i *protocol.Protocol) proto.Message {
 }
 
 func init() {
-	RegisterPoint(func(*protocol.None) WrapProxy {
-		return func(p netapi.Proxy) (netapi.Proxy, error) { return p, nil }
+	RegisterPoint(func(_ *protocol.None, p netapi.Proxy) (netapi.Proxy, error) {
+		return p, nil
+	})
+	RegisterPoint(func(_ *protocol.BootstrapDnsWarp, p netapi.Proxy) (netapi.Proxy, error) {
+		return NewBootstrapDnsWarp(p), nil
 	})
 }
 
@@ -35,7 +40,7 @@ func Dialer(p *point.Point) (r netapi.Proxy, err error) {
 	r = bootstrapProxy
 
 	for _, v := range p.GetProtocols() {
-		r, err = Wrap(GetPointValue(v))(r)
+		r, err = Wrap(GetPointValue(v), r)
 		if err != nil {
 			return
 		}
@@ -44,32 +49,32 @@ func Dialer(p *point.Point) (r netapi.Proxy, err error) {
 	return
 }
 
-type WrapProxy func(p netapi.Proxy) (netapi.Proxy, error)
+type WrapProxy[T proto.Message] func(t T, p netapi.Proxy) (netapi.Proxy, error)
 
-var execProtocol syncmap.SyncMap[protoreflect.FullName, func(proto.Message) WrapProxy]
+var execProtocol syncmap.SyncMap[protoreflect.FullName, WrapProxy[proto.Message]]
 
-func RegisterPoint[T proto.Message](wrap func(T) WrapProxy) {
+func RegisterPoint[T proto.Message](wrap func(T, netapi.Proxy) (netapi.Proxy, error)) {
 	if wrap == nil {
 		return
 	}
 
 	execProtocol.Store(
 		(*new(T)).ProtoReflect().Descriptor().FullName(),
-		func(t proto.Message) WrapProxy { return wrap(t.(T)) },
+		func(t proto.Message, p netapi.Proxy) (netapi.Proxy, error) { return wrap(t.(T), p) },
 	)
 }
 
-func Wrap(p proto.Message) WrapProxy {
+func Wrap(p proto.Message, x netapi.Proxy) (netapi.Proxy, error) {
 	if p == nil {
-		return ErrConn(fmt.Errorf("value is nil: %v", p))
+		return nil, fmt.Errorf("value is nil: %v", p)
 	}
 
 	conn, ok := execProtocol.Load(p.ProtoReflect().Descriptor().FullName())
 	if !ok {
-		return ErrConn(fmt.Errorf("protocol %v is not support", p))
+		return nil, fmt.Errorf("protocol %v is not support", p)
 	}
 
-	return conn(p)
+	return conn(p, x)
 }
 
 var tlsSessionCache = tls.NewLRUClientSessionCache(128)
@@ -113,12 +118,6 @@ func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
 	}
 }
 
-func ErrConn(err error) WrapProxy {
-	return func(netapi.Proxy) (netapi.Proxy, error) {
-		return nil, err
-	}
-}
-
 var bootstrapProxy = netapi.NewErrProxy(errors.New("bootstrap proxy"))
 
 func IsBootstrap(p netapi.Proxy) bool { return p == bootstrapProxy }
@@ -129,4 +128,20 @@ func SetBootstrap(p netapi.Proxy) {
 	}
 
 	bootstrapProxy = p
+}
+
+type bootstrapDnsWarp struct {
+	netapi.Proxy
+}
+
+func NewBootstrapDnsWarp(p netapi.Proxy) netapi.Proxy {
+	return &bootstrapDnsWarp{Proxy: p}
+}
+
+func (b *bootstrapDnsWarp) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
+	return b.Proxy.Conn(netapi.WithContext(ctx), addr)
+}
+
+func (b *bootstrapDnsWarp) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
+	return b.Proxy.PacketConn(netapi.WithContext(ctx), addr)
 }

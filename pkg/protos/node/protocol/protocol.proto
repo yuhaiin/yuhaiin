@@ -30,6 +30,10 @@ message protocol {
     mux mux = 20 [ json_name = "mux" ];
     drop drop = 21 [ json_name = "drop" ];
     vless vless = 22 [ json_name = "vless" ];
+    // bootstrap_dns make the dialer use bootstrap dns to resolve the outbound
+    // address instead of the route dns
+    bootstrap_dns_warp bootstrap_dns_warp = 23
+        [ json_name = "bootstrap_dns_warp" ];
   }
 }
 
@@ -170,3 +174,5 @@ message wireguard {
 }
 
 message mux { int32 concurrency = 1 [ json_name = "concurrency" ]; }
+
+message bootstrap_dns_warp {}

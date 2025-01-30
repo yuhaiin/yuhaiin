@@ -58,13 +58,11 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Trojan) register.WrapProxy {
-	return func(dialer netapi.Proxy) (netapi.Proxy, error) {
-		return &Client{
-			password: hexSha224([]byte(config.GetPassword())),
-			proxy:    dialer,
-		}, nil
-	}
+func NewClient(config *protocol.Trojan, dialer netapi.Proxy) (netapi.Proxy, error) {
+	return &Client{
+		password: hexSha224([]byte(config.GetPassword())),
+		proxy:    dialer,
+	}, nil
 }
 
 func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

@@ -7,7 +7,6 @@ import (
 	"math"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -121,10 +120,7 @@ func (w *tunServer) WriteUDPBack(data []byte, sourceAddr tcpip.Address, sourcePo
 		return 0, fmt.Errorf("send FQDN packet")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), configuration.Timeout)
-	defer cancel()
-
-	dip, err := dialer.ResolverAddrPort(ctx, daddr)
+	dip, err := dialer.ResolverAddrPort(context.TODO(), daddr)
 	if err != nil {
 		return 0, err
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 func TestDoh3(t *testing.T) {
-	dialer.Bootstrap = &dialer.SystemResolver{}
+	dialer.SetBootstrap(&dialer.SystemResolver{})
 
 	configMap := map[string]Config{
 		"cloudflare": {

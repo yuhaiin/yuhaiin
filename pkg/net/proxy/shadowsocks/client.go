@@ -26,15 +26,13 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(c *protocol.Shadowsocks) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		cipher, err := core.PickCipher(strings.ToUpper(c.GetMethod()), nil, c.GetPassword())
-		if err != nil {
-			return nil, err
-		}
-
-		return &Shadowsocks{cipher: cipher, p: p}, nil
+func NewClient(c *protocol.Shadowsocks, p netapi.Proxy) (netapi.Proxy, error) {
+	cipher, err := core.PickCipher(strings.ToUpper(c.GetMethod()), nil, c.GetPassword())
+	if err != nil {
+		return nil, err
 	}
+
+	return &Shadowsocks{cipher: cipher, p: p}, nil
 }
 
 // Conn .
