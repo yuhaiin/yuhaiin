@@ -18,13 +18,11 @@ type direct struct {
 }
 
 func init() {
-	register.RegisterPoint(func(p *protocol.Direct) register.WrapProxy {
-		return func(netapi.Proxy) (netapi.Proxy, error) {
-			if p.GetNetworkInterface() != "" {
-				return &direct{iface: p.GetNetworkInterface()}, nil
-			}
-			return Default, nil
+	register.RegisterPoint(func(p *protocol.Direct, _ netapi.Proxy) (netapi.Proxy, error) {
+		if p.GetNetworkInterface() != "" {
+			return &direct{iface: p.GetNetworkInterface()}, nil
 		}
+		return Default, nil
 	})
 
 	register.SetBootstrap(Default)

@@ -25,14 +25,12 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Http) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		return &client{
-			Proxy:    p,
-			user:     config.GetUser(),
-			password: config.GetPassword(),
-		}, nil
-	}
+func NewClient(config *protocol.Http, p netapi.Proxy) (netapi.Proxy, error) {
+	return &client{
+		Proxy:    p,
+		user:     config.GetUser(),
+		password: config.GetPassword(),
+	}, nil
 }
 
 func (c *client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {

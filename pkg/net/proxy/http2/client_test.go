@@ -37,22 +37,18 @@ func TestClient(t *testing.T) {
 		}
 	}()
 
-	sm := simple.NewClient(protocol.Simple_builder{
+	p, err := simple.NewClient(protocol.Simple_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(8082),
-	}.Build())
-
-	c := NewClient(protocol.Http2_builder{
-		Concurrency: proto.Int32(1),
-	}.Build())
-
-	p, err := sm(nil)
+	}.Build(), nil)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
 	}
 
-	p, err = c(p)
+	p, err = NewClient(protocol.Http2_builder{
+		Concurrency: proto.Int32(1),
+	}.Build(), p)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

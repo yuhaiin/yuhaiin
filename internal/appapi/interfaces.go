@@ -1,6 +1,9 @@
 package appapi
 
 import (
+	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"net"
@@ -10,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	pt "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
@@ -18,6 +22,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type Components struct {
@@ -40,8 +47,9 @@ func (app *Components) RegisterServer() {
 	so := app.Start
 
 	grpcServer := &grpcRegister{
-		s:   app.Start.GRPCServer,
-		app: app,
+		s:    app.Start.GRPCServer,
+		mux:  app.Mux,
+		auth: app.Auth,
 	}
 
 	gc.RegisterConfigServiceServer(grpcServer, so.Setting)
@@ -57,12 +65,13 @@ func (app *Components) RegisterServer() {
 
 	gt.RegisterToolsServer(grpcServer, app.Tools)
 
-	RegisterHTTP(app)
+	RegisterHTTP(app.Mux)
 }
 
 type grpcRegister struct {
-	app *Components
-	s   *grpc.Server
+	mux  *http.ServeMux
+	s    *grpc.Server
+	auth *Auth
 }
 
 func (g *grpcRegister) RegisterService(desc *grpc.ServiceDesc, impl any) {
@@ -74,14 +83,13 @@ func (g *grpcRegister) RegisterService(desc *grpc.ServiceDesc, impl any) {
 	for _, method := range desc.Methods {
 		path := fmt.Sprintf("POST /%s/%s", desc.ServiceName, method.MethodName)
 		log.Info("register http handler", "path", path)
-
-		HandleFunc(g.app, path, registerHTTP(impl, method.Handler))
+		HandleFunc(g.mux, g.auth, path, registerHTTP(impl, method.Handler))
 	}
 
 	for _, method := range desc.Streams {
 		path := fmt.Sprintf("GET /%s/%s", desc.ServiceName, method.StreamName)
 		log.Info("register websocket handler", "path", path)
-		HandleFunc(g.app, path, registerWebsocket(impl, method.Handler))
+		HandleFunc(g.mux, g.auth, path, registerWebsocket(impl, method.Handler))
 	}
 }
 
@@ -100,10 +108,12 @@ func (a *Components) Close() error {
 }
 
 type Start struct {
-	ConfigPath   string
-	Host         string
-	BypassConfig pc.DB
-	Setting      config.Setting
+	ConfigPath     string
+	Host           string
+	Auth           *Auth
+	BypassConfig   pc.DB
+	ResolverConfig pc.DB
+	Setting        config.Setting
 
 	ProcessDumper netapi.ProcessDumper
 	GRPCServer    *grpc.Server
@@ -123,4 +133,47 @@ func (m *moduleCloser) Close() error {
 	log.Info("close", "module", m.name)
 	defer log.Info("closed", "module", m.name)
 	return m.Closer.Close()
+}
+
+type Auth struct {
+	Username [32]byte
+	Password [32]byte
+}
+
+func NewAuth(username, password string) *Auth {
+	return &Auth{
+		Username: sha256.Sum256([]byte(username)),
+		Password: sha256.Sum256([]byte(password)),
+	}
+}
+
+func (a *Auth) Auth(password, username string) bool {
+	rSumUser := sha256.Sum256([]byte(username))
+	rSumPass := sha256.Sum256([]byte(password))
+	return subtle.ConstantTimeCompare(rSumUser[:], a.Username[:]) == 1 && subtle.ConstantTimeCompare(rSumPass[:], a.Password[:]) == 1
+}
+
+func (a *Auth) GrpcAuth() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, status.Error(codes.Unauthenticated, "metadata not found")
+		}
+
+		as := md.Get("Authorization")
+		if len(as) == 0 {
+			return nil, status.Error(codes.Unauthenticated, "authorization header not found")
+		}
+
+		ru, rp, ok := pt.ParseBasicAuth(as[0])
+		if !ok {
+			return nil, status.Error(codes.Unauthenticated, "authorization failed")
+		}
+
+		if !a.Auth(ru, rp) {
+			return nil, status.Error(codes.Unauthenticated, "authorization failed")
+		}
+
+		return handler(ctx, req)
+	}
 }

@@ -15,6 +15,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	bypass "github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	service "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -28,6 +31,22 @@ type App struct {
 
 	mu      sync.Mutex
 	started atomic.Bool
+}
+
+func newResolverDB() *configDB[*dns.DnsConfig] {
+	return newConfigDB(
+		"resolver_db",
+		func(s *pc.Setting) *dns.DnsConfig { return s.GetDns() },
+		func(s *dns.DnsConfig) *pc.Setting { return pc.Setting_builder{Dns: s}.Build() },
+	)
+}
+
+func newBypassDB() *configDB[*bypass.Config] {
+	return newConfigDB(
+		"bypass_db",
+		func(s *pc.Setting) *bypass.Config { return s.GetBypass() },
+		func(s *bypass.Config) *pc.Setting { return pc.Setting_builder{Bypass: s}.Build() },
+	)
 }
 
 func (a *App) Start(opt *Opts) error {
@@ -47,9 +66,10 @@ func (a *App) Start(opt *Opts) error {
 
 		app, err := app.Start(
 			appapi.Start{
-				ConfigPath:   opt.Savepath,
-				BypassConfig: newBypassDB(),
-				Setting:      fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
+				ConfigPath:     opt.Savepath,
+				BypassConfig:   newBypassDB(),
+				ResolverConfig: newResolverDB(),
+				Setting:        fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
 				Host: net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
 					fmt.Sprint(GetStore("Default").GetInt(NewYuhaiinPortKey))),
 				ProcessDumper: NewUidDumper(opt.TUN.UidDumper),

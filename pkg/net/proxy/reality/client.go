@@ -55,33 +55,31 @@ func init() {
 	register.RegisterPoint(NewRealityClient)
 }
 
-func NewRealityClient(config *protocol.Reality) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		publicKey, err := base64.RawURLEncoding.DecodeString(config.GetPublicKey())
-		if err != nil {
-			return nil, fmt.Errorf("decode public_key failed: %w", err)
-		}
-		if len(publicKey) != 32 {
-			return nil, fmt.Errorf("invalid public_key")
-		}
-		var shortID [8]byte
-		decodedLen, err := hex.Decode(shortID[:], []byte(config.GetShortId()))
-		if err != nil {
-			return nil, fmt.Errorf("decode short_id failed: %w", err)
-		}
-		if decodedLen > 8 {
-			return nil, fmt.Errorf("invalid short_id")
-		}
-		return &RealityClient{
-			proxy: p,
-			utls: &utls.Config{
-				ServerName: config.GetServerName(),
-			},
-			publicKey: publicKey,
-			shortID:   shortID,
-			Deubg:     config.GetDebug(),
-		}, nil
+func NewRealityClient(config *protocol.Reality, p netapi.Proxy) (netapi.Proxy, error) {
+	publicKey, err := base64.RawURLEncoding.DecodeString(config.GetPublicKey())
+	if err != nil {
+		return nil, fmt.Errorf("decode public_key failed: %w", err)
 	}
+	if len(publicKey) != 32 {
+		return nil, fmt.Errorf("invalid public_key")
+	}
+	var shortID [8]byte
+	decodedLen, err := hex.Decode(shortID[:], []byte(config.GetShortId()))
+	if err != nil {
+		return nil, fmt.Errorf("decode short_id failed: %w", err)
+	}
+	if decodedLen > 8 {
+		return nil, fmt.Errorf("invalid short_id")
+	}
+	return &RealityClient{
+		proxy: p,
+		utls: &utls.Config{
+			ServerName: config.GetServerName(),
+		},
+		publicKey: publicKey,
+		shortID:   shortID,
+		Deubg:     config.GetDebug(),
+	}, nil
 }
 
 func (e *RealityClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

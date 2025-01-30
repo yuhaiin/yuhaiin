@@ -46,7 +46,7 @@ type happyEyeball struct {
 
 func newHappyEyeball(ctx context.Context, addr netapi.DomainAddress, cache HappyEyeballsv2Cache) *happyEyeball {
 	netctx := netapi.GetContext(ctx)
-	resolver := Bootstrap
+	resolver := Bootstrap()
 	if netctx.Resolver.ResolverSelf != nil {
 		resolver = netctx.Resolver.ResolverSelf
 	} else if netctx.Resolver.Resolver != nil {

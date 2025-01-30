@@ -173,6 +173,7 @@ func (c *Connections) getConnection(ctx context.Context, conn interface{ LocalAd
 		Ip:       stringOrNil(store.IPString),
 		Tag:      stringOrNil(store.Tag),
 		Hash:     stringOrNil(store.Hash),
+		NodeName: stringOrNil(store.NodeName),
 		Protocol: stringOrNil(store.Protocol),
 		Process:  stringOrNil(store.Process),
 

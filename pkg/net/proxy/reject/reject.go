@@ -44,8 +44,8 @@ type object struct {
 }
 
 func init() {
-	register.RegisterPoint(func(*protocol.Reject) register.WrapProxy {
-		return func(netapi.Proxy) (netapi.Proxy, error) { return Default, nil }
+	register.RegisterPoint(func(*protocol.Reject, netapi.Proxy) (netapi.Proxy, error) {
+		return Default, nil
 	})
 }
 

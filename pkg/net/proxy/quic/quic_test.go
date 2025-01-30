@@ -91,7 +91,7 @@ func TestQuic(t *testing.T) {
 			Enable:             proto.Bool(true),
 			InsecureSkipVerify: proto.Bool(true),
 		}.Build(),
-	}.Build())(nil)
+	}.Build(), nil)
 	assert.NoError(t, err)
 
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)
@@ -181,7 +181,7 @@ func TestSimple(t *testing.T) {
 	qc, err := simple.NewClient(protocol.Simple_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(1090),
-	}.Build())(nil)
+	}.Build(), nil)
 	assert.NoError(t, err)
 
 	pc, err := qc.PacketConn(context.TODO(), netapi.EmptyAddr)

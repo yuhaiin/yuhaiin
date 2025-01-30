@@ -72,9 +72,19 @@ func registerHTTP(srv any, handler grpc.MethodHandler) func(w http.ResponseWrite
 	}
 }
 
-func HandleFunc(o *Components, path string, b func(http.ResponseWriter, *http.Request) error) {
-	o.Mux.Handle(path, http.HandlerFunc(func(ow http.ResponseWriter, r *http.Request) {
+func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.ResponseWriter, *http.Request) error) {
+	mux.Handle(path, http.HandlerFunc(func(ow http.ResponseWriter, r *http.Request) {
+		if auth != nil {
+			username, password, ok := r.BasicAuth()
+			if !ok || !auth.Auth(password, username) {
+				ow.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+				http.Error(ow, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+
 		cross(ow)
+
 		w := &wrapResponseWriter{ow, false}
 		err := b(w, r)
 		if err != nil {
@@ -240,14 +250,14 @@ func (x *websocketServer) AddRecvData(data []byte) {
 
 func (x *websocketServer) SendData() <-chan []byte { return x.send }
 
-func RegisterHTTP(o *Components) {
+func RegisterHTTP(mux *http.ServeMux) {
 	if debug != nil {
-		debug(o.Mux)
+		debug(mux)
 	}
 
-	HandleFunc(o, "OPTIONS /", func(w http.ResponseWriter, r *http.Request) error { return nil })
+	HandleFunc(mux, nil, "OPTIONS /", func(w http.ResponseWriter, r *http.Request) error { return nil })
 
-	HandleFront(o.Mux)
+	HandleFront(mux)
 }
 
 var debug func(*http.ServeMux)

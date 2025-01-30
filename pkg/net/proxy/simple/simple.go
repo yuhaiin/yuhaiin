@@ -34,23 +34,21 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(c *protocol.Simple) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		var addrs []netapi.Address
-		addrs = append(addrs, netapi.ParseAddressPort("", c.GetHost(), uint16(c.GetPort())))
-		for _, v := range c.GetAlternateHost() {
-			addrs = append(addrs, netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort())))
-		}
-
-		simple := &Simple{
-			addrs:        addrs,
-			p:            p,
-			nonBootstrap: p != nil && !register.IsBootstrap(p),
-			iface:        c.GetNetworkInterface(),
-		}
-
-		return simple, nil
+func NewClient(c *protocol.Simple, p netapi.Proxy) (netapi.Proxy, error) {
+	var addrs []netapi.Address
+	addrs = append(addrs, netapi.ParseAddressPort("", c.GetHost(), uint16(c.GetPort())))
+	for _, v := range c.GetAlternateHost() {
+		addrs = append(addrs, netapi.ParseAddressPort("", v.GetHost(), uint16(v.GetPort())))
 	}
+
+	simple := &Simple{
+		addrs:        addrs,
+		p:            p,
+		nonBootstrap: p != nil && !register.IsBootstrap(p),
+		iface:        c.GetNetworkInterface(),
+	}
+
+	return simple, nil
 }
 
 func (c *Simple) Conn(ctx context.Context, _ netapi.Address) (net.Conn, error) {

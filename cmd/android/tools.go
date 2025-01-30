@@ -1,6 +1,7 @@
 package yuhaiin
 
 import (
+	"log/slog"
 	"net"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -29,6 +30,32 @@ var v6DefaultMask = net.CIDRMask(128, 128)
 
 type AddRoute interface {
 	Add(*CIDR)
+}
+
+func FakeDnsCidr(f func(string)) {
+	err := newResolverDB().View(func(s *pc.Setting) error {
+		d := s.GetDns()
+
+		f(d.GetFakednsIpRange())
+		f(d.GetFakednsIpv6Range())
+
+		return nil
+	})
+	if err != nil {
+		log.Error("view resolver db failed", slog.Any("err", err))
+	}
+}
+
+func AddFakeDnsCidr(process AddRoute) {
+	FakeDnsCidr(func(s string) {
+		cidr, err := ParseCIDR(s)
+		if err != nil {
+			log.Error("parse cidr failed", "cidr", s, "err", err)
+			return
+		}
+
+		process.Add(cidr)
+	})
 }
 
 func AddRulesCidrv2(process AddRoute) {

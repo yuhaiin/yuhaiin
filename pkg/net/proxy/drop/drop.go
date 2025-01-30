@@ -14,8 +14,8 @@ import (
 )
 
 func init() {
-	register.RegisterPoint(func(*protocol.Drop) register.WrapProxy {
-		return func(netapi.Proxy) (netapi.Proxy, error) { return Drop, nil }
+	register.RegisterPoint(func(*protocol.Drop, netapi.Proxy) (netapi.Proxy, error) {
+		return Drop, nil
 	})
 }
 

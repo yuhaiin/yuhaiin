@@ -34,14 +34,12 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Grpc) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		return &client{
-			Proxy:     p,
-			count:     &atomic.Int64{},
-			tlsConfig: register.ParseTLSConfig(config.GetTls()),
-		}, nil
-	}
+func NewClient(config *protocol.Grpc, p netapi.Proxy) (netapi.Proxy, error) {
+	return &client{
+		Proxy:     p,
+		count:     &atomic.Int64{},
+		tlsConfig: register.ParseTLSConfig(config.GetTls()),
+	}, nil
 }
 
 func (c *client) connect() (*grpc.ClientConn, error) {

@@ -14,51 +14,26 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"google.golang.org/protobuf/proto"
 )
-
-func ExampleNew() {
-	simple := simple.NewClient(protocol.Simple_builder{
-		Host: proto.String("127.0.0.1"),
-		Port: proto.Int32(1080),
-	}.Build())
-	ws := websocket.NewClient(protocol.Websocket_builder{
-		Host: proto.String("localhost"),
-	}.Build())
-
-	ss := NewClient(protocol.Shadowsocks_builder{
-		Method:   proto.String("aes-128-gcm"),
-		Password: proto.String("test"),
-	}.Build())
-
-	var err error
-	var conn netapi.Proxy
-	for _, wrap := range []register.WrapProxy{simple, ws, ss} {
-		conn, err = wrap(conn)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
 
 func TestConn(t *testing.T) {
 	p, err := simple.NewClient(
 		protocol.Simple_builder{
 			Host: proto.String("127.0.0.1"),
 			Port: proto.Int32(1080),
-		}.Build())(nil)
+		}.Build(), nil)
 	assert.NoError(t, err)
-	z, err := websocket.NewClient(protocol.Websocket_builder{Host: proto.String("localhost:1090")}.Build())(p)
+	z, err := websocket.NewClient(protocol.Websocket_builder{Host: proto.String("localhost:1090")}.Build(), p)
 	assert.NoError(t, err)
 	z, err = NewClient(protocol.Shadowsocks_builder{
 		Method:   proto.String("aes-128-gcm"),
 		Password: proto.String("test"),
 	}.Build(),
-	// "v2ray",
-	// "tls;cert=/mnt/data/program/go-shadowsocks/ca.crt;host=localhost:1090",
-	)(z)
+		// "v2ray",
+		// "tls;cert=/mnt/data/program/go-shadowsocks/ca.crt;host=localhost:1090",
+		z)
 	if err != nil {
 		t.Error(err)
 		return
@@ -94,12 +69,12 @@ func TestUDPConn(t *testing.T) {
 	p, err := simple.NewClient(protocol.Simple_builder{
 		Host: proto.String("127.0.0.1"),
 		Port: proto.Int32(1090),
-	}.Build())(nil)
+	}.Build(), nil)
 	assert.NoError(t, err)
 	s, err := NewClient(protocol.Shadowsocks_builder{
 		Method:   proto.String("aes-128-gcm"),
 		Password: proto.String("test"),
-	}.Build())(p)
+	}.Build(), p)
 	assert.NoError(t, err)
 
 	ad, _ := netapi.ParseAddress("udp", "223.5.5.5:53")

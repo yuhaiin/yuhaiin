@@ -24,37 +24,35 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(c *protocol.TlsConfig) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		var tlsConfigs []*tls.Config
-		tls := register.ParseTLSConfig(c)
-		if tls != nil {
-			// if !tls.InsecureSkipVerify && tls.ServerName == "" {
-			// 	tls.ServerName = c.Simple.GetHost()
-			// }
+func NewClient(c *protocol.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
+	var tlsConfigs []*tls.Config
+	tls := register.ParseTLSConfig(c)
+	if tls != nil {
+		// if !tls.InsecureSkipVerify && tls.ServerName == "" {
+		// 	tls.ServerName = c.Simple.GetHost()
+		// }
 
-			tlsConfigs = append(tlsConfigs, tls)
+		tlsConfigs = append(tlsConfigs, tls)
 
-			if len(c.GetServerNames()) > 1 {
-				for _, v := range c.GetServerNames()[1:] {
-					tc := tls.Clone()
-					tc.ServerName = v
+		if len(c.GetServerNames()) > 1 {
+			for _, v := range c.GetServerNames()[1:] {
+				tc := tls.Clone()
+				tc.ServerName = v
 
-					tlsConfigs = append(tlsConfigs, tc)
-				}
+				tlsConfigs = append(tlsConfigs, tc)
 			}
 		}
-
-		if len(tlsConfigs) == 0 {
-			return p, nil
-		}
-
-		return &Tls{
-			tlsConfig:    tlsConfigs,
-			dialer:       p,
-			configLength: len(tlsConfigs),
-		}, nil
 	}
+
+	if len(tlsConfigs) == 0 {
+		return p, nil
+	}
+
+	return &Tls{
+		tlsConfig:    tlsConfigs,
+		dialer:       p,
+		configLength: len(tlsConfigs),
+	}, nil
 }
 
 func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

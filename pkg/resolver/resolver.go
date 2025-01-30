@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -32,7 +33,9 @@ type Entry struct {
 
 type Resolver struct {
 	dialer          netapi.Proxy
+	bootstrapMu     sync.Mutex
 	bootstrapConfig *pd.Dns
+	mu              sync.RWMutex
 	store           syncmap.SyncMap[string, *Entry]
 	resolvers       syncmap.SyncMap[string, *pd.Dns]
 }
@@ -49,19 +52,17 @@ func NewResolver(dd netapi.Proxy) *Resolver {
 	}
 }
 
-var errorResolver = &Entry{
-	Resolver: netapi.ErrorResolver(func(domain string) error {
-		return &net.OpError{
-			Op:   "block",
-			Addr: netapi.ParseDomainPort("", domain, 0),
-			Err:  errors.New("blocked"),
-		}
-	}),
-}
+var errorResolver = netapi.ErrorResolver(func(domain string) error {
+	return &net.OpError{
+		Op:   "block",
+		Addr: netapi.ParseDomainPort("", domain, 0),
+		Err:  errors.New("blocked"),
+	}
+})
 
 var block = bypass.Mode_block.String()
 
-func (r *Resolver) getFallbackResolver(str, fallback string) *Entry {
+func (r *Resolver) getFallbackResolver(str, fallback string) netapi.Resolver {
 	if fallback == block {
 		return errorResolver
 	}
@@ -88,10 +89,10 @@ func (r *Resolver) getFallbackResolver(str, fallback string) *Entry {
 func (r *Resolver) Get(str, fallback string) netapi.Resolver {
 	z := r.getFallbackResolver(str, fallback)
 	if z != nil {
-		return z.Resolver
+		return z
 	}
 
-	return dialer.Bootstrap
+	return dialer.Bootstrap()
 }
 
 func (r *Resolver) Close() error {
@@ -104,10 +105,14 @@ func (r *Resolver) Close() error {
 	return nil
 }
 
-func (r *Resolver) getResolver(str string) (*Entry, bool) {
+func (r *Resolver) getResolver(str string) (netapi.Resolver, bool) {
+	if str == "bootstrap" {
+		return dialer.Bootstrap(), true
+	}
+
 	e, ok := r.store.Load(str)
 	if ok {
-		return e, true
+		return e.Resolver, true
 	}
 
 	e, _, err := r.store.LoadOrCreate(str, func() (*Entry, error) {
@@ -122,7 +127,7 @@ func (r *Resolver) getResolver(str string) (*Entry, bool) {
 				store := netapi.GetContext(ctx)
 				store.Component = "Resolver " + str
 				// force to use bootstrap dns, otherwise will dns query cycle
-				store.Resolver.ResolverSelf = dialer.Bootstrap
+				store.Resolver.ResolverSelf = dialer.Bootstrap()
 			},
 		}
 
@@ -137,7 +142,7 @@ func (r *Resolver) getResolver(str string) (*Entry, bool) {
 		}, nil
 	})
 
-	return e, err == nil
+	return e.Resolver, err == nil
 }
 
 func (r *Resolver) Apply(name string, config *pd.Dns) {
@@ -145,6 +150,9 @@ func (r *Resolver) Apply(name string, config *pd.Dns) {
 		log.Warn("resolver name is empty")
 		return
 	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	ndns, ok := r.store.Load(name)
 	if ok && !proto.Equal(ndns.Config, config) {
@@ -158,6 +166,9 @@ func (r *Resolver) Apply(name string, config *pd.Dns) {
 }
 
 func (r *Resolver) Delete(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	r.resolvers.Delete(name)
 	ndns, ok := r.store.Load(name)
 	if !ok {
@@ -170,6 +181,9 @@ func (r *Resolver) Delete(name string) {
 }
 
 func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
+	r.bootstrapMu.Lock()
+	defer r.bootstrapMu.Unlock()
+
 	log.Debug("apply bootstrap dns", "config", c)
 
 	if !proto.Equal(r.bootstrapConfig, c) {
@@ -186,9 +200,7 @@ func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
 		if err != nil {
 			log.Error("get bootstrap dns failed", "err", err)
 		} else {
-			old := dialer.Bootstrap
-			dialer.Bootstrap = z
-			old.Close()
+			dialer.SetBootstrap(z)
 			r.bootstrapConfig = c
 		}
 	}

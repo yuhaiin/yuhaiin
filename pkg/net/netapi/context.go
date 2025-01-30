@@ -51,6 +51,7 @@ type Context struct {
 	IPString     string `metrics:"IP"`
 	Tag          string `metrics:"Tag"`
 	Hash         string `metrics:"Hash"`
+	NodeName     string `metrics:"NodeName"`
 
 	// sniffy
 	Protocol      string `metrics:"Protocol"`

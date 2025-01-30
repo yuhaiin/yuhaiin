@@ -63,13 +63,11 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(config *protocol.Vless) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		uid, err := uuid.ParseStd(config.GetUuid())
-		if err != nil {
-			return nil, err
-		}
-
-		return &Client{Proxy: p, uuid: uid}, nil
+func NewClient(config *protocol.Vless, p netapi.Proxy) (netapi.Proxy, error) {
+	uid, err := uuid.ParseStd(config.GetUuid())
+	if err != nil {
+		return nil, err
 	}
+
+	return &Client{Proxy: p, uuid: uid}, nil
 }

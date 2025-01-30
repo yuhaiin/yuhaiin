@@ -88,14 +88,14 @@ func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Serv
 	return h
 }
 
-//go:linkname parseBasicAuth net/http.parseBasicAuth
-func parseBasicAuth(auth string) (username, password string, ok bool)
+//go:linkname ParseBasicAuth net/http.parseBasicAuth
+func ParseBasicAuth(auth string) (username, password string, ok bool)
 
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if h.password != "" || h.username != "" {
-		username, password, isHas := parseBasicAuth(r.Header.Get("Proxy-Authorization"))
+		username, password, isHas := ParseBasicAuth(r.Header.Get("Proxy-Authorization"))
 		if !isHas {
 			w.Header().Set("Proxy-Authenticate", "Basic")
 			w.WriteHeader(http.StatusProxyAuthRequired)

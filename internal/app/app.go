@@ -146,7 +146,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	hosts := AddComponent(so, "hosts", resolver.NewHosts(stcs, st))
 	// wrap dialer and dns resolver to fake ip, if use
 	fakedns := AddComponent(so, "fakedns", resolver.NewFakeDNS(hosts, hosts, db))
-	resolverControl := resolver.NewResolverControl(so.Setting, hosts, fakedns, dns)
+	resolverControl := resolver.NewResolverControl(so.ResolverConfig, hosts, fakedns, dns)
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(so, "dnsServer", resolver.NewDNSServer(fakedns))
 	// make dns flow across all proxy chain

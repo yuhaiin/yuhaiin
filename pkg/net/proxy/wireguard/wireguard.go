@@ -50,35 +50,32 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(conf *protocol.Wireguard) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-
-		if conf.GetIdleTimeout() == 0 {
-			conf.SetIdleTimeout(60 * 5)
-		}
-		if conf.GetIdleTimeout() <= 30 {
-			conf.SetIdleTimeout(30)
-		}
-
-		w := &Wireguard{
-			conf:        conf,
-			idleTimeout: time.Duration(conf.GetIdleTimeout()) * time.Second * 2,
-		}
-
-		w.happyDialer = &dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]{
-			DialContext: func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
-				nt, err := w.initNet()
-				if err != nil {
-					return nil, err
-				}
-				return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
-			},
-			Cache: lru.NewSyncLru(lru.WithCapacity[unique.Handle[string], net.IP](512)),
-			Avg:   dialer.NewAvg(),
-		}
-
-		return w, nil
+func NewClient(conf *protocol.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
+	if conf.GetIdleTimeout() == 0 {
+		conf.SetIdleTimeout(60 * 5)
 	}
+	if conf.GetIdleTimeout() <= 30 {
+		conf.SetIdleTimeout(30)
+	}
+
+	w := &Wireguard{
+		conf:        conf,
+		idleTimeout: time.Duration(conf.GetIdleTimeout()) * time.Second * 2,
+	}
+
+	w.happyDialer = &dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]{
+		DialContext: func(ctx context.Context, ip net.IP, port uint16) (*gonet.TCPConn, error) {
+			nt, err := w.initNet()
+			if err != nil {
+				return nil, err
+			}
+			return nt.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
+		},
+		Cache: lru.NewSyncLru(lru.WithCapacity[unique.Handle[string], net.IP](512)),
+		Avg:   dialer.NewAvg(),
+	}
+
+	return w, nil
 }
 
 func (w *Wireguard) initNet() (*netTun, error) {

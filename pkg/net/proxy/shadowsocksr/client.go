@@ -31,32 +31,30 @@ func init() {
 	register.RegisterPoint(NewClient)
 }
 
-func NewClient(c *protocols.Shadowsocksr) register.WrapProxy {
-	return func(p netapi.Proxy) (netapi.Proxy, error) {
-		cipher, err := cipher.NewCipher(c.GetMethod(), c.GetPassword())
-		if err != nil {
-			return nil, fmt.Errorf("new cipher failed: %w", err)
-		}
-
-		obfs := &obfs.Obfs{
-			Name:   c.GetObfs(),
-			Host:   c.GetServer(),
-			Port:   c.GetPort(),
-			Param:  c.GetObfsparam(),
-			Cipher: cipher,
-		}
-
-		protocol := &protocol.Protocol{
-			Name:         c.GetProtocol(),
-			Auth:         protocol.NewAuth(),
-			Param:        c.GetProtoparam(),
-			TcpMss:       1460,
-			Cipher:       cipher,
-			ObfsOverhead: obfs.Overhead(),
-		}
-
-		return &Shadowsocksr{protocol: protocol, obfs: obfs, cipher: cipher, dial: p}, nil
+func NewClient(c *protocols.Shadowsocksr, p netapi.Proxy) (netapi.Proxy, error) {
+	cipher, err := cipher.NewCipher(c.GetMethod(), c.GetPassword())
+	if err != nil {
+		return nil, fmt.Errorf("new cipher failed: %w", err)
 	}
+
+	obfs := &obfs.Obfs{
+		Name:   c.GetObfs(),
+		Host:   c.GetServer(),
+		Port:   c.GetPort(),
+		Param:  c.GetObfsparam(),
+		Cipher: cipher,
+	}
+
+	protocol := &protocol.Protocol{
+		Name:         c.GetProtocol(),
+		Auth:         protocol.NewAuth(),
+		Param:        c.GetProtoparam(),
+		TcpMss:       1460,
+		Cipher:       cipher,
+		ObfsOverhead: obfs.Overhead(),
+	}
+
+	return &Shadowsocksr{protocol: protocol, obfs: obfs, cipher: cipher, dial: p}, nil
 }
 
 func (s *Shadowsocksr) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
