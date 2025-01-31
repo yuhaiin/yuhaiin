@@ -24,12 +24,24 @@ type dnsServer struct {
 	listener    net.PacketConn
 	tcpListener net.Listener
 	server      string
+
+	ctx     context.Context
+	cancel  context.CancelFunc
+	reqChan chan *netapi.DNSRawRequest
 }
 
 func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
+	ctx, cancel := context.WithCancel(context.Background())
 	d := &dnsServer{
+		ctx:      ctx,
+		cancel:   cancel,
 		server:   server,
 		resolver: process,
+		reqChan:  make(chan *netapi.DNSRawRequest, 100),
+	}
+
+	for range configuration.DNSProcessThread.Load() {
+		go d.startHandleReqData()
 	}
 
 	if server == "" {
@@ -51,6 +63,8 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSServer {
 }
 
 func (d *dnsServer) Close() error {
+	d.cancel()
+
 	if d.listener != nil {
 		d.listener.Close()
 	}
@@ -92,7 +106,7 @@ func (d *dnsServer) startUDP() (err error) {
 				go func(b []byte) {
 					defer pool.PutBytes(b)
 
-					err := d.Do(context.TODO(), &netapi.DNSRawRequest{
+					err := d.do(context.TODO(), &doData{
 						Question: b,
 						WriteBack: func(b []byte) error {
 							if _, err = d.listener.WriteTo(b, addr); err != nil {
@@ -134,16 +148,19 @@ func (d *dnsServer) startTCP() (err error) {
 		go func() {
 			defer conn.Close()
 
-			if err := d.HandleTCP(context.TODO(), conn); err != nil {
+			if err := d.handleTCP(context.TODO(), conn, false); err != nil {
 				log.Error("handle dns tcp failed", "err", err)
 			}
 		}()
 	}
 }
 
-type TCPKey struct{}
+func (d *dnsServer) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) error {
+	defer req.Conn.Close()
+	return d.handleTCP(ctx, req.Conn, req.ForceFakeIP)
+}
 
-func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
+func (d *dnsServer) handleTCP(ctx context.Context, c net.Conn, forceFakeIP bool) error {
 	var length uint16
 	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
 		return fmt.Errorf("read dns length failed: %w", err)
@@ -157,7 +174,7 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
-	return d.Do(ctx, &netapi.DNSRawRequest{
+	return d.do(ctx, &doData{
 		Question: data,
 		WriteBack: func(b []byte) error {
 			if err = pool.BinaryWriteUint16(c, binary.BigEndian, uint16(len(b))); err != nil {
@@ -166,7 +183,8 @@ func (d *dnsServer) HandleTCP(ctx context.Context, c net.Conn) error {
 			_, err = c.Write(b)
 			return err
 		},
-		Stream: true,
+		Stream:      true,
+		ForceFakeIP: forceFakeIP,
 	})
 }
 
@@ -179,7 +197,7 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 		return err
 	}
 
-	return d.Do(context.TODO(), &netapi.DNSRawRequest{
+	return d.do(context.TODO(), &doData{
 		Question: buf[:n],
 		WriteBack: func(b []byte) error {
 			_, err = l.WriteTo(b, addr)
@@ -188,9 +206,20 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 	})
 }
 
-func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
+type doData struct {
+	WriteBack   func([]byte) error
+	Question    []byte
+	Stream      bool
+	ForceFakeIP bool
+}
+
+func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	ctx, cancel := context.WithTimeout(ctx, configuration.Timeout)
 	defer cancel()
+
+	if req.ForceFakeIP {
+		ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
+	}
 
 	var parse dnsmessage.Parser
 	header, err := parse.Start(req.Question)
@@ -261,4 +290,38 @@ func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
 	}
 
 	return req.WriteBack(bytes)
+}
+
+func (d *dnsServer) startHandleReqData() {
+	for {
+		select {
+		case req := <-d.reqChan:
+			err := d.do(d.ctx, &doData{
+				Question:    req.Question.Payload,
+				WriteBack:   req.WriteBack,
+				Stream:      req.Stream,
+				ForceFakeIP: req.ForceFakeIP,
+			})
+			req.Question.DecRef()
+			if err != nil {
+				log.Error("handle dns request failed", "err", err)
+			}
+		case <-d.ctx.Done():
+			return
+		}
+	}
+}
+
+func (d *dnsServer) Do(ctx context.Context, req *netapi.DNSRawRequest) error {
+	req.Question.IncRef()
+	select {
+	case d.reqChan <- req:
+		return nil
+	case <-ctx.Done():
+		req.Question.DecRef()
+		return ctx.Err()
+	case <-d.ctx.Done():
+		req.Question.DecRef()
+		return d.ctx.Err()
+	}
 }

@@ -59,25 +59,21 @@ func (l *listener) isHandleDNS(port uint16) bool {
 
 func (l *listener) HandleStream(meta *netapi.StreamMeta) {
 	go func() {
-		store := netapi.WithContext(l.ctx)
-		store.Source = meta.Source
-		store.Destination = meta.Destination
-		if meta.Inbound != nil {
-			store.Inbound = meta.Inbound
-		}
-
 		if !l.isHandleDNS(meta.Address.Port()) {
+			store := netapi.WithContext(l.ctx)
+			store.Source = meta.Source
+			store.Destination = meta.Destination
+			if meta.Inbound != nil {
+				store.Inbound = meta.Inbound
+			}
 			l.handler.Stream(store, meta)
 			return
 		}
 
-		var ctx context.Context = store
-		if l.fakeip.Load() {
-			ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
-		}
-
-		err := l.handler.dnsHandler.HandleTCP(ctx, meta.Src)
-		_ = meta.Src.Close()
+		err := l.handler.dnsHandler.DoStream(l.ctx, &netapi.DNSStreamRequest{
+			Conn:        meta.Src,
+			ForceFakeIP: l.fakeip.Load(),
+		})
 		if err != nil {
 			log.Select(netapi.LogLevel(err)).Print("tcp server handle DnsHijacking", "msg", err)
 		}
@@ -104,34 +100,26 @@ func (l *listener) loopudp() {
 }
 
 func (l *listener) handlePacket(packet *netapi.Packet) {
-
 	if !l.isHandleDNS(packet.Dst.Port()) {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
 		// so here just pass [l.ctx]
 		l.handler.Packet(l.ctx, packet)
 		packet.DecRef()
 	} else {
-		go func() {
-			defer packet.DecRef()
+		dnsReq := &netapi.DNSRawRequest{
+			Question: packet,
+			WriteBack: func(b []byte) error {
+				_, err := packet.WriteBack.WriteBack(b, packet.Dst)
+				return err
+			},
+			ForceFakeIP: l.fakeip.Load(),
+		}
 
-			dnsReq := &netapi.DNSRawRequest{
-				Question: packet.Payload,
-				WriteBack: func(b []byte) error {
-					_, err := packet.WriteBack.WriteBack(b, packet.Dst)
-					return err
-				},
-			}
-
-			ctx := l.ctx
-			if l.fakeip.Load() {
-				ctx = context.WithValue(ctx, netapi.ForceFakeIPKey{}, true)
-			}
-
-			err := l.handler.dnsHandler.Do(ctx, dnsReq)
-			if err != nil {
-				log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
-			}
-		}()
+		err := l.handler.dnsHandler.Do(l.ctx, dnsReq)
+		packet.DecRef()
+		if err != nil {
+			log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
+		}
 	}
 }
 

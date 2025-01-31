@@ -106,15 +106,19 @@ func (p *Packet) DecRef() {
 }
 
 type DNSRawRequest struct {
-	WriteBack func([]byte) error
-	Question  []byte
-	Stream    bool
+	WriteBack   func([]byte) error
+	Question    *Packet
+	Stream      bool
+	ForceFakeIP bool
 }
 
+type DNSStreamRequest struct {
+	Conn        net.Conn
+	ForceFakeIP bool
+}
 type DNSServer interface {
 	Server
-	HandleUDP(context.Context, net.PacketConn) error
-	HandleTCP(context.Context, net.Conn) error
+	DoStream(context.Context, *DNSStreamRequest) error
 	Do(context.Context, *DNSRawRequest) error
 }
 
@@ -122,11 +126,10 @@ var EmptyDNSServer DNSServer = &emptyDNSServer{}
 
 type emptyDNSServer struct{}
 
-func (e *emptyDNSServer) Close() error                                    { return nil }
-func (e *emptyDNSServer) HandleUDP(context.Context, net.PacketConn) error { return io.EOF }
-func (e *emptyDNSServer) HandleTCP(context.Context, net.Conn) error       { return io.EOF }
+func (e *emptyDNSServer) Close() error                                          { return nil }
+func (e *emptyDNSServer) DoStream(_ context.Context, _ *DNSStreamRequest) error { return io.EOF }
 func (e *emptyDNSServer) Do(_ context.Context, b *DNSRawRequest) error {
-	pool.PutBytes(b.Question)
+	b.Question.DecRef()
 	return io.EOF
 }
 
