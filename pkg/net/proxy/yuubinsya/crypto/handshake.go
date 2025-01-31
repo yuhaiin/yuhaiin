@@ -32,11 +32,11 @@ type encryptedHandshaker struct {
 func (t *encryptedHandshaker) EncodeHeader(header types.Header, buf types.Buffer) {
 	_ = buf.WriteByte(byte(header.Protocol))
 
-	if header.Protocol == types.UDPWithMigrateID {
+	if header.Protocol.Network() == types.UDPWithMigrateID {
 		_ = pool.BinaryWriteUint64(buf, binary.BigEndian, header.MigrateID)
 	}
 
-	if header.Protocol == types.TCP {
+	if header.Protocol.Network() == types.TCP {
 		tools.WriteAddr(header.Addr, buf)
 	}
 }
@@ -56,7 +56,7 @@ func (t *encryptedHandshaker) DecodeHeader(c pool.BufioConn) (types.Header, erro
 			return fmt.Errorf("unknown network: %d", netbyte)
 		}
 
-		if header.Protocol == types.UDPWithMigrateID {
+		if header.Protocol.Network() == types.UDPWithMigrateID {
 			mirgateBytes, err := r.Peek(8)
 			if err != nil {
 				return fmt.Errorf("read migrate id failed: %w", err)
@@ -67,7 +67,7 @@ func (t *encryptedHandshaker) DecodeHeader(c pool.BufioConn) (types.Header, erro
 			header.MigrateID = binary.BigEndian.Uint64(mirgateBytes)
 		}
 
-		if header.Protocol == types.TCP {
+		if header.Protocol.Network() == types.TCP {
 			_, addr, err := tools.ReadAddr("tcp", r)
 			if err != nil {
 				return fmt.Errorf("read addr failed: %w", err)

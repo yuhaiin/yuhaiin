@@ -21,13 +21,13 @@ type Handshaker [sha256.Size]byte
 func (password Handshaker) EncodeHeader(header types.Header, buf types.Buffer) {
 	_ = buf.WriteByte(byte(header.Protocol))
 
-	if header.Protocol == types.UDPWithMigrateID {
+	if header.Protocol.Network() == types.UDPWithMigrateID {
 		_ = pool.BinaryWriteUint64(buf, binary.BigEndian, header.MigrateID)
 	}
 
 	_, _ = buf.Write(password[:])
 
-	if header.Protocol == types.TCP {
+	if header.Protocol.Network() == types.TCP {
 		tools.WriteAddr(header.Addr, buf)
 	}
 }
@@ -47,7 +47,7 @@ func (password Handshaker) DecodeHeader(c pool.BufioConn) (types.Header, error) 
 			return fmt.Errorf("unknown network: %d", netbyte)
 		}
 
-		if header.Protocol == types.UDPWithMigrateID {
+		if header.Protocol.Network() == types.UDPWithMigrateID {
 			mirgateBytes, err := r.Peek(8)
 			if err != nil {
 				return fmt.Errorf("read migrate id failed: %w", err)
@@ -69,7 +69,7 @@ func (password Handshaker) DecodeHeader(c pool.BufioConn) (types.Header, error) 
 			return errors.New("password is incorrect")
 		}
 
-		if header.Protocol == types.TCP {
+		if header.Protocol.Network() == types.TCP {
 			_, target, err := tools.ReadAddr("tcp", r)
 			if err != nil {
 				return fmt.Errorf("read addr failed: %w", err)

@@ -18,16 +18,40 @@ type Header struct {
 }
 
 // Protocol network type
+// +---------+-------+
+// |       1 byte    |
+// +---------+-------+
+// |   5bit  | 3bit  |
+// +---------+-------+
+// |   opts  |prtocol|
+// +---------+-------+
+//
+// history:
+// 66: 0b01000 010
+// 77: 0b01001 101
+// 78: 0b01001 110
+//
+// so  0b01000 000, 0b01001 000 is reserved, because it already used on history
+//
+// 0b00001 000 is reserved for future extension that all opts bits used
 type Protocol byte
 
 var (
-	TCP Protocol = 66
-	UDP Protocol = 77
+	TCP Protocol = 0b00000010 // 2
+	// Deprecated: use UDPWithMigrateID
+	UDP Protocol = 0b00000101 // 5
 	// UDPWithMigrateID udp with migrate support
-	UDPWithMigrateID Protocol = 78
+	UDPWithMigrateID Protocol = 0b00000110 // 6
 )
 
-func (n Protocol) Unknown() bool { return n != TCP && n != UDP && n != UDPWithMigrateID }
+func (n Protocol) Unknown() bool {
+	n = n.Network()
+	return n != TCP && n != UDP && n != UDPWithMigrateID
+}
+
+func (n Protocol) Network() Protocol {
+	return n & 0b00000111
+}
 
 type Buffer interface {
 	Len() int
