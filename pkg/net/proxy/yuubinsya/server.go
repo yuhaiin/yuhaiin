@@ -130,7 +130,7 @@ func (y *server) handle(conn net.Conn) error {
 		return fmt.Errorf("parse header failed: %w", err)
 	}
 
-	switch header.Protocol {
+	switch header.Protocol.Network() {
 	case types.TCP:
 		y.handler.HandleStream(&netapi.StreamMeta{
 			Source:      c.RemoteAddr(),
@@ -143,7 +143,7 @@ func (y *server) handle(conn net.Conn) error {
 		return nil
 
 	case types.UDP, types.UDPWithMigrateID:
-		if header.Protocol == types.UDPWithMigrateID {
+		if header.Protocol.Network() == types.UDPWithMigrateID {
 			if header.MigrateID == 0 {
 				header.MigrateID = nat.GenerateID(c.RemoteAddr())
 			}

@@ -27,6 +27,7 @@ var (
 	MaxUDPUnprocessedPackets = 250
 	UDPBufferSize            = atomicx.NewValue(2048)
 	RelayBufferSize          = atomicx.NewValue(4096)
+	DNSProcessThread         = atomicx.NewValue(4)
 
 	MPTCP = false
 
