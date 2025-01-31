@@ -61,6 +61,7 @@ func run(args []string) error {
 		Auth:           auth,
 		BypassConfig:   setting,
 		ResolverConfig: setting,
+		UserConfig:     setting,
 		Setting:        setting,
 		GRPCServer:     grpcserver,
 		ProcessDumper:  getPorcessDumper(),

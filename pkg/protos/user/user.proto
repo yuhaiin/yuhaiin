@@ -1,0 +1,26 @@
+edition = "2023";
+
+package yuhaiin.user;
+
+option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/user";
+option features.(pb.go).api_level = API_OPAQUE;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
+import "google/protobuf/wrappers.proto";
+
+service users {
+  rpc add(User) returns (User);
+  rpc list(google.protobuf.Empty) returns (Users);
+  rpc delete (google.protobuf.StringValue) returns (google.protobuf.Empty);
+}
+
+message User {
+  string name = 1 [ json_name = "name" ];
+  string password = 2 [ json_name = "password" ];
+  string one_password = 3 [ json_name = "one_password" ];
+  google.protobuf.Timestamp created_at = 4 [ json_name = "created_at" ];
+}
+
+message Users { repeated User users = 1 [ json_name = "users" ]; }

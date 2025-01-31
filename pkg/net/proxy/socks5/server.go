@@ -2,10 +2,10 @@ package socks5
 
 import (
 	"context"
-	"crypto/subtle"
 	"fmt"
 	"io"
 	"net"
+	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/user"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 )
@@ -108,11 +109,10 @@ func (s *Server) handshake1(client net.Conn, buf []byte) error {
 		return fmt.Errorf("read methods failed: %w", err)
 	}
 
-	noNeedVerify := s.username == "" && s.password == ""
 	userAndPasswordSupport := false
 
 	for _, v := range buf[:nMethods] { // range all supported methods
-		if v == tools.NoAuthenticationRequired && noNeedVerify {
+		if v == tools.NoAuthenticationRequired && !s.auth {
 			return writeHandshake1(client, tools.NoAuthenticationRequired)
 		}
 
@@ -122,7 +122,7 @@ func (s *Server) handshake1(client net.Conn, buf []byte) error {
 	}
 
 	if userAndPasswordSupport {
-		return verifyUserPass(client, s.username, s.password)
+		return verifyUserPass(client)
 	}
 
 	err := writeHandshake1(client, tools.NoAcceptableMethods)
@@ -130,7 +130,7 @@ func (s *Server) handshake1(client net.Conn, buf []byte) error {
 	return fmt.Errorf("no acceptable authentication methods: [length: %d, method:%v], response err: %w", nMethods, buf[:nMethods], err)
 }
 
-func verifyUserPass(client net.Conn, user, key string) error {
+func verifyUserPass(client net.Conn) error {
 	if err := writeHandshake1(client, tools.UserAndPassword); err != nil {
 		return err
 	}
@@ -166,8 +166,13 @@ func verifyUserPass(client net.Conn, user, key string) error {
 
 	password := b[2+usernameLength+1 : 2+usernameLength+1+passwordLength]
 
-	if (len(user) > 0 && subtle.ConstantTimeCompare([]byte(user), username) != 1) ||
-		(len(key) > 0 && subtle.ConstantTimeCompare([]byte(key), password) != 1) {
+	_, ok := user.Store.VerifyUserPass(
+		unsafe.String(unsafe.SliceData(username), len(username)),
+		unsafe.String(unsafe.SliceData(password), len(password)),
+	)
+	if !ok {
+		// if (len(user) > 0 && subtle.ConstantTimeCompare([]byte(user), username) != 1) ||
+		// (len(key) > 0 && subtle.ConstantTimeCompare([]byte(key), password) != 1) {
 		_, err := client.Write([]byte{1, 1})
 		return fmt.Errorf("verify username and password failed, resp err: %w", err)
 	}
@@ -271,9 +276,8 @@ type Server struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 
-	username string
-	password string
-	udp      bool
+	auth bool
+	udp  bool
 }
 
 func (s *Server) Close() error {
@@ -288,13 +292,12 @@ func init() {
 func NewServer(o *listener.Socks5, ii netapi.Listener, handler netapi.Handler) (netapi.Accepter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		udp:      o.GetUdp(),
-		username: o.GetUsername(),
-		password: o.GetPassword(),
-		lis:      ii,
-		handler:  handler,
-		ctx:      ctx,
-		cancel:   cancel,
+		udp:     o.GetUdp(),
+		lis:     ii,
+		handler: handler,
+		ctx:     ctx,
+		cancel:  cancel,
+		auth:    o.GetAuth(),
 	}
 
 	if s.udp {

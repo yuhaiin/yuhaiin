@@ -47,9 +47,7 @@ func TestRangeFields(t *testing.T) {
 
 func TestGetValue(t *testing.T) {
 	i := listener.Inbound_builder{
-		Socks5: listener.Socks5_builder{
-			Username: proto.String("123"),
-		}.Build(),
+		Socks5: listener.Socks5_builder{}.Build(),
 		Tcpudp: listener.Tcpudp_builder{
 			Host: proto.String("123"),
 		}.Build(),

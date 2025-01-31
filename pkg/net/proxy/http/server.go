@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/user"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -22,16 +23,15 @@ type Server struct {
 	lis          net.Listener
 	reverseProxy *httputil.ReverseProxy
 
-	handler            netapi.Handler
-	username, password string
+	handler netapi.Handler
+	auth    bool
 }
 
 func newServer(o *listener.Http, lis net.Listener, handler netapi.Handler) *Server {
 	h := &Server{
-		username: o.GetUsername(),
-		password: o.GetPassword(),
-		lis:      lis,
-		handler:  handler,
+		auth:    o.GetAuth(),
+		lis:     lis,
+		handler: handler,
 	}
 
 	type remoteKey struct{}
@@ -94,7 +94,7 @@ func ParseBasicAuth(auth string) (username, password string, ok bool)
 func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	if h.password != "" || h.username != "" {
+	if h.auth {
 		username, password, isHas := ParseBasicAuth(r.Header.Get("Proxy-Authorization"))
 		if !isHas {
 			w.Header().Set("Proxy-Authenticate", "Basic")
@@ -102,7 +102,8 @@ func (h *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if username != h.username || password != h.password {
+		_, ok := user.Store.VerifyUserPass(username, password)
+		if !ok {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}

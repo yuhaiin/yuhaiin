@@ -19,6 +19,7 @@ import (
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	gs "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	gt "github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/user"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc"
@@ -41,6 +42,7 @@ type Components struct {
 	Resolver       gc.ResolverServer
 	RuleController gc.BypassServer
 	Tag            gn.TagServer
+	User           user.UsersServer
 }
 
 func (app *Components) RegisterServer() {
@@ -64,6 +66,8 @@ func (app *Components) RegisterServer() {
 	gs.RegisterConnectionsServer(grpcServer, app.Connections)
 
 	gt.RegisterToolsServer(grpcServer, app.Tools)
+
+	user.RegisterUsersServer(grpcServer, app.User)
 
 	RegisterHTTP(app.Mux)
 }
@@ -113,6 +117,7 @@ type Start struct {
 	Auth           *Auth
 	BypassConfig   pc.DB
 	ResolverConfig pc.DB
+	UserConfig     pc.DB
 	Setting        config.Setting
 
 	ProcessDumper netapi.ProcessDumper
