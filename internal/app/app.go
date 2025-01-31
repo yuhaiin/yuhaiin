@@ -27,6 +27,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	"github.com/Asutorufa/yuhaiin/pkg/user"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -155,6 +156,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	_ = AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools
 	tools := tools.NewTools(opt.Setting)
+	user := user.NewUserApi(opt.UserConfig)
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
@@ -176,6 +178,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		RuleController: rc,
 		Inbound:        config.NewInbound(opt.Setting),
 		Resolver:       resolverControl,
+		User:           user,
 	}
 
 	// grpc and http server

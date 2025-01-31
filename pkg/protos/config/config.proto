@@ -6,6 +6,7 @@ option go_package = "github.com/Asutorufa/yuhaiin/pkg/protos/config";
 option features.(pb.go).api_level = API_OPAQUE;
 
 import "config/log/log.proto";
+import "user/user.proto";
 import "config/bypass/bypass.proto";
 import "config/dns/dns.proto";
 import "config/listener/listener.proto";
@@ -25,6 +26,11 @@ message setting {
   config_version config_version = 9 [ json_name = "config_version" ];
   platform platform = 11 [ json_name = "platform" ];
   advanced_config advanced_config = 12 [ json_name = "advanced_config" ];
+  Users users = 13 [ json_name = "users" ];
+}
+
+message Users {
+  map<string, yuhaiin.user.User> users = 1 [ json_name = "users" ];
 }
 
 message advanced_config {

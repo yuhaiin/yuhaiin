@@ -1,7 +1,6 @@
 package socks4a
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/user"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 )
 
@@ -24,8 +24,8 @@ const (
 type Server struct {
 	lis net.Listener
 
-	handler    netapi.Handler
-	usernameID string
+	handler netapi.Handler
+	auth    bool
 }
 
 func (s *Server) Handle(conn net.Conn) error {
@@ -68,8 +68,11 @@ func (s *Server) Handshake(conn net.Conn) (netapi.Address, error) {
 		return nil, err
 	}
 
-	if s.usernameID != "" && !bytes.Equal(userId, unsafe.Slice(unsafe.StringData(s.usernameID), len(s.usernameID))) {
-		return nil, fmt.Errorf("username not match")
+	if s.auth {
+		_, ok := user.Store.VerifyOnePassword(unsafe.String(unsafe.SliceData(userId), len(userId)))
+		if !ok {
+			return nil, fmt.Errorf("username not match")
+		}
 	}
 
 	var target netapi.Address
@@ -153,9 +156,9 @@ func NewServer(o *listener.Socks4A, ii netapi.Listener, handler netapi.Handler) 
 	}
 
 	s := &Server{
-		usernameID: o.GetUsername(),
-		lis:        lis,
-		handler:    handler,
+		auth:    o.GetAuth(),
+		lis:     lis,
+		handler: handler,
 	}
 
 	go s.Server()

@@ -49,6 +49,14 @@ func newBypassDB() *configDB[*bypass.Config] {
 	)
 }
 
+func newUserDB() *configDB[*pc.Users] {
+	return newConfigDB(
+		"user_db",
+		func(s *pc.Setting) *pc.Users { return s.GetUsers() },
+		func(s *pc.Users) *pc.Setting { return pc.Setting_builder{Users: s}.Build() },
+	)
+}
+
 func (a *App) Start(opt *Opts) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -69,6 +77,7 @@ func (a *App) Start(opt *Opts) error {
 				ConfigPath:     opt.Savepath,
 				BypassConfig:   newBypassDB(),
 				ResolverConfig: newResolverDB(),
+				UserConfig:     newUserDB(),
 				Setting:        fakeSetting(opt, app.PathGenerator.Config(opt.Savepath)),
 				Host: net.JoinHostPort(ifOr(GetStore("Default").GetBoolean(AllowLanKey), "0.0.0.0", "127.0.0.1"),
 					fmt.Sprint(GetStore("Default").GetInt(NewYuhaiinPortKey))),

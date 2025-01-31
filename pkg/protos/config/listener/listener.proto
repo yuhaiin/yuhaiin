@@ -76,31 +76,28 @@ message quic {
 }
 
 message http {
-  reserved 1;
-  reserved host;
-  string username = 3 [ json_name = "username" ];
-  string password = 4 [ json_name = "password" ];
+  reserved 1, 3, 4;
+  reserved host, username, password;
+  bool auth = 5 [ json_name = "auth" ];
 }
 
 message socks5 {
-  reserved 1;
-  reserved host;
-  string username = 3 [ json_name = "username" ];
-  string password = 4 [ json_name = "password" ];
+  reserved 1, 3, 4;
+  reserved host, username, password;
   bool udp = 5 [ json_name = "udp" ];
+  bool auth = 6 [ json_name = "auth" ];
 }
 
 message socks4a {
-  reserved 1;
-  reserved host;
-  string username = 2 [ json_name = "username" ];
+  reserved 1, 2;
+  reserved host, username;
+  bool auth = 3 [ json_name = "auth" ];
 }
 
 message mixed {
-  reserved 1;
-  reserved host;
-  string username = 3 [ json_name = "username" ];
-  string password = 4 [ json_name = "password" ];
+  reserved 1, 3, 4;
+  reserved host, username, password;
+  bool auth = 5 [ json_name = "auth" ];
 }
 
 message redir { string host = 1 [ json_name = "host" ]; }

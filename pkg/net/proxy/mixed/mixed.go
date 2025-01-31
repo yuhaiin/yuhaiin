@@ -86,9 +86,8 @@ func (m *Mixed) socks5(o *listener.Mixed, ii netapi.Listener, handler netapi.Han
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x05 })
 
 	s5, err := socks5.NewServer(listener.Socks5_builder{
-		Username: proto.String(o.GetUsername()),
-		Password: proto.String(o.GetPassword()),
-		Udp:      proto.Bool(true),
+		Udp:  proto.Bool(true),
+		Auth: proto.Bool(o.GetAuth()),
 	}.Build(), netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks5 server failed", "err", err)
@@ -102,7 +101,7 @@ func (m *Mixed) socks4(o *listener.Mixed, ii netapi.Listener, handler netapi.Han
 	lis := m.AddMatcher(func(b byte) bool { return b == 0x04 })
 
 	s4, err := socks4a.NewServer(listener.Socks4A_builder{
-		Username: proto.String(o.GetUsername()),
+		Auth: proto.Bool(o.GetAuth()),
 	}.Build(), netapi.NewListener(lis, ii), handler)
 	if err != nil {
 		log.Error("new socks4 server failed", "err", err)
@@ -114,8 +113,7 @@ func (m *Mixed) socks4(o *listener.Mixed, ii netapi.Listener, handler netapi.Han
 
 func (m *Mixed) http(o *listener.Mixed, ii netapi.Listener, handler netapi.Handler) {
 	http, err := http.NewServer(listener.Http_builder{
-		Username: proto.String(o.GetUsername()),
-		Password: proto.String(o.GetPassword()),
+		Auth: proto.Bool(o.GetAuth()),
 	}.Build(), netapi.NewListener(m.defaultC, ii), handler)
 	if err != nil {
 		log.Error("new http server failed", "err", err)
