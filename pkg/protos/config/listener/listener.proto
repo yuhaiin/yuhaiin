@@ -52,6 +52,7 @@ message transport {
     websocket websocket = 6 [ json_name = "websocket" ];
     grpc grpc = 11 [ json_name = "grpc" ];
     reality reality = 10 [ json_name = "reality" ];
+    tls_auto tls_auto = 13 [ json_name = "tls_auto" ];
   }
 }
 
@@ -180,6 +181,16 @@ message tls_config {
   repeated string next_protos = 3 [ json_name = "next_protos" ];
   map<string, certificate> server_name_certificate = 4
       [ json_name = "server_name_certificate" ];
+}
+
+message tls_auto {
+  repeated string servernames = 1 [ json_name = "servernames" ];
+  repeated string next_protos = 2 [ json_name = "next_protos" ];
+
+  // ca cert and key will auto generate
+  // so they will be empty
+  bytes ca_cert = 3 [ json_name = "ca_cert" ];
+  bytes ca_key = 4 [ json_name = "ca_key" ];
 }
 
 message certificate {
