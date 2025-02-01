@@ -6,6 +6,8 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/Asutorufa/yuhaiin/pkg/cert"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -47,9 +49,54 @@ func (i *Inbound) Get(ctx context.Context, req *wrapperspb.StringValue) (*listen
 	return resp, err
 }
 
+func generateTlsAuthCa(v *listener.Transport) error {
+	if v.GetTlsAuto() == nil {
+		return nil
+	}
+
+	tlsAuth := v.GetTlsAuto()
+
+	if len(tlsAuth.GetCaCert()) != 0 && len(tlsAuth.GetCaKey()) != 0 {
+		_, err := cert.ParseCa(tlsAuth.GetCaCert(), tlsAuth.GetCaKey())
+		if err != nil {
+			return fmt.Errorf("parse ca failed: %w", err)
+		}
+		return nil
+	}
+
+	log.Info("tls ca cert or key is empty, regenerate new ca")
+
+	ca, err := cert.GenerateCa()
+	if err != nil {
+		return err
+	}
+
+	cert, err := ca.CertBytes()
+	if err != nil {
+		return err
+	}
+
+	key, err := ca.PrivateKeyBytes()
+	if err != nil {
+		return err
+	}
+
+	tlsAuth.SetCaCert(cert)
+	tlsAuth.SetCaKey(key)
+
+	return nil
+}
+
 func (i *Inbound) Save(ctx context.Context, req *listener.Inbound) (*listener.Inbound, error) {
 	if req.GetName() == "" {
 		return nil, fmt.Errorf("inbound name is empty")
+	}
+
+	for _, v := range req.GetTransport() {
+		err := generateTlsAuthCa(v)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err := i.s.Batch(func(s *config.Setting) error {
