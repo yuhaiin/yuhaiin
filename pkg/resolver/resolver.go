@@ -11,9 +11,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	dr "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
 	cd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -41,12 +40,6 @@ type Resolver struct {
 }
 
 func NewResolver(dd netapi.Proxy) *Resolver {
-	dialer.InternetResolver, _ = dns.New(dns.Config{
-		Type:   pd.Type_udp,
-		Host:   "8.8.8.8:53",
-		Name:   "internet",
-		Dialer: dr.Default,
-	})
 	return &Resolver{
 		dialer: dd,
 	}
@@ -193,7 +186,7 @@ func (r *Resolver) ApplyBootstrap(c *pd.Dns) {
 				store := netapi.GetContext(ctx)
 				store.ForceMode = bypass.Mode_direct
 				store.Component = "Resolver BOOTSTRAP"
-				store.Resolver.ResolverSelf = dialer.InternetResolver
+				store.Resolver.ResolverSelf = resolver.Internet
 			},
 		}
 		z, err := newDNS("BOOTSTRAP", c, dd, r)
@@ -262,8 +255,8 @@ func newDNS(name string, dc *pd.Dns, dialer netapi.Proxy, resovler *Resolver) (n
 			subnet = netip.PrefixFrom(p, p.BitLen())
 		}
 	}
-	r, err := dns.New(
-		dns.Config{
+	r, err := resolver.New(
+		resolver.Config{
 			Type:       dc.GetType(),
 			Name:       name,
 			Host:       dc.GetHost(),

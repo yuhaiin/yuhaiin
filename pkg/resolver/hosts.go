@@ -5,7 +5,7 @@ import (
 	"net"
 	"unsafe"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
@@ -157,7 +157,7 @@ func (h *Hosts) newDnsMsg(req dnsmessage.Question) dnsmessage.Message {
 
 func (h *Hosts) Raw(ctx context.Context, req dnsmessage.Question) (dnsmessage.Message, error) {
 	if req.Type == dnsmessage.TypePTR {
-		ip, err := dns.RetrieveIPFromPtr(req.Name.String())
+		ip, err := resolver.RetrieveIPFromPtr(req.Name.String())
 		if err != nil {
 			return h.resolver.Raw(ctx, req)
 		}

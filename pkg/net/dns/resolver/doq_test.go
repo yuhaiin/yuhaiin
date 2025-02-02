@@ -1,18 +1,15 @@
-package dns
+package resolver
 
 import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDoQ(t *testing.T) {
-	dialer.SetBootstrap(&dialer.SystemResolver{})
-
 	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{

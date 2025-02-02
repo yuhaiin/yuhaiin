@@ -1,17 +1,14 @@
-package dns
+package resolver
 
 import (
 	"context"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
 
 func TestDoh3(t *testing.T) {
-	dialer.SetBootstrap(&dialer.SystemResolver{})
-
 	configMap := map[string]Config{
 		"cloudflare": {
 			Type: dns.Type_doh3,

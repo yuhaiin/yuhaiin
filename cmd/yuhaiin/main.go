@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 var help = `Usage:
@@ -62,7 +62,7 @@ func main() {
 		version.Output(os.Stdout)
 		return
 	case "help", "-h", "--help":
-		fmt.Printf(help, pc.DefaultConfigDir())
+		fmt.Printf(help, configuration.DataDir.Load())
 		return
 	case "run":
 	default:

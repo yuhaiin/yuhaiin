@@ -12,6 +12,7 @@ import (
 type Opts struct {
 	CloseFallback Closer
 	NotifySpped   NotifySpped
+	Interfaces    Interfaces
 	TUN           *TUN   `json:"tun"`
 	Savepath      string `json:"savepath"`
 }

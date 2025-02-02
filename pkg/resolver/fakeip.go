@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
@@ -24,7 +24,7 @@ type Fakedns struct {
 	dialer   netapi.Proxy
 	upstream netapi.Resolver
 	db       *bbolt.DB
-	fake     *dns.FakeDNS
+	fake     *resolver.FakeDNS
 
 	whitelist *domain.Fqdn[struct{}]
 
@@ -37,7 +37,7 @@ func NewFakeDNS(dialer netapi.Proxy, upstream netapi.Resolver, db *bbolt.DB) *Fa
 	ipv6Range, _ := netip.ParsePrefix("fc00::/64")
 
 	return &Fakedns{
-		fake:      dns.NewFakeDNS(upstream, ipv4Range, ipv6Range, db),
+		fake:      resolver.NewFakeDNS(upstream, ipv4Range, ipv6Range, db),
 		dialer:    dialer,
 		upstream:  upstream,
 		db:        db,
@@ -55,6 +55,12 @@ func (f *Fakedns) Apply(c *cd.FakednsConfig) {
 			d.Insert(v, struct{}{})
 		}
 
+		// skip tailscale login url, because tailscale client will use default
+		// interface to connect controlplane, so we can't use fake ip for it
+		// d.Insert(strings.TrimPrefix(ipn.DefaultControlURL, "https://"), struct{}{})
+		// d.Insert(logtail.DefaultHost, struct{}{})
+		// d.Insert("login.tailscale.com", struct{}{})
+
 		f.whitelist = d
 		f.whitelistSlice = c.GetWhitelist()
 	}
@@ -70,7 +76,7 @@ func (f *Fakedns) Apply(c *cd.FakednsConfig) {
 		f.fake.Flush()
 	}
 
-	f.fake = dns.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.db)
+	f.fake = resolver.NewFakeDNS(f.upstream, ipRange, ipv6Range, f.db)
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
