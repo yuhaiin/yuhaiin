@@ -140,13 +140,12 @@ message route {
 }
 
 message yuubinsya {
-  reserved 1, 3, 4, 5, 6, 7, 8, 9, 10;
+  reserved 1, 3, 4, 5, 6, 7, 8, 9, 10, 11;
   reserved host, force_disable_encrypt, normal, tls, quic, websocket, grpc,
-      http2, reality;
+      http2, reality, mux;
   string password = 2 [ json_name = "password" ];
   bool tcp_encrypt = 12 [ json_name = "tcp_encrypt" ];
   bool udp_encrypt = 13 [ json_name = "udp_encrypt" ];
-  bool mux = 11 [ json_name = "mux" ];
 }
 
 message normal {};
