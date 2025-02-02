@@ -84,7 +84,25 @@ func (s *Route) Tags() iter.Seq[string] {
 }
 
 func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error) {
-	result := s.dispatch(ctx, s.config.GetTcp(), host)
+	store := netapi.GetContext(ctx)
+
+	var addr string
+	if store.SystemDialer {
+		if host.IsFqdn() {
+			store.DomainString = host.String()
+			taddr, err := dialer.ResolveTCPAddr(ctx, host)
+			if err != nil {
+				return nil, netapi.NewDialError("tcp", err, host)
+			}
+			addr = taddr.String()
+		} else {
+			addr = host.String()
+		}
+
+		return dialer.DialContext(ctx, "tcp", addr)
+	}
+
+	result := s.dispatch(store, s.config.GetTcp(), host)
 
 	if result.Mode.Mode() == bypass.Mode_block {
 		s.RejectHistory.Push(ctx, "tcp", host.String())
@@ -104,7 +122,13 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 }
 
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
-	result := s.dispatch(ctx, s.config.GetUdp(), host)
+	store := netapi.GetContext(ctx)
+
+	if store.SystemDialer {
+		return dialer.ListenPacket(ctx, "udp", "0.0.0.0:0")
+	}
+
+	result := s.dispatch(store, s.config.GetUdp(), host)
 
 	if result.Mode.Mode() == bypass.Mode_block {
 		s.RejectHistory.Push(ctx, "udp", host.String())
@@ -128,7 +152,10 @@ func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 		return host, nil
 	}
 
-	result := s.dispatch(ctx, bypass.Mode_bypass, host)
+	// get mode from upstream specified
+	store := netapi.GetContext(ctx)
+
+	result := s.dispatch(store, bypass.Mode_bypass, host)
 	return result.Addr, nil
 }
 
@@ -149,6 +176,11 @@ func (s *Route) Search(ctx context.Context, addr netapi.Address) bypass.ModeEnum
 func (s *Route) SearchProcess(ctx *netapi.Context, process netapi.Process) (bypass.ModeEnum, bool) {
 	if process.Path == "" {
 		return bypass.Bypass, false
+	}
+
+	// make all go system dial direct, eg: tailscale
+	if process.Path == "io.github.asutorufa.yuhaiin" {
+		return bypass.Direct, true
 	}
 
 	matchProcess := filepath.Clean(strings.TrimSuffix(process.Path, " (deleted)"))
@@ -245,14 +277,11 @@ func (s *Route) addMatchers() {
 	})
 }
 
-func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host netapi.Address) routeResult {
+func (s *Route) dispatch(store *netapi.Context, networkMode bypass.Mode, host netapi.Address) routeResult {
 	var mode bypass.ModeEnum
 	var reason string
 
-	process := s.dumpProcess(ctx, host.Network())
-
-	// get mode from upstream specified
-	store := netapi.GetContext(ctx)
+	process := s.dumpProcess(store, host.Network())
 
 	object := &Object{
 		Ctx:         store,
@@ -282,7 +311,7 @@ func (s *Route) dispatch(ctx context.Context, networkMode bypass.Mode, host neta
 
 	if s.config.GetResolveLocally() && host.IsFqdn() && mode.Mode() == bypass.Mode_proxy {
 		// resolve proxy domain if resolveRemoteDomain enabled
-		ip, err := dialer.ResolverIP(ctx, host)
+		ip, err := dialer.ResolverIP(store, host)
 		if err == nil {
 			store.DomainString = host.String()
 			host = netapi.ParseIPAddr(host.Network(), ip, host.Port())

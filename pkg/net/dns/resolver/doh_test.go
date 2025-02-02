@@ -1,4 +1,4 @@
-package dns
+package resolver
 
 import (
 	"context"
@@ -6,25 +6,22 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 func TestDOH(t *testing.T) {
-	dialer.SetBootstrap(&dialer.SystemResolver{})
 	s, err := netip.ParsePrefix("223.5.5.5/24")
 	assert.NoError(t, err)
-	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
+	// s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
 
 	configMap := map[string]Config{
 		"google": {
 			Type:   dns.Type_doh,
 			Host:   "dns.google",
 			Subnet: s,
-			Dialer: s5Dialer,
+			// Dialer: s5Dialer,
 		},
 		"iijJP": {
 			Type:       dns.Type_doh,
@@ -36,7 +33,7 @@ func TestDOH(t *testing.T) {
 			Type:   dns.Type_doh,
 			Host:   "cloudflare-dns.com",
 			Subnet: s,
-			Dialer: s5Dialer,
+			// Dialer: s5Dialer,
 		},
 		"quad9": {
 			Type:   dns.Type_doh,
@@ -76,13 +73,13 @@ func TestDOH(t *testing.T) {
 			Type:   dns.Type_doh,
 			Host:   "doh.dns.sb",
 			Subnet: s,
-			Dialer: s5Dialer,
+			// Dialer: s5Dialer,
 		},
 		"opendns": {
 			Type:   dns.Type_doh,
 			Host:   "doh.opendns.com",
 			Subnet: s,
-			Dialer: s5Dialer,
+			// Dialer: s5Dialer,
 		},
 		"tuna": {
 			Type: dns.Type_doh,

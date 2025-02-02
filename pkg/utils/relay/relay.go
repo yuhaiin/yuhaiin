@@ -12,7 +12,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 var ignoreError = []error{
@@ -31,6 +30,14 @@ var ignoreSyscallErrno = map[syscall.Errno]bool{
 	10060:              true, // "wsarecv: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond." osSyscallErrType=syscall.Errno errInt=10060
 }
 
+var ignoreNetOpErrString = map[string]bool{
+	syscall.ECONNRESET.Error(): true,
+}
+
+func RegisterIgnoreNetOpErrString(err string) {
+	ignoreNetOpErrString[err] = true
+}
+
 func isIgnoreError(err error) ([]any, bool) {
 	if err == nil {
 		return nil, true
@@ -46,13 +53,11 @@ func isIgnoreError(err error) ([]any, bool) {
 	if !errors.As(err, &netOpErr) {
 		return nil, false
 	}
-	switch netOpErr.Err.Error() {
+
 	// netOp.Err is a string error
 	//
 	// netOpErr="read tcp [fc00::1a]:443: connection reset by peer" netOpErrType=*errors.errorString
-	case syscall.ECONNRESET.Error():
-		return nil, true
-	case (&tcpip.ErrConnectionAborted{}).String(), (&tcpip.ErrAborted{}).String():
+	if ignoreNetOpErrString[netOpErr.Err.Error()] {
 		return nil, true
 	}
 

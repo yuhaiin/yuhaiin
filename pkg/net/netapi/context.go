@@ -68,10 +68,11 @@ type Context struct {
 
 	UDPMigrateID uint64 `metrics:"UDP MigrateID"`
 
-	ForceMode  bypass.Mode `metrics:"-"`
-	SniffMode  bypass.Mode `metrics:"-"`
-	Mode       bypass.Mode `metrics:"MODE"`
-	ModeReason string      `metrics:"MODE Reason"`
+	ForceMode    bypass.Mode `metrics:"-"`
+	SniffMode    bypass.Mode `metrics:"-"`
+	Mode         bypass.Mode `metrics:"MODE"`
+	ModeReason   string      `metrics:"MODE Reason"`
+	SystemDialer bool        `metrics:"-"`
 }
 
 type SkipRouteKey struct{}

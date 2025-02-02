@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -21,7 +23,10 @@ import (
 	service "github.com/Asutorufa/yuhaiin/pkg/protos/statistic/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/unit"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"tailscale.com/net/netmon"
 )
+
+var SetAndroidProtectFunc func(SocketProtect)
 
 //go:generate go run generate.go
 
@@ -56,6 +61,40 @@ func (a *App) Start(opt *Opts) error {
 	if a.started.Load() {
 		return errors.New("yuhaiin is already running")
 	}
+
+	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) { return getInterfaces(opt.Interfaces) })
+
+	if SetAndroidProtectFunc != nil {
+		SetAndroidProtectFunc(opt.TUN.SocketProtect)
+	}
+
+	tsLogDir := path.Join(opt.Savepath, "tailscale", "logs")
+	err := os.MkdirAll(tsLogDir, 0755)
+	if err != nil {
+		log.Warn("create ts log dir failed:", "err", err)
+	}
+	os.Setenv("TS_LOGS_DIR", tsLogDir)
+
+	// current make all go system connections from io.github.asutorufa.yuhaiin directly
+	// so we don't need to set it here
+	// if we use fake ip, the protect will make tailscale can't connect to controlplane
+	//
+	// SetAndroidProtectFunc = func(sp SocketProtect) {
+	// 	netns.SetAndroidProtectFunc(func(fd int) error {
+	// 		if !sp.Protect(int32(fd)) {
+	// 			// TODO(bradfitz): return an error back up to netns if this fails, once
+	// 			// we've had some experience with this and analyzed the logs over a wide
+	// 			// range of Android phones. For now we're being paranoid and conservative
+	// 			// and do the JNI call to protect best effort, only logging if it fails.
+	// 			// The risk of returning an error is that it breaks users on some Android
+	// 			// versions even when they're not using exit nodes. I'd rather the
+	// 			// relatively few number of exit node users file bug reports if Tailscale
+	// 			// doesn't work and then we can look for this log print.
+	// 			log.Warn("[unexpected] VpnService.protect(%d) returned false", fd)
+	// 		}
+	// 		return nil // even on error. see big TODO above.
+	// 	})
+	// }
 
 	errChan := make(chan error)
 

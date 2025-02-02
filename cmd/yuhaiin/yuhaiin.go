@@ -21,7 +21,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	ypprof "github.com/Asutorufa/yuhaiin/pkg/pprof"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -32,7 +31,7 @@ func run(args []string) error {
 	host := flag.String("host", "0.0.0.0:50051", "gRPC and http listen host")
 	username := flag.String("u", "", "username")
 	password := flag.String("p", "", "password")
-	path := flag.String("path", pc.DefaultConfigDir(), "save data path")
+	path := flag.String("path", configuration.DataDir.Load(), "save data path")
 	webdir := flag.String("eweb", "", "external web page")
 	pprof := flag.Bool("pgo", false, "enables CPU profiling")
 	if err := flag.Parse(args); err != nil {

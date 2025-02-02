@@ -3,7 +3,6 @@ package gvisor
 import (
 	"fmt"
 	"net/netip"
-	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -231,13 +230,12 @@ var (
 )
 
 func init() {
-	if runtime.GOOS == "windows" {
-		// See https://github.com/tailscale/tailscale/issues/9707
-		// Windows w/RACK performs poorly. ACKs do not appear to be handled in a
-		// timely manner, leading to spurious retransmissions and a reduced
-		// congestion window.
-		//
-		// https://github.com/google/gvisor/issues/9778
-		tcpRecovery = tcpip.TCPRecovery(0)
-	}
+	// See https://github.com/tailscale/tailscale/issues/9707
+	// gVisor's RACK performs poorly. ACKs do not appear to be handled in a
+	// timely manner, leading to spurious retransmissions and a reduced
+	// congestion window.
+	//
+	// https://github.com/google/gvisor/issues/9778
+	// https://github.com/tailscale/tailscale/pull/14896
+	tcpRecovery = tcpip.TCPRecovery(0)
 }

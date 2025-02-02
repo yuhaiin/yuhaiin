@@ -6,8 +6,6 @@ import (
 	"net/netip"
 	"strconv"
 	"unique"
-
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type Address interface {
@@ -38,7 +36,7 @@ func ParseAddress(network string, addr string) (ad Address, _ error) {
 	var port uint64
 	hostname, portstr, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Warn("split host port failed", "err", err, "addr", addr)
+		fmt.Println("split host port failed", "err", err, "addr", addr)
 		hostname = addr
 	} else {
 		port, err = strconv.ParseUint(portstr, 10, 16)
