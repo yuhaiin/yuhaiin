@@ -15,6 +15,14 @@ func NoError(t testing.TB, err error) {
 	}
 }
 
+func Error(t testing.TB, err error) {
+	if err == nil {
+		_, file, line, _ := runtime.Caller(1)
+		t.Logf("%s:%d: expected error, but got nil\n", file, line)
+		t.FailNow()
+	}
+}
+
 func Equal[T comparable](t testing.TB, expected, actual T, msgs ...any) {
 	if expected != actual {
 		_, file, line, _ := runtime.Caller(1)
