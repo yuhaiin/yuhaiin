@@ -13,10 +13,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/node/parser"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"google.golang.org/protobuf/proto"
 )
@@ -24,54 +22,36 @@ import (
 type link struct {
 	outbound *outbound
 	manager  *manager
-
-	db *jsondb.DB[*node.Node]
-
-	mu sync.RWMutex
 }
 
-func NewLink(db *jsondb.DB[*node.Node], outbound *outbound, manager *manager) *link {
-	return &link{outbound: outbound, manager: manager, db: db}
+func NewLink(outbound *outbound, manager *manager) *link {
+	return &link{outbound: outbound, manager: manager}
 }
 
 func (l *link) Save(ls []*subscribe.Link) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if l.db.Data.GetLinks() == nil {
-		l.db.Data.SetLinks(make(map[string]*subscribe.Link))
-	}
+	nodes := []*point.Point{}
+	links := []*subscribe.Link{}
 
 	for _, z := range ls {
 		node, err := parseUrl([]byte(z.GetUrl()), subscribe.Link_builder{Name: proto.String(z.GetName())}.Build())
 		if err == nil {
-			l.addNode(node) // link is a node
+			node.SetOrigin(point.Origin_manual)
+			nodes = append(nodes, node) // link is a node
 		} else {
-			l.db.Data.GetLinks()[z.GetName()] = z // link is a subscription
+			links = append(links, z) // link is a subscription
 		}
-
 	}
+
+	l.manager.SaveLinks(links...)
+	l.manager.SaveNode(nodes...)
 }
 
-func (l *link) Delete(names []string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for _, z := range names {
-		delete(l.db.Data.GetLinks(), z)
-	}
-}
-
-func (l *link) Links() map[string]*subscribe.Link { return l.db.Data.GetLinks() }
+func (l *link) Delete(names []string) { l.manager.DeleteLink(names...) }
 
 func (l *link) Update(names []string) {
-	if l.db.Data.GetLinks() == nil {
-		l.db.Data.SetLinks(make(map[string]*subscribe.Link))
-	}
-
 	wg := sync.WaitGroup{}
 	for _, str := range names {
-		link, ok := l.db.Data.GetLinks()[str]
+		link, ok := l.manager.GetLink(str)
 		if !ok {
 			continue
 		}
@@ -86,16 +66,6 @@ func (l *link) Update(names []string) {
 	}
 
 	wg.Wait()
-
-	oo := l.db.Data.GetUdp()
-	if p, ok := l.manager.GetNodeByName(oo.GetGroup(), oo.GetName()); ok {
-		l.db.Data.SetUdp(p)
-	}
-
-	oo = l.db.Data.GetTcp()
-	if p, ok := l.manager.GetNodeByName(oo.GetGroup(), oo.GetName()); ok {
-		l.db.Data.SetTcp(p)
-	}
 }
 
 type trimBase64Reader struct {
@@ -128,10 +98,9 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 	}
 	defer res.Body.Close()
 
-	n.manager.DeleteRemoteNodes(link.GetName())
-
 	base64r := base64.NewDecoder(base64.RawStdEncoding, &trimBase64Reader{res.Body})
 	scanner := bufio.NewScanner(base64r)
+	var nodes []*point.Point
 	for scanner.Scan() {
 		if len(scanner.Bytes()) == 0 {
 			continue
@@ -141,16 +110,14 @@ func (n *link) update(do func(*http.Request) (*http.Response, error), link *subs
 		if err != nil {
 			log.Error("parse url failed", slog.String("url", scanner.Text()), slog.Any("err", err))
 		} else {
-			n.addNode(node)
+			node.SetOrigin(point.Origin_remote)
+			nodes = append(nodes, node)
 		}
 	}
 
+	n.manager.DeleteRemoteNodes(link.GetName())
+	n.manager.SaveNode(nodes...)
 	return scanner.Err()
-}
-
-func (n *link) addNode(node *point.Point) {
-	n.manager.DeleteNode(node.GetHash())
-	n.manager.AddNode(node)
 }
 
 var schemeTypeMap = map[string]subscribe.Type{

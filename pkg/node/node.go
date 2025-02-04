@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"fmt"
-	"iter"
 	"net"
 	"sync"
 
@@ -23,33 +22,19 @@ import (
 
 type Nodes struct {
 	gn.UnimplementedNodeServer
-
-	ruleTags func() iter.Seq[string]
-
-	db       *jsondb.DB[*node.Node]
-	manager  *manager
-	outBound *outbound
-	links    *link
+	manager *manager
 }
 
 func NewNodes(path string) *Nodes {
-	f := &Nodes{
-		db: load(path),
+	return &Nodes{
+		manager: NewManager(load(path), NewProxyStore()),
 	}
-
-	f.manager = NewManager(f.db.Data.GetManager())
-	f.outBound = NewOutbound(f.db, f.manager)
-	f.links = NewLink(f.db, f.outBound, f.manager)
-
-	return f
 }
-
-func (n *Nodes) SetRuleTags(f func() iter.Seq[string]) { n.ruleTags = f }
 
 func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
 	return gn.NowResp_builder{
-		Tcp: n.db.Data.GetTcp(),
-		Udp: n.db.Data.GetUdp(),
+		Tcp: n.manager.getNow(true),
+		Udp: n.manager.getNow(false),
 	}.Build(), nil
 }
 
@@ -64,42 +49,36 @@ func (n *Nodes) Get(_ context.Context, s *wrapperspb.StringValue) (*point.Point,
 
 func (n *Nodes) Save(c context.Context, p *point.Point) (*point.Point, error) {
 	if p.GetName() == "" || p.GetGroup() == "" {
-		return &point.Point{}, fmt.Errorf("add point name or group is empty")
+		return &point.Point{}, fmt.Errorf("point name or group is empty")
 	}
-	n.manager.DeleteNode(p.GetHash())
-	n.manager.AddNode(p)
-	return p, n.db.Save()
+	p.SetOrigin(point.Origin_manual)
+	n.manager.SaveNode(p)
+	return p, n.manager.Save()
 }
 
 func (n *Nodes) List(ctx context.Context, _ *emptypb.Empty) (*gn.NodesResponse, error) {
 	return proto.Clone(gn.NodesResponse_builder{
-		Groups: n.manager.GetGroupsV2(),
+		Groups: n.manager.getManager().GetGroupsV2(),
 	}.Build()).(*gn.NodesResponse), nil
 }
 
 func (n *Nodes) Use(c context.Context, s *gn.UseReq) (*point.Point, error) {
-	p, err := n.Get(c, &wrapperspb.StringValue{Value: s.GetHash()})
+	err := n.manager.UsePoint(s.GetTcp(), s.GetUdp(), s.GetHash())
 	if err != nil {
-		return &point.Point{}, fmt.Errorf("get node failed: %w", err)
+		return nil, fmt.Errorf("use point failed: %w", err)
 	}
 
-	if s.GetTcp() {
-		n.db.Data.SetTcp(p)
-	}
-	if s.GetUdp() {
-		n.db.Data.SetUdp(p)
+	err = n.manager.Save()
+	if err != nil {
+		return nil, fmt.Errorf("save config failed: %w", err)
 	}
 
-	err = n.db.Save()
-	if err != nil {
-		return p, fmt.Errorf("save config failed: %w", err)
-	}
-	return p, nil
+	return &point.Point{}, nil
 }
 
 func (n *Nodes) Remove(_ context.Context, s *wrapperspb.StringValue) (*emptypb.Empty, error) {
 	n.manager.DeleteNode(s.Value)
-	return &emptypb.Empty{}, n.db.Save()
+	return &emptypb.Empty{}, n.manager.Save()
 }
 
 type latencyDialer struct {
@@ -143,7 +122,7 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 				return
 			}
 
-			px, err := n.outBound.GetDialer(p)
+			px, err := n.Outbound().GetDialer(p)
 			if err != nil {
 				return
 			}
@@ -170,7 +149,8 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 	return resp.Build(), nil
 }
 
-func (n *Nodes) Outbound() *outbound { return n.outBound }
+func (n *Nodes) Outbound() *outbound { return NewOutbound(n.manager) }
+func (n *Nodes) Links() *link        { return NewLink(n.Outbound(), n.manager) }
 
 func load(path string) *jsondb.DB[*node.Node] {
 	defaultNode := &node.Node_builder{
