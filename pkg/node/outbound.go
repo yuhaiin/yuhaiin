@@ -13,55 +13,37 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 )
 
 type outbound struct {
 	manager *manager
-	db      *jsondb.DB[*node.Node]
-
-	lruCache *lru.SyncLru[string, netapi.Proxy]
 }
 
-func NewOutbound(db *jsondb.DB[*node.Node], mamanager *manager) *outbound {
+func NewOutbound(mamanager *manager) *outbound {
 	return &outbound{
-		manager:  mamanager,
-		db:       db,
-		lruCache: lru.NewSyncLru(lru.WithCapacity[string, netapi.Proxy](200)),
+		manager: mamanager,
 	}
-}
-
-func (o *outbound) getNowPoint(p *point.Point) *point.Point {
-	pp, ok := o.manager.GetNodeByName(p.GetGroup(), p.GetName())
-	if ok {
-		return pp
-	}
-
-	return p
 }
 
 func (o *outbound) GetDialer(p *point.Point) (netapi.Proxy, error) {
 	if p.GetHash() == "" {
-		return register.Dialer(p)
+		return nil, fmt.Errorf("hash is empty")
 	}
 
-	var err error
-	r, ok := o.lruCache.Load(p.GetHash())
-	if !ok {
-		r, err = register.Dialer(p)
+	return o.manager.GetStore().LoadOrCreate(p.GetHash(), func() (*ProxyEntry, error) {
+		r, err := register.Dialer(p)
 		if err != nil {
 			return nil, err
 		}
 
-		o.lruCache.Add(p.GetHash(), r)
-	}
-
-	return r, nil
+		return &ProxyEntry{
+			Proxy:  r,
+			Config: p,
+		}, nil
+	})
 }
 
 type HashKey struct{}
@@ -96,9 +78,9 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	var point *point.Point
 	switch network[:3] {
 	case "tcp":
-		point = o.getNowPoint(o.db.Data.GetTcp())
+		point = o.manager.getNow(true)
 	case "udp":
-		point = o.getNowPoint(o.db.Data.GetUdp())
+		point = o.manager.getNow(false)
 	default:
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
@@ -114,24 +96,25 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 }
 
 func (o *outbound) GetDialerByHash(ctx context.Context, hash string) netapi.Proxy {
-	v, ok := o.lruCache.Load(hash)
-	if !ok {
+	p, _ := o.manager.GetStore().LoadOrCreate(hash, func() (*ProxyEntry, error) {
 		p, ok := o.manager.GetNode(hash)
 		if !ok {
-			return nil
+			return nil, fmt.Errorf("node not found")
 		}
 
-		var err error
-		v, err = register.Dialer(p)
+		v, err := register.Dialer(p)
 		if err != nil {
-			return nil
+			return nil, err
 		}
 
-		o.lruCache.Add(hash, v)
-	}
+		return &ProxyEntry{
+			Proxy:  v,
+			Config: p,
+		}, nil
+	})
 
 	netapi.GetContext(ctx).Hash = hash
-	return v
+	return p
 }
 
 func (o *outbound) tagConn(tag string) string {
