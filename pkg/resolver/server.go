@@ -2,7 +2,7 @@ package resolver
 
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
@@ -30,6 +30,6 @@ func (a *DnsServer) Update(s *pc.Setting) {
 		}
 	}
 
-	a.DNSServer = dns.NewServer(s.GetDns().GetServer(), a.resolver)
+	a.DNSServer = server.NewServer(s.GetDns().GetServer(), a.resolver)
 	a.serverHost = s.GetDns().GetServer()
 }

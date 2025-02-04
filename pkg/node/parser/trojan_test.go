@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
@@ -34,7 +34,7 @@ func TestTrojan(t *testing.T) {
 	z, err := register.Dialer(p.Build())
 	assert.NoError(t, err)
 
-	dns, err := dns.New(dns.Config{Host: "1.1.1.1:53", Dialer: z, Type: pdns.Type_udp})
+	dns, err := resolver.New(resolver.Config{Host: "1.1.1.1:53", Dialer: z, Type: pdns.Type_udp})
 	assert.NoError(t, err)
 	t.Log(dns.LookupIP(context.TODO(), "www.google.com"))
 

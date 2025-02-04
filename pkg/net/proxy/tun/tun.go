@@ -17,11 +17,15 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/tun2socket"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
+	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 func init() {
 	register.RegisterProtocol(NewTun)
+	relay.RegisterIgnoreNetOpErrString((&tcpip.ErrConnectionAborted{}).String())
+	relay.RegisterIgnoreNetOpErrString((&tcpip.ErrAborted{}).String())
 }
 
 func NewTun(o *listener.Tun, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {

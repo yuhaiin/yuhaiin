@@ -1,4 +1,4 @@
-package dns
+package resolver
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	pd "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
@@ -26,6 +27,17 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"golang.org/x/net/dns/dnsmessage"
 )
+
+var (
+	bootstrap1, _ = NewDoH(Config{Host: "1.1.1.1", Dialer: direct.Default})
+	bootstrap2, _ = NewDoH(Config{Host: "223.5.5.5", Dialer: direct.Default})
+	group, _      = NewGroup(bootstrap1, bootstrap2)
+	Internet      = NewClient(Config{Name: "internet"}, group)
+)
+
+func init() {
+	dialer.SetBootstrap(Internet)
+}
 
 type Request struct {
 	QuestionBytes []byte

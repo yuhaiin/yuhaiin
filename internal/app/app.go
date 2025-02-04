@@ -18,7 +18,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
@@ -49,6 +48,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/simple"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
+	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
@@ -88,11 +88,14 @@ func OpenBboltDB(path string) (*bbolt.DB, error) {
 func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	so := &opt
 
+	configuration.DataDir.Store(so.ConfigPath)
+
 	db, err := OpenBboltDB(PathGenerator.Cache(so.ConfigPath))
 	if err != nil {
 		return nil, fmt.Errorf("init bbolt cache failed: %w", err)
 	}
 	so.AddCloser("bbolt_db", db)
+	configuration.BBoltDB = db
 
 	httpListener, err := net.Listen("tcp", so.Host)
 	if err != nil {
@@ -129,11 +132,10 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	subscribe := node.Subscribe()
 	tag := node.Tag()
 
-	// make dns flow across all proxy chain
-	dynamicProxy := netapi.NewDynamicProxy(direct.Default)
+	configuration.ProxyChain.Set(direct.Default)
 
 	// local,remote,bootstrap dns
-	dns := AddComponent(so, "resolver", resolver.NewResolver(dynamicProxy))
+	dns := AddComponent(so, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	// bypass dialer and dns request
 	st := AddComponent(so, "shunt", route.NewRoute(node.Outbound(), dns, opt.ProcessDumper))
 	rc := route.NewRuleController(opt.BypassConfig, st)
@@ -150,7 +152,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(so, "dnsServer", resolver.NewDNSServer(fakedns))
 	// make dns flow across all proxy chain
-	dynamicProxy.Set(fakedns)
+	configuration.ProxyChain.Set(fakedns)
 	// inbound server
 	_ = AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
 	// tools

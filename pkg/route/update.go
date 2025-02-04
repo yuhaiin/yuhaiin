@@ -152,7 +152,9 @@ func (s *RuleController) Test(ctx context.Context, req *wrapperspb.StringValue) 
 		}
 	}
 
-	result := s.route.dispatch(ctx, bypass.Mode_bypass, addr)
+	store := netapi.GetContext(ctx)
+
+	result := s.route.dispatch(store, bypass.Mode_bypass, addr)
 
 	return (&gc.TestResponse_builder{
 		Mode: (&bypass.ModeConfig_builder{

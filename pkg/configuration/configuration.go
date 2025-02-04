@@ -1,12 +1,18 @@
 package configuration
 
 import (
+	"errors"
+	"fmt"
 	"net/netip"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
+	"go.etcd.io/bbolt"
 )
 
 var Lite = os.Getenv("YUHAIIN_LITE") == "true"
@@ -38,7 +44,38 @@ var (
 	FakeIPEnabled = atomicx.NewValue(false)
 
 	HistorySize = or[uint](1000, 500)
+
+	DataDir = atomicx.NewValue(DefaultConfigDir())
+
+	BBoltDB *bbolt.DB
+
+	ProxyChain = netapi.NewDynamicProxy(netapi.NewErrProxy(errors.New("not initialized")))
 )
+
+func DefaultConfigDir() (Path string) {
+	var err error
+	Path, err = os.UserConfigDir()
+	if err == nil {
+		Path = filepath.Join(Path, "yuhaiin")
+		return
+	}
+
+	file, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		fmt.Println("lookpath failed", "err", err)
+		Path = filepath.Join(".", "yuhaiin")
+		return
+	}
+	execPath, err := filepath.Abs(file)
+	if err != nil {
+		fmt.Println("get file abs failed", "err", err)
+		Path = filepath.Join(".", "yuhaiin")
+		return
+	}
+
+	Path = filepath.Join(filepath.Dir(execPath), "config")
+	return
+}
 
 func or[T any](a, b T) T {
 	if Lite {
