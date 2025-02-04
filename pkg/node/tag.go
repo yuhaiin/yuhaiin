@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"errors"
+	"iter"
 	"maps"
 
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
@@ -14,37 +15,38 @@ import (
 type tag struct {
 	gn.UnimplementedTagServer
 
-	n *Nodes
+	ruleTags func() iter.Seq[string]
+	n        *manager
 }
 
-func (f *Nodes) Tag() gn.TagServer { return &tag{n: f} }
+func (f *Nodes) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: f.manager, ruleTags: ff} }
 
 func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
 	if r.GetType() == pt.TagType_mirror && r.GetTag() == r.GetHash() {
 		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")
 	}
 
-	if _, ok := t.n.manager.ExistTag(r.GetTag()); ok {
-		t.n.manager.DeleteTag(r.GetTag())
+	if _, ok := t.n.ExistTag(r.GetTag()); ok {
+		t.n.DeleteTag(r.GetTag())
 	}
 
-	t.n.manager.AddTag(r.GetTag(), r.GetType(), r.GetHash())
+	t.n.AddTag(r.GetTag(), r.GetType(), r.GetHash())
 
-	return &emptypb.Empty{}, t.n.db.Save()
+	return &emptypb.Empty{}, t.n.Save()
 }
 
 func (t *tag) Remove(_ context.Context, r *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	t.n.manager.DeleteTag(r.Value)
-	return &emptypb.Empty{}, t.n.db.Save()
+	t.n.DeleteTag(r.Value)
+	return &emptypb.Empty{}, t.n.Save()
 }
 
 func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, error) {
 	resp := gn.TagsResponse_builder{
-		Tags: maps.Clone(t.n.manager.GetTags()),
+		Tags: maps.Clone(t.n.GetTags()),
 	}
 
-	if t.n.ruleTags != nil {
-		for v := range t.n.ruleTags() {
+	if t.ruleTags != nil {
+		for v := range t.ruleTags() {
 			if _, ok := resp.Tags[v]; !ok {
 				resp.Tags[v] = &pt.Tags{}
 			}
