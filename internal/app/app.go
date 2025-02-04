@@ -130,8 +130,6 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	// proxy access point/endpoint
 	node := node.NewNodes(PathGenerator.Node(so.ConfigPath))
-	subscribe := node.Subscribe()
-	tag := node.Tag()
 
 	configuration.ProxyChain.Set(direct.Default)
 
@@ -140,7 +138,6 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	// bypass dialer and dns request
 	st := AddComponent(so, "shunt", route.NewRoute(node.Outbound(), dns, opt.ProcessDumper))
 	rc := route.NewRuleController(opt.BypassConfig, st)
-	node.SetRuleTags(st.Tags)
 	// connections' statistic & flow data
 
 	flowCache := AddComponent(so, "flow_cache", ybbolt.NewCache(db, "flow_data"))
@@ -173,9 +170,9 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Tools:          tools,
 		Node:           node,
 		DB:             db,
-		Subscribe:      subscribe,
+		Subscribe:      node.Subscribe(),
 		Connections:    stcs,
-		Tag:            tag,
+		Tag:            node.Tag(st.Tags),
 		RuleController: rc,
 		Inbound:        config.NewInbound(opt.Setting),
 		Resolver:       resolverControl,
