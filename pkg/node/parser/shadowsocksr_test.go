@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/dns"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	pdns "github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
@@ -52,7 +52,7 @@ func TestConnectionSsr(t *testing.T) {
 		},
 	}
 
-	dns, err := dns.New(dns.Config{
+	dns, err := resolver.New(resolver.Config{
 		Type: pdns.Type_udp,
 		Host: "1.1.1.1:53", Dialer: z})
 	assert.NoError(t, err)

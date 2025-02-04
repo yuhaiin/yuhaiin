@@ -45,18 +45,23 @@ func CreateNetTUN(localAddresses []netip.Prefix, mtu int) (*netTun, error) {
 		events: make(chan tun.Event, 1),
 	}
 
-	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // TCP SACK is disabled by default
-	tcpipErr := dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabledOpt)
-	if tcpipErr != nil {
-		dev.Close()
-		return nil, fmt.Errorf("could not enable TCP SACK: %v", tcpipErr)
-	}
-
-	tcpipErr = dev.stack.CreateNIC(1, dev.ep)
+	tcpipErr := dev.stack.CreateNIC(1, dev.ep)
 	if tcpipErr != nil {
 		dev.Close()
 		return nil, fmt.Errorf("CreateNIC: %v", tcpipErr)
 	}
+
+	sackEnabledOpt := tcpip.TCPSACKEnabled(true) // TCP SACK is disabled by default
+	dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabledOpt)
+
+	// By default the netstack NIC will only accept packets for the IPs
+	// registered to it. Since in some cases we dynamically register IPs
+	// based on the packets that arrive, the NIC needs to accept all
+	// incoming packets.
+	dev.stack.SetPromiscuousMode(1, true)
+
+	tr := tcpip.TCPRecovery(0)
+	dev.stack.SetTransportProtocolOption(tcp.ProtocolNumber, &tr)
 
 	for _, ip := range localAddresses {
 		var protoNumber tcpip.NetworkProtocolNumber

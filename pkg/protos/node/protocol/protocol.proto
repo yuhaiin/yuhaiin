@@ -34,6 +34,7 @@ message protocol {
     // address instead of the route dns
     bootstrap_dns_warp bootstrap_dns_warp = 23
         [ json_name = "bootstrap_dns_warp" ];
+    tailscale tailscale = 24 [ json_name = "tailscale" ];
   }
 }
 
@@ -176,3 +177,10 @@ message wireguard {
 message mux { int32 concurrency = 1 [ json_name = "concurrency" ]; }
 
 message bootstrap_dns_warp {}
+
+message tailscale {
+  string auth_key = 1 [ json_name = "auth_key" ];
+  string hostname = 2 [ json_name = "hostname" ];
+  string control_url = 3 [ json_name = "control_url" ];
+  uint32 idle_timeout = 4 [ json_name = "idle_timeout" ];
+}

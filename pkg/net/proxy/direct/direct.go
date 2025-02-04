@@ -28,6 +28,8 @@ func init() {
 	register.SetBootstrap(Default)
 }
 
+type PacketConnNoWarpKey struct{}
+
 var Default netapi.Proxy = NewDirect()
 
 func NewDirect() netapi.Proxy {
@@ -53,6 +55,10 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 	p, err := dialer.ListenPacket(ctx, "udp", "", opts...)
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
+	}
+
+	if ctx.Value(PacketConnNoWarpKey{}) == true {
+		return p, nil
 	}
 
 	return &UDPPacketConn{context.WithoutCancel(ctx), NewBufferPacketConn(p)}, nil
