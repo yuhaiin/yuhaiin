@@ -22,6 +22,7 @@
   - Websocket, Quic, obfs-http, Reality, HTTP2, gRPC, TLS  
   - yamux  
   - reverse HTTP, reverse TCP
+  - Tailscale(tsnet)
 - support DNS:
   - DNS, EDNS
   - FakeDNS
@@ -32,10 +33,9 @@
   - DNS over TLS
   - DNS over TCP
 - Full cone NAT.
+- Support Proxy Chain Warp
 - auto set Linux(KDE/Plasma,Gnome),Windows,MacOS Proxy  
 - [Rules](https://github.com/yuhaiin/kitte)  
-- icon from プロ生ちゃん.  
-  アイコンはプロ生ちゃんからお借りしたものです、ご注意くださいますようお願い申し上げます。  
 
 ```shell
 make yuhaiin
@@ -56,6 +56,7 @@ yuhaiin -host="127.0.0.1:50051" -path=$HOME/.config/yuhaiin
 - [protobuf-go](https://github.com/protocolbuffers/protobuf-go)  
 - [プロ生ちゃん](https://kei.pronama.jp/)
 - [etcd-io/bbolt](https://github.com/etcd-io/bbolt)  
+- [tailscale](https://github.com/tailscale/tailscale)
 
 Reference:
 
