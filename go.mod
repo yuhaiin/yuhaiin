@@ -18,7 +18,7 @@ require (
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 	golang.org/x/mobile v0.0.0-20241204233305-ce44b2716d33
 	golang.org/x/net v0.34.0
-	golang.org/x/sys v0.29.1-0.20250107080300-1c14dcadc3ab
+	golang.org/x/sys v0.30.0
 	golang.org/x/time v0.9.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.70.0
