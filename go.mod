@@ -13,7 +13,7 @@ require (
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250202115940-05685fd14e31
 	// for fix https://github.com/etcd-io/bbolt/issues/840
-	go.etcd.io/bbolt v1.4.0-beta.0.0.20241204153925-22ac598c5e82
+	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.32.1-0.20250118192723-a8ea4be81f07
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 	golang.org/x/mobile v0.0.0-20241204233305-ce44b2716d33
