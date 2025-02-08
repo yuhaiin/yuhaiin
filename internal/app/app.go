@@ -19,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
@@ -182,6 +183,8 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	// grpc and http server
 	app.RegisterServer()
+
+	tailscale.Mux.Store(app.Mux)
 
 	return app, nil
 }

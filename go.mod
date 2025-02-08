@@ -4,7 +4,7 @@ go 1.23.3
 
 require (
 	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134
-	github.com/libp2p/go-yamux/v4 v4.0.2-0.20240206065824-7222fbc3459d
+	github.com/libp2p/go-yamux/v4 v4.0.2
 	github.com/prometheus/client_golang v1.20.5
 	github.com/quic-go/quic-go v0.49.0
 	github.com/refraction-networking/utls v1.6.7
@@ -13,17 +13,17 @@ require (
 	github.com/xtls/reality v0.0.0-20240909153216-e26ae2305463
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20250202115940-05685fd14e31
 	// for fix https://github.com/etcd-io/bbolt/issues/840
-	go.etcd.io/bbolt v1.4.0-beta.0.0.20241204153925-22ac598c5e82
+	go.etcd.io/bbolt v1.4.0
 	golang.org/x/crypto v0.32.1-0.20250118192723-a8ea4be81f07
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 	golang.org/x/mobile v0.0.0-20241204233305-ce44b2716d33
 	golang.org/x/net v0.34.0
-	golang.org/x/sys v0.29.1-0.20250107080300-1c14dcadc3ab
-	golang.org/x/time v0.9.0
+	golang.org/x/sys v0.30.0
+	golang.org/x/time v0.10.0
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.36.4
-	gvisor.dev/gvisor v0.0.0-20241220022509-4690b2e35d70
+	google.golang.org/protobuf v1.36.5
+	gvisor.dev/gvisor v0.0.0-20250205023644-9414b50a5633
 	tailscale.com v1.80.0
 )
 
