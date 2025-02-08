@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"path"
 	"runtime"
@@ -24,6 +25,8 @@ import (
 	"tailscale.com/net/netns"
 	"tailscale.com/tsnet"
 )
+
+var Mux atomic.Pointer[http.ServeMux]
 
 type instance struct {
 	authKey    string
@@ -132,7 +135,7 @@ func (t *Tailscale) init(context.Context) (*tsnet.Server, error) {
 		AuthKey:      t.authKey,
 		Hostname:     t.hostname,
 		Ephemeral:    false,
-		RunWebClient: false,
+		RunWebClient: true,
 		ControlURL:   t.controlUrl,
 		Dir:          path.Join(configuration.DataDir.Load(), "tailscale", t.hostname),
 	}
@@ -142,6 +145,23 @@ func (t *Tailscale) init(context.Context) (*tsnet.Server, error) {
 		t.tsnet = nil
 		return nil, err
 	}
+
+	go func() {
+		lis, err := t.tsnet.Listen("tcp", ":80")
+		if err != nil {
+			log.Warn("tailscale listen metrics failed", "err", err)
+			return
+		}
+		defer lis.Close()
+
+		if err := http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if mux := Mux.Load(); mux != nil {
+				mux.ServeHTTP(w, r)
+			}
+		})); err != nil {
+			log.Warn("tailscale serve metrics failed", "err", err)
+		}
+	}()
 
 	t.timer = time.AfterFunc(time.Duration(t.timeout.Load())*time.Minute, func() {
 		if t.connsCount.Load() > 0 {
