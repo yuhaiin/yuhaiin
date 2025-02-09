@@ -101,6 +101,8 @@ func (e *RealityClient) PacketConn(ctx context.Context, addr netapi.Address) (ne
 	return e.proxy.PacketConn(ctx, addr)
 }
 
+func (e *RealityClient) Close() error { return e.proxy.Close() }
+
 func (e *RealityClient) ClientHandshake(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	verifier := &realityVerifier{
 		serverName: e.utls.ServerName,

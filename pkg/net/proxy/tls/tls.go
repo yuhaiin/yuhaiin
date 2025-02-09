@@ -72,6 +72,10 @@ func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketCo
 	return t.dialer.PacketConn(ctx, addr)
 }
 
+func (t *Tls) Close() error {
+	return t.dialer.Close()
+}
+
 func init() {
 	register.RegisterTransport(NewServer)
 	register.RegisterTransport(NewTlsAutoServer)

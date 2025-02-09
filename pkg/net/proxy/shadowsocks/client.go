@@ -17,9 +17,8 @@ import (
 
 // Shadowsocks shadowsocks
 type Shadowsocks struct {
-	netapi.EmptyDispatch
 	cipher core.Cipher
-	p      netapi.Proxy
+	netapi.Proxy
 }
 
 func init() {
@@ -32,12 +31,12 @@ func NewClient(c *protocol.Shadowsocks, p netapi.Proxy) (netapi.Proxy, error) {
 		return nil, err
 	}
 
-	return &Shadowsocks{cipher: cipher, p: p}, nil
+	return &Shadowsocks{cipher: cipher, Proxy: p}, nil
 }
 
 // Conn .
 func (s *Shadowsocks) Conn(ctx context.Context, addr netapi.Address) (conn net.Conn, err error) {
-	conn, err = s.p.Conn(ctx, addr)
+	conn, err = s.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, netapi.NewDialError("tcp", err, addr)
 	}
@@ -59,7 +58,7 @@ func (s *Shadowsocks) Conn(ctx context.Context, addr netapi.Address) (conn net.C
 
 // PacketConn .
 func (s *Shadowsocks) PacketConn(ctx context.Context, tar netapi.Address) (net.PacketConn, error) {
-	pc, err := s.p.PacketConn(ctx, tar)
+	pc, err := s.Proxy.PacketConn(ctx, tar)
 	if err != nil {
 		return nil, fmt.Errorf("create packet conn failed")
 	}

@@ -3,6 +3,7 @@ package netapi
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"sync"
@@ -22,6 +23,7 @@ type Proxy interface {
 	StreamProxy
 	PacketProxy
 	Dispatch(context.Context, Address) (Address, error)
+	io.Closer
 }
 
 type StreamProxy interface {
@@ -62,6 +64,7 @@ type errProxy struct {
 func NewErrProxy(err error) Proxy                                              { return &errProxy{error: err} }
 func (e errProxy) Conn(context.Context, Address) (net.Conn, error)             { return nil, e.error }
 func (e errProxy) PacketConn(context.Context, Address) (net.PacketConn, error) { return nil, e.error }
+func (errProxy) Close() error                                                  { return nil }
 
 type DynamicProxy struct {
 	p  Proxy
@@ -84,6 +87,12 @@ func (d *DynamicProxy) Dispatch(ctx context.Context, a Address) (Address, error)
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.p.Dispatch(ctx, a)
+}
+
+func (d *DynamicProxy) Close() error {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.p.Close()
 }
 
 func (d *DynamicProxy) Set(p Proxy) {
