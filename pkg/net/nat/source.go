@@ -257,7 +257,7 @@ func (u *SourceControl) newPacketConn(store *netapi.Context, pkt *netapi.Packet)
 }
 
 func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.PacketConn) error {
-	key := pkt.Dst.String()
+	key := pkt.Dst.Comparable()
 
 	// ! we need write to same ip when use fakeip/domain, eg: quic will need it to create stream
 	udpAddr, ok := t.addrStore.LoadUdp(key)
@@ -279,7 +279,7 @@ func (t *SourceControl) write(ctx context.Context, pkt *netapi.Packet, conn net.
 			return fmt.Errorf("dispatch addr failed: %w", err)
 		}
 
-		if !pkt.Dst.Equal(dstAddr) {
+		if key != dstAddr.Comparable() {
 			t.addrStore.StoreDispatch(key, dstAddr)
 		}
 	}
@@ -322,14 +322,20 @@ func (t *SourceControl) WriteTo(b []byte, realDst net.Addr, originDst netapi.Add
 }
 
 func (t *SourceControl) mapAddr(src net.Addr, dst netapi.Address) {
-	srcStr := src.String()
-	dstStr := dst.String()
-
-	if srcStr == dstStr {
+	srcAddr, err := netapi.ParseSysAddr(src)
+	if err != nil {
+		log.Error("parse addr failed", "err", err)
 		return
 	}
 
-	t.addrStore.StoreOrigin(srcStr, dst)
+	srcKey := srcAddr.Comparable()
+	dstKey := dst.Comparable()
+
+	if srcKey == dstKey {
+		return
+	}
+
+	t.addrStore.StoreOrigin(srcKey, dst)
 }
 
 func (u *SourceControl) loopWriteBack(p *wrapConn, dst netapi.Address) {
@@ -441,7 +447,7 @@ func (s *SourceControl) parseAddr(from net.Addr) net.Addr {
 		return from
 	}
 
-	if addr, ok := s.addrStore.LoadOrigin(faddr.String()); ok {
+	if addr, ok := s.addrStore.LoadOrigin(faddr.Comparable()); ok {
 		// TODO: maybe two dst(fake ip) have same uaddr, need help
 		from = addr
 	}

@@ -8,6 +8,7 @@ import (
 
 	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -16,10 +17,12 @@ type tag struct {
 	gn.UnimplementedTagServer
 
 	ruleTags func() iter.Seq[string]
-	n        *manager
+	n        *Manager
 }
 
-func (f *Nodes) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: f.manager, ruleTags: ff} }
+func (f *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer {
+	return &tag{n: f, ruleTags: ff}
+}
 
 func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
 	if r.GetType() == pt.TagType_mirror && r.GetTag() == r.GetHash() {
@@ -53,7 +56,7 @@ func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, err
 		}
 	}
 
-	return resp.Build(), nil
+	return proto.Clone(resp.Build()).(*gn.TagsResponse), nil
 }
 
 func (t *tag) bumpUsedNodes() []string {

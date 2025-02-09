@@ -9,7 +9,7 @@
 - download [releases](https://github.com/Asutorufa/yuhaiin/releases) or [Build](https://github.com/Asutorufa/yuhaiin/wiki/build).  
 - Android [yuhaiin-android](https://github.com/Asutorufa/yuhaiin-android).  
 - Inbound
-  - yuubinsya(experimental), Reqlity, HTTP2, Quic, Websocket, gRPC, TLS
+  - yuubinsya(experimental), Reality, HTTP2, Quic, Websocket, gRPC, TLS
   - Socks5, Socks4A, HTTP
   - TUN(gso,gro support), Linux/Mac Redir, Tproxy
     - [gvisor](https://github.com/google/gvisor)

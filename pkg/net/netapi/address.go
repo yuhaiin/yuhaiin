@@ -8,6 +8,12 @@ import (
 	"unique"
 )
 
+// ComparableAddress is a comparable address, created by [NewCompareableAddress]
+// eg: key of map or check address is equal
+type ComparableAddress struct{ any }
+
+func NewCompareableAddress[t comparable](tt t) ComparableAddress { return ComparableAddress{tt} }
+
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
 	Hostname() string
@@ -17,14 +23,13 @@ type Address interface {
 	// fqdn must impl [DomainAddress]
 	// otherwise must impl [IPAddress]
 	IsFqdn() bool
-	Equal(Address) bool
+	Comparable() ComparableAddress
 	net.Addr
 }
 
 type IPAddress interface {
 	Address
 	IP() net.IP
-	WithZone(zone string)
 }
 
 type DomainAddress interface {
@@ -49,7 +54,7 @@ func ParseAddress(network string, addr string) (ad Address, _ error) {
 }
 
 func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
-	return &DomainAddr{
+	return DomainAddr{
 		hostname:       unique.Make(addr),
 		port:           port,
 		AddressNetwork: ParseAddressNetwork(network),
@@ -58,7 +63,7 @@ func ParseDomainPort(network string, addr string, port uint16) (ad Address) {
 
 func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 	if addr, err := netip.ParseAddr(addr); err == nil {
-		return &IPAddr{
+		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(network),
 			Addr:           addr.Unmap(),
 			port:           port,
@@ -69,7 +74,7 @@ func ParseAddressPort(network string, addr string, port uint16) (ad Address) {
 }
 
 func ParseIPAddr(net string, ip net.IP, port uint16) Address {
-	return &IPAddr{
+	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
 		Addr:           toAddrPort(ip, ""),
 		port:           port,
@@ -77,7 +82,7 @@ func ParseIPAddr(net string, ip net.IP, port uint16) Address {
 }
 
 func ParseNetipAddr(net string, ip netip.Addr, port uint16) Address {
-	return &IPAddr{
+	return IPAddr{
 		AddressNetwork: ParseAddressNetwork(net),
 		Addr:           ip.Unmap(),
 		port:           port,
@@ -103,25 +108,25 @@ func ParseSysAddr(ad net.Addr) (Address, error) {
 	case Address:
 		return ad, nil
 	case *net.TCPAddr:
-		return &IPAddr{
+		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
 			Addr:           toAddrPort(ad.IP, ad.Zone),
 			port:           uint16(ad.Port),
 		}, nil
 	case *net.UDPAddr:
-		return &IPAddr{
+		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
 			Addr:           toAddrPort(ad.IP, ad.Zone),
 			port:           uint16(ad.Port),
 		}, nil
 	case *net.IPAddr:
-		return &IPAddr{
+		return IPAddr{
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
 			Addr:           toAddrPort(ad.IP, ad.Zone),
 			port:           0,
 		}, nil
 	case *net.UnixAddr:
-		return &DomainAddr{
+		return DomainAddr{
 			hostname:       unique.Make(ad.Name),
 			AddressNetwork: ParseAddressNetwork(ad.Network()),
 		}, nil
@@ -164,7 +169,7 @@ func (n AddressNetwork) Network() string {
 	}
 }
 
-var _ Address = (*DomainAddr)(nil)
+var _ Address = DomainAddr{}
 
 type DomainAddr struct {
 	hostname unique.Handle[string]
@@ -172,24 +177,16 @@ type DomainAddr struct {
 	port uint16
 }
 
-func (d *DomainAddr) String() string {
+func (d DomainAddr) String() string {
 	return net.JoinHostPort(d.hostname.Value(), strconv.Itoa(int(d.port)))
 }
-func (d *DomainAddr) Hostname() string { return d.hostname.Value() }
-func (d *DomainAddr) Port() uint16     { return d.port }
-func (d *DomainAddr) IsFqdn() bool     { return true }
-func (d *DomainAddr) Equal(o Address) bool {
-	x, ok := o.(*DomainAddr)
-	if !ok {
-		return false
-	}
-	return x.hostname == d.hostname && x.port == d.port
-}
-func (d *DomainAddr) UniqueHostname() unique.Handle[string] {
-	return d.hostname
-}
+func (d DomainAddr) Hostname() string                      { return d.hostname.Value() }
+func (d DomainAddr) Port() uint16                          { return d.port }
+func (d DomainAddr) IsFqdn() bool                          { return true }
+func (d DomainAddr) UniqueHostname() unique.Handle[string] { return d.hostname }
+func (d DomainAddr) Comparable() ComparableAddress         { return NewCompareableAddress(d) }
 
-var _ IPAddress = (*IPAddr)(nil)
+var _ IPAddress = IPAddr{}
 
 type IPAddr struct {
 	Addr netip.Addr
@@ -197,19 +194,11 @@ type IPAddr struct {
 	port uint16
 }
 
-func (d *IPAddr) String() string       { return net.JoinHostPort(d.Addr.String(), strconv.Itoa(int(d.port))) }
-func (d *IPAddr) Hostname() string     { return d.Addr.String() }
-func (d *IPAddr) Port() uint16         { return d.port }
-func (d *IPAddr) IsFqdn() bool         { return false }
-func (d *IPAddr) IP() net.IP           { return d.Addr.AsSlice() }
-func (d *IPAddr) WithZone(zone string) { d.Addr = d.Addr.WithZone(zone) }
-func (d *IPAddr) Equal(o Address) bool {
-	x, ok := o.(*IPAddr)
-	if !ok {
-		return false
-	}
+func (d IPAddr) String() string                { return net.JoinHostPort(d.Addr.String(), strconv.Itoa(int(d.port))) }
+func (d IPAddr) Hostname() string              { return d.Addr.String() }
+func (d IPAddr) Port() uint16                  { return d.port }
+func (d IPAddr) IsFqdn() bool                  { return false }
+func (d IPAddr) IP() net.IP                    { return d.Addr.AsSlice() }
+func (d IPAddr) Comparable() ComparableAddress { return NewCompareableAddress(d) }
 
-	return x.Addr.Compare(d.Addr) == 0 && x.port == d.port
-}
-
-var EmptyAddr Address = &DomainAddr{hostname: unique.Make("")}
+var EmptyAddr Address = DomainAddr{hostname: unique.Make("")}

@@ -19,10 +19,10 @@ import (
 )
 
 type outbound struct {
-	manager *manager
+	manager *Manager
 }
 
-func NewOutbound(mamanager *manager) *outbound {
+func NewOutbound(mamanager *Manager) *outbound {
 	return &outbound{
 		manager: mamanager,
 	}
@@ -78,9 +78,9 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	var point *point.Point
 	switch network[:3] {
 	case "tcp":
-		point = o.manager.getNow(true)
+		point = o.manager.GetNow(true)
 	case "udp":
-		point = o.manager.getNow(false)
+		point = o.manager.GetNow(false)
 	default:
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}

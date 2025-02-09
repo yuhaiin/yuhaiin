@@ -21,16 +21,16 @@ func init() {
 
 var Drop = &drop{
 	lru: lru.NewSyncLru(
-		lru.WithCapacity[string, time.Duration](512),
-		lru.WithDefaultTimeout[string, time.Duration](time.Second*5),
+		lru.WithCapacity[netapi.ComparableAddress, time.Duration](512),
+		lru.WithDefaultTimeout[netapi.ComparableAddress, time.Duration](time.Second*5),
 	),
-	sf: &singleflight.GroupSync[string, time.Duration]{},
+	sf: &singleflight.GroupSync[netapi.ComparableAddress, time.Duration]{},
 }
 
 type drop struct {
 	netapi.EmptyDispatch
-	lru *lru.SyncLru[string, time.Duration]
-	sf  *singleflight.GroupSync[string, time.Duration]
+	lru *lru.SyncLru[netapi.ComparableAddress, time.Duration]
+	sf  *singleflight.GroupSync[netapi.ComparableAddress, time.Duration]
 }
 
 func (d *drop) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
@@ -39,8 +39,8 @@ func (d *drop) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) 
 }
 
 func (d *drop) waitTime(addr netapi.Address) time.Duration {
-	time, _, _ := d.sf.Do(context.TODO(), addr.String(), func(context.Context) (time.Duration, error) {
-		en, ok := d.lru.LoadRefreshExpire(addr.String())
+	time, _, _ := d.sf.Do(context.TODO(), addr.Comparable(), func(context.Context) (time.Duration, error) {
+		en, ok := d.lru.LoadRefreshExpire(addr.Comparable())
 		if ok {
 			if en == 0 {
 				en = time.Second
@@ -49,7 +49,7 @@ func (d *drop) waitTime(addr netapi.Address) time.Duration {
 			}
 		}
 
-		d.lru.Add(addr.String(), en)
+		d.lru.Add(addr.Comparable(), en)
 
 		return en, nil
 	})
