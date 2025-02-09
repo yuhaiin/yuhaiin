@@ -3,6 +3,7 @@ package grpc
 import (
 	context "context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -105,19 +106,30 @@ func (c *client) clientCountSub() {
 	}
 
 	if c.stopTimer == nil {
-		c.stopTimer = time.AfterFunc(time.Minute, c.close)
+		c.stopTimer = time.AfterFunc(time.Minute, func() {
+			c.Close()
+		})
 	} else {
 		c.stopTimer.Reset(time.Minute)
 	}
 }
 
-func (c *client) close() {
+func (c *client) Close() error {
+	var err error
 	c.mu.Lock()
 	if c.clientConn != nil {
-		c.clientConn.Close()
+		if er := c.clientConn.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 		c.clientConn = nil
 	}
 	c.mu.Unlock()
+
+	if er := c.Proxy.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
+	return err
 }
 
 func (c *client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
@@ -135,7 +147,7 @@ _retry:
 	if err != nil {
 		cancel()
 		if !retried {
-			c.close()
+			c.Close()
 			retried = true
 			goto _retry
 		}

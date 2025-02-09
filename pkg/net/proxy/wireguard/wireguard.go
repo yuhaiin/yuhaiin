@@ -107,27 +107,32 @@ func (w *Wireguard) initNet() (*netTun, error) {
 			if w.count.Load() > 0 {
 				w.timer.Reset(w.idleTimeout)
 			} else {
-				w.mu.Lock()
-				log.Debug("wireguard closing")
-				if w.device != nil {
-					w.device.Close()
-					w.device = nil
-				}
-
-				if w.bind != nil {
-					w.bind.Close()
-					w.bind = nil
-				}
-
-				w.net = nil
-
-				log.Debug("wireguard closed")
-				w.mu.Unlock()
+				w.Close()
 			}
 		})
 	}
 
 	return net, nil
+}
+
+func (w *Wireguard) Close() error {
+	w.mu.Lock()
+	log.Debug("wireguard closing")
+	if w.device != nil {
+		w.device.Close()
+		w.device = nil
+	}
+
+	if w.bind != nil {
+		w.bind.Close()
+		w.bind = nil
+	}
+
+	w.net = nil
+
+	log.Debug("wireguard closed")
+	w.mu.Unlock()
+	return nil
 }
 
 func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

@@ -64,6 +64,8 @@ func (d *direct) PacketConn(ctx context.Context, _ netapi.Address) (net.PacketCo
 	return &UDPPacketConn{context.WithoutCancel(ctx), NewBufferPacketConn(p)}, nil
 }
 
+func (d *direct) Close() error { return nil }
+
 type BufferPacketConn interface {
 	net.PacketConn
 	SetReadBuffer(int) error

@@ -55,3 +55,16 @@ func (t *tag) List(ctx context.Context, _ *emptypb.Empty) (*gn.TagsResponse, err
 
 	return resp.Build(), nil
 }
+
+func (t *tag) bumpUsedNodes() []string {
+	tags := t.n.GetTags()
+
+	var nodes []string
+	for _, v := range tags {
+		if v.GetType() == pt.TagType_node {
+			nodes = append(nodes, v.GetHash()...)
+		}
+	}
+
+	return nodes
+}

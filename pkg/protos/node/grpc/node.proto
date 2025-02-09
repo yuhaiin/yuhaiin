@@ -24,6 +24,9 @@ service node {
   rpc remove(google.protobuf.StringValue) returns (google.protobuf.Empty);
   rpc list(google.protobuf.Empty) returns (nodes_response);
 
+  rpc activates(google.protobuf.Empty) returns (activates_response);
+  rpc close(google.protobuf.StringValue) returns (google.protobuf.Empty);
+
   rpc latency(yuhaiin.latency.requests) returns (yuhaiin.latency.response);
 }
 
@@ -40,6 +43,10 @@ message use_req {
 
 message nodes_response {
   map<string, yuhaiin.node.nodes> groups = 1 [ json_name = "groups" ];
+}
+
+message activates_response {
+  repeated yuhaiin.point.point nodes = 1 [ json_name = "nodes" ];
 }
 
 service subscribe {

@@ -104,6 +104,8 @@ func (t *testProxy) Dispatch(ctx context.Context, addr netapi.Address) (netapi.A
 	return netapi.ParseAddressPort(addr.Network(), x, addr.Port()), nil
 }
 
+func (t *testProxy) Close() error { return nil }
+
 type testPacketConn struct {
 	t     *testing.T
 	saddr netapi.Address
