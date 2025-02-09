@@ -166,12 +166,13 @@ message wireguard_peer_config {
 }
 
 message wireguard {
+  reserved 7;
+  reserved idle_timeout;
   string secret_key = 1;
   repeated string endpoint = 2;
   repeated wireguard_peer_config peers = 3;
   int32 mtu = 4;
   bytes reserved = 6;
-  int32 idle_timeout = 7;
 }
 
 message mux { int32 concurrency = 1 [ json_name = "concurrency" ]; }
@@ -179,8 +180,9 @@ message mux { int32 concurrency = 1 [ json_name = "concurrency" ]; }
 message bootstrap_dns_warp {}
 
 message tailscale {
+  reserved 4;
+  reserved idle_timeout;
   string auth_key = 1 [ json_name = "auth_key" ];
   string hostname = 2 [ json_name = "hostname" ];
   string control_url = 3 [ json_name = "control_url" ];
-  uint32 idle_timeout = 4 [ json_name = "idle_timeout" ];
 }

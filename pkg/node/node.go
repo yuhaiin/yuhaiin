@@ -22,12 +22,12 @@ import (
 
 type Nodes struct {
 	gn.UnimplementedNodeServer
-	manager *manager
+	manager *Manager
 }
 
-func NewNodes(path string) *Nodes {
+func (m *Manager) Node() *Nodes {
 	return &Nodes{
-		manager: NewManager(load(path), NewProxyStore()),
+		manager: m,
 	}
 }
 
@@ -122,7 +122,7 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 				return
 			}
 
-			px, err := n.Outbound().GetDialer(p)
+			px, err := n.manager.Outbound().GetDialer(p)
 			if err != nil {
 				return
 			}
@@ -170,8 +170,8 @@ func (n *Nodes) Close(ctx context.Context, req *wrapperspb.StringValue) (*emptyp
 	return &emptypb.Empty{}, nil
 }
 
-func (n *Nodes) Outbound() *outbound { return NewOutbound(n.manager) }
-func (n *Nodes) Links() *link        { return NewLink(n.Outbound(), n.manager) }
+func (n *Manager) Outbound() *outbound { return NewOutbound(n) }
+func (n *Manager) Links() *link        { return NewLink(n.Outbound(), n) }
 
 func load(path string) *jsondb.DB[*node.Node] {
 	defaultNode := &node.Node_builder{

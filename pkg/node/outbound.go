@@ -19,10 +19,10 @@ import (
 )
 
 type outbound struct {
-	manager *manager
+	manager *Manager
 }
 
-func NewOutbound(mamanager *manager) *outbound {
+func NewOutbound(mamanager *Manager) *outbound {
 	return &outbound{
 		manager: mamanager,
 	}
