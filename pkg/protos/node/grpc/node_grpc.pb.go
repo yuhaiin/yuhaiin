@@ -23,13 +23,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Node_Now_FullMethodName     = "/yuhaiin.protos.node.service.node/now"
-	Node_Use_FullMethodName     = "/yuhaiin.protos.node.service.node/use"
-	Node_Get_FullMethodName     = "/yuhaiin.protos.node.service.node/get"
-	Node_Save_FullMethodName    = "/yuhaiin.protos.node.service.node/save"
-	Node_Remove_FullMethodName  = "/yuhaiin.protos.node.service.node/remove"
-	Node_List_FullMethodName    = "/yuhaiin.protos.node.service.node/list"
-	Node_Latency_FullMethodName = "/yuhaiin.protos.node.service.node/latency"
+	Node_Now_FullMethodName       = "/yuhaiin.protos.node.service.node/now"
+	Node_Use_FullMethodName       = "/yuhaiin.protos.node.service.node/use"
+	Node_Get_FullMethodName       = "/yuhaiin.protos.node.service.node/get"
+	Node_Save_FullMethodName      = "/yuhaiin.protos.node.service.node/save"
+	Node_Remove_FullMethodName    = "/yuhaiin.protos.node.service.node/remove"
+	Node_List_FullMethodName      = "/yuhaiin.protos.node.service.node/list"
+	Node_Activates_FullMethodName = "/yuhaiin.protos.node.service.node/activates"
+	Node_Close_FullMethodName     = "/yuhaiin.protos.node.service.node/close"
+	Node_Latency_FullMethodName   = "/yuhaiin.protos.node.service.node/latency"
 )
 
 // NodeClient is the client API for Node service.
@@ -43,6 +45,8 @@ type NodeClient interface {
 	Save(ctx context.Context, in *point.Point, opts ...grpc.CallOption) (*point.Point, error)
 	Remove(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	List(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*NodesResponse, error)
+	Activates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ActivatesResponse, error)
+	Close(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Latency(ctx context.Context, in *latency.Requests, opts ...grpc.CallOption) (*latency.Response, error)
 }
 
@@ -114,6 +118,26 @@ func (c *nodeClient) List(ctx context.Context, in *emptypb.Empty, opts ...grpc.C
 	return out, nil
 }
 
+func (c *nodeClient) Activates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ActivatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActivatesResponse)
+	err := c.cc.Invoke(ctx, Node_Activates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) Close(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Node_Close_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeClient) Latency(ctx context.Context, in *latency.Requests, opts ...grpc.CallOption) (*latency.Response, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(latency.Response)
@@ -135,6 +159,8 @@ type NodeServer interface {
 	Save(context.Context, *point.Point) (*point.Point, error)
 	Remove(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
 	List(context.Context, *emptypb.Empty) (*NodesResponse, error)
+	Activates(context.Context, *emptypb.Empty) (*ActivatesResponse, error)
+	Close(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error)
 	Latency(context.Context, *latency.Requests) (*latency.Response, error)
 	mustEmbedUnimplementedNodeServer()
 }
@@ -163,6 +189,12 @@ func (UnimplementedNodeServer) Remove(context.Context, *wrapperspb.StringValue) 
 }
 func (UnimplementedNodeServer) List(context.Context, *emptypb.Empty) (*NodesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedNodeServer) Activates(context.Context, *emptypb.Empty) (*ActivatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Activates not implemented")
+}
+func (UnimplementedNodeServer) Close(context.Context, *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Close not implemented")
 }
 func (UnimplementedNodeServer) Latency(context.Context, *latency.Requests) (*latency.Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Latency not implemented")
@@ -296,6 +328,42 @@ func _Node_List_Handler(srv interface{}, ctx context.Context, dec func(interface
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Node_Activates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).Activates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_Activates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).Activates(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_Close_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(wrapperspb.StringValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).Close(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_Close_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).Close(ctx, req.(*wrapperspb.StringValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Node_Latency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(latency.Requests)
 	if err := dec(in); err != nil {
@@ -344,6 +412,14 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "list",
 			Handler:    _Node_List_Handler,
+		},
+		{
+			MethodName: "activates",
+			Handler:    _Node_Activates_Handler,
+		},
+		{
+			MethodName: "close",
+			Handler:    _Node_Close_Handler,
 		},
 		{
 			MethodName: "latency",

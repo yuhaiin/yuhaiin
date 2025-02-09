@@ -175,21 +175,27 @@ func (t *Tailscale) init(context.Context) (*tsnet.Server, error) {
 			return
 		}
 
-		t.mu.Lock()
-		defer t.mu.Unlock()
-
-		if t.tsnet != nil {
-			t.tsnet.Close()
-			t.tsnet = nil
-		}
-
-		if t.timer != nil {
-			t.timer.Stop()
-			t.timer = nil
-		}
+		t.Close()
 	})
 
 	return t.tsnet, nil
+}
+
+func (t *Tailscale) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.tsnet != nil {
+		t.tsnet.Close()
+		t.tsnet = nil
+	}
+
+	if t.timer != nil {
+		t.timer.Stop()
+		t.timer = nil
+	}
+
+	return nil
 }
 
 func (t *Tailscale) waitAddr(ctx context.Context, tsnet *tsnet.Server) (netip.Addr, netip.Addr, error) {

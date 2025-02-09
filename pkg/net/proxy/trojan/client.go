@@ -91,6 +91,10 @@ func (c *Client) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	return &PacketConn{BufioConn: pool.NewBufioConnSize(conn, configuration.UDPBufferSize.Load())}, nil
 }
 
+func (c *Client) Close() error {
+	return c.proxy.Close()
+}
+
 type PacketConn struct {
 	pool.BufioConn
 }

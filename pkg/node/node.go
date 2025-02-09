@@ -149,6 +149,27 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 	return resp.Build(), nil
 }
 
+func (n *Nodes) Activates(context.Context, *emptypb.Empty) (*gn.ActivatesResponse, error) {
+	nodes := []*point.Point{}
+	for _, v := range n.manager.store.Range {
+		nodes = append(nodes, proto.Clone(v.Config).(*point.Point))
+	}
+
+	return gn.ActivatesResponse_builder{
+		Nodes: nodes,
+	}.Build(), nil
+}
+
+func (n *Nodes) Close(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	if req.GetValue() == "" {
+		return &emptypb.Empty{}, nil
+	}
+
+	n.manager.store.Delete(req.GetValue())
+
+	return &emptypb.Empty{}, nil
+}
+
 func (n *Nodes) Outbound() *outbound { return NewOutbound(n.manager) }
 func (n *Nodes) Links() *link        { return NewLink(n.Outbound(), n.manager) }
 
@@ -163,6 +184,9 @@ func load(path string) *jsondb.DB[*node.Node] {
 			Tags:     map[string]*pt.Tags{},
 		}).Build(),
 	}
+
+	defaultNode.Tcp.SetHash("inittcp")
+	defaultNode.Udp.SetHash("initudp")
 
 	return jsondb.Open(path, defaultNode.Build())
 }

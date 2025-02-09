@@ -236,6 +236,10 @@ func (c *Simple) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 	return &packetConn{conn, ur}, nil
 }
 
+func (c *Simple) Close() error {
+	return c.p.Close()
+}
+
 type packetConn struct {
 	net.PacketConn
 	addr net.Addr

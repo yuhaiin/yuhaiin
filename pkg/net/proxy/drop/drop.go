@@ -62,6 +62,8 @@ func (d *drop) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketC
 	return NewDrop(ctx, time), nil
 }
 
+func (d *drop) Close() error { return nil }
+
 var _ net.Conn = (*DropConn)(nil)
 
 type DropConn struct {

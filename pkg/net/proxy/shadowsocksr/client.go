@@ -19,12 +19,10 @@ import (
 var _ netapi.Proxy = (*Shadowsocksr)(nil)
 
 type Shadowsocksr struct {
-	netapi.EmptyDispatch
-
 	protocol *protocol.Protocol
 	obfs     *obfs.Obfs
 	cipher   *cipher.Cipher
-	dial     netapi.Proxy
+	netapi.Proxy
 }
 
 func init() {
@@ -54,11 +52,11 @@ func NewClient(c *protocols.Shadowsocksr, p netapi.Proxy) (netapi.Proxy, error) 
 		ObfsOverhead: obfs.Overhead(),
 	}
 
-	return &Shadowsocksr{protocol: protocol, obfs: obfs, cipher: cipher, dial: p}, nil
+	return &Shadowsocksr{protocol: protocol, obfs: obfs, cipher: cipher, Proxy: p}, nil
 }
 
 func (s *Shadowsocksr) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	c, err := s.dial.Conn(ctx, addr)
+	c, err := s.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get conn failed: %w", err)
 	}
@@ -98,7 +96,7 @@ func (s *Shadowsocksr) Conn(ctx context.Context, addr netapi.Address) (net.Conn,
 }
 
 func (s *Shadowsocksr) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	c, err := s.dial.PacketConn(ctx, addr)
+	c, err := s.Proxy.PacketConn(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("get packet conn failed: %w", err)
 	}

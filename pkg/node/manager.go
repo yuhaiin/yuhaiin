@@ -224,6 +224,7 @@ func (mm *manager) DeleteNode(hash string) {
 	}
 
 	delete(m.GetNodes(), hash)
+	mm.store.Delete(hash)
 	mm.refreshGroup()
 }
 
@@ -262,6 +263,8 @@ func (m *manager) AddTag(tag string, t pt.TagType, hash string) {
 	if !slices.Contains(z.GetHash(), hash) {
 		z.SetHash(append(z.GetHash(), hash))
 	}
+
+	m.clearIdleProxy()
 }
 
 func (m *manager) DeleteTag(tag string) {
@@ -270,6 +273,7 @@ func (m *manager) DeleteTag(tag string) {
 	if m.getManager().GetTags() != nil {
 		delete(m.getManager().GetTags(), tag)
 	}
+	m.clearIdleProxy()
 }
 
 func (m *manager) ExistTag(tag string) (*pt.Tags, bool) {
@@ -340,6 +344,7 @@ func (m *manager) UsePoint(tcp, udp bool, hash string) error {
 		m.db.Data.SetUdp(p)
 	}
 
+	m.clearIdleProxy()
 	return nil
 }
 
@@ -348,4 +353,26 @@ func (m *manager) Save() error {
 	defer m.dbmu.Unlock()
 
 	return m.db.Save()
+}
+
+func (m *manager) clearIdleProxy() {
+	usedHash := map[string]struct{}{}
+	tags := m.GetTags()
+
+	for _, v := range tags {
+		if v.GetType() == pt.TagType_node {
+			for _, hash := range v.GetHash() {
+				usedHash[hash] = struct{}{}
+			}
+		}
+	}
+
+	usedHash[m.getNow(true).GetHash()] = struct{}{}
+	usedHash[m.getNow(false).GetHash()] = struct{}{}
+
+	for k := range m.store.Range {
+		if _, ok := usedHash[k]; !ok {
+			m.store.Delete(k)
+		}
+	}
 }
