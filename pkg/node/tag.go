@@ -16,10 +16,12 @@ type tag struct {
 	gn.UnimplementedTagServer
 
 	ruleTags func() iter.Seq[string]
-	n        *manager
+	n        *Manager
 }
 
-func (f *Nodes) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: f.manager, ruleTags: ff} }
+func (f *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer {
+	return &tag{n: f, ruleTags: ff}
+}
 
 func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
 	if r.GetType() == pt.TagType_mirror && r.GetTag() == r.GetHash() {

@@ -19,7 +19,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
 	"tailscale.com/envknob"
 	"tailscale.com/net/dnscache"
 	"tailscale.com/net/netns"
@@ -59,26 +58,17 @@ func init() {
 
 type Tailscale struct {
 	netapi.EmptyDispatch
-	dialer          netapi.Proxy
-	authKey         string
-	hostname        string
-	controlUrl      string
-	tsnet           *tsnet.Server
-	connsCount      atomic.Int64
-	lastConnectTime atomic.Int64
-	timer           *time.Timer
-	mu              sync.RWMutex
-	timeout         atomic.Uint32
+	dialer     netapi.Proxy
+	authKey    string
+	hostname   string
+	controlUrl string
+	tsnet      *tsnet.Server
+	mu         sync.RWMutex
 }
 
 func New(c *protocol.Tailscale, dialer netapi.Proxy) (netapi.Proxy, error) {
 	if c.GetAuthKey() == "" {
 		return nil, fmt.Errorf("auth_key is required")
-	}
-
-	timeout := c.GetIdleTimeout()
-	if timeout <= 30 {
-		timeout = 30
 	}
 
 	tt, _ := instanceStore.LoadOrAdd(instance{
@@ -93,19 +83,6 @@ func New(c *protocol.Tailscale, dialer netapi.Proxy) (netapi.Proxy, error) {
 			controlUrl: c.GetControlUrl(),
 		}
 	})
-
-	tt.mu.Lock()
-
-	timer := tt.timer
-	if timer != nil {
-		timer.Reset(time.Duration(timeout) * time.Minute)
-	}
-
-	if x := tt.timeout.Load(); x != timeout {
-		tt.timeout.CompareAndSwap(x, timeout)
-	}
-
-	tt.mu.Unlock()
 
 	return tt, nil
 }
@@ -163,21 +140,6 @@ func (t *Tailscale) init(context.Context) (*tsnet.Server, error) {
 		}
 	}()
 
-	t.timer = time.AfterFunc(time.Duration(t.timeout.Load())*time.Minute, func() {
-		if t.connsCount.Load() > 0 {
-			t.timer.Reset(time.Duration(t.timeout.Load()) * time.Minute)
-			return
-		}
-
-		now := system.CheapNowNano()
-		if time.Duration(now-t.lastConnectTime.Load()).Minutes() <= float64(t.timeout.Load()) {
-			t.timer.Reset(time.Duration(t.timeout.Load()) * time.Minute)
-			return
-		}
-
-		t.Close()
-	})
-
 	return t.tsnet, nil
 }
 
@@ -188,11 +150,6 @@ func (t *Tailscale) Close() error {
 	if t.tsnet != nil {
 		t.tsnet.Close()
 		t.tsnet = nil
-	}
-
-	if t.timer != nil {
-		t.timer.Stop()
-		t.timer = nil
 	}
 
 	return nil
@@ -238,9 +195,7 @@ func (t *Tailscale) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	t.lastConnectTime.Store(system.CheapNowNano())
-	t.connsCount.Add(1)
-	return &warpConn{ts: t, Conn: conn}, nil
+	return conn, nil
 }
 
 func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
@@ -270,8 +225,6 @@ func (t *Tailscale) PacketConnPacket(ctx context.Context, addr netapi.Address) (
 		return nil, err
 	}
 
-	t.lastConnectTime.Store(system.CheapNowNano())
-	t.connsCount.Add(1)
 	return &warpPacketConn{ctx: context.WithoutCancel(ctx), ts: t, PacketConn: conn}, nil
 }
 
@@ -298,19 +251,7 @@ func (t *Tailscale) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		return nil, err
 	}
 
-	t.lastConnectTime.Store(system.CheapNowNano())
-	t.connsCount.Add(1)
 	return &warpUDPConn{ctx: context.WithoutCancel(ctx), ts: t, addr: addr, Conn: conn}, nil
-}
-
-type warpConn struct {
-	ts *Tailscale
-	net.Conn
-}
-
-func (c *warpConn) Close() error {
-	c.ts.connsCount.Add(-1)
-	return c.Conn.Close()
 }
 
 type warpPacketConn struct {
@@ -320,7 +261,6 @@ type warpPacketConn struct {
 }
 
 func (c *warpPacketConn) Close() error {
-	c.ts.connsCount.Add(-1)
 	return c.PacketConn.Close()
 }
 
@@ -345,11 +285,6 @@ type warpUDPConn struct {
 	ts   *Tailscale
 	addr net.Addr
 	net.Conn
-}
-
-func (c *warpUDPConn) Close() error {
-	c.ts.connsCount.Add(-1)
-	return c.Conn.Close()
 }
 
 func (w *warpUDPConn) WriteTo(buf []byte, addr net.Addr) (int, error) {

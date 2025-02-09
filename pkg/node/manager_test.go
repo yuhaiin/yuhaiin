@@ -11,7 +11,7 @@ import (
 )
 
 func TestAddNode(t *testing.T) {
-	mg := &manager{
+	mg := &Manager{
 		db: &jsondb.DB[*node.Node]{
 			Data: node.Node_builder{Manager: &node.Manager{}}.Build(),
 		},

@@ -21,10 +21,10 @@ import (
 
 type link struct {
 	outbound *outbound
-	manager  *manager
+	manager  *Manager
 }
 
-func NewLink(outbound *outbound, manager *manager) *link {
+func NewLink(outbound *outbound, manager *Manager) *link {
 	return &link{outbound: outbound, manager: manager}
 }
 

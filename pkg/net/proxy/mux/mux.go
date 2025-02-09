@@ -45,7 +45,7 @@ func init() {
 }
 
 type connEntry struct {
-	session *IdleSession
+	session *yamux.Session
 	mu      sync.Mutex
 }
 
@@ -89,14 +89,13 @@ func (m *MuxClient) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 
 	conn, err := session.OpenStream(ctx)
 	if err != nil {
-		session.closed = true
 		return nil, fmt.Errorf("yamux open error: %w", err)
 	}
 
 	return &muxConn{conn}, nil
 }
 
-func (m *MuxClient) nextSession(ctx context.Context) (*IdleSession, error) {
+func (m *MuxClient) nextSession(ctx context.Context) (*yamux.Session, error) {
 	entry := m.selector.Select()
 
 	session := entry.session
@@ -123,56 +122,9 @@ func (m *MuxClient) nextSession(ctx context.Context) (*IdleSession, error) {
 		return nil, fmt.Errorf("yamux client error: %w", err)
 	}
 
-	entry.session = NewIdleSession(yamuxSession, time.Minute*2)
+	entry.session = yamuxSession
 
 	return entry.session, nil
-}
-
-type IdleSession struct {
-	*yamux.Session
-	timer       *time.Timer
-	idleTimeout time.Duration
-	closed      bool
-}
-
-func NewIdleSession(session *yamux.Session, IdleTimeout time.Duration) *IdleSession {
-	s := &IdleSession{
-		Session:     session,
-		idleTimeout: IdleTimeout,
-	}
-
-	s.timer = time.AfterFunc(IdleTimeout, func() {
-		if session.NumStreams() != 0 {
-			s.timer.Reset(IdleTimeout)
-		} else {
-			session.Close()
-		}
-	})
-
-	return s
-}
-
-func (i *IdleSession) OpenStream(ctx context.Context) (*yamux.Stream, error) {
-	i.timer.Reset(i.idleTimeout)
-	return i.Session.OpenStream(ctx)
-}
-
-func (i *IdleSession) Open(ctx context.Context) (net.Conn, error) {
-	i.timer.Reset(i.idleTimeout)
-	return i.Session.Open(ctx)
-}
-
-func (i *IdleSession) IsClosed() bool {
-	if i.closed {
-		return true
-	}
-
-	return i.Session.IsClosed()
-}
-
-func (i *IdleSession) Close() error {
-	i.timer.Stop()
-	return i.Session.Close()
 }
 
 type MuxConn interface {

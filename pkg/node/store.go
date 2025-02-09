@@ -3,6 +3,7 @@ package node
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -18,7 +19,9 @@ type ProxyEntry struct {
 }
 
 type ProxyStore struct {
-	store syncmap.SyncMap[string, *ProxyEntry]
+	closed atomic.Bool
+	mu     sync.RWMutex
+	store  syncmap.SyncMap[string, *ProxyEntry]
 }
 
 func NewProxyStore() *ProxyStore {
@@ -26,6 +29,13 @@ func NewProxyStore() *ProxyStore {
 }
 
 func (p *ProxyStore) LoadOrCreate(hash string, f func() (*ProxyEntry, error)) (netapi.Proxy, error) {
+	if p.closed.Load() {
+		return nil, errors.New("store closed")
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	pp, _, err := p.store.LoadOrCreate(hash, f)
 	if err != nil {
 		return nil, err
@@ -75,4 +85,17 @@ func (p *ProxyStore) RefreshNode(po *point.Point) {
 
 func (p *ProxyStore) Range(f func(key string, value *ProxyEntry) bool) {
 	p.store.Range(f)
+}
+
+func (p *ProxyStore) Close() error {
+	p.closed.Store(true)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for k := range p.store.Range {
+		p.store.Delete(k)
+	}
+
+	return nil
 }

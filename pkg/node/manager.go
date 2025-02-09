@@ -15,7 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type manager struct {
+type Manager struct {
 	db     *jsondb.DB[*node.Node]
 	store  *ProxyStore
 	mu     sync.RWMutex
@@ -23,30 +23,32 @@ type manager struct {
 	dbmu   sync.RWMutex
 }
 
-func NewManager(db *jsondb.DB[*node.Node], store *ProxyStore) *manager {
+func NewManager(path string) *Manager {
+	db := load(path)
+
 	if db.Data.GetManager() == nil {
 		db.Data.SetManager(&node.Manager{})
 	}
 
-	return &manager{db: db, store: store}
+	return &Manager{db: db, store: NewProxyStore()}
 }
 
-func (m *manager) getManager() *node.Manager {
+func (m *Manager) getManager() *node.Manager {
 	return m.db.Data.GetManager()
 }
 
-func (m *manager) GetStore() *ProxyStore {
+func (m *Manager) GetStore() *ProxyStore {
 	return m.store
 }
 
-func (m *manager) GetNode(hash string) (*point.Point, bool) {
+func (m *Manager) GetNode(hash string) (*point.Point, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	p, ok := m.getManager().GetNodes()[hash]
 	return p, ok
 }
 
-func (o *manager) getNow(tcp bool) *point.Point {
+func (o *Manager) getNow(tcp bool) *point.Point {
 	o.mu.RLock()
 	var p *point.Point
 	if tcp {
@@ -69,7 +71,7 @@ func (o *manager) getNow(tcp bool) *point.Point {
 	return p
 }
 
-func (m *manager) getNodeByName(group, name string) (*point.Point, bool) {
+func (m *Manager) getNodeByName(group, name string) (*point.Point, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	z := m.getManager().GetGroupsV2()[group]
@@ -85,7 +87,7 @@ func (m *manager) getNodeByName(group, name string) (*point.Point, bool) {
 	return m.GetNode(hash)
 }
 
-func (mm *manager) refreshGroup() {
+func (mm *Manager) refreshGroup() {
 	groups := map[string]*node.Nodes{}
 
 	for _, v := range mm.getManager().GetNodes() {
@@ -115,7 +117,7 @@ func (mm *manager) refreshGroup() {
 	mm.getManager().SetGroupsV2(groups)
 }
 
-func (m *manager) isNodeNameExists(group, name string) (string, bool) {
+func (m *Manager) isNodeNameExists(group, name string) (string, bool) {
 	groups := m.getManager().GetGroupsV2()
 	if groups == nil {
 		return "", false
@@ -132,7 +134,7 @@ func (m *manager) isNodeNameExists(group, name string) (string, bool) {
 	return hash, ok
 }
 
-func (mm *manager) SaveNode(ps ...*point.Point) {
+func (mm *Manager) SaveNode(ps ...*point.Point) {
 	if len(ps) == 0 {
 		return
 	}
@@ -188,7 +190,7 @@ func (mm *manager) SaveNode(ps ...*point.Point) {
 	mm.refreshGroup()
 }
 
-func (n *manager) DeleteRemoteNodes(group string) {
+func (n *Manager) DeleteRemoteNodes(group string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -212,7 +214,7 @@ func (n *manager) DeleteRemoteNodes(group string) {
 	n.refreshGroup()
 }
 
-func (mm *manager) DeleteNode(hash string) {
+func (mm *Manager) DeleteNode(hash string) {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
 
@@ -228,7 +230,7 @@ func (mm *manager) DeleteNode(hash string) {
 	mm.refreshGroup()
 }
 
-func (m *manager) AddTag(tag string, t pt.TagType, hash string) {
+func (m *Manager) AddTag(tag string, t pt.TagType, hash string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -267,7 +269,7 @@ func (m *manager) AddTag(tag string, t pt.TagType, hash string) {
 	m.clearIdleProxy()
 }
 
-func (m *manager) DeleteTag(tag string) {
+func (m *Manager) DeleteTag(tag string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.getManager().GetTags() != nil {
@@ -276,7 +278,7 @@ func (m *manager) DeleteTag(tag string) {
 	m.clearIdleProxy()
 }
 
-func (m *manager) ExistTag(tag string) (*pt.Tags, bool) {
+func (m *Manager) ExistTag(tag string) (*pt.Tags, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.getManager().GetTags() != nil {
@@ -287,13 +289,13 @@ func (m *manager) ExistTag(tag string) (*pt.Tags, bool) {
 	return nil, false
 }
 
-func (m *manager) GetTags() map[string]*pt.Tags {
+func (m *Manager) GetTags() map[string]*pt.Tags {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.getManager().GetTags()
 }
 
-func (m *manager) SaveLinks(links ...*subscribe.Link) {
+func (m *Manager) SaveLinks(links ...*subscribe.Link) {
 	m.linkmu.Lock()
 	defer m.linkmu.Unlock()
 
@@ -306,14 +308,14 @@ func (m *manager) SaveLinks(links ...*subscribe.Link) {
 	}
 }
 
-func (m *manager) GetLink(name string) (*subscribe.Link, bool) {
+func (m *Manager) GetLink(name string) (*subscribe.Link, bool) {
 	m.linkmu.RLock()
 	defer m.linkmu.RUnlock()
 	link, ok := m.db.Data.GetLinks()[name]
 	return link, ok
 }
 
-func (m *manager) DeleteLink(name ...string) {
+func (m *Manager) DeleteLink(name ...string) {
 	m.linkmu.Lock()
 	defer m.linkmu.Unlock()
 	for _, n := range name {
@@ -321,13 +323,13 @@ func (m *manager) DeleteLink(name ...string) {
 	}
 }
 
-func (m *manager) GetLinks() map[string]*subscribe.Link {
+func (m *Manager) GetLinks() map[string]*subscribe.Link {
 	m.linkmu.RLock()
 	defer m.linkmu.RUnlock()
 	return m.db.Data.GetLinks()
 }
 
-func (m *manager) UsePoint(tcp, udp bool, hash string) error {
+func (m *Manager) UsePoint(tcp, udp bool, hash string) error {
 	p, ok := m.GetNode(hash)
 	if !ok {
 		return errors.New("node not found")
@@ -348,14 +350,14 @@ func (m *manager) UsePoint(tcp, udp bool, hash string) error {
 	return nil
 }
 
-func (m *manager) Save() error {
+func (m *Manager) Save() error {
 	m.dbmu.Lock()
 	defer m.dbmu.Unlock()
 
 	return m.db.Save()
 }
 
-func (m *manager) clearIdleProxy() {
+func (m *Manager) clearIdleProxy() {
 	usedHash := map[string]struct{}{}
 	tags := m.GetTags()
 
@@ -376,3 +378,5 @@ func (m *manager) clearIdleProxy() {
 		}
 	}
 }
+
+func (m *Manager) Close() error { return m.store.Close() }
