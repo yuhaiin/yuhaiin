@@ -11,10 +11,11 @@ import (
 )
 
 func TestAddNode(t *testing.T) {
-	mg := &manager{
-		db: &jsondb.DB[*node.Node]{
+	mg := &Manager{
+		store: NewProxyStore(),
+		db: &DB{db: &jsondb.DB[*node.Node]{
 			Data: node.Node_builder{Manager: &node.Manager{}}.Build(),
-		},
+		}},
 	}
 
 	p1 := point.Point_builder{
@@ -35,7 +36,7 @@ func TestAddNode(t *testing.T) {
 	}.Build()
 	mg.SaveNode(p1, p2, p3, p4)
 
-	t.Log(mg.db.Data)
+	t.Log(mg.db.db.Data)
 
 	mg.AddTag("test_tag", 1, p2.GetHash())
 	mg.AddTag("test_tag3", 0, p3.GetHash())
@@ -44,6 +45,6 @@ func TestAddNode(t *testing.T) {
 	mg.DeleteTag("test_tag2")
 	mg.DeleteNode(p3.GetHash())
 
-	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.db.Data)
+	data, _ := protojson.MarshalOptions{Indent: "  "}.Marshal(mg.db.db.Data)
 	t.Log(string(data))
 }

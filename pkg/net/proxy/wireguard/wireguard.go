@@ -15,8 +15,6 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"sync/atomic"
-	"time"
 	"unique"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -34,14 +32,9 @@ type Wireguard struct {
 	net    *netTun
 	bind   *netBindClient
 	conf   *protocol.Wireguard
-	timer  *time.Timer
 	device *device.Device
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]
-
-	count atomic.Int64
-
-	idleTimeout time.Duration
 
 	mu sync.Mutex
 }
@@ -51,16 +44,8 @@ func init() {
 }
 
 func NewClient(conf *protocol.Wireguard, p netapi.Proxy) (netapi.Proxy, error) {
-	if conf.GetIdleTimeout() == 0 {
-		conf.SetIdleTimeout(60 * 5)
-	}
-	if conf.GetIdleTimeout() <= 30 {
-		conf.SetIdleTimeout(30)
-	}
-
 	w := &Wireguard{
-		conf:        conf,
-		idleTimeout: time.Duration(conf.GetIdleTimeout()) * time.Second * 2,
+		conf: conf,
 	}
 
 	w.happyDialer = &dialer.HappyEyeballsv2Dialer[*gonet.TCPConn]{
@@ -100,18 +85,6 @@ func (w *Wireguard) initNet() (*netTun, error) {
 	w.net = net
 	w.bind = bind
 
-	if w.timer != nil {
-		w.timer.Reset(w.idleTimeout)
-	} else {
-		w.timer = time.AfterFunc(w.idleTimeout, func() {
-			if w.count.Load() > 0 {
-				w.timer.Reset(w.idleTimeout)
-			} else {
-				w.Close()
-			}
-		})
-	}
-
 	return net, nil
 }
 
@@ -141,8 +114,6 @@ func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, er
 		return nil, err
 	}
 
-	w.count.Add(1)
-	w.timer.Reset(w.idleTimeout)
 	// net, err := w.initNet()
 	// if err != nil {
 	// 	return nil, err
@@ -179,12 +150,6 @@ func processErr(err error) {
 type wrapGoNetTcpConn struct {
 	wireguard *Wireguard
 	*gonet.TCPConn
-	once sync.Once
-}
-
-func (w *wrapGoNetTcpConn) Close() error {
-	w.once.Do(func() { w.wireguard.count.Add(-1) })
-	return w.TCPConn.Close()
 }
 
 func (w *wrapGoNetTcpConn) Read(b []byte) (int, error) {
@@ -210,9 +175,6 @@ func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 		return nil, err
 	}
 
-	w.count.Add(1)
-	w.timer.Reset(w.idleTimeout)
-
 	return &wrapGoNetUdpConn{
 		wireguard: w,
 		UDPConn:   goUC,
@@ -223,13 +185,7 @@ func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.Pa
 type wrapGoNetUdpConn struct {
 	wireguard *Wireguard
 	*gonet.UDPConn
-	ctx  context.Context
-	once sync.Once
-}
-
-func (w *wrapGoNetUdpConn) Close() error {
-	w.once.Do(func() { w.wireguard.count.Add(-1) })
-	return w.UDPConn.Close()
+	ctx context.Context
 }
 
 func (w *wrapGoNetUdpConn) WriteTo(buf []byte, addr net.Addr) (int, error) {

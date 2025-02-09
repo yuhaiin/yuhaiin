@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -88,10 +89,11 @@ func (f LoggerOutput) PrintFunc(msg string, ff func() []any) {
 	f.log(msg, ff()...)
 }
 
-func Debug(msg string, v ...any) { DefaultLogger.Debug(msg, v...) }
-func Info(msg string, v ...any)  { DefaultLogger.Info(msg, v...) }
-func Warn(msg string, v ...any)  { DefaultLogger.Warn(msg, v...) }
-func Error(msg string, v ...any) { DefaultLogger.Error(msg, v...) }
+func Debug(msg string, v ...any)         { DefaultLogger.Debug(msg, v...) }
+func Info(msg string, v ...any)          { DefaultLogger.Info(msg, v...) }
+func Warn(msg string, v ...any)          { DefaultLogger.Warn(msg, v...) }
+func Error(msg string, v ...any)         { DefaultLogger.Error(msg, v...) }
+func InfoFormat(format string, v ...any) { DefaultLogger.Info(fmt.Sprintf(format, v...)) }
 func Select(level slog.Level) LoggerOutput {
 	if !DefaultLogger.Enabled(level) {
 		return LoggerOutput{}

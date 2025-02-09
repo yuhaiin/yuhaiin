@@ -129,14 +129,14 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	}))
 
 	// proxy access point/endpoint
-	node := node.NewNodes(PathGenerator.Node(so.ConfigPath))
+	nodeManager := AddComponent(so, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
 
 	configuration.ProxyChain.Set(direct.Default)
 
 	// local,remote,bootstrap dns
 	dns := AddComponent(so, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	// bypass dialer and dns request
-	st := AddComponent(so, "shunt", route.NewRoute(node.Outbound(), dns, opt.ProcessDumper))
+	st := AddComponent(so, "shunt", route.NewRoute(nodeManager.Outbound(), dns, opt.ProcessDumper))
 	rc := route.NewRuleController(opt.BypassConfig, st)
 	// connections' statistic & flow data
 
@@ -168,11 +168,11 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Mux:            mux,
 		HttpListener:   httpListener,
 		Tools:          tools,
-		Node:           node,
+		Node:           nodeManager.Node(),
 		DB:             db,
-		Subscribe:      node.Subscribe(),
+		Subscribe:      nodeManager.Subscribe(),
 		Connections:    stcs,
-		Tag:            node.Tag(st.Tags),
+		Tag:            nodeManager.Tag(st.Tags),
 		RuleController: rc,
 		Inbound:        config.NewInbound(opt.Setting),
 		Resolver:       resolverControl,

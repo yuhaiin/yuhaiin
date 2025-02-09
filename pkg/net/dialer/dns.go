@@ -48,8 +48,11 @@ func (b *bootstrapResolver) Raw(ctx context.Context, req dnsmessage.Question) (d
 func (b *bootstrapResolver) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	err := b.r.Close()
-	b.r = nil
+	var err error
+	if b.r != nil {
+		err = b.r.Close()
+		b.r = nil
+	}
 
 	return err
 }
@@ -87,7 +90,7 @@ func ResolveTCPAddr(ctx context.Context, addr netapi.Address) (*net.TCPAddr, err
 
 func ResolverAddrPort(ctx context.Context, addr netapi.Address) (netip.AddrPort, error) {
 	if !addr.IsFqdn() {
-		x, ok := addr.(*netapi.IPAddr)
+		x, ok := addr.(netapi.IPAddr)
 		if ok {
 			return netip.AddrPortFrom(x.Addr, x.Port()), nil
 		}

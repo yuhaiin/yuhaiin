@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -26,9 +25,7 @@ type client struct {
 
 	tlsConfig *tls.Config
 
-	count     *atomic.Int64
-	stopTimer *time.Timer
-	mu        sync.Mutex
+	mu sync.Mutex
 }
 
 func init() {
@@ -38,7 +35,6 @@ func init() {
 func NewClient(config *protocol.Grpc, p netapi.Proxy) (netapi.Proxy, error) {
 	return &client{
 		Proxy:     p,
-		count:     &atomic.Int64{},
 		tlsConfig: register.ParseTLSConfig(config.GetTls()),
 	}, nil
 }
@@ -46,7 +42,6 @@ func NewClient(config *protocol.Grpc, p netapi.Proxy) (netapi.Proxy, error) {
 func (c *client) connect() (*grpc.ClientConn, error) {
 	conn := c.clientConn
 	if conn != nil && conn.GetState() != connectivity.Shutdown {
-		c.clientCountAdd()
 		return conn, nil
 	}
 
@@ -55,7 +50,6 @@ func (c *client) connect() (*grpc.ClientConn, error) {
 
 	conn = c.clientConn
 	if conn != nil && conn.GetState() != connectivity.Shutdown {
-		c.clientCountAdd()
 		return conn, nil
 	}
 
@@ -86,32 +80,8 @@ func (c *client) connect() (*grpc.ClientConn, error) {
 	}
 
 	c.clientConn = clientConn
-	c.clientCountAdd()
 
 	return clientConn, nil
-}
-
-func (c *client) clientCountAdd() {
-	if c.count.Add(1) == 1 && c.stopTimer != nil {
-		c.stopTimer.Stop()
-	}
-}
-
-func (c *client) clientCountSub() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.count.Add(-1) != 0 {
-		return
-	}
-
-	if c.stopTimer == nil {
-		c.stopTimer = time.AfterFunc(time.Minute, func() {
-			c.Close()
-		})
-	} else {
-		c.stopTimer.Reset(time.Minute)
-	}
 }
 
 func (c *client) Close() error {
@@ -157,7 +127,6 @@ _retry:
 	return newConn(con, caddr{}, addr, func() {
 		cancel()
 		_ = con.CloseSend()
-		c.clientCountSub()
 	}), nil
 }
 

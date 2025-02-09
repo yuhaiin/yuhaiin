@@ -3,6 +3,7 @@ package node
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -18,7 +19,9 @@ type ProxyEntry struct {
 }
 
 type ProxyStore struct {
-	store syncmap.SyncMap[string, *ProxyEntry]
+	closed atomic.Bool
+	mu     sync.RWMutex
+	store  syncmap.SyncMap[string, *ProxyEntry]
 }
 
 func NewProxyStore() *ProxyStore {
@@ -26,6 +29,13 @@ func NewProxyStore() *ProxyStore {
 }
 
 func (p *ProxyStore) LoadOrCreate(hash string, f func() (*ProxyEntry, error)) (netapi.Proxy, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.closed.Load() {
+		return nil, errors.New("store closed")
+	}
+
 	pp, _, err := p.store.LoadOrCreate(hash, f)
 	if err != nil {
 		return nil, err
@@ -58,11 +68,11 @@ func (p *ProxyStore) RefreshNode(po *point.Point) {
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	changed := !proto.Equal(r.Config, po)
 
 	if !changed {
+		r.mu.Unlock()
 		return
 	}
 
@@ -70,9 +80,24 @@ func (p *ProxyStore) RefreshNode(po *point.Point) {
 		log.Error("close proxy failed", "key", po.GetHash(), "err", err)
 	}
 	r.Proxy = netapi.NewErrProxy(errors.New("proxy closed"))
-	p.store.Delete(po.GetHash())
+	r.mu.Unlock()
+
+	p.Delete(po.GetHash())
 }
 
 func (p *ProxyStore) Range(f func(key string, value *ProxyEntry) bool) {
 	p.store.Range(f)
+}
+
+func (p *ProxyStore) Close() error {
+	p.closed.Store(true)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for k := range p.store.Range {
+		p.Delete(k)
+	}
+
+	return nil
 }

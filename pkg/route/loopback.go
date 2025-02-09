@@ -57,7 +57,7 @@ func (l *LoopbackDetector) Cycle(meta *netapi.Context, addr netapi.Address) bool
 		return false
 	}
 
-	return inbound.Equal(addr)
+	return inbound.Comparable() == addr.Comparable()
 }
 
 func (l *LoopbackDetector) NewConn(conn net.Conn) net.Conn {
@@ -70,7 +70,7 @@ func (l *LoopbackDetector) NewConn(conn net.Conn) net.Conn {
 		return conn
 	}
 
-	key := netip.AddrPortFrom(localAddr.(*netapi.IPAddr).Addr, localAddr.Port())
+	key := netip.AddrPortFrom(localAddr.(netapi.IPAddr).Addr, localAddr.Port())
 	l.connStore.Store(key, struct{}{})
 
 	return NewWrapCloseConn(conn, func() { l.connStore.Delete(key) })
@@ -103,7 +103,7 @@ func (l *LoopbackDetector) CheckConnLoopback(meta *netapi.StreamMeta) bool {
 		return false
 	}
 
-	key := netip.AddrPortFrom(srcAddr.(*netapi.IPAddr).Addr, srcAddr.Port())
+	key := netip.AddrPortFrom(srcAddr.(netapi.IPAddr).Addr, srcAddr.Port())
 	_, ok := l.connStore.Load(key)
 
 	return ok

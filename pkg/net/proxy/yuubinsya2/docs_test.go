@@ -62,7 +62,7 @@ func TestHeader(t *testing.T) {
 		raddr, err := DecodeTCPHeader(r)
 		assert.NoError(t, err)
 
-		assert.Equal(t, raddr.Equal(addr), true)
+		assert.Equal(t, raddr.Comparable() == addr.Comparable(), true)
 
 		rdata, err := io.ReadAll(r)
 		assert.NoError(t, err)
@@ -82,7 +82,7 @@ func TestHeader(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, migrateID, 12)
-		assert.Equal(t, raddr.Equal(addr), true)
+		assert.Equal(t, raddr.Comparable() == addr.Comparable(), true)
 		assert.Equal(t, assert.ObjectsAreEqual(rdata, data), true)
 	})
 }
