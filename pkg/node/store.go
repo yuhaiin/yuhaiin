@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -43,8 +44,9 @@ func (p *ProxyStore) Delete(hash string) {
 	}
 
 	r.mu.Lock()
-	// TODO close proxy
-	// r.Proxy.Close()
+	if err := r.Proxy.Close(); err != nil {
+		log.Error("close proxy failed", "key", hash, "err", err)
+	}
 	r.Proxy = netapi.NewErrProxy(errors.New("proxy closed"))
 	r.mu.Unlock()
 }
@@ -64,9 +66,13 @@ func (p *ProxyStore) RefreshNode(po *point.Point) {
 		return
 	}
 
-	// TODO close proxy
-	// r.Proxy.Close()
-
+	if err := r.Proxy.Close(); err != nil {
+		log.Error("close proxy failed", "key", po.GetHash(), "err", err)
+	}
 	r.Proxy = netapi.NewErrProxy(errors.New("proxy closed"))
 	p.store.Delete(po.GetHash())
+}
+
+func (p *ProxyStore) Range(f func(key string, value *ProxyEntry) bool) {
+	p.store.Range(f)
 }

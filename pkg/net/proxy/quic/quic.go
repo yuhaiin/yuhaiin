@@ -3,6 +3,7 @@ package quic
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -40,7 +41,7 @@ type Client struct {
 
 	idg id.IDGenerator
 
-	sessionMu sync.Mutex
+	sessionMu sync.RWMutex
 }
 
 func init() {
@@ -79,7 +80,9 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 }
 
 func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
+	c.sessionMu.RLock()
 	session := c.session
+	c.sessionMu.RUnlock()
 
 	if session != nil {
 		select {
@@ -168,6 +171,26 @@ func (c *Client) initSession(ctx context.Context) (quic.Connection, error) {
 	}()
 
 	return session, nil
+}
+
+func (c *Client) Close() error {
+	c.sessionMu.RLock()
+	session := c.session
+	c.sessionMu.RUnlock()
+
+	var err error
+
+	if er := c.dialer.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
+
+	if session != nil {
+		if er := session.CloseWithError(0, ""); er != nil {
+			err = errors.Join(err, er)
+		}
+	}
+
+	return err
 }
 
 func (c *Client) Conn(ctx context.Context, s netapi.Address) (net.Conn, error) {

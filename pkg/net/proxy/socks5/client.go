@@ -223,6 +223,10 @@ func (s *Client) PacketConn(ctx context.Context, host netapi.Address) (net.Packe
 	return pc, nil
 }
 
+func (s *Client) Close() error {
+	return s.dialer.Close()
+}
+
 // The client connects to the server, and sends a version
 // identifier/method selection message:
 

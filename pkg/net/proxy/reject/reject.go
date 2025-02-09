@@ -31,6 +31,8 @@ func (r rejectImmediately) PacketConn(_ context.Context, addr netapi.Address) (n
 	return nil, err
 }
 
+func (rejectImmediately) Close() error { return nil }
+
 type reject struct {
 	netapi.EmptyDispatch
 	cache         *lru.SyncLru[string, object]
@@ -85,3 +87,5 @@ func (r *reject) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) 
 func (r *reject) PacketConn(_ context.Context, addr netapi.Address) (net.PacketConn, error) {
 	return nil, fmt.Errorf("blocked address udp[%v]. delay %v", addr, r.delay(addr))
 }
+
+func (r *reject) Close() error { return nil }
