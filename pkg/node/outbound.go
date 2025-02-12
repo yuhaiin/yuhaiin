@@ -28,12 +28,21 @@ func NewOutbound(mamanager *Manager) *outbound {
 	}
 }
 
-func (o *outbound) GetDialer(p *point.Point) (netapi.Proxy, error) {
-	if p.GetHash() == "" {
+func (o *outbound) GetDialer(ctx context.Context, p *point.Point) (netapi.Proxy, error) {
+	return o.getDialer(ctx, p.GetHash(), func() (*point.Point, error) { return p, nil })
+}
+
+func (o *outbound) getDialer(ctx context.Context, hash string, point func() (*point.Point, error)) (netapi.Proxy, error) {
+	if hash == "" {
 		return nil, fmt.Errorf("hash is empty")
 	}
 
-	return o.manager.GetStore().LoadOrCreate(p.GetHash(), func() (*ProxyEntry, error) {
+	return o.manager.GetStore().LoadOrCreate(ctx, hash, func() (*ProxyEntry, error) {
+		p, err := point()
+		if err != nil {
+			return nil, err
+		}
+
 		r, err := register.Dialer(p)
 		if err != nil {
 			return nil, err
@@ -56,8 +65,8 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 	if tag != "" {
 		store.Tag = tag
 		if hash := o.tagConn(tag); hash != "" {
-			p := o.GetDialerByHash(ctx, hash)
-			if p != nil {
+			p, err := o.GetDialerByID(ctx, hash)
+			if err == nil {
 				return p, nil
 			}
 		}
@@ -85,56 +94,37 @@ func (o *outbound) Get(ctx context.Context, network string, str string, tag stri
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
 
-	p, err := o.GetDialer(point)
-	if err != nil {
-		return nil, err
-	}
-
-	store.Hash = point.GetHash()
-	store.NodeName = point.GetName()
-	return p, nil
+	return o.GetDialer(ctx, point)
 }
 
-func (o *outbound) GetDialerByHash(ctx context.Context, hash string) netapi.Proxy {
-	p, _ := o.manager.GetStore().LoadOrCreate(hash, func() (*ProxyEntry, error) {
+// GetDialerByID if id is not exists or point dial failed, it will return nil
+func (o *outbound) GetDialerByID(ctx context.Context, hash string) (netapi.Proxy, error) {
+	return o.getDialer(ctx, hash, func() (*point.Point, error) {
 		p, ok := o.manager.GetNode(hash)
 		if !ok {
 			return nil, fmt.Errorf("node not found")
 		}
-
-		v, err := register.Dialer(p)
-		if err != nil {
-			return nil, err
-		}
-
-		return &ProxyEntry{
-			Proxy:  v,
-			Config: p,
-		}, nil
+		return p, nil
 	})
-
-	netapi.GetContext(ctx).Hash = hash
-	return p
 }
 
 func (o *outbound) tagConn(tag string) string {
-_retry:
-	t, ok := o.manager.ExistTag(tag)
-	if !ok || len(t.GetHash()) <= 0 {
-		return ""
-	}
-
-	if t.GetType() == pt.TagType_mirror {
-		if tag == t.GetHash()[0] {
+	for {
+		t, ok := o.manager.ExistTag(tag)
+		if !ok || len(t.GetHash()) <= 0 {
 			return ""
 		}
-		tag = t.GetHash()[0]
-		goto _retry
+
+		if t.GetType() == pt.TagType_mirror {
+			if tag == t.GetHash()[0] {
+				return ""
+			}
+			tag = t.GetHash()[0]
+			continue
+		}
+
+		return t.GetHash()[rand.IntN(len(t.GetHash()))]
 	}
-
-	hash := t.GetHash()[rand.IntN(len(t.GetHash()))]
-
-	return hash
 }
 
 func (o *outbound) Do(req *http.Request) (*http.Response, error) {

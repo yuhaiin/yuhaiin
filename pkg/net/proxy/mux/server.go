@@ -10,7 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/libp2p/go-yamux/v4"
+	"github.com/libp2p/go-yamux/v5"
 )
 
 type MuxServer struct {

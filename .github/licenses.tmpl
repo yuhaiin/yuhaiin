@@ -1,0 +1,6 @@
+# Go Packages
+
+Some packages may only be included on certain architectures or operating systems.
+{{ range . }}
+- [{{.Name}}](https://pkg.go.dev/{{.Name}}) ([{{.LicenseName}}]({{.LicenseURL}}))
+{{- end }}

@@ -2,99 +2,42 @@
 package yuhaiin
 
 var (
-	AdvAppBypassKey              = `app_bypass`
-	AdvAppListKey                = `app_list`
-	AdvAutoConnectKey            = `auto_connect`
-	AdvDnsKey                    = `dns`
-	AdvDnsPortKey                = `dns_port`
-	AdvFakeDnsCidrKey            = `fake_dns_cidr`
-	AdvFakeDnsv6CidrKey          = `fake_dnsv6_cidr`
-	AdvNewAppListKey             = `new_app_list`
-	AdvPerAppKey                 = `per_app`
-	AdvRouteKey                  = `route`
-	AdvRouteAll                  = `All (Default)`
-	AdvRouteNonChn               = `Non-Chinese IPs`
-	AdvRouteNonLocal             = `Non-Local IPs`
-	AdvTunDriverKey              = `Tun Driver`
-	AllowLanKey                  = `allow_lan`
-	AppendHttpProxyToVpnKey      = `Append HTTP Proxy to VPN`
-	AuthPasswordKey              = `password`
-	AuthUsernameKey              = `username`
-	AuthUserpwKey                = `auth_userpw`
-	BootstrapDnsHostKey          = `bootstrap_dns_host`
-	BootstrapDnsSubnetKey        = `bootstrap_dns_subnet`
-	BootstrapDnsTlsServerNameKey = `bootstrap_dns_tls_server_name`
-	BootstrapDnsTypeKey          = `bootstrap_dns_type`
-	BypassBlockValue             = `block`
-	BypassBypassValue            = `bypass`
-	BypassDirectValue            = `direct`
-	BypassProxyValue             = `proxy`
-	BypassTcpKey                 = `TCP`
-	BypassUdpKey                 = `UDP`
-	DnsHijacking                 = `dns_hijacking`
-	DnsHostsKey                  = `hosts_key`
-	DnsTypeDoh3Value             = `doh3`
-	DnsTypeDohValue              = `doh`
-	DnsTypeDoqValue              = `doq`
-	DnsTypeDotValue              = `dot`
-	DnsTypeDotcpValue            = `tcp`
-	DnsTypeDoudpValue            = `udp`
-	HttpServerPortKey            = `http_server_port`
-	Ipv6ProxyKey                 = `ipv6`
-	LocalDnsHostKey              = `local_dns_host`
-	LocalDnsProxyKey             = `local_dns_proxy`
-	LocalDnsSubnetKey            = `local_dns_subnet`
-	LocalDnsTlsServerNameKey     = `local_dns_tls_server_name`
-	LocalDnsTypeKey              = `local_dns_type`
-	LogLevel                     = `Log Level`
-	LogLevelDebug                = `debug`
-	LogLevelError                = `error`
-	LogLevelFatal                = `fatal`
-	LogLevelInfo                 = `info`
-	LogLevelVerbose              = `verbose`
-	LogLevelWarning              = `warning`
-	NetworkSpeedKey              = `network_speed`
-	PortsKey                     = `ports_key`
-	RemoteDnsCategoryKey         = `remote_dns_category`
-	RemoteDnsHostKey             = `remote_dns_host`
-	RemoteDnsProxyKey            = `remote_dns_proxy`
-	RemoteDnsResolveDomainKey    = `remote_dns_resolve_domain`
-	RemoteDnsSubnetKey           = `remote_dns_subnet`
-	RemoteDnsTlsServerNameKey    = `remote_dns_tls_server_name`
-	RemoteDnsTypeKey             = `remote_dns_type`
-	RuleBlock                    = `Block`
-	RuleDirect                   = `Direct`
-	RuleProxy                    = `Proxy`
-	RuleUpdateBypassFileKey      = `Rule Update Bypass`
-	SaveLogcat                   = `save_logcat`
-	SniffKey                     = `Sniff`
-	Socks5ServerPortKey          = `socks5_server_port`
-	TunDriverChannelValue        = `channel`
-	TunDriverFdbasedValue        = `fdbased`
-	TunDriverSystemGvisorValue   = `system_gvisor`
-	UdpProxyFqdnKey              = `UDP proxy FQDN`
-	YuhaiinPortKey               = `yuhaiin_port`
-
-	AdvBypassModeValue = []string{
-		BypassBypassValue,
-		BypassDirectValue,
-		BypassProxyValue,
-		BypassBlockValue,
-	}
+	AdvAppBypassKey            = `app_bypass`
+	AdvAppListKey              = `app_list`
+	AdvAutoConnectKey          = `auto_connect`
+	AdvNewAppListKey           = `new_app_list`
+	AdvPerAppKey               = `per_app`
+	AdvRouteKey                = `route`
+	AdvRouteAll                = `All (Default)`
+	AdvRouteNonChn             = `Non-Chinese IPs`
+	AdvRouteNonLocal           = `Non-Local IPs`
+	AdvTunDriverKey            = `Tun Driver`
+	AllowLanKey                = `allow_lan`
+	AppendHttpProxyToVpnKey    = `Append HTTP Proxy to VPN`
+	DnsHijacking               = `dns_hijacking`
+	HttpServerPortKey          = `http_server_port`
+	Ipv6ProxyKey               = `ipv6`
+	LogLevel                   = `Log Level`
+	LogLevelDebug              = `debug`
+	LogLevelError              = `error`
+	LogLevelFatal              = `fatal`
+	LogLevelInfo               = `info`
+	LogLevelVerbose            = `verbose`
+	LogLevelWarning            = `warning`
+	NetworkSpeedKey            = `network_speed`
+	PortsKey                   = `ports_key`
+	SaveLogcat                 = `save_logcat`
+	SniffKey                   = `Sniff`
+	Socks5ServerPortKey        = `socks5_server_port`
+	TunDriverChannelValue      = `channel`
+	TunDriverFdbasedValue      = `fdbased`
+	TunDriverSystemGvisorValue = `system_gvisor`
+	YuhaiinPortKey             = `yuhaiin_port`
 
 	AdvRoutes = []string{
 		AdvRouteAll,
 		AdvRouteNonLocal,
 		AdvRouteNonChn,
-	}
-
-	DnsTypesValue = []string{
-		DnsTypeDoudpValue,
-		DnsTypeDotcpValue,
-		DnsTypeDohValue,
-		DnsTypeDotValue,
-		DnsTypeDoqValue,
-		DnsTypeDoh3Value,
 	}
 
 	LogLevels = []string{
@@ -130,6 +73,7 @@ var (
     <string name="yuhaiin.bypass.mode_config.hostname">yuhaiin.bypass.mode_config.hostname</string>
     <string name="yuhaiin.bypass.mode_config.resolve_strategy">yuhaiin.bypass.mode_config.resolve_strategy</string>
     <string name="yuhaiin.bypass.mode_config.udp_proxy_fqdn_strategy">yuhaiin.bypass.mode_config.udp_proxy_fqdn_strategy</string>
+    <string name="yuhaiin.bypass.mode_config.resolver">yuhaiin.bypass.mode_config.resolver</string>
     <string name="yuhaiin.bypass.mode_config.ErrorMsgsEntry.key">yuhaiin.bypass.mode_config.ErrorMsgsEntry.key</string>
     <string name="yuhaiin.bypass.mode_config.ErrorMsgsEntry.value">yuhaiin.bypass.mode_config.ErrorMsgsEntry.value</string>
     <string name="yuhaiin.bypass.remote_rule.enabled">yuhaiin.bypass.remote_rule.enabled</string>
@@ -143,26 +87,17 @@ var (
     <string name="yuhaiin.bypass.mode_config.hostname">yuhaiin.bypass.mode_config.hostname</string>
     <string name="yuhaiin.bypass.mode_config.resolve_strategy">yuhaiin.bypass.mode_config.resolve_strategy</string>
     <string name="yuhaiin.bypass.mode_config.udp_proxy_fqdn_strategy">yuhaiin.bypass.mode_config.udp_proxy_fqdn_strategy</string>
+    <string name="yuhaiin.bypass.mode_config.resolver">yuhaiin.bypass.mode_config.resolver</string>
     <string name="yuhaiin.bypass.mode_config.ErrorMsgsEntry.key">yuhaiin.bypass.mode_config.ErrorMsgsEntry.key</string>
     <string name="yuhaiin.bypass.mode_config.ErrorMsgsEntry.value">yuhaiin.bypass.mode_config.ErrorMsgsEntry.value</string>
     <string name="yuhaiin.bypass.config.resolve_locally">yuhaiin.bypass.config.resolve_locally</string>
+    <string name="yuhaiin.bypass.config.direct_resolver">yuhaiin.bypass.config.direct_resolver</string>
+    <string name="yuhaiin.bypass.config.proxy_resolver">yuhaiin.bypass.config.proxy_resolver</string>
     <string name="yuhaiin.dns.dns_config.server">yuhaiin.dns.dns_config.server</string>
     <string name="yuhaiin.dns.dns_config.fakedns">yuhaiin.dns.dns_config.fakedns</string>
     <string name="yuhaiin.dns.dns_config.fakedns_ip_range">yuhaiin.dns.dns_config.fakedns_ip_range</string>
     <string name="yuhaiin.dns.dns_config.fakedns_ipv6_range">yuhaiin.dns.dns_config.fakedns_ipv6_range</string>
     <string name="yuhaiin.dns.dns_config.fakedns_whitelist">yuhaiin.dns.dns_config.fakedns_whitelist</string>
-    <string name="yuhaiin.dns.dns.host">yuhaiin.dns.dns.host</string>
-    <string name="yuhaiin.dns.dns.type">yuhaiin.dns.dns.type</string>
-    <string name="yuhaiin.dns.dns.subnet">yuhaiin.dns.dns.subnet</string>
-    <string name="yuhaiin.dns.dns.tls_servername">yuhaiin.dns.dns.tls_servername</string>
-    <string name="yuhaiin.dns.dns.host">yuhaiin.dns.dns.host</string>
-    <string name="yuhaiin.dns.dns.type">yuhaiin.dns.dns.type</string>
-    <string name="yuhaiin.dns.dns.subnet">yuhaiin.dns.dns.subnet</string>
-    <string name="yuhaiin.dns.dns.tls_servername">yuhaiin.dns.dns.tls_servername</string>
-    <string name="yuhaiin.dns.dns.host">yuhaiin.dns.dns.host</string>
-    <string name="yuhaiin.dns.dns.type">yuhaiin.dns.dns.type</string>
-    <string name="yuhaiin.dns.dns.subnet">yuhaiin.dns.dns.subnet</string>
-    <string name="yuhaiin.dns.dns.tls_servername">yuhaiin.dns.dns.tls_servername</string>
     <string name="yuhaiin.dns.dns_config.HostsEntry.key">yuhaiin.dns.dns_config.HostsEntry.key</string>
     <string name="yuhaiin.dns.dns_config.HostsEntry.value">yuhaiin.dns.dns_config.HostsEntry.value</string>
     <string name="yuhaiin.dns.dns_config.ResolverEntry.key">yuhaiin.dns.dns_config.ResolverEntry.key</string>
@@ -203,6 +138,10 @@ var (
     <string name="yuhaiin.listener.reality.dest">yuhaiin.listener.reality.dest</string>
     <string name="yuhaiin.listener.reality.private_key">yuhaiin.listener.reality.private_key</string>
     <string name="yuhaiin.listener.reality.debug">yuhaiin.listener.reality.debug</string>
+    <string name="yuhaiin.listener.tls_auto.servernames">yuhaiin.listener.tls_auto.servernames</string>
+    <string name="yuhaiin.listener.tls_auto.next_protos">yuhaiin.listener.tls_auto.next_protos</string>
+    <string name="yuhaiin.listener.tls_auto.ca_cert">yuhaiin.listener.tls_auto.ca_cert</string>
+    <string name="yuhaiin.listener.tls_auto.ca_key">yuhaiin.listener.tls_auto.ca_key</string>
     <string name="yuhaiin.listener.http.username">yuhaiin.listener.http.username</string>
     <string name="yuhaiin.listener.http.password">yuhaiin.listener.http.password</string>
     <string name="yuhaiin.listener.socks5.username">yuhaiin.listener.socks5.username</string>
@@ -211,7 +150,6 @@ var (
     <string name="yuhaiin.listener.yuubinsya.password">yuhaiin.listener.yuubinsya.password</string>
     <string name="yuhaiin.listener.yuubinsya.tcp_encrypt">yuhaiin.listener.yuubinsya.tcp_encrypt</string>
     <string name="yuhaiin.listener.yuubinsya.udp_encrypt">yuhaiin.listener.yuubinsya.udp_encrypt</string>
-    <string name="yuhaiin.listener.yuubinsya.mux">yuhaiin.listener.yuubinsya.mux</string>
     <string name="yuhaiin.listener.mixed.username">yuhaiin.listener.mixed.username</string>
     <string name="yuhaiin.listener.mixed.password">yuhaiin.listener.mixed.password</string>
     <string name="yuhaiin.listener.socks4a.username">yuhaiin.listener.socks4a.username</string>
@@ -237,5 +175,7 @@ var (
     <string name="yuhaiin.log.logcat.save">yuhaiin.log.logcat.save</string>
     <string name="yuhaiin.config.config_version.version">yuhaiin.config.config_version.version</string>
     <string name="yuhaiin.config.platform.android_app">yuhaiin.config.platform.android_app</string>
+    <string name="yuhaiin.config.advanced_config.udp_buffer_size">yuhaiin.config.advanced_config.udp_buffer_size</string>
+    <string name="yuhaiin.config.advanced_config.relay_buffer_size">yuhaiin.config.advanced_config.relay_buffer_size</string>
 </resources>
 */

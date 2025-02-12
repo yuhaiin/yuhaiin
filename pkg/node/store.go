@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -28,7 +29,7 @@ func NewProxyStore() *ProxyStore {
 	return &ProxyStore{}
 }
 
-func (p *ProxyStore) LoadOrCreate(hash string, f func() (*ProxyEntry, error)) (netapi.Proxy, error) {
+func (p *ProxyStore) LoadOrCreate(ctx context.Context, hash string, f func() (*ProxyEntry, error)) (netapi.Proxy, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -43,6 +44,11 @@ func (p *ProxyStore) LoadOrCreate(hash string, f func() (*ProxyEntry, error)) (n
 
 	pp.mu.RLock()
 	defer pp.mu.RUnlock()
+
+	if store := netapi.GetContextOrNil(ctx); store != nil {
+		store.Hash = hash
+		store.NodeName = pp.Config.GetName()
+	}
 
 	return pp.Proxy, err
 }
