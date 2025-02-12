@@ -13,9 +13,6 @@ type Subscribe struct {
 	n *Manager
 }
 
-func (f *Manager) Subscribe() *Subscribe {
-	return &Subscribe{n: f}
-}
 
 func (s *Subscribe) Save(_ context.Context, l *gn.SaveLinkReq) (*emptypb.Empty, error) {
 	s.n.Links().Save(l.GetLinks())

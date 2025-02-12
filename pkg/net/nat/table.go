@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
@@ -25,7 +23,7 @@ func NewTable(sniffer netapi.PacketSniffer, dialer netapi.Proxy) *Table {
 type Table struct {
 	dialer        netapi.Proxy
 	sinffer       netapi.PacketSniffer
-	sourceControl syncmap.SyncMap[string, *SourceControl]
+	sourceControl syncmap.SyncMap[uint64, *SourceControl]
 	closed        atomic.Bool
 }
 
@@ -37,17 +35,15 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return fmt.Errorf("udp nat table: %w", net.ErrClosed)
 	}
 
-	var key string
+	key := pkt.MigrateID
 
-	if pkt.MigrateID != 0 {
-		key = strconv.FormatUint(pkt.MigrateID, 10)
-	} else {
-		key = pkt.Src.String()
-	}
+	if key == 0 {
+		srcAddr, err := netapi.ParseSysAddr(pkt.Src)
+		if err != nil {
+			return fmt.Errorf("parse src addr failed: %w", err)
+		}
 
-	if key == "" {
-		log.Warn("key is empty", "src", pkt.Src, "dst", pkt.Dst, "migrateid", pkt.MigrateID)
-		return nil
+		key = srcAddr.Comparable()
 	}
 
 	r, _, _ := u.sourceControl.LoadOrCreate(key, func() (*SourceControl, error) {

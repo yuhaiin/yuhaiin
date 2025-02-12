@@ -10,18 +10,16 @@ var (
 
 var (
 	defaultBoolValue = map[string]byte{
-		AllowLanKey:               0,
-		AppendHttpProxyToVpnKey:   0,
-		Ipv6ProxyKey:              1,
-		NetworkSpeedKey:           0,
-		AdvAutoConnectKey:         0,
-		AdvPerAppKey:              0,
-		AdvAppBypassKey:           0,
-		UdpProxyFqdnKey:           0,
-		SniffKey:                  1,
-		DnsHijacking:              1,
-		RemoteDnsResolveDomainKey: 0,
-		SaveLogcat:                0,
+		AllowLanKey:             0,
+		AppendHttpProxyToVpnKey: 0,
+		Ipv6ProxyKey:            1,
+		NetworkSpeedKey:         0,
+		AdvAutoConnectKey:       0,
+		AdvPerAppKey:            0,
+		AdvAppBypassKey:         0,
+		SniffKey:                1,
+		DnsHijacking:            1,
+		SaveLogcat:              0,
 	}
 
 	disAllowAppList, _ = json.Marshal([]string{
@@ -53,43 +51,13 @@ var (
 	})
 
 	defaultStringValue = map[string]string{
-		AdvRouteKey:         AdvRoutes[0],
-		AdvFakeDnsCidrKey:   "10.0.2.1/16",
-		AdvFakeDnsv6CidrKey: "fc00::/64",
-		AdvTunDriverKey:     TunDriversValue[2],
-		AdvAppListKey:       string(disAllowAppList),
-		LogLevel:            LogLevels[2],
-
-		RuleUpdateBypassFileKey: "https://raw.githubusercontent.com/yuhaiin/kitte/main/yuhaiin/remote.conf",
-		// RemoteRulesKey:       "[]",
-		// rules
-		RuleBlock:  "",
-		RuleProxy:  "",
-		RuleDirect: "",
-
-		BypassTcpKey: AdvBypassModeValue[0],
-		BypassUdpKey: AdvBypassModeValue[0],
-
-		DnsHostsKey: `{"example.com": "127.0.0.1"}`,
-
-		RemoteDnsHostKey:          "cloudflare.com",
-		RemoteDnsTypeKey:          DnsTypesValue[2],
-		RemoteDnsSubnetKey:        "",
-		RemoteDnsTlsServerNameKey: "",
-
-		LocalDnsHostKey:          "1.1.1.1",
-		LocalDnsTypeKey:          DnsTypesValue[2],
-		LocalDnsSubnetKey:        "",
-		LocalDnsTlsServerNameKey: "",
-
-		BootstrapDnsHostKey:          "1.1.1.1",
-		BootstrapDnsTypeKey:          DnsTypesValue[2],
-		BootstrapDnsSubnetKey:        "",
-		BootstrapDnsTlsServerNameKey: "",
+		AdvRouteKey:     AdvRoutes[0],
+		AdvTunDriverKey: TunDriversValue[2],
+		AdvAppListKey:   string(disAllowAppList),
+		LogLevel:        LogLevels[2],
 	}
 
 	defaultIntValue = map[string]int32{
-		AdvDnsPortKey:     0,
 		NewHTTPPortKey:    0,
 		NewYuhaiinPortKey: 3500,
 	}

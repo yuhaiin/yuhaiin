@@ -25,12 +25,6 @@ type Nodes struct {
 	manager *Manager
 }
 
-func (m *Manager) Node() *Nodes {
-	return &Nodes{
-		manager: m,
-	}
-}
-
 func (n *Nodes) Now(context.Context, *emptypb.Empty) (*gn.NowResp, error) {
 	return gn.NowResp_builder{
 		Tcp: n.manager.GetNow(true),
@@ -117,12 +111,7 @@ func (n *Nodes) Latency(c context.Context, req *latency.Requests) (*latency.Resp
 		wg.Add(1)
 		go func(s *latency.Request) {
 			defer wg.Done()
-			p, err := n.Get(c, &wrapperspb.StringValue{Value: s.GetHash()})
-			if err != nil {
-				return
-			}
-
-			px, err := n.manager.Outbound().GetDialer(p)
+			px, err := n.manager.Outbound().GetDialerByID(c, s.GetHash())
 			if err != nil {
 				return
 			}
@@ -169,9 +158,6 @@ func (n *Nodes) Close(ctx context.Context, req *wrapperspb.StringValue) (*emptyp
 
 	return &emptypb.Empty{}, nil
 }
-
-func (n *Manager) Outbound() *outbound { return NewOutbound(n) }
-func (n *Manager) Links() *link        { return NewLink(n.Outbound(), n) }
 
 func load(path string) *jsondb.DB[*node.Node] {
 	defaultNode := &node.Node_builder{

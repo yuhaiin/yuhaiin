@@ -2,17 +2,17 @@ package netapi
 
 import (
 	"fmt"
+	"hash/maphash"
 	"net"
 	"net/netip"
 	"strconv"
 	"unique"
 )
 
-// ComparableAddress is a comparable address, created by [NewCompareableAddress]
-// eg: key of map or check address is equal
-type ComparableAddress struct{ any }
+var seed = maphash.MakeSeed()
 
-func NewCompareableAddress[t comparable](tt t) ComparableAddress { return ComparableAddress{tt} }
+// ComputeAddressHash compute hash of address
+func ComputeAddressHash[t comparable](tt t) uint64 { return maphash.Comparable(seed, tt) }
 
 type Address interface {
 	// Hostname return hostname of address, eg: www.example.com, 127.0.0.1, ff::ff
@@ -23,7 +23,8 @@ type Address interface {
 	// fqdn must impl [DomainAddress]
 	// otherwise must impl [IPAddress]
 	IsFqdn() bool
-	Comparable() ComparableAddress
+	// Comparable return hash of address, compute by [ComputeAddressHash]
+	Comparable() uint64
 	net.Addr
 }
 
@@ -184,7 +185,7 @@ func (d DomainAddr) Hostname() string                      { return d.hostname.V
 func (d DomainAddr) Port() uint16                          { return d.port }
 func (d DomainAddr) IsFqdn() bool                          { return true }
 func (d DomainAddr) UniqueHostname() unique.Handle[string] { return d.hostname }
-func (d DomainAddr) Comparable() ComparableAddress         { return NewCompareableAddress(d) }
+func (d DomainAddr) Comparable() uint64                    { return ComputeAddressHash(d) }
 
 var _ IPAddress = IPAddr{}
 
@@ -194,11 +195,11 @@ type IPAddr struct {
 	port uint16
 }
 
-func (d IPAddr) String() string                { return net.JoinHostPort(d.Addr.String(), strconv.Itoa(int(d.port))) }
-func (d IPAddr) Hostname() string              { return d.Addr.String() }
-func (d IPAddr) Port() uint16                  { return d.port }
-func (d IPAddr) IsFqdn() bool                  { return false }
-func (d IPAddr) IP() net.IP                    { return d.Addr.AsSlice() }
-func (d IPAddr) Comparable() ComparableAddress { return NewCompareableAddress(d) }
+func (d IPAddr) String() string     { return net.JoinHostPort(d.Addr.String(), strconv.Itoa(int(d.port))) }
+func (d IPAddr) Hostname() string   { return d.Addr.String() }
+func (d IPAddr) Port() uint16       { return d.port }
+func (d IPAddr) IsFqdn() bool       { return false }
+func (d IPAddr) IP() net.IP         { return d.Addr.AsSlice() }
+func (d IPAddr) Comparable() uint64 { return ComputeAddressHash(d) }
 
 var EmptyAddr Address = DomainAddr{hostname: unique.Make("")}
