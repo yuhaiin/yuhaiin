@@ -53,7 +53,7 @@ Some packages may only be included on certain architectures or operating systems
 - [github.com/klauspost/compress/zstd/internal/xxhash](https://pkg.go.dev/github.com/klauspost/compress/zstd/internal/xxhash) ([MIT](https://github.com/klauspost/compress/blob/v1.17.11/zstd/internal/xxhash/LICENSE.txt))
 - [github.com/kortschak/wol](https://pkg.go.dev/github.com/kortschak/wol) ([BSD-3-Clause](https://github.com/kortschak/wol/blob/da482cc4850a/LICENSE))
 - [github.com/libp2p/go-buffer-pool](https://pkg.go.dev/github.com/libp2p/go-buffer-pool) ([MIT](https://github.com/libp2p/go-buffer-pool/blob/v0.1.0/LICENSE))
-- [github.com/libp2p/go-yamux/v4](https://pkg.go.dev/github.com/libp2p/go-yamux/v4) ([MPL-2.0](https://github.com/libp2p/go-yamux/blob/v4.0.2/LICENSE))
+- [github.com/libp2p/go-yamux/v5](https://pkg.go.dev/github.com/libp2p/go-yamux/v5) ([MPL-2.0](https://github.com/libp2p/go-yamux/blob/v5.0.0/LICENSE))
 - [github.com/mdlayher/genetlink](https://pkg.go.dev/github.com/mdlayher/genetlink) ([MIT](https://github.com/mdlayher/genetlink/blob/v1.3.2/LICENSE.md))
 - [github.com/mdlayher/netlink](https://pkg.go.dev/github.com/mdlayher/netlink) ([MIT](https://github.com/mdlayher/netlink/blob/fbb4dce95f42/LICENSE.md))
 - [github.com/mdlayher/sdnotify](https://pkg.go.dev/github.com/mdlayher/sdnotify) ([MIT](https://github.com/mdlayher/sdnotify/blob/v1.0.0/LICENSE.md))
