@@ -129,6 +129,15 @@ func GetContext(ctx context.Context) *Context {
 	return v
 }
 
+func GetContextOrNil(ctx context.Context) *Context {
+	v, ok := ctx.Value(contextKey{}).(*Context)
+	if !ok {
+		return nil
+	}
+
+	return v
+}
+
 func NewDialError(network string, err error, addr net.Addr) *DialError {
 	ne := &DialError{}
 	if errors.As(err, &ne) {

@@ -1,0 +1,66 @@
+name: go-licenses
+
+on:
+  # run action when a change lands in the main branch which updates go.mod or
+  # our license template file. Also allow manual triggering.
+  push:
+    branches:
+      - main
+    paths:
+      - go.mod
+      - .github/licenses.tmpl
+      - .github/workflows/go-licenses.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-$${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  licenses-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: go.mod
+
+      - name: Get access token
+        uses: actions/create-github-app-token@v1
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Install go-licenses
+        run: |
+          go install github.com/google/go-licenses@latest
+
+      - name: Run go-licenses
+        env:
+          # include all build tags to include platform-specific dependencies
+          GOFLAGS: "-tags=android,cgo,darwin,freebsd,ios,js,linux,openbsd,wasm,windows"
+        run: |
+          [ -d licenses ] || mkdir licenses
+          go-licenses report github.com/Asutorufa/yuhaiin/cmd/yuhaiin > licenses/yuhaiin.md --template .github/licenses.tmpl
+          go-licenses report github.com/Asutorufa/yuhaiin/cmd/android > licenses/android.md --template .github/licenses.tmpl
+
+      - name: Send pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          author: License Updater <noreply+licenses-updater@github.com>
+          committer: License Updater <noreply+licenses-updater@github.com>
+          branch: license-update
+          branch-suffix: short-commit-hash
+          commit-message: "licenses: update yuhaiin licenses"
+          title: "licenses: update yuhaiin licenses"
+          body: Triggered by ${{ github.repository }}@${{ github.sha }}
+          delete-branch: true
+          signoff: true
+          team-reviewers: opensource-license-reviewers

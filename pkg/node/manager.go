@@ -2,11 +2,13 @@ package node
 
 import (
 	"errors"
+	"iter"
 	"slices"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node"
+	gn "github.com/Asutorufa/yuhaiin/pkg/protos/node/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
@@ -367,7 +369,12 @@ func (m *Manager) clearIdleProxy() {
 
 }
 
-func (m *Manager) Close() error { return m.store.Close() }
+func (m *Manager) Close() error                                { return m.store.Close() }
+func (m *Manager) Node() *Nodes                                { return &Nodes{manager: m} }
+func (f *Manager) Subscribe() *Subscribe                       { return &Subscribe{n: f} }
+func (n *Manager) Outbound() *outbound                         { return NewOutbound(n) }
+func (n *Manager) Links() *link                                { return NewLink(n.Outbound(), n) }
+func (f *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: f, ruleTags: ff} }
 
 type DB struct {
 	db *jsondb.DB[*node.Node]
