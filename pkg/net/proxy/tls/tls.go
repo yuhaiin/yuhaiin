@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
@@ -17,9 +18,7 @@ import (
 )
 
 type Tls struct {
-	netapi.EmptyDispatch
-
-	dialer       netapi.Proxy
+	netapi.Proxy
 	tlsConfig    []*tls.Config
 	configLength int
 }
@@ -54,13 +53,13 @@ func NewClient(c *protocol.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
 
 	return &Tls{
 		tlsConfig:    tlsConfigs,
-		dialer:       p,
+		Proxy:        p,
 		configLength: len(tlsConfigs),
 	}, nil
 }
 
 func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	c, err := t.dialer.Conn(ctx, addr)
+	c, err := t.Proxy.Conn(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +68,7 @@ func (t *Tls) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 }
 
 func (t *Tls) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	return t.dialer.PacketConn(ctx, addr)
-}
-
-func (t *Tls) Close() error {
-	return t.dialer.Close()
+	return t.Proxy.PacketConn(ctx, addr)
 }
 
 func init() {
@@ -117,7 +112,12 @@ func (s *ServerCert) Cert() (*tls.Certificate, error) {
 		return s.cert, nil
 	}
 
-	sc, err := s.ca.GenerateServerCert(s.servername)
+	servernames := []string{s.servername}
+	if strings.HasPrefix(s.servername, "*.") {
+		servernames = append(servernames, s.servername[2:])
+	}
+
+	sc, err := s.ca.GenerateServerCert(servernames...)
 	if err != nil {
 		return nil, err
 	}

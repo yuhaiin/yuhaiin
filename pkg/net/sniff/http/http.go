@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-var methods = map[string]bool{
+var Methods = map[string]bool{
 	http.MethodGet:     true,
 	http.MethodHead:    true,
 	http.MethodPost:    true,
@@ -27,7 +27,7 @@ func Sniff(b []byte) string {
 		return ""
 	}
 
-	if !methods[unsafe.String(unsafe.SliceData(method), len(method))] {
+	if !Methods[unsafe.String(unsafe.SliceData(method), len(method))] {
 		return ""
 	}
 

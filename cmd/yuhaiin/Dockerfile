@@ -4,6 +4,8 @@ WORKDIR /yuhaiin
 
 COPY . .
 
+ENV GOTOOLCHAIN=auto
+
 RUN set -x\
     && apk add --no-cache make git\
     && make yuhaiin

@@ -1,13 +1,11 @@
 package yuhaiin
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"path/filepath"
-	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -17,7 +15,6 @@ import (
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	pl "github.com/Asutorufa/yuhaiin/pkg/protos/config/log"
-	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -40,35 +37,8 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 	opts, _ := json.Marshal(opt)
 	log.Info("fake setting config", "data", string(opts))
 	settings := pc.Setting_builder{
-		Ipv6: proto.Bool(store.GetBoolean(Ipv6ProxyKey)),
-		Dns: dns.DnsConfig_builder{
-			Server:           proto.String(ifOr(store.GetInt(AdvDnsPortKey) == 0, "", net.JoinHostPort(listenHost, fmt.Sprint(store.GetInt(AdvDnsPortKey))))),
-			Fakedns:          proto.Bool(store.GetString(AdvFakeDnsCidrKey) != "" || store.GetString(AdvFakeDnsv6CidrKey) != ""),
-			FakednsIpRange:   proto.String(store.GetString(AdvFakeDnsCidrKey)),
-			FakednsIpv6Range: proto.String(store.GetString(AdvFakeDnsv6CidrKey)),
-			Hosts:            store.GetStringMap(NewHostsKey),
-
-			Resolver: map[string]*dns.Dns{
-				"direct": dns.Dns_builder{
-					Host:          proto.String(store.GetString(LocalDnsHostKey)),
-					Type:          dns.Type(dns.Type_value[store.GetString(LocalDnsTypeKey)]).Enum(),
-					Subnet:        proto.String(store.GetString(LocalDnsSubnetKey)),
-					TlsServername: proto.String(store.GetString(LocalDnsTlsServerNameKey)),
-				}.Build(),
-				"proxy": dns.Dns_builder{
-					Host:          proto.String(store.GetString(RemoteDnsHostKey)),
-					Type:          dns.Type(dns.Type_value[store.GetString(RemoteDnsTypeKey)]).Enum(),
-					Subnet:        proto.String(store.GetString(RemoteDnsSubnetKey)),
-					TlsServername: proto.String(store.GetString(RemoteDnsTlsServerNameKey)),
-				}.Build(),
-				"bootstrap": dns.Dns_builder{
-					Host:          proto.String(store.GetString(BootstrapDnsHostKey)),
-					Type:          dns.Type(dns.Type_value[store.GetString(BootstrapDnsTypeKey)]).Enum(),
-					Subnet:        proto.String(store.GetString(BootstrapDnsSubnetKey)),
-					TlsServername: proto.String(store.GetString(BootstrapDnsTlsServerNameKey)),
-				}.Build(),
-			},
-		}.Build(),
+		Ipv6:        proto.Bool(store.GetBoolean(Ipv6ProxyKey)),
+		Dns:         &dns.DnsConfig{},
 		SystemProxy: &pc.SystemProxy{},
 		Server: listener.InboundConfig_builder{
 			HijackDns: proto.Bool(store.GetBoolean(DnsHijacking)),
@@ -114,35 +84,7 @@ func fakeSetting(opt *Opts, path string) config.Setting {
 		}.Build(),
 	}.Build()
 
-	applyRule(settings, store.GetString(RuleProxy), bypass.Mode_proxy)
-	applyRule(settings, store.GetString(RuleBlock), bypass.Mode_block)
-	applyRule(settings, store.GetString(RuleDirect), bypass.Mode_direct)
 	return newFakeSetting(settings, filepath.Dir(path))
-}
-
-func applyRule(settings *pc.Setting, ruls string, mode bypass.Mode) {
-	cache := map[route.Args]*bypass.ModeConfig{}
-
-	r := bufio.NewScanner(strings.NewReader(ruls))
-	for r.Scan() {
-		line := r.Text()
-
-		z := strings.FieldsFunc(line, func(r rune) bool { return r == ',' })
-		if len(z) == 0 {
-			continue
-		}
-
-		xx := route.ParseArgs(mode, z[1:])
-
-		zz, ok := cache[xx]
-		if !ok {
-			zz = xx.ToModeConfig(nil)
-			cache[xx] = zz
-			settings.GetBypass().SetCustomRuleV3(append(settings.GetBypass().GetCustomRuleV3(), zz))
-		}
-
-		zz.SetHostname(append(zz.GetHostname(), z[0]))
-	}
 }
 
 type fakeSettings struct {

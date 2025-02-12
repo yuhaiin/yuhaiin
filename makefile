@@ -52,7 +52,7 @@ vet:
 
 .PHONY: yuhaiin
 yuhaiin:
-	$(GO_BUILD_CMD) -pgo auto -tags "debug" $(YUHAIIN)
+	$(GO_BUILD_CMD) -pgo auto -tags "$(TAILSCALE_BUILD_FLAGS),debug" $(YUHAIIN)
 
 define build 
 	$(eval ARGS := $(subst -, ,$@))

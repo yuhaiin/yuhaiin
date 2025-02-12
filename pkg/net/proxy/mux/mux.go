@@ -14,7 +14,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
-	"github.com/libp2p/go-yamux/v4"
+	"github.com/libp2p/go-yamux/v5"
 )
 
 var config *yamux.Config

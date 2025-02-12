@@ -11,9 +11,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	mrand "math/rand/v2"
 	"net"
@@ -26,15 +28,56 @@ var IssuersTemplate = []pkix.Name{
 		Organization: []string{"GlobalSign nv-sa"},
 		CommonName:   "GlobalSign ECC OV SSL CA 2018",
 	},
-}
-
-var SubjectTemplate = []pkix.Name{
+	/*CN = GlobalSign Organization Validation CA - SHA256 - G3 O = GlobalSign nv-sa C = BE*/
 	{
-		Country:      []string{"CN"},
-		Province:     []string{"上海"},
-		Locality:     []string{"上海"},
-		Organization: []string{"上海幻电信息科技有限公司"},
-		CommonName:   "*.mcdn.bilivideo.cn",
+		Country:      []string{"BE"},
+		Organization: []string{"GlobalSign nv-sa"},
+		CommonName:   "GlobalSign Organization Validation CA - SHA256 - G3",
+	},
+	/* C=US, O=Let's Encrypt, CN=E6 */
+	{
+		Country:      []string{"US"},
+		Organization: []string{"Let's Encrypt"},
+		CommonName:   "E6",
+	},
+	{
+		Country:      []string{"US"},
+		Organization: []string{"Let's Encrypt"},
+		CommonName:   "E5",
+	},
+	{
+		Country:      []string{"US"},
+		Organization: []string{"Let's Encrypt"},
+		CommonName:   "R10",
+	},
+
+	/*CN = WR2 O = Google Trust Services C = US*/
+	{
+		Country:      []string{"US"},
+		Organization: []string{"Google Trust Services"},
+		CommonName:   "WR2",
+	},
+
+	/*CN = Microsoft Azure ECC TLS Issuing CA 07 O = Microsoft Corporation C = US*/
+	{
+		Country:      []string{"US"},
+		Organization: []string{"Microsoft Corporation"},
+		CommonName:   "Microsoft Azure ECC TLS Issuing CA 07",
+	},
+
+	/*CN = Amazon RSA 2048 M01 O = Amazon C = US*/
+	{
+		Country:      []string{"US"},
+		Organization: []string{"Amazon"},
+		CommonName:   "Amazon RSA 2048 M01",
+	},
+
+	/*CN = GeoTrust TLS RSA CA G1 OU = www.digicert.com O = DigiCert Inc C = US*/
+	{
+		Country:            []string{"US"},
+		Organization:       []string{"DigiCert Inc"},
+		OrganizationalUnit: []string{"www.digicert.com"},
+		CommonName:         "GeoTrust TLS RSA CA G1",
 	},
 }
 
@@ -152,12 +195,19 @@ func (c *Ca) GenerateServerCert(hosts ...string) (*ServerCert, error) {
 		return nil, fmt.Errorf("failed to generate server serial number: %s", err)
 	}
 
-	sj := SubjectTemplate[mrand.IntN(len(SubjectTemplate))]
+	var commonName string
+	if len(hosts) > 0 {
+		commonName = hosts[0]
+	} else {
+		tmp := make([]byte, 32)
+		_, _ = io.ReadFull(rand.Reader, tmp)
+		commonName = hex.EncodeToString(tmp)
+	}
 
 	leafTemplate := x509.Certificate{
 		Issuer:                c.Cert.Subject,
 		SerialNumber:          serialNumber,
-		Subject:               sj,
+		Subject:               pkix.Name{CommonName: commonName},
 		PublicKeyAlgorithm:    c.Cert.PublicKeyAlgorithm,
 		SignatureAlgorithm:    c.Cert.SignatureAlgorithm,
 		NotBefore:             notBefore,

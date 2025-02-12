@@ -21,16 +21,16 @@ func init() {
 
 var Drop = &drop{
 	lru: lru.NewSyncLru(
-		lru.WithCapacity[netapi.ComparableAddress, time.Duration](512),
-		lru.WithDefaultTimeout[netapi.ComparableAddress, time.Duration](time.Second*5),
+		lru.WithCapacity[uint64, time.Duration](512),
+		lru.WithDefaultTimeout[uint64, time.Duration](time.Second*5),
 	),
-	sf: &singleflight.GroupSync[netapi.ComparableAddress, time.Duration]{},
+	sf: &singleflight.GroupSync[uint64, time.Duration]{},
 }
 
 type drop struct {
 	netapi.EmptyDispatch
-	lru *lru.SyncLru[netapi.ComparableAddress, time.Duration]
-	sf  *singleflight.GroupSync[netapi.ComparableAddress, time.Duration]
+	lru *lru.SyncLru[uint64, time.Duration]
+	sf  *singleflight.GroupSync[uint64, time.Duration]
 }
 
 func (d *drop) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {

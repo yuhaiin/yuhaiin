@@ -20,10 +20,6 @@ type tag struct {
 	n        *Manager
 }
 
-func (f *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer {
-	return &tag{n: f, ruleTags: ff}
-}
-
 func (t *tag) Save(_ context.Context, r *gn.SaveTagReq) (*emptypb.Empty, error) {
 	if r.GetType() == pt.TagType_mirror && r.GetTag() == r.GetHash() {
 		return &emptypb.Empty{}, errors.New("tag same as target mirror tag")

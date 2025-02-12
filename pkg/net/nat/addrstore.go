@@ -8,24 +8,24 @@ import (
 )
 
 type addrStore struct {
-	udp       syncmap.SyncMap[netapi.ComparableAddress, *net.UDPAddr]
-	origin    syncmap.SyncMap[netapi.ComparableAddress, netapi.Address]
-	distpatch syncmap.SyncMap[netapi.ComparableAddress, netapi.Address]
+	udp       syncmap.SyncMap[uint64, *net.UDPAddr]
+	origin    syncmap.SyncMap[uint64, netapi.Address]
+	distpatch syncmap.SyncMap[uint64, netapi.Address]
 }
 
-func (s *addrStore) StoreUdp(key netapi.ComparableAddress, addr *net.UDPAddr) { s.udp.Store(key, addr) }
-func (s *addrStore) StoreOrigin(key netapi.ComparableAddress, addr netapi.Address) {
+func (s *addrStore) StoreUdp(key uint64, addr *net.UDPAddr) { s.udp.Store(key, addr) }
+func (s *addrStore) StoreOrigin(key uint64, addr netapi.Address) {
 	s.origin.Store(key, addr)
 }
-func (s *addrStore) StoreDispatch(key netapi.ComparableAddress, addr netapi.Address) {
+func (s *addrStore) StoreDispatch(key uint64, addr netapi.Address) {
 	s.distpatch.Store(key, addr)
 }
-func (s *addrStore) LoadUdp(key netapi.ComparableAddress) (*net.UDPAddr, bool) {
+func (s *addrStore) LoadUdp(key uint64) (*net.UDPAddr, bool) {
 	return s.udp.Load(key)
 }
-func (s *addrStore) LoadOrigin(key netapi.ComparableAddress) (netapi.Address, bool) {
+func (s *addrStore) LoadOrigin(key uint64) (netapi.Address, bool) {
 	return s.origin.Load(key)
 }
-func (s *addrStore) LoadDispatch(key netapi.ComparableAddress) (netapi.Address, bool) {
+func (s *addrStore) LoadDispatch(key uint64) (netapi.Address, bool) {
 	return s.distpatch.Load(key)
 }
