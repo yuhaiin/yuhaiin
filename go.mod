@@ -3,7 +3,7 @@ module github.com/Asutorufa/yuhaiin
 go 1.24.0
 
 require (
-	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134
+	github.com/google/pprof v0.0.0-20250208200701-d0013a598941
 	github.com/libp2p/go-yamux/v5 v5.0.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/quic-go/quic-go v0.49.0
