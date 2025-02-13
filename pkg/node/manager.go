@@ -17,6 +17,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+var store = NewProxyStore()
+
 type Manager struct {
 	db    *DB
 	store *ProxyStore
@@ -29,7 +31,7 @@ func NewManager(path string) *Manager {
 		db.Data.SetManager(&node.Manager{})
 	}
 
-	return &Manager{db: &DB{db: db}, store: NewProxyStore()}
+	return &Manager{db: &DB{db: db}, store: store}
 }
 
 func (m *Manager) GetStore() *ProxyStore {
@@ -144,7 +146,7 @@ func (mm *Manager) SaveNode(ps ...*point.Point) {
 					}
 				}
 			} else {
-				mm.store.RefreshNode(p)
+				mm.store.Refresh(p)
 			}
 
 			exists[key] = p.GetHash()
