@@ -13,6 +13,21 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// ProxyEntry
+//
+// TODO:
+// first solution:
+//
+//	Ref counter: make sure all parent(eg: [Set]) released before proxy close
+//	Slef update: update proxy (close and recreate) when point config changed
+//
+// second solution:
+//
+//	check all using nodes(include [Set]) and close useless nodes
+//
+// third solution:
+//
+//	double reference: node <-> [Set]
 type ProxyEntry struct {
 	mu     sync.RWMutex
 	Config *point.Point
@@ -67,7 +82,7 @@ func (p *ProxyStore) Delete(hash string) {
 	r.mu.Unlock()
 }
 
-func (p *ProxyStore) RefreshNode(po *point.Point) {
+func (p *ProxyStore) Refresh(po *point.Point) {
 	r, ok := p.store.Load(po.GetHash())
 	if !ok {
 		return

@@ -18,11 +18,14 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/tools"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
@@ -130,6 +133,9 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	// proxy access point/endpoint
 	nodeManager := AddComponent(so, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
+	register.RegisterPoint(func(x *protocol.Set, p netapi.Proxy) (netapi.Proxy, error) {
+		return node.NewSet(x, nodeManager)
+	})
 
 	configuration.ProxyChain.Set(direct.Default)
 

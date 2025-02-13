@@ -13,9 +13,12 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/subscribe"
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
 	"google.golang.org/protobuf/proto"
 )
+
+var store = NewProxyStore()
 
 type Manager struct {
 	db    *DB
@@ -29,7 +32,7 @@ func NewManager(path string) *Manager {
 		db.Data.SetManager(&node.Manager{})
 	}
 
-	return &Manager{db: &DB{db: db}, store: NewProxyStore()}
+	return &Manager{db: &DB{db: db}, store: store}
 }
 
 func (m *Manager) GetStore() *ProxyStore {
@@ -144,7 +147,7 @@ func (mm *Manager) SaveNode(ps ...*point.Point) {
 					}
 				}
 			} else {
-				mm.store.RefreshNode(p)
+				mm.store.Refresh(p)
 			}
 
 			exists[key] = p.GetHash()
@@ -344,22 +347,10 @@ func (m *Manager) Save() error {
 
 func (m *Manager) clearIdleProxy() {
 	_ = m.db.View(func(n *Node) error {
-		usedHash := map[string]struct{}{}
-		tags := n.GetManager().GetTags()
-
-		for _, v := range tags {
-			if v.GetType() == pt.TagType_node {
-				for _, hash := range v.GetHash() {
-					usedHash[hash] = struct{}{}
-				}
-			}
-		}
-
-		usedHash[n.GetNow(true).GetHash()] = struct{}{}
-		usedHash[n.GetNow(false).GetHash()] = struct{}{}
+		usedHash := n.GetUsingPoints()
 
 		for k := range m.store.Range {
-			if _, ok := usedHash[k]; !ok {
+			if usedHash.Has(k) {
 				m.store.Delete(k)
 			}
 		}
@@ -462,4 +453,23 @@ func (n *Node) GetNow(tcp bool) *point.Point {
 	}
 
 	return p
+}
+
+func (n *Node) GetUsingPoints() *list.Set[string] {
+	set := list.NewSet[string]()
+
+	tags := n.GetManager().GetTags()
+
+	for _, v := range tags {
+		if v.GetType() == pt.TagType_node {
+			for _, hash := range v.GetHash() {
+				set.Push(hash)
+			}
+		}
+	}
+
+	set.Push(n.GetNow(true).GetHash())
+	set.Push(n.GetNow(false).GetHash())
+
+	return set
 }

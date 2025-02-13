@@ -7,9 +7,9 @@ var (
 )
 
 type trie[T any] struct {
-	Value  T                                  `json:"value"`
+	Value  T                   `json:"value"`
 	Child  map[string]*trie[T] `json:"child"`
-	Symbol uint8                              `json:"symbol"`
+	Symbol uint8               `json:"symbol"`
 }
 
 func (d *trie[T]) child(s string, insert bool) (*trie[T], bool) {
