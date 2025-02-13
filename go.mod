@@ -23,7 +23,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
-	gvisor.dev/gvisor v0.0.0-20250205023644-9414b50a5633
+	gvisor.dev/gvisor v0.0.0-20250212201552-c8d5afe1d21c
 	tailscale.com v1.80.0
 )
 
