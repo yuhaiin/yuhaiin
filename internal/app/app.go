@@ -130,6 +130,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 
 	// proxy access point/endpoint
 	nodeManager := AddComponent(so, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
+	node.GetDialerByID = nodeManager.Outbound().GetDialerByID
 
 	configuration.ProxyChain.Set(direct.Default)
 

@@ -12,7 +12,7 @@ import (
 
 func TestAddNode(t *testing.T) {
 	mg := &Manager{
-		store: NewProxyStore(),
+		store: store,
 		db: &DB{db: &jsondb.DB[*node.Node]{
 			Data: node.Node_builder{Manager: &node.Manager{}}.Build(),
 		}},

@@ -35,6 +35,7 @@ message protocol {
     bootstrap_dns_warp bootstrap_dns_warp = 23
         [ json_name = "bootstrap_dns_warp" ];
     tailscale tailscale = 24 [ json_name = "tailscale" ];
+    set set = 25 [ json_name = "set" ];
   }
 }
 
@@ -186,4 +187,13 @@ message tailscale {
   string hostname = 2 [ json_name = "hostname" ];
   string control_url = 3 [ json_name = "control_url" ];
   bool debug = 5 [ json_name = "debug" ];
+}
+
+message set {
+  repeated string nodes = 1 [ json_name = "nodes" ];
+  enum strategy_type {
+    random = 0;
+    round_robin = 1;
+  };
+  strategy_type strategy = 2 [ json_name = "strategy" ];
 }
