@@ -180,8 +180,10 @@ func (c *Client) Close() error {
 
 	var err error
 
-	if er := c.dialer.Close(); er != nil {
-		err = errors.Join(err, er)
+	if c.dialer != nil {
+		if er := c.dialer.Close(); er != nil {
+			err = errors.Join(err, er)
+		}
 	}
 
 	if session != nil {

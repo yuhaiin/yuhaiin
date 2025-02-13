@@ -10,13 +10,17 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestAddNode(t *testing.T) {
-	mg := &Manager{
-		store: NewProxyStore(),
+func newTestManager() *Manager {
+	return &Manager{
+		store: store,
 		db: &DB{db: &jsondb.DB[*node.Node]{
 			Data: node.Node_builder{Manager: &node.Manager{}}.Build(),
 		}},
 	}
+}
+
+func TestAddNode(t *testing.T) {
+	mg := newTestManager()
 
 	p1 := point.Point_builder{
 		Name:  proto.String("feefe"),
