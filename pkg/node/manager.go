@@ -14,11 +14,9 @@ import (
 	pt "github.com/Asutorufa/yuhaiin/pkg/protos/node/tag"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/list"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
-
-var store = NewProxyStore()
 
 type Manager struct {
 	db    *DB
@@ -32,7 +30,7 @@ func NewManager(path string) *Manager {
 		db.Data.SetManager(&node.Manager{})
 	}
 
-	return &Manager{db: &DB{db: db}, store: store}
+	return &Manager{db: &DB{db: db}, store: NewProxyStore()}
 }
 
 func (m *Manager) GetStore() *ProxyStore {
@@ -92,7 +90,7 @@ func (mm *Manager) refreshGroup() {
 					groups[group].GetNodesV2()[name] = v.GetHash()
 					break
 				}
-				name = name + "_" + uuid.Random().String()
+				name = name + "_" + uuid.NewString()
 			}
 		}
 
@@ -139,7 +137,7 @@ func (mm *Manager) SaveNode(ps ...*point.Point) {
 				} else {
 					// generate hash
 					for {
-						uuid := uuid.Random().String()
+						uuid := uuid.NewString()
 						if _, ok := n.GetManager().GetNodes()[uuid]; !ok {
 							p.SetHash(uuid)
 							break
@@ -364,7 +362,7 @@ func (m *Manager) Close() error                                { return m.store.
 func (m *Manager) Node() *Nodes                                { return &Nodes{manager: m} }
 func (f *Manager) Subscribe() *Subscribe                       { return &Subscribe{n: f} }
 func (n *Manager) Outbound() *outbound                         { return NewOutbound(n) }
-func (n *Manager) Links() *link                                { return NewLink(n.Outbound(), n) }
+func (n *Manager) Links() *link                                { return &link{n} }
 func (f *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: f, ruleTags: ff} }
 
 type DB struct {

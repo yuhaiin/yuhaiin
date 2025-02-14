@@ -7,13 +7,14 @@ import (
 	"math/rand/v2"
 	"net"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
+	"github.com/google/uuid"
 )
 
 // Set
@@ -38,7 +39,7 @@ func NewSet(nodes *protocol.Set, m *Manager) (netapi.Proxy, error) {
 		manager:   m,
 		outbound:  m.Outbound(),
 		Nodes:     ns,
-		randomKey: uuid.Random(),
+		randomKey: uuid.New(),
 		strategy:  nodes.GetStrategy(),
 	}, nil
 }
@@ -59,9 +60,26 @@ func (s *Set) loop(f func(string) bool) {
 	}
 }
 
+func (s *Set) nestedLoopCounter(ctx context.Context) (context.Context, error) {
+	c, ok := ctx.Value(s.randomKey).(*atomic.Uint64)
+	if !ok {
+		c = new(atomic.Uint64)
+		c.Add(1)
+		ctx = context.WithValue(ctx, s.randomKey, c)
+		return ctx, nil
+	}
+
+	if c.Add(1) > 10 {
+		return ctx, fmt.Errorf("nested looped more than 10 times, for skip infinite loop, abort")
+	}
+
+	return ctx, nil
+}
+
 func (s *Set) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	if ctx.Value(s.randomKey) == true {
-		return nil, fmt.Errorf("nested loop is not supported")
+	ctx, err := s.nestedLoopCounter(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	var timeout = configuration.Timeout
@@ -72,9 +90,6 @@ func (s *Set) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	}
 
 	ctx = context.WithoutCancel(ctx)
-	ctx = context.WithValue(ctx, s.randomKey, true)
-
-	var err error
 
 	for node := range s.loop {
 		dialer, er := s.outbound.GetDialerByID(ctx, node)
@@ -98,13 +113,11 @@ func (s *Set) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 }
 
 func (s *Set) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	if ctx.Value(s.randomKey) == true {
-		return nil, fmt.Errorf("nested loop is not supported")
+	ctx, err := s.nestedLoopCounter(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	ctx = context.WithValue(ctx, s.randomKey, true)
-
-	var err error
 	for node := range s.loop {
 		dialer, er := s.outbound.GetDialerByID(ctx, node)
 		if er != nil {
@@ -124,9 +137,12 @@ func (s *Set) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketCo
 }
 
 func (s *Set) Close() error {
+	// Close
+	//
+	// Close the set. This will remove all unused nodes in the set.
+
 	// TODO
-	// because here is called from manager
-	// so the mu is already locked, we can't get locker here
+	// because here is called from manager, the mu is already locked, we can't get locker here
 	// so we need to do it in goroutine
 	go func() {
 		err := s.manager.db.View(func(n *Node) error {
@@ -134,7 +150,7 @@ func (s *Set) Close() error {
 			for _, v := range s.Nodes {
 				// TODO skip myself
 				if !ps.Has(v) {
-					s.manager.store.Delete(v)
+					s.manager.GetStore().Delete(v)
 				}
 			}
 			return nil

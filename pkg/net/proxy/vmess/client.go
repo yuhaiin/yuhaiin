@@ -23,7 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/relay"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/system"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -89,7 +89,7 @@ type Conn struct {
 
 // NewClient .
 func newClient(uuidStr, security string, alterID int) (*Client, error) {
-	uuid, err := uuid.ParseStd(uuidStr)
+	uuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func (c *Conn) EncodeRequest() ([]byte, error) {
 		abuf := new(bytes.Buffer)
 		ts := make([]byte, 8)
 		binary.BigEndian.PutUint64(ts, uint64(now))
-		abuf.Write(ssr.Hmac(crypto.MD5, c.user.UUID.Bytes(), ts, nil))
+		abuf.Write(ssr.Hmac(crypto.MD5, c.user.UUID[:], ts, nil))
 		abuf.Write(buf.Bytes())
 		return abuf.Bytes(), nil
 	}

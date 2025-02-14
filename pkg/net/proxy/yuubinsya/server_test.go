@@ -15,12 +15,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
+	"golang.org/x/net/nettest"
 	"google.golang.org/protobuf/proto"
 )
 
 func TestServer(t *testing.T) {
 	t.Run("http", func(t *testing.T) {
-		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		lis, err := nettest.NewLocalListener("tcp")
 		assert.NoError(t, err)
 		defer lis.Close()
 
@@ -43,7 +44,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("client", func(t *testing.T) {
-		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		lis, err := nettest.NewLocalListener("tcp")
 		assert.NoError(t, err)
 		defer lis.Close()
 
