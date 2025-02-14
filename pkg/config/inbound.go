@@ -2,12 +2,15 @@ package config
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -55,6 +58,25 @@ func generateTlsAuthCa(v *listener.Transport) error {
 	}
 
 	tlsAuth := v.GetTlsAuto()
+
+	ech := tlsAuth.GetEch()
+	if ech.GetEnable() {
+		if ech.GetOuterSNI() == "" {
+			var buf [16]byte
+			_, _ = rand.Read(buf[:])
+			ech.SetOuterSNI(hex.EncodeToString(buf[:]))
+		}
+
+		var id [1]byte
+		_, _ = rand.Read(id[:])
+		private, config, err := tls.NewConfig(id[0], []byte(ech.GetOuterSNI()))
+		if err != nil {
+			return err
+		}
+
+		ech.SetConfig(config)
+		ech.SetPrivateKey(private.Bytes())
+	}
 
 	if len(tlsAuth.GetCaCert()) != 0 && len(tlsAuth.GetCaKey()) != 0 {
 		_, err := cert.ParseCa(tlsAuth.GetCaCert(), tlsAuth.GetCaKey())
