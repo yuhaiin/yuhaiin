@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	grpc "google.golang.org/grpc"
@@ -35,7 +36,7 @@ func init() {
 func NewClient(config *protocol.Grpc, p netapi.Proxy) (netapi.Proxy, error) {
 	return &client{
 		Proxy:     p,
-		tlsConfig: register.ParseTLSConfig(config.GetTls()),
+		tlsConfig: ytls.ParseTLSConfig(config.GetTls()),
 	}, nil
 }
 
