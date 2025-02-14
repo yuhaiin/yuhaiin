@@ -1,5 +1,7 @@
-//go:build !linux && !windows && !android && !darwin
-// +build !linux,!windows,!android,!darwin
+//go:build (!linux || android) && !windows && !darwin
+// +build !linux android
+// +build !windows
+// +build !darwin
 
 package sysproxy
 

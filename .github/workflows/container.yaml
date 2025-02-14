@@ -13,7 +13,7 @@ jobs:
     steps:
       - id: get-version
         run: |
-          echo "front_version=$(curl -H "Accept: application/vnd.github.VERSION.sha" "https://api.github.com/repos/yuhaiin/yuhaiin.github.io/commits/main")" >> $GITHUB_OUTPUT
+          echo "front_version=$(git ls-remote https://github.com/yuhaiin/yuhaiin.github.io.git | grep refs/heads/main | cut -f1)" >> $GITHUB_OUTPUT
 
   package:
     needs: get_version
