@@ -2,13 +2,10 @@ package register
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/point"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
@@ -75,47 +72,6 @@ func Wrap(p proto.Message, x netapi.Proxy) (netapi.Proxy, error) {
 	}
 
 	return conn(p, x)
-}
-
-var tlsSessionCache = tls.NewLRUClientSessionCache(128)
-
-func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
-	if t == nil || !t.GetEnable() {
-		return nil
-	}
-
-	root, err := x509.SystemCertPool()
-	if err != nil {
-		log.Error("get x509 system cert pool failed, create new cert pool.", "err", err)
-		root = x509.NewCertPool()
-	}
-
-	for i := range t.GetCaCert() {
-		ok := root.AppendCertsFromPEM(t.GetCaCert()[i])
-		if !ok {
-			log.Error("add cert from pem failed.")
-		}
-	}
-
-	var servername string
-	if len(t.GetServerNames()) > 0 {
-		servername = t.GetServerNames()[0]
-	}
-
-	echConfig := t.GetEchConfig()
-	if len(echConfig) == 0 {
-		echConfig = nil
-	}
-
-	return &tls.Config{
-		ServerName:                     servername,
-		RootCAs:                        root,
-		NextProtos:                     t.GetNextProtos(),
-		InsecureSkipVerify:             t.GetInsecureSkipVerify(),
-		ClientSessionCache:             tlsSessionCache,
-		EncryptedClientHelloConfigList: echConfig,
-		// SessionTicketsDisabled: true,
-	}
 }
 
 var bootstrapProxy = netapi.NewErrProxy(errors.New("bootstrap proxy"))

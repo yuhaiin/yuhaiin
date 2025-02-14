@@ -190,6 +190,15 @@ message tls_auto {
   // so they will be empty
   bytes ca_cert = 3 [ json_name = "ca_cert" ];
   bytes ca_key = 4 [ json_name = "ca_key" ];
+
+  ech_config ech = 5 [ json_name = "ech" ];
+}
+
+message ech_config {
+  bool enable = 1 [ json_name = "enable" ];
+  bytes config = 2 [ json_name = "config" ];
+  bytes private_key = 3 [ json_name = "private_key" ];
+  string OuterSNI = 4 [ json_name = "OuterSNI" ];
 }
 
 message certificate {
