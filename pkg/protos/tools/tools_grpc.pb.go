@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Tools_GetInterface_FullMethodName = "/yuhaiin.tools.tools/get_interface"
+	Tools_Licenses_FullMethodName     = "/yuhaiin.tools.tools/licenses"
 )
 
 // ToolsClient is the client API for Tools service.
@@ -28,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ToolsClient interface {
 	GetInterface(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Interfaces, error)
+	Licenses(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Licenses, error)
 }
 
 type toolsClient struct {
@@ -48,11 +50,22 @@ func (c *toolsClient) GetInterface(ctx context.Context, in *emptypb.Empty, opts 
 	return out, nil
 }
 
+func (c *toolsClient) Licenses(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Licenses, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Licenses)
+	err := c.cc.Invoke(ctx, Tools_Licenses_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ToolsServer is the server API for Tools service.
 // All implementations must embed UnimplementedToolsServer
 // for forward compatibility.
 type ToolsServer interface {
 	GetInterface(context.Context, *emptypb.Empty) (*Interfaces, error)
+	Licenses(context.Context, *emptypb.Empty) (*Licenses, error)
 	mustEmbedUnimplementedToolsServer()
 }
 
@@ -65,6 +78,9 @@ type UnimplementedToolsServer struct{}
 
 func (UnimplementedToolsServer) GetInterface(context.Context, *emptypb.Empty) (*Interfaces, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInterface not implemented")
+}
+func (UnimplementedToolsServer) Licenses(context.Context, *emptypb.Empty) (*Licenses, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Licenses not implemented")
 }
 func (UnimplementedToolsServer) mustEmbedUnimplementedToolsServer() {}
 func (UnimplementedToolsServer) testEmbeddedByValue()               {}
@@ -105,6 +121,24 @@ func _Tools_GetInterface_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Tools_Licenses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ToolsServer).Licenses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Tools_Licenses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ToolsServer).Licenses(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Tools_ServiceDesc is the grpc.ServiceDesc for Tools service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -115,6 +149,10 @@ var Tools_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "get_interface",
 			Handler:    _Tools_GetInterface_Handler,
+		},
+		{
+			MethodName: "licenses",
+			Handler:    _Tools_Licenses_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
@@ -115,7 +116,19 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	log.Info("config", "path", so.ConfigPath, "grpc&http host", so.Host)
 
 	so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update()))
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultInterfaceName = s.GetNetInterface() }))
+	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
+		if s.GetUseDefaultInterface() {
+			iface, err := interfaces.DefaultRouteInterface()
+			if err != nil {
+				log.Error("get default interface failed", "error", err)
+			} else {
+				log.Info("use default interface", "interface", iface)
+			}
+			dialer.DefaultInterfaceName = iface
+		} else {
+			dialer.DefaultInterfaceName = s.GetNetInterface()
+		}
+	}))
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast() }))
 	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
 		configuration.IPv6.Store(s.GetIpv6())

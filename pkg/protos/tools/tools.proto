@@ -8,7 +8,10 @@ option features.(pb.go).api_level = API_OPAQUE;
 import "google/protobuf/empty.proto";
 import "google/protobuf/go_features.proto";
 
-service tools { rpc get_interface(google.protobuf.Empty) returns (Interfaces); }
+service tools {
+  rpc get_interface(google.protobuf.Empty) returns (Interfaces);
+  rpc licenses(google.protobuf.Empty) returns (Licenses);
+}
 
 message Interfaces {
   repeated Interface interfaces = 1 [ json_name = "interfaces" ];
@@ -17,4 +20,16 @@ message Interfaces {
 message Interface {
   string name = 1 [ json_name = "name" ];
   repeated string addresses = 2 [ json_name = "addresses" ];
+}
+
+message Licenses {
+  repeated License yuhaiin = 1 [ json_name = "yuhaiin" ];
+  repeated License android = 2 [ json_name = "android" ];
+}
+
+message License {
+  string name = 1 [ json_name = "name" ];
+  string url = 2 [ json_name = "url" ];
+  string license = 3 [ json_name = "license" ];
+  string license_url = 4 [ json_name = "license_url" ];
 }
