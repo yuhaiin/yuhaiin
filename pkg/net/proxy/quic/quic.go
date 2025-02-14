@@ -13,6 +13,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/deadline"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/id"
@@ -61,7 +62,7 @@ func NewClient(config *protocol.Quic, dd netapi.Proxy) (netapi.Proxy, error) {
 		}
 	}
 
-	tlsConfig := register.ParseTLSConfig(config.GetTls())
+	tlsConfig := ytls.ParseTLSConfig(config.GetTls())
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{}
 	}

@@ -3,6 +3,7 @@ package tls
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"math/rand/v2"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/domain"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
@@ -29,7 +31,7 @@ func init() {
 
 func NewClient(c *protocol.TlsConfig, p netapi.Proxy) (netapi.Proxy, error) {
 	var tlsConfigs []*tls.Config
-	tls := register.ParseTLSConfig(c)
+	tls := ParseTLSConfig(c)
 	if tls != nil {
 		// if !tls.InsecureSkipVerify && tls.ServerName == "" {
 		// 	tls.ServerName = c.Simple.GetHost()
@@ -169,10 +171,84 @@ func NewTlsAutoServer(c *listener.TlsAuto, ii netapi.Listener) (netapi.Listener,
 
 	config := TlsAutoConfig(ca, c.GetNextProtos(), c.GetServernames())
 
+	if c.GetEch().GetEnable() {
+		config.EncryptedClientHelloKeys = []tls.EncryptedClientHelloKey{
+			{
+				Config:     Config(c.GetEch().GetConfig()),
+				PrivateKey: []byte(c.GetEch().GetPrivateKey()),
+			},
+		}
+	}
+
 	lis, err := ii.Stream(context.TODO())
 	if err != nil {
 		return nil, err
 	}
 
 	return netapi.NewListener(tls.NewListener(lis, config), ii), nil
+}
+
+var tlsSessionCache = tls.NewLRUClientSessionCache(128)
+
+func ParseTLSConfig(t *protocol.TlsConfig) *tls.Config {
+	if t == nil || !t.GetEnable() {
+		return nil
+	}
+
+	root, err := x509.SystemCertPool()
+	if err != nil {
+		log.Error("get x509 system cert pool failed, create new cert pool.", "err", err)
+		root = x509.NewCertPool()
+	}
+
+	for i := range t.GetCaCert() {
+		ok := root.AppendCertsFromPEM(t.GetCaCert()[i])
+		if !ok {
+			log.Error("add cert from pem failed.")
+		}
+	}
+
+	var servername string
+	if len(t.GetServerNames()) > 0 {
+		servername = t.GetServerNames()[0]
+	}
+
+	echConfig := t.GetEchConfig()
+	if len(echConfig) == 0 {
+		echConfig = nil
+	}
+
+	if echConfig != nil {
+		config, err := parseEchConfigListOrConfig(echConfig)
+		if err != nil {
+			log.Error("parse ech config failed.", "err", err)
+		} else {
+			echConfig = config
+		}
+	}
+
+	return &tls.Config{
+		ServerName:                     servername,
+		RootCAs:                        root,
+		NextProtos:                     t.GetNextProtos(),
+		InsecureSkipVerify:             t.GetInsecureSkipVerify(),
+		ClientSessionCache:             tlsSessionCache,
+		EncryptedClientHelloConfigList: echConfig,
+		// SessionTicketsDisabled: true,
+	}
+}
+
+func parseEchConfigListOrConfig(echConfig []byte) ([]byte, error) {
+	_, err := ParseConfigList(echConfig)
+	if err != nil {
+		_, err = Config(echConfig).Spec()
+		if err == nil {
+			echConfig, err = ConfigList([]Config{Config(echConfig)})
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return echConfig, nil
 }
