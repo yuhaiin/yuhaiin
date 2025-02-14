@@ -102,7 +102,8 @@ func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return config.Setting_builder{
-		Dns:                        c.db.Data.GetDns(),
+		AdvancedConfig:             c.db.Data.GetAdvancedConfig(),
+		UseDefaultInterface:        proto.Bool(c.db.Data.GetUseDefaultInterface()),
 		Ipv6:                       proto.Bool(c.db.Data.GetIpv6()),
 		Ipv6LocalAddrPreferUnicast: proto.Bool(c.db.Data.GetIpv6LocalAddrPreferUnicast()),
 		Logcat:                     c.db.Data.GetLogcat(),
@@ -119,15 +120,16 @@ func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 
 func (c *setting) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	err := c.Batch(func(ss *config.Setting) error {
-		ss.SetDns(s.GetDns())
 		ss.SetIpv6(s.GetIpv6())
+		ss.SetUseDefaultInterface(s.GetUseDefaultInterface())
+		ss.SetNetInterface(s.GetNetInterface())
 		ss.SetIpv6LocalAddrPreferUnicast(s.GetIpv6LocalAddrPreferUnicast())
 		ss.SetLogcat(s.GetLogcat())
-		ss.SetNetInterface(s.GetNetInterface())
 		ss.SetSystemProxy(s.GetSystemProxy())
 		ss.GetServer().SetHijackDns(s.GetServer().GetHijackDns())
 		ss.GetServer().SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
 		ss.GetServer().SetSniff(s.GetServer().GetSniff())
+		ss.SetAdvancedConfig(s.GetAdvancedConfig())
 		return nil
 	})
 

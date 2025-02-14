@@ -12,7 +12,7 @@ import (
 
 func newTestManager() *Manager {
 	return &Manager{
-		store: store,
+		store: NewProxyStore(),
 		db: &DB{db: &jsondb.DB[*node.Node]{
 			Data: node.Node_builder{Manager: &node.Manager{}}.Build(),
 		}},

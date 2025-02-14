@@ -1,6 +1,3 @@
-// Stun nat behavior test
-//
-// modified from https://github.com/pion/stun/blob/master/cmd/stun-nat-behaviour/main.go
 package latency
 
 import (
@@ -226,6 +223,9 @@ type StunResponse struct {
 	FilteringType NatType
 }
 
+// Stun
+// Stun nat behavior test
+// modified from https://github.com/pion/stun/blob/master/cmd/stun-nat-behaviour/main.go
 func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error) {
 	addr, err := netapi.ParseAddress("udp", host)
 	if err != nil {

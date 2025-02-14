@@ -18,8 +18,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var store = NewProxyStore()
-
 type Manager struct {
 	db    *DB
 	store *ProxyStore
@@ -32,7 +30,7 @@ func NewManager(path string) *Manager {
 		db.Data.SetManager(&node.Manager{})
 	}
 
-	return &Manager{db: &DB{db: db}, store: store}
+	return &Manager{db: &DB{db: db}, store: NewProxyStore()}
 }
 
 func (m *Manager) GetStore() *ProxyStore {
@@ -364,7 +362,7 @@ func (m *Manager) Close() error                                { return m.store.
 func (m *Manager) Node() *Nodes                                { return &Nodes{manager: m} }
 func (f *Manager) Subscribe() *Subscribe                       { return &Subscribe{n: f} }
 func (n *Manager) Outbound() *outbound                         { return NewOutbound(n) }
-func (n *Manager) Links() *link                                { return NewLink(n.Outbound(), n) }
+func (n *Manager) Links() *link                                { return &link{n} }
 func (f *Manager) Tag(ff func() iter.Seq[string]) gn.TagServer { return &tag{n: f, ruleTags: ff} }
 
 type DB struct {

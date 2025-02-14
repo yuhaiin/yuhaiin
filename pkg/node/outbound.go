@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"net"
-	"net/http"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -125,34 +122,4 @@ func (o *outbound) tagConn(tag string) string {
 
 		return t.GetHash()[rand.IntN(len(t.GetHash()))]
 	}
-}
-
-func (o *outbound) Do(req *http.Request) (*http.Response, error) {
-	f, err := o.Get(req.Context(), "tcp", bypass.Mode_proxy.String(), "")
-	if err != nil {
-		return nil, err
-	}
-
-	c := &http.Client{
-		Timeout: time.Minute * 2,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := netapi.ParseAddress(network, addr)
-				if err != nil {
-					return nil, fmt.Errorf("parse address failed: %w", err)
-				}
-
-				return f.Conn(ctx, ad)
-			},
-		},
-	}
-
-	r, err := c.Do(req)
-	if err == nil {
-		return r, nil
-	}
-
-	f = direct.Default
-
-	return c.Do(req)
 }

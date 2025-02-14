@@ -21,8 +21,9 @@ func DefaultSetting(path string) *config.Setting {
 	}
 
 	return (&config.Setting_builder{
-		Ipv6:         proto.Bool(false),
-		NetInterface: proto.String(""),
+		Ipv6:                proto.Bool(true),
+		UseDefaultInterface: proto.Bool(true),
+		NetInterface:        proto.String(""),
 		SystemProxy: config.SystemProxy_builder{
 			Http:   proto.Bool(true),
 			Socks5: proto.Bool(false),

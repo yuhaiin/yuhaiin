@@ -4,7 +4,9 @@ import (
 	"context"
 	"net"
 
+	"github.com/Asutorufa/yuhaiin/licenses"
 	"github.com/Asutorufa/yuhaiin/pkg/config"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -45,4 +47,24 @@ func (t *Tools) GetInterface(ctx context.Context, e *emptypb.Empty) (*Interfaces
 	}
 
 	return is.Build(), nil
+}
+
+func (t *Tools) Licenses(context.Context, *emptypb.Empty) (*Licenses, error) {
+	toLicenses := func(ls []licenses.License) []*License {
+		var ret []*License
+		for _, l := range ls {
+			ret = append(ret, License_builder{
+				Name:       proto.String(l.Name),
+				Url:        proto.String(l.URL),
+				License:    proto.String(l.License),
+				LicenseUrl: proto.String(l.LicenseURL),
+			}.Build())
+		}
+		return ret
+	}
+
+	return Licenses_builder{
+		Yuhaiin: toLicenses(licenses.Yuhaiin()),
+		Android: toLicenses(licenses.Android()),
+	}.Build(), nil
 }

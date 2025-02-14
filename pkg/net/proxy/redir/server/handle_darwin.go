@@ -18,7 +18,7 @@ func (r *redir) handle(req net.Conn) error {
 		Source:      req.RemoteAddr(),
 		Destination: target,
 		Src:         req,
-		Address:     netapi.ParseIPAddrPort("tcp", target.IP, uint16(target.Port)),
+		Address:     netapi.ParseIPAddr("tcp", target.IP, uint16(target.Port)),
 	})
 
 	return nil
