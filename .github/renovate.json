@@ -10,5 +10,8 @@
         "group:all",
         "replacements:all",
         "workarounds:all"
+    ],
+    "ignoreDeps": [
+        "gvisor.dev/gvisor"
     ]
 }

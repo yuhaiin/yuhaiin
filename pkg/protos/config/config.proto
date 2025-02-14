@@ -15,6 +15,7 @@ message setting {
   bool ipv6 = 7 [ json_name = "ipv6" ];
   bool ipv6_local_addr_prefer_unicast = 10
       [ json_name = "ipv6_local_addr_prefer_unicast" ];
+  bool use_default_interface = 13 [ json_name = "use_default_interface" ];
   // net_interface, eg: eth0
   string net_interface = 6 [ json_name = "net_interface" ];
   system_proxy system_proxy = 1 [ json_name = "system_proxy" ];

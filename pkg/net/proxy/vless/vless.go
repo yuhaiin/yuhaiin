@@ -8,7 +8,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/node/protocol"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
+	"github.com/google/uuid"
 )
 
 // Version of vmess
@@ -64,7 +64,7 @@ func init() {
 }
 
 func NewClient(config *protocol.Vless, p netapi.Proxy) (netapi.Proxy, error) {
-	uid, err := uuid.ParseStd(config.GetUuid())
+	uid, err := uuid.Parse(config.GetUuid())
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/pool"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/uuid"
+	"github.com/google/uuid"
 )
 
 type Conn struct {
@@ -74,9 +74,9 @@ func (vc *Conn) sendRequest() error {
 	buf := pool.NewBufferSize(2048)
 	defer buf.Reset()
 
-	buf.WriteByte(Version)          // protocol version
-	_, _ = buf.Write(vc.id.Bytes()) // 16 bytes of uuid
-	buf.WriteByte(0)                // addon data length. 0 means no addon data
+	buf.WriteByte(Version)     // protocol version
+	_, _ = buf.Write(vc.id[:]) // 16 bytes of uuid
+	buf.WriteByte(0)           // addon data length. 0 means no addon data
 
 	// Command
 	if vc.udp {
