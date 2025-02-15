@@ -12,7 +12,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/appapi"
 	"github.com/Asutorufa/yuhaiin/internal/version"
-	"github.com/Asutorufa/yuhaiin/pkg/config"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -31,6 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/route"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	ybbolt "github.com/Asutorufa/yuhaiin/pkg/utils/cache/bbolt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -65,10 +65,6 @@ import (
 )
 
 func AddComponent[T any](a *appapi.Start, name string, t T) T {
-	if z, ok := any(t).(config.Observer); ok {
-		a.Setting.AddObserver(z)
-	}
-
 	if z, ok := any(t).(io.Closer); ok {
 		a.AddCloser(name, z)
 	}
@@ -108,29 +104,42 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	}
 	so.AddCloser("http_listener", httpListener)
 
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
+	so.Setting.AddObserver(func(s *pc.Setting) {
 		log.Set(s.GetLogcat(), PathGenerator.Log(so.ConfigPath))
-	}))
+	})
 
 	fmt.Println(version.Art)
 	log.Info("config", "path", so.ConfigPath, "grpc&http host", so.Host)
 
-	so.Setting.AddObserver(config.ObserverFunc(sysproxy.Update()))
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
-		if s.GetUseDefaultInterface() {
-			iface, err := interfaces.DefaultRouteInterface()
+	so.Setting.AddObserver(sysproxy.Update())
+	so.Setting.AddObserver(func(s *pc.Setting) {
+		iface := atomicx.NewValue("")
+
+		dialer.DefaultInterfaceName = func() string {
+			if !s.GetUseDefaultInterface() {
+				return s.GetNetInterface()
+			}
+
+			x := iface.Load()
+			if x != "" {
+				if _, err := net.InterfaceByName(x); err == nil {
+					return x
+				}
+			}
+
+			ifacestr, err := interfaces.DefaultRouteInterface()
 			if err != nil {
 				log.Error("get default interface failed", "error", err)
 			} else {
-				log.Info("use default interface", "interface", iface)
+				log.Info("use default interface", "interface", ifacestr)
+				iface.Store(ifacestr)
 			}
-			dialer.DefaultInterfaceName = iface
-		} else {
-			dialer.DefaultInterfaceName = s.GetNetInterface()
+
+			return ifacestr
 		}
-	}))
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) { dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast() }))
-	so.Setting.AddObserver(config.ObserverFunc(func(s *pc.Setting) {
+	})
+	so.Setting.AddObserver(func(s *pc.Setting) { dialer.DefaultIPv6PreferUnicastLocalAddr = s.GetIpv6LocalAddrPreferUnicast() })
+	so.Setting.AddObserver(func(s *pc.Setting) {
 		configuration.IPv6.Store(s.GetIpv6())
 		configuration.FakeIPEnabled.Store(s.GetDns().GetFakedns() || s.GetServer().GetHijackDnsFakeip())
 		if advanced := s.GetAdvancedConfig(); advanced != nil {
@@ -142,7 +151,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 				configuration.RelayBufferSize.Store(int(advanced.GetRelayBufferSize()))
 			}
 		}
-	}))
+	})
 
 	// proxy access point/endpoint
 	nodeManager := AddComponent(so, "node_manager", node.NewManager(PathGenerator.Node(so.ConfigPath)))
@@ -168,10 +177,17 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 	resolverControl := resolver.NewResolverControl(so.ResolverConfig, hosts, fakedns, dns)
 	// dns server/tun dns hijacking handler
 	dnsServer := AddComponent(so, "dnsServer", resolver.NewDNSServer(fakedns))
+	opt.Setting.AddObserver(func(s *pc.Setting) {
+		dnsServer.SetServer(s.GetDns().GetServer())
+	})
 	// make dns flow across all proxy chain
 	configuration.ProxyChain.Set(fakedns)
 	// inbound server
-	_ = AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
+	inbounds := AddComponent(so, "inbound_listener", inbound.NewListener(dnsServer, fakedns))
+	opt.Setting.AddObserver(func(s *pc.Setting) {
+		inbounds.SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
+		inbounds.SetSniff(s.GetServer().GetSniff().GetEnabled())
+	})
 	// tools
 	tools := tools.NewTools(opt.Setting)
 	mux := http.NewServeMux()
@@ -193,7 +209,7 @@ func Start(opt appapi.Start) (_ *appapi.Components, err error) {
 		Connections:    stcs,
 		Tag:            nodeManager.Tag(st.Tags),
 		RuleController: rc,
-		Inbound:        config.NewInbound(opt.Setting),
+		Inbound:        inbound.NewInboundControl(opt.Setting, inbounds),
 		Resolver:       resolverControl,
 	}
 

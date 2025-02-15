@@ -26,8 +26,8 @@ var KeepAliveConfig = net.KeepAliveConfig{
 
 func ListenContext(ctx context.Context, network string, address string) (net.Listener, error) {
 	return ListenContextWithOptions(ctx, network, address, &Options{
-		InterfaceName:  DefaultInterfaceName,
-		InterfaceIndex: DefaultInterfaceIndex,
+		InterfaceName:  DefaultInterfaceName(),
+		InterfaceIndex: DefaultInterfaceIndex(),
 		MarkSymbol:     DefaultMarkSymbol,
 	})
 }
@@ -49,8 +49,8 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 
 func DialContext(ctx context.Context, network, address string, opts ...func(*Options)) (net.Conn, error) {
 	opt := &Options{
-		InterfaceName:  DefaultInterfaceName,
-		InterfaceIndex: DefaultInterfaceIndex,
+		InterfaceName:  DefaultInterfaceName(),
+		InterfaceIndex: DefaultInterfaceIndex(),
 		MarkSymbol:     DefaultMarkSymbol,
 	}
 
@@ -106,8 +106,8 @@ func WithTryUpgradeToBatch() func(*Options) {
 
 func ListenPacket(ctx context.Context, network, address string, opts ...func(*Options)) (net.PacketConn, error) {
 	opt := &Options{
-		InterfaceName:  DefaultInterfaceName,
-		InterfaceIndex: DefaultInterfaceIndex,
+		InterfaceName:  DefaultInterfaceName(),
+		InterfaceIndex: DefaultInterfaceIndex(),
 		MarkSymbol:     DefaultMarkSymbol,
 	}
 
@@ -159,8 +159,8 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 type NetworkInterfaceKey struct{}
 
 var (
-	DefaultInterfaceName  = ""
-	DefaultInterfaceIndex = 0
+	DefaultInterfaceName  = func() string { return "" }
+	DefaultInterfaceIndex = func() int { return 0 }
 	DefaultRoutingMark    = 0 // maybe need root permission
 	DefaultMarkSymbol     func(socket int32) bool
 )

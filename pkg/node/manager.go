@@ -348,7 +348,7 @@ func (m *Manager) clearIdleProxy() {
 		usedHash := n.GetUsingPoints()
 
 		for k := range m.store.Range {
-			if usedHash.Has(k) {
+			if !usedHash.Has(k) {
 				m.store.Delete(k)
 			}
 		}

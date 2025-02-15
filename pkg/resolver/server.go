@@ -4,7 +4,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 )
 
 var _ netapi.DNSServer = (*DnsServer)(nil)
@@ -19,8 +18,8 @@ func NewDNSServer(resolver netapi.Resolver) *DnsServer {
 	return &DnsServer{netapi.EmptyDNSServer, resolver, ""}
 }
 
-func (a *DnsServer) Update(s *pc.Setting) {
-	if a.serverHost == s.GetDns().GetServer() && a.DNSServer != netapi.EmptyDNSServer {
+func (a *DnsServer) SetServer(s string) {
+	if a.serverHost == s && a.DNSServer != netapi.EmptyDNSServer {
 		return
 	}
 
@@ -30,6 +29,6 @@ func (a *DnsServer) Update(s *pc.Setting) {
 		}
 	}
 
-	a.DNSServer = server.NewServer(s.GetDns().GetServer(), a.resolver)
-	a.serverHost = s.GetDns().GetServer()
+	a.DNSServer = server.NewServer(s, a.resolver)
+	a.serverHost = s
 }
