@@ -10,6 +10,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/bypass"
+	"github.com/Asutorufa/yuhaiin/pkg/protos/config/dns"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
 	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/jsondb"
@@ -20,23 +21,15 @@ import (
 type Setting interface {
 	config.DB
 	gc.ConfigServiceServer
-	AddObserver(Observer)
+	AddObserver(func(*config.Setting))
 }
-
-type Observer interface {
-	Update(*config.Setting)
-}
-
-type ObserverFunc func(*config.Setting)
-
-func (o ObserverFunc) Update(s *config.Setting) { o(s) }
 
 type setting struct {
 	gc.UnimplementedConfigServiceServer
 
 	db *jsondb.DB[*config.Setting]
 
-	os []Observer
+	os []func(*config.Setting)
 
 	mu sync.RWMutex
 }
@@ -104,15 +97,18 @@ func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 	return config.Setting_builder{
 		AdvancedConfig:             c.db.Data.GetAdvancedConfig(),
 		UseDefaultInterface:        proto.Bool(c.db.Data.GetUseDefaultInterface()),
+		NetInterface:               proto.String(c.db.Data.GetNetInterface()),
 		Ipv6:                       proto.Bool(c.db.Data.GetIpv6()),
 		Ipv6LocalAddrPreferUnicast: proto.Bool(c.db.Data.GetIpv6LocalAddrPreferUnicast()),
 		Logcat:                     c.db.Data.GetLogcat(),
-		NetInterface:               proto.String(c.db.Data.GetNetInterface()),
 		SystemProxy:                c.db.Data.GetSystemProxy(),
 		Server: listener.InboundConfig_builder{
 			HijackDns:       proto.Bool(c.db.Data.GetServer().GetHijackDns()),
 			HijackDnsFakeip: proto.Bool(c.db.Data.GetServer().GetHijackDnsFakeip()),
 			Sniff:           c.db.Data.GetServer().GetSniff(),
+		}.Build(),
+		Dns: dns.DnsConfig_builder{
+			Server: proto.String(c.db.Data.GetDns().GetServer()),
 		}.Build(),
 		Platform: c.db.Data.GetPlatform(),
 	}.Build(), nil
@@ -121,14 +117,21 @@ func (c *setting) Load(context.Context, *emptypb.Empty) (*config.Setting, error)
 func (c *setting) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, error) {
 	err := c.Batch(func(ss *config.Setting) error {
 		ss.SetIpv6(s.GetIpv6())
+
 		ss.SetUseDefaultInterface(s.GetUseDefaultInterface())
 		ss.SetNetInterface(s.GetNetInterface())
 		ss.SetIpv6LocalAddrPreferUnicast(s.GetIpv6LocalAddrPreferUnicast())
-		ss.SetLogcat(s.GetLogcat())
+
 		ss.SetSystemProxy(s.GetSystemProxy())
+
 		ss.GetServer().SetHijackDns(s.GetServer().GetHijackDns())
 		ss.GetServer().SetHijackDnsFakeip(s.GetServer().GetHijackDnsFakeip())
 		ss.GetServer().SetSniff(s.GetServer().GetSniff())
+
+		ss.GetDns().SetServer(s.GetDns().GetServer())
+
+		ss.SetLogcat(s.GetLogcat())
+
 		ss.SetAdvancedConfig(s.GetAdvancedConfig())
 		return nil
 	})
@@ -136,7 +139,7 @@ func (c *setting) Save(ctx context.Context, s *config.Setting) (*emptypb.Empty, 
 	return &emptypb.Empty{}, err
 }
 
-func (c *setting) AddObserver(o Observer) {
+func (c *setting) AddObserver(o func(*config.Setting)) {
 	if o == nil {
 		return
 	}
@@ -144,7 +147,7 @@ func (c *setting) AddObserver(o Observer) {
 	defer c.mu.Unlock()
 
 	c.os = append(c.os, o)
-	o.Update(proto.Clone(c.db.Data).(*config.Setting))
+	o(proto.Clone(c.db.Data).(*config.Setting))
 }
 
 func (c *setting) Batch(f ...func(*config.Setting) error) error {
@@ -173,7 +176,7 @@ func (c *setting) Batch(f ...func(*config.Setting) error) error {
 	}
 
 	for i := range c.os {
-		c.os[i].Update(proto.Clone(cf).(*config.Setting))
+		c.os[i](proto.Clone(cf).(*config.Setting))
 	}
 
 	return nil

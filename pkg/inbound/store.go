@@ -1,4 +1,4 @@
-package config
+package inbound
 
 import (
 	"context"
@@ -11,25 +11,38 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/cert"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config"
+	pc "github.com/Asutorufa/yuhaiin/pkg/protos/config"
 	gc "github.com/Asutorufa/yuhaiin/pkg/protos/config/grpc"
-	"github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
+	cf "github.com/Asutorufa/yuhaiin/pkg/protos/config/listener"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type Inbound struct {
-	s Setting
+type InboundControl struct {
+	db      pc.DB
+	inbound *Inbound
 	gc.UnimplementedInboundServer
 }
 
-func NewInbound(s Setting) *Inbound {
-	return &Inbound{s: s}
+// NewInboundControl
+// TODO hijackDNS,sniff switch
+func NewInboundControl(s pc.DB, i *Inbound) *InboundControl {
+	_ = s.View(func(s *pc.Setting) error {
+		for _, v := range s.GetServer().GetInbounds() {
+			if !v.GetEnabled() {
+				continue
+			}
+			i.Save(v)
+		}
+		return nil
+	})
+
+	return &InboundControl{db: s, inbound: i}
 }
 
-func (i *Inbound) List(ctx context.Context, req *emptypb.Empty) (*gc.InboundsResponse, error) {
+func (i *InboundControl) List(ctx context.Context, req *emptypb.Empty) (*gc.InboundsResponse, error) {
 	names := []string{}
-	err := i.s.View(func(s *config.Setting) error {
+	err := i.db.View(func(s *pc.Setting) error {
 		names = slices.Collect(maps.Keys(s.GetServer().GetInbounds()))
 		return nil
 	})
@@ -37,9 +50,9 @@ func (i *Inbound) List(ctx context.Context, req *emptypb.Empty) (*gc.InboundsRes
 	return gc.InboundsResponse_builder{Names: names}.Build(), err
 }
 
-func (i *Inbound) Get(ctx context.Context, req *wrapperspb.StringValue) (*listener.Inbound, error) {
-	resp := &listener.Inbound{}
-	err := i.s.View(func(s *config.Setting) error {
+func (i *InboundControl) Get(ctx context.Context, req *wrapperspb.StringValue) (*cf.Inbound, error) {
+	resp := &cf.Inbound{}
+	err := i.db.View(func(s *pc.Setting) error {
 		var ok bool
 		resp, ok = s.GetServer().GetInbounds()[req.Value]
 		if !ok {
@@ -52,7 +65,7 @@ func (i *Inbound) Get(ctx context.Context, req *wrapperspb.StringValue) (*listen
 	return resp, err
 }
 
-func generateTlsAuthCa(v *listener.Transport) error {
+func generateTlsAuthCa(v *cf.Transport) error {
 	if v.GetTlsAuto() == nil {
 		return nil
 	}
@@ -109,7 +122,7 @@ func generateTlsAuthCa(v *listener.Transport) error {
 	return nil
 }
 
-func (i *Inbound) Save(ctx context.Context, req *listener.Inbound) (*listener.Inbound, error) {
+func (i *InboundControl) Save(ctx context.Context, req *cf.Inbound) (*cf.Inbound, error) {
 	if req.GetName() == "" {
 		return nil, fmt.Errorf("inbound name is empty")
 	}
@@ -121,16 +134,18 @@ func (i *Inbound) Save(ctx context.Context, req *listener.Inbound) (*listener.In
 		}
 	}
 
-	err := i.s.Batch(func(s *config.Setting) error {
+	err := i.db.Batch(func(s *pc.Setting) error {
 		s.GetServer().GetInbounds()[req.GetName()] = req
+		i.inbound.Save(req)
 		return nil
 	})
 	return req, err
 }
 
-func (i *Inbound) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
-	err := i.s.Batch(func(s *config.Setting) error {
+func (i *InboundControl) Remove(ctx context.Context, req *wrapperspb.StringValue) (*emptypb.Empty, error) {
+	err := i.db.Batch(func(s *pc.Setting) error {
 		delete(s.GetServer().GetInbounds(), req.Value)
+		i.inbound.Remove(req.Value)
 		return nil
 	})
 	return &emptypb.Empty{}, err

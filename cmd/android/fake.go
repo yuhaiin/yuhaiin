@@ -124,9 +124,9 @@ func (c *fakeSettings) Info(context.Context, *emptypb.Empty) (*pc.Info, error) {
 	return config.Info(), nil
 }
 
-func (w *fakeSettings) AddObserver(o config.Observer) {
+func (w *fakeSettings) AddObserver(o func(*pc.Setting)) {
 	if o != nil {
-		o.Update(w.setting)
+		o(w.setting)
 	}
 }
 
