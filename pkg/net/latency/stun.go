@@ -186,7 +186,7 @@ func sendRequest(req *stun.Message, conn net.PacketConn, addr net.Addr, timeout 
 	_, err := conn.WriteTo(req.Raw, addr)
 	_ = conn.SetWriteDeadline(time.Time{})
 	if err != nil {
-		return Response{}, err
+		return Response{}, fmt.Errorf("write request failed: %w", err)
 	}
 
 	b := pool.GetBytes(nat.MaxSegmentSize)
@@ -243,7 +243,7 @@ func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error
 
 	mr, mt, err := Mapping(pconn, addr, time.Second*5)
 	if err != nil {
-		return StunResponse{}, err
+		return StunResponse{}, fmt.Errorf("mapping failed: %w", err)
 	}
 
 	var ft NatType = ServerNotSupportChangePort
@@ -251,7 +251,7 @@ func Stun(ctx context.Context, p netapi.Proxy, host string) (StunResponse, error
 	if mt != ServerNotSupportChangePort {
 		ft, err = Filtering(pconn, addr, time.Second*5)
 		if err != nil {
-			return StunResponse{}, err
+			return StunResponse{}, fmt.Errorf("filtering failed: %w", err)
 		}
 	}
 
