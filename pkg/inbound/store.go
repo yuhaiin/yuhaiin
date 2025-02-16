@@ -3,7 +3,6 @@ package inbound
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
@@ -82,9 +81,7 @@ func generateTlsAuthCa(v *cf.Transport) error {
 	ech := tlsAuth.GetEch()
 	if ech.GetEnable() {
 		if ech.GetOuterSNI() == "" {
-			var buf [16]byte
-			_, _ = rand.Read(buf[:])
-			ech.SetOuterSNI(hex.EncodeToString(buf[:]))
+			ech.SetOuterSNI(rand.Text())
 		}
 
 		var id [1]byte
